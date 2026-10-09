@@ -5,8 +5,8 @@
 **Owner:** `192.168.15.15:9092` — lane security/connectors, graphics/gaming front; re-claimed 05/10 (the spike-3.0 `192.168.15.30:9093` claims were runner/tooling, historical).
 
 last: slice-3.4a backend probe LANDED 09/10 (decision F executed: upstream LGPL-2.1+ FFmpeg 9.0.2 vendored `~/.local/share/kof-ffmpeg/usr` from source, NO `--enable-gpl`, `scripts/provision-ffmpeg.sh`; `FfmpegFfiProbeE2ETest` 4/4 — probe license `LGPL version 2.1 or later` on JVM + Native x86-64, cross faces skip named; `-rpath-link` extern-dir fix in `NativeAssembler` so the vendored DT_NEEDED closure resolves before the distro's conflicting ffmpeg stack)
-doing: slice-3.4b (frame readback via avcodec) + 3.5 (3D) surface
-next: 3.4b = decode+readback of `kof-probe.avi` needs pointer-field reads on the opaque AVFrame (`frame->data[0]`, `frame->width`) — NOT expressible on today's FFI surface (scalar/record/array/Buffer only); smallest primitive pending design (peek-style pointer read) + 3.5 surface (mesh/camera/material/light/transform) — both in this plan, one slice each
+doing: slice-3.4b inc2 (decode+readback E2E of kof-probe.avi via avformat/avcodec)
+next: 3.4b inc1 LANDED 09/10 (peek primitive: `buffer.peek8/32/64` raw + Buffer-form overload, JVM + Native x86-64 + cross riscv64/aarch64, `BufferPeekE2ETest` 12/12 0 skips, byte-by-byte LE parity JVM==native, bounds trap honest); inc2 = decode+readback of `kof-probe.avi` (AVFormatContext** via the Buffer out-param, frame fields via peek, AVFrame offsets measured from the 9.0.2 header); then 3.5 (3D) surface
 location: docs/development
 state: UNDER DEVELOPMENT
 

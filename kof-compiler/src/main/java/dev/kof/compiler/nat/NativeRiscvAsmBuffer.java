@@ -166,5 +166,65 @@ public final class NativeRiscvAsmBuffer {
                 ld   s2, 16(sp)
                 addi sp, sp, 48
                 ret
+
+            # ── peek primitive (3.4b inc1, decisão F ORDERED 08/10) ─────────
+            # Formas raw: a0=endereço cru (sem bounds — o contrato é o deref C).
+            # Formas buf: a0=Buffer (payload@24, cap@16), a1=offset — offset
+            # negativo ou offset+n além do cap → kof_bounds_error (nunca silêncio).
+            .globl kof_buffer_peek64
+            .type kof_buffer_peek64, @function
+            kof_buffer_peek64:
+                ld   a0, 0(a0)
+                ret
+
+            .globl kof_buffer_peek32
+            .type kof_buffer_peek32, @function
+            kof_buffer_peek32:
+                lw   a0, 0(a0)
+                ret
+
+            .globl kof_buffer_peek8
+            .type kof_buffer_peek8, @function
+            kof_buffer_peek8:
+                lb   a0, 0(a0)
+                ret
+
+            .globl kof_buffer_peek64_buf
+            .type kof_buffer_peek64_buf, @function
+            kof_buffer_peek64_buf:
+                bltz a1, .Lkof_peek_oob
+                lw   t0, 16(a0)
+                bge  a1, t0, .Lkof_peek_oob
+                addi t1, a1, 8
+                bgt  t1, t0, .Lkof_peek_oob
+                add  t2, a0, a1
+                ld   a0, 24(t2)
+                ret
+
+            .globl kof_buffer_peek32_buf
+            .type kof_buffer_peek32_buf, @function
+            kof_buffer_peek32_buf:
+                bltz a1, .Lkof_peek_oob
+                lw   t0, 16(a0)
+                bge  a1, t0, .Lkof_peek_oob
+                addi t1, a1, 4
+                bgt  t1, t0, .Lkof_peek_oob
+                add  t2, a0, a1
+                lw   a0, 24(t2)
+                ret
+
+            .globl kof_buffer_peek8_buf
+            .type kof_buffer_peek8_buf, @function
+            kof_buffer_peek8_buf:
+                bltz a1, .Lkof_peek_oob
+                lw   t0, 16(a0)
+                bge  a1, t0, .Lkof_peek_oob
+                beq  a1, t0, .Lkof_peek_oob
+                add  t2, a0, a1
+                lb   a0, 24(t2)
+                ret
+
+            .Lkof_peek_oob:
+                call kof_bounds_error
             """;
 }

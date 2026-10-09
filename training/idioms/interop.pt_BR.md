@@ -48,6 +48,15 @@ extern "/lib/x86_64-linux-gnu/libc.so.6" getenv(String n): String // ok — "mel
 //     Medido: a distro empilha versões de ffmpeg CONFLITANTES (libswresample.so.7
 //     do ffmpeg 7.x vs o .so.7 vendido 9.0.2) — sem -rpath-link o link
 //     pega o da distro e morre com refs de versão não definidas.
+// peek primitive (3.4b inc1, decision F row ORDERED 08/10) — `buffer.peek8/32/64`:
+//   RAW form `buffer.peek64(addr)` reads 8 bytes LE at ANY address (the opaque C
+//   structs: AVFrame.data[0] at +0, linesize[0] at +64, width at +104 — MEASURED
+//   from the real 9.0.2 header); BUF form `buffer.peek64(b, off)` reads the
+//   payload offset a C out-param wrote (AVFormatContext** via avformat_open_input).
+//   JVM composes byte-by-byte (the FFM JAVA_LONG read requires 8-byte alignment;
+//   the raw peek reads UNALIGNED like the native `ld`/`movl`) — JVM==Native
+//   byte-for-byte, cross riscv64/aarch64 via the translator. Bounds (buf form):
+//   negative offset or offset+n beyond the cap → honest trap (kof_bounds_error).
 //   Argumentos numericos seguem a regra COMUM de conversao do Kof (#549/§370 FIXED 20/09): `f(Float x)`
 //     aceita `f(4.0 as Float)`, `f(4.0)` (Double->Float) e `f(4)` (Int->Float) com o MESMO
 //     resultado na JVM, no Native e no host JS; `sqrt(9)` (slot Double) e `labs(i)` idem.

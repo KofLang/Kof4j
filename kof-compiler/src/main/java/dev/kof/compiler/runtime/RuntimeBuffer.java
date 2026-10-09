@@ -113,6 +113,72 @@ public final class RuntimeBuffer {
             .Lbfk_br_done:
                 ret
 
+            # ── peek primitive (3.4b inc1, decisão F ORDERED 08/10) ─────────
+            # Formas raw: rdi=endereço cru (sem bounds — o contrato é o deref C).
+            # Formas buf: rdi=Buffer (payload@24, cap@16), esi=offset — offset
+            # negativo ou offset+n além do cap → kof_bounds_error (nunca silêncio).
+            .globl kof_buffer_peek64
+            .type kof_buffer_peek64, @function
+            kof_buffer_peek64:
+                movq (%rdi), %rax
+                ret
+
+            .globl kof_buffer_peek32
+            .type kof_buffer_peek32, @function
+            kof_buffer_peek32:
+                movl (%rdi), %eax
+                ret
+
+            .globl kof_buffer_peek8
+            .type kof_buffer_peek8, @function
+            kof_buffer_peek8:
+                movsbl (%rdi), %eax
+                ret
+
+            .globl kof_buffer_peek64_buf
+            .type kof_buffer_peek64_buf, @function
+            kof_buffer_peek64_buf:
+                testl %esi, %esi
+                js .Lbfk_peek_oob
+                movl 16(%rdi), %ecx
+                cmpl %ecx, %esi
+                jg .Lbfk_peek_oob
+                leal 8(%rsi), %eax
+                cmpl %ecx, %eax
+                jg .Lbfk_peek_oob
+                movq 24(%rdi,%rsi,1), %rax
+                ret
+
+            .globl kof_buffer_peek32_buf
+            .type kof_buffer_peek32_buf, @function
+            kof_buffer_peek32_buf:
+                testl %esi, %esi
+                js .Lbfk_peek_oob
+                movl 16(%rdi), %ecx
+                cmpl %ecx, %esi
+                jg .Lbfk_peek_oob
+                leal 4(%rsi), %eax
+                cmpl %ecx, %eax
+                jg .Lbfk_peek_oob
+                movl 24(%rdi,%rsi,1), %eax
+                ret
+
+            .globl kof_buffer_peek8_buf
+            .type kof_buffer_peek8_buf, @function
+            kof_buffer_peek8_buf:
+                testl %esi, %esi
+                js .Lbfk_peek_oob
+                movl 16(%rdi), %ecx
+                cmpl %ecx, %esi
+                jg .Lbfk_peek_oob
+                cmpl %ecx, %esi
+                je .Lbfk_peek_oob
+                movsbl 24(%rdi,%rsi,1), %eax
+                ret
+
+            .Lbfk_peek_oob:
+                call kof_bounds_error
+
             # kof_buffer_to_string(rdi=Buffer?) -> rax = "Buffer[cap]" KofString*
             # Used by the native println valueOf dispatch, mirroring JVM/JS
             # toString rather than the raw object-pointer print path.

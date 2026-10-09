@@ -80,7 +80,7 @@ public final class KofStd {
         if ("kof.net".equals(call.ownerPackage())) return KofNet.supportedOn(call.function(), target);
         if ("kof.random".equals(call.ownerPackage())) return KofRandom.supportedOn(call.function(), target);
         if ("kof.rng".equals(call.ownerPackage())) return KofRng.supportedOn(call.function(), target);
-        if ("kof".equals(call.ownerPackage())) return KofBuffer.supportedOn(target);
+        if ("kof".equals(call.ownerPackage())) return KofBuffer.supportedOn(call.function(), target);
         return true;
     }
 

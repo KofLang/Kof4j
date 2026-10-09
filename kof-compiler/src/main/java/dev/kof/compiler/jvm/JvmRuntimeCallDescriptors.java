@@ -509,6 +509,12 @@ public final class JvmRuntimeCallDescriptors {
                     "kof_sec_auth_claims", "kof_sec_auth_user" -> "()Ljava/lang/String;";
             case "kof_buffer_alloc" -> "(I)Ldev/kof/runtime/KofRuntime$Buffer;";
             case "kof_buffer_bytes" -> "(Ldev/kof/runtime/KofRuntime$Buffer;)[B";
+            // peek primitive (3.4b inc1): raw form (Long) + Buffer form (Buffer, Int).
+            case "kof_buffer_peek64" -> "(J)J";
+            case "kof_buffer_peek32", "kof_buffer_peek8" -> "(J)I";
+            case "kof_buffer_peek64_buf" -> "(Ldev/kof/runtime/KofRuntime$Buffer;I)J";
+            case "kof_buffer_peek32_buf", "kof_buffer_peek8_buf"
+                    -> "(Ldev/kof/runtime/KofRuntime$Buffer;I)I";
             // D-SECRETS face 1: tipo Secret.
             case "kof_sec_secret_of", "kof_sec_secret"
                     -> "(Ljava/lang/String;)Ldev/kof/runtime/KofRuntime$Secret;";

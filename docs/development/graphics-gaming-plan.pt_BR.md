@@ -3,8 +3,8 @@
 # Graphics, Games e Media — Superfície de Intenção do Kof
 
 last: fatia-3.4a probe do backend POUSADA 09/10 (decisão F executada: FFmpeg 9.0.2 upstream LGPL-2.1+ vendido `~/.local/share/kof-ffmpeg/usr` da fonte, SEM `--enable-gpl`, `scripts/provision-ffmpeg.sh`; `FfmpegFfiProbeE2ETest` 4/4 — licença do probe `LGPL version 2.1 or later` em JVM + Native x86-64, faces cross pulam com motivo; fix `-rpath-link` do dir de extern no `NativeAssembler` para o fecho DT_NEEDED do vendor resolver antes da pilha ffmpeg conflitante da distro)
-doing: fatia-3.4b (frame readback via avcodec) + superfície 3.5 (3D)
-next: 3.4b = decode+readback de `kof-probe.avi` precisa de leituras de campo por ponteiro no AVFrame opaco (`frame->data[0]`, `frame->width`) — NÃO expressável na superfície FFI de hoje (scalar/record/array/Buffer apenas); menor primitiva pendente de desenho (leitura de ponteiro estilo peek) + superfície 3.5 (mesh/camera/material/light/transform) — ambas neste plano, uma fatia cada
+doing: fatia-3.4b inc2 (E2E de decode+readback de kof-probe.avi via avformat/avcodec)
+next: 3.4b inc1 POUSADA 09/10 (primitiva peek: `buffer.peek8/32/64` raw + forma Buffer em overload, JVM + Native x86-64 + cross riscv64/aarch64, `BufferPeekE2ETest` 12/12 0 skips, paridade byte-a-byte LE JVM==native, trap de bounds honesto); inc2 = decode+readback de `kof-probe.avi` (AVFormatContext** via o out-param Buffer, campos do frame via peek, offsets do AVFrame medidos do header 9.0.2); depois superfície 3.5 (3D)
 location: docs/development
 state: UNDER DEVELOPMENT
 

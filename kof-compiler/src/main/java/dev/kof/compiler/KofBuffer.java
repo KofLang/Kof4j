@@ -24,7 +24,7 @@ public final class KofBuffer {
     static boolean isBufferNamespace(String name) { return "buffer".equals(name); }
 
     /** LSP catalogue — GUARD: StdCatalogTest locks this to the dispatch below. */
-    static List<String> functions() { return List.of("alloc"); }
+    static List<String> functions() { return List.of("alloc", "peek8", "peek32", "peek64"); }
 
     public static boolean isBufferType(Type t) { return BUFFER.equals(t); }
 
@@ -40,8 +40,33 @@ public final class KofBuffer {
         return switch (name) {
             case "alloc" -> argTypes.size() == 1
                     ? new BufferCall("kof_buffer_alloc", BUFFER, List.of(INT)) : null;
+            // Graphics slice 3.4b inc1 (decision F row, ORDERED 08/10): the peek
+            // primitive — read memory at a raw address OR at a Buffer payload
+            // offset (the B decision form: overload by arity/types). The raw
+            // form reads the opaque C structs (AVFrame.data[0]/width); the
+            // Buffer form reads the out-pointer a C wrote into the payload
+            // (AVFormatContext** via avformat_open_input). Bounds: negative
+            // offset or offset+n beyond the cap → honest trap (never a silent
+            // fallback); the raw form has no bounds (the address is the caller's).
+            case "peek8" -> peekCall("kof_buffer_peek8", "kof_buffer_peek8_buf",
+                    INT, argTypes);
+            case "peek32" -> peekCall("kof_buffer_peek32", "kof_buffer_peek32_buf",
+                    INT, argTypes);
+            case "peek64" -> peekCall("kof_buffer_peek64", "kof_buffer_peek64_buf",
+                    Type.PrimitiveType.LONG, argTypes);
             default -> null;
         };
+    }
+
+    private static BufferCall peekCall(String rawFn, String bufFn, Type ret, List<Type> argTypes) {
+        if (argTypes.size() == 1 && Type.PrimitiveType.LONG.equals(argTypes.get(0))) {
+            return new BufferCall(rawFn, ret, List.of(Type.PrimitiveType.LONG));
+        }
+        if (argTypes.size() == 2 && BUFFER.equals(argTypes.get(0))
+                && Type.PrimitiveType.INT.equals(argTypes.get(1))) {
+            return new BufferCall(bufFn, ret, List.of(BUFFER, Type.PrimitiveType.INT));
+        }
+        return null;
     }
 
     static BufferCall instanceMethod(Type receiver, String name, int argCount) {
@@ -60,6 +85,18 @@ public final class KofBuffer {
         return target == Target.JVM || target == Target.JS
                 || target == Target.NATIVE
                 || target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64;
+    }
+
+    /** Per-function supportedOn: `peek*` is a raw-memory read — the JS host has
+     *  no address space (the JS Buffer is emulated), so peek stays an honest gap
+     *  there; Android/Script gap for the whole namespace (existing rule). */
+    static boolean supportedOn(String function, Target target) {
+        if (function.startsWith("peek")) {
+            return target == Target.JVM
+                    || target == Target.NATIVE
+                    || target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64;
+        }
+        return supportedOn(target);
     }
 
     static String gapCode(Target target) {

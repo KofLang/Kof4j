@@ -252,6 +252,10 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_tetris_run" -> "V";
             case "kof_buffer_alloc" -> "Ldev/kof/runtime/KofRuntime$Buffer;";
             case "kof_buffer_bytes" -> "[B";
+            // peek primitive (3.4b inc1).
+            case "kof_buffer_peek64", "kof_buffer_peek64_buf" -> "J";
+            case "kof_buffer_peek32", "kof_buffer_peek8",
+                    "kof_buffer_peek32_buf", "kof_buffer_peek8_buf" -> "I";
             // D-SECRETS face 1: tipo Secret.
             case "kof_sec_secret_of", "kof_sec_secret", "kof_sec_secret_from_bytes",
                     "kof_sec_x25519_private_key", "kof_sec_x25519_shared",
