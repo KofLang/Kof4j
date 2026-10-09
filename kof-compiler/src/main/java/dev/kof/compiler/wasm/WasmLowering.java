@@ -42,6 +42,8 @@ final class WasmLowering {
             }
             if (op instanceof KofLoadLiteral lit) return typeName(lit.type());
             if (op instanceof KofLoadLocal ll) return typeName(ll.type());
+            if (op instanceof KofLoadField lf) return WasmRecordOps.isStringField(lf.fieldType())
+                    ? "string" : typeName(lf.fieldType());
             if (op instanceof KofArrayLoad al) return typeName(al.elementType());
             if (op instanceof KofArrayLength) return "int";
             if (op instanceof KofBinary bin) return typeName(bin.operandType());
@@ -59,6 +61,22 @@ final class WasmLowering {
             return null;
         }
         return null;
+    }
+
+    static boolean usesStringOps(Iterable<IRMethod> ms) {
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (op instanceof KofLoadLiteral c && "string".equalsIgnoreCase(typeName(c.type()))) {
+                        return true;
+                    }
+                    if (op instanceof KofLoadField lf && WasmRecordOps.isStringField(lf.fieldType())) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     static boolean usesStringConcat(Iterable<IRMethod> ms) {
@@ -126,11 +144,6 @@ final class WasmLowering {
     // lowering por funcao
     // ------------------------------------------------------------------
 
-    private static boolean isI64Field(Type t) {
-        return t instanceof Type.PrimitiveType pt
-                && ("int".equalsIgnoreCase(pt.name()) || "long".equalsIgnoreCase(pt.name()));
-    }
-
     static WasmFunc lowerMethod(IRMethod m, boolean wasi, boolean printIntrinsic,
             boolean argsHandle, Map<String, Integer> stringPool, List<WasmData> dataSegments,
             Map<String, ClassLayout> records) {
@@ -167,13 +180,17 @@ final class WasmLowering {
             locals.add(WasmFunc.TYPE_I32); // scratch s
             nextWasm += 2;
         }
-        int objIdx = -1, vIdx = -1;
+        int objIdx = -1, vIdx = -1, v32Idx = -1, vf64Idx = -1;
         if (records != null && !records.isEmpty()) {
             objIdx = nextWasm;
             locals.add(WasmFunc.TYPE_I32); // scratch obj (handle)
             vIdx = nextWasm + 1;
             locals.add(WasmFunc.TYPE_I64); // scratch v (valor i64)
-            nextWasm += 2;
+            v32Idx = nextWasm + 2;
+            locals.add(WasmFunc.TYPE_I32); // scratch v32 (handle i32: Bool/Char/String)
+            vf64Idx = nextWasm + 3;
+            locals.add(WasmFunc.TYPE_F64); // scratch vf64 (Double)
+            nextWasm += 4;
         }
         final int pcIdx = nextWasm;
         locals.add(WasmFunc.TYPE_I32); // $pc
@@ -204,6 +221,8 @@ final class WasmLowering {
         ctx.sIdx = sIdx;
         ctx.objIdx = objIdx;
         ctx.vIdx = vIdx;
+        ctx.v32Idx = v32Idx;
+        ctx.vf64Idx = vf64Idx;
         ctx.wasi = wasi && printIntrinsic;
         List<WasmInstr> body = new ArrayList<>();
         if (argsHandle) {
@@ -235,7 +254,7 @@ final class WasmLowering {
         final Map<String, ClassLayout> records;
         int dataNext = DATA_BASE;
         int wIdx = -1, sIdx = -1;
-        int objIdx = -1, vIdx = -1;
+        int objIdx = -1, vIdx = -1, v32Idx = -1, vf64Idx = -1;
         boolean wasi;
         String lastPush;
 
@@ -403,11 +422,10 @@ final class WasmLowering {
             // Int/Long; String/Bool/Char/Double/record (i32/f64 no stack) recusam
             // honesto (WASM002, SEM artefato) em vez de emitir modulo invalido (Q7).
             for (FieldLayout f : layout.fields()) {
-                if (!isI64Field(f.type())) {
+                if (!WasmRecordOps.isWideField(f.type()) && !WasmRecordOps.isI32Field(f.type()) && !WasmRecordOps.isF64Field(f.type())) {
                     throw new WasmUnsupportedException("record '" + no.type() + "' campo '" + f.name()
-                            + "' de tipo '" + typeName(f.type()) + "' fora do incremento 1 da 15.3d (WASM002)"
-                            + " — campos nao-Int/Long chegam com o toString/equals (incremento 2);"
-                            + " docs/development/wasm-wasi-plan.md (#776)");
+                            + "' de tipo '" + typeName(f.type()) + "' fora do subset de larguras da 15.3d inc2 (WASM002)"
+                            + " — campos record-aninhados chegam depois; docs/development/wasm-wasi-plan.md (#776)");
                 }
             }
             // h = global 0; global 0 += totalSize; empilha h
@@ -428,11 +446,17 @@ final class WasmLowering {
                 throw new WasmUnsupportedException("leitura de campo '" + lf.name() + "' em tipo nao-record '"
                         + lf.ownerType() + "' (WASM002) — docs/development/wasm-wasi-plan.md (#776)");
             }
-            // pilha tem o receiver handle (i32) -> soma offset -> i64.load
+            // pilha tem o receiver handle (i32) -> soma offset -> load pelo tipo da largura
             out.add(new WasmInstr.Const(0, layout.fieldOffset(lf.name())));
             out.add(new WasmInstr.Simple(0x6a, "i32.add"));
-            out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD64, 0));
-            ctx.lastPush = typeName(lf.fieldType());
+            if (WasmRecordOps.isWideField(lf.fieldType())) {
+                out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD64, 0));
+            } else if (WasmRecordOps.isF64Field(lf.fieldType())) {
+                out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD_F64, 0));
+            } else {
+                out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0)); // i32: Bool/Char/String-handle
+            }
+            ctx.lastPush = WasmRecordOps.isStringField(lf.fieldType()) ? "string" : typeName(lf.fieldType());
         } else if (op instanceof KofPop) {
             out.add(new WasmInstr.Simple(0x1a, "drop"));
         } else if (op instanceof KofArrayLength) {
@@ -468,6 +492,7 @@ final class WasmLowering {
                 && ctx.wasi && "System".equals(ownerSimpleName(gs.ownerType())) && "out".equals(gs.name())) {
             // receiver do println — nao empilha nada; a rota println consome so o argumento
         } else if (op instanceof KofCall kc) {
+            if (kc.kind() == KofCallKind.FUNCTION) { }
             if (ctx.wasi && kc.kind() == KofCallKind.CONSTRUCTOR && "<init>".equals(kc.methodName())
                     && ctx.recordOf(kc.ownerType()) != null) {
                 // armazena os argumentos empilhados nos offsets do ClassLayout (ordem reversa)
@@ -475,12 +500,21 @@ final class WasmLowering {
                 List<FieldLayout> fls = layout.fields();
                 for (int fi = fls.size() - 1; fi >= 0; fi--) {
                     FieldLayout f = fls.get(fi);
-                    out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.vIdx, "v"));
+                    int sLocal;
+                    int storeOp;
+                    if (WasmRecordOps.isWideField(f.type())) {
+                        sLocal = ctx.vIdx; storeOp = WasmInstr.Mem.STORE64;
+                    } else if (WasmRecordOps.isF64Field(f.type())) {
+                        sLocal = ctx.vf64Idx; storeOp = WasmInstr.Mem.STORE_F64;
+                    } else {
+                        sLocal = ctx.v32Idx; storeOp = WasmInstr.Mem.STORE;
+                    }
+                    out.add(new WasmInstr.Local(WasmInstr.Local.SET, sLocal, "v_w"));
                     out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.objIdx, "obj"));
                     out.add(new WasmInstr.Const(0, f.offset()));
                     out.add(new WasmInstr.Simple(0x6a, "i32.add"));
-                    out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.vIdx, "v"));
-                    out.add(new WasmInstr.Mem(WasmInstr.Mem.STORE64, 0));
+                    out.add(new WasmInstr.Local(WasmInstr.Local.GET, sLocal, "v_w"));
+                    out.add(new WasmInstr.Mem(storeOp, 0));
                 }
                 ctx.lastPush = "record";
             } else if (ctx.wasi && "kof_string_concat".equals(kc.methodName())) {

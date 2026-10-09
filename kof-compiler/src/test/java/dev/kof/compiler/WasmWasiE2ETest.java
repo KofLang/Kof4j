@@ -249,6 +249,82 @@ class WasmWasiE2ETest {
     }
 
     @Test
+    void charAndBoolPrintMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // regressao medida na 15.3d inc2: `println(char)` empilhava i32/i64 divergente
+        // do helper; o oraculo JVM pinha os dois formatos byte-a-byte sob wasmtime.
+        var wasmtime = host("wasmtime");
+        assumeTrue(wasmtime != null, "wasmtime host absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    println('k')
+                    println(true)
+                    println(false)
+                    println(3)
+                }
+                """);
+        var driver = new CompilerDriver();
+        var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
+        assertTrue(jvm.success(), "jvm char/bool compile: " + jvm.diagnostics().getDiagnostics());
+        var oracle = new ProcessBuilder(List.of(jvmBin(), "-cp",
+                Path.of(dir.toString(), "out-jvm").toString(), "Default.Main"))
+                .redirectErrorStream(true).start();
+        String expected = new String(oracle.getInputStream().readAllBytes());
+        assertTrue(oracle.waitFor(120, TimeUnit.SECONDS) && oracle.exitValue() == 0,
+                "JVM char/bool oracle: " + expected);
+        var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
+        assertTrue(wasi.success(), "wasi char/bool compile: " + wasi.diagnostics().getDiagnostics());
+        var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
+                Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm").toString()))
+                .redirectErrorStream(true).start();
+        String out = new String(proc.getInputStream().readAllBytes());
+        assertTrue(proc.waitFor(60, TimeUnit.SECONDS), "host within 60s");
+        assertEquals(0, proc.exitValue(), "clean WASI exit char/bool: " + out);
+        assertEquals(expected.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                "println char/bool must equal the JVM oracle");
+    }
+
+    @Test
+    void recordFieldWidthsMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // 15.3d inc2 fatia B: campos Bool/Char (i32) e String-handle (i32) no slot de
+        // 8 bytes do bump heap; leitura + println com paridade byte-a-byte do oraculo JVM.
+        var wasmtime = host("wasmtime");
+        assumeTrue(wasmtime != null, "wasmtime host absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                record Pair(String a, Int n)
+                record Flag(Char c, Bool ok)
+                main(String[] args) {
+                    var q = Pair("ab", 7)
+                    println(q.a)
+                    println(q.n)
+                    var f = Flag('k', true)
+                    println(f.c)
+                    println(f.ok)
+                }
+                """);
+        var driver = new CompilerDriver();
+        var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
+        assertTrue(jvm.success(), "jvm field-widths compile: " + jvm.diagnostics().getDiagnostics());
+        var oracle = new ProcessBuilder(List.of(jvmBin(), "-cp",
+                Path.of(dir.toString(), "out-jvm").toString(), "Default.Main"))
+                .redirectErrorStream(true).start();
+        String expected = new String(oracle.getInputStream().readAllBytes());
+        assertTrue(oracle.waitFor(120, TimeUnit.SECONDS) && oracle.exitValue() == 0,
+                "JVM field-widths oracle: " + expected);
+        var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
+        assertTrue(wasi.success(), "wasi field-widths compile: " + wasi.diagnostics().getDiagnostics());
+        var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
+                Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm").toString()))
+                .redirectErrorStream(true).start();
+        String out = new String(proc.getInputStream().readAllBytes());
+        assertTrue(proc.waitFor(60, TimeUnit.SECONDS), "host within 60s");
+        assertEquals(0, proc.exitValue(), "clean WASI exit field-widths: " + out);
+        assertEquals(expected.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                "record Bool/Char/String fields must equal the JVM oracle");
+    }
+
+    @Test
     void recordToStringAndEqualityStillRefuseHonestly(@TempDir Path dir) throws Exception {
         // increment 1 = alloc + int field access (green above). toString/equals/
         // record-in-concat need INSTANCE-method lowering (not built yet) -> honest
@@ -260,8 +336,9 @@ class WasmWasiE2ETest {
                         + "main(String[] args) {\n    println(Point(1, 2))\n}\n"),
                 new Case("record-equality", "record Point(Int x, Int y)\n"
                         + "main(String[] args) {\n    var p = Point(1, 2)\n    println(p == Point(1, 2))\n}\n"),
-                new Case("record-string-field", "record Pair(String a, Int n)\n"
-                        + "main(String[] args) {\n    var q = Pair(\"ab\", 7)\n    println(q.n)\n}\n"))) {
+                new Case("record-nested-field", "record Inner(Int v)\n"
+                        + "record Outer(Inner i)\n"
+                        + "main(String[] args) {\n    var o = Outer(Inner(1))\n    println(o.i)\n}\n"))) {
             Path src = dir.resolve("Refuse-" + c.name() + ".kf");
             Files.writeString(src, c.src());
             Path out = dir.resolve("out-" + c.name());

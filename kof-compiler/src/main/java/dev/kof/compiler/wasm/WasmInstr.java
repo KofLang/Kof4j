@@ -109,6 +109,7 @@ public abstract sealed class WasmInstr permits WasmInstr.Const, WasmInstr.Local,
     public static final class Mem extends WasmInstr {
         public static final int LOAD = 0x28, STORE = 0x36, LOAD8U = 0x2d;
         public static final int LOAD64 = 0x29, STORE64 = 0x37;
+        public static final int LOAD_F64 = 0x2b, STORE_F64 = 0x39;
         public final int op;
         public final int offset;
 
@@ -123,7 +124,7 @@ public abstract sealed class WasmInstr permits WasmInstr.Const, WasmInstr.Local,
         private int align() {
             return switch (op) {
                 case LOAD8U -> 0;
-                case LOAD64, STORE64 -> 3;
+                case LOAD64, STORE64, LOAD_F64, STORE_F64 -> 3;
                 default -> 2;
             };
         }
@@ -135,6 +136,8 @@ public abstract sealed class WasmInstr permits WasmInstr.Const, WasmInstr.Local,
                 case STORE -> "(i32.store offset=";
                 case LOAD64 -> "(i64.load offset=";
                 case STORE64 -> "(i64.store offset=";
+                case LOAD_F64 -> "(f64.load offset=";
+                case STORE_F64 -> "(f64.store offset=";
                 default -> "(i32.load8_u offset=";
             };
             sb.append(name).append(offset).append(")\n");

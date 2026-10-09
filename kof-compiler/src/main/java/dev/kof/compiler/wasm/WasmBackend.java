@@ -180,6 +180,7 @@ public class WasmBackend implements Backend {
             java.util.List<IRMethod> scanAll = new java.util.ArrayList<>(entries);
             if (startM != null) scanAll.add(startM);
             java.util.Set<String> printed = printOperandTypes(scanAll);
+            if (usesStringOps(scanAll)) printed.add("string"); // literais/records com campo String (15.3d inc2)
             if (printed.contains("int") || printed.contains("long")) funcs.add(kofWriteInt());
             if (printed.contains("bool") || printed.contains("boolean")) funcs.add(kofWriteBool());
             if (printed.contains("char")) funcs.add(kofWriteChar());
