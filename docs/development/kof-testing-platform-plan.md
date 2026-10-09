@@ -783,8 +783,9 @@ Still open (rule 6):
 * The exact **test API syntax** (assertions, lifecycle, parameterization, locators) — additive
   to the existing `test`/`assert`; no foreign syntax.
 * **Provider policy**: Playwright/Cypress are external heavyweight dependencies — how they are
-  declared, versioned and gated (interop-first, R9), and whether they ship with the CLI or are
-  opt-in.
+  declared, versioned and gated (interop-first, R9). **The "ship with the CLI or opt-in" half is
+  resolved** by `D-MAINT-BATCH-0610B`/C (opt-in per project, CLI does not bundle); the
+  declaration/versioning/gating mechanism remains open and gates the §6 provider slice.
 * Promotion: `future/` → `docs/development/` when the first slice lands (three-states + R12).
 
 ---
