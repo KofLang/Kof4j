@@ -379,20 +379,20 @@ public final class PortuKofMethodSplicer {
     private ExpressionNode methodCall(MethodCallExpr mc) {
         ExpressionNode recv = expr(mc.receiver());
         List<ExpressionNode> args = exprs(mc.arguments());
-        String recorded = sa.surfaceMethodAlias(mc);
+        String recorded = sa.portuKofSurface().methodAlias(mc);
         String name = recorded != null ? recorded : mc.methodName();
         boolean changed = recv != mc.receiver() || args != mc.arguments()
                 || !name.equals(mc.methodName());
         if (!changed) return mc;
         MethodCallExpr out = new MethodCallExpr(mc.position(), recv, name,
                 mc.typeArguments(), args);
-        if (!name.equals(mc.methodName())) sa.spliceMethodCache(mc, out);
+        if (!name.equals(mc.methodName())) sa.portuKofSurface().spliceMethodCache(mc, out);
         return out;
     }
 
     private ExpressionNode fieldAccess(FieldAccessExpr fa) {
         ExpressionNode recv = expr(fa.receiver());
-        String recorded = sa.surfaceFieldAlias(fa);
+        String recorded = sa.portuKofSurface().fieldAlias(fa);
         String name = recorded != null ? recorded : fa.fieldName();
         boolean changed = recv != fa.receiver() || !name.equals(fa.fieldName());
         if (!changed) return fa;
@@ -410,7 +410,7 @@ public final class PortuKofMethodSplicer {
                                                CompilationUnitNode unit, MethodCallExpr mc) {
         String c = canonicalize(mc.methodName(), recvType, unit);
         if (c.equals(mc.methodName())) return mc;
-        sa.recordSurfaceMethod(mc, c);
+        sa.portuKofSurface().recordMethod(mc, c);
         return new MethodCallExpr(mc.position(), mc.receiver(), c,
                 mc.typeArguments(), mc.arguments());
     }
@@ -419,7 +419,7 @@ public final class PortuKofMethodSplicer {
                                                  CompilationUnitNode unit, FieldAccessExpr fa) {
         String c = canonicalize(fa.fieldName(), recvType, unit);
         if (c.equals(fa.fieldName())) return fa;
-        sa.recordSurfaceField(fa, c);
+        sa.portuKofSurface().recordField(fa, c);
         return new FieldAccessExpr(fa.position(), fa.receiver(), c);
     }
 
@@ -431,14 +431,14 @@ public final class PortuKofMethodSplicer {
 
     /** Re-indexa o cache de tipos quando o no mudou de identidade. */
     private ExpressionNode keep(ExpressionNode oldNode, ExpressionNode newNode) {
-        if (newNode != oldNode) sa.spliceTypeCache(oldNode, newNode);
+        if (newNode != oldNode) sa.portuKofSurface().spliceTypeCache(oldNode, newNode);
         return newNode;
     }
 
     private ExpressionNode keepCtor(NewExpr oldNode, NewExpr newNode) {
         if (newNode != oldNode) {
-            sa.spliceTypeCache(oldNode, newNode);
-            sa.spliceCtorCache(oldNode, newNode);
+            sa.portuKofSurface().spliceTypeCache(oldNode, newNode);
+            sa.portuKofSurface().spliceCtorCache(oldNode, newNode);
         }
         return newNode;
     }
