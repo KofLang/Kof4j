@@ -59,8 +59,16 @@
                     </execution>
                 </executions>
                 <configuration>
-                    
-                    <createDependencyReducedPom>true</createDependencyReducedPom>
+                    <!-- §504-class: no module depends on kof-cli, so the
+                         dependency-reduced pom is never consumed. Leaving it
+                         true makes shade resolve project.getParent() against
+                         the CI-friendly `${revision}` parent and abort with
+                         "Not fully interpolated artifact dev.kof:kof-parent:
+                         pom:${revision}" on newer Maven runners (measured
+                         GitHub ubuntu-latest 09/10: `mvn clean package` fails
+                         in kof-cli after the tests pass). false skips that
+                         model rewrite; the uber-jar is unchanged. -->
+                    <createDependencyReducedPom>false</createDependencyReducedPom>
                     <transformers>
                         <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                             <mainClass>dev.kof.cli.Main</mainClass>
