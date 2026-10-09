@@ -928,6 +928,16 @@ quatro alvos não pode piná-lo — a recusa É o contrato. Validado nos quatro
 alvos. Prova (executada): `tests/run-golden.sh` **144/144** (36 casos × 4
 alvos), exit 0.
 
+**Fatia 12 da Fase 6 ENTREGUE (08/10, lane compiler/JVM/native `192.168.15.30:9092`):** mais
+um caso — **37 no total** — pinando a superfície de métodos de `Map`/`Set` que o
+caso `map-set` deixou de fora (aquele caso só exercitava `mapOf`/`put`/`get`/
+`getOrDefault`/`containsKey` e `setOf`/`add`/`contains`/`size`): `map-methods`
+exercita `size`, `containsValue`, `putIfAbsent` (retorna o valor anterior e NÃO
+sobrescreve; `null` numa chave nova), `remove(key)` (retorna o valor removido),
+`isEmpty`/`clear`/`size` em `Map` e `Set`, e `Set.add` de um duplicado deixando o
+tamanho inalterado. Validado nos quatro alvos. Prova (executada):
+`tests/run-golden.sh` **148/148** (37 casos × 4 alvos), exit 0.
+
 ### Fase 7 — Integração
 
 Implantar:

@@ -920,6 +920,17 @@ four targets cannot pin it — the refusal is the contract. Validated on all fou
 targets. Proof (executed): `tests/run-golden.sh` **144/144** (36 cases × 4
 targets), exit 0.
 
+**Phase 6 slice 12 LANDED (08/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **37 total** — pinning the `Map`/`Set` method surface the `map-set`
+case left uncovered (that case only exercised `mapOf`/`put`/`get`/
+`getOrDefault`/`containsKey` and `setOf`/`add`/`contains`/`size`):
+`map-methods` exercises `size`, `containsValue`, `putIfAbsent` (returns the
+previous value and does NOT overwrite; `null` on a new key), `remove(key)`
+(returns the removed value), `isEmpty`/`clear`/`size` on both `Map` and `Set`,
+and `Set.add` of a duplicate leaving the size unchanged. Validated on all four
+targets. Proof (executed): `tests/run-golden.sh` **148/148** (37 cases × 4
+targets), exit 0.
+
 ### Phase 7 — Integration
 
 Deploy:
