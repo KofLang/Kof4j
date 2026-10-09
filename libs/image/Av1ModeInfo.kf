@@ -120,6 +120,104 @@ Int av1ModeInfoMaxDim(Int bs) {
     return w
 }
 
+// CeilLog2( x ) for x >= 1 (spec `CeilLog2`; 0 for x <= 1). Used by the palette
+// delta-bit narrowing `paletteBits = Min( paletteBits, CeilLog2( range ) )`.
+Int av1CeilLog2(Int x) {
+    var n = 0
+    var v = 1
+    while (v < x) {
+        v = v * 2
+        n = n + 1
+    }
+    return n
+}
+
+// `get_palette_cache( plane )` (spec §5.11.8 palette_mode_info): merges the
+// above and left palettes (each already sorted ascending) into `out`, dropping
+// duplicates. The above palette is only consulted when the current MI is not on
+// a 64-sample superblock-row boundary (`( MiRow * MI_SIZE ) % 64`, i.e. MI row
+// multiple of 16); the left palette when `c > 0`. Returns the number of cached
+// colors. `sizeMap` holds the per-MI palette size, `colorMap` the per-MI sorted
+// colors (`mi * 8 + i`).
+Int av1GetPaletteCache(Int[] sizeMap, Int[] colorMap, Int r, Int c, Int miCols,
+                       Int[] out) {
+    var aboveN = 0
+    if (r % 16 != 0) {
+        aboveN = sizeMap[(r - 1) * miCols + c]
+    }
+    var leftN = 0
+    if (c > 0) {
+        leftN = sizeMap[r * miCols + (c - 1)]
+    }
+    var aboveIdx = 0
+    var leftIdx = 0
+    var n = 0
+    while (aboveIdx < aboveN && leftIdx < leftN) {
+        var aboveC = colorMap[((r - 1) * miCols + c) * 8 + aboveIdx]
+        var leftC = colorMap[(r * miCols + (c - 1)) * 8 + leftIdx]
+        if (leftC < aboveC) {
+            if (n == 0 || leftC != out[n - 1]) {
+                out[n] = leftC
+                n = n + 1
+            }
+            leftIdx = leftIdx + 1
+        } else {
+            if (n == 0 || aboveC != out[n - 1]) {
+                out[n] = aboveC
+                n = n + 1
+            }
+            aboveIdx = aboveIdx + 1
+            if (leftC == aboveC) {
+                leftIdx = leftIdx + 1
+            }
+        }
+    }
+    while (aboveIdx < aboveN) {
+        var pv = colorMap[((r - 1) * miCols + c) * 8 + aboveIdx]
+        aboveIdx = aboveIdx + 1
+        if (n == 0 || pv != out[n - 1]) {
+            out[n] = pv
+            n = n + 1
+        }
+    }
+    while (leftIdx < leftN) {
+        var pv2 = colorMap[(r * miCols + (c - 1)) * 8 + leftIdx]
+        leftIdx = leftIdx + 1
+        if (n == 0 || pv2 != out[n - 1]) {
+            out[n] = pv2
+            n = n + 1
+        }
+    }
+    return n
+}
+
+// Ascending insertion sort of `a[0..n-1]` (spec `sort( arr, 0, n-1 )`).
+void av1PaletteSort(Int[] a, Int n) {
+    var i = 1
+    while (i < n) {
+        var key = a[i]
+        var j = i - 1
+        while (j >= 0 && a[j] > key) {
+            a[j + 1] = a[j]
+            j = j - 1
+        }
+        a[j + 1] = key
+        i = i + 1
+    }
+}
+
+// Clip1( x ) for the given bit depth.
+Int av1PaletteClip1(Int x, Int bitDepth) {
+    var hi = (1 << bitDepth) - 1
+    if (x < 0) {
+        return 0
+    }
+    if (x > hi) {
+        return hi
+    }
+    return x
+}
+
 class Av1ModeInfo {
     Av1Symbol sym
     Av1ModeCdf modes
@@ -130,6 +228,11 @@ class Av1ModeInfo {
     Int[] yModeMap
     Int[] uvModeMap
     Int[] cdefMap
+    Int[] palSizeYMap
+    Int[] palSizeUvMap
+    Int[] palColorYMap
+    Int[] palColorUMap
+    Int[] palColorVMap
     List<Int[]> segStore
     List<Int[]> skipStore
     List<Int[]> kfYStore
@@ -141,6 +244,10 @@ class Av1ModeInfo {
     List<Int[]> cflAlphaStore
     Int[] deltaQStore
     List<Int[]> deltaLfStore
+    List<Int[]> palYModeStore
+    List<Int[]> palYSizeStore
+    List<Int[]> palUvModeStore
+    List<Int[]> palUvSizeStore
     List<Int[]> steps
 
     constructor(Int[] data, Int miCols, Int miRows) {
@@ -158,6 +265,11 @@ class Av1ModeInfo {
             this.cdefMap[ci] = -1
             ci = ci + 1
         }
+        this.palSizeYMap = new Int[miCols * miRows]
+        this.palSizeUvMap = new Int[miCols * miRows]
+        this.palColorYMap = new Int[miCols * miRows * 8]
+        this.palColorUMap = new Int[miCols * miRows * 8]
+        this.palColorVMap = new Int[miCols * miRows * 8]
         this.segStore = listOf()
         this.skipStore = listOf()
         var i = 0
@@ -209,6 +321,30 @@ class Av1ModeInfo {
             this.deltaLfStore.add(this.modes.deltaLf())
             i = i + 1
         }
+        this.palYModeStore = listOf()
+        i = 0
+        while (i < 21) {
+            this.palYModeStore.add(this.modes.paletteYMode(i / 3, i % 3))
+            i = i + 1
+        }
+        this.palYSizeStore = listOf()
+        i = 0
+        while (i < 7) {
+            this.palYSizeStore.add(this.modes.paletteYSize(i))
+            i = i + 1
+        }
+        this.palUvModeStore = listOf()
+        i = 0
+        while (i < 2) {
+            this.palUvModeStore.add(this.modes.paletteUvMode(i))
+            i = i + 1
+        }
+        this.palUvSizeStore = listOf()
+        i = 0
+        while (i < 7) {
+            this.palUvSizeStore.add(this.modes.paletteUvSize(i))
+            i = i + 1
+        }
         this.steps = listOf()
     }
 
@@ -241,20 +377,197 @@ class Av1ModeInfo {
         }
     }
 
-    // The non-palette part of the `intra_frame_mode_info` body (§5.11.8):
-    // intra Y mode, angle delta Y, UV mode (with the CFL-allowed selection),
-    // angle delta UV, CFL alphas and filter-intra mode info. Returns
+    Int palSizeYAt(Int r, Int c) {
+        return this.palSizeYMap[r * this.miCols + c]
+    }
+
+    Int palSizeUvAt(Int r, Int c) {
+        return this.palSizeUvMap[r * this.miCols + c]
+    }
+
+    Int palColorYAt(Int r, Int c, Int i) {
+        return this.palColorYMap[(r * this.miCols + c) * 8 + i]
+    }
+
+    Int palColorUAt(Int r, Int c, Int i) {
+        return this.palColorUMap[(r * this.miCols + c) * 8 + i]
+    }
+
+    Int palColorVAt(Int r, Int c, Int i) {
+        return this.palColorVMap[(r * this.miCols + c) * 8 + i]
+    }
+
+    // `read_palette_colors_y` + `palette_size_y_minus_2` + `has_palette_y`
+    // (§5.11.8 `palette_mode_info`): reads the Y palette size and colors, stores
+    // them over the block's MI grid and returns the size (0 when no palette).
+    Int readPaletteY(Int r, Int c, Int bs, Int bitDepth) {
+        var bsizeCtx = av1BlockNumPelsLog2(bs) - 6
+        var ctx = 0
+        if (r % 16 != 0 && this.palSizeYMap[(r - 1) * this.miCols + c] > 0) {
+            ctx = ctx + 1
+        }
+        if (c > 0 && this.palSizeYMap[r * this.miCols + (c - 1)] > 0) {
+            ctx = ctx + 1
+        }
+        var modev = this.sym.readSymbol(this.palYModeStore.get(bsizeCtx * 3 + ctx), 2)
+        if (modev == 0) {
+            return 0
+        }
+        var n = this.sym.readSymbol(this.palYSizeStore.get(bsizeCtx), 7) + 2
+        var cache = new Int[16]
+        var cacheN = av1GetPaletteCache(this.palSizeYMap, this.palColorYMap,
+                                        r, c, this.miCols, cache)
+        var colors = new Int[8]
+        var idx = 0
+        var i = 0
+        while (i < cacheN && idx < n) {
+            if (this.sym.readBool() == 1) {
+                colors[idx] = cache[i]
+                idx = idx + 1
+            }
+            i = i + 1
+        }
+        if (idx < n) {
+            colors[idx] = this.sym.readLiteral(bitDepth)
+            idx = idx + 1
+        }
+        if (idx < n) {
+            var bits = (bitDepth - 3) + this.sym.readLiteral(2)
+            var range = (1 << bitDepth) - colors[idx - 1] - 1
+            while (idx < n) {
+                var delta = this.sym.readLiteral(bits) + 1
+                colors[idx] = av1PaletteClip1(colors[idx - 1] + delta, bitDepth)
+                range = range - (colors[idx] - colors[idx - 1])
+                var cbits = av1CeilLog2(range)
+                if (cbits < bits) {
+                    bits = cbits
+                }
+                idx = idx + 1
+            }
+        }
+        av1PaletteSort(colors, n)
+        this.storePalette(this.palSizeYMap, this.palColorYMap, r, c, bs, n, colors)
+        return n
+    }
+
+    // `read_palette_colors_uv` + the UV size/mode symbols (§5.11.8). Reads the
+    // U palette and the V palette (delta-encoded or literal), stores them and
+    // returns the UV palette size (0 when none).
+    Int readPaletteUv(Int r, Int c, Int bs, Int bitDepth) {
+        var bsizeCtx = av1BlockNumPelsLog2(bs) - 6
+        var ctx = 0
+        if (this.palSizeYMap[r * this.miCols + c] > 0) {
+            ctx = 1
+        }
+        var modev = this.sym.readSymbol(this.palUvModeStore.get(ctx), 2)
+        if (modev == 0) {
+            return 0
+        }
+        var n = this.sym.readSymbol(this.palUvSizeStore.get(bsizeCtx), 7) + 2
+        var cache = new Int[16]
+        var cacheN = av1GetPaletteCache(this.palSizeUvMap, this.palColorUMap,
+                                        r, c, this.miCols, cache)
+        var colorsU = new Int[8]
+        var idx = 0
+        var i = 0
+        while (i < cacheN && idx < n) {
+            if (this.sym.readBool() == 1) {
+                colorsU[idx] = cache[i]
+                idx = idx + 1
+            }
+            i = i + 1
+        }
+        if (idx < n) {
+            colorsU[idx] = this.sym.readLiteral(bitDepth)
+            idx = idx + 1
+        }
+        if (idx < n) {
+            var bits = (bitDepth - 3) + this.sym.readLiteral(2)
+            var range = (1 << bitDepth) - colorsU[idx - 1]
+            while (idx < n) {
+                var delta = this.sym.readLiteral(bits)
+                colorsU[idx] = av1PaletteClip1(colorsU[idx - 1] + delta, bitDepth)
+                range = range - (colorsU[idx] - colorsU[idx - 1])
+                var cbits = av1CeilLog2(range)
+                if (cbits < bits) {
+                    bits = cbits
+                }
+                idx = idx + 1
+            }
+        }
+        av1PaletteSort(colorsU, n)
+        var colorsV = new Int[8]
+        if (this.sym.readBool() == 1) {
+            var bitsV = (bitDepth - 4) + this.sym.readLiteral(2)
+            var maxVal = 1 << bitDepth
+            colorsV[0] = this.sym.readLiteral(bitDepth)
+            var vi = 1
+            while (vi < n) {
+                var dv = this.sym.readLiteral(bitsV)
+                if (dv != 0 && this.sym.readBool() == 1) {
+                    dv = 0 - dv
+                }
+                var vv = colorsV[vi - 1] + dv
+                if (vv < 0) {
+                    vv = vv + maxVal
+                }
+                if (vv >= maxVal) {
+                    vv = vv - maxVal
+                }
+                colorsV[vi] = av1PaletteClip1(vv, bitDepth)
+                vi = vi + 1
+            }
+        } else {
+            var vj = 0
+            while (vj < n) {
+                colorsV[vj] = this.sym.readLiteral(bitDepth)
+                vj = vj + 1
+            }
+        }
+        this.storePalette(this.palSizeUvMap, this.palColorUMap, r, c, bs, n, colorsU)
+        this.storePalette(this.palSizeUvMap, this.palColorVMap, r, c, bs, n, colorsV)
+        return n
+    }
+
+    // Broadcasts a palette size and its colors over the block's MI grid.
+    void storePalette(Int[] sizeMap, Int[] colorMap, Int r, Int c, Int bs,
+                      Int n, Int[] colors) {
+        var w4 = av1BlockNum4x4Wide(bs)
+        var h4 = av1BlockNum4x4High(bs)
+        var rr = 0
+        while (rr < h4) {
+            var cc = 0
+            while (cc < w4) {
+                var mi = (r + rr) * this.miCols + (c + cc)
+                sizeMap[mi] = n
+                var k = 0
+                while (k < n) {
+                    colorMap[mi * 8 + k] = colors[k]
+                    k = k + 1
+                }
+                cc = cc + 1
+            }
+            rr = rr + 1
+        }
+    }
+
+    // The `intra_frame_mode_info` body (§5.11.8): intra Y mode, angle delta Y,
+    // UV mode (with the CFL-allowed selection), angle delta UV, CFL alphas,
+    // palette mode info and filter-intra mode info. Returns
     // `[ yMode, angleDeltaY, uvMode, angleDeltaUV, cflAlphaU, cflAlphaV,
     //    useFilterIntra, filterIntraMode ]`. `lossless`/`hasChroma`/
     // `enableFilterIntra` mirror the header flags; `palettePossible` is the
     // spec's palette guard (`allow_screen_content_tools` and the block-size
-    // rule) — when it holds, palette is not covered yet and the reader refuses
-    // by name.
+    // rule). 8-bit; `readBodyBd` is the bit-depth-aware form the palette color
+    // reads need.
     Int[] readBody(Int r, Int c, Int bs, Int lossless, Int hasChroma,
                    Int enableFilterIntra, Int palettePossible) {
-        if (palettePossible == 1) {
-            throw "IMAGE: av1 palette mode not covered"
-        }
+        return this.readBodyBd(r, c, bs, lossless, hasChroma, enableFilterIntra,
+                               palettePossible, 8)
+    }
+
+    Int[] readBodyBd(Int r, Int c, Int bs, Int lossless, Int hasChroma,
+                     Int enableFilterIntra, Int palettePossible, Int bitDepth) {
         var hasU = 0
         if (r > 0) {
             hasU = 1
@@ -320,6 +633,17 @@ class Av1ModeInfo {
             if (bs >= 3 && av1IsDirectionalMode(uvMode) == 1) {
                 var rawUV = this.sym.readSymbol(this.angleStore.get(uvMode - 1), 7)
                 angleUV = rawUV - 3
+            }
+        }
+        // palette_mode_info( ) (§5.11.8), between uv_mode and
+        // filter_intra_mode_info. Only a DC_PRED luma/uv mode can start a
+        // palette; the guard is the caller's `palettePossible`.
+        if (palettePossible == 1) {
+            if (yMode == 0) {
+                this.readPaletteY(r, c, bs, bitDepth)
+            }
+            if (hasChroma == 1 && uvMode == 0) {
+                this.readPaletteUv(r, c, bs, bitDepth)
             }
         }
         var useFilterIntra = 0

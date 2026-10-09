@@ -68,6 +68,10 @@ class Av1ModeCdf {
     Int[] txfmSplitData
     Int[] segIdData
     Int[] segIdPredData
+    Int[] paletteYSizeData
+    Int[] paletteUvSizeData
+    Int[] paletteYModeData
+    Int[] paletteUvModeData
 
     constructor() {
         this.partitionData = av1ModeCdfParse("19132,25510,30392,32768,0,13928,19855,28540,32768,0,12522,23679,28629,32768,0,9896,18783,25853,32768,0,15597,20929,24571,26706,27664,28821,29601,30571,31902,32768,0,7925,11043,16785,22470,23971,25043,26651,28701,29834,32768,0,5414,13269,15111,20488,22360,24500,25537,26336,32117,32768,0,2662,6362,8614,20860,23053,24778,26436,27829,31171,32768,0,18462,20920,23124,27647,28227,29049,29519,30178,31544,32768,0,7689,9060,12056,24992,25660,26182,26951,28041,29052,32768,0,6015,9009,10062,24544,25409,26545,27071,27526,32047,32768,0,1394,2208,2796,28614,29061,29466,29840,30185,31899,32768,0,20137,21547,23078,29566,29837,30261,30524,30892,31724,32768,0,6732,7490,9497,27944,28250,28515,28969,29630,30104,32768,0,5945,7663,8348,28683,29117,29749,30064,30298,32238,32768,0,870,1212,1487,31198,31394,31574,31743,31881,32332,32768,0,27899,28219,28529,32484,32539,32619,32639,32768,0,6607,6990,8268,32060,32219,32338,32371,32768,0,5429,6676,7122,32027,32227,32531,32582,32768,0,711,966,1172,32448,32538,32617,32664,32768,0")
@@ -87,6 +91,10 @@ class Av1ModeCdf {
         this.txfmSplitData = av1ModeCdfParse("28581,32768,0,23846,32768,0,20847,32768,0,24315,32768,0,18196,32768,0,12133,32768,0,18791,32768,0,10887,32768,0,11005,32768,0,27179,32768,0,20004,32768,0,11281,32768,0,26549,32768,0,19308,32768,0,14224,32768,0,28015,32768,0,21546,32768,0,14400,32768,0,28165,32768,0,22401,32768,0,16088,32768,0")
         this.segIdData = av1ModeCdfParse("5622,7893,16093,18233,27809,28373,32533,32768,0,14274,18230,22557,24935,29980,30851,32344,32768,0,27527,28487,28723,28890,32397,32647,32679,32768,0")
         this.segIdPredData = av1ModeCdfParse("16384,32768,0,16384,32768,0,16384,32768,0")
+        this.paletteYSizeData = av1ModeCdfParse("7952,13000,18149,21478,25527,29241,32768,0,7139,11421,16195,19544,23666,28073,32768,0,7788,12741,17325,20500,24315,28530,32768,0,8271,14064,18246,21564,25071,28533,32768,0,12725,19180,21863,24839,27535,30120,32768,0,9711,14888,16923,21052,25661,27875,32768,0,14940,20797,21678,24186,27033,28999,32768,0")
+        this.paletteUvSizeData = av1ModeCdfParse("8713,19979,27128,29609,31331,32272,32768,0,5839,15573,23581,26947,29848,31700,32768,0,4426,11260,17999,21483,25863,29430,32768,0,3228,9464,14993,18089,22523,27420,32768,0,3768,8886,13091,17852,22495,27207,32768,0,2464,8451,12861,21632,25525,28555,32768,0,1269,5435,10433,18963,21700,25865,32768,0")
+        this.paletteYModeData = av1ModeCdfParse("31676,32768,0,3419,32768,0,1261,32768,0,31912,32768,0,2859,32768,0,980,32768,0,31823,32768,0,3400,32768,0,781,32768,0,32030,32768,0,3561,32768,0,904,32768,0,32309,32768,0,7337,32768,0,1462,32768,0,32265,32768,0,4015,32768,0,1521,32768,0,32450,32768,0,7946,32768,0,129,32768,0")
+        this.paletteUvModeData = av1ModeCdfParse("32461,32768,0,21488,32768,0")
     }
 
     // Partition: bsl 1..5 (8/16/32/64/128) -> the per-context CDFs, row widths
@@ -199,5 +207,29 @@ class Av1ModeCdf {
     // (spec Default_Segment_Id_Predicted_Cdf / libaom default_segment_pred_cdf).
     Int[] segmentIdPred(Int ctx) {
         return av1ModeCdfSlice(segIdPredData, ctx * 3, 3)
+    }
+
+    // Palette Y size: 7 block-size contexts of PALETTE_SIZES+1 = 8 entries
+    // (spec Default_Palette_Y_Size_Cdf / libaom default_palette_y_size_cdf).
+    Int[] paletteYSize(Int bsizeCtx) {
+        return av1ModeCdfSlice(paletteYSizeData, bsizeCtx * 8, 8)
+    }
+
+    // Palette UV size: 7 block-size contexts of 8 entries
+    // (spec Default_Palette_Uv_Size_Cdf / libaom default_palette_uv_size_cdf).
+    Int[] paletteUvSize(Int bsizeCtx) {
+        return av1ModeCdfSlice(paletteUvSizeData, bsizeCtx * 8, 8)
+    }
+
+    // Palette Y mode: 7 block-size contexts x 3 mode contexts of 3 entries
+    // (spec Default_Palette_Y_Mode_Cdf / libaom default_palette_y_mode_cdf).
+    Int[] paletteYMode(Int bsizeCtx, Int modeCtx) {
+        return av1ModeCdfAt(paletteYModeData, bsizeCtx * 3 + modeCtx, 3)
+    }
+
+    // Palette UV mode: 2 contexts of 3 entries
+    // (spec Default_Palette_Uv_Mode_Cdf / libaom default_palette_uv_mode_cdf).
+    Int[] paletteUvMode(Int ctx) {
+        return av1ModeCdfAt(paletteUvModeData, ctx, 3)
     }
 }
