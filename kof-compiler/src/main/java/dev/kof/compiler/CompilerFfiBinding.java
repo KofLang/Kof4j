@@ -110,6 +110,11 @@ final class CompilerFfiBinding {
                 // (arch-aware na emissão, medidas divergem). Consome 1 registrador
                 // INTEGER no riscv64 (ver crossBindable abaixo).
                 crossMemRet = true;
+            } else if (FfiStructLayout.crossHomogeneousFloat(retStruct)) {
+                // D-MEMORY-SAFETY M1 unidade-2 (09/10): retorno HFA no register
+                // path FP — LP64D devolve ≤ 2 campos em fa0/fa1, AAPCS64 em
+                // v0..v3 (mesmo ordinal por campo). Não consome INTEGER (o
+                // retorno FP não desloca os args). Misto float+int segue FFI001.
             } else if (!FfiStructLayout.crossIntRegisterOnly(driver.target, retStruct)) {
                 // register path (≤ 16 B, INTEGER-only); HFA/registradores
                 // insuficientes segue FFI001 honesto (R6).
