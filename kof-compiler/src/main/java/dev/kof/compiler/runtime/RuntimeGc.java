@@ -14,6 +14,14 @@ public final class RuntimeGc {
         sb.append("""
             .section .data
             .Lgc_tick: .quad 0
+            .section .bss
+            .balign 8
+            # #781 Part B: cabeca da lista intrusiva de cinzas do mark iterativo.
+            # Guarda o bloco (payload-32) empilhado; o elo fica em 8(blk)
+            # (free_next, campo ocioso de um bloco VIVO). Sempre 0 entre
+            # chamadas (o drain esvazia). Viver em .bss e inofensivo: o mark
+            # o le como raiz, mas ele so contem um bloco ja marcado.
+            _kof_gc_gray: .quad 0
             .section .text
             .globl kof_gc_mark
             .type kof_gc_mark, @function
@@ -89,6 +97,7 @@ public final class RuntimeGc {
                 pushq %rbx
                 pushq %r12
                 pushq %r10
+                xorq %r13, %r13              # #781 B: saida = bloco marcado | 0
                 movq %rdi, %r12
                 cmpq $0x1000, %r12
                 jb .Ltry_done_pop
@@ -133,6 +142,7 @@ public final class RuntimeGc {
                 movq 16(%rbx), %rbx
                 jmp .Ltry_loop
             .Ltry_done:
+                movq %rbx, %r13              # #781 B: bloco marcado p/ a worklist
                 popq %r10
                 popq %r12
                 popq %rbx
@@ -165,6 +175,19 @@ public final class RuntimeGc {
                 movb $1, 24(%rbx)
                 jmp .Ltry_done
 
+            # #781 Part B: marcar a partir de um candidato a raiz de forma
+            # ITERATIVA. A varredura recursiva antiga consumia ~72 B de pilha
+            # nativa por nivel de profundidade — uma lista ligada de 200 000
+            # nos (~14 MiB) estourava a pilha Linux de 8 MiB e dava SIGSEGV.
+            # Agora o candidato entra pelo kof_gc_try_mark (O(1) bitmap, que
+            # devolve o bloco em %r13 ou 0) e o fecho e percorrido por uma
+            # worklist intrusiva: o elo fica em 8(blk) (free_next, ocioso num
+            # bloco vivo) e a cabeca em _kof_gc_gray. Marcar um bloco e empilhar
+            # seus campos-ponteiro NAO-visitados; nada de recursao, pilha
+            # nativa O(1). Preserva a semantica conservadora: todo ponteiro de
+            # campo e tentado; blocos ja marcados nao re-varrem; o bitmap O(1)
+            # do §542 decide inicio-de-bloco e o try_mark nao toca blocos ja
+            # marcados (idempotente).
             .globl kof_gc_mark_transitive
             .type kof_gc_mark_transitive, @function
             kof_gc_mark_transitive:
@@ -174,88 +197,50 @@ public final class RuntimeGc {
                 pushq %r13
                 pushq %r14
                 pushq %r15
-                movq %rdi, %r12
-                cmpq $0x1000, %r12
-                jb .Lmtrans_ret
-                testq $7, %r12
-                jne .Lmtrans_ret
-                movq kof_heap_low(%rip), %rbx
-                testq %rbx, %rbx
-                je .Lmtrans_heap_ok
-                cmpq %rbx, %r12
-                jb .Lmtrans_ret
-                movq kof_heap_high(%rip), %rbx
-                cmpq %rbx, %r12
-                jae .Lmtrans_ret
-            .Lmtrans_heap_ok:
-                movq kof_arena_base(%rip), %rax
-                testq %rax, %rax
-                jne .Lmtrans_bm          # §542 host: bitmap O(1)
-                movq kof_gc_head(%rip), %rbx
-                movq $10000, %r10
-            .Lmtrans_loop:
-                testq %rbx, %rbx
-                je .Lmtrans_ret
-                decq %r10
-                je .Lmtrans_ret
-                leaq 32(%rbx), %rax
-                cmpq %rax, %r12
-                je .Lmtrans_found
-                movq 0(%rbx), %rcx
-                subq $32, %rcx
-                leaq 32(%rbx), %rdx
-                cmpq %rdx, %r12
-                jb .Lmtrans_next
-                addq %rcx, %rdx
-                cmpq %rdx, %r12
-                jae .Lmtrans_next
-            .Lmtrans_found:
-                cmpb $0, 24(%rbx)
-                jne .Lmtrans_ret
-                movb $1, 24(%rbx)
-                movq 0(%rbx), %rcx
+                call kof_gc_try_mark
+                testq %r13, %r13
+                je .Lmt_ret
+                # empilha a raiz: link[blk] = cabeca (0 no caso comum)
+                movq _kof_gc_gray(%rip), %rax
+                movq %rax, 8(%r13)
+                movq %r13, _kof_gc_gray(%rip)
+            .Lmt_drain:
+                movq _kof_gc_gray(%rip), %r13
+                testq %r13, %r13
+                je .Lmt_ret
+            .Lmt_loop:
+                movq %r13, %rbx              # blk = pop()
+                movq 8(%rbx), %rax
+                movq %rax, _kof_gc_gray(%rip)
+                movq 0(%rbx), %rcx           # size total
                 testq %rcx, %rcx
-                je .Lmtrans_ret
-                leaq 32(%rbx), %r13
-                leaq 32(%rbx), %r14
-                addq %rcx, %r14
-            .Lmtrans_fields:
-                cmpq %r14, %r13
-                jae .Lmtrans_ret
-                movq (%r13), %rdi
+                je .Lmt_after
+                leaq 32(%rbx), %r14          # inicio do payload
+                leaq 32(%rbx), %r15
+                addq %rcx, %r15              # fim = payload + size
+            .Lmt_fields:
+                cmpq %r15, %r14
+                jae .Lmt_after
+                movq (%r14), %rdi
                 testq %rdi, %rdi
-                je .Lmtrans_field_next
-                pushq %r13
+                je .Lmt_next
                 pushq %r14
-                call kof_gc_mark_transitive
+                pushq %r15
+                call kof_gc_try_mark
+                popq %r15
                 popq %r14
-                popq %r13
-                jmp .Lmtrans_field_next
-            .Lmtrans_field_next:
-                addq $8, %r13
-                jmp .Lmtrans_fields
-            .Lmtrans_next:
-                movq 16(%rbx), %rbx
-                jmp .Lmtrans_loop
-            .Lmtrans_bm:
-                # §542 host: O(1) pelo bitmap; achando o início, entra no
-                # `.Lmtrans_found` (marca + varre campos).
-                movq _kof_bm_ptr(%rip), %rdx
-                movq %r12, %rcx
-                subq %rax, %rcx
-                subq $32, %rcx
-                js .Lmtrans_ret
-                shrq $4, %rcx
-                movq %rcx, %rax
-                shrq $6, %rax
-                movq (%rdx,%rax,8), %rdx
-                andl $63, %ecx
-                shrq %cl, %rdx
-                andl $1, %edx
-                je .Lmtrans_ret
-                leaq -32(%r12), %rbx
-                jmp .Lmtrans_found
-            .Lmtrans_ret:
+                testq %r13, %r13
+                je .Lmt_next
+                # empilha: link[blk] = cabeca; cabeca = blk
+                movq _kof_gc_gray(%rip), %rax
+                movq %rax, 8(%r13)
+                movq %r13, _kof_gc_gray(%rip)
+            .Lmt_next:
+                addq $8, %r14
+                jmp .Lmt_fields
+            .Lmt_after:
+                jmp .Lmt_drain
+            .Lmt_ret:
                 popq %r15
                 popq %r14
                 popq %r13

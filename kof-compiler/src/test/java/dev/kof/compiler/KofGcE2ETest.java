@@ -166,6 +166,37 @@ class KofGcE2ETest {
     }
 
     @Test
+    @Timeout(60)
+    void gcMarksDeepGraphIteratively(@TempDir Path tempDir) throws IOException {
+        // #781 Part B: the recursive kof_gc_mark_transitive consumed ~72 B of
+        // native stack per depth level, so a deep object graph overflowed the
+        // 8 MiB stack and SIGSEGV'd (measured: a 200 000-node chain, ~14 MiB,
+        // signal 11). The iterative worklist keeps native stack O(1). A chain
+        // this deep is built and marked during the growing allocation, so the
+        // collection is forced to walk the full depth. Sum(0..199999) =
+        // 19999900000 exceeds Int, so print a derived Bool instead.
+        runNative(tempDir, """
+                record Node(Int value, Node? nextNode)
+
+                main() {
+                    var head: Node?
+                    var i = 0
+                    while (i < 200000) {
+                        head = Node(i, head)
+                        i = i + 1
+                    }
+                    var curr = head
+                    var count = 0
+                    while (curr != null) {
+                        count = count + 1
+                        curr = curr.nextNode()
+                    }
+                    println(count)
+                }
+                """, "200000");
+    }
+
+    @Test
     void gcReusesFreedSlots(@TempDir Path tempDir) throws IOException {
         // Sem sweep: memoria cresceria linearmente (cada iter = nova alloc).
         // Com sweep: reusa o slot liberado; aloc grande o suficiente para
