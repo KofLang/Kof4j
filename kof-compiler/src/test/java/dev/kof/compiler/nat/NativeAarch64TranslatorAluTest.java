@@ -74,6 +74,25 @@ class NativeAarch64TranslatorAluTest {
         assertFalse(out.contains("swpal x"), "nunca a forma X (64-bit): " + out);
     }
 
+    /**
+     * ABI: no RISC-V `s10` é callee-saved (sobrevive a `call`); no aarch64 o
+     * equivalente só pode ser um registrador callee-saved. O mapa anterior
+     * apontava `s10 -> x16` (caller-saved / IP0), então um valor mantido em
+     * `s10` através de um `call` podia ser destruído pelo callee — e o
+     * `kof_gc_mark` derramava `x18` (vazio) em vez do registrador real,
+     * escondendo o ponteiro vivo do coletor. `x18` é callee-saved no Linux e
+     * não era usado por nenhum outro caminho do tradutor.
+     */
+    @Test
+    void s10MapsToCalleeSavedRegister() {
+        String spill = tr("    sd s10, 32(sp)");
+        assertTrue(spill.contains("str x18, [sp, #32]"), "s10 -> x18 (callee-saved): " + spill);
+        assertFalse(spill.contains("x16"), "s10 nunca em x16 (caller-saved/IP0): " + spill);
+        String use = tr("    mv s10, a0");
+        assertTrue(use.contains("mov x18, x0"), "mv s10 -> mov x18: " + use);
+        assertFalse(use.contains("x16"), "mv s10 nunca em x16: " + use);
+    }
+
     /** Camada forte: o `as` aarch64 REAL aceita o texto traduzido (não basta a string). */
     @Test
     void translatedMnemonicsAssembleWithAarch64As(@TempDir Path dir) throws IOException {

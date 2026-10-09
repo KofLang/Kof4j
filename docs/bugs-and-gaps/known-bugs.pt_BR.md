@@ -15143,3 +15143,15 @@ avisava `L-05: resource 'app' ... is never closed in this scope and never handed
 **Fronteira:** so `ResourceLeakAnalysis.escapeShape` (o passe compartilhado do frontend, mesmo diagnostico nos quatro alvos por construcao). O helper de ciclo de vida de servidor do §5 `withServer(app, port, body)` foi o gatilho: sem o fix, o ciclo correto do helper (`app.close()` num `finally`) ainda avisava no sitio de criacao.
 
 <!-- en-switch --> **EN:** [§633 (en)](known-bugs.md#633--the-mem014-resource-leak-warning-was-a-false-positive-when-the-handle-is-handed-to-another-function-in-statement-position-consumeapp-withserverapp----fixed-0810-lane-issuestooling-19216815309093-shared-memory-safety-frontend-pass-no-owner-em-curso)
+
+## §634 — o tradutor aarch64 mapeava o callee-saved `s10` do RISC-V para o caller-saved `x16`, entao um valor vivo atraves de um `call` em `kof_schub_to_decimal` podia ser destruido e o `kof_gc_mark` derramava o registrador errado — ✅ FIXED 08/10 (lane compiler/JVM/native `192.168.15.30:9092`)
+
+**Status:** ✅ FIXED 08/10 (lane compiler/JVM/native `192.168.15.30:9092`) — `NativeAarch64Helpers.aarch64Reg` mapeia `s10 -> x18` (callee-saved no Linux, nao usado por nenhum outro caminho do tradutor) em vez de `x16` (caller-saved / IP0). Prova `NativeAarch64TranslatorAluTest` **7/7** (novo `s10MapsToCalleeSavedRegister`, RED pre-fix com `str x16, [sp, #32]`).
+
+**Repro (lido, deterministico):** `NativeRiscvSchubfach.java:160` (`kof_schub_to_decimal`) faz `mv s10, a0` e reusa `s10` como argumento em tres `call kof_schub_rop` seguintes (linhas 162/167/172). No RISC-V `s10` e callee-saved, entao o valor sobrevive; o tradutor aarch64 emitia `x16`, que `kof_schub_rop` pode destruir. O mesmo registrador e derramado por `kof_gc_mark` (`NativeRiscvAsmRtB43.java:161`): o tradutor emitia `str x18, [sp, #32]` (o novo mapa) — antes do fix derramava o `x18` vazio e nunca o `x16` vivo, escondendo um ponteiro vivo do coletor conservador.
+
+**Raiz (lida):** o mapa RISC-V→aarch64 atribuia `s0..s9 -> x19..x28` e `s11 -> x29` mas nao sobrava slot callee-saved para `s10`, entao caia em `x16`; `x18` e callee-saved no Linux AArch64 e nenhum caminho do tradutor o usava. Fix: `case "s10" -> "x18"`.
+
+**Fronteira:** so o mapa de registradores (`NativeAarch64Helpers`). As faces comportamentais medidas (`NumericFormatterE2ETest` 3/3, `GameWavE2ETest` 6/6, `CrossHeapParityE2ETest` 6/6, `KofGcE2ETest` 4/4, `Av1CoeffsE2ETest` 6/6, `NativeRiscv64E2ETest` 58 run / 1 skip ambiental) estao verdes; uma sonda de formatacao Double imprimindo `1.5 / 0.1 / 1.0E-300 / …` e byte-identica ao oraculo JVM sob qemu (o clobber de `x16` e latente para os corpos atuais de `kof_schub_rop`, que ainda nao tocam `x16`, mas o contrato ABI e violado). Achado ao estreitar o §602; raiz distinta, §602 segue OPEN.
+
+<!-- en-switch --> **EN:** [§634 (en)](known-bugs.md#634--the-aarch64-translator-mapped-the-risc-v-callee-saved-s10-to-the-caller-saved-x16-so-a-value-live-across-a-call-in-kof_schub_to_decimal-could-be-clobbered-and-kof_gc_mark-spilled-the-wrong-register---fixed-0810-lane-compilerjvmnative-19216815309092)
