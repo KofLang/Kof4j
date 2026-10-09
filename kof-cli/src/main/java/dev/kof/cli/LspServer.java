@@ -286,7 +286,9 @@ final class LspServer {
                     "value", "**" + word + "** \u2014 Kofmd " + md)));
             return;
         }
-        String contents = word.isEmpty() ? null : LspHover.hoverFor(word, text, offsetOf(text, line, ch));
+        String contents = word.isEmpty() ? null
+                : LspHover.hoverFor(dev.kof.compiler.lang.LanguageProfile.forFileName(
+                        LspProject.fileNameOf(str(td.get("uri")))), word, text, offsetOf(text, line, ch));
         if (contents == null && !word.isEmpty()) {
             // X10 fatia 7: declaração do projeto (buffer ou .kf irmão) como fallback.
             String[] d = LspProject.declarationLine(str(td.get("uri")), text, word, workspaceRoot);
@@ -302,60 +304,25 @@ final class LspServer {
     private void completion(Object id, Map<String, Object> params) {
         Map<String, Object> td = params.get("textDocument") instanceof Map<?, ?> p
                 ? (Map<String, Object>) p : Map.of();
-        String text = openText.getOrDefault(str(td.get("uri")), "");
+        String uri = str(td.get("uri"));
+        dev.kof.compiler.lang.LanguageProfile profile =
+                dev.kof.compiler.lang.LanguageProfile.forFileName(LspProject.fileNameOf(uri));
+        String text = openText.getOrDefault(uri, "");
         Map<String, Object> pos = params.get("position") instanceof Map<?, ?> p
                 ? (Map<String, Object>) p : Map.of();
         long line = pos.get("line") instanceof Number n ? n.longValue() : 0;
         long ch = pos.get("character") instanceof Number n ? n.longValue() : 0;
         int off = offsetOf(text, line, ch);
-        boolean member = off > 0 && text.charAt(off - 1) == '.';
-        List<Object> items = new ArrayList<>();
-        java.util.function.BiConsumer<String, String> add = (label, kind) -> {
-            Map<String, Object> it = new LinkedHashMap<>();
-            it.put("label", label);
-            it.put("kind", kind);
-            it.put("detail", "Kof");
-            items.add(it);
-        };
-        if (!member) {
-            for (String[] k : LspHover.KEYWORDS) add.accept(k[0], "Keyword");
-            for (String ty : LspHover.BUILTIN_TYPES) add.accept(ty, "Type");
-        }
-        java.util.Set<String> seen = new java.util.HashSet<>();
-        for (String ln : text.split("\n")) {
-            String t = ln.strip();
-            if ((t.startsWith("var ") || t.startsWith("val ")) && t.contains("=")) {
-                String rest = t.substring(4).strip();
-                String name = rest.split("[\\s:=]")[0];
-                if (!name.isEmpty() && seen.add(name)) add.accept(name, "Variable");
-            }
-        }
-        // X10 fatia 1: completion domain-aware — membros reais do typer
-        // (StdCatalog) quando o prefixo antes do '.' é um namespace stdlib.
-        if (member) {
-            String ns = namespaceBefore(text, off - 1);
-            if (ns != null) {
-                for (String fn : dev.kof.compiler.StdCatalog.membersOf(ns)) {
-                    Map<String, Object> it = new LinkedHashMap<>();
-                    it.put("label", fn);
-                    it.put("kind", "Function");
-                    it.put("detail", "kof." + ns);
-                    items.add(it);
-                }
-            }
-        }
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("isIncomplete", false);
-        result.put("items", items);
+        result.put("items", LspCompletion.items(profile, text, off));
         respond(id, result);
     }
 
-    /** Identificador antes da posição do '.', se for namespace stdlib (X10). */
-    private static String namespaceBefore(String text, int dotIndex) {
-        int i = dotIndex;
+    static String identifierBefore(String text, int index) {
+        int i = index;
         while (i > 0 && isIdentChar(text.charAt(i - 1))) i--;
-        String w = text.substring(i, dotIndex);
-        return dev.kof.compiler.StdCatalog.isNamespace(w) ? w : null;
+        return text.substring(i, index);
     }
 
     /** Todas as ocorrências (start, end) do identificador em fronteiras de palavra. */
@@ -388,7 +355,9 @@ final class LspServer {
                 ? (Map<String, Object>) p : Map.of();
         long line = pos.get("line") instanceof Number n ? n.longValue() : 0;
         long ch = pos.get("character") instanceof Number n ? n.longValue() : 0;
-        respond(id, LspSignatureHelp.helpFor(text, offsetOf(text, line, ch)));
+        respond(id, LspSignatureHelp.helpFor(
+                dev.kof.compiler.lang.LanguageProfile.forFileName(LspProject.fileNameOf(str(td.get("uri")))),
+                text, offsetOf(text, line, ch)));
     }
 
     private void definition(Object id, Map<String, Object> params) {
@@ -402,7 +371,9 @@ final class LspServer {
         long ch = pos.get("character") instanceof Number n ? n.longValue() : 0;
         int off = offsetOf(text, line, ch);
         String word = wordAt(text, off);
-        int[] decl = LspSymbols.declarationRange(text, word);
+        int[] decl = LspSymbols.declarationRange(
+                dev.kof.compiler.lang.LanguageProfile.forFileName(LspProject.fileNameOf(uri)),
+                text, word);
         if (decl == null) {
             // X10 fatia 4: go-to-definition em packages — se o nome não é
             // declarado no buffer, procura nos .kf irmãos do projeto (mesma
@@ -485,7 +456,9 @@ final class LspServer {
         Map<String, Object> td = params.get("textDocument") instanceof Map<?, ?> p
                 ? (Map<String, Object>) p : Map.of();
         String uri = str(td.get("uri"));
-        respond(id, LspSymbols.documentSymbolMaps(openText.getOrDefault(uri, "")));
+        respond(id, LspSymbols.documentSymbolMaps(
+                dev.kof.compiler.lang.LanguageProfile.forFileName(LspProject.fileNameOf(uri)),
+                openText.getOrDefault(uri, "")));
     }
 
     @SuppressWarnings("unchecked")
@@ -496,7 +469,9 @@ final class LspServer {
         for (java.nio.file.Path f : LspProject.siblings(self, workspaceRoot)) {
             String txt = LspProject.readOrNull(f);
             if (txt == null) continue;
-            int[] decl = LspSymbols.declarationRange(txt, word);
+            int[] decl = LspSymbols.declarationRange(
+                    dev.kof.compiler.lang.LanguageProfile.forFileName(f.getFileName().toString()),
+                    txt, word);
             if (decl != null) {
                 Map<String, Object> loc = new LinkedHashMap<>();
                 loc.put("uri", f.toAbsolutePath().toUri().toString());
@@ -556,7 +531,11 @@ final class LspServer {
         String newName = str(params.get("newName"));
         // LSP-A (D-POLL-19 19/09): rename cross-file na mesma convenção dos
         // references; guardas (keyword/namespace/nome inválido) em LspRename.
-        respond(id, LspRename.workspaceEdit(uri, text, word, newName, openText,
+        // F7.2: a guarda conhece a superfície — um alias PT (keyword/builtin/
+        // namespace) é recusado; identificador de usuário renomeia normal.
+        respond(id, LspRename.workspaceEdit(
+                dev.kof.compiler.lang.LanguageProfile.forFileName(LspProject.fileNameOf(uri)),
+                uri, text, word, newName, openText,
                 LspProject.toPath(uri), workspaceRoot));
     }
 

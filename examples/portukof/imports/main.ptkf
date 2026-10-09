@@ -1,0 +1,6 @@
+// Exemplo de import — PortuKof
+// A extensão `.ptkf` é a autoridade do perfil; `importa` é o import Kof.
+importa util.Mat
+principal() {
+    escrevaln(dobro(21))
+}

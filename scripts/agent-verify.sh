@@ -184,6 +184,10 @@ fi
 if touches '"FFI[0-9]|^docs/ffi-abi-structs'; then
     run_gate ffi_inventory "${AGENT_VERIFY_FFIINV:-bash scripts/check_ffi_inventory.sh}"
 fi
+if touches 'lang/PortuKof|^lang/|parser/Lexer\.java|parser/ParseContext\.java|check_portukof|LspProject|LspDiagnostics|KofFormatter|Fmt\.java'; then
+    run_gate portukof_parity "bash scripts/check_portukof_parity.sh"
+    run_gate portukof_tooling "bash scripts/check_portukof_tooling.sh"
+fi
 if touches '^docs/development/'; then
     run_gate live_records "${AGENT_VERIFY_LIVERECORDS:-bash scripts/check_live_records.sh}"
     run_gate plan_owners "${AGENT_VERIFY_PLANOWNERS:-bash scripts/check_plan_owners.sh}"

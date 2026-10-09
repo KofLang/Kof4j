@@ -83,12 +83,15 @@ final class CmdScript {
         String extErr = KofCliSupport.unsupportedSourceExtension("script", src);
         if (extErr != null) { System.err.println(extErr); return 1; }
         if (watch) return watchScript(src, target, progArgs.toArray(new String[0]));
+        // PortuKof (.ptkf): a extensão define o perfil — compila o arquivo DIRETO
+        // (preserva file:line e o perfil pt-BR); nunca cai no wrap de script.
+        boolean portukof = src.toString().toLowerCase().endsWith(".ptkf");
         // Pipeline ÚNICA (.kf/.kof/.ks): o texto passa por prepareSource; se já
         // declara main() roda o arquivo original (preserva irmãos e file:line),
         // senão o top-level é o programa e o texto é materializado num .kf.
         try {
             String content = Files.readString(src);
-            boolean hasMain = dev.kof.script.KofScript.hasMainDeclaration(content);
+            boolean hasMain = portukof || dev.kof.script.KofScript.hasMainDeclaration(content);
             if (hasMain) {
                 return emit(dev.kof.script.KofScript.runFile(src, target, progArgs.toArray(new String[0])));
             }

@@ -160,6 +160,9 @@ public final class MemberCallTyper {
             return Type.UnknownType.UNKNOWN;
         }
         Type recvType = SemExpressionTyper.inferType(sa, mc.receiver(), scope);
+        // D-PORTUKOF u3: entrada alias-aware (dispatch canonico na copia
+        // local; a AST e canonizada pelo splice pos-analise).
+        mc = PortuKofMethodSplicer.canonicalCall(sa, recvType, sa.unit(), mc);
         // coleções: infere o retorno dos métodos (get → elemento,
         // size → Int, ...). Sem isso `var f = l.get(0)` de uma
         // List<FunctionType> inferia Unknown → `f(4)` dava SEM015

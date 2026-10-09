@@ -52,7 +52,7 @@ public class StatementParser {
     static StatementNode parseStatement(ParseContext ctx) {
         // D-SCOPED-RESOURCES-GO: contextual `using (name = init, closer) { }`
         // (only `using` + `(` takes this branch; +4 lines, ratchet intact).
-        if (ctx.check(TokenType.IDENTIFIER) && "using".equals(ctx.peek().value())
+        if (ctx.wordIs("using")
                 && ctx.checkNext(TokenType.LPAREN)) {
             return UsingParser.parseUsingStatement(ctx);
         }
@@ -220,15 +220,14 @@ public class StatementParser {
         ctx.expect(TokenType.LPAREN, "Expected '(' after 'for'", "PARSE032");
         if (ctx.check(TokenType.VAR, TokenType.VAL) && ctx.checkNext(TokenType.IDENTIFIER)) {
             int inPos = -1;
-            if (ctx.pos + 2 < ctx.tokens.size() && ctx.tokens.get(ctx.pos + 2).is(TokenType.IDENTIFIER)
-                    && "in".equals(ctx.tokens.get(ctx.pos + 2).value())) {
+            if (ctx.wordAtIs(2, "in")) {
                 inPos = ctx.pos + 2;
             } else if (ctx.pos + 2 < ctx.tokens.size() && ctx.tokens.get(ctx.pos + 2).is(TokenType.COLON)) {
                 // var name: Type in collection (issue #234)
                 for (int i = ctx.pos + 3; i < ctx.tokens.size(); i++) {
                     Token tk = ctx.tokens.get(i);
                     if (tk.is(TokenType.RPAREN) || tk.is(TokenType.SEMICOLON)) break;
-                    if (tk.is(TokenType.IDENTIFIER) && "in".equals(tk.value())) {
+                    if (tk.is(TokenType.IDENTIFIER) && ctx.profile.matchesWord(tk.value(), "in")) {
                         inPos = i;
                         break;
                     }
@@ -453,7 +452,7 @@ public class StatementParser {
                         + "the type '" + type + "' before '" + name + "' does not match '" + annType
                         + "' and would be silently discarded; write 'var " + name + ": " + annType
                         + " = ...' or '" + annType + " " + name + " = ...'",
-                        "PARSE095");
+                        "PARSE095", type, name, annType, name, annType, annType, name);
             }
             type = annType;
         }

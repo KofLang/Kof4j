@@ -23,13 +23,26 @@ public class DiagnosticCollector {
     }
 
     public void error(String file, int line, int column, int length, String message, String code) {
+        emitError(file, line, column, length, message, code, java.util.List.of());
+    }
+
+    /** D-PORTUKOF F6: emissão com ARGUMENTOS ESTRUTURADOS (a mensagem canônica
+     *  em inglês continua idêntica; os args alimentam a renderização PT pelo
+     *  código, sem regex). Aridade = placeholders do template do código. */
+    public void error(String file, int line, int column, int length, String message, String code,
+                      Object... args) {
+        emitError(file, line, column, length, message, code, java.util.List.of(args));
+    }
+
+    private void emitError(String file, int line, int column, int length, String message,
+                           String code, java.util.List<Object> args) {
         if (fallbackPosition != null && (file == null || file.isEmpty()) && line == 0 && column == 0) {
             SourcePosition p = fallbackPosition;
             report(Diagnostic.error(p.file() == null ? "" : p.file(), p.line(), p.column(), p.length(),
-                    message, code));
+                    message, code, args));
             return;
         }
-        report(Diagnostic.error(file, line, column, length, message, code));
+        report(Diagnostic.error(file, line, column, length, message, code, args));
     }
 
     public void error(AstNode node, String message, String code) {

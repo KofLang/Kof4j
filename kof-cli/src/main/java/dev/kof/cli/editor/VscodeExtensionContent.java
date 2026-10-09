@@ -160,7 +160,7 @@ final class VscodeExtensionContent {
                 "languages": [{
                   "id": "kof",
                   "aliases": ["Kof", "kof"],
-                  "extensions": [".kf", ".kof"],
+                  "extensions": [".kf", ".kof", ".ptkf"],
                   "configuration": "./language-configuration.json"
                 }],
                 "grammars": [{

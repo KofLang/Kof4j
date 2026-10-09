@@ -78,9 +78,9 @@ final class DepsSources {
         Set<String> seen = new HashSet<>();
         for (Path p : files) {
             String rel = DIR + "/" + srcTmp.relativize(p).toString().replace('\\', '/');
-            if (!rel.endsWith(".kf") && !rel.endsWith(".kof")) {
+            if (!rel.endsWith(".kf") && !rel.endsWith(".kof") && !rel.endsWith(".ptkf")) {
                 throw new IOException("REG004: unexpected file in the package sources: " + rel
-                        + " (only .kf/.kof are installed) — refusing to install");
+                        + " (only .kf/.kof/.ptkf are installed) — refusing to install");
             }
             String want = sums.get(rel);
             if (want == null) {

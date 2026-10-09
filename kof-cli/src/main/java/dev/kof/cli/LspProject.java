@@ -24,14 +24,20 @@ final class LspProject {
     }
 
     /**
-     * Nome do documento a partir do URI (herdado do `analyze`): o basename
-     * `.kf`/`.ks` do URI, senao `LspMain.kf`.
+     * Nome do documento a partir do URI: o basename real das fontes canônicas
+     * Kof (`.kf`/`.ks`/`.kof`/`.ptkf`) — a EXTENSÃO é a autoridade do perfil
+     * (`LanguageProfile.forFileName`), então `.ptkf` precisa sobreviver intacto
+     * para o `analyze` lexear PortuKof (F7). Senão (`LspMain.kf`, comportamento
+     * histórico do arquivo-único KOF) para URIs não-Kof (ex.: `.md` roteado antes).
      */
     static String fileNameOf(String uri) {
         String path = uri.startsWith("file:") ? uri.substring("file:".length()) : uri;
         int slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
         if (slash >= 0) path = path.substring(slash + 1);
-        return (path.endsWith(".kf") || path.endsWith(".ks")) ? path : "LspMain.kf";
+        String n = path.toLowerCase();
+        if (n.endsWith(".kf") || n.endsWith(".ks") || n.endsWith(".kof") || n.endsWith(".ptkf"))
+            return path;
+        return "LspMain.kf";
     }
 
     /**
@@ -84,8 +90,9 @@ final class LspProject {
         Files.writeString(target, bufferText);
         try (var walk = Files.walk(root, 12)) {
             walk.filter(Files::isRegularFile).forEach(p -> {
-                String n = p.getFileName().toString();
-                if (!(n.endsWith(".kf") || n.endsWith(".ks") || n.equals("kof.toml"))) return;
+                String n = p.getFileName().toString().toLowerCase();
+                if (!(n.endsWith(".kf") || n.endsWith(".ks") || n.endsWith(".kof")
+                        || n.endsWith(".ptkf") || n.equals("kof.toml"))) return;
                 if (p.toAbsolutePath().normalize().equals(abs)) return; // o buffer vence o disco
                 Path dst = mirrorDir.resolve(
                         root.relativize(p.toAbsolutePath().normalize()).toString());
@@ -129,7 +136,10 @@ final class LspProject {
         // projeto. Nesses casos só o nivel imediato conta (profundidade 1).
         int depth = isScratchDir(dir) ? 1 : 6;
         try (var stream = Files.walk(dir, depth)) {
-            stream.filter(p -> p.getFileName().toString().endsWith(".kf")).forEach(out::add);
+            stream.filter(p -> {
+                String n = p.getFileName().toString().toLowerCase();
+                return n.endsWith(".kf") || n.endsWith(".kof") || n.endsWith(".ptkf");
+            }).forEach(out::add);
         } catch (Exception e) {
             // arvore ilegivel = nao contribui (nunca chute - R6)
         }
@@ -200,7 +210,9 @@ final class LspProject {
     }
 
     private static void collect(java.util.List<Object> out, String uri, String text, String q) {
-        for (LspSymbols.DocSymbol s : LspSymbols.documentSymbols(text)) {
+        dev.kof.compiler.lang.LanguageProfile p = dev.kof.compiler.lang.LanguageProfile
+                .forFileName(fileNameOf(uri));
+        for (LspSymbols.DocSymbol s : LspSymbols.documentSymbols(p, text)) {
             if (!s.name().toLowerCase(java.util.Locale.ROOT).contains(q)) continue;
             java.util.Map<String, Object> sym = new java.util.LinkedHashMap<>();
             sym.put("name", s.name());
@@ -225,7 +237,8 @@ final class LspProject {
     static String[] declarationLine(String uri, String bufferText, String word, Path root) {
         if (word == null || word.isEmpty()) return null;
         if (bufferText != null) {
-            int[] r = LspSymbols.declarationRange(bufferText, word);
+            int[] r = LspSymbols.declarationRange(
+                    dev.kof.compiler.lang.LanguageProfile.forFileName(fileNameOf(uri)), bufferText, word);
             if (r != null) return new String[]{ lineAt(bufferText, r[0]), nameOf(uri) };
         }
         Path self = toPath(uri);
@@ -233,7 +246,9 @@ final class LspProject {
         for (Path f : siblings(self, root)) {
             String txt = readOrNull(f);
             if (txt == null) continue;
-            int[] r = LspSymbols.declarationRange(txt, word);
+            int[] r = LspSymbols.declarationRange(
+                    dev.kof.compiler.lang.LanguageProfile.forFileName(f.getFileName().toString()),
+                    txt, word);
             if (r != null) return new String[]{ lineAt(txt, r[0]), f.getFileName().toString() };
         }
         return null;

@@ -297,7 +297,7 @@ public class ExpressionParser {
                         Long.parseLong(raw);
                     }
                 } catch (NumberFormatException e) {
-                    ctx.error("numeric literal out of range: " + t.value(), "PARSE084");
+                    ctx.error("numeric literal out of range: " + t.value(), "PARSE084", t.value());
                     return new LiteralExpr(ctx.pos(), ConcreteLiteralKind.NULL, "0");
                 }
             }
@@ -312,7 +312,7 @@ public class ExpressionParser {
             if (t.type() == TokenType.INT_LITERAL
                     && (t.value().startsWith("0x") || t.value().startsWith("0X"))
                     && t.value().length() - 2 > 16) {
-                ctx.error("numeric literal out of range: " + t.value(), "PARSE084");
+                ctx.error("numeric literal out of range: " + t.value(), "PARSE084", t.value());
                 return new LiteralExpr(ctx.pos(), ConcreteLiteralKind.NULL, "0");
             }
             if (t.type() == TokenType.FLOAT_LITERAL || t.type() == TokenType.DOUBLE_LITERAL) {
@@ -324,7 +324,7 @@ public class ExpressionParser {
                         Double.parseDouble(raw);
                     }
                 } catch (NumberFormatException e) {
-                    ctx.error("invalid float literal: " + t.value(), "PARSE084");
+                    ctx.error("invalid float literal: " + t.value(), "PARSE084", t.value());
                     return new LiteralExpr(ctx.pos(), ConcreteLiteralKind.NULL, "0");
                 }
             }
@@ -374,7 +374,8 @@ public class ExpressionParser {
             List<StatementNode> body = StatementParser.parseBlock(ctx);
             return new LambdaExpr(ctx.pos(), params, body);
         }
-        ctx.error("Unexpected token in expression: " + ctx.peek().value(), "PARSE041");
+        ctx.error("Unexpected token in expression: " + ctx.peek().value(), "PARSE041",
+                ctx.peek().value());
         ctx.advance();
         return new IdentifierExpr(ctx.pos(), "error");
     }
@@ -532,21 +533,20 @@ public class ExpressionParser {
         List<String> orderDirs = new ArrayList<>();
         ExpressionNode limit = null;
         while (!ctx.check(TokenType.RBRACE) && !ctx.atEnd()) {
-            if (ctx.check(TokenType.IDENTIFIER) && "where".equals(ctx.peek().value())) {
+            if (ctx.wordIs("where")) {
                 ctx.advance();
                 wheres.add(ExpressionParser.parseExpression(ctx));
                 ctx.expectSemicolon();
-            } else if (ctx.check(TokenType.IDENTIFIER) && "orderBy".equals(ctx.peek().value())) {
+            } else if (ctx.wordIs("orderBy")) {
                 ctx.advance();
                 orderFields.add(ExpressionParser.parseIdentifierOrLiteral(ctx));
                 String dir = "asc";
-                if (ctx.check(TokenType.IDENTIFIER) && ("desc".equals(ctx.peek().value())
-                        || "asc".equals(ctx.peek().value()))) {
-                    dir = ctx.advance().value();
+                if (ctx.wordIs("desc") || ctx.wordIs("asc")) {
+                    dir = ctx.canonicalValue(ctx.advance().value());
                 }
                 orderDirs.add(dir);
                 ctx.expectSemicolon();
-            } else if (ctx.check(TokenType.IDENTIFIER) && "limit".equals(ctx.peek().value())) {
+            } else if (ctx.wordIs("limit")) {
                 ctx.advance();
                 limit = ExpressionParser.parseExpression(ctx);
                 ctx.expectSemicolon();

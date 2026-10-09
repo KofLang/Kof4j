@@ -105,7 +105,11 @@ public final class CompilerImports {
                 }
                 graph.computeIfAbsent(imp, k -> new java.util.HashSet<>());
                 try (var stream = Files.walk(pkgDir, 1)) {
-                    for (Path kf : stream.filter(p -> p.toString().endsWith(".kf"))
+                    // F7.2 (07/10): o import resolve a MESMA unidade canônica
+                    // em qualquer superfície — `.kf`/`.kof`/`.ptkf` convivem no
+                    // pacote; a extensão do arquivo encontrado decide o perfil
+                    // (nunca heurística de conteúdo, `D-PORTUKOF` regra-ouro).
+                    for (Path kf : stream.filter(p -> isKofExtSource(p.getFileName().toString()))
                             .sorted(java.util.Comparator.comparing(p -> p.getFileName().toString()))
                             .toList()) {
                         if (!visitedDirs.add(kf.toAbsolutePath().normalize().toString())) {
@@ -113,10 +117,13 @@ public final class CompilerImports {
                         }
                         String code = Files.readString(kf);
                         String fileName = kf.getFileName().toString();
+                        dev.kof.compiler.lang.LanguageProfile profile =
+                                dev.kof.compiler.lang.LanguageProfile.forFileName(fileName);
                         DiagnosticCollector silent = new DiagnosticCollector();
-                        Parser parser = new Parser(new Lexer(code, fileName, silent).tokenize(),
-                                silent, fileName);
-                        CompilationUnitNode libUnit = parser.parse();
+                        Parser parser = new Parser(new Lexer(code, fileName, silent, profile).tokenize(),
+                                silent, fileName, profile);
+                        CompilationUnitNode libUnit = dev.kof.compiler.lang.PortuKofParity.normalize(
+                                profile, parser.parse());
                         if (silent.hasErrors()) {
                             // §CodeQL deref-null: same null-tolerance of the
                             // PKG003/PKG004 branches below (lines 74/95/126).
@@ -158,21 +165,21 @@ public final class CompilerImports {
                 }
                 continue;
             }
-            // File import (import a.b.C -> single file a/b/C.kf)
+            // File import (import a.b.C -> single file a/b/C.kf, .ptkf ou .kof)
             int lastDot = imp.lastIndexOf('.');
             if (lastDot > 0) {
                 String pkgPart = imp.substring(0, lastDot);
                 String filePart = imp.substring(lastDot + 1);
                 Path pkgPath = moduleRoot != null ? moduleRoot.resolve(pkgPart.replace('.', '/')) : Path.of(pkgPart.replace('.', '/'));
-                Path kfFile = pkgPath.resolve(filePart + ".kf");
-                if (!Files.isRegularFile(kfFile)) {
+                Path kfFile = firstKofExtFile(pkgPath, filePart);
+                if (kfFile == null) {
                     for (Path libRoot : libraryRoots) {
-                        Path candidate = libRoot.resolve(pkgPart.replace('.', '/'))
-                                .resolve(filePart + ".kf");
-                        if (Files.isRegularFile(candidate)) { kfFile = candidate; break; }
+                        Path candidate = firstKofExtFile(
+                                libRoot.resolve(pkgPart.replace('.', '/')), filePart);
+                        if (candidate != null) { kfFile = candidate; break; }
                     }
                 }
-                if (Files.isRegularFile(kfFile)) {
+                if (kfFile != null) {
                     String pkgKey = kfFile.toAbsolutePath().normalize().toString();
                     if (!visitedDirs.add(pkgKey)) {
                         continue;
@@ -180,9 +187,13 @@ public final class CompilerImports {
                     try {
                         String code = Files.readString(kfFile);
                         String fileName = kfFile.getFileName().toString();
+                        dev.kof.compiler.lang.LanguageProfile profile =
+                                dev.kof.compiler.lang.LanguageProfile.forFileName(fileName);
                         DiagnosticCollector silent = new DiagnosticCollector();
-                        Parser parser = new Parser(new Lexer(code, fileName, silent).tokenize(), silent, fileName);
-                        CompilationUnitNode libUnit = parser.parse();
+                        Parser parser = new Parser(new Lexer(code, fileName, silent, profile).tokenize(),
+                                silent, fileName, profile);
+                        CompilationUnitNode libUnit = dev.kof.compiler.lang.PortuKofParity.normalize(
+                                profile, parser.parse());
                         if (silent.hasErrors()) {
                             if (currentDiagnostics != null) {
                                 for (Diagnostic d : silent.getDiagnostics()) currentDiagnostics.report(d);
@@ -330,5 +341,25 @@ public final class CompilerImports {
                 || imp.startsWith("java.") || imp.startsWith("jakarta.")
                 || imp.startsWith("javax.") || imp.startsWith("kotlin.")
                 || imp.startsWith("scala.");
+    }
+
+    /**
+     * F7.2 (07/10) — o MESMO filtro de extensão que a CLI usa para descobrir
+     * fontes (`KofCliSupport.isKofSource`): a extensão é a autoridade do
+     * perfil (`.ptkf` é PortuKof; `.kf`/`.kof` são Kof). Cópia local mínima
+     * porque o resolver vive no compilador e a CLI não é dependência.
+     */
+    static boolean isKofExtSource(String fileName) {
+        String n = fileName.toLowerCase();
+        return n.endsWith(".kf") || n.endsWith(".kof") || n.endsWith(".ptkf");
+    }
+
+    /** Arquivo-fonte do nome-base num diretório; prioridade .kf → .ptkf → .kof. */
+    static Path firstKofExtFile(Path dir, String base) {
+        for (String ext : new String[]{".kf", ".ptkf", ".kof"}) {
+            Path cand = dir.resolve(base + ext);
+            if (Files.isRegularFile(cand)) return cand;
+        }
+        return null;
     }
 }

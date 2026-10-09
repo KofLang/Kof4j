@@ -1,6 +1,9 @@
 package dev.kof.cli;
 
 import dev.kof.compiler.StdCatalog;
+import dev.kof.compiler.lang.LanguageProfile;
+import dev.kof.compiler.lang.SurfaceNames;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -11,17 +14,26 @@ import java.util.Map;
  * consumindo a tabela {@code SIGNATURES} do StdCatalog — a mesma fonte unica
  * do hover, travada em {@code StdCatalogSignaturesTest}. Membro sem tabela
  * nao ganha chute (R6): o servidor responde null e o cliente nao mostra nada.
+ *
+ * <p>F7.2 (07/10): a ASSINATURA continua a canônica (mesma tabela, mesmos
+ * parametros — sem traduçao de nomes de parametro sem catalogo), mas o NOME
+ * exibido e a grafia de superficie do perfil. Em Kof o resultado e
+ * byte-a-byte o historico.
  */
 public final class LspSignatureHelp {
 
     private LspSignatureHelp() { }
+
+    public static Map<String, Object> helpFor(String text, int offset) {
+        return helpFor(LanguageProfile.KOF, text, offset);
+    }
 
     /**
      * Resultado no formato LSP (signatures/activeSignature/activeParameter)
      * ou {@code null} quando o cursor nao esta dentro de uma chamada de
      * membro stdlib com tabela.
      */
-    public static Map<String, Object> helpFor(String text, int offset) {
+    public static Map<String, Object> helpFor(LanguageProfile p, String text, int offset) {
         if (text == null || text.isEmpty() || offset <= 0 || offset > text.length()) {
             return null;
         }
@@ -57,7 +69,7 @@ public final class LspSignatureHelp {
             return null;
         }
         int open = opens.get(opens.size() - 1);
-        String[] nsMember = resolveMember(text, open);
+        String[] nsMember = resolveMember(p, text, open);
         if (nsMember == null) {
             return null;
         }
@@ -90,8 +102,9 @@ public final class LspSignatureHelp {
         }
         List<Map<String, Object>> sigs = new ArrayList<>();
         int widest = 0;
+        String surfaceMember = SurfaceNames.member(p, nsMember[0], nsMember[1]);
         for (String form : forms) {
-            sigs.add(toSignature(form));
+            sigs.add(toSignature(renderForm(p, surfaceMember, form)));
             widest = Math.max(widest, paramLabels(form).size());
         }
         Map<String, Object> res = new LinkedHashMap<>();
@@ -102,23 +115,32 @@ public final class LspSignatureHelp {
     }
 
     /** `ns.member(` no contexto exato do catalogo; membro solto so quando
-     *  unico namespace da tabela o contem (ambiguo => null, nunca chute). */
-    private static String[] resolveMember(String text, int open) {
+     *  unico namespace da tabela o contem (ambiguo => null, nunca chute).
+     *  F7.2: o identificador-fonte e CANONICALIZADO pelo perfil — a chave da
+     *  tabela e SEMPRE o simbolo canônico (a superficie so aparece no label). */
+    private static String[] resolveMember(LanguageProfile p, String text, int open) {
         int j = open;
         while (j > 0 && (Character.isLetterOrDigit(text.charAt(j - 1)) || text.charAt(j - 1) == '_')) {
             j--;
         }
-        String member = text.substring(j, open);
-        if (member.isEmpty()) {
+        String surfaceMember = text.substring(j, open);
+        if (surfaceMember.isEmpty()) {
             return null;
         }
         if (j > 0 && text.charAt(j - 1) == '.') {
-            int p = j - 1;
-            while (p > 0 && (Character.isLetterOrDigit(text.charAt(p - 1)) || text.charAt(p - 1) == '_')) {
-                p--;
+            int nsi = j - 1;
+            while (nsi > 0 && (Character.isLetterOrDigit(text.charAt(nsi - 1)) || text.charAt(nsi - 1) == '_')) {
+                nsi--;
             }
-            String ns = text.substring(p, j - 1);
+            String ns = SurfaceNames.canonicalNamespace(p, text.substring(nsi, j - 1));
+            String member = SurfaceNames.canonicalMember(p, ns, surfaceMember);
             return StdCatalog.isNamespace(ns) ? new String[] { ns, member } : null;
+        }
+        String member = surfaceMember;
+        if (p != LanguageProfile.KOF) {
+            // builtin de chamada nua (`escreva(` → `print(`) — dominio fechado
+            // do catalogo; sem alias oficial o nome permanece (simbolo de usuario).
+            member = p.symbolAliases().getOrDefault(surfaceMember, surfaceMember);
         }
         String found = null;
         int hits = 0;
@@ -129,6 +151,18 @@ public final class LspSignatureHelp {
             }
         }
         return hits == 1 ? new String[] { found, member } : null;
+    }
+
+    /**
+     * F7.2: so o NOME da frente vira superficie; a lista de parametros e o
+     * tipo de retorno continuam CANONICOS (sem catalogo de nome de parametro
+     * nao se traduz nada — §13). Idempotente e byte-a-byte igual em Kof.
+     */
+    private static String renderForm(LanguageProfile p, String surfaceMember, String form) {
+        if (p == LanguageProfile.KOF) return form;
+        int paren = form.indexOf('(');
+        if (paren < 0) return form;
+        return surfaceMember + form.substring(paren);
     }
 
     private static Map<String, Object> toSignature(String form) {

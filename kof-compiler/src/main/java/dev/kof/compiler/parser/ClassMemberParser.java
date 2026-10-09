@@ -41,7 +41,7 @@ public class ClassMemberParser {
     static AstNode parseClassMember(ParseContext ctx) {
         List<AnnotationNode> annos = AnnotationParser.parseAnnotations(ctx);
         List<String> mods = TypeDeclarations.parseModifiers(ctx);
-        if (ctx.check(TokenType.IDENTIFIER) && ctx.peek().value().equals("constructor") && ctx.checkNext(TokenType.LPAREN)) {
+        if (ctx.wordIs("constructor") && ctx.checkNext(TokenType.LPAREN)) {
             ConstructorDeclarationNode ctor = parseConstructor(ctx, mods);
             return new ConstructorDeclarationNode(ctor.position(), ctor.modifiers(), ctor.name(),
                     ctor.parameters(), ctor.thrownExceptions(), ctor.body(), annos);
@@ -188,7 +188,7 @@ public class ClassMemberParser {
 
     static ConstructorDeclarationNode parseConstructor(ParseContext ctx, List<String> mods) {
         String name;
-        if (ctx.check(TokenType.IDENTIFIER) && ctx.peek().value().equals("constructor")) {
+        if (ctx.wordIs("constructor")) {
             ctx.advance();
             name = ctx.currentClassName != null ? ctx.currentClassName : "error";
         } else if (ctx.check(TokenType.IDENTIFIER)) {

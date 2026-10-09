@@ -4901,3 +4901,51 @@ individuais:
 **Limite:** as três são infraestrutura de teste aditiva — sem mudança de linguagem/semântica. A é a única superfície implementada até agora (`fixedClock`/`scriptedClock`/`seededRandom`); B e C estão AUTORIZADAS e na fila. Nada aqui enfraquece o quality gate ou descongela `future/`.
 
 **Relações:** `Related: D-MAINT-BATCH-0610, D-KOF-FIRST, D-TESTING-PLATFORM, rule 6, rule 12`.
+
+---
+
+## D-PORTUKOF — PortuKof (.ptkf): superfície oficial pt-BR do Kof, uma única semântica (ordem da mantenedora no chat 07/10/2026)
+
+**Data:** 2026-10-07 · **Estado:** `DECIDIDO` + `EM CURSO` (lane `portukof`, dona `192.168.15.101:9092`) · **Autoridade:** ordem explícita da mantenedora em 07/10/2026 (GIGAPROMPT — IMPLEMENTAÇÃO DO PORTUKOF) e sua emenda no mesmo dia (regra absoluta de paridade completa de frontend + branch/worktree isolados). **Efeito:** PortuKof é SUPERFÍCIE oficial do Kof. NÃO é fork, NÃO é segundo compilador, NÃO é segunda semântica.
+
+**Contrato:**
+
+1. `*.ptkf` = Kof escrito com vocabulário pt-BR; a extensão seleciona o perfil de forma determinística (sem heurística de conteúdo). `kof run|build|check|test` autodescobrem; nenhum flag `--language` é necessário.
+2. UMA semântica: um AST, um IR, um type system, um runtime, uma stdlib, um conjunto de backends. O frontend PortuKof deve chegar EXATAMENTE ao AST canônico do Kof após o parse — keywords localizadas via tabela de keywords do lexer (profile-aware, injetada no parse) e builtins/stdlib localizados via normalização pós-parse que reescreve o AST para os símbolos canônicos (alias ≠ implementação). Nada abaixo do AST sabe que PortuKof existe.
+3. NUNCA traduzido: conteúdo de strings, identificadores definidos pelo usuário, nomes canônicos de tipos (`Int`/`String`/`List`/...). Operadores/precedência/pontuação são identidade da linguagem e permanecem idênticos.
+4. Não prosa: PortuKof é sintaxe de programação com vocabulário português, não DSL de linguagem natural (`se idade >= 18 {` — nunca `se a idade for maior que dezoito então`).
+5. Keywords sem acento (recomendação da ordem, avaliada contra a filosofia de portabilidade/simplicidade do Kof, documentada): `nao`, `senao`, `funcao`, `variavel`.
+6. `var`/`val` permanecem `var`/`val` (D-KOF-FIRST: Kof não é JavaScript; a ordem admite a forma não traduzida e ela é a recomendada).
+
+**Regra absoluta (emenda da mantenedora 07/10) — PARIDADE COMPLETA DE FRONTEND:** PortuKof deve expor o frontend Kof COMPLETO — toda keyword do lexer, todo builtin, todo namespace/função da stdlib do `StdCatalog`, todo nome de pacote de biblioteca alcançável por resolução canônica — através de um alias português bijetivo e livre de colisões. SEM subconjunto, SEM gap, SEM stub (Q7). A paridade é imposta mecanicamente por gate (`scripts/check_portukof_parity.sh`) + testes de paridade; a superfície só embarca com 100% de cobertura do frontend.
+
+**Método de trabalho (ordem da mantenedora 07/10):** branch `portukof`, desenvolvida em worktree SEPARADO no disco (`/home/mel/Kof4j-portukof`, clonado do repositório) para nunca tocar o worktree compartilhado do `lab` nem as lanes vivas; a branch sobe só para `origin/portukof`; qualquer merge no `lab` é da mantenedora (`D-BRANCH-PIPELINE`, autoridade main-merge). autorização explícita da mantenedora cobrindo `no-tmp-worktree` SÓ para esta lane.
+
+**Versionamento:** PortuKof segue a versão do Kof (`D-RELEASE-CADENCE`); sem versão independente. Compatibilidade de vocabulário segue as políticas de compatibilidade do Kof.
+
+**Alternativas consideradas (todas rejeitadas pela ordem e por medição):** (a) compilador forkado — multiplica a semântica; (b) pré-tradutor de texto — quebra posições/diagnósticos/tooling e deriva; (c) detecção heurística de idioma — não determinística; (d) DSL em prosa — outra linguagem. A arquitetura escolhida é uma superfície: lexer profile-aware + normalização pós-parse do AST para símbolos canônicos + descoberta na CLI + (em fases) diagnósticos e tooling localizados.
+
+**Multilíngue futuro:** o mecanismo `LanguageProfile` é o ponto de extensão — uma nova superfície é vocabulário + aliases + docs + testes, nunca mudança de compilador (PARTE 22/35).
+
+**Relações:** `Related: D-KOF-FIRST, D-KOF-AS-CLOUD, D-RELEASE-CADENCE, D-BRANCH-PIPELINE, rule 6 (este registro É a decisão — nenhuma decisão pendente bloqueia a superfície), rule 11, rule 12`.
+
+---
+
+## D-PORTUKOF-SUGAR — açúcar de fala `diga`/`diz` como aliases infantis de `println`/`print` (ordem da mantenedora no chat 08/10/2026)
+
+**Decisão (mantenedora 08/10, no trabalho da trilha de ensino PortuKof):** a superfície PortuKof aceita `diga` para `println` e `diz` para `print` — "não só escreva". São **açúcar de fala**: grafias extras aceitas dos MESMOS builtins, voltadas a crianças (como o Scratch diz "say"). A pergunta "qual comportamento?" foi medida e respondida pela mantenedora no chat: **ambos** — `diga`→`println` (com quebra de linha), `diz`→`print` (sem quebra).
+
+**Consequências mecânicas (todas dentro da ÚNICA ponte existente):**
+
+* `lang/PortuKofVocabulary.SUGAR` é uma tabela separada e pequena (`{"println","diga"}, {"print","diz"}`); a tabela PRIMARY `BUILTINS` e seu gate de bijeção (64↔64) ficam INALTERADOS.
+* O açúcar só **amplia o domínio fechado superfície→canônico**: `PortuKofParity.normalize` mapeia chamadas nuas `diga`/`diz` para `println`/`print` — mesmo AST, mesmo IR, mesma implementação. A renderização canônico→superfície continua devolvendo a grafia PRIMARY (`escrevaln`/`escreva`); o açúcar nunca contamina a exibição, os rótulos de hover ou o caminho canônico→PortuKof do `kof fmt`.
+* `kof fmt` em `.ptkf` mantém `diga`/`diz` **verbatim** (são slots de nome no AST de superfície parseado), idempotente.
+* LSP completion/hover/rename enxergam o açúcar porque leem o MESMO `symbolAliases()` que o parser percorre (nenhuma lista paralela em lugar algum).
+
+**Regra identidade vs açúcar:** os docs de ensino ensinam `diga`/`diz` ao lado dos primários `escrevaln`/`escreva`, mas nunca no lugar deles — as tabelas de referência, diagnósticos e tooling mantêm as grafias primárias como a face canônica pt-BR.
+
+**Guarda de escopo:** o açúcar é permitido SOMENTE para builtins do domínio fechado com redação natural infantil medida; nenhum açúcar de membro/namespace sem decisão da mantenedora. Qualquer alias futuro segue esta mesma forma de tabela+gate (nenhum segundo vocabulário em lugar algum).
+
+**Prova:** `PortuKofSurfaceE2ETest` (identidade de normalização vs tabela primária; paridade no alvo script; paridade de compilação JVM), `PortuKofFormatterProfileE2ETest` (verbatim + idempotente), `PortuKofToolingSurfaceE2ETest` (completion oferece `diga`/`diz`, sem vazamento canônico; hover resolve `diga` para a identidade primária `escrevaln`/`println`), gate `scripts/check_portukof_parity.sh` §3b.
+
+**Relações:** `Related: D-PORTUKOF (uma superfície, um compilador), D-KOF-FIRST (biblioteca/vocabulário, não novas primitivas), rule 11 (a superfície continua extremamente simples — o açúcar são 2 palavras).`

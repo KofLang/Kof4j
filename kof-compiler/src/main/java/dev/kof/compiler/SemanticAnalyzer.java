@@ -358,6 +358,13 @@ public class SemanticAnalyzer {
     Map<ExpressionNode, Type> expressionTypes() { return java.util.Collections.unmodifiableMap(expressionTypes); }
     Map<MethodCallExpr, SymbolTable.MethodSymbol> resolvedMethods() { return java.util.Collections.unmodifiableMap(resolvedMethods); }
     Map<NewExpr, SymbolTable.ConstructorSymbol> resolvedConstructors() { return java.util.Collections.unmodifiableMap(resolvedConstructors); }
+
+    // D-PORTUKOF u3 (07/10): estado da superfície (alias por nó original) +
+    // re-indexação pós-splice, extraído para PortuKofSurfaceState (REFACTOR-500).
+    private final PortuKofSurfaceState portuKofSurface =
+            new PortuKofSurfaceState(expressionTypes, resolvedMethods, resolvedConstructors);
+
+    PortuKofSurfaceState portuKofSurface() { return portuKofSurface; }
     Map<String, SymbolTable> classMemberScopes() { return java.util.Collections.unmodifiableMap(classMemberScopes); }
     Map<ConstructorDeclarationNode, SymbolTable> ctorScopes() { return java.util.Collections.unmodifiableMap(ctorScopes); }
     Map<MethodDeclarationNode, SymbolTable> methodScopes() { return java.util.Collections.unmodifiableMap(methodScopes); }
@@ -371,6 +378,7 @@ public class SemanticAnalyzer {
         expressionTypes.put(expr, type);
         if (trackedExpressionTypes != null) trackedExpressionTypes.add(expr);
     }
+
     void putResolvedMethod(MethodCallExpr call, SymbolTable.MethodSymbol sym) { resolvedMethods.put(call, sym); }
     void putResolvedConstructor(NewExpr expr, SymbolTable.ConstructorSymbol sym) { resolvedConstructors.put(expr, sym); }
     void putClassMemberScope(String className, SymbolTable scope) { classMemberScopes.put(className, scope); }

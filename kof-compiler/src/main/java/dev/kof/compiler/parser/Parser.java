@@ -47,6 +47,12 @@ public class Parser {
         this.ctx = new ParseContext(tokens, diagnostics, file);
     }
 
+    /** D-PORTUKOF (07/10): parser com superfície linguística (PortuKof). */
+    public Parser(List<Token> tokens, DiagnosticCollector diagnostics, String file,
+                  dev.kof.compiler.lang.LanguageProfile profile) {
+        this.ctx = new ParseContext(tokens, diagnostics, file, profile);
+    }
+
     public CompilationUnitNode parse() {
         SourcePosition pos0 = ctx.pos();
         String packageName = parsePackage(ctx);
@@ -58,12 +64,12 @@ public class Parser {
                 rejectFunctionKeyword(ctx);
                 continue;
             }
-            if (ctx.check(TokenType.IDENTIFIER) && "test".equals(ctx.peek().value()) && ctx.checkNext(TokenType.STRING_LITERAL)) {
+            if (ctx.wordIs("test") && ctx.checkNext(TokenType.STRING_LITERAL)) {
                 declarations.add(parseTestDeclaration(ctx));
-            } else if (ctx.check(TokenType.IDENTIFIER) && "application".equals(ctx.peek().value())
+            } else if (ctx.wordIs("application")
                     && ctx.checkNext(TokenType.LBRACE)) {
                 declarations.add(parseApplicationDeclaration(ctx));
-            } else if (ctx.check(TokenType.IDENTIFIER) && "infra".equals(ctx.peek().value())
+            } else if (ctx.wordIs("infra")
                     && ctx.checkNext(TokenType.STRING_LITERAL)) {
                 declarations.add(parseInfraDeclaration(ctx));
             } else if (!annos.isEmpty()
@@ -301,11 +307,11 @@ public class Parser {
         }
         ctx.expect(TokenType.RBRACE, "Expected '}' to close foreign module", "PARSE093");
         if (library == null) {
-            ctx.error("foreign module '" + name + "' must declare a `library \"...\"`", "PARSE097");
+            ctx.error("foreign module '" + name + "' must declare a `library \"...\"`", "PARSE097", name);
         }
         if (ownership != null && !CONNECTOR_OWNERSHIP.contains(ownership)) {
             ctx.error("foreign module '" + name + "': unknown ownership '" + ownership
-                    + "' (expected one of " + CONNECTOR_OWNERSHIP + ")", "PARSE099");
+                    + "' (expected one of " + CONNECTOR_OWNERSHIP + ")", "PARSE099", name, ownership, CONNECTOR_OWNERSHIP);
         }
         List<AstNode> out = new ArrayList<>(externs);
         out.add(new ForeignModuleNode(p, name, library, abi, ownership, List.of()));
@@ -364,7 +370,7 @@ public class Parser {
     static void rejectFunctionKeyword(ParseContext ctx) {
         String w = ctx.advance().value();
         ctx.error("'" + w + "' is a reserved word (Kof has no function keyword); "
-                + "declare as 'Type name(...) { }' or 'name(...): Type { }'", "PARSE085");
+                + "declare as 'Type name(...) { }' or 'name(...): Type { }'", "PARSE085", w);
     }
 
     /**

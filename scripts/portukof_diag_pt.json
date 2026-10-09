@@ -1,0 +1,1732 @@
+{
+  "LEX001": [
+    {
+      "arity": 0,
+      "en": "Unterminated block comment",
+      "pt": "comentário de bloco não terminado"
+    }
+  ],
+  "LEX002": [
+    {
+      "arity": 0,
+      "en": "Unterminated string literal",
+      "pt": "literal de texto não terminado"
+    }
+  ],
+  "LEX003": [
+    {
+      "arity": 0,
+      "en": "Empty character literal",
+      "pt": "literal de caractere vazio"
+    }
+  ],
+  "LEX004": [
+    {
+      "arity": 0,
+      "en": "Unterminated character literal",
+      "pt": "literal de caractere não terminado"
+    }
+  ],
+  "LEX005": [
+    {
+      "arity": 1,
+      "en": "Unexpected character: '{0}'",
+      "pt": "caractere inesperado: '{0}'"
+    }
+  ],
+  "LEX006": [
+    {
+      "arity": 0,
+      "en": "Incomplete unicode escape (expected \\uXXXX)",
+      "pt": "escape unicode incompleto (esperado \\uXXXX)"
+    }
+  ],
+  "LEX007": [
+    {
+      "arity": 1,
+      "en": "Invalid unicode escape: \\u{0}",
+      "pt": "escape unicode inválido: \\u{0}"
+    }
+  ],
+  "LEX008": [
+    {
+      "arity": 0,
+      "en": "Kof has no triple-quoted (raw/multiline) string literal: use \"...\" with \\n (no interpolation either — concatenate with +)",
+      "pt": "Kof não tem literal de texto triplamente aspas (raw/multilinha): use \"...\" com \\n (também sem interpolação — concatene com +)"
+    }
+  ],
+  "PARSE001": [
+    {
+      "arity": 0,
+      "en": "Expected package name",
+      "pt": "esperado nome de pacote"
+    }
+  ],
+  "PARSE002": [
+    {
+      "arity": 0,
+      "en": "Expected package name component",
+      "pt": "esperado componente do nome de pacote"
+    }
+  ],
+  "PARSE004": [
+    {
+      "arity": 0,
+      "en": "Expected import name",
+      "pt": "esperado nome de import"
+    }
+  ],
+  "PARSE005": [
+    {
+      "arity": 0,
+      "en": "Expected import path component",
+      "pt": "esperado componente do caminho de import"
+    }
+  ],
+  "PARSE007": [
+    {
+      "arity": 0,
+      "en": "Expected type declaration",
+      "pt": "esperada declaração de tipo"
+    }
+  ],
+  "PARSE008": [
+    {
+      "arity": 0,
+      "en": "Expected class name",
+      "pt": "esperado nome de classe"
+    }
+  ],
+  "PARSE009": [
+    {
+      "arity": 0,
+      "en": "Expected '}' after class body",
+      "pt": "esperado '}' depois do corpo da classe"
+    }
+  ],
+  "PARSE010": [
+    {
+      "arity": 0,
+      "en": "Expected '(' after 'using'",
+      "pt": "esperado '(' depois de 'using'"
+    },
+    {
+      "arity": 0,
+      "en": "Expected ')' to close using (name = init, closer)",
+      "pt": "esperado ')' para fechar using (name = init, closer)"
+    },
+    {
+      "arity": 0,
+      "en": "Expected '=' after the resource name in using (name = init, closer)",
+      "pt": "esperado '=' depois do nome do recurso em using (name = init, closer)"
+    },
+    {
+      "arity": 0,
+      "en": "Expected function name",
+      "pt": "esperado nome de função"
+    },
+    {
+      "arity": 0,
+      "en": "Expected infra name string",
+      "pt": "esperada string de nome de infra"
+    },
+    {
+      "arity": 0,
+      "en": "Expected interface name",
+      "pt": "esperado nome de interface"
+    },
+    {
+      "arity": 0,
+      "en": "Expected parameter name",
+      "pt": "esperado nome de parâmetro"
+    },
+    {
+      "arity": 0,
+      "en": "Expected resource name in using (name = init, closer)",
+      "pt": "esperado nome de recurso em using (name = init, closer)"
+    },
+    {
+      "arity": 0,
+      "en": "Expected tag string after ',' in test declaration",
+      "pt": "esperada string de tag depois de ',' na declaração de teste"
+    },
+    {
+      "arity": 0,
+      "en": "Expected test name string",
+      "pt": "esperada string de nome de teste"
+    },
+    {
+      "arity": 0,
+      "en": "test name must not be empty",
+      "pt": "nome de teste não pode ser vazio"
+    },
+    {
+      "arity": 0,
+      "en": "test tag must not be empty",
+      "pt": "tag de teste não pode ser vazia"
+    },
+    {
+      "arity": 0,
+      "en": "using requires a closer expression: using (name = init, closer) { body }",
+      "pt": "using exige uma expressão de fechamento: using (name = init, closer) { corpo }"
+    }
+  ],
+  "PARSE011": [
+    {
+      "arity": 0,
+      "en": "Expected '('",
+      "pt": "esperado '('"
+    },
+    {
+      "arity": 0,
+      "en": "Expected '}' after interface body",
+      "pt": "esperado '}' depois do corpo da interface"
+    }
+  ],
+  "PARSE012": [
+    {
+      "arity": 0,
+      "en": "Expected ')'",
+      "pt": "esperado ')'"
+    },
+    {
+      "arity": 0,
+      "en": "Expected record name",
+      "pt": "esperado nome de record"
+    }
+  ],
+  "PARSE013": [
+    {
+      "arity": 0,
+      "en": "Expected ')' after constructor parameters",
+      "pt": "esperado ')' depois dos parâmetros do construtor"
+    },
+    {
+      "arity": 0,
+      "en": "Expected ')' after record components",
+      "pt": "esperado ')' depois dos componentes do record"
+    },
+    {
+      "arity": 0,
+      "en": "Expected '{'",
+      "pt": "esperado '{'"
+    }
+  ],
+  "PARSE014": [
+    {
+      "arity": 0,
+      "en": "Expected '}' after record body",
+      "pt": "esperado '}' depois do corpo do record"
+    }
+  ],
+  "PARSE015": [
+    {
+      "arity": 0,
+      "en": "Expected component name",
+      "pt": "esperado nome de componente"
+    }
+  ],
+  "PARSE016": [
+    {
+      "arity": 0,
+      "en": "Unexpected token in class body",
+      "pt": "token inesperado no corpo da classe"
+    }
+  ],
+  "PARSE018": [
+    {
+      "arity": 0,
+      "en": "Expected member name",
+      "pt": "esperado nome de membro"
+    }
+  ],
+  "PARSE019": [
+    {
+      "arity": 0,
+      "en": "Expected ')' after parameters",
+      "pt": "esperado ')' depois dos parâmetros"
+    }
+  ],
+  "PARSE020": [
+    {
+      "arity": 0,
+      "en": "Expected constructor name",
+      "pt": "esperado nome de construtor"
+    }
+  ],
+  "PARSE021": [
+    {
+      "arity": 0,
+      "en": "Expected '('",
+      "pt": "esperado '('"
+    }
+  ],
+  "PARSE022": [
+    {
+      "arity": 0,
+      "en": "Expected ')'",
+      "pt": "esperado ')'"
+    }
+  ],
+  "PARSE023": [
+    {
+      "arity": 0,
+      "en": "Expected parameter name",
+      "pt": "esperado nome de parâmetro"
+    }
+  ],
+  "PARSE024": [
+    {
+      "arity": 0,
+      "en": "Expected ':' after field name",
+      "pt": "esperado ':' depois do nome do campo"
+    },
+    {
+      "arity": 0,
+      "en": "Expected '{'",
+      "pt": "esperado '{'"
+    },
+    {
+      "arity": 0,
+      "en": "Expected '{' after entity name",
+      "pt": "esperado '{' depois do nome da entidade"
+    },
+    {
+      "arity": 0,
+      "en": "Expected '}' after entity body",
+      "pt": "esperado '}' depois do corpo da entidade"
+    },
+    {
+      "arity": 0,
+      "en": "Expected entity name",
+      "pt": "esperado nome de entidade"
+    },
+    {
+      "arity": 0,
+      "en": "Expected field name in entity",
+      "pt": "esperado nome de campo na entidade"
+    }
+  ],
+  "PARSE025": [
+    {
+      "arity": 0,
+      "en": "Expected '}'",
+      "pt": "esperado '}'"
+    },
+    {
+      "arity": 0,
+      "en": "Expected '}' after query block",
+      "pt": "esperado '}' depois do bloco de consulta"
+    }
+  ],
+  "PARSE028": [
+    {
+      "arity": 0,
+      "en": "Expected '(' after 'if'",
+      "pt": "esperado '(' depois de 'if'"
+    }
+  ],
+  "PARSE029": [
+    {
+      "arity": 0,
+      "en": "Expected ')'",
+      "pt": "esperado ')'"
+    }
+  ],
+  "PARSE030": [
+    {
+      "arity": 0,
+      "en": "Expected '(' after 'while'",
+      "pt": "esperado '(' depois de 'while'"
+    },
+    {
+      "arity": 0,
+      "en": "Expected 'enum'",
+      "pt": "esperado 'enum'"
+    }
+  ],
+  "PARSE031": [
+    {
+      "arity": 0,
+      "en": "Expected ')'",
+      "pt": "esperado ')'"
+    },
+    {
+      "arity": 0,
+      "en": "Expected enum name",
+      "pt": "esperado nome de enum"
+    }
+  ],
+  "PARSE032": [
+    {
+      "arity": 0,
+      "en": "Expected '(' after 'for'",
+      "pt": "esperado '(' depois de 'for'"
+    },
+    {
+      "arity": 0,
+      "en": "Expected enum constant",
+      "pt": "esperada constante de enum"
+    }
+  ],
+  "PARSE033": [
+    {
+      "arity": 0,
+      "en": "Expected '}' after enum body",
+      "pt": "esperado '}' depois do corpo do enum"
+    }
+  ],
+  "PARSE034": [
+    {
+      "arity": 0,
+      "en": "Expected '{' after enum name (enums are constants-only)",
+      "pt": "esperado '{' depois do nome do enum (enum é só de constantes)"
+    }
+  ],
+  "PARSE035": [
+    {
+      "arity": 0,
+      "en": "Expected ')'",
+      "pt": "esperado ')'"
+    }
+  ],
+  "PARSE037": [
+    {
+      "arity": 0,
+      "en": "Expected variable name",
+      "pt": "esperado nome de variável"
+    }
+  ],
+  "PARSE039": [
+    {
+      "arity": 0,
+      "en": "Expected field name",
+      "pt": "esperado nome de campo"
+    }
+  ],
+  "PARSE040": [
+    {
+      "arity": 0,
+      "en": "Expected '('",
+      "pt": "esperado '('"
+    },
+    {
+      "arity": 0,
+      "en": "Expected ')'",
+      "pt": "esperado ')'"
+    }
+  ],
+  "PARSE041": [
+    {
+      "arity": 1,
+      "en": "Unexpected token in expression: {0}",
+      "pt": "token inesperado na expressão: {0}"
+    }
+  ],
+  "PARSE042": [
+    {
+      "arity": 0,
+      "en": "Expected '('",
+      "pt": "esperado '('"
+    },
+    {
+      "arity": 0,
+      "en": "Expected '->'",
+      "pt": "esperado '->'"
+    }
+  ],
+  "PARSE043": [
+    {
+      "arity": 0,
+      "en": "Expected '(' after if",
+      "pt": "esperado '(' depois de if"
+    },
+    {
+      "arity": 0,
+      "en": "Expected ')'",
+      "pt": "esperado ')'"
+    }
+  ],
+  "PARSE044": [
+    {
+      "arity": 0,
+      "en": "Expected 'else'",
+      "pt": "esperado 'else'"
+    },
+    {
+      "arity": 0,
+      "en": "Expected type",
+      "pt": "esperado tipo"
+    }
+  ],
+  "PARSE045": [
+    {
+      "arity": 0,
+      "en": "Expected ')' in Buffer(...)",
+      "pt": "esperado ')' em Buffer(...)"
+    },
+    {
+      "arity": 0,
+      "en": "Expected ']'",
+      "pt": "esperado ']'"
+    },
+    {
+      "arity": 0,
+      "en": "Expected '}' after if-expression branch",
+      "pt": "esperado '}' depois do ramo da expressão if"
+    }
+  ],
+  "PARSE046": [
+    {
+      "arity": 0,
+      "en": "Expected ']'",
+      "pt": "esperado ']'"
+    }
+  ],
+  "PARSE050": [
+    {
+      "arity": 0,
+      "en": "Expected '('",
+      "pt": "esperado '('"
+    }
+  ],
+  "PARSE051": [
+    {
+      "arity": 0,
+      "en": "Expected '{' after application",
+      "pt": "esperado '{' depois de application"
+    },
+    {
+      "arity": 0,
+      "en": "Expected '}' after application block",
+      "pt": "esperado '}' depois do bloco application"
+    },
+    {
+      "arity": 0,
+      "en": "Expected exception name",
+      "pt": "esperado nome de exceção"
+    },
+    {
+      "arity": 0,
+      "en": "Expected onStart/onShutdown block in application",
+      "pt": "esperado bloco onStart/onShutdown em application"
+    },
+    {
+      "arity": 0,
+      "en": "infra body accepts only builder calls (resource/prop/requires)",
+      "pt": "o corpo de infra aceita apenas chamadas de builder (resource/prop/requires)"
+    },
+    {
+      "arity": 1,
+      "en": "Expected '{' after {0}",
+      "pt": "esperado '{' depois de {0}"
+    }
+  ],
+  "PARSE052": [
+    {
+      "arity": 0,
+      "en": "Expected ')'",
+      "pt": "esperado ')'"
+    }
+  ],
+  "PARSE060": [
+    {
+      "arity": 0,
+      "en": "Expected 'while' after 'do'",
+      "pt": "esperado 'while' depois de 'do'"
+    }
+  ],
+  "PARSE061": [
+    {
+      "arity": 0,
+      "en": "Expected '(' after 'while'",
+      "pt": "esperado '(' depois de 'while'"
+    }
+  ],
+  "PARSE062": [
+    {
+      "arity": 0,
+      "en": "Expected ')'",
+      "pt": "esperado ')'"
+    }
+  ],
+  "PARSE070": [
+    {
+      "arity": 0,
+      "en": "Expected '(' after 'switch'",
+      "pt": "esperado '(' depois de 'switch'"
+    }
+  ],
+  "PARSE071": [
+    {
+      "arity": 0,
+      "en": "Expected ')'",
+      "pt": "esperado ')'"
+    }
+  ],
+  "PARSE072": [
+    {
+      "arity": 0,
+      "en": "Expected '{'",
+      "pt": "esperado '{'"
+    }
+  ],
+  "PARSE073": [
+    {
+      "arity": 0,
+      "en": "expected ':' (switch statement) or '->' (switch expression)",
+      "pt": "esperado ':' (declaração switch) ou '->' (expressão switch)"
+    }
+  ],
+  "PARSE074": [
+    {
+      "arity": 0,
+      "en": "Expected ':'",
+      "pt": "esperado ':'"
+    }
+  ],
+  "PARSE075": [
+    {
+      "arity": 0,
+      "en": "Expected '>' after type parameters",
+      "pt": "esperado '>' depois dos parâmetros de tipo"
+    },
+    {
+      "arity": 0,
+      "en": "Expected '}'",
+      "pt": "esperado '}'"
+    }
+  ],
+  "PARSE076": [
+    {
+      "arity": 0,
+      "en": "Expected '>' after type arguments",
+      "pt": "esperado '>' depois dos argumentos de tipo"
+    },
+    {
+      "arity": 0,
+      "en": "switch expression requires '->' (the statement form uses ':')",
+      "pt": "a expressão switch exige '->' (a forma de declaração usa ':')"
+    }
+  ],
+  "PARSE077": [
+    {
+      "arity": 0,
+      "en": "Expected '->' after 'default'",
+      "pt": "esperado '->' depois de 'default'"
+    }
+  ],
+  "PARSE078": [
+    {
+      "arity": 0,
+      "en": "Expected '<'",
+      "pt": "esperado '<'"
+    },
+    {
+      "arity": 0,
+      "en": "expected 'case' or 'default' in switch expression",
+      "pt": "esperado 'case' ou 'default' na expressão switch"
+    }
+  ],
+  "PARSE079": [
+    {
+      "arity": 0,
+      "en": "Expected '>'",
+      "pt": "esperado '>'"
+    }
+  ],
+  "PARSE080": [
+    {
+      "arity": 0,
+      "en": "Expected annotation name",
+      "pt": "esperado nome de anotação"
+    }
+  ],
+  "PARSE081": [
+    {
+      "arity": 0,
+      "en": "Expected ')' after annotation arguments",
+      "pt": "esperado ')' depois dos argumentos da anotação"
+    }
+  ],
+  "PARSE082": [
+    {
+      "arity": 0,
+      "en": "Expected '}' after annotation array",
+      "pt": "esperado '}' depois do array da anotação"
+    }
+  ],
+  "PARSE083": [
+    {
+      "arity": 0,
+      "en": "Invalid numeric literal in annotation",
+      "pt": "literal numérico inválido em anotação"
+    }
+  ],
+  "PARSE084": [
+    {
+      "arity": 0,
+      "en": "Expected annotation value",
+      "pt": "esperado valor de anotação"
+    },
+    {
+      "arity": 1,
+      "en": "invalid float literal: {0}",
+      "pt": "literal float inválido: {0}"
+    },
+    {
+      "arity": 1,
+      "en": "numeric literal out of range: {0}",
+      "pt": "literal numérico fora da faixa: {0}"
+    }
+  ],
+  "PARSE085": [
+    {
+      "arity": 1,
+      "en": "'{0}' is a reserved word (Kof has no function keyword); declare as 'Type name(...) { }' or 'name(...): Type { }'",
+      "pt": "'{0}' é uma palavra reservada (Kof não tem palavra-chave de função); declare como 'Tipo nome(...) { }' ou 'nome(...): Tipo { }'"
+    }
+  ],
+  "PARSE086": [
+    {
+      "arity": 0,
+      "en": "Wildcard types '? extends/super' are not supported in Kof; use a concrete type or nullable 'T?'",
+      "pt": "tipos curinga '? extends/super' não são suportados no Kof; use um tipo concreto ou nullability 'T?'"
+    }
+  ],
+  "PARSE090": [
+    {
+      "arity": 0,
+      "en": "Expected 'extern'",
+      "pt": "esperado 'extern'"
+    },
+    {
+      "arity": 0,
+      "en": "Expected 'where', 'orderBy' or 'limit' in query block",
+      "pt": "esperado 'where', 'orderBy' ou 'limit' no bloco de consulta"
+    }
+  ],
+  "PARSE091": [
+    {
+      "arity": 0,
+      "en": "Expected a library string literal after 'library'",
+      "pt": "esperado um literal de texto de biblioteca depois de 'library'"
+    },
+    {
+      "arity": 0,
+      "en": "Expected extern function name",
+      "pt": "esperado nome de função extern"
+    },
+    {
+      "arity": 1,
+      "en": "Expected a value after '{0}'",
+      "pt": "esperado um valor depois de '{0}'"
+    }
+  ],
+  "PARSE092": [
+    {
+      "arity": 0,
+      "en": "Expected '('",
+      "pt": "esperado '('"
+    },
+    {
+      "arity": 0,
+      "en": "Expected '{' after foreign module name",
+      "pt": "esperado '{' depois do nome do módulo estrangeiro"
+    }
+  ],
+  "PARSE093": [
+    {
+      "arity": 0,
+      "en": "Expected ')'",
+      "pt": "esperado ')'"
+    },
+    {
+      "arity": 0,
+      "en": "Expected '}' to close foreign module",
+      "pt": "esperado '}' para fechar o módulo estrangeiro"
+    }
+  ],
+  "PARSE094": [
+    {
+      "arity": 0,
+      "en": "switch expression: each case body is a SINGLE expression (no block scope); use the switch-statement (`case ...:`) for multiple statements",
+      "pt": "expressão switch: cada corpo de caso é UMA ÚNICA expressão (sem escopo de bloco); use a declaração switch (`case ...:`) para várias declarações"
+    }
+  ],
+  "PARSE095": [
+    {
+      "arity": 7,
+      "en": "invalid variable declaration: the ':' annotation is only allowed after 'var'/'val' — the type '{0}' before '{1}' does not match '{2}' and would be silently discarded; write 'var {3}: {4} = ...' or '{5} {6} = ...'",
+      "pt": "declaração de variável inválida: a anotação ':' só é permitida depois de 'var'/'val' — o tipo '{0}' antes de '{1}' não casa com '{2}' e seria descartado em silêncio; escreva 'var {3}: {4} = ...' ou '{5} {6} = ...'"
+    }
+  ],
+  "PARSE096": [
+    {
+      "arity": 0,
+      "en": "Expected foreign module name",
+      "pt": "esperado nome de módulo estrangeiro"
+    }
+  ],
+  "PARSE097": [
+    {
+      "arity": 1,
+      "en": "foreign module '{0}' must declare a `library \"...\"`",
+      "pt": "módulo estrangeiro '{0}' deve declarar um `library \"...\"`"
+    }
+  ],
+  "PARSE098": [
+    {
+      "arity": 0,
+      "en": "Expected 'extern', 'library', 'abi', 'ownership' or '}' in foreign module",
+      "pt": "esperado 'extern', 'library', 'abi', 'ownership' ou '}' no módulo estrangeiro"
+    }
+  ],
+  "PARSE099": [
+    {
+      "arity": 3,
+      "en": "foreign module '{0}': unknown ownership '{1}' (expected one of {2})",
+      "pt": "módulo estrangeiro '{0}': ownership desconhecido '{1}' (esperado um de {2})"
+    }
+  ],
+  "SEM001": [
+    {
+      "arity": 2,
+      "en": "Cannot apply '{0}' to String and {1}",
+      "pt": "não é possível aplicar '{0}' a String e {1}"
+    },
+    {
+      "arity": 2,
+      "en": "Cannot apply '{0}' to non-numeric type {1} (declare the parameter type, e.g. (x: Int) -> ...)",
+      "pt": "não é possível aplicar '{0}' a um tipo não numérico {1} (declare o tipo do parâmetro, ex.: (x: Int) -> ...)"
+    }
+  ],
+  "SEM002": [
+    {
+      "arity": 1,
+      "en": "Cannot apply '{0}' to boolean types. Use == or != for comparison.",
+      "pt": "não é possível aplicar '{0}' a tipos booleanos. Use == ou != para comparação."
+    }
+  ],
+  "SEM010": [
+    {
+      "arity": 2,
+      "en": "Return type mismatch: expected '{0}' but got '{1}'",
+      "pt": "incompatibilidade de tipo de retorno: esperado '{0}' mas obtido '{1}'"
+    }
+  ],
+  "SEM011": [
+    {
+      "arity": 1,
+      "en": "Undefined variable or type: '{0}'",
+      "pt": "variável ou tipo indefinido: '{0}'"
+    },
+    {
+      "arity": 2,
+      "en": "Undefined variable or type: '{0}' in {1} — declare the type or fix the name (R6: undefined declared types must not compile)",
+      "pt": "variável ou tipo indefinido: '{0}' em {1} — declare o tipo ou corrija o nome (R6: tipos declarados indefinidos não podem compilar)"
+    },
+    {
+      "arity": 2,
+      "en": "{0} is a top-level function, not a value in argument position — pass the call wrapped in a lambda: () -> {1}()",
+      "pt": "{0} é uma função de nível de módulo, não um valor em posição de argumento — passe a chamada envolvida em uma lambda: () -> {1}()"
+    }
+  ],
+  "SEM012": [
+    {
+      "arity": 2,
+      "en": "Type mismatch: cannot assign {0} to {1}",
+      "pt": "incompatibilidade de tipo: não é possível atribuir {0} a {1}"
+    }
+  ],
+  "SEM013": [
+    {
+      "arity": 3,
+      "en": "Wrong number of arguments for '{0}': expected {1} but got {2}",
+      "pt": "número de argumentos errado para '{0}': esperado {1} mas obtido {2}"
+    }
+  ],
+  "SEM014": [
+    {
+      "arity": 4,
+      "en": "Argument {0} of '{1}': expected '{2}' but got '{3}'",
+      "pt": "argumento {0} de '{1}': esperado '{2}' mas obtido '{3}'"
+    },
+    {
+      "arity": 4,
+      "en": "Argument {0} of '{1}': expected {2} but got {3} (no constructor matches the argument types)",
+      "pt": "argumento {0} de '{1}': esperado {2} mas obtido {3} (nenhum construtor casa com os tipos dos argumentos)"
+    }
+  ],
+  "SEM015": [
+    {
+      "arity": 1,
+      "en": "Undefined function: '{0}'",
+      "pt": "função indefinida: '{0}'"
+    },
+    {
+      "arity": 2,
+      "en": "variable '{0}' is not a function and cannot be called{1}",
+      "pt": "a variável '{0}' não é uma função e não pode ser chamada{1}"
+    }
+  ],
+  "SEM016": [
+    {
+      "arity": 2,
+      "en": "method '{0}' does not exist in superclass '{1}'",
+      "pt": "o método '{0}' não existe na superclasse '{1}'"
+    }
+  ],
+  "SEM017": [
+    {
+      "arity": 3,
+      "en": "{0}{1}' with {2} argument(s)",
+      "pt": "{0}{1}' com {2} argumento(s)"
+    }
+  ],
+  "SEM020": [
+    {
+      "arity": 1,
+      "en": "undefined variable: '{0}'",
+      "pt": "variável indefinida: '{0}'"
+    }
+  ],
+  "SEM021": [
+    {
+      "arity": 3,
+      "en": "type mismatch: cannot assign {0} to '{1}: {2}'",
+      "pt": "incompatibilidade de tipo: não é possível atribuir {0} a '{1}: {2}'"
+    },
+    {
+      "arity": 3,
+      "en": "type mismatch: cannot assign {0} to field '{1}: {2}'",
+      "pt": "incompatibilidade de tipo: não é possível atribuir {0} ao campo '{1}: {2}'"
+    }
+  ],
+  "SEM023": [
+    {
+      "arity": 2,
+      "en": "no constructor of '{0}' with {1} argument(s)",
+      "pt": "nenhum construtor de '{0}' com {1} argumento(s)"
+    },
+    {
+      "arity": 2,
+      "en": "no public constructor of '{0}' with {1} argument(s)",
+      "pt": "nenhum construtor público de '{0}' com {1} argumento(s)"
+    },
+    {
+      "arity": 3,
+      "en": "no constructor of '{0}' with {1} argument(s) (expected {2})",
+      "pt": "nenhum construtor de '{0}' com {1} argumento(s) (esperado {2})"
+    }
+  ],
+  "SEM024": [
+    {
+      "arity": 1,
+      "en": "variable '{0}' is already defined in this scope",
+      "pt": "a variável '{0}' já está definida neste escopo"
+    }
+  ],
+  "SEM025": [
+    {
+      "arity": 0,
+      "en": "List.zip takes exactly one List argument",
+      "pt": "List.zip exige exatamente um argumento List"
+    },
+    {
+      "arity": 0,
+      "en": "Set does not support indexing [i]; use contains(x) for membership or keys() to iterate",
+      "pt": "Set não suporta indexação [i]; use contains(x) para pertinência ou keys() para iterar"
+    },
+    {
+      "arity": 1,
+      "en": "Cannot resolve method '{0}' on 'process' (valid: run, spawn, exit)",
+      "pt": "não é possível resolver o método '{0}' em 'process' (válidos: run, spawn, exit)"
+    },
+    {
+      "arity": 1,
+      "en": "Cannot resolve method '{0}' on type 'Channel' (valid: send, receive)",
+      "pt": "não é possível resolver o método '{0}' no tipo 'Channel' (válidos: send, receive)"
+    },
+    {
+      "arity": 1,
+      "en": "Cannot resolve method '{0}' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find/forEach/flatMap/distinct/sorted/groupBy/zip)",
+      "pt": "não é possível resolver o método '{0}' no tipo 'List' (válidos: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find/forEach/flatMap/distinct/sorted/groupBy/zip)"
+    },
+    {
+      "arity": 1,
+      "en": "Cannot resolve method '{0}' on type 'Map' (valid: put/get/getOrDefault/putIfAbsent/remove/containsKey/contains/containsValue/size/clear/isEmpty/keys/values)",
+      "pt": "não é possível resolver o método '{0}' no tipo 'Map' (válidos: put/get/getOrDefault/putIfAbsent/remove/containsKey/contains/containsValue/size/clear/isEmpty/keys/values)"
+    },
+    {
+      "arity": 1,
+      "en": "Cannot resolve method '{0}' on type 'Set' (valid: add/contains/remove/size/clear/isEmpty)",
+      "pt": "não é possível resolver o método '{0}' no tipo 'Set' (válidos: add/contains/remove/size/clear/isEmpty)"
+    },
+    {
+      "arity": 1,
+      "en": "Handle<T> has no method '{0}()'; use `await h` to get the value",
+      "pt": "Handle<T> não tem o método '{0}()'; use `await h` para obter o valor"
+    },
+    {
+      "arity": 1,
+      "en": "List.zip takes a List argument; '{0}' is not a List",
+      "pt": "List.zip exige um argumento List; '{0}' não é uma List"
+    },
+    {
+      "arity": 1,
+      "en": "List.{0} takes exactly one lambda argument",
+      "pt": "List.{0} exige exatamente um argumento lambda"
+    },
+    {
+      "arity": 1,
+      "en": "array does not have method '{0}'",
+      "pt": "o array não tem o método '{0}'"
+    },
+    {
+      "arity": 1,
+      "en": "array does not have method '{0}' (use .length for size)",
+      "pt": "o array não tem o método '{0}' (use .length para o tamanho)"
+    },
+    {
+      "arity": 2,
+      "en": "Cannot resolve field '{0}' on type '{1}'",
+      "pt": "não é possível resolver o campo '{0}' no tipo '{1}'"
+    },
+    {
+      "arity": 2,
+      "en": "Cannot resolve method '{0}' in superclass '{1}'",
+      "pt": "não é possível resolver o método '{0}' na superclasse '{1}'"
+    },
+    {
+      "arity": 2,
+      "en": "Cannot resolve method '{0}' on 'shell' (valid: {1})",
+      "pt": "não é possível resolver o método '{0}' em 'shell' (válidos: {1})"
+    },
+    {
+      "arity": 2,
+      "en": "Cannot resolve method '{0}' on 'ssh' (valid: {1})",
+      "pt": "não é possível resolver o método '{0}' em 'ssh' (válidos: {1})"
+    },
+    {
+      "arity": 2,
+      "en": "Cannot resolve method '{0}' on namespace 'json' — {1}",
+      "pt": "não é possível resolver o método '{0}' no namespace 'json' — {1}"
+    },
+    {
+      "arity": 2,
+      "en": "Cannot resolve method '{0}' on namespace '{1}'",
+      "pt": "não é possível resolver o método '{0}' no namespace '{1}'"
+    },
+    {
+      "arity": 2,
+      "en": "Cannot resolve method '{0}' on type '{1}'",
+      "pt": "não é possível resolver o método '{0}' no tipo '{1}'"
+    },
+    {
+      "arity": 2,
+      "en": "Cannot resolve static field '{0}' on type '{1}'",
+      "pt": "não é possível resolver o campo estático '{0}' no tipo '{1}'"
+    },
+    {
+      "arity": 2,
+      "en": "Cannot resolve static method '{0}' on imported class '{1}'",
+      "pt": "não é possível resolver o método estático '{0}' na classe importada '{1}'"
+    },
+    {
+      "arity": 2,
+      "en": "cannot assign to external static field '{0}.{1}' (external class fields are read-only)",
+      "pt": "não é possível atribuir ao campo estático externo '{0}.{1}' (campos de classe externa são somente leitura)"
+    },
+    {
+      "arity": 3,
+      "en": "'{0}' does not have method '{1}' with {2} argument(s)",
+      "pt": "'{0}' não tem o método '{1}' com {2} argumento(s)"
+    }
+  ],
+  "SEM026": [
+    {
+      "arity": 1,
+      "en": "throw requires a String (exceptions are Strings in Kof), got {0}",
+      "pt": "throw exige um String (exceções são Strings no Kof), obtido {0}"
+    }
+  ],
+  "SEM027": [
+    {
+      "arity": 0,
+      "en": "assignment is a statement, not an expression (use '=' on its own line)",
+      "pt": "atribuição é uma declaração, não uma expressão (use '=' em sua própria linha)"
+    }
+  ],
+  "SEM028": [
+    {
+      "arity": 2,
+      "en": "array has no method '{0}()'{1}",
+      "pt": "o array não tem o método '{0}()'{1}"
+    }
+  ],
+  "SEM029": [
+    {
+      "arity": 1,
+      "en": "method '{0}' is not supported on collections; use a loop with new T[n] to materialize an array",
+      "pt": "o método '{0}' não é suportado em coleções; use um laço com new T[n] para materializar um array"
+    }
+  ],
+  "SEM030": [
+    {
+      "arity": 2,
+      "en": "enum '{0}' has no constant '{1}'",
+      "pt": "o enum '{0}' não tem a constante '{1}'"
+    }
+  ],
+  "SEM031": [
+    {
+      "arity": 2,
+      "en": "switch on '{0}' does not cover: {1} (add a default or the missing cases)",
+      "pt": "o switch sobre '{0}' não cobre: {1} (adicione um default ou os casos ausentes)"
+    }
+  ],
+  "SEM032": [
+    {
+      "arity": 0,
+      "en": "switch expression on Boolean does not cover all values (true and false)",
+      "pt": "a expressão switch sobre Boolean não cobre todos os valores (true e false)"
+    },
+    {
+      "arity": 0,
+      "en": "switch expression requires 'default' (or enum exhaustiveness)",
+      "pt": "a expressão switch exige 'default' (ou exaustividade de enum)"
+    },
+    {
+      "arity": 0,
+      "en": "switch on Boolean does not cover all values (true and false)",
+      "pt": "o switch sobre Boolean não cobre todos os valores (true e false)"
+    },
+    {
+      "arity": 2,
+      "en": "switch expression on '{0}' does not cover: {1} (add a default or the missing cases)",
+      "pt": "a expressão switch sobre '{0}' não cobre: {1} (adicione um default ou os casos ausentes)"
+    }
+  ],
+  "SEM033": [
+    {
+      "arity": 1,
+      "en": "assignment to '{0}' received a void value — the call does not return a value",
+      "pt": "a atribuição a '{0}' recebeu um valor void — a chamada não retorna um valor"
+    },
+    {
+      "arity": 1,
+      "en": "{0}(...) received a void value — the call does not return a value (add a 'return' or don't use it as an argument)",
+      "pt": "{0}(...) recebeu um valor void — a chamada não retorna um valor (adicione um 'return' ou não a use como argumento)"
+    }
+  ],
+  "SEM034": [
+    {
+      "arity": 1,
+      "en": "method '{0}' is not supported on collections (collection return is not materializable); copy the elements with a loop",
+      "pt": "o método '{0}' não é suportado em coleções (o retorno de coleção não é materializável); copie os elementos com um laço"
+    }
+  ],
+  "SEM035": [
+    {
+      "arity": 0,
+      "en": "case of primitive type is not supported in pattern matching (use a reference type or the value directly)",
+      "pt": "caso de tipo primitivo não é suportado em pattern matching (use um tipo de referência ou o valor diretamente)"
+    }
+  ],
+  "SEM036": [
+    {
+      "arity": 2,
+      "en": "{0} declares return type '{1}' but may finish without return/throw",
+      "pt": "{0} declara o tipo de retorno '{1}' mas pode terminar sem return/throw"
+    }
+  ],
+  "SEM037": [
+    {
+      "arity": 1,
+      "en": "cannot assign to immutable 'val' variable '{0}'",
+      "pt": "não é possível atribuir à variável imutável 'val' '{0}'"
+    }
+  ],
+  "SEM038": [
+    {
+      "arity": 1,
+      "en": "cannot assign to '{0}': record is immutable",
+      "pt": "não é possível atribuir a '{0}': record é imutável"
+    }
+  ],
+  "SEM041": [
+    {
+      "arity": 1,
+      "en": "cannot instantiate abstract class '{0}'",
+      "pt": "não é possível instanciar a classe abstrata '{0}'"
+    },
+    {
+      "arity": 2,
+      "en": "abstract method '{0}' is not allowed in non-abstract class '{1}' (declare the class as 'abstract')",
+      "pt": "método abstrato '{0}' não é permitido em classe não abstrata '{1}' (declare a classe como 'abstract')"
+    }
+  ],
+  "SEM042": [
+    {
+      "arity": 1,
+      "en": "nested type declaration is not supported: declare '{0}' at top level",
+      "pt": "declaração de tipo aninhado não é suportada: declare '{0}' no nível de módulo"
+    }
+  ],
+  "SEM043": [
+    {
+      "arity": 3,
+      "en": "class '{0}' does not implement abstract method '{1}()' from superclass '{2}'",
+      "pt": "a classe '{0}' não implementa o método abstrato '{1}()' da superclasse '{2}'"
+    },
+    {
+      "arity": 4,
+      "en": "class '{0}' does not implement method '{1}' of interface '{2}'{3}",
+      "pt": "a classe '{0}' não implementa o método '{1}' da interface '{2}'{3}"
+    },
+    {
+      "arity": 4,
+      "en": "method '{0}' of interface '{1}' expects {2} parameter(s) but implementation has {3}",
+      "pt": "o método '{0}' da interface '{1}' espera {2} parâmetro(s) mas a implementação tem {3}"
+    }
+  ],
+  "SEM044": [
+    {
+      "arity": 1,
+      "en": "main() must be declared without modifiers: 'main() { ... }' (found {0})",
+      "pt": "main() deve ser declarado sem modificadores: 'main() { ... }' (encontrado {0})"
+    },
+    {
+      "arity": 1,
+      "en": "main() must have no return type: 'main() { ... }' (found '{0} main(...)')",
+      "pt": "main() não deve ter tipo de retorno: 'main() { ... }' (encontrado '{0} main(...)')"
+    }
+  ],
+  "SEM045": [
+    {
+      "arity": 2,
+      "en": "throw clause of {0} references unknown type '{1}'",
+      "pt": "a cláusula throw de {0} referencia um tipo desconhecido '{1}'"
+    }
+  ],
+  "SEM046": [
+    {
+      "arity": 3,
+      "en": "{0} is private (declared in '{1}') and cannot be accessed from '{2}'",
+      "pt": "{0} é privado (declarado em '{1}') e não pode ser acessado de '{2}'"
+    },
+    {
+      "arity": 3,
+      "en": "{0} is protected (declared in '{1}') and cannot be accessed from '{2}'",
+      "pt": "{0} é protegido (declarado em '{1}') e não pode ser acessado de '{2}'"
+    },
+    {
+      "arity": 3,
+      "en": "{0} is {1} (declared in '{2}') and cannot be accessed from top-level code",
+      "pt": "{0} é {1} (declarado em '{2}') e não pode ser acessado de código de nível de módulo"
+    }
+  ],
+  "SEM047": [
+    {
+      "arity": 3,
+      "en": "function '{0}' with parameters ({1}) is already defined at line {2}; duplicate signatures are not allowed — overload requires a DIFFERENT parameter list",
+      "pt": "a função '{0}' com parâmetros ({1}) já está definida na linha {2}; assinaturas duplicadas não são permitidas — sobrecarga exige uma LISTA de parâmetros DIFERENTE"
+    }
+  ],
+  "SEM048": [
+    {
+      "arity": 0,
+      "en": "null cannot be assigned: null safety works by narrowing (if (x != null)), never by direct null literals",
+      "pt": "null não pode ser atribuído: a segurança contra null funciona por estreitamento (if (x != null)), nunca por literais null diretos"
+    },
+    {
+      "arity": 1,
+      "en": "null cannot be assigned: null safety works by narrowing (if (x != null)), never by direct null literals (variable '{0}')",
+      "pt": "null não pode ser atribuído: a segurança contra null funciona por estreitamento (if (x != null)), nunca por literais null diretos (variável '{0}')"
+    },
+    {
+      "arity": 3,
+      "en": "null cannot be passed as argument {0} of '{1}()': primitive parameter is non-nullable and null is never fabricable — declare the parameter '{2}?' to accept an absent value, or pass a real value",
+      "pt": "null não pode ser passado como argumento {0} de '{1}(): parâmetro primitivo não é anulável e null nunca é fabricável — declare o parâmetro '{2}?' para aceitar um valor ausente, ou passe um valor real"
+    }
+  ],
+  "SEM049": [
+    {
+      "arity": 0,
+      "en": "receiver is nullable (T?); narrow first: if (x != null) { x.field = v }",
+      "pt": "o receptor é anulável (T?); estreite antes: if (x != null) { x.field = v }"
+    },
+    {
+      "arity": 0,
+      "en": "receiver is nullable (T?); narrow first: if (x != null) { x.field }",
+      "pt": "o receptor é anulável (T?); estreite antes: if (x != null) { x.field }"
+    },
+    {
+      "arity": 0,
+      "en": "receiver is nullable (T?); narrow first: if (x != null) { x.method() }",
+      "pt": "o receptor é anulável (T?); estreite antes: if (x != null) { x.method() }"
+    }
+  ],
+  "SEM050": [
+    {
+      "arity": 2,
+      "en": "'{0}' is a primitive type, it has no static field '{1}' (use the literal, e.g. 2147483647 for Int; there is no Int.MAX_VALUE in Kof)",
+      "pt": "'{0}' é um tipo primitivo, não tem campo estático '{1}' (use o literal, ex. 2147483647 para Int; não existe Int.MAX_VALUE no Kof)"
+    }
+  ],
+  "SEM051": [
+    {
+      "arity": 4,
+      "en": "String.{0} does not accept {1} as argument {2} (the parameter is String); use a String literal, e.g.: {3}(\"c\")",
+      "pt": "String.{0} não aceita {1} como argumento {2} (o parâmetro é String); use um literal String, ex.: {3}(\"c\")"
+    }
+  ],
+  "SEM052": [
+    {
+      "arity": 2,
+      "en": "Kof has no \"{0}\" method on String; use the stdlib function: strings.{1}(...",
+      "pt": "Kof não tem o método \"{0}\" em String; use a função da stdlib: strings.{1}(..."
+    },
+    {
+      "arity": 3,
+      "en": "Kof has no \"{0}\" method on {1}; use the stdlib function on an Int/Long, e.g.: n.toLong().{2}()",
+      "pt": "Kof não tem o método \"{0}\" em {1}; use a função da stdlib sobre um Int/Long, ex.: n.toLong().{2}()"
+    }
+  ],
+  "SEM053": [
+    {
+      "arity": 2,
+      "en": "Kof has no operator '{0}' for String (lexicographic order is Unspecified — it diverges per target); use: s.compareTo(t) {1}",
+      "pt": "Kof não tem o operador '{0}' para String (a ordem lexicográfica é Não Especificada — diverge por alvo); use: s.compareTo(t) {1}"
+    }
+  ],
+  "SEM054": [
+    {
+      "arity": 0,
+      "en": "`[]` assignment only works on arrays in Kof; for a List use l.set(i, v)",
+      "pt": "a atribuição `[]` só funciona em arrays no Kof; para uma List use l.set(i, v)"
+    },
+    {
+      "arity": 1,
+      "en": "`[]` only indexes arrays in Kof; for this collection use {0}",
+      "pt": "`[]` só indexa arrays no Kof; para esta coleção use {0}"
+    }
+  ],
+  "SEM055": [
+    {
+      "arity": 1,
+      "en": "List.subList takes Int INDEX bounds; {0} is not an index",
+      "pt": "List.subList exige limites de ÍNDICE Int; {0} não é um índice"
+    },
+    {
+      "arity": 2,
+      "en": "List.{0} takes an Int INDEX; {1} is not an index (to search by value use contains)",
+      "pt": "List.{0} exige um ÍNDICE Int; {1} não é um índice (para buscar por valor use contains)"
+    }
+  ],
+  "SEM056": [
+    {
+      "arity": 2,
+      "en": "Set.add: element {0} does not match the set element type ({1}) — Kof collections are homogeneous",
+      "pt": "Set.add: o elemento {0} não casa com o tipo de elemento do set ({1}) — coleções do Kof são homogêneas"
+    },
+    {
+      "arity": 2,
+      "en": "listOf: element {0} does not match the list element type ({1}) — Kof collections are homogeneous",
+      "pt": "listOf: o elemento {0} não casa com o tipo de elemento da lista ({1}) — coleções do Kof são homogêneas"
+    },
+    {
+      "arity": 2,
+      "en": "mapOf: value {0} does not match the map type ({1}) — Kof collections are homogeneous",
+      "pt": "mapOf: o valor {0} não casa com o tipo do map ({1}) — coleções do Kof são homogêneas"
+    },
+    {
+      "arity": 3,
+      "en": "List.{0}: element {1} does not match the list element type ({2}) — Kof collections are homogeneous",
+      "pt": "List.{0}: o elemento {1} não casa com o tipo de elemento da lista ({2}) — coleções do Kof são homogêneas"
+    },
+    {
+      "arity": 4,
+      "en": "Map.{0}: {1} {2} does not match the map type ({3}) — Kof collections are homogeneous",
+      "pt": "Map.{0}: {1} {2} não casa com o tipo do map ({3}) — coleções do Kof são homogêneas"
+    }
+  ],
+  "SEM057": [
+    {
+      "arity": 2,
+      "en": "call to '{0}' is ambiguous between {1} overloads — add a cast to pick one",
+      "pt": "a chamada a '{0}' é ambígua entre {1} sobrecargas — adicione um cast para escolher uma"
+    }
+  ],
+  "SEM058": [
+    {
+      "arity": 0,
+      "en": "`for-in` only iterates over `List<T>` or arrays in Kof; for String use `s.charAt(i)` in a numeric loop",
+      "pt": "`for-in` só itera sobre `List<T>` ou arrays no Kof; para String use `s.charAt(i)` em um laço numérico"
+    }
+  ],
+  "SEM059": [
+    {
+      "arity": 5,
+      "en": "method '{0}' in class '{1}' overrides '{2}' but return type {3} is not compatible with the overridden return type {4}",
+      "pt": "o método '{0}' na classe '{1}' sobrepõe '{2}' mas o tipo de retorno {3} não é compatível com o tipo de retorno sobreposto {4}"
+    }
+  ],
+  "SEM060": [
+    {
+      "arity": 4,
+      "en": "cannot call instance method '{0}.{1}()' without a receiver — use 'this.{2}()' inside an instance method of '{3}' or call it on an instance (method() is not static)",
+      "pt": "não é possível chamar o método de instância '{0}.{1}()' sem um receptor — use 'this.{2}()' dentro de um método de instância de '{3}' ou o chame sobre uma instância (method() não é estático)"
+    }
+  ],
+  "SEM061": [
+    {
+      "arity": 4,
+      "en": "'{0}' is already defined in {1} '{2}' at line {3} — same JVM descriptor; overload requires a DIFFERENT parameter or return type (static and instance do not differ here)",
+      "pt": "'{0}' já está definido em {1} '{2}' na linha {3} — mesmo descritor JVM; sobrecarga exige um tipo de parâmetro ou retorno DIFERENTE (estático e instância não diferem aqui)"
+    }
+  ],
+  "SEM062": [
+    {
+      "arity": 0,
+      "en": "Cannot compare an enum value to a String: an enum constant is not a String (D-ENUM207). Compare two enum values, or use .name() explicitly to get the name",
+      "pt": "não é possível comparar um valor de enum a uma String: uma constante de enum não é uma String (D-ENUM207). Compare dois valores de enum, ou use .name() explicitamente para obter o nome"
+    }
+  ],
+  "SEM064": [
+    {
+      "arity": 2,
+      "en": "interface '{0}' cannot extend class '{1}' (interfaces may only extend interfaces)",
+      "pt": "a interface '{0}' não pode estender a classe '{1}' (interfaces só podem estender interfaces)"
+    }
+  ],
+  "SEM065": [
+    {
+      "arity": 2,
+      "en": "cannot assign to final field '{0}' (declared in '{1}') from outside its constructor",
+      "pt": "não é possível atribuir ao campo final '{0}' (declarado em '{1}') de fora do seu construtor"
+    }
+  ],
+  "SEM066": [
+    {
+      "arity": 1,
+      "en": "String has no \"{0}\" method — looks like a collection accessor; the raw row from db.query is a JSON String: use db.query<Record> (typed) or json.decode<Map<String, Object>>(row)",
+      "pt": "String não tem o método \"{0}\" — parece um acessor de coleção; a linha crua de db.query é uma String JSON: use db.query<Record> (tipado) ou json.decode<Map<String, Object>>(row)"
+    }
+  ],
+  "SEM067": [
+    {
+      "arity": 1,
+      "en": "catch type '{0}' is a primitive — primitives are not throwable (Kof exceptions are Strings: use `catch (String e)`)",
+      "pt": "o tipo do catch '{0}' é um primitivo — primitivos não são lançáveis (exceções do Kof são Strings: use `catch (String e)`)"
+    }
+  ],
+  "SEM068": [
+    {
+      "arity": 1,
+      "en": "catch type '{0}' is not a Throwable subclass — Kof exceptions are Strings (use `catch (String e)`) or a JDK/user throwable",
+      "pt": "o tipo do catch '{0}' não é subclasse de Throwable — exceções do Kof são Strings (use `catch (String e)`) ou um throwable do JDK/usuário"
+    }
+  ],
+  "SEM069": [
+    {
+      "arity": 1,
+      "en": "class '{0}' cannot be both 'final' and 'abstract' — 'final' forbids subclasses, 'abstract' requires them",
+      "pt": "a classe '{0}' não pode ser 'final' e 'abstract' ao mesmo tempo — 'final' proíbe subclasses, 'abstract' as exige"
+    }
+  ],
+  "SEM070": [
+    {
+      "arity": 1,
+      "en": "cannot extend record '{0}' — records are implicitly final; compose it (hold it in a field) or use a plain class",
+      "pt": "não é possível estender o record '{0}' — records são implicitamente final; componha-o (guarde-o em um campo) ou use uma classe comum"
+    },
+    {
+      "arity": 1,
+      "en": "cannot inherit from final class '{0}' (declared 'final' — remove 'final' or the inheritance)",
+      "pt": "não é possível herdar da classe final '{0}' (declarada 'final' — remova o 'final' ou a herança)"
+    }
+  ],
+  "SEM071": [
+    {
+      "arity": 1,
+      "en": "cannot instantiate interface '{0}' — declare a class that implements it",
+      "pt": "não é possível instanciar a interface '{0}' — declare uma classe que a implemente"
+    }
+  ],
+  "SEM072": [
+    {
+      "arity": 1,
+      "en": "List.{0} appends exactly one element; there is no positional insert — use set(index, value) to replace at an index",
+      "pt": "List.{0} acrescenta exatamente um elemento; não há inserção posicional — use set(index, value) para substituir em um índice"
+    }
+  ],
+  "SEM073": [
+    {
+      "arity": 0,
+      "en": "List.reduce takes exactly two arguments: the lambda AND the seed — reduce((a: Int, b: Int) -> a + b, 0) or reduce(0, (a: Int, b: Int) -> a + b)",
+      "pt": "List.reduce exige exatamente dois argumentos: a lambda E a semente — reduce((a: Int, b: Int) -> a + b, 0) ou reduce(0, (a: Int, b: Int) -> a + b)"
+    }
+  ],
+  "SEM074": [
+    {
+      "arity": 2,
+      "en": "'{0}' has no static method '{1}()'",
+      "pt": "'{0}' não tem o método estático '{1}()'"
+    },
+    {
+      "arity": 2,
+      "en": "'{0}' is a primitive — it has no method '{1}()' (primitives have toString() and the conversions toInt()/toLong()/toFloat()/toDouble(); comparison is `a == b`, math is top-level functions, e.g. math.abs(x))",
+      "pt": "'{0}' é um primitivo — não tem o método '{1}()' (primitivos têm toString() e as conversões toInt()/toLong()/toFloat()/toDouble(); a comparação é `a == b`, a matemática são funções de nível de módulo, ex. math.abs(x))"
+    }
+  ],
+  "SEM075": [
+    {
+      "arity": 1,
+      "en": "static method cannot reference instance field '{0}' (no implicit 'this' in a static context; use an instance, or declare the field 'static')",
+      "pt": "método estático não pode referenciar o campo de instância '{0}' (não há 'this' implícito em contexto estático; use uma instância, ou declare o campo como 'static')"
+    }
+  ],
+  "SEM076": [
+    {
+      "arity": 1,
+      "en": "style: unknown property '{0}' — not in the kof.ui style whitelist",
+      "pt": "style: propriedade desconhecida '{0}' — não está na whitelist de style do kof.ui"
+    },
+    {
+      "arity": 3,
+      "en": "'{0}' is already defined in class '{1}' at line {2} — a class cannot declare two fields with the same name (static or not, any type); rename one",
+      "pt": "'{0}' já está definido na classe '{1}' na linha {2} — uma classe não pode declarar dois campos com o mesmo nome (estático ou não, qualquer tipo); renomeie um"
+    }
+  ],
+  "SEM077": [
+    {
+      "arity": 0,
+      "en": "style: the declaration string must be a literal",
+      "pt": "style: a string de declaração deve ser um literal"
+    },
+    {
+      "arity": 0,
+      "en": "style: the declaration string must be a literal — the 4-Int Style(background, foreground, padding, radius) form takes a computed Color",
+      "pt": "style: a string de declaração deve ser um literal — a forma Style(background, foreground, padding, radius) de 4 Ints aceita um Color computado"
+    },
+    {
+      "arity": 1,
+      "en": "style: malformed declaration '{0}' — expected 'property: value'",
+      "pt": "style: declaração malformada '{0}' — esperado 'propriedade: valor'"
+    }
+  ],
+  "SEM078": [
+    {
+      "arity": 1,
+      "en": "style: property '{0}' has an empty value",
+      "pt": "style: a propriedade '{0}' tem um valor vazio"
+    },
+    {
+      "arity": 2,
+      "en": "style: invalid value for '{0}': {1}",
+      "pt": "style: valor inválido para '{0}': {1}"
+    }
+  ],
+  "SEM079": [
+    {
+      "arity": 1,
+      "en": "'Palette.{0}' is not a palette color (use a named color, e.g. Palette.red)",
+      "pt": "'Palette.{0}' não é uma cor da paleta (use uma cor nomeada, ex. Palette.red)"
+    },
+    {
+      "arity": 2,
+      "en": "'{0}' has no field '{1}' (UI types expose functions, e.g. Color.rgba(...), Theme.light())",
+      "pt": "'{0}' não tem o campo '{1}' (tipos de UI expõem funções, ex. Color.rgba(...), Theme.light())"
+    },
+    {
+      "arity": 2,
+      "en": "token '{0}' has no methods — it holds constants: {1}",
+      "pt": "o token '{0}' não tem métodos — ele guarda constantes: {1}"
+    },
+    {
+      "arity": 4,
+      "en": "unknown token '{0}.{1}' — {2} has: {3}",
+      "pt": "token desconhecido '{0}.{1}' — {2} tem: {3}"
+    }
+  ],
+  "SEM080": [
+    {
+      "arity": 3,
+      "en": "subtype '{0}' of sealed type '{1}' must be declared in the same compilation unit as '{2}' — a sealed type's subtype set is closed, and subtypes declared elsewhere are not known to the compiler",
+      "pt": "o subtipo '{0}' do tipo selado '{1}' deve ser declarado na mesma unidade de compilação que '{2}' — o conjunto de subtipos de um tipo selado é fechado, e subtipos declarados em outro lugar não são conhecidos pelo compilador"
+    }
+  ],
+  "SEM081": [
+    {
+      "arity": 2,
+      "en": "switch expression on sealed type '{0}' does not cover: {1} (add a default or the missing cases)",
+      "pt": "a expressão switch sobre o tipo selado '{0}' não cobre: {1} (adicione um default ou os casos ausentes)"
+    },
+    {
+      "arity": 2,
+      "en": "switch on sealed type '{0}' does not cover: {1} (add a default or the missing cases)",
+      "pt": "o switch sobre o tipo selado '{0}' não cobre: {1} (adicione um default ou os casos ausentes)"
+    }
+  ],
+  "SEM082": [
+    {
+      "arity": 2,
+      "en": "type parameter '{0}' is declared 'in' but occurs in an output position ({1}) — an 'in' parameter is contravariant, so it may appear only in input positions (parameters); a readable use would let a contravariant alias expose a value of the wrong type",
+      "pt": "o parâmetro de tipo '{0}' é declarado 'in' mas ocorre em uma posição de saída ({1}) — um parâmetro 'in' é contravariante, então só pode aparecer em posições de entrada (parâmetros); um uso de leitura permitiria que um alias contravariante expusesse um valor de tipo errado"
+    },
+    {
+      "arity": 2,
+      "en": "type parameter '{0}' is declared 'out' but occurs in an input position ({1}) — an 'out' parameter is covariant, so it may appear only in output positions (return types, read-only components); a writable use would let a covariant alias store a value of the wrong type",
+      "pt": "o parâmetro de tipo '{0}' é declarado 'out' mas ocorre em uma posição de entrada ({1}) — um parâmetro 'out' é covariante, então só pode aparecer em posições de saída (tipos de retorno, componentes somente-leitura); um uso gravável permitiria que um alias covariante armazenasse um valor de tipo errado"
+    }
+  ],
+  "SEM083": [
+    {
+      "arity": 3,
+      "en": "type parameter '{0}' is declared 'in' but is passed as {1} to supertype '{2}' — a contravariant parameter cannot appear in a supertype position that exposes it (invariant/covariant); the supertype would let a contravariant alias expose a value of the wrong type",
+      "pt": "o parâmetro de tipo '{0}' é declarado 'in' mas é passado como {1} ao supertipo '{2}' — um parâmetro contravariante não pode aparecer em uma posição de supertipo que o exponha (invariante/covariante); o supertipo permitiria que um alias contravariante expusesse um valor de tipo errado"
+    },
+    {
+      "arity": 3,
+      "en": "type parameter '{0}' is declared 'out' but is passed as {1} to supertype '{2}' — a covariant parameter cannot appear in a supertype position that consumes it (invariant/contravariant); the supertype would let a covariant alias store a value of the wrong type",
+      "pt": "o parâmetro de tipo '{0}' é declarado 'out' mas é passado como {1} ao supertipo '{2}' — um parâmetro covariante não pode aparecer em uma posição de supertipo que o consuma (invariante/contravariante); o supertipo permitiria que um alias covariante armazenasse um valor de tipo errado"
+    }
+  ],
+  "SEM085": [
+    {
+      "arity": 2,
+      "en": "function type with a type-parameter of the owner in '{0}' in {1} — generic function types are not lowered yet (erasure ABI is 1.0-line); the form is rejected instead of compiling to a load crash (SEM085)",
+      "pt": "tipo de função com um parâmetro de tipo do dono em '{0}' em {1} — tipos de função genéricos ainda não são rebaixados (a ABI de erasure é da linha 1.0); a forma é recusada em vez de compilar para uma falha de load (SEM085)"
+    }
+  ],
+  "SEM087": [
+    {
+      "arity": 2,
+      "en": "Undefined superclass or interface: '{0}' in {1} — import the type or fix the name (R6: a raw super fails at load)",
+      "pt": "superclasse ou interface indefinida: '{0}' em {1} — importe o tipo ou corrija o nome (R6: um super cru falha no load)"
+    }
+  ],
+  "SEM090": [
+    {
+      "arity": 2,
+      "en": "'{0}()' may truncate (fractional part discarded; overflow throws) — explicit form: value as {1}",
+      "pt": "'{0}()' pode truncar (a parte fracionária é descartada; estouro lança exceção) — forma explícita: value as {1}"
+    }
+  ],
+  "SEM091": [
+    {
+      "arity": 2,
+      "en": "modificador '{0}' has no effect in Kof (a non-goal of the memory model — concurrency-memory-model.md §5); use a language abstraction: spawn/await/Channel for concurrency{1}",
+      "pt": "o modificador '{0}' não tem efeito no Kof (não-objetivo do modelo de memória — concurrency-memory-model.md §5); use uma abstração da linguagem: spawn/await/Channel para concorrência{1}"
+    }
+  ],
+  "SEM092": [
+    {
+      "arity": 2,
+      "en": "self-referencing initializer var inside a lambda (var '{0}') is not available on the {1} target yet — captured handle read in the job crashes the worker (§253 face B, native lane); use the shadow-handle idiom (var id=\"\"; job reads id after assignment; id = time.interval(…) after) (SEM092)",
+      "pt": "a variável de inicialização autorreferente dentro de uma lambda (var '{0}') ainda não está disponível no alvo {1} — a leitura do handle capturado no job derruba o worker (§253 face B, lane nativa); use o idioma de handle-sombra (var id=\"\"; o job lê id depois da atribuição; id = time.interval(…) depois) (SEM092)"
+    }
+  ],
+  "SEM093": [
+    {
+      "arity": 0,
+      "en": "void function cannot return a value - drop the value (bare `return` exits) or declare a return type",
+      "pt": "função void não pode retornar um valor - descarte o valor (`return` sozinho encerra) ou declare um tipo de retorno"
+    }
+  ],
+  "SEM095": [
+    {
+      "arity": 0,
+      "en": "'Bool' has two values; for true/false/unknown use 'Troolean' (DECISIONS.md D-TROOL)",
+      "pt": "'Bool' tem dois valores; para true/false/unknown use 'Troolean' (DECISIONS.md D-TROOL)"
+    }
+  ],
+  "SEM096": [
+    {
+      "arity": 1,
+      "en": "Buffer element must be U8 (Byte) — got '{0}'",
+      "pt": "o elemento de Buffer deve ser U8 (Byte) — obtido '{0}'"
+    },
+    {
+      "arity": 1,
+      "en": "{0}() needs an argument — println and print take the value to print (println(x)); for a blank line use println(\"\")",
+      "pt": "{0}() precisa de um argumento — println e print recebem o valor a imprimir (println(x)); para uma linha em branco use println(\"\")"
+    }
+  ],
+  "SEM097": [
+    {
+      "arity": 1,
+      "en": "List.sort/sorted needs elements with a natural order (Int/Long/Double/Float/Bool/Char/String); '{0}' has none — use sorted((a, b) -> Int) with an explicit comparator instead",
+      "pt": "List.sort/sorted exige elementos com ordem natural (Int/Long/Double/Float/Bool/Char/String); '{0}' não tem — use sorted((a, b) -> Int) com um comparador explícito"
+    }
+  ],
+  "SEM098": [
+    {
+      "arity": 1,
+      "en": "cannot store a primitive array (Int[]) into '{0}' of erased reference-array type T[] (erases to Object[] on the JVM — int[] is not a subtype of Object[]). Use List<Int> (the Kof idiom for a growable sequence of primitives) or a reference-typed array slot",
+      "pt": "não é possível armazenar um array de primitivos (Int[]) em '{0}' de tipo de array de referência apagado T[] (apaga para Object[] na JVM — int[] não é subtipo de Object[]). Use List<Int> (o idioma do Kof para uma sequência crescente de primitivos) ou um slot de array de tipo de referência"
+    }
+  ],
+  "SEM099": [
+    {
+      "arity": 2,
+      "en": "cannot pass a List to '{0}': the kof.io bytes faces take an Int[] primitive array (training/language/io.md contract) — a List is not an array on any target (VerifyError on the JVM, crash under the interpreter, silent mismatch in KofJS). Fill a primitive array: val a = new Int[n] with a[i] = v, then f.{1}(a)",
+      "pt": "não é possível passar uma List para '{0}': as faces de bytes do kof.io recebem um array de primitivos Int[] (contrato training/language/io.md) — uma List não é um array em nenhum alvo (VerifyError na JVM, falha sob o interpretador, incompatibilidade silenciosa no KofJS). Preencha um array de primitivos: val a = new Int[n] com a[i] = v, depois f.{1}(a)"
+    }
+  ],
+  "SEM100": [
+    {
+      "arity": 2,
+      "en": "an 'as' cast is not a parse: '{0}' does not cast to '{1}' (an implicit String conversion would be a hidden parse) — use the stdlib parsers (math.parseInt / math.parseFloat / math.parseDouble / math.parseChar)",
+      "pt": "um cast 'as' não é uma conversão: '{0}' não faz cast para '{1}' (uma conversão implícita para String seria uma análise oculta) — use os analisadores da stdlib (math.parseInt / math.parseFloat / math.parseDouble / math.parseChar)"
+    }
+  ],
+  "SEM101": [
+    {
+      "arity": 5,
+      "en": "class '{0}' inherits conflicting default method '{1}' from unrelated interfaces '{2}' and '{3}' (add an explicit override in '{4}')",
+      "pt": "a classe '{0}' herda um método default conflitante '{1}' de interfaces não aparentadas '{2}' e '{3}' (adicione uma sobreposição explícita em '{4}')"
+    }
+  ],
+  "SEM102": [
+    {
+      "arity": 2,
+      "en": "'{0}' has no field '{1}' (this builtin exposes methods, not properties)",
+      "pt": "'{0}' não tem o campo '{1}' (este builtin expõe métodos, não propriedades)"
+    },
+    {
+      "arity": 2,
+      "en": "'{0}' has no method '{1}()'",
+      "pt": "'{0}' não tem o método '{1}()'"
+    },
+    {
+      "arity": 3,
+      "en": "'{0}' has no field '{1}'{2}",
+      "pt": "'{0}' não tem o campo '{1}'{2}"
+    },
+    {
+      "arity": 3,
+      "en": "'{0}' has no method '{1}()'{2}",
+      "pt": "'{0}' não tem o método '{1}()'{2}"
+    },
+    {
+      "arity": 3,
+      "en": "'{0}' is a builtin namespace; it has no field '{1}' (namespaces expose functions, not properties — use {2}.someFunction(...))",
+      "pt": "'{0}' é um namespace builtin; não tem o campo '{1}' (namespaces expõem funções, não propriedades — use {2}.algumaFuncao(...))"
+    }
+  ],
+  "SEM103": [
+    {
+      "arity": 2,
+      "en": "'{0}' is a type, not a value — array allocation is `new {1}[n]`",
+      "pt": "'{0}' é um tipo, não um valor — a alocação de vetor é `novo {1}[n]`"
+    },
+    {
+      "arity": 2,
+      "en": "'{0}' is a type, not a value — to convert use `as {1}`",
+      "pt": "'{0}' é um tipo, não um valor — para converter use `como {1}`"
+    }
+  ]
+}

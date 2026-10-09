@@ -221,26 +221,26 @@ final class KofCliSupport {
         return files;
     }
 
-    /** O path é um arquivo-fonte Kof (.kf ou .kof)? Único filtro da descoberta. */
+    /** O path é um arquivo-fonte Kof (.kf, .kof ou PortuKof .ptkf)? Único filtro da descoberta. */
     static boolean isKofSource(Path p) {
         String n = p.toString().toLowerCase();
-        return n.endsWith(".kf") || n.endsWith(".kof");
+        return n.endsWith(".kf") || n.endsWith(".kof") || n.endsWith(".ptkf");
     }
 
     /**
      * O path é um arquivo-fonte Kof/KofScript aceito pela CLI: `.kf`/`.kof`
-     * (Kof) ou `.ks` (KofScript). É o filtro da VALIDAÇÃO de argumento — a
-     * descoberta de módulo continua usando {@link #isKofSource} (que não inclui
-     * `.ks` de propósito).
+     * (Kof), `.ptkf` (PortuKof) ou `.ks` (KofScript). É o filtro da VALIDAÇÃO
+     * de argumento — a descoberta de módulo continua usando {@link #isKofSource}
+     * (que não inclui `.ks` de propósito).
      */
     static boolean isKofSourceFile(Path p) {
         String n = p.getFileName() != null ? p.getFileName().toString().toLowerCase() : p.toString().toLowerCase();
-        return n.endsWith(".kf") || n.endsWith(".kof") || n.endsWith(".ks");
+        return n.endsWith(".kf") || n.endsWith(".kof") || n.endsWith(".ptkf") || n.endsWith(".ks");
     }
 
     /**
      * R6: recusa um ARQUIVO cuja extensão não é uma fonte Kof reconhecida
-     * (`.kf`/`.kof`/`.ks`). Colar código Kof válido num `.txt`/`.sh`/sem
+     * (`.kf`/`.kof`/`.ptkf`/`.ks`). Colar código Kof válido num `.txt`/`.sh`/sem
      * extensão não deve ser aceito em silêncio. Diretórios passam (a
      * descoberta de cada comando filtra por extensão). Retorna {@code null}
      * quando o argumento é aceitável, senão a mensagem pronta para stderr.
@@ -251,7 +251,7 @@ final class KofCliSupport {
         int dot = name.lastIndexOf('.');
         String shown = dot > 0 ? "'" + name.substring(dot) + "'" : "(none)";
         return command + ": unsupported source extension " + shown
-                + " (expected .kf, .kof or .ks)";
+                + " (expected .kf, .kof, .ptkf or .ks)";
     }
 
     /**

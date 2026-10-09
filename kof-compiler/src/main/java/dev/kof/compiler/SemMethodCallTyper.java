@@ -67,6 +67,10 @@ public final class SemMethodCallTyper {
         Type recv = null;
         if (mc.receiver() != null) {
             recv = SemExpressionTyper.inferType(sa, mc.receiver(), scope);
+            // D-PORTUKOF u3: entrada alias-aware — a copia local canonica do
+            // nome faz o dispatch semantico ver o metodo real; a AST e
+            // canonizada pelo splice pos-analise (idempotente).
+            mc = PortuKofMethodSplicer.canonicalCall(sa, recv, sa.unit(), mc);
             // SG-005: deref de T? sem narrowing é erro — null safety é por
             // narrowing (`if (x != null)` re-tipa o símbolo no escopo filho,
             // StatementAnalyzer). Se o receiver AINDA é NullableType aqui, o
