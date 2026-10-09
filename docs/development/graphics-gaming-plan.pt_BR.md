@@ -2,9 +2,9 @@
 
 # Graphics, Games e Media — Superfície de Intenção do Kof
 
-last: fatia-3.1 relógio puro + snapshots de input de teclado/ponteiro/gamepad pousados 05/10 (`libs/game/Clock.kf` + `Keys.kf` + `Mouse.kf` + `Pad.kf`, `GameClockE2ETest`/`GameInputE2ETest`/`GameMouseE2ETest`/`GamePadE2ETest` 4/4 cada; `known-bugs` §603 corrigido no caminho); superfície pura `kof.game` verificada cross-target (`GameCrossE2ETest` 3/3 — oráculo JVM + riscv64 + aarch64 sob qemu); forma da janela DECIDIDA (`D-GRAPHICS-WINDOW-FORM`: `Window("…") { frame { dt -> … } }`, `dt` Int ms) e seu pré-requisito de parser corrigido (`known-bugs` §611, `TrailingLambdaParamsE2ETest` 6/6); G1 SDL3 `3.4.16` medida (C + FFI do Kof, headless JVM+Native; `known-bugs` §606 corrigido); **SDL3 vendada no sysroot cross 06/10 (`scripts/provision-cross-sdl3.sh`, aarch64+riscv64 `3.4.16` + fecho de runtime + GLIBC 2.44) e a ABI crua medida ponta-a-ponta headless nos quatro alvos (`Sdl3FfiCrossE2ETest` 5/5: JVM + Native x86-64 + riscv64 + aarch64 sob qemu, golden `init=true/driver=dummy/title=kof`)**
-doing: decisão F executada (vendor LGPL do FFmpeg + probe FFI + frame readback do backend 3.4) + 3.5 (3D) PROMOVIDA ao escopo ativo
-next: decisão F ORDENADA 08/10 (mantenedora, decisão de chat: vendor da build upstream LGPL-2.1+ da fonte, sem `--enable-gpl`; a licença do probe NÃO pode ser GPLv3+ antes de qualquer decode) + 3.5 PROMOVIDA 08/10 (mantenedora: mesh/camera/material/light/transform + parsers externos; shaders seguem escondidos na primeira fatia) — ambas registradas em `D-MAINT-BATCH-0510` (DECISIONS.md)ridade)
+last: fatia-3.4a probe do backend POUSADA 09/10 (decisão F executada: FFmpeg 9.0.2 upstream LGPL-2.1+ vendido `~/.local/share/kof-ffmpeg/usr` da fonte, SEM `--enable-gpl`, `scripts/provision-ffmpeg.sh`; `FfmpegFfiProbeE2ETest` 4/4 — licença do probe `LGPL version 2.1 or later` em JVM + Native x86-64, faces cross pulam com motivo; fix `-rpath-link` do dir de extern no `NativeAssembler` para o fecho DT_NEEDED do vendor resolver antes da pilha ffmpeg conflitante da distro)
+doing: fatia-3.4b (frame readback via avcodec) + superfície 3.5 (3D)
+next: 3.4b = decode+readback de `kof-probe.avi` precisa de leituras de campo por ponteiro no AVFrame opaco (`frame->data[0]`, `frame->width`) — NÃO expressável na superfície FFI de hoje (scalar/record/array/Buffer apenas); menor primitiva pendente de desenho (leitura de ponteiro estilo peek) + superfície 3.5 (mesh/camera/material/light/transform) — ambas neste plano, uma fatia cada
 location: docs/development
 state: UNDER DEVELOPMENT
 

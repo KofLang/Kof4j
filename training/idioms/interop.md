@@ -40,6 +40,13 @@ extern "/lib/x86_64-linux-gnu/libc.so.6" getenv(String n): String // ok — Stri
 //   (NULL->NULL); >=9 same-class args spill; String return = boundary copy (C buffer never freed);
 //   riscv64/aarch64 glibc passes AND returns FP in fa0..fa7 (MEASURED under qemu — NOT ft0);
 //   C stdio is flushed at exit; struct/array/callback/missing-library -> FFI001 at the decl line
+//   Vendored extern libs whose DT_NEEDED closure is NOT in the default dirs
+//     (decision F, 09/10): the ld resolves the closure against the DEFAULT
+//     search dirs — `-L` does NOT apply to it — so the link line gets
+//     `-rpath-link <extern-dir>` (NativeAssembler, per extern with a dir).
+//     Measured: the distro stacks CONFLICTING ffmpeg versions (libswresample.so.7
+//     from ffmpeg 7.x vs the 9.0.2 vendored .so.7) — without -rpath-link the
+//     link picks the distro one and dies with undefined version refs.
 //   Numeric arguments follow the ORDINARY Kof conversion rule (#549/§370 FIXED 20/09): `f(Float x)`
 //     accepts `f(4.0 as Float)`, `f(4.0)` (Double->Float) and `f(4)` (Int->Float) with the SAME
 //     result on JVM, Native and JS host; `sqrt(9)` (Int->Double slot) and `labs(i)` likewise.
