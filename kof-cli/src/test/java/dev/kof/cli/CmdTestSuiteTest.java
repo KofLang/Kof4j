@@ -164,4 +164,36 @@ class CmdTestSuiteTest {
         assertTrue(r.out().contains("suite bad: 0 passed, 1 failed"), r.out());
         assertTrue(r.out().contains("1 passed, 1 failed"), r.out());
     }
+
+    @Test
+    void runnerReportsTotalTimeAndSlowestFile(@TempDir Path dir) throws Exception {
+        // §7.3/§8.5 (kof-testing-platform): a base de "slow-test identification"
+        // — o runner mede o tempo por arquivo e imprime o total + o mais lento.
+        // Sem flag nova; o contrato histórico (summary + suites) permanece.
+        Path tests = dir.resolve("tests");
+        Files.createDirectories(tests);
+        Files.writeString(tests.resolve("a.kf"),
+                "test \"soma\" {\n    assert(2 + 2 == 4)\n}\n");
+        Files.writeString(tests.resolve("b.kf"),
+                "test \"strings\" {\n    assert(\"kof\" == \"kof\")\n}\n");
+        Cli r = cli(dir, "test", tests.toString());
+        assertEquals(0, r.exit(), "suíte verde deve exit 0:\n" + r.out());
+        // A linha existe, é única e cita o arquivo mais lento (uma das duas
+        // fontes), com tempos em ms não-negativos.
+        assertTrue(r.out().contains("time: "), "deve reportar o tempo total:\n" + r.out());
+        assertTrue(r.out().contains("slowest "), "deve nomear o arquivo mais lento:\n" + r.out());
+        assertTrue(r.out().contains("a.kf") || r.out().contains("b.kf"),
+                "o mais lento é um dos dois arquivos:\n" + r.out());
+    }
+
+    @Test
+    void timingIsPrintedBeforeAFailingExit(@TempDir Path dir) throws Exception {
+        // A medição não pode depender do sucesso: numa corrida com falha o
+        // relatório de tempo ainda sai (antes do exit 1), para diagnosticar.
+        Path f = dir.resolve("bad.kf");
+        Files.writeString(f, "test \"bad\" {\n    assert(1 == 2)\n}\n");
+        Cli r = cli(dir, "test", f.toString());
+        assertEquals(1, r.exit(), "falha deve exit 1:\n" + r.out());
+        assertTrue(r.out().contains("time: "), "tempo sai mesmo com falha:\n" + r.out());
+    }
 }
