@@ -938,6 +938,14 @@ sobrescreve; `null` numa chave nova), `remove(key)` (retorna o valor removido),
 tamanho inalterado. Validado nos quatro alvos. Prova (executada):
 `tests/run-golden.sh` **148/148** (37 casos × 4 alvos), exit 0.
 
+**Fatia 13 da Fase 6 ENTREGUE (08/10, lane compiler/JVM/native `192.168.15.30:9092`):** mais
+um caso — **38 no total** — pinando a superfície de atribuição composta, que
+nenhum caso anterior exercitava: `compound-assign` aplica `+=`/`-=`/`*=`/`/=`/`%=`
+a um acumulador `Int` (`10 → 15 → 12 → 24 → 6 → 1`), `+=` a uma `String` (`"a"` →
+`"abc"`) e `+=` a um `Double` (`1.5` → `4.0`, mantendo o tipo de ponto flutuante).
+Validado nos quatro alvos. Prova (executada): `tests/run-golden.sh` **152/152**
+(38 casos × 4 alvos), exit 0.
+
 ### Fase 7 — Integração
 
 Implantar:

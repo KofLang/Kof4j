@@ -931,6 +931,14 @@ and `Set.add` of a duplicate leaving the size unchanged. Validated on all four
 targets. Proof (executed): `tests/run-golden.sh` **148/148** (37 cases × 4
 targets), exit 0.
 
+**Phase 6 slice 13 LANDED (08/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **38 total** — pinning the compound-assignment surface, which no
+earlier case exercised: `compound-assign` applies `+=`/`-=`/`*=`/`/=`/`%=` to an
+`Int` accumulator (`10 → 15 → 12 → 24 → 6 → 1`), `+=` to a `String` (`"a"` →
+`"abc"`) and `+=` to a `Double` (`1.5` → `4.0`, keeping the floating type).
+Validated on all four targets. Proof (executed): `tests/run-golden.sh`
+**152/152** (38 cases × 4 targets), exit 0.
+
 ### Phase 7 — Integration
 
 Deploy:
