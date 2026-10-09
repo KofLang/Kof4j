@@ -5,9 +5,14 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.*;
 import static org.junit.jupiter.api.Assertions.*;
 
-class KofEncodingTest implements NativeToolchainAssumptions {
+class KofEncodingTest implements QemuRunSupport {
 
     private final CompilerDriver driver = new CompilerDriver();
+
+    @Override
+    public CompilerDriver driver() {
+        return driver;
+    }
 
     @Test
     void encodingJvm(@TempDir Path tmp) throws Exception {
@@ -243,24 +248,6 @@ class KofEncodingTest implements NativeToolchainAssumptions {
         assumeToolchain("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64");
         runQemuE(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", src, expected);
     }
-
-    private void runQemuE(Path tempDir, Target target, String qemu, String source,
-                          String expected) throws Exception {
-        Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
-        Files.writeString(file, source);
-        Path outDir = tempDir.resolve("out-" + System.nanoTime());
-        CompilationResult result = driver.compile(file, outDir, target);
-        assertTrue(result.success(), target + " compile failed: "
-                + result.diagnostics().getDiagnostics());
-        Path bin = outDir.resolve("Default/Main");
-        Process p = NativeRiscv64E2ETest.qemu(qemu.substring(5), bin).redirectErrorStream(true).start();
-        String output = new String(p.getInputStream().readAllBytes(),
-                java.nio.charset.StandardCharsets.UTF_8).trim();
-        int ec = p.waitFor();
-        assertEquals(0, ec, target + " runtime (qemu) exit " + ec + ", out: " + output);
-        assertEquals(expected, output, target + " output");
-    }
-
 
     private String runJvm(Path tempDir, String source, String expected) throws Exception {
         Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");

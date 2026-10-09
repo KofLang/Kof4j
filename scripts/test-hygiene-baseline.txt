@@ -77,7 +77,6 @@ dupname	runJs
 dupname	runJvm
 dupname	runLargeStdoutDrainsWithoutDeadlock
 dupname	runNative
-dupname	runQemuE
 dupname	send
 dupname	set
 dupname	setValue
