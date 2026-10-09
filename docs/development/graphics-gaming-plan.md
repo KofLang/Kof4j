@@ -4,9 +4,9 @@
 
 **Owner:** `192.168.15.15:9092` — lane security/connectors, graphics/gaming front; re-claimed 05/10 (the spike-3.0 `192.168.15.30:9093` claims were runner/tooling, historical).
 
-last: slice-3.4a backend probe LANDED 09/10 (decision F executed: upstream LGPL-2.1+ FFmpeg 9.0.2 vendored `~/.local/share/kof-ffmpeg/usr` from source, NO `--enable-gpl`, `scripts/provision-ffmpeg.sh`; `FfmpegFfiProbeE2ETest` 4/4 — probe license `LGPL version 2.1 or later` on JVM + Native x86-64, cross faces skip named; `-rpath-link` extern-dir fix in `NativeAssembler` so the vendored DT_NEEDED closure resolves before the distro's conflicting ffmpeg stack)
-doing: slice-3.4b inc2 (decode+readback E2E of kof-probe.avi via avformat/avcodec)
-next: 3.4b inc1 LANDED 09/10 (peek primitive: `buffer.peek8/32/64` raw + Buffer-form overload, JVM + Native x86-64 + cross riscv64/aarch64, `BufferPeekE2ETest` 12/12 0 skips, byte-by-byte LE parity JVM==native, bounds trap honest); inc2 = decode+readback of `kof-probe.avi` (AVFormatContext** via the Buffer out-param, frame fields via peek, AVFrame offsets measured from the 9.0.2 header); then 3.5 (3D) surface
+last: slice-3.4b inc2 LANDED 09/10 (decode+readback E2E: `FfmpegFrameReadbackE2ETest` 3/3 — the MJPEG probe asset decoded via avformat/avcodec with the ctx pointer through the Buffer out-param + the frame fields read via peek at the measured 9.0.2 offsets (data[0]=0, linesize[0]=64, width=104, height=108); JVM==Native byte-for-byte; peek8 unsigned parity fixed (JVM & 0xFF + native lbu/movzbl — the sign-extension diverged for bytes >=128); the loop checks the read/send/receive rc; avformat_close_input called; the av_packet_free/av_frame_free calls stay out (the poke primitive is the 3.4c follow-up, the probe exit reclaims)
+doing: slice-3.5 (3D) surface — mesh/camera/material/light/transform (PROMOTED 08/10)
+next: 3.5 = the 3D intent surface (mesh/camera/material/light/transform + external parsers; shaders stay hidden at first) — one slice; then the 3.4c poke increment (the write counterpart of peek) if the maintainer keeps the media front active
 location: docs/development
 state: UNDER DEVELOPMENT
 

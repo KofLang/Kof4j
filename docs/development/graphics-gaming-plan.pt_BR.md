@@ -3,9 +3,9 @@
 # Graphics, Games e Media — Superfície de Intenção do Kof
 
 last: fatia-3.4a probe do backend POUSADA 09/10 (decisão F executada: FFmpeg 9.0.2 upstream LGPL-2.1+ vendido `~/.local/share/kof-ffmpeg/usr` da fonte, SEM `--enable-gpl`, `scripts/provision-ffmpeg.sh`; `FfmpegFfiProbeE2ETest` 4/4 — licença do probe `LGPL version 2.1 or later` em JVM + Native x86-64, faces cross pulam com motivo; fix `-rpath-link` do dir de extern no `NativeAssembler` para o fecho DT_NEEDED do vendor resolver antes da pilha ffmpeg conflitante da distro)
-doing: fatia-3.4b inc2 (E2E de decode+readback de kof-probe.avi via avformat/avcodec)
-next: 3.4b inc1 POUSADA 09/10 (primitiva peek: `buffer.peek8/32/64` raw + forma Buffer em overload, JVM + Native x86-64 + cross riscv64/aarch64, `BufferPeekE2ETest` 12/12 0 skips, paridade byte-a-byte LE JVM==native, trap de bounds honesto); inc2 = decode+readback de `kof-probe.avi` (AVFormatContext** via o out-param Buffer, campos do frame via peek, offsets do AVFrame medidos do header 9.0.2); depois superfície 3.5 (3D)
-location: docs/development
+last: fatia-3.4b inc2 POUSADA 09/10 (E2E de decode+readback: `FfmpegFrameReadbackE2ETest` 3/3 — o asset de probe MJPEG decodificado via avformat/avcodec com o ponteiro ctx através do out-param Buffer + os campos do frame lidos via peek nos offsets medidos do 9.0.2 (data[0]=0, linesize[0]=64, width=104, height=108); JVM==Native byte-a-byte; paridade unsigned do peek8 corrigida (JVM & 0xFF + native lbu/movzbl — a extensão de sinal divergia para bytes >=128); o loop checa o rc de read/send/receive; avformat_close_input chamado; as chamadas av_packet_free/av_frame_free ficam de fora (a primitiva poke é a continuação 3.4c, o exit do probe reclama)
+doing: fatia-3.5 (3D) superfície — mesh/camera/material/light/transform (PROMOVIDA 08/10)
+next: 3.5 = a superfície de intenção 3D (mesh/camera/material/light/transform + parsers externos; shaders seguem escondidos na primeira fatia) — uma fatia; depois o incremento 3.4c poke (a contraparte de escrita do peek) se a mantenedora mantiver a frente de media ativa
 state: UNDER DEVELOPMENT
 
 **Dono:** `192.168.15.15:9092` — lane security/connectors, frente graphics/gaming; reivindicado 05/10 (os claims do spike-3.0 `192.168.15.30:9093` eram runner/tooling, históricos).
