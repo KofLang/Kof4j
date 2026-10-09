@@ -901,6 +901,21 @@ interno sobrevive). Validado nos quatro alvos; adicionalmente rodado em
 riscv64/aarch64 sob qemu na autoria. Prova (executada):
 `tests/run-golden.sh` **140/140** (35 casos × 4 alvos), exit 0.
 
+**Fatia 11 da Fase 6 ENTREGUE (08/10, lane compiler/JVM/native `192.168.15.30:9092`):** mais
+um caso — **36 no total** — pinando as superfícies de consulta/ordem superior de
+`List` que o caso `pipelines` deixou de fora: `list-higher-order` exercita
+`reduce(lambda, seed)` (forma com seed; `SEM073` se omitida),
+`indexOf`/`lastIndexOf` (`-1` quando ausente), `isEmpty`, `none(pred)`,
+`find(pred)` (o primeiro match), `slice(off, len)`/`take(n)`/`drop(n)` (cópias
+materializadas, clampadas), `groupBy` (`Map<K, List<E>>`), `flatMap` (lista
+achatada), `sort()` in place, `addAll`, `subList`, `remove` e
+`sorted(comparator)` com comparador descendente. A face `zip` fica
+deliberadamente de FORA: é o gap nativo documentado `NAT008` (um elemento
+primitivo cruza um parâmetro de tipo nu), então um caso golden que exige os
+quatro alvos não pode piná-lo — a recusa É o contrato. Validado nos quatro
+alvos. Prova (executada): `tests/run-golden.sh` **144/144** (36 casos × 4
+alvos), exit 0.
+
 ### Fase 7 — Integração
 
 Implantar:
