@@ -13,7 +13,7 @@
 **Companion plan:** `test-architecture-plan.md` (the **compiler's own Java suite** refactor —
 L0–L5 layers, profiles, performance). This document is the **user-facing testing platform**;
 the two meet at §13 (Performance) and must not duplicate each other.
-**Implementation status:** slice 1 (assertion helpers) LANDED 30/09; slice 2 (`assertThrows`) LANDED 30/09 — the blocker was fixed (see §15); slice 3 (unit-core assertions) LANDED 01/10; slice 4 (Long/Double/Float numeric assertions) LANDED 01/10; slice 5 (Byte/Short/Char + `assertNotEqualBool`) LANDED 01/10; slice 6 (generic `assertEqual<T>`/`assertNotEqual<T>` pair) LANDED 02/10 — unblocked by the `known-bugs` §553 fix (`D-EQ-UNBOUNDED-T`), so §4.1 is now **complete**; §5 harness — slice 1 (temp dir + readiness poll) LANDED 06/10, slice 2 (database lifecycle `withDb` in the opt-in `kof.test.db`) LANDED 07/10, slice 3 (server lifecycle `withServer` in the opt-in `kof.test.web`, `spawn`+readiness+`finally` close) LANDED 08/10 — JVM-complete; the cross targets report the pre-existing `app.close`/`WEB001` gap honestly (no silent fallback).
+**Implementation status:** slice 1 (assertion helpers) LANDED 30/09; slice 2 (`assertThrows`) LANDED 30/09 — the blocker was fixed (see §15); slice 3 (unit-core assertions) LANDED 01/10; slice 4 (Long/Double/Float numeric assertions) LANDED 01/10; slice 5 (Byte/Short/Char + `assertNotEqualBool`) LANDED 01/10; slice 6 (generic `assertEqual<T>`/`assertNotEqual<T>` pair) LANDED 02/10 — unblocked by the `known-bugs` §553 fix (`D-EQ-UNBOUNDED-T`), so §4.1 is now **complete**; §5 harness — slice 1 (temp dir + readiness poll) LANDED 06/10, slice 2 (database lifecycle `withDb` in the opt-in `kof.test.db`) LANDED 07/10, slice 3 (server lifecycle `withServer` in the opt-in `kof.test.web`, `spawn`+readiness+`finally` close) LANDED 08/10 — JVM-complete; the cross targets report the pre-existing `app.close`/`WEB001` gap honestly (no silent fallback); §6 browser-provider policy RECORDED 08/10 (docs-only — opt-in per project `C`, all targets `T1`, `kof.test` compiler/CLI `T2`; the provider slice itself stays gated by the open rule-6 provider-declaration decision).
 
 > **Slice 6 (LANDED 02/10).** The last §4.1 face: the generic pair `assertEqual<T>(T expected, T actual, String label)` / `assertNotEqual<T>(...)` in `dev/kof/test.kf`. It was deliberately deferred (not shipped broken) until `known-bugs` §553 was resolved: the maintainer's rule-6 answer `D-EQ-UNBOUNDED-T` (02/10) fixes `==` on an unbounded `T` as **structural content equality** on every target, so the helper is correct for any `T` (Int, String, record, …). The label stringifies `expected`/`actual` via `+` — no new primitive, no per-target runtime. Proof RED-first: new `GenericEqualityE2ETest` **16/16** (the generic pair green on JVM/Script/JS/Native and throwing on a real mismatch; the `==` semantics golden byte-identical to the JVM oracle on JVM + Script + JS + Native x86-64 + riscv64(qemu) + aarch64(qemu)); `KofTestingE2ETest` 7/7. §4.1 is complete; the remaining faces are rule-6/decision-gated (§4.4 parameterized, §4.6 test doubles, §5 harness). The **browser provider** (§6) is no longer gated: `D-MAINT-BATCH-0510`/`T1` decides it must serve **all targets** (JVM + JS + Native), and `/T2` decides `kof.test` stays a **compiler/CLI feature** (not a stdlib namespace) — see §12.
 
@@ -439,6 +439,20 @@ honest diagnostic (`NATIVE002`/`WASM001` class), never silent.
 > **DECIDED 06/10 (`D-MAINT-BATCH-0610B`/C):** the browser provider (Playwright/Cypress) is
 > **opt-in per project** — declared per project, the CLI does **not** bundle it (interop-first
 > R9, no heavyweight default dependency). AUTHORIZED; queued after §5.
+
+**Status: POLICY RECORDED 08/10 (docs-only, lane issues/tooling `192.168.15.30:9093`).** The §6
+policy is now fixed by three decisions and recorded here: **(C)** opt-in per project — the CLI
+does **not** bundle Playwright/Cypress; **(T1)** the browser provider must serve **all targets**
+(JVM + JS + Native), not JVM-only; **(T2)** `kof.test` stays a **compiler/CLI feature**, not a
+stdlib namespace (`StdCatalog` unchanged). **Honest boundary — no browser API ships yet:** the
+entire §6 surface (browser abstraction/SPI, Playwright provider, locators, web assertions, network
+interception, capability matrix) is the **provider slice**, still gated by the open rule-6 decision
+(§12): *how* providers are declared, versioned and gated (interop-first R9). This document records
+the policy; it does **not** promise an API before that decision — no stub, no fake surface (Q7).
+The seed is `KofJsBrowserE2ETest` (a raw mechanism: real Chrome `--headless --dump-dom`, macOS
+`safaridriver` W3C WebDriver), not an abstraction. The provider SPI/manifest pattern cross-references
+`kof-connector-ecosystem-plan.md` (§14). Capability-matrix values stay `?` until discovered during
+implementation (§6.4) — never assumed.
 
 An official browser-testing API in Kof. Conceptually:
 

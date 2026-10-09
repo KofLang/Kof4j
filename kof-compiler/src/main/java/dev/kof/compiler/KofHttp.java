@@ -61,10 +61,12 @@ public final class KofHttp {
     // stays compile-safe: a new Target forces this guard to be revisited, and the
     // day a target genuinely drops out of the http surface, the HTTP002 branch in
     // ExpressionHttpCallLowerer:19-30 becomes live (gapCode wired here).
+    // WASM/WASI (15.1, #776) enter like the MCU slices: the scalar backend
+    // refuses any http use with its own honest WASM002, never a silent path.
     static boolean supportedOn(Target target) {
         return switch (target) {
             case JVM, NATIVE, NATIVE_RISCV64, NATIVE_AARCH64, NATIVE_RISCV32, NATIVE_MCU_ARM,
-                    JS, ANDROID, SCRIPT -> true;
+                    JS, ANDROID, SCRIPT, WASM, WASI -> true;
         };
     }
 
