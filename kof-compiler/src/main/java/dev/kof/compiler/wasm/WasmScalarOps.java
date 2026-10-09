@@ -108,6 +108,11 @@ public final class WasmScalarOps {
             };
             return new WasmInstr.Simple(op, "i32." + suffix);
         }
+        if ("bool".equalsIgnoreCase(tn) || "boolean".equalsIgnoreCase(tn)) {
+            // bool do WASI empilha i32; apenas eq/ne fazem sentido
+            return new WasmInstr.Simple("eq".equals(suffix) ? 0x46 : "ne".equals(suffix) ? 0x47 : -1,
+                    "i32." + suffix);
+        }
         boolean dbl = "double".equalsIgnoreCase(tn);
         int op = dbl ? f64Op : i64Op;
         String name = (dbl ? "f64." : "i64.") + suffix.replace("_s", "");

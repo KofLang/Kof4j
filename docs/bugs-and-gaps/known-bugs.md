@@ -17705,6 +17705,7 @@ warned `L-05: resource 'app' ... is never closed in this scope and never handed 
 
 <!-- pt-switch --> **PT:** [§638 (pt_BR)](known-bugs.pt_BR.md#638--um-builtin-que-apaga-para-uma-classe-aninhada-gerada-de-kofruntime-kofprocessresult-buffer-secret-keyhandle-interoperror-aceitava-qualquer-classe-em-atribuicaoargumento-result-r--x-compilava-limpo-e-morria-no-load-com-noclassdeffounderrorverifyerror-porque-a-relacao-por-classe-de-runtime-nao-conseguia-carregar-a-classe-gerada-por-output--a-superclasse-real-da-classe-gerada-agora-e-resolvida-pela-fonte-canonica-do-runtime---fixed-0910-lane-issuestooling-19216815309093-residual-do-597)
 
+EAD
 ## §639 — `check_lab_stability.sh` (the `D-LAB-STABILITY`/`D-RELEASE-CADENCE` aggregate gate) REJECTED the repo's OWN stamped `safe-suite.sh` suite log (its parser only understood the Maven summary format), so the release-protocol gate could never consume the runner it ships — and, symmetrically, it ACCEPTED an UNSTAMPED Maven log with no SHA/dirty provenance — ✅ FIXED 09/10 (lane issues/tooling `192.168.15.30:9093`, release-protocol/bugs-and-gaps front)
 
 **Symptom (measured 09/10, lab tip):** feeding the gate a genuine `scripts/safe-suite.sh` log (`SUITE-SHA: <sha>` / `SUITE-DIRTY: 0` / `TOTAL: tests=5000 failures=0 errors=0 skipped=10`) printed `suite-report: SLIPS` and `CUT: SLIPS — suite-fail` — a false RED on the exact runner the repo uses to measure `lab` stability. The gate's `parse_suite` looked only for `Failures: N, Errors: N` + `BUILD SUCCESS` (the Maven reactor summary), so it silently could not read the format `scripts/stability-report.sh` already trusts.
@@ -17718,3 +17719,40 @@ warned `L-05: resource 'app' ... is never closed in this scope and never handed 
 **Boundary:** tooling only — no compiler/runtime change. The unstamped Maven path stays accepted for backward compatibility; the stamped path is the provenance-checked one.
 
 <!-- pt-switch --> **PT:** [§639 (pt_BR)](known-bugs.pt_BR.md#639--o-check_lab_stabilitysh-gate-agregado-do-d-lab-stabilityd-release-cadence-rejeitava-o-proprio-log-carimbado-do-safe-suitesh-que-o-repo-produz-seu-parser-so-entendia-o-formato-de-resumo-maven-entao-o-gate-do-protocolo-de-release-nunca-conseguia-consumir-o-runner-que-ele-mesmo-entrega--e-simetricamente-aceitava-um-log-maven-sem-carimbo-sem-proveniencia-de-shadirty---fixed-0910-lane-issuestooling-19216815309093-frente-release-protocolbugs-and-gaps)
+
+## §640 — the ANDROID `KofRuntime` emitted for a `kof.gpu` program now REFERENCES `java/lang/foreign` (FFM) — `GpuAndroidE2ETest.androidGpuRuntimeIsFfmFreeWhileJvmUsesFfm` fails DETERMINISTICALLY (3/1F full suite + isolated), ART has no `java.lang.foreign` so the shipped android module cannot load on device — ✅ OPEN, owner-less (discovered by WASI lane `192.168.15.101:9092` post-rebase suite 09/10; NOT attributable to the WASI work — fails identically with the C2 changes stashed, measured; suspect the §278 gpu face `f946a3138`)
+
+**Symptom (measured 09/10, lab tip 9caa009ca + HEAD, full suite AND isolated):** `GpuAndroidE2ETest` 3/1F — `androidGpuRuntimeIsFfmFreeWhileJvmUsesFfm`: the ANDROID output's `dev/kof/runtime/KofRuntime.class` CONTAINS `java/lang/foreign` (the FFM-free invariant the §278 face pins; ART has no `java.lang.foreign`, the module cannot load on device).
+
+**Attribution (measured):** PRE-EXISTING on the tip — the WASI C2/§642 changes stashed, the test fails identically. Suspect: the §278 android-gpu face (`f946a3138`) emitting the JVM FFM gpu runtime path into the ANDROID `KofRuntime` instead of the `kof_vk_available` stub path.
+
+**State:** ✅ OPEN, owner-less — the graphics/android lane claims it in DOING (`<ipv4>:<port>`); the WASI battery stays 30/30 and is NOT blocked by it.
+
+<!-- pt-switch --> **PT:** [§640 (pt_BR)](known-bugs.pt_BR.md#640--o-kofruntime-android-emitido-para-um-programa-kofgpu-agora-referencia-javalangforeign-ffm--gpuandroide2etestandroidgpuruntimeisffmfreewhilejvmusesffm-falha-deterministicamente-31f-suite-inteira--isolado-a-art-nao-tem-javalangforeign-entao-o-modulo-android-pousado-nao-carrega-no-dispositivo---aberta-sem-dona-descoberta-pela-suite-pos-rebase-da-lane-wasi-192168151019092-0910-nao-atribuiuvel-ao-trabalho-wasi--falha-identica-com-as-mudancas-c2-stashadas-medido-suspeita-a-face-gpu-do-278-f946a3138)
+
+## §641 — `KofSecurityTest.passwordsNative` — native x86-64 PBKDF2 `hash/verify/needsRehash` returns `false/false/false` where the contract requires `true/false/false` — deterministic in isolation (42/1F), fails on the tip WITHOUT any WASI change (stash-proven, measured 09/10) — ✅ OPEN, owner-less (native/security surface; suspect the recent native-runtime batches in the 35-commit rebase)
+
+**Symptom (measured 09/10, lab tip, full suite AND isolated):** `KofSecurityTest` 42/1F — `passwordsNative` (x86-64): the native PBKDF2 triple `hash/verify/needsRehash` answers `false/false/false`; the contract requires `true/false/false` (hash succeeds, verify ok, needsRehash false). The module builds/links (5.0s elapsed) and RUNS — the FUNCTION result is wrong, not a toolchain absence (contrast the documented `as`/`ld` environmental skips).
+
+**Attribution (measured):** PRE-EXISTING on the tip — fails identically with the WASI C2/§642 changes stashed. Suspect the native runtime batches inside the last 35-commit rebase (no `KofSecurityTest` change in it; the failure face is the compiled `passwords.kf` binary behavior).
+
+**State:** ✅ OPEN, owner-less — the native/security lane claims it in DOING (`<ipv4>:<port>`); not attributable to, and not blocking, the WASI tier.
+
+<!-- pt-switch --> **PT:** [§641 (pt_BR)](known-bugs.pt_BR.md#641--kofsecuritytestpasswordsnative--o-pbkdf2-x86-64-nativo-hashverifyneedsrehash-devolve-falsefalsefalse-onde-o-contrato-exige-truefalsefalse--deterministico-isolada-421f-falha-no-tip-sem-nenhuma-mudanca-wasi-prova-por-stash-medido-0910---aberta-sem-dona-face-nativaseguranca-suspeita-os-lotes-recentes-do-runtime-nativo-no-rebase-de-35-commits)
+
+## §642 — the sibling Buffer-slice commit (`6f0a7e8df`) added `peek8`/`peek32`/`peek64` to `KofBuffer.functions()` (the `StdCatalog`) WITHOUT regenerating the PortuKof members table, so `PortuKofStdlibE2ETest.theGeneratedTableIsTotalAndBijective` failed on every later CI run (`cobertura total: buffer expected: <4> but was: <1>`) and `lab` lost stability right after the C1 cut passed — ✅ FIXED 09/10 (lane WASI/release-protocol `192.168.15.101:9092`, discovered by THIS lane's post-rebase suite)
+
+**Symptom (measured 09/10, lab tip after the 35-commit rebase):** `PortuKofStdlibE2ETest` 4/1F deterministic (passes alone AND with the WASI changes stashed — the tip is broken, not the change): `theGeneratedTableIsTotalAndBijective` asserts EVERY namespace's table row-count == `StdCatalog.membersOf(ns)`; `buffer` had 1 row, the catalog 4.
+
+**Root (read in code):** `lang/PortuKofStdlibMembers.table()` is a hand-maintained canonical→pt-BR alias mirror of the catalog; the Buffer U8 out-buffer slice grew `KofBuffer.functions()` to `List.of("alloc","peek8","peek32","peek64")` and never touched the mirror. The coverage test caught it.
+
+**Fix (09/10, additive):** the `buffer` rows now mirror the catalog order: `alloc`/`peek8`/`peek32`/`peek64`, aliases = canonical (the established no-rename face in this very table). No catalog, grammar, semantics or runtime change.
+
+**Proof:** `PortuKofStdlibE2ETest` **4/4** (RED measured first: 4/1F on the tip, fix stashed); full PortuKof family **55/55** green (totality + bijectivity + the whole vocabulary).
+
+**Boundary:** the mirror is generated-BY-HAND (test is the ratchet); any future catalog growth must update the table in the same commit — the test makes the omission impossible to land silently.
+
+<!-- pt-switch --> **PT:** [§642 (pt_BR)](known-bugs.pt_BR.md#642--o-commit-irmao-da-fatia-de-buffer-6f0a7e8df-adicionou-peek8peek32peek64-ao-kofbufferfunctions-o-stdcatalog-sem-regenerar-a-tabela-de-membros-portukof-entao-portukofstdlibe2etestthegeneratedtableistotalandbijective-falhou-em-todo-run-posterior-da-ci-cobertura-total-buffer-expected-4-but-was-1-e-o-lab-perdeu-estabilidade-logo-apos-o-cut-c1-ter-passado---fixed-0910-lane-wasiprotocolo-de-release-192168151019092-descoberto-pela-suite-desta-lane)
+
+
+

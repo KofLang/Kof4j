@@ -409,7 +409,59 @@ public final class WasmStdoutRuntime {
 
     // ---- 15.3d inc2 fatia C: handles de String sintetizados no bump heap ----
 
-    /** `kof.strBool(b)` -> handle `[len][bytes]\n` com "true"/"false" (JVM
+    /** `kof.strEq(a,b)` -> 1/0: igualdade de CONTEUDO de dois handles `[len][bytes]`
+     * do heap bump (15.3d inc2 fatia C2): fold de campo String de record via
+     * `kofRecordEq`; mesma semantica do `kofRecordEq`/`kof_string_equals` dos
+     * outros targets (conteudo, nao identidade). */
+    public static WasmFunc kofStrEq() {
+        List<WasmInstr> b = new ArrayList<>();
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "a"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 3, "len"));
+        b.add(new WasmInstr.Const(0, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "r"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "a"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "b"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
+        b.add(new WasmInstr.Simple(0x46, "i32.eq"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "eq", 0x40));
+        b.add(new WasmInstr.Const(0, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 4, "i"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, "scan", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "i"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "len"));
+        b.add(new WasmInstr.Simple(0x4e, "i32.ge_u"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "out", 0x40));
+        b.add(new WasmInstr.Const(0, 1));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "r"));
+        b.add(new WasmInstr.Branch("eq", 2)); // br p/ loop = CONTINUE; sair do scan = sair do `if eq`
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "out", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "a"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "i"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD8U, 4));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "b"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "i"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD8U, 4));
+        b.add(new WasmInstr.Simple(0x47, "i32.ne"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "bad", 0x40));
+        b.add(new WasmInstr.Branch("eq", 2)); // bytes diferem: r fica 0, sai do scan
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "bad", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "i"));
+        b.add(new WasmInstr.Const(0, 1));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 4, "i"));
+        b.add(new WasmInstr.Branch("scan", 0));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "scan", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "eq", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "r"));
+        return new WasmFunc("kof.strEq", List.of(0x7f, 0x7f), List.of(0x7f),
+                List.of(0x7f, 0x7f, 0x7f, 0x7f, 0x7f), b);
+    }
+
+        /** `kof.strBool(b)` -> handle `[len][bytes]\n` com "true"/"false" (JVM
      * `String.valueOf(Bool)` paridade). Bump `global 0` (15.3c-sliceA). */
     public static WasmFunc kofStrBool() {
         List<WasmInstr> b = new ArrayList<>();

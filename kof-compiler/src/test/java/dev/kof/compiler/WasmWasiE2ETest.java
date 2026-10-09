@@ -371,17 +371,71 @@ class WasmWasiE2ETest {
     }
 
     @Test
-    void recordToStringAndEqualityStillRefuseHonestly(@TempDir Path dir) throws Exception {
-        // fatia C1 verde (above): toString/println/valueOf/concat. `==` de record
-        // e campos record-aninhados ainda recusam honesto WASM002 naming plan +
-        // slice + #776, NO artifacts (Q7): o desugar JVM do `==` faz merge por
-        // fluxo de controle (ternario/labels) que cruza blocos na linearizacao
-        // por pc; record-aninhado = campo de classe no bump heap (proxima fatia).
+    void recordEqualityMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // fatia C2 (15.3d inc2): `==`/`!=` de record = igualdade de CONTEUDO
+        // null-safe (Objects.equals). O frontend WASI desuga p/ a chamada opaca
+        // kofRecordEq (precedente do JS no RecordEqualityLowerer) e o backend
+        // sintetiza o fold de campo reto, com accumulator; Double pelos bits
+        // (Double.equals JVM), String via kof.strEq. Paridade byte-a-byte.
+        var wasmtime = host("wasmtime");
+        assumeTrue(wasmtime != null, "wasmtime host absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                record Point(Int x, Int y)
+                record Pair(String a, Int n)
+                record Flag(Boolean ok, Char c)
+                record Dbl(Double v)
+                main(String[] args) {
+                    var p = Point(1, 2)
+                    var q = Point(1, 2)
+                    var r = Point(1, 3)
+                    println(p == q)
+                    println(p == r)
+                    println(p != r)
+                    println(!(p == r))
+                    println(p == null)
+                    println(p != null)
+                    println(Pair("ab", 7) == Pair("ab", 7))
+                    println(Pair("ab", 7) == Pair("xy", 7))
+                    println(Flag(true, 'A') == Flag(true, 'A'))
+                    println(Flag(false, 'A') == Flag(true, 'A'))
+                    println(Dbl(1.5) == Dbl(1.5))
+                    println(Dbl(1.5) == Dbl(2.5))
+                }
+                """);
+        var driver = new CompilerDriver();
+        var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
+        assertTrue(jvm.success(), "jvm equality compile: " + jvm.diagnostics().getDiagnostics());
+        var oracle = new ProcessBuilder(List.of(jvmBin(), "-cp",
+                Path.of(dir.toString(), "out-jvm").toString(), "Default.Main"))
+                .redirectErrorStream(true).start();
+        String expected = new String(oracle.getInputStream().readAllBytes());
+        assertTrue(oracle.waitFor(120, TimeUnit.SECONDS) && oracle.exitValue() == 0,
+                "JVM equality oracle: " + expected);
+        var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
+        assertTrue(wasi.success(), "wasi equality compile: " + wasi.diagnostics().getDiagnostics());
+        var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
+                Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm").toString()))
+                .redirectErrorStream(true).start();
+        String out = new String(proc.getInputStream().readAllBytes());
+        assertTrue(proc.waitFor(60, TimeUnit.SECONDS), "host within 60s");
+        assertEquals(0, proc.exitValue(), "clean WASI exit equality: " + out);
+        assertEquals(expected.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                "record ==/!=/null/Double-bits must equal the JVM oracle");
+    }
+
+    @Test
+    void recordNestedFieldStillRefusesHonestly(@TempDir Path dir) throws Exception {
+        // fatia C1+C2 verdes (above): toString/println/valueOf/concat e ==/!= de
+        // conteudo. Campos record-aninhados ainda recusam honesto WASM002 naming
+        // plan + slice + #776, NO artifacts (Q7): record-aninhado = campo de
+        // classe no bump heap (proxima fatia). `equals` explicito de record
+        // tambem recusa (dispatch virtual ainda nao existe no backend).
         var driver = new CompilerDriver();
         record Case(String name, String src) {}
         for (Case c : List.of(
-                new Case("record-equality", "record Point(Int x, Int y)\n"
-                        + "main(String[] args) {\n    var p = Point(1, 2)\n    println(p == Point(1, 2))\n}\n"),
+                new Case("record-explicit-equals", "record Point(Int x, Int y)\n"
+                        + "main(String[] args) {\n    var p = Point(1, 2)\n    println(p.equals(Point(1, 2)))\n}\n"),
                 new Case("record-nested-field", "record Inner(Int v)\n"
                         + "record Outer(Inner i)\n"
                         + "main(String[] args) {\n    var o = Outer(Inner(1))\n    println(o.i)\n}\n"))) {
@@ -389,7 +443,7 @@ class WasmWasiE2ETest {
             Files.writeString(src, c.src());
             Path out = dir.resolve("out-" + c.name());
             var r = driver.compile(src, out, Target.WASI);
-            assertFalse(r.success(), c.name() + " must refuse WASM002 (record == / nested fields)");
+            assertFalse(r.success(), c.name() + " must refuse WASM002 (explicit equals / nested fields)");
             String msg = r.diagnostics().getDiagnostics().toString();
             assertTrue(msg.contains("WASM002") && msg.contains("#776")
                     && msg.contains("wasm-wasi-plan"), c.name() + " honest: " + msg);

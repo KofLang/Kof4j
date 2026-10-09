@@ -106,6 +106,9 @@ public class WasmBackend implements Backend {
                             || "kof_string_concat".equals(kc.methodName()))) {
                         continue; // wrapper intrinseco (println / concat) tratado na emissao
                     }
+                    if (wasi && usesRecords && "kofRecordEq".equals(kc.methodName())) {
+                        continue; // igualdade de record: fold inline no call site (15.3d inc2 C2)
+                    }
                     if (wasi && usesRecords && kc.kind() == KofCallKind.CONSTRUCTOR
                             && "<init>".equals(kc.methodName())
                             && records.containsKey(ownerSimpleName(kc.ownerType()))) {
@@ -202,6 +205,7 @@ public class WasmBackend implements Backend {
                     if (usesRecords) {
                         funcs.add(kofStrBool()); // toString de campo Bool (15.3d inc2 fatia C)
                         funcs.add(kofStrChar()); // toString de campo Char
+                        funcs.add(kofStrEq());   // campo String do fold de == (15.3d inc2 fatia C2)
                     }
                     if (usesStringConcat(scanAll) || usesRecords) funcs.add(kofStrConcat());
                     globals = java.util.List.of(HEAP_BASE); // bump pointer global 0

@@ -58,7 +58,13 @@ final class RecordEqualityLowerer {
         // (ExpressionBinaryLowerer:167). Uma ÚNICA chamada de função é uma
         // expressão opaca p/ todos os backends. kofRecordEq(a,b) -> 1/0 tem a
         // SEMANTICA de Objects.equals (JsRuntimeCore.kofRecordEq).
-        if (driver.target == Target.JS) {
+        // WASI (15.3d inc2 fatia C2): o dispatcher wasm (`loop $dispatch` +
+        // `$pc`) NAO carrega a pilha de valores entre blocos — a ternária com
+        // jumps acima mergearia resultados por label, o que a linearização por
+        // pc ainda não modela (medido na fatia C1). MESMO mecanismo aprovado
+        // p/ JS: uma chamada opaca; o backend WASI sintetiza o fold de campo
+        // INLINE no call site (WasmRecordCode.emitEquals, sem fluxo cruzado).
+        if (driver.target == Target.JS || driver.target == Target.WASI) {
             localIdx = ExpressionLowerer.emitExpression(driver, be.right(), ops, owner, localIdx, locals);
             // D-NULL-INTENT (I6, caso misto): lado direito primitivo CRU
             // (`m.get("a") == 1`) — no JS não há física de boxing real, mas
