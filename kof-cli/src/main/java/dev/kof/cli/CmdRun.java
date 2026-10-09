@@ -43,6 +43,8 @@ final class CmdRun {
         if (fileIdx >= args.length) { System.err.println("usage: kof run <file.kf> [--target ...]"); return; }
         Path file = Path.of(args[fileIdx]);
         if (!Files.exists(file)) { System.err.println("file not found: " + file); System.exit(1); return; }
+        String extErr = KofCliSupport.unsupportedSourceExtension("run", file);
+        if (extErr != null) { System.err.println(extErr); System.exit(1); return; }
 
         Target target = Target.JVM;
         Target frontendTarget = null;

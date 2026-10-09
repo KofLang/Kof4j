@@ -98,6 +98,11 @@ final class KofDebug {
             System.err.println("file not found: " + file);
             return 1;
         }
+        String extErr = KofCliSupport.unsupportedSourceExtension("debug", file);
+        if (extErr != null) {
+            System.err.println(extErr);
+            return 1;
+        }
         if (target.equals("native")) {
             if (dap) {
                 if (!breaks.isEmpty() || out != null) {

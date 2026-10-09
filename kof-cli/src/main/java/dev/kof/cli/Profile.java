@@ -47,6 +47,11 @@ public final class Profile {
             System.err.println("file not found: " + file);
             return 1;
         }
+        String extErr = KofCliSupport.unsupportedSourceExtension("profile", file);
+        if (extErr != null) {
+            System.err.println(extErr);
+            return 1;
+        }
         Target target = Target.JVM;
         boolean methods = false;
         int argStart = 1;

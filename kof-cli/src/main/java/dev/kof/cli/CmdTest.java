@@ -108,6 +108,8 @@ final class CmdTest {
             return;
         }
         if (!Files.exists(src)) { System.err.println("not found: " + src); System.exit(1); return; }
+        String extErr = KofCliSupport.unsupportedSourceExtension("test", src);
+        if (extErr != null) { System.err.println(extErr); System.exit(1); return; }
         // android é empacotamento (APK/AAB), não um alvo de execução: `kof test`
         // não produz binário standalone. Recusa honesta e cedo (R6) em vez do
         // enganoso "no binary produced" depois de compilar o projeto inteiro.

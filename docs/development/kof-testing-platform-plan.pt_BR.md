@@ -427,6 +427,20 @@ diagnóstico honesto (classe `NATIVE002`/`WASM001`), nunca silêncio.
 > **opt-in por projeto** — declarado por projeto, a CLI **não** o empacota (interop-first R9, sem
 > dependência pesada por padrão). AUTORIZADO; na fila depois do §5.
 
+**Status: POLÍTICA REGISTRADA 08/10 (só docs, lane issues/tooling `192.168.15.30:9093`).** A
+política do §6 fica fixada por três decisões e registrada aqui: **(C)** opt-in por projeto — a CLI
+**não** empacota Playwright/Cypress; **(T1)** o provider de browser deve servir **todos os alvos**
+(JVM + JS + Native), não só JVM; **(T2)** `kof.test` segue como **feature do compilador/CLI**, não
+um namespace da stdlib (`StdCatalog` inalterado). **Fronteira honesta — nenhuma API de browser
+pousa ainda:** toda a superfície do §6 (abstração/SPI de browser, provider Playwright, locators,
+assertivas web, interceptação de rede, matriz de capacidades) é a **fatia do provider**, ainda
+gated pela decisão aberta da regra 6 (§12): *como* os providers são declarados, versionados e
+gated (interop-first R9). Este documento registra a política; **não** promete uma API antes dessa
+decisão — sem stub, sem superfície falsa (Q7). A semente é o `KofJsBrowserE2ETest` (um mecanismo
+cru: Chrome real `--headless --dump-dom`, `safaridriver` W3C WebDriver no macOS), não uma abstração.
+O padrão SPI/manifest do provider cruza com `kof-connector-ecosystem-plan.md` (§14). Os valores da
+matriz de capacidades seguem `?` até serem descobertos na implementação (§6.4) — nunca assumidos.
+
 Uma API oficial de teste de browser em Kof. Conceitualmente:
 
 ```text
