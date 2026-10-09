@@ -17,7 +17,10 @@
 # Test hooks (env, same contract style as check_release_blockers.sh):
 #   LAB_STABILITY_RC_GATE_CMD  stands in for `check_release_blockers.sh --rc-gate` (rc only)
 #   LAB_STABILITY_GATE_CMD     "sh -c" template run once per gate name in $1, rc only
-#   LAB_STABILITY_SUITE_REPORT path to a suite report file (surefire-style summary)
+#   LAB_STABILITY_SUITE_REPORT path to a suite report file (Maven summary OR a
+#                               stamped safe-suite.sh log)
+#   LAB_STABILITY_EXPECT_SHA   expected SHA for a stamped safe-suite log
+#                               (default: HEAD)
 #
 # Exit codes: 0 CUT:GREEN; 1 CUT:SLIPS; 2 selftest failure.
 set -u
@@ -45,13 +48,38 @@ verdict() {
 }
 
 # parse_suite <file> -> GREEN if a fresh full-suite report shows 0 failures/0 errors; else SLIPS/NAO-AVALIADO
+#
+# Two accepted producer formats (both are the repo's OWN real artifacts):
+#   (a) a Maven reactor log — `Tests run: N, Failures: F, Errors: E, ...` lines +
+#       `BUILD SUCCESS` (the historical contract);
+#   (b) a `scripts/safe-suite.sh` log — stamped with `SUITE-SHA:`/`SUITE-DIRTY:`
+#       BEFORE the run and summarized by `TOTAL: tests=N failures=F errors=E`.
+#       This is the format `scripts/stability-report.sh` already trusts; the
+#       aggregate gate MUST accept it too (it is the repo's stamped runner) AND
+#       it carries provenance, so (b) additionally requires SUITE-DIRTY=0 and
+#       SUITE-SHA == HEAD (or $LAB_STABILITY_EXPECT_SHA) — a log from another
+#       commit or a dirty tree is not evidence for this tip (never a false green).
 parse_suite() {
   local f="${1:-}"
   if [ -z "$f" ] || [ ! -f "$f" ]; then echo "NAO-AVALIADO"; return; fi
-  local f_err
-  f_err="$(grep -oE "Failures: [0-9]+, Errors: [0-9]+" "$f" | awk -F'[ ,]+' '{tf+=$2; te+=$4} END{print tf+te}')"
-  if [ "${f_err:-NA}" = "NA" ]; then echo "SLIPS"; return; fi
-  if [ "${f_err:-1}" -eq 0 ] && grep -q "BUILD SUCCESS" "$f"; then echo "GREEN"; else echo "SLIPS"; fi
+  # (b) stamped safe-suite log
+  if grep -q "^SUITE-SHA:" "$f" && grep -q "^TOTAL:" "$f"; then
+    local want dirty got f_err
+    want="${LAB_STABILITY_EXPECT_SHA:-$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo unknown)}"
+    dirty="$(grep -m1 "^SUITE-DIRTY:" "$f" | awk '{print $2}')"
+    got="$(grep -m1 "^SUITE-SHA:" "$f" | awk '{print $2}')"
+    [ "$dirty" = "0" ] || { echo "SLIPS"; return; }
+    [ "$got" = "$want" ] || { echo "SLIPS"; return; }
+    f_err="$(grep -m1 "^TOTAL:" "$f" | awk '{f=0; e=0; for(i=1;i<=NF;i++){ if($i ~ /^failures=/){split($i,a,"="); f=a[2]} if($i ~ /^errors=/){split($i,a,"="); e=a[2]} } print f+e }')"
+    [ "${f_err:-NA}" = "NA" ] && { echo "SLIPS"; return; }
+    if [ "${f_err:-1}" -eq 0 ]; then echo "GREEN"; else echo "SLIPS"; fi
+    return
+  fi
+  # (a) Maven summary
+  local m_err
+  m_err="$(grep -oE "Failures: [0-9]+, Errors: [0-9]+" "$f" | awk -F'[ ,]+' '{tf+=$2; te+=$4} END{print tf+te}')"
+  if [ "${m_err:-NA}" = "NA" ]; then echo "SLIPS"; return; fi
+  if [ "${m_err:-1}" -eq 0 ] && grep -q "BUILD SUCCESS" "$f"; then echo "GREEN"; else echo "SLIPS"; fi
 }
 
 run_rc_gate() {
@@ -101,8 +129,24 @@ selftest() {
   local bad; bad="$(mktemp)"; printf 'Tests run: 2800, Failures: 2, Errors: 0\n[INFO] BUILD FAILURE\n' > "$bad"
   out="$(LAB_STABILITY_RC_GATE_CMD='exit 0' LAB_STABILITY_GATE_CMD='exit 0' LAB_STABILITY_SUITE_REPORT="$bad" evaluate 2>&1)"; local rc5=$?
   printf '%s\n' "$out" | grep -q "CUT: SLIPS —.*suite-fail" || { echo "selftest: planted suite-failure not SLIPS"; echo "$out"; fail=1; }
-  rm -f "$rep" "$bad"
-  if [ "$fail" -eq 0 ]; then echo "selftest: OK (5 verdict cases incl. no-false-green)"; return 0; fi
+  # 6) stamped safe-suite log (0F/0E, DIRTY=0, matching SHA) -> CUT: GREEN
+  local safe_green; safe_green="$(mktemp)"
+  printf 'SUITE-SHA: 111122223333\nSUITE-DIRTY: 0\nTOTAL: tests=5000 failures=0 errors=0 skipped=10\n' > "$safe_green"
+  out="$(LAB_STABILITY_RC_GATE_CMD='exit 0' LAB_STABILITY_GATE_CMD='exit 0' LAB_STABILITY_EXPECT_SHA='111122223333' LAB_STABILITY_SUITE_REPORT="$safe_green" evaluate 2>&1)"; local rc6=$?
+  printf '%s\n' "$out" | grep -q "CUT: GREEN" || { echo "selftest: safe-suite green case not GREEN"; echo "$out"; fail=1; }
+  [ "$rc6" -eq 0 ] || { echo "selftest: safe-suite green case expected rc 0, got $rc6"; fail=1; }
+  # 7) stamped safe-suite log with dirty tree (SUITE-DIRTY != 0) -> SLIPS (never a false green)
+  local safe_dirty; safe_dirty="$(mktemp)"
+  printf 'SUITE-SHA: 111122223333\nSUITE-DIRTY: 2\nTOTAL: tests=5000 failures=0 errors=0 skipped=10\n' > "$safe_dirty"
+  out="$(LAB_STABILITY_RC_GATE_CMD='exit 0' LAB_STABILITY_GATE_CMD='exit 0' LAB_STABILITY_EXPECT_SHA='111122223333' LAB_STABILITY_SUITE_REPORT="$safe_dirty" evaluate 2>&1)"; local rc7=$?
+  printf '%s\n' "$out" | grep -q "CUT: SLIPS —.*suite-fail" || { echo "selftest: dirty safe-suite log not SLIPS"; echo "$out"; fail=1; }
+  [ "$rc7" -eq 1 ] || { echo "selftest: dirty safe-suite log expected rc 1, got $rc7"; fail=1; }
+  # 8) stamped safe-suite log with stale SHA -> SLIPS
+  out="$(LAB_STABILITY_RC_GATE_CMD='exit 0' LAB_STABILITY_GATE_CMD='exit 0' LAB_STABILITY_EXPECT_SHA='999988887777' LAB_STABILITY_SUITE_REPORT="$safe_green" evaluate 2>&1)"; local rc8=$?
+  printf '%s\n' "$out" | grep -q "CUT: SLIPS —.*suite-fail" || { echo "selftest: stale-sha safe-suite log not SLIPS"; echo "$out"; fail=1; }
+  [ "$rc8" -eq 1 ] || { echo "selftest: stale-sha safe-suite log expected rc 1, got $rc8"; fail=1; }
+  rm -f "$rep" "$bad" "$safe_green" "$safe_dirty"
+  if [ "$fail" -eq 0 ]; then echo "selftest: OK (8 verdict cases incl. safe-suite provenance)"; return 0; fi
   return 2
 }
 
