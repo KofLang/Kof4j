@@ -7,6 +7,7 @@ import dev.kof.compiler.backend.Backend;
 import static dev.kof.compiler.wasm.WasmScalarOps.*;
 import static dev.kof.compiler.wasm.WasmStdoutRuntime.*;
 import static dev.kof.compiler.wasm.WasmLowering.*;
+import static dev.kof.compiler.wasm.WasmTypeOracle.*;
 import static dev.kof.compiler.wasm.WasmArgsRuntime.*;
 
 import java.io.IOException;
@@ -110,19 +111,29 @@ public class WasmBackend implements Backend {
                             && records.containsKey(ownerSimpleName(kc.ownerType()))) {
                         continue; // construtor de record inlinado (15.3d)
                     }
+                    if (wasi && usesRecords && (kc.kind() == KofCallKind.INSTANCE
+                            || kc.kind() == KofCallKind.INTERFACE)
+                            && records.containsKey(ownerSimpleName(kc.ownerType()))
+                            && ("toString".equals(kc.methodName())
+                                || "equals".equals(kc.methodName()))) {
+                        continue; // toString/equals de record inlinados (15.3d inc2 fatia C)
+                    }
                     boolean isPrintCall = wasi && printIntrinsic
                             && "println".equals(kc.methodName());
                     if (isPrintCall) {
                         String t = null;
+                        java.util.List<KofOperation> flat = new java.util.ArrayList<>();
                         for (IRBasicBlock scan : cur.basicBlocks()) {
-                            List<KofOperation> sop = scan.operations();
-                            for (int si = 0; si < sop.size(); si++) {
-                                if (sop.get(si) == kc) {
-                                    t = operandTypeBefore(sop, si);
-                                }
+                            flat.addAll(scan.operations());
+                        }
+                        for (int si = 0; si < flat.size(); si++) {
+                            if (flat.get(si) == kc) {
+                                t = operandTypeBefore(flat, si);
+                                break;
                             }
                         }
-                        if (t == null || !printableScalar(t)) {
+                        boolean recOk = usesRecords && t != null && records.containsKey(t);
+                        if (t == null || (!printableScalar(t) && !recOk)) {
                             throw new WasmUnsupportedException("println '" + t
                                     + "' fora da fatia 1 da unidade 15.3 (WASM002) — o host de "
                                     + "strings de operacoes/records/colecoes/double chega com o runtime"
@@ -180,7 +191,7 @@ public class WasmBackend implements Backend {
             java.util.List<IRMethod> scanAll = new java.util.ArrayList<>(entries);
             if (startM != null) scanAll.add(startM);
             java.util.Set<String> printed = printOperandTypes(scanAll);
-            if (usesStringOps(scanAll)) printed.add("string"); // literais/records com campo String (15.3d inc2)
+            if (usesStringOps(scanAll) || usesRecords) printed.add("string"); // records com String/Char/Bool (15.3d inc2 fatia C)
             if (printed.contains("int") || printed.contains("long")) funcs.add(kofWriteInt());
             if (printed.contains("bool") || printed.contains("boolean")) funcs.add(kofWriteBool());
             if (printed.contains("char")) funcs.add(kofWriteChar());
@@ -188,8 +199,11 @@ public class WasmBackend implements Backend {
                     funcs.add(kofStrLit());
                     funcs.add(kofWriteStr());
                     funcs.add(kofIntToStr());
-                    if (usesStringConcat(scanAll)) funcs.add(kofStrConcat());
-                    else { /* no-op */ }
+                    if (usesRecords) {
+                        funcs.add(kofStrBool()); // toString de campo Bool (15.3d inc2 fatia C)
+                        funcs.add(kofStrChar()); // toString de campo Char
+                    }
+                    if (usesStringConcat(scanAll) || usesRecords) funcs.add(kofStrConcat());
                     globals = java.util.List.of(HEAP_BASE); // bump pointer global 0
                 }
             if (usesArgs) {

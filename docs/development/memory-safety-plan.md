@@ -3,7 +3,7 @@
 # Memory safety — ownership, lifetime, borrowing, aliasing (D-MEMORY-SAFETY)
 
 
-owner: `192.168.15.101:9092` (parity lane — claims MUST carry IP:PORTA, `D-AGENT-IDENTITY-IPPORT`)
+owner: OPEN — SEM DONO (claim `192.168.15.101:9092` revoked 09/10 by its own lane under `D-PLAN-ONE-OWNER`: that lane is the ACTIVE TIER-15/#776 WASI front, which shares the same identity and therefore cannot co-own this plan; any free lane re-claims here in DOING with `owner = <ip>:<port>` first)
 
 last: M1 UNIDADE-1 LANDED 06/10 (lane `192.168.15.101:9092`) — homogeneous-float struct by-value PARAM binds on the cross (VD/D1/VF; riscv64+aarch64 under qemu, JVM-oracle byte-identical; `FfiCrossHfaE2ETest` 5/5; FFI batch 244/244; golden 132/132); mixed float+int and VF-on-x86-64 stay FFI001 honest (R6)
 doing: release-protocol lane: #773/§614 native valueOf re-scope (claim DOING 06/10) + M1 unidade-2 (cross HFA RETURN, then callbacks) next

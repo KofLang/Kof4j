@@ -406,4 +406,73 @@ public final class WasmStdoutRuntime {
         return new WasmFunc("kof.intToStr", List.of(0x7e), List.of(0x7f),
                 List.of(0x7f, 0x7f, 0x7e, 0x7f, 0x7f, 0x7f, 0x7f), b);
     }
+
+    // ---- 15.3d inc2 fatia C: handles de String sintetizados no bump heap ----
+
+    /** `kof.strBool(b)` -> handle `[len][bytes]\n` com "true"/"false" (JVM
+     * `String.valueOf(Bool)` paridade). Bump `global 0` (15.3c-sliceA). */
+    public static WasmFunc kofStrBool() {
+        List<WasmInstr> b = new ArrayList<>();
+        b.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 1, "h"));   // h = global
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "v"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "tb", 0x7f));
+        b.add(new WasmInstr.Const(0, 4));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, "tb", 0x7f));
+        b.add(new WasmInstr.Const(0, 5));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "tb", 0x7f));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "len")); // len = 4|5
+        b.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "len"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Const(0, 5));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Global(WasmInstr.Global.SET, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "h"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "len"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));         // [h] = len
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "v"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "cw", 0x40));
+        storeBytes(b, 1, 4, "true");
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, "cw", 0x40));
+        storeBytes(b, 1, 4, "false");
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "cw", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "h"));
+        return new WasmFunc("kof.strBool", List.of(0x7f), List.of(0x7f),
+                List.of(0x7f, 0x7f), b);
+    }
+
+    /** `kof.strChar(c)` -> handle 1 byte (paridade JVM `valueOf(char)`); subset
+     * ASCII (mesmo contrato de `kof.writeChar`). */
+    public static WasmFunc kofStrChar() {
+        List<WasmInstr> b = new ArrayList<>();
+        b.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 1, "h"));   // h = global
+        b.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
+        b.add(new WasmInstr.Const(0, 6));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Global(WasmInstr.Global.SET, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "h"));
+        b.add(new WasmInstr.Const(0, 1));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));          // [h] = 1
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "h"));
+        b.add(new WasmInstr.Const(0, 4));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "c"));
+        b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+        b.add(new WasmInstr.Store8(0));                             // [h+4] = c
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "h"));
+        return new WasmFunc("kof.strChar", List.of(0x7e), List.of(0x7f),
+                List.of(0x7f), b);
+    }
+
+    private static void storeBytes(List<WasmInstr> b, int hLocal, int baseOff, String lit) {
+        for (int i = 0; i < lit.length(); i++) {
+            b.add(new WasmInstr.Local(WasmInstr.Local.GET, hLocal, "h"));
+            b.add(new WasmInstr.Const(0, baseOff + i));
+            b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+            b.add(new WasmInstr.Const(0, lit.charAt(i)));
+            b.add(new WasmInstr.Store8(0));
+        }
+    }
 }

@@ -3,7 +3,7 @@
 # Memory safety — ownership, lifetime, borrowing, aliasing (D-MEMORY-SAFETY)
 
 
-dona: `192.168.15.101:9092` (parity lane — claims DEVEM levar IP:PORTA, `D-AGENT-IDENTITY-IPPORT`)
+dona: ABERTA — SEM DONO (claim `192.168.15.101:9092` revogado 09/10 pela propria lane sob `D-PLAN-ONE-OWNER`: a lane e a frente ATIVA TIER-15/#776 WASI, que compartilha a mesma identidade e portanto nao pode co-possuir este plano; qualquer lane livre reivindica aqui no DOING com `dona = <ip>:<porta>` primeiro)
 
 last: M1 UNIDADE-1 POUSADA 06/10 (lane `192.168.15.101:9092`) — struct homogêneo-flutuante por valor como PARAM binda no cross (VD/D1/VF; riscv64+aarch64 sob qemu, idêntico byte-a-byte ao oráculo JVM; `FfiCrossHfaE2ETest` 5/5; lote FFI 244/244; golden 132/132); misto float+int e VF no x86-64 seguem FFI001 honesto (R6)
 doing: lane protocolo-de-release: re-escopo do valueOf nativo #773/§614 (claim DOING 06/10) + M1 unidade-2 (RETURN HFA cross, depois callbacks) em seguida

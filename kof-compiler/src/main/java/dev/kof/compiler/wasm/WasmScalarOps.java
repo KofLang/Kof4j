@@ -98,7 +98,17 @@ public final class WasmScalarOps {
     }
 
     static WasmInstr cmp(KofConditionalJump cj, String suffix, int i64Op, int f64Op) {
-        boolean dbl = "double".equalsIgnoreCase(typeName(cj.operandType()));
+        String tn = typeName(cj.operandType());
+        if (cj.operandType() instanceof Type.ClassType) {
+            int op = switch (suffix) {
+                case "eq" -> 0x46;
+                case "ne" -> 0x47;
+                default -> throw new WasmUnsupportedException("comparacao de handle '" + suffix
+                        + "' fora do subset (WASM002) — docs/development/wasm-wasi-plan.md (#776)");
+            };
+            return new WasmInstr.Simple(op, "i32." + suffix);
+        }
+        boolean dbl = "double".equalsIgnoreCase(tn);
         int op = dbl ? f64Op : i64Op;
         String name = (dbl ? "f64." : "i64.") + suffix.replace("_s", "");
         return new WasmInstr.Simple(op, name);
@@ -112,9 +122,14 @@ public final class WasmScalarOps {
 
     static String typeName(Type t) {
         if (t instanceof Type.PrimitiveType pt) return pt.name();
-        if (t instanceof Type.ClassType ct && "String".equals(ct.name())
-                && "java.lang".equals(ct.packageName())) {
-            return "string"; // 15.3b: literal String na fatia de stdout (issue #776)
+        if (t instanceof Type.ClassType ct) {
+            if ("String".equals(ct.name()) && "java.lang".equals(ct.packageName())) {
+                return "string"; // 15.3b: literal String na fatia de stdout (issue #776)
+            }
+            if ("java.lang".equals(ct.packageName())) {
+                return ct.name().toLowerCase(); // Object -> "object" (handle i32)
+            }
+            return ct.name(); // 15.3d: record = nome simples (o mapa records decide)
         }
         return t.toString();
     }
@@ -124,6 +139,7 @@ public final class WasmScalarOps {
             case "int", "long" -> WasmFunc.TYPE_I64;
             case "double" -> WasmFunc.TYPE_F64;
             case "bool", "boolean", "char", "string" -> WasmFunc.TYPE_I32; // string = handle i32 (15.3c)
+            case "object" -> WasmFunc.TYPE_I32; // handle/opaque i32 (15.3d record temp)
             default -> throw new WasmUnsupportedException(role + " '" + name + "' em '" + context
                     + "' fora do subset escalar 15.2 (WASM002) — docs/development/wasm-wasi-plan.md (#776)");
         };

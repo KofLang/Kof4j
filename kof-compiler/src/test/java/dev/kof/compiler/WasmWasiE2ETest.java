@@ -325,15 +325,61 @@ class WasmWasiE2ETest {
     }
 
     @Test
+    void recordToStringAndConcatMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // 15.3d inc2 fatia C1: println(record), record.toString(), String.valueOf(record),
+        // record dentro de +, campos Char/Bool/String — paridade byte-a-byte com a JVM
+        // (formato record Name[f1=v1, f2=v2]). `==` de record continua recusado (C2).
+        var wasmtime = host("wasmtime");
+        assumeTrue(wasmtime != null, "wasmtime host absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                record Point(Int x, Int y)
+                record Pair(String a, Int n)
+                record Flag(Char c, Bool ok)
+
+                main(String[] args) {
+                    var p = Point(1, 2)
+                    println(p)
+                    println(p.toString())
+                    println(String.valueOf(p))
+                    println("v=" + p)
+                    var q = Pair("ab", 7)
+                    println(q)
+                    var f = Flag('k', true)
+                    println(f)
+                }
+                """);
+        var driver = new CompilerDriver();
+        var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
+        assertTrue(jvm.success(), "jvm tostring compile: " + jvm.diagnostics().getDiagnostics());
+        var oracle = new ProcessBuilder(List.of(jvmBin(), "-cp",
+                Path.of(dir.toString(), "out-jvm").toString(), "Default.Main"))
+                .redirectErrorStream(true).start();
+        String expected = new String(oracle.getInputStream().readAllBytes());
+        assertTrue(oracle.waitFor(120, TimeUnit.SECONDS) && oracle.exitValue() == 0,
+                "JVM tostring oracle: " + expected);
+        var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
+        assertTrue(wasi.success(), "wasi tostring compile: " + wasi.diagnostics().getDiagnostics());
+        var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
+                Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm").toString()))
+                .redirectErrorStream(true).start();
+        String out = new String(proc.getInputStream().readAllBytes());
+        assertTrue(proc.waitFor(60, TimeUnit.SECONDS), "host within 60s");
+        assertEquals(0, proc.exitValue(), "clean WASI exit tostring: " + out);
+        assertEquals(expected.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                "record toString/concat must equal the JVM oracle");
+    }
+
+    @Test
     void recordToStringAndEqualityStillRefuseHonestly(@TempDir Path dir) throws Exception {
-        // increment 1 = alloc + int field access (green above). toString/equals/
-        // record-in-concat need INSTANCE-method lowering (not built yet) -> honest
-        // WASM002 naming plan + slice + #776, NO artifacts (Q7). increment 2 spec.
+        // fatia C1 verde (above): toString/println/valueOf/concat. `==` de record
+        // e campos record-aninhados ainda recusam honesto WASM002 naming plan +
+        // slice + #776, NO artifacts (Q7): o desugar JVM do `==` faz merge por
+        // fluxo de controle (ternario/labels) que cruza blocos na linearizacao
+        // por pc; record-aninhado = campo de classe no bump heap (proxima fatia).
         var driver = new CompilerDriver();
         record Case(String name, String src) {}
         for (Case c : List.of(
-                new Case("record-tostring", "record Point(Int x, Int y)\n"
-                        + "main(String[] args) {\n    println(Point(1, 2))\n}\n"),
                 new Case("record-equality", "record Point(Int x, Int y)\n"
                         + "main(String[] args) {\n    var p = Point(1, 2)\n    println(p == Point(1, 2))\n}\n"),
                 new Case("record-nested-field", "record Inner(Int v)\n"
@@ -343,7 +389,7 @@ class WasmWasiE2ETest {
             Files.writeString(src, c.src());
             Path out = dir.resolve("out-" + c.name());
             var r = driver.compile(src, out, Target.WASI);
-            assertFalse(r.success(), c.name() + " must refuse WASM002 until instance-method lowering");
+            assertFalse(r.success(), c.name() + " must refuse WASM002 (record == / nested fields)");
             String msg = r.diagnostics().getDiagnostics().toString();
             assertTrue(msg.contains("WASM002") && msg.contains("#776")
                     && msg.contains("wasm-wasi-plan"), c.name() + " honest: " + msg);
