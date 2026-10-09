@@ -189,6 +189,32 @@ Metadata comes from the demuxing backend (meaningless values throw);
 `tick` advances only while playing (end stops, or wraps on loop);
 `seek` clamps; volume clamps into [0,1]. No decoder in-app.
 
+## 3D — camera, mesh, material, light (slice 3.5a)
+
+```kof
+import game.Camera3d
+import game.Mesh
+import game.Material
+import game.Light3d
+
+var cam = camera3d()
+cam.at(0.0, 2.0, 5.0).lookAt(0.0, 0.0, 0.0).fov(75.0)
+println(cam.eyeZ())       // 5.0
+var hero = mesh("hero.glb", 24, 36)   // vertices, index count (mult. of 3)
+hero.at(1.0, 0.0, 0.0).scale(2.0, 2.0, 2.0).rotate(0.0, 90.0, 0.0)
+println(hero.triangles()) // 12 (indexCount / 3)
+var steel = material().color("steel").shininess(64.0).opacity(0.5)
+var sun = light().at(10.0, 20.0, 30.0).intensity(0.8)
+```
+
+Pure state: the view matrix (perspective/lookAt), mesh loading (glTF/OBJ)
+and shading stay backend jobs — this half stores eye/target/fov/near/far,
+the mesh instance transform (pos/scale/absolute Euler rotation) and the
+material/light state, with meaningless values throwing at the set (fov in
+(0, 180), near < far, shininess >= 0, opacity in [0,1], intensity >= 0).
+NO matrix math in the pure half: the cross targets refuse math.sqrt
+(MATH001), so normalize/projection is never computed here.
+
 ## Test rules for game goldens
 
 - Virtual time everywhere: counters and caller-supplied deltas, never wall

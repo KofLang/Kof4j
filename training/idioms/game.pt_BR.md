@@ -190,6 +190,33 @@ Metadados vêm do backend que demuxou (valores sem sentido lançam);
 `tick` avança só tocando (fim para, ou dá wrap com loop); `seek`
 clampa; volume clampa em [0,1]. Sem decoder no app.
 
+## 3D — câmera, mesh, material, luz (fatia 3.5a)
+
+```kof
+import game.Camera3d
+import game.Mesh
+import game.Material
+import game.Light3d
+
+var cam = camera3d()
+cam.at(0.0, 2.0, 5.0).lookAt(0.0, 0.0, 0.0).fov(75.0)
+println(cam.eyeZ())       // 5.0
+var hero = mesh("hero.glb", 24, 36)   // vértices, contagem de índices (múltiplo de 3)
+hero.at(1.0, 0.0, 0.0).scale(2.0, 2.0, 2.0).rotate(0.0, 90.0, 0.0)
+println(hero.triangles()) // 12 (indexCount / 3)
+var steel = material().color("steel").shininess(64.0).opacity(0.5)
+var sun = light().at(10.0, 20.0, 30.0).intensity(0.8)
+```
+
+Estado puro: a matriz de visão (perspective/lookAt), o carregamento de mesh
+(glTF/OBJ) e o shading são trabalhos do backend — esta metade guarda
+eye/target/fov/near/far, o transform de instância da mesh (pos/scale/rotação
+Euler absoluta) e o estado material/luz, com valores sem significado
+lançando no set (fov em (0, 180), near < far, shininess >= 0, opacity em
+[0,1], intensity >= 0). SEM matemática de matriz na metade pura: os alvos
+cross recusam math.sqrt (MATH001), então normalize/projeção nunca é
+computada aqui.
+
 ## Regras de teste para goldens de jogo
 
 - Tempo virtual em tudo: contadores e deltas do chamador, nunca wall

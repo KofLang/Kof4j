@@ -131,7 +131,7 @@ class FfmpegFrameReadbackE2ETest implements NativeToolchainAssumptions {
                 util, url);
     }
 
-    private static void ffmpegLibs(ProcessBuilder pb) {
+    private static void readbackFfmpegLibs(ProcessBuilder pb) {
         String env = System.getenv("KOF_FFMPEG");
         Path libDir = (env != null && !env.isBlank())
                 ? Path.of(env, "lib")
@@ -151,7 +151,7 @@ class FfmpegFrameReadbackE2ETest implements NativeToolchainAssumptions {
         String java = Path.of(System.getProperty("java.home"), "bin", "java").toString();
         ProcessBuilder pb = new ProcessBuilder(java, "--enable-native-access=ALL-UNNAMED",
                 "-cp", out.toString(), "Default.Main");
-        ffmpegLibs(pb);
+        readbackFfmpegLibs(pb);
         pb.redirectErrorStream(true);
         String output = run(pb);
         assertTrue(output.contains("open=0"), "avformat_open_input, got: " + output);
@@ -176,7 +176,7 @@ class FfmpegFrameReadbackE2ETest implements NativeToolchainAssumptions {
         Path bin = out.resolve("Default/Main");
         assertTrue(Files.exists(bin), "native binary should exist");
         ProcessBuilder pb = new ProcessBuilder(bin.toString());
-        ffmpegLibs(pb);
+        readbackFfmpegLibs(pb);
         pb.redirectErrorStream(true);
         String output = run(pb);
         assertTrue(output.contains("open=0"), "avformat_open_input, got: " + output);
@@ -200,14 +200,14 @@ class FfmpegFrameReadbackE2ETest implements NativeToolchainAssumptions {
         String java = Path.of(System.getProperty("java.home"), "bin", "java").toString();
         ProcessBuilder pbj = new ProcessBuilder(java, "--enable-native-access=ALL-UNNAMED",
                 "-cp", outJ.toString(), "Default.Main");
-        ffmpegLibs(pbj);
+        readbackFfmpegLibs(pbj);
         pbj.redirectErrorStream(true);
         String jvmOut = run(pbj);
         Path outN = tempDir.resolve("out-nat");
         CompilationResult rn = driver.compile(src, outN, Target.NATIVE);
         assertTrue(rn.success(), "x86-64 compile: " + rn.diagnostics().getDiagnostics());
         ProcessBuilder pbn = new ProcessBuilder(outN.resolve("Default/Main").toString());
-        ffmpegLibs(pbn);
+        readbackFfmpegLibs(pbn);
         pbn.redirectErrorStream(true);
         assertEquals(jvmOut, run(pbn), "regra 5: mesmo programa FFmpeg, mesma saida JVM e Native x86-64");
     }

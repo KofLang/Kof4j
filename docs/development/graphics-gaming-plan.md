@@ -4,9 +4,9 @@
 
 **Owner:** `192.168.15.15:9092` — lane security/connectors, graphics/gaming front; re-claimed 05/10 (the spike-3.0 `192.168.15.30:9093` claims were runner/tooling, historical).
 
-last: slice-3.4b inc2 LANDED 09/10 (decode+readback E2E: `FfmpegFrameReadbackE2ETest` 3/3 — the MJPEG probe asset decoded via avformat/avcodec with the ctx pointer through the Buffer out-param + the frame fields read via peek at the measured 9.0.2 offsets (data[0]=0, linesize[0]=64, width=104, height=108); JVM==Native byte-for-byte; peek8 unsigned parity fixed (JVM & 0xFF + native lbu/movzbl — the sign-extension diverged for bytes >=128); the loop checks the read/send/receive rc; avformat_close_input called; the av_packet_free/av_frame_free calls stay out (the poke primitive is the 3.4c follow-up, the probe exit reclaims)
-doing: slice-3.5 (3D) surface — mesh/camera/material/light/transform (PROMOTED 08/10)
-next: 3.5 = the 3D intent surface (mesh/camera/material/light/transform + external parsers; shaders stay hidden at first) — one slice; then the 3.4c poke increment (the write counterpart of peek) if the maintainer keeps the media front active
+last: slice-3.5a LANDED 09/10 (the 3D intent surface: `libs/game/Camera3d.kf` + `Mesh.kf` + `Material.kf` + `Light3d.kf` — eye/target/fov/near/far, mesh instance transform (pos/scale/absolute Euler rotation), material color/shine/alpha, light position/color/intensity; guards throw on meaningless values; NO matrix math (the cross refuses math.sqrt — MATH001); `GameScene3dE2ETest` 6/6, 0 skips — JVM + Script + Native x86-64 + JS + riscv64 + aarch64; the game corpus updated (idioms game.md + PT); game battery 75/0F/0 skips)
+doing: slice-3.5b (the 3D scene draw queue) + 3.4c poke (the write counterpart of peek)
+next: 3.5b = the 3D scene draw queue (the 2D Draw pattern: DrawCmd3d + ordered list; hidden meshes record nothing) + 3.4c poke (unlock the av_*_free calls in the video flow) — one slice each, then the media front is surface-complete
 location: docs/development
 state: UNDER DEVELOPMENT
 

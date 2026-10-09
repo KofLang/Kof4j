@@ -1,0 +1,70 @@
+package game
+
+// kof.game — 3D material intent (slice 3.5a of the graphics/gaming front,
+// `D-GRAPHICS-GAMING`; the 3D level PROMOTED to the active scope 08/10 by
+// the maintainer).
+//
+// The plan §9 freezes 3D as intent; shading (textures/PBR/lighting models/
+// shader languages) is the backend's job and lands in a later slice. This
+// module is the PURE, backend-independent half: the material state — color,
+// shininess, opacity — so scenes and goldens behave deterministically with
+// no shading of their own. It calls no rendering API and is honest on every
+// target today.
+//
+//   var steel = material()
+//   steel.color("steel").shininess(64.0).opacity(0.5)
+//
+// Semantics (frozen here, tested):
+// - `color(hex)` sets the base color by name or hex string — the backend
+//   resolves it (this module stores it verbatim, never parses it).
+// - `shininess(s)` must be >= 0 (a negative exponent is meaningless);
+//   `opacity(o)` clamps... no: `opacity(o)` must be in [0.0, 1.0] — a
+//   meaningless value throws at the set, never a silent clamp, so the
+//   material is never in a state the backend cannot shade.
+// - Chained setters return `this`; the getters expose the frozen state.
+//   Pure state, no IO; runs on every target.
+
+class Material {
+    String colorHex
+    Double shininessLevel
+    Double opacityLevel
+
+    constructor() {
+        this.colorHex = "white"
+        this.shininessLevel = 32.0
+        this.opacityLevel = 1.0
+    }
+
+    Material color(String hex) {
+        this.colorHex = hex
+        return this
+    }
+
+    Material shininess(Double s) {
+        if (s < 0.0) { throw "Material: shininess must be >= 0" }
+        this.shininessLevel = s
+        return this
+    }
+
+    Material opacity(Double o) {
+        if (o < 0.0 || o > 1.0) { throw "Material: opacity must be in [0.0, 1.0]" }
+        this.opacityLevel = o
+        return this
+    }
+
+    String hex() {
+        return this.colorHex
+    }
+
+    Double shine() {
+        return this.shininessLevel
+    }
+
+    Double alpha() {
+        return this.opacityLevel
+    }
+}
+
+Material material() {
+    return Material()
+}
