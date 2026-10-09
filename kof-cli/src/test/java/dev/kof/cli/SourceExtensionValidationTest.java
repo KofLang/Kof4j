@@ -13,6 +13,7 @@ class SourceExtensionValidationTest {
         assertTrue(KofCliSupport.isKofSourceFile(Path.of("Main.kf")));
         assertTrue(KofCliSupport.isKofSourceFile(Path.of("Main.kof")));
         assertTrue(KofCliSupport.isKofSourceFile(Path.of("Script.ks")));
+        assertTrue(KofCliSupport.isKofSourceFile(Path.of("Programa.ptkf")));
         assertTrue(KofCliSupport.isKofSourceFile(Path.of("/some/path/App.KF")));
     }
 
@@ -30,9 +31,9 @@ class SourceExtensionValidationTest {
         Path noExt = Files.createFile(tmp.resolve("binary"));
         Path dir = Files.createDirectory(tmp.resolve("pkg"));
 
-        assertEquals("run: unsupported source extension '.txt' (expected .kf, .kof or .ks)",
+        assertEquals("run: unsupported source extension '.txt' (expected .kf, .kof, .ptkf or .ks)",
                 KofCliSupport.unsupportedSourceExtension("run", txt));
-        assertEquals("script: unsupported source extension (none) (expected .kf, .kof or .ks)",
+        assertEquals("script: unsupported source extension (none) (expected .kf, .kof, .ptkf or .ks)",
                 KofCliSupport.unsupportedSourceExtension("script", noExt));
         assertNull(KofCliSupport.unsupportedSourceExtension("check", dir));
     }
