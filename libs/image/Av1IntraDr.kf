@@ -449,26 +449,17 @@ Int[] av1DrH(Int[] left, Int w, Int h, Int co) {
     return out
 }
 
-// `need_above` for the directional modes (libaom `extend_modes`): H_PRED (2)
-// and D203 (7) do not use the above edge.
-Bool av1DrNeedAbove(Int mode) {
-    return !(mode == 2 || mode == 7)
-}
-
-// `need_left` for the directional modes: V_PRED (1), D45 (3) and D67 (8) only
-// use the above edge; the others use both.
-Bool av1DrNeedLeft(Int mode) {
-    return !(mode == 1 || mode == 3 || mode == 8)
-}
-
 // Full §7.11.2.4 directional intra prediction, including the §7.11.2.7-.12 edge
 // processes. `above`/`left` are the raw edge arrays with `co` indexing entry 0;
 // the caller owns copies long enough for the negative-indexed corner.
 // `nTopPx`/`nLeftPx` are the §7.11.2.4 availability counts (0 when the edge is
-// absent). `filterType` is the §7.11.2.8 intra filter type (0 or 1); the
-// recursive filter-intra mode is a later slice.
+// absent). `enableEdgeFilter` is the `enable_intra_edge_filter` guard (§7.11.2
+// step 4: the corner, edge filter and upsample all run only when it holds) and
+// `filterType` is the §7.11.2.8 intra filter type (0 or 1); the recursive
+// filter-intra mode is a later slice.
 Int[] av1DrPredict(Int mode, Int angleDelta, Int[] above, Int[] left, Int w, Int h,
-                   Int co, Int nTopPx, Int nLeftPx, Int bitDepth, Int filterType) {
+                   Int co, Int nTopPx, Int nLeftPx, Int bitDepth, Int filterType,
+                   Bool enableEdgeFilter) {
     var pAngle = av1IntraPAngle(mode, angleDelta)
     if (pAngle == 90) {
         return av1DrV(above, w, h, co)
@@ -476,13 +467,19 @@ Int[] av1DrPredict(Int mode, Int angleDelta, Int[] above, Int[] left, Int w, Int
     if (pAngle == 180) {
         return av1DrH(left, w, h, co)
     }
-    var needLeft = av1DrNeedLeft(mode)
-    var needAbove = av1DrNeedAbove(mode)
+    // libaom `build_directional_and_filter_intra_predictors` overrides the
+    // mode-based `extend_modes` need flags for directional modes from `pAngle`
+    // (this also matches §7.11.2.4, which filters/upsamples the above edge iff
+    // `haveAbove` and the left edge iff `haveLeft`): the above edge is needed
+    // when `pAngle < 180`, the left edge when `pAngle > 90`. `pAngle == 90` and
+    // `pAngle == 180` already returned above.
+    var needAbove = pAngle < 180
+    var needLeft = pAngle > 90
     var needRight = pAngle < 90
     var needBottom = pAngle > 180
     var upsampleAbove = false
     var upsampleLeft = false
-    if (pAngle != 90 && pAngle != 180) {
+    if (enableEdgeFilter && pAngle != 90 && pAngle != 180) {
         if (needAbove && needLeft && (w + h) >= 24) {
             var corner = av1DrFilterCorner(above, left, co)
             above[co - 1] = corner
@@ -504,22 +501,22 @@ Int[] av1DrPredict(Int mode, Int angleDelta, Int[] above, Int[] left, Int w, Int
             }
             av1DrFilterEdge(left, co, nPx, strength, 1)
         }
-    }
-    upsampleAbove = av1DrUseUpsample(w, h, filterType, pAngle - 90)
-    if (needAbove && upsampleAbove) {
-        var nPx = w
-        if (needRight) {
-            nPx = nPx + h
+        upsampleAbove = av1DrUseUpsample(w, h, filterType, pAngle - 90)
+        if (needAbove && upsampleAbove) {
+            var nPx = w
+            if (needRight) {
+                nPx = nPx + h
+            }
+            av1DrUpsampleEdge(above, co, nPx, bitDepth)
         }
-        av1DrUpsampleEdge(above, co, nPx, bitDepth)
-    }
-    upsampleLeft = av1DrUseUpsample(h, w, filterType, pAngle - 180)
-    if (needLeft && upsampleLeft) {
-        var nPx = h
-        if (needBottom) {
-            nPx = nPx + w
+        upsampleLeft = av1DrUseUpsample(h, w, filterType, pAngle - 180)
+        if (needLeft && upsampleLeft) {
+            var nPx = h
+            if (needBottom) {
+                nPx = nPx + w
+            }
+            av1DrUpsampleEdge(left, co, nPx, bitDepth)
         }
-        av1DrUpsampleEdge(left, co, nPx, bitDepth)
     }
     var ua = 0
     if (upsampleAbove) {

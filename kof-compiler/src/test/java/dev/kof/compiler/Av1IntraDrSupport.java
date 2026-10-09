@@ -37,7 +37,7 @@ final class Av1IntraDrSupport {
 
     /** Expected SHA-256 of the decoded golden text, to catch a stale resource. */
     static final String GOLDEN_SHA256 =
-        "9536c4d714c414217326e85cf137ef5a1725fc1daf83590e844c86a4b61a6e7e";
+        "77c7ec46ea623d97e961c414a2a2066a7502d29b6df6fff46af5fe029b95a3e3";
 
     /** The canonical dump the Kof probe must reproduce. */
     static String golden() {
@@ -115,7 +115,7 @@ main() {
                         }
                         ab[co - 1] = tl
                         lf[co - 1] = tl
-                        var out = av1DrPredict(mode, ad, ab, lf, w, h, co, w, h, 8, 0)
+                        var out = av1DrPredict(mode, ad, ab, lf, w, h, co, w, h, 8, 0, true)
                         println("DR " + w + " " + h + " " + mode + " " + angle + " " + fl)
                         var r = 0
                         while (r < h) {
