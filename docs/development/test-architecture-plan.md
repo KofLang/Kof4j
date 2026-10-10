@@ -969,6 +969,26 @@ mixed `Byte + Int` = `165`, `Char - Char` = `25`), plus the explicit narrowing
 divergence §561 recorded is a real guard here. Validated on all four targets.
 Proof (executed): `tests/run-golden.sh` **156/156** (39 cases × 4 targets), exit 0.
 
+**Phase 6 slice 15 LANDED (10/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **40 total** — pinning the `kof.strings` namespace, a large pure-Kof
+stdlib surface (the parity matrix marks its predicates/case-conversions/
+whitespace/escape faces ✅ on all four targets) that NO equivalence case exercised:
+`strings-namespace` covers the ASCII predicates (`isAlpha`, `isNumeric`,
+`isAlphaNumeric`, `isAscii`, `isUpperCase`, `isLowerCase` — including the
+documented ASCII-boundary negatives `isAlpha("abc123")`=false,
+`isUpperCase("123")`=false), `count` (NON-overlapping: `count("aabaabaa","ab")`=2,
+`count("aaa","aa")`=1, empty sub = 0), `capitalize`/`uncapitalize` (exact mirror),
+`reverse` (code-point, the NAT-STR01 face), `repeat` (`n<=0` = ""),
+`truncate` (`n>=len` = original), `padLeft` (the pad is a String, 1st char used),
+the case conversions `toCamelCase`/`toPascalCase`/`toSnakeCase` (the
+uppercase+lowercase boundary — `HTTPServer`→`http_server`)/`toKebabCase`
+(`XMLParser`→`xml-parser`), `slugify` (non-ASCII becomes a separator),
+`removeWhitespace`/`normalizeWhitespace` (edge spaces collapsed) and `escapeHtml`
+(the `&lt;`/`&amp;`/`&gt;` entities). This is a namespace-arity surface and a
+genuine cross-target guard (native walks UTF-8 by code point). Validated on all
+four targets. Proof (executed): `tests/run-golden.sh` **160/160** (40 cases × 4
+targets), exit 0.
+
 ### Phase 7 — Integration
 
 Deploy:

@@ -975,6 +975,24 @@ resultado é o `Int` não truncado, então a divergência JVM/JS/Native/Script q
 registrou é um guard real aqui. Validado nos quatro alvos. Prova (executada):
 `tests/run-golden.sh` **156/156** (39 casos × 4 alvos), exit 0.
 
+**Fatia 15 da Fase 6 ENTREGUE (10/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais
+um caso — **40 no total** — pinando o namespace `kof.strings`, uma grande superfície stdlib em
+Kof puro (a matriz de paridade marca suas faces de predicados/conversões-de-caixa/
+whitespace/escape ✅ nos quatro alvos) que NENHUM caso de equivalência exercitava:
+`strings-namespace` cobre os predicados ASCII (`isAlpha`, `isNumeric`,
+`isAlphaNumeric`, `isAscii`, `isUpperCase`, `isLowerCase` — incluindo os negativos de
+fronteira ASCII documentados `isAlpha("abc123")`=false, `isUpperCase("123")`=false),
+`count` (NÃO-sobreposto: `count("aabaabaa","ab")`=2, `count("aaa","aa")`=1, sub vazio = 0),
+`capitalize`/`uncapitalize` (espelho exato), `reverse` (por code point, a face NAT-STR01),
+`repeat` (`n<=0` = ""), `truncate` (`n>=len` = original), `padLeft` (o pad é uma String, usa o
+1º char), as conversões de caixa `toCamelCase`/`toPascalCase`/`toSnakeCase` (a fronteira
+maiúscula+minúscula — `HTTPServer`→`http_server`)/`toKebabCase` (`XMLParser`→`xml-parser`),
+`slugify` (não-ASCII vira separador), `removeWhitespace`/`normalizeWhitespace` (espaços de
+borda colapsados) e `escapeHtml` (as entidades `&lt;`/`&amp;`/`&gt;`). É uma superfície de
+aridade de namespace e um guard cross-target real (o nativo percorre UTF-8 por code point).
+Validado nos quatro alvos. Prova (executada): `tests/run-golden.sh` **160/160** (40 casos × 4
+alvos), exit 0.
+
 ### Fase 7 — Integração
 
 Implantar:
