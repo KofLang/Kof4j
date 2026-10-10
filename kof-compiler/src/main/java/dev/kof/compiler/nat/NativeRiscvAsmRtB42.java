@@ -26,6 +26,11 @@ public final class NativeRiscvAsmRtB42 {
             .align 3
             .Lkof_free_head: .quad 0
             .Lkof_gc_head: .quad 0
+            # §639: cabeça da lista intrusiva de cinzas do mark iterativo
+            # (o elo vive em 8(blk), free_next ocioso num bloco vivo). Sempre
+            # 0 entre chamadas (o drain esvazia); o mark o lê como raiz, mas
+            # só contém um bloco já marcado.
+            .Lkof_gc_gray: .quad 0
             .Lkof_alloc_count: .quad 0
             .Lkof_free_count: .quad 0
             .Lkof_alloc_bytes: .quad 0

@@ -1,5 +1,6 @@
 package dev.kof.compiler;
 
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
@@ -210,8 +211,86 @@ class KofGcE2ETest {
                         acc = acc + r.length
                         i++
                     }
-                    println(acc)
+                println(acc)
+            }
+            """, "200000");
+    }
+
+    @Test
+    void gcMarksDeepGraphIterativelyRiscv64(@TempDir Path tempDir) throws IOException {
+        // §639: the same 200 000-node chain that §637 fixed on x86 also
+        // SIGSEGV'd on the cross targets, whose runtime (NativeRiscvAsmRtB43,
+        // shared by riscv64 and aarch64) still recursed one frame per pointer
+        // field. The iterative intrusive-gray-list port keeps native stack
+        // O(1). Measured before the fix: signal 11 under qemu-riscv64; after:
+        // prints 200000, exit 0.
+        Assumptions.assumeTrue(hasCross("riscv64"), "cross riscv64 + qemu absent — skipping");
+        runCross(tempDir, "riscv64", Target.NATIVE_RISCV64, deepChain());
+    }
+
+    @Test
+    void gcMarksDeepGraphIterativelyAarch64(@TempDir Path tempDir) throws IOException {
+        // §639: aarch64 inherits the riscv64 runtime line-by-line; the same
+        // deep-chain SIGSEGV was measured there too (signal 11 under
+        // qemu-aarch64).
+        Assumptions.assumeTrue(hasCross("aarch64"), "cross aarch64 + qemu absent — skipping");
+        runCross(tempDir, "aarch64", Target.NATIVE_AARCH64, deepChain());
+    }
+
+    private static String deepChain() {
+        return """
+                record Node(Int value, Node? nextNode)
+
+                main() {
+                    var head: Node?
+                    var i = 0
+                    while (i < 200000) {
+                        head = Node(i, head)
+                        i = i + 1
+                    }
+                    var curr = head
+                    var count = 0
+                    while (curr != null) {
+                        count = count + 1
+                        curr = curr.nextNode()
+                    }
+                    println(count)
                 }
-                """, "200000");
+                """;
+    }
+
+    private static boolean hasCross(String arch) {
+        for (String tool : new String[]{arch + "-linux-gnu-as", arch + "-linux-gnu-ld", "qemu-" + arch}) {
+            try {
+                Process p = new ProcessBuilder("sh", "-c", "command -v " + tool)
+                        .redirectErrorStream(true).start();
+                String out = new String(p.getInputStream().readAllBytes(),
+                        java.nio.charset.StandardCharsets.UTF_8).trim();
+                if (p.waitFor() != 0 || out.isEmpty()) return false;
+            } catch (Exception e) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void runCross(Path tempDir, String arch, Target target, String kof) throws IOException {
+        Path src = tempDir.resolve("Main-" + arch + ".kf");
+        Files.writeString(src, kof);
+        Path outDir = tempDir.resolve("out-" + arch);
+        CompilationResult result = driver.compile(src, outDir, target);
+        assertTrue(result.success(), arch + " compile: " + result.diagnostics().getDiagnostics());
+        Path bin = outDir.resolve("Default/Main");
+        assertTrue(Files.isRegularFile(bin), arch + " binary must exist");
+        try {
+            Process p = NativeRiscv64E2ETest.qemu(arch, bin).redirectErrorStream(true).start();
+            String out = new String(p.getInputStream().readAllBytes(),
+                    java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+            int ec = p.waitFor();
+            assertEquals(0, ec, arch + " exit " + ec + ", output: " + out);
+            assertEquals("200000", out, arch + " output");
+        } catch (InterruptedException e) {
+            throw new IOException(e);
+        }
     }
 }

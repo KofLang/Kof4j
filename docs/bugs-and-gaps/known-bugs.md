@@ -17756,3 +17756,15 @@ EAD
 
 
 
+## §643 — the riscv64/aarch64 native GC still recursed one frame per pointer field in `kof_gc_mark_transitive`, so the same deep object graph (a 200 000-node linked list) that §637 fixed on x86-64 still exhausted the native stack and died `SIGSEGV` — ✅ FIXED 09/10 (lane compiler/JVM/native `192.168.15.30:9092`, iterative mark worklist ported to the cross runtime)
+
+**Status:** ✅ FIXED 09/10 (lane compiler/JVM/native `192.168.15.30:9092`). §637 replaced the recursive `kof_gc_mark_transitive` with an iterative intrusive-gray-list worklist in the x86-64 runtime (`RuntimeGc.java`) but explicitly left the cross targets on their own collector (`NativeRiscvAsmRtB43`/`B44`, shared by riscv64 and aarch64). That runtime still recursed directly (`call kof_gc_mark_transitive`) once per non-null pointer field, so the same 200 000-node chain exhausted the native stack and died `signal 11` — **measured 09/10 under qemu-riscv64 and qemu-aarch64 (exit 139)**, while x86-64 passed. Latent for the same reason as §637: only reachable once §636-style pacing lets a deep graph build before a collection.
+
+**Fix (runtime asm, `NativeRiscvAsmRtB42.java` + `NativeRiscvAsmRtB43.java`):** ported the §637 worklist to the cross runtime. `kof_gc_try_mark` now returns the block it marked in `a0` (or 0) — the same contract as the x86 `%r13`. `kof_gc_mark_transitive` calls it once on the candidate root and walks the closure by an intrusive gray list: the link lives at `8(blk)` (the `free_next` field, idle in a live block) and the head in the new `.Lkof_gc_gray` (`.bss`, `.L`-local so it stays out of the artifact symbol budget). Marking a block pushes each not-yet-marked pointer field onto the worklist; nothing recurses, so native stack is O(1) regardless of graph depth. Conservative semantics preserved exactly: every field pointer is attempted, already-marked blocks are not re-scanned, and the §540 bitmap still decides block-start membership.
+
+**Repro (executed):** the 200 000-node chain now prints `200000` and exits 0 on both qemu-riscv64 and qemu-aarch64 (was `signal 11` / exit 139 on both). RED-first proof `KofGcE2ETest#gcMarksDeepGraphIterativelyRiscv64` and `#gcMarksDeepGraphIterativelyAarch64` (200 000 nodes): **RED pre-fix (exit 139) vs GREEN post-fix**. Non-regression: `KofGcE2ETest` 6/6 (the x86 §636/§637 faces untouched), x86 `ArtifactSizeTest` holds, 4-target golden suite **152/152**.
+
+**Boundary:** the cross runtime only (`NativeRiscvAsmRtB43`, inherited line-by-line by aarch64). The separate MCU collectors (`NativeMcuGcRiscv32`/`NativeMcuArmGc`) are not touched. `known-bugs` §602 (the AV1 flat-frame stale-receiver on aarch64) remains OPEN and is a distinct reclaim defect.
+
+<!-- pt-switch --> **PT:** [§640 (pt_BR)](known-bugs.pt_BR.md#640--o-gc-native-riscv64aarch64-ainda-recursava-um-frame-por-campo-ponteiro-no-kof_gc_mark_transitive-entao-o-mesmo-grafo-profundo-lista-ligada-de-200-000-nos-que-o-637-corrigiu-no-x86-64-ainda-esgotava-a-pilha-nativa-e-morria-sigsegv---fixed-0910-lane-compilerjvmnative-19216815309092-worklist-iterativa-de-mark-portada-para-o-runtime-cross)
+>>>>>>> Stashed changes
