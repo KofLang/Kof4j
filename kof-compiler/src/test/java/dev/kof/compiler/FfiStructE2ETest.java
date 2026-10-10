@@ -353,6 +353,40 @@ class FfiStructE2ETest extends FfiStructSupport {
     }
 
     @Test
+    void structParamAndReturnFloatByValueNative(@TempDir Path dir) throws Exception {
+        // Memory-safety M1 pending face "VF-on-x86-64": a homogeneous-float struct
+        // (two floats packed in ONE SSE eightbyte) by value on the x86-64 register
+        // path — the mirror of the cross HFA face (`FfiCrossHfaE2ETest`). Golden =
+        // the SAME source on the JVM (FFM) — parity byte-for-byte.
+        String so = compileHostLib(dir);
+        String kof = """
+                record F2(Float a, Float b)
+
+                extern "%s" f2sum(F2 f): Float
+                extern "%s" f2ret(Float a, Float b): F2
+
+                main() {
+                    println(f2sum(F2(1.5 as Float, 2.5 as Float)))
+                    var r = f2ret(3.5 as Float, 4.5 as Float)
+                    println(r.a() + r.b())
+                }
+                """.formatted(so, so);
+        String expected = "4.0\n8.0";
+
+        Path jvmSrc = dir.resolve("f2-jvm.kf");
+        Files.writeString(jvmSrc, kof);
+        Path jvmOut = dir.resolve("out-f2-jvm");
+        CompilationResult rj = driver.compile(jvmSrc, jvmOut, Target.JVM);
+        assertTrue(rj.success(), "JVM oracle compile: " + rj.diagnostics().getDiagnostics());
+        String jvm = runJvm(jvmOut);
+        assertEquals(expected, jvm, "JVM golden (float struct by value)");
+
+        String nat = runNative(dir, "f2", kof);
+        assertEquals(expected, nat, "NATIVE x86-64 SSE-packed float struct (param + return)");
+        assertEquals(jvm, nat, "JVM↔Native byte-for-byte parity (float struct)");
+    }
+
+    @Test
     void structParamByValueJsParity(@TempDir Path dir) throws Exception {
         // Bridge de struct no JS (D6-1/3.8b, 21/09): o record vira struct C por
         // valor no host GraalJS — MESMO StructLayout/offsets do JVM, provado

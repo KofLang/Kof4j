@@ -40,6 +40,11 @@ abstract class FfiStructSupport {
             double timesum(struct Time t) { return (double)t.t + t.d; }
             struct Big3 { int a; int b; int c; int d; int e; };
             int bigsum(struct Big3 g) { return g.a + g.b + g.c + g.d + g.e; }
+            struct F2 { float a; float b; };
+            float f2sum(struct F2 f) { return f.a + f.b; }
+            struct F2 f2ret(float a, float b) { struct F2 f; f.a = a; f.b = b; return f; }
+            struct F3 { float a; float b; float c; };
+            float f3sum(struct F3 f) { return f.a + f.b + f.c; }
             """;
 
     protected static String compileHostLib(Path dir) throws IOException, InterruptedException {

@@ -73,11 +73,21 @@ argument** — `FfiStructLayout` classifies via `AbiLayout` and the call-site
 packs each eightbyte straight into the destination register (INTEGER via
 shift/or from the Kof 8-byte slots; SSE via `movq`/`movd`), no scratch spill.
 The gate (`CompilerPipeline.nativeExternBound`) keeps everything else honest
-`FFI001`: structs that go to memory (SysV MEMORY / > 16 B), an SSE eightbyte
-holding more than one field, or a struct that does not fit the remaining
-registers. Proof: `FfiStructE2ETest` `structParamByValueNativeRegisterPath`
+`FFI001`: structs that go to memory (SysV MEMORY / > 16 B), or a struct that
+does not fit the remaining registers. Proof: `FfiStructE2ETest`
+`structParamByValueNativeRegisterPath`
 (`Point`/`MixIF` int+float in one eightbyte/`Time` long+double) byte-for-byte
-JVM==Native + `FfiStructLayoutTest` 3/3 (classification, no C toolchain).
+JVM==Native + `FfiStructLayoutTest` (classification, no C toolchain).
+**Landed 10/10 (memory-safety M1 · VF-on-x86-64, the last x86-64 float face):**
+an SSE eightbyte packing more than one field is no longer `FFI001` — it is
+emitted bitwise (`%rax` shift/or → `movq %xmm`; SSE is bitwise so no FP
+conversion). Since INTEGER dominates SSE inside one eightbyte (measured in
+`AbiLayout`), a multi-field SSE eightbyte is always homogeneous-float, i.e. the
+x86-64 form of the HFA face already landed cross — the two targets now agree.
+Proof: `FfiStructE2ETest` `structParamAndReturnFloatByValueNative`
+(`F2(Float,Float)` param AND return, byte-for-byte JVM==Native) +
+`FfiCrossHfaE2ETest`/`FfiCrossHfaReturnE2ETest` (the old `…StaysFfi001Honest`
+pins flipped to binding) + `FfiStructLayoutTest` `packedFloatEightbyteBinds`.
 **Landed 21/09 (3.7 fatia 2a · native struct return, register path):** the
 x86-64 SysV backend now binds a `record` **returned by value** when it fits the
 registers (≤ 16 B): the call-site saves the return eightbytes (`rax`/`rdx` +

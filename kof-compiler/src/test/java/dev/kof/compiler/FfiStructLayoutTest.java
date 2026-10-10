@@ -9,8 +9,9 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * 3.7 fatia 1: classificação/bindability do struct nativo x86-64, sem toolchain C
  * (o E2E com shim real é {@code FfiStructE2ETest}). Trava o caminho de
- * REGISTRADORES (SysV) e os gaps honestos: MEMORY (> 16 B), SSE com mais de um
- * campo (empacotamento não emitido) e estouro de registradores.
+ * REGISTRADORES (SysV) e os gaps honestos: MEMORY (> 16 B) e estouro de
+ * registradores. Desde M1, o eightbyte SSE empacotado (homogêneo-flutuante) é
+ * emitível — não é mais gap.
  */
 class FfiStructLayoutTest {
 
@@ -35,13 +36,22 @@ class FfiStructLayoutTest {
     void memoryPathAndExhaustionStayUnbound() {
         assertFalse(FfiStructLayout.x86Bindable(List.of(struct('i', 'i', 'i', 'i', 'i'))),
                 "Big3(5×Int) = 20 B → SysV MEMORY (FFI001 honesto)");
-        assertFalse(FfiStructLayout.x86Bindable(List.of(struct('f', 'f'))),
-                "dois Float no MESMO eightbyte SSE não é emitido (FFI001 honesto)");
         assertFalse(FfiStructLayout.x86Bindable(List.of(
                         Type.PrimitiveType.INT, Type.PrimitiveType.INT, Type.PrimitiveType.INT,
                         Type.PrimitiveType.INT, Type.PrimitiveType.INT, Type.PrimitiveType.INT,
                         struct('i', 'i'))),
                 "6 int regs já consumidos → struct iria à memória (FFI001 honesto)");
+    }
+
+    @Test
+    void packedFloatEightbyteBinds() {
+        // M1 (VF-on-x86-64): dois Float no MESMO eightbyte SSE é o struct
+        // homogêneo-flutuante — emitido bitwise (shift/or → movq %xmm), não mais
+        // FFI001.
+        assertTrue(FfiStructLayout.x86Bindable(List.of(struct('f', 'f'))),
+                "{float,float} = um eightbyte SSE empacotado (M1)");
+        assertTrue(FfiStructLayout.x86RegisterOnly(struct('f', 'f')),
+                "{float,float} ≤ 16 B, register path (M1)");
     }
 
     @Test

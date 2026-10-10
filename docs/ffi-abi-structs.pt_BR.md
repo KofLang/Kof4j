@@ -75,12 +75,22 @@ valor como argumento** — o `FfiStructLayout` classifica via `AbiLayout` e o
 call-site monta cada eightbyte direto no registrador de destino (INTEGER via
 shift/or dos slots de 8 bytes do objeto Kof; SSE via `movq`/`movd`), sem spill
 de scratch. O gate (`CompilerPipeline.nativeExternBound`) mantém o resto
-honesto em `FFI001`: structs que vão à memória (SysV MEMORY / > 16 B), um
-eightbyte SSE com mais de um campo, ou um struct que não cabe nos registradores
-restantes. Prova: `FfiStructE2ETest`
+honesto em `FFI001`: structs que vão à memória (SysV MEMORY / > 16 B), ou um
+struct que não cabe nos registradores restantes. Prova: `FfiStructE2ETest`
 `structParamByValueNativeRegisterPath` (`Point`/`MixIF` int+float no mesmo
 eightbyte/`Time` long+double) byte-a-byte JVM==Native + `FfiStructLayoutTest`
-3/3 (classificação, sem toolchain C).
+(classificação, sem toolchain C).
+**Pousou 10/10 (memory-safety M1 · VF-on-x86-64, a última face float do
+x86-64):** um eightbyte SSE com mais de um campo deixa de ser `FFI001` — é
+emitido bitwise (`%rax` shift/or → `movq %xmm`; SSE é bitwise, então nenhuma
+conversão FP). Como INTEGER domina SSE dentro de um eightbyte (medido no
+`AbiLayout`), um eightbyte SSE multi-campo é sempre homogêneo-flutuante, ou
+seja, a forma x86-64 da face HFA já pousada no cross — os dois alvos agora
+concordam. Prova: `FfiStructE2ETest` `structParamAndReturnFloatByValueNative`
+(`F2(Float,Float)` param E retorno, byte-a-byte JVM==Native) +
+`FfiCrossHfaE2ETest`/`FfiCrossHfaReturnE2ETest` (os pins antigos
+`…StaysFfi001Honest` viraram binding) + `FfiStructLayoutTest`
+`packedFloatEightbyteBinds`.
 **Pousou 21/09 (3.7 fatia 2a · retorno de struct nativo, caminho de
 registradores):** o backend x86-64 SysV agora binda um `record` **devolvido por
 valor** quando cabe nos registradores (≤ 16 B): o call-site salva os eightbytes

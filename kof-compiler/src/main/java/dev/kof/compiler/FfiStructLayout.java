@@ -130,31 +130,19 @@ public final class FfiStructLayout {
     }
 
     // ── x86-64 SysV bindability (register path only) ─────────────────────
-
-    /** A struct whose SSE eightbyte carries more than one field needs packing
-     *  we do not emit yet — honest gap. */
-    private static boolean sseEightbytesAreSingleField(Type structType) {
-        List<FieldInfo> fs = fields(structType);
-        AbiLayout.Layout l = layout(AbiLayout.Abi.SYSV_X86_64, structType);
-        for (int e = 0; e < l.classes().size(); e++) {
-            if (l.classes().get(e) != AbiLayout.ArgClass.SSE) continue;
-            int lo = e * 8;
-            int count = 0;
-            for (FieldInfo f : fs) {
-                if (f.cOffset() < lo + 8 && f.cOffset() + f.scalar().size > lo) count++;
-            }
-            if (count != 1) return false;
-        }
-        return true;
-    }
+    //
+    // Todos os eightbytes SSE são emitíveis desde M1: INTEGER domina SSE dentro
+    // de um eightbyte (medido em AbiLayout), então um eightbyte SSE só carrega
+    // campos float/double — a forma empacotada do struct homogêneo-flutuante
+    // (ex. `{float a; float b;}`), que o emissor monta bitwise (shift/or em %rax
+    // → movq %xmm). Não há mais um eightbyte SSE multi-campo não suportado.
 
     /** True when a single struct is bindable as an x86-64 RETURN value in the
-     *  register path (≤ 16 B, no MEMORY, single-field SSE eightbytes). The
-     *  sret path (&gt; 16 B) is a later slice. */
+     *  register path (≤ 16 B, no MEMORY). The sret path (&gt; 16 B) is a later
+     *  slice. */
     public static boolean x86RegisterOnly(Type structType) {
         AbiLayout.Layout l = layout(AbiLayout.Abi.SYSV_X86_64, structType);
-        if (l.byMemory() || l.size() > 16) return false;
-        return sseEightbytesAreSingleField(structType);
+        return !l.byMemory() && l.size() <= 16;
     }
 
     /** True when a single struct is bindable as an x86-64 sret RETURN: larger
@@ -315,8 +303,9 @@ public final class FfiStructLayout {
     }
 
     /** True when the whole parameter list is bindable on x86-64 (scalars may
-     *  spill; structs must fit entirely in registers and use single-field SSE
-     *  eightbytes). Simulates SysV register counting in formal order. */
+     *  spill; structs must fit entirely in registers — each eightbyte is
+     *  INTEGER or an emittable SSE, incl. the packed homogeneous-float form).
+     *  Simulates SysV register counting in formal order. */
     public static boolean x86Bindable(List<Type> paramTypes) {
         return x86Bindable(paramTypes, 0);
     }
@@ -339,7 +328,6 @@ public final class FfiStructLayout {
                 continue;
             }
             if (isStructType(t)) {
-                if (!sseEightbytesAreSingleField(t)) return false;
                 AbiLayout.Layout l = layout(AbiLayout.Abi.SYSV_X86_64, t);
                 if (l.byMemory()) return false;
                 for (AbiLayout.ArgClass c : l.classes()) {
@@ -378,18 +366,33 @@ public final class FfiStructLayout {
         List<FieldInfo> fs = fields(structType);
         int lo = e * 8;
         if (sse) {
+            List<FieldInfo> in = new ArrayList<>();
             for (FieldInfo f : fs) {
-                if (f.cOffset() < lo + 8 && f.cOffset() + f.scalar().size > lo) {
-                    int off = 16 + 8 * f.kofSlot();
-                    if (f.scalar().size == 8) {
-                        sb.append("    movq ").append(off).append("(").append(base).append("), %rax\n");
-                        sb.append("    movq %rax, ").append(dst).append("\n");
-                    } else {
-                        sb.append("    movd ").append(off).append("(").append(base).append("), ").append(dst).append("\n");
-                    }
-                    return;
-                }
+                if (f.cOffset() < lo + 8 && f.cOffset() + f.scalar().size > lo) in.add(f);
             }
+            if (in.size() == 1) {
+                FieldInfo f = in.get(0);
+                int off = 16 + 8 * f.kofSlot();
+                if (f.scalar().size == 8) {
+                    sb.append("    movq ").append(off).append("(").append(base).append("), %rax\n");
+                    sb.append("    movq %rax, ").append(dst).append("\n");
+                } else {
+                    sb.append("    movd ").append(off).append("(").append(base).append("), ").append(dst).append("\n");
+                }
+                return;
+            }
+            // Packed homogeneous-float eightbyte: assemble the raw float/double
+            // bits in %rax (shift/or, as the INTEGER path) and move them into the
+            // xmm register — SSE is bitwise, so no FP conversion happens.
+            sb.append("    xorq %rax, %rax\n");
+            for (FieldInfo f : in) {
+                int off = 16 + 8 * f.kofSlot();
+                int shift = (f.cOffset() - lo) * 8;
+                sb.append("    movl ").append(off).append("(").append(base).append("), %r11d\n");
+                if (shift > 0) sb.append("    shlq $").append(shift).append(", %r11\n");
+                sb.append("    orq %r11, %rax\n");
+            }
+            sb.append("    movq %rax, ").append(dst).append("\n");
             return;
         }
         sb.append("    xorq %rax, %rax\n");

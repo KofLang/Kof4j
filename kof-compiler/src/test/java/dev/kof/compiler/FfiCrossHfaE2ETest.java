@@ -217,18 +217,20 @@ class FfiCrossHfaE2ETest {
     }
 
     @Test
-    void x86TwoFloatSameEightbyteStaysFfi001Honest(@TempDir Path dir) throws Exception {
-        // SysV: os dois floats de VF cabem no MESMO eightbyte (multi-campo) e o
-        // emissor x86 só cobre eightbyte SSE de campo único — FFI001 honesto na
-        // declaração (R6), face própria x86 que NÃO é esta unidade cross.
+    void x86TwoFloatSameEightbyteParamBinds(@TempDir Path dir) throws Exception {
+        // SysV: os dois floats de VF cabem no MESMO eightbyte SSE; a face
+        // VF-on-x86-64 foi LANDADA (M1) — o emissor x86 empacota o eightbyte SSE
+        // multi-campo (bits em %rax, movq → %xmm). Golden = o MESMO fonte na JVM.
         String so = buildHostLib(dir);
         Path src = dir.resolve("hfa-x86vf.kf");
         Files.writeString(src, KOF_F.formatted(so));
         CompilationResult r = driver.compile(src, dir.resolve("out-hfa-x86vf"), Target.NATIVE);
-        assertFalse(r.success(), "VF (eightbyte SSE multi-campo na SysV) não pode bindar no x86-64");
-        assertTrue(r.diagnostics().getDiagnostics().toString().contains("FFI001"),
-                "x86-64 mantém FFI001 honesto para o eightbyte com dois floats: "
-                        + r.diagnostics().getDiagnostics());
+        assertTrue(r.success(), "VF (eightbyte SSE multi-campo na SysV) deve bindar no x86-64 (M1): "
+                + r.diagnostics().getDiagnostics());
+        assertEquals(GOLDEN_F, runJvm(dir, KOF_F.formatted(so), "f-x86oracle"),
+                "oráculo JVM do VF (float,float) deve concordar (regra 5)");
+        assertEquals(GOLDEN_F, runNativeHost(dir, KOF_F.formatted(so), "f"),
+                "x86-64 VF param byte-a-byte vs JVM (M1 VF-on-x86-64)");
     }
 
     @Test
