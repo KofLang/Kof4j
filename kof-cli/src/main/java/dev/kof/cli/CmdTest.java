@@ -169,7 +169,8 @@ final class CmdTest {
         int skipped = 0;   // §576: arquivos sem teste e sem main (módulos auxiliares)
         int skippedByTag = 0;   // §587: arquivos cujo filtro --tag não casa nenhum teste
         int skippedByProvider = 0;   // §6: arquivos browser tagados sem provider/binário
-        java.util.Map<String, String> levels = new java.util.LinkedHashMap<>();
+        java.util.Map<String, String> fileLevel = new java.util.LinkedHashMap<>();
+        java.util.Map<String, Boolean> fileResult = new java.util.LinkedHashMap<>();
         boolean browserTagged = tag != null && java.util.Arrays.stream(tag.split(","))
                 .map(String::trim).anyMatch("browser"::equals);
         if (browserTagged) {
@@ -259,7 +260,7 @@ final class CmdTest {
                 if (tags.contains("browser") || tags.contains("e2e")) level = "e2e";
                 else if (tags.contains("integration")) level = "integration";
             }
-            levels.put(f.toString(), level);
+            fileLevel.put(f.toString(), level);
             StringBuilder output = new StringBuilder();
             if (ok) {
                 for (Diagnostic d : result.diagnostics().getDiagnostics()) output.append(d.format()).append('\n');
@@ -384,6 +385,7 @@ final class CmdTest {
                 int[] c = suites.computeIfAbsent(suiteOf(src, f), k -> new int[2]);
                 if (ok) c[0]++; else c[1]++;
             }
+            fileResult.put(f.toString(), ok);
             if (ok) {
                 passed++;
                 if (driver.discoveredTests().isEmpty()) {
@@ -398,6 +400,7 @@ final class CmdTest {
                 }
             } else {
                 failed++;
+                fileResult.put(f.toString(), ok);
                 System.out.println("FAIL " + f);
                 System.out.print(output);
             }
@@ -438,16 +441,23 @@ final class CmdTest {
         // §8.5: o relatório por nível — só arquivos suíte (com testes) contam;
         // a linha aparece apenas quando ao menos um nível não-unit foi
         // declarado (a corrida pura unit mantém a saída histórica intacta).
+        // §8.5: o relatório por nível — passed/failed reais por nível (o
+        // mapeamento arquivo→nível + arquivo→resultado), no formato do plano
+        // ("unit: N passed / M failed"). A linha imprime APENAS quando um
+        // nível não-unit foi declarado (a corrida pura unit mantém a saída
+        // histórica byte-identical).
         java.util.Map<String, int[]> byLevel = new java.util.LinkedHashMap<>();
-        for (var e : levels.entrySet()) {
+        for (var e : fileLevel.entrySet()) {
             int[] c = byLevel.computeIfAbsent(e.getValue(), k -> new int[2]);
-            c[1]++;  // total de arquivos do nível
+            if (fileResult.getOrDefault(e.getKey(), false)) c[0]++;
+            else c[1]++;
         }
         if (byLevel.containsKey("integration") || byLevel.containsKey("e2e")) {
             StringBuilder lv = new StringBuilder();
             for (var e : byLevel.entrySet()) {
                 if (lv.length() > 0) lv.append(", ");
-                lv.append(e.getKey()).append(": ").append(e.getValue()[1]).append(" file(s)");
+                lv.append(e.getKey()).append(": ").append(e.getValue()[0])
+                  .append(" passed / ").append(e.getValue()[1]).append(" failed");
             }
             System.out.println("levels: " + lv);
         }

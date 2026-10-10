@@ -116,8 +116,22 @@ class CmdTestProviderGateTest {
         Cli r = cli(dir, "test", tests.toString());
         assertEquals(0, r.exit(), r.out());
         assertTrue(r.out().contains("levels:"), r.out());
-        assertTrue(r.out().contains("unit: 1 file(s)"), r.out());
-        assertTrue(r.out().contains("integration: 1 file(s)"), r.out());
+        assertTrue(r.out().contains("unit: 1 passed / 0 failed"), r.out());
+        assertTrue(r.out().contains("integration: 1 passed / 0 failed"), r.out());
+    }
+
+    @Test
+    void levelsReportCountsRealPassFailPerLevel(@TempDir Path dir) throws Exception {
+        Path tests = dir.resolve("tests");
+        Files.createDirectories(tests);
+        Files.writeString(tests.resolve("io.kf"),
+                "test \"quebra\", \"integration\" {\n    assert(1 == 2)\n}\n");
+        Files.writeString(tests.resolve("math.kf"),
+                "test \"soma\", \"unit\" {\n    assert(2 + 2 == 4)\n}\n");
+        Cli r = cli(dir, "test", tests.toString());
+        assertEquals(1, r.exit(), "um teste integration falhou: exit 1\n" + r.out());
+        assertTrue(r.out().contains("integration: 0 passed / 1 failed"), r.out());
+        assertTrue(r.out().contains("unit: 1 passed / 0 failed"), r.out());
     }
 
     @Test
