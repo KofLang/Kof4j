@@ -29,7 +29,7 @@ final class WasmPrintCode {
                 String recKey = t.startsWith("record:") ? ctx.lastPush.substring(7) : ctx.lastPush;
                 ClassLayout recLayout = ctx.records == null ? null : ctx.records.get(recKey);
                 if (recLayout != null) {
-                    WasmRecordCode.emitToString(recLayout, recKey, ctx, out);
+                    WasmRecordCode.emitToString(recLayout, recKey, ctx, out, 0);
                     out.add(new WasmInstr.Call("kof.writeStr"));
                     ctx.lastPush = "string";
                     return;
@@ -42,7 +42,7 @@ final class WasmPrintCode {
                     default -> throw new WasmUnsupportedException("println '" + t
                             + "' fora da fatia 1 da unidade 15.3 (WASM002) — o runtime de strings/"
                             + "records/colecoes chega com o runtime (D-WASM-03/04);"
-                            + " docs/development/wasm-wasi-plan.md (#776)");
+                            + " docs/wasm-wasi-plan.md (#776)");
                 }
     }
 

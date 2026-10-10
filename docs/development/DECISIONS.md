@@ -4288,7 +4288,7 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 
 **State:** DECIDED + PROMOTED (maintainer, chat 07/10) — recorded by lane `192.168.15.101:9092`.
 
-* **Decision:** `docs/development/wasm-wasi-plan.md`(+PT) is promoted into `docs/development/` — the promotion is the maintainer's own act (a deliberate exception to `D-FUTURE-FREEZE`), not an agent choice.
+* **Decision:** `docs/wasm-wasi-plan.md`(+PT) is promoted into `docs/development/` — the promotion is the maintainer's own act (a deliberate exception to `D-FUTURE-FREEZE`), not an agent choice.
 * **Semantics of the order (verbatim intent):** the web target of Kof becomes **WASI by default**; the desktop frontend likewise; the JS/`kofjs` target **continues to exist** and is used only when **explicitly specified**. The language **surface does not change** — one backend is added and the frontend default switches. **Total behavior parity** is required and **nothing that works today may break** (`D-QUALITY-PIPELINE`/zero-regression).
 * **Gate:** the plan is a **GATE for the 0.6.0 cut** — `D-LAB-STABILITY` now also requires the WASI-default frontend to land with the existing 4-target suite green. Tracking issue **#776** (`1.0-blocks`); ledger row added the same day (`scripts/release-blockers.tsv`).
 * **Technical shape stays as decided by `D-WASM-GO` (28/09, D-WASM-01..09):** direct backend (not a transpile chain); `Int` = i64; thrown-string unwinding; handles + handle table; native mark-sweep GC; explicit closure env; WASI preview1; wasmtime first; cooperative concurrency in v1.

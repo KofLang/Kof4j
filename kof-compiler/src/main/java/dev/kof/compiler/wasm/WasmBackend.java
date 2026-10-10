@@ -87,6 +87,7 @@ public class WasmBackend implements Backend {
             records.put(simple, ClassLayout.build(clazz));
         }
         boolean usesRecords = !records.isEmpty();
+        final int recDepth = maxRecordNesting(records);
         // fecho transitivo de chamadas a partir das entradas escalares: qualquer
         // declaracao FORA do subset que seja de fato alcancada recusa honesto
         // (WASM002) — helper injetado pela stdlib que o programa nao usa nao
@@ -140,7 +141,7 @@ public class WasmBackend implements Backend {
                             throw new WasmUnsupportedException("println '" + t
                                     + "' fora da fatia 1 da unidade 15.3 (WASM002) — o host de "
                                     + "strings de operacoes/records/colecoes/double chega com o runtime"
-                                    + " docs/development/wasm-wasi-plan.md (#776)");
+                                    + " docs/wasm-wasi-plan.md (#776)");
                         }
                         continue;
                     }
@@ -149,13 +150,13 @@ public class WasmBackend implements Backend {
                         throw new WasmUnsupportedException("chamada '" + kc.methodName()
                                 + "' nao resolvida no subset escalar da unidade 15.2 (WASM002) —"
                                 + " IO/stdlib/intrinsics recebem host nas unidades 15.3+;"
-                                + " docs/development/wasm-wasi-plan.md (#776)");
+                                + " docs/wasm-wasi-plan.md (#776)");
                     }
                     if (!isScalarSignature(t) && !(wasi && t == mainDecl)) {
                         throw new WasmUnsupportedException("chamada '" + kc.methodName()
                                 + "' fora do subset escalar da unidade 15.2 (WASM002) —"
                                 + " classes/colecoes/IO/void estao fora; main com host chega em 15.3;"
-                                + " docs/development/wasm-wasi-plan.md (#776)");
+                                + " docs/wasm-wasi-plan.md (#776)");
                     }
                     work.add(t);
                 }
@@ -164,13 +165,13 @@ public class WasmBackend implements Backend {
         if (entryClass == null) {
             throw new WasmUnsupportedException("nenhuma funcao top-level escalar para emitir (WASM002) —"
                     + " classes/colecoes/main com IO estao fora do subset da unidade 15.2 —"
-                    + " docs/development/wasm-wasi-plan.md (#776)");
+                    + " docs/wasm-wasi-plan.md (#776)");
         }
         entries.sort(Comparator.comparing(IRMethod::name));
 
         List<WasmFunc> funcs = new ArrayList<>();
         List<WasmFunc> lowered = new ArrayList<>();
-        for (IRMethod m : entries) lowered.add(lowerMethod(m, wasi, printIntrinsic, false, stringPool, dataSegments, records));
+        for (IRMethod m : entries) lowered.add(lowerMethod(m, wasi, printIntrinsic, false, stringPool, dataSegments, records, recDepth));
         IRMethod startM = null;
         boolean usesArgs = false;
         if (wasi) {
@@ -219,7 +220,7 @@ public class WasmBackend implements Backend {
             }
         }
         funcs.addAll(lowered);
-        if (startM != null) funcs.add(lowerMethod(startM, true, printIntrinsic, usesArgs, stringPool, dataSegments, records));
+        if (startM != null) funcs.add(lowerMethod(startM, true, printIntrinsic, usesArgs, stringPool, dataSegments, records, recDepth));
         List<WasmImport> imports;
         if (!wasi) {
             imports = List.of();
@@ -237,5 +238,35 @@ public class WasmBackend implements Backend {
         Path wasmPath = outputDir.resolve(rel + ".wasm");
         Files.createDirectories(wasmPath.getParent());
         Files.write(wasmPath, bin);
+    }
+
+    /** Profundidade maxima de aninhamento record-em-record (slice D): os slots de
+     * scratch por nivel sao alocados em funcao disso; record e valor — ciclo e
+     * impossivel, mas o stack de defesa devolve 0 em vez de recursar o programa. */
+    static int maxRecordNesting(Map<String, ClassLayout> records) {
+        int best = 0;
+        for (String name : records.keySet()) {
+            best = Math.max(best, recordNesting(name, records, new java.util.HashSet<>(), 0));
+        }
+        return best;
+    }
+
+    private static int recordNesting(String name, Map<String, ClassLayout> records,
+            java.util.Set<String> stack, int depth) {
+        if (!stack.add(name)) return 0;
+        ClassLayout lay = records.get(name);
+        int best = depth;
+        if (lay != null) {
+            for (FieldLayout f : lay.fields()) {
+                if (f.type() instanceof Type.ClassType ct) {
+                    String inner = WasmScalarOps.typeName(ct);
+                    if (records.containsKey(inner)) {
+                        best = Math.max(best, 1 + recordNesting(inner, records, stack, depth + 1));
+                    }
+                }
+            }
+        }
+        stack.remove(name);
+        return best;
     }
 }

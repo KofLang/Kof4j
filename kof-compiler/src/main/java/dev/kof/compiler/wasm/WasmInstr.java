@@ -259,7 +259,7 @@ public abstract sealed class WasmInstr permits WasmInstr.Const, WasmInstr.Local,
             Integer idx = funcIdx == null ? null : funcIdx.get(targetName);
             if (idx == null) {
                 throw new WasmUnsupportedException("chamada a funcao fora do subset escalar 15.2"
-                        + " (WASM002): '" + targetName + "' — docs/development/wasm-wasi-plan.md (#776)");
+                        + " (WASM002): '" + targetName + "' — docs/wasm-wasi-plan.md (#776)");
             }
             out.write(0x10);
             WasmBinary.writeUleb(out, idx);

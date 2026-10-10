@@ -7,6 +7,13 @@ import static dev.kof.compiler.wasm.WasmScalarOps.typeName;
 /** Despacho de largura de campo de record no bump heap WASI (15.3d inc2). */
 final class WasmRecordOps {
 
+    /** Shape-only: campo de classe = handle i32 (aninhamento; o guard do
+     * KofNewObject valida que a classe e um record conhecido). */
+    static boolean isRecordClassField(Type t) {
+        return t instanceof Type.ClassType;
+    }
+
+
     private WasmRecordOps() {
     }
 

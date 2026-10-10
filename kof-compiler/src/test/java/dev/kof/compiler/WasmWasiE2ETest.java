@@ -424,26 +424,65 @@ class WasmWasiE2ETest {
                 "record ==/!=/null/Double-bits must equal the JVM oracle");
     }
 
+
+    @Test
+    void nestedRecordFieldsMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        var wasmtime = host("wasmtime");
+        assumeTrue(wasmtime != null, "wasmtime host absent — run scripts/provision-wasmtime.sh");
+        // 15.3d inc2 fatia D: campos record-aninhados = handles i32 no bump heap;
+        // toString/==/!= descem recursivamente com um scratch por profundidade.
+        Files.writeString(dir.resolve("Main.kf"), """
+                record Inner(Int v)
+                record Outer(Inner i, Int t)
+                main(String[] args) {
+                    var o = Outer(Inner(1), 9)
+                    println(o.i)
+                    println(o)
+                    println(o.i.v + o.t)
+                    println(o == Outer(Inner(1), 9))
+                    println(o == Outer(Inner(2), 9))
+                    println(Outer(o.i, 9) == o)
+                    println(o != Outer(Inner(1), 8))
+                    println(String.valueOf(o.i))
+                }
+                """);
+        var driver = new CompilerDriver();
+        var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
+        assertTrue(jvm.success(), "jvm nested compile: " + jvm.diagnostics().getDiagnostics());
+        var oracle = new ProcessBuilder(List.of(jvmBin(), "-cp",
+                Path.of(dir.toString(), "out-jvm").toString(), "Default.Main"))
+                .redirectErrorStream(true).start();
+        String expected = new String(oracle.getInputStream().readAllBytes());
+        assertTrue(oracle.waitFor(120, TimeUnit.SECONDS) && oracle.exitValue() == 0,
+                "JVM nested oracle: " + expected);
+        var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
+        assertTrue(wasi.success(), "wasi nested compile: " + wasi.diagnostics().getDiagnostics());
+        var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
+                Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm").toString()))
+                .redirectErrorStream(true).start();
+        String out = new String(proc.getInputStream().readAllBytes());
+        assertTrue(proc.waitFor(60, TimeUnit.SECONDS), "host within 60s");
+        assertEquals(0, proc.exitValue(), "clean WASI exit nested: " + out);
+        assertEquals(expected.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                "nested-record fields must equal the JVM oracle");
+    }
     @Test
     void recordNestedFieldStillRefusesHonestly(@TempDir Path dir) throws Exception {
-        // fatia C1+C2 verdes (above): toString/println/valueOf/concat e ==/!= de
-        // conteudo. Campos record-aninhados ainda recusam honesto WASM002 naming
-        // plan + slice + #776, NO artifacts (Q7): record-aninhado = campo de
-        // classe no bump heap (proxima fatia). `equals` explicito de record
-        // tambem recusa (dispatch virtual ainda nao existe no backend).
+        // fatia C1+C2+D verdes (above): toString/println/valueOf/concat, ==/!= de
+        // conteudo e campos record-aninhados. `equals` explicito de record ainda
+        // recusa honesto WASM002 naming plan + slice + #776, NO artifacts (Q7):
+        // dispatch virtual nao existe no backend; a fatia E rota p/ o fold inline.
         var driver = new CompilerDriver();
         record Case(String name, String src) {}
         for (Case c : List.of(
                 new Case("record-explicit-equals", "record Point(Int x, Int y)\n"
-                        + "main(String[] args) {\n    var p = Point(1, 2)\n    println(p.equals(Point(1, 2)))\n}\n"),
-                new Case("record-nested-field", "record Inner(Int v)\n"
-                        + "record Outer(Inner i)\n"
-                        + "main(String[] args) {\n    var o = Outer(Inner(1))\n    println(o.i)\n}\n"))) {
+                        + "main(String[] args) {\n    var p = Point(1, 2)\n    println(p.equals(Point(1, 2)))\n}\n"))) {
             Path src = dir.resolve("Refuse-" + c.name() + ".kf");
             Files.writeString(src, c.src());
             Path out = dir.resolve("out-" + c.name());
             var r = driver.compile(src, out, Target.WASI);
-            assertFalse(r.success(), c.name() + " must refuse WASM002 (explicit equals / nested fields)");
+            assertFalse(r.success(), c.name() + " must refuse WASM002 (explicit record equals)");
             String msg = r.diagnostics().getDiagnostics().toString();
             assertTrue(msg.contains("WASM002") && msg.contains("#776")
                     && msg.contains("wasm-wasi-plan"), c.name() + " honest: " + msg);

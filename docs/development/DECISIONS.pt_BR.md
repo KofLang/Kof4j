@@ -4276,7 +4276,7 @@ individuais:
 
 **Estado:** DECIDIDO + PROMOVIDO (mantenedora, chat 07/10) — registrado pela lane `192.168.15.101:9092`.
 
-* **Decisão:** `docs/development/wasm-wasi-plan.md`(+PT) é promovido para `docs/development/` — a promoção é ato da própria mantenedora (exceção deliberada ao `D-FUTURE-FREEZE`), não escolha de agente.
+* **Decisão:** `docs/wasm-wasi-plan.md`(+PT) é promovido para `docs/development/` — a promoção é ato da própria mantenedora (exceção deliberada ao `D-FUTURE-FREEZE`), não escolha de agente.
 * **Semântica da ordem (intenção verbatim):** o alvo web do Kof passa a ser **WASI por padrão**; o frontend desktop igualmente; o alvo JS/`kofjs` **continua existindo** e é usado só quando **explicitamente especificado**. A **superfície da linguagem não muda** — adiciona-se um backend e troca-se o padrão de frontend. **Paridade total de comportamento** é obrigatória e **nada que funciona hoje pode quebrar** (`D-QUALITY-PIPELINE`/zero-regression).
 * **Gate:** o plano é **GATE do corte 0.6.0** — `D-LAB-STABILITY` agora também exige o WASI-padrão de frontend pousado com a suíte dos 4 alvos existentes verde. Issue de rastreio **#776** (`1.0-blocks`); linha no ledger adicionada no mesmo dia (`scripts/release-blockers.tsv`).
 * **Formato técnico permanece o decidido em `D-WASM-GO` (28/09, D-WASM-01..09):** backend direto (não cadeia de transpilação); `Int` = i64; desempilhamento por string lançada; handles + tabela de handles; GC mark-sweep nativo; env de closure explícito; WASI preview1; wasmtime primeiro; concorrência cooperativa na v1.

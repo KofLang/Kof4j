@@ -117,7 +117,7 @@ class SelectTargetsTest {
         assertEquals(1, msgs.size());
         assertTrue(msgs.get(0).contains("WASM001"), msgs.get(0));
         assertTrue(msgs.get(0).contains("#776"), msgs.get(0));
-        assertTrue(msgs.get(0).contains("docs/development/wasm-wasi-plan.md"), msgs.get(0));
+        assertTrue(msgs.get(0).contains("docs/wasm-wasi-plan.md"), msgs.get(0));
         // the canonical FRONTEND path refuses the real target with the same named gap
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> KofCliSupport.selectTargets("jvm", "wasi", null));

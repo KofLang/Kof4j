@@ -37,7 +37,7 @@ public final class WasmScalarOps {
         } else {
             throw new WasmUnsupportedException("literal fora do subset escalar (WASM002): " + val
                     + " — strings/records/colecoes recebem o runtime das unidades 15.3+;"
-                    + " docs/development/wasm-wasi-plan.md (#776)");
+                    + " docs/wasm-wasi-plan.md (#776)");
         }
     }
 
@@ -104,7 +104,7 @@ public final class WasmScalarOps {
                 case "eq" -> 0x46;
                 case "ne" -> 0x47;
                 default -> throw new WasmUnsupportedException("comparacao de handle '" + suffix
-                        + "' fora do subset (WASM002) — docs/development/wasm-wasi-plan.md (#776)");
+                        + "' fora do subset (WASM002) — docs/wasm-wasi-plan.md (#776)");
             };
             return new WasmInstr.Simple(op, "i32." + suffix);
         }
@@ -146,7 +146,7 @@ public final class WasmScalarOps {
             case "bool", "boolean", "char", "string" -> WasmFunc.TYPE_I32; // string = handle i32 (15.3c)
             case "object" -> WasmFunc.TYPE_I32; // handle/opaque i32 (15.3d record temp)
             default -> throw new WasmUnsupportedException(role + " '" + name + "' em '" + context
-                    + "' fora do subset escalar 15.2 (WASM002) — docs/development/wasm-wasi-plan.md (#776)");
+                    + "' fora do subset escalar 15.2 (WASM002) — docs/wasm-wasi-plan.md (#776)");
         };
     }
 

@@ -29,7 +29,7 @@ final class WasmLowering {
 
     static WasmFunc lowerMethod(IRMethod m, boolean wasi, boolean printIntrinsic,
             boolean argsHandle, Map<String, Integer> stringPool, List<WasmData> dataSegments,
-            Map<String, ClassLayout> records) {
+            Map<String, ClassLayout> records, int recordDepth) {
         List<Integer> params = new ArrayList<>();
         Map<Integer, Integer> slotMap = new LinkedHashMap<>();
         int jvmSlot = 0;
@@ -65,6 +65,7 @@ final class WasmLowering {
         }
         int objIdx = -1, vIdx = -1, v32Idx = -1, vf64Idx = -1;
         int eqAccIdx = -1, eqEqIdx = -1, eqCmpIdx = -1, eqDblIdx = -1, eqAndIdx = -1;
+        int[] nestH = null, nestA = null, nestB = null, nestR = null;
         if (records != null && !records.isEmpty()) {
             objIdx = nextWasm;
             locals.add(WasmFunc.TYPE_I32); // scratch obj (handle)
@@ -85,6 +86,25 @@ final class WasmLowering {
             eqAndIdx = nextWasm + 8;
             locals.add(WasmFunc.TYPE_I32); // scratch eqAnd (AND do fold; eqAcc guarda o handle L)
             nextWasm += 9;
+            // slice D (15.3d inc2): um slot por nivel de aninhamento alem da raiz —
+            // toString usa 1 handle por profundidade; equals usa par (L,R) por profundidade
+            if (recordDepth >= 1) {
+                nestH = new int[recordDepth + 1];
+                nestA = new int[recordDepth + 1];
+                nestB = new int[recordDepth + 1];
+                nestR = new int[recordDepth + 1];
+                for (int d = 1; d <= recordDepth; d++) {
+                    nestH[d] = nextWasm;
+                    locals.add(WasmFunc.TYPE_I32);
+                    nestA[d] = nextWasm + 1;
+                    locals.add(WasmFunc.TYPE_I32);
+                    nestB[d] = nextWasm + 2;
+                    locals.add(WasmFunc.TYPE_I32);
+                    nestR[d] = nextWasm + 3;
+                    locals.add(WasmFunc.TYPE_I32);
+                    nextWasm += 4;
+                }
+            }
         }
         final int pcIdx = nextWasm;
         locals.add(WasmFunc.TYPE_I32); // $pc
@@ -122,6 +142,10 @@ final class WasmLowering {
         ctx.eqCmpIdx = eqCmpIdx;
         ctx.eqDblIdx = eqDblIdx;
         ctx.eqAndIdx = eqAndIdx;
+        ctx.nestH = nestH;
+        ctx.nestA = nestA;
+        ctx.nestB = nestB;
+        ctx.nestR = nestR;
         ctx.wasi = wasi && printIntrinsic;
         List<KofOperation> flatOps = new ArrayList<>();
         for (IRBasicBlock bb0 : m.basicBlocks()) flatOps.addAll(bb0.operations());
@@ -158,6 +182,8 @@ final class WasmLowering {
         int wIdx = -1, sIdx = -1;
         int objIdx = -1, vIdx = -1, v32Idx = -1, vf64Idx = -1;
         int eqAccIdx = -1, eqEqIdx = -1, eqCmpIdx = -1, eqDblIdx = -1, eqAndIdx = -1;
+        int[] nestH, nestA, nestB, nestR;
+        int allocDepth;
         boolean wasi;
         String lastPush;
         boolean lastPushWide;
@@ -200,7 +226,7 @@ final class WasmLowering {
             Integer i = slotMap.get(jvmSlot);
             if (i == null) {
                 throw new WasmUnsupportedException("slot " + jvmSlot + " desconhecido em '" + funcName
-                        + "' (WASM002) — docs/development/wasm-wasi-plan.md (#776)");
+                        + "' (WASM002) — docs/wasm-wasi-plan.md (#776)");
             }
             return i;
         }
@@ -209,7 +235,7 @@ final class WasmLowering {
             Integer b = labelToBlock.get(id.id());
             if (b == null) {
                 throw new WasmUnsupportedException("salto a label inexistente em '" + funcName
-                        + "' (WASM002) — docs/development/wasm-wasi-plan.md (#776)");
+                        + "' (WASM002) — docs/wasm-wasi-plan.md (#776)");
             }
             return b;
         }
@@ -261,7 +287,7 @@ final class WasmLowering {
                 case EQ -> out.add(new WasmInstr.Simple(wide ? 0x51 : 0x46, wide ? "i64.eq" : "i32.eq"));
                 case NE -> out.add(new WasmInstr.Simple(wide ? 0x52 : 0x47, wide ? "i64.ne" : "i32.ne"));
                 default -> throw new WasmUnsupportedException("comparacao de handle '" + cj.comparison()
-                        + "' fora do subset (WASM002) — docs/development/wasm-wasi-plan.md (#776)");
+                        + "' fora do subset (WASM002) — docs/wasm-wasi-plan.md (#776)");
             }
         } else {
             switch (cj.comparison()) {
@@ -285,7 +311,7 @@ final class WasmLowering {
         // termina limpo se o terminador era a ultima op
         if (!cleanEnd) {
             throw new WasmUnsupportedException("operacoes apos salto/retorno no mesmo bloco"
-                    + " (WASM002) — docs/development/wasm-wasi-plan.md (#776)");
+                    + " (WASM002) — docs/wasm-wasi-plan.md (#776)");
         }
     }
     private static void emitPlain(List<KofOperation> ops, int idx, Ctx ctx, List<WasmInstr> out) {
@@ -325,7 +351,7 @@ final class WasmLowering {
                 ctx.lastPushWide = false;
             } else if ("string".equalsIgnoreCase(typeName(lit.type()))) {
                 throw new WasmUnsupportedException("literal String fora do WASI (WASM002) —"
-                        + " docs/development/wasm-wasi-plan.md (#776)");
+                        + " docs/wasm-wasi-plan.md (#776)");
             } else if ("bool".equals(ctx.lastPush) && lit.value() instanceof Integer iv
                     && (iv == 0 || iv == 1) && "int".equalsIgnoreCase(typeName(lit.type()))) {
                 // `!=` do desugar: EQ contra o literal 0/1 sobre um bool i32
@@ -357,7 +383,7 @@ final class WasmLowering {
                 throw new WasmUnsupportedException("operador binario '" + bin.op()
                         + "' com operando de classe '" + typeName(bin.operandType())
                         + "' fora do subset WASI (WASM002) — igualdade de records chega como"
-                        + " kofRecordEq; identidade de Objetos nao esta no plano; docs/development/wasm-wasi-plan.md (#776)");
+                        + " kofRecordEq; identidade de Objetos nao esta no plano; docs/wasm-wasi-plan.md (#776)");
             }
             if (ctx.wasi && "bool".equals(ctx.lastPush)
                     && (bin.op() == KofBinaryOp.EQ || bin.op() == KofBinaryOp.NE)
@@ -384,51 +410,12 @@ final class WasmLowering {
             ctx.lastPushWide = "int".equalsIgnoreCase(ctx.lastPush) || "long".equalsIgnoreCase(ctx.lastPush)
                     || "double".equalsIgnoreCase(ctx.lastPush);
         } else if (op instanceof KofNewObject no) {
-            ClassLayout layout = ctx.recordOf(no.type());
-            if (layout == null || ctx.objIdx < 0) {
-                throw new WasmUnsupportedException("alocacao de '" + no.type()
-                        + "' fora do subset de records da 15.3d (WASM002) — docs/development/wasm-wasi-plan.md (#776)");
-            }
-            // 15.3d incremento 1: slots de 8 bytes gravados como i64 — so campos
-            // Int/Long; String/Bool/Char/Double/record (i32/f64 no stack) recusam
-            // honesto (WASM002, SEM artefato) em vez de emitir modulo invalido (Q7).
-            for (FieldLayout f : layout.fields()) {
-                if (!WasmRecordOps.isWideField(f.type()) && !WasmRecordOps.isI32Field(f.type()) && !WasmRecordOps.isF64Field(f.type())) {
-                    throw new WasmUnsupportedException("record '" + no.type() + "' campo '" + f.name()
-                            + "' de tipo '" + typeName(f.type()) + "' fora do subset de larguras da 15.3d inc2 (WASM002)"
-                            + " — campos record-aninhados chegam depois; docs/development/wasm-wasi-plan.md (#776)");
-                }
-            }
-            // h = global 0; global 0 += totalSize; empilha h
-            out.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
-            out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.objIdx, "obj"));
-            out.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
-            out.add(new WasmInstr.Const(0, layout.totalSize()));
-            out.add(new WasmInstr.Simple(0x6a, "i32.add"));
-            out.add(new WasmInstr.Global(WasmInstr.Global.SET, 0));
-            out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.objIdx, "obj"));
-            ctx.lastPush = "record";
+            WasmRecordCtor.lowerNewObject(ctx, no, out);
         } else if (op instanceof KofDup) {
             // no-op no contexto de construtor de record: o handle colocado pelo
             // KofNewObject permanece na base da pilha e sera consumido pelo KofStoreLocal
         } else if (op instanceof KofLoadField lf) {
-            ClassLayout layout = ctx.recordOf(lf.ownerType());
-            if (layout == null) {
-                throw new WasmUnsupportedException("leitura de campo '" + lf.name() + "' em tipo nao-record '"
-                        + lf.ownerType() + "' (WASM002) — docs/development/wasm-wasi-plan.md (#776)");
-            }
-            // pilha tem o receiver handle (i32) -> soma offset -> load pelo tipo da largura
-            out.add(new WasmInstr.Const(0, layout.fieldOffset(lf.name())));
-            out.add(new WasmInstr.Simple(0x6a, "i32.add"));
-            if (WasmRecordOps.isWideField(lf.fieldType())) {
-                out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD64, 0));
-            } else if (WasmRecordOps.isF64Field(lf.fieldType())) {
-                out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD_F64, 0));
-            } else {
-                out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0)); // i32: Bool/Char/String-handle
-            }
-            ctx.lastPush = WasmRecordOps.isStringField(lf.fieldType()) ? "string" : typeName(lf.fieldType());
-            ctx.lastPushWide = WasmRecordOps.isI64Field(lf.fieldType());
+            WasmRecordCtor.lowerLoadField(ctx, lf, out);
         } else if (op instanceof KofPop) {
             out.add(new WasmInstr.Simple(0x1a, "drop"));
         } else if (op instanceof KofArrayLength) {
@@ -438,7 +425,7 @@ final class WasmLowering {
         } else if (op instanceof KofArrayLoad al) {
             if (ctx.wIdx < 0 || ctx.sIdx < 0) {
                 throw new WasmUnsupportedException("leitura de array fora de '_start' (WASM002) —"
-                        + " docs/development/wasm-wasi-plan.md (#776)");
+                        + " docs/wasm-wasi-plan.md (#776)");
             }
             // [arr, idx(i64)] -> bounds-check explícito (trap deterministico, nunca lixo)
             out.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64")); // [arr, idx(i32)]
@@ -464,45 +451,10 @@ final class WasmLowering {
                 && ctx.wasi && "System".equals(ownerSimpleName(gs.ownerType())) && "out".equals(gs.name())) {
             // receiver do println — nao empilha nada; a rota println consome so o argumento
         } else if (op instanceof KofCall kc) {
-            if (ctx.wasi && kc.kind() == KofCallKind.FUNCTION && "kofRecordEq".equals(kc.methodName())) {
-                // 15.3d inc2 fatia C2: o frontend WASI desuga `==`/`!=` entre
-                // records p/ esta chamada opaca (precedente do JS no
-                // RecordEqualityLowerer); pilha [L, R]; o fold de campo e
-                // sintetizado reto, com accumulator (sem merge de fluxo).
-                ClassLayout lay = WasmPrintCode.recordLayoutOf(ctx, ctx.lastPush);
-                if (lay == null) {
-                    String v = operandTypeBefore(ctx.flat, ctx.flat.indexOf(kc));
-                    lay = WasmPrintCode.recordLayoutOf(ctx, v);
-                }
-                if (lay == null) {
-                    throw new WasmUnsupportedException("igualdade de '" + ctx.lastPush
-                            + "' fora dos records da 15.3d (WASM002) — docs/development/wasm-wasi-plan.md (#776)");
-                }
-                WasmRecordCode.emitEquals(lay, ctx, out);
-            } else if (ctx.wasi && kc.kind() == KofCallKind.CONSTRUCTOR && "<init>".equals(kc.methodName())
-                    && ctx.recordOf(kc.ownerType()) != null) {
-                // armazena os argumentos empilhados nos offsets do ClassLayout (ordem reversa)
-                ClassLayout layout = ctx.recordOf(kc.ownerType());
-                List<FieldLayout> fls = layout.fields();
-                for (int fi = fls.size() - 1; fi >= 0; fi--) {
-                    FieldLayout f = fls.get(fi);
-                    int sLocal;
-                    int storeOp;
-                    if (WasmRecordOps.isWideField(f.type())) {
-                        sLocal = ctx.vIdx; storeOp = WasmInstr.Mem.STORE64;
-                    } else if (WasmRecordOps.isF64Field(f.type())) {
-                        sLocal = ctx.vf64Idx; storeOp = WasmInstr.Mem.STORE_F64;
-                    } else {
-                        sLocal = ctx.v32Idx; storeOp = WasmInstr.Mem.STORE;
-                    }
-                    out.add(new WasmInstr.Local(WasmInstr.Local.SET, sLocal, "v_w"));
-                    out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.objIdx, "obj"));
-                    out.add(new WasmInstr.Const(0, f.offset()));
-                    out.add(new WasmInstr.Simple(0x6a, "i32.add"));
-                    out.add(new WasmInstr.Local(WasmInstr.Local.GET, sLocal, "v_w"));
-                    out.add(new WasmInstr.Mem(storeOp, 0));
-                }
-                ctx.lastPush = "record:" + layout.className();
+            if (WasmRecordCtor.isRecordEq(ctx, kc)) {
+                WasmRecordCtor.lowerRecordEq(ctx, kc, out);
+            } else if (WasmRecordCtor.isRecordInit(ctx, kc)) {
+                WasmRecordCtor.lowerRecordInit(ctx, kc, out);
             } else if (ctx.wasi && "kof_string_concat".equals(kc.methodName())) {
                 out.add(new WasmInstr.Call("kof.strConcat")); // a+b de strings (15.3c)
                 ctx.lastPush = "string";
@@ -540,11 +492,11 @@ final class WasmLowering {
                         out.add(new WasmInstr.Call("kof.intToStr"));
                         ctx.lastPush = "string";
                     } else if (vl != null) {
-                        WasmRecordCode.emitToString(vl, vt, ctx, out);
+                        WasmRecordCode.emitToString(vl, vt, ctx, out, 0);
                         ctx.lastPush = "string";
                     } else {
                         throw new WasmUnsupportedException("String.valueOf('" + vt
-                                + "') fora da 15.3d inc2 (WASM002) — docs/development/wasm-wasi-plan.md (#776)");
+                                + "') fora da 15.3d inc2 (WASM002) — docs/wasm-wasi-plan.md (#776)");
                     }
                 }
             } else if (ctx.wasi && kc.kind() == KofCallKind.STATIC
@@ -560,27 +512,27 @@ final class WasmLowering {
             } else if (ctx.wasi && "toString".equals(kc.methodName())
                     && ctx.recordOf(kc.ownerType()) != null) {
                 ClassLayout sl = ctx.recordOf(kc.ownerType());
-                WasmRecordCode.emitToString(sl, sl.className(), ctx, out);
+                WasmRecordCode.emitToString(sl, sl.className(), ctx, out, 0);
                 ctx.lastPush = "string";
             } else if (ctx.wasi && "equals".equals(kc.methodName())
                     && ctx.recordOf(kc.ownerType()) != null) {
                 throw new WasmUnsupportedException("chamada explicita de 'equals' de record (WASM002)"
                         + " — o backend WASI ainda nao tem dispatch virtual; o `==` de conteudo ja e"
-                        + " suportado (15.3d inc2 C2, kofRecordEq inline). docs/development/wasm-wasi-plan.md (#776)");
+                        + " suportado (15.3d inc2 C2, kofRecordEq inline). docs/wasm-wasi-plan.md (#776)");
             } else if (ctx.wasi && "println".equals(kc.methodName())) {
                 WasmPrintCode.emitPrintln(kc, ctx, out);
             } else if (kc.kind() == KofCallKind.FUNCTION || kc.kind() == KofCallKind.STATIC) {
                 out.add(new WasmInstr.Call(kc.methodName()));
             } else {
                 throw new WasmUnsupportedException("chamada '" + kc.methodName()
-                        + "' fora do subset escalar 15.2 (WASM002) — docs/development/wasm-wasi-plan.md (#776)");
+                        + "' fora do subset escalar 15.2 (WASM002) — docs/wasm-wasi-plan.md (#776)");
             }
         } else if (op instanceof KofStatementIf || op instanceof KofContinueLabel) {
             // marcadores estruturais — no-op (mesma decisao medida no JvmOpEmitter)
         } else {
             throw new WasmUnsupportedException("construcao fora do subset escalar 15.2 (WASM002): '"
                     + op.getClass().getSimpleName() + "' em '" + ctx.funcName
-                    + "' — docs/development/wasm-wasi-plan.md (#776)");
+                    + "' — docs/wasm-wasi-plan.md (#776)");
         }
     }
 

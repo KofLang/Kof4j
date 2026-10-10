@@ -50,7 +50,7 @@ public final class TargetMatrix {
                 return "target '" + name(frontend) + "' cannot be a frontend yet"
                         + " — emission exists (units 15.2/15.3) but the frontend/deploy"
                         + " surface and the default flip arrive with unit 15.4 (WASM001): see"
-                        + " docs/development/wasm-wasi-plan.md (TIER 15,"
+                        + " docs/wasm-wasi-plan.md (TIER 15,"
                         + " issue #776); frontend: kofjs, script";
             }
             return "target '" + name(frontend) + "' cannot be a frontend"
@@ -119,7 +119,7 @@ public final class TargetMatrix {
             if (outError != null) outError.add(
                     "target '" + value + "' (KofWebAssembly/WASI) does not exist yet — the"
                             + " wasm/wasi frontend is promoted and is a 0.6.0 cut gate"
-                            + " (docs/development/wasm-wasi-plan.md, issue #776,"
+                            + " (docs/wasm-wasi-plan.md, issue #776,"
                             + " D-WEB-WASI-DEFAULT-0710, docs/development/DECISIONS.md) ["
                             + gap + "]");
             return null;
