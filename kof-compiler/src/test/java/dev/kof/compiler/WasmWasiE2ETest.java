@@ -468,26 +468,44 @@ class WasmWasiE2ETest {
                 "nested-record fields must equal the JVM oracle");
     }
     @Test
-    void recordNestedFieldStillRefusesHonestly(@TempDir Path dir) throws Exception {
-        // fatia C1+C2+D verdes (above): toString/println/valueOf/concat, ==/!= de
-        // conteudo e campos record-aninhados. `equals` explicito de record ainda
-        // recusa honesto WASM002 naming plan + slice + #776, NO artifacts (Q7):
-        // dispatch virtual nao existe no backend; a fatia E rota p/ o fold inline.
+    void explicitRecordEqualsMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // 15.3d inc2 fatia E: `p.equals(q)` EXPLICITO roteado p/ o mesmo fold de
+        // conteudo do `==` (sem dispatch virtual) — contrato §262: equals
+        // explicito de record = igualdade de CONTEUDO em todo target.
+        var wasmtime = host("wasmtime");
+        assumeTrue(wasmtime != null, "wasmtime host absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                record Point(Int x, Int y)
+                record Pair(String a, Int n)
+                main(String[] args) {
+                    var p = Point(1, 2)
+                    println(p.equals(Point(1, 2)))
+                    println(p.equals(Point(1, 3)))
+                    println(!p.equals(Point(2, 2)))
+                    println(Pair("ab", 7).equals(Pair("ab", 7)))
+                    println(Pair("ab", 7).equals(Pair("cd", 7)))
+                }
+                """);
         var driver = new CompilerDriver();
-        record Case(String name, String src) {}
-        for (Case c : List.of(
-                new Case("record-explicit-equals", "record Point(Int x, Int y)\n"
-                        + "main(String[] args) {\n    var p = Point(1, 2)\n    println(p.equals(Point(1, 2)))\n}\n"))) {
-            Path src = dir.resolve("Refuse-" + c.name() + ".kf");
-            Files.writeString(src, c.src());
-            Path out = dir.resolve("out-" + c.name());
-            var r = driver.compile(src, out, Target.WASI);
-            assertFalse(r.success(), c.name() + " must refuse WASM002 (explicit record equals)");
-            String msg = r.diagnostics().getDiagnostics().toString();
-            assertTrue(msg.contains("WASM002") && msg.contains("#776")
-                    && msg.contains("wasm-wasi-plan"), c.name() + " honest: " + msg);
-            assertFalse(Files.exists(out.resolve("Default")), c.name() + ": refusal emits NO artifacts");
-        }
+        var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
+        assertTrue(jvm.success(), "jvm explicit-equals compile: " + jvm.diagnostics().getDiagnostics());
+        var oracle = new ProcessBuilder(List.of(jvmBin(), "-cp",
+                Path.of(dir.toString(), "out-jvm").toString(), "Default.Main"))
+                .redirectErrorStream(true).start();
+        String expected = new String(oracle.getInputStream().readAllBytes());
+        assertTrue(oracle.waitFor(120, TimeUnit.SECONDS) && oracle.exitValue() == 0,
+                "JVM explicit-equals oracle: " + expected);
+        var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
+        assertTrue(wasi.success(), "wasi explicit-equals compile: " + wasi.diagnostics().getDiagnostics());
+        var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
+                Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm").toString()))
+                .redirectErrorStream(true).start();
+        String out = new String(proc.getInputStream().readAllBytes());
+        assertTrue(proc.waitFor(60, TimeUnit.SECONDS), "host within 60s");
+        assertEquals(0, proc.exitValue(), "clean WASI exit explicit-equals: " + out);
+        assertEquals(expected.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                "explicit record equals must equal the JVM oracle");
     }
 
     @Test

@@ -34,6 +34,14 @@ final class WasmRecordCtor {
         return ctx.wasi && kc.kind() == KofCallKind.FUNCTION && "kofRecordEq".equals(kc.methodName());
     }
 
+    /** Fatia E (15.3d inc2): `p.equals(q)` EXPLICITO em dono-record — sem dispatch
+     * virtual o call site e roteado p/ o MESMO fold de conteudo do `==` (contrato
+     * §262: equals explicito == igualdade de conteudo, nunca identidade). */
+    static boolean isRecordEqualsCall(Ctx ctx, KofCall kc) {
+        return ctx.wasi && (kc.kind() == KofCallKind.INSTANCE || kc.kind() == KofCallKind.INTERFACE)
+                && "equals".equals(kc.methodName()) && ctx.recordOf(kc.ownerType()) != null;
+    }
+
     static void lowerNewObject(Ctx ctx, KofNewObject no, List<WasmInstr> out) {
         ClassLayout layout = ctx.recordOf(no.type());
         if (layout == null || ctx.objIdx < 0) {

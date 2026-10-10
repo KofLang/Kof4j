@@ -451,7 +451,7 @@ final class WasmLowering {
                 && ctx.wasi && "System".equals(ownerSimpleName(gs.ownerType())) && "out".equals(gs.name())) {
             // receiver do println — nao empilha nada; a rota println consome so o argumento
         } else if (op instanceof KofCall kc) {
-            if (WasmRecordCtor.isRecordEq(ctx, kc)) {
+            if (WasmRecordCtor.isRecordEq(ctx, kc) || WasmRecordCtor.isRecordEqualsCall(ctx, kc)) {
                 WasmRecordCtor.lowerRecordEq(ctx, kc, out);
             } else if (WasmRecordCtor.isRecordInit(ctx, kc)) {
                 WasmRecordCtor.lowerRecordInit(ctx, kc, out);
