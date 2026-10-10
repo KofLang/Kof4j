@@ -155,7 +155,7 @@ class FfiCrossHfaReturnE2ETest {
         }
     }
 
-    private void runQemu(Path dir, String arch, Target t, String fixtureAsm, String kof, String tag)
+    private void runQemuCrossFixture(Path dir, String arch, Target t, String fixtureAsm, String kof, String tag)
             throws IOException, InterruptedException {
         Path s = dir.resolve("hfarefix-" + arch + ".s");
         Path o = dir.resolve("hfarefix-" + arch + ".o");
@@ -172,14 +172,7 @@ class FfiCrossHfaReturnE2ETest {
         CompilationResult r = driver.compile(src, out, t);
         assertTrue(r.success(), "M1 unidade-2: retorno homogêneo-flutuante deve bindar em "
                 + arch + " (era FFI001 honesto até aqui): " + r.diagnostics().getDiagnostics());
-        ProcessBuilder pb = NativeRiscv64E2ETest.qemu(arch, out.resolve("Default/Main"));
-        pb.environment().put("LD_LIBRARY_PATH", dir.toString());
-        pb.redirectErrorStream(true);
-        Process p = pb.start();
-        String outStr = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
-                .replace("\r\n", "\n").trim();
-        assertTrue(p.waitFor(60, TimeUnit.SECONDS), arch + " must finish");
-        assertEquals(0, p.exitValue(), arch + " exit, output: " + outStr);
+        String outStr = NativeRiscv64E2ETest.runQemuWithLibPath(dir, arch, out.resolve("Default/Main"));
         assertEquals(tag.equals("vf") ? GOLDEN_VF : GOLDEN_VD, outStr,
                 "JVM==" + arch + " (retorno HFA por ordinal FP)");
     }
@@ -212,7 +205,7 @@ class FfiCrossHfaReturnE2ETest {
             String hostSo = buildHostLib(dir);
             assertEquals(GOLDEN_VD, runJvm(dir, KOF_VD.formatted(hostSo), "vd-" + arch),
                     "oráculo JVM deve concordar byte-a-byte (regra 5)");
-            runQemu(dir, arch, t, a[2], KOF_VD, "vd");
+            runQemuCrossFixture(dir, arch, t, a[2], KOF_VD, "vd");
         }
     }
 
@@ -227,7 +220,7 @@ class FfiCrossHfaReturnE2ETest {
             String hostSo = buildHostLib(dir);
             assertEquals(GOLDEN_VF, runJvm(dir, KOF_VF.formatted(hostSo), "vf-" + arch),
                     "oráculo JVM do VF deve concordar (regra 5)");
-            runQemu(dir, arch, t, a[2], KOF_VF, "vf");
+            runQemuCrossFixture(dir, arch, t, a[2], KOF_VF, "vf");
         }
     }
 

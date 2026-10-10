@@ -188,7 +188,7 @@ class BufferRuntimeBorrowE2ETest {
             Path out = dir.resolve("out-borrow-single-" + arch);
             CompilationResult r = driver.compile(src, out, t);
             assertTrue(r.success(), arch + " compile: " + r.diagnostics().getDiagnostics());
-            String o = runQemu(dir, arch, out.resolve("Default/Main"));
+            String o = NativeRiscv64E2ETest.runQemuWithLibPath(dir, arch, out.resolve("Default/Main"));
             assertFalse(o.contains("MEM020"), arch + ": single writer must never raise MEM020; got:\n" + o);
             assertEquals("2\n[9, 0]", o, arch + " golden (borrow acquire/release + payload untouched)");
         }
@@ -222,7 +222,7 @@ class BufferRuntimeBorrowE2ETest {
             Path out = dir.resolve("out-borrow-seq-" + arch);
             CompilationResult r = driver.compile(src, out, t);
             assertTrue(r.success(), arch + " compile: " + r.diagnostics().getDiagnostics());
-            String o = runQemu(dir, arch, out.resolve("Default/Main"));
+            String o = NativeRiscv64E2ETest.runQemuWithLibPath(dir, arch, out.resolve("Default/Main"));
             assertFalse(o.contains("MEM020"), arch + ": release must clear the flag; got:\n" + o);
             assertEquals("2\n2\n[8, 0]", o, arch + " golden (second sequential writer succeeds)");
         }
@@ -290,18 +290,6 @@ class BufferRuntimeBorrowE2ETest {
         assertTrue(p.waitFor(60, TimeUnit.SECONDS), "native must finish after GO");
         reader.join(5000);
         return output.toString().replace("\r\n", "\n").trim();
-    }
-
-    private static String runQemu(Path dir, String arch, Path bin) throws IOException, InterruptedException {
-        ProcessBuilder pb = NativeRiscv64E2ETest.qemu(arch, bin);
-        pb.environment().put("LD_LIBRARY_PATH", dir.toString());
-        pb.redirectErrorStream(true);
-        Process p = pb.start();
-        String o = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
-                .replace("\r\n", "\n").trim();
-        assertTrue(p.waitFor(60, TimeUnit.SECONDS), arch + " must finish");
-        assertEquals(0, p.exitValue(), arch + " exit, output: " + o);
-        return o;
     }
 
     private static String runQemuWithBarrier(Path dir, String arch, Path bin,

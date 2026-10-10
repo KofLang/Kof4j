@@ -203,7 +203,7 @@ class FfiNativeArrayE2ETest {
             CompilationResult rc = driver.compile(src, out, t);
             assertTrue(rc.success(), "D-MEM-FFI-CROSS-FULL: scalar array extern must bind on "
                     + arch + ": " + rc.diagnostics().getDiagnostics());
-            assertEquals(GOLDEN, runQemu(dir, arch, out.resolve("Default/Main")),
+            assertEquals(GOLDEN, NativeRiscv64E2ETest.runQemuWithLibPath(dir, arch, out.resolve("Default/Main")),
                     "JVM==" + arch + " (scalar array cross copy-in)");
         }
     }
@@ -219,18 +219,6 @@ class FfiNativeArrayE2ETest {
         assumeTrue(p.waitFor(60, TimeUnit.SECONDS) && p.exitValue() == 0,
                 cc + " falhou ao compilar a fixture cross: " + out);
         return so.toString();
-    }
-
-    private static String runQemu(Path dir, String arch, Path bin) throws IOException, InterruptedException {
-        ProcessBuilder pb = NativeRiscv64E2ETest.qemu(arch, bin);
-        pb.environment().put("LD_LIBRARY_PATH", dir.toString());
-        pb.redirectErrorStream(true);
-        Process p = pb.start();
-        String o = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
-                .replace("\r\n", "\n").trim();
-        assertTrue(p.waitFor(60, TimeUnit.SECONDS), arch + " must finish");
-        assertEquals(0, p.exitValue(), arch + " exit, output: " + o);
-        return o;
     }
 
     private String runJvm(Path outDir) throws IOException {

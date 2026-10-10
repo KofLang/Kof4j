@@ -788,6 +788,23 @@ affected batteries **18 run / 0F / 0E / 0 skipped** (the cross riscv64+aarch64
 legs actually executed); `check_test_hygiene` rc=0 with `dupname runQemuE`
 **eliminated** — baseline re-frozen 118→**117**.
 
+**Phase 5 ratchet repair LANDED (10/10, lane compiler/JVM/native `192.168.15.30:9092`):**
+the `dupname runQemu` key reappeared as NEW debt after the M1/native-cross landings
+stacked local helpers again instead of the shared one. The block that was
+byte-duplicated as a private `runQemu(Path dir, String arch, Path bin)` — run the
+cross binary under QEMU with `LD_LIBRARY_PATH=dir`, require exit 0 within 60 s,
+return the normalised stdout — now lives once as `NativeRiscv64E2ETest.runQemuWithLibPath`
+(the class that already owns `qemu()`/`runBounded`). `BufferRuntimeBorrowE2ETest`,
+`FfiNativeArrayE2ETest` and `FfiNativeStringArrayE2ETest` call it and drop their local
+copies; `FfiCrossHfaReturnE2ETest`'s `void runQemu(...)` (a compile-and-assert wrapper
+with a distinct signature) is renamed `runQemuCrossFixture` and delegates its run tail
+to the shared helper. No test body, target or assertion moved. Proof (executed):
+`check_test_hygiene` rc=0 (`dupname runQemu` eliminated, 117 keys, 0 new debt);
+`mvn -o -pl kof-compiler -am test-compile` rc=0; the affected batteries
+`BufferRuntimeBorrowE2ETest` 8/0F, `FfiNativeArrayE2ETest` 3/0F,
+`FfiNativeStringArrayE2ETest` 2/0F, `FfiCrossHfaReturnE2ETest` 5/0F/0 skipped
+(the cross riscv64+aarch64 legs executed), `NativeRiscv64E2ETest` 58/0F.
+
 ### Phase 6 — Conformance
 
 Build the official equivalence suite.

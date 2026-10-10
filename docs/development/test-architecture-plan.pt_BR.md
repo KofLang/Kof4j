@@ -792,6 +792,22 @@ baterias afetadas **18 rodados / 0F / 0E / 0 pulados** (as pernas cross riscv64+
 realmente executaram); `check_test_hygiene` rc=0 com `dupname runQemuE` **eliminada** —
 baseline re-congelada 118→**117**.
 
+**Reparo do ratchet da Fase 5 ENTREGUE (10/10, lane compilador/JVM/nativo `192.168.15.30:9092`):**
+a chave `dupname runQemu` reapareceu como dívida NOVA depois que as aterrissagens M1/native-cross
+empilharam helpers locais de novo em vez do compartilhado. O bloco que era duplicado byte-a-byte
+como um `runQemu(Path dir, String arch, Path bin)` privado — roda o binário cross sob QEMU com
+`LD_LIBRARY_PATH=dir`, exige exit 0 em 60 s, devolve o stdout normalizado — agora vive uma vez como
+`NativeRiscv64E2ETest.runQemuWithLibPath` (a classe que já é dona de `qemu()`/`runBounded`).
+`BufferRuntimeBorrowE2ETest`, `FfiNativeArrayE2ETest` e `FfiNativeStringArrayE2ETest` o chamam e
+largam as cópias locais; o `void runQemu(...)` do `FfiCrossHfaReturnE2ETest` (um wrapper
+compila-e-afirma com assinatura distinta) é renomeado `runQemuCrossFixture` e delega sua cauda de
+execução ao helper compartilhado. Nenhum corpo de teste, alvo ou asserção mudou. Prova (executada):
+`check_test_hygiene` rc=0 (`dupname runQemu` eliminada, 117 chaves, 0 dívida nova);
+`mvn -o -pl kof-compiler -am test-compile` rc=0; as baterias afetadas
+`BufferRuntimeBorrowE2ETest` 8/0F, `FfiNativeArrayE2ETest` 3/0F, `FfiNativeStringArrayE2ETest` 2/0F,
+`FfiCrossHfaReturnE2ETest` 5/0F/0 pulados (as pernas cross riscv64+aarch64 executaram),
+`NativeRiscv64E2ETest` 58/0F.
+
 ### Fase 6 — Conformance
 
 Criar suíte oficial de equivalência.

@@ -72,6 +72,24 @@ class NativeRiscv64E2ETest implements NativeToolchainAssumptions {
         return output;
     }
 
+    /** Shared tail for cross E2E tests whose program links a shim (so the
+     *  binary needs {@code LD_LIBRARY_PATH=dir}): runs {@code bin} for
+     *  {@code arch} under qemu, requires exit 0 within 60s and returns the
+     *  normalised stdout. This is the block that was byte-duplicated as a
+     *  private {@code runQemu} in six test classes (test-architecture Fase 5
+     *  ratchet). */
+    static String runQemuWithLibPath(Path dir, String arch, Path bin) throws IOException, InterruptedException {
+        ProcessBuilder pb = qemu(arch, bin);
+        pb.environment().put("LD_LIBRARY_PATH", dir.toString());
+        pb.redirectErrorStream(true);
+        Process p = pb.start();
+        String o = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                .replace("\r\n", "\n").trim();
+        assertTrue(p.waitFor(60, TimeUnit.SECONDS), arch + " must finish");
+        assertEquals(0, p.exitValue(), arch + " exit, output: " + o);
+        return o;
+    }
+
     /** FLT001 (15/09): programas que imprimem FP linkam DINAMICAMENTE com a
      *  libc — o loader resolve-se em {@code <QEMU_LD_PREFIX>/lib/}. Escolhe o
      *  sysroot disponível (KOF_CROSS_SYSROOT > /tmp/opencode/x > sistema). */
