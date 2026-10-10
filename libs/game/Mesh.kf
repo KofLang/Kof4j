@@ -1,5 +1,7 @@
 package game
 
+import game.Scene3d
+
 // kof.game — 3D mesh intent (slice 3.5a of the graphics/gaming front,
 // `D-GRAPHICS-GAMING`; the 3D level PROMOTED to the active scope 08/10 by
 // the maintainer).
@@ -111,6 +113,16 @@ class Mesh {
 
     Bool isVisible() {
         return this.visible
+    }
+
+    // Record this mesh into `queue` (a no-op while invisible).
+    Mesh draw(Scene3d queue) {
+        if (this.visible) {
+            queue.addCmd(DrawCmd3d(this.path, this.x, this.y, this.z,
+                this.scaleX, this.scaleY, this.scaleZ,
+                this.rotXDeg, this.rotYDeg, this.rotZDeg))
+        }
+        return this
     }
 
     Double posX() {

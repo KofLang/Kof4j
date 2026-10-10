@@ -4,9 +4,9 @@
 
 **Owner:** `192.168.15.15:9092` — lane security/connectors, graphics/gaming front; re-claimed 05/10 (the spike-3.0 `192.168.15.30:9093` claims were runner/tooling, historical).
 
-last: slice-3.5a LANDED 09/10 (the 3D intent surface: `libs/game/Camera3d.kf` + `Mesh.kf` + `Material.kf` + `Light3d.kf` — eye/target/fov/near/far, mesh instance transform (pos/scale/absolute Euler rotation), material color/shine/alpha, light position/color/intensity; guards throw on meaningless values; NO matrix math (the cross refuses math.sqrt — MATH001); `GameScene3dE2ETest` 6/6, 0 skips — JVM + Script + Native x86-64 + JS + riscv64 + aarch64; the game corpus updated (idioms game.md + PT); game battery 75/0F/0 skips)
-doing: slice-3.5b (the 3D scene draw queue) + 3.4c poke (the write counterpart of peek)
-next: 3.5b = the 3D scene draw queue (the 2D Draw pattern: DrawCmd3d + ordered list; hidden meshes record nothing) + 3.4c poke (unlock the av_*_free calls in the video flow) — one slice each, then the media front is surface-complete
+last: slice-3.5b LANDED 09/10 (the 3D scene draw queue: `libs/game/Scene3d.kf` — `DrawCmd3d` snapshot records IN ORDER, hidden meshes record nothing, `Mesh.draw(queue)` mirrors the Sprite pattern; `GameScene3dE2ETest` 6/6 0 skips — the probe covers the camera/mesh/material/light + the queue; game battery 75/0F; the corpus 3D snippet compile-checked with the game lib installed)
+doing: slice-3.4c (poke — the write counterpart of peek) then the pure-surface promotion of this plan to docs/
+next: 3.4c = `buffer.poke8/32/64` (raw + Buffer forms, bounds trap) unlocking the av_*_free calls in the video flow + then the plan promotes to docs/ (the pure surface complete + validated; the backend faces — view matrix, mesh loading, shading, present, decode queue — stay documented as the boundary)
 location: docs/development
 state: UNDER DEVELOPMENT
 

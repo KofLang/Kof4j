@@ -114,6 +114,17 @@ class GameScene3dE2ETest implements LibraryInstallSupport {
                     var sun = light()
                     sun.at(10.0, 20.0, 30.0).color("warm").intensity(0.8)
                     println("lit=" + ((sun.posY() * 1000.0) as Int) + " " + steel.hex() + " " + sun.hex() + " " + ((sun.power() * 1000.0) as Int))
+                    var scene = Scene3d()
+                    hero.show()
+                    hero.at(2.0, 0.0, 0.0)
+                    scene.draw(hero)
+                    var ghost = mesh("ghost.glb", 8, 6)
+                    ghost.hide()
+                    scene.draw(ghost)
+                    scene.draw(hero.at(3.0, 0.0, 0.0))
+                    println("scene=" + scene.size() + " y0=" + ((scene.commandAt(0).y() * 1000.0) as Int) + " m1=" + scene.commandAt(1).model() + " x1=" + ((scene.commandAt(1).x() * 1000.0) as Int))
+                    scene.clear()
+                    println("cleared=" + scene.size())
                     try {
                         mesh("bad.glb", 24, 35)
                         println("threw=no")
@@ -134,6 +145,8 @@ class GameScene3dE2ETest implements LibraryInstallSupport {
                 visible=false
                 mat=steel 64000 500
                 lit=20000 steel warm 800
+                scene=2 y0=0 m1=hero.glb x1=3000
+                cleared=0
                 threw=yes""";
     }
 

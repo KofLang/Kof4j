@@ -205,6 +205,9 @@ hero.at(1.0, 0.0, 0.0).scale(2.0, 2.0, 2.0).rotate(0.0, 90.0, 0.0)
 println(hero.triangles()) // 12 (indexCount / 3)
 var steel = material().color("steel").shininess(64.0).opacity(0.5)
 var sun = light().at(10.0, 20.0, 30.0).intensity(0.8)
+var scene = Scene3d()
+scene.draw(hero.at(1.0, 0.0, 0.0))   // snapshot IN ORDER; hidden meshes record nothing
+println(scene.commandAt(0).x())      // record accessors
 ```
 
 Pure state: the view matrix (perspective/lookAt), mesh loading (glTF/OBJ)

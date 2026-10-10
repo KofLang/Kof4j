@@ -206,6 +206,9 @@ hero.at(1.0, 0.0, 0.0).scale(2.0, 2.0, 2.0).rotate(0.0, 90.0, 0.0)
 println(hero.triangles()) // 12 (indexCount / 3)
 var steel = material().color("steel").shininess(64.0).opacity(0.5)
 var sun = light().at(10.0, 20.0, 30.0).intensity(0.8)
+var scene = Scene3d()
+scene.draw(hero.at(1.0, 0.0, 0.0))   // snapshot EM ORDEM; meshes escondidas não registram nada
+println(scene.commandAt(0).x())      // acessores do registro
 ```
 
 Estado puro: a matriz de visão (perspective/lookAt), o carregamento de mesh

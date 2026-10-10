@@ -3,9 +3,9 @@
 # Graphics, Games e Media — Superfície de Intenção do Kof
 
 last: fatia-3.4a probe do backend POUSADA 09/10 (decisão F executada: FFmpeg 9.0.2 upstream LGPL-2.1+ vendido `~/.local/share/kof-ffmpeg/usr` da fonte, SEM `--enable-gpl`, `scripts/provision-ffmpeg.sh`; `FfmpegFfiProbeE2ETest` 4/4 — licença do probe `LGPL version 2.1 or later` em JVM + Native x86-64, faces cross pulam com motivo; fix `-rpath-link` do dir de extern no `NativeAssembler` para o fecho DT_NEEDED do vendor resolver antes da pilha ffmpeg conflitante da distro)
-last: fatia-3.5a POUSADA 09/10 (a superfície de intenção 3D: `libs/game/Camera3d.kf` + `Mesh.kf` + `Material.kf` + `Light3d.kf` — eye/target/fov/near/far, transform de instância da mesh (pos/scale/rotação Euler absoluta), material color/shine/alpha, luz position/color/intensity; guards lançam em valores sem significado; SEM matemática de matriz (o cross recusa math.sqrt — MATH001); `GameScene3dE2ETest` 6/6, 0 skips — JVM + Script + Native x86-64 + JS + riscv64 + aarch64; corpus game atualizado (idiomas game.md + PT); bateria game 75/0F/0 skips)
-doing: fatia-3.5b (a fila de draw da cena 3D) + poke 3.4c (a contraparte de escrita do peek)
-next: 3.5b = a fila de draw da cena 3D (o padrão Draw 2D: DrawCmd3d + lista ordenada; meshes escondidas não registram nada) + poke 3.4c (desbloqueia as chamadas av_*_free no fluxo de video) — uma fatia cada, depois a frente de media está completa na superfície
+last: fatia-3.5b POUSADA 09/10 (a fila de draw da cena 3D: `libs/game/Scene3d.kf` — `DrawCmd3d` snapshot registra EM ORDEM, meshes escondidas não registram nada, `Mesh.draw(queue)` espelha o padrão do Sprite; `GameScene3dE2ETest` 6/6 0 skips — o probe cobre câmera/mesh/material/luz + a fila; bateria game 75/0F; o snippet 3D do corpus com compile verificado com a lib game instalada)
+doing: fatia-3.4c (poke — a contraparte de escrita do peek) e então a promoção desta superfície pura do plano para docs/
+next: 3.4c = `buffer.poke8/32/64` (formas raw + Buffer, trap de bounds) desbloqueando as chamadas av_*_free no fluxo de video + depois o plano promove para docs/ (a superfície pura completa + validada; as faces de backend — matriz de visão, carregamento de mesh, shading, present, fila de decode — ficam documentadas como a fronteira)
 state: UNDER DEVELOPMENT
 
 **Dono:** `192.168.15.15:9092` — lane security/connectors, frente graphics/gaming; reivindicado 05/10 (os claims do spike-3.0 `192.168.15.30:9093` eram runner/tooling, históricos).
