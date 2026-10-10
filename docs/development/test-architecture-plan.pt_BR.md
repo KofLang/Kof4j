@@ -1054,6 +1054,26 @@ medido primeiro no alvo Script, cruzado com `docs/stdlib/README.md`/`KofTime`, e
 congelado; `tests/run-golden.sh` **176/176** (44 casos × 4 alvos: jvm/native/js/script),
 exit 0.
 
+**Fatia 20 da Fase 6 ENTREGUE (10/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais
+um caso — **45 no total** — pinando a superfície determinística do namespace `kof.uuid`,
+`uuid.isUuid` (o validador de forma; paridade ✅ nos quatro alvos), que NENHUM caso de
+equivalência exercitava: `uuid-namespace` cobre uma forma v4 canônica minúscula
+(`123e4567-e89b-12d3-a456-426614174000`=true) E uma forma v1
+(`6ba7b810-9dad-11d1-80b4-00c04fd430c8`=true — `isUuid` checa a FORMA, não versão/variante),
+o UUID todo-zero (`00000000-0000-0000-0000-000000000000`=true), **hex MAIÚSCULO
+(`123E4567-E89B-12D3-A456-426614174000`=true — medido nos quatro alvos antes de congelar)**,
+e o conjunto malformado todo false: 35 chars (um a menos), 37 chars (um a mais), sem hífens
+(32 hex), um char não-hex (`g`), um hífen em posição errada, hífens em posições trocadas
+(`1234-5678-1234-1234-1234567890ab`), a string vazia e um hífen no fim. **Nota de escopo
+(medida):** `uuid.v4()`/`v7()` são NÃO-determinísticos (RFC 4122/9562), então não podem ser
+pinados por um caso de equivalência; `v4()` além disso NÃO roda sob o harness golden do
+alvo `js` — `kof build --target js` + `node` puro lança `kof_platform.randomBytesHex: not
+available outside the Kof JS host` (a entropia do uuid no JS precisa do host Kof JS,
+exercitado pelo `KofUuidTest` e não pelo golden). Só infraestrutura de teste, sem mudança
+no compilador. Prova (executada): cada valor medido primeiro no alvo Script, cruzado em
+jvm/nativo/js (os quatro concordam), então congelado; `tests/run-golden.sh` **180/180**
+(45 casos × 4 alvos), exit 0.
+
 ### Fase 7 — Integração
 
 Implantar:

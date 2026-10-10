@@ -1051,6 +1051,26 @@ change. Proof (executed): every value measured on the Script target first,
 cross-checked against `docs/stdlib/README.md`/`KofTime`, then frozen;
 `tests/run-golden.sh` **176/176** (44 cases × 4 targets: jvm/native/js/script), exit 0.
 
+**Phase 6 slice 20 LANDED (10/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **45 total** — pinning the `kof.uuid` namespace's deterministic surface,
+`uuid.isUuid` (the shape validator; parity ✅ on all four targets), which NO equivalence
+case exercised: `uuid-namespace` covers a canonical lowercase v4-shape
+(`123e4567-e89b-12d3-a456-426614174000`=true) AND a v1-shape
+(`6ba7b810-9dad-11d1-80b4-00c04fd430c8`=true — `isUuid` checks the SHAPE, not
+version/variant), the all-zero UUID (`00000000-0000-0000-0000-000000000000`=true),
+**uppercase hex (`123E4567-E89B-12D3-A456-426614174000`=true — measured on all four
+targets before freezing)**, and the malformed set all false: 35 chars (one short),
+37 chars (one long), no dashes (32 hex), a non-hex char (`g`), a misplaced dash,
+dashes in the wrong positions (`1234-5678-1234-1234-1234567890ab`), the empty string,
+and a trailing dash. **Scope note (measured):** `uuid.v4()`/`v7()` are NON-deterministic
+(RFC 4122/9562) so they cannot be pinned by an equivalence case; `v4()` additionally does
+NOT run under the golden `js` harness — `kof build --target js` + plain `node` throws
+`kof_platform.randomBytesHex: not available outside the Kof JS host` (the JS uuid entropy
+needs the Kof JS host, exercised by `KofUuidTest` not by golden). Test-infrastructure
+only, no compiler change. Proof (executed): every value measured on the Script target
+first, cross-checked on jvm/native/js (all four agree), then frozen; `tests/run-golden.sh`
+**180/180** (45 cases × 4 targets), exit 0.
+
 ### Phase 7 — Integration
 
 Deploy:
