@@ -1022,6 +1022,20 @@ guard cross-target em nível de byte: o caminho nativo percorre UTF-8 por byte e
 nos quatro alvos. Prova (executada): `tests/run-golden.sh` **168/168** (42 casos × 4 alvos),
 exit 0.
 
+**Fatia 18 da Fase 6 ENTREGUE (10/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais
+um caso — **43 no total** — pinando o namespace `kof.validation`, uma superfície de
+validadores em Kof puro (matriz de paridade ✅ nos quatro alvos) que NENHUM caso de
+equivalência exercitava: `validation-namespace` cobre os documentos BR
+(`isCpf("52998224725")`=true mas o todo-igual `isCpf("11111111111")`=false — a regra do
+dígito verificador, `isCnpj("11222333000181")`=true, `isCep("01310-100")`=true), as faces
+de rede (`isIpv4("192.168.0.1")`=true/`isIpv4("256.1.1.1")`=false, `isIpv6("::1")`=true,
+`isMac("00:1A:2B:3C:4D:5E")`=true, o arg-Int `isPort(8080)`=true/`isPort(99999)`=false,
+`isDomain("example.com")`=true), o Luhn `isCreditCard("4242424242424242")`=true/
+`isCreditCard("1234567890123456")`=false, e os formatadores LENIENTES que pontuam sem
+validar (`formatCpf("52998224725")`=`529.982.247-25`, `formatCep("01310100")`=`01310-100`,
+`formatCnpj("11222333000181")`=`11.222.333/0001-81`). Validado nos quatro alvos. Prova
+(executada): `tests/run-golden.sh` **172/172** (43 casos × 4 alvos), exit 0.
+
 ### Fase 7 — Integração
 
 Implantar:

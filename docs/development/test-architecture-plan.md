@@ -1019,6 +1019,21 @@ byte-level cross-target guard: the native path walks UTF-8 by byte and JS uses
 on all four targets. Proof (executed): `tests/run-golden.sh` **168/168** (42 cases
 × 4 targets), exit 0.
 
+**Phase 6 slice 18 LANDED (10/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **43 total** — pinning the `kof.validation` namespace, a pure-Kof
+validator surface (parity matrix ✅ on all four targets) that NO equivalence case
+exercised: `validation-namespace` covers the BR documents
+(`isCpf("52998224725")`=true but the all-equal `isCpf("11111111111")`=false — the
+check-digit rule, `isCnpj("11222333000181")`=true, `isCep("01310-100")`=true), the
+network faces (`isIpv4("192.168.0.1")`=true/`isIpv4("256.1.1.1")`=false,
+`isIpv6("::1")`=true, `isMac("00:1A:2B:3C:4D:5E")`=true, the Int-arg
+`isPort(8080)`=true/`isPort(99999)`=false, `isDomain("example.com")`=true), the Luhn
+`isCreditCard("4242424242424242")`=true/`isCreditCard("1234567890123456")`=false, and
+the LENIENT formatters that punctuate without validating
+(`formatCpf("52998224725")`=`529.982.247-25`, `formatCep("01310100")`=`01310-100`,
+`formatCnpj("11222333000181")`=`11.222.333/0001-81`). Validated on all four targets.
+Proof (executed): `tests/run-golden.sh` **172/172** (43 cases × 4 targets), exit 0.
+
 ### Phase 7 — Integration
 
 Deploy:
