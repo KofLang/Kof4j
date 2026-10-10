@@ -27,7 +27,7 @@ main(args: List<String>) {
         if (platform.isWindows()) NullDevice.ensure()
 
         var fs = platform.fileSystem()
-        var github = GitHubClient("KofLang/Kof4j", platform.id(), Env.get("GITHUB_TOKEN"))
+        var github = GitHubClient("KofLang/Kof4j", platform.id(), Env.get("GITHUB_TOKEN"), ReleaseCache(home, platform.id(), VERSION), CurlTransport(), 600000L)
         var store = Store(home, platform.id(), fs)
         var installer = Installer(github, store, fs, logger)
         var installed = InstalledVersions(github, store)
