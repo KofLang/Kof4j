@@ -58,6 +58,24 @@ public final class ChromeHeadlessProvider implements BrowserProvider {
         return out;
     }
 
+    @Override
+    public void screenshot(String url, String path) throws Exception {
+        ProcessBuilder pb = new ProcessBuilder(chromePath,
+                "--headless", "--disable-gpu", "--screenshot=" + path,
+                "--window-size=1280,800", url);
+        pb.redirectErrorStream(true);
+        Process p = pb.start();
+        boolean done = p.waitFor(120, TimeUnit.SECONDS);
+        if (!done) { p.destroyForcibly(); throw new IOException("chrome timed out on " + url); }
+        String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        if (p.exitValue() != 0) {
+            throw new IOException("chrome exit " + p.exitValue() + ": " + out);
+        }
+        if (!java.nio.file.Files.isRegularFile(Path.of(path))) {
+            throw new IOException("chrome did not write the screenshot: " + out);
+        }
+    }
+
     /** O Chrome/Chromium disponível (PATH + os caminhos padrão + o bundle
      *  macOS + o Playwright's `~/.cache/ms-playwright/chromium-*` — instalado
      *  por `npx playwright install chromium`, a fatia de browser real do §6),

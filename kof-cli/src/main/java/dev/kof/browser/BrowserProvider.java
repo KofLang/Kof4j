@@ -25,4 +25,12 @@ public interface BrowserProvider {
 
     /** Navega para a URL e devolve o DOM renderizado (dump). */
     String dumpDom(String url) throws Exception;
+
+    /** Captura um screenshot da página em {@code path}. O default é a
+     *  recusa honesta da capacidade (`capability unsupported`) — o plano §6.3:
+     *  um backend que não tem a capacidade nunca finge equivalência. */
+    default void screenshot(String url, String path) throws Exception {
+        throw new UnsupportedOperationException(
+                "capability unsupported: screenshot on " + name());
+    }
 }

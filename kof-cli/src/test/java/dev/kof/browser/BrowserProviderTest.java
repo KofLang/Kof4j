@@ -1,6 +1,7 @@
 package dev.kof.browser;
 
 import org.junit.jupiter.api.Test;
+import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -35,6 +36,20 @@ class BrowserProviderTest {
         assertTrue(version.toLowerCase().contains("chrome")
                         || version.toLowerCase().contains("chromium"),
                 "probe devolve a versão do Chrome: " + version);
+    }
+
+    @Test
+    void screenshotWritesRealPng() throws Exception {
+        ChromeHeadlessProvider found = ChromeHeadlessProvider.find();
+        assumeTrue(found != null, "sem Chrome no host — o screenshot pula com o motivo");
+        Path shot = java.nio.file.Files.createTempFile("kof-shot", ".png");
+        found.screenshot("data:text/html,<h1>kof-test</h1>", shot.toString());
+        byte[] head = java.nio.file.Files.readAllBytes(shot);
+        assertTrue(head.length > 8, "screenshot não vazio");
+        assertEquals(0x89, head[0] & 0xFF, "PNG magic");
+        assertEquals(0x50, head[1] & 0xFF, "PNG magic 'P'");
+        assertEquals(0x4E, head[2] & 0xFF, "PNG magic 'N'");
+        assertEquals(0x47, head[3] & 0xFF, "PNG magic 'G'");
     }
 
     @Test
