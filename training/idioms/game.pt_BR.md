@@ -1,4 +1,4 @@
-[English](game.md)
+[English](game.md) | [Português](game.pt_BR.md)
 
 # Idiomas — Jogos (kof.game)
 

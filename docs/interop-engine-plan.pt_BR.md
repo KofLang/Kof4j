@@ -1,3 +1,5 @@
+[English](interop-engine-plan.md) | [Português](interop-engine-plan.pt_BR.md)
+
 # X2 — motor oficial `interop` (Python/R) — plano de implementação
 
 last: fatia-4-cross

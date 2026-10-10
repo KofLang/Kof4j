@@ -1,3 +1,5 @@
+[English](README.md) | [Português](README.pt_BR.md)
+
 # Learn Programming with PortuKof 🚀
 
 **PortuKof is Kof in Portuguese.** The same language, the same errors, the same

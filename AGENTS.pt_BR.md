@@ -1,3 +1,5 @@
+[English](AGENTS.md) | [Português](AGENTS.pt_BR.md)
+
 # AGENTS.md
 
 last: protocolo 0.6.0 + GATE WASI (07/10 ordem da mantenedora `D-WEB-WASI-DEFAULT-0710`: plano wasm/wasi promovido, WASI = padrao de frontend web+desktop, #776 `1.0-blocks` barra o corte; gates estruturais rc=0; suite 7F nao-WASI (4 deterministas externos §628/JavaFX + 3 ambientais provados por carga; 0 WASI, bateria 23/23); §625+§627+§631 corrigidos 08/10 pela lane .30:9092) — 7 frentes rule-6 decididas; #761 reclassificado `tracking/contract`, permanente, nunca bloqueia corte; tip do lab 7ffd088ee, gates estruturais rc=0)

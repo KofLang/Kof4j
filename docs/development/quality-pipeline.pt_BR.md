@@ -1,3 +1,5 @@
+[English](quality-pipeline.md) | [Português](quality-pipeline.pt_BR.md)
+
 # Esteira de qualidade — política de branches executável
 
 last: 14.3-promotion-tooling (gate de suite + contagens scripted, #657)

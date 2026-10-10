@@ -1,4 +1,4 @@
-[English](net.md)
+[English](net.md) | [Português](net.pt_BR.md)
 
 # Idiomas — Rede (kof.net)
 

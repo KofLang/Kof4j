@@ -1,3 +1,5 @@
+[English](AGENTS.md) | [Português](AGENTS.pt_BR.md)
+
 # AGENTS.md
 
 last: 0.6.0-protocol + WASI GATE (07/10 maintainer order `D-WEB-WASI-DEFAULT-0710`: wasm/wasi plan promoted, WASI = default web+desktop frontend, #776 `1.0-blocks` gates the cut; structural gates rc=0; suite 7F non-WASI (4 deterministic external §628/JavaFX + 3 load-proven environmental; 0 WASI, battery 25/25); §625+§627+§631 fixed 08/10 by lane .30:9092)

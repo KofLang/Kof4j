@@ -1,3 +1,5 @@
+[English](quality-pipeline.md) | [Português](quality-pipeline.pt_BR.md)
+
 # Quality pipeline — executable branch policy
 
 last: 14.3-promotion-tooling (suite gate + scripted counts, #657)
