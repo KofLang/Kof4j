@@ -17766,5 +17766,4 @@ EAD
 
 **Boundary:** the cross runtime only (`NativeRiscvAsmRtB43`, inherited line-by-line by aarch64). The separate MCU collectors (`NativeMcuGcRiscv32`/`NativeMcuArmGc`) are not touched. `known-bugs` §602 (the AV1 flat-frame stale-receiver on aarch64) remains OPEN and is a distinct reclaim defect.
 
-<!-- pt-switch --> **PT:** [§640 (pt_BR)](known-bugs.pt_BR.md#640--o-gc-native-riscv64aarch64-ainda-recursava-um-frame-por-campo-ponteiro-no-kof_gc_mark_transitive-entao-o-mesmo-grafo-profundo-lista-ligada-de-200-000-nos-que-o-637-corrigiu-no-x86-64-ainda-esgotava-a-pilha-nativa-e-morria-sigsegv---fixed-0910-lane-compilerjvmnative-19216815309092-worklist-iterativa-de-mark-portada-para-o-runtime-cross)
->>>>>>> Stashed changes
+<!-- pt-switch --> **PT:** [§643 (pt_BR)](known-bugs.pt_BR.md#643--o-gc-native-riscv64aarch64-ainda-recursava-um-frame-por-campo-ponteiro-no-kof_gc_mark_transitive-entao-o-mesmo-grafo-profundo-lista-ligada-de-200-000-nos-que-o-637-corrigiu-no-x86-64-ainda-esgotava-a-pilha-nativa-e-morria-sigsegv---fixed-0910-lane-compilerjvmnative-19216815309092-worklist-iterativa-de-mark-portada-para-o-runtime-cross)

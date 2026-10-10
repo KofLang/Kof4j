@@ -15257,7 +15257,7 @@ EAD
 
 
 
-## §640 — o GC native riscv64/aarch64 ainda recursava um frame por campo-ponteiro no `kof_gc_mark_transitive`, então o mesmo grafo profundo (lista ligada de 200 000 nós) que o §637 corrigiu no x86-64 ainda esgotava a pilha nativa e morria `SIGSEGV` — ✅ FIXED 09/10 (lane compiler/JVM/native `192.168.15.30:9092`, worklist iterativa de mark portada para o runtime cross)
+## §643 — o GC native riscv64/aarch64 ainda recursava um frame por campo-ponteiro no `kof_gc_mark_transitive`, então o mesmo grafo profundo (lista ligada de 200 000 nós) que o §637 corrigiu no x86-64 ainda esgotava a pilha nativa e morria `SIGSEGV` — ✅ FIXED 09/10 (lane compiler/JVM/native `192.168.15.30:9092`, worklist iterativa de mark portada para o runtime cross)
 
 **Status:** ✅ FIXED 09/10 (lane compiler/JVM/native `192.168.15.30:9092`). O §637 trocou o `kof_gc_mark_transitive` recursivo por uma worklist iterativa de lista intrusiva de cinzas no runtime x86-64 (`RuntimeGc.java`), mas deixou explicitamente os alvos cross no coletor próprio (`NativeRiscvAsmRtB43`/`B44`, compartilhado por riscv64 e aarch64). Aquele runtime ainda recursava diretamente (`call kof_gc_mark_transitive`) uma vez por campo-ponteiro não-nulo, então a mesma cadeia de 200 000 nós esgotava a pilha nativa e morria `signal 11` — **medido 09/10 sob qemu-riscv64 e qemu-aarch64 (exit 139)**, enquanto o x86-64 passava. Latente pela mesma razão do §637: só alcançável quando o pacing no estilo §636 deixa um grafo profundo crescer antes de uma coleta.
 
@@ -15267,4 +15267,4 @@ EAD
 
 **Boundary:** apenas o runtime cross (`NativeRiscvAsmRtB43`, herdado linha-a-linha pelo aarch64). Os coletores MCU separados (`NativeMcuGcRiscv32`/`NativeMcuArmGc`) não são tocados. O `known-bugs` §602 (o stale-receiver do frame plano AV1 no aarch64) permanece OPEN e é um defeito de reclaim distinto.
 
-<!-- en-switch --> **EN:** [§640 (en)](known-bugs.md#640--the-riscv64aarch64-native-gc-still-recursed-one-frame-per-pointer-field-in-kof_gc_mark_transitive-so-the-same-deep-object-graph-a-200-000-node-linked-list-that-637-fixed-on-x86-64-still-exhausted-the-native-stack-and-died-sigsegv---fixed-0910-lane-compilerjvmnative-19216815309092-iterative-mark-worklist-ported-to-the-cross-runtime)
+<!-- en-switch --> **EN:** [§643 (en)](known-bugs.md#643--the-riscv64aarch64-native-gc-still-recursed-one-frame-per-pointer-field-in-kof_gc_mark_transitive-so-the-same-deep-object-graph-a-200-000-node-linked-list-that-637-fixed-on-x86-64-still-exhausted-the-native-stack-and-died-sigsegv---fixed-0910-lane-compilerjvmnative-19216815309092-iterative-mark-worklist-ported-to-the-cross-runtime)
