@@ -169,7 +169,7 @@ public static boolean hasRuntimeFn(String methodName) {
                 + JvmRuntimeWebDispatch.source()
                 + JvmConfigRuntime.source()
                 + JvmCacheRuntime.source()
-                + JvmBufferRuntime.source()
+                + JvmBufferRuntime.source(target != Target.ANDROID)
                 + JvmSecretRuntime.source()
                 + JvmInteropErrorRuntime.source()
                 + JvmOrmRuntime.source()
