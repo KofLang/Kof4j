@@ -1034,6 +1034,23 @@ the LENIENT formatters that punctuate without validating
 `formatCnpj("11222333000181")`=`11.222.333/0001-81`). Validated on all four targets.
 Proof (executed): `tests/run-golden.sh` **172/172** (43 cases × 4 targets), exit 0.
 
+**Phase 6 slice 19 LANDED (10/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **44 total** — pinning the `kof.time` calendar namespace, a pure-Kof
+stdlib surface (parity ✅ on all four targets) that NO equivalence case exercised:
+`time-namespace` covers the leap-year rule (`isLeapYear(2024)`=true, `2023`=false,
+and the century rule `2000`=true/`1900`=false/`2100`=false), `daysInMonth(2024,2)`=29
+vs `daysInMonth(2023,2)`=28, `dayOfWeek` (ISO 1=Mon..7=Sun: `2026-10-10`=6,
+`2026-10-09`=5, `2000-01-01`=6), `isWeekend` (`2026-10-10`=true, `2026-10-09`=false —
+the `dayOfWeek >= 6` wrapper), the serial `daysBetween` (`2026-01-01`→`2026-12-31`=364,
+`2024-01-01`→`2024-03-01`=60, `2026`→`2027`=365), the ISO-string `diffDays`
+(`"2026-01-01"`→`"2026-12-31"`=364), and the end-of-month / leap clamps of
+`addDays("2026-01-31",1)`=`2026-02-01` / `addDays("2024-02-28",1)`=`2024-02-29`,
+`addMonths("2026-01-31",1)`=`2026-02-28`, `addYears("2024-02-29",1)`=`2025-02-28`,
+plus `formatDateIso(2026,10,10)`=`2026-10-10`. Test-infrastructure only, no compiler
+change. Proof (executed): every value measured on the Script target first,
+cross-checked against `docs/stdlib/README.md`/`KofTime`, then frozen;
+`tests/run-golden.sh` **176/176** (44 cases × 4 targets: jvm/native/js/script), exit 0.
+
 ### Phase 7 — Integration
 
 Deploy:

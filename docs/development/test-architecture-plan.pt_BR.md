@@ -1036,6 +1036,24 @@ validar (`formatCpf("52998224725")`=`529.982.247-25`, `formatCep("01310100")`=`0
 `formatCnpj("11222333000181")`=`11.222.333/0001-81`). Validado nos quatro alvos. Prova
 (executada): `tests/run-golden.sh` **172/172** (43 casos × 4 alvos), exit 0.
 
+**Fatia 19 da Fase 6 ENTREGUE (10/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais
+um caso — **44 no total** — pinando o namespace de calendário `kof.time`, uma superfície
+stdlib em Kof puro (paridade ✅ nos quatro alvos) que NENHUM caso de equivalência
+exercitava: `time-namespace` cobre a regra de ano bissexto (`isLeapYear(2024)`=true,
+`2023`=false, e a regra do século `2000`=true/`1900`=false/`2100`=false),
+`daysInMonth(2024,2)`=29 vs `daysInMonth(2023,2)`=28, `dayOfWeek` (ISO 1=seg..7=dom:
+`2026-10-10`=6, `2026-10-09`=5, `2000-01-01`=6), `isWeekend` (`2026-10-10`=true,
+`2026-10-09`=false — o wrapper `dayOfWeek >= 6`), o serial `daysBetween`
+(`2026-01-01`→`2026-12-31`=364, `2024-01-01`→`2024-03-01`=60, `2026`→`2027`=365), o
+`diffDays` de string ISO (`"2026-01-01"`→`"2026-12-31"`=364), e os clamps de fim de
+mês / bissexto de `addDays("2026-01-31",1)`=`2026-02-01` /
+`addDays("2024-02-28",1)`=`2024-02-29`, `addMonths("2026-01-31",1)`=`2026-02-28`,
+`addYears("2024-02-29",1)`=`2025-02-28`, mais `formatDateIso(2026,10,10)`=`2026-10-10`.
+Só infraestrutura de teste, sem mudança no compilador. Prova (executada): cada valor
+medido primeiro no alvo Script, cruzado com `docs/stdlib/README.md`/`KofTime`, então
+congelado; `tests/run-golden.sh` **176/176** (44 casos × 4 alvos: jvm/native/js/script),
+exit 0.
+
 ### Fase 7 — Integração
 
 Implantar:
