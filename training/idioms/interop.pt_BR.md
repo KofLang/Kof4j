@@ -57,6 +57,13 @@ extern "/lib/x86_64-linux-gnu/libc.so.6" getenv(String n): String // ok — "mel
 //   the raw peek reads UNALIGNED like the native `ld`/`movl`) — JVM==Native
 //   byte-for-byte, cross riscv64/aarch64 via the translator. Bounds (buf form):
 //   negative offset or offset+n beyond the cap → honest trap (kof_bounds_error).
+// poke primitive (3.4c) — `buffer.poke8/32/64`: the WRITE counterpart of peek.
+//   RAW form `buffer.poke64(addr, value)` writes 8/4/1 bytes LE at ANY address;
+//   BUF form `buffer.poke64(b, off, value)` writes a payload offset (the C
+//   out-params: box the pointer, then `av_packet_free(box)` frees + NULLs back
+//   through the copy-back). A Long value slot accepts an Int (the ordinary
+//   conversion widens at the call site, the same as sqrt(9)). Bounds (buf
+//   form): negative offset or offset+n beyond the cap → honest trap.
 //   Argumentos numericos seguem a regra COMUM de conversao do Kof (#549/§370 FIXED 20/09): `f(Float x)`
 //     aceita `f(4.0 as Float)`, `f(4.0)` (Double->Float) e `f(4)` (Int->Float) com o MESMO
 //     resultado na JVM, no Native e no host JS; `sqrt(9)` (slot Double) e `labs(i)` idem.

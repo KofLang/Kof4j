@@ -4,9 +4,9 @@
 
 **Owner:** `192.168.15.15:9092` — lane security/connectors, graphics/gaming front; re-claimed 05/10 (the spike-3.0 `192.168.15.30:9093` claims were runner/tooling, historical).
 
-last: slice-3.5b LANDED 09/10 (the 3D scene draw queue: `libs/game/Scene3d.kf` — `DrawCmd3d` snapshot records IN ORDER, hidden meshes record nothing, `Mesh.draw(queue)` mirrors the Sprite pattern; `GameScene3dE2ETest` 6/6 0 skips — the probe covers the camera/mesh/material/light + the queue; game battery 75/0F; the corpus 3D snippet compile-checked with the game lib installed)
-doing: slice-3.4c (poke — the write counterpart of peek) then the pure-surface promotion of this plan to docs/
-next: 3.4c = `buffer.poke8/32/64` (raw + Buffer forms, bounds trap) unlocking the av_*_free calls in the video flow + then the plan promotes to docs/ (the pure surface complete + validated; the backend faces — view matrix, mesh loading, shading, present, decode queue — stay documented as the boundary)
+last: slice-3.4c LANDED 09/10 (the poke primitive — `buffer.poke8/32/64`, the write counterpart of peek: raw form (addr, value) + Buffer form (b, off, value) with the same bounds trap; a Long value slot accepts Int via the ordinary conversion; `BufferPokeE2ETest` 12/12 0 skips on all four native targets; the video flow now calls `av_packet_free`/`av_frame_free` through poke-boxed out-params — `freed=true/true` in `FfmpegFrameReadbackE2ETest` 3/3; the game battery 75/0F)
+doing: the pure-surface promotion of this plan to docs/ (per the maintainer order 09/10)
+next: the plan promotes to `docs/graphics-gaming.md` (the pure surface complete + validated: all 17 modules, the FFmpeg LGPL backend probe/readback, the SDL3 ABI; the backend faces — view matrix, mesh loading, shading, present, decode queue — stay the documented boundary)
 location: docs/development
 state: UNDER DEVELOPMENT
 

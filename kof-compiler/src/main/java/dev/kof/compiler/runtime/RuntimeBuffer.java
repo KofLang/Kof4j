@@ -176,6 +176,69 @@ public final class RuntimeBuffer {
                 movzbl 24(%rdi,%rsi,1), %eax
                 ret
 
+
+            # ── poke primitive (3.4c) — a contraparte de escrita do peek ─────
+            # Formas raw: (rdi=endereço, rsi/esi=valor) — sem bounds.
+            # Formas buf: (rdi=Buffer, esi=off, rdx/edx=valor) — bounds como peek.
+            .globl kof_buffer_poke64
+            .type kof_buffer_poke64, @function
+            kof_buffer_poke64:
+                movq %rsi, (%rdi)
+                ret
+
+            .globl kof_buffer_poke32
+            .type kof_buffer_poke32, @function
+            kof_buffer_poke32:
+                movl %esi, (%rdi)
+                ret
+
+            .globl kof_buffer_poke8
+            .type kof_buffer_poke8, @function
+            kof_buffer_poke8:
+                movb %sil, (%rdi)
+                ret
+
+            .globl kof_buffer_poke64_buf
+            .type kof_buffer_poke64_buf, @function
+            kof_buffer_poke64_buf:
+                testl %esi, %esi
+                js .Lbfk_peek_oob
+                movl 16(%rdi), %ecx
+                cmpl %ecx, %esi
+                jg .Lbfk_peek_oob
+                leal 8(%rsi), %eax
+                cmpl %ecx, %eax
+                jg .Lbfk_peek_oob
+                movq %rdx, 24(%rdi,%rsi,1)
+                ret
+
+            .globl kof_buffer_poke32_buf
+            .type kof_buffer_poke32_buf, @function
+            kof_buffer_poke32_buf:
+                testl %esi, %esi
+                js .Lbfk_peek_oob
+                movl 16(%rdi), %ecx
+                cmpl %ecx, %esi
+                jg .Lbfk_peek_oob
+                leal 4(%rsi), %eax
+                cmpl %ecx, %eax
+                jg .Lbfk_peek_oob
+                movl %edx, 24(%rdi,%rsi,1)
+                ret
+
+            .globl kof_buffer_poke8_buf
+            .type kof_buffer_poke8_buf, @function
+            kof_buffer_poke8_buf:
+                testl %esi, %esi
+                js .Lbfk_peek_oob
+                movl 16(%rdi), %ecx
+                cmpl %ecx, %esi
+                jg .Lbfk_peek_oob
+                cmpl %ecx, %esi
+                je .Lbfk_peek_oob
+                movb %dl, 24(%rdi,%rsi,1)
+                ret
+
             .Lbfk_peek_oob:
                 call kof_bounds_error
 

@@ -515,6 +515,12 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_buffer_peek64_buf" -> "(Ldev/kof/runtime/KofRuntime$Buffer;I)J";
             case "kof_buffer_peek32_buf", "kof_buffer_peek8_buf"
                     -> "(Ldev/kof/runtime/KofRuntime$Buffer;I)I";
+            // poke primitive (3.4c): raw (Long, value) + Buffer (Buffer, Int, value).
+            case "kof_buffer_poke64" -> "(JJ)V";
+            case "kof_buffer_poke32", "kof_buffer_poke8" -> "(JI)V";
+            case "kof_buffer_poke64_buf" -> "(Ldev/kof/runtime/KofRuntime$Buffer;IJ)V";
+            case "kof_buffer_poke32_buf", "kof_buffer_poke8_buf"
+                    -> "(Ldev/kof/runtime/KofRuntime$Buffer;II)V";
             // D-SECRETS face 1: tipo Secret.
             case "kof_sec_secret_of", "kof_sec_secret"
                     -> "(Ljava/lang/String;)Ldev/kof/runtime/KofRuntime$Secret;";

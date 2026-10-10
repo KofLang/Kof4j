@@ -125,6 +125,69 @@ public final class JvmBufferRuntime {
                     return b.data[off] & 0xFF;
                 }
 
+                // ── poke primitive (3.4c): the write counterpart of peek. Raw
+                // form = write 8/4/1 bytes LE at any address; Buffer form =
+                // write at a payload offset. Bounds (Buffer form): negative
+                // offset or offset+n beyond the cap → honest trap. The value
+                // truncates to the byte width (`as Byte` mod-256 wrap).
+                private static void kof_poke_raw64(long addr, long v) {
+                    var seg = java.lang.foreign.MemorySegment.ofAddress(addr).reinterpret(8);
+                    for (int i = 0; i < 8; i++) {
+                        seg.set(java.lang.foreign.ValueLayout.JAVA_BYTE, i, (byte) (v >> (8 * i)));
+                    }
+                }
+
+                private static void kof_poke_raw32(long addr, int v) {
+                    var seg = java.lang.foreign.MemorySegment.ofAddress(addr).reinterpret(4);
+                    for (int i = 0; i < 4; i++) {
+                        seg.set(java.lang.foreign.ValueLayout.JAVA_BYTE, i, (byte) (v >> (8 * i)));
+                    }
+                }
+
+                private static void kof_poke_raw8(long addr, int v) {
+                    var seg = java.lang.foreign.MemorySegment.ofAddress(addr).reinterpret(1);
+                    seg.set(java.lang.foreign.ValueLayout.JAVA_BYTE, 0L, (byte) v);
+                }
+
+                public static void kof_buffer_poke64(long addr, long v) {
+                    kof_poke_raw64(addr, v);
+                }
+
+                public static void kof_buffer_poke32(long addr, int v) {
+                    kof_poke_raw32(addr, v);
+                }
+
+                public static void kof_buffer_poke8(long addr, int v) {
+                    kof_poke_raw8(addr, v);
+                }
+
+                public static void kof_buffer_poke64_buf(Buffer b, int off, long v) {
+                    if (b == null || off < 0 || off + 8 > b.data.length) {
+                        throw new IllegalArgumentException(
+                                "kof.buffer.poke64: offset " + off + " fora do payload de "
+                                        + (b == null ? 0 : b.data.length) + " bytes");
+                    }
+                    for (int i = 0; i < 8; i++) b.data[off + i] = (byte) (v >> (8 * i));
+                }
+
+                public static void kof_buffer_poke32_buf(Buffer b, int off, int v) {
+                    if (b == null || off < 0 || off + 4 > b.data.length) {
+                        throw new IllegalArgumentException(
+                                "kof.buffer.poke32: offset " + off + " fora do payload de "
+                                        + (b == null ? 0 : b.data.length) + " bytes");
+                    }
+                    for (int i = 0; i < 4; i++) b.data[off + i] = (byte) (v >> (8 * i));
+                }
+
+                public static void kof_buffer_poke8_buf(Buffer b, int off, int v) {
+                    if (b == null || off < 0 || off + 1 > b.data.length) {
+                        throw new IllegalArgumentException(
+                                "kof.buffer.poke8: offset " + off + " fora do payload de "
+                                        + (b == null ? 0 : b.data.length) + " bytes");
+                    }
+                    b.data[off] = (byte) v;
+                }
+
                 """;
     }
 }

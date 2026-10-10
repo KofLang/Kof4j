@@ -224,6 +224,63 @@ public final class NativeRiscvAsmBuffer {
                 lbu  a0, 24(t2)
                 ret
 
+
+            # ── poke primitive (3.4c) — a contraparte de escrita do peek ─────
+            # Formas raw: (a0=endereço, a1=valor) — sem bounds.
+            # Formas buf: (a0=Buffer, a1=off, a2=valor) — bounds como peek.
+            .globl kof_buffer_poke64
+            .type kof_buffer_poke64, @function
+            kof_buffer_poke64:
+                sd   a1, 0(a0)
+                ret
+
+            .globl kof_buffer_poke32
+            .type kof_buffer_poke32, @function
+            kof_buffer_poke32:
+                sw   a1, 0(a0)
+                ret
+
+            .globl kof_buffer_poke8
+            .type kof_buffer_poke8, @function
+            kof_buffer_poke8:
+                sb   a1, 0(a0)
+                ret
+
+            .globl kof_buffer_poke64_buf
+            .type kof_buffer_poke64_buf, @function
+            kof_buffer_poke64_buf:
+                bltz a1, .Lkof_peek_oob
+                lw   t0, 16(a0)
+                bge  a1, t0, .Lkof_peek_oob
+                addi t1, a1, 8
+                bgt  t1, t0, .Lkof_peek_oob
+                add  t2, a0, a1
+                sd   a2, 24(t2)
+                ret
+
+            .globl kof_buffer_poke32_buf
+            .type kof_buffer_poke32_buf, @function
+            kof_buffer_poke32_buf:
+                bltz a1, .Lkof_peek_oob
+                lw   t0, 16(a0)
+                bge  a1, t0, .Lkof_peek_oob
+                addi t1, a1, 4
+                bgt  t1, t0, .Lkof_peek_oob
+                add  t2, a0, a1
+                sw   a2, 24(t2)
+                ret
+
+            .globl kof_buffer_poke8_buf
+            .type kof_buffer_poke8_buf, @function
+            kof_buffer_poke8_buf:
+                bltz a1, .Lkof_peek_oob
+                lw   t0, 16(a0)
+                bge  a1, t0, .Lkof_peek_oob
+                beq  a1, t0, .Lkof_peek_oob
+                add  t2, a0, a1
+                sb   a2, 24(t2)
+                ret
+
             .Lkof_peek_oob:
                 call kof_bounds_error
             """;

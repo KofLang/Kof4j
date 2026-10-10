@@ -19,12 +19,14 @@ public final class KofBuffer {
 
     static final Type BUFFER = new Type.ClassType("kof", "Buffer", List.of());
     private static final Type INT = Type.PrimitiveType.INT;
+    private static final Type VOID = Type.PrimitiveType.VOID;
     private static final Type BYTES = new Type.ArrayType(Type.PrimitiveType.BYTE);
 
     static boolean isBufferNamespace(String name) { return "buffer".equals(name); }
 
     /** LSP catalogue — GUARD: StdCatalogTest locks this to the dispatch below. */
-    static List<String> functions() { return List.of("alloc", "peek8", "peek32", "peek64"); }
+    static List<String> functions() { return List.of("alloc", "peek8", "peek32", "peek64",
+            "poke8", "poke32", "poke64"); }
 
     public static boolean isBufferType(Type t) { return BUFFER.equals(t); }
 
@@ -54,6 +56,12 @@ public final class KofBuffer {
                     INT, argTypes);
             case "peek64" -> peekCall("kof_buffer_peek64", "kof_buffer_peek64_buf",
                     Type.PrimitiveType.LONG, argTypes);
+            case "poke8" -> pokeCall("kof_buffer_poke8", "kof_buffer_poke8_buf",
+                    Type.PrimitiveType.INT, argTypes);
+            case "poke32" -> pokeCall("kof_buffer_poke32", "kof_buffer_poke32_buf",
+                    Type.PrimitiveType.INT, argTypes);
+            case "poke64" -> pokeCall("kof_buffer_poke64", "kof_buffer_poke64_buf",
+                    Type.PrimitiveType.LONG, argTypes);
             default -> null;
         };
     }
@@ -65,6 +73,31 @@ public final class KofBuffer {
         if (argTypes.size() == 2 && BUFFER.equals(argTypes.get(0))
                 && Type.PrimitiveType.INT.equals(argTypes.get(1))) {
             return new BufferCall(bufFn, ret, List.of(BUFFER, Type.PrimitiveType.INT));
+        }
+        return null;
+    }
+
+    private static BufferCall pokeCall(String rawFn, String bufFn, Type valueTy, List<Type> argTypes) {
+        // The write counterpart of peek (3.4c): (addr, value) raw or (buffer, off, value).
+        // A Long value slot accepts Int too — the ordinary Kof conversion
+        // (#549/§370) widens at the call site, the same as sqrt(9).
+        if (argTypes.size() == 2 && Type.PrimitiveType.LONG.equals(argTypes.get(0))
+                && valueTy.equals(argTypes.get(1))) {
+            return new BufferCall(rawFn, VOID, List.of(Type.PrimitiveType.LONG, valueTy));
+        }
+        if (argTypes.size() == 3 && BUFFER.equals(argTypes.get(0))
+                && Type.PrimitiveType.INT.equals(argTypes.get(1)) && valueTy.equals(argTypes.get(2))) {
+            return new BufferCall(bufFn, VOID, List.of(BUFFER, Type.PrimitiveType.INT, valueTy));
+        }
+        if (argTypes.size() == 2 && Type.PrimitiveType.LONG.equals(argTypes.get(0))
+                && valueTy.equals(Type.PrimitiveType.LONG)
+                && Type.PrimitiveType.INT.equals(argTypes.get(1))) {
+            return new BufferCall(rawFn, VOID, List.of(Type.PrimitiveType.LONG, Type.PrimitiveType.LONG));
+        }
+        if (argTypes.size() == 3 && BUFFER.equals(argTypes.get(0))
+                && Type.PrimitiveType.INT.equals(argTypes.get(1)) && valueTy.equals(Type.PrimitiveType.LONG)
+                && Type.PrimitiveType.INT.equals(argTypes.get(2))) {
+            return new BufferCall(bufFn, VOID, List.of(BUFFER, Type.PrimitiveType.INT, Type.PrimitiveType.LONG));
         }
         return null;
     }
@@ -91,7 +124,7 @@ public final class KofBuffer {
      *  no address space (the JS Buffer is emulated), so peek stays an honest gap
      *  there; Android/Script gap for the whole namespace (existing rule). */
     static boolean supportedOn(String function, Target target) {
-        if (function.startsWith("peek")) {
+        if (function.startsWith("peek") || function.startsWith("poke")) {
             return target == Target.JVM
                     || target == Target.NATIVE
                     || target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64;

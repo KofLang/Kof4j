@@ -256,6 +256,10 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_buffer_peek64", "kof_buffer_peek64_buf" -> "J";
             case "kof_buffer_peek32", "kof_buffer_peek8",
                     "kof_buffer_peek32_buf", "kof_buffer_peek8_buf" -> "I";
+            // poke primitive (3.4c).
+            case "kof_buffer_poke64", "kof_buffer_poke64_buf",
+                    "kof_buffer_poke32", "kof_buffer_poke32_buf",
+                    "kof_buffer_poke8", "kof_buffer_poke8_buf" -> "V";
             // D-SECRETS face 1: tipo Secret.
             case "kof_sec_secret_of", "kof_sec_secret", "kof_sec_secret_from_bytes",
                     "kof_sec_x25519_private_key", "kof_sec_x25519_shared",

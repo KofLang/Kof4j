@@ -51,6 +51,8 @@ class FfmpegFrameReadbackE2ETest implements NativeToolchainAssumptions {
             extern "%s" avcodec_receive_frame(Long ctx, Long frame): Int
             extern "%s" av_packet_alloc(): Long
             extern "%s" av_frame_alloc(): Long
+            extern "%s" av_packet_free(Buffer pp): void
+            extern "%s" av_frame_free(Buffer pf): void
 
             main() {
                 var ps = buffer.alloc(8)
@@ -87,6 +89,13 @@ class FfmpegFrameReadbackE2ETest implements NativeToolchainAssumptions {
                     println("frame=" + i + " w=" + w + " h=" + h + " y=" + y + " u=" + u + " v=" + v)
                 }
                 avformat_close_input(ps)
+                var pktBox = buffer.alloc(8)
+                buffer.poke64(pktBox, 0, pkt)
+                av_packet_free(pktBox)
+                var frameBox = buffer.alloc(8)
+                buffer.poke64(frameBox, 0, frame)
+                av_frame_free(frameBox)
+                println("freed=" + (buffer.peek64(pktBox, 0) == 0) + "/" + (buffer.peek64(frameBox, 0) == 0))
             }
             """;
 
@@ -128,7 +137,7 @@ class FfmpegFrameReadbackE2ETest implements NativeToolchainAssumptions {
         String url = probeAsset();
         if (fmt == null || codec == null || util == null || url == null) return null;
         return TEMPLATE.formatted(fmt, fmt, fmt, fmt, codec, codec, codec, codec, codec, codec,
-                util, url);
+                util, codec, util, url);
     }
 
     private static void readbackFfmpegLibs(ProcessBuilder pb) {
@@ -161,6 +170,8 @@ class FfmpegFrameReadbackE2ETest implements NativeToolchainAssumptions {
             assertTrue(output.contains("frame=" + i + " w=64 h=64"),
                     "frame " + i + " dims read via peek, got: " + output);
         }
+        assertTrue(output.contains("freed=true/true"),
+                "av_packet_free/av_frame_free via the poke out-params, got: " + output);
     }
 
     @Test
@@ -186,6 +197,8 @@ class FfmpegFrameReadbackE2ETest implements NativeToolchainAssumptions {
             assertTrue(output.contains("frame=" + i + " w=64 h=64"),
                     "frame " + i + " dims read via peek, got: " + output);
         }
+        assertTrue(output.contains("freed=true/true"),
+                "av_packet_free/av_frame_free via the poke out-params, got: " + output);
     }
 
     @Test
