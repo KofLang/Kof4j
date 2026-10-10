@@ -341,7 +341,7 @@ public final class RuntimeSecurity3 {
                 leaq 16(%rsp), %rsi
                 movq $32, %rdx
                 call kof_b64_encode_internal
-                movl $91, %edi
+                movl $115, %edi
                 call kof_alloc
                 movq %rax, %r13
                 movl $1, 0(%r13)
