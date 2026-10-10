@@ -4,7 +4,7 @@
 
 **Status:** UNDER DEVELOPMENT — promoted from `future/` 30/09/2026 (`D-TESTING-PLATFORM`, `D-FUTURE-BATCH-2809`/`B`, `D-FUTURE-PROMOTION`)
 **Location:** `docs/development/`
-**Owner:** `192.168.15.30:9093` (lane issues/tooling — claims MUST carry IP:PORTA, `D-AGENT-IDENTITY-IPPORT`)
+**Owner:** `192.168.15.15:9092` (lane security/connectors — REASSUMED 10/10 per the maintainer's order: the prior owner lane issues/tooling `192.168.15.30:9093` last active 09/10, orphaned >1 day; claims MUST carry IP:PORTA, `D-AGENT-IDENTITY-IPPORT`)
 **Nature:** implementation plan — real state + how to finish (design record kept below)
 **Normative source:** `DECISIONS.md` §`D-TESTING-PLATFORM` (28/09, authorized — `D-FUTURE-BATCH-2809`/`B`); promotion to current work is one-at-a-time per `D-FUTURE-PROMOTION`
 **Main dependencies:** the existing `kof test` command (`CmdTest`), the test language surface
@@ -475,15 +475,14 @@ honest diagnostic (`NATIVE002`/`WASM001` class), never silent.
 policy is now fixed by three decisions and recorded here: **(C)** opt-in per project — the CLI
 does **not** bundle Playwright/Cypress; **(T1)** the browser provider must serve **all targets**
 (JVM + JS + Native), not JVM-only; **(T2)** `kof.test` stays a **compiler/CLI feature**, not a
-stdlib namespace (`StdCatalog` unchanged). **Honest boundary — no browser API ships yet:** the
-entire §6 surface (browser abstraction/SPI, Playwright provider, locators, web assertions, network
-interception, capability matrix) is the **provider slice**, still gated by the open rule-6 decision
-(§12): *how* providers are declared, versioned and gated (interop-first R9). This document records
-the policy; it does **not** promise an API before that decision — no stub, no fake surface (Q7).
-The seed is `KofJsBrowserE2ETest` (a raw mechanism: real Chrome `--headless --dump-dom`, macOS
-`safaridriver` W3C WebDriver), not an abstraction. The provider SPI/manifest pattern cross-references
-`kof-connector-ecosystem-plan.md` (§14). Capability-matrix values stay `?` until discovered during
-implementation (§6.4) — never assumed.
+stdlib namespace (`StdCatalog` unchanged). **REFINED 10/10 (third chat poll, current owner lane
+security/connectors `192.168.15.15:9092`):** *how* providers are declared/versioned/gated is
+RESOLVED — a **project manifest file** (`kof-test.kofmd`, the repo's own format, zero external
+parser) declares the browser provider + its version; the CLI reads it and gates. **The §6 provider
+slice is UNLOCKED.** The seed is `KofJsBrowserE2ETest` (a raw mechanism: real Chrome
+`--headless --dump-dom`, macOS `safaridriver` W3C WebDriver), not an abstraction. The provider
+SPI/manifest pattern cross-references `kof-connector-ecosystem-plan.md` (§14). Capability-matrix
+values stay `?` until discovered during implementation (§6.4) — never assumed.
 
 An official browser-testing API in Kof. Conceptually:
 
@@ -829,10 +828,11 @@ Still open (rule 6):
 * **D-TESTING-PLATFORM** — opening the front and its ordered scope.
 * The exact **test API syntax** (assertions, lifecycle, parameterization, locators) — additive
   to the existing `test`/`assert`; no foreign syntax.
-* **Provider policy**: Playwright/Cypress are external heavyweight dependencies — how they are
-  declared, versioned and gated (interop-first, R9). **The "ship with the CLI or opt-in" half is
-  resolved** by `D-MAINT-BATCH-0610B`/C (opt-in per project, CLI does not bundle); the
-  declaration/versioning/gating mechanism remains open and gates the §6 provider slice.
+* **Provider policy**: **RESOLVED 10/10 by the third chat poll (refining `D-MAINT-BATCH-0610B`/C):**
+  the declaration lives in a **project manifest file** (`kof-test.kofmd` — the repo's own
+  compressed-doc format, zero external parser dependency) declaring the browser provider + its
+  version; the CLI reads it and gates (explicit and versioned, no command flags). The §6 provider
+  slice is UNLOCKED.
 * Promotion: `future/` → `docs/development/` when the first slice lands (three-states + R12).
 
 ---

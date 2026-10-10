@@ -2,7 +2,7 @@
 
 # Plataforma de Testes Kof — Unit / Integração / Frontend E2E
 
-**Dono:** `192.168.15.30:9093` (lane issues/tooling — claims DEVEM levar IP:PORTA, `D-AGENT-IDENTITY-IPPORT`)
+**Dono:** `192.168.15.15:9092` (lane security/connectors — REASSUMIDO 10/10 por ordem da mantenedora: a dona anterior lane issues/tooling `192.168.15.30:9093` ativa pela última vez 09/10, órfão >1 dia; claims DEVEM carregar IP:PORTA, `D-AGENT-IDENTITY-IPPORT`)
 **Status:** EM DESENVOLVIMENTO — promovido de `future/` 30/09/2026 (`D-TESTING-PLATFORM`, `D-FUTURE-BATCH-2809`/`B`, `D-FUTURE-PROMOTION`)
 **Local:** `docs/development/`
 **Natureza:** plano de implementação — estado real + como terminar (registro de design mantido abaixo)
