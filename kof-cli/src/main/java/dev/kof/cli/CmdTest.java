@@ -169,6 +169,7 @@ final class CmdTest {
         int skipped = 0;   // §576: arquivos sem teste e sem main (módulos auxiliares)
         int skippedByTag = 0;   // §587: arquivos cujo filtro --tag não casa nenhum teste
         int skippedByProvider = 0;   // §6: arquivos browser tagados sem provider/binário
+        java.util.Map<String, String> levels = new java.util.LinkedHashMap<>();
         boolean browserTagged = tag != null && java.util.Arrays.stream(tag.split(","))
                 .map(String::trim).anyMatch("browser"::equals);
         if (browserTagged) {
@@ -201,6 +202,13 @@ final class CmdTest {
         long totalMs = 0;
         long slowestMs = -1;
         Path slowestFile = null;
+        // §8.5 (kof-testing-platform): o nível de cada arquivo suíte — a
+        // derivação honesta pelo tag declarado: qualquer teste do arquivo
+        // declarando `unit` → unit; senão `integration` → integration; senão
+        // `browser`/`e2e` → e2e; arquivos só-programa (main, sem teste) contam
+        // como unit (o nível mais barato). Nenhum nível é inventado além do
+        // que o arquivo DECLARA (o relatório agrega o declarado, nunca um
+        // chute).
         // per-file (docs/bugs-and-gaps/ecosystem-coverage.md §3.11): cada .kf é um programa
         // independente com seu próprio main() — NUNCA agrupar irmãos num
         // módulo só (PKG002: 2 main()). Cross-file é domínio de kof build.
@@ -243,6 +251,15 @@ final class CmdTest {
             // já contrata); a checagem vem DEPOIS do run para preservar a saída
             // do harness (`kof test: tag 'x' (0 of N)` / `no tests with tag ...`).
             boolean tagMatch = tag == null || !hasTests || hasTagMatch(driver.discoveredTests(), tag);
+            // §8.5: o nível derivado dos tags declarados (unit < integration < e2e)
+            String level = "unit";
+            if (hasTests) {
+                java.util.Set<String> tags = new java.util.HashSet<>();
+                for (CompilerDriver.TestInfo ti : driver.discoveredTests()) tags.addAll(ti.tags());
+                if (tags.contains("browser") || tags.contains("e2e")) level = "e2e";
+                else if (tags.contains("integration")) level = "integration";
+            }
+            levels.put(f.toString(), level);
             StringBuilder output = new StringBuilder();
             if (ok) {
                 for (Diagnostic d : result.diagnostics().getDiagnostics()) output.append(d.format()).append('\n');
@@ -417,6 +434,22 @@ final class CmdTest {
         if (slowestFile != null) {
             System.out.println("time: " + totalMs + "ms total, slowest " + slowestFile
                     + " (" + slowestMs + "ms)");
+        }
+        // §8.5: o relatório por nível — só arquivos suíte (com testes) contam;
+        // a linha aparece apenas quando ao menos um nível não-unit foi
+        // declarado (a corrida pura unit mantém a saída histórica intacta).
+        java.util.Map<String, int[]> byLevel = new java.util.LinkedHashMap<>();
+        for (var e : levels.entrySet()) {
+            int[] c = byLevel.computeIfAbsent(e.getValue(), k -> new int[2]);
+            c[1]++;  // total de arquivos do nível
+        }
+        if (byLevel.containsKey("integration") || byLevel.containsKey("e2e")) {
+            StringBuilder lv = new StringBuilder();
+            for (var e : byLevel.entrySet()) {
+                if (lv.length() > 0) lv.append(", ");
+                lv.append(e.getKey()).append(": ").append(e.getValue()[1]).append(" file(s)");
+            }
+            System.out.println("levels: " + lv);
         }
         if (failed > 0) System.exit(1);
         // §576: nenhum arquivo executável (todos auxiliares) não é sucesso —
