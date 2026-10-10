@@ -58,7 +58,10 @@ public final class ChromeHeadlessProvider implements BrowserProvider {
         return out;
     }
 
-    /** O Chrome/Chromium disponível (PATH + os caminhos padrão + o bundle macOS), ou null. */
+    /** O Chrome/Chromium disponível (PATH + os caminhos padrão + o bundle
+     *  macOS + o Playwright's `~/.cache/ms-playwright/chromium-*` — instalado
+     *  por `npx playwright install chromium`, a fatia de browser real do §6),
+     *  ou null. */
     public static ChromeHeadlessProvider find() {
         String p = findChrome();
         return p == null ? null : new ChromeHeadlessProvider(p);
@@ -84,6 +87,27 @@ public final class ChromeHeadlessProvider implements BrowserProvider {
             Path p = Path.of(app);
             if (java.nio.file.Files.isExecutable(p)) return p.toString();
         }
-        return null;
+        return findPlaywrightChromium();
+    }
+
+    /** O browser do cache do Playwright: o diretorio chromium-N (instalado
+     *  por npx playwright install chromium, a fatia de browser real), o
+     *  maior numero de versao por ultimo, o binario chrome dentro. */
+    static String findPlaywrightChromium() {
+        Path cache = Path.of(System.getProperty("user.home"), ".cache", "ms-playwright");
+        if (!java.nio.file.Files.isDirectory(cache)) return null;
+        Path best = null;
+        try (var s = Files.list(cache)) {
+            for (Path dir : s.filter(d -> d.getFileName().toString().startsWith("chromium-"))
+                    .sorted().toList()) {
+                for (String sub : new String[]{"chrome-linux64", "chrome-linux"}) {
+                    Path chrome = dir.resolve(sub).resolve("chrome");
+                    if (java.nio.file.Files.isExecutable(chrome)) best = chrome;
+                }
+            }
+        } catch (IOException e) {
+            return null;
+        }
+        return best == null ? null : best.toString();
     }
 }
