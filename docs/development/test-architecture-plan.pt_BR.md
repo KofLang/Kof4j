@@ -993,6 +993,21 @@ aridade de namespace e um guard cross-target real (o nativo percorre UTF-8 por c
 Validado nos quatro alvos. Prova (executada): `tests/run-golden.sh` **160/160** (40 casos × 4
 alvos), exit 0.
 
+**Fatia 16 da Fase 6 ENTREGUE (10/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais
+um caso — **41 no total** — pinando as funções do namespace `kof.math` em si: o caso
+`std-math-nullable` só exercitava a FORMA de narrowing nullable (`math.abs`/`min`/`max`/
+`parseInt` atrás de guards de null), nunca as funções do namespace diretamente.
+`math-namespace` cobre as faces inteiras (`abs(-7)`=7, `sign(-9)`/`sign(0)`/`sign(9)` =
+-1/0/1, `min`/`max`, `clamp(15,0,10)`=10 e `clamp(-5,0,10)`=0, os predicados
+`isEven`/`isOdd`/`isPositive`/`isNegative`/`isZero`) e as faces Double (`sqrt(16.0)`=`4.0`,
+`lerp(0.0,10.0,0.5)`=`5.0`, `percentage(3.0,4.0)`=`75.0`, `isInteger(4.0)`=true/
+`isInteger(4.5)`=false, `isDecimal(4.5)`=true, `roundTo(3.14159,2)`=`3.14` e a face de
+decimais negativos `roundTo(1234.0,-2)`=`1200.0`). As faces Double são o guard cross-target
+real: o caminho nativo calcula `sqrt`/`lerp`/`percentage`/`roundTo` em SSE2 puro (sem libm) e
+o JS usa `Number`, então a concordância de formatação é uma checagem de divergência genuína.
+Validado nos quatro alvos. Prova (executada): `tests/run-golden.sh` **164/164** (41 casos × 4
+alvos), exit 0.
+
 ### Fase 7 — Integração
 
 Implantar:

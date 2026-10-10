@@ -989,6 +989,21 @@ genuine cross-target guard (native walks UTF-8 by code point). Validated on all
 four targets. Proof (executed): `tests/run-golden.sh` **160/160** (40 cases × 4
 targets), exit 0.
 
+**Phase 6 slice 16 LANDED (10/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **41 total** — pinning the `kof.math` namespace functions themselves:
+the `std-math-nullable` case only exercised the nullable-narrowing SHAPE (`math.abs`/
+`min`/`max`/`parseInt` behind null guards), never the namespace functions directly.
+`math-namespace` covers the integer faces (`abs(-7)`=7, `sign(-9)`/`sign(0)`/`sign(9)`
+= -1/0/1, `min`/`max`, `clamp(15,0,10)`=10 and `clamp(-5,0,10)`=0, the predicates
+`isEven`/`isOdd`/`isPositive`/`isNegative`/`isZero`) and the Double faces (`sqrt(16.0)`
+= `4.0`, `lerp(0.0,10.0,0.5)` = `5.0`, `percentage(3.0,4.0)` = `75.0`,
+`isInteger(4.0)`=true/`isInteger(4.5)`=false, `isDecimal(4.5)`=true, `roundTo(3.14159,2)`
+= `3.14` and the negative-decimals face `roundTo(1234.0,-2)` = `1200.0`). The Double
+faces are the real cross-target guard: the native path computes `sqrt`/`lerp`/
+`percentage`/`roundTo` in pure SSE2 (no libm) and JS uses `Number`, so the formatting
+agreement is a genuine divergence check. Validated on all four targets. Proof
+(executed): `tests/run-golden.sh` **164/164** (41 cases × 4 targets), exit 0.
+
 ### Phase 7 — Integration
 
 Deploy:
