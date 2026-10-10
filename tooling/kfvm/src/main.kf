@@ -6,7 +6,7 @@ import kfvm.installer
 import kfvm.cli
 
 main(args: List<String>) {
-    val VERSION = "0.3.0"
+    val VERSION = "0.3.1"
     val logger = Logger()
     val home = Env.getOr("KFVM_HOME", Env.userHome() + "/.local/share/kof")
     val first = if (args.size > 0) args.get(0) else ""
