@@ -1,5 +1,7 @@
 package dev.kof.compiler.nat;
 
+import dev.kof.compiler.NativeToolchainAssumptions;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -23,8 +25,27 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * path as an escape, the path collapses to {@code C:Users…} relative to the
  * working directory and the probe writes to a bogus file (3 errors + junk left
  * in the tree on every run).
+ *
+ * <p>#788: the probes are POSIX-shell stand-ins, so a host without {@code sh}
+ * has nothing to exercise — the tests SKIP with a named message instead of
+ * ERRORing, and the bound assertion requires that it was the BOUND that fired
+ * (a launch failure is not a bound proof).
  */
 class QemuRunTest {
+
+    /** The bound's own wording (the discriminator the bound test asserts). */
+    private static final String BOUND_FIRED = "não terminou em 1s";
+
+    /**
+     * #788: without {@code sh} the stand-in cannot run at all — an environment
+     * condition, so SKIP with the cause named instead of ERRORing (AGENTS Q5:
+     * no false green, no hidden skip). {@link NativeToolchainAssumptions#hasTool}
+     * reports a missing shell as {@code false}, never as a thrown exception.
+     */
+    private static void assumeSh() {
+        Assumptions.assumeTrue(NativeToolchainAssumptions.hasTool("sh"),
+                "sh ausente — harness §524 pulado (#788)");
+    }
 
     /**
      * Writes the probe script into {@code @TempDir} and returns the argv. The
@@ -42,6 +63,7 @@ class QemuRunTest {
 
     @Test
     void retriesTransientSegvThenSucceeds(@TempDir Path dir) throws Exception {
+        assumeSh();
         Path counter = dir.resolve("n");
         // exits 139 twice, then prints "ok" — a transient guest crash.
         String[] cmd = probeCommand(dir,
@@ -55,6 +77,7 @@ class QemuRunTest {
 
     @Test
     void persistentSegvIsNotHidden(@TempDir Path dir) throws Exception {
+        assumeSh();
         Path counter = dir.resolve("n");
         String[] cmd = probeCommand(dir, "echo x >> \"$1\"; exit 139", counter);
         QemuRun.Exit e = QemuRun.run(3, 10, cmd);
@@ -64,6 +87,7 @@ class QemuRunTest {
 
     @Test
     void nonSegvFailureIsReturnedImmediately(@TempDir Path dir) throws Exception {
+        assumeSh();
         Path counter = dir.resolve("n");
         String[] cmd = probeCommand(dir, "echo x >> \"$1\"; exit 7", counter);
         QemuRun.Exit e = QemuRun.run(3, 10, cmd);
@@ -71,17 +95,26 @@ class QemuRunTest {
         assertEquals(1, Files.readAllLines(counter).size(), "non-139 is never retried");
     }
 
+    /**
+     * #788: the assertion has to name the BOUND, not merely an {@code IOException}
+     * — without this, a launch failure (a missing {@code sh}) satisfies
+     * {@code assertThrows} and the test passes proving nothing about the bound.
+     */
     @Test
     void hangingCommandIsKilledByTheBound(@TempDir Path dir) throws Exception {
+        assumeSh();
         long t0 = System.nanoTime();
-        assertThrows(IOException.class,
+        IOException ex = assertThrows(IOException.class,
                 () -> QemuRun.run(1, 1, "sh", "-c", "sleep 60"));
         long ms = (System.nanoTime() - t0) / 1_000_000;
+        assertTrue(ex.getMessage() != null && ex.getMessage().contains(BOUND_FIRED),
+                "foi o LIMITE que disparou, não uma falha de lançamento: " + ex.getMessage());
         assertTrue(ms < 30_000, "should give up within the bound, took " + ms + "ms");
     }
 
     @Test
     void zeroExitIsReturnedAsIs(@TempDir Path dir) throws Exception {
+        assumeSh();
         QemuRun.Exit e = QemuRun.run(3, 10, "sh", "-c", "echo hi");
         assertEquals(0, e.exitCode());
         assertEquals("hi", e.output());
@@ -94,6 +127,8 @@ class QemuRunTest {
      */
     @Test
     void probeKeepsTheCounterPathOutOfTheScriptText(@TempDir Path dir) throws Exception {
+        // no assumeSh() here: this one only builds the argv and reads the script
+        // text back, so it is meaningful (and must run) even without a shell.
         Path counter = dir.resolve("n");
         String[] cmd = probeCommand(dir, "echo x >> \"$1\"", counter);
         assertEquals("sh", cmd[0]);

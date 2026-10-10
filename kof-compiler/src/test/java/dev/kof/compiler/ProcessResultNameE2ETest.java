@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * between functions with field access intact, on JVM + Script + JS +
  * Native x86-64.
  */
-class ProcessResultNameE2ETest {
+class ProcessResultNameE2ETest implements NativeToolchainAssumptions {
 
     private static final String SRC = """
             import kof.process
@@ -92,13 +92,7 @@ class ProcessResultNameE2ETest {
 
     @Test
     void declaredResultFlowsOnNativeX86(@TempDir Path tmp) throws Exception {
-        try {
-            Process p = new ProcessBuilder("sh", "-c", "command -v as && command -v ld")
-                    .redirectErrorStream(true).start();
-            if (p.waitFor() != 0) return;
-        } catch (Exception e) {
-            return;
-        }
+        assumeNativeX86_64();
         CompilerDriver driver = new CompilerDriver();
         Path src = tmp.resolve("M.kf");
         Files.writeString(src, SRC);
