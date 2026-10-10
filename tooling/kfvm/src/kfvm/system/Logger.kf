@@ -21,6 +21,10 @@ class Logger {
         println(ansi(kindColor) + "(" + kind + ") " + ansi(RESET) + message)
     }
 
+    logWithEndKind(kind: String, kindColor: TermColor, message: String) {
+        println(message + ansi(kindColor) + "[" + kind + "] " + ansi(RESET))
+    }
+
     logColorfulLine(color: TermColor, message: String) {
         println(ansi(color) + message + ansi(RESET))
     }

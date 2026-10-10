@@ -1,0 +1,5 @@
+package kfvm.github
+
+interface HttpTransport {
+    ApiResponse get(String url, List<String> headers)
+}

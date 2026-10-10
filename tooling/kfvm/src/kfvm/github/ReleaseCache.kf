@@ -1,0 +1,67 @@
+package kfvm.github
+
+import kof.io
+import kof.json
+
+record CachedPage(Int page, String etag, Int count, List<RemoteRelease> releases)
+
+record ReleaseIndex(String kfvm, Long checkedAt, List<CachedPage> pages) {
+    Bool isFresh(Long now, Long ttlMillis) {
+        return pages.size > 0 && checkedAt <= now && now - checkedAt < ttlMillis
+    }
+
+    List<RemoteRelease> releases() {
+        var out = listOf<RemoteRelease>()
+        for (var p in pages) {
+            for (var r in p.releases()) {
+                out.add(r)
+            }
+        }
+
+        return out
+    }
+}
+
+class ReleaseCache {
+    String dir
+    String path
+    String kfvm
+
+    constructor(String dir, String platform, String kfvm) {
+        this.dir = dir
+        this.path = dir + "/.kfvm-releases-v2-" + platform + ".json"
+        this.kfvm = kfvm
+    }
+
+    ReleaseIndex empty() { return ReleaseIndex(kfvm, 0L, listOf()) }
+
+    ReleaseIndex load() {
+        var text = File(path).readText()
+        if (text == null) return empty()
+
+        try {
+            return matching(decode(text))
+        } catch (String e) {
+            return empty()
+        }
+    }
+
+    ReleaseIndex matching(List<ReleaseIndex> stored) {
+        if (stored.size != 1 || stored.get(0).kfvm() != kfvm) return empty()
+        return stored.get(0)
+    }
+
+    List<ReleaseIndex> decode(String text) {
+        return json.decode<List<kfvm.github.ReleaseIndex>>(text)
+    }
+
+    void write(Long checkedAt, List<CachedPage> pages) {
+        Directory(dir).createDirectories()
+        File(path).writeText(json.encode(listOf(ReleaseIndex(kfvm, checkedAt, pages))))
+    }
+
+    static CachedPage pageOf(List<CachedPage> pages, Int page) {
+        if (page >= 1 && page <= pages.size && pages.get(page - 1).page() == page) return pages.get(page - 1)
+        return CachedPage(page, "", 0, listOf())
+    }
+}

@@ -1,39 +1,46 @@
 package kfvm.github
 
-import kof.http
 import kof.json
-import kfvm.system
+import kof.time
 
 class GitHubClient {
     String repo
     String platform
     String token
+    ReleaseCache releaseCache
+    HttpTransport transport
+    Long ttlMillis
 
-    constructor(String repo, String platform, String token) {
+    constructor(String repo, String platform, String token, ReleaseCache releaseCache, HttpTransport transport, Long ttlMillis) {
         this.repo = repo
         this.platform = platform
         this.token = token
+        this.releaseCache = releaseCache
+        this.transport = transport
+        this.ttlMillis = ttlMillis
     }
 
+    List<RemoteRelease> cachedReleases() { return releaseCache.load().releases() }
+
     List<RemoteRelease> releases() {
-        var out = listOf<RemoteRelease>()
+        var cached = releaseCache.load()
+        var now = time.now()
+        if (cached.isFresh(now, ttlMillis)) return cached.releases()
+
+        var pages = listOf<CachedPage>()
         var page = 1
         var pageSize = 100
         var more = true
 
         while (more && page <= 10) {
-            var releases = fetchPage(page, pageSize)
-            for (var r in releases) {
-                if (matchesPlatform(r.tag_name())) {
-                    out.add(toRemote(r))
-                }
-            }
-
-            more = releases.size == pageSize
+            var current = fetchPage(page, pageSize, ReleaseCache.pageOf(cached.pages(), page))
+            pages.add(current)
+            more = current.count() == pageSize
             page = page + 1
         }
 
-        return out
+        releaseCache.write(now, pages)
+        return ReleaseIndex(releaseCache.kfvm, now, pages).releases()
     }
 
     String downloadUrl(RemoteRelease release, String file) {
@@ -41,19 +48,28 @@ class GitHubClient {
         return "https://github.com/" + repo + "/releases/download/" + tag + "/" + encode(file)
     }
 
-    List<Release> fetchPage(Int page, Int pageSize) {
+    CachedPage fetchPage(Int page, Int pageSize, CachedPage previous) {
         var url = "https://api.github.com/repos/" + repo + "/releases?per_page=" + pageSize + "&page=" + page
-        var body = get(url).trim()
-        if (!body.startsWith("[")) {
-            throw "GitHub API: " + body + " (rate limit? set GITHUB_TOKEN)"
+        var headers = listOf<String>()
+        if (token != "") headers.add("Authorization: Bearer " + token)
+        if (previous.etag() != "") headers.add("If-None-Match: " + previous.etag())
+
+        var response = transport.get(url, headers)
+        if (response.status() == "304" && previous.etag() != "") return previous
+        if (response.status() != "200" || !response.body().startsWith("["))
+            throw "GitHub API: HTTP " + response.status() + " " + response.body() + " (rate limit? set GITHUB_TOKEN)"
+
+        var releases = decode(response.body())
+        var matching = listOf<RemoteRelease>()
+        for (var r in releases) {
+            if (matchesPlatform(r.tag_name())) matching.add(toRemote(r))
         }
 
-        return json.decode<List<kfvm.github.Release>>(body)
+        return CachedPage(page, response.etag(), releases.size, matching)
     }
 
-    String get(String url) {
-        if (token == "") return http.get(url)
-        return Shell.run("curl", listOf("-fsSL", "-H", "Authorization: Bearer " + token, url))
+    List<Release> decode(String body) {
+        return json.decode<List<kfvm.github.Release>>(body)
     }
 
     Bool matchesPlatform(String tag) {

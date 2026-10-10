@@ -89,6 +89,8 @@ kfvm ls           # versions installed on this machine
 kfvm ls -r        # versions available on GitHub Releases
 ```
 
+`kfvm ls` only reads the disk and never touches the network. The release list used by `kfvm ls -r`, `kfvm i` and `kfvm u` is cached in `~/.local/share/kof` for 10 minutes; after that kfvm revalidates it with GitHub using ETags, so an unchanged list is not downloaded again.
+
 ### Installing
 
 ```bash

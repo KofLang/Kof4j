@@ -1,0 +1,17 @@
+package kfvm.github
+
+import kfvm.system
+
+class CurlTransport implements kfvm.github.HttpTransport {
+    ApiResponse get(String url, List<String> headers) {
+        var args = listOf("-sSL", "--compressed", "-D", "-")
+
+        for (var h in headers) {
+            args.add("-H")
+            args.add(h)
+        }
+
+        args.add(url)
+        return ApiResponse.parse(Shell.run("curl", args))
+    }
+}
