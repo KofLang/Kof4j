@@ -72,5 +72,5 @@ JVM/Native `double`.
 
 - `training/idioms/game.md` — every surface (tilemaps, audio mixer, WAV,
   video intent) in canonical form, with the measured constraints.
-- `docs/development/graphics-gaming-plan.md` — the full front: slices,
+- `docs/graphics-gaming.md` — the full front: slices,
   decisions, gap codes, parity matrix.

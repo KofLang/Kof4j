@@ -345,7 +345,7 @@ fatia 2B, byte a byte sob qemu); **JS = `MEDIA001`** e `Image`/`Mic` = `MEDIA001
 Nota de escopo: esta e a **face de dados** atual de `kof.media`. A superficie futura
 de graficos/jogos/midia e **engine propria da Kof**, com paridade TOTAL nos 4 alvos
 como criterio de aceite (`DECISIONS.md` §D-GRAPHICS-GAMING adendos 2+4; plano
-`docs/development/graphics-gaming-plan.md`) — `MEDIA001` e honesto para a face
+`docs/graphics-gaming.md`) — `MEDIA001` e honesto para a face
 legada, nao o modelo do que sera promovido.
 
 ## Nota por target (gates honestos)

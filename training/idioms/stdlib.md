@@ -344,7 +344,7 @@ aarch64 ✅ (`Video` fatia 2A + `Audio` fatia 2B, byte-for-byte under qemu);
 Scope note: this is today's **data face** of `kof.media`. The
 future graphics/gaming/media surface is **Kof's own engine** with FULL 4-target
 parity as its acceptance criterion (`DECISIONS.md` §D-GRAPHICS-GAMING addenda 2+4;
-plan `docs/development/graphics-gaming-plan.md`) — `MEDIA001` is honest for
+plan `docs/graphics-gaming.md`) — `MEDIA001` is honest for
 the legacy face, not the model for what gets promoted.
 
 ## Note per target (honest gates)

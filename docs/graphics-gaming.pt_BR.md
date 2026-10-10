@@ -4,9 +4,9 @@
 
 last: fatia-3.4a probe do backend POUSADA 09/10 (decisão F executada: FFmpeg 9.0.2 upstream LGPL-2.1+ vendido `~/.local/share/kof-ffmpeg/usr` da fonte, SEM `--enable-gpl`, `scripts/provision-ffmpeg.sh`; `FfmpegFfiProbeE2ETest` 4/4 — licença do probe `LGPL version 2.1 or later` em JVM + Native x86-64, faces cross pulam com motivo; fix `-rpath-link` do dir de extern no `NativeAssembler` para o fecho DT_NEEDED do vendor resolver antes da pilha ffmpeg conflitante da distro)
 last: fatia-3.4c POUSADA 09/10 (a primitiva poke — `buffer.poke8/32/64`, a contraparte de escrita do peek: forma raw (addr, value) + forma Buffer (b, off, value) com o mesmo trap de bounds; slot de valor Long aceita Int via a conversão ordinária; `BufferPokeE2ETest` 12/12 0 skips nos quatro alvos nativos; o fluxo de video agora chama `av_packet_free`/`av_frame_free` através de out-params embalados com poke — `freed=true/true` no `FfmpegFrameReadbackE2ETest` 3/3; a bateria game 75/0F)
-doing: a promoção da superfície pura deste plano para docs/ (por ordem da mantenedora 09/10)
-next: o plano promove para `docs/graphics-gaming.md` (a superfície pura completa + validada: todos os 17 módulos, o probe/readback do backend FFmpeg LGPL, a ABI SDL3; as faces de backend — matriz de visão, carregamento de mesh, shading, present, fila de decode — ficam como a fronteira documentada)
-state: UNDER DEVELOPMENT
+doing: (nenhuma — a missão da superfície pura está completa; o probe/readback do backend FFmpeg LGPL + a ABI SDL3 estão pousados)
+next: as faces de backend ficam como a fronteira documentada (veja a linha state); um novo plano para trabalho de backend (renderer/mesh-loader/fila-de-decode) começa de docs/development por ordem da mantenedora
+state: SUPERFÍCIE PURA COMPLETA + VALIDADA (as faces de backend — matriz de visão, carregamento de mesh, shading, present, fila de decode — ficam como a fronteira documentada)
 
 **Dono:** `192.168.15.15:9092` — lane security/connectors, frente graphics/gaming; reivindicado 05/10 (os claims do spike-3.0 `192.168.15.30:9093` eram runner/tooling, históricos).
 **Status:** **EM DESENVOLVIMENTO** — promovido 30/09 de `future/` por `D-GRAPHICS-SPIKE` (spike 3.0 = medição + stack apenas, sem API) sob `D-FUTURE-PROMOTION`.

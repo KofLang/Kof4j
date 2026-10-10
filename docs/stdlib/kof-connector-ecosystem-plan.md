@@ -1021,7 +1021,7 @@ are the first place this front touches the compiler; they are not library-only.
 # 14. Relation to other plans
 
 * `docs/ffi-abi-structs.md` — the ABI substrate; this plan consumes it, never redefines it.
-* `docs/development/graphics-gaming-plan.md` — the named R9 exception (own engine);
+* `docs/graphics-gaming.md` — the named R9 exception (own engine);
   this plan supplies the FFI layer only for the non-engine surface.
 * `docs/development/future/PLAN-BOOTSTRAP.md` — E4 requires FFI structs ratified; a mature
   Connector Core strengthens the bootstrap path.

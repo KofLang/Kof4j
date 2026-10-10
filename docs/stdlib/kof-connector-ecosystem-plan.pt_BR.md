@@ -1033,7 +1033,7 @@ fatias A/B são o primeiro ponto em que esta frente toca o compilador; não são
 # 14. Relação com outros planos
 
 * `docs/ffi-abi-structs.md` — o substrato de ABI; este plano o consome, nunca o redefinir.
-* `docs/development/graphics-gaming-plan.md` — a exceção nomeada ao R9 (engine própria);
+* `docs/graphics-gaming.md` — a exceção nomeada ao R9 (engine própria);
   este plano fornece a camada FFI só para a superfície não-engine.
 * `docs/development/future/PLAN-BOOTSTRAP.md` — E4 exige FFI structs ratificados; um Connector
   Core maduro fortalece o caminho do bootstrap.

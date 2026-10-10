@@ -73,5 +73,5 @@ JS difere do `double` de JVM/Native.
 
 - `training/idioms/game.md` — toda superfície (tilemaps, mixer de áudio,
   WAV, intent de vídeo) em forma canônica, com as restrições medidas.
-- `docs/development/graphics-gaming-plan.md` — a frente completa: fatias,
+- `docs/graphics-gaming.md` — a frente completa: fatias,
   decisões, códigos de gap, matriz de paridade.

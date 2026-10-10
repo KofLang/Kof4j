@@ -5,10 +5,10 @@
 **Owner:** `192.168.15.15:9092` — lane security/connectors, graphics/gaming front; re-claimed 05/10 (the spike-3.0 `192.168.15.30:9093` claims were runner/tooling, historical).
 
 last: slice-3.4c LANDED 09/10 (the poke primitive — `buffer.poke8/32/64`, the write counterpart of peek: raw form (addr, value) + Buffer form (b, off, value) with the same bounds trap; a Long value slot accepts Int via the ordinary conversion; `BufferPokeE2ETest` 12/12 0 skips on all four native targets; the video flow now calls `av_packet_free`/`av_frame_free` through poke-boxed out-params — `freed=true/true` in `FfmpegFrameReadbackE2ETest` 3/3; the game battery 75/0F)
-doing: the pure-surface promotion of this plan to docs/ (per the maintainer order 09/10)
-next: the plan promotes to `docs/graphics-gaming.md` (the pure surface complete + validated: all 17 modules, the FFmpeg LGPL backend probe/readback, the SDL3 ABI; the backend faces — view matrix, mesh loading, shading, present, decode queue — stay the documented boundary)
-location: docs/development
-state: UNDER DEVELOPMENT
+doing: (none — the pure-surface mission is complete; the FFmpeg LGPL backend probe/readback + the SDL3 ABI are landed)
+next: the backend faces stay the documented boundary (see the state line); a new plan for backend work (renderer/mesh-loader/decode-queue) starts from docs/development on a maintainer order
+location: docs
+state: PURE SURFACE COMPLETE + VALIDATED (the backend faces — view matrix, mesh loading, shading, present, decode queue — stay the documented boundary)
 
 **Status:** **UNDER DEVELOPMENT** — promoted 30/09 from `future/` by `D-GRAPHICS-SPIKE` (spike 3.0 = measurement + stack only, no API) under `D-FUTURE-PROMOTION`.
 **Normative source:** `DECISIONS.md` §D-GRAPHICS-GAMING + maintainer addenda + §D-GRAPHICS-SPIKE.
