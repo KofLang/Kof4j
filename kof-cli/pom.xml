@@ -24,7 +24,7 @@
         <dependency>
             <groupId>com.microsoft.playwright</groupId>
             <artifactId>playwright</artifactId>
-            <version>1.49.0</version>
+            <version>1.63.0</version>
         </dependency>
         <dependency>
             <groupId>dev.kof</groupId>
@@ -36,7 +36,7 @@
             <artifactId>kof-c-compiler</artifactId>
             <version>${project.version}</version>
         </dependency>
-        <dependency><groupId>com.h2database</groupId><artifactId>h2</artifactId><version>2.5.250</version><scope>test</scope></dependency><dependency>
+        <dependency><groupId>com.h2database</groupId><artifactId>h2</artifactId><version>2.5.252</version><scope>test</scope></dependency><dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
@@ -122,7 +122,7 @@
                     <plugin>
                         <groupId>org.codehaus.mojo</groupId>
                         <artifactId>exec-maven-plugin</artifactId>
-                        <version>3.6.3</version>
+                        <version>3.6.4</version>
                         <executions>
                             <execution>
                                 <id>golden-tests</id>
