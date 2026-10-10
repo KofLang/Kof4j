@@ -457,6 +457,17 @@ for (int ci = chain.size() - 1; ci >= 0; ci--) {
         localIdx = ExpressionGenericEquality.emit(driver, be, ops, owner, localIdx, locals);
         accType = Type.PrimitiveType.BOOL;
     } else {
+        // #779 (hardening, 10/10): o fallback do lowering escolhia o operador
+        // pelo tipo do lado ESQUERDO apenas. Quando o esquerdo chegava como
+        // `Object`/`Unknown`/type-var e o direito era DOUBLE/FLOAT, o bytecode
+        // caía em `if_icmp*` sobre slots de 2 palavras ou em `if_acmp*` sobre
+        // referência vs primitivo. Recusar antes de emitir; `Unknown`/erasure vs
+        // INT continua liberado (comparações físicas de listas/mapas apagados).
+        if (ExpressionBinaryPredicates.isRelationalOp(be.operator())
+                && ExpressionBinaryPredicates.isUnorderedAgainstFloating(accType, rightType)) {
+            CompilerComparisons.reportUnorderedFloatingComparison(driver, be, accType, rightType);
+            return localIdx;
+        }
         // Unknown/Nullable(Unknown) vs primitivo (get de mapOf() sem pin
         // vs int): o lado nullable só pode ser null (miss) → referência
         // com o primitivo boxado (SG-008/bug 87; espelha Objects.equals).

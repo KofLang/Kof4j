@@ -112,4 +112,24 @@ final class ExpressionBinaryPredicates {
         return "<<".equals(op) || ">>".equals(op) || ">>>".equals(op);
     }
 
+    /** Relacionais de ordem: `<`, `<=`, `>`, `>=`. */
+    static boolean isRelationalOp(String op) {
+        return "<".equals(op) || "<=".equals(op) || ">".equals(op) || ">=".equals(op);
+    }
+
+    /** #779: dynamic/reference lado vs Double/Float, sem caminho primitivo seguro. */
+    static boolean isUnorderedAgainstFloating(Type left, Type right) {
+        Type l = left instanceof Type.NullableType nt ? nt.inner() : left;
+        Type r = right instanceof Type.NullableType nt ? nt.inner() : right;
+        if (!(TypeMetrics.isFloatingPoint(l) || TypeMetrics.isFloatingPoint(r))) {
+            return false;
+        }
+        Type other = TypeMetrics.isFloatingPoint(l) ? r : l;
+        return !TypeMetrics.isNumeric(other)
+                && (Type.isUnknown(other)
+                    || other instanceof Type.TypeVariable
+                    || other instanceof Type.ClassType
+                    || other instanceof Type.ArrayType);
+    }
+
 }

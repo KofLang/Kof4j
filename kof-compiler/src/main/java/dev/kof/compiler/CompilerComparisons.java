@@ -368,6 +368,11 @@ public final class CompilerComparisons {
         }
         Type leftT = ExpressionTyper.inferExprType(driver, bin.left(), locals);
         Type rightT = ExpressionTyper.inferExprType(driver, bin.right(), locals);
+        if (ExpressionBinaryPredicates.isRelationalOp(bin.operator())
+                && ExpressionBinaryPredicates.isUnorderedAgainstFloating(leftT, rightT)) {
+            reportUnorderedFloatingComparison(driver, bin, leftT, rightT);
+            return localIdx;
+        }
         // lado "Unknown-ou-Nullable(Unknown)" pode conter null (get de
         // mapOf() sem pin) — o primitivo oposto é boxado (comparação vira
         // referência; espelha o interpretador, Objects.equals)
@@ -412,6 +417,25 @@ public final class CompilerComparisons {
         }
         driver.emitWideningIfNeeded(ops, rightT, common);
         return localIdx;
+    }
+
+    static void reportUnorderedFloatingComparison(CompilerDriver driver, BinaryExpr bin,
+                                                   Type leftT, Type rightT) {
+        if (driver.currentDiagnostics == null) return;
+        Type bad = TypeMetrics.isFloatingPoint(leftT) ? rightT : leftT;
+        Type shown = bad instanceof Type.NullableType nt ? nt.inner() : bad;
+        String label = Type.isUnknown(shown) || shown instanceof Type.TypeVariable
+                ? "the operand type (not known)" : "'" + Type.display(shown) + "'";
+        SourcePosition pos = bin.position();
+        driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                pos != null ? pos.line() : 0,
+                pos != null ? pos.column() : 0,
+                0,
+                "Kof has no operator '" + bin.operator() + "' for " + label
+                        + " compared to a Double/Float operand — ordering is defined only"
+                        + " for numeric operands; compare numeric values, or use"
+                        + " value.toDouble() on a known dynamic value",
+                "SEM104");
     }
 
     static KofComparison mapComparison(String op) {

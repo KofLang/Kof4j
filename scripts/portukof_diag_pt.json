@@ -1728,5 +1728,12 @@
       "en": "'{0}' is a type, not a value — to convert use `as {1}`",
       "pt": "'{0}' é um tipo, não um valor — para converter use `como {1}`"
     }
+  ],
+  "SEM104": [
+    {
+      "arity": 2,
+      "en": "Kof has no operator '{0}' for {1} compared to a Double/Float operand — ordering is defined only for numeric operands; compare numeric values, or use value.toDouble() on a known dynamic value",
+      "pt": "Kof não tem operador '{0}' para {1} comparado a um operando Double/Float — a ordem é definida apenas para operandos numéricos; compare valores numéricos, ou use valor.toDouble() sobre um valor dinâmico conhecido"
+    }
   ]
 }
