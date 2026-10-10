@@ -43,8 +43,6 @@ abstract class FfiStructSupport {
             struct F2 { float a; float b; };
             float f2sum(struct F2 f) { return f.a + f.b; }
             struct F2 f2ret(float a, float b) { struct F2 f; f.a = a; f.b = b; return f; }
-            struct F3 { float a; float b; float c; };
-            float f3sum(struct F3 f) { return f.a + f.b + f.c; }
             """;
 
     protected static String compileHostLib(Path dir) throws IOException, InterruptedException {

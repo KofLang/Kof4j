@@ -46,12 +46,18 @@ class FfiStructLayoutTest {
     @Test
     void packedFloatEightbyteBinds() {
         // M1 (VF-on-x86-64): dois Float no MESMO eightbyte SSE é o struct
-        // homogêneo-flutuante — emitido bitwise (shift/or → movq %xmm), não mais
-        // FFI001.
+        // homogêneo-flutuante (≤ 2 campos) — emitido bitwise (shift/or → movq
+        // %xmm), não mais FFI001.
         assertTrue(FfiStructLayout.x86Bindable(List.of(struct('f', 'f'))),
                 "{float,float} = um eightbyte SSE empacotado (M1)");
         assertTrue(FfiStructLayout.x86RegisterOnly(struct('f', 'f')),
                 "{float,float} ≤ 16 B, register path (M1)");
+        // HFA>2 (3 floats) fica FFI001 — o corte M1 é ≤ 2 campos, o MESMO do cross
+        // (`crossHomogeneousFloat`), onde as duas ABIs divergem em HFA>2.
+        assertFalse(FfiStructLayout.x86Bindable(List.of(struct('f', 'f', 'f'))),
+                "HFA>2 (3 floats) não binda no x86-64 (M1, corte ≤ 2) — FFI001 honesto");
+        assertFalse(FfiStructLayout.x86RegisterOnly(struct('f', 'f', 'f')),
+                "HFA>2 (3 floats) não é register path no x86-64 (M1)");
     }
 
     @Test

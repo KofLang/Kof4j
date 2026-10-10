@@ -131,18 +131,45 @@ public final class FfiStructLayout {
 
     // ── x86-64 SysV bindability (register path only) ─────────────────────
     //
-    // Todos os eightbytes SSE são emitíveis desde M1: INTEGER domina SSE dentro
-    // de um eightbyte (medido em AbiLayout), então um eightbyte SSE só carrega
-    // campos float/double — a forma empacotada do struct homogêneo-flutuante
-    // (ex. `{float a; float b;}`), que o emissor monta bitwise (shift/or em %rax
-    // → movq %xmm). Não há mais um eightbyte SSE multi-campo não suportado.
+    // M1: um eightbyte SSE empacotado (mais de um campo float/double) passou a
+    // ser emitido bitwise (shift/or em %rax → movq %xmm) — a forma x86-64 da
+    // face HFA (VF: `record VF(Float, Float)`). O corte é o MESMO do cross
+    // (`crossHomogeneousFloat`, ≤ 2 campos): um struct homogêneo-flutuante com
+    // > 2 campos (HFA>2) fica FFI001 honesto em x86-64 também, para manter
+    // x86-64 e cross alinhados (no cross as duas ABIs divergem em HFA>2).
+
+    /** A struct whose SSE eightbyte carries more than one field needs packing
+     *  beyond the M1 homogeneous-float form — honest gap. */
+    private static boolean sseEightbytesAreSingleField(Type structType) {
+        List<FieldInfo> fs = fields(structType);
+        AbiLayout.Layout l = layout(AbiLayout.Abi.SYSV_X86_64, structType);
+        for (int e = 0; e < l.classes().size(); e++) {
+            if (l.classes().get(e) != AbiLayout.ArgClass.SSE) continue;
+            int lo = e * 8;
+            int count = 0;
+            for (FieldInfo f : fs) {
+                if (f.cOffset() < lo + 8 && f.cOffset() + f.scalar().size > lo) count++;
+            }
+            if (count != 1) return false;
+        }
+        return true;
+    }
+
+    /** True when the struct's SSE eightbytes are emittable on the x86-64 register
+     *  path: each carries a SINGLE field, or the struct is the homogeneous-float
+     *  ≤ 2 form (the x86-64 mirror of the cross HFA face — M1, VF). HFA>2 stays
+     *  FFI001 (cross-aligned); a mixed integer+float SSE eightbyte stays FFI001. */
+    private static boolean x86SseBindable(Type structType) {
+        return crossHomogeneousFloat(structType) || sseEightbytesAreSingleField(structType);
+    }
 
     /** True when a single struct is bindable as an x86-64 RETURN value in the
-     *  register path (≤ 16 B, no MEMORY). The sret path (&gt; 16 B) is a later
-     *  slice. */
+     *  register path (≤ 16 B, no MEMORY, emittable SSE eightbytes). The sret
+     *  path (&gt; 16 B) is a later slice. */
     public static boolean x86RegisterOnly(Type structType) {
         AbiLayout.Layout l = layout(AbiLayout.Abi.SYSV_X86_64, structType);
-        return !l.byMemory() && l.size() <= 16;
+        if (l.byMemory() || l.size() > 16) return false;
+        return x86SseBindable(structType);
     }
 
     /** True when a single struct is bindable as an x86-64 sret RETURN: larger
@@ -328,6 +355,7 @@ public final class FfiStructLayout {
                 continue;
             }
             if (isStructType(t)) {
+                if (!x86SseBindable(t)) return false;
                 AbiLayout.Layout l = layout(AbiLayout.Abi.SYSV_X86_64, t);
                 if (l.byMemory()) return false;
                 for (AbiLayout.ArgClass c : l.classes()) {

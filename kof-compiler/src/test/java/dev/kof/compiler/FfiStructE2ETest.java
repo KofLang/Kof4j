@@ -387,6 +387,27 @@ class FfiStructE2ETest extends FfiStructSupport {
     }
 
     @Test
+    void structParamThreeFloatStaysFfi001(@TempDir Path dir) throws Exception {
+        // HFA>2 no x86-64: {float a,b,c} (3 campos homogêneo-flutuante) NÃO binda
+        // — o corte M1 é ≤ 2 campos, o MESMO do cross (`crossHomogeneousFloat`),
+        // onde as duas ABIs divergem em HFA>2. Recusa honesta (R6), nunca um
+        // binding parcial silencioso. Sem toolchain C: o gate roda antes do codegen.
+        String kof = """
+                record F3(Float a, Float b, Float c)
+
+                extern "libc.so.6" f3sum(F3 f): Float
+
+                main() { println("gap") }
+                """;
+        Path src = dir.resolve("f3-native.kf");
+        Files.writeString(src, kof);
+        CompilationResult r = driver.compile(src, dir.resolve("out-f3-native"), Target.NATIVE);
+        assertFalse(r.success(), "HFA>2 (3 floats) não pode bindar no x86-64 (M1, corte ≤ 2)");
+        assertTrue(r.diagnostics().getDiagnostics().toString().contains("FFI001"),
+                "HFA>2 mantém FFI001 honesto no x86-64: " + r.diagnostics().getDiagnostics());
+    }
+
+    @Test
     void structParamByValueJsParity(@TempDir Path dir) throws Exception {
         // Bridge de struct no JS (D6-1/3.8b, 21/09): o record vira struct C por
         // valor no host GraalJS — MESMO StructLayout/offsets do JVM, provado

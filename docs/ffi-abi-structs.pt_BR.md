@@ -75,19 +75,22 @@ valor como argumento** — o `FfiStructLayout` classifica via `AbiLayout` e o
 call-site monta cada eightbyte direto no registrador de destino (INTEGER via
 shift/or dos slots de 8 bytes do objeto Kof; SSE via `movq`/`movd`), sem spill
 de scratch. O gate (`CompilerPipeline.nativeExternBound`) mantém o resto
-honesto em `FFI001`: structs que vão à memória (SysV MEMORY / > 16 B), ou um
-struct que não cabe nos registradores restantes. Prova: `FfiStructE2ETest`
-`structParamByValueNativeRegisterPath` (`Point`/`MixIF` int+float no mesmo
-eightbyte/`Time` long+double) byte-a-byte JVM==Native + `FfiStructLayoutTest`
-(classificação, sem toolchain C).
+honesto em `FFI001`: structs que vão à memória (SysV MEMORY / > 16 B), um
+eightbyte SSE com mais de um campo além da forma homogêneo-flutuante ≤ 2
+(HFA>2), ou um struct que não cabe nos registradores restantes. Prova:
+`FfiStructE2ETest` `structParamByValueNativeRegisterPath` (`Point`/`MixIF`
+int+float no mesmo eightbyte/`Time` long+double) byte-a-byte JVM==Native +
+`FfiStructLayoutTest` (classificação, sem toolchain C).
 **Pousou 10/10 (memory-safety M1 · VF-on-x86-64, a última face float do
-x86-64):** um eightbyte SSE com mais de um campo deixa de ser `FFI001` — é
-emitido bitwise (`%rax` shift/or → `movq %xmm`; SSE é bitwise, então nenhuma
-conversão FP). Como INTEGER domina SSE dentro de um eightbyte (medido no
-`AbiLayout`), um eightbyte SSE multi-campo é sempre homogêneo-flutuante, ou
-seja, a forma x86-64 da face HFA já pousada no cross — os dois alvos agora
-concordam. Prova: `FfiStructE2ETest` `structParamAndReturnFloatByValueNative`
-(`F2(Float,Float)` param E retorno, byte-a-byte JVM==Native) +
+x86-64):** um eightbyte SSE com mais de um campo é emitido bitwise (`%rax`
+shift/or → `movq %xmm`; SSE é bitwise, então nenhuma conversão FP) — a forma
+x86-64 da face HFA cross, então um struct homogêneo-flutuante de **≤ 2 campos**
+(`record VF(Float, Float)`) agora binda no x86-64 também. O corte é o MESMO do
+cross (`crossHomogeneousFloat`, ≤ 2 campos): **HFA>2 segue `FFI001`** (no cross
+as duas ABIs divergem aí; manter o x86-64 alinhado evita uma divergência
+silenciosa). Prova: `FfiStructE2ETest` `structParamAndReturnFloatByValueNative`
+(`F2(Float,Float)` param E retorno, byte-a-byte JVM==Native) e
+`structParamThreeFloatStaysFfi001` (HFA>2 = `FFI001` honesto) +
 `FfiCrossHfaE2ETest`/`FfiCrossHfaReturnE2ETest` (os pins antigos
 `…StaysFfi001Honest` viraram binding) + `FfiStructLayoutTest`
 `packedFloatEightbyteBinds`.
