@@ -946,6 +946,19 @@ a um acumulador `Int` (`10 → 15 → 12 → 24 → 6 → 1`), `+=` a uma `Strin
 Validado nos quatro alvos. Prova (executada): `tests/run-golden.sh` **152/152**
 (38 casos × 4 alvos), exit 0.
 
+**Fatia 14 da Fase 6 ENTREGUE (10/10, lane compiler/JVM/native `192.168.15.30:9092`):** mais
+um caso — **39 no total** — pinando o contrato de promoção aritmética de
+`Byte`/`Short`/`Char` (`D-KOF-BYTE-ARITH` / `known-bugs` §561, corrigido 02/10), que
+nenhum caso anterior exercitava: `byte-arith` pina que operandos `Byte`/`Short`/`Char`
+PROMOVEM a `Int` (`Byte * 256` = `16640`, `Byte + Byte` = `240` — a repro do §561 que
+crashava `Byte.valueOf` na JVM enquanto JS/Native devolviam o Int não truncado;
+`Short + Short` = `2000`/`60000`, `Short * 3` = `90000`, `Char + Char` = `194`,
+`Byte + Int` misto = `165`, `Char - Char` = `25`), mais o narrowing explícito
+`(bb + 1) as Byte` = `66` e o wrap `300 as Byte` = `44` (a face `i2b` do `#471`). O
+resultado é o `Int` não truncado, então a divergência JVM/JS/Native/Script que o §561
+registrou é um guard real aqui. Validado nos quatro alvos. Prova (executada):
+`tests/run-golden.sh` **156/156** (39 casos × 4 alvos), exit 0.
+
 ### Fase 7 — Integração
 
 Implantar:

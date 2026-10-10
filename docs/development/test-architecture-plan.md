@@ -939,6 +939,19 @@ earlier case exercised: `compound-assign` applies `+=`/`-=`/`*=`/`/=`/`%=` to an
 Validated on all four targets. Proof (executed): `tests/run-golden.sh`
 **152/152** (38 cases × 4 targets), exit 0.
 
+**Phase 6 slice 14 LANDED (10/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **39 total** — pinning the `Byte`/`Short`/`Char` arithmetic-promotion
+contract (`D-KOF-BYTE-ARITH` / `known-bugs` §561, fixed 02/10), which no earlier
+case exercised: `byte-arith` pins that `Byte`/`Short`/`Char` operands PROMOTE to
+`Int` (`Byte * 256` = `16640`, `Byte + Byte` = `240` — the §561 repro that used to
+crash `Byte.valueOf` on the JVM while JS/Native returned the un-truncated Int;
+`Short + Short` = `2000`/`60000`, `Short * 3` = `90000`, `Char + Char` = `194`,
+mixed `Byte + Int` = `165`, `Char - Char` = `25`), plus the explicit narrowing
+`(bb + 1) as Byte` = `66` and the `as Byte` wrap `300 as Byte` = `44` (the `#471`
+`i2b` face). The result is the un-truncated `Int`, so the JVM/JS/Native/Script
+divergence §561 recorded is a real guard here. Validated on all four targets.
+Proof (executed): `tests/run-golden.sh` **156/156** (39 cases × 4 targets), exit 0.
+
 ### Phase 7 — Integration
 
 Deploy:
