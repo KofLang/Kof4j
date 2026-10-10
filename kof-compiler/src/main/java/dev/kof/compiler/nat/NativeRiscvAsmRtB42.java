@@ -99,22 +99,15 @@ public final class NativeRiscvAsmRtB42 {
                 j    .Lkof_alloc_fsearch_loop
             .Lkof_alloc_bump:
                 la   t2, kof_alloc_ptr
-                ld   t0, 0(t2)           # t0 = base do bloco
+                amoadd.d t0, s0, (t2)    # t0 = base do bloco
                 # R6: bump com bounds-check (G-0); o header triplica o consumo.
-                # §602 (10/10): o antigo amoadd.d avancava o cursor ANTES do
-                # bounds-check — quando o bloco nao cabia, o cursor ficava PARA
-                # SEMPRE alem de _kof_heap_end (sem rewind): todo alloc seguinte
-                # caia no caminho G-4 e rodava um collect_now COMPLETO (tempestade
-                # O(N^2): FilterIntra hang 4h15m medido, CDF array-OOB medido).
-                # O lock de kof_alloc ja esta tomado — amoadd era desnecessario;
-                # ld/add/sd avanca o cursor SO QUANDO COUBER.
-                add  t4, t0, s0          # t4 = base + total
                 la   t3, _kof_heap_end
-                bltu t4, t3, .Lkof_alloc_bok_fit
-                beq  t4, t3, .Lkof_alloc_bok_fit
+                add  t4, t0, s0
+                bltu t4, t3, .Lkof_alloc_bok
+                beq  t4, t3, .Lkof_alloc_bok
                 # G-4: arena esgotada. Solta o lock e roda o coletor UMA vez;
-                # o cursor NAO avancou (sem overshoot), a busca re-tenta o
-                # bump depois. Só panic se ainda faltar.
+                # se ele devolver blocos à free-list, re-tenta a busca (o bump
+                # já avançou, mas a busca acha o reuso). Só panic se ainda faltar.
                 sw   zero, 0(s1)         # unlock
                 bnez s4, .Lkof_alloc_oom
                 li   s4, 1
@@ -128,8 +121,6 @@ public final class NativeRiscvAsmRtB42 {
             .Lkof_alloc_oom:
                 la   a0, .Lstr_oom
                 call kof_panic
-            .Lkof_alloc_bok_fit:
-                sd   t4, 0(t2)           # §602: avanca o cursor SO SE coube
             .Lkof_alloc_bok:
                 sd   s0, 0(t0)           # size total
                 sd   zero, 8(t0)         # free_next = 0
