@@ -1071,6 +1071,29 @@ only, no compiler change. Proof (executed): every value measured on the Script t
 first, cross-checked on jvm/native/js (all four agree), then frozen; `tests/run-golden.sh`
 **180/180** (45 cases × 4 targets), exit 0.
 
+**Phase 6 slice 21 LANDED (10/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **46 total** — pinning the REST of the `kof.time` calendar surface that slice
+19 did not cover: `time-calendar-namespace` exercises `parseDateIso` (`"1970-01-01"`=0,
+`"2026-01-01"`=20454, `"2026-10-10"`=20736, invalid/`"2026-13-01"`/`"2026-02-30"`=0),
+`startOf`/`endOf` for `day`/`week`/`month`/`year` (`startOf("2026-10-10","month")`=`2026-10-01`,
+`endOf(...)`=`2026-10-31`, week = Mon..Sun `startOf("2026-10-10","week")`=`2026-10-05`),
+`age` (`1990-06-15`→`2026-10-10`=36, `1990-12-31`→=35, same-day=0) and `hoursBetween`
+(`2026-01-01 00h`→`2026-01-02 12h`=36, reversed=-36). **This case is also a regression guard
+for a real cross-target bug found and fixed in the same unit:** an UNKNOWN 5-character
+`unit` (e.g. `"bogus"`) returned the start/end of the MONTH on the native targets instead of
+the contract's `""` (jvm/script/js were correct). Root cause: the x86 asm
+(`RuntimeTimeMonthIso.emitStartEndOf`) and the riscv64 asm (`NativeRiscvAsmRtB83`, shared
+with aarch64 via the translator) dispatched on `len == 5` straight to the `month` branch
+without checking the first byte was `'m'`; the len-4 branch already disambiguated
+`week`/`year` by first byte, so only the 5-char face was unguarded (and the existing test
+only used the 6-char `"decade"`, which fell into the unknown branch by luck). Fix = the
+len-5 branch requires first byte `'m'` (`cmpb $109` x86 / `li t2,109; bne` riscv), else `""`.
+Proof RED-first: `KofTimeE2ETest#timeStartEndOfNative` FAILED on the pre-fix tree with the
+exact `2026-10-01` vs expected `""`; after the fix `timeStartEndOf{Native,CrossArch}` (x86-64
++ riscv64 + aarch64 under qemu) are 5/5, 0 skipped. Native asm only — no Kof semantics
+change. Proof (executed): `tests/run-golden.sh` **184/184** (46 cases × 4 targets), exit 0;
+`mvn -o -pl kof-compiler -am compile` rc=0; `check_500` rc=0.
+
 ### Phase 7 — Integration
 
 Deploy:

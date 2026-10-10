@@ -150,13 +150,18 @@ public final class RuntimeTimeMonthIso {
                 testl %eax, %eax
                 jz .Lka_se_render
                 movzbl 24(%r12), %eax           # primeiro byte da unit
-                # day=3 / week=4 / month=5 / year=4 -> len 4 DESAMBIGUA por
-                # primeiro byte: 'w'=semana, 'y'=ano. Qualquer outro len ou
-                # byte = unit desconhecida => "".
+                # day=3 / week=4 / month=5 / year=4. O len 4 DESAMBIGUA por
+                # primeiro byte ('w'=semana, 'y'=ano); o len 5 EXIGE 'm' (senao
+                # um unit desconhecido de 5 chars, ex. "bogus", cairia no ramo
+                # month e devolveria o inicio/fim do mes — contrato: "").
                 cmpl $3, 16(%r12)
                 je .Lka_se_day
                 cmpl $5, 16(%r12)
-                je .Lka_se_month
+                jne .Lka_se_not_month
+                cmpb $109, %al                  # 'm'
+                jne .Lka_se_render
+                jmp .Lka_se_month
+            .Lka_se_not_month:
                 cmpl $4, 16(%r12)
                 jne .Lka_se_render
                 cmpb $119, %al                  # 'w'

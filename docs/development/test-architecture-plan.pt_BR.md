@@ -1074,6 +1074,29 @@ no compilador. Prova (executada): cada valor medido primeiro no alvo Script, cru
 jvm/nativo/js (os quatro concordam), então congelado; `tests/run-golden.sh` **180/180**
 (45 casos × 4 alvos), exit 0.
 
+**Fatia 21 da Fase 6 ENTREGUE (10/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais
+um caso — **46 no total** — pinando o RESTANTE da superfície de calendário `kof.time` que a
+fatia 19 não cobriu: `time-calendar-namespace` exercita `parseDateIso` (`"1970-01-01"`=0,
+`"2026-01-01"`=20454, `"2026-10-10"`=20736, inválido/`"2026-13-01"`/`"2026-02-30"`=0),
+`startOf`/`endOf` para `day`/`week`/`month`/`year` (`startOf("2026-10-10","month")`=`2026-10-01`,
+`endOf(...)`=`2026-10-31`, semana = seg..dom `startOf("2026-10-10","week")`=`2026-10-05`),
+`age` (`1990-06-15`→`2026-10-10`=36, `1990-12-31`→=35, mesmo-dia=0) e `hoursBetween`
+(`2026-01-01 00h`→`2026-01-02 12h`=36, invertido=-36). **Este caso também é um guarda de
+regressão de um bug cross-target real achado e corrigido na mesma unidade:** uma `unit`
+DESCONHECIDA de 5 caracteres (ex. `"bogus"`) devolvia o início/fim do MÊS nos alvos nativos em
+vez do `""` do contrato (jvm/script/js estavam corretos). Causa-raiz: o asm x86
+(`RuntimeTimeMonthIso.emitStartEndOf`) e o asm riscv64 (`NativeRiscvAsmRtB83`, compartilhado
+com aarch64 pelo tradutor) despachavam por `len == 5` direto para o ramo `month` sem checar
+que o primeiro byte era `'m'`; o ramo len-4 já desambiguava `week`/`year` pelo primeiro byte,
+então só a face de 5 chars estava desprotegida (e o teste existente só usava o `"decade"` de
+6 chars, que caía no ramo desconhecido por sorte). Fix = o ramo len-5 exige o primeiro byte
+`'m'` (`cmpb $109` x86 / `li t2,109; bne` riscv), senão `""`. Prova RED-first:
+`KofTimeE2ETest#timeStartEndOfNative` FALHOU na árvore pré-fix com o exato `2026-10-01` vs
+esperado `""`; após o fix os `timeStartEndOf{Native,CrossArch}` (x86-64 + riscv64 + aarch64
+sob qemu) ficam 5/5, 0 pulados. Só asm nativo — nenhuma mudança de semântica Kof. Prova
+(executada): `tests/run-golden.sh` **184/184** (46 casos × 4 alvos), exit 0;
+`mvn -o -pl kof-compiler -am compile` rc=0; `check_500` rc=0.
+
 ### Fase 7 — Integração
 
 Implantar:

@@ -51,12 +51,18 @@ public final class NativeRiscvAsmRtB83 {
                 beqz a0, .Lsb_r
                 lw   t0, 16(s2)              # len da unit
                 lb   t1, 24(s2)              # primeiro byte
-                # day=3 / week=4 / month=5 / year=4 -> len 4 DESAMBIGUA pelo
-                # primeiro byte: 'w'=semana, 'y'=ano (MESMO despacho x86).
+                # day=3 / week=4 / month=5 / year=4. O len 4 DESAMBIGUA pelo
+                # primeiro byte ('w'/'y'); o len 5 EXIGE 'm' (senao um unit
+                # desconhecido de 5 chars, ex. "bogus", cairia no ramo month —
+                # contrato: ""). MESMO despacho x86.
                 li   t2, 3
                 beq  t0, t2, .Lsb_day
                 li   t2, 5
-                beq  t0, t2, .Lsb_month
+                bne  t0, t2, .Lsb_not_month
+                li   t2, 109                 # 'm'
+                bne  t1, t2, .Lsb_r
+                j    .Lsb_month
+            .Lsb_not_month:
                 li   t2, 4
                 bne  t0, t2, .Lsb_r
                 li   t2, 119                 # 'w'

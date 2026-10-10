@@ -1011,6 +1011,8 @@ class KofTimeE2ETest implements QemuRunSupport {
                 println(time.startOf("2024-02-30", "month"))
                 println(time.startOf("garbage", "day"))
                 println(time.startOf("2026-10-01", "decade"))
+                println(time.startOf("2026-10-01", "bogus"))
+                println(time.endOf("2026-10-01", "bogus"))
                 println(time.endOf("2026-12-31", "month"))
             }
             """;
@@ -1019,7 +1021,7 @@ class KofTimeE2ETest implements QemuRunSupport {
     private static String startEndOfGolden() {
         return "2026-10-01\n2026-09-28\n2026-10-04\n2026-09-28\n2024-02-01\n2024-02-29"
                 + "\n2023-02-28\n2024-01-01\n2024-12-31\n0001-01-01\n0001-01-07\n9999-12-27"
-                + "\n\n\n\n\n2026-12-31";
+                + "\n\n\n\n\n\n\n2026-12-31";
     }
 
     /**
