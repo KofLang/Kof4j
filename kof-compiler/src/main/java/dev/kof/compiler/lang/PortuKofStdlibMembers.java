@@ -67,7 +67,8 @@ public final class PortuKofStdlibMembers {
         m.put("Mic", new String[][]{{"record", "gravar"}, {"list", "list"}});
         m.put("Video", new String[][]{{"open", "abrir"}});
         m.put("auth", new String[][]{{"secret", "secret"}, {"token", "token"}, {"authenticated", "autenticado"}, {"claims", "claims"}, {"user", "user"}, {"hasRole", "hasPapel"}, {"hasPermission", "hasPermission"}, {"resourceServer", "resourceServer"}, {"resourceServerVerify", "resourceServerVerificar"}});
-        m.put("buffer", new String[][]{{"alloc", "alloc"}, {"peek8", "peek8"}, {"peek32", "peek32"}, {"peek64", "peek64"}});
+        m.put("buffer", new String[][]{{"alloc", "alloc"}, {"peek8", "peek8"}, {"peek32", "peek32"},
+                {"peek64", "peek64"}, {"poke8", "poke8"}, {"poke32", "poke32"}, {"poke64", "poke64"}});
         m.put("cache", new String[][]{{"get", "obter"}, {"set", "definir"}, {"ttl", "ttl"}, {"delete", "excluir"}, {"clear", "limpar"}});
         m.put("config", new String[][]{{"get", "obter"}, {"env", "env"}, {"has", "has"}, {"str", "str"}, {"int", "int"}, {"long", "long"}, {"bool", "bool"}, {"required", "required"}});
         m.put("crypto", new String[][]{{"sha256", "sha256"}, {"sha512", "sha512"}, {"sha256Bytes", "sha256Bytes"}, {"hmacSha256Bytes", "hmacSha256Bytes"}, {"hmacSha256", "hmacSha256"}, {"encryptAesGcm", "encryptAesGcm"}, {"decryptAesGcm", "decriptarAesGcm"}, {"encryptChacha20", "encryptChacha20"}, {"decryptChacha20", "decriptarChacha20"}, {"sign", "assinar"}, {"verify", "verificar"}, {"randomHex", "aleatorioHex"}, {"randomInt", "aleatorioInt"}});
