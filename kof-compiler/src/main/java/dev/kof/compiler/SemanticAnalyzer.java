@@ -212,6 +212,10 @@ public class SemanticAnalyzer {
         return resolvedMethods.get(mc);
     }
 
+    /** #763: candidato `extern` resolvido por call-site (seleção por assinatura). */
+    void recordExternChoice(MethodCallExpr mc, ExternalFunctionNode ext) { ExternOverload.record(mc, ext); }
+    ExternalFunctionNode getExternChoice(MethodCallExpr mc) { return ExternOverload.get(mc); }
+
     Type resolvedMethodReturnType(MethodDeclarationNode method) {
         SymbolTable.MethodSymbol ms = methodSymbols.get(method);
         return ms != null ? ms.returnType() : null;

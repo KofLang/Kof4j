@@ -53,7 +53,19 @@ public final class ExpressionMethodCallLowerer {
 int handledStatic = ExpressionStaticCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 if (handledStatic >= 0) return handledStatic;
 if (mc.receiver() == null && driver.externSignatures.containsKey(mc.methodName())) {
-    ExternalFunctionNode ext = driver.externSignatures.get(mc.methodName());
+        // #763: mesmo-nome = overloads; a assinatura vem do typer (1 resolução, sem 2º oracle).
+    ExternalFunctionNode ext = driver.semanticAnalyzer != null
+            ? driver.semanticAnalyzer.getExternChoice(mc) : null;
+    if (ext == null) {
+        List<ExternalFunctionNode> cands = driver.externSignatures.get(mc.methodName());
+        if (cands.size() == 1) {
+            ext = cands.get(0);
+        } else {
+            gapError(driver, mc, "extern '" + mc.methodName() + "' has " + cands.size()
+                    + " overloads; this call did not resolve one (FFI001)", "FFI001");
+            return localIdx;
+        }
+    }
     if (CompilerFfiBinding.isExternBound(driver, ext)) {
         // #431/§61 (Native): ABI escalar DIRETA — os args ficam crus na pilha de
         // operandos (mesma convenção push dos calls internos) e o backend emite o

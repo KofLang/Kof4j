@@ -272,7 +272,11 @@ public final class CompilerPipeline {
                     topLevelFunctions.addAll(CompilerFunctionLowering.lowerFunctionDefaults(driver, func));
                 }
                 case ExternalFunctionNode ext -> {
-                    driver.externSignatures.put(ext.name(), ext);
+                    // #763 (`D-MAINT-BATCH-0610`/B): mesmo nome ≠ colisão — vira
+                    // lista de candidatos; a seleção é por assinatura no typer.
+                    driver.externSignatures
+                            .computeIfAbsent(ext.name(), n -> new java.util.ArrayList<>())
+                            .add(ext);
                     // FFI (TIER 2.1.3/2.1.7): binding suportado (JVM Int→Int,
                     // String→Int, Double→Double; Native Int→Int, String→Int) não é
                     // gap; o resto é gap honesto por target — FFI002 no JS (web/edge

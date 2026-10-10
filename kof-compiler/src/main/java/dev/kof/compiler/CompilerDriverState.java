@@ -166,8 +166,9 @@ IRModule currentModule;
 
     final java.util.Map<String, List<EntityFieldNode>> entitySchemas = new java.util.LinkedHashMap<>();
 
-    /** FFI (TIER 2.1): declarações {@code extern} por nome (preenchido no lowering). */
-    final java.util.Map<String, ExternalFunctionNode> externSignatures = new java.util.LinkedHashMap<>();
+    /** FFI (TIER 2.1): declarações {@code extern} por nome — candidatos de
+     *  mesmo nome são OVERLOADS por assinatura (#763, `D-MAINT-BATCH-0610`/B). */
+    final java.util.Map<String, List<ExternalFunctionNode>> externSignatures = new java.util.LinkedHashMap<>();
 
     /**
      * #678 (`D-SCRIPT-WARN-SURFACE`): diagnósticos WARNING do frontend na
