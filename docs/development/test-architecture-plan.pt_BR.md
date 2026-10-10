@@ -1008,6 +1008,20 @@ o JS usa `Number`, então a concordância de formatação é uma checagem de div
 Validado nos quatro alvos. Prova (executada): `tests/run-golden.sh` **164/164** (41 casos × 4
 alvos), exit 0.
 
+**Fatia 17 da Fase 6 ENTREGUE (10/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais
+um caso — **42 no total** — pinando o namespace `kof.encoding`, uma superfície stdlib em Kof
+puro (matriz de paridade ✅ nos quatro alvos) que NENHUM caso de equivalência exercitava:
+`encoding-namespace` cobre `hexEncode` (UTF-8 por byte, minúsculo — `"café"` → `63 61 66 c3 a9`,
+então os dois bytes UTF-8 do é `c3 a9` são o guard em nível de byte),
+`hexDecode` (`"4869"` → `"Hi"`, `"6869"` → `"hi"`), `base64Encode` (`"Man"` → `"TWFu"`,
+`"hello"` → `"aGVsbG8="` com padding), `base64Decode` (`"TWFu"` → `"Man"`, `"aGVsbG8="` →
+`"hello"`) e `urlEncode`/`urlDecode` — a regra documentada de espaço `%20`-NÃO-`+` e o escape
+de char reservado (`"a+b/c"` → `"a%2Bb%2Fc"`), com `urlDecode("caf%C3%A9")` → `"café"`. É um
+guard cross-target em nível de byte: o caminho nativo percorre UTF-8 por byte e o JS usa
+`Number`/`Uint8Array`, então a concordância é uma checagem de divergência genuína. Validado
+nos quatro alvos. Prova (executada): `tests/run-golden.sh` **168/168** (42 casos × 4 alvos),
+exit 0.
+
 ### Fase 7 — Integração
 
 Implantar:

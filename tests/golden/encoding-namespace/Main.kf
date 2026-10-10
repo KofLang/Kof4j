@@ -1,0 +1,14 @@
+main() {
+    println(encoding.hexEncode("café"))
+    println(encoding.hexEncode("Hi"))
+    println(encoding.hexDecode("4869"))
+    println(encoding.hexDecode("6869"))
+    println(encoding.base64Encode("Man"))
+    println(encoding.base64Encode("hello"))
+    println(encoding.base64Decode("TWFu"))
+    println(encoding.base64Decode("aGVsbG8="))
+    println(encoding.urlEncode("a b"))
+    println(encoding.urlEncode("a+b/c"))
+    println(encoding.urlDecode("caf%C3%A9"))
+    println(encoding.urlDecode("a%20b"))
+}

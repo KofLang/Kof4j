@@ -1004,6 +1004,21 @@ faces are the real cross-target guard: the native path computes `sqrt`/`lerp`/
 agreement is a genuine divergence check. Validated on all four targets. Proof
 (executed): `tests/run-golden.sh` **164/164** (41 cases × 4 targets), exit 0.
 
+**Phase 6 slice 17 LANDED (10/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **42 total** — pinning the `kof.encoding` namespace, a pure-Kof stdlib
+surface (parity matrix ✅ on all four targets) that NO equivalence case exercised:
+`encoding-namespace` covers `hexEncode` (UTF-8 by bytes, lowercase — `"café"` →
+`63 61 66 c3 a9`, so the é's two UTF-8 bytes `c3 a9` are the real byte-level guard),
+`hexDecode` (`"4869"` → `"Hi"`, `"6869"` → `"hi"`), `base64Encode`
+(`"Man"` → `"TWFu"`, `"hello"` → `"aGVsbG8="` with padding), `base64Decode`
+(`"TWFu"` → `"Man"`, `"aGVsbG8="` → `"hello"`) and `urlEncode`/`urlDecode` — the
+documented `%20`-NOT-`+` space rule and the reserved-char escaping
+(`"a+b/c"` → `"a%2Bb%2Fc"`), with `urlDecode("caf%C3%A9")` → `"café"`. This is a
+byte-level cross-target guard: the native path walks UTF-8 by byte and JS uses
+`Number`/`Uint8Array`, so the agreement is a genuine divergence check. Validated
+on all four targets. Proof (executed): `tests/run-golden.sh` **168/168** (42 cases
+× 4 targets), exit 0.
+
 ### Phase 7 — Integration
 
 Deploy:
