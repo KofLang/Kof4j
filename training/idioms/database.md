@@ -52,7 +52,10 @@ var all = orm.all<User>(db)
 orm.where<User>(db, "age", ">", 25)        // + optional operator
 orm.count<User>(db, "age", 30)
 orm.delete<User>(db, 1)
-orm.page<User>(db, 1, 20)
+orm.page<User>(db, 20, 0)        // (limit, offset) — 20 rows from the start
+// orm.window needs `import kof.pagination`; see training/idioms/collections.md for Window<T>
+var page = orm.window<User>(db, 20, 0)          // Window<User>: rows + nav flags
+var counted = orm.window<User>(db, 20, 0, true) // 4th arg = opt-in total (lazy COUNT(*))
 orm.deleteAll<User>(db)
 orm.saveAll<User>(db, users)          // batch insert/update in one pass
 

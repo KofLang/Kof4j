@@ -203,14 +203,15 @@ public final class CompilerOrmSupport {
         // acontece no guest via __kof_decode_<T> (JsRuntimeOps), a partir do
         // returnType List<Entity> abaixo. Mesma estrategia de ExpressionDbCallLowerer.
         ops.add(new KofLoadLiteral(BuiltinTypes.STRING,
-                driver.target == Target.JS ? "" : CompilerTypes.classNameFor(entity)));
+                driver.target == Target.JS ? "" : classNameFor(driver, entity)));
         // 5) a chamada
         List<Type> params = new ArrayList<>();
         params.add(BuiltinTypes.STRING); // id
         params.add(BuiltinTypes.STRING); // sql
         for (int i = 0; i < nBinds; i++) params.add(Type.UnknownType.UNKNOWN);
         params.add(BuiltinTypes.STRING); // className
-        Type retType = new Type.ClassType("kof", "List", List.of(CompilerTypes.toType(entity, driver.currentUnit)));
+        Type retType = new Type.ClassType("kof", "List",
+                List.of(CompilerTypes.toType(entity, driver.currentUnit, driver.semanticAnalyzer)));
         ops.add(new KofCall(new Type.ClassType("kof.db", "Db", List.of()),
                 fn, params, retType, KofCallKind.FUNCTION));
         return localIdx;
@@ -228,6 +229,23 @@ public final class CompilerOrmSupport {
     static String declPackage(CompilerDriver driver, AstNode decl, String fallback) {
         String pkg = driver.declarationPackages.get(decl);
         return pkg != null ? pkg : fallback;
+    }
+
+    /**
+     * §566: o nome BINÁRIO de uma entidade para o runtime ORM
+     * ({@code Class.forName}/{@code kof_json_bind}). O type-argument chega
+     * como NOME SIMPLES ({@code Erec}); o runtime faz {@code Class.forName}
+     * com ele, então uma entidade declarada em pacote nomeado morria
+     * {@code NoClassDefFoundError: Erec}. Resolve o pacote pelo mesmo caminho
+     * de enums/records (§308/D-ENUM207) via {@code SemanticAnalyzer}; sem
+     * pacote (root), devolve o nome simples inalterado.
+     */
+    static String classNameFor(CompilerDriver driver, String simpleName) {
+        Type t = CompilerTypes.toType(simpleName, driver.currentUnit, driver.semanticAnalyzer);
+        if (t instanceof Type.ClassType ct && !ct.packageName().isEmpty()) {
+            return ct.packageName() + "." + ct.name();
+        }
+        return simpleName;
     }
 
 }

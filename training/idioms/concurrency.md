@@ -42,6 +42,7 @@ main() {
 - the program **waits for the tasks before exiting** (implicit join: `kof_spawn_join_all` at the end of main on Native);
 - `val r = spawn f()` returns a typed `Handle<T>`; `await r` with unboxing;
 - `var h = spawn { return expr }` (lambda literal with `return` + Handle) works on JVM/JS/interpreter — **gap: Native x86_64 → SIGSEGV (bug 46, known-bugs.md)**; use `spawn fn(arg)` (named function) as a workaround on Native until the fix;
+- **the parent must not write a captured binding before joining (`MEM021`, `D-MEM021-SCALAR` + #660):** if the worker WRITES a captured local (`spawn { n = n + 1 }`) and the parent re-assigns/increments the SAME binding with no `await`/`join_all` between, the compiler emits `MEM021` (compile ERROR) — the worker write forces the representation box, so parent and worker share the slot (silent race `202`/`101` before the fix). A read-only capture never races (lowered by value, no box). `await h` (or any join) before the parent write is the fix;
 - an exception in the task does not bring down the program;
 - **KofScript** top-level `var`/`val` also supports spawn/await via KofScriptGlobals.
 

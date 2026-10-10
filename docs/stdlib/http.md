@@ -418,12 +418,12 @@ log("Response sent", level=INFO)
 | Function | Purpose |
 |--------|-----------|
 | `kof_net_socket(domain, type, protocol)` | Create socket |
-| `kof_net_bind(fd, port, addr)` | Bind |
-| `kof_net_listen(fd, backlog)` | Listen |
-| `kof_net_accept(fd)` | Accept |
+| `kof_plat_net_bind(fd, addr, len)` | Bind |
+| `kof_plat_net_listen(fd, backlog)` | Listen |
+| `kof_plat_net_accept(fd, addr, lenp)` | Accept |
 | `kof_net_read(fd, buf, len)` | Read |
 | `kof_net_write(fd, buf, len)` | Write |
-| `kof_net_close(fd)` | Close |
+| `kof_plat_close(fd)` | Close fd |
 
 ---
 

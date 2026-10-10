@@ -29,10 +29,10 @@ fail() { echo "  FAIL— $1"; FAILED=1; }
 # linha TSV no formato que o --jq do gate produz: num, state, dismissed, fixed, ref, rule, path:line
 ROW_883=$'883\topen\t-\t-\trefs/heads/main\tjava/concatenated-command-line\tkof-compiler/src/test/java/dev/kof/compiler/ClassShapeChecksTest.java:171'
 ROW_999=$'999\topen\t-\t-\trefs/heads/main\tjava/io-resource-leak\tkof-runtime/src/main/java/dev/kof/runtime/Novo.java:1'
-ROW_NULL=$'998\tnull\t-\t-\trefs/heads/beta-0.5.0\tjava/relative-path-command\texamples/ForaBaseline.java:7'
+ROW_NULL=$'998\tnull\t-\t-\trefs/heads/lab\tjava/relative-path-command\texamples/ForaBaseline.java:7'
 # #604: alerta de OUTRA ferramenta de code scanning (SARIF do Debt Scout, nota C0).
 # A API real so o devolve quando a consulta NAO filtra tool_name=CodeQL.
-ROW_DEBT=$'1047\topen\t-\t-\trefs/heads/beta-0.5.0\tKOF-DEBT-SATD-001\tscripts/x.sh:18'
+ROW_DEBT=$'1047\topen\t-\t-\trefs/heads/lab\tKOF-DEBT-SATD-001\tscripts/x.sh:18'
 TIP_SHA="1111111111111111111111111111111111111111"
 OLD_SHA="2222222222222222222222222222222222222222"
 
@@ -61,10 +61,10 @@ case "\$args" in
   *"alerts?ref=refs/heads/main&state=open"*)
     printf ''
     ;;
-  *"alerts?ref=refs/heads/beta-0.4.0&state=open"*)
+  *"alerts?ref=refs/heads/testing&state=open"*|*"alerts?ref=refs/heads/prerelease&state=open"*|*"alerts?ref=refs/heads/stable&state=open"*)
     printf ''
     ;;
-  *"alerts?ref=refs/heads/beta-0.5.0&state=open"*)
+  *"alerts?ref=refs/heads/lab&state=open"*)
     # uniao por branch: so o modo nullstate revela o #998 (a lista o omite).
     [ "\$mode" = "nullstate" ] && printf '998\n'
     case "\$mode:\$args" in othertool*:*tool_name=CodeQL*) ;; othertool*) printf '1047\n' ;; esac
@@ -88,7 +88,7 @@ case "\$args" in
       *)     printf '%s\n' "$TIP_SHA" ;;
     esac
     ;;
-  *"/branches/main"*|*"/branches/beta-0.4.0"*|*"/branches/beta-0.5.0"*)
+  *"/branches/main"*|*"/branches/lab"*|*"/branches/testing"*|*"/branches/prerelease"*|*"/branches/stable"*)
     printf '%s\n' "$TIP_SHA"
     ;;
   *)
@@ -130,7 +130,7 @@ printf '%s' "$out" | grep -q "#883" && fail "listou o #883 (baseline vazou p/ RE
 echo "== cenario 3 (licao 15/09 preservada): null-state omitido da lista vira RED =="
 make_fake_gh "$TMP" nullstate
 out=$(run_gate "$TMP"); rc=$?
-printf '%s' "$out" | grep -q "RED — 1 alerta(s) NOVO(s) sem baseline na branch beta-0.5.0" && pass "beta-0.5.0 acusou o #998 null-state (uniao por branch funciona)" || { fail "falso-verde do null-state voltou"; printf '%s\n' "$out" | sed 's/^/      /'; }
+printf '%s' "$out" | grep -q "RED — 1 alerta(s) NOVO(s) sem baseline na branch lab" && pass "lab acusou o #998 null-state (uniao por branch funciona)" || { fail "falso-verde do null-state voltou"; printf '%s\n' "$out" | sed 's/^/      /'; }
 [ "$rc" = 1 ] && pass "exit 1" || fail "exit=$rc (esperado 1)"
 
 echo "== cenario 4: API fora => INCONCLUSIVO (exit 2), nunca 'verdes' =="
@@ -184,7 +184,7 @@ echo "== cenario 11 (#604): alerta de OUTRA ferramenta (SARIF do Debt Scout) nao
 make_fake_gh "$TMP" othertool
 out=$(run_gate "$TMP"); rc=$?
 printf '%s' "$out" | grep -q "KOF-DEBT-SATD-001" && { fail "alerta nao-CodeQL entrou no gate (tool_name ausente)"; printf '%s\n' "$out" | sed 's/^/      /'; } || pass "nota do Debt Scout ignorada pelo gate do CodeQL"
-printf '%s' "$out" | grep -q "green — beta-0.5.0: 0 novo" && pass "beta-0.5.0 green (so o #883 do baseline conta)" || { fail "beta-0.5.0 nao ficou green"; printf '%s\n' "$out" | sed 's/^/      /'; }
+printf '%s' "$out" | grep -q "green — lab: 0 novo" && pass "lab green (so o #883 do baseline conta)" || { fail "lab nao ficou green"; printf '%s\n' "$out" | sed 's/^/      /'; }
 [ "$rc" = 0 ] && pass "exit 0" || fail "exit=$rc (esperado 0)"
 
 echo "== cenario 12 (#604): analise mais nova de OUTRA ferramenta nao certifica o tip =="

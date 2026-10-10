@@ -1,0 +1,525 @@
+package image
+
+// kof.image — AVIF container reader, slice 1 of the AVIF front (plan §34,
+// `D-WEBP-LOSSY-PURE-KOF`: "AVIF follows after VP8").
+//
+// Reports the CONTAINER facts of an AVIF file — no pixel decoding: brand,
+// item count, primary item, the ISOBMFF `ispe` dimensions, the `iref`/`auxc`
+// alpha association (AVIF spec §2.3) and the `av1C` decoder configuration
+// record (AVIF spec §3.1.1): seq_profile, seq_level_idx, seq_tier,
+// high_bitdepth/twelve_bit -> the bit depths, monochrome, subsampling.
+// The record is the 4-byte AV1CodecConfigurationRecord followed directly by
+// configOBUs[] (AV1-ISOBMFF §2.3.3, no length prefix; the array may be
+// empty). When a Sequence Header OBU is present it must be the first OBU
+// (AV1 spec §4) and use the REDUCED form — the av1C fields already fix
+// profile/bit depths, and a non-reduced header would need the full field
+// walk, which is its own later slice.
+//
+// Documented subset (never a silent wrong parse), the `Image.kf` policy:
+//   * the container must live in one bounded 4 KiB prefix (`mdat` may be
+//     anywhere and is skipped);
+//   * ftyp major or a compatible brand must be `avif` or `avis`;
+//   * `meta` is a full box; children walked in order;
+//   * `iprp/ipco` properties are associated to the PRIMARY item through
+//     `iprp/ipma` (version 0; the 4-byte item-id form is refused) and the
+//     primary's `ispe`/`av1C` are selected from that set — a file with a
+//     second `av1C` (the alpha item's config) is handled, exactly one of
+//     each in the primary's set is required;
+//   * `pitm`/`iinf`/`iref` full-box version 0 (2-byte item ids; the 4-byte
+//     forms are refused);
+//   * `iref` alpha = an `auxl` entry from an aux item to the primary whose
+//     `auxC` (AuxiliaryTypeProperty) URN is
+//     `urn:mpeg:mpegB:cicp:systems:auxiliary:alpha` (AVIF §4.1);
+//   * `av1C` monochrome requires subsampling bits 0 (AVIF §2.3);
+//   * box sizes in the 32-bit form, largesize (size==1) and size==0
+//     (extend-to-end) are read.
+//
+// Errors are `String` throws beginning with `IMAGE:` — the family of the
+// whole package. Pixel decoding keeps refusing AVIF via `decodeRaster`
+// until the later slices land.
+
+record AvifMetadata(Int width, Int height, String brand, Int itemCount,
+                    Int primaryId, Bool hasAlpha, Int seqProfile,
+                    Int levelIdx, Bool seqTier, Bool monochrome,
+                    Bool chromaSubX, Bool chromaSubY,
+                    Int bitDepthLuma, Int bitDepthChroma)
+
+// One `ipco` property, in 1-based property-index order: kind 0 = `ispe`
+// (at = box start), kind 1 = `av1C`, kind 2 = anything else (skipped).
+record AvifProp(Int kind, Int at)
+
+// The `iprp` parse: the properties in order plus the `ipma` association of
+// each item id (version 0). `hasIpma` distinguishes "no ipma box" (fall back
+// to a unique-property search) from "ipma present but the item is unmapped"
+// (an explicit refusal).
+record AvifIprp(List<AvifProp> props, List<Int> ids, List<List<Int>> assoc,
+                Bool hasIpma)
+
+AvifMetadata readAvifMetadata(String path) {
+    return avifMetadata(File(path).readRange(0, 4096))
+}
+
+AvifMetadata avifMetadata(Int[] b) {
+    if (b.length < 12) {
+        throw "IMAGE: file too short for a valid header"
+    }
+    if (!matchesAscii(b, 4, "ftyp")) {
+        throw "IMAGE: not an isobmff file"
+    }
+    var brand = ""
+    if (matchesAscii(b, 8, "avif")) {
+        brand = "avif"
+    } else if (matchesAscii(b, 8, "avis")) {
+        brand = "avis"
+    } else {
+        brand = compatibleAvifBrand(b)
+    }
+    if (brand == "") {
+        throw "IMAGE: unsupported isobmff brand"
+    }
+    var metaAt = findBox(b, 0, b.length, "meta")
+    if (metaAt < 0) {
+        throw "IMAGE: avif has no meta box"
+    }
+    var metaEnd = boxEnd(b, metaAt)
+    var child = metaAt + 12
+    var pitm = -1
+    var itemCount = -1
+    var iprp = AvifIprp(listOf<AvifProp>(), listOf<Int>(), listOf<List<Int>>(), false)
+    var irefAt = -1
+    while (child + 8 <= metaEnd) {
+        var size = boxSize(b, child)
+        if (size < 8 || child + size > metaEnd) {
+            throw "IMAGE: malformed avif meta child"
+        }
+        if (matchesAscii(b, child + 4, "pitm")) {
+            pitm = readPitm(b, child)
+        } else if (matchesAscii(b, child + 4, "iinf")) {
+            itemCount = readIinfCount(b, child)
+        } else if (matchesAscii(b, child + 4, "iprp")) {
+            iprp = readAvifIprp(b, child)
+        } else if (matchesAscii(b, child + 4, "iref")) {
+            irefAt = child
+        }
+        child = child + size
+    }
+    if (pitm < 0) {
+        throw "IMAGE: avif has no primary item"
+    }
+    if (itemCount < 0) {
+        throw "IMAGE: avif has no item infos"
+    }
+    var alpha = false
+    if (irefAt >= 0) {
+        alpha = irefAlpha(b, irefAt, pitm, iprp)
+    }
+    var ispeAt = selectAvifProp(iprp, pitm, 0)
+    var av1At = selectAvifProp(iprp, pitm, 1)
+    var ispeW = -1
+    var ispeH = -1
+    if (ispeAt >= 0) {
+        ispeW = be32(b, ispeAt + 12)
+        ispeH = be32(b, ispeAt + 16)
+    }
+    if (ispeAt < 0 || ispeW <= 0 || ispeH <= 0) {
+        throw "IMAGE: avif dimensions property not covered"
+    }
+    if (av1At < 0) {
+        throw "IMAGE: avif av1C property not covered"
+    }
+    var av1End = boxEnd(b, av1At)
+    if (av1End - av1At < 12) {
+        throw "IMAGE: truncated avif av1C"
+    }
+    var rec = av1At + 8
+    var b1 = u8(b, rec + 1)
+    var b2 = u8(b, rec + 2)
+    if ((u8(b, rec) >> 7) != 1) {
+        throw "IMAGE: avif av1C marker missing"
+    }
+    var seqProfile = b1 >> 5
+    var levelIdx = b1 & 31
+    var tier = (b2 >> 7) & 1
+    var highBit = (b2 >> 6) & 1
+    var twelveBit = (b2 >> 5) & 1
+    var mono = (b2 >> 4) & 1
+    var subX = (b2 >> 3) & 1
+    var subY = (b2 >> 2) & 1
+    var depthLuma = avifBitDepth(highBit, twelveBit)
+    if (seqProfile == 0 && (highBit != 0 || twelveBit != 0)) {
+        throw "IMAGE: inconsistent avif profile bit depth"
+    }
+    if (seqProfile == 1 && twelveBit != 0) {
+        throw "IMAGE: inconsistent avif profile bit depth"
+    }
+    if (seqProfile == 2 && highBit != 1) {
+        throw "IMAGE: inconsistent avif profile bit depth"
+    }
+    if (mono == 1 && (subX != 0 || subY != 0)) {
+        throw "IMAGE: inconsistent avif monochrome config"
+    }
+    // AV1CodecConfigurationRecord: the 4-byte record is followed directly by
+    // configOBUs[] (AV1-ISOBMFF §2.3.3) — there is NO length prefix. The
+    // array may be empty; when a Sequence Header OBU is present it is the
+    // first OBU and must use the REDUCED form (the av1C fields already fix
+    // profile/bit depths, and a non-reduced header needs the full field
+    // walk, which is its own later slice).
+    if (av1End > rec + 4) {
+        var obuAt = rec + 4
+        var head = u8(b, obuAt)
+        if ((head >> 7) != 0) {
+            throw "IMAGE: avif config obu forbidden bits"
+        }
+        if (((head >> 3) & 15) != 1) {
+            throw "IMAGE: avif config obu is not a sequence header"
+        }
+        if (!seqHeaderReduced(b, obuAt, seqProfile)) {
+            throw "IMAGE: avif sequence header form not covered"
+        }
+    }
+    return AvifMetadata(ispeW, ispeH, brand, itemCount, pitm, alpha,
+                        seqProfile, levelIdx, tier == 1, mono == 1,
+                        subX == 1, subY == 1, depthLuma, depthLuma)
+}
+
+// Reduced form only (AV1 spec §5.5.1, field order verified against the
+// spec PDF 01/10): sequence_header_obu begins with seq_profile f(3),
+// still_picture f(1), reduced_still_picture_header f(1), then
+// seq_level_idx[0] f(5). The reduced form requires still_picture == 1
+// (conformance). Anything else is refused by the caller.
+Bool seqHeaderReduced(Int[] b, Int obuAt, Int seqProfile) {
+    var head = u8(b, obuAt)
+    var ext = (head >> 2) & 1
+    var p = obuAt + 1 + ext
+    if (((head >> 1) & 1) != 1) {
+        // obu_has_size_field (bit 1) must be set: the av1C record carries the
+        // OBU with its size field (AV1 §4.11)
+        return false
+    }
+    while (p < b.length && (u8(b, p) & 128) != 0) {
+        p = p + 1
+    }
+    p = p + 1
+    if (p >= b.length) {
+        return false
+    }
+    var b0 = u8(b, p)
+    var profile = (b0 >> 5) & 7
+    var still = (b0 >> 4) & 1
+    var reduced = (b0 >> 3) & 1
+    if (profile != seqProfile) {
+        return false
+    }
+    return still == 1 && reduced == 1
+}
+
+Int readPitm(Int[] b, Int at) {
+    if (u8(b, at + 8) != 0) {
+        throw "IMAGE: avif pitm version not covered"
+    }
+    return be16(b, at + 12)
+}
+
+Int readIinfCount(Int[] b, Int at) {
+    if (u8(b, at + 8) != 0) {
+        throw "IMAGE: avif iinf version not covered"
+    }
+    return be16(b, at + 12)
+}
+
+// iprp: the `ipco` property list (1-based order) and the `ipma` item ->
+// property association (ISO 14496-12 §8.11.3/§8.11.4; syntax cross-checked
+// against FFmpeg mov_read_iprp). entry_count is 32-bit, the item_id is 2
+// bytes at version 0, assoc_count is 1 byte, and each association carries an
+// "essential" high bit plus a second byte when flags&1 is set.
+AvifIprp readAvifIprp(Int[] b, Int at) {
+    var iprpEnd = boxEnd(b, at)
+    var props = listOf<AvifProp>()
+    var ids = listOf<Int>()
+    var assoc = listOf<List<Int>>()
+    var hasIpma = false
+    var c = at + 8
+    while (c + 8 <= iprpEnd) {
+        var cs = boxSize(b, c)
+        if (cs < 8 || c + cs > iprpEnd) {
+            throw "IMAGE: malformed avif iprp child"
+        }
+        if (matchesAscii(b, c + 4, "ipco")) {
+            props = readAvifIpcoProps(b, c)
+        } else if (matchesAscii(b, c + 4, "ipma")) {
+            if (u8(b, c + 8) != 0) {
+                throw "IMAGE: avif ipma version not covered"
+            }
+            var flags = (u8(b, c + 9) << 16) | (u8(b, c + 10) << 8) | u8(b, c + 11)
+            var n = be32(b, c + 12)
+            var p = c + 16
+            var end = boxEnd(b, c)
+            var i = 0
+            while (i < n) {
+                if (p + 3 > end) {
+                    throw "IMAGE: malformed avif ipma entry"
+                }
+                var id = be16(b, p)
+                var count = u8(b, p + 2)
+                p = p + 3
+                var indexes = listOf<Int>()
+                var j = 0
+                while (j < count) {
+                    if (p >= end) {
+                        throw "IMAGE: malformed avif ipma association"
+                    }
+                    var index = u8(b, p) & 127
+                    p = p + 1
+                    if ((flags & 1) != 0) {
+                        if (p >= end) {
+                            throw "IMAGE: malformed avif ipma association"
+                        }
+                        index = (index << 8) | u8(b, p)
+                        p = p + 1
+                    }
+                    indexes.add(index)
+                    j = j + 1
+                }
+                ids.add(id)
+                assoc.add(indexes)
+                i = i + 1
+            }
+            hasIpma = true
+        }
+        c = c + cs
+    }
+    return AvifIprp(props, ids, assoc, hasIpma)
+}
+
+List<AvifProp> readAvifIpcoProps(Int[] b, Int at) {
+    var out = listOf<AvifProp>()
+    var end = boxEnd(b, at)
+    var c = at + 8
+    while (c + 8 <= end) {
+        var cs = boxSize(b, c)
+        if (cs < 8 || c + cs > end) {
+            throw "IMAGE: malformed avif ipco child"
+        }
+        if (matchesAscii(b, c + 4, "ispe")) {
+            out.add(AvifProp(0, c))
+        } else if (matchesAscii(b, c + 4, "av1C")) {
+            out.add(AvifProp(1, c))
+        } else if (matchesAscii(b, c + 4, "auxC")) {
+            out.add(AvifProp(3, c))
+        } else {
+            out.add(AvifProp(2, c))
+        }
+        c = c + cs
+    }
+    return out
+}
+
+// The primary item's property of `kind` (0 = ispe, 1 = av1C), as the box
+// start, or -1. With an ipma mapping the indexes are the item's 1-based
+// association list; without ipma the association falls back to a unique
+// property of that kind in ipco (the pre-ipma slice-1 behavior). More than
+// one match for the primary is a refusal (-1), never a silent first-wins.
+Int selectAvifProp(AvifIprp iprp, Int pitm, Int kind) {
+    var found = -1
+    var count = 0
+    if (iprp.hasIpma) {
+        var k = 0
+        while (k < iprp.ids.size) {
+            if (iprp.ids.get(k) == pitm) {
+                var list = iprp.assoc.get(k)
+                var m = 0
+                while (m < list.size) {
+                    var index = list.get(m)
+                    if (index >= 1 && index <= iprp.props.size) {
+                        var prop = iprp.props.get(index - 1)
+                        if (prop.kind == kind) {
+                            count = count + 1
+                            found = prop.at
+                        }
+                    }
+                    m = m + 1
+                }
+            }
+            k = k + 1
+        }
+    } else {
+        var k = 0
+        while (k < iprp.props.size) {
+            var prop = iprp.props.get(k)
+            if (prop.kind == kind) {
+                count = count + 1
+                found = prop.at
+            }
+            k = k + 1
+        }
+    }
+    if (count == 1) {
+        return found
+    }
+    return -1
+}
+
+// iref version 0: entry_count(2) then entries ref_type(4) from_id(2)
+// ref_count(2) to_id(2*ref_count) [single-source types only].
+// `iref` is a FullBox whose payload is a LIST of reference boxes
+// (SingleItemTypeReferenceBox: size(4) type(4) from_id(2) ref_count(2)
+// to_id(2*ref_count); ISO 14496-12 §8.11.12) — there is NO top-level
+// entry_count. AVIF §4.1 references the alpha item with an `auxl` entry from
+// the alpha item to the primary; the alpha itself is identified by the
+// AuxiliaryTypeProperty (`auxC`) URN of the referencing (aux) item.
+Bool irefAlpha(Int[] b, Int at, Int pitm, AvifIprp iprp) {
+    if (u8(b, at + 8) != 0) {
+        throw "IMAGE: avif iref version not covered"
+    }
+    var end = boxEnd(b, at)
+    var p = at + 12
+    while (p + 12 <= end) {
+        var size = boxSize(b, p)
+        if (size < 12 || p + size > end) {
+            throw "IMAGE: malformed avif iref entry"
+        }
+        var from = be16(b, p + 8)
+        var refCount = be16(b, p + 10)
+        if (matchesAscii(b, p + 4, "auxl") && p + 12 + refCount * 2 <= end) {
+            var i = 0
+            while (i < refCount) {
+                var to = be16(b, p + 12 + i * 2)
+                if (to == pitm && auxAlphaUrn(b, iprp, from)) {
+                    return true
+                }
+                i = i + 1
+            }
+        }
+        p = p + size
+    }
+    return false
+}
+
+// The AuxiliaryTypeProperty (`auxC`) associated to item `id`, matched by its
+// trailing NUL-terminated `aux_type` URN (AVIF §4.1), is the alpha type.
+Bool auxAlphaUrn(Int[] b, AvifIprp iprp, Int id) {
+    var k = 0
+    while (k < iprp.ids.size) {
+        if (iprp.ids.get(k) == id) {
+            var list = iprp.assoc.get(k)
+            var m = 0
+            while (m < list.size) {
+                var index = list.get(m)
+                if (index >= 1 && index <= iprp.props.size) {
+                    var prop = iprp.props.get(index - 1)
+                    if (prop.kind == 3
+                        && matchesAscii(b, prop.at + 12, "urn:mpeg:mpegB:cicp:systems:auxiliary:alpha")) {
+                        return true
+                    }
+                }
+                m = m + 1
+            }
+        }
+        k = k + 1
+    }
+    return false
+}
+
+String compatibleAvifBrand(Int[] b) {
+    var size = boxSize(b, 0)
+    if (size < 16 || size > b.length) {
+        return ""
+    }
+    var i = 16
+    while (i + 4 <= size) {
+        if (matchesAscii(b, i, "avif")) {
+            return "avif"
+        }
+        if (matchesAscii(b, i, "avis")) {
+            return "avis"
+        }
+        i = i + 4
+    }
+    return ""
+}
+
+Int avifBitDepth(Int highBit, Int twelveBit) {
+    if (highBit == 0) {
+        return 8
+    }
+    if (twelveBit == 1) {
+        return 12
+    }
+    return 10
+}
+
+// --- ISOBMFF box walking ----------------------------------------------------
+
+Int boxSize(Int[] b, Int at) {
+    var s = be32(b, at)
+    if (s == 1) {
+        if (be32(b, at + 8) != 0) {
+            throw "IMAGE: avif box beyond 4 GiB prefix"
+        }
+        return be32(b, at + 12)
+    }
+    if (s == 0) {
+        return b.length - at
+    }
+    return s
+}
+
+Int boxEnd(Int[] b, Int at) {
+    var s = boxSize(b, at)
+    if (s < 8 || at + s > b.length) {
+        throw "IMAGE: malformed isobmff box size"
+    }
+    return at + s
+}
+
+Int findBox(Int[] b, Int from, Int to, String type) {
+    var p = from
+    while (p + 8 <= to) {
+        var s = be32(b, p)
+        if (s == 1) {
+            s = boxSize(b, p)
+        }
+        if (s < 8) {
+            return -1
+        }
+        if (p + s > to) {
+            return -1
+        }
+        if (matchesAscii(b, p + 4, type)) {
+            return p
+        }
+        p = p + s
+    }
+    return -1
+}
+
+Int u8(Int[] b, Int i) {
+    if (i < 0 || i >= b.length) {
+        throw "IMAGE: truncated avif prefix"
+    }
+    return b[i] & 255
+}
+
+Int be16(Int[] b, Int i) {
+    return (u8(b, i) << 8) | u8(b, i + 1)
+}
+
+Int be32(Int[] b, Int i) {
+    return (u8(b, i) << 24) | (u8(b, i + 1) << 16)
+           | (u8(b, i + 2) << 8) | u8(b, i + 3)
+}
+
+Bool matchesAscii(Int[] b, Int at, String s) {
+    if (at < 0 || at + s.length > b.length) {
+        return false
+    }
+    var i = 0
+    var ok = true
+    while (i < s.length) {
+        if (b[at + i] != (s.charAt(i) as Int)) {
+            ok = false
+        }
+        i = i + 1
+    }
+    return ok
+}

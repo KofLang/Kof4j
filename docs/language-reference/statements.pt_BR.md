@@ -146,6 +146,10 @@ case-stmt   = "case" , ( pattern | expression ) , ":" , { statement }
   (`case Point(var x, var y):`).
 - **Enum**: switch sobre enum sem `default` exige cobertura de todas as
   constantes → senão `SEM031`.
+- **Sealed / Bool**: a forma *statement* também é exaustiva — sujeito `sealed`
+  sem um caso de subtipo direto → `SEM081`; sujeito `Bool` sem cobrir `true` e
+  `false` → `SEM032` (mesmo contrato da forma-expression; qualquer corpo em
+  `default:` conta, §686).
 
 ---
 

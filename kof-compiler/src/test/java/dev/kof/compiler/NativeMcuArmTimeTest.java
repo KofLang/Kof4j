@@ -25,11 +25,11 @@ import org.junit.jupiter.api.io.TempDir;
  * contador SysTick com {@code boot=0} e precisa ser não-decrescente. Guards
  * honestos (Q5): sem binutils arm-none-eabi/qemu → {@code assumeTrue} skip.
  */
-class NativeMcuArmTimeTest {
+class NativeMcuArmTimeTest implements NativeToolchainAssumptions {
 
     @Test
     void mcuArmWallTimeIsNamedRefusal(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuArmAsm();
         String out = run(tempDir, "tw", harness(
                 "    ldr r0, =.Lts1\n    bl kof_plat_time\n"));
         assertTrue(out.contains("time.now() unavailable on MCU"),
@@ -38,7 +38,7 @@ class NativeMcuArmTimeTest {
 
     @Test
     void mcuArmMonoTimeIsNonDecreasing(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuArmAsm();
         String out = run(tempDir, "tm", harness(
                 "    ldr r0, =.Lts1\n    bl kof_plat_time_mono\n"
                 + "    ldr r4, =.Lts1\n    ldr r5, [r4, #4]\n"
@@ -157,10 +157,6 @@ class NativeMcuArmTimeTest {
         p.waitFor(30, TimeUnit.SECONDS);
         p.destroyForcibly();
         return Files.readString(ser, StandardCharsets.ISO_8859_1).replace("\0", "");
-    }
-
-    private void assumeToolchain() {
-        assumeTrue(tool("arm-none-eabi-as") != null, "binutils arm-none-eabi ausente");
     }
 
     private static String tool(String name) {

@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * now split by paren BALANCE (Type.fnTypeArrow); non-canonical strings keep
  * the legacy path (additive — nothing that compiled before changes).
  */
-class NestedFnTypeArityTest {
+class NestedFnTypeArityTest extends JvmRunSupport {
 
     private CompilationResult compile(Path tempDir, String name, String program, Target t) throws Exception {
         return compileWith(new CompilerDriver(), tempDir, name, program, t);
@@ -30,15 +30,7 @@ class NestedFnTypeArityTest {
         return d.compile(source, tempDir.resolve("out-" + name + t), t);
     }
 
-    private void assertRuns(Path outDir, String expected) throws Exception {
-        String javaCmd = System.getProperty("java.home") + "/bin/java";
-        Process p = new ProcessBuilder(javaCmd, "-cp", outDir.toString(), "Default.Main")
-                .redirectErrorStream(true).start();
-        String out = new String(p.getInputStream().readAllBytes()).replace("\r\n", "\n").trim();
-        assertEquals(0, p.waitFor(), "#389 verbatim run must exit 0, got:\n" + out);
-        assertEquals(expected, out);
-    }
-
+    
     @Test
     void verbatimFromIssueRunsSevenAndFourteen(@TempDir Path tempDir) throws Exception {
         // #389 verbatim — expected output is literally "7\n14" (flat control

@@ -2,7 +2,7 @@
 
 # DECISIONS — language decision record
 
-**Last updated:** 2026-09-15
+**Last updated:** 2026-10-02
 
 **Maintainer:** Mel Santos
 
@@ -59,7 +59,7 @@ A navigation aid, not a decision by itself. Ordered as in this file.
 - **D-KOF-AS-CLOUD** — Kof must BE the cloud
 - **D-BOOTSTRAP** — the bootstrapper (Kof in Kof)
 - **D-DB-GAPS** — DB/ORM orphan gaps
-- **D-BRANCH-0.5.0** — work moves to `beta-0.5.0`
+- **D-BRANCH-0.5.0** — work moves to `beta-0.5.0` *(SUPERSEDED 28/09 by D-QUALITY-PIPELINE-2609 / D-BRANCH-PIPELINE)*
 - **D-RELEASE-1.0** — KOF 1.0 EXIT GATE
 - **D-VERSION-BUMP-0.5.0** — revision to `0.5.0-beta`
 - **D-1.0-EDGES** — open edges closed
@@ -75,6 +75,10 @@ A navigation aid, not a decision by itself. Ordered as in this file.
 - **D-VERSIONING-RELEASE** — consolidated versioning and release-cut policy
 - **D-DEBT-SCOUT** — technical-debt scout tooling authorized, Wave 1 only, no Issue-publish capability
 - **D-DEBT-SCOUT-W2** — Wave 2 authorized (evidence qualification, clustering, SARIF); still shadow, still no Issue-publish
+- **D-KOF-IS-KOF** — Kof source never embeds HTML/CSS/JS (absolute rule)
+- **D-FUTURE-FREEZE** — `docs/development/future/` promotion is FROZEN until further notice (maintainer 02/10)
+- **D-RELEASE-CADENCE** — weekly minor cadence to `0.9.0`; `1.0.0-RC-n` fallback line; `1.0.0` only on the full exit gate (maintainer 02/10)
+- **D-LAB-STABILITY** — a minor is only cut from a STABLE `lab` (all required checks PASS, 0 blocking issues); otherwise the cut slips (maintainer 02/10)
 
 ---
 
@@ -1847,6 +1851,7 @@ This section is historical. It does not define current behavior.
 | D-PLATFORM          | separate platform plan             | `CLOSED`     | D-APP + roadmap §23              |
 | D-PLAT              | separate completion plan           | `CLOSED`     | roadmap §23 + Definition of Done |
 | D-ASM-GATE previous | ASM inspection always mandatory    | `SUPERSEDED` | current D-ASM-GATE               |
+| D-BRANCH-0.5.0      | work moves to `beta-0.5.0`         | `SUPERSEDED` | D-QUALITY-PIPELINE-2609 / D-BRANCH-PIPELINE |
 
 ---
 
@@ -2397,6 +2402,8 @@ plan/records. **Not a frozen-surface change** — it widens accepted URLs; the
 
 ## D-BRANCH-0.5.0 — work moves to `beta-0.5.0`; `beta-0.4.0` stays for in-flight landings + release prep (09/20/2026, maintainer order)
 
+**State:** `SUPERSEDED` (28/09/2026) by `D-QUALITY-PIPELINE-2609` / `D-BRANCH-PIPELINE` — the branch pipeline `lab → testing → prerelease → stable → release/x.y.z → tag` replaced "work moves to `beta-0.5.0`" at the 0.5.0 cutover; `beta-*` is frozen. History preserved below (never deleted, §1.3).
+
 **Order (chat 09/20/2026):** "avise os outros agentes, vamos mover todo trabalho
 pra branch beta-0.5.0 e começar a preparar a nova release".
 
@@ -2409,8 +2416,8 @@ pra branch beta-0.5.0 e começar a preparar a nova release".
 - Version bump (`pom.xml` `<revision>0.4.7-beta</revision>` → new release
   number), CHANGELOG cut and tag are **release-prep items** — the maintainer
   confirms the number at the cut; no unilateral bump by an agent.
-- Release-prep queue lives in
-  `docs/development/release-beta-0.5.0-prep.md` (+ `release-beta-0.5.0-prep.pt_BR.md`).
+- Release-prep queue lived in
+  `docs/distribution/release-beta-0.5.0.md` (+ `.pt_BR.md`) — CLOSED 28/09 (moved out of `development/`).
 
 **Evidence:** maintainer order 09/20/2026 (chat); `AGENTS.md`/`AGENTS.pt_BR.md`
 active-branch lines and this record land in the same pass; open issues
@@ -2479,7 +2486,7 @@ pass; `roadmap.md` §23 queue; `DOING.md` claim; #560 cross-notified.
 **Decision (maintainer, chat 09/20/2026):** "faz o bump de versão em tudo no repo
 pra beta 0.5.0" — the product version is bumped `0.4.7-beta → 0.5.0-beta` on the
 active branch `beta-0.5.0` (`D-BRANCH-0.5.0`). This satisfies release-prep
-checklist item 3 (`docs/development/release-beta-0.5.0-prep.md`) and supersedes
+checklist item 3 (`docs/distribution/release-beta-0.5.0.md`) and supersedes
 the "VERSION stays 0.4.7-beta" clause of `D-RELEASE-1.0` only in the sense the
 release-prep phase it reserved has now begun by order.
 
@@ -2849,7 +2856,7 @@ user-facing form (3.2) is its own later decision (rule 11 gate).
 
 ## D-GRAPHICS-GAMING — graphics beyond forms: a future plan for the 2D/3D/game surface is MANDATORY (09/20/2026, maintainer request)
 
-Maintainer asks how Kof handles 2D, 3D and non-web graphics ("how does one make a game in Kof?") and directs: open the plan in `docs/development/future/`. Current ground truth: `kof.ui` is a form/intent surface (JVM=JavaFX, JS=DOM, Android=APK); the corpus has NO game abstraction (frame loop, sprites, meshes, input-per-frame, audio, GPU) — games today would be interop, not idiom (rule-8/11 boundary: a foreign API shape is not the answer; the plan must define the KOF INTIMATION the platform lowers, per-target honest gaps R6/XXX001-style, interop-first R9 for engines/libs — never a home-grown renderer, and KofC/wasm are future). PLAN-DOC: `docs/development/future/graphics-gaming-plan.md` — skeleton next session; design questions it must answer: game-loop primitive (a `scene`/`frame` idiom?), 2D sprite/tileface surface, 3D scope (mesh/camera/material as intent vs. FFI to native GPU libs), audio, input model, per-target honesty (JVM/Native/JS/web + KofC later), and the non-goals guard (no HTML5-canvas leakage into user code). Priority: future/ — does NOT compete with 1.0 (R12 + D-1.0-STABILITY-100: it enters the 1.0 surface only by her explicit promotion).
+Maintainer asks how Kof handles 2D, 3D and non-web graphics ("how does one make a game in Kof?") and directs: open the plan in `docs/development/future/`. Current ground truth: `kof.ui` is a form/intent surface (JVM=JavaFX, JS=DOM, Android=APK); the corpus has NO game abstraction (frame loop, sprites, meshes, input-per-frame, audio, GPU) — games today would be interop, not idiom (rule-8/11 boundary: a foreign API shape is not the answer; the plan must define the KOF INTIMATION the platform lowers, per-target honest gaps R6/XXX001-style, interop-first R9 for engines/libs — never a home-grown renderer, and KofC/wasm are future). PLAN-DOC: `docs/graphics-gaming.md` — skeleton next session; design questions it must answer: game-loop primitive (a `scene`/`frame` idiom?), 2D sprite/tileface surface, 3D scope (mesh/camera/material as intent vs. FFI to native GPU libs), audio, input model, per-target honesty (JVM/Native/JS/web + KofC later), and the non-goals guard (no HTML5-canvas leakage into user code). Priority: future/ — does NOT compete with 1.0 (R12 + D-1.0-STABILITY-100: it enters the 1.0 surface only by her explicit promotion).
 
 ### D-GRAPHICS-GAMING addendum (09/20/2026, maintainer, same session) — the media surface is IN SCOPE of the plan: a sound pipeline AND video support
 
@@ -2857,7 +2864,7 @@ KOF also needs a **sound pipeline** (playback, streams, volume/mix, the game-aud
 
 ### D-GRAPHICS-GAMING addendum 2 (09/20/2026, maintainer) — NO JavaFX; the graphics/media surface requires FULL PARITY
 
-"No JavaFX. It must have full parity." Consequences recorded: (1) the graphics/media plan may NOT use JavaFX (nor any single-target toolkit) as the rendering/media backend of the KOF surface — JVM must reach the same idiom through the same portable stack as the other targets (interop-first R9: the shape the plan evaluates is an SDL/GL-class portable layer lowered to per-target bindings, not platform chrome); (2) FULL PARITY is the acceptance criterion for this surface — unlike R7's "honest scope per target", a graphics/media feature is only in the language surface when EVERY target runs the SAME program with the SAME behavior (or the feature is not promoted at all); (3) EXISTING kof.ui-JVM (JavaFX-based) keeps working unchanged (backward compatibility, freeze rule 2) but is the legacy face of the area, not the future one — its migration/retirement is a DESIGN QUESTION the plan must answer (rule 6), never an agent decision; (4) the JavaFX-removal work item lands in `docs/development/future/graphics-gaming-plan.md` §parity as its own section (measure today: which kof.ui classes bind javafx.* on the JVM target).
+"No JavaFX. It must have full parity." Consequences recorded: (1) the graphics/media plan may NOT use JavaFX (nor any single-target toolkit) as the rendering/media backend of the KOF surface — JVM must reach the same idiom through the same portable stack as the other targets (interop-first R9: the shape the plan evaluates is an SDL/GL-class portable layer lowered to per-target bindings, not platform chrome); (2) FULL PARITY is the acceptance criterion for this surface — unlike R7's "honest scope per target", a graphics/media feature is only in the language surface when EVERY target runs the SAME program with the SAME behavior (or the feature is not promoted at all); (3) EXISTING kof.ui-JVM (JavaFX-based) keeps working unchanged (backward compatibility, freeze rule 2) but is the legacy face of the area, not the future one — its migration/retirement is a DESIGN QUESTION the plan must answer (rule 6), never an agent decision; (4) the JavaFX-removal work item lands in `docs/graphics-gaming.md` §parity as its own section (measure today: which kof.ui classes bind javafx.* on the JVM target).
 
 ### D-GRAPHICS-GAMING addendum 3 (09/20/2026, maintainer — CORRECTION to addendum 2) — Kof never used and never will use JavaFX; every "JavaFX" message in Kof is a bug in disguise
 
@@ -3007,7 +3014,7 @@ arithmetic). This decision fixes its **lifetime**: allocation/deallocation must
 be **automatic — the programmer never manages memory** (no manual `malloc`/
 `free`). `Handle` therefore does not land as an isolated FFI type now; it is
 delivered together with the language-managed resource/lifetime mechanism
-(scoped-resources / RAII front, `docs/development/future/scoped-resources-plan.md`),
+(scoped-resources / RAII front, `docs/scoped-resources-plan.md`),
 which is the owner of the allocation strategy. Until then `Handle`-typed externs
 stay honest `FFI001`/`FFI002` (R6).
 
@@ -3766,9 +3773,10 @@ stash-pop conflict markers; `e29ba47b3` merged both sides into this entry.)
   floor (rule 8) even without per-push CI — raised by the lane review
   ("no quebrável", precedents `7f174a6f`); the maintainer's reply did not
   touch it; settle it in the cutover plan, do not assume either way.
-- **Until then NOTHING changes:** `beta-0.5.0` remains the active branch
-  (`D-BRANCH-0.5.0` in force); agents keep pushing to it; #619 stays HELD
-  (rule 10). Queue: roadmap §23 `TIER 14`.
+- **Until then NOTHING changes (historical — this bullet predates the
+  cutover and is superseded by the CUTOVER EXECUTED below / `D-BRANCH-PIPELINE`):**
+  `beta-0.5.0` was the active branch (`D-BRANCH-0.5.0`, `SUPERSEDED` 28/09);
+  agents kept pushing to it; #619 stays HELD (rule 10). Queue: roadmap §23 `TIER 14`.
 - **OPEN POINT #2 (the ≥80% denominator):** branch protection measures
   checks as booleans — a percentage cannot be enforced by protection; it must
   live in a promotion script over a FIXED, enumerable list of checks
@@ -3780,6 +3788,16 @@ stash-pop conflict markers; `e29ba47b3` merged both sides into this entry.)
   measurable ≈80%); `prerelease -> stable` = 100% on the same enumeration.
   Natural generalization of `check_release_050_gate.sh` (already this shape
   for the release). Answered on the issue (lane comment).
+- **CUTOVER EXECUTED (28/09/2026, maintainer: "0.5.0 acabou de ser mergeada na
+  main, pode começar"):** `lab`/`testing`/`prerelease`/`stable` created from
+  `origin/main` (`317d9f6b1`); `beta-*` frozen; CI re-pointed (`codeql.yml`,
+  `kof-*-bot*.yml`, `pr-base-guard.yml`, `dependabot.yml`, `scripts/codeql-gate.sh`);
+  broadcast + migration instructions in issue #647. Maintainer answers:
+  (a) the cutover happens NOW (0.5.0 closed); (b) `lab` KEEPS the zero-regression
+  floor (rule 8) even without per-push CI — **OPEN POINT resolved**; (c) the
+  `≥80%` denominator is DROPPED: every promotion is 100%. `AGENTS.md`/`.pt_BR.md`
+  now declare `D-BRANCH-PIPELINE: active branch = `lab``. Promotion automation is
+  `TIER 14.3` (roadmap).
 
 ## D-COMPLETE-FIRST — choice rule for automatic decisions: the solution that is idiomatic AND complete (no stub, no giving up, no accepting a gap, full parity) is THE option the lanes follow; thin/stub/gap-accept alternatives are not options (maintainer 26/09/2026)
 
@@ -4185,3 +4203,759 @@ Row 11 is split by capability, not by target:
 Consequence: after the Unicode faces land, row 11's only remaining cells are the deferred regex faces, and `full_parity` reaches 0 open rows for 0.5.0.
 
 - **Relationships:** `Related: D-PARITY-050-SCOPE, D-FULL-PARITY-050, D-KOF-FIRST (rule 12), NAT-STR01, §424`.
+
+---
+
+## D-KOFMD-OPERATING-STANDARD — Kofmd is the mandatory operating standard for every agent: think, reason, respond, execute and document in Kofmd, uniformly (maintainer 27/09/2026, explicit order)
+
+**State:** DECIDED (normative; binding on every agent, no per-agent variant)
+
+Kofmd stops being only a file format and becomes the operating standard of the agent itself. Every agent — human-directed or autonomous, any lane — thinks, reasons, responds, executes and documents in Kofmd. The standard is uniform: no agent keeps a private variant.
+
+Contract:
+
+- **Intention over narrative.** Represent work as `intent`, `state`, `evidence`, `decision`, `result`, `next`; do not expand a structured problem into prose.
+- **Evidence before inference.** Distinguish `fact`, `decision`, `inference`, `unknown`. Never fabricate api, syntax, behavior, decision, requirement, result, compatibility, target support or implementation state. When evidence is missing, record `unknown` or the gap — never a plausible guess.
+- **Verified results only.** `implemented` != `verified`; a result is claimed only with executed proof (compiler, tests, golden). A plan is not an implementation; an expectation is not proof.
+- **Minimal sufficient response.** The smallest representation that preserves intent, state, evidence, decision, result, next. Prose only where structure cannot carry the information.
+- **State, not history.** `last` = the immediately relevant prior state; `next` = the next known intention, not a backlog; `location` = where the intent belongs; `constraint`/`decision` are explicit.
+- **Semantic compression.** Any document an agent edits is compressed in the same commit (`D-KOFMD-ON-EDIT`).
+
+Coordination (uniform across agents):
+
+- claim before work; claim and first change share a commit;
+- on a lane collision, wait for the owner or stop — never race the shared worktree;
+- never end a turn with an uncommitted unit;
+- push only through `scripts/sync-push.sh`.
+
+- **Relationships:** `Related: D-KOFMD, D-KOFMD-ON-EDIT, D-DOC-SLIM, D-BRANCH-PIPELINE, D-QUALITY-PIPELINE-2609, rule 5, rule 6`.
+
+## D-FUTURE-BATCH-2809 — all `future/` plans authorized as 1.0.0 scope (maintainer 28/09/2026, voted batch)
+
+Every plan in `docs/development/future/` is authorized — all must conclude
+before 1.0.0. Promotion stays one-at-a-time per `D-FUTURE-PROMOTION` (easiest
+first; never the most interesting, never frozen-semantics). Individual locks:
+
+- **D-SCOPED-RESOURCES-GO** — `using` syntax authorized (lightweight RAII,
+  mapped desugar, no ownership).
+- **D-VALUE-RECORDS-GO** — value-record front open; ABI scope + open questions
+  (class? generics? diagnostics? JS repr?) decided during implementation.
+- **D-KOF-FILE-GO** — `kof.file` promotion authorized.
+- **D-BUFFER-INOUT-NATIVE** — the Native face of `Buffer(U8, INOUT)` is authorized
+  (x86-64 + cross riscv64/aarch64); native/FFI lane.
+- **D-TEST-ARCHITECTURE-GO** — test-architecture promotion authorized
+  (profiling → integration).
+- **D-HTTP-POLICIES** — authorized; surface locked during implementation.
+- **D-PAGINATION** — authorized; surface locked during implementation.
+- **D-ENTITY-HISTORY** — authorized; surfaces locked during implementation.
+- **D-TESTING-PLATFORM** — authorized (extends `kof test` additively).
+- **D-CONNECTORS** — connector ecosystem authorized.
+- **D-DEPRIORITIZED-REOPEN** — DECOMPILER, LEGACY_MIGRATION and TRANSLATOR
+  reopened.
+- **D-GRAPHICS-SPIKE** — graphics-gaming spike 3.0 authorized (measurement and
+  stack only, no API).
+- **D-ASSEMBLY-OPT-GO** — assembly-optimization authorized (from phase A,
+  no semantics change).
+- **D-IMAGE-VISION-GO** — image-vision authorized.
+- **D-MULTIPARADIGMA-GO** — Tier 2.x authorized.
+- **D-BOOTSTRAP-GO** — Kof-in-Kof authorized.
+- **D-WASM-GO** — new wasm/wasi target authorized.
+- **D-UNIVERSAL-STAGES-GO** — stages 4–7 (DATA/SECURITY/SCIENTIFIC/BIO)
+  authorized.
+- **Open design questions resolved** in `D-FUTURE-BATCH-2809B` (below).
+
+- **Relationships:** `Related: D-FUTURE-PROMOTION, D-KOF-FIRST (rule 12), rule 11, rule 6`.
+
+## D-FUTURE-BATCH-2809B — open design questions of the `future/` plans resolved (maintainer 28/09/2026, interactive batch)
+
+**State:** DECIDED (maintainer) — resolves the "Open questions / DECISION REQUIRED / TBD" left by `D-FUTURE-BATCH-2809`. Promotion remains one-at-a-time (`D-FUTURE-PROMOTION`); the plans' own recommendations were chosen except where noted.
+
+- **D-PAGINATION (surface locked):** window type `Window<T>`; introduce the new type (not signature-only); `total` via a flag on the window call; max limit = global default; the in-memory part starts now (rides `D-MULTIPARADIGMA-GO` Phase 1); keep `orm.page` alongside `orm.window` (no bump); `offset` only on the windowed method, not the typed DSL; HTTP helper `pageRequest(...)` lives in `kof.web`.
+- **D-VALUE-RECORDS-GO (resolved):** `value` applies only to `record`; collections hold them boxed; use where identity is required = compile-time error; JS representation is a frozen object.
+- **D-ENTITY-HISTORY (Q1–Q15):** `audited entity`; query entity-static (`User.history(db, id)`); return known `Revision`/`FieldChange` records; one revision per `save`; per-entity sequence; only ORM paths audited (raw SQL out of contract); `atTime` = at-or-before; relationships = FK values only; a removed entity keeps history queryable; PII reconciliation = crypto-shredding + masking (contract); fix `observability.correlationId()` to be request-bound; no core actor-override sugar in v1; snapshot-per-revision baseline (diff optional per backend); `not audited` exclusion in the core; assign the `HIST0xx` block now (+ parity matrix).
+- **D-MULTIPARADIGMA-GO (TBDs):** `take(-1)`/`drop(-1)` mirror `slice` (0/size); `zip` returns a `record Pair`.
+- **D-GRAPHICS-SPIKE:** namespace `kof.game`; scene is call-based (no new syntax); 3D only after 2D parity; golden hash contracts required; stack decided by the 3.0 spike (measured, never by familiarity); input = per-frame snapshot; WASM auto-entry; current media kept (no rebase).
+- **D-TESTING-PLATFORM:** extend the existing `test`/`assert` (no foreign syntax); `kof.test` becomes a stdlib namespace; Playwright/Cypress opt-in, not shipped with the CLI; browser E2E JVM-only first, standalone `kof test --e2e` later.
+- **D-CONNECTORS:** ownership vocabulary stays internal (no language surface); interop error is a language type; **`foreign module` enters the grammar now** (maintainer's explicit choice, against the recommended defer); ABI tiers + first stable version defined now; official second connector = C ABI.
+- **D-KOF-FILE-GO:** base stdlib keeps light I/O/streaming/text; heavy codecs (PDF/images/archives) belong to official packages (R1).
+- **D-IMAGE-VISION-GO:** official package, interop-first (imageio/PDFBox/ZXing/Tess4J/OpenCV/ONNX) — never reimplement.
+- **D-BOOTSTRAP-GO:** keep entry conditions E1–E6; does not start before the 1.0 EXIT GATE (R12).
+- **D-WASM-GO (D-WASM-01..09):** direct backend (not a transpile chain); `Int` = i64 (match JVM/Native golden); exception = thrown-string global + `br` unwinding; objects = handles + handle table; GC reuses the native design (mark-sweep); closure env explicit parameter; WASI preview1; dev runtime = wasmtime first; concurrency = cooperative/diagnostic-only in v1.
+
+- **Relationships:** `Related: D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-PAGINATION, D-VALUE-RECORDS-GO, D-ENTITY-HISTORY, D-MULTIPARADIGMA-GO, D-GRAPHICS-SPIKE, D-TESTING-PLATFORM, D-CONNECTORS, D-KOF-FILE-GO, D-IMAGE-VISION-GO, D-BOOTSTRAP-GO, D-WASM-GO, rule 6`.
+
+## D-WEB-WASI-DEFAULT-0710 — WASI is the DEFAULT frontend target; `wasm/wasi-plan` PROMOTED; 0.6.0 GATE (maintainer order 07/10)
+
+**State:** DECIDED + PROMOTED (maintainer, chat 07/10) — recorded by lane `192.168.15.101:9092`.
+
+* **Decision:** `docs/wasm-wasi-plan.md`(+PT) is promoted into `docs/development/` — the promotion is the maintainer's own act (a deliberate exception to `D-FUTURE-FREEZE`), not an agent choice.
+* **Semantics of the order (verbatim intent):** the web target of Kof becomes **WASI by default**; the desktop frontend likewise; the JS/`kofjs` target **continues to exist** and is used only when **explicitly specified**. The language **surface does not change** — one backend is added and the frontend default switches. **Total behavior parity** is required and **nothing that works today may break** (`D-QUALITY-PIPELINE`/zero-regression).
+* **Gate:** the plan is a **GATE for the 0.6.0 cut** — `D-LAB-STABILITY` now also requires the WASI-default frontend to land with the existing 4-target suite green. Tracking issue **#776** (`1.0-blocks`); ledger row added the same day (`scripts/release-blockers.tsv`).
+* **Technical shape stays as decided by `D-WASM-GO` (28/09, D-WASM-01..09):** direct backend (not a transpile chain); `Int` = i64; thrown-string unwinding; handles + handle table; native mark-sweep GC; explicit closure env; WASI preview1; wasmtime first; cooperative concurrency in v1.
+* **Ownership (`D-PLAN-ONE-OWNER`):** the promoted plan is **OPEN, unowned** — any free lane claims it in DOING with `owner = <ip>:<port>` first; the notice is recorded in DOING EN/PT + status + this entry. The issue-watcher session is DEAD, so the DOING/issue path is the notification.
+* **Suggested sequencing (measured against the tree):** `Target` enum + build plumbing (additive) → codegen slice 1 (scalar functions under wasmtime) → parity harness reusing the JVM oracle → runtime surface slices → the **frontend-default flip LAST** (it is the part that must not break what works).
+
+- **Relationships:** `Related: D-WASM-GO, D-WASM-01..09, D-FUTURE-PROMOTION, D-FUTURE-FREEZE, D-LAB-STABILITY, D-QUALITY-PIPELINE-2609, D-PLAN-ONE-OWNER, rule 6`; tracker `#776`.
+
+## D-PAGINATION-P4-LOWERING — `orm.window` desugars in the ORM lowerer into the Kof `window(...)` helper (maintainer 29/09/2026, "P4 via (b)")
+
+**State:** DECIDED (maintainer) — unblocks pagination plan P4 under `D-PAGINATION`.
+
+- **Problem:** `orm.window<T>(db, limit, offset[, true])` must return `Window<T>`, but `Window<T>` is a Kof `record` compiled per-program: a per-target runtime `kof_orm_window` cannot construct it (no reflection/codegen). A design decision was required (AGENTS rule 6).
+- **Chosen (b) — ORM-lowerer desugar (library-first):** `ExpressionOrmCallLowerer` lowers `orm.window` into the existing injected Kof `window(...)` helper over the already-existing `orm.page`/`orm.count` faces. No new runtime symbol per target, no language-surface change, no change to `Window<T>`.
+- **Semantics:** `orm.page<T>(db, limit, offset)` supplies the rows; the helper supplies `Window<T>` metadata exactly as the in-memory P2 face (`hasPrevious = offset > 0`; `hasNext` optimistic `page.size == limit` without total). The 4-argument form is the explicit opt-in total: it runs `orm.count<T>(db)` **only on that branch** (lazy), so the 3-argument form never issues a `COUNT(*)`. Argument expressions are evaluated once (lowerer temps).
+- **Support:** rides the `orm.page`/`orm.count` support sets (JVM/Android/JS + Native x86-64 + riscv64/aarch64 cross), honest `ORM001` wherever the underlying face is absent.
+- **Relationships:** `Related: D-PAGINATION, D-KOF-FIRST, D-KOF-FIRST-IMPL, D-DB-GAPS, rule 6, rule 12`.
+
+## D-PAGINATION-P5-SHAPE — `kof.web.pageRequest` reads the ambient request and returns a core `PageRequest` (maintainer 29/09/2026, option "explicit `PageRequest`")
+
+**State:** DECIDED (maintainer) — unblocks P5 under `D-PAGINATION`.
+
+- **Problem:** P5 must read `?page/limit/offset` from the current HTTP request and hand the handler a pagination value, without leaking an HTTP type into the core (plan §12). `kof.web` exposes the request only through ambient context accessors (`query(name): String?`), never a `Request` value; §19 Q8 asked the name/shape/home.
+- **Chosen:** `pageRequest(defaultLimit: Int[, maxLimit: Int]): PageRequest` in a virtual host **`kof.web`** (injected on `import kof.web`), returning the CORE record `PageRequest(Int page, Int limit, Int offset)` and reading the request via the existing ambient `query("page"/"limit"/"offset")`. "Explicit" = an explicit core return value (no hidden `Window`, no HTTP type); a literal `Request` parameter is not representable because `kof.web` has no `Request` type — adding one would be a separate core-primitive decision (not taken).
+- **Semantics:** `page` is 1-based, default 1 (`offset = (page-1)*limit`); `limit` defaults to `defaultLimit` and is clamped down to `maxLimit` when `maxLimit > 0`; an explicit `?offset=` wins over the page calculation; non-integer values, `page < 1`, `limit < 1`, `offset < 0`, and Int overflow of `(page-1)*limit` throw the named `PAGINATION:` error. The handler maps it to `400` with `catch (String e) { return status(400, e) }` — no runtime error→status change.
+- **Home rationale:** a SEPARATE host from `kof.pagination` so Native programs that only `import kof.pagination` never pay the web gap: `pageRequest` needs `query(...)`, absent on Native (`WEB001`, plan §13). The `web` namespace is already registered in the R1 ledger.
+- **Related:** `Related: D-PAGINATION, D-PAGINATION-P4-LOWERING, D-KOF-FIRST, rule 6, rule 12`.
+
+## D-HTTP-POLICIES — declarative HTTP/Web policies: global (existing), per-resource prefix and per-endpoint, with declarative rejection payloads (maintainer 28/09/2026, "pode assumir")
+
+**State:** DECIDED (maintainer) — promoted front under `D-FUTURE-PROMOTION` (`docs/stdlib/http-policies-plan.md`, concluded 28/09: slices F0–F6 landed, `KofHttpPoliciesE2ETest` 10/10); part of the `D-FUTURE-BATCH-2809` authorization.
+
+- **Scope:** additive extension of the existing **global** `app.security(opts)` (`D-SEC` C18). No new grammar, no keyword, no new user type beyond the `Map` opts already used. The fixed pipeline order (`D-SEC`) is untouched.
+- **Surface v1 (locked, plan §3):** `app.security(opts)` (global, unchanged); `app.policy(prefix, opts)` (resource scope); `app.get/post/... (path, opts) { }` (endpoint policy); new opt key `responses` (`Map`) for declarative 401/403/429 bodies. Scalar keys: deepest scope wins; list keys (`publicPaths`, `roles`): union (allow-lists only accumulate). Prefix-only matching, longest prefix wins; no globs/regex in v1.
+- **Backward compatible:** omitted keys keep today's behavior/bodies. Errors are raised at app build (before `listen`), never a silent no-op.
+- **Targets:** JVM full; Native/JS `WEB006` at compile time (R6 — never a silent policy drop).
+- **Merge law / slice order (F0…F6):** owned by the plan (§4, §12); this entry locks the decision and the surface.
+- **Relationships:** `Related: D-SEC, D-SPRING, D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-KOF-FIRST, rule 6, rule 12`.
+
+## D-KOF-FILE-GO — `kof.file` promoted, re-scoped to Streaming (library-first) (maintainer 28/09/2026, batch `D-FUTURE-BATCH-2809` + direction "re-escopar kof-file e implementar Streaming")
+
+**State:** DECIDED (maintainer) — promoted front under `D-FUTURE-PROMOTION` (`docs/stdlib/kof-file-plan.md`); the batch authorized the promotion, this entry locks the re-scope and the surface.
+
+- **Re-scope (measured, 28/09):** Phase 1 (File/Path/Text/Binary) is already implemented as `kof.io` (`docs/stdlib/IO.md`); the only open Phase-1 face is **Streaming**. The plan's "zero code" claim was true for the module name, not for the capability.
+- **Slice 1 (LANDED):** pure-Kof library `libs/file/` — `FileStream(path[, chunkSize])` with `readChunk() : Int[]?` (null at EOF), `done()`, `position()`, plus `copyStream(source, destination, chunkSize) : Long` (constant-memory copy). Built exclusively on the existing `kof.io.readRange`; **no new grammar, no compiler change** (`D-KOF-FIRST-IMPL`, rule 12). Proof `FileLibraryE2ETest` 2/2 (JVM).
+- **Slice 2 (LANDED):** the library is measured on every target against one golden (`FileLibraryE2ETest` 7/7) — JVM, Native x86-64, riscv64/aarch64 (qemu) and **Script** all run the real `readRange`. **JS is an honest compile-time gap `IOJS001`**: the GraalJS runtime (`kof-runtime-io.mjs`) exports no binding for `readRange`/`copyTo`/`moveTo`/`modifiedTime`/`isSymlink`, so emitting the call died at RUNTIME with `SyntaxError: ... does not provide an export named 'kofIoReadRange'` (R6). `ExpressionBuiltinInstanceCalls.lowerIo` now refuses via `JS_MISSING_IO`; the host has no partial-read primitive, so a real JS binding needs a host addition — never a silent whole-file fallback. Pinned by `DomainGapCodesTest.ioReadRangeOnJsIsIojs001`/`ioCopyOnJsIsIojs001` and the parity matrix row.
+- **Targets:** JVM, Native (x86-64/riscv64/aarch64) and Script proven; JS refuses `readRange`/`copyTo`/`moveTo`/`modifiedTime`/`isSymlink` at compile time with `IOJS001` (never a silent whole-file fallback).
+- **Boundary (R1):** base stdlib keeps light I/O/streaming/text; heavy codecs (PDF/images/archives) belong to official packages (R9 interop-first).
+- **Slice order (how to finish):** plan §"How to finish" (Streaming slice 2 → Native measurement + JS/Script gap code → Phase 2 structured data → Phase 3+ configuration/documents/containers).
+- **Relationships:** `Related: D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-KOF-FIRST, D-KOF-FIRST-IMPL, D-IO-SIZE-JVM-LAW, rule 6, rule 12, R1, R9`.
+
+## D-RELEASE-0.5.0-CLOSED — the 0.5.0 cut is done; the prep tracker and its gate are retired (maintainer 28/09/2026, "a release ja aconteceu")
+
+**State:** DECIDED (maintainer) · **Evidence:** `origin/main` merged `#619` (`beta-0.5.0 → main`) and the artifacts are tagged `kof-0.5.0-beta*` (2026.09.25).
+
+- The acceptance record `release-beta-0.5.0-prep.md`(+PT) moved out of `development/` (three-states rule) to [`docs/distribution/release-beta-0.5.0.md`](../distribution/release-beta-0.5.0.md) (+PT) with `state: done`; it is frozen history.
+- `scripts/check_release_050_gate.sh` and `scripts/tests/check-release-050-gate-test.sh` are **retired** (removed from `run-agent-tests.sh`); the 0.5.0-specific conditions (parts G/H of `check_live_records.sh` + the README §0/§1 loose-set authority) stop running now that their inputs are gone.
+- Release promotion is governed from now on by [`quality-pipeline.md`](quality-pipeline.md) (`D-QUALITY-PIPELINE-2609`): `lab → testing → prerelease → stable → release/x.y.z → tag`.
+- **Relationships:** `Related: D-BRANCH-0.5.0, D-RELEASE-0.5.0-GATE, D-RELEASE-0.5.0-SCOPE, D-FULL-PARITY-050, D-QUALITY-PIPELINE-2609, D-BRANCH-PIPELINE`.
+## D-SCOPED-RESOURCES-GO — `using (x = init, closer) { body }`: lightweight RAII as a mapped pre-lowering desugar, no ownership (maintainer 28/09/2026, batch `D-FUTURE-BATCH-2809`)
+
+**State:** DECIDED (maintainer) — promoted front under `D-FUTURE-PROMOTION` (`docs/scoped-resources-plan.md`); the batch one-liner is the authorization, this entry locks the decision and the surface.
+
+- **Scope:** one contextual statement + one `DesugarStep` (`desugarUsing`, FIRST in `defaults()`), zero typer/lowerer/codegen change on any target. New syntax is justified (not library-first): only the parser can introduce a binding with a guaranteed closer and a parse-time missing-closer error; the lowering reuses the existing `try/finally` on every target.
+- **Surface v1 (locked, plan §2/§3):** `using (x = init, closer) { body }` → `{ var x = init; try { body } finally { closer } }`. The closer is EXPLICIT — `x.close()` is false for `db` (String handle, `db.close(handle)` law); `conn.close()`/`sse.close()` stay writable as the closer. Missing closer = parse error (R6). Block-scoped binding (no escape by construction); escape-after-close stays with memory-safety.
+- **Backward compatible:** `using` is contextual (`using` + `(` only); zero `.kf`/test-source identifier usage measured, so no existing program changes meaning. Programs without `using` return the unit untouched (freeze rule 3).
+- **Targets:** all by construction (pre-lowering desugar); slice-1 proof is JVM/Script/JS parity + JVM/Script/Native-x86 exception goldens; JS nested-throw stays a loud COMP002 (pre-existing backend gap, §174 family, JS lane's front).
+- **Merge law / slice order:** owned by the plan (§6); slice 1 = parser + `UsingStmt` + `desugarUsing` + `UsingDesugarE2ETest` 7/7.
+- **Closure 28/09:** slices 1–6 landed (`UsingDesugarE2ETest` 18/18); plan moved to `docs/scoped-resources-plan.md`; cross-`db` explicitly out (db lane's matrix).
+- **Relationships:** `Related: D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-KOF-FIRST, D-DESUGAR-STEP, rule 6, rule 11, rule 12`.
+## D-MEM021-SCALAR — `MEM021` covers the ESCALAR capture too: parent re-assignment of a captured local after `spawn` without join is a compile-time ERROR (maintainer 28/09/2026, voted option A + ERROR)
+
+**State:** DECIDED (maintainer) — resolves the #660 decision request; implementation = `OwnershipPass` + `SpawnCaptureScanner` (front `docs/development/memory-safety-plan.md` slice 3.2b).
+
+- **Question (#660):** `SpawnCaptureScanner.MUTATORS` listed only OBJECT mutators (`add`/`remove`/`clear`/`addAll`); the parent re-assigning the SAME captured SCALAR local after `spawn`, with no `await`/`join_all` between, compiled with NO diagnostic on all targets and raced (measured JVM/JS/Script `202` then `101`, exit 0). Spec B-04 spoke of a "mutable object", so the scalar case was neither forbidden nor registered.
+- **Decision:** option **A — diagnose**, severity **ERROR** (not WARNING): extend `MEM021` to the scalar path. Rationale: a worker that WRITES the captured binding forces the representation box (`CompilerCaptureScanner` → `mutatedCapturedNames` → `CapturedVarBox`), so parent and worker SHARE the slot; a parent write with no `await` between is the clear data race of B-04/C-03, same class as the existing object `MEM021` (ERROR on the clear race).
+- **Surface:** the worker write set gains re-assignment (`n = ...`) and `++`/`--` of a captured binding; the parent write set gains re-assignment and `++`/`--` of the same binding. Pure READ-only capture is NOT a race (read-only capture lowers by VALUE, no box) — stays silent.
+- **Zero false positive by construction:** `await` of any handle clears the pending set (sub-report, never over-report); names SHADOWED by worker-local declarations or lambda parameters are excluded; conditional/interprocedural spawn faces remain named (silent).
+- **Proof:** `MemorySafetyE2ETest` 46/46 (6 new: 3 RED before the fix — measured 3/3 FAIL on the old scanner — and 3 zero-FP green), JVM/Native/JS + Script diagnostic.
+- **Relationships:** `Related: D-MEMORY-SAFETY, D-MEMORY-CLEAR, D-FUTURE-BATCH-2809, rule 6, rule 11`; tracker #660.
+
+## D-BUFFER-INOUT-NATIVE — the Native face of `Buffer(U8, INOUT)` is authorized and routed to the native/FFI lane, cross scope (maintainer 28/09/2026, direction "a lane FFI corrija" + recorte "x86-64 + cross riscv64/aarch64")
+
+**State:** DECIDED (maintainer) — resolves the #651 target/order decision request; **execution belongs to the native/FFI lane** (fase-5 front), not the issues/tooling lane.
+
+- **Question (#651):** `Buffer(U8, INOUT)` binds on JVM/JS (`FfiSignature` token `B`, `BufferFfiE2ETest` 4/4) but the Native face stays `FFI001` (honest per-target gap, R6). The issue asked whether to complete it on Native and in which target order.
+- **Decision:** authorized — implement the Native face under the existing `D-R3-BUFFER`/`D6-3` handle/out-buffer contract; **no new syntax, no generic pointer**. Recorte = **Native Linux x86-64 AND cross riscv64/aarch64** (maintainer's scope choice); JS/non-bindable faces keep their honest gap (`FFI001`/`FFI002`).
+- **Contract kept:** accept only the already-defined Buffer type/capacity; native access confined to the FFI call; validate length/capacity/bounds before the call; publish bytes per the established `INOUT` semantics; refuse honestly retained callbacks, variadics, generic pointers and out-of-contract ownership; `FFI001` stays for everything outside the contract (never a stub, never a silent fallback).
+- **Proof to require (per issue):** a small deterministic C fixture + a Kof program observing the result via `Buffer.bytes()`, byte-for-byte JVM↔Native parity, and negative capacity/bounds cases; a benchmark may measure cost but no performance claim without measurement.
+- **Routing:** NOT implemented by the issues/tooling lane; the native/FFI lane owns execution (coordinate with the in-progress fase-5 front / pin unit #666 before touching; do not collide).
+- **Relationships:** `Related: D-R3-BUFFER, D6-3, D-KOF-FIRST, D-FULL-PARITY-050, rule 6, rule 11, rule 12`; tracker #651.
+
+## D-SCRIPT-EXTERN-REFUSE — Script × `extern` is refused at compile time with an honest gap code + a `backend-parity` FFI×Script row (maintainer 28/09/2026, voted option A)
+
+**State:** DECIDED (maintainer) — resolves the #667 decision request; **implementation belongs to the memory-safety/Script lane** (front `docs/development/memory-safety-plan.md` phase-5 unit 2), not the issues/tooling lane.
+
+- **Question (#667):** `extern "libc.so.6" abs(Int x): Int` + `main() { println(abs(-7)) }` compiles CLEAN on Script and dies at runtime with the raw JVM error `KofRuntime.kof_ffi/4` (exit 1), with or without `spawn`; no gap code and no FFI×Script row in `docs/backend-parity.md`. `kof_ffi` exists only in the JVM runtime (`JvmRuntimeCallDescriptors`), not in `KofInterpreterRuntime`.
+- **Decision:** option **A — compile-time refusal**. The Script target has no FFI runtime, so an `extern` declaration is refused at the declaration line with an honest, named gap code and the `backend-parity` FFI×Script row is added. No silent fallback, no raw runtime death (precedent #510/`INTEROP003`: static field of an external class on a non-JVM target = compile-time refusal).
+- **Gap code (locked sub-choice):** reuse **`FFI001`** — the same "extern is not bindable on this target" class Native already uses for its honest declaration-line refusal (`CompilerFfiBinding`); a new `FFI003` would multiply the code table without a distinct class. Everything outside the contract keeps `FFI001`.
+- **Not chosen:** (B) implementing the `kof_ffi` bridge in the interpreter (larger surface/contract — reopen with a new decision if a real Script FFI consumer appears); (C) other.
+- **Proof to require:** a Script RED-first E2E (the exact `abs(-7)` reproducer refused at compile with `FFI001`, zero raw runtime crash) + the `backend-parity` FFI×Script row; no Script face is pinned as correct.
+- **Relationships:** `Related: D-FFI-STRUCT, D-R3-BUFFER, D-FULL-PARITY-050, D-MEMORY-SAFETY, rule 6, rule 7`; tracker #667.
+
+## D-MEM020-COMPILE — `MEM020` (B-03) gets a COMPILE face over the existing `OwnershipPass`: two concurrent `extern` writes to the same `Buffer(U8)` across `spawn` without join are a compile-time ERROR (maintainer 28/09/2026, voted option A)
+
+**State:** DECIDED (maintainer) — resolves the #668 decision request; **implementation belongs to the memory-safety lane** (front `docs/development/memory-safety-plan.md` phase-5 unit 2), not the issues/tooling lane.
+
+- **Question (#668):** two `spawn`ed `extern` calls writing the same `Buffer(U8)` without sync compile CLEAN (diag=[]) on all targets — the B-03 line of the spec ("Passing same `Buffer` to two concurrent FFI calls without sync" → `MEM020`, `MemRule.java:36` `COMPILE_AND_RUNTIME`). The captured Buffer is by reference and FFI-write is not in `SpawnCaptureScanner.MUTATORS`, so object `MEM021` does not fire and `D-MEM021-SCALAR` does not cover object aliasing via FFI. No scanner, no runtime guard, no E2E.
+- **Decision:** option **A — compile face**. `MEM020` ERROR when a `Buffer` is written by an `extern` (INOUT param) from two `spawn`s without `await`/`join_all` between — implemented over the existing `OwnershipPass` (same shape as slices 3.2/3.2b). The spec already forbids B-03; this gives the existing rule a tooth.
+- **Not chosen:** (B) runtime writable-borrow guard on `Buffer` = a NEW core primitive → larger scope decision, deferred; (C) accept as a documented race (rejected — the spec already forbids it).
+- **Proof to require:** the exact #668 reproducer RED-first as `MEM020` ERROR on all targets with zero false positives (a single writer or an intervening `await` stays silent); `MemorySafetyE2ETest` growth.
+- **Relationships:** `Related: D-MEMORY-SAFETY, D-MEM021-SCALAR, D-R3-BUFFER, D-FFI-STRUCT, rule 6, rule 12`; tracker #668.
+
+## D-MULTIPARADIGMA-PHASE1A — `any`/`all`/`none` on `List`: eager short-circuit quantifiers reusing the `kof_list_*` pattern (maintainer 28/09/2026, batch `D-MULTIPARADIGMA-GO` + `D-FUTURE-PROMOTION`)
+
+**State:** DECIDED (maintainer) — promoted front under `D-FUTURE-PROMOTION` (`docs/stdlib/PLAN-MULTIPARADIGMA.md`); the batch one-liner authorizes Tier 2.x, this entry locks Phase-1a scope.
+
+- **Scope:** three additive `List` methods, no grammar/keyword/type change. Truthiness reuses the `filter` rule (`Boolean.TRUE` or `Integer 1`); short-circuit per the plan §4 table (vacuous: `all`/`none` true, `any` false on empty — `none` ≡ ¬`any`; the plan's draft line read `any`/`none` false and the maintainer corrected it 28/09). Zero new typer/lowerer machinery beyond the map/filter path (`contextualLambda` generalization to the new set).
+- **Surface v1 (locked, plan §4):** `List<T>.any((T)->Bool): Bool`, `all`, `none` — same signatures on every target; `take`/`drop`/`slice` are the pagination lane's P1 ride and are NOT in this slice; `find`/`forEach`/`flatMap`/`count(pred)`/rest are later slices.
+- **Backward compatible:** new method names only (zero `.any(`/`.all(`/`.none(` in corpus, no keywords); unknown-method diagnostic lists them (never silent).
+- **Targets:** all by the established pattern (JVM statics + Native-x86 asm + cross new piece + JS prelude + Script); slice proof is E2E parity per op.
+- **Merge law / slice order:** owned by the plan (§3: one commit per op-pair); slice 1a = the quantifier trio + `ListQuantifiersE2ETest`.
+- **Relationships:** `Related: D-MULTIPARADIGMA-GO, D-FUTURE-BATCH-2809B, D-FUTURE-PROMOTION, D-KOF-FIRST, rule 6, rule 11, rule 12`.
+## D-IMAGE-VISION-GO — `kof.image`/`kof.vision` promoted as official package; first slice = pure-Kof metadata (maintainer 29/09/2026, batch `D-FUTURE-BATCH-2809` + `D-FUTURE-PROMOTION`)
+
+**State:** DECIDED (maintainer) / IN DEVELOPMENT — promoted front under `D-FUTURE-PROMOTION` (`docs/development/image-vision-plan.md`).
+
+- **Scope:** image manipulation (`kof.image`) and computer vision (`kof.vision`), delivered as an **official package** (R1; born `experimental`), interop-first per R9 (imageio/turbojpeg/OpenCV/ONNX behind the Kof API; codecs never reimplemented).
+- **Slice 1 LANDED 29/09 (library-first, `D-KOF-FIRST-IMPL`):** pure-Kof `libs/image/` reads **format + pixel dimensions** from the leading bytes (PNG/GIF/BMP info+core/JPEG SOF/WEBP VP8·VP8L·VP8X) over a bounded 4 KiB `kof.io.readRange` prefix — no codec, no pixels, no new syntax. `ImageMetadataE2ETest` 7/7 on JVM + Native x86-64 + riscv64 (qemu) + Script; JS gap `IOJS001`.
+- **Next:** pixel decode + `Image` data, then interop `resize`/`crop`/`rotate`, Phase 2 processing, Phase 3 `kof.vision`.
+- **Measured finding (native lane):** cross natives fail a single `new Int[65536]` (256 KiB) allocation — catalogued `known-bugs` **§540**.
+
+- **Relationships:** `Related: D-FUTURE-BATCH-2809, D-FUTURE-BATCH-2809B, D-FUTURE-PROMOTION, D-KOF-FIRST, D-KOF-FIRST-IMPL, R1, R9, rule 6, rule 12`.
+
+## D-STDOUT-ENCODING — one stdout-encoding rule for everything the CLI runs: console keeps its code page, file/pipe gets UTF-8 (maintainer 29/09/2026, multiple-choice "Aprovar forma (c) + merge")
+
+**State:** DECIDED (maintainer) — candidate shape (c) of §539; closes #676 and §539 when PR #677 lands on `lab`.
+
+- **Rule:** a stream attached to a Windows console is emitted in the console's code page (what the console can display — the JVM's own behavior there, no regression); a file or pipe gets UTF-8 (parity with Native/KofJS and `semantics.md` §7). Linux/macOS unchanged (all values already UTF-8).
+- **Scope:** CLI process wiring only (`KofStdio` + the 9 child-launch sites + KofJS `fromUtf8`); no syntax, stdlib or compiler change. The `kof build` JVM-artifact residual (rule in the generated program's startup) is a separate follow-up, not this decision.
+- **Relationships:** `Related: #676, #677, §539, rule 5, rule 6`.
+
+## D-MULTIPARADIGMA-SORTED — `sorted` ships natural order PLUS the `(A,A)->Int` comparator in this slice, on all 4 targets (maintainer 29/09/2026, multiple-choice "Com comparador agora")
+
+**State:** DECIDED (maintainer) — unblocks the `sorted` remainder of `PLAN-MULTIPARADIGMA.md`.
+
+- **Scope:** `List<T>.sorted(): List<T>` (natural order via `compareTo` for String/numbers; naive-for-others stays an honest gap) AND `List<T>.sorted((T,T)->Int): List<T>` now (not later); stable, copies and sorts, eager like the rest of Phase 1.
+- **Relationships:** `Related: D-MULTIPARADIGMA-PHASE1A, D-MULTIPARADIGMA-GO, rule 6`.
+
+## D-MULTIPARADIGMA-ZIP — `zip` truncates at `min` size and yields a named record `Pair` (maintainer 29/09/2026, multiple-choice "Record Pair")
+
+**State:** DECIDED (maintainer) — unblocks the `zip` remainder of `PLAN-MULTIPARADIGMA.md`, closing the plan §231 TBD.
+
+- **Scope:** `List<T>.zip(List<U>)` truncates silently at `min(sizeA,sizeB)` (not an error); each element is a named record `Pair` (generic parameters as the record system allows — proven by the slice E2E, never assumed).
+- **CONFLICT RESOLVED (option A):** `Pair` is listed as a fake/foreign construct in the `D-NOT-JAVA` iron rule (§8) — `Pair` was among the symbols closed as "does not exist in Kof" in the 18/09 sweep (issue #418). The maintainer's multiple-choice answer **"Record Pair"** picks option **(A)**: this scope-limited `D-*` introduces the stdlib `Pair<A,B>(A first, B second)` and supersedes the fake-idiom entry for this type only; `zip` yields `List<Pair<T,U>>`. Recorded values: home = stdlib prelude (`dev/kof/pairs.kf`), field names `first`/`second`, accessors `p.first()`/`p.second()`. **IMPLEMENTED 30/09** (`80dd32b50`: `CompilerPairs`/`CollectionZipLowerer` rewrite, `ListZipE2ETest` JVM/Script/JS green; native leg blocked by an independent backend gap — bare type-variable `List.get` corruption, `§271` erasure ABI). Registered in `docs/development/README.md` §3.
+- **Relationships:** `Related: D-MULTIPARADIGMA-PHASE1A, D-MULTIPARADIGMA-GO, D-NOT-JAVA, rule 6`.
+
+## D-MULTIPARADIGMA-ZIP-NATIVE — `zip` is refused at compile time on the native targets when either list element type is a primitive (maintainer 30/09/2026, multiple-choice "B — honest NAT008")
+
+**State:** DECIDED (maintainer) — supersedes the native-BLOCKED cell of `D-MULTIPARADIGMA-ZIP` (slice 1i); the managed surface (JVM/Script/JS) is unaffected.
+
+- **Scope:** `List<T>.zip(List<U>)` keeps `Pair` + `min` truncation on JVM/Script/JS. On every native target (`NATIVE`, `NATIVE_RISCV64`, `NATIVE_AARCH64`, plus the MCU targets), a `zip` whose receiver/argument element type is a `PrimitiveType` (or still `Unknown` at lowering) is refused at compile time with the honest gap code **`NAT008`** — never a `SIGSEGV` (R6).
+- **Root cause (measured 30/09):** native lists of a concrete primitive element store the value **raw** (`kof_list_get` returns the raw qword); when the same list is viewed through a bare type-variable (`zipPairs<A,B>` reads `xs.get(i)`), the erasure contract says "reference" and the call-site emits `kof_unbox_*`, which dereferences the raw integer as a pointer → `SIGSEGV` (rc=139). Proven without zip/injection by `firstOf<T>(List<T>): T { return xs.get(0) }` → rc=139 on native, `1` on JVM. Reference-element zip works natively (measured), so only primitive elements are refused.
+- **Deferred (honest gap):** the representation fix (box at the generic erasure boundary, cross-target) is a backend front; when it lands, `NAT008` is deleted and native `zip` is re-enabled for every element type. Recorded in `docs/backend-parity.md` (Documented Gaps) like `NAT006`/`NAT007` — a deliberate, named limitation, not a bug in the open queue.
+- **Relationships:** `Related: D-MULTIPARADIGMA-ZIP, D-MULTIPARADIGMA-PHASE1A, D-KOF-FIRST-IMPL, rule 6`.
+
+## D-MULTIPARADIGMA-GROUPBY — `groupBy` as specified in plan §230 (maintainer 29/09/2026, multiple-choice "Aprovar especificado")
+
+**State:** DECIDED (maintainer) — unblocks the `groupBy` remainder of `PLAN-MULTIPARADIGMA.md`.
+
+- **Scope:** `List<T>.groupBy((T)->K): Map<K,List<T>>` exactly as §230 (insertion-order map of groups; keys with the boxed map equality); eager, additive.
+- **Relationships:** `Related: D-MULTIPARADIGMA-PHASE1A, D-MULTIPARADIGMA-GO, rule 6`.
+
+## D-SCRIPT-WARN-SURFACE — the Script target surfaces frontend WARNING diagnostics like JVM/JS/Native (maintainer 29/09/2026, multiple-choice "A" on #678)
+
+**State:** DECIDED (maintainer) / IMPLEMENTED 29/09 — resolves the #678 decision request (diagnostics-parity divergence of phase-6, `docs/development/memory-safety-plan.md`).
+
+- **Question (#678):** a terminating `for-in` + `list.remove(0)` emits `MEM022` on JVM/Native/JS, but `driver.interpret` returned `exit=0, stderr=[]` — `CompilerPipeline.prepareForInterpretation` built a local `DiagnosticCollector` and discarded it (only ERRORS escaped via `KofInterpretException`), so every WARNING (`MEM022`, `MEM014`) was invisible on Script, contradicting the plan DoD ("same sources, same diagnostics").
+- **Decision:** option **A — surface the warnings**. The interpreter exposes the frontend WARNINGs through `KofInterpreter.Result.warnings()` (additive record component with a compat 3-arg constructor); the CLI/`KofScript` print them to stderr exactly like the compile path. No language-semantics change — diagnostics only.
+- **Not chosen:** (B) leave Script warning-free by documented scope (rejected: the signal is the contract, and `list.add` during iteration is a runaway loop where the warning is the only signal).
+- **Proof to require:** the terminating reproducer yields `MEM022` in `Result.warnings()` on Script (RED before, measured 29/09), plus no regression on the interpreter battery.
+- **Relationships:** `Related: D-MEMORY-SAFETY, D-SCRIPT-EXTERN-REFUSE, rule 5, rule 6, rule 7`; tracker #678.
+
+## D-CONNECTORS-GO — the Kof Connector Ecosystem plan is promoted to current work (maintainer 29/09/2026, multiple-choice "connectors" + `D-FUTURE-PROMOTION`)
+
+**State:** DECIDED (maintainer) — the connector plan (now at `docs/stdlib/kof-connector-ecosystem-plan.md` after the 05/10 closure) moved `future/` → `docs/development/` with status UNDER DEVELOPMENT; one front at a time.
+
+- **Scope:** Interop Core + Connector SPI/manifest + catalogue, building on the existing FFI/ABI substrate (never duplicating it, rule 54); scope control rule 55 (prove with few connectors first — Java first, no 30-runtime waterfall); official-packages layering (R1) and interop-first (R9) apply.
+- **Relationships:** `Related: D-FUTURE-PROMOTION, D-FUTURE-BATCH-2809B, rule 6, rule 54, rule 55, R1, R9`.
+## D-IMAGE-SURFACE — `kof.image` value surface reuses `Raster`; codecs are pure Kof when feasible, JVM imageio only where infeasible (maintainer 29/09/2026, chat decision)
+
+**State:** DECIDED (maintainer) — closes the rule-6 decision request opened with the image-vision promotion.
+
+- **Surface:** no new `Image`/`Pixel`/`Color` types; the value is the existing `Raster(format, width, height, channels, samples)`. `decode(path): Raster` covers every supported format.
+- **Codecs:** implement in **pure Kof** whenever feasible — full cross-target parity, no gap (`PNM`, `farbfeld`, `BMP`, `QOI` today). Use JVM **imageio** interop only where a pure-Kof decoder is technically infeasible (JPEG, and GIF/WebP/AVIF unless prioritized), with an honest compile-time gap on the other targets — never a silent fallback, and never a gap added "just to add one".
+- **Plan:** `docs/development/image-vision-plan.md` §34 (TODO) lists the missing decoders, ordered by cost (PNG pure-Kof via zlib inflate = high value highest; JPEG = imageio).
+- **Progress:** slice 2f LANDED — pure-Kof QOI decode on all targets; `RasterDecodeE2ETest` 7/7 (JVM + Native x86-64/riscv64 + Script).
+
+- **Relationships:** `Related: D-IMAGE-VISION-GO, D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-KOF-FIRST, D-KOF-FIRST-IMPL, R1, R9, rule 6, rule 11`.
+
+## D-WEBP-LOSSY-PURE-KOF — WebP lossy (`VP8 `) and AVIF decode as a pure-Kof decoder on all targets, no third-party imageio plugin (maintainer 30/09/2026, multiple-choice "decoder VP8 lossy em Kof puro")
+
+**State:** DECIDED (maintainer) — closes the last image codec gap; supersedes the "interop/gap" note in `image-vision-plan.md` §34 PENDING.
+
+- **Question:** the last image decoders — WebP lossy `VP8 ` and AVIF — cannot ride the JVM `imageio` escape hatch: OpenJDK 25 `javax.imageio` has **no** WebP or AVIF reader (measured 30/09; `ImageIO.getImageReadersByFormatName("webp"/"avif")` empty), so `image.decode` would need a third-party plugin (TwelveMonkeys / an AVIF lib) — a dependency decision. The maintainer chose to keep interop-first for JVM-only formats but to **reject** a new dependency for this.
+- **Decision (option C):** implement the **VP8 lossy decoder in pure Kof**, on all targets (JVM + Native x86-64/riscv64/aarch64 + JS + Script), library-first, no compiler change — the same shape as the VP8L slices. AVIF follows the same route (its intra codec is a later, separate increment).
+- **Why pure Kof over imageio:** `D-IMAGE-SURFACE` says pure Kof whenever feasible; a full third-party imageio plugin set would break the offline (`mvn -o`) build and the "no reimplement, no gratuitous dependency" balance. VP8 lossy is large but bounded and fully described by RFC 6386.
+- **Slices (each one complete unit, tested):** (1) RIFF/`VP8 ` chunk parser + frame-header + the boolean **range decoder** (RFC 6386 §7); (2) the per-macroblock mode/segment header + coefficient probability tables; (3) intra prediction (`VP8 ` keyframes are all-intra) + the inverse DCT/WHT + reconstruction; (4) the in-loop deblocking filter; (5) the adaptive (non-keyframe) path — if in scope.
+- **Honest boundary:** the pure-Kof key-frame chain is complete (slices 1–7, 30/09–01/10) and `decodeRaster` routes a lossy WebP through it (`libs/image/Vp8Raster.kf`); the adaptive (non-keyframe) path and multi-partition token streams remain explicit `IMAGE:` refusals (no half decode, no stub, Q7).
+- **Relationships:** `Related: D-IMAGE-SURFACE, D-IMAGE-VISION-GO, D-KOF-FIRST, D-KOF-FIRST-IMPL, R1, R9, rule 6, rule 11`; plan `docs/development/image-vision-plan.md` §34.
+
+## D-KOF-IS-KOF — Kof source never embeds HTML, CSS or JavaScript (maintainer directive 29/09/2026: "NÃO ENFIAR HTML NEM JS DENTRO DE CÓDIGO KOF. KOF É KOF")
+
+**State:** DECIDED (maintainer) — absolute rule.
+
+- **Rule:** a Kof program expresses intent with Kof primitives and idioms only. HTML tags, CSS (classes/inline styles) and JavaScript must never be pasted into Kof source — including as string/text-block payloads that build a UI, wire behavior or inject script (e.g. `"""<div onclick=...>"""`).
+- **Why:** Kof is not markup in disguise (`docs/philosophy.md` §"It is not markup in disguise"); importing a foreign stack's syntax into `.kf` breaks the language surface (`AGENTS.md` rule 11), the domain separation (rule 3) and cross-target honesty (rule 5). `kof.ui`/`kof.web` declare intent and each target's backend renders it; heavy web concerns are platform/official-package responsibility (boundary rule).
+- **What to do instead:** if Kof cannot express the intent, the missing piece is a Kof abstraction (library-first, `D-KOF-FIRST`) or a maintainer decision — never foreign syntax or a foreign-code payload. Interop, when truly needed, goes through the sanctioned FFI/official-package path, not embedded markup/script.
+- **Scope:** all Kof targets and all official libraries; applies to source, test fixtures and documentation examples alike.
+- **Relationships:** `Related: D-KOF-FIRST, D-KOF-FIRST-IMPL, D-GRAPHICS-GAMING, AGENTS.md rules 3/5/11, docs/philosophy.md`; anti-pattern: `training/anti-patterns/embedded-html-js.md`.
+
+## D-MEM030-BORROW-RUNTIME — B-03 gets its RUNTIME half: a writable-borrow state on `Buffer(U8)`, with total cross-target proof (maintainer 30/09/2026, multiple-choice "Borrow-state + prova cross total")
+
+**State:** DECIDED (maintainer) — extends `D-MEM020-COMPILE`; the maintainer rejected accepting the runtime half as a gap. Implementation belongs to the memory-safety lane (front `docs/development/memory-safety-plan.md`, phase-5 unit 4).
+
+- **Question:** `MEM020` (B-03, `MemRule.java:36` `COMPILE_AND_RUNTIME`) shipped only the compile face over `OwnershipPass` (`D-MEM020-COMPILE`); the runtime half ("Passing same `Buffer` to two concurrent FFI calls without sync") was left unshaped because option B needed a new core primitive. The maintainer decided 30/09 that no gap is accepted — the runtime half must be developed.
+- **Decision:** implement **option B — runtime writable-borrow state on the `Buffer` object**: a borrow flag (and owning task identity) held by the native/JVM/JS `Buffer` runtime; an `extern` INOUT write attempts to acquire an exclusive writable borrow, and a second concurrent writable borrow (two `spawn`s, or worker×parent without `await`) raises a runtime `MEM020`. Single writers and an intervening `await` stay clean (same shape as the compile face).
+- **Total cross-target proof required:** the primitive and the E2E must be byte-identical on **all six** reachable faces — JVM, Script, JS, Native x86-64, Native riscv64, Native aarch64 — with a negative case (concurrent writers → `MEM020`) and a positive control (single writer / awaited → clean).
+- **Not chosen:** leaving the runtime half unshaped as a documented scope cut (rejected by the maintainer, 30/09); compile-only enforcement was already the previous decision.
+- **Relationships:** `Related: D-MEMORY-SAFETY, D-MEM020-COMPILE, D-MEM021-SCALAR, D-BUFFER-INOUT-NATIVE, D-R3-BUFFER, rule 6, rule 12`; tracker `#668`.
+- **Addendum (maintainer 30/09/2026, follow-up multiple-choice "B-03 negative case on JS/Script" — chosen "Primitive on all 6; negative by structure on JS/Script"):** the primitive lands on **all six** faces; the **negative** case is proven by execution where preemption exists (JVM virtual threads, native pthreads x86-64/riscv64/aarch64) and by documented **structural unreachability** on JS (its `spawn` lowers to `async`/`await` — cooperative, single-threaded) and Script (`extern` is refused at compile time with `FFI001`; there is no `Buffer` surface at all). Nothing is accepted as a code gap.
+- **State 30/09 (this lane):** JVM, JS, Native x86-64 and cross riscv64/aarch64 primitives **LANDED**. The cross **negative** race **was BLOCKED** by `known-bugs §545` (any cross `spawn` worker calling an `extern` SIGSEGVs: the raw `clone` starts the worker with `tls=0` → `tp` invalid; pre-existing native/cross defect, not this front) — **§545 FIXED 30/09**, so the race now runs on cross too (`BufferRuntimeBorrowE2ETest` **8 run / 0F / 0 skip**, the cross negative previously `@Disabled`; the x86-64 negative raises exactly one `MEM020`). Script is **structural N/A** (no Buffer/extern surface).
+- **Addendum 30/09 (§545 unblock):** `known-bugs §545` was fixed by giving the raw-clone worker a real TLS pointer — `NativeRiscvSpawn` calls the loader's `_dl_allocate_tls(NULL)` and passes the block as the `clone` `tls` argument (the flag set already carries `CLONE_SETTLS`), and `NativeArchEmitter` forces the dynamic link whenever `usesSpawn` (the symbol lives in `ld.so`; a weak reference would be relaxed to null under `--gc-sections`). This removes the last blocker on the total cross proof of this decision; aarch64 inherits via the translator.
+- **Addendum 30/09 (cross release correction, found while fixing `known-bugs §546`):** the cross writable-borrow **release** re-read the `Buffer(U8)` object from the argument block, which the C callee may overwrite (measured with glibc `memset` overwriting the block), so the flag leaked and a later sequential writer would raise a spurious `MEM020`. `NativeFfiCallRiscv` now saves the object in a reserved frame scratch slot (the x86-64 scheme) and the release reads it there. Proof: `BufferRuntimeBorrowE2ETest#sequentialWritersReleaseBorrowCross` (RED-first SIGSEGV → GREEN); the full class is 8 run / 0F / 1 skip.
+
+## D-MEM-PHASE6-4BACKENDS — phase 6 parity is the FOUR real backends (JVM/Native/JS/Script); WASM leaves the spec contract until a backend exists (maintainer 30/09/2026, multiple-choice "Reescrever a spec para os 4 backends reais")
+
+**State:** DECIDED (maintainer) — rewrites the phase-6 scope in `docs/spec/memory-safety.md` (§12 roadmap + Appendix) and the plan DoD.
+
+- **Question:** the spec named "JVM / JS / WASM" as the phase-6 parity set, but the tree has **no WASM backend** (measured 28/09, #671; `docs/backend-parity.md` = JVM × Native × KofJS — no WASM column). The DoD also referenced a dead "§27 questions" anchor that does not exist in the spec.
+- **Decision:** phase 6 parity is defined over the **four backends that exist** — **JVM, Native, JS, Script** (plus the Native cross ISAs riscv64/aarch64 used for the memory tests). WASM is **not** an open gap of this front: it re-enters the contract only when a real WASM backend lands (never before). The dead "§27" reference is corrected to the spec's twelve sections.
+- **Relationships:** `Related: D-MEMORY-SAFETY, D-WASM-01, D-KOF-IS-KOF, D-KOF-FIRST, rule 5, rule 6`; tracker `#671`.
+
+## D-MEM-FFI-CROSS-FULL — cross FFI parity is total before the front closes: `String[]`, memory-path structs, callbacks and out-buffer land on riscv64/aarch64 too (maintainer 30/09/2026, multiple-choice "Paridade total cross antes de fechar")
+
+**State:** DECIDED (maintainer) — extends `D-BUFFER-INOUT-NATIVE`; the maintainer rejected accepting the remaining cross refusals as permanent gaps.
+
+- **Question:** Native x86-64 binds scalar externs, scalar `T[]`→`ptr`, struct by-value and `Buffer(U8)` INOUT, while cross riscv64/aarch64 still refuse `String[]`, memory-path structs, callbacks and out-buffer with `FFI001`/`FFI002`.
+- **Decision:** implement those four faces on the cross runtimes (`NativeFfiCallRiscv` + the shared FFI binding/ABI) with the same ABI as x86-64, and require **byte-identical** proof JVM ≡ riscv64 ≡ aarch64 for each face before memory-safety is declared done. Nothing is accepted as a permanent gap.
+- **Relationships:** `Related: D-MEMORY-SAFETY, D-BUFFER-INOUT-NATIVE, D-MEM020-COMPILE, D-R3-BUFFER, D-FFI-STRUCT, rule 6, rule 12`; tracker `#651`.
+- **State 30/09 (this lane) — faces 1–3 of 4 LANDED:** face 1 = cross **scalar `T[]`→`ptr`**: gate `CompilerFfiBinding` no longer restricts arrays to x86-64, `FfiStructLayout.crossBindable` counts an array-ptr as one INTEGER ordinal, `NativeFfiCallRiscv` packs per call via the new `kof_ffi_pack_array` riscv helper (per-program, `NativeArchEmitter`); proof `FfiNativeArrayE2ETest#scalarArrayCrossBindsAndMatchesJvm` (JVM == riscv64 == aarch64 byte-identical through a real cross `.so`; 5 element widths). Face 2 = `String[]`→`char**`: a separate marker (`FfiSignature.isStringArray` + `pS` token, JS stays `FFI002`) packs one NUL-terminated cstring per element (String payload at offset 24, `null`→0) via `kof_ffi_pack_str_array` (riscv + x86) and `kof_ffi_copy_in_strings` (JVM FFM); proof `FfiNativeStringArrayE2ETest` 2/2 (JVM == x86-64 == riscv64 == aarch64 byte-identical) and the former `String[]`→`FFI001` pins became bind assertions. The x86 asm helpers were extracted to `NativeFfiAsmHelpers` (`NativeFfiCall` 467 < 600). Out-buffer (`Buffer(U8)`) was already cross-bound by `#651` fatia B. Face 3 = **memory-path structs (sret)**: the gate accepts a `byMemory()` struct return (`FfiStructLayout.crossMemoryReturn`), `crossBindable(List,int)` reserves 1 INTEGER register (the RISC-V `a0` sret pointer; AAPCS64 `x8` does not consume one, reserved conservatively), and `NativeFfiCallRiscv` allocates the C buffer before the call, keeps its pointer in a reserved frame scratch slot across the call, and reconstructs each field from its C offset; the pointer register is **arch-aware** (`a0` riscv64 / `a7`→`x8` aarch64, matching the measured divergence — the first real argument shifts to `a1` only on riscv64). The **>16 B by-value PARAM** (also `byMemory`/BYREF) is covered in the same unit: measured 30/09 with cross-gcc, both riscv64 and aarch64 pass it as a pointer in `a0`/`x0`, so `NativeFfiCallRiscv` passes the object payload `obj+16` as one INTEGER (`FfiStructLayout.crossByMemory`; `crossBindable` counts one pointer). Proof `FfiNativeStructReturnE2ETest` 2/2: a real cross-compiled `.so` `Big{long,long,long}` return, golden byte-identical **JVM (FFM SegmentAllocator oracle) == x86-64 == riscv64(qemu) == aarch64(qemu)**; `FfiCrossStructParamE2ETest` 8/8 (`bigsum(Big,long)`, `142` under qemu both archs). **Remaining face (callbacks) — STOP rule 6/12, measured 30/09:** callbacks do not bind on **any** native target today (x86-64 included): the JVM/JS build a C function pointer via `Linker.upcallStub`, which has no bare-metal equivalent, so a cross callback needs a new MECHANISM — a native trampoline that turns a Kof function value (a heap object with an `invoke`) into an executable stub that marshals the C ABI and `j`s into the closure. There is no such mechanism in the corpus and the maintainer controls architecture (rule 6), so this face is **not invented here**; it is recorded as a decision request (the mechanism also unblocks x86-64 callbacks).
+
+## D-CLI-SOURCE-ROOTS — two Kof source roots (app × test) are declared in `kof.toml [sources]`; the CLI honors them without copies (maintainer 30/09/2026, multi-choice)
+
+**State:** DECIDED (maintainer) + IMPLEMENTED (30/09) — tracker `#708` (case `renanfranca`/SiFuture #2).
+
+- **Question:** how (and whether) the CLI exposes separate application and test source roots (`src/main/kof` × `src/test/kof`), so a project can build the real sources and run suites that import them without copying into a temp tree.
+- **Decision:** declare the roots in the manifest — `[sources] app = "src/main/kof"`, `[sources] test = "src/test/kof"` (D1); a declared root is discovered **recursively** (subdirectory = package), the positional `kof build <dir>` keeps the historical one-directory-one-package discovery (D2); the test root reuses the existing `dependencySourceRoots` source-path to resolve `import` against the app root (D3); the acceptance covers **all real test targets** (jvm/native/js; D4). `kof build`/`kof test` with no positional argument use the declared roots; without a manifest or a declared root they fail explicitly (R6), never a silent no-op.
+- **Not authorized:** language/syntax change, a new core primitive, or automatic two-root inference from directory names alone (the roots are explicit in `kof.toml`).
+- **Relationships:** `Related: D-APP, D-APP.REF, D-KOF-FIRST, D-MEM-FFI-CROSS-FULL, rule 6, R6`; the three interface-independent defects were fixed earlier in the same issue (commit `687570a64`).
+
+## D-SIZE-BUDGET — open the KOF distribution-size front; **Phase 1 = measurement only** (maintainer 01/10/2026, "Aprovado" on the #704 rule-6 request — the recommended option A)
+
+**State:** DECIDED (maintainer) + **Phase 1 IMPLEMENTED 01/10/2026** — tracker `#704` (case `jonasrochanasajon`). The observability slice landed as `scripts/size/measure-size.sh` + `scripts/size/compare-size.sh` with the versioned baseline `docs/audits/size-baseline.md`(+PT) (commit `c0233cae8`); `c1b13ec09` fixed the module measurement to use the 5 reactor modules by exact VERSION path (`#725`). No reduction/packaging/CI-gate was opened — each still needs its own later decision.
+
+- **Question:** the distribution has no size contract. `kof-cli` is shaded (`maven-shade-plugin`), so every new runtime/compiler dependency is paid by every user; PDFBox (`#629`) is the first concrete case.
+- **Decision (approved = option A):** open the front with **Phase 1 = observability only** — measure the toolchain (module jars, compressed and installed distribution), attribute bytes per dependency (direct, transitive, top 20), measure a `hello-world` per target (JVM, Native x86-64/riscv64/aarch64, JS, Script), and generate a `size diff` between two commits. **No behaviour, dependency, packaging or safety change; no CI block in Phase 1.**
+- **Not authorized (each needs its own later decision):** any reduction, removing functionality/target/test/diagnostic/security for bytes, removing GraalJS, enabling `minimizeJar`, changing the default packaging, defining MB limits before a baseline exists, or putting PDFBox in the core.
+- **Acceptance (Phase 1):** a reproducible baseline (commit + environment + sizes) versioned under `docs/audits/`, modules and distribution measured, dependencies attributed, `hello-world` per target, working inter-commit diff — with zero dependency or behaviour change.
+- **Consolidating rule (target):** an optional capability has an optional cost (an app that does not use PDF pays 0 for PDF).
+- **Relationships:** `Related: D-KOF-FIRST-IMPL, D-APP (--fat optional), D-KOF-FILE-GO, R1, R9`; independent of `#629` (where PDFBox lives is a separate decision that may follow this rule). Ledger `post-1.0`.
+
+---
+
+## D-AGENT-IDENTITY-IPPORT — every agent claim in DOING carries `<local-ipv4>:<opencode-port>`, absolute and mandatory (maintainer 01/10/2026, chat directive "DEIXA A REGRA ABSOLUTA PARA TODOS OS AGENTES. SEMPRE MARCAR IP E PORTA NO DOING. VIROU BAGUNÇA MESMO COM ESSA REGRA, PRECISO QUE REFORCE")
+
+**State:** DECIDED (maintainer) — codified 01/10 in `AGENTS.md`/`AGENTS.pt_BR.md` (§Authority identity + §Operating-loop claim step + §Multi-agent state claim block + §Final self-check) with enforcement in `scripts/check_owner_identity.sh`.
+
+- **Question:** a claim with only an IPv4 (or only "this session") is ambiguous: routers/DHCP change the IPv4 and multiple sessions can run on the same host, so the claim cannot be verified as the same owner later.
+- **Decision (absolute):** every `IN PROGRESS` / `DONE` / `FIXED` / `STOP` claim in `DOING.md` (EN) / `DOING.pt_BR.md` (PT) MUST carry `owner = <local-ipv4>:<opencode-port>` (EN) or `dona = <local-ipv4>:<opencode-port>` (PT). A bare IPv4 or a "this session"/"esta sessão" is INVALID and the gate `scripts/check_owner_identity.sh` rejects it rc=1.
+- **Enforcement:** `scripts/check_owner_identity.sh` scans `DOING.md` + `DOING.pt_BR.md`, polices only claims dated ≥ `01/10` (no retroactive enforcement), and fails on: (a) an `owner`/`dona` value that lacks `:<port>`, (b) a bare "this session"/"esta sessão" string. `--selftest` fixtures `ok.md`/`bad.md`/`ptbad.md` prove accept/reject have teeth.
+- **Port source:** the opencode server port the session attaches to — read from `ss -tln | grep opencode` (the running `opencode -s ... --port <N>`) or from the `--attach http://127.0.0.1:<N>` argument of the current `opencode run`.
+- **Lane identity confirmation (extended):** an agent never acts on another owner's lane on IP alone — the confirmation requires session + lane + commit SHA + **IP:PORT** together (a router/DHCP may change both, so IP alone is stale).
+- **Not authorized:** shipping a claim without `:<port>` (the gate blocks it), editing another lane's claim, retroactively rewriting historical claims with dates < `01/10` (the rule is not enforced backward; historical claims stay as-is as evidence).
+- **Relationships:** replaces the 21/09 "confirm by SHA/IP" phrasing with the stronger **IP:PORT**; orthogonal to `D-KOFMD-OPERATING-STANDARD`; complements `check_release_blockers.sh` (ledger hygiene) and `check_live_records.sh` (live-doc truth).
+
+---
+
+## D-UDP — UDP / datagram (connectionless) network is an authorized queue front; the surface awaits definition (maintainer 01/10/2026, directive "kof nao tem suporte a UDP adiciona na fila pra por em network, isso é crucial")
+
+**State:** ANSWERED 01/10 — surface decided and SUBSUMED by `D-KOF-NET` (unified `kof.net`, TCP+UDP, blocking+spawn, `Byte[]`, "host:port" addressing, 64 KiB bound, unicast-only v1); the plan is `docs/development/future/network-udp-plan.md` (+PT).
+- **Directive (maintainer):** Kof must support UDP; it is queued **under the network front** (`roadmap.md` §3). The directive authorizes opening the front; it does **not** yet fix the surface.
+- **Measured absence (01/10/2026):** a tree sweep finds **0** hits for `udp`/`datagram`/`SOCK_DGRAM` in `kof-compiler/src/main` (only a TCP/UDP port-range comment); `KofNet.java` is **URI parsing only** (the `net` stdlib S8 extension); the real transport is TCP (`runtime/RuntimeNet.java` + `KofWeb` + native raw syscalls). No `backend-parity.md` cell exists.
+- **Approach (library-first, `D-KOF-FIRST-IMPL`):** implement over the **existing socket seam** per target (JVM `DatagramSocket`, Native `SOCK_DGRAM` + `sendto`/`recvfrom`, JS node `dgram`; browser = honest gap; Script inherits JVM or an explicit refusal). No lexer/parser change; each unsupported target gets an honest gap code (R6/R7).
+- **Awaiting definition (7 open questions, plan §5):** (1) namespace `kof.udp` vs an extension of `kof.net`; (2) message type `String` vs `Buffer(U8)` bytes vs a `Datagram` record; (3) peer/address representation; (4) blocking vs timeout vs callback (`udp.listen`) receive; (5) maximum datagram size (bound + refuse, never truncate); (6) broadcast/multicast in v1 or later; (7) whether UDP obeys the `app.security`/policy model.
+- **Promotion:** when the maintainer answers the questions, the plan is rewritten `UNDER DEVELOPMENT`, moved out of `future/` (+PT) and promoted one-at-a-time per `D-FUTURE-PROMOTION`; the JVM slice lands first (RED-first E2E over a real loopback socket), then the native and JS faces with their gaps.
+- **Relationships:** `Related: D-KOF-FIRST-IMPL, D-SPRING, D-FUTURE-PROMOTION, D-KOF-FILE-GO (heavy codecs R1), rule 6, rule 12`; queue row in `docs/development/README.md` §3 (+PT).
+## D-KOF-MATH-TRIG — trigonometry (`sin`/`cos`/`tan`/`asin`/`acos`/`atan`/`atan2`/`toRadians`/`toDegrees`) and constants (`pi`/`e`/`tau`) in the `math` namespace — ✅ RESOLVED 01/10 (implemented; the maintainer merged PR #721 and closed `#717` as COMPLETED)
+**State:** ✅ RESOLVED (implemented) — external contributor `#717` (01/10/2026). PR #721 (base `lab`) merged by the maintainer at `1e0d2fcf6` (01/10 16:59Z); issue `#717` closed `COMPLETED` (01/10 17:56Z). The DECISION REQUEST text below is kept as history; the tip measurement follows the resolution.
+- **Question:** open the `math` trigonometric surface (`sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2(y,x)`, `toRadians`, `toDegrees`) and the zero-arg mathematical constants (`pi()`/`e()`/`tau()`), and with what target contract?
+- **Measured at decision-request time (01/10, pre-merge):** `KofMath.functions()` = `abs/sign/clamp/min/max/isEven/isOdd/isPositive/isNegative/isZero/sqrt/lerp/percentage/isInteger/isDecimal/roundTo/pow/parse*`; **zero** hits for `sin|cos|tan|asin|acos|atan|atan2|toRadians|toDegrees|pi|tau` across the tree. The `PLAN-STDLIB-EXPANSION` §2 `math` gap row does NOT list them, so this was a genuinely new surface, not a queued face.
+- **Faces the decision had to fix (each a frozen-contract or architecture choice):**
+  1. **Surface/shape** — name, arity (`atan2(y,x)` vs `atan2(x,y)`), type (`sin(Double)->Double`; is an `Int` argument silently widened or refused, like the `sqrt`/`lerp` `SEM025` type guard?), `Float` handling, and whether `pi`/`e`/`tau` are **functions** (`pi()`, the `uuid.v4()` zero-arg precedent) or **constants** (no such surface exists today).
+  2. **Cross targets** — `sqrt` closed `MATH001` on riscv64/aarch64 with a **libm-free** `fsqrt.d`; `pow` closed cross **by linking libm by-use** (`D-DECISION-BATCH-2709B` #3; `NativeCrossLink.needsLibm` scans for `call pow`). Trig has **no libm-free primitive**, so the honest cross face is the `pow` precedent (link libm by use) — a link-policy decision, not an agent edit.
+  3. **Determinism** — the JVM oracle would be `java.lang.Math`; byte parity across JVM/JS/Native x86-64/riscv64/aarch64 requires the same underlying implementation or an accepted ULP tolerance (the corpus rule is byte-identical golden, rule 5).
+- **Measured at the tip (04/10) — the surface IS implemented:** `KofMath.functions()` now lists `sin/cos/tan/asin/acos/atan/atan2/toRadians/toDegrees/pi/e/tau`; the dispatch guards `isDouble` (unary) / two `isDouble` (`atan2`) / zero-arg (`pi`/`e`/`tau`), so an `Int` argument is refused with `SEM025` like `sqrt`/`lerp`. Runtime/descriptor chain: JVM `java.lang.Math` via `JvmStringMathRuntime` + the JVM call/return descriptors (`0108a4431`), JS `JsRuntimeUiStdlib` (`Math`), cross Native libm linked by-use (`LIBM_SYMBOLS` + `needsLibm`, the `pow` precedent; `#721` regression `-lm` fix `1cdaa0d90`); `StdCatalog` rows (`298a24973`); reference `docs/stdlib/math-stage1.md` (`44fdb78da`). Proof: `KofMathTest` **31/31** (incl. `trigJvm`/`trigJs`, cross riscv64/aarch64 executed under qemu) + `NativeCrossLinkNeedsLibmTest` 5/5.
+- **Classification:** `post-1.0` per the `#717` labels (new stdlib surface, not a 1.0 blocker). The decision-request text's claim that the author's work was "NOT in the tree" was TRUE at 01/10 request time and is now **superseded** by the merged implementation (recorded here 04/10).
+- **Relationships:** `Related: D-DECISION-BATCH-2709B (#3 pow = libm), D-FULL-PARITY-050, D-KOF-FIRST, rule 5, rule 6, rule 11`; plan `docs/stdlib/PLAN-STDLIB-EXPANSION.md`.
+
+---
+
+## D-KOFSHARE-100KOF — KofShare is a 100% Kof application (server + client); interop is NOT a product route; the §559 capability decision is (a) stdlib front (maintainer 01/10/2026, directive "o kofshare é 100% feito em kof" / "kofshare é um aplicativo, um servidor e um cliente")
+
+**State:** DECIDED — closes the §559 rule-6 choice; opens the `kof.net` socket-front queue front
+
+- **Directive (maintainer):** KofShare — the P2P file-share product (server + client, repo `kof-share`) — is written **entirely in Kof**. JVM interop over `java.net.ServerSocket`/`KeyAgreement`/`Signature` is FORBIDDEN as a product route.
+- **What interop was:** the §559 probe evidence — the fastest way to MEASURE the missing capabilities (transport, key agreement, signing) and to derive the transfer protocol semantics (X25519 + Ed25519 + AES-GCM + HMAC framing, green 01/10). The probes stay as evidence; the route dies.
+- **Decision consequence (§559):** option **(a)** — the data-plane surface becomes an official stdlib front: connection-oriented sockets in the network namespace (the smallest primitive per `D-KOF-FIRST`), and a key-agreement/key-exchange face in `kof.security` (`SECN005` family). Until the front ships, **KofShare is BLOCKED on stdlib capability, not on product code** — an honest block, never a silent interop fallback (`no-silent-fallback`).
+- **Architecture home:** TCP/listen/accept/connect joins the network front already authorized by `D-UDP` (same family, same namespace question — the UDP plan's open question (1) `kof.udp` vs extension of `kof.net` is now ALSO the TCP naming question; answer it once, for both).
+- **What this does NOT authorize:** inventing the socket surface without the maintainer's answer to the namespace/blocking/type questions (rule 6); shipping KofShare on interop anyway; a private per-product C shim.
+- **Relationships:** `Depends on: D-KOF-FIRST, D-KOF-FIRST-IMPL, D-UDP (naming question), §559 (catalogued home)`
+
+---
+
+## D-KOF-NET — unified network front `kof.net` (TCP + UDP), blocking verbs + `spawn`, `Byte[]` payload, UDP addressed by `"host:port"`, 64 KiB bound, unicast-only v1 (maintainer 01/10/2026, rule-6 votes in chat)
+
+**State:** DECIDED — the surface contract of the stdlib network front; unblocks the KofShare block (`D-KOFSHARE-100KOF`/§559-a); implementation goes through the promotion flow
+
+- **Namespace:** ONE `kof.net` for both transport families, alongside the existing URI accessors (`net.scheme/host/port/path/query/fragment/queryEncode/Decode` — measured: all take a URL String, no verb collision). TCP verbs and UDP verbs live in the same namespace.
+- **Scope decision:** TCP and UDP in the SAME front/v1 (maintainer chose "TCP + UDP together now", rejecting the TCP-first path) — the queue item ships as one coherent network front.
+- **Blocking model:** BLOCKING verbs (`listen/connect/accept/send/receive` block the calling worker); parallelism is the existing Kof concurrency — `spawn` one worker per connection/endpoint. No async/await I/O machinery is introduced (none exists measured for I/O; no-silent-fallback).
+- **Payload type:** `Byte[]` flows both ways on both transports (stream bytes for TCP, one datagram per `send` for UDP). No `Message`/`Datagram` record, no String convenience overload in v1 (one way to do it; `encoding` namespaces convert).
+- **UDP addressing:** endpoint/peer = `String "host:port"` (e.g. `"127.0.0.1:9000"`); `receive` yields the bytes AND the source address in that form. No new `Addr` type in v1.
+- **Datagram bound:** 64 KiB practical IPv4 limit — `bind`/`send` REFUSE larger with a `NET00x` diagnostic; no transparent fragmentation, per-target behavior identical.
+- **Broadcast/multicast:** NOT in v1 (unicast only). A later face needs its own rule-6 decision.
+- **Security/policy:** network endpoints obey the existing `app.security`/policy model — no new policy face is invented here. The key-exchange face (`SECN005`, `D-KOFSHARE-100KOF`'s other requirement) remains a separate surface decision.
+- **Surface (contract, to be compile-validated during slice 1):** `net.listen(port) -> Listener`, `listener.accept() -> Conn`, `net.connect(host, port) -> Conn`, `conn.send(Byte[]) -> Int`, `conn.receive(maxBytes) -> Byte[]`, `conn.close()`, `listener.close()`; `net.bind(port) -> Endpoint`, `endpoint.send(addr, Byte[])`, `endpoint.receive(maxBytes) -> (Byte[], String)`-shape, `endpoint.close()`. Names/types are frozen by this decision; the exact return-shape for receive-with-source is the first design question to compile-probe (tuple absence in Kof ⇒ likely a `record Datagram(Byte[] bytes, String from)` — the maintainer's `Byte[]`/no-new-record preference is honored on the SEND side; the RECEIVE side may need the source carrier: decide via RED-first probe, keep the decision note updated).
+- **AMENDED 02/10 (§574, connector/KofShare lane):** the front's web-sibling surface proved to have a target divergence — `web` route handlers answered HTTP 500 under Script (the generated runtime reflects `invoke()` on the handler; an interpreted lambda is a `KofObj` with no host method). Fixed same day at the interpreter boundary: `InterpretedCallable` (compiler-side adapter exposing exactly `invoke()`/`invoke(String×5)`, delegating to `KofInterpreter.invokeLambda`) wraps route-lambda arguments of `kof_web_route`/`kof_web_route_opts`; the frozen contract is UNCHANGED (no surface addition), and `ScriptWebRouteE2ETest` + KofShare `HTTPCHECK-OK` (14/14, JVM+Script in all three server/client combos) are the proof. Residual named as §575 (phantom `kof.web.App` capture in a closure = lambda-field CNFE at JVM LOAD); SSE/WS handler bridging NOT covered by the amendment.
+- **Relationships:** `Depends on: D-KOF-FIRST-IMPL (library-first), D-UDP (subsumed here), §559 (catalogued gap this closes), D-KOFSHARE-100KOF (product blocked on this)`; `Resolves-questions: D-UDP plan §5 (1,2,3,4,5,6 — historical numbering, plan now a pointer)`
+
+---
+
+## D-KOF-BYTE-ARITH — arithmetic on `Byte`/`Short`/`Char` PROMOTES to `Int` (maintainer 02/10/2026, chat rule-6 answer; tracker `#720`)
+
+**State:** DECIDED (maintainer) — option **A: promote to `Int`**, matching `docs/language-reference/type-system.md` §3.2. External issue `#720` (01/10/2026), classified `1.0-blocks` in `scripts/release-blockers.tsv`; catalogued `known-bugs` §561. Implemented 02/10 (lane compiler/JVM — owner `192.168.15.30:9092`): `TypeMetrics.commonNumericType` returns `Int` for every sub-int operand combination, so the static type and the emitted arithmetic are `Int` on all targets; no per-target narrowing is added.
+
+- **Decision:** for `+ - * / %` (and the shared bitwise promotion path), `Byte`/`Short`/`Char` operands promote to `Int` — the documented order `double > float > long > int`. This is a BUG FIX aligning the implementation with the contract, not a contract change; no version bump or migration is required.
+
+- **Question (resolved A):** for `+ - * / %`, `Byte`/`Short`/`Char` operands promote to `Int` (the documented contract) — NOT keep the operand type with silent wrap-around narrowing (`i2b`/`i2s`/`i2c`). The rejected option B would have required real truncation on JVM **and** Native (which treats `I2B`/`I2S` as no-ops) and contradicted `type-system.md` §3.2.
+- **Measured before the fix (01/10, tip `0d1047d8f`):** `TypeMetrics.commonNumericType(a, b)` falls through to `return a instanceof Type.PrimitiveType ? a : INT` (line 86), so the result keeps the **LEFT** operand type — `Byte + Byte`, `Byte + Int`, `Int + Byte`, `Short + Short`, `Char + Char` are non-commutative in their static type. `ExpressionBinaryLowerer` emits `KofBinary(IADD, commonType)` with no compensating narrowing (the `as Byte` path fixed by #471 does narrow). Consequence: `var b: Byte = 120; var c = b + b; println("c=" + c)` crashes the JVM with `ArrayIndexOutOfBoundsException: Index 368` at `Byte.valueOf` (the cache formula `value + 128` on the un-narrowed 240); JS and Native x86-64 print `240` (un-truncated Int); `Short + Short` (`z=2000`) and `Char + Char` (`r=Â`, U+00C2) keep their type without crashing.
+- **Documented contract:** `docs/language-reference/type-system.md` §3.2 ("Coercions in arithmetic") states the promotion order `double > float > long > int` — i.e. `Byte`/`Short`/`Char` promote to `Int` — so the implementation either diverges from the doc (option A: fix to promote) or the doc must change (option B: keep the type and narrow on every target).
+- **Faces fixed by option A (all landed 02/10):**
+  1. **Semantics** — promote to `Int` (Java/C-like; the `type-system.md` §3.2 wording already implies it). Implemented in `TypeMetrics.commonNumericType` (returns `Int` for every sub-int combination) — no per-target narrowing needed.
+  2. **Cross-target parity (rule 5)** — JS/Native already computed the 32-bit Int; option A aligns the JVM with them and with the doc. Verified byte-identical on JVM + JS + Script + Native x86-64 + riscv64(qemu) + aarch64(qemu).
+  3. **Static type** — the former non-commutative `commonNumericType` (`Byte + Int` → `Byte`, `Int + Byte` → `Int`) is now commutative: both sides yield `Int`.
+- **Proof:** new `ByteArithmeticPromotionE2ETest` **6/6** — the `#720` repro (`b * 256` → `16640`, `120 + 120` → `240`), `Short + Short` → `2000`, `Char + Char` → `194`, mixed `Byte + Int` → `165`, and explicit `(bb + 1) as Byte` → `66`; RED-first 6/6 red pre-fix (JVM `ArrayIndexOutOfBoundsException: Index 16768` at `Byte.valueOf`; JS/Native/Script diverged on `r=194`). No regression: `CastPrimitivesE2ETest` 6/6, `KofMathTest` 31/31, `KofTestingE2ETest` 7/7, `StdlibIdiomsCompileTest` 20/20, `HeterogeneousSlotPinE2ETest` 16/16, `BackendParityTest` 19/19, `ConformanceMatrixTest` 14/14, `CompilerDriverTest` 262/262.
+- **Boundary:** `kof.test` slice 5 (`assertEqualByte`/`assertEqualShort`/`assertEqualChar`) only compares and prints — it does not do `Byte` arithmetic, so it does not depend on this decision.
+- **Classification:** `1.0-blocks` (core JVM correctness on a Stable target; the JVM face is a crash).
+- **Relationships:** `Related: #471 (the `as Byte` narrowing precedent), §561, D-KOF-FIRST, rule 5, rule 6, rule 11`; ledger `scripts/release-blockers.tsv`.
+
+---
+
+## D-PDF-READ — PDF text reading surface = option A, `pdf.text(path): String?` (maintainer 02/10/2026, chat rule-6 answer; tracker `#629`)
+
+**State:** DECIDED (surface only) — **option A: a `pdf` namespace function `pdf.text(path): String?`**, no new builtin. The remaining sub-questions of #629 stay OPEN (see below).
+
+- **Question (resolved):** which of the three proposed surfaces reads text from a PDF — A `pdf.text(path): String?` (namespace function, no new builtin), B `PdfDocument.open(path).text()` (collides with the writer's `text(String): TextElement`), or C top-level imported `pdfText(path): String?` (precedent `pngRaster`/`decodeJpegRaster`)? **Chosen: A.**
+- **Why A:** library-first over a namespace function (rule 2/12), matches the existing `pdf` writer namespace (`libs/pdf` already landed, `7d01222bf`), and avoids the B collision and the C new top-level import.
+- **Still OPEN (each is a separate rule-6 choice, not decided here):**
+  1. **Direction/dependency** — Apache PDFBox on the JVM hidden behind the Kof API (the contributor's proposal) vs a pure-Kof route (precedent `D-WEBP-LOSSY-PURE-KOF`).
+  2. **Where PDFBox lives** — isolated Maven dependency of `kof-cli` (paid by every user, see `D-SIZE-BUDGET`) vs a user jar via `--classpath`/`--deps`.
+  3. **JS/Native gap code** — the honest refusal code (precedent `IMG001`); no silent fallback.
+- **Not authorized by this entry:** adding the dependency, the runtime face, or the gap code — each needs its own decision. Classification stays `post-1.0` (outside the 1.0 core surface).
+- **Relationships:** `Related: #704/D-SIZE-BUDGET (dependency bytes), D-WEBP-LOSSY-PURE-KOF, D-KOF-FIRST, rule 2, rule 6, rule 12`; plan `docs/development/` (PDF reader, not yet promoted).
+
+---
+
+## D-KFVM — `kfvm` (Kof version manager) ships as OFFICIAL tooling (maintainer 02/10/2026, chat rule-6 answer; tracker `#707`)
+
+**State:** DECIDED (direction) — `kfvm` is **official tooling**, not a community repository.
+
+- **Question (resolved):** does the Kof version manager (`install`/`switch`/`remove` official releases, `SHA256SUMS` verification, `~/.local/share/kof/kof-<ver>-<platform>` + `current`, Windows junction) ship as official tooling or as a community repo? **Chosen: official tooling.**
+- **Consequences:** the tool becomes part of the official distribution/tooling surface; its design must be promoted through the normal flow (a plan document under `docs/development/` (created when the front opens) + roadmap §23 + `DOING.md` claim) before implementation. It stays Kof-first (written over `kof.io`/`kof.http`/`kof.json`/`kof.shell`), consistent with `D-KOF-FIRST`.
+- **Still OPEN:** the exact packaging/distribution path (bundled with the toolchain vs installed separately) and the release/layout contract are implementation-plan questions, not decided here.
+- **Classification:** `post-1.0` (tooling surface, same class as `D-CLI-SOURCE-ROOTS`/`#708`).
+- **Relationships:** `Related: #707, scripts/install.sh (single-version, Linux/macOS), D-CLI-SOURCE-ROOTS, D-KOF-FIRST, rule 12`.
+
+---
+
+## D-EQ-UNBOUNDED-T — `==` on an unbounded type parameter `T` means STRUCTURAL content equality (maintainer 02/10/2026, chat rule-6 answer; catalogued `known-bugs` §553)
+
+**State:** DECIDED (maintainer) — option **A: structural equality**, matching the concrete `String`/`record` content-equality contract. **IMPLEMENTED 02/10** (lane `192.168.15.30:9092`; `known-bugs` §553 ✅ FIXED): the `==`/`!=` lowering routes an unbounded `T`/`T?` to content equality on every target (`Objects.equals` JVM/Script, `kofRecordEq` JS, new `kof_eq_generic` Native x86-64/riscv64), bypassing the erased `Object` fallback and the `if_acmp` comparison shortcut; a bounded `T: Bound` keeps the bound's contract. Proof: `GenericEqualityE2ETest` **16/16** (JVM+Script+JS+Native x86-64+riscv64/aarch64 qemu), RED-first. The `kof.test` generic `assertEqual<T>`/`assertNotEqual<T>` pair landed in `dev/kof/test.kf`.
+
+- **Question (resolved):** what must `==` mean on an unbounded `T` — structural content equality (like the concrete `String`/`record` contract), or an honest compile-time refusal (like `NAT004` for `toString` on unbounded `T`, §358)? **Chosen: structural equality.**
+- **Measured divergence (01/10, catalogued §553):** JS compares structurally (`===` on the erased value); JVM/Script/Native compare by reference (JVM `if_acmp` / native pointer compare); literal caching masks the JVM/Script face (`eq(1,1)`/`eq("a","a")` true) while Native has no cache (false). Concrete-type `==` is correct on every target.
+- **Consequence:** the `kof.test` §4.1 `assertEqual`/`assertNotEqual` generic pair (deferred, not shipped broken) is unblocked once the semantics are implemented per-target. This aligns an implementation divergence with the frozen `content ==` contract — a bug fix, not a new operator; no version bump for the operator itself.
+- **Authorization satisfied:** the generic `assertEqual` pair shipped only after the per-target `==` was proven byte-identical (`GenericEqualityE2ETest` 16/16).
+- **Relationships:** `Related: §553, §358 (NAT004 precedent), content == (frozen), D-KOF-FIRST, rule 5, rule 6, rule 11`; implemented by lane `192.168.15.30:9092`.
+
+---
+
+## D-INTEROP-OVERLOAD-REFUSE — a call whose argument only matches a primitive-WIDENED Java overload is REFUSED at compile time (maintainer 02/10/2026, chat rule-6 answer; catalogued `known-bugs` §554)
+
+**State:** DECIDED (maintainer) — option **A: compile-time refusal** with an explicit diagnostic (no silent emit that dies at class load).
+
+- **Question (resolved):** §554 — a JVM interop call whose argument type only matches a Java overload via primitive widening is typed OK and dies at class load with `VerifyError: Bad type on operand stack` (masked by the launcher as the JavaFX message, §556). Fix by compile-time refusal or by emitting the correct coercion? **Chosen: compile-time refusal.**
+- **Rationale:** Kof has no silent widening at the surface (the `sqrt`/`lerp` `SEM025` type guard is the precedent); refusing at compile time is honest and target-independent, never a class-load crash.
+- **Implementation pending (compiler/interop lane):** detect the overload-match-by-widening case in the interop typer/resolver and emit a named diagnostic (code TBD); a regression test must fail on the old code.
+- **Relationships:** `Related: §554, §556 (the launcher mask, fixed), §557 (interface dispatch, fixed), SEM025 precedent, rule 6, rule 11`; owner = compiler/interop lane.
+
+---
+
+## D-JS-PLATFORM-SELECTOR — NO compile-time node/browser selector is added; the runtime `kof_platform` Proxy error stays the honest mechanism (maintainer 02/10/2026, chat rule-6 answer; `network-kofnet-plan.md` §2.5)
+
+**State:** DECIDED (maintainer) — option **A: do not create a compile-time selector**.
+
+- **Question (resolved):** `Target` has a single `JS`; should a compile-time node/browser selector be added so a browser build can be refused at compile time? **Chosen: no.** The runtime `kof_platform` Proxy error (R7, proven for `net` by `KofJsHostlessRuntimeTest`) remains the mechanism.
+- **Consequence:** no `Target`/frozen-surface change; no `D-*` surface addition. A future compile-time split would need its own decision.
+- **Relationships:** `Related: D-KOF-NET (slice 5 measurement), network-kofnet-plan.md §2.5, rule 6, rule 11`.
+
+## D-KOF-X25519 — session key exchange is APPROVED as X25519 + HKDF-SHA256; the `SECN005` face goes through the promotion flow (maintainer 02/10/2026, rule-6 multi-choice vote "(a) Sim, aprovar")
+
+**State:** DECIDED (maintainer) — X25519 ECDH + HKDF-SHA256 become the session-key face of `kof.security`; the KofShare AES-GCM envelope (`D-KOFSHARE-100KOF`) and the `kof.net` handshake frame are unblocked at the DECISION level; implementation lands through the stdlib promotion flow (corpus + catalog + per-target proof), NOT as a JVM-interop escape hatch.
+
+- **Decision:** a handshake/derive face (shape `KeyExchange.privateKey()` → `publicValue` → `sharedSecret(peerPublic)` sealed as `Secret`, with HKDF-SHA256 expansion into per-direction AES keys) is authorized as a `kof.security` stdlib surface. Rejected: deferring v1 to chunk-HMAC only (option b) — the maintainer wants the confidential-transfer envelope.
+- **What it unblocks:** (1) KofShare envelope: per-session AES-GCM on top of the proven `transfer.kf` framing/resume + `SECN005`-derived keys; (2) any other app needing forward secrets over `kof.net`.
+- **Boundary:** this decides the ALGORITHM family and the face's existence; the exact names/signatures are the implementation unit's surface contract (proposed EN/PT corpus review at promotion). KeyHandle rotation semantics (`SECN010`) unchanged.
+- **Implemented 02/10 (lane docs/development):** surface frozen as `keyExchange.privateKey() -> Secret`, `keyExchange.publicKey(Secret) -> String` (64-hex export), `keyExchange.shared(Secret, Secret peerPublicHex) -> Secret`, `keyExchange.hkdfSha256(Secret ikmHex, String saltHex, String infoHex, Int len) -> String` (RFC 5869 EXPAND, len 1..8160). Private material NEVER leaves `Secret` (R8); wrong actual = `SECN014`. JVM/Android/Script real via JCA; JS/Native/cross refuse `SECN012` (free code slot — 009/010/011/013/014 have owners). Proof RED-first: `KeyExchangeE2ETest` **5/5** (Alice/Bob agreement + per-direction HKDF equality, RFC 5869 case-1 42-byte golden, redaction (`*** `), SECN014/SECN012 named refusals; HEAD 5/5 red). Corpus: `learn/36-security.md`(+PT) + `training/idioms/security.md`(+PT) + stdlib/security matrix & code list (+PT) + backend-parity gap row (+PT).
+- **Relationships:** `Depends on: D-KOF-NET (transport), D-KOFSHARE-100KOF (product), SECN005 (the face this approves), §559`; `Related: D-KOF-NET frozen policy clause "key exchange remains a separate decision" — that decision is THIS one`.
+
+## D-NET-JS-V1 — `kof.net` is OUT of `Target.JS` in v1: a named compile-time refusal, no browser/Node sub-target (maintainer 02/10/2026, rule-6 multi-choice vote "(c) kof.net fora do JS no v1")
+
+**State:** DECIDED (maintainer) — network is not a v1 JS surface; importing/calling `kof.net` under `Target.JS` must refuse with a NAMED code (proposed `NETN001`) at compile time on every target uniformly. Rejected: Node-only-with-runtime-refusal (a) and `js.node`/`js.browser` sub-targets (b) — the selector decision dies with this ruling; a JS network face returns only as a future D-*.
+
+- **Consequence for D-KOF-NET:** the frozen plan's "payload `Byte[]`, blocking+spawn" model keeps JVM + Script + Native legs; the JS leg of the plan is explicitly declined for v1. `NetScriptE2ETest` (Script) and the JVM legs stay the proof; no JS net golden exists or will be expected.
+- **Relationships:** `Amends: D-KOF-NET (target matrix: JS v1 = refusal)`, `Resolves-questions: the JS selector question (browser vs Node) held open since slice 5`
+- **Reconciliation (02/10):** the same-day `D-JS-PLATFORM-SELECTOR` (no node/browser sub-selector; runtime `kof_platform` Proxy error as the general mechanism) still STANDS for every other runtime-only surface — this decision supersedes it ONLY for `kof.net`: the maintainer's later vote "(c) kof.net fora do JS no v1" moves the network refusal to COMPILE time (`NETN001`), uniformly across all JS platform guesses (no sub-selector is introduced either way)..
+
+## D-FILE-STATIC — the static `File.readBytes(path)`/`File.writeText(path, s)` forms STAY refused (no wiring of `KofIo.staticMethod("File")`) (maintainer 02/10/2026, rule-6 multi-choice vote "(a) Manter proibido")
+
+**State:** DECIDED (maintainer) — the file face stays instance-style ONLY (`File("x").readBytes()`); the unreachable `KofIo.staticMethod("File")` arm is NOT wired, per rule 6 a new static surface was asked and the answer is NO. §562's corpus fix (already CLOSED) is now the permanent contract, not a temporary doc patch; `SEM011` on static forms is intended behavior.
+- **Relationships:** `Confirms: §562 closure (documentation-only, no code surface added)`, `Related: D-KOFSHARE-100KOF (KofShare uses the instance face)`.
+
+## D-KOF-DIGEST-BYTES — a DEDICATED binary digest face is APPROVED: `crypto.sha256Bytes(Byte[])` and `crypto.hmacSha256Bytes(Byte[] key, Byte[] msg)`; `SECN011` stays on the String/Int faces (maintainer 02/10/2026, rule-6 multi-choice vote "(b) Nova face sha256Bytes(Byte[])")
+
+**State:** DECIDED (maintainer) — instead of letting `sha256`/`hmacSha256` silently accept arrays (the §563 degradation), the binary payload gets its OWN named face: `sha256Bytes(Byte[])` → hex String and `hmacSha256Bytes(key Byte[], msg Byte[])` → hex String, with identical per-target proofs (RED-first like §563: same bytes → same digest on JVM+Script+Native, array identity NEVER digested). The §563 `SECN011` refusal on the String/Int faces is KEPT — two faces, one job each.
+- **Consequence for KofShare:** `tagHex`'s `"" + hexOf(payload)` String-AAD remains legal; when the face lands, the integrity frame can switch to `hmacSha256Bytes(keyBytes, payloadBytes)` directly (implementation detail, no decision needed).
+- **Relationships:** `Amends: §563 (refusal kept + binary face added)`, `Depends on: D-KOF-FIRST-IMPL (stdlib face, all targets)`, `Related: D-KOFSHARE-100KOF`.
+
+---
+
+## D-FUTURE-FREEZE — `docs/development/future/` promotion is FROZEN until further notice (maintainer 02/10/2026, chat directive)
+
+**State:** DECIDED (maintainer) — **no agent promotes a plan out of `docs/development/future/`** while this decision stands.
+
+- **Directive:** the future-promotion flow (`D-FUTURE-PROMOTION`) is suspended. The `future/` folder stays a plan-only, zero-code archive; the plans there are neither rewritten `UNDER DEVELOPMENT` nor moved to `docs/development/` by an agent.
+- **Why:** the maintainer is redirecting the active front to the bugs-and-gaps work and the 0.6.0 protocol; draining `future/` in parallel would race that direction.
+- **What stays valid:** reading `future/` for context, and the `D-FUTURE-PROMOTION` *eligibility criteria* (as a description of what a good future plan looks like). What is suspended is the **act of promotion**, not the criteria.
+- **What this does NOT authorize:** deleting/rewriting future plans, promoting a plan anyway, or inventing a new plan to work around the freeze.
+- **Lift condition:** only the maintainer lifts this freeze, by an explicit later directive (recorded here or as a superseding `D-*`).
+- **Relationships:** `Suspends: D-FUTURE-PROMOTION (promotion act only)`, `Related: D-BRANCH-PIPELINE, D-QUALITY-PIPELINE-2609`.
+
+---
+
+## D-RELEASE-CADENCE — weekly minor cadence to `0.9.0`, then a `1.0.0-RC-n` line if the exit gate is not green; `1.0.0` only on the full gate (maintainer 02/10/2026, chat directive)
+
+**State:** DECIDED (maintainer) — the pre-1.0 release plan from 0.5.0 onward.
+
+- **Weekly minor cadence:** one MINOR per weekend, in order, through **`0.9.0`** (the last minor before 1.0.0). Each minor is cut from a STABLE `lab` (`D-LAB-STABILITY`) and goes through the normal one-way pipeline `lab → testing → prerelease → stable → release/x.y.z → tag` (`D-QUALITY-PIPELINE-2609`).
+- **`1.0.0` criterion:** `1.0.0` ships as soon as the `D-RELEASE-1.0` EXIT GATE is fully GREEN and no `D-1.0-EDGES` edge is open. It **may** ship before `0.9.0` if the gate is met early; the default plan is that `1.0.0` is **post-`0.9.0`**.
+- **`1.0.0-RC-n` fallback (contingency):** if `0.9.0` is reached and the exit gate is **not** 100% green, the line continues as `1.0.0-RC-1`, `1.0.0-RC-2`, … Each RC is treated as **a minor** for cadence and pipeline purposes (its own weekend cut through the one-way pipeline), and the line iterates until it stabilizes; only then does the real **`1.0.0`** ship.
+- **Version number at a cut is the maintainer's call** (`D-VERSION-BUMP-0.5.0`/rule 6): no agent bumps `VERSION` unilaterally; the agent prepares the cut, the maintainer sets the number.
+- **Not authorized:** skipping a stage, publishing `1.0.0` with any open edge/blocker, or treating an RC as a final release.
+- **Relationships:** `Depends on: D-LAB-STABILITY, D-QUALITY-PIPELINE-2609, D-BRANCH-PIPELINE, D-RELEASE-1.0, D-VERSIONING-RELEASE`; `Related: VERSION, scripts/bump-version.sh`.
+
+---
+
+## D-LAB-STABILITY — a minor is only cut from a STABLE `lab`; otherwise the cut slips to the next weekend (maintainer 02/10/2026, chat directive)
+
+**State:** DECIDED (maintainer) — the stability rule that governs promoting `lab` into the pipeline.
+
+- **Rule:** before a weekly minor (`D-RELEASE-CADENCE`) enters `lab → testing`, `lab` must be STABLE: the full suite is green, the structural/quality gates are rc=0, the `release-blockers.tsv` ledger has **0 blocking** entries, and no `1.0-blocks` bug is open. The existing promotion gate (`scripts/pipeline/promotion_gate.py`, 100% of mandatory checks) is the executable form of this rule.
+- **If `lab` is not stable:** the cut **slips** to the next weekend — it is not forced through with a waiver, and no stage is skipped. A failed promotion returns to `lab` (`BLOCKED → LAB`), never sideways.
+- **What this does NOT authorize:** weakening a check, dropping a test, hiding a red, or declaring stable without executed proof (`implemented` != `verified`).
+- **Relationships:** `Enforces: D-QUALITY-PIPELINE-2609 (100% mandatory checks)`, `Related: D-RELEASE-CADENCE, D-RELEASE-1.0, D-1.0-EDGES, D-BRANCH-PIPELINE`; machine `scripts/pipeline/pipeline_state.py`, `scripts/pipeline/promotion_gate.py`.
+
+---
+
+## D-PLAN-ONE-OWNER — one plan = one unique owner identity (`IP:PORTA`); no lane owns multiple plans (maintainer 02/10/2026, chat directive)
+
+**State:** DECIDED (maintainer) — operational rule.
+- **Law:** every plan in `docs/development/` (and the universal-platform tracking in `docs/architecture/`) carries an explicit `**Owner:** <local-ipv4>:<opencode-port>` in its header. A bare IP, "this session", or a lane label without IP:PORT is INVALID (same absolute-identity rule as `D-AGENT-IDENTITY-IPPORT`).
+- **Uniqueness:** **no single identity (`IP:PORTA`) may own more than one active plan**. An agent assigned to one plan does not pick up slices from another plan; doing so creates confusion, mixed claims and unverified handoffs (measured 02/10: `.101:9092` owned memory-safety but also landed image-vision AVIF and connector slices; `.30:9093` owned testing-platform but also touched graphics and test-architecture).
+- **Handoff / orphan:** a plan that loses its owner or has its claim revoked must declare `**Owner:** SEM DONO / OPEN` in its header, until re-claimed with a fresh, unique `IP:PORTA` that does not already hold another plan. A plan without an exclusive owner cannot be advanced under a shared/silent identity.
+- **Authority / enforcement:** `scripts/check_plan_owners.sh` (scans all plan headers, fails on duplicate IPs, missing owner fields, or unanchored lane names).
+- **Relationships:** `Extends: D-AGENT-IDENTITY-IPPORT (identity granularity)`, `Complements: AGENTS.md §Multi-agent state (claim discipline)`.
+
+---
+
+## D-INTEROP-ERR-TYPE — the interop error is a REAL catchable language type `InteropError` (maintainer 02/10/2026, chat multiple-choice — connectors slice B)
+
+**State:** DECIDED (maintainer) — completes `D-CONNECTORS` ("it is a language type") with the concrete surface.
+- **Law:** a failing `extern`/`foreign module` call throws the builtin **`InteropError`**; user code catches it by type: `catch (InteropError e)`; the type carries `e.message` (String) and `e.code` (String, the existing `INTEROP00x` diagnostics vocabulary). It **coexists** with the frozen String-exceptions contract — `catch (String s)` keeps working for every non-interop throw; a foreign error is NEVER swallowed (R6): if the user catches nothing the `InteropError` propagates and names itself.
+- **Why:** the alternative (type-marker minimum: name in the type system, runtime keeps throwing Strings) was REJECTED by the maintainer — decision (a) complete catchable type.
+- **Implementation:** compiler slice — type-system arm + mapping from the FFI throw path to the new type + per-target E2E RED-first (JVM/Script real; JS/Native/cross follow the existing per-target interop matrix or a named gap). `ForeignModuleGrammarE2ETest` neighbors must stay green.
+- **Landed 02/10 (compiler Slice B, `InteropErrorE2ETest` 6/6 GREEN):** accessors are **methods** `e.message()`/`e.code()` (house-builtin standard, same as `Secret.reveal()`; field access yields `SEM102` — transcription refinement: the decision's `.message`/`.code` means these accessors); FFI downcall failures throw code `INTEROP010` with the `INTEROP010: ` message prefix so the frozen `catch (String)` sees the named failure byte-for-byte; nested catch proves ordinary string throws are never swallowed; off-JVM targets (Script/JS/Native/Android) refuse typed catch at compile time with named gap `INTEROP009` (R6, never a silent stub).
+- **Relationships:** `Completes: D-CONNECTORS`, `Affects: §9.16 Slice B of docs/stdlib/kof-connector-ecosystem-plan.md`, `Frozen-boundary: catch(String) contract unchanged`.
+
+---
+
+## D-ABI-TIER-TABLE — connector ABI tiers REUSE the stdlib scale; first stable connector ABI = 1.0.0 (maintainer 02/10/2026, chat multiple-choice — connectors slice D)
+
+**State:** DECIDED (maintainer) — transcribes what `D-CONNECTORS` called "defined but not transcribed".
+- **Table:** `experimental` → `beta` → `stable` — THE SAME three tiers and names as `scripts/stdlib_boundary.txt` / `scripts/check_stdlib_boundary.sh` (no parallel vocabulary, rule 11 simplicity).
+- **First stable version:** the first ABI a connector may declare `stable` is **`1.0.0`**; anything below is `experimental` or `beta`.
+- **Promotion rule:** a tier move requires the R5 DoD — per-target parity proof (the `BackendParityTest`/E2E discipline) recorded in the connector's own test; `ConnectorManifest.stability` carries the declared tier and the Core's `InteropCompatibility` validates it (mechanism landed as promoted slices 11/14).
+- **What this closes:** the plan's §13 documentation gap ("never to be invented by an agent") — transcribed here, in `DECISIONS.md`, and in `kof-connector-ecosystem-plan.md` EN+PT in the same commit.
+- **Relationships:** `Completes: D-CONNECTORS (ABI tiers row)`, `Closes: kof-connector-ecosystem-plan §13 gap / §9.16 Slice D`.
+
+---
+
+## D-JSON-MISSING-PRIMITIVE — a missing/JSON-null PRIMITIVE record component fails with a named `JSN004`, never the JDK-internal NPE (maintainer 03/10/2026, chat multiple-choice — §565)
+
+**State:** DECIDED (maintainer) — resolves the rule-6 contract question recorded in `known-bugs` §565.
+- **Contract:** `json.decode<Record>` where the JSON object is missing a key (or carries JSON-`null`) for a component whose declared type is PRIMITIVE (`Int`/`Long`/`Byte`/`Short`/`Float`/`Double`/`Bool`/`Char`) fails with the honest named diagnostic **`JSN004`**: `JSN004: missing field '<name>' for <Record>`. It is thrown as a runtime error, so the frozen `catch (String e)` sees the named message; it is NOT a silent zero-fill and NOT a compile-time refusal (the absence is only knowable at decode time).
+- **Reference components unchanged:** a missing/`null` component of a REFERENCE type (`String`, records, `List<T>`, …) still decodes to `null` (nullable by construction) — only primitives, which have no null, are refused.
+- **Why:** before, the `null` reached the record constructor MethodHandle with a primitive target type and died in `sun.invoke.util.ValueConversions.primitiveConversion` — a JDK-internal NPE leaking into user `catch (String)`, violating R6 (honest diagnostics) and the "no silent fallback" constraint.
+- **Implementation:** JVM binder `kof_json_bind` record arm (`JvmRuntimeJson`), shared by `json.decode<T>` and the typed ORM read path; RED-first `JsonMissingPrimitiveE2ETest` 4/4 (2 refusals + reference-null control + complete-decode control), ORM/DB neighbours green.
+- **Relationships:** `Closes: known-bugs §565 (rule-6)`, `Related: D-1.0-EDGES (#565 1.0-blocks), §564 (ORM sibling, fixed 02/10)`, `Frozen-boundary: catch(String) contract unchanged; reference-null semantics unchanged`.
+
+---
+
+## D-TEST-ARCHITECTURE-PHASES — `test-architecture-plan` Phases 5–7 AUTHORIZED (maintainer 03/10/2026, chat multiple-choice — "liberar todas")
+
+**State:** DECIDED (maintainer) — lifts the decision gate that had stopped the plan at Phase 4.
+- **Phase 5 (target-parameterized cross-target harness):** build the shared cross-target test harness (`CrossTargetSupport`: the JVM-oracle + riscv64/aarch64-qemu execution helpers and the shared oracle `@Test`), migrating the duplicated per-class harness cluster; each target stays a real, separately-named execution (never hidden under an abstraction that loses the per-target counts).
+- **Phase 6 (conformance/equivalence suite):** build the official equivalence suite over the harness.
+- **Phase 7 (integration):** wire the suite into the integration lifecycle (`mvn verify` or equivalent).
+- **Constraint unchanged:** purely test infrastructure; the compiler is not touched (plan golden rule). The harness ratchet only improves; `D-PLAN-ONE-OWNER` still holds (this plan stays owned by `192.168.15.30:9092`; `graphics-gaming` stays SEM DONO).
+- **Relationships:** `Completes: D-TEST-ARCHITECTURE-GO (gate)`, `Affects: docs/development/test-architecture-plan.md Phases 5–7`, `Frozen-boundary: none (test-only)`.
+## D-KOF-SIGN — Ed25519 signing/verification as a new stdlib crypto face (maintainer vote D1=A 03/10, chat)
+
+**Question (rule-6):** KofShare's device identity (§6/§12 of the product spec) needs signatures; the compiler today has ZERO signing face (measured 03/10: `grep -rli ed25519 kof-compiler/src/main/java` = empty). Options were (A) new stdlib face, (B) ship v1 LAN-trust and defer, (C) route through interop `java.security` (breaks `D-KOFSHARE-100KOF`).
+
+**Decision:** **A** — a first-party `crypto.sign`/`crypto.verify` family built on the JDK primitive (no home-grown crypto: Kof encodes, `java.security.Signature` "Ed25519" executes, same placement as X25519 under D-KOF-X25519).
+
+**Proposed contract (to freeze at implementation, slice C1):** keys live as `Secret` (existing holder, R8 redaction); `crypto.keyPair("Ed25519")`-style generation or the existing secrets path (locate at implementation — do NOT invent a second key holder); `sign(Secret, Byte[]) -> Byte[]`, `verify(Secret, Byte[], Byte[]) -> Bool` are the stable core; public-key export as raw 32-byte hex (`Byte[]`) for wire hello; target refusals named and honest: JS/Native `SECN013` (sibling of `SECN012`) — never silent.
+
+**Relationships:** `Related: D-KOF-X25519 (same placement), D-KOF-NET (wire consumers), D-KOFSHARE-100KOF (satisfied: face is Kof, primitive is JDK), rule 6`.
+
+**Implemented (C1, 03/10):** the family ships under the existing namespaces — zero new namespace. `crypto.sign(Secret priv, Byte[] msg) -> String` (128-hex), `crypto.verify(Secret key, Byte[] msg, String sigHex) -> Bool`; `keyExchange.privateKey("Ed25519") -> Secret` (hex PKCS8(48B)‖SPKI(44B) = 184 chars, redaction R8 untouched) beside the no-arg X25519 face, and `keyExchange.publicKey(Secret)` now dispatches by format (64-hex = X25519 path, unchanged; 184-hex = Ed25519 raw-32 export, 64 hex). verify accepts the private Secret or a 64-hex public Secret via `secrets.of(hex)` — same face, no second API. JVM/Android/Script green (`CryptoSignE2ETest` 3/3: round-trip, public-only verify, tamper/bad-sig refusal, nondeterministic keygen, R8 redaction, leak assertion); JS/Native/cross refuse with the **new named gap SECN013** (signing family) — `publicKey` keeps SECN012 as the historical X25519 face it still is. Nothing hand-rolled: JDK `Signature`/`KeyPairGenerator` "Ed25519" (JDK 15+ primitive), Kof only encodes the hex the house already uses.
+
+---
+
+## D-MAINT-BATCH-0510 — maintainer multiple-choice batch (05/10/2026, chat poll): 14 pending rule-6 fronts resolved
+
+**Date:** 2026-10-05 · **State:** `DECIDED` (batch) · **Evidence:** the maintainer's multiple-choice answers in the chat poll of 05/10/2026 (one line each; the poll listed the real options from the plans/issues). **Effect:** the 14 fronts below are AUTHORIZED for implementation; issues stay OPEN until their owning lane lands the fix with proof.
+
+| # | Front (option) | Unblocks / queue |
+|---|---|---|
+| G1 (SDL3) | **graphics stack = SDL3** for window+input+audio | `graphics-gaming` slice 3.1 (window/frame/input); lane SEM DONO — re-claim freely; record the `D-*` before any API |
+| G2 (FFmpeg LGPL vendorizado) | **video codecs = a vendored LGPL FFmpeg build** (the distro build measured GPL is NOT taken as-is) | slice 3.4 (video); vendoring is a packaging/licensing task owned by the graphics lane |
+| T1 (todos os targets) | **browser E2E provider must serve ALL targets** (JVM + JS + Native), not JVM-only | `kof-testing-platform` §6 provider policy; the Playwright/Cypress dependency declaration/versioning still lands with the provider slice |
+| T2 (feature compilador/CLI) | **`kof.test` stays a compiler/CLI feature** — NOT a stdlib namespace | §12; `StdCatalog` unchanged |
+| M1 (autorizar) | **memory-safety Phase 5 float/HFA + callbacks AUTHORIZED** | lane `.101:9092` unblocks the STOP faces (float/HFA cross + callbacks) |
+| C1 (promover) | **connector plan closure → promote to `docs/stdlib/`** | `kof-connector-ecosystem-plan.md` moves out of `docs/development/` (3-state rule) |
+| P3 (Maven isolada) | **PDFBox as an isolated Maven dep in the minimal module**, hidden behind the Kof API | `#629` decision 3; `libs/pdf` JVM slice |
+| P4 (IMG001) | **JS/Native PDF gap code = `IMG001`** (existing precedent) | `#629` decision 4 |
+| IO1 (adicionar) | **`kof.io` gains a `realPath`/reparse-point primitive** | `#751`; new stdlib surface |
+| NET1 (adicionar) | **`kof.net` gains name-resolution (`net.resolve`) + connect-to-vetted-address** | `#759`; new stdlib surface + cross policy |
+| HTTP1 (throw String) | **`kof.http` failures throw a String** (frozen contract), catchable by `catch (String e)` | `#756`; compiler/http lane |
+| SEC1 (erro) | **an unset `secrets.secret` is an explicit error** — never a silent empty `Secret` | `#758` residual; security/connectors lane |
+| TY1 (recusar) | **tighten `TypeChecker.isAssignable`** to refuse the builtin→builtin mismatch | `#753` residual; compiler/interop lane |
+| Q1 (ativar) | **branch protections ACTIVE** on `testing`/`prerelease`/`stable` (no force-push + required checks) | `quality-pipeline` 14.4; maintainer applies the GitHub settings |
+
+**Boundary:** this record AUTHORIZES the fronts; it does not implement them. Each front keeps its owning lane (or is re-claimable when unowned, e.g. graphics). Issues close only with executed proof per the lane's Q0–Q7. Nothing here weakens the freeze or the quality gate.
+
+**Relationships:** `Related: D-GRAPHICS-GAMING/D-GRAPHICS-SPIKE, D-TESTING-PLATFORM, D-MEMORY-SAFETY, D-CONNECTORS-GO, D-PDF-READ, D-QUALITY-PIPELINE-2609, rule 6, D-KOF-FIRST`.
+
+## D-GRAPHICS-WINDOW-FORM — the backend window form is `Window("…") { frame { dt -> … } }` (05/10/2026, maintainer, chat)
+
+**Date:** 2026-10-05 · **State:** `DECIDED` · **Evidence:** the maintainer's answer to the graphics/gaming slice-3.1 form question in the chat (the two candidates in `docs/graphics-gaming.md` §6 were `Window("…") { frame { dt -> … } }` and `Scene("…") { dt -> … }`). **Effect:** the window is an explicit `Window` value that owns the loop; `frame` is the per-tick call that hands the program `dt`. `Scene` is NOT the loop host. The loop `dt` unit is also decided: **Int milliseconds, first frame `0`** (maps to `Clock.dtMillis()`); the remaining loop semantics (long-frame/limit/pause/minimized/focus) stay TBD and require their own call before the loop API lands. This closes the "form undecided" line in §6 and the `dt` unit line in §6. The pure half (`libs/game/Clock.kf` + `Keys`/`Mouse`/`Pad`) already landed and needs no change. A probe of the chosen shape (`class Window` with a `(Double) -> Void` parameter and the trailing-lambda call `w.frame { dt: Double -> … }`) compiled clean on the current compiler before this record. **Parser prerequisite (fixed same day):** the literal nested form `Window("…") { frame { dt: Int -> … } }` needs (a) typed parameters on a parenthesized-call trailing lambda — fixed as `known-bugs` §611 (`TrailingLambdaParamsE2ETest` 6/6) — and (b) an implicit receiver for the bare `frame`, which Kof does NOT have (SEM015/SEM025); today the expressible form is `{ w: Window -> w.frame { dt: Int -> … } }`.
+
+**Boundary:** the form is decided; the FFI/backend binding, the SDL3 vendoring into the cross sysroot, and the remaining loop-semantics TBDs are NOT decided here. The graphics lane owns slice 3.1 (`D-PLAN-ONE-OWNER`); `kof.game` stays an official package (`check_stdlib_boundary` `HARD_DENY game`).
+
+**Relationships:** `Related: D-GRAPHICS-GAMING, D-GRAPHICS-SPIKE, D-MAINT-BATCH-0510/G1, D-KOF-FIRST (rule 10), rule 6`.
+
+## D-MAINT-BATCH-0610 — maintainer multiple-choice batch (06/10/2026, chat poll): 7 pending rule-6 fronts resolved
+
+**Date:** 2026-10-06 · **State:** `DECIDED` (batch) · **Evidence:** the maintainer's multiple-choice answers in the chat poll of 06/10/2026 (the poll listed the real options from the plans/issues/queues). **Effect:** the 7 fronts below are AUTHORIZED for implementation; issues stay OPEN until their owning lane lands the fix with proof. This record AUTHORIZES; it does not implement.
+
+| # | Front (option) | Unblocks / queue |
+|---|---|---|
+| A1 (loop semantics — long-frame) | **clamp of `dt`** — the loop reports the real delta but bounded by a configured ceiling (spiral-of-death guard), never an unbounded `dt` | closes the `long-frame` TBD of `D-GRAPHICS-WINDOW-FORM`; `graphics-gaming` §6 |
+| A2 (loop semantics — limit) | **vsync on/off only** — no frame-rate cap; the backend's vsync is the only pacing primitive | closes the `limit` TBD; `graphics-gaming` §6 |
+| A3 (loop semantics — pause/minimized/focus) | **explicit `pause()`/`resume()`; `minimized` suspends the render; losing focus does NOT pause** | closes the `pause`/`minimized`/`focus` TBDs; `graphics-gaming` §6 |
+| B (#763 FFI) | **overload by signature, complete** — one C symbol bound with more than one signature, resolved by arity/types (no symbol-alias form) | slice/queue: FFI compiler surface; issue #763 (`post-1.0`) |
+| C (#753 residual / §554) | **tighten + name the handle** — refuse the builtin→builtin mismatch in `TypeChecker.isAssignable` AND make the `process.spawn`/`process.run` handle (`kof.process.Result`) nameable in source | compiler/interop lane; issue #753 residual + `known-bugs` §554 |
+| D (testing-platform) | **§4.4 parameterized tests first** — `input → expected` tables; §4.6 doubles / §5 harness follow | `kof-testing-platform-plan` §4.4 |
+| E (Q1 branch protections) | **activate now** on `testing`/`prerelease`/`stable` (no force-push + required checks) | `quality-pipeline` 14.4 (maintainer applies the GitHub settings) |
+| F (G2 FFmpeg) | **vendor the LGPL build now** — the distro's GPL build is NOT taken as-is | slice 3.4 (video); packaging/licensing owned by the graphics lane — **ORDERED 08/10 (maintainer, chat decision): vendor the upstream LGPL-2.1+ build (from source, no `--enable-gpl`); unlock 3.4 backend (FFI probe + frame readback via avcodec); the probe license must NOT be GPLv3+ before any decode lands** |
+| G (#761 contract) | **permanent — never a cut blocker** — its `1.0-blocks` category is retired to `tracking/contract`; a living contract is not an open defect | removes the structural `CUT: SLIPS` of `check_lab_stability.sh`; #761 stays OPEN by design |
+
+**Boundary:** A1–A3 freeze the remaining loop semantics of `D-GRAPHICS-WINDOW-FORM`; the `Window`/`frame` host may now land (the SDL3 stack is vendored + ABI-proven). B is a new FFI language surface (still `post-1.0`). C stays `1.0-blocks` until fixed; D is additive test infrastructure; E is a GitHub-settings action performed by the maintainer, not by an agent; F is packaging/licensing; G is a classification change that unblocks the 0.6.0 cut. Nothing here weakens the quality gate or unfreezes `future/`.
+
+**Relationships:** `Related: D-GRAPHICS-WINDOW-FORM, D-GRAPHICS-GAMING, D-MAINT-BATCH-0510, D-RELEASE-1.0, D-LAB-STABILITY, D-QUALITY-PIPELINE-2609, #761, #763, #753, rule 6`.
+
+---
+
+## D-MAINT-BATCH-0610B — maintainer multiple-choice batch (06/10/2026, second chat poll): testing-platform surfaces resolved
+
+**Date:** 2026-10-06 · **State:** `DECIDED` (batch) · **Evidence:** the maintainer's multiple-choice answers in the chat poll of 06/10/2026 (the poll listed the real options from `kof-testing-platform-plan` §4.6/§5/§6). **Effect:** the three surfaces below are AUTHORIZED for implementation; this record AUTHORIZES, it does not implement. It extends `D-MAINT-BATCH-0610`/D (§4.4 first).
+
+| # | Front (option) | Unblocks / queue |
+|---|---|---|
+| A (§4.6 test doubles) | **clock/random seams only** — inject a deterministic clock and a reproducible random source; no mock/stub/spy framework (use the real behavior when it is cheap and deterministic) | `kof-testing-platform-plan` §4.6; `kof.test` helper surface |
+| B (§5 integration harness) | **Kof library (`kof.test`)** — the harness surface lives in the Kof library (temp dir / server / db lifecycle with `try/finally` cleanup), injected flat on the explicit `import kof.test`; no Java-only surface | `kof-testing-platform-plan` §5; library-first (`D-KOF-FIRST` item 12) |
+| C (§6 browser provider) | **opt-in per project, CLI does not bundle** — Playwright/Cypress are declared per project and the CLI does not carry them (interop-first R9, no heavyweight default dependency) | `kof-testing-platform-plan` §6; provider slice  — **REFINED 10/10 (third chat poll): the declaration lives in a PROJECT MANIFEST file** (a `kof-test` config file declaring the browser provider + its version; the CLI reads it and gates — explicit and versioned, no command flags); the file format is `kof-test.kofmd` (the repo's own compressed-doc format, zero external parser dependency) unless a maintainer order later says otherwise. **FOURTH REFINEMENT 10/10 (fourth chat poll): the Playwright JAVA lib lands on kof-cli's pom as a NORMAL dependency (non-optional) — every CLI user carries the lib (~10 MB); the maintainer's call supersedes the 'does not bundle' half for the lib jar (the browsers themselves stay out: `npx playwright install` is still per-project opt-in) |
+
+**Boundary:** all three are additive test infrastructure — no language/semantics change. A is the only surface implemented so far (`fixedClock`/`scriptedClock`/`seededRandom`); B and C are AUTHORIZED and queued. Nothing here weakens the quality gate or unfreezes `future/`.
+
+**Relationships:** `Related: D-MAINT-BATCH-0610, D-KOF-FIRST, D-TESTING-PLATFORM, rule 6, rule 12`.
+
+---
+
+## D-PORTUKOF — PortuKof (.ptkf): official pt-BR surface of Kof, one semantics (maintainer chat directive 07/10/2026)
+
+**Date:** 2026-10-07 · **State:** `DECIDED` + `IN PROGRESS` (lane `portukof`, owner `192.168.15.101:9092`) · **Authority:** the maintainer's explicit directive of 07/10/2026 (GIGAPROMPT — IMPLEMENTAÇÃO DO PORTUKOF) and its amendment the same day (absolute full-frontend-parity rule + isolated branch/worktree). **Effect:** PortuKof is an official language SURFACE of Kof. It is NOT a fork, NOT a second compiler, NOT a second semantics.
+
+**Contract:**
+
+1. `*.ptkf` = Kof written with pt-BR vocabulary; the extension deterministically selects the profile (no content heuristics). `kof run|build|check|test` autodiscover it; no `--language` flag is required.
+2. ONE semantics: one AST, one IR, one type system, one runtime, one stdlib, one backend set. The PortuKof frontend must land on EXACTLY the canonical Kof AST after parsing — localized keywords reach it through the lexer's keyword table (profile-aware, injected at parse time), and localized builtins/stdlib names reach it through a post-parse normalization pass that rewrites the AST to canonical symbols (alias ≠ implementation). Nothing below the AST knows PortuKof exists.
+3. NEVER translated: string contents, user-defined identifiers, the canonical type names (`Int`/`String`/`List`/...). Operators/precedence/punctuation are language identity and stay identical.
+4. Not prose: PortuKof is programming syntax with Portuguese vocabulary, not natural-language DSL (`se idade >= 18 {` — never `se a idade for maior que dezoito então`).
+5. Unaccented keywords (recommended by the directive, evaluated against Kof's portability/simplicity philosophy, documented): `nao`, `senao`, `funcao`, `variavel`.
+6. `var`/`val` stay `var`/`val` (D-KOF-FIRST: Kof is not JavaScript; the directive allows the untranslated form and it is the recommended one).
+
+**Absolute rule (maintainer amendment 07/10) — FULL FRONTEND PARITY:** PortuKof must expose the COMPLETE Kof frontend — every lexer keyword, every builtin, every stdlib namespace/function of `StdCatalog`, every library package name reachable by canonical resolution — through a bijective, collision-checked Portuguese alias. NO subset, NO gap, NO stub (Q7). The parity is mechanically enforced by a gate (`scripts/check_portukof_parity.sh`) + parity tests; the surface may only ship with 100% frontend coverage.
+
+**Working method (maintainer order 07/10):** branch `portukof`, developed in a SEPARATE on-disk worktree (`/home/mel/Kof4j-portukof`, cloned from the repo) so the shared `lab` worktree and the other live lanes are never touched; the branch is pushed to `origin/portukof` only; any merge into `lab` is the maintainer's (`D-BRANCH-PIPELINE`, main-merge authority). This is an explicit maintainer authorization overriding `no-tmp-worktree` for THIS lane only.
+
+**Versioning:** PortuKof follows the Kof version (`D-RELEASE-CADENCE`); no independent PortuKof version. Vocabulary compatibility follows the existing Kof compatibility policies.
+
+**Alternatives considered (all rejected by the directive and by measurement):** (a) a forked compiler — multiplies semantics; (b) a pre-processing text translator — breaks positions/diagnostics/tooling and drifts; (c) heuristic language detection — non-deterministic; (d) prose-DSL — another language. The chosen architecture is one surface: profile-aware lexer + post-parse AST normalization to canonical symbols + CLI discovery + (phased) localized diagnostics and tooling.
+
+**Future multilingual:** the `LanguageProfile` mechanism is the extension point — a new surface is vocabulary + aliases + docs + tests, never a compiler change (PARTE 22/35).
+
+**Relationships:** `Related: D-KOF-FIRST, D-KOF-AS-CLOUD, D-RELEASE-CADENCE, D-BRANCH-PIPELINE, rule 6 (this record IS the decision — no pending decision blocks the surface), rule 11, rule 12`.
+
+---
+
+## D-PORTUKOF-SUGAR — speech sugar `diga`/`diz` as child-facing aliases of `println`/`print` (maintainer chat directive 08/10/2026)
+
+**Decision (maintainer 08/10, in the PortuKof teaching-track work):** the PortuKof surface accepts `diga` for `println` and `diz` for `print` — "not just escreva". These are **speech sugar**: extra accepted spellings of the SAME builtins, aimed at kids (the way Scratch says "say"). The question "which behavior?" was measured and answered by the maintainer in chat: **both** — `diga`→`println` (line), `diz`→`print` (no line).
+
+**Mechanical consequences (all inside the ONE existing bridge):**
+
+* `lang/PortuKofVocabulary.SUGAR` is a separate, small table (`{"println","diga"}, {"print","diz"}`); the PRIMARY `BUILTINS` table and its bijection gate (64↔64) are UNCHANGED.
+* The sugar only **widens the surface→canonical closed domain**: `PortuKofParity.normalize` maps `diga`/`diz` bare calls to `println`/`print` — same AST, same IR, same implementation. Canonical→surface rendering still returns the PRIMARY spelling (`escrevaln`/`escreva`); sugar never spoils display, hover labels, or `kof fmt`'s canonical→PortuKof path.
+* `kof fmt` on `.ptkf` keeps `diga`/`diz` **verbatim** (they are name slots in the parsed surface AST), idempotent.
+* LSP completion/hover/rename see the sugar because they read the SAME `symbolAliases()` the parser walks (no parallel list anywhere).
+
+**Identity vs sugar rule:** the teaching docs teach `diga`/`diz` alongside the primary `escrevaln`/`escreva` but never instead of them — the reference tables, diagnostics and tooling keep the primary spellings as the canonical pt-BR face.
+
+**Scope guard:** sugar is allowed ONLY for builtins of the closed domain with measured child-facing natural wording; no member/namespace sugar without a maintainer decision. Any future alias follows this same table+gate shape (no second vocabulary anywhere).
+
+**Proof:** `PortuKofSurfaceE2ETest` (normalization identity vs primary table; script-target parity; JVM compile parity), `PortuKofFormatterProfileE2ETest` (verbatim + idempotent), `PortuKofToolingSurfaceE2ETest` (completion offers `diga`/`diz`, no canonical leak; hover resolves `diga` to the primary `escrevaln`/`println` identity), gate `scripts/check_portukof_parity.sh` §3b.
+
+**Relationships:** `Related: D-PORTUKOF (one surface, one compiler), D-KOF-FIRST (library/vocabulary, not new primitives), rule 11 (surface stays extremely simple — the sugar is 2 words).`

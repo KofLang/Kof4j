@@ -1,0 +1,285 @@
+package image
+
+import image.Av1Block
+import image.Av1ModeCdf
+import image.Av1Symbol
+
+// kof.image — AV1 partition tree walk, slice 3o of the AVIF front (plan §34).
+// The recursive `decode_partition( r, c, bSize )` of AV1 §5.11.4 / §6.10.4:
+// given a tile's entropy bytes and the frame size in 4x4 units it reads the
+// partition symbol of every square block with the slice-3a symbol decoder and
+// the default partition CDFs of slice 3m, then recurses exactly as the spec
+// does. Each decision is recorded as `[ kind, r, c, value, partition ]` with
+// `kind` 0 for a `@@partition` read (value = bSize) and 1 for a `decode_block`
+// call (value = subSize), in walk order.
+//
+// The neighbour context is libaom's `partition_plane_context`: the `above`
+// (per column) and `left` (per row, mod 16) arrays hold `partition_context_lookup`
+// bytes, `above = (above[c] >> bsl) & 1`, `left = (left[r & 15] >> bsl) & 1`
+// where `bsl = Mi_Width_Log2[bSize] - 1`, and the CDF row index is
+// `(left * 2 + above) + bsl * 4`. The `split_or_horz` / `split_or_vert` reads
+// (only one neighbour present) use the 2-symbol gathered CDFs of slice 3n and
+// are NOT adapted (`read_cdf`, not `read_symbol`); the full partition CDF is
+// adapted in place across the tile, one row per context, as libaom does.
+//
+// Pure arithmetic, no `kof.io`, so it runs on every target. `decodeRaster`
+// keeps refusing AVIF until the chain closes.
+
+// The partition context lookup (libaom `partition_context_lookup`), indexed by
+// the BLOCK_SIZES order of slice 3n: the `above` byte and the `left` byte.
+List<Int> av1PartitionContextLookupAbove() {
+    return listOf(31, 31, 30, 30, 30, 28, 28, 28, 24, 24, 24, 16, 16, 16, 0, 0, 31, 28, 30, 24, 28, 16)
+}
+
+List<Int> av1PartitionContextLookupLeft() {
+    return listOf(31, 30, 31, 30, 28, 30, 28, 24, 28, 24, 16, 24, 16, 0, 16, 0, 28, 31, 24, 30, 16, 28)
+}
+
+class Av1Partition {
+    Av1Symbol sym
+    Av1ModeCdf modes
+    Int miCols
+    Int miRows
+    Int[] above
+    Int[] left
+    List<Int[]> store
+    List<Int[]> steps
+
+    constructor(Int[] data, Int miCols, Int miRows) {
+        this.sym = Av1Symbol(data)
+        this.modes = Av1ModeCdf()
+        this.miCols = miCols
+        this.miRows = miRows
+        this.above = new Int[miCols + 16]
+        this.left = new Int[16]
+        this.store = listOf()
+        var i = 0
+        while (i < 20) {
+            this.store.add(this.modes.partitionW(i / 4 + 1, i % 4))
+            i = i + 1
+        }
+        this.steps = listOf()
+    }
+
+    // Walks the whole frame, one 64x64 superblock at a time, zeroing the left
+    // context per superblock row (libaom `av1_zero_left_context`).
+    List<Int[]> walk() {
+        var r = 0
+        while (r < this.miRows) {
+            this.zeroLeft()
+            var c = 0
+            while (c < this.miCols) {
+                this.decodePartition(r, c, 12)
+                c = c + 16
+            }
+            r = r + 16
+        }
+        return this.steps
+    }
+
+    void zeroLeft() {
+        var i = 0
+        while (i < 16) {
+            this.left[i] = 0
+            i = i + 1
+        }
+    }
+
+    // bsl = Mi_Width_Log2[ bSize ] - 1 (libaom `get_sqr_bsize_idx - 1`).
+    Int offBsl(Int bs) {
+        return av1BlockMiWidthLog2(bs) - 1
+    }
+
+    Int ctxOf(Int r, Int c, Int bs) {
+        var off = this.offBsl(bs)
+        var above = 0
+        if (r > 0) {
+            above = (this.above[c] >> off) & 1
+        }
+        var left = 0
+        if (c > 0) {
+            left = (this.left[r & 15] >> off) & 1
+        }
+        return left * 2 + above
+    }
+
+    Int cdfIndex(Int r, Int c, Int bs) {
+        return this.ctxOf(r, c, bs) + this.offBsl(bs) * 4
+    }
+
+    void updateCtx(Int r, Int c, Int sub, Int bs) {
+        var bw = av1BlockNum4x4Wide(bs)
+        var bh = av1BlockNum4x4High(bs)
+        var a = av1PartitionContextLookupAbove().get(sub)
+        var l = av1PartitionContextLookupLeft().get(sub)
+        var i = 0
+        while (i < bw) {
+            this.above[c + i] = a
+            i = i + 1
+        }
+        i = 0
+        while (i < bh) {
+            this.left[(r + i) & 15] = l
+            i = i + 1
+        }
+    }
+
+    void addStep(Int kind, Int r, Int c, Int value, Int partition) {
+        var s = new Int[5]
+        s[0] = kind
+        s[1] = r
+        s[2] = c
+        s[3] = value
+        s[4] = partition
+        this.steps.add(s)
+    }
+
+    void decodePartition(Int r, Int c, Int bs) {
+        if (r >= this.miRows) {
+            return
+        }
+        if (c >= this.miCols) {
+            return
+        }
+        var num4x4 = av1BlockNum4x4Wide(bs)
+        var half = num4x4 >> 1
+        var quarter = half >> 1
+        var hasRows = (r + half) < this.miRows
+        var hasCols = (c + half) < this.miCols
+        var partition = 0
+        if (bs < 3) {
+            partition = av1PartitionNone()
+        } else if (hasRows && hasCols) {
+            var idx = this.cdfIndex(r, c, bs)
+            var n = av1PartitionCdfLength(bs)
+            partition = this.sym.readSymbol(this.store.get(idx), n)
+            this.addStep(0, r, c, bs, partition)
+        } else if (hasCols) {
+            var row = this.modes.partitionW(this.offBsl(bs) + 1, this.ctxOf(r, c, bs))
+            var g = av1PartitionGatherHorzAlike(row, bs)
+            var bit = this.sym.readSymbol(g, 2)
+            if (bit == 1) {
+                partition = av1PartitionSplit()
+            } else {
+                partition = 1
+            }
+            this.addStep(0, r, c, bs, partition)
+        } else if (hasRows) {
+            var row = this.modes.partitionW(this.offBsl(bs) + 1, this.ctxOf(r, c, bs))
+            var g = av1PartitionGatherVertAlike(row, bs)
+            var bit = this.sym.readSymbol(g, 2)
+            if (bit == 1) {
+                partition = av1PartitionSplit()
+            } else {
+                partition = 2
+            }
+            this.addStep(0, r, c, bs, partition)
+        } else {
+            partition = av1PartitionSplit()
+            this.addStep(0, r, c, bs, partition)
+        }
+        var subSize = av1BlockPartitionSubsize(partition, bs)
+        var splitSize = av1BlockPartitionSubsize(av1PartitionSplit(), bs)
+        if (partition == 0) {
+            this.addStep(1, r, c, subSize, 0)
+        } else if (partition == 1) {
+            this.addStep(1, r, c, subSize, 0)
+            if (hasRows) {
+                this.addStep(1, r + half, c, subSize, 0)
+            }
+        } else if (partition == 2) {
+            this.addStep(1, r, c, subSize, 0)
+            if (hasCols) {
+                this.addStep(1, r, c + half, subSize, 0)
+            }
+        } else if (partition == 3) {
+            this.decodePartition(r, c, subSize)
+            this.decodePartition(r, c + half, subSize)
+            this.decodePartition(r + half, c, subSize)
+            this.decodePartition(r + half, c + half, subSize)
+        } else if (partition == 4) {
+            this.addStep(1, r, c, splitSize, 0)
+            this.addStep(1, r, c + half, splitSize, 0)
+            this.addStep(1, r + half, c, subSize, 0)
+        } else if (partition == 5) {
+            this.addStep(1, r, c, subSize, 0)
+            this.addStep(1, r + half, c, splitSize, 0)
+            this.addStep(1, r + half, c + half, splitSize, 0)
+        } else if (partition == 6) {
+            this.addStep(1, r, c, splitSize, 0)
+            this.addStep(1, r + half, c, splitSize, 0)
+            this.addStep(1, r, c + half, subSize, 0)
+        } else if (partition == 7) {
+            this.addStep(1, r, c, subSize, 0)
+            this.addStep(1, r, c + half, splitSize, 0)
+            this.addStep(1, r + half, c + half, splitSize, 0)
+        } else if (partition == 8) {
+            var i = 0
+            while (i < 4) {
+                var rr = r + i * quarter
+                if (i > 0) {
+                    if (rr >= this.miRows) {
+                        i = 4
+                    } else {
+                        this.addStep(1, rr, c, subSize, 0)
+                    }
+                } else {
+                    this.addStep(1, rr, c, subSize, 0)
+                }
+                i = i + 1
+            }
+        } else {
+            var i = 0
+            while (i < 4) {
+                var cc = c + i * quarter
+                if (i > 0) {
+                    if (cc >= this.miCols) {
+                        i = 4
+                    } else {
+                        this.addStep(1, r, cc, subSize, 0)
+                    }
+                } else {
+                    this.addStep(1, r, cc, subSize, 0)
+                }
+                i = i + 1
+            }
+        }
+        this.updateExtCtx(r, c, bs, partition, subSize, splitSize, half)
+    }
+
+    // libaom `update_ext_partition_context`, applied AFTER the recursion.
+    void updateExtCtx(Int r, Int c, Int bs, Int partition, Int subSize, Int splitSize, Int half) {
+        if (bs < 3) {
+            return
+        }
+        if (partition == 3) {
+            if (bs == 3) {
+                this.updateCtx(r, c, subSize, bs)
+            }
+            return
+        }
+        if (partition == 0) {
+            this.updateCtx(r, c, subSize, bs)
+        } else if (partition == 1) {
+            this.updateCtx(r, c, subSize, bs)
+        } else if (partition == 2) {
+            this.updateCtx(r, c, subSize, bs)
+        } else if (partition == 8) {
+            this.updateCtx(r, c, subSize, bs)
+        } else if (partition == 9) {
+            this.updateCtx(r, c, subSize, bs)
+        } else if (partition == 4) {
+            this.updateCtx(r, c, splitSize, subSize)
+            this.updateCtx(r + half, c, subSize, subSize)
+        } else if (partition == 5) {
+            this.updateCtx(r, c, subSize, subSize)
+            this.updateCtx(r + half, c, splitSize, subSize)
+        } else if (partition == 6) {
+            this.updateCtx(r, c, splitSize, subSize)
+            this.updateCtx(r, c + half, subSize, subSize)
+        } else if (partition == 7) {
+            this.updateCtx(r, c, subSize, subSize)
+            this.updateCtx(r, c + half, splitSize, subSize)
+        }
+    }
+}

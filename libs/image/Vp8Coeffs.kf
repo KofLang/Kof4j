@@ -1,0 +1,350 @@
+package image
+
+import image.Vp8Frame
+import image.Vp8
+
+// kof.image — VP8 (lossy WebP) DCT/WHT coefficient decoder (RFC 6386 §13).
+//
+// `Vp8Coeffs(frame)` decodes the second data partition(s): for every
+// macroblock that was not marked `mb_skip_coeff`, the 25 four-by-four
+// coefficient blocks (Y2, 16 Y, 4 U, 4 V) as quantized DCT/WHT coefficients,
+// using the frame's coefficient probabilities and the local-context predictors
+// (above/left non-zero states). Layout of `coeffs` is `mb * 400 + block * 16 +
+// zigzagIndex`; `eob` holds the end-of-block position per block (`mb * 25 + ci`,
+// 0 = empty). A `skip_coeff` macroblock contributes only zeros.
+//
+// The token grammar follows the reference decoder `GetCoeffs`: token 0 is the
+// end-of-block, the first coefficient's branch skips it (a previous zero cannot
+// be followed by an end-of-block), and category tokens carry 3..11 extra bits.
+// Pure Kof, all targets; slice 4 of the pure-Kof VP8 chain
+// (`D-WEBP-LOSSY-PURE-KOF`). It decodes coefficients, it does not yet
+// dequantize or reconstruct.
+
+class Vp8Coeffs {
+    Int[] coeffs
+    Int[] eob
+
+    constructor(Vp8Frame f) {
+        var n = f.mbCount()
+        this.coeffs = new Int[n * 400]
+        this.eob = new Int[n * 25]
+        var nParts = f.tokenPartitions()
+        var parts = vp8TokenPartitions(f.payload(), f.firstPartitionSize(), nParts)
+        var probs = f.coeffProbs()
+        var dec = Vp8CoeffDecoder(probs, this.coeffs, this.eob, f.mbCols())
+        var row = 0
+        while (row < f.mbRows()) {
+            dec.startRow()
+            var d = parts.get(row % nParts)
+            var col = 0
+            while (col < f.mbCols()) {
+                var mb = row * f.mbCols() + col
+                dec.decodeMb(mb, d, f.yMode(mb), f.skipCoeff(mb))
+                col = col + 1
+            }
+            row = row + 1
+        }
+    }
+
+    Int[] coeffs() { return this.coeffs }
+    Int[] eob() { return this.eob }
+
+    // The end-of-block position of block `ci` of macroblock `mb` (0 = empty).
+    Int eobAt(Int mb, Int ci) { return this.eob[mb * 25 + ci] }
+
+    // The quantized coefficient at zig-zag index `i` of block `ci` of `mb`.
+    Int coeffAt(Int mb, Int ci, Int i) { return this.coeffs[(mb * 25 + ci) * 16 + i] }
+}
+
+// The sequential coefficient decoder for the whole frame. Keeping the mutable
+// state (entropy decoder, contexts, output arrays) in fields keeps every call
+// within the arity the cross backend handles correctly (`known-bugs` §546).
+class Vp8CoeffDecoder {
+    Int[] probs
+    Int[] coeffs
+    Int[] eob
+    Int[] left
+    Int[] above
+    List<Int> zig
+    Int mbCols
+    Int col
+    Int mb
+    Vp8Bool d
+
+    constructor(Int[] probs, Int[] coeffs, Int[] eob, Int mbCols) {
+        this.probs = probs
+        this.coeffs = coeffs
+        this.eob = eob
+        this.mbCols = mbCols
+        this.left = new Int[9]
+        this.above = new Int[mbCols * 9]
+        // Built once. Rebuilding the order per coefficient left a short-lived
+        // object that raced the riscv64 collector (`known-bugs` §550).
+        this.zig = vp8ZigzagOrder()
+    }
+
+    // Resets the left (row) context before decoding a new macroblock row.
+    void startRow() {
+        this.left = new Int[9]
+    }
+
+    // Decodes one macroblock's residue (RFC 6386 §13.2/§13.3).
+    void decodeMb(Int mb, Vp8Bool d, Int mode, Int skip) {
+        this.mb = mb
+        this.col = mb % this.mbCols
+        this.d = d
+        if (skip == 1) {
+            this.resetMbContext(mode)
+            return
+        }
+        if (mode != 4) {
+            this.decodeBlock(1, 24)
+            var i = 0
+            while (i < 16) {
+                this.decodeBlock(0, i)
+                i = i + 1
+            }
+        } else {
+            var i = 0
+            while (i < 16) {
+                this.decodeBlock(3, i)
+                i = i + 1
+            }
+        }
+        var j = 16
+        while (j < 24) {
+            this.decodeBlock(2, j)
+            j = j + 1
+        }
+    }
+
+    // A macroblock with no residue clears its own above/left context (RFC
+    // §13.3): the 8 plane predictors, plus the Y2 predictor unless it is a
+    // B_PRED macroblock (which has no Y2 block).
+    void resetMbContext(Int mode) {
+        var i = 0
+        while (i < 8) {
+            this.left[i] = 0
+            this.above[this.col * 9 + i] = 0
+            i = i + 1
+        }
+        if (mode != 4) {
+            this.left[8] = 0
+            this.above[this.col * 9 + 8] = 0
+        }
+    }
+
+    // Decodes one 4x4 block of plane `type` at context slot `ci`.
+    Int decodeBlock(Int type, Int ci) {
+        var n = 0
+        if (type == 0) {
+            n = 1
+        }
+        var l = vp8LeftCtx(ci)
+        var a = vp8AboveCtx(ci)
+        var ctx = this.left[l] + this.above[this.col * 9 + a]
+        var count = this.decodeCoeffs(type, ctx, n, this.mb * 400 + ci * 16)
+        var nonZero = 0
+        if (count > 0) {
+            nonZero = 1
+        }
+        this.left[l] = nonZero
+        this.above[this.col * 9 + a] = nonZero
+        this.eob[this.mb * 25 + ci] = count + n
+        return count
+    }
+
+    // `GetCoeffs` (RFC 6386 §13.2/§13.3): reads the token sequence of one block,
+    // returning the position of the last non-zero coefficient plus one (0 when
+    // the block is empty). `n` is the first coefficient (1 when a Y2 block is
+    // present).
+    Int decodeCoeffs(Int type, Int ctx, Int n, Int off) {
+        var p = vp8CoeffProbBase(type, n, ctx)
+        if (this.getBit(p) == 0) {
+            return 0
+        }
+        while (true) {
+            n = n + 1
+            var band = vp8CoeffBand(n)
+            if (this.getBit(p + 1) == 0) {
+                p = vp8CoeffProbBase(type, band, 0)
+            } else {
+                var v = 0
+                if (this.getBit(p + 2) == 0) {
+                    p = vp8CoeffProbBase(type, band, 1)
+                    v = 1
+                } else {
+                    if (this.getBit(p + 3) == 0) {
+                        if (this.getBit(p + 4) == 0) {
+                            v = 2
+                        } else {
+                            v = 3 + this.getBit(p + 5)
+                        }
+                    } else {
+                        if (this.getBit(p + 6) == 0) {
+                            if (this.getBit(p + 7) == 0) {
+                                v = 5 + this.d.bit(159)
+                            } else {
+                                v = 7 + 2 * this.d.bit(165)
+                                v = v + this.d.bit(145)
+                            }
+                        } else {
+                            var b1 = this.getBit(p + 8)
+                            var b0 = this.getBit(p + 9 + b1)
+                            var cat = 2 * b1 + b0
+                            v = vp8CoeffCatBase(cat) + this.extraBits(cat)
+                        }
+                    }
+                    p = vp8CoeffProbBase(type, band, 2)
+                }
+                var j = this.zig.get(n - 1)
+                var sv = v
+                if (this.d.bit(128) == 1) {
+                    sv = -v
+                }
+                this.coeffs[off + j] = sv
+                if (n == 16 || this.getBit(p) == 0) {
+                    return n
+                }
+            }
+            if (n == 16) {
+                return 16
+            }
+        }
+    }
+
+    // The extra bits of a category token (RFC 6386 §13.2), most significant
+    // first. `cat` is 0..3 for the on-tree categories 3..6.
+    Int extraBits(Int cat) {
+        var v = 0
+        if (cat == 0) {
+            v = this.d.bit(173)
+            v = (v << 1) + this.d.bit(148)
+            v = (v << 1) + this.d.bit(140)
+            return v
+        }
+        if (cat == 1) {
+            v = this.d.bit(176)
+            v = (v << 1) + this.d.bit(155)
+            v = (v << 1) + this.d.bit(140)
+            v = (v << 1) + this.d.bit(135)
+            return v
+        }
+        if (cat == 2) {
+            v = this.d.bit(180)
+            v = (v << 1) + this.d.bit(157)
+            v = (v << 1) + this.d.bit(141)
+            v = (v << 1) + this.d.bit(134)
+            v = (v << 1) + this.d.bit(130)
+            return v
+        }
+        v = this.d.bit(254)
+        v = (v << 1) + this.d.bit(254)
+        v = (v << 1) + this.d.bit(243)
+        v = (v << 1) + this.d.bit(230)
+        v = (v << 1) + this.d.bit(196)
+        v = (v << 1) + this.d.bit(177)
+        v = (v << 1) + this.d.bit(153)
+        v = (v << 1) + this.d.bit(140)
+        v = (v << 1) + this.d.bit(133)
+        v = (v << 1) + this.d.bit(130)
+        v = (v << 1) + this.d.bit(129)
+        return v
+    }
+
+    Int getBit(Int p) { return this.d.bit(this.probs[p]) }
+}
+
+// Flat index into the `[4][8][3][11]` coefficient-probability table.
+Int vp8CoeffProbBase(Int type, Int c, Int ctx) {
+    return ((type * 8 + c) * 3 + ctx) * 11
+}
+
+// Base value of an on-tree category token 0..3 (RFC categories 3..6): 11, 19,
+// 35, 67.
+Int vp8CoeffCatBase(Int cat) {
+    return 3 + (8 << cat)
+}
+
+// Coefficient band of position `c` (RFC 6386 §13.3 `coeff_bands`).
+Int vp8CoeffBand(Int c) {
+    if (c == 0) { return 0 }
+    if (c == 1) { return 1 }
+    if (c == 2) { return 2 }
+    if (c == 3) { return 3 }
+    if (c == 4) { return 6 }
+    if (c == 5) { return 4 }
+    if (c == 6) { return 5 }
+    if (c < 15) { return 6 }
+    return 7
+}
+
+// Zig-zag order of the 16 DCT coefficients (RFC 6386 §13.2).
+List<Int> vp8ZigzagOrder() {
+    return listOf(0, 1, 4, 8, 5, 2, 3, 6, 9, 12, 13, 10, 7, 11, 14, 15)
+}
+
+// Left context slot of block `ci` (RFC 6386 reference `left_context_index`).
+Int vp8LeftCtx(Int ci) {
+    if (ci >= 24) { return 8 }
+    if (ci >= 16) { return 4 + ((ci - 16) >> 1) }
+    return ci >> 2
+}
+
+// Above context slot of block `ci` (RFC 6386 reference `above_context_index`).
+Int vp8AboveCtx(Int ci) {
+    if (ci >= 24) { return 8 }
+    if (ci >= 16) {
+        var k = ci - 16
+        return 4 + (k & 1) + ((k >> 2) << 1)
+    }
+    return ci & 3
+}
+
+// Builds the token-partition entropy decoders (RFC 6386 §9.5). The first
+// data partition (`firstSize` bytes after the 10-byte uncompressed chunk)
+// holds the per-macroblock modes; the coefficient tokens follow it. When a
+// frame splits its residue across more than one token partition, each of the
+// first `n-1` partition sizes is written there as 3 little-endian bytes, the
+// last partition taking the remainder; macroblock row `r` is decoded with
+// partition `r % n`. A single-partition frame leaves the residue immediately
+// after the first partition.
+List<Vp8Bool> vp8TokenPartitions(Int[] frame, Int firstSize, Int n) {
+    var first = 10 + firstSize
+    if (first > frame.length) {
+        throw "IMAGE: truncated VP8 token partition"
+    }
+    if (n == 1) {
+        return listOf(Vp8Bool(vp8Slice(frame, first, frame.length - first)))
+    }
+    var table = 3 * (n - 1)
+    if (first + table > frame.length) {
+        throw "IMAGE: truncated VP8 token partition"
+    }
+    var sizes = new Int[n]
+    var total = 0
+    var k = 0
+    while (k < n - 1) {
+        var size = frame[first + k * 3] | (frame[first + k * 3 + 1] << 8) | (frame[first + k * 3 + 2] << 16)
+        if (size < 0) {
+            throw "IMAGE: malformed VP8 token partition size"
+        }
+        sizes[k] = size
+        total = total + size
+        k = k + 1
+    }
+    var rem = frame.length - first - table - total
+    if (rem < 0) {
+        throw "IMAGE: truncated VP8 token partition"
+    }
+    sizes[n - 1] = rem
+    var parts: List<Vp8Bool> = listOf()
+    var off = first + table
+    var j = 0
+    while (j < n) {
+        parts.add(Vp8Bool(vp8Slice(frame, off, sizes[j])))
+        off = off + sizes[j]
+        j = j + 1
+    }
+    return parts
+}

@@ -39,6 +39,8 @@ final class CmdServe {
         }
         Path file = Path.of(args[1]);
         if (!Files.exists(file)) { System.err.println("file not found: " + file); System.exit(1); return; }
+        String extErr = KofCliSupport.unsupportedSourceExtension("serve", file);
+        if (extErr != null) { System.err.println(extErr); System.exit(1); return; }
 
         int port = 8080;
         boolean portFlag = false;
@@ -213,9 +215,14 @@ final class CmdServe {
                     System.out.println("kof serve: using [server] port = " + manifestPort
                             + " from kof.toml");
                 }
-                KofCliSupport.executeProcess(List.of(KofCliSupport.javaExecutable(),
-                        "-Dkof.root=" + file.toAbsolutePath().normalize().getParent(),
-                        "-cp", tempDir.toString(), className), tempDir, appEnv);
+                List<String> serveCmd = new java.util.ArrayList<>();
+                serveCmd.add(KofCliSupport.javaExecutable());
+                serveCmd.addAll(KofStdio.inheritedJvmFlags());
+                serveCmd.add("-Dkof.root=" + file.toAbsolutePath().normalize().getParent());
+                // §556: wrapper de diagnóstico para expor a causa real de uma
+                // falha de load/link em vez da mensagem falsa do launcher.
+                KofCliSupport.appendJvmLaunch(serveCmd, tempDir.toString(), className);
+                KofCliSupport.executeProcess(serveCmd, tempDir, appEnv);
                 return;
             }
             dev.kof.compiler.KofHttpServer server = new dev.kof.compiler.KofHttpServer(

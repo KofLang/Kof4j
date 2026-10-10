@@ -1,13 +1,14 @@
 [English](TRANSLATOR.md) | [Português](TRANSLATOR.pt_BR.md)
 
-# TRANSLATOR.md — Kof Translator (DEPRIORITIZED 15/09 — back to future/)
+# TRANSLATOR.md — Kof Translator (DEPRIORITIZED 15/09 → REOPENED 28/09, still in future/)
 
 > **Owner:** 192.168.100.22 (claimed 13/09 ~10:05 — orphan: no owner with IP
 > in the header; last code 6 days ago `84c48041`; maintainer's owner-without-IP=orphan
 > rule).
 
-**Status:** **DEPRIORITIZED by the maintainer (15/09) — moved back to
-`future/`. Not current work; promotion needs her explicit decision.** Code
+**Status:** **REOPENED by the maintainer (`D-DEPRIORITIZED-REOPEN`, 28/09 batch)** —
+still plan-only here; promotion to current work is one-at-a-time per
+`D-FUTURE-PROMOTION`. Code
 already in the repo stays (`Translate.java` + `TranslateLexer`/`TranslateExpr`,
 `TranslateTest` 61/61) — only the *queue* stops here. Phase F
 implemented: `Translate.java` + `TranslateLexer`/`TranslateExpr`;

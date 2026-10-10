@@ -162,7 +162,8 @@ test "sum commutes on random pairs" {
 `random.*` = OS entropy (R11). A failing property test prints its seed and the
 failure reproduces. Mixing the two is the anti-pattern: seeding for security
 material (R11 violation) or drawing entropy from rng (flaky tests). Slice 1 =
-JVM + JS + NATIVE x86_64 (asm `RuntimeRng`, same bits by construction); cross riscv64/aarch64/ANDROID = `RNG001` honest gap at compile time.
+JVM + JS + NATIVE x86_64 (asm `RuntimeRng`, same bits by construction);
+ANDROID reuses the JVM runtime (issue #777); cross riscv64/aarch64 = `RNG001` honest gap at compile time.
 
 ## validation — formatting is NOT validating (S12/S12b)
 
@@ -302,6 +303,9 @@ WHY: hand-rolled `split("/")`/regex over URLs breaks on port, query and fragment
 each piece is a real function, all targets (interpreter parity pinned 19/09 in
 `KofScriptStdlibParityTest`).
 
+Sockets are the SAME namespace but their own face — `net.listen/connect/bind`
+and the handle members live in `training/idioms/net.md` (D-KOF-NET, 02/10).
+
 ## gpu — probe first, kernels honest (8.5 fatia 3, 19/09)
 
 ```kof
@@ -340,7 +344,7 @@ aarch64 ✅ (`Video` fatia 2A + `Audio` fatia 2B, byte-for-byte under qemu);
 Scope note: this is today's **data face** of `kof.media`. The
 future graphics/gaming/media surface is **Kof's own engine** with FULL 4-target
 parity as its acceptance criterion (`DECISIONS.md` §D-GRAPHICS-GAMING addenda 2+4;
-plan `docs/development/future/graphics-gaming-plan.md`) — `MEDIA001` is honest for
+plan `docs/graphics-gaming.md`) — `MEDIA001` is honest for
 the legacy face, not the model for what gets promoted.
 
 ## Note per target (honest gates)
@@ -370,8 +374,11 @@ the legacy face, not the model for what gets promoted.
 | shell.cmd/run/ok (v1) | ✅ | ❌ `PROC001` (compile-time) | ❌ `PROC001` | ✅ byte-parity |
 | shell.pipeline (v1) | ✅ | ❌ `PROC001` | ❌ `PROC001` | ✅ Kof JS host (chain + pump, 20/09 `081a48f8`; bare node = honest diagnostic) |
 
-`strings.reverse` on non-ASCII: byte-reverse on Native vs UTF-16 on JVM/JS —
-gap **NAT-STR01** (parity only locked on ASCII in the matrix).
+`strings.reverse`, `toUpperCase`/`toLowerCase` and `compareToIgnoreCase` on
+non-ASCII: correct on all targets since 27/09 (`D-STR-UNICODE`, row 11) —
+`compareToIgnoreCase` matches the JVM `CASE_INSENSITIVE_ORDER` (simple fold per
+code unit); `capitalize`/word-converters remain ASCII-only in Native, gap
+**NAT-STR01**.
 
 ## Limitations
 

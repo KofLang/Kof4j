@@ -37,46 +37,62 @@ public final class NativeRiscvAsmRtB43 {
             .section .text
             # kof_gc_try_mark(ptr@a0): se ptr aponta para o PAYLOAD de um
             # bloco da gc-list e está dentro do heap, seta bit0 (mark).
-            # Nenhum callee-saved clobberado. Restrito a [_kof_heap,_kof_heap_end).
+            # §639: agora DEVOLVE em a0 o header do bloco recém-marcado (0 se
+            # não marcou) — contrato idêntico ao kof_gc_try_mark do x86
+            # (RuntimeGc, #781 Part B), que devolve o bloco em %r13. Nenhum
+            # callee-saved clobberado. Restrito a [_kof_heap,_kof_heap_end).
             .globl kof_gc_try_mark
             kof_gc_try_mark:
-                li   t0, 4096
-                bltu a0, t0, .Ltm_done
-                andi t0, a0, 7
-                bnez t0, .Ltm_done
+                # §540: lookup O(1) pelo bitmap de inícios-de-bloco
+                # (_kof_block_bm) em vez da varredura LINEAR da gc-list (era
+                # O(N) por ponte e capada em 10000 -> blocos vivos além disso
+                # não eram marcados e o sweep os liberava: use-after-free).
+                # Um objeto Kof aponta SEMPRE p/ o início do payload; o início
+                # do bloco é a0-32, e o bit confirma que a0 é payload de fato.
+                li   t6, 4096
+                bltu a0, t6, .Ltm_zero
+                andi t6, a0, 7
+                bnez t6, .Ltm_zero
                 la   t1, _kof_heap
-                bltu a0, t1, .Ltm_done
+                addi t0, t1, 32
+                bltu a0, t0, .Ltm_zero
                 la   t1, _kof_heap_end
-                bgeu a0, t1, .Ltm_done
-                la   t1, .Lkof_gc_head
-                ld   t1, 0(t1)
-                li   t2, 10000
-            .Ltm_loop:
-                beqz t1, .Ltm_done
-                addi t2, t2, -1
-                beqz t2, .Ltm_done
-                addi t3, t1, 32          # payload start
-                ld   t4, 0(t1)           # size TOTAL (incl. header)
-                addi t4, t4, -32         # payload size
-                bltu a0, t3, .Ltm_next
-                add  t3, t3, t4          # payload end (exclusivo)
-                bgeu a0, t3, .Ltm_next
-                j    .Ltm_found
-            .Ltm_next:
-                ld   t1, 16(t1)          # gc_next
-                j    .Ltm_loop
-            .Ltm_found:
-                lbu  t0, 24(t1)
-                andi t0, t0, 1
-                bnez t0, .Ltm_done
-                li   t0, 1
-                sb   t0, 24(t1)
-            .Ltm_done:
+                bgeu a0, t1, .Ltm_zero
+                addi t2, a0, -32         # header
+                la   t0, _kof_heap
+                sub  t3, t2, t0
+                srli t4, t3, 10
+                slli t4, t4, 3
+                la   t5, _kof_block_bm
+                add  t5, t5, t4
+                ld   t6, 0(t5)
+                srli t1, t3, 4
+                andi t1, t1, 63
+                srl  t6, t6, t1
+                andi t6, t6, 1
+                beqz t6, .Ltm_zero
+                lbu  t0, 24(t2)
+                andi t1, t0, 1
+                bnez t1, .Ltm_zero       # já marcado (ou sendo) — não re-marca
+                ori  t0, t0, 1
+                sb   t0, 24(t2)
+                addi a0, t2, 0           # retorna o bloco recém-marcado
+                ret
+            .Ltm_zero:
+                li   a0, 0
                 ret
 
-            # kof_gc_mark_transitive(ptr@a0): like try_mark, mas se marcou um
-            # bloco NOVO, varre seus campos (8 em 8 pelo size total) e recorre
-            # — fecho conservador idêntico ao RuntimeGc:134.
+            # kof_gc_mark_transitive(ptr@a0): §639 — fecho ITERATIVO por
+            # worklist intrusiva, port do RuntimeGc (#781 Part B). A versão
+            # recursiva consumia ~48 B de pilha nativa por nível; uma lista
+            # ligada de 200 000 nós estourava a pilha e morria SIGSEGV
+            # (medido no aarch64/riscv64; o x86 já foi corrigido). O candidato
+            # entra pelo kof_gc_try_mark (que devolve o bloco marcado em a0|0)
+            # e o fecho é percorrido empilhando os campos-ponteiro não
+            # visitados: o elo fica em 8(blk) (free_next, ocioso num bloco
+            # vivo) e a cabeça em .Lkof_gc_gray. Pilha nativa O(1). Semântica
+            # conservadora preservada: todo campo é tentado; bloco já marcado
+            # não re-varre (try_mark é idempotente).
             .globl kof_gc_mark_transitive
             kof_gc_mark_transitive:
                 addi sp, sp, -48
@@ -84,53 +100,40 @@ public final class NativeRiscvAsmRtB43 {
                 sd   s0, 32(sp)
                 sd   s1, 24(sp)
                 sd   s2, 16(sp)
-                li   t0, 4096
-                bltu a0, t0, .Lmt_done
-                andi t0, a0, 7
-                bnez t0, .Lmt_done
-                la   t0, _kof_heap
-                bltu a0, t0, .Lmt_done
-                la   t0, _kof_heap_end
-                bgeu a0, t0, .Lmt_done
-                la   t1, .Lkof_gc_head
-                ld   t1, 0(t1)
-                li   t2, 10000
-            .Lmt_loop:
-                beqz t1, .Lmt_done
-                addi t2, t2, -1
-                beqz t2, .Lmt_done
-                addi t3, t1, 32
-                ld   t4, 0(t1)
-                addi t4, t4, -32
-                bltu a0, t3, .Lmt_next
-                add  t3, t3, t4
-                bgeu a0, t3, .Lmt_next
-                j    .Lmt_found
-            .Lmt_next:
-                ld   t1, 16(t1)
-                j    .Lmt_loop
-            .Lmt_found:
-                lbu  t0, 24(t1)
-                andi t0, t0, 1
-                bnez t0, .Lmt_done       # já marcado (ou sendo) — pára fecho
-                li   t0, 1
-                sb   t0, 24(t1)
-                # varre os campos do bloco recém-marcado.
-                mv   s0, t1
+                call kof_gc_try_mark
+                beqz a0, .Lmt_ret
+                # empilha a raiz: link[blk] = cabeca; cabeca = blk
+                la   t0, .Lkof_gc_gray
+                ld   t1, 0(t0)
+                sd   t1, 8(a0)
+                sd   a0, 0(t0)
+            .Lmt_drain:
+                la   t0, .Lkof_gc_gray
+                ld   s0, 0(t0)           # s0 = blk = pop()
+                beqz s0, .Lmt_ret
+                ld   t1, 8(s0)
+                sd   t1, 0(t0)           # cabeca = link[blk]
+                # varre os campos do bloco s0 (s0/s1/s2 sobrevivem ao call:
+                # o try_mark só clobbera a*/t*).
                 ld   t0, 0(s0)           # size total
                 addi t0, t0, -32         # payload size
                 addi s1, s0, 32          # cur = payload start
-                add  s2, s1, t0          # end (callee-saved: o call clobbera a*)
-                beqz t0, .Lmt_done
+                add  s2, s1, t0          # end = payload + payload size
+                beqz t0, .Lmt_drain
             .Lmt_fields:
-                bgeu s1, s2, .Lmt_done
+                bgeu s1, s2, .Lmt_drain
                 ld   a0, 0(s1)
                 beqz a0, .Lmt_fnext
-                call kof_gc_mark_transitive
+                call kof_gc_try_mark
+                beqz a0, .Lmt_fnext
+                la   t0, .Lkof_gc_gray
+                ld   t1, 0(t0)
+                sd   t1, 8(a0)
+                sd   a0, 0(t0)
             .Lmt_fnext:
                 addi s1, s1, 8
                 j    .Lmt_fields
-            .Lmt_done:
+            .Lmt_ret:
                 ld   s2, 16(sp)
                 ld   s1, 24(sp)
                 ld   s0, 32(sp)
@@ -138,12 +141,13 @@ public final class NativeRiscvAsmRtB43 {
                 addi sp, sp, 48
                 ret
 
-            # kof_gc_mark(): marca raízes DE PILHA (sp..s11, fallback 4KB) e
-            # ESTÁTICAS (.Lkof_heap_root_start../.Lkof_heap_root_end, emitidos
-            # pelo NativeArchEmitter no .data do programa) chamando
-            # mark_transitive. Salva s0-s11 num buffer local para que
-            # ponteiros guardados em registrador apareçam na varredura de
-            # pilha (mesma intenção do pushq %rbx,%r12-15,%rbp do x86).
+            # kof_gc_mark(): marca raízes DE PILHA e ESTÁTICAS. §544/§552: a
+            # thread principal varre [sp..kof_main_stack_bottom] (cap 64MB,
+            # gate kof_plat_thread_id == kof_main_tid); workers de spawn ficam
+            # no caminho histórico [sp..s11] cap 1MB / fallback 4096. O mark
+            # derrama s0-s11 para que ponteiros em registrador apareçam na
+            # varredura. ESTÁTICAS: .Lkof_heap_root_start../.Lkof_heap_root_end
+            # (emitidos pelo NativeArchEmitter no .data do programa).
             .globl kof_gc_mark
             kof_gc_mark:
                 addi sp, sp, -128
@@ -160,8 +164,22 @@ public final class NativeRiscvAsmRtB43 {
                 sd   s9, 40(sp)
                 sd   s10, 32(sp)
                 sd   s11, 24(sp)
-                mv   s2, sp              # loop ptr (limite baixo)
-                mv   s1, s11             # frame pointer do caller (limite alto)
+                call kof_plat_thread_id
+                la   t0, kof_main_tid
+                ld   t1, 0(t0)
+                bne  a0, t1, .Lgm_worker
+                la   s1, kof_main_stack_bottom
+                ld   s1, 0(s1)
+                mv   s2, sp
+                beqz s1, .Lgm_fallback
+                bgeu s2, s1, .Lgm_fallback
+                sub  t0, s1, s2
+                li   t1, 67108864
+                bltu t1, t0, .Lgm_fallback
+                j    .Lgm_stack
+            .Lgm_worker:
+                mv   s2, sp
+                ld   s1, 24(sp)
                 beqz s1, .Lgm_fallback
                 bgeu s2, s1, .Lgm_fallback
                 sub  t0, s1, s2

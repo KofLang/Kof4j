@@ -1,13 +1,11 @@
 package dev.kof.compiler;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -15,11 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /** End-to-end coverage for the pure-Kof PDF library in {@code libs/pdf}. */
-class PdfLibraryE2ETest {
-
-    private final CompilerDriver driver = new CompilerDriver();
-
-    @TempDir Path tmp;
+class PdfLibraryE2ETest extends KofmdRunSupport implements LibraryInstallSupport {
 
     @Test
     void createsPdfWithAccentsAndUserDefinedGrid() throws Exception {
@@ -297,51 +291,22 @@ class PdfLibraryE2ETest {
         T get() throws Exception;
     }
 
-    private void runKof(String code) throws Exception {
-        Path installRoot = tmp.resolve("kof-install");
-        copyLibrary(installRoot.resolve("lib/kof-libs"));
-        Path source = tmp.resolve("Main.kf");
-        Files.writeString(source, code);
-        Path out = Files.createTempDirectory(tmp, "pdf-out-");
-        String previousInstallDir = System.getProperty("kof.install.dir");
-        CompilationResult result;
-        System.setProperty("kof.install.dir", installRoot.toString());
-        try {
-            result = driver.compile(source, out, Target.JVM);
-        } finally {
-            if (previousInstallDir == null) System.clearProperty("kof.install.dir");
-            else System.setProperty("kof.install.dir", previousInstallDir);
-        }
-        assertTrue(result.success(), () -> result.diagnostics().getDiagnostics().toString());
 
-        try (var loader = new URLClassLoader(
-                new java.net.URL[]{out.toUri().toURL()}, getClass().getClassLoader())) {
-            Class.forName("Default.Main", true, loader)
-                    .getMethod("main", String[].class)
-                    .invoke(null, (Object) new String[0]);
-        }
+    @Override
+    protected String outPrefix() {
+        return "pdf-out-";
     }
 
-    private static void copyLibrary(Path destinationRoot) throws Exception {
-        Path sourceRoot = findLibraryRoot();
-        try (var files = Files.walk(sourceRoot)) {
-            for (Path source : files.filter(Files::isRegularFile).toList()) {
-                Path destination = destinationRoot.resolve("pdf")
-                        .resolve(sourceRoot.relativize(source));
-                Files.createDirectories(destination.getParent());
-                Files.copy(source, destination, StandardCopyOption.REPLACE_EXISTING);
-            }
-        }
+
+
+    @Override
+    public String libraryName() {
+        return "pdf";
     }
 
-    private static Path findLibraryRoot() {
-        Path workingDirectory = Path.of("").toAbsolutePath().normalize();
-        Path fromRepository = workingDirectory.resolve("libs/pdf");
-        if (Files.isRegularFile(fromRepository.resolve("PdfDocument.kf"))) return fromRepository;
-
-        Path fromModule = workingDirectory.resolve("../libs/pdf").normalize();
-        if (Files.isRegularFile(fromModule.resolve("PdfDocument.kf"))) return fromModule;
-
-        throw new IllegalStateException("libs/pdf not found from " + workingDirectory);
+    @Override
+    public java.util.List<String> libraryMarkers() {
+        return java.util.List.of("PdfDocument.kf");
     }
+
 }

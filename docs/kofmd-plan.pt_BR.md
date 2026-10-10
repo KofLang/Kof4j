@@ -45,7 +45,7 @@ modificadores).
 | Portador de dados | `record` (imutável, acessores, suporte `json` JVM+JS) | Blocos de memória de agente decodificam para records; nenhum valor novo de runtime |
 | Casa do CLI | dispatch no `kof-cli/Main.java` (`build/run/check/test/fmt/lsp/...`); `CmdCheck` = o precedente em forma de check | `kof md check/format/convert` segue os padrões `CmdCheck`/`Fmt`; subcomando `md` sob `Main`, uma classe por verbo (gate ≤500) |
 | Casa do LSP | `LspServer.java` + `LspHover/LspSymbols/LspRename/...` | Diagnósticos/hover/completion do Kofmd pegam carona no servidor existente; hook de arquivo `.md`, sem segundo servidor |
-| Relação com `kof.file` | `future/kof-file-plan.md` (FUTURE, zero código): API unificada de arquivo/formato, fronteira R1 (codecs pesados = pacotes oficiais), R9 interop-first | O I/O de arquivo do Kofmd (ler `.md`, escrever canônica) compõe as faces de texto do `kof.io`; nunca duplica o `kof.file` — quando o `kof.file` promover, o Kofmd pega carona |
+| Relação com `kof.file` | `docs/stdlib/kof-file-plan.md` (CONCLUÍDO 28/09): API unificada de arquivo/formato, fronteira R1 (codecs pesados = pacotes oficiais), R9 interop-first | O I/O de arquivo do Kofmd (ler `.md`, escrever canônica) compõe as faces de texto do `kof.io`; nunca duplica o `kof.file` — quando o `kof.file` promover, o Kofmd pega carona |
 | Infra de testes | E2E `*E2ETest` por área + goldens + `ConformanceMatrixTest` | `KofmdE2ETest` + corpus golden `kofmd/*.md` (uma ideia por arquivo, §48 da spec) |
 
 ## 2. Superfície congelada (decisão da Fase 2 — o que sai, nada mais)

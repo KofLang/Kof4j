@@ -2298,7 +2298,8 @@ class KofOrmE2ETest {
             """.formatted(tempDir));
         Path x86out = tempDir.resolve("out-x86");
         CompilationResult xo = driver.compile(source, x86out, Target.NATIVE);
-        assumeTrue(xo.success(), "x86-64 oracle should compile: " + xo.diagnostics().getDiagnostics());
+        assumeNativeX86OracleEnvironment();
+        assertTrue(xo.success(), "x86-64 oracle should compile: " + xo.diagnostics().getDiagnostics());
         String oracle = runNativeBinary(x86out.resolve("Default/Main"), null);
         assertEquals("3\ntrue\n0\ntrue\n0\nfalse", oracle, "oráculo x86-64 (contrato D-DB-GAPS; drop -> count 0 / deleteAll false)");
         for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
@@ -2372,7 +2373,8 @@ class KofOrmE2ETest {
             """.formatted(port, body));
         Path x86out = tempDir.resolve("out-x86");
         CompilationResult xo = driver.compile(source, x86out, Target.NATIVE);
-        assumeTrue(xo.success(), "x86-64 oracle should compile: " + xo.diagnostics().getDiagnostics());
+        assumeNativeX86OracleEnvironment();
+        assertTrue(xo.success(), "x86-64 oracle should compile: " + xo.diagnostics().getDiagnostics());
         String oracle = runNativeBinary(x86out.resolve("Default/Main"), null);
         assertEquals(expected, oracle, "oráculo x86-64 (F2d2 count mysql; 3 -> 2)");
         for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
@@ -2446,7 +2448,8 @@ class KofOrmE2ETest {
                 + body);
         Path x86out = tempDir.resolve("out-x86");
         CompilationResult xo = driver.compile(source, x86out, Target.NATIVE);
-        assumeTrue(xo.success(), "x86-64 oracle should compile: " + xo.diagnostics().getDiagnostics());
+        assumeNativeX86OracleEnvironment();
+        assertTrue(xo.success(), "x86-64 oracle should compile: " + xo.diagnostics().getDiagnostics());
         String oracle = runNativeBinary(x86out.resolve("Default/Main"), null);
         assertEquals(expected, oracle, "oráculo x86-64 (count_where mysql; string/int/miss/neg/bool)");
         for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
@@ -2521,7 +2524,8 @@ class KofOrmE2ETest {
                 + body);
         Path x86out = tempDir.resolve("out-x86");
         CompilationResult xo = driver.compile(source, x86out, Target.NATIVE);
-        assumeTrue(xo.success(), "x86-64 oracle should compile: " + xo.diagnostics().getDiagnostics());
+        assumeNativeX86OracleEnvironment();
+        assertTrue(xo.success(), "x86-64 oracle should compile: " + xo.diagnostics().getDiagnostics());
         String oracle = runNativeBinary(x86out.resolve("Default/Main"), null);
         assertEquals(expected, oracle, "oráculo x86-64 (delete/deleteAll mysql; hit/miss/neg/idempotente)");
         for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
@@ -2578,7 +2582,8 @@ class KofOrmE2ETest {
                 + body);
         Path x86out = tempDir.resolve("out-x86");
         CompilationResult xo = driver.compile(source, x86out, Target.NATIVE);
-        assumeTrue(xo.success(), "x86-64 oracle should compile: " + xo.diagnostics().getDiagnostics());
+        assumeNativeX86OracleEnvironment();
+        assertTrue(xo.success(), "x86-64 oracle should compile: " + xo.diagnostics().getDiagnostics());
         String oracle = runNativeBinary(x86out.resolve("Default/Main"), null);
         assertEquals(expected, oracle, "oráculo x86-64 (delete/deleteAll em tabela inexistente: throws 'mysql: ...' — §493)");
         for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
@@ -2653,7 +2658,8 @@ class KofOrmE2ETest {
                 + body);
         Path x86out = tempDir.resolve("out-x86");
         CompilationResult xo = driver.compile(source, x86out, Target.NATIVE);
-        assumeTrue(xo.success(), "x86-64 oracle should compile: " + xo.diagnostics().getDiagnostics());
+        assumeNativeX86OracleEnvironment();
+        assertTrue(xo.success(), "x86-64 oracle should compile: " + xo.diagnostics().getDiagnostics());
         String oracle = runNativeBinary(x86out.resolve("Default/Main"), null);
         assertEquals(expected, oracle, "oráculo x86-64 (save mysql; INSERT gerado, UPDATE hit, upsert)");
         for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
@@ -2733,7 +2739,8 @@ class KofOrmE2ETest {
                 + body);
         Path x86out = tempDir.resolve("out-x86");
         CompilationResult xo = driver.compile(source, x86out, Target.NATIVE);
-        assumeTrue(xo.success(), "x86-64 oracle should compile: " + xo.diagnostics().getDiagnostics());
+        assumeNativeX86OracleEnvironment();
+        assertTrue(xo.success(), "x86-64 oracle should compile: " + xo.diagnostics().getDiagnostics());
         String oracle = runNativeBinary(x86out.resolve("Default/Main"), null);
         assertEquals(expected, oracle, "oráculo x86-64 (saveAll mysql; lote INSERT, lote UPDATE, vazio)");
         for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
@@ -2815,7 +2822,8 @@ class KofOrmE2ETest {
                 + body);
         Path x86out = tempDir.resolve("out-x86");
         CompilationResult xo = driver.compile(source, x86out, Target.NATIVE);
-        assumeTrue(xo.success(), "x86-64 oracle should compile: " + xo.diagnostics().getDiagnostics());
+        assumeNativeX86OracleEnvironment();
+        assertTrue(xo.success(), "x86-64 oracle should compile: " + xo.diagnostics().getDiagnostics());
         String oracle = runNativeBinary(x86out.resolve("Default/Main"), null);
         assertEquals(expected, oracle, "oráculo x86-64 (find mysql; hit 4 campos, miss null, 2a linha, key String)");
         for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
@@ -2894,7 +2902,8 @@ class KofOrmE2ETest {
                 + body);
         Path x86out = tempDir.resolve("out-x86");
         CompilationResult xo = driver.compile(source, x86out, Target.NATIVE);
-        assumeTrue(xo.success(), "x86-64 oracle should compile: " + xo.diagnostics().getDiagnostics());
+        assumeNativeX86OracleEnvironment();
+        assertTrue(xo.success(), "x86-64 oracle should compile: " + xo.diagnostics().getDiagnostics());
         String oracle = runNativeBinary(x86out.resolve("Default/Main"), null);
         assertEquals(expected, oracle, "oráculo x86-64 (all mysql; 3 linhas, 2 linhas, lista vazia)");
         for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
@@ -2977,7 +2986,8 @@ class KofOrmE2ETest {
                 + body);
         Path x86out = tempDir.resolve("out-x86");
         CompilationResult xo = driver.compile(source, x86out, Target.NATIVE);
-        assumeTrue(xo.success(), "x86-64 oracle should compile: " + xo.diagnostics().getDiagnostics());
+        assumeNativeX86OracleEnvironment();
+        assertTrue(xo.success(), "x86-64 oracle should compile: " + xo.diagnostics().getDiagnostics());
         String oracle = runNativeBinary(x86out.resolve("Default/Main"), null);
         assertEquals(expected, oracle, "oráculo x86-64 (where mysql; =/>/LIKE/==/!=, throw, vazio)");
         for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
@@ -3053,7 +3063,8 @@ class KofOrmE2ETest {
                 + body);
         Path x86out = tempDir.resolve("out-x86");
         CompilationResult xo = driver.compile(source, x86out, Target.NATIVE);
-        assumeTrue(xo.success(), "x86-64 oracle should compile: " + xo.diagnostics().getDiagnostics());
+        assumeNativeX86OracleEnvironment();
+        assertTrue(xo.success(), "x86-64 oracle should compile: " + xo.diagnostics().getDiagnostics());
         String oracle = runNativeBinary(x86out.resolve("Default/Main"), null);
         assertEquals(expected, oracle, "oráculo x86-64 (page mysql; 2 páginas, vazias, Long, parcial)");
         for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
@@ -3104,7 +3115,8 @@ class KofOrmE2ETest {
                 + body);
         Path x86out = tempDir.resolve("out-x86");
         CompilationResult xo = driver.compile(source, x86out, Target.NATIVE);
-        assumeTrue(xo.success(), "x86-64 oracle should compile: " + xo.diagnostics().getDiagnostics());
+        assumeNativeX86OracleEnvironment();
+        assertTrue(xo.success(), "x86-64 oracle should compile: " + xo.diagnostics().getDiagnostics());
         String oracle = runNativeBinary(x86out.resolve("Default/Main"), null);
         assertEquals(expected, oracle, "oráculo x86-64 (save em tabela inexistente: throw)");
         for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
@@ -3846,7 +3858,8 @@ class KofOrmE2ETest {
         Path source = out.resolve("Main.kf");
         Files.writeString(source, template.formatted(out));
         CompilationResult r = driver.compile(source, out, Target.NATIVE);
-        assumeTrue(r.success(), "x86-64 oracle should compile: " + r.diagnostics().getDiagnostics());
+        assumeNativeX86OracleEnvironment();
+        assertTrue(r.success(), "x86-64 oracle should compile: " + r.diagnostics().getDiagnostics());
         return runNativeBinary(out.resolve("Default/Main"), null);
     }
 
@@ -3929,5 +3942,36 @@ class KofOrmE2ETest {
 
     private static boolean isLinux() {
         return System.getProperty("os.name", "").toLowerCase().contains("linux");
+    }
+
+    /** §589: honest environment gate for the x86-64 native oracle. Before this,
+     *  a failed x86 compile was hidden behind a compilation-success assumption,
+     *  so a native-codegen regression turned into a SKIP (false green, Q5).
+     *  Only the ENVIRONMENT skips now; the compilation itself is asserted. */
+    private static void assumeNativeX86OracleEnvironment() {
+        assumeTrue(isLinux(), "x86-64 native oracle requires Linux (ld + libc)");
+        assumeTrue(dev.kof.compiler.nat.NativeToolchainGate.present(),
+                "x86-64 toolchain (as/ld) ausente — pulando");
+        assumeTrue(hostSqlitePresent(), "libsqlite3 host ausente — pulando o oráculo ORM x86-64");
+    }
+
+    /** true se o host tem a {@code libsqlite3.so.0} que o link x86-64 usa
+     *  ({@code -l:libsqlite3.so.0}); varre os dirs de sistema e o
+     *  {@code LD_LIBRARY_PATH}. Nunca inventa presença (R6). */
+    private static boolean hostSqlitePresent() {
+        java.util.List<String> dirs = new java.util.ArrayList<>(java.util.List.of(
+                "/usr/lib/x86_64-linux-gnu", "/lib/x86_64-linux-gnu", "/usr/lib64",
+                "/usr/lib", "/lib"));
+        String ldPath = System.getenv("LD_LIBRARY_PATH");
+        if (ldPath != null && !ldPath.isBlank()) {
+            dirs.addAll(java.util.Arrays.asList(ldPath.split(java.io.File.pathSeparator)));
+        }
+        for (String dir : dirs) {
+            if (dir == null || dir.isBlank()) continue;
+            for (String name : new String[]{"libsqlite3.so.0", "libsqlite3.so"}) {
+                if (new java.io.File(dir, name).exists()) return true;
+            }
+        }
+        return false;
     }
 }

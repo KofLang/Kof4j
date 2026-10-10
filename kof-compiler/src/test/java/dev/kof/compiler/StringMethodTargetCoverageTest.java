@@ -18,8 +18,10 @@ import org.junit.jupiter.api.Test;
  * Auditoria de paridade (frente de revisão, 21/09) — Fatia 8: o registry de
  * {@code String} é a fonte única de verdade do que o typer aceita; este teste
  * trava, nome a nome, como cada alvo JS o resolve. É a mecanização direcionada
- * da classe do {@code known-bugs.md §424} (5 métodos aceitos que caem em
- * {@code default} no JS e geram {@code receiver.<m>} inexistente).
+ * da classe do {@code known-bugs.md §424} (métodos aceitos que caíam em
+ * {@code default} no JS e geravam {@code receiver.<m>} inexistente;
+ * {@code toCharArray}/`compareToIgnoreCase` já foram portados —
+ * `D-FULL-PARITY-050` row 11).
  *
  * <p>O golden é MEDIDO da fonte (Q3): o conjunto de métodos vem de
  * {@code StringMethodRegistry.java} e os {@code case} explícitos vêm de
@@ -37,9 +39,11 @@ class StringMethodTargetCoverageTest {
     private static final Set<String> RUNTIME_SUFFIX = Set.of(
             "toInt", "toLong", "toDouble", "toFloat");
 
-    /** §424 — aceitos no typer, SEM lowering no JS (caem no default → membro JS inexistente). */
+    /** §424/`D-STR-UNICODE` — aceitos no typer, SEM lowering no JS (regex trio, deferido a 1.0). */
+    // §555/#719: getBytes bindou no JVM (Typer/registry) mas JS/Native ficam
+    // no gate STR003 (StringTargetGaps.INCOMPLETE) — gap documentado, nao crescimento.
     private static final Set<String> JS_KNOWN_GAP = Set.of(
-            "matches", "replaceAll", "replaceFirst", "compareToIgnoreCase");
+            "matches", "replaceAll", "replaceFirst", "getBytes");
 
     private static Set<String> registryMethods() throws Exception {
         String src = Files.readString(
@@ -122,8 +126,7 @@ class StringMethodTargetCoverageTest {
     @Test
     @DisplayName("o gap JS do §424 e exatamente o conjunto documentado — nao cresce nem some")
     void knownJsGapIsPinnedToTheDocumentedSet() throws Exception {
-        assertEquals(Set.of("matches", "replaceAll", "replaceFirst",
-                "compareToIgnoreCase"), JS_KNOWN_GAP);
+        assertEquals(Set.of("matches", "replaceAll", "replaceFirst", "getBytes"), JS_KNOWN_GAP);
     }
 
     @Test

@@ -28,13 +28,13 @@ import org.junit.jupiter.api.io.TempDir;
  * {@code scripts/provision-mcu-qemu.sh}). Sem eles → {@code assumeTrue} skip,
  * nunca verde falso.
  */
-class NativeMcuArmGcTest {
+class NativeMcuArmGcTest implements NativeToolchainAssumptions {
 
     private static final long HEAP = 0x10000; // 64 KB
 
     @Test
     void mcuArmGcAllocatesAndDumps(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuArmAsm();
         String out = run(tempDir, "gc1", body(
                 "    movs r0, #16\n    bl kof_alloc\n    ldr r1, =.Lroot_a\n    str r0, [r1]\n"
                 + "    movs r0, #16\n    bl kof_alloc\n"
@@ -49,7 +49,7 @@ class NativeMcuArmGcTest {
 
     @Test
     void mcuArmGcMarkMarksRootsTransitively(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuArmAsm();
         // A = raiz ESTÁTICA (.Lroot_a); B = raiz de PILHA; C = inalcançável;
         // D = alcançável só via A.payload[0] (fecho transitivo).
         String out = run(tempDir, "gc4", body(
@@ -67,7 +67,7 @@ class NativeMcuArmGcTest {
 
     @Test
     void mcuArmGcSweepRecoversDeadAndKeepsLive(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuArmAsm();
         String out = run(tempDir, "gc5", body(
                 "    movs r0, #16\n    bl kof_alloc\n    ldr r1, =.Lroot_a\n    str r0, [r1]\n"
                 + "    sub sp, sp, #16\n"
@@ -86,7 +86,7 @@ class NativeMcuArmGcTest {
 
     @Test
     void mcuArmGcMarkHandlesCycles(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuArmAsm();
         String out = run(tempDir, "gc6", body(
                 "    movs r0, #16\n    bl kof_alloc\n    ldr r1, =.Lroot_a\n    str r0, [r1]\n"
                 + "    movs r0, #16\n    bl kof_alloc\n    mov r4, r0\n"
@@ -101,7 +101,7 @@ class NativeMcuArmGcTest {
 
     @Test
     void mcuArmGcLongAllocLoopIsRecycled(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuArmAsm();
         String out = run(tempDir, "gc7", body(loopOps(10000)), HEAP);
         assertTrue(out.contains("allocs: 10000"),
                 "o laço deveria completar 10000 allocs reciclando o heap: " + out);
@@ -111,7 +111,7 @@ class NativeMcuArmGcTest {
 
     @Test
     void mcuArmGcLongAllocLoopOomsWithoutCollector(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuArmAsm();
         // Sabotagem: removido o hook do coletor no OOM → o bump esgota e panica.
         String sabotaged = NativeMcuArmGc.all().replace("bl kof_gc_collect_now\n", "");
         String out = runWith(tempDir, "gc8", body(loopOps(10000)), HEAP, sabotaged);
@@ -132,7 +132,7 @@ class NativeMcuArmGcTest {
 
     @Test
     void mcuArmGcFreeIsReusedByNextAlloc(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuArmAsm();
         String out = run(tempDir, "gc2", body(
                 "    movs r0, #16\n    bl kof_alloc\n    mov r4, r0\n"
                 + "    mov r0, r4\n    bl kof_free\n"
@@ -148,7 +148,7 @@ class NativeMcuArmGcTest {
 
     @Test
     void mcuArmGcOomPanicsWithDiagnostic(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuArmAsm();
         // Heap de 4 KB; pedido de 32 KB estoura o bump → panic nomeado (R6/Q7).
         String out = run(tempDir, "gc3", body(
                 "    ldr r0, =0x8000\n    bl kof_alloc\n    bl kof_memstats\n"), 0x1000);
@@ -278,10 +278,6 @@ class NativeMcuArmGcTest {
         p.waitFor(30, TimeUnit.SECONDS);
         p.destroyForcibly();
         return Files.readString(ser, StandardCharsets.ISO_8859_1).replace("\0", "");
-    }
-
-    private void assumeToolchain() {
-        assumeTrue(tool("arm-none-eabi-as") != null, "binutils arm-none-eabi ausente");
     }
 
     /** Caminho da ferramenta: PATH ou prefixo provisionado sem root. */

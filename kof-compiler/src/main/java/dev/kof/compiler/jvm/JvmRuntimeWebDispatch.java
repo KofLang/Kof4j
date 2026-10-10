@@ -42,29 +42,35 @@ public final class JvmRuntimeWebDispatch {
                  * segurança vão para {@code KOF_SEC_RESPONSE_HEADERS} (o
                  * dispatch limpa {@code KOF_WEB_HEADERS} antes da rota).
                  */
-                private static String kof_web_security_pipeline(WebApp app, WebRequest req) {
-                    // 1. rate-limit (janela configurável; chave por IP remoto)
-                    if (app.securityRateLimit > 0) {
+                private static String kof_web_security_pipeline(WebApp app, WebRequest req,
+                        Policy p, String routePattern) {
+                    // 1. rate-limit (janela configurável; F5: chave por
+                    //    IP + padrão de rota — limites de escopos/endpoints
+                    //    distintos não compartilham contador).
+                    if (p.rateLimit > 0) {
                         String ip = req.headers.get("x-forwarded-for");
                         if (ip == null || ip.isBlank()) ip = req.remoteAddr;
                         if (ip == null || ip.isBlank()) ip = "local";
-                        if (!kof_sec_rate_limit(ip, app.securityRateLimit, app.securityRateWindow)) {
+                        String rlKey = ip + "|" + (routePattern == null ? "" : routePattern);
+                        if (!kof_sec_rate_limit(rlKey, p.rateLimit, p.rateWindow)) {
                             kof_web_sec_header("Retry-After",
-                                    String.valueOf(app.securityRateWindow));
+                                    String.valueOf(p.rateWindow));
                             return kof_web_build(429, "Too Many Requests",
-                                    "{\\"error\\":\\"too many requests\\"}");
+                                    kof_web_sec_response(p, "tooManyRequests",
+                                            "{\\"error\\":\\"too many requests\\"}"));
                         }
                     }
                     // 2. cors (só age se houver Origin)
-                    if (app.securityCors != null) {
+                    if (p.cors != null) {
                         String origin = req.headers.get("origin");
                         if (origin != null && !origin.isBlank()) {
-                            if (!kof_sec_cors_allowed(origin, app.securityCors)) {
+                            if (!kof_sec_cors_allowed(origin, p.cors)) {
                                 return kof_web_build(403, "Forbidden",
-                                        "{\\"error\\":\\"cors origin denied\\"}");
+                                        kof_web_sec_response(p, "forbidden",
+                                                "{\\"error\\":\\"cors origin denied\\"}"));
                             }
                             kof_web_sec_header("Access-Control-Allow-Origin",
-                                    app.securityCors.contains("*") ? "*" : origin);
+                                    p.cors.contains("*") ? "*" : origin);
                             kof_web_sec_header("Vary", "Origin");
                             if ("OPTIONS".equalsIgnoreCase(req.method)
                                     && req.headers.get("access-control-request-method") != null) {
@@ -80,7 +86,7 @@ public final class JvmRuntimeWebDispatch {
                         }
                     }
                     // 3. headers de hardening (HSTS só sob TLS)
-                    if (app.securityHeaders) {
+                    if (p.headers) {
                         kof_web_sec_header("Content-Security-Policy", kof_sec_csp_header());
                         kof_web_sec_header("X-Content-Type-Options",
                                 kof_sec_content_type_options_header());
@@ -93,15 +99,16 @@ public final class JvmRuntimeWebDispatch {
                     // 4. session: header de auth obrigatório fora dos prefixos
                     //    públicos (§5: autenticado por padrão, LEITURA incluída;
                     //    publicPaths é a allow-list). Sessão inválida nunca passa.
-                    if (app.securityAuthHeader != null) {
-                        boolean isPublic = app.securityPublicPaths.stream()
-                                .anyMatch(p -> req.path.equals(p) || req.path.startsWith(p));
+                    if (p.authHeader != null) {
+                        boolean isPublic = p.publicPaths.stream()
+                                .anyMatch(pp -> req.path.equals(pp) || req.path.startsWith(pp));
                         if (!isPublic) {
-                            String tok = req.headers.get(app.securityAuthHeader);
+                            String tok = req.headers.get(p.authHeader);
                             if (tok == null || tok.isBlank()
                                     || kof_sec_session_get(tok) == null) {
                                 return kof_web_build(401, "Unauthorized",
-                                        "{\\"error\\":\\"unauthorized\\"}");
+                                        kof_web_sec_response(p, "unauthorized",
+                                                "{\\"error\\":\\"unauthorized\\"}"));
                             }
                         }
                     }
@@ -109,7 +116,7 @@ public final class JvmRuntimeWebDispatch {
                     //    §5 (Spring model): ON por padrão (método seguro emite
                     //    o cookie; mutação exige o double-submit). csrf:false
                     //    desliga explicitamente.
-                    if (app.securityCsrf) {
+                    if (p.csrf) {
                         boolean safe = "GET".equals(req.method)
                                 || "HEAD".equals(req.method)
                                 || "OPTIONS".equals(req.method);
@@ -130,7 +137,8 @@ public final class JvmRuntimeWebDispatch {
                                             : kof_sec_csrf_valid(headerToken));
                             if (!valid) {
                                 return kof_web_build(403, "Forbidden",
-                                        "{\\"error\\":\\"csrf token invalid\\"}");
+                                        kof_web_sec_response(p, "forbidden",
+                                                "{\\"error\\":\\"csrf token invalid\\"}"));
                             }
                         }
                     }
@@ -139,27 +147,30 @@ public final class JvmRuntimeWebDispatch {
                     //    há sessionHeader (modo sessão da lane .22), o passo 4
                     //    já validou o token de sessão — não reinterpretar como
                     //    JWT (senão sessão válida viraria 401).
-                    if (app.securityRequireAuth
-                            || (app.securityAuthHeader == null
+                    if (p.requireAuth
+                            || (p.authHeader == null
                                     && req.headers.get("authorization") != null)) {
                         boolean authenticated = kof_sec_auth_authenticated();
                         if (!authenticated) {
                             kof_web_sec_header("WWW-Authenticate", "Bearer");
                             return kof_web_build(401, "Unauthorized",
-                                    "{\\"error\\":\\"unauthorized\\"}");
+                                    kof_web_sec_response(p, "unauthorized",
+                                            "{\\"error\\":\\"unauthorized\\"}"));
                         }
                     }
                     // 7. RBAC: todas as roles exigidas (implica auth).
-                    if (!app.securityRoles.isEmpty()) {
+                    if (!p.roles.isEmpty()) {
                         if (!kof_sec_auth_authenticated()) {
                             kof_web_sec_header("WWW-Authenticate", "Bearer");
                             return kof_web_build(401, "Unauthorized",
-                                    "{\\"error\\":\\"unauthorized\\"}");
+                                    kof_web_sec_response(p, "unauthorized",
+                                            "{\\"error\\":\\"unauthorized\\"}"));
                         }
-                        for (String role : app.securityRoles) {
+                        for (String role : p.roles) {
                             if (!kof_sec_auth_has_role(role)) {
                                 return kof_web_build(403, "Forbidden",
-                                        "{\\"error\\":\\"forbidden\\"}");
+                                        kof_web_sec_response(p, "forbidden",
+                                                "{\\"error\\":\\"forbidden\\"}"));
                             }
                         }
                     }
@@ -168,6 +179,36 @@ public final class JvmRuntimeWebDispatch {
 
                 private static void kof_web_sec_header(String name, String value) {
                     if (value != null) KOF_SEC_RESPONSE_HEADERS.get().put(name, value);
+                }
+
+                /** D-HTTP-POLICIES (F0): corpo de rejeicao declarado via
+                 *  app.security(opts).responses; fallback = corpo embutido. */
+                private static String kof_web_sec_response(Policy p, String key, String fallback) {
+                    String body = p.responses.get(key);
+                    return body != null ? body : fallback;
+                }
+
+                /** D-HTTP-POLICIES (F3): primeira rota que casa (sem invocar),
+                 *  para fundir a policy de endpoint na efetiva ANTES da
+                 *  pipeline. Null = nenhuma (404 segue com a policy de path). */
+                private static WebRoute kof_web_match_route(WebApp app, WebRequest req) {
+                    for (WebRoute route : app.routes) {
+                        if (route.kind == RouteKind.HTTP && !route.method.equals(req.method)) {
+                            continue;
+                        }
+                        String[] pathSegs = req.path.split("/");
+                        if (pathSegs.length != route.segments.length) continue;
+                        boolean match = true;
+                        for (int i = 0; i < pathSegs.length; i++) {
+                            if (route.params[i]) continue;
+                            if (!route.segments[i].equals(pathSegs[i])) {
+                                match = false;
+                                break;
+                            }
+                        }
+                        if (match) return route;
+                    }
+                    return null;
                 }
 
                 private static WebDispatchResult kof_web_dispatch(WebApp app, WebRequest req) {
@@ -207,7 +248,12 @@ public final class JvmRuntimeWebDispatch {
                         // rotas (security by default não depende de o usuário
                         // compor a ordem à mão). Falha = resposta curta
                         // (429/403/401), nunca silenciosa (R6).
-                        String securityReject = kof_web_security_pipeline(app, req);
+                        Policy pathPolicy = kof_web_effective_policy(app, req);
+                        WebRoute matched = kof_web_match_route(app, req);
+                        Policy effective = (matched != null && matched.policy != null)
+                                ? pathPolicy.merge(matched.policy) : pathPolicy;
+                        String securityReject = kof_web_security_pipeline(app, req, effective,
+                                matched != null ? matched.path : "");
                         if (securityReject != null) {
                             KOF_WEB_STATUS.remove();
                             KOF_WEB_HEADERS.get().clear();
@@ -239,7 +285,9 @@ public final class JvmRuntimeWebDispatch {
                                 KOF_WEB_STATUS.remove();
                                 KOF_WEB_HEADERS.get().clear();
                                 return new WebDispatchResult(RouteKind.HTTP,
-                                        kof_web_build(404, "Not Found", "{\\\"error\\\": \\\"not found\\\"}"), null);
+                                        kof_web_build(404, "Not Found",
+                                                kof_web_sec_response(effective, "notFound",
+                                                        "{\\\"error\\\": \\\"not found\\\"}")), null);
                             }
                             Integer st2 = KOF_WEB_STATUS.get();
                             int code2 = st2 != null ? st2 : 200;
@@ -303,7 +351,9 @@ public final class JvmRuntimeWebDispatch {
                             kof_web_static_done();
                         }
                         return new WebDispatchResult(RouteKind.HTTP,
-                                kof_web_build(404, "Not Found", "{\\"error\\": \\"not found\\"}"), null);
+                                kof_web_build(404, "Not Found",
+                                        kof_web_sec_response(effective, "notFound",
+                                                "{\\\"error\\\": \\\"not found\\\"}")), null);
                     } catch (Exception e) {
                         // handler lambda é invocado via reflection: a exceção
                         // real chega embrulhada em InvocationTargetException —
@@ -340,8 +390,22 @@ public final class JvmRuntimeWebDispatch {
                 }
 
                 private static Object kof_web_invoke(Object target, SseConnection sse) throws Exception {
-                    return target.getClass().getMethod("invoke", SseConnection.class)
-                            .invoke(target, sse);
+                    try {
+                        return target.getClass().getMethod("invoke", SseConnection.class)
+                                .invoke(target, sse);
+                    } catch (NoSuchMethodException e) {
+                        // A2: non-compiled handlers (e.g. the interpreter's
+                        // InterpretedCallable under --target script) expose a
+                        // generic single-parameter invoke arm — scan for it
+                        // instead of requiring the exact generated type.
+                        for (java.lang.reflect.Method m : target.getClass().getMethods()) {
+                            if (m.getName().equals("invoke") && m.getParameterCount() == 1
+                                    && m.getParameterTypes()[0].isInstance(sse)) {
+                                return m.invoke(target, sse);
+                            }
+                        }
+                        throw e;
+                    }
                 }
 
                 // ── WS/SSE context (kof_web_ws_message/wsSend/sse) ──

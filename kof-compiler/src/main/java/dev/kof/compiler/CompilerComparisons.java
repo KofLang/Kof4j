@@ -39,6 +39,15 @@ public final class CompilerComparisons {
             if (KofSecurity.isSecretType(leftU) || KofSecurity.isSecretType(rightU)) {
                 return false;
             }
+            // §553 / D-EQ-UNBOUNDED-T (mantenedora 02/10): `==`/`!=` sobre um
+            // type variable SEM bound é igualdade ESTRUTURAL — desativa o
+            // shortcut (if_acmp cru) e deixa o caminho de VALOR
+            // (ExpressionBinaryLowerer -> Objects.equals) assumir; o chamador
+            // salta sobre o BOOL resultante.
+            if (ExpressionBinaryPredicates.isUnboundedTypeVar(left)
+                    || ExpressionBinaryPredicates.isUnboundedTypeVar(right)) {
+                return false;
+            }
             // enum == enum: D-ENUM207 — as constantes são INSTÂNCIAS (singletons
             // de <clinit>), então a igualdade é por IDENTIDADE (if_acmp), não por
             // conteúdo String. Deixa o caminho de referência assumir.
@@ -359,6 +368,11 @@ public final class CompilerComparisons {
         }
         Type leftT = ExpressionTyper.inferExprType(driver, bin.left(), locals);
         Type rightT = ExpressionTyper.inferExprType(driver, bin.right(), locals);
+        if (ExpressionBinaryPredicates.isRelationalOp(bin.operator())
+                && ExpressionBinaryPredicates.isUnorderedAgainstFloating(leftT, rightT)) {
+            reportUnorderedFloatingComparison(driver, bin, leftT, rightT);
+            return localIdx;
+        }
         // lado "Unknown-ou-Nullable(Unknown)" pode conter null (get de
         // mapOf() sem pin) — o primitivo oposto é boxado (comparação vira
         // referência; espelha o interpretador, Objects.equals)
@@ -403,6 +417,25 @@ public final class CompilerComparisons {
         }
         driver.emitWideningIfNeeded(ops, rightT, common);
         return localIdx;
+    }
+
+    static void reportUnorderedFloatingComparison(CompilerDriver driver, BinaryExpr bin,
+                                                   Type leftT, Type rightT) {
+        if (driver.currentDiagnostics == null) return;
+        Type bad = TypeMetrics.isFloatingPoint(leftT) ? rightT : leftT;
+        Type shown = bad instanceof Type.NullableType nt ? nt.inner() : bad;
+        String label = Type.isUnknown(shown) || shown instanceof Type.TypeVariable
+                ? "the operand type (not known)" : "'" + Type.display(shown) + "'";
+        SourcePosition pos = bin.position();
+        driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                pos != null ? pos.line() : 0,
+                pos != null ? pos.column() : 0,
+                0,
+                "Kof has no operator '" + bin.operator() + "' for " + label
+                        + " compared to a Double/Float operand — ordering is defined only"
+                        + " for numeric operands; compare numeric values, or use"
+                        + " value.toDouble() on a known dynamic value",
+                "SEM104");
     }
 
     static KofComparison mapComparison(String op) {
@@ -508,7 +541,13 @@ public final class CompilerComparisons {
                 // dos checks genéricos (o "delete" também é rota do web)
                 return true;
             }
-            if (mc.receiver() != null) {
+            // #755: the web-route table is receiver-gated on `kof.web.App`
+            // (MethodCallTyper does the same); without the gate ANY user
+            // method named get/post/put/patch/delete/options was treated as a
+            // void route here, so a statement `b.post(...)` returning String
+            // skipped its POP and the JVM class failed VerifyError.
+            if (mc.receiver() != null
+                    && KofWeb.isAppType(ExpressionTyper.inferExprType(driver, mc.receiver(), locals))) {
                 List<Type> webArgTypes = new ArrayList<>();
                 for (ExpressionNode arg : mc.arguments()) webArgTypes.add(ExpressionTyper.inferExprType(driver, arg, List.of()));
                 KofWeb.WebCall webCall = KofWeb.instanceMethod(mc.methodName(), webArgTypes);

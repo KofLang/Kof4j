@@ -1,0 +1,100 @@
+package kfvm.github
+
+import kof.json
+import kof.time
+
+class GitHubClient {
+    String repo
+    String platform
+    String token
+    ReleaseCache releaseCache
+    HttpTransport transport
+    Long ttlMillis
+
+    constructor(String repo, String platform, String token, ReleaseCache releaseCache, HttpTransport transport, Long ttlMillis) {
+        this.repo = repo
+        this.platform = platform
+        this.token = token
+        this.releaseCache = releaseCache
+        this.transport = transport
+        this.ttlMillis = ttlMillis
+    }
+
+    List<RemoteRelease> cachedReleases() { return releaseCache.load().releases() }
+
+    List<RemoteRelease> releases() {
+        var cached = releaseCache.load()
+        var now = time.now()
+        if (cached.isFresh(now, ttlMillis)) return cached.releases()
+
+        var pages = listOf<CachedPage>()
+        var page = 1
+        var pageSize = 100
+        var more = true
+
+        while (more && page <= 10) {
+            var current = fetchPage(page, pageSize, ReleaseCache.pageOf(cached.pages(), page))
+            pages.add(current)
+            more = current.count() == pageSize
+            page = page + 1
+        }
+
+        releaseCache.write(now, pages)
+        return ReleaseIndex(releaseCache.kfvm, now, pages).releases()
+    }
+
+    String downloadUrl(RemoteRelease release, String file) {
+        var tag = encode(release.name())
+        return "https://github.com/" + repo + "/releases/download/" + tag + "/" + encode(file)
+    }
+
+    CachedPage fetchPage(Int page, Int pageSize, CachedPage previous) {
+        var url = "https://api.github.com/repos/" + repo + "/releases?per_page=" + pageSize + "&page=" + page
+        var headers = listOf<String>()
+        if (token != "") headers.add("Authorization: Bearer " + token)
+        if (previous.etag() != "") headers.add("If-None-Match: " + previous.etag())
+
+        var response = transport.get(url, headers)
+        if (response.status() == "304" && previous.etag() != "") return previous
+        if (response.status() != "200" || !response.body().startsWith("["))
+            throw "GitHub API: HTTP " + response.status() + " " + response.body() + " (rate limit? set GITHUB_TOKEN)"
+
+        var releases = decode(response.body())
+        var matching = listOf<RemoteRelease>()
+        for (var r in releases) {
+            if (matchesPlatform(r.tag_name())) matching.add(toRemote(r))
+        }
+
+        return CachedPage(page, response.etag(), releases.size, matching)
+    }
+
+    List<Release> decode(String body) {
+        return json.decode<List<kfvm.github.Release>>(body)
+    }
+
+    Bool matchesPlatform(String tag) {
+        return tag.startsWith("kof-") && tag.endsWith("-" + platform)
+    }
+
+    RemoteRelease toRemote(Release r) {
+        var tag = r.tag_name()
+        var version = tag.substring(4, tag.length - platform.length - 1)
+        var archive = ""
+        var size = 0L
+
+        for (var a in r.assets()) {
+            if (isArchive(tag, a.name())) {
+                archive = a.name()
+                size = a.size()
+            }
+        }
+
+        return RemoteRelease(version, r.prerelease(), size, tag, archive)
+    }
+
+    Bool isArchive(String tag, String file) {
+        return file == tag + ".tar.gz" || file == tag + ".zip"
+    }
+
+    String encode(String s) { return s.replace("+", "%2B") }
+}

@@ -89,8 +89,7 @@ body:
       description: |
         What is the program trying to express, in Kof's own terms? Which existing
         Kof idiom, syntax or stdlib API covers that intent, and why is it not
-        enough? (D-KOF-FIRST Gate 1 / Gate 5 — if an existing Kof abstraction
-        solves the need, this is not a bug.)
+        enough? Gates: `AGENTS.md` §Kof-first (`D-KOF-FIRST`).
     validations:
       required: true
 
@@ -111,9 +110,9 @@ body:
     attributes:
       label: Classification (D-KOF-FIRST Gate 4)
       description: |
-        How would you classify this? A maintainer agent confirms or corrects it
-        during triage; no production patch is generated from `Design request`,
-        `Not-valid` or `Contract ambiguity`.
+        Confirmed/corrected during triage; policy in `AGENTS.md` §External
+        behavior. No production patch comes from `Design request`, `Not-valid`
+        or `Contract ambiguity`.
       options:
         - Real bug — valid Kof diverges from Kof's own contract
         - Target divergence — same valid Kof, different behavior across targets

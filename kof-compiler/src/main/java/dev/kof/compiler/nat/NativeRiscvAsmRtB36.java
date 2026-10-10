@@ -326,5 +326,185 @@ final class NativeRiscvAsmRtB36 {
                 ld   ra, 88(sp)
                 addi sp, sp, 96
                 ret
-            """;
+
+            # String_compareToIgnoreCase(a0=this, a1=other) -> a0=Int —
+            # CASE_INSENSITIVE_ORDER do JVM: fold SIMPLES por code unit (upper;
+            # se ainda difere, lower; prefixo -> unitsA-unitsB). Frame 96:
+            # curA@0 curB@8 uA@16 uB@20 countA@24 countB@28.
+            .globl String_compareToIgnoreCase
+            String_compareToIgnoreCase:
+                addi sp, sp, -96
+                sd   ra, 88(sp)
+                sd   s0, 80(sp)
+                sd   s1, 72(sp)
+                sd   s2, 64(sp)
+                sd   s3, 56(sp)
+                mv   s0, a0
+                mv   s1, a1
+                lw   s2, 16(s0)
+                lw   s3, 16(s1)
+                sd   zero, 0(sp)
+                sd   zero, 8(sp)
+                sw   zero, 24(sp)
+            .Lb6_ci_ca:
+                addi a0, s0, 24
+                mv   a1, sp
+                mv   a2, s2
+                call .Lu5_next
+                li   t0, -1
+                beq  a0, t0, .Lb6_ci_cad
+                lw   t1, 24(sp)
+                addi t1, t1, 1
+                sw   t1, 24(sp)
+                j    .Lb6_ci_ca
+            .Lb6_ci_cad:
+                sw   zero, 28(sp)
+            .Lb6_ci_cb:
+                addi a0, s1, 24
+                addi a1, sp, 8
+                mv   a2, s3
+                call .Lu5_next
+                li   t0, -1
+                beq  a0, t0, .Lb6_ci_cbd
+                lw   t1, 28(sp)
+                addi t1, t1, 1
+                sw   t1, 28(sp)
+                j    .Lb6_ci_cb
+            .Lb6_ci_cbd:
+                sd   zero, 0(sp)
+                sd   zero, 8(sp)
+            .Lb6_ci_loop:
+                addi a0, s0, 24
+                mv   a1, sp
+                mv   a2, s2
+                call .Lu5_next
+                sw   a0, 16(sp)
+                addi a0, s1, 24
+                addi a1, sp, 8
+                mv   a2, s3
+                call .Lu5_next
+                sw   a0, 20(sp)
+                lw   t0, 16(sp)
+                lw   t1, 20(sp)
+                bne  t0, t1, .Lb6_ci_diff
+                li   t2, -1
+                beq  t0, t2, .Lb6_ci_same
+                j    .Lb6_ci_loop
+            .Lb6_ci_diff:
+                li   t2, -1
+                lw   t0, 16(sp)
+                beq  t0, t2, .Lb6_ci_length
+                lw   t1, 20(sp)
+                beq  t1, t2, .Lb6_ci_length
+                lw   a0, 16(sp)
+                call .Lb6_ci_fup
+                sw   a0, 16(sp)
+                lw   a0, 20(sp)
+                call .Lb6_ci_fup
+                sw   a0, 20(sp)
+                lw   t0, 16(sp)
+                lw   t1, 20(sp)
+                beq  t0, t1, .Lb6_ci_loop
+                lw   a0, 16(sp)
+                call .Lb6_ci_flo
+                sw   a0, 16(sp)
+                lw   a0, 20(sp)
+                call .Lb6_ci_flo
+                sw   a0, 20(sp)
+                lw   t0, 16(sp)
+                lw   t1, 20(sp)
+                beq  t0, t1, .Lb6_ci_loop
+                sub  a0, t0, t1
+                j    .Lb6_ci_ret
+            .Lb6_ci_same:
+            .Lb6_ci_length:
+                lw   a0, 24(sp)
+                lw   t0, 28(sp)
+                sub  a0, a0, t0
+            .Lb6_ci_ret:
+                ld   s0, 80(sp)
+                ld   s1, 72(sp)
+                ld   s2, 64(sp)
+                ld   s3, 56(sp)
+                ld   ra, 88(sp)
+                addi sp, sp, 96
+                ret
+
+            # .Lb6_ci_fup(a0=unit) -> a0 = simple upper (ASCII inline; tabela BMP).
+            .Lb6_ci_fup:
+                li   t0, 128
+                bgeu a0, t0, .Lb6_ci_fup_tab
+                li   t0, 97
+                bltu a0, t0, .Lb6_ci_fup_r
+                li   t0, 122
+                bltu t0, a0, .Lb6_ci_fup_r
+                addi a0, a0, -32
+            .Lb6_ci_fup_r:
+                ret
+            .Lb6_ci_fup_tab:
+                mv   t3, a0
+                la   t4, .Lkof_cu_up_tab
+                li   a1, 0
+                li   a2, @UPN@
+                addi a2, a2, -1
+            .Lb6_ci_fup_bs:
+                bgt  a1, a2, .Lb6_ci_fup_nf
+                add  a3, a1, a2
+                srli a3, a3, 1
+                slli t0, a3, 2
+                add  t0, t4, t0
+                lhu  t1, 0(t0)
+                beq  t1, t3, .Lb6_ci_fup_f
+                bltu t3, t1, .Lb6_ci_fup_hi
+                addi a1, a3, 1
+                j    .Lb6_ci_fup_bs
+            .Lb6_ci_fup_hi:
+                addi a2, a3, -1
+                j    .Lb6_ci_fup_bs
+            .Lb6_ci_fup_f:
+                lhu  a0, 2(t0)
+                ret
+            .Lb6_ci_fup_nf:
+                mv   a0, t3
+                ret
+
+            # .Lb6_ci_flo(a0=unit) -> a0 = simple lower.
+            .Lb6_ci_flo:
+                li   t0, 128
+                bgeu a0, t0, .Lb6_ci_flo_tab
+                li   t0, 65
+                bltu a0, t0, .Lb6_ci_flo_r
+                li   t0, 90
+                bltu t0, a0, .Lb6_ci_flo_r
+                addi a0, a0, 32
+            .Lb6_ci_flo_r:
+                ret
+            .Lb6_ci_flo_tab:
+                mv   t3, a0
+                la   t4, .Lkof_cu_lo_tab
+                li   a1, 0
+                li   a2, @LON@
+                addi a2, a2, -1
+            .Lb6_ci_flo_bs:
+                bgt  a1, a2, .Lb6_ci_flo_nf
+                add  a3, a1, a2
+                srli a3, a3, 1
+                slli t0, a3, 2
+                add  t0, t4, t0
+                lhu  t1, 0(t0)
+                beq  t1, t3, .Lb6_ci_flo_f
+                bltu t3, t1, .Lb6_ci_flo_hi
+                addi a1, a3, 1
+                j    .Lb6_ci_flo_bs
+            .Lb6_ci_flo_hi:
+                addi a2, a3, -1
+                j    .Lb6_ci_flo_bs
+            .Lb6_ci_flo_f:
+                lhu  a0, 2(t0)
+                ret
+            .Lb6_ci_flo_nf:
+                mv   a0, t3
+                ret
+            """.replace("@UPN@", Integer.toString(dev.kof.compiler.runtime.RuntimeStringCase.count(true)))
+                .replace("@LON@", Integer.toString(dev.kof.compiler.runtime.RuntimeStringCase.count(false)));
 }

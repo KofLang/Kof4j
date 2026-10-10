@@ -1,0 +1,756 @@
+package interop
+
+import file.TextStream
+
+// kof.interop — C header → Kof binding generator (plan §7, `D-CONNECTORS-GO`).
+//
+// The plan's §7 "header / binding generation": read a C header and emit the Kof
+// `foreign module` block (slice A grammar) that binds the declared symbols
+// through the EXISTING FFI path (rule 54, no new ABI engine). The output is
+// ordinary Kof source; a generated binding that cannot be trusted is not
+// delivered, so every declaration is either mapped deterministically or recorded
+// in `skipped()` with a reason — never emitted wrong, never silently dropped.
+//
+// Bounded, documented subset (slices 1–3):
+//   * scalar types — int/unsigned int -> Int, long/long long/size_t/int64_t ->
+//     Long, float -> Float, double -> Double, bool/_Bool -> Bool, char*/const
+//     char* -> String, void -> void;
+//   * `struct Name { fields };` and `typedef struct { fields } Name;` become Kof
+//     `record Name(...)` declarations (scalar fields), emitted before the module;
+//   * `typedef struct Name Alias;` and `typedef <scalar> Alias;` are resolved as
+//     aliases (a struct-typed parameter/return maps to the record name);
+//   * `enum Name { A, B };` (and typedef forms) resolve to `Int` — the C enum ABI;
+//     a `= value` enum is skipped honestly (the constants are not exposed as named
+//     Kof values: Kof's `enum` is name-based, so integer-constant exposure is a
+//     maintainer decision, not invented here);
+//   * one `(` per function declaration (function pointers with two parens are
+//     skipped); no arrays (`[`), no varargs (`...`), no preprocessor lines,
+//     no `static` (internal linkage cannot be resolved by dlopen);
+//   * a trailing `;` is required; the return type is everything before the last
+//     identifier that precedes `(`.
+//
+// Built on `libs/file/TextStream.kf`; JS inherits the compile-time gap `IOJS001`
+// (the reader). `render()` is target-neutral (no IO) once the header is read.
+
+record CField(String name, String kofType)
+record CRecord(String name, List<CField> fields)
+record CFunction(String name, String returnType, List<String> paramTypes, List<String> paramNames)
+
+class CHeaderBindings {
+    List<CRecord> records
+    List<CFunction> functions
+    List<String> skippedReasons
+    List<String> structNames
+    List<String> aliasNames
+    List<String> aliasTargets
+    List<String> enumNames
+
+    constructor(String path) {
+        this.records = listOf<CRecord>()
+        this.functions = listOf<CFunction>()
+        this.skippedReasons = listOf<String>()
+        this.structNames = listOf<String>()
+        this.aliasNames = listOf<String>()
+        this.aliasTargets = listOf<String>()
+        this.enumNames = listOf<String>()
+        parseCHeader(path, 8192, this)
+    }
+
+    constructor(String path, Int chunkSize) {
+        this.records = listOf<CRecord>()
+        this.functions = listOf<CFunction>()
+        this.skippedReasons = listOf<String>()
+        this.structNames = listOf<String>()
+        this.aliasNames = listOf<String>()
+        this.aliasTargets = listOf<String>()
+        this.enumNames = listOf<String>()
+        parseCHeader(path, chunkSize, this)
+    }
+
+    // The mapped functions, in declaration order (deterministic).
+    List<CFunction> declarations() {
+        return this.functions
+    }
+
+    // The `struct`/`typedef struct` records, in declaration order.
+    List<CRecord> structs() {
+        return this.records
+    }
+
+    // The `enum` names whose constants resolve to the C enum ABI (`Int`).
+    List<String> enums() {
+        return this.enumNames
+    }
+
+    // Declarations that were NOT mapped, each with an honest reason.
+    List<String> skipped() {
+        return this.skippedReasons
+    }
+
+    // The `extern ...` lines only (the body of the module block).
+    List<String> externLines() {
+        var out: List<String> = listOf<String>()
+        var i = 0
+        while (i < this.functions.size()) {
+            out.add(renderExtern(this.functions.get(i)))
+            i = i + 1
+        }
+        return out
+    }
+
+    // The `record` declarations the generated program needs, before the module.
+    List<String> recordLines() {
+        var out: List<String> = listOf<String>()
+        var i = 0
+        while (i < this.records.size()) {
+            out.add(renderRecord(this.records.get(i)))
+            i = i + 1
+        }
+        return out
+    }
+
+    // The full generated program fragment: the `record` declarations, a blank
+    // line, then the `foreign module <name> { ... }` block. Deterministic.
+    String render(String moduleName, String library) {
+        var out = ""
+        var recs = recordLines()
+        var r = 0
+        while (r < recs.size()) {
+            out = out + recs.get(r) + "\n"
+            r = r + 1
+        }
+        if (recs.size() > 0) {
+            out = out + "\n"
+        }
+        out = out + "foreign module " + moduleName + " {\n"
+        out = out + "    library \"" + library + "\"\n"
+        out = out + "    abi c\n"
+        out = out + "    ownership borrowed\n"
+        var lines = externLines()
+        var i = 0
+        while (i < lines.size()) {
+            out = out + "    " + lines.get(i) + "\n"
+            i = i + 1
+        }
+        out = out + "}\n"
+        return out
+    }
+
+    String renderExtern(CFunction decl) {
+        var out = "extern " + decl.name + "("
+        var i = 0
+        while (i < decl.paramTypes.size()) {
+            if (i > 0) {
+                out = out + ", "
+            }
+            out = out + decl.paramTypes.get(i) + " " + decl.paramNames.get(i)
+            i = i + 1
+        }
+        out = out + "): " + decl.returnType
+        return out
+    }
+
+    String renderRecord(CRecord rec) {
+        var out = "record " + rec.name + "("
+        var i = 0
+        while (i < rec.fields.size()) {
+            if (i > 0) {
+                out = out + ", "
+            }
+            out = out + rec.fields.get(i).kofType + " " + rec.fields.get(i).name
+            i = i + 1
+        }
+        return out + ")"
+    }
+
+    // Resolve a C type to a Kof type: alias, then scalar, then a known record
+    // name (a struct-typed parameter/return maps to the record), else null.
+    String? resolveType(String cType) {
+        var normalized = cHeaderNormalize(cType)
+        // A `struct Name` / `enum Name` type: drop the keyword so it resolves to
+        // the record / enum ABI.
+        if (normalized.startsWith("struct")) {
+            normalized = cHeaderTrim(cHeaderSlice(normalized, "struct".length, normalized.length))
+        } else if (normalized.startsWith("enum")) {
+            normalized = cHeaderTrim(cHeaderSlice(normalized, "enum".length, normalized.length))
+        }
+        var aliasIndex = this.aliasNames.indexOf(normalized)
+        if (aliasIndex >= 0) {
+            return this.aliasTargets.get(aliasIndex)
+        }
+        var scalar = cHeaderScalarType(normalized)
+        if (scalar != null) {
+            return scalar
+        }
+        if (this.structNames.contains(normalized)) {
+            return normalized
+        }
+        // A C `enum Name` value is an integer; a `typedef enum {...} Name` alias
+        // resolves here too. Kof's `enum` is name-based, so the ABI is `Int`.
+        if (this.enumNames.contains(normalized)) {
+            return "Int"
+        }
+        return null
+    }
+}
+
+// Read the header line by line into a trimmed, comment-filtered list, then walk
+// it with an index so multi-line `struct { ... }` bodies are easy to assemble.
+void parseCHeader(String path, Int chunkSize, CHeaderBindings bindings) {
+    var stream = TextStream(path, chunkSize)
+    var lines: List<String> = listOf<String>()
+    var line = stream.nextLine()
+    while (line != null) {
+        var t = cHeaderTrim(line)
+        if (t.length > 0 && !t.startsWith("//") && !t.startsWith("/*") && !t.startsWith("*") && !t.startsWith("#")) {
+            lines.add(t)
+        }
+        line = stream.nextLine()
+    }
+    var i = 0
+    while (i < lines.size()) {
+        var t = lines.get(i)
+        if (cHeaderIsStructStart(t)) {
+            i = parseStruct(lines, i, bindings)
+        } else if (cHeaderIsEnumStart(t)) {
+            i = parseEnum(lines, i, bindings)
+        } else if (cHeaderStartsWithWord(t, "typedef")) {
+            parseTypedef(t, bindings)
+        } else {
+            parseFunctionLine(t, bindings)
+        }
+        i = i + 1
+    }
+}
+
+// `struct Name {` or `typedef struct {` or `typedef struct Name {`: assemble the
+// body up to `};`, register the record, and return the index of the closing line.
+// Handles both the single-line form (`struct P { int x; };`) and the multi-line
+// form (body on following lines).
+Int parseStruct(List<String> lines, Int start, CHeaderBindings bindings) {
+    var header = lines.get(start)
+    var isTypedef = cHeaderStartsWithWord(header, "typedef")
+    var name = ""
+    if (isTypedef) {
+        var rest = cHeaderTrim(cHeaderSlice(header, "typedef".length, header.length))
+        var afterStruct = cHeaderTrim(cHeaderSlice(rest, "struct".length, rest.length))
+        if (!afterStruct.startsWith("{")) {
+            var brace = cHeaderIndexOf(afterStruct, "{")
+            if (brace >= 0) {
+                name = cHeaderTrim(cHeaderSlice(afterStruct, 0, brace))
+            } else {
+                name = cHeaderTrim(afterStruct)
+            }
+        }
+    } else {
+        var afterStruct = cHeaderTrim(cHeaderSlice(header, "struct".length, header.length))
+        var brace = cHeaderIndexOf(afterStruct, "{")
+        if (brace >= 0) {
+            name = cHeaderTrim(cHeaderSlice(afterStruct, 0, brace))
+        } else {
+            name = cHeaderTrim(afterStruct)
+        }
+    }
+    var fields: List<CField> = listOf<CField>()
+    var i = start
+    var closed = false
+    var afterBrace = cHeaderSliceAfterBrace(header)
+    if (cHeaderContains(afterBrace, '}')) {
+        // Single-line struct: body is between `{` and `}` on this line.
+        var close = cHeaderIndexOf(afterBrace, "}")
+        collectFields(cHeaderSlice(afterBrace, 0, close), fields)
+        var tail = cHeaderTrim(cHeaderSlice(afterBrace, close + 1, afterBrace.length))
+        if (tail.endsWith(";")) {
+            tail = cHeaderTrim(cHeaderSlice(tail, 0, tail.length - 1))
+        }
+        if (isTypedef && name.length == 0 && tail.length > 0) {
+            name = tail
+        }
+        closed = true
+    } else {
+        if (afterBrace.length > 0) {
+            collectFields(afterBrace, fields)
+        }
+        while (i + 1 < lines.size()) {
+            i = i + 1
+            var t = lines.get(i)
+            if (t.startsWith("}")) {
+                closed = true
+                var tail = cHeaderTrim(cHeaderSlice(t, 1, t.length))
+                if (tail.endsWith(";")) {
+                    tail = cHeaderTrim(cHeaderSlice(tail, 0, tail.length - 1))
+                }
+                if (isTypedef && name.length == 0 && tail.length > 0) {
+                    name = tail
+                }
+                break
+            }
+            collectFields(t, fields)
+        }
+    }
+    if (!closed) {
+        bindings.skippedReasons.add("unterminated struct: " + header)
+        return i
+    }
+    if (name.length == 0) {
+        bindings.skippedReasons.add("anonymous struct without typedef name: " + header)
+        return i
+    }
+    if (fields.size() == 0) {
+        bindings.skippedReasons.add("struct without scalar fields: " + name)
+        return i
+    }
+    bindings.records.add(CRecord(name, fields))
+    bindings.structNames.add(name)
+    return i
+}
+
+// `enum Name { A, B };`, `typedef enum { A, B } Name;` or
+// `typedef enum Name { A, B } Name;`: register the tag and the typedef alias as
+// C enum ABI types (`Int`). A `= value` enum is skipped honestly — exposing the
+// integer constants as named Kof values is a maintainer decision (Kof's `enum`
+// is name-based). Returns the index of the closing line.
+Int parseEnum(List<String> lines, Int start, CHeaderBindings bindings) {
+    var header = lines.get(start)
+    var isTypedef = cHeaderStartsWithWord(header, "typedef")
+    var bodyStart = header
+    if (isTypedef) {
+        bodyStart = cHeaderTrim(cHeaderSlice(header, "typedef".length, header.length))
+    }
+    var afterEnum = cHeaderTrim(cHeaderSlice(bodyStart, "enum".length, bodyStart.length))
+    var name = ""
+    if (!afterEnum.startsWith("{")) {
+        var brace = cHeaderIndexOf(afterEnum, "{")
+        if (brace >= 0) {
+            name = cHeaderTrim(cHeaderSlice(afterEnum, 0, brace))
+        } else {
+            name = cHeaderTrim(afterEnum)
+        }
+    }
+    var tailName = ""
+    var body = ""
+    var i = start
+    var closed = false
+    var afterBrace = cHeaderSliceAfterBrace(header)
+    if (cHeaderContains(afterBrace, '}')) {
+        var close = cHeaderIndexOf(afterBrace, "}")
+        body = cHeaderSlice(afterBrace, 0, close)
+        var tail = cHeaderTrim(cHeaderSlice(afterBrace, close + 1, afterBrace.length))
+        if (tail.endsWith(";")) {
+            tail = cHeaderTrim(cHeaderSlice(tail, 0, tail.length - 1))
+        }
+        tailName = tail
+        closed = true
+    } else {
+        if (afterBrace.length > 0) {
+            body = afterBrace
+        }
+        while (i + 1 < lines.size()) {
+            i = i + 1
+            var t = lines.get(i)
+            if (t.startsWith("}")) {
+                closed = true
+                var tail = cHeaderTrim(cHeaderSlice(t, 1, t.length))
+                if (tail.endsWith(";")) {
+                    tail = cHeaderTrim(cHeaderSlice(tail, 0, tail.length - 1))
+                }
+                tailName = tail
+                break
+            }
+            if (body.length > 0) {
+                body = body + " "
+            }
+            body = body + t
+        }
+    }
+    if (!closed) {
+        bindings.skippedReasons.add("unterminated enum: " + header)
+        return i
+    }
+    if (cHeaderContains(body, '=')) {
+        bindings.skippedReasons.add("enum with explicit values: " + header)
+        return i
+    }
+    if (name.length == 0 && isTypedef) {
+        name = tailName
+    }
+    if (name.length == 0) {
+        bindings.skippedReasons.add("anonymous enum without typedef name: " + header)
+        return i
+    }
+    if (!bindings.enumNames.contains(name)) {
+        bindings.enumNames.add(name)
+    }
+    if (isTypedef && tailName.length > 0 && tailName != name && !bindings.enumNames.contains(tailName)) {
+        bindings.enumNames.add(tailName)
+    }
+    return i
+}
+
+// Parse a field line (`int x;`, `double d, e;`) into scalar fields. A field whose
+// type does not resolve is left out; the caller decides (a struct with no scalar
+// fields is skipped whole).
+void collectFields(String t, List<CField> out) {
+    var body = cHeaderTrim(t)
+    if (body.length == 0 || body == "{" || body == "};") {
+        return
+    }
+    if (body.endsWith(";")) {
+        body = cHeaderTrim(cHeaderSlice(body, 0, body.length - 1))
+    }
+    if (body.length == 0) {
+        return
+    }
+    // Split into `;`-separated declarator groups, then each group on commas so
+    // `int x, y;` yields two fields.
+    var groups = cHeaderSplitOn(body, ';')
+    var g = 0
+    while (g < groups.size()) {
+        var group = cHeaderTrim(groups.get(g))
+        if (group.length > 0) {
+            var decls = cHeaderSplitParams(group)
+            var d = 0
+            while (d < decls.size()) {
+                var decl = cHeaderTrim(decls.get(d))
+                var nameStart = cHeaderLastIdentStart(decl)
+                if (nameStart >= 0) {
+                    var fieldName = cHeaderSlice(decl, nameStart, decl.length)
+                    var rawType = cHeaderTrim(cHeaderSlice(decl, 0, nameStart))
+                    var kofType = cHeaderScalarType(cHeaderNormalize(rawType))
+                    if (kofType != null) {
+                        out.add(CField(fieldName, kofType))
+                    }
+                }
+                d = d + 1
+            }
+        }
+        g = g + 1
+    }
+}
+
+// `typedef struct Name Alias;` or `typedef <scalar> Alias;`. A struct-body
+// typedef is handled by `parseStruct`, not here.
+void parseTypedef(String t, CHeaderBindings bindings) {
+    if (cHeaderContains(t, '{')) {
+        return
+    }
+    var body = t
+    if (body.endsWith(";")) {
+        body = cHeaderTrim(cHeaderSlice(body, 0, body.length - 1))
+    }
+    var rest = cHeaderTrim(cHeaderSlice(body, "typedef".length, body.length))
+    if (cHeaderStartsWithWord(rest, "struct")) {
+        var after = cHeaderTrim(cHeaderSlice(rest, "struct".length, rest.length))
+        var sp = cHeaderLastIdentStart(after)
+        if (sp >= 0) {
+            var alias = cHeaderSlice(after, sp, after.length)
+            var target = cHeaderTrim(cHeaderSlice(after, 0, sp))
+            if (bindings.structNames.contains(target)) {
+                bindings.aliasNames.add(alias)
+                bindings.aliasTargets.add(target)
+                return
+            }
+        }
+        bindings.skippedReasons.add("typedef to unknown struct: " + t)
+        return
+    }
+    if (cHeaderStartsWithWord(rest, "enum")) {
+        var after = cHeaderTrim(cHeaderSlice(rest, "enum".length, rest.length))
+        var sp = cHeaderLastIdentStart(after)
+        if (sp >= 0) {
+            var alias = cHeaderSlice(after, sp, after.length)
+            var target = cHeaderTrim(cHeaderSlice(after, 0, sp))
+            if (bindings.enumNames.contains(target)) {
+                bindings.aliasNames.add(alias)
+                bindings.aliasTargets.add("Int")
+                return
+            }
+        }
+        bindings.skippedReasons.add("typedef to unknown enum: " + t)
+        return
+    }
+    var nameStart = cHeaderLastIdentStart(rest)
+    if (nameStart < 0) {
+        return
+    }
+    var alias = cHeaderSlice(rest, nameStart, rest.length)
+    var rawType = cHeaderTrim(cHeaderSlice(rest, 0, nameStart))
+    var kofType = cHeaderScalarType(cHeaderNormalize(rawType))
+    if (kofType != null) {
+        bindings.aliasNames.add(alias)
+        bindings.aliasTargets.add(kofType)
+    } else {
+        bindings.skippedReasons.add("typedef to unsupported type '" + rawType + "': " + t)
+    }
+}
+
+// Classify one trimmed function-declaration line.
+void parseFunctionLine(String t, CHeaderBindings bindings) {
+    if (!t.endsWith(";")) {
+        return
+    }
+    if (cHeaderStartsWithWord(t, "static")) {
+        bindings.skippedReasons.add("internal linkage or typedef: " + t)
+        return
+    }
+    if (cHeaderCount(t, '(') != 1 || cHeaderCount(t, ')') != 1) {
+        bindings.skippedReasons.add("function pointer or malformed: " + t)
+        return
+    }
+    if (cHeaderContains(t, '[') || cHeaderContains(t, ']')) {
+        bindings.skippedReasons.add("array declaration: " + t)
+        return
+    }
+    if (cHeaderIndexOf(t, "...") >= 0) {
+        bindings.skippedReasons.add("variadic: " + t)
+        return
+    }
+    var open = cHeaderIndexOf(t, "(")
+    var close = cHeaderLastIndexOf(t, ")")
+    if (open < 0 || close < open) {
+        return
+    }
+    var before = cHeaderTrim(cHeaderSlice(t, 0, open))
+    var paramsRaw = cHeaderSlice(t, open + 1, close)
+    var nameStart = cHeaderLastIdentStart(before)
+    if (nameStart < 0) {
+        bindings.skippedReasons.add("no function name: " + t)
+        return
+    }
+    var name = cHeaderSlice(before, nameStart, before.length)
+    var returnRaw = cHeaderTrim(cHeaderSlice(before, 0, nameStart))
+    var ret = bindings.resolveType(returnRaw)
+    if (ret == null) {
+        bindings.skippedReasons.add("unsupported return type '" + returnRaw + "': " + t)
+        return
+    }
+    var paramTypes: List<String> = listOf<String>()
+    var paramNames: List<String> = listOf<String>()
+    var trimmedParams = cHeaderTrim(paramsRaw)
+    if (trimmedParams.length > 0 && trimmedParams != "void") {
+        var parts = cHeaderSplitParams(trimmedParams)
+        var i = 0
+        while (i < parts.size()) {
+            var p = cHeaderTrim(parts.get(i))
+            // A `struct Name p` parameter: drop the `struct` keyword for lookup.
+            if (cHeaderStartsWithWord(p, "struct")) {
+                p = cHeaderTrim(cHeaderSlice(p, "struct".length, p.length))
+            }
+            var pStart = cHeaderLastIdentStart(p)
+            if (pStart < 0) {
+                bindings.skippedReasons.add("unsupported parameter in " + name + ": " + t)
+                return
+            }
+            var pName = cHeaderSlice(p, pStart, p.length)
+            var pRaw = cHeaderTrim(cHeaderSlice(p, 0, pStart))
+            var pType = bindings.resolveType(pRaw)
+            if (pType == null) {
+                bindings.skippedReasons.add("unsupported parameter type '" + pRaw + "' in " + name + ": " + t)
+                return
+            }
+            paramTypes.add(pType)
+            paramNames.add(pName)
+            i = i + 1
+        }
+    }
+    bindings.functions.add(CFunction(name, ret, paramTypes, paramNames))
+}
+
+Bool cHeaderIsStructStart(String t) {
+    // A struct DEFINITION has a body; `struct Point mkpoint(...)` is a function.
+    if (cHeaderStartsWithWord(t, "struct")) {
+        return cHeaderContains(t, '{')
+    }
+    if (cHeaderStartsWithWord(t, "typedef")) {
+        var rest = cHeaderTrim(cHeaderSlice(t, "typedef".length, t.length))
+        return cHeaderStartsWithWord(rest, "struct") && cHeaderContains(rest, '{')
+    }
+    return false
+}
+
+Bool cHeaderIsEnumStart(String t) {
+    // An enum DEFINITION has a body; `enum Color c` is a use, not a definition.
+    if (cHeaderStartsWithWord(t, "enum")) {
+        return cHeaderContains(t, '{')
+    }
+    if (cHeaderStartsWithWord(t, "typedef")) {
+        var rest = cHeaderTrim(cHeaderSlice(t, "typedef".length, t.length))
+        return cHeaderStartsWithWord(rest, "enum") && cHeaderContains(rest, '{')
+    }
+    return false
+}
+
+// The text after the first `{` on a line (or "" when there is none).
+String cHeaderSliceAfterBrace(String s) {
+    var brace = cHeaderIndexOf(s, "{")
+    if (brace < 0) {
+        return ""
+    }
+    return cHeaderTrim(cHeaderSlice(s, brace + 1, s.length))
+}
+
+// The C scalar type table (slices 1–2). Returns the Kof type or null.
+String? cHeaderScalarType(String normalized) {
+    if (normalized == "void") {
+        return "void"
+    }
+    if (normalized == "int" || normalized == "unsignedint" || normalized == "signedint"
+            || normalized == "int32_t" || normalized == "unsignedint32_t"
+            || normalized == "short" || normalized == "unsignedshort") {
+        return "Int"
+    }
+    if (normalized == "long" || normalized == "longlong" || normalized == "longint"
+            || normalized == "longlongint" || normalized == "unsignedlong"
+            || normalized == "unsignedlonglong" || normalized == "size_t"
+            || normalized == "intptr_t" || normalized == "uintptr_t"
+            || normalized == "int64_t" || normalized == "uint64_t") {
+        return "Long"
+    }
+    if (normalized == "float") {
+        return "Float"
+    }
+    if (normalized == "double") {
+        return "Double"
+    }
+    if (normalized == "bool" || normalized == "_Bool") {
+        return "Bool"
+    }
+    if (normalized == "char*" || normalized == "constchar*") {
+        return "String"
+    }
+    return null
+}
+
+// Split on a separator character (no escaping exists in the C subset).
+List<String> cHeaderSplitOn(String s, Char sep) {
+    var out: List<String> = listOf<String>()
+    var current = ""
+    var i = 0
+    while (i < s.length) {
+        var ch = s.charAt(i)
+        if (ch == sep) {
+            out.add(current)
+            current = ""
+        } else {
+            current = current + ch
+        }
+        i = i + 1
+    }
+    out.add(current)
+    return out
+}
+
+// Split a comma-separated list (parameters or declarators).
+List<String> cHeaderSplitParams(String s) {
+    var out: List<String> = listOf<String>()
+    var current = ""
+    var i = 0
+    while (i < s.length) {
+        var ch = s.charAt(i)
+        if (ch == ',') {
+            out.add(current)
+            current = ""
+        } else {
+            current = current + ch
+        }
+        i = i + 1
+    }
+    out.add(current)
+    return out
+}
+
+// Start index of the last identifier run in `s`, or -1 when there is none.
+Int cHeaderLastIdentStart(String s) {
+    var i = s.length - 1
+    while (i >= 0) {
+        if (cHeaderIsIdentChar(s.charAt(i))) {
+            var j = i
+            while (j >= 0 && cHeaderIsIdentChar(s.charAt(j))) {
+                j = j - 1
+            }
+            return j + 1
+        }
+        i = i - 1
+    }
+    return -1
+}
+
+Bool cHeaderIsIdentChar(Char ch) {
+    return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '_'
+}
+
+Bool cHeaderStartsWithWord(String s, String word) {
+    if (s.length < word.length) {
+        return false
+    }
+    if (cHeaderSlice(s, 0, word.length) != word) {
+        return false
+    }
+    if (s.length == word.length) {
+        return true
+    }
+    return !cHeaderIsIdentChar(s.charAt(word.length))
+}
+
+String cHeaderNormalize(String s) {
+    var out = ""
+    var i = 0
+    while (i < s.length) {
+        var ch = s.charAt(i)
+        if (ch != ' ' && ch != '\t') {
+            out = out + ch
+        }
+        i = i + 1
+    }
+    return out
+}
+
+Int cHeaderCount(String s, Char target) {
+    var n = 0
+    var i = 0
+    while (i < s.length) {
+        if (s.charAt(i) == target) {
+            n = n + 1
+        }
+        i = i + 1
+    }
+    return n
+}
+
+Bool cHeaderContains(String s, Char target) {
+    return cHeaderCount(s, target) > 0
+}
+
+Int cHeaderIndexOf(String s, String sub) {
+    return s.indexOf(sub)
+}
+
+Int cHeaderLastIndexOf(String s, String sub) {
+    return s.lastIndexOf(sub)
+}
+
+String cHeaderTrim(String s) {
+    var start = 0
+    var end = s.length
+    while (start < end && cHeaderIsSpace(s.charAt(start))) {
+        start = start + 1
+    }
+    while (end > start && cHeaderIsSpace(s.charAt(end - 1))) {
+        end = end - 1
+    }
+    return cHeaderSlice(s, start, end)
+}
+
+Bool cHeaderIsSpace(Char ch) {
+    return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r'
+}
+
+String cHeaderSlice(String s, Int from, Int to) {
+    var out = ""
+    var i = from
+    while (i < to) {
+        out = out + s.charAt(i)
+        i = i + 1
+    }
+    return out
+}

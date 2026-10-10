@@ -67,9 +67,11 @@ input() → String
 Date and time.
 
 ```
-DateTime.now()
-DateTime.parse("2024-01-01")
-duration.hours()
+time.now()                 // epoch millis
+time.todayIso()            // "2026-10-04"
+time.addDays(iso, 7)       // ISO in, ISO out
+time.diffDays(a, b)
+time.sleep(ms)
 ```
 
 ### kof.json

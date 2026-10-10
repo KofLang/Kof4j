@@ -1,0 +1,27 @@
+sealed class Shape
+
+class Circle extends Shape {
+    Int r
+    public constructor(Int r) {
+        this.r = r
+    }
+}
+
+class Square extends Shape {
+    Int side
+    public constructor(Int side) {
+        this.side = side
+    }
+}
+
+String describe(Shape s) {
+    return switch (s) {
+        case Circle c -> "circle"
+        case Square q -> "square"
+    }
+}
+
+main() {
+    println(describe(Circle(2)))
+    println(describe(Square(3)))
+}

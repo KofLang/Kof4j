@@ -165,6 +165,26 @@ public final class RuntimeProcessSpawn {
                 jmp .Lkof_spawn_argvloop
             .Lkof_spawn_argvdone:
                 movq $0, 8(%r15,%rbx,8)
+                # issue #762: nenhum fd do pai/runtime vaza para o filho
+                # (JVM ProcessBuilder fecha os herdados). close_range(3, ~0,
+                # CLOSE_RANGE_CLOEXEC); fallback fcntl no kernel sem close_range.
+                movl $3, %edi
+                movl $-1, %esi
+                movl $4, %edx
+                movl $436, %eax
+                syscall
+                testq %rax, %rax
+                jns .Lkof_spawn_cloexec_done
+                movl $3, %edi
+            .Lkof_spawn_cloexec_loop:
+                movl $2, %esi
+                movl $1, %edx
+                movl $72, %eax
+                syscall
+                incl %edi
+                cmpl $1024, %edi
+                jl .Lkof_spawn_cloexec_loop
+            .Lkof_spawn_cloexec_done:
                 movq 0(%r15), %rdi
                 movq %r15, %rsi
                 call execvp

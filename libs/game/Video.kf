@@ -1,0 +1,196 @@
+package game
+
+// kof.game — video playback intent (slice 3.4a of the graphics/gaming front,
+// `D-GRAPHICS-GAMING` + `D-GRAPHICS-SPIKE` + `D-MAINT-BATCH-0510`/G1).
+//
+// The plan §10 freezes video as INTENT (`Window("Trailer") {
+// video("intro.mp4").autoplay() }`) while demuxer/decoder/codec/queue stay
+// out of the app (no own codecs — FFmpeg/Libav/native per the license
+// criteria; the LGPL-vendoring decision F is the maintainer's). This module
+// is the PURE, backend-independent half: the playback state machine over
+// caller-supplied timestamps — play/pause/stop/seek/volume/loop/mute plus
+// position and frame index — so players, playlists and goldens behave
+// deterministically with no decoder, no window and no clock of their own.
+// It calls no video/window/audio API and is honest on every target today.
+//
+//   var v = video("intro.mp4", 10000, 640, 480, 30.0)
+//   v.play()
+//   v.tick(1000)          // position = 1000, frame 30
+//   v.pause()
+//
+// Semantics (frozen here, tested):
+// - Metadata (`durationMs`/`width`/`height`/`fps`) is supplied by the
+//   caller (the backend that demuxed it) — a meaningless value throws at
+//   construction (`durationMs < 0`, `width/height <= 0`, `fps <= 0`), never
+//   a silent degenerate player.
+// - `tick(dtMs)` advances `positionMs` only while playing (a virtual clock
+//   like `Clock` — deterministic goldens, no wall time); reaching the end
+//   with `loop` off clamps to `durationMs` and stops; with `loop` on the
+//   position wraps (`% durationMs`). A paused player ignores ticks.
+// - `stop()` pauses and rewinds to 0; `play()` resumes from the current
+//   position (at the exact end with loop off, the next tick ends again);
+//   `seek(ms)` clamps into [0, `durationMs`].
+// - `setVolume(v)` clamps into [0.0, 1.0] (universal player behavior,
+//   documented — not a silent rewrite of device state, just the contract);
+//   `mute()`/`unmute()` gate audibility separately from volume.
+// - `frameIndex()` is the 0-based frame at the current position
+//   (`positionMs * fps / 1000`); `finished()` is true once the end was
+//   reached with loop off. Pure state, no IO; runs on every target.
+
+class Video {
+    String path
+    Int durationMs
+    Int widthPx
+    Int heightPx
+    Double framesPerSecond
+    Bool playing
+    Bool loopEnabled
+    Double volumeLevel
+    Bool mutedFlag
+    Int positionMs
+
+    constructor(path: String, durationMs: Int, width: Int, height: Int, fps: Double) {
+        if (durationMs < 0) { throw "Video '" + path + "': durationMs must be >= 0" }
+        if (width <= 0 || height <= 0) { throw "Video '" + path + "': dimensions must be > 0" }
+        if (fps <= 0.0) { throw "Video '" + path + "': fps must be > 0" }
+        this.path = path
+        this.durationMs = durationMs
+        this.widthPx = width
+        this.heightPx = height
+        this.framesPerSecond = fps
+        this.playing = false
+        this.loopEnabled = false
+        this.volumeLevel = 1.0
+        this.mutedFlag = false
+        this.positionMs = 0
+    }
+
+    String source() {
+        return this.path
+    }
+
+    Int duration() {
+        return this.durationMs
+    }
+
+    Int width() {
+        return this.widthPx
+    }
+
+    Int height() {
+        return this.heightPx
+    }
+
+    Bool isPlaying() {
+        return this.playing
+    }
+
+    Bool isLooping() {
+        return this.loopEnabled
+    }
+
+    Bool isMuted() {
+        return this.mutedFlag
+    }
+
+    Double volume() {
+        return this.volumeLevel
+    }
+
+    Int position() {
+        return this.positionMs
+    }
+
+    // 0-based frame at the current position.
+    Int frameIndex() {
+        return (this.positionMs * this.framesPerSecond / 1000.0) as Int
+    }
+
+    // True once the end was reached with loop off.
+    Bool finished() {
+        return !this.playing && this.positionMs >= this.durationMs && this.durationMs > 0
+    }
+
+    Video play() {
+        this.playing = true
+        return this
+    }
+
+    Video pause() {
+        this.playing = false
+        return this
+    }
+
+    // Pause and rewind to 0.
+    Video stop() {
+        this.playing = false
+        this.positionMs = 0
+        return this
+    }
+
+    // Jump, clamped into [0, duration].
+    Video seek(Int ms) {
+        if (ms < 0) {
+            this.positionMs = 0
+        } else {
+            if (ms > this.durationMs) {
+                this.positionMs = this.durationMs
+            } else {
+                this.positionMs = ms
+            }
+        }
+        return this
+    }
+
+    Video setLoop(Bool loop) {
+        this.loopEnabled = loop
+        return this
+    }
+
+    // Volume clamped into [0.0, 1.0].
+    Video setVolume(Double v) {
+        if (v < 0.0) {
+            this.volumeLevel = 0.0
+        } else {
+            if (v > 1.0) {
+                this.volumeLevel = 1.0
+            } else {
+                this.volumeLevel = v
+            }
+        }
+        return this
+    }
+
+    Video mute() {
+        this.mutedFlag = true
+        return this
+    }
+
+    Video unmute() {
+        this.mutedFlag = false
+        return this
+    }
+
+    // Advance by the caller-supplied `dtMs` while playing.
+    Video tick(Int dtMs) {
+        if (!this.playing) { return this }
+        if (this.durationMs <= 0) { return this }
+        var next = this.positionMs + dtMs
+        if (next >= this.durationMs) {
+            if (this.loopEnabled) {
+                this.positionMs = next % this.durationMs
+            } else {
+                this.positionMs = this.durationMs
+                this.playing = false
+            }
+        } else {
+            this.positionMs = next
+        }
+        return this
+    }
+}
+
+// The plan §10 shape (metadata supplied by the demuxing backend).
+Video video(String path, Int durationMs, Int width, Int height, Double fps) {
+    return Video(path, durationMs, width, height, fps)
+}

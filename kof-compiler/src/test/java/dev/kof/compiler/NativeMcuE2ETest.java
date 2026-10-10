@@ -25,7 +25,7 @@ import org.junit.jupiter.api.io.TempDir;
  * {@code scripts/provision-mcu-qemu.sh}). Sem eles o teste é {@code assumeTrue}
  * skip — nunca verde falso.
  */
-class NativeMcuE2ETest {
+class NativeMcuE2ETest implements NativeToolchainAssumptions {
 
     private static final String HELLO = "main() { println(\"KO-MCU OK\") }";
     private static final String MULTI = "main() { print(\"a\"); println(\"b\"); print(\"c\") }";
@@ -36,7 +36,7 @@ class NativeMcuE2ETest {
 
     @Test
     void mcuRiscv32PrintsOverUart(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuRiscvAsm();
         Path bin = build(tempDir, HELLO, true);
         Path ser = boot(tempDir, bin);
         String text = serialText(ser);
@@ -46,7 +46,7 @@ class NativeMcuE2ETest {
 
     @Test
     void mcuRiscv32PreservesPrintOrderAndNewlines(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuRiscvAsm();
         Path bin = build(tempDir, MULTI, true);
         String text = serialText(boot(tempDir, bin));
         assertEquals("ab\nc", text.strip(),
@@ -106,7 +106,7 @@ class NativeMcuE2ETest {
 
     @Test
     void mcuSpikeListOfPrintlnSizeAndIntOverUart(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuRiscvAsm();
         Path bin = build(tempDir, LIST_SPIKE, true);
         String text = serialText(boot(tempDir, bin));
         assertEquals("3\n42", text.strip(),
@@ -184,10 +184,6 @@ class NativeMcuE2ETest {
 
     private String serialText(Path log) throws IOException {
         return Files.readString(log, StandardCharsets.ISO_8859_1).replace("\0", "");
-    }
-
-    private void assumeToolchain() {
-        assumeTrue(hasAs(), "binutils riscv64 ausente (riscv64-linux-gnu-as)");
     }
 
     private static boolean hasAs() {

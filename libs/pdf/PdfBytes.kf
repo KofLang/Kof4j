@@ -1,0 +1,152 @@
+package pdf
+
+// kof.pdf — byte-level helpers for the pure-Kof PDF text reader (`PdfText.kf`).
+//
+// All scanning works on the raw `Int[]` (0-255) from `File.readBytes()`, never on
+// a decoded `String`: PDF bytes are binary (streams) and a UTF-8 decode would
+// corrupt them. Every function here is pure Kof — no interop, no new primitive —
+// so the reader stays cross-target (D-KOF-FIRST-IMPL, rule 12).
+
+Bool pdfIsWs(Int c) {
+    return c == 0 || c == 9 || c == 10 || c == 12 || c == 13 || c == 32
+}
+
+Bool pdfIsDigit(Int c) {
+    return c >= 48 && c <= 57
+}
+
+Bool pdfIsDelim(Int c) {
+    if (pdfIsWs(c)) {
+        return true
+    }
+    return c == 40 || c == 41 || c == 60 || c == 62 || c == 91 || c == 93 || c == 123 || c == 125 || c == 47 || c == 37
+}
+
+// Compares `s` (ASCII) against b[at..at+s.length). Returns false when out of range.
+Bool pdfMatch(Int[] b, Int at, String s) {
+    if (at < 0 || at + s.length > b.length) {
+        return false
+    }
+    var i = 0
+    while (i < s.length) {
+        if (b[at + i] != (s.charAt(i) & 255)) {
+            return false
+        }
+        i = i + 1
+    }
+    return true
+}
+
+// First index >= from where the ASCII `s` occurs, or -1.
+Int pdfFind(Int[] b, Int from, String s) {
+    if (s.length == 0) {
+        return -1
+    }
+    var i = from
+    var last = b.length - s.length
+    while (i <= last) {
+        if (b[i] == (s.charAt(0) & 255) && pdfMatch(b, i, s)) {
+            return i
+        }
+        i = i + 1
+    }
+    return -1
+}
+
+// First index >= from holding byte `v`, or -1.
+Int pdfFindByte(Int[] b, Int from, Int v) {
+    var i = from
+    while (i < b.length) {
+        if ((b[i] & 255) == v) {
+            return i
+        }
+        i = i + 1
+    }
+    return -1
+}
+
+// First index in `[from,end)` where the ASCII `s` occurs, or -1.
+Int pdfFindWithin(Int[] b, Int from, Int end, String s) {
+    if (s.length == 0 || end > b.length) {
+        return -1
+    }
+    var i = from
+    var last = end - s.length
+    while (i <= last) {
+        if (b[i] == (s.charAt(0) & 255) && pdfMatch(b, i, s)) {
+            return i
+        }
+        i = i + 1
+    }
+    return -1
+}
+
+// Skips whitespace and PDF comments (`%` to end of line). Returns the new index.
+Int pdfSkipWs(Int[] b, Int at, Int end) {
+    var i = at
+    while (i < end) {
+        var c = b[i] & 255
+        if (c == 37) {
+            while (i < end && b[i] != 10 && b[i] != 13) {
+                i = i + 1
+            }
+        } else if (pdfIsWs(c)) {
+            i = i + 1
+        } else {
+            return i
+        }
+    }
+    return i
+}
+
+// Parses a non-negative integer literal at `at`. Returns -1 when no digit.
+Int pdfAtoi(Int[] b, Int at, Int end) {
+    var i = pdfSkipWs(b, at, end)
+    var value = 0
+    var any = false
+    while (i < end && pdfIsDigit(b[i] & 255)) {
+        value = value * 10 + ((b[i] & 255) - 48)
+        any = true
+        i = i + 1
+    }
+    if (!any) {
+        return -1
+    }
+    return value
+}
+
+// Parses an integer allowing a leading '-' (used by TJ kerning numbers).
+Int pdfAtoiSigned(Int[] b, Int at, Int end) {
+    var i = pdfSkipWs(b, at, end)
+    var neg = false
+    if (i < end && (b[i] == 45 || b[i] == 43)) {
+        neg = b[i] == 45
+        i = i + 1
+    }
+    var value = 0
+    var any = false
+    while (i < end && pdfIsDigit(b[i] & 255)) {
+        value = value * 10 + ((b[i] & 255) - 48)
+        any = true
+        i = i + 1
+    }
+    if (!any) {
+        return 0
+    }
+    if (neg) {
+        return 0 - value
+    }
+    return value
+}
+
+// Builds a raw Latin-1 String from b[from..from+len). Only used for ASCII
+// keywords and WinAnsi/UTF-16 decoded text (never to echo binary streams).
+String pdfAscii(Int[] b, Int from, Int len) {
+    var out = ""
+    var i = 0
+    while (i < len && from + i < b.length) {
+        out = out + ((b[from + i] & 255) as Char)
+        i = i + 1
+    }
+    return out
+}

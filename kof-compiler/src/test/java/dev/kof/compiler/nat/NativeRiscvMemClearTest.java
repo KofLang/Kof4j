@@ -1,5 +1,7 @@
 package dev.kof.compiler.nat;
 
+import dev.kof.compiler.NativeToolchainAssumptions;
+
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -25,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * (exit 1). O OR-antes!=0 garante que a lista nao esta vazia (teste nao
  * vacuo). O runtime e podado pela PRODUCAO ({@link RiscvGcTestRuntimes#prunedFor}).
  */
-class NativeRiscvMemClearTest {
+class NativeRiscvMemClearTest implements NativeToolchainAssumptions {
 
     private static boolean has(String... cmds) {
         for (String c : cmds) {
@@ -41,15 +43,6 @@ class NativeRiscvMemClearTest {
         return true;
     }
 
-    private void assumeToolchain() {
-        Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
-                "cross toolchain riscv64 + qemu ausente — pulando (D-MEMORY-CLEAR)");
-    }
-
-    private void assumeAarch64() {
-        Assumptions.assumeTrue(has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
-                "cross toolchain aarch64 + qemu ausente — pulando (D-MEMORY-CLEAR)");
-    }
 
     /** Lista: 3 sentinelas via add real; clear; OR dos 3 slots == 0; size == 0.
      *  Map: 3 pares key/val plantados; clear; OR de keys+vals == 0; size == 0. */
@@ -197,13 +190,13 @@ class NativeRiscvMemClearTest {
 
     @Test
     void clearNullsEverySlotRiscv64(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         assertEquals("", buildRiscv(tempDir, "memclear"));
     }
 
     @Test
     void clearNullsEverySlotAarch64(@TempDir Path tempDir) throws IOException {
-        assumeAarch64();
+        assumeNativeAarch64();
         assertEquals("", buildAarch64(tempDir, "memcleara"));
     }
 }

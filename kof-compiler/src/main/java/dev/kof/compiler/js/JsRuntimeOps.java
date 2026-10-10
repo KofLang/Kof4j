@@ -51,6 +51,14 @@ boolean isRuntimeOp(KofCall kc) {
                 || name.equals("kof_select_any")
                 || name.equals("kof_list_map") || name.equals("kof_list_filter")
                 || name.equals("kof_list_reduce")
+                || name.equals("kof_list_any") || name.equals("kof_list_all")
+                || name.equals("kof_list_none")
+                || name.equals("kof_list_find") || name.equals("kof_list_count_pred")
+                || name.equals("kof_list_foreach") || name.equals("kof_list_flatmap")
+                || name.equals("kof_list_distinct")
+                || name.equals("kof_list_sorted") || name.equals("kof_list_sorted_cmp")
+                || name.equals("kof_list_sort_cmp")
+                || name.equals("kof_list_groupby")
                 || name.startsWith("kof_observability_")
                 || name.startsWith("kof_time_")
                 || name.startsWith("kof_scheduler_")
@@ -117,7 +125,12 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
                             new JsIr.JsMember(parsed, "map"),
                             List.of(new JsIr.JsArrow(List.of("o"), mapper))));
                 } else {
-                    stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("JSON.parse"), List.of(value)));
+                    JsIr.JsExpression raw = new JsIr.JsCall(new JsIr.JsIdentifier("JSON.parse"), List.of(value));
+                    if (BuiltinTypes.isObject(elem) || BuiltinTypes.isMap(elem) || BuiltinTypes.isList(elem)) {
+                        p.lc.registerRuntime("kofJsonDeep");
+                        raw = new JsIr.JsCall(new JsIr.JsIdentifier("kofJsonDeep"), List.of(raw));
+                    }
+                    stack.add(raw);
                 }
             } else if (name.startsWith("kof_json_decode_")
                     && BuiltinTypes.isMap(kc.ownerType())) {
@@ -191,7 +204,7 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
                 || name.equals("kof_ui_box_new") || name.equals("kof_ui_stack_new")
                 || name.equals("kof_ui_wrap_new") || name.equals("kof_ui_grid_new")
                 || name.equals("kof_ui_spacer_new") || name.equals("kof_ui_center_new")
-                || name.equals("kof_ui_align_new")
+                || name.equals("kof_ui_align_new") || name.equals("kof_ui_scroll_new")
                 || name.equals("kof_ui_style_new") || name.equals("kof_ui_style_css")
                 || name.equals("kof_ui_view_bind")
                 || name.equals("kof_ui_window_set_title") || name.equals("kof_ui_window_title")

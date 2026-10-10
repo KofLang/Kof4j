@@ -57,6 +57,24 @@ public final class JvmStringSecurityRuntime {
                     }
                 }
 
+                public static String kof_sec_sha256_bytes(byte[] data) {
+                    try {
+                        return kof_sec_hex(java.security.MessageDigest.getInstance("SHA-256").digest(data));
+                    } catch (java.security.NoSuchAlgorithmException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+
+                public static String kof_sec_hmac_sha256_bytes(byte[] key, byte[] data) {
+                    try {
+                        javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+                        mac.init(new javax.crypto.spec.SecretKeySpec(key, "HmacSHA256"));
+                        return kof_sec_hex(mac.doFinal(data));
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+
                 public static String kof_sec_hmac_sha256(String key, String data) {
                     try {
                         javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");

@@ -40,6 +40,18 @@ public final class KofWeb {
         return APP.equals(t);
     }
 
+    /**
+     * §575 — phantom handle types: they exist only at COMPILE time; at runtime
+     * the value is a String handle in the web registry. Any JVM position that
+     * materializes a class descriptor or owner name (lambda capture field,
+     * getfield/putfield, checkcast) MUST erase them to {@code java.lang.String}
+     * or the class load dies {@code NoClassDefFoundError: kof/web/App}. Public
+     * so the JVM type mapper (subpackage) can consult the single registry.
+     */
+    public static boolean isPhantomHandleType(Type t) {
+        return APP.equals(t);
+    }
+
     static boolean isSseConnectionType(Type t) {
         return SSE_CONNECTION.equals(t);
     }
@@ -96,6 +108,12 @@ public final class KofWeb {
             if ("ws".equals(name)) {
                 return instanceWsMethod(name, argTypes);
             }
+            // D-HTTP-POLICIES (F3): `app.get(path, opts) { }` — rota com
+            // policy por endpoint (3 args: String, Map, handler).
+            if (argTypes.size() == 3 && BuiltinTypes.isMap(argTypes.get(1))) {
+                return new WebCall("kof_web_route_opts", VOID,
+                        List.of(STR, STR, STR, BuiltinTypes.MAP, argTypes.get(2)));
+            }
             if (argTypes.size() == 2) {
                 return new WebCall("kof_web_route", VOID,
                         List.of(STR, STR, STR, argTypes.get(1)));
@@ -121,6 +139,14 @@ public final class KofWeb {
                 }
                 yield null;
             }
+            // D-HTTP-POLICIES (F2): `app.policy(prefix, opts)` — policy de
+            // recurso para toda rota sob o prefixo (escalar mais profundo
+            // vence; listas somam). JVM completo; Native/JS = WEB006.
+            case "policy" -> argTypes.size() == 2 && isString(argTypes.get(0))
+                    && BuiltinTypes.isMap(argTypes.get(1))
+                    ? new WebCall("kof_web_policy", VOID,
+                            List.of(STR, STR, BuiltinTypes.MAP))
+                    : null;
             // #102.2 (13/09): `listen` aceita SÓ Int — String virava
             // VerifyError em runtime. Com o gate aqui, `listen("8100")`
             // retorna null → o typer emite SEM025 em compile-time
@@ -186,7 +212,8 @@ public final class KofWeb {
             case "kof_web_sse_route" -> "WEB003";
             case "kof_web_ws_route" -> "WEB004";
             case "kof_web_serve_dir" -> "WEB005";
-            case "kof_web_security", "kof_web_security_opts" -> "WEB006";
+            case "kof_web_security", "kof_web_security_opts", "kof_web_policy",
+                 "kof_web_route_opts" -> "WEB006";
             case "kof_web_listen_secure", "kof_web_listen_secure_pem" -> "WEB002";
             default -> "WEB001";
         };

@@ -31,8 +31,17 @@ public final class JvmSecretRuntime {
                     return new Secret(value);
                 }
 
+                // SEC1 (`D-MAINT-BATCH-0510`, issue #758): an unset/blank env var is
+                // an EXPLICIT error, never a silent empty `Secret` (a blank credential
+                // is a security failure that must surface). Thrown as a catchable
+                // Kof String (RuntimeException message), matching the frozen
+                // "Kof throws Strings" contract.
                 public static Secret kof_sec_secret(String name) {
-                    return new Secret(kof_sec_secret_get(name));
+                    String value = kof_sec_secret_get(name);
+                    if (value == null || value.isBlank()) {
+                        throw new RuntimeException("SECN015: secret '" + name + "' is not set");
+                    }
+                    return new Secret(value);
                 }
 
                 // Um int por byte (0..255); visão Latin-1 — round-trip SEM perda
@@ -158,6 +167,190 @@ public final class JvmSecretRuntime {
                 public static String kof_sec_jwt_verify_iss_aud_key(String token, KeyHandle k, String issuer, String audience) {
                     return kof_sec_jwt_verify_iss_aud_bytes(token, kof_sec_key_material(k), issuer, audience);
                 }
+
+                // ── D-KOF-X25519 (02/10): X25519 (RFC 7748) + HKDF-SHA256
+                // (RFC 5869) — the session-key face. Scalars/points travel as
+                // little-endian 32-byte hex inside `Secret` (never raw String;
+                // R8). JCA ships both curves since 11; no BouncyCastle.
+                public static Secret kof_sec_x25519_private_key() {
+                    byte[] scalar = new byte[32];
+                    new java.security.SecureRandom().nextBytes(scalar);
+                    scalar[0] &= (byte) 0xf8;
+                    scalar[31] = (byte) ((scalar[31] & 0x7f) | 0x40);
+                    return new Secret(kof_sec_hex(scalar));
+                }
+
+                // D-KOF-SIGN (mantenedora 03/10, fatia C1): assinatura Ed25519 sobre
+                // primitiva do JDK (Kof codifica; nada de criptografia caseira). O
+                // Secret guarda hex PKCS8(48B)||SPKI(44B) = 184 chars; publicKey
+                // exporta os 32 bytes crus (64 hex, mesmo formato do hello X25519).
+                public static Secret kof_sec_ed25519_private_key(String alg) {
+                    if (!"Ed25519".equals(alg)) {
+                        throw new IllegalArgumentException("SECN014: unknown signing algorithm " + alg);
+                    }
+                    try {
+                        java.security.KeyPair kp = java.security.KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+                        return new Secret(kof_sec_hex(kp.getPrivate().getEncoded()) + kof_sec_hex(kp.getPublic().getEncoded()));
+                    } catch (java.security.GeneralSecurityException e) {
+                        throw new RuntimeException("SECN014: " + e.getMessage(), e);
+                    }
+                }
+
+                private static byte[] kof_sec_ed25519_spki(String hexValue) {
+                    if (hexValue.length() == 184) return kof_sec_fromHex(hexValue.substring(96));
+                    if (hexValue.length() == 64) return kof_sec_fromHex("302a300506032b6570032100" + hexValue);
+                    throw new IllegalArgumentException("SECN014: not an Ed25519 key secret (hex length " + hexValue.length() + ")");
+                }
+
+                public static String kof_sec_ed25519_public_key(Secret priv) {
+                    byte[] spki = kof_sec_ed25519_spki(priv.value);
+                    if (spki.length != 44) {
+                        throw new IllegalArgumentException("SECN014: malformed Ed25519 SPKI");
+                    }
+                    return kof_sec_hex(java.util.Arrays.copyOfRange(spki, 12, 44));
+                }
+
+                public static String kof_sec_ed25519_sign(Secret priv, byte[] msg) {
+                    String hex = priv.value;
+                    if (hex.length() != 184) {
+                        throw new IllegalArgumentException("SECN014: sign needs an Ed25519 private key secret");
+                    }
+                    try {
+                        java.security.PrivateKey k = java.security.KeyFactory.getInstance("Ed25519")
+                                .generatePrivate(new java.security.spec.PKCS8EncodedKeySpec(kof_sec_fromHex(hex.substring(0, 96))));
+                        java.security.Signature sig = java.security.Signature.getInstance("Ed25519");
+                        sig.initSign(k);
+                        sig.update(msg);
+                        return kof_sec_hex(sig.sign());
+                    } catch (java.security.GeneralSecurityException e) {
+                        throw new RuntimeException("SECN014: " + e.getMessage(), e);
+                    }
+                }
+
+                public static boolean kof_sec_ed25519_verify(Secret key, byte[] msg, String sigHex) {
+                    try {
+                        java.security.PublicKey k = java.security.KeyFactory.getInstance("Ed25519")
+                                .generatePublic(new java.security.spec.X509EncodedKeySpec(kof_sec_ed25519_spki(key.value)));
+                        java.security.Signature sig = java.security.Signature.getInstance("Ed25519");
+                        sig.initVerify(k);
+                        sig.update(msg);
+                        return sig.verify(kof_sec_fromHex(sigHex));
+                    } catch (java.security.SignatureException e) {
+                        return false; // assinatura malformada = nao valida, nunca crash
+                    } catch (java.security.GeneralSecurityException e) {
+                        throw new RuntimeException("SECN014: " + e.getMessage(), e);
+                    }
+                }
+
+                // keyExchange.publicKey(Secret): dispatch pelo formato do Secret —
+                // 64-hex = scalar X25519 (path histórico, D-KOF-X25519);
+                // 184-hex = Ed25519 private (D-KOF-SIGN C1).
+                public static String kof_sec_public_key_any(Secret s) {
+                    if (s.value != null && s.value.length() == 184) return kof_sec_ed25519_public_key(s);
+                    return kof_sec_x25519_public_key(s);
+                }
+
+                private static java.math.BigInteger kof_sec_le_to_bn(byte[] le) {
+                    byte[] be = new byte[le.length];
+                    for (int i = 0; i < le.length; i++) be[i] = le[le.length - 1 - i];
+                    return new java.math.BigInteger(1, be);
+                }
+
+                private static byte[] kof_sec_bn_to_le(java.math.BigInteger bn, int n) {
+                    byte[] be = bn.toByteArray();
+                    byte[] le = new byte[n];
+                    int src = be.length - 1;
+                    for (int i = 0; i < n && src >= 0; i++) {
+                        le[i] = be[src];
+                        src--;
+                    }
+                    return le;
+                }
+
+                private static java.security.KeyFactory kof_sec_x25519_factory() {
+                    try {
+                        return java.security.KeyFactory.getInstance("X25519");
+                    } catch (java.security.NoSuchAlgorithmException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+
+                private static java.security.PrivateKey kof_sec_x25519_private(String scalarHex) {
+                    try {
+                        return kof_sec_x25519_factory().generatePrivate(
+                                new java.security.spec.XECPrivateKeySpec(
+                                        java.security.spec.NamedParameterSpec.X25519,
+                                        kof_sec_fromHex(scalarHex)));
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+
+                private static java.security.PublicKey kof_sec_x25519_public(java.math.BigInteger u) {
+                    try {
+                        return kof_sec_x25519_factory().generatePublic(
+                                new java.security.spec.XECPublicKeySpec(
+                                        java.security.spec.NamedParameterSpec.X25519, u));
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+
+                private static byte[] kof_sec_x25519_agree(Secret priv, java.security.PublicKey peerPub) {
+                    try {
+                        javax.crypto.KeyAgreement ka = javax.crypto.KeyAgreement.getInstance("X25519");
+                        ka.init(kof_sec_x25519_private(priv.value));
+                        ka.doPhase(peerPub, true);
+                        return ka.generateSecret();
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+
+                public static String kof_sec_x25519_public_key(Secret priv) {
+                    byte[] point = kof_sec_x25519_agree(priv, kof_sec_x25519_public(java.math.BigInteger.valueOf(9)));
+                    return kof_sec_hex(point);
+                }
+
+                public static Secret kof_sec_x25519_shared(Secret priv, Secret peerPublicHex) {
+                    byte[] shared = kof_sec_x25519_agree(priv,
+                            kof_sec_x25519_public(kof_sec_le_to_bn(kof_sec_fromHex(peerPublicHex.value))));
+                    return new Secret(kof_sec_hex(shared));
+                }
+
+                public static String kof_sec_hkdf_sha256(Secret ikmHex, String saltHex, String infoHex, int len) {
+                    if (len < 1 || len > 8160) {
+                        throw new RuntimeException("kof.security: HKDF length " + len
+                                + " out of range 1..8160");
+                    }
+                    byte[] ikm = kof_sec_fromHex(ikmHex.value);
+                    byte[] salt = kof_sec_fromHex(saltHex);
+                    byte[] info = kof_sec_fromHex(infoHex);
+                    try {
+                        javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+                        byte[] zero32 = new byte[32];
+                        mac.init(new javax.crypto.spec.SecretKeySpec(
+                                salt.length == 0 ? zero32 : salt, "HmacSHA256"));
+                        byte[] prk = mac.doFinal(ikm);
+                        java.io.ByteArrayOutputStream okm = new java.io.ByteArrayOutputStream();
+                        byte[] t = new byte[0];
+                        int counter = 1;
+                        while (okm.size() < len) {
+                            mac.init(new javax.crypto.spec.SecretKeySpec(prk, "HmacSHA256"));
+                            mac.update(t);
+                            mac.update(info);
+                            mac.update((byte) counter);
+                            t = mac.doFinal();
+                            okm.write(t, 0, t.length);
+                            counter++;
+                        }
+                        byte[] out = java.util.Arrays.copyOf(okm.toByteArray(), len);
+                        return kof_sec_hex(out);
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+
 
                 """;
     }

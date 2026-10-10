@@ -20,54 +20,12 @@ import static org.junit.jupiter.api.Assertions.*;
  * Recusas honestas (R6/R7): target não-JVM e --publish (registry = decisão
  * D2) saem com exit 1 + DEP001; flag desconhecida nunca é ignorada.
  */
-class CmdDeployTest {
+class CmdDeployTest extends CmdDeploySupport {
 
-    private static Process startCli(Path workDir, String... cliArgs) throws IOException {
-        java.util.List<String> cmd = new java.util.ArrayList<>();
-        cmd.add(Path.of(System.getProperty("java.home"), "bin", "java").toString());
-        cmd.add("-cp");
-        cmd.add(System.getProperty("java.class.path"));
-        cmd.add("dev.kof.cli.Main");
-        cmd.addAll(java.util.List.of(cliArgs));
-        ProcessBuilder pb = new ProcessBuilder(cmd);
-        pb.directory(workDir.toFile());
-        pb.redirectErrorStream(true);
-        return pb.start();
-    }
 
-    private static Path writeApp(Path dir, String body) throws IOException {
-        Path src = dir.resolve("src");
-        Files.createDirectories(src);
-        Files.writeString(src.resolve("Main.kf"), body);
-        return src;
-    }
 
-    private record CliResult(int exit, String out) {}
 
-    private static CliResult runEnv(Path workDir, java.util.Map<String, String> env,
-                                    String... cliArgs) throws Exception {
-        java.util.List<String> cmd = new java.util.ArrayList<>();
-        cmd.add(Path.of(System.getProperty("java.home"), "bin", "java").toString());
-        cmd.add("-cp");
-        cmd.add(System.getProperty("java.class.path"));
-        cmd.add("dev.kof.cli.Main");
-        cmd.addAll(java.util.List.of(cliArgs));
-        ProcessBuilder pb = new ProcessBuilder(cmd);
-        pb.directory(workDir.toFile());
-        pb.redirectErrorStream(true);
-        pb.environment().putAll(env);
-        Process p = pb.start();
-        String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        p.waitFor(180, TimeUnit.SECONDS);
-        return new CliResult(p.exitValue(), out);
-    }
 
-    private static CliResult run(Path workDir, String... cliArgs) throws Exception {
-        Process p = startCli(workDir, cliArgs);
-        String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        p.waitFor(180, TimeUnit.SECONDS);
-        return new CliResult(p.exitValue(), out);
-    }
 
     @Test
     void jvmReleaseIsPackagedAndConsistent(@TempDir Path dir) throws Exception {
@@ -286,40 +244,8 @@ class CmdDeployTest {
     }
 
     /** JSON de release no formato do GitHub (upload_url com template {?name,label}). */
-    private static String releaseJson(String base, long id, String upPath, String assetsPath) {
-        String Q = "\"";
-        StringBuilder b = new StringBuilder();
-        b.append('{').append(Q).append("id").append(Q).append(':').append(id)
-         .append(',').append(Q).append("upload_url").append(Q).append(':')
-         .append(Q).append(base).append(upPath).append("{?name,label}").append(Q);
-        if (assetsPath != null) {
-            b.append(',').append(Q).append("assets_url").append(Q).append(':')
-             .append(Q).append(base).append(assetsPath).append(Q);
-        }
-        b.append('}');
-        return b.toString();
-    }
 
-    private static String serverAddr(com.sun.net.httpserver.HttpServer s) {
-        return "http://127.0.0.1:" + s.getAddress().getPort();
-    }
 
-    private static CliResult runWithEnv(Path workDir, java.util.Map<String, String> env,
-                                        String... cliArgs) throws Exception {
-        java.util.List<String> cmd = new java.util.ArrayList<>();
-        cmd.add(Path.of(System.getProperty("java.home"), "bin", "java").toString());
-        cmd.add("-cp");
-        cmd.add(System.getProperty("java.class.path"));
-        cmd.add("dev.kof.cli.Main");
-        cmd.addAll(java.util.List.of(cliArgs));
-        ProcessBuilder pb = new ProcessBuilder(cmd);
-        pb.directory(workDir.toFile()).redirectErrorStream(true);
-        env.forEach(pb.environment()::put);
-        Process p = pb.start();
-        String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        p.waitFor(180, java.util.concurrent.TimeUnit.SECONDS);
-        return new CliResult(p.exitValue(), out);
-    }
 
     /** X9 fatia 2: face NATIVE — o ELF empacotado RODA e sai mode 0755 no tar. */
     @Test
@@ -406,14 +332,6 @@ class CmdDeployTest {
         }
     }
 
-    private static boolean hasCrossToolchain() {
-        for (String tool : new String[]{"riscv64-linux-gnu-as", "aarch64-linux-gnu-as"}) {
-            try {
-                if (new ProcessBuilder(tool, "--version").start().waitFor() == 0) return true;
-            } catch (Exception ignored) { }
-        }
-        return false;
-    }
 
     /** X9 fatia 6 (padrao house X7-3/X7-4): stubs de as/ld via KOF_CROSS_PREFIX
      *  provam no host o pipeline INTEIRO do cross-release (argv do alvo certo,
@@ -554,68 +472,14 @@ class CmdDeployTest {
 
     // ── §298 node helpers ──
 
-    private static boolean hasNode() {
-        try {
-            return new ProcessBuilder("node", "--version")
-                    .redirectErrorStream(true).start().waitFor() == 0;
-        } catch (Exception e) {
-            return false;
-        }
-    }
 
-    private static String runNode(Path releaseDir, String entry) throws Exception {
-        Process p = new ProcessBuilder("node", entry)
-                .directory(releaseDir.toFile())
-                .redirectErrorStream(true).start();
-        String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        assertEquals(0, p.waitFor(), "node " + entry + " (release autocontida):\n" + out);
-        return out;
-    }
 
     // ── tar helpers ──
 
-    private record TarEntry(String name, long size) {}
 
     /** Lê o header (nome ustar + size octal); o chamador decide pular o payload. */
-    private static TarEntry tarEntry(GZIPInputStream in) throws IOException {
-        byte[] header = new byte[512];
-        assertEquals(512, in.readNBytes(header, 0, 512), "tar header truncado");
-        String magic = new String(header, 257, 6, StandardCharsets.US_ASCII);
-        assertTrue(magic.startsWith("ustar"), "magic ustar ausente");
-        int end = 0;
-        while (end < 100 && header[end] != 0) end++;
-        String name = new String(header, 0, end, StandardCharsets.UTF_8);
-        long size = 0;
-        for (int i = 124; i < 136 && header[i] != 0; i++) {
-            char c = (char) header[i];
-            if (c == ' ') continue;
-            size = size * 8 + (c - '0');
-        }
-        return new TarEntry(name, size);
-    }
 
     /** Pula payload + padding (512-aligned) do entry cujo header já foi consumido. */
-    private static void skipTarPayload(GZIPInputStream in, long size) throws IOException {
-        long toSkip = (size + 511) / 512 * 512;
-        while (toSkip > 0) {
-            long n = in.skip(toSkip);
-            if (n <= 0) break;
-            toSkip -= n;
-        }
-    }
 
-    private static int tarMode(byte[] header) {
-        int mode = 0;
-        for (int i = 100; i < 108 && header[i] != 0; i++) {
-            char c = (char) header[i];
-            if (c == ' ') continue;
-            mode = mode * 8 + (c - '0');
-        }
-        return mode;
-    }
 
-    private static boolean isZeroBlock(byte[] block) {
-        for (byte b : block) if (b != 0) return false;
-        return true;
-    }
 }

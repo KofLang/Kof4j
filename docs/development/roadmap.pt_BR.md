@@ -2,14 +2,18 @@
 
 # Kof — Roadmap de Longo Prazo
 
-last: native-record-equality
-doing: 0.5.0-release-prep
-next: 1.0-exit-gate
+last: 0.5.0-release-cut
+doing: 1.0-exit-gate
+next: promotion-sweep
 location: roadmap
 state: active
-constraint: pr619-maintainer-only
+constraint: maintainer-gated-promotion
 
-**Última atualização:** 20 de setembro de 2026 (índice §0 "leia primeiro"
+**Última atualização:** 30 de setembro de 2026 (branch ativa corrigida para
+`lab` (`D-BRANCH-PIPELINE`); o corte da 0.5.0 registrado como fechado por
+`D-RELEASE-0.5.0-CLOSED` — PR #619 mergeado, `D-BRANCH-0.5.0` `SUPERSEDED`; a
+constraint `pr619-maintainer-only` está aposentada). (antes:
+20 de setembro de 2026 — índice §0 "leia primeiro"
 adicionado; branch ativa corrigida para `beta-0.5.0`/`D-BRANCH-0.5.0`). (antes:
 15 de setembro de 2026 — §23 ganha 2.6 = fila D-NULL-INTENT N1→N4 [lane
 compiler, decisão da mantenedora 15/09]; TIER 3–5 marcado DESPRIORIZADO pela
@@ -17,7 +21,7 @@ mantenedora 15/09 — trio de volta a `future/`). (antes: fusão de planos: §23
 plano de implementação ÚNICO (ex-`ACTION_PLAN`+`IMPLEMENTATION_PLAN`); cluster de
 migração consolidado — `LEGACY_IR`+`DIFFERENTIAL_TESTING` fundidos em
 `LEGACY_MIGRATION.md`)
-**Versão:** 0.5.0-beta (branch ativa `beta-0.5.0`)
+**Versão:** 0.5.0-beta (branch de desenvolvimento ativa `lab`)
 
 ---
 
@@ -218,6 +222,7 @@ Não reimplementar Spring. Em vez disso, transformar capacidades recorrentes em 
 Objetivos futuros:
 - HTTP / REST / WebSocket / SSE (WebSocket/SSE + hardening JVM concluídos 04/09; JS/Native follow-up);
 - HTTP client;
+- **Rede `kof.net` unificada (TCP + UDP)** — ✅ CONCLUÍDA 02/10/2026 (`D-KOF-NET`, votos regra-6 da mantenedora; subsume `D-UDP` da diretriz de 01/10): as cinco fatias POUSADAS — superfície + runtime JVM real + runtime Native x86-64 real + ponte de host JS real + Native riscv64/aarch64 real (front x86 portado para asm riscv, aarch64 pelo tradutor) + Script por construção; plano movido para [`../stdlib/network-kofnet-plan.pt_BR.md`](../stdlib/network-kofnet-plan.pt_BR.md); o antigo `future/network-udp-plan.pt_BR.md` está superado;
 - JSON;
 - RPC;
 - eventos / filas / pub/sub;
@@ -712,6 +717,10 @@ contratos estabilizarem.
 - sessions / policies / rate limiting;
 - security defaults / audit.
 
+> Políticas HTTP declarativas (`app.security` / `app.policy` / opts por endpoint /
+> `responses` / chave de rate-limit por rota) pousaram 28/09 — `D-HTTP-POLICIES`,
+> [`docs/stdlib/http-policies-plan.md`](../stdlib/http-policies-plan.md).
+
 > Auditoria do ecossistema: a matriz de cobertura, gaps (G1-G12),
 > prioridades e estratégia vivem em `docs/bugs-and-gaps/ecosystem-coverage.md`.
 > Ordem de implementação P0: diagnóstico de target (G7) → `kof.test`
@@ -858,7 +867,9 @@ sistemas legados para Kof — **fora do escopo 0.0.x**.
 - Documento central: `future/LEGACY_MIGRATION.md` (§4 = Legacy Semantic
   IR/Confidence; §8 = teste diferencial + migration report) —
   **DESPRIORIZADO pela mantenedora 15/09: o trio + work-logs voltaram para
-  `future/`; o código em kof-cli fica, promoção exige decisão explícita dela**
+  `future/`; o código em kof-cli fica. REABERTO 28/09 por `D-DEPRIORITIZED-REOPEN`
+  (lote da mantenedora): ainda só-plano em `future/`, promoção uma-por-vez por
+  `D-FUTURE-PROMOTION`**
 - Componentes planejados: `kof inspect`, `kof decompile`, `kof translate`,
   `kof migrate`, `kof compare`
 - Arquitetura: `Legacy Input → Legacy Semantic IR → Kof AST → Kof IR → Backend`
@@ -930,6 +941,43 @@ ciência) **sem** destruir a simplicidade da linguagem.
 > type-classes, ownership, effect system, cripto caseira, reimplementar
 > Arrow/BLAS/ML; sem "Kali em Kof"; sem motor SQL próprio.
 
+### Fila de promoção (`D-FUTURE-PROMOTION`, mantenedora 28/09)
+
+> Antes de trabalho novo: migrar tudo para `lab`, então promover exatamente UM
+> plano de `future/` e implementá-lo (mais barato primeiro). **CONCLUÍDO:**
+> `http-policies` — promovido 28/09 (`D-HTTP-POLICIES`), todas as fatias F0–F6
+> pousadas 28/09 (`KofHttpPoliciesE2ETest` 10/10), movido para
+> [`docs/stdlib/http-policies-plan.md`](../stdlib/http-policies-plan.md). **CONCLUÍDO:**
+> `scoped-resources` — promovido 28/09 (`D-SCOPED-RESOURCES-GO`, lote
+> `D-FUTURE-BATCH-2809`), fatias 1–6 landed (`UsingDesugarE2ETest` 18/18) → movido para
+> [`docs/scoped-resources-plan.md`](../scoped-resources-plan.md). **ABERTO (3ª frente):**
+> `test-architecture` — promovido 28/09 (`D-TEST-ARCHITECTURE-GO`,
+> `D-FUTURE-BATCH-2809`) para
+> [`test-architecture-plan.md`](test-architecture-plan.md); primeira fatia =
+> profiling da Fase 1 (`scripts/test-suite-profile.sh` → `docs/testing/TEST-PERFORMANCE.md`),
+> infraestrutura pura de testes. **ABERTA (4ª frente):** `pagination` — promovida
+> 28/09 (`D-PAGINATION`, `D-FUTURE-BATCH-2809B`) para
+> [`pagination-plan.md`](../stdlib/pagination-plan.md); P0→P6 LANDED 29/09
+> (`slice`/`take`/`drop` in-memory + `Window<T>`/`window` + `orm.window` +
+> `pageRequest` + sync docs; P3-DSL-offset fora de escopo). — plano CONCLUÍDO 29/09, movido para `docs/stdlib/pagination-plan.md` (regra dos 3 estados). **ABERTA (5ª frente):** `kof-file` — promovido 28/09
+> (`D-KOF-FILE-GO`, `D-FUTURE-BATCH-2809`) para
+> [`kof-file-plan.md`](../stdlib/kof-file-plan.md); re-escopado na promoção (Fase 1
+> File/Path/Text/Binary já existe como `kof.io`); fatias 1–2.5 de streaming +
+> fatias 3.1–3.3 de config landed (configuração da Fase 3 COMPLETA: Ini/Toml/Yaml;
+> goldens JVM/Native/Script + lacuna JS `IOJS001`). — plano CONCLUÍDO 28/09, movido para `docs/stdlib/kof-file-plan.md` (regra dos 3 estados; documentos/archives adiados).
+> **Fase 1 + Fase 2 COMPLETAS 30/09 (6ª frente, plano CONCLUÍDO + MOVIDO para `docs/stdlib/`):** `multiparadigma` — promovido 28/09
+> (`D-MULTIPARADIGMA-PHASE1A`, `D-FUTURE-PROMOTION`) para
+> [`PLAN-MULTIPARADIGMA.md`](../stdlib/PLAN-MULTIPARADIGMA.md); o escopo promovido está completo, então o
+> plano **foi para `docs/`** (regra dos três estados) — as Fases 5–7 (DATA/INFRA: query/SQL/stream) seguem
+> **só-desenho**, travadas por R12 + decisão da mantenedora. Fatias 1a+1b+1c+1d+1e+1f+1g+1h+1i LANDED (`any`/`all`/`none` + `find`/`count(pred)` + `forEach` + `flatMap` + `distinct` + pins de paridade script + `sorted`/`sorted(cmp)` + `groupBy` + `zip`; E2E + `KofScriptStdlibParityTest` 22/22); `zip` pousado 30/09 (`D-MULTIPARADIGMA-ZIP` record `Pair` + `D-MULTIPARADIGMA-ZIP-NATIVE` — nativo com elemento-referência VERDE, elemento primitivo recusado `NAT008`).
+> **ABERTA (7ª frente):** `image-vision` — promovido 29/09 (`D-IMAGE-VISION-GO`, `D-FUTURE-PROMOTION`) para
+> [`image-vision-plan.md`](image-vision-plan.md); estado 02/10: metadados de 17 formatos + decode/encode/ops de raster + fatias `kof.vision` + decoder VP8 lossy de key frame ponteira-a-ponteira (oráculo libwebp) + AVIF fatias 1–2g (travessias de container/item/fluxo-OBU/cabeçalho-de-sequência/prefixo-de-quadro/cabeçalho-de-tile-group/obu-de-metadado, Kof puro, `AvifFrameE2ETest` 16/16 + `AvifMetaE2ETest` 8/8) LANDADAS; sem decode de pixel AVIF (`decodeRaster` recusa AVIF por política). Fila pelo plano §34 — o estado autoritativo vive lá.
+> **SUPERFÍCIE COMPLETA (8ª frente):** `graphics-gaming` — promovido 30/09 (`D-GRAPHICS-SPIKE`, `D-FUTURE-PROMOTION`) para
+> [`graphics-gaming.md`](../graphics-gaming.md); stack `G1` DECIDIDA (SDL3) + forma `D-GRAPHICS-WINDOW-FORM` + loop `D-MAINT-BATCH-0610`/A1–A3; superfície pura POUSADA 05–07/10 (`Clock`/`Keys`/`Mouse`/`Pad`/`Window`/`Sprite`/`Draw`/`Trig`/`Tilemap`/`Audio`/`Wav`/`Video`, goldens E2E todo alvo) + ABI/pump/áudio/stream SDL3 medidos headless nos quatro alvos + corpus 3.6a (`training/idioms/game` + `learn/42-games`). Decisão F ORDENADA 08/10 (mantenedora: vendor do FFmpeg upstream LGPL-2.1+ da fonte, sem `--enable-gpl`; a licença do probe NÃO pode ser GPLv3+ antes de qualquer decode) + 3.5 (3D) PROMOVIDA ao escopo ativo 08/10 (mantenedora). Estado autoritativo vive em `docs/graphics-gaming.md` (promovido 09/10 — a missão da superfície pura completa; as faces de backend ficam como a fronteira documentada).
+> Todos os planos restantes de `future/` estão autorizados com suas
+> questões de design resolvidas (`D-FUTURE-BATCH-2809B`); a promoção segue
+> uma-por-vez (`D-FUTURE-PROMOTION`).
+
 ### TIER 0 — Guardrails e processos (E, ≈ zero) ✅ 01/09
 
 R1/R5/R6/R7/R9–R12 como invariantes (AGENTS.md + §22); convenção de gaps por
@@ -957,7 +1005,7 @@ tiers `stable`/`experimental` (`docs/backend-parity.md`).
 | 2.1.1–2.1.3 | Sintaxe `extern` + type-check + gaps `FFI001`/`FFI002` (nunca drop silencioso) | ✅ `Parser.java:192` (PARSE090), `ExternalFunctionNode`, `FfiE2ETest` |
 | 2.1.4 | Binding **JVM** (FFM `java.lang.foreign`) | ✅ **generalizado 18/09 (`.18`, R3):** qualquer assinatura escalar, aridade livre, retornos `void`/`String` — medidos `fmod`→1.5, `ldexp`→12.0, `strncmp`→-1, `puts(void)`, `getenv`→String (`syntax.md`) |
 | 2.1.5 | Binding **Native** | ✅ **20/09 (#431 fatias 1–2, §369)** — o binário cru liga escalares **direto** (`call sym@PLT`, link-by-use), o que **substitui `dlopen`/`dlsym`**; §61 fechado. O segfault antigo do `dlopen` foi o motivo da troca, não um gap aberto |
-| 2.1.6 | Marshalling struct/array | 🟡 **JVM ✅ 3.8b (20–21/09)**: `record` por valor como arg/retorno + `T[]` escalar→`ptr` (`FfiStructE2ETest` 10/10, `FfiArrayE2ETest` 5/5); **D6-3 out-buffer ✅ landado 21/09** (`Buffer`/`Buffer(U8,INOUT)`, `BufferE2ETest` 4/4 + `BufferFfiE2ETest` 4/4); **restam** = bridge de struct no JS, sret no Native (3.7). D6 ✅ decidido 20/09 |
+| 2.1.6 | Marshalling struct/array | 🟡 **JVM ✅ 3.8b (20–21/09)**: `record` por valor como arg/retorno + `T[]` escalar→`ptr` (`FfiStructE2ETest` 10/10, `FfiArrayE2ETest` 5/5); **D6-3 out-buffer ✅ landado 21/09** (`Buffer`/`Buffer(U8,INOUT)`, `BufferE2ETest` 4/4 + `BufferFfiE2ETest` 4/4); **sret struct Native/cross + param por valor LANDADOS 30/09** (`D-MEM-FFI-CROSS-FULL` faces 1–3, `memory-safety-plan` — a linha estava velha); **bridge de struct no JS ✅ COMPLETO 21/09** (struct param + retorno, array escalar copy-in, `Buffer(U8)` INOUT — byte-for-byte JVM==JS, `docs/ffi-abi-structs.md` §304; o "restam = bridge JS" desta linha estava velho). Restam = RETURN de struct HFA cross + callbacks (PARAM HFA pousou 07/10 `2d933828c` — `FfiCrossHfaE2ETest` 5/5); float/HFA-param (`FFI001`/`FFI002` honestos, R6; `T[]` cross, `Buffer(U8)`, `String[]`→`char**`, structs por memória e params >16 B landados 29–30/09). D6 ✅ decidido 20/09 |
 | 2.1.7 | JS: gap `FFI002` | ✅ gap honesto + **paridade escalar FECHADA 18/09 (`d3598c2d`, fatias 3.6.F1–F3):** runner host liga via `KofJsFfiBridge`, `FfiE2ETest` 16/16 byte-for-byte JVM↔JS; browser = runtime R7; nao-escalar mantem `FFI002` |
 | 2.2.1 | Inventário do codegen implícito (4 pontos: runtime `.source()`, `desugarTests`, `desugarApplication`, entity→record+schema) | ✅ os 4 existem (`CompilerPipeline:295-296`) |
 | 2.2.2 | **Hook formal `CodegenStep`** | ✅ **LANDADO 21/09 (R4, `D-CODEGEN-STEP`)** — `CodegenStep`/`CodegenStepPipeline` (aditivo; registry vazio = identidade, zero mudança de comportamento; `CodegenStepPipelineTest` 6/6). O "✅" antigo de `d1c56bad` era sobre-claim da branch `planning-future`; o R4 é o landing real |
@@ -965,7 +1013,7 @@ tiers `stable`/`experimental` (`docs/backend-parity.md`).
 | 2.2.4 | Base de `infra "prod" {}` (codegen sobre records) | ✅ **POUSOU 21/09 (`D-MAKEALIVE-SYNTAX`, `966c86a4`)**: puro açúcar sobre `design()` (sem HCL; `infra` = IDENTIFICADOR, rebaixado p/ `design(): Infrastructure`) — prova `InfraSyntaxE2ETest`; o R4 ✅ era o hook |
 | 2.3.1 | Constant-folding de constantes de domínio | ✅ `"a"+"b"→"ab"` (`OptimizerConstantFold:100`) |
 | 2.3.2 | Detecção de ciclo no grafo `infra` em compile-time | ✅ **FECHADA 21/09 como runtime-only** (adendo a `D-MAKEALIVE-SYNTAX`, `5759b9bd`): a 2.2.4 é açúcar puro, então o compilador vê só chamadas genéricas — um grafo estático daria semântica própria ao bloco (§7/regra 11); a recusa em runtime da 3.1 nomeia os membros do ciclo |
-| 2.4.1 | Scoped resources (RAII leve sobre `try/finally`) | 🟡 só design (`future/scoped-resources-plan.md`); sintaxe `using` gated por bump |
+| 2.4.1 | Scoped resources (RAII leve sobre `try/finally`) | ✅ CONCLUÍDO 28/09 — fatias 1–6, plano → [`docs/scoped-resources-plan.md`](../scoped-resources-plan.md) (`D-SCOPED-RESOURCES-GO`); `db` cross fora explicitamente (matriz da lane db) |
 | 2.5 | Variance / sealed | ⏫ **SUPERSEDIDO 21/09 por §2.8.4** (`D-TYPE-VARIANCE`): `sealed` + variância abriram como as fatias **X5** (X5.1–X5.4 ✅ FEITO 21/09); o "adiar" antigo não vale mais |
 
 #### 2.6 — Nullability por INTENÇÃO EXPLÍCITA (fila N1→N4 de DECISIONS §D-NULL-INTENT, 15/09)
@@ -976,10 +1024,10 @@ REVOGADA). Lane: **compiler** (contrato nos 4 backends — não a lane docs).
 
 | # | Passo | Escopo (uma linha) | Depende de |
 |---|-------|--------------------|------------|
-| 2.6.1 | **N1** — JVM+Script+JS: `Nullable(primitivo)` carrega null REAL | `T?` boxed em retorno/campo/slot nos 3 targets com tipo boxed; virar a célula `nullableprint` + as 3 paridades null-branch de `KofInterpreterParityTest` no MESMO commit do comportamento (regra 1) | — |
+| 2.6.1 | **N1** — JVM+Script+JS: `Nullable(primitivo)` carrega null REAL — **✅ DONE 18/09** (PR #438 mergeado `250f6207`; ver o Queue status abaixo) | `T?` boxed em retorno/campo/slot nos 3 targets com tipo boxed; virar a célula `nullableprint` + as 3 paridades null-branch de `KofInterpreterParityTest` no MESMO commit do comportamento (regra 1) | — |
 | 2.6.2 | **N2** — Native: null real via ABI de box tagged §104b-ii — **✅ FEITO 23/09 (face Native autorizada = print de referência `Object`)** | **`RuntimeErasureBox`** (`[MAGIC][tag][value]`, 24 B) + dispatch `kof_box_*` / `kof_unbox_*` strict+soft; x86 à mão + riscv à mão + aarch64 via tradutor. O esboço antigo de box `typeId=3` está **superseded — não criar como segundo ABI**; ver `docs/runtime/RUNTIME_ABI.md` §3.9. **POUSADO 23/09:** a face Native autorizada (pela Authorization do `D-NULL-INTENT`, 23/09) é o print polimórfico de referência `Object` — o `kof_box_to_string` agora decodifica o `type_id` de 4 bytes (offset 0, o discriminador do `kof_instanceof`), `type_id==1` (`String`) passa cru e qualquer outra referência faz tail-call em `kof_tostring_table[type_id]` (`.quad` denso emitido junto das classes, reusado das vtables; `0` = passthrough antigo). Sem segundo ABI. Prova: `NativeObjectBoxPrintE2ETest` 3/3 (oráculo JVM no teste, x86+riscv64+aarch64; fecha o §205 fatia 2). | §104b-ii / §205 fatia 2 dividem este ABI |
-| 2.6.3 | **N3** — `== null` em NÃO-nullable: legal, constant-foldable, NUNCA diagnóstico | a intenção é a própria comparação; regra 2 (retrocompat): código existente que compara continua compilando | N1 |
-| 2.6.4 | **N4** — auditar as faces restantes de null silencioso | map-miss `0` (SG-008), campo não-inicializado `0`, unbox-de-null `0` — cada um ganha decisão ou diagnóstico honesto (R6) | N1–N3 |
+| 2.6.3 | **N3** — `== null` em NÃO-nullable: legal, constant-foldable, NUNCA diagnóstico — **✅ DONE (regressão-pinada 03/10, `NonNullableNullCompareE2ETest` 7/7)** | a intenção é a própria comparação; regra 2 (retrocompat): código existente que compara continua compilando. **MEDIDO 03/10:** `Int/String/List/Double == null` → `false` (`!= null` → `true`) sem NENHUM diagnóstico em JVM+Script+JS+Native x86-64+riscv64+aarch64; na JVM a comparação nunca-verdadeira faz constant-fold e elimina o ramo morto da classe (pinado no nível do bytecode, `FOLDLEAKMARKER` ausente do constant pool). | N1 |
+| 2.6.4 | **N4** — auditar as faces restantes de null silencioso — **✅ DONE (auditado 03/10, nenhum `0` silencioso restante)** | **MEDIDO 03/10:** (a) map-miss em chave primitiva agora retorna `null` real em JVM+Script+JS+Native (`mapmiss=null`), não `0` — resolvido por N1, pinado por `NullablePrimitiveContractE2ETest`; (b) unbox-de-null é diagnóstico HONESTO — `Int v = m.get("absent")` → `SEM021` (não pode atribuir `Int?` a `Int`), nunca `0` silencioso; (c) campo não-inicializado não-nulável tem comportamento DEFINIDO (lê `0`, sem diagnóstico) conforme o contrato `D-NULL-INTENT` ("uninitialized fields must have defined behavior"). Nenhum caminho de invenção silenciosa resta; a política do default de campo (`0` vs recusa) é chamada de semântica congelada, NÃO tomada aqui. | N1–N3 |
 | 2.6.5 | **D-TROOL-1 (front-end) ✅ LANDADA 19/09** (`916b9fb7` core + `d61836eb` migracao/lei; `TrooleanLawE2ETest` 13/13, gate dirigido 8/8, goldens medidos JVM=Script=JS=Native-x86) — registrar `Troolean` (3 estados); `Nullable(Bool)` escrito pelo usuário → `SEM095` ("`Bool` tem exatamente dois valores — para true/false/desconhecido use `Troolean`"); `Troolean` não-instanciado = unknown; `!`/`&&`/`||` de Kleene + `== true/false`/`== null` + `println` + açúcar de condição `if (t)`≡`if (t == true)` — JVM+Script+JS via `runAll3`; migrar os 4 arquivos de teste com `Bool?` | DECISIONS §D-TROOL; prova `TrooleanLawE2ETest` + faces §306 migradas | — |
 | 2.6.6 | **D-TROOL-2 (Native) ✅ 19/09 (medido)** | face de três estados no backend nativo — medir primeiro o comportamento de `Nullable(Bool)` lá (o front do PR #465 é a lane boxed-`T?`); entregar trabalho ou o diagnóstico honesto `NAT-TROOL001`, nunca fallback silencioso — MEDIDO: tabelas de Kleene IDENTICAS no Native-x86-64 (slot boxado §295/§306 reusado, zero edicao de backend; NAT-TROOL001 desnecessario; cross sob guarda qemu, CI verde) | D-TROOL-1, família 2.6.2 |
 | 2.6.7 | **D-TROOL-3 (corpo+migração) ✅ 19/09** (`5f0757e8`) | `training/idioms` + `fake-idioms.md` (linha `Bool?` → Troolean), `docs/language-reference/types.md`, nota de migração no CHANGELOG (regra 1 do freeze — a classe do precedente #401), célula em `backend-parity.md` | D-TROOL-1 |
@@ -1036,7 +1084,7 @@ Recuperação de corpo de método ainda parcial
 StoreCat está defasado, o sub-caso de join if-then puro já está recuperado). O
 histórico técnico detalhado vive em `future/LEGACY_MIGRATION.md` +
 `future/DECOMPILER.md` (§7) — **não duplicar aqui**; esta tabela só dá a
-ordem. **DESPRIORIZADO 15/09 (mantenedora): TIER 3–5 não é trabalho atual.**
+ordem. **DESPRIORIZADO 15/09 (mantenedora): TIER 3–5 não é trabalho atual. REABERTO 28/09 por `D-DEPRIORITIZED-REOPEN` — ainda não promovido; promoção é uma-por-vez por `D-FUTURE-PROMOTION`.**
 
 ### TIER 6–12 — Plataforma universal (arquitetura **EM DESENVOLVIMENTO** 17/09 — R12 sobreposto; regidos por `docs/architecture/IMPLEMENTATION-UNIVERSAL-PLATFORM.md`)
 
@@ -1058,7 +1106,7 @@ ordem. **DESPRIORIZADO 15/09 (mantenedora): TIER 3–5 não é trabalho atual.**
 FFI) · `2.2 codegen hook` → `infra`/gRPC stubs · **TIER 1 (SYSTEMS) fecha
 antes de QUALQUER Tier 6+ (R12).**
 
-### TIER 14 — Fila do ledger de dívida técnica (ABERTA 23/09, `D-TECHDEBT-23/09`; **LEDGER MORTO 24/09** — dívida medida zerada)
+### TIER 14 (aposentado) — Fila do ledger de dívida técnica (ABERTA 23/09, `D-TECHDEBT-23/09`; **LEDGER MORTO 24/09** — dívida medida zerada)
 
 Fila ordenada dos vereditos de múltipla escolha da mantenedora 23/09. **24/09,
 ordem da mantenedora: o ledger `tech-debt.md` está MORTO** — todo §NNN vivo
@@ -1077,6 +1125,17 @@ item = um dono + uma prova.
 | 13.4 | §423 — portar runtime `kof_channel_*` p/ riscv64/aarch64 | nat (**✅ FEITO 23/09, baremetal 9092**) | `kof_channel_*` no slice `RtB61`, gate `NAT005` removido; paridade qemu nas 2 archs (`BareCollectionPrimitiveArgE2ETest` 12/12; ledger §423 ✅ FIXED) |
 | 13.5 | Lote de split: `NativeBackend` 603 + `CompilerPipeline` 588 + `RuntimeOrm7` 585 (behavior-preserving, precedente §442/§446) | 9092 (**✅ FEITO 23/09**) | `CompilerPipeline` ✅ 475; `RuntimeOrm7` ✅ split (`RuntimeOrm7` 34 + `RuntimeOrm7Setup` 265 + `RuntimeOrm7Fetch` 329); `NativeBackend` ✅ 547 (<600, faixa tolerada; baseline 571→547 atualizado) — `check_500.sh` rc=0, suíte verde |
 | 13.6 | D6-1=B — frente `struct` mutável by-ref (spec-first, regra 11) | FFI | design §4/§6 revisado, depois diff parser/typer + testes |
+
+### TIER 15 — Frontend WASI por padrão (ORDEM DA MANTENEDORA 07/10, `D-WEB-WASI-DEFAULT-0710`; **GATE do 0.6.0**, issue #776)
+
+Plano: [`wasm-wasi-plan.pt_BR.md`](wasm-wasi-plan.pt_BR.md) (+EN), promovido pela própria mantenedora a partir de `future/`. O alvo web **passa a ser WASI por padrão**; o frontend desktop igualmente; `kofjs`/JS continua disponível quando explicitamente especificado. Superfície inalterada; paridade total; zero regressão. Formato técnico fixado por `D-WASM-01..09`.
+
+| # | Unidade | Gate/prova | Estado |
+|---|---|---|---|
+| 15.1 | enum `Target` + encanamento de build (aditivo, zero mudança de comportamento nos alvos existentes) | suíte dos 4 alvos verdes inalterada; `Target.WASM/WASI` parse+dispatch | ✅ POUSADA 07/10 (`WasmTargetGateE2ETest` 5/5; suíte 5459 runs / 0 F determinístico) |
+| 15.2 | fatia 1 de codegen — funções escalares sob wasmtime (D-WASM-01/02: backend direto, Int=i64) | novo harness wasm vs oráculo JVM (`WasmScalarE2ETest` 3/3: validação `wasm-tools` + execução `wasmtime`; golden `run-golden.sh`×wasm exige o host `main`/IO de 15.3 — adiado com honestidade, matriz intacta) | ✅ POUSADA 07/10 (lane `192.168.15.101:9092`) |
+| 15.3 | fatias de runtime pelos planos fases 0–7 (GC/handles/desempilhamento/closures/WASI preview1) — **fatia 1 (host WASI-preview1 `_start` + `println` escalar) POUSADA 07/10** (`WasmWasiE2ETest` 3/3: stdout==oracle-JVM sob wasmtime; fora-da-fatia `WASM002` sem artefatos); **fatia 15.3b (`println(String)` de LITERAL via data segments + `kof.writeString`) POUSADA 07/10** (mesmo harness verde); **fatia 15.3c-fatiaA (variáveis + concat de String num bump heap `global 0`@16384, `kof.strLit`/`kof.strConcat`/`kof.writeStr`) POUSADA 08/10** — `var s = "a" + "b"; println(s)` + `println("x"+"y"+"z")` imprimem `ab`/`xyz` == oracle JVM (`WasmWasiE2ETest` 3/3, `WasmTargetGateE2ETest` 5/5); **fatia 15.3c-fatiaB (`args` via `kof.readArgs` sobre `args_sizes_get`/`args_get`; `args.length`/`args[i]` com trap explicito de limites; argv[0] descartado p/ paridade JVM) POUSADA 08/10** — run WASI com `alpha beta` byte-identico ao oracle JVM, OOB = trap deterministico exit 134 (`WasmWasiE2ETest` 5/5; `WasmBackend` dividido em `WasmLowering`/`WasmArgsRuntime` pelo gate 500); **fatia 15.3d-incremento1 (ALOCACAO de RECORD + acesso a campo Int/Long no bump heap: `KofNewObject` bump por `ClassLayout.totalSize`, `<init>` de record com stores i64 em ordem reversa nos `fieldOffset`, `KofLoadField` load i64; opcodes reais `Mem.LOAD64=0x29`/`STORE64=0x37`; campos `String`/`Bool`/`Char`/`Double`/aninhados + `toString`/`equals`/concat-de-record seguem `WASM002` sem artefatos ate o lowering de metodo de instancia) POUSADA 08/10** — `record Point(Int x, Int y); println(p.x); println(p.y)` stdout `1/2` byte-identico ao oracle JVM (`WasmWasiE2ETest` 7/7 sob wasmtime v49.0.2; serializacao de locals do `WasmBinary` corrigida p/ runs consecutivos); **15.3d-incremento2 FATIA-A+B pousadas 09/10** (`String.valueOf(Int|Long)` como valor via `kof.intToStr`; larguras de campo de record Bool/Char/handle-String + paridade char/bool); **FATIA-C2 pousada 09/10** (`==`/`!=` de record por CONTEUDO: desugar `kofRecordEq` de chamada opaca (precedente JS) + fold de campo inline num bloco reto com accumulators, `kof.strEq` p/ campos String, Double = bits do `Double.equals`, byte-igual ao oraculo JVM `WasmWasiE2ETest` 12/12, bateria 30/30, split `WasmPrintCode` mantem `check_500` rc=0; `.equals()` explicito/aninhados seguem `WASM002` honestos); **FATIA-C1 pousada 09/10** (`toString`/println/valueOf/concat de record INLINE no call site via `WasmRecordCode` + `kof.strBool`/`kof.strChar`, `WasmWasiE2ETest` 11/11 byte-igual `Point[x=1, y=2]`, bateria 29/29, split `WasmTypeOracle` mantem `check_500` rc=0; `==` SEGUE `WASM002` honesto — modelo de merge cross-block = fatia C2) | seção de release-gates do plano; linhas da matriz de paridade | ABERTA (campos record-aninhados + `Double`/`Double.toString` no toString, depois colecoes; flip 15.4 POR ULTIMO) |
+| 15.4 | **flip do padrão de frontend POR ÚLTIMO** (web/desktop para WASI; JS só explícito) | suíte completa dos 4 alvos existentes verde + paridade WASI; `D-LAB-STABILITY` remedida | ABERTA |
 
 ## 24. KOF 1.0 EXIT GATE — estabilização dos contratos (RATIFICADO 20/09/2026, `DECISIONS.md` §D-RELEASE-1.0; arestas fechadas por `D-1.0-EDGES`)
 
@@ -1120,4 +1179,23 @@ decisão pendente; todos os `docs/development/*.md` soltos concluídos e movidos
 estabilidade total; 0 issues abertas de bug; todas as arestas fechadas; nada
 pendente em bugs-and-gaps. Fila + estado atual:
 `release-beta-0.5.0-prep.md` §"Gate de release". Mecanizado por
-`scripts/check_release_050_gate.sh`.
+`scripts/check_release_050_gate.sh`. **FECHADO 28/09 (`D-RELEASE-0.5.0-CLOSED`):**
+o corte pousou (`main` mergeou `#619`, tags `kof-0.5.0-beta*`); o registro de
+aceitação foi para `docs/distribution/release-beta-0.5.0.md` e o gate foi
+aposentado — a promoção agora é regida pelo TIER 14 (`D-QUALITY-PIPELINE-2609`).
+
+
+### TIER 14 — Migração do quality-pipeline (DECIDIDO 26/09 `D-QUALITY-PIPELINE-2609`; execução ABERTA desde 28/09 — 14.1/14.2/14.3 pousaram, 14.4 próxima, 14.5 resolvido)
+
+A esteira `lab → testing → prerelease → stable → release/x.y.z → tag` está
+fechada no design. **O ciclo 0.5.0 fechou 28/09 (`D-RELEASE-0.5.0-CLOSED`) e o
+`D-BRANCH-0.5.0` está `SUPERSEDED` — a branch ativa de desenvolvimento é `lab`
+(`D-BRANCH-PIPELINE`).** A frente está ABERTA; estado por unidade (mantenedora 28/09):
+
+| # | Unidade | Gate/prova | Estado |
+|---|---|---|---|
+| 14.1 | Piloto: branch temporária `release/0.5.0` (bump de versão, changelog, artefatos, checksums) cortada de stable-candidate; publicar; encerrar branch | GitHub Release + tag `v0.5.0`; nada novo adicionado no meio do piloto | ✅ EXECUTADO 28/09 (`D-RELEASE-0.5.0-CLOSED`; `#619` mergeado na `main`, tags `kof-0.5.0-beta*`) |
+| 14.2 | Cutover atômico (UMA mudança): criar `lab`/`testing`/`prerelease`/`stable`; workflows de CI (`codeql.yml` branches+schedule, gates, jobs cross) re-apontados; `scripts/sync-push.sh` + gate de tip §NNN + crons heartbeat/watcher re-apontados; `AGENTS.md` (`D-BRANCH` substituído), `DOING.md`, `DECISIONS.md` atualizados | build após o cutover: toda automação resolve o mesmo estágio; zero agente pousando em branch aposentada | ✅ EXECUTADO 28/09 a partir de `origin/main` (`317d9f6b1`); `beta-*` congelado; broadcast #647 |
+| 14.3 | Ferramental de promoção: `lab→testing` roda a suíte completa como primeiro gate formal; checagens de promoção codificam 100% por estágio (o denominador ≥80% foi DESCARTADO) mecanicamente | prova scriptada por promoção, não opinião | ✅ POUSOU 28/09 (#657): `scripts/pipeline/{promotion_evidence,promotion_gate,pipeline_state}.py` + `promote.yml` gate de suíte completa + contagens de issues scriptadas (a forma `check_release_050_gate.sh` foi aposentada com `D-RELEASE-0.5.0-CLOSED`) |
+| 14.4 | Proteções de branch: sem force-push + checks requeridos em `testing`/`prerelease`/`stable`; caminho de hotfix (PR + backport + revalidação) documentado em `AGENTS.md` | GitHub settings + espelho nos docs | ⏳ PRÓXIMA — mantenedora (`D-QUALITY-PIPELINE-2609`; ruleset GitHub `pipeline-stages`) |
+| 14.5 | Ponto aberto a fechar com a mantenedora neste plano: o `lab` mantém o piso de zero-regressão (regra 8) sem CI a cada push? | registrado em `D-QUALITY-PIPELINE-2609` §OPEN POINT | ✅ RESOLVIDO 28/09 — o `lab` MANTÉM o piso de zero-regressão mesmo sem CI a cada push |

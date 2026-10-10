@@ -38,7 +38,7 @@ Permanent principles, not suggestions: type system, IR, backends, runtime, stdli
 
 # 4. Benchmarks
 
-- Part of the architecture (never feeling): tree `benchmarks/{micro,algorithms,collections,strings,math,objects,inheritance,interfaces,generics,json,io,concurrency,startup,memory,stress,applications}`; each has input/expected/implementation/harness/metrics/baseline.
+- Part of the architecture (never feeling): tree `benchmarks/{micro,algorithms,collections,pipelines,strings,math,objects,inheritance,interfaces,generics,json,io,concurrency,startup,memory,stress,applications}`; each has input/expected/implementation/harness/metrics/baseline.
 - Micro: arithmetic/bitwise/compare/branch/loop/calls/virtual/interface/field/array/alloc/generics/boxing/strings/exceptions/lambda/closure/collections. Algorithms: sort/search/hash/graph/tree/matrix/parse/serialize/hash/compress/JSON/IO (semantically equivalent programs).
 - Memory: heap/RSS/alloc-rate/objects/GC/temps/fds/threads (time alone never decides; 10% faster × 5x memory is not better).
 - Stress (`benchmarks/stress/`): CPU prolonged, millions of allocs, collection/string volumes (insert/lookup/remove/iterate, concat/split/replace/search/parse), `spawn` storms (+`await` future), IO volumes, throw/catch/finally storms, HTTP req/s+p50/p95/p99+CPU/RAM.

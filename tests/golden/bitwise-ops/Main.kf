@@ -1,0 +1,9 @@
+main() {
+    println(6 & 3)
+    println(6 | 3)
+    println(6 ^ 3)
+    println(1 << 4)
+    println(16 >> 2)
+    println(5 & 1)
+    println(8 | 7)
+}

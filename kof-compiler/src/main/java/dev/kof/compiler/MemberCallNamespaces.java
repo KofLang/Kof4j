@@ -68,6 +68,15 @@ final class MemberCallNamespaces {
             for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
             boolean typed = !mc.typeArguments().isEmpty();
             String entityName = typed ? mc.typeArguments().get(0) : null;
+            // P4 (D-PAGINATION-P4-LOWERING): `orm.window<T>` devolve Window<T>,
+            // nao List<T> — a face e dessugada no ORM lowerer sobre
+            // orm.page/orm.count + o helper Kof window(...). Exige o host
+            // kof.pagination importado (Window existe); sem ele nao resolve.
+            if ("window".equals(mc.methodName()) && typed) {
+                Type ent = MemberResolver.resolveType(sa, mc.typeArguments().get(0), scope);
+                Type win = KofOrm.windowType(sa, ent);
+                if (win != null) return win;
+            }
             KofOrm.OrmCall ormCall = KofOrm.staticCall(mc.methodName(), argTypes, typed, entityName);
             if (ormCall != null) {
                 if ("save".equals(mc.methodName()) && !argTypes.isEmpty()) {
@@ -176,7 +185,11 @@ final class MemberCallNamespaces {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
             KofSecurity.SecCall secCall = KofSecurity.staticMethod(rid.name(), mc.methodName(), argTypes);
-            if (secCall != null) return secCall.returnType();
+            if (secCall != null) {
+                String viol = KofSecurity.argTypeViolation(secCall, argTypes);
+                if (viol != null) return securityArgRefused(sa, rid.name(), mc.methodName(), viol);
+                return secCall.returnType();
+            }
             return unknown(sa, rid.name(), mc.methodName());
         }
         if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofValidation.isValidationNamespace(rid.name())) {
@@ -185,6 +198,10 @@ final class MemberCallNamespaces {
             KofValidation.ValidationCall vCall = KofValidation.staticMethod(rid.name(), mc.methodName(), argTypes);
             if (vCall != null) return vCall.returnType();
             return unknown(sa, rid.name(), mc.methodName());
+        }
+        if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name())
+                && KofNet.isNetNamespace(rid.name()) && sa.target() == Target.JS) {
+            return netJsRefused(sa, "net." + mc.methodName());
         }
         if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofStd.isStdNamespace(rid.name())) {
             List<Type> argTypes = new ArrayList<>();
@@ -206,6 +223,15 @@ final class MemberCallNamespaces {
             if (tetrisCall != null) {
                 for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
                 return tetrisCall.returnType();
+            }
+            return unknown(sa, rid.name(), mc.methodName());
+        }
+        if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofImage.isImageNamespace(rid.name())) {
+            KofImage.ImageCall imageCall = KofImage.staticMethod(rid.name(), mc.methodName(),
+                    mc.arguments().size());
+            if (imageCall != null) {
+                for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+                return imageCall.returnType();
             }
             return unknown(sa, rid.name(), mc.methodName());
         }
@@ -244,6 +270,22 @@ final class MemberCallNamespaces {
             }
             return unknown(sa, "web", mc.methodName());
         }
+        // D-KOF-NET (fatia 1): membros de handle `net` (Listener/Conn/Endpoint).
+        // Sem braço próprio caíam em webInstance → null silencioso (a família
+        // R6 do §498). Handle é o 1º argumento na rota de membros (padrão web/db).
+        if (KofNet.isNetHandleType(recvType)) {
+            if (sa.target() == Target.JS) {
+                return netJsRefused(sa, "net." + mc.methodName());
+            }
+            java.util.List<Type> netArgTypes = new java.util.ArrayList<>();
+            netArgTypes.add(recvType);
+            for (ExpressionNode arg : mc.arguments()) {
+                netArgTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
+            }
+            KofNet.NetCall netCall = KofNet.instanceMethod(mc.methodName(), netArgTypes);
+            if (netCall != null) return netCall.returnType();
+            return unknown(sa, "net", mc.methodName());
+        }
         return webInstance(sa, mc, scope, recvType);
     }
 
@@ -271,6 +313,38 @@ final class MemberCallNamespaces {
             return unknown(sa, "sse", mc.methodName());
         }
         return null;
+    }
+
+    private static Type netJsRefused(SemanticAnalyzer sa, String face) {
+        if (sa.diagnostics() != null) {
+            sa.diagnostics().error("", 0, 0, 0,
+                    "The '" + face + "' face (and the whole kof.net front) is refused on the JS target — "
+                            + "network is not a v1 JS surface and no browser/Node sub-target exists"
+                            + " (NETN001: D-NET-JS-V1, maintainer 02/10)",
+                    "NETN001");
+        }
+        return Type.UnknownType.UNKNOWN;
+    }
+
+    private static Type securityArgRefused(SemanticAnalyzer sa, String ns, String method, String code) {
+        if (sa.diagnostics() != null) {
+            String why = switch (code) {
+                case "SECN013" -> "the binary digest faces take Byte[] only (D-KOF-DIGEST-BYTES"
+                        + "; §563 keeps the plain names on the String/Int face)"
+                        + " (SECN013: non-Byte[] actual on sha256Bytes/hmacSha256Bytes)";
+                case "SECN014" -> "the session-key face takes Secret only (D-KOF-X25519"
+                        + "; R8: private material never travels as a raw String)"
+                        + " (SECN014: non-Secret actual on keyExchange)";
+                default -> "this form is not silently digested per target"
+                        + " (SECN011: non-String/Int actual reaches an identity digest on Script"
+                        + " and a VerifyError on the JVM; §563)";
+            };
+            sa.diagnostics().error("", 0, 0, 0,
+                    "Argument type must match the declared face of '" + method
+                            + "' on '" + ns + "' — " + why,
+                    code);
+        }
+        return Type.UnknownType.UNKNOWN;
     }
 
     private static Type unknown(SemanticAnalyzer sa, String ns, String method) {

@@ -18,62 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Golden = oraculo JVM medido no MESMO programa, byte-identico no cross.
  * As demais faces de kof.io seguem com gate honesto NAT006 (§427).
  */
-class NativeIoStatCrossTest {
-
-    private final CompilerDriver driver = new CompilerDriver();
-
-    private static boolean has(String... cmds) {
-        for (String c : cmds) {
-            try {
-                Process p = new ProcessBuilder("sh", "-c", "command -v " + c)
-                        .redirectErrorStream(true).start();
-                if (p.waitFor() != 0) return false;
-            } catch (Exception e) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private static String runJvm(CompilerDriver driver, Path src, Path outDir) throws IOException {
-        CompilationResult result = driver.compile(src, outDir, Target.JVM);
-        assertTrue(result.success(), "jvm compile: " + result.diagnostics().getDiagnostics());
-        try {
-            ProcessBuilder pb = new ProcessBuilder("java", "-Dfile.encoding=UTF-8",
-                    "-Dstdout.encoding=UTF-8", "-cp", outDir.toString(), "Default.Main");
-            pb.redirectErrorStream(true);
-            Process p = pb.start();
-            String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
-                    .replace("\r\n", "\n").trim();
-            assertEquals(0, p.waitFor(), "jvm exit, output: " + out);
-            return out;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("interrupted", e);
-        }
-    }
-
-    private static String runCross(CompilerDriver driver, Path src, Path outDir,
-                                   String qemu, Target target) throws IOException {
-        CompilationResult result = driver.compile(src, outDir, target);
-        assertTrue(result.success(), "cross compile: " + result.diagnostics().getDiagnostics());
-        Path bin = outDir.resolve("Default/Main");
-        assertTrue(Files.exists(bin), "binary should exist");
-        ProcessBuilder pb = NativeRiscv64E2ETest.qemu(qemu.substring(5), bin);
-        pb.redirectErrorStream(true);
-        Process p = pb.start();
-        String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
-                .replace("\r\n", "\n").trim();
-        int ec;
-        try {
-            ec = p.waitFor();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("interrupted", e);
-        }
-        assertEquals(0, ec, "cross exit, output: " + out);
-        return out;
-    }
+class NativeIoStatCrossTest extends NativeIoJvmOracleSupport {
 
     // file: exists=true, isFile=true, isDir=false
     // dir : exists=true, isFile=false, isDir=true
@@ -103,13 +48,18 @@ class NativeIoStatCrossTest {
         Files.writeString(tempDir.resolve("d/f.txt"), "x");
     }
 
-    @Test
-    void jvmOracle(@TempDir Path tempDir) throws IOException {
+    @Override
+    protected Path jvmOracleSource(Path tempDir) throws IOException {
         prepare(tempDir);
         Path src = tempDir.resolve("Main.kf");
         Files.writeString(src, program(tempDir.resolve("d/f.txt"), tempDir.resolve("d"),
                 tempDir.resolve("nope")));
-        assertEquals(EXPECTED, runJvm(driver, src, tempDir.resolve("jvm-out")));
+        return src;
+    }
+
+    @Override
+    protected String jvmOracleExpected() {
+        return EXPECTED;
     }
 
     @Test

@@ -53,7 +53,19 @@ public final class ExpressionMethodCallLowerer {
 int handledStatic = ExpressionStaticCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 if (handledStatic >= 0) return handledStatic;
 if (mc.receiver() == null && driver.externSignatures.containsKey(mc.methodName())) {
-    ExternalFunctionNode ext = driver.externSignatures.get(mc.methodName());
+        // #763: mesmo-nome = overloads; a assinatura vem do typer (1 resolução, sem 2º oracle).
+    ExternalFunctionNode ext = driver.semanticAnalyzer != null
+            ? driver.semanticAnalyzer.getExternChoice(mc) : null;
+    if (ext == null) {
+        List<ExternalFunctionNode> cands = driver.externSignatures.get(mc.methodName());
+        if (cands.size() == 1) {
+            ext = cands.get(0);
+        } else {
+            gapError(driver, mc, "extern '" + mc.methodName() + "' has " + cands.size()
+                    + " overloads; this call did not resolve one (FFI001)", "FFI001");
+            return localIdx;
+        }
+    }
     if (CompilerFfiBinding.isExternBound(driver, ext)) {
         // #431/§61 (Native): ABI escalar DIRETA — os args ficam crus na pilha de
         // operandos (mesma convenção push dos calls internos) e o backend emite o
@@ -78,7 +90,19 @@ if (mc.receiver() == null && driver.externSignatures.containsKey(mc.methodName()
                     } else {
                         // D6-2/3.7: array escalar `T[]`→`ptr` (marker kof.ffi/array).
                         Character ae = FfiSignature.arrayElemChar(p.type());
-                        ffiParams.add(ae != null ? FfiStructLayout.arrayPtrType(ae) : null);
+                        if (ae != null) {
+                            ffiParams.add(FfiStructLayout.arrayPtrType(ae));
+                        } else if (FfiSignature.isStringArray(p.type())) {
+                            // D-MEM-FFI-CROSS-FULL face 2: `String[]`→`char**`
+                            // (marker arrayPtrType('S')).
+                            ffiParams.add(FfiStructLayout.arrayPtrType('S'));
+                        } else if (FfiSignature.isBufferParam(p.type())) {
+                            // D6-3/D-R3-BUFFER (fatia A2): Buffer(U8) INOUT — o
+                            // backend x86-64 passa o payload (obj+24) direto.
+                            ffiParams.add(FfiStructLayout.bufferPtrType());
+                        } else {
+                            ffiParams.add(null);
+                        }
                     }
                 }
             }
@@ -210,6 +234,17 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     // único (VarargsArrayPacker) — `Arrays.asList(1,2)` empacota
     // Object[] e sai invokestatic com o descritor REAL, nunca mais
     // o dono vazio `"".asList:(II)`.
+    // #760: an imported EXTERNAL class used as a static-method receiver
+    // (Runtime.getRuntime(), Arrays.asList(...)) is a JVM-backed face; JS/Native
+    // must refuse with INTEROP003 instead of leaking the java_* call. The
+    // wrapper owners keep their shims.
+    if (JvmInteropTargetGap.refuses(driver.target)
+            && !JvmInteropTargetGap.isShimmedOwner(extQ.internalName())) {
+        JvmInteropTargetGap.refuse(driver, mc.position(),
+                "static method '" + mc.methodName() + "()' of external class '"
+                        + extQ.internalName().replace('/', '.') + "'");
+        return localIdx;
+    }
     ExternalClasspath.MethodSignature extSig = driver.externalClasspath.resolveMethod(
             extQ.internalName(), mc.methodName(), mc.arguments().size());
     List<Type> extFormal = VarargsArrayPacker.formalTypes(extSig);
@@ -429,9 +464,20 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     }
     return localIdx;
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
-            && KofStd.isStdNamespace(rid.name())) {
+        && KofStd.isStdNamespace(rid.name())) {
     List<Type> argTypes = new ArrayList<>();
-    for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
+    for (ExpressionNode arg : mc.arguments()) {
+        // narrowing de null-safety: `if (q != null) { math.parseInt(q) }`
+        // — o frontend estreita `q: String?` para `String` no escopo do
+        // ramo, mas o lowerer lê os IR-locals (ainda Nullable); sem o
+        // unwrap o `staticMethod` devolve null, o `if (sCall != null)`
+        // abaixo NÃO emite nada e o IR fica sem o call → frame crash
+        // COMP002 (Q7: chamada sumida). Espelha o unwrap de receiver no
+        // ramo de instance call (`ExpressionInstanceCallLowerer`).
+        Type at = ExpressionTyper.inferExprType(driver, arg, locals);
+        if (at instanceof Type.NullableType nt) at = nt.inner();
+        argTypes.add(at);
+    }
     KofStd.StdCall sCall = KofStd.staticMethod(rid.name(), mc.methodName(), argTypes);
     if (sCall != null) {
         if (!KofStd.supportedOn(sCall, driver.target)) {
@@ -444,10 +490,16 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
         ops.add(new KofCall(new Type.ClassType(sCall.ownerPackage(), sCall.ownerClass(), List.of()),
                 sCall.function(), sCall.parameterTypes(), sCall.returnType(),
                 KofCallKind.FUNCTION));
+    } else {
+        // §607/#770 face R6 (Q7): nenhum match de namespace = divergencia
+        // sem x lowering; o corpo VAZIO era o drop silencioso que deixava o
+        // frame incompleto (COMP002). Diagnostico honesto na linha da decl.
+        gapError(driver, mc, "no lowering for '" + rid.name() + "." + mc.methodName()
+                + "()' with argument types " + argTypes, "SEM025");
     }
     return localIdx;
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
-            && KofObservability.isObservabilityNamespace(rid.name())) {
+        && KofObservability.isObservabilityNamespace(rid.name())) {
     List<Type> argTypes = new ArrayList<>();
     for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
     KofObservability.ObservabilityCall oCall = KofObservability.staticMethod(rid.name(), mc.methodName(), argTypes);
@@ -480,6 +532,24 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
         localIdx = emitArgs(driver, mc, ops, owner, localIdx, locals);
         ops.add(new KofCall(new Type.ClassType("kof.tetris", "Tetris", List.of()),
                 tetrisCall.function(), tetrisCall.parameterTypes(), tetrisCall.returnType(),
+                KofCallKind.FUNCTION));
+    }
+    return localIdx;
+} else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
+        && KofImage.isImageNamespace(rid.name())) {
+    KofImage.ImageCall imageCall = KofImage.staticMethod(rid.name(), mc.methodName(),
+            mc.arguments().size());
+    if (imageCall != null) {
+        if (!KofImage.supportedOn(driver.target)) {
+            gapError(driver, mc, rid.name() + "." + mc.methodName()
+                    + ": no image codec runtime on the " + driver.target
+                    + " target yet (" + KofImage.gapCode() + ")",
+                    KofImage.gapCode());
+            return localIdx;
+        }
+        localIdx = emitArgs(driver, mc, ops, owner, localIdx, locals);
+        ops.add(new KofCall(new Type.ClassType("kof.image", "Image", List.of()),
+                imageCall.function(), imageCall.parameterTypes(), imageCall.returnType(),
                 KofCallKind.FUNCTION));
     }
     return localIdx;

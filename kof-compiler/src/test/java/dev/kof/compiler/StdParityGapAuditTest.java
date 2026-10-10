@@ -33,6 +33,13 @@ class StdParityGapAuditTest {
             // not among the six stdlib-parity targets, so they are excluded here
             // rather than pretending a stdlib surface they do not have.
             if (t == Target.NATIVE_RISCV32 || t == Target.NATIVE_MCU_ARM) continue;
+            // WASI (15.1, #776) is topology-only: no emitting backend yet,
+            // refused at compile with the clean WASM001 diagnostic. WASM (15.2)
+            // emits the SCALAR subset only — no stdlib surface, no IO, no main
+            // host yet — so neither pretends a stdlib surface it does not have
+            // (never a silent gate). WASI enters with 15.3; the stdlib matrix
+            // row opens when 15.3/15.4 land the runtime + host with goldens.
+            if (t == Target.WASM || t == Target.WASI) continue;
             if (!supported.test(t)) {
                 s.add(t);
             }
@@ -41,14 +48,18 @@ class StdParityGapAuditTest {
     }
 
     @Test
-    @DisplayName("buffer: gate JVM+JS (D-R3-BUFFER) + FFI001 nos demais")
+    @DisplayName("buffer: gate JVM+JS+x86 Native (D-R3-BUFFER/A1) + FFI001 nos demais")
     void bufferGatesToJvmWithFfiCodes() {
-        // R57/R58: the `kof.buffer` namespace + Buffer(U8) INOUT bind on the JS
-        // target too (KofBuffer.supportedOn = JVM||JS) — JS is no longer gated.
-        assertEquals(Set.of(Target.NATIVE, Target.NATIVE_RISCV64, Target.NATIVE_AARCH64,
-                Target.ANDROID, Target.SCRIPT), unsupported(KofBuffer::supportedOn));
+        // R57/R58: JS landed (KofBuffer.supportedOn = JVM||JS). #651 fatia A1:
+        // x86-64 native surface (alloc/bytes/println). #651 fatia B (29/09):
+        // cross riscv64/aarch64 surface + FFI `B` land (NativeRiscvAsmBuffer).
+        // Android, riscv32 and Script remain honest gaps.
+        assertEquals(Set.of(Target.ANDROID, Target.SCRIPT), unsupported(KofBuffer::supportedOn));
         assertTrue(KofBuffer.supportedOn(Target.JS));
-        assertEquals("FFI001", KofBuffer.gapCode(Target.NATIVE));
+        assertTrue(KofBuffer.supportedOn(Target.NATIVE));
+        assertTrue(KofBuffer.supportedOn(Target.NATIVE_RISCV64));
+        assertTrue(KofBuffer.supportedOn(Target.NATIVE_AARCH64));
+        assertEquals("FFI001", KofBuffer.gapCode(Target.ANDROID));
     }
 
     @Test
@@ -56,6 +67,18 @@ class StdParityGapAuditTest {
     void dbGatesOnlyScript() {
         assertEquals(Set.of(Target.SCRIPT), unsupported(KofDb::supportedOn));
         assertEquals("DB001", KofDb.gapCode());
+    }
+
+    @Test
+    @DisplayName("image: JVM-only (IMG001) — interop javax.imageio; demais alvos gated")
+    void imageGatesToJvm() {
+        // D-IMAGE-SURFACE (30/09): kof.image.decode é o escape interop JVM
+        // (javax.imageio); os decoders puros cobrem o resto em libs/image/.
+        // O namespace nasceu depois deste ratchet (21/09) e ficou sem pin.
+        assertEquals(Set.of(Target.NATIVE, Target.NATIVE_RISCV64, Target.NATIVE_AARCH64,
+                Target.JS, Target.ANDROID, Target.SCRIPT), unsupported(KofImage::supportedOn));
+        assertTrue(KofImage.supportedOn(Target.JVM));
+        assertEquals("IMG001", KofImage.gapCode());
     }
 
     @Test
@@ -74,10 +97,9 @@ class StdParityGapAuditTest {
     }
 
     @Test
-    @DisplayName("rng: cross + ANDROID + SCRIPT gated (RNG001)")
-    void rngGatesCrossAndroidScript() {
-        assertEquals(Set.of(Target.NATIVE_RISCV64, Target.NATIVE_AARCH64,
-                Target.ANDROID, Target.SCRIPT),
+    @DisplayName("rng: cross + SCRIPT gated (RNG001) — ANDROID real desde #777")
+    void rngGatesCrossAndScript() {
+        assertEquals(Set.of(Target.NATIVE_RISCV64, Target.NATIVE_AARCH64, Target.SCRIPT),
                 unsupported(t -> KofRng.supportedOn("kof_rng_int", t)));
         assertEquals("RNG001", KofRng.gapCode("kof_rng_int"));
     }

@@ -74,6 +74,48 @@ else
     fail "native output (got: $OUTPUT)"
 fi
 
+# ── kof build --target js (guarded: node may be absent) ────────────
+if command -v node >/dev/null 2>&1; then
+    if java -jar "$KOF_JAR" build "$WORK/src" --target js --output "$WORK/js" >/dev/null 2>&1 \
+            && [ -f "$WORK/js/Default.mjs" ]; then
+        pass "build js"
+    else
+        fail "build js"
+    fi
+    JS_OUTPUT=$(node "$WORK/js/Default.mjs" 2>/dev/null || true)
+    if [ "$JS_OUTPUT" = "integration:42" ]; then
+        pass "js output"
+    else
+        fail "js output (got: $JS_OUTPUT)"
+    fi
+else
+    echo "SKIP: build js / js output (node ausente)"
+fi
+
+# ── kof run --target script (direct IR interpretation) ─────────────
+SCRIPT_OUTPUT=$(java -jar "$KOF_JAR" run --target script "$WORK/src/Main.kf" 2>/dev/null || true)
+if [ "$SCRIPT_OUTPUT" = "integration:42" ]; then
+    pass "run script"
+else
+    fail "run script (got: $SCRIPT_OUTPUT)"
+fi
+
+# ── kof run --target native (the `run` dispatch, not just build) ───
+NATIVE_RUN_OUTPUT=$(java -jar "$KOF_JAR" run --target native "$WORK/src/Main.kf" 2>/dev/null || true)
+if [ "$NATIVE_RUN_OUTPUT" = "integration:42" ]; then
+    pass "run native"
+else
+    fail "run native (got: $NATIVE_RUN_OUTPUT)"
+fi
+
+# ── kof run --target js (embedded JS engine; no external node) ─────
+JS_RUN_OUTPUT=$(java -jar "$KOF_JAR" run --target js "$WORK/src/Main.kf" 2>/dev/null || true)
+if [ "$JS_RUN_OUTPUT" = "integration:42" ]; then
+    pass "run js"
+else
+    fail "run js (got: $JS_RUN_OUTPUT)"
+fi
+
 # ── kof check ──────────────────────────────────────────────────────
 if java -jar "$KOF_JAR" check "$WORK/src/Main.kf" >/dev/null 2>&1; then
     pass "check (valid file)"

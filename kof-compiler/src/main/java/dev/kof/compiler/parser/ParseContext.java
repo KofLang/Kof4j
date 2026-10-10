@@ -3,6 +3,7 @@ import dev.kof.compiler.DiagnosticCollector;
 import dev.kof.compiler.SourcePosition;
 import dev.kof.compiler.Token;
 import dev.kof.compiler.TokenType;
+import dev.kof.compiler.lang.LanguageProfile;
 
 import java.util.HashSet;
 import java.util.List;
@@ -13,20 +14,59 @@ import java.util.Set;
  * recursivo-descendente (REFACTOR-500, FASE 7). O cursor {@code pos} é o
  * único estado mutável: todo parser extraído recebe este contexto por
  * parâmetro e o avança; nenhum estado é duplicado entre as classes.
+ *
+ * <p>{@code profile} (D-PORTUKOF 07/10): vocabulário da superfície. É dado
+ * SOMENTE às POSIÇÕES de palavras contextuais (IDENTIFIERs que o parser
+ * resolve por valor — {@code test}/{@code using}/{@code constructor}/
+ * {@code in}/...). A semântica é a mesma: o parser pergunta "esta palavra
+ * ocupa a posição canônica X?" — nunca um {@code if (portugues)} espalhado.
  */
 public class ParseContext {
 
     final List<Token> tokens;
     final DiagnosticCollector diagnostics;
     final String file;
+    final LanguageProfile profile;
     final Set<String> entityNames = new HashSet<>();
     String currentClassName;
     int pos;
 
     ParseContext(List<Token> tokens, DiagnosticCollector diagnostics, String file) {
+        this(tokens, diagnostics, file, LanguageProfile.KOF);
+    }
+
+    ParseContext(List<Token> tokens, DiagnosticCollector diagnostics, String file,
+                 LanguageProfile profile) {
         this.tokens = tokens;
         this.diagnostics = diagnostics;
         this.file = file;
+        this.profile = profile;
+    }
+
+    /** A palavra atual (IDENTIFIER) ocupa a posição canônica {@code canonical}? */
+    boolean wordIs(String canonical) {
+        return check(TokenType.IDENTIFIER) && profile.matchesWord(peek().value(), canonical);
+    }
+
+    /** A palavra em {@code pos + off} ocupa a posição canônica {@code canonical}? */
+    boolean wordAtIs(int off, String canonical) {
+        int i = pos + off;
+        if (i < 0 || i >= tokens.size()) return false;
+        Token t = tokens.get(i);
+        return (t.type() == TokenType.IDENTIFIER || t.type() == TokenType.CLASS)
+                && profile.matchesWord(t.value(), canonical);
+    }
+
+    /** {@code in}/{@code out} de VARIÂNCIA canônicos; qualquer outra palavra, crua. */
+    String canonicalVariance(String word) {
+        if (profile.matchesWord(word, "in")) return "in";
+        if (profile.matchesWord(word, "out")) return "out";
+        return word;
+    }
+
+    /** Valor canônico de uma palavra contextual da superfície (PortuKof → inglês). */
+    String canonicalValue(String word) {
+        return profile.canonicalWord(word);
     }
 
     public boolean check(TokenType... types) {
@@ -56,12 +96,26 @@ public class ParseContext {
      * `sealed` continua válido em qualquer outro lugar (regra 2, retrocompat).
      */
     public boolean sealedModifierAhead() {
-        if (!check(TokenType.IDENTIFIER) || !"sealed".equals(peek().value())) return false;
+        if (!wordIs("sealed")) return false;
         int i = pos + 1;
         while (i < tokens.size() && MODIFIER_TOKENS.contains(tokens.get(i).type())) i++;
         if (i >= tokens.size()) return false;
         TokenType t = tokens.get(i).type();
         return t == TokenType.CLASS || t == TokenType.RECORD || t == TokenType.INTERFACE;
+    }
+
+    /**
+     * Connector ecosystem (plan §9.16 slice A): {@code foreign module <name> {}
+     * — `foreign`/`module` são keywords CONTEXTUAIS (IDENTIFIER), como `sealed`.
+     * Só é um bloco de módulo quando IDENTIFIER("foreign") precede IDENTIFIER e
+     * um `{`; em qualquer outro lugar `foreign`/`module` seguem identificadores.
+     */
+    public boolean foreignModuleAhead() {
+        if (!wordIs("foreign")) return false;
+        if (pos + 3 >= tokens.size()) return false;
+        return tokens.get(pos + 1).type() == TokenType.IDENTIFIER
+                && tokens.get(pos + 2).type() == TokenType.IDENTIFIER
+                && tokens.get(pos + 3).type() == TokenType.LBRACE;
     }
 
     boolean atEnd() {
@@ -99,7 +153,7 @@ public class ParseContext {
             advance();
             diagnostics.error(file, kw.line(), kw.column(), kw.value().length(),
                     "'" + kw.value() + "' is a reserved word (Kof has no function keyword); "
-                    + "declare as 'Type name(...) { }' or 'name(...): Type { }'", "PARSE085");
+                    + "declare as 'Type name(...) { }' or 'name(...): Type { }'", "PARSE085", kw.value());
             return "error";
         }
         diagnostics.error(file, peek().line(), peek().column(), peek().length(), message, code);
@@ -129,5 +183,12 @@ public class ParseContext {
 
     public void error(String message, String code) {
         diagnostics.error(file, peek().line(), peek().column(), peek().length(), message, code);
+    }
+
+    /** D-PORTUKOF F6: captura de ARGUMENTOS ESTRUTURADOS (a mensagem EN continua
+     *  idêntica; os args alimentam a renderização PT pelo código). */
+    public void error(String message, String code, Object... args) {
+        diagnostics.error(file, peek().line(), peek().column(), peek().length(),
+                message, code, args);
     }
 }

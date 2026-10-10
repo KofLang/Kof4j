@@ -19,22 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Bugs: #7 (namespaces builtin), #3 (campo em classe conhecida),
  * #6 (super.metodoInexistente), #8 (receiver conhecido não engole método).
  */
-class SemanticResolutionTest {
-    private final CompilerDriver driver = new CompilerDriver();
-
-    private CompilationResult compile(@TempDir Path tmp, String name, String src) throws IOException {
-        Path source = tmp.resolve(name);
-        Files.writeString(source, src);
-        return driver.compile(source, tmp.resolve("out"), Target.JVM);
-    }
-
-    private void assertSem025(CompilationResult r, String snippet) {
-        assertFalse(r.success(), "deve falhar: " + snippet);
-        boolean found = r.diagnostics().getDiagnostics().stream()
-                .anyMatch(d -> "SEM025".equals(d.code()) && d.message().contains(snippet));
-        assertTrue(found, "esperava SEM025 contendo '" + snippet + "', foi: "
-                + r.diagnostics().getDiagnostics());
-    }
+class SemanticResolutionTest extends SemanticResolutionSupport {
 
     // ---- #7: namespace builtin + método inexistente → SEM025 (matriz) ----
 
@@ -94,18 +79,7 @@ class SemanticResolutionTest {
         // non-goals; a correção é R6 (nunca silencioso): warning SEM091 com a
         // posição do membro, NÃO-fatal (retrocompat — código que compila hoje
         // continua compilando, regra 2 do congelamento).
-        CompilationResult r = compile(tmp, "Sync.kf", """
-                class Contador {
-                    Map<String, Int> dados
-                    public constructor() {
-                        this.dados = mapOf()
-                    }
-                    synchronized Int somar(String chave) {
-                        return 1
-                    }
-                }
-                main() { println(Contador().somar("a")) }
-                """);
+        CompilationResult r = compile(tmp, "Sync.kf", SRC_MECHANISM_MODIFIER_WARNS_BUT_STAYS_GREEN);
         assertTrue(r.success(), "synchronized deve continuar compilando (warning não-fatal)");
         boolean warned = r.diagnostics().getDiagnostics().stream()
                 .anyMatch(d -> d.severity() == Diagnostic.Severity.WARNING
@@ -114,24 +88,12 @@ class SemanticResolutionTest {
         assertTrue(warned, "esperava warning SEM091 sobre 'synchronized', foi: "
                 + r.diagnostics().getDiagnostics());
         // volatile/transient/native caem na mesma regra
-        CompilationResult v = compile(tmp, "Vol.kf", """
-                class C {
-                    volatile Int x
-                    Int f() { return 1 }
-                }
-                main() { println(0) }
-                """);
+        CompilationResult v = compile(tmp, "Vol.kf", SRC_MECHANISM_MODIFIER_WARNS_BUT_STAYS_GREEN_2);
         assertTrue(v.diagnostics().getDiagnostics().stream()
                 .anyMatch(d -> "SEM091".equals(d.code()) && d.message().contains("volatile")),
                 "volatile deve avisar: " + v.diagnostics().getDiagnostics());
         // sem modificador de mecanismo → NENHUM SEM091 (não polui código limpo)
-        CompilationResult clean = compile(tmp, "Clean.kf", """
-                class C {
-                    Int x
-                    Int f() { return 1 }
-                }
-                main() { println(C().f()) }
-                """);
+        CompilationResult clean = compile(tmp, "Clean.kf", SRC_MECHANISM_MODIFIER_WARNS_BUT_STAYS_GREEN_3);
         assertTrue(clean.success() && clean.diagnostics().getDiagnostics().stream()
                 .noneMatch(d -> "SEM091".equals(d.code())),
                 "código limpo não deve ter SEM091: " + clean.diagnostics().getDiagnostics());
@@ -171,15 +133,7 @@ class SemanticResolutionTest {
 
     @Test
     void unknownMethodOnSuper(@TempDir Path tmp) throws IOException {
-        CompilationResult r = compile(tmp, "S.kf", """
-                class Base {
-                    Int ok() { return 1 }
-                }
-                class Sub extends Base {
-                    Int bad() { return super.naoExiste() }
-                }
-                main() { println(Sub().bad()) }
-                """);
+        CompilationResult r = compile(tmp, "S.kf", SRC_UNKNOWN_METHOD_ON_SUPER);
         assertSem025(r, "in superclass 'Base'");
     }
 
@@ -187,15 +141,7 @@ class SemanticResolutionTest {
 
     @Test
     void unknownFieldOnKnownClass(@TempDir Path tmp) throws IOException {
-        CompilationResult r = compile(tmp, "F.kf", """
-                class P {
-                    Int a
-                }
-                main() {
-                    var p = P()
-                    println(p.campoInexistente)
-                }
-                """);
+        CompilationResult r = compile(tmp, "F.kf", SRC_UNKNOWN_FIELD_ON_KNOWN_CLASS);
         assertSem025(r, "Cannot resolve field 'campoInexistente' on type 'P'");
     }
 
@@ -203,30 +149,7 @@ class SemanticResolutionTest {
 
     @Test
     void validCallsStayGreen(@TempDir Path tmp) throws IOException {
-        CompilationResult r = compile(tmp, "V.kf", """
-                class Base {
-                    Int ok() { return 1 }
-                }
-                class Sub extends Base {
-                    Int usa() { return super.ok() }
-                }
-                main() {
-                    var s = Sub()
-                    println(s.usa())
-                    var l = listOf(1, 2, 3)
-                    l.add(4)
-                    println(l.size())
-                    println(l.contains(2))
-                    var m = mapOf("a", 1)
-                    m.put("b", 2)
-                    println(m.get("a"))
-                    var st = setOf("x", "y")
-                    println(st.contains("x"))
-                    log.info("hello")
-                    println(time.now())
-                    println("ok")
-                }
-                """);
+        CompilationResult r = compile(tmp, "V.kf", SRC_VALID_CALLS_STAY_GREEN);
         assertTrue(r.success(), "casos válidos devem compilar: "
                 + r.diagnostics().getDiagnostics());
     }
@@ -235,15 +158,7 @@ class SemanticResolutionTest {
 
     @Test
     void abstractClassInstantiationFails(@TempDir Path tmp) throws IOException {
-        CompilationResult r = compile(tmp, "A.kf", """
-                abstract class Shape {
-                    Int area() { return 0 }
-                }
-                main() {
-                    var s = Shape()
-                    println(s)
-                }
-                """);
+        CompilationResult r = compile(tmp, "A.kf", SRC_ABSTRACT_CLASS_INSTANTIATION_FAILS);
         assertFalse(r.success(), "deve falhar: new de abstract class");
         boolean found = r.diagnostics().getDiagnostics().stream()
                 .anyMatch(d -> "SEM041".equals(d.code())
@@ -253,17 +168,7 @@ class SemanticResolutionTest {
 
     @Test
     void abstractClassSubclassInstantiationStaysGreen(@TempDir Path tmp) throws IOException {
-        CompilationResult r = compile(tmp, "A.kf", """
-                abstract class Shape {
-                    Int area() { return 0 }
-                }
-                class Circle extends Shape {
-                }
-                main() {
-                    var c = Circle()
-                    println(c)
-                }
-                """);
+        CompilationResult r = compile(tmp, "A.kf", SRC_ABSTRACT_CLASS_SUBCLASS_INSTANTIATION_STAYS_GREEN);
         assertTrue(r.success(), "subclass concreta instanciável: "
                 + r.diagnostics().getDiagnostics());
     }
@@ -273,15 +178,7 @@ class SemanticResolutionTest {
 
     @Test
     void unknownMethodOnKnownClass(@TempDir Path tmp) throws IOException {
-        CompilationResult r = compile(tmp, "M.kf", """
-                class P {
-                    Int a
-                }
-                main() {
-                    var p = P()
-                    p.naoExiste()
-                }
-                """);
+        CompilationResult r = compile(tmp, "M.kf", SRC_UNKNOWN_METHOD_ON_KNOWN_CLASS);
         assertSem025(r, "on type 'P'");
     }
 
@@ -290,13 +187,6 @@ class SemanticResolutionTest {
     // nos 3 targets (JVM NoClassDefFoundError "?", Native SIGSEGV, Script null)
     // — e `var x = Int.MAX_VALUE` CRASHAVA o compilador (ASM visitMaxs). ----
 
-    private void assertSem050(CompilationResult r, String snippet) {
-        assertFalse(r.success(), "deve falhar: " + snippet);
-        boolean found = r.diagnostics().getDiagnostics().stream()
-                .anyMatch(d -> "SEM050".equals(d.code()) && d.message().contains(snippet));
-        assertTrue(found, "esperava SEM050 contendo '" + snippet + "', foi: "
-                + r.diagnostics().getDiagnostics());
-    }
 
     // §130 (spike OTP #83, 11/09): o laço de 4 passes do corpo de MÉTODO
     // (inference de return-type "bug 26") re-analisava cada corpo no MESMO
@@ -306,31 +196,7 @@ class SemanticResolutionTest {
     // overload `child(id, f)` delegando para `child(id, f, politica)`.
     @Test
     void redeclarationFalsePositiveEmMetodoDeClasse(@TempDir Path tmp) throws IOException {
-        String src = """
-                class Node {
-                    Int value
-                    Int rest
-                    constructor(Int value, Int rest) { this.value = value; this.rest = rest }
-                }
-                class S {
-                    Int total
-                    constructor() { this.total = 0 }
-                    add(Int v) {
-                        return this.add2(Node(v, 0))
-                    }
-                    add2(Node n) {
-                        var q = n.value
-                        var r = n.rest
-                        total = total + q + r
-                        return total
-                    }
-                }
-                main() {
-                    var s = S()
-                    s.add(3)
-                    println(s.total == 3)
-                }
-                """;
+        String src = SRC_REDECLARATION_FALSE_POSITIVE_EM_METODO_DE_CLASSE;
         CompilationResult r = compile(tmp, "S110.kf", src);
         assertTrue(r.success(), "corpos de método re-analisados devem aceitar 'var' "
                 + "repetido (escopo por análise, não por classe): "
@@ -356,13 +222,7 @@ class SemanticResolutionTest {
     // (o fix só isola passes, nunca afrouxa o SC5).
     @Test
     void redeclaracaoMesmoCorpoAindaErro(@TempDir Path tmp) throws IOException {
-        CompilationResult r = compile(tmp, "S110b.kf", """
-                main() {
-                    var q = 1
-                    var q = 2
-                    println(q)
-                }
-                """);
+        CompilationResult r = compile(tmp, "S110b.kf", SRC_REDECLARACAO_MESMO_CORPO_AINDA_ERRO);
         assertFalse(r.success(), "redeclaracao no mesmo escopo continua SEM024");
         assertTrue(r.diagnostics().getDiagnostics().stream()
                 .anyMatch(d -> "SEM024".equals(d.code()) && d.message().contains("'q'")),
@@ -388,16 +248,7 @@ class SemanticResolutionTest {
         // o SEM050 não pode quebrar o que LEGITIMAMENTE usa um nome de tipo:
         // anotação (`x: Int`), cast (`as Int`), e acesso a campo em INSTÂNCIA
         // (String.length, "abc".length). Proibido regridir (regra 1).
-        CompilationResult r = compile(tmp, "ok.kf", """
-                main() {
-                    var x: Int = 2147483647
-                    var s = "abc"
-                    println(s.length)
-                    println("a😀b".length)
-                    val big = 3000000000
-                    println(x + big)
-                }
-                """);
+        CompilationResult r = compile(tmp, "ok.kf", SRC_PRIMITIVE_AS_TYPE_AND_LITERAL_STILL_COMPILE);
         assertTrue(r.success(), "legítimo deve compilar: " + r.diagnostics().getDiagnostics());
     }
 
@@ -432,17 +283,7 @@ class SemanticResolutionTest {
         // não regridir (regra 1): literal String ok; replace(char,char) é o
         // overload LEGAL da registry; charAt/substring recebem numérico
         // (Char é Int em Kof — widening do usuário, não erro do compilador).
-        CompilationResult r = compile(tmp, "ok.kf", """
-                main() {
-                    var s = "abc"
-                    println(s.indexOf("c"))
-                    println(s.replace('b', 'x'))
-                    println(s.charAt(1))
-                    println(s.substring(1))
-                    println(s.contains("b"))
-                    println(s.compareTo("a"))
-                }
-                """);
+        CompilationResult r = compile(tmp, "ok.kf", SRC_STRING_METHODS_WITH_STRING_OR_CHAR_ARGS_STILL_COMPILE);
         assertTrue(r.success(), "legítimo deve compilar: " + r.diagnostics().getDiagnostics());
     }
 
@@ -474,23 +315,7 @@ class SemanticResolutionTest {
     void stringsFunctionsAndRealStringMethodsStillCompile(@TempDir Path tmp) throws IOException {
         // não regridir (regra 1): a forma função da stdlib e os métodos QUE
         // SÃO de String na registry (toUpperCase/trim/split/replace/substring).
-        CompilationResult r = compile(tmp, "ok.kf", """
-                main() {
-                    println(strings.repeat("ab", 3))
-                    println(strings.truncate("abcdef", 3))
-                    println(strings.padLeft("7", 3, "0"))
-                    println(strings.padRight("7", 3, "0"))
-                    println(strings.reverse("ab"))
-                    println(strings.capitalize("ab"))
-                    println(strings.count("abc", "a"))
-                    println(strings.isAlpha("a"))
-                    var s = "ab"
-                    println(s.toUpperCase())
-                    println(s.trim())
-                    println(s.replace("a", "b"))
-                    println(s.substring(1))
-                }
-                """);
+        CompilationResult r = compile(tmp, "ok.kf", SRC_STRINGS_FUNCTIONS_AND_REAL_STRING_METHODS_STILL_COMPILE);
         assertTrue(r.success(), "legítimo deve compilar: " + r.diagnostics().getDiagnostics());
     }
 
@@ -518,22 +343,7 @@ class SemanticResolutionTest {
     void stringEqualityAndNumericOrderingStillCompile(@TempDir Path tmp) throws IOException {
         // não regridir: `==`/`!=` de String (conteúdo, congelado) e toda
         // comparação numérica (o guard é SÓ p/ String).
-        CompilationResult r = compile(tmp, "ok.kf", """
-                main() {
-                    var a = "abc"
-                    var b = "abd"
-                    println(a == b)
-                    println(a != b)
-                    println(a == "abc")
-                    println(3 < 5)
-                    println(3L <= 5L)
-                    println(2.5 > 1.5)
-                    println(a.compareTo(b) < 0)
-                    var n = 0
-                    while (n < 10) { n = n + 1 }
-                    println(n)
-                }
-                """);
+        CompilationResult r = compile(tmp, "ok.kf", SRC_STRING_EQUALITY_AND_NUMERIC_ORDERING_STILL_COMPILE);
         assertTrue(r.success(), "legítimo deve compilar: " + r.diagnostics().getDiagnostics());
     }
 
@@ -596,15 +406,7 @@ class SemanticResolutionTest {
     void listIndexIntAndUnknownStillCompiles(@TempDir Path tmp) throws IOException {
         // remove/get/set com índice Int e recebendo de função Unknown não
         // regredem (regra 1 — SG-008: Unknown pode ser Int em runtime).
-        CompilationResult r = compile(tmp, "ok.kf", """
-                main() {
-                    var l = listOf(5, 7)
-                    println(l.remove(1))
-                    println(l.get(0))
-                    l.set(0, 9)
-                    println(l.size)
-                }
-                """);
+        CompilationResult r = compile(tmp, "ok.kf", SRC_LIST_INDEX_INT_AND_UNKNOWN_STILL_COMPILES);
         assertTrue(r.success(), "Int-index não deve regride: " + r.diagnostics().getDiagnostics());
     }
 
@@ -647,25 +449,7 @@ class SemanticResolutionTest {
         // compilando — o Native devolve o miss seguro (tag=0 raw cmpq), o
         // JVM devolve null/false. E add/set/put que só WIDENAM números
         // (Int→Long), são homogêneos, ou PINAM um container Unknown passam.
-        CompilationResult r = compile(tmp, "ok2.kf", """
-                main() {
-                    var l = listOf("a", "b")
-                    println(l.contains(5))          // query miss (não rejeita)
-                    var m = mapOf("a", 1)
-                    println(m.get(5))              // query miss
-                    println(m.size())
-                    var s = setOf("a")
-                    println(s.contains(5))         // query miss
-                    var n = listOf()               // primeiro add PINA
-                    n.add(1)
-                    n.add(2)                       // homogêneo → ok
-                    n.add(3)
-                    println(n.get(0))
-                    var big = listOf(1, 2)
-                    big.add(9)                     // Int→Int, ok (sem widening aqui)
-                    println(big.size)
-                }
-                """);
+        CompilationResult r = compile(tmp, "ok2.kf", SRC_QUERY_SIDE_AND_WIDENING_NOT_REJECTED);
         assertTrue(r.success(), "query-side/homogêneo não deve regride: "
                 + r.diagnostics().getDiagnostics());
     }
@@ -673,19 +457,7 @@ class SemanticResolutionTest {
     @Test
     void subscriptOnArraysStillCompiles(@TempDir Path tmp) throws IOException {
         // array de verdade (o único [] do corpus) não regride (regra 1).
-        CompilationResult r = compile(tmp, "ok.kf", """
-                main() {
-                    var nums = new Int[3]
-                    nums[0] = 5
-                    println(nums[0])
-                    var words = new String[2]
-                    words[1] = "x"
-                    println(words[1])
-                    var grid = new Int[2][2]
-                    grid[0][1] = 7
-                    println(grid[0][1])
-                }
-                """);
+        CompilationResult r = compile(tmp, "ok.kf", SRC_SUBSCRIPT_ON_ARRAYS_STILL_COMPILES);
         assertTrue(r.success(), "array deve compilar: " + r.diagnostics().getDiagnostics());
     }
 
@@ -718,16 +490,7 @@ class SemanticResolutionTest {
     void forInListAndArrayStillCompiles(@TempDir Path tmp) throws IOException {
         // List/array (as duas formas iteráveis do corpus) e List vinda de
         // função (Unknown-element) não regridem (regra 1).
-        CompilationResult r = compile(tmp, "ok.kf", """
-                List<Int> mk() { return listOf(4, 5) }
-                main() {
-                    for (var x in listOf(1, 2)) { println(x) }
-                    var arr = new Int[2]
-                    arr[0] = 7
-                    for (var a in arr) { println(a) }
-                    for (var y in mk()) { println(y) }
-                }
-                """);
+        CompilationResult r = compile(tmp, "ok.kf", SRC_FOR_IN_LIST_AND_ARRAY_STILL_COMPILES);
         assertTrue(r.success(), "List/array não devem regredir: "
                 + r.diagnostics().getDiagnostics());
     }

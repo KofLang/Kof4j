@@ -1,0 +1,466 @@
+package image
+
+import image.Image
+import image.Inflate
+
+// kof.image — pure-Kof PNG decoder (part of the pixel slice).
+//
+// Color types 0 (gray), 2 (RGB), 3 (palette), 4 (gray+alpha) and 6 (RGBA);
+// bit depths 1/2/4/8/16 per the spec's allowed combinations (sub-byte depths
+// only for gray/palette, 16-bit for the multi-sample types); non-interlaced and
+// Adam7-interlaced (interlace=1). IDAT is inflated with the Kof DEFLATE in
+// `Inflate.kf`; the five scanline filters (None/Sub/Up/Average/Paeth) are
+// reversed here. All output is 8-bit: sub-byte gray scales by 255/maxval,
+// 16-bit takes the high byte (same rule as farbfeld), palette indices expand to
+// RGB. No zlib, no interop — full target parity.
+//
+//   decodeRaster("logo.png")   // PNG is routed here from Raster.kf
+//
+// Bounded by the same ≤262144-sample cap as the rest of the raster slice (the
+// whole PNG is read once, so keep the files within the bounded-read contract;
+// the cap is backed by the cross-native 16 MiB arena of `known-bugs` §540 and
+// the x86-64 contiguous arena of §542). A malformed PNG throws `IMAGE:`.
+
+Raster pngRaster(String path) {
+    var b = File(path).readBytes()
+    if (b.length < 8 || !matchesAscii(b, 1, "PNG")) {
+        throw "IMAGE: bad PNG signature"
+    }
+    var width = 0
+    var height = 0
+    var bitDepth = 0
+    var colorType = 0
+    var interlace = 0
+    var plte = new Int[768]
+    var plteLen = 0
+    var trns = new Int[256]
+    var trnsLen = 0
+    var off = 8
+    var idat = new Int[b.length]
+    var idatLen = 0
+    var seenIhdr = false
+    while (off + 8 <= b.length) {
+        var len = be32(b, off)
+        if (len < 0 || off + 12 + len > b.length) {
+            throw "IMAGE: malformed PNG chunk"
+        }
+        var dataOff = off + 8
+        if (matchesAscii(b, off + 4, "IHDR")) {
+            need(b, dataOff + 13, "PNG")
+            width = be32(b, dataOff)
+            height = be32(b, dataOff + 4)
+            bitDepth = b[dataOff + 8] & 255
+            colorType = b[dataOff + 9] & 255
+            interlace = b[dataOff + 12] & 255
+            seenIhdr = true
+        } else if (matchesAscii(b, off + 4, "PLTE")) {
+            var i = 0
+            while (i < len && i < 768) {
+                plte[i] = b[dataOff + i] & 255
+                i = i + 1
+            }
+            plteLen = len
+        } else if (matchesAscii(b, off + 4, "tRNS")) {
+            var i = 0
+            while (i < len && i < 256) {
+                trns[i] = b[dataOff + i] & 255
+                i = i + 1
+            }
+            trnsLen = len
+        } else if (matchesAscii(b, off + 4, "IDAT")) {
+            var i = 0
+            while (i < len) {
+                idat[idatLen + i] = b[dataOff + i] & 255
+                i = i + 1
+            }
+            idatLen = idatLen + len
+        } else if (matchesAscii(b, off + 4, "IEND")) {
+            off = b.length
+        }
+        off = off + 12 + len
+    }
+    if (!seenIhdr || width <= 0 || height <= 0) {
+        throw "IMAGE: PNG has no IHDR"
+    }
+    if (interlace != 0 && interlace != 1) {
+        throw "IMAGE: unsupported PNG interlace " + interlace
+    }
+    var srcChannels = pngSampleChannels(bitDepth, colorType)
+    var outChannels = srcChannels
+    if (colorType == 3) {
+        outChannels = 3
+    }
+    var hasTrns = trnsLen > 0
+    if (hasTrns) {
+        if (colorType == 0) {
+            outChannels = 2
+        } else if (colorType == 2) {
+            outChannels = 4
+        } else if (colorType == 3) {
+            outChannels = 4
+        } else {
+            throw "IMAGE: tRNS is not allowed for PNG color type " + colorType
+        }
+    }
+    var count = width * height * outChannels
+    guardRaster(count)
+    var bitsPerPixel = srcChannels * bitDepth
+    var rawLen = 0
+    if (interlace == 0) {
+        rawLen = pngRawLen(width, height, bitsPerPixel)
+    } else {
+        rawLen = pngAdam7RawLen(width, height, bitsPerPixel)
+    }
+    var zdata = new Int[idatLen - 2]
+    var z = 0
+    while (z < idatLen - 2) {
+        zdata[z] = idat[z + 2]
+        z = z + 1
+    }
+    var inflate = Inflate(zdata, rawLen)
+    var got = inflate.run()
+    if (got < rawLen) {
+        throw "IMAGE: truncated PNG image data (got " + got + " of " + rawLen + ")"
+    }
+    var packed = new Int[0]
+    if (interlace == 0) {
+        packed = unfilter(inflate.out, 0, width, height, bitsPerPixel)
+    } else {
+        packed = new Int[height * ((width * bitsPerPixel + 7) / 8)]
+        unfilterAdam7(inflate.out, packed, width, height, bitsPerPixel)
+    }
+    var pixels = new Int[0]
+    if (bitDepth == 8) {
+        pixels = packed
+    } else if (bitDepth == 16) {
+        pixels = pngUnpack16(packed, width, height, srcChannels)
+    } else {
+        pixels = pngUnpackSub(packed, width, height, srcChannels, bitDepth, colorType != 3)
+    }
+    return expand(pixels, width, height, srcChannels, outChannels, colorType, bitDepth, plte, plteLen, trns, trnsLen)
+}
+
+// Maps a raw tRNS component (always a 16-bit big-endian value per PNG spec
+// §11.3.2, whatever the image bit depth) into the same 8-bit space the decoded
+// samples use: the high byte for 16-bit images (the `pngUnpack16` rule), a
+// 255/maxval scaling for sub-byte gray, and the byte itself for 8-bit.
+Int pngTrnsKey(Int raw16, Int bitDepth) {
+    if (bitDepth == 16) {
+        return (raw16 >> 8) & 255
+    }
+    var maxval = (1 << bitDepth) - 1
+    return (raw16 * 255) / maxval
+}
+
+// Allowed bit-depth/color-type combinations (PNG spec §4.3), returning the
+// samples per pixel. Sub-byte depths (1/2/4) only exist for grayscale (0) and
+// palette (3); 16-bit only for the one-byte-per-sample types 0/2/4/6.
+Int pngSampleChannels(Int bitDepth, Int colorType) {
+    if (colorType == 0) {
+        if (bitDepth == 1 || bitDepth == 2 || bitDepth == 4 || bitDepth == 8 || bitDepth == 16) {
+            return 1
+        }
+    } else if (colorType == 3) {
+        if (bitDepth == 1 || bitDepth == 2 || bitDepth == 4 || bitDepth == 8) {
+            return 1
+        }
+    } else if (colorType == 4) {
+        if (bitDepth == 8 || bitDepth == 16) {
+            return 2
+        }
+    } else if (colorType == 2) {
+        if (bitDepth == 8 || bitDepth == 16) {
+            return 3
+        }
+    } else if (colorType == 6) {
+        if (bitDepth == 8 || bitDepth == 16) {
+            return 4
+        }
+    }
+    throw "IMAGE: unsupported PNG bit depth " + bitDepth + " for color type " + colorType
+}
+
+// Bytes in one non-interlaced scanline (one filter byte + the packed samples).
+Int pngRawLen(Int width, Int height, Int bitsPerPixel) {
+    var rowBytes = (width * bitsPerPixel + 7) / 8
+    return height * (1 + rowBytes)
+}
+
+// Expands a sub-byte gray/palette image to one sample per pixel. Grayscale
+// values scale by 255/maxval (0 -> 0, maxval -> 255); palette indices are kept
+// as the raw index (they are not intensities).
+Int[] pngUnpackSub(Int[] packed, Int width, Int height, Int spp, Int bitDepth, Bool scale) {
+    var n = width * height * spp
+    var out = new Int[n]
+    var perRow = width * spp
+    var rowBytes = (perRow * bitDepth + 7) / 8
+    var maxval = (1 << bitDepth) - 1
+    var y = 0
+    while (y < height) {
+        var i = 0
+        while (i < perRow) {
+            var bit = i * bitDepth
+            var v = (packed[y * rowBytes + (bit >> 3)] >> (8 - bitDepth - (bit & 7))) & maxval
+            if (scale) {
+                out[y * perRow + i] = (v * 255) / maxval
+            } else {
+                out[y * perRow + i] = v
+            }
+            i = i + 1
+        }
+        y = y + 1
+    }
+    return out
+}
+
+// Downsamples a 16-bit image to 8-bit by taking each sample's high byte (the
+// same rule `farbfeld` uses); PNG stores 16-bit samples big-endian.
+Int[] pngUnpack16(Int[] packed, Int width, Int height, Int spp) {
+    var n = width * height * spp
+    var out = new Int[n]
+    var i = 0
+    while (i < n) {
+        out[i] = packed[i * 2] & 255
+        i = i + 1
+    }
+    return out
+}
+
+// Adam7 pass geometry (PNG spec §9): the starting column and row and the
+// column/row strides of the seven sub-images. Passes with a zero stride (the
+// column of passes 2–4 when one pixel wide) contribute no sub-image.
+Int a7x0(Int p) {
+    if (p == 0) { return 0 }
+    if (p == 1) { return 4 }
+    if (p == 2) { return 0 }
+    if (p == 3) { return 2 }
+    if (p == 4) { return 0 }
+    if (p == 5) { return 1 }
+    return 0
+}
+
+Int a7y0(Int p) {
+    if (p == 0) { return 0 }
+    if (p == 1) { return 0 }
+    if (p == 2) { return 4 }
+    if (p == 3) { return 0 }
+    if (p == 4) { return 2 }
+    if (p == 5) { return 0 }
+    return 1
+}
+
+Int a7dx(Int p) {
+    if (p == 0) { return 8 }
+    if (p == 1) { return 8 }
+    if (p == 2) { return 4 }
+    if (p == 3) { return 4 }
+    if (p == 4) { return 2 }
+    if (p == 5) { return 2 }
+    return 1
+}
+
+Int a7dy(Int p) {
+    if (p == 0) { return 8 }
+    if (p == 1) { return 8 }
+    if (p == 2) { return 8 }
+    if (p == 3) { return 4 }
+    if (p == 4) { return 4 }
+    if (p == 5) { return 2 }
+    return 2
+}
+
+Int a7count(Int total, Int origin, Int stride) {
+    if (total <= origin) {
+        return 0
+    }
+    return (total - origin + stride - 1) / stride
+}
+
+// Total inflated byte count of an Adam7 image: every non-empty pass carries one
+// filter byte per sub-image row plus its packed samples (PNG spec §9, `rawlen`).
+Int pngAdam7RawLen(Int width, Int height, Int bitsPerPixel) {
+    var total = 0
+    var p = 0
+    while (p < 7) {
+        var pw = a7count(width, a7x0(p), a7dx(p))
+        var ph = a7count(height, a7y0(p), a7dy(p))
+        if (pw > 0 && ph > 0) {
+            var subRowBytes = (pw * bitsPerPixel + 7) / 8
+            total = total + ph * (1 + subRowBytes)
+        }
+        p = p + 1
+    }
+    return total
+}
+
+// Reverses the seven Adam7 passes into a full `width x height` packed buffer.
+// Each pass is an independent sub-image (its own scanlines/filters); `rawOff`
+// walks the single inflated stream in pass order 1..7. Sub-byte samples are
+// moved as bit-fields, byte-aligned samples (8/16/…) as bytes.
+void unfilterAdam7(Int[] raw, Int[] out, Int width, Int height, Int bitsPerPixel) {
+    var bppBytes = (bitsPerPixel + 7) / 8
+    var rowBytes = (width * bitsPerPixel + 7) / 8
+    var rawOff = 0
+    var p = 0
+    while (p < 7) {
+        var x0 = a7x0(p)
+        var y0 = a7y0(p)
+        var dx = a7dx(p)
+        var dy = a7dy(p)
+        var pw = a7count(width, x0, dx)
+        var ph = a7count(height, y0, dy)
+        if (pw > 0 && ph > 0) {
+            var subRowBytes = (pw * bitsPerPixel + 7) / 8
+            var sub = unfilter(raw, rawOff, pw, ph, bitsPerPixel)
+            rawOff = rawOff + ph * (1 + subRowBytes)
+            var j = 0
+            while (j < ph) {
+                var y = y0 + j * dy
+                var i = 0
+                while (i < pw) {
+                    var x = x0 + i * dx
+                    if (bitsPerPixel >= 8) {
+                        var b = 0
+                        while (b < bppBytes) {
+                            out[y * rowBytes + x * bppBytes + b] = sub[j * subRowBytes + i * bppBytes + b]
+                            b = b + 1
+                        }
+                    } else {
+                        var maxval = (1 << bitsPerPixel) - 1
+                        var srcByte = j * subRowBytes + ((i * bitsPerPixel) >> 3)
+                        var srcShift = 8 - bitsPerPixel - ((i * bitsPerPixel) & 7)
+                        var bits = (sub[srcByte] >> srcShift) & maxval
+                        var dstByte = y * rowBytes + ((x * bitsPerPixel) >> 3)
+                        var dstShift = 8 - bitsPerPixel - ((x * bitsPerPixel) & 7)
+                        out[dstByte] = ((out[dstByte] & (255 - (maxval << dstShift))) | (bits << dstShift)) & 255
+                    }
+                    i = i + 1
+                }
+                j = j + 1
+            }
+        }
+        p = p + 1
+    }
+}
+
+Int[] unfilter(Int[] raw, Int offset, Int width, Int height, Int bitsPerPixel) {
+    var bppBytes = (bitsPerPixel + 7) / 8
+    var rowBytes = (width * bitsPerPixel + 7) / 8
+    var out = new Int[height * rowBytes]
+    var y = 0
+    while (y < height) {
+        var ft = raw[offset + y * (1 + rowBytes)] & 255
+        var src = offset + y * (1 + rowBytes) + 1
+        var dst = y * rowBytes
+        var prev = (y - 1) * rowBytes
+        var x = 0
+        while (x < rowBytes) {
+            var a = 0
+            var b = 0
+            var c = 0
+            if (x >= bppBytes) {
+                a = out[dst + x - bppBytes]
+            }
+            if (y > 0) {
+                b = out[prev + x]
+            }
+            if (y > 0 && x >= bppBytes) {
+                c = out[prev + x - bppBytes]
+            }
+            var v = raw[src + x] & 255
+            if (ft == 0) {
+                out[dst + x] = v
+            } else if (ft == 1) {
+                out[dst + x] = (v + a) & 255
+            } else if (ft == 2) {
+                out[dst + x] = (v + b) & 255
+            } else if (ft == 3) {
+                out[dst + x] = (v + ((a + b) >> 1)) & 255
+            } else if (ft == 4) {
+                out[dst + x] = (v + paeth(a, b, c)) & 255
+            } else {
+                throw "IMAGE: bad PNG filter"
+            }
+            x = x + 1
+        }
+        y = y + 1
+    }
+    return out
+}
+
+Int paeth(Int a, Int b, Int c) {
+    var p = a + b - c
+    var pa = p - a
+    if (pa < 0) {
+        pa = 0 - pa
+    }
+    var pb = p - b
+    if (pb < 0) {
+        pb = 0 - pb
+    }
+    var pc = p - c
+    if (pc < 0) {
+        pc = 0 - pc
+    }
+    if (pa <= pb && pa <= pc) {
+        return a
+    }
+    if (pb <= pc) {
+        return b
+    }
+    return c
+}
+
+Raster expand(Int[] pixels, Int width, Int height, Int srcChannels, Int outChannels, Int colorType, Int bitDepth, Int[] plte, Int plteLen, Int[] trns, Int trnsLen) {
+    var count = width * height * outChannels
+    var samples = new Int[count]
+    var px = 0
+    while (px < width * height) {
+        if (colorType == 3) {
+            var idx = pixels[px] & 255
+            if (idx * 3 + 2 >= plteLen) {
+                throw "IMAGE: PNG palette index out of range"
+            }
+            samples[px * outChannels] = plte[idx * 3]
+            samples[px * outChannels + 1] = plte[idx * 3 + 1]
+            samples[px * outChannels + 2] = plte[idx * 3 + 2]
+            if (trnsLen > 0) {
+                if (idx < trnsLen) {
+                    samples[px * outChannels + 3] = trns[idx]
+                } else {
+                    samples[px * outChannels + 3] = 255
+                }
+            }
+        } else if (colorType == 0 && trnsLen > 0) {
+            samples[px * 2] = pixels[px]
+            var tval = (trns[0] << 8) | trns[1]
+            if (trnsLen == 2 && pixels[px] == pngTrnsKey(tval, bitDepth)) {
+                samples[px * 2 + 1] = 0
+            } else {
+                samples[px * 2 + 1] = 255
+            }
+        } else if (colorType == 2 && trnsLen > 0) {
+            samples[px * 4] = pixels[px * 3]
+            samples[px * 4 + 1] = pixels[px * 3 + 1]
+            samples[px * 4 + 2] = pixels[px * 3 + 2]
+            var tr = (trns[0] << 8) | trns[1]
+            var tg = (trns[2] << 8) | trns[3]
+            var tb = (trns[4] << 8) | trns[5]
+            if (trnsLen == 6 && pixels[px * 3] == pngTrnsKey(tr, bitDepth)
+                    && pixels[px * 3 + 1] == pngTrnsKey(tg, bitDepth)
+                    && pixels[px * 3 + 2] == pngTrnsKey(tb, bitDepth)) {
+                samples[px * 4 + 3] = 0
+            } else {
+                samples[px * 4 + 3] = 255
+            }
+        } else {
+            var c = 0
+            while (c < outChannels) {
+                samples[px * outChannels + c] = pixels[px * srcChannels + c]
+                c = c + 1
+            }
+        }
+        px = px + 1
+    }
+    return Raster("PNG", width, height, outChannels, samples)
+}

@@ -21,12 +21,19 @@ import static org.junit.jupiter.api.Assertions.*;
  * Pula (assume) quando a toolchain cruzada ou o qemu não existem, como
  * {@code NativeE2ETest} faz quando o assembler nativo falta.
  */
-class NativeAarch64E2ETest {
+class NativeAarch64E2ETest implements NativeToolchainAssumptions {
 
     private final CompilerDriver driver = new CompilerDriver();
 
     private static boolean has(String... cmds) {
         for (String c : cmds) {
+            // §591: prefix-aware — KOF_CROSS_PREFIX/<tool> vence quando existe
+            // (cross rootless de scripts/setup-cross-toolchain.sh); senão o PATH.
+            String prefix = System.getenv("KOF_CROSS_PREFIX");
+            if (prefix != null && !prefix.isBlank()
+                    && new java.io.File(prefix, c).canExecute()) {
+                continue;
+            }
             try {
                 Process p = new ProcessBuilder("sh", "-c", "command -v " + c).redirectErrorStream(true).start();
                 String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
@@ -36,11 +43,6 @@ class NativeAarch64E2ETest {
             }
         }
         return true;
-    }
-
-    private void assumeToolchain() {
-        Assumptions.assumeTrue(has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
-                "cross toolchain aarch64 + qemu ausente — pulando (NATIVE002)");
     }
 
     /** FLT001 (15/09): programas que imprimem FP linkam DINAMICAMENTE com a
@@ -98,7 +100,7 @@ class NativeAarch64E2ETest {
     void aarch64CollectionMethodsStdlibGolden(@TempDir Path tempDir) throws IOException {
         // #386/#382 — os 7 métodos novos no aarch64 (mesmo asm riscv traduzido).
         // Golden = MESMA medição do oráculo JVM (CollectionMethodsStdlibE2ETest).
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, CollectionMethodsStdlibE2ETest.PROGRAM);
         assertEquals(CollectionMethodsStdlibE2ETest.GOLDEN, out,
                 "aarch64 must match the JVM oracle (regra 5)");
@@ -109,7 +111,7 @@ class NativeAarch64E2ETest {
     // via tradutor). Paridade R5: oráculo JVM 7/7/hi/true.
     @Test
     void aarch64GenericCtorArgPrintsLikeJvm(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             class Box<T> {
                 T value
@@ -138,7 +140,7 @@ class NativeAarch64E2ETest {
     // compare-to do sort (prefixo "app"<"apple" + iguais "apple").
     @Test
     void aarch64CrossRuntimePortsEdges(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, CrossRuntimePortsE2ETest.PROGRAM);
         assertEquals(CrossRuntimePortsE2ETest.GOLDEN, out,
                 "aarch64 add_all + string_compare_to edges must match the JVM oracle (regra 5)");
@@ -146,7 +148,7 @@ class NativeAarch64E2ETest {
 
     @Test
     void aarch64HttpGetPostStatus(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         int port = startHttpServer();
         String out = runAarch64(tempDir, """
             main() {
@@ -161,7 +163,7 @@ class NativeAarch64E2ETest {
     // NATIVE002-stdlib: spawn/await herdado do riscv64 (clone+futex).
     @Test
     void aarch64SpawnAwait(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             Int work(Int n) { return n * 2 }
             main() {
@@ -174,7 +176,7 @@ class NativeAarch64E2ETest {
 
     @Test
     void aarch64SpawnFireAndForgetJoins(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             main() {
                 println("inicio")
@@ -188,10 +190,26 @@ class NativeAarch64E2ETest {
         assertTrue(lines.contains("fim"), "main não bloqueia no spawn: " + lines);
     }
 
+    // §545: gêmeo aarch64 do riscv64SpawnExtern — o worker precisa de TLS
+    // (tp) antes de chamar libc; herda a sequência `_dl_allocate_tls` via
+    // translateRiscvToAarch64. Sem o fix: SIGSEGV no primeiro acesso TLS.
+    @Test
+    void aarch64SpawnExtern(@TempDir Path tempDir) throws IOException {
+        assumeNativeAarch64();
+        String out = runAarch64(tempDir, """
+            extern "libc.so.6" abs(Int x): Int
+            main() {
+                val r = spawn { return abs(-5) + abs(3) }
+                println(await r)
+            }
+            """);
+        assertEquals("8", out);
+    }
+
     // NATIVE002-stdlib: métodos String aarch64 (herdado via translateRiscvToAarch64).
     @Test
     void aarch64StringTrimCaseReplaceSplit(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             main() {
                 println("  hi  ".trim().length)
@@ -212,7 +230,7 @@ class NativeAarch64E2ETest {
     // NATIVE002-stdlib: time.now() herdado do riscv64 (clock_gettime=113).
     @Test
     void aarch64TimeNow(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             main() {
                 var t = time.now()
@@ -225,7 +243,7 @@ class NativeAarch64E2ETest {
     // NATIVE002-stdlib: cache real (set/get/ttl) + println(null) → "null".
     @Test
     void aarch64Cache(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             main() {
                 cache.set("name", "Mel")
@@ -241,7 +259,7 @@ class NativeAarch64E2ETest {
     // NATIVE002-stdlib: "42".toInt() herdado do riscv64 (deref do valor → SIGSEGV).
     @Test
     void aarch64StringToInt(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             main() {
                 println("42".toInt())
@@ -269,7 +287,7 @@ class NativeAarch64E2ETest {
     // NATIVE002-stdlib: Map/Set herdado do riscv64 (port linear-scan).
     @Test
     void aarch64MapSet(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             main() {
                 var m = mapOf()
@@ -300,7 +318,7 @@ class NativeAarch64E2ETest {
     // chave tipo-errado (miss seguro), os dois que `aarch64MapSet` não toca.
     @Test
     void aarch64MapKeyTagCross(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             main() {
                 var m = mapOf(1, "a", 2, "b")
@@ -322,7 +340,7 @@ class NativeAarch64E2ETest {
     // NATIVE002-stdlib: higher-order herdado do riscv64 (closure ABI igual mq).
     @Test
     void aarch64HigherOrder(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             main() {
                 var l = listOf(1, 2, 3)
@@ -339,7 +357,7 @@ class NativeAarch64E2ETest {
     // NATIVE002-stdlib: json.decode<Int> escalar herdado do riscv64.
     @Test
     void aarch64JsonDecodeInt(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             main() {
                 println(json.decode<Int>("42"))
@@ -358,7 +376,7 @@ class NativeAarch64E2ETest {
     // quote-aware — antes quebrava no .asciz "# TYPE ").
     @Test
     void aarch64MetricsParity(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             main() {
                 observability.counter("req")
@@ -373,7 +391,7 @@ class NativeAarch64E2ETest {
     // NATIVE002-stdlib: time.sleep real herdado do riscv64 (nanosleep 101).
     @Test
     void aarch64TimeSleep(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             main() {
                 var t0 = time.now()
@@ -435,14 +453,14 @@ class NativeAarch64E2ETest {
 
     @Test
     void aarch64HelloWorld(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, "main() { println(\"Hello, Kof!\") }");
         assertEquals("Hello, Kof!", out);
     }
 
     @Test
     void aarch64ArithmeticAndLocal(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             main() {
                 println("Hello")
@@ -455,7 +473,7 @@ class NativeAarch64E2ETest {
 
     @Test
     void aarch64IfElseComparisonsAndArithmetic(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             main() {
                 var x = 10
@@ -476,7 +494,7 @@ class NativeAarch64E2ETest {
 
     @Test
     void aarch64DivisionModuloNegative(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             main() {
                 println(20 / 4)
@@ -489,7 +507,7 @@ class NativeAarch64E2ETest {
 
     @Test
     void aarch64VirtualDispatch(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             class Animal {
                 speak(): String = "animal"
@@ -509,7 +527,7 @@ class NativeAarch64E2ETest {
 
     @Test
     void aarch64FieldsAndMethods(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             class User {
                 String name
@@ -526,7 +544,7 @@ class NativeAarch64E2ETest {
 
     @Test
     void aarch64Arrays(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             main() {
                 var arr = new Int[3]
@@ -544,7 +562,7 @@ class NativeAarch64E2ETest {
     void aarch64MultiDimArray(@TempDir Path tempDir) throws IOException {
         // §113 faces aarch: kof_multi_alloc (fatia B37 riscv + tradutor).
         // Golden = oracle JVM medido (mesmo programa da célula array2d).
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             main() {
                 var m = new Int[2][3]
@@ -566,7 +584,7 @@ class NativeAarch64E2ETest {
 
     @Test
     void aarch64List(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             main() {
                 var l = listOf(1, 2, 3)
@@ -580,7 +598,7 @@ class NativeAarch64E2ETest {
 
     @Test
     void aarch64SwitchInt(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             main() {
                 var x = 2
@@ -596,7 +614,7 @@ class NativeAarch64E2ETest {
 
     @Test
     void aarch64TryCatchThrow(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             main() {
                 try {
@@ -612,7 +630,7 @@ class NativeAarch64E2ETest {
 
     @Test
     void aarch64PatternMatching(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             main() {
                 var x: Object = "hello"
@@ -635,7 +653,7 @@ class NativeAarch64E2ETest {
 
     @Test
     void aarch64SwitchExpression(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             record Point(Int x, Int y)
             main() {
@@ -659,7 +677,7 @@ class NativeAarch64E2ETest {
 
     @Test
     void aarch64JsonEncode(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             record Pessoa(String nome, Int idade)
             main() {
@@ -674,7 +692,7 @@ class NativeAarch64E2ETest {
 
     @Test
     void aarch64JsonEncodeDecodeLists(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             main() {
                 println(json.encode(listOf(1, 2, 3)))
@@ -691,7 +709,7 @@ class NativeAarch64E2ETest {
 
     @Test
     void aarch64StringMethods(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             main() {
                 var s = "Hello, Kof"
@@ -709,7 +727,7 @@ class NativeAarch64E2ETest {
 
     @Test
     void aarch64Recursion(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             Int fib(Int n) {
                 if (n < 2) { return n }
@@ -728,7 +746,7 @@ class NativeAarch64E2ETest {
     // (tipo do bug 88) fica travada nos 2 qemu.
     @Test
     void aarch64StdlibCore(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
 main() {
     println(math.clamp(15, 1, 10))
@@ -767,7 +785,7 @@ main() {
     // medido no JVM — idêntico x86/riscv/aarch 10/09 (26 vetores).
     @Test
     void aarch64StdlibValidationNetTime(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
 main() {
     println(validation.isCpf("529.982.247-25"))
@@ -804,7 +822,7 @@ main() {
 
     @Test
     void nativeStringLengthAndCharAtUtf16(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         // bug 43 cross (faces 1/3): length/charAt em code units UTF-16
         // (tradução riscv→aarch da B33) — MESMO golden do JVM medido.
         String out = runAarch64(tempDir, """
@@ -833,7 +851,7 @@ main() {
 
     @Test
     void nativeStringSubstringIndexOfUtf16(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         // bug 43 cross (estágio 2): substring/indexOf/lastIndexOf em code
         // units UTF-16 (tradução riscv→aarch da B34) — MESMO golden do JVM.
         String out = runAarch64(tempDir, """
@@ -859,7 +877,7 @@ main() {
 
     @Test
     void nativeStringCompareToAndHashCodeUtf16(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         // bug 97 cross: compareTo/hashCode em code units UTF-16 (tradução
         // riscv→aarch da fatia B32) — MESMOS 11 vetores golden do x86.
         String out = runAarch64(tempDir, """
@@ -881,7 +899,7 @@ main() {
     }
     @Test
     void nativeTimeAddDaysDiffDaysIso(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         // STDLIB S7c-1 (TIME002 fechado 11/09): addDays/diffDays em data ISO
         // riscv64/aarch64 — fatia B35 + tradutor. Golden stdtime2 (matriz) +
         // 3 vetores extras (overflow 9999 / borrow 0001 / fim de ano bissexto
@@ -914,7 +932,7 @@ main() {
     }
     @Test
     void nativeMathDoubleSeries(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         // STDLIB S1b/S1b.1 (MATH001 fechado 11/09): escalares Double puros
         // kof.math (sqrt/lerp/percentage/isInteger/isDecimal) riscv64/aarch64
         // — fatia B36 (bits crus via a0..aN, fsqrt.d/fcvt/feq cobertos no
@@ -950,7 +968,7 @@ main() {
 
     @Test
     void nativeCollectionPrintMatchesJvmGolden(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         // §107-cross (B39, aarch64 herda 100% do riscv via tradutor): os
         // mesmos helpers/semântica do riscv — golden idêntico ao riscv.
         // 19/09 face (4) do multiarch: a linha aninhada ganhou print REAL via
@@ -982,7 +1000,7 @@ main() {
 
     @Test
     void nativeArrayPrintMatchesJvmGolden(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         // §388-B-cross (aarch64 herda do riscv via tradutor): println de array
         // cru no formato de container da casa ([65, 66]) — golden idêntico ao
         // riscv (kof_array_to_string; bloco [len@16][esz@20][data@24], slot
@@ -1017,7 +1035,7 @@ main() {
 
     @Test
     void nativePrintNullRecordMatchesJvmGolden(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         // §396-cross: println CRU de record NULL (T?-API) e String? deve
         // imprimir "null" (paridade x86/riscv — guard no call-site, herdado
         // do riscv pelo tradutor). Golden = MESMO programa do pin x86.
@@ -1040,7 +1058,7 @@ main() {
 
     @Test
     void nativeCollectionPrintRecordNestedMatchesJvmGolden(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         // §107 record/nested (face (4), 19/09): aarch64 herda o descritor
         // recursivo via tradutor (lhu->ldrh incluso; jalr->blr já coberto).
         // Golden = o MESMO programa x86/riscv — paridade nas 3 arcos.
@@ -1063,7 +1081,7 @@ main() {
 
     @Test
     void nativeValueOfDoubleFloatMatchesJvmGolden(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         // FLT001 (fechado 15/09, slice B45): Double/Float -> String no
         // aarch64 via libc (snprintf/strtod) — binário linkado DINAMICAMENTE
         // (QEMU_LD_PREFIX). Mesmo golden do JVM/riscv.
@@ -1096,7 +1114,7 @@ main() {
      *  estouro de heap no aarch corre lixo/trava em vez de panicar. */
     @Test
     void aarch64HeapExhaustionPanicsHonest(@TempDir Path tempDir) throws IOException, InterruptedException {
-        assumeToolchain();
+        assumeNativeAarch64();
         Path src = tempDir.resolve("Main.kf");
         Files.writeString(src, """
             main() {
@@ -1127,7 +1145,7 @@ main() {
      *  Golden = oracle JVM (Bool/Int, regra bug 44). */
     @Test
     void aarch64DoubleModVariables(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String output = runAarch64(tempDir, """
             main() {
                 var a = 7.5
@@ -1158,7 +1176,7 @@ main() {
      *  o emissor cross; `addi sp,sp,16` desbalanceava do mesmo jeito). */
     @Test
     void aarch64MapPutDiscardedLongValueKeepsStackBalanced(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String output = runAarch64(tempDir, """
             main() {
                 var m = mapOf("a", 1L)
@@ -1175,7 +1193,7 @@ main() {
      *  Fix = XOR do bit de sinal no emissor cross comum. Golden = oracle JVM. */
     @Test
     void aarch64NegativeFloatDoubleRuns(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             main() {
                 var d = 2.5
@@ -1200,7 +1218,7 @@ main() {
      *  JVM (mesmo vetor da célula `castrange`). */
     @Test
     void aarch64CastSaturation(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             main() {
                 var d = 3.0e9
@@ -1277,7 +1295,7 @@ main() {
      *  traduzido (as abortava). Golden = oracle JVM. */
     @Test
     void aarch64SinglePrecisionFloatAndIntToFloatCast(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, """
             main() {
                 var a = 1.5 as Float
@@ -1312,7 +1330,7 @@ main() {
     // composto de precisao simples fica nominal.
     @Test
     void aarch64FloatCompoundAssignIsolation(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, FloatCompoundAssignE2ETest.PROGRAM);
         assertEquals(FloatCompoundAssignE2ETest.GOLDEN, out,
                 "aarch64 single-precision compound-assign must match the JVM oracle (regra 5)");
@@ -1322,7 +1340,7 @@ main() {
     // Golden = JVM oracle of the same program (WrapperStaticCallsE2ETest).
     @Test
     void aarch64WrapperStaticsParseAndPredicates(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeAarch64();
         String out = runAarch64(tempDir, WrapperStaticCallsE2ETest.WRAPPER_STATICS_SRC);
         assertEquals(WrapperStaticCallsE2ETest.WRAPPER_STATICS_GOLDEN, out);
     }

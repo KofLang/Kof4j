@@ -333,7 +333,7 @@ public final class NativeHttpCore {
             .Lhr_rtry_cl:                  # 5xx: salva msg (close clobbera rax) e fecha fd
                 movq %rax, .Lhttp_last_err(%rip)
                 movl %r15d, %edi
-                call kof_net_close
+                call kof_plat_close
                 call kof_http_circuit_record_fail   # paridade JVM: 5xx tambem registra falha (Q4-me) (Q4-me)
                 jmp .Lhr_rtry_chk
             .Lhr_body:
@@ -362,7 +362,7 @@ public final class NativeHttpCore {
                 # fecha fd
                 pushq %rax
                 movl %r15d, %edi
-                call kof_net_close
+                call kof_plat_close
                 popq %rax
                 jmp .Lhr_out
             .Lhr_bn:
@@ -377,17 +377,17 @@ public final class NativeHttpCore {
                 call kof_string_from_literal
                 pushq %rax
                 movl %r15d, %edi
-                call kof_net_close
+                call kof_plat_close
                 popq %rax
                 jmp .Lhr_out
             .Lhr_fail_cl:                  # erro com fd aberto -> fecha
                 movl %r15d, %edi
-                call kof_net_close
+                call kof_plat_close
                 leaq .Lhttp_err_conn(%rip), %rax
                 jmp .Lhr_rtry
             .Lhr_tmo_cl:
                 movl %r15d, %edi
-                call kof_net_close
+                call kof_plat_close
                 leaq .Lhttp_err_tmo(%rip), %rax
                 jmp .Lhr_rtry
             .Lhr_rtry:                     # §259: paridade JVM — excecao OU 5xx tentam de novo

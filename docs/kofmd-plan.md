@@ -42,7 +42,7 @@ Agent-memory core (the genuinely new surface): `last` / `doing` / `next`
 | Data carrier | `record` (immutable, accessors, `json` support JVM+JS) | Agent-memory blocks decode into records; no new runtime value kind |
 | CLI home | `kof-cli/Main.java` dispatch (`build/run/check/test/fmt/lsp/...`); `CmdCheck` = the check-shaped precedent | `kof md check/format/convert` follows `CmdCheck`/`Fmt` patterns; subcommand `md` under `Main`, one class per verb (≤500 gate) |
 | LSP home | `LspServer.java` + `LspHover/LspSymbols/LspRename/...` | Kofmd diagnostics/hover/completion ride the existing server; `.md` file hook, no second server |
-| `kof.file` relation | `future/kof-file-plan.md` (FUTURE, zero code): unified file/format API, R1 boundary (heavy codecs = official packages), R9 interop-first | Kofmd file I/O (read `.md`, write canonical) composes `kof.io` text faces; never duplicates `kof.file` — when `kof.file` promotes, Kofmd rides it |
+| `kof.file` relation | `docs/stdlib/kof-file-plan.md` (CONCLUDED 28/09): unified file/format API, R1 boundary (heavy codecs = official packages), R9 interop-first | Kofmd file I/O (read `.md`, write canonical) composes `kof.io` text faces; never duplicates `kof.file` — when `kof.file` promotes, Kofmd rides it |
 | Test infra | E2E `*E2ETest` per area + golden files + `ConformanceMatrixTest` | `KofmdE2ETest` + golden corpus `kofmd/*.md` (one idea per file, spec §48) |
 
 ## 2. Frozen surface (Fase 2 decision — what ships, nothing more)

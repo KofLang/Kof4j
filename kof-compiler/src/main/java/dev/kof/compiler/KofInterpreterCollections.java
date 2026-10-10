@@ -56,6 +56,10 @@ public final class KofInterpreterCollections {
             case "endsWith" -> s.endsWith((String) args[0]) ? 1 : 0;
             case "equals" -> Objects.equals(s, args[0]) ? 1 : 0;
             case "equalsIgnoreCase" -> s.equalsIgnoreCase(String.valueOf(args[0])) ? 1 : 0;
+            // D-FULL-PARITY-050 row 11: faltava no SCRIPT — caía em NOT_HANDLED
+            // (→0) mesmo com o JVM implementando; agora delega ao próprio JDK
+            // (CASE_INSENSITIVE_ORDER por code unit).
+            case "compareToIgnoreCase" -> s.compareToIgnoreCase(String.valueOf(args[0]));
             case "indexOf" -> args.length == 1 ? s.indexOf((String) args[0])
                     : s.indexOf((String) args[0], KofInterpreter.unboxInt(args[1]));
             case "lastIndexOf" -> args.length == 1 ? s.lastIndexOf((String) args[0])
@@ -124,12 +128,54 @@ public final class KofInterpreterCollections {
             // concreta; view do java.util não tem contrato na linguagem).
             case "kof_list_sub_list" -> new ArrayList<>(
                     l.subList(KofInterpreter.unboxInt(args[0]), KofInterpreter.unboxInt(args[1])));
+            // pagination P1 — take/drop/slice: janela materializada com
+            // clamping honesto; negativos = erro nomeado PAGINATION.
+            case "kof_list_take" -> {
+                int n = KofInterpreter.unboxInt(args[0]);
+                if (n < 0) throw new RuntimeException("PAGINATION: count must be >= 0");
+                int size = l.size();
+                yield new ArrayList<>(l.subList(0, n < size ? n : size));
+            }
+            case "kof_list_drop" -> {
+                int n = KofInterpreter.unboxInt(args[0]);
+                if (n < 0) throw new RuntimeException("PAGINATION: count must be >= 0");
+                int size = l.size();
+                yield new ArrayList<>(l.subList(n < size ? n : size, size));
+            }
+            case "kof_list_slice" -> {
+                int offset = KofInterpreter.unboxInt(args[0]);
+                int limit = KofInterpreter.unboxInt(args[1]);
+                if (offset < 0 || limit < 0) {
+                    throw new RuntimeException("PAGINATION: limit/offset must be >= 0");
+                }
+                int size = l.size();
+                int start = offset < size ? offset : size;
+                int remaining = size - start;
+                yield new ArrayList<>(l.subList(start, start + (limit < remaining ? limit : remaining)));
+            }
+            // D-MULTIPARADIGMA-PHASE1A slice 1e — distinct dedups by Java
+            // equals (same rule as contains on this target); the tag arg is
+            // Native-only and ignored here.
+            case "kof_list_distinct" -> {
+                ArrayList<Object> out = new ArrayList<>();
+                for (Object o : l) {
+                    if (!out.contains(o)) out.add(o);
+                }
+                yield out;
+            }
             // #382 — sort: ordem natural (Comparator null = mesma escolha
-            // do JVM; o gate SEM097 já restringeu o domínio — o NAT001/Float
+            // do JVM; o gate SEM097 já restringiu o domínio — o NAT001/Float
             // caiu em 21/09, §352).
             case "kof_list_sort" -> {
                 l.sort(null);
                 yield null;
+            }
+            // D-MULTIPARADIGMA-PHASE1A slice 1g — sorted devolve cópia
+            // ordenada (nunca muta o receiver); o tag é Native-only.
+            case "kof_list_sorted" -> {
+                var out = new ArrayList<>(l);
+                out.sort(null);
+                yield out;
             }
             default -> NOT_HANDLED;
         };

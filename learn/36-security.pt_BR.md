@@ -71,6 +71,9 @@ var fromBytes = secrets.fromBytes(payload)     // bytes não-texto, byte a byte
 
 `json.encode(key)` é redigido em runtime (`"Secret(*** )"`), e alimentar
 `reveal()` direto em `log.*`/`json.encode` levanta o aviso `SECN009`.
+`secrets.secret(name)` com variável de ambiente não definida/em branco é erro
+explícito e catchável (`catch (String e)` nomeia `SECN015`) — nunca um `Secret`
+vazio silencioso; o legado `secrets.get(name)` segue devolvendo o `String` cru.
 Chaves são manipuladas sem nunca lê-las, via `KeyHandle`:
 
 ```kof
@@ -81,6 +84,22 @@ val kh2 = kh.rotate()                          // kh fica revogado; reusá-lo é
 
 `Secret`/`KeyHandle` são JVM-primeiro: os demais alvos rejeitam em compile-time
 com `SECN008` (nunca stub silencioso).
+
+## Chaves de sessão — X25519 + HKDF (D-KOF-X25519)
+
+```kof
+var minha = keyExchange.privateKey()           // Secret — o escalar nunca é imprimível
+var minhaPub = keyExchange.publicKey(minha)    // String 64-hex — segura para enviar
+var compartilhada = keyExchange.shared(minha, secrets.of(pubDoPar))  // Secret
+var rxKey = keyExchange.hkdfSha256(compartilhada, saltHex, "0001", 32)  // chave AES por direção (hex)
+```
+
+PORQUÊ: uma chave de sessão NUNCA é montada à mão e NUNCA viaja como
+String crua — o material privado vive em `Secret` (R8), e o valor público é
+a única exportação. Argumento errado na face Secret = `SECN014`; a face roda
+em JVM/Android/Script hoje, JS/Native/cross recusam com `SECN012` até o
+port (nunca silencioso). RFC 7748 + RFC 5869 (golden case-1 em
+`KeyExchangeE2ETest`).
 
 ## Web auth (middleware)
 

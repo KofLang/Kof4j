@@ -274,10 +274,12 @@ sysroot (link `--sysroot=` + qemu `-L`). A hand-made sysroot (e.g. a copy of
 **self-consistent for the tests that link AND execute through the same
 override** (e.g. the §493 ORM cross proof), but it poises unrelated classes:
 `NativeRiscvGc*/Dtoa/DbWire` aarch64 harnesses that link with the override
-yet exec under the system loader path SIGSEGV (139) under qemu, and
-`NativeCrossDynamicLinkTest.ldArgsSqliteAddsLsqlite3` asserts the default-sysroot
-branch (`-lsqlite3`) and fails when the override switches it to
-`-l:libsqlite3.so.0`. **Rule:** run the full reactor suite WITHOUT
+yet exec under the system loader path SIGSEGV (139) under qemu.
+(`NativeCrossDynamicLinkTest.ldArgsSqliteAddsLsqlite3` used to pin the
+default-sysroot branch (`-lsqlite3`) and fail when the override switched it to
+`-l:libsqlite3.so.0`; since **#699** it derives the expected arg from
+`NativeCrossLink.sqliteLinkArg`, so it is host-independent and no longer a
+victim of the override.) **Rule:** run the full reactor suite WITHOUT
 `KOF_CROSS_SYSROOT` (canonical `/usr/<arch>-linux-gnu`; the sqlite-dependent
 cross tests skip honestly via the `sqliteAvailable` guard), and use the
 override only in focused cross proofs where link+exec share it. To make a

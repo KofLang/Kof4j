@@ -1,0 +1,395 @@
+package image
+
+import image.Av1Block
+import image.Av1Tx
+
+// kof.image — AV1 coefficient context selection (slice 3d of the AVIF front,
+// plan §34). The functions the tile coefficient walk (`coeffs()`,
+// §5.11.39 / AV1 §6.4.3) calls to pick which entropy CDF a symbol uses:
+// `get_coeff_base_ctx` and `get_coeff_br_ctx` (§9.3.3.3 / §9.3.3.4), plus the
+// `all_zero` and `dc_sign` context rules. Every table and rule below is quoted
+// from the AV1 Bitstream & Decoding Process Specification §9.3.3 and §10
+// (additional tables), read on the dev host 04/10, never from memory.
+//
+// The context functions only READ the partially-decoded `Quant[]` levels
+// (`pos` is the raster position `scan[c]`), so they are pure and target
+// independent. `txType` is supplied by the caller (it comes from
+// `compute_tx_type`, which needs the frame state) and `txSz` is the transform
+// size index.
+//
+// Oracle: `Coeff_Base_Ctx_Offset` was verified position-for-position against
+// libaom's `av1_nz_map_ctx_offset` (`av1/common/txb_common.c`, 7440 positions,
+// zero differences) and `Sig_Ref_Diff_Offset` / `Mag_Ref_Offset_With_Tx_Class`
+// against the spec's own tables; the context functions are cross-checked by a
+// second, independent plain-Java reader in the E2E test.
+
+// SIG_REF_DIFF_OFFSET_NUM.
+Int av1SigRefDiffOffsetNum() {
+    return 5
+}
+
+// Sig_Ref_Diff_Offset[ 3 ][ SIG_REF_DIFF_OFFSET_NUM ][ 2 ], flattened.
+Int av1SigRefDiffOffset(Int txClass, Int idx, Int comp) {
+    var t = listOf(
+        0, 1, 1, 0, 1, 1, 0, 2, 2, 0,
+        0, 1, 1, 0, 0, 2, 0, 3, 0, 4,
+        0, 1, 1, 0, 2, 0, 3, 0, 4, 0
+    )
+    return t.get((txClass * 5 + idx) * 2 + comp)
+}
+
+// Mag_Ref_Offset_With_Tx_Class[ 3 ][ 3 ][ 2 ], flattened.
+Int av1MagRefOffset(Int txClass, Int idx, Int comp) {
+    var t = listOf(
+        0, 1, 1, 0, 1, 1,
+        0, 1, 1, 0, 0, 2,
+        0, 1, 1, 0, 2, 0
+    )
+    return t.get((txClass * 3 + idx) * 2 + comp)
+}
+
+// Coeff_Base_Pos_Ctx_Offset[ 3 ] = { SIG_COEF_CONTEXTS_2D, +5, +10 }.
+Int av1CoeffBasePosOffset(Int idx) {
+    var t = listOf(26, 31, 36)
+    return t.get(idx)
+}
+
+// Coeff_Base_Ctx_Offset[ TX_SIZES_ALL ][ 5 ][ 5 ], flattened
+// [txSz][min(row,4)][min(col,4)].
+Int av1CoeffBaseCtxOffset(Int txSz, Int row, Int col) {
+    var data = av1CoeffBaseCtxOffsetTable()
+    var r = row
+    if (r > 4) {
+        r = 4
+    }
+    var c = col
+    if (c > 4) {
+        c = 4
+    }
+    return data[txSz * 25 + r * 5 + c]
+}
+
+Int[] av1CoeffBaseCtxOffsetTable() {
+    var s = "0,1,6,6,0,1,6,6,21,0,6,6,21,21,0,6,21,21,21,0,0,0,0,0,0,0,1,6,6,21,1,6,6,21,21,6,6,21,21,21,6,21,21,21,21,21,21,21,21,21,0,1,6,6,21,1,6,6,21,21,6,6,21,21,21,6,21,21,21,21,21,21,21,21,21,0,1,6,6,21,1,6,6,21,21,6,6,21,21,21,6,21,21,21,21,21,21,21,21,21,0,1,6,6,21,1,6,6,21,21,6,6,21,21,21,6,21,21,21,21,21,21,21,21,21,0,11,11,11,0,11,11,11,11,0,6,6,21,21,0,6,21,21,21,0,21,21,21,21,0,0,16,6,6,21,16,16,6,21,21,16,16,21,21,21,16,16,21,21,21,0,0,0,0,0,0,11,11,11,11,11,11,11,11,11,6,6,21,21,21,6,21,21,21,21,21,21,21,21,21,0,16,6,6,21,16,16,6,21,21,16,16,21,21,21,16,16,21,21,21,16,16,21,21,21,0,11,11,11,11,11,11,11,11,11,6,6,21,21,21,6,21,21,21,21,21,21,21,21,21,0,16,6,6,21,16,16,6,21,21,16,16,21,21,21,16,16,21,21,21,16,16,21,21,21,0,11,11,11,11,11,11,11,11,11,6,6,21,21,21,6,21,21,21,21,21,21,21,21,21,0,16,6,6,21,16,16,6,21,21,16,16,21,21,21,16,16,21,21,21,16,16,21,21,21,0,11,11,11,0,11,11,11,11,0,6,6,21,21,0,6,21,21,21,0,21,21,21,21,0,0,16,6,6,21,16,16,6,21,21,16,16,21,21,21,16,16,21,21,21,0,0,0,0,0,0,11,11,11,11,11,11,11,11,11,6,6,21,21,21,6,21,21,21,21,21,21,21,21,21,0,16,6,6,21,16,16,6,21,21,16,16,21,21,21,16,16,21,21,21,16,16,21,21,21,0,11,11,11,11,11,11,11,11,11,6,6,21,21,21,6,21,21,21,21,21,21,21,21,21,0,16,6,6,21,16,16,6,21,21,16,16,21,21,21,16,16,21,21,21,16,16,21,21,21"
+    var parts = s.split(",")
+    var out = new Int[parts.size]
+    var i = 0
+    while (i < parts.size) {
+        out[i] = parts[i].toInt()
+        i = i + 1
+    }
+    return out
+}
+
+Int av1Abs(Int v) {
+    if (v < 0) {
+        return -v
+    }
+    return v
+}
+
+Int av1Min(Int a, Int b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+// get_coeff_base_ctx( txSz, txType, Quant, pos, c, isEob ) per §9.3.3.3.
+// `pos` is the raster position `scan[c]`; `isEob` selects the coeff_base_eob
+// variant (which returns SIG_COEF_CONTEXTS - {4,3,2,1}).
+Int av1GetCoeffBaseCtx(Int txSz, Int txType, Int[] quant, Int pos, Int c, Bool isEob) {
+    var adjTxSz = av1AdjustedTxSize(txSz)
+    var bwl = av1TxWidthLog2(adjTxSz)
+    var width = 1 << bwl
+    var height = av1TxHeight(adjTxSz)
+    if (isEob) {
+        if (c == 0) {
+            return 38
+        }
+        if (c <= (height << bwl) / 8) {
+            return 39
+        }
+        if (c <= (height << bwl) / 4) {
+            return 40
+        }
+        return 41
+    }
+    var txClass = av1TxClass(txType)
+    var row = pos >> bwl
+    var col = pos - (row << bwl)
+    var mag = 0
+    var idx = 0
+    while (idx < av1SigRefDiffOffsetNum()) {
+        var refRow = row + av1SigRefDiffOffset(txClass, idx, 0)
+        var refCol = col + av1SigRefDiffOffset(txClass, idx, 1)
+        if (refRow >= 0 && refCol >= 0 && refRow < height && refCol < width) {
+            mag = mag + av1Min(av1Abs(quant[(refRow << bwl) + refCol]), 3)
+        }
+        idx = idx + 1
+    }
+    var ctx = av1Min((mag + 1) >> 1, 4)
+    if (txClass == 0) {
+        if (row == 0 && col == 0) {
+            return 0
+        }
+        return ctx + av1CoeffBaseCtxOffset(txSz, row, col)
+    }
+    var index = col
+    if (txClass == 1) {
+        index = row
+    }
+    var m = index
+    if (m > 2) {
+        m = 2
+    }
+    return ctx + av1CoeffBasePosOffset(m)
+}
+
+// get_coeff_br_ctx( txSz, txType, Quant, pos ) per §9.3.3.4.
+Int av1GetCoeffBrCtx(Int txSz, Int txType, Int[] quant, Int pos) {
+    var adjTxSz = av1AdjustedTxSize(txSz)
+    var bwl = av1TxWidthLog2(adjTxSz)
+    var txw = av1TxWidth(adjTxSz)
+    var txh = av1TxHeight(adjTxSz)
+    var row = pos >> bwl
+    var col = pos - (row << bwl)
+    var mag = 0
+    var txClass = av1TxClass(txType)
+    var idx = 0
+    while (idx < 3) {
+        var refRow = row + av1MagRefOffset(txClass, idx, 0)
+        var refCol = col + av1MagRefOffset(txClass, idx, 1)
+        if (refRow >= 0 && refCol >= 0 && refRow < txh && refCol < (1 << bwl)) {
+            mag = mag + av1Min(quant[refRow * txw + refCol], 15)
+        }
+        idx = idx + 1
+    }
+    mag = av1Min((mag + 1) >> 1, 6)
+    if (pos == 0) {
+        return mag
+    }
+    if (txClass == 0) {
+        if (row < 2 && col < 2) {
+            return mag + 7
+        }
+        return mag + 14
+    }
+    if (txClass == 1) {
+        if (col == 0) {
+            return mag + 7
+        }
+        return mag + 14
+    }
+    if (row == 0) {
+        return mag + 7
+    }
+    return mag + 14
+}
+
+// The `all_zero` context for the luma plane (plane == 0), §9.3.3.1. `top` and
+// `left` are the Max() of the AboveLevelContext / LeftLevelContext across the
+// transform block; `bw`/`bh` are the plane residual block size and `w`/`h` the
+// transform size (both in 4x4 units).
+Int av1AllZeroCtxY(Int top, Int left, Int bw, Int bh, Int w, Int h) {
+    var t = top
+    if (t > 255) {
+        t = 255
+    }
+    var l = left
+    if (l > 255) {
+        l = 255
+    }
+    if (bw == w && bh == h) {
+        return 0
+    }
+    if (t == 0 && l == 0) {
+        return 1
+    }
+    if (t == 0 || l == 0) {
+        var m = t
+        if (l > m) {
+            m = l
+        }
+        if (m > 3) {
+            return 3
+        }
+        return 2
+    }
+    var mx = t
+    if (l > mx) {
+        mx = l
+    }
+    if (mx <= 3) {
+        return 4
+    }
+    var mn = t
+    if (l < mn) {
+        mn = l
+    }
+    if (mn <= 3) {
+        return 5
+    }
+    return 6
+}
+
+// The `all_zero` context for a chroma plane (plane > 0), §9.3.3.1. `above` and
+// `left` are already the OR-reduced luma+dc non-zero flags; `blockBigger` is
+// `bw * bh > w * h`.
+Int av1AllZeroCtxUV(Bool above, Bool left, Bool blockBigger) {
+    var ctx = 7
+    if (above) {
+        ctx = ctx + 1
+    }
+    if (left) {
+        ctx = ctx + 1
+    }
+    if (blockBigger) {
+        ctx = ctx + 3
+    }
+    return ctx
+}
+
+// kTxbCtxSigns[ sign ]: the contribution of one neighbour's DC sign category
+// (0 = no DC, 1 = negative, 2 = positive) to `dcSign` (§9.3.3.2).
+Int av1DcSignContribution(Int signContext) {
+    if (signContext == 1) {
+        return -1
+    }
+    if (signContext == 2) {
+        return 1
+    }
+    return 0
+}
+
+// The `dc_sign` context from the accumulated `dcSign` (§9.3.3.2):
+// negative -> 1, positive -> 2, zero -> 0.
+Int av1DcSignCtx(Int dcSign) {
+    if (dcSign < 0) {
+        return 1
+    }
+    if (dcSign > 0) {
+        return 2
+    }
+    return 0
+}
+
+// The per-block entropy context stored after decoding a transform block and
+// read back by the neighbours' context selection: the block's `culLevel`
+// (already the coefficient walk's 0..63 sum) reduced to the low 3 bits
+// (COEFF_CONTEXT_MASK = 7) with the DC sign packed on top — bit 3 set when the
+// DC coefficient is negative, and `+2 << 3` when positive (libaom
+// `set_dc_sign` / `av1_get_txb_entropy_context`, `av1/encoder/encodetxb.c`).
+// `dcCategory` is the coefficient walk's 0/1/2 DC category (0 = none,
+// 1 = negative, 2 = positive).
+Int av1TxbEntropyContext(Int culLevel, Int dcCategory) {
+    var cul = culLevel
+    if (cul > 7) {
+        cul = 7
+    }
+    if (dcCategory == 1) {
+        return cul + 8
+    }
+    if (dcCategory == 2) {
+        return cul + 16
+    }
+    return cul
+}
+
+// The coefficient entropy-context selection `get_txb_ctx` (libaom
+// `av1/common/txb_common.h`, the spec's `all_zero`/`dc_sign` neighbour rules):
+// from the above/left per-4x4-unit entropy contexts of the plane residual
+// block, returns `[ allZeroCtx, dcSignCtx ]`.
+//
+//   - `above`/`left` are the neighbour entropy-context bytes (as produced by
+//     `av1TxbEntropyContext`); the first `txbWUnit`/`txbHUnit` entries are read
+//     (the transform block's width/height in 4x4 units).
+//   - `planeBsize` is the plane residual block size index, `txSz` the transform
+//     size, `plane` 0 = luma.
+//
+// The DC sign is the sum of the neighbour DC signs (`above` then `left`) mapped
+// through `kTxbCtxSigns` and `kTxbCtxDcSignContexts`; luma's `all_zero` uses
+// the spec `Max()` categories, chroma's adds the `get_entropy_context` OR of
+// the neighbours plus the block-bigger offset (7 or 10).
+List<Int> av1TxbCtx(Int[] above, Int[] left, Int txbWUnit, Int txbHUnit,
+                    Int planeBsize, Int txSz, Int plane) {
+    var dcSign = 0
+    var k = 0
+    while (k < txbWUnit) {
+        var sign = above[k] >> 3
+        if (sign == 1) {
+            dcSign = dcSign - 1
+        }
+        if (sign == 2) {
+            dcSign = dcSign + 1
+        }
+        k = k + 1
+    }
+    k = 0
+    while (k < txbHUnit) {
+        var sign = left[k] >> 3
+        if (sign == 1) {
+            dcSign = dcSign - 1
+        }
+        if (sign == 2) {
+            dcSign = dcSign + 1
+        }
+        k = k + 1
+    }
+    var dcSignCtx = 0
+    if (dcSign < 0) {
+        dcSignCtx = 1
+    }
+    if (dcSign > 0) {
+        dcSignCtx = 2
+    }
+
+    var skipCtx = 0
+    if (plane == 0) {
+        if (planeBsize == av1TxSizeToBsize(txSz)) {
+            skipCtx = 0
+        } else {
+            var top = 0
+            k = 0
+            while (k < txbWUnit) {
+                var lvl = above[k] & 7
+                if (lvl > top) {
+                    top = lvl
+                }
+                k = k + 1
+            }
+            var lft = 0
+            k = 0
+            while (k < txbHUnit) {
+                var lvl = left[k] & 7
+                if (lvl > lft) {
+                    lft = lvl
+                }
+                k = k + 1
+            }
+            skipCtx = av1AllZeroCtxY(top, lft, av1BlockNum4x4Wide(planeBsize),
+                                     av1BlockNum4x4High(planeBsize),
+                                     txbWUnit, txbHUnit)
+        }
+    } else {
+        var aboveEc = 0
+        var leftEc = 0
+        k = 0
+        while (k < txbWUnit) {
+            if (above[k] != 0) {
+                aboveEc = 1
+            }
+            k = k + 1
+        }
+        k = 0
+        while (k < txbHUnit) {
+            if (left[k] != 0) {
+                leftEc = 1
+            }
+            k = k + 1
+        }
+        var bigger = av1BlockNumPelsLog2(planeBsize) > av1BlockNumPelsLog2(av1TxSizeToBsize(txSz))
+        skipCtx = av1AllZeroCtxUV(aboveEc == 1, leftEc == 1, bigger)
+    }
+    return listOf(skipCtx, dcSignCtx)
+}

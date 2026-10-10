@@ -1,0 +1,95 @@
+package vision
+
+import image.Raster
+import vision.Vision
+
+// kof.vision — slice 2a: Sobel edge detection.
+//
+// The first `kof.vision` detection primitive (§12, "edges"): the Sobel
+// gradient magnitude of the BT.601 luminance. Each interior pixel's response
+// is `min(255, sqrt(gx*gx + gy*gy))`, written to a single-channel
+// `"SOBEL"` raster; border pixels are 0 (the 3x3 kernels need a full
+// neighbourhood). Pure Kof, deterministic, all targets.
+//
+//   var edges = sobelMagnitude(decodeRaster("scan.ppm"))
+//
+// Classic, no interop and no ML; the magnitude is a `Double` internally, then
+// clamped and truncated to the 0..255 sample range.
+
+Raster sobelMagnitude(Raster r) {
+    guardVision(r)
+    var mag = sobelValues(r)
+    var out = new Int[r.width * r.height]
+    var px = 0
+    while (px < out.length) {
+        out[px] = clampSample(mag[px])
+        px = px + 1
+    }
+    return Raster("SOBEL", r.width, r.height, 1, out)
+}
+
+// Raw gradient-magnitude map (row-major, `width * height` values; borders 0).
+Double[] sobelValues(Raster r) {
+    var w = r.width
+    var h = r.height
+    var out = new Double[w * h]
+    var gray = luminancePlane(r)
+    var row = 1
+    while (row < h - 1) {
+        var col = 1
+        while (col < w - 1) {
+            var tl = gray[(row - 1) * w + (col - 1)]
+            var tc = gray[(row - 1) * w + col]
+            var tr = gray[(row - 1) * w + (col + 1)]
+            var ml = gray[row * w + (col - 1)]
+            var mr = gray[row * w + (col + 1)]
+            var bl = gray[(row + 1) * w + (col - 1)]
+            var bc = gray[(row + 1) * w + col]
+            var br = gray[(row + 1) * w + (col + 1)]
+            var gx = (tr + 2.0 * mr + br) - (tl + 2.0 * ml + bl)
+            var gy = (bl + 2.0 * bc + br) - (tl + 2.0 * tc + tr)
+            out[row * w + col] = newtonSqrt(gx * gx + gy * gy)
+            col = col + 1
+        }
+        row = row + 1
+    }
+    return out
+}
+
+Double[] luminancePlane(Raster r) {
+    var n = r.width * r.height
+    var out = new Double[n]
+    var px = 0
+    while (px < n) {
+        out[px] = luminanceAt(r, px).toDouble()
+        px = px + 1
+    }
+    return out
+}
+
+Int clampSample(Double value) {
+    if (value <= 0.0) {
+        return 0
+    }
+    if (value >= 255.0) {
+        return 255
+    }
+    return value.toInt()
+}
+
+// Newton's method for sqrt (deterministic, no libm dependency, identical on
+// every target). `value` is always >= 0 here.
+Double newtonSqrt(Double value) {
+    if (value == 0.0) {
+        return 0.0
+    }
+    var x = value
+    var prev = -1.0
+    var i = 0
+    while (i < 60 && x != prev) {
+        prev = x
+        x = 0.5 * (x + value / x)
+        i = i + 1
+    }
+    return x
+}

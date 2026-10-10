@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * síncrono {@code while (!done(h)) { time.sleep(10) }} deixa de ser starvation.
  *
  * O relógio real é preservado (time.now()/Date.now() não mudam): a bomba do host
- * faz Thread.sleep em direção ao deadline, então KofTimeE2ETest continua honesto.
+ * faz uma espera bloqueante em direção ao deadline, então KofTimeE2ETest continua honesto.
  * Ancoram o contrato: o poll síncrono que antes travava (§132) e o caso título
  * tarefa-dentro-de-tarefa; o supervisor real roda em paridade em
  * {@link KofSupervisorE2ETest#supervisorJsParity}.

@@ -1,0 +1,15 @@
+package kfvm.platform
+
+import kfvm.system
+
+class PowerShell {
+    static String run(String script, Map<String, String> env) {
+        var command = "$ErrorActionPreference = 'Stop'; try { " + script + "; exit 0 } " +
+            "catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }"
+        return Shell.run("powershell", listOf("-NoProfile", "-NonInteractive", "-Command", command), env)
+    }
+
+    static String windowsPath(String path) {
+        return path.replace("/", "\\")
+    }
+}

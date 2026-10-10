@@ -57,19 +57,22 @@ public final class ClassShapeChecks {
      */
     static void checkRecordDeclaration(SemanticAnalyzer sa, RecordDeclarationNode rec) {
         String superName = eraseGenerics(rec.superClass());
-        if (superName == null || "Record".equals(superName) || "Object".equals(superName)) return;
-        if (isRecordNamed(sa, simpleName(superName))) {
-            report(sa, rec.position(),
-                    "cannot extend record '" + superName + "'"
-                            + " — records are implicitly final; compose it (hold it in a field) or use a plain class",
-                    "SEM070");
-            return;
-        }
-        if (sa.finalClasses().contains(simpleName(superName))) {
-            report(sa, rec.position(),
-                    "cannot inherit from final class '" + superName + "'"
-                            + " (declared 'final' — remove 'final' or the inheritance)",
-                    "SEM070");
+        // #689: o `return` antecipado quando o record NÃO tem super explícito
+        // (caso comum) pulava TODOS os cheques abaixo — inclusive o de
+        // variância X5.3. Agora o super só gateia os cheques de herança.
+        boolean hasSuper = superName != null && !"Record".equals(superName) && !"Object".equals(superName);
+        if (hasSuper) {
+            if (isRecordNamed(sa, simpleName(superName))) {
+                report(sa, rec.position(),
+                        "cannot extend record '" + superName + "'"
+                                + " — records are implicitly final; compose it (hold it in a field) or use a plain class",
+                        "SEM070");
+            } else if (sa.finalClasses().contains(simpleName(superName))) {
+                report(sa, rec.position(),
+                        "cannot inherit from final class '" + superName + "'"
+                                + " (declared 'final' — remove 'final' or the inheritance)",
+                        "SEM070");
+            }
         }
         // X5.1 (D-X5-SURFACE): record é subtipo de interface `sealed`?
         SealedTypeChecks.checkSubtype(sa, rec.position(), rec.name(),

@@ -1,0 +1,659 @@
+package image
+
+import image.Avif
+import image.AvifItems
+import image.AvifSeq
+
+// kof.image — AV1 frame header prefix walk, slices 2d/2e/2l of the AVIF
+// front (plan §34). The bit widths and branch structure are quoted from the
+// AV1 Bitstream & Decoding Process Specification read on the dev host 02/10:
+// 5.9.2 (uncompressed header syntax) up to and including frame_size/
+// render_size/allow_intrabc (the intra path — read_interpolation_filter and
+// is_motion_mode_switchable belong to the non-intra branch and are NOT read
+// here), then the 5.9.15 tile_info() UNIFORM path (the
+// increment_tile_cols/rows_log2 loops, context_update_tile_id and
+// tile_size_bytes), with the 5.9.5/5.9.6 size rules and the
+// SELECT_SCREEN_CONTENT_TOOLS / SELECT_INTEGER_MV constant = 2 from the
+// symbol table.
+//
+// The walk PARSES THE PREFIX AND THE HEADER TAIL — deliberately, not a stub:
+// after tile_info it reads the 5.9.2 tail (quantization, segmentation,
+// delta_q/delta_lf, loop filter, cdef, restoration, tx mode, reduced_tx_set)
+// through the byte_alignment, so `AvifFrameHeader.headerBytes` is the exact
+// byte size of the uncompressed_header. The non-uniform tile size lists
+// (ns() per-tile tables), the coefficient syntax and the tile payloads
+// themselves remain outside this face (slice 2f/2m ENUMERATES their sizes).
+// `AvifFrameHeader` reports: frame type, show flag, error resilience, coded
+// frame size (override-aware, superres-free), render size, the
+// screen-content/force-mv facts, the derived uniform tile counts, the
+// aligned header byte size and the tail facts base_q_idx / loop_filter_level[0]
+// / cdef_bits.
+// Streams that reach bits this face does not walk throw an explicit
+// `IMAGE:` refusal — never a silent skip.
+//
+// Documented subset (the `Avif.kf` policy):
+//   * show_existing_frame == 1 -> refused (`IMAGE: avif frame show-existing
+//     not covered`) — it replays a reference buffer, a video-stream face;
+//   * non-intra frames (INTER 1 / SWITCH 3) -> refused
+//     (`IMAGE: avif inter frame not covered`) — reference signaling and
+//     motion vectors are decode-chain work (read_interpolation_filter and
+//     is_motion_mode_switchable live in this non-intra branch, so they are
+//     not read on the intra path);
+//   * allow_intrabc == 1 -> refused (`IMAGE: avif intra block copy not
+//     covered`);
+//   * superres (seq enable_superres + frame frame_use_superres == 1) ->
+//     refused (`IMAGE: avif superres not covered`);
+//   * uniform_tile_spacing_flag == 0 -> refused (`IMAGE: avif tile size
+//     list not covered`) — the ns() per-tile tables are their own slice;
+//   * a frame id present on a stream whose sequence header skipped the id
+//     lengths, and any read past the OBU payload end -> refused.
+//
+// `avifItemFrameHeader(item)` walks the located item bytes (slice 2a/2c
+// framing), parses the first sequence header (slice 2b `seqWalk`) for the
+// context, then the FIRST OBU_FRAME_HEADER (3) or OBU_FRAME (6) payload as
+// the frame prefix. `readAvifFrameHeader(path)` composes container -> pitm
+// -> iloc -> this walk. Slice 2f/2m's tile group face lives in
+// `AvifGroup.kf`: sibling OBU_TILE_GROUP payloads, and an OBU_FRAME's single
+// inline group located at `headerBytes` after this full header walk. No
+// pixel decoding — `decodeRaster` keeps refusing AVIF.
+
+record AvifFrameHeader(Int frameType, Bool showFrame, Bool errorResilient,
+                      Bool sizeOverride, Int codedWidth, Int codedHeight,
+                      Bool renderDifferent, Int renderWidth, Int renderHeight,
+                      Bool allowScreenContent, Bool allowIntrabc,
+                      Int tileColumns, Int tileRows, Int tileBits,
+                      Int tileSizeBytes, Int headerBytes,
+                      Int baseQIdx, Int loopFilterLevel0, Int cdefBits)
+
+AvifFrameHeader readAvifFrameHeader(String path) {
+    var bytes = File(path).readRange(0, 65536)
+    var md = avifMetadata(bytes)
+    return avifItemFrameHeader(avifItemBytes(bytes, md.primaryId))
+}
+
+AvifFrameHeader avifItemFrameHeader(Int[] item) {
+    var seq = AvifSeqHeader(0, false, false, 0, 0, false, false, false, 8, 0,
+                            false, false, false, false, false, false, 2, 2, 0, 0, 0, 0, 0,
+                            false, false)
+    var haveSeq = false
+    var pos = 0
+    var n = item.length
+    while (pos < n) {
+        var head = u8(item, pos)
+        if ((head >> 7) != 0) {
+            throw "IMAGE: avif item obu forbidden bits"
+        }
+        var type = (head >> 3) & 15
+        var ext = (head >> 2) & 1
+        var hasSize = (head >> 1) & 1
+        if ((head & 1) != 0) {
+            throw "IMAGE: avif item obu reserved bit set"
+        }
+        if (hasSize != 1) {
+            throw "IMAGE: avif item obu missing size field"
+        }
+        if (type != 1 && type != 2 && !haveSeq) {
+            throw "IMAGE: avif item has no sequence header"
+        }
+        var p = pos + 1 + ext
+        if (p >= n) {
+            throw "IMAGE: avif obu truncated"
+        }
+        var size = 0
+        var mult = 1
+        var loop = 0
+        var sized = false
+        while (loop < 8) {
+            var x = u8(item, p)
+            p = p + 1
+            size = size + (x & 127) * mult
+            mult = mult * 128
+            if ((x & 128) == 0) {
+                sized = true
+                loop = 8
+            }
+            loop = loop + 1
+        }
+        if (!sized) {
+            throw "IMAGE: avif obu size too long"
+        }
+        var limit = p + size
+        if (limit > n) {
+            throw "IMAGE: avif obu truncated"
+        }
+        if (type == 1) {
+            if (!haveSeq) {
+                seq = seqWalk(item, p, limit)
+                haveSeq = true
+            }
+        } else if (type == 3 || type == 6) {
+            return frameWalk(item, p, limit, seq)
+        }
+        pos = limit
+    }
+    throw "IMAGE: avif item has no frame header"
+}
+
+// uncompressed_header() prefix per 5.9.2 + 5.9.15; returns after
+// tile_info's uniform path (the documented stop point above).
+AvifFrameHeader frameWalk(Int[] b, Int p, Int limit, AvifSeqHeader seq) {
+    var bits = p * 8
+    var reduced = 0
+    if (seq.reduced) {
+        reduced = 1
+    }
+    var frameType = 0
+    var showFrame = 1
+    var errorResilient = 1
+    if (reduced == 0) {
+        if (seqRead(b, bits, 1) == 1) {
+            throw "IMAGE: avif frame show-existing not covered"
+        }
+        bits = bits + 1
+        frameType = seqRead(b, bits, 2)
+        bits = bits + 2
+        if (frameType == 1 || frameType == 3) {
+            throw "IMAGE: avif inter frame not covered"
+        }
+        showFrame = seqRead(b, bits, 1)
+        bits = bits + 1
+        if (showFrame == 0) {
+            bits = bits + 1
+        }
+        if (frameType == 0 && showFrame == 1) {
+            errorResilient = 1
+        } else {
+            errorResilient = seqRead(b, bits, 1)
+            bits = bits + 1
+        }
+    }
+    var cdf = seqRead(b, bits, 1)
+    bits = bits + 1
+    var allowSct = 1
+    if (seq.forceScreenContentTools == 2) {
+        allowSct = seqRead(b, bits, 1)
+        bits = bits + 1
+    } else {
+        if (seq.forceScreenContentTools > 0) {
+            allowSct = seq.forceScreenContentTools
+        } else {
+            allowSct = 0
+        }
+    }
+    if (allowSct == 1 && seq.forceIntegerMv == 2) {
+        bits = bits + 1
+    }
+    var refreshAll = 1
+    if (seq.frameIdNumbersPresent) {
+        bits = bits + seq.deltaFrameIdLengthMinus2
+                  + seq.additionalFrameIdLengthMinus1 + 3
+        if (bits > limit * 8) {
+            throw "IMAGE: truncated avif frame header"
+        }
+    }
+    var sizeOverride = 0
+    if (reduced == 0) {
+        sizeOverride = seqRead(b, bits, 1)
+        bits = bits + 1
+    }
+    bits = bits + seq.orderHintBits
+    if (reduced == 0 && !(frameType == 0 && showFrame == 1)) {
+        var refresh = seqRead(b, bits, 8)
+        bits = bits + 8
+        if (refresh != 255) {
+            refreshAll = 0
+        }
+    }
+    if (reduced == 0 && refreshAll == 0
+            && seq.enableOrderHint && errorResilient == 1) {
+        bits = bits + 8 * seq.orderHintBits
+    }
+    if (bits > limit * 8) {
+        throw "IMAGE: truncated avif frame header"
+    }
+    var codedW = seq.maxWidth
+    var codedH = seq.maxHeight
+    if (sizeOverride == 1) {
+        var wm1 = seqRead(b, bits, seq.widthBitsMinus1 + 1)
+        bits = bits + seq.widthBitsMinus1 + 1
+        var hm1 = seqRead(b, bits, seq.heightBitsMinus1 + 1)
+        bits = bits + seq.heightBitsMinus1 + 1
+        codedW = wm1 + 1
+        codedH = hm1 + 1
+    }
+    if (seq.enableSuperres) {
+        if (seqRead(b, bits, 1) == 1) {
+            throw "IMAGE: avif superres not covered"
+        }
+        bits = bits + 1
+    }
+    // 5.9.6 render_size() has NO reduced guard: the flag is always read.
+    var renderDiff = seqRead(b, bits, 1)
+    bits = bits + 1
+    var renderW = codedW
+    var renderH = codedH
+    if (renderDiff == 1) {
+        renderW = seqRead(b, bits, 16) + 1
+        bits = bits + 16
+        renderH = seqRead(b, bits, 16) + 1
+        bits = bits + 16
+    }
+    if (bits > limit * 8) {
+        throw "IMAGE: truncated avif frame header"
+    }
+    var allowIntrabc = 0
+    if (allowSct == 1 && codedW == seq.maxWidth) {
+        allowIntrabc = seqRead(b, bits, 1)
+        bits = bits + 1
+        if (allowIntrabc == 1) {
+            throw "IMAGE: avif intra block copy not covered"
+        }
+    }
+    if (reduced == 0 && cdf == 0) {
+        bits = bits + 1
+    }
+    var tiles = tileWalk(b, bits, limit, seq, codedW, codedH)
+    bits = tiles[0]
+    if (bits > limit * 8) {
+        throw "IMAGE: truncated avif frame header"
+    }
+    var numPlanes = 3
+    if (seq.monochrome) {
+        numPlanes = 1
+    }
+    var tail = frameTailWalk(b, bits, limit, seq, allowSct, allowIntrabc, numPlanes)
+    bits = tail[0]
+    var hb = bits
+    while ((hb & 7) != 0) {
+        hb = hb + 1
+    }
+    if (hb > limit * 8) {
+        throw "IMAGE: truncated avif frame header"
+    }
+    return AvifFrameHeader(frameType, showFrame == 1, errorResilient == 1,
+                           sizeOverride == 1, codedW, codedH,
+                           renderDiff == 1, renderW, renderH,
+                           allowSct == 1, allowIntrabc == 1,
+                           tiles[1], tiles[2], tiles[3], tiles[4],
+                           (hb - p * 8) / 8,
+                           tail[1], tail[2], tail[3])
+}
+
+// uncompressed_header() tail per AV1 5.9.2, after tile_info() and before the
+// byte_alignment(): quantization_params (5.9.9), segmentation_params (5.9.11),
+// delta_q_params/delta_lf_params (5.9.12/5.9.13), loop_filter_params (5.9.8),
+// cdef_params (5.9.14), lr_params (5.9.16), read_tx_mode (5.9.17) and
+// reduced_tx_set. frame_reference_mode (5.9.18) and skip_mode_params (5.9.19)
+// are inferred (0) for an intra frame, which is the only frame kind this walk
+// admits; film_grain_params (5.9.20) is refused earlier by `seqWalk`
+// (film_grain_params_present == 1). Returns the next bit position; the caller
+// byte-aligns. CodedLossless/AllLossless are derived exactly per 5.9.2 (no
+// superres, so AllLossless == CodedLossless), which is what makes the
+// loop-filter/cdef/restoration/tx-mode guards parse-correct.
+Int[] frameTailWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq,
+                    Int allowSct, Int allowIntrabc, Int numPlanes) {
+    var separateUv = 0
+    if (seq.separateUvDeltaQ) {
+        separateUv = 1
+    }
+    var lf0Out = 0
+    var cdefBitsOut = 0
+    // quantization_params()
+    var baseQ = seqRead(b, bits, 8)
+    bits = bits + 8
+    var d = frameDeltaQ(b, bits)
+    bits = d[0]
+    if (numPlanes > 1) {
+        var diffUv = 0
+        if (separateUv == 1) {
+            diffUv = seqRead(b, bits, 1)
+            bits = bits + 1
+        }
+        d = frameDeltaQ(b, bits)
+        bits = d[0]
+        d = frameDeltaQ(b, bits)
+        bits = d[0]
+        if (diffUv == 1) {
+            d = frameDeltaQ(b, bits)
+            bits = d[0]
+            d = frameDeltaQ(b, bits)
+            bits = d[0]
+        }
+    }
+    var usingQm = seqRead(b, bits, 1)
+    bits = bits + 1
+    if (usingQm == 1) {
+        bits = bits + 4 + 4
+        if (separateUv == 1) {
+            bits = bits + 4
+        }
+    }
+    if (bits > limit * 8) {
+        throw "IMAGE: truncated avif frame header"
+    }
+    // segmentation_params(): intra => primary_ref_frame == PRIMARY_REF_NONE,
+    // so update_map/update_data are inferred 1 (no bits).
+    var segEnabled = seqRead(b, bits, 1)
+    bits = bits + 1
+    var segAltQ = new Int[8]
+    var codedLossless = 0
+    if (baseQ == 0) {
+        codedLossless = 1
+    }
+    if (segEnabled == 1) {
+        var i = 0
+        while (i < 8) {
+            var j = 0
+            while (j < 8) {
+                var fe = seqRead(b, bits, 1)
+                bits = bits + 1
+                if (fe == 1) {
+                    if (j == 0) {
+                        segAltQ[i] = seqSu(b, bits, 8)
+                        bits = bits + 8
+                    } else if (j <= 4) {
+                        bits = bits + 6
+                    } else if (j == 5) {
+                        bits = bits + 3
+                    }
+                }
+                j = j + 1
+            }
+            i = i + 1
+        }
+        if (bits > limit * 8) {
+            throw "IMAGE: truncated avif frame header"
+        }
+        i = 0
+        while (i < 8) {
+            var q = baseQ + segAltQ[i]
+            if (q < 0) {
+                q = 0
+            }
+            if (q > 255) {
+                q = 255
+            }
+            if (q != 0) {
+                codedLossless = 0
+            }
+            i = i + 1
+        }
+    }
+    // delta_q_params() / delta_lf_params()
+    if (baseQ > 0) {
+        var dqp = seqRead(b, bits, 1)
+        bits = bits + 1
+        if (dqp == 1) {
+            bits = bits + 2
+            if (allowIntrabc == 0) {
+                var dflp = seqRead(b, bits, 1)
+                bits = bits + 1
+                if (dflp == 1) {
+                    bits = bits + 2 + 1
+                }
+            }
+        }
+    }
+    // loop_filter_params() (skipped when CodedLossless || allow_intrabc)
+    if (codedLossless == 0 && allowIntrabc == 0) {
+        var lf0 = seqRead(b, bits, 6)
+        bits = bits + 6
+        var lf1 = seqRead(b, bits, 6)
+        bits = bits + 6
+        lf0Out = lf0
+        if (numPlanes > 1 && (lf0 != 0 || lf1 != 0)) {
+            bits = bits + 6 + 6
+        }
+        bits = bits + 3
+        var lfDelta = seqRead(b, bits, 1)
+        bits = bits + 1
+        if (lfDelta == 1) {
+            var upd = seqRead(b, bits, 1)
+            bits = bits + 1
+            if (upd == 1) {
+                var k = 0
+                while (k < 8) {
+                    var u = seqRead(b, bits, 1)
+                    bits = bits + 1
+                    if (u == 1) {
+                        bits = bits + 7
+                    }
+                    k = k + 1
+                }
+                k = 0
+                while (k < 2) {
+                    var u = seqRead(b, bits, 1)
+                    bits = bits + 1
+                    if (u == 1) {
+                        bits = bits + 7
+                    }
+                    k = k + 1
+                }
+            }
+        }
+    }
+    // cdef_params() (skipped when CodedLossless || allow_intrabc || !enable_cdef)
+    if (codedLossless == 0 && allowIntrabc == 0 && seq.enableCdef) {
+        bits = bits + 2
+        var cdefBits = seqRead(b, bits, 2)
+        bits = bits + 2
+        cdefBitsOut = cdefBits
+        var c = 0
+        var n = 1 << cdefBits
+        while (c < n) {
+            bits = bits + 4 + 2
+            if (numPlanes > 1) {
+                bits = bits + 4 + 2
+            }
+            c = c + 1
+        }
+    }
+    // lr_params() (skipped when AllLossless || allow_intrabc || !enable_restoration)
+    if (codedLossless == 0 && allowIntrabc == 0 && seq.enableRestoration) {
+        var usesLr = 0
+        var usesChromaLr = 0
+        var p = 0
+        while (p < numPlanes) {
+            var lr = seqRead(b, bits, 2)
+            bits = bits + 2
+            if (lr != 0) {
+                usesLr = 1
+                if (p > 0) {
+                    usesChromaLr = 1
+                }
+            }
+            p = p + 1
+        }
+        if (usesLr == 1) {
+            var lrUnitShift = seqRead(b, bits, 1)
+            bits = bits + 1
+            if (seq.use128x128Superblock) {
+                // shift is unconditional; nothing else is read here
+            } else {
+                if (lrUnitShift != 0) {
+                    bits = bits + 1
+                }
+            }
+            if (seq.subsamplingX && seq.subsamplingY && usesChromaLr == 1) {
+                bits = bits + 1
+            }
+        }
+    }
+    // read_tx_mode() (skipped when CodedLossless)
+    if (codedLossless == 0) {
+        bits = bits + 1
+    }
+    // reduced_tx_set (frame_reference_mode/skip_mode_params inferred for intra)
+    bits = bits + 1
+    if (bits > limit * 8) {
+        throw "IMAGE: truncated avif frame header"
+    }
+    var out = new Int[4]
+    out[0] = bits
+    out[1] = baseQ
+    out[2] = lf0Out
+    out[3] = cdefBitsOut
+    return out
+}
+
+// read_delta_q() per 5.9.10: delta_coded f(1), then su(1+6) when set.
+// Returns {nextBitPos, value}.
+Int[] frameDeltaQ(Int[] b, Int bits) {
+    var coded = seqRead(b, bits, 1)
+    bits = bits + 1
+    var v = 0
+    if (coded == 1) {
+        v = seqSu(b, bits, 7)
+        bits = bits + 7
+    }
+    var out = new Int[2]
+    out[0] = bits
+    out[1] = v
+    return out
+}
+
+// tile_info() per 5.9.15: the uniform-spacing path (the flag plus the
+// increment_tile_cols_log2 / increment_tile_rows_log2 loops) and the
+// NON-uniform path (the per-axis ns() size lists: width_in_sbs_minus_1 /
+// height_in_sbs_minus_1, with the spec's widestTileSb and maxTileHeightSb
+// area rule), then context_update_tile_id (TileColsLog2 + TileRowsLog2 bits,
+// skipped as a value — the CDF update rides decode) and
+// tile_size_bytes_minus_1 (f(2), TileSizeBytes = value + 1) when either log2
+// is > 0. Returns {nextBitPos, tileCols, tileRows, tileBits, tileSizeBytes}
+// (the per-axis superblock count loops of the spec).
+Int[] tileWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq, Int codedW, Int codedH) {
+    var sbShift = 4
+    if (seq.use128x128Superblock) {
+        sbShift = 5
+    }
+    var sbSize = sbShift + 2
+    var miCols = (codedW + 3) >> 2
+    var miRows = (codedH + 3) >> 2
+    var sbCols = (miCols + (1 << sbShift) - 1) >> sbShift
+    var sbRows = (miRows + (1 << sbShift) - 1) >> sbShift
+    var maxTileWidthSb = 4096 >> sbSize
+    var maxTileAreaSb = 9437184 >> (2 * sbSize)
+    var minCols = tlog2(maxTileWidthSb, sbCols)
+    var maxCols = tlog2(1, tmin(sbCols, 64))
+    var maxRows = tlog2(1, tmin(sbRows, 64))
+    var minTiles = tmax(minCols, tlog2(maxTileAreaSb, sbRows * sbCols))
+    var colsLog2 = 0
+    var rowsLog2 = 0
+    var cols = 0
+    var rows = 0
+    if (seqRead(b, bits, 1) == 1) {
+        bits = bits + 1
+        colsLog2 = minCols
+        var stop = 0
+        while (colsLog2 < maxCols && stop == 0) {
+            if (bits > limit * 8) {
+                throw "IMAGE: truncated avif frame header"
+            }
+            if (seqRead(b, bits, 1) == 0) {
+                stop = 1
+            } else {
+                colsLog2 = colsLog2 + 1
+            }
+            bits = bits + 1
+        }
+        rowsLog2 = tmax(minTiles - colsLog2, 0)
+        stop = 0
+        while (rowsLog2 < maxRows && stop == 0) {
+            if (bits > limit * 8) {
+                throw "IMAGE: truncated avif frame header"
+            }
+            if (seqRead(b, bits, 1) == 0) {
+                stop = 1
+            } else {
+                rowsLog2 = rowsLog2 + 1
+            }
+            bits = bits + 1
+        }
+        var tileWidthSb = (sbCols + (1 << colsLog2) - 1) >> colsLog2
+        var tileHeightSb = (sbRows + (1 << rowsLog2) - 1) >> rowsLog2
+        var start = 0
+        while (start < sbCols) {
+            cols = cols + 1
+            start = start + tileWidthSb
+        }
+        start = 0
+        while (start < sbRows) {
+            rows = rows + 1
+            start = start + tileHeightSb
+        }
+    } else {
+        bits = bits + 1
+        var widest = 0
+        var start = 0
+        while (start < sbCols) {
+            if (bits > limit * 8) {
+                throw "IMAGE: truncated avif frame header"
+            }
+            var maxWidth = tmin(sbCols - start, maxTileWidthSb)
+            var ns = seqNs(b, bits, maxWidth)
+            var sizeSb = ns[0] + 1
+            bits = ns[1]
+            if (sizeSb > widest) {
+                widest = sizeSb
+            }
+            start = start + sizeSb
+            cols = cols + 1
+        }
+        var areaSb = sbRows * sbCols
+        if (minTiles > 0) {
+            areaSb = areaSb >> (minTiles + 1)
+        }
+        var maxHeight = tmax(areaSb / widest, 1)
+        start = 0
+        while (start < sbRows) {
+            if (bits > limit * 8) {
+                throw "IMAGE: truncated avif frame header"
+            }
+            var mh = tmin(sbRows - start, maxHeight)
+            var ns2 = seqNs(b, bits, mh)
+            var sizeSb2 = ns2[0] + 1
+            bits = ns2[1]
+            start = start + sizeSb2
+            rows = rows + 1
+        }
+        colsLog2 = tlog2(1, cols)
+        rowsLog2 = tlog2(1, rows)
+    }
+    var tileBits = 0
+    var tileSizeBytes = 0
+    if (colsLog2 > 0 || rowsLog2 > 0) {
+        tileBits = colsLog2 + rowsLog2
+        bits = bits + tileBits
+        tileSizeBytes = seqRead(b, bits, 2) + 1
+        bits = bits + 2
+    }
+    var out = new Int[5]
+    out[0] = bits
+    out[1] = cols
+    out[2] = rows
+    out[3] = tileBits
+    out[4] = tileSizeBytes
+    return out
+}
+
+Int tlog2(Int u, Int v) {
+    var k = 0
+    while ((u << k) < v) {
+        k = k + 1
+    }
+    return k
+}
+
+Int tmin(Int a, Int b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+Int tmax(Int a, Int b) {
+    if (a > b) {
+        return a
+    }
+    return b
+}

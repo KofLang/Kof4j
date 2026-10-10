@@ -1,19 +1,15 @@
 [English](pull_request_template.md) | [Português](pull_request_template.pt_BR.md)
 
 <!--
-  KOFLANG / KOF4J PULL REQUEST POLICY
-
-  ⚠️ ATTENTION: NEVER OPEN PULL REQUESTS DIRECTLY AGAINST THE `main` BRANCH!
-  The `main` branch is reserved for stable releases controlled by the maintainer.
-  All development, fixes and contributions must be opened against the active
-  `beta` branch (current example: `beta-0.4.0`).
-  
-  PRs opened against the `main` branch by unauthorized accounts will be
-  automatically blocked by the repository's guard action.
+  Branch pipeline (authoritative: `AGENTS.md` §Authority/D-BRANCH-PIPELINE and
+  `docs/development/DECISIONS.md` §D-QUALITY-PIPELINE-2609):
+  lab → testing → prerelease → stable → release/x.y.z → tag.
+  Development and fixes ALWAYS enter through `lab`; every other stage is
+  protected and the guard action closes any PR aimed at `main`.
 -->
 
 ## 🎯 Target Base Branch
-- [ ] I confirm that this PR targets a **`beta-*`** branch (e.g.: `beta-0.4.0`) and **NOT** `main`.
+- [ ] I confirm that this PR targets the active **`lab`** stage and **NOT** a protected stage (`main`/`testing`/`prerelease`/`stable`).
 
 ---
 
@@ -29,7 +25,7 @@ Fixes #
 ---
 
 ## 📐 KOF-First Contract (`D-KOF-FIRST`)
-<!-- Every change answers the four gates below. "Language X does it this way" is never a contract source. -->
+<!-- Gates 1–5 live in `AGENTS.md` §Kof-first and `DECISIONS.md` §D-KOF-FIRST — answer the fields below; do not restate the rules. -->
 **Valid Kof reproducer** (the snippet that exercises the change):
 
 ```kof

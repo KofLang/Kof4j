@@ -50,6 +50,14 @@ public final class NativeRiscvAsmRtB71 {
                 la   t1, _kof_heap
                 bltu s0, t1, .L71_rnd_int
                 bgeu s0, t0, .L71_rnd_int
+                # #773: ponteiro vivo pode ser um §284 MAGIC box (arg erased via
+                # Integer.valueOf) — desembrulha o valor (+16) e renderiza int.
+                li   t1, 0x4B4F46425F425801
+                ld   t2, 0(s0)
+                bne  t1, t2, .L71_rnd_str
+                ld   s0, 16(s0)
+                j    .L71_rnd_int
+            .L71_rnd_str:
                 lw   s1, 16(s0)
                 addi s2, s0, 24
                 li   s3, 0

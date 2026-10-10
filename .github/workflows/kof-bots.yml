@@ -2,9 +2,9 @@ name: kof-bots-orchestrator
 
 on:
   push:
-    branches: [main, beta-*]
+    branches: [main, lab, testing, prerelease, stable]
   pull_request:
-    branches: [main, beta-*]
+    branches: [main, lab, testing, prerelease, stable]
   workflow_dispatch:
   schedule:
     - cron: "0 6 * * 1"  # Weekly Monday 6am
@@ -25,6 +25,10 @@ jobs:
     # gatilho pull_request; o dispatch extra so faz sentido em push/PR
     # interno/schedule/dispatch. Nao e mascara de falha: o que falhava era
     # o veiculo, nao o veredito.
+    # PR INTERNO: context.ref = refs/pull/N/merge, que o endpoint de
+    # dispatch rejeita com 422 "No ref found for: refs/pull/N/merge". Em
+    # pull_request despachamos a branch da PR (head.ref); em
+    # push/schedule/dispatch, context.ref ja e uma branch.
     if: >-
       github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name == github.repository
@@ -33,33 +37,42 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
+            const ref = context.eventName === 'pull_request'
+              ? context.payload.pull_request.head.ref
+              : context.ref;
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'kof-quality-bot.yml',
-              ref: context.ref
+              ref
             });
 
       - name: Trigger kof-warning-bot
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
+            const ref = context.eventName === 'pull_request'
+              ? context.payload.pull_request.head.ref
+              : context.ref;
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'kof-warning-bot.yml',
-              ref: context.ref
+              ref
             });
 
       - name: Trigger kof-security-bot
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
+            const ref = context.eventName === 'pull_request'
+              ? context.payload.pull_request.head.ref
+              : context.ref;
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'kof-security-bot.yml',
-              ref: context.ref
+              ref
             });
 
   aggregate-results:

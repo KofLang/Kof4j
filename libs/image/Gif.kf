@@ -1,0 +1,280 @@
+package image
+
+import image.Image
+
+// kof.image — pure-Kof GIF decoder (part of the pixel slice).
+//
+// First frame only, RGB output (3 channels). Handles GIF87a/GIF89a, the global
+// or local color table, LZW decompression and the interlaced row order;
+// extensions (graphic control / comment / plain text) are skipped, so a
+// transparent index renders as its palette colour (no alpha in this slice).
+// No interop, no zlib — full target parity:
+//
+//   decodeRaster("anim.gif")   // GIF is routed here from Raster.kf
+//
+// Bounded by the same ≤262144-sample cap as the rest of the raster slice; a
+// malformed GIF throws `IMAGE:`.
+
+Raster gifRaster(String path, Int screenW, Int screenH) {
+    var b = File(path).readBytes()
+    if (b.length < 13 || !(matchesAscii(b, 0, "GIF87a") || matchesAscii(b, 0, "GIF89a"))) {
+        throw "IMAGE: bad GIF signature"
+    }
+    var gctFlag = b[10] & 128
+    var gctSize = 2 << (b[10] & 7)
+    var gct = new Int[gctSize * 3]
+    var gctLen = 0
+    var pos = 13
+    if (gctFlag != 0) {
+        pos = readPalette(b, pos, gct, gctSize)
+        gctLen = gctSize * 3
+    }
+    while (pos < b.length) {
+        var block = b[pos] & 255
+        if (block == 59) {
+            throw "IMAGE: GIF has no image frame"
+        }
+        if (block == 33) {
+            pos = skipExtension(b, pos + 2)
+        } else if (block == 44) {
+            return gifFrame(b, pos, gct, gctLen)
+        } else {
+            throw "IMAGE: bad GIF block"
+        }
+    }
+    throw "IMAGE: GIF has no image frame"
+}
+
+Raster gifFrame(Int[] b, Int descriptorOff, Int[] gct, Int gctLen) {
+    need(b, descriptorOff + 10, "GIF")
+    var w = le16(b, descriptorOff + 5)
+    var h = le16(b, descriptorOff + 7)
+    var packed = b[descriptorOff + 9] & 255
+    var interlaced = (packed & 64) != 0
+    var lctFlag = (packed & 128) != 0
+    var lctSize = 2 << (packed & 7)
+    var lct = new Int[lctSize * 3]
+    var lctLen = 0
+    var pos = descriptorOff + 10
+    if (lctFlag) {
+        pos = readPalette(b, pos, lct, lctSize)
+        lctLen = lctSize * 3
+    }
+    var minCodeSize = b[pos] & 255
+    pos = pos + 1
+    var lzw = collectSubBlocks(b, pos)
+    var indices = gifLzw(lzw, minCodeSize, w * h)
+    var out = new Int[w * h * 3]
+    var channels = 3
+    guardRaster(w * h * channels)
+    var rowOrder = gifRowOrder(h, interlaced)
+    var src = 0
+    var i = 0
+    while (i < w * h) {
+        var row = rowOrder.get(src / w)
+        var col = src % w
+        var idx = indices[src] & 255
+        var palette = gct
+        var paletteLen = gctLen
+        if (lctFlag) {
+            palette = lct
+            paletteLen = lctLen
+        }
+        if (idx * 3 + 2 >= paletteLen) {
+            throw "IMAGE: GIF palette index out of range"
+        }
+        var dst = row * w + col
+        out[dst * 3] = palette[idx * 3]
+        out[dst * 3 + 1] = palette[idx * 3 + 1]
+        out[dst * 3 + 2] = palette[idx * 3 + 2]
+        src = src + 1
+        i = i + 1
+    }
+    return Raster("GIF", w, h, channels, out)
+}
+
+List<Int> gifRowOrder(Int h, Bool interlaced) {
+    var order = listOf<Int>()
+    if (!interlaced) {
+        var r = 0
+        while (r < h) {
+            order.add(r)
+            r = r + 1
+        }
+        return order
+    }
+    var y = 0
+    while (y < h) {
+        order.add(y)
+        y = y + 8
+    }
+    y = 4
+    while (y < h) {
+        order.add(y)
+        y = y + 8
+    }
+    y = 2
+    while (y < h) {
+        order.add(y)
+        y = y + 4
+    }
+    y = 1
+    while (y < h) {
+        order.add(y)
+        y = y + 2
+    }
+    return order
+}
+
+Int readPalette(Int[] b, Int pos, Int[] palette, Int entries) {
+    need(b, pos + entries * 3, "GIF palette")
+    var i = 0
+    while (i < entries * 3) {
+        palette[i] = b[pos + i] & 255
+        i = i + 1
+    }
+    return pos + entries * 3
+}
+
+Int skipExtension(Int[] b, Int pos) {
+    while (pos < b.length) {
+        var size = b[pos] & 255
+        pos = pos + 1
+        if (size == 0) {
+            return pos
+        }
+        pos = pos + size
+    }
+    return pos
+}
+
+Int[] collectSubBlocks(Int[] b, Int pos) {
+    var out = new Int[b.length]
+    var n = 0
+    while (pos < b.length) {
+        var size = b[pos] & 255
+        pos = pos + 1
+        if (size == 0) {
+            var trimmed = new Int[n]
+            var i = 0
+            while (i < n) {
+                trimmed[i] = out[i]
+                i = i + 1
+            }
+            return trimmed
+        }
+        var i = 0
+        while (i < size) {
+            out[n] = b[pos + i] & 255
+            n = n + 1
+            i = i + 1
+        }
+        pos = pos + size
+    }
+    var fallback = new Int[n]
+    var j = 0
+    while (j < n) {
+        fallback[j] = out[j]
+        j = j + 1
+    }
+    return fallback
+}
+
+// LZW (GIF variant): codes read LSB-first; variable width 2..12; the special
+// KwKwK case repeats the first character of the previous entry.
+Int[] gifLzw(Int[] data, Int minCodeSize, Int pixelCount) {
+    var out = new Int[pixelCount]
+    var outPos = 0
+    var prefix = new Int[4096]
+    var suffix = new Int[4096]
+    var firstOf = new Int[4096]
+    var clearCode = 1 << minCodeSize
+    var endCode = clearCode + 1
+    var codeSize = minCodeSize + 1
+    var next = endCode + 1
+    var prev = -1
+    var bitBuf = 0
+    var bitCnt = 0
+    var pos = 0
+    var i = 0
+    while (i < clearCode) {
+        suffix[i] = i
+        firstOf[i] = i
+        i = i + 1
+    }
+    var running = true
+    while (running) {
+        while (bitCnt < codeSize) {
+            if (pos >= data.length) {
+                bitBuf = bitBuf | (0 << bitCnt)
+                bitCnt = bitCnt + 1
+            } else {
+                bitBuf = bitBuf | ((data[pos] & 255) << bitCnt)
+                bitCnt = bitCnt + 8
+                pos = pos + 1
+            }
+        }
+        var code = bitBuf & ((1 << codeSize) - 1)
+        bitBuf = bitBuf >> codeSize
+        bitCnt = bitCnt - codeSize
+        if (code == clearCode) {
+            codeSize = minCodeSize + 1
+            next = endCode + 1
+            prev = -1
+        } else if (code == endCode) {
+            running = false
+        } else if (prev == -1) {
+            out[outPos] = suffix[code]
+            outPos = outPos + 1
+            prev = code
+        } else if (code <= next) {
+            if (code < next) {
+                outPos = emitCode(code, clearCode, prefix, suffix, out, outPos)
+            } else {
+                outPos = emitCode(prev, clearCode, prefix, suffix, out, outPos)
+                out[outPos] = firstOf[prev]
+                outPos = outPos + 1
+            }
+            if (next < 4096) {
+                prefix[next] = prev
+                if (code < next) {
+                    suffix[next] = firstOf[code]
+                } else {
+                    suffix[next] = firstOf[prev]
+                }
+                firstOf[next] = firstOf[prev]
+                next = next + 1
+                if (next >= (1 << codeSize) && codeSize < 12) {
+                    codeSize = codeSize + 1
+                }
+            }
+            prev = code
+        } else {
+            throw "IMAGE: bad GIF LZW code"
+        }
+        if (outPos >= pixelCount) {
+            running = false
+        }
+    }
+    return out
+}
+
+Int emitCode(Int code, Int clearCode, Int[] prefix, Int[] suffix, Int[] out, Int outPos) {
+    var stack = new Int[4096]
+    var n = 0
+    var walk = code
+    while (walk >= clearCode) {
+        stack[n] = suffix[walk]
+        n = n + 1
+        walk = prefix[walk]
+    }
+    out[outPos] = suffix[walk]
+    outPos = outPos + 1
+    var k = n - 1
+    while (k >= 0) {
+        out[outPos] = stack[k]
+        outPos = outPos + 1
+        k = k - 1
+    }
+    return outPos
+}

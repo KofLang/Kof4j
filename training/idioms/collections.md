@@ -67,6 +67,9 @@ var i = l.indexOf(1)          // first occurrence, -1 when absent
 var j = l.lastIndexOf(1)      // last occurrence, -1 when absent
 val mid = l.subList(1, 3)     // [begin, end) — copy; begin==end yields empty
 val all = l.subList(0, l.size)
+val head = l.take(2)          // first 2 — clamped: take(9) = the whole list
+val tail = l.drop(1)          // everything after the first 1 — drop(9) = empty
+val win = l.slice(1, 2)       // 2 items from offset 1 — clamped; offset>size = empty
 var grew = mid.addAll(l)      // true when the list changed (false: empty source)
 val ordered: List<Int> = listOf(5, 4, 3)
 ordered.sort()                // NATURAL order, in-place (no Comparator in Kof)
@@ -87,10 +90,115 @@ prev = m.putIfAbsent("z", 9)             // overwrite; null when the key is new
 - `subList` out-of-range dies with the bounds check (measured:
   `IndexOutOfBoundsException: toIndex = N` on the JVM; `kof_bounds_error`
   on Native) — same family as `get(i)`.
+- `take(n)`/`drop(n)`/`slice(offset, limit)` return a materialized copy (never
+  a live view) and clamp honestly: `n`/`offset` past the end give the whole
+  list / empty, never an error. A negative `n`/`offset`/`limit` is a named
+  runtime error — `"PAGINATION: count must be >= 0"` (`take`/`drop`) or
+  `"PAGINATION: limit/offset must be >= 0"` (`slice`). Available on all
+  targets (D-PAGINATION, pagination P1).
 - `putIfAbsent` returns `V?` (D-NULL-INTENT): narrow with `if (prev != null)`.
 - The Java idiom `Collections.sort(l, comparator)` does not exist in Kof:
   `sort()` is natural order, period. To search a position, `indexOf(x)`
   (not a manual `get(i)` loop with `||`).
+
+## Windowing `Window<T>` (D-PAGINATION P2 — `import kof.pagination`)
+
+```kof
+import kof.pagination
+
+val l: List<Int> = listOf(10, 20, 30, 40, 50)
+val w = window(l, 2, 1)          // 2 items from offset 1 -> Window<Int>
+val w2 = window(l, 2, 1, true)   // same, total computed locally (opt-in)
+w.items()        // List<Int> — the materialized window (possibly empty)
+w.offset()       // Int
+w.limit()        // Int
+w.hasPrevious()  // Bool — offset > 0
+w.hasNext()      // Bool — exact with total; optimistic (items.size == limit) without it
+w.total()        // Long? — null unless requested
+```
+
+- `Window<T>` and `window(items, limit, offset[, withTotal])` are written in Kof
+  (`D-KOF-FIRST-IMPL`) and injected flat on an explicit `import kof.pagination` —
+  no per-backend runtime; on all targets (JVM/Native/JS/Script). A user-declared
+  `Window`/`window` collides and skips the injection.
+- `limit`/`offset` are `Int >= 0`; a negative value is a named error
+  (`"PAGINATION: limit/offset must be >= 0"`), never a silent clamp.
+- `offset > size` → empty window with `hasPrevious = true` (no error);
+  `limit == 0` → empty window. `hasNext` is exact when `total` is present,
+  optimistic otherwise. `total` is opt-in and never triggers a `COUNT`.
+- The core knows nothing about SQL or HTTP (`orm.window`/`pageRequest` are
+  platform faces of later slices).
+
+## Quantifiers `any`/`all`/`none` (D-MULTIPARADIGMA-PHASE1A slice 1a, all targets)
+
+```kof
+var xs = listOf(1, 2, 3)
+var hasBig = xs.any((x) -> x > 2)     // true — stops at the first match
+var allPos = xs.all((x) -> x > 0)     // true — vacuous on empty
+var noBig = xs.none((x) -> x > 9)     // true — vacuous on empty
+```
+
+Eager short-circuit loops: the predicate runs until the answer is known, then
+stops (a `throw` past the decision point never fires). Vacuous: `all`/`none`
+are true on empty, `any` is false (`none` ≡ ¬`any`, maintainer decision 28/09).
+Predicates use the `filter` truthiness rule. Bare `(x)` params inherit the
+element type (SG-012, generalized); no-`take`/`drop`/`slice` here — those are
+pagination P1.
+
+## `find` + `count(pred)` (D-MULTIPARADIGMA-PHASE1A slice 1b, all targets)
+
+```kof
+var xs = listOf(1, 2, 3)
+var f = xs.find((x) -> x > 1)   // 2 — first match or null (like Map.get-missing)
+var m = xs.find((x) -> x > 9)   // null — test with `== null` (the V? idiom)
+var n = xs.count((x) -> x > 1)  // 2 — bare count() keeps meaning size
+```
+
+On Native, a found primitive is boxed behind the scenes (raw slots vs
+boxed `T?` consumers); miss stays null/0 per target. Block lambdas yield only via
+explicit `return` (SEM033).
+
+## `forEach` (D-MULTIPARADIGMA-PHASE1A slice 1c, all targets)
+
+```kof
+var xs = listOf(1, 2, 3)
+xs.forEach((x) -> println(x * 10))   // 10, 20, 30 — effect only, no allocation
+listOf().forEach((x) -> println(x))  // vacuous: prints nothing
+```
+
+## `flatMap` (D-MULTIPARADIGMA-PHASE1A slice 1d, all targets)
+
+```kof
+var xs = listOf(1, 2, 3)
+var ys = xs.flatMap((x) -> listOf(x, x * 10))   // [1, 10, 2, 20, 3, 30]
+var e = listOf().flatMap((x) -> listOf(x))      // empty in, empty out
+```
+
+## `distinct` (D-MULTIPARADIGMA-PHASE1A slice 1e, all targets)
+
+```kof
+var xs = listOf(3, 1, 2, 1, 3)
+var d = xs.distinct()   // [3, 1, 2] — first occurrences in order
+```
+Equality is the `contains` rule per target (String content, rest like
+`contains`); empty in, empty out.
+
+## `sorted` (D-MULTIPARADIGMA-PHASE1A slice 1g, all targets)
+
+```kof
+var xs = listOf(3, 1, 2)
+var s = xs.sorted()   // [1, 2, 3] — fresh copy, xs unchanged
+var d = xs.sorted((a: Int, b: Int) -> b - a)   // [3, 2, 1] — comparator: negative/zero/positive
+```
+Natural order needs a natural domain (Int/Long/Double/Float/Bool/Char/String — SEM097 otherwise); with a comparator the lambda defines the order (records welcome). Stable for pure comparators; empty/single in, same out.
+
+## `groupBy` (D-MULTIPARADIGMA-PHASE1A slice 1h, all targets)
+
+```kof
+var xs = listOf(1, 2, 3, 4)
+var g = xs.groupBy((n: Int) -> n % 2)   // {1=[1, 3], 0=[2, 4]} — Map<K,List<E>>
+```
+Keys use the boxed map equality (same taxonomy as `mapOf`); values are fresh lists in encounter order; missing keys read `null` (use `getOrDefault` or narrow with `if`).
 
 ## `listOf` with related subtypes infers the common ancestor (0.5.0-beta, §285)
 

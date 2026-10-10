@@ -1,0 +1,10 @@
+main() {
+    var nums = new List<Int>()
+    for (var i = 0; i < 50000; i++) {
+        nums.add(i)
+    }
+    var head = nums.filter((x: Int) -> x % 2 == 0).map((x: Int) -> x * 2).take(100)
+    println(head.size)
+    println(head.get(0))
+    println(head.get(99))
+}

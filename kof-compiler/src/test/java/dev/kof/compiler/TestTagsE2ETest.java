@@ -113,6 +113,20 @@ class TestTagsE2ETest {
     }
 
     @Test
+    void emptyTestNameIsRejectedAtParseTime() throws Exception {
+        // §579: uma tag vazia é recusada; o NOME do teste também não pode ser
+        // vazio — senão o runner imprime `PASS ` sem identidade nenhuma.
+        Run r = compileAndRunJvm("""
+                test "" {
+                    assert(true)
+                }
+                """);
+        assertFalse(r.success(), "empty test name must not compile");
+        assertTrue(r.diags().contains("PARSE010") && r.diags().contains("must not be empty"),
+                "expected PARSE010 naming the empty test name, was: " + r.diags());
+    }
+
+    @Test
     void trailingCommaWithoutStringIsRejected() throws Exception {
         Run r = compileAndRunJvm("""
                 test "a", {
@@ -159,6 +173,58 @@ class TestTagsE2ETest {
     }
 
     @Test
+    void teardownFailureIsReportedCountedAndRunContinues() throws Exception {
+        // §4.2/§4.3: a teardown() that THROWS must not abort the harness
+        // (uncaught exception used to kill main after the first test, so the
+        // remaining tests never ran and no summary was printed). It is a
+        // named failure, counted, and the run continues — same contract as
+        // afterAll().
+        Run r = compileAndRunJvm("""
+            void teardown() {
+                throw "down-boom"
+            }
+            test "one" {
+                assert(true)
+            }
+            test "two" {
+                assert(true)
+            }
+            """);
+        assertTrue(!r.diags().contains("exit=2"), "must COMPILE (exit=2 means load error): "
+                + r.diags());
+        assertTrue(r.output().contains("PASS one") && r.output().contains("PASS two"),
+                "both tests must run despite the teardown throw: " + r.output());
+        assertTrue(r.output().contains("teardown failed: down-boom"),
+                "teardown throw must be reported by name: " + r.output());
+        assertTrue(r.output().contains("2 failed of 2 tests"),
+                "each teardown throw counts as a failure: " + r.output());
+        assertTrue(r.diags().contains("exit=1"), "suite with teardown failure must exit 1: "
+                + r.diags());
+    }
+
+    @Test
+    void afterEachFailureIsReportedCountedAndRunContinues() throws Exception {
+        Run r = compileAndRunJvm("""
+            void afterEach() {
+                throw "each-boom"
+            }
+            test "one" {
+                assert(true)
+            }
+            """);
+        assertTrue(!r.diags().contains("exit=2"), "must COMPILE (exit=2 means load error): "
+                + r.diags());
+        assertTrue(r.output().contains("PASS one"),
+                "the test must still PASS (its own assertion held): " + r.output());
+        assertTrue(r.output().contains("teardown failed: each-boom"),
+                "afterEach throw must be reported by name: " + r.output());
+        assertTrue(r.output().contains("1 failed of 1 tests"),
+                "afterEach throw counts as a failure: " + r.output());
+        assertTrue(r.diags().contains("exit=1"), "suite with afterEach failure must exit 1: "
+                + r.diags());
+    }
+
+    @Test
     void setupOkThenTeardownRunsAfter() throws Exception {
         Run r = compileAndRunJvm("""
             void setup() {
@@ -174,6 +240,149 @@ class TestTagsE2ETest {
         assertTrue(r.success(), "must compile: " + r.diags());
         assertEquals("up\nPASS vida\ndown\n────────\n0 failed of 1 tests", r.output().trim(),
                 "ordem setup -> teste -> teardown");
+    }
+
+    @Test
+    void beforeAllRunsOnceBeforeAnyTest() throws Exception {
+        Run r = compileAndRunJvm("""
+            void beforeAll() {
+                println("before-all")
+            }
+            test "a" {
+                println("test-a")
+            }
+            test "b" {
+                println("test-b")
+            }
+            """);
+        assertTrue(r.success(), "must compile: " + r.diags());
+        assertEquals("before-all\ntest-a\nPASS a\ntest-b\nPASS b\n────────\n0 failed of 2 tests",
+                r.output().trim(), "beforeAll runs once before the first test");
+    }
+
+    @Test
+    void afterAllRunsOnceAfterAllTests() throws Exception {
+        Run r = compileAndRunJvm("""
+            void afterAll() {
+                println("after-all")
+            }
+            test "a" {
+                println("test-a")
+            }
+            test "b" {
+                println("test-b")
+            }
+            """);
+        assertTrue(r.success(), "must compile: " + r.diags());
+        assertEquals("test-a\nPASS a\ntest-b\nPASS b\nafter-all\n────────\n0 failed of 2 tests",
+                r.output().trim(), "afterAll runs once after the last test");
+    }
+
+    @Test
+    void beforeEachAliasRunsBeforeEveryTest() throws Exception {
+        Run r = compileAndRunJvm("""
+            void beforeEach() {
+                println("before-each")
+            }
+            test "a" {
+                println("test-a")
+            }
+            test "b" {
+                println("test-b")
+            }
+            """);
+        assertTrue(r.success(), "must compile: " + r.diags());
+        assertEquals("before-each\ntest-a\nPASS a\nbefore-each\ntest-b\nPASS b\n────────\n0 failed of 2 tests",
+                r.output().trim(), "beforeEach is the §4.2 alias of setup (runs per test)");
+    }
+
+    @Test
+    void afterEachAliasRunsAfterEveryTest() throws Exception {
+        Run r = compileAndRunJvm("""
+            void afterEach() {
+                println("after-each")
+            }
+            test "a" {
+                println("test-a")
+            }
+            test "b" {
+                println("test-b")
+            }
+            """);
+        assertTrue(r.success(), "must compile: " + r.diags());
+        assertEquals("test-a\nPASS a\nafter-each\ntest-b\nPASS b\nafter-each\n────────\n0 failed of 2 tests",
+                r.output().trim(), "afterEach is the §4.2 alias of teardown (runs per test)");
+    }
+
+    @Test
+    void setupAndBeforeEachDeclaredTogetherAreRefusedNamed() throws Exception {
+        Run r = compileAndRunJvm("""
+            void setup() {
+                println("SETUP")
+            }
+            void beforeEach() {
+                println("BEFORE_EACH")
+            }
+            test "a" {
+                println("test-a")
+            }
+            """);
+        assertFalse(r.success(), "declaring both aliases must not compile: " + r.diags());
+        assertTrue(r.diags().contains("TEST001"), "named diagnostic TEST001, was: " + r.diags());
+        assertTrue(r.diags().contains("ambiguous test lifecycle"), "names the cause: " + r.diags());
+        assertTrue(r.diags().contains("setup()") && r.diags().contains("beforeEach()"),
+                "names both hooks: " + r.diags());
+    }
+
+    @Test
+    void beforeEachThenSetupIsRefusedRegardlessOfOrder() throws Exception {
+        Run r = compileAndRunJvm("""
+            void beforeEach() {
+                println("BEFORE_EACH")
+            }
+            void setup() {
+                println("SETUP")
+            }
+            test "a" {
+                println("test-a")
+            }
+            """);
+        assertFalse(r.success(), "order must not change the refusal: " + r.diags());
+        assertTrue(r.diags().contains("TEST001"), "named diagnostic TEST001, was: " + r.diags());
+    }
+
+    @Test
+    void teardownAndAfterEachDeclaredTogetherAreRefusedNamed() throws Exception {
+        Run r = compileAndRunJvm("""
+            void teardown() {
+                println("TEARDOWN")
+            }
+            void afterEach() {
+                println("AFTER_EACH")
+            }
+            test "a" {
+                println("test-a")
+            }
+            """);
+        assertFalse(r.success(), "declaring both teardown aliases must not compile: " + r.diags());
+        assertTrue(r.diags().contains("TEST001"), "named diagnostic TEST001, was: " + r.diags());
+        assertTrue(r.diags().contains("teardown()") && r.diags().contains("afterEach()"),
+                "names both hooks: " + r.diags());
+    }
+
+    @Test
+    void aSingleAliasStillCompilesAndRuns() throws Exception {
+        Run r = compileAndRunJvm("""
+            void beforeEach() {
+                println("BEFORE_EACH")
+            }
+            test "a" {
+                assert(true)
+            }
+            """);
+        assertTrue(r.success(), "one alias is not ambiguous: " + r.diags());
+        assertEquals("BEFORE_EACH\nPASS a\n────────\n0 failed of 1 tests", r.output().trim(),
+                "single alias keeps the §4.2 contract");
     }
 
     @Test
@@ -207,5 +416,47 @@ class TestTagsE2ETest {
         } finally {
             clearTag();
         }
+    }
+
+    @Test
+    void beforeAllFailureSkipsTestsAndExitsNonZero() throws Exception {
+        Run r = compileAndRunJvm("""
+            void beforeAll() {
+                throw "db connection failed"
+            }
+            test "a" {
+                println("should-not-run-a")
+            }
+            test "b" {
+                println("should-not-run-b")
+            }
+            """);
+        assertFalse(r.success(), "must fail when beforeAll throws: " + r.diags());
+        assertTrue(r.diags().contains("exit=1"), "must exit with code 1");
+        assertFalse(r.output().contains("should-not-run-a"), "test a must NOT run when beforeAll fails");
+        assertFalse(r.output().contains("should-not-run-b"), "test b must NOT run when beforeAll fails");
+        assertTrue(r.output().contains("beforeAll failed: db connection failed"), "must report beforeAll failure");
+        assertTrue(r.output().contains("SKIP a: beforeAll failed"), "test a must be marked SKIP");
+        assertTrue(r.output().contains("SKIP b: beforeAll failed"), "test b must be marked SKIP");
+        assertTrue(r.output().contains("1 failed of 2 tests"), "must report 1 failed of 2 tests");
+        assertFalse(r.output().contains("0 failed of 2 tests"), "must NOT report 0 failed");
+    }
+
+    @Test
+    void afterAllFailureRecordsFailureAndPrintsSummary() throws Exception {
+        Run r = compileAndRunJvm("""
+            void afterAll() {
+                throw "cleanup failed"
+            }
+            test "a" {
+                println("test-a")
+            }
+            """);
+        assertFalse(r.success(), "must fail when afterAll throws: " + r.diags());
+        assertTrue(r.diags().contains("exit=1"), "must exit with code 1");
+        assertTrue(r.output().contains("test-a"), "test a must run before afterAll");
+        assertTrue(r.output().contains("PASS a"), "test a passes");
+        assertTrue(r.output().contains("afterAll failed: cleanup failed"), "must report afterAll failure");
+        assertTrue(r.output().contains("1 failed of 1 tests"), "must count afterAll as failed");
     }
 }

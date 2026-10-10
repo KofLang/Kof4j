@@ -31,6 +31,13 @@ public final class NativeRiscvAsmRtB44 {
             .section .data
             .align 3
             .Lkof_gc_tick: .quad 0
+            # §544/§552: stack-bottom + tid da thread main, gravados no _start
+            # (NativeArchEmitter); o mark so faz full-scan na thread main (gate
+            # kof_plat_thread_id == kof_main_tid).
+            .globl kof_main_stack_bottom
+            kof_main_stack_bottom: .quad 0
+            .globl kof_main_tid
+            kof_main_tid: .quad 0
             .section .text
 
             # kof_gc_sweep(): percorre a gc-list e recupera mortos (G-4).

@@ -1,0 +1,165 @@
+import image.Av1Block
+import image.Av1CoeffCtx
+import image.Av1Coeffs
+import image.Av1Symbol
+import image.Av1Tx
+
+// AVIF slice 3x: the AV1 coefficient plane decode driver
+// (`av1DecodeCoeffsPlane`), connecting the slice-3w context selection and
+// neighbour-array bookkeeping with the slice-3e coefficient walk across
+// the grid of transform blocks of a plane.
+//
+// Governed by AV1 §5.11.39 / §6.10.4 and libaom's `av1_read_coeffs_txb` /
+// `av1_set_entropy_contexts` (`av1/decoder/decodetxb.c`, `av1/common/blockd.c`).
+//
+// For each block in the grid:
+//   1. Evaluates the neighbour context from `above[c4..]` and `left[r4..]`
+//      via `av1TxbCtx` (producing `skipCtx` and `dcSignCtx`).
+//   2. Decodes the block's quantized coefficients with `Av1Coeffs.decodeBlock`.
+//   3. Reduces the decoded `culLevel` and `dcCategory` to the packed
+//      neighbour context with `av1TxbEntropyContext`.
+//   4. Stores the packed byte into `above[c4 .. c4+twu-1]` and
+//      `left[r4 .. r4+thu-1]`, clamped to the plane edge.
+//
+// Returns a `List<Int[]>` of the decoded signed coefficient arrays, one
+// per block in grid order, each sized `txw * txh` (the adjusted dimensions).
+//
+// The per-block work lives in `av1DecodeCoeffsBlock`: keeping each frame small
+// is the shape the native backends require (the §602 conservative-GC limitation
+// for a single large caller frame; the slice-3e proof uses the same split).
+//
+// Parameters:
+//   - `reader`: the symbol range decoder positioned at the first block.
+//   - `store`: the tile's adapting coefficient CDF store.
+//   - `planeBsize`: the plane residual block size index.
+//   - `plane`: 0 = luma, 1 = cb, 2 = cr.
+//   - `grid`: a flattened list of `(r4, c4, txSz, txType)` tuples, length 4×N.
+//   - `above`: the plane's above-entropy-context array, indexed by 4x4 column.
+//   - `left`: the plane's left-entropy-context array, indexed by 4x4 row.
+//   - `planeBlocksWide`/`planeBlocksHigh`: the plane's valid 4x4-unit counts;
+//     `0` means "no edge" (every unit inside, the slice-3x default).
+
+List<Int[]> av1DecodeCoeffsPlane(Av1Symbol reader, Av1CoeffCdfStore store,
+                                 Int planeBsize, Int plane,
+                                 List<Int> grid, Int[] above, Int[] left) {
+    return av1DecodeCoeffsPlaneEdge(reader, store, planeBsize, plane, grid,
+                                    above, left, 0, 0)
+}
+
+// The plane-edge face of the driver (libaom `av1_set_entropy_contexts` with
+// `mb_to_right_edge`/`mb_to_bottom_edge` < 0): a block whose transform
+// footprint runs past the plane's right/bottom edge stores the packed context
+// only over the units that lie INSIDE the plane and ZEROES the rest, so the
+// next block's `get_txb_ctx` reads a zero neighbour past the edge — not the
+// last block's context.
+List<Int[]> av1DecodeCoeffsPlaneEdge(Av1Symbol reader, Av1CoeffCdfStore store,
+                                     Int planeBsize, Int plane,
+                                     List<Int> grid, Int[] above, Int[] left,
+                                     Int planeBlocksWide, Int planeBlocksHigh) {
+    var out = listOf<Int[]>()
+    var n = grid.size / 4
+    var bi = 0
+    while (bi < n) {
+        var base = bi * 4
+        var levels = av1DecodeCoeffsBlockEdge(reader, store, planeBsize, plane,
+                grid.get(base), grid.get(base + 1), grid.get(base + 2),
+                grid.get(base + 3), above, left, planeBlocksWide,
+                planeBlocksHigh)
+        out.add(levels)
+        bi = bi + 1
+    }
+    return out
+}
+
+// Decodes one transform block of the plane: selects the neighbour context,
+// runs the slice-3e coefficient walk, packs the resulting entropy context and
+// updates the plane's above/left arrays. Returns the signed coefficient array
+// (adjusted `txw * txh`).
+Int[] av1DecodeCoeffsBlock(Av1Symbol reader, Av1CoeffCdfStore store,
+                           Int planeBsize, Int plane, Int r4, Int c4,
+                           Int txSz, Int txType, Int[] above, Int[] left) {
+    return av1DecodeCoeffsBlockEdge(reader, store, planeBsize, plane, r4, c4,
+                                    txSz, txType, above, left, 0, 0)
+}
+
+// The plane-edge face of the per-block decode: `planeBlocksWide`/
+// `planeBlocksHigh` clamp the context store to the plane (0 = no edge).
+Int[] av1DecodeCoeffsBlockEdge(Av1Symbol reader, Av1CoeffCdfStore store,
+                               Int planeBsize, Int plane, Int r4, Int c4,
+                               Int txSz, Int txType, Int[] above, Int[] left,
+                               Int planeBlocksWide, Int planeBlocksHigh) {
+    var twu = av1TxWidth(txSz) >> 2
+    var thu = av1TxHeight(txSz) >> 2
+
+    // Slice the above/left neighbour contexts at the block's position.
+    var aSlice = new Int[twu]
+    var k = 0
+    while (k < twu) {
+        aSlice[k] = above[c4 + k]
+        k = k + 1
+    }
+    var lSlice = new Int[thu]
+    k = 0
+    while (k < thu) {
+        lSlice[k] = left[r4 + k]
+        k = k + 1
+    }
+
+    // 1. Neighbour-context selection (slice 3w get_txb_ctx).
+    var ctx = av1TxbCtx(aSlice, lSlice, twu, thu, planeBsize, txSz, plane)
+    var skipCtx = ctx.get(0)
+    var dcSignCtx = ctx.get(1)
+
+    // 2. Decode the block (slice 3e coeffs() walk).
+    var coeffs = Av1Coeffs(reader, store, txSz, txType, plane)
+    coeffs.decodeBlock(skipCtx, dcSignCtx)
+
+    // 3. Pack the resulting entropy context (slice 3w av1_get_txb_entropy_context).
+    var packed = av1TxbEntropyContext(coeffs.culLevel, coeffs.dcCategory)
+
+    // 4. Update the plane's above/left arrays (av1_set_entropy_contexts),
+    //    clamping the store to the plane's right/bottom edge (libaom
+    //    max_block_wide/max_block_high + av1_set_entropy_contexts): the packed
+    //    context covers only the units inside the plane, the rest is zeroed.
+    var aboveLimit = twu
+    if (planeBlocksWide > 0) {
+        aboveLimit = planeBlocksWide - c4
+        if (aboveLimit > twu) {
+            aboveLimit = twu
+        }
+    }
+    k = 0
+    while (k < twu) {
+        if (k < aboveLimit) {
+            above[c4 + k] = packed
+        } else {
+            above[c4 + k] = 0
+        }
+        k = k + 1
+    }
+    var leftLimit = thu
+    if (planeBlocksHigh > 0) {
+        leftLimit = planeBlocksHigh - r4
+        if (leftLimit > thu) {
+            leftLimit = thu
+        }
+    }
+    k = 0
+    while (k < thu) {
+        if (k < leftLimit) {
+            left[r4 + k] = packed
+        } else {
+            left[r4 + k] = 0
+        }
+        k = k + 1
+    }
+
+    // Record a defensive copy of the levels.
+    var levelsCopy = new Int[coeffs.levels.size]
+    k = 0
+    while (k < coeffs.levels.size) {
+        levelsCopy[k] = coeffs.levels[k]
+        k = k + 1
+    }
+    return levelsCopy
+}

@@ -2,6 +2,7 @@ package dev.kof.compiler.js;
 import dev.kof.compiler.BuiltinTypes;
 import dev.kof.compiler.KofCall;
 import dev.kof.compiler.KofCallKind;
+import dev.kof.compiler.TopLevelOverload;
 import dev.kof.compiler.Type;
 
 import java.util.ArrayList;
@@ -26,7 +27,7 @@ public final class JsCallEmitter {
 void handleCall(MethodCtx ctx, List<Object> stack,
                                  List<JsIr.JsExpression> preambleExprs, KofCall kc) {
         if (kc.kind() == KofCallKind.CONSTRUCTOR) {
-            handleConstructorCall(stack, kc);
+            handleConstructorCall(ctx, stack, kc);
             return;
         }
         // kof.web on JS: now lowered as runtime call (was WEB001) — handled via isRuntimeOp/kofWeb* helpers
@@ -291,7 +292,9 @@ void finishCall(List<Object> stack, KofCall kc, JsIr.JsExpression call) {
         stack.add(call);
     }
 
-void handleConstructorCall(List<Object> stack, KofCall kc) {
+void handleConstructorCall(MethodCtx ctx, List<Object> stack, KofCall kc) {
+        String owner = JsTypeMapper.ownerInternalName(kc.ownerType());
+        boolean dispatch = owner != null && !owner.isEmpty() && p.lc.ctorDispatch.contains(owner);
         List<JsIr.JsExpression> args = new ArrayList<>();
         for (int i = 0; i < kc.parameterTypes().size(); i++) {
             if (stack.isEmpty()) break;
@@ -300,6 +303,14 @@ void handleConstructorCall(List<Object> stack, KofCall kc) {
             args.add(p.expr.pop(stack));
         }
         java.util.Collections.reverse(args);
+        List<JsIr.JsExpression> sourceArgs = new ArrayList<>(args);
+        if (dispatch) {
+            int max = p.lc.ctorMaxArity.getOrDefault(owner, args.size());
+            while (args.size() < max) {
+                args.add(new JsIr.JsNull());
+            }
+            args.add(new JsIr.JsString(TopLevelOverload.sigTag(kc.parameterTypes()).replace('_', '$')));
+        }
         Object top = p.expr.popRaw(stack);
         if (top instanceof DupMarker) {
             Object newObj = p.expr.popRaw(stack);
@@ -312,6 +323,23 @@ void handleConstructorCall(List<Object> stack, KofCall kc) {
         if (top instanceof NewPending np) {
             stack.add(new JsIr.JsNew(new JsIr.JsIdentifier(np.typeName()), args));
             return;
+        }
+        // #757: a private overloaded constructor body cannot be a real JS
+        // constructor, so delegation to another <init> of the same class goes
+        // through a prototype function with an explicit receiver.
+        if (dispatch && ctx != null && owner.equals(ctx.kofClassName)) {
+            JsIr.JsExpression receiver = top instanceof JsIr.JsExpression expr
+                    ? expr : new JsIr.JsThis();
+            List<JsIr.JsExpression> callArgs = new ArrayList<>();
+            callArgs.add(receiver);
+            callArgs.addAll(sourceArgs);
+            String ctorName = "__kof_ctor"
+                    + TopLevelOverload.sigTag(kc.parameterTypes()).replace('_', '$');
+            JsIr.JsExpression privateCtor = new JsIr.JsMember(
+                    new JsIr.JsMember(new JsIr.JsIdentifier(JsTypeMapper.jsClassName(owner)), "prototype"),
+                    ctorName);
+            throw new StatementEnd(new JsIr.JsCall(
+                    new JsIr.JsMember(privateCtor, "call"), callArgs));
         }
         // super(...) constructor call
         throw new StatementEnd(new JsIr.JsCall(new JsIr.JsIdentifier("super"), args));
@@ -446,6 +474,14 @@ void handleStringOp(MethodCtx ctx, List<Object> stack,
             case "compareTo" -> {
                 ctx.lc.registerRuntime("kofStringCompareTo");
                 stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofStringCompareTo"),
+                        List.of(receiver, args.get(0))));
+            }
+            // D-FULL-PARITY-050 row 11: compareToIgnoreCase baixa para helper
+            // kofStringCompareToIgnoreCase (CASE_INSENSITIVE_ORDER do JVM: fold
+            // SIMPLES por code unit — upper, senão lower; expandir nao cabe).
+            case "compareToIgnoreCase" -> {
+                ctx.lc.registerRuntime("kofStringCompareToIgnoreCase");
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofStringCompareToIgnoreCase"),
                         List.of(receiver, args.get(0))));
             }
             // D-FULL-PARITY-050 row 11: String.prototype NÃO tem toCharArray →

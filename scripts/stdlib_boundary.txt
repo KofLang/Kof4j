@@ -27,6 +27,7 @@ time platform experimental — KofTime.java (clock/timers; TIME00x gap-gated per
 json platform experimental — receiver-dispatched surface (`"json".equals(rid.name())` in MemberCallNamespaces/MethodCallNamespaces/ExpressionJsonCallLowerer); registered in BARE_SURFACES
 db platform experimental — ExpressionStaticCallLowerer.java (essential-to-platform, optional per program)
 orm platform experimental — ExpressionOrmCallLowerer.java (rides on kof.db)
+pagination platform experimental — CompilerPagination.java (pure-Kof windowing host, composition layer; D-PAGINATION P2)
 http platform experimental — KofHttp.java (stdlib-documented, platform-essential)
 web platform experimental — KofWeb.java
 cache platform experimental — KofCache.java
@@ -49,6 +50,7 @@ ui platform experimental — ExpressionStaticCallLowerer.java (declared platform
 media platform experimental — KofMedia.java (gap-gated MEDIA00x on non-JVM targets)
 gpu platform experimental — KofGpu.java (gap-gated GPU00x; interop-first via FFI)
 tetris platform experimental — demo namespace shipped in the runtime surface (ExpressionMethodCallLowerer.java); documented, registered
+image platform experimental — KofImage.java (gap-gated IMG001 on non-JVM; interop-first via javax.imageio)
 build excluded - — VscodeExtensionContent.java (generated editor manifest snippet, not a namespace)
 check excluded - — VscodeExtensionContent.java (same)
 executable excluded - — VscodeExtensionContent.java (same)

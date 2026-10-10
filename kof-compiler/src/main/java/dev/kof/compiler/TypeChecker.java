@@ -1,5 +1,6 @@
 package dev.kof.compiler;
 
+import dev.kof.compiler.jvm.JvmTypeMapper;
 import java.util.List;
 
 /**
@@ -49,6 +50,22 @@ public final class TypeChecker {
     static void checkArgTypes(DiagnosticCollector diagnostics, String methodName,
                               List<Type> argTypes, List<Type> paramTypes,
                               List<ExpressionNode> argNodes) {
+        checkArgTypes(null, diagnostics, methodName, argTypes, paramTypes, argNodes);
+    }
+
+    /**
+     * #688: a checagem de argumento de CHAMADA usava o `isAssignable` de 2
+     * args (estrutural), que aceita quaisquer dois ClassType e ignora os
+     * type-args — então `tentaEscrever(Caixa<Cachorro>)` em parâmetro
+     * `Caixa<Animal>` (ou `List<Dog>`→`List<Animal>`) compilava e corrompia
+     * em runtime. Aqui passamos o `sa` para o `isAssignable` nominal (mesmo
+     * caminho de declarações/atribuições): hierarquia nominal + args de
+     * genérico (invariante por padrão, out/in por variância). `sa == null`
+     * preserva o comportamento antigo (overload legado).
+     */
+    static void checkArgTypes(SemanticAnalyzer sa, DiagnosticCollector diagnostics, String methodName,
+                              List<Type> argTypes, List<Type> paramTypes,
+                              List<ExpressionNode> argNodes) {
         if (diagnostics == null || paramTypes.isEmpty() && !argTypes.isEmpty()) return;
         if (argTypes.size() != paramTypes.size()) {
             diagnostics.error(argNodeAt(argNodes, 0),
@@ -58,7 +75,7 @@ public final class TypeChecker {
         }
         for (int i = 0; i < argTypes.size(); i++) {
             if (!Type.isUnknown(argTypes.get(i)) && !Type.isUnknown(paramTypes.get(i))
-                    && !isAssignable(argTypes.get(i), paramTypes.get(i))) {
+                    && !isAssignable(sa, argTypes.get(i), paramTypes.get(i))) {
                 diagnostics.error(argNodeAt(argNodes, i),
                         "Argument " + (i + 1) + " of '" + methodName + "': expected '" + Type.display(paramTypes.get(i))
                                 + "' but got '" + Type.display(argTypes.get(i)) + "'", "SEM014");
@@ -93,9 +110,13 @@ public final class TypeChecker {
     }
 
     static boolean ctorAccepts(SymbolTable.ConstructorSymbol c, List<Type> argTypes) {
-        if (c.parameterTypes().size() != argTypes.size()) return false;
+        return ctorAccepts(c.parameterTypes(), argTypes);
+    }
+
+    static boolean ctorAccepts(List<Type> formalTypes, List<Type> argTypes) {
+        if (formalTypes.size() != argTypes.size()) return false;
         for (int i = 0; i < argTypes.size(); i++) {
-            if (!emitCtorPairCompatible(c.parameterTypes().get(i), argTypes.get(i))) {
+            if (!emitCtorPairCompatible(formalTypes.get(i), argTypes.get(i))) {
                 return false;
             }
         }
@@ -121,18 +142,22 @@ public final class TypeChecker {
         else if (init instanceof SymbolTable.ConstructorSet set) ctors.addAll(set.constructors());
         boolean hasSameArity = false;
         for (SymbolTable.ConstructorSymbol c : ctors) {
-            if (c.parameterTypes().size() != argTypes.size()) continue;
+            if (!c.acceptsArgumentCount(argTypes.size())) {
+                continue;
+            }
+            List<Type> effective = c.effectiveParameterTypes(argTypes.size());
             hasSameArity = true;
-            if (ctorAccepts(c, argTypes)) return; // o emit pega este irmao
+            if (ctorAccepts(effective, argTypes)) return; // o emit pega este irmao
         }
         if (!hasSameArity) return; // aridade: SEM023 do chamador, nao nosso caso
-        // o emit caí no fallback "primeiro de mesma aridade" e inventa o
-        // descritor: reporta o primeiro par realmente incompatível.
-        SymbolTable.ConstructorSymbol firstArity = ctors.stream()
-                .filter(c -> c.parameterTypes().size() == argTypes.size())
-                .findFirst().orElse(null);
+        // o emit cai no fallback "primeiro de mesma aridade" e inventa o
+        // descritor: reporta o primeiro par realmente incompativel.
+        List<Type> firstEffective = ctors.stream()
+                .filter(c -> c.acceptsArgumentCount(argTypes.size()))
+                .findFirst().map(c -> c.effectiveParameterTypes(argTypes.size()))
+                .orElse(List.of());
         for (int i = 0; i < argTypes.size(); i++) {
-            Type formal = firstArity.parameterTypes().get(i);
+            Type formal = firstEffective.get(i);
             Type arg = argTypes.get(i);
             if (!emitCtorPairCompatible(formal, arg)) {
                 sa.diagnostics().error(node,
@@ -215,10 +240,100 @@ public final class TypeChecker {
             // decimais (1000.0) não atribuem a campos Float
             return true;
         }
-        if (to instanceof Type.ClassType) {
+        if (to instanceof Type.ClassType tc) {
+            if (from instanceof Type.ClassType fc) {
+                // D-MAINT-BATCH-0510/TY1 (#753 residual): o fallback
+                // "todo ClassType atribui a todo ClassType" aceitava
+                // `process.spawn(...)` (um handle `java.lang.Long`) numa
+                // função declarada `Handle` (que apaga para
+                // `CompletableFuture`) — `kof check` limpo e a classe morria
+                // no load com `VerifyError: Bad return type`. Os builtins com
+                // ERASÃO JVM conhecida são comparados pelo runtime REAL: o
+                // descritor de `JvmTypeMapper.classDescriptor` é carregado e
+                // a hierarquia do JDK decide. Só RECUSA quando as duas classes
+                // carregam e não há relação; qualquer lado sintético
+                // (kof.ui.*, kof.io.*, ...) ou externo não-carregável
+                // permanece conservador (nunca quebrar interop legítima, R6).
+                Boolean runtime = runtimeClassRelation(fc, tc);
+                if (runtime != null) return runtime;
+            }
             return from instanceof Type.ClassType;
         }
         return false;
+    }
+
+    /**
+     * D-MAINT-BATCH-0510/TY1 (#753 residual): relação real de duas classes
+     * builtin pelo seu descritor de ERASÃO JVM (`JvmTypeMapper.classDescriptor`
+     * — o mesmo chokepoint que resolve `kof.List`→`ArrayList`,
+     * `kof.concurrent.Handle`→`CompletableFuture`, `kof.Secret`→
+     * `KofRuntime$Secret`). Devolve {@code null} quando a decisão não é
+     * segura: qualquer descritor não-carregável (tipo sintético/fantasma),
+     * primitivo/array ou erro de link. Assim a recusa do TY1 nunca inventa
+     * hierarquia para os tipos que o compilador apenas emite por convenção.
+     */
+    private static Boolean runtimeClassRelation(Type.ClassType from, Type.ClassType to) {
+        Class<?> f = loadRuntimeClass(from);
+        Class<?> t = loadRuntimeClass(to);
+        if (f != null && t != null) return t.isAssignableFrom(f);
+        // §597 residual (D-MAINT-BATCH-0510/TY1): os builtins que apagam para
+        // classes ANINHADAS de `KofRuntime` (ProcessResult/Buffer/Secret/
+        // KeyHandle/InteropError) NÃO estão no classpath do compilador — o
+        // `KofRuntime` é gerado por-output e compilado com `javac` só na
+        // emissão. `Class.forName` devolve null e a relação ficava
+        // conservadora: `Result r = "x"` e `Long -> Result` compilavam limpo e
+        // morriam no load com `NoClassDefFoundError`. Resolvemos a superclasse
+        // real da classe gerada pelo registro canônico
+        // (`JvmTypeMapper.generatedRuntimeSuperInternalName`); as cinco classes
+        // só estendem Object/RuntimeException e não implementam interface, então
+        // a cadeia de superclasse decide a hierarquia por completo.
+        String fi = erasureInternalName(from);
+        String ti = erasureInternalName(to);
+        String fSuper = JvmTypeMapper.generatedRuntimeSuperInternalName(fi);
+        String tSuper = JvmTypeMapper.generatedRuntimeSuperInternalName(ti);
+        if (fSuper == null && tSuper == null) return null;
+        if (fi != null && fi.equals(ti)) return true;
+        // `from -> to`: `to` gerado só pode ser atribuído de si mesmo (acima);
+        // nenhuma outra classe gerada o estende. `from` gerado conforma-se a
+        // `to` quando a superclasse real de `from` conforma.
+        if (tSuper != null) return false;
+        Class<?> fromSuper = loadInternalName(fSuper);
+        if (fromSuper == null) return null;
+        if (t != null) return t.isAssignableFrom(fromSuper);
+        return null;
+    }
+
+    /** Erasure internal name (`a/b/C`) de um ClassType, ou null. */
+    private static String erasureInternalName(Type.ClassType ct) {
+        try {
+            return JvmTypeMapper.toInternalName(ct.packageName(), ct.name());
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private static Class<?> loadRuntimeClass(Type.ClassType ct) {
+        String descriptor;
+        try {
+            descriptor = JvmTypeMapper.classDescriptor(ct);
+        } catch (Throwable t) {
+            return null;
+        }
+        if (descriptor == null || descriptor.length() < 3
+                || descriptor.charAt(0) != 'L' || descriptor.charAt(descriptor.length() - 1) != ';') {
+            return null;
+        }
+        return loadInternalName(descriptor.substring(1, descriptor.length() - 1));
+    }
+
+    private static Class<?> loadInternalName(String internal) {
+        if (internal == null) return null;
+        try {
+            return Class.forName(internal.replace('/', '.'), false,
+                    TypeChecker.class.getClassLoader());
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     /**
@@ -334,6 +449,8 @@ public final class TypeChecker {
     }
 
     static boolean isAssignable(SemanticAnalyzer sa, Type from, Type to) {
+        // sem analisador não há hierarquia nominal: cai no estrutural legado.
+        if (sa == null) return isAssignable(from, to);
         // caminhos não-nominais primeiro (primitivos, nullability, Unknown):
         if (!isReferenceCandidate(from, to)) return isAssignable(from, to);
         if (!(from instanceof Type.ClassType fc) || !(to instanceof Type.ClassType tc)) {

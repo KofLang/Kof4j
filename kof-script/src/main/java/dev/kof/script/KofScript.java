@@ -48,9 +48,9 @@ public final class KofScript {
 
     public static RunResult eval(String code, Target target) throws IOException {
         // KofScript = Kof puro executado direto: sem main() declarado, os
-        // statements do topo viram main() (wrapKsWithGlobals). Nenhum sugar
-        // de outra linguagem (let/const/async/fn NÃO existem).
-        String wrappedForEval = code.contains("main()") ? code : wrapPureKof(code);
+        // statements do topo viram main() (wrapPureKof). Nenhum sugar de outra
+        // linguagem (let/const/async/fn NÃO existem).
+        String wrappedForEval = prepareSource(code);
         // Chave = SHA-256 do programa: hashCode()+length() dava colisão real
         // (bug 47: dois programas distintos c/ mesmo hash int + mesmo length
         // → o 2º eval devolvia o resultado CACHADO do 1º — R6 silencioso).
@@ -95,11 +95,28 @@ public final class KofScript {
                 continue;
             }
             if (cur.length() == 0) {
-                java.util.regex.Matcher m = varPat.matcher(t);
-                if (m.matches() && !t.contains("{") && !t.contains("}")) {
+                // Se a linha contiver múltiplos statements separados por ';', divide antes do pattern
+                int semi = t.indexOf(';');
+                String firstStmt = semi >= 0 ? t.substring(0, semi).strip() : t;
+                String remaining = semi >= 0 ? t.substring(semi + 1).strip() : "";
+
+                java.util.regex.Matcher m = varPat.matcher(firstStmt);
+                if (m.matches() && !firstStmt.contains("{") && !firstStmt.contains("}")) {
                     gNames.add(m.group(2));
                     gTypes.add(m.group(3) != null ? m.group(3).strip() : null);
-                    gInits.add(m.group(4).strip().replaceAll(";$", ""));
+                    gInits.add(m.group(4).strip());
+                    if (!remaining.isEmpty()) {
+                        // O restante após o ';' é tratado como comandos subsequentes
+                        cur.append(remaining).append('\n');
+                        long opens = cur.toString().chars().filter(ch -> ch == '{').count();
+                        long closes = cur.toString().chars().filter(ch -> ch == '}').count();
+                        if (opens <= closes) {
+                            String block = cur.toString().strip();
+                            cur.setLength(0);
+                            if (isTopLevelDecl(block)) decls.append(block).append('\n');
+                            else stmts.append(block).append('\n');
+                        }
+                    }
                     continue;
                 }
             }
@@ -154,6 +171,85 @@ public final class KofScript {
         else if (decls.length() == 0) prog.append("main() {\nprintln(KofScriptGlobals.").append(gNames.get(gNames.size()-1)).append(")\n}\n");
         else prog.append("main() {}\n");
         return prog.toString();
+    }
+
+    /**
+     * A pipeline ÚNICA do KofScript: dado o texto-fonte do usuário, devolve o
+     * programa Kof equivalente pronto para o frontend. Vale para `.ks`, `.kf` e
+     * modo inline — a origem do texto é a única diferença.
+     *
+     * <p>Regra: `main()` é <b>permitido, nunca obrigatório</b>. Se o programa
+     * já declara `main()`, ele é o entry point explícito e o texto passa
+     * intacto (preserva `top-level + main()`, que hoje é erro honesto do
+     * frontend). Caso contrário, os statements de topo viram o corpo do
+     * programa e `var`/`val` de topo viram globais ({@link #wrapPureKof}).</p>
+     */
+    public static String prepareSource(String code) {
+        return hasMainDeclaration(code) ? code : wrapPureKof(code);
+    }
+
+    /**
+     * O fonte declara um `main()` de usuário? Procura `main` seguido de `(` no
+     * fluxo de código, ignorando strings e comentários — `println("main()")`
+     * NÃO conta (o antigo `contains("main()")` casava dentro de literais e
+     * pulava o wrap por engano). É uma decisão textual de pipeline, não de AST.
+     */
+    public static boolean hasMainDeclaration(String code) {
+        int i = 0, n = code.length();
+        while (i < n) {
+            char c = code.charAt(i);
+            if (c == '/' && i + 1 < n && code.charAt(i + 1) == '/') {
+                int e = code.indexOf('\n', i);
+                i = e < 0 ? n : e;
+                continue;
+            }
+            if (c == '/' && i + 1 < n && code.charAt(i + 1) == '*') {
+                int e = code.indexOf("*/", i + 2);
+                i = e < 0 ? n : e + 2;
+                continue;
+            }
+            if (c == '"' || c == '\'') {
+                int j = i + 1;
+                while (j < n) {
+                    char d = code.charAt(j);
+                    if (d == '\\') { j += 2; continue; }
+                    if (d == c) { j++; break; }
+                    if (d == '\n' && c == '\'') break;
+                    j++;
+                }
+                i = Math.min(j, n);
+                continue;
+            }
+            if (Character.isJavaIdentifierStart(c)) {
+                int j = i;
+                while (j < n && Character.isJavaIdentifierPart(code.charAt(j))) j++;
+                if (code.substring(i, j).equals("main")) {
+                    int k = j;
+                    while (k < n && Character.isWhitespace(code.charAt(k))) k++;
+                    if (k < n && code.charAt(k) == '(') return true;
+                }
+                i = j;
+                continue;
+            }
+            i++;
+        }
+        return false;
+    }
+
+    /**
+     * Executa um fonte KofScript direto do texto (modo inline do shell), pela
+     * MESMA pipeline do arquivo ({@link #prepareSource} + {@link #runFile}).
+     * Zero-state: nenhum projeto, arquivo persistente ou configuração.
+     */
+    public static RunResult runSource(String code, Target target, String[] programArgs) throws IOException {
+        Path tmp = Files.createTempDirectory("kofscript-inline");
+        try {
+            Path src = tmp.resolve("Inline.kf");
+            Files.writeString(src, prepareSource(code));
+            return runFile(src, target, programArgs);
+        } finally {
+            deleteRecursively(tmp);
+        }
     }
 
     /**
@@ -292,8 +388,12 @@ public final class KofScript {
                     // o default histórico — ambos rodam a IR no interpretador.
                     try {
                         KofInterpreter.Result ir = driver.interpret(mat.sources, mat.root, programArgs);
-                        RunResult rr = new RunResult(ir.exitCode(), ir.stdout(), ir.stderr(),
-                                ir.exitCode() == 0);
+                        // #678: os WARNING do frontend vão ao stderr (paridade com
+                        // o compile, onde o CLI imprime os diagnósticos).
+                        StringBuilder warn = new StringBuilder();
+                        ir.warnings().forEach(d -> warn.append(d.format()).append("\n"));
+                        RunResult rr = new RunResult(ir.exitCode(), ir.stdout(),
+                                warn + ir.stderr(), ir.exitCode() == 0);
                         cacheFile(rr, abs, fkey, fhash, fileLm, sz);
                         return rr;
                     } catch (KofInterpretException e) {
@@ -362,7 +462,7 @@ public final class KofScript {
             if (p.toString().endsWith(".ks")) {
                 if (tmpKsDir == null) tmpKsDir = Files.createTempDirectory("kofscript-ks");
                 String content = Files.readString(p);
-                String wrapped = content.contains("main()") ? content : wrapPureKof(content);
+                String wrapped = prepareSource(content);
                 Path kf = tmpKsDir.resolve(p.getFileName().toString().replace(".ks", ".kf"));
                 Files.writeString(kf, wrapped);
                 kfSources.add(kf);
@@ -400,7 +500,7 @@ public final class KofScript {
                 if (p.toString().endsWith(".ks")) {
                     if (tmpKsDir == null) tmpKsDir = Files.createTempDirectory("kofscript-ks-inspect");
                     String content = Files.readString(p);
-                    String wrapped = content.contains("main()") ? content : wrapPureKof(content);
+                    String wrapped = prepareSource(content);
                     Path kf = tmpKsDir.resolve(p.getFileName().toString().replace(".ks", ".kf"));
                     Files.writeString(kf, wrapped);
                     kfSources.add(kf);
@@ -443,31 +543,12 @@ public final class KofScript {
     }
 
     /**
-     * Simple REPL: reads lines from stdin, evals until "exit".
-     * Incremental: each line is appended to the history and re-evaluated
-     * as a whole program (MVP — future will be incremental IR).
+     * REPL incremental (#739): cada linha é avaliada UMA vez, com os globais
+     * de topo vivendo entre avaliações; o valor da última expressão é ecoado.
+     * A implementação vive em {@link KofRepl} (gate 500).
      */
     public static void repl(InputStream in, PrintStream out) throws IOException {
-        BufferedReader reader = new BufferedReader(new InputStreamReader(in));
-        StringBuilder history = new StringBuilder();
-        out.println("KofScript REPL 0.1.2-beta — type 'exit' to quit");
-        while (true) {
-            out.print("kof> ");
-            out.flush();
-            String line = reader.readLine();
-            if (line == null || "exit".equals(line.trim())) break;
-            if (line.isBlank()) continue;
-            history.append(line).append("\n");
-            RunResult r = eval(history.toString());
-            if (!r.success()) {
-                out.println("error: " + r.stderr().trim());
-                // rollback last line on error
-                int lastNl = history.lastIndexOf(line);
-                if (lastNl >= 0) history.setLength(lastNl);
-            } else {
-                out.print(r.stdout());
-            }
-        }
+        KofRepl.run(in, out);
     }
 
     private static void deleteRecursively(Path dir) {

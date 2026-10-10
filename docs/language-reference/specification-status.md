@@ -130,7 +130,7 @@ Target-specific · Unspecified · Planned**.
 | collections (List/Map/Set) | Stable | `KofMapSetTest` |
 | string methods | Stable | `StringMethodRegistry` |
 | http / web / db / orm / cache / mq / time / scheduler / log / config / security / validation / observability / ui / media / process | **Experimental** | E2E per area |
-| `rng` (builtin namespace: `seed`/`int`/`boolean`/`double`/`string`) | **Experimental** — JVM+JS+NATIVE x86_64; cross riscv64/aarch64 + ANDROID gap `RNG001` (honest, R6, X8 slice 3); same seed ⇒ same sequence every backend | `KofRngTest` (11): `deterministicJvm/JsMatchesOracle`, `jvmJsParity`, `reseedRestartsSequence{Jvm,Js}`, `contractJvm/Js`, `jvmNativeParityFullFace`, `nativeMatchesOracle`, `contractNative`, `crossAndAndroidStayHonestGap` |
+| `rng` (builtin namespace: `seed`/`int`/`boolean`/`double`/`string`) | **Experimental** — JVM+JS+NATIVE x86_64+ANDROID (ANDROID reuses the JVM runtime, issue #777); cross riscv64/aarch64 gap `RNG001` (honest, R6, X8 slice 3); same seed ⇒ same sequence every backend | `KofRngTest` (12): `deterministicJvm/JsMatchesOracle`, `jvmJsParity`, `reseedRestartsSequence{Jvm,Js}`, `contractJvm/Js`, `jvmNativeParityFullFace`, `nativeMatchesOracle`, `contractNative`, `crossStaysHonestGap`, `androidMatchesOracle` |
 | Map/Set with class type-arg | **Bug #33** | `known-bugs.md` |
 
 ---

@@ -163,8 +163,9 @@ test "soma comuta em pares aleatórios" {
 `KofRngTest.jvmJsParity`); `random.*` = entropia do SO (R11). Um property test
 que falha imprime a seed e a falha se reproduz. Misturar os dois é o
 anti-padrão: semear material de segurança (violação da R11) ou sortear
-entropia do rng (testes flaky). Fatia 1 = JVM + JS; NATIVE/ANDROID = gap
-honesto `RNG001` em compile (asm x86_64 — mesmos bits por construção — caiu na fatia 2).
+entropia do rng (testes flaky). Fatia 1 = JVM + JS; a fatia 2 somou NATIVE
+x86_64 (asm — mesmos bits por construção) e ANDROID (reusa o runtime JVM,
+issue #777); cross riscv64/aarch64 = gap honesto `RNG001` em compile.
 
 ## validation — formatar NÃO é validar (S12/S12b)
 
@@ -305,6 +306,9 @@ PORQUÊ: `split("/")`/regex feito à mão em URL quebra em porta, query e fragme
 cada peça é função real, em todos os targets (paridade do interpretador travada 19/09
 em `KofScriptStdlibParityTest`).
 
+Sockets são o MESMO namespace mas uma face própria — `net.listen/connect/bind`
+e os membros de handle vivem em `training/idioms/net.pt_BR.md` (D-KOF-NET, 02/10).
+
 ## gpu — probe primeiro, kernels honestos (8.5 fatia 3, 19/09)
 
 ```kof
@@ -341,7 +345,7 @@ fatia 2B, byte a byte sob qemu); **JS = `MEDIA001`** e `Image`/`Mic` = `MEDIA001
 Nota de escopo: esta e a **face de dados** atual de `kof.media`. A superficie futura
 de graficos/jogos/midia e **engine propria da Kof**, com paridade TOTAL nos 4 alvos
 como criterio de aceite (`DECISIONS.md` §D-GRAPHICS-GAMING adendos 2+4; plano
-`docs/development/future/graphics-gaming-plan.md`) — `MEDIA001` e honesto para a face
+`docs/graphics-gaming.md`) — `MEDIA001` e honesto para a face
 legada, nao o modelo do que sera promovido.
 
 ## Nota por target (gates honestos)
@@ -371,10 +375,11 @@ legada, nao o modelo do que sera promovido.
 | shell.cmd/run/ok (v1) | ✅ | ❌ `PROC001` (tempo de compilação) | ❌ `PROC001` | ✅ paridade byte |
 | shell.pipeline (v1) | ✅ | ❌ `PROC001` | ❌ `PROC001` | ✅ host Kof JS (chain + pump, 20/09 `081a48f8`; node puro = diagnostico honesto) |
 
-`strings.reverse` em não-ASCII: corrigido 27/09 — inverte por CODE POINT UTF-8
-no Native (x86/riscv/aarch), igual ao JVM/JS (célula `stdstrings2b2` +
-`NativeStringsReverseCrossTest`). Os demais conversores de caixa/palavra seguem
-**NAT-STR01** (paridade travada em ASCII na matriz).
+`strings.reverse`, `toUpperCase`/`toLowerCase` e `compareToIgnoreCase` em
+não-ASCII: corretos em todos os targets desde 27/09 (`D-STR-UNICODE`, linha 11) —
+`compareToIgnoreCase` casa com o `CASE_INSENSITIVE_ORDER` do JVM (fold SIMPLES por
+code unit); `capitalize`/conversores de palavra seguem ASCII-only no Native, gap
+**NAT-STR01**.
 
 ## Limitações
 

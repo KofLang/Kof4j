@@ -121,6 +121,13 @@
       "avatar_url": "https://github.com/ronald2329.png",
       "profile": "https://github.com/ronald2329",
       "contributions": ["code"]
+    },
+    {
+      "login": "ThiagoLange",
+      "name": "ThiagoLange",
+      "avatar_url": "https://github.com/ThiagoLange.png",
+      "profile": "https://github.com/ThiagoLange",
+      "contributions": ["ideas", "doc"]
     }
   ]
 }

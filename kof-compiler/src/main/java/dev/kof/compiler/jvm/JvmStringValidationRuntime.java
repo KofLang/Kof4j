@@ -333,6 +333,64 @@ public final class JvmStringValidationRuntime {
                     return sum % 10 == 0;
                 }
 
+                // S12c: creditCardBrand — Luhn valido + 13..19 digitos;
+                // prefixo decide a marca; invalido/desconhecido => "".
+                public static String kof_validation_creditCardBrand(String s) {
+                    int[] d = kofValidationCardDigits(s);
+                    if (d == null) return "";
+                    int n = d[0];
+                    if (n < 13) return "";
+                    if (!kofValidationCardLuhn(d, n)) return "";
+                    int p = d[1]; // primeiro digito
+                    int q = d[2]; // segundo
+                    if (p == 4) return "Visa";
+                    if (p == 5 && q >= 1 && q <= 5) return "Mastercard";
+                    if (p == 3 && (q == 4 || q == 7)) return "Amex";
+                    if (p == 6 && ((q == 0 && d[3] == 1 && d[4] == 1) || q == 5)) return "Discover";
+                    return "";
+                }
+
+                // S12c: last4 — ultimos 4 digitos extraidos (sem exigir
+                // Luhn); <4 ou >19 digitos ou null => "".
+                public static String kof_validation_last4(String s) {
+                    int[] d = kofValidationCardDigits(s);
+                    if (d == null) return "";
+                    int n = d[0];
+                    if (n < 4 || n > 19) return "";
+                    StringBuilder b = new StringBuilder(4);
+                    for (int j = n - 3; j <= n; j++) b.append((char) ('0' + d[j]));
+                    return b.toString();
+                }
+
+                // digitos[0]=n; digitos[1..19]=valores. null => >19 digitos.
+                private static int[] kofValidationCardDigits(String s) {
+                    if (s == null) return null;
+                    int[] d = new int[21];
+                    int n = 0;
+                    for (int i = 0; i < s.length(); i++) {
+                        char c = s.charAt(i);
+                        if (c >= '0' && c <= '9') {
+                            if (n == 19) return null;
+                            d[++n] = c - '0';
+                        }
+                    }
+                    d[0] = n;
+                    return d;
+                }
+
+                private static boolean kofValidationCardLuhn(int[] d, int n) {
+                    int sum = 0;
+                    for (int j = 0; j < n; j++) {
+                        int v = d[1 + j];
+                        if (((n - 1 - j) & 1) == 1) {
+                            v *= 2;
+                            if (v > 9) v -= 9;
+                        }
+                        sum += v;
+                    }
+                    return sum % 10 == 0;
+                }
+
 """;
     }
 }

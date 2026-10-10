@@ -243,7 +243,7 @@ Intent namespaces (compiled, same pattern as `kof.io`/`kof.web`):
 ```text
 kof.security
 ├── passwords        → hash/verify/needsRehash (PBKDF2-HMAC-SHA256, secure by default)
-├── crypto           → sha256/sha512, hmacSha256, aesGcm (encrypt/decrypt), randomHex/randomInt
+├── crypto           → sha256/sha512, sha256Bytes, hmacSha256/hmacSha256Bytes, aesGcm (encrypt/decrypt), randomHex/randomInt
 ├── jwt              → create/verify (HS256, exp/iss/aud, no algorithm confusion)
 ├── secrets          → get (env, raw String), redact, of/secret/fromBytes (→ Secret value type),
 │                      keyFromHex/keyFromPem/keyFromKeystore (→ KeyHandle, raw key never exposed)
@@ -261,6 +261,9 @@ Support per target (current state — `KofSecurity.supportedOn`):
 | `passwords.hash/verify/needsRehash` | YES (javax.crypto PBKDF2) | YES (asm PBKDF2-HMAC-SHA256) | YES (platform-delegated PBKDF2) |
 | `crypto.sha256/sha512` | YES | YES (asm, FIPS 180-4) | YES (JS) |
 | `crypto.hmacSha256` | YES | YES (asm) | YES (JS) |
+| `keyExchange.privateKey/publicKey/shared/hkdfSha256` (D-KOF-X25519) | YES (JCA X25519/HKDF) | gap SECN012 (asm port queued) | gap SECN012 (host bridge carries no Secret scalars) |
+| `crypto.sha256Bytes` | YES | YES (layout-compatible asm alias of sha256) | gap SECN000 (D-KOF-DIGEST-BYTES, 02/10) |
+| `crypto.hmacSha256Bytes` | YES | YES (asm alias of hmacSha256) | gap SECN000 |
 | `crypto.aesGcm` encrypt/decrypt | YES | YES (asm, GCM) | YES (pure JS, 01/09) |
 | `crypto.randomHex/randomInt` | YES (SecureRandom) | YES (getrandom) | YES (kof_platform) |
 | `jwt.create/verify/secret` | YES | YES (asm: base64url + HMAC) | YES |
@@ -346,7 +349,7 @@ jwt:         RFC 7519 HS256 (alg fixed, never accepted from the token)
 | `jwt.secret()` | ✅ env `KOF_JWT_SECRET` or generated | ✅ (`/proc/self/environ`) | ✅ | 32 bytes hex |
 | `secrets.get(name[, fallback])` | ✅ env | ✅ `/proc/self/environ` | ✅ platform | |
 | `secrets.redact(value)` | ✅ | ✅ (asm) | ✅ | `abcd********wxyz` |
-| `secrets.of(text)` / `secrets.secret(name)` | ✅ (→ `Secret`) | ❌ `SECN008` | ❌ `SECN008` | D-SECRETS face 1 |
+| `secrets.of(text)` / `secrets.secret(name)` | ✅ (→ `Secret`; unset env → `SECN015` error) | ❌ `SECN008` | ❌ `SECN008` | D-SECRETS face 1 |
 | `secrets.fromBytes(bytes)` | ✅ (→ `Secret`, per-byte Latin-1) | ❌ `SECN008` | ❌ `SECN008` | lossless for non-text bytes |
 | `Secret.reveal()` / `.redacted()` | ✅ | ❌ `SECN008` | ❌ `SECN008` | prints `Secret(*** )`; `reveal()` is the only raw export |
 | `secrets.keyFromHex/keyFromPem/keyFromKeystore(...)` | ✅ (→ `KeyHandle`) | ❌ `SECN008` | ❌ `SECN008` | P3; raw key bytes never exposed |
@@ -408,6 +411,20 @@ target gap diagnostics (SECN001/002/003). Adversarial cases included (§18).
   (assign to a variable, then log) are a declared limitation of the lint.
 - `SECN010` — using a `KeyHandle` after `rotate()` fails at runtime naming the
   revocation (`IllegalStateException`), so a rotated key can never be reused.
+
+- `SECN011` — non-String/Int actual on the plain `crypto` digest names (§563;
+  the form degraded per target before the guard).
+- `SECN012` — the `keyExchange` face (X25519/HKDF, D-KOF-X25519) on targets
+  without the runtime (JS/Native/cross) — compile-time refusal until ported.
+- `SECN013` — non-`Byte[]` actual on the binary digest faces
+  (`sha256Bytes`/`hmacSha256Bytes`, D-KOF-DIGEST-BYTES).
+- `SECN014` — non-`Secret` actual on the session-key face (D-KOF-X25519;
+  private material is typed, never raw String).
+- `SECN015` — `secrets.secret(name)` with an unset/blank environment variable
+  throws an explicit, catchable error (`catch (String e)`) instead of silently
+  returning an empty `Secret` (a blank credential is a security failure). The
+  legacy `secrets.get(name)` keeps returning the raw `String`/fallback
+  (SEC1, `D-MAINT-BATCH-0510`, issue #758).
 
 ## 7.6 Bug fixes discovered during the implementation
 

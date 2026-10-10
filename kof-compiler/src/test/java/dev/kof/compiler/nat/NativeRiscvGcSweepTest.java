@@ -1,5 +1,7 @@
 package dev.kof.compiler.nat;
 
+import dev.kof.compiler.NativeToolchainAssumptions;
+
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -29,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * (remover os hooks do coletor) = panic/exit 1, provando não-vacuidade. É o
  * fechamento do vazamento de ~260KB que era impossível de medir sem coletor.
  */
-class NativeRiscvGcSweepTest {
+class NativeRiscvGcSweepTest implements NativeToolchainAssumptions {
 
     private static boolean has(String... cmds) {
         for (String c : cmds) {
@@ -45,15 +47,6 @@ class NativeRiscvGcSweepTest {
         return true;
     }
 
-    private void assumeToolchain() {
-        Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
-                "cross toolchain riscv64 + qemu ausente — pulando (NATIVE002 G-4)");
-    }
-
-    private void assumeAarch64() {
-        Assumptions.assumeTrue(has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
-                "cross toolchain aarch64 + qemu ausente — pulando (NATIVE002 G-4)");
-    }
 
     private static final String HARNESS = """
             .option arch, rv64g
@@ -106,8 +99,9 @@ class NativeRiscvGcSweepTest {
                 .quad 0
             """;
 
-    /** Laço de 10000 allocs de 64B com só o último vivo na raiz estática.
-     *  Sem coletor, a arena de 256KB esgota e o kof_alloc panica. */
+    /** Laço de 10000 allocs de 2KB com só o último vivo na raiz estática.
+     *  Sem coletor, a arena de 16MB (§540) esgota e o kof_alloc panica
+     *  (10000×2KB = ~20MB > 16MB); com o G-4 o coletor recicla e completa. */
     private static final String HARNESS_LOOP = """
             .option arch, rv64g
             .section .data
@@ -123,7 +117,7 @@ class NativeRiscvGcSweepTest {
                 andi sp, sp, -16
                 li   s0, 10000
             .Lloop:
-                li   a0, 64
+                li   a0, 2048
                 call kof_alloc
                 la   t0, .Lroot_live
                 sd   a0, 0(t0)
@@ -184,7 +178,7 @@ class NativeRiscvGcSweepTest {
         runCapture("aarch64-linux-gnu-as", "-o", obj.toString(), asm.toString());
         runCapture("aarch64-linux-gnu-ld", "--gc-sections", "-o", bin.toString(), obj.toString());
         bin.toFile().setExecutable(true);
-        return runCapture("qemu-aarch64", bin.toString());
+        return QemuRun.runExpect0("qemu-aarch64", bin.toString());
     }
 
     /** Roda qemu e devolve saída + exit code (sem exigir 0) — p/ a sabotagem. */
@@ -214,19 +208,19 @@ class NativeRiscvGcSweepTest {
 
     @Test
     void sweepRecoversDeadAndMarksLive(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         assertSweep(buildRiscv(tempDir, "g4sweep", HARNESS, RiscvGcTestRuntimes.prunedFor(HARNESS)));
     }
 
     @Test
     void sweepRecoversDeadAndMarksLiveAarch64(@TempDir Path tempDir) throws IOException {
-        assumeAarch64();
+        assumeNativeAarch64();
         assertSweep(buildAarch64(tempDir, "g4sweepa", HARNESS, RiscvGcTestRuntimes.prunedFor(HARNESS)));
     }
 
     @Test
     void longAllocLoopSurvivesArenaExhaustionViaCollect(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = buildRiscv(tempDir, "g4loop", HARNESS_LOOP, RiscvGcTestRuntimes.prunedFor(HARNESS_LOOP));
         assertTrue(out.contains("allocs: 10000"),
                 "o laço deveria completar as 10000 allocs (arena reciclada pelo G-4): " + out);
@@ -236,7 +230,7 @@ class NativeRiscvGcSweepTest {
 
     @Test
     void longAllocLoopSurvivesArenaExhaustionViaCollectAarch64(@TempDir Path tempDir) throws IOException {
-        assumeAarch64();
+        assumeNativeAarch64();
         String out = buildAarch64(tempDir, "g4loopa", HARNESS_LOOP, RiscvGcTestRuntimes.prunedFor(HARNESS_LOOP));
         assertTrue(out.contains("allocs: 10000"),
                 "o laço deveria completar as 10000 allocs no aarch64 (arena reciclada): " + out);
@@ -246,7 +240,7 @@ class NativeRiscvGcSweepTest {
 
     @Test
     void longAllocLoopOomsWithoutCollector(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         // Sabotagem: remove TODOS os hooks do coletor (entry + OOM) do runtime.
         String sabotaged = RiscvGcTestRuntimes.prunedFor(HARNESS_LOOP)
                 .replace("    call kof_gc_collect\n", "")

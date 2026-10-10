@@ -260,7 +260,9 @@ Efeitos (listener/timer/subscription/stream/task) registrados via `effect` são
 O core adiciona as primitivas estruturais faltando, todas com
 **gap/padding/alignment/flex** via CSS (sem o widget calcular posição):
 `Box`, `Stack`, `Spacer`, `Wrap`, `Grid`, `Center`, `Align` (além do `Row`/
-`Column`/`View` existentes). `Scroll` entra com a camada de layout.
+`Column`/`View` existentes). `Scroll(children)` **pousou** (#702): um container rolável
+limitado (`div.kof-scroll` com `overflow:auto`) no KofJS, um handle no-op no JVM/Native — o
+mesmo contrato CSS-first das outras primitivas de layout.
 
 ### 2.9 Navegação (Fase 7) — implementada
 

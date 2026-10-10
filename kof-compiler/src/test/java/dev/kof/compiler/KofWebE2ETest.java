@@ -1,6 +1,5 @@
 package dev.kof.compiler;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -12,7 +11,6 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -24,60 +22,14 @@ import static org.junit.jupiter.api.Assertions.*;
  * (the program registers routes and calls {@code app.listen(port)}), and
  * exercises it over real sockets. No Spring, no servlet container.
  */
-class KofWebE2ETest {
+class KofWebE2ETest extends KofWebPrograms {
 
     private static final String JAVA_BIN = java.nio.file.Path.of(
             System.getProperty("java.home"), "bin", "java").toString();
 
     private final CompilerDriver driver = new CompilerDriver();
-    private Process serverProcess;
 
-    @AfterEach
-    void stopServer() {
-        if (serverProcess != null) {
-            serverProcess.destroy();
-            try {
-                serverProcess.waitFor(5, TimeUnit.SECONDS);
-            } catch (InterruptedException ignored) {
-            }
-            serverProcess.destroyForcibly();
-            serverProcess = null;
-        }
-    }
 
-    private static final String WEB_APP = """
-            record User(String name, Int age)
-
-            main() {
-                var app = web.app()
-                app.use {
-                    if (header("x-auth") == "secret") {
-                        return null
-                    }
-                    return "{\\"error\\": \\"unauthorized\\"}"
-                }
-                app.get("/hello") {
-                    return "Hello from Kof"
-                }
-                app.get("/users/:id") {
-                    return "user " + param("id") + " q=" + query("name")
-                }
-                app.get("/agent") {
-                    return "agent=" + header("user-agent")
-                }
-                app.get("/me") {
-                    return method() + " " + path()
-                }
-                app.post("/echo") {
-                    return "got:" + body()
-                }
-                app.post("/user") {
-                    var user = json.decode<User>(body())
-                    return json.encode(user)
-                }
-                app.listen(PORT)
-            }
-            """;
 
     private int startServer(Path tempDir) throws IOException {
         return startServer(tempDir, WEB_APP);
@@ -93,27 +45,8 @@ class KofWebE2ETest {
         ProcessBuilder pb = new ProcessBuilder(JAVA_BIN, "-cp", outDir.toString(), "Default.Main");
         pb.redirectErrorStream(true);
         serverProcess = pb.start();
-        int attempt = 0;
-        while (attempt < 40) {
-            if (!serverProcess.isAlive()) {
-                String out = new String(serverProcess.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
-                    .replace("\r\n", "\n").trim();
-                throw new IOException("server exited early: " + out);
-            }
-            try (Socket probe = new Socket()) {
-                probe.connect(new java.net.InetSocketAddress("127.0.0.1", port), 200);
-                return port;
-            } catch (IOException e) {
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
-            attempt++;
-        }
-        throw new IOException("server did not start listening");
+        TestServerFixture.awaitListening(serverProcess, port);
+        return port;
     }
 
     private int freePort() throws IOException {
@@ -153,30 +86,25 @@ class KofWebE2ETest {
     }
 
     @Test
+    void queryValueIsPercentDecoded(@TempDir Path tempDir) throws IOException {
+        // Paridade JVM x JS (§2.4/§12 pagination-plan): o JS ja decodificava
+        // (decodeURIComponent); o JVM devolvia o valor cru. `%20` -> espaco,
+        // `%2B` -> `+` (e `+` literal NAO vira espaco).
+        int port = startServer(tempDir);
+        String r = request(port, "GET /users/42?name=a%20b%2Bc HTTP/1.1\r\nHost: x\r\nX-Auth: secret\r\n\r\n");
+        assertTrue(r.startsWith("HTTP/1.1 200 OK"), r);
+        assertTrue(bodyOf(r).equals("user 42 q=a b+c"), r);
+        // sequencia malformada = URIError no JS -> nunca 200 silencioso (R6).
+        String bad = request(port, "GET /users/42?name=%zz HTTP/1.1\r\nHost: x\r\nX-Auth: secret\r\n\r\n");
+        assertFalse(bad.startsWith("HTTP/1.1 200"), bad);
+    }
+
+    @Test
     void absentHeaderAndQueryAreNullable(@TempDir Path tempDir) throws IOException {
         // #102 item 4 (comentário PublioSantos): header()/query() presentes como
         // String mas null na ausência -> deref sem narrowing passava no check e
         // NPEava 500 silencioso. Agora String?: o narrowing é obrigatório.
-        String app = """
-                main() {
-                    var app = web.app()
-                    app.get("/h") {
-                        var c = header("x-ausente")
-                        if (c != null) {
-                            return "len:" + c.length
-                        }
-                        return "nada"
-                    }
-                    app.get("/q") {
-                        var n = query("name")
-                        if (n != null) {
-                            return "nome:" + n
-                        }
-                        return "sem-nome"
-                    }
-                    app.listen(PORT)
-                }
-                """;
+        String app = SRC_ABSENT_HEADER_AND_QUERY_ARE_NULLABLE;
         int port = startServer(tempDir, app);
         String r = request(port, "GET /h HTTP/1.1\r\nHost: x\r\n\r\n");
         assertTrue(r.startsWith("HTTP/1.1 200 OK"), r);
@@ -209,22 +137,7 @@ class KofWebE2ETest {
     void healthEndpointBypassesMiddleware(@TempDir Path tempDir) throws IOException {
         // app.health responde ANTES dos middlewares: sonda sem auth → 200,
         // enquanto /hello sem auth → 401 (middleware bloqueia).
-        String app = """
-                main() {
-                    var app = web.app()
-                    app.health("/health")
-                    app.use {
-                        if (header("x-auth") == "secret") {
-                            return null
-                        }
-                        return "{\\"error\\": \\"unauthorized\\"}"
-                    }
-                    app.get("/hello") {
-                        return "Hello from Kof"
-                    }
-                    app.listen(PORT)
-                }
-                """;
+        String app = SRC_HEALTH_ENDPOINT_BYPASSES_MIDDLEWARE;
         int port = startServer(tempDir, app);
         // sonda de health SEM header de auth → 200 JSON de saúde
         String r = request(port, "GET /health HTTP/1.1\r\nHost: x\r\n\r\n");
@@ -267,15 +180,7 @@ class KofWebE2ETest {
     void deleteRouteCompilesAndResponds(@TempDir Path tempDir) throws IOException {
         // bug 54 (GitHub #29): app.delete colidia com File.delete no Io →
         // KofPop extra sobre kof_web_route (void) → frame crash no JVM.
-        String app = """
-                main() {
-                    var app = web.app()
-                    app.delete("/item/:id") {
-                        return "deleted:" + param("id")
-                    }
-                    app.listen(PORT)
-                }
-                """;
+        String app = SRC_DELETE_ROUTE_COMPILES_AND_RESPONDS;
         int port = startServer(tempDir, app);
         String r = request(port, "DELETE /item/7 HTTP/1.1\r\nHost: x\r\n\r\n");
         assertTrue(r.startsWith("HTTP/1.1 200 OK"), r);
@@ -287,19 +192,7 @@ class KofWebE2ETest {
         // bug 53 (GitHub #28): forma idiomática `if (x) { return valor }
         // return null` tipava invoke() como VOID (typer só varria ReturnStmt
         // top-level) → valor de sucesso descartado → 404 em toda request.
-        String app = """
-                main() {
-                    var app = web.app()
-                    app.get("/x/:id") {
-                        var id = param("id").toInt()
-                        if (id == 1) {
-                            return "one"
-                        }
-                        return null
-                    }
-                    app.listen(PORT)
-                }
-                """;
+        String app = SRC_HANDLER_RETURNING_NULL_AS_LAST_PATH_STILL_RESPONDS_VALUE;
         int port = startServer(tempDir, app);
         String hit = request(port, "GET /x/1 HTTP/1.1\r\nHost: x\r\n\r\n");
         assertTrue(hit.startsWith("HTTP/1.1 200 OK"), hit);
@@ -319,14 +212,7 @@ class KofWebE2ETest {
 
     @Test
     void multipleTrailingLambdaRoutes(@TempDir Path tempDir) throws IOException {
-        int port = startServer(tempDir, """
-                main() {
-                    var app = web.app()
-                    app.get("/a") { return "A" }
-                    app.get("/b") { return "B" }
-                    app.listen(PORT)
-                }
-                """);
+        int port = startServer(tempDir, SRC_MULTIPLE_TRAILING_LAMBDA_ROUTES);
         assertEquals("A", bodyOf(request(port, "GET /a HTTP/1.1\r\nHost: x\r\n\r\n")));
         assertEquals("B", bodyOf(request(port, "GET /b HTTP/1.1\r\nHost: x\r\n\r\n")));
     }
@@ -334,13 +220,7 @@ class KofWebE2ETest {
     @Test
     void sseAndWsGapOnNative(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("App.kf");
-        Files.writeString(source, """
-                main() {
-                    var app = web.app()
-                    app.sse("/events") { return "x" }
-                    app.ws("/chat") { return "x" }
-                }
-                """);
+        Files.writeString(source, SRC_SSE_AND_WS_GAP_ON_NATIVE);
         CompilationResult result = driver.compile(source, tempDir.resolve("out"), Target.NATIVE);
         var diagnostics = result.diagnostics().getDiagnostics();
         assertTrue(diagnostics.stream().anyMatch(d -> d.code().equals("WEB003")),
@@ -400,14 +280,7 @@ class KofWebE2ETest {
 
     @Test
     void securityHeadersByDefault(@TempDir Path tempDir) throws IOException {
-        int port = startServer(tempDir, """
-                main() {
-                    var app = web.app()
-                    app.security()
-                    app.get("/hello") { return "ok" }
-                    app.listen(PORT)
-                }
-                """);
+        int port = startServer(tempDir, SRC_SECURITY_HEADERS_BY_DEFAULT);
         String r = request(port, "GET /hello HTTP/1.1\r\nHost: x\r\n\r\n");
         assertTrue(r.startsWith("HTTP/1.1 200 OK"), r);
         assertEquals("ok", bodyOf(r));
@@ -421,17 +294,7 @@ class KofWebE2ETest {
 
     @Test
     void securityRequiresValidBearerWhenAuthEnabled(@TempDir Path tempDir) throws Exception {
-        int port = startServer(tempDir, """
-                main() {
-                    auth.secret("s3cret")
-                    var app = web.app()
-                    var o = mapOf()
-                    o.put("auth", true)
-                    app.security(o)
-                    app.get("/me") { return "hi " + auth.user() }
-                    app.listen(PORT)
-                }
-                """);
+        int port = startServer(tempDir, SRC_SECURITY_REQUIRES_VALID_BEARER_WHEN_AUTH_ENABLED);
         String noAuth = request(port, "GET /me HTTP/1.1\r\nHost: x\r\n\r\n");
         assertTrue(noAuth.startsWith("HTTP/1.1 401 Unauthorized"), noAuth);
         assertEquals("Bearer", headerLine(noAuth, "WWW-Authenticate"), noAuth);
@@ -450,15 +313,7 @@ class KofWebE2ETest {
             throws IOException {
         // auth-if-present: sem `auth:true` uma credencial presente mas
         // inválida NUNCA passa (evita "token ruim vira anônimo").
-        int port = startServer(tempDir, """
-                main() {
-                    auth.secret("s3cret")
-                    var app = web.app()
-                    app.security()
-                    app.get("/open") { return "public" }
-                    app.listen(PORT)
-                }
-                """);
+        int port = startServer(tempDir, SRC_SECURITY_REJECTS_INVALID_TOKEN_IF_PRESENT_EVEN_WITHOUT_AUTH_REQUIRED);
         String anonymous = request(port, "GET /open HTTP/1.1\r\nHost: x\r\n\r\n");
         assertTrue(anonymous.startsWith("HTTP/1.1 200 OK"), anonymous);
         String bad = request(port, "GET /open HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer nope\r\n\r\n");
@@ -467,17 +322,7 @@ class KofWebE2ETest {
 
     @Test
     void securityEnforcesRoles(@TempDir Path tempDir) throws Exception {
-        int port = startServer(tempDir, """
-                main() {
-                    auth.secret("s3cret")
-                    var app = web.app()
-                    var o = mapOf()
-                    o.put("roles", "admin")
-                    app.security(o)
-                    app.get("/admin") { return "secret" }
-                    app.listen(PORT)
-                }
-                """);
+        int port = startServer(tempDir, SRC_SECURITY_ENFORCES_ROLES);
         String noRole = hs256("{\"sub\":\"u1\",\"roles\":[\"user\"]}", "s3cret");
         String forbidden = request(port,
                 "GET /admin HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer " + noRole + "\r\n\r\n");
@@ -492,16 +337,7 @@ class KofWebE2ETest {
 
     @Test
     void securityCorsDeniesUnknownOriginAndAnswersPreflight(@TempDir Path tempDir) throws IOException {
-        int port = startServer(tempDir, """
-                main() {
-                    var app = web.app()
-                    var o = mapOf()
-                    o.put("cors", "https://app.example")
-                    app.security(o)
-                    app.get("/x") { return "ok" }
-                    app.listen(PORT)
-                }
-                """);
+        int port = startServer(tempDir, SRC_SECURITY_CORS_DENIES_UNKNOWN_ORIGIN_AND_ANSWERS_PREFLIGHT);
         String evil = request(port, "GET /x HTTP/1.1\r\nHost: x\r\nOrigin: https://evil.example\r\n\r\n");
         assertTrue(evil.startsWith("HTTP/1.1 403 Forbidden"), evil);
 
@@ -518,16 +354,7 @@ class KofWebE2ETest {
 
     @Test
     void securityCsrfDoubleSubmit(@TempDir Path tempDir) throws IOException {
-        int port = startServer(tempDir, """
-                main() {
-                    var app = web.app()
-                    var o = mapOf()
-                    o.put("csrf", true)
-                    app.security(o)
-                    app.post("/p") { return "posted" }
-                    app.listen(PORT)
-                }
-                """);
+        int port = startServer(tempDir, SRC_SECURITY_CSRF_DOUBLE_SUBMIT);
         String blocked = request(port, "POST /p HTTP/1.1\r\nHost: x\r\nContent-Length: 0\r\n\r\n");
         assertTrue(blocked.startsWith("HTTP/1.1 403 Forbidden"), blocked);
 
@@ -543,14 +370,7 @@ class KofWebE2ETest {
     void securityCsrfIsOnByDefault(@TempDir Path tempDir) throws IOException {
         // DECISIONS §5 (Spring model): CSRF ON por padrão quando app.security()
         // é configurado, sem precisar de `csrf:true` explícito.
-        int port = startServer(tempDir, """
-                main() {
-                    var app = web.app()
-                    app.security()
-                    app.post("/p") { return "posted" }
-                    app.listen(PORT)
-                }
-                """);
+        int port = startServer(tempDir, SRC_SECURITY_CSRF_IS_ON_BY_DEFAULT);
         String blocked = request(port, "POST /p HTTP/1.1\r\nHost: x\r\nContent-Length: 0\r\n\r\n");
         assertTrue(blocked.startsWith("HTTP/1.1 403 Forbidden"), blocked);
 
@@ -564,16 +384,7 @@ class KofWebE2ETest {
     @Test
     void securityPermitAllAliasIsPublicPaths(@TempDir Path tempDir) throws IOException {
         // §5: `permitAll` é alias de `publicPaths`.
-        int port = startServer(tempDir, """
-                main() {
-                    var app = web.app()
-                    var opts = mapOf("sessionHeader", "authorization", "permitAll", "/open")
-                    app.security(opts)
-                    app.get("/open") { return "open" }
-                    app.get("/closed") { return "closed" }
-                    app.listen(PORT)
-                }
-                """);
+        int port = startServer(tempDir, SRC_SECURITY_PERMIT_ALL_ALIAS_IS_PUBLIC_PATHS);
         String open = request(port, "GET /open HTTP/1.1\r\nHost: x\r\n\r\n");
         assertTrue(open.startsWith("HTTP/1.1 200 OK"), open);
         assertEquals("open", bodyOf(open));
@@ -583,16 +394,7 @@ class KofWebE2ETest {
 
     @Test
     void securityRateLimitByRemoteAddress(@TempDir Path tempDir) throws IOException {
-        int port = startServer(tempDir, """
-                main() {
-                    var app = web.app()
-                    var o = mapOf()
-                    o.put("rateLimit", "2/60")
-                    app.security(o)
-                    app.get("/r") { return "ok" }
-                    app.listen(PORT)
-                }
-                """);
+        int port = startServer(tempDir, SRC_SECURITY_RATE_LIMIT_BY_REMOTE_ADDRESS);
         assertTrue(request(port, "GET /r HTTP/1.1\r\nHost: x\r\n\r\n").startsWith("HTTP/1.1 200 OK"));
         assertTrue(request(port, "GET /r HTTP/1.1\r\nHost: x\r\n\r\n").startsWith("HTTP/1.1 200 OK"));
         String third = request(port, "GET /r HTTP/1.1\r\nHost: x\r\n\r\n");
@@ -622,17 +424,7 @@ class KofWebE2ETest {
     // rate-limit → cors → headers de segurança → session → csrf (lane .22).
     @Test
     void appSecurityPipelineE2E(@TempDir Path tempDir) throws IOException {
-        int port = startServer(tempDir, """
-                main() {
-                    var app = web.app()
-                    var opts = mapOf("sessionHeader", "authorization", "publicPaths", "/public,/login")
-                    app.security(opts)
-                    app.get("/public") { return "public content" }
-                    app.get("/secret") { return "secret content" }
-                    app.post("/secret") { return "secret content" }
-                    app.listen(PORT)
-                }
-                """);
+        int port = startServer(tempDir, SRC_APP_SECURITY_PIPELINE_E2_E);
 
         // 1. Rota pública responde 200 sem credencial + injeta security headers
         String pub = request(port, "GET /public HTTP/1.1\r\nHost: x\r\n\r\n");
@@ -654,5 +446,32 @@ class KofWebE2ETest {
         String secBadAuth = request(port,
                 "GET /secret HTTP/1.1\r\nHost: x\r\nauthorization: invalid-token\r\n\r\n");
         assertTrue(secBadAuth.startsWith("HTTP/1.1 401 Unauthorized"), secBadAuth);
+    }
+
+    // D-HTTP-POLICIES (F0): `responses` declarativos substituem os corpos
+    // embutidos das rejeições sintéticas do pipeline (401/403/429). Chaves
+    // ausentes mantêm o comportamento de hoje (retrocompatível) — coberto por
+    // `appSecurityPipelineE2E` (corpo embutido `{"error":"unauthorized"}`).
+    @Test
+    void securityDeclarativePayloadsForUnauthorizedAndRateLimit(@TempDir Path tempDir)
+            throws IOException {
+        int port = startServer(tempDir, SRC_SECURITY_DECLARATIVE_PAYLOADS_FOR_UNAUTHORIZED_AND_RATE_LIMIT);
+        // 1ª request: dentro do rate-limit, sem credencial → 401 com corpo declarado.
+        String first = request(port, "GET /secret HTTP/1.1\r\nHost: x\r\n\r\n");
+        assertTrue(first.startsWith("HTTP/1.1 401 Unauthorized"), first);
+        assertEquals("{\"error\":\"custom-401\"}", bodyOf(first));
+        // 2ª request na janela: rate-limit estourou → 429 com corpo declarado.
+        String second = request(port, "GET /secret HTTP/1.1\r\nHost: x\r\n\r\n");
+        assertTrue(second.startsWith("HTTP/1.1 429 Too Many Requests"), second);
+        assertEquals("{\"error\":\"custom-429\"}", bodyOf(second));
+    }
+
+    @Test
+    void securityDeclarativeForbiddenPayload(@TempDir Path tempDir) throws IOException {
+        int port = startServer(tempDir, SRC_SECURITY_DECLARATIVE_FORBIDDEN_PAYLOAD);
+        String denied = request(port,
+                "GET /x HTTP/1.1\r\nHost: x\r\nOrigin: https://evil.example\r\n\r\n");
+        assertTrue(denied.startsWith("HTTP/1.1 403 Forbidden"), denied);
+        assertEquals("{\"error\":\"custom-403\"}", bodyOf(denied));
     }
 }

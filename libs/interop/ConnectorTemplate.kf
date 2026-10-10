@@ -1,0 +1,117 @@
+package interop
+
+// kof.interop — connector manifest template (fatia 15 of the Kof Connector
+// Ecosystem plan, `D-CONNECTORS-GO`). It supplies the pure-Kof half of the §8
+// "connector generator": given a connector's identity and declarations, it
+// renders a canonical `kof.toml` manifest (§4.2) that the Core can read and
+// validate — exactly the file `kof connector init` would write.
+//
+//   var t = ConnectorTemplate("kof-cc", "c", "1.0", "c", "native")
+//   t.platform("linux-x86-64")
+//   t.capability("callbacks")
+//   t.ownership("borrowed")
+//   t.type("integer")
+//   t.spi("marshalling")
+//   t.stability("experimental")
+//   File("kof-connector.toml").writeText(t.render())
+//
+// The rendered text is the EXISTING manifest format (§4.2) — never a new one;
+// the round-trip through `ConnectorManifest` + `validate()` is the proof. No
+// compiler change; `render()` itself is target-neutral (no IO).
+
+class ConnectorTemplate {
+    String connectorName
+    String language
+    String version
+    String abi
+    String runtime
+    List<String> platforms
+    List<String> capabilities
+    List<String> ownership
+    List<String> types
+    List<String> spi
+    String stabilityValue
+    Bool hasStability
+
+    constructor(String connectorName, String language, String version, String abi, String runtime) {
+        this.connectorName = connectorName
+        this.language = language
+        this.version = version
+        this.abi = abi
+        this.runtime = runtime
+        this.platforms = new List<String>()
+        this.capabilities = new List<String>()
+        this.ownership = new List<String>()
+        this.types = new List<String>()
+        this.spi = new List<String>()
+        this.stabilityValue = ""
+        this.hasStability = false
+    }
+
+    void platform(String value) {
+        this.platforms.add(value)
+    }
+
+    void capability(String value) {
+        this.capabilities.add(value)
+    }
+
+    void ownershipConcept(String value) {
+        this.ownership.add(value)
+    }
+
+    void type(String value) {
+        this.types.add(value)
+    }
+
+    void hook(String value) {
+        this.spi.add(value)
+    }
+
+    void stabilityTier(String value) {
+        this.stabilityValue = value
+        this.hasStability = true
+    }
+
+    // Canonical `kof.toml` text (§4.2): the five required scalars then each
+    // declared list (omitted when empty), in a stable order.
+    String render() {
+        var lines = new List<String>()
+        lines.add("name = \"" + this.connectorName + "\"")
+        lines.add("language = \"" + this.language + "\"")
+        lines.add("version = \"" + this.version + "\"")
+        lines.add("abi = \"" + this.abi + "\"")
+        lines.add("runtime = \"" + this.runtime + "\"")
+        appendList(lines, "platforms", this.platforms)
+        appendList(lines, "capabilities", this.capabilities)
+        appendList(lines, "ownership", this.ownership)
+        appendList(lines, "types", this.types)
+        appendList(lines, "spi", this.spi)
+        if (this.hasStability) {
+            lines.add("stability = \"" + this.stabilityValue + "\"")
+        }
+        var out = lines.get(0)
+        var i = 1
+        while (i < lines.size()) {
+            out = out + "\n" + lines.get(i)
+            i = i + 1
+        }
+        return out
+    }
+
+    void appendList(List<String> lines, String key, List<String> values) {
+        if (values.size() == 0) {
+            return
+        }
+        var out = key + " = ["
+        var i = 0
+        while (i < values.size()) {
+            if (i > 0) {
+                out = out + ", "
+            }
+            out = out + "\"" + values.get(i) + "\""
+            i = i + 1
+        }
+        lines.add(out + "]")
+    }
+}

@@ -106,9 +106,21 @@ Type vt = vds.type() != null && !"var".equals(vds.type())
         driver.mutatedCapturedNames = new java.util.HashSet<>();
         java.util.Deque<CompilerDriverState.FinallyFrame> savedFrames = driver.finallyFrames;
         driver.finallyFrames.clear(); // DD-01: frame do finally externo não vaza p/ dentro
-        CompilerCaptureScanner.collectMutatedCaptures(driver, func.body(), locals);
-        for (StatementNode stmt : func.body()) {
-            localIdx = driver.emitStatement(stmt, body, "", localIdx, locals, returnType);
+        driver.tryDepth = 0; // §551: profundidade de try é por função
+        // §538: o escopo de type-params da FUNÇÃO genérica passa a valer no
+        // corpo (o method lowering de classe já o fazia) — sem isto
+        // `json.decode<T>` lowerava `T` como ClassType("","T") →
+        // `kof_json_decode_T` + `checkcast T` (bytecode inválido).
+        java.util.List<String> prevTypeParams = driver.currentTypeParams;
+        driver.currentTypeParams = func.typeParameters() == null
+                ? java.util.List.of() : func.typeParameters();
+        try {
+            CompilerCaptureScanner.collectMutatedCaptures(driver, func.body(), locals);
+            for (StatementNode stmt : func.body()) {
+                localIdx = driver.emitStatement(stmt, body, "", localIdx, locals, returnType);
+            }
+        } finally {
+            driver.currentTypeParams = prevTypeParams;
         }
         driver.mutatedCapturedNames = savedMutated;
         driver.finallyFrames.addAll(savedFrames); // DD-01: restaura

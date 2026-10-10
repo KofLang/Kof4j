@@ -1,10 +1,12 @@
+[English](AGENTS.md) | [Português](AGENTS.pt_BR.md)
+
 # AGENTS.md
 
-last: 0.5.0-beta
+last: protocolo 0.6.0 + GATE WASI (07/10 ordem da mantenedora `D-WEB-WASI-DEFAULT-0710`: plano wasm/wasi promovido, WASI = padrao de frontend web+desktop, #776 `1.0-blocks` barra o corte; gates estruturais rc=0; suite 7F nao-WASI (4 deterministas externos §628/JavaFX + 3 ambientais provados por carga; 0 WASI, bateria 23/23); §625+§627+§631 corrigidos 08/10 pela lane .30:9092) — 7 frentes rule-6 decididas; #761 reclassificado `tracking/contract`, permanente, nunca bloqueia corte; tip do lab 7ffd088ee, gates estruturais rc=0)
 
-doing: desenvolvimento-autônomo
+doing: #772+#773 FECHADAS 06-07/10 (§612 re-escopado `aa67a2acb`; bateria 166/0F, linhas fora do ledger) + M1 unidade-1 POUSADA 07/10 (param HFA struct cross, `2d933828c`) + WASI 15.1+15.2+15.3-fatia1+15.3b+15.3c-fatiaA+15.3c-fatiaB+15.3d-inc1 POUSADAS 07-08/10 (#776 topologia + backend ESCALAR + host de stdout WASI-preview1 + `println(String)` de literal via DATA segments + VARIAVEIS/concat de String num bump heap `global 0`@16384 `kof.strLit`/`kof.strConcat`/`kof.writeStr` + `args` via `kof.readArgs` (`args_sizes_get`/`args_get`, trap explicito de limites, argv[0] descartado = paridade JVM); `WasmWasiE2ETest` 7/7 sob wasmtime com paridade de oráculo JVM `…/ab/xyz` + `alpha/beta/alpha-beta` + record `Point(1,2).x/.y` -> `1/2` (15.3d inc1 alloc + leitura de campo Int/Long via `Mem.LOAD64/STORE64` no bump heap; toString/equals/concat + campos nao-i64 seguem `WASM002` sem artefatos ate o lowering de metodo de instancia; entao colecoes pousam o resto da 15.3; flip 15.4 por último) + regressão EXTERNA native/cross catalogada `known-bugs` §625 (`Av1CoeffsE2ETest` aarch64+riscv64 no tip remoto, bisect `a2f69d2f7`, lane dona .30:9092) — CORRIGIDA 08/10 (prologue cross/x86 zera slots acima de `paramSlotMax`; `PrologueSlotInitTest`) + familia #770 FECHADA (§609 desempacotar arg std + §610 narrowing do IfExpr + `emitErasureUnboxSoft` + SEM025 honesto; issue fechada 05/10) + correcao §612 (MAGIC-box nativo) landed mas REGREDIU 5 faces nativas -> #772 REABERTA + #773 criada + §614 RED (auditoria de prontidao do corte + bisect 06/10, dona lane .30:9092 nativa; CORTE ESCORREGA) + §613 return-no-catch-finally SIGSEGV CORRIGIDO + §615 recusa honesta cross + §616/#774 shell-args-vazios FECHADO + graphics destravado (semantica de laco A1-A3 DECIDIDA; SDL3 vendorizado + ABI cross provada `Sdl3FfiCrossE2ETest` 5/5; fatia 3.1 = lane .15) + testing-platform §4.4 LANDADA (`testRows` 7/7 cross) + §554 DECIDIDO (batch C, lane compiler/interop) + memory-safety M1 AUTORIZADO (#769) + heartbeat/issue-watcher registrados MORTOS (medido, DB recuperado) + tooling de sobrevivencia: `scripts/opencode-db-vacuum.sh` (69.3->2.94 GiB provado; causa-raiz das mortes = OOM provado pelo kernel)
 
-next: executar-trabalho-não-atribuído
+next: 0.6.0 esta GATED por #776 (frontend padrao WASI, TIER 15) — plano ABERTO, lanes livres reivindicam no DOING; depois re-medir `check_lab_stability` para o corte; cadencia semanal de minors (`D-RELEASE-CADENCE`); 14.4-rulesets + promotion-sweep ficam com a mantenedora; `docs/development/future/` segue CONGELADO exceto esta promocao ordenada pela mantenedora (`D-FUTURE-FREEZE`)
 
 location: repositório
 
@@ -33,7 +35,7 @@ constraint:
 
 decision:
 
-* D-BRANCH-0.5.0: beta-0.5.0 é a branch de desenvolvimento ativa
+* D-BRANCH-PIPELINE: active branch = `lab`; a promoção é explícita e unidirecional `lab → testing → prerelease → stable → release/x.y.z → tag` (`D-QUALITY-PIPELINE-2609`)
 * D-KOF-FIRST: o contrato do Kof precede o comportamento de linguagens externas
 * D-KOF-FIRST-IMPL: funcionalidades pós-0.5.0 são library-first
 * D-MAKEALIVE
@@ -42,6 +44,11 @@ decision:
 * D-DB-GAPS
 * D-GRAPHICS-GAMING
 * D-KOFMD-ON-EDIT: todo documento editado por um agente é comprimido em Kofmd no mesmo commit
+* D-KOFMD-OPERATING-STANDARD: todo agente pensa, raciocina, responde, executa e documenta em Kofmd — uniforme, sem variante por agente
+* D-FUTURE-PROMOTION: antes de começar trabalho novo, migrar para `lab` com TODO o trabalho atual, então promover o plano MAIS FÁCIL de implementar de `docs/development/future/` para `docs/development/` e implementá-lo — nunca o mais interessante, nunca um plano de semântica congelada
+* D-FUTURE-FREEZE: a promoção de `docs/development/future/` está CONGELADA até segunda ordem — nenhum agente promove um plano futuro; a frente ativa é bugs-and-gaps + o protocolo de release (mantenedora 02/10)
+* D-RELEASE-CADENCE: cadência semanal de minors até `0.9.0`; se a `0.9.0` for atingida sem o exit gate completo, a linha continua como `1.0.0-RC-1`, `1.0.0-RC-2`, … (cada RC um minor), até estabilizar, então a `1.0.0` de verdade; o número da versão no corte é chamada da mantenedora (mantenedora 02/10)
+* D-LAB-STABILITY: um minor só é cortado de um `lab` ESTÁVEL (suíte completa verde, gates rc=0, 0 bloqueantes, nenhum `1.0-blocks` aberto); senão o corte escorrega para o próximo fim de semana (mantenedora 02/10)
 
 ---
 
@@ -56,11 +63,13 @@ loop:
 * ler DOING.md
 * ler docs/status.md
 * inspecionar git log e a suíte
+* garantir que a branch ativa é `lab` — migrar todo o trabalho atual para `lab` ANTES de começar; `beta-*` está congelada (`D-BRANCH-PIPELINE`)
+* se não houver tarefa viva sem dono, trabalhar a frente bugs-and-gaps + o protocolo de release; a promoção de `docs/development/future/` está CONGELADA (`D-FUTURE-FREEZE`)
 * escolher a tarefa não atribuída de maior valor
-* reivindicá-la em DOING.md
+* reivindicá-la em DOING.md com `dona = <ipv4-local>:<porta-opencode>` (PT) / `owner = <ipv4-local>:<porta-opencode>` (EN) — a **regra absoluta de identidade** (`D-AGENT-IDENTITY-IPPORT`, 01/10); um claim sem IP:PORT é INVÁLIDO (gate `scripts/check_owner_identity.sh`)
 * executar um escopo completo
 * testar
-* fazer commit com DOING.md
+* fazer commit com DOING.md (todo commit atualiza a linha `dona = <ip>:<porta>`)
 * fazer push através de scripts/sync-push.sh
 * reler DOING.md
 * continuar
@@ -127,6 +136,8 @@ port: 9093
 
 session: ses_f69e2a3f7ffe9J10aWcHEUOfW8
 
+state: MORTO 06/10 (medido: 0 linhas no opencode.db vivo após a recuperação do banco; sem listener na 9093) — o re-registro exige spawnar o servidor e gravar o NOVO id de sessão; jamais inventar ids
+
 issue-watcher:
 
 port: 9094
@@ -162,13 +173,15 @@ rule:
 * IA acelera a implementação
 * IA não define arquitetura
 * IA não redefine a semântica do Kof
-* IA não faz merge de beta-0.5.0 na main
+* IA não faz merge de nenhum estágio na main
 * toda mudança exige uma issue
 * toda entrega exige prova
 
 identity:
 
 preferred: kof-agent-worker
+
+by: ipv4-local + porta-opencode (absoluto, obrigatório — emenda 01/10, `D-AGENT-IDENTITY-IPPORT`)
 
 fallback: maintainer-default
 
@@ -177,6 +190,14 @@ forbidden:
 * email sintético
 * Co-authored-by
 * truques de identidade
+* `dona = <ipv4>` SEM `:<porta>` — o gate rejeita
+
+rule:
+
+* identifique pelo **IPv4 local** (`hostname -I`) E pela **porta do servidor opencode** à qual a sessão está anexada (`ss -tln | grep opencode` / o `opencode -s ... --port <N>` ou `--attach http://127.0.0.1:<N>` em execução) — DOING §Operating-loop regra 9
+* toda reivindicação `EM PROGRESSO`/`FEITO`/`CORRIGIDO`/`PARADA` leva `dona = <ipv4-local>:<porta>` (PT) / `owner = <ipv4-local>:<porta>` (EN) — nunca só "esta sessão" e nunca IPv4 puro (roteador/DHCP mudam o endereço; a porta desambigua sessões no mesmo host)
+* o gate de enforcement é `scripts/check_owner_identity.sh` — rc=1 em qualquer claim com data ≥ `01/10` cujo IPv4 não tenha `:<porta>`
+* nunca agir na lane de outro dono só pelo IP — confirme por sessão + lane + SHA do commit + IP:PORT (roteador/DHCP mudam ambos)
 
 ---
 
@@ -194,6 +215,7 @@ claim:
 * ler DOING.md antes de trabalhar
 * item IN PROGRESS existente não é seu
 * reivindicar antes da implementação
+* **regra absoluta de identidade (`D-AGENT-IDENTITY-IPPORT`, 01/10): todo claim é `dona = <ipv4-local>:<porta-opencode>` (PT) / `owner = <ipv4-local>:<porta-opencode>` (EN) — um IPv4 puro ou "esta sessão" é INVÁLIDO e o gate `scripts/check_owner_identity.sh` rejeita (rc=1)**
 * claim e primeira mudança compartilham o mesmo commit
 * todo commit atualiza sua linha no DOING.md
 * DONE exige data + SHA + prova
@@ -302,6 +324,52 @@ kofmd:
 * nunca duplicar campos na prosa
 * obrigatório ao editar: todo documento tocado por um agente é comprimido no mesmo commit
 * learn/ e training/ são excluídos da compressão Kofmd
+* padrão operacional: todo agente pensa, raciocina, responde, executa e documenta em Kofmd — uniforme, sem variante por agente (`D-KOFMD-OPERATING-STANDARD`)
+* evidência antes de inferência; `unknown` em vez de `probably`; nunca fabricar api/sintaxe/comportamento/decisão/resultado/contrato
+* `implemented` != `verified`; só declarar resultado com prova executada
+* `last` = estado anterior imediatamente relevante; `next` = próxima intenção, não backlog
+* prosa somente onde a estrutura não carrega a informação
+* coordenação: reivindicar antes de trabalhar; em colisão de lane esperar o dono ou parar, nunca disputar a worktree compartilhada; nunca encerrar turno com unidade não commitada; push só via `scripts/sync-push.sh`
+
+---
+
+## Promoção de futuro
+
+intent: futuro-não-é-trabalho-atual-sem-promoção
+
+**CONGELADO até segunda ordem (`D-FUTURE-FREEZE`, mantenedora 02/10):** nenhum agente promove um plano de `docs/development/future/`. A frente ativa é bugs-and-gaps + o protocolo de release. Os critérios abaixo descrevem como é um bom plano futuro; o *ato* de promover está suspenso até a mantenedora levantar o congelamento.
+
+rule:
+
+* antes de começar trabalho novo: migrar para `lab` com TODO o trabalho atual primeiro; nunca começar em `beta-*` ou checkout destacado (`D-BRANCH-PIPELINE`)
+* promover exatamente UM plano de `docs/development/future/` para `docs/development/` e implementá-lo
+* escolher o MAIS FÁCIL de implementar (menor custo) — nunca o mais interessante, nunca o maior
+
+mais fácil (maior vence):
+
+* nenhuma decisão `D-*` necessária: não é semântica congelada, não é primitiva central ausente
+* aditivo e library-first: Kof consegue expressá-lo sem mudar a superfície da linguagem (`D-KOF-FIRST`)
+* dependências já medidas em código (o plano nomeia arquivos/linhas reais)
+* escopo único e coeso para uma lane (uma responsabilidade)
+* existe caminho de teste agora (prova RED-first é definível)
+
+inelegível:
+
+* precisa de decisão de semântica congelada ou `D-*` da mantenedora primeiro
+* precisa de nova primitiva central ou sintaxe
+* aceita gap, entrega stub ou enfraquece asserção
+* a razão é "seria legal" em vez de "é o incremento completo mais barato"
+
+fluxo:
+
+* reescrever o plano com status `UNDER DEVELOPMENT` + estado real + como-terminar
+* movê-lo para `docs/development/<plan>.md` (+PT) no MESMO commit que o reivindica
+* enfileirá-lo em `roadmap.md` §23 e apontar `docs/status.md` para ele
+* reivindicar em DOING.md (tarefa + arquivo + prova esperada), implementar, testar, commitar, pushar
+
+fallback:
+
+* se NENHUM plano for implementável sem decisão da mantenedora, NÃO inventar um — registrar o achado e parar
 
 ---
 
@@ -824,8 +892,8 @@ push:
 
 release:
 
-* agentes podem fazer push de beta-0.5.0
-* agentes nunca fazem merge de beta-0.5.0 → main
+* agentes podem fazer push da branch de desenvolvimento ativa (`lab`)
+* agentes nunca promovem/fazem merge de um estágio no seguinte (promoção é gate da mantenedora até `14.3`)
 * a mantenedora realiza o merge de release
 
 ---
@@ -861,7 +929,7 @@ ready:
 * sem infraestrutura desnecessária
 * abstração Kof preferida
 * teste e mudança compartilham commit
-* DOING.md atualizado
+* DOING.md atualizado — todo claim leva `dona = <ipv4>:<porta>` (`D-AGENT-IDENTITY-IPPORT`, gate `scripts/check_owner_identity.sh`)
 * remoto sincronizado
 
 if_any_false:

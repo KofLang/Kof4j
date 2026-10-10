@@ -162,8 +162,15 @@ public final class ExpressionLowerer {
                 yield ExpressionAssignmentLowerer.lower(driver, ae, ops, owner, localIdx, locals);
             }
             case NewExpr ne -> {
-                Type type = CompilerTypes.toType(ne.typeName(), driver.currentUnit,
-                        driver.externalClasspath);
+                // §582: a bare ctor name of a PACKAGED record inside an IMPORTED
+                // module resolves here against the merged MAIN unit (the caller),
+                // which does not declare the type — the owner reached the emitter
+                // BARE and the JVM died at LOAD (NoClassDefFoundError: <Name>),
+                // while Script died interpreting the same bare owner. Requalify
+                // through the §571/§573 analyzer chokepoint (idempotent elsewhere).
+                Type type = ExpressionTyper.qualifyBareModuleType(driver,
+                        CompilerTypes.toType(ne.typeName(), driver.currentUnit,
+                                driver.externalClasspath));
                 Type collBuiltin = CompilerTypes.builtinCollectionType(ne.typeName(), driver.currentUnit, driver.semanticAnalyzer);
                 if (collBuiltin == BuiltinTypes.LIST) {
                     type = BuiltinTypes.LIST;
@@ -196,48 +203,32 @@ public final class ExpressionLowerer {
                         ? driver.semanticAnalyzer.getResolvedConstructor(ne) : null;
                 if (resolvedCtor == null && type instanceof Type.ClassType ct
                         && driver.semanticAnalyzer != null) {
-                    // fallback: resolver por assignability quando o registro
-                    // por identidade falhou (ex.: node recriado no desugar)
                     SymbolTable.ClassSymbol cs = driver.semanticAnalyzer.getClass(ct.name());
                     if (cs != null) {
-                        SymbolTable.Symbol anyInit = cs.members().resolve("<init>");
-                        if (anyInit instanceof SymbolTable.ConstructorSet set) {
-                            for (SymbolTable.ConstructorSymbol c : set.constructors()) {
-                                if (c.parameterTypes().size() == argTypes.size()) {
-                                    boolean compatible = true;
-                                    for (int ai = 0; ai < argTypes.size(); ai++) {
-                                        if (!driver.ctorCompatible(c.parameterTypes().get(ai), argTypes.get(ai))) {
-                                            compatible = false;
-                                            break;
-                                        }
-                                    }
-                                    if (compatible) { resolvedCtor = c; break; }
-                                }
-                            }
-                        }
+                        resolvedCtor = SymbolTable.constructorFor(cs.members(), argTypes.size(), argTypes);
                     }
                 }
-                if (resolvedCtor == null && type instanceof Type.ClassType ct
-                        && driver.semanticAnalyzer != null) {
-                    SymbolTable.ClassSymbol cs2 = driver.semanticAnalyzer.getClass(ct.name());
-                    if (cs2 != null) {
-                        SymbolTable.Symbol anyInit2 = cs2.members().resolve("<init>");
-                        if (anyInit2 instanceof SymbolTable.ConstructorSet set2) {
-                            for (SymbolTable.ConstructorSymbol c : set2.constructors()) {
-                                if (c.parameterTypes().size() == argTypes.size()) {
-                                    resolvedCtor = c;
-                                    break;
-                                }
-                            }
-                        }
-                    }
+                if (resolvedCtor != null && !resolvedCtor.acceptsArgumentCount(argTypes.size())) {
+                    resolvedCtor = null;
+                }
+                // #760: `new <imported-external-class>(...)` is a JVM-backed
+                // face; JS/Native must refuse with INTEROP003 instead of leaking
+                // the java_* ctor (Native ld undefined reference / JS
+                // ReferenceError). Wrapper owners keep their shims.
+                if (type instanceof Type.ClassType nct && !nct.packageName().isEmpty()
+                        && driver.externalClasspath.knows(nct.internalName())
+                        && JvmInteropTargetGap.refuses(driver.target)
+                        && !JvmInteropTargetGap.isShimmedOwner(nct.internalName())) {
+                    JvmInteropTargetGap.refuse(driver, ne.position(),
+                            "constructor of external class '"
+                                    + nct.internalName().replace('/', '.') + "'");
+                    yield localIdx;
                 }
                 ops.add(new KofNewObject(type, argTypes));
                 ops.add(new KofDup());
                 List<Type> ctorParamTypes;
-                if (resolvedCtor != null
-                        && resolvedCtor.parameterTypes().size() == ne.arguments().size()) {
-                    ctorParamTypes = resolvedCtor.parameterTypes();
+                if (resolvedCtor != null) {
+                    ctorParamTypes = resolvedCtor.effectiveParameterTypes(ne.arguments().size());
                 } else if (type instanceof Type.ClassType ct && !ct.packageName().isEmpty()
                         && driver.externalClasspath.knows(ct.internalName())) {
                     // construtor de classe externa: descritor exato do classpath

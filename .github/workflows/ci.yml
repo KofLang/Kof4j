@@ -6,6 +6,9 @@ on:
     branches:
       - '**'
       - '!main'
+      # D-QUALITY-PIPELINE-2609: `lab` is the experimentation stage — NO heavy
+      # CI per push. Validation happens at the `lab → testing` promotion.
+      - '!lab'
 
 permissions:
   contents: read
@@ -51,6 +54,9 @@ jobs:
 
       - name: Gate R1 fronteira stdlib (D-UNIVERSAL; ledger nao cresce em silencio)
         run: scripts/check_stdlib_boundary.sh --selftest && scripts/check_stdlib_boundary.sh
+
+      - name: Gate LSP-A catalogo de assinaturas (§568 — gen_signatures.py == StdCatalog; deriva nunca silenciosa)
+        run: python3 scripts/gen_signatures.py --selftest && python3 scripts/gen_signatures.py check
 
       - name: Gate automacao de agentes (Onda 1 — gate de despacho, watcher, auto-loop; fakes, sem rede)
         run: bash scripts/tests/run-agent-tests.sh
@@ -99,7 +105,7 @@ jobs:
       - name: Test + package (the golden/integration scripts need the CLI jar)
         run: mvn clean package
 
-      - name: Golden tests (jvm + native)
+      - name: Golden tests (jvm + native + js + script)
         run: tests/run-golden.sh
 
       - name: Integration tests (CLI + serve)

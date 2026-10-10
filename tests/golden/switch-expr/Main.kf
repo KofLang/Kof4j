@@ -1,0 +1,22 @@
+String classify(Int n) {
+    return switch (n) {
+        case 0 -> "zero"
+        case 1 -> "um"
+        default -> "muitos"
+    }
+}
+
+main() {
+    println(classify(0))
+    println(classify(1))
+    println(classify(7))
+    var x = 2
+    switch (x) {
+        case 1:
+            println("um")
+        case 2:
+            println("dois")
+        default:
+            println("outro")
+    }
+}

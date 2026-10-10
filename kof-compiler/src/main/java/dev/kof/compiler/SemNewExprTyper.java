@@ -23,8 +23,14 @@ final class SemNewExprTyper {
             // SEM015 (#193) e o call-chainado `get(0)()` emitia Methodref
             // vazio (ClassFormatError, #198).
             if (!ne.typeArguments().isEmpty() && coll instanceof Type.ClassType ct) {
+                // #697: o ramo classe abaixo já qualificava os type-args via
+                // toType(…, sa); o ramo coleção usava `Type::of` cru — o arg
+                // `pkg.Rotulo`/`Rotulo` de mesmo pacote ficava
+                // ClassType("", "dominio.Rotulo") e divergia do tipo declarado
+                // (SEM021 espúrio). Mesmo caminho analisador-ciente.
                 coll = new Type.ClassType(ct.packageName(), ct.name(),
-                        ne.typeArguments().stream().map(Type::of).toList());
+                        ne.typeArguments().stream()
+                                .map(n -> CompilerTypes.toType(n, sa.unit(), sa)).toList());
             }
             return coll;
         }
@@ -39,15 +45,15 @@ final class SemNewExprTyper {
             // #340 (SEM071): interface não é instanciável — `new I()`.
             ClassShapeChecks.checkInstantiable(sa, ne.typeName());
             // Inferencia dos argumentos: o efeito colateral importa
-            // (cache expressionTypes + diagnostics de SEM nas exprs), a
-            // resolucao do construtor e por aridade (constructorFor
-            // aceita int) — o container de tipos era write-only
-            // (CodeQL unused-container: achado real, nao FP).
+            // (cache expressionTypes + diagnostics de SEM nas exprs). A
+            // resolucao do construtor usa aridade + tipos (#766: defaults
+            // expõem prefixos sinteticos alem da assinatura canonica).
+            List<Type> argTypes3 = new ArrayList<>();
             for (ExpressionNode arg : ne.arguments()) {
-                SemExpressionTyper.inferType(sa, arg, scope);
+                argTypes3.add(SemExpressionTyper.inferType(sa, arg, scope));
             }
             SymbolTable.ConstructorSymbol ctor3 =
-                    SymbolTable.constructorFor(cs.members(), ne.arguments().size());
+                    SymbolTable.constructorFor(cs.members(), ne.arguments().size(), argTypes3);
             if (ctor3 != null) {
                 sa.putResolvedConstructor(ne, ctor3);
                 // #323: a RESOLUCAO era so por aridade; o tipo dos
@@ -57,10 +63,6 @@ final class SemNewExprTyper {
                 // → VerifyError no load (R6/Q7: nunca silencioso).
                 // Overload-aware: irmao de mesma aridade que casa
                 // (isAssignable) passa — mesmo predicado do emit.
-                List<Type> argTypes3 = new ArrayList<>();
-                for (ExpressionNode arg : ne.arguments()) {
-                    argTypes3.add(SemExpressionTyper.inferType(sa, arg, scope));
-                }
                 TypeChecker.checkCtorArgTypes(sa, ne, cs.members(), ne.typeName(),
                         argTypes3);
             } else if (sa.diagnostics() != null) {
@@ -69,7 +71,7 @@ final class SemNewExprTyper {
                     sa.diagnostics().error(ne,
                             "no constructor of '" + ne.typeName() + "' with "
                                     + ne.arguments().size() + " argument(s) (expected "
-                                    + c.parameterTypes().size() + ")",
+                                    + SymbolTable.describeExpectedConstructorArity(c) + ")",
                             "SEM023");
                 } else if (anyInit instanceof SymbolTable.ConstructorSet set
                         && !set.constructors().isEmpty()) {

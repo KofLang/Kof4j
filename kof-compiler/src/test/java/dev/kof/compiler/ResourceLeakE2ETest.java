@@ -61,6 +61,17 @@ class ResourceLeakE2ETest {
             }
             """;
 
+    private static final String PASSED_AS_ARG_STATEMENT_ESCAPES = """
+            Void consume(kof.web.App a) {
+                a.close()
+            }
+            main() {
+                var app = web.app()
+                consume(app)
+                println("up")
+            }
+            """;
+
     private final CompilerDriver driver = new CompilerDriver();
 
     private Path write(Path tmp, String dir, String source) throws IOException {
@@ -125,6 +136,16 @@ class ResourceLeakE2ETest {
         assertTrue(r.success(), "JVM build");
         assertFalse(r.diagnostics().getDiagnostics().toString().contains("MEM"),
                 "the alias may close it elsewhere — never a false positive: "
+                        + r.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void passedAsArgumentInStatementPositionSilencesTheWarning(@TempDir Path tmp) throws IOException {
+        Path src = write(tmp, "mem014-arg-stmt", PASSED_AS_ARG_STATEMENT_ESCAPES);
+        CompilationResult r = driver.compile(src, tmp.resolve("mem014-arg-stmt-classes"), Target.JVM);
+        assertTrue(r.success(), "JVM build");
+        assertFalse(r.diagnostics().getDiagnostics().toString().contains("MEM"),
+                "handed to another function in statement position — never a false positive: "
                         + r.diagnostics().getDiagnostics());
     }
 }

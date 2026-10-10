@@ -199,6 +199,15 @@ class StdCatalogSignaturesTest {
     }
 
     @Test
+    void ormPageCatalogDocumentsLimitBeforeOffset() {
+        // P0/pagination (28/09): the LSP catalog said (offset, limit) but
+        // kof_orm_page binds (limit, offset) (JvmOrmRuntime.java:450) — the
+        // latent trap is corrected here and locked against regression.
+        assertEquals(List.of("page(String entity, Object limit, Object offset) -> List"),
+                StdCatalog.signaturesOf("orm", "page"), "ordem limit,offset no catalogo");
+    }
+
+    @Test
     void fatiaFiveTablesBindAgainstRealDispatchers() {
         Type L = Type.UnknownType.UNKNOWN; // gates de orm/mq sao de ARGC
         assertNotNull(KofOrm.staticCall("save", List.of(S, L), false, "User"), "orm.save");

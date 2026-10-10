@@ -2,7 +2,7 @@
 
 # 30 — Contribuindo
 
-> **Kof 0.5.0-beta — 20 set 2026 — 3225 testes — targets jvm/native/native.risc/native.arm/js/kofc**
+> **Estado atual, contagens de testes e a branch ativa estão catalogados em `docs/status.md` / `docs/backend-parity.md` — este arquivo não duplica esses dados.**
 
 ## Estrutura do repositório
 
@@ -151,7 +151,7 @@ Sempre que uma feature mudar:
 
 ## Estado atual do projeto
 
-O projeto está em 0.5.0-beta (3225 testes), funcional:
+O estado atual do projeto está catalogado em `docs/status.md`.
 
 **Funciona hoje:**
 - Frontend completo: lexer, parser, `SemanticAnalyzer` (type checking + nullability `String?`)

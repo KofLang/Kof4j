@@ -1,0 +1,272 @@
+package image
+
+import image.Avif
+import image.AvifFrame
+import image.AvifItems
+import image.AvifSeq
+
+record AvifTileGroup(Int tgStart, Int tgEnd, Int tileCount,
+                     List<Int> tileSizes, Int lastTileSize, Int totalBytes,
+                     List<Int> tileOffsets)
+
+List<AvifTileGroup> readAvifTileGroups(String path) {
+    var bytes = File(path).readRange(0, 65536)
+    var md = avifMetadata(bytes)
+    return avifItemTileGroups(avifItemBytes(bytes, md.primaryId))
+}
+
+// slice 2n: the tile PAYLOAD bytes, in tile order. Each tile's size comes
+// from the 5.11.1 size table (the last from the remaining payload), and its
+// start offset is the interleaved 6.10.1 position recorded by the walk. This
+// is the byte range the AV1 coefficient decoder consumes; the loop filter and
+// quantization ride the decode slices. The item bytes are the caller's
+// (`avifItemBytes`), so no file is re-read.
+Int[] avifTilePayload(Int[] item, AvifTileGroup g, Int i) {
+    if (i < 0 || i >= g.tileCount) {
+        throw "IMAGE: avif tile index out of range"
+    }
+    var size = g.lastTileSize
+    if (i + 1 < g.tileCount) {
+        size = g.tileSizes.get(i)
+    }
+    var at = g.tileOffsets.get(i)
+    if (at < 0 || at + size > item.length) {
+        throw "IMAGE: avif tile payload beyond item"
+    }
+    var out = new Int[size]
+    var k = 0
+    while (k < size) {
+        out[k] = item[at + k]
+        k = k + 1
+    }
+    return out
+}
+
+// all tile payloads of the item's frame, flattened in tile order across its
+// groups.
+List<Int[]> avifItemTilePayloads(Int[] item) {
+    var groups = avifItemTileGroups(item)
+    var out = listOf<Int[]>()
+    for (var g in groups) {
+        var i = 0
+        while (i < g.tileCount) {
+            out.add(avifTilePayload(item, g, i))
+            i = i + 1
+        }
+    }
+    return out
+}
+
+List<Int[]> readAvifTilePayloads(String path) {
+    var bytes = File(path).readRange(0, 65536)
+    var md = avifMetadata(bytes)
+    return avifItemTilePayloads(avifItemBytes(bytes, md.primaryId))
+}
+
+// kof.image — AV1 tile_group_obu() header prefix walk, slice 2f/2m/2n of the
+// AVIF front (plan §34). AV1 spec 5.11.1 + 6.10.1 read on the dev host: the
+// range flag, tg_start/tg_end (f(tileBits)), byte_alignment(), and the
+// le(TileSizeBytes) per-tile size table with the last tile taking the
+// remaining payload bytes. Groups ride an OBU_FRAME (6, ONE inline group
+// after the full byte-aligned uncompressed_header) or sibling OBU_TILE_GROUP
+// (4) payloads after an OBU_FRAME_HEADER (3). Slice 2n exposes each tile's
+// PAYLOAD bytes at its exact interleaved offset (`avifTilePayload`), the byte
+// range the coefficient decoder consumes; the loop filter, quantization and
+// coefficients themselves ride the decode slices, and `Avif.kf` policy keeps
+// `decodeRaster` refusing AVIF. Conformance refusals (named, never silent):
+// range flag inside an OBU_FRAME, full range with the flag set, inverted or
+// out-of-order tg ranges, a last group that does not end at NumTiles-1,
+// OBU_REDUNDANT_FRAME_HEADER (7), OBU_TILE_LIST (8), and truncation anywhere.
+
+// slice 2f/2m: tile_group_obu() header prefix facts for the item's frame
+// (AV1 5.11.1). OBU_FRAME_HEADER (3) is followed by sibling OBU_TILE_GROUP
+// (4) payloads whose sizes this walk enumerates. An OBU_FRAME (6) places
+// its single inline group AFTER the FULL uncompressed_header
+// (quantization, segmentation, delta-q/lf, loop-filter, cdef, restoration
+// and tx-mode syntax sit between tile_info and the byte alignment); the
+// header tail walk (`AvifFrame.frameTailWalk`) yields that aligned byte
+// offset, so the inline group is located exactly, never guessed. Tile
+// payloads are skipped by size; 7/8 (redundant header, tile list) are named
+// refusals. Conformance (6.10.1): tg_start MUST equal the running tile
+// count, the last group MUST end at NumTiles-1, and a full range with the
+// flag set is refused.
+List<AvifTileGroup> avifItemTileGroups(Int[] item) {
+    var seq = AvifSeqHeader(0, false, false, 0, 0, false, false, false, 8, 0,
+                            false, false, false, false, false, false, 2, 2, 0, 0, 0, 0, 0,
+                            false, false)
+    var haveSeq = false
+    var groups = listOf<AvifTileGroup>()
+    var totalTileNum = 0
+    var lastTgEnd = 0
+    var frame = avifFrameSentinel()
+    var haveFrame = false
+    var pos = 0
+    var n = item.length
+    while (pos < n) {
+        var head = u8(item, pos)
+        if ((head >> 7) != 0) {
+            throw "IMAGE: avif item obu forbidden bits"
+        }
+        var type = (head >> 3) & 15
+        var ext = (head >> 2) & 1
+        if ((head & 1) != 0) {
+            throw "IMAGE: avif item obu reserved bit set"
+        }
+        if (((head >> 1) & 1) != 1) {
+            throw "IMAGE: avif item obu missing size field"
+        }
+        var p = pos + 1 + ext
+        if (p >= n) {
+            throw "IMAGE: avif obu truncated"
+        }
+        var size = 0
+        var mult = 1
+        var loop = 0
+        var sized = false
+        while (loop < 8) {
+            var x = u8(item, p)
+            p = p + 1
+            size = size + (x & 127) * mult
+            mult = mult * 128
+            if ((x & 128) == 0) {
+                sized = true
+                loop = 8
+            }
+            loop = loop + 1
+        }
+        if (!sized) {
+            throw "IMAGE: avif obu size too long"
+        }
+        var limit = p + size
+        if (limit > n) {
+            throw "IMAGE: avif obu truncated"
+        }
+        if (type == 1) {
+            if (!haveSeq) {
+                seq = seqWalk(item, p, limit)
+                haveSeq = true
+            }
+        } else if (type == 3 || type == 6) {
+            if (!haveSeq) {
+                throw "IMAGE: avif item has no sequence header"
+            }
+            frame = frameWalk(item, p, limit, seq)
+            haveFrame = true
+            if (type == 6) {
+                // OBU_FRAME carries ONE inline tile group after the
+                // uncompressed_header + byte_alignment (5.11.1 / 6.11):
+                // frame.headerBytes is that aligned header size.
+                var g = tileGroupWalk(item, p + frame.headerBytes, limit, frame,
+                                      totalTileNum)
+                groups.add(g)
+                totalTileNum = totalTileNum + 1 + g.tgEnd - g.tgStart
+                lastTgEnd = g.tgEnd
+            }
+        } else if (type == 4) {
+            if (!haveFrame) {
+                throw "IMAGE: avif tile group without frame header"
+            }
+            var g = tileGroupWalk(item, p, limit, frame, totalTileNum)
+            groups.add(g)
+            totalTileNum = totalTileNum + 1 + g.tgEnd - g.tgStart
+            lastTgEnd = g.tgEnd
+        } else if (type == 7) {
+            throw "IMAGE: avif redundant frame header not covered"
+        } else if (type == 8) {
+            throw "IMAGE: avif tile list obu not covered"
+        }
+        pos = limit
+    }
+    if (!haveFrame) {
+        throw "IMAGE: avif item has no frame header"
+    }
+    if (groups.length == 0) {
+        throw "IMAGE: avif frame has no tile group"
+    }
+    if (lastTgEnd != frame.tileColumns * frame.tileRows - 1) {
+        throw "IMAGE: avif tile group end incomplete"
+    }
+    return groups
+}
+
+// tile_group_obu() header prefix per 5.11.1: the range flag when NumTiles
+// > 1, tg_start/tg_end (f(tileBits)) when set, byte_alignment() (zero bits
+// to the next byte), then le(TileSizeBytes) per non-last tile — the size
+// field is INTERLEAVED with the tile bytes (6.10.1: `sz -= tileSize +
+// TileSizeBytes`), so each tile's data is skipped before the next size field
+// — and the last tile takes the remaining payload bytes. NumTiles == 1 reads
+// NOTHING before the tile bytes (the spec guards the flag). Truncation
+// anywhere is refused.
+AvifTileGroup tileGroupWalk(Int[] b, Int p0, Int limit, AvifFrameHeader frame,
+                            Int totalTileNum) {
+    var numTiles = frame.tileColumns * frame.tileRows
+    var bits = p0 * 8
+    var tgStart = 0
+    var tgEnd = numTiles - 1
+    if (numTiles > 1) {
+        if (seqRead(b, bits, 1) == 1) {
+            bits = bits + 1
+            tgStart = seqRead(b, bits, frame.tileBits)
+            bits = bits + frame.tileBits
+            tgEnd = seqRead(b, bits, frame.tileBits)
+            bits = bits + frame.tileBits
+            if (tgStart == 0 && tgEnd == numTiles - 1) {
+                throw "IMAGE: avif tile group full range flag set"
+            }
+        } else {
+            bits = bits + 1
+        }
+    }
+    if (tgEnd < tgStart) {
+        throw "IMAGE: avif tile group range invalid"
+    }
+    if (tgStart != totalTileNum) {
+        throw "IMAGE: avif tile group order invalid"
+    }
+    while ((bits & 7) != 0) {
+        bits = bits + 1
+    }
+    if (bits > limit * 8) {
+        throw "IMAGE: truncated avif tile group"
+    }
+    var p = bits / 8
+    var tsb = frame.tileSizeBytes
+    var count = tgEnd + 1 - tgStart
+    var sizes = listOf<Int>()
+    var offsets = listOf<Int>()
+    var total = 0
+    var i = 0
+    while (i + 1 < count) {
+        if (p + tsb > limit) {
+            throw "IMAGE: truncated avif tile group"
+        }
+        var v = 0
+        var k = 0
+        while (k < tsb) {
+            v = (v << 8) | u8(b, p)
+            p = p + 1
+            k = k + 1
+        }
+        var size = v + 1
+        offsets.add(p)
+        p = p + size
+        if (p > limit) {
+            throw "IMAGE: truncated avif tile group"
+        }
+        sizes.add(size)
+        total = total + size
+        i = i + 1
+    }
+    var last = limit - p
+    if (last < 0) {
+        throw "IMAGE: truncated avif tile group"
+    }
+    offsets.add(p)
+    return AvifTileGroup(tgStart, tgEnd, count, sizes, last, total + last, offsets)
+}
+
+AvifFrameHeader avifFrameSentinel() {
+    return AvifFrameHeader(0, false, false, false, 0, 0, false, 0, 0, false,
+                           false, 0, 0, 0, 0, 0, 0, 0, 0)
+}
+

@@ -1,0 +1,104 @@
+package image
+
+// kof.image — VP8 (lossy WebP) boolean range decoder.
+//
+// `Vp8Bool` is the entropy decoder shared by every VP8 partition
+// (RFC 6386 §7.3): it reads one bool at a time, given the probability
+// `prob/256` of that bool being zero. `literal(n)` reads an `n`-bit unsigned
+// value at probability 1/2. Pure Kof, deterministic on every target — the
+// foundation of the pure-Kof VP8 lossy decoder (`D-WEBP-LOSSY-PURE-KOF`).
+//
+// All arithmetic stays within 17 bits (`value < 2^17`, `range <= 255`), so a
+// 32-bit `Int` is exact on every backend.
+//
+//   var d = Vp8Bool(partition)
+//   var bit = d.bit(128)
+//   var n = d.literal(4)
+
+class Vp8Bool {
+    Int[] data
+    Int pos
+    Int range
+    Int value
+    Int bitCount
+
+    constructor(Int[] data) {
+        this.data = data
+        this.pos = 2
+        this.range = 255
+        this.bitCount = 0
+        this.value = (byteAt(data, 0) << 8) | byteAt(data, 1)
+    }
+
+    // Reads one bool whose probability of being zero is `prob/256`
+    // (`1 <= prob <= 255`). Returns 0 or 1.
+    Int bit(Int prob) {
+        var split = 1 + (((this.range - 1) * prob) >> 8)
+        var splitHigh = split << 8
+        var ret = 0
+        if (this.value >= splitHigh) {
+            ret = 1
+            this.range = this.range - split
+            this.value = this.value - splitHigh
+        } else {
+            this.range = split
+        }
+        while (this.range < 128) {
+            this.value = this.value << 1
+            this.range = this.range << 1
+            this.bitCount = this.bitCount + 1
+            if (this.bitCount == 8) {
+                this.bitCount = 0
+                this.value = this.value | nextByte()
+            }
+        }
+        return ret
+    }
+
+    // Reads an `n`-bit unsigned value, high bit first, each bit at
+    // probability 1/2 (RFC 6386 §7.3 `read_literal`).
+    Int literal(Int n) {
+        var v = 0
+        var i = 0
+        while (i < n) {
+            v = (v << 1) + bit(128)
+            i = i + 1
+        }
+        return v
+    }
+
+    // Bytes consumed so far (diagnostic: the frame header must land exactly
+    // inside its partition).
+    Int bytePosition() {
+        return this.pos
+    }
+
+    // Reads a flag at probability 1/2; if set, an `n`-bit magnitude followed
+    // by a sign bit (RFC 6386 `bool_maybe_get_int`). Zero when the flag is 0.
+    Int signedOrZero(Int n) {
+        if (bit(128) == 0) {
+            return 0
+        }
+        var z = literal(n)
+        if (bit(128) == 1) {
+            return -z
+        }
+        return z
+    }
+
+    Int nextByte() {
+        if (this.pos >= this.data.length) {
+            throw "IMAGE: truncated VP8 partition"
+        }
+        var b = this.data[this.pos] & 255
+        this.pos = this.pos + 1
+        return b
+    }
+}
+
+Int byteAt(Int[] data, Int i) {
+    if (i >= data.length) {
+        throw "IMAGE: truncated VP8 partition"
+    }
+    return data[i] & 255
+}

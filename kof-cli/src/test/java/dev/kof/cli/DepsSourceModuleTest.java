@@ -14,10 +14,10 @@ import java.util.Map;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 
-import static dev.kof.cli.DepsRegistryTest.CliResult;
-import static dev.kof.cli.DepsRegistryTest.envOf;
-import static dev.kof.cli.DepsRegistryTest.runWithEnv;
-import static dev.kof.cli.DepsRegistryTest.serveFakeRegistry;
+import static dev.kof.cli.DepsRegistrySupport.CliResult;
+import static dev.kof.cli.DepsRegistrySupport.envOf;
+import static dev.kof.cli.DepsRegistrySupport.runWithEnv;
+import static dev.kof.cli.DepsRegistrySupport.serveFakeRegistry;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**

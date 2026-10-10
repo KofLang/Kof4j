@@ -1,0 +1,79 @@
+package interop
+
+import interop.ConnectorCatalogue
+import interop.ConnectorManifest
+
+// kof.interop — Interop Core facade (fatia 13 of the Kof Connector Ecosystem plan,
+// `D-CONNECTORS-GO`). It composes the pieces the plan §2 calls "the unifying
+// layer": given a directory of connector manifests, it enumerates them
+// (`ConnectorCatalogue`), validates each one (`ConnectorManifest.validate`,
+// covering capabilities/ownership/types/SPI) and produces a deterministic audit
+// report — exactly what a `kof connector` listing/audit would print.
+//
+//   var core = InteropCore("connectors")
+//   core.connectorCount()      // 2
+//   core.names()               // sorted List<String>
+//   core.auditLines()          // ["kof-bad ... INVALID: CONNECTOR: ...", "kof-cc ... valid"]
+//   core.audit()               // the same, joined by newline
+//
+// Honest by construction (R6): an invalid connector is reported as INVALID with
+// its exact diagnostic — never hidden; a malformed manifest throws from
+// `ConnectorManifest`. Built on `kof.io` `Directory`; JS inherits the `IOJS001`
+// gap. No compiler change.
+
+class InteropCore {
+    ConnectorCatalogue catalogue
+
+    constructor(String directory) {
+        this.catalogue = ConnectorCatalogue(directory)
+    }
+
+    Int connectorCount() {
+        return this.catalogue.count()
+    }
+
+    // Connector names, deterministic (sorted) so reports are stable.
+    List<String> names() {
+        return this.catalogue.names().sorted()
+    }
+
+    // One line per connector: "<name> <language> <abi> <runtime> valid|INVALID: <why>".
+    List<String> auditLines() {
+        var out = new List<String>()
+        var names = names()
+        var i = 0
+        while (i < names.size()) {
+            var name = names.get(i)
+            var m = this.catalogue.find(name)
+            if (m != null) {
+                out.add(line(m))
+            }
+            i = i + 1
+        }
+        return out
+    }
+
+    String audit() {
+        var lines = auditLines()
+        if (lines.size() == 0) {
+            return ""
+        }
+        var out = lines.get(0)
+        var i = 1
+        while (i < lines.size()) {
+            out = out + "\n" + lines.get(i)
+            i = i + 1
+        }
+        return out
+    }
+
+    String line(ConnectorManifest m) {
+        var head = m.name() + " " + m.language() + " " + m.abi() + " " + m.runtime() + " "
+        try {
+            m.validate()
+            return head + "valid"
+        } catch (String e) {
+            return head + "INVALID: " + e
+        }
+    }
+}

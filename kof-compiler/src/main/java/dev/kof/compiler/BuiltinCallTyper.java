@@ -124,10 +124,11 @@ public final class BuiltinCallTyper {
             // #340 (SEM071): interface não é instanciável (mesma face de `A()`).
             ClassShapeChecks.checkInstantiable(sa, mc.methodName());
             SymbolTable.ConstructorSymbol ctor = SymbolTable.constructorFor(
-                    ctorClass.members(), mc.arguments().size());
+                    ctorClass.members(), mc.arguments().size(), ctorArgTypes);
             if (ctor != null) {
+                List<Type> ctorParamTypes = ctor.effectiveParameterTypes(mc.arguments().size());
                 sa.putResolvedMethod(mc, new SymbolTable.MethodSymbol("<init>", mc.methodName(),
-                        ctor.type(), ctor.parameterTypes(), ctor.accessFlags(), SymbolTable.DispatchKind.STATIC));
+                        ctor.type(), ctorParamTypes, ctor.accessFlags(), SymbolTable.DispatchKind.STATIC));
                 // #323: `A("x")` num ctor `(Int)` — resolucao por aridade sem
                 // conferir TIPO inventava <init>(String)V (VerifyError mudo
                 // no load, R6). Sobrecarga com irmao compativel passa (o emit
@@ -317,7 +318,7 @@ public final class BuiltinCallTyper {
             if (localSym != null && localSym.type() instanceof Type.FunctionType lft) {
                 List<Type> argTypes = new ArrayList<>();
                 for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
-                TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes, lft.parameterTypes(), mc.arguments());
+                TypeChecker.checkArgTypes(sa, sa.diagnostics(), mc.methodName(), argTypes, lft.parameterTypes(), mc.arguments());
                 return lft.returnType();
             }
             if (localSym instanceof SymbolTable.LocalVariableSymbol
@@ -342,7 +343,7 @@ public final class BuiltinCallTyper {
                 if (m instanceof SymbolTable.MethodSymbol ms) {
                     List<Type> argTypes = new ArrayList<>();
                     for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
-                    TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes, ms.parameterTypes(), mc.arguments());
+                    TypeChecker.checkArgTypes(sa, sa.diagnostics(), mc.methodName(), argTypes, ms.parameterTypes(), mc.arguments());
                     sa.putResolvedMethod(mc, ms);
                     return ms.returnType();
                 }
@@ -461,10 +462,11 @@ public final class BuiltinCallTyper {
                 ctorArgTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
             }
             SymbolTable.ConstructorSymbol ctor = SymbolTable.constructorFor(
-                    ctorClass.members(), mc.arguments().size());
+                    ctorClass.members(), mc.arguments().size(), ctorArgTypes);
             if (ctor != null) {
+                List<Type> ctorParamTypes = ctor.effectiveParameterTypes(mc.arguments().size());
                 sa.putResolvedMethod(mc, new SymbolTable.MethodSymbol("<init>", mc.methodName(),
-                        ctor.type(), ctor.parameterTypes(), ctor.accessFlags(), SymbolTable.DispatchKind.STATIC));
+                        ctor.type(), ctorParamTypes, ctor.accessFlags(), SymbolTable.DispatchKind.STATIC));
                 // #323: face IMPLICITA da construcao (`A("x")` sem `new`) —
                 // mesma regra da face NewExpr no SemExpressionTyper:
                 // resolucao por aridade + conferencia de TIPO dos args,
@@ -528,7 +530,7 @@ public final class BuiltinCallTyper {
             sa.diagnostics().error(mc,
                     "no constructor of '" + mc.methodName() + "' with "
                             + mc.arguments().size() + " argument(s) (expected "
-                            + c.parameterTypes().size() + ")",
+                                    + SymbolTable.describeExpectedConstructorArity(c) + ")",
                     "SEM023");
         } else if (anyInit instanceof SymbolTable.ConstructorSet set
                 && !set.constructors().isEmpty()) {

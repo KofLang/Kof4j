@@ -1,0 +1,83 @@
+package kfvm.installer
+
+import kof.io
+import kof.uuid
+import kfvm.system
+import kfvm.platform
+import kfvm.github
+import kfvm.store
+
+class Installer {
+    GitHubClient github
+    Store store
+    kfvm.platform.FileSystem fs
+    Logger logger
+
+    constructor(GitHubClient github, Store store, kfvm.platform.FileSystem fs, Logger logger) {
+        this.github = github
+        this.store = store
+        this.fs = fs
+        this.logger = logger
+    }
+
+    void install(RemoteRelease release) {
+        var staging = store.root() + "/.kfvm-tmp-" + uuid.v4()
+        Directory(staging).createDirectories()
+
+        try {
+            var archive = download(release, staging)
+            verify(staging, archive)
+            var extracted = extract(staging, archive)
+            var target = store.dirOf(release.version())
+            if (!File(extracted).moveTo(target)) {
+                throw "could not move " + extracted + " to " + target
+            }
+        } finally {
+            fs.deleteTree(staging)
+        }
+    }
+
+    String download(RemoteRelease release, String staging) {
+        var archive = release.archive()
+        if (archive == "")
+            throw "release " + release.name() + " has no archive to download"
+
+        logger.info("downloading " + archive + " (" + release.sizeInMb() + " MB) ...")
+        fetch(github.downloadUrl(release, archive), staging + "/" + archive)
+        fetch(github.downloadUrl(release, "SHA256SUMS"), staging + "/SHA256SUMS")
+
+        return archive
+    }
+
+    void fetch(String url, String destination) {
+        Shell.run("curl", listOf("-fsSL", "--retry", "3", "-o", destination, url))
+    }
+
+    void verify(String staging, String archive) {
+        logger.info("verifying checksum ...")
+        var expected = Checksums.of(File(staging + "/SHA256SUMS").readText(), archive)
+        if (expected == "")
+            throw "checksum for " + archive + " not found"
+        if (fs.sha256(staging + "/" + archive) != expected)
+            throw "checksum mismatch for " + archive
+    }
+
+    String extract(String staging, String archive) {
+        var target = staging + "/x"
+        Directory(target).createDirectories()
+        var flags = if (archive.endsWith(".zip")) "-xf" else "-xzf"
+        Shell.run("tar", listOf(flags, staging + "/" + archive, "-C", target))
+
+        var root = distributionRoot(target)
+        if (!File(root + "/bin/kof").exists())
+            throw "archive does not contain bin/kof"
+        return root
+    }
+
+    String distributionRoot(String dir) {
+        var entries = Directory(dir).list()
+        if (entries.size == 1 && File(dir + "/" + entries.get(0)).isDirectory())
+            return dir + "/" + entries.get(0)
+        return dir
+    }
+}

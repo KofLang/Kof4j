@@ -64,7 +64,7 @@ zone via FFI.
 | 6.2 | SIMD/vectorization (Native — research) | 🔵 | native lane | 1.2 |
 | 6.3 | GPU — Vulkan via FFI (exists); CUDA/OpenCL via FFI | 🟡 | — | Vulkan compute exists; CUDA/OpenCL pending |
 | 6.4 | Data-parallel (research) | 🔵 | — | 6.2 |
-| 6.5 | Scoped resources (GPU/files/connections) | 🟡 | compiler lane | `future/scoped-resources-plan.md`; `using` syntax gated by bump ⛔ — **D5-B ✅ 19/09**: no new syntax — `close()` + `try/finally` pattern |
+| 6.5 | Scoped resources (GPU/files/connections) | 🟡 | compiler lane | `docs/scoped-resources-plan.md` (CONCLUDED 28/09 — `using (x = init, closer) { }` landed, `D-SCOPED-RESOURCES-GO`); **D5-B ✅ 19/09**: no new syntax — `close()` + `try/finally` pattern |
 | 6.6 | Distributed (FFI to MPI + Kof orchestration) | 🔵 | — | R3, 2.1 |
 | 6.7 | Tooling: HPC profiling | 🔵 | — | 6.1 |
 

@@ -7,6 +7,7 @@ import dev.kof.compiler.DiagnosticCollector;
 import dev.kof.compiler.ExpressionNode;
 import dev.kof.compiler.ExpressionStmt;
 import dev.kof.compiler.ExternalFunctionNode;
+import dev.kof.compiler.ForeignModuleNode;
 import dev.kof.compiler.FormalParameterNode;
 import dev.kof.compiler.FunctionDeclarationNode;
 import dev.kof.compiler.InfraDeclarationNode;
@@ -46,6 +47,12 @@ public class Parser {
         this.ctx = new ParseContext(tokens, diagnostics, file);
     }
 
+    /** D-PORTUKOF (07/10): parser com superfície linguística (PortuKof). */
+    public Parser(List<Token> tokens, DiagnosticCollector diagnostics, String file,
+                  dev.kof.compiler.lang.LanguageProfile profile) {
+        this.ctx = new ParseContext(tokens, diagnostics, file, profile);
+    }
+
     public CompilationUnitNode parse() {
         SourcePosition pos0 = ctx.pos();
         String packageName = parsePackage(ctx);
@@ -57,12 +64,12 @@ public class Parser {
                 rejectFunctionKeyword(ctx);
                 continue;
             }
-            if (ctx.check(TokenType.IDENTIFIER) && "test".equals(ctx.peek().value()) && ctx.checkNext(TokenType.STRING_LITERAL)) {
+            if (ctx.wordIs("test") && ctx.checkNext(TokenType.STRING_LITERAL)) {
                 declarations.add(parseTestDeclaration(ctx));
-            } else if (ctx.check(TokenType.IDENTIFIER) && "application".equals(ctx.peek().value())
+            } else if (ctx.wordIs("application")
                     && ctx.checkNext(TokenType.LBRACE)) {
                 declarations.add(parseApplicationDeclaration(ctx));
-            } else if (ctx.check(TokenType.IDENTIFIER) && "infra".equals(ctx.peek().value())
+            } else if (ctx.wordIs("infra")
                     && ctx.checkNext(TokenType.STRING_LITERAL)) {
                 declarations.add(parseInfraDeclaration(ctx));
             } else if (!annos.isEmpty()
@@ -70,6 +77,11 @@ public class Parser {
                 declarations.add(TypeDeclarations.parseTypeDeclaration(ctx, annos));
             } else if (ctx.check(TokenType.EXTERN)) {
                 declarations.add(parseExternDeclaration(ctx));
+            } else if (ctx.foreignModuleAhead()) {
+                // Connector ecosystem §9.16 slice A (`D-CONNECTORS`): the
+                // `foreign module` block is sugar over the FFI binding — it
+                // desugars to plain `extern` declarations sharing one library.
+                declarations.addAll(parseForeignModule(ctx));
             } else if (ctx.sealedModifierAhead()) {
                 // X5.1 (D-X5-SURFACE): `sealed class/record/interface` — keyword
                 // contextual; sem este ramo o IDENTIFIER `sealed` cairia no ramo
@@ -95,6 +107,9 @@ public class Parser {
         SourcePosition p = ctx.pos();
         ctx.advance(); // consome 'test'
         Token nameToken = ctx.expect(TokenType.STRING_LITERAL, "Expected test name string", "PARSE010");
+        if (nameToken.value().isEmpty()) {
+            ctx.error("test name must not be empty", "PARSE010");
+        }
         java.util.List<String> tags = new java.util.ArrayList<>();
         while (ctx.peek().type() == TokenType.COMMA) {
             ctx.advance();
@@ -238,6 +253,84 @@ public class Parser {
     }
 
     /**
+     * Connector ecosystem (plan §9.16 slice A, {@code D-CONNECTORS}): o bloco
+     *
+     * <pre>
+     * foreign module libm {
+     *     library "/lib/x86_64-linux-gnu/libm.so.6"
+     *     abi c
+     *     ownership borrowed
+     *     extern cos(Double x): Double
+     *     extern sin(Double x): Double
+     * }
+     * </pre>
+     *
+     * agrupa declarações {@code extern} sob uma biblioteca. Não há motor novo:
+     * o parser desdobra o bloco em {@link ExternalFunctionNode} normais (com a
+     * {@code library} do módulo) e devolve essa lista — o binding/ABI segue
+     * exatamente a via FFI existente ({@code CompilerFfiBinding}). O
+     * {@code library} é obrigatório; {@code abi}/{@code ownership} são
+     * validados contra o vocabulário decidido (`D-CONNECTORS`/plano §3.2), com
+     * diagnóstico honesto (R6) em vez de aceitar em silêncio.
+     */
+    static List<AstNode> parseForeignModule(ParseContext ctx) {
+        SourcePosition p = ctx.pos();
+        ctx.advance(); // consome 'foreign'
+        ctx.advance(); // consome 'module'
+        String name = ctx.expectId("Expected foreign module name", "PARSE096");
+        ctx.expect(TokenType.LBRACE, "Expected '{' after foreign module name", "PARSE092");
+        String library = null, abi = null, ownership = null;
+        List<AstNode> externs = new ArrayList<>();
+        while (!ctx.check(TokenType.RBRACE) && !ctx.atEnd()) {
+            if (ctx.check(TokenType.EXTERN)) {
+                externs.add(withLibrary(parseExternDeclaration(ctx), library));
+                continue;
+            }
+            if (ctx.check(TokenType.IDENTIFIER)) {
+                String member = ctx.peek().value();
+                if ("library".equals(member) || "abi".equals(member) || "ownership".equals(member)) {
+                    ctx.advance();
+                    if ("library".equals(member)) {
+                        library = ctx.expect(TokenType.STRING_LITERAL,
+                                "Expected a library string literal after 'library'", "PARSE091").value();
+                    } else {
+                        String value = ctx.expectId("Expected a value after '" + member + "'", "PARSE091");
+                        if ("abi".equals(member)) abi = value;
+                        else ownership = value;
+                    }
+                    ctx.expectSemicolon();
+                    continue;
+                }
+            }
+            ctx.error("Expected 'extern', 'library', 'abi', 'ownership' or '}' in foreign module", "PARSE098");
+            ctx.advance();
+        }
+        ctx.expect(TokenType.RBRACE, "Expected '}' to close foreign module", "PARSE093");
+        if (library == null) {
+            ctx.error("foreign module '" + name + "' must declare a `library \"...\"`", "PARSE097", name);
+        }
+        if (ownership != null && !CONNECTOR_OWNERSHIP.contains(ownership)) {
+            ctx.error("foreign module '" + name + "': unknown ownership '" + ownership
+                    + "' (expected one of " + CONNECTOR_OWNERSHIP + ")", "PARSE099", name, ownership, CONNECTOR_OWNERSHIP);
+        }
+        List<AstNode> out = new ArrayList<>(externs);
+        out.add(new ForeignModuleNode(p, name, library, abi, ownership, List.of()));
+        return out;
+    }
+
+    private static final java.util.Set<String> CONNECTOR_OWNERSHIP = java.util.Set.of(
+            "owned", "borrowed", "shared", "opaque", "immutable", "mutable");
+
+    /**
+     * O {@code extern} do módulo herda a {@code library} do cabeçalho quando
+     * não traz a sua própria (que continua opcional, retrocompat).
+     */
+    private static ExternalFunctionNode withLibrary(ExternalFunctionNode ext, String library) {
+        if (ext.library() != null || library == null) return ext;
+        return new ExternalFunctionNode(ext.position(), library, ext.returnType(), ext.name(), ext.parameters());
+    }
+
+    /**
      * FFI (TIER 2.1): {@code extern name(params): ReturnType;} — formaliza a
      * assinatura de uma função externa em compile-time. Não há corpo: o binding
      * é responsabilidade do runtime por target (JVM/Native); JS emite FFI002.
@@ -277,7 +370,7 @@ public class Parser {
     static void rejectFunctionKeyword(ParseContext ctx) {
         String w = ctx.advance().value();
         ctx.error("'" + w + "' is a reserved word (Kof has no function keyword); "
-                + "declare as 'Type name(...) { }' or 'name(...): Type { }'", "PARSE085");
+                + "declare as 'Type name(...) { }' or 'name(...): Type { }'", "PARSE085", w);
     }
 
     /**

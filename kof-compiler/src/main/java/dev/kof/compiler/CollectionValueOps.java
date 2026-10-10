@@ -29,8 +29,8 @@ final class CollectionValueOps {
         // inteiro como ponteiro); §352: no slot Object TODO primitivo é
         // caixa (o scan dinâmico compara box×box, como o equals do JVM).
         if (!argTypes.isEmpty() && driver.target.isNative() && driver.needsErasureBoxing()
-                && (CollectionCallLowerer.mapBoxablePrim(arg0)
-                        || CollectionCallLowerer.referenceSlotPrim(valueType, arg0))
+                && (CollectionLoweringSupport.mapBoxablePrim(arg0)
+                        || CollectionLoweringSupport.referenceSlotPrim(valueType, arg0))
                 && !ExpressionTyper.boxesOwnBranches(driver, mc.arguments().get(0), locals)) {
             CompilerEmissionHelpers.emitErasureBox(driver, ops, arg0);
         }

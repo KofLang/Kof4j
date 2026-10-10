@@ -1,0 +1,69 @@
+package kfvm.versions
+
+class Versions {
+    static Int compare(String a, String b) {
+        var ca = numericFields(core(a))
+        var cb = numericFields(core(b))
+        var n = if (ca.size > cb.size) ca.size else cb.size
+
+        for (var i = 0; i < n; i++) {
+            var x = if (i < ca.size) ca.get(i) else 0
+            var y = if (i < cb.size) cb.get(i) else 0
+            if (x != y) { return x - y }
+        }
+
+        var sa = a.substring(core(a).length)
+        var sb = b.substring(core(b).length)
+        if (sa == "" && sb.startsWith("-")) { return 1 }
+        if (sb == "" && sa.startsWith("-")) { return -1 }
+
+        return sa.compareTo(sb)
+    }
+
+    static List<String> sortAscending(List<String> versions) {
+        var out: List<String> = listOf()
+
+        for (var v in versions) {
+            var i = 0
+            while (i < out.size && compare(out.get(i), v) <= 0) { i = i + 1 }
+            out.add(v)
+            for (var j = out.size - 1; j > i; j--) {
+                out.set(j, out.get(j - 1))
+            }
+            out.set(i, v)
+        }
+
+        return out
+    }
+
+    static String core(String v) {
+        var end = v.length
+        var dash = v.indexOf("-")
+        var plus = v.indexOf("+")
+
+        if (dash >= 0 && dash < end) end = dash 
+        if (plus >= 0 && plus < end) end = plus 
+
+        return v.substring(0, end)
+    }
+
+    static List<Int> numericFields(String core) {
+        var out: List<Int> = listOf()
+        var rest = core
+        var dot = rest.indexOf(".")
+
+        while (dot >= 0) {
+            out.add(toNumber(rest.substring(0, dot)))
+            rest = rest.substring(dot + 1)
+            dot = rest.indexOf(".")
+        }
+
+        out.add(toNumber(rest))
+        return out
+    }
+
+    static Int toNumber(String s) {
+        if (s == "" || !strings.isNumeric(s)) return 0 
+        return s.toInt()
+    }
+}

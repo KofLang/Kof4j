@@ -49,6 +49,17 @@ public final class CompilerTypes {
          }
          Type viaImports = qualifyViaImports(typeName, currentUnit, external);
          if (viaImports != null) return viaImports;
+        // §632: tipo de FUNÇÃO com componente PONTUADO (`(kof.web.App, String)
+        // -> Void`, `(java.lang.Object, Int) -> Void`). O split de nome
+        // pontuado logo abaixo cortava no PRIMEIRO '.' (lastDot) e devolvia
+        // `ClassType("kof.web", "App, String) -> Void")` — o descritor JVM
+        // saía `L(kof/web/App, String) -> Void;` (classe inexistente →
+        // NoClassDefFoundError no load de `Main`). `Type.of` balanceia os
+        // parênteses e monta a `FunctionType`; a qualificação profunda dos
+        // parâmetros (imports/declarados) roda no chamador via `qualifyDeep`.
+        if (typeName.startsWith("(") && Type.fnTypeArrow(typeName) >= 0) {
+            return Type.of(typeName);
+        }
         // §336: type-ref COM args (`x as List<Int>` em `as`/`instanceof`) chega
         // inteiro aqui desde o fix do parser. `Type.of` ja parseia "Base<Args>"
         // (usado nas decls); a qualificacao de imports so se aplica quando o
@@ -125,6 +136,11 @@ public final class CompilerTypes {
         // §243: a exceção de Kof é String — mas um `class String` do usuário
         // (DECISIONS §4) vence o builtin.
         if ("String".equals(typeName) && !unitDeclaresType(currentUnit, typeName)) return BuiltinTypes.STRING;
+        // D-INTEROP-ERR-TYPE: builtin do idioma — o nome no `catch` precisa
+        // chegar QUALIFICADO (pkg "kof") ao lowerer/typer (mesma forma dos
+        // constates Secret/KeyHandle); via toType o pacote ficaria vazio.
+        Type ioe = KofInteropError.typeByName(typeName);
+        if (ioe != null && !unitDeclaresType(currentUnit, typeName)) return ioe;
         Type t = toType(typeName, currentUnit);
         if (t instanceof Type.ClassType ct && ct.packageName().isEmpty()
                 && JAVA_LANG_THROWABLES.contains(ct.name())) {
@@ -186,6 +202,16 @@ public final class CompilerTypes {
             if (pkg.isEmpty() && !name.contains(".") && !name.contains("<")) {
                 String via = simpleNamePackage(name, unit, sa);
                 if (via != null) pkg = via;
+                // #627-twin (KofShare control/check.kf 02/10): tipo DECLARADO na
+                // própria unidade de um pacote — nem import, nem SymbolTable do
+                // sa (records do arquivo atual não chegam lá) — carrega o pacote
+                // do cabeçalho da unidade. Sem isto, `json.decode<Record>` de um
+                // record empacotado mangelava sem pacote (NoSuchMethodError no
+                // runtime, que define o decoder pelo nome qualificado).
+                if (pkg.isEmpty() && unit != null && unitDeclaresType(unit, name)
+                        && unit.packageName() != null && !unit.packageName().isEmpty()) {
+                    pkg = unit.packageName();
+                }
             }
             // 2b) §179 (D-BACKEND-SEMANTICS #4): tipo kof.ui/kof.media DECLARADO
             // (var/param/campo/retorno) que nada mais resolveu → builtin. Sem
@@ -277,6 +303,14 @@ public final class CompilerTypes {
         Type ui = KofUi.typeByName(name);
         if (ui != null) return ui;
         if ("ImageData".equals(name)) return KofMedia.IMAGE_DATA;
+        Type net = KofNet.typeByName(name);
+        if (net != null) return net;
+        Type sec = KofSecurity.typeByName(name);
+        if (sec != null) return sec;
+        Type ioe = KofInteropError.typeByName(name);
+        if (ioe != null) return ioe;
+        Type proc = KofProcess.typeByName(name);
+        if (proc != null) return proc;
         return BuiltinTypes.declaredCollectionType(name);
     }
 
@@ -344,12 +378,6 @@ public final class CompilerTypes {
             }
         }
         return null;
-    }
-
-    /** Nome JVM da entidade: as classes top-level do programa ficam sem
-     *  pacote (User.class); o Main é Default/Main. */
-    static String classNameFor(String simpleName) {
-        return simpleName;
     }
 
     static Type ownerTypeFromInternal(String internalName, SemanticAnalyzer semanticAnalyzer) {
@@ -488,49 +516,6 @@ public final class CompilerTypes {
         return "Object";
     }
 
-    static Type substituteTypeVariable(String tvName, Type recvType, CompilationUnitNode currentUnit) {
-        if (!(recvType instanceof Type.ClassType ct) || ct.typeArguments().isEmpty()) return null;
-        if (currentUnit != null) {
-            for (AstNode d : currentUnit.declarations()) {
-                // §355/#385: qualquer declaração com type-params é fonte de
-                // substituição — classe, INTERFACE genérica e record. Antes só
-                // ClassDeclarationNode era varrida, e `Wrapper<String>.get()`
-                // (interface) não substituia T → o efetivo saía TypeVariable.
-                List<String> tps = switch (d) {
-                    case ClassDeclarationNode cls when cls.name().equals(ct.name()) -> cls.typeParameters();
-                    case InterfaceDeclarationNode it when it.name().equals(ct.name()) -> it.typeParameters();
-                    case RecordDeclarationNode rc when rc.name().equals(ct.name()) -> rc.typeParameters();
-                    default -> null;
-                };
-                if (tps == null) continue;
-                for (int i = 0; i < tps.size(); i++) {
-                    // §355: a entrada pode carregar bound ("T: Animal") —
-                    // compara pelo NOME limpo, nunca pela crua.
-                    if (i < ct.typeArguments().size()
-                            && TypeParams.name(tps.get(i)).equals(tvName)) {
-                        return ct.typeArguments().get(i);
-                    }
-                }
-            }
-        }
-        return null;
-    }
-
-    /**
-     * §245/#268: tipo de um campo/método cujo tipo declarado é um parâmetro
-     * genérico (`T wrapped`) — substitui o type-variable pelo argumento real do
-     * RECEIVER (`Wrapper<Point>.wrapped` → `Point`). Sem isto o tipo ficava
-     * `TypeVariable(T)`/erased e o próximo acesso (`.x`) emitia owner `?`/`""`
-     * (`NoClassDefFoundError`/`ClassFormatError`). Não muda nada quando o tipo
-     * não é um type-variable ou o receiver não traz argumentos.
-     */
-    static Type substituteTypeVariableIn(Type memberType, Type recvType, CompilationUnitNode currentUnit) {
-        if (memberType instanceof Type.TypeVariable tv) {
-            Type sub = substituteTypeVariable(tv.name(), recvType, currentUnit);
-            if (sub != null) return sub;
-        }
-        return memberType;
-    }
     static Type resolveWithTypeParams(String typeName, List<String> typeParams, CompilationUnitNode currentUnit) {
         Type tv = TypeParams.variable(typeName, typeParams, currentUnit, null);
         if (tv != null) return tv;

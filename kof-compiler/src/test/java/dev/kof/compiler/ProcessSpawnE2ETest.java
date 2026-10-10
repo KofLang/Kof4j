@@ -138,4 +138,49 @@ class ProcessSpawnE2ETest {
             }
             """, String.valueOf(Integer.MIN_VALUE), "alive", "dead", "-1");
     }
+
+    /**
+     * #753 (04/10): a bare {@code Handle} DECLARED return type was accepted by
+     * the unresolved-type guard (it is a builtin simple name, §249) but never
+     * mapped to {@code kof.concurrent.Handle} (unlike {@code List}/{@code
+     * Channel}), so the JVM emitted {@code LHandle;} and the class died at LOAD
+     * with {@code NoClassDefFoundError: Handle}. A method may now return the
+     * concurrency handle a {@code spawn} produces, exactly like bare {@code
+     * List} returns a {@code listOf}.
+     */
+    @Test
+    void bareHandleDeclaredReturnTypeIsNameableAndRuns() throws Exception {
+        assertJvmJsParity("""
+            Handle start() {
+                return spawn { 7 }
+            }
+
+            main() {
+                println("ok " + await start())
+            }
+            """, "ok 7");
+    }
+
+    /**
+     * #753 (04/10): the same bare-{@code Handle} gap on a DECLARED PARAMETER
+     * (a distinct descriptor path from the return type). `declaredCollectionType`
+     * did not pin `Handle`, so the parameter erased to `LHandle;` and the class
+     * failed at LOAD with {@code NoClassDefFoundError: Handle}.
+     */
+    @Test
+    void bareHandleDeclaredParameterTypeIsNameableAndRuns() throws Exception {
+        assertJvmJsParity("""
+            Handle start() {
+                return spawn { 7 }
+            }
+
+            Int use(Handle h) {
+                return await h
+            }
+
+            main() {
+                println("ok " + use(start()))
+            }
+            """, "ok 7");
+    }
 }

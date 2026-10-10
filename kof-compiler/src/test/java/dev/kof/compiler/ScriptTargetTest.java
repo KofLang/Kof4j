@@ -59,6 +59,31 @@ class ScriptTargetTest {
         assertTrue(ir.stdout().contains("42"), "stdout: " + ir.stdout());
     }
 
+    // #667 / D-SCRIPT-EXTERN-REFUSE (unidade 2 memory-safety, decisão 28/09):
+    // o alvo Script não tem runtime FFI. Antes compilava limpo (frontend rodava
+    // com target=JVM + interpreting) e morria cru em runtime com
+    // `KofRuntime.kof_ffi/4`; agora recusa na LINHA DA DECLARAÇÃO com FFI001.
+    @Test
+    void externIsRefusedOnScriptFfi001(@TempDir Path tmp) throws IOException {
+        Path main = write(tmp, "Main.kf", """
+                extern "libm.so.6" sqrt(Double x): Double
+
+                main() {
+                    println(sqrt(9.0))
+                }
+                """);
+        KofInterpretException ex = assertThrows(KofInterpretException.class,
+                () -> driver.interpret(List.of(main), tmp, new String[0]),
+                "extern no Script deve ser recusado no compile-time, nunca morrer cru em runtime");
+        List<Diagnostic> errs = ex.errorDiagnostics();
+        assertTrue(errs.stream().anyMatch(d -> "FFI001".equals(d.code())),
+                "esperava FFI001, foi: " + errs);
+        assertTrue(errs.stream().anyMatch(d -> d.message().contains("script")),
+                "a mensagem deve nomear o alvo real (script): " + errs);
+        assertTrue(errs.stream().anyMatch(d -> d.line() == 1),
+                "o diagnóstico deve apontar a LINHA DA DECLARAÇÃO (§350): " + errs);
+    }
+
     @Test
     void interpretSeesProjectRootImports(@TempDir Path tmp) throws IOException {
         // integração F1+F2: kof.toml na raiz, import cross-directory,

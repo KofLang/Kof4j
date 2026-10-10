@@ -173,10 +173,15 @@ public final class NativeAarch64Translator {
                     + ", " + suf + args[1].trim().substring(1));
         }
         if (mn.startsWith("feq.") || mn.startsWith("flt.") || mn.startsWith("fle.") || mn.startsWith("fgt.") || mn.startsWith("fge.")) {
+            // §622: após `fcmp`, os aliases ARM `lt`(N!=V) e `le`(Z=1 || N!=V)
+            // NÃO são "quiet": com NaN (N=0,V=1) dão TRUE. O par ordenado
+            // correto é `mi`(N==1) para flt e `ls`(C==0 || Z==1) para fle —
+            // ambos falsos em NaN, idênticos ao riscv `flt.d`/`fle.d` e ao x86.
+            // eq/gt/ge já eram ordenados corretos.
             String condMap = switch (mn.substring(1, 4)) {
                 case "eq." -> "eq";
-                case "lt." -> "lt";
-                case "le." -> "le";
+                case "lt." -> "mi";
+                case "le." -> "ls";
                 case "gt." -> "gt";
                 case "ge." -> "ge";
                 default -> "eq";
@@ -338,10 +343,15 @@ public final class NativeAarch64Translator {
             return List.of(indent + "ldadd " + rs2 + ", " + rd + ", [" + R.apply(base) + "]");
         }
         if (mn.equals("amoswap.w")) {
-            // amoswap.w rd, rs2, (rs1)  ->  swpal rs2, rd, [rs1] (spinlock)
+            // amoswap.w rd, rs2, (rs1)  ->  swpal ws, wt, [xn] (spinlock)
+            // §602: a largura importa — o lock é `.word` (4 bytes) e o riscv
+            // `amoswap.w` é 32-bit. A tradução anterior usava registradores X
+            // (`swpal x`) = 64-bit, sobrescrevendo os 4 bytes vizinhos do lock
+            // e retornando um valor de 64 bits; na aarch64 isso corrompia o
+            // allocator sob GC (segfault após ~26 blocos). W aqui = W.
             String[] args = rest.split(",");
-            String rd = R.apply(args[0].trim());
-            String rs2 = R.apply(args[1].trim());
+            String rd = R.apply(args[0].trim()).replace("x", "w");
+            String rs2 = R.apply(args[1].trim()).replace("x", "w");
             String base = args[2].trim().replaceAll("[()]", "");
             return List.of(indent + "swpal " + rs2 + ", " + rd + ", [" + R.apply(base) + "]");
         }

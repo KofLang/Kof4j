@@ -60,6 +60,18 @@ public final class JvmStringMathRuntime {
                 public static double kof_math_sqrt(double v) {
                     return Math.sqrt(v);
                 }
+                public static double kof_math_sin(double v) { return Math.sin(v); }
+                public static double kof_math_cos(double v) { return Math.cos(v); }
+                public static double kof_math_tan(double v) { return Math.tan(v); }
+                public static double kof_math_asin(double v) { return Math.asin(v); }
+                public static double kof_math_acos(double v) { return Math.acos(v); }
+                public static double kof_math_atan(double v) { return Math.atan(v); }
+                public static double kof_math_atan2(double y, double x) { return Math.atan2(y, x); }
+                public static double kof_math_toRadians(double v) { return Math.toRadians(v); }
+                public static double kof_math_toDegrees(double v) { return Math.toDegrees(v); }
+                public static double kof_math_pi() { return Math.PI; }
+                public static double kof_math_e() { return Math.E; }
+                public static double kof_math_tau() { return 2.0 * Math.PI; }
 
                 // S1b.1: escalares Double puros (lerp/percentage/isInteger/
                 // isDecimal) — mesma aritmética SSE2 do Native e da semântica

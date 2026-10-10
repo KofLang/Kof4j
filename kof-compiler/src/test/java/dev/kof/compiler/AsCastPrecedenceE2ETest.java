@@ -45,7 +45,7 @@ class AsCastPrecedenceE2ETest {
         }
     }
 
-    private void runAll3(Path tempDir, String name, String source, String expected) throws Exception {
+    private void runAllThree(Path tempDir, String name, String source, String expected) throws Exception {
         Path src = tempDir.resolve(name + ".kf");
         Files.writeString(src, source);
         Path out = tempDir.resolve(name + "-jvm");
@@ -69,7 +69,7 @@ class AsCastPrecedenceE2ETest {
 
     @Test
     void verbatimIssueReproBindsCastBeforeDiv(@TempDir Path tempDir) throws Exception {
-        runAll3(tempDir, "as459p", """
+        runAllThree(tempDir, "as459p", """
                 main() {
                     var a = 1
                     println(a as Double / 2.0)
@@ -79,7 +79,7 @@ class AsCastPrecedenceE2ETest {
 
     @Test
     void castOnLeftOfEveryArithAndShiftOp(@TempDir Path tempDir) throws Exception {
-        runAll3(tempDir, "as459m", """
+        runAllThree(tempDir, "as459m", """
                 main() {
                     var a = 4
                     var b = 2
@@ -97,7 +97,7 @@ class AsCastPrecedenceE2ETest {
 
     @Test
     void castOnRightOperandUnchangedAsControl(@TempDir Path tempDir) throws Exception {
-        runAll3(tempDir, "as459r", """
+        runAllThree(tempDir, "as459r", """
                 main() {
                     var a = 4
                     var b = 2
@@ -109,7 +109,7 @@ class AsCastPrecedenceE2ETest {
 
     @Test
     void comparisonAndEqualityAfterCastStillBindLeft(@TempDir Path tempDir) throws Exception {
-        runAll3(tempDir, "as459c", """
+        runAllThree(tempDir, "as459c", """
                 main() {
                     var n = 7
                     println(n as Int == 7)
@@ -120,7 +120,7 @@ class AsCastPrecedenceE2ETest {
 
     @Test
     void fullTypeRefGrammarAfterCastUnaffected(@TempDir Path tempDir) throws Exception {
-        runAll3(tempDir, "as459t", """
+        runAllThree(tempDir, "as459t", """
                 main() {
                     var xs = listOf(2, 3)
                     var l = xs as List<Int>
@@ -136,7 +136,7 @@ class AsCastPrecedenceE2ETest {
 
     @Test
     void instanceOfBindsTypeFirstAndReportsBoolArithHonestly(@TempDir Path tempDir) throws Exception {
-        runAll3(tempDir, "as459i", """
+        runAllThree(tempDir, "as459i", """
                 main() {
                     var o = "x"
                     println(o instanceof String == true)

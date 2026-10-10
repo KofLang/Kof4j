@@ -353,6 +353,29 @@ class JsonE2ETest {
     }
 
     @Test
+    void jvmDecodeMapWithObjectValuesKeepsNestedObjectAsMap(@TempDir Path tempDir) throws IOException {
+        // issue #735: decode<Map<String,Object>> tratava `Object` como classe
+        // de bind → kof_json_decode_object_map(..., "java.lang.Object") →
+        // kof_json_bind(Object.class, valor) instanciava um `new Object()`
+        // opaco (imprimia java.lang.Object@...; cast para Map dava CCE).
+        // `Object` é o tipo dinâmico: os valores têm de ficar como o parser os
+        // produziu (LinkedHashMap para objeto aninhado, List para array),
+        // igual ao que já acontece dentro de uma lista.
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, """
+            main() {
+                var s = json.decode<Map<String, Object>>("{\\"caps\\":{\\"a\\":1},\\"arr\\":[{\\"k\\":2}]}")
+                var m = s.get("caps") as Map<String, Object>
+                println(m.get("a"))
+                var arr = s.get("arr") as List<Map<String, Object>>
+                println(arr.size())
+                println((arr[0] as Map<String, Object>).get("k"))
+            }
+            """);
+        runJvm(source, tempDir.resolve("out"), "1\n1\n2");
+    }
+
+    @Test
     void jvmIntToLongFieldWidening(@TempDir Path tempDir) throws IOException {
         // §103.2 (#103): Int→Long em campo de instância precisa de I2L
         // antes do putfield (antes: VerifyError no <init>).

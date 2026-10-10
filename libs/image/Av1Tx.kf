@@ -1,0 +1,386 @@
+package image
+
+// kof.image — AV1 transform descriptor (slice 3b of the AVIF front, plan §34).
+// The transform-size tables, the scan orders, the transform classes, the
+// transform sets and the transform-type selection the coefficient walk needs.
+// Every table and rule below is quoted from the AV1 Bitstream & Decoding
+// Process Specification read on the dev host 04/10: §3 "Symbols" (TX_SIZES_ALL
+// order, the 16 transform types, TX_SET_*), §5.9.2 `compute_tx_type` /
+// `get_tx_set` / `is_tx_type_in_set`, §6.4.3 `get_scan` and the additional
+// tables `Tx_Width`/`Tx_Height`/`Tx_Width_Log2`/`Tx_Height_Log2`/
+// `Tx_Size_Sqr`/`Tx_Size_Sqr_Up`/`Adjusted_Tx_Size`/`Mode_To_Txfm`.
+//
+// The scans are NOT stored as data: the spec's `get_default_scan` picks a
+// zig-zag scan for square transforms, a row-diagonal scan for tall transforms
+// (width < height) and a column-diagonal scan for wide transforms (width >
+// height); `get_mrow_scan` is the row-major order and `get_mcol_scan` the
+// column-major order. This module generates them, and the test pins every
+// generated order against the spec's published `Default_Scan_*`,
+// `Mrow_Scan_*` and `Mcol_Scan_*` tables.
+//
+// Pure arithmetic, no `kof.io`, so it runs on every target. It decodes nothing
+// yet: the coefficient walk, the loop filter and the quantization ride the
+// next slices and `decodeRaster` keeps refusing AVIF.
+
+// AV1 transform size indices (TX_SIZES_ALL order):
+// 0 TX_4X4   1 TX_8X8    2 TX_16X16 3 TX_32X32  4 TX_64X64
+// 5 TX_4X8   6 TX_8X4    7 TX_8X16  8 TX_16X8
+// 9 TX_16X32 10 TX_32X16 11 TX_32X64 12 TX_64X32
+// 13 TX_4X16 14 TX_16X4  15 TX_8X32  16 TX_32X8
+// 17 TX_16X64 18 TX_64X16
+
+// Transform type indices: 0 DCT_DCT .. 15 H_FLIPADST; 9 IDTX.
+
+// Tx_Width[ TX_SIZES_ALL ].
+Int av1TxWidth(Int txSz) {
+    return listOf(4, 8, 16, 32, 64, 4, 8, 8, 16, 16, 32, 32, 64, 4, 16, 8, 32, 16, 64).get(txSz)
+}
+
+// Tx_Height[ TX_SIZES_ALL ].
+Int av1TxHeight(Int txSz) {
+    return listOf(4, 8, 16, 32, 64, 8, 4, 16, 8, 32, 16, 64, 32, 16, 4, 32, 8, 64, 16).get(txSz)
+}
+
+// Tx_Width_Log2[ TX_SIZES_ALL ].
+Int av1TxWidthLog2(Int txSz) {
+    return listOf(2, 3, 4, 5, 6, 2, 3, 3, 4, 4, 5, 5, 6, 2, 4, 3, 5, 4, 6).get(txSz)
+}
+
+// Tx_Height_Log2[ TX_SIZES_ALL ].
+Int av1TxHeightLog2(Int txSz) {
+    return listOf(2, 3, 4, 5, 6, 3, 2, 4, 3, 5, 4, 6, 5, 4, 2, 5, 3, 6, 4).get(txSz)
+}
+
+// Tx_Size_Sqr[ t ]: square size with side Min( w, h ).
+Int av1TxSizeSqr(Int txSz) {
+    return listOf(0, 1, 2, 3, 4, 0, 0, 1, 1, 2, 2, 3, 3, 0, 0, 1, 1, 2, 2).get(txSz)
+}
+
+// Tx_Size_Sqr_Up[ t ]: square size with side Max( w, h ).
+Int av1TxSizeSqrUp(Int txSz) {
+    return listOf(0, 1, 2, 3, 4, 1, 1, 2, 2, 3, 3, 4, 4, 2, 2, 3, 3, 4, 4).get(txSz)
+}
+
+// Adjusted_Tx_Size[ TX_SIZES_ALL ].
+Int av1AdjustedTxSize(Int txSz) {
+    return listOf(0, 1, 2, 3, 3, 5, 6, 7, 8, 9, 10, 3, 3, 13, 14, 15, 16, 9, 10).get(txSz)
+}
+
+// txSzCtx = ( Tx_Size_Sqr[ txSz ] + Tx_Size_Sqr_Up[ txSz ] + 1 ) >> 1.
+Int av1TxSzCtx(Int txSz) {
+    return (av1TxSizeSqr(txSz) + av1TxSizeSqrUp(txSz) + 1) >> 1
+}
+
+// get_tx_class( txType ): 0 TX_CLASS_2D, 1 TX_CLASS_VERT, 2 TX_CLASS_HORIZ.
+Int av1TxClass(Int txType) {
+    if (txType == 10 || txType == 12 || txType == 14) {
+        return 1
+    }
+    if (txType == 11 || txType == 13 || txType == 15) {
+        return 2
+    }
+    return 0
+}
+
+// get_tx_set( txSz ) per §5.9.2. Sets: 0 DCTONLY, 1 INTER_1, 2 INTER_2,
+// 3 INTER_3 (inter) / 1 INTRA_1, 2 INTRA_2 (intra) — the same integers the
+// spec's `set` uses.
+Int av1TxSet(Int txSz, Bool isInter, Bool reducedTxSet) {
+    var sqr = av1TxSizeSqr(txSz)
+    var sqrUp = av1TxSizeSqrUp(txSz)
+    if (sqrUp > 3) {
+        return 0
+    }
+    if (isInter) {
+        if (reducedTxSet || sqrUp == 3) {
+            return 3
+        }
+        if (sqr == 2) {
+            return 2
+        }
+        return 1
+    }
+    if (sqrUp == 3) {
+        return 0
+    }
+    if (reducedTxSet || sqr == 2) {
+        return 2
+    }
+    return 1
+}
+
+// is_tx_type_in_set( txSet, txType ) per §5.9.2. txSet follows the same
+// numbering as `av1TxSet`; `isInter` selects the Inter or Intra membership
+// table.
+Bool av1IsTxTypeInSet(Int txSet, Int txType, Bool isInter) {
+    if (isInter) {
+        return av1TxTypeInSetInter(txSet, txType)
+    }
+    return av1TxTypeInSetIntra(txSet, txType)
+}
+
+// Tx_Type_In_Set_Intra[ TX_SET_TYPES_INTRA ][ TX_TYPES ].
+Bool av1TxTypeInSetIntra(Int txSet, Int txType) {
+    var row = listOf(
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0,
+        1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0
+    )
+    return row.get(txSet * 16 + txType) == 1
+}
+
+// Tx_Type_In_Set_Inter[ TX_SET_TYPES_INTER ][ TX_TYPES ].
+Bool av1TxTypeInSetInter(Int txSet, Int txType) {
+    var row = listOf(
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0,
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0
+    )
+    return row.get(txSet * 16 + txType) == 1
+}
+
+// Mode_To_Txfm[ UV_INTRA_MODES_CFL_ALLOWED ].
+Int av1ModeToTxfm(Int uvMode) {
+    return listOf(0, 1, 2, 0, 3, 1, 2, 2, 1, 3, 1, 2, 3, 0).get(uvMode)
+}
+
+// compute_tx_type( plane, txSz, blockX, blockY ) per §5.9.2. `txTypes` is the
+// frame's TxTypes plane flattened row-major with `stride` columns (the spec's
+// TxTypes[ MiRows ][ MiCols ]); `miCol`/`miRow` are the current mode-info
+// coordinates and `subX`/`subY` the frame's chroma subsampling.
+Int av1ComputeTxType(Int txSz, Int plane, Int blockX, Int blockY, Bool lossless,
+        Bool isInter, Int[] txTypes, Int stride, Int uvMode, Int miCol, Int miRow,
+        Int subX, Int subY, Bool reducedTxSet) {
+    if (lossless || av1TxSizeSqrUp(txSz) > 3) {
+        return 0
+    }
+    var set = av1TxSet(txSz, isInter, reducedTxSet)
+    if (plane == 0) {
+        return txTypes[blockY * stride + blockX]
+    }
+    if (isInter) {
+        var x4 = miCol
+        var bx = blockX << subX
+        if (bx > x4) {
+            x4 = bx
+        }
+        var y4 = miRow
+        var by = blockY << subY
+        if (by > y4) {
+            y4 = by
+        }
+        var txType = txTypes[y4 * stride + x4]
+        if (!av1IsTxTypeInSet(set, txType, true)) {
+            return 0
+        }
+        return txType
+    }
+    var txType = av1ModeToTxfm(uvMode)
+    if (!av1IsTxTypeInSet(set, txType, false)) {
+        return 0
+    }
+    return txType
+}
+
+// --- Scan orders ---------------------------------------------------------
+
+// Default scan for (w, h): zig-zag when square, row-diagonal when tall,
+// column-diagonal when wide (the rule `get_default_scan` tabulates).
+Int[] av1ScanDims(Int w, Int h) {
+    if (w == h) {
+        return av1ZigZagScan(w, h)
+    }
+    if (w < h) {
+        return av1RowDiagScan(w, h)
+    }
+    return av1ColDiagScan(w, h)
+}
+
+Int[] av1ZigZagScan(Int w, Int h) {
+    var out = new Int[w * h]
+    var si = 0
+    var d = 0
+    while (d < w + h - 1) {
+        var x = 0
+        if (d % 2 == 0) {
+            x = d - (h - 1)
+            if (x < 0) {
+                x = 0
+            }
+            while (x <= d && x < w) {
+                out[si] = (d - x) * w + x
+                si = si + 1
+                x = x + 1
+            }
+        } else {
+            x = d
+            if (x > w - 1) {
+                x = w - 1
+            }
+            var lo = d - (h - 1)
+            if (lo < 0) {
+                lo = 0
+            }
+            while (x >= lo) {
+                out[si] = (d - x) * w + x
+                si = si + 1
+                x = x - 1
+            }
+        }
+        d = d + 1
+    }
+    return out
+}
+
+Int[] av1RowDiagScan(Int w, Int h) {
+    var out = new Int[w * h]
+    var si = 0
+    var d = 0
+    while (d < w + h - 1) {
+        var y = 0
+        while (y < h) {
+            var x = d - y
+            if (x >= 0 && x < w) {
+                out[si] = y * w + x
+                si = si + 1
+            }
+            y = y + 1
+        }
+        d = d + 1
+    }
+    return out
+}
+
+Int[] av1ColDiagScan(Int w, Int h) {
+    var out = new Int[w * h]
+    var si = 0
+    var d = 0
+    while (d < w + h - 1) {
+        var x = 0
+        while (x < w) {
+            var y = d - x
+            if (y >= 0 && y < h) {
+                out[si] = y * w + x
+                si = si + 1
+            }
+            x = x + 1
+        }
+        d = d + 1
+    }
+    return out
+}
+
+Int[] av1RowMajorScan(Int w, Int h) {
+    var out = new Int[w * h]
+    var si = 0
+    var y = 0
+    while (y < h) {
+        var x = 0
+        while (x < w) {
+            out[si] = y * w + x
+            si = si + 1
+            x = x + 1
+        }
+        y = y + 1
+    }
+    return out
+}
+
+Int[] av1ColMajorScan(Int w, Int h) {
+    var out = new Int[w * h]
+    var si = 0
+    var x = 0
+    while (x < w) {
+        var y = 0
+        while (y < h) {
+            out[si] = y * w + x
+            si = si + 1
+            y = y + 1
+        }
+        x = x + 1
+    }
+    return out
+}
+
+// The scan uses the transform's "effective" dimensions: a 16x64/64x16
+// transform scans as 16x32/32x16 and any 64-square-up transform (32x64,
+// 64x32, 64x64) scans as 32x32, because half of a 64-wide transform's
+// coefficients are always zero (AV1 §7.13.3 and the libaom `av1_scan_orders`
+// comment "Half of the coefficients of tx64 at higher frequencies are set to
+// zeros. So tx32's scan order is used.").
+Int av1ScanW(Int txSz) {
+    if (txSz == 17) {
+        return 16
+    }
+    if (txSz == 18) {
+        return 32
+    }
+    if (av1TxSizeSqrUp(txSz) == 4) {
+        return 32
+    }
+    return av1TxWidth(txSz)
+}
+
+Int av1ScanH(Int txSz) {
+    if (txSz == 17) {
+        return 32
+    }
+    if (txSz == 18) {
+        return 16
+    }
+    if (av1TxSizeSqrUp(txSz) == 4) {
+        return 32
+    }
+    return av1TxHeight(txSz)
+}
+
+// get_default_scan( txSz ).
+Int[] av1DefaultScan(Int txSz) {
+    return av1ScanDims(av1ScanW(txSz), av1ScanH(txSz))
+}
+
+// get_mrow_scan( txSz ): the row-major order of the scan dimensions.
+Int[] av1MrowScan(Int txSz) {
+    return av1RowMajorScan(av1ScanW(txSz), av1ScanH(txSz))
+}
+
+// get_mcol_scan( txSz ): the column-major order of the scan dimensions.
+Int[] av1McolScan(Int txSz) {
+    return av1ColMajorScan(av1ScanW(txSz), av1ScanH(txSz))
+}
+
+// get_scan( txSz, txType ) (§6.4.3): IDTX and the two-dimensional transform
+// types use the default order, the vertical class the row-major order and the
+// horizontal class the column-major order.
+Int[] av1ScanOrder(Int txSz, Int txType) {
+    var cls = av1TxClass(txType)
+    if (cls == 1) {
+        return av1MrowScan(txSz)
+    }
+    if (cls == 2) {
+        return av1McolScan(txSz)
+    }
+    return av1DefaultScan(txSz)
+}
+
+// --- Transform-type symbol inversion -------------------------------------
+
+// transform_type( ) inverts the decoded symbol through the set's table. These
+// are the spec's `Tx_Type_*_Inv_Set*` lists; `symbol` is the decoded
+// `intra_tx_type`/`inter_tx_type` value.
+Int av1TxTypeInverse(Int set, Bool isInter, Int symbol) {
+    if (isInter) {
+        if (set == 1) {
+            return listOf(9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 4, 5, 3, 6, 7, 8).get(symbol)
+        }
+        if (set == 2) {
+            return listOf(9, 10, 11, 0, 1, 2, 4, 5, 3, 6, 7, 8).get(symbol)
+        }
+        return listOf(9, 0).get(symbol)
+    }
+    if (set == 1) {
+        return listOf(9, 0, 10, 11, 3, 1, 2).get(symbol)
+    }
+    return listOf(9, 0, 3, 1, 2).get(symbol)
+}

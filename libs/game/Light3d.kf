@@ -1,0 +1,84 @@
+package game
+
+// kof.game — 3D light intent (slice 3.5a of the graphics/gaming front,
+// `D-GRAPHICS-GAMING`; the 3D level PROMOTED to the active scope 08/10 by
+// the maintainer).
+//
+// The plan §9 freezes 3D as intent; lighting (shadows/shaders/light models)
+// is the backend's job and lands in a later slice. This module is the PURE,
+// backend-independent half: the light state — position, color, intensity —
+// so scenes and goldens behave deterministically with no lighting of their
+// own. It calls no rendering API and is honest on every target today.
+//
+//   var sun = light()
+//   sun.at(10.0, 20.0, 30.0).intensity(0.8)
+//
+// Semantics (frozen here, tested):
+// - `at(x, y, z)` sets the light's position (the backend resolves the
+//   direction from it — this module never computes it).
+// - `color(hex)` sets the light color by name or hex string — stored
+//   verbatim, never parsed.
+// - `intensity(i)` must be >= 0 (a negative intensity is meaningless — a
+//   light that darkens) — a meaningless value throws at the set, never a
+//   silent clamp.
+// - Chained setters return `this`; the getters expose the frozen state
+//   (`power()` reads the intensity — no overload with the chained setter).
+//   Pure state, no IO; runs on every target.
+
+class Light3d {
+    Double x
+    Double y
+    Double z
+    String colorHex
+    Double intensityLevel
+
+    constructor() {
+        this.x = 0.0
+        this.y = 0.0
+        this.z = 0.0
+        this.colorHex = "white"
+        this.intensityLevel = 1.0
+    }
+
+    Light3d at(Double lx, Double ly, Double lz) {
+        this.x = lx
+        this.y = ly
+        this.z = lz
+        return this
+    }
+
+    Light3d color(String hex) {
+        this.colorHex = hex
+        return this
+    }
+
+    Light3d intensity(Double i) {
+        if (i < 0.0) { throw "Light3d: intensity must be >= 0" }
+        this.intensityLevel = i
+        return this
+    }
+
+    Double posX() {
+        return this.x
+    }
+
+    Double posY() {
+        return this.y
+    }
+
+    Double posZ() {
+        return this.z
+    }
+
+    String hex() {
+        return this.colorHex
+    }
+
+    Double power() {
+        return this.intensityLevel
+    }
+}
+
+Light3d light() {
+    return Light3d()
+}

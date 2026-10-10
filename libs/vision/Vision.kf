@@ -1,0 +1,46 @@
+package vision
+
+import image.Raster
+import vision.Histogram
+
+// kof.vision — slice 1b: Otsu binarization.
+//
+// `otsuBinarize(r)` picks the optimal global threshold automatically (Otsu's
+// method) and returns a black/white `Raster`: a colour sample becomes 255 when
+// it is >= the level, else 0; alpha (4-channel) is preserved. It is the
+// `kof.vision` counterpart of the fixed-level `image.threshold`, and the first
+// segmentation primitive (§14). Pure Kof, all targets.
+//
+//   var bw = otsuBinarize(decodeRaster("scan.ppm"))
+
+Raster otsuBinarize(Raster r) {
+    guardVision(r)
+    var level = otsuLevel(r)
+    var out = new Int[r.samples.length]
+    var px = 0
+    while (px < r.width * r.height) {
+        var base = px * r.channels
+        var c = 0
+        while (c < r.channels) {
+            if (r.channels == 4 && c == 3) {
+                out[base + c] = r.samples[base + c]
+            } else if (r.samples[base + c] > level) {
+                out[base + c] = 255
+            } else {
+                out[base + c] = 0
+            }
+            c = c + 1
+        }
+        px = px + 1
+    }
+    return Raster(r.format, r.width, r.height, r.channels, out)
+}
+
+guardVision(Raster r) {
+    if (r.width <= 0 || r.height <= 0) {
+        throw "IMAGE: empty raster"
+    }
+    if (r.samples.length > 262144) {
+        throw "IMAGE: raster too large for this slice (max 262144 samples)"
+    }
+}

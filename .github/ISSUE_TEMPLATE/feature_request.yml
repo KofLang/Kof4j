@@ -47,12 +47,9 @@ body:
     attributes:
       label: Proof of the gap (D-KOF-FIRST Gate 5)
       description: |
-        Which existing Kof syntax, idiom, stdlib API or composition did you try,
-        and why is each one not enough? A real gap is proved by answering "no" to
-        all of: valid Kof syntax exists? documented idiom exists? stdlib/API
-        exists? a Kof composition solves it reasonably? a decision consciously
-        rejects this surface? Already catalogued as a gap?
-        "Language X has this feature" is not a proof of a gap.
+        What did you try (syntax, idiom, stdlib API, composition) and why is each
+        one not enough? Gate definition: `AGENTS.md` §Kof-first — D-KOF-FIRST
+        Gate 5. "Language X has this feature" is not a proof of a gap.
     validations:
       required: true
 

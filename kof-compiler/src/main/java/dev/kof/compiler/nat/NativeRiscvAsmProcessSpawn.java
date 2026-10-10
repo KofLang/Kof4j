@@ -178,6 +178,26 @@ public final class NativeRiscvAsmProcessSpawn {
                 slli t3, t3, 3
                 add t3, s5, t3
                 sd zero, 0(t3)
+                # issue #762: nenhum fd do pai/runtime vaza para o filho (JVM
+                # ProcessBuilder fecha os herdados). close_range(3, ~0,
+                # CLOSE_RANGE_CLOEXEC); fallback fcntl no kernel sem close_range.
+                li a0, 3
+                li a1, -1
+                li a2, 4
+                li a7, 436
+                ecall
+                bgez a0, .Lkof_rpspawn_cloexec_done
+                li t0, 3
+            .Lkof_rpspawn_cloexec_loop:
+                mv a0, t0
+                li a1, 2
+                li a2, 1
+                li a7, 25
+                ecall
+                addi t0, t0, 1
+                li t1, 1024
+                blt t0, t1, .Lkof_rpspawn_cloexec_loop
+            .Lkof_rpspawn_cloexec_done:
                 ld a0, 0(s5)
                 mv a1, s5
                 call execvp

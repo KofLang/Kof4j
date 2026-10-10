@@ -1,0 +1,42 @@
+package kfvm.cli
+
+import kfvm.system
+import kfvm.github
+import kfvm.store
+import kfvm.versions
+import kfvm.installer
+
+class RemoteVersions {
+    GitHubClient github
+    Store store
+    Installer installer
+    Logger logger
+
+    constructor(GitHubClient github, Store store, Installer installer, Logger logger) {
+        this.github = github
+        this.store = store
+        this.installer = installer
+        this.logger = logger
+    }
+
+    List<RemoteRelease> releases() { return github.releases() }
+
+    String resolve(String query, List<RemoteRelease> releases) {
+        var version = Selector.select(query, RemoteCandidates.of(releases))
+        if (version == "") {
+            throw "version '" + query + "' not found for " + github.platform + " (see: kfvm ls -r)"
+        }
+
+        return version
+    }
+
+    void ensureInstalled(String version, List<RemoteRelease> releases) {
+        if (store.isInstalled(version)) {
+            logger.info("kof " + version + " already installed")
+            return
+        }
+
+        installer.install(RemoteCandidates.find(version, releases))
+        logger.info("installed kof " + version + " at " + store.dirOf(version))
+    }
+}

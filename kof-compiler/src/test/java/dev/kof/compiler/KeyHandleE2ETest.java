@@ -46,6 +46,24 @@ class KeyHandleE2ETest {
     }
 
     @Test
+    void keyHandleThroughGenericContainerErasureJvm(@TempDir Path dir) throws IOException {
+        // Same erasure family as the Secret case: KeyHandle out of a `List`
+        // must map its checkcast owner to KofRuntime$KeyHandle, not `kof/KeyHandle`.
+        Path src = dir.resolve("key-erasure.kf");
+        Files.writeString(src, """
+                main() {
+                    val k = secrets.keyFromHex("%s")
+                    val box = listOf(k)
+                    println(box.get(0))
+                }
+                """.formatted(KEY32));
+        CompilationResult r = driver.compile(src, dir.resolve("out-key-erasure"), Target.JVM);
+        assertTrue(r.success(), "KeyHandle through a List must compile: " + r.diagnostics().getDiagnostics());
+        assertEquals("KeyHandle(*** )", runJvm(dir.resolve("out-key-erasure")),
+                "KeyHandle read out of a generic container never leaks (erasure owner maps to the runtime type)");
+    }
+
+    @Test
     void aesGcmRoundTripWithAHandleJvm(@TempDir Path dir) throws IOException {
         Path src = dir.resolve("key2.kf");
         Files.writeString(src, """

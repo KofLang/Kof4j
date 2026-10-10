@@ -52,6 +52,7 @@ top-level-declaration =
     | test-declaration
     | application-declaration
     | extern-declaration
+    | foreign-module-declaration
     | type-declaration
     | function-declaration ;
 `
@@ -115,7 +116,8 @@ enum-declaration = modifiers , "enum" , identifier ,
 `
 
 **Enums são apenas constantes** — sem corpo, sem métodos, sem construtores, sem
-campos (`enum E { A String f(){…} }` → `PARSE032`, *probe*). Em runtime o
+campos (`enum E { A String f(){…} }` → `PARSE032`, *probe*); cláusula antes do
+`{` (`enum Cor extends Tudo { A, B }`) é um único `PARSE034` (§687). Em runtime o
 valor de um enum **é** o nome (`String`) — ver [classes.md](classes.md).
 
 `ebnf
@@ -158,6 +160,20 @@ extern-declaration = "extern" , [ string-literal ] , identifier ,
    erro de runtime R7). A
    gramática ACEITA qualquer aridade; CompilerPipeline.isExternBound rejeita
    não-escalares em tempo de compilação. *)
+
+foreign-module-declaration =
+      "foreign" , "module" , identifier , "{" ,
+      { module-header | extern-declaration } , "}" ;          (* `Parser.parseForeignModule` *)
+module-header = ( "library" , string-literal
+                | "abi" , identifier
+                | "ownership" , identifier ) , [ ";" ] ;
+(* Ecossistema de connectors `D-CONNECTORS` (plano §9.16 fatia A): açúcar sobre
+   a via FFI EXISTENTE — desdobra em declarações `extern` normais que herdam a
+   `library` do módulo (nenhum motor de ABI novo, regra 54). `library` é
+   obrigatória (senão PARSE097); `ownership` é validado contra o vocabulário do
+   Core `owned|borrowed|shared|opaque|immutable|mutable` (senão PARSE099).
+   `foreign` e `module` são contextuais — seguem identificadores fora deste
+   cabeçalho. *)
 `
 
 As **três formas de retorno** são válidas e equivalentes:

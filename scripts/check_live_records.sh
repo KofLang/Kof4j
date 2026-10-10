@@ -320,7 +320,9 @@ if "EN" in lvl and "PT" in lvl:
             bad = 1
 
 # ---- D) README sec.0 "Pending (cond. 3)" <-> loose set medido pelo gate ----
-if docdir:
+# O gate 0.5.0 foi APOSENTADO 28/09 (release cortada); sem ele, a classe D nao
+# roda na corrida real (a autoridade do loose set deixou de existir).
+if docdir and os.path.exists(gate):
     try:
         gtext = open(gate, encoding="utf-8").read()
     except OSError:
@@ -418,7 +420,8 @@ if mdp:
                 bad = 1
 
 # ---- G) prep do release: contagem "N live" da cond.7 == autoridade ----------
-if prep_on:
+# Prep da 0.5.0 CONCLUIDA 28/09 (movida p/ docs/distribution); roda so se existir.
+if prep_on and os.path.exists(prep_en) and os.path.exists(prep_pt):
     PP = re.compile(r"([0-9]+) live (?:at the tip|no tip)")
     for lang, path in (("EN", prep_en), ("PT", prep_pt)):
         try:
@@ -437,7 +440,8 @@ if prep_on:
                 bad = 1
 
 # ---- H) prep: § da secao "issues que viajam" tem de estar ABERTA -----------
-if prep_on:
+# So roda quando a prep ainda existe (0.5.0 concluida 28/09).
+if prep_on and os.path.exists(prep_en) and os.path.exists(prep_pt):
     HDR = re.compile(r"(?m)^##+ .*(?:travel to|viajam para).*$")
     for lang, path in (("EN", prep_en), ("PT", prep_pt)):
         try:
@@ -459,7 +463,8 @@ if prep_on:
                 bad = 1
 
 # ---- I) fila oficial (README sec.1) nomeia TODO loose doc do gate -----------
-if lq_on and docdir:
+# Sem o gate 0.5.0 (aposentado 28/09), a classe I nao roda na corrida real.
+if lq_on and docdir and os.path.exists(gate):
     try:
         gtext_i = open(gate, encoding="utf-8").read()
     except OSError:
@@ -536,11 +541,11 @@ if not bad:
     print(f"OK: contagem viva {count} consistente ({seen} declaracoes); "
           f"DECISIONS EN<->PT com {len(sets.get('EN', ()))} IDs em paridade, 0 duplicatas, "
           "numeracao/nivel em paridade"
-          + ("; pendentes sec.0 == loose do gate" if docdir else "")
-          + ("; fila sec.1 cobre todo loose doc do gate" if (lq_on and docdir) else "")
+          + ("; pendentes sec.0 == loose do gate" if (docdir and os.path.exists(gate)) else "")
+          + ("; fila sec.1 cobre todo loose doc do gate" if (lq_on and docdir and os.path.exists(gate)) else "")
           + ("; roadmap EG EN<->PT em paridade" if rmon else "")
           + ("; numeracao/nivel de todos os pares EN<->PT" if mdp else "")
-          + ("; prep cond.7 == autoridade + travel § aberta" if prep_on else "")
+          + ("; prep cond.7 == autoridade + travel § aberta" if (prep_on and os.path.exists(prep_en) and os.path.exists(prep_pt)) else "")
           + f"; 0 marcadores de conflito em {_scanned} arquivos")
 sys.exit(1 if bad else 0)
 PYEOF

@@ -92,14 +92,24 @@ public final class JvmWebCoreRuntime {
 
                 public static final class WebRoute {
                     final String method;
+                    final String path;
                     final String[] segments;
                     final boolean[] params;
                     final Object handler;
                     final RouteKind kind;
+                    // D-HTTP-POLICIES (F3): opts por endpoint (app.get(path, opts)
+                    // { }) — null para rotas sem opts (herdam escopo/global).
+                    final Policy policy;
 
                     WebRoute(RouteKind kind, String method, String path, Object handler) {
+                        this(kind, method, path, handler, null);
+                    }
+
+                    WebRoute(RouteKind kind, String method, String path, Object handler,
+                            Policy policy) {
                         this.kind = kind;
                         this.method = method;
+                        this.path = path;
                         String[] raw = path.split("/");
                         this.segments = new String[raw.length];
                         this.params = new boolean[raw.length];
@@ -108,6 +118,7 @@ public final class JvmWebCoreRuntime {
                             this.params[i] = raw[i].startsWith(":");
                         }
                         this.handler = handler;
+                        this.policy = policy;
                     }
                 }
 
@@ -120,7 +131,6 @@ public final class JvmWebCoreRuntime {
                     final String remoteAddr;
                     final boolean secure;
                     final java.util.Map<String, String> params = new java.util.HashMap<>();
-                    final java.util.Map<String, String> queryParams = new java.util.HashMap<>();
                     final java.util.Map<String, String> headers = new java.util.HashMap<>();
 
                     WebRequest(String method, String path, String query, String rawHeaders, String body) {
@@ -136,13 +146,6 @@ public final class JvmWebCoreRuntime {
                         this.body = body;
                         this.remoteAddr = remoteAddr;
                         this.secure = secure;
-                        if (!query.isEmpty()) {
-                            for (String pair : query.split("&")) {
-                                int eq = pair.indexOf('=');
-                                if (eq < 0) queryParams.put(pair, "");
-                                else queryParams.put(pair.substring(0, eq), pair.substring(eq + 1));
-                            }
-                        }
                         String[] lines = rawHeaders.split("\\r\\n");
                         for (int i = 1; i < lines.length; i++) {
                             int colon = lines[i].indexOf(':');
@@ -157,8 +160,51 @@ public final class JvmWebCoreRuntime {
                         return params.get(name);
                     }
 
+                    // Paridade JVM x JS (§2.4/§12 do pagination-plan): o JS usa
+                    // decodeURIComponent no VALOR; a chave e comparada CRUA e
+                    // so pares com '=' (eq > 0) casam. Antes o JVM devolvia o
+                    // valor cru (`?name=a%20b` -> "a%20b") enquanto o JS devolvia
+                    // "a b" — divergencia silenciosa de cross-target.
                     String query(String name) {
-                        return queryParams.get(name);
+                        if (query == null || query.isEmpty()) return null;
+                        String key = String.valueOf(name);
+                        for (String kv : query.split("&")) {
+                            int eq = kv.indexOf('=');
+                            if (eq > 0 && kv.substring(0, eq).equals(key)) {
+                                return decodeQueryComponent(kv.substring(eq + 1));
+                            }
+                        }
+                        return null;
+                    }
+
+                    /** Espelha decodeURIComponent: `%XX` UTF-8 estrito; `+`
+                     *  permanece literal (ao contrario de form-urlencoded);
+                     *  sequencia malformada = URIError no JS -> aqui IllegalArgumentException. */
+                    static String decodeQueryComponent(String s) {
+                        if (s == null || s.indexOf('%') < 0) return s;
+                        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream(s.length());
+                        for (int i = 0; i < s.length(); i++) {
+                            char c = s.charAt(i);
+                            if (c == '%') {
+                                if (i + 2 >= s.length()) throw new IllegalArgumentException("URI malformed");
+                                int hi = Character.digit(s.charAt(i + 1), 16);
+                                int lo = Character.digit(s.charAt(i + 2), 16);
+                                if (hi < 0 || lo < 0) throw new IllegalArgumentException("URI malformed");
+                                out.write((hi << 4) | lo);
+                                i += 2;
+                            } else {
+                                byte[] b = String.valueOf(c).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                                out.write(b, 0, b.length);
+                            }
+                        }
+                        try {
+                            return java.nio.charset.StandardCharsets.UTF_8.newDecoder()
+                                    .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                                    .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                                    .decode(java.nio.ByteBuffer.wrap(out.toByteArray())).toString();
+                        } catch (java.nio.charset.CharacterCodingException e) {
+                            throw new IllegalArgumentException("URI malformed", e);
+                        }
                     }
 
                     String header(String name) {
@@ -391,16 +437,14 @@ public final class JvmWebCoreRuntime {
                     // (security by default não depende do usuário lembrar de
                     // compor). União das duas lanes que implementaram C18.
                     volatile boolean securityConfigured;
-                    boolean securityHeaders = true;
-                    int securityRateLimit = 0;
-                    int securityRateWindow = 60;
-                    String securityCors = null;
-                    // §5: CSRF ON só com app.security() (kof_web_security_opts).
-                    boolean securityCsrf = false;
-                    String securityAuthHeader = null;
-                    final java.util.List<String> securityPublicPaths = new java.util.ArrayList<>();
-                    boolean securityRequireAuth = false;
-                    final java.util.List<String> securityRoles = new java.util.concurrent.CopyOnWriteArrayList<>();
+                    // D-HTTP-POLICIES (F1): politica global parseada de
+                    // app.security(opts) — substitui os campos security* flat.
+                    volatile Policy globalPolicy = new Policy();
+                    // D-HTTP-POLICIES (F2): policies de recurso de
+                    // app.policy(prefix, opts); resolvidas por longest-prefix
+                    // sobre o global a cada request (kof_web_effective_policy).
+                    final java.util.List<ScopedPolicy> policies =
+                            new java.util.concurrent.CopyOnWriteArrayList<>();
                     final java.util.List<StaticDir> staticDirs = new java.util.ArrayList<>();
                     final java.util.List<String> healthPaths = new java.util.ArrayList<>();
                     final java.util.concurrent.atomic.AtomicInteger activeConnections =
@@ -473,6 +517,21 @@ public final class JvmWebCoreRuntime {
                                 "route method " + m + " requires kof_web_sse_route/kof_web_ws_route");
                     }
                     kof_web_app(appId).routes.add(new WebRoute(RouteKind.HTTP, m, path, handler));
+                }
+
+                /** D-HTTP-POLICIES (F3): {@code app.get(path, opts) { }} — rota
+                 *  HTTP com policy por endpoint; casa mais profundo que os
+                 *  escopos e o global (merge §4.3). csrfDefault=false (herda). */
+                public static void kof_web_route_opts(String appId, String method, String path,
+                        java.util.Map<?, ?> opts, Object handler) {
+                    if (handler == null) throw new IllegalArgumentException("route handler is null");
+                    String m = method.toUpperCase();
+                    if ("SSE".equals(m) || "WS".equals(m)) {
+                        throw new IllegalArgumentException(
+                                "route method " + m + " requires kof_web_sse_route/kof_web_ws_route");
+                    }
+                    kof_web_app(appId).routes.add(new WebRoute(RouteKind.HTTP, m, path, handler,
+                            Policy.parse(opts, false)));
                 }
 
                 public static void kof_web_sse_route(String appId, String method, String path, Object handler) {

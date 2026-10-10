@@ -16,13 +16,26 @@ OpenJDK embutido**.
 
 ## Passo 1 — Baixe o pacote do SEU sistema
 
-Abra <https://github.com/KofLang/Kof4j/releases/latest>. A release mais
-recente lista 3 pacotes. Baixe **um** — o do seu sistema:
+> **Mais fácil (Linux/macOS):** o instalador detecta sua plataforma e a
+> release mais nova automaticamente — não há versão para digitar:
+>
+> ```bash
+> curl -fsSL https://raw.githubusercontent.com/KofLang/Kof4j/main/scripts/install.sh | bash
+> ```
+>
+> Fixe uma versão só se quiser uma específica:
+> `... | KOF_INSTALL_VERSION=<versão> bash`. Passos manuais abaixo.
+
+O Kof publica **uma release por plataforma**, então o rótulo "Latest" do
+GitHub aponta para uma única plataforma. Abra
+<https://github.com/KofLang/Kof4j/releases> e, na release mais nova cujo nome
+termina com a **sua** plataforma, baixe o pacote:
 
 | Seu sistema | Baixe o arquivo com |
 |-------------|---------------------|
 | **Linux** (64 bits) | `linux-x86_64.tar.gz` |
 | **macOS** (Apple Silicon) | `macos-arm64.tar.gz` |
+| **macOS** (Intel) | `macos-x86_64.tar.gz` |
 | **Windows** (64 bits) | `windows-x86_64.zip` |
 
 O arquivo tem ~230 MB. O nome começa com `kof-<versão>-<sistema>` — a
@@ -65,6 +78,21 @@ Para valer sempre, adicione ao `~/.zshrc`:
 echo 'export PATH="$HOME/<pasta>/kof-*-macos-arm64/bin:$PATH"' >> ~/.zshrc
 ```
 
+### macOS (Intel)
+
+```bash
+tar -xzf kof-*-macos-x86_64.tar.gz
+DIR=$(ls -d kof-*-macos-x86_64 | head -1)
+export PATH="$PWD/$DIR/bin:$PATH"
+kof version
+```
+
+Para valer sempre, adicione ao `~/.zshrc`:
+
+```bash
+echo 'export PATH="$HOME/<pasta>/kof-*-macos-x86_64/bin:$PATH"' >> ~/.zshrc
+```
+
 ### Windows (PowerShell)
 
 ```powershell
@@ -81,7 +109,7 @@ Para valer sempre: **Variáveis de Ambiente → PATH → Novo** →
 ## Passo 3 — Conferir
 
 ```bash
-kof version        # ex.: kof 0.5.0-beta
+kof version        # ex.: kof <versão>
 kof info           # ambiente completo (JVM embutida, targets, instalação)
 ```
 

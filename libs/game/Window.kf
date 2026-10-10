@@ -1,0 +1,196 @@
+package game
+
+import game.Clock
+
+// kof.game — backend window / frame loop host (slice 3.1 of the graphics/gaming
+// front, `D-GRAPHICS-GAMING` + `D-GRAPHICS-SPIKE` + the stack batch
+// `D-MAINT-BATCH-0510`/G1). The form is DECIDED (`D-GRAPHICS-WINDOW-FORM`):
+//
+//   Window("Pong") { w: Window -> w.frame { dt: Int -> ... } }
+//
+// (`Window("…") { frame { dt -> … } }` with an implicit receiver is NOT
+// expressible — Kof has no implicit receiver, SEM015/SEM025 — so the outer
+// lambda names the window, exactly the shape `TrailingLambdaParamsE2ETest`
+// pins.) `dt` is an Int of MILLISECONDS and the first frame is `0`.
+//
+// The loop SEMANTICS are DECIDED too (`D-MAINT-BATCH-0610`, 06/10):
+//   A1 long-frame = CLAMP of `dt` — the real delta is reported bounded by a
+//      configured ceiling (`dtClampMillis`, spiral-of-death guard), never an
+//      unbounded `dt`;
+//   A2 limit = VSYNC ON/OFF only — no frame-rate cap; `vsync` is the only
+//      pacing primitive (the backend owns the actual pacing/present);
+//   A3 pause = explicit `pause()`/`resume()`; `minimized` suspends the frame
+//      body; losing focus does NOT pause (`blur()` never stops the loop).
+//
+// This is the PURE, backend-independent half of the §6 loop contract: it owns
+// the frame bookkeeping and the `dt` (composing the same `Clock` the pure
+// surface already ships) over a caller-supplied monotonic timestamp source, so
+// it calls no rendering/window/audio API and is honest on every target today.
+// The OS window (create/poll/present) is the backend's job and lands in the
+// rendering slice; this host is the deterministic loop the app writes against
+// (plan §6 "virtual clock required ... for physics/animations/input/audio/
+// playback/goldens"). The backend window (`Window`/`frame`) over the measured
+// SDL3 binding is layered on top in a later slice.
+//
+//   var w = Window("Pong")
+//   w.clock(() -> virtual.nowMicros())     // deterministic source; default time.now()*1000
+//   w.dtClampMillis(250)
+//   w.frame { dt: Int, self: Window -> update(dt); if (done) { self.stop() } }
+//
+// Semantics (frozen here, tested): the loop starts at the source's current
+// timestamp; the first frame reports `dt = 0` (no prior frame to diff), every
+// later frame diffs the previous timestamp and is bounded by `dtClampMillis`.
+// `stop()` ends the loop; `pause()`/`resume()` skip/restore the frame body
+// (the clock baseline still advances, so resuming never yields a huge `dt`);
+// `minimize()`/`restore()` do the same for the window's suspended state;
+// `blur()`/`focus()` only record the focus flag and never affect delivery.
+// Pure arithmetic, no IO; runs on every target.
+
+class Window {
+    String windowTitle
+    Clock frameClock
+    Int clampMs
+    Bool vsyncEnabled
+    Bool active
+    Bool pausedFlag
+    Bool minimizedFlag
+    Bool focusedFlag
+    Int frameCount
+    Int lastDt
+    () -> Long clockSource = null
+
+    constructor(String title) {
+        this.windowTitle = title
+        this.frameClock = Clock()
+        this.clampMs = 250
+        this.vsyncEnabled = true
+        this.active = false
+        this.pausedFlag = false
+        this.minimizedFlag = false
+        this.focusedFlag = true
+        this.frameCount = 0
+        this.lastDt = 0
+    }
+
+    // Deterministic monotonic source in MICROSECONDS (the `Clock` unit).
+    // Default is the wall clock; a virtual source makes goldens reproducible.
+    Window clock(() -> Long nowMicros) {
+        this.clockSource = nowMicros
+        return this
+    }
+
+    // A1: the ceiling a real long frame's `dt` is clamped to (milliseconds).
+    Window dtClampMillis(Int ms) {
+        if (ms < 0) { throw "Window '" + this.windowTitle + "': dtClampMillis negativo" }
+        this.clampMs = ms
+        return this
+    }
+
+    // A2: vsync is the only pacing primitive (no frame-rate cap).
+    Window vsync(Bool on) {
+        this.vsyncEnabled = on
+        return this
+    }
+
+    String title() {
+        return this.windowTitle
+    }
+
+    Int dtClampMs() {
+        return this.clampMs
+    }
+
+    Bool vsyncOn() {
+        return this.vsyncEnabled
+    }
+
+    Bool paused() {
+        return this.pausedFlag
+    }
+
+    Bool minimized() {
+        return this.minimizedFlag
+    }
+
+    Bool focused() {
+        return this.focusedFlag
+    }
+
+    // Frames whose body actually ran (skipped paused/minimized frames are not
+    // counted).
+    Int frames() {
+        return this.frameCount
+    }
+
+    // The `dt` (milliseconds, clamped) delivered to the last executed frame.
+    Int dtMillis() {
+        return this.lastDt
+    }
+
+    // A3: explicit pause/resume — the frame body is skipped until `resume()`.
+    void pause() {
+        this.pausedFlag = true
+    }
+
+    void resume() {
+        this.pausedFlag = false
+    }
+
+    // A3: a minimized window suspends the frame body (its render), and the
+    // baseline still advances so restoring never yields a huge `dt`.
+    void minimize() {
+        this.minimizedFlag = true
+    }
+
+    void restore() {
+        this.minimizedFlag = false
+    }
+
+    // A3: focus is recorded but NEVER pauses the loop.
+    void focus() {
+        this.focusedFlag = true
+    }
+
+    void blur() {
+        this.focusedFlag = false
+    }
+
+    // Stop the loop; `frame` returns after the current body.
+    void stop() {
+        this.active = false
+    }
+
+    // Run the loop, delivering `dt` (Int ms) to `body` once per live frame.
+    // The window passes ITSELF as the second argument, so the body never
+    // needs to capture the outer window (`w.frame { dt: Int, self: Window ->
+    // ... self.stop() }`). A capturing 1-arg body (`w.frame { dt -> ...
+    // w.stop() }`) hits a cross-backend defect on riscv64/aarch64 where a
+    // capturing lambda passed as a function-typed argument receives a garbage
+    // first argument (measured: `dt=141368` instead of `dt=0`; x86-64/JVM
+    // correct) — catalogued as `known-bugs` §620 for the native-backend lane.
+    // The 2-arg shape is green on every target and keeps the decided form
+    // (`Window("…") { frame { dt -> … } }`, `dt` Int ms, first frame `0`).
+    void frame((Int, Window) -> Void body) {
+        var src = this.clockSource
+        this.active = true
+        if (src == null) {
+            this.frameClock.start(time.now() * 1000)
+        } else {
+            this.frameClock.start(src())
+        }
+        while (this.active) {
+            if (src == null) {
+                this.frameClock.beginFrame(time.now() * 1000)
+            } else {
+                this.frameClock.beginFrame(src())
+            }
+            if (!this.pausedFlag && !this.minimizedFlag) {
+                var dt = this.frameClock.dtMillis()
+                if (dt > this.clampMs) { dt = this.clampMs }
+                this.lastDt = dt
+                this.frameCount = this.frameCount + 1
+                body(dt, this)
+            }
+        }
+    }
+}

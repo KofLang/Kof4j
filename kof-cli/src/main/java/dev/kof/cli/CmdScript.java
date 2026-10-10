@@ -29,8 +29,7 @@ final class CmdScript {
             return 0;
         }
         if ("--repl".equals(args[1])) return repl(args);
-        Path src = Path.of(args[1]);
-        if (!Files.exists(src)) { System.err.println("not found: " + src); return 1; }
+        String sourceArg = args[1];
         Target target = Target.JVM;
         boolean watch = false;
         boolean inspect = false;
@@ -48,53 +47,88 @@ final class CmdScript {
             else if (a.startsWith("-")) { System.err.println("unknown option: " + a); return 1; }
             else progArgs.add(a);
         }
+        // Modo inline (zero-state): o argumento não é um path existente, mas
+        // parece fonte Kof → é um programa KofScript efêmero, não um arquivo.
+        boolean inline = !Files.exists(Path.of(sourceArg));
+        if (inline && !looksLikeKofSource(sourceArg)) {
+            System.err.println("not found: " + sourceArg);
+            return 1;
+        }
+        if (inline && watch) {
+            System.err.println("script: --watch needs a file, not inline code");
+            return 1;
+        }
         if (inspect) {
+            if (inline) { System.err.println("script: --inspect needs a file, not inline code"); return 1; }
+            Path src = Path.of(sourceArg);
+            String extErr = KofCliSupport.unsupportedSourceExtension("script", src);
+            if (extErr != null) { System.err.println(extErr); return 1; }
             try {
-                String stats = dev.kof.script.KofScript.inspect(src);
-                System.out.println(stats);
+                System.out.println(dev.kof.script.KofScript.inspect(src));
                 return 0;
             } catch (Exception e) { System.err.println("inspect: " + e.getMessage()); return 1; }
         }
-        if (watch) return watchScript(src, target, progArgs.toArray(new String[0]));
-        // .kf: compila direto (preserva file:line); .ks: wrap decls/stmts como antes
-        try {
-            if (src.toString().endsWith(".kf")) {
-                var r = dev.kof.script.KofScript.runFile(src, target, progArgs.toArray(new String[0]));
-                if (!r.success()) {
-                    if (!r.stderr().isBlank()) System.err.print(r.stderr());
-                    if (!r.stdout().isBlank()) System.out.print(r.stdout());
-                    return 1;
-                }
+        if (inline) {
+            try {
+                var r = dev.kof.script.KofScript.runSource(sourceArg, target, progArgs.toArray(new String[0]));
                 if (!r.stdout().isBlank()) System.out.print(r.stdout());
                 if (!r.stderr().isBlank()) System.err.print(r.stderr());
                 return r.exitCode();
-            }
-            // .ks: KofScript = Kof puro — único serviço é o wrapper de script
-            // (statements -> main(), var/val de topo -> globals). Sem sugar.
-            String content = Files.readString(src);
-            String wrapped = content.contains("main()") ? content : dev.kof.script.KofScript.wrapPureKof(content);
-            Path tmp = Files.createTempDirectory("kof-script-");
-            // Preserve original file name for diagnostics (bad.ks -> bad.kf)
-            String kfName = src.getFileName().toString().replaceFirst("\\.ks$", ".kf");
-            if (!kfName.endsWith(".kf")) kfName = "Script.kf";
-            Path kf = tmp.resolve(kfName);
-            Files.writeString(kf, wrapped);
-            var r = dev.kof.script.KofScript.runFile(kf, target, progArgs.toArray(new String[0]));
-            // Propaga diagnostics com file:line (KofScript já usa d.format())
-            if (!r.success()) {
-                if (!r.stderr().isBlank()) System.err.print(r.stderr());
-                if (!r.stdout().isBlank()) System.out.print(r.stdout());
-                KofCliSupport.cleanup(tmp);
+            } catch (Exception e) {
+                System.err.println("kof script: " + e.getMessage());
                 return 1;
             }
-            if (!r.stdout().isBlank()) System.out.print(r.stdout());
-            if (!r.stderr().isBlank()) System.err.print(r.stderr());
-            KofCliSupport.cleanup(tmp);
-            return r.exitCode();
+        }
+        Path src = Path.of(sourceArg);
+        String extErr = KofCliSupport.unsupportedSourceExtension("script", src);
+        if (extErr != null) { System.err.println(extErr); return 1; }
+        if (watch) return watchScript(src, target, progArgs.toArray(new String[0]));
+        // PortuKof (.ptkf): a extensão define o perfil — compila o arquivo DIRETO
+        // (preserva file:line e o perfil pt-BR); nunca cai no wrap de script.
+        boolean portukof = src.toString().toLowerCase().endsWith(".ptkf");
+        // Pipeline ÚNICA (.kf/.kof/.ks): o texto passa por prepareSource; se já
+        // declara main() roda o arquivo original (preserva irmãos e file:line),
+        // senão o top-level é o programa e o texto é materializado num .kf.
+        try {
+            String content = Files.readString(src);
+            boolean hasMain = portukof || dev.kof.script.KofScript.hasMainDeclaration(content);
+            if (hasMain) {
+                return emit(dev.kof.script.KofScript.runFile(src, target, progArgs.toArray(new String[0])));
+            }
+            Path tmp = Files.createTempDirectory("kof-script-");
+            try {
+                String kfName = src.getFileName().toString();
+                if (kfName.endsWith(".ks") || kfName.endsWith(".kof")) {
+                    kfName = kfName.substring(0, kfName.lastIndexOf('.')) + ".kf";
+                }
+                if (!kfName.endsWith(".kf")) kfName = "Script.kf";
+                Path kf = tmp.resolve(kfName);
+                Files.writeString(kf, dev.kof.script.KofScript.prepareSource(content));
+                return emit(dev.kof.script.KofScript.runFile(kf, target, progArgs.toArray(new String[0])));
+            } finally {
+                KofCliSupport.cleanup(tmp);
+            }
         } catch (Exception e) {
             System.err.println("kof script: " + e.getMessage());
             return 1;
         }
+    }
+
+    /** Emite o RunResult do KofScript no stdout/stderr e devolve o exit code. */
+    private static int emit(dev.kof.script.KofScript.RunResult r) {
+        if (!r.stdout().isBlank()) System.out.print(r.stdout());
+        if (!r.stderr().isBlank()) System.err.print(r.stderr());
+        return r.success() ? r.exitCode() : 1;
+    }
+
+    /**
+     * Heurística do modo inline: o argumento parece código Kof (e não um nome
+     * de arquivo digitado errado)? Exige um marcador sintático — parêntese,
+     * chave, ponto-e-vírgula ou quebra de linha.
+     */
+    private static boolean looksLikeKofSource(String s) {
+        return s.indexOf('(') >= 0 || s.indexOf('{') >= 0
+                || s.indexOf(';') >= 0 || s.indexOf('\n') >= 0;
     }
 
     static int repl(String[] args) {

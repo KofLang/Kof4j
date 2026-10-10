@@ -57,6 +57,7 @@ public final class StdCatalog {
         m.put("validation", KofValidation.functions());
         m.put("observability", KofObservability.functions());
         m.put("tetris", KofTetris.functions());
+        m.put("image", KofImage.functions());
         m.putAll(KofMedia.functions());
         MEMBERS = java.util.Collections.unmodifiableMap(m);
     }
@@ -101,8 +102,13 @@ public final class StdCatalog {
                     Map.entry("dayOfWeek", List.of("dayOfWeek(Int y, Int m, Int d) -> Int")),
                     Map.entry("isWeekend", List.of("isWeekend(Int y, Int m, Int d) -> Bool")),
                     Map.entry("daysBetween", List.of("daysBetween(Int y1, Int m1, Int d1, Int y2, Int m2, Int d2) -> Int")),
+                    Map.entry("age", List.of("age(Int by, Int bm, Int bd, Int ry, Int rm, Int rd) -> Int")),
                     Map.entry("isToday", List.of("isToday(Int y, Int m, Int d) -> Bool")),
                     Map.entry("addDays", List.of("addDays(String iso, Int days) -> String")),
+                    Map.entry("addMonths", List.of("addMonths(String iso, Int months) -> String")),
+                    Map.entry("addYears", List.of("addYears(String iso, Int years) -> String")),
+                    Map.entry("startOf", List.of("startOf(String iso, String unit) -> String")),
+                    Map.entry("endOf", List.of("endOf(String iso, String unit) -> String")),
                     Map.entry("diffDays", List.of("diffDays(String isoA, String isoB) -> Int")),
                     Map.entry("todayIso", List.of("todayIso() -> String")),
                     Map.entry("formatDateIso", List.of("formatDateIso(Int y, Int m, Int d) -> String")),
@@ -137,7 +143,11 @@ public final class StdCatalog {
                     Map.entry("query", List.of("query(String url) -> String")),
                     Map.entry("fragment", List.of("fragment(String url) -> String")),
                     Map.entry("queryEncode", List.of("queryEncode(String s) -> String")),
-                    Map.entry("queryDecode", List.of("queryDecode(String s) -> String")))),
+                    Map.entry("queryDecode", List.of("queryDecode(String s) -> String")),
+                    Map.entry("listen", List.of("listen(Int port) -> Listener")),
+                    Map.entry("connect", List.of("connect(String host, Int port) -> Conn", "connect(String host, Int port, String address) -> Conn")),
+                    Map.entry("bind", List.of("bind(Int port) -> Endpoint")),
+                    Map.entry("resolve", List.of("resolve(String host) -> List<String>")))),
             Map.entry("uuid", java.util.Map.ofEntries(
                     Map.entry("isUuid", List.of("isUuid(String s) -> Bool")),
                     Map.entry("v4", List.of("v4() -> String")),
@@ -205,6 +215,18 @@ public final class StdCatalog {
                     Map.entry("isNegative", List.of("isNegative(Int n) -> Bool")),
                     Map.entry("isZero", List.of("isZero(Int n) -> Bool")),
                     Map.entry("sqrt", List.of("sqrt(Double x) -> Double")),
+                    Map.entry("sin", List.of("sin(Double x) -> Double")),
+                    Map.entry("cos", List.of("cos(Double x) -> Double")),
+                    Map.entry("tan", List.of("tan(Double x) -> Double")),
+                    Map.entry("asin", List.of("asin(Double x) -> Double")),
+                    Map.entry("acos", List.of("acos(Double x) -> Double")),
+                    Map.entry("atan", List.of("atan(Double x) -> Double")),
+                    Map.entry("atan2", List.of("atan2(Double y, Double x) -> Double")),
+                    Map.entry("toRadians", List.of("toRadians(Double angdeg) -> Double")),
+                    Map.entry("toDegrees", List.of("toDegrees(Double angrad) -> Double")),
+                    Map.entry("pi", List.of("pi() -> Double")),
+                    Map.entry("e", List.of("e() -> Double")),
+                    Map.entry("tau", List.of("tau() -> Double")),
                     Map.entry("lerp", List.of("lerp(Double a, Double b, Double t) -> Double")),
                     Map.entry("percentage", List.of("percentage(Double part, Double whole) -> Double")),
                     Map.entry("isInteger", List.of("isInteger(Double x) -> Bool")),
@@ -232,7 +254,7 @@ public final class StdCatalog {
                     Map.entry("deleteAll", List.of("deleteAll(String entity) -> Bool")),
                     Map.entry("where", List.of("where(String entity, String cond, Object value) -> List", "where(String entity, String col, String op, Object value) -> List")),
                     Map.entry("saveAll", List.of("saveAll(String entity, List rows) -> Bool")),
-                    Map.entry("page", List.of("page(String entity, Object offset, Object limit) -> List")),
+                    Map.entry("page", List.of("page(String entity, Object limit, Object offset) -> List")),
                     Map.entry("migrate", List.of("migrate(String url, String user, String pass) -> Bool")))),
             Map.entry("config", java.util.Map.ofEntries(
                     Map.entry("get", List.of("get(String key) -> String")),
@@ -292,6 +314,8 @@ public final class StdCatalog {
                     Map.entry("isPort", List.of("isPort(Int p) -> Bool")),
                     Map.entry("isCreditCard", List.of("isCreditCard(String s) -> Bool")),
                     Map.entry("isIpv6", List.of("isIpv6(String s) -> Bool")),
+                    Map.entry("creditCardBrand", List.of("creditCardBrand(String card) -> String")),
+                    Map.entry("last4", List.of("last4(String card) -> String")),
                     Map.entry("isDomain", List.of("isDomain(String s) -> Bool")))),
             Map.entry("observability", java.util.Map.ofEntries(
                     Map.entry("health", List.of("health() -> String")),
@@ -309,6 +333,11 @@ public final class StdCatalog {
                     Map.entry("spanStart", List.of("spanStart(String name) -> String")),
                     Map.entry("spanEnd", List.of("spanEnd(String id) -> String")),
                     Map.entry("exportSpans", List.of("exportSpans() -> String")))),
+            Map.entry("keyExchange", java.util.Map.ofEntries(
+                    Map.entry("privateKey", List.of("privateKey() -> Secret", "privateKey(String alg) -> Secret")),
+                    Map.entry("publicKey", List.of("publicKey(Secret priv) -> String")),
+                    Map.entry("shared", List.of("shared(Secret priv, Secret peerPublicHex) -> Secret")),
+                    Map.entry("hkdfSha256", List.of("hkdfSha256(Secret ikmHex, String saltHex, String infoHex, Int len) -> String")))),
             Map.entry("tetris", java.util.Map.ofEntries(
                     Map.entry("run", List.of("run() -> void")))),
             Map.entry("passwords", java.util.Map.ofEntries(
@@ -317,12 +346,16 @@ public final class StdCatalog {
                     Map.entry("needsRehash", List.of("needsRehash(String hash) -> Bool")))),
             Map.entry("crypto", java.util.Map.ofEntries(
                     Map.entry("sha256", List.of("sha256(String s) -> String")),
+                    Map.entry("sha256Bytes", List.of("sha256Bytes(Byte[] data) -> String")),
                     Map.entry("sha512", List.of("sha512(String s) -> String")),
                     Map.entry("hmacSha256", List.of("hmacSha256(String key, String msg) -> String", "hmacSha256(KeyHandle key, String msg) -> String")),
+                    Map.entry("hmacSha256Bytes", List.of("hmacSha256Bytes(Byte[] key, Byte[] msg) -> String")),
                     Map.entry("encryptAesGcm", List.of("encryptAesGcm(String plain, String keyHex64) -> String", "encryptAesGcm(String plain, KeyHandle key) -> String")),
                     Map.entry("decryptAesGcm", List.of("decryptAesGcm(String cipher, String keyHex64) -> String", "decryptAesGcm(String cipher, KeyHandle key) -> String")),
                     Map.entry("encryptChacha20", List.of("encryptChacha20(String plain, String keyHex) -> String", "encryptChacha20(String plain, KeyHandle key) -> String")),
                     Map.entry("decryptChacha20", List.of("decryptChacha20(String cipher, String keyHex) -> String", "decryptChacha20(String cipher, KeyHandle key) -> String")),
+                    Map.entry("sign", List.of("sign(Secret priv, Byte[] msg) -> String")),
+                    Map.entry("verify", List.of("verify(Secret key, Byte[] msg, String sigHex) -> Bool")),
                     Map.entry("randomHex", List.of("randomHex(Int n) -> String")),
                     Map.entry("randomInt", List.of("randomInt(Int max) -> Int")))),
             Map.entry("jwt", java.util.Map.ofEntries(

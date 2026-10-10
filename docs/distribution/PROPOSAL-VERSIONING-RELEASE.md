@@ -39,7 +39,7 @@ Revalidated at tip `6c9aeb847f167e97ed48c21a9e4453028198da63` (branch `beta-0.5.
 2. `docs/development/DECISIONS.md` and `.pt_BR.md` — read; `D-RELEASE` (2026-09-14), `D-BRANCH-0.5.0`, `D-VERSION-BUMP-0.5.0`, `D-RELEASE-0.5.0-GATE` (+ condition 2 + `D-RELEASE-0.5.0-SCOPE`), `D-RELEASE-1.0`, `D-1.0-EDGES` confirmed present and `DECIDED`/`RATIFIED` as cited below.
 3. `docs/distribution/VERSIONING.md` and `.pt_BR.md` — read; confirms the drift described in §2.1: the "Current stage" section still states `0.0.x` / Alpha and "every commit on main generates the next Alpha version (PATCH increment)", which does not describe the measured state (`VERSION` = `0.5.0-beta`, dedicated branch `beta-0.5.0`).
 4. `docs/distribution/release-naming.md` and `.pt_BR.md` — read; already uses `MAJOR.MINOR.PATCH-<stage>` and the codename table; no normative contradiction with this proposal.
-5. `docs/development/release-beta-0.5.0-prep.md` and `.pt_BR.md` — read; the 0.5.0 cut-prep checklist, orthogonal to this proposal (not modified here).
+5. `docs/distribution/release-beta-0.5.0.md` and `.pt_BR.md` — the 0.5.0 cut acceptance record (CLOSED 28/09); orthogonal to this proposal.
 6. `docs/PROPOSAL-1.0-EXIT-GATE.md` and `.pt_BR.md` — read; `D-RELEASE-1.0`/EXIT GATE confirmed `RATIFIED`, treated as untouchable by this proposal (§6).
 7. `DOING.md` — no active claim (`IN PROGRESS`) over this front's files in this measurement.
 8. `VERSION` — `0.5.0-beta` at the tip above.

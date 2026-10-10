@@ -146,6 +146,19 @@ final class ExpressionFieldAccessLowerer {
         // receptor é o inner — antes emitia `getfield "?".length` para String?
         // (owner "?" inválido → erro de launcher/verificação no JVM).
         if (recvType instanceof Type.NullableType nt) recvType = nt.inner();
+        // §571 (KofShare control/check.kf 02/10): receiver de record/aula EMPACOTADOS
+        // chegou aqui com pacote VAZIO (typer de var não qualifica) → o getfield
+        // saía `Field DeviceInfo.id` → NoClassDefFoundError no LOAD do Main (a
+        // classe emitida é kofshare/control/DeviceInfo). Qualifica pelo símbolo do
+        // módulo quando existe; classe legítima de pacote padrão (pkg "" no
+        // símbolo) NÃO é tocada (Pair do harness continua Pair).
+        if (recvType instanceof Type.ClassType rct && rct.packageName().isEmpty()
+                && driver.semanticAnalyzer != null) {
+            var cs = driver.semanticAnalyzer.getClass(rct.name());
+            if (cs != null && !cs.packageName().isEmpty()) {
+                recvType = new Type.ClassType(cs.packageName(), rct.name(), rct.typeArguments());
+            }
+        }
         if (BuiltinTypes.isList(recvType) && ("size".equals(fa.fieldName()) || "length".equals(fa.fieldName()))) {
             localIdx = ExpressionLowerer.emitExpression(driver, fa.receiver(), ops, owner, localIdx, locals);
             ops.add(new KofCall(recvType, "kof_list_size", List.of(), Type.PrimitiveType.INT, KofCallKind.INSTANCE));
@@ -226,7 +239,7 @@ final class ExpressionFieldAccessLowerer {
                 // primitivo → unbox. Sem o ajuste o próximo acesso
                 // recebia Object na pilha → VerifyError.
                 if (fieldType instanceof Type.TypeVariable && recvType instanceof Type.ClassType) {
-                    Type eff = CompilerTypes.substituteTypeVariableIn(fieldType, recvType, driver.currentUnit);
+                    Type eff = TypeSubstitution.substituteTypeVariableIn(fieldType, recvType, driver.currentUnit);
                     Type ref = eff instanceof Type.NullableType nt2 ? nt2.inner() : eff;
                     if (TypeMetrics.isPrimitiveType(ref)) {
                         driver.emitErasureUnbox(ops, ref);

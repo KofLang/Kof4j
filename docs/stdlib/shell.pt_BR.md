@@ -4,7 +4,7 @@
 
 **Status:** v1 implementado (18/09, `34e4344f`, plano universal Stage 2 linha 2.2) ·
 **Fonte:** `KofShell.java` (dispatch) + `ExpressionShellCallLowerer` (gates/lowering) ·
-**Testes:** `ShellE2ETest` (16) · **Registro de design:** `docs/shell-plan.pt_BR.md`
+**Testes:** `ShellE2ETest` (21) + `ShellCrossE2ETest` (7) · **Registro de design:** `docs/shell-plan.pt_BR.md`
 
 ## O que é
 
@@ -30,10 +30,10 @@ var argv = shell.cmd("wc", listOf("-l"))
 var n = shell.run(argv.get(0), listOf("-l")).stdout.trim()
 
 var out = shell.pipeline(listOf(listOf("echo", "um dois três"),
-                                               listOf("wc", "-w"))).stdout  // JVM
+                                               listOf("wc", "-w"))).stdout  // todos os alvos
 
 var build = shell.runWith(shell.cmd("make", listOf("-j4")), "/src",
-                          mapOf("CC", "clang"))                              // JVM + JS
+                          mapOf("CC", "clang"))                              // todos os alvos
 ```
 
 | Chamada | O que faz |
@@ -41,8 +41,8 @@ var build = shell.runWith(shell.cmd("make", listOf("-j4")), "/src",
 | `shell.cmd(program, args)` | monta a `List<String>` argv `[program] + args` — sempre **lista**, nunca string; alimenta `run` via `argv.get(0)` + o resto |
 | `shell.run(program)` / `shell.run(program, args)` | roda o comando, devolve `kof.process.Result` (`exitCode`/`stdout`/`stderr`) |
 | `shell.ok(result)` | `exitCode == 0` como `Bool` (IR puro de campo/comparação — `Result` não tem métodos) |
-| `shell.pipeline(listOf(argv, ...))` | encadeia stdout→stdin entre estágios, devolve o `Result` do último (JVM: `kof_shell_pipeline`; JS: cadeia + threads de pump em `KofJsProcessBridge` — mesmo contrato, paridade byte) |
-| `shell.runWith(argv, cwd, env)` | roda o argv **em `cwd`** com ambiente **aditivo** (`cwd` `""` herda o diretório do processo; as chaves do map sobrescrevem as herdadas — nunca uma limpeza silenciosa do ambiente). Erro de spawn e argv vazio devolvem `Result` **honesto** (`stderr` preenchido, `exitCode == -1`) no JVM e no JS; no Native é o mesmo `PROC001` de compilação do `run` |
+| `shell.pipeline(listOf(argv, ...))` | encadeia stdout→stdin entre estágios, devolve o `Result` do último (JVM: pump-threads de `kof_shell_pipeline`; JS: cadeia + threads de pump em `KofJsProcessBridge`; Native x86-64/riscv64/aarch64: encadeamento por pipe do kernel, `kof_shell_pipeline`/`NativeRiscvAsmPipeline` — mesmo contrato, paridade byte) |
+| `shell.runWith(argv, cwd, env)` | roda o argv **em `cwd`** com ambiente **aditivo** (`cwd` `""` herda o diretório do processo; as chaves do map sobrescrevem as herdadas — nunca uma limpeza silenciosa do ambiente). Erro de spawn e argv vazio devolvem `Result` **honesto** (`stderr` preenchido, `exitCode == -1`) em todos os alvos |
 
 ## A propriedade de segurança (pinada por golden)
 
@@ -56,8 +56,8 @@ nesta API. Scripts do próprio repo que concatenam strings de comando re-limpam 
 
 | Face | JVM | JS | Native |
 |---|---|---|---|
-| `cmd` / `run` / `runWith` / `ok` | ✅ real (`kof_process_run`; `runWith` via `kof_shell_runwith` — cwd + ambiente aditivo, `Result` honesto com `-1`) | ✅ real (paridade byte-a-byte com JVM — 5 casos pinados + `runWith` cwd/env/falhas) | ❌ `PROC001` honesto em tempo de compilação (herda a face `process.run` do Native) |
-| `pipeline` | ✅ real (cadeia com pump-threads, golden `echo|wc`) | ✅ real (cadeia no host + pump-threads, 20/09 — paridade byte pinada) | ❌ `PROC001` honesto (sem fork/exec em asm) |
+| `cmd` / `run` / `runWith` / `ok` | ✅ real (`kof_process_run`; `runWith` via `kof_shell_runwith` — cwd + ambiente aditivo, `Result` honesto com `-1`) | ✅ real (paridade byte-a-byte com JVM — 5 casos pinados + `runWith` cwd/env/falhas) | ✅ real em x86-64 e riscv64/aarch64 (`kof_shell_runwith` / `NativeRiscvAsmShell`, 26/09 — paridade byte com JVM); só o MCU/riscv32 freestanding mantém `PROC001` |
+| `pipeline` | ✅ real (cadeia com pump-threads, golden `echo|wc`) | ✅ real (cadeia no host + pump-threads, 20/09 — paridade byte pinada) | ✅ real em x86-64 (`kof_shell_pipeline`, encadeamento por pipe do kernel) e riscv64/aarch64 (`NativeRiscvAsmPipeline`, 26/09 — paridade byte); só o MCU/riscv32 freestanding mantém `PROC001` |
 | membro desconhecido (`shell.foo`) | ✅ `SEM025` | — | — |
 
 Exit code diferente de zero **não** é exceção: `failingCommandPropagatesExitCodeNotException`
@@ -65,10 +65,9 @@ pina `Result.exitCode` como dado.
 
 ## Faces residuais (não são dívida do v1 — o escopo assinado acaba aqui)
 
-- `pipeline` no Native — destrava quando a lane nativa landar `process.run`/spawn
-  em asm; o pino `pipelineOnNativeIsHonestProc001` vira execução real então. (JS
-  fechado 20/09: `pipelineChainsStdoutToStdinOnJvmAndJs` + pin de 3 saltos são
-  execuções reais.)
+- O `PROC001` do Native agora é só o alvo MCU/riscv32 freestanding; os alvos
+  hospedeiros x86-64/riscv64/aarch64 rodam `cmd`/`run`/`runWith`/`ok`/`pipeline`
+  de verdade (26/09, `ShellE2ETest` 21 + `ShellCrossE2ETest` 7).
 - Addons v2 excluídos pela enquete Q3: glob, expansão de `~`, redirecionamento `>` —
   **não** no v1, apenas design no plano.
 
@@ -84,4 +83,4 @@ pina `Result.exitCode` como dado.
 
 - `docs/shell-plan.pt_BR.md` (decisões de design Q1–Q3, mapa de fiação, fatias 2.2.0–2.2.4)
 - `docs/backend-parity.pt_BR.md` — linhas `kof.shell` na tabela de namespaces + tabela de gaps
-- Face `kof.process` no Native: `PROC001` (backend-parity, Known Gaps)
+- Face `kof.process` no Native: real em x86-64/riscv64/aarch64, `PROC001` só no MCU/riscv32 freestanding (backend-parity, Known Gaps)

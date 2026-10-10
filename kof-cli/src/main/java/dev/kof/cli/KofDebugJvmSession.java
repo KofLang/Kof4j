@@ -384,6 +384,12 @@ final class KofDebugJvmSession {
         List<String> cmd = new ArrayList<>();
         cmd.add(KofDebug.javaExecutable());
         cmd.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=" + port);
+        // #679 / D-STDOUT-ENCODING: the debuggee writes to a pipe, so force its
+        // streams to UTF-8 and relay them byte-exactly (below), instead of
+        // inheriting the console/native encoding and corrupting accents.
+        cmd.add("-Dfile.encoding=UTF-8");
+        cmd.add("-Dstdout.encoding=UTF-8");
+        cmd.add("-Dstderr.encoding=UTF-8");
         cmd.add("-cp");
         cmd.add(classesDir.toString());
         cmd.add("Default.Main");
@@ -391,11 +397,13 @@ final class KofDebugJvmSession {
         pb.redirectErrorStream(true);
         jvmProcess = pb.start();
         Thread sink = new Thread(() -> {
-            try {
-                byte[] buf = new byte[1024];
-                while (jvmProcess.getInputStream().read(buf) != -1) {
-                    System.err.print(new String(buf, 0, buf.length).trim());
+            try (var reader = new java.io.InputStreamReader(jvmProcess.getInputStream(), StandardCharsets.UTF_8)) {
+                char[] cbuf = new char[1024];
+                int n;
+                while ((n = reader.read(cbuf)) != -1) {
+                    System.err.print(new String(cbuf, 0, n));
                 }
+                System.err.flush();
             } catch (IOException ignored) {
             }
         }, "debuggee-sink");

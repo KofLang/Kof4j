@@ -8,8 +8,10 @@
 | Função | Forma |
 |--------|-------|
 | `sha256` | `sha256(String s) -> String` |
+| `sha256Bytes` | `sha256Bytes(Byte[] dados) -> String` |
 | `sha512` | `sha512(String s) -> String` |
 | `hmacSha256` | `hmacSha256(String key, String msg) -> String` · `hmacSha256(KeyHandle key, String msg) -> String` |
+| `hmacSha256Bytes` | `hmacSha256Bytes(Byte[] chave, Byte[] msg) -> String` |
 | `encryptAesGcm` | `encryptAesGcm(String plain, String keyHex64) -> String` · `(plain, KeyHandle) -> String` |
 | `decryptAesGcm` | `decryptAesGcm(String cipher, String keyHex64) -> String` · `(cipher, KeyHandle) -> String` |
 | `encryptChacha20` | `encryptChacha20(String plain, String keyHex) -> String` · `(plain, KeyHandle) -> String` |
@@ -19,6 +21,7 @@
 
 ```kf
 var sum = crypto.sha256(payload)
+var bin = crypto.sha256Bytes(payloadBytes)
 var k = secrets.keyFromHex(keyHex)
 var box = crypto.encryptAesGcm("segredo", k)   // AEAD: confidencialidade + integridade
 var out = crypto.decryptAesGcm(box, k)

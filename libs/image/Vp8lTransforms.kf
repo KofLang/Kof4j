@@ -1,0 +1,311 @@
+package image
+
+// kof.image — VP8L inverse transforms (RFC 9649 §3.5), split from Vp8l.kf to
+// keep each file small. The block transforms (predictor, color) and the
+// subtract-green transform are applied in the reverse order they were read.
+// Each transform carries its subresolution image, already entropy-decoded to a
+// flat RGBA buffer by vp8lDecodeImage. Pixel quads are plain Int[4] arrays.
+
+class Vp8lTransform {
+    Int kind
+    Int sizeBits
+    Int gridWidth
+    Int[] image
+    Int width
+    Int height
+
+    constructor(Int kind, Int sizeBits, Int gridWidth, Int[] image, Int width, Int height) {
+        this.kind = kind
+        this.sizeBits = sizeBits
+        this.gridWidth = gridWidth
+        this.image = image
+        this.width = width
+        this.height = height
+    }
+}
+
+Int vp8lAbs(Int v) {
+    if (v < 0) {
+        return 0 - v
+    }
+    return v
+}
+
+Int vp8lClamp(Int v) {
+    if (v < 0) {
+        return 0
+    }
+    if (v > 255) {
+        return 255
+    }
+    return v
+}
+
+// int8 reinterpretation of an unsigned byte (RFC 9649 §3.5.2).
+Int vp8lS8(Int v) {
+    if (v >= 128) {
+        return v - 256
+    }
+    return v
+}
+
+Int vp8lColorDelta(Int t, Int c) {
+    return (vp8lS8(t) * vp8lS8(c)) >> 5
+}
+
+Int[] vp8lCopyQuad(Int[] q) {
+    var out = new Int[4]
+    out[0] = q[0]
+    out[1] = q[1]
+    out[2] = q[2]
+    out[3] = q[3]
+    return out
+}
+
+Int[] vp8lAverage2(Int[] a, Int[] b) {
+    var out = new Int[4]
+    var i = 0
+    while (i < 4) {
+        out[i] = (a[i] + b[i]) / 2
+        i = i + 1
+    }
+    return out
+}
+
+Int[] vp8lSelect(Int[] l, Int[] t, Int[] tl) {
+    var pa = l[3] + t[3] - tl[3]
+    var pr = l[0] + t[0] - tl[0]
+    var pg = l[1] + t[1] - tl[1]
+    var pb = l[2] + t[2] - tl[2]
+    var pl = vp8lAbs(pa - l[3]) + vp8lAbs(pr - l[0]) + vp8lAbs(pg - l[1]) + vp8lAbs(pb - l[2])
+    var pt = vp8lAbs(pa - t[3]) + vp8lAbs(pr - t[0]) + vp8lAbs(pg - t[1]) + vp8lAbs(pb - t[2])
+    if (pl < pt) {
+        return vp8lCopyQuad(l)
+    }
+    return vp8lCopyQuad(t)
+}
+
+// mode = green component of the predictor block; L/T/TL/TR are RGBA quads.
+Int[] vp8lPredict(Int mode, Int[] l, Int[] t, Int[] tl, Int[] tr) {
+    if (mode == 0) {
+        var a = new Int[4]
+        a[3] = 255
+        return a
+    }
+    if (mode == 1) {
+        return vp8lCopyQuad(l)
+    }
+    if (mode == 2) {
+        return vp8lCopyQuad(t)
+    }
+    if (mode == 3) {
+        return vp8lCopyQuad(tr)
+    }
+    if (mode == 4) {
+        return vp8lCopyQuad(tl)
+    }
+    if (mode == 5) {
+        return vp8lAverage2(vp8lAverage2(l, tr), t)
+    }
+    if (mode == 6) {
+        return vp8lAverage2(l, tl)
+    }
+    if (mode == 7) {
+        return vp8lAverage2(l, t)
+    }
+    if (mode == 8) {
+        return vp8lAverage2(tl, t)
+    }
+    if (mode == 9) {
+        return vp8lAverage2(t, tr)
+    }
+    if (mode == 10) {
+        return vp8lAverage2(vp8lAverage2(l, tl), vp8lAverage2(t, tr))
+    }
+    if (mode == 11) {
+        return vp8lSelect(l, t, tl)
+    }
+    if (mode == 12) {
+        var a = new Int[4]
+        var i = 0
+        while (i < 4) {
+            a[i] = vp8lClamp(l[i] + t[i] - tl[i])
+            i = i + 1
+        }
+        return a
+    }
+    if (mode == 13) {
+        var half = vp8lAverage2(l, t)
+        var a = new Int[4]
+        var i = 0
+        while (i < 4) {
+            a[i] = vp8lClamp(half[i] + (half[i] - tl[i]) / 2)
+            i = i + 1
+        }
+        return a
+    }
+    throw "IMAGE: bad WebP predictor mode"
+}
+
+Int[] vp8lQuad(Int[] src, Int at) {
+    var q = new Int[4]
+    q[0] = src[at]
+    q[1] = src[at + 1]
+    q[2] = src[at + 2]
+    q[3] = src[at + 3]
+    return q
+}
+
+Int[] vp8lApplyTransforms(Int[] rgba, List<Vp8lTransform> transforms) {
+    var buf = rgba
+    var i = transforms.size() - 1
+    while (i >= 0) {
+        var tr = transforms.get(i)
+        if (tr.kind == 0) {
+            vp8lApplyPredictor(buf, tr.width, tr.height, tr)
+        } else if (tr.kind == 1) {
+            vp8lApplyColor(buf, tr.width, tr.height, tr)
+        } else if (tr.kind == 2) {
+            vp8lApplySubtractGreen(buf, tr.width * tr.height)
+        }
+        i = i - 1
+    }
+    return buf
+}
+
+// Inverse color-indexing transform (RFC 9649 §3.5.4). The entropy image stores
+// one or more palette indices packed into the green channel of each pixel: a
+// packed pixel holds `1 << nbits` indices of `8 >> nbits` bits, least
+// significant first. The palette table is delta-coded (each colour is the sum
+// of the previous one) and expanded to `1 << (8 >> nbits)` entries. `src` is the
+// reduced-width image and `width`/`height` the original image dimensions.
+Int[] vp8lApplyColorIndexing(Int[] src, Int width, Int height, Int nbits, Int[] rawPalette) {
+    var numColors = rawPalette.length / 4
+    var perPixel = 1 << nbits
+    var indexBits = 8 >> nbits
+    var finalColors = 1 << indexBits
+    var table = new Int[finalColors * 4]
+    var c = 0
+    while (c < numColors && c < finalColors) {
+        var s = c * 4
+        var d = c * 4
+        if (c == 0) {
+            table[0] = rawPalette[0] & 255
+            table[1] = rawPalette[1] & 255
+            table[2] = rawPalette[2] & 255
+            table[3] = rawPalette[3] & 255
+        } else {
+            var p = d - 4
+            table[d] = (rawPalette[s] + table[p]) & 255
+            table[d + 1] = (rawPalette[s + 1] + table[p + 1]) & 255
+            table[d + 2] = (rawPalette[s + 2] + table[p + 2]) & 255
+            table[d + 3] = (rawPalette[s + 3] + table[p + 3]) & 255
+        }
+        c = c + 1
+    }
+    var reduced = vp8lDivRoundUp(width, perPixel)
+    var mask = (1 << indexBits) - 1
+    var out = new Int[width * height * 4]
+    var y = 0
+    while (y < height) {
+        var x = 0
+        while (x < width) {
+            var packed = src[(y * reduced + (x >> nbits)) * 4 + 1]
+            var k = 0
+            while (k < perPixel && x < width) {
+                var idx = packed & mask
+                var d = (y * width + x) * 4
+                if (idx < finalColors) {
+                    var t = idx * 4
+                    out[d] = table[t]
+                    out[d + 1] = table[t + 1]
+                    out[d + 2] = table[t + 2]
+                    out[d + 3] = table[t + 3]
+                }
+                packed = packed >> indexBits
+                x = x + 1
+                k = k + 1
+            }
+        }
+        y = y + 1
+    }
+    return out
+}
+
+void vp8lApplySubtractGreen(Int[] rgba, Int pixels) {
+    var q = 0
+    while (q < pixels) {
+        var base = q * 4
+        var g = rgba[base + 1]
+        rgba[base] = (rgba[base] + g) & 255
+        rgba[base + 2] = (rgba[base + 2] + g) & 255
+        q = q + 1
+    }
+}
+
+void vp8lApplyPredictor(Int[] rgba, Int width, Int height, Vp8lTransform tr) {
+    var sb = tr.sizeBits
+    var gw = tr.gridWidth
+    var img = tr.image
+    var y = 0
+    while (y < height) {
+        var x = 0
+        while (x < width) {
+            var base = (y * width + x) * 4
+            var pred = new Int[4]
+            if (y == 0 && x == 0) {
+                pred[3] = 255
+            } else if (y == 0) {
+                pred = vp8lCopyQuad(vp8lQuad(rgba, base - 4))
+            } else if (x == 0) {
+                pred = vp8lCopyQuad(vp8lQuad(rgba, base - width * 4))
+            } else {
+                var l = vp8lQuad(rgba, base - 4)
+                var t = vp8lQuad(rgba, base - width * 4)
+                var tl = vp8lQuad(rgba, base - width * 4 - 4)
+                var trx = x
+                if (x == width - 1) {
+                    trx = 0
+                }
+                var tr = vp8lQuad(rgba, (y * width + trx) * 4)
+                var mode = img[((y >> sb) * gw + (x >> sb)) * 4 + 1]
+                pred = vp8lPredict(mode, l, t, tl, tr)
+            }
+            var c = 0
+            while (c < 4) {
+                rgba[base + c] = (rgba[base + c] + pred[c]) & 255
+                c = c + 1
+            }
+            x = x + 1
+        }
+        y = y + 1
+    }
+}
+
+void vp8lApplyColor(Int[] rgba, Int width, Int height, Vp8lTransform tr) {
+    var sb = tr.sizeBits
+    var gw = tr.gridWidth
+    var img = tr.image
+    var y = 0
+    while (y < height) {
+        var x = 0
+        while (x < width) {
+            var base = (y * width + x) * 4
+            var el = ((y >> sb) * gw + (x >> sb)) * 4
+            // CTE packs red=red_to_blue, green=green_to_blue, blue=green_to_red
+            // because the subresolution image is a plain RGBA pixel (RFC 9649 §3.5.2).
+            var redToBlue = img[el]
+            var greenToBlue = img[el + 1]
+            var greenToRed = img[el + 2]
+            var red = rgba[base]
+            var green = rgba[base + 1]
+            var blue = rgba[base + 2]
+            var newRed = red + vp8lColorDelta(greenToRed, green)
+            var newBlue = blue + vp8lColorDelta(greenToBlue, green) + vp8lColorDelta(redToBlue, newRed & 255)
+            rgba[base] = newRed & 255
+            rgba[base + 2] = newBlue & 255
+            x = x + 1
+        }
+        y = y + 1
+    }
+}

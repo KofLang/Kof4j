@@ -1,6 +1,5 @@
 package dev.kof.compiler;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -18,25 +17,13 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * E2E TLS tests for G12 — web.app().listenSecure(port) with self-signed cert.
  */
-class KofWebTlsTest {
+class KofWebTlsTest extends ServerProcessSupport {
 
     private static final String JAVA_BIN = Path.of(
             System.getProperty("java.home"), "bin", "java").toString();
 
     private final CompilerDriver driver = new CompilerDriver();
-    private Process serverProcess;
 
-    @AfterEach
-    void stopServer() {
-        if (serverProcess != null) {
-            serverProcess.destroy();
-            try {
-                serverProcess.waitFor(5, TimeUnit.SECONDS);
-            } catch (InterruptedException ignored) {}
-            serverProcess.destroyForcibly();
-            serverProcess = null;
-        }
-    }
 
     private static final String TLS_APP = """
             main() {
@@ -57,25 +44,15 @@ class KofWebTlsTest {
         ProcessBuilder pb = new ProcessBuilder(JAVA_BIN, "-cp", outDir.toString(), "Default.Main");
         pb.redirectErrorStream(true);
         serverProcess = pb.start();
-        int attempt = 0;
-        while (attempt < 60) {
-            if (!serverProcess.isAlive()) {
-                String out = new String(serverProcess.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
-                throw new IOException("TLS server exited early: " + out);
+        TestServerFixture.await(serverProcess, port, 60, 100, () -> {
+            javax.net.ssl.SSLSocketFactory factory = insecureFactory();
+            try (javax.net.ssl.SSLSocket probe = (javax.net.ssl.SSLSocket) factory.createSocket("localhost", port)) {
+                probe.setSoTimeout(200);
+                probe.startHandshake();
+                return true;
             }
-            try {
-                javax.net.ssl.SSLSocketFactory factory = insecureFactory();
-                try (javax.net.ssl.SSLSocket probe = (javax.net.ssl.SSLSocket) factory.createSocket("localhost", port)) {
-                    probe.setSoTimeout(200);
-                    probe.startHandshake();
-                    return port;
-                }
-            } catch (IOException e) {
-                try { Thread.sleep(100); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); break; }
-            }
-            attempt++;
-        }
-        throw new IOException("TLS server did not start");
+        });
+        return port;
     }
 
     private int freePort() throws IOException {
@@ -256,34 +233,18 @@ class KofWebTlsTest {
         pb.redirectErrorStream(true);
         serverProcess = pb.start();
 
-        int attempt = 0;
-        while (attempt < 60) {
-            if (!serverProcess.isAlive()) {
-                String out = new String(serverProcess.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-                fail("servidor PEM morreu: " + out);
+        TestServerFixture.await(serverProcess, port, 60, 100, () -> {
+            javax.net.ssl.SSLSocketFactory factory = insecureFactory();
+            try (javax.net.ssl.SSLSocket probe =
+                         (javax.net.ssl.SSLSocket) factory.createSocket("localhost", port)) {
+                probe.setSoTimeout(300);
+                probe.startHandshake();
+                String r = httpsRequest(port, "GET /hello HTTP/1.1\r\nHost: x\r\n\r\n");
+                assertTrue(r.startsWith("HTTP/1.1 200 OK"), r);
+                assertEquals("Hello PEM", bodyOf(r).trim(), r);
+                return true;
             }
-            try {
-                javax.net.ssl.SSLSocketFactory factory = insecureFactory();
-                try (javax.net.ssl.SSLSocket probe =
-                             (javax.net.ssl.SSLSocket) factory.createSocket("localhost", port)) {
-                    probe.setSoTimeout(300);
-                    probe.startHandshake();
-                    String r = httpsRequest(port, "GET /hello HTTP/1.1\r\nHost: x\r\n\r\n");
-                    assertTrue(r.startsWith("HTTP/1.1 200 OK"), r);
-                    assertEquals("Hello PEM", bodyOf(r).trim(), r);
-                    return;
-                }
-            } catch (IOException e) {
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
-            attempt++;
-        }
-        fail("servidor PEM não subiu");
+        });
     }
 
     @Test

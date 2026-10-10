@@ -460,6 +460,50 @@ public final class MemberResolver {
     }
 
     /**
+     * #686 — exaustividade do `switch` como STATEMENT (não-expression). A
+     * mesma checagem já existia para a forma-expression (SEM081 sealed,
+     * SEM032 Bool/enum), mas a forma-statement não a invocava: um `case`
+     * faltando sem `default` era aceito e virava no-op silencioso em runtime.
+     * Reusa o MESMO predicado/erros; `hasDefault` distingue `default: }`.
+     */
+    static void checkSwitchStmtExhaustiveness(SemanticAnalyzer sa, SwitchStmt ss, Type subjectType) {
+        if (subjectType instanceof Type.ClassType sct && sa.isSealedType(sct.name())) {
+            java.util.Set<String> covered = new java.util.HashSet<>();
+            for (SwitchCase sc : ss.cases()) {
+                if (sc.value() instanceof PatternExpr pe) {
+                    covered.add(ClassShapeChecks.simpleName(pe.typeName()));
+                }
+            }
+            List<String> missing = sealedDirectSubtypes(sa, sct.name()).stream()
+                    .filter(c -> !covered.contains(c)).toList();
+            if (!(missing.isEmpty() || ss.hasDefault())) {
+                sa.reportError(ss, "switch on sealed type '" + sct.name()
+                        + "' does not cover: " + String.join(", ", missing)
+                        + " (add a default or the missing cases)", "SEM081");
+            }
+            return;
+        }
+        if (isBooleanType(subjectType)) {
+            boolean hasTrue = false;
+            boolean hasFalse = false;
+            for (SwitchCase sc : ss.cases()) {
+                if (sc.value() instanceof LiteralExpr l && l.kind() == ConcreteLiteralKind.BOOLEAN) {
+                    if ("true".equals(l.value())) hasTrue = true;
+                    if ("false".equals(l.value())) hasFalse = true;
+                }
+            }
+            if (!(ss.hasDefault() || (hasTrue && hasFalse))) {
+                sa.reportError(ss, "switch on Boolean does not cover all values (true and false)", "SEM032");
+            }
+            return;
+        }
+        // ENUM não entra aqui: a exaustividade da forma-statement sobre enum já
+        // existe no lowering (SEM031, SwitchStmtLowerer) e continua a autoridade
+        // — duplicar aqui reportaria SEM032 e, pior, o erro de análise abortaria
+        // o lowering (SEM031 sumiria). #686 cobre só sealed + Bool.
+    }
+
+    /**
      * SG-015 (#256): classe concreta que estende classe abstrata deve implementar
      * todos os métodos abstratos herdados da cadeia de superclasses.
      */

@@ -17,7 +17,8 @@
 #   eval "$(scripts/setup-cross-toolchain.sh --export)"   # exporta no shell atual
 #   KOF_CROSS_PREFIX=/opt/kof-cross scripts/setup-cross-toolchain.sh
 #
-# Depois: scripts/check_release_050_gate.sh  (com java 25 no PATH) -> parity GREEN.
+# Depois: scripts/target-matrix.sh  (com java 25 no PATH) -> parity GREEN.
+# (A esteira de release 0.5.0 foi aposentada 28/09 — D-RELEASE-0.5.0-CLOSED.)
 set -uo pipefail
 cd "$(git rev-parse --show-toplevel)"
 

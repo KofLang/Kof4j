@@ -1,0 +1,165 @@
+package vision
+
+import image.Image
+import image.Raster
+
+// kof.vision — slice 1a: global image analysis over the shared `Raster`.
+//
+// The first `kof.vision` surface: a luminance **histogram**, its normalized
+// form and **Otsu's optimal global threshold** — classic, deterministic,
+// pure Kof on every target (no interop, no ML). Built on the `image.Raster`
+// value surface (`D-IMAGE-SURFACE`); JS inherits `IOJS001` only when a raster
+// is decoded from a file.
+//
+//   var r = decodeRaster("scan.ppm")
+//   var h = histogram(r)              // Int[256], luminance bins
+//   var t = otsuLevel(r)              // optimal split, 0..255
+//   var bw = otsuBinarize(r)          // black/white Raster
+//
+// Luminance uses the same BT.601 integer rule as `image.grayscale`
+// (`(R*299 + G*587 + B*114) / 1000`); a 1- or 2-channel raster is treated as
+// gray. Never a silent wrong result: a raster with no pixels throws `IMAGE:`.
+
+Int[] histogram(Raster r) {
+    if (r.width <= 0 || r.height <= 0) {
+        throw "IMAGE: empty raster"
+    }
+    var bins = new Int[256]
+    var px = 0
+    while (px < r.width * r.height) {
+        var level = luminanceAt(r, px)
+        bins[level] = bins[level] + 1
+        px = px + 1
+    }
+    return bins
+}
+
+// Same distribution, each bin divided by the pixel count (a probability mass,
+// so every entry is in [0.0, 1.0] and the values sum to 1.0).
+Double[] normalizedHistogram(Raster r) {
+    var bins = histogram(r)
+    var total = r.width * r.height
+    var out = new Double[256]
+    var i = 0
+    while (i < 256) {
+        out[i] = bins[i].toDouble() / total.toDouble()
+        i = i + 1
+    }
+    return out
+}
+
+// Otsu's method (Otsu 1979): the level that maximizes the between-class
+// variance of the two groups `[0, t]` and `[t+1, 255]`. Deterministic; the
+// running class weight and weighted sum keep the loop O(256).
+Int otsuLevel(Raster r) {
+    var bins = histogram(r)
+    var total = 0
+    var sumAll = (0.toLong())
+    var i = 0
+    while (i < 256) {
+        total = total + bins[i]
+        sumAll = sumAll + i.toLong() * bins[i].toLong()
+        i = i + 1
+    }
+    var weightBackground = (0.toLong())
+    var sumBackground = (0.toLong())
+    var best = 0
+    var bestVariance = (-1.toLong())
+    var t = 0
+    while (t < 256) {
+        weightBackground = weightBackground + bins[t].toLong()
+        if (weightBackground == 0) {
+            t = t + 1
+            continue
+        }
+        var weightForeground = total.toLong() - weightBackground
+        sumBackground = sumBackground + t.toLong() * bins[t].toLong()
+        if (weightForeground == 0) {
+            break
+        }
+        var meanBackground = sumBackground / weightBackground
+        var meanForeground = (sumAll - sumBackground) / weightForeground
+        var diff = meanBackground - meanForeground
+        var variance = weightBackground * weightForeground * diff * diff
+        if (variance > bestVariance) {
+            bestVariance = variance
+            best = t
+        }
+        t = t + 1
+    }
+    return best
+}
+
+// Luminance of a pixel using the image package's BT.601 rule.
+Int luminanceAt(Raster r, Int px) {
+    var base = px * r.channels
+    if (r.channels < 3) {
+        return r.samples[base] & 255
+    }
+    return (r.samples[base] * 299 + r.samples[base + 1] * 587 + r.samples[base + 2] * 114) / 1000
+}
+
+// Histogram equalization (plan §Processing): remap every level through the
+// cumulative-distribution function so the result spans the full 0..255 range.
+// `equalizationLut(r)` returns the 256-entry mapping; `equalizeRaster(r)`
+// applies it to every colour channel (alpha preserved) and returns a new
+// `Raster`. A uniform raster maps to all-0 (nothing to stretch). Deterministic,
+// pure Kof, all targets.
+//
+//   var boosted = equalizeRaster(decodeRaster("flat.ppm"))
+
+Int[] equalizationLut(Raster r) {
+    var bins = histogram(r)
+    var out = new Int[256]
+    var total = r.width * r.height
+    var cdfMin = 0
+    var cum = 0
+    var i = 0
+    while (i < 256) {
+        cum = cum + bins[i]
+        if (cdfMin == 0 && cum > 0) {
+            cdfMin = cum
+        }
+        i = i + 1
+    }
+    if (cdfMin == total) {
+        return out
+    }
+    cum = 0
+    i = 0
+    while (i < 256) {
+        cum = cum + bins[i]
+        var level = ((cum - cdfMin) * 255) / (total - cdfMin)
+        if (level < 0) {
+            level = 0
+        }
+        if (level > 255) {
+            level = 255
+        }
+        out[i] = level
+        i = i + 1
+    }
+    return out
+}
+
+Raster equalizeRaster(Raster r) {
+    guardVision(r)
+    var lut = equalizationLut(r)
+    var out = new Int[r.samples.length]
+    var px = 0
+    while (px < r.width * r.height) {
+        var base = px * r.channels
+        var c = 0
+        while (c < r.channels) {
+            if (r.channels == 4 && c == 3) {
+                out[base + c] = r.samples[base + c]
+            } else {
+                out[base + c] = lut[r.samples[base + c] & 255]
+            }
+            c = c + 1
+        }
+        px = px + 1
+    }
+    return Raster(r.format, r.width, r.height, r.channels, out)
+}
+

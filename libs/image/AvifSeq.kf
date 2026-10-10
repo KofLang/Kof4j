@@ -1,0 +1,451 @@
+package image
+
+import image.Avif
+
+// kof.image — AV1 sequence header OBU field walk, slice 2b of the AVIF front
+// (plan §34). Syntax and bit widths verified line-by-line against the AV1
+// Bitstream & Decoding Process Specification, sections 5.5.1 (general
+// sequence header OBU syntax), 5.5.2 (color config), 5.5.3 (timing info),
+// 5.5.4 (decoder model info) — the PDF was read on the dev host 01/10
+// (pdftotext); field order and f(n) widths are quoted from it, never from
+// memory. Two widths that a fabricated fixture had shared a wrong value with
+// (both fixed 03/10 against the spec + a real .avif): seq_profile is f(3)
+// (not 2) and operating_point_idc is f(12) (not 16).
+//
+// `readAvifSeqHeader(path)` locates the av1C configuration record through
+// the same container walk as slice 1 and walks the OBU_SEQUENCE_HEADER
+// payload bit-by-bit: profile/still/reduced flags, the timing-info branch,
+// the operating-point loop (level/tier), frame id numbers, the inter/intra
+// capability block, the color config (bit depths, monochrome, color
+// description, subsampling per profile and bit depth, chroma sample
+// position, separate UV delta Q) and the film-grain flag. It reports the
+// SEQUENCE facts (max frame size, still flag, bit depths, mono,
+// subsampling) — NOT pixel decoding: `decodeRaster` keeps refusing AVIF.
+//
+// Documented subset (never a silent wrong parse), the `Avif.kf` policy:
+//   * profile in 0..2 (profile 3 has reserved bits in color config ->
+//     refused); reduced and non-reduced forms BOTH parse now;
+//   * equal_picture_interval uvlc is consumed; decoder model info is
+//     REFUSED (`IMAGE: avif decoder model info not covered`) — its
+//     per-operating-point buffer widths would then be needed for every
+//     stream; a real encoder emits it rarely, the refusal keeps the face
+//     honest;
+//   * film grain present is REFUSED (`IMAGE: avif film grain not covered`)
+//     after consuming the flag — the parameters are not needed for the
+//     reported facts, but promising to "ignore" film grain would promise
+//     a decode the library does not do;
+//   * the OBU payload must not run past the av1C record (bounds check).
+//
+// Errors are `String` throws beginning with `IMAGE:` — the family of the
+// whole package.
+
+record AvifSeqHeader(Int seqProfile, Bool stillPicture, Bool reduced,
+                    Int maxWidth, Int maxHeight, Bool monochrome,
+                    Bool subsamplingX, Bool subsamplingY, Int bitDepth,
+                    Int chromaSamplePosition, Bool separateUvDeltaQ,
+                    Bool frameIdNumbersPresent, Bool enableSuperres, Bool enableOrderHint, Bool use128x128Superblock, Bool enableRefFrameMvs,
+                    Int forceScreenContentTools, Int forceIntegerMv,
+                    Int orderHintBits, Int widthBitsMinus1, Int heightBitsMinus1,
+                    Int deltaFrameIdLengthMinus2, Int additionalFrameIdLengthMinus1,
+                    Bool enableCdef, Bool enableRestoration)
+
+AvifSeqHeader readAvifSeqHeader(String path) {
+    return avifSeqHeader(File(path).readRange(0, 4096))
+}
+
+AvifSeqHeader avifSeqHeader(Int[] b) {
+    var rec = av1cPayload(b)
+    // configOBUs[] follow the 4-byte AV1CodecConfigurationRecord directly
+    // (AV1-ISOBMFF 2.3.3). The array is OPTIONAL: an AVIF still image carries
+    // its sequence header in the item data, so an empty configOBUs is honest
+    // and explicit here — the item-data path (readAvifItemObus) is the one
+    // that yields the sequence header for such files.
+    if (boxSize(b, rec - 8) <= 12) {
+        throw "IMAGE: avif config obu absent"
+    }
+    var obuHead = u8(b, rec + 4)
+    if ((obuHead >> 7) != 0) {
+        throw "IMAGE: avif config obu forbidden bits"
+    }
+    if (((obuHead >> 3) & 15) != 1) {
+        throw "IMAGE: avif config obu is not a sequence header"
+    }
+    if (((obuHead >> 1) & 1) != 1) {
+        throw "IMAGE: avif config obu missing size field"
+    }
+    var ext = (obuHead >> 2) & 1
+    var p = rec + 5 + ext
+    var size = 0
+    var mult = 1
+    var loop = 0
+    while (loop < 8) {
+        var x = u8(b, p)
+        p = p + 1
+        size = size + (x & 127) * mult
+        mult = mult * 128
+        if ((x & 128) == 0) {
+            loop = 8
+        }
+        loop = loop + 1
+    }
+    var limit = p + size
+    if (limit > rec + boxSize(b, rec - 8) - 8) {
+        throw "IMAGE: truncated avif config obu"
+    }
+    return seqWalk(b, p, limit)
+}
+
+// Slice 2c extraction: the pure payload walk, bounded by [p, limit). The
+// av1C face (avifSeqHeader) validates the container bounds before calling;
+// the item face (AvifObu) validates the OBU bounds before calling.
+AvifSeqHeader seqWalk(Int[] b, Int p, Int limit) {
+    if (limit <= p) {
+        throw "IMAGE: truncated avif sequence header"
+    }
+    var bits = p * 8
+    var profile = seqRead(b, bits, 3)
+    bits = bits + 3
+    if (profile > 2) {
+        throw "IMAGE: avif sequence profile not covered"
+    }
+    var still = seqRead(b, bits, 1)
+    bits = bits + 1
+    var reduced = seqRead(b, bits, 1)
+    bits = bits + 1
+    var dmPresent = 0
+    var delayPresent = 0
+    var opCount = 0
+    var forceSct = 2
+    var forceMv = 2
+    var orderHintBits = 0
+    var orderHint = 0
+    if (reduced == 1) {
+        bits = bits + 5
+    } else {
+        var timingPresent = seqRead(b, bits, 1)
+        bits = bits + 1
+        if (timingPresent == 1) {
+            bits = bits + 32
+            bits = bits + 32
+            var equalPicture = seqRead(b, bits, 1)
+            bits = bits + 1
+            if (equalPicture == 1) {
+                bits = skipUvlc(b, bits)
+            }
+            dmPresent = seqRead(b, bits, 1)
+            bits = bits + 1
+            if (dmPresent == 1) {
+                throw "IMAGE: avif decoder model info not covered"
+            }
+        }
+        delayPresent = seqRead(b, bits, 1)
+        bits = bits + 1
+        opCount = seqRead(b, bits, 5)
+        bits = bits + 5
+        var i = 0
+        while (i <= opCount) {
+            bits = bits + 12
+            var level = seqRead(b, bits, 5)
+            bits = bits + 5
+            if (level > 7) {
+                bits = bits + 1
+            }
+            if (delayPresent == 1) {
+                var d = seqRead(b, bits, 1)
+                bits = bits + 1
+                if (d == 1) {
+                    bits = bits + 4
+                }
+            }
+            i = i + 1
+        }
+    }
+    var wBits = seqRead(b, bits, 4)
+    bits = bits + 4
+    var hBits = seqRead(b, bits, 4)
+    bits = bits + 4
+    var maxWidth = seqRead(b, bits, wBits + 1) + 1
+    bits = bits + wBits + 1
+    var maxHeight = seqRead(b, bits, hBits + 1) + 1
+    bits = bits + hBits + 1
+    var frameIds = 0
+    var deltaIdLen = 0
+    var addIdLen = 0
+    var use128 = 0
+    var refMvs = 0
+    if (reduced == 0) {
+        frameIds = seqRead(b, bits, 1)
+        bits = bits + 1
+        if (frameIds == 1) {
+            deltaIdLen = seqRead(b, bits, 4)
+            bits = bits + 4
+            addIdLen = seqRead(b, bits, 3)
+            bits = bits + 3
+        }
+    }
+    use128 = seqRead(b, bits, 1)
+    bits = bits + 1
+    bits = bits + 1
+    bits = bits + 1
+    if (reduced == 0) {
+        bits = bits + 1
+        bits = bits + 1
+        bits = bits + 1
+        bits = bits + 1
+        orderHint = seqRead(b, bits, 1)
+        bits = bits + 1
+        if (orderHint == 1) {
+            bits = bits + 1
+            refMvs = seqRead(b, bits, 1)
+            bits = bits + 1
+        }
+        var chooseSct = seqRead(b, bits, 1)
+        bits = bits + 1
+        if (chooseSct == 0) {
+            forceSct = seqRead(b, bits, 1)
+            bits = bits + 1
+        }
+        if (forceSct > 0) {
+            var chooseMv = seqRead(b, bits, 1)
+            bits = bits + 1
+            if (chooseMv == 0) {
+                forceMv = seqRead(b, bits, 1)
+                bits = bits + 1
+            }
+        }
+        if (orderHint == 1) {
+            orderHintBits = seqRead(b, bits, 3) + 1
+            bits = bits + 3
+        }
+    }
+    var enableSuperres = seqRead(b, bits, 1)
+    bits = bits + 1
+    var enableCdef = seqRead(b, bits, 1)
+    bits = bits + 1
+    var enableRestoration = seqRead(b, bits, 1)
+    bits = bits + 1
+    var mono = 0
+    var subX = 1
+    var subY = 1
+    var depth = 8
+    var csp = 0
+    var separate = 0
+    var high = seqRead(b, bits, 1)
+    bits = bits + 1
+    if (profile == 2 && high == 1) {
+        var twelve = seqRead(b, bits, 1)
+        bits = bits + 1
+        depth = 10
+        if (twelve == 1) {
+            depth = 12
+        }
+    } else if (profile <= 2) {
+        if (high == 1) {
+            depth = 10
+        }
+    }
+    if (profile == 1) {
+        mono = 0
+    } else {
+        mono = seqRead(b, bits, 1)
+        bits = bits + 1
+    }
+    var primaries = 2
+    var transfer = 2
+    var matrix = 2
+    var desc = seqRead(b, bits, 1)
+    bits = bits + 1
+    if (desc == 1) {
+        primaries = seqRead(b, bits, 8)
+        bits = bits + 8
+        transfer = seqRead(b, bits, 8)
+        bits = bits + 8
+        matrix = seqRead(b, bits, 8)
+        bits = bits + 8
+    }
+    if (mono == 1) {
+        bits = bits + 1
+        subX = 1
+        subY = 1
+    } else {
+        if (!(primaries == 1 && transfer == 12 && matrix == 0)) {
+            bits = bits + 1
+            if (profile == 0) {
+                subX = 1
+                subY = 1
+            } else if (profile == 1) {
+                subX = 0
+                subY = 0
+            } else {
+                if (depth == 12) {
+                    subX = seqRead(b, bits, 1)
+                    bits = bits + 1
+                    subY = 0
+                    if (subX == 1) {
+                        subY = seqRead(b, bits, 1)
+                        bits = bits + 1
+                    }
+                } else {
+                    subX = 1
+                    subY = 0
+                }
+            }
+            if (subX == 1 && subY == 1) {
+                csp = seqRead(b, bits, 2)
+                bits = bits + 2
+            }
+        } else {
+            subX = 0
+            subY = 0
+        }
+        separate = seqRead(b, bits, 1)
+        bits = bits + 1
+    }
+    var filmGrain = seqRead(b, bits, 1)
+    bits = bits + 1
+    if (bits > limit * 8) {
+        throw "IMAGE: truncated avif sequence header"
+    }
+    if (filmGrain == 1) {
+        throw "IMAGE: avif film grain not covered"
+    }
+    return AvifSeqHeader(profile, still == 1, reduced == 1, maxWidth, maxHeight,
+                         mono == 1, subX == 1, subY == 1, depth, csp,
+                         separate == 1, frameIds == 1, enableSuperres == 1,
+                         orderHint == 1, use128 == 1, refMvs == 1, forceSct, forceMv, orderHintBits,
+                         wBits, hBits, deltaIdLen, addIdLen,
+                         enableCdef == 1, enableRestoration == 1)
+}
+
+// Locate the PRIMARY item's av1C configuration record through the same
+// ipma-based property selection as slice 1 (Avif.kf), so a second av1C (the
+// alpha item's) no longer refuses the file. Returns the record's first byte.
+Int av1cPayload(Int[] b) {
+    if (b.length < 12) {
+        throw "IMAGE: file too short for a valid header"
+    }
+    if (!matchesAscii(b, 4, "ftyp")) {
+        throw "IMAGE: not an isobmff file"
+    }
+    var brand = ""
+    if (matchesAscii(b, 8, "avif")) {
+        brand = "avif"
+    } else if (matchesAscii(b, 8, "avis")) {
+        brand = "avis"
+    } else {
+        brand = compatibleAvifBrand(b)
+    }
+    if (brand == "") {
+        throw "IMAGE: unsupported isobmff brand"
+    }
+    var metaAt = findBox(b, 0, b.length, "meta")
+    if (metaAt < 0) {
+        throw "IMAGE: avif has no meta box"
+    }
+    var pitm = -1
+    var iprp = AvifIprp(listOf<AvifProp>(), listOf<Int>(), listOf<List<Int>>(), false)
+    var child = metaAt + 12
+    var metaEnd = boxEnd(b, metaAt)
+    while (child + 8 <= metaEnd) {
+        var size = boxSize(b, child)
+        if (size < 8 || child + size > metaEnd) {
+            throw "IMAGE: malformed avif meta child"
+        }
+        if (matchesAscii(b, child + 4, "pitm")) {
+            pitm = readPitm(b, child)
+        } else if (matchesAscii(b, child + 4, "iprp")) {
+            iprp = readAvifIprp(b, child)
+        }
+        child = child + size
+    }
+    if (pitm < 0) {
+        throw "IMAGE: avif has no primary item"
+    }
+    var av1At = selectAvifProp(iprp, pitm, 1)
+    if (av1At < 0) {
+        throw "IMAGE: avif has no av1C"
+    }
+    if (boxSize(b, av1At) < 12) {
+        throw "IMAGE: truncated avif av1C"
+    }
+    return av1At + 8
+}
+
+Int seqRead(Int[] b, Int bitPos, Int n) {
+    var v = 0
+    var i = 0
+    while (i < n) {
+        var p = bitPos + i
+        var octet = u8(b, p >> 3)
+        v = (v << 1) | ((octet >> (7 - (p & 7))) & 1)
+        i = i + 1
+    }
+    return v
+}
+
+// su(n): signed integer from the bottom n bits of an f(n) value, sign bit =
+// the MSB of those n bits (AV1 4.10.3). Used by the uncompressed_header tail
+// (read_delta_q su(1+6), loop-filter ref/mode deltas su(1+6)).
+Int seqSu(Int[] b, Int bitPos, Int n) {
+    var v = seqRead(b, bitPos, n)
+    var m = 1 << (n - 1)
+    if ((v & m) != 0) {
+        return v - 2 * m
+    }
+    return v
+}
+
+// ns(n): non-symmetric unsigned integer in [0, n) (AV1 4.10.6). w =
+// FloorLog2(n) + 1, m = (1 << w) - n; read f(w - 1); if v < m the value is v,
+// otherwise read one extra bit and return (v << 1) - m + extra_bit. Returns
+// [value, nextBitPos]. Used by the non-uniform tile_info() size lists
+// (width_in_sbs_minus_1 / height_in_sbs_minus_1).
+Int[] seqNs(Int[] b, Int bitPos, Int n) {
+    var w = seqFloorLog2(n) + 1
+    var m = (1 << w) - n
+    var v = seqRead(b, bitPos, w - 1)
+    var bits = bitPos + w - 1
+    if (v < m) {
+        var out = new Int[2]
+        out[0] = v
+        out[1] = bits
+        return out
+    }
+    var extra = seqRead(b, bits, 1)
+    bits = bits + 1
+    var out2 = new Int[2]
+    out2[0] = (v << 1) - m + extra
+    out2[1] = bits
+    return out2
+}
+
+Int seqFloorLog2(Int n) {
+    var k = 0
+    var v = 1
+    while (v <= n / 2) {
+        v = v << 1
+        k = k + 1
+    }
+    return k
+}
+
+Int skipUvlc(Int[] b, Int bits) {
+    var zeros = 0
+    var done = false
+    while (!done) {
+        var bit = seqRead(b, bits, 1)
+        bits = bits + 1
+        if (bit == 1) {
+            done = true
+        } else {
+            zeros = zeros + 1
+            if (zeros > 32) {
+                throw "IMAGE: avif uvlc too long"
+            }
+        }
+    }
+    if (zeros > 0) {
+        bits = bits + zeros
+    }
+    return bits
+}

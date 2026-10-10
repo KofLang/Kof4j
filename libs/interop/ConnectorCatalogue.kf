@@ -1,0 +1,82 @@
+package interop
+
+import interop.ConnectorManifest
+
+// kof.interop — connector catalogue (fatia 4 of the Kof Connector Ecosystem plan,
+// `D-CONNECTORS-GO`). It discovers connector manifests in a directory and exposes
+// them typed, so a tool/system can enumerate the connectors it has without
+// hard-coding each one:
+//
+//   var cat = ConnectorCatalogue("connectors")
+//   cat.count()
+//   cat.names()               // List<String>, in directory order
+//   var m = cat.find("kof-java")   // ConnectorManifest? (null if absent)
+//   cat.has("kof-cc")
+//
+// A manifest is a `*.toml` file in the directory. Honest by construction (R6):
+// non-`.toml` entries are ignored (not a connector), and a manifest that fails
+// to parse throws its own explicit diagnostic from `ConnectorManifest`/`Toml` —
+// never a silent skip of a malformed connector. Built on `kof.io` `Directory`;
+// JS inherits the `IOJS001` directory/readRange gap.
+//
+// The catalogue keeps the manifest PATHS (plain strings) and constructs a
+// `ConnectorManifest` on demand (`find`), avoiding a generic collection of the
+// library type (a Kof generic-arg limitation, proven by the E2E RED-first).
+
+class ConnectorCatalogue {
+    List<String> manifestNames
+    List<String> manifestPaths
+
+    constructor(String directory) {
+        var base = stripTrailingSlash(directory)
+        var files = Directory(base).list()
+        var names = new List<String>()
+        var paths = new List<String>()
+        var i = 0
+        while (i < files.size()) {
+            var file = files.get(i)
+            if (isManifest(file)) {
+                var path = base + "/" + file
+                names.add(ConnectorManifest(path).name())
+                paths.add(path)
+            }
+            i = i + 1
+        }
+        this.manifestNames = names
+        this.manifestPaths = paths
+    }
+
+    Int count() {
+        return this.manifestNames.size()
+    }
+
+    List<String> names() {
+        return this.manifestNames
+    }
+
+    ConnectorManifest? find(String name) {
+        var i = 0
+        while (i < this.manifestNames.size()) {
+            if (this.manifestNames.get(i) == name) {
+                return ConnectorManifest(this.manifestPaths.get(i))
+            }
+            i = i + 1
+        }
+        return null
+    }
+
+    Bool has(String name) {
+        return find(name) != null
+    }
+
+    Bool isManifest(String file) {
+        return file.endsWith(".toml")
+    }
+
+    String stripTrailingSlash(String directory) {
+        if (directory.length() > 1 && directory.endsWith("/")) {
+            return directory.substring(0, directory.length() - 1)
+        }
+        return directory
+    }
+}

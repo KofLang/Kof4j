@@ -13,6 +13,7 @@ import java.util.List;
 
 public final class Main {
     public static void main(String[] args) {
+        KofStdio.install();
         if (args.length == 0) { printUsage(); return; }
         switch (args[0]) {
             case "build" -> CmdBuild.run(args);
@@ -36,6 +37,7 @@ public final class Main {
             case "repl" -> System.exit(CmdScript.repl(args));
             case "init" -> System.exit(init(args));
             case "new" -> System.exit(CmdNew.run(args));
+            case "connector" -> System.exit(CmdConnector.run(args));
             case "deps" -> System.exit(Deps.run(args));
             case "deploy" -> CmdDeploy.run(args);
             case "workflow" -> System.exit(CmdWorkflow.run(args));
@@ -81,6 +83,7 @@ public final class Main {
         System.out.println("  info [--json]                environment and platform report");
         System.out.println("  lsp                          Language Server (stdio, LSP protocol)");
         System.out.println("  install <dir>                install this build as a distribution");
+        System.out.println("  connector init <dir> [--name N] [--language L] [--version V] [--abi A] [--runtime R]   connector scaffold (§8, CONNECTOR001)");
         System.out.println("  deps <init|add|remove|list|resolve>   package manager (kofdeps)");
         System.out.println("  deploy <dir> --target jvm [--output <d>] [--name <n>] [--version <v>]  package a release (fat jar + manifest + checksums + tar.gz)");
         System.out.println("  workflow <list|run> <file.kf> [--json] [--job <name>] [--dry-run]   run a pipeline (pipeline(): KofWfDag)");

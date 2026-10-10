@@ -101,15 +101,15 @@ final class BenchRunners {
         return new RunResult(wallNanos, rssKb, BenchBaseline.normalize(output), userMicros, systemMicros);
     }
 
-    private static List<String> commandFor(Target target, Path outDir) {
+    static List<String> commandFor(Target target, Path outDir) {
         if (target == Target.JVM) {
             String className = findMainClass(outDir);
             if (className == null) return null;
             List<String> cmd = new ArrayList<>();
             cmd.add(System.getProperty("java.home") + "/bin/java");
-            cmd.add("-cp");
-            cmd.add(outDir.toString());
-            cmd.add(className);
+            cmd.addAll(KofStdio.capturedJvmFlags());
+            // §556: wrapper de diagnóstico (o bench captura stdout/stderr).
+            KofCliSupport.appendJvmLaunch(cmd, outDir.toString(), className);
             return cmd;
         }
         if (target == Target.NATIVE) {

@@ -4,24 +4,25 @@
 #
 # ATENÇÃO — de onde esta configuração é lida (e o que `target-branch` faz):
 #   * O GitHub lê este arquivo da DEFAULT BRANCH (`main`), nunca da branch
-#     ativa. Alterá-lo aqui (beta-0.5.0) NÃO redireciona nada enquanto a
-#     mudança não chegar a `main` pelo processo de release/codeowner
+#     ativa. Alterá-lo fora de `main` (aqui, em `lab`, os dois blocos já
+#     apontam para `lab`) NÃO redireciona nada enquanto a mudança não
+#     chegar a `main` pelo processo de release/codeowner
 #     (`.github/workflows/pr-base-guard.yml` bloqueia PR de não-codeowner
-#     contra `main`).
+#     contra `main`). Em `main` os dois blocos ainda apontam para a branch
+#     congelada `beta-0.5.0` — corrigir `main` é da rota de release (#674).
 #   * `target-branch` redireciona apenas atualizações DE VERSÃO. Atualizações
 #     de SEGURANÇA continuam sendo abertas contra a default branch — limitação
 #     do GitHub, não configurável aqui.
 #   * Ao trocar a branch ativa no futuro, atualizar `target-branch` nos dois
-#     blocos junto com a decisão (ver `D-BRANCH-0.5.0` em
+#     blocos junto com a decisão (ver `D-BRANCH-PIPELINE` em
 #     docs/development/DECISIONS.md).
-#   * Aberto para decisão de manutenção: o rótulo `dependencies` (nos dois
-#     blocos) NÃO existe no repositório — ou criar o rótulo, ou remover a
-#     chave `labels`. Não alterado por esta PR.
+#   * O rótulo `dependencies` (nos dois blocos) existe no repositório desde
+#     28/09 — a chave `labels` está válida.
 version: 2
 updates:
   - package-ecosystem: "maven"
     directory: "/"
-    target-branch: "beta-0.5.0"
+    target-branch: "lab"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -42,7 +43,7 @@ updates:
 
   - package-ecosystem: "github-actions"
     directory: "/"
-    target-branch: "beta-0.5.0"
+    target-branch: "lab"
     schedule:
       interval: "weekly"
       day: "monday"

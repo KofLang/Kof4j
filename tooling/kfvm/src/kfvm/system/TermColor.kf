@@ -1,0 +1,43 @@
+package kfvm.system
+
+enum TermColor {
+    RESET,
+    BLACK,
+    RED,
+    GREEN,
+    YELLOW,
+    BLUE,
+    MAGENTA,
+    CYAN,
+    WHITE,
+    BRIGHT_BLACK,
+    BRIGHT_RED,
+    BRIGHT_GREEN,
+    BRIGHT_YELLOW,
+    BRIGHT_BLUE,
+    BRIGHT_MAGENTA,
+    BRIGHT_CYAN,
+    BRIGHT_WHITE
+}
+
+String ansi(TermColor color) {
+    return switch (color) {
+        case RESET -> "\u001b[0m"
+        case BLACK -> "\u001b[30m"
+        case RED -> "\u001b[31m"
+        case GREEN -> "\u001b[32m"
+        case YELLOW -> "\u001b[33m"
+        case BLUE -> "\u001b[34m"
+        case MAGENTA -> "\u001b[35m"
+        case CYAN -> "\u001b[36m"
+        case WHITE -> "\u001b[37m"
+        case BRIGHT_BLACK -> "\u001b[90m"
+        case BRIGHT_RED -> "\u001b[91m"
+        case BRIGHT_GREEN -> "\u001b[92m"
+        case BRIGHT_YELLOW -> "\u001b[93m"
+        case BRIGHT_BLUE -> "\u001b[94m"
+        case BRIGHT_MAGENTA -> "\u001b[95m"
+        case BRIGHT_CYAN -> "\u001b[96m"
+        case BRIGHT_WHITE -> "\u001b[97m"
+    }
+}

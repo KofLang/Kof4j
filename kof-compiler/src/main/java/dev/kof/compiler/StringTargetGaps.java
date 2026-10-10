@@ -18,11 +18,11 @@ import java.util.Set;
  * (R6). A future per-target implementation replaces this gate.
  *
  * <p>D-FULL-PARITY-050 (24/09, row 11): {@code toCharArray} was ported to
- * JS + Native x86-64 + Native riscv64/aarch64 and left this gate. The three
- * regex members remain (a regex engine on those targets is a separate
- * maintainer decision), as does {@code compareToIgnoreCase} (its JVM-exact
- * Unicode per-code-unit case folding on freestanding targets is the open
- * decision).
+ * JS + Native x86-64 + Native riscv64/aarch64 and left this gate;
+ * {@code compareToIgnoreCase} followed (JVM {@code CASE_INSENSITIVE_ORDER} per
+ * code unit, simple fold — JS + Native reuse the {@code RuntimeStringCase}
+ * table/semantics). The three regex members remain (a regex engine on those
+ * targets is a separate maintainer decision).
  */
 final class StringTargetGaps {
 
@@ -32,7 +32,7 @@ final class StringTargetGaps {
 
     /** Accepted by the typer, not lowered on JS/Native. */
     private static final Set<String> INCOMPLETE = Set.of(
-            "matches", "replaceAll", "replaceFirst", "compareToIgnoreCase");
+            "matches", "replaceAll", "replaceFirst", "getBytes");
 
     static boolean isIncompleteMethod(String method) {
         return INCOMPLETE.contains(method);

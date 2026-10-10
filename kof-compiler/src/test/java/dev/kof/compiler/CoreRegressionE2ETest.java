@@ -3,8 +3,6 @@ package dev.kof.compiler;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,44 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Every case is compiled to JVM and KofJS and executed; the observable
  * behavior must match on both targets.
  */
-class CoreRegressionE2ETest {
-
-    private final CompilerDriver driver = new CompilerDriver();
-
-    private String runJvm(Path outDir) throws IOException {
-        try {
-            ProcessBuilder pb = new ProcessBuilder("java", "-cp", outDir.toString(), "Default.Main");
-            pb.redirectErrorStream(true);
-            Process p = pb.start();
-            String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
-                .replace("\r\n", "\n").trim();
-            assertEquals(0, p.waitFor(), "JVM exit code, output: " + output);
-            return output;
-        } catch (InterruptedException e) {
-            throw new IOException("Interrupted", e);
-        }
-    }
-
-    private String runJs(Path outDir) throws IOException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        int exitCode = dev.kof.runtime.KofJsRunner.run(outDir.resolve("Default.mjs"), out,
-                new ByteArrayInputStream(new byte[0]), out);
-        assertEquals(0, exitCode, "JS exit code, output: " + out);
-        return out.toString().trim();
-    }
-
-    private void runBoth(String source, String expected, Path tempDir, String name) throws IOException {
-        Path src = tempDir.resolve(name + ".kf");
-        Files.writeString(src, source);
-        Path outJvm = tempDir.resolve(name + "-jvm");
-        Path outJs = tempDir.resolve(name + "-js");
-        CompilationResult rjvm = driver.compile(src, outJvm, Target.JVM);
-        assertTrue(rjvm.success(), "JVM compile failed: " + rjvm.diagnostics().getDiagnostics());
-        CompilationResult rjs = driver.compile(src, outJs, Target.JS);
-        assertTrue(rjs.success(), "JS compile failed: " + rjs.diagnostics().getDiagnostics());
-        assertEquals(expected, runJvm(outJvm), name + " JVM output mismatch");
-        assertEquals(expected, runJs(outJs), name + " JS output mismatch");
-    }
+class CoreRegressionE2ETest extends JvmJsRunSupport {
 
     // #133 — inicializador de campo static NÃO-constante era descartado
     // silenciosamente: nenhum <clinit> era sintetizado, então
@@ -1110,6 +1071,52 @@ class CoreRegressionE2ETest {
         CompilationResult rjvm = driver.compile(src, outJvm, Target.JVM);
         assertTrue(rjvm.success(), "JVM compile failed: " + rjvm.diagnostics().getDiagnostics());
         assertEquals("fin\n1\nfin2\n2\nfin3", runJvm(outJvm), "JVM finally+return output mismatch");
+    }
+
+    // §617 face A — `break`/`continue` dentro de try/finally pulavam o corpo do
+    // finally ao sair do frame. O lowering de BreakStmt/ContinueStmt não emitia
+    // o finally dos frames try/finally abandonados (JVM/Script/native; JS já
+    // estava correto por usar o try/finally nativo). Esperado: o finally roda
+    // ANTES de break/continue em ambos os laços.
+    @Test
+    void finallyRunsOnBreakAndContinue(@TempDir Path tempDir) throws IOException {
+        runBoth("""
+                main() {
+                    for (var i in listOf(1, 2)) {
+                        try {
+                            if (i == 1) { continue }
+                            println("body:" + i)
+                        } finally {
+                            println("fin:" + i)
+                        }
+                    }
+                    for (var j in listOf(1, 2)) {
+                        try {
+                            if (j == 1) { break }
+                            println("b:" + j)
+                        } finally {
+                            println("bfin:" + j)
+                        }
+                    }
+                }
+                """, "fin:1\nbody:2\nfin:2\nbfin:1", tempDir, "fin-break-continue");
+    }
+
+    // §617 face B — try/finally ANINHADO com `return` no try interno ICEava o
+    // KofJS (`COMP002 unexpected KofCatchStart`) e, mesmo compilando, o epílogo
+    // IR descartava a cadeia que copia o valor do frame interno para o externo
+    // (retornava `undefined`). O parse agora é ciente de profundidade e o
+    // epílogo descarta só o corpo do finally repetido, preservando a cauda.
+    @Test
+    void nestedTryFinallyReturn(@TempDir Path tempDir) throws IOException {
+        runBoth("""
+                String h() {
+                    try {
+                        try { return "inner" } finally { println("fin-inner") }
+                    } finally { println("fin-outer") }
+                }
+                main() { println(h()) }
+                """, "fin-inner\nfin-outer\ninner", tempDir, "nested-fin-return");
     }
 
     // known-bugs §131 (decisão 10a, 13/09) — sobrecarga de MÉTODO por

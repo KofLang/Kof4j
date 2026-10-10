@@ -71,6 +71,9 @@ var fromBytes = secrets.fromBytes(payload)     // non-text bytes, per-byte
 
 `json.encode(key)` is redacted at runtime (`"Secret(*** )"`), and feeding
 `reveal()` straight into `log.*`/`json.encode` raises the `SECN009` warning.
+`secrets.secret(name)` with an unset/blank environment variable is an explicit,
+catchable error (`catch (String e)` names `SECN015`) — never a silent empty
+`Secret`; the legacy `secrets.get(name)` still returns the raw `String`.
 Keys are handled without ever reading them through a `KeyHandle`:
 
 ```kof
@@ -81,6 +84,22 @@ val kh2 = kh.rotate()                          // kh is revoked; reusing it is S
 
 `Secret`/`KeyHandle` are JVM-first: other targets reject them at compile time
 with `SECN008` (never a silent stub).
+
+## Session keys — X25519 + HKDF (D-KOF-X25519)
+
+```kof
+var mine = keyExchange.privateKey()            // Secret — scalar never printable
+var myPub = keyExchange.publicKey(mine)        // 64-hex String — safe to send
+var shared = keyExchange.shared(mine, secrets.of(peerPub))  // Secret
+var rxKey = keyExchange.hkdfSha256(shared, saltHex, "0001", 32)   // per-direction AES key (hex)
+```
+
+WHY: a session key is NEVER hand-assembled and NEVER travels as a raw
+String — private material lives in `Secret` (R8), the public value is the
+only export. Wrong actual on the Secret face = `SECN014`; the face runs on
+JVM/Android/Script today, JS/Native/cross refuse with `SECN012` until the
+port (never silent). RFC 7748 + RFC 5869 (case-1 golden in
+`KeyExchangeE2ETest`).
 
 ## Web auth (middleware)
 

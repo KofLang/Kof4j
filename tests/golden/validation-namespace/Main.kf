@@ -1,0 +1,18 @@
+main() {
+    println(validation.isCpf("52998224725"))
+    println(validation.isCpf("11111111111"))
+    println(validation.isCnpj("11222333000181"))
+    println(validation.isCep("01310-100"))
+    println(validation.isIpv4("192.168.0.1"))
+    println(validation.isIpv4("256.1.1.1"))
+    println(validation.isIpv6("::1"))
+    println(validation.isMac("00:1A:2B:3C:4D:5E"))
+    println(validation.isPort(8080))
+    println(validation.isPort(99999))
+    println(validation.isDomain("example.com"))
+    println(validation.isCreditCard("4242424242424242"))
+    println(validation.isCreditCard("1234567890123456"))
+    println(validation.formatCpf("52998224725"))
+    println(validation.formatCep("01310100"))
+    println(validation.formatCnpj("11222333000181"))
+}

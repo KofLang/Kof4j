@@ -253,6 +253,7 @@ main() {
     var adultos = orm.where<User>(db, "age", ">", 30)     // operadores
     orm.saveAll<User>(db, l)                              // batch (upsert por PK)
     var pg = orm.page<User>(db, 20, 40)                   // paginação (limit, offset)
+    var win = orm.window<User>(db, 20, 0)                 // Window<User> (import kof.pagination)
     println(orm.count<User>(db))
     orm.delete<User>(db, 1)
     orm.migrate(db, "add-phone", "ALTER TABLE user ADD phone VARCHAR")
@@ -266,7 +267,8 @@ main() {
 | `orm.find<T>(db, pk)` / `orm.all<T>(db)` | por PK / todas |
 | `orm.where<T>(db, field, value[, op])` | filtro (op: `=` `>` `<` `>=` `<=` `!=` `LIKE`) |
 | `orm.count<T>(db[, field, value])` | contagem (com filtro opcional) |
-| `orm.page<T>(db, limit, offset)` | paginação |
+| `orm.page<T>(db, limit, offset)` | paginação (só linhas) |
+| `orm.window<T>(db, limit, offset[, total])` | `Window<T>` linhas + flags de navegação; `total=true` adiciona um `COUNT(*)` lazy (exige `import kof.pagination`) |
 | `orm.delete<T>(db, pk)` / `orm.deleteAll<T>(db)` | exclusão |
 | `orm.migrate(db, name, sql)` | migration versionada (tabela `kof_migrations`; cada migração roda uma vez) |
 

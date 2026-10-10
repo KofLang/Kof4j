@@ -457,8 +457,8 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
   qualquer empréstimo de QuickCheck/Hypothesis).
 - **Todo de implementação (quando decidido):** 1. fixar a superfície (uma opção de
   cada); 2. parser/typer + runner no `kof-cli`/`kof-script`; 3. seed + replay
-  determinístico; 4. paridade por alvo JVM/Native-x86/JS (`RNG001` honesto em
-  cross/Android); 5. E2E por alvo + corpus (`training/`, `learn/23-testing`);
+  determinístico; 4. paridade por alvo JVM/Native-x86/JS/Android (`RNG001` honesto
+  só em cross — Android real desde #777); 5. E2E por alvo + corpus (`training/`, `learn/23-testing`);
   6. implementação completa ou gap diagnosticado — sem stub (Q7/R6).
 - **Decidido (21/09, delegado pela mantenedora, `D-PROPERTY`):** opção **C** + opção
   **iii** — **sem sintaxe nova**; o runner de property é o idioma existente

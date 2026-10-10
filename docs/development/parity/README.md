@@ -11,9 +11,12 @@
 ## Files
 
 - [`PARITY-GAPS.md`](PARITY-GAPS.md) — **the blocker ledger**: every measured
-  partial-parity row (surface × target × gap code × owner lane). Machine gate:
-  `check_release_050_gate.sh` → `full_parity` (any open row = the release
-  gate is RED).
+  partial-parity row (surface × target × gap code × owner lane). The 0.5.0
+  machine gate `check_release_050_gate.sh` was **retired** (`D-RELEASE-0.5.0-CLOSED`, 28/09);
+  the live loose-set authority is now `scripts/check_live_records.sh`, and
+  release promotion is governed by `docs/development/quality-pipeline.md`
+  (`D-QUALITY-PIPELINE-2609`) — any open row still means the next promotion is
+  NOT green.
 
 ## How a row closes
 

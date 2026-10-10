@@ -27,7 +27,7 @@ public final class KofValidation {
 
 /** X10 fatia 3: nomes aceitos pelo dispatch real (catálogo p/ LSP).
      *  GUARDA: StdCatalogTest exige == case-literals da fonte abaixo. */
-    static List<String> functions() { return List.of("required", "notBlank", "minLength", "maxLength", "lengthBetween", "isEmail", "isUrl", "matches", "isInt", "isLong", "inRange", "min", "max", "formatCpf", "formatCep", "formatCnpj", "isCpf", "isCnpj", "isCep", "isPis", "isNis", "isIpv4", "isMac", "isPort", "isCreditCard", "isIpv6", "isDomain"); }
+    static List<String> functions() { return List.of("required", "notBlank", "minLength", "maxLength", "lengthBetween", "isEmail", "isUrl", "matches", "isInt", "isLong", "inRange", "min", "max", "formatCpf", "formatCep", "formatCnpj", "isCpf", "isCnpj", "isCep", "isPis", "isNis", "isIpv4", "isMac", "isPort", "isCreditCard", "isIpv6", "creditCardBrand", "last4", "isDomain"); }
 
     static ValidationCall staticMethod(String namespace, String name, List<Type> argTypes) {
         if (!"validation".equals(namespace)) return null;
@@ -83,6 +83,16 @@ public final class KofValidation {
                     ? new ValidationCall("kof_validation_isCreditCard", BOOL, List.of(STR)) : null;
             case "isIpv6" -> argc == 1
                     ? new ValidationCall("kof_validation_isIpv6", BOOL, List.of(STR)) : null;
+            // S12c (STDLIB): marca e últimos 4 — extração de dígitos + Luhn
+            // nas MESMAS regras do isCreditCard (12..19; >19 => invalido).
+            // creditCardBrand: Luhn valido E 13..19 digitos; prefixos
+            // Visa 4 / Mastercard 51..55 / Amex 34,37 / Discover 6011,65;
+            // invalido ou sem marca conhecida => "". last4: ultimos 4 digitos
+            // (>=4, sem exigi Luhn — p/ recibo); <4 digitos ou >19 => "".
+            case "creditCardBrand" -> argc == 1
+                    ? new ValidationCall("kof_validation_creditCardBrand", STR, List.of(STR)) : null;
+            case "last4" -> argc == 1
+                    ? new ValidationCall("kof_validation_last4", STR, List.of(STR)) : null;
             // S6c (STDLIB): domínio — subconjunto RFC 1123 declarado (escopo
             // v1, idem isIpv6): labels [A-Za-z0-9-] 1..63 sem hyphen em
             // ponta; >=2 labels; TLD >=2 só letras; total<=253; sem ponto

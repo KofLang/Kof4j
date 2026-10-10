@@ -1,3 +1,5 @@
+[English](interop-engine-plan.md) | [Português](interop-engine-plan.pt_BR.md)
+
 # X2 — motor oficial `interop` (Python/R) — plano de implementação
 
 last: fatia-4-cross
@@ -45,7 +47,7 @@ Marshalling bidirecional tipado (`Int`/`Double`/`Bool`/`String`/`List`/`Map`/`re
 
 ## Relacao com o ecossistema
 
-- `future/kof-connector-ecosystem-plan.md` NÃO é puxado para development — abri-lo precisa da decisão explícita `D-CONNECTORS` (regra 6). Os motores X2 SÃO a forma processo dos conectores §5.5 (Python) / §5.6 (R) do catálogo; a rota embedding/CPython-C-API/R-C-API segue não-implementada e não é do X2. Se `D-CONNECTORS` abrir, o wire + as faces do X2 seguem como o adaptador do connector de processo; `INTEROP00x`, goldens e testes permanecem. Fatias 3–5 não afetadas.
+- O plano do ecossistema de connectors foi aberto por `D-CONNECTORS`/`D-CONNECTORS-GO` e FECHADO 05/10 (promovido para `docs/stdlib/kof-connector-ecosystem-plan.md`). Os motores X2 SÃO a forma processo dos conectores §5.5 (Python) / §5.6 (R) do catálogo; a rota embedding/CPython-C-API/R-C-API segue não-implementada e não é do X2. O wire + as faces do X2 seguem como o adaptador do connector de processo; `INTEROP00x`, goldens e testes permanecem. Fatias 3–5 não afetadas.
 
 ## Fechamento
 

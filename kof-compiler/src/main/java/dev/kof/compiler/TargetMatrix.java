@@ -22,7 +22,7 @@ public final class TargetMatrix {
 
     /** Targets que podem servir de backend. */
     public static boolean isBackend(Target t) {
-        return t == Target.JVM || t.isNative() || t == Target.SCRIPT;
+        return t == Target.JVM || t.isNative() || t == Target.SCRIPT || t == Target.WASM || t == Target.WASI;
     }
 
     /** Targets que podem servir de frontend. */
@@ -43,13 +43,30 @@ public final class TargetMatrix {
     public static String validate(Target backend, Target frontend) {
         if (backend != null && !isBackend(backend)) {
             return "target '" + name(backend) + "' cannot be a backend"
-                    + " (backend: jvm, native, script)";
+                    + backendGapHint(backend);
         }
         if (frontend != null && !isFrontend(frontend)) {
+            if (frontend == Target.WASM || frontend == Target.WASI) {
+                return "target '" + name(frontend) + "' cannot be a frontend yet"
+                        + " — emission exists (units 15.2/15.3) but the frontend/deploy"
+                        + " surface and the default flip arrive with unit 15.4 (WASM001): see"
+                        + " docs/wasm-wasi-plan.md (TIER 15,"
+                        + " issue #776); frontend: kofjs, script";
+            }
             return "target '" + name(frontend) + "' cannot be a frontend"
                     + " (frontend: kofjs, script)";
         }
         return null;
+    }
+
+    /**
+     * 15.1 (#776) colocou wasm/wasi na topologia; 15.2 deu ao wasm um backend
+     * de subset escalar. WASI ainda recusa — a recusa nomeia o gap (WASM001),
+     * o plano e a unidade que implementa, em vez da lista generica de backends
+     * (R6: nunca "unknown" para alvo real).
+     */
+    private static String backendGapHint(Target t) {
+        return " (backend: jvm, native, script, wasm, wasi)";
     }
 
     /** Nome canônico do alvo (o que vai no kof.toml / CLI). */
@@ -64,6 +81,8 @@ public final class TargetMatrix {
             case JS -> "kofjs";
             case ANDROID -> "android";
             case SCRIPT -> "script";
+            case WASM -> "wasm";
+            case WASI -> "wasi";
         };
     }
 
@@ -74,8 +93,15 @@ public final class TargetMatrix {
     public static String frontendGapFor(String requested) {
         if (requested == null) return null;
         String r = requested.toLowerCase();
-        if (r.equals("wasm") || r.equals("kofwasm") || r.equals("kofwebasm")
-                || r.equals("kofwebassembly") || r.equals("webassembly")) {
+        // 15.1 (07/10, #776): "wasm"/"wasi" sao targets REAIS da topologia
+        // (parse abaixo) — o gap deles e de EMISsAO (WASM001 via validate/
+        // compile), nao de existencia. Os ALIAS/solecismos longos (incl. os
+        // cobertos pela lane .30:9092 em 233724b40) seguem gap de string.
+        if (r.equals("kofwasm") || r.equals("kofwebasm")
+                || r.equals("kofwebassembly") || r.equals("webassembly")
+                || r.equals("wasm32") || r.equals("wasm32-wasi")
+                || r.equals("wasi-preview1") || r.equals("wasip1")
+                || r.equals("kofwasi")) {
             return "WASM001";
         }
         return null;
@@ -91,8 +117,10 @@ public final class TargetMatrix {
         String gap = frontendGapFor(value);
         if (gap != null) {
             if (outError != null) outError.add(
-                    "target '" + value + "' (KofWebAssembly) does not exist yet — planned"
-                            + " in Phase 6 of the platform plan (docs/development/DECISIONS.md) ["
+                    "target '" + value + "' (KofWebAssembly/WASI) does not exist yet — the"
+                            + " wasm/wasi frontend is promoted and is a 0.6.0 cut gate"
+                            + " (docs/wasm-wasi-plan.md, issue #776,"
+                            + " D-WEB-WASI-DEFAULT-0710, docs/development/DECISIONS.md) ["
                             + gap + "]");
             return null;
         }
@@ -104,6 +132,8 @@ public final class TargetMatrix {
             case "js", "kofjs" -> Target.JS;
             case "android" -> Target.ANDROID;
             case "script", "kofscript" -> Target.SCRIPT;
+            case "wasm" -> Target.WASM;
+            case "wasi" -> Target.WASI;
             default -> {
                 if (outError != null) outError.add("unknown target: " + value);
                 yield null;

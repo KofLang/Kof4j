@@ -37,10 +37,40 @@ public final class SemMethodCallTyper {
                 return qcs.type();
             }
         }
+        // §583 (03/10, KofShare C2/C3): o lado SEM NUNCA conheceu o namespace
+        // `json` — `json.decode<T>(...)` inferia UNKNOWN aqui enquanto o emit
+        // (MethodCallNamespaces + ExpressionJsonCallLowerer) conhecia T. O
+        // assignability SEM012 de `var e = 0; e = now + req.ttlMs` (req vindo
+        // de decode) era pulado porque `!Type.isUnknown(valueType)` era falso
+        // — compilava limpo e o JVM morreria com VerifyError no primeiro
+        // dispatch (slot Int recebendo store Long). Este ramo espelha o do
+        // emit, com o toType analyzer-aware do §582 para tipos de pacote.
+        if (mc.receiver() instanceof IdentifierExpr rid && "json".equals(rid.name())
+                && !SemExpressionTyper.isLocalName(scope, "json")) {
+            for (ExpressionNode arg : mc.arguments()) {
+                SemExpressionTyper.inferType(sa, arg, scope);
+            }
+            // Só as formas VÁLIDAS (encode(x) 1 arg; decode<T>(s) 1 arg +
+            // type-argument) retornam cedo com o tipo concreto. Aridade errada
+            // ou método inexistente NÃO retorna: cai no caminho normal, onde
+            // `MemberCallNamespaces.inferStatic` emite o SEM025 da aridade
+            // (#126) — o ramo §583 não pode engolir esse guard.
+            if ("encode".equals(mc.methodName()) && mc.arguments().size() == 1) {
+                return BuiltinTypes.STRING;
+            }
+            if ("decode".equals(mc.methodName()) && mc.arguments().size() == 1
+                    && !mc.typeArguments().isEmpty()) {
+                return CompilerTypes.toType(mc.typeArguments().get(0), sa.unit(), sa);
+            }
+        }
         // F10: métodos de instância do handle de process.spawn
         Type recv = null;
         if (mc.receiver() != null) {
             recv = SemExpressionTyper.inferType(sa, mc.receiver(), scope);
+            // D-PORTUKOF u3: entrada alias-aware — a copia local canonica do
+            // nome faz o dispatch semantico ver o metodo real; a AST e
+            // canonizada pelo splice pos-analise (idempotente).
+            mc = PortuKofMethodSplicer.canonicalCall(sa, recv, sa.unit(), mc);
             // SG-005: deref de T? sem narrowing é erro — null safety é por
             // narrowing (`if (x != null)` re-tipa o símbolo no escopo filho,
             // StatementAnalyzer). Se o receiver AINDA é NullableType aqui, o
@@ -200,12 +230,31 @@ public final class SemMethodCallTyper {
                     KofBuffer.instanceMethod(recv, mc.methodName(), mc.arguments().size());
             if (bufferCall != null) return bufferCall.returnType();
         }
+        if (KofInteropError.isInteropErrorType(recv)) {
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+            KofInteropError.InteropCall ioeCall =
+                    KofInteropError.instanceMethod(recv, mc.methodName(), mc.arguments().size());
+            if (ioeCall != null) return ioeCall.returnType();
+        }
         // D-SECRETS face 1: espelha o ramo do emit para o tipo Secret.
         if (KofSecurity.isSecretType(recv) || KofSecurity.isKeyHandleType(recv)) {
-            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+            java.util.List<Type> secArgs = new java.util.ArrayList<>();
+            for (ExpressionNode arg : mc.arguments()) secArgs.add(SemExpressionTyper.inferType(sa, arg, scope));
             KofSecurity.SecCall secretCall =
                     KofSecurity.instanceMethod(recv, mc.methodName(), mc.arguments().size());
-            if (secretCall != null) return secretCall.returnType();
+            if (secretCall != null) {
+                String viol = KofSecurity.argTypeViolation(secretCall, secArgs);
+                if (viol != null && sa.diagnostics() != null) {
+                    sa.diagnostics().error("", 0, 0, 0,
+                            "Argument type must match the declared String/Int face of '"
+                                    + mc.methodName() + "' — this form is not silently digested"
+                                    + " per target (SECN011: non-String/Int actual reaches an"
+                                    + " identity digest on Script and a VerifyError on the JVM; §563)",
+                            viol);
+                    return Type.UnknownType.UNKNOWN;
+                }
+                return secretCall.returnType();
+            }
         }
         // #490 (SEM102): método desconhecido em tipo builtin de kof.buffer /
         // kof.security (Buffer/Secret/KeyHandle). Os ramos acima só devolvem os

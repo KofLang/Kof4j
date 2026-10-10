@@ -59,7 +59,7 @@ final class ExternalCtorTyper {
         // mesmo gate das faces `extern`/top-level: tipo do arg contra o
         // formal declarado (SEM014) e `null` em primitivo (SEM048) — soltar
         // virava <init>(...)V fantasma e VerifyError no load (R6/Q0).
-        TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes, formals, mc.arguments());
+        TypeChecker.checkArgTypes(sa, sa.diagnostics(), mc.methodName(), argTypes, formals, mc.arguments());
         SemanticAnalyzer.checkNullArgs(sa.diagnostics(), mc.arguments(), mc.position(),
                 formals, mc.methodName());
         sa.putResolvedMethod(mc, new SymbolTable.MethodSymbol("<init>", internal, ct,

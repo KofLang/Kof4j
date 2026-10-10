@@ -1,0 +1,39 @@
+package image
+
+import image.Raster
+
+// kof.image — interop JPEG decode (JVM-only).
+//
+// `decodeJpegRaster(path)` wraps the `kof.image` platform builtin
+// `image.decode(path)`, which returns a flat `[width, height, samples…]`
+// array decoded by `javax.imageio` on the JVM. JPEG is not expressible in
+// pure Kof, so this is the honest interop escape hatch (R9) — and because
+// `image.decode` exists only on the JVM, **importing this module is a
+// JVM-only commitment**: on every other target the call raises the
+// compile-time gap `IMG001` (no silent fallback, R6), the same way the
+// imageio binding does. Formats with a pure-Kof decoder stay in the main
+// `Raster.kf` path and need no import of this file.
+//
+//   import image.Jpeg
+//   var r = decodeJpegRaster("photo.jpg")   // JVM; IMG001 elsewhere
+
+Raster decodeJpegRaster(String path) {
+    Int[] raw = image.decode(path)
+    var w = raw[0]
+    var h = raw[1]
+    var rest = raw.length - 2
+    var channels = 3
+    if (rest == w * h * 4) {
+        channels = 4
+    } else if (rest != w * h * 3) {
+        throw "IMAGE: bad interop image layout (" + raw.length + " values)"
+    }
+    guardRaster(w * h * channels)
+    var samples = new Int[w * h * channels]
+    var i = 0
+    while (i < samples.length) {
+        samples[i] = raw[2 + i]
+        i = i + 1
+    }
+    return Raster("JPEG", w, h, channels, samples)
+}

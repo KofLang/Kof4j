@@ -27,13 +27,13 @@ import org.junit.jupiter.api.io.TempDir;
  * (ver {@code scripts/provision-mcu-qemu.sh}). Sem eles → {@code assumeTrue}
  * skip, nunca verde falso.
  */
-class NativeMcuGcTest {
+class NativeMcuGcTest implements NativeToolchainAssumptions {
 
     private static final long HEAP = 0x10000; // 64 KB
 
     @Test
     void mcuGcAllocatesAndDumps(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuRiscvAsm();
         String out = run(tempDir, "gc1", body(
                 "    li   a0, 16\n    call kof_alloc\n    la   t0, .Lroot_a\n    sw   a0, 0(t0)\n"
                 + "    li   a0, 16\n    call kof_alloc\n    sw   a0, 0(sp)\n"
@@ -48,7 +48,7 @@ class NativeMcuGcTest {
 
     @Test
     void mcuGcMarkMarksRootsTransitively(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuRiscvAsm();
         // A = raiz ESTÁTICA (.Lroot_a); B = raiz de PILHA (abaixo de _stack_top);
         // C = inalcançável; D = alcançável só via A.payload[0] (fecho transitivo).
         String out = run(tempDir, "gc4", body(
@@ -66,7 +66,7 @@ class NativeMcuGcTest {
 
     @Test
     void mcuGcSweepRecoversDeadAndKeepsLive(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuRiscvAsm();
         // Mesmo grafo do mark; collect_now = mark+sweep. A/B/D vivos (flags
         // voltam a 0), C morta vai p/ a free-list (flags 2) e conta frees: 1.
         String out = run(tempDir, "gc5", body(
@@ -87,7 +87,7 @@ class NativeMcuGcTest {
 
     @Test
     void mcuGcMarkHandlesCycles(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuRiscvAsm();
         // A<->E em ciclo, ambos alcançáveis de A: o mark para no já-marcado
         // (guard de ciclo) e o sweep mantém os dois vivos.
         String out = run(tempDir, "gc6", body(
@@ -105,7 +105,7 @@ class NativeMcuGcTest {
 
     @Test
     void mcuGcLongAllocLoopIsRecycled(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuRiscvAsm();
         // 10000 allocs de 16B com só a última viva. Heap de 64KB ≈ 2048 blocos:
         // SEM coletor o bump estoura e panica; COM o B4-GC-3 o OOM do kof_alloc
         // roda collect+retry e o laço completa — fecho do vazamento.
@@ -118,7 +118,7 @@ class NativeMcuGcTest {
 
     @Test
     void mcuGcLongAllocLoopOomsWithoutCollector(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuRiscvAsm();
         // Sabotagem: removido o hook do coletor no OOM → o bump esgota e panica.
         String sabotaged = NativeMcuGcRiscv32.all().replace("call kof_gc_collect_now\n", "");
         String out = runWith(tempDir, "gc8", body(loopOps(10000)), HEAP, sabotaged);
@@ -139,7 +139,7 @@ class NativeMcuGcTest {
 
     @Test
     void mcuGcFreeIsReusedByNextAlloc(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuRiscvAsm();
         String out = run(tempDir, "gc2", body(
                 "    li   a0, 16\n    call kof_alloc\n    mv   s0, a0\n"
                 + "    mv   a0, s0\n    call kof_free\n"
@@ -155,7 +155,7 @@ class NativeMcuGcTest {
 
     @Test
     void mcuGcOomPanicsWithDiagnostic(@TempDir Path tempDir) throws Exception {
-        assumeToolchain();
+        assumeMcuRiscvAsm();
         // Heap de 4 KB; pedido de 32 KB estoura o bump → panic nomeado (R6/Q7).
         String out = run(tempDir, "gc3", body(
                 "    li   a0, 0x8000\n    call kof_alloc\n    call kof_memstats\n"), 0x1000);
@@ -265,11 +265,6 @@ class NativeMcuGcTest {
         p.waitFor(20, TimeUnit.SECONDS);
         p.destroyForcibly();
         return Files.readString(ser, StandardCharsets.ISO_8859_1).replace("\0", "");
-    }
-
-    private void assumeToolchain() {
-        assumeTrue(hasTool("riscv64-linux-gnu-as", "--version"),
-                "binutils riscv64 ausente (riscv64-linux-gnu-as)");
     }
 
     private static String capture(String... cmd) throws IOException, InterruptedException {

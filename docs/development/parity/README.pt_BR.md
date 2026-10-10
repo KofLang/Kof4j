@@ -12,8 +12,12 @@
 
 - [`PARITY-GAPS.md`](PARITY-GAPS.pt_BR.md) — **o ledger impeditivo**: cada
   linha de paridade parcial medida (superfície × alvo × código de gap × lane
-  dona). Gate de máquina: `check_release_050_gate.sh` → `full_parity`
-  (qualquer linha aberta = o gate de release fica RED).
+  dona). O gate de máquina da 0.5.0 `check_release_050_gate.sh` foi
+  **aposentado** (`D-RELEASE-0.5.0-CLOSED`, 28/09); a autoridade viva do
+  conjunto solto é agora `scripts/check_live_records.sh`, e a promoção de
+  release é regida por `docs/development/quality-pipeline.md`
+  (`D-QUALITY-PIPELINE-2609`) — qualquer linha aberta ainda significa que a
+  próxima promoção NÃO está verde.
 
 ## Como uma linha fecha
 

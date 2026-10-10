@@ -19,9 +19,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * Red-first: antes desta fatia `List<out Animal>` gerava o type-arg textual
  * `outAnimal` (tokens concatenados sem espaço) → tipo inválido.
  */
-class UseSiteVarianceE2ETest {
+class UseSiteVarianceE2ETest extends MultiSourceRunSupport {
 
-    private final CompilerDriver driver = new CompilerDriver();
 
     private static final String ANIMALS = """
             class Animal {
@@ -48,12 +47,7 @@ class UseSiteVarianceE2ETest {
         return output;
     }
 
-    private void runScript(Path root, List<Path> sources, String expected) {
-        KofInterpreter.Result r = driver.interpret(sources, root, new String[0]);
-        assertEquals(0, r.exitCode(), "SCRIPT exit code, output: " + r.stdout());
-        assertEquals(expected, r.stdout().trim().replace("\r\n", "\n"), "SCRIPT output");
-    }
-
+    
     private static Path write(Path dir, String name, String body) throws Exception {
         Path f = dir.resolve(name);
         Files.writeString(f, body);

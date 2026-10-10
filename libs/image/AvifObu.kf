@@ -1,0 +1,152 @@
+package image
+
+import image.Avif
+import image.AvifItems
+import image.AvifSeq
+
+// kof.image — AVIF item OBU-stream walk, slice 2c of the AVIF front (plan
+// §34). The OBU header syntax, the obu_type table and the size-field rules
+// are quoted from the AV1 Bitstream & Decoding Process Specification read
+// on the dev host 02/10 (5.2/5.3.1/5.3.2, 6.2 OBU semantics):
+//   * header byte: forbidden(1)=0, type(4), extension(1), size present(1),
+//     reserved(1)=0; the extension header (temporal_id 3 + spatial_id 2 +
+//     reserved 3) is present when the extension flag is set;
+//   * obu_size is an LEB128 "size in bytes of the OBU not including the
+//     bytes within obu_header or the obu_size syntax element" (6.2.2);
+//   * low-overhead streams (the AVIF item form) must set the size field on
+//     every OBU (5.2: "When using this format, obu_has_size_field must be
+//     equal to 1") — a missing size field is refused, never guessed;
+//   * reserved types (0, 9..14) "shall be ignored by AV1 decoder" (6.2) —
+//     this walk counts and skips them.
+//
+// Type counts follow the 6.2 table: 1 sequence header, 2 temporal
+// delimiter, 3 frame header, 4 tile group, 5 metadata, 6 frame, 7
+// redundant frame header, 8 tile list, 15 padding; everything else
+// reserved.
+//
+// `avifItemObus(item)` walks located item bytes (slice 2a) OBU by OBU,
+// counts each type, parses the FIRST sequence header with the slice-2b
+// field walk (`seqWalk`), and requires the stream to begin with a temporal
+// delimiter (AV1 5.3.1/6.4.1: the delimiter is the first OBU of the temporal
+// unit). It ENUMERATES — frame/tile payloads are not decoded here and
+// `decodeRaster` keeps refusing AVIF; the AV1 decode chain rides later
+// slices.
+//
+// `readAvifItemObus(path)` composes the whole located path: container
+// metadata (slice 1) -> primary item id -> item bytes (slice 2a) -> OBU
+// walk (this slice).
+//
+// Errors are `String` throws beginning with `IMAGE:` — the family of the
+// whole package.
+
+record AvifObuCounts(Int total, Int delimiters, Int seqHeaders, Int frameHeaders,
+                     Int redundantFrameHeaders, Int tileGroups, Int tileLists,
+                     Int metadata, Int frames, Int padding, Int reserved,
+                     AvifSeqHeader seq)
+
+AvifObuCounts readAvifItemObus(String path) {
+    var bytes = File(path).readRange(0, 65536)
+    var md = avifMetadata(bytes)
+    var item = avifItemBytes(bytes, md.primaryId)
+    return avifItemObus(item)
+}
+
+AvifObuCounts avifItemObus(Int[] item) {
+    var n = item.length
+    if (n == 0) {
+        throw "IMAGE: empty avif item"
+    }
+    var total = 0
+    var delimiters = 0
+    var seqHeaders = 0
+    var frameHeaders = 0
+    var redundant = 0
+    var tileGroups = 0
+    var tileLists = 0
+    var metaObus = 0
+    var frames = 0
+    var padding = 0
+    var reserved = 0
+    var seq = AvifSeqHeader(0, false, false, 0, 0, false, false, false, 8, 0, false,
+                            false, false, false, false, false, 2, 2, 0, 0, 0, 0, 0,
+                            false, false)
+    var haveSeq = false
+    var pos = 0
+    while (pos < n) {
+        var head = u8(item, pos)
+        if ((head >> 7) != 0) {
+            throw "IMAGE: avif item obu forbidden bits"
+        }
+        var type = (head >> 3) & 15
+        var ext = (head >> 2) & 1
+        var hasSize = (head >> 1) & 1
+        if ((head & 1) != 0) {
+            throw "IMAGE: avif item obu reserved bit set"
+        }
+        if (hasSize != 1) {
+            throw "IMAGE: avif item obu missing size field"
+        }
+        if (total == 0 && type != 2) {
+            throw "IMAGE: avif item does not begin with a temporal delimiter"
+        }
+        var p = pos + 1 + ext
+        if (p >= n) {
+            throw "IMAGE: avif obu truncated"
+        }
+        var size = 0
+        var mult = 1
+        var loop = 0
+        var sized = false
+        while (loop < 8) {
+            var x = u8(item, p)
+            p = p + 1
+            size = size + (x & 127) * mult
+            mult = mult * 128
+            if ((x & 128) == 0) {
+                sized = true
+                loop = 8
+            }
+            loop = loop + 1
+        }
+        if (!sized) {
+            throw "IMAGE: avif obu size too long"
+        }
+        var limit = p + size
+        if (limit > n) {
+            throw "IMAGE: avif obu truncated"
+        }
+        total = total + 1
+        if (type == 2) {
+            delimiters = delimiters + 1
+        } else if (type == 1) {
+            seqHeaders = seqHeaders + 1
+            if (!haveSeq) {
+                seq = seqWalk(item, p, limit)
+                haveSeq = true
+            }
+        } else if (type == 3) {
+            frameHeaders = frameHeaders + 1
+        } else if (type == 7) {
+            redundant = redundant + 1
+        } else if (type == 4) {
+            tileGroups = tileGroups + 1
+        } else if (type == 8) {
+            tileLists = tileLists + 1
+        } else if (type == 6) {
+            frames = frames + 1
+        } else if (type == 5) {
+            metaObus = metaObus + 1
+        } else if (type == 15) {
+            padding = padding + 1
+        } else {
+            reserved = reserved + 1
+        }
+        pos = limit
+    }
+    if (!haveSeq) {
+        throw "IMAGE: avif item has no sequence header"
+    }
+    return AvifObuCounts(total, delimiters, seqHeaders, frameHeaders, redundant,
+                         tileGroups, tileLists, metaObus, frames, padding,
+                         reserved, seq)
+}

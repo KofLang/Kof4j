@@ -22,12 +22,19 @@ import static org.junit.jupiter.api.Assertions.*;
  * Pula (assume) quando a toolchain cruzada ou o qemu não existem, como
  * {@code NativeE2ETest} faz quando o assembler nativo falta.
  */
-class NativeRiscv64E2ETest {
+class NativeRiscv64E2ETest implements NativeToolchainAssumptions {
 
     private final CompilerDriver driver = new CompilerDriver();
 
     private static boolean has(String... cmds) {
         for (String c : cmds) {
+            // §591: prefix-aware — KOF_CROSS_PREFIX/<tool> vence quando existe
+            // (cross rootless de scripts/setup-cross-toolchain.sh); senão o PATH.
+            String prefix = System.getenv("KOF_CROSS_PREFIX");
+            if (prefix != null && !prefix.isBlank()
+                    && new java.io.File(prefix, c).canExecute()) {
+                continue;
+            }
             try {
                 Process p = new ProcessBuilder("sh", "-c", "command -v " + c).redirectErrorStream(true).start();
                 String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
@@ -39,15 +46,19 @@ class NativeRiscv64E2ETest {
         return true;
     }
 
-    private void assumeToolchain() {
-        Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
-                "cross toolchain riscv64 + qemu ausente — pulando (NATIVE002)");
-    }
-
     /** Bridge p/ testes de outros pacotes (KofConcurrency2Test etc.):
      *  toolchain + qemu presentes para a arch ("riscv64"/"aarch64")? */
     static boolean hasToolchain(String arch) {
         return has(arch + "-linux-gnu-as", arch + "-linux-gnu-ld", "qemu-" + arch);
+    }
+
+    /** Como {@link #hasToolchain} mas exige TAMBÉM o compilador C cross
+     *  (`<arch>-linux-gnu-gcc`). #714: testes que compilam um shim C
+     *  (`compileCrossLib`) precisam do `gcc`; sem ele o `hasToolchain` (só
+     *  as/ld/qemu) devolvia {@code true} e o teste morria em ERROR em vez de
+     *  pular. Use este guard em qualquer teste que invoque o gcc cross. */
+    static boolean hasToolchainWithGcc(String arch) {
+        return has(arch + "-linux-gnu-as", arch + "-linux-gnu-ld", arch + "-linux-gnu-gcc", "qemu-" + arch);
     }
 
     /** Roda o binário sob qemu (QEMU_LD_PREFIX do sysroot resolvido) e
@@ -59,6 +70,24 @@ class NativeRiscv64E2ETest {
         String output = runBounded(p, arch + " binary");
         assertEquals(0, p.exitValue(), "Exit code should be 0, output: '" + output + "'");
         return output;
+    }
+
+    /** Shared tail for cross E2E tests whose program links a shim (so the
+     *  binary needs {@code LD_LIBRARY_PATH=dir}): runs {@code bin} for
+     *  {@code arch} under qemu, requires exit 0 within 60s and returns the
+     *  normalised stdout. This is the block that was byte-duplicated as a
+     *  private {@code runQemu} in six test classes (test-architecture Fase 5
+     *  ratchet). */
+    static String runQemuWithLibPath(Path dir, String arch, Path bin) throws IOException, InterruptedException {
+        ProcessBuilder pb = qemu(arch, bin);
+        pb.environment().put("LD_LIBRARY_PATH", dir.toString());
+        pb.redirectErrorStream(true);
+        Process p = pb.start();
+        String o = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                .replace("\r\n", "\n").trim();
+        assertTrue(p.waitFor(60, TimeUnit.SECONDS), arch + " must finish");
+        assertEquals(0, p.exitValue(), arch + " exit, output: " + o);
+        return o;
     }
 
     /** FLT001 (15/09): programas que imprimem FP linkam DINAMICAMENTE com a
@@ -128,6 +157,33 @@ class NativeRiscv64E2ETest {
         assertFalse(p.isAlive(), "§418: o filho pendurado tem de morrer (destroyForcibly)");
     }
 
+    /** #714 (regra 1 — teste de regressão do fix): o guarda de toolchain com
+     *  gcc cruzado NUNCA lança e concorda com a sonda {@code command -v}. Era a
+     *  causa-raiz do falso-vermelho: os testes de fixture C chamavam
+     *  {@code ProcessBuilder("<arch>-linux-gnu-gcc")} direto com guarda só em
+     *  {@link #hasToolchain} (as/ld/qemu), então num host sem o gcc cruzado o
+     *  filho estourava {@code IOException} (ERROR) em vez de pular. O
+     *  {@link #hasToolchainWithGcc} devolve boolean e acrescenta o {@code gcc}
+     *  ao conjunto exigido. Prova: arch inexistente ⇒ false sem exceção; e para
+     *  riscv64/aarch64 o resultado bate com a sonda {@code command -v} do host —
+     *  true na CI (gcc presente), false num host que só tem as/ld/qemu. */
+    @Test
+    void gccToolchainGuardIsANonThrowingPredicateMatchingCommandProbe() {
+        assertFalse(hasToolchainWithGcc("nonexistent-arch"),
+                "arch inexistente deve dar false (nunca lançar)");
+        for (String arch : new String[]{"riscv64", "aarch64"}) {
+            boolean viaGuard = hasToolchainWithGcc(arch);
+            boolean allPresent = has(arch + "-linux-gnu-as", arch + "-linux-gnu-ld",
+                    arch + "-linux-gnu-gcc", "qemu-" + arch);
+            assertEquals(allPresent, viaGuard,
+                    arch + ": o guarda deve refletir exatamente o conjunto exigido (command -v)");
+            // direcional e robusto: se falta o C cross compiler, o guarda é SEMPRE false
+            if (!has(arch + "-linux-gnu-gcc")) {
+                assertFalse(viaGuard, arch + ": sem o gcc cruzado o guarda não pode dar true");
+            }
+        }
+    }
+
     private String runRiscv64(Path tempDir, String source) throws IOException {
         Path src = tempDir.resolve("Main.kf");
         Files.writeString(src, source);
@@ -149,7 +205,7 @@ class NativeRiscv64E2ETest {
     void riscv64CollectionMethodsStdlibGolden(@TempDir Path tempDir) throws IOException {
         // #386/#382 — os 7 métodos novos no riscv64 (NativeRiscvAsmLookups0).
         // Golden = MESMA medição do oráculo JVM (CollectionMethodsStdlibE2ETest).
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, CollectionMethodsStdlibE2ETest.PROGRAM);
         assertEquals(CollectionMethodsStdlibE2ETest.GOLDEN, out,
                 "riscv64 must match the JVM oracle (regra 5)");
@@ -161,7 +217,7 @@ class NativeRiscv64E2ETest {
     // x86 (NativeE2ETest.genericCtorArgPrintsLikeJvm); aarch64 herda.
     @Test
     void riscv64GenericCtorArgPrintsLikeJvm(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             class Box<T> {
                 T value
@@ -192,7 +248,7 @@ class NativeRiscv64E2ETest {
     // então o riscv64 tem de casar o oráculo (aarch64 herda via tradutor).
     @Test
     void riscv64RecordGenericInterfaceBridge(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             interface Box<T> {
                 T get()
@@ -215,7 +271,7 @@ class NativeRiscv64E2ETest {
     // (prefixo "app"<"apple" + iguais "apple").
     @Test
     void riscv64CrossRuntimePortsEdges(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, CrossRuntimePortsE2ETest.PROGRAM);
         assertEquals(CrossRuntimePortsE2ETest.GOLDEN, out,
                 "riscv64 add_all + string_compare_to edges must match the JVM oracle (regra 5)");
@@ -223,14 +279,14 @@ class NativeRiscv64E2ETest {
 
     @Test
     void riscv64HelloWorld(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, "main() { println(\"Hello, Kof!\") }");
         assertEquals("Hello, Kof!", out);
     }
 
     @Test
     void riscv64ArithmeticAndLocal(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             main() {
                 println("Hello")
@@ -243,7 +299,7 @@ class NativeRiscv64E2ETest {
 
     @Test
     void riscv64IfElseComparisonsAndArithmetic(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             main() {
                 var x = 10
@@ -264,7 +320,7 @@ class NativeRiscv64E2ETest {
 
     @Test
     void riscv64DivisionModuloNegative(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             main() {
                 println(20 / 4)
@@ -277,7 +333,7 @@ class NativeRiscv64E2ETest {
 
     @Test
     void riscv64VirtualDispatch(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             class Animal {
                 speak(): String = "animal"
@@ -297,7 +353,7 @@ class NativeRiscv64E2ETest {
 
     @Test
     void riscv64FieldsAndMethods(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             class User {
                 String name
@@ -314,7 +370,7 @@ class NativeRiscv64E2ETest {
 
     @Test
     void riscv64Arrays(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             main() {
                 var arr = new Int[3]
@@ -332,7 +388,7 @@ class NativeRiscv64E2ETest {
     void riscv64MultiDimArray(@TempDir Path tempDir) throws IOException {
         // §113 faces riscv: kof_multi_alloc recursivo (fatia B37). Golden =
         // oracle JVM medido (mesmo programa da célula array2d da matriz).
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             main() {
                 var m = new Int[2][3]
@@ -354,7 +410,7 @@ class NativeRiscv64E2ETest {
 
     @Test
     void riscv64List(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             main() {
                 var l = listOf(1, 2, 3)
@@ -368,7 +424,7 @@ class NativeRiscv64E2ETest {
 
     @Test
     void riscv64SwitchInt(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             main() {
                 var x = 2
@@ -384,7 +440,7 @@ class NativeRiscv64E2ETest {
 
     @Test
     void riscv64TryCatchThrow(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             main() {
                 try {
@@ -400,7 +456,7 @@ class NativeRiscv64E2ETest {
 
     @Test
     void riscv64PatternMatching(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             main() {
                 var x: Object = "hello"
@@ -423,7 +479,7 @@ class NativeRiscv64E2ETest {
 
     @Test
     void riscv64SwitchExpression(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             record Point(Int x, Int y)
             main() {
@@ -447,7 +503,7 @@ class NativeRiscv64E2ETest {
 
     @Test
     void riscv64JsonEncode(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             record Pessoa(String nome, Int idade)
             main() {
@@ -462,7 +518,7 @@ class NativeRiscv64E2ETest {
 
     @Test
     void riscv64JsonEncodeDecodeLists(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             main() {
                 println(json.encode(listOf(1, 2, 3)))
@@ -479,7 +535,7 @@ class NativeRiscv64E2ETest {
 
     @Test
     void riscv64StringMethods(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             main() {
                 var s = "Hello, Kof"
@@ -497,7 +553,7 @@ class NativeRiscv64E2ETest {
 
     @Test
     void riscv64Recursion(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             Int fib(Int n) {
                 if (n < 2) { return n }
@@ -515,7 +571,7 @@ class NativeRiscv64E2ETest {
     // 127.0.0.1 alcança o ServerSocket abaixo.
     @Test
     void riscv64HttpGetPostStatus(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         int port = startHttpServer();
         String out = runRiscv64(tempDir, """
             main() {
@@ -531,7 +587,7 @@ class NativeRiscv64E2ETest {
     // user-mode roda threads de verdade; await sincroniza via futex no done.
     @Test
     void riscv64SpawnAwait(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             Int work(Int n) { return n * 2 }
             main() {
@@ -544,7 +600,7 @@ class NativeRiscv64E2ETest {
 
     @Test
     void riscv64SpawnFireAndForgetJoins(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             main() {
                 println("inicio")
@@ -558,12 +614,29 @@ class NativeRiscv64E2ETest {
         assertTrue(lines.contains("fim"), "main não bloqueia no spawn: " + lines);
     }
 
+    // §545: um worker de `spawn` que chama um `extern` precisa de `tp` válido
+    // (TLS da libc). Antes do fix o clone cru começava com tls=0 → SIGSEGV no
+    // primeiro acesso TLS/PLT (`-1888(tp)`). Regressão: sem fallback, worker
+    // chama abs() e o resultado dobra. aarch64 tem o gêmeo em NativeAarch64.
+    @Test
+    void riscv64SpawnExtern(@TempDir Path tempDir) throws IOException {
+        assumeNativeRiscv64();
+        String out = runRiscv64(tempDir, """
+            extern "libc.so.6" abs(Int x): Int
+            main() {
+                val r = spawn { return abs(-5) + abs(3) }
+                println(await r)
+            }
+            """);
+        assertEquals("8", out);
+    }
+
     // NATIVE002-stdlib: métodos String riscv64 (trim/toUpper/toLowerCase/
     // replace char+String/lastIndexOf/equalsIgnoreCase/split) — antes
     // quebriam no link com undefined reference (R6: nunca silencioso).
     @Test
     void riscv64StringTrimCaseReplaceSplit(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             main() {
                 println("  hi  ".trim().length)
@@ -585,7 +658,7 @@ class NativeRiscv64E2ETest {
     // `li a0,0` que quebrava o TTL do cache e time.now() silenciosamente (R6).
     @Test
     void riscv64TimeNow(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             main() {
                 var t = time.now()
@@ -600,7 +673,7 @@ class NativeRiscv64E2ETest {
     // bounds quebrados → segfault. Agora usa ponteiro-fim salvo no frame.
     @Test
     void riscv64Cache(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             main() {
                 cache.set("name", "Mel")
@@ -617,7 +690,7 @@ class NativeRiscv64E2ETest {
     // (lbu t0,24(s0) → 0x34) como endereço → SIGSEGV silencioso.
     @Test
     void riscv64StringToInt(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             main() {
                 println("42".toInt())
@@ -646,7 +719,7 @@ class NativeRiscv64E2ETest {
     // antes mapOf/setOf quebravam no link (undefined reference).
     @Test
     void riscv64MapSet(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             main() {
                 var m = mapOf()
@@ -680,7 +753,7 @@ class NativeRiscv64E2ETest {
     // passou de `0` p/ `null` (contrato V? com caixa real — 4-alvos identicos).
     @Test
     void riscv64MapKeyTagCross(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             main() {
                 var m = mapOf(1, "a", 2, "b")
@@ -703,7 +776,7 @@ class NativeRiscv64E2ETest {
     // ABI igual mq (a0=fn, a1..=args, invoke via vtable[0]).
     @Test
     void riscv64HigherOrder(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             main() {
                 var l = listOf(1, 2, 3)
@@ -721,7 +794,7 @@ class NativeRiscv64E2ETest {
     // reference a kof_json_decode_int — só o _int_list existia).
     @Test
     void riscv64JsonDecodeInt(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             main() {
                 println(json.decode<Int>("42"))
@@ -741,7 +814,7 @@ class NativeRiscv64E2ETest {
     // quebrava .asciz "# TYPE " ao stripar '#' como comentário).
     @Test
     void riscv64MetricsParity(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             main() {
                 observability.counter("req")
@@ -757,7 +830,7 @@ class NativeRiscv64E2ETest {
     // `ret` (não dormia; R6). Pré-requisito do scheduler.
     @Test
     void riscv64TimeSleep(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             main() {
                 var t0 = time.now()
@@ -823,7 +896,7 @@ class NativeRiscv64E2ETest {
     // (tipo do bug 88) fica travada nos 2 qemu.
     @Test
     void riscv64StdlibCore(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
 main() {
     println(math.clamp(15, 1, 10))
@@ -862,7 +935,7 @@ main() {
     // medido no JVM — idêntico x86/riscv/aarch 10/09 (26 vetores).
     @Test
     void riscv64StdlibValidationNetTime(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
 main() {
     println(validation.isCpf("529.982.247-25"))
@@ -899,7 +972,7 @@ main() {
 
     @Test
     void nativeStringLengthAndCharAtUtf16(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         // bug 43 cross (faces 1/3): length/charAt em code units UTF-16
         // (port das faces x86 — MESMO golden do JVM medido na sessão).
         String out = runRiscv64(tempDir, """
@@ -925,7 +998,7 @@ main() {
 
     @Test
     void nativeStringSubstringIndexOfUtf16(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         // bug 43 cross (estágio 2): substring/indexOf/lastIndexOf em code
         // units UTF-16 — golden JVM MEDIDO (B34, trampolins p/ kof_su_*).
         String out = runRiscv64(tempDir, """
@@ -951,7 +1024,7 @@ main() {
 
     @Test
     void nativeStringCompareToAndHashCodeUtf16(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         // bug 97 cross: compareTo/hashCode em code units UTF-16 (port do x86,
         // MESMOS 11 vetores golden do NativeE2ETest) — riscv64.
         String out = runRiscv64(tempDir, """
@@ -973,7 +1046,7 @@ main() {
     }
     @Test
     void nativeTimeAddDaysDiffDaysIso(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         // STDLIB S7c-1 (TIME002 fechado 11/09): addDays/diffDays em data ISO
         // riscv64/aarch64 — fatia B35 + tradutor. Golden stdtime2 (matriz) +
         // 3 vetores extras (overflow 9999 / borrow 0001 / fim de ano bissexto
@@ -1006,7 +1079,7 @@ main() {
     }
     @Test
     void nativeMathDoubleSeries(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         // STDLIB S1b/S1b.1 (MATH001 fechado 11/09): escalares Double puros
         // kof.math (sqrt/lerp/percentage/isInteger/isDecimal) riscv64/aarch64
         // — fatia B36 (bits crus via a0..aN, fsqrt.d/fcvt/feq cobertos no
@@ -1042,7 +1115,7 @@ main() {
 
     @Test
     void nativeCollectionPrintMatchesJvmGolden(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         // §107-cross (fatia B39): println(<coleção>) imprimia LIXO de ponteiro
         // (`@` medido no qemu antes do fix) — o valueOf cross não tinha ramo
         // List/Map/Set e caía em kof_println_string sobre o ponteiro cru. Os
@@ -1075,7 +1148,7 @@ main() {
 
     @Test
     void nativeArrayPrintMatchesJvmGolden(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         // §388-B-cross (voto da mantenedora 21/09): println de array CRU usa o
         // formato de container da casa ([65, 66]) — kof_array_to_string riscv
         // espelha o x86 (bloco [len@16][esz@20][data@24], slot de 8B, mesma
@@ -1111,7 +1184,7 @@ main() {
 
     @Test
     void nativeCollectionPrintRecordNestedMatchesJvmGolden(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         // §107 record/nested (face (4), 19/09): elementos que são RECORDS,
         // LISTs/SETs/MAPs aninhados — o descritor recursivo (.rodata emitido
         // no call-site) manda o helper chamar a vtable toString (ramo 8,
@@ -1137,7 +1210,7 @@ main() {
 
     @Test
     void nativePrintNullRecordMatchesJvmGolden(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         // §396-cross: println CRU de record NULL (T?-API) e String? deve
         // imprimir "null" — no x86 o 8(%rax) da vtable SIGSEGVava; o guard do
         // call-site riscv vale tambem p/ o path nao-SIGSEGV nativo do riscv.
@@ -1161,7 +1234,7 @@ main() {
 
     @Test
     void nativeValueOfDoubleFloatMatchesJvmGolden(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         // FLT001 (fechado 15/09): Double/Float -> String no cross via libc
         // (snprintf/strtod, link dinâmico sob demanda). Golden = Double.toString
         // /Float.toString do JVM (decimal MAIS CURTO que faz round-trip, limiar
@@ -1196,7 +1269,7 @@ main() {
      *  guard o topo caminhava para fora do heap e corrompia .Lmq_subs/—. */
     @Test
     void riscvHeapExhaustionPanicsHonest(@TempDir Path tempDir) throws IOException, InterruptedException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         Path src = tempDir.resolve("Main.kf");
         // mesmo com o coletor (G-4), a lista `l` é uma raiz VIVA (alcançável
         // pela pilha): tudo que ela referencia é marcado, então o bump estoura
@@ -1232,7 +1305,7 @@ main() {
      *  Bool/Int, nunca println de double cru — regra bug 44). */
     @Test
     void riscvDoubleModVariables(@TempDir Path tempDir) throws IOException, InterruptedException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String output = runRiscv64(tempDir, """
             main() {
                 var a = 7.5
@@ -1266,7 +1339,7 @@ main() {
      *  aqui sob qemu. */
     @Test
     void riscvMapPutDiscardedLongValueKeepsStackBalanced(@TempDir Path tempDir) throws IOException, InterruptedException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String output = runRiscv64(tempDir, """
             main() {
                 var m = mapOf("a", 1L)
@@ -1285,7 +1358,7 @@ main() {
      *  (tradutor-safe: aarch nao conhece fneg). Golden = oracle JVM. */
     @Test
     void riscv64NegativeFloatDoubleRuns(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             main() {
                 var d = 2.5
@@ -1313,7 +1386,7 @@ main() {
      *  (mesmo vetor da célula `castrange` do ConformanceMatrixTest). */
     @Test
     void riscv64CastSaturation(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             main() {
                 var d = 3.0e9
@@ -1390,7 +1463,7 @@ main() {
      *  Golden = oracle JVM. */
     @Test
     void riscv64SinglePrecisionFloatAndIntToFloatCast(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, """
             main() {
                 var a = 1.5 as Float
@@ -1422,7 +1495,7 @@ main() {
     // direto e FECHA a paridade riscv == aarch == x86 na regra 5.
     @Test
     void riscv64FloatCompoundAssignIsolation(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, FloatCompoundAssignE2ETest.PROGRAM);
         assertEquals(FloatCompoundAssignE2ETest.GOLDEN, out,
                 "riscv64 single-precision compound-assign must match the JVM oracle (regra 5)");
@@ -1433,7 +1506,7 @@ main() {
     // Golden = JVM oracle of the same program (WrapperStaticCallsE2ETest).
     @Test
     void riscv64WrapperStaticsParseAndPredicates(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         String out = runRiscv64(tempDir, WrapperStaticCallsE2ETest.WRAPPER_STATICS_SRC);
         assertEquals(WrapperStaticCallsE2ETest.WRAPPER_STATICS_GOLDEN, out);
     }

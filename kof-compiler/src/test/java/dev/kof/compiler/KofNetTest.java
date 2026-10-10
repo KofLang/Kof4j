@@ -6,9 +6,14 @@ import java.nio.file.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** STDLIB S8 — kof.net (6 campos escalares de URI v1 + fachada query*). */
-class KofNetTest {
+class KofNetTest implements QemuRunSupport {
 
     private final CompilerDriver driver = new CompilerDriver();
+
+    @Override
+    public CompilerDriver driver() {
+        return driver;
+    }
 
     private static final String SRC = """
             String ufields(String s) {
@@ -70,21 +75,17 @@ class KofNetTest {
     }
 
     @Test
-    void netOnJs(@TempDir Path tmp) throws Exception {
+    // D-NET-JS-V1 (mantenedora 02/10): a frente inteira de kof.net — incluindo
+    // os helpers puros de URI, que viviam nela — e RECUSADA no compile em
+    // Target.JS com NETN001; nao ha artefato JS de rede no v1 e nao existe
+    // sub-alvo browser/Node. As pernas JVM/Native/Script continuam o contrato.
+    void netOnJsRefused(@TempDir Path tmp) throws Exception {
         Path file = tmp.resolve("Main.kf");
         Files.writeString(file, SRC);
-        Path out = tmp.resolve("js");
-        CompilationResult r = driver.compile(file, out, Target.JS);
-        assertTrue(r.success(), "JS compile: " + r.diagnostics().getDiagnostics());
-        Path entry;
-        try (var s = Files.walk(out)) {
-            entry = s.filter(q -> q.getFileName().toString().equals("Default.mjs")).findFirst().orElseThrow();
-        }
-        java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
-        int ec = dev.kof.runtime.KofJsRunner.run(entry, buf,
-                java.io.InputStream.nullInputStream(), new java.io.ByteArrayOutputStream());
-        assertEquals(0, ec, "JS exit " + ec + " out: " + buf);
-        assertEquals(EXPECTED, buf.toString(java.nio.charset.StandardCharsets.UTF_8).trim());
+        CompilationResult r = driver.compile(file, tmp.resolve("js"), Target.JS);
+        assertFalse(r.success(), "JS must refuse the net front");
+        String diag = r.diagnostics().getDiagnostics().toString();
+        assertTrue(diag.contains("NETN001"), "must name NETN001: " + diag);
     }
 
     @Test
@@ -111,35 +112,5 @@ class KofNetTest {
         runQemuE(tmp, Target.NATIVE_RISCV64, "qemu-riscv64", SRC, EXPECTED);
         assumeToolchain("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64");
         runQemuE(tmp, Target.NATIVE_AARCH64, "qemu-aarch64", SRC, EXPECTED);
-    }
-
-    private static void assumeToolchain(String... tools) {
-        for (String c : tools) {
-            try {
-                Process p = new ProcessBuilder(c, "--version").redirectErrorStream(true).start();
-                String o = new String(p.getInputStream().readAllBytes(),
-                        java.nio.charset.StandardCharsets.UTF_8).trim();
-                if (p.waitFor() != 0 || o.isEmpty()) {
-                    org.junit.jupiter.api.Assumptions.assumeTrue(false, "toolchain ausente: " + c);
-                }
-            } catch (Exception e) {
-                org.junit.jupiter.api.Assumptions.assumeTrue(false, "toolchain ausente: " + c);
-            }
-        }
-    }
-
-    private void runQemuE(Path tempDir, Target target, String qemu, String source,
-                          String expected) throws Exception {
-        Path file = tempDir.resolve("Main-" + System.nanoTime() + ".kf");
-        Files.writeString(file, source);
-        Path out = tempDir.resolve("out-" + System.nanoTime());
-        CompilationResult r = driver.compile(file, out, target);
-        assertTrue(r.success(), target + " compile: " + r.diagnostics().getDiagnostics());
-        Process p = NativeRiscv64E2ETest.qemu(qemu.substring(5), out.resolve("Default/Main"))
-                .redirectErrorStream(true).start();
-        String o = new String(p.getInputStream().readAllBytes(),
-                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
-        assertEquals(0, p.waitFor());
-        assertEquals(expected, o, target + " output");
     }
 }

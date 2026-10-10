@@ -1,0 +1,31 @@
+main() {
+    var n = 0
+    do {
+        n = n + 1
+    } while (n < 3)
+    println(n)
+    var sum = 0
+    for (var i = 0; i < 10; i = i + 1) {
+        if (i == 5) {
+            break
+        }
+        sum = sum + i
+    }
+    println(sum)
+    var odds = 0
+    for (var i = 0; i < 6; i = i + 1) {
+        if (i % 2 == 0) {
+            continue
+        }
+        odds = odds + i
+    }
+    println(odds)
+    var words = ""
+    for (var w in listOf("a", "b", "c")) {
+        if (w == "b") {
+            continue
+        }
+        words = words + w
+    }
+    println(words)
+}

@@ -1,5 +1,7 @@
 package dev.kof.compiler.nat;
 
+import dev.kof.compiler.NativeToolchainAssumptions;
+
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -23,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * que aloca N blocos e chama `kof_gc_dump`; a saída lista cada bloco com o
  * tamanho TOTAL (align16(size)+32, header G-0) e os flags, na ordem LIFO.
  */
-class NativeRiscvGcListTest {
+class NativeRiscvGcListTest implements NativeToolchainAssumptions {
 
     private static boolean has(String... cmds) {
         for (String c : cmds) {
@@ -39,15 +41,6 @@ class NativeRiscvGcListTest {
         return true;
     }
 
-    private void assumeToolchain() {
-        Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
-                "cross toolchain riscv64 + qemu ausente — pulando (NATIVE002 G-2)");
-    }
-
-    private void assumeAarch64() {
-        Assumptions.assumeTrue(has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
-                "cross toolchain aarch64 + qemu ausente — pulando (NATIVE002 G-2)");
-    }
 
     /** _start cru: 3 allocs de tamanhos distintos + dump da gc-list. */
     private static final String HARNESS_ALLOCS = """
@@ -157,7 +150,7 @@ class NativeRiscvGcListTest {
         runCapture("aarch64-linux-gnu-as", "-o", obj.toString(), asm.toString());
         runCapture("aarch64-linux-gnu-ld", "--gc-sections", "-o", bin.toString(), obj.toString());
         bin.toFile().setExecutable(true);
-        return runCapture("qemu-aarch64", bin.toString());
+        return QemuRun.runExpect0("qemu-aarch64", bin.toString());
     }
 
     private void assertList(String out) {
@@ -173,25 +166,25 @@ class NativeRiscvGcListTest {
 
     @Test
     void gcListLinksNewBlocksWithFlags(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         assertList(buildRiscv(tempDir, HARNESS_ALLOCS, "g2list"));
     }
 
     @Test
     void gcListReuseDoesNotDuplicate(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         assertReuse(buildRiscv(tempDir, HARNESS_REUSE, "g2reuse"));
     }
 
     @Test
     void gcListLinksNewBlocksWithFlagsAarch64(@TempDir Path tempDir) throws IOException {
-        assumeAarch64();
+        assumeNativeAarch64();
         assertList(buildAarch64(tempDir, HARNESS_ALLOCS, "g2lista"));
     }
 
     @Test
     void gcListReuseDoesNotDuplicateAarch64(@TempDir Path tempDir) throws IOException {
-        assumeAarch64();
+        assumeNativeAarch64();
         assertReuse(buildAarch64(tempDir, HARNESS_REUSE, "g2reusea"));
     }
 }

@@ -43,6 +43,22 @@ public final class CatchTypeCheck {
         if ("String".equals(name) && sa.getClass("String") == null) return true;
         if (name.indexOf('.') >= 0 || name.indexOf('/') >= 0) return true;
         if (CompilerTypes.JAVA_LANG_THROWABLES.contains(name)) return true;
+        // D-INTEROP-ERR-TYPE: builtin do idioma, throwable por construcao — mas
+        // a face so existe onde a ffi estrangeira baixa (JVM). Fora daqui, a
+        // recusa e nomeada (INTEROP009), nunca stub silencioso (R6).
+        if ("InteropError".equals(name)) {
+            if (sa.interpreting() || sa.target() != Target.JVM) {
+                sa.diagnostics().error(cc,
+                        "catch type 'InteropError' needs the JVM foreign-call face — not"
+                                + " available on target '" + sa.target() + "'"
+                                + (sa.interpreting() ? " (script interpretation)" : "")
+                                + " (" + KofInteropError.GAP_CODE + "); the failure there is"
+                                + " named in the message of `catch (String e)`",
+                        KofInteropError.GAP_CODE);
+                return false;
+            }
+            return true;
+        }
         if (KOF_PRIMITIVES.contains(name)) {
             sa.diagnostics().error(cc,
                     "catch type '" + name + "' is a primitive — primitives are not throwable"

@@ -79,6 +79,43 @@ class MapGetOrDefaultTest {
     }
 
     @Test
+    void primitiveKeyGetOrDefaultRunsOnJvm(@TempDir Path tempDir) throws Exception {
+        // A PRIMITIVE key: the default is pushed after the key, so boxing the
+        // key *after* the default consumed the default as the `int` operand of
+        // Integer.valueOf → VerifyError when the key is Int/Long/Double/Bool.
+        // The box order must follow put/putIfAbsent (default first, key last).
+        CompilationResult r = compile(tempDir, "K", """
+                main() {
+                    val m: Map<Int, String> = mapOf()
+                    m.put(1, "a")
+                    println(m.getOrDefault(1, "z"))
+                    println(m.getOrDefault(9, "z"))
+                    val l: Map<Long, String> = mapOf()
+                    l.put(2L, "b")
+                    println(l.getOrDefault(2L, "z"))
+                    println(l.getOrDefault(8L, "z"))
+                    val d: Map<Double, String> = mapOf()
+                    d.put(1.5, "c")
+                    println(d.getOrDefault(1.5, "z"))
+                    println(d.getOrDefault(2.5, "z"))
+                    val bo: Map<Bool, String> = mapOf()
+                    bo.put(true, "t")
+                    println(bo.getOrDefault(true, "z"))
+                    println(bo.getOrDefault(false, "z"))
+                }
+                """, Target.JVM);
+        assertTrue(r.success(), "primitive-key getOrDefault must compile: "
+                + r.diagnostics().getDiagnostics());
+        Process p = new ProcessBuilder(TestJdk.javaBin(), "-cp",
+                tempDir.resolve("out-KJVM").toString(), "Default.Main")
+                .redirectErrorStream(true).start();
+        String out = new String(p.getInputStream().readAllBytes()).replace("\r\n", "\n").trim();
+        assertEquals(0, p.waitFor(), "run must exit 0 (VerifyError fails verification), got:\n" + out);
+        assertEquals("a\nz\nb\nz\nc\nz\nt\nz", out,
+                "each primitive key type: hit returns the stored value, miss the default");
+    }
+
+    @Test
     void getOrDefaultRunsOnJs(@TempDir Path tempDir) throws Exception {
         // Script parity lives in kof-script KofScriptStdlibParityTest (the
         // interpreter runner is not on kof-compiler's classpath by design);

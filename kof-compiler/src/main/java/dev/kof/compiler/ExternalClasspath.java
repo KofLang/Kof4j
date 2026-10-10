@@ -240,7 +240,16 @@ public final class ExternalClasspath {
     /** A classe externa é interface? */
     public synchronized boolean isInterface(String internalName) {
         byte[] bytes = internalName != null ? classBytes.get(internalName) : null;
-        if (bytes == null) return false;
+        if (bytes == null) {
+            // §557: classes do JDK não vivem em classBytes (vão por
+            // JdkReflectionResolver) — sem este braço um owner java.security.*
+            // era "não-interface" e o call saía invokevirtual (morte
+            // IncompatibleClassChangeError). Espelha knows().
+            if (JdkReflectionResolver.isJdkClass(internalName)) {
+                return JdkReflectionResolver.isJdkInterface(internalName);
+            }
+            return false;
+        }
         boolean[] iface = new boolean[1];
         try {
             new ClassReader(bytes).accept(new ClassVisitor(org.objectweb.asm.Opcodes.ASM9) {

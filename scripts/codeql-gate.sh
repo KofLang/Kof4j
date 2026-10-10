@@ -40,7 +40,7 @@ REPO="${CODEQL_GATE_REPO:-KofLang/Kof4j}"
 # a tip that CodeQL never analyzed.
 TOOL="CodeQL"
 BASELINE="${CODEQL_BASELINE_FILE:-scripts/codeql-baseline.txt}"
-BRANCHES=("main" "beta-0.4.0" "beta-0.5.0")
+BRANCHES=("main" "lab" "testing" "prerelease" "stable")
 FAILED=0
 GATE1_OK=1
 GATE1_STALE=0

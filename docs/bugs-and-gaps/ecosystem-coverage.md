@@ -273,7 +273,7 @@ Legend in the target columns: `y` = supported, `~` = partial, `–` = no.
 | HTTP integrations | ✅ `kof.http` client (3 targets — Native asm HTTP/1.1) | y | y | y | KofHttpE2ETest | stdlib/http.md |
 | file adapters | `DONE` (kof.io) | y | y | y | IoE2ETest | stdlib/IO.md |
 | retry / timeout / circuit | ✅ `kof.http` `retry`/`timeout`/`circuit` (JVM+JS, 08/30; **Native x86_64+riscv64+aarch64 17/09 — §259 CLOSED: real nonblock+ppoll-deadline+SO_RCVTIMEO / N+1 attempts / 30s-window fail-fast, cross-parity messages** | y | ✅ §259 | y | KofHttpResilienceE2ETest | stdlib/http.md |
-| circuit breaker / bulkhead | ✅ circuit breaker `kof.http` (08/30, 30s window, fail-fast); bulkhead `PLANNED` | y | – HTTP002 | y | KofHttpResilienceE2ETest | stdlib/http.md |
+| circuit breaker / bulkhead | ✅ circuit breaker `kof.http` (08/30, 30s window, fail-fast; **§259 CLOSED — real on JVM/JS and the 4 native targets**); bulkhead `PLANNED` | y | y | y | KofHttpResilienceE2ETest | stdlib/http.md |
 | idempotency | `PLANNED` | — | — | — | — | — |
 
 ## 3.8 Batch
@@ -361,7 +361,7 @@ Legend in the target columns: `y` = supported, `~` = partial, `–` = no.
 | # | Gap | Impact | Proposed location |
 |---|-----|---------|----------------|
 | G1 | ~~**Database/SQL** nonexistent~~ — ✅ **level 0 implemented**: `kof.db` (JDBC JVM, native SQLite, MySQL wire x86-64 real) + `kof.orm` (entity, CRUD, where, migrate, MongoDB) | real apps with persistence on JVM/Native-SQLite | ✅ typed query DSL (01/09) + kof.db on JS (16/09) + `kof.orm` on JS (18/09, `ORM001` closed); remaining: pools; ORM on **Native** x86-64 ✅ 22/09 (13/13 faces, F2d1–F2d7), `ORM001` only on riscv64/aarch64 |
-| G2 | ~~**HTTP client** nonexistent~~ — ✅ **implemented**: `kof.http` client (get/post/put/delete/patch/options/status/timeout + retry/circuit 08/30, headers; HTTP002 on Native) | integrations, tests, frontend | ✅ closed — `KofHttpE2ETest` (4, JVM+JS) + `KofHttpResilienceE2ETest` (3) |
+| G2 | ~~**HTTP client** nonexistent~~ — ✅ **implemented**: `kof.http` client (get/post/put/delete/patch/options/status/timeout + retry/circuit 08/30, headers; Native HTTP/1.1 asm, §259 resilience real on the 4 natives) | integrations, tests, frontend | ✅ closed — `KofHttpE2ETest` (4, JVM+JS) + `KofHttpResilienceE2ETest` (3) |
 | G3 | ~~Configuration~~ — ✅ `kof.config` implemented (file > env > profile > default, typed `str/int/long/bool`); **native CONF001 closed** (asm `/proc/self/environ`); JS: CONF001 closed 16/09 | — | — |
 | G4 | ~~**Validation** nonexistent~~ — ✅ **implemented**: `kof.validation` (13 predicates on the 3 targets) | — | `KofValidationTest` (3/3) |
 | G5 | ~~**Partial runtime observability**~~ — ✅ **implemented**: `kof.observability` (health/readiness/liveness, counter/increment/gauge, requestId/correlationId — JVM/Native/JS; `KofObservabilityTest` 10/10 incl. OBS003) | — | `KofObservabilityTest` |
@@ -472,7 +472,7 @@ Principles maintained:
 
 messaging (`kof.concurrent.Queue`, event bus, Kafka/AMQP adapters),
 ~~caching~~ — ✅ `kof.cache` (08/30, 3 targets),
-~~resilience (retry/timeout/circuit breaker)~~ — ✅ `kof.http` (08/30, JVM+JS; HTTP002 on Native),
+~~resilience (retry/timeout/circuit breaker)~~ — ✅ `kof.http` (08/30, JVM+JS; **§259 CLOSED 17/09 — real on the 4 native targets**),
 ~~WebSocket/SSE~~ — ✅ JVM (08/30; `KofWebWsE2ETest`/`KofWebSseE2ETest`); hardening/limits/observability `app.configure`/`app.stats` (09/04),
 GraphQL/gRPC (interop), HTTP/2.
 

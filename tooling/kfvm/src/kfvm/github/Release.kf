@@ -1,0 +1,5 @@
+package kfvm.github
+
+record Asset(String name, Long size)
+
+record Release(String tag_name, Bool prerelease, List<Asset> assets)

@@ -1,0 +1,221 @@
+package image
+
+import image.Av1InvTx
+
+// kof.image — AV1 intra prediction, base modes (slice 3j of the AVIF front,
+// plan §34). Implements the AV1 Bitstream & Decoding Process Specification
+// §7.11.2 (intra prediction process) for the non-directional, non-filter-intra
+// predictors: DC, V, H, PAETH and SMOOTH / SMOOTH_V / SMOOTH_H.
+//
+// The eight angular modes (V_PRED..D67_PRED, mode 1..8) and the recursive
+// filter-intra mode are NOT covered here — `av1IntraPred` refuses a directional
+// mode with an explicit `IMAGE:` diagnostic (the directional edge filter /
+// upsample machinery is slice 3k), never a silent wrong prediction. V_PRED and
+// H_PRED ARE handled (they are the angle-90/180 degenerate cases).
+//
+// The prediction consumes the `AboveRow`/`LeftCol` edge arrays the §7.11.2
+// preparation builds from the already reconstructed samples; `above[-1]` (the
+// corner) is passed as `topLeft`. This module is the arithmetic core the tile
+// decode drives.
+//
+// Pure Kof, all targets: no I/O, no compiler change.
+
+// §7.11.2: `is_directional_mode( mode )` — the eight angular modes.
+Bool av1IntraIsDirectional(Int mode) {
+    return mode >= 1 && mode <= 8
+}
+
+// §7.11.2: `is_smooth( mode )`.
+Bool av1IntraIsSmooth(Int mode) {
+    return mode == 9 || mode == 10 || mode == 11
+}
+
+// Sm_Weights tables (§10 additional tables), one entry per dimension index.
+// `dim` is the power-of-two block dimension (4/8/16/32/64).
+Int av1IntraSmWeight(Int dim, Int i) {
+    if (dim == 4) {
+        return listOf(255, 149, 85, 64).get(i)
+    }
+    if (dim == 8) {
+        return listOf(255, 197, 146, 105, 73, 50, 37, 32).get(i)
+    }
+    if (dim == 16) {
+        return listOf(255, 225, 196, 170, 145, 123, 102, 84, 68, 54, 43, 33, 26, 20, 17, 16).get(i)
+    }
+    if (dim == 32) {
+        return listOf(
+            255, 240, 225, 210, 196, 182, 169, 157, 145, 133, 122, 111, 101, 92, 83, 74,
+            66, 59, 52, 45, 39, 34, 29, 25, 21, 17, 14, 12, 10, 9, 8, 8
+        ).get(i)
+    }
+    return listOf(
+        255, 248, 240, 233, 225, 218, 210, 203, 196, 189, 182, 176, 169, 163, 156,
+        150, 144, 138, 133, 127, 121, 116, 111, 106, 101, 96, 91, 86, 82, 77, 73, 69,
+        65, 61, 57, 54, 50, 47, 44, 41, 38, 35, 32, 29, 27, 25, 22, 20, 18, 16, 15,
+        13, 12, 10, 9, 8, 7, 6, 6, 5, 5, 4, 4, 4
+    ).get(i)
+}
+
+// V_PRED: every row is a copy of the above row.
+Int[] av1IntraV(Int[] above, Int w, Int h) {
+    var out = new Int[w * h]
+    var i = 0
+    while (i < h) {
+        var j = 0
+        while (j < w) {
+            out[i * w + j] = above[j]
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return out
+}
+
+// H_PRED: every column is a copy of the left column.
+Int[] av1IntraH(Int[] left, Int w, Int h) {
+    var out = new Int[w * h]
+    var i = 0
+    while (i < h) {
+        var j = 0
+        while (j < w) {
+            out[i * w + j] = left[i]
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return out
+}
+
+// §7.11.2.2 basic (PAETH) intra prediction.
+Int[] av1IntraPaethPred(Int[] above, Int[] left, Int w, Int h, Int topLeft) {
+    var out = new Int[w * h]
+    var i = 0
+    while (i < h) {
+        var j = 0
+        while (j < w) {
+            var base = above[j] + left[i] - topLeft
+            var pLeft = av1InvAbs(base - left[i])
+            var pTop = av1InvAbs(base - above[j])
+            var pTopLeft = av1InvAbs(base - topLeft)
+            var v = topLeft
+            if (pLeft <= pTop && pLeft <= pTopLeft) {
+                v = left[i]
+            } else {
+                if (pTop <= pTopLeft) {
+                    v = above[j]
+                }
+            }
+            out[i * w + j] = v
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return out
+}
+
+// §7.11.2.5 DC intra prediction process.
+Int[] av1IntraDcPred(Int[] above, Int[] left, Int w, Int h, Bool haveAbove, Bool haveLeft, Int bitDepth) {
+    var out = new Int[w * h]
+    var v = 0
+    if (!haveAbove && !haveLeft) {
+        v = 1 << (bitDepth - 1)
+    } else {
+        if (!haveAbove) {
+            var sum = 0
+            var k = 0
+            while (k < h) {
+                sum = sum + left[k]
+                k = k + 1
+            }
+            v = (sum + (h >> 1)) / h
+        } else {
+            if (!haveLeft) {
+                var sum = 0
+                var k = 0
+                while (k < w) {
+                    sum = sum + above[k]
+                    k = k + 1
+                }
+                v = (sum + (w >> 1)) / w
+            } else {
+                var sum = 0
+                var k = 0
+                while (k < w) {
+                    sum = sum + above[k]
+                    k = k + 1
+                }
+                k = 0
+                while (k < h) {
+                    sum = sum + left[k]
+                    k = k + 1
+                }
+                var count = w + h
+                v = (sum + (count >> 1)) / count
+            }
+        }
+    }
+    var i = 0
+    while (i < h) {
+        var j = 0
+        while (j < w) {
+            out[i * w + j] = v
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return out
+}
+
+// §7.11.2.6 SMOOTH / SMOOTH_V / SMOOTH_H intra prediction.
+Int[] av1IntraSmoothPred(Int mode, Int[] above, Int[] left, Int w, Int h) {
+    var out = new Int[w * h]
+    var i = 0
+    while (i < h) {
+        var j = 0
+        while (j < w) {
+            if (mode == 9) {
+                var p = av1IntraSmWeight(h, i) * above[j]
+                p = p + (256 - av1IntraSmWeight(h, i)) * left[h - 1]
+                p = p + av1IntraSmWeight(w, j) * left[i]
+                p = p + (256 - av1IntraSmWeight(w, j)) * above[w - 1]
+                out[i * w + j] = av1InvRound2(p, 9)
+            } else {
+                if (mode == 10) {
+                    var p = av1IntraSmWeight(h, i) * above[j] + (256 - av1IntraSmWeight(h, i)) * left[h - 1]
+                    out[i * w + j] = av1InvRound2(p, 8)
+                } else {
+                    var p = av1IntraSmWeight(w, j) * left[i] + (256 - av1IntraSmWeight(w, j)) * above[w - 1]
+                    out[i * w + j] = av1InvRound2(p, 8)
+                }
+            }
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return out
+}
+
+// §7.11.2 base intra prediction dispatch for the non-directional modes.
+// Refuses a directional (3..8) or unknown mode with an explicit `IMAGE:`
+// diagnostic (the directional edge filter/upsample is slice 3k).
+Int[] av1IntraPred(Int mode, Int[] above, Int[] left, Int w, Int h, Bool haveAbove, Bool haveLeft, Int topLeft, Int bitDepth) {
+    if (mode == 0) {
+        return av1IntraDcPred(above, left, w, h, haveAbove, haveLeft, bitDepth)
+    }
+    if (mode == 1) {
+        return av1IntraV(above, w, h)
+    }
+    if (mode == 2) {
+        return av1IntraH(left, w, h)
+    }
+    if (av1IntraIsSmooth(mode)) {
+        return av1IntraSmoothPred(mode, above, left, w, h)
+    }
+    if (mode == 12) {
+        return av1IntraPaethPred(above, left, w, h, topLeft)
+    }
+    if (av1IntraIsDirectional(mode)) {
+        throw "IMAGE: AV1 directional intra prediction is not supported yet"
+    }
+    throw "IMAGE: AV1 intra prediction mode not covered"
+}

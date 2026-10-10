@@ -106,6 +106,26 @@ public final class KofInterpreterValues {
         };
     }
 
+    /**
+     * §625: comparação IEEE 754 de ponto flutuante (JVM {@code dcmpl/dcmpg}/
+     * {@code fcmpl/fcmpg}, JS). Diferente de {@link #cmpResult} sobre
+     * {@code Double.compare}/{@code Float.compare} (que ORDENAM NaN como
+     * maior), NaN é FALSO em toda comparação ordenada e verdadeiro só em
+     * {@code !=}. Usado pelo interpretador (alvo Script) para não divergir da
+     * JVM/JS.
+     */
+    static int fpCmpResult(KofBinaryOp op, double x, double y) {
+        return switch (op) {
+            case LT -> x < y ? 1 : 0;
+            case LE -> x <= y ? 1 : 0;
+            case GT -> x > y ? 1 : 0;
+            case GE -> x >= y ? 1 : 0;
+            case EQ -> x == y ? 1 : 0;
+            case NE -> x != y ? 1 : 0;
+            default -> 0;
+        };
+    }
+
     static boolean numEq(Object a, Object b) {
         if (a instanceof Number x && b instanceof Number y) {
             if (a instanceof Long || b instanceof Long) return x.longValue() == y.longValue();
@@ -141,7 +161,13 @@ public final class KofInterpreterValues {
                     : v instanceof Number n ? (char) n.intValue() : v;
             case "bool" -> v instanceof Boolean b ? b
                     : v instanceof Number n ? n.intValue() != 0 : v;
-            case "int", "byte", "short" -> v instanceof Number n ? n.intValue() : v;
+            case "int" -> v instanceof Number n ? n.intValue() : v;
+            // D-KOF-NET fatia 5 (02/10): byte/short nao podem agrupar com int —
+            // Array.set em byte[]/short[] so ALARGA; um Integer no slot morria
+            // "argument type mismatch" (o agrupado so parecia verde enquanto
+            // newArray materializava byte[] como int[] — o bug gemeo abaixo).
+            case "byte" -> v instanceof Number n ? n.byteValue() : v;
+            case "short" -> v instanceof Number n ? n.shortValue() : v;
             default -> v;
         };
     }

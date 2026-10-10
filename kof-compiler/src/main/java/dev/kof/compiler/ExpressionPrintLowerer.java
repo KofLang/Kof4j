@@ -147,8 +147,18 @@ if (("print".equals(mc.methodName()) || "println".equals(mc.methodName())) && mc
         // despachar toString de records e formatar coleções). JVM usa
         // Object (String.valueOf(Object) chama toString; valueOf de um
         // ClassType específico não existe no JVM).
-        Type valueOfArg = (driver.target.isNative() || driver.target == Target.JS)
-                && !Type.isString(argType) ? argType : Type.UnknownType.UNKNOWN;
+        // #773: no native um String CRU já é o valor final — passar String
+        // (não Unknown) faz o emissor de valueOf não emitir conversão alguma,
+        // em vez de linkar `kof_box_to_string` só para o passe-cru. Isso
+        // restaura o hello podado (<110 syms, S-3) sem mexer na semântica.
+        Type valueOfArg;
+        if (driver.target.isNative()) {
+            valueOfArg = argType;
+        } else if (driver.target == Target.JS && !Type.isString(argType)) {
+            valueOfArg = argType;
+        } else {
+            valueOfArg = Type.UnknownType.UNKNOWN;
+        }
         // §374 (fechado 21/09): o receive de canal NU no nativo devolve a
         // caixa MAGIC do §284 (o send boxeia) ou um ponteiro real — o Unknown
         // NÃO tem ramo no valueOf nativo (não emitia nada e o valor cru caía

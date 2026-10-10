@@ -1,0 +1,75 @@
+package file
+
+// kof.file — streaming core (slice 1).
+//
+// Incremental byte reading over the existing `kof.io` primitive
+// `readRange(offset, len)` (JVM + Native). No new syntax: the programmer
+// drives the stream with a `while` loop over `readChunk()`.
+//
+// Targets: JVM, Native (x86-64 / riscv64 / aarch64) and Script — the targets
+// that implement `readRange` (all measured against one golden, kof-file
+// slice 2). JS has no host binding for `readRange`: importing this library
+// there is an honest compile-time gap `IOJS001` (D-KOF-FILE-GO), never a
+// silent whole-file fallback.
+
+class FileStream {
+    String path
+    Int chunkSize
+    Long offset
+    Bool finished
+
+    constructor(String path) {
+        this.path = path
+        this.chunkSize = 8192
+        this.offset = 0
+        this.finished = false
+    }
+
+    constructor(String path, Int chunkSize) {
+        this.path = path
+        this.chunkSize = chunkSize
+        this.offset = 0
+        this.finished = false
+    }
+
+    // Next chunk, or null at end of file. Empty chunk means EOF.
+    Int[]? readChunk() {
+        if (finished) {
+            return null
+        }
+        var chunk = File(path).readRange(offset, chunkSize)
+        if (chunk.length == 0) {
+            finished = true
+            return null
+        }
+        offset = offset + chunk.length
+        if (chunk.length < chunkSize) {
+            finished = true
+        }
+        return chunk
+    }
+
+    Bool done(): Bool {
+        return finished
+    }
+
+    Long position(): Long {
+        return offset
+    }
+}
+
+// Chunked byte copy with constant memory: never loads the whole file.
+// Returns the number of bytes copied.
+Long copyStream(String source, String destination, Int chunkSize) {
+    File(destination).writeText("")
+    var out = File(destination)
+    var stream = FileStream(source, chunkSize)
+    var total = 0
+    var chunk = stream.readChunk()
+    while (chunk != null) {
+        out.appendBytes(chunk)
+        total = total + chunk.length
+        chunk = stream.readChunk()
+    }
+    return total
+}

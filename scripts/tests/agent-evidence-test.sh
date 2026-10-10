@@ -127,4 +127,21 @@ assert_eq pass "$(field "$EJ" "d['worker_verdict']")" "worker_verdict registrado
 ev verdict --repo "$REPO" --run-id "$ID" --worker talvez >/dev/null 2>&1; RC=$?
 assert_eq 2 "$RC" "valor inválido recusado"
 
+echo "E12 — janela por-COMMIT --commits [#659 limitacao apontada pelo verifier; #664]"
+mk_env; mk_repo
+( cd "$REPO" && echo a > A.java && git add -A && git commit -q -m c1 \
+    && echo b > B.md && git add -A && git commit -q -m c2 \
+    && echo c > C.java && git add -A && git commit -q -m c3 )
+ID="$(ev init --repo "$REPO" --issue 549 --classification "BUG REAL" --session ses_w --commits HEAD~1,HEAD)"
+EJ="$XDG_STATE_HOME/kof-agent/verifier/$ID/evidence.json"
+CF="$(field "$EJ" "d['changed_files']")"
+assert_contains "$CF" "B.md" "janela inclui commit listado"
+assert_contains "$CF" "C.java" "janela inclui HEAD listado"
+case "$CF" in *A.java*) fail "janela deve EXCLUIR commit nao listado";; *) pass "janela exclui commit nao listado";; esac
+assert_eq "$(git -C "$REPO" rev-parse HEAD~2)" "$(field "$EJ" "d['base_sha']")" "base = pai do primeiro listado"
+RC_BADBASE="$(ev init --repo "$REPO" --issue 3 --classification x --commits HEAD~1 >/dev/null 2>&1; echo $?)"
+assert_eq 2 "$RC_BADBASE" "ultimo listado != HEAD: rejeitado"
+RC_BADSHA="$(ev init --repo "$REPO" --issue 3 --classification x --commits deadbeef,HEAD >/dev/null 2>&1; echo $?)"
+assert_eq 2 "$RC_BADSHA" "commit inexistente: rejeitado"
+
 finish

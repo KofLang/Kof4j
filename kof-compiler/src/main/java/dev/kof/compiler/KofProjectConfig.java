@@ -17,6 +17,8 @@ import java.util.List;
  * [backend]  target = "jvm" | "native" | "script" | ...
  * [frontend] target = "kofjs" | "script" | ...
  * [server]   port = 8080
+ * [sources]  app = "src/main/kof"   # #708: separate app/test roots
+ *            test = "src/test/kof"
  * </pre>
  *
  * Chaves desconhecidas viram WARNING (honesto, não silencioso) — nunca
@@ -30,15 +32,20 @@ public final class KofProjectConfig {
     private final String backendTarget;
     private final String frontendTarget;
     private final Integer serverPort;
+    private final String sourceApp;
+    private final String sourceTest;
     private final List<String> warnings;
 
     private KofProjectConfig(String projectName, String backendTarget,
                              String frontendTarget, Integer serverPort,
+                             String sourceApp, String sourceTest,
                              List<String> warnings) {
         this.projectName = projectName;
         this.backendTarget = backendTarget;
         this.frontendTarget = frontendTarget;
         this.serverPort = serverPort;
+        this.sourceApp = sourceApp;
+        this.sourceTest = sourceTest;
         this.warnings = warnings;
     }
 
@@ -46,11 +53,27 @@ public final class KofProjectConfig {
     public String backendTarget() { return backendTarget; }
     public String frontendTarget() { return frontendTarget; }
     public Integer serverPort() { return serverPort; }
+    public String sourceApp() { return sourceApp; }
+    public String sourceTest() { return sourceTest; }
     public List<String> warnings() { return warnings; }
+
+    /**
+     * #708: resolve a raiz de fontes declarada em {@code [sources]} contra a
+     * raiz do projeto. Sem manifesto ou sem a chave → {@code fallback}
+     * (comportamento atual inalterado). Caminho declarado é um diretório
+     * relativo à raiz do projeto (ou absoluto).
+     */
+    public static Path resolveSourceRoot(Path projectRoot, String declared, Path fallback) {
+        if (declared == null || declared.isBlank()) return fallback;
+        Path p = Path.of(declared);
+        Path resolved = p.isAbsolute() || projectRoot == null
+                ? p : projectRoot.resolve(p);
+        return resolved.toAbsolutePath().normalize();
+    }
 
     /** Configuração vazia (sem manifesto). */
     public static KofProjectConfig empty() {
-        return new KofProjectConfig(null, null, null, null, List.of());
+        return new KofProjectConfig(null, null, null, null, null, null, List.of());
     }
 
     /** Lê kof.toml da raiz do projeto; ausente/ilegível → empty + warning. */
@@ -60,7 +83,7 @@ public final class KofProjectConfig {
         try {
             return parse(Files.readString(manifest));
         } catch (IOException e) {
-            return new KofProjectConfig(null, null, null, null,
+            return new KofProjectConfig(null, null, null, null, null, null,
                     List.of("unreadable kof.toml: " + e.getMessage()));
         }
     }
@@ -73,6 +96,7 @@ public final class KofProjectConfig {
     public static KofProjectConfig parse(String text) {
         String section = "";
         String name = null, backend = null, frontend = null;
+        String sourceApp = null, sourceTest = null;
         Integer port = null;
         List<String> warnings = new ArrayList<>();
         int lineNo = 0;
@@ -114,11 +138,18 @@ public final class KofProjectConfig {
                         }
                     } else warnUnknown(warnings, section, key);
                 }
+                case "sources" -> {
+                    // #708: raízes separadas de app/teste (caminhos relativos
+                    // à raiz do projeto). Vazio = comportamento atual.
+                    if (key.equals("app")) sourceApp = val;
+                    else if (key.equals("test")) sourceTest = val;
+                    else warnUnknown(warnings, section, key);
+                }
                 default -> warnings.add("line " + lineNo + ": unknown section '["
                         + section + "]' (key '" + key + "' ignored)");
             }
         }
-        return new KofProjectConfig(name, backend, frontend, port, warnings);
+        return new KofProjectConfig(name, backend, frontend, port, sourceApp, sourceTest, warnings);
     }
 
     private static void warnUnknown(List<String> warnings, String section, String key) {

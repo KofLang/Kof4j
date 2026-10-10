@@ -118,8 +118,22 @@ public class JvmBackend implements Backend {
         for (IRClass clazz : module.classes()) {
             emitClass(clazz, outputDir);
         }
-        if (usesJson || usesVk || usesExtern) {
-            JvmRuntime.ensureCompiled(outputDir, module.classes(), usesVk, usesExtern, target);
+        // D-INTEROP-ERR-TYPE: o catch tipado referencia KofRuntime$InteropError na
+        // exception table — sem o runtime compilado a classe dá NoClassDefFound no
+        // load (mesmo programa sem extern). Scan simples do IR (uma vez por módulo).
+        boolean usesInteropError = false;
+        outer:
+        for (IRClass c : module.classes()) {
+            for (dev.kof.compiler.IRMethod m : c.methods()) {
+                if (m.basicBlocks().toString().contains("InteropError")
+                        || m.localVariables().toString().contains("InteropError")) {
+                    usesInteropError = true;
+                    break outer;
+                }
+            }
+        }
+        if (usesJson || usesVk || usesExtern || usesInteropError) {
+            JvmRuntime.ensureCompiled(outputDir, module.classes(), usesVk, usesExtern || usesInteropError, target);
         }
     }
 
@@ -437,6 +451,8 @@ public class JvmBackend implements Backend {
 
     private String exceptionJvmType(String kofType) {
         if ("String".equals(kofType)) return "java/lang/RuntimeException";
+        // D-INTEROP-ERR-TYPE: o builtin apaga para a classe-throwable do runtime.
+        if ("InteropError".equals(kofType)) return "dev/kof/runtime/KofRuntime$InteropError";
         // #241: nome QUALIFICADO no catch (java.lang.RuntimeException) era
         // concatenado cego → "java/lang/java.lang.RuntimeException" →
         // ClassFormatError. Nome com ponto ou barra já carrega o pacote: só traduz.

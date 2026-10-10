@@ -187,6 +187,9 @@ public final class ExpressionInstanceCallLowerer {
     if (enumHandled >= 0) {
         return enumHandled;
     }
+    if (KofNet.isNetHandleType(recvType)) {
+        return ExpressionBuiltinInstanceCalls.lowerNet(driver, mc, ops, owner, localIdx, locals, recvType);
+    }
     if (KofWeb.isAppType(recvType)) {
         return ExpressionBuiltinInstanceCalls.lowerWeb(driver, mc, ops, owner, localIdx, locals, recvType);
     }
@@ -199,6 +202,9 @@ public final class ExpressionInstanceCallLowerer {
     if (KofSecurity.isSecretType(recvType) || KofSecurity.isKeyHandleType(recvType)) {
         return ExpressionBuiltinInstanceCalls.lowerSecret(driver, mc, ops, owner, localIdx, locals, recvType);
     }
+    if (KofInteropError.isInteropErrorType(recvType)) {
+        return ExpressionBuiltinInstanceCalls.lowerInteropError(driver, mc, ops, owner, localIdx, locals, recvType);
+    }
     if (KofIo.isIoType(recvType)) {
         return ExpressionBuiltinInstanceCalls.lowerIo(driver, mc, ops, owner, localIdx, locals, recvType);
     }
@@ -208,24 +214,24 @@ public final class ExpressionInstanceCallLowerer {
             // (s: (Int) -> Int), sem classe sintética). Todas as
             // lambdas da assinatura implementam a interface
             // sintética — invoca via INVOKEINTERFACE.
-            List<Type> argTypes = new ArrayList<>();
-            for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
+            for (ExpressionNode arg : mc.arguments()) ExpressionTyper.inferExprType(driver, arg, locals);
             for (ExpressionNode arg : mc.arguments()) {
                 localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
             }
             Type iface = driver.lambdaInterfaceType(ft);
-            ops.add(new KofCall(iface, "invoke", argTypes, ft.returnType(), KofCallKind.INTERFACE));
+            // Descritor = o do `invoke` da interface sintética (parâmetros do
+            // TIPO DE FUNÇÃO declarado), não os tipos inferidos dos argumentos.
+            ops.add(new KofCall(iface, "invoke", ft.parameterTypes(), ft.returnType(), KofCallKind.INTERFACE));
             return localIdx;
         }
-        List<Type> argTypes = new ArrayList<>();
-        for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
+        for (ExpressionNode arg : mc.arguments()) ExpressionTyper.inferExprType(driver, arg, locals);
         for (ExpressionNode arg : mc.arguments()) {
             localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
         }
         // f.invoke(): o owner precisa ser a classe sintética
         // da lambda — FunctionType não tem nome JVM
         Type invokeOwner = new Type.ClassType("", ft.className(), List.of());
-        ops.add(new KofCall(invokeOwner, "invoke", argTypes, ft.returnType(), KofCallKind.INSTANCE));
+        ops.add(new KofCall(invokeOwner, "invoke", ft.parameterTypes(), ft.returnType(), KofCallKind.INSTANCE));
         return localIdx;
     }
     if (BuiltinTypes.isList(recvType) || BuiltinTypes.isChannel(recvType)
@@ -396,16 +402,26 @@ public final class ExpressionInstanceCallLowerer {
     if (callKind == KofCallKind.INSTANCE && resolvedMethod != null && driver.semanticAnalyzer != null) {
         if ((resolvedMethod.accessFlags() & AccessFlags.STATIC) != 0) {
             callKind = KofCallKind.STATIC;
+        } else if (resolvedMethod.dispatchKind() == SymbolTable.DispatchKind.INTERFACE) {
+            // §557: o typer já carimbou INTERFACE (interface externa/JDK).
+            callKind = KofCallKind.INTERFACE;
         } else {
             String ownerName = resolvedMethod.ownerClass();
             if (ownerName.contains("/")) ownerName = ownerName.substring(ownerName.lastIndexOf('/') + 1);
             if (driver.semanticAnalyzer.isInterfaceType(ownerName)) {
                 callKind = KofCallKind.INTERFACE;
+            } else if (driver.externalClasspath.isInterface(resolvedMethod.ownerClass())) {
+                // §557: interface EXTERNA/JDK — interfaceNames é só Kof-local.
+                callKind = KofCallKind.INTERFACE;
             }
         }
     }
-    if (callKind == KofCallKind.INSTANCE && recvType instanceof Type.ClassType rt && driver.semanticAnalyzer != null) {
-        if (driver.semanticAnalyzer.isInterfaceType(rt.name())) {
+    if (callKind == KofCallKind.INSTANCE && recvType instanceof Type.ClassType rt) {
+        if (driver.semanticAnalyzer != null && driver.semanticAnalyzer.isInterfaceType(rt.name())) {
+            callKind = KofCallKind.INTERFACE;
+        } else if (driver.externalClasspath.isInterface(rt.internalName())) {
+            // §557: o RECEPTOR é uma interface externa/JDK (o sintoma medido:
+            // `PublicKey pub = ...; pub.getEncoded()`).
             callKind = KofCallKind.INTERFACE;
         }
     }
@@ -445,6 +461,11 @@ public final class ExpressionInstanceCallLowerer {
                 recvType = ct2;
                 methodParamTypes = formal;
                 methodReturnType = ExternalClasspath.typeFromDescriptor(sig.returnDescriptor());
+                if (sig.ownerIsInterface()) {
+                    // §557: mesma flag do ramo com símbolo resolvido — sem
+                    // isto o conserto seria meio-aplicado.
+                    callKind = KofCallKind.INTERFACE;
+                }
             }
         }
     }
@@ -506,6 +527,20 @@ public final class ExpressionInstanceCallLowerer {
                 methodReturnType = BuiltinTypes.STRING;
             }
         }
+    }
+    // #760: a receiver whose type is an imported EXTERNAL class (import java.X)
+    // is a JVM-backed face. §510 gated only the static-FIELD face; without this
+    // gate the instance method (sc.nextLine()) emitted the real java_* call and
+    // the artifact died at link (Native COMP001) / run (JS ReferenceError). The
+    // wrapper owners keep their JS/Native shims.
+    if (JvmInteropTargetGap.refuses(driver.target)
+            && recvType instanceof Type.ClassType rtc && !rtc.packageName().isEmpty()
+            && driver.externalClasspath.knows(rtc.internalName())
+            && !JvmInteropTargetGap.isShimmedOwner(rtc.internalName())) {
+        JvmInteropTargetGap.refuse(driver, mc.position(),
+                "method '" + mc.methodName() + "()' of external class '"
+                        + rtc.internalName().replace('/', '.') + "'");
+        return localIdx;
     }
     ops.add(new KofCall(recvType,
             runtimeMethod != null ? runtimeMethod : mc.methodName(),

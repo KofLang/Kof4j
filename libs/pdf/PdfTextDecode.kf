@@ -1,0 +1,199 @@
+package pdf
+
+// kof.pdf — PDF string/character decoding for the pure-Kof text reader.
+//
+// A PDF text string is either WinAnsi (one byte per glyph, with a small
+// 0x80-0x9F special range) or UTF-16BE (introduced by the FE FF BOM, used with
+// hex strings). Literal strings also carry backslash escapes. Everything here
+// is pure Kof so the reader has no interop and no per-target gap.
+
+// Decodes a run of raw bytes applying the UTF-16BE BOM rule, else WinAnsi.
+String pdfDecodeBytes(List<Int> bytes) {
+    var n = bytes.size
+    if (n >= 2 && bytes.get(0) == 254 && bytes.get(1) == 255) {
+        return pdfUtf16Be(bytes, 2, n)
+    }
+    var out = ""
+    var i = 0
+    while (i < n) {
+        out = out + pdfWinAnsiChar(bytes.get(i))
+        i = i + 1
+    }
+    return out
+}
+
+// UTF-16BE code units from `from` (inclusive) to `n` (exclusive).
+String pdfUtf16Be(List<Int> bytes, Int from, Int n) {
+    var out = ""
+    var i = from
+    while (i + 1 < n) {
+        var cp = (bytes.get(i) << 8) | bytes.get(i + 1)
+        i = i + 2
+        if (cp >= 55296 && cp <= 56319 && i + 1 < n) {
+            var lo = (bytes.get(i) << 8) | bytes.get(i + 1)
+            if (lo >= 56320 && lo <= 57343) {
+                cp = 65536 + ((cp - 55296) << 10) + (lo - 56320)
+                i = i + 2
+            }
+        }
+        out = out + pdfCodePoint(cp)
+    }
+    return out
+}
+
+// A Unicode code point as a Kof String (surrogate pair above the BMP).
+String pdfCodePoint(Int cp) {
+    if (cp < 65536) {
+        return "" + (cp as Char)
+    }
+    var v = cp - 65536
+    return "" + ((55296 + (v >> 10)) as Char) + ((56320 + (v & 1023)) as Char)
+}
+
+// WinAnsi (CP1252) byte to String: ASCII passes through, 0x80-0x9F is the
+// CP1252 special block, the rest is Latin-1. Undefined CP1252 slots become
+// U+FFFD so the loss is visible, never silently dropped.
+String pdfWinAnsiChar(Int c) {
+    if (c < 128 || c >= 160) {
+        return "" + (c as Char)
+    }
+    if (c == 128) { return pdfCodePoint(8364) }
+    if (c == 130) { return pdfCodePoint(8218) }
+    if (c == 131) { return pdfCodePoint(402) }
+    if (c == 132) { return pdfCodePoint(8222) }
+    if (c == 133) { return pdfCodePoint(8230) }
+    if (c == 134) { return pdfCodePoint(8224) }
+    if (c == 135) { return pdfCodePoint(8225) }
+    if (c == 136) { return pdfCodePoint(710) }
+    if (c == 137) { return pdfCodePoint(8240) }
+    if (c == 138) { return pdfCodePoint(352) }
+    if (c == 139) { return pdfCodePoint(8249) }
+    if (c == 140) { return pdfCodePoint(338) }
+    if (c == 142) { return pdfCodePoint(381) }
+    if (c == 145) { return pdfCodePoint(8216) }
+    if (c == 146) { return pdfCodePoint(8217) }
+    if (c == 147) { return pdfCodePoint(8220) }
+    if (c == 148) { return pdfCodePoint(8221) }
+    if (c == 149) { return pdfCodePoint(8226) }
+    if (c == 150) { return pdfCodePoint(8211) }
+    if (c == 151) { return pdfCodePoint(8212) }
+    if (c == 152) { return pdfCodePoint(732) }
+    if (c == 153) { return pdfCodePoint(8482) }
+    if (c == 154) { return pdfCodePoint(353) }
+    if (c == 155) { return pdfCodePoint(8250) }
+    if (c == 156) { return pdfCodePoint(339) }
+    if (c == 158) { return pdfCodePoint(382) }
+    if (c == 159) { return pdfCodePoint(376) }
+    return pdfCodePoint(65533)
+}
+
+Int pdfHexNibble(Int c) {
+    if (c >= 48 && c <= 57) {
+        return c - 48
+    }
+    if (c >= 65 && c <= 70) {
+        return c - 55
+    }
+    if (c >= 97 && c <= 102) {
+        return c - 87
+    }
+    return -1
+}
+
+// Bytes of a hex string between `from` (first nibble) and `end` (exclusive,
+// at the '>'). An odd final nibble is padded low with 0 (PDF 7.3.4.3).
+List<Int> pdfHexBytes(Int[] b, Int from, Int end) {
+    var bytes = listOf<Int>()
+    var hi = -1
+    var i = from
+    while (i < end) {
+        var n = pdfHexNibble(b[i] & 255)
+        if (n >= 0) {
+            if (hi < 0) {
+                hi = n
+            } else {
+                bytes.add((hi << 4) | n)
+                hi = -1
+            }
+        }
+        i = i + 1
+    }
+    if (hi >= 0) {
+        bytes.add(hi << 4)
+    }
+    return bytes
+}
+
+// Bytes of a literal string between `from` (after the opening paren) and `end`
+// (at the closing paren), expanding backslash escapes (PDF 7.3.4.2).
+List<Int> pdfLiteralBytes(Int[] b, Int from, Int end) {
+    var bytes = listOf<Int>()
+    var i = from
+    while (i < end) {
+        var c = b[i] & 255
+        if (c != 92) {
+            bytes.add(c)
+            i = i + 1
+        } else {
+            i = i + 1
+            if (i >= end) {
+                break
+            }
+            var e = b[i] & 255
+            if (e == 110) {
+                bytes.add(10)
+                i = i + 1
+            } else if (e == 114) {
+                bytes.add(13)
+                i = i + 1
+            } else if (e == 116) {
+                bytes.add(9)
+                i = i + 1
+            } else if (e == 98) {
+                bytes.add(8)
+                i = i + 1
+            } else if (e == 102) {
+                bytes.add(12)
+                i = i + 1
+            } else if (e >= 48 && e <= 55) {
+                var value = 0
+                var k = 0
+                while (k < 3 && i < end && (b[i] & 255) >= 48 && (b[i] & 255) <= 55) {
+                    value = value * 8 + ((b[i] & 255) - 48)
+                    i = i + 1
+                    k = k + 1
+                }
+                bytes.add(value & 255)
+            } else {
+                bytes.add(e)
+                i = i + 1
+            }
+        }
+    }
+    return bytes
+}
+
+// Finds the matching ')' for a literal string whose '(' is at `open`, honoring
+// nested parens and backslash escapes. Returns -1 when unbalanced.
+Int pdfLiteralEnd(Int[] b, Int open, Int end) {
+    var depth = 0
+    var i = open
+    while (i < end) {
+        var c = b[i] & 255
+        if (c == 92) {
+            i = i + 2
+        } else if (c == 40) {
+            depth = depth + 1
+            i = i + 1
+        } else if (c == 41) {
+            depth = depth - 1
+            i = i + 1
+            if (depth == 0) {
+                return i - 1
+            }
+        } else {
+            i = i + 1
+        }
+    }
+    return -1
+}

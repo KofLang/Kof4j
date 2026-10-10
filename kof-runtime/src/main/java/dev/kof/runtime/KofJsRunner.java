@@ -185,6 +185,10 @@ public final class KofJsRunner {
             return 0;
         });
         KofJsProcessBridge.install(platform);
+        // D-KOF-NET fatia 4a: sockets kof.net no host GraalJS, sobre o MESMO
+        // java.net do runtime JVM (paridade por construção). Browser/hostless
+        // nunca chega aqui: o shim kof_platform lança erro honesto (R7).
+        KofJsNetBridge.install(platform);
         // §426 (improved 25/09): time.collect() on JS — real host GC request.
         // System.gc() is the exact semantics of the JVM/SCRIPT runtime's
         // kof_gc_collect_now (a request, not a guarantee); a no-op would be a
@@ -282,8 +286,21 @@ public final class KofJsRunner {
         platform.put("dirCreate", (ProxyExecutable) args -> dirCreate(args, false));
         platform.put("dirCreateDirs", (ProxyExecutable) args -> dirCreate(args, true));
         platform.put("dirDelete", (ProxyExecutable) args -> {
+            // §618/B (maintainer decision 08/10: recursive everywhere): the
+            // JVM (`JvmRuntimeIo.kof_io_dir_delete`) and Native
+            // (`RuntimeIo3`, riscv64/aarch64) delete non-empty trees, so the
+            // JS bridge walks reverse-order too — same shape, same
+            // absent→false contract. `Files.walk` does not follow symlinks.
             try {
-                return Files.deleteIfExists(Path.of(args[0].asString()));
+                Path root = Path.of(args[0].asString());
+                if (!Files.exists(root)) return false;
+                try (var walk = Files.walk(root)) {
+                    var it = walk.sorted(java.util.Comparator.reverseOrder()).iterator();
+                    while (it.hasNext()) {
+                        try { Files.deleteIfExists(it.next()); } catch (IOException ignored) {}
+                    }
+                }
+                return true;
             } catch (IOException e) {
                 return false;
             }

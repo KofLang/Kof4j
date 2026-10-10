@@ -35,7 +35,9 @@ representa principalmente:
 
 ## Estágio atual
 
-O Kof está na linha **0.5.0 beta** (branch `beta-0.5.0`, `D-BRANCH-0.5.0`).
+O Kof está na linha **0.5.0 beta** (branch ativa de desenvolvimento `lab`,
+`D-BRANCH-PIPELINE`; a linha 0.5.0 foi ratificada em `beta-0.5.0`/`D-BRANCH-0.5.0`,
+`SUPERSEDED` pelo cutover de 28/09).
 A versão comprometida é `0.5.0-beta`; a linha publicada anterior foi
 `0.4.x-beta`.
 

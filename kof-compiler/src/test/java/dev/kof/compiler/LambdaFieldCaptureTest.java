@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * locals keep their pre-existing semantics (mutation after creation is
  * visible — measured golden 102, not 13).
  */
-class LambdaFieldCaptureTest {
+class LambdaFieldCaptureTest extends JvmRunSupport {
 
     private CompilationResult compile(Path tempDir, String name, String program, Target t) throws Exception {
         Path source = tempDir.resolve(name + ".kf");
@@ -30,15 +30,7 @@ class LambdaFieldCaptureTest {
         return new CompilerDriver().compile(source, tempDir.resolve("out-" + name + t), t);
     }
 
-    private void assertRuns(Path outDir, String expected, String label) throws Exception {
-        String javaCmd = System.getProperty("java.home") + "/bin/java";
-        Process p = new ProcessBuilder(javaCmd, "-cp", outDir.toString(), "Default.Main")
-                .redirectErrorStream(true).start();
-        String out = new String(p.getInputStream().readAllBytes()).replace("\r\n", "\n").trim();
-        assertEquals(0, p.waitFor(), label + " run must exit 0, got:\n" + out);
-        assertEquals(expected, out, label);
-    }
-
+    
     private static final String VERBATIM = """
             class Multiplier {
                 Int factor

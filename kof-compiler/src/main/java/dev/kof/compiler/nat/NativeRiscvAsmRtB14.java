@@ -167,10 +167,56 @@ public final class NativeRiscvAsmRtB14 {
                 ld   ra, 56(sp)
                 addi sp, sp, 64
                 ret
-            .Lv_db_f:
-                li   a0, 0
-                ld   ra, 56(sp)
-                addi sp, sp, 64
-                ret
-            """;
+             .Lv_db_f:
+                 li   a0, 0
+                 ld   ra, 56(sp)
+                 addi sp, sp, 64
+                 ret
+
+             # kof_time_age(a0..a5 = by,bm,bd, ry,rm,rd) -> Int anos completos | 0
+             # Aritmética inteira pura (MESMA fórmula dos 5 alvos). Data inválida => 0.
+             # Só primitivos já traduzidos: sub + testes de um registrando (bltz/bnez).
+             # Todas as 6 datas ficam em slots de pilha (helpers clobberam a0/t*).
+             .globl kof_time_age
+             kof_time_age:
+                 addi sp, sp, -64
+                 sd   ra, 56(sp)
+                 sd   a0, 8(sp)                 # by
+                 sd   a1, 16(sp)                # bm
+                 sd   a2, 24(sp)                # bd
+                 sd   a3, 32(sp)                # ry
+                 sd   a4, 40(sp)                # rm
+                 sd   a5, 48(sp)                # rd
+                 call kdv_valid                 # a0,a1,a2 = by,bm,bd (vivos na entrada)
+                 beqz a0, .Lv_ag_f
+                 ld   a0, 32(sp)                # ry
+                 ld   a1, 40(sp)                # rm
+                 ld   a2, 48(sp)                # rd
+                 call kdv_valid
+                 beqz a0, .Lv_ag_f
+                 ld   t0, 32(sp)                # ry
+                 ld   t1, 8(sp)                 # by
+                 sub  a0, t0, t1                # years = ry - by
+                 ld   t2, 40(sp)                # rm
+                 ld   t3, 16(sp)                # bm
+                 sub  t2, t2, t3                # rm - bm
+                 bltz t2, .Lv_ag_dec            # rm < bm  -> aniversário não ocorreu
+                 bnez t2, .Lv_ag_done           # rm > bm  -> já ocorreu
+                 ld   t4, 48(sp)                # rd
+                 ld   t5, 24(sp)                # bd
+                 sub  t4, t4, t5                # rd - bd
+                 bltz t4, .Lv_ag_dec            # rd < bd  -> não ocorreu
+                 j    .Lv_ag_done
+             .Lv_ag_dec:
+                 addi a0, a0, -1
+             .Lv_ag_done:
+                 ld   ra, 56(sp)
+                 addi sp, sp, 64
+                 ret
+             .Lv_ag_f:
+                 li   a0, 0
+                 ld   ra, 56(sp)
+                 addi sp, sp, 64
+                 ret
+             """;
 }

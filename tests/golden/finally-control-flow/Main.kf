@@ -1,0 +1,25 @@
+String h() {
+    try {
+        try { return "inner" } finally { println("fin-inner") }
+    } finally { println("fin-outer") }
+}
+
+main() {
+    for (var i in listOf(1, 2)) {
+        try {
+            if (i == 1) { continue }
+            println("body:" + i)
+        } finally {
+            println("fin:" + i)
+        }
+    }
+    for (var j in listOf(1, 2)) {
+        try {
+            if (j == 1) { break }
+            println("b:" + j)
+        } finally {
+            println("bfin:" + j)
+        }
+    }
+    println(h())
+}

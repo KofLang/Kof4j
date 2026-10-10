@@ -75,6 +75,10 @@ public final class FfiSignature {
                 // D6-2 / 3.8b fatia 3: `T[]` primitivo vira `ptr` C — token `p` +
                 // o char do ELEMENTO (o runtime faz copy-in por chamada).
                 sb.append('p').append(arrayElemChar(p.type()).charValue());
+            } else if (isStringArray(p.type())) {
+                // D-MEM-FFI-CROSS-FULL face 2: `String[]` vira `char**` (token
+                // `pS`; o runtime empacota o payload de cada String).
+                sb.append("pS");
             } else if (isBufferParam(p.type())) {
                 // D6-3 / D-R3-BUFFER: `Buffer(U8)` (INOUT) — token `B`; o runtime
                 // faz copy-in (arena da chamada), chama e copia de volta.
@@ -176,6 +180,16 @@ public final class FfiSignature {
         String base = typeName.substring(0, typeName.length() - 2);
         Character c = paramChar(base);
         return (c == null || c.charValue() == 'S') ? null : c;
+    }
+
+    /** D-MEM-FFI-CROSS-FULL face 2 (30/09): `String[]` é um array de `char*`
+     *  (ponteiros), distinto do copy-in escalar de `arrayElemChar`. O runtime
+     *  empacota um `char**` com o payload de cada `String` (offset 24), NULL→0.
+     *  Bindável no JVM (FFM) e nos nativos (x86-64 + cross); JS/estruturais
+     *  ficam fora do conjunto (R6). */
+    static boolean isStringArray(String typeName) {
+        return typeName != null && typeName.endsWith("[]")
+                && CompilerPipeline.isStringType(typeName.substring(0, typeName.length() - 2));
     }
 
     /** D6-3 / D-R3-BUFFER: `Buffer(U8)` como parâmetro `extern` (INOUT). Aceita

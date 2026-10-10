@@ -1,0 +1,211 @@
+package image
+
+// kof.image — VP8 (lossy WebP) 4x4 intra subblock prediction (RFC 6386 §12.3),
+// the ten `B_PRED` modes. Pure Kof, deterministic, all targets; part of slice 5
+// of the pure-Kof VP8 chain (`D-WEBP-LOSSY-PURE-KOF`).
+
+// Clamps a reconstructed sample to `[0,255]` (RFC 6386 §14.5).
+Int vp8PixelClamp(Int v) {
+    if (v < 0) { return 0 }
+    if (v > 255) { return 255 }
+    return v
+}
+
+// A[index] with `above[-1]` == `p`; used by B_VE_PRED.
+Int vp8AboveAt(Int[] above, Int p, Int index) {
+    if (index < 0) {
+        return p
+    }
+    return above[index]
+}
+
+Int vp8Avg3(Int a, Int b, Int c) { return (a + 2 * b + c + 2) >> 2 }
+Int vp8Avg2(Int a, Int b) { return (a + b + 1) >> 1 }
+
+// avg3p(E+k) = avg3(E[k-1], E[k], E[k+1]); used for the E-based diagonal modes.
+Int vp8Avg3p(Int[] e, Int k) { return vp8Avg3(e[k - 1], e[k], e[k + 1]) }
+// avg2p(A+k) = avg2(A[k], A[k+1]).
+Int vp8Avg2p(Int[] a, Int k) { return vp8Avg2(a[k], a[k + 1]) }
+
+// The ten 4x4 intra subblock modes (RFC 6386 §12.3, matching the reference
+// `VP8PredLuma4` / `subblock_intra_predict`). `above` holds A[0..7], `left`
+// holds L[0..3], `p` is P (== A[-1] == L[-1]) and the result is `[row*4+column]`.
+// Mode enum: 0 DC, 1 TM, 2 VE, 3 HE, 4 LD, 5 RD, 6 VR, 7 VL, 8 HD, 9 HU.
+Int[] vp8Predict4(Int[] above, Int[] left, Int p, Int mode) {
+    var b = new Int[16]
+    if (mode == 0) {
+        var v = (4 + above[0] + above[1] + above[2] + above[3] + left[0] + left[1] + left[2] + left[3]) >> 3
+        var i = 0
+        while (i < 16) {
+            b[i] = v
+            i = i + 1
+        }
+        return b
+    }
+    if (mode == 1) {
+        var r = 0
+        while (r < 4) {
+            var c = 0
+            while (c < 4) {
+                b[r * 4 + c] = vp8PixelClamp(left[r] + above[c] - p)
+                c = c + 1
+            }
+            r = r + 1
+        }
+        return b
+    }
+    if (mode == 2) {
+        var c = 0
+        while (c < 4) {
+            var v = vp8Avg3(vp8AboveAt(above, p, c - 1), vp8AboveAt(above, p, c), vp8AboveAt(above, p, c + 1))
+            var r = 0
+            while (r < 4) {
+                b[r * 4 + c] = v
+                r = r + 1
+            }
+            c = c + 1
+        }
+        return b
+    }
+    if (mode == 3) {
+        var row0 = vp8Avg3(p, left[0], left[1])
+        var row1 = vp8Avg3(left[0], left[1], left[2])
+        var row2 = vp8Avg3(left[1], left[2], left[3])
+        var row3 = vp8Avg3(left[2], left[3], left[3])
+        var c = 0
+        while (c < 4) {
+            b[0 * 4 + c] = row0
+            b[1 * 4 + c] = row1
+            b[2 * 4 + c] = row2
+            b[3 * 4 + c] = row3
+            c = c + 1
+        }
+        return b
+    }
+    var e = new Int[9]
+    e[0] = left[3]
+    e[1] = left[2]
+    e[2] = left[1]
+    e[3] = left[0]
+    e[4] = p
+    e[5] = above[0]
+    e[6] = above[1]
+    e[7] = above[2]
+    e[8] = above[3]
+    if (mode == 4) {
+        var a = above
+        b[0 * 4 + 0] = vp8Avg3p(a, 1)
+        b[0 * 4 + 1] = vp8Avg3p(a, 2)
+        b[1 * 4 + 0] = b[0 * 4 + 1]
+        b[0 * 4 + 2] = vp8Avg3p(a, 3)
+        b[1 * 4 + 1] = b[0 * 4 + 2]
+        b[2 * 4 + 0] = b[0 * 4 + 2]
+        b[0 * 4 + 3] = vp8Avg3p(a, 4)
+        b[1 * 4 + 2] = b[0 * 4 + 3]
+        b[2 * 4 + 1] = b[0 * 4 + 3]
+        b[3 * 4 + 0] = b[0 * 4 + 3]
+        b[1 * 4 + 3] = vp8Avg3p(a, 5)
+        b[2 * 4 + 2] = b[1 * 4 + 3]
+        b[3 * 4 + 1] = b[1 * 4 + 3]
+        b[2 * 4 + 3] = vp8Avg3p(a, 6)
+        b[3 * 4 + 2] = b[2 * 4 + 3]
+        b[3 * 4 + 3] = vp8Avg3(a[6], a[7], a[7])
+        return b
+    }
+    if (mode == 5) {
+        b[3 * 4 + 0] = vp8Avg3p(e, 1)
+        b[3 * 4 + 1] = vp8Avg3p(e, 2)
+        b[2 * 4 + 0] = b[3 * 4 + 1]
+        b[3 * 4 + 2] = vp8Avg3p(e, 3)
+        b[2 * 4 + 1] = b[3 * 4 + 2]
+        b[1 * 4 + 0] = b[3 * 4 + 2]
+        b[3 * 4 + 3] = vp8Avg3p(e, 4)
+        b[2 * 4 + 2] = b[3 * 4 + 3]
+        b[1 * 4 + 1] = b[3 * 4 + 3]
+        b[0 * 4 + 0] = b[3 * 4 + 3]
+        b[2 * 4 + 3] = vp8Avg3p(e, 5)
+        b[1 * 4 + 2] = b[2 * 4 + 3]
+        b[0 * 4 + 1] = b[2 * 4 + 3]
+        b[1 * 4 + 3] = vp8Avg3p(e, 6)
+        b[0 * 4 + 2] = b[1 * 4 + 3]
+        b[0 * 4 + 3] = vp8Avg3p(e, 7)
+        return b
+    }
+    if (mode == 6) {
+        b[3 * 4 + 0] = vp8Avg3p(e, 2)
+        b[2 * 4 + 0] = vp8Avg3p(e, 3)
+        b[3 * 4 + 1] = vp8Avg3p(e, 4)
+        b[1 * 4 + 0] = b[3 * 4 + 1]
+        b[2 * 4 + 1] = vp8Avg2(e[4], e[5])
+        b[0 * 4 + 0] = b[2 * 4 + 1]
+        b[3 * 4 + 2] = vp8Avg3p(e, 5)
+        b[1 * 4 + 1] = b[3 * 4 + 2]
+        b[2 * 4 + 2] = vp8Avg2(e[5], e[6])
+        b[0 * 4 + 1] = b[2 * 4 + 2]
+        b[3 * 4 + 3] = vp8Avg3p(e, 6)
+        b[1 * 4 + 2] = b[3 * 4 + 3]
+        b[2 * 4 + 3] = vp8Avg2(e[6], e[7])
+        b[0 * 4 + 2] = b[2 * 4 + 3]
+        b[1 * 4 + 3] = vp8Avg3p(e, 7)
+        b[0 * 4 + 3] = vp8Avg2(e[7], e[8])
+        return b
+    }
+    if (mode == 7) {
+        var a = above
+        b[0 * 4 + 0] = vp8Avg2p(a, 0)
+        b[1 * 4 + 0] = vp8Avg3p(a, 1)
+        b[2 * 4 + 0] = vp8Avg2p(a, 1)
+        b[0 * 4 + 1] = b[2 * 4 + 0]
+        b[1 * 4 + 1] = vp8Avg3p(a, 2)
+        b[3 * 4 + 0] = b[1 * 4 + 1]
+        b[2 * 4 + 1] = vp8Avg2p(a, 2)
+        b[0 * 4 + 2] = b[2 * 4 + 1]
+        b[3 * 4 + 1] = vp8Avg3p(a, 3)
+        b[1 * 4 + 2] = b[3 * 4 + 1]
+        b[2 * 4 + 2] = vp8Avg2p(a, 3)
+        b[0 * 4 + 3] = b[2 * 4 + 2]
+        b[3 * 4 + 2] = vp8Avg3p(a, 4)
+        b[1 * 4 + 3] = b[3 * 4 + 2]
+        b[2 * 4 + 3] = vp8Avg3p(a, 5)
+        b[3 * 4 + 3] = vp8Avg3p(a, 6)
+        return b
+    }
+    if (mode == 8) {
+        b[3 * 4 + 0] = vp8Avg2(e[0], e[1])
+        b[3 * 4 + 1] = vp8Avg3p(e, 1)
+        b[2 * 4 + 0] = vp8Avg2(e[1], e[2])
+        b[3 * 4 + 2] = b[2 * 4 + 0]
+        b[2 * 4 + 1] = vp8Avg3p(e, 2)
+        b[3 * 4 + 3] = b[2 * 4 + 1]
+        b[2 * 4 + 2] = vp8Avg2(e[2], e[3])
+        b[1 * 4 + 0] = b[2 * 4 + 2]
+        b[2 * 4 + 3] = vp8Avg3p(e, 3)
+        b[1 * 4 + 1] = b[2 * 4 + 3]
+        b[1 * 4 + 2] = vp8Avg2(e[3], e[4])
+        b[0 * 4 + 0] = b[1 * 4 + 2]
+        b[1 * 4 + 3] = vp8Avg3p(e, 4)
+        b[0 * 4 + 1] = b[1 * 4 + 3]
+        b[0 * 4 + 2] = vp8Avg3p(e, 5)
+        b[0 * 4 + 3] = vp8Avg3p(e, 6)
+        return b
+    }
+    var l = left
+    b[0 * 4 + 0] = vp8Avg2p(l, 0)
+    b[0 * 4 + 1] = vp8Avg3p(l, 1)
+    b[0 * 4 + 2] = vp8Avg2p(l, 1)
+    b[1 * 4 + 0] = b[0 * 4 + 2]
+    b[0 * 4 + 3] = vp8Avg3p(l, 2)
+    b[1 * 4 + 1] = b[0 * 4 + 3]
+    b[1 * 4 + 2] = vp8Avg2p(l, 2)
+    b[2 * 4 + 0] = b[1 * 4 + 2]
+    b[1 * 4 + 3] = vp8Avg3(l[2], l[3], l[3])
+    b[2 * 4 + 1] = b[1 * 4 + 3]
+    b[2 * 4 + 2] = l[3]
+    b[2 * 4 + 3] = l[3]
+    b[3 * 4 + 0] = l[3]
+    b[3 * 4 + 1] = l[3]
+    b[3 * 4 + 2] = l[3]
+    b[3 * 4 + 3] = l[3]
+    return b
+}
+

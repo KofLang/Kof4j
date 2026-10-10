@@ -132,21 +132,45 @@ public final class JvmWebHttpRuntime {
                 }
 
                 public static int kof_http_status(String url) throws Exception {
-                    boolean isHttps = url != null && url.toLowerCase().startsWith("https://");
-                    java.net.http.HttpClient client = isHttps ? KOF_HTTP_CLIENT_INSECURE : java.net.http.HttpClient.newHttpClient();
-                    java.net.http.HttpRequest.Builder b = java.net.http.HttpRequest.newBuilder(
-                            java.net.URI.create(url))
-                            .timeout(java.time.Duration.ofSeconds(KOF_HTTP_TIMEOUT.get()))
-                            .method("GET", java.net.http.HttpRequest.BodyPublishers.noBody());
-                    java.net.http.HttpResponse<String> r = client
-                            .send(b.build(), java.net.http.HttpResponse.BodyHandlers.ofString());
-                    return r.statusCode();
+                    try {
+                        boolean isHttps = url != null && url.toLowerCase().startsWith("https://");
+                        java.net.http.HttpClient client = isHttps ? KOF_HTTP_CLIENT_INSECURE : java.net.http.HttpClient.newHttpClient();
+                        java.net.http.HttpRequest.Builder b = java.net.http.HttpRequest.newBuilder(
+                                java.net.URI.create(url))
+                                .timeout(java.time.Duration.ofSeconds(KOF_HTTP_TIMEOUT.get()))
+                                .method("GET", java.net.http.HttpRequest.BodyPublishers.noBody());
+                        java.net.http.HttpResponse<String> r = client
+                                .send(b.build(), java.net.http.HttpResponse.BodyHandlers.ofString());
+                        return r.statusCode();
+                    } catch (Exception e) {
+                        throw kofHttpFailure(url, e);
+                    }
+                }
+
+                // #756 (D-MAINT-BATCH-0510/HTTP1): `kof.http` failures must be
+                // catchable by `catch (String e)` (the frozen "Kof throws
+                // Strings" contract). The generated catch for a String type
+                // registers `java/lang/RuntimeException` and reads
+                // getMessage(); a raw ConnectException/IOException is not a
+                // RuntimeException, so it escaped the catch. Wrapping keeps the
+                // original message (and the cause for JVM stack traces) while
+                // making the failure a Kof String on the JVM, matching Native
+                // (`kof_throw_string`) and JS.
+                private static RuntimeException kofHttpFailure(String url, Exception cause) {
+                    String msg = cause == null ? null : cause.getMessage();
+                    if (msg == null || msg.isBlank()) {
+                        msg = cause == null
+                                ? ("request failed: " + url)
+                                : (cause.getClass().getSimpleName() + " from " + url);
+                    }
+                    return new RuntimeException(msg, cause);
                 }
 
                 private static String kof_http_request(String url, String method, String headers, String body)
                         throws Exception {
                     if (kof_http_circuit_open()) {
-                        throw new java.io.IOException("kof.http circuit open (fail fast): " + url);
+                        throw kofHttpFailure(url,
+                                new java.io.IOException("kof.http circuit open (fail fast): " + url));
                     }
                     Exception last = null;
                     int attempts = KOF_HTTP_RETRIES.get() + 1;
@@ -185,7 +209,7 @@ public final class JvmWebHttpRuntime {
                         }
                     }
                     if (last == null) last = new java.io.IOException("request failed: " + url);
-                    throw last;
+                    throw kofHttpFailure(url, last);
                 }
 
                 // ── kof.mq — messageria em memória (pub/sub + filas) ─────

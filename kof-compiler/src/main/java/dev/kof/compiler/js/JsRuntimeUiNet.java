@@ -59,5 +59,46 @@ public final class JsRuntimeUiNet {
             export function kofNetFragment(v) { return kofNetField(v, 5); }
             export function kofNetQueryEncode(v) { return kofEncodingUrlEncode(v); }
             export function kofNetQueryDecode(v) { return kofEncodingUrlDecode(v); }
+
+            // ── kof.net sockets (D-KOF-NET, fatia 4a) ─────────────────────
+            // O alvo JS é GraalJS embarcado no JVM: os verbos delegam ao host
+            // kof_platform.net* (KofJsNetBridge, o MESMO java.net do runtime
+            // JVM — paridade por construção). Fora do host (browser) o shim do
+            // core lança "not available outside the Kof JS host" (R7). O erro
+            // do host é normalizado para String para que `catch (String m)`
+            // veja a MESMA mensagem do alvo JVM.
+            function kofNetErr(e) {
+                return String((e && e.message !== undefined) ? e.message : e);
+            }
+            export function kofNetListen(port) {
+                try { return kof_platform.netListen(port); } catch (e) { throw kofNetErr(e); }
+            }
+            export function kofNetAccept(l) {
+                try { return kof_platform.netAccept(l); } catch (e) { throw kofNetErr(e); }
+            }
+            export function kofNetConnect(host, port) {
+                try { return kof_platform.netConnect(host, port); } catch (e) { throw kofNetErr(e); }
+            }
+            export function kofNetBind(port) {
+                try { return kof_platform.netBind(port); } catch (e) { throw kofNetErr(e); }
+            }
+            export function kofNetSend(c, data) {
+                try { return kof_platform.netSend(c, data); } catch (e) { throw kofNetErr(e); }
+            }
+            export function kofNetReceive(c, max) {
+                try { return kof_platform.netReceive(c, max); } catch (e) { throw kofNetErr(e); }
+            }
+            export function kofNetSendTo(ep, addr, data) {
+                try { return kof_platform.netSendTo(ep, addr, data); } catch (e) { throw kofNetErr(e); }
+            }
+            export function kofNetReceiveFrom(ep, max) {
+                try { return kof_platform.netReceiveFrom(ep, max); } catch (e) { throw kofNetErr(e); }
+            }
+            export function kofNetPeer(ep) {
+                try { return kof_platform.netPeer(ep); } catch (e) { throw kofNetErr(e); }
+            }
+            export function kofNetClose(h) {
+                try { return kof_platform.netClose(h); } catch (e) { throw kofNetErr(e); }
+            }
             """;
 }

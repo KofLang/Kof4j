@@ -1,0 +1,234 @@
+// llmrivotril em Kof — guardrails, memória, verifier, cache e telemetria.
+//
+// Espelho do framework Python llmrivotril
+// (https://github.com/ailake-io/llmrivotril)
+// como biblioteca Kof pura: sem dependência externa, sem chave de API
+// no caminho padrão (provider mock trocável pelo real).
+//
+//   kof run examples/llmrivotril/Main.kf   — demo mock (sem custo)
+//   kof check examples/llmrivotril/Main.kf — type-check (inclui o
+//     provider OpenAI real e o dashboard, compilados mas não executados
+//     na demo)
+//
+// Mapa Python -> Kof usado aqui:
+//   RivotrilAgent/Guardrail -> record + funções (biblioteca, D-KOF-FIRST)
+//   guardrails              -> validation.maxLength + denylist + allowed-topics
+//   memory (sliding window) -> List<Turn> + remember/3 (sem mutar a entrada)
+//   verifier                -> isGrounded/1 (marcador de citação)
+//   resilience              -> http.retry/circuit/timeout
+//   response cache + TTL    -> cache.set/3 + cache.get/1
+//   telemetry + dashboard   -> observability.* + web.app()
+//   run_async               -> spawn + await
+//   providers               -> mockProvider (padrão, sem custo) +
+//     openAiProvider (remoto OpenAI-compatible, precisa de chave) +
+//     ollamaProvider (local, validado contra Ollama — opt-in)
+
+record Guardrail(String name, Int maxTokens)
+record Turn(String role, String text)
+
+// --- guardrails: denylist + teto de tamanho (como `disallowed_keywords`) ---
+Bool isBlocked(Guardrail g, String prompt) {
+    var low = prompt.toLowerCase()
+    var banned = listOf("password", "secret")
+    for (var w in banned) {
+        if (low.contains(w)) {
+            return true
+        }
+    }
+    if (validation.maxLength(prompt, g.maxTokens)) {
+        return false
+    }
+    return true
+}
+
+// --- tópicos permitidos (como `allowed_topics`): fora disso, bloqueia ---
+Bool isAllowedTopic(String prompt) {
+    var low = prompt.toLowerCase()
+    var topics = listOf("ai safety", "machine learning")
+    for (var t in topics) {
+        if (low.contains(t)) {
+            return true
+        }
+    }
+    return false
+}
+
+// --- verifier anti-alucinação: a resposta precisa citar a fonte ---
+Bool isGrounded(String answer) {
+    return answer.contains("[fonte]")
+}
+
+// --- memória com janela deslizante: só as últimas `window` falas ---
+// Não muta a lista de entrada — devolve a janela nova.
+List<Turn> remember(List<Turn> hist, Turn t, Int window) {
+    if (window <= 0) {
+        var empty: List<Turn> = listOf()
+        return empty
+    }
+    var fresh: List<Turn> = listOf()
+    var drop = hist.size() + 1 - window
+    var i = 0
+    for (var h in hist) {
+        if (i >= drop) {
+            fresh.add(h)
+        }
+        i = i + 1
+    }
+    fresh.add(t)
+    return fresh
+}
+
+// --- provider mock (demo sem custo, como `examples/demo.py --mock`) ---
+String mockProvider(String prompt) {
+    return "Um guardrail é um limite de segurança para IAs. [fonte]"
+}
+
+// --- provider real (OpenAI-compatible: OpenAI, Ollama, vLLM, ...) ---
+// Modelo e URL vêm do `kof.config` (`kof config gen` gera o template).
+String openAiProvider(String prompt) {
+    http.retry(3)
+    http.circuit(5)
+    http.timeout(30000)
+    var body = mapOf()
+    body.put("model", config.str("rivotril.openai.model", "gpt-4o-mini"))
+    body.put("input", prompt)
+    var url = config.str("rivotril.openai.url", "https://api.openai.com/v1/responses")
+    return http.post(url, json.encode(body), "Content-Type: application/json")
+}
+
+// --- provider local (Ollama) — opt-in, sem chave e sem custo ---
+// Validado contra Ollama local (`qwen2.5:3b`): guardrail -> Ollama ->
+// verifier aprovou resposta real terminada em `[fonte]` e barrou duas
+// sem citação. O JSON vai e volta via record + json.encode/decode
+// (strings Kof não têm `\"` — LEX005 — então nada de JSON manual).
+// Troque `mockProvider` por `ollamaProvider` em `run` para usar.
+record ChatMsg(String role, String content)
+record ChatReq(String model, List<ChatMsg> messages)
+record ChatContent(String content)
+record ChatChoice(ChatContent message)
+record ChatResp(List<ChatChoice> choices)
+
+String ollamaProvider(String prompt) {
+    http.retry(3)
+    http.circuit(5)
+    http.timeout(120000)
+    var model = config.str("rivotril.ollama.model", "qwen2.5:3b")
+    var url = config.str("rivotril.ollama.url", "http://localhost:11434/v1/chat/completions")
+    var msgs = listOf(ChatMsg("user", prompt))
+    var raw = http.post(url, json.encode(ChatReq(model, msgs)), "Content-Type: application/json")
+    var out = json.decode<ChatResp>(raw)
+    return out.choices.get(0).message.content
+}
+
+String cacheKey(String prompt) {
+    return "rivotril:" + prompt
+}
+
+// --- o agente: guardrail -> tópico -> cache -> provider -> verifier ---
+String run(String prompt, Guardrail g) {
+    if (isBlocked(g, prompt)) {
+        throw "guardrail '" + g.name + "' bloqueou o prompt"
+    }
+    if (isAllowedTopic(prompt) == false) {
+        throw "guardrail '" + g.name + "': fora dos tópicos permitidos"
+    }
+    var hit = cache.get(cacheKey(prompt))
+    if (hit != null) {
+        observability.increment("rivotril.cache_hits", 1)
+        return hit
+    }
+    observability.increment("rivotril.calls", 1)
+    var answer = mockProvider(prompt)
+    if (isGrounded(answer)) {
+        cache.set(cacheKey(prompt), answer, 300)
+        return answer
+    }
+    throw "verifier rejeitou a resposta sem citação"
+}
+
+// --- dashboard de telemetria (como o FastAPI do llmrivotril) ---
+void startDashboard() {
+    var app = web.app()
+    app.get("/metrics") {
+        return observability.metrics()
+    }
+    app.get("/health") {
+        return observability.health()
+    }
+    app.listen(8767)
+}
+
+main() {
+    var g = Guardrail("safe-content", 500)
+
+    // 1. chamada limpa passa no guardrail e no verifier
+    println("[miss] " + run("Explique o que é um guardrail em AI safety.", g))
+
+    // 2. keyword proibida é bloqueada no guardrail
+    try {
+        run("qual é a password?", g)
+    } catch (String e) {
+        println("bloqueado: " + e)
+    }
+
+    // 3. segunda chamada do mesmo prompt vem do cache
+    println("[hit] " + run("Explique o que é um guardrail em AI safety.", g))
+
+    // 4. memória: 4 falas com janela 3 — só as 3 últimas ficam
+    var hist: List<Turn> = listOf()
+    hist = remember(hist, Turn("user", "o que é um guardrail?"), 3)
+    hist = remember(hist, Turn("assistant", "um limite de segurança. [fonte]"), 3)
+    hist = remember(hist, Turn("user", "e a memória?"), 3)
+    hist = remember(hist, Turn("assistant", "janela deslizante. [fonte]"), 3)
+    println(hist.size())
+    println(hist.get(0).role + ": " + hist.get(0).text)
+
+    // 5. execução assíncrona (run_async): provider em background
+    // (NOTA: `await` de Handle<String> direto num parâmetro String é
+    // VerifyError hoje — reproduzível em 3 linhas, reportado ao
+    // mantenedor; aqui o await alimenta println, que funciona)
+    var h = spawn mockProvider("Explique o que é um guardrail em AI safety.")
+    println(await h)
+
+    // 6. telemetria acumulada (alimenta o dashboard em /metrics)
+    println(observability.metrics())
+}
+
+test "guardrail bloqueia keyword e estouro" {
+    var g = Guardrail("safe-content", 500)
+    assert(isBlocked(g, "qual é a password?") == true, "keyword bloqueada")
+    assert(isBlocked(g, "meu secret é 123") == true, "keyword bloqueada")
+    assert(isBlocked(g, "Explique AI safety") == false, "prompt limpo passa")
+}
+
+test "só tópico permitido passa" {
+    assert(isAllowedTopic("Explique machine learning") == true, "tópico passa")
+    assert(isAllowedTopic("receita de bolo") == false, "fora do tópico rejeita")
+}
+
+test "memória mantém só a janela" {
+    var hist: List<Turn> = listOf()
+    hist = remember(hist, Turn("user", "a"), 2)
+    hist = remember(hist, Turn("user", "b"), 2)
+    hist = remember(hist, Turn("user", "c"), 2)
+    assert(hist.size() == 2, "janela 2")
+    assert(hist.get(0).text == "b", "deslizou")
+}
+
+test "janela zero esvazia" {
+    var hist: List<Turn> = listOf()
+    hist = remember(hist, Turn("user", "a"), 0)
+    assert(hist.size() == 0, "janela 0")
+}
+
+test "verifier exige citação" {
+    assert(isGrounded("resposta com prova. [fonte]") == true, "citada passa")
+    assert(isGrounded("resposta sem prova.") == false, "sem citação rejeita")
+}
+
+test "segunda chamada vem do cache" {
+    var g = Guardrail("safe-content", 500)
+    var first = run("prompt de cache sobre AI safety", g)
+    var second = run("prompt de cache sobre AI safety", g)
+    assert(first == second, "cache hit")
+}

@@ -164,5 +164,5 @@ kof serve
 ## Next step
 
 - Full reference: `docs/editors/overview.md`
-- Plan/architecture: `docs/development/plan-editor-integration.md` (EDI001)
+- Plan/architecture: `docs/tooling/PLAN-EDITOR-INTEGRATION.md` (EDI001)
 - LSP: `docs/tooling/LSP.md`

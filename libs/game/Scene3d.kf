@@ -1,0 +1,60 @@
+package game
+
+// kof.game — 3D scene draw-command list (slice 3.5b of the graphics/gaming
+// front, `D-GRAPHICS-GAMING`; the 3D level PROMOTED to the active scope
+// 08/10 by the maintainer).
+//
+// The plan §8 rule for rendering (the 2D Draw pattern applied to 3D): the
+// app declares *what*, the backend decides *how* (the view matrix, the
+// render pass, batching, GPU upload and ordering hidden). This module is
+// the PURE declaration half: `Scene3d.draw(mesh)` resolves the mesh's
+// frozen transform into a `DrawCmd3d` record and appends it IN ORDER, so
+// the backend consumes an explicit, deterministic frame description instead
+// of hidden GPU state. It calls no rendering API and is honest on every
+// target today.
+//
+//   var scene = Scene3d()
+//   scene.draw(hero.at(1.0, 0.0, 0.0))
+//   scene.draw(ghost.hide())     // invisible: records nothing
+//   backend.present(scene)       // a later slice owns this
+//   scene.clear()
+//
+// Semantics (frozen here, tested): commands keep insertion order; `clear()`
+// empties the list; `commandAt(i)` reads by position; drawing an invisible
+// mesh records nothing. The command snapshots the mesh (later mutation of
+// the mesh never rewrites a recorded command). Pure data, no IO; runs on
+// every target.
+
+record DrawCmd3d(String model, Double x, Double y, Double z, Double sx, Double sy, Double sz,
+    Double rx, Double ry, Double rz)
+
+class Scene3d {
+    List<DrawCmd3d> commands
+
+    constructor() {
+        this.commands = listOf<DrawCmd3d>()
+    }
+
+    // Append a prebuilt command (the `Mesh.draw` path).
+    void addCmd(DrawCmd3d cmd) {
+        this.commands.add(cmd)
+    }
+
+    // Record `m` (a no-op while `m` is invisible).
+    Scene3d draw(Mesh m) {
+        m.draw(this)
+        return this
+    }
+
+    Int size() {
+        return this.commands.size
+    }
+
+    DrawCmd3d commandAt(Int i) {
+        return this.commands[i]
+    }
+
+    void clear() {
+        this.commands = listOf<DrawCmd3d>()
+    }
+}

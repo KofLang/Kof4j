@@ -58,7 +58,8 @@ public final class JvmRuntimeCallDescriptors {
                     -> "(Ljava/lang/String;)I";
             case "kof_io_file_size" -> "(Ljava/lang/String;)J";
             case "kof_io_file_name", "kof_io_path_parent", "kof_io_path_file_name",
-                    "kof_io_path_extension", "kof_io_path_normalize", "kof_io_path_to_absolute"
+                    "kof_io_path_extension", "kof_io_path_normalize", "kof_io_path_to_absolute",
+                    "kof_io_path_real_path"
                     -> "(Ljava/lang/String;)Ljava/lang/String;";
             case "kof_io_path_resolve" -> "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;";
             case "kof_io_file_copy_to", "kof_io_file_move_to" -> "(Ljava/lang/String;Ljava/lang/String;)I";
@@ -118,7 +119,8 @@ public final class JvmRuntimeCallDescriptors {
                     "kof_ui_label_set_color" -> "(II)V";
             case "kof_ui_label_font_size", "kof_ui_label_bold", "kof_ui_label_color" -> "(I)I";
             case "kof_ui_box_new", "kof_ui_stack_new",
-                    "kof_ui_wrap_new", "kof_ui_center_new", "kof_ui_column_new",
+                    "kof_ui_wrap_new", "kof_ui_center_new", "kof_ui_scroll_new",
+                    "kof_ui_column_new",
                     "kof_ui_row_new", "kof_ui_fieldset_new" -> "(Ljava/util/ArrayList;)I";
             case "kof_ui_grid_new", "kof_ui_align_new" -> "(ILjava/util/ArrayList;)I";
             case "kof_ui_spacer_new" -> "(I)I";
@@ -215,6 +217,8 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_web_use" -> "(Ljava/lang/String;Ljava/lang/Object;)V";
             case "kof_web_security" -> "(Ljava/lang/String;)V";
             case "kof_web_security_opts" -> "(Ljava/lang/String;Ljava/util/Map;)V";
+            case "kof_web_policy" -> "(Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;)V";
+            case "kof_web_route_opts" -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;Ljava/lang/Object;)V";
             case "kof_web_listen" -> "(Ljava/lang/String;I)V";
             case "kof_web_listen_secure" -> "(Ljava/lang/String;I)V";
             case "kof_web_listen_secure_pem" -> "(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;)V";
@@ -222,6 +226,8 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_web_health" -> "(Ljava/lang/String;Ljava/lang/String;)V";
             case "kof_web_configure" -> "(Ljava/lang/String;Ljava/lang/String;I)V";
             case "kof_web_stats" -> "(Ljava/lang/String;)Ljava/lang/String;";
+            // ── kof.image ──
+            case "kof_image_decode" -> "(Ljava/lang/String;)[I";
             // ── kof.media: imagem / áudio / microfone ──
             case "kof_media_image_open", "kof_media_audio_open_wav", "kof_media_video_open"
                     -> "(Ljava/lang/String;)I";
@@ -270,7 +276,11 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_time_dayOfWeek" -> "(III)I";
             case "kof_time_isWeekend" -> "(III)Z";
             case "kof_time_daysBetween" -> "(IIIIII)I";
+            case "kof_time_age" -> "(IIIIII)I";
             case "kof_time_addDays" -> "(Ljava/lang/String;I)Ljava/lang/String;";
+            case "kof_time_addMonths" -> "(Ljava/lang/String;I)Ljava/lang/String;";
+            case "kof_time_addYears" -> "(Ljava/lang/String;I)Ljava/lang/String;";
+            case "kof_time_startOf", "kof_time_endOf" -> "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;";
             case "kof_time_diffDays" -> "(Ljava/lang/String;Ljava/lang/String;)I";
             // S7e (D-STDLIB 13/09): hoje/formato UTC-only
             case "kof_time_todayIso" -> "()Ljava/lang/String;";
@@ -349,6 +359,8 @@ public final class JvmRuntimeCallDescriptors {
             // ── kof.security (docs/stdlib/security.md §5) ───────────────────
             case "kof_sec_sha256", "kof_sec_sha512", "kof_sec_redact", "kof_sec_secret_get",
                     "kof_sec_password_hash" -> "(Ljava/lang/String;)Ljava/lang/String;";
+            case "kof_sec_sha256_bytes" -> "([B)Ljava/lang/String;";
+            case "kof_sec_hmac_sha256_bytes" -> "([B[B)Ljava/lang/String;";
             case "kof_sec_hmac_sha256", "kof_sec_aesgcm_encrypt", "kof_sec_aesgcm_decrypt",
                     "kof_sec_chacha20_encrypt", "kof_sec_chacha20_decrypt",
                     "kof_sec_secret_get_default", "kof_sec_jwt_create", "kof_sec_jwt_verify"
@@ -376,7 +388,8 @@ public final class JvmRuntimeCallDescriptors {
                     "kof_validation_isPis", "kof_validation_isNis", "kof_validation_isIpv4", "kof_validation_isMac",
                     "kof_validation_isCreditCard", "kof_validation_isIpv6",
                     "kof_validation_isDomain" -> "(Ljava/lang/String;)Z";
-            case "kof_validation_formatCnpj", "kof_validation_formatCpf", "kof_validation_formatCep" -> "(Ljava/lang/String;)Ljava/lang/String;";
+            case "kof_validation_formatCnpj", "kof_validation_formatCpf", "kof_validation_formatCep",
+                    "kof_validation_creditCardBrand", "kof_validation_last4" -> "(Ljava/lang/String;)Ljava/lang/String;";
             case "kof_validation_isPort" -> "(I)Z";
             case "kof_validation_minLength", "kof_validation_maxLength" -> "(Ljava/lang/String;I)Z";
             case "kof_validation_lengthBetween" -> "(Ljava/lang/String;II)Z";
@@ -390,6 +403,11 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_math_isEven", "kof_math_isOdd", "kof_math_isPositive",
                     "kof_math_isNegative", "kof_math_isZero" -> "(I)Z";
             case "kof_math_sqrt" -> "(D)D";
+            case "kof_math_sin", "kof_math_cos", "kof_math_tan",
+                    "kof_math_asin", "kof_math_acos", "kof_math_atan",
+                    "kof_math_toRadians", "kof_math_toDegrees" -> "(D)D";
+            case "kof_math_atan2" -> "(DD)D";
+            case "kof_math_pi", "kof_math_e", "kof_math_tau" -> "()D";
             case "kof_math_lerp" -> "(DDD)D";
             case "kof_math_percentage" -> "(DD)D";
             case "kof_math_pow" -> "(DD)D";
@@ -409,6 +427,22 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_net_scheme", "kof_net_host", "kof_net_port",
                     "kof_net_path", "kof_net_query", "kof_net_fragment",
                     "kof_net_queryEncode", "kof_net_queryDecode", "kof_encoding_hexEncode", "kof_encoding_hexDecode", "kof_encoding_base64Encode", "kof_encoding_base64Decode" -> "(Ljava/lang/String;)Ljava/lang/String;";
+            // D-KOF-NET front (plan network-kofnet, fatia 1): handles opacos —
+            // as classes internas Net* do KofRuntime sao emitadas na fatia 2.
+            case "kof_net_listen" -> "(I)Ldev/kof/runtime/KofRuntime$NetListener;";
+            case "kof_net_accept" -> "(Ldev/kof/runtime/KofRuntime$NetListener;)Ldev/kof/runtime/KofRuntime$NetConn;";
+            case "kof_net_connect" -> "(Ljava/lang/String;I)Ldev/kof/runtime/KofRuntime$NetConn;";
+            // #759 / NET1: connect ao endereço validado (host mantido p/ Host/SNI).
+            case "kof_net_connect_addr" -> "(Ljava/lang/String;ILjava/lang/String;)Ldev/kof/runtime/KofRuntime$NetConn;";
+            // #759 / NET1: todos os endereços (A/AAAA) do host.
+            case "kof_net_resolve" -> "(Ljava/lang/String;)Ljava/util/ArrayList;";
+            case "kof_net_bind" -> "(I)Ldev/kof/runtime/KofRuntime$NetEndpoint;";
+            case "kof_net_send" -> "(Ldev/kof/runtime/KofRuntime$NetConn;[B)I";
+            case "kof_net_receive" -> "(Ldev/kof/runtime/KofRuntime$NetConn;I)[B";
+            case "kof_net_sendTo" -> "(Ldev/kof/runtime/KofRuntime$NetEndpoint;Ljava/lang/String;[B)I";
+            case "kof_net_receiveFrom" -> "(Ldev/kof/runtime/KofRuntime$NetEndpoint;I)[B";
+            case "kof_net_peer" -> "(Ldev/kof/runtime/KofRuntime$NetEndpoint;)Ljava/lang/String;";
+            case "kof_net_close" -> "(Ljava/lang/Object;)V";
             case "kof_encoding_urlEncode", "kof_encoding_urlDecode", "kof_encoding_base64UrlEncode", "kof_encoding_base64UrlDecode" -> "(Ljava/lang/String;)Ljava/lang/String;";
             case "kof_uuid_v4", "kof_uuid_v7" -> "()Ljava/lang/String;";
             case "kof_uuid_isUuid" -> "(Ljava/lang/String;)Z";
@@ -449,6 +483,18 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_enum_value_of" -> "(Ljava/util/List;Ljava/lang/String;)Ljava/lang/String;";
             case "kof_enum_ordinal" -> "(Ljava/lang/String;Ljava/util/List;)I";
             case "kof_list_map", "kof_list_filter" -> "(Ljava/util/ArrayList;Ljava/lang/Object;)Ljava/util/ArrayList;";
+            case "kof_list_any", "kof_list_all", "kof_list_none" -> "(Ljava/util/ArrayList;Ljava/lang/Object;)Z";
+            case "kof_list_find" -> "(Ljava/util/ArrayList;Ljava/lang/Object;I)Ljava/lang/Object;";
+            case "kof_list_count_pred" -> "(Ljava/util/ArrayList;Ljava/lang/Object;)I";
+            case "kof_list_foreach" -> "(Ljava/util/ArrayList;Ljava/lang/Object;)V";
+            case "kof_list_flatmap" -> "(Ljava/util/ArrayList;Ljava/lang/Object;)Ljava/util/ArrayList;";
+            case "kof_list_distinct" -> "(Ljava/util/ArrayList;I)Ljava/util/ArrayList;";
+            case "kof_list_sorted" -> "(Ljava/util/ArrayList;I)Ljava/util/ArrayList;";
+            case "kof_list_sorted_cmp" -> "(Ljava/util/ArrayList;Ljava/lang/Object;)Ljava/util/ArrayList;";
+            case "kof_list_sort_cmp" -> "(Ljava/util/ArrayList;Ljava/lang/Object;)V";
+            case "kof_list_groupby" -> "(Ljava/util/ArrayList;Ljava/lang/Object;I)Ljava/util/Map;";
+            case "kof_list_take", "kof_list_drop" -> "(Ljava/util/ArrayList;I)Ljava/util/ArrayList;";
+            case "kof_list_slice" -> "(Ljava/util/ArrayList;II)Ljava/util/ArrayList;";
             case "kof_list_reduce" -> "(Ljava/util/ArrayList;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;";
             case "kof_spawn_result", "kof_await" -> "(Ljava/lang/Object;)Ljava/lang/Object;";
             case "kof_poll" -> "(Ljava/lang/Object;)Ljava/lang/Object;";
@@ -463,9 +509,34 @@ public final class JvmRuntimeCallDescriptors {
                     "kof_sec_auth_claims", "kof_sec_auth_user" -> "()Ljava/lang/String;";
             case "kof_buffer_alloc" -> "(I)Ldev/kof/runtime/KofRuntime$Buffer;";
             case "kof_buffer_bytes" -> "(Ldev/kof/runtime/KofRuntime$Buffer;)[B";
+            // peek primitive (3.4b inc1): raw form (Long) + Buffer form (Buffer, Int).
+            case "kof_buffer_peek64" -> "(J)J";
+            case "kof_buffer_peek32", "kof_buffer_peek8" -> "(J)I";
+            case "kof_buffer_peek64_buf" -> "(Ldev/kof/runtime/KofRuntime$Buffer;I)J";
+            case "kof_buffer_peek32_buf", "kof_buffer_peek8_buf"
+                    -> "(Ldev/kof/runtime/KofRuntime$Buffer;I)I";
+            // poke primitive (3.4c): raw (Long, value) + Buffer (Buffer, Int, value).
+            case "kof_buffer_poke64" -> "(JJ)V";
+            case "kof_buffer_poke32", "kof_buffer_poke8" -> "(JI)V";
+            case "kof_buffer_poke64_buf" -> "(Ldev/kof/runtime/KofRuntime$Buffer;IJ)V";
+            case "kof_buffer_poke32_buf", "kof_buffer_poke8_buf"
+                    -> "(Ldev/kof/runtime/KofRuntime$Buffer;II)V";
             // D-SECRETS face 1: tipo Secret.
             case "kof_sec_secret_of", "kof_sec_secret"
                     -> "(Ljava/lang/String;)Ldev/kof/runtime/KofRuntime$Secret;";
+            case "kof_sec_x25519_private_key" -> "()Ldev/kof/runtime/KofRuntime$Secret;";
+            case "kof_sec_ed25519_private_key" -> "(Ljava/lang/String;)Ldev/kof/runtime/KofRuntime$Secret;";
+            case "kof_sec_public_key_any" -> "(Ldev/kof/runtime/KofRuntime$Secret;)Ljava/lang/String;";
+            case "kof_sec_ed25519_sign" -> "(Ldev/kof/runtime/KofRuntime$Secret;[B)Ljava/lang/String;";
+            case "kof_sec_ed25519_verify"
+                    -> "(Ldev/kof/runtime/KofRuntime$Secret;[BLjava/lang/String;)Z";
+            case "kof_sec_x25519_public_key"
+                    -> "(Ldev/kof/runtime/KofRuntime$Secret;)Ljava/lang/String;";
+            case "kof_sec_x25519_shared"
+                    -> "(Ldev/kof/runtime/KofRuntime$Secret;Ldev/kof/runtime/KofRuntime$Secret;)Ldev/kof/runtime/KofRuntime$Secret;";
+            case "kof_sec_hkdf_sha256"
+                    -> "(Ldev/kof/runtime/KofRuntime$Secret;Ljava/lang/String;Ljava/lang/String;I)Ljava/lang/String;";
+
             case "kof_sec_secret_from_bytes"
                     -> "([I)Ldev/kof/runtime/KofRuntime$Secret;";
             // D-SECRETS P3 (KeyHandle) — JVM-primeiro.
@@ -488,6 +559,8 @@ public final class JvmRuntimeCallDescriptors {
                     -> "(Ljava/lang/String;Ldev/kof/runtime/KofRuntime$KeyHandle;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;";
             case "kof_sec_secret_reveal", "kof_sec_secret_redacted"
                     -> "(Ldev/kof/runtime/KofRuntime$Secret;)Ljava/lang/String;";
+            case "kof_interop_error_message", "kof_interop_error_code"
+                    -> "(Ldev/kof/runtime/KofRuntime$InteropError;)Ljava/lang/String;";
             default -> "(Ljava/lang/String;)Ljava/lang/Object;";
         };
     }

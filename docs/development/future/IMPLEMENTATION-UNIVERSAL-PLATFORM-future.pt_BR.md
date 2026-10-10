@@ -64,7 +64,7 @@ numérica via FFI.
 | 6.2 | SIMD/vectorização (Native — pesquisa) | 🔵 | lane native | 1.2 |
 | 6.3 | GPU — Vulkan via FFI (existe); CUDA/OpenCL via FFI | 🟡 | — | Vulkan compute existe; CUDA/OpenCL pendentes |
 | 6.4 | Data-parallel (pesquisa) | 🔵 | — | 6.2 |
-| 6.5 | Scoped resources (GPU/arquivos/conexões) | 🟡 | lane compiler | `future/scoped-resources-plan.md`; **D5-B ✅ 19/09**: sem sintaxe nova — padrão `close()` + `try/finally` |
+| 6.5 | Scoped resources (GPU/arquivos/conexões) | 🟡 | lane compiler | `docs/scoped-resources-plan.md` (CONCLUÍDO 28/09 — `using (x = init, closer) { }` landou, `D-SCOPED-RESOURCES-GO`); **D5-B ✅ 19/09**: sem sintaxe nova — padrão `close()` + `try/finally` |
 | 6.6 | Distribuído (FFI para MPI + orquestração Kof) | 🔵 | — | R3, 2.1 |
 | 6.7 | Tooling: profiling HPC | 🔵 | — | 6.1 |
 

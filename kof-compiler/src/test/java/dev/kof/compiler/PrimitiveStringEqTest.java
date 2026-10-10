@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * POP2 for wide, SG-020/bug 79 — push BOOL), so every target agrees without
  * any runtime call.
  */
-class PrimitiveStringEqTest {
+class PrimitiveStringEqTest extends JvmRunSupport {
 
     private final CompilerDriver driver = new CompilerDriver();
 
@@ -30,15 +30,7 @@ class PrimitiveStringEqTest {
         return driver.compile(source, tempDir.resolve("out-" + name + t), t);
     }
 
-    private void assertRuns(Path outDir, String expected, String label) throws Exception {
-        String javaCmd = System.getProperty("java.home") + "/bin/java";
-        Process p = new ProcessBuilder(javaCmd, "-cp", outDir.toString(), "Default.Main")
-                .redirectErrorStream(true).start();
-        String out = new String(p.getInputStream().readAllBytes()).replace("\r\n", "\n").trim();
-        assertEquals(0, p.waitFor(), label + ": must exit 0 (old code: VerifyError at load), got:\n" + out);
-        assertEquals(expected, out, label + " (content equality of different types is false on every target)");
-    }
-
+    
     @Test
     void charAgainstStringIsFalseJvm(@TempDir Path tempDir) throws Exception {
         CompilationResult r = compile(tempDir, "C", """

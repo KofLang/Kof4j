@@ -75,6 +75,34 @@ class FfiCrossStructParamE2ETest {
 
     private static final String PROGRAM_GOLDEN = String.join("\n", "42", "2", "6");
 
+    /** D-MEM-FFI-CROSS-FULL face 3 (> 16 B by-value param → BYREF): a C `Big`
+     *  struct is passed as a POINTER in `a0` on both archs (measured 30/09). */
+    private static final String BIGFIX_RISCV = """
+            .text
+            .globl bigsum
+            bigsum:
+                ld a2, 0(a0)
+                ld a3, 8(a0)
+                ld a4, 16(a0)
+                add a2, a2, a3
+                add a2, a2, a4
+                add a0, a2, a1
+                ret
+            """;
+
+    private static final String BIGFIX_AARCH = """
+            .text
+            .globl bigsum
+            bigsum:
+                ldr x2, [x0]
+                ldr x3, [x0, #8]
+                ldr x4, [x0, #16]
+                add x2, x2, x3
+                add x2, x2, x4
+                add x0, x2, x1
+                ret
+            """;
+
     private static boolean has(String... cmds) {
         for (String c : cmds) {
             try {
@@ -142,6 +170,44 @@ class FfiCrossStructParamE2ETest {
         return out;
     }
 
+    private String compileAndRunBig(String arch, Target target, String fixtureAsm,
+                                    String fixtureAs, Path tmp) throws IOException {
+        Path s = tmp.resolve("bigfix-" + arch + ".s");
+        Path o = tmp.resolve("bigfix-" + arch + ".o");
+        Files.writeString(s, fixtureAsm);
+        run(fixtureAs, "-o", o.toString(), s.toString());
+
+        Path src = tmp.resolve("Big-" + arch + ".kf");
+        Files.writeString(src, """
+                record Big(Long a, Long b, Long c)
+
+                extern "%s" bigsum(Big b, Long z): Long
+
+                main() {
+                    println(bigsum(Big(7, 14, 21), 100))
+                }
+                """.formatted(o.toString()));
+
+        CompilationResult r = new CompilerDriver().compile(src, tmp.resolve("out-big-" + arch), target);
+        assertTrue(r.success(), "compile " + arch + " (struct >16 B param cross): "
+                + r.diagnostics().getDiagnostics());
+        Path bin = tmp.resolve("out-big-" + arch + "/Default/Main");
+        assertTrue(Files.exists(bin), "binário ausente em " + arch);
+
+        ProcessBuilder pb = new ProcessBuilder("qemu-" + arch, bin.toString()).redirectErrorStream(true);
+        pb.environment().put("QEMU_LD_PREFIX", NativeCrossLink.qemuPrefixFor(arch));
+        Process p = pb.start();
+        String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                .replace("\r\n", "\n").trim();
+        try {
+            assertEquals(0, p.waitFor(), arch + " exit != 0: '" + out + "'");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException(e);
+        }
+        return out;
+    }
+
     private void ready(String arch) {
         Assumptions.assumeTrue(has(arch + "-linux-gnu-as", arch + "-linux-gnu-ld", "qemu-" + arch),
                 "toolchain " + arch + " ausente — pulando (NATIVE002)");
@@ -190,19 +256,47 @@ class FfiCrossStructParamE2ETest {
                 "float/HFA como parâmetro cross permanece FFI001 honesto: " + r.diagnostics().getDiagnostics());
     }
 
+    /** D-MEM-FFI-CROSS-FULL face 3: struct > 16 B por valor agora BINDA (BYREF
+     *  — um ponteiro em `a0`/`x0`); a prova por execução é `bigsum` abaixo. */
     @Test
-    void riscv64StructParamLargerThan16BytesStaysFfi001(@TempDir Path tmp) throws IOException {
+    void riscv64StructParamLargerThan16BytesBinds(@TempDir Path tmp) throws IOException {
         Path src = tmp.resolve("BigParam.kf");
         Files.writeString(src, """
                 record Big(Int a, Int b, Int c, Int d, Int e)
 
                 extern "libc.so.6" takes(Big b): Int
 
-                main() { println("gap") }
+                main() { println("bound") }
                 """);
         CompilationResult r = new CompilerDriver().compile(src, tmp.resolve("out-big"), Target.NATIVE_RISCV64);
-        assertFalse(r.success(), "struct > 16 B (MEMORY/BYREF) não pode virar silêncio no cross");
-        assertTrue(r.diagnostics().getDiagnostics().toString().contains("FFI001"),
-                "struct > 16 B no cross segue FFI001 honesto: " + r.diagnostics().getDiagnostics());
+        assertTrue(r.success(), "struct > 16 B (BYREF) deve bindar no cross: "
+                + r.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void riscv64StructParamLargerThan16BytesByValue(@TempDir Path tmp) throws IOException {
+        ready("riscv64");
+        assertEquals("142", compileAndRunBig("riscv64", Target.NATIVE_RISCV64,
+                BIGFIX_RISCV, "riscv64-linux-gnu-as", tmp),
+                "riscv64 struct > 16 B por valor (BYREF: ponteiro do payload em a0)");
+    }
+
+    @Test
+    void aarch64StructParamLargerThan16BytesByValue(@TempDir Path tmp) throws IOException {
+        ready("aarch64");
+        assertEquals("142", compileAndRunBig("aarch64", Target.NATIVE_AARCH64,
+                BIGFIX_AARCH, "aarch64-linux-gnu-as", tmp),
+                "aarch64 struct > 16 B por valor (AAPCS64: ponteiro do payload em x0)");
+    }
+
+    @Test
+    void crossStructParamLargerThan16BytesAgreesBetweenArchs(@TempDir Path tmp) throws IOException {
+        ready("riscv64");
+        ready("aarch64");
+        assertEquals(compileAndRunBig("riscv64", Target.NATIVE_RISCV64, BIGFIX_RISCV,
+                        "riscv64-linux-gnu-as", tmp),
+                compileAndRunBig("aarch64", Target.NATIVE_AARCH64, BIGFIX_AARCH,
+                        "aarch64-linux-gnu-as", tmp),
+                "regra 5: struct > 16 B por valor, mesma saída nos dois cross");
     }
 }

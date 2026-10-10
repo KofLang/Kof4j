@@ -26,9 +26,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * NOME do type-param (o `T` virava um param fantasma) e a atribuição
  * covariante era rejeitada pelo §270 invariante.
  */
-class TypeVarianceE2ETest {
+class TypeVarianceE2ETest extends MultiSourceRunSupport {
 
-    private final CompilerDriver driver = new CompilerDriver();
 
     private static final String ANIMALS = """
             class Animal {
@@ -57,30 +56,8 @@ class TypeVarianceE2ETest {
         return output;
     }
 
-    private void runScript(Path root, List<Path> sources, String expected) {
-        KofInterpreter.Result r = driver.interpret(sources, root, new String[0]);
-        assertEquals(0, r.exitCode(), "SCRIPT exit code, output: " + r.stdout());
-        assertEquals(expected, r.stdout().trim().replace("\r\n", "\n"), "SCRIPT output");
-    }
-
-    private void runJs(Path root, List<Path> sources, String expected) throws Exception {
-        Path outDir = root.resolve("js-" + System.nanoTime());
-        CompilationResult result = driver.compileSources(sources, outDir, Target.JS, root);
-        assertTrue(result.success(), "JS compile failed: " + result.diagnostics().getDiagnostics());
-        Path entry;
-        try (var s = Files.walk(outDir)) {
-            entry = s.filter(p -> p.getFileName().toString().equals("Default.mjs")).findFirst()
-                    .orElseThrow(() -> new java.io.IOException("no Default.mjs in " + outDir));
-        }
-        try (java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream()) {
-            int ec = dev.kof.runtime.KofJsRunner.run(entry, buf,
-                    java.io.InputStream.nullInputStream(), new java.io.ByteArrayOutputStream());
-            String output = buf.toString(java.nio.charset.StandardCharsets.UTF_8).trim();
-            assertEquals(0, ec, "JS exit code, output: " + output);
-            assertEquals(expected, output, "JS output");
-        }
-    }
-
+    
+    
     private static Path write(Path dir, String name, String body) throws Exception {
         Path f = dir.resolve(name);
         Files.writeString(f, body);
@@ -225,6 +202,40 @@ class TypeVarianceE2ETest {
         assertTrue(result.diagnostics().getDiagnostics().stream()
                         .anyMatch(d -> "SEM082".equals(d.code())),
                 "SEM082 esperado, veio: " + result.diagnostics().getDiagnostics());
+    }
+
+    // ---------- #689: o cheque vale igual no lado RECORD ----------
+
+    @Test
+    void outInRecordMethodParameterIsSem082(@TempDir Path tmp) throws Exception {
+        // #689: sem super explícito, o record pulava o cheque de variância.
+        Path f = write(tmp, "Ninho.kf", """
+                record Ninho<out T>(T ocupante) {
+                    void substituir(T novo) { }
+                }
+
+                main() { println("no") }
+                """);
+        CompilationResult result = driver.compileSources(List.of(f), tmp.resolve("out-rec"), Target.JVM, tmp);
+        assertFalse(result.success(), "out T em parâmetro de MÉTODO de record deve falhar (solidez)");
+        assertTrue(result.diagnostics().getDiagnostics().stream()
+                        .anyMatch(d -> "SEM082".equals(d.code())),
+                "SEM082 esperado, veio: " + result.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void outInRecordReturnPositionStaysValid(@TempDir Path tmp) throws Exception {
+        // Controle: `T` em posição de saída (retorno) é legítimo para `out T`.
+        Path f = write(tmp, "Ninho.kf", """
+                record Ninho<out T>(T ocupante) {
+                    verOcupante(): T { return ocupante }
+                }
+
+                main() { println("ok") }
+                """);
+        CompilationResult result = driver.compileSources(List.of(f), tmp.resolve("out-rec-ok"), Target.JVM, tmp);
+        assertTrue(result.success(), "out T em retorno deve compilar, veio: "
+                + result.diagnostics().getDiagnostics());
     }
 
     // ---------- compatibilidade: `out`/`in` seguem identificadores ----------

@@ -35,8 +35,18 @@ import java.util.Map;
  */
 public final class KofInterpreter {
 
-    /** Resultado de uma execução interpretada. */
-    public record Result(int exitCode, String stdout, String stderr) {}
+    /**
+     * Resultado de uma execução interpretada. {@code warnings} carrega os
+     * diagnósticos de severidade WARNING do frontend compartilhado (ex.
+     * MEM014/MEM022) — no JVM/JS/Native o CLI os imprime; o Script os expõe
+     * aqui para paridade (#678, `D-SCRIPT-WARN-SURFACE`).
+     */
+    public record Result(int exitCode, String stdout, String stderr, List<Diagnostic> warnings) {
+        /** Compat: consumidores que só querem a saída do programa. */
+        public Result(int exitCode, String stdout, String stderr) {
+            this(exitCode, stdout, stderr, List.of());
+        }
+    }
 
     /** Objeto de classe Kof na pilha do interpretador. */
     static final class KofObj {
@@ -80,12 +90,20 @@ public final class KofInterpreter {
     final KofInterpreterBuiltins builtins;
     private final KofInterpreterMembers members;
     private final KofInterpreterFrame frames;
+    // #739: workDir fixo + estáticos compartilhados quando em sessão de REPL.
+    private final Path sharedWorkDir;
 
-    KofInterpreter(IRModule module, PrintStream out, PrintStream err) {
+    KofInterpreter(IRModule module, PrintStream out, PrintStream err) { this(module, out, err, null, null); }
+
+    KofInterpreter(IRModule module, PrintStream out, PrintStream err, Path sharedWorkDir,
+                   Map<String, Map<String, Object>> sharedStatics) {
         this.module = module;
         this.out = out;
         this.err = err;
-        this.members = new KofInterpreterMembers(this, module.classes());
+        this.sharedWorkDir = sharedWorkDir;
+        this.members = sharedStatics == null
+                ? new KofInterpreterMembers(this, module.classes())
+                : new KofInterpreterMembers(this, module.classes(), sharedStatics);
         this.frames = new KofInterpreterFrame(this);
         this.builtins = new KofInterpreterBuiltins(this);
     }
@@ -104,6 +122,11 @@ public final class KofInterpreter {
      * emissão de bytecode e sem fork de JVM — é o target KofScript.
      */
     public static Result run(IRModule module, String[] args) {
+        return run(module, args, List.of());
+    }
+
+    /** Como {@link #run(IRModule, String[])}, mas anexa os warnings do frontend. */
+    public static Result run(IRModule module, String[] args, List<Diagnostic> warnings) {
         ByteArrayOutputStream so = new ByteArrayOutputStream();
         ByteArrayOutputStream se = new ByteArrayOutputStream();
         PrintStream po = new PrintStream(so, true);
@@ -121,7 +144,8 @@ public final class KofInterpreter {
             po.flush();
             pe.flush();
         }
-        return new Result(code, so.toString(), se.toString());
+        return new Result(code, so.toString(), se.toString(),
+                warnings == null ? List.of() : warnings);
     }
 
     /**
@@ -149,13 +173,17 @@ public final class KofInterpreter {
         return t.getClass().getName();
     }
 
-    private void ensureRuntimeForModule() throws Exception {
+    void ensureRuntimeForModule() throws Exception {
         // #125 (seguranca): createTempDirectory = 700 + nome aleatorio;
         // Path.of(tmp, "kof-interp-" + nanoTime) era previsivel (nanoTime
         // chutavel) e o mkdirs posterior herdava 755 -> outro usuario local
         // podia pre-criar ou ler o dir. Nao e so teste: o interpretador roda
         // o codigo do USUARIO aqui.
-        Path workDir = java.nio.file.Files.createTempDirectory("kof-interp-");
+        // #739: no REPL incremental o workDir é fixo (um por sessão) — evita
+        // vazar um diretório temporário a cada linha avaliada.
+        Path workDir = sharedWorkDir != null
+                ? sharedWorkDir
+                : java.nio.file.Files.createTempDirectory("kof-interp-");
         builtins.prepareRuntime(workDir, usesVk());
     }
 
@@ -175,7 +203,7 @@ public final class KofInterpreter {
         return false;
     }
 
-    private void execute(String[] args) throws Throwable {
+    void execute(String[] args) throws Throwable {
         IRClass main = null;
         IRMethod mainMethod = null;
         for (IRClass c : module.classes()) {
@@ -357,6 +385,11 @@ public final class KofInterpreter {
                     }
                     case KofContinueLabel _ -> {
                         // §266: marcador estrutural (fronteira corpo/update do for) — no-op
+                    }
+                    case KofExcUnlink _ -> {
+                        // §549: pop no caminho normal — o match por intervalo de
+                        // pc já tornava o frame inerte, isto é higiene de pilha.
+                        if (!f.tryStack.isEmpty()) f.tryStack.pop();
                     }
                     case KofTryEnd _ -> {
                         if (!f.tryStack.isEmpty()) f.tryStack.pop();

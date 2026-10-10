@@ -1,0 +1,22 @@
+#	kof-size-baseline	v1
+meta	commit	766e1103b8ddf6ec71ed715f781c99a138ae5a42
+meta	branch	lab
+meta	date	2026-10-01T07:38:42Z
+meta	os	Linux 6.17.0-35-generic x86_64
+meta	java	openjdk version "25.0.3" 2026-04-21 LTS
+module	kof-c-compiler-0.5.0-beta.jar	73360
+module	kof-compiler-0.5.0-beta.jar	2696491
+module	kof-runtime-0.5.0-beta.jar	61708
+module	kof-script-0.5.0-beta.jar	26314
+dist	shaded-cli	42887089
+dist	packed-cli.tar.gz	39213159
+dist	thin-cli	486789
+dep	com	47312554
+dep	org	42670872
+dep	dev	8273419
+dep	META-INF	287087
+hello	jvm	2182
+hello	js	22186
+hello	native	53568
+hello	native.risc	138232
+hello	native.arm	137848

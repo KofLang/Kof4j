@@ -100,14 +100,15 @@ class DesugarStepPipelineTest {
     }
 
     @Test
-    void defaultRegistryHoldsTheFourBuiltinDesugarsInOrder() {
+    void defaultRegistryHoldsTheFiveBuiltinDesugarsInOrder() {
         CompilerDriver driver = new CompilerDriver();
         List<String> names = new ArrayList<>();
         for (DesugarStep s : driver.desugarSteps) {
             names.add(s.name());
         }
-        assertEquals(List.of("tests", "application", "infra", "nested-functions"), names,
-                "the default AST registry must preserve the historical desugar order");
+        assertEquals(List.of("using", "tests", "application", "infra", "nested-functions"), names,
+                "the default AST registry must preserve the historical desugar order (using first: "
+                + "downstream steps see plain try/finally, D-SCOPED-RESOURCES-GO slice 1)");
     }
 
     @Test

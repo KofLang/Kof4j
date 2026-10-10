@@ -313,6 +313,16 @@ public final class RuntimeSecurity1 {
                 popq %rbx
                 ret
 
+            # D-KOF-DIGEST-BYTES (02/10): the Byte[] face reuses the String
+            # wrapper verbatim — the native array object carries the SAME
+            # layout the string reader expects (len @16, inline payload @24,
+            # proven by the net front's payload reads). Same object layout,
+            # same bytes, same digest: an alias, not a second implementation.
+            .globl kof_sec_sha256_bytes
+            .type kof_sec_sha256_bytes, @function
+            kof_sec_sha256_bytes:
+                jmp kof_sec_sha256
+
             # ── SHA-512 (FIPS 180-4) ──────────────────────────────────────
             # kof_sec_sha512_block(rdi=h[8] uint64, rsi=block128)
             kof_sec_sha512_block:

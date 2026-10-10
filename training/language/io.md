@@ -48,8 +48,12 @@ about reading/writing files, working with paths and listing directories.
 **Unknown members are a compile-time error (`SEM102`, #617):** a method that is not in the tables above on a `File`/`Directory`/`Path` value fails compilation with `'File' has no method 'x()'` (hint: `Directory(path).createDirectories()` for directory creation). Before the guard, the call compiled silently and did nothing at runtime — the member tables here ARE the contract.
 | `File("x").name()` / `.path()` | String |
 
-Statics: `File.exists(p)`, `File.readText(p)`, `File.writeText(p, s)`,
-`File.delete(p)`, `File.size(p)`.
+There are **no static `File.…` forms**: `File.exists(p)`, `File.readText(p)`,
+`File.writeText(p, s)`, `File.delete(p)`, `File.size(p)` are rejected by the typer
+with `SEM011 Undefined variable or type: 'File'` (`D-FILE-STATIC`, maintainer 02/10 —
+the `kof.io` face stays instance-style only; the unreachable `KofIo.staticMethod("File")`
+arm is NOT wired). Always construct the handle first: `File("x").exists()`,
+`File("x").readText()`, `File("x").writeText(s)`, `File("x").delete()`, `File("x").size()`.
 
 ## Directory
 

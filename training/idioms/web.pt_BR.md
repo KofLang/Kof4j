@@ -47,6 +47,78 @@ ordem de pernas (bug 53, GitHub #28 — corrigido 07/09: o type do handler agora
   diagnóstico, R6).
 - Resposta não-200/404 (ex.: 301, 401) → `status(código)` + return.
 
+## BOM — corpos de rejeição declarativos (`app.security`)
+
+```kof
+main() {
+    var app = web.app()
+    var r = mapOf()
+    r.put("unauthorized", "{\"error\":\"faça login antes\"}")
+    val rObj: Object = r
+    val o: Map<String, Object> = mapOf()
+    val h: Object = "authorization"
+    o.put("sessionHeader", h)
+    o.put("responses", rObj)
+    app.security(o)
+    app.get("/me") { return "ok" }
+    app.listen(8080)
+}
+```
+
+`responses` (`Map`) substitui o JSON embutido do pipeline para os `401`/`403`/`429`
+sintéticos (chaves `unauthorized`/`forbidden`/`tooManyRequests`). Chaves omitidas
+mantêm os corpos embutidos — aditivo.
+
+## RUIM — re-checar o path dentro de cada handler
+
+```kof
+app.get("/admin/users") {
+    if (path() == "/admin/users" || path().startsWith("/admin")) {
+        if (!auth.hasRole("admin")) { return status(403, "nope") }
+    }
+    return users()
+}
+app.get("/admin/logs") {
+    if (path().startsWith("/admin")) {          // repetido em cada handler…
+        if (!auth.hasRole("admin")) { return status(403, "nope") }
+    }
+    return logs()
+}
+```
+
+## BOM — declarar a política de recurso uma vez (`app.policy`)
+
+```kof
+app.security(mapOf("rateLimit", "200/60"))
+app.policy("/admin", mapOf("roles", "admin"))   // toda rota sob /admin
+app.get("/admin/users") { return users() }      // herda a política
+app.get("/admin/logs") { return logs() }        // herda a política
+```
+
+`app.policy(prefix, opts)` escopa os mesmos opts do `app.security` a um prefixo
+de path. Escalares (ex.: `rateLimit`, `auth`) são "o mais profundo vence";
+listas (`publicPaths`, `roles`) acumulam. O handler nunca re-checa o que a
+política declara.
+
+## BOM — ler paginação do request (`pageRequest`)
+
+```kof
+import kof.web
+
+app.get("/users") {
+    try {
+        val p = pageRequest(20, 100)   // ?page/limit/offset; default 20, teto 100
+        return json.encode(orm.window<User>(db, p.limit(), p.offset()))
+    } catch (String e) {
+        return status(400, e)          // erro nomeado PAGINATION: → 400
+    }
+}
+```
+
+`pageRequest` devolve um core `PageRequest(page, limit, offset)` — nenhum tipo
+HTTP vaza. `page` é 1-based, `limit` é clampado no teto, `?offset=` vence. O
+Native não tem contexto web, então isso é um gap `WEB001` lá.
+
 ## Notas
 
 - `app.listen` aceita SÓ Int (`app.listen(8080)` — #102.2 13/09: String

@@ -13,7 +13,110 @@ arquitetura mudar (refatoração, novo backend), a **linguagem não muda**.
 
 ## 1. Visão geral
 
-![Arquitetura do compilador Kof — diagrama do fluxo](../image.png)
+> **Melhoria visual 03/10 (issue #737):** o diagrama de visão geral agora é
+> **Mermaid** (renderizado nativamente pelo GitHub), substituindo o bitmap
+> `docs/image.png` anterior — conteúdo e fatos inalterados (só a notação), o
+> mesmo tratamento que o ADR recebeu na issue #109. O pipeline **exato e
+> ordenado** é o §2; esta é a visão no nível de módulos.
+
+```mermaid
+---
+config:
+  theme: default
+  themeVariables:
+    darkMode: false
+    background: "#ffffff"
+    textColor: "#000000"
+    lineColor: "#333333"
+---
+flowchart TD
+    %% Estilos
+    classDef spec fill:#f9f2f4,stroke:#d0a0b0,stroke-width:2px,stroke-dasharray: 5 5
+    classDef compiler fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
+    classDef module fill:#e8eaf6,stroke:#3f51b5,stroke-width:1px
+    classDef sub fill:#ffffff,stroke:#9e9e9e,stroke-width:1px
+    classDef backend fill:#f3e5f5,stroke:#8e24aa,stroke-width:1px
+
+    %% Elementos Principais
+    Spec[/"Kof Language Specification (docs/)"/]:::spec
+    
+    subgraph Compiler ["Kof Compiler (Java 21 + ASM 9.8)"]
+        direction TB
+        
+        subgraph Frontend ["Frontend"]
+            direction TB
+            Lexer["Lexer (477L)"]:::sub
+            Parser["Parser (1975L)"]:::sub
+            AST["AST (50 nós sealed)"]:::sub
+            Desugar["Desugar"]:::sub
+            Imports["Imports"]:::sub
+            
+            subgraph Semantic ["Semantic Analysis (2293L)"]
+                direction TB
+                SymTab["SymbolTable"]:::sub
+                Type["Type (8 records)"]:::sub
+                Builtin["BuiltinTypes"]:::sub
+            end
+        end
+
+        subgraph MiddleEnd ["Middle-end"]
+            direction TB
+            Lowering["Lowering AST → IR"]:::sub
+            IR["IR (30 ops)"]:::sub
+            Optimizer["Optimizer"]:::sub
+        end
+
+        subgraph BackendGroup ["Backend"]
+            direction TB
+            BackendInterface{{"«interface» Backend"}}:::module
+            JVM["JvmBackend (ASM → .class)"]:::backend
+            Native["NativeBackend (→ ELF)"]:::backend
+            JS["JsBackend (ESM → .mjs)"]:::backend
+            
+            JVM -.->|implements| BackendInterface
+            Native -.->|implements| BackendInterface
+            JS -.->|implements| BackendInterface
+        end
+        
+        %% Fluxo de Compilação
+        Frontend ==> MiddleEnd ==> BackendGroup
+    end
+
+    %% Relacionamento Principal
+    Compiler -.->|implemented by| Spec
+flowchart TB
+    SRC(["Código Kof<br/>.kf / .ks"]) --> CLI["kof-cli<br/>build · run · test · fmt · script · serve · debug · lsp"]
+
+    CLI --> FE["kof-compiler · frontend<br/>Lexer → Parser (AST cru) → imports + desugar → SemanticAnalyzer<br/>tipos em mapas laterais — sem AST tipada"]
+
+    FE --> ME["kof-compiler · middle-end<br/>AST → lowerToIR → applySuperBridges → Optimizer<br/>máquina de pilha linear tipada (30 ops) — mínima, sem inlining/LICM"]
+
+    ME --> BE{"selectBackend(Target)"}
+    BE --> JVM["JvmBackend<br/>ASM 9.8 → .class + KofRuntime gerado"]
+    BE --> NAT["NativeBackend<br/>x86-64 · riscv64 · aarch64 (traduzido)<br/>um .s → ELF estático"]
+    BE --> JS["JsBackend<br/>IR de pilha → árvore JS → .mjs + kof-runtime.mjs"]
+    BE --> AND["JvmBackend + AndroidProjectWriter<br/>bytecode + AndroidManifest/pom/assets"]
+
+    JVM --> OUT1(["JVM / Android"])
+    NAT --> OUT2(["ELF nativo"])
+    JS --> OUT3(["JS / edge"])
+
+    FE -. "mesmo frontend, sem codegen" .-> INTERP["KofInterpreter (IR)<br/>KofScript .ks / REPL — execução direta"]
+
+    ME -. "não consome" .-> CC["kof-c-compiler<br/>subconjunto C → Native"]
+    JVM -. "não usa" .-> RT["kof-runtime<br/>classes Java auxiliares (§5.1)"]
+
+    classDef process fill:#f0f9ff,stroke:#38bdf8,stroke-width:1px,color:#0369a1
+    classDef data fill:#f5f3ff,stroke:#a78bfa,stroke-width:1px,color:#6d28d9
+    classDef backend fill:#f0fdf4,stroke:#4ade80,stroke-width:1px,color:#15803d
+    classDef alt fill:#fefce8,stroke:#facc15,stroke-width:1px,color:#854d0e
+
+    class SRC,CLI process
+    class FE,ME,INTERP process
+    class OUT1,OUT2,OUT3 data
+    class JVM,NAT,JS,AND backend
+    class BE,CC,RT alt
+```
 
 **Módulos Maven relacionados:**
 

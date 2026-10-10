@@ -47,8 +47,12 @@ sobre ler/escrever arquivos, trabalhar com paths e listar diretórios.
 **Membro desconhecido é erro em tempo de compilação (`SEM102`, #617):** um método que não está nas tabelas acima num valor `File`/`Directory`/`Path` não compila, com `'File' has no method 'x()'` (hint: `Directory(path).createDirectories()` para criar diretório). Antes do guard, a chamada compilava em silêncio e não fazia nada em runtime — as tabelas de membros aqui SÃO o contrato.
 | `File("x").name()` / `.path()` | String |
 
-Estáticas: `File.exists(p)`, `File.readText(p)`, `File.writeText(p, s)`,
-`File.delete(p)`, `File.size(p)`.
+Não existem **formas estáticas `File.…`**: `File.exists(p)`, `File.readText(p)`,
+`File.writeText(p, s)`, `File.delete(p)`, `File.size(p)` são rejeitados pelo typer
+com `SEM011 Undefined variable or type: 'File'` (`D-FILE-STATIC`, mantenedora 02/10 —
+a face `kof.io` fica só no estilo instância; o braço inalcançável `KofIo.staticMethod("File")`
+NÃO é ligado). Sempre construa o handle primeiro: `File("x").exists()`,
+`File("x").readText()`, `File("x").writeText(s)`, `File("x").delete()`, `File("x").size()`.
 
 ## Directory
 

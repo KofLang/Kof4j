@@ -9,8 +9,9 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * 3.7 fatia 1: classificação/bindability do struct nativo x86-64, sem toolchain C
  * (o E2E com shim real é {@code FfiStructE2ETest}). Trava o caminho de
- * REGISTRADORES (SysV) e os gaps honestos: MEMORY (> 16 B), SSE com mais de um
- * campo (empacotamento não emitido) e estouro de registradores.
+ * REGISTRADORES (SysV) e os gaps honestos: MEMORY (> 16 B) e estouro de
+ * registradores. Desde M1, o eightbyte SSE empacotado (homogêneo-flutuante) é
+ * emitível — não é mais gap.
  */
 class FfiStructLayoutTest {
 
@@ -35,13 +36,28 @@ class FfiStructLayoutTest {
     void memoryPathAndExhaustionStayUnbound() {
         assertFalse(FfiStructLayout.x86Bindable(List.of(struct('i', 'i', 'i', 'i', 'i'))),
                 "Big3(5×Int) = 20 B → SysV MEMORY (FFI001 honesto)");
-        assertFalse(FfiStructLayout.x86Bindable(List.of(struct('f', 'f'))),
-                "dois Float no MESMO eightbyte SSE não é emitido (FFI001 honesto)");
         assertFalse(FfiStructLayout.x86Bindable(List.of(
                         Type.PrimitiveType.INT, Type.PrimitiveType.INT, Type.PrimitiveType.INT,
                         Type.PrimitiveType.INT, Type.PrimitiveType.INT, Type.PrimitiveType.INT,
                         struct('i', 'i'))),
                 "6 int regs já consumidos → struct iria à memória (FFI001 honesto)");
+    }
+
+    @Test
+    void packedFloatEightbyteBinds() {
+        // M1 (VF-on-x86-64): dois Float no MESMO eightbyte SSE é o struct
+        // homogêneo-flutuante (≤ 2 campos) — emitido bitwise (shift/or → movq
+        // %xmm), não mais FFI001.
+        assertTrue(FfiStructLayout.x86Bindable(List.of(struct('f', 'f'))),
+                "{float,float} = um eightbyte SSE empacotado (M1)");
+        assertTrue(FfiStructLayout.x86RegisterOnly(struct('f', 'f')),
+                "{float,float} ≤ 16 B, register path (M1)");
+        // HFA>2 (3 floats) fica FFI001 — o corte M1 é ≤ 2 campos, o MESMO do cross
+        // (`crossHomogeneousFloat`), onde as duas ABIs divergem em HFA>2.
+        assertFalse(FfiStructLayout.x86Bindable(List.of(struct('f', 'f', 'f'))),
+                "HFA>2 (3 floats) não binda no x86-64 (M1, corte ≤ 2) — FFI001 honesto");
+        assertFalse(FfiStructLayout.x86RegisterOnly(struct('f', 'f', 'f')),
+                "HFA>2 (3 floats) não é register path no x86-64 (M1)");
     }
 
     @Test
@@ -86,6 +102,54 @@ class FfiStructLayoutTest {
         assertFalse(FfiStructLayout.crossIntRegisterOnly(Target.NATIVE_RISCV64,
                         struct('i', 'i', 'i', 'i', 'i')),
                 "5×Int = 20 B → BYREF no riscv (FFI001 honesto)");
+    }
+
+    @Test
+    void crossMemoryReturnIsSretOnlyForLargeStructs() {
+        // D-MEM-FFI-CROSS-FULL face 3: > 16 B → BYREF/MEMORY → sret nas duas archs.
+        assertTrue(FfiStructLayout.crossMemoryReturn(Target.NATIVE_RISCV64,
+                        struct('j', 'j', 'j')),
+                "{Long,Long,Long} = 24 B → BYREF no riscv64 (sret em a0)");
+        assertTrue(FfiStructLayout.crossMemoryReturn(Target.NATIVE_AARCH64,
+                        struct('j', 'j', 'j')),
+                "{Long,Long,Long} = 24 B → BYREF no aarch64 (sret em x8)");
+        assertTrue(FfiStructLayout.crossMemoryReturn(Target.NATIVE_RISCV64,
+                        struct('i', 'i', 'i', 'i', 'i')),
+                "5×Int = 20 B → BYREF no riscv64");
+        // ≤ 16 B continua register path (não é sret).
+        assertFalse(FfiStructLayout.crossMemoryReturn(Target.NATIVE_RISCV64, struct('i', 'i')),
+                "div_t = 8 B → registrador, não sret");
+        assertFalse(FfiStructLayout.crossMemoryReturn(Target.NATIVE_AARCH64, struct('j', 'j')),
+                "{Long,Long} = 16 B → registrador, não sret");
+        // O sret do riscv consome 1 registrador INTEGER (a0): um struct param que
+        // cabia sem o sret deixa de caber.
+        List<Type> sevenInts = List.of(Type.PrimitiveType.INT, Type.PrimitiveType.INT,
+                Type.PrimitiveType.INT, Type.PrimitiveType.INT, Type.PrimitiveType.INT,
+                Type.PrimitiveType.INT, Type.PrimitiveType.INT);
+        List<Type> plusPair = new java.util.ArrayList<>(sevenInts);
+        plusPair.add(struct('i', 'i'));
+        assertTrue(FfiStructLayout.crossBindable(plusPair, 0),
+                "7 ints + Point: o struct cai no 8º registrador sem sret");
+        assertFalse(FfiStructLayout.crossBindable(plusPair, 1),
+                "com o ponteiro sret reservando 1 INTEGER, o struct iria à memória → não-bindável");
+    }
+
+    @Test
+    void crossByMemoryStructParamCountsAsOnePointer() {
+        // D-MEM-FFI-CROSS-FULL face 3 estendida: struct > 16 B como PARÂMETRO
+        // viaja como UM ponteiro INTEGER (BYREF, medido riscv64+aarch64).
+        Type big = struct('j', 'j', 'j');
+        assertTrue(FfiStructLayout.crossByMemory(Target.NATIVE_RISCV64, big),
+                "{Long,Long,Long} = 24 B → BYREF no riscv64");
+        assertTrue(FfiStructLayout.crossByMemory(Target.NATIVE_AARCH64, big),
+                "{Long,Long,Long} = 24 B → BYREF no aarch64");
+        assertTrue(FfiStructLayout.crossBindable(List.of(big, Type.PrimitiveType.LONG)),
+                "um struct > 16 B + um Long cabem (2 ordinais INTEGER)");
+        assertFalse(FfiStructLayout.crossBindable(List.of(
+                        Type.PrimitiveType.INT, Type.PrimitiveType.INT, Type.PrimitiveType.INT,
+                        Type.PrimitiveType.INT, Type.PrimitiveType.INT, Type.PrimitiveType.INT,
+                        Type.PrimitiveType.INT, Type.PrimitiveType.INT, big)),
+                "8 ints já consomem os registradores → o ponteiro do struct derrama → não-bindável");
     }
 
     @Test

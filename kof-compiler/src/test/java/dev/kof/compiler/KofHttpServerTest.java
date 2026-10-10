@@ -23,7 +23,7 @@ class KofHttpServerTest {
     private java.net.URLClassLoader handlerLoader;
 
     @AfterEach
-    void stopServer() {
+    void closeServer() {
         if (server != null) {
             server.close();
             server = null;

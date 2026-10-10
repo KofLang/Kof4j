@@ -15,12 +15,35 @@ set -uo pipefail
 
 LIMIT=500    # alvo da regra — acima disto é dívida (aviso)
 CRITICAL=600 # 13/09: >=600 = crítico, refactor obrigatório (falha o build)
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-BASELINE="$ROOT/scripts/check_500-baseline.txt"
+ROOT="${CHECK500_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+BASELINE="${CHECK500_BASELINE:-$ROOT/scripts/check_500-baseline.txt}"
 
 current=$(find "$ROOT"/kof-*/src/main/java -name '*.java' -exec wc -l {} + \
     | awk -v lim="$LIMIT" -v root="$ROOT/" '$1 > lim && $2 != "total" {gsub(root, "", $2); print $1"\t"$2}' \
     | sort -k2)
+
+# Selftest (guarda do guarda): prova que o gate ainda distingue as tres faixas
+# num sandbox, entao o CI nunca passa por acidente. Nao toca o repo real.
+if [ "${1:-}" = "--selftest" ]; then
+    T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
+    mk() { mkdir -p "$(dirname "$1")"; awk -v n="$2" 'BEGIN{for(i=0;i<n;i++)print "// x"}' > "$1"; }
+    run() { CHECK500_ROOT="$T" CHECK500_BASELINE="$T/base.txt" bash "$0" >/dev/null 2>&1; echo $?; }
+    note() { printf '%s\t%s\n' "$1" "$2" > "$T/base.txt"; }
+    : > "$T/base.txt"   # baseline vazio: o gate exige que o arquivo exista
+    # 1. <= 500 linhas: verde, mesmo com baseline vazio
+    mk "$T/kof-x/src/main/java/a/Ok.java" 480
+    [ "$(run)" = 0 ] || { echo "SELFTEST FALHOU: <=500 devia passar"; exit 1; }
+    # 2. avo critico congelado no baseline: verde (pendencia tolerada)
+    mk "$T/kof-x/src/main/java/a/Big.java" 610
+    if [ "$(run)" = 0 ]; then echo "SELFTEST FALHOU: critico novo (>=600) sem baseline devia falhar"; exit 1; fi
+    note 610 kof-x/src/main/java/a/Big.java
+    [ "$(run)" = 0 ] || { echo "SELFTEST FALHOU: avo critico congelado devia passar"; exit 1; }
+    # 3. crescimento do avo critico: vermelho
+    mk "$T/kof-x/src/main/java/a/Big.java" 640
+    if [ "$(run)" = 0 ]; then echo "SELFTEST FALHOU: crescimento do avo critico devia falhar"; exit 1; fi
+    echo "SELFTEST OK: <=500 verde; critico novo falha; avo congelado verde; crescimento do avo falha"
+    exit 0
+fi
 
 if [ "${1:-}" = "--update-baseline" ]; then
     printf '%s\n' "$current" > "$BASELINE"

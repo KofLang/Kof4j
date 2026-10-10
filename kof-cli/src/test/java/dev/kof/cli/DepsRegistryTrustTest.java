@@ -10,9 +10,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static dev.kof.cli.DepsRegistryTest.CliResult;
-import static dev.kof.cli.DepsRegistryTest.FakeAsset;
-import static dev.kof.cli.DepsRegistryTest.Order;
+import static dev.kof.cli.DepsRegistrySupport.CliResult;
+import static dev.kof.cli.DepsRegistrySupport.FakeAsset;
+import static dev.kof.cli.DepsRegistrySupport.Order;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -36,16 +36,16 @@ class DepsRegistryTrustTest {
     /** Roda `kof deps add acme/hello@1.2.3` + `resolve` contra o registry falso com o env extra. */
     private static CliResult resolve(Path tmp, List<FakeAsset> assets, Map<String, String> extraEnv,
                                      Path homeOut) throws Exception {
-        byte[] tgz = DepsRegistryTest.buildPackage(tmp.resolve("rel"), "hello", "1.2.3", true, true, true);
-        HttpServer server = DepsRegistryTest.serveFakeRegistry("hello", "1.2.3", tgz, true, assets,
+        byte[] tgz = DepsRegistrySupport.buildPackage(tmp.resolve("rel"), "hello", "1.2.3", true, true, true);
+        HttpServer server = DepsRegistrySupport.serveFakeRegistry("hello", "1.2.3", tgz, true, assets,
                 Order.GITHUB, false, false);
         try {
             Path proj = tmp.resolve("proj");
             Files.createDirectories(proj);
-            Map<String, String> env = new HashMap<>(DepsRegistryTest.envOf(server, homeOut));
+            Map<String, String> env = new HashMap<>(DepsRegistrySupport.envOf(server, homeOut));
             env.putAll(extraEnv);
-            DepsRegistryTest.runWithEnv(proj, env, "deps", "add", "acme/hello@1.2.3");
-            return DepsRegistryTest.runWithEnv(proj, env, "deps", "resolve");
+            DepsRegistrySupport.runWithEnv(proj, env, "deps", "add", "acme/hello@1.2.3");
+            return DepsRegistrySupport.runWithEnv(proj, env, "deps", "resolve");
         } finally {
             server.stop(0);
         }

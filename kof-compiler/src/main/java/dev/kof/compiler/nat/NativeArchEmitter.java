@@ -85,9 +85,9 @@ final class NativeArchEmitter {
             nb.collectStrings(c);
         }
         for (String[] e : nb.stringLiterals) {
-            String esc = e[0].replace("\\", "\\\\").replace("\"", "\\\"")
-                    .replace("\n", "\\n").replace("\t", "\\t");
-            sb.append(e[1]).append(": .asciz \"").append(esc).append("\"\n");
+            // §623: escape control/UTF-8 bytes (o NUL cru de "\0" quebrava o GAS).
+            sb.append(e[1]).append(": .asciz \"")
+              .append(NativeGasStrings.gasEscape(e[0])).append("\"\n");
         }
         // bug 59: símbolos de campos estáticos (ex: kof_static_java_lang_System_out)
         // referenciados por KofGetStatic no riscv/aarch precisam ser DEFINIDOS no
@@ -144,6 +144,8 @@ final class NativeArchEmitter {
         // no texto do PROGRAMA (a poda só alcança o blob do runtime), em
         // plena seção .text; o aarch64 o recebe pela tradução linha-a-linha.
         if (nb.ffiUsesCstr) NativeFfiCallRiscv.emitRiscvCstrHelper(sb);
+        if (nb.ffiUsesArray) NativeFfiCallRiscv.emitRiscvArrayPackHelper(sb);
+        if (nb.ffiUsesStrArray) NativeFfiCallRiscv.emitRiscvStrArrayPackHelper(sb);
 
         // Ponto de entrada: chama <mainClass>_main e sai via exit_group(94).
         // O runtime é asm puro — binário estático. exit_group (não exit/93)
@@ -152,6 +154,12 @@ final class NativeArchEmitter {
         String mainEntry = mainClass != null ? nb.sanitizeName(mainClass.name()) + "_main" : "kof_main";
         sb.append("\n.globl _start\n");
         sb.append("_start:\n");
+        sb.append("    la   t0, kof_main_stack_bottom\n");
+        sb.append("    sd   sp, 0(t0)\n");
+        sb.append("    li   a7, 178\n");
+        sb.append("    ecall\n");
+        sb.append("    la   t0, kof_main_tid\n");
+        sb.append("    sd   a0, 0(t0)\n");
         sb.append("    andi sp, sp, -16\n");
         emitClinitCallsRiscv(sb, module);
         sb.append("    call ").append(mainEntry).append("\n");
@@ -187,6 +195,7 @@ final class NativeArchEmitter {
             if (nb.usesHttp) break;
         }
         if (nb.usesHttp) nb.emitRiscvHttp(sb);
+        if (NativeRiscvNetEmit.usesNet(module)) NativeRiscvNetEmit.emit(sb);
         if (usesSpawn) nb.emitRiscvSpawn(sb);
 
         String className = module.classes().isEmpty() ? "Default/Main" : module.classes().getFirst().name();
@@ -206,7 +215,9 @@ final class NativeArchEmitter {
         // DB001) e força o dinâmico (sem ela o `call sym` não resolve).
         boolean ffi = !nb.ffiLibs.isEmpty();
         boolean libm = NativeCrossLink.needsLibm(prunedRiscv);
-        boolean dynamic = sqlite || ffi || NativeCrossLink.needsLibc(prunedRiscv);
+        // §545: spawn usa `_dl_allocate_tls` (loader) para o tp do worker —
+        // só existe no link dinâmico, então um programa com spawn força -lc.
+        boolean dynamic = sqlite || ffi || usesSpawn || NativeCrossLink.needsLibc(prunedRiscv);
         String sysroot = NativeCrossLink.sysrootFor("riscv64");
         if (dynamic && sysroot == null) {
             // R6: sem libc-cross não há como ligar dinâmico — segue estático,
@@ -297,9 +308,9 @@ final class NativeArchEmitter {
             nb.collectStrings(c);
         }
         for (String[] e : nb.stringLiterals) {
-            String esc = e[0].replace("\\", "\\\\").replace("\"", "\\\"")
-                    .replace("\n", "\\n").replace("\t", "\\t");
-            riscvSb.append(e[1]).append(": .asciz \"").append(esc).append("\"\n");
+            // §623: escape control/UTF-8 bytes (o NUL cru de "\0" quebrava o GAS).
+            riscvSb.append(e[1]).append(": .asciz \"")
+                   .append(NativeGasStrings.gasEscape(e[0])).append("\"\n");
         }
         // bug 59: símbolos de campos estáticos definidos no .data (ver emitRiscv).
         nb.collectStaticFields();
@@ -346,9 +357,17 @@ final class NativeArchEmitter {
         // #431 fatia 2: idem riscv — o helper entra ANTES da tradução p/ o
         // ARM (linhas todas cobertas pelo tradutor: beqz/lbu/j/mv/li/sd/ld/call/ret).
         if (nb.ffiUsesCstr) NativeFfiCallRiscv.emitRiscvCstrHelper(riscvSb);
+        if (nb.ffiUsesArray) NativeFfiCallRiscv.emitRiscvArrayPackHelper(riscvSb);
+        if (nb.ffiUsesStrArray) NativeFfiCallRiscv.emitRiscvStrArrayPackHelper(riscvSb);
         String mainEntry = mainClass != null ? nb.sanitizeName(mainClass.name()) + "_main" : "kof_main";
         riscvSb.append("\n.globl _start\n");
         riscvSb.append("_start:\n");
+        riscvSb.append("    la   t0, kof_main_stack_bottom\n");
+        riscvSb.append("    sd   sp, 0(t0)\n");
+        riscvSb.append("    li   a7, 178\n");
+        riscvSb.append("    ecall\n");
+        riscvSb.append("    la   t0, kof_main_tid\n");
+        riscvSb.append("    sd   a0, 0(t0)\n");
         riscvSb.append("    andi sp, sp, -16\n");
         emitClinitCallsRiscv(riscvSb, module);
         riscvSb.append("    call ").append(mainEntry).append("\n");
@@ -389,6 +408,7 @@ final class NativeArchEmitter {
             if (usesHttpA) break;
         }
         if (usesHttpA) nb.emitRiscvHttp(riscvSb);
+        if (NativeRiscvNetEmit.usesNet(module)) NativeRiscvNetEmit.emit(riscvSb);
         if (usesSpawnA) nb.emitRiscvSpawn(riscvSb);
 
         // traduz linha-a-linha (runtime já podado — a poda no riscv vale p/ os 2)
@@ -408,7 +428,8 @@ final class NativeArchEmitter {
         boolean sqlite = NativeCrossLink.needsSqlite(prunedRiscv);
         boolean ffi = !nb.ffiLibs.isEmpty();
         boolean libm = NativeCrossLink.needsLibm(prunedRiscv);
-        boolean dynamic = sqlite || ffi || NativeCrossLink.needsLibc(prunedRiscv);
+        // §545: idem riscv — spawn usa `_dl_allocate_tls`, só no dinâmico.
+        boolean dynamic = sqlite || ffi || usesSpawnA || NativeCrossLink.needsLibc(prunedRiscv);
         String sysroot = NativeCrossLink.sysrootFor("aarch64");
         if (sqlite && !NativeCrossLink.sqliteAvailable("aarch64")) {
             System.err.println("NativeBackend: aarch64 uses kof.db but libsqlite3.so is not in the " +

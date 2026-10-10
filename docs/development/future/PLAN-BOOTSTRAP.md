@@ -48,7 +48,7 @@ buffers (E3/§388 family), high-throughput string building, hash maps with
 mutable values under hot loops, recursion depth control (parser is
 recursive-descent), and an FFI-free path to write ELF/Mach-O/PE (codegen
 targets today are Java libraries — the Kof compiler will need its own
-emitters or the FFI ratified in E4). Output: `future/BOOTSTRAP-GAPS.md`
+emitters or the FFI ratified in E4). Output: `future/BOOTSTRAP-GAPS.md` (a follow-up artifact of this plan, not yet created)
 (table per construct × decision × issue number).
 
 **BS-B — Lexer + parser in Kof.** Pure-functional surface (text in, AST

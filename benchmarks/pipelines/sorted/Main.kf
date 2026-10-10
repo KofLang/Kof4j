@@ -1,0 +1,9 @@
+main() {
+    var nums = new List<Int>()
+    for (var i = 0; i < 4000; i++) {
+        nums.add((i * 7919) % 4000)
+    }
+    var sorted = nums.sorted()
+    println(sorted.get(0))
+    println(sorted.get(3999))
+}

@@ -1,0 +1,71 @@
+package interop
+
+// kof.interop — interop string views (fatia 8 of the Kof Connector Ecosystem
+// plan, `D-CONNECTORS-GO`). It answers the plan §3.3 question: how does a Kof
+// String cross the boundary, and is a conversion (copy) required? It maps the
+// plan's own table, and Kof's canonical string is UTF-8 + NUL-terminated
+// (docs/runtime/STRING_MODEL.md):
+//
+//   Kof String
+//      ├── UTF-8 view    (C, Rust &str, Go string)   ← Kof's own layout
+//      ├── UTF-16 view   (JVM, JS, C#/CLR, ObjC/NSString)
+//      └── native buffer (mutable, NUL-terminated or length-based)
+//
+// The mapping is truthful about the cost: a UTF-16 host needs a conversion
+// (visible copy, §3.10) of the UTF-8 Kof string, a UTF-8 host does not. Honest
+// by construction (R6): an unknown host is never guessed — `isKnownHost` is
+// false and `viewFor`/`describe` throw `INTEROP: unknown string host <x>`. No
+// compiler change; target-neutral (no IO), so it runs on every target.
+
+class InteropString {
+
+    // The three interop string views (plan §3.3).
+    List<String> views() {
+        return listOf("utf8", "utf16", "native")
+    }
+
+    Bool isKnownView(String view) {
+        return views().contains(view)
+    }
+
+    // Kof's own canonical string view (docs/runtime/STRING_MODEL.md: UTF-8,
+    // NUL-terminated, byte length).
+    String kofView() {
+        return "utf8"
+    }
+
+    // The view a foreign host uses natively (plan §3.3), or null when unknown.
+    String? viewOfHost(String host) {
+        if (host == "jvm" || host == "js" || host == "csharp" || host == "objc") {
+            return "utf16"
+        }
+        if (host == "c" || host == "rust" || host == "go" || host == "native") {
+            return "utf8"
+        }
+        return null
+    }
+
+    Bool isKnownHost(String host) {
+        return viewOfHost(host) != null
+    }
+
+    // A crossing needs a conversion (a visible copy) when the host's view is not
+    // Kof's own view — the interop layer KNOWS it and never hides it (§3.10).
+    Bool conversionRequired(String host) {
+        var view = viewFor(host)
+        return view != kofView()
+    }
+
+    // The host's view, or an explicit diagnostic — never a fallback (R6).
+    String viewFor(String host) {
+        var view = viewOfHost(host)
+        if (view == null) {
+            throw "INTEROP: unknown string host " + host
+        }
+        return view
+    }
+
+    String describe(String host) {
+        return "string " + host + " view=" + viewFor(host)
+    }
+}

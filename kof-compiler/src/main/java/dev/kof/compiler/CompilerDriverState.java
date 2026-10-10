@@ -50,6 +50,22 @@ IRModule currentModule;
     final java.util.Deque<LabelId> continueLabels = new java.util.ArrayDeque<>();
 
     /**
+     * §551: nº de regiões `try` lexicamente ativas durante o lowering de UMA
+     * função. `break`/`continue`/`return` que SAEM de uma região precisam
+     * desvincular o handler nativo em runtime (`KofExcUnlink` por região
+     * atravessada) — antes, saltavam sem desvincular (frame pendurado →
+     * over-catch ou UAF no próximo `throw`). Resetado no início de cada
+     * função/lambda/ctor.
+     */
+    int tryDepth;
+
+    /** Profundidade de `tryDepth` no alvo de cada `break` (paralelo a breakLabels). */
+    final java.util.Deque<Integer> breakDepths = new java.util.ArrayDeque<>();
+
+    /** Profundidade de `tryDepth` no alvo de cada `continue` (paralelo a continueLabels). */
+    final java.util.Deque<Integer> continueDepths = new java.util.ArrayDeque<>();
+
+    /**
      * DD-01 (bug 45, opção 4a ratificada 13/09): pilha de try/finally ativos
      * durante o lowering de UMA função. `ReturnStmt` com frame ativo não faz
      * return direto — store do valor no slot do frame + jump p/ o epílogo
@@ -57,7 +73,8 @@ IRModule currentModule;
      * Lambda/class-body lowering salva e zera esta pilha (mesmo padrão de
      * savedMutated) p/ não vazar frame do método externo.
      */
-    record FinallyFrame(LabelId returnFinallyLabel, LabelId rethrowLabel, int slotValor, Type returnType) {
+    record FinallyFrame(LabelId returnFinallyLabel, LabelId rethrowLabel, int slotValor, Type returnType,
+                        int tryDepthSelf, java.util.List<StatementNode> finallyBody) {
     }
 
     final java.util.Deque<FinallyFrame> finallyFrames = new java.util.ArrayDeque<>();
@@ -149,8 +166,17 @@ IRModule currentModule;
 
     final java.util.Map<String, List<EntityFieldNode>> entitySchemas = new java.util.LinkedHashMap<>();
 
-    /** FFI (TIER 2.1): declarações {@code extern} por nome (preenchido no lowering). */
-    final java.util.Map<String, ExternalFunctionNode> externSignatures = new java.util.LinkedHashMap<>();
+    /** FFI (TIER 2.1): declarações {@code extern} por nome — candidatos de
+     *  mesmo nome são OVERLOADS por assinatura (#763, `D-MAINT-BATCH-0610`/B). */
+    final java.util.Map<String, List<ExternalFunctionNode>> externSignatures = new java.util.LinkedHashMap<>();
+
+    /**
+     * #678 (`D-SCRIPT-WARN-SURFACE`): diagnósticos WARNING do frontend na
+     * última preparação para interpretação. O JVM/JS/Native imprimem os
+     * warnings do compile; o Script os expõe em {@code KofInterpreter.Result}
+     * para paridade. Limpo a cada {@code interpret()}.
+     */
+    List<Diagnostic> interpreterWarnings = java.util.List.of();
 
     /** Pontes super.metodo() geradas para lambdas: dono interno → método. */
     final Map<String, List<IRMethod>> pendingSuperBridges = new java.util.LinkedHashMap<>();
@@ -161,6 +187,14 @@ IRModule currentModule;
     /** Pacote declarado de cada declaração (multi-pacote num só módulo). */
     final java.util.Map<AstNode, String> declarationPackages =
             new java.util.IdentityHashMap<>();
+
+    /** #773: nomes dos records injetados FLAT em todo programa (hoje só o
+     *  `Pair` do zip, `CompilerPairs`). O `toString` sintético de um record
+     *  genérico usa `kof_box_to_string` para campo `T`; para um record
+     *  injetado sem uso isso puxaria a fatia §284 inteira para o runtime de
+     *  QUALQUER programa (hello 109→126 syms). Com o nome aqui, o campo `T`
+     *  do record injetado usa o caminho pré-§612 (concat direto, sem box). */
+    final java.util.Set<String> flatInjectedRecordTypes = new java.util.HashSet<>();
 
     /** Dono real da lambda (classe onde o corpo foi escrito) por classe sintética. */
     final java.util.Map<String, String> lambdaEnclosingOwner = new java.util.LinkedHashMap<>();
@@ -207,6 +241,15 @@ IRModule currentModule;
 
     final java.util.List<CompilerDriver.TestInfo> discoveredTests = new java.util.ArrayList<>();
 
+    /**
+     * §576: o módulo declara uma função top-level {@code main} (o ponto de
+     * entrada que {@code kof run}/{@code kof test} procuram). Setado no passo
+     * "tests" do desugar (uma vez por compilação), para que o runner possa
+     * distinguir "arquivo sem testes mas com programa" de "arquivo sem nada
+     * executável" — um arquivo só de funções auxiliares não é uma suíte.
+     */
+    boolean hasMainEntryPoint = false;
+
     boolean testHarnessMode = false;
 
     int lambdaCounter = 0;
@@ -224,8 +267,22 @@ IRModule currentModule;
         return CompilerPipeline.discoveredTests((CompilerDriver) this);
     }
 
+    /** §576: o último arquivo compilado declara um {@code main} executável. */
+    public boolean hasMainEntryPoint() {
+        return hasMainEntryPoint;
+    }
+
     public CompilationResult compileForTests(Path sourceFile, Path outputDir, Target target) {
         return CompilerPipeline.compileForTests((CompilerDriver) this, sourceFile, outputDir, target);
+    }
+
+    /**
+     * #708: variante com module root EXPLÍCITO — uma raiz de testes separada
+     * (ex.: {@code src/test/kof}) deixa fontes em subdiretórios-pacote
+     * ({@code exemplo/CalcTest.kf}) resolverem a correspondência PKG004.
+     */
+    public CompilationResult compileForTests(Path sourceFile, Path outputDir, Target target, Path moduleRoot) {
+        return CompilerPipeline.compileForTests((CompilerDriver) this, sourceFile, outputDir, target, moduleRoot);
     }
 
     public CompilationResult compile(Path sourceFile, Path outputDir, Target target) {
@@ -322,6 +379,10 @@ IRModule currentModule;
 
     void emitErasureUnbox(List<KofOperation> ops, Type primitive) {
         CompilerEmissionHelpers.emitErasureUnbox((CompilerDriver) this, ops, primitive);
+    }
+
+    void emitErasureUnboxSoft(List<KofOperation> ops, Type primitive) {
+        CompilerEmissionHelpers.emitErasureUnboxSoft((CompilerDriver) this, ops, primitive);
     }
 
     public java.util.List<CompilerDriver.ConfigKeyInfo> discoveredConfigKeys() {
@@ -508,6 +569,7 @@ IRModule currentModule;
         externSignatures.clear();
         pendingSuperBridges.clear();
         declarationPackages.clear();
+        flatInjectedRecordTypes.clear();
         lambdaEnclosingOwner.clear();
         mutatedCapturedNames.clear();
         lambdaCapturedNames.clear();
@@ -519,6 +581,9 @@ IRModule currentModule;
         lambdaCounter = 0;
         breakLabels.clear();
         continueLabels.clear();
+        breakDepths.clear();
+        continueDepths.clear();
+        tryDepth = 0;
         currentModule = null;
         currentUnit = null;
     }

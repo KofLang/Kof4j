@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * invokeinterface on the synthetic lambda interface (the exact shape of the
  * declared-function-type local branch right above it, bug 8).
  */
-class FnTypeFieldCallTest {
+class FnTypeFieldCallTest extends JvmRunSupport {
 
     private final CompilerDriver driver = new CompilerDriver();
 
@@ -29,15 +29,7 @@ class FnTypeFieldCallTest {
         return driver.compile(source, tempDir.resolve("out-" + name + t), t);
     }
 
-    private void assertRuns(Path outDir, String expected) throws Exception {
-        String javaCmd = System.getProperty("java.home") + "/bin/java";
-        Process p = new ProcessBuilder(javaCmd, "-cp", outDir.toString(), "Default.Main")
-                .redirectErrorStream(true).start();
-        String out = new String(p.getInputStream().readAllBytes()).replace("\r\n", "\n").trim();
-        assertEquals(0, p.waitFor(), "run must exit 0, got:\n" + out);
-        assertEquals(expected, out);
-    }
-
+    
     @Test
     void stringReturningFormatterFieldRuns(@TempDir Path tempDir) throws Exception {
         // #402 verbatim

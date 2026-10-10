@@ -37,6 +37,31 @@ PORQUÊ: comparar segredo com `==` é canal de timing — a linguagem tem
 `constantTimeEquals` exatamente para essa comparação nunca ser artesanal.
 Criptografia nunca é caseira (R11): isto binda na JCA na JVM.
 
+REGRA: os digests levam Strings ou Ints — NUNCA um array de bytes.
+`crypto.sha256(new Byte[n])` / `crypto.hmacSha256(key, byteArr)` recusa no
+compile com `SECN011` em todo alvo (§563: a forma degradava por alvo — o
+Script digeria a IDENTIDADE do array, a JVM morria `VerifyError` no load).
+Para payloads BINÁRIOS a linguagem tem face dedicada —
+`crypto.sha256Bytes(Byte[])` / `crypto.hmacSha256Bytes(Byte[] key, Byte[] msg)`
+(D-KOF-DIGEST-BYTES; hoje JVM/Android/Script/x86-Native; JS e riscv64/aarch64
+recusam com o gap SECN000 até o port). Fixar bytes como AAD-String em hex
+continua legal onde a face não está disponível.
+
+## Chaves de sessão — X25519 + HKDF, nunca montadas à mão
+
+```kof
+var minha = keyExchange.privateKey()                      // Secret (R8: nunca imprimível)
+var minhaPub = keyExchange.publicKey(minha)               // String 64-hex — envie
+var compartilhada = keyExchange.shared(minha, secrets.of(pubDoPar))
+var txKey = keyExchange.hkdfSha256(compartilhada, saltHex, "0001", 32)  // AES por direção
+```
+
+D-KOF-X25519: material privado SÓ viaja dentro de `Secret` (argumento
+errado = `SECN014`); o valor público é a única exportação. JVM/Android/
+Script reais (RFC 7748 + RFC 5869); JS/Native/cross recusam `SECN012` até
+o port. Derive chaves por direção com HKDF sobre o segredo compartilhado —
+nunca reutilize um escalar cru como chave de app.
+
 ## Criptografia — AES-GCM; argumentos são `(plain, keyHex)`, chave = 32 bytes
 
 ```kof

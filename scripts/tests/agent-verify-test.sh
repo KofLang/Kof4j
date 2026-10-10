@@ -28,9 +28,10 @@ run_ok() { ev run --repo "$REPO" --run-id "$ID" --label "$1" ${2:+--kind "$2"} -
 setup() { # caminhos alterados...
     mk_env; mk_repo
     ( cd "$REPO" && for p in "$@"; do mkdir -p "$(dirname "$p")"; echo "$p" > "$p"; done && git add -A && git commit -q -m change )
-    export AGENT_VERIFY_CHECK500=true AGENT_VERIFY_DOCSLANG=true AGENT_VERIFY_STDLIB=true
+    export AGENT_VERIFY_CHECK500=true AGENT_VERIFY_DOCSLANG=true AGENT_VERIFY_STDLIB=true AGENT_VERIFY_DOCIMPACT=true
     ID="$(ev init --repo "$REPO" --issue 549 --classification "BUG REAL" --base HEAD~1 --session ses_w)"
     DJ="$XDG_STATE_HOME/kof-agent/verifier/$ID/deterministic.json"
+    EJ="$XDG_STATE_HOME/kof-agent/verifier/$ID/evidence.json"
 }
 adversarial_all() { # domínio -> roda 1 comando adversarial PASS por label da matriz
     local dom="$1" label
@@ -223,5 +224,18 @@ high_ready; fake_verifier; export FAKE_VERDICT=BLOCK
 assert_eq 1 "$(ind >/dev/null 2>&1; echo $?)" "verifier independente BLOCK: exit 1"
 high_ready; fake_verifier; export FAKE_VERDICT=NEEDS_MAINTAINER
 assert_eq 4 "$(ind >/dev/null 2>&1; echo $?)" "verifier NEEDS_MAINTAINER: exit 4"
+
+echo "V18 — manifesto de evidencia ilegivel = BLOCK (nunca false PASS) [#655]"
+setup docs/nota.md
+printf '{ nao-e-json' > "$EJ"                   # existe p/ o bash, python nao consegue ler (cenario do path MSYS/corrupcao)
+OUT="$(det 2>&1)"; RC=$?
+assert_eq 1 "$RC" "manifesto ilegivel: BLOCK (exit 1), nunca PASS"
+assert_contains "$OUT" "EVIDENCE_MANIFEST_ILEGIVEL" "diagnostica a falha fechada do manifesto"
+
+echo "V19 — sid do verifier com formato falso nao prova independencia [#659 wrapper; #664]"
+high_ready; fake_verifier; export FAKE_SESSION=PENDING
+OUT="$(ind)"; RC=$?
+assert_eq 1 "$RC" "sid sem prefixo de sessao real: BLOCK"
+assert_contains "$(vjson "d['findings'][0]['reason']")" "NAO_INDEPENDENTE_FORMATO" "diagnostica o formato falso do sid"
 
 finish

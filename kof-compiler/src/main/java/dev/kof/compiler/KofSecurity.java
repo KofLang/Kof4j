@@ -42,6 +42,7 @@ public final class KofSecurity {
     private static final Type BOOL = Type.PrimitiveType.BOOL;
     private static final Type INT = Type.PrimitiveType.INT;
     private static final Type INT_ARRAY = new Type.ArrayType(INT);
+    private static final Type BYTE_ARRAY = new Type.ArrayType(Type.PrimitiveType.BYTE);
 
     /** Face 1 do D-SECRETS (Stage 5 / 3.6): tipo nominal {@code Secret}. Um
      *  valor que NÃO se imprime/serializa sem um ato explícito ({@code reveal()}).
@@ -52,6 +53,19 @@ public final class KofSecurity {
 
     static boolean isSecretType(Type t) { return SECRET.equals(t); }
 
+    /** Declared-type hook (same pattern as {@code KofUi}/{@code KofNet} —
+     *  §179/§slice-6): without it a Kof function CANNOT declare a
+     *  {@code Secret} or {@code KeyHandle} PARAMETER — the name resolves to
+     *  an unqualified ClassType and SECN014 fires on legit calls (measured
+     *  02/10 building the KofShare handshake; catalogued §569). */
+    static Type typeByName(String name) {
+        return switch (name) {
+            case "Secret" -> SECRET;
+            case "KeyHandle" -> KEY_HANDLE;
+            default -> null;
+        };
+    }
+
     /** D-SECRETS P3 (Stage 5 / 3.6): {@code KeyHandle} — chave nomeada que
      *  nunca expoe bytes ao guest; so os algoritmos de crypto a consomem. */
     static final Type KEY_HANDLE = new Type.ClassType("kof", "KeyHandle", List.of());
@@ -59,7 +73,7 @@ public final class KofSecurity {
     static boolean isKeyHandleType(Type t) { return KEY_HANDLE.equals(t); }
 
     static final List<String> NAMESPACES = List.of(
-            "passwords", "crypto", "jwt", "secrets", "security", "auth");
+            "passwords", "crypto", "jwt", "secrets", "security", "auth", "keyExchange");
 
     static boolean isSecurityNamespace(String name) {
         return NAMESPACES.contains(name);
@@ -72,11 +86,12 @@ public final class KofSecurity {
     static java.util.Map<String, List<String>> functions() {
         return java.util.Map.of(
                 "passwords", List.of("hash", "verify", "needsRehash"),
-                "crypto", List.of("sha256", "sha512", "hmacSha256", "encryptAesGcm", "decryptAesGcm", "encryptChacha20", "decryptChacha20", "randomHex", "randomInt"),
+                "crypto", List.of("sha256", "sha512", "sha256Bytes", "hmacSha256Bytes", "hmacSha256", "encryptAesGcm", "decryptAesGcm", "encryptChacha20", "decryptChacha20", "sign", "verify", "randomHex", "randomInt"),
                 "jwt", List.of("create", "verify", "secret"),
                 "secrets", List.of("get", "redact", "of", "secret", "fromBytes", "keyFromHex", "keyFromPem", "keyFromKeystore"),
                 "security", List.of("constantTimeEquals", "randomHex", "redact", "randomInt", "csrfToken", "csrfValid", "corsAllowed", "cspHeader", "hstsHeader", "contentTypeOptionsHeader", "frameHeader", "referrerHeader", "rateLimit", "sessionCreate", "sessionGet", "sessionDestroy", "apiKeyGenerate", "apiKeyValid", "cookieSet", "cookieGet"),
-                "auth", List.of("secret", "token", "authenticated", "claims", "user", "hasRole", "hasPermission", "resourceServer", "resourceServerVerify"));
+                "auth", List.of("secret", "token", "authenticated", "claims", "user", "hasRole", "hasPermission", "resourceServer", "resourceServerVerify"),
+                "keyExchange", List.of("privateKey", "publicKey", "shared", "hkdfSha256"));
     }
 
     /**
@@ -100,6 +115,13 @@ public final class KofSecurity {
                         ? new SecCall("kof_sec_sha256", STR, List.of(STR)) : null;
                 case "sha512" -> argc == 1
                         ? new SecCall("kof_sec_sha512", STR, List.of(STR)) : null;
+                // D-KOF-DIGEST-BYTES (02/10): a face binária dedicada. Os
+                // nomes simples ficam SÓ String/Int (SECN011, §563); Byte[]
+                // real exige a face Bytes — SECN013 para o resto.
+                case "sha256Bytes" -> argc == 1
+                        ? new SecCall("kof_sec_sha256_bytes", STR, List.of(BYTE_ARRAY)) : null;
+                case "hmacSha256Bytes" -> argc == 2
+                        ? new SecCall("kof_sec_hmac_sha256_bytes", STR, List.of(BYTE_ARRAY, BYTE_ARRAY)) : null;
                 case "hmacSha256" -> argc == 2
                         ? new SecCall(isKeyHandleType(argTypes.get(0)) ? "kof_sec_hmac_sha256_key" : "kof_sec_hmac_sha256",
                                 STR, isKeyHandleType(argTypes.get(0)) ? List.of(KEY_HANDLE, STR) : List.of(STR, STR)) : null;
@@ -115,10 +137,36 @@ public final class KofSecurity {
                 case "decryptChacha20" -> argc == 2
                         ? new SecCall(isKeyHandleType(argTypes.get(1)) ? "kof_sec_chacha20_decrypt_key" : "kof_sec_chacha20_decrypt",
                                 STR, isKeyHandleType(argTypes.get(1)) ? List.of(STR, KEY_HANDLE) : List.of(STR, STR)) : null;
+                // D-KOF-SIGN (C1): Ed25519 sobre primitiva do JDK. sign exige o
+                // Secret privado (184-hex PKCS8||SPKI); verify aceita privado OU
+                // so-público (64-hex via secrets.of(hex)). Hex é o formato da casa.
+                case "sign" -> argc == 2
+                        ? new SecCall("kof_sec_ed25519_sign", STR, List.of(SECRET, BYTE_ARRAY)) : null;
+                case "verify" -> argc == 3
+                        ? new SecCall("kof_sec_ed25519_verify", BOOL,
+                                List.of(SECRET, BYTE_ARRAY, STR)) : null;
                 case "randomHex" -> argc == 1
                         ? new SecCall("kof_sec_random_hex", STR, List.of(INT)) : null;
                 case "randomInt" -> argc == 1
                         ? new SecCall("kof_sec_random_int", INT, List.of(INT)) : null;
+                default -> null;
+            };
+            // D-KOF-X25519 (mantenedora 02/10): a face de chave de sessao.
+            // privateKey/shared devolvem Secret (nunca String — R8); a cara
+            // publica e hex exportavel; HKDF-Expand-SHA256 (RFC 5869) expande
+            // o segredo compartilhado em material de chave (hex, L<=1020).
+            // Real arg non-Secret/len na cara errada: SECN014 (argTypeViolation).
+            case "keyExchange" -> switch (name) {
+                case "privateKey" -> argc == 0
+                        ? new SecCall("kof_sec_x25519_private_key", SECRET, List.of())
+                        : argc == 1 && isStringish(argTypes.get(0))
+                        ? new SecCall("kof_sec_ed25519_private_key", SECRET, List.of(STR)) : null;
+                case "publicKey" -> argc == 1
+                        ? new SecCall("kof_sec_public_key_any", STR, List.of(SECRET)) : null;
+                case "shared" -> argc == 2
+                        ? new SecCall("kof_sec_x25519_shared", SECRET, List.of(SECRET, SECRET)) : null;
+                case "hkdfSha256" -> argc == 4
+                        ? new SecCall("kof_sec_hkdf_sha256", STR, List.of(SECRET, STR, STR, INT)) : null;
                 default -> null;
             };
             case "jwt" -> switch (name) {
@@ -312,6 +360,12 @@ public final class KofSecurity {
             case "kof_sec_password_hash", "kof_sec_password_verify", "kof_sec_password_needs_rehash" ->
                     jvmLike(target) || target == Target.JS || target.isNative();
             case "kof_sec_sha512" -> jvmLike(target) || target == Target.JS || target.isNative();
+            // D-KOF-DIGEST-BYTES: JVM+Android+Script (corpo JVM refletido) e
+            // x86-Native (alias asm — o layout len@16/dados@24 do array é o
+            // mesmo da String). JS (host bridge não traz byte[]) e os cross
+            // (SECN000) seguem gap honesto nomeado, nunca silencioso.
+            case "kof_sec_sha256_bytes", "kof_sec_hmac_sha256_bytes" ->
+                    jvmLike(target) || target == Target.NATIVE;
             case "kof_sec_jwt_create", "kof_sec_jwt_create_ttl", "kof_sec_jwt_verify",
                     "kof_sec_jwt_verify_iss_aud", "kof_sec_jwt_secret" ->
                     jvmLike(target) || target == Target.JS || target.isNative();
@@ -335,6 +389,14 @@ public final class KofSecurity {
             // D-SECRETS face 1 (Stage 5/3.6): tipo Secret — JVM + Android
             // (paridade por backend, §278/D-TECHDEBT-23/09); JS/Native/Script
             // seguem gap honesto SECN008.
+            // D-KOF-X25519: X25519/HKDF sobre JCA — JVM+Android (Script roda
+            // o corpo JVM refletido). JS/Native/cross = gap honesto SECN009
+            // (a face Secret ja e jvmLike; sem primitivas nos outros runtimes).
+            case "kof_sec_x25519_private_key", "kof_sec_x25519_public_key",
+                    "kof_sec_x25519_shared", "kof_sec_hkdf_sha256" -> jvmLike(target);
+            // D-KOF-SIGN: mesma casa do X25519 — JVM/Android/Script; JS/Native/cross = SECN013.
+            case "kof_sec_ed25519_private_key", "kof_sec_ed25519_public_key",
+                    "kof_sec_ed25519_sign", "kof_sec_ed25519_verify" -> jvmLike(target);
             case "kof_sec_secret_of", "kof_sec_secret", "kof_sec_secret_reveal",
                     "kof_sec_secret_redacted", "kof_sec_secret_from_bytes" -> jvmLike(target);
             // D-SECRETS P3 (KeyHandle): JVM + Android; os demais alvos
@@ -362,6 +424,11 @@ public final class KofSecurity {
                     "kof_sec_api_key_generate", "kof_sec_api_key_valid" -> "SECN005";
             case "kof_sec_cookie_set", "kof_sec_cookie_set_opts", "kof_sec_cookie_get" -> "SECN006";
             case "kof_sec_auth_resource_server", "kof_sec_auth_resource_server_verify" -> "SECN007";
+            case "kof_sec_x25519_private_key", "kof_sec_x25519_public_key",
+                    "kof_sec_x25519_shared", "kof_sec_hkdf_sha256",
+                    "kof_sec_public_key_any" -> "SECN012";
+            case "kof_sec_ed25519_private_key", "kof_sec_ed25519_public_key",
+                    "kof_sec_ed25519_sign", "kof_sec_ed25519_verify" -> "SECN013";
             case "kof_sec_secret_of", "kof_sec_secret", "kof_sec_secret_reveal",
                     "kof_sec_secret_redacted", "kof_sec_secret_from_bytes",
                     "kof_sec_key_from_hex", "kof_sec_key_from_pem", "kof_sec_key_from_keystore",
@@ -372,5 +439,53 @@ public final class KofSecurity {
                     "kof_sec_jwt_verify_key", "kof_sec_jwt_verify_iss_aud_key" -> "SECN008";
             default -> "SECN000";
         };
+    }
+
+    /**
+     * §563 (R6): os ramos SecCall declaram os tipos dos parâmetros, mas a
+     * guarda histórica era só de aridade — um argumento não-String passava no
+     * typer e degradava por alvo: o Script digestava a IDENTIDADE do objeto
+     * (dois arrays de mesmo conteúdo → digests diferentes: integridade
+     * silenciosamente errada) e a JVM morria VerifyError no load. Medido
+     * 02/10 na construção do quadro de integridade do KofShare. Este helper
+     * fecha a divergência no typer com um diagnóstico NOMEADO (SECN011) —
+     * nunca um fallback por backend. Conservador: só acusa quando a forma
+     * declarada é String/Int e o real é uma referência composta (array,
+     * classe, nullable de tal, função); null/desconhecido preserva o verde
+     * histórico (mesma política do gate de handle do §179).
+     */
+    static String argTypeViolation(SecCall call, List<Type> actuals) {
+        if (call == null || actuals == null) return null;
+        List<Type> decl = call.parameterTypes();
+        if (decl == null) return null;
+        if (decl.size() != actuals.size()) return null;
+        for (int i = 0; i < decl.size(); i++) {
+            Type d = decl.get(i);
+            Type a = actuals.get(i);
+            if (a == null || a instanceof Type.UnknownType) continue;
+            if (SECRET.equals(d)) {
+                if (!SECRET.equals(a)) return "SECN014";
+                continue;
+            }
+            if (BYTE_ARRAY.equals(d)) {
+                if (!(a instanceof Type.ArrayType at && Type.PrimitiveType.BYTE.equals(at.componentType()))) {
+                    return "SECN013";
+                }
+                continue;
+            }
+            if (BuiltinTypes.STRING.equals(d) && !isStringish(a)) return "SECN011";
+            if (Type.PrimitiveType.INT.equals(d) && !(a instanceof Type.PrimitiveType pt && pt == Type.PrimitiveType.INT)) {
+                if (!(a instanceof Type.PrimitiveType pt2 && (pt2 == Type.PrimitiveType.LONG || pt2 == Type.PrimitiveType.SHORT || pt2 == Type.PrimitiveType.BYTE || pt2 == Type.PrimitiveType.CHAR))) {
+                    return "SECN011";
+                }
+            }
+        }
+        return null;
+    }
+
+    static boolean isStringish(Type t) {
+        if (BuiltinTypes.STRING.equals(t)) return true;
+        if (t instanceof Type.NullableType nt) return isStringish(nt.inner());
+        return t instanceof Type.ClassType ct && "java.lang.String".equals(ct.packageName() + "." + ct.name());
     }
 }

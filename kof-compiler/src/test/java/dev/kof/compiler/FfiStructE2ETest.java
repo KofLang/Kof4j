@@ -21,31 +21,9 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * (registradores p/ struct pequeno e sret p/ struct maior), reconstruído pelo
  * construtor canônico do `record` (JVM por reflexão, JS pelo factory estático).
  */
-class FfiStructE2ETest {
+class FfiStructE2ETest extends FfiStructSupport {
 
-    private static final String C_SRC = """
-            struct Point { int x; int y; };
-            int sumpoint(struct Point p) { return p.x + p.y; }
-            double scale(struct Point p, double f) { return (p.x + p.y) * f; }
-            struct Point mkpoint(int x, int y) { struct Point p; p.x = x; p.y = y; return p; }
-            struct Big { int a; int b; int c; };
-            struct Big bigret(int a, int b, int c) { struct Big g; g.a = a; g.b = b; g.c = c; return g; }
-            struct Mix { double d; int i; };
-            struct Mix mixret(double d, int i) { struct Mix m; m.d = d; m.i = i; return m; }
-            struct ParamMix { long l; double d; int i; };
-            double parammix(struct ParamMix m) { return m.l + m.d + m.i; }
-            struct ParamMix parammixret(long l, double d, int i) {
-                struct ParamMix m; m.l = l; m.d = d; m.i = i; return m;
-            }
-            struct MixIF { int i; float f; };
-            double mixif(struct MixIF m) { return m.i + m.f; }
-            struct Time { long t; double d; };
-            double timesum(struct Time t) { return (double)t.t + t.d; }
-            struct Big3 { int a; int b; int c; int d; int e; };
-            int bigsum(struct Big3 g) { return g.a + g.b + g.c + g.d + g.e; }
-            """;
 
-    private final CompilerDriver driver = new CompilerDriver();
 
     @Test
     void structParamByValueJvm(@TempDir Path dir) throws Exception {
@@ -375,6 +353,61 @@ class FfiStructE2ETest {
     }
 
     @Test
+    void structParamAndReturnFloatByValueNative(@TempDir Path dir) throws Exception {
+        // Memory-safety M1 pending face "VF-on-x86-64": a homogeneous-float struct
+        // (two floats packed in ONE SSE eightbyte) by value on the x86-64 register
+        // path — the mirror of the cross HFA face (`FfiCrossHfaE2ETest`). Golden =
+        // the SAME source on the JVM (FFM) — parity byte-for-byte.
+        String so = compileHostLib(dir);
+        String kof = """
+                record F2(Float a, Float b)
+
+                extern "%s" f2sum(F2 f): Float
+                extern "%s" f2ret(Float a, Float b): F2
+
+                main() {
+                    println(f2sum(F2(1.5 as Float, 2.5 as Float)))
+                    var r = f2ret(3.5 as Float, 4.5 as Float)
+                    println(r.a() + r.b())
+                }
+                """.formatted(so, so);
+        String expected = "4.0\n8.0";
+
+        Path jvmSrc = dir.resolve("f2-jvm.kf");
+        Files.writeString(jvmSrc, kof);
+        Path jvmOut = dir.resolve("out-f2-jvm");
+        CompilationResult rj = driver.compile(jvmSrc, jvmOut, Target.JVM);
+        assertTrue(rj.success(), "JVM oracle compile: " + rj.diagnostics().getDiagnostics());
+        String jvm = runJvm(jvmOut);
+        assertEquals(expected, jvm, "JVM golden (float struct by value)");
+
+        String nat = runNative(dir, "f2", kof);
+        assertEquals(expected, nat, "NATIVE x86-64 SSE-packed float struct (param + return)");
+        assertEquals(jvm, nat, "JVM↔Native byte-for-byte parity (float struct)");
+    }
+
+    @Test
+    void structParamThreeFloatStaysFfi001(@TempDir Path dir) throws Exception {
+        // HFA>2 no x86-64: {float a,b,c} (3 campos homogêneo-flutuante) NÃO binda
+        // — o corte M1 é ≤ 2 campos, o MESMO do cross (`crossHomogeneousFloat`),
+        // onde as duas ABIs divergem em HFA>2. Recusa honesta (R6), nunca um
+        // binding parcial silencioso. Sem toolchain C: o gate roda antes do codegen.
+        String kof = """
+                record F3(Float a, Float b, Float c)
+
+                extern "libc.so.6" f3sum(F3 f): Float
+
+                main() { println("gap") }
+                """;
+        Path src = dir.resolve("f3-native.kf");
+        Files.writeString(src, kof);
+        CompilationResult r = driver.compile(src, dir.resolve("out-f3-native"), Target.NATIVE);
+        assertFalse(r.success(), "HFA>2 (3 floats) não pode bindar no x86-64 (M1, corte ≤ 2)");
+        assertTrue(r.diagnostics().getDiagnostics().toString().contains("FFI001"),
+                "HFA>2 mantém FFI001 honesto no x86-64: " + r.diagnostics().getDiagnostics());
+    }
+
+    @Test
     void structParamByValueJsParity(@TempDir Path dir) throws Exception {
         // Bridge de struct no JS (D6-1/3.8b, 21/09): o record vira struct C por
         // valor no host GraalJS — MESMO StructLayout/offsets do JVM, provado
@@ -418,84 +451,4 @@ class FfiStructE2ETest {
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
-    private static String compileHostLib(Path dir) throws IOException, InterruptedException {
-        assumeTrue(System.getProperty("os.name", "").toLowerCase().contains("linux"),
-                "struct host lib usa um .so nativo (Linux)");
-        Path c = dir.resolve("libkofpoint.c");
-        Files.writeString(c, C_SRC);
-        Path so = dir.resolve("libkofpoint.so");
-        String cc = firstPresent("/usr/bin/cc", "/usr/bin/gcc", "cc", "gcc");
-        assumeTrue(cc != null, "sem toolchain C (cc/gcc) para o host de struct");
-        Process p = new ProcessBuilder(cc, "-shared", "-fPIC", "-O2",
-                "-o", so.toString(), c.toString()).redirectErrorStream(true).start();
-        String out = new String(p.getInputStream().readAllBytes());
-        assumeTrue(p.waitFor(60, TimeUnit.SECONDS) && p.exitValue() == 0,
-                "cc/gcc falhou ao compilar o host de struct: " + out);
-        return so.toString();
-    }
-
-    private static String firstPresent(String... candidates) {
-        for (String c : candidates) {
-            try {
-                Process p = new ProcessBuilder(c, "--version").redirectErrorStream(true).start();
-                p.getInputStream().readAllBytes();
-                if (p.waitFor(15, TimeUnit.SECONDS) && p.exitValue() == 0) return c;
-            } catch (Exception ignored) {
-                // tenta o próximo candidato
-            }
-        }
-        return null;
-    }
-
-    private String runJs(Path outDir) throws IOException {
-        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-        int ec = dev.kof.runtime.KofJsRunner.run(outDir.resolve("Default.mjs"), out,
-                new java.io.ByteArrayInputStream(new byte[0]), out);
-        assertEquals(0, ec, "JS exit code, output: " + out);
-        return out.toString(java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
-    }
-
-    /** Compila p/ NATIVE, executa o binário e devolve stdout+stderr combinados. */
-    private String runNative(Path dir, String base, String kof) throws IOException {
-        Path src = dir.resolve(base + "-nat.kf");
-        Files.writeString(src, kof);
-        Path out = dir.resolve("out-" + base + "-nat");
-        CompilationResult r = driver.compile(src, out, Target.NATIVE);
-        assertTrue(r.success(), () -> "NATIVE compile " + base + " (3.7 struct register path): "
-                + r.diagnostics().getDiagnostics());
-        Path bin = out.resolve("Default/Main");
-        assertTrue(Files.exists(bin), "binary " + bin + " deve existir");
-        try {
-            Process p = new ProcessBuilder(bin.toString())
-                    .directory(dir.toFile()).redirectErrorStream(true).start();
-            String o = new String(p.getInputStream().readAllBytes(),
-                    java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
-            int ec = p.waitFor();
-            assertEquals(0, ec, () -> "NATIVE run " + base + " exit code, output: " + o);
-            return o;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("interrupted", e);
-        }
-    }
-
-    private String runJvm(Path outDir) throws IOException {
-        try {
-            String javaHome = System.getProperty("java.home");
-            ProcessBuilder pb = new ProcessBuilder(
-                    Path.of(javaHome, "bin", "java").toString(),
-                    "--enable-native-access=ALL-UNNAMED",
-                    "-cp", outDir.toString(),
-                    "Default.Main");
-            pb.redirectErrorStream(true);
-            Process p = pb.start();
-            String output = new String(p.getInputStream().readAllBytes(),
-                    java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
-            assertEquals(0, p.waitFor(), "JVM exit code, output: " + output);
-            return output;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("interrupted", e);
-        }
-    }
 }

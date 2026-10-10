@@ -50,7 +50,7 @@ mutáveis em loops quentes, controle de profundidade de recursão (o parser é
 recursive-descent) e um caminho sem FFI para escrever ELF/Mach-O/PE (os
 alvos de codegen de hoje são bibliotecas Java — o compilador Kof precisará
 de emissores próprios ou da FFI ratificada na E4). Produto:
-`future/BOOTSTRAP-GAPS.md` (tabela por construto × decisão × número da
+`future/BOOTSTRAP-GAPS.md` (artefato seguinte deste plano, ainda não criado) — tabela por construto × decisão × número da
 issue).
 
 **BS-B — Lexer + parser em Kof.** Surface puramente funcional (texto entra,

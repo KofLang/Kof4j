@@ -39,6 +39,25 @@ class SecretE2ETest {
     }
 
     @Test
+    void secretThroughGenericContainerErasureJvm(@TempDir Path dir) throws IOException {
+        // Erasure family (JvmTypeMapper.toInternalName): a Secret read back out
+        // of a `List` (checkcast in OWNER position) must map to KofRuntime$Secret,
+        // not the non-existent `kof/Secret` (NoClassDefFoundError).
+        Path src = dir.resolve("sec-erasure.kf");
+        Files.writeString(src, """
+                main() {
+                    val s = secrets.of("topsecret")
+                    val box = listOf(s)
+                    println(box.get(0))
+                }
+                """);
+        CompilationResult r = driver.compile(src, dir.resolve("out-sec-erasure"), Target.JVM);
+        assertTrue(r.success(), "Secret through a List must compile: " + r.diagnostics().getDiagnostics());
+        assertEquals("Secret(*** )", runJvm(dir.resolve("out-sec-erasure")),
+                "Secret read out of a generic container still redacts (erasure owner maps to the runtime type)");
+    }
+
+    @Test
     void concatenationAndEqualityNeverLeakJvm(@TempDir Path dir) throws IOException {
         Path src = dir.resolve("sec2.kf");
         Files.writeString(src, """
@@ -58,19 +77,41 @@ class SecretE2ETest {
     }
 
     @Test
-    void secretFromEnvNeverLeaksJvm(@TempDir Path dir) throws IOException {
+    void secretFromUnsetEnvThrowsACatchableErrorJvm(@TempDir Path dir) throws IOException {
+        // SEC1 (`D-MAINT-BATCH-0510`, issue #758): an unset env var is an explicit
+        // error, never a silent empty `Secret`. It is a catchable Kof String.
         Path src = dir.resolve("sec3.kf");
         Files.writeString(src, """
                 main() {
-                    val s = secrets.secret("KOF_SECRET_TEST_UNSET_XYZ")
-                    println(s.reveal() == "")
-                    println(s)
+                    try {
+                        val s = secrets.secret("KOF_SECRET_TEST_UNSET_XYZ")
+                        println("no-error " + s.reveal())
+                    } catch (String e) {
+                        println("caught=" + e)
+                    }
                 }
                 """);
         CompilationResult r = driver.compile(src, dir.resolve("out-sec3"), Target.JVM);
         assertTrue(r.success(), "secrets.secret must bind on JVM: " + r.diagnostics().getDiagnostics());
-        assertEquals("true\nSecret(*** )", runJvm(dir.resolve("out-sec3")),
-                "unset env -> empty Secret; println still redacts");
+        assertEquals("caught=SECN015: secret 'KOF_SECRET_TEST_UNSET_XYZ' is not set",
+                runJvm(dir.resolve("out-sec3")),
+                "unset env -> explicit catchable error, never a blank credential");
+    }
+
+    @Test
+    void secretFromSetEnvStillRedactsJvm(@TempDir Path dir) throws IOException {
+        Path src = dir.resolve("sec3b.kf");
+        Files.writeString(src, """
+                main() {
+                    val s = secrets.secret("KOF_SECRET_TEST_SET_XYZ")
+                    println(s.reveal() == "hunter2")
+                    println(s)
+                }
+                """);
+        CompilationResult r = driver.compile(src, dir.resolve("out-sec3b"), Target.JVM);
+        assertTrue(r.success(), "secrets.secret must bind on JVM: " + r.diagnostics().getDiagnostics());
+        assertEquals("true\nSecret(*** )", runJvm(dir.resolve("out-sec3b"), "KOF_SECRET_TEST_SET_XYZ", "hunter2"),
+                "set env -> the value is readable via reveal(); println still redacts");
     }
 
     @Test
@@ -146,12 +187,19 @@ class SecretE2ETest {
     }
 
     private String runJvm(Path outDir) throws IOException {
+        return runJvm(outDir, null, null);
+    }
+
+    private String runJvm(Path outDir, String envName, String envValue) throws IOException {
         try {
             String javaHome = System.getProperty("java.home");
             ProcessBuilder pb = new ProcessBuilder(
                     Path.of(javaHome, "bin", "java").toString(),
                     "-cp", outDir.toString(),
                     "Default.Main");
+            if (envName != null) {
+                pb.environment().put(envName, envValue);
+            }
             pb.redirectErrorStream(true);
             Process p = pb.start();
             String output = new String(p.getInputStream().readAllBytes(),

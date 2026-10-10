@@ -9,10 +9,20 @@ public final class JsRuntimeUiJsonMap {
             // §103.1 (#103): decode<Map<String,T>> no JS — monta um Map
             // real (o else dava objeto puro: m.size/m.get quebravam); com
             // decoder, cada valor é bindado à classe.
+            export function kofJsonDeep(v) {
+                if (Array.isArray(v)) return v.map(kofJsonDeep);
+                if (v !== null && typeof v === 'object' && !(v instanceof Map)) {
+                    const m = new Map();
+                    for (const [k, x] of Object.entries(v)) m.set(k, kofJsonDeep(x));
+                    return m;
+                }
+                return v;
+            }
+
             export function kofJsonDecodeMap(obj) {
                 const m = new Map();
                 if (obj && typeof obj === 'object')
-                    for (const [k, v] of Object.entries(obj)) m.set(k, v);
+                    for (const [k, v] of Object.entries(obj)) m.set(k, kofJsonDeep(v));
                 return m;
             }
 

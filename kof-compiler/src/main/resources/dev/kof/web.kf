@@ -1,0 +1,72 @@
+// Pacote virtual kof.web (D-PAGINATION P5, 29/09/2026).
+//
+// Helper HTTP de paginacao escrito EM KOF (D-KOF-FIRST item 12): o compilador
+// injeta FLAT no `import kof.web` EXPLICITO, mesmo mecanismo de
+// kof.pagination/kof.supervisor/kof.workflow/kof.interop. Nenhum tipo HTTP
+// vaza para o core (plano §12): a leitura do request usa o accessor de
+// contexto `query(...)` (ja existente em kof.web, JVM/JS) e o retorno e um
+// record CORE `PageRequest`.
+//
+// Semantica (§12/§19 Q8, decisao da mantenedora 29/09): `?page=` e 1-based
+// (`offset = (page-1) * limit`); `?limit=` default `defaultLimit`, clampado em
+// `maxLimit` quando > 0; `?offset=` explicito vence o calculo por pagina;
+// valores nao inteiros, `page < 1`, `limit < 1` ou `offset < 0` = erro nomeado
+// `PAGINATION:` (o handler mapeia para 400 com `return status(400, e)`).
+
+record PageRequest(Int page, Int limit, Int offset)
+
+// Sem teto: `maxLimit = 0` desliga o clamp.
+pageRequest(Int defaultLimit): PageRequest {
+    return pageRequest(defaultLimit, 0)
+}
+
+pageRequest(Int defaultLimit, Int maxLimit): PageRequest {
+    if (defaultLimit < 1) {
+        throw "PAGINATION: defaultLimit must be >= 1"
+    }
+    var page = 1
+    val pageRaw = query("page")
+    if (pageRaw != null) {
+        try {
+            page = pageRaw.toInt()
+        } catch (String e) {
+            throw "PAGINATION: page must be an integer"
+        }
+    }
+    if (page < 1) {
+        throw "PAGINATION: page must be >= 1"
+    }
+    var limit = defaultLimit
+    val limitRaw = query("limit")
+    if (limitRaw != null) {
+        try {
+            limit = limitRaw.toInt()
+        } catch (String e) {
+            throw "PAGINATION: limit must be an integer"
+        }
+    }
+    if (limit < 1) {
+        throw "PAGINATION: limit must be >= 1"
+    }
+    if (maxLimit > 0 && limit > maxLimit) {
+        limit = maxLimit
+    }
+    val offsetRaw = query("offset")
+    if (offsetRaw != null) {
+        var explicit = 0
+        try {
+            explicit = offsetRaw.toInt()
+        } catch (String e) {
+            throw "PAGINATION: offset must be an integer"
+        }
+        if (explicit < 0) {
+            throw "PAGINATION: offset must be >= 0"
+        }
+        return PageRequest(page, limit, explicit)
+    }
+    val base = (page - 1).toLong() * limit.toLong()
+    if (base > 2147483647) {
+        throw "PAGINATION: page*limit overflows Int offset"
+    }
+    return PageRequest(page, limit, base.toInt())
+}

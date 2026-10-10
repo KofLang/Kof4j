@@ -88,11 +88,11 @@ class StdCatalogTest {
                 "KofUuid", "KofRandom", "KofRng", "KofBuffer"));
         assertEquals(dispatched, catalogClasses,
                 "dispatch do KofStd mudou sem atualizar o catálogo");
-        assertEquals(34, StdCatalog.namespaces().size(), StdCatalog.namespaces().toString());
+        assertEquals(36, StdCatalog.namespaces().size(), StdCatalog.namespaces().toString());
         for (String ns : List.of("math", "strings", "encoding", "net", "uuid", "random",
                 "rng", "time", "http", "db", "cache", "buffer", "process", "shell", "ssh", "passwords", "crypto",
-                "jwt", "secrets", "security", "auth", "json", "log", "orm", "config",
-                "gpu", "mq", "validation", "observability", "tetris", "Image", "Audio",
+                "jwt", "secrets", "security", "auth", "keyExchange", "json", "log", "orm", "config",
+                "gpu", "mq", "validation", "observability", "tetris", "image", "Image", "Audio",
                 "Mic", "Video")) {
             assertTrue(StdCatalog.isNamespace(ns), ns);
         }

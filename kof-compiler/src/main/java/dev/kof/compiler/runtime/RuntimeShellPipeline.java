@@ -257,6 +257,26 @@ public final class RuntimeShellPipeline {
             .Lkof_shell_pl_c_argv_done:
                 movl 12(%r14), %ecx
                 movq $0, (%r15,%rcx,8)      # argv[size] = NULL
+                # issue #762: nenhum fd do pai/runtime vaza para o estágio
+                # (JVM ProcessBuilder fecha os herdados). close_range(3, ~0,
+                # CLOSE_RANGE_CLOEXEC); fallback fcntl no kernel sem close_range.
+                movl $3, %edi
+                movl $-1, %esi
+                movl $4, %edx
+                movl $436, %eax
+                syscall
+                testq %rax, %rax
+                jns .Lkof_shell_pl_cloexec_done
+                movl $3, %edi
+            .Lkof_shell_pl_cloexec_loop:
+                movl $2, %esi
+                movl $1, %edx
+                movl $72, %eax
+                syscall
+                incl %edi
+                cmpl $1024, %edi
+                jl .Lkof_shell_pl_cloexec_loop
+            .Lkof_shell_pl_cloexec_done:
                 movq (%r15), %rdi
                 movq %r15, %rsi
                 call execvp

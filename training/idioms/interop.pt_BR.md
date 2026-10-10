@@ -2,7 +2,7 @@
 
 # Idiomas — Interop (tipos JVM e FFI C)
 
-**Status:** parcial (whitelist) · **Introduzido:** 0.3.x (TIER 2.1) · **Atualizado:** 21/09 (formas D6 struct/array/out-buffer LIGAM na JVM — record por valor in/out, `T[]` escalar→`ptr` copy-in, `Buffer(U8)` INOUT; ver a frente FFI em `IMPLEMENTATION-UNIVERSAL-PLATFORM.pt_BR.md` 3.8b)
+**Status:** parcial (whitelist) · **Introduzido:** 0.3.x (TIER 2.1) · **Atualizado:** 29/09 (formas D6 struct/array/out-buffer LIGAM na JVM — record por valor in/out, `T[]` escalar→`ptr` copy-in, `Buffer(U8)` INOUT; as mesmas formas ligam no **Native x86-64** desde 3.7 + D6-2 + `#651` fatia A2; ver a frente FFI em `IMPLEMENTATION-UNIVERSAL-PLATFORM.pt_BR.md` 3.8b)
 
 ## O que é
 
@@ -13,8 +13,14 @@ Duas superfícies, uma regra: a plataforma já existe — não a reconstrua.
 ## API real (medida no compilador — 0.5.0-beta)
 
 ```kof
-// (a) interop JVM — nome qualificado, sem wrapper
-var now = java.time.Instant.now()
+// (a) interop JVM — importe primeiro; o nome qualificado NAO e um receiver generico
+// (medido 01/10, §558): `import java.X.Y;` + o nome simples funciona no JDK
+// `java.*`/`javax.*` SEM classpath externo; uma chamada QUALIFICADA crua
+// (`java.time.Instant.now()` como sentenca/argumento) e SEM011 em toda
+// posicao exceto inicializador de variavel e `new java.X.Y(...)`.
+import java.time.Instant
+
+var now = Instant.now()
 println(now.toString())
 
 // (b) FFI C — o JVM liga QUALQUER assinatura ESCALAR (R3 generalizado 18/09):
@@ -35,11 +41,52 @@ extern "/lib/x86_64-linux-gnu/libc.so.6" getenv(String n): String // ok — "mel
 //   (NULL->NULL); >=9 args da mesma classe derramam; retorno String = copia na fronteira (buffer C nunca free'd);
 //   o glibc riscv64/aarch64 passa E devolve FP em fa0..fa7 (MEDIDO sob qemu — NAO ft0);
 //   o stdio da C e flushado no exit; struct/array/callback/sem-library -> FFI001 na linha da declaracao
+//   Libs extern vendored cujo fecho DT_NEEDED NÃO está nos dirs default
+//     (decisão F, 09/10): o ld resolve o fecho contra os dirs default
+//     da busca — `-L` não se aplica a ele — então a linha de link recebe
+//     `-rpath-link <extern-dir>` (NativeAssembler, per extern com dir).
+//     Medido: a distro empilha versões de ffmpeg CONFLITANTES (libswresample.so.7
+//     do ffmpeg 7.x vs o .so.7 vendido 9.0.2) — sem -rpath-link o link
+//     pega o da distro e morre com refs de versão não definidas.
+// peek primitive (3.4b inc1, decision F row ORDERED 08/10) — `buffer.peek8/32/64`:
+//   RAW form `buffer.peek64(addr)` reads 8 bytes LE at ANY address (the opaque C
+//   structs: AVFrame.data[0] at +0, linesize[0] at +64, width at +104 — MEASURED
+//   from the real 9.0.2 header); BUF form `buffer.peek64(b, off)` reads the
+//   payload offset a C out-param wrote (AVFormatContext** via avformat_open_input).
+//   JVM composes byte-by-byte (the FFM JAVA_LONG read requires 8-byte alignment;
+//   the raw peek reads UNALIGNED like the native `ld`/`movl`) — JVM==Native
+//   byte-for-byte, cross riscv64/aarch64 via the translator. Bounds (buf form):
+//   negative offset or offset+n beyond the cap → honest trap (kof_bounds_error).
+// poke primitive (3.4c) — `buffer.poke8/32/64`: the WRITE counterpart of peek.
+//   RAW form `buffer.poke64(addr, value)` writes 8/4/1 bytes LE at ANY address;
+//   BUF form `buffer.poke64(b, off, value)` writes a payload offset (the C
+//   out-params: box the pointer, then `av_packet_free(box)` frees + NULLs back
+//   through the copy-back). A Long value slot accepts an Int (the ordinary
+//   conversion widens at the call site, the same as sqrt(9)). Bounds (buf
+//   form): negative offset or offset+n beyond the cap → honest trap.
 //   Argumentos numericos seguem a regra COMUM de conversao do Kof (#549/§370 FIXED 20/09): `f(Float x)`
 //     aceita `f(4.0 as Float)`, `f(4.0)` (Double->Float) e `f(4)` (Int->Float) com o MESMO
 //     resultado na JVM, no Native e no host JS; `sqrt(9)` (slot Double) e `labs(i)` idem.
 //     O que o Kof nao converte (String/Bool em slot numerico, Double->Int estreitando) e SEM014
 //     no call-site — nunca bits reinterpretados pela classe do slot.
+
+// (b2) FOREIGN MODULE (ecossistema de connectors, `D-CONNECTORS`, plano §9.16
+//   fatia A — landada 01/10): um bloco que agrupa vários `extern` sob UMA
+//   biblioteca, para um connector declarar os seus símbolos uma vez só em vez de
+//   repetir o caminho. É açúcar sobre a MESMA via FFI (sem motor de ABI novo,
+//   regra 54):
+foreign module libm {
+    library "libm.so.6"       // obrigatória (senão PARSE097)
+    abi c                     // ABI declarada (plano §3.9)
+    ownership borrowed        // vocabulário do Core: owned/borrowed/shared/opaque/immutable/mutable (senão PARSE099)
+    extern fmod(Double a, Double b): Double
+    extern sqrt(Double x): Double
+    extern pow(Double x, Double y): Double
+}
+// `foreign`/`module` são keywords CONTEXTUAIS (como `sealed`): fora deste
+// cabeçalho seguem identificadores comuns. Um `extern "..."` dentro do bloco
+// ainda pode trazer a sua própria biblioteca (sobrepõe a do cabeçalho). O
+// binding/ABI é exatamente a CompilerFfiBinding existente (FFI001/FFI002 por alvo).
 
 // (c) CALLBACKS (C2 ✅ JVM + paridade JS C3 ✅, 18/09): uma função Kof entregue
 // ao C como ponteiro de função. Parâmetro tipo-função + lambda no call site;
@@ -71,10 +118,12 @@ var b = buffer.alloc(4)                               // Buffer(U8) — vida aut
 fill(b, 4)                                            // o C escreve no buffer
 println(b.bytes())                                    // clone Byte[] (le de volta)
 println(ptlen(Pt(1, 2)))                              // 2 (record passado por valor)
-// Native: extern com record/array/buffer = FFI001 (gap honesto, R6 — a ABI de
-// struct/sret do Native é o 3.7). O JS binda as MESMAS formas D6 desde
-// R54/R55/R57/R58/R59 (byte-for-byte JVM==JS).
-// A ABI escalar binda em todo target; estas formas D6 sao JVM-first (R7).
+// Native x86-64 binda as MESMAS formas D6: record por valor (3.7), `T[]`
+// escalar→`ptr` copy-in (D6-2) e `Buffer(U8)` INOUT (#651 fatia A2 — o C recebe
+// o payload do buffer em obj+24, entao a escrita do C JA e o copy-back).
+// Cross riscv64/aarch64 mantem a face buffer em FFI001 (R6).
+// O JS binda as MESMAS formas D6 desde R54/R55/R57/R58/R59 (byte-for-byte JVM==JS).
+// A ABI escalar binda em todo target.
 ```
 
 ## Reflexão na fronteira — `interop.schema(R)` (X6, `D-INTEROP-REFLECT`)
@@ -118,7 +167,7 @@ println(r.callInt("sq", listOf(5)))                    // 25 — wire identico, 
 
 // records pela fronteira: a composicao e o JSON da propria plataforma
 var wire = py.callJson("norm", json.encode(listOf(p)))
-var back = json.decode[Point](wire)
+var back = json.decode<Point>(wire)
 
 // a chamada nunca pendura (fatia 3) — o DEADLINE CORRE NO FILHO:
 py.timeout(2000)              // default 30000; 0 = sem limite (declarado, nunca silencioso)
@@ -162,4 +211,4 @@ no runner, `InteropTimeoutE2ETest` 4/4, `InteropTimeoutScriptE2ETest` 1/1).
 
 `docs/language-reference/syntax.md` (§FFI com C), `grammar.md`
 (`extern-declaration`), `modules.md` §6; gaps `FFI001`/`FFI002`;
-R3 landado: JVM escalar arbitrario (aridade/void/retorno String, 18/09) + paridade JS host (3.6.F2/F3 ✅ 18/09) + **callbacks ligam na JVM E no host runner JS, paridade byte-for-byte (C2 ✅ + C3.2/C3.3/C3.4 ✅ 18/09 — callbacks primitivos + com argumento `String`; `JvmFfiCallbackE2ETest` incl. `jvmAndJsCallbacksMatchByteForByte` e `stringCallbackArgsBindAndMatchJvmJs`)** + **formas D6 struct/array/out-buffer na JVM (3.8b fatias 1–4 ✅ 20–21/09: record por valor in/out, `T[]` escalar→`ptr` copy-in, `Buffer(U8)` INOUT; `FfiStructE2ETest` 10/10, `FfiArrayE2ETest` 5/5, `BufferE2ETest` 4/4, `BufferFfiE2ETest` 4/4)** + **as MESMAS formas D6 no alvo JS (bridge 3.8b ✅ 21/09 — R54 record como arg, R55 `T[]` escalar→ptr copy-in, R57 namespace `kof.buffer`, R58 `Buffer(U8)` INOUT, R59 retorno de record por valor; byte-for-byte JVM==JS: `FfiStructE2ETest#structReturnByValueJsParity`, `FfiArrayE2ETest#arrayParamByValueJsParity`, `BufferE2ETest#allocAndBytesJsParity`, `BufferFfiE2ETest#bufferInoutCopyInCopyBackJsParity`)** + **a ABI escalar do Native bina nos 3 archs (fatias 1–2 ✅ 20/09 — §369, §61 FECHADO: `FfiNativeE2ETest` 16/16 x86-64 + `FfiNativeCrossE2ETest` 6/6 riscv64×aarch64 byte-identicos sob qemu)**; **decididos 21/09:** variadics = nenhum (`D-R3-3.5`), `Handle` opaco + `Buffer(U8,INOUT)` (`D-R3-3.3` — Buffer landou, `Handle` aguarda a frente RAII). Restantes (cross-lane/posterior): struct/sret no Native (3.7), callbacks/upcalls no Native (sem mecanismo — `FFI001`), tempos de vida do `Handle` (`future/scoped-resources-plan.md`).
+R3 landado: JVM escalar arbitrario (aridade/void/retorno String, 18/09) + paridade JS host (3.6.F2/F3 ✅ 18/09) + **callbacks ligam na JVM E no host runner JS, paridade byte-for-byte (C2 ✅ + C3.2/C3.3/C3.4 ✅ 18/09 — callbacks primitivos + com argumento `String`; `JvmFfiCallbackE2ETest` incl. `jvmAndJsCallbacksMatchByteForByte` e `stringCallbackArgsBindAndMatchJvmJs`)** + **formas D6 struct/array/out-buffer na JVM (3.8b fatias 1–4 ✅ 20–21/09: record por valor in/out, `T[]` escalar→`ptr` copy-in, `Buffer(U8)` INOUT; `FfiStructE2ETest` 10/10, `FfiArrayE2ETest` 5/5, `BufferE2ETest` 4/4, `BufferFfiE2ETest` 4/4)** + **as MESMAS formas D6 no alvo JS (bridge 3.8b ✅ 21/09 — R54 record como arg, R55 `T[]` escalar→ptr copy-in, R57 namespace `kof.buffer`, R58 `Buffer(U8)` INOUT, R59 retorno de record por valor; byte-for-byte JVM==JS: `FfiStructE2ETest#structReturnByValueJsParity`, `FfiArrayE2ETest#arrayParamByValueJsParity`, `BufferE2ETest#allocAndBytesJsParity`, `BufferFfiE2ETest#bufferInoutCopyInCopyBackJsParity`)** + **a ABI escalar do Native bina nos 3 archs (fatias 1–2 ✅ 20/09 — §369, §61 FECHADO: `FfiNativeE2ETest` 16/16 x86-64 + `FfiNativeCrossE2ETest` 6/6 riscv64×aarch64 byte-identicos sob qemu)**; **decididos 21/09:** variadics = nenhum (`D-R3-3.5`), `Handle` opaco + `Buffer(U8,INOUT)` (`D-R3-3.3` — Buffer landou, `Handle` aguarda a frente RAII). Restantes (cross-lane/posterior): no cross riscv64/aarch64 o struct float/HFA/byref e a face `Buffer(U8)` (`#651` fatia B), callbacks/upcalls no Native (sem mecanismo — `FFI001`), tempos de vida do `Handle` (`docs/scoped-resources-plan.md`).

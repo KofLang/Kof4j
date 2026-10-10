@@ -36,18 +36,41 @@ class NestedMapRecordDecodeE2ETest {
             record Holder(Map<String, E> m)
 
             main() {
+                // §583 note: Map.get returns V? — the old source dereferenced it
+                // without narrowing because the analyzer typed every decode as
+                // UNKNOWN and skipped both SEM012 and SEM049. Now that decode<T>
+                // is honestly T (SEM mirrors the emit), the source follows the
+                // frozen null-safety law (D-NARROW-WHILE): narrow, then use.
                 var ok = json.decode<Map<String, E>>("{\\"ace\\":{\\"upright\\":\\"u1\\"}}")
-                println("A: " + ok.get("ace").upright())
+                var ace: E? = ok.get("ace")
+                if (ace != null) {
+                    println("A: " + ace.upright())
+                }
                 var nested = json.decode<Map<String, Map<String, E>>>("{\\"wands\\":{\\"ace\\":{\\"upright\\":\\"u1\\"}}}")
-                println("B: " + nested.get("wands").get("ace").upright())
+                var nw: Map<String, E>? = nested.get("wands")
+                if (nw != null) {
+                    var nace: E? = nw.get("ace")
+                    if (nace != null) {
+                        println("B: " + nace.upright())
+                    }
+                }
                 var h = json.decode<Holder>("{\\"m\\":{\\"ace\\":{\\"upright\\":\\"u1\\"}}}")
                 println("H: " + h.m().size)
-                println("H: " + h.m().get("ace").upright())
+                var hAce: E? = h.m().get("ace")
+                if (hAce != null) {
+                    println("H: " + hAce.upright())
+                }
                 var c = json.decode<Map<String, List<E>>>("{\\"wands\\":[{\\"upright\\":\\"a\\"},{\\"upright\\":\\"b\\"}]}")
-                println("C: " + c.get("wands").size)
-                println("C: " + c.get("wands").get(1).upright())
+                var cw: List<E>? = c.get("wands")
+                if (cw != null) {
+                    println("C: " + cw.size)
+                    println("C: " + cw.get(1).upright())
+                }
                 var d = json.decode<Map<String, Map<String, E>>>("{\\"wands\\":{}}")
-                println("D: " + d.get("wands").isEmpty())
+                var dw: Map<String, E>? = d.get("wands")
+                if (dw != null) {
+                    println("D: " + dw.isEmpty())
+                }
                 println("D: " + (d.get("nope") == null))
                 var e = json.decode<Map<String, Map<String, E>>>("{}")
                 println("E: " + e.isEmpty())

@@ -1,0 +1,690 @@
+package file
+
+import file.TextStream
+
+// kof.file — TOML configuration reader (slice 3.2).
+//
+// A streaming TOML reader over `TextStream` (one pass, memory bounded by one
+// chunk plus the current line). Tables and dotted keys are flattened into a
+// canonical dotted key, so a nested document is queried without nested maps
+// (`Map<String, Map<String, String>>` does not compile — COMP002). Values are
+// kept with a `kind`, and typed accessors parse on demand:
+//
+//   var t = Toml("app.toml")
+//   var name = t.getString("service.name")     // String?, null if absent
+//   var port = t.getInt("service.port", 8080)   // Int, fallback if absent
+//   var tags = t.getArray("service.tags")       // List<String>?, null if absent
+//
+// Documented subset, honest (never a silent wrong parse):
+//   * comments `#` (outside strings), blank lines;
+//   * `key = value` with bare (`A-Za-z0-9_-`) or quoted keys, dotted keys;
+//   * `[table]` / `[a.b]` headers set the prefix for following keys;
+//   * values: basic `"..."` (escapes `\b \t \n \f \r \" \\ \uXXXX \UXXXXXXXX`,
+//     `\uXXXX`/`\UXXXXXXXX` code-point escapes), literal `'...'`, boolean,
+//     integer (sign, `_` separators), float (`.`/`e`), and single-line arrays
+//     of scalars;
+//   * a duplicate key or a malformed line throws a `String`.
+//
+// Not supported (explicit diagnostic, never a wrong parse): `[[array of
+// tables]]`, multi-line arrays, nested arrays/inline tables, and date/time
+// values. The parser is line-based, so an array must close on its own line.
+//
+// No new syntax, built on `libs/file/TextStream.kf`. JS inherits the
+// compile-time gap `IOJS001` (`readRange`); non-BMP text is the Native
+// divergence `§537`.
+
+record TomlEntry(String key, String kind, String value, List<String> items)
+
+class Toml {
+    List<TomlEntry> entries
+
+    constructor(String path) {
+        this.entries = parseToml(path, 8192)
+    }
+
+    constructor(String path, Int chunkSize) {
+        this.entries = parseToml(path, chunkSize)
+    }
+
+    Bool has(String key) {
+        return findEntry(key) != null
+    }
+
+    // "string" | "integer" | "float" | "boolean" | "array", or null if absent.
+    String? kindOf(String key) {
+        var e = findEntry(key)
+        if (e == null) {
+            return null
+        }
+        return e.kind
+    }
+
+    // Decoded string value, or null when absent or not a string.
+    String? getString(String key) {
+        var e = findEntry(key)
+        if (e == null) {
+            return null
+        }
+        if (e.kind != "string") {
+            return null
+        }
+        return e.value
+    }
+
+    // Array elements (decoded strings / canonical scalars), or null when
+    // absent or not an array.
+    List<String>? getArray(String key) {
+        var e = findEntry(key)
+        if (e == null) {
+            return null
+        }
+        if (e.kind != "array") {
+            return null
+        }
+        return e.items
+    }
+
+    // Canonical scalar text, or null when absent (arrays included).
+    String? getRaw(String key) {
+        var e = findEntry(key)
+        if (e == null) {
+            return null
+        }
+        if (e.kind == "array") {
+            return null
+        }
+        return e.value
+    }
+
+    // Integer value, or `fallback` when absent or not an integer.
+    Int getInt(String key, Int fallback) {
+        var e = findEntry(key)
+        if (e == null) {
+            return fallback
+        }
+        if (e.kind != "integer") {
+            return fallback
+        }
+        return e.value.toInt()
+    }
+
+    // Numeric value (integer or float), or `fallback`.
+    Double getDouble(String key, Double fallback) {
+        var e = findEntry(key)
+        if (e == null) {
+            return fallback
+        }
+        if (e.kind != "float" && e.kind != "integer") {
+            return fallback
+        }
+        return e.value.toDouble()
+    }
+
+    // Boolean value, or `fallback` when absent or not a boolean.
+    Bool getBool(String key, Bool fallback) {
+        var e = findEntry(key)
+        if (e == null) {
+            return fallback
+        }
+        if (e.kind != "boolean") {
+            return fallback
+        }
+        return e.value == "true"
+    }
+
+    // Declared keys in first-appearance order.
+    List<String> keys() {
+        var out = listOf<String>()
+        var i = 0
+        while (i < this.entries.size()) {
+            out.add(this.entries.get(i).key)
+            i = i + 1
+        }
+        return out
+    }
+
+    TomlEntry? findEntry(String key) {
+        var i = this.entries.size() - 1
+        while (i >= 0) {
+            if (this.entries.get(i).key == key) {
+                return this.entries.get(i)
+            }
+            i = i - 1
+        }
+        return null
+    }
+}
+
+List<TomlEntry> parseToml(String path, Int chunkSize) {
+    var entries = listOf<TomlEntry>()
+    var stream = TextStream(path, chunkSize)
+    var prefix = ""
+    var lineNo = 0
+    var raw = stream.nextLine()
+    while (raw != null) {
+        var line = raw
+        lineNo = lineNo + 1
+        line = tomlStripComment(line)
+        if (lineNo == 1 && line.length > 0 && line.charAt(0) == (65279 as Char)) {
+            line = tomlSlice(line, 1, line.length)
+        }
+        line = tomlTrim(line)
+        if (line.length > 0) {
+            var first = line.charAt(0)
+            if (first == '[') {
+                prefix = tomlTableHeader(line, lineNo)
+            } else {
+                var eq = tomlFindEquals(line)
+                if (eq < 0) {
+                    throw "TOML: malformed line " + lineNo + ": missing '='"
+                }
+                var keyPart = tomlParseKeyPath(tomlSlice(line, 0, eq), lineNo)
+                var valuePart = tomlTrim(tomlSlice(line, eq + 1, line.length))
+                if (valuePart.length == 0) {
+                    throw "TOML: malformed line " + lineNo + ": missing value"
+                }
+                var fullKey = keyPart
+                if (prefix.length > 0) {
+                    fullKey = prefix + "." + keyPart
+                }
+                if (tomlIndexOf(entries, fullKey) >= 0) {
+                    throw "TOML: duplicate key '" + fullKey + "' at line " + lineNo
+                }
+                entries.add(tomlParseValue(fullKey, valuePart, lineNo))
+            }
+        }
+        raw = stream.nextLine()
+    }
+    return entries
+}
+
+Int tomlIndexOf(List<TomlEntry> entries, String key) {
+    var i = 0
+    while (i < entries.size()) {
+        if (entries.get(i).key == key) {
+            return i
+        }
+        i = i + 1
+    }
+    return -1
+}
+
+String tomlTableHeader(String line, Int lineNo) {
+    if (line.length >= 2 && line.charAt(1) == '[') {
+        throw "TOML: array-of-tables is not supported (line " + lineNo + ")"
+    }
+    var end = tomlLastIndexOf(line, ']')
+    if (end < 0 || tomlTrim(tomlSlice(line, end + 1, line.length)).length > 0) {
+        throw "TOML: malformed table header at line " + lineNo
+    }
+    var inner = tomlTrim(tomlSlice(line, 1, end))
+    if (inner.length == 0) {
+        throw "TOML: empty table header at line " + lineNo
+    }
+    return tomlParseKeyPath(inner, lineNo)
+}
+
+String tomlParseKeyPath(String s, Int lineNo) {
+    var segments = tomlSplitDots(s)
+    var out = ""
+    var i = 0
+    while (i < segments.size()) {
+        var part = tomlKeySegment(tomlTrim(segments.get(i)), lineNo)
+        if (out.length > 0) {
+            out = out + "."
+        }
+        out = out + part
+        i = i + 1
+    }
+    return out
+}
+
+String tomlKeySegment(String seg, Int lineNo) {
+    if (seg.length == 0) {
+        throw "TOML: empty key at line " + lineNo
+    }
+    var first = seg.charAt(0)
+    if (first == '"' || first == '\'') {
+        if (seg.length < 2 || seg.charAt(seg.length - 1) != first) {
+            throw "TOML: unterminated quoted key at line " + lineNo
+        }
+        var inner = tomlSlice(seg, 1, seg.length - 1)
+        if (first == '"') {
+            return tomlUnescape(inner, lineNo)
+        }
+        return inner
+    }
+    var i = 0
+    while (i < seg.length) {
+        if (!tomlIsBareKeyChar(seg.charAt(i))) {
+            throw "TOML: invalid bare key at line " + lineNo
+        }
+        i = i + 1
+    }
+    return seg
+}
+
+TomlEntry tomlParseValue(String key, String v, Int lineNo) {
+    var first = v.charAt(0)
+    if (first == '"') {
+        return TomlEntry(key, "string", tomlQuoted(v, '"', lineNo), listOf<String>())
+    }
+    if (first == '\'') {
+        return TomlEntry(key, "string", tomlQuoted(v, '\'', lineNo), listOf<String>())
+    }
+    if (v == "true" || v == "false") {
+        return TomlEntry(key, "boolean", v, listOf<String>())
+    }
+    if (first == '[') {
+        return TomlEntry(key, "array", "", tomlParseArray(v, lineNo))
+    }
+    if (first == '{') {
+        throw "TOML: inline tables are not supported (line " + lineNo + ")"
+    }
+    if (tomlIsInteger(v)) {
+        return TomlEntry(key, "integer", tomlRemoveUnderscores(v), listOf<String>())
+    }
+    if (tomlIsFloat(v)) {
+        return TomlEntry(key, "float", tomlRemoveUnderscores(v), listOf<String>())
+    }
+    throw "TOML: unsupported value at line " + lineNo
+}
+
+String tomlQuoted(String v, Char quote, Int lineNo) {
+    if (v.length < 2 || v.charAt(v.length - 1) != quote) {
+        throw "TOML: unterminated string at line " + lineNo
+    }
+    var inner = tomlSlice(v, 1, v.length - 1)
+    if (quote == '"') {
+        return tomlUnescape(inner, lineNo)
+    }
+    return inner
+}
+
+String tomlUnescape(String s, Int lineNo) {
+    var out = ""
+    var i = 0
+    while (i < s.length) {
+        var ch = s.charAt(i)
+        if (ch != '\\') {
+            out = out + ch
+            i = i + 1
+        } else {
+            if (i + 1 >= s.length) {
+                throw "TOML: dangling escape at line " + lineNo
+            }
+            var e = s.charAt(i + 1)
+            if (e == 'u') {
+                out = out + tomlCodePoint(s, i + 2, 4, lineNo)
+                i = i + 6
+            } else if (e == 'U') {
+                out = out + tomlCodePoint(s, i + 2, 8, lineNo)
+                i = i + 10
+            } else {
+                out = out + tomlEscapedChar(e, lineNo)
+                i = i + 2
+            }
+        }
+    }
+    return out
+}
+
+String tomlEscapedChar(Char e, Int lineNo) {
+    if (e == 'n') {
+        return "\n"
+    }
+    if (e == 't') {
+        return "\t"
+    }
+    if (e == 'r') {
+        return "\r"
+    }
+    if (e == '"') {
+        return "\""
+    }
+    if (e == '\\') {
+        return "\\"
+    }
+    if (e == 'b') {
+        return "" + (8 as Char)
+    }
+    if (e == 'f') {
+        return "" + (12 as Char)
+    }
+    throw "TOML: unsupported escape at line " + lineNo
+}
+
+String tomlCodePoint(String s, Int start, Int len, Int lineNo) {
+    if (start + len > s.length) {
+        throw "TOML: invalid unicode escape at line " + lineNo
+    }
+    var value = 0
+    var i = start
+    while (i < start + len) {
+        var d = tomlHexValue(s.charAt(i))
+        if (d < 0) {
+            throw "TOML: invalid unicode escape at line " + lineNo
+        }
+        value = value * 16 + d
+        i = i + 1
+    }
+    return tomlCodePointToString(value)
+}
+
+String tomlCodePointToString(Int cp) {
+    if (cp > 65535) {
+        var x = cp - 65536
+        return "" + ((55296 + (x >> 10)) as Char) + ((56320 + (x & 1023)) as Char)
+    }
+    return "" + (cp as Char)
+}
+
+List<String> tomlParseArray(String v, Int lineNo) {
+    if (v.length < 2 || v.charAt(v.length - 1) != ']') {
+        throw "TOML: unterminated array at line " + lineNo
+    }
+    var inner = tomlTrim(tomlSlice(v, 1, v.length - 1))
+    var items = listOf<String>()
+    if (inner.length == 0) {
+        return items
+    }
+    var parts = tomlSplitCommas(inner)
+    var i = 0
+    while (i < parts.size()) {
+        var el = tomlTrim(parts.get(i))
+        if (el.length == 0) {
+            throw "TOML: empty array element at line " + lineNo
+        }
+        items.add(tomlArrayElement(el, lineNo))
+        i = i + 1
+    }
+    return items
+}
+
+String tomlArrayElement(String el, Int lineNo) {
+    var first = el.charAt(0)
+    if (first == '[' || first == '{') {
+        throw "TOML: nested arrays/inline tables are not supported (line " + lineNo + ")"
+    }
+    if (first == '"') {
+        return tomlQuoted(el, '"', lineNo)
+    }
+    if (first == '\'') {
+        return tomlQuoted(el, '\'', lineNo)
+    }
+    if (el == "true" || el == "false") {
+        return el
+    }
+    if (tomlIsInteger(el)) {
+        return tomlRemoveUnderscores(el)
+    }
+    if (tomlIsFloat(el)) {
+        return tomlRemoveUnderscores(el)
+    }
+    throw "TOML: unsupported array element at line " + lineNo
+}
+
+String tomlStripComment(String s) {
+    var i = 0
+    var quote = 0
+    while (i < s.length) {
+        var ch = s.charAt(i)
+        if (quote == 1) {
+            if (ch == '\\') {
+                i = i + 1
+            } else if (ch == '"') {
+                quote = 0
+            }
+        } else if (quote == 2) {
+            if (ch == '\'') {
+                quote = 0
+            }
+        } else if (ch == '"') {
+            quote = 1
+        } else if (ch == '\'') {
+            quote = 2
+        } else if (ch == '#') {
+            return tomlSlice(s, 0, i)
+        }
+        i = i + 1
+    }
+    return s
+}
+
+Int tomlFindEquals(String s) {
+    var i = 0
+    var quote = 0
+    while (i < s.length) {
+        var ch = s.charAt(i)
+        if (quote == 1) {
+            if (ch == '\\') {
+                i = i + 1
+            } else if (ch == '"') {
+                quote = 0
+            }
+        } else if (quote == 2) {
+            if (ch == '\'') {
+                quote = 0
+            }
+        } else if (ch == '"') {
+            quote = 1
+        } else if (ch == '\'') {
+            quote = 2
+        } else if (ch == '=') {
+            return i
+        }
+        i = i + 1
+    }
+    return -1
+}
+
+List<String> tomlSplitDots(String s) {
+    var parts = listOf<String>()
+    var start = 0
+    var i = 0
+    var quote = 0
+    while (i < s.length) {
+        var ch = s.charAt(i)
+        if (quote == 1) {
+            if (ch == '\\') {
+                i = i + 1
+            } else if (ch == '"') {
+                quote = 0
+            }
+        } else if (quote == 2) {
+            if (ch == '\'') {
+                quote = 0
+            }
+        } else if (ch == '"') {
+            quote = 1
+        } else if (ch == '\'') {
+            quote = 2
+        } else if (ch == '.') {
+            parts.add(tomlSlice(s, start, i))
+            start = i + 1
+        }
+        i = i + 1
+    }
+    parts.add(tomlSlice(s, start, s.length))
+    return parts
+}
+
+List<String> tomlSplitCommas(String s) {
+    var parts = listOf<String>()
+    var start = 0
+    var i = 0
+    var quote = 0
+    var depth = 0
+    while (i < s.length) {
+        var ch = s.charAt(i)
+        if (quote == 1) {
+            if (ch == '\\') {
+                i = i + 1
+            } else if (ch == '"') {
+                quote = 0
+            }
+        } else if (quote == 2) {
+            if (ch == '\'') {
+                quote = 0
+            }
+        } else if (ch == '"') {
+            quote = 1
+        } else if (ch == '\'') {
+            quote = 2
+        } else if (ch == '[' || ch == '{') {
+            depth = depth + 1
+        } else if (ch == ']' || ch == '}') {
+            depth = depth - 1
+        } else if (ch == ',' && depth == 0) {
+            parts.add(tomlSlice(s, start, i))
+            start = i + 1
+        }
+        i = i + 1
+    }
+    parts.add(tomlSlice(s, start, s.length))
+    return parts
+}
+
+Bool tomlIsInteger(String s) {
+    if (s.length == 0) {
+        return false
+    }
+    var i = 0
+    if (s.charAt(0) == '+' || s.charAt(0) == '-') {
+        i = 1
+    }
+    if (i >= s.length) {
+        return false
+    }
+    var digits = 0
+    while (i < s.length) {
+        var ch = s.charAt(i)
+        if (ch == '_') {
+            i = i + 1
+        } else if (tomlIsDigit(ch)) {
+            digits = digits + 1
+            i = i + 1
+        } else {
+            return false
+        }
+    }
+    return digits > 0
+}
+
+Bool tomlIsFloat(String s) {
+    if (s.length == 0) {
+        return false
+    }
+    var hasDot = false
+    var hasExp = false
+    var i = 0
+    if (s.charAt(0) == '+' || s.charAt(0) == '-') {
+        i = 1
+    }
+    if (i >= s.length) {
+        return false
+    }
+    while (i < s.length) {
+        var ch = s.charAt(i)
+        if (ch == '_') {
+            i = i + 1
+        } else if (tomlIsDigit(ch)) {
+            i = i + 1
+        } else if (ch == '.' && !hasDot && !hasExp) {
+            hasDot = true
+            i = i + 1
+        } else if ((ch == 'e' || ch == 'E') && !hasExp) {
+            hasExp = true
+            i = i + 1
+            if (i < s.length && (s.charAt(i) == '+' || s.charAt(i) == '-')) {
+                i = i + 1
+            }
+        } else {
+            return false
+        }
+    }
+    return hasDot || hasExp
+}
+
+String tomlRemoveUnderscores(String s) {
+    var out = ""
+    var i = 0
+    while (i < s.length) {
+        var ch = s.charAt(i)
+        if (ch != '_') {
+            out = out + ch
+        }
+        i = i + 1
+    }
+    return out
+}
+
+Bool tomlIsDigit(Char ch) {
+    var c = ch as Int
+    return c >= 48 && c <= 57
+}
+
+Bool tomlIsBareKeyChar(Char ch) {
+    var c = ch as Int
+    if (c >= 65 && c <= 90) {
+        return true
+    }
+    if (c >= 97 && c <= 122) {
+        return true
+    }
+    if (c >= 48 && c <= 57) {
+        return true
+    }
+    return c == 95 || c == 45
+}
+
+Int tomlHexValue(Char ch) {
+    var c = ch as Int
+    if (c >= 48 && c <= 57) {
+        return c - 48
+    }
+    if (c >= 97 && c <= 102) {
+        return c - 97 + 10
+    }
+    if (c >= 65 && c <= 70) {
+        return c - 65 + 10
+    }
+    return -1
+}
+
+String tomlTrim(String s) {
+    var start = 0
+    var end = s.length
+    while (start < end && tomlIsSpace(s.charAt(start))) {
+        start = start + 1
+    }
+    while (end > start && tomlIsSpace(s.charAt(end - 1))) {
+        end = end - 1
+    }
+    return tomlSlice(s, start, end)
+}
+
+Bool tomlIsSpace(Char ch) {
+    return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r'
+}
+
+String tomlSlice(String s, Int from, Int to) {
+    var out = ""
+    var i = from
+    while (i < to) {
+        out = out + s.charAt(i)
+        i = i + 1
+    }
+    return out
+}
+
+Int tomlLastIndexOf(String s, Char target) {
+    var i = s.length - 1
+    while (i >= 0) {
+        if (s.charAt(i) == target) {
+            return i
+        }
+        i = i - 1
+    }
+    return -1
+}

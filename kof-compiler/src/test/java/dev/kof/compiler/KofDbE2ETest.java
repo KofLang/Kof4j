@@ -1559,6 +1559,11 @@ class KofDbE2ETest {
             assumeTrue(has(as, ld, "qemu-" + arch), "cross toolchain " + arch + " ausente — pulando");
             assumeTrue(dev.kof.compiler.nat.NativeCrossLink.sysrootOrNull(arch) != null,
                     "sysroot cross " + arch + " ausente — pulando");
+            // db.* cross linka sqlite por padrão; sem a lib cross o ld falha em
+            // `-lsqlite3`. Mesmo guard dos demais testes cross desta classe
+            // (sqliteAvailable) — condição ambiental, nunca falso-verde.
+            assumeTrue(dev.kof.compiler.nat.NativeCrossLink.sqliteAvailable(arch),
+                    "sqlite cross " + arch + " ausente — pulando");
             FakeMysql fake = new FakeMysql(denied);
             Path source = tempDir.resolve("M-" + arch + ".kf");
             Files.writeString(source, authRejectProgram(fake.port));

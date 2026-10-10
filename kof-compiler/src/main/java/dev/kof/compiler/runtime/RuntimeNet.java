@@ -2,8 +2,17 @@ package dev.kof.compiler.runtime;
 import dev.kof.compiler.NativeRuntime;
 
 /**
- * Emissão do ASM de rede (kof_net_socket/bind/listen/accept/read/write/close) do
- * runtime nativo. Domínio isolado do NativeRuntime -- refactor preserva semântica.
+ * Emissão do ASM da costura CRUA de rede (kof_net_socket/read/write) do runtime
+ * nativo — consumida pelo cliente MySQL/HTTP nativo (fd puro). Domínio isolado
+ * do NativeRuntime.
+ *
+ * <p>Os nomes de superfície `kof.net` (listen/accept/connect/bind/send/receive/
+ * sendTo/receiveFrom/peer/close) NÃO vivem aqui: são emitidos por
+ * {@link NativeNetFront} e operam sobre HANDLES opacos, não fds crus. As
+ * definições cruas de bind/listen/accept/close foram REMOVIDAS na fatia 3
+ * (`D-KOF-NET`) para liberar os símbolos — nenhum consumidor cru as usava
+ * (medido por grep) e os dois chamadores de `kof_net_close` (MySQL/HTTP)
+ * passaram a `kof_plat_close`, que é o close de fd real.
  */
 public final class RuntimeNet {
 
@@ -15,65 +24,6 @@ public final class RuntimeNet {
             .type kof_net_socket, @function
             kof_net_socket:
                 jmp kof_plat_net_socket
-            """);
-    }
-
-    public static void emitNetBind(StringBuilder sb) {
-        sb.append("""
-            .globl kof_net_bind
-            .type kof_net_bind, @function
-            kof_net_bind:
-                pushq %rbx
-                pushq %r12
-                pushq %r13
-                movl %edi, %ebx
-                movl %esi, %r12d
-                movq %rdx, %r13
-                subq $16, %rsp
-                movw $2, (%rsp)
-                movl %r12d, %eax
-                xchgb %al, %ah
-                movw %ax, 2(%rsp)
-                movl $0, 4(%rsp)
-                movq %r13, %rdx
-                testq %rdx, %rdx
-                jnz .Lkof_net_bind_custom
-                leaq 4(%rsp), %rdx
-            .Lkof_net_bind_custom:
-                movl %ebx, %edi
-                movq %rdx, %rsi
-                movq $16, %rdx
-                call kof_plat_net_bind
-                addq $16, %rsp
-                popq %r13
-                popq %r12
-                popq %rbx
-                ret
-            """);
-    }
-
-    public static void emitNetListen(StringBuilder sb) {
-        sb.append("""
-            .globl kof_net_listen
-            .type kof_net_listen, @function
-            kof_net_listen:
-                jmp kof_plat_net_listen
-            """);
-    }
-
-    public static void emitNetAccept(StringBuilder sb) {
-        sb.append("""
-            .globl kof_net_accept
-            .type kof_net_accept, @function
-            kof_net_accept:
-                subq $16, %rsp
-                movq $0, (%rsp)
-                movq $0, 8(%rsp)
-                movq %rsp, %rsi
-                leaq 8(%rsp), %rdx
-                call kof_plat_net_accept
-                addq $16, %rsp
-                ret
             """);
     }
 
@@ -96,15 +46,6 @@ public final class RuntimeNet {
                 xorq %r9, %r9
                 call kof_plat_net_send
                 ret
-            """);
-    }
-
-    public static void emitNetClose(StringBuilder sb) {
-        sb.append("""
-            .globl kof_net_close
-            .type kof_net_close, @function
-            kof_net_close:
-                jmp kof_plat_close
             """);
     }
 

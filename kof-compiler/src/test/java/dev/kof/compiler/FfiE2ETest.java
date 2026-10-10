@@ -22,12 +22,13 @@ class FfiE2ETest {
         // #431/§61 (fatia 1): a ABI ESCALAR agora binda no Native por link direto
         // (`sym@PLT` na .so ligada — prova de execução em FfiNativeE2ETest, com a
         // forma InitWindow(Int,Int,String):void incluída). O gap honesto segue
-        // pinado na forma que CONTINUA não-bindável no Native: `String[]` (array
-        // de ponteiros), struct de memória no ABI (D6) e callback (upcall nativo
-        // não existe). Nunca stub silencioso (R6).
+        // pinado na forma que CONTINUA não-bindável no Native: `extern` SEM
+        // `library()` (nada a linkar) — `String[]` passou a binder em 30/09
+        // (D-MEM-FFI-CROSS-FULL face 2, FfiNativeStringArrayE2ETest). Nunca stub
+        // silencioso (R6).
         Path src = dir.resolve("ffi-native.kf");
         Files.writeString(src, """
-                extern "libc.so.6" sum(String[] xs): Int
+                extern sum(Int x): Int
 
                 main() {
                     println("hi")

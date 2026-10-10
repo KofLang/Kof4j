@@ -1,0 +1,605 @@
+package file
+
+import file.TextStream
+
+// kof.file — streaming XML pull reader (slice 2.4, namespace resolution 2.5).
+//
+// A non-validating, pull-style XML reader over `TextStream` (bounded memory):
+// the programmer drives it with `while` over `next()`, and each call returns
+// the next significant event — a start, end, empty-element or text node — or
+// null at end of document.
+//
+// Subset, documented honestly (never a silent wrong parse):
+//   * elements, attributes (single/double quoted), text, empty elements;
+//   * XML declaration and processing instructions are skipped;
+//   * comments are skipped; `<!DOCTYPE ...>` (with an optional internal
+//     subset) is skipped, but its declared entities are NOT resolved;
+//   * `<![CDATA[ ... ]]>` becomes a text event, NOT entity-decoded;
+//   * predefined entities `&amp; &lt; &gt; &quot; &apos;` and numeric
+//     `&#D;`/`&#xH;` are resolved, any other entity throws;
+//   * whitespace-only text between tags is skipped; the element stack is
+//     validated, so a mismatched end tag (or EOF) throws.
+//
+// Namespace resolution (slice 2.5): `xmlns`/`xmlns:prefix` declarations are
+// scoped to the element subtree; `localName`/`namespaceUri` are resolved on
+// element events and `attributeNamespaces` maps each attribute to its URI
+// (unprefixed attributes and the declarations use the XMLNS namespace rule).
+// `name` stays verbatim (prefix included), so this is additive over 2.4. An
+// unbound prefix throws; the predefined `xml`/`xmlns` bindings are enforced.
+//
+// No new syntax, built on `libs/file/TextStream.kf`. JS inherits the
+// compile-time gap `IOJS001` (`readRange`); non-BMP text is the Native
+// divergence `§537`.
+
+record XmlEvent(String kind, String name, String localName, String namespaceUri, String text, Map<String, String> attributes, Map<String, String> attributeNamespaces)
+
+class XmlReader {
+    TextStream stream
+    List<String> stack
+    List<String> stackNs
+    List<String> stackLocal
+    List<String> nsPrefixes
+    List<String> nsUris
+    List<Int> nsScopes
+    Bool pendingTag
+    Bool started
+
+    constructor(String path) {
+        this.stream = TextStream(path)
+        this.stack = listOf<String>()
+        this.stackNs = listOf<String>()
+        this.stackLocal = listOf<String>()
+        this.nsPrefixes = listOf<String>()
+        this.nsUris = listOf<String>()
+        this.nsScopes = listOf<Int>()
+        this.pendingTag = false
+        this.started = false
+    }
+
+    constructor(String path, Int chunkSize) {
+        this.stream = TextStream(path, chunkSize)
+        this.stack = listOf<String>()
+        this.stackNs = listOf<String>()
+        this.stackLocal = listOf<String>()
+        this.nsPrefixes = listOf<String>()
+        this.nsUris = listOf<String>()
+        this.nsScopes = listOf<Int>()
+        this.pendingTag = false
+        this.started = false
+    }
+
+    // Next significant event (kind "start" | "end" | "empty" | "text"), or
+    // null at end of document. Malformed input throws a String.
+    XmlEvent? next() {
+        if (!this.started) {
+            this.started = true
+            if (this.stream.peekCode() == 65279) {
+                var bom = this.stream.nextCode()
+            }
+        }
+        while (true) {
+            if (this.pendingTag) {
+                this.pendingTag = false
+                var tagged = parseTag()
+                if (tagged != null) {
+                    return tagged
+                }
+                continue
+            }
+            var c = this.stream.nextCode()
+            if (c < 0) {
+                if (this.stack.size() > 0) {
+                    throw "XML: unexpected end of document (unclosed element <" + this.stack.get(this.stack.size() - 1) + ">)"
+                }
+                return null
+            }
+            if (c == '<' as Int) {
+                this.pendingTag = true
+                continue
+            }
+            var raw = "" + (c as Char)
+            var reading = true
+            while (reading) {
+                var p = this.stream.peekCode()
+                if (p < 0 || p == '<' as Int) {
+                    reading = false
+                } else {
+                    this.stream.nextCode()
+                    raw = raw + (p as Char)
+                }
+            }
+            var text = decodeEntities(raw)
+            if (!isWhitespaceOnly(text)) {
+                if (this.stack.size() == 0) {
+                    throw "XML: text outside the root element"
+                }
+                return XmlEvent("text", "", "", "", text, mapOf<String, String>(), mapOf<String, String>())
+            }
+        }
+    }
+
+    // The '<' is already consumed. Returns null when the tag is markup that
+    // produces no event (comment, PI, declaration).
+    XmlEvent? parseTag() {
+        var c = this.stream.nextCode()
+        if (c < 0) {
+            throw "XML: unexpected end of document"
+        }
+        if (c == '!' as Int) {
+            return parseBang()
+        }
+        if (c == '?' as Int) {
+            skipPI()
+            return null
+        }
+        if (c == '/' as Int) {
+            var name = readName()
+            skipWhitespace()
+            if (this.stream.nextCode() != '>' as Int) {
+                throw "XML: malformed end tag </" + name + ">"
+            }
+            if (this.stack.size() == 0) {
+                throw "XML: unexpected end tag </" + name + ">"
+            }
+            var local = localNameOf(name)
+            var uri = uriOf(name)
+            var top = this.stack.get(this.stack.size() - 1)
+            if (this.stackNs.get(this.stack.size() - 1) != uri || this.stackLocal.get(this.stack.size() - 1) != local) {
+                throw "XML: end tag </" + name + "> does not match <" + top + ">"
+            }
+            this.stack.remove(this.stack.size() - 1)
+            this.stackNs.remove(this.stackNs.size() - 1)
+            this.stackLocal.remove(this.stackLocal.size() - 1)
+            endScope()
+            return XmlEvent("end", name, local, uri, "", mapOf<String, String>(), mapOf<String, String>())
+        }
+        if (!isNameStart(c)) {
+            throw "XML: expected an element name"
+        }
+        var name = readNameFrom(c)
+        var attrs = readAttributes()
+        skipWhitespace()
+        var close = this.stream.nextCode()
+        if (close == '/' as Int) {
+            if (this.stream.nextCode() != '>' as Int) {
+                throw "XML: malformed empty tag <" + name + "/>"
+            }
+            beginScope()
+            applyNamespaceDeclarations(attrs)
+            var local = localNameOf(name)
+            var uri = uriOf(name)
+            var attrNs = attributeNamespaces(attrs)
+            endScope()
+            return XmlEvent("empty", name, local, uri, "", attrs, attrNs)
+        }
+        if (close == '>' as Int) {
+            beginScope()
+            applyNamespaceDeclarations(attrs)
+            var local = localNameOf(name)
+            var uri = uriOf(name)
+            var attrNs = attributeNamespaces(attrs)
+            this.stack.add(name)
+            this.stackNs.add(uri)
+            this.stackLocal.add(local)
+            return XmlEvent("start", name, local, uri, "", attrs, attrNs)
+        }
+        throw "XML: malformed start tag <" + name + ">"
+    }
+
+    // '<!' is consumed. Comment -> null; CDATA -> text event; DOCTYPE -> null.
+    XmlEvent? parseBang() {
+        var c = this.stream.nextCode()
+        if (c < 0) {
+            throw "XML: unexpected end of document"
+        }
+        if (c == '-' as Int) {
+            if (this.stream.nextCode() != '-' as Int) {
+                throw "XML: malformed comment"
+            }
+            skipCommentBody()
+            return null
+        }
+        if (c == '[' as Int) {
+            var kw = "["
+            var i = 1
+            while (i < 7) {
+                var k = this.stream.nextCode()
+                if (k < 0) {
+                    throw "XML: unsupported declaration"
+                }
+                kw = kw + (k as Char)
+                i = i + 1
+            }
+            if (kw != "[CDATA[") {
+                throw "XML: unsupported declaration <!" + kw
+            }
+            var data = readCData()
+            if (data.length == 0) {
+                return null
+            }
+            return XmlEvent("text", "", "", "", data, mapOf<String, String>(), mapOf<String, String>())
+        }
+        skipDeclaration()
+        return null
+    }
+
+    Map<String, String> readAttributes() {
+        var attrs = mapOf<String, String>()
+        while (true) {
+            skipWhitespace()
+            var c = this.stream.peekCode()
+            if (c < 0) {
+                throw "XML: unterminated start tag"
+            }
+            if (c == '>' as Int || c == '/' as Int) {
+                return attrs
+            }
+            var name = readName()
+            skipWhitespace()
+            if (this.stream.nextCode() != '=' as Int) {
+                throw "XML: expected '=' after attribute " + name
+            }
+            skipWhitespace()
+            var quote = this.stream.nextCode()
+            if (quote != '"' as Int && quote != '\'' as Int) {
+                throw "XML: attribute value must be quoted"
+            }
+            attrs.put(name, decodeEntities(readQuoted(quote)))
+        }
+    }
+
+    String readQuoted(Int quote) {
+        var out = ""
+        while (true) {
+            var c = this.stream.nextCode()
+            if (c < 0) {
+                throw "XML: unterminated attribute value"
+            }
+            if (c == quote) {
+                return out
+            }
+            out = out + (c as Char)
+        }
+    }
+
+    String readName() {
+        var c = this.stream.nextCode()
+        if (c < 0 || !isNameStart(c)) {
+            throw "XML: expected a name"
+        }
+        return readNameFrom(c)
+    }
+
+    String readNameFrom(Int first) {
+        var out = "" + (first as Char)
+        while (true) {
+            var c = this.stream.peekCode()
+            if (c < 0 || !isNameChar(c)) {
+                return out
+            }
+            this.stream.nextCode()
+            out = out + (c as Char)
+        }
+    }
+
+    // --- namespace scope (slice 2.5) ---
+
+    beginScope() {
+        this.nsScopes.add(this.nsPrefixes.size())
+    }
+
+    endScope() {
+        if (this.nsScopes.size() == 0) {
+            return
+        }
+        var n = this.nsScopes.get(this.nsScopes.size() - 1)
+        this.nsScopes.remove(this.nsScopes.size() - 1)
+        while (this.nsPrefixes.size() > n) {
+            this.nsPrefixes.remove(this.nsPrefixes.size() - 1)
+            this.nsUris.remove(this.nsUris.size() - 1)
+        }
+    }
+
+    applyNamespaceDeclarations(Map<String, String> attrs) {
+        var ks = attrs.keys()
+        var i = 0
+        while (i < ks.size) {
+            var n = ks.get(i)
+            var v = attrs.get(n)
+            if (v != null) {
+                if (n == "xmlns") {
+                    this.nsPrefixes.add("")
+                    this.nsUris.add(v)
+                } else if (isXmlnsDeclaration(n)) {
+                    var prefix = n.substring(6, n.length)
+                    if (prefix == "xmlns") {
+                        throw "XML: the 'xmlns' prefix cannot be redeclared"
+                    }
+                    if (prefix == "xml") {
+                        if (v != "http://www.w3.org/XML/1998/namespace") {
+                            throw "XML: the 'xml' prefix is bound to the wrong namespace"
+                        }
+                    } else if (v.length == 0) {
+                        throw "XML: namespace prefix '" + prefix + "' cannot be bound to an empty URI"
+                    }
+                    this.nsPrefixes.add(prefix)
+                    this.nsUris.add(v)
+                }
+            }
+            i = i + 1
+        }
+    }
+
+    Map<String, String> attributeNamespaces(Map<String, String> attrs) {
+        var out = mapOf<String, String>()
+        var ks = attrs.keys()
+        var i = 0
+        while (i < ks.size) {
+            var n = ks.get(i)
+            if (n == "xmlns" || isXmlnsDeclaration(n)) {
+                out.put(n, "http://www.w3.org/2000/xmlns/")
+            } else if (colonAt(n) < 0) {
+                out.put(n, "")
+            } else {
+                out.put(n, uriOf(n))
+            }
+            i = i + 1
+        }
+        return out
+    }
+
+    String lookupNamespace(String prefix) {
+        if (prefix == "xml") {
+            return "http://www.w3.org/XML/1998/namespace"
+        }
+        if (prefix == "xmlns") {
+            return "http://www.w3.org/2000/xmlns/"
+        }
+        var i = this.nsPrefixes.size() - 1
+        while (i >= 0) {
+            if (this.nsPrefixes.get(i) == prefix) {
+                return this.nsUris.get(i)
+            }
+            i = i - 1
+        }
+        if (prefix.length == 0) {
+            return ""
+        }
+        throw "XML: unbound namespace prefix '" + prefix + "'"
+    }
+
+    String localNameOf(String name) {
+        var c = colonAt(name)
+        if (c < 0) {
+            return name
+        }
+        return name.substring(c + 1, name.length)
+    }
+
+    String uriOf(String name) {
+        var c = colonAt(name)
+        if (c < 0) {
+            return lookupNamespace("")
+        }
+        return lookupNamespace(name.substring(0, c))
+    }
+
+    Int colonAt(String name) {
+        var i = 0
+        while (i < name.length) {
+            if (name.charAt(i) == ':') {
+                return i
+            }
+            i = i + 1
+        }
+        return -1
+    }
+
+    Bool isXmlnsDeclaration(String name) {
+        return name.length > 6 && name.charAt(0) == 'x' && name.charAt(1) == 'm'
+            && name.charAt(2) == 'l' && name.charAt(3) == 'n' && name.charAt(4) == 's'
+            && name.charAt(5) == ':'
+    }
+
+    // Body until the closing "-->" (the two opening dashes are consumed).
+    skipCommentBody() {
+        var a = -2
+        var b = -2
+        while (true) {
+            var c = this.stream.nextCode()
+            if (c < 0) {
+                throw "XML: unterminated comment"
+            }
+            if (a == '-' as Int && b == '-' as Int && c == '>' as Int) {
+                return
+            }
+            a = b
+            b = c
+        }
+    }
+
+    // Body until "?>" (the opening '?' is consumed).
+    skipPI() {
+        var prev = -2
+        while (true) {
+            var c = this.stream.nextCode()
+            if (c < 0) {
+                throw "XML: unterminated processing instruction"
+            }
+            if (prev == '?' as Int && c == '>' as Int) {
+                return
+            }
+            prev = c
+        }
+    }
+
+    // '<!D...' onward until the matching '>', tracking an optional internal
+    // subset in `[ ... ]` so a nested '>' does not close it early.
+    skipDeclaration() {
+        var depth = 0
+        while (true) {
+            var c = this.stream.nextCode()
+            if (c < 0) {
+                throw "XML: unterminated declaration"
+            }
+            if (c == '[' as Int) {
+                depth = depth + 1
+            } else if (c == ']' as Int) {
+                depth = depth - 1
+            } else if (c == '>' as Int && depth <= 0) {
+                return
+            }
+        }
+    }
+
+    String readCData() {
+        var out = ""
+        var brackets = 0
+        while (true) {
+            var c = this.stream.nextCode()
+            if (c < 0) {
+                throw "XML: unterminated CDATA"
+            }
+            if (c == ']' as Int) {
+                brackets = brackets + 1
+            } else if (c == '>' as Int && brackets >= 2) {
+                var extra = brackets - 2
+                while (extra > 0) {
+                    out = out + "]"
+                    extra = extra - 1
+                }
+                return out
+            } else {
+                while (brackets > 0) {
+                    out = out + "]"
+                    brackets = brackets - 1
+                }
+                out = out + (c as Char)
+            }
+        }
+    }
+
+    String decodeEntities(String s) {
+        var out = ""
+        var i = 0
+        while (i < s.length) {
+            var ch = s.charAt(i)
+            if (ch != '&') {
+                out = out + ch
+                i = i + 1
+            } else {
+                var j = i + 1
+                while (j < s.length && s.charAt(j) != ';') {
+                    j = j + 1
+                }
+                if (j >= s.length) {
+                    throw "XML: unterminated entity reference"
+                }
+                var name = ""
+                var k = i + 1
+                while (k < j) {
+                    name = name + s.charAt(k)
+                    k = k + 1
+                }
+                out = out + decodeEntity(name)
+                i = j + 1
+            }
+        }
+        return out
+    }
+
+    String decodeEntity(String name) {
+        if (name == "amp") {
+            return "&"
+        }
+        if (name == "lt") {
+            return "<"
+        }
+        if (name == "gt") {
+            return ">"
+        }
+        if (name == "quot") {
+            return "\""
+        }
+        if (name == "apos") {
+            return "'"
+        }
+        if (name.length > 1 && name.charAt(0) == '#') {
+            if (name.charAt(1) == 'x') {
+                return codePointToString(parseDigits(name, 2, 16))
+            }
+            return codePointToString(parseDigits(name, 1, 10))
+        }
+        throw "XML: unknown entity &" + name + ";"
+    }
+
+    Int parseDigits(String s, Int start, Int radix) {
+        var value = 0
+        var i = start
+        while (i < s.length) {
+            var d = digitValue(s.charAt(i))
+            if (d < 0 || d >= radix) {
+                throw "XML: invalid numeric entity"
+            }
+            value = value * radix + d
+            i = i + 1
+        }
+        return value
+    }
+
+    Int digitValue(Char ch) {
+        var c = ch as Int
+        if (c >= 48 && c <= 57) {
+            return c - 48
+        }
+        if (c >= 97 && c <= 102) {
+            return c - 97 + 10
+        }
+        if (c >= 65 && c <= 70) {
+            return c - 65 + 10
+        }
+        return -1
+    }
+
+    String codePointToString(Int cp) {
+        if (cp > 65535) {
+            var x = cp - 65536
+            return "" + ((55296 + (x >> 10)) as Char) + ((56320 + (x & 1023)) as Char)
+        }
+        return "" + (cp as Char)
+    }
+
+    skipWhitespace() {
+        while (true) {
+            var c = this.stream.peekCode()
+            if (c < 0 || !isWs(c)) {
+                return
+            }
+            this.stream.nextCode()
+        }
+    }
+
+    Bool isWs(Int c) {
+        return c == ' ' as Int || c == '\t' as Int || c == '\n' as Int || c == '\r' as Int
+    }
+
+    Bool isWhitespaceOnly(String s) {
+        var i = 0
+        while (i < s.length) {
+            var ch = s.charAt(i)
+            if (ch != ' ' && ch != '\t' && ch != '\n' && ch != '\r') {
+                return false
+            }
+            i = i + 1
+        }
+        return true
+    }
+
+    Bool isNameStart(Int c) {
+        return (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c == '_' as Int || c == ':' as Int
+    }
+
+    Bool isNameChar(Int c) {
+        return isNameStart(c) || (c >= 48 && c <= 57) || c == '-' as Int || c == '.' as Int
+    }
+}

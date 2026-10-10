@@ -85,7 +85,13 @@ public final class TypeMetrics {
         if (an.equals("long") || an.equals("Long") || bn.equals("long") || bn.equals("Long")) {
             return Type.PrimitiveType.LONG;
         }
-        return a instanceof Type.PrimitiveType ? a : Type.PrimitiveType.INT;
+        // #720/§561 (D-KOF-BYTE-ARITH, maintainer 02/10): byte/short/char
+        // promote to int in arithmetic (docs/language-reference/type-system.md
+        // §3.2: double > float > long > int). Returning the LEFT operand here
+        // kept `Byte + Byte` typed Byte, so the JVM boxed the un-narrowed
+        // result and crashed in Byte.valueOf (AIOOBE) while JS/Native returned
+        // the Int. int is the only remaining sub-int-dominant result.
+        return Type.PrimitiveType.INT;
     }
 
     /** Compatibilidade largura para fallback de resolução de construtor. */

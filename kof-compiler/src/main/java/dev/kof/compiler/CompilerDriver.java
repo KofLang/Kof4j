@@ -100,6 +100,20 @@ public class CompilerDriver extends CompilerDriverState {
     }
 
     /**
+     * #739 — REPL incremental: entrega a IR do frontend compartilhado SEM
+     * executar, para que o chamador (KofScript) possa reusar os estáticos
+     * entre linhas. Os WARNING do frontend ficam em {@link #interpreterWarnings()}.
+     */
+    public IRModule prepareRepl(java.util.List<Path> sources, Path moduleRoot) {
+        return CompilerPipeline.prepareForInterpretation(this, sources, moduleRoot);
+    }
+
+    /** WARNING do frontend da última preparação (paridade de diagnósticos, #678). */
+    public java.util.List<Diagnostic> interpreterWarnings() {
+        return interpreterWarnings;
+    }
+
+    /**
      * Fase 1/2 (plataforma): module root para {@code sources} — raiz do
      * projeto (kof.toml) quando existe, senão LCA (comportamento atual).
      * Única fonte da regra; CLI (run/serve) deve passar ESTE root.
@@ -128,8 +142,19 @@ public dev.kof.compiler.nat.NativeProfile nativeProfile() {
 
 
 
-    /** Um caso `test "nome" { }` descoberto em compile-time. */
-    public record TestInfo(String name, String functionName) {
+    /**
+     * Um caso `test "nome" { }` descoberto em compile-time.
+     *
+     * <p>{@code tags} são as tags opcionais declaradas (`test "n", "a", "b" { }`),
+     * expostas para que o runner (`kof test --tag`) saiba quantos testes de um
+     * arquivo casam o filtro ANTES de executá-lo — um arquivo com zero matches
+     * é um SKIP honesto, nunca um PASS (medido: era contado como passed).
+     * Construtor de 2 args mantido para compatibilidade dos consumidores.</p>
+     */
+    public record TestInfo(String name, String functionName, List<String> tags) {
+        public TestInfo(String name, String functionName) {
+            this(name, functionName, List.of());
+        }
     }
 
     /** Testes descobertos na última compilação (ordem de declaração). */

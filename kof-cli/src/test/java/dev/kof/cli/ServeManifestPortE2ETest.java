@@ -84,7 +84,7 @@ class ServeManifestPortE2ETest {
             try {
                 if (get(port, "/api/ping").code == 200) return true;
             } catch (IOException e) {
-                Thread.sleep(500);
+                CliAwaitFixture.pause(500);
             }
         }
         return false;

@@ -1,0 +1,421 @@
+package image
+
+import image.Image
+import image.Vp8
+import image.Vp8Probs
+import image.Vp8ModeProbs
+
+// kof.image — VP8 (lossy WebP) frame header parser (RFC 6386 §9/§19).
+//
+// `Vp8Frame(frame)` reads a `VP8 ` frame payload (from its 3-byte frame tag)
+// up to the end of the frame header, exposing every field the token decoder
+// needs: dimensions, loop-filter settings, quantizer indices, the (possibly
+// updated) coefficient probabilities and the token-partition layout.
+//
+// `vp8FrameFromWebp(file)` validates the RIFF/`WEBP` envelope and extracts the
+// single `VP8 ` chunk. A malformed stream throws a `String` beginning with
+// `IMAGE:` — never a silent partial parse. Pure Kof, all targets; library-first
+// (no compiler change). Slice 2 of the pure-Kof VP8 chain
+// (`D-WEBP-LOSSY-PURE-KOF`): it parses, it does not yet reconstruct.
+//
+// Modeled as a class with a single-argument constructor (not a wide record):
+// the riscv64 cross backend currently mis-handles calls with >= 8 stack
+// arguments (see `known-bugs`), so the parser keeps every call within the
+// verified arity.
+
+class Vp8Frame {
+    Int[] frame
+    Int width
+    Int height
+    Int version
+    Int colorSpace
+    Int clampType
+    Int segmentEnabled
+    Int updateSegmentMap
+    Int updateSegmentData
+    Int segmentAbs
+    Int[] segmentQuant
+    Int[] segmentFilter
+    Int[] segmentTreeProbs
+    Int filterType
+    Int loopFilterLevel
+    Int sharpnessLevel
+    Int loopFilterDeltaEnabled
+    Int[] refLfDelta
+    Int[] modeLfDelta
+    Int tokenPartitions
+    Int firstPartitionSize
+    Int yAcQi
+    Int yDcDelta
+    Int y2DcDelta
+    Int y2AcDelta
+    Int uvDcDelta
+    Int uvAcDelta
+    Int refreshEntropy
+    Int mbNoSkipCoeff
+    Int probSkipFalse
+    Int[] coeffProbs
+    Int headerBytes
+    Int mbCols
+    Int mbRows
+    Int[] yModes
+    Int[] uvModes
+    Int[] bModes
+    Int[] segmentIds
+    Int[] skipCoeffs
+    Int modeBytes
+    Vp8Bool decoder
+
+    constructor(Int[] frame) {
+        need(frame, 3, "VP8")
+        var tag = (frame[0] & 255) | ((frame[1] & 255) << 8) | ((frame[2] & 255) << 16)
+        var isKey = (tag & 1) == 0
+        this.version = (tag >> 1) & 7
+        this.firstPartitionSize = (tag >> 5) & 0x7FFFF
+        if (!isKey) {
+            throw "IMAGE: VP8 interframe is not supported"
+        }
+        if (this.version > 3) {
+            throw "IMAGE: unsupported VP8 version " + this.version
+        }
+        need(frame, 10 + this.firstPartitionSize, "VP8")
+        if (frame[3] != 157 || frame[4] != 1 || frame[5] != 42) {
+            throw "IMAGE: bad VP8 start code"
+        }
+        this.width = le16(frame, 6) & 0x3FFF
+        this.height = le16(frame, 8) & 0x3FFF
+        if (this.width == 0 || this.height == 0) {
+            throw "IMAGE: bad VP8 dimensions"
+        }
+        this.frame = frame
+        parse()
+    }
+
+    parse() {
+        var d = Vp8Bool(vp8Slice(this.frame, 10, this.firstPartitionSize))
+        this.decoder = d
+        this.colorSpace = d.bit(128)
+        this.clampType = d.bit(128)
+        parseSegmentation(d)
+        this.filterType = d.bit(128)
+        this.loopFilterLevel = d.literal(6)
+        this.sharpnessLevel = d.literal(3)
+        parseLoopFilterDelta(d)
+        this.tokenPartitions = 1 << d.literal(2)
+        this.yAcQi = d.literal(7)
+        this.yDcDelta = d.signedOrZero(4)
+        this.y2DcDelta = d.signedOrZero(4)
+        this.y2AcDelta = d.signedOrZero(4)
+        this.uvDcDelta = d.signedOrZero(4)
+        this.uvAcDelta = d.signedOrZero(4)
+        this.refreshEntropy = d.bit(128)
+        this.coeffProbs = vp8CoeffProbs(d)
+        this.mbNoSkipCoeff = d.bit(128)
+        this.probSkipFalse = 0
+        if (this.mbNoSkipCoeff == 1) {
+            this.probSkipFalse = d.literal(8)
+        }
+        this.headerBytes = d.bytePosition()
+        this.parseModes()
+    }
+
+    // Reads the key-frame macroblock prediction records from the first data
+    // partition (RFC 6386 §10/§11): per-macroblock segment id, `mb_skip_coeff`
+    // and the intra prediction modes (luma 16x16, the 16 luma subblock modes
+    // when `B_PRED`, and the chroma mode). Pure Kof, all targets.
+    parseModes() {
+        var d = this.decoder
+        this.mbCols = (this.width + 15) >> 4
+        this.mbRows = (this.height + 15) >> 4
+        var n = this.mbCols * this.mbRows
+        this.yModes = new Int[n]
+        this.uvModes = new Int[n]
+        this.bModes = new Int[n * 16]
+        this.segmentIds = new Int[n]
+        this.skipCoeffs = new Int[n]
+        var aboveY = new Int[this.mbCols]
+        var aboveB = new Int[this.mbCols * 16]
+        var leftY = 0
+        var leftB = new Int[16]
+        var yTree = vp8KfYModeTree()
+        var uvTree = vp8KfUvModeTree()
+        var bTree = vp8KfBModeTree()
+        var yProbs = vp8KfYModeProbs()
+        var uvProbs = vp8KfUvModeProbs()
+        var bProbs = vp8KfBModeProbs()
+        var mb = 0
+        while (mb < n) {
+            var col = mb % this.mbCols
+            if (col == 0) {
+                leftY = 0
+                leftB = new Int[16]
+            }
+            var segId = 0
+            if (this.updateSegmentMap == 1) {
+                segId = vp8SegmentId(d, this.segmentTreeProbs)
+            }
+            var skip = 0
+            if (this.mbNoSkipCoeff == 1) {
+                skip = d.bit(this.probSkipFalse)
+            }
+            var ym = vp8Tree(d, yTree, yProbs, 0)
+            var base = mb * 16
+            if (ym == 4) {
+                var i = 0
+                while (i < 16) {
+                    var a = 0
+                    if (i < 4) {
+                        if (aboveY[col] == 4) {
+                            a = aboveB[col * 16 + i + 12]
+                        } else {
+                            a = vp8LumaToSub(aboveY[col])
+                        }
+                    } else {
+                        a = this.bModes[base + i - 4]
+                    }
+                    var l = 0
+                    if ((i & 3) == 0) {
+                        if (leftY == 4) {
+                            l = leftB[i + 3]
+                        } else {
+                            l = vp8LumaToSub(leftY)
+                        }
+                    } else {
+                        l = this.bModes[base + i - 1]
+                    }
+                    this.bModes[base + i] = vp8Tree(d, bTree, bProbs, (a * 10 + l) * 9)
+                    i = i + 1
+                }
+            }
+            var uv = vp8Tree(d, uvTree, uvProbs, 0)
+            this.yModes[mb] = ym
+            this.uvModes[mb] = uv
+            this.segmentIds[mb] = segId
+            this.skipCoeffs[mb] = skip
+            aboveY[col] = ym
+            var j = 0
+            while (j < 16) {
+                aboveB[col * 16 + j] = this.bModes[base + j]
+                leftB[j] = this.bModes[base + j]
+                j = j + 1
+            }
+            leftY = ym
+            mb = mb + 1
+        }
+        this.modeBytes = d.bytePosition()
+    }
+
+    parseSegmentation(Vp8Bool d) {
+        this.segmentEnabled = d.bit(128)
+        this.updateSegmentMap = 0
+        this.updateSegmentData = 0
+        this.segmentAbs = 0
+        this.segmentQuant = new Int[4]
+        this.segmentFilter = new Int[4]
+        this.segmentTreeProbs = new Int[3]
+        this.segmentTreeProbs[0] = 255
+        this.segmentTreeProbs[1] = 255
+        this.segmentTreeProbs[2] = 255
+        if (this.segmentEnabled == 0) {
+            return
+        }
+        this.updateSegmentMap = d.bit(128)
+        this.updateSegmentData = d.bit(128)
+        if (this.updateSegmentData == 1) {
+            this.segmentAbs = d.bit(128)
+            var i = 0
+            while (i < 4) {
+                this.segmentQuant[i] = d.signedOrZero(7)
+                i = i + 1
+            }
+            i = 0
+            while (i < 4) {
+                this.segmentFilter[i] = d.signedOrZero(6)
+                i = i + 1
+            }
+        }
+        if (this.updateSegmentMap == 1) {
+            var i = 0
+            while (i < 3) {
+                this.segmentTreeProbs[i] = vp8MaybeByte(d)
+                i = i + 1
+            }
+        }
+    }
+
+    parseLoopFilterDelta(Vp8Bool d) {
+        this.loopFilterDeltaEnabled = d.bit(128)
+        this.refLfDelta = new Int[4]
+        this.modeLfDelta = new Int[4]
+        if (this.loopFilterDeltaEnabled == 0) {
+            return
+        }
+        var deltaUpdate = d.bit(128)
+        if (deltaUpdate == 0) {
+            return
+        }
+        var i = 0
+        while (i < 4) {
+            this.refLfDelta[i] = d.signedOrZero(6)
+            i = i + 1
+        }
+        i = 0
+        while (i < 4) {
+            this.modeLfDelta[i] = d.signedOrZero(6)
+            i = i + 1
+        }
+    }
+
+    Int width() { return this.width }
+    Int height() { return this.height }
+    Int version() { return this.version }
+    Int colorSpace() { return this.colorSpace }
+    Int clampType() { return this.clampType }
+    Int segmentEnabled() { return this.segmentEnabled }
+    Int updateSegmentMap() { return this.updateSegmentMap }
+    Int updateSegmentData() { return this.updateSegmentData }
+    Int segmentAbs() { return this.segmentAbs }
+    Int[] segmentQuant() { return this.segmentQuant }
+    Int[] segmentFilter() { return this.segmentFilter }
+    Int[] segmentTreeProbs() { return this.segmentTreeProbs }
+    Int filterType() { return this.filterType }
+    Int loopFilterLevel() { return this.loopFilterLevel }
+    Int sharpnessLevel() { return this.sharpnessLevel }
+    Int loopFilterDeltaEnabled() { return this.loopFilterDeltaEnabled }
+    Int[] refLfDelta() { return this.refLfDelta }
+    Int[] modeLfDelta() { return this.modeLfDelta }
+    Int tokenPartitions() { return this.tokenPartitions }
+    Int firstPartitionSize() { return this.firstPartitionSize }
+    Int yAcQi() { return this.yAcQi }
+    Int yDcDelta() { return this.yDcDelta }
+    Int y2DcDelta() { return this.y2DcDelta }
+    Int y2AcDelta() { return this.y2AcDelta }
+    Int uvDcDelta() { return this.uvDcDelta }
+    Int uvAcDelta() { return this.uvAcDelta }
+    Int refreshEntropy() { return this.refreshEntropy }
+    Int mbNoSkipCoeff() { return this.mbNoSkipCoeff }
+    Int probSkipFalse() { return this.probSkipFalse }
+    Int[] coeffProbs() { return this.coeffProbs }
+    Int headerBytes() { return this.headerBytes }
+    Int mbCols() { return this.mbCols }
+    Int mbRows() { return this.mbRows }
+    Int mbCount() { return this.yModes.length }
+    Int yMode(Int mb) { return this.yModes[mb] }
+    Int uvMode(Int mb) { return this.uvModes[mb] }
+    Int segmentId(Int mb) { return this.segmentIds[mb] }
+    Int skipCoeff(Int mb) { return this.skipCoeffs[mb] }
+    Int bMode(Int mb, Int i) { return this.bModes[mb * 16 + i] }
+    Int modeBytes() { return this.modeBytes }
+    Int[] payload() { return this.frame }
+}
+
+// Extracts and parses the `VP8 ` frame out of a RIFF/WEBP container.
+Vp8Frame vp8FrameFromWebp(Int[] file) {
+    need(file, 12, "WEBP")
+    if (!matchesAscii(file, 0, "RIFF") || !matchesAscii(file, 8, "WEBP")) {
+        throw "IMAGE: bad WEBP container"
+    }
+    var off = 12
+    while (off + 8 <= file.length) {
+        var size = le32(file, off + 4)
+        if (size < 0 || off + 8 + size > file.length) {
+            throw "IMAGE: malformed WEBP chunk"
+        }
+        if (matchesAscii(file, off, "VP8 ")) {
+            return Vp8Frame(vp8Slice(file, off + 8, size))
+        }
+        off = off + 8 + size + (size & 1)
+    }
+    throw "IMAGE: WEBP has no VP8 chunk"
+}
+
+// Reads the 4x8x3x11 coefficient probabilities: start from the defaults and
+// apply every update flagged with its fixed update probability (RFC §13.4).
+Int[] vp8CoeffProbs(Vp8Bool d) {
+    var defaults = vp8DefaultCoeffProbs()
+    var update = vp8CoeffUpdateProbs()
+    var probs = new Int[1056]
+    var i = 0
+    while (i < 1056) {
+        var p = defaults.get(i)
+        if (d.bit(update.get(i)) == 1) {
+            p = d.literal(8)
+        }
+        probs[i] = p
+        i = i + 1
+    }
+    return probs
+}
+
+// A one-bit flag; if set, an 8-bit value, otherwise the default 255 (RFC §9.3).
+Int vp8MaybeByte(Vp8Bool d) {
+    if (d.bit(128) == 1) {
+        return d.literal(8)
+    }
+    return 255
+}
+
+Int[] vp8Slice(Int[] a, Int at, Int len) {
+    if (at < 0 || len < 0 || at + len > a.length) {
+        throw "IMAGE: truncated VP8 payload"
+    }
+    var out = new Int[len]
+    var i = 0
+    while (i < len) {
+        out[i] = a[at + i]
+        i = i + 1
+    }
+    return out
+}
+
+// Walks a VP8 bool tree (RFC 6386 §8 `bool_read_tree`): `tree` holds the
+// flattened branch/leaf table (a negative entry is a leaf, `value = -entry`)
+// and `probs` the branch probabilities, starting at `at`.
+Int vp8Tree(Vp8Bool d, List<Int> tree, List<Int> probs, Int at) {
+    var i = 0
+    while (true) {
+        var bit = d.bit(probs.get(at + (i >> 1)))
+        i = tree.get(i + bit)
+        if (i <= 0) {
+            return -i
+        }
+    }
+}
+
+// Decodes one macroblock's segment id (RFC 6386 §10).
+Int vp8SegmentId(Vp8Bool d, Int[] probs) {
+    if (d.bit(probs[0]) == 1) {
+        return 2 + d.bit(probs[2])
+    }
+    return d.bit(probs[1])
+}
+
+// The subblock mode implied by a 16x16 luma mode, for subblock-mode context
+// (RFC 6386 §11.3 point 4).
+Int vp8LumaToSub(Int m) {
+    if (m == 1) {
+        return 2
+    }
+    if (m == 2) {
+        return 3
+    }
+    if (m == 3) {
+        return 1
+    }
+    return 0
+}
+
+// `kf_ymode_tree` (RFC 6386 §11.2).
+List<Int> vp8KfYModeTree() {
+    return listOf(-4, 2, 4, 6, 0, -1, -2, -3)
+}
+
+// `uv_mode_tree` (RFC 6386 §11.4).
+List<Int> vp8KfUvModeTree() {
+    return listOf(0, 2, -1, 4, -2, -3)
+}
+
+// `bmode_tree` (RFC 6386 §11.2).
+List<Int> vp8KfBModeTree() {
+    return listOf(0, 2, -1, 4, -2, 6, 8, 12, -3, 10, -5, -6, -4, 14, -7, 16, -8, -9)
+}

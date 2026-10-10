@@ -50,6 +50,19 @@ public final class FfiStructLayout {
                 && PKG.equals(ct.packageName()) && "array".equals(ct.name());
     }
 
+    /** D6-3 / D-R3-BUFFER (fatias A2 + B): `Buffer(U8)` INOUT crosses as a C
+     *  `unsigned char*` pointing at the buffer payload (object offset 24). The
+     *  marker carries no element (U8 only). Binds on the native targets — x86-64
+     *  (A2) and cross riscv64/aarch64 (B, 29/09); Android/Script stay {@code FFI001}. */
+    public static Type bufferPtrType() {
+        return new Type.ClassType(PKG, "bufferptr", List.of());
+    }
+
+    public static boolean isBufferPtr(Type t) {
+        return t instanceof Type.ClassType ct
+                && PKG.equals(ct.packageName()) && "bufferptr".equals(ct.name());
+    }
+
     /** Element char of an array-ptr marker, or null when {@code t} is not one. */
     public static Character arrayPtrElem(Type t) {
         if (!isArrayPtr(t)) return null;
@@ -62,6 +75,7 @@ public final class FfiStructLayout {
             case 'f' -> Type.PrimitiveType.FLOAT;
             case 'd' -> Type.PrimitiveType.DOUBLE;
             case 'b' -> Type.PrimitiveType.BOOL;
+            case 'S' -> BuiltinTypes.STRING;   // D-MEM-FFI-CROSS-FULL face 2
             default -> Type.PrimitiveType.INT;
         };
     }
@@ -116,9 +130,16 @@ public final class FfiStructLayout {
     }
 
     // ── x86-64 SysV bindability (register path only) ─────────────────────
+    //
+    // M1: um eightbyte SSE empacotado (mais de um campo float/double) passou a
+    // ser emitido bitwise (shift/or em %rax → movq %xmm) — a forma x86-64 da
+    // face HFA (VF: `record VF(Float, Float)`). O corte é o MESMO do cross
+    // (`crossHomogeneousFloat`, ≤ 2 campos): um struct homogêneo-flutuante com
+    // > 2 campos (HFA>2) fica FFI001 honesto em x86-64 também, para manter
+    // x86-64 e cross alinhados (no cross as duas ABIs divergem em HFA>2).
 
     /** A struct whose SSE eightbyte carries more than one field needs packing
-     *  we do not emit yet — honest gap. */
+     *  beyond the M1 homogeneous-float form — honest gap. */
     private static boolean sseEightbytesAreSingleField(Type structType) {
         List<FieldInfo> fs = fields(structType);
         AbiLayout.Layout l = layout(AbiLayout.Abi.SYSV_X86_64, structType);
@@ -134,13 +155,21 @@ public final class FfiStructLayout {
         return true;
     }
 
+    /** True when the struct's SSE eightbytes are emittable on the x86-64 register
+     *  path: each carries a SINGLE field, or the struct is the homogeneous-float
+     *  ≤ 2 form (the x86-64 mirror of the cross HFA face — M1, VF). HFA>2 stays
+     *  FFI001 (cross-aligned); a mixed integer+float SSE eightbyte stays FFI001. */
+    private static boolean x86SseBindable(Type structType) {
+        return crossHomogeneousFloat(structType) || sseEightbytesAreSingleField(structType);
+    }
+
     /** True when a single struct is bindable as an x86-64 RETURN value in the
-     *  register path (≤ 16 B, no MEMORY, single-field SSE eightbytes). The
-     *  sret path (&gt; 16 B) is a later slice. */
+     *  register path (≤ 16 B, no MEMORY, emittable SSE eightbytes). The sret
+     *  path (&gt; 16 B) is a later slice. */
     public static boolean x86RegisterOnly(Type structType) {
         AbiLayout.Layout l = layout(AbiLayout.Abi.SYSV_X86_64, structType);
         if (l.byMemory() || l.size() > 16) return false;
-        return sseEightbytesAreSingleField(structType);
+        return x86SseBindable(structType);
     }
 
     /** True when a single struct is bindable as an x86-64 sret RETURN: larger
@@ -164,6 +193,70 @@ public final class FfiStructLayout {
         return true;
     }
 
+    /**
+     * D-MEMORY-SAFETY M1 unidade-1 (06/10): struct HOMOGÊNEO-FLUTUANTE de ≤ 2
+     * campos ≤ 16 B — binda no register path FP dos dois cross. As duas ABIs
+     * concordam no corte medido ({@code AbiLayoutTest} golden): LP6D achata
+     * ≤ 2 campos em SSE por campo ({@code [SSE]} / {@code [SSE,SSE]}); AAPCS64
+     * é HFA n ≤ 4 e entrega campo-a-campo em v0..v3 — o MESMO ordinal por
+     * campo. Misto (float+int) diverge (achado vs eightword INTEGER único) e
+     * 3–4 campos estouram os 16 B (BYREF — face própria) — ambos ficam em
+     * FFI001 honesto (R6).
+     */
+    public static boolean crossHomogeneousFloat(Type structType) {
+        List<FieldInfo> fs = fields(structType);
+        if (fs.isEmpty() || fs.size() > 2) return false;
+        int size = 0;
+        for (FieldInfo f : fs) {
+            if (f.scalar() != AbiLayout.Scalar.DOUBLE && f.scalar() != AbiLayout.Scalar.FLOAT) {
+                return false;
+            }
+            size += f.scalar() == AbiLayout.Scalar.FLOAT ? 4 : 8;
+        }
+        return size <= 16;
+    }
+
+    /** Float field of a {@link #crossHomogeneousFloat} struct → its scalar char
+     *  ({@code 'f'}/{@code 'd'}) at field index {@code fi}. */
+    public static char crossHfaFieldChar(Type structType, int fi) {
+        return fields(structType).get(fi).scalar() == AbiLayout.Scalar.FLOAT ? 'f' : 'd';
+    }
+
+    /** Emit the load of HFA field {@code fi} (float/double bits) from the Kof
+     *  object ({@code 16 + 8·slot}) into {@code dst} — the soft-float-safe form
+     *  (l.wu/l.d of the raw slot; NEVER an FP load of the object memory). */
+    public static void emitRiscvHfaFieldLoad(StringBuilder sb, Type structType, int fi,
+                                             String base, String dst) {
+        FieldInfo f = fields(structType).get(fi);
+        int off = 16 + 8 * f.kofSlot();
+        boolean flt = f.scalar() == AbiLayout.Scalar.FLOAT;
+        // O slot Kof guarda os bits do Float nos 32 BAIXOS (mesma forma do
+        // caminho escalar: `ld t2, slot` → `fmv.w.x fa{n}, t2`); Double = 8 B.
+        // Leitura INTEGER (l.w/l.d) — nunca load FP do objeto (soft-float-safe).
+        sb.append(flt ? "    lw " : "    ld ").append(dst).append(", ")
+          .append(off).append("(").append(base).append(")\n");
+    }
+
+    /** True when a single struct is bindable as a cross (riscv64/aarch64) RETURN
+     *  in the **memory path** (sret) — larger than 16 B, so the C writes it
+     *  through the ABI's indirect-result pointer. Unlike x86-64 sret (a hidden
+     *  INTEGER argument in {@code rdi}), the two cross ABIs diverge and the
+     *  emitter must branch on the target: RISC-V LP64 passes the pointer in
+     *  {@code a0} (first real arg in {@code a1}), AAPCS64 in {@code x8} (first
+     *  real arg still {@code x0}). Measured 30/09 with cross-gcc. */
+    public static boolean crossMemoryReturn(Target t, Type structType) {
+        return crossByMemory(t, structType);
+    }
+
+    /** True when a cross struct travels through memory (BYREF) — as a by-value
+     *  PARAMETER passed by reference or as a RETURN via the sret pointer. Fields
+     *  may be mixed; the emitter copies raw bytes against the C layout. Measured
+     *  30/09 with cross-gcc: both riscv64 and aarch64 pass a &gt; 16 B struct
+     *  param as a pointer in `a0`/`x0`. */
+    public static boolean crossByMemory(Target t, Type structType) {
+        return layout(abiFor(t), structType).byMemory();
+    }
+
     /** Number of eightbyte words a cross struct occupies (INTEGER-only, from
      *  {@code crossIntRegisterOnly}). Integer fields are ABI-independent in
      *  size/offset, so the SysV layout is reused for the word count. */
@@ -176,11 +269,52 @@ public final class FfiStructLayout {
      *  registers — unlike scalars, which may spill (the shim handles it).
      *  Simulates LP64/AAPCS64 register counting in formal order. */
     public static boolean crossBindable(List<Type> paramTypes) {
-        int nInt = 0, nFlt = 0;
+        return crossBindable(paramTypes, 0);
+    }
+
+    /** As {@link #crossBindable(List)} but {@code intReserved} INTEGER registers
+     *  are already consumed — 1 for the RISC-V LP64 sret pointer (memory-path
+     *  return, {@link #crossMemoryReturn}); AAPCS64 uses x8 but reserving
+     *  conservatively keeps the single shared gate honest (never over-binds). */
+    public static boolean crossBindable(List<Type> paramTypes, int intReserved) {
+        int nInt = intReserved, nFlt = 0;
         for (Type t : paramTypes) {
+            if (isBufferPtr(t)) {
+                // #651 fatia B: Buffer(U8)→ptr é um ponteiro INTEGER (um ordinal),
+                // como o array-ptr do x86 — LP64/AAPCS64.
+                if (nInt >= 8) return false;
+                nInt++;
+                continue;
+            }
+            if (isArrayPtr(t)) {
+                // D-MEM-FFI-CROSS-FULL: array escalar `T[]`→ptr é um ponteiro
+                // INTEGER (um ordinal) — mesma forma do buffer-ptr no LP64/AAPCS64.
+                if (nInt >= 8) return false;
+                nInt++;
+                continue;
+            }
             if (isStructType(t)) {
+                // D-MEM-FFI-CROSS-FULL face 3 estendida: struct > 16 B (BYREF)
+                // viaja como UM ponteiro INTEGER (medido 30/09: riscv64 e aarch64
+                // passam ambos o param por referência em `a0`/`x0`).
                 AbiLayout.Layout l = layout(AbiLayout.Abi.RISCV64, t);
-                if (l.byMemory() || l.size() > 16 || l.classes().isEmpty()) return false;
+                if (l.byMemory()) {
+                    if (nInt >= 8) return false;
+                    nInt++;
+                    continue;
+                }
+                if (crossHomogeneousFloat(t)) {
+                    // D-MEMORY-SAFETY M1 unidade-1 (06/10): cada campo flutuante
+                    // = um ordinal FP próprio (LP64D achata ≤ 2 campos em
+                    // [SSE(,SSE)]; AAPCS64 HFA n ≤ 4 entrega campo-a-campo em
+                    // v0..v3). Medido no golden do AbiLayoutTest; o 3o/4o campo
+                    // duplo estouraria os 16 B (BYREF, face própria).
+                    int nf = fields(t).size();
+                    if (nFlt + nf > 8) return false;
+                    nFlt += nf;
+                    continue;
+                }
+                if (l.size() > 16 || l.classes().isEmpty()) return false;
                 for (AbiLayout.ArgClass c : l.classes()) {
                     if (c != AbiLayout.ArgClass.INTEGER) return false;
                     if (nInt >= 8) return false;
@@ -196,8 +330,9 @@ public final class FfiStructLayout {
     }
 
     /** True when the whole parameter list is bindable on x86-64 (scalars may
-     *  spill; structs must fit entirely in registers and use single-field SSE
-     *  eightbytes). Simulates SysV register counting in formal order. */
+     *  spill; structs must fit entirely in registers — each eightbyte is
+     *  INTEGER or an emittable SSE, incl. the packed homogeneous-float form).
+     *  Simulates SysV register counting in formal order. */
     public static boolean x86Bindable(List<Type> paramTypes) {
         return x86Bindable(paramTypes, 0);
     }
@@ -213,8 +348,14 @@ public final class FfiStructLayout {
                 nInt++;
                 continue;
             }
+            if (isBufferPtr(t)) {
+                // D6-3/A2: Buffer(U8)→ptr é um ponteiro INTEGER (como um escalar,
+                // pode derramar para a pilha quando passam de 6 ordinais).
+                nInt++;
+                continue;
+            }
             if (isStructType(t)) {
-                if (!sseEightbytesAreSingleField(t)) return false;
+                if (!x86SseBindable(t)) return false;
                 AbiLayout.Layout l = layout(AbiLayout.Abi.SYSV_X86_64, t);
                 if (l.byMemory()) return false;
                 for (AbiLayout.ArgClass c : l.classes()) {
@@ -253,18 +394,33 @@ public final class FfiStructLayout {
         List<FieldInfo> fs = fields(structType);
         int lo = e * 8;
         if (sse) {
+            List<FieldInfo> in = new ArrayList<>();
             for (FieldInfo f : fs) {
-                if (f.cOffset() < lo + 8 && f.cOffset() + f.scalar().size > lo) {
-                    int off = 16 + 8 * f.kofSlot();
-                    if (f.scalar().size == 8) {
-                        sb.append("    movq ").append(off).append("(").append(base).append("), %rax\n");
-                        sb.append("    movq %rax, ").append(dst).append("\n");
-                    } else {
-                        sb.append("    movd ").append(off).append("(").append(base).append("), ").append(dst).append("\n");
-                    }
-                    return;
-                }
+                if (f.cOffset() < lo + 8 && f.cOffset() + f.scalar().size > lo) in.add(f);
             }
+            if (in.size() == 1) {
+                FieldInfo f = in.get(0);
+                int off = 16 + 8 * f.kofSlot();
+                if (f.scalar().size == 8) {
+                    sb.append("    movq ").append(off).append("(").append(base).append("), %rax\n");
+                    sb.append("    movq %rax, ").append(dst).append("\n");
+                } else {
+                    sb.append("    movd ").append(off).append("(").append(base).append("), ").append(dst).append("\n");
+                }
+                return;
+            }
+            // Packed homogeneous-float eightbyte: assemble the raw float/double
+            // bits in %rax (shift/or, as the INTEGER path) and move them into the
+            // xmm register — SSE is bitwise, so no FP conversion happens.
+            sb.append("    xorq %rax, %rax\n");
+            for (FieldInfo f : in) {
+                int off = 16 + 8 * f.kofSlot();
+                int shift = (f.cOffset() - lo) * 8;
+                sb.append("    movl ").append(off).append("(").append(base).append("), %r11d\n");
+                if (shift > 0) sb.append("    shlq $").append(shift).append(", %r11\n");
+                sb.append("    orq %r11, %rax\n");
+            }
+            sb.append("    movq %rax, ").append(dst).append("\n");
             return;
         }
         sb.append("    xorq %rax, %rax\n");

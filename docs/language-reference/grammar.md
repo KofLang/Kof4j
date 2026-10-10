@@ -52,6 +52,7 @@ top-level-declaration =
     | test-declaration
     | application-declaration
     | extern-declaration
+    | foreign-module-declaration
     | type-declaration
     | function-declaration ;
 `
@@ -115,7 +116,8 @@ enum-declaration = modifiers , "enum" , identifier ,
 `
 
 **Enums are just constants** — no body, no methods, no constructors, no
-fields (`enum E { A String f(){…} }` → `PARSE032`, *probe*). At runtime the
+fields (`enum E { A String f(){…} }` → `PARSE032`, *probe*); a clause before
+the `{` (`enum Cor extends Tudo { A, B }`) is a single `PARSE034` (§687). At runtime the
 value of an enum **is** the name (`String`) — see [classes.md](classes.md).
 
 `ebnf
@@ -156,6 +158,19 @@ extern-declaration = "extern" , [ string-literal ] , identifier ,
    signature since R3 18/09; JS host runner binds scalars too (3.6.F2/F3, 18/09).
    FFI001 = non-scalar JVM/native; FFI002 = non-scalar JS; browser = runtime R7). Grammar
    ACCEPTS any arity; CompilerPipeline.isExternBound rejects non-scalar at compile time. *)
+
+foreign-module-declaration =
+      "foreign" , "module" , identifier , "{" ,
+      { module-header | extern-declaration } , "}" ;          (* `Parser.parseForeignModule` *)
+module-header = ( "library" , string-literal
+                | "abi" , identifier
+                | "ownership" , identifier ) , [ ";" ] ;
+(* Connector ecosystem `D-CONNECTORS` (plan §9.16 slice A): sugar over the
+   EXISTING FFI path — it desugars to plain `extern` declarations sharing the
+   module `library` (no new ABI engine, rule 54). `library` is required (else
+   PARSE097); `ownership` is validated against the Core vocabulary
+   `owned|borrowed|shared|opaque|immutable|mutable` (else PARSE099). `foreign`
+   and `module` are contextual — they stay identifiers outside this header. *)
 `
 
 The **three return forms** are valid and equivalent:

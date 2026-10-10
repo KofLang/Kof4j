@@ -1,0 +1,302 @@
+import kfvm.versions
+import kfvm.platform
+import kfvm.github
+import kfvm.installer
+import kfvm.store
+import kfvm.cli
+import kfvm.system
+import kof.io
+import kof.uuid
+
+test "compare orders numeric fields" {
+    assert(Versions.compare("0.4.10-beta", "0.4.9-beta") > 0)
+    assert(Versions.compare("0.10.0", "0.9.9") > 0)
+    assert(Versions.compare("1.0.0", "1.0.0") == 0)
+}
+
+test "compare breaks ties by suffix" {
+    assert(Versions.compare("0.5.0-beta", "0.5.0-beta+2026.09.25") < 0)
+}
+
+test "sortAscending" {
+    var sorted = Versions.sortAscending(listOf("0.10.0", "0.4.10-beta", "0.4.9-beta", "0.5.0-beta"))
+    assert(sorted.get(0) == "0.4.9-beta")
+    assert(sorted.get(1) == "0.4.10-beta")
+    assert(sorted.get(2) == "0.5.0-beta")
+    assert(sorted.get(3) == "0.10.0")
+}
+
+test "compare puts a release after its pre-releases" {
+    assert(Versions.compare("0.4.9", "0.4.9-beta") > 0)
+    assert(Versions.compare("0.4.9-beta", "0.4.9") < 0)
+}
+
+List<Candidate> remote() {
+    return listOf(
+        Candidate("0.5.0-beta+2026.09.25", true),
+        Candidate("0.5.0-beta+2026.09.26", true),
+        Candidate("0.4.9-beta", false),
+        Candidate("0.4.10-beta", false),
+        Candidate("0.4.8-beta", false),
+        Candidate("0.3.9-beta", false),
+        Candidate("0.3.20-beta", false))
+}
+
+test "select channels" {
+    assert(Selector.select("lts", remote()) == "0.4.10-beta")
+    assert(Selector.select("latest", remote()) == "0.4.10-beta")
+    assert(Selector.select("nightly", remote()) == "0.5.0-beta+2026.09.26")
+    assert(Selector.isChannel("lts"))
+}
+
+test "select exact version" {
+    assert(Selector.select("0.4.9-beta", remote()) == "0.4.9-beta")
+    assert(Selector.select("0.5.0-beta+2026.09.25", remote()) == "0.5.0-beta+2026.09.25")
+    var cs = remote()
+    cs.add(Candidate("0.4.9", false))
+    assert(Selector.select("0.4.9", cs) == "0.4.9")
+}
+
+test "select newest version matching a prefix" {
+    assert(Selector.select("0.4", remote()) == "0.4.10-beta")
+    assert(Selector.select("v0.4", remote()) == "0.4.10-beta")
+    assert(Selector.select("0.4.9", remote()) == "0.4.9-beta")
+    assert(Selector.select("0.3", remote()) == "0.3.20-beta")
+    assert(Selector.select("0.5", remote()) == "0.5.0-beta+2026.09.26")
+    assert(Selector.select("0.5.0", remote()) == "0.5.0-beta+2026.09.26")
+    assert(Selector.select("0.5.0-beta", remote()) == "0.5.0-beta+2026.09.26")
+}
+
+test "select prefers a release over its pre-releases" {
+    var cs = remote()
+    cs.add(Candidate("0.4.10", false))
+    assert(Selector.select("0.4", cs) == "0.4.10")
+}
+
+test "select rejects unknown versions and partial numbers" {
+    assert(Selector.select("9.9.9", remote()) == "")
+    assert(Selector.select("0.4.1", remote()) == "")
+    assert(Selector.select("0.", remote()) == "")
+    assert(Selector.select("", remote()) == "")
+}
+
+test "normalize platform names" {
+    assert(Platforms.normalizeOs("Linux") == "linux")
+    assert(Platforms.normalizeOs("Darwin") == "macos")
+    assert(Platforms.normalizeArch("x86_64") == "x86_64")
+    assert(Platforms.normalizeArch("AMD64") == "x86_64")
+    assert(Platforms.normalizeArch("ARM64") == "arm64")
+    assert(Platforms.normalizeArch("aarch64") == "arm64")
+}
+
+test "windows platform" {
+    var windows = Platform("windows", "x86_64")
+    assert(windows.id() == "windows-x86_64")
+    assert(windows.isWindows())
+    assert(!Platform("linux", "x86_64").isWindows())
+}
+
+test "release archive per platform" {
+    var zip = Release("kof-0.5.0-beta-windows-x86_64", false, listOf(
+        Asset("kof-cli-0.5.0-beta.jar", 1L),
+        Asset("kof-0.5.0-beta-windows-x86_64.zip", 7L),
+        Asset("SHA256SUMS", 1L)))
+    var remote = client("windows-x86_64", ReleaseCache("/nonexistent", "windows-x86_64", "t"), FakeTransport()).toRemote(zip)
+    assert(remote.version() == "0.5.0-beta")
+    assert(remote.archive() == "kof-0.5.0-beta-windows-x86_64.zip")
+    assert(remote.size() == 7L)
+
+    var tar = Release("kof-0.5.0-beta-linux-x86_64", false, listOf(Asset("kof-0.5.0-beta-linux-x86_64.tar.gz", 9L)))
+    assert(client("linux-x86_64", ReleaseCache("/nonexistent", "linux-x86_64", "t"), FakeTransport()).toRemote(tar).archive() == "kof-0.5.0-beta-linux-x86_64.tar.gz")
+}
+
+test "checksum lookup" {
+    var sums = "09CD  *kof-a-windows-x86_64.zip\r\nab12  kof-a-linux-x86_64.tar.gz\n"
+    assert(Checksums.of(sums, "kof-a-windows-x86_64.zip") == "09cd")
+    assert(Checksums.of(sums, "kof-a-linux-x86_64.tar.gz") == "ab12")
+    assert(Checksums.of(sums, "kof-a-macos-arm64.tar.gz") == "")
+    assert(Checksums.of(null, "kof-a-windows-x86_64.zip") == "")
+}
+
+test "api response status, etag and body" {
+    var ok = ApiResponse.parse("HTTP/2 200\r\ncontent-type: application/json\r\nETag: W/\"abc\"\r\n\r\n[{\"a\":1}]")
+    assert(ok.status() == "200")
+    assert(ok.etag() == "W/\"abc\"")
+    assert(ok.body() == "[{\"a\":1}]")
+
+    var notModified = ApiResponse.parse("HTTP/2 304\r\netag: \"x\"\r\n\r\n")
+    assert(notModified.status() == "304")
+    assert(notModified.etag() == "\"x\"")
+    assert(notModified.body() == "")
+}
+
+test "api response skips proxy header blocks" {
+    var raw = "HTTP/1.1 200 Connection established\r\n\r\nHTTP/2 403\r\nx-ratelimit-remaining: 0\r\n\r\n{\"message\":\"rate limit\"}"
+    var r = ApiResponse.parse(raw)
+    assert(r.status() == "403")
+    assert(r.etag() == "")
+    assert(r.body() == "{\"message\":\"rate limit\"}")
+}
+
+class FakeTransport implements kfvm.github.HttpTransport {
+    List<ApiResponse> responses
+    List<String> calls
+
+    constructor() {
+        this.responses = listOf()
+        this.calls = listOf()
+    }
+
+    ApiResponse get(String url, List<String> headers) {
+        var line = url
+        for (var h in headers) { line = line + " | " + h }
+
+        calls.add(line)
+        if (calls.size > responses.size) throw "unexpected network call: " + url
+        return responses.get(calls.size - 1)
+    }
+}
+
+GitHubClient client(String platform, ReleaseCache cache, FakeTransport transport) {
+    return GitHubClient("KofLang/Kof4j", platform, "", cache, transport, 600000L)
+}
+
+Bool same(List<RemoteRelease> a, List<RemoteRelease> b) {
+    if (a.size != b.size) return false
+
+    for (var i = 0; i < a.size; i++) {
+        if (a.get(i) != b.get(i)) return false
+    }
+
+    return true
+}
+
+String tempDir() { return "/tmp/kfvm-test-" + uuid.v4() }
+
+String releasesJson() {
+    return "[{\"tag_name\":\"kof-0.5.0-beta+2026.09.26-linux-x86_64\",\"prerelease\":true,\"assets\":[]}," +
+        "{\"tag_name\":\"kof-0.4.10-beta-linux-x86_64\",\"prerelease\":false,\"assets\":[]}," +
+        "{\"tag_name\":\"kof-0.4.10-beta-windows-x86_64\",\"prerelease\":false,\"assets\":[]}]"
+}
+
+test "release cache round trip" {
+    var dir = tempDir()
+    var cache = ReleaseCache(dir, "linux-x86_64", "0.3.0")
+    assert(cache.load().pages().size == 0)
+    assert(cache.load().checkedAt() == 0L)
+
+    var page = CachedPage(1, "W/\"e1\"", 100, listOf(RemoteRelease("0.4.8-beta", false, 5L, "kof-0.4.8-beta-linux-x86_64", "kof-0.4.8-beta-linux-x86_64.tar.gz")))
+    cache.write(42L, listOf(page))
+    var loaded = cache.load()
+    assert(loaded.checkedAt() == 42L)
+    assert(loaded.pages().size == 1)
+    assert(loaded.pages().get(0) == page)
+    assert(loaded.releases().size == 1)
+    assert(ReleaseCache.pageOf(loaded.pages(), 1) == page)
+    assert(ReleaseCache.pageOf(loaded.pages(), 2).etag() == "")
+    assert(ReleaseCache(dir, "linux-x86_64", "0.4.0").load().pages().size == 0)
+
+    File(dir + "/.kfvm-releases-v2-linux-x86_64.json").writeText("{corrupt")
+    assert(cache.load().pages().size == 0)
+    Shell.run("rm", listOf("-rf", dir))
+}
+
+test "release index freshness" {
+    var pages = listOf(CachedPage(1, "e", 1, listOf()))
+    assert(ReleaseIndex("v", 1000L, pages).isFresh(1500L, 600L))
+    assert(!ReleaseIndex("v", 1000L, pages).isFresh(1600L, 600L))
+    assert(!ReleaseIndex("v", 1000L, pages).isFresh(900L, 600L))
+    assert(!ReleaseIndex("v", 1000L, listOf()).isFresh(1500L, 600L))
+    assert(!ReleaseIndex("v", 1000L, pages).isFresh(1000L, 0L))
+}
+
+test "releases: cold fetch, fresh cache skips network, stale cache revalidates" {
+    var dir = tempDir()
+    var cache = ReleaseCache(dir, "linux-x86_64", "0.3.0")
+    var net = FakeTransport()
+    net.responses.add(ApiResponse("200", "W/\"p1\"", releasesJson()))
+    var github = client("linux-x86_64", cache, net)
+
+    var cold = github.releases()
+    assert(net.calls.size == 1)
+    assert(!net.calls.get(0).contains("If-None-Match"))
+    assert(cold.size == 2)
+    assert(cold.get(0).nightly())
+    assert(cache.load().pages().get(0).count() == 3)
+
+    var fresh = github.releases()
+    assert(net.calls.size == 1)
+    assert(same(fresh, cold))
+
+    var stale = GitHubClient("KofLang/Kof4j", "linux-x86_64", "", cache, net, 0L)
+    net.responses.add(ApiResponse("304", "W/\"p1\"", ""))
+    cache.write(0L, cache.load().pages())
+    assert(same(stale.releases(), cold))
+    assert(net.calls.size == 2)
+    assert(net.calls.get(1).contains("If-None-Match: W/\"p1\""))
+    assert(cache.load().checkedAt() > 0L)
+    assert(cache.load().pages().get(0).etag() == "W/\"p1\"")
+
+    net.responses.add(ApiResponse("403", "", "{\"message\":\"rate limit\"}"))
+    var failed = false
+
+    try {
+        stale.releases()
+    } catch (String e) {
+        failed = e.contains("HTTP 403")
+    }
+
+    assert(failed)
+    Shell.run("rm", listOf("-rf", dir))
+}
+
+test "ls without -r never touches the network" {
+    var dir = tempDir()
+    Directory(dir + "/kof-0.4.10-beta-linux-x86_64/bin").createDirectories()
+    File(dir + "/kof-0.4.10-beta-linux-x86_64/bin/kof").writeText("")
+    Directory(dir + "/kof-0.5.0-beta+2026.09.26-linux-x86_64/bin").createDirectories()
+    File(dir + "/kof-0.5.0-beta+2026.09.26-linux-x86_64/bin/kof").writeText("")
+    var net = FakeTransport()
+    var cache = ReleaseCache(dir, "linux-x86_64", "0.3.0")
+    var ls = ListCommand(client("linux-x86_64", cache, net), Store(dir, "linux-x86_64", UnixFileSystem()), Logger())
+
+    ls.run(listOf())
+    assert(net.calls.size == 0)
+    assert(ls.channel("0.4.10-beta") == "")
+
+    cache.write(0L, listOf(CachedPage(1, "e", 2, listOf(
+        RemoteRelease("0.5.0-beta+2026.09.26", true, 1L, "", ""),
+        RemoteRelease("0.4.10-beta", false, 1L, "", "")))))
+    var expired = ListCommand(client("linux-x86_64", cache, net), Store(dir, "linux-x86_64", UnixFileSystem()), Logger())
+    expired.run(listOf())
+
+    assert(net.calls.size == 0)
+    assert(expired.channel("0.5.0-beta+2026.09.26") == "nightly")
+    assert(expired.channel("0.4.10-beta") == "stable")
+    assert(expired.nightly == "0.5.0-beta+2026.09.26")
+    Shell.run("rm", listOf("-rf", dir))
+}
+
+test "ls marks the current and the newest nightly" {
+    var github = client("linux-x86_64", ReleaseCache("/nonexistent", "linux-x86_64", "t"), FakeTransport())
+    var ls = ListCommand(github, Store("/nonexistent", "linux-x86_64", UnixFileSystem()), Logger())
+    var rels = listOf(
+        RemoteRelease("0.5.0-beta+2026.09.25", true, 1L, "", ""),
+        RemoteRelease("0.5.0-beta+2026.09.26", true, 1L, "", ""),
+        RemoteRelease("0.4.10-beta", false, 1L, "", ""))
+
+    ls.index(rels)
+    ls.current = "0.4.10-beta"
+    assert(ls.nightly == "0.5.0-beta+2026.09.26")
+    assert(ls.marker("0.4.10-beta") == "* ")
+    assert(ls.marker("0.5.0-beta+2026.09.26") == "! ")
+    assert(ls.marker("0.5.0-beta+2026.09.25") == "  ")
+    assert(ls.channel("0.5.0-beta+2026.09.25") == "nightly")
+    assert(ls.channel("0.5.0-beta+2026.09.26") == "nightly")
+    assert(ls.channel("0.4.10-beta") == "stable")
+    assert(ls.channel("0.1.0") == "")
+
+    ls.current = "0.5.0-beta+2026.09.26"
+    assert(ls.marker("0.5.0-beta+2026.09.26") == "!* ")
+    assert(ls.newestNightly(listOf(RemoteRelease("0.4.10-beta", false, 1L, "", ""))) == "")
+}

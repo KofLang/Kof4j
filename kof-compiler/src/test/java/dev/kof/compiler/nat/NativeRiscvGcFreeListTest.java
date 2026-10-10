@@ -1,5 +1,7 @@
 package dev.kof.compiler.nat;
 
+import dev.kof.compiler.NativeToolchainAssumptions;
+
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -26,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>Guard {@code assumeTrue}: sem toolchain cross o teste PULA (nunca asm
  * não executado — regra do plano NATIVE002).
  */
-class NativeRiscvGcFreeListTest {
+class NativeRiscvGcFreeListTest implements NativeToolchainAssumptions {
 
     private static boolean has(String... cmds) {
         for (String c : cmds) {
@@ -42,15 +44,6 @@ class NativeRiscvGcFreeListTest {
         return true;
     }
 
-    private void assumeToolchain() {
-        Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
-                "cross toolchain riscv64 + qemu ausente — pulando (NATIVE002 G-1)");
-    }
-
-    private void assumeAarch64() {
-        Assumptions.assumeTrue(has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
-                "cross toolchain aarch64 + qemu ausente — pulando (NATIVE002 G-5)");
-    }
 
     /** _start cru: p1 = alloc(64); free(p1); p2 = alloc(64); exige p2 == p1. */
     private static final String HARNESS = """
@@ -131,7 +124,7 @@ class NativeRiscvGcFreeListTest {
 
     @Test
     void freeListReusesSlotAndMemstatsCounts(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64();
         Path asm = tempDir.resolve("g1.s");
         Files.writeString(asm, HARNESS + "\n" + RiscvGcTestRuntimes.prunedFor(HARNESS));
         Path obj = tempDir.resolve("g1.o");
@@ -147,7 +140,7 @@ class NativeRiscvGcFreeListTest {
      *  qemu-aarch64 sobre o runtime TRANSLADO. */
     @Test
     void freeListReusesSlotAndMemstatsCountsAarch64(@TempDir Path tempDir) throws IOException {
-        assumeAarch64();
+        assumeNativeAarch64();
         StringBuilder riscv = new StringBuilder(HARNESS).append('\n').append(RiscvGcTestRuntimes.prunedFor(HARNESS));
         StringBuilder arm = new StringBuilder();
         for (String line : riscv.toString().split("\n", -1)) {
@@ -161,6 +154,6 @@ class NativeRiscvGcFreeListTest {
         runCapture("aarch64-linux-gnu-as", "-o", obj.toString(), asm.toString());
         runCapture("aarch64-linux-gnu-ld", "--gc-sections", "-o", bin.toString(), obj.toString());
         bin.toFile().setExecutable(true);
-        assertReuseAndStats(runCapture("qemu-aarch64", bin.toString()));
+        assertReuseAndStats(QemuRun.runExpect0("qemu-aarch64", bin.toString()));
     }
 }

@@ -104,12 +104,12 @@ kof build --target native.arm    # aarch64 via aarch64-linux-gnu-as/ld + qemu
 | `kof_init_object(ptr, type_id, vtable)` | Initialize object header |
 | `kof_list_get(list, idx)` | List get with bounds check (fix 27/08) |
 | `kof_net_socket(domain, type, proto)` | Create socket |
-| `kof_net_bind(fd, port, addr)` | Bind socket |
-| `kof_net_listen(fd, backlog)` | Listen on socket |
-| `kof_net_accept(fd)` | Accept connection |
+| `kof_plat_net_bind(fd, addr, len)` | Bind socket |
+| `kof_plat_net_listen(fd, backlog)` | Listen on socket |
+| `kof_plat_net_accept(fd, addr, lenp)` | Accept connection |
 | `kof_net_read(fd, buf, len)` | Read from socket |
 | `kof_net_write(fd, buf, len)` | Write to socket |
-| `kof_net_close(fd)` | Close socket |
+| `kof_plat_close(fd)` | Close fd |
 | `kof_db_mysql_scramble(out, seed, len, pass)` | MySQL auth SHA-1 scramble |
 | `kof_http_*` | Not available (HTTP002) — use JVM/JS |
 

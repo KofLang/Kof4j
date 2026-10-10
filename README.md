@@ -56,6 +56,7 @@ Thanks goes to these wonderful people (the Kof badge is their mark):
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/matheusdgdcampos"><img src="https://github.com/matheusdgdcampos.png?s=100" width="100px;" alt="matheusdgdcampos"/><br /><sub><b>matheusdgdcampos</b></sub></a><br /><img src="kof-badge.png" width="16" alt="kof original contributor" title="kof original contributor"/> <a href="https://github.com///commits?author=matheusdgdcampos" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/lunalully"><img src="https://github.com/lunalully.png?s=100" width="100px;" alt="lunalully"/><br /><sub><b>lunalully</b></sub></a><br /><img src="kof-badge.png" width="16" alt="kof original contributor" title="kof original contributor"/> <a href="https://github.com///commits?author=lunalully" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/ronald2329"><img src="https://github.com/ronald2329.png?s=100" width="100px;" alt="ronald2329"/><br /><sub><b>ronald2329</b></sub></a><br /><img src="kof-badge.png" width="16" alt="kof original contributor" title="kof original contributor"/> <a href="https://github.com///commits?author=ronald2329" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/ThiagoLange"><img src="https://github.com/ThiagoLange.png?s=100" width="100px;" alt="ThiagoLange"/><br /><sub><b>ThiagoLange</b></sub></a><br /><img src="kof-badge.png" width="16" alt="kof original contributor" title="kof original contributor"/> <a href="#ideas-ThiagoLange" title="Ideas, Planning, & Feedback">🤔</a> <a href="https://github.com///commits?author=ThiagoLange" title="Documentation">📖</a></td>
     </tr>
   </tbody>
 </table>
@@ -270,7 +271,7 @@ See: [learn/35-kof-ui.md](learn/35-kof-ui.md) and
 
 | Folder | For whom | What it contains |
 |-------|-----------|--------------|
-| [`docs/`](docs/) | architects, maintainers, decisions | **Technical and project documentation**: current state (`status.md`, `backend-parity.md`; snapshots in `history/`), architecture (`architecture/`), philosophy (`philosophy.md`), stdlib and areas (`stdlib/` — includes security, http, web, config, database, logging, observability), concurrency (`language-reference/`), language (`language-reference/`), debugging (`debugging/`), comparison (`comparison/`), runtime (`runtime/`), roadmap (`development/roadmap.md`), targets (`targets/`), UI (`ui/`), distribution and license (`distribution/`), consolidated design decisions (`decisions/`), tooling (`tooling/`), future visions (`development/future/`) and audits (`development/ecosystem-coverage.md`, `architecture/complexity-audit.md`) |
+| [`docs/`](docs/) | architects, maintainers, decisions | **Technical and project documentation**: current state (`status.md`, `backend-parity.md`; snapshots in `history/`), architecture (`architecture/`), philosophy (`philosophy.md`), stdlib and areas (`stdlib/` — includes security, http, web, config, database, logging, observability), concurrency (`language-reference/`), language (`language-reference/`), debugging (`debugging/`), comparison (`comparison/`), runtime (`runtime/`), roadmap (`development/roadmap.md`), targets (`targets/`), UI (`ui/`), distribution and license (`distribution/`), consolidated design decisions (`decisions/`), tooling (`tooling/`), future visions (`development/future/`) and audits (`bugs-and-gaps/ecosystem-coverage.md`, `audits/complexity-audit.md`) |
 | [`learn/`](learn/README.md) | humans learning Kof | **Learning track in numbered chapters** (00 Introduction → 39 stdlib): language, classes, functions, lambdas, UI, security — each chapter a hands-on guide; `learn/native/` for the native target |
 | [`training/`](training/README.md) | LLMs and AI tools | **Structured corpus optimized for language models**: facts by topic (`language/`), idioms (`idioms/`), patterns/anti-patterns (`patterns/`, `anti-patterns/`), compilable examples (`examples/`), reference (`reference/`), Java→Kof migration (`migration/`), tooling and releases |
 
@@ -355,10 +356,18 @@ Kof is a **distribution**: install it and get the compiler, CLI, runtime,
 stdlib, tooling, editor support and an embedded OpenJDK. **No external
 Java installation is required** — and you don't need to know the version to install.
 
-1. Download the package for **your** system:
-   - **Releases** (stable, `main`): [GitHub Releases](https://github.com/KofLang/Kof4j/releases)
-   - **Pre-releases** (beta, `beta-*`): [Pre-releases](https://github.com/KofLang/Kof4j/releases?q=prerelease%3Atrue) — e.g. `kof-0.5.0-beta+2026.09.17`
-   Variants: `linux-x86_64.tar.gz` / `macos-arm64.tar.gz` / `macos-x86_64.tar.gz` (Intel) / `windows-x86_64.zip`.
+1. **Linux/macOS — automated** (detects your platform and the newest release,
+   no version to type):
+
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/KofLang/Kof4j/main/scripts/install.sh | bash
+   ```
+
+   **Or manual:** download the package for **your** system from
+   [GitHub Releases](https://github.com/KofLang/Kof4j/releases). Kof publishes
+   **one release per platform** (`linux-x86_64.tar.gz` / `macos-arm64.tar.gz` /
+   `macos-x86_64.tar.gz` (Intel) / `windows-x86_64.zip`) — pick the newest
+   release whose name ends with yours.
 2. Extract it and add `bin` to `PATH`:
 
 ```bash
@@ -539,6 +548,12 @@ Kof is a language. A compiler. An IR. Several backends.
 
 ---
 
+## Built with Kof
+
+| Project | What it is | Targets |
+|---|---|---|
+| [KOOKIE](https://github.com/rufl/KOOKIE) | Experimental 3D shooter engine built around Kof (boomer shooters / ARPG FPS). The simulation and engine rules live in `.kf`; small native adapters sit only at the SDL3/SDL_GPU and ABI boundaries. | Native Linux x86-64 (first supported target); JVM as the differential/comparison target — including a Windows JVM archive that embeds a Windows JDK and a PE launcher. Native Windows PE execution is still not available on Kof's native target, and KOOKIE fails closed about it honestly. |
+
 # License
 
 Kof is free software distributed under the **GNU General Public License v3.0**.
@@ -552,6 +567,10 @@ The author of a program retains the right to choose the license for their own so
 Proprietary software written in Kof is allowed, as long as it respects the licenses of the dependencies it actually incorporates.
 
 For more details, see [docs/distribution/LICENSING.md](docs/distribution/LICENSING.md).
+
+The **Kof** / **Kof4j** logo, mascot and visual identity are available for free
+commercial and community use under CC BY 4.0 — see
+[TRADEMARK.md](TRADEMARK.md).
 
 ---
 

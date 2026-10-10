@@ -53,6 +53,7 @@ final class TopLevelCallTyper {
             // ≥2 → TopLevelOverload.pick (oracle JVM); ambíguo → SEM057.
             boolean found = false;
             List<TopLevelOverload.Candidate> cands = new ArrayList<>();
+            List<ExternalFunctionNode> externCands = new ArrayList<>();
             for (AstNode d : sa.unit().declarations()) {
                 if (d instanceof FunctionDeclarationNode fn && fn.name().equals(mc.methodName())) {
                     found = true;
@@ -70,47 +71,30 @@ final class TopLevelCallTyper {
                     // contrato (tipo de retorno), nunca SEM015 — o binding real é
                     // lowering por target (JVM/Native); JS emite FFI002.
                     found = true;
-                    // #431 (Native-safe): aridade/tipos contra o contrato declarado.
-                    // Sem isto, um `abs(1,2,3)` (que na JVM só falha em runtime no
-                    // spread do kof_ffi) baixaria no Native com N slots na pilha de
-                    // operandos e 1 pop no shim — corrupção silenciosa de stack.
-                    // Mesma política do #266(c)/SEM048: o compile-time pega o que o
-                    // runtime pagaria caro (posição do CALL SITE, §350).
-                    List<Type> extFormals = new ArrayList<>();
-                    for (FormalParameterNode p : ext.parameters()) {
-                        extFormals.add(MemberResolver.resolveType(sa, p.type(), scope));
-                    }
-                    if (argTypes.size() != extFormals.size()) {
-                        if (sa.diagnostics() != null) {
-                            sa.diagnostics().error(mc.position() != null ? mc.position().file() : "",
-                                    mc.position() != null ? mc.position().line() : 0,
-                                    mc.position() != null ? mc.position().column() : 0, 0,
-                                    "Wrong number of arguments for '" + ext.name() + "': expected "
-                                            + extFormals.size() + " but got " + argTypes.size(), "SEM013");
-                        }
-                    } else {
-                        for (int ai = 0; ai < argTypes.size(); ai++) {
-                            Type at = argTypes.get(ai), ft = extFormals.get(ai);
-                            if (!Type.isUnknown(at) && !Type.isUnknown(ft)
-                                    && !TypeChecker.isAssignable(at, ft)) {
-                                if (sa.diagnostics() != null) {
-                                    sa.diagnostics().error(mc.position() != null ? mc.position().file() : "",
-                                            mc.position() != null ? mc.position().line() : 0,
-                                            mc.position() != null ? mc.position().column() : 0, 0,
-                                            "Argument " + (ai + 1) + " of '" + ext.name() + "': expected '"
-                                                    + Type.display(ft) + "' but got '" + Type.display(at) + "'",
-                                            "SEM014");
-                                }
-                                break;
-                            }
-                        }
-                    }
-                    Type extRet = MemberResolver.resolveType(sa, ext.returnType(), scope);
+                    // #431 (Native-safe): aridade/tipos contra o contrato declarado
+                    // — sem isto um `abs(1,2,3)` baixaria no Native com N slots na
+                    // pilha e 1 pop no shim (corrupção silenciosa). #763: o mesmo
+                    // predicado agora COLHEITA candidatos; a seleção por assinatura
+                    // é uma passagem só (`ExternOverload`) e o typer registra a
+                    // escolha — o lowering consome a MESMA resolução, nunca um
+                    // segundo oracle (zero divergência entre passes).
+                    externCands.add(ext);
+                }
+            }
+            if (!externCands.isEmpty()) {
+                ExternalFunctionNode chosen = ExternOverload.choose(sa, mc, externCands, scope, argTypes);
+                if (chosen != null) {
+                    sa.recordExternChoice(mc, chosen);
+                    Type extRet = MemberResolver.resolveType(sa, chosen.returnType(), scope);
                     if (!Type.isVoid(extRet)) {
                         sa.putExpressionType(mc, extRet);
                         return extRet;
                     }
+                    // void: segue a cadeia exatamente como antes (o `extern` void
+                    // já foi validado; o tipo da chamada não é registrado).
                 }
+                // escolhido == null → erro SEM013/SEM014/SEM057 já emitido; a
+                // cadeia segue como antes (a compilação falha pelo erro).
             }
             if (!cands.isEmpty()) {
                 TopLevelOverload.Status[] st = new TopLevelOverload.Status[1];
@@ -137,7 +121,7 @@ final class TopLevelCallTyper {
                             && argTypes.size() >= chosen.requiredArity()) {
                         chosenFormals = chosenFormals.subList(0, argTypes.size());
                     }
-                    TypeChecker.checkArgTypes(sa.diagnostics(), mc.methodName(), argTypes, chosenFormals, mc.arguments());
+                    TypeChecker.checkArgTypes(sa, sa.diagnostics(), mc.methodName(), argTypes, chosenFormals, mc.arguments());
                     // #266 (c) — DECISIONS §7: `null` literal em parâmetro
                     // primitivo NÃO-nullable é SEM048 em compile-time, nunca
                     // VerifyError silencioso no load (a chamada top-level não

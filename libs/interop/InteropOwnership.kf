@@ -1,0 +1,84 @@
+package interop
+
+// kof.interop — interop ownership / lifetime contract (fatia 6 of the Kof
+// Connector Ecosystem plan, `D-CONNECTORS-GO`). It answers, in pure Kof, the
+// plan §3.2 question every crossing must state explicitly:
+//
+//   who allocates?  who frees?  who owns?  when may it be freed?
+//   who may mutate?  who keeps a reference?
+//
+// The Core defines the vocabulary and the connector DECLARES which concepts it
+// supports — no connector invents its own rule. This library is the single
+// source of truth for those concepts (the connector manifest validates declared
+// ownership through it), and it makes the lifetime explicit instead of leaving
+// it implicit:
+//
+//   owned      receiver must free/release        lifetime: receiver
+//   borrowed   valid only for the duration of the call   lifetime: call
+//   shared     ref-counted / GC-managed on one side      lifetime: refcounted
+//   opaque     never inspected; passed back to owner     lifetime: owner
+//   immutable  foreign side may not mutate       lifetime: owner
+//   mutable    may be mutated; contract stated   lifetime: owner
+//
+// Honest by construction (R6): an unknown concept is never guessed —
+// `isKnown` is false and `describe`/`contract`/`lifetime` throw
+// `INTEROP: unknown ownership <x>`. No compiler change; target-neutral (no IO),
+// so it runs on every target without a gap.
+
+class InteropOwnership {
+
+    // The Core's ownership vocabulary (plan §3.2).
+    List<String> concepts() {
+        return listOf("owned", "borrowed", "shared", "opaque", "immutable", "mutable")
+    }
+
+    Bool isKnown(String concept) {
+        return concepts().contains(concept)
+    }
+
+    // The explicit contract for a concept (plan §3.2), or an explicit
+    // diagnostic — never a silent fallback (R6).
+    String contract(String concept) {
+        if (concept == "owned") {
+            return "receiver must free/release; receiver owns; freed by receiver"
+        }
+        if (concept == "borrowed") {
+            return "valid only for the duration of the call; caller owns; foreign may not retain"
+        }
+        if (concept == "shared") {
+            return "reference-counted / GC-managed on one side; no manual free"
+        }
+        if (concept == "opaque") {
+            return "never inspected; passed back to its owner; owner frees"
+        }
+        if (concept == "immutable") {
+            return "foreign side may not mutate; owner keeps the reference"
+        }
+        if (concept == "mutable") {
+            return "may be mutated; contract stated by the connector"
+        }
+        throw "INTEROP: unknown ownership " + concept
+    }
+
+    // When the value may be freed / how long the reference is valid.
+    String lifetime(String concept) {
+        if (concept == "owned") {
+            return "receiver"
+        }
+        if (concept == "borrowed") {
+            return "call"
+        }
+        if (concept == "shared") {
+            return "refcounted"
+        }
+        if (concept == "opaque" || concept == "immutable" || concept == "mutable") {
+            return "owner"
+        }
+        throw "INTEROP: unknown ownership " + concept
+    }
+
+    // A one-line description for tooling/manifests.
+    String describe(String concept) {
+        return concept + ": " + contract(concept)
+    }
+}

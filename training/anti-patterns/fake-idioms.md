@@ -183,6 +183,7 @@ this corpus/docs and the compiler *disagrees with its own docs*.
 | `l.sort()` / `l.indexOf(x)` on a `List` (Java API) | Kof `List` API is `add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce`; find position with a `for` + `get(i)`; order by sorting outside the list (interop) — no `sort`/`indexOf` promise |
 | `m.containsValue(v)` on a `Map` (Java API) | `m.values()` + `contains` — Kof `Map` API is `put/get/remove/containsKey/size/keys/values` (**`getOrDefault(k, d)` was fake until 0.4.0 and became REAL on 18/09 (`62bd455e`) — use it**)
 | `this(args)` constructor self-delegation (Java/C#) | Kof promises **`super(args)`** only (base class, first statement — `learn/07`); share init via a helper method both constructors call (measured working) |
+| Static `File.exists(p)` / `File.readText(p)` / `File.readRange(p, o, n)` (the `kof.io` "static forms") | ❌ **Not implemented** — measured 28/09 on all targets: the typer rejects the receiver with `SEM011 Undefined variable or type: 'File'`. Use the **instance form**: `File(p).exists()`, `File(p).readText()`, `File(p).readRange(0, 4)`. (`docs/stdlib/IO.md` used to list "static forms" as if they existed — corrected 28/09; the `KofIo.staticMethod` table in the compiler is unreachable because the typer never resolves the type as a static receiver) |
 
 > Cross-check: if the reproducer would compile in **Kotlin/Java** because it is
 > *translated*, it is this rule — reject it. The bug family is only about code

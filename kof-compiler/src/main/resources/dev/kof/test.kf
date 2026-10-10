@@ -1,0 +1,338 @@
+// kof.test — primeiro slice aditivo (D-TESTING-PLATFORM, D-FUTURE-BATCH-2809B).
+//
+// Escrito EM KOF (D-KOF-FIRST item 12): o compilador injeta FLAT no
+// `import kof.test` EXPLICITO, mesmo mecanismo de kof.pagination/kof.pairs.
+// Nada de sintaxe estrangeira (a superficie `test`/`assert` continua sendo a
+// da linguagem); aqui so helpers que produzem diagnostico util (label +
+// esperado/atual) em vez do `assertion failed` generico do `assert` puro.
+// Zero runtime por backend: so throw de String, que os 4 alvos ja tratam.
+
+Void assertTrue(Bool cond, String label) {
+    if (!cond) {
+        throw "assertion failed: " + label
+    }
+}
+
+Void assertFalse(Bool cond, String label) {
+    if (cond) {
+        throw "assertion failed: " + label
+    }
+}
+
+Void assertEqualInt(Int expected, Int actual, String label) {
+    if (expected != actual) {
+        throw "assertion failed: " + label + " (expected " + expected + ", got " + actual + ")"
+    }
+}
+
+Void assertEqualString(String expected, String actual, String label) {
+    if (expected != actual) {
+        throw "assertion failed: " + label + " (expected \"" + expected + "\", got \"" + actual + "\")"
+    }
+}
+
+Void assertNotEqualInt(Int unexpected, Int actual, String label) {
+    if (unexpected == actual) {
+        throw "assertion failed: " + label + " (did not expect " + actual + ")"
+    }
+}
+
+Void assertNotEqualString(String unexpected, String actual, String label) {
+    if (unexpected == actual) {
+        throw "assertion failed: " + label + " (did not expect \"" + actual + "\")"
+    }
+}
+
+Void assertEqualBool(Bool expected, Bool actual, String label) {
+    if (expected != actual) {
+        throw "assertion failed: " + label + " (expected " + expected + ", got " + actual + ")"
+    }
+}
+
+Void assertNotEqualBool(Bool unexpected, Bool actual, String label) {
+    if (unexpected == actual) {
+        throw "assertion failed: " + label + " (did not expect " + actual + ")"
+    }
+}
+
+// Sexto slice (02/10): o par GENERICO `assertEqual<T>`/`assertNotEqual<T>` —
+// desbloqueado por D-EQ-UNBOUNDED-T (mantenedora 02/10, regra 6): `==` sobre um
+// type variable SEM bound e igualdade ESTRUTURAL de conteudo (mesmo contrato de
+// String/record) nos 4 alvos, entao o helper funciona para qualquer T. O label
+// stringifica expected/actual via `+` (toString do record/boxed), sem primitiva
+// nova.
+Void assertEqual<T>(T expected, T actual, String label) {
+    if (expected != actual) {
+        throw "assertion failed: " + label + " (expected " + expected + ", got " + actual + ")"
+    }
+}
+
+Void assertNotEqual<T>(T unexpected, T actual, String label) {
+    if (unexpected == actual) {
+        throw "assertion failed: " + label + " (did not expect " + actual + ")"
+    }
+}
+
+// Terceiro slice (01/10): os numericos que faltavam (Long/Double/Float), par
+// igualdade/desigualdade por tipo. Sem primitiva nova: so `!=`/`==` de tipo
+// concreto + concat de String.
+Void assertEqualLong(Long expected, Long actual, String label) {
+    if (expected != actual) {
+        throw "assertion failed: " + label + " (expected " + expected + ", got " + actual + ")"
+    }
+}
+
+Void assertNotEqualLong(Long unexpected, Long actual, String label) {
+    if (unexpected == actual) {
+        throw "assertion failed: " + label + " (did not expect " + actual + ")"
+    }
+}
+
+Void assertEqualDouble(Double expected, Double actual, String label) {
+    if (expected != actual) {
+        throw "assertion failed: " + label + " (expected " + expected + ", got " + actual + ")"
+    }
+}
+
+Void assertNotEqualDouble(Double unexpected, Double actual, String label) {
+    if (unexpected == actual) {
+        throw "assertion failed: " + label + " (did not expect " + actual + ")"
+    }
+}
+
+Void assertEqualFloat(Float expected, Float actual, String label) {
+    if (expected != actual) {
+        throw "assertion failed: " + label + " (expected " + expected + ", got " + actual + ")"
+    }
+}
+
+Void assertNotEqualFloat(Float unexpected, Float actual, String label) {
+    if (unexpected == actual) {
+        throw "assertion failed: " + label + " (did not expect " + actual + ")"
+    }
+}
+
+// Quinto slice (01/10): os escalares restantes de §4.1 — Byte, Short e Char —
+// com o par igualdade/desigualdade por tipo, mais o par que faltava de Bool.
+// Mesma regra dos slices anteriores: nada de primitiva nova, so `!=`/`==` de
+// tipo concreto + `throw` de String. NAO usa aritmetica de Byte/Short (isso e
+// o defeito #720, decisao de superficie congelada — regra 6), entao compara e
+// imprime sem tocar o codegen de `iadd`.
+Void assertEqualByte(Byte expected, Byte actual, String label) {
+    if (expected != actual) {
+        throw "assertion failed: " + label + " (expected " + expected + ", got " + actual + ")"
+    }
+}
+
+Void assertNotEqualByte(Byte unexpected, Byte actual, String label) {
+    if (unexpected == actual) {
+        throw "assertion failed: " + label + " (did not expect " + actual + ")"
+    }
+}
+
+Void assertEqualShort(Short expected, Short actual, String label) {
+    if (expected != actual) {
+        throw "assertion failed: " + label + " (expected " + expected + ", got " + actual + ")"
+    }
+}
+
+Void assertNotEqualShort(Short unexpected, Short actual, String label) {
+    if (unexpected == actual) {
+        throw "assertion failed: " + label + " (did not expect " + actual + ")"
+    }
+}
+
+Void assertEqualChar(Char expected, Char actual, String label) {
+    if (expected != actual) {
+        throw "assertion failed: " + label + " (expected '" + expected + "', got '" + actual + "')"
+    }
+}
+
+Void assertNotEqualChar(Char unexpected, Char actual, String label) {
+    if (unexpected == actual) {
+        throw "assertion failed: " + label + " (did not expect '" + actual + "')"
+    }
+}
+
+// Comparacao com null (generico, apagado no alvo): aceita qualquer T? e recusa
+// o tipo errado ainda em compilacao. Escrito EM KOF — nenhuma primitiva nova.
+Void assertNull<T>(T? value, String label) {
+    if (value != null) {
+        throw "assertion failed: " + label + " (expected null)"
+    }
+}
+
+Void assertNotNull<T>(T? value, String label) {
+    if (value == null) {
+        throw "assertion failed: " + label + " (expected non-null)"
+    }
+}
+
+Void fail(String label) {
+    throw "assertion failed: " + label
+}
+
+// Segundo slice (30/09): assertThrows. Escrito EM KOF. O bloco que deve lancar
+// e um `() -> Void`. Se o bloco NAO lancar, falha com diagnostico util; se
+// lancar, o catch desvincula o handler do try e o `return` sai limpo (nativo:
+// o kof_throw_string ja desvincula o frame ANTES de saltar para o catch).
+// Exige o fix do §549 no caminho normal (senao o handler vazaria e capturaria
+// o throw SEGUINTE na mesma funcao).
+Void assertThrows(() -> Void block, String label) {
+    try {
+        block()
+    } catch (String e) {
+        return
+    }
+    throw "assertion failed: " + label + " (expected an exception)"
+}
+
+// Setimo slice (06/10, §4.4 parametrizados — D-MAINT-BATCH-0610/D): tabelas
+// `input -> expected` sem duplicar N testes so porque a entrada muda. Escrito
+// EM KOF, nenhuma sintaxe/primitiva nova: cada linha e um `List<String>` (as
+// colunas), o `body` recebe a linha e asserta com os helpers acima. As linhas
+// rodam ISOLADAS — uma falha nao aborta as demais — e o resultado agrega TODAS
+// as falhas numa unica mensagem (nomeadas por indice + conteudo da linha), que
+// o harness do `kof test` reporta como `FAIL <test>: ...` (throw de String,
+// mesmo caminho dos 4 alvos). Generico por T nao entra: `(T) -> Void` e
+// recusado (SEM085, ABI de 1.0) — a tabela uniforme de strings e o incremento
+// completo e honesto.
+Void testRows(List<List<String>> rows, String label, (List<String>) -> Void body) {
+    var failures = listOf<String>()
+    var i = 0
+    for (var row in rows) {
+        try {
+            body(row)
+        } catch (String e) {
+            failures.add("row " + i + " " + row + ": " + e)
+        }
+        i = i + 1
+    }
+    if (failures.size() > 0) {
+        var msg = label + ": " + failures.size() + " of " + rows.size() + " rows failed"
+        for (var f in failures) {
+            msg = msg + "\n  " + f
+        }
+        throw msg
+    }
+}
+
+// Oitavo slice (06/10, §4.6 seams de clock/random — D-MAINT-BATCH-0610/D,
+// poll da mantenedora: "so seams de clock/random"). Testar logica dependente
+// de tempo/aleatoriedade sem a fronteira real: o teste injeta a fonte e o
+// resultado e deterministico. Escrito EM KOF, nenhuma primitiva nova.
+//
+// CLOCK: a fonte e um `() -> Long` (epoch millis) — o teste passa o seam no
+// lugar de `time.now()`, entao o "tempo" e so o que o teste decidir. `fixedClock`
+// congela um instante; `scriptedClock` devolve a proxima medida da tabela a
+// cada chamada e, esgotada, repete a ULTIMA (nunca lanca por falta de roteiro,
+// nunca inventa 0 depois de ter dado). Lista vazia = 0 (sem roteiro, instante
+// zero). Mesmo caminho dos 4 alvos (so aritmetica + captura mutavel).
+//
+// RANDOM: `seededRandom` e um seam de aleatoriedade REPRODUTIVEL, escrito em
+// Kof puro — um LCG inteiro com multiplicador 32719 e modulo 32749. O produto
+// maximo (32748 * 32719 + 1 = 1_071_481_813) cabe em Int de 32 bits, entao NAO
+// ha overflow e a sequencia e byte-identica nos 4 alvos. Duas instancias com a
+// MESMA seed produzem a MESMA sequencia; `next(bound)` avanca o estado e
+// devolve `state % bound`. Um teste que dependa de aleatoriedade usa
+// `seededRandom(seed).next(n)` e a falha volta igual a cada execucao. NAO usa o
+// `rng` da stdlib de proposito: `rng` tem gap cross (`RNG001`) e o arquivo
+// inteiro do host compila em todo alvo, entao qualquer helper aqui precisa ser
+// suportado nos 4.
+() -> Long fixedClock(Long millis) {
+    return () -> millis
+}
+
+() -> Long scriptedClock(List<Long> times) {
+    var i = 0
+    return () -> {
+        var n = times.size()
+        if (n == 0) {
+            return 0L
+        }
+        var idx = i
+        if (idx >= n) {
+            idx = n - 1
+        }
+        i = i + 1
+        return times.get(idx)
+    }
+}
+
+class SeededRandom {
+    Int state
+
+    constructor(Int seed) {
+        this.state = seed
+        if (this.state <= 0) {
+            this.state = 1
+        }
+    }
+
+    Int next(Int bound) {
+        this.state = (this.state * 32719 + 1) % 32749
+        if (bound <= 0) {
+            return 0
+        }
+        return this.state % bound
+    }
+}
+
+SeededRandom seededRandom(Int seed) {
+    return SeededRandom(seed)
+}
+
+// Nono slice (06/10, §5 harness de integracao — D-MAINT-BATCH-0610B/B): o
+// ciclo de vida de um diretorio temporario, escrito EM KOF, nenhuma primitiva
+// nova. "start -> health check -> test -> cleanup": `withTempDir` cria o
+// diretorio, roda o corpo e REMOVE a arvore depois, mesmo se o corpo lancar
+// (o `finally` garante o cleanup nos 4 alvos). O teste de integracao que usa um
+// diretorio temporario nunca deixa lixo no disco — a decisao da mantenedora
+// ("temp dir / server / db lifecycle with try/finally cleanup").
+//
+// `removeTree` existe porque `Directory.delete()` NAO e portavel para uma
+// arvore com conteudo: o JVM/Native apagam recursivamente (contrato do
+// `kof_io_dir_delete`), mas o alvo JS so apaga um diretorio VAZIO e devolve
+// `false` com um arquivo dentro (divergencia cross medida, rule 5). O helper
+// desce a arvore em Kof puro — `Directory.list()` para descer, `File.delete()`
+// para folhas — entao o cleanup e identico nos 4 alvos.
+Void removeTree(String path) {
+    var d = Directory(path)
+    if (!d.exists()) {
+        return
+    }
+    if (d.isDirectory()) {
+        for (var name in d.list()) {
+            removeTree(Path(path).resolve(name))
+        }
+        d.delete()
+    } else {
+        File(path).delete()
+    }
+}
+
+Void withTempDir(String dir, (String) -> Void body) {
+    Directory(dir).createDirectories()
+    try {
+        body(dir)
+    } finally {
+        removeTree(dir)
+    }
+}
+
+// Health check de um recurso que sobe assincronamente: sonda `probe` ate
+// `attempts` vezes, dormindo `intervalMs` entre as tentativas, e devolve o
+// ultimo resultado (uma sonda final apos a ultima espera). `attempts <= 0`
+// faz uma unica sonda, sem esperar — nunca lanca, nunca inventa sucesso.
+// Mesmo caminho nos 4 alvos: no KofJS `time.sleep` cede o event-loop.
+Bool waitUntil(() -> Bool probe, Int attempts, Int intervalMs) {
+    var i = 0
+    while (i < attempts) {
+        if (probe()) {
+            return true
+        }
+        time.sleep(intervalMs)
+        i = i + 1
+    }
+    return probe()
+}

@@ -12,7 +12,7 @@ public final class ExpressionTyper {
     private ExpressionTyper() {}
 
     static Type inferExprType(CompilerDriver driver, ExpressionNode expr, List<IRLocalVariable> locals) {
-        return switch (expr) {
+        return qualifyBareModuleType(driver, switch (expr) {
             case LiteralExpr lit -> switch (lit.kind()) {
                 case ConcreteLiteralKind.INT -> Type.PrimitiveType.INT;
                 case ConcreteLiteralKind.LONG -> Type.PrimitiveType.LONG;
@@ -177,7 +177,13 @@ public final class ExpressionTyper {
                 yield new Type.ArrayType(elemType);
             }
             case NewExpr ne -> {
-                Type t = CompilerTypes.toType(ne.typeName(), driver.currentUnit);
+                // §582: the bare-name ctor of a PACKAGED record written inside an
+                // imported module's body resolved through currentUnit only — the
+                // merged main unit (caller's package) does not declare the type, so
+                // the owner reached the emitter BARE (NoClassDefFoundError at LOAD).
+                // The analyzer-aware toType qualifies cross-module symbols.
+                Type t = CompilerTypes.toType(ne.typeName(), driver.currentUnit,
+                        driver.semanticAnalyzer);
                 Type coll = CompilerTypes.builtinCollectionType(ne.typeName(), driver.currentUnit, driver.semanticAnalyzer);
                 if (coll != null) {
                     t = coll;
@@ -214,7 +220,15 @@ public final class ExpressionTyper {
                 List<IRLocalVariable> extended = new ArrayList<>(locals);
                 int pidx = 0;
                 for (FormalParameterNode p : le.parameters()) {
-                    Type pt = CompilerTypes.toType(p.type(), driver.currentUnit);
+                    // §548/#710 residual: o tipo do parâmetro precisa da MESMA
+                    // qualificação que CompilerLambdaClass usa no `invoke`
+                    // (sobrecarga ciente do SemanticAnalyzer → qualifyDeep).
+                    // A de 2 args deixava um parâmetro `Label` (kof.ui) como
+                    // ClassType("","Label") no FunctionType, então a interface
+                    // sintética saía `Function1_CLabel_void.invoke(Label)` com
+                    // um handle `int` na pilha → VerifyError. O valor real é o
+                    // handle; os dois lados têm de concordar.
+                    Type pt = CompilerTypes.toType(p.type(), driver.currentUnit, driver.semanticAnalyzer);
                     paramTypes.add(pt);
                     extended.add(new IRLocalVariable(pidx++, p.name(), pt));
                 }
@@ -265,7 +279,62 @@ public final class ExpressionTyper {
                         : Type.UnknownType.UNKNOWN;
             }
             default -> Type.UnknownType.UNKNOWN;
-        };
+        });
+    }
+
+    // §571 (KofShare control/check.kf 02/10): o tipo inferido de um local pode
+    // chegar sem pacote quando vem de uma via que não qualifica (ex.: o retorno
+    // de `json.decode<Record>`, cujo namespace o typer runtime não conhece). O
+    // dono do getfield/invokevirtual saía `DeviceInfo` (bare) → o Main linkava
+    // classe inexistente → NoClassDefFoundError no LOAD. Chokepoint único: se o
+    // NOME resolve num símbolo do módulo COM pacote, o tipo apaga qualificado.
+    // Classe legítima de pacote padrão (símbolo com pkg vazio, ex.: Pair do
+    // harness) NÃO é tocada.
+    static Type qualifyBareModuleType(CompilerDriver driver, Type t) {
+        if (t == null) {
+            return null;
+        }
+        // #733 residual: a bare module type can hide INSIDE a type argument
+        // (`Map<String, DeviceInfo>`) — the §571 chokepoint qualified only the
+        // outer name, so the following `get` lowered a `checkcast DeviceInfo`
+        // with a bare owner and the JVM died at Main LOAD. Recurse through the
+        // type-argument tree (and the nullable/array wrappers) so every
+        // reference is qualified.
+        if (t instanceof Type.NullableType nt) {
+            Type inner = qualifyBareModuleType(driver, nt.inner());
+            return inner == nt.inner() ? t : new Type.NullableType(inner);
+        }
+        if (t instanceof Type.ArrayType at) {
+            Type comp = qualifyBareModuleType(driver, at.componentType());
+            return comp == at.componentType() ? t : new Type.ArrayType(comp);
+        }
+        if (!(t instanceof Type.ClassType ct)) {
+            return t;
+        }
+        Type base = t;
+        if (ct.packageName().isEmpty() && ct.name().indexOf('.') < 0 && driver.semanticAnalyzer != null) {
+            var cs = driver.semanticAnalyzer.getClass(ct.name());
+            if (cs != null && cs.packageName() != null && !cs.packageName().isEmpty()) {
+                base = new Type.ClassType(cs.packageName(), ct.name(), ct.typeArguments());
+            }
+        }
+        Type.ClassType bct = (Type.ClassType) base;
+        if (bct.typeArguments().isEmpty()) {
+            return base;
+        }
+        boolean changed = false;
+        List<Type> qualified = new ArrayList<>(bct.typeArguments().size());
+        for (Type arg : bct.typeArguments()) {
+            Type q = qualifyBareModuleType(driver, arg);
+            if (q != arg) {
+                changed = true;
+            }
+            qualified.add(q);
+        }
+        if (!changed) {
+            return base;
+        }
+        return new Type.ClassType(bct.packageName(), bct.name(), List.copyOf(qualified));
     }
 
     /**

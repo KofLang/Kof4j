@@ -187,7 +187,7 @@ Método: todo token `*Test` em backticks nos `docs/` conferido contra a árvore
 | `KofChannelTest`, `ChannelStdlibE2ETest` | prova-vizinha do §374 em `known-bugs.md` | **evidência quebrada** — nunca existiram; anotados inline, vizinho real do canal = `KofConcurrency2Test` 48/48 |
 | `AarchSchedSmokeTest`, `GenericFieldChainE2ETest`, `NullableReceiverFieldWriteE2ETest`, `KofCharCrossE2ETest`, `ProcessRunE2ETest` | ponteiros abertos / esboços de fix | nome proposto (teste a escrever) — não é drift |
 | `NullablePrimitiveFieldsE2ETest` | nota de reversão do §243 | histórico (existiu quando a face meio-pousada foi pinada) — não é drift |
-| `SequenceE2ETest`, `ChannelE2ETest` | `future/PLAN-MULTIPARADIGMA.md` | plano futuro — não é drift |
+| `SequenceE2ETest`, `ChannelE2ETest` | `docs/stdlib/PLAN-MULTIPARADIGMA.md` | plano concluído, movido para `docs/stdlib/` (regra dos 3 estados) — não é drift |
 | `KofSemanticTest` | `decisions/planning-mutability.md` | proposto — não é drift |
 
 Resultado: **2 referências-fantasma usadas como prova** (ambas já sinalizadas

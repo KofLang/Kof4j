@@ -2,9 +2,7 @@
 
 # Value Records — tipos-valor first-class (plano de design · TIER 2.7)
 
-**Estado:** Plano (só design) — **zero código**; barrado pelo R12 (o estágio
-SYSTEMS fecha primeiro) **e** por autorização explícita da mantenedora para abrir
-a frente
+**Estado:** Plano (só design) — **zero código**; a frente está **autorizada** (`D-VALUE-RECORD` 16/09 aceita; `D-VALUE-RECORDS-GO` 28/09 abre a frente, design resolvido em `D-FUTURE-BATCH-2809B`), barrada pelo R12 (o estágio SYSTEMS fecha primeiro) + promoção uma-por-vez por `D-FUTURE-PROMOTION`
 **Fonte:** `DECISIONS.md` §D-VALUE-RECORD (16/09, aceita) · issue #275 ·
 `../roadmap.md` §23 TIER 2.7 (fila de passos 2.7.1–2.7.5)
 

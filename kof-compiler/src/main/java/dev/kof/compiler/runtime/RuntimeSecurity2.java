@@ -324,6 +324,16 @@ public final class RuntimeSecurity2 {
                 popq %rbx
                 ret
 
+            # D-KOF-DIGEST-BYTES (02/10): Byte[] face = layout-compatible
+            # alias of the String wrapper (len @16, payload @24 — key and
+            # data are both read through that header). See RuntimeSecurity1
+            # comment; one implementation, two names.
+            .globl kof_sec_hmac_sha256_bytes
+            .type kof_sec_hmac_sha256_bytes, @function
+            kof_sec_hmac_sha256_bytes:
+                jmp kof_sec_hmac_sha256
+
+
             # ── base64 (RFC 4648, com padding) ────────────────────────────
             # kof_b64_encode_internal(rdi=out, rsi=src, rdx=len)
             # escreve 4*((len+2)/3) bytes + \0 (padding '=')

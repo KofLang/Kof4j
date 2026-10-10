@@ -6,12 +6,12 @@ package dev.kof.compiler;
  *
  * <p>A step receives the compilation unit after the parse/merge/imports pass and
  * BEFORE semantic analysis, and returns the desugared unit. Registered by
- * compiler internals only; the default registry holds the four built-in source
+ * compiler internals only; the default registry holds the five built-in source
  * desugars in their historical order, so existing behavior is unchanged (freeze
  * rule 3).
  *
- * <p>This is the seam the source desugars plug into (`tests`, `application`,
- * `infra`, `nested-functions`). The post-IR {@link CodegenStep} hook is a
+ * <p>This is the seam the source desugars plug into (`using`, `tests`,
+ * `application`, `infra`, `nested-functions`). The post-IR {@link CodegenStep} hook is a
  * different phase and stays for future IR-level passes.
  */
 public interface DesugarStep {

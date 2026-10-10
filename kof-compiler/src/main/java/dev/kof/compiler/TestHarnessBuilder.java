@@ -26,8 +26,27 @@ final class TestHarnessBuilder {
     /** Uma entrada do catálogo: nome, função gerada e tags (fatia 3). */
     record Entry(String name, String functionName, List<String> tags) {}
 
+    /**
+     * §4.2 lifecycle names. {@code setup}/{@code teardown} are the original
+     * fatia-3 fixture names; {@code beforeEach}/{@code afterEach} are their
+     * §4.2 aliases and behave identically (zero new syntax — all four are
+     * plain top-level zero-parameter {@code Void} functions). {@code beforeAll}/
+     * {@code afterAll} are the once-per-run pair. The harness receives the
+     * DECLARED name (not a canonical one) so a program that only declares
+     * {@code beforeEach} still binds — no SEM015 on the absent alias.
+     */
+    static final String SETUP = "setup";
+    static final String BEFORE_EACH = "beforeEach";
+    static final String TEARDOWN = "teardown";
+    static final String AFTER_EACH = "afterEach";
+    static final String BEFORE_ALL = "beforeAll";
+    static final String AFTER_ALL = "afterAll";
+
     static FunctionDeclarationNode build(List<Entry> tests, String currentSourceName,
-                                         boolean hasSetup, boolean hasTeardown, String tagFilter) {
+                                         String setupName, String teardownName, String tagFilter,
+                                         String beforeAllName, String afterAllName) {
+        boolean hasSetup = setupName != null;
+        boolean hasTeardown = teardownName != null;
         SourcePosition p = new SourcePosition(
                 currentSourceName != null ? currentSourceName : "", 0, 0, 0, 0);
         boolean filtering = tagFilter != null && !tagFilter.isEmpty();
@@ -35,7 +54,7 @@ final class TestHarnessBuilder {
         if (filtering) {
             kept = new ArrayList<>();
             for (Entry t : tests) {
-                if (t.tags().contains(tagFilter)) kept.add(t);
+                if (matchesAnyTag(t.tags(), tagFilter)) kept.add(t);
             }
         }
         List<StatementNode> body = new ArrayList<>();
@@ -57,6 +76,27 @@ final class TestHarnessBuilder {
         ExpressionNode failedVar = new IdentifierExpr(p, "__kof_failed");
         body.add(new VarDeclStmt(p, "Int", "__kof_failed",
                 new LiteralExpr(p, ConcreteLiteralKind.INT, "0")));
+        // §4.2 lifecycle: beforeAll() runs ONCE before the first test.
+        if (beforeAllName != null) {
+            body.add(new VarDeclStmt(p, "Bool", "__kof_before_all_ok",
+                    new LiteralExpr(p, ConcreteLiteralKind.BOOLEAN, "true")));
+            List<StatementNode> beforeAllCatch = List.of(
+                    new ExpressionStmt(p, callPrintln(p, concat(p,
+                            new LiteralExpr(p, ConcreteLiteralKind.STRING,
+                                    "beforeAll failed: "),
+                            new IdentifierExpr(p, "e")))),
+                    new ExpressionStmt(p, new AssignmentExpr(p,
+                            new IdentifierExpr(p, "__kof_before_all_ok"), "=",
+                            new LiteralExpr(p, ConcreteLiteralKind.BOOLEAN, "false"))),
+                    new ExpressionStmt(p, new AssignmentExpr(p, failedVar, "=",
+                            new BinaryExpr(p, "+", failedVar,
+                                    new LiteralExpr(p, ConcreteLiteralKind.INT, "1")))));
+            body.add(new TryStmt(p,
+                    List.of(new ExpressionStmt(p,
+                            new MethodCallExpr(p, null, beforeAllName, List.of(), List.of()))),
+                    List.of(new CatchClause(p, "String", "e", beforeAllCatch)),
+                    List.of()));
+        }
         int i = 0;
         for (Entry test : kept) {
             String name = test.name();
@@ -75,35 +115,82 @@ final class TestHarnessBuilder {
                             new LiteralExpr(p, ConcreteLiteralKind.INT, "1")))));
             List<StatementNode> finalizers = new ArrayList<>();
             if (hasTeardown) {
-                finalizers.add(new ExpressionStmt(p,
-                        new MethodCallExpr(p, null, "teardown", List.of(), List.of())));
+                // §4.2/§4.3: teardown()/afterEach() runs via finally, but a THROW
+                // from it must NOT escape uncaught — that aborted the whole
+                // harness after the first test (remaining tests never ran, no
+                // summary). Same contract as afterAll(): report by name, count
+                // the failure, continue.
+                List<StatementNode> teardownCatch = List.of(
+                        new ExpressionStmt(p, callPrintln(p, concat(p,
+                                new LiteralExpr(p, ConcreteLiteralKind.STRING,
+                                        "teardown failed: "),
+                                new IdentifierExpr(p, "e")))),
+                        new ExpressionStmt(p, new AssignmentExpr(p, failedVar, "=",
+                                new BinaryExpr(p, "+", failedVar,
+                                        new LiteralExpr(p, ConcreteLiteralKind.INT, "1")))));
+                finalizers.add(new TryStmt(p,
+                        List.of(new ExpressionStmt(p,
+                                new MethodCallExpr(p, null, teardownName, List.of(), List.of()))),
+                        List.of(new CatchClause(p, "String", "e", teardownCatch)),
+                        List.of()));
             }
             List<StatementNode> runInner = List.of(
                     new TryStmt(p, runBody, List.of(new CatchClause(p, "String", "e", catchBody)),
                             finalizers));
+            List<StatementNode> testExecution = new ArrayList<>();
             if (!hasSetup) {
-                body.addAll(runInner);
-                continue;
+                testExecution.addAll(runInner);
+            } else {
+                String skipName = "__kof_skip_" + i++;
+                testExecution.add(new VarDeclStmt(p, "Bool", skipName,
+                        new LiteralExpr(p, ConcreteLiteralKind.BOOLEAN, "false")));
+                List<StatementNode> setupCatch = new ArrayList<>();
+                setupCatch.add(new ExpressionStmt(p, new AssignmentExpr(p,
+                        new IdentifierExpr(p, skipName), "=",
+                        new LiteralExpr(p, ConcreteLiteralKind.BOOLEAN, "true"))));
+                setupCatch.add(new ExpressionStmt(p, callPrintln(p, concat(p,
+                        new LiteralExpr(p, ConcreteLiteralKind.STRING, "SKIP "), nameLit,
+                        new LiteralExpr(p, ConcreteLiteralKind.STRING, ": setup failed: "),
+                        new IdentifierExpr(p, "e")))));
+                testExecution.add(new TryStmt(p,
+                        List.of(new ExpressionStmt(p,
+                                new MethodCallExpr(p, null, setupName, List.of(), List.of()))),
+                        List.of(new CatchClause(p, "String", "e", setupCatch)), List.of()));
+                testExecution.add(new IfStmt(p,
+                        new BinaryExpr(p, "==", new IdentifierExpr(p, skipName),
+                                new LiteralExpr(p, ConcreteLiteralKind.BOOLEAN, "false")),
+                        new BlockStmt(p, runInner), null));
             }
-            String skipName = "__kof_skip_" + i++;
-            body.add(new VarDeclStmt(p, "Bool", skipName,
-                    new LiteralExpr(p, ConcreteLiteralKind.BOOLEAN, "false")));
-            List<StatementNode> setupCatch = new ArrayList<>();
-            setupCatch.add(new ExpressionStmt(p, new AssignmentExpr(p,
-                    new IdentifierExpr(p, skipName), "=",
-                    new LiteralExpr(p, ConcreteLiteralKind.BOOLEAN, "true"))));
-            setupCatch.add(new ExpressionStmt(p, callPrintln(p, concat(p,
-                    new LiteralExpr(p, ConcreteLiteralKind.STRING, "SKIP "), nameLit,
-                    new LiteralExpr(p, ConcreteLiteralKind.STRING, ": setup failed: "),
-                    new IdentifierExpr(p, "e")))));
+            if (beforeAllName != null) {
+                // §4.3 Isolation: se beforeAll falhar, pula o teste com SKIP nomeado
+                // e não deixa o teste rodar em estado corrompido/inexistente.
+                body.add(new IfStmt(p,
+                        new BinaryExpr(p, "==", new IdentifierExpr(p, "__kof_before_all_ok"),
+                                new LiteralExpr(p, ConcreteLiteralKind.BOOLEAN, "true")),
+                        new BlockStmt(p, testExecution),
+                        new BlockStmt(p, List.of(new ExpressionStmt(p, callPrintln(p, concat(p,
+                                new LiteralExpr(p, ConcreteLiteralKind.STRING, "SKIP "), nameLit,
+                                new LiteralExpr(p, ConcreteLiteralKind.STRING,
+                                        ": beforeAll failed"))))))));
+            } else {
+                body.addAll(testExecution);
+            }
+        }
+        // §4.2 lifecycle: afterAll() runs ONCE after the last test.
+        if (afterAllName != null) {
+            List<StatementNode> afterAllCatch = List.of(
+                    new ExpressionStmt(p, callPrintln(p, concat(p,
+                            new LiteralExpr(p, ConcreteLiteralKind.STRING,
+                                    "afterAll failed: "),
+                            new IdentifierExpr(p, "e")))),
+                    new ExpressionStmt(p, new AssignmentExpr(p, failedVar, "=",
+                            new BinaryExpr(p, "+", failedVar,
+                                    new LiteralExpr(p, ConcreteLiteralKind.INT, "1")))));
             body.add(new TryStmt(p,
                     List.of(new ExpressionStmt(p,
-                            new MethodCallExpr(p, null, "setup", List.of(), List.of()))),
-                    List.of(new CatchClause(p, "String", "e", setupCatch)), List.of()));
-            body.add(new IfStmt(p,
-                    new BinaryExpr(p, "==", new IdentifierExpr(p, skipName),
-                            new LiteralExpr(p, ConcreteLiteralKind.BOOLEAN, "false")),
-                    new BlockStmt(p, runInner), null));
+                            new MethodCallExpr(p, null, afterAllName, List.of(), List.of()))),
+                    List.of(new CatchClause(p, "String", "e", afterAllCatch)),
+                    List.of()));
         }
         body.add(new ExpressionStmt(p, callPrintln(p,
                 new LiteralExpr(p, ConcreteLiteralKind.STRING, "────────"))));
@@ -122,6 +209,21 @@ final class TestHarnessBuilder {
                 null));
         return new FunctionDeclarationNode(p, List.of(), "void", "main",
                 List.of(), List.of(), List.of(), List.copyOf(body));
+    }
+
+    /**
+     * §7.1 multi-tag: o valor de {@code --tag} é uma lista separada por vírgula e
+     * casa por DISJUNÇÃO (OR) — {@code --tag smoke,ui} mantém todo teste que
+     * carregue QUALQUER uma das tags. Um valor simples (sem vírgula) é o caso de
+     * uma tag só e mantém o contrato histórico byte a byte (rule 2). Espaços em
+     * volta de cada tag são ignorados; um item vazio é descartado (não casa).
+     */
+    static boolean matchesAnyTag(List<String> tags, String filter) {
+        for (String part : filter.split(",", -1)) {
+            String want = part.trim();
+            if (!want.isEmpty() && tags.contains(want)) return true;
+        }
+        return false;
     }
 
     private static StatementNode testCall(SourcePosition p, Entry test) {

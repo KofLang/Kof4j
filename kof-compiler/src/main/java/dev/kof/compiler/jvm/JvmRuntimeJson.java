@@ -380,7 +380,19 @@ public final class JvmRuntimeJson {
                             Object[] args = new Object[comps.length];
                             for (int i = 0; i < comps.length; i++) {
                                 argTypes[i] = comps[i].getType();
-                                args[i] = kof_json_bind(comps[i].getType(), comps[i].getGenericType(), m.get(comps[i].getName()));
+                                Object cv = m.get(comps[i].getName());
+                                // §565: um componente PRIMITIVO ausente (chave
+                                // faltando) ou JSON-null chegava cru ao MethodHandle
+                                // do construtor do record e morria no NPE interno do
+                                // JDK (`ValueConversions.primitiveConversion`) em vez
+                                // de um diagnostico nomeado. O contrato decidido
+                                // (rule 6): falha honesta `JSN004`. Componente de
+                                // referencia ausente segue `null` (sem erro).
+                                if (cv == null && comps[i].getType().isPrimitive()) {
+                                    throw new RuntimeException("JSN004: missing field '"
+                                            + comps[i].getName() + "' for " + type.getSimpleName());
+                                }
+                                args[i] = kof_json_bind(comps[i].getType(), comps[i].getGenericType(), cv);
                             }
                             return type.getDeclaredConstructor(argTypes).newInstance(args);
                         }

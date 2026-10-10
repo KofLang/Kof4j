@@ -19,9 +19,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * Red-first: antes desta fatia `sealed class S` nem parseava, logo SEM080
  * não existia — os casos de fora-da-unidade falhariam.
  */
-class SealedTypeE2ETest {
+class SealedTypeE2ETest extends MultiSourceRunSupport {
 
-    private final CompilerDriver driver = new CompilerDriver();
 
     private String runJvm(Path root, List<Path> sources, String expected) throws Exception {
         Path outDir = root.resolve("out-" + System.nanoTime());
@@ -37,30 +36,8 @@ class SealedTypeE2ETest {
         return output;
     }
 
-    private void runScript(Path root, List<Path> sources, String expected) {
-        KofInterpreter.Result r = driver.interpret(sources, root, new String[0]);
-        assertEquals(0, r.exitCode(), "SCRIPT exit code, output: " + r.stdout());
-        assertEquals(expected, r.stdout().trim().replace("\r\n", "\n"), "SCRIPT output");
-    }
-
-    private void runJs(Path root, List<Path> sources, String expected) throws Exception {
-        Path outDir = root.resolve("js-" + System.nanoTime());
-        CompilationResult result = driver.compileSources(sources, outDir, Target.JS, root);
-        assertTrue(result.success(), "JS compile failed: " + result.diagnostics().getDiagnostics());
-        Path entry;
-        try (var s = Files.walk(outDir)) {
-            entry = s.filter(p -> p.getFileName().toString().equals("Default.mjs")).findFirst()
-                    .orElseThrow(() -> new java.io.IOException("no Default.mjs in " + outDir));
-        }
-        try (java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream()) {
-            int ec = dev.kof.runtime.KofJsRunner.run(entry, buf,
-                    java.io.InputStream.nullInputStream(), new java.io.ByteArrayOutputStream());
-            String output = buf.toString(java.nio.charset.StandardCharsets.UTF_8).trim();
-            assertEquals(0, ec, "JS exit code, output: " + output);
-            assertEquals(expected, output, "JS output");
-        }
-    }
-
+    
+    
     private static Path write(Path dir, String name, String body) throws Exception {
         Path f = dir.resolve(name);
         Files.writeString(f, body);

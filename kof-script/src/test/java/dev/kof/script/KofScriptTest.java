@@ -5,7 +5,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.*;
 import static org.junit.jupiter.api.Assertions.*;
 
-class KofScriptTest {
+class KofScriptTest extends KofScriptPrograms {
 
     @Test
     void evalPrintsHello() throws Exception {
@@ -33,17 +33,7 @@ class KofScriptTest {
 
     @Test
     void evalPatternMatching() throws Exception {
-        var r = KofScript.eval("""
-                main() {
-                    var x: Object = "hello"
-                    switch (x) {
-                        case String s:
-                            println("str:" + s)
-                        default:
-                            println("other")
-                    }
-                }
-                """);
+        var r = KofScript.eval(SRC_EVAL_PATTERN_MATCHING);
         assertTrue(r.success(), r.stderr());
         assertEquals("str:hello", r.stdout().trim());
     }
@@ -142,19 +132,7 @@ class KofScriptTest {
     void interpreterRunsCollectionsAndRecords() throws Exception {
         // KofScript roda pelo interpretador da IR (sem fork de JVM): coleções,
         // records (== de conteúdo + toString), higher-order.
-        var r = KofScript.eval("""
-                record Point(Int x, Int y)
-                main() {
-                    var l = listOf(1, 2, 3)
-                    println(l.map((v: Int) -> v * 2).reduce((a: Int, b: Int) -> a + b, 0))
-                    var m = mapOf("k", 9)
-                    println(m.get("k"))
-                    var p1 = Point(1, 2)
-                    var p2 = Point(1, 2)
-                    println(p1 == p2)
-                    println(p1)
-                }
-                """);
+        var r = KofScript.eval(SRC_INTERPRETER_RUNS_COLLECTIONS_AND_RECORDS);
         assertTrue(r.success(), r.stderr());
         assertEquals("12\n9\ntrue\nPoint[x=1, y=2]", r.stdout().trim().replace("\r\n", "\n"));
     }
@@ -163,20 +141,7 @@ class KofScriptTest {
     void interpreterRunsSpawnAwaitAndTryFinally() throws Exception {
         // spawn/await + try/catch/finally com exceção-as-String pelo
         // interpretador — mesma semântica do caminho compilado.
-        var r = KofScript.eval("""
-                work(): Int { return 21 }
-                main() {
-                    val h = spawn work()
-                    println(await h * 2)
-                    try {
-                        throw "boom"
-                    } catch (String e) {
-                        println("caught:" + e)
-                    } finally {
-                        println("fin")
-                    }
-                }
-                """);
+        var r = KofScript.eval(SRC_INTERPRETER_RUNS_SPAWN_AWAIT_AND_TRY_FINALLY);
         assertTrue(r.success(), r.stderr());
         assertEquals("42\ncaught:boom\nfin", r.stdout().trim().replace("\r\n", "\n"));
     }
@@ -186,19 +151,7 @@ class KofScriptTest {
         // Paridade por construção: o MESMO programa, interpretado vs compilado
         // + fork de JVM, produz saída idêntica.
         Path f = tmp.resolve("Main.kf");
-        Files.writeString(f, """
-                record Point(Int x, Int y)
-                add(a: Int, b: Int): Int { return a + b }
-                main() {
-                    println(add(2, 3))
-                    println("a" + "b")
-                    println(Point(1, 2) == Point(1, 2))
-                    println(listOf(1, 2, 3).size())
-                    var i = 0
-                    while (i < 3) { println(i); i = i + 1 }
-                    for (var it in listOf("x", "y")) { println(it) }
-                }
-                """);
+        Files.writeString(f, SRC_INTERPRETER_MATCHES_COMPILED_JVM_OUTPUT);
         var interp = KofScript.runFile(f, dev.kof.compiler.Target.JVM);
         assertTrue(interp.success(), interp.stderr());
         // caminho compilado (bytecode + JVM real) para comparação
@@ -212,18 +165,7 @@ class KofScriptTest {
         // Regressão do null na pilha (função que retorna null): o interpretador
         // precisa empilhar null (LinkedList, não ArrayDeque) — paridade com JVM.
         Path f = tmp.resolve("Main.kf");
-        Files.writeString(f, """
-                find(k: String): String? {
-                    if (k == "ok") { return "achou" }
-                    return null
-                }
-                main() {
-                    var v = find("ok")
-                    if (v != null) { println(v) }
-                    var w = find("no")
-                    if (w == null) { println("nada") }
-                }
-                """);
+        Files.writeString(f, SRC_INTERPRETER_NULL_SAFETY_MATCHES_JVM);
         var interp = KofScript.runFile(f, dev.kof.compiler.Target.JVM);
         assertTrue(interp.success(), interp.stderr());
         assertEquals("achou\nnada", interp.stdout().trim().replace("\r\n", "\n"));
@@ -255,21 +197,7 @@ class KofScriptTest {
         // channel<T>() com spawn de closure capturando o canal — receive
         // bloqueia até send, mesma ordem no interpretador e no JVM.
         Path f = tmp.resolve("Main.kf");
-        Files.writeString(f, """
-                import kof.time
-                main() {
-                    val c = channel<Int>()
-                    spawn {
-                        println("recv-wait")
-                        val v = c.receive()
-                        println("recv:" + v)
-                    }
-                    time.sleep(30)
-                    println("pre-send")
-                    c.send(42)
-                    println("post-send")
-                }
-                """);
+        Files.writeString(f, SRC_INTERPRETER_CHANNEL_MATCHES_JVM);
         var interp = KofScript.runFile(f, dev.kof.compiler.Target.JVM);
         assertTrue(interp.success(), interp.stderr());
         String out = interp.stdout().replace("\r\n", "\n");
@@ -383,17 +311,7 @@ class KofScriptTest {
     @Test
     void scriptTargetRunsDirectly(@TempDir Path tmp) throws Exception {
         Path f = tmp.resolve("Main.kf");
-        Files.writeString(f, """
-                record Point(Int x, Int y)
-                main() {
-                    var o = Point(3, 4)
-                    var r = switch (o) {
-                        case Point(var x, var y) -> x + "," + y
-                        default -> "other"
-                    }
-                    println(r)
-                }
-                """);
+        Files.writeString(f, SRC_SCRIPT_TARGET_RUNS_DIRECTLY);
         var script = KofScript.runFile(f, dev.kof.compiler.Target.SCRIPT);
         assertTrue(script.success(), script.stderr());
         assertEquals("3,4", norm(script.stdout()));
@@ -494,18 +412,7 @@ class KofScriptTest {
     @Test
     void jsonDecodeRecordRunsOnInterpreter(@TempDir Path tmp) throws Exception {
         Path f = tmp.resolve("Main.kf");
-        Files.writeString(f, """
-                record Point(Int x, Int y)
-                main() {
-                    var dp = json.decode<Point>("{\\"x\\": 10, \\"y\\": 20}")
-                    println(dp.x)
-                    println(dp.y)
-                    var s = json.encode(Point(3, 4))
-                    var rt = json.decode<Point>(s)
-                    println(rt.x)
-                    println(rt.y)
-                }
-                """);
+        Files.writeString(f, SRC_JSON_DECODE_RECORD_RUNS_ON_INTERPRETER);
         var interp = KofScript.runFile(f, dev.kof.compiler.Target.JVM);
         assertTrue(interp.success(), interp.stderr());
         assertEquals("10\n20\n3\n4", norm(interp.stdout()),

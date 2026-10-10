@@ -1,12 +1,6 @@
 package dev.kof.compiler;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -30,51 +24,7 @@ import org.junit.jupiter.api.io.TempDir;
  * no atalho, o caso {@link #nullableRelationalInElseIfChain} dá VerifyError na
  * carga (todo o programa morre mesmo quando o {@code v > 0} nunca roda).
  */
-class NullablePrimitiveRelationalConditionTest {
-
-    private final CompilerDriver driver = new CompilerDriver();
-
-    private String runJvm(Path outDir) throws IOException {
-        try {
-            ProcessBuilder pb = new ProcessBuilder("java", "-cp", outDir.toString(), "Default.Main");
-            pb.redirectErrorStream(true);
-            Process p = pb.start();
-            String output = new String(p.getInputStream().readAllBytes(),
-                    java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
-            int ec = p.waitFor();
-            assertEquals(0, ec, "JVM exit code, output: " + output);
-            return output;
-        } catch (InterruptedException e) {
-            throw new IOException("Interrupted", e);
-        }
-    }
-
-    private String runJs(Path outDir) throws IOException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        int exitCode = dev.kof.runtime.KofJsRunner.run(outDir.resolve("Default.mjs"), out,
-                new ByteArrayInputStream(new byte[0]), out);
-        String s = out.toString().trim();
-        assertEquals(0, exitCode, "JS exit code, output: " + s);
-        return s;
-    }
-
-    private void assertBoth(String program, String expected, Path tempDir, String name)
-            throws IOException {
-        Path source = tempDir.resolve(name + ".kf");
-        Files.writeString(source, program);
-        Path outJvm = tempDir.resolve(name + "-jvm");
-        Path outJs = tempDir.resolve(name + "-js");
-        Files.createDirectories(outJvm);
-        Files.createDirectories(outJs);
-        CompilationResult rjvm = driver.compile(source, outJvm, Target.JVM);
-        assertTrue(rjvm.success(), "JVM compile failed: " + rjvm.diagnostics().getDiagnostics());
-        CompilationResult rjs = driver.compile(source, outJs, Target.JS);
-        assertTrue(rjs.success(), "JS compile failed: " + rjs.diagnostics().getDiagnostics());
-        String jvm = runJvm(outJvm);
-        String js = runJs(outJs);
-        assertEquals(expected, jvm, "JVM output");
-        assertEquals(jvm, js, "stdout parity JVM vs JS");
-    }
+class NullablePrimitiveRelationalConditionTest extends JsParityRunSupport {
 
     @Test
     void nullableRelationalInElseIfChain(@TempDir Path tempDir) throws IOException {

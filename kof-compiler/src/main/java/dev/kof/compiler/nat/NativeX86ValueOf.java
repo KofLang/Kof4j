@@ -1,5 +1,6 @@
 package dev.kof.compiler.nat;
 import dev.kof.compiler.BuiltinTypes;
+import dev.kof.compiler.KofBuffer;
 import dev.kof.compiler.KofCall;
 import dev.kof.compiler.KofCallKind;
 import dev.kof.compiler.KofProcess;
@@ -19,6 +20,17 @@ final class NativeX86ValueOf {
         if (!(kc.kind() == KofCallKind.STATIC && "valueOf".equals(kc.methodName()))) {
             return false;
         }
+            // #772: Wrapper.valueOf(primitivo) é o BOX de erasure do slot T?
+            // (§284 MAGIC box), NÃO String.valueOf. Sem este ramo o box virava
+            // `kof_*_to_string` e o consumidor do slot lia o ponteiro como
+            // inteiro (garbage). `String.valueOf` (dono String) não casa.
+            String boxFn = NativeOpHelpers.wrapperValueOfBoxFn(kc);
+            if (boxFn != null) {
+                sb.append("    popq %rdi\n");
+                sb.append("    call ").append(boxFn).append("\n");
+                sb.append("    pushq %rax\n");
+                return true;
+            }
             Type argType = kc.parameterTypes().isEmpty() ? Type.UnknownType.UNKNOWN : kc.parameterTypes().get(0);
             if (KofProcess.isResult(argType)) {
                 sb.append("    popq %rdi\n");
@@ -71,6 +83,13 @@ final class NativeX86ValueOf {
                 sb.append("    popq %rdi\n");
                 sb.append("    movq %rdi, %xmm0\n");
                 sb.append("    call kof_double_to_string\n");
+                sb.append("    pushq %rax\n");
+            } else if (KofBuffer.isBufferType(dispatchType)) {
+                // #651 fatia A1: Buffer nominal é impresso pelo seu contrato
+                // de valor ("Buffer[cap]"), não como ponteiro cru nem via
+                // vtable (a classe não existe no native class-metadata).
+                sb.append("    popq %rdi\n");
+                sb.append("    call kof_buffer_to_string\n");
                 sb.append("    pushq %rax\n");
             } else if (dispatchType instanceof Type.ArrayType at) {
                 // §388-B (voto mantenedora 21/09): println de array cru no
@@ -126,14 +145,17 @@ final class NativeX86ValueOf {
                 sb.append("    popq %rdi\n");
                 sb.append("    call kof_box_to_string\n");
                 sb.append("    pushq %rax\n");
-            } else if (dispatchType instanceof Type.TypeVariable) {
-                // §444: TypeVariable NÃO casava ramo nenhum e o emit terminava
-                // `return true` SEM emitir conversão — o box de erasure cru
-                // (o ctor genérico boxeia o primitivo) caía no println_string
-                // = lixo/stdio vazio (silent, R6). Mesma invariante §284 do
-                // ramo Object: valor de T apagado é box de primitivo ou
-                // referência real — kof_box_to_string despacha por MAGIC+tag
-                // e passa não-box cru.
+            } else if (dispatchType instanceof Type.TypeVariable
+                    || dispatchType instanceof Type.UnknownType) {
+                // §444 + #772: TypeVariable/Unknown NÃO casavam ramo nenhum e o
+                // emit terminava `return true` SEM emitir conversão — o box de
+                // erasure cru caía no println_string/concat = lixo/stdio vazio
+                // (silent, R6). O Unknown é o argumento do açúcar de
+                // stringificação (`String.valueOf` sobre o primitivo/box já
+                // empilhado: `"x" + n`, campo de record toString) e o TypeVariable
+                // é o `T` apagado do ctor genérico. Mesma invariante §284 do ramo
+                // Object: valor apagado é box de primitivo ou referência real —
+                // kof_box_to_string despacha por MAGIC+tag e passa não-box cru.
                 sb.append("    popq %rdi\n");
                 sb.append("    call kof_box_to_string\n");
                 sb.append("    pushq %rax\n");
@@ -153,11 +175,11 @@ final class NativeX86ValueOf {
                     sb.append("    pushq %rax\n");
                     sb.append("    testq %rax, %rax\n");
                     sb.append("    je .Lstr_nullv").append(psn).append("\n");
-                    sb.append("    movq 8(%rax), %rbx\n");
-                    sb.append("    addq $").append(tosIdx * 8).append(", %rbx\n");
-                    sb.append("    movq (%rbx), %rbx\n");
+                    sb.append("    movq 8(%rax), %r11\n");
+                    sb.append("    addq $").append(tosIdx * 8).append(", %r11\n");
+                    sb.append("    movq (%r11), %r11\n");
                     sb.append("    popq %rdi\n");
-                    sb.append("    call *%rbx\n");
+                    sb.append("    call *%r11\n");
                     sb.append("    pushq %rax\n");
                     sb.append("    jmp .Lstr_nullv_e").append(psn).append("\n");
                     sb.append(".Lstr_nullv").append(psn).append(":\n");

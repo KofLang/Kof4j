@@ -454,6 +454,62 @@ public final class RuntimeTime {
                 popq %rbx
                 ret
 
+            # kof_time_age(rdi..r9 = by,bm,bd, ry,rm,rd) -> Int anos completos | 0
+            # Aritmética inteira pura (MESMA fórmula dos 5 alvos) => paridade byte-a-byte.
+            # Data inválida => 0 (política do wedge). Guarda as 6 datas como daysBetween
+            # (5 callee-saved + rd no slot); recarrega rd do slot antes da comparação de
+            # dia (.Lkd_valid clobbers edx).
+            .globl kof_time_age
+            .type kof_time_age, @function
+            kof_time_age:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                pushq %r9                       # rd (6º arg SysV)
+                movl %edi, %ebx                 # by
+                movl %esi, %r12d                # bm
+                movl %edx, %r13d                # bd
+                movl %ecx, %r14d                # ry
+                movl %r8d, %r15d                # rm
+                call .Lkd_valid                 # edi,esi,edx = by,bm,bd
+                testl %eax, %eax
+                je .Lkd_ag0
+                movl %r14d, %edi                # ry
+                movl %r15d, %esi                # rm
+                movl (%rsp), %edx               # rd
+                call .Lkd_valid
+                testl %eax, %eax
+                je .Lkd_ag0
+                movl %r14d, %eax                # years = ry - by
+                subl %ebx, %eax
+                cmpl %r12d, %r15d               # rm - bm
+                jl .Lkd_agdec                   # rm < bm  -> aniversário não ocorreu
+                jne .Lkd_agdone                 # rm > bm  -> já ocorreu
+                movl (%rsp), %edx               # rd (recarrega)
+                cmpl %r13d, %edx                # rd - bd
+                jge .Lkd_agdone                 # rd >= bd -> ocorreu
+            .Lkd_agdec:
+                decl %eax
+            .Lkd_agdone:
+                popq %r9
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+            .Lkd_ag0:
+                xorl %eax, %eax
+                popq %r9
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+
             .globl kof_time_sleep
             .type kof_time_sleep, @function
             kof_time_sleep:

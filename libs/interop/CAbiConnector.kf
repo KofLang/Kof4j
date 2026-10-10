@@ -1,0 +1,105 @@
+package interop
+
+import interop.ForeignModule
+import interop.InteropCost
+import interop.InteropType
+import interop.InteropCompatibility
+
+// kof.interop — C-ABI connector profile (fatia 16 of the Kof Connector Ecosystem
+// plan, `D-CONNECTORS-GO`; the official second connector is C ABI per
+// `D-CONNECTORS`). It is the DECLARATIVE half of the §5.2 C connector, in pure
+// Kof: it composes the landed Core pieces into one profile — the foreign module
+// (library + symbols + ABI + ownership, §3.5/§3.2), the visible costs it incurs
+// (§3.10), the supported interop types (§3.1) and its stability tier (§3.9) —
+// with `describe()`/validation. The runtime round-trip (dlopen/call) waits on the
+// `foreign module` grammar + interop error type slices (plan §9.16).
+//
+//   var cc = CAbiConnector("kof-cc", "libkofcc", "borrowed")
+//   cc.declare("add", "kof_add", "(Int,Int)->Int")
+//   cc.cost("copy")            // validated against InteropCost
+//   cc.supportedType("integer") // validated against InteropType
+//   cc.stabilityTier("experimental")
+//   cc.describe()
+//
+// Honest by construction (R6): unknown cost/type/tier throws through the Core
+// vocabulary; an undeclared symbol throws `FOREIGN: unknown symbol <x>`. No
+// compiler change; target-neutral (no IO).
+
+class CAbiConnector {
+    String connectorName
+    ForeignModule module
+    InteropCost costModel
+    InteropType typeModel
+    InteropCompatibility compatModel
+    List<String> costs
+    List<String> supportedTypes
+    String stabilityValue
+    Bool hasStability
+
+    constructor(String connectorName, String library, String ownership) {
+        this.connectorName = connectorName
+        this.module = ForeignModule(connectorName, library, "c", ownership)
+        this.costModel = InteropCost()
+        this.typeModel = InteropType()
+        this.compatModel = InteropCompatibility()
+        this.costs = new List<String>()
+        this.supportedTypes = new List<String>()
+        this.stabilityValue = ""
+        this.hasStability = false
+    }
+
+    void declare(String kofName, String foreignName, String signature) {
+        this.module.declare(kofName, foreignName, signature)
+    }
+
+    // The C ABI is the native route: a crossing copies (marshalling) and crosses
+    // the runtime boundary. Declared costs are validated, never guessed (R6).
+    void cost(String value) {
+        this.costModel.validate(listOf(value))
+        this.costs.add(value)
+    }
+
+    void supportedType(String interopKind) {
+        if (!this.typeModel.isKnownKind(interopKind)) {
+            throw "INTEROP: unknown type " + interopKind
+        }
+        this.supportedTypes.add(interopKind)
+    }
+
+    void stabilityTier(String value) {
+        if (!this.compatModel.isKnownTier(value)) {
+            throw "INTEROP: unknown stability " + value
+        }
+        this.stabilityValue = value
+        this.hasStability = true
+    }
+
+    Int symbolCount() {
+        return this.module.symbolCount()
+    }
+
+    String foreignNameOf(String kofName) {
+        return this.module.foreignNameOf(kofName)
+    }
+
+    Int costCount() {
+        return this.costs.size()
+    }
+
+    Int typeCount() {
+        return this.supportedTypes.size()
+    }
+
+    String stabilityName() {
+        if (!this.hasStability) {
+            return "none"
+        }
+        return this.stabilityValue
+    }
+
+    String describe() {
+        return "c-abi connector " + this.connectorName + " module=" + this.module.describe()
+                + " costs=" + costCount() + " types=" + typeCount()
+                + " stability=" + stabilityName()
+    }
+}

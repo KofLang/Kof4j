@@ -1,6 +1,5 @@
 package dev.kof.compiler;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -26,25 +25,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * E2E tests for the Kof-native SSE stack ({@code app.sse(...)}).
  */
-class KofWebSseE2ETest {
+class KofWebSseE2ETest extends ServerProcessSupport {
 
     private static final String JAVA_BIN = Path.of(
             System.getProperty("java.home"), "bin", "java").toString();
 
-    private Process serverProcess;
 
-    @AfterEach
-    void stopServer() {
-        if (serverProcess != null) {
-            serverProcess.destroy();
-            try {
-                serverProcess.waitFor(5, TimeUnit.SECONDS);
-            } catch (InterruptedException ignored) {
-            }
-            serverProcess.destroyForcibly();
-            serverProcess = null;
-        }
-    }
 
     private static final String SSE_APP = """
             main() {
@@ -78,28 +64,8 @@ class KofWebSseE2ETest {
         ProcessBuilder pb = new ProcessBuilder(JAVA_BIN, "-cp", outDir.toString(), "Default.Main");
         pb.redirectErrorStream(true);
         serverProcess = pb.start();
-        int attempt = 0;
-        while (attempt < 40) {
-            if (!serverProcess.isAlive()) {
-                String out = new String(serverProcess.getInputStream().readAllBytes(),
-                                StandardCharsets.UTF_8)
-                        .replace("\r\n", "\n").trim();
-                throw new IOException("server exited early: " + out);
-            }
-            try (Socket probe = new Socket()) {
-                probe.connect(new java.net.InetSocketAddress("127.0.0.1", port), 200);
-                return port;
-            } catch (IOException e) {
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
-            attempt++;
-        }
-        throw new IOException("server did not start listening");
+        TestServerFixture.awaitListening(serverProcess, port);
+        return port;
     }
 
     private int freePort() throws IOException {
@@ -243,7 +209,6 @@ class KofWebSseE2ETest {
         try (SseClient client = connect(port)) {
             assertEquals("data: hello", client.readEvent());
         }
-        Thread.sleep(200);
         try (SseClient client = connect(port)) {
             assertHeaders(client);
             assertEquals("data: hello", client.readEvent());

@@ -2,8 +2,9 @@
 
 # kof.process — comandos externos, one-shot
 
-> **Status: JVM + JS ✅ · Native = `PROC001` (gap honesto em compile-time,
-> travado no `DomainGapCodesTest`).**
+> **Status: JVM + JS ✅ · Native x86-64/riscv64/aarch64 ✅ (`run`, `spawn` +
+> ops de handle, impressão do `Result` inteiro) · Native MCU/riscv32 = `PROC001`
+> (gap honesto em compile-time, travado no `DomainGapCodesTest`).**
 
 | Função | Forma |
 |--------|-------|
@@ -22,6 +23,9 @@ if (r.exitCode == 0) { println(r.stdout) }        // exit não-zero é DADO
 - `Result` carrega `stdout`/`stderr`/`exitCode` nos dois namespaces.
 - `spawn` devolve um Handle: `readLine`/`write`/`exitCode`/`kill`/`alive` —
   as mesmas ops de handle do [18 — Concorrência](../18-concurrency.pt_BR.md).
+- Sob `D-FULL-PARITY-050`, subprocessos não herdam descritores de arquivo
+  ambientes do pai além de stdin/stdout/stderr. O Native marca todo descritor
+  `>2` como close-on-exec antes de `run`/`spawn` (`#762`), igual ao oráculo JVM.
 - NUNCA monte uma string de comando (classe de injeção) — args ficam valores
   separados.
 

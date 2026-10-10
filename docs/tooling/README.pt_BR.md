@@ -19,7 +19,8 @@ Kof installation
               ├── syntax definition      (editor/kof.tmLanguage.json)
               ├── language server        (kof lsp)
               ├── formatter              (kof fmt)
-              └── diagnostics            (kof check / LSP publishDiagnostics)
+              ├── diagnostics            (kof check / LSP publishDiagnostics)
+              └── version manager        (tooling/kfvm)
 ```
 
 **Regra fundamental:** não existe parser paralelo para o editor. O editor
@@ -70,6 +71,7 @@ O baseline de API Java para todo o tooling é **Java 21**:
 | Diagnóstico do ambiente | ✅ | `kof info [--json]` |
 | Formatter | ✅ | `kof fmt` |
 | Workflow runner | ✅ | `kof workflow <list\|run> <file.kf>` (pipelines como código Kof: `pipeline(): KofWfDag`; `--job`/`--dry-run`/`--json`; JVM-first) |
+| Version manager | ✅ | `kfvm ls\|i\|u\|uni` (`tooling/kfvm`; instala/alterna/remove versões do Kof; só JVM) — ver [KFVM.pt_BR.md](KFVM.pt_BR.md) |
 
 
 ---

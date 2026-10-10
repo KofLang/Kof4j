@@ -179,6 +179,14 @@ public final class NativeX86StringCalls {
             return true;
         }
         if (kc.kind() == KofCallKind.INSTANCE && BuiltinTypes.isString(kc.ownerType())
+                && "compareToIgnoreCase".equals(kc.methodName())) {
+            sb.append("    popq %rsi\n");
+            sb.append("    popq %rdi\n");
+            sb.append("    call kof_string_compare_to_ignore_case\n");
+            sb.append("    pushq %rax\n");
+            return true;
+        }
+        if (kc.kind() == KofCallKind.INSTANCE && BuiltinTypes.isString(kc.ownerType())
                 && "hashCode".equals(kc.methodName())) {
             sb.append("    popq %rdi\n");
             sb.append("    call kof_string_hash_code\n");

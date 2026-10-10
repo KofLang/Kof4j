@@ -1,0 +1,318 @@
+package image
+
+import image.Image
+
+// kof.image — pure-Kof TIFF decoder (pixel slice).
+//
+// Baseline TIFF 6.0, the common interchange subset, decoded in pure Kof on
+// every target (no interop, no zlib): both byte orders (`II` little-endian and
+// `MM` big-endian), 8-bit samples, chunky (interleaved) layout, grayscale /
+// RGB / RGBA / gray-alpha / palette color, one or many strips, and
+// Compression = 1 (none) or 32773 (PackBits). Everything else is refused with
+// an explicit `IMAGE:` diagnostic — never a silent wrong decode:
+//
+//   * `PhotometricInterpretation` 0 (WhiteIsZero), 1 (BlackIsZero), 2 (RGB),
+//     3 (Palette);
+//   * `Compression` other than 1/32773 (`IMAGE: TIFF compression not
+//     covered`);
+//   * `BitsPerSample` other than 8 (`IMAGE: TIFF bits per sample not
+//     covered`);
+//   * `PlanarConfiguration` other than 1 (`IMAGE: TIFF planar configuration
+//     not covered`);
+//   * `Predictor` other than 1 (`IMAGE: TIFF predictor not covered`);
+//   * `ExtraSamples` whose value is not 2 (`IMAGE: TIFF associated alpha not
+//     covered`) or whose presence disagrees with `SamplesPerPixel`
+//     (`IMAGE: TIFF extra samples not covered`) — one unassociated alpha
+//     sample is the only extra-sample case this slice admits;
+//   * `SamplesPerPixel` that does not match the photometric interpretation
+//     (`IMAGE: TIFF samples per pixel not covered`).
+//
+// The walk is the classic TIFF: the header gives the byte order, the magic 42
+// and the first IFD offset; the IFD is a count followed by 12-byte entries
+// (tag, type, count, value/offset) and a next-IFD pointer. Tags read:
+// 256 ImageWidth, 257 ImageLength, 258 BitsPerSample, 259 Compression,
+// 262 PhotometricInterpretation, 273 StripOffsets, 277 SamplesPerPixel,
+// 278 RowsPerStrip, 279 StripByteCounts, 284 PlanarConfiguration, 317
+// Predictor, 320 ColorMap, 338 ExtraSamples. Per TIFF 6.0 §2, a value whose
+// byte size fits the 4-byte field is stored INLINE in that field; only larger
+// arrays live at the offset — `tiffValues` applies exactly that rule. Strip
+// data is concatenated in strip order (the strips tile the image row-major),
+// then expanded to the `Raster`'s interleaved samples.
+//
+// Bounded by the same <=262144-sample cap as the rest of the raster slice.
+
+Raster tiffRaster(String path) {
+    var b = File(path).readBytes()
+    return tiffRasterBytes(b)
+}
+
+Raster tiffRasterBytes(Int[] b) {
+    if (b.length < 8) {
+        throw "IMAGE: truncated TIFF header"
+    }
+    var le = b[0] == 73 && b[1] == 73
+    var be = b[0] == 77 && b[1] == 77
+    if (!le && !be) {
+        throw "IMAGE: bad TIFF byte order"
+    }
+    if (tiffU16(b, 2, le) != 42) {
+        throw "IMAGE: bad TIFF magic"
+    }
+    var ifdOff = tiffU32(b, 4, le)
+    if (ifdOff < 8 || ifdOff + 2 > b.length) {
+        throw "IMAGE: truncated TIFF header"
+    }
+    var count = tiffU16(b, ifdOff, le)
+    var width = 0
+    var height = 0
+    var compression = 1
+    var photo = 1
+    var samplesPerPixel = 1
+    var planar = 1
+    var predictor = 1
+    var extraSamples = -1
+    var colorMap = new Int[0]
+    var bits8 = false
+    var stripOffsets = new Int[0]
+    var stripByteCounts = new Int[0]
+    var i = 0
+    while (i < count) {
+        var p = ifdOff + 2 + i * 12
+        if (p + 12 > b.length) {
+            throw "IMAGE: truncated TIFF header"
+        }
+        var tag = tiffU16(b, p, le)
+        var typ = tiffU16(b, p + 2, le)
+        var n = tiffU32(b, p + 4, le)
+        if (tag == 256) {
+            width = tiffValues(b, p, n, typ, le)[0]
+        } else if (tag == 257) {
+            height = tiffValues(b, p, n, typ, le)[0]
+        } else if (tag == 258) {
+            var bps = tiffValues(b, p, n, typ, le)
+            bits8 = true
+            var k = 0
+            while (k < n) {
+                if (bps[k] != 8) {
+                    bits8 = false
+                }
+                k = k + 1
+            }
+        } else if (tag == 259) {
+            compression = tiffValues(b, p, n, typ, le)[0]
+        } else if (tag == 262) {
+            photo = tiffValues(b, p, n, typ, le)[0]
+        } else if (tag == 273) {
+            stripOffsets = tiffValues(b, p, n, typ, le)
+        } else if (tag == 277) {
+            samplesPerPixel = tiffValues(b, p, n, typ, le)[0]
+        } else if (tag == 279) {
+            stripByteCounts = tiffValues(b, p, n, typ, le)
+        } else if (tag == 284) {
+            planar = tiffValues(b, p, n, typ, le)[0]
+        } else if (tag == 317) {
+            predictor = tiffValues(b, p, n, typ, le)[0]
+        } else if (tag == 320) {
+            colorMap = tiffValues(b, p, n, typ, le)
+        } else if (tag == 338) {
+            if (n >= 1) {
+                extraSamples = tiffValues(b, p, n, typ, le)[0]
+            }
+        }
+        i = i + 1
+    }
+    if (width <= 0 || height <= 0) {
+        throw "IMAGE: TIFF dimensions not found"
+    }
+    if (compression != 1 && compression != 32773) {
+        throw "IMAGE: TIFF compression not covered"
+    }
+    if (planar != 1) {
+        throw "IMAGE: TIFF planar configuration not covered"
+    }
+    if (predictor != 1) {
+        throw "IMAGE: TIFF predictor not covered"
+    }
+    var channels = 1
+    var palette = false
+    if (photo == 0 || photo == 1) {
+        channels = 1
+    } else if (photo == 2) {
+        channels = 3
+    } else if (photo == 3) {
+        palette = true
+        channels = 3
+        if (samplesPerPixel != 1 || extraSamples >= 0) {
+            throw "IMAGE: TIFF palette samples not covered"
+        }
+    } else {
+        throw "IMAGE: TIFF photometric not covered"
+    }
+    if (!palette) {
+        if (samplesPerPixel == channels) {
+            if (extraSamples >= 0) {
+                throw "IMAGE: TIFF extra samples not covered"
+            }
+        } else if (samplesPerPixel == channels + 1) {
+            if (extraSamples < 0) {
+                throw "IMAGE: TIFF extra samples not covered"
+            }
+            if (extraSamples != 2) {
+                throw "IMAGE: TIFF associated alpha not covered"
+            }
+            channels = channels + 1
+        } else {
+            throw "IMAGE: TIFF samples per pixel not covered"
+        }
+    }
+    if (!bits8) {
+        throw "IMAGE: TIFF bits per sample not covered"
+    }
+    guardRaster(width * height * channels)
+    if (stripOffsets.length == 0) {
+        throw "IMAGE: TIFF has no strip offsets"
+    }
+    if (stripByteCounts.length != stripOffsets.length) {
+        throw "IMAGE: TIFF strip counts mismatch"
+    }
+    var rawLen = 0
+    var s = 0
+    while (s < stripByteCounts.length) {
+        rawLen = rawLen + stripByteCounts[s]
+        s = s + 1
+    }
+    var raw = new Int[rawLen]
+    var rawPos = 0
+    s = 0
+    while (s < stripOffsets.length) {
+        var off = stripOffsets[s]
+        var len = stripByteCounts[s]
+        if (off < 0 || len < 0 || off + len > b.length) {
+            throw "IMAGE: truncated TIFF strip"
+        }
+        if (compression == 32773) {
+            rawPos = tiffPackBits(b, off, len, raw, rawPos)
+        } else {
+            var k = 0
+            while (k < len) {
+                raw[rawPos + k] = b[off + k] & 255
+                k = k + 1
+            }
+            rawPos = rawPos + len
+        }
+        s = s + 1
+    }
+    var pixels = width * height
+    var samples = new Int[pixels * channels]
+    if (palette) {
+        if (colorMap.length < 768) {
+            throw "IMAGE: TIFF color map not covered"
+        }
+        var k = 0
+        while (k < pixels) {
+            var idx = raw[k] & 255
+            samples[k * 3] = colorMap[idx] >> 8
+            samples[k * 3 + 1] = colorMap[256 + idx] >> 8
+            samples[k * 3 + 2] = colorMap[512 + idx] >> 8
+            k = k + 1
+        }
+        return Raster("TIFF", width, height, 3, samples)
+    }
+    var k = 0
+    while (k < pixels * channels) {
+        var v = raw[k] & 255
+        if (photo == 0) {
+            v = 255 - v
+        }
+        samples[k] = v
+        k = k + 1
+    }
+    return Raster("TIFF", width, height, channels, samples)
+}
+
+// Reads the `n` values of an IFD entry as a TIFF 6.0 §2 value: SHORT (type 3)
+// or LONG (type 4) elements. When `n * elemSize` fits in the 4-byte value
+// field the values are read INLINE from the field; otherwise the field is an
+// offset to the array.
+Int[] tiffValues(Int[] b, Int entryPos, Int n, Int typ, Bool le) {
+    if (n <= 0) {
+        throw "IMAGE: TIFF value array not covered"
+    }
+    var elem = 2
+    if (typ == 4) {
+        elem = 4
+    } else if (typ != 3) {
+        throw "IMAGE: TIFF value type not covered"
+    }
+    var p = entryPos + 8
+    if (n * elem > 4) {
+        p = tiffU32(b, entryPos + 8, le)
+    }
+    if (p < 0 || p + n * elem > b.length) {
+        throw "IMAGE: truncated TIFF value"
+    }
+    var out = new Int[n]
+    var i = 0
+    while (i < n) {
+        if (typ == 3) {
+            out[i] = tiffU16(b, p + i * 2, le)
+        } else {
+            out[i] = tiffU32(b, p + i * 4, le)
+        }
+        i = i + 1
+    }
+    return out
+}
+
+// PackBits (TIFF 6.0 §9, Compression 32773): a control byte n in 0..127 is a
+// literal run of n+1 bytes, n in 129..255 (signed -127..-1) repeats the next
+// byte 257-n times, and 128 is a no-op. Writes into `out` at `pos` and returns
+// the new position.
+Int tiffPackBits(Int[] b, Int off, Int len, Int[] out, Int pos) {
+    var p = off
+    var end = off + len
+    while (p < end) {
+        var n = b[p] & 255
+        p = p + 1
+        if (n < 128) {
+            var k = 0
+            while (k <= n) {
+                out[pos] = b[p] & 255
+                p = p + 1
+                pos = pos + 1
+                k = k + 1
+            }
+        } else if (n > 128) {
+            var run = 257 - n
+            var v = b[p] & 255
+            p = p + 1
+            var k = 0
+            while (k < run) {
+                out[pos] = v
+                pos = pos + 1
+                k = k + 1
+            }
+        }
+    }
+    return pos
+}
+
+Int tiffU16(Int[] b, Int i, Bool le) {
+    if (i + 2 > b.length) {
+        throw "IMAGE: truncated TIFF header"
+    }
+    if (le) {
+        return (b[i] & 255) | ((b[i + 1] & 255) << 8)
+    }
+    return ((b[i] & 255) << 8) | (b[i + 1] & 255)
+}
+
+Int tiffU32(Int[] b, Int i, Bool le) {
+    if (i + 4 > b.length) {
+        throw "IMAGE: truncated TIFF header"
+    }
+    if (le) {
+        return (b[i] & 255) | ((b[i + 1] & 255) << 8) | ((b[i + 2] & 255) << 16) | ((b[i + 3] & 255) << 24)
+    }
+    return ((b[i] & 255) << 24) | ((b[i + 1] & 255) << 16) | ((b[i + 2] & 255) << 8) | (b[i + 3] & 255)
+}

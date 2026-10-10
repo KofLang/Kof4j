@@ -157,6 +157,24 @@ public final class NativeAssembler {
             // #431: as libs dos `extern` bound entram no link (posicional se é
             // caminho, `-l:` se é soname). Arquivo ausente → erro honesto do ld
             // (nunca um binário que resolve em runtime pra faltar).
+            // decisão F (08/10): o dir do próprio extern entra na busca do ld
+            // ANTES das libs — os DT_NEEDED do .so (as deps dele) resolvem da
+            // árvore do vendor antes dos caminhos default (a distro empilha
+            // versões de ffmpeg conflitantes; sem isto o link acha a errada).
+            // SDL3/soname sem dir: inócuo (deps já no path default). O -L vem
+            // ANTES: o ld resolve os DT_NEEDED contra a busca ACUMULADA até o
+            // ponto em que o .so é aberto.
+            java.util.Set<String> libDirs = new java.util.LinkedHashSet<>();
+            for (String lib : ffiLibs) {
+                if (lib.indexOf('/') >= 0) {
+                    Path parent = Path.of(lib).getParent();
+                    if (parent != null) libDirs.add(parent.toString());
+                }
+            }
+            for (String dir : libDirs) {
+                cmdL.add("-rpath-link");
+                cmdL.add(dir);
+            }
             for (String lib : ffiLibs) {
                 cmdL.add(lib.indexOf('/') >= 0 ? lib : "-l:" + lib);
             }

@@ -1,0 +1,5 @@
+package kfvm.platform
+
+interface UserPath {
+    Bool include(String dir)
+}

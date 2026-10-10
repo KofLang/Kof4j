@@ -150,6 +150,10 @@ case-stmt   = "case" , ( pattern | expression ) , ":" , { statement }
   (`case Point(var x, var y):`).
 - **Enum**: a switch over an enum without `default` requires coverage of all
   constants → otherwise `SEM031`.
+- **Sealed / Bool**: the *statement* form is exhaustive too — a `sealed`
+  subject missing a direct subtype case → `SEM081`; a `Bool` subject not
+  covering `true` and `false` → `SEM032` (same contract as the expression
+  form; `default:` of any body count, §686).
 
 ---
 

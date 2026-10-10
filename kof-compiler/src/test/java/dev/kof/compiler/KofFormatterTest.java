@@ -1,6 +1,12 @@
 package dev.kof.compiler;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -136,6 +142,146 @@ class KofFormatterTest {
         String out = fmt("do { println(i) } while (i < 3)");
         String expected = "main() {\n    do {\n        println(i)\n    }\n    while (i < 3)\n}\n";
         assertEquals(expected, out, "do-while sai pelo ramo formatBody:\n" + out);
+    }
+
+    // #719 (metade formatter) — `kof fmt -w` DESTRUIA a declaracao FFI: o
+    // `formatDecl` nao tinha caso para `ExternalFunctionNode` (nem para o
+    // `ForeignModuleNode` da fatia A dos connectors), entao a declaracao caia
+    // no `default ->` e era reimprimida com `decl.toString()` — um blob
+    // `ExternalFunctionNode[position=SourcePosition[file=Main.kf, line=1, ...]]`
+    // enquanto o CLI reportava `1 file(s) reformatted`. Perda silenciosa de
+    // codigo-fonte: a prova e por CONTEUDO (a declaracao sobrevive) e por
+    // round-trip (formatar o formatado nao muda nada).
+    @Test
+    void externDeclarationSurvivesFormatting() {
+        String src = """
+                extern "libm.so.6" sqrt(Double x): Double
+
+                main() {
+                    println(sqrt(9.0))
+                }
+                """;
+        String out = KofFormatter.format(src, "Main.kf");
+        assertNotNull(out, "format() nao pode cair no fallback p/ este fonte valido");
+        assertTrue(out.contains("extern \"libm.so.6\" sqrt(x: Double): Double"),
+                "#719: a declaracao `extern` tem que sobreviver ao fmt — saiu:\n" + out);
+        assertFalse(out.contains("SourcePosition"),
+                "#719: nenhum no pode vazar para a saida (era o toString() do no) — saiu:\n" + out);
+        assertFalse(out.contains("ExternalFunctionNode"),
+                "#719: o toString() do no nao pode virar codigo — saiu:\n" + out);
+        assertEquals(out, KofFormatter.format(out, "Main.kf"),
+                "#719: round-trip estavel (formatar o formatado nao muda nada)");
+    }
+
+    @Test
+    void externDeclarationWithoutLibraryKeepsItsShape() {
+        // `extern` sem library segue aceito (retrocompat, sem string) e tambem
+        // tem que sobreviver — sem um `""` vazio no meio da linha.
+        String src = "extern sqrt(Double x): Double\n\nmain() {\n    println(sqrt(9.0))\n}\n";
+        String out = KofFormatter.format(src, "Main.kf");
+        assertNotNull(out);
+        assertTrue(out.contains("extern sqrt(x: Double): Double"),
+                "#719: `extern` sem library tambem sobrevive — saiu:\n" + out);
+        assertFalse(out.contains("SourcePosition"), "saida:\n" + out);
+    }
+
+    @Test
+    void formattedExternStillCompilesAndBindsThroughFfi(@TempDir Path dir) throws IOException {
+        // Fecha o ciclo: o fmt nao pode so imprimir um texto plausivel — o arquivo
+        // FORMATADO tem que continuar compilando e linkando pela via FFI. Prova
+        // o round-trip de verdade (o mesmo caminho de `kof fmt -w`).
+        Path src = dir.resolve("Main.kf");
+        Files.writeString(src, """
+                extern "libm.so.6" sqrt(Double x): Double
+
+                main() {
+                    println("sqrt=" + sqrt(144.0))
+                }
+                """);
+        String formatted = KofFormatter.format(Files.readString(src), "Main.kf");
+        assertNotNull(formatted);
+        Path formattedFile = dir.resolve("Formatted.kf");
+        Files.writeString(formattedFile, formatted);
+
+        Path out = dir.resolve("out");
+        CompilationResult result = new CompilerDriver().compile(formattedFile, out, Target.JVM);
+        assertTrue(result.success(), "o fonte FORMATADO tem que continuar compilando: "
+                + result.diagnostics().getDiagnostics() + "\nsaida do fmt:\n" + formatted);
+        // A classe gerada e sempre `<pacote>.Main` (CompilerPipeline:282) —
+        // o NOME do arquivo de origem nao muda isso.
+        ProcessBuilder pb = new ProcessBuilder(
+                Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                "--enable-native-access=ALL-UNNAMED", "-cp", out.toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process p = pb.start();
+        String output = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                .replace("\r\n", "\n").trim();
+        int exit;
+        try {
+            exit = p.waitFor();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("interrupted", e);
+        }
+        assertEquals(0, exit, "exit code, saida: " + output);
+        assertEquals("sqrt=12.0", output,
+                "#719: o `extern` formatado tem que LIGAR de verdade pela via FFI");
+    }
+
+    @Test
+    void foreignModuleBlockSurvivesFormatting() {
+        // Fatia A dos connectors (`D-CONNECTORS`): o bloco tambem nao tinha caso
+        // no formatDecl, entao `kof fmt` o destruia do mesmo jeito. Como o
+        // parser ja desdobrou o bloco nos `extern` que herdam a library do
+        // cabecalho, o bloco nao emite codigo proprio — o que tem de sobreviver
+        // sao as declaracoes `extern` (a forma e a mesma do `extern` solto).
+        String src = """
+                foreign module libm {
+                    library "libm.so.6"
+                    abi c
+                    ownership borrowed
+                    extern sqrt(Double x): Double
+                }
+
+                main() {
+                    println(sqrt(9.0))
+                }
+                """;
+        String out = KofFormatter.format(src, "Main.kf");
+        assertNotNull(out);
+        assertTrue(out.contains("extern \"libm.so.6\" sqrt(x: Double): Double"),
+                "#719: o `extern` do bloco sobrevive com a library do cabecalho — saiu:\n" + out);
+        assertFalse(out.contains("SourcePosition"), "nenhum no pode vazar — saiu:\n" + out);
+        assertFalse(out.contains("ExternalFunctionNode"), "saida:\n" + out);
+        assertFalse(out.contains("ForeignModuleNode"), "saida:\n" + out);
+        assertEquals(out, KofFormatter.format(out, "Main.kf"), "#719: round-trip estavel");
+    }
+
+    @Test
+    void foreignModuleWithItsOwnLibraryPerExternRoundTrips() {
+        // O `extern` com library PROPRIA dentro do bloco nao pode perder a
+        // library do modulo (o cabecalho nao pode sobrescrever a dele).
+        String src = """
+                foreign module mixed {
+                    library "libm.so.6"
+                    extern sqrt(Double x): Double
+                    extern "libc.so.6" abs(Int x): Int
+                }
+
+                main() {
+                    println(sqrt(9.0))
+                }
+                """;
+        String out = KofFormatter.format(src, "Main.kf");
+        assertNotNull(out);
+        // O `extern` SEM library propria herda a do cabecalho e sai materializado
+        // com ela (e a forma que o parser ja gravou no no) — prova que a
+        // desugaring do bloco sobreviveu, em vez de virar no.
+        assertTrue(out.contains("extern \"libm.so.6\" sqrt(x: Double): Double"),
+                "#719: o `extern` sem library propria herda a do modulo — saiu:\n" + out);
+        assertTrue(out.contains("extern \"libc.so.6\" abs(x: Int): Int"),
+                "#719: a library por `extern` precisa sobreviver — saiu:\n" + out);
+        assertEquals(out, KofFormatter.format(out, "Main.kf"), "#719: round-trip estavel");
     }
 
     // §625 — `kof fmt` deletava comentarios em silencio: o caminho AST

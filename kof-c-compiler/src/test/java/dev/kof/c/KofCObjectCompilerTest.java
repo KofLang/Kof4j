@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * compilada como objeto cross e ligada ao executável do driver — o caminho
  * que os testes FFI cross vão usar. Prova por execução real sob qemu.
  */
-class KofCObjectCompilerTest {
+class KofCObjectCompilerTest extends KofCSupport {
 
     private static final String FIXTURE = """
             struct Pair { int a; int b; };
@@ -41,23 +41,7 @@ class KofCObjectCompilerTest {
             }
             """;
 
-    private static boolean has(String... cmds) {
-        String path = System.getenv("PATH");
-        if (path == null) return false;
-        for (String c : cmds) {
-            boolean found = false;
-            for (String d : path.split(File.pathSeparator)) {
-                if (Files.isExecutable(Path.of(d, c))) { found = true; break; }
-            }
-            if (!found) return false;
-        }
-        return true;
-    }
 
-    private static void requireTools(KofCTarget t) {
-        assumeTrue(has(t.assembler().get(0), t.linker()) && (t.qemu() == null || has(t.qemu())),
-                "toolchain " + t + " + qemu ausente — pulando (NATIVE002)");
-    }
 
     /** Compiles the fixture to an object, links the driver with it, runs, returns stdout. */
     private static String runWithFixture(KofCTarget target, Path tmp) throws Exception {

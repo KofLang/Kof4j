@@ -1,0 +1,22 @@
+main() {
+    var b: Byte = 65
+    println(b * 256)
+    var b2: Byte = 120
+    println(b2 + b2)
+    var s: Short = 1000
+    println(s + s)
+    var ch: Char = 'a'
+    println(ch + ch)
+    var i = 100
+    println(b + i)
+    var bb: Byte = 65
+    bb = (bb + 1) as Byte
+    println(bb)
+    var s2: Short = 30000
+    println(s2 + s2)
+    println(s2 * 3)
+    var z: Char = 'z'
+    println(z - 'a')
+    println(z as Int)
+    println(300 as Byte)
+}

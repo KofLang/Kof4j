@@ -1,8 +1,10 @@
+[English](AGENTS.md) | [Português](AGENTS.pt_BR.md)
+
 # AGENTS.md
 
-last: 0.5.0-beta
-doing: autonomous-development
-next: execute-unowned-work
+last: 0.6.0-protocol + WASI GATE (07/10 maintainer order `D-WEB-WASI-DEFAULT-0710`: wasm/wasi plan promoted, WASI = default web+desktop frontend, #776 `1.0-blocks` gates the cut; structural gates rc=0; suite 7F non-WASI (4 deterministic external §628/JavaFX + 3 load-proven environmental; 0 WASI, battery 25/25); §625+§627+§631 fixed 08/10 by lane .30:9092)
+doing: #772+#773 CLOSED 06-07/10 (re-scoped §612 `aa67a2acb`; battery 166/0F, ledger rows dropped) + M1 unidade-1 LANDED 07/10 (HFA struct param cross, `2d933828c`) + WASI 15.1+15.2+15.3-slice1+15.3b+15.3c-sliceA+15.3c-sliceB+15.3d-inc1 LANDED 07-08/10 (#776 topology + SCALAR backend + WASI-preview1 stdout host + `println(String)` literal via DATA segments + String VARIABLES/concat on a bump heap `global 0`@16384 `kof.strLit`/`kof.strConcat`/`kof.writeStr` + `args` via `kof.readArgs` (`args_sizes_get`/`args_get`, explicit bounds trap, argv[0] dropped = JVM parity); `WasmWasiE2ETest` 7/7 under wasmtime with JVM-oracle parity `…/ab/xyz` + `alpha/beta/alpha-beta` + record `Point(1,2).x/.y` -> `1/2` (15.3d inc1 alloc + Int/Long field read via `Mem.LOAD64/STORE64` on the bump heap; toString/equals/concat + non-i64 fields still `WASM002` no artifacts until instance-method lowering; then collections land the rest of 15.3; 15.4 flip LAST) + EXTERNAL native/cross regression catalogued `known-bugs` §625 (`Av1CoeffsE2ETest` aarch64+riscv64 at remote tip, bisect `a2f69d2f7`, owner lane .30:9092) — FIXED 08/10 (cross/x86 prologue zeroes slots above `paramSlotMax`; `PrologueSlotInitTest`) + #770-family CLOSED (§609 std-arg unwrap + §610 IfExpr narrowing + `emitErasureUnboxSoft` + honest SEM025; issue closed 05/10) + §612 native MAGIC-box fix landed but REGRESSED 5 native faces -> #772 REOPENED + #773 filed + §614 RED (cut-readiness audit + bisect 06/10, owner .30:9092 native lane; lab CUT SLIPS) + §613 catch-return-finally SIGSEGV FIXED + §615 honest cross refusal + §616/#774 shell-empty-args CLOSED + graphics-gaming unblocked (A1-A3 loop semantics DECIDED; SDL3 vendored + cross ABI proven `Sdl3FfiCrossE2ETest` 5/5; slice 3.1 = .15 lane) + testing-platform §4.4 LANDED (`testRows` 7/7 cross) + §554 DECIDED (batch C, compiler/interop lane) + memory-safety M1 AUTHORIZED (#769) + heartbeat/issue-watcher recorded DEAD (measured, recovered DB) + agent-survival tooling: `scripts/opencode-db-vacuum.sh` (69.3->2.94 GiB proven; death root cause = OOM kernel-proven)
+next: 0.6.0 is GATED by #776 (WASI default frontend, TIER 15) — plan OPEN, free lanes claim it in DOING; then re-measure `check_lab_stability` for the cut; weekly minor cadence (`D-RELEASE-CADENCE`); 14.4-rulesets + promotion-sweep stay with the maintainer; `docs/development/future/` stays FROZEN except this maintainer-ordered promotion (`D-FUTURE-FREEZE`)
 location: repository
 state: active
 
@@ -29,7 +31,7 @@ constraint:
 
 decision:
 
-* D-BRANCH-0.5.0: beta-0.5.0 is the active development branch
+* D-BRANCH-PIPELINE: active branch = `lab`; promotion is explicit and one-way `lab → testing → prerelease → stable → release/x.y.z → tag` (`D-QUALITY-PIPELINE-2609`)
 * D-KOF-FIRST: Kof contract precedes external language behavior
 * D-KOF-FIRST-IMPL: post-0.5.0 features are library-first
 * D-MAKEALIVE
@@ -38,6 +40,11 @@ decision:
 * D-DB-GAPS
 * D-GRAPHICS-GAMING
 * D-KOFMD-ON-EDIT: every document an agent edits is Kofmd-compressed in the same commit
+* D-KOFMD-OPERATING-STANDARD: every agent thinks, reasons, responds, executes and documents in Kofmd — uniform, no per-agent variant
+* D-FUTURE-PROMOTION: before starting new work, migrate to `lab` with all current work, then promote the EASIEST-to-implement plan from `docs/development/future/` to `docs/development/` and implement it — never the most interesting, never a frozen-semantics plan
+* D-FUTURE-FREEZE: `docs/development/future/` promotion is FROZEN until further notice — no agent promotes a future plan; the active front is bugs-and-gaps + the release protocol (maintainer 02/10)
+* D-RELEASE-CADENCE: weekly minor cadence to `0.9.0`; if `0.9.0` is reached without the full exit gate, the line continues as `1.0.0-RC-1`, `1.0.0-RC-2`, … (each RC a minor), until stable, then the real `1.0.0`; the version number at a cut is the maintainer's call (maintainer 02/10)
+* D-LAB-STABILITY: a minor is only cut from a STABLE `lab` (full suite green, gates rc=0, 0 blocking entries, no `1.0-blocks` open); otherwise the cut slips to the next weekend (maintainer 02/10)
 
 ---
 
@@ -51,11 +58,13 @@ loop:
 * read DOING.md
 * read docs/status.md
 * inspect git log and suite
+* ensure the active branch is `lab` — migrate all current work to `lab` BEFORE starting; `beta-*` is frozen (`D-BRANCH-PIPELINE`)
+* if no live unowned task, work the bugs-and-gaps front + the release protocol; `docs/development/future/` promotion is FROZEN (`D-FUTURE-FREEZE`)
 * choose highest-value unowned task
-* claim it in DOING.md
+* claim it in DOING.md with `owner = <local-ipv4>:<opencode-port>` (EN) / `dona = <local-ipv4>:<opencode-port>` (PT) — the **absolute identity rule** (`D-AGENT-IDENTITY-IPPORT`, 01/10); a claim without IP:PORT is INVALID (gate `scripts/check_owner_identity.sh`)
 * execute one complete scope
 * test
-* commit with DOING.md
+* commit with DOING.md (every commit updates the claim's `owner = <ip>:<port>`)
 * push through scripts/sync-push.sh
 * re-read DOING.md
 * continue
@@ -113,9 +122,11 @@ sessions:
 heartbeat:
 port: 9093
 session: ses_f69e2a3f7ffe9J10aWcHEUOfW8
+state: DEAD 06/10 (measured: 0 rows in the live opencode.db after the DB recovery; no listener on 9093) — re-registration requires spawning the server and recording the NEW session id; never invent ids
 issue-watcher:
 port: 9094
 session: ses_f69c2cb03ffe2zDYCqW7fesphi
+state: DEAD 06/10 (measured: 0 rows in the live opencode.db; no listener on 9094) — same re-registration rule
 
 issue-watcher:
 
@@ -142,17 +153,27 @@ rule:
 * AI accelerates implementation
 * AI does not define architecture
 * AI does not redefine Kof semantics
-* AI does not merge beta-0.5.0 into main
+* AI does not merge any stage into main
 * every change requires an issue
 * every delivery requires proof
 
 identity:
 preferred: kof-agent-worker
+by: local-ipv4 + opencode-port (absolute, mandatory — 01/10 amendment, `D-AGENT-IDENTITY-IPPORT`)
 fallback: maintainer-default
 forbidden:
 - synthetic email
 - Co-authored-by
 - identity tricks
+- owner = <ipv4> WITHOUT :<port> — the gate rejects it
+- owner = <ipv4> WITHOUT :<port> — the gate rejects it
+
+rule:
+
+* identify by the **local IPv4** (`hostname -I`) AND the **opencode server port** the session attaches to (`ss -tln | grep opencode` / the running `opencode -s ... --port <N>` or `--attach http://127.0.0.1:<N>` / `ps -o args= -C opencode`) — DOING §Operating-loop rule 9
+* every `IN PROGRESS`/`DONE`/`FIXED`/`STOP` claim carries `owner = <local-ipv4>:<port>` (EN) / `dona = <local-ipv4>:<port>` (PT), never just "this session" and never bare IPv4 (a bare IP is ambiguous when the same host runs more than one session/lane; 110 historical lines recorded `owner: this session` with no lane attributable)
+* the enforcement gate is `scripts/check_owner_identity.sh` — rc=1 on any claim dated ≥ `01/10` whose IPv4 lacks `:<port>`
+* never act on another owner's lane on IP alone — confirm by session + lane + commit SHA + IP:PORT (routers/DHCP change both)
 
 ---
 
@@ -170,6 +191,7 @@ claim:
 * read DOING.md before work
 * existing IN PROGRESS item is not yours
 * claim before implementation
+* **absolute identity rule (`D-AGENT-IDENTITY-IPPORT`, 01/10): every claim is `owner = <local-ipv4>:<opencode-port>` (EN) / `dona = <local-ipv4>:<opencode-port>` (PT) — a bare IPv4 or "this session" is INVALID and the gate `scripts/check_owner_identity.sh` rejects it (rc=1)**
 * claim and first change share a commit
 * every commit updates your DOING.md line
 * DONE requires date + SHA + proof
@@ -262,6 +284,52 @@ kofmd:
 * never duplicate fields in prose
 * mandatory on edit: any doc an agent touches is compressed in the same commit
 * learn/ and training/ are excluded from Kofmd compression
+* operating standard: every agent thinks, reasons, responds, executes and documents in Kofmd — uniform, no per-agent variant (`D-KOFMD-OPERATING-STANDARD`)
+* evidence before inference; `unknown` over `probably`; never fabricate api/syntax/behavior/decision/result/contract
+* `implemented` != `verified`; claim a result only with executed proof
+* `last` = immediately relevant prior state; `next` = next intention, not backlog
+* prose only where structure cannot carry the information
+* coordination: claim before work; on lane collision wait for the owner or stop, never race the shared worktree; never end a turn with an uncommitted unit; push only via `scripts/sync-push.sh`
+
+---
+
+## Future promotion
+
+intent: future-is-not-current-work-without-promotion
+
+**FROZEN until further notice (`D-FUTURE-FREEZE`, maintainer 02/10):** no agent promotes a plan out of `docs/development/future/`. The active front is bugs-and-gaps + the release protocol. The criteria below describe what a good future plan looks like; the *act* of promotion is suspended until the maintainer lifts the freeze.
+
+rule:
+
+* before starting new work: migrate to `lab` with ALL current work first; never start on `beta-*` or a detached checkout (`D-BRANCH-PIPELINE`)
+* promote exactly ONE plan from `docs/development/future/` to `docs/development/` and implement it
+* choose the EASIEST to implement (lowest cost) — never the most interesting, never the largest
+
+easiest (highest wins):
+
+* no `D-*` decision required: not frozen-semantics, not a missing core primitive
+* additive and library-first: Kof can express it without changing the language surface (`D-KOF-FIRST`)
+* dependencies already measured in code (the plan names real files/lines)
+* single cohesive scope for one lane (one responsibility)
+* a clear test path exists now (RED-first proof is definable)
+
+ineligible:
+
+* needs a frozen-semantics or `D-*` maintainer decision first
+* needs a new core primitive or syntax
+* accepts a gap, ships a stub, or weakens an assertion
+* rationale is "it would be nice" instead of "it is the cheapest complete increment"
+
+flow:
+
+* rewrite the plan with status `UNDER DEVELOPMENT` + real state + how-to-finish
+* move it to `docs/development/<plan>.md` (+PT) in the SAME commit that claims it
+* queue it in `roadmap.md` §23 and point `docs/status.md` at it
+* claim in DOING.md (task + file + expected proof), implement, test, commit, push
+
+fallback:
+
+* if NO plan is implementable without a maintainer decision, do NOT invent one — record the finding and stop
 
 ---
 
@@ -723,9 +791,9 @@ push:
 
 release:
 
-* agents may push beta-0.5.0
-* agents never merge beta-0.5.0 → main
-* maintainer performs release merge
+* agents may push the active development branch (`lab`)
+* agents never promote/merge a stage into the next (promotion is maintainer-gated until `14.3`)
+* maintainer performs the release merge
 
 ---
 
@@ -760,7 +828,7 @@ ready:
 * no unnecessary infrastructure
 * Kof abstraction preferred
 * test and change share commit
-* DOING.md current
+* DOING.md current — every claim carries `owner = <ipv4>:<port>` (`D-AGENT-IDENTITY-IPPORT`, gate `scripts/check_owner_identity.sh`)
 * remote synchronized
 
 if_any_false:

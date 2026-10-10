@@ -1,0 +1,345 @@
+package image
+
+import image.Vp8Frame
+import image.Vp8Coeffs
+import image.Vp8Residual
+import image.Vp8Predict4
+
+// kof.image — VP8 (lossy WebP) macroblock reconstruction (RFC 6386 §12/§14.5).
+//
+// `vp8Reconstruct(frame, coeffs)` turns the quantized coefficients decoded by
+// `Vp8Coeffs` into the three reconstructed planes (Y, U, V) of a key frame: the
+// residue (dequantization + inverse WHT/DCT, `Vp8Residual`), the intra
+// prediction of every macroblock (16x16 luma, the ten 4x4 `B_PRED` subblock
+// modes and the 8x8 chroma modes, §12) and the saturating sum of prediction and
+// residue (§14.5). It stops short of the loop filter (§15), the next slice.
+//
+// The output is a `Vp8Pixels` holding the padded planes (`mbCols*16` by
+// `mbRows*16` luma, `mbCols*8` by `mbRows*8` chroma), each with a one-pixel
+// top/left border already applied internally. Pure Kof, deterministic, all
+// targets; slice 5 of the pure-Kof VP8 chain (`D-WEBP-LOSSY-PURE-KOF`). Every
+// arithmetic step stays within 32-bit `Int`, matching the reference decoder's
+// 16-bit fixed-point rounding exactly. The ten 4x4 `B_PRED` modes live in
+// `Vp8Predict4` (§12.3) and the residue in `Vp8Residual` (§14).
+
+record Vp8Pixels(Int width, Int height, Int[] y, Int[] u, Int[] v)
+
+// The reconstruction of one frame. The mutable plane buffers, the frame and the
+// residue source are fields so every method stays within the arity the cross
+// backend handles (each plane row is carried by the stride).
+class Vp8Reconstruct {
+    Vp8Frame frame
+    Vp8Residual res
+    Int mbCols
+    Int mbRows
+    Int yStride
+    Int uStride
+    Int[] y
+    Int[] u
+    Int[] v
+
+    constructor(Vp8Frame f) {
+        this.frame = f
+        this.res = Vp8Residual(f)
+        this.mbCols = f.mbCols()
+        this.mbRows = f.mbRows()
+        this.yStride = this.mbCols * 16 + 1
+        this.uStride = this.mbCols * 8 + 1
+        var yRows = this.mbRows * 16 + 1
+        var uRows = this.mbRows * 8 + 1
+        this.y = new Int[this.yStride * yRows]
+        this.u = new Int[this.uStride * uRows]
+        this.v = new Int[this.uStride * uRows]
+        this.initBorders()
+    }
+
+    // Top row 127, left column 129 (RFC 6386 §12), for every plane.
+    initBorders() {
+        var c = 0
+        while (c < this.yStride) {
+            this.y[c] = 127
+            c = c + 1
+        }
+        var r = 0
+        while (r < this.mbRows * 16 + 1) {
+            this.y[r * this.yStride] = 129
+            r = r + 1
+        }
+        c = 0
+        while (c < this.uStride) {
+            this.u[c] = 127
+            this.v[c] = 127
+            c = c + 1
+        }
+        r = 0
+        while (r < this.mbRows * 8 + 1) {
+            this.u[r * this.uStride] = 129
+            this.v[r * this.uStride] = 129
+            r = r + 1
+        }
+    }
+
+    Int yAt(Int row, Int col) { return this.y[row * this.yStride + col] }
+    void ySet(Int row, Int col, Int value) { this.y[row * this.yStride + col] = value }
+    Int uAt(Int row, Int col) { return this.u[row * this.uStride + col] }
+    void uSet(Int row, Int col, Int value) { this.u[row * this.uStride + col] = value }
+    Int vAt(Int row, Int col) { return this.v[row * this.uStride + col] }
+    void vSet(Int row, Int col, Int value) { this.v[row * this.uStride + col] = value }
+
+    // Reconstructs every macroblock in raster order.
+    void run() {
+        var mby = 0
+        while (mby < this.mbRows) {
+            var mbx = 0
+            while (mbx < this.mbCols) {
+                this.reconstructMb(mby, mbx)
+                mbx = mbx + 1
+            }
+            mby = mby + 1
+        }
+    }
+
+    void reconstructMb(Int mby, Int mbx) {
+        var mb = mby * this.mbCols + mbx
+        var mode = this.frame.yMode(mb)
+        if (mode == 4) {
+            this.reconstructLuma4(mb, mby, mbx)
+        } else {
+            this.reconstructLuma16(mb, mby, mbx, mode)
+        }
+        this.reconstructChroma(mb, mby, mbx)
+    }
+
+    // 16x16 luma prediction (DC/V/H/TM, RFC 6386 §12.3) plus the residue, whose
+    // Y2-driven DCs `Vp8Residual` has already folded into the luma block DCs.
+    reconstructLuma16(Int mb, Int mby, Int mbx, Int mode) {
+        var rowBase = mby * 16
+        var colBase = mbx * 16
+        var r = 0
+        while (r < 16) {
+            var c = 0
+            while (c < 16) {
+                var sum = this.predict16(mby, mbx, mode, r, c) + this.res.y[mb * 256 + r * 16 + c]
+                this.ySet(rowBase + 1 + r, colBase + 1 + c, vp8PixelClamp(sum))
+                c = c + 1
+            }
+            r = r + 1
+        }
+    }
+
+    // The 16x16 prediction sample (r,c) for the given mode (enum: 0 DC, 1 V,
+    // 2 H, 3 TM; 4 B_PRED is handled by `reconstructLuma4`).
+    Int predict16(Int mby, Int mbx, Int mode, Int r, Int c) {
+        var rowBase = mby * 16
+        var colBase = mbx * 16
+        var above = mby > 0
+        var left = mbx > 0
+        if (mode == 1) {
+            return this.yAt(rowBase, colBase + 1 + c)
+        }
+        if (mode == 2) {
+            return this.yAt(rowBase + 1 + r, colBase)
+        }
+        if (mode == 3) {
+            var p = 127
+            if (above) { p = this.yAt(rowBase, colBase) }
+            return vp8PixelClamp(this.yAt(rowBase + 1 + r, colBase) + this.yAt(rowBase, colBase + 1 + c) - p)
+        }
+        return this.predict16Dc(mby, mbx)
+    }
+
+    Int predict16Dc(Int mby, Int mbx) {
+        var rowBase = mby * 16
+        var colBase = mbx * 16
+        var above = mby > 0
+        var left = mbx > 0
+        if (above && left) {
+            var sum = 16
+            var i = 0
+            while (i < 16) {
+                sum = sum + this.yAt(rowBase + 1 + i, colBase) + this.yAt(rowBase, colBase + 1 + i)
+                i = i + 1
+            }
+            return sum >> 5
+        }
+        if (above) {
+            var sum = 8
+            var i = 0
+            while (i < 16) {
+                sum = sum + this.yAt(rowBase, colBase + 1 + i)
+                i = i + 1
+            }
+            return sum >> 4
+        }
+        if (left) {
+            var sum = 8
+            var i = 0
+            while (i < 16) {
+                sum = sum + this.yAt(rowBase + 1 + i, colBase)
+                i = i + 1
+            }
+            return sum >> 4
+        }
+        return 128
+    }
+
+    // `B_PRED`: each 4x4 subblock predicted independently (RFC 6386 §12.3),
+    // using the pixels above (with the four extra top-right pixels) and to the
+    // left, then its residue.
+    reconstructLuma4(Int mb, Int mby, Int mbx) {
+        var n = 0
+        while (n < 16) {
+            var by = n >> 2
+            var bx = n & 3
+            var rowBase = mby * 16 + by * 4
+            var colBase = mbx * 16 + bx * 4
+            var above = this.bAbove(mby, mbx, by, bx)
+            var left = this.bLeft(mby, mbx, by, bx)
+            var p = this.bCorner(mby, mbx, by, bx)
+            var pred = vp8Predict4(above, left, p, this.frame.bMode(mb, n))
+            var r = 0
+            while (r < 4) {
+                var c = 0
+                while (c < 4) {
+                    var sum = pred[r * 4 + c] + this.res.y[mb * 256 + (by * 4 + r) * 16 + bx * 4 + c]
+                    this.ySet(rowBase + 1 + r, colBase + 1 + c, vp8PixelClamp(sum))
+                    c = c + 1
+                }
+                r = r + 1
+            }
+            n = n + 1
+        }
+    }
+
+    // The eight "above" samples A[0..7] of subblock (by,bx) (RFC 6386 §12.3).
+    // A[0..3] are the row directly above the subblock. For the right-edge
+    // subblocks (bx==3) A[4..7] are the four pixels above and to the right of
+    // the macroblock (the reference decoder replicates the macroblock's
+    // top-right pixels down the whole macroblock row), taken from the row above
+    // the macroblock; at the frame's right edge they replicate pixel 15, and on
+    // the top macroblock row they are all 127.
+    Int[] bAbove(Int mby, Int mbx, Int by, Int bx) {
+        var subRow = mby * 16 + by * 4
+        var subCol = mbx * 16 + bx * 4
+        var out = new Int[8]
+        var j = 0
+        while (j < 8) {
+            if (bx < 3 || j < 4) {
+                if (subRow == 0) {
+                    out[j] = 127
+                } else {
+                    out[j] = this.yAt(subRow, subCol + 1 + j)
+                }
+            } else if (mby == 0) {
+                out[j] = 127
+            } else if (mbx < this.mbCols - 1) {
+                out[j] = this.yAt(mby * 16, mbx * 16 + 17 + (j - 4))
+            } else {
+                out[j] = this.yAt(mby * 16, mbx * 16 + 16)
+            }
+            j = j + 1
+        }
+        return out
+    }
+
+    Int[] bLeft(Int mby, Int mbx, Int by, Int bx) {
+        var subRow = mby * 16 + by * 4
+        var subCol = mbx * 16 + bx * 4
+        var out = new Int[4]
+        var i = 0
+        while (i < 4) {
+            out[i] = this.yAt(subRow + 1 + i, subCol)
+            i = i + 1
+        }
+        return out
+    }
+
+    Int bCorner(Int mby, Int mbx, Int by, Int bx) {
+        var subRow = mby * 16 + by * 4
+        var subCol = mbx * 16 + bx * 4
+        if (subRow == 0) {
+            return 127
+        }
+        return this.yAt(subRow, subCol)
+    }
+
+    // 8x8 chroma prediction (RFC 6386 §12.2) plus the residue. U and V are
+    // predicted independently from their own already-reconstructed samples.
+    reconstructChroma(Int mb, Int mby, Int mbx) {
+        var mode = this.frame.uvMode(mb)
+        var rowBase = mby * 8
+        var colBase = mbx * 8
+        var r = 0
+        while (r < 8) {
+            var c = 0
+            while (c < 8) {
+                var pu = this.predict8(this.u, mby, mbx, mode, r, c)
+                var pv = this.predict8(this.v, mby, mbx, mode, r, c)
+                var su = pu + this.res.u[mb * 64 + r * 8 + c]
+                var sv = pv + this.res.v[mb * 64 + r * 8 + c]
+                this.uSet(rowBase + 1 + r, colBase + 1 + c, vp8PixelClamp(su))
+                this.vSet(rowBase + 1 + r, colBase + 1 + c, vp8PixelClamp(sv))
+                c = c + 1
+            }
+            r = r + 1
+        }
+    }
+
+    Int predict8(Int[] plane, Int mby, Int mbx, Int mode, Int r, Int c) {
+        var rowBase = mby * 8
+        var colBase = mbx * 8
+        var above = mby > 0
+        var left = mbx > 0
+        if (mode == 1) {
+            return plane[rowBase * this.uStride + colBase + 1 + c]
+        }
+        if (mode == 2) {
+            return plane[(rowBase + 1 + r) * this.uStride + colBase]
+        }
+        if (mode == 3) {
+            var p = 127
+            if (above) { p = plane[rowBase * this.uStride + colBase] }
+            return vp8PixelClamp(plane[(rowBase + 1 + r) * this.uStride + colBase] + plane[rowBase * this.uStride + colBase + 1 + c] - p)
+        }
+        if (above && left) {
+            var sum = 8
+            var i = 0
+            while (i < 8) {
+                sum = sum + plane[(rowBase + 1 + i) * this.uStride + colBase] + plane[rowBase * this.uStride + colBase + 1 + i]
+                i = i + 1
+            }
+            return sum >> 4
+        }
+        if (above) {
+            var sum = 4
+            var i = 0
+            while (i < 8) {
+                sum = sum + plane[rowBase * this.uStride + colBase + 1 + i]
+                i = i + 1
+            }
+            return sum >> 3
+        }
+        if (left) {
+            var sum = 4
+            var i = 0
+            while (i < 8) {
+                sum = sum + plane[(rowBase + 1 + i) * this.uStride + colBase]
+                i = i + 1
+            }
+            return sum >> 3
+        }
+        return 128
+    }
+
+    Int[] yPlane() { return this.y }
+    Int[] uPlane() { return this.u }
+    Int[] vPlane() { return this.v }
+    Int width() { return this.mbCols * 16 }
+    Int height() { return this.mbRows * 16 }
+}
+
+Vp8Pixels vp8Reconstruct(Vp8Frame frame) {
+    var r = Vp8Reconstruct(frame)
+    r.run()
+    return Vp8Pixels(r.width(), r.height(), r.yPlane(), r.uPlane(), r.vPlane())
+}

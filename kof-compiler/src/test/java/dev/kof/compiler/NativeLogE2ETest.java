@@ -14,21 +14,12 @@ import static org.junit.jupiter.api.Assertions.*;
  * "yyyy-MM-dd HH:mm:ss.SSS LEVEL msg", KOF_LOG_LEVEL filtra, warn/error
  * vão para stderr. Delta documentado: timestamp em UTC.
  */
-class NativeLogE2ETest {
+class NativeLogE2ETest extends LogLevelSupport {
 
     private final CompilerDriver driver = new CompilerDriver();
 
-    private static final String LOG_PROGRAM = """
-            main() {
-                log.debug("detail message")
-                log.info("hello from kof")
-                log.warn("careful")
-                log.error("boom")
-            }
-            """;
-
     /** Retorna {stdout, stderr} da execução do binário nativo. */
-    private String[] run(Path tempDir, String kofSource, String level) throws IOException {
+    protected String[] run(Path tempDir, String kofSource, String level) throws IOException {
         Path source = tempDir.resolve("Log.kf");
         Files.writeString(source, kofSource);
         Path outDir = tempDir.resolve("native");
@@ -74,31 +65,6 @@ class NativeLogE2ETest {
     void debugLevelShowsDebug(@TempDir Path tempDir) throws IOException {
         String[] out = run(tempDir, LOG_PROGRAM, "debug");
         assertTrue(out[0].contains("DEBUG detail message"), out[0]);
-    }
-
-    @Test
-    void errorLevelSuppressesInfo(@TempDir Path tempDir) throws IOException {
-        String[] out = run(tempDir, LOG_PROGRAM, "error");
-        assertFalse(out[0].contains("hello from kof"), out[0]);
-        assertTrue(out[1].contains("ERROR boom"), out[1]);
-    }
-
-    @Test
-    void offSuppressesEverything(@TempDir Path tempDir) throws IOException {
-        String[] out = run(tempDir, LOG_PROGRAM, "off");
-        assertEquals("", out[0].trim());
-        assertEquals("", out[1].trim());
-    }
-
-    @Test
-    void warnGoesToStderr(@TempDir Path tempDir) throws IOException {
-        String[] out = run(tempDir, """
-                main() {
-                    log.warn("to stderr")
-                }
-                """, null);
-        assertEquals("", out[0].trim());
-        assertTrue(out[1].contains("WARN to stderr"), out[1]);
     }
 
     @Test

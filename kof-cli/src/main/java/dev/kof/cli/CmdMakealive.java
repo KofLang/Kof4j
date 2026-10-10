@@ -176,10 +176,14 @@ final class CmdMakealive {
                 // runner" (KofJsDbBridge; h2 = test-scope no repo) — o
                 // subprocess herda o classpath do CLI, senão `mkLoadState`
                 // não acha org.h2.Driver nem no teste.
-                ProcessBuilder pb = new ProcessBuilder(
-                        KofCliSupport.javaExecutable(), "-cp",
+                List<String> jvmCmd = new java.util.ArrayList<>();
+                jvmCmd.add(KofCliSupport.javaExecutable());
+                jvmCmd.addAll(KofStdio.capturedJvmFlags());
+                // §556: wrapper de diagnóstico também no host makealive.
+                KofCliSupport.appendJvmLaunch(jvmCmd,
                         out + java.io.File.pathSeparator + System.getProperty("java.class.path"),
                         className);
+                ProcessBuilder pb = new ProcessBuilder(jvmCmd);
                 pb.directory(siblingDir != null ? siblingDir.toFile() : temp.toFile());
                 pb.redirectErrorStream(true);
                 Process p = pb.start();

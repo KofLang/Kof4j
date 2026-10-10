@@ -1,0 +1,16 @@
+void main() {
+    var a: Long = 5000000000
+    var b: Long = 3000000000
+    println(a + b)
+    println(a - b)
+    println(a * 2)
+    println(a / b)
+    println(a % b)
+    println(a > b)
+    println(-a)
+    var c = a + b
+    println(c - b == a)
+    var d: Long = 7
+    println(d / 2)
+    println(d % 2)
+}

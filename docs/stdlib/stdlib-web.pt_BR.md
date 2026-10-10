@@ -107,6 +107,7 @@ Retorno `null` → continua; retorno `String` → resposta imediata (200).
 |---------|-----------|
 | `app.security()` | Middleware composto com defaults seguros (headers de hardening) |
 | `app.security(opts)` | Idem, com overrides via `Map` |
+| `app.policy(prefix, opts)` | Política de recurso — mesmos opts, aplicada a toda rota sob `prefix` (D-HTTP-POLICIES, F2) |
 
 Aplica a **ordem fixa** rate-limit → CORS → headers → cookies/session → csrf →
 auth → RBAC → rota (D-SEC). Substitui a cadeia manual de `app.use`.
@@ -126,12 +127,21 @@ Opts documentados (chaves do `Map`; qualquer outra é ignorada):
 |-------|------|---------|--------|
 | `headers` | `Bool` | `true` | Liga/desliga os headers acima |
 | `cors` / `corsOrigin` | `String` | off | Origem permitida, CSV ou `*`. Origem não listada → 403; preflight `OPTIONS` → 204 |
-| `rateLimit` | `String` ou `Number` | off | `"limite/janelaSegundos"` (ex.: `"100/60"`) ou só o limite. Por IP remoto; excedeu → 429 + `Retry-After` |
+| `rateLimit` | `String` ou `Number` | off | `"limite/janelaSegundos"` (ex.: `"100/60"`) ou só o limite. Por IP remoto **+ padrão de rota**; excedeu → 429 + `Retry-After` |
 | `csrf` | `Bool` | `true` | Double-submit cookie: emite `csrf` (SameSite=Lax) em métodos seguros; exige `X-CSRF-Token` casando com o cookie em POST/PUT/PATCH/DELETE, senão 403. `csrf:false` desliga |
 | `sessionHeader` | `String` | off | Nome do header de sessão. Fora dos `publicPaths`, **toda** request (GET incluído) exige sessão válida; ausente/inválida → 401 |
 | `publicPaths` / `permitAll` | `String` CSV | — | Allow-list de matchers públicos (ex.: `"/register,/login"`); todo o resto exige autenticação |
 | `auth` | `Bool` | `false` | Exige `Authorization: Bearer` JWT válido (secret via `auth.secret`); ausente/inválido → 401 + `WWW-Authenticate` |
 | `roles` | `String` CSV ou `List` | — | Exige todas as roles (claims `roles`); falta → 403 (implica auth) |
+| `responses` | `Map` | off | Corpos declarativos para as rejeições sintéticas do pipeline: `unauthorized` (401), `forbidden` (403), `tooManyRequests` (429), `notFound` (404). Valor = corpo literal (JSON auto-detectado). Chaves ausentes mantêm os corpos embutidos (retrocompatível) |
+
+**Payloads de rejeição declarativos (D-HTTP-POLICIES):** `responses` substitui o
+JSON embutido das rejeições do pipeline — ex.
+`o.put("responses", mapOf("unauthorized", "{\"error\":\"nope\"}"))` faz todo 401
+responder esse corpo. Chaves ausentes mantêm os corpos de hoje, então adicionar
+`responses` é aditivo e nunca muda um status não declarado. Com escopos/endpoints
+o payload vem da política **efetiva**, e `notFound` também alimenta os dois
+caminhos de 404 (`return null` e rota desconhecida).
 
 **Auth-if-present:** mesmo sem `auth: true`, uma request que **traz**
 `Authorization` com token inválido nunca passa (401) — evita "token ruim vira
@@ -154,6 +164,39 @@ main() {
 
 **Security by default:** `listen`/`listenSecure` com `KOF_ENV=production` sem
 `app.security()` avisa em `stderr` (nunca falha silenciosamente).
+
+**Políticas de recurso (D-HTTP-POLICIES, F2):** `app.policy(prefix, opts)`
+escopa os mesmos opts às rotas sob um prefixo simples de path (`/admin`,
+`/api/v1`); `"*"` (ou `""`) significa toda request. O `app.security(opts)` global
+segue sendo o default. Para uma request a política **efetiva** é o global
+mesclado com todo escopo que casa, **do prefixo mais curto ao mais longo** (o
+mais longo vence) — a lei de merge:
+
+- **escalares** (todas as chaves exceto as listas): **o mais profundo vence** —
+  chave não declarada é herdada, nunca resetada ao default;
+- **listas** (`publicPaths`, `roles`): **união** — allow-lists só crescem, o
+  escopo mais profundo adiciona, nunca remove.
+
+```kof
+app.security(mapOf("rateLimit", "200/60"))
+app.policy("/admin", mapOf("roles", "admin"))       // 20/60 + admin
+app.policy("*", mapOf("publicPaths", "/health"))    // público independente do escopo
+```
+
+Só prefixo na v1 (sem glob/regex, sem path params). Mesma regra JVM-only do
+`app.security`: Native/JS reportam `WEB006`.
+
+**Política por endpoint (F3):** uma rota pode carregar os próprios opts como
+segundo argumento (`app.get(path, opts) { … }`, mesmas chaves). É o escopo **mais
+profundo**, então vence a política de recurso naquela rota exata; rota sem opts
+herda a política de recurso/global. Só se aplica depois que a rota casa — um path
+desconhecido continua protegido pelos escopos/global.
+
+```kof
+app.policy("/api", mapOf("headers", false))
+app.get("/api/show", mapOf("headers", true)) { return "show" }  // hardening de volta
+app.get("/api/hide") { return "hide" }                          // herda desligado
+```
 
 **JVM-only** — Native/JS reportam `WEB006` (gap honesto, mesmo precedente
 `WEB002`/`WEB005`).

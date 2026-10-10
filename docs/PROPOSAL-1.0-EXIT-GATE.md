@@ -7,7 +7,7 @@
 **Location:** `docs/development/` — promoted from `future/` by the ratification: normative plan with its §23 queue now binding development meta.  
 **Revision:** v3.1 — v3 corrected after the 09/20/2026 revalidation (section 24); aligned with the repository state, the maintainer's decisions/publications and a weighted (non-normative) external benchmark  
 **Repository:** `KofLang/Kof4j`  
-**Current active branch:** `beta-0.5.0`  
+**Current active branch:** `lab` (`D-BRANCH-PIPELINE`; `beta-0.5.0`/`D-BRANCH-0.5.0` `SUPERSEDED` by the 28/09 cutover)  
 **Previous branch:** `beta-0.4.0` — only in-flight landings + release prep, per the maintainer's decision  
 **Reviewer / required decision authority:** **Mel (`melmonfre`)**  
 **Nature:** exit contract for a future KOF 1.0; it is NOT authorization to cut 1.0 now.
@@ -65,9 +65,12 @@ This is the **ratified 1.0 exit-gate contract** (`D-RELEASE-1.0`). Read:
   `docs/development/future/` or `docs/bugs-and-gaps/`, with the full
   cross-target parity MEASURED (proven, never claimed).
 
-Live status is measured mechanically by `scripts/check_release_050_gate.sh`
-(the 0.5.0 conditions) and `scripts/check_release_blockers.sh` (the EG queue /
-`--rc-gate`), never by eye.
+Live status is measured mechanically by `scripts/check_release_blockers.sh`
+(the issue classification + `--rc-gate`), `scripts/check_live_records.sh`
+(live-record/DECISIONS parity), `scripts/target-matrix.sh` (EG-5 parity) and
+the current diagnostic-inventory gates (`scripts/check_matrix_inventory.sh`,
+`scripts/check_ffi_inventory.sh`), never by eye. `scripts/check_release_050_gate.sh`
+was retired with 0.5.0 (`D-RELEASE-0.5.0-CLOSED`) and is no longer a live authority.
 
 ---
 
@@ -172,7 +175,7 @@ CONTRACT SOURCE:
 - docs/distribution/release-naming.md;
 - docs/distribution/VERSIONING.md;
 - AGENTS.md — Quality Gate / no bug ships / zero regression / suite as gate;
-- docs/development/release-beta-0.5.0-prep.md.
+- docs/distribution/release-beta-0.5.0.md (acceptance record, CLOSED 28/09).
 
 CURRENT KOF IDIOM:
 Beta → RC → Stable is already the official progression.
@@ -1923,3 +1926,4 @@ the normative decision is `D-RELEASE-1.0` in `docs/development/DECISIONS.md`.
 The `[? MEL]` reinforcement candidates of §35 are **closed** by `D-1.0-EDGES`
 (09/20/2026): all nine became mandatory gates — the §32 markers read
 `[RATIFIED]`; they are no longer open edges.
+                                                                             

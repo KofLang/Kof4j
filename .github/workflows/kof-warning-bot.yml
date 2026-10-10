@@ -2,9 +2,9 @@ name: kof-warning-bot
 
 on:
   push:
-    branches: [main, beta-*]
+    branches: [main, lab, testing, prerelease, stable]
   pull_request:
-    branches: [main, beta-*]
+    branches: [main, lab, testing, prerelease, stable]
   workflow_dispatch:
   schedule:
     - cron: "0 6 * * 1"  # Weekly Monday 6am

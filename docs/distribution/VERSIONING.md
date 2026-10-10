@@ -35,7 +35,9 @@ mainly represents:
 
 ## Current stage
 
-Kof is on the **0.5.0 beta** line (branch `beta-0.5.0`, `D-BRANCH-0.5.0`).
+Kof is on the **0.5.0 beta** line (active development branch `lab`,
+`D-BRANCH-PIPELINE`; the 0.5.0 line was ratified on `beta-0.5.0`/`D-BRANCH-0.5.0`,
+`SUPERSEDED` by the 28/09 cutover).
 The committed version is `0.5.0-beta`; the previous published line was
 `0.4.x-beta`.
 

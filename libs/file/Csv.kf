@@ -1,0 +1,177 @@
+package file
+
+import file.TextStream
+
+// kof.file — streaming CSV/TSV (slice 2.2).
+//
+// RFC 4180-style records read character by character over `TextStream`
+// (itself over `kof.io.readRange`), so a quoted field may contain the
+// delimiter AND newlines, records are split on `\n`/`\r\n`, and memory stays
+// bounded by one chunk plus the current record — large CSVs are processed
+// without loading the file. TSV reuses the same reader with a tab delimiter.
+//
+// Rules: a `"` opens a quoted field only at the start of a field; inside it
+// `""` is one literal quote and the delimiter/newlines are data. A `"` inside
+// an unquoted field is a literal character. The reader is lenient (it does not
+// reject malformed quoting); callers wanting strict validation can compare a
+// re-encode. The first record is not special — treat it as a header by reading
+// it first.
+//
+// Code units are read as Int (-1 at EOF) to avoid native nullable-Char
+// boxing; no new syntax, built exclusively on the Kof library `file.TextStream`.
+// JS inherits the compile-time gap `IOJS001`; non-BMP text is the Native
+// divergence `§537` (`TextStream`).
+
+class CsvReader {
+    TextStream stream
+    Int delimiter
+
+    constructor(String path) {
+        this.stream = TextStream(path)
+        this.delimiter = ',' as Int
+    }
+
+    constructor(String path, Char delimiter) {
+        this.stream = TextStream(path)
+        this.delimiter = delimiter as Int
+    }
+
+    constructor(String path, Char delimiter, Int chunkSize) {
+        this.stream = TextStream(path, chunkSize)
+        this.delimiter = delimiter as Int
+    }
+
+    // Next record as its fields, or null at end of file. A blank line is a
+    // record with one empty field; a trailing newline does not add a record.
+    List<String>? nextRow() {
+        var fields: List<String> = listOf()
+        var field = ""
+        var inQuotes = false
+        var sawAny = false
+        var recordDone = false
+        var endOfStream = false
+        var c = stream.nextCode()
+        while (!recordDone) {
+            if (c < 0) {
+                recordDone = true
+                endOfStream = true
+            } else {
+                sawAny = true
+                if (inQuotes) {
+                    if (c == '"' as Int) {
+                        var p = stream.peekCode()
+                        if (p == '"' as Int) {
+                            var skipped = stream.nextCode()
+                            field = field + '"'
+                        } else {
+                            inQuotes = false
+                        }
+                    } else {
+                        field = field + (c as Char)
+                    }
+                } else if (c == '"' as Int && field.length == 0) {
+                    inQuotes = true
+                } else if (c == delimiter) {
+                    fields.add(field)
+                    field = ""
+                } else if (c == '\n' as Int) {
+                    recordDone = true
+                } else if (c == '\r' as Int) {
+                    var p = stream.peekCode()
+                    if (p == '\n' as Int) {
+                        var skipped = stream.nextCode()
+                    }
+                    recordDone = true
+                } else {
+                    field = field + (c as Char)
+                }
+            }
+            if (!recordDone) {
+                c = stream.nextCode()
+            }
+        }
+        if (endOfStream && !sawAny) {
+            return null
+        }
+        fields.add(field)
+        return fields
+    }
+}
+
+// kof.file — streaming CSV/TSV writer (slice 2.2).
+//
+// Encodes records back over `kof.io.writeText`/`appendText` (the first
+// `writeRow` truncates, the rest append), quoting a field when it contains the
+// delimiter, a quote, a newline or a carriage return and doubling embedded
+// quotes. The reader and writer are inverses: `CsvWriter` → `CsvReader`
+// round-trips the same records. TSV reuses the writer with a tab delimiter.
+//
+// No new syntax; JS inherits the compile-time gap `IOJS001`.
+
+class CsvWriter {
+    String path
+    Char delimiter
+    Bool started
+
+    constructor(String path) {
+        this.path = path
+        this.delimiter = ','
+        this.started = false
+    }
+
+    constructor(String path, Char delimiter) {
+        this.path = path
+        this.delimiter = delimiter
+        this.started = false
+    }
+
+    // Encode and write one record (a trailing newline terminates it).
+    writeRow(List<String> cells) {
+        var line = ""
+        var i = 0
+        while (i < cells.size()) {
+            if (i > 0) {
+                line = line + this.delimiter
+            }
+            line = line + encodeField(cells.get(i))
+            i = i + 1
+        }
+        line = line + "\n"
+        if (this.started) {
+            File(this.path).appendText(line)
+        } else {
+            File(this.path).writeText(line)
+            this.started = true
+        }
+    }
+
+    String encodeField(String s) {
+        if (!needsQuoting(s)) {
+            return s
+        }
+        var out = "\""
+        var i = 0
+        while (i < s.length) {
+            var ch = s.charAt(i)
+            if (ch == '"') {
+                out = out + "\"\""
+            } else {
+                out = out + ch
+            }
+            i = i + 1
+        }
+        return out + "\""
+    }
+
+    Bool needsQuoting(String s) {
+        var i = 0
+        while (i < s.length) {
+            var ch = s.charAt(i)
+            if (ch == this.delimiter || ch == '"' || ch == '\n' || ch == '\r') {
+                return true
+            }
+            i = i + 1
+        }
+        return false
+    }
+}

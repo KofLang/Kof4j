@@ -1,0 +1,34 @@
+// kof.test.db — pacote virtual ADITIVO (kof-testing-platform-plan §5, segunda
+// fatia; D-MAINT-BATCH-0610B/B). Escrito EM KOF (D-KOF-FIRST item 12): o
+// compilador injeta FLAT no `import kof.test.db` EXPLICITO, mesmo mecanismo de
+// kof.test/kof.web/kof.pagination.
+//
+// Host SEPARADO do `kof.test` DE PROPOSITO (precedente `CompilerWeb` vs
+// `kof.pagination`): o helper chama `db.connect`/`db.close`, e o alvo Native
+// liga libsqlite3 POR USO — `NativeCrossLink.needsSqlite` varre o asm podado
+// por `call sqlite3_*`. Como o `kof.test` e injetado FLAT inteiro, um helper de
+// banco morando la faria TODO programa que importa `kof.test` (mesmo sem usar
+// banco) tentar `-lsqlite3` no cross (medido: `riscv64-linux-gnu-ld: nao foi
+// possivel localizar -lsqlite3`). Aqui o gap so aparece em quem importa
+// `kof.test.db` e chama `withDb` — quem nao importa nao paga.
+
+// Ciclo de vida de uma conexao de banco, escrito EM KOF, nenhuma primitiva
+// nova. Mesmo contrato de `withTempDir` (kof.test) — "start -> test ->
+// cleanup": `withDb` abre a conexao, roda o corpo e FECHA a conexao no
+// `finally`, mesmo se o corpo lancar. O teste de integracao que usa um banco
+// nunca deixa a conexao aberta.
+//
+// O handle de `db.connect` e opaco (String na IR, o runtime guarda o objeto
+// real) e o `db.close` e o par simetrico do connect; o helper compila nos 4
+// alvos porque o corpo e `(String) -> Void` (tipo concreto, nao generico —
+// `(T) -> Void` e recusado com SEM085, ABI de 1.0). Um usuario que chame
+// `withDb` num alvo sem `kof.db` recebe o gap honesto `DB001`, nunca um
+// fallback silencioso (R6).
+Void withDb(String url, (String) -> Void body) {
+    var conn = db.connect(url)
+    try {
+        body(conn)
+    } finally {
+        db.close(conn)
+    }
+}

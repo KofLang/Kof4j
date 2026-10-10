@@ -1,0 +1,16 @@
+package kfvm.system
+
+import kof.io
+
+class NullDevice {
+    static String DIRECTORY = "/dev"
+    static String PATH = "/dev/null"
+
+    static void ensure() {
+        if (File(PATH).exists()) return
+        
+        Directory(DIRECTORY).createDirectories()
+        if (!File(PATH).writeText(""))
+            throw "could not create " + Path(PATH).toAbsolute() + " (required to run external programs on Windows)"
+    }
+}

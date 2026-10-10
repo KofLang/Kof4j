@@ -38,6 +38,10 @@ final class SemFieldAccessTyper {
                 String en = MemberResolver.enumNameOfConstant(sa.unit(), fa);
                 if (en != null) return CompilerTypes.enumTypeOf(en, sa); // #445: pkg real via ClassSymbol
                 Type recvType = SemExpressionTyper.inferType(sa, fa.receiver(), scope);
+                // D-PORTUKOF u3: entrada alias-aware para CAMPOS (length/nome/
+                // caminho/estado...); namespaces de constantes (palette/tokens/
+                // MAX_VALUE) ja passaram acima e ficam intactos.
+                fa = PortuKofMethodSplicer.canonicalField(sa, recvType, sa.unit(), fa);
                 Type nf = Narrowing.narrowedField(scope, Narrowing.pathOf(fa));
                 if (nf != null) return nf;
                 // bug 99 (R6, nunca silencioso): `Int.MAX_VALUE`/`Long.foo` etc.
@@ -140,6 +144,7 @@ final class SemFieldAccessTyper {
                 // → NoSuchFieldError no runtime (Handle: o idioma é `await h`).
                 if ((KofIo.isIoType(recvType) || KofBuffer.isBufferType(recvType)
                         || KofSecurity.isSecretType(recvType) || KofSecurity.isKeyHandleType(recvType)
+                        || KofInteropError.isInteropErrorType(recvType)
                         || BuiltinTypes.isChannel(recvType) || TypeChecker.isConcurrentHandle(recvType))
                         && sa.diagnostics() != null) {
                     boolean handle = TypeChecker.isConcurrentHandle(recvType);
@@ -147,7 +152,8 @@ final class SemFieldAccessTyper {
                             : KofIo.isPath(recvType) ? "Path"
                             : KofIo.isFile(recvType) ? "File"
                             : KofBuffer.isBufferType(recvType) ? "Buffer"
-                            : (KofSecurity.isSecretType(recvType) ? "Secret"
+                            : (KofInteropError.isInteropErrorType(recvType) ? "InteropError"
+                            : KofSecurity.isSecretType(recvType) ? "Secret"
                             : BuiltinTypes.isChannel(recvType) ? "Channel"
                             : (KofSecurity.isKeyHandleType(recvType) ? "KeyHandle" : "Handle"));
                     sa.diagnostics().error(fa,
@@ -182,7 +188,7 @@ final class SemFieldAccessTyper {
                         if (field instanceof SymbolTable.FieldSymbol fs) {
                             MemberCallTyper.checkFieldAccess(sa, fs);
                         }
-                        return CompilerTypes.substituteTypeVariableIn(field.type(), recvType, sa.unit());
+                        return TypeSubstitution.substituteTypeVariableIn(field.type(), recvType, sa.unit());
                     }
                     if (sa.isExternal(ct)) {
                         String desc = sa.externalTypes().resolveFieldType(ct.internalName(), fa.fieldName());

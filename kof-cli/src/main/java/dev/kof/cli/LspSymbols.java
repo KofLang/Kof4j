@@ -1,10 +1,13 @@
 package dev.kof.cli;
 
+import dev.kof.compiler.lang.LanguageProfile;
+import dev.kof.compiler.lang.SurfaceNames;
+
 import java.util.Set;
 
 /**
  * Símbolos textuais do LSP (EDI001 degrau 0): same-file definition por
- * varredura de texto — a MESMA família de hover/references do `LspServer`
+ * varredura de texto — a MESMA família de references/hover do `LspServer`
  * (o LSP do Kof é textual, não roda o parser completo por request).
  *
  * <p>Resolve a DECLARAÇÃO de record/class/interface/enum, função e var/val no
@@ -12,6 +15,13 @@ import java.util.Set;
  * não são resolvidos — retorna null em vez de apontar para o lugar errado
  * (R6: um go-to-definition mentiroso é pior que nenhum). Definições
  * cross-arquivo dependem do índice do workspace (gap futuro, não este).
+ *
+ * <p>F7.2 (07/10): as VARREDURAS conhecem a SUPERFÍCIE — as palavras
+ * estruturais procuradas são as do perfil (`classe `/`registro `, vindos do
+ * MESMO vocabulário gateado via {@link SurfaceNames}); os NOMES de símbolo
+ * saem do arquivo com a grafia que o usuário escreveu (source-authority —
+ * `principal` aparece como `principal`; a identidade canônica continua
+ * `main` para o pipeline). Kof = comportamento histórico byte-a-byte.
  */
 final class LspSymbols {
 
@@ -19,6 +29,10 @@ final class LspSymbols {
 
     private static final Set<String> CONTROL = Set.of(
             "if", "for", "while", "switch", "return", "catch", "do", "else");
+
+    private static boolean isControl(LanguageProfile p, String name) {
+        return CONTROL.contains(LspHover.canonicalOf(p, name));
+    }
 
     /**
      * documentSymbol (outline): nomes de tipo (record/class/interface/enum) e
@@ -29,9 +43,10 @@ final class LspSymbols {
     record DocSymbol(String name, int kind, int start, int end) {}
 
     /** documentSymbol: mapa LSP (name/kind/selectionRange/range) por símbolo. */
-    static java.util.List<java.util.Map<String, Object>> documentSymbolMaps(String text) {
+    static java.util.List<java.util.Map<String, Object>> documentSymbolMaps(
+            LanguageProfile p, String text) {
         java.util.List<java.util.Map<String, Object>> out = new java.util.ArrayList<>();
-        for (DocSymbol s : documentSymbols(text)) {
+        for (DocSymbol s : documentSymbols(p, text)) {
             java.util.Map<String, Object> sel = symbolRange(text, s.start(), s.end());
             java.util.Map<String, Object> sym = new java.util.LinkedHashMap<>();
             sym.put("name", s.name());
@@ -61,6 +76,17 @@ final class LspSymbols {
     }
 
     static java.util.List<DocSymbol> documentSymbols(String text) {
+        return documentSymbols(LanguageProfile.KOF, text);
+    }
+
+    /** Palavras estruturais de declaração na superfície do perfil. */
+    private static String[] typeWords(LanguageProfile p) {
+        return new String[]{
+                SurfaceNames.keyword(p, "record") + " ", SurfaceNames.keyword(p, "class") + " ",
+                SurfaceNames.keyword(p, "interface") + " ", SurfaceNames.keyword(p, "enum") + " "};
+    }
+
+    static java.util.List<DocSymbol> documentSymbols(LanguageProfile p, String text) {
         java.util.List<DocSymbol> out = new java.util.ArrayList<>();
         if (text == null) return out;
         int lineStart = 0;
@@ -71,8 +97,8 @@ final class LspSymbols {
             String ln = text.substring(lineStart, lineEnd);
             String t = stripLeading(ln);
             int lead = ln.length() - t.length();
-            // tipo: record/class/interface/enum NAME
-            for (String kw : new String[]{"record ", "class ", "interface ", "enum "}) {
+            // tipo: record/class/interface/enum NAME (na grafia do perfil)
+            for (String kw : typeWords(p)) {
                 if (t.startsWith(kw)) {
                     int[] r = matchName(t.substring(kw.length()), null);
                     if (r != null) out.add(new DocSymbol(
@@ -87,7 +113,7 @@ final class LspSymbols {
                 int end = paren;
                 int start = end;
                 while (start > 0 && isIdentChar(t.charAt(start - 1))) start--;
-                if (start < end && !CONTROL.contains(t.substring(start, end))
+                if (start < end && !isControl(p, t.substring(start, end))
                         && looksLikeDeclaration(t, paren)) {
                     out.add(new DocSymbol(t.substring(start, end), 12,
                             lineStart + lead + start, lineStart + lead + end));
@@ -100,6 +126,10 @@ final class LspSymbols {
 
     /** Offset [start,end) do NOME declarado para {@code word}, ou null. */
     static int[] declarationRange(String text, String word) {
+        return declarationRange(LanguageProfile.KOF, text, word);
+    }
+
+    static int[] declarationRange(LanguageProfile p, String text, String word) {
         if (word == null || word.isEmpty()) return null;
         int lineStart = 0;
         int n = text.length();
@@ -109,7 +139,7 @@ final class LspSymbols {
             String ln = text.substring(lineStart, lineEnd);
             String t = stripLeading(ln);
             int lead = ln.length() - t.length();
-            int[] r = declInLine(t, word);
+            int[] r = declInLine(p, t, word);
             if (r != null) return new int[]{ lineStart + lead + r[0], lineStart + lead + r[1] };
             lineStart = lineEnd + 1;
         }
@@ -117,8 +147,8 @@ final class LspSymbols {
     }
 
     /** [start,end) relativo a {@code t} (linha sem indentação) do nome declarado. */
-    private static int[] declInLine(String t, String word) {
-        for (String kw : new String[]{"record ", "class ", "interface ", "enum "}) {
+    private static int[] declInLine(LanguageProfile p, String t, String word) {
+        for (String kw : typeWords(p)) {
             if (t.startsWith(kw)) {
                 int[] r = matchName(t.substring(kw.length()), word);
                 if (r != null) return shift(r, kw.length());
@@ -138,7 +168,7 @@ final class LspSymbols {
             while (start > 0 && isIdentChar(t.charAt(start - 1))) start--;
             if (start < end) {
                 String name = t.substring(start, end);
-                if (name.equals(word) && !CONTROL.contains(name) && looksLikeDeclaration(t, paren)) {
+                if (name.equals(word) && !isControl(p, name) && looksLikeDeclaration(t, paren)) {
                     return new int[]{ start, end };
                 }
             }

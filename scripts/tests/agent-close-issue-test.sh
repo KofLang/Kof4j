@@ -33,6 +33,9 @@ setup() { # classificação, caminhos...
     ( cd "$REPO" && git remote add origin "$TMP/remote.git" && git push -q -u origin beta-0.4.0 )
     ( cd "$REPO" && for p in "$@"; do mkdir -p "$(dirname "$p")"; echo "$p" > "$p"; done && git add -A && git commit -q -m fix && git push -q origin beta-0.4.0 )
     export AGENT_VERIFY_CHECK500=true AGENT_VERIFY_DOCSLANG=true AGENT_VERIFY_STDLIB=true
+    # §681: the doc_impact gate (#648, 5f914cce4) has no script in the fake
+    # repo, exactly like the other repo-scripts, so it must be stubbed here too.
+    export AGENT_VERIFY_DOCIMPACT=true
     export AGENT_IDENTITY_CMD='echo kof-agent-worker[bot]'
     unset AGENT_CLOSE_ALLOW_LOGIN
     ID="$(ev init --repo "$REPO" --issue 549 --classification "$cls" --base HEAD~1 --session ses_worker)"

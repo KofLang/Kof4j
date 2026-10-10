@@ -22,8 +22,20 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 TMPS=()
 trap 'rm -rf "${TMPS[@]}"' EXIT
 
+# Caminho de temp que o BASH e o PYTHON NATIVO do Windows entendem (#655): num
+# host MSYS/Cygwin `mktemp -d` devolve `/tmp/...`, que o python nativo nao abre
+# (FileNotFoundError -> manifestos saem vazios -> falso PASS). `cygpath -m`
+# converte para `C:/...`, valido nos dois. Fora do Windows, comportamento igual.
+tmp_root() {
+    if command -v cygpath >/dev/null 2>&1; then
+        cygpath -m "${TMPDIR:-${TEMP:-${TMP:-/tmp}}}"
+    else
+        printf '%s' "${TMPDIR:-/tmp}"
+    fi
+}
+
 mk_env() {
-    TMP="$(mktemp -d)"
+    TMP="$(mktemp -d "$(tmp_root)/kof-agent-test.XXXXXX")"
     TMPS+=("$TMP")
     export XDG_STATE_HOME="$TMP/state"
     export HOME="$TMP/home"

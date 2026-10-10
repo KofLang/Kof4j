@@ -261,7 +261,9 @@ proof: `UiLeakLockE2ETest`).
 The core adds the missing structural primitives, all with
 **gap/padding/alignment/flex** via CSS (without the widget calculating position):
 `Box`, `Stack`, `Spacer`, `Wrap`, `Grid`, `Center`, `Align` (in addition to the existing
-`Row`/`Column`/`View`). `Scroll` comes with the layout layer.
+`Row`/`Column`/`View`). `Scroll(children)` **landed** (#702): a bounded scrollable container
+(`div.kof-scroll` with `overflow:auto`) on KofJS, a no-op handle on JVM/Native — the same
+CSS-first contract as the other layout primitives.
 
 ### 2.9 Navigation (Phase 7) — implemented
 

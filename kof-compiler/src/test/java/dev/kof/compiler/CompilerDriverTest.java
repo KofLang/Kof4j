@@ -18,7 +18,7 @@ class CompilerDriverTest {
     void externProducesHonestGapNotSilentDrop(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("ffi.kf");
         Files.writeString(source, """
-                extern sum(String[] xs): Int
+                extern sum(List<Int> xs): Int
 
                 main() {
                     println("hi")
@@ -33,7 +33,6 @@ class CompilerDriverTest {
     @Test
     void unsupportedExternSignaturesEmitHonestGap(@TempDir Path tempDir) throws IOException {
         List<String> unsupported = List.of(
-                "extern f(String[] xs): Int",   // array of pointers (not a scalar array)
                 "extern f(List<Int> xs): Int",  // not bindable in v1
                 "extern f(Buffer(Int) b): Int"); // Buffer element other than U8/Byte
         for (String signature : unsupported) {

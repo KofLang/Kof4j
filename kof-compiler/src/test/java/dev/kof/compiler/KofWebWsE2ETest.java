@@ -1,6 +1,5 @@
 package dev.kof.compiler;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -16,17 +15,17 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * E2E tests for the RFC 6455 WebSocket handshake in the Kof-native web stack.
  */
-class KofWebWsE2ETest {
+class KofWebWsE2ETest extends WsFrameSupport {
 
     private static final String JAVA_BIN = Path.of(
             System.getProperty("java.home"), "bin", "java").toString();
@@ -36,20 +35,7 @@ class KofWebWsE2ETest {
             + "Sec-WebSocket-Version: 13\r\n"
             + "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n";
 
-    private Process serverProcess;
 
-    @AfterEach
-    void stopServer() {
-        if (serverProcess != null) {
-            serverProcess.destroy();
-            try {
-                serverProcess.waitFor(5, TimeUnit.SECONDS);
-            } catch (InterruptedException ignored) {
-            }
-            serverProcess.destroyForcibly();
-            serverProcess = null;
-        }
-    }
 
     private static Path testClassesDir() throws Exception {
         return Path.of(KofWebWsE2ETest.class.getProtectionDomain()
@@ -69,28 +55,8 @@ class KofWebWsE2ETest {
         ProcessBuilder pb = new ProcessBuilder(JAVA_BIN, "-cp", outDir.toString(), "Default.Main");
         pb.redirectErrorStream(true);
         serverProcess = pb.start();
-        int attempt = 0;
-        while (attempt < 40) {
-            if (!serverProcess.isAlive()) {
-                String out = new String(serverProcess.getInputStream().readAllBytes(),
-                                StandardCharsets.UTF_8)
-                        .replace("\r\n", "\n").trim();
-                throw new IOException("server exited early: " + out);
-            }
-            try (Socket probe = new Socket()) {
-                probe.connect(new java.net.InetSocketAddress("127.0.0.1", port), 200);
-                return port;
-            } catch (IOException e) {
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
-            attempt++;
-        }
-        throw new IOException("server did not start listening");
+        TestServerFixture.awaitListening(serverProcess, port);
+        return port;
     }
 
     private int freePort() throws IOException {
@@ -175,38 +141,7 @@ class KofWebWsE2ETest {
                 """;
     }
 
-    private static final byte[] MASK = {0x12, 0x34, 0x56, 0x78};
 
-    private static void writeMaskedFrame(OutputStream out, int opcode, byte[] payload) throws IOException {
-        int len = payload.length;
-        byte[] frame;
-        int headerLen;
-        if (len <= 125) {
-            frame = new byte[2 + 4 + len];
-            frame[1] = (byte) (0x80 | len);
-            headerLen = 2;
-        } else if (len <= 0xFFFF) {
-            frame = new byte[4 + 4 + len];
-            frame[1] = (byte) (0x80 | 126);
-            frame[2] = (byte) ((len >> 8) & 0xFF);
-            frame[3] = (byte) (len & 0xFF);
-            headerLen = 4;
-        } else {
-            frame = new byte[10 + 4 + len];
-            frame[1] = (byte) (0x80 | 127);
-            for (int i = 0; i < 8; i++) {
-                frame[2 + i] = (byte) ((len >> (56 - i * 8)) & 0xFF);
-            }
-            headerLen = 10;
-        }
-        frame[0] = (byte) (0x80 | opcode);
-        System.arraycopy(MASK, 0, frame, headerLen, 4);
-        for (int i = 0; i < len; i++) {
-            frame[headerLen + 4 + i] = (byte) (payload[i] ^ MASK[i % 4]);
-        }
-        out.write(frame);
-        out.flush();
-    }
 
     private static void writeOversizedFrameHeader(OutputStream out) throws IOException {
         byte[] frame = new byte[14];
@@ -268,14 +203,6 @@ class KofWebWsE2ETest {
         return ((payload[0] & 0xFF) << 8) | (payload[1] & 0xFF);
     }
 
-    private static void readFully(java.io.InputStream in, byte[] buf, int off, int len) throws IOException {
-        while (len > 0) {
-            int n = in.read(buf, off, len);
-            if (n < 0) throw new IOException("EOF reading frame");
-            off += n;
-            len -= n;
-        }
-    }
 
     @Test
     void handshake_101_with_correct_accept(@TempDir Path tempDir) throws Exception {
@@ -332,13 +259,14 @@ class KofWebWsE2ETest {
     @Test
     void handshake_keeps_socket_open(@TempDir Path tempDir) throws Exception {
         int port = startServer(tempDir, wsApp());
-        try (WsResponse response = handshake(port, VALID_HEADERS)) {
-            assertEquals("HTTP/1.1 101 Switching Protocols", response.status);
-            Thread.sleep(300);
-            assertTrue(serverProcess.isAlive());
-            assertFalse(response.socket.isClosed());
-            assertEquals(0, response.socket.getInputStream().available());
-        }
+          try (WsResponse response = handshake(port, VALID_HEADERS)) {
+              assertEquals("HTTP/1.1 101 Switching Protocols", response.status);
+              response.socket.setSoTimeout(300);
+              assertThrows(java.net.SocketTimeoutException.class,
+                      () -> response.socket.getInputStream().read());
+              assertTrue(serverProcess.isAlive());
+              assertFalse(response.socket.isClosed());
+          }
     }
 
     /**

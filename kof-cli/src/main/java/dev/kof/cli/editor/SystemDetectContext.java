@@ -96,4 +96,25 @@ final class SystemDetectContext implements DetectContext {
         if (os.contains("linux")) return "linux";
         return "other";
     }
+
+    /**
+     * Diretório de instalação da distribuição (onde {@code editor/} viaja). O
+     * launcher instalado injeta {@code -Dkof.install.dir}; sem ele, resolve o
+     * diretório do jar (mesma lógica do {@code kof info}) e, em último caso, o
+     * cwd. Devolver {@code null} — o default da interface — fazia a grammar
+     * TextMate da distribuição nunca ser instalada (issue #767).
+     */
+    @Override
+    public Path installDir() {
+        String prop = System.getProperty("kof.install.dir", "");
+        if (!prop.isEmpty()) return Path.of(prop);
+        try {
+            Path jar = Path.of(SystemDetectContext.class.getProtectionDomain()
+                    .getCodeSource().getLocation().toURI());
+            Path parent = jar.getParent();
+            return parent != null ? parent : Path.of("").toAbsolutePath();
+        } catch (Exception e) {
+            return Path.of("").toAbsolutePath();
+        }
+    }
 }

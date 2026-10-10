@@ -108,11 +108,8 @@ class CliDebugProcessLeakTest {
             CliProcessTree.terminate(c.p());
         }
         for (ProcessHandle h : debuggee) {
-            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
-            while (h.isAlive() && System.nanoTime() < deadline) {
-                Thread.sleep(50);
-            }
-            assertFalse(h.isAlive(), "§438: o debuggee nao pode sobreviver ao teardown");
+            assertTrue(CliAwaitFixture.awaitExit(h, 5000),
+                    "§438: o debuggee nao pode sobreviver ao teardown");
         }
         Set<String> leaked = debugDirs();
         leaked.removeAll(before);

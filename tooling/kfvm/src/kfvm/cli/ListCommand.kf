@@ -1,0 +1,106 @@
+package kfvm.cli
+
+import kfvm.system
+import kfvm.github
+import kfvm.store
+import kfvm.versions
+
+class ListCommand implements kfvm.cli.Command {
+    GitHubClient github
+    Store store
+    Logger logger
+    String current
+    String nightly
+    List<String> installed
+    Set<String> known
+    Set<String> nightlies
+
+    constructor(GitHubClient github, Store store, Logger logger) {
+        this.github = github
+        this.store = store
+        this.logger = logger
+        this.current = ""
+        this.nightly = ""
+        this.installed = listOf()
+        this.known = setOf()
+        this.nightlies = setOf()
+    }
+
+    List<String> names() { return listOf("ls", "list") }
+
+    void run(List<String> args) {
+        if (args.size > 0 && args.get(0) != "-r" && args.get(0) != "--remote")
+            throw "unknown option for ls: " + args.get(0)
+
+        current = store.current()
+        installed = store.installed()
+        if (args.size == 0) listInstalled() else listRemote()
+    }
+
+    void listInstalled() {
+        if (installed.size == 0) {
+            logger.info("no versions installed (try: kfvm i lts)")
+            return
+        }
+
+        index(github.cachedReleases())
+        logger.logColorfulLine(BRIGHT_CYAN, "\nVersions:")
+        for (var v in installed) {
+            logVersion(v, true)
+        }
+        println("\n")
+    }
+
+    void listRemote() {
+        var rels = github.releases()
+        index(rels)
+
+        for (var i = rels.size() - 1; i >= 0; i--) {
+            var r = rels.get(i)
+            logVersion(r.version(), installed.contains(r.version()))
+        }
+    }
+
+    void index(List<RemoteRelease> rels) {
+        nightly = newestNightly(rels)
+        for (var r in rels) {
+            known.add(r.version())
+            if (r.nightly()) nightlies.add(r.version())
+        }
+    }
+
+    String channel(String v) {
+        if (nightlies.contains(v)) return "nightly"
+        if (known.contains(v)) return "stable"
+        return ""
+    }
+
+    String newestNightly(List<RemoteRelease> rels) {
+        return Selector.newestOfChannel(true, RemoteCandidates.of(rels))
+    }
+
+    String marker(String v) {
+        if (v == current && v == nightly) return "!* "
+        if (v == current) return "* "
+        if (nightly != "" && v == nightly) return "! "
+        return "  "
+    }
+
+    String pad(String s, Int width) {
+        var out = s
+        while (out.length < width) { out = out + " " }
+        return out
+    }
+
+    private logVersion(v: String, installed: Bool) {
+        val formatted = pad(marker(v), 3) + pad(v, 28) + " " + pad(channel(v), 8)
+
+        if (nightly != "" && v == current && v == nightly)
+            logger.logWithEndKind("current-nightly", MAGENTA, formatted)
+        else if (v == current) logger.logWithEndKind("current", GREEN, formatted)
+        else if (v == nightly && nightly != "")
+            logger.logWithEndKind("nightly", MAGENTA, formatted)
+        else if (installed) logger.logWithEndKind("installed", BLUE, formatted)
+        else logger.log(formatted)
+    }
+}

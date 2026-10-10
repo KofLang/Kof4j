@@ -1,0 +1,12 @@
+main() {
+    var offset = 10
+    var add = (x: Int) -> x + offset
+    println(add(5))
+    offset = 20
+    println(add(5))
+    var xs = listOf(1, 2, 3)
+    var doubled = xs.map((x: Int) -> x * offset)
+    println(doubled)
+    var big = xs.filter((x: Int) -> x > 1)
+    println(big)
+}

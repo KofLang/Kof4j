@@ -1,0 +1,61 @@
+package image
+
+import image.Raster
+import image.Vp8Frame
+import image.Vp8Coeffs
+import image.Vp8Reconstruct
+import image.Vp8Filter
+
+// kof.image — VP8 (lossy WebP) raster decode: the full pure-Kof key-frame
+// pipeline routed to the `Raster` view (RFC 6386).
+//
+// `vp8Raster(path)` reassembles the lossy WebP chain landed slice by slice —
+// the `VP8 ` frame header (slice 2), the mode/segment records (slice 3), the
+// coefficient decoder (slice 4), dequantization + inverse transforms +
+// intra prediction (slices 5a/5) and the in-loop deblocking filter (slice 6,
+// `libs/image/Vp8Filter.kf`) — and converts the filtered YUV 4:2:0 planes to
+// interleaved RGB samples for `decodeRaster`.
+//
+// Color: BT.601 **limited range** (Y' in 16..235, Cb/Cr in 16..240), nearest
+// chroma (`floor` division `(298*(Y-16) + 409*(V-128) + 128) >> 8`, `>>` is
+// the arithmetic shift that matches libwebp's fixed point). This is the
+// documented limited-range matrix; it reproduces libwebp's own RGB output on
+// solid chroma (measured: `#fff`→255,0,0, `#0000ff`→0,0,255, gray→gray). The
+// `Raster` surface is RGB (alpha is not carried by `VP8 `, which is opaque).
+// Pure Kof, deterministic, all targets (`D-WEBP-LOSSY-PURE-KOF`,
+// `D-IMAGE-SURFACE`).
+
+Raster vp8Raster(String path) {
+    var b = File(path).readBytes()
+    if (b.length < 20 || !matchesAscii(b, 0, "RIFF") || !matchesAscii(b, 8, "WEBP")) {
+        throw "IMAGE: bad WebP container"
+    }
+    if (!matchesAscii(b, 12, "VP8 ")) {
+        throw "IMAGE: WebP is not lossy (VP8 )"
+    }
+    var frame = vp8FrameFromWebp(b)
+    var coeffs = Vp8Coeffs(frame)
+    var rec = Vp8Reconstruct(frame)
+    rec.run()
+    vp8LoopFilter(frame, Vp8Pixels(rec.width(), rec.height(), rec.yPlane(), rec.uPlane(), rec.vPlane()), coeffs)
+    var w = frame.width()
+    var h = frame.height()
+    guardRaster(w * h * 3)
+    var samples = new Int[w * h * 3]
+    var row = 0
+    while (row < h) {
+        var col = 0
+        while (col < w) {
+            var yy = rec.yAt(row + 1, col + 1) - 16
+            var uu = rec.uAt(row / 2 + 1, col / 2 + 1) - 128
+            var vv = rec.vAt(row / 2 + 1, col / 2 + 1) - 128
+            var base = (row * w + col) * 3
+            samples[base] = vp8Clip255((298 * yy + 409 * vv + 128) >> 8)
+            samples[base + 1] = vp8Clip255((298 * yy - 100 * uu - 208 * vv + 128) >> 8)
+            samples[base + 2] = vp8Clip255((298 * yy + 516 * uu + 128) >> 8)
+            col = col + 1
+        }
+        row = row + 1
+    }
+    return Raster("WEBP", w, h, 3, samples)
+}

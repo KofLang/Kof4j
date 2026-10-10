@@ -130,18 +130,7 @@ class KofWebJsE2ETest {
         serverThread.start();
 
         // espera o server abrir a porta
-        int attempt = 0;
-        boolean listening = false;
-        while (attempt < 50) {
-            try (Socket probe = new Socket()) {
-                probe.connect(new java.net.InetSocketAddress("127.0.0.1", port), 200);
-                listening = true;
-                break;
-            } catch (IOException e) {
-                Thread.sleep(100);
-            }
-            attempt++;
-        }
+        boolean listening = TestServerFixture.awaitPort(port, 50, 100);
         assertTrue(listening, "server JS não abriu a porta " + port
                 + " | stderr do runner: " + serverErr.toString(StandardCharsets.UTF_8));
 
@@ -152,6 +141,11 @@ class KofWebJsE2ETest {
         String param = request(port, "GET /users/42?name=mel HTTP/1.0\r\nHost: x\r\n\r\n");
         assertTrue(param.startsWith("HTTP/1.1 200") || param.startsWith("HTTP/1.0 200"), param);
         assertEquals("user 42 q=mel", bodyOf(param).trim(), "rota :param + query: " + param);
+
+        // Paridade JVM x JS (§2.4/§12 pagination-plan): mesma decodificacao do
+        // valor no JVM (`%20` -> espaco, `%2B` -> `+`).
+        String enc = request(port, "GET /users/42?name=a%20b%2Bc HTTP/1.0\r\nHost: x\r\n\r\n");
+        assertEquals("user 42 q=a b+c", bodyOf(enc).trim(), "query decode: " + enc);
 
         String me = request(port, "GET /me HTTP/1.0\r\nHost: x\r\n\r\n");
         assertEquals("GET /me", bodyOf(me).trim(), "method()+path(): " + me);
@@ -200,15 +194,7 @@ class KofWebJsE2ETest {
         }, "kof-web-js-status");
         serverThread.setDaemon(true);
         serverThread.start();
-        boolean listening = false;
-        for (int attempt = 0; attempt < 50 && !listening; attempt++) {
-            try (Socket probe = new Socket()) {
-                probe.connect(new java.net.InetSocketAddress("127.0.0.1", port), 200);
-                listening = true;
-            } catch (IOException e) {
-                Thread.sleep(100);
-            }
-        }
+        boolean listening = TestServerFixture.awaitPort(port, 50, 100);
         assertTrue(listening, "server JS não abriu a porta " + port
                 + " | stderr: " + serverErr.toString(StandardCharsets.UTF_8));
 
@@ -313,21 +299,16 @@ class KofWebJsE2ETest {
         }, "kof-sse-js-" + port);
         serverThread.setDaemon(true);
         serverThread.start();
-        for (int attempt = 0; attempt < 50; attempt++) {
-            try (Socket probe = new Socket()) {
-                probe.connect(new java.net.InetSocketAddress("127.0.0.1", port), 200);
-                return port;
-            } catch (IOException e) {
-                Thread.sleep(100);
+        if (!TestServerFixture.awaitPort(port, 50, 100)) {
+            if (!serverThread.isAlive()) {
+                throw new IOException("runner MORREU | out: [" + serverOut.toString(StandardCharsets.UTF_8)
+                        + "] err: [" + serverErr.toString(StandardCharsets.UTF_8) + "]");
             }
-        }
-        if (!serverThread.isAlive()) {
-            throw new IOException("runner MORREU | out: [" + serverOut.toString(StandardCharsets.UTF_8)
+            throw new IOException("server SSE JS não abriu a porta " + port
+                    + " | out: [" + serverOut.toString(StandardCharsets.UTF_8)
                     + "] err: [" + serverErr.toString(StandardCharsets.UTF_8) + "]");
         }
-        throw new IOException("server SSE JS não abriu a porta " + port
-                + " | out: [" + serverOut.toString(StandardCharsets.UTF_8)
-                + "] err: [" + serverErr.toString(StandardCharsets.UTF_8) + "]");
+        return port;
     }
 
     private java.io.ByteArrayOutputStream sseServerOut;

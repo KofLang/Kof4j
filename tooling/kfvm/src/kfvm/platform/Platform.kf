@@ -1,0 +1,42 @@
+package kfvm.platform
+
+import kfvm.system
+
+record Platform(String os, String arch) {
+    String id() { return os + "-" + arch }
+
+    Bool isWindows() { return os == "windows" }
+
+    kfvm.platform.FileSystem fileSystem() {
+        var fs: kfvm.platform.FileSystem = if (this.isWindows()) WindowsFileSystem() else UnixFileSystem()
+        return fs
+    }
+
+    kfvm.platform.UserPath userPath() {
+        var path: kfvm.platform.UserPath = if (this.isWindows()) WindowsUserPath() else UnixUserPath()
+        return path
+    }
+}
+
+class Platforms {
+    static Platform detect() {
+        if (Env.get("OS") == "Windows_NT")
+            return Platform("windows", normalizeArch(Env.get("PROCESSOR_ARCHITECTURE")))
+        var os = normalizeOs(Shell.run("uname", listOf("-s")).trim())
+        var arch = normalizeArch(Shell.run("uname", listOf("-m")).trim())
+        return Platform(os, arch)
+    }
+
+    static String normalizeOs(String raw) {
+        if (raw.startsWith("Linux")) { return "linux" }
+        if (raw.startsWith("Darwin")) { return "macos" }
+        throw "unsupported OS: " + raw
+    }
+
+    static String normalizeArch(String raw) {
+        var arch = raw.toLowerCase()
+        if (arch == "x86_64" || arch == "amd64") { return "x86_64" }
+        if (arch == "aarch64" || arch == "arm64") { return "arm64" }
+        throw "unsupported architecture: " + raw
+    }
+}

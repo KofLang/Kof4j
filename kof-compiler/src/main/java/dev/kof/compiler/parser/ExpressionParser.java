@@ -142,13 +142,50 @@ public class ExpressionParser {
         return ExpressionParser.parsePostfix(ctx);
     }
 
+    /**
+     * #692 — a trailing lambda's `{` must start on the SAME line as the token
+     * that closes the call (`closures.md` §6 EBNF: `"(" [args] ")" block`).
+     * Without this guard a bare `{ … }` block statement on the next line is
+     * silently swallowed as a fabricated extra lambda argument (the `(` sibling
+     * case at the LPAREN branch already had the equivalent guard).
+     */
+    private static boolean trailingLambdaSameLine(ParseContext ctx) {
+        if (!ctx.check(TokenType.LBRACE)) return false;
+        Token prev = ctx.pos > 0 ? ctx.tokens.get(ctx.pos - 1) : null;
+        return prev != null && prev.line() == ctx.peek().line();
+    }
+
+    /**
+     * Parses the {@code { ... }} of a trailing lambda — with explicit parameters
+     * ({@code { s: Int -> ... }}, {@code { a, b -> ... }}) when the block opens
+     * with a parameter list, else a 0-parameter block. The {@code LBRACE} is
+     * current. All trailing-lambda call shapes (bare identifier, parenthesized
+     * arguments, generic call, {@code receiver.method}) must use this so typed
+     * parameters work everywhere, not only on {@code receiver.method} — the
+     * graphics/gaming window form {@code Window("Pong") { frame { dt: Int -> ... } }}
+     * relies on the parenthesized and nested-bare shapes.
+     */
+    private static LambdaExpr parseTrailingLambdaBlock(ParseContext ctx) {
+        if (!LambdaParser.looksLikeLambdaBlockParams(ctx)) {
+            return new LambdaExpr(ctx.pos(), List.of(), StatementParser.parseBlock(ctx));
+        }
+        List<FormalParameterNode> params = LambdaParser.parseLambdaBlockParams(ctx);
+        ctx.expect(TokenType.ARROW, "Expected '->'", "PARSE042");
+        List<StatementNode> body = new ArrayList<>();
+        while (!ctx.check(TokenType.RBRACE) && !ctx.atEnd()) {
+            body.add(StatementParser.parseStatement(ctx));
+        }
+        ctx.expect(TokenType.RBRACE, "Expected '}'", "PARSE025");
+        return new LambdaExpr(ctx.pos(), params, body);
+    }
+
     static ExpressionNode parsePostfix(ParseContext ctx) {
         ExpressionNode expr = ExpressionParser.parsePrimary(ctx);
         while (true) {
-            if (ctx.check(TokenType.LBRACE) && expr instanceof IdentifierExpr ie) {
+            if (trailingLambdaSameLine(ctx) && expr instanceof IdentifierExpr ie) {
                 // trailing lambda call: identifier { ... } (transaction { ... })
                 expr = new MethodCallExpr(ctx.pos(), null, ie.name(), List.of(),
-                        List.of(new LambdaExpr(ctx.pos(), List.of(), StatementParser.parseBlock(ctx))));
+                        List.of(ExpressionParser.parseTrailingLambdaBlock(ctx)));
             } else if (ctx.check(TokenType.DOT)) {
                 ctx.advance();
                 String field;
@@ -161,28 +198,14 @@ public class ExpressionParser {
                 } else {
                     field = ctx.expectId("Expected field name", "PARSE039");
                 }
-                if (ctx.check(TokenType.LBRACE)) {
+                if (trailingLambdaSameLine(ctx)) {
                     // trailing lambda call: receiver.method { ... } — the
                     // block is the final argument of the method call.
                     // With explicit parameters (receiver.method { s -> ... }
                     // or { s: Int -> ... }) the block is a typed lambda: the
                     // remaining statements up to '}' form the lambda body.
-                    if (LambdaParser.looksLikeLambdaBlockParams(ctx)) {
-                        List<FormalParameterNode> params = LambdaParser.parseLambdaBlockParams(ctx);
-                        ctx.expect(TokenType.ARROW, "Expected '->'", "PARSE042");
-                        // the opening '{' was consumed by the parameter list;
-                        // the lambda body is the statement list up to '}'
-                        List<StatementNode> body = new ArrayList<>();
-                        while (!ctx.check(TokenType.RBRACE) && !ctx.atEnd()) {
-                            body.add(StatementParser.parseStatement(ctx));
-                        }
-                        ctx.expect(TokenType.RBRACE, "Expected '}'", "PARSE025");
-                        expr = new MethodCallExpr(ctx.pos(), expr, field, List.of(),
-                                List.of(new LambdaExpr(ctx.pos(), params, body)));
-                    } else {
-                        expr = new MethodCallExpr(ctx.pos(), expr, field, List.of(),
-                                List.of(new LambdaExpr(ctx.pos(), List.of(), StatementParser.parseBlock(ctx))));
-                    }
+                    expr = new MethodCallExpr(ctx.pos(), expr, field, List.of(),
+                            List.of(ExpressionParser.parseTrailingLambdaBlock(ctx)));
                 } else {
                     expr = new FieldAccessExpr(ctx.pos(), expr, field);
                 }
@@ -200,7 +223,7 @@ public class ExpressionParser {
                     break;
                 }
                 List<ExpressionNode> args = ExpressionParser.parseArguments(ctx);
-                if (ctx.check(TokenType.LBRACE)) {
+                if (trailingLambdaSameLine(ctx)) {
                     // Query DSL tipada: `Entity.query(db) { where ...; }` — o `{`
                     // é o token atual; parseQueryDsl consome o bloco.
                     if (expr instanceof FieldAccessExpr fa && "query".equals(fa.fieldName())
@@ -208,7 +231,7 @@ public class ExpressionParser {
                             && ctx.entityNames.contains(qr.name()) && args.size() == 1) {
                         return ExpressionParser.parseQueryDsl(ctx, fa.position(), qr.name(), args.get(0));
                     }
-                    args.add(new LambdaExpr(ctx.pos(), List.of(), StatementParser.parseBlock(ctx)));
+                    args.add(ExpressionParser.parseTrailingLambdaBlock(ctx));
                 }
                 if (expr instanceof IdentifierExpr ie) {
                     expr = new MethodCallExpr(ctx.pos(), null, ie.name(), List.of(), args);
@@ -221,8 +244,8 @@ public class ExpressionParser {
                     && ExpressionParser.looksLikeGenericCall(ctx)) {
                 List<String> typeArgs = ExpressionParser.parseCallTypeArguments(ctx);
                 List<ExpressionNode> args = ExpressionParser.parseArguments(ctx);
-                if (ctx.check(TokenType.LBRACE)) {
-                    args.add(new LambdaExpr(ctx.pos(), List.of(), StatementParser.parseBlock(ctx)));
+                if (trailingLambdaSameLine(ctx)) {
+                    args.add(ExpressionParser.parseTrailingLambdaBlock(ctx));
                 }
                 if (expr instanceof IdentifierExpr ie3) {
                     expr = new MethodCallExpr(ctx.pos(), null, ie3.name(), typeArgs, args);
@@ -274,7 +297,7 @@ public class ExpressionParser {
                         Long.parseLong(raw);
                     }
                 } catch (NumberFormatException e) {
-                    ctx.error("numeric literal out of range: " + t.value(), "PARSE084");
+                    ctx.error("numeric literal out of range: " + t.value(), "PARSE084", t.value());
                     return new LiteralExpr(ctx.pos(), ConcreteLiteralKind.NULL, "0");
                 }
             }
@@ -289,7 +312,7 @@ public class ExpressionParser {
             if (t.type() == TokenType.INT_LITERAL
                     && (t.value().startsWith("0x") || t.value().startsWith("0X"))
                     && t.value().length() - 2 > 16) {
-                ctx.error("numeric literal out of range: " + t.value(), "PARSE084");
+                ctx.error("numeric literal out of range: " + t.value(), "PARSE084", t.value());
                 return new LiteralExpr(ctx.pos(), ConcreteLiteralKind.NULL, "0");
             }
             if (t.type() == TokenType.FLOAT_LITERAL || t.type() == TokenType.DOUBLE_LITERAL) {
@@ -301,7 +324,7 @@ public class ExpressionParser {
                         Double.parseDouble(raw);
                     }
                 } catch (NumberFormatException e) {
-                    ctx.error("invalid float literal: " + t.value(), "PARSE084");
+                    ctx.error("invalid float literal: " + t.value(), "PARSE084", t.value());
                     return new LiteralExpr(ctx.pos(), ConcreteLiteralKind.NULL, "0");
                 }
             }
@@ -351,7 +374,8 @@ public class ExpressionParser {
             List<StatementNode> body = StatementParser.parseBlock(ctx);
             return new LambdaExpr(ctx.pos(), params, body);
         }
-        ctx.error("Unexpected token in expression: " + ctx.peek().value(), "PARSE041");
+        ctx.error("Unexpected token in expression: " + ctx.peek().value(), "PARSE041",
+                ctx.peek().value());
         ctx.advance();
         return new IdentifierExpr(ctx.pos(), "error");
     }
@@ -509,21 +533,20 @@ public class ExpressionParser {
         List<String> orderDirs = new ArrayList<>();
         ExpressionNode limit = null;
         while (!ctx.check(TokenType.RBRACE) && !ctx.atEnd()) {
-            if (ctx.check(TokenType.IDENTIFIER) && "where".equals(ctx.peek().value())) {
+            if (ctx.wordIs("where")) {
                 ctx.advance();
                 wheres.add(ExpressionParser.parseExpression(ctx));
                 ctx.expectSemicolon();
-            } else if (ctx.check(TokenType.IDENTIFIER) && "orderBy".equals(ctx.peek().value())) {
+            } else if (ctx.wordIs("orderBy")) {
                 ctx.advance();
                 orderFields.add(ExpressionParser.parseIdentifierOrLiteral(ctx));
                 String dir = "asc";
-                if (ctx.check(TokenType.IDENTIFIER) && ("desc".equals(ctx.peek().value())
-                        || "asc".equals(ctx.peek().value()))) {
-                    dir = ctx.advance().value();
+                if (ctx.wordIs("desc") || ctx.wordIs("asc")) {
+                    dir = ctx.canonicalValue(ctx.advance().value());
                 }
                 orderDirs.add(dir);
                 ctx.expectSemicolon();
-            } else if (ctx.check(TokenType.IDENTIFIER) && "limit".equals(ctx.peek().value())) {
+            } else if (ctx.wordIs("limit")) {
                 ctx.advance();
                 limit = ExpressionParser.parseExpression(ctx);
                 ctx.expectSemicolon();

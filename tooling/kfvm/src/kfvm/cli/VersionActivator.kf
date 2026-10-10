@@ -1,0 +1,25 @@
+package kfvm.cli
+
+import kfvm.system
+import kfvm.platform
+import kfvm.store
+
+class VersionActivator {
+    Store store
+    kfvm.platform.UserPath userPath
+    Logger logger
+
+    constructor(Store store, kfvm.platform.UserPath userPath, Logger logger) {
+        this.store = store
+        this.userPath = userPath
+        this.logger = logger
+    }
+
+    void activate(String version) {
+        store.activate(version)
+        logger.info("now using kof " + version)
+        if (userPath.include(store.currentBin())) {
+            logger.info("added kof to your PATH (open a new terminal to use it)")
+        }
+    }
+}

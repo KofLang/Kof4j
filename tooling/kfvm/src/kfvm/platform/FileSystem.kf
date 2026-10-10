@@ -1,0 +1,9 @@
+package kfvm.platform
+
+interface FileSystem {
+    void link(String target, String link)
+    String linkTarget(String link)
+    void unlink(String link)
+    void deleteTree(String path)
+    String sha256(String file)
+}

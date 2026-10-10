@@ -1,0 +1,28 @@
+package kfvm.github
+
+record ApiResponse(String status, String etag, String body) {
+    static ApiResponse parse(String raw) {
+        var rest = raw
+        var head = ""
+
+        while (rest.startsWith("HTTP/")) {
+            var end = rest.indexOf("\r\n\r\n")
+            head = if (end < 0) rest else rest.substring(0, end)
+            rest = if (end < 0) "" else rest.substring(end + 4)
+        }
+
+        var lines = head.split("\r\n")
+        var status = ""
+        var etag = ""
+
+        for (var line in lines) {
+            if (line.startsWith("HTTP/")) {
+                var parts = line.split(" ")
+                if (parts.size > 1) status = parts[1]
+            }
+            if (line.toLowerCase().startsWith("etag:")) etag = line.substring(5).trim()
+        }
+
+        return ApiResponse(status, etag, rest.trim())
+    }
+}

@@ -42,6 +42,7 @@ main() {
 - o programa **espera as tarefas antes de sair** (join implícito: `kof_spawn_join_all` no fim do main no Native);
 - `val r = spawn f()` devolve `Handle<T>` tipado; `await r` com unboxing;
 - `var h = spawn { return expr }` (lambda literal com `return` + Handle) funciona no JVM/JS/interpretador — **gap: Native x86_64 → SIGSEGV (bug 46, known-bugs.md)**; usar `spawn fn(arg)` (função nomeada) como workaround no Native até o fix;
+- **o pai não pode escrever um binding capturado antes do join (`MEM021`, `D-MEM021-SCALAR` + #660):** se o worker ESCREVE um local capturado (`spawn { n = n + 1 }`) e o pai reatribui/incrementa o MESMO binding sem `await`/`join_all` entre, o compilador emite `MEM021` (ERROR de compilação) — a escrita do worker força o box de representação, então pai e worker compartilham o slot (corrida silenciosa `202`/`101` antes do fix). Captura só-leitura nunca corre (por valor, sem box). `await h` (ou qualquer join) antes da escrita do pai é o fix;
 - exceção na tarefa não derruba o programa;
 - **KofScript** `var`/`val` no topo também suporta spawn/await via KofScriptGlobals.
 

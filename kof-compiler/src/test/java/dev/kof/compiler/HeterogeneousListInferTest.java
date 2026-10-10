@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * ancestor the pre-fix first-wins stays (SEM056 already rejects truly
  * heterogeneous literals, and nothing that works today changes).
  */
-class HeterogeneousListInferTest {
+class HeterogeneousListInferTest extends JvmRunSupport {
 
     private static final String ANIMALS = """
             interface Animal { String sound() }
@@ -38,15 +38,7 @@ class HeterogeneousListInferTest {
         return new CompilerDriver().compile(source, tempDir.resolve("out-" + name + t), t);
     }
 
-    private void assertRuns(Path outDir, String expected, String label) throws Exception {
-        String javaCmd = System.getProperty("java.home") + "/bin/java";
-        Process p = new ProcessBuilder(javaCmd, "-cp", outDir.toString(), "Default.Main")
-                .redirectErrorStream(true).start();
-        String out = new String(p.getInputStream().readAllBytes()).replace("\r\n", "\n").trim();
-        assertEquals(0, p.waitFor(), label + " run must exit 0, got:\n" + out);
-        assertEquals(expected, out, label);
-    }
-
+    
     @Test
     void heterogeneousListWidensToCommonInterface(@TempDir Path tempDir) throws Exception {
         // #360 verbatim — pre-fix ran `woof` then ClassCastException; the

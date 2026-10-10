@@ -44,8 +44,13 @@ BASE = {
         ("dayOfWeek", ['dayOfWeek(Int y, Int m, Int d) -> Int']),
         ("isWeekend", ['isWeekend(Int y, Int m, Int d) -> Bool']),
         ("daysBetween", ['daysBetween(Int y1, Int m1, Int d1, Int y2, Int m2, Int d2) -> Int']),
+        ("age", ['age(Int by, Int bm, Int bd, Int ry, Int rm, Int rd) -> Int']),
         ("isToday", ['isToday(Int y, Int m, Int d) -> Bool']),
         ("addDays", ['addDays(String iso, Int days) -> String']),
+        ("addMonths", ['addMonths(String iso, Int months) -> String']),
+        ("addYears", ['addYears(String iso, Int years) -> String']),
+        ("startOf", ['startOf(String iso, String unit) -> String']),
+        ("endOf", ['endOf(String iso, String unit) -> String']),
         ("diffDays", ['diffDays(String isoA, String isoB) -> Int']),
         ("todayIso", ['todayIso() -> String']),
         ("formatDateIso", ['formatDateIso(Int y, Int m, Int d) -> String']),
@@ -68,7 +73,13 @@ BASE = {
     "shell": [
         ("cmd", ['cmd(String program, List<String> args) -> List<String>']),
         ("run", ['run(String program) -> Result', 'run(String program, List<String> args) -> Result']),
+        ("runWith", ['runWith(List<String> argv, String cwd, Map<String,String> env) -> Result']),
         ("pipeline", ['pipeline(List<List<String>> stages) -> Result']),
+        ("ok", ['ok(result) -> Bool']),
+    ],
+    "ssh": [
+        ("cmd", ['cmd(String host, String command) -> List<String>']),
+        ("run", ['run(String host, String command) -> Result']),
         ("ok", ['ok(result) -> Bool']),
     ],
     "net": [
@@ -80,6 +91,10 @@ BASE = {
         ("fragment", ['fragment(String url) -> String']),
         ("queryEncode", ['queryEncode(String s) -> String']),
         ("queryDecode", ['queryDecode(String s) -> String']),
+        ("listen", ['listen(Int port) -> Listener']),
+        ("connect", ['connect(String host, Int port) -> Conn', 'connect(String host, Int port, String address) -> Conn']),
+        ("bind", ['bind(Int port) -> Endpoint']),
+        ("resolve", ['resolve(String host) -> List<String>']),
     ],
     "uuid": [
         ("isUuid", ['isUuid(String s) -> Bool']),
@@ -154,6 +169,18 @@ BASE = {
         ("isNegative", ['isNegative(Int n) -> Bool']),
         ("isZero", ['isZero(Int n) -> Bool']),
         ("sqrt", ['sqrt(Double x) -> Double']),
+        ("sin", ['sin(Double x) -> Double']),
+        ("cos", ['cos(Double x) -> Double']),
+        ("tan", ['tan(Double x) -> Double']),
+        ("asin", ['asin(Double x) -> Double']),
+        ("acos", ['acos(Double x) -> Double']),
+        ("atan", ['atan(Double x) -> Double']),
+        ("atan2", ['atan2(Double y, Double x) -> Double']),
+        ("toRadians", ['toRadians(Double angdeg) -> Double']),
+        ("toDegrees", ['toDegrees(Double angrad) -> Double']),
+        ("pi", ['pi() -> Double']),
+        ("e", ['e() -> Double']),
+        ("tau", ['tau() -> Double']),
         ("lerp", ['lerp(Double a, Double b, Double t) -> Double']),
         ("percentage", ['percentage(Double part, Double whole) -> Double']),
         ("isInteger", ['isInteger(Double x) -> Bool']),
@@ -188,7 +215,7 @@ EXTRA_FATIAS = {
         ("where", ["where(String entity, String cond, Object value) -> List",
                    "where(String entity, String col, String op, Object value) -> List"]),
         ("saveAll", ["saveAll(String entity, List rows) -> Bool"]),
-        ("page", ["page(String entity, Object offset, Object limit) -> List"]),
+        ("page", ["page(String entity, Object limit, Object offset) -> List"]),
         ("migrate", ["migrate(String url, String user, String pass) -> Bool"]),
     ],
     "config": [
@@ -252,6 +279,8 @@ EXTRA_FATIAS = {
         ("isPort", ["isPort(Int p) -> Bool"]),
         ("isCreditCard", ["isCreditCard(String s) -> Bool"]),
         ("isIpv6", ["isIpv6(String s) -> Bool"]),
+        ("creditCardBrand", ["creditCardBrand(String card) -> String"]),
+        ("last4", ["last4(String card) -> String"]),
         ("isDomain", ["isDomain(String s) -> Bool"]),
     ],
     "observability": [
@@ -271,6 +300,12 @@ EXTRA_FATIAS = {
         ("spanEnd", ["spanEnd(String id) -> String"]),
         ("exportSpans", ["exportSpans() -> String"]),
     ],
+    "keyExchange": [
+        ("privateKey", ["privateKey() -> Secret", "privateKey(String alg) -> Secret"]),
+        ("publicKey", ["publicKey(Secret priv) -> String"]),
+        ("shared", ["shared(Secret priv, Secret peerPublicHex) -> Secret"]),
+        ("hkdfSha256", ["hkdfSha256(Secret ikmHex, String saltHex, String infoHex, Int len) -> String"]),
+    ],
     "tetris": [("run", ["run() -> void"])],
     # fatia 6: seguranca (dispatcher aninhado KofSecurity.staticMethod) + media
     "passwords": [
@@ -280,25 +315,44 @@ EXTRA_FATIAS = {
     ],
     "crypto": [
         ("sha256", ["sha256(String s) -> String"]),
+        ("sha256Bytes", ["sha256Bytes(Byte[] data) -> String"]),
         ("sha512", ["sha512(String s) -> String"]),
-        ("hmacSha256", ["hmacSha256(String key, String msg) -> String"]),
-        ("encryptAesGcm", ["encryptAesGcm(String plain, String keyHex64) -> String"]),
-        ("decryptAesGcm", ["decryptAesGcm(String cipher, String keyHex64) -> String"]),
-        ("encryptChacha20", ["encryptChacha20(String plain, String keyHex) -> String"]),
-        ("decryptChacha20", ["decryptChacha20(String cipher, String keyHex) -> String"]),
+        ("hmacSha256", ["hmacSha256(String key, String msg) -> String",
+                        "hmacSha256(KeyHandle key, String msg) -> String"]),
+        ("hmacSha256Bytes", ["hmacSha256Bytes(Byte[] key, Byte[] msg) -> String"]),
+        ("encryptAesGcm", ["encryptAesGcm(String plain, String keyHex64) -> String",
+                           "encryptAesGcm(String plain, KeyHandle key) -> String"]),
+        ("decryptAesGcm", ["decryptAesGcm(String cipher, String keyHex64) -> String",
+                           "decryptAesGcm(String cipher, KeyHandle key) -> String"]),
+        ("encryptChacha20", ["encryptChacha20(String plain, String keyHex) -> String",
+                             "encryptChacha20(String plain, KeyHandle key) -> String"]),
+        ("decryptChacha20", ["decryptChacha20(String cipher, String keyHex) -> String",
+                             "decryptChacha20(String cipher, KeyHandle key) -> String"]),
+        ("sign", ["sign(Secret priv, Byte[] msg) -> String"]),
+        ("verify", ["verify(Secret key, Byte[] msg, String sigHex) -> Bool"]),
         ("randomHex", ["randomHex(Int n) -> String"]),
         ("randomInt", ["randomInt(Int max) -> Int"]),
     ],
     "jwt": [
         ("create", ["create(String claims, String secret) -> String",
-                    "create(String claims, String secret, Int ttlSeconds) -> String"]),
+                    "create(String claims, String secret, Int ttlSeconds) -> String",
+                    "create(String claims, KeyHandle key) -> String",
+                    "create(String claims, KeyHandle key, Int ttlSeconds) -> String"]),
         ("verify", ["verify(String token, String secret) -> String",
-                    "verify(String token, String secret, String iss, String aud) -> String"]),
+                    "verify(String token, String secret, String iss, String aud) -> String",
+                    "verify(String token, KeyHandle key) -> String",
+                    "verify(String token, KeyHandle key, String iss, String aud) -> String"]),
         ("secret", ["secret() -> String"]),
     ],
     "secrets": [
         ("get", ["get(String key) -> String", "get(String key, String d) -> String"]),
         ("redact", ["redact(String s) -> String"]),
+        ("of", ["of(String literal) -> Secret"]),
+        ("secret", ["secret(String name) -> Secret"]),
+        ("fromBytes", ["fromBytes(Int[] bytes) -> Secret"]),
+        ("keyFromHex", ["keyFromHex(String hex) -> KeyHandle"]),
+        ("keyFromPem", ["keyFromPem(String path) -> KeyHandle"]),
+        ("keyFromKeystore", ["keyFromKeystore(String path, String alias, String password) -> KeyHandle"]),
     ],
     "security": [
         ("constantTimeEquals", ["constantTimeEquals(String a, String b) -> Bool"]),
@@ -414,12 +468,10 @@ def render(groups):
     return HEADER + ",\n".join(block(ns, it) for ns, it in groups) + ");\n\n"
 
 
-def main():
-    mode = sys.argv[1] if len(sys.argv) > 1 else "check"
-    s = io.open(CAT, encoding="utf-8").read()
-    mem = io.open("kof-compiler/src/main/java/dev/kof/compiler/StdCatalog.java", encoding="utf-8").read()
+def build(cat_path):
+    """Le o catalogo, re-renderiza a tabela e devolve (fonte, esperado, grupos, membros, formas)."""
+    s = io.open(cat_path, encoding="utf-8").read()
     groups = [(ns, items) for ns, items in list(BASE.items()) + list(EXTRA_FATIAS.items())]
-    have = {ns for ns, _ in groups}
     tabled = sum(len(g) for _, g in groups)
     out = render(groups)
     i0 = s.index("    private static final Map<String, Map<String, List<String>>> SIGNATURES")
@@ -441,13 +493,65 @@ def main():
                 d -= 1
     assert d == 0, "profundidade %d — gerador abortado" % d
     ns_ = sum(len(x) for _, g in groups for _, x in g)
+    return s, s2, groups, tabled, ns_
+
+
+def selftest():
+    """RED-first do detector: catalogo limpo = rc0; deriva plantada = rc1."""
+    import os
+    import shutil
+    import subprocess
+    import tempfile
+    s = io.open(CAT, encoding="utf-8").read()
+    tmpd = tempfile.mkdtemp(prefix="gensig-selftest.")
+    try:
+        clean = os.path.join(tmpd, "Clean.java")
+        io.open(clean, "w", encoding="utf-8").write(s)
+        rc = subprocess.call([sys.executable, os.path.abspath(__file__), "check", "--catalog", clean])
+        if rc != 0:
+            print("SELFTEST FALHOU: catalogo limpo acusado como deriva")
+            return 1
+        probe = 'Map.entry("sin", List.of("sin(Double x) -> Double")),'
+        planted = s.replace(probe, "", 1)
+        if planted == s:
+            print("SELFTEST FALHOU: linha-sonda nao encontrada (catalogo mudou)")
+            return 1
+        bad = os.path.join(tmpd, "Bad.java")
+        io.open(bad, "w", encoding="utf-8").write(planted)
+        rc = subprocess.call([sys.executable, os.path.abspath(__file__), "check", "--catalog", bad],
+                             stderr=subprocess.DEVNULL)
+        if rc == 0:
+            print("SELFTEST FALHOU: deriva plantada NAO foi detectada")
+            return 1
+    finally:
+        shutil.rmtree(tmpd)
+    print("SELFTEST OK: limpo=rc0, deriva plantada=rc1")
+    return 0
+
+
+def main():
+    argv = sys.argv[1:]
+    if argv and argv[0] == "--selftest":
+        return selftest()
+    mode = argv[0] if argv and not argv[0].startswith("--") else "check"
+    cat = CAT
+    if "--catalog" in argv:
+        cat = argv[argv.index("--catalog") + 1]
+    s, s2, groups, tabled, ns_ = build(cat)
     print("%d ns, %d membros, %d formas" % (len(groups), tabled, ns_))
-    if mode == "write" and s2 != s:
-        io.open(CAT, "w", encoding="utf-8").write(s2)
-        print("gravado")
-    else:
-        print("inalterado" if s2 == s else "modo check (sem escrita)")
+    if mode == "write":
+        if s2 != s:
+            io.open(cat, "w", encoding="utf-8").write(s2)
+            print("gravado")
+        else:
+            print("inalterado")
+        return 0
+    if s2 != s:
+        sys.stderr.write("DRIFT: %s nao casa com gen_signatures.py — rode: python3 scripts/gen_signatures.py write\n" % cat)
+        return 1
+    print("inalterado")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -1,0 +1,159 @@
+package image
+
+import image.Av1Symbol
+import image.Av1Tx
+
+// kof.image — AV1 transform-type selection (slice 3t of the AVIF front, plan
+// §34). The `transform_type` syntax `decode_block` runs after the transform-size
+// read of slice 3s (§5.11.31): for a luma transform block with a residual
+// (`all_zero == 0`) it reads the `@@intra_tx_type` symbol from the intra
+// transform-type CDF selected by the transform set (§5.9.2 `get_tx_set`) and
+// the intra prediction mode, inverts it through `Tx_Type_Intra_Inv_Set*` and
+// stamps the result into the frame `TxTypes` map; chroma then derives its type
+// via `compute_tx_type` (slice 3b, `libs/image/Av1Tx.kf`). Pure arithmetic, no
+// `kof.io`, so it runs on every target. `decodeRaster` keeps refusing AVIF until
+// the chain closes.
+//
+// Still-intra scope: the inter `@@inter_tx_type` path and the inter tables are
+// not reachable in an intra-only frame and are not covered here. The spec
+// carries `Default_Intra_Tx_Type_Set1_Cdf[ 2 ][ INTRA_MODES ][ 8 ]` and
+// `Default_Intra_Tx_Type_Set2_Cdf[ 3 ][ INTRA_MODES ][ 6 ]`; the libaom
+// `intra_ext_tx_cdf[3][4][13]` agrees on every reachable row (65 rows, zero
+// differences, checked 07/10). `reduced_tx_set` (§5.9.2) is a frame-header flag
+// that forces `TX_SET_INTRA_2`; it is handled.
+//
+// The CDF store adapts persistently across the tile (the spec's `intra_tx_type`
+// CDFs live in the frame context), so the class holds its own mutable copies,
+// like `Av1TxSize` and `Av1ModeInfo`.
+
+// av1NumExtTxSet[ eset ] (libaom `av1_num_ext_tx_set`, indexed by the transform
+// set the spec's `get_tx_set` returns): 0 DCTONLY -> 1, 1 -> 7, 2 -> 5, 3 -> 2.
+Int av1NumExtTxTypes(Int eset) {
+    if (eset == 0) {
+        return 1
+    }
+    if (eset == 1) {
+        return 7
+    }
+    if (eset == 2) {
+        return 5
+    }
+    return 2
+}
+
+// Tx_Type_Intra_Inv_Set1[ 7 ] (§5.9.2): symbol -> TX_TYPE, intra set 1.
+Int av1IntraTxTypeInvSet1(Int idx) {
+    return listOf(9, 0, 10, 11, 3, 1, 2).get(idx)
+}
+
+// Tx_Type_Intra_Inv_Set2[ 5 ] (§5.9.2): symbol -> TX_TYPE, intra set 2.
+Int av1IntraTxTypeInvSet2(Int idx) {
+    return listOf(9, 0, 3, 1, 2).get(idx)
+}
+
+// fimode_to_intradir[ FILTER_INTRA_MODES ] (libaom `fimode_to_intradir`): the
+// intra direction a filter-intra mode selects for the transform-type context.
+Int av1FilterIntraModeToIntraDir(Int fiMode) {
+    return listOf(0, 1, 2, 7, 0).get(fiMode)
+}
+
+// Default_Intra_Tx_Type_Set1_Cdf[ 2 ][ INTRA_MODES ][ 8 ], flattened.
+String av1IntraTxTypeSet1Data() {
+    return "1535,8035,9461,12751,23467,27825,32768,0,564,3335,9709,10870,18143,28094,32768,0,672,3247,3676,11982,19415,23127,32768,0,5279,13885,15487,18044,23527,30252,32768,0,4423,6074,7985,10416,25693,29298,32768,0,1486,4241,9460,10662,16456,27694,32768,0,439,2838,3522,6737,18058,23754,32768,0,1190,4233,4855,11670,20281,24377,32768,0,1045,4312,8647,10159,18644,29335,32768,0,202,3734,4747,7298,17127,24016,32768,0,447,4312,6819,8884,16010,23858,32768,0,277,4369,5255,8905,16465,22271,32768,0,3409,5436,10599,15599,19687,24040,32768,0,1870,13742,14530,16498,23770,27698,32768,0,326,8796,14632,15079,19272,27486,32768,0,484,7576,7712,14443,19159,22591,32768,0,1126,15340,15895,17023,20896,30279,32768,0,655,4854,5249,5913,22099,27138,32768,0,1299,6458,8885,9290,14851,25497,32768,0,311,5295,5552,6885,16107,22672,32768,0,883,8059,8270,11258,17289,21549,32768,0,741,7580,9318,10345,16688,29046,32768,0,110,7406,7915,9195,16041,23329,32768,0,363,7974,9357,10673,15629,24474,32768,0,153,7647,8112,9936,15307,19996,32768,0,3511,6332,11165,15335,19323,23594,32768,0"
+}
+
+// Default_Intra_Tx_Type_Set2_Cdf[ 3 ][ INTRA_MODES ][ 6 ], flattened.
+String av1IntraTxTypeSet2Data() {
+    return "6554,13107,19661,26214,32768,0,6554,13107,19661,26214,32768,0,6554,13107,19661,26214,32768,0,6554,13107,19661,26214,32768,0,6554,13107,19661,26214,32768,0,6554,13107,19661,26214,32768,0,6554,13107,19661,26214,32768,0,6554,13107,19661,26214,32768,0,6554,13107,19661,26214,32768,0,6554,13107,19661,26214,32768,0,6554,13107,19661,26214,32768,0,6554,13107,19661,26214,32768,0,6554,13107,19661,26214,32768,0,6554,13107,19661,26214,32768,0,6554,13107,19661,26214,32768,0,6554,13107,19661,26214,32768,0,6554,13107,19661,26214,32768,0,6554,13107,19661,26214,32768,0,6554,13107,19661,26214,32768,0,6554,13107,19661,26214,32768,0,6554,13107,19661,26214,32768,0,6554,13107,19661,26214,32768,0,6554,13107,19661,26214,32768,0,6554,13107,19661,26214,32768,0,6554,13107,19661,26214,32768,0,6554,13107,19661,26214,32768,0,1127,12814,22772,27483,32768,0,145,6761,11980,26667,32768,0,362,5887,11678,16725,32768,0,385,15213,18587,30693,32768,0,25,2914,23134,27903,32768,0,60,4470,11749,23991,32768,0,37,3332,14511,21448,32768,0,157,6320,13036,17439,32768,0,119,6719,12906,29396,32768,0,47,5537,12576,21499,32768,0,269,6076,11258,23115,32768,0,83,5615,12001,17228,32768,0,1968,5556,12023,18547,32768,0"
+}
+
+// The CDF store row index for a transform set and square transform size, in the
+// (1,0),(1,1),(2,0),(2,1),(2,2) order: eset 1 -> rows 0/1, eset 2 -> rows 2/3/4.
+Int av1IntraTxTypeRow(Int eset, Int squareTxSize) {
+    if (eset == 1) {
+        return squareTxSize
+    }
+    return 2 + squareTxSize
+}
+
+class Av1TxType {
+    Av1Symbol sym
+    List<Int[]> store
+
+    constructor(Av1Symbol sym) {
+        this.sym = sym
+        this.store = listOf()
+        var set1 = av1IntraTxTypeSet1Data().split(",")
+        var r = 0
+        while (r < 2) {
+            var m = 0
+            while (m < 13) {
+                this.store.add(av1TxTypeCopy(set1, (r * 13 + m) * 8, 8))
+                m = m + 1
+            }
+            r = r + 1
+        }
+        var set2 = av1IntraTxTypeSet2Data().split(",")
+        r = 0
+        while (r < 3) {
+            var m = 0
+            while (m < 13) {
+                this.store.add(av1TxTypeCopy(set2, (r * 13 + m) * 6, 6))
+                m = m + 1
+            }
+            r = r + 1
+        }
+    }
+
+    // transform_type( x4, y4, txSz ) (§5.11.31) for an intra luma block.
+    // `qindex == 0` (coded lossless) forces DCT_DCT and reads nothing; a
+    // DCTONLY transform set (eset 0) also forces DCT_DCT. Otherwise it reads
+    // the `@@intra_tx_type` symbol from the store row selected by the transform
+    // set and the intra mode, inverts it and stamps the block's 4x4 units in
+    // `txTypes` (flattened row-major, `stride` columns). `useFilterIntra`
+    // resolves the mode through `fimode_to_intradir`.
+    Int readTxType(Int txSz, Int reducedTxSet, Int qindex, Int intraMode,
+            Int useFilterIntra, Int filterIntraMode, Int[] txTypes, Int stride,
+            Int x4, Int y4) {
+        var txType = 0
+        if (qindex != 0) {
+            var set = av1TxSet(txSz, false, reducedTxSet == 1)
+            if (set > 0) {
+                var mode = intraMode
+                if (useFilterIntra == 1) {
+                    mode = av1FilterIntraModeToIntraDir(filterIntraMode)
+                }
+                var row = av1IntraTxTypeRow(set, av1TxSizeSqr(txSz))
+                var cdf = this.store.get(row * 13 + mode)
+                var symbol = this.sym.readSymbol(cdf, av1NumExtTxTypes(set))
+                if (set == 1) {
+                    txType = av1IntraTxTypeInvSet1(symbol)
+                } else {
+                    txType = av1IntraTxTypeInvSet2(symbol)
+                }
+            }
+        }
+        var w4 = av1TxWidth(txSz) >> 2
+        var h4 = av1TxHeight(txSz) >> 2
+        var i = 0
+        while (i < w4) {
+            var j = 0
+            while (j < h4) {
+                txTypes[(y4 + j) * stride + (x4 + i)] = txType
+                j = j + 1
+            }
+            i = i + 1
+        }
+        return txType
+    }
+}
+
+Int[] av1TxTypeCopy(String[] parts, Int offset, Int n) {
+    var out = new Int[n]
+    var i = 0
+    while (i < n) {
+        out[i] = parts[offset + i].toInt()
+        i = i + 1
+    }
+    return out
+}

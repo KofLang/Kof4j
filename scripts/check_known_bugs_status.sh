@@ -97,6 +97,14 @@ compare_ledgers() { # $1=EN file  $2=PT file -> report on stdout; rc 0 healthy, 
   return $rc
 }
 
+if [[ "${1:-}" == "--classify" ]]; then
+  # modo máquina (ex.: check_doc_impact #656): classifica UM ledger arbitrário
+  # sem rodar o cross-check EN×PT. Uso: --classify FILE
+  [ -f "${2:-}" ] || { echo "usage: check_known_bugs_status.sh --classify FILE" >&2; exit 2; }
+  classify "$2"
+  exit 0
+fi
+
 if [[ "${1:-}" == "--selftest" ]]; then
   FIX="$(mktemp -d)"
   cat > "$FIX/t.md" <<'EOF'

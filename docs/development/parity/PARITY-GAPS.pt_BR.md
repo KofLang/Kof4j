@@ -9,8 +9,8 @@
 > funciona em ALGUNS alvos e é gap nomeado/diagnosticado em outros. **A
 > `0.5.0` não corta enquanto este ledger tiver QUALQUER linha aberta.**
 >
-> Regra do ledger (três estados, verificado por máquina via
-> `check_release_050_gate.sh` → `full_parity`):
+> Regra do ledger (três estados; o gate da 0.5.0 `check_release_050_gate.sh`
+> foi aposentado por `D-RELEASE-0.5.0-CLOSED` — autoridade viva: `scripts/check_live_records.sh`):
 > - uma linha sai SOMENTE quando a funcionalidade compila E roda com paridade
 >   byte/golden em TODOS os alvos (teste de prova nomeado, runner registrado);
 > - fechos parciais movem as células de alvo da linha (nunca marcar uma linha
@@ -26,7 +26,8 @@
 
 | # | Superfície | JVM/Script | Native x86-64 | Native riscv64/aarch64 | JS | Código | Fila / lane dona |
 |---|------------|------------|----------------|--------------------------|----|--------|------------------|
-| 11 | `strings.reverse` não-ASCII (pares substitutos UTF-16) + `String.toUpperCase`/`toLowerCase`/`compareToIgnoreCase` | ✅ | ✅ `strings.reverse` 27/09 (`RuntimeStringsConv` inverte por CODE POINT UTF-8 — paridade JVM/JS; `KofStringsTest` + célula `stdstrings2b2`) / ❌ `NAT-STR01` (`toUpperCase`/`toLowerCase`) | ✅ `strings.reverse` 27/09 (`NativeRiscvAsmRtB7`, aarch64 via tradutor; `NativeStringsReverseCrossTest` golden JVM≡riscv64≡aarch64 incl. `café`/astral/3-byte) / ❌ `NAT-STR01` (`toUpperCase`/`toLowerCase`) | ❌ `STR003` (`compareToIgnoreCase`; regex adiado p/ 1.0) | `NAT-STR01`/`STR003` | lanes native/js — **IMPLEMENTAR agora** (`D-STR-UNICODE`; face reverse ✅ 27/09) |
+
+**0 linhas abertas** — o ledger de paridade 0.5.0 está GREEN (última linha, **11 strings**, fechada 28/09; prova na seção Fechadas).
 
 > **Fechadas por `D-PARITY-050-SCOPE` (mantenedora 27/09):** as linhas 1
 > (`process`) e 3 (`ssh`) saem do ledger 0.5.0 pelos SEIS alvos de release
@@ -34,8 +35,9 @@
 > 13 (`kof.io` cross) já estavam FECHADAS (bookkeeping). **Adiadas p/ 1.0 (gaps
 > declarados, nunca aceitação):** linha 4 media `Image`/`Mic`, linha 12 web T1
 > no native/cross, linha 14 security cross/JS — ver a seção Adiadas. O ledger
-> 0.5.0 tem UMA linha aberta: **linha 11 strings** (faces Unicode), implementada
-> agora. Os membros de regex da antiga linha 11 foram separados e adiados
+> 0.5.0 tem ZERO linhas abertas: a **linha 11 strings** (faces Unicode) foi
+> FECHADA 28/09 (`D-STR-UNICODE`, `D-FULL-PARITY-050`; prova na seção Fechadas).
+> Os membros de regex da antiga linha 11 foram separados e adiados
 > (`D-STR-UNICODE`).
 
 > **As linhas 15 (`orm.*` nativo) e 16 (`db.*` nativo) foram FECHADAS em 24/09
@@ -81,6 +83,7 @@ do freeze).
 
 ## Fechados (prova registrada aqui quando a linha esvazia)
 
+- **Linha 11 — `strings.reverse` não-ASCII + `String.toUpperCase`/`toLowerCase`/`compareToIgnoreCase`** — fechada 28/09 (`D-STR-UNICODE`, `D-FULL-PARITY-050`). `strings.reverse` inverte por CODE POINT UTF-8 (`RuntimeStringsConv` x86 + `NativeRiscvAsmRtB7` riscv/aarch64); `toUpperCase`/`toLowerCase` dobram Unicode por CODE UNIT via a tabela embutida `RuntimeStringCase` (`NativeRiscvAsmCase` cross); `compareToIgnoreCase` implementa o `CASE_INSENSITIVE_ORDER` do JVM (fold SIMPLES por code unit) em JVM/Script/JS/x86/riscv64/aarch64. Prova: `KofStringsTest` 18/18, `NativeStringCaseCrossTest` 4/4 (goldens case-fold + compareToIgnoreCase JVM≡riscv64≡aarch64 sob qemu), `StringUnicodeFacesMeasuredTest` 4/4 (`cicMatchesJvm`: JVM=JS=native=Script), `ConformanceMatrixTest` 14/14. Só o trio de regex (`matches`/`replaceAll`/`replaceFirst`) segue adiado p/ 1.0 (`STR003`). Desde §555/#719 `getBytes` também senta no gate `STR003` em JS/Native (binda no JVM; portar o encode UTF-8 segue aberto).
 - **Linha 13 — faces de arquivo do `kof.io` no cross** — fechada 27/09
   (`D-PARITY-050-SCOPE`, bookkeeping). Toda face é ✅ no x86-64 **e** no
   riscv64/aarch64: estat+texto+fs (família `NativeRiscvAsmIo*` — `IoStat`/

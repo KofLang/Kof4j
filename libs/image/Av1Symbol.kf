@@ -1,0 +1,223 @@
+package image
+
+// kof.image — AV1 entropy (symbol) decoder, slice 3a of the AVIF front
+// (plan §34). The AV1 spec describes the decoder as the "Symbol decoder"
+// (AV1 Bitstream & Decoding Process Specification, §9.2 "Parsing process for
+// symbol decoder", §9.3 "Symbol decoding process"); every step below is
+// quoted from that text, read on the dev host 04/10, never from memory.
+//
+// This is the entropy layer the tile data of an AV1 frame (and therefore an
+// AVIF still image) is coded with: `init_symbol( sz )` seeds the range coder
+// from the first `Min(sz*8, 15)` bits, `read_symbol( cdf )` decodes one
+// symbol against an adaptive cumulative distribution and `read_bool()` /
+// `read_literal( n )` decode the equiprobable bits. The adaptation
+// (`rate = 3 + (cdf[N] > 15) + (cdf[N] > 31) + Min(FloorLog2(N), 2)`) is the
+// spec's own formula, confirmed verbatim in the current libaom
+// `aom_dsp/prob.h#update_cdf`.
+//
+// `cdf` is the SPEC representation: N+1 entries where `cdf[0..N-1]` are the
+// cumulative probabilities scaled by 1<<15 (`cdf[N-1] == 1<<15`) and `cdf[N]`
+// is the adaptation counter (initially 0). The array is mutated in place by
+// the adaptation, exactly like the spec's "the process also modifies the
+// input array cdf".
+//
+// Errors are `String` throws beginning with `IMAGE:` — the family of the
+// whole package. Pixel decoding is NOT part of this slice: this is the
+// arithmetic layer only, and `decodeRaster` keeps refusing AVIF.
+
+class Av1Symbol {
+    Int[] data
+    Int bitPos
+    Int value
+    Int range
+    Int maxBits
+    Bool adapt
+
+    // `sz = data.length` bytes; the first `Min(sz*8, 15)` bits seed the
+    // decoder (init_symbol, §9.2.2).
+    constructor(Int[] data) {
+        this.data = data
+        this.bitPos = 0
+        this.range = 1 << 15
+        this.adapt = true
+        var numBits = data.length * 8
+        if (numBits > 15) {
+            numBits = 15
+        }
+        var buf = this.rawBits(numBits)
+        var paddedBuf = buf << (15 - numBits)
+        this.value = ((1 << 15) - 1) ^ paddedBuf
+        this.maxBits = 8 * data.length - 15
+    }
+
+    // Enables/disables the cdf adaptation (the spec's `disable_cdf_update`;
+    // a plain bool decoder keeps it off).
+    void setAdapt(Bool adapt) {
+        this.adapt = adapt
+    }
+
+    // f(n): the next n bits, MSB first (§9.1). Only ever called with the
+    // number of bits the spec has already clamped to the available range, so
+    // it never runs past the payload.
+    Int rawBits(Int n) {
+        var x = 0
+        var i = 0
+        while (i < n) {
+            var byteIndex = this.bitPos >> 3
+            var bitIndex = 7 - (this.bitPos & 7)
+            if (byteIndex >= this.data.length) {
+                throw "IMAGE: av1 symbol decoder out of data"
+            }
+            var b = (this.data[byteIndex] >> bitIndex) & 1
+            x = (x << 1) | b
+            this.bitPos = this.bitPos + 1
+            i = i + 1
+        }
+        return x
+    }
+
+    // read_symbol( cdf ): decodes one symbol and adapts `cdf` in place
+    // (§9.3.4). `n` is the number of symbols (the array length is n+1).
+    Int readSymbol(Int[] cdf, Int n) {
+        if (n < 2) {
+            throw "IMAGE: av1 cdf needs at least two symbols"
+        }
+        var cur = this.range
+        var symbol = -1
+        var prev = 0
+        var f = 0
+        var go = true
+        while (go) {
+            symbol = symbol + 1
+            if (symbol >= n) {
+                throw "IMAGE: av1 symbol cdf exhausted"
+            }
+            prev = cur
+            f = (1 << 15) - cdf[symbol]
+            cur = ((this.range >> 8) * (f >> 6)) >> 1
+            cur = cur + 4 * (n - symbol - 1)
+            if (this.value >= cur) {
+                go = false
+            }
+        }
+        this.range = prev - cur
+        this.value = this.value - cur
+        this.renormalize()
+        if (this.adapt) {
+            this.adaptCdf(cdf, n, symbol)
+        }
+        return symbol
+    }
+
+    // Boolean decoding process (§9.2.3): read_symbol over the fixed
+    // equiprobable cdf [1<<14, 1<<15, 0], with no adaptation (the modified
+    // values are never used).
+    Int readBool() {
+        var saved = this.adapt
+        this.adapt = false
+        var cdf = new Int[3]
+        cdf[0] = 1 << 14
+        cdf[1] = 1 << 15
+        cdf[2] = 0
+        var s = this.readSymbol(cdf, 2)
+        this.adapt = saved
+        return s
+    }
+
+    // read_literal( n ) (§9.2.4): n bits at probability 1/2, MSB first.
+    Int readLiteral(Int n) {
+        var x = 0
+        var i = 0
+        while (i < n) {
+            x = 2 * x + this.readBool()
+            i = i + 1
+        }
+        return x
+    }
+
+    // The renormalization block of §9.3.4 (steps 1–7).
+    void renormalize() {
+        var bits = 15 - av1FloorLog2(this.range)
+        this.range = this.range << bits
+        var numBits = bits
+        var avail = this.maxBits
+        if (avail < 0) {
+            avail = 0
+        }
+        if (numBits > avail) {
+            numBits = avail
+        }
+        var newData = this.rawBits(numBits)
+        var paddedData = newData << (bits - numBits)
+        this.value = paddedData ^ (((this.value + 1) << bits) - 1)
+        this.maxBits = this.maxBits - bits
+    }
+
+    // The cdf adaptation block of §9.3.4.
+    void adaptCdf(Int[] cdf, Int n, Int symbol) {
+        var count = cdf[n]
+        var rate = 3 + av1Bool(count > 15) + av1Bool(count > 31)
+        var l2 = av1FloorLog2(n)
+        if (l2 > 2) {
+            l2 = 2
+        }
+        rate = rate + l2
+        var tmp = 0
+        var i = 0
+        while (i < n - 1) {
+            if (i == symbol) {
+                tmp = 1 << 15
+            }
+            if (tmp < cdf[i]) {
+                cdf[i] = cdf[i] - ((cdf[i] - tmp) >> rate)
+            } else {
+                cdf[i] = cdf[i] + ((tmp - cdf[i]) >> rate)
+            }
+            i = i + 1
+        }
+        if (cdf[n] < 32) {
+            cdf[n] = cdf[n] + 1
+        }
+    }
+
+    // exit_symbol( ) (§9.2.5): returns the trailing-bit position and skips
+    // the not-yet-consumed bits. The caller validates the trailing-bit and
+    // padding rules against the payload.
+    Int exitSymbol() {
+        var m = this.maxBits + 15
+        if (m > 15) {
+            m = 15
+        }
+        var trailing = this.bitPos - m
+        if (this.maxBits > 0) {
+            this.bitPos = this.bitPos + this.maxBits
+        }
+        return trailing
+    }
+
+    // Decoder position in bits (get_position()).
+    Int position() {
+        return this.bitPos
+    }
+}
+
+// FloorLog2(n) for n >= 1 (0 for n <= 0) — the AV1 §4.7 descriptor.
+Int av1FloorLog2(Int n) {
+    if (n <= 0) {
+        return 0
+    }
+    var r = 0
+    var x = n
+    while (x > 1) {
+        x = x >> 1
+        r = r + 1
+    }
+    return r
+}
+
+Int av1Bool(Bool b) {
+    if (b) {
+        return 1
+    }
+    return 0
+}

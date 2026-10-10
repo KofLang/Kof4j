@@ -138,6 +138,7 @@ if (hasPattern) {
     // testes são expressões). O salto de auto-término do case vai pro MESMO
     // endLabelPat — o break vira no-op semântico exatamente como documentado.
     driver.breakLabels.push(endLabelPat);
+    driver.breakDepths.push(driver.tryDepth); // §551
     ops.add(new KofLabel(defaultLabelPat));
     if (!ss.defaultBody().isEmpty()) {
         localIdx = driver.emitStatement(new BlockStmt(ss.defaultBody().get(0).position(), ss.defaultBody()), ops, owner, localIdx, locals, returnType);
@@ -164,6 +165,7 @@ if (hasPattern) {
                 // cobre a região de corpos — este early-return não pode vazar o
                 // label do switch para o contexto externo.
                 driver.breakLabels.pop();
+                driver.breakDepths.pop(); // §551
                 return localIdx;
             }
             ops.add(new KofLoadLocal(switchType, switchTmp));
@@ -210,6 +212,7 @@ if (hasPattern) {
         ops.add(new KofJump(endLabelPat));
     }
     driver.breakLabels.pop();
+    driver.breakDepths.pop(); // §551
     ops.add(new KofLabel(endLabelPat));
     return localIdx;
 }
@@ -269,6 +272,7 @@ for (int i = 0; i < ss.cases().size(); i++) {
 // #587: MESMO registro de contexto quebrável do ramo pattern — break em
 // case (ou no default) termina o SWITCH, não o loop externo (docs §5.5/§6).
 driver.breakLabels.push(endLabel);
+driver.breakDepths.push(driver.tryDepth); // §551
 for (int i = 0; i < ss.cases().size(); i++) {
     SwitchCase sc = ss.cases().get(i);
     ops.add(new KofLabel(bodyLabels.get(i)));
@@ -280,6 +284,7 @@ if (!ss.defaultBody().isEmpty()) {
     localIdx = driver.emitStatement(new BlockStmt(ss.defaultBody().get(0).position(), ss.defaultBody()), ops, owner, localIdx, locals, returnType);
 }
 driver.breakLabels.pop();
+driver.breakDepths.pop(); // §551
 ops.add(new KofLabel(endLabel));
         return localIdx;
     }

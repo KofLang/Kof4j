@@ -1,0 +1,71 @@
+package game
+
+// kof.game — pure-Kof trigonometry (slice 3.2a of the graphics/gaming front,
+// `D-GRAPHICS-GAMING` + `D-GRAPHICS-SPIKE` + `D-MAINT-BATCH-0510`/G1).
+//
+// WHY pure instead of `math.sin`/`math.cos`: the typer accepts those on every
+// target, but the Native runtime (x86-64 + riscv64 + aarch64) does not define
+// `kof_math_sin`/`kof_math_cos`/`kof_math_toRadians` — a program using them
+// links on JVM/Script/JS and dies at `ld` on Native with a mislabeled
+// `COMP001` (catalogued as `known-bugs` §621 for the native-backend lane;
+// same false-support class as §615). Per `D-KOF-FIRST` the library comes
+// first: a Taylor series over plain arithmetic runs IDENTICALLY on every
+// target (no backend, no libm, no last-ulp cross-`libm` divergence in
+// goldens) and needs no compiler change. If the backend ever ships these
+// symbols, `Sprite` keeps working byte-identically — the pure form is the
+// contract, the backend is an optimization detail.
+//
+//   trigSin(30.0)   // 0.5
+//   trigCos(60.0)   // 0.5
+//
+// Semantics (frozen here, tested): angles in DEGREES; `trigSin` reduces to
+// [-π, π] and evaluates the Taylor series through x^13 (error ~1e-12 on the
+// reduced range — milli-unit goldens never move); `trigCos(d)` is
+// `trigSin(90 - d)`. The reduction is BRANCH-FREE (`roundTo`, never
+// sequential `if`s on a Double local — the cross natives miscompile the
+// second-and-later conditional Double assignment, `known-bugs` §622).
+// Pure arithmetic, no IO; runs on every target.
+
+Double trigPi() {
+    return 3.141592653589793
+}
+
+Double trigToRadians(Double deg) {
+    return deg * trigPi() / 180.0
+}
+
+// Reduce radians to [-pi, pi] so the Taylor series converges fast.
+// Branch-free on purpose: nearest-turn subtraction via `roundTo` (the cross
+// natives miscompile a second conditional Double assignment — `known-bugs`
+// §622 — so no `if` may appear here at all).
+Double trigNorm(Double rad) {
+    var twoPi = 2.0 * trigPi()
+    var turns = math.roundTo(rad / twoPi, 0)
+    return rad - turns * twoPi
+}
+
+// Sine of `deg` (degrees) via the Taylor series through x^13.
+Double trigSin(Double deg) {
+    var x = trigNorm(trigToRadians(deg))
+    var x2 = x * x
+    var term = x
+    var sum = x
+    term = term * x2 / 6.0
+    sum = sum - term
+    term = term * x2 / 20.0
+    sum = sum + term
+    term = term * x2 / 42.0
+    sum = sum - term
+    term = term * x2 / 72.0
+    sum = sum + term
+    term = term * x2 / 110.0
+    sum = sum - term
+    term = term * x2 / 156.0
+    sum = sum + term
+    return sum
+}
+
+// Cosine of `deg` (degrees) via the sine identity.
+Double trigCos(Double deg) {
+    return trigSin(90.0 - deg)
+}

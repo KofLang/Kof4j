@@ -19,7 +19,7 @@ class KofCacheE2ETest {
 
     private final CompilerDriver driver = new CompilerDriver();
 
-    private void assertRuns(Path tempDir, String kofSource, String expected, Target target, String dirName) throws IOException {
+    private void assertTargetRuns(Path tempDir, String kofSource, String expected, Target target, String dirName) throws IOException {
         Path source = tempDir.resolve("Main.kf");
         Files.writeString(source, kofSource);
         Path outDir = tempDir.resolve(dirName);
@@ -62,9 +62,9 @@ class KofCacheE2ETest {
                     println(cache.get("missing"))
                 }
                 """;
-        assertRuns(tempDir, src, "Mel\nnull", Target.JVM, "out-jvm");
-        assertRuns(tempDir, src, "Mel\nnull", Target.NATIVE, "out-native");
-        assertRuns(tempDir, src, "Mel\nnull", Target.JS, "out-js");
+        assertTargetRuns(tempDir, src, "Mel\nnull", Target.JVM, "out-jvm");
+        assertTargetRuns(tempDir, src, "Mel\nnull", Target.NATIVE, "out-native");
+        assertTargetRuns(tempDir, src, "Mel\nnull", Target.JS, "out-js");
     }
 
     @Test
@@ -76,9 +76,9 @@ class KofCacheE2ETest {
                     println(cache.get("k"))
                 }
                 """;
-        assertRuns(tempDir, src, "v2", Target.JVM, "out-jvm");
-        assertRuns(tempDir, src, "v2", Target.NATIVE, "out-native");
-        assertRuns(tempDir, src, "v2", Target.JS, "out-js");
+        assertTargetRuns(tempDir, src, "v2", Target.JVM, "out-jvm");
+        assertTargetRuns(tempDir, src, "v2", Target.NATIVE, "out-native");
+        assertTargetRuns(tempDir, src, "v2", Target.JS, "out-js");
     }
 
     @Test
@@ -93,9 +93,9 @@ class KofCacheE2ETest {
                     println(cache.ttl("t") == -1)
                 }
                 """;
-        assertRuns(tempDir, src, "true\nx\nnull\ntrue", Target.JVM, "out-jvm");
-        assertRuns(tempDir, src, "true\nx\nnull\ntrue", Target.NATIVE, "out-native");
-        assertRuns(tempDir, src, "true\nx\nnull\ntrue", Target.JS, "out-js");
+        assertTargetRuns(tempDir, src, "true\nx\nnull\ntrue", Target.JVM, "out-jvm");
+        assertTargetRuns(tempDir, src, "true\nx\nnull\ntrue", Target.NATIVE, "out-native");
+        assertTargetRuns(tempDir, src, "true\nx\nnull\ntrue", Target.JS, "out-js");
     }
 
     @Test
@@ -111,9 +111,9 @@ class KofCacheE2ETest {
                     println(cache.get("b"))
                 }
                 """;
-        assertRuns(tempDir, src, "null\n2\nnull", Target.JVM, "out-jvm");
-        assertRuns(tempDir, src, "null\n2\nnull", Target.NATIVE, "out-native");
-        assertRuns(tempDir, src, "null\n2\nnull", Target.JS, "out-js");
+        assertTargetRuns(tempDir, src, "null\n2\nnull", Target.JVM, "out-jvm");
+        assertTargetRuns(tempDir, src, "null\n2\nnull", Target.NATIVE, "out-native");
+        assertTargetRuns(tempDir, src, "null\n2\nnull", Target.JS, "out-js");
     }
 
     @Test
@@ -124,9 +124,9 @@ class KofCacheE2ETest {
                     println(cache.ttl("k") == -1)
                 }
                 """;
-        assertRuns(tempDir, src, "true", Target.JVM, "out-jvm");
-        assertRuns(tempDir, src, "true", Target.NATIVE, "out-native");
-        assertRuns(tempDir, src, "true", Target.JS, "out-js");
+        assertTargetRuns(tempDir, src, "true", Target.JVM, "out-jvm");
+        assertTargetRuns(tempDir, src, "true", Target.NATIVE, "out-native");
+        assertTargetRuns(tempDir, src, "true", Target.JS, "out-js");
     }
 
     private static Path findJsEntry(Path dir) throws IOException {

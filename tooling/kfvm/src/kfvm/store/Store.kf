@@ -1,0 +1,79 @@
+package kfvm.store
+
+import kof.io
+import kfvm.platform
+import kfvm.versions
+
+class Store {
+    String home
+    String platform
+    kfvm.platform.FileSystem fs
+
+    constructor(String home, String platform, kfvm.platform.FileSystem fs) {
+        this.home = home
+        this.platform = platform
+        this.fs = fs
+    }
+
+    String root() { return home }
+
+    String dirName(String version) { return "kof-" + version + "-" + platform }
+
+    String dirOf(String version) { return home + "/" + dirName(version) }
+
+    String currentLink() { return home + "/current" }
+
+    String currentBin() { return currentLink() + "/bin" }
+
+    Bool isInstalled(String version) {
+        return File(dirOf(version) + "/bin/kof").exists()
+    }
+
+    List<String> installed() {
+        var found: List<String> = listOf()
+        if (!Directory(home).exists()) return found
+
+        for (var name in Directory(home).list()) {
+            var version = versionOf(name)
+            if (version != "" && isInstalled(version)) {
+                found.add(version)
+            }
+        }
+
+        return Versions.sortAscending(found)
+    }
+
+    List<Candidate> installedNewestFirst() {
+        var versions = installed()
+        var out = listOf<Candidate>()
+        for (var i = versions.size - 1; i >= 0; i--) {
+            out.add(Candidate(versions.get(i), false))
+        }
+
+        return out
+    }
+
+    String current() {
+        var target = fs.linkTarget(currentLink())
+        if (target == "") return ""
+        return versionOf(Path(target).fileName())
+    }
+
+    void activate(String version) {
+        fs.link(dirOf(version), currentLink())
+    }
+
+    void deactivate() {
+        fs.unlink(currentLink())
+    }
+
+    void remove(String version) {
+        fs.deleteTree(dirOf(version))
+    }
+
+    String versionOf(String name) {
+        var suffix = "-" + platform
+        if (!name.startsWith("kof-") || !name.endsWith(suffix)) return ""
+        return name.substring(4, name.length - suffix.length)
+    }
+}

@@ -1,0 +1,127 @@
+package game
+
+// kof.game — 3D camera intent (slice 3.5a of the graphics/gaming front,
+// `D-GRAPHICS-GAMING`; the 3D level PROMOTED to the active scope 08/10 by
+// the maintainer).
+//
+// The plan §9 freezes 3D as intent (`camera3d().at().lookAt()`); the view
+// matrix (perspective/lookAt/projection math) is the backend's job and lands
+// in a later slice. This module is the PURE, backend-independent half: the
+// camera state — eye position, look target, fov, near/far clip planes — so
+// scenes, goldens and draw queues behave deterministically with no matrix
+// math of their own. It calls no rendering/window API and is honest on every
+// target today.
+//
+//   var cam = camera3d()
+//   cam.at(0.0, 2.0, 5.0).lookAt(0.0, 0.0, 0.0).fov(75.0)
+//
+// Semantics (frozen here, tested):
+// - `at(x, y, z)` sets the camera's EYE position; `lookAt(x, y, z)` sets the
+//   TARGET the eye looks at. The view matrix is built from both by the
+//   backend — this module never computes it (no sqrt, no normalize; the
+//   cross targets refuse math.sqrt — MATH001 — so the matrix stays out).
+// - `fov(deg)` sets the vertical FOV in degrees; a meaningless value throws
+//   (fov must be in (0, 180)), never a silent degenerate camera.
+// - `near(d)`/`far(d)` set the clip planes, both > 0 and near < far — a
+//   crossing pair throws at the set, so the camera is never in a state the
+//   backend cannot project. The defaults (0.1/100.0, fov 60) are consistent.
+// - Chained setters return `this` (the Sprite/Video pattern); the getters
+//   expose the frozen state. Pure state, no IO; runs on every target.
+
+class Camera3d {
+    Double x
+    Double y
+    Double z
+    Double targetX
+    Double targetY
+    Double targetZ
+    Double fovDeg
+    Double nearZ
+    Double farZ
+
+    constructor() {
+        this.x = 0.0
+        this.y = 0.0
+        this.z = 0.0
+        this.targetX = 0.0
+        this.targetY = 0.0
+        this.targetZ = 0 - 1.0
+        this.fovDeg = 60.0
+        this.nearZ = 0.1
+        this.farZ = 100.0
+    }
+
+    Camera3d at(Double ex, Double ey, Double ez) {
+        this.x = ex
+        this.y = ey
+        this.z = ez
+        return this
+    }
+
+    Camera3d lookAt(Double tx, Double ty, Double tz) {
+        this.targetX = tx
+        this.targetY = ty
+        this.targetZ = tz
+        return this
+    }
+
+    Camera3d fov(Double deg) {
+        if (deg <= 0.0 || deg >= 180.0) { throw "Camera3d: fov must be in (0, 180)" }
+        this.fovDeg = deg
+        return this
+    }
+
+    Camera3d near(Double d) {
+        if (d <= 0.0) { throw "Camera3d: near must be > 0" }
+        if (d >= this.farZ) { throw "Camera3d: near must be < far" }
+        this.nearZ = d
+        return this
+    }
+
+    Camera3d far(Double d) {
+        if (d <= 0.0) { throw "Camera3d: far must be > 0" }
+        if (d <= this.nearZ) { throw "Camera3d: far must be > near" }
+        this.farZ = d
+        return this
+    }
+
+    Double eyeX() {
+        return this.x
+    }
+
+    Double eyeY() {
+        return this.y
+    }
+
+    Double eyeZ() {
+        return this.z
+    }
+
+    Double lookTargetX() {
+        return this.targetX
+    }
+
+    Double lookTargetY() {
+        return this.targetY
+    }
+
+    Double lookTargetZ() {
+        return this.targetZ
+    }
+
+    Double fovDegrees() {
+        return this.fovDeg
+    }
+
+    Double nearPlane() {
+        return this.nearZ
+    }
+
+    Double farPlane() {
+        return this.farZ
+    }
+}
+
+Camera3d camera3d() {
+    return Camera3d()
+}

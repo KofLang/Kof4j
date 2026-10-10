@@ -1,5 +1,7 @@
 package dev.kof.compiler.nat;
 
+import dev.kof.compiler.NativeToolchainAssumptions;
+
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -29,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * A sabotagem REMOVE a peça B45 do keep: o {@code ld} falha com referência
  * indefinida — prova que o teste realmente exercita a fatia nova.
  */
-class NativeRiscvDtoaTest {
+class NativeRiscvDtoaTest implements NativeToolchainAssumptions {
 
     private static boolean has(String... cmds) {
         for (String c : cmds) {
@@ -44,19 +46,6 @@ class NativeRiscvDtoaTest {
         return true;
     }
 
-    private void assumeToolchain() {
-        Assumptions.assumeTrue(has("riscv64-linux-gnu-as", "riscv64-linux-gnu-ld", "qemu-riscv64"),
-                "cross toolchain riscv64 + qemu ausente — pulando");
-        Assumptions.assumeTrue(NativeCrossLink.sysrootFor("riscv64") != null,
-                "libc cross ausente (KOF_CROSS_SYSROOT / /tmp/opencode/x) — pulando");
-    }
-
-    private void assumeAarch64() {
-        Assumptions.assumeTrue(has("aarch64-linux-gnu-as", "aarch64-linux-gnu-ld", "qemu-aarch64"),
-                "cross toolchain aarch64 + qemu ausente — pulando");
-        Assumptions.assumeTrue(NativeCrossLink.sysrootFor("aarch64") != null,
-                "libc cross ausente (KOF_CROSS_SYSROOT / /tmp/opencode/x) — pulando");
-    }
 
     private static final double[] DOUBLES = {
             3.14, -1.0, 0.5, 100.0, 1.0 / 3.0, 0.1, 1e7, 9999999.0, 1e-3, 9.99e-4,
@@ -158,26 +147,15 @@ class NativeRiscvDtoaTest {
         String sysroot = NativeCrossLink.sysrootFor(arch);
         runCapture(NativeCrossLink.ldArgs(ld, bin, obj, arch, true, sysroot));
         bin.toFile().setExecutable(true);
-        ProcessBuilder pb = new ProcessBuilder("qemu-" + arch, bin.toString());
         String prefix = NativeCrossLink.qemuPrefixFor(arch);
-        if (prefix != null) pb.environment().put("QEMU_LD_PREFIX", prefix);
-        Process p = pb.start();
-        String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
-                .replace("\r\n", "\n").trim();
-        int ec;
-        try {
-            ec = p.waitFor();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException(e);
-        }
-        assertEquals(0, ec, "qemu " + arch + " falhou (" + ec + "): " + out);
-        return out;
+        java.util.Map<String, String> env = prefix == null ? java.util.Map.of()
+                : java.util.Map.of("QEMU_LD_PREFIX", prefix);
+        return QemuRun.runExpect0(env, "qemu-" + arch, bin.toString());
     }
 
     @Test
     void dtoaMatchesJvmOracleOnRiscv64(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64WithSysroot();
         String harness = harness();
         String runtime = RiscvGcTestRuntimes.prunedFor(harness);
         String out = buildDynamic("riscv64", tempDir, "dtoarv", harness + "\n" + runtime);
@@ -186,7 +164,7 @@ class NativeRiscvDtoaTest {
 
     @Test
     void dtoaMatchesJvmOracleOnAarch64(@TempDir Path tempDir) throws IOException {
-        assumeAarch64();
+        assumeNativeAarch64WithSysroot();
         String harness = harness();
         String runtime = RiscvGcTestRuntimes.prunedFor(harness);
         String riscv = harness + "\n" + runtime;
@@ -202,7 +180,7 @@ class NativeRiscvDtoaTest {
      *  referenciar snprintf/strtod (antes eram o motor do loop mais-curto). */
     @Test
     void dtoaPrunedRuntimeHasNoLibcFormatRefs() {
-        assumeToolchain();
+        assumeNativeRiscv64WithSysroot();
         String runtime = RiscvGcTestRuntimes.prunedFor(harness());
         assertFalse(runtime.contains("call snprintf"), "dtoa riscv nao deve chamar snprintf");
         assertFalse(runtime.contains("call strtod"), "dtoa riscv nao deve chamar strtod");
@@ -210,7 +188,7 @@ class NativeRiscvDtoaTest {
 
     @Test
     void withoutDtoaSliceLinkFailsSabotage(@TempDir Path tempDir) throws IOException {
-        assumeToolchain();
+        assumeNativeRiscv64WithSysroot();
         String harness = harness();
         Set<Integer> keep = new LinkedHashSet<>(RiscvSlices.keepForProgramText(harness));
         int b45 = -1;

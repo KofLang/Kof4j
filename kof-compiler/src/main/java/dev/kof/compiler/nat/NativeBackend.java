@@ -87,6 +87,33 @@ public class NativeBackend implements Backend {
     final NativeStaticData staticData = new NativeStaticData(this);
     Type lastPushedType = Type.UnknownType.UNKNOWN;
     IRClass currentClass = null;
+    /**
+     * §541/§542 (29/09): bytes de locais do método em emissão — a base dos
+     * slots de rascunho usados pelo call-site x86 para guardar os args de
+     * pilha (args 6..N de métodos de instância, 7..N de funções) entre o pop
+     * e o re-push. As versões antigas usavam offsets FIXOS `-256-s*8(%rbp)`,
+     * que colidiam com locais reais quando o método tinha >32 slots: o valor
+     * do local era sobrescrito pelo argumento (corrupção silenciosa; medido
+     * `v31` 31000->6 no x86). Agora o rascunho fica ABAIXO dos locais.
+     */
+    int frameLocalsBytes = 0;
+
+    /** Offset (positivo, usado como `-off(%rbp)`) do slot de rascunho `s`. */
+    int scratchOffset(int s) { return frameLocalsBytes + (s + 1) * 8; }
+
+    /**
+     * §546: frame size do método cross riscv64/aarch64 em emissão. Base do
+     * rascunho ({@link #crossScratchOff}), reservado ABAIXO dos locais (que
+     * ficam logo abaixo de s11) e usado hoje pelo OBJ de cada `Buffer(U8)`
+     * INOUT de um extern (o release relê dali, nunca do bloco de args que o C
+     * pode sobrescrever). Args de pilha (&gt;8) não usam rascunho — o
+     * call-site os acessa por offset direto.
+     */
+    int crossFrameSize = 0;
+
+    /** Offset (negativo, base s11) do slot de rascunho cross `s`. */
+    int crossScratchOff(int s) { return -crossFrameSize + s * 8; }
+
     boolean usesDb = false;
     boolean usesOrm = false;
     /** F2b: className das entidades usadas com {@code orm.find} (para o
@@ -104,6 +131,8 @@ public class NativeBackend implements Backend {
     boolean ffiUsesCstr = false;
     /** D6-2/3.7: algum extern recebe array `T[]`→`ptr` (pede `kof_ffi_pack_array`). */
     boolean ffiUsesArray = false;
+    /** D-MEM-FFI-CROSS-FULL face 2: `String[]`→`char**` (pede `kof_ffi_pack_str_array`). */
+    boolean ffiUsesStrArray = false;
     final Map<String, String> functionMangleMap = new HashMap<>();
     private final Map<String, ClassLayout> layoutCache = new HashMap<>();
     Map<String, IRClass> allClassesMap = new HashMap<>();

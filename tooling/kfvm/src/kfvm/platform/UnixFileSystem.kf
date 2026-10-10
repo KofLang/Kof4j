@@ -1,0 +1,31 @@
+package kfvm.platform
+
+import kof.io
+import kfvm.system
+
+class UnixFileSystem implements kfvm.platform.FileSystem {
+    void link(String target, String link) {
+        Shell.run("ln", listOf("-sfn", target, link))
+    }
+
+    String linkTarget(String link) {
+        if (!File(link).isSymlink()) return ""
+        return Shell.run("readlink", listOf(link)).trim()
+    }
+
+    void unlink(String link) {
+        Shell.run("rm", listOf("-f", link))
+    }
+
+    void deleteTree(String path) {
+        Shell.run("rm", listOf("-rf", path))
+    }
+
+    String sha256(String file) {
+        var out = if (Shell.available("sha256sum"))
+            Shell.run("sha256sum", listOf(file))
+        else
+            Shell.run("shasum", listOf("-a", "256", file))
+        return out.trim().split(" ")[0].toLowerCase()
+    }
+}

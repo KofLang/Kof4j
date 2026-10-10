@@ -1,12 +1,9 @@
 package dev.kof.compiler;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
-import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -23,11 +20,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * and 4 on real documents: parser green, prose byte-preserved, vocabulary
  * valid, schema validation clean and canonical form idempotent.
  */
-class KofmdCorpusE2ETest {
+class KofmdCorpusE2ETest extends KofmdRunSupport implements LibraryInstallSupport {
 
-    private final CompilerDriver driver = new CompilerDriver();
 
-    @TempDir Path tmp;
 
     private static final Set<String> EXPECTED = new TreeSet<>(List.of(
             "agent-blocked", "agent-context", "agent-decision", "agent-handoff",
@@ -111,31 +106,7 @@ class KofmdCorpusE2ETest {
         runKof(program);
     }
 
-    private void runKof(String code) throws Exception {
-        Path installRoot = tmp.resolve("kof-install");
-        copyLibrary(installRoot.resolve("lib/kof-libs"));
-        Path source = tmp.resolve("Main.kf");
-        Files.writeString(source, code);
-        Path out = Files.createTempDirectory(tmp, "kofmd-out-");
-        String previousInstallDir = System.getProperty("kof.install.dir");
-        CompilationResult result;
-        System.setProperty("kof.install.dir", installRoot.toString());
-        try {
-            result = driver.compile(source, out, Target.JVM);
-        } finally {
-            if (previousInstallDir == null) System.clearProperty("kof.install.dir");
-            else System.setProperty("kof.install.dir", previousInstallDir);
-        }
-        assertTrue(result.success(), () -> result.diagnostics().getDiagnostics().toString());
-
-        try (var loader = new URLClassLoader(
-                new java.net.URL[]{out.toUri().toURL()}, getClass().getClassLoader())) {
-            Class.forName("Default.Main", true, loader)
-                    .getMethod("main", String[].class)
-                    .invoke(null, (Object) new String[0]);
-        }
-    }
-
+    
     private static String kofString(String text) {
         StringBuilder sb = new StringBuilder("\"");
         for (char c : text.toCharArray()) {
@@ -150,33 +121,17 @@ class KofmdCorpusE2ETest {
         return sb.append('"').toString();
     }
 
-    private static void copyLibrary(Path destinationRoot) throws Exception {
-        Path sourceRoot = findLibraryRoot();
-        try (var files = Files.walk(sourceRoot)) {
-            for (Path source : files.filter(Files::isRegularFile).toList()) {
-                Path destination = destinationRoot.resolve("kofmd")
-                        .resolve(sourceRoot.relativize(source));
-                Files.createDirectories(destination.getParent());
-                Files.copy(source, destination, StandardCopyOption.REPLACE_EXISTING);
-            }
-        }
+
+
+
+    @Override
+    public String libraryName() {
+        return "kofmd";
     }
 
-    private static Path findLibraryRoot() {
-        Path workingDirectory = Path.of("").toAbsolutePath().normalize();
-        Path fromRepository = workingDirectory.resolve("libs/kofmd");
-        if (isKofmdLibraryDir(fromRepository)) return fromRepository;
-
-        Path fromModule = workingDirectory.resolve("../libs/kofmd").normalize();
-        if (isKofmdLibraryDir(fromModule)) return fromModule;
-
-        throw new IllegalStateException("libs/kofmd not found from " + workingDirectory);
+    @Override
+    public java.util.List<String> libraryMarkers() {
+        return java.util.List.of("Kofmd.kf", "KofmdTypes.kf");
     }
 
-    private static boolean isKofmdLibraryDir(Path dir) {
-        // Accepts both layouts: the monolith (Kofmd.kf alone) and the split
-        // (KofmdTypes.kf + sibling responsibility files + Kofmd.kf facade).
-        return Files.isRegularFile(dir.resolve("Kofmd.kf"))
-                || Files.isRegularFile(dir.resolve("KofmdTypes.kf"));
-    }
 }

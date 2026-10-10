@@ -44,12 +44,29 @@ if (driver.semanticAnalyzer != null) {
     // className → owner "" → ClassFormatError, bug 20). Re-inferir.
     if (!(semantic instanceof Type.UnknownType)
             && !CompilerTypes.containsLambdaFunctionType(semantic)) {
-        if (semantic instanceof Type.TypeVariable tv && mc.receiver() != null) {
+        if (mc.receiver() != null) {
             Type recvT = ExpressionTyper.inferExprType(driver, mc.receiver(), locals);
-            Type subst = CompilerTypes.substituteTypeVariable(tv.name(), recvT, driver.currentUnit);
+            Type subst = TypeSubstitution.substituteTypeVariableIn(semantic, recvT, driver.currentUnit);
+            // Se a substituicao pelo receiver NAO resolveu (o `semantic` ainda e
+            // um type-variable de OUTRO escopo — ex.: `Box<Int>.items().get(0)`
+            // grava `T` do Box, nao de List) mas o receiver JA e a colecao
+            // concreta, o tipo do elemento vem do receiver (`List<int>.get` ->
+            // int). Sem isto o tipo ficava `T` e o println boxeava um int cru ->
+            // `kof_box_to_string` -> SIGSEGV no Native (§D-PAGINATION).
+            if (subst instanceof Type.TypeVariable
+                    && (BuiltinTypes.isList(recvT) || BuiltinTypes.isMap(recvT)
+                            || BuiltinTypes.isSet(recvT))) {
+                return CollectionMethodTyper.inferCollectionType(driver, recvT, mc, locals);
+            }
             if (subst != null) return subst;
+            return semantic;
         }
-        return semantic;
+        if (!TypeSubstitution.containsTypeVariable(semantic)) {
+            return semantic;
+        }
+        // receiver == null e o retorno do semantic ainda carrega type-var
+        // (ex.: window(l,2,1) -> Window<T>): cai para a inferencia por
+        // argumentos no ramo tloFns, que substitui T pelo tipo real do arg.
     }
 }
 if (mc.receiver() == null && driver.semanticAnalyzer != null
@@ -368,7 +385,17 @@ if (mc.receiver() != null) {
     }
     if (mc.receiver() instanceof IdentifierExpr rid && KofStd.isStdNamespace(rid.name())) {
         List<Type> argTypes = new ArrayList<>();
-        for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
+        for (ExpressionNode arg : mc.arguments()) {
+            // narrowing de null-safety: `if (q != null) { math.parseInt(q) }`
+            // — o frontend estreita `q: String?` para `String` no escopo do
+            // ramo, mas o typer do lowerer lê os IR-locals (ainda Nullable);
+            // sem o unwrap o `staticMethod` devolve null e a chamada sumia
+            // (IR sem o call → frame crash COMP002). Espelha o unwrap de
+            // receiver em `MethodCallTyper`/`ExpressionInstanceCallLowerer`.
+            Type at = ExpressionTyper.inferExprType(driver, arg, locals);
+            if (at instanceof Type.NullableType nt) at = nt.inner();
+            argTypes.add(at);
+        }
         KofStd.StdCall sCall = KofStd.staticMethod(rid.name(), mc.methodName(), argTypes);
         if (sCall != null) return sCall.returnType();
         return Type.UnknownType.UNKNOWN;
@@ -407,6 +434,11 @@ if (mc.receiver() != null) {
         KofSecurity.SecCall secretCall =
                 KofSecurity.instanceMethod(recvType, mc.methodName(), secretArgs.size());
         if (secretCall != null) return secretCall.returnType();
+    }
+    if (KofInteropError.isInteropErrorType(recvType)) {
+        KofInteropError.InteropCall ioeCall =
+                KofInteropError.instanceMethod(recvType, mc.methodName(), mc.arguments().size());
+        if (ioeCall != null) return ioeCall.returnType();
     }
     if (KofIo.isIoType(recvType)) {
         KofIo.IoCall ioCall = KofIo.instanceMethod(recvType, mc.methodName(), mc.arguments().size());
@@ -471,6 +503,25 @@ if (mc.receiver() != null) {
             if (tvRet != null) {
                 returnType = tvRet;
             }
+            if (!fn.typeParameters().isEmpty()) {
+                // Inferencia de type-args a partir dos argumentos (frontend):
+                // `window(l: List<Int>, 2, 1): Window<T>` -> T = Int -> Window<int>.
+                // Sem isto o retorno ficava `Window<T>` (type-var nao substituido)
+                // e `w.items().get(0)` boxeava um int cru -> SIGSEGV no Native.
+                java.util.Map<String, Type> bind = new java.util.HashMap<>();
+                for (int pi = 0; pi < fn.parameters().size() && pi < mc.arguments().size(); pi++) {
+                    Type formal = CompilerTypes.resolveWithTypeParams(fn.parameters().get(pi).type(),
+                            fn.typeParameters(), driver.currentUnit, driver.semanticAnalyzer);
+                    Type actual = ExpressionTyper.inferExprType(driver, mc.arguments().get(pi), locals);
+                    TypeSubstitution.bindTypeVars(formal, actual, fn.typeParameters(), bind);
+                }
+                if (!bind.isEmpty()) {
+                    Type rewritten = TypeSubstitution.substituteTypeVars(returnType, bind::get);
+                    if (rewritten != null && !(rewritten instanceof Type.UnknownType)) {
+                        return rewritten;
+                    }
+                }
+            }
             if (returnType instanceof Type.TypeVariable tv) {
                 for (int pi = 0; pi < fn.parameters().size(); pi++) {
                     if (pi < mc.arguments().size() && tv.name().equals(fn.parameters().get(pi).type())) {
@@ -486,9 +537,13 @@ SymbolTable.MethodSymbol resolvedMethod = driver.semanticAnalyzer != null
         ? driver.semanticAnalyzer.getResolvedMethod(mc) : null;
 if (resolvedMethod != null) {
     Type rt = resolvedMethod.returnType();
-    if (rt instanceof Type.TypeVariable tv && mc.receiver() != null) {
+    if (mc.receiver() != null) {
         Type recvT = ExpressionTyper.inferExprType(driver, mc.receiver(), locals);
-        Type subst = CompilerTypes.substituteTypeVariable(tv.name(), recvT, driver.currentUnit);
+        // Substitucao RECURSIVA pelo receiver: accessor generico `Box<T>.items()`
+        // devolve `List<T>` — mesmo com receiver concreto `Box<int>` o retorno
+        // saia `List<T>` (sem substituir o type-var ANINHADO) e `w.items().get(0)`
+        // virava `T` no print -> box de int cru -> SIGSEGV no Native (§D-PAGINATION).
+        Type subst = TypeSubstitution.substituteTypeVariableIn(rt, recvT, driver.currentUnit);
         if (subst != null) return subst;
     }
     return rt;
@@ -507,11 +562,10 @@ if (mc.receiver() != null) {
         SymbolTable.Symbol m = driver.semanticAnalyzer.resolveInHierarchy(ct.name(), mc.methodName());
         if (m instanceof SymbolTable.MethodSymbol ms) {
             Type rt = ms.returnType();
-            if (rt instanceof Type.TypeVariable tv) {
-                Type subst = CompilerTypes.substituteTypeVariable(tv.name(), recvT, driver.currentUnit);
-                if (subst != null) return subst;
-            }
-            return rt;
+            // Substitucao recursiva (type-var aninhado) — `items(): List<T>`
+            // com receiver `Window<int>` -> `List<int>`.
+            Type subst = TypeSubstitution.substituteTypeVariableIn(rt, recvT, driver.currentUnit);
+            return subst != null ? subst : rt;
         }
     }
     if (recvT instanceof Type.ClassType) {

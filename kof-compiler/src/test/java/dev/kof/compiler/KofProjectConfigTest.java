@@ -73,4 +73,29 @@ class KofProjectConfigTest {
         assertNull(cfg.serverPort());
         assertEquals(1, cfg.warnings().size());
     }
+
+    @Test
+    void parsesSeparateSourceRoots() {
+        // #708: [sources] app/test — raízes separadas de aplicação e testes.
+        var cfg = KofProjectConfig.parse("""
+                [sources]
+                app = "src/main/kof"
+                test = "src/test/kof"
+                """);
+        assertEquals("src/main/kof", cfg.sourceApp());
+        assertEquals("src/test/kof", cfg.sourceTest());
+        assertTrue(cfg.warnings().isEmpty(), "sem warnings: " + cfg.warnings());
+    }
+
+    @Test
+    void resolveSourceRootIsRelativeToProjectRoot(@TempDir Path tmp) {
+        Path resolved = KofProjectConfig.resolveSourceRoot(
+                tmp, "src/main/kof", null);
+        assertNotNull(resolved);
+        assertEquals(tmp.resolve("src/main/kof").toAbsolutePath().normalize(), resolved);
+        // sem declaração → fallback (comportamento atual inalterado)
+        Path fallback = tmp.resolve("fallback");
+        assertEquals(fallback, KofProjectConfig.resolveSourceRoot(tmp, null, fallback));
+        assertEquals(fallback, KofProjectConfig.resolveSourceRoot(tmp, "  ", fallback));
+    }
 }

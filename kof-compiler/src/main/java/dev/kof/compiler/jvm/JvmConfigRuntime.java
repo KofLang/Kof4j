@@ -481,8 +481,19 @@ public final class JvmConfigRuntime {
                             while (rs.next()) {
                                 java.util.LinkedHashMap<String, Object> row = new java.util.LinkedHashMap<>();
                                 for (int i = 1; i <= cols; i++) {
-                                    row.put(md.getColumnLabel(i).toLowerCase(),
-                                            kof_db_value(rs.getObject(i)));
+                                    String label = md.getColumnLabel(i);
+                                    Object value = kof_db_value(rs.getObject(i));
+                                    // §564: the JSON face keys on the record component
+                                    // name (lowercase by convention); the ENTITY face must
+                                    // see the RAW label so camelCase columns round-trip —
+                                    // lowercasing here silently bound NULL on String fields
+                                    // and killed primitives with the §565 binder NPE.
+                                    if (className == null) {
+                                        row.put(label.toLowerCase(), value);
+                                    } else {
+                                        row.putIfAbsent(label, value);
+                                        row.putIfAbsent(label.toLowerCase(), value);
+                                    }
                                 }
                                 if (className == null) {
                                     rows.add(kof_db_row_to_json(row));

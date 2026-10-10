@@ -20,6 +20,7 @@ benchmarks/
 ├── micro/          # arithmetic, calls, branches, loops, field/array access, allocation, boxing, strings, exceptions, lambdas, collections
 ├── algorithms/     # sorting, binary search, hash lookup, graph/tree traversal, matrix multiplication, parsing, serialization, hashing, compression, JSON, IO
 ├── collections/    # insert, lookup, remove, iteration sob volume
+├── pipelines/      # pipelines funcionais de List (map/filter/combinado/with-take/distinct/sorted) — medidor de custo eager
 ├── strings/        # concat, split, replace, search, parse sob volume
 ├── math/           # integer/long/float point, bitwise, comparisons
 ├── objects/        # allocation, field access, temporaries

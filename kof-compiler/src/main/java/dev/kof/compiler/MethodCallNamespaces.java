@@ -129,6 +129,13 @@ final class MethodCallNamespaces {
             for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
             boolean typed = !mc.typeArguments().isEmpty();
             String entityName = typed ? mc.typeArguments().get(0) : null;
+            // P4 (D-PAGINATION-P4-LOWERING): `orm.window<T>` devolve Window<T>
+            // (dessugado no ORM lowerer); exige o host kof.pagination importado.
+            if ("window".equals(mc.methodName()) && typed) {
+                Type win = KofOrm.windowType(driver.semanticAnalyzer,
+                        CompilerTypes.toType(mc.typeArguments().get(0), driver.currentUnit));
+                if (win != null) return win;
+            }
             KofOrm.OrmCall ormCall = KofOrm.staticCall(mc.methodName(), argTypes, typed, entityName);
             if (ormCall != null) {
                 if ("save".equals(mc.methodName()) && !argTypes.isEmpty()) {
@@ -183,6 +190,12 @@ final class MethodCallNamespaces {
             KofTetris.TetrisCall tetrisCall = KofTetris.staticMethod(rid.name(), mc.methodName(),
                     mc.arguments().size());
             if (tetrisCall != null) return tetrisCall.returnType();
+            return Type.UnknownType.UNKNOWN;
+        }
+        if (mc.receiver() instanceof IdentifierExpr rid && KofImage.isImageNamespace(rid.name())) {
+            KofImage.ImageCall imageCall = KofImage.staticMethod(rid.name(), mc.methodName(),
+                    mc.arguments().size());
+            if (imageCall != null) return imageCall.returnType();
             return Type.UnknownType.UNKNOWN;
         }
         if (mc.receiver() instanceof IdentifierExpr rid2 && KofIo.isConstructor(rid2.name())) {

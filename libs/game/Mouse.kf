@@ -1,0 +1,121 @@
+package game
+
+// kof.game — per-frame mouse snapshot (slice 3.1 of the graphics/gaming front,
+// `D-GRAPHICS-GAMING` + `D-GRAPHICS-SPIKE` + the stack batch
+// `D-MAINT-BATCH-0510`/G1).
+//
+// The plan §7 freezes mouse input as a SNAPSHOT per frame: `mouse.pos`,
+// `mouse.down("left")`, `mouse.pressed("left")`. The backend owns the window/
+// pointer-event translation (SDL mouse motion/button events, X11/Wayland,
+// KeyboardEvent) and calls `beginFrame(x, y, buttons)` once per frame with the
+// pointer position and the buttons held during that frame; the program then
+// queries position, movement and the three button states. This module is the
+// PURE, backend-independent half: it keeps the current and previous position and
+// button sets and derives the transitions, so it calls no OS/window API and is
+// honest on every target today. The backend window (`Window`/`frame`) and the
+// real event translation are layered on top in a later slice.
+//
+// Deterministic by construction: given the same sequence of `beginFrame` calls,
+// `x`/`y`/`dx`/`dy` and `down`/`pressed`/`released` are identical on every
+// target — the property the plan requires for input goldens ("virtual clock,
+// deterministic input").
+//
+//   var mouse = Mouse()
+//   while (clock.hasNext()) {
+//       clock.beginFrame(now)
+//       mouse.beginFrame(backend.pointerX(), backend.pointerY(), backend.heldButtons())
+//       if (mouse.pressed("left")) { select(mouse.x(), mouse.y()) }
+//       if (mouse.down("left")) { drag(mouse.dx(), mouse.dy()) }
+//   }
+//
+// Semantics (frozen here, tested): a button is `down` when held this frame;
+// `pressed` on the frame it first appears (down now, not down before); `released`
+// on the frame it disappears (down before, not down now). The first `beginFrame`
+// diffs against an empty set, so a button held on frame 0 reads `pressed` (there
+// was no prior frame to compare against) and `released` is never true on frame 0.
+// The first frame also reports `dx`/`dy` = 0 (no prior position to diff), exactly
+// like the clock's first-frame `dt = 0`; later frames diff the previous position.
+// `x`/`y` are absolute pointer coordinates in the window, integer pixels.
+// Duplicate buttons are ignored. Pure arithmetic and set arithmetic, no IO.
+
+class Mouse {
+    Int posX
+    Int posY
+    Int deltaX
+    Int deltaY
+    Bool firstFrame
+    Set<String> current
+    Set<String> previous
+
+    constructor() {
+        this.posX = 0
+        this.posY = 0
+        this.deltaX = 0
+        this.deltaY = 0
+        this.firstFrame = true
+        this.current = setOf<String>()
+        this.previous = setOf<String>()
+    }
+
+    // Enter a frame with the pointer at `(x, y)` and `buttons` held: the previous
+    // button set becomes the baseline and the new one becomes current; movement is
+    // diffed against the previous position (0 on the first frame). Duplicates are
+    // ignored.
+    void beginFrame(Int x, Int y, List<String> buttons) {
+        if (this.firstFrame) {
+            this.deltaX = 0
+            this.deltaY = 0
+            this.firstFrame = false
+        } else {
+            this.deltaX = x - this.posX
+            this.deltaY = y - this.posY
+        }
+        this.posX = x
+        this.posY = y
+        this.previous = this.current
+        this.current = setOf<String>()
+        for (var button in buttons) {
+            this.current.add(button)
+        }
+    }
+
+    // Absolute pointer X in window pixels.
+    Int x() {
+        return this.posX
+    }
+
+    // Absolute pointer Y in window pixels.
+    Int y() {
+        return this.posY
+    }
+
+    // Movement on X since the previous frame (0 on the first frame).
+    Int dx() {
+        return this.deltaX
+    }
+
+    // Movement on Y since the previous frame (0 on the first frame).
+    Int dy() {
+        return this.deltaY
+    }
+
+    // True when the pointer moved this frame.
+    Bool moved() {
+        return this.deltaX != 0 || this.deltaY != 0
+    }
+
+    // True while `button` is held this frame.
+    Bool down(String button) {
+        return this.current.contains(button)
+    }
+
+    // True on the frame `button` first appears (down now, not down before).
+    Bool pressed(String button) {
+        return this.current.contains(button) && !this.previous.contains(button)
+    }
+
+    // True on the frame `button` disappears (down before, not down now).
+    Bool released(String button) {
+        return !this.current.contains(button) && this.previous.contains(button)
+    }
+}

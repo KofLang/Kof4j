@@ -107,7 +107,7 @@ public final class KofJsProcessBridge {
                 }
                 ProcessBuilder pb = new ProcessBuilder(argv).redirectErrorStream(false);
                 pb.redirectInput(procs.isEmpty()
-                        ? ProcessBuilder.Redirect.from(new java.io.File("/dev/null"))
+                        ? ProcessBuilder.Redirect.from(new java.io.File(System.getProperty("os.name").startsWith("Windows") ? "NUL" : "/dev/null"))
                         : ProcessBuilder.Redirect.PIPE);
                 procs.add(pb.start());
             }
@@ -259,7 +259,7 @@ public final class KofJsProcessBridge {
             }
             p = new ProcessBuilder(cmd)
                     .redirectErrorStream(false)
-                    .redirectInput(ProcessBuilder.Redirect.from(new java.io.File("/dev/null")))
+                    .redirectInput(ProcessBuilder.Redirect.from(new java.io.File(System.getProperty("os.name").startsWith("Windows") ? "NUL" : "/dev/null")))
                     .start();
             reader = new java.io.BufferedReader(
                     new java.io.InputStreamReader(p.getInputStream(),

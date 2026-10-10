@@ -1,0 +1,167 @@
+package game
+
+import game.Scene3d
+
+// kof.game — 3D mesh intent (slice 3.5a of the graphics/gaming front,
+// `D-GRAPHICS-GAMING`; the 3D level PROMOTED to the active scope 08/10 by
+// the maintainer).
+//
+// The plan §9 freezes 3D as intent (`mesh("hero.glb").at().lookAt()`-style
+// transforms); mesh LOADING (glTF/OBJ via mature libs, license/security/
+// coverage/maintenance/testability/cross-platform criteria) is the
+// backend's job and lands in a later slice. This module is the PURE,
+// backend-independent half: the mesh object with the instance transform —
+// position/scale/rotation — so scenes, goldens and draw queues behave
+// deterministically with no file IO and no matrix math of their own. It
+// calls no rendering/window API and is honest on every target today.
+//
+//   var hero = mesh("hero.glb", 24, 36)
+//   hero.at(1.0, 0.0, 0.0).scale(2.0, 2.0, 2.0).rotate(0.0, 90.0, 0.0)
+//
+// Semantics (frozen here, tested):
+// - `mesh(path, vertexCount, indexCount)` declares a mesh from the counts
+//   the loading backend measured: meaningless counts throw at construction
+//   (`vertexCount < 0`, `indexCount < 0`, `indexCount` not a multiple of 3
+//   — every triangle takes 3 indices), never a silent degenerate mesh.
+// - `at(x, y, z)` sets the mesh's world position; `scale(sx, sy, sz)` the
+//   absolute axis scales (permissive — a zero scale collapses the mesh,
+//   the backend decides what that means); `rotate(rx, ry, rz)` sets the
+//   ABSOLUTE Euler rotation in degrees (order: the backend's — this module
+//   stores it, never composes the matrix).
+// - `show()`/`hide()` gate visibility (the scene draw records nothing while
+//   hidden, the Sprite pattern); chained setters return `this`.
+// - `triangles()` is `indexCount / 3` (integer division — the index count
+//   is validated as a multiple of 3 at construction). Pure state, no IO;
+//   runs on every target.
+
+class Mesh {
+    String path
+    Int vertexCount
+    Int indexCount
+    Double x
+    Double y
+    Double z
+    Double scaleX
+    Double scaleY
+    Double scaleZ
+    Double rotXDeg
+    Double rotYDeg
+    Double rotZDeg
+    Bool visible
+
+    constructor(path: String, vertexCount: Int, indexCount: Int) {
+        if (vertexCount < 0) { throw "Mesh '" + path + "': vertexCount must be >= 0" }
+        if (indexCount < 0) { throw "Mesh '" + path + "': indexCount must be >= 0" }
+        if (indexCount % 3 != 0) { throw "Mesh '" + path + "': indexCount must be a multiple of 3" }
+        this.path = path
+        this.vertexCount = vertexCount
+        this.indexCount = indexCount
+        this.x = 0.0
+        this.y = 0.0
+        this.z = 0.0
+        this.scaleX = 1.0
+        this.scaleY = 1.0
+        this.scaleZ = 1.0
+        this.rotXDeg = 0.0
+        this.rotYDeg = 0.0
+        this.rotZDeg = 0.0
+        this.visible = true
+    }
+
+    String source() {
+        return this.path
+    }
+
+    Int vertices() {
+        return this.vertexCount
+    }
+
+    Int triangles() {
+        return this.indexCount / 3
+    }
+
+    Mesh at(Double px, Double py, Double pz) {
+        this.x = px
+        this.y = py
+        this.z = pz
+        return this
+    }
+
+    Mesh scale(Double sx, Double sy, Double sz) {
+        this.scaleX = sx
+        this.scaleY = sy
+        this.scaleZ = sz
+        return this
+    }
+
+    Mesh rotate(Double rx, Double ry, Double rz) {
+        this.rotXDeg = rx
+        this.rotYDeg = ry
+        this.rotZDeg = rz
+        return this
+    }
+
+    Mesh show() {
+        this.visible = true
+        return this
+    }
+
+    Mesh hide() {
+        this.visible = false
+        return this
+    }
+
+    Bool isVisible() {
+        return this.visible
+    }
+
+    // Record this mesh into `queue` (a no-op while invisible).
+    Mesh draw(Scene3d queue) {
+        if (this.visible) {
+            queue.addCmd(DrawCmd3d(this.path, this.x, this.y, this.z,
+                this.scaleX, this.scaleY, this.scaleZ,
+                this.rotXDeg, this.rotYDeg, this.rotZDeg))
+        }
+        return this
+    }
+
+    Double posX() {
+        return this.x
+    }
+
+    Double posY() {
+        return this.y
+    }
+
+    Double posZ() {
+        return this.z
+    }
+
+    Double scaleOnX() {
+        return this.scaleX
+    }
+
+    Double scaleOnY() {
+        return this.scaleY
+    }
+
+    Double scaleOnZ() {
+        return this.scaleZ
+    }
+
+    Double rotationX() {
+        return this.rotXDeg
+    }
+
+    Double rotationY() {
+        return this.rotYDeg
+    }
+
+    Double rotationZ() {
+        return this.rotZDeg
+    }
+}
+
+Mesh mesh(String path, Int vertexCount, Int indexCount) {
+    return Mesh(path, vertexCount, indexCount)
+}

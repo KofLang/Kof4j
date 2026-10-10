@@ -1,6 +1,5 @@
 package dev.kof.compiler;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -9,7 +8,6 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -20,22 +18,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * T2: parse METHOD+PATH + match literal → 200/404 (commit 6ad63f8)
  * T3 (em andamento): dispatch do handler lambda via trampolim invoke().
  */
-class KofWebNativeE2ETest {
+class KofWebNativeE2ETest extends ServerProcessSupport {
 
-    private Process serverProcess;
     private int serverPort = -1;
 
-    @AfterEach
-    void stopServer() {
-        if (serverProcess != null) {
-            serverProcess.destroy();
-            try {
-                serverProcess.waitFor(3, TimeUnit.SECONDS);
-            } catch (InterruptedException ignored) { }
-            serverProcess.destroyForcibly();
-            serverProcess = null;
-        }
-    }
 
     private static final String SERVER_T1 = """
             main() {
@@ -78,16 +64,8 @@ class KofWebNativeE2ETest {
         ProcessBuilder pb = new ProcessBuilder(binary.toString());
         pb.redirectErrorStream(true);
         Process p = pb.start();
-        long deadline = System.currentTimeMillis() + 5000;
-        while (System.currentTimeMillis() < deadline) {
-            if (!p.isAlive()) throw new IOException("server died early");
-            try (Socket probe = new Socket()) {
-                probe.connect(new java.net.InetSocketAddress("127.0.0.1", port), 100);
-                return p;
-            } catch (IOException e) { Thread.sleep(50); }
-        }
-        p.destroyForcibly();
-        throw new IOException("did not come up on port " + port);
+        TestServerFixture.awaitListening(p, port, 100, 50);
+        return p;
     }
 
     private int portFromServer(String source) throws IOException {
@@ -127,15 +105,7 @@ class KofWebNativeE2ETest {
         ProcessBuilder pb = new ProcessBuilder(tempDir.resolve("classes/Default/Main").toString());
         pb.redirectErrorStream(true);
         serverProcess = pb.start();
-        long deadline = System.currentTimeMillis() + 5000;
-        boolean up = false;
-        while (System.currentTimeMillis() < deadline && !up) {
-            try (Socket probe = new Socket()) {
-                probe.connect(new java.net.InetSocketAddress("127.0.0.1", port), 100);
-                up = true;
-            } catch (IOException e) { Thread.sleep(50); }
-        }
-        assertTrue(up, "server should accept connections");
+        TestServerFixture.awaitListening(serverProcess, port, 100, 50);
         String match = httpGet(port, "/hello");
         assertTrue(match.contains("200"), "match: " + match);
         assertTrue(match.endsWith("ok-matched"), "match body: " + match);
@@ -155,15 +125,7 @@ class KofWebNativeE2ETest {
         ProcessBuilder pb = new ProcessBuilder(tempDir.resolve("classes/Default/Main").toString());
         pb.redirectErrorStream(true);
         serverProcess = pb.start();
-        long deadline = System.currentTimeMillis() + 5000;
-        boolean up = false;
-        while (System.currentTimeMillis() < deadline && !up) {
-            try (Socket probe = new Socket()) {
-                probe.connect(new java.net.InetSocketAddress("127.0.0.1", port), 100);
-                up = true;
-            } catch (IOException e) { Thread.sleep(50); }
-        }
-        assertTrue(up);
+        TestServerFixture.awaitListening(serverProcess, port, 100, 50);
         String r = httpGet(port, "/hello");
         assertTrue(r.contains("HTTP/1.1 200"), "status: " + r);
         assertTrue(r.endsWith("ok-matched"), "body should come from handler, got: " + r);
@@ -190,15 +152,7 @@ class KofWebNativeE2ETest {
         ProcessBuilder pb = new ProcessBuilder(tempDir.resolve("classes/Default/Main").toString());
         pb.redirectErrorStream(true);
         serverProcess = pb.start();
-        long deadline = System.currentTimeMillis() + 5000;
-        boolean up = false;
-        while (System.currentTimeMillis() < deadline && !up) {
-            try (Socket probe = new Socket()) {
-                probe.connect(new java.net.InetSocketAddress("127.0.0.1", port), 100);
-                up = true;
-            } catch (IOException e) { Thread.sleep(50); }
-        }
-        assertTrue(up);
+        TestServerFixture.awaitListening(serverProcess, port, 100, 50);
         try (Socket s = new Socket("127.0.0.1", port)) {
             s.getOutputStream().write("POST /echo HTTP/1.1\r\nHost: x\r\nContent-Length: 5\r\n\r\nhello"
                     .getBytes(StandardCharsets.UTF_8));

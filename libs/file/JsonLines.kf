@@ -1,0 +1,85 @@
+package file
+
+import file.TextStream
+
+// kof.file — JSON Lines / NDJSON streaming (slice 2.3).
+//
+// The seam between `kof.json` (`json.encode`/`json.decode`) and the streaming
+// model: each non-blank line is one JSON document, read through `TextStream`
+// (memory bounded by one chunk plus the current line). A JSON Lines document
+// never contains a raw newline — `json.encode` escapes them — so line framing
+// is exact.
+//
+// The reader hands the raw document text to `json.decode<T>` with the
+// CALLER's concrete type. A typed streaming decode *inside* the library is not
+// expressible today: `json.decode<T>` over an unresolved type parameter makes
+// the compiler emit a `checkcast T` and a nonexistent `kof_json_decode_T`
+// symbol (catalogued as `§538`, owner = compiler/generics lane) — so this
+// library deliberately stays untyped and never fakes a fallback.
+//
+// `JsonLinesWriter` is the inverse: the caller `json.encode`s each value and
+// the writer appends one document per line, mirroring `CsvWriter`.
+//
+// No new syntax, built on `libs/file/TextStream.kf`. JS inherits the
+// compile-time gap `IOJS001` (`readRange`); non-BMP text is the Native
+// divergence `§537`.
+
+class JsonLinesReader {
+    TextStream stream
+
+    constructor(String path) {
+        this.stream = TextStream(path)
+    }
+
+    constructor(String path, Int chunkSize) {
+        this.stream = TextStream(path, chunkSize)
+    }
+
+    // Next non-blank JSON document as text, or null at end of file.
+    String? nextJson() {
+        var line = this.stream.nextLine()
+        while (line != null) {
+            if (line != null) {
+                if (!isBlank(line)) {
+                    return line
+                }
+            }
+            line = this.stream.nextLine()
+        }
+        return null
+    }
+
+    Bool isBlank(String s) {
+        var i = 0
+        while (i < s.length) {
+            var ch = s.charAt(i)
+            if (ch != ' ' && ch != '\t') {
+                return false
+            }
+            i = i + 1
+        }
+        return true
+    }
+}
+
+class JsonLinesWriter {
+    String path
+    Bool started
+
+    constructor(String path) {
+        this.path = path
+        this.started = false
+    }
+
+    // Append one already-encoded JSON document as a line. The first call
+    // truncates the file, the rest append.
+    writeJson(String json) {
+        var line = json + "\n"
+        if (this.started) {
+            File(this.path).appendText(line)
+        } else {
+            File(this.path).writeText(line)
+            this.started = true
+        }
+    }
+}

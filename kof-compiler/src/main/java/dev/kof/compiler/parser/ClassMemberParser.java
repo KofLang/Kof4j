@@ -9,6 +9,7 @@ import dev.kof.compiler.FormalParameterNode;
 import dev.kof.compiler.MethodDeclarationNode;
 import dev.kof.compiler.ReturnStmt;
 import dev.kof.compiler.StatementNode;
+import dev.kof.compiler.Token;
 import dev.kof.compiler.TokenType;
 import dev.kof.compiler.Type;
 
@@ -22,10 +23,25 @@ import java.util.List;
  */
 public class ClassMemberParser {
 
+    /**
+     * A `(` after a field/method name only opens the parameter list when it is
+     * on the SAME line as the name. Without this guard an uninitialized field
+     * (`String title`) followed on the NEXT line by a member starting with `(`
+     * (a function-typed field or a `(...)` method return type) swallowed that
+     * `(` as this field's parameters, so `String title` + `() -> Long src`
+     * died `PARSE016` at the `->`. Mirrors the trailing-lambda same-line guard
+     * (`known-bugs` §692): the token that belongs to the NEXT member must not
+     * be consumed. A real method always writes `name(` on one line.
+     */
+    private static boolean paramsOnSameLine(ParseContext ctx) {
+        Token prev = ctx.pos > 0 ? ctx.tokens.get(ctx.pos - 1) : null;
+        return prev != null && prev.line() == ctx.peek().line();
+    }
+
     static AstNode parseClassMember(ParseContext ctx) {
         List<AnnotationNode> annos = AnnotationParser.parseAnnotations(ctx);
         List<String> mods = TypeDeclarations.parseModifiers(ctx);
-        if (ctx.check(TokenType.IDENTIFIER) && ctx.peek().value().equals("constructor") && ctx.checkNext(TokenType.LPAREN)) {
+        if (ctx.wordIs("constructor") && ctx.checkNext(TokenType.LPAREN)) {
             ConstructorDeclarationNode ctor = parseConstructor(ctx, mods);
             return new ConstructorDeclarationNode(ctor.position(), ctor.modifiers(), ctor.name(),
                     ctor.parameters(), ctor.thrownExceptions(), ctor.body(), annos);
@@ -98,7 +114,7 @@ public class ClassMemberParser {
             // `Map<K,V>`), nullable (`String?`) e primitive types.
             String type = TypeParser.parseTypeRef(ctx);
             String name = ctx.expectId("Expected member name", "PARSE018");
-            if (ctx.check(TokenType.LPAREN)) {
+            if (ctx.check(TokenType.LPAREN) && paramsOnSameLine(ctx)) {
                 ctx.advance();
                 List<FormalParameterNode> params = new ArrayList<>();
                 if (!ctx.check(TokenType.RPAREN)) {
@@ -172,7 +188,7 @@ public class ClassMemberParser {
 
     static ConstructorDeclarationNode parseConstructor(ParseContext ctx, List<String> mods) {
         String name;
-        if (ctx.check(TokenType.IDENTIFIER) && ctx.peek().value().equals("constructor")) {
+        if (ctx.wordIs("constructor")) {
             ctx.advance();
             name = ctx.currentClassName != null ? ctx.currentClassName : "error";
         } else if (ctx.check(TokenType.IDENTIFIER)) {

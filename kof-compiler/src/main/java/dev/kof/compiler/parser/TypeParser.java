@@ -32,10 +32,10 @@ public class TypeParser {
             // ExpressionParser/parseTypeRef usam.
             Parser.splitShiftRight(ctx);
             Token t = ctx.advance();
-            sb.append(t.value());
+            sb.append(ctx.canonicalVariance(t.value()));
             // X5.4 (D-X5-SURFACE): `out`/`in` num type-argument (`List<out Animal>`)
             // precisa do espaço separador — os tokens são concatenados crus.
-            if (t.type() == TokenType.IDENTIFIER && ("out".equals(t.value()) || "in".equals(t.value()))
+            if (t.type() == TokenType.IDENTIFIER && ("out".equals(ctx.canonicalVariance(t.value())) || "in".equals(ctx.canonicalVariance(t.value())))
                     && ctx.pos < ctx.tokens.size()) {
                 TokenType nt = ctx.tokens.get(ctx.pos).type();
                 if (nt == TokenType.IDENTIFIER || nt == TokenType.LPAREN) sb.append(' ');
@@ -83,8 +83,8 @@ public class TypeParser {
                         // contextuais ANTES do nome do type-param (declaration-site
                         // variance). Sem um identificador seguinte continuam sendo
                         // o próprio nome (compat: `class X<in>` segue válido).
-                        if (variance == null && ("out".equals(t.value()) || "in".equals(t.value()))) {
-                            variance = t.value();
+                        if (variance == null && ("out".equals(ctx.canonicalVariance(t.value())) || "in".equals(ctx.canonicalVariance(t.value())))) {
+                            variance = ctx.canonicalVariance(t.value());
                         } else {
                             name = t.value();
                         }
@@ -221,7 +221,7 @@ public class TypeParser {
                         first = false;
                         continue;
                     }
-                    String tv = ctx.tokens.get(ctx.pos).value();
+                    String tv = ctx.canonicalVariance(ctx.tokens.get(ctx.pos).value());
                     args.append(tv);
                     // X5.4 (D-X5-SURFACE): projeção no sítio de uso — `out`/`in`
                     // antes de um type-argument (`List<out Animal>`). O parser

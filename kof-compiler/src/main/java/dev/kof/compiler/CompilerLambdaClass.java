@@ -90,7 +90,14 @@ public final class CompilerLambdaClass {
                 : CompilerTypes.toType(CompilerTypes.typeToString(ft.returnType()), driver.currentUnit);
         List<FormalParameterNode> params = le.parameters();
         List<Type> paramTypes = new ArrayList<>();
-        for (FormalParameterNode p : params) paramTypes.add(CompilerTypes.toType(p.type(), driver.currentUnit));
+        // #710: usar a sobrecarga ciente do SemanticAnalyzer (qualifyDeep, §179)
+        // — a de 2 args NÃO qualifica um tipo kof.ui/kof.media DECLARADO como
+        // parâmetro de lambda, então o descritor do invoke saía `LLabel;` (e o
+        // `w` local virava um objeto JS cru) enquanto o call-site usava o
+        // handle `int`/`kof.ui.Label` → NoSuchMethodError/`not a function`.
+        for (FormalParameterNode p : params) {
+            paramTypes.add(CompilerTypes.toType(p.type(), driver.currentUnit, driver.semanticAnalyzer));
+        }
 
         List<IRField> fields = new ArrayList<>();
         List<Type> captureTypes = new ArrayList<>();
@@ -132,6 +139,7 @@ public final class CompilerLambdaClass {
         driver.mutatedCapturedNames = new java.util.HashSet<>();
         java.util.Deque<CompilerDriverState.FinallyFrame> savedFrames = driver.finallyFrames;
         driver.finallyFrames.clear(); // DD-01: frame do finally externo não vaza p/ dentro
+        driver.tryDepth = 0; // §551: profundidade de try é por função
         // lambda não-void com corpo de expressão única: a expressão É o retorno
         // (ExpressionStmt emitiria POP e mataria o valor antes do areturn)
         java.util.List<StatementNode> bodyStmts = le.body();

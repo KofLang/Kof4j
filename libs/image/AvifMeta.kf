@@ -1,0 +1,272 @@
+package image
+
+import image.Avif
+import image.AvifItems
+import image.AvifSeq
+
+// kof.image — AV1 OBU_METADATA payload walk, slices 2g/2h of the AVIF front
+// (plan §34). Syntax and semantics quoted from the AV1 Bitstream & Decoding
+// Process Specification read on the dev host 02/10: 5.8.1 (metadata_type is
+// leb128 at the head of the OBU payload) and the 6.4.1/`metadata_type`
+// symbol table (0 reserved for AOM use, 1 HDR_CLL, 2 HDR_MDCV, 3
+// scalability, 4 ITUT_T35, 5 timecode, 6–31 unregistered user private, 32+
+// reserved for AOM use — confirmed against the spec source table AND the
+// AOM `aom/aom_codec.h` `OBU_METADATA_TYPE_*` enum: a first landing had
+// swapped 4/5 and mislabelled 32+ as user private). All T35/CLL/MDCV fields
+// (5.8.2–5.8.4) are byte-aligned f(8)/f(16)/f(32) on a byte boundary, so
+// big-endian byte reads are exact; metadata_timecode() (5.8.7) is a
+// bitfield sequence read MSB-first with `seqRead` (the 2d bit-reader).
+//
+// The walk ENUMERATES metadata OBUs inside an item — types, payload sizes
+// and the numeric facts of T35/CLL/MDCV/timecode — per the `Avif.kf`
+// metadata-only policy. Scalability (3) and the private/reserved types are
+// structured/opaque video faces: reported by name and size, their sub-syntax
+// is not walked here. The T35 "last byte that is not zero" content rule is
+// NOT applied (the raw payload byte count is reported honestly). An unknown
+// metadata_type still yields its type + size (enumeration never refuses on
+// type alone); only truncated reads throw `IMAGE:` refusals.
+// `avifItemMetadataObus(item)` scans the whole located item (the OBU framing
+// rules of slice 2a/2c); `readAvifMetadataObus(path)` composes container ->
+// pitm -> iloc -> walk. No pixel decoding — `decodeRaster` keeps refusing
+// AVIF.
+
+record AvifObuMetadata(Int type, String name, Int payloadBytes,
+                       Int country, Bool extended, Int t35Bytes,
+                       Int maxCll, Int maxFall, List<Int> mdcv,
+                       List<Int> timecode)
+
+List<AvifObuMetadata> readAvifMetadataObus(String path) {
+    var bytes = File(path).readRange(0, 65536)
+    var md = avifMetadata(bytes)
+    return avifItemMetadataObus(avifItemBytes(bytes, md.primaryId))
+}
+
+List<AvifObuMetadata> avifItemMetadataObus(Int[] item) {
+    var out = listOf<AvifObuMetadata>()
+    var pos = 0
+    var n = item.length
+    while (pos < n) {
+        var head = u8(item, pos)
+        if ((head >> 7) != 0) {
+            throw "IMAGE: avif item obu forbidden bits"
+        }
+        var type = (head >> 3) & 15
+        var ext = (head >> 2) & 1
+        if ((head & 1) != 0) {
+            throw "IMAGE: avif item obu reserved bit set"
+        }
+        if (((head >> 1) & 1) != 1) {
+            throw "IMAGE: avif item obu missing size field"
+        }
+        var p = pos + 1 + ext
+        if (p >= n) {
+            throw "IMAGE: avif obu truncated"
+        }
+        var size = 0
+        var mult = 1
+        var loop = 0
+        var sized = false
+        while (loop < 8) {
+            var x = u8(item, p)
+            p = p + 1
+            size = size + (x & 127) * mult
+            mult = mult * 128
+            if ((x & 128) == 0) {
+                sized = true
+                loop = 8
+            }
+            loop = loop + 1
+        }
+        if (!sized) {
+            throw "IMAGE: avif obu size too long"
+        }
+        var limit = p + size
+        if (limit > n) {
+            throw "IMAGE: avif obu truncated"
+        }
+        if (type == 5) {
+            out.add(metaWalk(item, p, limit))
+        }
+        pos = limit
+    }
+    return out
+}
+
+// metadata_obu() per 5.8.1: leb128 metadata_type, then the type's fields
+// (5.8.2 T35: country f(8), extension f(8) only when country == 0xFF, then
+// raw payload bytes; 5.8.3 CLL: max_cll/max_fall f(16); 5.8.4 MDCV: 3
+// primaries + white point (8x f(16)) then max/min luminance (2x f(32));
+// 5.8.7 timecode: the bitfield sequence below, read MSB-first).
+AvifObuMetadata metaWalk(Int[] b, Int p, Int limit) {
+    var mtype = 0
+    var mult = 1
+    var loop = 0
+    var coded = false
+    while (loop < 8) {
+        var x = u8(b, p)
+        p = p + 1
+        mtype = mtype + (x & 127) * mult
+        mult = mult * 128
+        if ((x & 128) == 0) {
+            coded = true
+            loop = 8
+        }
+        loop = loop + 1
+    }
+    if (!coded) {
+        throw "IMAGE: avif metadata type too long"
+    }
+    var payloadBytes = limit - p
+    var name = "reserved"
+    if (mtype == 1) {
+        name = "hdrCll"
+    } else if (mtype == 2) {
+        name = "hdrMdcv"
+    } else if (mtype == 3) {
+        name = "scalability"
+    } else if (mtype == 4) {
+        name = "itutT35"
+    } else if (mtype == 5) {
+        name = "timecode"
+    } else if (mtype <= 31) {
+        name = "private"
+    }
+    var country = 0
+    var extended = false
+    var t35Bytes = 0
+    var maxCll = 0
+    var maxFall = 0
+    var mdcv = listOf<Int>()
+    var timecode = listOf<Int>()
+    if (mtype == 4) {
+        if (p + 1 > limit) {
+            throw "IMAGE: truncated avif metadata obu"
+        }
+        country = u8(b, p)
+        p = p + 1
+        if (country == 255) {
+            if (p + 1 > limit) {
+                throw "IMAGE: truncated avif metadata obu"
+            }
+            extended = true
+            country = (country << 8) | u8(b, p)
+            p = p + 1
+        }
+        t35Bytes = limit - p
+    } else if (mtype == 5) {
+        timecode = timecodeWalk(b, p, limit)
+    } else if (mtype == 1) {
+        if (p + 4 > limit) {
+            throw "IMAGE: truncated avif metadata obu"
+        }
+        maxCll = be16(b, p)
+        maxFall = be16(b, p + 2)
+    } else if (mtype == 2) {
+        if (p + 24 > limit) {
+            throw "IMAGE: truncated avif metadata obu"
+        }
+        var i = 0
+        while (i < 8) {
+            mdcv.add(be16(b, p))
+            p = p + 2
+            i = i + 1
+        }
+        mdcv.add(be32(b, p))
+        mdcv.add(be32(b, p + 4))
+    }
+    return AvifObuMetadata(mtype, name, payloadBytes, country, extended,
+                           t35Bytes, maxCll, maxFall, mdcv, timecode)
+}
+
+// metadata_timecode() per 5.8.7 with the 6.7.7 semantics: counting_type
+// f(5), full_timestamp_flag f(1), discontinuity_flag f(1),
+// cnt_dropped_flag f(1), n_frames f(9); when full_timestamp_flag is set,
+// seconds f(6), minutes f(6), hours f(5); otherwise the seconds/minutes/
+// hours flags gate their values (a value not present is reported as -1 —
+// the spec's "inferred from the previous set" is a stream-level state this
+// metadata-only walk does not carry); then time_offset_length f(5) and,
+// when it is greater than 0, time_offset_value f(time_offset_length).
+// Returns [countingType, fullTimestamp, discontinuity, cntDropped,
+// nFrames, seconds, minutes, hours, timeOffset].
+List<Int> timecodeWalk(Int[] b, Int p, Int limit) {
+    var bits = p * 8
+    var limitBits = limit * 8
+    var countingType = 0
+    var fullTimestamp = 0
+    var discontinuity = 0
+    var cntDropped = 0
+    var nFrames = 0
+    var seconds = -1
+    var minutes = -1
+    var hours = -1
+    if (bits + 23 > limitBits) {
+        throw "IMAGE: truncated avif metadata obu"
+    }
+    countingType = seqRead(b, bits, 5)
+    bits = bits + 5
+    fullTimestamp = seqRead(b, bits, 1)
+    bits = bits + 1
+    discontinuity = seqRead(b, bits, 1)
+    bits = bits + 1
+    cntDropped = seqRead(b, bits, 1)
+    bits = bits + 1
+    nFrames = seqRead(b, bits, 9)
+    bits = bits + 9
+    if (fullTimestamp == 1) {
+        if (bits + 17 > limitBits) {
+            throw "IMAGE: truncated avif metadata obu"
+        }
+        seconds = seqRead(b, bits, 6)
+        bits = bits + 6
+        minutes = seqRead(b, bits, 6)
+        bits = bits + 6
+        hours = seqRead(b, bits, 5)
+        bits = bits + 5
+    } else {
+        if (bits + 1 > limitBits) {
+            throw "IMAGE: truncated avif metadata obu"
+        }
+        var secondsFlag = seqRead(b, bits, 1)
+        bits = bits + 1
+        if (secondsFlag == 1) {
+            if (bits + 7 > limitBits) {
+                throw "IMAGE: truncated avif metadata obu"
+            }
+            seconds = seqRead(b, bits, 6)
+            bits = bits + 6
+            var minutesFlag = seqRead(b, bits, 1)
+            bits = bits + 1
+            if (minutesFlag == 1) {
+                if (bits + 7 > limitBits) {
+                    throw "IMAGE: truncated avif metadata obu"
+                }
+                minutes = seqRead(b, bits, 6)
+                bits = bits + 6
+                var hoursFlag = seqRead(b, bits, 1)
+                bits = bits + 1
+                if (hoursFlag == 1) {
+                    if (bits + 5 > limitBits) {
+                        throw "IMAGE: truncated avif metadata obu"
+                    }
+                    hours = seqRead(b, bits, 5)
+                    bits = bits + 5
+                }
+            }
+        }
+    }
+    if (bits + 5 > limitBits) {
+        throw "IMAGE: truncated avif metadata obu"
+    }
+    var offsetLength = seqRead(b, bits, 5)
+    bits = bits + 5
+    var offset = 0
+    if (offsetLength > 0) {
+        if (bits + offsetLength > limitBits) {
+            throw "IMAGE: truncated avif metadata obu"
+        }
+        offset = seqRead(b, bits, offsetLength)
+    }
+    return listOf(countingType, fullTimestamp, discontinuity, cntDropped,
+                  nFrames, seconds, minutes, hours, offset)
+}
+

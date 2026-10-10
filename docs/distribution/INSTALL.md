@@ -5,34 +5,34 @@
 Official installation guide from the artifacts published on **GitHub
 Releases**. Follow the step-by-step for **your system** and you are done.
 
-> **Current version:** 0.5.0-beta (see `VERSION` at the repo root). This guide **does not depend on the
-> version**: the commands work on any release, current or future.
-> You do not need to know which version it is to install.
+> **Current version:** 0.5.0-beta (see `VERSION` at the repo root). The
+> commands below work on **any** release: they resolve the newest one for
+> your platform automatically, so there is no version to type.
 
 ## Automated install (recommended — Linux/macOS)
 
-The fastest way: run the installer directly via cURL, as provided by the installation script
-in the repository (URL pinned to the active branch `beta-0.4.0` — `main` 404s for this script
-until the release merge; measured 19/09):
+The fastest way — the installer detects your platform and installs the
+newest release, no version needed:
 
 ```bash
-# install a specific version with environment variables
-# and no args
-curl -fsSL https://raw.githubusercontent.com/KofLang/Kof4j/beta-0.4.0/scripts/install.sh \
-  | KOF_INSTALL_VERSION=0.4.5-beta bash
+curl -fsSL https://raw.githubusercontent.com/KofLang/Kof4j/main/scripts/install.sh | bash
 ```
 
-or
+To install one **specific** version (or pass options), pin it explicitly:
 
 ```bash
-# install a specific version with args
-curl -fsSL https://raw.githubusercontent.com/KofLang/Kof4j/beta-0.4.0/scripts/install.sh \
-  | bash -s -- --version 0.4.5-beta --yes
+# a specific version via environment variable
+curl -fsSL https://raw.githubusercontent.com/KofLang/Kof4j/main/scripts/install.sh \
+  | KOF_INSTALL_VERSION=<version> bash
+
+# a specific version via args
+curl -fsSL https://raw.githubusercontent.com/KofLang/Kof4j/main/scripts/install.sh \
+  | bash -s -- --version <version> --yes
 ```
 
 What it does automatically:
 
-1. Detects your platform (`linux-x86_64` / `macos-arm64`).
+1. Detects your platform (`linux-x86_64` / `macos-arm64` / `macos-x86_64`).
 2. Resolves the latest release for your platform (or the `--version` you pin).
 3. Downloads `kof-<version>-<platform>.tar.gz` and `SHA256SUMS`.
 4. Verifies the SHA-256 checksum.
@@ -73,16 +73,17 @@ one for yours:
 |-------------|-------------------|----------------------|
 | **Linux** (Intel/AMD, 64-bit) | `.tar.gz` with `linux-x86_64` | in the release section `(... linux-x86_64)` |
 | **macOS** (Apple Silicon M1/M2/M3…) | `.tar.gz` with `macos-arm64` | in the release section `(... macos-arm64)` |
+| **macOS** (Intel) | `.tar.gz` with `macos-x86_64` | in the release section `(... macos-x86_64)` |
 | **Windows** (Intel/AMD, 64-bit) | `.zip` with `windows-x86_64` | in the release section `(... windows-x86_64)` |
 
 **How to download:**
 
-1. Open <https://github.com/KofLang/Kof4j/releases> (or
-   <https://github.com/KofLang/Kof4j/releases/latest>).
-2. Look at the **Latest** release (the most recent one). It lists 3 packages — one
-   for each platform — with their attached files.
-3. In the section for **your** system, click the `.tar.gz` (Linux/macOS)
-   or `.zip` (Windows) file. It is about 230 MB.
+1. Open <https://github.com/KofLang/Kof4j/releases>.
+2. Kof publishes **one release per platform**, so the "Latest" label points
+   at a single platform (it may not be yours). Find the newest release whose
+   name ends with **your** platform — it carries that platform's package.
+3. Click the `.tar.gz` (Linux/macOS) or `.zip` (Windows) file. It is about
+   230 MB.
 
 > **File name:** the name changes every release
 > (`kof-<version>-<system>.tar.gz`). Download the package file for your
@@ -165,6 +166,26 @@ echo 'export PATH="$HOME/<folder>/kof-*-macos-arm64/bin:$PATH"' >> ~/.zshrc
 > `DECISIONS.md` §D-ARTIFACT-TRUST (enforcement queue landing), never a
 > present-tense claim.
 
+### 🍎 macOS (Intel)
+
+```bash
+# 1) extract
+tar -xzf kof-*-macos-x86_64.tar.gz
+
+# 2) PATH (this terminal)
+DIR=$(ls -d kof-*-macos-x86_64 | head -1)
+export PATH="$PWD/$DIR/bin:$PATH"
+
+# 3) done!
+kof version
+```
+
+For a permanent PATH, add it to `~/.zshrc` (macOS default):
+
+```bash
+echo 'export PATH="$HOME/<folder>/kof-*-macos-x86_64/bin:$PATH"' >> ~/.zshrc
+```
+
 ### 🪟 Windows
 
 Open **PowerShell** in the folder where you downloaded the `.zip`:
@@ -200,7 +221,7 @@ kof version
 Expected output (the number is that of your release):
 
 ```
-kof 0.5.0-beta
+kof <version>
 ```
 
 Full environment report:
@@ -212,7 +233,7 @@ kof info
 Expected output (summary):
 
 ```
-Kof 0.5.0-beta
+Kof <version>
 Release channel: beta
 Tooling API: 21
 OS: linux

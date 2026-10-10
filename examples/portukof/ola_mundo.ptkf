@@ -1,0 +1,4 @@
+// Olá, mundo — PortuKof (superfície pt-BR do Kof)
+principal() {
+    escrevaln("Olá, mundo!")
+}

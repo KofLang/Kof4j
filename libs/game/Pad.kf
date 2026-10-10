@@ -1,0 +1,108 @@
+package game
+
+// kof.game — per-frame gamepad snapshot (slice 3.1 of the graphics/gaming front,
+// `D-GRAPHICS-GAMING` + `D-GRAPHICS-SPIKE` + the stack batch
+// `D-MAINT-BATCH-0510`/G1).
+//
+// The plan §7 freezes gamepad input as a SNAPSHOT per frame: `pad.stick`,
+// `pad.down("a")`, `pad.pressed("a")`. The backend owns the device-event
+// translation (SDL gamepad events, browser Gamepad API) and calls
+// `beginFrame(leftX, leftY, rightX, rightY, buttons)` once per frame with the
+// stick axes and the buttons held during that frame; the program then queries the
+// axes and the three button states. This module is the PURE, backend-independent
+// half: it keeps the current and previous button sets and derives the
+// transitions, so it calls no OS/window API and is honest on every target today.
+// The backend window (`Window`/`frame`) and the real event translation are
+// layered on top in a later slice.
+//
+// Deterministic by construction: given the same sequence of `beginFrame` calls,
+// the axes and `down`/`pressed`/`released` are identical on every target — the
+// property the plan requires for input goldens ("virtual clock, deterministic
+// input").
+//
+//   var pad = Pad()
+//   while (clock.hasNext()) {
+//       clock.beginFrame(now)
+//       pad.beginFrame(backend.leftX(), backend.leftY(), backend.rightX(), backend.rightY(),
+//                      backend.heldButtons())
+//       if (pad.pressed("a")) { jump() }
+//       move(pad.leftX(), pad.leftY())
+//   }
+//
+// Semantics (frozen here, tested): a button is `down` when held this frame;
+// `pressed` on the frame it first appears (down now, not down before); `released`
+// on the frame it disappears (down before, not down now). The first `beginFrame`
+// diffs against an empty set, so a button held on frame 0 reads `pressed` (there
+// was no prior frame to compare against) and `released` is never true on frame 0.
+// The axes are recorded EXACTLY as the backend reports them (raw pass-through):
+// normalizing/clamping a device's range is backend policy, not this snapshot's
+// (plan §7 "exact semantics TBD"), so no value is silently rewritten here.
+// Duplicate buttons are ignored. Pure set arithmetic, no IO.
+
+class Pad {
+    Double leftAxisX
+    Double leftAxisY
+    Double rightAxisX
+    Double rightAxisY
+    Set<String> current
+    Set<String> previous
+
+    constructor() {
+        this.leftAxisX = 0.0
+        this.leftAxisY = 0.0
+        this.rightAxisX = 0.0
+        this.rightAxisY = 0.0
+        this.current = setOf<String>()
+        this.previous = setOf<String>()
+    }
+
+    // Enter a frame with the left/right stick axes and `buttons` held: the previous
+    // button set becomes the baseline and the new one becomes current. Axes are
+    // recorded as given (raw pass-through). Duplicates are ignored.
+    void beginFrame(Double leftX, Double leftY, Double rightX, Double rightY, List<String> buttons) {
+        this.leftAxisX = leftX
+        this.leftAxisY = leftY
+        this.rightAxisX = rightX
+        this.rightAxisY = rightY
+        this.previous = this.current
+        this.current = setOf<String>()
+        for (var button in buttons) {
+            this.current.add(button)
+        }
+    }
+
+    // Left stick X as reported by the backend.
+    Double leftX() {
+        return this.leftAxisX
+    }
+
+    // Left stick Y as reported by the backend.
+    Double leftY() {
+        return this.leftAxisY
+    }
+
+    // Right stick X as reported by the backend.
+    Double rightX() {
+        return this.rightAxisX
+    }
+
+    // Right stick Y as reported by the backend.
+    Double rightY() {
+        return this.rightAxisY
+    }
+
+    // True while `button` is held this frame.
+    Bool down(String button) {
+        return this.current.contains(button)
+    }
+
+    // True on the frame `button` first appears (down now, not down before).
+    Bool pressed(String button) {
+        return this.current.contains(button) && !this.previous.contains(button)
+    }
+
+    // True on the frame `button` disappears (down before, not down now).
+    Bool released(String button) {
+        return !this.current.contains(button) && this.previous.contains(button)
+    }
+}
