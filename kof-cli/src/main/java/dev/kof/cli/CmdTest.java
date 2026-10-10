@@ -149,6 +149,15 @@ final class CmdTest {
             System.exit(1);
             return;
         }
+        // §6 provider manifest (D-MAINT-BATCH-0610B/C + the third chat poll
+        // 10/10): `kof-test.kofmd` at the project root declares the browser
+        // provider + version; the CLI reads it and gates. A browser-tagged run
+        // needs BOTH: a declared provider whose binary probes (run), or the
+        // honest skip with the named reason (Q7, never a false green). A run
+        // with no browser tests is not gated (the manifest is advisory there).
+        // the manifest loader walks up on its own (the locate only looks for
+        // kof.toml); start from the test source (or its dir), not projectRootOf.
+        KofTestManifest testManifest = KofTestManifest.load(dirMode ? src : src.getParent());
         CompilerDriver driver = new CompilerDriver();
         // #708: a raiz de app entra como source path — `import exemplo.Calculo`
         // resolve de src/main/kof sem cópia nem arquivo de entrada gerado.
@@ -159,6 +168,29 @@ final class CmdTest {
         int failed = 0;
         int skipped = 0;   // §576: arquivos sem teste e sem main (módulos auxiliares)
         int skippedByTag = 0;   // §587: arquivos cujo filtro --tag não casa nenhum teste
+        int skippedByProvider = 0;   // §6: arquivos browser tagados sem provider/binário
+        boolean browserTagged = tag != null && java.util.Arrays.stream(tag.split(","))
+                .map(String::trim).anyMatch("browser"::equals);
+        if (browserTagged) {
+            if (!testManifest.declaresProvider()) {
+                System.err.println("test: browser tests require a provider declared in"
+                        + " kof-test.kofmd (add 'provider: playwright' + 'version: <x>')"
+                        + " — 0 of " + files.size() + " files ran");
+                System.exit(1);
+                return;
+            }
+            String probe = providerProbe(testManifest.provider());
+            if (probe == null) {
+                System.err.println("test: provider '" + testManifest.provider()
+                        + "' declared but its binary is not probeable (install it, e.g."
+                        + " 'npx playwright install') — 0 of " + files.size() + " files ran");
+                System.exit(1);
+                return;
+            }
+            System.out.println("browser provider: " + testManifest.provider()
+                    + (testManifest.version() != null ? " " + testManifest.version() : "")
+                    + " (" + probe + ")");
+        }
         // X8 fatia 3 ("named suites by directory"): em modo diretório cada
         // subdiretório é uma suíte nomeada (nome = caminho relativo; "." = raiz);
         // os contadores por suíte são somados ao total no fim.
@@ -447,6 +479,28 @@ final class CmdTest {
             long n = Long.parseLong(v.trim());
             return n > 0 ? n : null;
         } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** §6 provider gate: o binário do provider declarado é probeável? Retorna
+     *  a versão impressa ou null (o gate recusa com motivo nomeado — nunca um
+     *  false green). `npx playwright --version` é a semente; novos providers
+     *  entram aqui por nome declarado (nunca um heurístico). */
+    private static String providerProbe(String provider) {
+        if (!"playwright".equals(provider)) return null;
+        try {
+            ProcessBuilder pb = new ProcessBuilder("npx", "playwright", "--version");
+            pb.environment().computeIfAbsent("PATH",
+                    k -> "/usr/local/bin:/usr/bin:/bin:" + System.getProperty("user.home") + "/.local/node/bin");
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            boolean done = p.waitFor(60, java.util.concurrent.TimeUnit.SECONDS);
+            if (!done || p.exitValue() != 0) { p.destroyForcibly(); return null; }
+            String out = new String(p.getInputStream().readAllBytes(),
+                    java.nio.charset.StandardCharsets.UTF_8).trim();
+            return out.isEmpty() ? null : out;
+        } catch (Exception e) {
             return null;
         }
     }
