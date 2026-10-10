@@ -17,6 +17,15 @@
             <artifactId>kof-compiler</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!-- testing-platform §6 provider (D-MAINT-BATCH-0610B/C, fourth chat
+             poll 10/10): the Playwright JAVA lib as a NORMAL dependency — the
+             maintainer's call supersedes 'does not bundle' for the lib jar;
+             the BROWSERS stay per-project (npx playwright install). -->
+        <dependency>
+            <groupId>com.microsoft.playwright</groupId>
+            <artifactId>playwright</artifactId>
+            <version>1.49.0</version>
+        </dependency>
         <dependency>
             <groupId>dev.kof</groupId>
             <artifactId>kof-script</artifactId>
