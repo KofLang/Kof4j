@@ -1094,6 +1094,26 @@ exact `2026-10-01` vs expected `""`; after the fix `timeStartEndOf{Native,CrossA
 change. Proof (executed): `tests/run-golden.sh` **184/184** (46 cases × 4 targets), exit 0;
 `mvn -o -pl kof-compiler -am compile` rc=0; `check_500` rc=0.
 
+**Phase 6 slice 22 LANDED (10/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **47 total** — pinning the `math` numeric-parse family (`parseInt`/`parseLong`/
+`parseDouble` + the `…OrDefault` fallbacks, S13a/b/c), a pure-Kof namespace surface (parity
+✅ on all four targets) that slice 16 did NOT cover (it stopped at `roundTo`/`sqrt`/`lerp`):
+`math-parse-namespace` exercises the JDK-with-trim contract — `parseInt("42")`=42, the TRIM
+`parseInt(" 42 ")`=42, sign `parseInt("-7")`=-7 / `parseInt("+7")`=7, `parseLong("9000000000")`
+=9000000000 (beyond Int), `parseDouble("3.14")`=3.14 / `parseDouble("1e3")`=1000.0
+(scientific) / `parseDouble("-0.5")`=-0.5 — and the never-throw fallbacks:
+`parseIntOrDefault("bad",-1)`=-1, `("42",-1)`=42, `("",-1)`=-1, `("  ",-1)`=-1, and the
+OVERFLOW `("99999999999999",-1)`=-1 (falls back to the default, no wrap);
+`parseLongOrDefault("bad",-9)`=-9 / `("9000000000",-9)`=9000000000;
+`parseDoubleOrDefault("bad",-2.5)`=-2.5 / `("2.5",-2.5)`=2.5. **Scope note (measured,
+honest):** `math.pi()`/`math.e()`/`math.tau()` and `toRadians`/`toDegrees` are the §621
+family — `toRadians`/`toDegrees` refuse honestly on native (`MATH001`) and `pi()`/`e()` die
+at native link (`COMP001`, no `kof_math_pi` symbol), so they cannot be pinned by a 4-target
+equivalence case; the golden pins only the `parse*` family (4-target clean).
+Test-infrastructure only, no compiler change. Proof (executed): every value measured on the
+Script target first, cross-checked byte-for-byte on jvm/native/js (all four agree), then
+frozen; `tests/run-golden.sh` **188/188** (47 cases × 4 targets), exit 0.
+
 ### Phase 7 — Integration
 
 Deploy:

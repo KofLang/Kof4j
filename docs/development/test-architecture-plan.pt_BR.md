@@ -1097,6 +1097,25 @@ sob qemu) ficam 5/5, 0 pulados. Só asm nativo — nenhuma mudança de semântic
 (executada): `tests/run-golden.sh` **184/184** (46 casos × 4 alvos), exit 0;
 `mvn -o -pl kof-compiler -am compile` rc=0; `check_500` rc=0.
 
+**Fatia 22 da Fase 6 ENTREGUE (10/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais
+um caso — **47 no total** — pinando a família de parse numérico do `math` (`parseInt`/`parseLong`/
+`parseDouble` + os fallbacks `…OrDefault`, S13a/b/c), uma superfície de namespace em Kof puro
+(paridade ✅ nos quatro alvos) que a fatia 16 NÃO cobriu (parou em `roundTo`/`sqrt`/`lerp`):
+`math-parse-namespace` exercita o contrato JDK-com-trim — `parseInt("42")`=42, o TRIM
+`parseInt(" 42 ")`=42, sinal `parseInt("-7")`=-7 / `parseInt("+7")`=7, `parseLong("9000000000")`
+=9000000000 (além do Int), `parseDouble("3.14")`=3.14 / `parseDouble("1e3")`=1000.0 (científico)
+/ `parseDouble("-0.5")`=-0.5 — e os fallbacks que nunca lançam: `parseIntOrDefault("bad",-1)`=-1,
+`("42",-1)`=42, `("",-1)`=-1, `("  ",-1)`=-1, e o OVERFLOW `("99999999999999",-1)`=-1 (cai no
+default, sem wrap); `parseLongOrDefault("bad",-9)`=-9 / `("9000000000",-9)`=9000000000;
+`parseDoubleOrDefault("bad",-2.5)`=-2.5 / `("2.5",-2.5)`=2.5. **Nota de escopo (medida,
+honesta):** `math.pi()`/`math.e()`/`math.tau()` e `toRadians`/`toDegrees` são a família §621 —
+`toRadians`/`toDegrees` recusam honestamente no nativo (`MATH001`) e `pi()`/`e()` morrem no link
+nativo (`COMP001`, sem símbolo `kof_math_pi`), então não podem ser pinados por um caso de
+equivalência de 4 alvos; o golden pina só a família `parse*` (limpa nos 4 alvos). Apenas
+infraestrutura de teste, sem mudança de compilador. Prova (executada): cada valor medido
+primeiro no alvo Script, cruzado byte-a-byte em jvm/nativo/js (os quatro concordam), então
+congelado; `tests/run-golden.sh` **188/188** (47 casos × 4 alvos), exit 0.
+
 ### Fase 7 — Integração
 
 Implantar:
