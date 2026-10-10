@@ -17720,23 +17720,23 @@ EAD
 
 <!-- pt-switch --> **PT:** [§639 (pt_BR)](known-bugs.pt_BR.md#639--o-check_lab_stabilitysh-gate-agregado-do-d-lab-stabilityd-release-cadence-rejeitava-o-proprio-log-carimbado-do-safe-suitesh-que-o-repo-produz-seu-parser-so-entendia-o-formato-de-resumo-maven-entao-o-gate-do-protocolo-de-release-nunca-conseguia-consumir-o-runner-que-ele-mesmo-entrega--e-simetricamente-aceitava-um-log-maven-sem-carimbo-sem-proveniencia-de-shadirty---fixed-0910-lane-issuestooling-19216815309093-frente-release-protocolbugs-and-gaps)
 
-## §640 — the ANDROID `KofRuntime` emitted for a `kof.gpu` program now REFERENCES `java/lang/foreign` (FFM) — `GpuAndroidE2ETest.androidGpuRuntimeIsFfmFreeWhileJvmUsesFfm` fails DETERMINISTICALLY (3/1F full suite + isolated), ART has no `java.lang.foreign` so the shipped android module cannot load on device — ✅ OPEN, owner-less (discovered by WASI lane `192.168.15.101:9092` post-rebase suite 09/10; NOT attributable to the WASI work — fails identically with the C2 changes stashed, measured; suspect the §278 gpu face `f946a3138`)
+## §640 — the ANDROID `KofRuntime` emitted for a `kof.gpu` program now REFERENCES `java/lang/foreign` (FFM) — `GpuAndroidE2ETest.androidGpuRuntimeIsFfmFreeWhileJvmUsesFfm` fails DETERMINISTICALLY (3/1F full suite + isolated), ART has no `java.lang.foreign` so the shipped android module cannot load on device — 🟡 OPEN, owner-less (discovered by WASI lane `192.168.15.101:9092` post-rebase suite 09/10; NOT attributable to the WASI work — fails identically with the C2 changes stashed, measured; suspect the §278 gpu face `f946a3138`)
 
 **Symptom (measured 09/10, lab tip 9caa009ca + HEAD, full suite AND isolated):** `GpuAndroidE2ETest` 3/1F — `androidGpuRuntimeIsFfmFreeWhileJvmUsesFfm`: the ANDROID output's `dev/kof/runtime/KofRuntime.class` CONTAINS `java/lang/foreign` (the FFM-free invariant the §278 face pins; ART has no `java.lang.foreign`, the module cannot load on device).
 
 **Attribution (measured):** PRE-EXISTING on the tip — the WASI C2/§642 changes stashed, the test fails identically. Suspect: the §278 android-gpu face (`f946a3138`) emitting the JVM FFM gpu runtime path into the ANDROID `KofRuntime` instead of the `kof_vk_available` stub path.
 
-**State:** ✅ OPEN, owner-less — the graphics/android lane claims it in DOING (`<ipv4>:<port>`); the WASI battery stays 30/30 and is NOT blocked by it.
+**State:** 🟡 OPEN, owner-less — the graphics/android lane claims it in DOING (`<ipv4>:<port>`); the WASI battery stays 30/30 and is NOT blocked by it.
 
 <!-- pt-switch --> **PT:** [§640 (pt_BR)](known-bugs.pt_BR.md#640--o-kofruntime-android-emitido-para-um-programa-kofgpu-agora-referencia-javalangforeign-ffm--gpuandroide2etestandroidgpuruntimeisffmfreewhilejvmusesffm-falha-deterministicamente-31f-suite-inteira--isolado-a-art-nao-tem-javalangforeign-entao-o-modulo-android-pousado-nao-carrega-no-dispositivo---aberta-sem-dona-descoberta-pela-suite-pos-rebase-da-lane-wasi-192168151019092-0910-nao-atribuiuvel-ao-trabalho-wasi--falha-identica-com-as-mudancas-c2-stashadas-medido-suspeita-a-face-gpu-do-278-f946a3138)
 
-## §641 — `KofSecurityTest.passwordsNative` — native x86-64 PBKDF2 `hash/verify/needsRehash` returns `false/false/false` where the contract requires `true/false/false` — deterministic in isolation (42/1F), fails on the tip WITHOUT any WASI change (stash-proven, measured 09/10) — ✅ OPEN, owner-less (native/security surface; suspect the recent native-runtime batches in the 35-commit rebase)
+## §641 — `KofSecurityTest.passwordsNative` — native x86-64 PBKDF2 `hash/verify/needsRehash` returns `false/false/false` where the contract requires `true/false/false` — deterministic in isolation (42/1F), fails on the tip WITHOUT any WASI change (stash-proven, measured 09/10) — 🟡 OPEN, owner-less (native/security surface; suspect the recent native-runtime batches in the 35-commit rebase)
 
 **Symptom (measured 09/10, lab tip, full suite AND isolated):** `KofSecurityTest` 42/1F — `passwordsNative` (x86-64): the native PBKDF2 triple `hash/verify/needsRehash` answers `false/false/false`; the contract requires `true/false/false` (hash succeeds, verify ok, needsRehash false). The module builds/links (5.0s elapsed) and RUNS — the FUNCTION result is wrong, not a toolchain absence (contrast the documented `as`/`ld` environmental skips).
 
 **Attribution (measured):** PRE-EXISTING on the tip — fails identically with the WASI C2/§642 changes stashed. Suspect the native runtime batches inside the last 35-commit rebase (no `KofSecurityTest` change in it; the failure face is the compiled `passwords.kf` binary behavior).
 
-**State:** ✅ OPEN, owner-less — the native/security lane claims it in DOING (`<ipv4>:<port>`); not attributable to, and not blocking, the WASI tier.
+**State:** 🟡 OPEN, owner-less — the native/security lane claims it in DOING (`<ipv4>:<port>`); not attributable to, and not blocking, the WASI tier.
 
 <!-- pt-switch --> **PT:** [§641 (pt_BR)](known-bugs.pt_BR.md#641--kofsecuritytestpasswordsnative--o-pbkdf2-x86-64-nativo-hashverifyneedsrehash-devolve-falsefalsefalse-onde-o-contrato-exige-truefalsefalse--deterministico-isolada-421f-falha-no-tip-sem-nenhuma-mudanca-wasi-prova-por-stash-medido-0910---aberta-sem-dona-face-nativaseguranca-suspeita-os-lotes-recentes-do-runtime-nativo-no-rebase-de-35-commits)
 
