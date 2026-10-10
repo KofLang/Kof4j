@@ -97,9 +97,16 @@
                              sem isto um host com JDK 21 no PATH carrega
                              KofRuntime class-file 69 com JVM 65
                              (UnsupportedClassVersionError em massa). O `bin`
-                             do JDK QUE COMPILA vai primeiro. -->
+                             do JDK QUE COMPILA vai primeiro.
+
+                             Separadores via propriedades do Maven: ":" e "/"
+                             literais só valem no Unix. No Windows o fork
+                             recebia `...\jdk-25/bin:C:\...;...` — o primeiro
+                             item virava um diretório inválido, o bin do JDK
+                             NÃO ia na frente (D-BASELINE anulado) e a primeira
+                             entrada de PATH do chamador desaparecia (#787). -->
                         <environmentVariables>
-                            <PATH>${java.home}/bin:${env.PATH}</PATH>
+                            <PATH>${java.home}${file.separator}bin${path.separator}${env.PATH}</PATH>
                         </environmentVariables>
                     </configuration>
                 </plugin>
