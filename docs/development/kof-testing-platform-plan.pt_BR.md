@@ -821,11 +821,18 @@ Ainda abertas (regra 6):
 * **D-TESTING-PLATFORM** — abrir a frente e seu escopo ordenado.
 * A **sintaxe exata da API de testes** (assertions, lifecycle, parametrização, locators) — aditiva
   ao `test`/`assert` existente; sem sintaxe estrangeira.
-* **Política de providers**: Playwright/Cypress são dependências externas pesadas — como são
-  declaradas, versionadas e barradas (interop-first, R9). **A metade "vêm com a CLI ou são
-  opt-in" está resolvida** pelo `D-MAINT-BATCH-0610B`/C (opt-in por projeto, a CLI não empacota);
-  o mecanismo de declaração/versionamento/gate segue aberto e barra a fatia do provider do §6.
-* Promoção: `future/` → `docs/development/` quando a primeira fatia landar (três estados + R12).
+* **Política de providers**: **RESOLVIDA 10/10 pelo terceiro chat poll (refinando
+  `D-MAINT-BATCH-0610B`/C):** a declaração vive num **arquivo de manifesto do projeto**
+  (`kof-test.kofmd` — o formato próprio do repo, zero parser externo) declarando o provider de
+  browser + sua versão; a CLI lê e gateia. A fatia do provider do §6 está DESBLOQUEADA. **A lib
+  JAVA do Playwright entra como dependência NORMAL do kof-cli (o quarto chat poll, 10/10 — a
+  decisão da mantenedora supera a metade 'não empacota' para o jar da lib; os browsers ficam por
+  projeto via `npx playwright install`).**
+* **Todos os outros itens RESOLVIDOS por execução (10/10, dona lane security/connectors):**
+  `D-TESTING-PLATFORM` abriu a frente (o plano pousou as fatias 1-6 + o harness §5 + o stack §6);
+  a sintaxe da API de testes está FIXADA pelas fatias pousadas (aditiva, sem sintaxe estrangeira —
+  os quatro chat polls confirmaram); a promoção para `docs/development/` aconteceu 30/09 (a regra
+  da primeira fatia). **Nenhuma decisão aberta resta — o plano avança pela ordem §11 confirmada.**
 
 ---
 

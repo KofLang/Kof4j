@@ -825,15 +825,18 @@ parallel; neither blocks the other, and both share §13.
 
 Still open (rule 6):
 
-* **D-TESTING-PLATFORM** — opening the front and its ordered scope.
-* The exact **test API syntax** (assertions, lifecycle, parameterization, locators) — additive
-  to the existing `test`/`assert`; no foreign syntax.
 * **Provider policy**: **RESOLVED 10/10 by the third chat poll (refining `D-MAINT-BATCH-0610B`/C):**
   the declaration lives in a **project manifest file** (`kof-test.kofmd` — the repo's own
   compressed-doc format, zero external parser dependency) declaring the browser provider + its
   version; the CLI reads it and gates (explicit and versioned, no command flags). The §6 provider
-  slice is UNLOCKED.
-* Promotion: `future/` → `docs/development/` when the first slice lands (three-states + R12).
+  slice is UNLOCKED. **The Playwright JAVA lib lands as a NORMAL kof-cli dependency (the fourth
+  chat poll, 10/10 — the maintainer's call supersedes the 'does not bundle' half for the lib jar;
+  browsers stay per-project via `npx playwright install`).**
+* **All other items RESOLVED by execution (10/10, owner lane security/connectors):**
+  `D-TESTING-PLATFORM` opened the front (the plan landed slices 1-6 + §5 harness + the §6 stack);
+  the test API syntax is FIXED by the landed slices (additive, no foreign syntax — the four chat
+  polls confirmed it); promotion to `docs/development/` happened 30/09 (the first-slice rule).
+  **No open decisions remain — the plan advances by the confirmed §11 order.**
 
 ---
 
