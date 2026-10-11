@@ -266,7 +266,11 @@ kof_string_to_float:
            .Lpdd_build:
                 cmpq $320, %r9
                 jae .Lpdd_hugeexp
-                vcvtsi2sd %r13, %xmm0, %xmm0
+                # SSE2 baseline (#795): a forma VEX `vcvtsi2sd` levantava #UD
+                # (SIGILL, exit 132) em CPU x86-64 pre-AVX. A legada preserva o
+                # upper do %xmm0 exatamente como o src1=self do VEX, e so o
+                # double (63:0) e consumido adiante.
+                cvtsi2sd %r13, %xmm0
                 testl %r11d, %r11d
                 jz .Lpdd_expapply
                 divsd .Lpdd_p10(,%r11,8), %xmm0
