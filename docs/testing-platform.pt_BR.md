@@ -585,6 +585,24 @@ Rodar a mesma suíte em Chromium/Firefox/WebKit quando o backend suportar; nunca
 browsers em todo PR por padrão. Perfis: `Fast Browser` e `Full Browser Matrix`. Suportar
 desktop/tablet/mobile via viewport, emulação de dispositivo, toque e orientação quando suportado.
 
+**NÚCLEO DA FASE 7 POUSADO 11/10 (lane `192.168.100.14:0`, flatt CLI — a fila assumida da
+security/connectors):** o `PlaywrightLibProvider` é parametrizado por kind — `KINDS =
+chromium/firefox/webkit`, os faces sem kind seguem chromium (aditivo, zero mudança de
+comportamento); o `probe(kind)` por kind é o `executablePath` pinado pelo DRIVER (a única fonte
+honesta: o cache do usuário pode ter builds que o driver não pina) e o caminho de launch é
+`withPage(kind, …)`/`content(kind, …)`/`screenshot(kind, …)`. Os MESMOS faces de
+content+screenshot rodam por engine com gate honesto por kind: **E2E real de renderização no
+Firefox verde** (`contentRendersOnFirefox`, 3.9s) + Chromium verde (`navigates…` + magic PNG);
+**WebKit está bloqueado no launch neste host** (o openSUSE Tumbleweed não tem os sonames que o
+build fallback ubuntu24.04 pina; o `install-deps` exige sudo que a lane não tem) → o skip
+explícito e nomeado (`contentRendersOnWebkit` + o loop de screenshot), a convenção de skip
+ambiental — nunca falso verde, nunca skip escondido. Fronteiras medidas da ordem do §11 neste
+host: fase 5 (Cypress) INVIÁVEL (sem node/npm — Cypress é ferramenta npm; a fatia segue ABERTA);
+a face KofJS da fase 6 já provada pela semente `KofJsBrowserE2ETest` (22 faces), a face KofWasm
+segue barrada pelo #776 (frente da lane WASI); os perfis (`Fast Browser`/`Full Browser Matrix`)
+seguem sendo a face do §11 depois da matriz de engines. Prova (executada): `PlaywrightLibProviderTest`
++ `BrowserProviderTest` **11 executados / 0F / 0E / 2 skips nomeados** (o par webkit de deps do host).
+
 ## 6.12 WebSocket / SSE
 
 Testar `connect`, `message`, `disconnect`, `reconnect`, `error` — para aplicações Kof realtime

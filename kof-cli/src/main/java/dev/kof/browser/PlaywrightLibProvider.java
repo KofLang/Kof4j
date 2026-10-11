@@ -23,6 +23,13 @@ import java.nio.file.Path;
  */
 public final class PlaywrightLibProvider implements BrowserProvider {
 
+    /** §6.11 cross-browser (a fatia da ordem §11 confirmada, fase 7): os
+     *  três engines que o backend Playwright suporta. O kind é a escolha
+     *  EXPLÍCITA do suíte (`kof test` nunca roda a matriz inteira por
+     *  padrão — o plano §6.11); o default dos faces sem kind é chromium. */
+    public static final java.util.List<String> KINDS =
+            java.util.List.of("chromium", "firefox", "webkit");
+
     @Override
     public String name() {
         return "playwright";
@@ -33,6 +40,19 @@ public final class PlaywrightLibProvider implements BrowserProvider {
         // the lib itself is on the classpath; the gate is the managed browser
         Path chromium = findPlaywrightChromium();
         return chromium == null ? null : "playwright-managed " + chromium;
+    }
+
+    /** §6.11: probe honesto POR kind — o caminho que o driver do Playwright
+     *  VAI usar (a única fonte verdadeira: o cache pode ter builds que o
+     *  driver não pina). null = o binário pinado não existe (o gate pula
+     *  com o motivo nomeado, Q7 — nunca falso verde). */
+    public String probe(String kind) {
+        try (Playwright pw = Playwright.create()) {
+            Path exe = driverExecutablePath(pw, kind);
+            return Files.isExecutable(exe) ? "playwright-managed " + exe : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     static Path findPlaywrightChromium() {
@@ -54,10 +74,37 @@ public final class PlaywrightLibProvider implements BrowserProvider {
         return best;
     }
 
+    static void requireSupported(String kind) {
+        if (!KINDS.contains(kind)) {
+            throw new IllegalArgumentException(
+                    "unknown browser kind '" + kind + "' (supported: chromium, firefox, webkit)");
+        }
+    }
+
+    static Path driverExecutablePath(Playwright pw, String kind) {
+        return Path.of(browserType(pw, kind).executablePath());
+    }
+
+    static BrowserType browserType(Playwright pw, String kind) {
+        requireSupported(kind);
+        return switch (kind) {
+            case "chromium" -> pw.chromium();
+            case "firefox" -> pw.firefox();
+            case "webkit" -> pw.webkit();
+            default -> throw new IllegalStateException("unreachable");
+        };
+    }
+
     /** Um run completo sobre um único launch: a lambda recebe a Page viva. */
     public <T> T withPage(String url, java.util.function.Function<Page, T> body) {
+        return withPage("chromium", url, body);
+    }
+
+    /** §6.11: o mesmo run sobre o engine escolhido (chromium/firefox/webkit). */
+    public <T> T withPage(String kind, String url, java.util.function.Function<Page, T> body) {
+        requireSupported(kind);
         try (Playwright pw = Playwright.create()) {
-            Browser browser = pw.chromium().launch(
+            Browser browser = browserType(pw, kind).launch(
                     new BrowserType.LaunchOptions().setHeadless(true));
             Page page = browser.newPage();
             try {
@@ -71,7 +118,12 @@ public final class PlaywrightLibProvider implements BrowserProvider {
 
     /** §6.1: o DOM (o content) — o análogo rico do dumpDom do seed. */
     public String content(String url) {
-        return withPage(url, Page::content);
+        return content("chromium", url);
+    }
+
+    /** §6.11: o content sobre o engine escolhido. */
+    public String content(String kind, String url) {
+        return withPage(kind, url, Page::content);
     }
 
     @Override
@@ -81,7 +133,12 @@ public final class PlaywrightLibProvider implements BrowserProvider {
 
     @Override
     public void screenshot(String url, String path) throws Exception {
-        withPage(url, page -> {
+        screenshot("chromium", url, path);
+    }
+
+    /** §6.11: o screenshot sobre o engine escolhido. */
+    public void screenshot(String kind, String url, String path) throws Exception {
+        withPage(kind, url, page -> {
             page.screenshot(new Page.ScreenshotOptions().setPath(Path.of(path)));
             return null;
         });
