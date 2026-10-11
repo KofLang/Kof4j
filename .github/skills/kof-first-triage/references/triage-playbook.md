@@ -3,7 +3,7 @@
 # KOF-first Gate — triage of NOT-VALID, contract-conflicting and out-of-scope issues/PRs
 
 **Repository:** `KofLang/Kof4j`
-**Reference branch:** `beta-0.4.0`
+**Reference branch:** `lab` (`D-BRANCH-PIPELINE`: `lab` → `testing` → `prerelease` → `stable` → `release/x.y.z`; `beta-*` is frozen and no longer exists on the remote)
 **Purpose:** review issues and pull requests that treat foreign syntax or semantics as a bug, contradict an already documented KOF contract, or try to introduce a language extension under the label of a fix.
 
 > This document is an **analysis and action playbook**. It does not authorise automatic closure from any list below. Before commenting, closing an issue or closing a PR, the agent must re-read the current state of the branch, the issue, the PR, the most recent comments and the applicable contract.

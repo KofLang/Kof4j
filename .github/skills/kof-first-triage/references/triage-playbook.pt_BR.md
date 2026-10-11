@@ -3,7 +3,7 @@
 # Portão KOF-first — triagem de issues/PRs NOT-VALID, contrárias ao contrato e fora de escopo
 
 **Repositório:** `KofLang/Kof4j`
-**Branch de referência:** `beta-0.4.0`
+**Branch de referência:** `lab` (`D-BRANCH-PIPELINE`: `lab` → `testing` → `prerelease` → `stable` → `release/x.y.z`; `beta-*` está congelada e não existe mais no remoto)
 **Objetivo:** revisar issues e pull requests que tratam sintaxe ou semântica estrangeira como bug, contradizem contrato KOF já documentado ou tentam introduzir extensão de linguagem sob o rótulo de correção.
 
 > Este documento é um **playbook de análise e ação**. Ele não autoriza fechamento automático por nenhuma lista abaixo. Antes de comentar, fechar issue ou fechar PR, o agente deve reler o estado atual da branch, a issue, a PR, os comentários mais recentes e o contrato aplicável.

@@ -21,7 +21,7 @@ MAJOR.MINOR.PATCH[-suffix]
 
 ## Estágio atual
 
-- O Kof está em `0.5.0-beta` (branch `beta-0.5.0`, set 2026).
+- O Kof está em `0.5.0-beta` (branch ativa de desenvolvimento `lab`, conforme `D-BRANCH-PIPELINE`; set 2026).
 - Evolução: `0.0.5-alpha` → `0.1.0` → `0.2.6-beta` → Beta → Release Candidate → Stable.
 - A versão de componente (compiler/runtime/stdlib) é `0.2.0`; o sufixo
   `-beta` pertence ao release.

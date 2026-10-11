@@ -49,7 +49,8 @@ um problema de segurança).
   (cripto/auth) têm prioridade máxima — a regra do repo é **cripto nunca
   caseira, default seguro, falha com diagnóstico** (`SECN00x`), e o fix segue
   o mesmo padrão.
-- Correção na branch ativa (`beta-*`) com **teste de regressão no mesmo
+- Correção na branch ativa (`lab`, conforme `D-BRANCH-PIPELINE`) com **teste de
+  regressão no mesmo
   commit** (portão de qualidade do repo), advisory publicado em
   [Security advisories](https://github.com/KofLang/Kof4j/security/advisories)
   após o patch, com crédito ao reporter (salvo pedido de anonimato).

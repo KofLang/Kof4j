@@ -49,7 +49,8 @@ a security problem).
   (crypto/auth) have top priority — the repo rule is **crypto never
   homemade, secure default, failure with diagnostic** (`SECN00x`), and the fix
   follows the same pattern.
-- Fix on the active branch (`beta-*`) with a **regression test in the same
+- Fix on the active branch (`lab`, per `D-BRANCH-PIPELINE`) with a
+  **regression test in the same
   commit** (repo quality gate), advisory published in
   [Security advisories](https://github.com/KofLang/Kof4j/security/advisories)
   after the patch, with credit to the reporter (unless anonymity is requested).

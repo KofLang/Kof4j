@@ -21,7 +21,7 @@ MAJOR.MINOR.PATCH[-suffix]
 
 ## Current stage
 
-- Kof is at `0.5.0-beta` (branch `beta-0.5.0`, Sep 2026).
+- Kof is at `0.5.0-beta` (active development branch `lab`, per `D-BRANCH-PIPELINE`; Sep 2026).
 - Evolution: `0.0.5-alpha` → `0.1.0` → `0.2.6-beta` → Beta → Release Candidate → Stable.
 - The component version (compiler/runtime/stdlib) is `0.2.0`; the `-beta`
   suffix belongs to the release.
