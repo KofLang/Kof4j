@@ -1,0 +1,15 @@
+[UP]
+true
+true
+1
+4
+5
+[# TYPE hits counter
+hits 5
+# TYPE temp gauge
+temp 42
+# TYPE latency_count counter
+latency_count 2
+# TYPE latency_sum gauge
+latency_sum 20
+]

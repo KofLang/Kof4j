@@ -1186,6 +1186,25 @@ então congelado; `tests/run-golden.sh` **204/204** (51 casos × 4 alvos), exit 
 `mvn -o -pl kof-compiler -am compile` rc=0; gates `check_test_hygiene`/
 `check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang` rc=0.
 
+**Fase 6 fatia 27 LANDED (11/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais
+um caso — **52 total** — pinando o núcleo determinístico de `kof.observability`, um
+namespace que não era pinado por NENHUM caso de equivalência até agora. O novo caso
+`tests/golden/observability-namespace` pina `health()`→`UP`, `readiness()`→true,
+`liveness()`→true, o store de métricas `counter("hits")`→1 e depois (após
+`increment("hits",3)`)→5, `gauge("temp",42)` + `histogram("latency",7)`/`histogram("latency",
+13)`, e o render Prometheus `metrics()` (as linhas `# TYPE … counter`/`gauge` com `hits 5`,
+`temp 42`, `latency_count 2`, `latency_sum 20`). Os quatro alvos concordam byte-a-byte.
+**Nota de escopo (medida, honesta):** duas faces ficam deliberadamente EXCLUÍDAS porque não
+podem ser pino de 4 alvos — (a) `exportSpans` é gap nativo documentado (`OBS003`: a
+serialização OTLP/JSON de spans existe só no JVM/JS, recusa limpa no nativo, nunca stub), e
+(b) `spanStart`/`spanEnd` mais os geradores de id `requestId`/`correlationId`/`traceId`/
+`spanId` são NÃO-determinísticos (valor aleatório novo por execução, e `spanEnd` precisa do
+handle do `spanStart`). Apenas infraestrutura de teste, sem mudança de compilador. Prova
+(executada): cada valor medido primeiro no alvo Script, cruzado byte-a-byte em
+jvm/nativo/js (os quatro concordam), então congelado; `tests/run-golden.sh` **208/208**
+(52 casos × 4 alvos), exit 0; `mvn -o -pl kof-compiler -am compile` rc=0; gates
+`check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang` rc=0.
+
 ### Fase 7 — Integração
 
 Implantar:

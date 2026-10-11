@@ -1,0 +1,12 @@
+main() {
+    println("[" + observability.health() + "]")
+    println(observability.readiness())
+    println(observability.liveness())
+    println(observability.counter("hits"))
+    println(observability.increment("hits", 3))
+    println(observability.counter("hits"))
+    observability.gauge("temp", 42)
+    observability.histogram("latency", 7)
+    observability.histogram("latency", 13)
+    println("[" + observability.metrics() + "]")
+}
