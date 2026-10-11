@@ -377,9 +377,10 @@ class FfiNativeE2ETest {
     }
 
     @Test
-    void callbackArgStaysFfi001Native(@TempDir Path dir) throws IOException {
-        // Upcall nativo (C chamando de volta o Kof) não existe no backend —
-        // onde a JVM binda (3.4-C2), o Native mantém o gap honesto.
+    void integerCallbackBindsOnNative(@TempDir Path dir) throws IOException {
+        // M1 callbacks on Native (x86-64): um callback INTEIRO agora BINDA (o
+        // trampolim de upcall é gerado; E2E real em FfiNativeCallbackE2ETest).
+        // A face que permanece gap honesto é o callback Float/Double/String.
         Path src = dir.resolve("ffi-cb.kf");
         Files.writeString(src, """
                 extern "libc.so.6" qsort_cb(Int n, (Int, Int) -> Int cb): Int
@@ -389,10 +390,9 @@ class FfiNativeE2ETest {
                 }
                 """);
         CompilationResult r = driver.compile(src, dir.resolve("out"), Target.NATIVE);
-        assertFalse(r.success(), "callback arg must not bind on Native");
-        assertTrue(r.diagnostics().getDiagnostics().toString().contains("FFI001"),
-                "expected FFI001 on Native callback: " + r.diagnostics().getDiagnostics());
-        // ...e a JVM binda a mesma forma (a divergência é por target, não um bug)
+        assertTrue(r.success(), "callback INTEIRO binda no Native x86-64 (M1): "
+                + r.diagnostics().getDiagnostics());
+        // A JVM binda a mesma forma (3.4-C2) — paridade, não mais divergência.
         Path jvmSrc = dir.resolve("ffi-cb-jvm.kf");
         Files.writeString(jvmSrc, """
                 extern "libc.so.6" qsort_cb(Int n, (Int, Int) -> Int cb): Int
@@ -402,8 +402,26 @@ class FfiNativeE2ETest {
                 }
                 """);
         CompilationResult rj = driver.compile(jvmSrc, dir.resolve("out-jvm"), Target.JVM);
-        assertTrue(rj.success(), "JVM binds callbacks (3.4-C2) — pin da divergência: "
+        assertTrue(rj.success(), "JVM binds callbacks (3.4-C2): "
                 + rj.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void floatCallbackStaysFfi001Native(@TempDir Path dir) throws IOException {
+        // M1 first slice is INTEGER-only: a Float/Double callback face stays an
+        // honest FFI001 on Native (a later slice).
+        Path src = dir.resolve("ffi-cbf.kf");
+        Files.writeString(src, """
+                extern "libc.so.6" cb_f(Int n, (Double, Double) -> Double cb): Double
+
+                main() {
+                    println("hi")
+                }
+                """);
+        CompilationResult r = driver.compile(src, dir.resolve("out"), Target.NATIVE);
+        assertFalse(r.success(), "callback Float/Double não binda ainda no Native (M1 slice 1)");
+        assertTrue(r.diagnostics().getDiagnostics().toString().contains("FFI001"),
+                "expected FFI001 on Native float callback: " + r.diagnostics().getDiagnostics());
     }
 
     @Test

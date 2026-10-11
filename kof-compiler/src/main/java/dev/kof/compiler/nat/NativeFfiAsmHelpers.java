@@ -154,4 +154,43 @@ final class NativeFfiAsmHelpers {
                     ret
                 """);
     }
+
+    /**
+     * M1 callbacks on Native (x86-64, INTEGER-only): o trampolim de upcall de um
+     * descritor {@code desc = <ret><arg0>…}. O C chama este símbolo com os args
+     * SysV (inteiros em rdi/rsi/…; retorno em rax). O trampolim remonta a chamada
+     * para a convenção do `invoke` Kof — {@code rdi}=objeto lambda (closure
+     * guardada), args deslocados um registrador inteiro acima — e chama
+     * {@code vtable[0]} via {@code call *%r11}. A ABI nativa é soft-float-safe,
+     * então este primeiro corte cobre só inteiros.
+     *
+     * <p>Síncrono/não-escapante: a closure vive num global (um callback ativo por
+     * vez) — o mesmo confinamento da call-arena da JVM (R7).
+     */
+    static void emitX86CallbackTrampoline(StringBuilder sb, String desc) {
+        int arity = desc.length() - 1;
+        String[] intRegs = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
+        sb.append("kof_cb_tramp_").append(desc).append(":\n");
+        // args do C (rdi..) → um registrador acima (rsi..), do último p/ o 1º
+        // (destino i+1 nunca coincide com a fonte de um arg anterior).
+        for (int i = arity - 1; i >= 0; i--) {
+            if (i + 1 < 6) {
+                sb.append("    movq ").append(intRegs[i]).append(", ").append(intRegs[i + 1]).append("\n");
+            } else {
+                sb.append("    movq ").append(intRegs[i]).append(", %rax\n");
+                sb.append("    pushq %rax\n");   // args > 5 vão à pilha do invoke
+            }
+        }
+        sb.append("    movq kof_cb_closure_").append(desc).append("(%rip), %rdi\n");
+        sb.append("    movq 8(%rdi), %r11\n");   // vtable @ offset 8
+        sb.append("    movq (%r11), %r11\n");    // vtable[0] = invoke
+        sb.append("    call *%r11\n");
+        if (arity > 5) sb.append("    addq $").append((arity - 5) * 8).append(", %rsp\n");
+        // retorno Kof em rax = retorno C (inteiros); void: nada a mover.
+        sb.append("    ret\n");
+        sb.append(".section .bss\n");
+        sb.append("kof_cb_closure_").append(desc).append(":\n");
+        sb.append(".quad 0\n");
+        sb.append(".section .text\n");
+    }
 }

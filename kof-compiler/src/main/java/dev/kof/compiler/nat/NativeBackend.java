@@ -133,6 +133,9 @@ public class NativeBackend implements Backend {
     boolean ffiUsesArray = false;
     /** D-MEM-FFI-CROSS-FULL face 2: `String[]`→`char**` (pede `kof_ffi_pack_str_array`). */
     boolean ffiUsesStrArray = false;
+    /** M1 callbacks on Native (x86-64): descritores ABI dos callbacks emitidos
+     *  (cada um pede o seu trampolim + o global da closure). */
+    final Set<String> ffiCbDescs = new LinkedHashSet<>();
     final Map<String, String> functionMangleMap = new HashMap<>();
     private final Map<String, ClassLayout> layoutCache = new HashMap<>();
     Map<String, IRClass> allClassesMap = new HashMap<>();

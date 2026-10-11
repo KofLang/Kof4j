@@ -280,6 +280,19 @@ public final class FfiSignature {
         return t != null && t.startsWith("(") && t.contains(" -> ");
     }
 
+    /** M1 callbacks on Native x86-64 — first slice: INTEGER-only (Int/Long/
+     *  Boolean params; Int/Long/Boolean/void return). Returns {@code desc} when
+     *  every char is in {i,j,b,v}, else null (float/double/String → honest
+     *  FFI001, a later slice). */
+    public static String intOnlyCallback(String desc) {
+        if (desc == null) return null;
+        for (int i = 0; i < desc.length(); i++) {
+            char c = desc.charAt(i);
+            if (c != 'i' && c != 'j' && c != 'b' && c != 'v') return null;
+        }
+        return desc;
+    }
+
     /** Descritor de callback ("r" + chars dos params) ou null se não for bindável. */
     static String callbackDescriptor(String t) {
         if (!isFunctionType(t)) return null;

@@ -63,6 +63,35 @@ public final class FfiStructLayout {
                 && PKG.equals(ct.packageName()) && "bufferptr".equals(ct.name());
     }
 
+    /** M1 callbacks on Native (x86-64, INTEGER-only first slice): a
+     *  function-typed {@code extern} parameter crosses as a C function POINTER
+     *  to a generated trampoline that runs the Kof lambda (vtable[0] = invoke).
+     *  The marker carries the callback ABI descriptor in its name
+     *  ({@code cbptr_<desc>}). */
+    public static Type cbPtrType(String descriptor) {
+        return new Type.ClassType(PKG, "cbptr_" + descriptor, List.of());
+    }
+
+    public static boolean isCbPtr(Type t) {
+        return t instanceof Type.ClassType ct
+                && PKG.equals(ct.packageName()) && ct.name() != null && ct.name().startsWith("cbptr_");
+    }
+
+    /** Callback ABI descriptor carried by a cb-ptr marker, or null. */
+    public static String cbPtrDesc(Type t) {
+        if (!isCbPtr(t)) return null;
+        return ((Type.ClassType) t).name().substring("cbptr_".length());
+    }
+
+    /** M1 callbacks on Native x86-64: o marker cb-ptr para um parâmetro `extern`
+     *  de tipo-função INTEGER-only (dado o tipo textual do parâmetro), ou
+     *  {@code null} (param não-callback / face Float/Double/String → mantém o
+     *  comportamento anterior). */
+    public static Type cbMarkerOrNull(String paramType) {
+        String desc = FfiSignature.intOnlyCallback(FfiSignature.callbackDescriptor(paramType));
+        return desc != null ? cbPtrType(desc) : null;
+    }
+
     /** Element char of an array-ptr marker, or null when {@code t} is not one. */
     public static Character arrayPtrElem(Type t) {
         if (!isArrayPtr(t)) return null;
@@ -351,6 +380,11 @@ public final class FfiStructLayout {
             if (isBufferPtr(t)) {
                 // D6-3/A2: Buffer(U8)→ptr é um ponteiro INTEGER (como um escalar,
                 // pode derramar para a pilha quando passam de 6 ordinais).
+                nInt++;
+                continue;
+            }
+            if (isCbPtr(t)) {
+                // M1 callbacks (x86-64): ponteiro de função C = um INTEGER.
                 nInt++;
                 continue;
             }

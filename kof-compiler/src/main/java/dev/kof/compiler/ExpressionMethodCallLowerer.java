@@ -101,7 +101,8 @@ if (mc.receiver() == null && driver.externSignatures.containsKey(mc.methodName()
                             // backend x86-64 passa o payload (obj+24) direto.
                             ffiParams.add(FfiStructLayout.bufferPtrType());
                         } else {
-                            ffiParams.add(null);
+                            // M1 callbacks on Native x86-64: cb-ptr marker (ou null).
+                            ffiParams.add(FfiStructLayout.cbMarkerOrNull(p.type()));
                         }
                     }
                 }

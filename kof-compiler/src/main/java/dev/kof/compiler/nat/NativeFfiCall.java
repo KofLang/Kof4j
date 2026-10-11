@@ -86,6 +86,10 @@ final class NativeFfiCall {
         if (returnsCstr(kc)) nb.ffiUsesCstr = true;
         if (usesArrayParam(kc)) nb.ffiUsesArray = true;
         if (usesStrArrayParam(kc)) nb.ffiUsesStrArray = true;
+        for (Type t : kc.parameterTypes()) {
+            String d = FfiStructLayout.cbPtrDesc(t);
+            if (d != null) nb.ffiCbDescs.add(d);
+        }
     }
 
     /** Emite os helpers de runtime dos extern x86-64 (uma vez por programa). */
@@ -93,6 +97,7 @@ final class NativeFfiCall {
         if (nb.ffiUsesCstr) NativeFfiAsmHelpers.emitX86CstrHelper(sb);
         if (nb.ffiUsesArray) NativeFfiAsmHelpers.emitX86ArrayPackHelper(sb);
         if (nb.ffiUsesStrArray) NativeFfiAsmHelpers.emitX86StrArrayPackHelper(sb);
+        for (String d : nb.ffiCbDescs) NativeFfiAsmHelpers.emitX86CallbackTrampoline(sb, d);
     }
 
     /** #431 fatia 2 / D6-2: link-by-use dos externs no cross (mesmo scan do
@@ -125,6 +130,8 @@ final class NativeFfiCall {
         boolean[] isArray = new boolean[n];
         char[] arrayElem = new char[n];
         boolean[] isBufPtr = new boolean[n];
+        boolean[] isCbPtr = new boolean[n];
+        String[] cbDescs = new String[n];
         for (int i = 0; i < n; i++) {
             Type pt = kc.parameterTypes().get(i);
             if (FfiStructLayout.isArrayPtr(pt)) {
@@ -132,6 +139,10 @@ final class NativeFfiCall {
                 arrayElem[i] = FfiStructLayout.arrayPtrElem(pt);
             } else if (FfiStructLayout.isBufferPtr(pt)) {
                 isBufPtr[i] = true;
+            } else if (FfiStructLayout.isCbPtr(pt)) {
+                // M1 callbacks (x86-64, INTEGER-only): C function pointer.
+                isCbPtr[i] = true;
+                cbDescs[i] = FfiStructLayout.cbPtrDesc(pt);
             } else if (FfiStructLayout.isStructType(pt)) {
                 isStruct[i] = true;
                 structTypes[i] = pt;
@@ -178,6 +189,8 @@ final class NativeFfiCall {
                 ord[i] = nInt++;   // T[]→ptr: um ponteiro INTEGER (D6-2)
             } else if (isBufPtr[i]) {
                 ord[i] = nInt++;   // Buffer(U8)→ptr: um ponteiro INTEGER (A2)
+            } else if (isCbPtr[i]) {
+                ord[i] = nInt++;   // callback→fn ptr: um ponteiro INTEGER (M1)
             } else if (isFloatClass(cls[i])) {
                 ord[i] = nFlt++;
             } else {
@@ -245,6 +258,21 @@ final class NativeFfiCall {
                     sb.append(lbl).append(":\n");
                     sb.append("    movq %r10, ").append(intRegs[ord[i]]).append("\n");
                 } else {
+                    sb.append("    movq %r10, -").append(nb.scratchOffset(i)).append("(%rbp)\n");
+                }
+                continue;
+            }
+            if (isCbPtr[i]) {
+                // M1 callbacks (x86-64): a lambda object está na pilha; guarda-a
+                // no global da closure e passa o ENDEREÇO do trampolim ao C. O
+                // trampolim lê a closure do global e roda vtable[0] (invoke).
+                sb.append("    popq %r10\n");
+                sb.append("    movq %r10, kof_cb_closure_").append(cbDescs[i]).append("(%rip)\n");
+                if (ord[i] < 6) {
+                    sb.append("    leaq kof_cb_tramp_").append(cbDescs[i]).append("(%rip), ")
+                      .append(intRegs[ord[i]]).append("\n");
+                } else {
+                    sb.append("    leaq kof_cb_tramp_").append(cbDescs[i]).append("(%rip), %r10\n");
                     sb.append("    movq %r10, -").append(nb.scratchOffset(i)).append("(%rbp)\n");
                 }
                 continue;

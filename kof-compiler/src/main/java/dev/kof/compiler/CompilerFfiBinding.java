@@ -154,6 +154,17 @@ final class CompilerFfiBinding {
                 paramTypes.add(FfiStructLayout.bufferPtrType());
                 continue;
             }
+            // M1 callbacks on Native — x86-64, INTEGER-only first slice: a
+            // function-typed param crosses as a C function pointer to a generated
+            // trampoline. Float/Double/String faces and the cross stay FFI001.
+            if (x86) {
+                String cbDesc = FfiSignature.intOnlyCallback(
+                        FfiSignature.callbackDescriptor(param.type()));
+                if (cbDesc != null) {
+                    paramTypes.add(FfiStructLayout.cbPtrType(cbDesc));
+                    continue;
+                }
+            }
             // D6-1(A)/3.7: `record` de campos escalares por valor (register path) — x86-64.
             String fc = FfiSignature.structFieldChars(param.type(), driver);
             if (fc == null) return false;
