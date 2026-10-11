@@ -166,6 +166,8 @@ public final class JsRuntimeUiComponents {
                     if (window.__kofFormSubmits) delete window.__kofFormSubmits[k];
                 }
                 oldEl._kofStaleForms = [];
+                for (const a of ["role", "tabindex", "aria-hidden", "aria-label", "aria-live"]) oldEl.removeAttribute(a);
+                oldEl._kofKeyboardWired = false;
                 kofUiCopyValueProps(oldEl, newEl);
                 for (const kid of Array.from(newEl.children || [])) oldEl.appendChild(kid);
                 kofUiRehomeWidgetHandlers(oldEl, oldId, newEl);
@@ -500,6 +502,7 @@ public final class JsRuntimeUiComponents {
                     n.el.addEventListener(domType, function (ev) {
                         kofUiDispatchEvent(c, domType, ev);
                     });
+                    if (domType === "click") kofUiMakeKeyboardOperable(n.el);
                 }
             }
 
@@ -540,16 +543,19 @@ public final class JsRuntimeUiComponents {
                         || tag === "SELECT" || tag === "OPTION") {
                     return;
                 }
-                if (node.getAttribute && !node.getAttribute("role")) {
+                const role = node.getAttribute ? node.getAttribute("role") : null;
+                if (node.setAttribute && (role === null || role === "img")) {
                     node.setAttribute("role", "button");
                 }
+                if (node.removeAttribute) node.removeAttribute("aria-hidden");
                 if (node.getAttribute && node.getAttribute("tabindex") === null) {
                     node.setAttribute("tabindex", "0");
                 }
                 if (!node._kofKeyboardWired) {
                     node._kofKeyboardWired = true;
                     const keyFn = function (ev) {
-                        const k = ev && typeof ev.key === "string" ? ev.key : "";
+                        if (!ev || ev.target !== node) return;
+                        const k = typeof ev.key === "string" ? ev.key : "";
                         if (k === "Enter" || k === " " || k === "Spacebar") {
                             if (ev && typeof ev.preventDefault === "function") ev.preventDefault();
                             if (typeof node.click === "function") node.click();

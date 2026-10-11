@@ -56,6 +56,14 @@ public final class JsRuntimeUiWidgets {
             export function kofUiWidgetSetAccessibleName(widget, name) {
                 const n = window.__kofNodes && window.__kofNodes[widget];
                 if (!n) return;
+                if (name === null || name === undefined || String(name) === "") {
+                    n.removeAttribute("aria-label");
+                    if (n.dataset && n.dataset.kofIcon && n.getAttribute("role") !== "button") {
+                        n.removeAttribute("role");
+                        n.setAttribute("aria-hidden", "true");
+                    }
+                    return;
+                }
                 n.setAttribute("aria-label", name);
                 if (n.hasAttribute && n.hasAttribute("aria-hidden")) {
                     n.setAttribute("aria-hidden", "false");
