@@ -542,6 +542,8 @@ public final class CompilerPipeline {
         if (merged == null) return null;
         merged = CompilerTestWeb.injectHostIfNeeded(driver, merged, diagnostics);
         if (merged == null) return null;
+        merged = CompilerTestBrowser.injectHostIfNeeded(driver, merged, diagnostics);
+        if (merged == null) return null;
         merged = CompilerWeb.injectHostIfNeeded(driver, merged, diagnostics);
         if (merged == null) return null;
         ExternalClasspath extCp = (driver.target == Target.JVM || driver.target == Target.ANDROID)

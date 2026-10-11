@@ -1,0 +1,57 @@
+// kof.test.browser — pacote virtual ADITIVO (kof-testing-platform-plan §6, a
+// fatia da API de browser no nivel Kof; o dono atual lane security/connectors).
+// Escrito EM KOF (D-KOF-FIRST item 12): o compilador injeta FLAT no
+// `import kof.test.browser` EXPLICITO, mesmo mecanismo de
+// kof.test/kof.test.db/kof.test.web (precedente testweb.kf).
+//
+// Host SEPARADO de proposito: os helpers dependem de kof.shell (o Chrome CLI
+// --headless via shell.run — a captura r.stdout — a semente
+// KofJsBrowserE2ETest). O host isolado mantem kof.test puro.
+//
+// O binario e varrido na MESMA ordem do ChromeHeadlessProvider (o SPI do §6.1):
+// o PATH + os caminhos padrao + o cache do Playwright
+// (~/.cache/ms-playwright/chromium-N/chrome-linux64/chrome — instalado por
+// npx playwright install chromium). Sem browser: o helper lanca String com o
+// motivo nomeado — o teste falha honesto, nunca um PASS falso (Q7).
+//
+//   var dom = browserContent("http://127.0.0.1:8080/")
+//   browserScreenshot("http://127.0.0.1:8080/", "shot.png")
+//
+// O dominio renderizado pelo Chromium real volta como String (o dump-dom).
+
+String chromeBinary() {
+    var names = listOf("google-chrome", "google-chrome-stable", "chromium", "chromium-browser")
+    var i = 0
+    while (i < names.length()) {
+        var r = shell.run(names[i], listOf("--version"))
+        if (shell.ok(r)) { return names[i] }
+        i = i + 1
+    }
+    var home = "/home/" + shell.run("whoami", listOf()).stdout.trim()
+    var pw = home + "/.cache/ms-playwright"
+    var p1 = pw + "/chromium-1248/chrome-linux64/chrome"
+    var p2 = pw + "/chromium-1248/chrome-linux/chrome"
+    var j = 0
+    var paths = listOf(p1, p2)
+    while (j < paths.length()) {
+        var r2 = shell.run(paths[j], listOf("--version"))
+        if (shell.ok(r2)) { return paths[j] }
+        j = j + 1
+    }
+    throw "no browser binary found (PATH + playwright cache swept)"
+}
+
+String browserContent(String url) {
+    var chrome = chromeBinary()
+    var r = shell.run(chrome, listOf("--headless", "--disable-gpu", "--no-sandbox",
+                               "--dump-dom", url))
+    if (!shell.ok(r)) { throw "chrome exit != 0: " + r.stderr }
+    return r.stdout
+}
+
+Void browserScreenshot(String url, String path) {
+    var chrome = chromeBinary()
+    var r = shell.run(chrome, listOf("--headless", "--disable-gpu", "--no-sandbox",
+                               "--screenshot=" + path, "--window-size=1280,800", url))
+    if (!shell.ok(r)) { throw "chrome exit != 0: " + r.stderr }
+}
