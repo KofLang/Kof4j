@@ -1130,6 +1130,23 @@ every value measured on the Script target first, cross-checked byte-for-byte on
 jvm/native/js (all four agree), then frozen; `tests/run-golden.sh` **192/192** (48 cases
 × 4 targets), exit 0.
 
+**Phase 6 slice 24 LANDED (10/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **49 total** — pinning `kof.rng`, the seedable xorshift128 PRNG (X8) that was
+pinned by NO equivalence case. It is the STRONGEST cross-target determinism pin in the
+stdlib: the contract is "same seed → same sequence on ANY backend" (only xor/shift/mul
+mod 2^32 + a splitmix32 seed), so jvm/native-x86_64/js/script MUST agree byte-for-byte.
+`rng-namespace` pins `rng.seed(42)` then `rng.int(100)`=67/90/54, `rng.boolean()`
+=true/false, `rng.double()`=0.07631878219634403 (52-bit mantissa, exact IEEE-754 in both
+backends), `rng.string(8,"abc")`=acbaccab, and the lenient edges `rng.int(0)`=0,
+`rng.int(-5)`=0 (bound<=0 => 0), `rng.string(0,"abc")`="" and `rng.string(5,"")`="" (n<=0
+or empty alphabet => ""). **Scope note (measured, honest):** `kof.rng` is `RNG001` on the
+CROSS arches riscv64/aarch64 (`KofRng.supportedOn`) — the golden `native` target runs on
+the x86_64 host, so the case is 4-target clean here; the cross arches stay owned by the
+RNG001 gap. Test-infrastructure only, no compiler change. Proof (executed): the sequence
+measured TWICE on the Script target (byte-identical → determinism confirmed),
+cross-checked byte-for-byte on jvm/native/js (all four agree), then frozen;
+`tests/run-golden.sh` **196/196** (49 cases × 4 targets), exit 0.
+
 ### Phase 7 — Integration
 
 Deploy:

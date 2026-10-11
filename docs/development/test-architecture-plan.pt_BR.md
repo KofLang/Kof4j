@@ -1131,6 +1131,22 @@ compilador. Prova (executada): cada valor medido primeiro no alvo Script, cruzad
 em jvm/nativo/js (os quatro concordam), então congelado; `tests/run-golden.sh` **192/192**
 (48 casos × 4 alvos), exit 0.
 
+**Fatia 24 da Fase 6 ENTREGUE (10/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais
+um caso — **49 no total** — pinando o `kof.rng`, o PRNG xorshift128 semeável (X8) que não era
+pinado por NENHUM caso de equivalência. É o pino de determinismo cross-target MAIS FORTE do
+stdlib: o contrato é "mesma seed → mesma sequência em QUALQUER backend" (só xor/shift/mul mod
+2^32 + seed splitmix32), então jvm/nativo-x86_64/js/script DEVEM concordar byte-a-byte.
+`rng-namespace` pina `rng.seed(42)` e então `rng.int(100)`=67/90/54, `rng.boolean()`=true/false,
+`rng.double()`=0.07631878219634403 (mantissa de 52 bits, IEEE-754 exato nos dois backends),
+`rng.string(8,"abc")`=acbaccab, e as bordas lenientes `rng.int(0)`=0, `rng.int(-5)`=0 (bound<=0
+=> 0), `rng.string(0,"abc")`="" e `rng.string(5,"")`="" (n<=0 ou alfabeto vazio => ""). **Nota
+de escopo (medida, honesta):** o `kof.rng` é `RNG001` nas ARCHS cross riscv64/aarch64
+(`KofRng.supportedOn`) — o alvo golden `native` roda no host x86_64, então o caso fica limpo
+nos 4 alvos aqui; as archs cross seguem com o gap RNG001. Apenas infraestrutura de teste, sem
+mudança de compilador. Prova (executada): a sequência medida DUAS VEZES no alvo Script
+(byte-idêntica → determinismo confirmado), cruzada byte-a-byte em jvm/nativo/js (os quatro
+concordam), então congelada; `tests/run-golden.sh` **196/196** (49 casos × 4 alvos), exit 0.
+
 ### Fase 7 — Integração
 
 Implantar:

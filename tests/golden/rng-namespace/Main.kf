@@ -1,0 +1,15 @@
+main() {
+    rng.seed(42)
+    println(rng.int(100))
+    println(rng.int(100))
+    println(rng.int(100))
+    println(rng.boolean())
+    println(rng.boolean())
+    println(rng.double())
+    println(rng.string(8, "abc"))
+    println(rng.int(0))
+    println(rng.int(-5))
+    println("[" + rng.string(0, "abc") + "]")
+    println("[" + rng.string(5, "") + "]")
+    println("end")
+}
