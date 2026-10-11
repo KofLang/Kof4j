@@ -156,37 +156,58 @@ final class NativeFfiAsmHelpers {
     }
 
     /**
-     * M1 callbacks on Native (x86-64, INTEGER-only): o trampolim de upcall de um
-     * descritor {@code desc = <ret><arg0>…}. O C chama este símbolo com os args
-     * SysV (inteiros em rdi/rsi/…; retorno em rax). O trampolim remonta a chamada
-     * para a convenção do `invoke` Kof — {@code rdi}=objeto lambda (closure
-     * guardada), args deslocados um registrador inteiro acima — e chama
-     * {@code vtable[0]} via {@code call *%r11}. A ABI nativa é soft-float-safe,
-     * então este primeiro corte cobre só inteiros.
+     * M1 callbacks on Native (x86-64): o trampolim de upcall de um descritor
+     * {@code desc = <ret><arg0>…}. O C chama este símbolo com os args SysV —
+     * inteiros em {@code rdi/rsi/…}, FP em {@code xmm0/…}; o retorno sai em
+     * {@code rax} (inteiro) ou {@code xmm0} (FP). O trampolim remonta a chamada
+     * para a convenção do {@code invoke} Kof (soft-float-safe: TODO arg, inclusive
+     * FP, num registrador INTEIRO com os bits crus; {@code rdi}=objeto lambda) e
+     * chama {@code vtable[0]} via {@code call *%r11}.
      *
      * <p>Síncrono/não-escapante: a closure vive num global (um callback ativo por
      * vez) — o mesmo confinamento da call-arena da JVM (R7).
      */
     static void emitX86CallbackTrampoline(StringBuilder sb, String desc) {
         int arity = desc.length() - 1;
+        char rc = desc.charAt(0);
         String[] intRegs = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
+        // Fonte C por arg: inteiro → rdi.. ; FP → xmm0..
+        String[] src = new String[arity];
+        boolean[] isFp = new boolean[arity];
+        int ip = 0, fp = 0;
+        for (int i = 0; i < arity; i++) {
+            char c = desc.charAt(i + 1);
+            boolean f = (c == 'f' || c == 'd');
+            isFp[i] = f;
+            if (f) src[i] = "%xmm" + (fp++);
+            else src[i] = intRegs[ip++];
+        }
         sb.append("kof_cb_tramp_").append(desc).append(":\n");
-        // args do C (rdi..) → um registrador acima (rsi..), do último p/ o 1º
-        // (destino i+1 nunca coincide com a fonte de um arg anterior).
+        // Empilha os args do C (do último p/ o 1º; FP via %rax com os bits crus).
         for (int i = arity - 1; i >= 0; i--) {
-            if (i + 1 < 6) {
-                sb.append("    movq ").append(intRegs[i]).append(", ").append(intRegs[i + 1]).append("\n");
+            if (isFp[i]) {
+                sb.append(desc.charAt(i + 1) == 'f'
+                        ? "    movd " + src[i] + ", %eax\n"
+                        : "    movq " + src[i] + ", %rax\n");
+                sb.append("    pushq %rax\n");
             } else {
-                sb.append("    movq ").append(intRegs[i]).append(", %rax\n");
-                sb.append("    pushq %rax\n");   // args > 5 vão à pilha do invoke
+                sb.append("    pushq ").append(src[i]).append("\n");
             }
+        }
+        // Desempilha nos registradores do invoke (rsi, rdx, … = intRegs[1..]);
+        // args além de 5 ficam na pilha (a convenção do callee os lê acima de rbp).
+        int nreg = Math.min(arity, 5);
+        for (int k = 0; k < nreg; k++) {
+            sb.append("    popq ").append(intRegs[k + 1]).append("\n");
         }
         sb.append("    movq kof_cb_closure_").append(desc).append("(%rip), %rdi\n");
         sb.append("    movq 8(%rdi), %r11\n");   // vtable @ offset 8
         sb.append("    movq (%r11), %r11\n");    // vtable[0] = invoke
         sb.append("    call *%r11\n");
         if (arity > 5) sb.append("    addq $").append((arity - 5) * 8).append(", %rsp\n");
-        // retorno Kof em rax = retorno C (inteiros); void: nada a mover.
+        // Retorno: inteiro já em rax; FP move os bits crus rax → xmm0.
+        if (rc == 'f') sb.append("    movd %eax, %xmm0\n");
+        else if (rc == 'd') sb.append("    movq %rax, %xmm0\n");
         sb.append("    ret\n");
         sb.append(".section .bss\n");
         sb.append("kof_cb_closure_").append(desc).append(":\n");

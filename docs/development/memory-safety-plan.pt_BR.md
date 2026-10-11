@@ -5,9 +5,9 @@
 
 dona: `192.168.15.130:9093` (lane docs/lab — reivindicado 10/10 depois do claim `192.168.15.101:9092` ser revogado 09/10 sob `D-PLAN-ONE-OWNER`; M1 unidade-3 VF-no-x86-64 pousada 10/10)
 
-last: M1 UNIDADE-4 POUSADA 10/10 (lane docs/lab `192.168.15.130:9093`) — callbacks FFI bindam no Native **x86-64, só-INTEIROS**: um param `extern` de tipo-função atravessa como ponteiro de função C para um trampolim gerado (`kof_cb_tramp_<desc>`) que guarda a lambda Kof e chama seu `invoke` em vtable[0]; `FfiNativeCallbackE2ETest` (param + retorno, byte-a-byte JVM==Native); o pin antigo `callbackArgStaysFfi001Native` virou binding + um novo `floatCallbackStaysFfi001Native` (face Float/Double segue FFI001). Antes: UNIDADE-3 10/10 (VF-no-x86-64)
-doing: M1 unidade-4 POUSADA 10/10 (callbacks no Native x86-64, só-inteiros) — restante: faces Float/Double/String do callback + o trampolim cross
-next: M1 callbacks fatia 2 — faces Float/Double do callback no x86-64 (mover xmm↔regs inteiros no trampolim) e o trampolim cross; misto float+int e HFA>2 permanecem FFI001 honesto (gap catalogado na spec §12)
+last: M1 UNIDADE-4 fatia 2 POUSADA 10/10 (lane docs/lab `192.168.15.130:9093`) — callbacks FFI bindam no Native **x86-64** para ABIs **Int/Long/Double/Float**: o trampolim gerado (`kof_cb_tramp_<desc>`) agora mapeia args FP (C `xmm0..` → os bits crus na convenção de registradores inteiros do Kof) e o retorno FP (bits em `rax` → `xmm0`); `FfiNativeCallbackE2ETest` cobre Int/Long/Double/misto/Float param + retorno, byte-a-byte JVM==Native. Só um callback com retorno `String` segue FFI001. Antes: fatia 1 (ABIs inteiras) + UNIDADE-3 (VF-no-x86-64)
+doing: M1 unidade-4 fatia 2 POUSADA 10/10 (callbacks no Native x86-64: Int/Long/Double/Float) — restante: a face de callback com retorno String + o trampolim cross
+next: M1 callbacks fatia 3 — o trampolim cross (riscv64/aarch64) + a face de retorno String; misto float+int e HFA>2 permanecem FFI001 honesto (gap catalogado na spec §12)
 location: memory-safety-plan
 state: active
 intent: compiler-provable-memory-safety

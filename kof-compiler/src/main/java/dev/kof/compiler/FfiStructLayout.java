@@ -88,7 +88,7 @@ public final class FfiStructLayout {
      *  {@code null} (param não-callback / face Float/Double/String → mantém o
      *  comportamento anterior). */
     public static Type cbMarkerOrNull(String paramType) {
-        String desc = FfiSignature.intOnlyCallback(FfiSignature.callbackDescriptor(paramType));
+        String desc = FfiSignature.nativeCallbackDesc(FfiSignature.callbackDescriptor(paramType));
         return desc != null ? cbPtrType(desc) : null;
     }
 

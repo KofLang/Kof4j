@@ -280,16 +280,22 @@ public final class FfiSignature {
         return t != null && t.startsWith("(") && t.contains(" -> ");
     }
 
-    /** M1 callbacks on Native x86-64 — first slice: INTEGER-only (Int/Long/
-     *  Boolean params; Int/Long/Boolean/void return). Returns {@code desc} when
-     *  every char is in {i,j,b,v}, else null (float/double/String → honest
-     *  FFI001, a later slice). */
-    public static String intOnlyCallback(String desc) {
+    /** M1 callbacks on Native x86-64: aceita os descritores cujos chars são
+     *  escalares inteiros/FP/void ({@code i,j,b,f,d,v}). Um retorno {@code S}
+     *  (String) fica fora (ownership do `char*` não observável no contrato
+     *  síncrono). Devolve {@code desc} ou null. */
+    public static String nativeCallbackDesc(String desc) {
         if (desc == null) return null;
+        int nInt = 0, nFp = 0;
         for (int i = 0; i < desc.length(); i++) {
             char c = desc.charAt(i);
-            if (c != 'i' && c != 'j' && c != 'b' && c != 'v') return null;
+            if (c != 'i' && c != 'j' && c != 'b' && c != 'f' && c != 'd' && c != 'v') return null;
+            if (i == 0) continue;   // return char
+            if (c == 'f' || c == 'd') nFp++;
+            else nInt++;
         }
+        // C-ABI register budget (SysV): int args in rdi..r9 (6), FP in xmm0..7 (8).
+        if (nInt > 6 || nFp > 8) return null;
         return desc;
     }
 

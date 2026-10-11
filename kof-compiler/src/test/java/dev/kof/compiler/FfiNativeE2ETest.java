@@ -407,9 +407,10 @@ class FfiNativeE2ETest {
     }
 
     @Test
-    void floatCallbackStaysFfi001Native(@TempDir Path dir) throws IOException {
-        // M1 first slice is INTEGER-only: a Float/Double callback face stays an
-        // honest FFI001 on Native (a later slice).
+    void floatCallbackBindsOnNative(@TempDir Path dir) throws IOException {
+        // M1 slice 2: um callback Float/Double agora BINDA no Native x86-64 (o
+        // trampolim move os bits FP xmm↔inteiro; E2E real em
+        // FfiNativeCallbackE2ETest). O retorno String segue gap honesto.
         Path src = dir.resolve("ffi-cbf.kf");
         Files.writeString(src, """
                 extern "libc.so.6" cb_f(Int n, (Double, Double) -> Double cb): Double
@@ -419,9 +420,26 @@ class FfiNativeE2ETest {
                 }
                 """);
         CompilationResult r = driver.compile(src, dir.resolve("out"), Target.NATIVE);
-        assertFalse(r.success(), "callback Float/Double não binda ainda no Native (M1 slice 1)");
+        assertTrue(r.success(), "callback Float/Double binda no Native x86-64 (M1 slice 2): "
+                + r.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void stringReturnCallbackStaysFfi001Native(@TempDir Path dir) throws IOException {
+        // O retorno String do callback segue gap honesto (ownership do char* não
+        // observável no contrato síncrono) — FFI001 na linha da declaração.
+        Path src = dir.resolve("ffi-cbs.kf");
+        Files.writeString(src, """
+                extern "libc.so.6" cb_s(Int n, (Int) -> String cb): Int
+
+                main() {
+                    println("hi")
+                }
+                """);
+        CompilationResult r = driver.compile(src, dir.resolve("out"), Target.NATIVE);
+        assertFalse(r.success(), "callback com retorno String segue FFI001 no Native");
         assertTrue(r.diagnostics().getDiagnostics().toString().contains("FFI001"),
-                "expected FFI001 on Native float callback: " + r.diagnostics().getDiagnostics());
+                "expected FFI001 on Native String-return callback: " + r.diagnostics().getDiagnostics());
     }
 
     @Test

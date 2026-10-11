@@ -27,6 +27,12 @@ class FfiNativeCallbackE2ETest {
             long kof_cb_addl(long a, long b, ll cb) { return cb(a,b); }
             typedef long (*li)(int);
             long kof_cb_inc(int a, li cb) { return cb(a); }
+            typedef double (*ddd)(double,double);
+            double kof_cb_addd(double a, double b, ddd cb) { return cb(a,b); }
+            typedef double (*id_d)(int,double);
+            double kof_cb_mixed(int a, double b, id_d cb) { return cb(a,b); }
+            typedef float (*ff)(float,float);
+            float kof_cb_addf(float a, float b, ff cb) { return cb(a,b); }
             """;
 
     private final CompilerDriver driver = new CompilerDriver();
@@ -58,11 +64,17 @@ class FfiNativeCallbackE2ETest {
             extern "%1$s" kof_cb_add(Int a, Int b, (Int, Int) -> Int cb): Int
             extern "%1$s" kof_cb_addl(Long a, Long b, (Long, Long) -> Long cb): Long
             extern "%1$s" kof_cb_inc(Int a, (Int) -> Long cb): Long
+            extern "%1$s" kof_cb_addd(Double a, Double b, (Double, Double) -> Double cb): Double
+            extern "%1$s" kof_cb_mixed(Int a, Double b, (Int, Double) -> Double cb): Double
+            extern "%1$s" kof_cb_addf(Float a, Float b, (Float, Float) -> Float cb): Float
 
             main() {
                 println(kof_cb_add(20, 22, (x: Int, y: Int) -> x + y))
                 println(kof_cb_addl(20 as Long, 22 as Long, (a: Long, b: Long) -> a + b))
                 println(kof_cb_inc(41, (n: Int) -> n + 1L))
+                println(kof_cb_addd(2.0, 3.0, (x: Double, y: Double) -> x * y))
+                println(kof_cb_mixed(3, 2.5, (i: Int, d: Double) -> i * d))
+                println(kof_cb_addf(1.5 as Float, 2.0 as Float, (x: Float, y: Float) -> x + y))
             }
             """;
 
@@ -77,7 +89,7 @@ class FfiNativeCallbackE2ETest {
         CompilationResult rj = driver.compile(jvmSrc, jvmOut, Target.JVM);
         assertTrue(rj.success(), () -> "JVM oracle compile: " + rj.diagnostics().getDiagnostics());
         String jvm = runJvm(jvmOut);
-        assertEquals("42\n42\n42", jvm, "JVM golden (callbacks inteiros)");
+        assertEquals("42\n42\n42\n6.0\n7.5\n3.5", jvm, "JVM golden (callbacks escalares)");
 
         Path src = dir.resolve("cb-native.kf");
         Files.writeString(src, kof);

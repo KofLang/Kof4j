@@ -5,9 +5,9 @@
 
 owner: `192.168.15.130:9093` (lane docs/lab — re-claimed 10/10 after the `192.168.15.101:9092` claim was revoked 09/10 under `D-PLAN-ONE-OWNER`; M1 unidade-3 VF-on-x86-64 landed 10/10)
 
-last: M1 UNIDADE-4 LANDED 10/10 (lane docs/lab `192.168.15.130:9093`) — FFI callbacks bind on Native **x86-64, INTEGER-only**: a function-typed `extern` param crosses as a C function pointer to a generated trampoline (`kof_cb_tramp_<desc>`) that stashes the Kof lambda and calls its `invoke` at vtable[0]; `FfiNativeCallbackE2ETest` (param + return, JVM==Native byte-for-byte); the stale `callbackArgStaysFfi001Native` pin flipped to binding + a new `floatCallbackStaysFfi001Native` (Float/Double face stays FFI001). Before: UNIDADE-3 10/10 (VF-on-x86-64)
-doing: M1 unidade-4 LANDED 10/10 (callbacks on Native x86-64, integer-only) — remaining: Float/Double/String callback faces + the cross callback trampoline
-next: M1 callbacks slice 2 — Float/Double callback faces on x86-64 (move xmm↔int regs in the trampoline) and the cross trampoline; mixed float+int and HFA>2 remain honest FFI001 (gap-catalogued in spec §12)
+last: M1 UNIDADE-4 slice 2 LANDED 10/10 (lane docs/lab `192.168.15.130:9093`) — FFI callbacks bind on Native **x86-64** for **Int/Long/Double/Float** ABIs: the generated trampoline (`kof_cb_tramp_<desc>`) now maps FP args (C `xmm0..` → the raw bits in the Kof integer-register convention) and the FP return (`rax` bits → `xmm0`); `FfiNativeCallbackE2ETest` covers Int/Long/Double/mixed/Float param + return, JVM==Native byte-for-byte. Only a `String`-return callback stays FFI001. Before: slice 1 (integer ABIs) + UNIDADE-3 (VF-on-x86-64)
+doing: M1 unidade-4 slice 2 LANDED 10/10 (callbacks on Native x86-64: Int/Long/Double/Float) — remaining: the String-return callback face + the cross callback trampoline
+next: M1 callbacks slice 3 — the cross callback trampoline (riscv64/aarch64) + the String-return face; mixed float+int and HFA>2 remain honest FFI001 (gap-catalogued in spec §12)
 location: memory-safety-plan
 state: active
 intent: compiler-provable-memory-safety

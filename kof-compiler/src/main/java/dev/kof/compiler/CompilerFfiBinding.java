@@ -158,7 +158,7 @@ final class CompilerFfiBinding {
             // function-typed param crosses as a C function pointer to a generated
             // trampoline. Float/Double/String faces and the cross stay FFI001.
             if (x86) {
-                String cbDesc = FfiSignature.intOnlyCallback(
+                String cbDesc = FfiSignature.nativeCallbackDesc(
                         FfiSignature.callbackDescriptor(param.type()));
                 if (cbDesc != null) {
                     paramTypes.add(FfiStructLayout.cbPtrType(cbDesc));
