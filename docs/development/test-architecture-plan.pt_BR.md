@@ -1169,6 +1169,23 @@ Script, cruzado byte-a-byte em jvm/nativo/js, então congelado; `tests/run-golde
 **200/200** (50 casos × 4 alvos), exit 0; `mvn -o -pl kof-compiler -am compile` rc=0; gates
 `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang` rc=0.
 
+**Fase 6 fatia 26 LANDED (10/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais
+um caso — **51 total** — pinando a face base64 URL-safe de `kof.encoding`.
+`encoding.base64UrlEncode`/`base64UrlDecode` (RFC 4648 §5, o alfabeto `-_`, SEM padding no
+encode) estão na API pública mas não eram pinados por NENHUM caso de equivalência — o
+`encoding-namespace` da fatia 17 cobre `hexEncode`/`hexDecode`/`base64Encode`/`base64Decode`/
+`urlEncode`/`urlDecode`, mas não o par `base64Url*`, deixando a única superfície
+`kof.encoding` não coberta. O novo caso `tests/golden/encoding-base64url` pina
+`base64UrlEncode` (`"Hi"`→`SGk`, `"fb&O->f"`→`ZmImTy0-Zg`, `"zÿ"`→`esO_` — o `_` é o
+substituto URL-safe do alfabeto padrão `/+`, `"café"`→`Y2Fmw6k`, `""`→`` vazio) e
+`base64UrlDecode` (`"SGk"`→`Hi`, `"ZmImTy0-Zg"`→`fb&O->f`, `"esO_"`→`zÿ`, a forma TOLERANTE
+com padding `"SGk="`→`Hi`, `"Y2Fmw6k"`→`café` — round-trip não-ASCII via bytes UTF-8).
+Apenas infraestrutura de teste, sem mudança de compilador. Prova (executada): cada valor
+medido primeiro no alvo Script, cruzado byte-a-byte em jvm/nativo/js (os quatro concordam),
+então congelado; `tests/run-golden.sh` **204/204** (51 casos × 4 alvos), exit 0;
+`mvn -o -pl kof-compiler -am compile` rc=0; gates `check_test_hygiene`/
+`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang` rc=0.
+
 ### Fase 7 — Integração
 
 Implantar:

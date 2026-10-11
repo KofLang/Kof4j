@@ -1170,6 +1170,23 @@ cross-checked byte-for-byte on jvm/native/js, then frozen; `tests/run-golden.sh`
 gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang`
 rc=0.
 
+**Phase 6 slice 26 LANDED (10/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **51 total** — pinning the URL-safe base64 face of `kof.encoding`.
+`encoding.base64UrlEncode`/`base64UrlDecode` (RFC 4648 §5, the `-_` alphabet, NO padding on
+encode) are in the public API but were pinned by NO equivalence case — slice 17's
+`encoding-namespace` covers `hexEncode`/`hexDecode`/`base64Encode`/`base64Decode`/
+`urlEncode`/`urlDecode` but not the `base64Url*` pair, leaving the only uncovered
+`kof.encoding` surface. The new case `tests/golden/encoding-base64url` pins
+`base64UrlEncode` (`"Hi"`→`SGk`, `"fb&O->f"`→`ZmImTy0-Zg`, `"zÿ"`→`esO_` — the `_` is the
+URL-safe stand-in for the standard `/+` alphabet, `"café"`→`Y2Fmw6k`, `""`→`` empty) and
+`base64UrlDecode` (`"SGk"`→`Hi`, `"ZmImTy0-Zg"`→`fb&O->f`, `"esO_"`→`zÿ`, the TOLERANT
+`"SGk="`→`Hi` padded form, `"Y2Fmw6k"`→`café` — non-ASCII round-trip through UTF-8 bytes).
+Test-infrastructure only, no compiler change. Proof (executed): every value measured on the
+Script target first, cross-checked byte-for-byte on jvm/native/js (all four agree), then
+frozen; `tests/run-golden.sh` **204/204** (51 cases × 4 targets), exit 0;
+`mvn -o -pl kof-compiler -am compile` rc=0; gates `check_test_hygiene`/
+`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang` rc=0.
+
 ### Phase 7 — Integration
 
 Deploy:

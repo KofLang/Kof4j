@@ -1,0 +1,12 @@
+main() {
+    println(encoding.base64UrlEncode("Hi"))
+    println(encoding.base64UrlEncode("fb&O->f"))
+    println(encoding.base64UrlEncode("zÿ"))
+    println(encoding.base64UrlEncode("café"))
+    println("[" + encoding.base64UrlEncode("") + "]")
+    println(encoding.base64UrlDecode("SGk"))
+    println(encoding.base64UrlDecode("ZmImTy0-Zg"))
+    println(encoding.base64UrlDecode("esO_"))
+    println(encoding.base64UrlDecode("SGk="))
+    println(encoding.base64UrlDecode("Y2Fmw6k"))
+}
