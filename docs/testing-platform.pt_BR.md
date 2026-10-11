@@ -1,4 +1,4 @@
-[English](kof-testing-platform-plan.md) | [Português](kof-testing-platform-plan.pt_BR.md)
+[English](../testing-platform.md) | [Português](kof-testing-platform-plan.pt_BR.md)
 
 # Plataforma de Testes Kof — Unit / Integração / Frontend E2E
 

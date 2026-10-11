@@ -1,10 +1,10 @@
-[English](kof-testing-platform-plan.md) | [Português](kof-testing-platform-plan.pt_BR.md)
+[English](../testing-platform.md) | [Português](kof-testing-platform-plan.pt_BR.md)
 
 # Kof Testing Platform — Unit / Integration / Frontend E2E
 
-**Status:** UNDER DEVELOPMENT — promoted from `future/` 30/09/2026 (`D-TESTING-PLATFORM`, `D-FUTURE-BATCH-2809`/`B`, `D-FUTURE-PROMOTION`)
-**Location:** `docs/development/`
-**Owner:** `192.168.15.15:9092` (lane security/connectors — REASSUMED 10/10 per the maintainer's order: the prior owner lane issues/tooling `192.168.15.30:9093` last active 09/10, orphaned >1 day; claims MUST carry IP:PORTA, `D-AGENT-IDENTITY-IPPORT`)
+**Status:** `UNDER DEVELOPMENT` — promoted from `future/` 30/09/2026 (`D-TESTING-PLATFORM`, `D-FUTURE-BATCH-2809`/`B`); **CORE PROMOTED to `docs/` 10/10** — the maintainer's order: "pode finalizar o plano então, ja promover e vida que segue"
+**Location:** `docs/testing-platform.md` (promoted from `docs/development/` 10/10 — the maintainer's order: the core phases implemented+validated; the remaining §11 phases 5-8 are future slices, documented as the boundary)
+**Owner:** reference contract — the implementation core is COMPLETE; future slices (§11 phases 5-8: Cypress, KofJS/Wasm E2E, cross-browser, advanced) start from `docs/development/` on a new claim (`D-PLAN-ONE-OWNER`)
 **Nature:** implementation plan — real state + how to finish (design record kept below)
 **Normative source:** `DECISIONS.md` §`D-TESTING-PLATFORM` (28/09, authorized — `D-FUTURE-BATCH-2809`/`B`); promotion to current work is one-at-a-time per `D-FUTURE-PROMOTION`
 **Main dependencies:** the existing `kof test` command (`CmdTest`), the test language surface
