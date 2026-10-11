@@ -1,0 +1,17 @@
+main() {
+    println(strings.escapeJson("a\"b\\c"))
+    println(strings.escapeJson("line1\nline2"))
+    println(strings.escapeJson("tab\tend"))
+    println(strings.escapeJson("plain"))
+    println("[" + strings.escapeJson("") + "]")
+    println("[" + strings.unescapeHtml("&lt;a&gt;&amp;") + "]")
+    println("[" + strings.unescapeHtml("&#65;&#66;") + "]")
+    println("[" + strings.unescapeHtml("plain") + "]")
+    println("[" + strings.indent("a\nb", 2) + "]")
+    println("[" + strings.indent("a\n\nb", 2) + "]")
+    println("[" + strings.indent("a\nb", 0) + "]")
+    println("[" + strings.dedent("  a\n  b") + "]")
+    println("[" + strings.dedent("a\n  b") + "]")
+    println("[" + strings.padRight("7", 3, "0") + "]")
+    println("end")
+}

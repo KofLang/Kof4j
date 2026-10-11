@@ -1116,6 +1116,21 @@ infraestrutura de teste, sem mudança de compilador. Prova (executada): cada val
 primeiro no alvo Script, cruzado byte-a-byte em jvm/nativo/js (os quatro concordam), então
 congelado; `tests/run-golden.sh` **188/188** (47 casos × 4 alvos), exit 0.
 
+**Fatia 23 da Fase 6 ENTREGUE (10/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais
+um caso — **48 no total** — pinando o resto da família de escape+indentação de `kof.strings`
+(S3.1/S3.3) que a fatia 15 NÃO cobriu (parou em `escapeHtml`): `strings-escape-indent` pina
+`escapeJson` (`a\"b\\c`→`a\"b\\c`, newline real→`\n`, tab→`\t`, `plain`→`plain`, `""`→``),
+`unescapeHtml` (nomeadas `&lt;a&gt;&amp;`→`<a>&`, numéricas `&#65;&#66;`→`AB`, no-op
+`plain`), `indent` (`"a\nb",2`→`  a\n  b`; `"a\n\nb",2`→`  a\n\n  b` — a linha VAZIA NÃO é
+indentada; `n=0` = identidade), `dedent` (`"  a\n  b"`→`a\nb`; `"a\n  b"` inalterado — indent
+comum mínima 0) e `padRight` (`"7",3,"0"`→`700`). Os quatro alvos concordam byte-a-byte.
+**Nota de escopo (medida, honesta):** `capitalize`/`reverse`/`pad*` de `kof.strings` são
+divergentes Unicode/byte no nativo (gap NAT-STR01, pinado só ASCII) — este caso usa só
+entradas ASCII, então fica limpo nos 4 alvos. Apenas infraestrutura de teste, sem mudança de
+compilador. Prova (executada): cada valor medido primeiro no alvo Script, cruzado byte-a-byte
+em jvm/nativo/js (os quatro concordam), então congelado; `tests/run-golden.sh` **192/192**
+(48 casos × 4 alvos), exit 0.
+
 ### Fase 7 — Integração
 
 Implantar:

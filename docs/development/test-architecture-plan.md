@@ -1114,6 +1114,22 @@ Test-infrastructure only, no compiler change. Proof (executed): every value meas
 Script target first, cross-checked byte-for-byte on jvm/native/js (all four agree), then
 frozen; `tests/run-golden.sh` **188/188** (47 cases × 4 targets), exit 0.
 
+**Phase 6 slice 23 LANDED (10/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **48 total** — pinning the rest of the `kof.strings` escaping+indentation
+family (S3.1/S3.3) that slice 15 did NOT cover (it stopped at `escapeHtml`):
+`strings-escape-indent` pins `escapeJson` (`a\"b\\c`→`a\"b\\c`, a real newline→`\n`, a
+tab→`\t`, `plain`→`plain`, `""`→``), `unescapeHtml` (named `&lt;a&gt;&amp;`→`<a>&`,
+numeric `&#65;&#66;`→`AB`, no-op `plain`), `indent` (`"a\nb",2`→`  a\n  b`; `"a\n\nb",2`
+→`  a\n\n  b` — the EMPTY line is NOT indented; `n=0` = identity), `dedent`
+(`"  a\n  b"`→`a\nb`; `"a\n  b"` unchanged — min common indent 0), and `padRight`
+(`"7",3,"0"`→`700`). All four targets agree byte-for-byte. **Scope note (measured,
+honest):** `kof.strings` `capitalize`/`reverse`/`pad*` are Unicode/byte-divergent on
+native (the NAT-STR01 gap, ASCII-only pinned) — this case uses only ASCII inputs, so it
+stays 4-target clean. Test-infrastructure only, no compiler change. Proof (executed):
+every value measured on the Script target first, cross-checked byte-for-byte on
+jvm/native/js (all four agree), then frozen; `tests/run-golden.sh` **192/192** (48 cases
+× 4 targets), exit 0.
+
 ### Phase 7 — Integration
 
 Deploy:
