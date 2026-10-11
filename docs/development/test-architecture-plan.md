@@ -1147,6 +1147,29 @@ measured TWICE on the Script target (byte-identical → determinism confirmed),
 cross-checked byte-for-byte on jvm/native/js (all four agree), then frozen;
 `tests/run-golden.sh` **196/196** (49 cases × 4 targets), exit 0.
 
+**Phase 6 slice 25 LANDED (10/10, lane compiler/JVM/native `192.168.15.30:9092`):** one
+more case — **50 total** — pinning the remaining deterministic `kof.validation`
+predicates: `validation-predicates` pins `isEmail` (`a@b.com`→true, `bad`→false), `isUrl`
+(`https://kof.dev`/`http://a.b`/`https://example.com/path?q=1`→true, `ftp://x`→false),
+`isInt` (`42`→true, `4.2`→false), `isLong("9000000000")`→true, `inRange` (5 in 1..10→true,
+11→false), `required` (`x`→true, `""`→false), `notBlank` (`x`→true, `"   "`→false),
+`minLength`/`maxLength`/`lengthBetween`, `creditCardBrand` (`4242…`→Visa, `5555…`→
+Mastercard), `last4`→`4242`, and `max`(5,10)→true / `min`(5,10)→false. **This case found a
+REAL x86-only native parity bug:** the x86 asm `kof_validation_isUrl` tested `byte4==':'`
+with `jne .Lv_url_false` BEFORE the https branch was reachable, so `https://…` (byte4='s')
+and every URL with a path/query fell straight to false; the riscv asm was already correct.
+Fixed in `RuntimeValidation.java` (the second `jne` retargeted to `.Lv_url_check_https`,
+the https byte4 test to `.Lv_url_false`), guarded RED-first by the new
+`KofValidationUrlParityTest` (RED pre-fix → GREEN 35/35 across both validation classes).
+**Scope note (measured, honest):** `validation.matches` is deliberately EXCLUDED — its
+JVM/JS/Script regex vs Native literal-substring divergence is a known, documented issue
+frozen in `future/kof-expr-plan.md` Q8 awaiting the `D-KOF-EXPR` maintainer decision
+(`future/` is FROZEN). Proof (executed): every value measured on the Script target first,
+cross-checked byte-for-byte on jvm/native/js, then frozen; `tests/run-golden.sh`
+**200/200** (50 cases × 4 targets), exit 0; `mvn -o -pl kof-compiler -am compile` rc=0;
+gates `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang`
+rc=0.
+
 ### Phase 7 — Integration
 
 Deploy:

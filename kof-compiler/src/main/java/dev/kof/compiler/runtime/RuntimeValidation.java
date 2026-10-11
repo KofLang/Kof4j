@@ -187,11 +187,11 @@ public final class RuntimeValidation {
                 cmpb $112, 3(%r8)
                 jne .Lv_url_false
                 cmpb $58, 4(%r8)
-                jne .Lv_url_false
+                jne .Lv_url_check_https
                 cmpb $47, 5(%r8)
                 jne .Lv_url_false
                 cmpb $47, 6(%r8)
-                jne .Lv_url_check_https
+                jne .Lv_url_false
                 movl $1, %eax
                 ret
             .Lv_url_check_https:

@@ -1147,6 +1147,28 @@ mudança de compilador. Prova (executada): a sequência medida DUAS VEZES no alv
 (byte-idêntica → determinismo confirmado), cruzada byte-a-byte em jvm/nativo/js (os quatro
 concordam), então congelada; `tests/run-golden.sh` **196/196** (49 casos × 4 alvos), exit 0.
 
+**Fase 6 fatia 25 LANDED (10/10, lane compilador/JVM/nativo `192.168.15.30:9092`):** mais
+um caso — **50 total** — pinando os predicados determinísticos restantes de
+`kof.validation`: `validation-predicates` pina `isEmail` (`a@b.com`→true, `bad`→false),
+`isUrl` (`https://kof.dev`/`http://a.b`/`https://example.com/path?q=1`→true, `ftp://x`→
+false), `isInt` (`42`→true, `4.2`→false), `isLong("9000000000")`→true, `inRange` (5 em
+1..10→true, 11→false), `required` (`x`→true, `""`→false), `notBlank` (`x`→true, `"   "`→
+false), `minLength`/`maxLength`/`lengthBetween`, `creditCardBrand` (`4242…`→Visa, `5555…`→
+Mastercard), `last4`→`4242`, e `max`(5,10)→true / `min`(5,10)→false. **Este caso achou um
+BUG REAL de paridade só no x86:** o asm x86 `kof_validation_isUrl` testava `byte4==':'`
+com `jne .Lv_url_false` ANTES do ramo https ficar alcançável, então `https://…` (byte4='s')
+e todo URL com path/query caía direto em false; o asm riscv já estava correto. Corrigido em
+`RuntimeValidation.java` (o segundo `jne` redirecionado para `.Lv_url_check_https`, o teste
+de byte4 do https para `.Lv_url_false`), guardado RED-first pelo novo
+`KofValidationUrlParityTest` (RED pré-fix → GREEN 35/35 nas duas classes de validação).
+**Nota de escopo (medida, honesta):** `validation.matches` fica deliberadamente EXCLUÍDO —
+sua divergência JVM/JS/Script regex vs Native substring-literal é um problema conhecido e
+documentado, congelado em `future/kof-expr-plan.md` Q8 aguardando a decisão da mantenedora
+`D-KOF-EXPR` (`future/` CONGELADO). Prova (executada): cada valor medido primeiro no alvo
+Script, cruzado byte-a-byte em jvm/nativo/js, então congelado; `tests/run-golden.sh`
+**200/200** (50 casos × 4 alvos), exit 0; `mvn -o -pl kof-compiler -am compile` rc=0; gates
+`check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_500`/`docs-lang` rc=0.
+
 ### Fase 7 — Integração
 
 Implantar:
