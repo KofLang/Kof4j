@@ -7,8 +7,9 @@ import java.util.List;
 /**
  * `kof md check` (spec docs/spec/kofmd.md sec.15): parse + validar; exit != 0
  * em qualquer MDxxx com file:line (sec.14). Toda decisao (parse, vocabulario
- * fechado, prosa-livre) e da lib Kof pura `libs/kofmd`; esta classe so gera o
- * main minimo, formata a saida humana e decide o exit code.
+ * fechado, prosa-livre, schemas declarados) e da lib Kof pura `libs/kofmd`;
+ * esta classe so gera o main minimo, formata a saida humana e decide o exit
+ * code. Schemas `record` do proprio doc validam os campos (spec sec.8).
  */
 final class CmdMdCheck {
 
@@ -29,6 +30,17 @@ final class CmdMdCheck {
                 + "    }\n"
                 + "    val doc = tool.parse(text)\n"
                 + "    val diags = tool.validateVocabulary(doc)\n"
+                + "    val schemas = tool.parseSchemas(text)\n"
+                + "    var s = 0\n"
+                + "    while (s < schemas.size) {\n"
+                + "        val sdiags = tool.validateDoc(doc, schemas.get(s))\n"
+                + "        var k = 0\n"
+                + "        while (k < sdiags.size) {\n"
+                + "            diags.add(sdiags.get(k))\n"
+                + "            k = k + 1\n"
+                + "        }\n"
+                + "        s = s + 1\n"
+                + "    }\n"
                 + "    var index = 0\n"
                 + "    while (index < diags.size) {\n"
                 + "        println(\"KOFMD-DIAG \" + diags.get(index))\n"
