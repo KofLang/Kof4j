@@ -336,6 +336,20 @@ public final class JsRuntimeUiWidgets {
                 return id;
             }
 
+            export function kofUiRowBind(row, child) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[row]
+                        && window.__kofNodes[child]) {
+                    window.__kofNodes[row].appendChild(window.__kofNodes[child]);
+                }
+            }
+
+            export function kofUiColumnBind(column, child) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[column]
+                        && window.__kofNodes[child]) {
+                    window.__kofNodes[column].appendChild(window.__kofNodes[child]);
+                }
+            }
+
             export function kofUiStyleNew(background, foreground, padding, radius) {
                 if (typeof document === "undefined") {
                     return -1;

@@ -37,8 +37,7 @@ final class BuiltinUiCallTyper {
             return KofUi.INPUT;
         }
         if (mc.receiver() == null && ("Column".equals(mc.methodName()) || "Row".equals(mc.methodName()))
-                && mc.arguments().size() == 1) {
-            SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
+                && (mc.arguments().isEmpty() || mc.arguments().size() == 1)) {
             return "Column".equals(mc.methodName()) ? KofUi.COLUMN : KofUi.ROW;
         }
         if (mc.receiver() == null && "View".equals(mc.methodName()) && mc.arguments().size() == 1) {

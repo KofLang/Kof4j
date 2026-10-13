@@ -399,6 +399,13 @@ public final class KofUi {
                 default -> null;
             };
         }
+        if (isRow(receiver) || isColumn(receiver)) {
+            String fn = isRow(receiver) ? "kof_ui_row_bind" : "kof_ui_column_bind";
+            return switch (name) {
+                case "bind" -> argCount == 1 ? new UiCall(fn, Type.PrimitiveType.VOID, List.of(INT)) : null;
+                default -> null;
+            };
+        }
         if (isView(receiver)) {
             return switch (name) {
                 case "bind" -> argCount == 1 ? new UiCall("kof_ui_view_bind", Type.PrimitiveType.VOID, List.of(INT)) : null;

@@ -149,6 +149,15 @@ if (mc.receiver() == null && "Table".equals(mc.methodName()) && mc.arguments().s
             Type.PrimitiveType.INT, KofCallKind.FUNCTION));
     return localIdx;
 }
+if (mc.receiver() == null && ("Column".equals(mc.methodName()) || "Row".equals(mc.methodName()))
+        && mc.arguments().isEmpty()) {
+    ops.add(new KofCall(BuiltinTypes.LIST, "kof_list_new", List.of(), BuiltinTypes.LIST, KofCallKind.FUNCTION));
+    String fn = "Column".equals(mc.methodName()) ? "kof_ui_column_new" : "kof_ui_row_new";
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            fn, List.of(new Type.ClassType("kof", "List", List.of(Type.PrimitiveType.INT))),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
 if (mc.receiver() == null && ("Column".equals(mc.methodName()) || "Row".equals(mc.methodName())
         || "Form".equals(mc.methodName()) || "Fieldset".equals(mc.methodName()))
         && mc.arguments().size() == 1) {

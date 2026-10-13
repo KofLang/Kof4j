@@ -210,12 +210,14 @@ if (mc.receiver() == null && "Input".equals(mc.methodName()) && mc.arguments().s
 if (mc.receiver() == null && "Textarea".equals(mc.methodName()) && mc.arguments().size() == 1) {
     return KofUi.TEXTAREA;
 }
-if (mc.receiver() == null && ("Column".equals(mc.methodName()) || "Row".equals(mc.methodName())
-        || "Form".equals(mc.methodName()) || "Fieldset".equals(mc.methodName()))
+if (mc.receiver() == null && ("Column".equals(mc.methodName()) || "Row".equals(mc.methodName()))
+        && (mc.arguments().isEmpty() || mc.arguments().size() == 1)) {
+    return "Column".equals(mc.methodName()) ? KofUi.COLUMN : KofUi.ROW;
+}
+if (mc.receiver() == null && ("Form".equals(mc.methodName()) || "Fieldset".equals(mc.methodName()))
         && mc.arguments().size() == 1) {
     if ("Form".equals(mc.methodName())) return KofUi.FORM;
-    if ("Fieldset".equals(mc.methodName())) return KofUi.FIELDSET;
-    return "Column".equals(mc.methodName()) ? KofUi.COLUMN : KofUi.ROW;
+    return KofUi.FIELDSET;
 }
 if (mc.receiver() == null && "View".equals(mc.methodName()) && mc.arguments().size() == 1) {
     return KofUi.VIEW;

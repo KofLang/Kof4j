@@ -102,6 +102,7 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_ui_window_set_title", "kof_ui_label_set_text", "kof_ui_button_set_text",
                     "kof_ui_input_set_text" -> "(ILjava/lang/String;)V";
             case "kof_ui_window_bind", "kof_ui_view_bind" -> "(II)V";
+            case "kof_ui_row_bind", "kof_ui_column_bind" -> "(II)V";
             case "kof_ui_window_set_size" -> "(III)V";
             case "kof_ui_form_on_submit" -> "(ILjava/lang/Object;)V";
             case "kof_ui_form_submit" -> "(I)V";
