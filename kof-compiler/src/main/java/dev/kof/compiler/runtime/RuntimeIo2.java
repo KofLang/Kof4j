@@ -313,6 +313,7 @@ public final class RuntimeIo2 {
                 pushq %r14
                 pushq %r15
                 movq %rdi, %rbx
+                movq %rdi, %r14      # #848: path preservado p/ o erro
                 movq $-100, %rdi
                 leaq 24(%rbx), %rsi
                 movq $0, %rdx
@@ -336,9 +337,13 @@ public final class RuntimeIo2 {
                 movq %r12, %rdx
                 movq $0, %rax
                 syscall
+                movq %rax, %r13      # #848: lidos (negativo = erro, ex. EISDIR)
                 movq %rbx, %rdi
                 movq $3, %rax
                 syscall
+                testq %r13, %r13
+                js .Lio_bytes_rderr
+                movq %r13, %r12      # conta só o que foi lido
                 movl %r12d, %edi
                 movq $4, %rsi
                 call kof_array_alloc
@@ -360,13 +365,37 @@ public final class RuntimeIo2 {
                 popq %rbx
                 ret
             .Lio_bytes_err:
-                xorl %eax, %eax
-                popq %r15
-                popq %r14
-                popq %r13
-                popq %r12
-                popq %rbx
-                ret
+                movq %r14, %rdi
+                call kof_io_throw_not_found
+            .Lio_bytes_rderr:
+                movq %r14, %rdi
+                call kof_io_throw_unreadable
+
+            # #848: erro de leitura LANÇA, como size() (antes: 0 = null -> SIGSEGV no uso).
+            # rdi = path KofString*; não retornam (kof_throw_string faz longjmp).
+            .Lstr_io_unread_msg: .ascii "cannot read file: "
+            .globl kof_io_throw_not_found
+            .type kof_io_throw_not_found, @function
+            kof_io_throw_not_found:
+                pushq %rbx
+                movq %rdi, %rbx
+                leaq .Lstr_io_size_msg(%rip), %rdi
+                movl $16, %esi
+                jmp .Lio_throw_path
+            .globl kof_io_throw_unreadable
+            .type kof_io_throw_unreadable, @function
+            kof_io_throw_unreadable:
+                pushq %rbx
+                movq %rdi, %rbx
+                leaq .Lstr_io_unread_msg(%rip), %rdi
+                movl $18, %esi
+            .Lio_throw_path:
+                call kof_string_from_literal
+                movq %rax, %rdi
+                movq %rbx, %rsi
+                call kof_string_concat
+                movq %rax, %rdi
+                call kof_throw_string
 
             # ── M32-gguf: leitura com offset p/ arquivos grandes (sem carregar o todo)
             # kof_io_read_range(rdi=path KofString*, rsi=offset, rdx=len) → Int[]|0
@@ -387,6 +416,11 @@ public final class RuntimeIo2 {
                 movq %rdi, %rbx      # path KofString*
                 movq %rsi, %r14      # offset
                 movq %rdx, %r15      # len
+                # #848: offset/len negativos nunca chegam ao alloc/pread
+                testq %r14, %r14
+                js .Lio_range_inval
+                testq %r15, %r15
+                js .Lio_range_inval
                 # openat(AT_FDCWD=-100, path+24, O_RDONLY=0, 0)
                 movq $-100, %rdi
                 leaq 24(%rbx), %rsi
@@ -413,6 +447,8 @@ public final class RuntimeIo2 {
                 movq %r12, %rdi
                 movq $3, %rax
                 syscall
+                testq %r14, %r14     # #848: pread negativo = erro de leitura
+                js .Lio_range_inval
                 # Int[] elemsize 4
                 movl %r14d, %edi
                 movq $4, %rsi

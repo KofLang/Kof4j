@@ -106,7 +106,8 @@ sistema operacional nunca é usado.
 
 ## Erros
 
-- `readText`/`readBytes`: `null` quando o arquivo não pode ser lido.
+- `readText`: `null` quando o arquivo não pode ser lido.
+- `readBytes`/`readRange`: lançam `file not found: <path>` ou `cannot read file: <path>` (capture com `catch (String e)`).
 - Operações booleanas (`writeText`, `delete`, `create`, ...): `true` no
   sucesso, `false` na falha.
 - `size`: `-1` quando o arquivo não existe.

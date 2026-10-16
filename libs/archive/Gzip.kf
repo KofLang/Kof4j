@@ -1,0 +1,161 @@
+package archive
+
+import archive.Zip
+import image.Inflate
+
+// kof-archive — reading a gzip stream (RFC 1952). Issue #852, slice 2.
+//
+// Same rule as the ZIP slice: COMPOSITION, not a new codec. The deflate
+// payload goes to the existing `libs/image/Inflate.kf`, and the trailer's
+// CRC-32 and ISIZE are checked with the `zipCrc32` written for the ZIP.
+//
+//   * the optional header fields (FEXTRA, FNAME, FCOMMENT, FHCRC) are skipped
+//     by name — the flags decide the layout, never a guess;
+//   * CONCATENATED MULTI-MEMBER streams (RFC 1952 §2.2: a gzip file "consists
+//     of a series of members") are read member by member. The trailer is
+//     therefore located from where the DEFLATE stream actually ENDED — never
+//     assumed to be the last 8 bytes of the file, which is true only for the
+//     single-member case;
+//   * the caller's byte ceiling (`maxBytes`) holds ACROSS ALL members, and a
+//     member that walks off the remaining budget is REFUSED by the library,
+//     never returned truncated. This is the same decompression-bomb discipline
+//     as the ZIP, and it matters MORE here: gzip carries no declared size in
+//     the header — its ISIZE lives in the trailer, i.e. it is only known AFTER
+//     inflating, so nothing in the file can be trusted about size;
+//   * CRC-32 and ISIZE are verified per member.
+//
+// Honest limits: the output buffer is allocated at the caller's ceiling, so a
+// lazy caller asking for 1 MiB gets a 1 MiB allocation even for a 10-byte
+// file; and the CPU still follows the stream (the cap bounds MEMORY, exactly
+// as recorded in the ZIP slice). FHCRC is skipped, not verified.
+
+/** Offset of the byte AFTER the gzip header that starts at `at`, or an honest
+ *  throw. The optional fields are driven by FLG, never guessed. */
+Int gzipHeaderEnd(Int[] b, Int at) {
+    if (at + 10 > b.length) {
+        throw "archive: truncated gzip header"
+    }
+    if ((b[at] & 255) != 31 || (b[at + 1] & 255) != 139) {
+        throw "archive: not a gzip stream (bad magic at " + at + ")"
+    }
+    if ((b[at + 2] & 255) != 8) {
+        throw "archive: gzip compression method " + (b[at + 2] & 255) + " is not deflate (8)"
+    }
+    var flg = b[at + 3] & 255
+    if ((flg & 224) != 0) {
+        throw "archive: gzip reserved flag bits set — refused"
+    }
+    var p = at + 10
+    if ((flg & 4) != 0) {                       // FEXTRA
+        if (p + 2 > b.length) {
+            throw "archive: truncated gzip FEXTRA"
+        }
+        p = p + 2 + ((b[p] & 255) | ((b[p + 1] & 255) << 8))
+    }
+    if ((flg & 8) != 0) {                       // FNAME (zero-terminated)
+        p = gzipSkipZeroTerminated(b, p, "FNAME")
+    }
+    if ((flg & 16) != 0) {                      // FCOMMENT
+        p = gzipSkipZeroTerminated(b, p, "FCOMMENT")
+    }
+    if ((flg & 2) != 0) {                       // FHCRC — skipped, not verified
+        if (p + 2 > b.length) {
+            throw "archive: truncated gzip FHCRC"
+        }
+        p = p + 2
+    }
+    if (p > b.length) {
+        throw "archive: gzip header runs past the file"
+    }
+    return p
+}
+
+Int gzipSkipZeroTerminated(Int[] b, Int from, String field) {
+    var p = from
+    while (p < b.length && (b[p] & 255) != 0) {
+        p = p + 1
+    }
+    if (p >= b.length) {
+        throw "archive: unterminated gzip " + field
+    }
+    return p + 1
+}
+
+/** Reads every member of a gzip file (concatenation included) into one byte
+ *  array, verifying CRC-32 and ISIZE per member. `maxBytes` is the caller's
+ *  ceiling for the WHOLE output. */
+Int[] gzipRead(String path, Int maxBytes) {
+    var b = File(path).readBytes()
+    var buf = new Int[maxBytes]
+    var total = 0
+    var at = 0
+    var members = 0
+    while (at < b.length) {
+        var headerEnd = gzipHeaderEnd(b, at)
+        var payload = zipSlice(b, headerEnd, b.length - headerEnd)
+        // The budget is what is LEFT: the ceiling is on the file's output, not
+        // on one member. A stream that inflates past it walks off the window
+        // (`Inflate` never writes beyond `outLen`) and becomes an explicit
+        // refusal here — never a silent truncation.
+        var budget = maxBytes - total
+        if (budget <= 0) {
+            throw "archive: gzip output is over the limit of " + maxBytes + " bytes — refused"
+        }
+        var inflate = Inflate(payload, budget)
+        var got = -1
+        try {
+            got = inflate.run()
+        } catch (String _) {
+            throw "archive: gzip member " + members + " does not inflate inside the limit of "
+                + maxBytes + " bytes — refused"
+        }
+        // THE COUNT THAT MATTERS IS `Inflate.outPos`, NOT `run()`'s RETURN: the
+        // return is CLAMPED to `outLen` when the output saturates (`return outLen`
+        // at the end of `run`), while `outPos` keeps counting every byte the
+        // stream emitted. Measured the hard way — a member made of LITERALS never
+        // walks off the window (so the catch above does not fire) and reports
+        // `outLen`, which reads as "fits exactly" and let it through the ceiling
+        // to die later on a CRC mismatch: the right refusal for the WRONG reason.
+        // Over the budget either way → refused, one message for both mechanisms.
+        if (inflate.outPos > budget) {
+            throw "archive: gzip member " + members + " does not inflate inside the limit of "
+                + maxBytes + " bytes — refused"
+        }
+        // The DEFLATE stream ends mid-byte. `Inflate.pos` is the offset of the
+        // first byte it did NOT pull in (readBits pulls a byte BEFORE consuming
+        // its bits), so the next byte boundary — where the trailer starts — is
+        // `pos` itself, both when the stream ended on a boundary and when bits
+        // are still buffered.
+        var trailerAt = headerEnd + inflate.pos
+        if (trailerAt + 8 > b.length) {
+            throw "archive: truncated gzip trailer"
+        }
+        var crc = zipU32(b, trailerAt)
+        var isize = zipU32(b, trailerAt + 4)
+        if (zipCrc32(inflate.out, got) != crc) {
+            throw "archive: gzip CRC-32 mismatch on member " + members
+        }
+        if (got != isize) {
+            throw "archive: gzip ISIZE says " + isize + " but member " + members
+                + " inflates to " + got
+        }
+        var k = 0
+        while (k < got) {
+            buf[total + k] = inflate.out[k] & 255
+            k = k + 1
+        }
+        total = total + got
+        members = members + 1
+        at = trailerAt + 8
+    }
+    if (members == 0) {
+        throw "archive: empty gzip file (no member)"
+    }
+    return zipSlice(buf, 0, total)
+}
+
+/** The whole gzip file as UTF-8 text (logs, CSV: the usual case). */
+String gzipReadText(String path, Int maxBytes) {
+    var bytes = gzipRead(path, maxBytes)
+    return zipUtf8(bytes, 0, bytes.length)
+}

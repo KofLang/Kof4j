@@ -116,7 +116,7 @@ final class TranslateEmitter extends TranslateStatements {
         for (int i = 0; i < toks.size(); i++) {
             String tk = toks.get(i).text;
             if (tk.equals("{")) { depth++; continue; }
-            if (tk.equals("}")) { depth--; if (depth == 0) currentTop = null; continue; }
+            if (tk.equals("}")) { depth--; if (depth == 0) { currentTop = null; } continue; }
             boolean isTypeKw = tk.equals("class") || tk.equals("interface")
                     || tk.equals("record") || tk.equals("enum");
             if (!isTypeKw || i + 1 >= toks.size()) continue;

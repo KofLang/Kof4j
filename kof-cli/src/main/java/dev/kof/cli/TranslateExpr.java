@@ -437,14 +437,14 @@ class TranslateExpr {
                     if (p.at(T.AT)) {
                         p.next();
                         while (p.at(".")) { p.next(); p.next(); }
-                        if (p.at("(")) { int d = 0; do { if (p.at("(")) d++; else if (p.at(")")) d--; p.next(); } while (d > 0 && !p.at(T.EOF)); }
+                        if (p.at("(")) { int d = 0; do { if (p.at("(")) { d++; } else if (p.at(")")) { d--; } p.next(); } while (d > 0 && !p.at(T.EOF)); }
                         continue;
                     }
                     break;
                 }
                 // tipo de retorno (+ genéricos) e nome
                 p.next(); // returnType
-                if (p.at("<")) { int d = 0; do { if (p.at("<")) d++; else if (p.at(">")) d--; p.next(); } while (d > 0 && !p.at(T.EOF)); }
+                if (p.at("<")) { int d = 0; do { if (p.at("<")) { d++; } else if (p.at(">")) { d--; } p.next(); } while (d > 0 && !p.at(T.EOF)); }
                 if (!p.at(T.IDENT)) {
                     throw new TranslateException(
                             "anonymous class body: expected a method (fields/state are not part of a "

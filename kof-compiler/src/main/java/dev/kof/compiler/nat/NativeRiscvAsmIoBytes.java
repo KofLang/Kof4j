@@ -50,9 +50,11 @@ public final class NativeRiscvAsmIoBytes {
                 mv   a2, s2
                 li   a7, 63
                 ecall
+                mv   s2, a0                 # #848: lidos (negativo = erro, ex. EISDIR)
                 mv   a0, s1
                 li   a7, 57
                 ecall
+                bltz s2, .Lkof_iorb_rderr
                 mv   a0, s2
                 li   a1, 4
                 call kof_array_alloc
@@ -71,7 +73,11 @@ public final class NativeRiscvAsmIoBytes {
                 mv   a0, s1
                 j    .Lkof_iorb_ret
             .Lkof_iorb_err:
-                li   a0, 0
+                mv   a0, s0
+                call kof_io_throw_not_found
+            .Lkof_iorb_rderr:
+                mv   a0, s0
+                call kof_io_throw_unreadable
             .Lkof_iorb_ret:
                 ld   s3, 152(sp)
                 ld   s2, 160(sp)
@@ -80,6 +86,37 @@ public final class NativeRiscvAsmIoBytes {
                 ld   ra, 184(sp)
                 addi sp, sp, 192
                 ret
+
+            # #848: erro de leitura LANÇA, como size() (antes: 0 = null -> SIGSEGV no uso).
+            # a0 = path KofString*; não retornam (kof_throw_string faz longjmp).
+            .globl kof_io_throw_not_found
+            .type kof_io_throw_not_found, @function
+            kof_io_throw_not_found:
+                addi sp, sp, -16
+                sd   ra, 8(sp)
+                sd   s0, 0(sp)
+                mv   s0, a0
+                la   a0, .Lstr_io_nf_msg
+                li   a1, 16
+                j    .Lkof_io_throw_path
+            .globl kof_io_throw_unreadable
+            .type kof_io_throw_unreadable, @function
+            kof_io_throw_unreadable:
+                addi sp, sp, -16
+                sd   ra, 8(sp)
+                sd   s0, 0(sp)
+                mv   s0, a0
+                la   a0, .Lstr_io_unread_msg
+                li   a1, 18
+            .Lkof_io_throw_path:
+                call kof_string_from_literal
+                mv   a1, s0
+                call kof_string_concat
+                call kof_throw_string
+            .section .rodata
+            .Lstr_io_nf_msg: .ascii "file not found: "
+            .Lstr_io_unread_msg: .ascii "cannot read file: "
+            .section .text
 
             # helper: openat(AT_FDCWD, path@a0 + 24, flags@a1, 420)
             #   -> fd ou negativo. Preserva s0.

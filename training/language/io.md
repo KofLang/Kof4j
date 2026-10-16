@@ -38,7 +38,7 @@ about reading/writing files, working with paths and listing directories.
 | `File("x").isFile()` / `.isDirectory()` | Bool |
 | `File("x").readText()` | `String?` — `null` if it fails (JVM and Native) |
 | `File("x").writeText(s)` / `.appendText(s)` | Bool |
-| `File("x").readBytes()` | `Int[]` (0-255); `null` if it fails |
+| `File("x").readBytes()` | `Int[]` (0-255); **throws** `file not found: <path>` / `cannot read file: <path>` if it fails (#848) — never `null` |
 | `File("x").writeBytes(b)` / `.appendBytes(b)` | Bool |
 | Bytes params and printing an `Int[]` (§388) | The bytes params take a **primitive array** — `writeBytes(listOf(65,66))` is a compile-time error (`SEM099`, §388-A); printing a whole array uses the §107 container format: `println(f.readBytes())` → `[65, 66]` (maintainer vote 21/09, §388-B) |
 | `File("x").size()` | Long; **throws an exception** if the file does not exist (02/09 — no `-1` sentinel) |

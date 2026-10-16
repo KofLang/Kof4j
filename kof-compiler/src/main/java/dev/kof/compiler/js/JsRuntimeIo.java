@@ -191,7 +191,12 @@ public final class JsRuntimeIo {
             }
 
             export function kofIoReadBytes(p) {
-                return kof_platform.readBytes(p);
+                const bytes = kof_platform.readBytes(p);
+                if (bytes === null || bytes === undefined) {
+                    // #848: Int[] não anulável — falha LANÇA, como na JVM/Script/Native
+                    throw new Error((kof_platform.fileExists(p) ? "cannot read file: " : "file not found: ") + p);
+                }
+                return bytes;
             }
 
             export function kofIoWriteBytes(p, bytes) {
