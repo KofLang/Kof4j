@@ -1,0 +1,303 @@
+package archive
+
+import image.Inflate
+
+// kof-archive — reading the CENTRAL DIRECTORY of a classic ZIP archive
+// (APPNOTE 6.3.x). Issue #852, slice 1.
+//
+// Kof-first, per D-KOF-FILE-GO ("the base stdlib keeps I/O/streaming/text
+// light; heavy codecs belong to official packages"): this is a pure-Kof
+// library over `kof.io` and it composes what already exists — it does NOT
+// introduce a codec and it does NOT add a language primitive.
+//
+//   * the listing comes from the central directory (never from the local
+//     headers), so a data-descriptor entry (flag bit 3, sizes zeroed in the
+//     local header) still reports its real sizes;
+//   * method 0 (stored) is returned as it is;
+//   * method 8 (deflate) is INFLATED by the existing `libs/image/Inflate.kf`
+//     (262 lines of pure-Kof DEFLATE). ZIP carries RAW deflate — there is no
+//     zlib wrapper to strip, unlike `pdfInflate`;
+//   * CRC-32 (reflected, polynomial 0xEDB88320) is verified against the
+//     central directory at the end of every read;
+//   * the byte ceiling is the CALLER's (`maxBytes`), never the size DECLARED
+//     in the archive: `Inflate` never writes past `outLen` and `run()` returns
+//     the TRUE byte count, so a lying uncompressed size cannot get past it.
+//     That is the decompression-bomb defence the issue asks for. Honest
+//     limit: the cap bounds the MEMORY; the CPU still follows the stream.
+//
+// Refused with an explicit diagnostic, never silence: ZIP64 (any sentinel),
+// an encrypted entry (flag bit 0), a method outside {0, 8}, and a
+// local/central mismatch.
+//
+// NOT in this slice (still open in #852): `open()`/`readChunk()` streaming
+// driven by the caller, and any `extractTo` — writing to disk needs the
+// confinement primitive of #854 (`createNew`), which is a maintainer scope
+// decision.
+//
+// Honest limit: an entry name is decoded as UTF-8. APPNOTE allows CP437 when
+// the UTF-8 flag (bit 11) is clear; we do not transliterate CP437, so a legacy
+// archive with accented names shows the replacement characters. The raw bytes
+// stay reachable by reading `nameOffset`/`nameLength` from the file.
+
+/** One central-directory entry, exactly as the archive declares it. */
+record ZipEntry(String name, Int flags, Int method, Int crc32, Int compressedSize,
+                Int uncompressedSize, Int externalAttributes, Int localHeaderOffset,
+                Int nameLength)
+
+// --- little-endian readers (the ZIP format is little-endian throughout) ---
+
+Int zipU16(Int[] b, Int at) {
+    return (b[at] & 255) | ((b[at + 1] & 255) << 8)
+}
+
+Int zipU32(Int[] b, Int at) {
+    return (b[at] & 255) | ((b[at + 1] & 255) << 8)
+        | ((b[at + 2] & 255) << 16) | ((b[at + 3] & 255) << 24)
+}
+
+/** A bounded copy — the shape both readers need (the ZIP slices a payload, the
+ *  GZIP collects members into one output). */
+Int[] zipSlice(Int[] b, Int from, Int len) {
+    var out = new Int[len]
+    var i = 0
+    while (i < len) {
+        out[i] = b[from + i] & 255
+        i = i + 1
+    }
+    return out
+}
+
+/** CRC-32 (reflected, polynomial 0xEDB88320) over the whole array. */
+Int zipCrc32(Int[] data) {
+    return zipCrc32(data, data.length)
+}
+
+/** CRC-32 over the first `len` bytes — the GZIP's `Inflate.out` is a
+ *  caller-sized window, so only the bytes the stream actually produced count. */
+Int zipCrc32(Int[] data, Int len) {
+    var crc = -1
+    var poly = -306674912
+    var i = 0
+    while (i < len) {
+        crc = crc ^ (data[i] & 255)
+        var k = 0
+        while (k < 8) {
+            if ((crc & 1) == 1) {
+                crc = ((crc >> 1) & 2147483647) ^ poly
+            } else {
+                crc = (crc >> 1) & 2147483647
+            }
+            k = k + 1
+        }
+        i = i + 1
+    }
+    return crc ^ -1
+}
+
+/** UTF-8 of `len` bytes from `from` (see the CP437 limit in the header). */
+String zipUtf8(Int[] b, Int from, Int len) {
+    var s = ""
+    var i = 0
+    while (i < len) {
+        var c = b[from + i] & 255
+        if (c < 128) {
+            s = s + (c as Char)
+            i = i + 1
+        } else if (c < 224) {
+            s = s + ((((c & 31) << 6) | (b[from + i + 1] & 63)) as Char)
+            i = i + 2
+        } else if (c < 240) {
+            var cp = ((c & 15) << 12) | ((b[from + i + 1] & 63) << 6) | (b[from + i + 2] & 63)
+            s = s + (cp as Char)
+            i = i + 3
+        } else {
+            var cp = ((c & 7) << 18) | ((b[from + i + 1] & 63) << 12)
+                | ((b[from + i + 2] & 63) << 6) | (b[from + i + 3] & 63)
+            var v = cp - 65536
+            s = s + ((55296 + (v >> 10)) as Char)
+            s = s + ((56320 + (v & 1023)) as Char)
+            i = i + 4
+        }
+    }
+    return s
+}
+
+/** Offset of the End Of Central Directory record, or an honest throw.
+ *  The record is at most 22 + 65535 bytes from the end (a long comment is
+ *  legal, so the scan is bounded by the format itself, not by a guess). */
+Int zipEocdAt(Int[] b) {
+    var low = b.length - 65557
+    if (low < 0) {
+        low = 0
+    }
+    var i = b.length - 22
+    while (i >= low) {
+        if (zipU32(b, i) == 101010256) {
+            return i
+        }
+        i = i - 1
+    }
+    throw "archive: end of central directory not found (not a ZIP archive?)"
+}
+
+/** Walks the central directory, in file order. */
+List<ZipEntry> zipReadCentralDirectory(Int[] b) {
+    var eocd = zipEocdAt(b)
+    var total = zipU16(b, eocd + 10)
+    var cdSize = zipU32(b, eocd + 12)
+    var cdOffset = zipU32(b, eocd + 16)
+    if (total == 65535 || cdSize < 0 || cdOffset < 0) {
+        throw "archive: ZIP64 sentinel in the end of central directory — ZIP64 is not supported"
+    }
+    if (cdOffset + cdSize > b.length) {
+        throw "archive: the central directory lies outside the file (truncated?)"
+    }
+    var out: List<ZipEntry> = listOf()
+    var at = cdOffset
+    var n = 0
+    while (n < total) {
+        if (zipU32(b, at) != 33639248) {
+            throw "archive: bad central directory entry signature at " + at
+        }
+        var flags = zipU16(b, at + 8)
+        var method = zipU16(b, at + 10)
+        var crc = zipU32(b, at + 16)
+        var compressed = zipU32(b, at + 20)
+        var uncompressed = zipU32(b, at + 24)
+        var nameLen = zipU16(b, at + 28)
+        var extraLen = zipU16(b, at + 30)
+        var commentLen = zipU16(b, at + 32)
+        var externAttrs = zipU32(b, at + 38)
+        var localOffset = zipU32(b, at + 42)
+        var name = zipUtf8(b, at + 46, nameLen)
+        out.add(ZipEntry(name, flags, method, crc, compressed, uncompressed,
+                externAttrs, localOffset, nameLen))
+        at = at + 46 + nameLen + extraLen + commentLen
+        n = n + 1
+    }
+    return out
+}
+
+/** A ZIP archive already positioned on its central directory. */
+class Zip {
+
+    Int[] bytes
+    List<ZipEntry> entries
+
+    public constructor(String path) {
+        this.bytes = File(path).readBytes()
+        this.entries = zipReadCentralDirectory(this.bytes)
+    }
+
+    /** The first entry with this name, or null when the archive has none. */
+    ZipEntry? find(String name) {
+        for (var e in this.entries) {
+            if (e.name == name) {
+                return e
+            }
+        }
+        return null
+    }
+
+    /** The entry as UTF-8 TEXT — the usual case (XML, SPED, CSV) and the reason
+     *  most callers are here at all. Same ceiling and CRC-32 contract as
+     *  {@link #readEntry}. */
+    String readText(ZipEntry e, Int maxBytes) {
+        var bytes = this.readEntry(e, maxBytes)
+        return zipUtf8(bytes, 0, bytes.length)
+    }
+
+    /** Reads (and, for method 8, INFLATES) one entry, verifying its CRC-32.
+     *
+     *  `maxBytes` is the caller's ceiling and the ONLY size we trust: an entry
+     *  whose real output exceeds it is refused, never returned truncated. */
+    Int[] readEntry(ZipEntry e, Int maxBytes) {
+        if ((e.flags & 1) != 0) {
+            throw "archive: entry '" + e.name + "' is encrypted (flag bit 0) — not supported"
+        }
+        if (e.method != 0 && e.method != 8) {
+            throw "archive: entry '" + e.name + "' uses compression method " + e.method
+                + " (only 0 = stored and 8 = deflate are supported)"
+        }
+        if (e.compressedSize < 0 || e.uncompressedSize < 0 || e.localHeaderOffset < 0) {
+            throw "archive: entry '" + e.name + "' carries a ZIP64 sentinel — ZIP64 is not supported"
+        }
+        // The sizes come from the CENTRAL directory, so a data-descriptor entry
+        // (flag bit 3, zeroed local sizes) is read correctly; the local header is
+        // used only for its own name/extra lengths, which may legitimately differ.
+        var at = e.localHeaderOffset
+        if (at + 30 > this.bytes.length || zipU32(this.bytes, at) != 67324752) {
+            throw "archive: bad local header signature for '" + e.name + "'"
+        }
+        if (zipU16(this.bytes, at + 8) != e.method) {
+            throw "archive: local header method " + zipU16(this.bytes, at + 8)
+                + " disagrees with the central directory (" + e.method + ") for '" + e.name + "'"
+        }
+        var start = at + 30 + zipU16(this.bytes, at + 26) + zipU16(this.bytes, at + 28)
+        if (start + e.compressedSize > this.bytes.length) {
+            throw "archive: truncated compressed data for '" + e.name + "'"
+        }
+        var payload = new Int[e.compressedSize]
+        var i = 0
+        while (i < e.compressedSize) {
+            payload[i] = this.bytes[start + i] & 255
+            i = i + 1
+        }
+        Int[] out
+        if (e.method == 0) {
+            if (payload.length > maxBytes) {
+                throw "archive: entry '" + e.name + "' holds " + payload.length
+                    + " bytes, over the limit of " + maxBytes
+            }
+            out = payload
+        } else {
+            // The DECLARED size is the first thing that must fit the caller's
+            // ceiling: this is the bomb defence at the level the format lets us
+            // check for free, and it is what stops a "declares 4 GiB, holds 1 KiB"
+            // archive before a single byte is allocated.
+            if (e.uncompressedSize > maxBytes) {
+                throw "archive: entry '" + e.name + "' declares " + e.uncompressedSize
+                    + " bytes, over the limit of " + maxBytes
+            }
+            // Capacity = the declared size (now known to be <= maxBytes). `Inflate`
+            // never writes past `outLen`, so the allocation is bounded by the
+            // ceiling; a stream that LIES and inflates to more than it declared
+            // walks off the window, which surfaces as an exception — caught here
+            // and turned into an explicit refusal, never into a silent truncation.
+            var inflate = Inflate(payload, e.uncompressedSize)
+            Int got = -1
+            try {
+                got = inflate.run()
+            } catch (String _) {
+                // The inner message is platform-specific (the Script's index error
+                // carries none), so it is deliberately NOT echoed: the refusal text
+                // is the library's own and reads the same on every target.
+                throw "archive: entry '" + e.name + "' did not inflate to its declared "
+                    + e.uncompressedSize + " bytes — refused"
+            }
+            // The REAL count is `inflate.outPos`, not `run()`'s return: the return
+            // is CLAMPED to the capacity when the output saturates (`return outLen`),
+            // so a stream that overran reports exactly the declared size and would
+            // read as honest here. The walk-off exception above only fires when a
+            // copy reaches past the window; literals-only streams never do. Both
+            // shapes must be refused with the SAME message.
+            if (inflate.outPos != e.uncompressedSize) {
+                throw "archive: entry '" + e.name + "' did not inflate to its declared "
+                    + e.uncompressedSize + " bytes — refused"
+            }
+            got = e.uncompressedSize
+            out = new Int[got]
+            var k = 0
+            while (k < got) {
+                out[k] = inflate.out[k] & 255
+                k = k + 1
+            }
+        }
+        var crc = zipCrc32(out)
+        if (crc != e.crc32) {
+            throw "archive: CRC-32 mismatch for '" + e.name + "' (archive " + e.crc32
+                + ", computed " + crc + ")"
+        }
+        return out
+    }
+}

@@ -165,13 +165,7 @@ public final class Decompile {
                 String body = BytecodeDecoder.recoverExpression(m.code.bytecode,
                         ir.constantPool, frame);
                 if (body == null) {
-                    int[][] handlers = new int[m.code.exceptionHandlers == null
-                            ? 0 : m.code.exceptionHandlers.size()][];
-                    for (int hI = 0; hI < handlers.length; hI++) {
-                        var h = m.code.exceptionHandlers.get(hI);
-                        boolean fin = h.catchType == null || "INVALID".equals(h.catchType);
-                        handlers[hI] = new int[]{h.startPc, h.endPc, h.handlerPc, fin ? 1 : 0};
-                    }
+                    int[][] handlers = handlerRows(m.code.exceptionHandlers);
                     var stmts = BytecodeStatements.recoverStatements(m.code.bytecode,
                             ir.constantPool, frame, handlers);
                     if (stmts != null) body = String.join("\n", stmts);
@@ -232,6 +226,17 @@ public final class Decompile {
         if (op >= 0x1a && op <= 0x2d) return (op - 0x1a) % 4;      // xload_0..3
         if (op >= 0x15 && op <= 0x19) return in.operands().length > 0 ? in.operands()[0] : null;
         return null;
+    }
+
+    /** Handlers do método como [start, end, handler, finally?]; vazio sem o atributo (CodeQL #1141/#1154). */
+    private static int[][] handlerRows(List<ClassFileParser.ExceptionHandler> ehs) {
+        if (ehs == null) return new int[0][];
+        int[][] rows = new int[ehs.size()][];
+        for (int i = 0; i < rows.length; i++) {
+            var h = ehs.get(i);
+            rows[i] = new int[]{h.startPc, h.endPc, h.handlerPc, h.catchType == null || "INVALID".equals(h.catchType) ? 1 : 0};
+        }
+        return rows;
     }
 
     /** Descritores dos parâmetros (JVM type descriptors). */
@@ -315,10 +320,10 @@ public final class Decompile {
                 BytecodeFrame of = new BytecodeFrame(om.descriptor, omStatic);
                 // liga cada parâmetro do default à EXPRESSÃO do argumento no
                 // call site (resolvido no frame do método CORRENTE)
-                if (curFrame == null && argc > 0) return null;
+                if (curFrame == null && argc > 0) return null; // nulo só com argc == 0 (CodeQL #1140)
                 int slot = omStatic ? 0 : 1;
                 List<String> ty = paramTypes(om.descriptor);
-                for (int i = 0; i < argSlots.length && i < ty.size(); i++) {
+                for (int i = 0; curFrame != null && i < argSlots.length && i < ty.size(); i++) {
                     of.bindSlot(slot, curFrame.name(argSlots[i]));
                     slot += isWideType(ty.get(i)) ? 2 : 1;
                 }
@@ -527,13 +532,8 @@ public final class Decompile {
                     // `exceptionHandlers != null` pulava métodos SEM try (o
                     // javac nem emite o attribute sem handlers), e tern/&&
                     // stubavam sem nunca chegar ao struct.
-                    int[][] handlers = new int[m.code.exceptionHandlers == null ? 0 : m.code.exceptionHandlers.size()][];
-                    for (int i = 0; i < handlers.length; i++) {
-                        var h = m.code.exceptionHandlers.get(i);
-                        boolean isFinally = h.catchType == null || "INVALID".equals(h.catchType);
-                        handlers[i] = new int[]{h.startPc, h.endPc, h.handlerPc, isFinally ? 1 : 0};
-                    }
-                    stmts = BytecodeStatements.recoverStatements(m.code.bytecode, ir.constantPool, frame, handlers);
+                    int[][] handlers = handlerRows(m.code.exceptionHandlers);
+                    stmts =BytecodeStatements.recoverStatements(m.code.bytecode, ir.constantPool, frame, handlers);
                 }
             }
             if (body == null && stmts == null) {

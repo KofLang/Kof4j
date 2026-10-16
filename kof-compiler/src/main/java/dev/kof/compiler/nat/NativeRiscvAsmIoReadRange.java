@@ -32,6 +32,8 @@ public final class NativeRiscvAsmIoReadRange {
                 mv   s0, a0                 # path
                 mv   s4, a1                 # offset
                 mv   s5, a2                 # len
+                bltz s4, .Lkof_iorr_inval   # #848: offset/len negativos
+                bltz s5, .Lkof_iorr_inval
                 li   a0, -100
                 addi a1, s0, 24
                 li   a2, 0
@@ -53,6 +55,7 @@ public final class NativeRiscvAsmIoReadRange {
                 mv   a0, s1
                 li   a7, 57
                 ecall
+                bltz s3, .Lkof_iorr_inval   # #848: pread negativo = erro
                 mv   a0, s3
                 li   a1, 4
                 call kof_array_alloc
@@ -71,7 +74,11 @@ public final class NativeRiscvAsmIoReadRange {
                 mv   a0, s1
                 j    .Lkof_iorr_ret
             .Lkof_iorr_err:
-                li   a0, 0
+                mv   a0, s0
+                call kof_io_throw_not_found
+            .Lkof_iorr_inval:
+                mv   a0, s0
+                call kof_io_throw_unreadable
             .Lkof_iorr_ret:
                 ld   s5, 40(sp)
                 ld   s4, 48(sp)

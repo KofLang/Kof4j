@@ -92,7 +92,7 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
             stack.add(new JsIr.JsCall(new JsIr.JsIdentifier(name), args));
             return;
         }
-        if (p.jsonOps.handle(ctx, stack, kc, receiver, args)) {
+        if (p.jsonOps.handle(stack, kc, receiver, args)) {
             return;
         }
         if (name.equals("kof_box") || name.equals("kof_unbox")) {

@@ -40,7 +40,7 @@ refuses it at compile time with `IOJS001`.
 | `isFile()` / `isDirectory()` | Bool |
 | `readText()` | `String?` — `null` on failure (JVM and Native) |
 | `writeText(s)` / `appendText(s)` | Bool, UTF-8 |
-| `readBytes()` | `Int[]` (0-255), `null` on failure |
+| `readBytes()` | `Int[]` (0-255); **throws** on failure (#848): `file not found: <path>` when the file does not exist, `cannot read file: <path>` when it exists but cannot be read (e.g. a directory) — never `null` |
 | `writeBytes(b)` / `appendBytes(b)` | Bool |
 | `size()` | Long; throws an exception if the file does not exist (02/09 — no `-1` sentinel) |
 | `delete()` | Bool — deletes the FILE, or an EMPTY directory. A NON-empty directory is not recursive here: it returns `false` and the directory is left untouched (measured on JVM + Script, 15/10) — for a tree use `Directory(x).delete()` (recursive on every target since 08/10, `known-bugs` §618). An absent path returns `false` |
@@ -96,6 +96,7 @@ println(path.size())
   (`null` for a nonexistent file) on JVM and Native; `size()` throws a
   recoverable exception (`catch (String e)`) — the `-1` sentinel was removed.
 - Booleans: `true`/`false`. `size()` throws an exception when the file does not exist (without `-1`).
+- Binary reads (#848): `readBytes()` and `readRange(offset, len)` are non-nullable `Int[]` and **throw** a recoverable `String` (`catch (String e)`) on failure — `file not found: <path>` when the file does not exist, `cannot read file: <path>` when it exists but cannot be read or the range is invalid (negative `offset`/`len`). An empty file, a short read and a range past EOF are NOT failures: they return the bytes that exist (possibly zero).
 
 ## Streaming (`libs/file`)
 

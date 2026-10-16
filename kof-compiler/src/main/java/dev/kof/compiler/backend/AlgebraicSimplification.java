@@ -96,7 +96,7 @@ public final class AlgebraicSimplification implements IrPass {
                 // literal value.
                 KofOperation right = out.get(out.size() - 1);
                 KofOperation left = out.get(out.size() - 2);
-                if (sameValue(b, left, right)) {
+                if (sameValue(left, right)) {
                     KofLoadLiteral zero = b.operandType().equals(Type.PrimitiveType.LONG)
                             ? KofLoadLiteral.ofLong(0L)
                             : KofLoadLiteral.ofInt(0);
@@ -114,7 +114,7 @@ public final class AlgebraicSimplification implements IrPass {
                 // x OP x for a comparison is a constant for int/long (no NaN).
                 KofOperation right = out.get(out.size() - 1);
                 KofOperation left = out.get(out.size() - 2);
-                if (sameValue(b, left, right)) {
+                if (sameValue(left, right)) {
                     KofLoadLiteral result = KofLoadLiteral.ofBool(selfComparison(b));
                     SourcePosition p = positions.remove(right);
                     positions.remove(left);
@@ -149,7 +149,7 @@ public final class AlgebraicSimplification implements IrPass {
     }
 
     /** Whether the two operand ops denote the same value (same slot, or same literal). */
-    private static boolean sameValue(KofBinary b, KofOperation left, KofOperation right) {
+    private static boolean sameValue(KofOperation left, KofOperation right) {
         if (left instanceof KofLoadLocal l1 && right instanceof KofLoadLocal l2) {
             return l1.index() == l2.index() && l1.type().equals(l2.type());
         }

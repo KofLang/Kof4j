@@ -31,6 +31,21 @@ static boolean evalInto(java.util.List<BytecodeReader.Insn> seq, BytecodeFrame f
                 int slot = op == 0x36 ? in.operands()[0] : op - 0x3b;
                 locals.put(slot, st.pop());
             }
+            // Fase E (16/10): os stores WIDE (o for-each sobre elementos
+            // Long/Float/Double — o binding do elemento: [checkcast,
+            // xxxValue, dstore]) — a sombra do slot wide nunca é lida, o
+            // mapa local da fatia é determinístico (medido no Bank.balance/
+            // overdrawn: o `for (double t : txs)` com o dstore 4).
+            case 0x37, 0x38, 0x39 -> {                  // lstore/fstore/dstore idx
+                if (st.isEmpty()) return false;
+                locals.put(in.operands()[0], st.pop());
+            }
+            case 0x3f, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4a -> {
+                // lstore_0..3 / fstore_0..3 / dstore_0..3: 4 por tipo
+                // → slot = (op - 0x3f) % 4 (o mesmo do emitLinear)
+                if (st.isEmpty()) return false;
+                locals.put((op - 0x3f) % 4, st.pop());
+            }
             case 0x01 -> st.push("null");
             case 0x02 -> st.push("-1");
             case 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 -> st.push(String.valueOf(op - 0x03));

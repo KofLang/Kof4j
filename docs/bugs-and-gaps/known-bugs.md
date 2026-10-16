@@ -2,6 +2,8 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §744 (FIXED)
+last: §743 (FIXED)
 last: §738 (CATALOGUED)
 last: §731 (FIXED/RETRACTED)
 last: §718
@@ -19623,3 +19625,96 @@ pair                          JVM/Script   NATIVE (x86/riscv/arm)   JS
 
 **Proof RED-first:** with the fix reverted FOUR of the six faces fail (js, native x86, riscv64, aarch64) while JVM/Script pass; `StringEqualsIgnoreCaseUnicodeE2ETest` 6/6 afterwards over the nine measured pairs on all six targets.
 <!-- pt-switch --> **PT:** [§741 (pt_BR)](known-bugs.pt_BR.md#741--stringequalsignorecase-diverge-em-silencio-nos-backends-nativos-fold-so-ascii-e-no-js-fold-completo-do-host)
+
+## §742 — String.split diverges on separators with REGEX metacharacters (the JVM/Script oracle is regex, JS/native are literal)
+
+**Status:** 🟡 OPEN — **needs a maintainer decision** (the semantics of the split separator). Catalogued with the measured evidence; NOT fixed.
+
+**CATALOGUED (measured) 15/10 — lane compiler/JVM/native `192.168.15.30:9092`.** Found by the cross-target probe of the split separator surface (the vein of §738/§739/§740/§741). A separator containing REGEX metacharacters makes the targets disagree on BOTH the value AND whether the program survives (rule 5 + an UNCATCHABLE crash on the JVM):
+
+```
+"a.b".split(".")     JVM/Script = 0 pieces []   NATIVE/JS = 2 [a][b] ✗
+"a|b".split("|")     JVM/Script = 3 [a][|][b]   NATIVE/JS = 2 [a][b] ✗
+"abXcd".split("X")   all agree = 2 [ab][cd]     (a metacharacter-free separator)
+"a[b".split("[")     JVM = UNCAUGHT PatternSyntaxException (a raw Java trace kills the program) / Script = the same message as an error   NATIVE/JS = 2 [a][b] ✗
+```
+
+**The contract is documented as REGEX:** the ledger's §111 record states the oracle explicitly — "Oracle = Java `String.split(regex)` which is `split(regex,0)`". So the JVM/Script implement the documented oracle and the JS/native are the divergent side.
+
+**Why this is DECISION-gated, not a straight fix:** the established policy for the REGEX-dependent String methods is to REFUSE them on the non-JVM targets — `matches`, `replaceFirst` and `replaceAll` already fail honestly with `STR003` on JS/native (measured last cycle). `split` cannot follow that route as-is: its separator is a runtime value, so no compile-time check can refuse only the regex-y cases. The real options are:
+- **(a) keep regex and port it** — the JS face is cheap (the host has `RegExp`), but the native backends would need a regex engine (large, and a new dependency the platform rules discourage);
+- **(b) decide that the Kof split separator is LITERAL** (the Kof-first simplicity reading) and make the JVM/Script quote it (`Pattern.quote` + the interpreter's literal split) — a small change, but a LANGUAGE-SURFACE semantics change that contradicts the §111 oracle note, so it is the maintainer's call;
+- **(c) keep the refusal policy** and diagnose `split` on JS/native when a literal separator is known to be regex-y (a partial, compile-time-only guard).
+
+**Interaction with §740 (honest note):** the §740 fix made the native split LITERAL (composing `index_of2` + `substring`). For a metacharacter-free separator — the overwhelmingly common case — literal and regex agree, so §740 is oracle-correct there (its 19-shape proof passes against the JVM). The residual class is exactly THIS entry's: a separator with metacharacters (and a regex-ESCAPED literal like `"\\."`, where the oracle splits on `.` and the native splits on the two characters `\.`).
+<!-- pt-switch --> **PT:** [§742 (pt_BR)](known-bugs.pt_BR.md#742--stringsplit-diverge-com-separadores-com-metacaracteres-de-regex-o-oraculo-jvmscript-e-regex-jsnativo-sao-literais)
+
+## §743 — a NARROWED nullable primitive array emitted reference element loads and stores over an int array VerifyError on the JVM and SIGSEGV on the three natives
+
+**Status:** ✅ FIXED 16/10 (lane issues/tooling `192.168.100.21:9093`, GitHub #878 + #879 as ONE unit — the same missing invariant in three lowering sites plus the typer).
+
+**CATALOGUED (measured) 16/10 — reporter `jonasrochasilva-prog`, re-measured at `1b3c8ced6` with the reporter's exact repro.** Inside `if (b != null)`, a nullable primitive array (`var b = maybe(true)` with `Int[]?`/`Double[]?`) was indexed, compounded and iterated with a REFERENCE element type. The Script was always correct; `String[]?` was never affected (its element already is a reference) — that is the control in the suite.
+
+```
+b[1] on Int[]?        JVM VerifyError (aaload over [I)   natives SIGSEGV rc=139   Script 9
+b[0] = 5 on Int[]?    JVM VerifyError (aastore)          natives OK               Script OK
+b[1] on Double[]?     JVM VerifyError (aaload)           natives SIGSEGV rc=139   Script 2.5
+b[0] += 3             JVM VerifyError                    natives SIGSEGV          Script OK
+for (var x in b)      JVM VerifyError (aaload)           natives SIGSEGV rc=139   Script 7/9
+b.length / return / pass as Int[]   OK everywhere (no element access)
+```
+
+**The JVM failure is MASKED:** the launcher prints `Erro: os componentes de runtime do JavaFX não foram encontrados`, hiding the `VerifyError` (§556). The class does not load; `-Xverify:all` plus a reflective load exposes it.
+
+**Root cause (confirmed by reading the lowering):** the narrowed `b` keeps the DECLARED type `Nullable(ArrayType)` in the IR — narrowing is semantic, not physical (the §736/#845 family). `Type.arrayElementType` recognised only a pure `ArrayType`, so the element came back `Unknown` and `KofArrayLoad`/`KofArrayStore` were emitted as reference accesses. Sites: `ExpressionLowerer` (`case ArrayAccessExpr`), `ExpressionAssignmentLowerer` (`aaElemType`), `CompilerEmission2` (compound increment), `StatementLowerer` (the `for-in` element extraction), and `ExpressionTyper` (the TYPE of `b[i]`, which would have sent the consumer down the reference path even with a correct load).
+
+**Fix (one invariant, additive):** `Type.arrayElementType` now crosses the `NullableType` — the element of `T[]?` IS the element of `T[]` (arrays are references; nullability belongs to the whole value, never to the element). The `for-in` and the typer now consume that helper instead of a raw `instanceof ArrayType`. No new primitive, no language-surface change.
+
+**Proof RED-first (executed):** `NarrowedNullableArrayE2ETest` **33 run / 15F / 8 env skips** on the unfixed tip (incl. a bytecode structure test asserting `IALOAD` present and `AALOAD` absent) → **33 run / 0F** after, over JVM + Script + JS + x86-64 + riscv64 + aarch64 (the 2 skips per face are RISCV32 / MCU ARM, no toolchain). Non-regression battery on the array+narrowing family: **150 run / 0F / 22 skips**.
+
+**SIBLING FACE — FIXED the same day as its own entry (§744, GitHub #882):** a narrowed `List<String>?` fails the SAME way on the JVM, because the lowerer classifies the receiver by the NULLABLE type (`BuiltinTypes.isList(NullableType)` is false): `l[1]` → `VerifyError aaload` and `for (var s in l)` → `VerifyError arraylength`. `l.get(i)`/`l.size()` work (semantic resolution) and `l[0] = x` gives the honest `SEM054`. Not covered by #878/#879 (those are arrays — it got its own issue, #882, and its own entry, §744).
+<!-- pt-switch --> **PT:** [§743 (pt_BR)](known-bugs.pt_BR.md#745--uma-list-inferida-com-tipo-de-elemento-nu-quebra-os-alvos-nativos-quando-um-primitivo-e-adicionado-sigsegv-jvmscriptjs-dao-o-valor-certo)
+
+## §744 — a NARROWED nullable collection emitted the ARRAY path index and iteration over a List raised a VerifyError on the JVM
+
+**Status:** ✅ FIXED 16/10 (lane issues/tooling `192.168.100.21:9093`, GitHub #882 — the sibling of §743/#878/#879, which were restricted to arrays).
+
+**CATALOGUED (measured) 16/10 — found while closing #878/#879, logged in §743.** A `List<T>?` (and, by the same classification, `Map`/`Set`) NARROWED by `if (l != null)` was still classified by the NULLABLE type: `BuiltinTypes.isList`/`isMap`/`isSet` match only a pure `ClassType`, so the receiver fell into the ARRAY path and the access was emitted as a reference one.
+
+```
+l[1]                 JVM VerifyError: Bad type on operand stack in aaload      Script b
+for (var s in l)     JVM VerifyError … in arraylength                          Script a / b
+l.get(1)             OK (semantic resolution, never the lowering)
+l.size()             OK
+l[0] = "z"           honest SEM054 ("use l.set(i, v)") — correct, not the defect
+```
+
+**Root cause:** the same missing invariant as §743 — the narrowing is semantic, so the local keeps `Nullable(ClassType kof.List)` in the IR, and every CLASSIFICATION of the receiver has to look under the `?`. In §743 the fix was `Type.arrayElementType` crossing the `NullableType`; here the classification itself had to cross it.
+
+**Fix (additive; no new primitive, no language-surface change):** new `Type.withoutNullable(Type)` (idempotent unwrap) used for the receiver classification in `ExpressionLowerer` (`case ArrayAccessExpr`: `isList`/`isMap`/`isSet` + the element/key extraction + the runtime-get call owner), `ExpressionTyper` (`case ArrayAccessExpr`: the TYPE of `l[i]`) and `StatementLowerer` (the `for-in` classification + the `kof_list_size`/`kof_list_get` call owners). The slot's declared type stays nullable — only the classification is unwrapped.
+
+**Proof RED-first (executed, with the test itself):** new `NarrowedNullableCollectionE2ETest` — with ONLY this delta reverted (the §743 fix kept): **33 run / 12F / 8 env skips**; with it: **33 run / 0F / 8 env skips** over JVM + Script + JS + x86-64 + riscv64 + aarch64 (the 2 skips per face are RISCV32 / MCU ARM, no toolchain). The suite also pins the controls that already worked (`.get()`/`.size()`) and a NON-nullable collection arm, and a bytecode structure test asserting no `AALOAD`/`ARRAYLENGTH` on the `ArrayList` receiver plus the runtime-get `INVOKESTATIC`.
+
+**Honest note:** `m["k"]` is NOT Kof syntax (the honest `SEM054` says "use get(k)"), so the Map arm of the suite exercises the receiver classification through `.get()`/`.size()` and not through `[]`.
+<!-- pt-switch --> **PT:** [§744 (pt_BR)](known-bugs.pt_BR.md#744--uma-colecao-anulavel-estreitada-emitia-o-caminho-de-array-indice-e-iteracao-sobre-uma-list-davam-verifyerror-na-jvm)
+
+## §745 — a List inferred with a BARE element type CRASHES the native targets when a primitive is added (SIGSEGV; the JVM/Script/JS give the right value)
+
+**Status:** 🟡 OPEN (catalogued with the measured repro and the fix pointer; NOT fixed).
+
+**CATALOGUED (measured) 16/10 — lane compiler/JVM/native `192.168.15.30:9092`.** Found by the cross-target probe of the collection edges (the vein of §738–§742). A list created from the EMPTY `listOf()` gets an INFERRED bare element type; adding a PRIMITIVE to it inside a lambda then CRASHES the native backends where the other three targets give the right value — the worst class (a crash, rule 5):
+
+```
+var b = listOf()
+listOf(1, 2, 3).forEach((x) -> b.add(x * 2))
+println(b)              JVM/Script/JS = [2, 4, 6]      NATIVE x86/riscv/arm = [?, ?, ?] ✗
+b.get(0)                JVM/Script/JS = 2, arith 3     NATIVE = the program DIES   ✗ (x86 and riscv64 stop after the size; aarch64 SEGFAULTS: `uncaught target signal 11`)
+List<Int> a = listOf()  ALL FOUR = [2, 4, 6] ✓ — an EXPLICIT element type is fine everywhere
+```
+
+**Root cause (the SAME mechanism NAT008 already refuses):** the element crosses a BARE type parameter, so the primitive is stored UNBOXED where the container expects a reference — `CollectionZipLowerer` refuses exactly this for `zip` with `NAT008` ("the element crosses a bare type parameter and would be unboxed as a pointer (SIGSEGV)"). The `add`/`get` path has no such guard, so the hazard reaches the backend: the list holds raw integers where pointers are expected, the print renders them as `?`, and reading one dereferences an integer as a pointer → the crash. That the refusal exists for `zip` and not for `add` is the inconsistency this entry records.
+
+**Fix pointer (next cycle, decision-free — it follows the established NAT008 policy):** add the sibling guard on the native lowering of `add`/`push`/`append` for a BARE-typed element receiving a primitive type, mirroring `CollectionZipLowerer`'s NAT-code diagnostic (same mechanism, same honest refusal, native-only — JVM/Script/JS keep boxing and stay correct). The exact site is the collection call lowering (`CollectionCallLowerer`); the diagnostic text should cite the same cause so the two gaps read as one family.
+
+**Boundary:** an explicit element type anywhere in the pipeline (`List<Int>`, or a non-empty `listOf(1,2,3)` receiver) is CORRECT on all four targets — measured — so the guard must key on the BARE/inferred element type, not on `add` itself.
+<!-- pt-switch --> **PT:** [§743 (pt_BR)](known-bugs.pt_BR.md#743--um-array-anulavel-de-primitivo-estreitado-emitia-cargas-e-stores-do-elemento-por-referencia-sobre-um-array-de-int-verifyerror-na-jvm-e-sigsegv-nos-tres-nativos)

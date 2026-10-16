@@ -252,9 +252,28 @@ public sealed interface Type {
         return name;
     }
 
+    /**
+     * Elemento de um array — atravessando a ANULABILIDADE (#878/#879): o elemento de
+     * {@code T[]?} é o de {@code T[]} (a anulabilidade é do valor inteiro; o local
+     * ESTREITADO por {@code if (b != null)} segue {@code Nullable(ArrayType)} no IR,
+     * porque o estreitamento é semântico). Sem isto o acesso saía por referência
+     * ({@code aaload} sobre {@code [I}): VerifyError na JVM, SIGSEGV nos nativos.
+     */
     static Type arrayElementType(Type type) {
         if (type instanceof ArrayType at) return at.componentType();
+        if (type instanceof NullableType nt) return arrayElementType(nt.inner());
         return UnknownType.UNKNOWN;
+    }
+
+    /**
+     * O mesmo tipo sem a ANULABILIDADE (#882): o receptor ESTREITADO por
+     * {@code if (l != null)} segue {@code Nullable(...)} no IR (o estreitamento é
+     * semântico), e toda CLASSIFICAÇÃO do receptor (é List? é Map? é array?) tem de
+     * olhar o tipo por baixo do `?` — senão um {@code List<T>?} cai no caminho de
+     * array ({@code aaload}/{@code arraylength} sobre ArrayList → VerifyError).
+     */
+    static Type withoutNullable(Type type) {
+        return type instanceof NullableType nt ? withoutNullable(nt.inner()) : type;
     }
 
     static Type fromJvmDescriptor(String desc) {

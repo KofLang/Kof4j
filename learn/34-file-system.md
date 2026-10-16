@@ -106,7 +106,8 @@ system encoding is never used.
 
 ## Errors
 
-- `readText`/`readBytes`: `null` when the file cannot be read.
+- `readText`: `null` when the file cannot be read.
+- `readBytes`/`readRange`: throw `file not found: <path>` or `cannot read file: <path>` (catch with `catch (String e)`).
 - Boolean operations (`writeText`, `delete`, `create`, ...): `true` on
   success, `false` on failure.
 - `size`: `-1` when the file does not exist.

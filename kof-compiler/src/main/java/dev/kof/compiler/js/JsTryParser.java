@@ -180,34 +180,15 @@ JsIr.JsStatement parse(MethodCtx ctx, int[] pos) {
         // já executa o corpo do finally no caminho do return — o epílogo IR
         // repetiria o corpo (duplicado). Consumimos os ops e descartamos o
         // corpo, preservando SÓ o return final do valor.
-        List<JsIr.JsStatement> returnFinally = new ArrayList<>();
         if (hasFinally && pos[0] < ctx.ops.size() && ctx.ops.get(pos[0]) instanceof KofLabel rf
                 && rf.label().equals(myReturnFinally)) {
             pos[0]++;
-            List<JsIr.JsStatement> epilogue = flow.parseStatements(ctx, pos, Set.of(), new ArrayList<>());
-            // §617 face B: o epílogo repete o corpo do finally (que o
-            // try/finally NATIVO do JS já executa) como PREFIXO exato, antes da
-            // cauda real — descartar o prefixo que coincide com finallyBody,
-            // preservando a cauda: o `return` final (single-try) OU a cadeia
-            // `#retVal = <slot interno>; return #retVal` (try/finally aninhado,
-            // onde o valor do return interno precisa sobreviver ao finally
-            // externo). Antes, só o JsReturn era preservado e o caso aninhado
-            // devolvia `undefined`.
-            int epiStart = 0;
-            while (epiStart < epilogue.size() && epiStart < finallyBody.size()
-                    && epilogue.get(epiStart).equals(finallyBody.get(epiStart))) {
-                epiStart++;
-            }
-            // §703: com a conversão #retVal->return, o try/finally NATIVO do JS
-            // já roda o finally e propaga o return — o epílogo inline é
-            // REDUNDANTE (e fora de loop cai no tail, dentro de loop roda a cada
-            // iteração devolvendo `undefined`). Descartar.
-            if (myReturnFinally == null) {
-                returnFinally.addAll(epilogue.subList(epiStart, epilogue.size()));
-            }
-            // §703: quando convertemos (#retVal->return), o epílogo é
-            // descartado — o try/finally NATIVO do JS roda o finally e propaga
-            // o return. Os ops já foram consumidos pelo parse acima.
+            // §703: com a conversão #retVal->return, o try/finally NATIVO do JS já roda o
+            // finally e propaga o return — o epílogo IR (corpo do finally repetido + return)
+            // é REDUNDANTE: só se CONSOME os ops (o parse avança pos) e ele é descartado.
+            // (O antigo `if (myReturnFinally == null) addAll(...)` era morto — o equals acima
+            // exige myReturnFinally != null; CodeQL #1150. returnFinally sempre saía vazio.)
+            flow.parseStatements(ctx, pos, Set.of(), new ArrayList<>());
             // o Label(done) do try encerra o epílogo — consumir (não é loop:
             // nenhum jump posterior aponta p/ ele depois do epílogo parseado).
             // §617 face B: NÃO consumir se for o endLabel de um try ENVOLVENTE
@@ -217,7 +198,7 @@ JsIr.JsStatement parse(MethodCtx ctx, int[] pos) {
                 pos[0]++;
             }
         }
-        return new JsIr.JsTry(tryBody, catches, finallyBody, returnFinally);
+        return new JsIr.JsTry(tryBody, catches, finallyBody, List.of());
     }
 
 }

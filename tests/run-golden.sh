@@ -94,6 +94,10 @@ run_case_target() {
 
 for case_dir in "$GOLDEN_DIR"/*/; do
     case_name="$(basename "$case_dir")"
+    # data-corpus dirs (ex.: kof-cobol-translator Phase 11, f214206e5) have
+    # input.txt/expected.txt but NO Main.kf — they are read by dedicated
+    # E2E tests (CobolGoldenE2ETest), not compiled by this runner.
+    if [ ! -f "$case_dir/Main.kf" ]; then continue; fi
     if [ ${#CASES[@]} -gt 0 ]; then
         want=0
         for c in "${CASES[@]}"; do

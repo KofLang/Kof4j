@@ -534,8 +534,23 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                                 bindLen = bi + 1;
                                 break;
                             }
+                            // Fase E (16/10): os stores WIDE — o for-each
+                            // sobre elementos Long/Float/Double (o unboxing
+                            // lvalue/floatValue/doubleValue → o dstore;
+                            // medido no Bank.balance/overdrawn: `for (double
+                            // t : txs)` com o dstore 4)
+                            if (bop == 0x37 || bop == 0x38 || bop == 0x39) {
+                                bindVar = fblk.get(bi).operands()[0];
+                                bindLen = bi + 1;
+                                break;
+                            }
                             if (bop >= 0x3b && bop <= 0x3e) {
                                 bindVar = bop - 0x3b;
+                                bindLen = bi + 1;
+                                break;
+                            }
+                            if (bop >= 0x3f && bop <= 0x4a) {
+                                bindVar = (bop - 0x3f) % 4;
                                 bindLen = bi + 1;
                                 break;
                             }

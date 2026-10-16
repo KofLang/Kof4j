@@ -1,0 +1,28 @@
+package security
+
+// kof.security — SHA-256 de um ARQUIVO (issue #853, parte "de arquivo").
+//
+// Por COMPOSIÇÃO das primitivas que já existem: `File.readBytes()` (kof.io) +
+// `crypto.sha256Bytes` (hex). É o caminho Kof-first — o Kof expressa a operação,
+// então ela vive numa BIBLIOTECA, e não como função nova em três runtimes por
+// alvo (D-KOF-FIRST). Vale onde as duas primitivas valem, sem gap novo.
+//
+// LIMITE HONESTO: o arquivo inteiro é lido em memória. O outro braço da #853 —
+// hashing INCREMENTAL (`update`/`final` sobre blocos, para arquivos maiores que a
+// memória) — continua aberto: ele precisa de ESTADO entre chamadas, o que não se
+// compõe das primitivas atuais.
+
+/** SHA-256 (hex minúsculo) do conteúdo do arquivo em `path`.
+ *
+ *  `File.readBytes()` devolve `Int[]` e a face binária do digest toma `Byte[]`
+ *  (SECN013/D-KOF-DIGEST-BYTES), então a ponte é explícita: mapa + toArray. */
+String sha256File(String path) {
+    var raw = File(path).readBytes()
+    var bytes = new Byte[raw.length]
+    var i = 0
+    for (var b in raw) {
+        bytes[i] = b as Byte
+        i = i + 1
+    }
+    return crypto.sha256Bytes(bytes)
+}
