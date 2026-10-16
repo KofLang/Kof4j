@@ -157,21 +157,144 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
             fusedBlk = blk;
             fusedK = k;
             fusedLastOp = last.opcode();
+            if (System.getenv("KOF_CA") != null) {
+                StringBuilder ops = new StringBuilder();
+                for (BytecodeReader.Insn bi : blk) ops.append(Integer.toHexString(bi.opcode())).append("@").append(bi.offset()).append(" ");
+                System.out.println("GATE blk=[" + b.start + ") size=" + blk.size() + " lop=0x"
+                        + Integer.toHexString(lop) + " inv=" + inv + " cond=" + cond
+                        + " then=" + thenStart + " exit=" + exitStart + " ops=" + ops);
+            }
+
+            // Fase E (16/10): o BINDING-PODADO + o CALLARG — as duas formas
+            // fundidas que o testSplit classico recusa (medido no Wf.heads):
+            // (i) o blkSeq corta o prefixo [valor..., astore] do bloco do
+            // leitor (o elemento do for-each fundido com o teste) — o valor
+            // e computavel do prefixo; registra o slot ANTES do split para o
+            // teste avaliar o local (o v3 declarado = zero codigo solto).
+            // (ii) o join = [call 1-arg, pop] com o pre terminando em LOAD
+            // (o receiver na pilha) — o split com allowLoad.
+            if (split == null && blk.get(0).offset() > b.start) {
+                List<BytecodeReader.Insn> lead = new java.util.ArrayList<>();
+                for (BytecodeReader.Insn ii : insns)
+                    if (ii.offset() >= b.start && ii.offset() < blk.get(0).offset()) lead.add(ii);
+                if (System.getenv("KOF_CA") != null)
+                    System.out.println("LEAD b=[" + b.start + ") blk0=" + blk.get(0).offset()
+                            + " lead=" + lead.size() + " insns=" + insns.size());
+                int lop2 = lead.isEmpty() ? -1 : lead.get(lead.size() - 1).opcode();
+                if (lop2 == 0x3a || (lop2 >= 0x4b && lop2 <= 0x4e)) {   // astore (a forma normalizada + _n)
+                    int slot2 = lop2 == 0x3a
+                            ? lead.get(lead.size() - 1).operands()[0]
+                            : lop2 - 0x4b;
+                    if (System.getenv("KOF_CA") != null)
+                        System.out.println("BIND slot=" + slot2);
+                    String vVal = BytecodeDecoder.stackValue(
+                            lead.subList(0, lead.size() - 1), frame, cp);
+                    if (vVal != null) {
+                        String nm2 = frame.name(slot2);
+                        // O for-each ja declara o elemento no cabecalho
+                        // (`for (var v3 in arg0)`) — a binding podada e DELE
+                        // (o it.next + checkcast): registra o slot, mas NAO
+                        // re-emite a linha (o v2 do iterator nao existe no
+                        // codigo emitido).
+                        boolean forEachOwned = false;
+                        for (String o : out)
+                            if (o.contains("for (var " + nm2 + " in ")) forEachOwned = true;
+                        if (!forEachOwned) {
+                            frame.bindSlot(slot2, nm2);
+                            declared.add(slot2);
+                            out.add("    var " + nm2 + " = " + vVal);
+                        }
+                        split = BytecodeDecoder.testSplit(blk, frame, cp, k, inv, true);
+                    }
+                }
+            }
+            if (split == null) {
+                BytecodeReader.Block pcThen = byStart.get(thenStart);
+                if (pcThen != null && pcThen.succ.size() == 1) {
+                    BytecodeReader.Block pcJoin = byStart.get(pcThen.succ.get(0));
+                    List<BytecodeReader.Insn> pcJ = pcJoin == null ? java.util.List.of()
+                            : BytecodeDecoder.insnsWithin(pcJoin, insns);
+                    if (pcJ.size() >= 2 && (pcJ.get(0).opcode() == 0xb6 || pcJ.get(0).opcode() == 0xb9)
+                            && pcJ.get(1).opcode() == 0x57) {
+                        String[] pcM = BytecodeCp.resolveMethodRef(cp, pcJ.get(0).operands()[0]);
+                        if (pcM != null && BytecodeCp.argCount(pcM[2]) == 1)
+                            split = BytecodeDecoder.testSplit(blk, frame, cp, k, inv, true);
+                    }
+                }
+            }
 
             if (split != null) {
                 List<BytecodeReader.Insn> preInsns = blk.subList(0, split.prologueLen());
                 // emitLinear PARA e retorna parcial em branch (linha do
-                // 0xa7) — prefixo com fluxo interno truncaria código em
-                // silêncio (código errado compilável). Recusa → stub.
+                // 0xa7) — prefixo com fluxo interno truncaria codigo em
+                // silencio (codigo errado compilavel). Recusa -> stub.
                 for (BytecodeReader.Insn pi : preInsns) {
                     int po = pi.opcode();
                     boolean fluxo = (po >= 0x99 && po <= 0xa7) || (po >= 0xaa && po <= 0xb1) || po == 0xbf;
                     if (fluxo) { BytecodeStatements.refuse("prologue-has-flow"); return false; }
                 }
-                List<String> pre = BytecodeStatementsEmit.emitLinear(preInsns, cp, frame, declared);
+                // Fase E (16/10): o TERNARIO-COMO-ARG — o pre pode terminar
+                // em LOAD (o receiver da call do join na pilha). Os bracos =
+                // valores (o stackValueStrip); o join = [call 1-arg, pop].
+                // A emissao recv.call(if (cond) t else e) + o skip do
+                // call/pop no join.
+                BytecodeReader.Insn recvI = preInsns.isEmpty() ? null : preInsns.get(preInsns.size() - 1);
+                int ro = recvI == null ? -1 : recvI.opcode();
+                boolean preLoad = (ro >= 0x15 && ro <= 0x35);
+                String recv = preLoad ? BytecodeDecoderStack.loadValue(recvI, frame) : null;
+                BytecodeReader.Block joinC2 = null;
+                String jmName = null;
+                String tVal = null;
+                String eVal = null;
+                if (preLoad && recv != null) {
+                    BytecodeReader.Block thenC2 = byStart.get(thenStart);
+                    if (thenC2 != null && thenC2.succ.size() == 1) {
+                        joinC2 = byStart.get(thenC2.succ.get(0));
+                        List<BytecodeReader.Insn> jI2 = joinC2 == null ? java.util.List.of()
+                                : BytecodeDecoder.insnsWithin(joinC2, insns);
+                        if (jI2.size() >= 2 && (jI2.get(0).opcode() == 0xb6 || jI2.get(0).opcode() == 0xb9)
+                                && jI2.get(1).opcode() == 0x57) {
+                            String[] jm2 = BytecodeCp.resolveMethodRef(cp, jI2.get(0).operands()[0]);
+                            tVal = BytecodeStatements.stackValueStrip(
+                                    BytecodeDecoder.insnsWithin(thenC2, insns), frame, cp);
+                            eVal = BytecodeStatements.stackValueStrip(
+                                    BytecodeDecoder.insnsWithin(
+                                            byStart.get(exitStart), insns), frame, cp);
+                            if (jm2 != null && BytecodeCp.argCount(jm2[2]) == 1
+                                    && tVal != null && eVal != null) {
+                                jmName = jm2[1];
+                            } else {
+                                joinC2 = null;
+                            }
+                        } else {
+                            joinC2 = null;
+                        }
+                    } else {
+                        joinC2 = null;
+                    }
+                }
+                List<String> pre;
+                if (joinC2 != null) {
+                    pre = preInsns.size() > 1
+                            ? BytecodeStatementsEmit.emitLinear(
+                                    preInsns.subList(0, preInsns.size() - 1), cp, frame, declared)
+                            : List.of();
+                } else {
+                    pre = BytecodeStatementsEmit.emitLinear(preInsns, cp, frame, declared);
+                }
                 if (pre == null) { BytecodeStatements.refuse("emitLinear-null"); return false; }
-                out.addAll(pre);
                 cond = split.cond();
+                if (joinC2 != null) {
+                    out.addAll(pre);
+                    out.add("    " + recv + "." + jmName + "(if (" + cond + ") " + tVal
+                            + " else " + eVal + ")");
+                    emitted.add(thenStart);
+                    emitted.add(exitStart);
+                    BytecodeStatements.skipCount.put(joinC2.start, 2);
+                    return struct(joinC2, insns, byStart, cp, frame, out, emitted,
+                            declared, header, stops);
+                }
+                out.addAll(pre);
             }
         }
         if (cond == null) { BytecodeStatements.refuse("cond-null"); return false; }
@@ -201,9 +324,18 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                         String top = BytecodeCp.takenCond(fusedLastOp);
                         c2 = top == null ? null
                                 : BytecodeDecoder.testExpr(suf, frame, fusedK, top, cp);
-                    } else {
+                        } else {
                         c2 = BytecodeDecoder.blockConditionTaken(tb, insns, frame, cp);
                     }
+                    if (c2 == null) {
+                        // Fase E (16/10): o split recusou (o testExpr fechado
+                        // não modela o cmp de sinal) — cai no blockCondition
+                        // Taken (o par-cmp geral cobre o [ops, cmp, ifXX]).
+                        c2 = BytecodeDecoder.blockConditionTaken(tb, insns, frame, cp);
+                    }
+                    if (System.getenv("KOF_CA") != null)
+                        System.out.println("OR-ITER tb=[" + tb.start + ") sz=" + BytecodeDecoder.insnsWithin(tb, insns).size()
+                                + " c2=" + (c2 == null ? "NULL" : c2) + " split=" + (split != null));
                     if (c2 == null) break;
                     orCond = orCond == null ? c2 : orCond + " || " + c2;
                     tb = byStart.get(tb.succ.get(1));
@@ -227,6 +359,9 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                     break;
                 }
             }
+            if (System.getenv("KOF_CA") != null)
+                System.out.println("OR-WALK orCond=" + orCond + " realFalse=" + realFalse
+                        + " cond=" + (cond == null ? "NULL" : cond));
             if (orCond != null && realFalse >= 0) {
                 cond = orCond;
                 thenStart = exitStart;   // o verdadeiro
@@ -742,6 +877,10 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
         List<String> stmts = BytecodeStatementsEmit.emitLinear(BytecodeStatements.blkSeq(b, insns), cp, frame, declared);
         if (stmts == null) { BytecodeStatements.refuse("emitLinear-null"); return false; }
         out.addAll(stmts);
+        // Fase E (16/10): o terminal puro (o areturn) — sem succ; o emitLinear
+        // acima já emitiu o return. Guarda o get(0) (os corpos mais fundos do
+        // callarg/binding alcançam este caminho agora).
+        if (b.succ.isEmpty()) return true;
         // Fase C (13/10): goto para a SAÍDA do loop aberto = `break`
         if (BytecodeStatements.currentLoopExit >= 0 && b.succ.get(0) == BytecodeStatements.currentLoopExit) {
             out.add("break");

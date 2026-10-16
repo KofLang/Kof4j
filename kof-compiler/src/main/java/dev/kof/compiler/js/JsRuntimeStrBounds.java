@@ -38,6 +38,36 @@ public final class JsRuntimeStrBounds {
             // e o JVM/Script inserem `to` em TODA posição, inclusive nas pontas
             // (`"aXbXc".replace("", "-")` = `-a-X-b-X-c-`; `"".replace("", "-")`
             // = `-`). O ramo não-vazio é byte-idêntico à baixa anterior.
+            // §741: `equalsIgnoreCase` — o toUpperCase de String do host NAO segue
+            // o contrato do JVM (fold char-a-char 1:1, upper OU lower). Ex.:
+            // "strasse"/"STRASSE" — o host expande o eszett (=> true indevido) e
+            // o "I-dot" vira "i"+combining (=> false indevido).
+            export function kofStrEqIgnoreCase(a, b) {
+                if (a.length !== b.length) return false;
+                for (var i = 0; i < a.length; i++) {
+                    var c1 = a.charCodeAt(i), c2 = b.charCodeAt(i);
+                    if (c1 === c2) continue;
+                    if (kofStrSimpleUpper(c1) !== kofStrSimpleUpper(c2)) {
+                        if (kofStrSimpleLower(c1) !== kofStrSimpleLower(c2)) return false;
+                    }
+                }
+                return true;
+            }
+            // Mapeamento SIMPLES (1:1) de UM code unit, como o Character do JVM:
+            // o host expande (eszett -> SS = mantem; I-dot -> "i"+marca = usa a
+            // base). Sem marcas combinantes no resto, e expansao -> mantem.
+            function kofStrSimpleFold(c, upper) {
+                var f = upper ? String.fromCharCode(c).toUpperCase()
+                              : String.fromCharCode(c).toLowerCase();
+                if (f.length === 1) return f.charCodeAt(0);
+                for (var i = 1; i < f.length; i++) {
+                    var m = f.charCodeAt(i);
+                    if (m < 0x0300 || m > 0x036f) return c;
+                }
+                return f.charCodeAt(0);
+            }
+            function kofStrSimpleUpper(c) { return kofStrSimpleFold(c, true); }
+            function kofStrSimpleLower(c) { return kofStrSimpleFold(c, false); }
             // §739: o `String.prototype.trim` do host remove o conjunto Unicode
             // WhiteSpace+LineTerminator (NBSP, U+2000...) e NAO remove os
             // controles C0; o `String.trim()` do JVM tira TODO char <= ' '.

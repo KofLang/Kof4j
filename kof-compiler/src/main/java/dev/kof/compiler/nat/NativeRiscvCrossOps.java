@@ -365,7 +365,8 @@ public final class NativeRiscvCrossOps {
                 sb.append("    call kof_string_split_chars\n");
                 sb.append("    j    " + done + "\n");
                 sb.append(split + ":\n");
-                sb.append("    call kof_string_split\n");
+                sb.append("    li   a2, 0\n");          // §740: limit 0 = ilimitado
+                sb.append("    call kof_string_split_str\n");
                 sb.append(done + ":\n");
                 other.pushRiscv(sb, "a0");
                 return;
@@ -384,7 +385,7 @@ public final class NativeRiscvCrossOps {
                 sb.append("    call kof_string_split_chars\n");
                 sb.append("    j    " + done + "\n");
                 sb.append(split + ":\n");
-                sb.append("    call kof_string_split_limit\n");
+                sb.append("    call kof_string_split_str\n");   // §740: a1=sep, a2=limit
                 sb.append(done + ":\n");
                 other.pushRiscv(sb, "a0");
                 return;

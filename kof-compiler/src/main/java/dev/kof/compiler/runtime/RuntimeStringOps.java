@@ -352,51 +352,30 @@ public final class RuntimeStringOps {
                 pushq %rbx
                 pushq %r12
                 pushq %r13
-                pushq %r14
                 movq %rdi, %rbx
                 movq %rsi, %r12
-                movl 16(%rbx), %r13d
-                movl 16(%r12), %r14d
-                cmpl %r14d, %r13d
-                jne .Lkof_eqic_no
-                xorl %ecx, %ecx
-            .Lkof_eqic_loop:
-                cmpl %r13d, %ecx
-                jge .Lkof_eqic_yes
-                movzbl 24(%rbx,%rcx), %eax
-                movzbl 24(%r12,%rcx), %edx
-                cmpl %edx, %eax
-                je .Lkof_eqic_next
-                cmpb $65, %al
-                jb .Lkof_eqic_no
-                cmpb $90, %al
-                ja .Lkof_eqic_try_up
-                addl $32, %eax
-                cmpl %edx, %eax
-                je .Lkof_eqic_next
-                jmp .Lkof_eqic_no
-            .Lkof_eqic_try_up:
-                cmpb $97, %al
-                jb .Lkof_eqic_no
-                cmpb $122, %al
-                ja .Lkof_eqic_no
-                subl $32, %eax
-                cmpl %edx, %eax
-                je .Lkof_eqic_next
-                jmp .Lkof_eqic_no
-            .Lkof_eqic_next:
-                incq %rcx
-                jmp .Lkof_eqic_loop
-            .Lkof_eqic_yes:
-                movl $1, %eax
-                popq %r14
-                popq %r13
-                popq %r12
-                popq %rbx
-                ret
-            .Lkof_eqic_no:
-                xorl %eax, %eax
-                popq %r14
+                # §741: o contrato do JVM e CHAR-A-CHAR (fold por code unit,
+                # upper OU lower) — o antigo comparava BYTES com fold ASCII
+                # (É/é dava false). Reusa o fold Unicode do D-STR-UNICODE.
+                movq %rbx, %rdi
+                call kof_string_to_upper
+                movq %rax, %r13
+                movq %r12, %rdi
+                call kof_string_to_upper
+                movq %r13, %rdi
+                movq %rax, %rsi
+                call kof_string_equals
+                testl %eax, %eax
+                jnz .Lkof_eqic_ret
+                movq %rbx, %rdi
+                call kof_string_to_lower
+                movq %rax, %r13
+                movq %r12, %rdi
+                call kof_string_to_lower
+                movq %r13, %rdi
+                movq %rax, %rsi
+                call kof_string_equals
+            .Lkof_eqic_ret:
                 popq %r13
                 popq %r12
                 popq %rbx
