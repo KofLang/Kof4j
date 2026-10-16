@@ -694,6 +694,13 @@
       "pt": "tipos curinga '? extends/super' não são suportados no Kof; use um tipo concreto ou nullability 'T?'"
     }
   ],
+  "PARSE087": [
+    {
+      "arity": 0,
+      "en": "assert message must be a string literal (statements.md §9)",
+      "pt": "a mensagem do assert deve ser um literal de texto (statements.md §9)"
+    }
+  ],
   "PARSE090": [
     {
       "arity": 0,
@@ -830,6 +837,11 @@
       "arity": 2,
       "en": "{0} is a top-level function, not a value in argument position — pass the call wrapped in a lambda: () -> {1}()",
       "pt": "{0} é uma função de nível de módulo, não um valor em posição de argumento — passe a chamada envolvida em uma lambda: () -> {1}()"
+    },
+    {
+      "arity": 3,
+      "en": "Undefined variable or type: '{0}' as the bound of type-parameter '{1}' in {2} — declare the bound type or fix the name (R6: an undefined bound must not compile)",
+      "pt": "variável ou tipo indefinido: '{0}' como bound do type-parameter '{1}' em {2} — declare o tipo do bound ou corrija o nome (R6: um bound indefinido não pode compilar)"
     }
   ],
   "SEM012": [
@@ -955,18 +967,23 @@
     },
     {
       "arity": 1,
-      "en": "Cannot resolve method '{0}' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find/forEach/flatMap/distinct/sorted/groupBy/zip)",
-      "pt": "não é possível resolver o método '{0}' no tipo 'List' (válidos: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find/forEach/flatMap/distinct/sorted/groupBy/zip)"
+      "en": "Cannot resolve method '{0}' on type 'List' (valid: add/push/append/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/zip)",
+      "pt": "Método '{0}' não resolvido no tipo 'List' (válidos: add/push/append/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/zip)"
     },
     {
       "arity": 1,
-      "en": "Cannot resolve method '{0}' on type 'Map' (valid: put/get/getOrDefault/putIfAbsent/remove/containsKey/contains/containsValue/size/clear/isEmpty/keys/values)",
-      "pt": "não é possível resolver o método '{0}' no tipo 'Map' (válidos: put/get/getOrDefault/putIfAbsent/remove/containsKey/contains/containsValue/size/clear/isEmpty/keys/values)"
+      "en": "Cannot resolve method '{0}' on type 'Map' (valid: put/get/getOrDefault/putIfAbsent/remove/containsKey/contains/containsValue/size/length/count/clear/isEmpty/keys/values)",
+      "pt": "Método '{0}' não resolvido no tipo 'Map' (válidos: put/get/getOrDefault/putIfAbsent/remove/containsKey/contains/containsValue/size/length/count/clear/isEmpty/keys/values)"
     },
     {
       "arity": 1,
-      "en": "Cannot resolve method '{0}' on type 'Set' (valid: add/contains/remove/size/clear/isEmpty)",
-      "pt": "não é possível resolver o método '{0}' no tipo 'Set' (válidos: add/contains/remove/size/clear/isEmpty)"
+      "en": "Cannot resolve method '{0}' on type 'Set' (valid: add/contains/remove/size/length/count/clear/isEmpty)",
+      "pt": "Método '{0}' não resolvido no tipo 'Set' (válidos: add/contains/remove/size/length/count/clear/isEmpty)"
+    },
+    {
+      "arity": 1,
+      "en": "Cannot resolve method '{0}' on type 'String' (valid: length/isEmpty/charAt/substring/contains/startsWith/endsWith/indexOf/lastIndexOf/equals/equalsIgnoreCase/compareTo/compareToIgnoreCase/toUpperCase/toLowerCase/trim/concat/replace/replaceAll/replaceFirst/matches/split/toCharArray/getBytes/toInt/toLong/toFloat/toDouble)",
+      "pt": "Método não resolvido '{0}' no tipo 'String' (válidos: length/isEmpty/charAt/substring/contains/startsWith/endsWith/indexOf/lastIndexOf/equals/equalsIgnoreCase/compareTo/compareToIgnoreCase/toUpperCase/toLowerCase/trim/concat/replace/replaceAll/replaceFirst/matches/split/toCharArray/getBytes/toInt/toLong/toFloat/toDouble)"
     },
     {
       "arity": 1,

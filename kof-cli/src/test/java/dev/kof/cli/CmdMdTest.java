@@ -90,6 +90,21 @@ class CmdMdTest {
     }
 
     @Test
+    void checkSchemaMismatchExitsOneWithFileLine(@TempDir Path tmp) throws Exception {
+        Path doc = tmp.resolve("lab.md");
+        Files.writeString(doc, "record Lab(Int total, Int passed)\n\ntotal: 5\npassed: cinco\n");
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        int ec = CmdMd.run(new String[]{"md", "check", doc.toString()},
+                new PrintStream(out, true, StandardCharsets.UTF_8),
+                new PrintStream(err, true, StandardCharsets.UTF_8));
+        assertEquals(1, ec, err.toString(StandardCharsets.UTF_8));
+        String printed = out.toString(StandardCharsets.UTF_8);
+        assertTrue(printed.contains(":4: MD002:"), printed);
+        assertTrue(printed.contains("schema type"), printed);
+    }
+
+    @Test
     void helpListsTheContractWithoutExecuting(@TempDir Path tmp) throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ByteArrayOutputStream err = new ByteArrayOutputStream();

@@ -1,0 +1,89 @@
+package cobol
+
+import cobol.Ast
+
+// kof.cobol.gen — the COBOL→Kof translator, PHASE 7 MVP (plan §30): the KOF
+// SOURCE GENERATION for the mappable subset. One `fun` per paragraph; the
+// DISPLAY sentences with STRING literals become `print(...)`; EVERYTHING
+// else is refused IN THE OUTPUT as a named gap (CB010: verb not mapped yet)
+// — never a silent mistranslation (the plan's own acceptance rule). The
+// proof standard is the plan's: the GENERATED source must COMPILE.
+
+record GenResult(String kof, Int okCount, Int cbCount)
+
+// genProcedure — the paragraphs → the Kof source (one fun per paragraph, a
+// main() invoking them in declaration order).
+GenResult genProcedure(List<Paragraph> paras) {
+    var body = ""
+    var mainCalls = ""
+    var okN = 0
+    var cbN = 0
+    var p = 0
+    while (p < paras.size) {
+        var para = paras.get(p)
+        if (para.name.length == 0) {
+            p = p + 1
+            continue
+        }
+        var fname = lowerName(para.name)
+        var chunk = fname + "() {\n"
+        var s = 0
+        var mapped = 0
+        while (s < para.sentences.size) {
+            var sent = para.sentences.get(s)
+            var v = sent.tokens.get(0).text.toUpperCase()
+            if (v == "DISPLAY" && sent.tokens.size >= 2
+                    && sent.tokens.get(1).kind == "STRING") {
+                var lit = sent.tokens.get(1).text
+                var text = lit.substring(1, lit.length - 1)
+                chunk = chunk + "    println(\"" + text + "\")\n"
+                mapped = mapped + 1
+            } else {
+                chunk = chunk + "    // CB010: verb " + v + " not mapped yet\n"
+                cbN = cbN + 1
+            }
+            s = s + 1
+        }
+        chunk = chunk + "}\n"
+        body = body + chunk
+        if (mapped > 0) {
+            mainCalls = mainCalls + "    " + fname + "()\n"
+            okN = okN + 1
+        }
+        p = p + 1
+    }
+    var kof = body + "\nmain() {\n" + mainCalls + "}\n"
+    return GenResult(kof, okN, cbN)
+}
+
+// lowerName — MAIN-PARA → mainPara (the plan's Q3 recommended direction:
+// CUSTOMER-ID → customerId). The FIRST word is all-lower; the later words
+// keep their initial upper.
+String lowerName(String name) {
+    var out = ""
+    var up = true
+    var first = true
+    var i = 0
+    while (i < name.length) {
+        var c = name.charAt(i)
+        if (c == '-' || c == '_') {
+            up = true
+        } else {
+            var ch = c
+            if (c >= 'A' && c <= 'Z') {
+                var v = c as Int
+                ch = (v + 32) as Char
+            }
+            if (up && !first) {
+                ch = c
+            }
+            out = out + ch
+            if (up) {
+                first = false
+            }
+            up = false
+        }
+        i = i + 1
+    }
+    return out
+}

@@ -1,0 +1,58 @@
+package financial
+
+// kof.financial.idem — IDEMPOTENCY keys and records (plan §10.1).
+//
+// Every mutating operation accepts an idempotency key. A replay with the SAME
+// key and the SAME request hash is IDEMPOTENT (the stored response returns); a
+// replay with the same key but a DIFFERENT hash is a CONFLICT — FIN005 — never
+// a silent second charge. Keys use uuid.v7() so they are time-ordered.
+
+record IdempotencyRecord(String key, String requestHash, String responseJson, Long createdAtMillis)
+
+record IdempotencyStore(List<IdempotencyRecord> records)
+
+// find — the stored record for a key, or null.
+IdempotencyRecord? find(IdempotencyStore s, String key) {
+    var i = 0
+    while (i < s.records.size()) {
+        var r = s.records.get(i)
+        if (r.key == key) {
+            return r
+        }
+        i = i + 1
+    }
+    return null
+}
+
+// isReplay — the same key AND the same request hash.
+Bool isReplay(IdempotencyStore s, String key, String requestHash) {
+    var existing = find(s, key)
+    return existing != null && existing.requestHash == requestHash
+}
+
+// isConflict — the same key with a DIFFERENT request hash: never a silent
+// second charge.
+Bool isConflict(IdempotencyStore s, String key, String requestHash) {
+    var existing = find(s, key)
+    return existing != null && existing.requestHash != requestHash
+}
+
+// remember — register a fresh request. A CONFLICT (the same key, a different
+// hash) throws FIN005; a genuine replay is a no-op (the caller returns the
+// stored response); a new key is appended.
+IdempotencyStore remember(IdempotencyStore s, IdempotencyRecord r) {
+    if (isConflict(s, r.key, r.requestHash)) {
+        throw "idempotency conflict: key " + r.key + " reused with a different request (FIN005)"
+    }
+    if (isReplay(s, r.key, r.requestHash)) {
+        return s
+    }
+    var out: List<IdempotencyRecord> = listOf()
+    var i = 0
+    while (i < s.records.size()) {
+        out.add(s.records.get(i))
+        i = i + 1
+    }
+    out.add(r)
+    return IdempotencyStore(out)
+}

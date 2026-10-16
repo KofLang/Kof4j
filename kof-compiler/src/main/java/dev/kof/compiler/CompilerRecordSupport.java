@@ -253,8 +253,13 @@ public final class CompilerRecordSupport {
         List<KofOperation> ops = new ArrayList<>();
         List<IRLocalVariable> locals = new ArrayList<>();
         Type ownerType = CompilerTypes.ownerTypeFromInternal(owner, driver.semanticAnalyzer);
+        // §720: a superclasse pode ser GENÉRICA (`extends Base<Int>`) — o
+        // owner do super() tem de ser o nome APAGADO (`Base`), nunca
+        // `Base<Int>` (o JVM emite `invokeSpecial "Base<Int>".<init>` →
+        // VerifyError). Espelha o eraseTypeArgs do CompilerClassLowering:24 e
+        // do CompilerIfaceRecordLowering:48.
         Type superType = rec.superClass() != null
-                ? CompilerTypes.ownerTypeFromInternal(driver.toInternalName("", rec.superClass()), driver.semanticAnalyzer)
+                ? CompilerTypes.ownerTypeFromInternal(driver.toInternalName("", CompilerClassLowering.eraseTypeArgs(rec.superClass())), driver.semanticAnalyzer)
                 : new Type.ClassType("java.lang", "Record", List.of());
         locals.add(new IRLocalVariable(0, "this", ownerType));
         if (driver.isJvmTarget()) {
@@ -439,7 +444,21 @@ public final class CompilerRecordSupport {
                     // Já existe um método na classe com a MESMA assinatura
                     // apagada do pai? (chave por erasure — §356: um segundo
                     // bridge para o mesmo slot JVM = ClassFormatError)
-                    boolean alreadyExists = methods.stream().anyMatch(existing ->
+                    // §718: o MÉTODO CONCRETO `m` pode JÁ ocupar o slot apagado
+                    // do pai (ex.: interface `List<T> children()` erasure
+                    // `ArrayList` e classe `List<Int> children()` — MESMA
+                    // erasure). Nesse caso o bridge seria uma DUPLICATA do
+                    // concreto (ClassFormatError: Duplicate method name). O
+                    // guard `existing != m` ANTES o excluía, então o bridge era
+                    // gerado assim mesmo. Um bridge só é necessário quando a
+                    // ERASURE difere (ex.: filho `Int` vs pai `Object`, que
+                    // precisa do box). Inclui o próprio `m` no guard.
+                    boolean mOccupiesSlot = m.parameterTypes().size() == parentMethod.parameterTypes().size()
+                            && erasureKey(m.returnType()).equals(erasureKey(parentRet))
+                            && java.util.stream.IntStream.range(0, m.parameterTypes().size())
+                                    .allMatch(i -> erasureKey(m.parameterTypes().get(i))
+                                            .equals(erasureKey(parentMethod.parameterTypes().get(i))));
+                    boolean alreadyExists = mOccupiesSlot || methods.stream().anyMatch(existing ->
                             existing != m
                             && existing.name().equals(m.name())
                             && erasureKey(existing.returnType()).equals(erasureKey(parentRet))

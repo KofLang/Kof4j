@@ -102,6 +102,19 @@ public final class KofInterpreterMembers {
     // colidir. Sem correspondência exata (ou sem sig), cai no nome+aridade de
     // sempre (zero regressão p/ classes e p/ calls de um único candidato).
     IRMethod findKofMethod(IRClass c, String name, int argc, List<Type> sig) {
+        return findKofMethod(c, name, argc, sig, new java.util.HashSet<>());
+    }
+
+    /**
+     * §721: além da superclasse, a busca sobe pelas INTERFACES de {@code c} —
+     * um método DEFAULT de interface genérica não está em `c.methods()` nem na
+     * superclasse (que é Object), então o interpretador lançava
+     * `NoSuchMethodError` (`CB.describe`). O BFS cobre interfaces diretas e
+     * herdadas. JVM/JS/nativo já resolviam; só o Script falhava.
+     */
+    private IRMethod findKofMethod(IRClass c, String name, int argc, List<Type> sig,
+                                   java.util.Set<String> visited) {
+        if (c == null || !visited.add(c.name())) return null;
         if (sig != null && sig.size() == argc) {
             String want = TopLevelOverload.sigTag(sig);
             for (IRMethod m : c.methods()) {
@@ -113,7 +126,15 @@ public final class KofInterpreterMembers {
             if (m.name().equals(name) && m.parameterTypes().size() == argc) return m;
         }
         IRClass sup = c.superName() == null ? null : classByInternal(c.superName());
-        return sup == null ? null : findKofMethod(sup, name, argc, sig);
+        IRMethod fromSuper = findKofMethod(sup, name, argc, sig, visited);
+        if (fromSuper != null) return fromSuper;
+        if (c.interfaces() != null) {
+            for (String iface : c.interfaces()) {
+                IRMethod fromIface = findKofMethod(classByInternal(iface), name, argc, sig, visited);
+                if (fromIface != null) return fromIface;
+            }
+        }
+        return null;
     }
 
     Object loadField(KofLoadField lf, Object recv) {

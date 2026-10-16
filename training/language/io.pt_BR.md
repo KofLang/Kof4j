@@ -41,7 +41,7 @@ sobre ler/escrever arquivos, trabalhar com paths e listar diretórios.
 | `File("x").writeBytes(b)` / `.appendBytes(b)` | Bool |
 | Params de bytes e impressão de um `Int[]` (§388) | Os params de bytes pedem **array primitivo** — `writeBytes(listOf(65,66))` é erro em tempo de compilação (`SEM099`, §388-A); imprimir o array inteiro usa o formato de container §107: `println(f.readBytes())` → `[65, 66]` (voto da mantenedora 21/09, §388-B) |
 | `File("x").size()` | Long; **lança exceção** se o arquivo não existe (02/09 — sem sentinela `-1`) |
-| `File("x").delete()` | Bool |
+| `File("x").delete()` | Bool — apaga o arquivo ou um diretório VAZIO; um diretório não-vazio devolve `false` e fica (use `Directory("d").delete()` para uma árvore) |
 | `File("x").mkdir()` / `.mkdirs()` | aliases POSIX de `create()` / `createDirectories()`: criam o diretório / todo o caminho (Bool) |
 
 **Membro desconhecido é erro em tempo de compilação (`SEM102`, #617):** um método que não está nas tabelas acima num valor `File`/`Directory`/`Path` não compila, com `'File' has no method 'x()'` (hint: `Directory(path).createDirectories()` para criar diretório). Antes do guard, a chamada compilava em silêncio e não fazia nada em runtime — as tabelas de membros aqui SÃO o contrato.
@@ -63,7 +63,7 @@ NÃO é ligado). Sempre construa o handle primeiro: `File("x").exists()`,
 | `Directory("d").createDirectories()` | cria recursivamente |
 | `Directory("d").mkdir()` / `.mkdirs()` | aliases POSIX de `create()` / `createDirectories()` |
 | `Directory("d").list()` | `List<String>` dos nomes (ordenado) |
-| `Directory("d").delete()` | remove diretório vazio |
+| `Directory("d").delete()` | remove o diretório, recursivamente quando não-vazio (em todo alvo desde 08/10, `known-bugs` §618; antes disso o JS só removia vazio) |
 
 Iteração:
 

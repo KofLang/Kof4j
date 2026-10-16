@@ -1,0 +1,137 @@
+package cobol
+
+import cobol.Scanner
+import cobol.Lexer
+import cobol.Ast
+import cobol.Semantic
+
+// kof.cobol.procdiv — the COBOL→Kof translator, PHASE 6 MVP (plan §30): the
+// PROCEDURE DIVISION structure + the CALL GRAPH. `procedureOf` extracts and
+// parses the region; `performs` maps every `PERFORM <name>` to its target
+// paragraph. A PERFORM whose target does not exist is refused CB009 — never
+// a silent edge.
+
+record Call(String from, String to, Int count)
+
+// procedureSection — the lines from PROCEDURE DIVISION to EOF (or the next
+// DIVISION header, exclusive).
+String procedureSection(String text) {
+    var lines = text.split("\n")
+    var start = -1
+    var end = lines.length
+    var i = 0
+    while (i < lines.length) {
+        var up = lines[i].toUpperCase()
+        if (start < 0 && up.indexOf("PROCEDURE DIVISION") >= 0) {
+            start = i
+        } else if (start >= 0 && up.indexOf("DIVISION") >= 0 && up.indexOf("PROCEDURE DIVISION") < 0) {
+            end = i
+            i = lines.length
+        }
+        i = i + 1
+    }
+    if (start < 0) {
+        return ""
+    }
+    var out = ""
+    i = start + 1
+    while (i < end) {
+        out = out + lines[i]
+        if (i < end - 1) {
+            out = out + "\n"
+        }
+        i = i + 1
+    }
+    return out
+}
+
+// procedureOf — the full program text → its paragraphs (the format detected
+// by the scanner's marks).
+List<Paragraph> procedureOf(String text) {
+    var section = procedureSection(text)
+    if (section.length == 0) {
+        return listOf()
+    }
+    var inv = scanSource(CobolSource("prog.cbl", text))
+    var ts = tokenize(section, inv.format)
+    return parseParagraphs(ts)
+}
+
+Bool isPerformKeyword(String w) {
+    var up = w.toUpperCase()
+    return up == "UNTIL" || up == "THRU" || up == "THROUGH" || up == "VARYING"
+            || up == "TIMES" || up == "WITH" || up == "TEST"
+}
+
+// performs — the call graph: every `PERFORM <name>` maps to the target
+// paragraph. A target that is not a declared paragraph is refused CB009 —
+// never a silent edge. Non-call PERFORM forms (UNTIL/THRU/VARYING/TIMES…
+// and `PERFORM <verb-forms>`) are skipped as not-a-name.
+List<Call> performs(List<Paragraph> paras) {
+    var names: List<String> = listOf()
+    var i = 0
+    while (i < paras.size) {
+        if (paras.get(i).name.length > 0) {
+            names.add(paras.get(i).name)
+        }
+        i = i + 1
+    }
+    var out: List<Call> = listOf()
+    i = 0
+    while (i < paras.size) {
+        var para = paras.get(i)
+        var s = 0
+        while (s < para.sentences.size) {
+            var toks = para.sentences.get(s).tokens
+            var k = 0
+            while (k < toks.size) {
+                var t = toks.get(k)
+                if (t.kind == "WORD" && t.text.toUpperCase() == "PERFORM" && k + 1 < toks.size) {
+                    var next = toks.get(k + 1)
+                    if (next.kind == "WORD" && !isPerformKeyword(next.text)) {
+                        if (!containsStr(names, next.text)) {
+                            throw "PERFORM target not found: " + next.text + " (CB009)"
+                        }
+                        var row = findCall(out, para.name, next.text)
+                        if (row == null) {
+                            out.add(Call(para.name, next.text, 1))
+                        } else {
+                            out = bumpCall(out, para.name, next.text)
+                        }
+                    }
+                }
+                k = k + 1
+            }
+            s = s + 1
+        }
+        i = i + 1
+    }
+    return out
+}
+
+Call? findCall(List<Call> cs, String from, String to) {
+    var i = 0
+    while (i < cs.size) {
+        var c = cs.get(i)
+        if (c.from == from && c.to == to) {
+            return c
+        }
+        i = i + 1
+    }
+    return null
+}
+
+List<Call> bumpCall(List<Call> cs, String from, String to) {
+    var out: List<Call> = listOf()
+    var i = 0
+    while (i < cs.size) {
+        var c = cs.get(i)
+        if (c.from == from && c.to == to) {
+            out.add(Call(c.from, c.to, c.count + 1))
+        } else {
+            out.add(c)
+        }
+        i = i + 1
+    }
+    return out
+}

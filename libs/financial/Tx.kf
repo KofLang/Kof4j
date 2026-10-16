@@ -1,0 +1,99 @@
+package financial
+
+import financial.Money
+
+// kof.financial.tx — the transaction lifecycle (plan §6): modelled so that
+// INVALID transitions are impossible, not merely discouraged. Every
+// transition is a top-level function returning a NEW immutable record; the
+// timestamp is an explicit argument (a hidden clock is a testability bug).
+
+enum TxState {
+    Created,
+    Authorized,
+    Captured,
+    Settled,
+    Refunded,
+    Reversed,
+    Failed,
+    Expired
+}
+
+record Transaction(String id, String idempotencyKey, Money amount, TxState state,
+                   Long createdAtMillis, Long updatedAtMillis, String providerRef)
+
+// authorize — Created -> Authorized (the provider approves).
+Transaction authorize(Transaction t, String providerRef, Long atMillis) {
+    if (t.state != TxState.Created) {
+        throw "invalid transition: " + t.state.name() + " -> Authorized (FIN005)"
+    }
+    return Transaction(t.id, t.idempotencyKey, t.amount, TxState.Authorized,
+        t.createdAtMillis, atMillis, providerRef)
+}
+
+// fail — Created -> Failed (the provider declines).
+Transaction fail(Transaction t, String providerRef, Long atMillis) {
+    if (t.state != TxState.Created) {
+        throw "invalid transition: " + t.state.name() + " -> Failed (FIN005)"
+    }
+    return Transaction(t.id, t.idempotencyKey, t.amount, TxState.Failed,
+        t.createdAtMillis, atMillis, providerRef)
+}
+
+// capture — Authorized -> Captured; the captured amount must not exceed the
+// authorized amount (over-capture is FIN006), same currency (FIN001).
+Transaction capture(Transaction t, Money captured, String providerRef, Long atMillis) {
+    if (t.state != TxState.Authorized) {
+        throw "invalid transition: " + t.state.name() + " -> Captured (FIN005)"
+    }
+    if (captured.currency != t.amount.currency) {
+        throw "currency mismatch: " + captured.currency + " capture of " + t.amount.currency + " (FIN001)"
+    }
+    if (captured.minor > t.amount.minor) {
+        throw "over-capture: " + captured.minor + " > " + t.amount.minor + " (FIN006)"
+    }
+    return Transaction(t.id, t.idempotencyKey, captured, TxState.Captured,
+        t.createdAtMillis, atMillis, providerRef)
+}
+
+// expire — Authorized -> Expired (past expiresAt).
+Transaction expire(Transaction t, Long atMillis) {
+    if (t.state != TxState.Authorized) {
+        throw "invalid transition: " + t.state.name() + " -> Expired (FIN005)"
+    }
+    return Transaction(t.id, t.idempotencyKey, t.amount, TxState.Expired,
+        t.createdAtMillis, atMillis, t.providerRef)
+}
+
+// refund — Captured/Settled -> Refunded; the refunded amount must not exceed
+// the captured amount (FIN006), same currency (FIN001).
+Transaction refund(Transaction t, Money refunded, Long atMillis) {
+    if (t.state != TxState.Captured && t.state != TxState.Settled) {
+        throw "invalid transition: " + t.state.name() + " -> Refunded (FIN005)"
+    }
+    if (refunded.currency != t.amount.currency) {
+        throw "currency mismatch: " + refunded.currency + " refund of " + t.amount.currency + " (FIN001)"
+    }
+    if (refunded.minor > t.amount.minor) {
+        throw "over-refund: " + refunded.minor + " > " + t.amount.minor + " (FIN006)"
+    }
+    return Transaction(t.id, t.idempotencyKey, refunded, TxState.Refunded,
+        t.createdAtMillis, atMillis, t.providerRef)
+}
+
+// reverse — Captured/Settled -> Reversed.
+Transaction reverse(Transaction t, Long atMillis) {
+    if (t.state != TxState.Captured && t.state != TxState.Settled) {
+        throw "invalid transition: " + t.state.name() + " -> Reversed (FIN005)"
+    }
+    return Transaction(t.id, t.idempotencyKey, t.amount, TxState.Reversed,
+        t.createdAtMillis, atMillis, t.providerRef)
+}
+
+// settle — Captured -> Settled.
+Transaction settle(Transaction t, Long atMillis) {
+    if (t.state != TxState.Captured) {
+        throw "invalid transition: " + t.state.name() + " -> Settled (FIN005)"
+    }
+    return Transaction(t.id, t.idempotencyKey, t.amount, TxState.Settled,
+        t.createdAtMillis, atMillis, t.providerRef)
+}

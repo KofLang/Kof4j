@@ -1,0 +1,5 @@
+map=1
+field=5
+long=9
+null-ok
+done

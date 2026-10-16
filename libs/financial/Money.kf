@@ -1,0 +1,200 @@
+package financial
+
+// kof.financial.money — exact money for Kof (TIER 2.7-adjacent, plan §4).
+//
+// Money is an EXACT amount in a currency's smallest unit (minor units: cents,
+// pence) — never a Double. `Money(100, "BRL")` is 1.00 BRL. Currency-safe:
+// arithmetic across currencies is an ERROR, never an implicit conversion
+// (conversion is an explicit FX operation, a later slice). All arithmetic is
+// integer-only and checked; rounding is a first-class explicit argument.
+
+record Currency(String code, Int minorUnits, String symbol)
+
+record Money(Long minor, String currency)
+
+enum Rounding {
+    halfUp,
+    halfEven,
+    down,
+    up,
+    floor,
+    ceiling
+}
+
+// The default ISO-4217 scale table (minor units) — data, not code.
+Currency currencyOf(String code) {
+    return switch (code) {
+        case "JPY" -> Currency("JPY", 0, "JPY")
+        case "KRW" -> Currency("KRW", 0, "KRW")
+        case "BHD" -> Currency("BHD", 3, "BHD")
+        case "KWD" -> Currency("KWD", 3, "KWD")
+        case "JOD" -> Currency("JOD", 3, "JOD")
+        case "TND" -> Currency("TND", 3, "TND")
+        case "BRL" -> Currency("BRL", 2, "R$")
+        case "USD" -> Currency("USD", 2, "$")
+        case "EUR" -> Currency("EUR", 2, "EUR")
+        default -> Currency(code, 2, code)
+    }
+}
+
+Bool sameCurrency(Money a, Money b) {
+    return a.currency == b.currency
+}
+
+Money zero(String currency) {
+    return Money(0L, currency)
+}
+
+// 10^n as a Long (n >= 0). Overflow past 18 digits is impossible for a scale.
+Long pow10(Int n) {
+    var r = 1L
+    var i = 0
+    while (i < n) {
+        r = r * 10L
+        i = i + 1
+    }
+    return r
+}
+
+// add — currency-safe and overflow-checked (sign-based, no MAX_VALUE constant).
+Money add(Money a, Money b) {
+    if (a.currency != b.currency) {
+        throw "currency mismatch: " + a.currency + " + " + b.currency + " (FIN001)"
+    }
+    var s = a.minor + b.minor
+    if ((a.minor > 0L && b.minor > 0L && s < 0L) || (a.minor < 0L && b.minor < 0L && s > 0L)) {
+        throw "amount overflow (FIN002)"
+    }
+    return Money(s, a.currency)
+}
+
+Money sub(Money a, Money b) {
+    if (a.currency != b.currency) {
+        throw "currency mismatch: " + a.currency + " - " + b.currency + " (FIN001)"
+    }
+    var s = a.minor - b.minor
+    if ((a.minor >= 0L && b.minor < 0L && s < 0L) || (a.minor < 0L && b.minor > 0L && s > 0L)) {
+        throw "amount overflow (FIN002)"
+    }
+    return Money(s, a.currency)
+}
+
+Money negate(Money a) {
+    if (a.minor == -9223372036854775807L - 1L) {
+        throw "amount overflow (FIN002)"
+    }
+    return Money(0L - a.minor, a.currency)
+}
+
+Money abs(Money a) {
+    if (a.minor < 0L) {
+        return negate(a)
+    }
+    return a
+}
+
+// Integer division rounding — exact on every target, never through Double.
+Long roundDiv(Long value, Long divisor, Rounding mode) {
+    var q = value / divisor
+    var r = value % divisor
+    if (r == 0L) {
+        return q
+    }
+    var neg = value < 0L
+    var absR = r
+    if (absR < 0L) {
+        absR = 0L - absR
+    }
+    var absD = divisor
+    if (absD < 0L) {
+        absD = 0L - absD
+    }
+    if (mode == Rounding.down) {
+        return q
+    }
+    if (mode == Rounding.up) {
+        if (neg) {
+            return q - 1L
+        }
+        return q + 1L
+    }
+    if (mode == Rounding.floor) {
+        if (neg) {
+            return q - 1L
+        }
+        return q
+    }
+    if (mode == Rounding.ceiling) {
+        if (neg) {
+            return q
+        }
+        return q + 1L
+    }
+    if (mode == Rounding.halfUp) {
+        if (absR + absR >= absD) {
+            if (neg) {
+                return q - 1L
+            }
+            return q + 1L
+        }
+        return q
+    }
+    // halfEven (banker's): the recommended default for settlement.
+    var twice = absR + absR
+    if (twice > absD) {
+        if (neg) {
+            return q - 1L
+        }
+        return q + 1L
+    }
+    if (twice < absD) {
+        return q
+    }
+    if (q % 2L == 0L) {
+        return q
+    }
+    if (neg) {
+        return q - 1L
+    }
+    return q + 1L
+}
+
+// scale — multiply by num/den (an exact rational rate), then round.
+Money scale(Money a, Long num, Long den, Rounding mode) {
+    return Money(roundDiv(a.minor * num, den, mode), a.currency)
+}
+
+// roundTo — round the amount to `scale` decimal places of its currency.
+Money roundTo(Money a, Int scale, Rounding mode) {
+    var cur = currencyOf(a.currency)
+    if (scale >= cur.minorUnits) {
+        return a
+    }
+    var factor = pow10(cur.minorUnits - scale)
+    return Money(roundDiv(a.minor, factor, mode) * factor, a.currency)
+}
+
+// format — the amount with `minorUnits` decimals, e.g. "R$ 1.50".
+String format(Money a) {
+    var cur = currencyOf(a.currency)
+    var neg = a.minor < 0L
+    var m = a.minor
+    if (neg) {
+        m = 0L - m
+    }
+    var unit = m / pow10(cur.minorUnits)
+    var frac = m % pow10(cur.minorUnits)
+    var fs = "" + frac
+    while (fs.length < cur.minorUnits) {
+        fs = "0" + fs
+    }
+    var body = "" + unit
+    if (cur.minorUnits > 0) {
+        body = body + "." + fs
+    }
+    var sign = ""
+    if (neg) {
+        sign = "-"
+    }
+    return cur.symbol + " " + sign + body
+}

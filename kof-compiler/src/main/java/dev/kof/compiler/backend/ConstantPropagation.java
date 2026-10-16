@@ -9,6 +9,7 @@ import dev.kof.compiler.KofLoadLocal;
 import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.KofReturn;
 import dev.kof.compiler.KofReturnVoid;
+import dev.kof.compiler.KofStatementIf;
 import dev.kof.compiler.KofStoreLocal;
 import dev.kof.compiler.KofThrow;
 import dev.kof.compiler.KofTryStart;
@@ -62,13 +63,19 @@ public final class ConstantPropagation implements IrPass {
                 prev = op;
                 continue;
             }
-            if (op instanceof KofLoadLocal ll && consts.containsKey(ll.index())) {
+            if (op instanceof KofLoadLocal ll && consts.containsKey(ll.index())
+                    && !isStoreReadBack(ll, prev)) {
                 KofLoadLiteral c = consts.get(ll.index());
                 if (c.type().equals(ll.type())) {
+                    // Emit a DISTINCT literal instance per rewrite site. Sharing
+                    // one instance across sites is unsafe: a later pass that
+                    // removes ops by IDENTITY (dead-store elimination) would
+                    // remove every occurrence when it removes one producer.
+                    KofLoadLiteral fresh = copyOf(c);
                     SourcePosition p = positions.remove(op);
-                    if (p != null) positions.put(c, p);
-                    out.add(c);
-                    prev = c;
+                    if (p != null) positions.put(fresh, p);
+                    out.add(fresh);
+                    prev = fresh;
                     continue;
                 }
             }
@@ -89,6 +96,24 @@ public final class ConstantPropagation implements IrPass {
         return op instanceof KofLabel || op instanceof KofJump
                 || op instanceof KofConditionalJump || op instanceof KofTryStart
                 || op instanceof KofCatchStart || op instanceof KofReturn
-                || op instanceof KofReturnVoid || op instanceof KofThrow;
+                || op instanceof KofReturnVoid || op instanceof KofThrow
+                || op instanceof KofStatementIf;
+    }
+
+    private static KofLoadLiteral copyOf(KofLoadLiteral lit) {
+        return new KofLoadLiteral(lit.type(), lit.value());
+    }
+
+    /**
+     * An immediate {@code store(slot); load(slot)} read-back is a
+     * compiler-internal encoding the backends pattern-match on (the store/load
+     * pairs of the {@code #switch}/{@code #recv} temporaries, see
+     * {@code Optimizer.deadEffects}) — it is left verbatim, not folded. A
+     * non-adjacent read of a constant slot still propagates.
+     */
+    private static boolean isStoreReadBack(KofLoadLocal load, KofOperation prev) {
+        return prev instanceof KofStoreLocal store
+                && store.index() == load.index()
+                && store.type().equals(load.type());
     }
 }

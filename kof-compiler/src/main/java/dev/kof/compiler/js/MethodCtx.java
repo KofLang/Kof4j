@@ -24,6 +24,14 @@ public final class MethodCtx {
 
     /** DD-01 (bug 45): label do epílogo return-finally do try em parse. */
     LabelId currentReturnFinallyLabel;
+    /**
+     * §703: true enquanto o CORPO de um try COM return-finally é parseado. Um
+     * store em `#retVal` vira `return X` (o try/finally NATIVO do JS então roda
+     * o finally no caminho do return), em vez de `_retVal = X` + epílogo inline
+     * (que fora de um loop caía no tail do método e DENTRO de um loop rodava a
+     * cada iteração, devolvendo `undefined`).
+     */
+    boolean inReturnFinallyTry = false;
     final Set<Integer> declared = new HashSet<>();
     final Set<String> usedNames = new HashSet<>();
     final List<String> tempDecls = new ArrayList<>();
@@ -64,6 +72,15 @@ public final class MethodCtx {
      */
     final java.util.Deque<LabelId> enclosingIfFalses = new java.util.ArrayDeque<>();
     boolean isEnclosingIfFalse(LabelId label) { return enclosingIfFalses.contains(label); }
+    /**
+     * §734: labels de FIM (merge) do if ENVOLVENTE — o alvo do Jump de saída do
+     * then. Um if ANINHADO branco pode TOMAR esse label como o seu próprio fim
+     * (isIfEndLabel é genérico), e então o epílogo do método é absorvido no
+     * else externo. Guardar os alvos do then do if envolvente durante o parse do
+     * else impede o roubo (§380 é o análogo para o falseLabel).
+     */
+    final java.util.Set<LabelId> enclosingIfEnds = new java.util.HashSet<>();
+    boolean isEnclosingIfEnd(LabelId label) { return enclosingIfEnds.contains(label); }
     final boolean instanceMethod;
     final String kofClassName;
     final String methodName;

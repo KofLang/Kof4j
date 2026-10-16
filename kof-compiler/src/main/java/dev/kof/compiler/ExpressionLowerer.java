@@ -98,7 +98,19 @@ public final class ExpressionLowerer {
                             // estático (aload_0 sem this → VerifyError no
                             // compilado, recv null no interpretador).
                             if ((fs.accessFlags() & AccessFlags.STATIC) != 0) {
-                                ops.add(new KofGetStatic(cs.type(), ie.name(), fs.type()));
+                                // §725: o campo pode estar DECLARADO numa
+                                // interface (ou superclasse) — o dono emitido
+                                // tem de ser a classe DECLARANTE, senão Script/
+                                // JS/nativo procuram o estático na classe ATUAL
+                                // e não o acham (o JVM resolve pela hierarquia /
+                                // inlina a constante). `cs.type()` (a classe
+                                // atual) só quando o campo é dela.
+                                Type staticOwner = cs.type();
+                                if (fs.ownerClass() != null && !fs.ownerClass().equals(cs.name())) {
+                                    SymbolTable.ClassSymbol decl = driver.semanticAnalyzer.getClass(fs.ownerClass());
+                                    if (decl != null) staticOwner = decl.type();
+                                }
+                                ops.add(new KofGetStatic(staticOwner, ie.name(), fs.type()));
                             } else {
                                 ops.add(new KofLoadLocal(cs.type(), 0));
                                 ops.add(new KofLoadField(cs.type(), ie.name(), fs.type()));
@@ -270,6 +282,11 @@ public final class ExpressionLowerer {
                 localIdx = ExpressionLowerer.emitExpression(driver, aa.receiver(), ops, owner, localIdx, locals);
                  localIdx = ExpressionLowerer.emitExpression(driver, aa.index(), ops, owner, localIdx, locals);
                  Type recvType = ExpressionTyper.inferExprType(driver, aa.receiver(), locals);
+                 // #845: índice `Int?` estreitado de array/List (a chave de Map é referência)
+                 if (!BuiltinTypes.isMap(recvType)) {
+                     CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops,
+                             ExpressionTyper.inferExprType(driver, aa.index(), locals), Type.PrimitiveType.INT);
+                 }
                  // #152/#149: `list[i]` sobre List/Map NÃO é array — emitir
                  // KofArrayLoad gerava AALOAD sobre java/util/ArrayList →
                  // VerifyError (o receptor é referência, não array). Baixa p/
@@ -325,18 +342,28 @@ public final class ExpressionLowerer {
                             ops, owner, localIdx, locals, thenLabel, elseLabel);
                 }
                 ops.add(new KofLabel(thenLabel));
-                localIdx = ExpressionLowerer.emitExpression(driver, ie.thenExpr(), ops, owner, localIdx, locals);
-                // #57/§70: ramos com tipos distintos — cada ramo primitivo é
-                // boxeado p/ SEU boxed aqui dentro (join só de referências);
-                // os callers pulam o pós-box (mesmo predicado, sem canal).
+                // #870: a unificação usa o tipo EFETIVO do ramo (com o narrowing da
+                // condição), mas quem decide box/unbox é a REPRESENTAÇÃO FÍSICA: um
+                // `Int?` já está boxeado (D-NULL-INTENT) e só ABRE quando o join
+                // unifica no primitivo; um primitivo cru só é BOXEADO quando o join
+                // unifica em referências (ramos heterogêneos) — #57/§70.
                 List<Type> bts = ie.elseExpr() != null
                         ? ExpressionBranchJoin.ifBranchTypes(driver, ie, locals) : List.of();
                 boolean differ = !bts.isEmpty() && ExpressionBranchJoin.branchTypesDiffer(bts);
-                if (differ) ExpressionTyper.boxPrimitiveBranch(driver, ops, bts.get(0));
+                Type thenPhys = ExpressionTyper.inferExprType(driver, ie.thenExpr(), locals);
+                localIdx = ExpressionLowerer.emitExpression(driver, ie.thenExpr(), ops, owner, localIdx, locals);
+                if (differ) ExpressionTyper.boxPrimitiveBranch(driver, ops, thenPhys);
+                else if (!bts.isEmpty()) {
+                    CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops, thenPhys, bts.get(0));
+                }
                 ops.add(new KofJump(endLabel));
                 ops.add(new KofLabel(elseLabel));
+                Type elsePhys = ExpressionTyper.inferExprType(driver, ie.elseExpr(), locals);
                 localIdx = ExpressionLowerer.emitExpression(driver, ie.elseExpr(), ops, owner, localIdx, locals);
-                if (differ) ExpressionTyper.boxPrimitiveBranch(driver, ops, bts.get(1));
+                if (differ) ExpressionTyper.boxPrimitiveBranch(driver, ops, elsePhys);
+                else if (!bts.isEmpty()) {
+                    CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops, elsePhys, bts.get(1));
+                }
                 ops.add(new KofLabel(endLabel));
                 yield localIdx;
             }

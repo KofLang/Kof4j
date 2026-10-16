@@ -156,6 +156,7 @@ public final class NativeRuntime {
         RuntimeJsonArrayDecode2.emit(sb);
         RuntimeJsonUtils.emitJsonQuote(sb);
         RuntimeJsonUtils.emitJsonFindValue(sb);
+        RuntimeJsonUtils.emitJsonRequire(sb);
         RuntimeMemory.emitAlloc(sb);
         RuntimeMemory.emitFree(sb);
         RuntimeGc.emitGc(sb);
@@ -206,6 +207,9 @@ public final class NativeRuntime {
         RuntimeStringOps.emitStringEqualsIgnoreCase(sb);
         RuntimeStringEdit.emitStringSplit(sb);
         RuntimeStringEdit.emitStringSplitLimit(sb);
+        RuntimeStringEdit.emitStringSplitChars(sb);
+        RuntimeStringEdit.emitStringSplitStr(sb);
+        RuntimeStringEdit.emitStringReplaceEmpty(sb);
         RuntimeArray.emitArrayAlloc(sb);
         RuntimeArray.emitMultiArrayAlloc(sb);
         RuntimeArray.emitArrayLength(sb);

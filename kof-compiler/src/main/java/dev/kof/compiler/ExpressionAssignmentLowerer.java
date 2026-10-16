@@ -81,7 +81,9 @@ if (ae.target() instanceof IdentifierExpr ie && !owner.isEmpty()) {
             } else if ("=".equals(op)) {
                 if (TypeMetrics.isPrimitiveType(instValType)
                         && TypeMetrics.isPrimitiveType(fieldSym.type())) {
-                    driver.emitWideningIfNeeded(ops, instValType, fieldSym.type());
+                    // #845: RHS `Int?` estreitado abre a caixa antes do widening
+                    driver.emitWideningIfNeeded(ops, CompilerEmissionHelpers.emitNarrowedNullableUnbox(
+                            driver, ops, instValType, fieldSym.type()), fieldSym.type());
                 } else if (driver.erasesToReference(fieldSym.type())
                         && TypeMetrics.isPrimitiveType(instValType)
                         && !ExpressionTyper.boxesOwnBranches(driver, ae.value(), locals)) {
@@ -104,6 +106,9 @@ if (ae.target() instanceof FieldAccessExpr fa) {
 if (ae.target() instanceof ArrayAccessExpr aa) {
     localIdx = ExpressionLowerer.emitExpression(driver, aa.receiver(), ops, owner, localIdx, locals);
     localIdx = ExpressionLowerer.emitExpression(driver, aa.index(), ops, owner, localIdx, locals);
+    // #845: índice `Int?` estreitado — o iastore/aastore exige int
+    CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops,
+            ExpressionTyper.inferExprType(driver, aa.index(), locals), Type.PrimitiveType.INT);
     Type aaRecvType = ExpressionTyper.inferExprType(driver, aa.receiver(), locals);
     Type aaElemType = Type.arrayElementType(aaRecvType);
     String aaOp = ae.operator();
@@ -144,7 +149,8 @@ if (ae.target() instanceof ArrayAccessExpr aa) {
         // widening do RHS já foi feito antes do KofBinary.
         if (TypeMetrics.isPrimitiveType(aaValueType)
                 && TypeMetrics.isPrimitiveType(aaElemType)) {
-            driver.emitWideningIfNeeded(ops, aaValueType, aaElemType);
+            driver.emitWideningIfNeeded(ops, CompilerEmissionHelpers.emitNarrowedNullableUnbox(
+                    driver, ops, aaValueType, aaElemType), aaElemType); // #845
         }
     }
     ops.add(new KofArrayStore(aaStringConcat ? BuiltinTypes.STRING : aaElemType));
@@ -190,7 +196,8 @@ if (ae.target() instanceof IdentifierExpr ieBox) {
                 // existe nenhum call pendente. Load do slot é puro → ordem de
                 // efeitos idêntica nos 4 backends (retro-compatível, regra 2).
                 localIdx = ExpressionLowerer.emitExpression(driver, ae.value(), ops, owner, localIdx, locals);
-                driver.emitWideningIfNeeded(ops, ExpressionTyper.inferExprType(driver, ae.value(), locals), valType);
+                driver.emitWideningIfNeeded(ops, CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops,
+                        ExpressionTyper.inferExprType(driver, ae.value(), locals), valType), valType); // #845
                 ops.add(new KofStoreLocal(valType, localIdx));
                 locals.add(new IRLocalVariable(localIdx, "$boxval" + localIdx, valType));
                 ops.add(new KofLoadLocal(boxLv.type(), boxLv.index()));
@@ -268,9 +275,12 @@ localIdx = ExpressionLowerer.emitExpression(driver, ae.value(), ops, owner, loca
 if (ae.target() instanceof IdentifierExpr sie) {
     for (int i = locals.size() - 1; i >= 0; i--) {
         if (locals.get(i).name().equals(sie.name())) {
-            driver.emitWideningIfNeeded(ops, ExpressionTyper.inferExprType(driver, ae.value(), locals), locals.get(i).type());
+            // #845: `j = i` (i: Int? estreitado) num local primitivo
+            Type rhsT = CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops,
+                    ExpressionTyper.inferExprType(driver, ae.value(), locals), locals.get(i).type());
+            driver.emitWideningIfNeeded(ops, rhsT, locals.get(i).type());
             // §696: estreita o store num slot Byte/Short
-            CompilerEmissionHelpers.emitStoreNarrow(driver, ops, ExpressionTyper.inferExprType(driver, ae.value(), locals), locals.get(i).type());
+            CompilerEmissionHelpers.emitStoreNarrow(driver, ops, rhsT, locals.get(i).type());
             // bug 15: `Object o; o = 7` — box primitivo p/ referência
             // (#57: IfExpr/switch heterogêneo já boxeou in-branch → pular)
             // §295(b): espelho do gate cru do return/VarDecl — slot
@@ -356,6 +366,8 @@ return localIdx;
      */
     static void emitCompoundRhsConv(CompilerDriver driver, List<KofOperation> ops,
                                     String op, Type targetType, Type valueType) {
+        // #845: RHS `Int?` estreitado (`total += i`) abre a caixa antes do binário
+        valueType = CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops, valueType, targetType);
         if (isShiftAssignOp(op)) {
             driver.emitPrimNarrow(ops, valueType, Type.PrimitiveType.INT);
         } else if (TypeMetrics.isPrimitiveType(valueType)

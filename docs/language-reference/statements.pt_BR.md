@@ -186,6 +186,12 @@ catch-clause = "catch" , "(" , type-ref , identifier , ")" , block
 
 - `catch (String e)` captura exceções-Kof (strings). O tipo do catch é
   resolvido como `String` no JVM (porque `throw` virou `RuntimeException`).
+- **A ligação é sempre uma String em todo alvo.** No **JS** os throws internos
+  do runtime são objetos `Error` do host, então a emissão normaliza o valor
+  capturado de volta para String (`Error.message`, senão `String(value)`) antes
+  do corpo do catch rodar — `e == "msg"`, `e.length()` e `e.startsWith(...)`
+  também são válidos no alvo JS (issue #843, `JsEmitter`). O TEXTO da mensagem
+  não faz parte deste contrato.
 - `catch (Int e)` **compila** (*probe*) mas o comportamento de captura é
   **Unspecified** (a exceção lançada é sempre String/RuntimeException).
 - `finally` executa sempre (inclusive em `return`/`throw` do try).
@@ -201,7 +207,7 @@ assert-stmt = "assert" , "(" , expression , [ "," , string-literal ] , ")"
 `
 
 - Se a condição é falsa: lança `"assertion failed"` (ou a mensagem dada).
-- A mensagem deve ser **literal de string** (não expressão) — `:901`.
+- A mensagem deve ser **literal de string** (não expressão) — `:901`. Qualquer outra expressão é erro de parse `PARSE087` apontando para ela (issue #849; antes compilava e a mensagem era descartada em silêncio).
 - Usado pelo harness de `kof test` (exit code ≠ 0).
 
 ---

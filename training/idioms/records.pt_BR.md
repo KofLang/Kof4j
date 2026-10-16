@@ -20,6 +20,30 @@ O compilador gera: construtor canônico, accessors (`p.x()`), e no JVM também
 > intenção explícita; `class X(...)` é retrocompatível mas não traz classe
 > mutável (verificado 02/09). Para estado mutável, veja `classes.md`.
 
+## `value record` — semântica de valor, sem identidade (TIER 2.7, 14/10)
+
+```kof
+value record Vec2(Float x, Float y)
+```
+
+Um `value record` tem o **mesmo modelo de dados imutável e o mesmo comportamento
+observável** de um `record` comum — campos, `==` estrutural, `toString` — mas
+declara **sem identidade de objeto** (D-VALUE-RECORD; `D-VALUE-RECORDS-GO`:
+`value` aplica-se só a `record`, coleções guardam boxado, uso onde identidade é
+exigida = erro de compilação). Aditivo: um `record` comum mantém sua semântica.
+
+Por alvo: JVM = a classe record comum; Native = a representação de heap atual
+(pass-by-value adiado); JS = o objeto é **congelado** (`Object.freeze`). Use
+`value record` para tipos pequenos orientados a dados (vetores, cores, faixas,
+tokens) para declarar a intenção; use `record` comum quando a distinção não importa.
+
+```kof
+// `value` é keyword CONTEXTUAL: só antes de `record`. Em qualquer outro
+// lugar continua identificador comum — isto ainda funciona:
+var value = 42
+record Amount(Int value, String unit)
+```
+
 ## When to use
 
 - Dados imutáveis (DTO, valor, chave, resultado).

@@ -1,0 +1,51 @@
+package financial
+
+import financial.Money
+
+// kof.financial.provider — the PROVIDER seam (plan §12): the payment
+// provider is an INTERFACE (`classes.md:196-220`), so the application code
+// depends on the seam and the adapters are swappable. `FakeProvider` lives in
+// the library and is the TEST DOUBLE (always approves); real adapters live in
+// official packages. The tx lifecycle itself is `kof.financial.tx` — a
+// provider answers APPROVAL questions, it never mutates the Transaction.
+
+interface Provider {
+    String name()
+    Bool approves(String txId, Money amount)
+    Bool captureOk(String txId, Money captured)
+    Bool refundOk(String txId, Money refunded)
+}
+
+// FakeProvider — the test double: approves/captures/refunds everything, so
+// the lifecycle tests run without a real provider.
+class FakeProvider(String id) implements Provider {
+    String name() {
+        return id
+    }
+    Bool approves(String txId, Money amount) {
+        return true
+    }
+    Bool captureOk(String txId, Money captured) {
+        return true
+    }
+    Bool refundOk(String txId, Money refunded) {
+        return true
+    }
+}
+
+// DecliningProvider — the second double: declines everything (the declined
+// path of the lifecycle).
+class DecliningProvider(String id) implements Provider {
+    String name() {
+        return id
+    }
+    Bool approves(String txId, Money amount) {
+        return false
+    }
+    Bool captureOk(String txId, Money captured) {
+        return false
+    }
+    Bool refundOk(String txId, Money refunded) {
+        return false
+    }
+}

@@ -69,6 +69,16 @@ final class TypeDeclarations {
                 mods.add(ctx.advance().value());
                 continue;
             }
+            // TIER 2.7 (D-VALUE-RECORD, 2.7.1): `value` contextual antes de
+            // `record` — vira modificador; fora desse contexto segue IDENTIFIER
+            // (o campo `value` das caixas e o de kof.ui continuam válidos).
+            // O AST recebe sempre o CANÔNICO: em PortuKof (`valor registro`) o
+            // modificador sai `value`, nunca `valor` — a flag isValueRecord
+            // do símbolo e da IR dependem da palavra canônica.
+            if (ctx.valueModifierAhead()) {
+                mods.add(ctx.profile.canonicalWord(ctx.advance().value()));
+                continue;
+            }
             break;
         }
         return mods;

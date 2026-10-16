@@ -179,7 +179,18 @@ final class JsExpressionStatementParser {
                 while (!stack.isEmpty()) {
                     condition = new JsIr.JsSequence(List.of(parser.pop(stack)), condition);
                 }
-                return List.of(parser.p.flow.parseIfBody(ctx, pos, cj, condition));
+                // §704/§710: o PREAMBLE (ex.: o prólogo do for-in — `_coll =
+                // <list>; _idx = 0`) foi acumulado antes do CJump. Quando o
+                // CJump é um `if`, o preamble tem de ser emitido ANTES do if,
+                // senão o corpo do loop o descarta e o `if` lê `_coll`/`_idx`
+                // undefined (o optimizer removeu o back-edge, então a
+                // reconstrução do loop não fecha e cai em `if`).
+                List<JsIr.JsStatement> ifStmt =
+                        List.of(parser.p.flow.parseIfBody(ctx, pos, cj, condition));
+                if (!preamble.isEmpty() || !preambleExprs.isEmpty()) {
+                    return parser.finishExpressionStatement(preamble, preambleExprs, ifStmt.get(0));
+                }
+                return ifStmt;
             }
             if (!parser.isExpressionOp(op)) {
                 // statement boundary: wrap any leftover stack (listOf(...) chains,

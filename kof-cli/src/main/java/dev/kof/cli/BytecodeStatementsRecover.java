@@ -1,5 +1,6 @@
 package dev.kof.cli;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -14,11 +15,41 @@ final class BytecodeStatementsRecover {
 
     private BytecodeStatementsRecover() {}
 
+    /**
+     * Fase E (15/10): a recovery de REGIAO — o struct sobre UMA SUB-REGIAO
+     * (o corpo do try nao-linear), estado global fresco + um `declared`
+     * EXTERNO compartilhado (o local hoisted pelo caller). null = o stub
+     * honesto do caller (R6).
+     */
+    static java.util.List<String> recoverRegionStruct(java.util.List<BytecodeReader.Insn> region,
+            String[] cp, BytecodeFrame frame, java.util.Set<Integer> declared, int[] extraLeaders) {
+        // Fase E (15/10): os alvos dos HANDLERS como LIDERES — sem eles o
+        // athrow do handler funde-se ao bloco precedente e MATA a aresta do
+        // goto (medido no withFinally: o blk[19) saia succ=[] e o walk
+        // parava no finally-inline com early-true)
+        java.util.List<BytecodeReader.Block> blocks = BytecodeReader.cfg(region, extraLeaders);
+        if (blocks.isEmpty()) return null;
+        Map<Integer, BytecodeReader.Block> byStart = new java.util.HashMap<>();
+        for (BytecodeReader.Block b : blocks) byStart.put(b.start, b);
+        BytecodeStatements.skipFirst = null;
+        BytecodeStatements.currentLoopExit = -1;
+        BytecodeStatements.builderSlots = new HashSet<>();
+        if (BytecodeStatements.skipCount == null) BytecodeStatements.skipCount = new java.util.HashMap<>();
+        BytecodeStatements.skipCount.clear();
+        java.util.List<String> out = new ArrayList<>();
+        Set<Integer> emitted = new HashSet<>();
+        boolean ok = struct(blocks.get(0), region, byStart, cp, frame, out, emitted, declared, -1,
+                new HashSet<>());
+        return ok ? out : null;
+    }
+
 static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                               Map<Integer, BytecodeReader.Block> byStart, String[] cp,
                               BytecodeFrame frame, List<String> out,
                               Set<Integer> emitted, Set<Integer> declared, int header,
                               Set<Integer> stops) {
+        if (System.getenv("KOF_WALK") != null && b != null)
+            System.out.println("WALK enter blk[" + b.start + ") succ=" + b.succ + " header=" + header);
     // Fase C: bloco do PÓS-IF (join de if-sem-else) que ainda NÃO foi
     // emitido = borda do braço: para AQUI sem emitir (a sequela cuida do
     // join). If-aninhado sem else no fim do braço para natural (join do
@@ -40,7 +71,11 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
     emitted.add(b.start);
 
     if (b.succ.isEmpty()) {
-        List<String> stmts = BytecodeStatementsEmit.emitLinear(BytecodeDecoder.insnsWithin(b, insns), cp, frame, declared);
+        // Fase E (15/10): blkSeq (não insnsWithin) — o skipFirst do
+        // if-expression (medido no Ledger.report: o astore_3 do join era
+        // re-emitido com a pilha vazia → emitLinear-null) só é consumido
+        // pelo blkSeq
+        List<String> stmts = BytecodeStatementsEmit.emitLinear(BytecodeStatements.blkSeq(b, insns), cp, frame, declared);
         if (stmts == null) { BytecodeStatements.refuse("emitLinear-null"); return false; }
         out.addAll(stmts);
         return true;
@@ -67,14 +102,14 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
             List<BytecodeReader.Insn> body;
             if (op >= 0x99 && op <= 0x9e) {
                 if (block.size() < 2) { BytecodeStatements.refuse("do-while-short"); return false; }
-                String a = BytecodeDecoder.loadValue(block.get(block.size() - 2), frame);
+                String a = BytecodeDecoderStack.loadValue(block.get(block.size() - 2), frame);
                 if (a == null) { BytecodeStatements.refuse("do-while-load-null"); return false; }
                 cond = a + " " + BytecodeStatements.contCond(op);
                 body = block.subList(0, block.size() - 2);
             } else if (op >= 0x9f && op <= 0xa4) {
                 if (block.size() < 3) { BytecodeStatements.refuse("do-while-short"); return false; }
-                String x = BytecodeDecoder.loadValue(block.get(block.size() - 3), frame);
-                String y = BytecodeDecoder.loadValue(block.get(block.size() - 2), frame);
+                String x = BytecodeDecoderStack.loadValue(block.get(block.size() - 3), frame);
+                String y = BytecodeDecoderStack.loadValue(block.get(block.size() - 2), frame);
                 if (x == null || y == null) { BytecodeStatements.refuse("do-while-load-null"); return false; }
                 cond = x + " " + BytecodeStatements.contCond(op) + " " + y;
                 body = block.subList(0, block.size() - 3);
@@ -93,6 +128,12 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
         int exitStart = b.succ.get(0);   // alvo do branch (falso)
         int thenStart = b.succ.get(1);   // fall-through (verdadeiro)
         boolean loop0 = BytecodeReader.isLoopHeader(b);
+        // Fase E (14/10): visíveis ao walk do || — o 1º termo é o SUFIXO
+        // do bloco fundido (o prólogo já foi emitido pelo fusion)
+        List<BytecodeReader.Insn> fusedBlk = null;
+        int fusedK = 0;
+        int fusedLastOp = -1;
+        BytecodeDecoder.TestSplit split = null;
         if (cond == null && !loop0) {
             // Fase C (prologue no mesmo bloco do teste): javac funde
             // `int r = 100; if (x > 5)` num bloco so — o blockCondition
@@ -111,8 +152,12 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
             // avalia EXATAMENTE os `arity` operandos. Fecha o risco do
             // sufixo-fragmento reaproveitar um valor como receptor
             // (medido: `[ldc "(", at]` avaliava mas era código ERRADO).
-            BytecodeDecoder.TestSplit split = (inv != null && last.isCond())
+            split = (inv != null && last.isCond())
                     ? BytecodeDecoder.testSplit(blk, frame, cp, k, inv) : null;
+            fusedBlk = blk;
+            fusedK = k;
+            fusedLastOp = last.opcode();
+
             if (split != null) {
                 List<BytecodeReader.Insn> preInsns = blk.subList(0, split.prologueLen());
                 // emitLinear PARA e retorna parcial em branch (linha do
@@ -144,7 +189,21 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                     && !BytecodeReader.isLoopHeader(tb)) {
                 if (tb.succ.get(0) == exitStart) {
                     // nao-final: jump=VERDADEIRO
-                    String c2 = BytecodeDecoder.blockConditionTaken(tb, insns, frame, cp);
+                    String c2;
+                    if (tb == b && split != null) {
+                        // Fase E (14/10): o bloco fundido (o prólogo já
+                        // emitido): o 1º termo é o SUFIXO do split com o
+                        // takenCond — o bloco INTEIRO falharia nas stores
+                        // do prólogo (medido no parsePort: o walk quebrava
+                        // e o cond flat saía errado)
+                        List<BytecodeReader.Insn> suf = fusedBlk.subList(
+                                split.prologueLen(), fusedBlk.size() - 1);
+                        String top = BytecodeCp.takenCond(fusedLastOp);
+                        c2 = top == null ? null
+                                : BytecodeDecoder.testExpr(suf, frame, fusedK, top, cp);
+                    } else {
+                        c2 = BytecodeDecoder.blockConditionTaken(tb, insns, frame, cp);
+                    }
                     if (c2 == null) break;
                     orCond = orCond == null ? c2 : orCond + " || " + c2;
                     tb = byStart.get(tb.succ.get(1));
@@ -157,6 +216,14 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                     realFalse = tb.succ.get(0);
                     break;
                 } else {
+                    // Fase E (14/10): o 2º termo do || é uma CADEIA && (a
+                    // árvore de condição — `v > 100 || (v > 50 && v < 75)`);
+                    // o condTree recursa com limite de profundidade.
+                    String rest = condTree(tb, exitStart, tb.succ.get(0),
+                            byStart, insns, frame, cp, 0);
+                    if (rest == null) break;
+                    orCond = orCond + " || (" + rest + ")";
+                    realFalse = tb.succ.get(0);
                     break;
                 }
             }
@@ -170,11 +237,18 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
         // cujo falso-alvo é o MESMO else → as condições combinam com
         // `&&` (a avaliação em cadeia do bytecode É o curto-circuit do
         // &&; os braços passam a ser os do teste interno).
-        if (!loop0) {
+        // Fase E (14/10): vale TAMBÉM para o header do LOOP — o
+        // `while (a && b)` tem o teste interno (fora do corpo) saltando
+        // para a MESMA saída; a combinação não altera then/exit (o corpo
+        // já é o fall-through do teste interno). Medido: whileComplex
+        // stubava porque o guard `!loop0` pulava a combinação.
+        java.util.Set<Integer> chainTests = new java.util.HashSet<>();
+        {
             int guard = 0;
             BytecodeReader.Block tb = byStart.get(thenStart);
             while (guard < 4 && tb != null && tb.succ.size() == 2
                     && tb.succ.get(0) == exitStart && !BytecodeReader.isLoopHeader(tb)) {
+                chainTests.add(tb.start);
                 // succ.size() == 2 EXIGIDO: o && clássico tem then-de-teste
                 // com DOIS sucessores (o falso-alvo compartilhado + a
                 // queda); um teste com succ único (braços que caem no
@@ -200,8 +274,12 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                 List<BytecodeReader.Insn> eIns = BytecodeDecoder.insnsWithin(elseBlk, insns);
                 int joinAfterElse = elseBlk.succ.get(elseBlk.succ.size() - 1);
                 BytecodeReader.Block joinBlk = byStart.get(joinAfterElse);
-                // o else-bloco é SÓ o push (o xreturn é o bloco do join)
-                boolean eShape = eIns.size() == 1;
+                // o else-bloco é push PURO (o xreturn é o bloco do join) —
+                // Fase E (14/10): a sequência pode ser MULTI-insn (medido no
+                // avg: [iload, i2d, aload, size, i2d, ddiv]); o stackValue
+                // decide (null = recusa, R6)
+                boolean eShape = !eIns.isEmpty()
+                        && BytecodeDecoder.stackValue(eIns, frame, cp) != null;
                 boolean tShape = thenBlk.succ.size() == 1 && thenBlk.succ.get(0) == joinAfterElse
                         && joinBlk != null && joinBlk.succ.isEmpty();
                 if (eShape && tShape) {
@@ -213,6 +291,8 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                         String tVal = BytecodeDecoder.stackValue(
                                 tIns.subList(0, tIns.size() - 1), frame, cp);
                         String eVal = BytecodeDecoder.stackValue(eIns, frame, cp);
+                        // (o eVal já saiu do gate eShape — reavaliado aqui
+                        // só p/ clareza; ambos null-checked abaixo)
                         if (tVal != null && eVal != null) {
                             // coerção Bool: método `Z` com braços 1/0 → true/false
                             // (o Kof exige Bool; medido — `return if (..) 1 else 0`
@@ -232,8 +312,139 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                 }
             }
         }
+        // Fase E (14/10): o ELSE-RETURN DENTRO do próprio bloco — o else =
+        // [push..., xreturn] (o xreturn não é bloco separado) e o THEN salta
+        // DIRETO ao xreturn (compartilhado). Medido no avg:
+        // `return if (isEmpty) 0.0 else (sum as Double) / size`. Qualquer
+        // desvio → segue o walk (R6).
+        {
+            BytecodeReader.Block elseBlk = byStart.get(exitStart);
+            BytecodeReader.Block thenBlk = byStart.get(thenStart);
+            if (elseBlk != null && thenBlk != null && !thenBlk.succ.isEmpty()) {
+                List<BytecodeReader.Insn> eIns = BytecodeDecoder.insnsWithin(elseBlk, insns);
+                if (!eIns.isEmpty()) {
+                    int lastOp = eIns.get(eIns.size() - 1).opcode();
+                    if (lastOp >= 0xac && lastOp <= 0xb1
+                            && thenBlk.succ.get(0) == eIns.get(eIns.size() - 1).offset()
+                            && eIns.size() >= 2) {
+                        List<BytecodeReader.Insn> tIns = BytecodeDecoder.insnsWithin(thenBlk, insns);
+                        if (tIns.size() >= 2 && tIns.get(tIns.size() - 1).opcode() == 0xa7) {
+                            String tVal = BytecodeDecoder.stackValue(
+                                    tIns.subList(0, tIns.size() - 1), frame, cp);
+                            String eVal = BytecodeDecoder.stackValue(
+                                    eIns.subList(0, eIns.size() - 1), frame, cp);
+                            if (tVal != null && eVal != null) {
+                                if ("Z".equals(frame.retType())) {
+                                    if ("1".equals(tVal)) tVal = "true";
+                                    if ("0".equals(tVal)) tVal = "false";
+                                    if ("1".equals(eVal)) eVal = "true";
+                                    if ("0".equals(eVal)) eVal = "false";
+                                }
+                                out.add("    return if (" + cond + ") " + tVal + " else " + eVal);
+                                emitted.add(exitStart);
+                                emitted.add(eIns.get(eIns.size() - 1).offset());
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
         boolean loop = loop0;
         if (loop) {
+            // Fase E (14/10): for-each — `var it = X.iterator(); while
+            // (it.hasNext()) { var x = (it.next() as T); ... }` → o idioma
+            // nativo `for (var x in X) { ... }` (o iterator não existe no
+            // Kof — SEM025 medida). O binding (4 insns) é consumido via
+            // skipCount; a declaração do iterator sai do output.
+            if (cond != null && cond.contains(".hasNext()")) {
+                // a cond sai PARENTESADA pelo bin2 — `(v1.hasNext() != 0)`;
+                // extrair o identificador com regex, não por substring
+                var hM = java.util.regex.Pattern
+                        .compile("([A-Za-z_][A-Za-z0-9_]*)\\.hasNext\\(\\)").matcher(cond);
+                String itVar = hM.find() ? hM.group(1) : null;
+                if (itVar != null && !out.isEmpty()) {
+                    String last = out.get(out.size() - 1);
+                    String declPrefix = "var " + itVar + " = ";
+                    // Fase E (15/10): a fatia nomeada — o 2º for-each do
+                    // método: o javac REUTILIZA o slot do iterator (o escopo
+                    // do 1º loop morre) e o decl sai SEM `var`
+                    // (`v3 = arg1.iterator()`), MAS é a ÚLTIMA linha de out
+                    // (emitida pelo bloco linear imediatamente anterior) — a
+                    // forma sem-var aceita AQUI (não em busca backward, que
+                    // corrompia via re-entrância). O `out.remove(last)` de
+                    // baixo já é seguro por construção.
+                    String barePrefix = itVar + " = ";
+                    String src = null;
+                    if (last.startsWith(declPrefix) && last.endsWith(".iterator()")) {
+                        src = last.substring(declPrefix.length(),
+                                last.length() - ".iterator()".length());
+                    } else if (last.startsWith(barePrefix) && last.endsWith(".iterator()")) {
+                        src = last.substring(barePrefix.length(),
+                                last.length() - ".iterator()".length());
+                    }
+                    if (src != null) {
+                        BytecodeReader.Block bodyFirst = byStart.get(thenStart);
+                        List<BytecodeReader.Insn> fblk = bodyFirst == null
+                                ? List.of() : BytecodeDecoder.insnsWithin(bodyFirst, insns);
+                        // o binding: [aload it, next, (checkcast), astore vX]
+                        int bindVar = -1;
+                        int bindLen = 0;
+                        for (int bi = 0; bi < fblk.size(); bi++) {
+                            int bop = fblk.get(bi).opcode();
+                            // o elemento pode unboxar (Integer.intValue → int):
+                            // istore/astore com índice E as formas _n
+                            if (bop == 0x36 || bop == 0x3a) {
+                                bindVar = fblk.get(bi).operands()[0];
+                                bindLen = bi + 1;
+                                break;
+                            }
+                            if (bop >= 0x3b && bop <= 0x3e) {
+                                bindVar = bop - 0x3b;
+                                bindLen = bi + 1;
+                                break;
+                            }
+                            if (bop >= 0x4b && bop <= 0x4e) {
+                                bindVar = bop - 0x4b;
+                                bindLen = bi + 1;
+                                break;
+                            }
+                        }
+                        // R6: o source não pode conter chamadas sem
+                        // equivalente (medido: `entrySet()` — o Map do Kof
+                        // itera keys/values, não há Entry) → stub honesto
+                        if (bindVar >= 0 && bindLen >= 2 && !src.contains(".entrySet()")
+                                && !src.contains(".keySet()") && !src.contains(".values()")) {
+                            String bindName = BytecodeDecoderStack.slotName(bindVar, frame);
+                            if (BytecodeStatements.skipCount == null)
+                                BytecodeStatements.skipCount = new java.util.HashMap<>();
+                            BytecodeStatements.skipCount.put(bodyFirst.start, bindLen);
+                            declared.add(bindVar);
+                            out.remove(out.size() - 1);
+                            out.add("for (var " + bindName + " in " + src + ") {");
+                            int savedExit = BytecodeStatements.currentLoopExit;
+                            BytecodeStatements.currentLoopExit = exitStart;
+                            boolean bodyOk = struct(bodyFirst, insns, byStart, cp, frame,
+                                    out, emitted, declared, b.start, stops);
+                            BytecodeStatements.currentLoopExit = savedExit;
+                            if (!bodyOk) { BytecodeStatements.refuse("struct-generic"); return false; }
+                            out.add("}");
+                            return struct(byStart.get(exitStart), insns, byStart, cp, frame,
+                                    out, emitted, declared, header, stops);
+                        }
+                    }
+                }
+                // Fase E (15/10): o shape ITERATOR que o recovery NÃO pegou
+                // (o decl do iterator não é a última linha — o 2º loop do
+                // método, medido no Mail.recipients: o javac REUTILIZA o slot
+                // e o decl sai sem `var`) emitia o while CRU com locals não-
+                // declarados = código não-compilável. Recusa honesta → stub
+                // (R6); a fatia nomeada fica registrada no DOING.
+                if (cond.contains(".hasNext()")) {
+                    BytecodeStatements.refuse("iterator-loop-unrecovered");
+                    return false;
+                }
+            }
             out.add("while (" + cond + ") {");
             int savedExit = BytecodeStatements.currentLoopExit;
             BytecodeStatements.currentLoopExit = exitStart;   // `break` = goto para a saída
@@ -250,9 +461,21 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
         // o braço para no join via `stops` (linhas acima); a sequela
         // emite o join UMA vez (caminho falso = queda natural do if).
         BytecodeReader.Block join = byStart.get(exitStart);
+        // Fase E (15/10): o join do && tem os falsos de TODOS os testes da
+        // cadeia convergindo (preds > 2 POR DESENHO) — os preds extras
+        // permitidos são exatamente os testes coletados no walk; qualquer
+        // OUTRO pred segue recusando (R6)
+        boolean chainJoin = false;
+        if (join != null && !chainTests.isEmpty()
+                && join.pred.contains(b.start) && join.pred.contains(thenStart)) {
+            chainJoin = true;
+            for (int pr : join.pred) {
+                if (pr != b.start && pr != thenStart && !chainTests.contains(pr)) { chainJoin = false; break; }
+            }
+        }
         boolean pureIfThen = join != null
-                && join.pred.size() == 2 && join.pred.contains(b.start)
-                && join.pred.contains(thenStart)
+                && ((join.pred.size() == 2 && join.pred.contains(b.start)
+                        && join.pred.contains(thenStart)) || chainJoin)
                 && !BytecodeReader.isLoopHeader(join)
                 && byStart.get(thenStart) != null
                 && byStart.get(thenStart).succ.equals(List.of(exitStart));
@@ -286,13 +509,43 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
             List<BytecodeReader.Insn> tSeq = BytecodeDecoder.insnsWithin(thenB, insns);
             List<BytecodeReader.Insn> eSeq = BytecodeDecoder.insnsWithin(elseB, insns);
             boolean jStore = !jPre.isEmpty() && BytecodeStatements.isStore(jPre.get(0).opcode());
-            boolean bothReach = thenB.succ.contains(tail) && elseB.succ.contains(tail);
-            if (pureIfElse && bothReach && jStore) {
+            // Fase E (15/10): o then alcança o tail DIRETO e o else por
+            // QUALQUER caminho curto (direto ou pela cadeia de testes —
+            // medido no Warehouse.grade: o else é o teste interno que
+            // converge via 21/26; o contains estrito recusava)
+            boolean bothReach = thenB.succ.contains(tail)
+                    && armReachesJoin(elseB.start, tail, byStart, insns, 0);
+            // Fase E (15/10): o guard de REGIÃO — o pureIfElse (2 preds)
+            // recusava a CADEIA ternária armazenada (medido no Warehouse.grade:
+            // o join tinha 3 preds — o goto do then, o goto do then interno e
+            // a queda do else interno). Os preds TODOS dentro de
+            // [b.start, tail) = dentro do próprio if (um pred externo —
+            // back-edge de loop posterior ou goto de código seguinte — teria
+            // offset fora da região)
+            boolean regionJoin = false;
+            if (!pureIfElse && jStore) {
+                regionJoin = true;
+                for (int pr : joinB.pred) {
+                    if (pr < b.start || pr >= tail) { regionJoin = false; break; }
+                }
+            }
+            if ((pureIfElse || regionJoin) && bothReach && jStore) {
                 String tVal = BytecodeStatements.stackValueStrip(tSeq, frame, cp);
                 String eVal = BytecodeStatements.stackValueStrip(eSeq, frame, cp);
+                // Fase E (15/10): o braço TESTE (a cadeia ternária aninhada)
+                // vira if-expression via o armExpr (o mesmo builder do
+                // ifElseReturn; medido no grade: o else = o teste interno)
+                if (tVal == null && thenB.succ.size() == 2) {
+                    tVal = BytecodeDecoderCond.armExpr(thenB, byStart.values().stream().toList(),
+                            insns, cp, frame, 0);
+                }
+                if (eVal == null && elseB.succ.size() == 2) {
+                    eVal = BytecodeDecoderCond.armExpr(elseB, byStart.values().stream().toList(),
+                            insns, cp, frame, 0);
+                }
                 if (tVal != null && eVal != null) {
                     int slot = BytecodeStatements.storeSlot(jPre.get(0));
-                    String name = BytecodeDecoder.slotName(slot, frame);
+                    String name = BytecodeDecoderStack.slotName(slot, frame);
                     boolean first = !declared.contains(slot);
                     declared.add(slot);
                     String assign0 = (first ? "var " + name + " = " : name + " = ")
@@ -337,7 +590,7 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                         String eVal = BytecodeDecoder.stackValue(
                                 eCore.subList(0, eCore.size() - 1), frame, cp);
                         if (tVal != null && eVal != null) {
-                            String name = BytecodeDecoder.slotName(tSlot, frame);
+                            String name = BytecodeDecoderStack.slotName(tSlot, frame);
                             boolean first = !declared.contains(tSlot);
                             declared.add(tSlot);
                             out.add("    " + (first ? "var " + name + " = " : name + " = ")
@@ -352,6 +605,103 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                 BytecodeStatements.refuse("hoist-null"); return false;
             }
             out.addAll(hoist);
+        }
+        // Fase E (14/10): ELSE-IF — o braco ELSE (o alvo do branch falso do if
+        // externo) e ele MESMO um teste cujo falso == o join externo (o tail
+        // do then) → o braco else e um if-SEM-else. Emite
+        // `if (A) { .. } else { if (B) { .. } }` e segue no join. Sem isto o
+        // shape `if (a>0) r=1; else if (b>0) r=2;` stubava (o join tem 3
+        // preds e o pureIfElse exige 2 — medido).
+        boolean pureElseIfThen = !pureIfElse && thenB != null && tail >= 0
+                && thenB.succ.equals(List.of(tail))
+                && elseB != null && elseB.succ.size() == 2
+                && elseB.succ.get(0) == tail
+                && byStart.get(elseB.succ.get(1)) != null
+                && byStart.get(elseB.succ.get(1)).succ.equals(List.of(tail))
+                && byStart.get(tail) != null
+                && !BytecodeReader.isLoopHeader(byStart.get(tail));
+        // ELSE-IF-ELSE: o braco else e um teste cujo verdadeiro E o falso
+        // convergem num join INTERNO (ambos com goto para o join externo) →
+        // o braco else e um if/else completo.
+        int elseIfElseInner = -1;
+        if (!pureIfElse && !pureElseIfThen && thenB != null && tail >= 0
+                && thenB.succ.equals(List.of(tail))
+                && elseB != null && elseB.succ.size() == 2) {
+            BytecodeReader.Block t2 = byStart.get(elseB.succ.get(1));
+            BytecodeReader.Block e2 = byStart.get(elseB.succ.get(0));
+            if (t2 != null && e2 != null && t2 != elseB && e2 != elseB
+                    && t2.succ.equals(List.of(tail)) && e2.succ.equals(List.of(tail))) {
+                elseIfElseInner = 1;
+            }
+        }
+        if (pureElseIfThen || elseIfElseInner > 0) {
+            String innerCond = BytecodeDecoder.blockCondition(elseB, insns, frame, cp);
+            if (innerCond == null) { BytecodeStatements.refuse("elseif-cond"); return false; }
+            Set<Integer> bstops = new HashSet<>(stops);
+            bstops.add(tail);
+            out.add("if (" + cond + ") {");
+            if (!struct(thenB, insns, byStart, cp, frame, out, emitted, declared, header, bstops))
+                { BytecodeStatements.refuse("struct-generic"); return false; }
+            out.add("} else {");
+            out.add("if (" + innerCond + ") {");
+            if (!struct(byStart.get(elseB.succ.get(1)), insns, byStart, cp, frame,
+                    out, emitted, declared, header, bstops))
+                { BytecodeStatements.refuse("struct-generic"); return false; }
+            out.add("}");
+            if (elseIfElseInner > 0) {
+                out.add("else {");
+                if (!struct(byStart.get(elseB.succ.get(0)), insns, byStart, cp, frame,
+                        out, emitted, declared, header, bstops))
+                    { BytecodeStatements.refuse("struct-generic"); return false; }
+                out.add("}");
+            }
+            out.add("}");
+            emitted.add(elseB.start);
+            return struct(byStart.get(tail), insns, byStart, cp, frame,
+                    out, emitted, declared, header, stops);
+        }
+        // Fase E (14/10): CADEIA else-if PROFUNDA (3+ níveis) — o braço else
+        // é um teste PURO cujos braços alcançam o join (direto ou por outros
+        // testes puros) → RECURSA em struct(elseB) com o join como stop: o
+        // MESMO pureElseIfThen trata o nível seguinte da cadeia. Sem stores
+        // no bloco (senão é `else { stmt; if }` — outro shape).
+        if (!pureIfElse && !pureElseIfThen && elseIfElseInner < 0 && thenB != null
+                && tail >= 0 && thenB.succ.equals(List.of(tail))
+                && elseB != null && elseB.succ.size() == 2
+                && !emitted.contains(elseB.start)
+                && byStart.get(tail) != null
+                && !BytecodeReader.isLoopHeader(byStart.get(tail))) {
+            List<BytecodeReader.Insn> eblk = BytecodeDecoder.insnsWithin(elseB, insns);
+            boolean pureTest = !eblk.isEmpty();
+            for (BytecodeReader.Insn ein : eblk) {
+                int eop = ein.opcode();
+                if (eop >= 0x36 && eop <= 0x4e) { pureTest = false; break; }
+            }
+            if (pureTest
+                    && armReachesJoin(elseB.succ.get(0), tail, byStart, insns, 0)
+                    && armReachesJoin(elseB.succ.get(1), tail, byStart, insns, 0)) {
+                // Fase E (15/10): o hoist PROFUNDO — o local sem init
+                // (`String s;`) armazenado nos DOIS lados da cadeia escapa
+                // do if e precisa da declaração default ANTES (medido no
+                // Range.size: o `var` nascia no 1º braço e os demais
+                // atribuíam slot não-declarado = SEM011)
+                StructWalker.cpRef = cp;
+                List<String> deepHoist = StructWalker.hoistEscapingLocalsDeep(insns,
+                        thenB.start, tail, elseB.start, tail, frame, declared);
+                if (deepHoist == null) { BytecodeStatements.refuse("deep-hoist-null"); return false; }
+                out.addAll(deepHoist);
+                Set<Integer> bstops = new HashSet<>(stops);
+                bstops.add(tail);
+                out.add("if (" + cond + ") {");
+                if (!struct(thenB, insns, byStart, cp, frame, out, emitted, declared, header, bstops))
+                    { BytecodeStatements.refuse("struct-generic"); return false; }
+                out.add("} else {");
+                if (!struct(elseB, insns, byStart, cp, frame, out, emitted, declared, header, bstops))
+                    { BytecodeStatements.refuse("struct-generic"); return false; }
+                out.add("}");
+                return struct(byStart.get(tail), insns, byStart, cp, frame,
+                        out, emitted, declared, header, stops);
+            }
         }
         out.add("if (" + cond + ") {");
         if (pureIfThen) {
@@ -401,4 +751,64 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
     }
     { BytecodeStatements.refuse("struct-generic"); return false; }
 }
+    /** Fase E (14/10): o braço alcança o join? Direto, por queda única, ou
+     *  por até 2 níveis de testes puros (a cadeia else-if). Limitado. */
+    private static boolean armReachesJoin(int start, int tail,
+            Map<Integer, BytecodeReader.Block> byStart,
+            List<BytecodeReader.Insn> insns, int depth) {
+        if (start == tail) return true;
+        if (depth > 2) return false;
+        BytecodeReader.Block b = byStart.get(start);
+        if (b == null) return false;
+        if (b.succ.equals(List.of(tail))) return true;
+        if (b.succ.size() == 2) {
+            List<BytecodeReader.Insn> blk = BytecodeDecoder.insnsWithin(b, insns);
+            boolean pure = !blk.isEmpty();
+            for (BytecodeReader.Insn ein : blk) {
+                int eop = ein.opcode();
+                if (eop >= 0x36 && eop <= 0x4e) { pure = false; break; }
+            }
+            if (pure
+                    && armReachesJoin(b.succ.get(0), tail, byStart, insns, depth + 1)
+                    && armReachesJoin(b.succ.get(1), tail, byStart, insns, depth + 1)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Fase E (14/10): a ÁRVORE de condição — o teste do bloco com os alvos
+     * (verdadeiro/falso), compondo `||` (o salto = o verdadeiro) e `&&` (o
+     * salto = o falso) recursivamente. Profundidade limitada; qualquer
+     * desvio → null = stub honesto (R6).
+     */
+    private static String condTree(BytecodeReader.Block b, int trueTgt, int falseTgt,
+            Map<Integer, BytecodeReader.Block> byStart, List<BytecodeReader.Insn> insns,
+            BytecodeFrame frame, String[] cp, int depth) {
+        if (depth > 4 || b == null || b.succ.size() != 2) return null;
+        if (BytecodeReader.isLoopHeader(b)) return null;
+        int j = b.succ.get(0);
+        int f = b.succ.get(1);
+        if (j == trueTgt && f == falseTgt)
+            return BytecodeDecoder.blockConditionTaken(b, insns, frame, cp);
+        if (j == falseTgt && f == trueTgt)
+            return BytecodeDecoder.blockCondition(b, insns, frame, cp);
+        if (j == trueTgt) {
+            String c1 = BytecodeDecoder.blockConditionTaken(b, insns, frame, cp);
+            if (c1 == null) return null;
+            String rest = condTree(byStart.get(f), trueTgt, falseTgt,
+                    byStart, insns, frame, cp, depth + 1);
+            if (rest == null) return null;
+            return c1 + " || (" + rest + ")";
+        }
+        if (j == falseTgt) {
+            String c1 = BytecodeDecoder.blockCondition(b, insns, frame, cp);
+            if (c1 == null) return null;
+            String rest = condTree(byStart.get(f), trueTgt, falseTgt,
+                    byStart, insns, frame, cp, depth + 1);
+            if (rest == null) return null;
+            return c1 + " && (" + rest + ")";
+        }
+        return null;
+    }
+
 }

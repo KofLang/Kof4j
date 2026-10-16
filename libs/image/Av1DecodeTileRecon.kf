@@ -8,6 +8,7 @@ import image.Av1DecodeChroma
 import image.Av1IntraAvail
 import image.Av1IntraBlock
 import image.Av1ModeInfo
+import image.Av1Palette
 import image.Av1ReconBlock
 import image.Av1Symbol
 import image.Av1Tx
@@ -36,6 +37,13 @@ import image.Av1TxType
 //      -> prediction (3u `av1IntraPredictBlock`) -> dequantize + inverse
 //      transform + reconstruct (3z `av1ReconBlockInto`) with the DECODED
 //      transform type.
+//
+// The per-block stage lives on `class Av1TileDecode` below (slice 3au), so the
+// partition walk (`Av1Partition.bindDecoder`) can call it per leaf: libaom calls
+// `decode_block` from INSIDE `decode_partition`, and with no closures in Kof the
+// recursion and the block decode have to share one scope. `av1DecodeTileRecon`
+// keeps its original 38-parameter signature as a thin wrapper over the class, so
+// the harnesses that pass an explicit block list are unchanged.
 //
 // Pure Kof, all targets: no I/O, no compiler change. `decodeRaster` still
 // refuses AVIF until the chain closes (chroma planes and the frame assembly).
@@ -70,48 +78,196 @@ import image.Av1TxType
 //     deltaLf0..3`).
 //
 // Returns the reconstructed plane, flat row-major of size `frameW * frameH`.
-Int[] av1DecodeTileRecon(Int[] frame, Int stride, Int frameW, Int frameH,
-                         List<Int> blocks, Av1ModeTail cfg,
-                         Int lossless, Int hasChroma, Int numPlanes,
-                         Int enableFilterIntra,
-                         Int palettePossible, Int bitDepth, Int txMode,
-                         Int baseQIndex, Int segEnabled,
-                         Int segIdPreSkip, Int lastActiveSegId,
-                         Int segSkipActive, Int dcQuant, Int acQuant,
-                         Int disableEdgeFilter, Int intraEdgeFilterType,
-                         Int reducedTxSet,
-                         Av1Symbol reader, Av1CoeffCdfStore store,
-                         Av1TxType txTypeStore, Int[] txTypes,
-                         Int[] above, Int[] left, List<Int[]> levelsOut,
-                         List<Int> txTypeOut, List<Int> modeOut,
-                         Av1ChromaPlanes chroma, Int ssX, Int ssY,
-                         List<Int[]> levelsUOut, List<Int[]> levelsVOut,
-                         List<Int> txTypeUOut, List<Int> txTypeVOut) {
-    var modeInfo = Av1ModeInfo(reader, frameW >> 2, frameH >> 2)
-    var txSize = Av1TxSize(reader, frameW >> 2, frameH >> 2)
-    var maxX = frameW
-    var maxY = frameH
-    var edgeFilter = true
-    if (disableEdgeFilter == 1) {
-        edgeFilter = false
-    }
-    var cur = listOf(0, 0, 0, 0)
-    var qIndex = baseQIndex
-    // The 64x64 CDEF-unit strengths, keyed by the unit origin (row*miCols+col).
-    var cdefUnits = new Int[(frameW >> 2) * (frameH >> 2)]
-    var ci = 0
-    while (ci < cdefUnits.size) {
-        cdefUnits[ci] = -1
-        ci = ci + 1
+
+import image.Av1ModeCdf
+
+// kof.image — the tile DECODER as a class (slice 3au).  The per-block stage
+// used to be the body of `av1DecodeTileRecon`; it is now a method so the
+// partition recursion (`Av1TileTree`, same file) can call it per leaf — the
+// only way to stay in sync with libaom's interleaved tile stream, since Kof
+// has no closures and a top-level function cannot be re-entered per block.
+class Av1TileDecode {
+    Int[] frame
+    Int stride
+    Int frameW
+    Int frameH
+    Av1ModeTail cfg
+    Int lossless
+    Int hasChroma
+    Int numPlanes
+    Int enableFilterIntra
+    Int palettePossible
+    Int bitDepth
+    Int txMode
+    Int baseQIndex
+    Int segEnabled
+    Int segIdPreSkip
+    Int lastActiveSegId
+    Int segSkipActive
+    Int dcQuant
+    Int acQuant
+    Int disableEdgeFilter
+    Int intraEdgeFilterType
+    Int reducedTxSet
+    Av1Symbol reader
+    Av1CoeffCdfStore store
+    Av1TxType txTypeStore
+    Int[] txTypes
+    Int[] above
+    Int[] left
+    List<Int[]> levelsOut
+    List<Int> txTypeOut
+    List<Int> modeOut
+    List<Int> posOut
+    Int[] colorIndexY
+    Int[] colorIndexUv
+    Av1ChromaPlanes chroma
+    Int ssX
+    Int ssY
+    List<Int[]> levelsUOut
+    List<Int[]> levelsVOut
+    List<Int> txTypeUOut
+    List<Int> txTypeVOut
+
+    // Derived state, shared across the blocks of the tile.
+    Av1ModeInfo modeInfo
+    Av1TxSize txSize
+    Int maxX
+    Int maxY
+    Bool edgeFilter
+    List<Int> cur
+    Int qIndex
+    Int[] cdefUnits
+
+    constructor(Int[] frame, Int stride, Int frameW, Int frameH,
+                Av1ModeTail cfg, Int lossless, Int hasChroma, Int numPlanes,
+                Int enableFilterIntra, Int palettePossible, Int bitDepth,
+                Int txMode, Int baseQIndex, Int segEnabled,
+                Int segIdPreSkip, Int lastActiveSegId, Int segSkipActive,
+                Int dcQuant, Int acQuant, Int disableEdgeFilter,
+                Int intraEdgeFilterType, Int reducedTxSet, Av1Symbol reader,
+                Av1CoeffCdfStore store, Av1TxType txTypeStore,
+                Int[] txTypes, Int[] above, Int[] left,
+                List<Int[]> levelsOut, List<Int> txTypeOut,
+                List<Int> modeOut, Av1ChromaPlanes chroma, Int ssX, Int ssY,
+                List<Int[]> levelsUOut, List<Int[]> levelsVOut,
+                List<Int> txTypeUOut, List<Int> txTypeVOut) {
+        this.frame = frame
+        this.stride = stride
+        this.frameW = frameW
+        this.frameH = frameH
+        this.cfg = cfg
+        this.lossless = lossless
+        this.hasChroma = hasChroma
+        this.numPlanes = numPlanes
+        this.enableFilterIntra = enableFilterIntra
+        this.palettePossible = palettePossible
+        this.bitDepth = bitDepth
+        this.txMode = txMode
+        this.baseQIndex = baseQIndex
+        this.segEnabled = segEnabled
+        this.segIdPreSkip = segIdPreSkip
+        this.lastActiveSegId = lastActiveSegId
+        this.segSkipActive = segSkipActive
+        this.dcQuant = dcQuant
+        this.acQuant = acQuant
+        this.disableEdgeFilter = disableEdgeFilter
+        this.intraEdgeFilterType = intraEdgeFilterType
+        this.reducedTxSet = reducedTxSet
+        this.reader = reader
+        this.store = store
+        this.txTypeStore = txTypeStore
+        this.txTypes = txTypes
+        this.above = above
+        this.left = left
+        this.levelsOut = levelsOut
+        this.txTypeOut = txTypeOut
+        this.modeOut = modeOut
+        this.chroma = chroma
+        this.ssX = ssX
+        this.ssY = ssY
+        this.levelsUOut = levelsUOut
+        this.levelsVOut = levelsVOut
+        this.txTypeUOut = txTypeUOut
+        this.txTypeVOut = txTypeVOut
+        this.modeInfo = Av1ModeInfo(this.reader, this.frameW >> 2, this.frameH >> 2)
+        this.txSize = Av1TxSize(this.reader, this.frameW >> 2, this.frameH >> 2)
+        this.maxX = this.frameW
+        this.maxY = this.frameH
+        this.edgeFilter = true
+        if (this.disableEdgeFilter == 1) {
+            this.edgeFilter = false
+        }
+        this.cur = listOf(0, 0, 0, 0)
+        this.qIndex = this.baseQIndex
+        // Per-block reader positions (diagnostic): two ints per block,
+        // the position after the mode info and after the block's residuals.
+        this.posOut = listOf()
+        // The palette COLOUR-INDEX maps the `palette_tokens()` stage fills
+        // (per pixel, per plane); the reconstruction reads them.
+        this.colorIndexY = new Int[this.frameW * this.frameH]
+        this.colorIndexUv = new Int[this.chroma.wU * this.chroma.hU]
+        // The 64x64 CDEF-unit strengths, keyed by the unit origin (row*miCols+col).
+        this.cdefUnits = new Int[(this.frameW >> 2) * (this.frameH >> 2)]
+        var ci = 0
+        while (ci < this.cdefUnits.size) {
+            this.cdefUnits[ci] = -1
+            ci = ci + 1
+        }
     }
 
-    var nb = blocks.size / 3
-    var b = 0
-    while (b < nb) {
-        var base = b * 3
-        var r = blocks.get(base)
-        var c = blocks.get(base + 1)
-        var bs = blocks.get(base + 2)
+    // Decodes and reconstructs ONE mode-info block.  The body is the tile
+    // driver's per-block stage verbatim (slices 3af/3t/3e/3z/3ab/3u); the
+    // frame-level state lives in the fields, and the two accumulators that
+    // evolve across blocks (`qIndex` from delta-Q, `cur` from delta-LF) are
+    // written back at the end.
+    void decodeBlock(Int r, Int c, Int bs) {
+        var frame = this.frame
+        var stride = this.stride
+        var frameW = this.frameW
+        var frameH = this.frameH
+        var cfg = this.cfg
+        var lossless = this.lossless
+        var hasChroma = this.hasChroma
+        var numPlanes = this.numPlanes
+        var enableFilterIntra = this.enableFilterIntra
+        var palettePossible = this.palettePossible
+        var bitDepth = this.bitDepth
+        var txMode = this.txMode
+        var baseQIndex = this.baseQIndex
+        var segEnabled = this.segEnabled
+        var segIdPreSkip = this.segIdPreSkip
+        var lastActiveSegId = this.lastActiveSegId
+        var segSkipActive = this.segSkipActive
+        var dcQuant = this.dcQuant
+        var acQuant = this.acQuant
+        var disableEdgeFilter = this.disableEdgeFilter
+        var intraEdgeFilterType = this.intraEdgeFilterType
+        var reducedTxSet = this.reducedTxSet
+        var reader = this.reader
+        var store = this.store
+        var txTypeStore = this.txTypeStore
+        var txTypes = this.txTypes
+        var above = this.above
+        var left = this.left
+        var levelsOut = this.levelsOut
+        var txTypeOut = this.txTypeOut
+        var modeOut = this.modeOut
+        var chroma = this.chroma
+        var ssX = this.ssX
+        var ssY = this.ssY
+        var levelsUOut = this.levelsUOut
+        var levelsVOut = this.levelsVOut
+        var txTypeUOut = this.txTypeUOut
+        var txTypeVOut = this.txTypeVOut
+        var modeInfo = this.modeInfo
+        var txSize = this.txSize
+        var maxX = this.maxX
+        var maxY = this.maxY
+        var edgeFilter = this.edgeFilter
+        var cur = this.cur
+        var qIndex = this.qIndex
+        var cdefUnits = this.cdefUnits
 
         // 1. Mode info: prefix (segment id + skip).
         var skip = 0
@@ -152,9 +308,48 @@ Int[] av1DecodeTileRecon(Int[] frame, Int stride, Int frameW, Int frameH,
         var useFilterIntra = body[6]
         var filterIntraMode = body[7]
 
+        // 1d. `palette_tokens()`, BETWEEN the mode info and the transform size:
+        // av1/decoder/decodeframe.c `parse_decode_block` runs `decode_mbmi_block(..)`
+        // and then `av1_visit_palette(..., av1_decode_palette_tokens)` BEFORE the tx
+        // size (the spec's `mode_info()` -> `palette_tokens()` -> `read_block_tx_size()`).
+        var palY = modeInfo.palSizeYAt(r, c)
+        if (palY > 0) {
+            var pw = av1BlockWidth(bs)
+            var ph = av1BlockHeight(bs)
+            var cmy = av1PaletteColorMap(reader, modeInfo, 0, palY, pw, ph, ph, pw)
+            var pry = 0
+            while (pry < ph) {
+                var pcy = 0
+                while (pcy < pw) {
+                    this.colorIndexY[(r * 4 + pry) * this.frameW + (c * 4 + pcy)] = cmy[pry * pw + pcy]
+                    pcy = pcy + 1
+                }
+                pry = pry + 1
+            }
+        }
+        var palUv = modeInfo.palSizeUvAt(r, c)
+        if (palUv > 0) {
+            var pbs = av1PlaneBlockSize(bs, this.ssX, this.ssY)
+            var puw = av1BlockWidth(pbs)
+            var puh = av1BlockHeight(pbs)
+            var cmu = av1PaletteColorMap(reader, modeInfo, 1, palUv, puw, puh, puh, puw)
+            var u0r = r >> this.ssY
+            var u0c = c >> this.ssX
+            var pru = 0
+            while (pru < puh) {
+                var pcu = 0
+                while (pcu < puw) {
+                    this.colorIndexUv[(u0r * 4 + pru) * this.chroma.wU + (u0c * 4 + pcu)] = cmu[pru * puw + pcu]
+                    pcu = pcu + 1
+                }
+                pru = pru + 1
+            }
+        }
+
         // 2. Transform size + the transform-context broadcast.
         var txSz = txSize.readTxSize(r, c, bs, skip, txMode, 0, lossless)
         txSize.setTxfmCtxs(r, c, bs, txSz, 0)
+        this.posOut.add(this.reader.position())
 
         modeOut.add(skip)
         modeOut.add(segId)
@@ -186,6 +381,11 @@ Int[] av1DecodeTileRecon(Int[] frame, Int stride, Int frameW, Int frameH,
         var w = av1TxWidth(txSz)
         var h = av1TxHeight(txSz)
         var n = order.size / 2
+        // A palette plane carries the INDEX MAP instead of transform coefficients
+        // (av1_decode_palette_tokens already consumed them), so the TX loop is empty.
+        if (palY > 0) {
+            n = 0
+        }
         var bi = 0
         while (bi < n) {
             var br = r + order.get(bi * 2)
@@ -236,6 +436,45 @@ Int[] av1DecodeTileRecon(Int[] frame, Int stride, Int frameW, Int frameH,
             bi = bi + 1
         }
 
+        // 3b. The PALETTE reconstruction: each pixel takes the block's palette
+        //     colour indexed by the decoded colour map — no prediction, no
+        //     dequantization, no inverse transform.
+        if (palY > 0) {
+            var pbh = av1BlockHeight(bs)
+            var pbw = av1BlockWidth(bs)
+            var pyy = 0
+            while (pyy < pbh) {
+                var pxx = 0
+                while (pxx < pbw) {
+                    var pidx = this.colorIndexY[(r * 4 + pyy) * this.frameW + (c * 4 + pxx)]
+                    frame[(r * 4 + pyy + 1) * stride + (c * 4 + pxx + 1)] = modeInfo.palColorYAt(r, c, pidx)
+                    pxx = pxx + 1
+                }
+                pyy = pyy + 1
+            }
+        }
+
+        // 3c. The UV palette, once, for BOTH chroma planes (the UV colour map is
+        //     shared; av1_decode_palette_tokens takes plane 1 only).
+        if (palUv > 0) {
+            var pbs2 = av1PlaneBlockSize(bs, ssX, ssY)
+            var puw2 = av1BlockWidth(pbs2)
+            var puh2 = av1BlockHeight(pbs2)
+            var u0r2 = r >> ssY
+            var u0c2 = c >> ssX
+            var puy = 0
+            while (puy < puh2) {
+                var pux = 0
+                while (pux < puw2) {
+                    var pidx2 = this.colorIndexUv[(u0r2 * 4 + puy) * chroma.wU + (u0c2 * 4 + pux)]
+                    chroma.u[(u0r2 * 4 + puy + 1) * chroma.strideU + (u0c2 * 4 + pux + 1)] = modeInfo.palColorUAt(r, c, pidx2)
+                    chroma.v[(u0r2 * 4 + puy + 1) * chroma.strideV + (u0c2 * 4 + pux + 1)] = modeInfo.palColorVAt(r, c, pidx2)
+                    pux = pux + 1
+                }
+                puy = puy + 1
+            }
+        }
+
         // 4. The CHROMA planes of THIS block, after its luma plane — libaom's
         //    `decode_token_recon_block` runs `plane = 0` then U then V for the
         //    same block, each with its own derived transform size and its own
@@ -243,7 +482,7 @@ Int[] av1DecodeTileRecon(Int[] frame, Int stride, Int frameW, Int frameH,
         //    chroma reference (`xd->is_chroma_ref`).
         // `av1_num_planes(cm)`: a luma-only stream has no chroma symbols to
         // consume, so the chroma walk runs only for a multi-plane frame.
-        if (numPlanes > 1 && hasChroma == 1) {
+        if (numPlanes > 1 && hasChroma == 1 && palUv == 0) {
             av1DecodeChromaBlock(chroma, bs, ssX, ssY, frame, stride,
                     r, c, body[2], body[3], body[4], body[5],
                     useFilterIntra, filterIntraMode, bitDepth,
@@ -252,19 +491,76 @@ Int[] av1DecodeTileRecon(Int[] frame, Int stride, Int frameW, Int frameH,
                     frameW >> 2, frameW, frameH, levelsUOut, levelsVOut,
                     txTypeUOut, txTypeVOut)
         }
-        b = b + 1
+        this.posOut.add(this.reader.position())
+        this.qIndex = qIndex
+        this.cur = cur
     }
 
-    // Copy the interior (border stripped) into a flat `frameW * frameH` plane.
-    var out = new Int[frameW * frameH]
-    var rr = 0
-    while (rr < frameH) {
-        var cc = 0
-        while (cc < frameW) {
-            out[rr * frameW + cc] = frame[(rr + 1) * stride + (cc + 1)]
-            cc = cc + 1
+    // Decodes the tile's blocks in the order given, sharing every field.
+    void run(List<Int> blocks) {
+        var nb = blocks.size / 3
+        var b = 0
+        while (b < nb) {
+            var base = b * 3
+            this.decodeBlock(blocks.get(base), blocks.get(base + 1),
+                             blocks.get(base + 2))
+            b = b + 1
         }
-        rr = rr + 1
     }
-    return out
+
+    // The per-block reader positions (diagnostic), two ints per block.
+    List<Int> positions() {
+        return this.posOut
+    }
+
+    // The reconstructed plane, flat row-major of size `frameW * frameH`
+    // (the one-sample border stripped).
+    Int[] planes() {
+        var frame = this.frame
+        var stride = this.stride
+        var frameW = this.frameW
+        var frameH = this.frameH
+        var out = new Int[frameW * frameH]
+        var rr = 0
+        while (rr < frameH) {
+            var cc = 0
+            while (cc < frameW) {
+                out[rr * frameW + cc] = frame[(rr + 1) * stride + (cc + 1)]
+                cc = cc + 1
+            }
+            rr = rr + 1
+        }
+        return out
+    }
+}
+
+// Decodes and reconstructs one luma plane of a tile from an EXPLICIT block
+// list.  Thin wrapper over `Av1TileDecode`, kept at the original signature so
+// the tile-driver harnesses are unchanged; `Av1TileTree` drives the same class
+// from the partition tree instead.
+Int[] av1DecodeTileRecon(Int[] frame, Int stride, Int frameW, Int frameH,
+                         List<Int> blocks, Av1ModeTail cfg,
+                         Int lossless, Int hasChroma, Int numPlanes,
+                         Int enableFilterIntra,
+                         Int palettePossible, Int bitDepth, Int txMode,
+                         Int baseQIndex, Int segEnabled,
+                         Int segIdPreSkip, Int lastActiveSegId,
+                         Int segSkipActive, Int dcQuant, Int acQuant,
+                         Int disableEdgeFilter, Int intraEdgeFilterType,
+                         Int reducedTxSet,
+                         Av1Symbol reader, Av1CoeffCdfStore store,
+                         Av1TxType txTypeStore, Int[] txTypes,
+                         Int[] above, Int[] left, List<Int[]> levelsOut,
+                         List<Int> txTypeOut, List<Int> modeOut,
+                         Av1ChromaPlanes chroma, Int ssX, Int ssY,
+                         List<Int[]> levelsUOut, List<Int[]> levelsVOut,
+                         List<Int> txTypeUOut, List<Int> txTypeVOut) {
+    var tile = Av1TileDecode(frame, stride, frameW, frameH, cfg, lossless, hasChroma, numPlanes,
+        enableFilterIntra, palettePossible, bitDepth, txMode, baseQIndex, segEnabled,
+        segIdPreSkip, lastActiveSegId, segSkipActive, dcQuant, acQuant, disableEdgeFilter,
+        intraEdgeFilterType, reducedTxSet, reader, store, txTypeStore, txTypes, above, left,
+        levelsOut, txTypeOut, modeOut, chroma, ssX, ssY, levelsUOut, levelsVOut, txTypeUOut,
+        txTypeVOut)
+    tile.run(blocks)
+    return tile.planes()
 }

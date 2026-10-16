@@ -58,11 +58,19 @@ final class NativeMethodEmitter {
     private final NativeBackend nb;
     NativeMethodEmitter(NativeBackend nb) { this.nb = nb; }
 
+    /**
+     * D-CODEGEN-REWRITE: register-mapped locals for the CURRENT method, or null
+     * when the method is not eligible / the feature is off. Set at the top of
+     * {@link #emitMethod} and consulted by the local load/store and the returns.
+     */
+    private NativeRegisterLocalSupport regLocals;
+
     void emitMethod(StringBuilder sb, IRClass clazz, IRMethod method) {
         // #133 (§186): <clinit> AGORA é emitido (método estático normal — sem
         // `this`, sem parâmetros); era descartado, e os inicializadores
         // estáticos não-constantes nunca rodavam (ficavam 0/null/undefined).
         // O _start chama cada <clinit> antes de main.
+        int bodyStart = sb.length();
 
         nb.currentClass = clazz;
 
@@ -95,8 +103,11 @@ final class NativeMethodEmitter {
         }
         int localsBytes = (maxSlot + 1) * 8;
         nb.frameLocalsBytes = localsBytes;
+        // D-CODEGEN-REWRITE: register-mapped locals for eligible int-only methods.
+        this.regLocals = NativeRegisterLocalSupport.forMethod(method, localsBytes);
+        int saveBytes = regLocals == null ? 0 : regLocals.saveBytes();
         int extraFrame = maxCallStackArgs > 0 ? maxCallStackArgs * 8 : 0;
-        int frameSize = Math.max(localsBytes, 16) + extraFrame;
+        int frameSize = Math.max(localsBytes + saveBytes, 16) + extraFrame;
         frameSize = (frameSize + 15) & ~15;
         if (frameSize > 0) {
             sb.append("    subq $").append(frameSize).append(", %rsp\n");
@@ -115,7 +126,7 @@ final class NativeMethodEmitter {
         java.util.List<IRLocalVariable> sortedLocals = new java.util.ArrayList<>(method.localVariables());
         sortedLocals.sort(java.util.Comparator.comparingInt(lv -> lv.index()));
         for (IRLocalVariable lv : sortedLocals) {
-            if (lv.name().equals("this")) {
+            if (NativeLambdaReceiver.isThisReceiver(lv)) {
                 sb.append("    movq %rdi, -").append((lv.index() + 1) * 8).append("(%rbp)\n");
                 intArgIdx++;
                 continue;
@@ -141,6 +152,20 @@ final class NativeMethodEmitter {
             intArgIdx++;
         }
 
+        if (regLocals != null) {
+            // Save the used callee-saved registers into the EXTENDED frame and
+            // copy each register-placed param from its staged frame slot. Use the
+            // REAL param-slot count: paramSlotMax counts slot 0 as `this` even for
+            // a STATIC method, so it over-counts by one there — copying the extra
+            // slot would clobber a live register-placed param (MEASURED SIGSEGV).
+            boolean hasThis = false;
+            for (IRLocalVariable lv : sortedLocals) {
+                if (lv.name().equals("this")) { hasThis = true; break; }
+            }
+            int realParamSlots = hasThis ? paramSlotMax : paramSlotMax - 1;
+            regLocals.emitPrologue(sb, sortedLocals, realParamSlots);
+        }
+
         boolean endsWithReturn = false;
         for (IRBasicBlock block : method.basicBlocks()) {
             for (KofOperation op : block.operations()) {
@@ -154,6 +179,7 @@ final class NativeMethodEmitter {
                 // join implícito: nenhuma tarefa spawnada fica orfa
                 sb.append("    call kof_spawn_join_all\n");
             }
+            restoreCalleeSavedForReturn(sb);
             sb.append("    movq %rbp, %rsp\n");
             sb.append("    popq %rbp\n");
             sb.append("    ret\n");
@@ -175,34 +201,30 @@ final class NativeMethodEmitter {
                     continue; // temporarios do lowering nao sao nome Kof
                 }
                 NativeDwarf.Local slot = new NativeDwarf.Local(lv.name(),
-                        NativeDwarf.slotOffset(lv.index()), dwarfKindOf(lv.type()));
-                if (lv.name().equals("this") || lv.index() < paramSlotMax) {
+                        NativeDwarf.slotOffset(lv.index()), NativeDwarf.dwarfKindOf(lv.type()));
+                if (lv.index() < paramSlotMax) {
                     params.add(slot);
                 } else {
                     locals.add(slot);
                 }
             }
             nb.kofDwarf.add(mangled, method.name(), declLine,
-                    dwarfKindOf(method.returnType()), params, locals);
+                    NativeDwarf.dwarfKindOf(method.returnType()), params, locals);
         }
+        // §7 x86_64 ("lower-cost instruction selection"): collapse the stack
+        // machine's `pushq %X; popq %Y` pairs (adjacent, no label between) into
+        // `movq %X, %Y` — one instruction instead of two.
+        NativeX86Peephole.collapsePushPopPairs(sb, bodyStart);
     }
 
-    static String dwarfKindOf(Type t) {
-        if (t instanceof Type.PrimitiveType pt) {
-            return switch (Type.canonicalPrimitiveName(pt.name())) {
-                case "int" -> "Int";
-                case "long" -> "Long";
-                case "short" -> "Short";
-                case "byte" -> "Byte";
-                case "float" -> "Float";
-                case "double" -> "Double";
-                case "bool", "boolean" -> "Bool";
-                case "char" -> "Char";
-                case "void" -> "Void";
-                default -> "Opaque";
-            };
-        }
-        return "Opaque"; // String/classes/arrays: handle 8B opaco (sem DW_TAG_structure p/ agora)
+    /** The register a slot is placed in, or null when it is in the frame. */
+    private String regOf(int slot) {
+        return regLocals == null ? null : regLocals.register(slot);
+    }
+
+    /** Restore the used callee-saved registers at a return (no-op when inactive). */
+    private void restoreCalleeSavedForReturn(StringBuilder sb) {
+        if (regLocals != null) regLocals.emitReturnRestore(sb);
     }
 
     @SuppressWarnings("unused")
@@ -241,14 +263,8 @@ final class NativeMethodEmitter {
 
         switch (op) {
             case KofLoadLiteral lit -> nb.emitLoadLiteral(sb, lit);
-            case KofLoadLocal ll -> {
-                sb.append("    movq -").append((ll.index() + 1) * 8).append("(%rbp), %rax\n");
-                sb.append("    pushq %rax\n");
-            }
-            case KofStoreLocal sl -> {
-                sb.append("    popq %rax\n");
-                sb.append("    movq %rax, -").append((sl.index() + 1) * 8).append("(%rbp)\n");
-            }
+            case KofLoadLocal ll -> NativeRegisterLocalAsm.loadLocal(sb, ll.index(), regOf(ll.index()));
+            case KofStoreLocal sl -> NativeRegisterLocalAsm.storeLocal(sb, sl.index(), regOf(sl.index()));
             case KofLoadField lf -> {
                 if (lf.ownerType() instanceof Type.ClassType ctLF && "MemEntry".equals(ctLF.name()) && "key".equals(lf.name())) {
                 }
@@ -280,7 +296,8 @@ final class NativeMethodEmitter {
                     //  !endsWithReturn — que nunca roda para o main.)
                     sb.append("    call kof_spawn_join_all\n");
                 }
-                sb.append("    popq %rax\n");
+                NativeReturnEmit.popReturnValue(sb);
+                restoreCalleeSavedForReturn(sb);
                 sb.append("    movq %rbp, %rsp\n");
                 sb.append("    popq %rbp\n");
                 sb.append("    ret\n");
@@ -289,6 +306,7 @@ final class NativeMethodEmitter {
                 if (nb.usesConcurrency && "main".equals(currentMethod.name())) {
                     sb.append("    call kof_spawn_join_all\n");
                 }
+                restoreCalleeSavedForReturn(sb);
                 sb.append("    movq %rbp, %rsp\n");
                 sb.append("    popq %rbp\n");
                 sb.append("    ret\n");
@@ -297,7 +315,16 @@ final class NativeMethodEmitter {
             case KofCatchStart kcs -> {
                 sb.append(nb.resolveLabel(kcs.handlerLabel())).append(":\n");
                 sb.append("    addq $32, %rsp\n");
-                sb.append("    movq %rdi, -").append((kcs.localIndex() + 1) * 8).append("(%rbp)\n");
+                // The caught exception arrives in %rdi. Store it to the local's
+                // REGISTER when it is register-placed, else to its frame slot —
+                // otherwise a register-placed caught var reads a stale value
+                // (MEASURED: SIGSEGV when a reference local was register-placed).
+                String catchReg = regOf(kcs.localIndex());
+                if (catchReg != null) {
+                    sb.append("    movq %rdi, %").append(catchReg).append("\n");
+                } else {
+                    sb.append("    movq %rdi, -").append((kcs.localIndex() + 1) * 8).append("(%rbp)\n");
+                }
             }
             case KofTryStart kts -> {
                 sb.append(nb.resolveLabel(kts.startLabel())).append(":\n");
@@ -401,9 +428,17 @@ final class NativeMethodEmitter {
                 sb.append("    popq %rdi\n");
                 sb.append("    call kof_throw_string\n");
             }
-            default -> throw new UnsupportedOperationException(
-                    "operation with no x86 lowering: " + op.getClass().getSimpleName()
-                    + " (R6: never silent) in method " + currentMethod.name());
+            default -> {
+                // Phase D contract (docs/development/assembly-optimization-plan.md):
+                // the emitter lowers exactly NativeOpSupport.X86_64; the switch's
+                // cases are its materialization (drift is caught by
+                // NativeOpSupportTest BEFORE this can run). R6: never silent.
+                assert !NativeOpSupport.supports(op.getClass())
+                        : "declared-but-unhandled x86 op: " + op.getClass().getSimpleName();
+                throw new UnsupportedOperationException(
+                        "operation with no x86 lowering: " + op.getClass().getSimpleName()
+                        + " (R6: never silent) in method " + currentMethod.name());
+            }
         }
     }
 

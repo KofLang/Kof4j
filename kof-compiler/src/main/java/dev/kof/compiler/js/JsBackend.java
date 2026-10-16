@@ -262,8 +262,11 @@ public class JsBackend implements Backend {
             }
             List<IRMethod> methods = new ArrayList<>(c.methods());
             methods.addAll(defaults);
+            // TIER 2.7: os flags isRecord/isValueRecord devem SOBREVIVER ao
+            // rebuild (antes o isRecord se perdia aqui também — latente).
             out.add(new IRClass(c.name(), c.superName(), c.interfaces(), c.accessFlags(),
-                    c.fields(), methods, c.innerClasses(), c.signature(), c.typeId(), c.annotations()));
+                    c.fields(), methods, c.innerClasses(), c.signature(), c.typeId(), c.annotations(),
+                    c.isRecord(), c.isValueRecord()));
         }
         return out;
     }

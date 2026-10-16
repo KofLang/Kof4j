@@ -1,0 +1,207 @@
+package cobol
+
+import legacy.Legacy
+// kof.cobol — the COBOL→Kof translator front-end, PHASE 1 (plan §30): the
+// PROJECT SCANNER as a pure-Kof library. Discovery ORDER (the §5 determinism
+// rule), the per-file INVENTORY and the FORMAT detection (evidence-backed,
+// §6: best-effort ALWAYS reported — an undetermined DIALECT is refused CB002,
+// never guessed). The OS walk / CLI shape / encoding are LATER phases and
+// stay behind the plan's open decisions Q1/Q2 — this library sees text only.
+
+record CobolSource(String path, String text)
+
+record CobolInventory(String path, String programId, List<String> divisions,
+                      Int lines, Int comments, String format)
+
+record CobolProject(String dialect, String format, List<String> notes,
+                    List<String> copybooks, List<CobolInventory> sources)
+
+Bool isCopybook(String path) {
+    var p = path.toLowerCase()
+    return p.endsWith(".cpy") || p.endsWith(".copy")
+}
+
+Bool isProgram(String path) {
+    var p = path.toLowerCase()
+    return p.endsWith(".cbl") || p.endsWith(".cob") || p.endsWith(".cobol")
+}
+
+// normalize — the §5 comparison key: slashes only, no leading ./
+String normalize(String path) {
+    var p = path.replace("\\", "/")
+    while (p.startsWith("./")) {
+        p = p.substring(2, p.length)
+    }
+    return p
+}
+
+// lessThan — the ORDER Kof refuses to guess: `<`/`<=` on String are
+// diagnostics in Kof BY DESIGN (lexicographic order is unspecified and
+// diverges per runtime). The scanner DEFINES it explicitly: code-point
+// comparison, then length — deterministic and identical on every target.
+Bool lessThan(String a, String b) {
+    var n = a.length
+    if (b.length < n) {
+        n = b.length
+    }
+    var i = 0
+    while (i < n) {
+        var ca = a.charAt(i) as Int
+        var cb = b.charAt(i) as Int
+        if (ca < cb) {
+            return true
+        }
+        if (ca > cb) {
+            return false
+        }
+        i = i + 1
+    }
+    return a.length < b.length
+}
+
+// discoveryOrder — a DETERMINISTIC stable sort by normalized path (§5): the
+// same input always yields the same order, never the filesystem's. Pure
+// insertion by rebuilding (no in-place list mutation).
+List<String> discoveryOrder(List<String> paths) {
+    var out: List<String> = listOf()
+    var i = 0
+    while (i < paths.size) {
+        var key = paths.get(i)
+        var j = 0
+        while (j < out.size && (lessThan(normalize(out.get(j)), normalize(key))
+                || normalize(out.get(j)) == normalize(key))) {
+            j = j + 1
+        }
+        var next: List<String> = listOf()
+        var k = 0
+        while (k < j) {
+            next.add(out.get(k))
+            k = k + 1
+        }
+        next.add(key)
+        while (k < out.size) {
+            next.add(out.get(k))
+            k = k + 1
+        }
+        out = next
+        i = i + 1
+    }
+    return out
+}
+
+// scanSource — the per-file inventory: PROGRAM-ID, the divisions present,
+// the line/comment counts and the FORMAT (fixed vs free) by the §6 marks:
+// a `*` in column 7 is FIXED-format; a `*>` comment or `>>SOURCE FORMAT`
+// directive is free-format evidence.
+CobolInventory scanSource(CobolSource s) {
+    var programId = ""
+    var divisions: List<String> = listOf()
+    var lines = s.text.split("\n")
+    var count = 0
+    var comments = 0
+    var fixed = 0
+    var free = 0
+    var i = 0
+    while (i < lines.length) {
+        var raw = lines[i]
+        var t = raw.trim()
+        if (t.length > 0) {
+            count = count + 1
+        }
+        if (raw.length > 6 && raw.charAt(6) == '*' && t.length > 0) {
+            comments = comments + 1
+            fixed = fixed + 1
+        } else if (t.startsWith("*>")) {
+            comments = comments + 1
+            free = free + 1
+        } else if (t.startsWith(">>")) {
+            free = free + 1
+        }
+        var up = t.toUpperCase()
+        if (up.startsWith("PROGRAM-ID.") && programId.length == 0) {
+            var rest = t.substring(11, t.length).trim()
+            while (rest.length > 0 && rest.charAt(rest.length - 1) == '.') {
+                rest = rest.substring(0, rest.length - 1)
+            }
+            programId = rest
+        }
+        if (up.indexOf("IDENTIFICATION DIVISION") >= 0 && !contains(divisions, "IDENTIFICATION")) {
+            divisions.add("IDENTIFICATION")
+        }
+        if (up.indexOf("ENVIRONMENT DIVISION") >= 0 && !contains(divisions, "ENVIRONMENT")) {
+            divisions.add("ENVIRONMENT")
+        }
+        if (up.indexOf("DATA DIVISION") >= 0 && !contains(divisions, "DATA")) {
+            divisions.add("DATA")
+        }
+        if (up.indexOf("PROCEDURE DIVISION") >= 0 && !contains(divisions, "PROCEDURE")) {
+            divisions.add("PROCEDURE")
+        }
+        i = i + 1
+    }
+    var format = "unknown"
+    if (fixed > 0 && free == 0) {
+        format = "fixed"
+    } else if (free > 0 && fixed == 0) {
+        format = "free"
+    }
+    return CobolInventory(normalize(s.path), programId, divisions, count, comments, format)
+}
+
+Bool contains(List<String> xs, String v) {
+    var i = 0
+    while (i < xs.size) {
+        if (xs.get(i) == v) {
+            return true
+        }
+        i = i + 1
+    }
+    return false
+}
+
+// scanProject — the project inventory. The DIALECT is the caller's
+// (--dialect) or refused CB002 when undetermined (§6: never a silent guess);
+// a source without a PROGRAM-ID is named CB001 in the notes — explicit,
+// never silently dropped. Copybooks are separated by extension.
+CobolProject scanProject(List<CobolSource> sources, String dialectOverride) {
+    if (dialectOverride.length == 0) {
+        throw "dialect not determined from the sources — pass --dialect (CB002)"
+    }
+    var notes: List<String> = listOf()
+    var copybooks: List<String> = listOf()
+    var invs: List<CobolInventory> = listOf()
+    var fixed = 0
+    var free = 0
+    var i = 0
+    while (i < sources.size) {
+        var s = sources.get(i)
+        if (!isProgram(s.path) && !isCopybook(s.path)) {
+            throw "unsupported source extension: " + s.path + " (CB003)"
+        }
+        if (isCopybook(s.path)) {
+            copybooks.add(normalize(s.path))
+        } else {
+            var inv = scanSource(s)
+            invs.add(inv)
+            if (inv.programId.length == 0) {
+                notes.add("CB001 no PROGRAM-ID in " + inv.path)
+            }
+            if (inv.format == "fixed") {
+                fixed = fixed + 1
+            } else if (inv.format == "free") {
+                free = free + 1
+            }
+        }
+        i = i + 1
+    }
+    if (fixed > 0 && free > 0) {
+        notes.add("CB004 mixed source formats in the project (fixed and free)")
+    }
+    var format = "unknown"
+    if (fixed > 0 && free == 0) {
+        format = "fixed"
+    } else if (free > 0 && fixed == 0) {
+        format = "free"
+    }
+    return CobolProject(dialectOverride, format, notes, copybooks, invs)
+}

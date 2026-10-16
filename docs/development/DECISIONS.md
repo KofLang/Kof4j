@@ -78,6 +78,8 @@ A navigation aid, not a decision by itself. Ordered as in this file.
 - **D-KOF-IS-KOF** — Kof source never embeds HTML/CSS/JS (absolute rule)
 - **D-FUTURE-FREEZE** — `docs/development/future/` promotion is FROZEN until further notice (maintainer 02/10) *(SUPERSEDED 11/10 by D-FUTURE-UNFREEZE)*
 - **D-FUTURE-UNFREEZE** — the `future/` freeze is LIFTED: agents promote/implement future plans again, one at a time, active lanes finishing first (maintainer 11/10)
+- **D-KOFBOL** — KofBOL (native legacy-banking interoperability, `kofbol-plan.md`) PROMOTED `future/` → `docs/development/`; library-first by construction, slice 1 = fixed-width encode/decode (maintainer order 14/10, chat)
+- **D-COBOL-TRANSLATOR-GO** — `kof-cobol-translator` (COBOL source → Kof source) PROMOTED `future/` → `docs/development/`; Phase 1 (the project scanner) landed as pure-Kof `libs/cobol/Scanner.kf` (maintainer order 15/10, chat)
 - **D-RELEASE-CADENCE** — weekly minor cadence to `0.9.0`; `1.0.0-RC-n` fallback line; `1.0.0` only on the full exit gate (maintainer 02/10)
 - **D-LAB-STABILITY** — a minor is only cut from a STABLE `lab` (all required checks PASS, 0 blocking issues); otherwise the cut slips (maintainer 02/10)
 - **D-MAINT-BATCH-1110** — maintainer batch 11/10: `db` local shadow (#786), return-inference fixpoint (#785), `kof.ui` accessibility (#789)
@@ -4585,7 +4587,7 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 
 ## D-UDP — UDP / datagram (connectionless) network is an authorized queue front; the surface awaits definition (maintainer 01/10/2026, directive "kof nao tem suporte a UDP adiciona na fila pra por em network, isso é crucial")
 
-**State:** ANSWERED 01/10 — surface decided and SUBSUMED by `D-KOF-NET` (unified `kof.net`, TCP+UDP, blocking+spawn, `Byte[]`, "host:port" addressing, 64 KiB bound, unicast-only v1); the plan is `docs/development/future/network-udp-plan.md` (+PT).
+**State:** ANSWERED 01/10 — surface decided and SUBSUMED by `D-KOF-NET` (unified `kof.net`, TCP+UDP, blocking+spawn, `Byte[]`, "host:port" addressing, 64 KiB bound, unicast-only v1); the live plan is `docs/stdlib/network-kofnet-plan.md` (+PT); the former `future/` UDP tombstone was KILLED 15/10 (audit: superseded, zero unique content).
 - **Directive (maintainer):** Kof must support UDP; it is queued **under the network front** (`roadmap.md` §3). The directive authorizes opening the front; it does **not** yet fix the surface.
 - **Measured absence (01/10/2026):** a tree sweep finds **0** hits for `udp`/`datagram`/`SOCK_DGRAM` in `kof-compiler/src/main` (only a TCP/UDP port-range comment); `KofNet.java` is **URI parsing only** (the `net` stdlib S8 extension); the real transport is TCP (`runtime/RuntimeNet.java` + `KofWeb` + native raw syscalls). No `backend-parity.md` cell exists.
 - **Approach (library-first, `D-KOF-FIRST-IMPL`):** implement over the **existing socket seam** per target (JVM `DatagramSocket`, Native `SOCK_DGRAM` + `sendto`/`recvfrom`, JS node `dgram`; browser = honest gap; Script inherits JVM or an explicit refusal). No lexer/parser change; each unsupported target gets an honest gap code (R6/R7).
@@ -5081,3 +5083,30 @@ each still requiring its own decision when picked up.
 **Relationships:** `Related: D-ENTITY-HISTORY (the original Q1–Q15 authorization), D-FUTURE-BATCH-2809B (the resolved declaration/query surfaces).`
 
 ---
+
+---
+
+## D-KOFBOL — KofBOL is PROMOTED to current work: native legacy-banking interoperability implemented as **pure-Kof libraries** (maintainer order 14/10/2026, chat directive "assume um novo plano em future")
+
+**Date:** 2026-10-14 · **State:** `DECIDED` (maintainer) — the plan moves `docs/development/future/` → `docs/development/` per `D-FUTURE-PROMOTION` (the maintainer's order activates the plan's own stated gate).
+
+- **Directive (verbatim, chat):** *"assume um novo plano em future"* — the maintainer ordered this lane to take a plan out of `docs/development/future/` and implement it. Per `D-FUTURE-PROMOTION` the agent picks the **EASIEST** eligible plan (cheapest complete increment), never the most interesting.
+- **Eligibility resolution (measured, this session):** every remaining `future/` plan carries a rule-6 gate (`kof-expr` = new syntax; `kofscript-embedding` = a public runtime contract; `kof-cobol-translator` = new tooling surface; `PLAN-BOOTSTRAP` = gated behind the 1.0 EXIT GATE; `IMPLEMENTATION-UNIVERSAL-PLATFORM-future` = R12 new fronts; `kof-esp8266` = a new target + R12). **KofBOL** is the one whose own gate states it is **library-first by construction** (*"the first version must be expressible as pure-Kof libraries over primitives that already exist"*), with its dependencies already measured in code (`libs/interop/` 13 pure-Kof files, `AbiLayout.java`/`FfiStructLayout.java`, `KofBuffer`/`D-R3-BUFFER`, `KofDb`/`KofOrm` transactions, `KofObservability`).
+- **No language surface change (rule 6 honored):** KofBOL's open decision **Q1** (`legacy` declaration vs `record` + descriptor) is resolved here in the **non-rule-6 direction** — the descriptor model over `record`, parser-free. No new syntax, no new core primitive. **Q3** (decimal representation) takes the plan's recommended pure-Kof scaled-integer route, no core change.
+- **Scope of the first delivery:** spike-0 (the descriptor model) + **Fatia 1** — fixed-width `encode`/`decode` for `PIC X` / `PIC 9` (ASCII only) with byte-exact goldens, JVM + Script. RED-first. Fátias 2–11 (EBCDIC, COMP-3, copybook import, the `legacy` contract, adapters, transports, messaging, transactions, cross-target parity, docs) stay open and ordered by the plan §20.
+- **Not authorized by this decision:** any new `legacy` syntax, any core primitive, any EBCDIC/COMP-3 shortcut, any stub — the plan's §22 non-regression contract applies.
+- **Relationships:** `Related: D-FUTURE-PROMOTION, D-FUTURE-UNFREEZE, D-KOF-FIRST (rule 12), D-CONNECTORS-GO (the `kof-cobol-connector` framing; KofBOL Q6 remains open for the maintainer), D-KOF-FIRST-IMPL, rule 6, rule 11, rule 12`.
+
+---
+
+## D-COBOL-TRANSLATOR-GO — `kof-cobol-translator` is PROMOTED to current work: the COBOL→Kof translator, Phase 1 landed as a **pure-Kof scanner** (maintainer order 15/10/2026, chat directive "pega um de future")
+
+**Date:** 2026-10-15 · **State:** `DECIDED` (maintainer) — the plan moves `docs/development/future/` → `docs/development/` per `D-FUTURE-PROMOTION` (the maintainer's order activates the plan's own stated gate).
+
+- **Directive (verbatim, chat):** *"pega um de future"* — the maintainer ordered this lane to take a plan out of `docs/development/future/` and implement it. Per `D-FUTURE-PROMOTION` the agent picks the **EASIEST** eligible plan.
+- **Why this plan:** its central dependency — the COBOL **data mapping** — ALREADY EXISTS and is promoted (`docs/kofbol.md`, `libs/legacy`, slices 1–11 complete). The plan itself is explicit: it must **not** duplicate that mapping nor the IR/formatter/money model; it owns only the COBOL front-end + the project pipeline + the generation policy.
+- **Phase 1 scope (LANDED):** `libs/cobol/Scanner.kf` — a PURE-KOF library over text values: `discoveryOrder` (the §5 deterministic stable order; Kof refuses `<`/`<=` on String BY DESIGN, so the order is DEFINED explicitly by code points), `scanSource` (the per-file inventory: PROGRAM-ID, the divisions present, the line/comment counts, fixed-vs-free format by the §6 marks), `scanProject` (the project inventory + the CB001–CB004 diagnostics: no PROGRAM-ID, undetermined dialect refused rather than guessed, unsupported extension, mixed formats), plus `isProgram`/`isCopybook`.
+- **What is DEFERRED (not invented):** the open decisions **Q1** (the tool's home: `kof-cli` vs a separate module) and **Q2** (the exact CLI grammar) are the maintainer's — the library takes VALUES, so no CLI surface is invented; **Q3** (naming policy) / **Q4** (money output) untouched; the Data-Division mapping stays KofBOL's.
+- **Proof:** `CobolScannerE2ETest` 2/2 (JVM + Script) — the deterministic order, the inventory, the format detection and the three refusal faces.
+- **Not authorized by this decision:** any new Kof syntax, any CLI surface, any change to the KofBOL mapping, any stub.
+- **Relationships:** `Related: D-FUTURE-PROMOTION, D-FUTURE-UNFREEZE, D-KOFBOL (the mapping this plan reuses), D-KOF-FIRST (rule 12), rule 6, rule 11`.

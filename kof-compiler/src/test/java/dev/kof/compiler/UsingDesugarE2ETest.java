@@ -251,13 +251,22 @@ class UsingDesugarE2ETest {
      * (JS lane's front) instead of hiding it: it goes red the day JS fixes it.
      */
     @Test
-    void usingExceptionPathOnJsIsHonestComp002(@TempDir Path tmp) throws Exception {
+    void usingExceptionPathOnJsRuns(@TempDir Path tmp) throws Exception {
+        // O pin honest-Comp002 original afirmava que JS RECUSAVA try+using; o
+        // comentário acima dizia "it goes red the day JS fixes it" — o dia
+        // chegou (0.6.5): o JS compila e RODA a paridade correta. O pin vira a
+        // face POSITIVA (compile + run real), travando o comportamento novo.
         Path src = tmp.resolve("UsingExcJs.kf");
         Files.writeString(src, EXC);
-        CompilationResult r = driver.compile(src, tmp.resolve("o-using-exc-js"), Target.JS);
-        assertFalse(r.success(), "throw-in-nested-try must fail loudly on JS, not silently");
-        assertTrue(diags(r).contains("KofCatchStart"),
-                "the honest JS diagnostic, got: " + diags(r));
+        Path out = tmp.resolve("o-using-exc-js");
+        CompilationResult r = driver.compile(src, out, Target.JS);
+        assertTrue(r.success(), "JS agora suporta try+using: " + diags(r));
+        Process p = new ProcessBuilder("node", out.resolve("Default.mjs").toString())
+                .redirectErrorStream(true).start();
+        String os = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        assertTrue(p.waitFor(60, java.util.concurrent.TimeUnit.SECONDS), "node timeout");
+        assertEquals(0, p.exitValue(), "JS run: " + os);
+        assertEquals("body\n7\ncaught", norm(os), "JS output must match the JVM oracle");
     }
 
     @Test

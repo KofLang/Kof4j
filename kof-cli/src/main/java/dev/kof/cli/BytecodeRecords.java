@@ -47,6 +47,37 @@ final class BytecodeRecords {
      * scope null (modo 1-arquivo): só resolve se for do MESMO pacote (sem
      * import); JDK/fora → skeleton (bytes idênticos ao estágio 1).
      */
+    /**
+     * Fase E (14/10): Java enum PURO → `enum Nome { A, B, C }` (o Kof tem
+     * enum nativo — medido: compila e roda). Shape ESTRITO: super
+     * java/lang/Enum, TODA field é static do próprio tipo (as constantes, na
+     * ordem do source) e os métodos são EXATAMENTE os sintéticos
+     * {&lt;init&gt;, &lt;clinit&gt;, values, valueOf}. Qualquer desvio (método
+     * extra, field de instância) → null = o esqueleto de hoje (zero-drift).
+     */
+    static String pureEnum(ClassFileParser.ClassFile ir) {
+        if (!"java/lang/Enum".equals(ir.superClass)) return null;
+        String self = ir.thisClass;
+        int slash = self.lastIndexOf('/');
+        String simple = slash >= 0 ? self.substring(slash + 1) : self;
+        String selfDesc = "L" + self + ";";
+        List<String> consts = new ArrayList<>();
+        for (var f : ir.fields) {
+            if ((f.accessFlags & 0x0008) == 0) return null;      // field de instância
+            if (f.name.equals("$VALUES")) continue;              // o array sintético
+            if (!f.descriptor.equals(selfDesc)) return null;     // não-constante
+            consts.add(f.name);
+        }
+        if (consts.isEmpty()) return null;
+        for (var m : ir.methods) {
+            if (m.name.equals("<init>") || m.name.equals("<clinit>")
+                    || m.name.equals("values") || m.name.equals("valueOf")
+                    || m.name.equals("$values")) continue;   // sintéticos do javac
+            return null;   // método extra = enum não-puro
+        }
+        return "enum " + simple + " { " + String.join(", ", consts) + " }";
+    }
+
     static Rec pureRecord(ClassFileParser.ClassFile ir, TreeScope scope) {
         var comps = pureRecordComponentsNoIface(ir);
         if (comps == null) return null;

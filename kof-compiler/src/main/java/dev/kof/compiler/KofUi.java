@@ -82,6 +82,7 @@ public final class KofUi {
     static boolean isComponent(Type t) { return COMPONENT.equals(t); }
     static boolean isEvent(Type t) { return EVENT.equals(t); }
     static boolean isBox(Type t) { return BOX.equals(t); }
+
     static boolean isStack(Type t) { return STACK.equals(t); }
     static boolean isSpacer(Type t) { return SPACER.equals(t); }
     static boolean isWrap(Type t) { return WRAP.equals(t); }
@@ -114,6 +115,7 @@ public final class KofUi {
                 || isUl(t) || isOl(t) || isTable(t)
                 || isView(t) || isLink(t)
                 || isImage(t) || isIcon(t) || isForm(t) || isColumn(t) || isRow(t)
+                || isBox(t) || isStack(t) || isScroll(t) || isWrap(t) || isGrid(t) || isCenter(t) || isAlign(t)
                 || isFieldset(t) || isIframe(t) || isVideo(t) || isAudio(t) || isHr(t);
     }
 
@@ -398,6 +400,16 @@ public final class KofUi {
                 case "remove" -> argCount == 0 ? new UiCall("kof_ui_table_remove", Type.PrimitiveType.VOID, List.of()) : null;
                 default -> null;
             };
+        }
+        if (isRow(receiver) || isColumn(receiver)) {
+            String fn = isRow(receiver) ? "kof_ui_row_bind" : "kof_ui_column_bind";
+            return switch (name) {
+                case "bind" -> argCount == 1 ? new UiCall(fn, Type.PrimitiveType.VOID, List.of(INT)) : null;
+                default -> null;
+            };
+        }
+        if (KofUiContainers.isLayoutContainer(receiver)) {
+            return KofUiContainers.bindCall(receiver, name, argCount);
         }
         if (isView(receiver)) {
             return switch (name) {

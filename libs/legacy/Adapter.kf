@@ -1,0 +1,72 @@
+package legacy
+
+import legacy.Legacy
+
+// kof.legacy.adapter — KofBOL Fatia 6 (plan §20 slice 6; §7 + §10 + §4.5):
+// the ADAPTER / anti-corruption layer + the return-code model. The legacy
+// details (positions, PIC shapes, RC numbers) must NOT leak into the
+// application: the app sees NAMED bindings and a structured response.
+// A non-zero return code is DATA, never an exception (§10) — and never
+// silently swallowed either: the status bands are explicit.
+
+record LegacyResponse(Int returnCode, String status, String message)
+
+// response — the structured RC (§4.5): the status derived by the band
+// table, never thrown, never swallowed.
+LegacyResponse response(Int returnCode, String message) {
+    return LegacyResponse(returnCode, statusOf(returnCode), message)
+}
+
+// statusOf — the classic band table (§10): 0 OK · 4 WARNING · 8/12 ERROR ·
+// >=16 SEVERE. A negative RC is refused LEG017 (that is a caller bug, not
+// legacy data).
+String statusOf(Int returnCode) {
+    if (returnCode < 0) {
+        throw "invalid return code: " + returnCode + " (LEG017)"
+    }
+    if (returnCode == 0) {
+        return "OK"
+    }
+    if (returnCode == 4) {
+        return "WARNING"
+    }
+    if (returnCode == 8 || returnCode == 12) {
+        return "ERROR"
+    }
+    return "SEVERE"
+}
+
+Bool isOk(Int returnCode) {
+    return returnCode == 0
+}
+
+// toMap — the anti-corruption boundary (§7): the decoded POSITIONS become
+// NAMED bindings; the application never indexes a legacy field by hand.
+Map<String, String> toMap(Layout l, List<String> values) {
+    if (values.size != l.fields.size) {
+        throw "value count " + values.size + " != field count " + l.fields.size + " (LEG004)"
+    }
+    var out = mapOf<String, String>()
+    var i = 0
+    while (i < l.fields.size) {
+        out.put(l.fields.get(i).name, values.get(i))
+        i = i + 1
+    }
+    return out
+}
+
+// valuesOf — the reverse: the named bindings → the encode order. A missing
+// key is refused LEG016 (never a silent empty).
+List<String> valuesOf(Layout l, Map<String, String> m) {
+    var out: List<String> = listOf()
+    var i = 0
+    while (i < l.fields.size) {
+        var v = m.get(l.fields.get(i).name)
+        if (v == null) {
+            throw "missing binding for field " + l.fields.get(i).name + " (LEG016)"
+        }
+        out.add(v)
+        i = i + 1
+    }
+    return out
+}

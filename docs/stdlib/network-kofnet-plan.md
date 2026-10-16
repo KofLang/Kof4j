@@ -4,7 +4,7 @@ last: slice 6 LANDED 02/10 (addendum `74f956575`): `Listener`/`Conn`/`Endpoint` 
 doing: slice 8 LANDED 05/10 (JVM/Script + Native x86-64 + riscv64/aarch64) — NET1 `net.resolve` + `net.connect(host, port, address)` (vetted address, `D-MAINT-BATCH-0510`/NET1, issue #759); JS refuses `NETN001`
 next: none — the NET1 faces are real on every socket target; the queued browser compile-time selector (maintainer decision) and `SECN005` key exchange remain outside this plan
 location: docs/stdlib
-state: active
+state: done
 
 intent: kof.net unified TCP+UDP front (D-KOF-NET)
 

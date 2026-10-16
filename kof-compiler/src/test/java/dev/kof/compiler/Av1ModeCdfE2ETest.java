@@ -11,7 +11,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static dev.kof.compiler.Av1ModeCdfSupport.golden;
+import static dev.kof.compiler.Av1ModeCdfSupport.goldenExt;
 import static dev.kof.compiler.Av1ModeCdfSupport.kofProbe;
+import static dev.kof.compiler.Av1ModeCdfSupport.kofProbeExt;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -45,6 +47,28 @@ class Av1ModeCdfE2ETest implements LibraryInstallSupport {
                 () -> driver.interpret(java.util.List.of(root.resolve("Main.kf")), root, new String[0]));
         assertEquals(0, result.exitCode(), "script output: " + result.stdout());
         assertEquals(golden(), result.stdout().strip());
+    }
+
+    /**
+     * The six tables the base dump above does NOT cover: segment id, segment id
+     * predicted and the four palette CDFs. Pinned against libaom's
+     * {@code entropymode.c} by {@link Av1ModeCdfSupport#goldenExt()} — so a
+     * regression in a table the per-block prefix reads cannot hide.
+     */
+    @Test
+    void av1ModeCdfExtOnJvm() throws Exception {
+        assertEquals(goldenExt(), runJvm(kofProbeExt()));
+    }
+
+    @Test
+    void av1ModeCdfExtOnScript() throws Exception {
+        Path root = tmp.resolve("script-ext");
+        Files.createDirectories(root);
+        Files.writeString(root.resolve("Main.kf"), kofProbeExt());
+        KofInterpreter.Result result = withLibrary(root,
+                () -> driver.interpret(java.util.List.of(root.resolve("Main.kf")), root, new String[0]));
+        assertEquals(0, result.exitCode(), "script output: " + result.stdout());
+        assertEquals(goldenExt(), result.stdout().strip());
     }
 
     @Test

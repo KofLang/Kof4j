@@ -1,0 +1,75 @@
+package financial
+
+import financial.Money
+
+// kof.financial.fees — fees computed by an EXPLICIT schedule and applied as
+// separate ledger entries, never folded into the principal amount (plan §7).
+// All arithmetic is integer + explicit rounding (the money module's modes).
+
+record FeeRule(String id, String kind, Long fixedMinor, Long bps, String currency)
+
+record Fee(String ruleId, Money amount)
+
+// applyFees — compute one Fee per rule, in the order given. `kind`:
+//   "fixed"      -> the rule's fixedMinor (exactly)
+//   "percentage" -> principal.minor * bps / 10000 (1 bp = 1/10000),
+//                   rounded by the EXPLICIT mode
+// A rule whose kind is not yet specified (tiered/interchange) throws FIN007
+// (an honest gap: the schedule data arrives with its own slice).
+List<Fee> applyFees(Money principal, List<FeeRule> rules, Rounding mode) {
+    var out: List<Fee> = listOf()
+    var i = 0
+    while (i < rules.size()) {
+        var r = rules.get(i)
+        if (r.currency != principal.currency) {
+            throw "currency mismatch: fee rule " + r.id + " is " + r.currency
+                + ", the principal is " + principal.currency + " (FIN001)"
+        }
+        if (r.kind == "fixed") {
+            out.add(Fee(r.id, Money(r.fixedMinor, principal.currency)))
+        } else if (r.kind == "percentage") {
+            var minor = roundDiv(principal.minor * r.bps, 10000L, mode)
+            out.add(Fee(r.id, Money(minor, principal.currency)))
+        } else {
+            throw "unsupported fee kind: " + r.kind + " (FIN007)"
+        }
+        i = i + 1
+    }
+    return out
+}
+
+// totalWithFees — what the PAYER pays: the principal plus every fee.
+Money totalWithFees(Money principal, List<Fee> fees) {
+    var total = principal.minor
+    var i = 0
+    while (i < fees.size()) {
+        var f = fees.get(i)
+        if (f.amount.currency != principal.currency) {
+            throw "currency mismatch: fee " + f.ruleId + " is " + f.amount.currency
+                + ", the principal is " + principal.currency + " (FIN001)"
+        }
+        total = total + f.amount.minor
+        i = i + 1
+    }
+    return Money(total, principal.currency)
+}
+
+// netOfFees — what the MERCHANT receives: the principal minus every fee.
+// A net below zero is FIN006 (an over-deduction is an error, not a negative).
+Money netOfFees(Money principal, List<Fee> fees) {
+    var net = principal.minor
+    var i = 0
+    while (i < fees.size()) {
+        var f = fees.get(i)
+        if (f.amount.currency != principal.currency) {
+            throw "currency mismatch: fee " + f.ruleId + " is " + f.amount.currency
+                + ", the principal is " + principal.currency + " (FIN001)"
+        }
+        net = net - f.amount.minor
+        i = i + 1
+    }
+    if (net < 0L) {
+        throw "fees exceed the principal (FIN006)"
+    }
+    return Money(net, principal.currency)
+}

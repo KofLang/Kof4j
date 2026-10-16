@@ -47,7 +47,8 @@ record AvifSeqHeader(Int seqProfile, Bool stillPicture, Bool reduced,
                     Int forceScreenContentTools, Int forceIntegerMv,
                     Int orderHintBits, Int widthBitsMinus1, Int heightBitsMinus1,
                     Int deltaFrameIdLengthMinus2, Int additionalFrameIdLengthMinus1,
-                    Bool enableCdef, Bool enableRestoration)
+                    Bool enableCdef, Bool enableRestoration,
+                    Bool enableFilterIntra, Bool enableIntraEdgeFilter)
 
 AvifSeqHeader readAvifSeqHeader(String path) {
     return avifSeqHeader(File(path).readRange(0, 4096))
@@ -185,7 +186,12 @@ AvifSeqHeader seqWalk(Int[] b, Int p, Int limit) {
     }
     use128 = seqRead(b, bits, 1)
     bits = bits + 1
+    // enable_filter_intra / enable_intra_edge_filter (AV1 5.5.1): read here
+    // but NOT previously exposed — the tile driver's `enableFilterIntra` and
+    // its intra edge filter control are exactly these two sequence flags.
+    var filterIntra = seqRead(b, bits, 1)
     bits = bits + 1
+    var intraEdgeFilter = seqRead(b, bits, 1)
     bits = bits + 1
     if (reduced == 0) {
         bits = bits + 1
@@ -314,7 +320,8 @@ AvifSeqHeader seqWalk(Int[] b, Int p, Int limit) {
                          separate == 1, frameIds == 1, enableSuperres == 1,
                          orderHint == 1, use128 == 1, refMvs == 1, forceSct, forceMv, orderHintBits,
                          wBits, hBits, deltaIdLen, addIdLen,
-                         enableCdef == 1, enableRestoration == 1)
+                         enableCdef == 1, enableRestoration == 1,
+                         filterIntra == 1, intraEdgeFilter == 1)
 }
 
 // Locate the PRIMARY item's av1C configuration record through the same

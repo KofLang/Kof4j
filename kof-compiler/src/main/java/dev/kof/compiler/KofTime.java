@@ -39,7 +39,7 @@ public final class KofTime {
 
 /** X10 fatia 2: nomes aceitos pelo dispatch real (catálogo p/ LSP).
      *  GUARDA: StdCatalogTest exige == case-literals da fonte abaixo. */
-    static List<String> functions() { return List.of("sleep", "now", "interval", "cancel", "collect", "isLeapYear", "daysInMonth", "dayOfWeek", "daysBetween", "age", "isWeekend", "addDays", "addMonths", "addYears", "startOf", "endOf", "diffDays", "todayIso", "formatDateIso", "isToday", "hoursBetween", "parseDateIso", "tzOffsetSeconds"); }
+    static List<String> functions() { return List.of("sleep", "now", "interval", "cancel", "collect", "isLeapYear", "daysInMonth", "dayOfWeek", "daysBetween", "age", "isWeekend", "addDays", "addMonths", "addYears", "startOf", "endOf", "diffDays", "todayIso", "formatDateIso", "isToday", "formatInstantIso", "hoursBetween", "parseDateIso", "tzOffsetSeconds"); }
 
     static boolean isTimeMethod(String name) {
         return switch (name) {
@@ -55,6 +55,8 @@ public final class KofTime {
                     "addDays", "addMonths", "addYears", "startOf", "endOf", "diffDays",
                     // S7e (D-STDLIB ratificado 13/09): hoje/formato UTC-only
                     "todayIso", "formatDateIso", "isToday",
+                    // #857: instante completo (data+hora+ms, UTC)
+                    "formatInstantIso",
                     // S7f (D3): diferença de horas entre dois instantes
                     // (data+hora), floor simétrico
                     "hoursBetween", "parseDateIso", "tzOffsetSeconds" -> true;
@@ -99,6 +101,14 @@ public final class KofTime {
                     || target == Target.NATIVE_AARCH64)) {
             return false;
         }
+        // #857: `formatInstantIso` formata data+hora+ms — a maquinaria existe na
+        // familia JVM (JVM/SCRIPT, a MESMA de todayIso/formatDateIso); em JS e no
+        // nativo o alvo nao a tem, entao o face e DIAGNOSTICADO (TIME005), nunca
+        // um furo silencioso (R6).
+        if ("formatInstantIso".equals(method)
+                && target != Target.JVM && target != Target.SCRIPT) {
+            return false;
+        }
         // §426 (improved 25/09): `collect` (manual GC) now has a real face on
         // JS too — `kofGcCollectNow` requests the host GC (`KofJsRunner`
         // `kof_platform.gcCollect` -> `System.gc()`), the SAME JVM semantics
@@ -116,6 +126,7 @@ public final class KofTime {
         // gapCode só alimenta o gate de suporte; mantém as chaves por
         // retrocompatibilidade dos diagnósticos existentes.
         if ("tzOffsetSeconds".equals(method)) return "TIME003";
+        if ("formatInstantIso".equals(method)) return "TIME005";
         return ("addDays".equals(method) || "diffDays".equals(method))
                 ? "TIME002" : "TIME001";
     }
@@ -214,6 +225,11 @@ public final class KofTime {
                     && argTypes.get(1) == INT && argTypes.get(2) == INT
                     ? new TimeCall("kof_time_formatDateIso", STR,
                             List.of(INT, INT, INT)) : null;
+            // #857: instante completo UTC (`2026-10-14T16:09:47.555Z`). Long
+            // (milissegundos desde a epoca), como `now()` devolve — a familia
+            // JVM tem a maquinaria de calendario; JS/nativo diagnosticam.
+            case "formatInstantIso" -> argTypes.size() == 1 && argTypes.get(0) == LONG
+                    ? new TimeCall("kof_time_formatInstantIso", STR, List.of(LONG)) : null;
             case "isToday" -> argTypes.size() == 3 && argTypes.get(0) == INT
                     && argTypes.get(1) == INT && argTypes.get(2) == INT
                     ? new TimeCall("kof_time_isToday", BOOL,

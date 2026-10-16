@@ -43,7 +43,7 @@ aarch64); o alvo JS a recusa em compile time com `IOJS001`.
 | `readBytes()` | `Int[]` (0-255), `null` se falhar |
 | `writeBytes(b)` / `appendBytes(b)` | Bool |
 | `size()` | Long; lança exceção se o arquivo não existe (02/09 — sem sentinela `-1`) |
-| `delete()` | Bool (arquivo ou diretório — diretórios não-vazios apagam recursivamente em todo alvo desde 08/10, `known-bugs` §618) |
+| `delete()` | Bool — apaga o ARQUIVO, ou um diretório VAZIO. Um diretório não-vazio NÃO é recursivo aqui: devolve `false` e o diretório fica intacto (medido em JVM + Script, 15/10) — para uma árvore use `Directory(x).delete()` (recursivo em todo alvo desde 08/10, `known-bugs` §618). Caminho inexistente devolve `false` |
 | `name()` / `path()` | String |
 | `copyTo(destino)` | Bool — JVM + Native (x86-64/riscv64/aarch64, linha de paridade 13). Copia bytes + atributos básicos. Sem sobrescrita por padrão (devolve `false`, sem alterar nenhum dos dois arquivos, se `destino` já existir); não cria o diretório pai de `destino` implicitamente — quem chama precisa garantir que ele exista |
 | `moveTo(destino)` | Bool — JVM + Native. Primitiva de filesystem para mover/renomear, sem sobrescrita por padrão (mesmo contrato de `copyTo`). Não é uma transação segura: quem precisa de mover com verificação de hash continua fazendo copiar → validar → apagar, como já fazia antes deste método existir |

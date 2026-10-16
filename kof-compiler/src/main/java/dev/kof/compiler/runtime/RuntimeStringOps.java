@@ -301,14 +301,8 @@ public final class RuntimeStringOps {
                 cmpl %r12d, %r13d
                 jge .Lkof_trim_done
                 movzbl 24(%rbx,%r13), %eax
-                cmpb $32, %al
-                je .Lkof_trim_skip
-                cmpb $9, %al
-                je .Lkof_trim_skip
-                cmpb $10, %al
-                je .Lkof_trim_skip
-                cmpb $13, %al
-                je .Lkof_trim_skip
+                cmpb $32, %al                # JDK String.trim(): todo char <= ' '
+                jbe .Lkof_trim_skip
                 jmp .Lkof_trim_trail
             .Lkof_trim_skip:
                 incl %r13d
@@ -320,14 +314,8 @@ public final class RuntimeStringOps {
                 jle .Lkof_trim_done
                 decl %r14d
                 movzbl 24(%rbx,%r14), %eax
-                cmpb $32, %al
-                je .Lkof_trim_trail_loop
-                cmpb $9, %al
-                je .Lkof_trim_trail_loop
-                cmpb $10, %al
-                je .Lkof_trim_trail_loop
-                cmpb $13, %al
-                je .Lkof_trim_trail_loop
+                cmpb $32, %al                # JDK: todo char <= ' '
+                jbe .Lkof_trim_trail_loop
                 incl %r14d
             .Lkof_trim_done:
                 movl %r14d, %eax

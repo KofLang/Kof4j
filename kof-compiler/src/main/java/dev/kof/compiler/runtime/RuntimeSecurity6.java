@@ -21,6 +21,9 @@ public final class RuntimeSecurity6 {
                 movq %rax, %rsi
                 movq 672(%rsp), %rdi
                 call kof_json_find_value
+                # §733: find_value devolve NULL quando a chave esta AUSENTE.
+                testq %rax, %rax
+                jz .Ljv_iss_fail
                 movq %rax, %rsi
                 movq %r13, %rdi
                 call kof_string_equals
@@ -35,6 +38,9 @@ public final class RuntimeSecurity6 {
                 movq %rax, %rsi
                 movq 672(%rsp), %rdi
                 call kof_json_find_value
+                # §733: find_value devolve NULL quando a chave esta AUSENTE.
+                testq %rax, %rax
+                jz .Ljv_aud_fail
                 movq %rax, %rsi
                 movq %r14, %rdi
                 call kof_string_equals

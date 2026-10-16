@@ -1,6 +1,6 @@
 [English](wasm-wasi-plan.md) | [Português](wasm-wasi-plan.pt_BR.md)
 
-**Dono:** `192.168.15.101:9092` (lane TIER 15; 15.1+15.2+15.3-fatia1+15.3b+15.3c-fatiaA+15.3c-fatiaB+15.3d-inc1+15.3d-inc2-A+15.3d-inc2-B+15.3d-inc2-C1+C2 pousadas; campos record-aninhados/`Double.toString` + colecoes em seguida) — promovido por `D-WEB-WASI-DEFAULT-0710` (GATE do 0.6.0, #776); qualquer lane livre o reivindica no DOING primeiro (`D-PLAN-ONE-OWNER`).
+**Dono:** ⏹ **ORFAO 15/10 (auditoria) — o claim `192.168.15.101:9092` esta abandonado: o ultimo trabalho no plano e 09/10 e todo commit dessa lane desde 10/10 e trabalho de release-protocol/native-bug, NAO deste plano; a unidade 15.4 ordenada pela mantenedora (o flip do frontend-padrao) NAO esta no codigo (medido, `AGENTS.md` `last:`). Por `D-PLAN-ONE-OWNER` a frente e LIBERADA para SEM DONO — qualquer lane a reivindica no DOING primeiro. Historico: promovido por `D-WEB-WASI-DEFAULT-0710` (GATE 0.6.0, #776); 15.1+15.2+15.3-fatia1+15.3b+15.3c-fatiaA+15.3c-fatiaB+15.3d-inc1+15.3d-inc2-A/B/C1+C2/E pousadas por essa lane.**
 
 # WebAssembly (WASM) + WASI — especificação de implementação futura
 

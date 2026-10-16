@@ -148,6 +148,49 @@ public final class Decompile {
      * (`List<p.B>` registra `p/B`); `Outer$Inner`/malformados caem nas
      * guardas do `TreeScope.resolve` (recusa → como antes).
      */
+    /**
+     * Fase E (14/10): pré-pass das LAMBDAS — o sintético `lambda$X$0` tem
+     * corpo no classfile; recupera (expression → statements) e arma
+     * `(p0: T, ...) -> corpo` no mapa por ÍNDICE de CP.
+     */
+    static void prepassLambdas(ClassFileParser.ClassFile ir) {
+        BytecodeConcat.LAMBDA_TEXT.clear();
+        for (int i = 1; i < ir.constantPool.length; i++) {
+            String e = ir.constantPool[i];
+            if (e == null || !e.startsWith("LAMBDA:")) continue;
+            String impl = e.substring("LAMBDA:".length());
+            for (var m : ir.methods) {
+                if (!m.name.equals(impl) || m.code == null) continue;
+                var frame = new BytecodeFrame(m.descriptor, (m.accessFlags & 0x0008) != 0);
+                String body = BytecodeDecoder.recoverExpression(m.code.bytecode,
+                        ir.constantPool, frame);
+                if (body == null) {
+                    int[][] handlers = new int[m.code.exceptionHandlers == null
+                            ? 0 : m.code.exceptionHandlers.size()][];
+                    for (int hI = 0; hI < handlers.length; hI++) {
+                        var h = m.code.exceptionHandlers.get(hI);
+                        boolean fin = h.catchType == null || "INVALID".equals(h.catchType);
+                        handlers[hI] = new int[]{h.startPc, h.endPc, h.handlerPc, fin ? 1 : 0};
+                    }
+                    var stmts = BytecodeStatements.recoverStatements(m.code.bytecode,
+                            ir.constantPool, frame, handlers);
+                    if (stmts != null) body = String.join("\n", stmts);
+                }
+                if (body == null) break;
+                var pts = paramTypes(m.descriptor);
+                var sbP = new StringBuilder("(");
+                for (int k = 0; k < pts.size(); k++) {
+                    if (k > 0) sbP.append(", ");
+                    sbP.append("arg").append(k).append(": ")
+                       .append(fieldKofType(pts.get(k)));
+                }
+                sbP.append(") -> ").append(body);
+                BytecodeConcat.LAMBDA_TEXT.put(i, sbP.toString());
+                break;
+            }
+        }
+    }
+
     static void recordSignatureUses(dev.kof.compiler.Type t, TreeScope scope) {
         if (scope == null || t == null) return;
         if (t instanceof dev.kof.compiler.Type.ClassType ct) {
@@ -305,6 +348,10 @@ public final class Decompile {
     static String decompile(Path classFile, String pkg,
                             TreeScope scope) throws IOException {
         var ir = ClassFileParser.parse(Files.newInputStream(classFile));
+        // Fase E (14/10): pré-pass das LAMBDAS — para cada CP entry
+        // "LAMBDA:<impl>", recupera o corpo do sintético pelo MESMO pipeline
+        // e arma o texto; os avaliadores consomem no invokedynamic.
+        prepassLambdas(ir);
         StringBuilder sb = new StringBuilder();
         sb.append("// decompiled from ").append(classFile.getFileName()).append('\n');
         sb.append("// structural skeleton — simple method bodies recovered; others stubbed (Fase E)\n");
@@ -324,6 +371,19 @@ public final class Decompile {
         // stubs). Qualquer desvio do shape (interface não-resolvida, método
         // extra, nome reservado, bound genérico) → null → esqueleto de hoje
         // (zero-drift por construção).
+        // Fase E (14/10): Java enum PURO → `enum Nome { A, B, C }` (o Kof
+        // tem enum nativo — medido). Qualquer método/field extra → o
+        // esqueleto de hoje (zero-drift por construção).
+        String enumForm = BytecodeRecords.pureEnum(ir);
+        if (enumForm != null) {
+            sb.append(enumForm).append("\n\n");
+            if (scope != null) {
+                var lines = new StringBuilder();
+                for (String imp : scope.usedImports()) lines.append("import ").append(imp).append('\n');
+                if (lines.length() > 0) sb.insert(importPos, lines.toString());
+            }
+            return sb.toString();
+        }
         BytecodeRecords.Rec rec = BytecodeRecords.pureRecord(ir, scope);
         if (rec != null) {
             List<dev.kof.compiler.parser.ClassFileParser.FieldInfo> comps = rec.components();
@@ -338,7 +398,7 @@ public final class Decompile {
                 if (k > 0) sb.append(", ");
                 var f = comps.get(k);
                 String ctype = f.signature != null
-                        ? methodKofType(dev.kof.compiler.Type.describe(
+                        ? DecompileTypes.methodKofType(dev.kof.compiler.Type.describe(
                                 dev.kof.compiler.Type.fromJvmSignature(f.signature)))
                         : fieldKofType(f.descriptor);
                 recordSignatureUses(fieldTypeTree(f.descriptor, f.signature), scope);
@@ -380,7 +440,7 @@ public final class Decompile {
         for (var f : ir.fields) {
             boolean isStaticField = (f.accessFlags & 0x0008) != 0;
             String ftype = f.signature != null
-                    ? methodKofType(dev.kof.compiler.Type.describe(
+                    ? DecompileTypes.methodKofType(dev.kof.compiler.Type.describe(
                             dev.kof.compiler.Type.fromJvmSignature(f.signature)))
                     : fieldKofType(f.descriptor);
             recordSignatureUses(fieldTypeTree(f.descriptor, f.signature), scope);
@@ -412,12 +472,31 @@ public final class Decompile {
             for (dev.kof.compiler.Type pt : m.parameterTypes) recordSignatureUses(pt, scope);
             if ("<clinit>".equals(m.name)) continue; // static initializer — skip
             if ("<init>".equals(m.name)) {
+                // Fase E (14/10): o CONSTRUCTOR tem corpo — as atribuições
+                // `this.x = x` são o ESTADO da classe; o `constructor(...)
+                // { }` vazio deixava toda classe destruída com fields
+                // mortos (medido no capstone Inventory: name/qty/price
+                // nunca atribuídos, total()=0, find=null). O super()
+                // implícito [aload_0, invokespecial Object.<init>] é
+                // SKIPado no emitLinear (o Kof chama super implicitamente).
                 sb.append("    constructor(")
                   .append(paramList(m.parameterTypeNames()))
-                  .append(") {\n    }\n");
+                  .append(") {\n");
+                if (m.code != null) {
+                    BytecodeFrame cFrame = new BytecodeFrame(m.descriptor, false);
+                    cFrame.treeScope = scope;
+                    var cStmts = BytecodeStatements.recoverStatements(m.code.bytecode,
+                            ir.constantPool, cFrame, new int[0][]);
+                    if (cStmts != null) {
+                        for (String cs : cStmts) sb.append("        ").append(cs).append('\n');
+                    } else {
+                        sb.append("        throw \"body not recovered\"\n");
+                    }
+                }
+                sb.append("    }\n");
                 continue;
             }
-            String ret = methodKofType(m.returnTypeName());
+            String ret = DecompileTypes.methodKofType(m.returnTypeName());
             String params = paramList(m.parameterTypeNames());
             // bug 134: o modificador `static` era computado só p/ o frame e
             // NUNCA emitido → `S.staticMethod(x)` baixava como chamada de
@@ -491,7 +570,7 @@ public final class Decompile {
         int i = 0;
         for (String t : paramTypeNames) {
             if (i > 0) sb.append(", ");
-            sb.append(methodKofType(t)).append(" arg").append(i);
+            sb.append(DecompileTypes.methodKofType(t)).append(" arg").append(i);
             i++;
         }
         return sb.toString();
@@ -504,63 +583,7 @@ public final class Decompile {
     }
 
     /** Maps a raw JVM field descriptor (e.g. "I", "[I", "Ljava/lang/String;") to a Kof type name. */
-    static String fieldKofType(String jvmDesc) {
-        return capitalizePrimitive(descriptorToName(jvmDesc));
-    }
-
-    /** Maps a {@code Type.describe()} name (e.g. "int", "String", "int[]") to a Kof type name. */
-    static String methodKofType(String typeName) {
-        return capitalizePrimitive(typeName);
-    }
-
-    private static String capitalizePrimitive(String name) {
-        if (name == null || name.isEmpty()) return "Object";
-        String arraySuffix = "";
-        String base = name;
-        while (base.endsWith("[]")) {
-            arraySuffix = "[]" + arraySuffix;
-            base = base.substring(0, base.length() - 2);
-        }
-        String capitalized = switch (base) {
-            case "int" -> "Int";
-            case "long" -> "Long";
-            case "float" -> "Float";
-            case "double" -> "Double";
-            case "bool", "boolean" -> "Bool";
-            case "char" -> "Char";
-            case "byte" -> "Byte";
-            case "short" -> "Short";
-            case "void" -> "void";
-            default -> base;
-        };
-        return capitalized + arraySuffix;
-    }
-
-    private static String descriptorToName(String desc) {
-        if (desc == null || desc.isEmpty()) return "";
-        char c = desc.charAt(0);
-        if (c == 'L') {
-            int end = desc.indexOf(';');
-            String cls = end >= 0 ? desc.substring(1, end) : desc.substring(1);
-            return simpleName(cls);
-        }
-        if (c == '[') {
-            return descriptorToName(desc.substring(1)) + "[]";
-        }
-        return switch (c) {
-            case 'B' -> "byte";
-            case 'C' -> "char";
-            case 'D' -> "double";
-            case 'F' -> "float";
-            case 'I' -> "int";
-            case 'J' -> "long";
-            case 'S' -> "short";
-            case 'V' -> "void";
-            case 'Z' -> "bool";
-            default -> desc;
-        };
-    }
-
+    static String fieldKofType(String jvmDesc) { return DecompileTypes.fieldKofType(jvmDesc); }
     private static String optionValue(String[] args, String opt) {
         for (int i = 0; i < args.length - 1; i++) {
             if (opt.equals(args[i])) return args[i + 1];

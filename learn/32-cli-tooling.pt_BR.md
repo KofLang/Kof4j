@@ -16,14 +16,14 @@ A CLI é a ferramenta central da plataforma Kof.
 | `kof build <dir> --target=native.arm` | Compila para ELF aarch64 |
 | `kof build <dir> --target=js` | Compila para ES Modules |
 | `kof build <dir> --target=android` | Gera projeto Maven + APK (Fase 1: host Activity em Kof; `mvn verify` / `--apk` com o SDK) |
-| `kof run <file.kf> [--target jvm|native|native.risc|native.arm|js]` | Compila e executa. O **diretório do arquivo é o módulo**: todo irmão `.kf` é compilado junto (funções de topo cross-file resolvem como um pacote — então `PKG005` nome duplicado / `PKG002` `main()` duplicado se aplicam). Arquivos independentes que só dividem o diretório pertencem a diretórios próprios; o isolamento por arquivo é o `kof test` por design (cross-file é domínio do `kof build`) |
+| `kof run <file.kf> [--target jvm|native|native.risc|native.arm|js] [--jvm-option <opt>]` | Compila e executa. O **diretório do arquivo é o módulo**: todo irmão `.kf` é compilado junto (funções de topo cross-file resolvem como um pacote — então `PKG005` nome duplicado / `PKG002` `main()` duplicado se aplicam). Arquivos independentes que só dividem o diretório pertencem a diretórios próprios; o isolamento por arquivo é o `kof test` por design (cross-file é domínio do `kof build`) |
 | `kof script <file.ks|kf> [--watch] [--target ...]` | KofScript direto (Kof puro; `var`/`val` de topo → `KofScriptGlobals`) + diagnostics com file:line |
 | `kof repl` | REPL incremental KofScript (type `exit` to quit) |
 | `kof c <file.c> [--run] [--output <bin>]` | KofC C subset → ELF x86-64 nativo-only |
 | `kof serve <file.kf>` | Web server HTTP (`web.app()` nativo + API legada `handle()`) |
 | `kof check <file.kf\|dir> [--target <t>] [--json]` | Type-check sem emitir código (gaps por alvo, ex.: `AND002` no android) |
 | `kof test <file.kf\|dir> [--target jvm|native|js]` | Suíte estruturada `test "nome" { assert(...) }` nos 3 targets + programas inteiros por exit code; um diretório desce em **suítes nomeadas** (uma por diretório) |
-| `kof deploy <dir|file.kf> [--target jvm|native|js|android] [--output <dir>] [--name <n>] [--version <v>]` | Empacota uma release autocontida: artefato (fat jar / ELF 0755 / `Default.mjs` + fecho do runtime / APK assinado) + `RELEASE.md` + `SHA256SUMS` + `.tar.gz`; cross riscv64/aarch64 e `--publish` recusam honesto com `DEP001` |
+| `kof deploy <dir|file.kf> [--target jvm|native|js|android] [--output <dir>] [--name <n>] [--version <v>] [--jvm-option <opt>]` | Empacota uma release autocontida: artefato (fat jar / ELF 0755 / `Default.mjs` + fecho do runtime / APK assinado) + `RELEASE.md` + `SHA256SUMS` + `.tar.gz`; cross riscv64/aarch64 e `--publish` recusam honesto com `DEP001` |
 | `kof bench [paths...] [--target ...] [--iterations N] [--baseline <file>] [--threshold <ratio>] [--json] [--fail-on-regression]` | Benchmark harness (compile, run, validate, métricas, baseline) |
 | `kof profile <file.kf> [--target ...] [--methods]` | Execução + métricas (CPU, RSS, GC); `--methods`: profiler de **amostragem** method-level próprio (JFR da própria JDK no JVM, `--cpu-prof` do Node no JS) com hot spots mapeados de volta à linha `.kf` |
 | `kof inspect <file.kf> [--json]` | Estatísticas da IR: ops antes/depois da otimização |
@@ -164,6 +164,8 @@ kof deploy ./lib --name mylib --version 1.2.0 --publish owner/mylib
 kof deps add owner/mylib@1.2.0
 kof deps resolve                     # instala as fontes VERIFICADAS (SHA256SUMS) no cache
 kof run Main.kf --deps               # `import mylib.Thing` resolve contra as fontes instaladas
+kof run Main.kf --jvm-option -Xmx512m   # opcao da JVM no caminho de DESENVOLVIMENTO (repetivel)
+kof run Main.kf --jvm-option=-Dstdout.encoding=UTF-8
 kof build src --target js --deps     # as MESMAS fontes compilam para qualquer alvo
 ```
 

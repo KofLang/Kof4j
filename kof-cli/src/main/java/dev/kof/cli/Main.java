@@ -38,6 +38,7 @@ public final class Main {
             case "init" -> System.exit(init(args));
             case "new" -> System.exit(CmdNew.run(args));
             case "connector" -> System.exit(CmdConnector.run(args));
+            case "legacy" -> System.exit(CmdLegacy.run(args));
             case "deps" -> System.exit(Deps.run(args));
             case "deploy" -> CmdDeploy.run(args);
             case "workflow" -> System.exit(CmdWorkflow.run(args));

@@ -1,0 +1,26 @@
+record Box(Int? v)
+main() {
+    var m = mapOf("a", 1)
+    var i = m.get("a")
+    if (i != null) {
+        Int j = i
+        println("map=" + j)
+    }
+    var b = Box(5)
+    var x = b.v
+    if (x != null) {
+        Int k = x
+        println("field=" + k)
+    }
+    var ml = mapOf("a", 9L)
+    var q = ml.get("a")
+    if (q != null) {
+        Long z = q
+        println("long=" + z)
+    }
+    var l = m.get("z")
+    if (l == null) {
+        println("null-ok")
+    }
+    println("done")
+}

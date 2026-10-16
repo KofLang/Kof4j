@@ -1,0 +1,45 @@
+package financial
+
+// kof.financial.events — the DOMAIN EVENTS + OUTBOX (plan §10.2).
+//
+// Events are written to an OUTBOX in the same transaction as the ledger
+// posting, so state and event never diverge. A dispatcher (application code,
+// or `spawn`) drains the outbox. The outbox is an immutable value: `emit` and
+// `markDispatched` return NEW outboxes (functional, no mutation).
+
+record Event(String id, String kind, String aggregateId, String payloadJson,
+             Long occurredAtMillis, String correlationId)
+
+record Outbox(List<Event> events)
+
+// emit — append an event to the outbox.
+Outbox publish(Outbox o, Event e) {
+    var out: List<Event> = listOf()
+    var i = 0
+    while (i < o.events.size()) {
+        out.add(o.events.get(i))
+        i = i + 1
+    }
+    out.add(e)
+    return Outbox(out)
+}
+
+// pending — the events waiting for dispatch (oldest first).
+List<Event> pending(Outbox o) {
+    return o.events
+}
+
+// markDispatched — remove a dispatched event by id (everything else is kept,
+// order preserved).
+Outbox markDispatched(Outbox o, String eventId) {
+    var out: List<Event> = listOf()
+    var i = 0
+    while (i < o.events.size()) {
+        var e = o.events.get(i)
+        if (e.id != eventId) {
+            out.add(e)
+        }
+        i = i + 1
+    }
+    return Outbox(out)
+}

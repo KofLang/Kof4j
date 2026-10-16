@@ -425,6 +425,23 @@ final class AvifFrameSupport {
                     + " tiles=" + f.tileColumns + "x" + f.tileRows
                     + " hb=" + f.headerBytes + " bq=" + f.baseQIdx
                     + " lf=" + f.loopFilterLevel0 + " cd=" + f.cdefBits
+                    + " ll=" + f.lossless + " tx=" + f.txModeSelect
+                    + " rts=" + f.reducedTxSet
+                    + " dq=" + f.deltaQPresent + " dqr=" + f.deltaQRes
+                    + " dfl=" + f.deltaLfPresent + " dlr=" + f.deltaLfRes
+                    + " dlm=" + f.deltaLfMulti
+                    + " seg=" + f.segEnabled + " aq=" + aqOf(f.segAltQ)
+            }
+
+            String aqOf(Int[] q) {
+                var s = ""
+                var i = 0
+                while (i < q.size) {
+                    s = s + q[i]
+                    if (i < q.size - 1) { s = s + "," }
+                    i = i + 1
+                }
+                return s
             }
 
             main() {

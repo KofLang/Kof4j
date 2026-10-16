@@ -176,6 +176,126 @@ main() {
 }
 """;
 
+    /**
+     * The REAL-TILE end-to-end reference (slice 3au): the tree walk driving the
+     * tile DRIVER over the interleaved stream. The oracle is
+     * {@code oracle4.c}, which ENCODED this stream (one 64x64 superblock:
+     * PARTITION_SPLIT then PARTITION_NONE per quadrant, all DC_PRED, TX_32X32,
+     * DC-only residuals) and decoded it back with libaom's OWN
+     * {@code read_partition} + {@code av1_read_coeffs_txb}; these are its decoded
+     * per-block mode records and final entropy context, with the case index
+     * stripped so they compare line for line with the Kof probe.
+     */
+    static final String REAL_TILE_DECODED =
+        "D 0 0 0 3 0 0 0 0 0 0\n"
+        + "D 1 0 0 3 0 0 0 0 0 0\n"
+        + "D 2 0 0 3 0 0 0 0 0 0\n"
+        + "D 3 0 0 3 0 0 0 0 0 0\n"
+        + "A 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17"
+        + " | 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17 17\n"
+        + "P 128 128 128 128\n"
+        + "S 524288";
+
+    /** Kof probe: the walk decodes the real interleaved tile end to end. */
+    static String kofTileTreeProbe() {
+        return TREE_PROBE;
+    }
+
+    private static final String TREE_PROBE = """
+import image.Av1Coeffs
+import image.Av1DecodeChroma
+import image.Av1DecodeTileRecon
+import image.Av1ModeInfo
+import image.Av1Partition
+import image.Av1Symbol
+import image.Av1TxType
+
+main() {
+    var bytes = listOf(180, 72, 0, 0, 0, 0, 0, 0, 0, 16)
+    var data = new Int[bytes.size()]
+    var k = 0
+    while (k < bytes.size()) {
+        data[k] = bytes.get(k)
+        k = k + 1
+    }
+    var mw = 64
+    var mh = 64
+    var miw = 16
+    var mih = 16
+    var stride = mw + 2
+    var frame = new Int[stride * (mh + 2)]
+    var sym = Av1Symbol(data)
+    var store = Av1CoeffCdfStore(80)
+    var txStore = Av1TxType(sym)
+    var txTypes = new Int[(mw >> 2) * (mh >> 2)]
+    var above = new Int[miw]
+    var left = new Int[mih]
+    var levels = listOf<Int[]>()
+    var txTypeOut = listOf<Int>()
+    var modes = listOf<Int>()
+    var cfg = Av1ModeTail(12, 0, 0, 0, 0, 0, 0, 0, 0, 3)
+    var chroma = Av1ChromaPlanes(new Int[1], 1, 0, 0, new Int[1], new Int[1], new Int[1], 1, 0, 0, new Int[1], new Int[1])
+    var levelsU = listOf<Int[]>()
+    var levelsV = listOf<Int[]>()
+    var txU = listOf<Int>()
+    var txV = listOf<Int>()
+    var tile = Av1TileDecode(frame, stride, mw, mh, cfg, 0, 1, 1, 0, 0, 8, 2, 80, 0, 0, 0, 0, 74, 87, 1, 0, 0, sym, store, txStore, txTypes, above, left, levels, txTypeOut, modes, chroma, 0, 0, levelsU, levelsV, txU, txV)
+    var walk = Av1Partition(data, miw, mih)
+    walk.useReader(sym)
+    walk.bindDecoder(tile)
+    walk.walk()
+    var nb = modes.size / 17
+    var b = 0
+    while (b < nb) {
+        var o = b * 17
+        println("D " + b + " " + modes[o] + " " + modes[o + 1] + " " + modes[o + 4] + " " + modes[o + 5] + " " + modes[o + 6] + " " + modes[o + 7] + " " + modes[o + 8] + " " + modes[o + 11] + " " + modes[o + 12])
+        b = b + 1
+    }
+    var a = "A"
+    k = 0
+    while (k < above.size) {
+        a = a + " " + above[k]
+        k = k + 1
+    }
+    a = a + " |"
+    k = 0
+    while (k < left.size) {
+        a = a + " " + left[k]
+        k = k + 1
+    }
+    println(a)
+    // The RECONSTRUCTED pixels of the same driver, pinned: DC_PRED with no
+    // neighbours and a zero residual is flat mid-gray (128 at bit depth 8),
+    // so a wrong prediction/transform/plane-offset shows up here, not only in
+    // the mode records above.
+    var p = "P"
+    var qs = listOf(0, 32)
+    var qi = 0
+    while (qi < qs.size) {
+        var r = qs.get(qi)
+        var qj = 0
+        while (qj < qs.size) {
+            var c = qs.get(qj)
+            p = p + " " + frame[(r + 1) * stride + (c + 1)]
+            qj = qj + 1
+        }
+        qi = qi + 1
+    }
+    println(p)
+    var sum = 0
+    var rr = 0
+    while (rr < mh) {
+        var cc = 0
+        while (cc < mw) {
+            sum = sum + frame[(rr + 1) * stride + (cc + 1)]
+            cc = cc + 1
+        }
+        rr = rr + 1
+    }
+    println("S " + sum)
+}
+""";
+
     private static final String SEAM_PROBE = """
 import image.Av1Partition
 import image.Av1Symbol

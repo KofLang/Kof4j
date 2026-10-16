@@ -87,7 +87,9 @@ static int lowerField(CompilerDriver driver, AssignmentExpr ae, FieldAccessExpr 
                 // fisicamente boxed) — esses caem no box gate abaixo.
                 if (TypeMetrics.isPrimitiveType(sfaValueType) && TypeMetrics.isPrimitiveType(fld.type())
                         && !TypeMetrics.isNullablePrimitive(fld.type())) {
-                    driver.emitWideningIfNeeded(ops, sfaValueType, fld.type());
+                    // #845: RHS `Int?` estreitado abre a caixa antes do widening
+                    driver.emitWideningIfNeeded(ops, CompilerEmissionHelpers.emitNarrowedNullableUnbox(
+                            driver, ops, sfaValueType, fld.type()), fld.type());
                 } else if (driver.erasesToReference(fld.type())
                         && TypeMetrics.isPrimitiveType(sfaValueType)
                         && !ExpressionTyper.boxesOwnBranches(driver, ae.value(), locals)) {
@@ -313,7 +315,9 @@ static int lowerField(CompilerDriver driver, AssignmentExpr ae, FieldAccessExpr 
         // §361: mesmo guard do gate estatico — campo Int? (boxed fisico) nao
         // pode ser engolido pelo widening "primitivo".
         if (TypeMetrics.isPrimitiveType(fieldType) && !TypeMetrics.isNullablePrimitive(fieldType)) {
-            driver.emitWideningIfNeeded(ops, faValType, fieldType);
+            // #845: RHS `Int?` estreitado (`this.n = i`) abre a caixa antes do widening
+            driver.emitWideningIfNeeded(ops, CompilerEmissionHelpers.emitNarrowedNullableUnbox(
+                    driver, ops, faValType, fieldType), fieldType);
         } else if (driver.erasesToReference(fieldType)
                 && TypeMetrics.isPrimitiveType(faValType)
                 && !ExpressionTyper.boxesOwnBranches(driver, ae.value(), locals)) {

@@ -35,6 +35,8 @@ final class ReturnValueLowerer {
         ExpressionNode rv = ret.value();
         localIdx = ExpressionLowerer.emitExpression(driver, rv, ops, owner, localIdx, locals);
         Type rvType = ExpressionTyper.inferExprType(driver, rv, locals);
+        // #845: `return i` (i: Int? estreitado) num retorno primitivo
+        rvType = CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops, rvType, returnType);
         driver.emitWideningIfNeeded(ops, rvType, returnType);
         // §696: estreita o return num alvo Byte/Short (paridade com o cast)
         CompilerEmissionHelpers.emitStoreNarrow(driver, ops, rvType, returnType);

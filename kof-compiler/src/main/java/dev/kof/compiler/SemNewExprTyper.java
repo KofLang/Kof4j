@@ -90,6 +90,14 @@ final class SemNewExprTyper {
             List<Type> newArgs = ne.typeArguments().isEmpty() ? List.of()
                     : ne.typeArguments().stream()
                             .map(n -> CompilerTypes.toType(n, sa.unit(), sa)).toList();
+            // §713: sem args explícitos, INFERE-os dos tipos dos argumentos
+            // contra os parâmetros DECLARADOS do construtor (sem isto o `T` do
+            // campo/método não resolvia e o JVM/nativo usavam Object apagado).
+            if (newArgs.isEmpty() && ctor3 != null) {
+                List<Type> inferred = GenericTypeArgInference.infer(
+                        sa.typeParamNames(cs.name()), ctor3.parameterTypes(), argTypes3);
+                if (inferred != null) newArgs = inferred;
+            }
             return new Type.ClassType(cs.packageName(), cs.name(), newArgs);
         }
         // classe EXTERNA (android.webkit.WebView etc.): qualifica pelo

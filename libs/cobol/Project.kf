@@ -1,0 +1,48 @@
+package cobol
+
+import cobol.Gen
+
+// kof.cobol.project — the COBOL→Kof translator, PHASE 9 MVP (plan §30): the
+// PROJECT GENERATION — the generated source organized into a Kof PROJECT
+// layout: `<name>/Main.kf` (the generated source) + `<name>/kof.toml` (the
+// project manifest, the repo's real toml shape) + `<name>/NOTES.txt` (the
+// CB diagnostics, only when there are notes). The name is canonicalized by
+// the Q3 direction (lowerName).
+
+record ProjectFile(String path, String content)
+
+record GeneratedProject(String name, List<ProjectFile> files)
+
+// genProject — the generated Kof source → the project layout.
+GeneratedProject genProject(String name, String kofSource, List<String> notes) {
+    var n = lowerName(name)
+    var files: List<ProjectFile> = listOf()
+    files.add(ProjectFile(n + "/Main.kf", kofSource))
+    files.add(ProjectFile(n + "/kof.toml", "[project]\nname = \"" + n + "\"\n"))
+    if (notes.size > 0) {
+        var txt = ""
+        var i = 0
+        while (i < notes.size) {
+            txt = txt + notes.get(i)
+            i = i + 1
+            if (i < notes.size) {
+                txt = txt + "\n"
+            }
+        }
+        files.add(ProjectFile(n + "/NOTES.txt", txt))
+    }
+    return GeneratedProject(n, files)
+}
+
+// contentOf — the file's content by path, or null.
+String? contentOf(GeneratedProject p, String path) {
+    var i = 0
+    while (i < p.files.size) {
+        var f = p.files.get(i)
+        if (f.path == path) {
+            return f.content
+        }
+        i = i + 1
+    }
+    return null
+}

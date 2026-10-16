@@ -39,6 +39,13 @@ public final class JsRuntimeUiLayout {
                         { display: "grid" });
             }
 
+            export function kofUiStackBind(stack, child) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[stack]
+                        && window.__kofNodes[child]) {
+                    window.__kofNodes[stack].appendChild(window.__kofNodes[child]);
+                }
+            }
+
             export function kofUiWrapNew(ids) {
                 return kofUiLayoutContainerNew("div", "kof-wrap", ids,
                         { display: "flex", flexDirection: "row", flexWrap: "wrap" });
@@ -48,6 +55,13 @@ public final class JsRuntimeUiLayout {
                 return kofUiLayoutContainerNew("div", "kof-grid", ids,
                         { display: "grid",
                           gridTemplateColumns: "repeat(" + (cols > 0 ? cols : 1) + ", 1fr)" });
+            }
+
+            export function kofUiGridBind(grid, child) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[grid]
+                        && window.__kofNodes[child]) {
+                    window.__kofNodes[grid].appendChild(window.__kofNodes[child]);
+                }
             }
 
             export function kofUiSpacerNew(size) {
@@ -60,9 +74,23 @@ public final class JsRuntimeUiLayout {
                         { display: "flex", alignItems: "center", justifyContent: "center" });
             }
 
+            export function kofUiCenterBind(center, child) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[center]
+                        && window.__kofNodes[child]) {
+                    window.__kofNodes[center].appendChild(window.__kofNodes[child]);
+                }
+            }
+
             export function kofUiScrollNew(ids) {
                 return kofUiLayoutContainerNew("div", "kof-scroll", ids,
                         { overflow: "auto" });
+            }
+
+            export function kofUiScrollBind(scroll, child) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[scroll]
+                        && window.__kofNodes[child]) {
+                    window.__kofNodes[scroll].appendChild(window.__kofNodes[child]);
+                }
             }
 
             export function kofUiAlignNew(horizontal, vertical, ids) {
@@ -71,6 +99,13 @@ public final class JsRuntimeUiLayout {
                 const align = vertical === 1 ? "center" : vertical === 2 ? "flex-end" : "flex-start";
                 return kofUiLayoutContainerNew("div", "kof-align", ids,
                         { display: "flex", justifyContent: justify, alignItems: align });
+            }
+
+            export function kofUiAlignBind(align, child) {
+                if (typeof document !== "undefined" && window.__kofNodes && window.__kofNodes[align]
+                        && window.__kofNodes[child]) {
+                    window.__kofNodes[align].appendChild(window.__kofNodes[child]);
+                }
             }
 
             export function kofUiViewRemove(view) {

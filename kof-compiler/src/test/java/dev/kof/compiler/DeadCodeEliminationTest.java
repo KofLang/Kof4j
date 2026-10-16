@@ -59,14 +59,17 @@ class DeadCodeEliminationTest {
     }
 
     @Test
-    void opaqueProducerIsNotRemovedEvenIfStoreIsDead() {
-        // [call]; store(0); lit(2); store(0) -> the store(0) after the call is dead,
-        // but its producer is opaque, so only the STORE is removed, not the call.
+    void opaqueProducerKeepsTheStoreAlive() {
+        // [call]; store(0); lit(2); store(0) -> the first store's value is never read,
+        // but its producer (a call) is opaque and cannot be removed; removing the
+        // store alone would leave the call's pushed value on the stack (unbalanced),
+        // so BOTH the store and its opaque producer are kept.
         List<KofOperation> out = run(List.of(
                 new KofCall(null, "m", List.of(), Type.PrimitiveType.INT, KofCallKind.STATIC),
                 store(0), lit(2), store(0)));
         assertTrue(out.stream().anyMatch(o -> o instanceof KofCall),
                 "the opaque producer (call) is never removed");
-        assertEquals(3, out.size(), "only the dead store is removed");
+        assertEquals(4, out.size(),
+                "an opaque producer keeps its store alive (no unbalanced removal)");
     }
 }

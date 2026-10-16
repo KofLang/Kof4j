@@ -343,5 +343,251 @@ public final class NativeRiscvAsmStrn1 {
                 ld   ra, 88(sp)
                 addi sp, sp, 96
                 ret
+            # §738 (face CROSS riscv64): split("") — separador VAZIO. O
+            # kof_string_split recebia sep=0 (NUL), que nunca casa -> 1
+            # elemento; o JVM/Script/JS dao UM elemento por CARACTERE. Percorre
+            # por CODE POINT UTF-8 (a direcao do D-STR-UNICODE) e REUSA o
+            # .Lsk_emit do kof_string_split (mesma interface s0/s4/s5/s6/s7).
+            # limit>0 = no maximo `limit` pieces, a ULTIMA sendo o RESTO (JDK).
+            .globl kof_string_split_chars
+            kof_string_split_chars:
+                addi sp, sp, -96
+                sd   ra, 88(sp)
+                sd   s0, 80(sp)
+                sd   s1, 72(sp)
+                sd   s2, 64(sp)
+                sd   s3, 56(sp)
+                sd   s4, 48(sp)
+                sd   s5, 40(sp)
+                sd   s6, 32(sp)
+                sd   s7, 24(sp)
+                sd   s8, 16(sp)
+                mv   s0, a0
+                mv   s8, a1
+                lw   s2, 16(s0)
+                li   s1, 0
+                li   t0, 0
+            .Lskc_count:
+                bge  t0, s2, .Lskc_cdone
+                addi t1, s0, 24
+                add  t1, t1, t0
+                lbu  t1, 0(t1)
+                andi t1, t1, 0xC0
+                li   t2, 0x80
+                beq  t1, t2, .Lskc_cnext
+                addi s1, s1, 1
+            .Lskc_cnext:
+                addi t0, t0, 1
+                j    .Lskc_count
+            .Lskc_cdone:
+                bnez s2, .Lskc_limit
+                li   s1, 1
+                j    .Lskc_alloc
+            .Lskc_limit:
+                blez s8, .Lskc_alloc
+                ble  s1, s8, .Lskc_alloc
+                mv   s1, s8
+            .Lskc_alloc:
+                mv   a0, s1
+                li   a1, 8
+                call kof_array_alloc
+                mv   s6, a0
+                li   s7, 0
+                li   s5, 0
+            .Lskc_loop:
+                bge  s5, s2, .Lskc_tail
+                addi t1, s0, 24
+                add  t1, t1, s5
+                lbu  t0, 0(t1)
+                li   s3, 1
+                andi t2, t0, 0xE0
+                li   t3, 0xC0
+                beq  t2, t3, .Lskc_l2
+                andi t2, t0, 0xF0
+                li   t3, 0xE0
+                beq  t2, t3, .Lskc_l3
+                andi t2, t0, 0xF8
+                li   t3, 0xF0
+                beq  t2, t3, .Lskc_l4
+                j    .Lskc_len
+            .Lskc_l2:
+                li   s3, 2
+                j    .Lskc_len
+            .Lskc_l3:
+                li   s3, 3
+                j    .Lskc_len
+            .Lskc_l4:
+                li   s3, 4
+            .Lskc_len:
+                blez s8, .Lskc_cut
+                addi t0, s7, 1
+                bne  t0, s8, .Lskc_cut
+                sub  s3, s2, s5
+            .Lskc_cut:
+                mv   s4, s5
+                add  s5, s5, s3
+                call .Lsk_emit
+                j    .Lskc_loop
+            .Lskc_tail:
+                bnez s2, .Lskc_setlen
+                mv   s4, s5
+                call .Lsk_emit
+            .Lskc_setlen:
+                sw   s1, 16(s6)
+                mv   a0, s6
+                ld   s8, 16(sp)
+                ld   s7, 24(sp)
+                ld   s6, 32(sp)
+                ld   s5, 40(sp)
+                ld   s4, 48(sp)
+                ld   s3, 56(sp)
+                ld   s2, 64(sp)
+                ld   s1, 72(sp)
+                ld   s0, 80(sp)
+                ld   ra, 88(sp)
+                addi sp, sp, 96
+                ret
+
+            # §738 (face CROSS): replace("", to) — agulha VAZIA. O
+            # kof_string_replace procura a SUBSTRING da agulha e 0 bytes nunca
+            # casa -> a string voltava INTACTA; o JVM/Script inserem `to` em
+            # TODA posicao, incl. as duas pontas. Por CODE POINT UTF-8 e com os
+            # lacos INLINE (sem kof_memcpy por byte — a licao do x86).
+            .globl kof_string_replace_empty
+            kof_string_replace_empty:
+                addi sp, sp, -96
+                sd   ra, 88(sp)
+                sd   s0, 80(sp)
+                sd   s1, 72(sp)
+                sd   s2, 64(sp)
+                sd   s3, 56(sp)
+                sd   s4, 48(sp)
+                sd   s5, 40(sp)
+                sd   s6, 32(sp)
+                sd   s7, 24(sp)
+                sd   s8, 16(sp)
+                mv   s0, a0
+                mv   s1, a1
+                lw   s2, 16(s0)
+                lw   s3, 16(s1)
+                li   s4, 0
+                li   t0, 0
+            .Lkre_count:
+                bge  t0, s2, .Lkre_cdone
+                addi t1, s0, 24
+                add  t1, t1, t0
+                lbu  t1, 0(t1)
+                andi t1, t1, 0xC0
+                li   t2, 0x80
+                beq  t1, t2, .Lkre_cnext
+                addi s4, s4, 1
+            .Lkre_cnext:
+                addi t0, t0, 1
+                j    .Lkre_count
+            .Lkre_cdone:
+                addi t0, s4, 1
+                mul  t0, t0, s3
+                add  t0, t0, s2
+                mv   s5, t0
+                addi a0, t0, 25
+                addi a0, a0, 15
+                andi a0, a0, -16
+                call kof_alloc
+                mv   s6, a0
+                li   t2, 1
+                sw   t2, 0(a0)
+                sw   zero, 4(a0)
+                sd   zero, 8(a0)
+                sw   s5, 16(a0)
+                sw   zero, 20(a0)
+                addi t3, a0, 24
+                add  t3, t3, s5
+                sb   zero, 0(t3)
+                li   s7, 0
+                li   s8, 0
+            .Lkre_loop:
+                bge  s7, s2, .Lkre_last
+                li   t0, 0
+            .Lkre_to:
+                bge  t0, s3, .Lkre_len
+                addi t1, s1, 24
+                add  t1, t1, t0
+                lbu  t1, 0(t1)
+                addi t2, s6, 24
+                add  t2, t2, s8
+                add  t2, t2, t0
+                sb   t1, 0(t2)
+                addi t0, t0, 1
+                j    .Lkre_to
+            .Lkre_len:
+                add  s8, s8, s3
+                addi t1, s0, 24
+                add  t1, t1, s7
+                lbu  t0, 0(t1)
+                li   s5, 1
+                andi t2, t0, 0xE0
+                li   t3, 0xC0
+                beq  t2, t3, .Lkre_l2
+                andi t2, t0, 0xF0
+                li   t3, 0xE0
+                beq  t2, t3, .Lkre_l3
+                andi t2, t0, 0xF8
+                li   t3, 0xF0
+                beq  t2, t3, .Lkre_l4
+                j    .Lkre_cp
+            .Lkre_l2:
+                li   s5, 2
+                j    .Lkre_cp
+            .Lkre_l3:
+                li   s5, 3
+                j    .Lkre_cp
+            .Lkre_l4:
+                li   s5, 4
+            .Lkre_cp:
+                li   t0, 0
+            .Lkre_cpl:
+                bge  t0, s5, .Lkre_adv
+                addi t1, s0, 24
+                add  t1, t1, s7
+                add  t1, t1, t0
+                lbu  t1, 0(t1)
+                addi t2, s6, 24
+                add  t2, t2, s8
+                add  t2, t2, t0
+                sb   t1, 0(t2)
+                addi t0, t0, 1
+                j    .Lkre_cpl
+            .Lkre_adv:
+                add  s8, s8, s5
+                add  s7, s7, s5
+                j    .Lkre_loop
+            .Lkre_last:
+                li   t0, 0
+            .Lkre_fin:
+                bge  t0, s3, .Lkre_ret
+                addi t1, s1, 24
+                add  t1, t1, t0
+                lbu  t1, 0(t1)
+                addi t2, s6, 24
+                add  t2, t2, s8
+                add  t2, t2, t0
+                sb   t1, 0(t2)
+                addi t0, t0, 1
+                j    .Lkre_fin
+            .Lkre_ret:
+                mv   a0, s6
+                ld   s8, 16(sp)
+                ld   s7, 24(sp)
+                ld   s6, 32(sp)
+                ld   s5, 40(sp)
+                ld   s4, 48(sp)
+                ld   s3, 56(sp)
+                ld   s2, 64(sp)
+                ld   s1, 72(sp)
+                ld   s0, 80(sp)
+                ld   ra, 88(sp)
+                addi sp, sp, 96
+                ret
+
             """;
 }

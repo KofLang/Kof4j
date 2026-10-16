@@ -1,0 +1,54 @@
+package financial
+
+import financial.Money
+
+// kof.financial.fx — currency conversion by EXACT rational rates (plan §4.3).
+//
+// A rate is num/den as Longs — never a Double — so conversion is exact and
+// deterministic on every target. `asOfMillis` and `source` are mandatory: a
+// rate without provenance is a bug. Rates compose by rational multiplication
+// (A→B→C), keeping the intermediate rounding rule explicit at the call site.
+
+record Rate(String base, String quote, Long num, Long den, Long asOfMillis, String source)
+
+// convert — BRL->USD via rate(BRL, USD, num, den): each unit of `base` is
+// `num/den` units of `quote`. Currency-safe: the amount must be in the
+// rate's BASE currency (FIN003 otherwise), and the rate must be well-formed
+// (den != 0, FIN004).
+Money convert(Money amount, Rate rate, Rounding mode) {
+    if (amount.currency != rate.base) {
+        throw "currency mismatch: converting " + amount.currency
+            + " through " + rate.base + "/" + rate.quote + " (FIN003)"
+    }
+    if (rate.den == 0L) {
+        throw "rate " + rate.base + "/" + rate.quote + " has a zero denominator (FIN004)"
+    }
+    return Money(roundDiv(amount.minor * rate.num, rate.den, mode), rate.quote)
+}
+
+// compose — the cross rate A->C from A->B and B->C, by rational
+// multiplication: (n1/d1) x (n2/d2) = (n1*n2)/(d1*d2). Provenance: the EARLIER
+// asOfMillis wins (the oldest quote bounds the composite's validity).
+Rate compose(Rate ab, Rate bc) {
+    if (ab.quote != bc.base) {
+        throw "cross rate mismatch: " + ab.base + "/" + ab.quote
+            + " then " + bc.base + "/" + bc.quote + " (FIN003)"
+    }
+    if (ab.den == 0L || bc.den == 0L) {
+        throw "rate " + bc.base + "/" + bc.quote + " has a zero denominator (FIN004)"
+    }
+    var asOf = ab.asOfMillis
+    if (bc.asOfMillis < asOf) {
+        asOf = bc.asOfMillis
+    }
+    return Rate(ab.base, bc.quote, ab.num * bc.num, ab.den * bc.den,
+        asOf, ab.source + "+" + bc.source)
+}
+
+// invert — the reciprocal rate (B->A from A->B), exact by swapping num/den.
+Rate invert(Rate r) {
+    if (r.num == 0L) {
+        throw "rate " + r.base + "/" + r.quote + " has a zero numerator (FIN004)"
+    }
+    return Rate(r.quote, r.base, r.den, r.num, r.asOfMillis, r.source)
+}

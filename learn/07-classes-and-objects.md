@@ -30,6 +30,20 @@ values are `==`, hash the same, dedup in `Set`, match as `Map` keys and
 alike. The synthesized `equals` recurses into nested record/class fields;
 `hashCode` is content-based for String, Double and nested records.
 
+### `value record` — same data model, no identity (TIER 2.7, 14/10)
+
+```kf
+value record Vec2(Float x, Float y)
+```
+
+A `value record` behaves **exactly like `record`** (fields, structural `==`,
+`toString` — verified on all four targets) but declares **no object identity**
+(`D-VALUE-RECORD`; `value` applies only to `record`, collections hold them
+boxed). Per target: JVM = the common record class, Native = the current heap
+representation, JS = the object is **frozen**. `value` is a *contextual*
+keyword: only before `record` — anywhere else `value` stays an ordinary
+identifier.
+
 Records can have methods:
 
 ```kf

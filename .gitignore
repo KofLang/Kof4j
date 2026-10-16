@@ -4,6 +4,11 @@ target/
 # fixtures de teste do AndroidInterop (fake SDK de 4KB, estático)
 !kof-compiler/src/test/resources/android/*.jar
 *.log
+# scratch de depuração na raiz do repo (dump de IR, saída de suíte)
+/rasterdump.txt
+/rasterres.txt
+/fcadump.txt
+/fullsuite.log
 .idea/
 *.iml
 .vscode/

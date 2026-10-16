@@ -21,6 +21,8 @@ final class BytecodeReader {
         boolean isReturn() { return opcode >= 0xac && opcode <= 0xb1; }
         boolean isGoto() { return opcode == 0xa7 || opcode == 0xc8; }
         boolean isCond() { return (opcode >= 0x99 && opcode <= 0xa6) || opcode == 0xc6 || opcode == 0xc7; }
+        // o athrow (0xbf) É opaco: TERMINAL no CFG (sem aresta — o throw
+        // não cai no bloco seguinte)
         boolean isOpaque() { return opcode == 0xaa || opcode == 0xab || opcode == 0xbf || opcode == 0xc4; }
     }
 
@@ -86,6 +88,13 @@ final class BytecodeReader {
                     break;
                 }
                 operands = new int[]{((code[pc + 1] & 0xFF) << 8) | (code[pc + 2] & 0xFF)};
+            } else if (len == 4 && op == 0xc5) { // multianewarray: índice CP (2) + dims (1)
+                if (pc + 4 > code.length) {
+                    out.add(new Insn(pc, -1, operands, -1));
+                    break;
+                }
+                operands = new int[]{((code[pc + 1] & 0xFF) << 8) | (code[pc + 2] & 0xFF),
+                                     code[pc + 3] & 0xFF};
             } else if (len == 5 && op == 0xba) { // invokedynamic: índice CP nos 2 bytes (depois, 2 zeros)
                 if (pc + 5 > code.length) {
                     out.add(new Insn(pc, -1, operands, -1));
@@ -239,7 +248,12 @@ final class BytecodeReader {
     }
 
     private static int skipVariableBytes(Insn in) {
-        return in.opcode() == 0xaa || in.opcode() == 0xab ? 1 : 4;
+        // Fase E (14/10): o athrow tem 1 byte FIXO (sem operandos) — o 4
+        // esticava o bloco do throw sobre o `return` seguinte (medido no
+        // Validator.parsePort: o CFG ficava [16,33)+[30,32) SOBREPOSTOS e
+        // o `||` do range-check quebrava)
+        return in.opcode() == 0xbf ? 1
+                : (in.opcode() == 0xaa || in.opcode() == 0xab ? 1 : 4);
     }
 
     /** True se o bloco é alvo de uma back-edge (header de loop). */

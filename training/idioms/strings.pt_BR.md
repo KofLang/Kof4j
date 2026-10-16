@@ -37,7 +37,7 @@ a + "!"                     // concatenação
 
 ```kof
 // ✅ receiver estático de tipo builtin funciona (String/Integer/Long/
-// Float/Double/Boolean/Char/Math/System):
+// Float/Double/Boolean/Char):
 var s = "n=" + String.valueOf(42)
 var c = String.valueOf(104 as Char)   // "h" — codepoint→caractere
 
@@ -50,6 +50,12 @@ var c = String.valueOf(104 as Char)   // "h" — codepoint→caractere
   COMP002 01/09; **`"str" + double` descartava o operando FP → saída vazia,
   corrigido 02/09**).
 - Não construa conversão manual dígito-a-dígito — use `String.valueOf`.
+- **`Math` e `System` NÃO são receptores** (medido 15/10 na ponta: os dois dão
+  `SEM011 Undefined variable or type`). Os auxiliares aritméticos vivem no
+  NAMESPACE `math` — `math.max(3, 4)`, `math.abs(-3)` (`learn/stdlib/math.md`) — e
+  não existe superfície `System.*` alguma (a saída é `println`). Esta linha listava
+  os dois entre os receptores estáticos de tipo builtin — corrigida 15/10 (#851); o
+  negativo agora está travado pelo `BuiltinStaticReceiverSurfaceE2ETest`.
 
 ## BAD — equals de Java
 

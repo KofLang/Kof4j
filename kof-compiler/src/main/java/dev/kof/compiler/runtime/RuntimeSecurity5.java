@@ -422,6 +422,10 @@ public final class RuntimeSecurity5 {
                 movq 672(%rsp), %rdi
                 call kof_json_find_value
                 movq %rax, %rbx
+                # §733: find_value devolve NULL quando a chave esta AUSENTE
+                # (antes uma string vazia). Trata ausente como antes.
+                testq %rbx, %rbx
+                jz .Ljv_exp_ok
                 movl 16(%rbx), %ecx
                 testl %ecx, %ecx
                 jz .Ljv_exp_ok

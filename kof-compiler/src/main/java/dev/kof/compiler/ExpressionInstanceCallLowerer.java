@@ -208,6 +208,20 @@ public final class ExpressionInstanceCallLowerer {
     if (KofIo.isIoType(recvType)) {
         return ExpressionBuiltinInstanceCalls.lowerIo(driver, mc, ops, owner, localIdx, locals, recvType);
     }
+    // #847 face 2: `path()` num receptor STRING é IDENTIDADE — nenhuma chamada é
+    // emitida (o valor é a própria String). Mesma decisão da forma de CAMPO
+    // (ExpressionFieldAccessLowerer: `.path`/`.name` num String devolvem o
+    // receptor); sem esta guarda a chamada seguia para o caminho genérico de
+    // método de String e o JVM morria em
+    // `NoSuchMethodError: 'java.lang.Object java.lang.String.path()'`.
+    if (Type.isString(recvType) && KofIo.isIdentityMethod(mc.methodName())) {
+        // O receptor JÁ está na pilha (o chamador o emitiu antes do dispatch) —
+        // devolver localIdx é a identidade, exatamente como o caminho do
+        // kof.io faz em lowerIo. Reemitir o receptor deixava um valor EXTRA na
+        // pilha e a JVM recusava a classe (`VerifyError: Bad type on operand
+        // stack`, medido).
+        return localIdx;
+    }
     if (recvType instanceof Type.FunctionType ft) {
         if (ft.className() == null) {
             // bug 8: valor de TIPO DE FUNÇÃO DECLARADO (param
@@ -393,7 +407,25 @@ public final class ExpressionInstanceCallLowerer {
         // fall back to the lowering's own inference (list-get
         // chains, user classes resolved through hierarchy)
         Type inferred = ExpressionTyper.inferExprType(driver, mc, locals);
-        if (!(inferred instanceof Type.UnknownType)) {
+        // §706: para um método de uma classe do USUÁRIO o descriptor tem de ser
+        // o tipo DECLARADO do membro (a classe emite `get():Ljava/lang/Object;`
+        // — a erasure). A inferência devolve o SUBSTITUÍDO pelo receiver
+        // (`Box<Int>.get()` -> `Int`), então um call ENCADEADO
+        // (`outer.get().get()`, cujo resolvedMethod o semântico não cacheia)
+        // emitia `invokevirtual Box.get:()I` enquanto a classe só tem
+        // `()Ljava/lang/Object;` -> NoSuchMethodError no JVM / lixo no nativo.
+        // Resolve o símbolo pelo receiver e usa o retorno DECLARADO; cai para a
+        // inferência só quando não há símbolo de classe.
+        boolean usedDeclared = false;
+        if (recvType instanceof Type.ClassType ct706 && driver.semanticAnalyzer != null) {
+            SymbolTable.Symbol m706 = driver.semanticAnalyzer.resolveInHierarchy(ct706.name(), mc.methodName());
+            if (m706 instanceof SymbolTable.MethodSymbol ms706
+                    && ms706.parameterTypes().size() == mc.arguments().size()) {
+                methodReturnType = ms706.returnType();
+                usedDeclared = true;
+            }
+        }
+        if (!usedDeclared && !(inferred instanceof Type.UnknownType)) {
             methodReturnType = inferred;
         }
     }
@@ -542,6 +574,12 @@ public final class ExpressionInstanceCallLowerer {
         JvmInteropTargetGap.refuse(driver, mc.position(),
                 "method '" + mc.methodName() + "()' of external class '"
                         + rtc.internalName().replace('/', '.') + "'");
+        return localIdx;
+    }
+    // probe QA 15/10 (#867): método inexistente em receptor String → SEM025
+    // honesto em vez do descritor fallback `()Object` (guard extraído p/
+    // StringUnknownMethodGuard — gate ≤600 REFACTOR-500).
+    if (StringUnknownMethodGuard.refuses(driver, mc, methodReturnType, recvType)) {
         return localIdx;
     }
     ops.add(new KofCall(recvType,

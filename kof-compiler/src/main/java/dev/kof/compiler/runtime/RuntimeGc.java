@@ -135,7 +135,7 @@ public final class RuntimeGc {
                 jae .Ltry_next
             .Ltry_found:
                 cmpb $0, 24(%rbx)
-                jne .Ltry_done
+                jne .Ltry_done_pop
                 movb $1, 24(%rbx)
                 jmp .Ltry_done
             .Ltry_next:
@@ -171,7 +171,7 @@ public final class RuntimeGc {
                 je .Ltry_done_pop
                 leaq -32(%r12), %rbx
                 cmpb $0, 24(%rbx)
-                jne .Ltry_done
+                jne .Ltry_done_pop
                 movb $1, 24(%rbx)
                 jmp .Ltry_done
 
@@ -445,8 +445,13 @@ public final class RuntimeGc {
             .globl kof_bounds_error
             .type kof_bounds_error, @function
             kof_bounds_error:
+                # §729: erro de bounds CAPTURAVEL (era kof_panic/aborto);
+                # a mensagem e' uma KofString (o catch LE o header).
                 leaq .Lstr_bounds_err(%rip), %rdi
-                call kof_panic
+                movl $40, %esi
+                call kof_string_from_literal
+                movq %rax, %rdi
+                call kof_throw_string
             """);
     }
 

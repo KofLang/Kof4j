@@ -28,14 +28,8 @@ public final class NativeRiscvAsmStrn0 {
                 addi t0, s0, 24
                 add  t0, t0, s2
                 lbu  t0, 0(t0)
-                li   t1, 32
-                beq  t0, t1, .Ltr_lskip
-                li   t1, 9
-                beq  t0, t1, .Ltr_lskip
-                li   t1, 10
-                beq  t0, t1, .Ltr_lskip
-                li   t1, 13
-                beq  t0, t1, .Ltr_lskip
+                li   t1, 33
+                bltu t0, t1, .Ltr_lskip     # JDK String.trim(): todo char <= ' '
                 j    .Ltr_trail
             .Ltr_lskip:
                 addi s2, s2, 1
@@ -48,14 +42,8 @@ public final class NativeRiscvAsmStrn0 {
                 addi t1, s0, 24
                 add  t1, t1, t0
                 lbu  t1, 0(t1)
-                li   t2, 32
-                beq  t1, t2, .Ltr_tskip
-                li   t2, 9
-                beq  t1, t2, .Ltr_tskip
-                li   t2, 10
-                beq  t1, t2, .Ltr_tskip
-                li   t2, 13
-                beq  t1, t2, .Ltr_tskip
+                li   t2, 33
+                bltu t1, t2, .Ltr_tskip     # JDK: todo char <= ' '
                 j    .Ltr_build
             .Ltr_tskip:
                 mv   s3, t0

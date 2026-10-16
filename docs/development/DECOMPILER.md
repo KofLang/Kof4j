@@ -2,14 +2,14 @@
 
 # DECOMPILER.md — Kof Decompiler (DEPRIORITIZED 15/09 → REOPENED 28/09, still in future/)
 
-**Status:** **UNDER DEVELOPMENT — promoted to current work 14/10 (`D-FUTURE-PROMOTION`, lane nativa/GC `192.168.15.117:0`); the structured-shape surface is at its honest ceiling (remaining faces need the diamond-law decision or the interop lane); **the JVM front is COMPLETE as of 14/10** — Phases A–H landed (decompile 67/67, translate 72/72 §3.3 list 19/19, compare 15/15 six channels incl. typed exceptions + DB digest, migrate 11/11 JAR + behavioral wiring + input vectors; battery 165/165); the remaining decompiler faces are the structured-shape ceiling (diamond-law decision) and the interop lane; the work-log lives in `LEGACY_MIGRATION.md`** —
+**Status:** **UNDER DEVELOPMENT — promoted to current work 14/10 (`D-FUTURE-PROMOTION`, lane nativa/GC `192.168.15.117:0`); the structured-shape surface is at its honest ceiling (remaining faces need the diamond-law decision or the interop lane); **the JVM front is COMPLETE and still ADVANCING — measured 15/10: decompile 133/133, translate 77/77 (§3.3 list 19/19), compare 15/15, migrate 11/11 (battery 236/236); the §3.3-frontier slices keep landing (the sign-comparison/ternary/chain families, ~40 slices since 14/10, each behind its own zero-drift face)** — the original Phases A–H landed (decompile 133/133, translate 77/77, compare 15/15, migrate 11/11; battery 236/236, measured 15/10); the remaining decompiler faces are the structured-shape ceiling (diamond-law decision) and the interop lane; the work-log lives in `LEGACY_MIGRATION.md`** —
 still plan-only here; promotion to current work is one-at-a-time per
 `D-FUTURE-PROMOTION` (the
 three-states rule). Code already in the repo stays (kof-cli `Decompile.java` +
-decoders, `DecompileTest` 67/67) — only the *queue* stops here; the full
+decoders, `DecompileTest` 133/133 as of 15/10) — only the *queue* stops here; the full
 work-log below remains as the record for a future session. Implemented:
 `Decompile.java` + bytecode decoders, Phases A–E with code; proof:
-`DecompileTest` **67/67** green + `DecompilePostDominatorTest` 6/6
+`DecompileTest` **133/133** green (measured 15/10) + `DecompilePostDominatorTest` 6/6
 (re-measured 15/09 on tip `7b0bfbe0`; the header's 45/45 was the 22/08
 baseline). The remaining gap
 (measured 15/09: 1793 stubs on the 706-class corpus; the biggest one —
