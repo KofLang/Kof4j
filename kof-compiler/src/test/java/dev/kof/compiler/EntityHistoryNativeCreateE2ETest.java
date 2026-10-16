@@ -162,6 +162,9 @@ class EntityHistoryNativeCreateE2ETest {
         CompilationResult r = driver.compile(
                 writeFile("Main5e.kf", source), out, Target.NATIVE);
         assertTrue(r.success(), () -> "native compile: " + r.diagnostics().getDiagnostics());
+        // CI: runner limpo — /tmp/histdbg-last/ não existe; criar antes do
+        // copy (o dir local existia por sessões anteriores, mascarando isto).
+        Files.createDirectories(Path.of("/tmp/histdbg-last"));
         Files.copy(out.resolve("Default/Main"), Path.of("/tmp/histdbg-last/h5e-main"),
                 java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         assertEquals("1\nINSERT\nUPDATE\ntrue", runNative(out.resolve("Default/Main")),

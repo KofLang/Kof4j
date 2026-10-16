@@ -15,43 +15,28 @@ public final class NativeRiscvAsmStrn1 {
                 sd   s0, 24(sp)
                 sd   s1, 16(sp)
                 sd   s2, 8(sp)
-                sd   s3, 0(sp)
                 mv   s0, a0
                 mv   s1, a1
-                lw   s2, 16(s0)
-                lw   s3, 16(s1)
-                bne  s2, s3, .Lec_no
-                li   t0, 0
-            .Lec_loop:
-                bge  t0, s2, .Lec_yes
-                addi t1, s0, 24
-                add  t1, t1, t0
-                lbu  t1, 0(t1)
-                addi t2, s1, 24
-                add  t2, t2, t0
-                lbu  t2, 0(t2)
-                li   t3, 65
-                blt  t1, t3, .Lec_f2
-                li   t3, 90
-                bgt  t1, t3, .Lec_f2
-                addi t1, t1, 32
-            .Lec_f2:
-                li   t3, 65
-                blt  t2, t3, .Lec_cmp
-                li   t3, 90
-                bgt  t2, t3, .Lec_cmp
-                addi t2, t2, 32
-            .Lec_cmp:
-                bne  t1, t2, .Lec_no
-                addi t0, t0, 1
-                j    .Lec_loop
-            .Lec_yes:
-                li   a0, 1
-                j    .Lec_ret
-            .Lec_no:
-                li   a0, 0
+                # §741: contrato do JVM (fold char-a-char: upper OU lower) — o
+                # antigo era ASCII-only (É/é dava false). Reusa o fold Unicode.
+                mv   a0, s0
+                call kof_string_to_upper
+                mv   s2, a0
+                mv   a0, s1
+                call kof_string_to_upper
+                mv   a1, a0
+                mv   a0, s2
+                call kof_string_equals
+                bnez a0, .Lec_ret
+                mv   a0, s0
+                call kof_string_to_lower
+                mv   s2, a0
+                mv   a0, s1
+                call kof_string_to_lower
+                mv   a1, a0
+                mv   a0, s2
+                call kof_string_equals
             .Lec_ret:
-                ld   s3, 0(sp)
                 ld   s2, 8(sp)
                 ld   s1, 16(sp)
                 ld   s0, 24(sp)
@@ -576,6 +561,135 @@ public final class NativeRiscvAsmStrn1 {
                 j    .Lkre_fin
             .Lkre_ret:
                 mv   a0, s6
+                ld   s8, 16(sp)
+                ld   s7, 24(sp)
+                ld   s6, 32(sp)
+                ld   s5, 40(sp)
+                ld   s4, 48(sp)
+                ld   s3, 56(sp)
+                ld   s2, 64(sp)
+                ld   s1, 72(sp)
+                ld   s0, 80(sp)
+                ld   ra, 88(sp)
+                addi sp, sp, 96
+                ret
+
+            # §740 (face CROSS riscv64): split com separador de VARIOS caracteres.
+            # O emissor passava so o 1o byte (helpers de sep_char unico) ->
+            # "aXXb".split("XX") dava 3 fatias. COMPOE o kof_string_index_of2
+            # (busca de substring em CODE UNITS) com o kof_string_substring
+            # (fatia em code units), avancando pelo comprimento do separador em
+            # code units; poda §111 SO com limit == 0 (limit < 0 mantem TODOS).
+            .globl kof_string_split_str
+            kof_string_split_str:
+                addi sp, sp, -96
+                sd   ra, 88(sp)
+                sd   s0, 80(sp)
+                sd   s1, 72(sp)
+                sd   s2, 64(sp)
+                sd   s3, 56(sp)
+                sd   s4, 48(sp)
+                sd   s5, 40(sp)
+                sd   s6, 32(sp)
+                sd   s7, 24(sp)
+                sd   s8, 16(sp)
+                mv   s0, a0
+                mv   s1, a1
+                mv   s8, a2
+                li   s2, 0
+                lw   t0, 16(s1)
+                li   t1, 0
+            .Lssr_uloop:
+                bge  t1, t0, .Lssr_udone
+                addi t2, s1, 24
+                add  t2, t2, t1
+                lbu  t2, 0(t2)
+                andi t3, t2, 0xC0
+                li   t4, 0x80
+                beq  t3, t4, .Lssr_unext
+                andi t3, t2, 0xF8
+                li   t4, 0xF0
+                bne  t3, t4, .Lssr_uone
+                addi s2, s2, 2
+                j    .Lssr_unext
+            .Lssr_uone:
+                addi s2, s2, 1
+            .Lssr_unext:
+                addi t1, t1, 1
+                j    .Lssr_uloop
+            .Lssr_udone:
+                li   s3, 1
+                li   s4, 0
+            .Lssr_cloop:
+                blez s8, .Lssr_csearch
+                bge  s3, s8, .Lssr_cdone
+            .Lssr_csearch:
+                mv   a0, s0
+                mv   a1, s1
+                mv   a2, s4
+                call kof_string_index_of2
+                li   t0, -1
+                beq  a0, t0, .Lssr_cdone
+                addi s3, s3, 1
+                mv   s4, a0
+                add  s4, s4, s2
+                j    .Lssr_cloop
+            .Lssr_cdone:
+                mv   a0, s3
+                li   a1, 8
+                call kof_array_alloc
+                mv   s5, a0
+                li   s4, 0
+                li   s6, 0
+            .Lssr_mloop:
+                addi t0, s3, -1
+                bge  s6, t0, .Lssr_mlast
+                mv   a0, s0
+                mv   a1, s1
+                mv   a2, s4
+                call kof_string_index_of2
+                mv   s7, a0
+                mv   a0, s0
+                mv   a1, s4
+                mv   a2, s7
+                call kof_string_substring
+                addi t0, s5, 24
+                slli t1, s6, 3
+                add  t0, t0, t1
+                sd   a0, 0(t0)
+                add  s4, s7, s2
+                addi s6, s6, 1
+                j    .Lssr_mloop
+            .Lssr_mlast:
+                mv   a0, s0
+                mv   a1, s4
+                li   a2, -1
+                call kof_string_substring
+                addi t0, s5, 24
+                slli t1, s6, 3
+                add  t0, t0, t1
+                sd   a0, 0(t0)
+                sw   s3, 16(s5)
+                bnez s8, .Lssr_ret
+                lw   t0, 16(s0)
+                beqz t0, .Lssr_ret
+                mv   t0, s3
+            .Lssr_trim:
+                addi t0, t0, -1
+                bltz t0, .Lssr_zero
+                addi t1, s5, 24
+                slli t2, t0, 3
+                add  t1, t1, t2
+                ld   t1, 0(t1)
+                lw   t2, 16(t1)
+                beqz t2, .Lssr_trim
+                addi t0, t0, 1
+                sw   t0, 16(s5)
+                j    .Lssr_ret
+            .Lssr_zero:
+                sw   zero, 16(s5)
+            .Lssr_ret:
+                mv   a0, s5
                 ld   s8, 16(sp)
                 ld   s7, 24(sp)
                 ld   s6, 32(sp)

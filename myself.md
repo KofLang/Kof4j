@@ -2,11 +2,19 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 16/10 — AVIF slice 3bd 43ª PASSAGEM (CORREÇÃO): a alegação da 42ª ("o escritor é a predição intra") está RETRATADA — a predição é ARITMETICAMENTE EXCLUÍDA. O `av1IntraPredictBlock` JÁ faz clamp (`maxX`/`maxY` = frameW/frameH, `limit = min(x + 2w - 1, maxX)`), e com coordenadas com borda isso é EQUIVALENTE ao clamp da spec. Aritmética: com stride 34 e acessos limitados a linha 32/coluna 32, o índice máximo é 32*34+32 = 1120 << 1156, enquanto o crash é 1186 = linha 34, col 30 ⇒ a predição não pode ser o escritor. O marcador da 42ª era fraco (lançava ANTES da chamada que deveria exonerar ⇒ nunca chegou ao crash real). Fica da 42ª: o croma não escreve buffer de quadro (escritor na LUMA) e os guards de BLOCO/TX excluem bloco/TX fora do quadro. Próximo: RASTRO de marcadores que IMPRIME (não lança) em cada escritor candidato (recon, edge filter intra, filter-intra, coeficientes) — a última linha antes do crash nomeia o escritor.
-doing: §3bd — 32x32: predição EXCLUÍDA por aritmética (máx 1120 << 1186); escritor está na LUMA, com offset além do bloco/TX ou stride errado
-next: §3bd — rastro de marcadores que IMPRIME (não lança) em cada escritor candidato (recon/edge-filter/filter-intra/coeficientes) para a última linha antes do crash nomear o escritor do índice 1186
+last: 16/10 — AVIF slice 3bd 44ª PASSAGEM: com o buffer ALARGADO (linhas extra, stride igual) o 32x32 COMPLETA e mostra o MESMO DESSINCRONISMO do testsrc 64x64: `blocks=8 covered=64 frame=64` mas `symBits=503 payloadBits=1968` (26%) e `Y(0,0)=17` batendo com o ffmpeg ⇒ a falha é uma escrita na linha 34 de um buffer de 34 linhas, e o ESTOURO é SINTOMA do desync (modo/geometria lixo) ⇒ a RAIZ compartilhada é o DESSINCRONISMO. Limitação do probe: amostras Y fixas de 64x64 ⇒ num 32x32 só (0,0) vale. Mudanças temporárias REVERTIDAS; árvore provada, AvifRealFileE2ETest 10/10. Próximo: o desync (discriminante = CONTEÚDO: testsrc mistura modos ANGULARES) ⇒ despejar yMode/uvMode/angleY por bloco.
+doing: §3bd — 32x32: estouro é SINTOMA; raiz compartilhada = o DESSINCRONISMO (26% no 32x32, 54% no 64x64); fixtures exatos são planos/xadrez/paleta
+next: §3bd — despejar yMode/uvMode/angleY por bloco de um testsrc que falha e procurar o modo/ângulo angular que os fixtures exatos nunca exercitam (o desync é o discriminante de CONTEÚDO)
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 16/10 (71ª) — 3bd 44ª: estouro = SINTOMA; a raiz é o DESSINCRONISMO (medido)
+- **Experimento (temporário, revertido):** buffer de quadro do probe com LINHAS EXTRA (`stride*(mh+8)`, stride 34 inalterado) ⇒ a escrita da linha 34 cai DENTRO ⇒ **o crash DESAPARECE e a decodificação COMPLETA**.
+- **Resultado do decode completo (o que importa):** `blocks=8 covered=64 frame=64 overlap=0` (grade cobre o quadro) mas **`symBits=503 payloadBits=1968` = 26%** ⇒ o MESMO DESSINCRONISMO do testsrc-64 (54%); `Y(0,0)=17` BATE com o ffmpeg.
+- **Conclusão:** o 32x32 tem DESYNC + ESTOURO, e o ESTOURO é SINTOMA do desync (modo/geometria lixo escrevendo além do plano com borda) ⇒ **a RAIZ compartilhada é o DESSINCRONISMO**.
+- **Limitação do probe (registrada):** as posições de amostra Y são fixas para 64x64; num 32x32 só `(0,0)` é significativo (as outras imprimem 0 por lerem fora de faixa).
+- **Árvore:** mudanças temporárias revertidas; `AvifRealFileE2ETest` **10/10** (commit docs-only).
+- **Próximo:** o dessincronismo em si. Discriminante = CONTEÚDO: testsrc mistura muitos modos intra ANGULARES sobre barras; os fixtures exatos são plano/xadrez/paleta ⇒ despejar `yMode`/`uvMode`/`angleY` por bloco de um testsrc que falha e procurar o modo/ângulo que os exatos nunca exercitam.
 
 ## Sessão 16/10 (70ª) — 3bd 43ª: CORREÇÃO — a predição está ARITMETICAMENTE EXCLUÍDA (retratação)
 - **Retratação:** a 42ª passagem afirmou "o escritor é a predição intra" — ERRADO. O `av1IntraPredictBlock` JÁ faz clamp: `maxX`/`maxY` (driver = frameW/frameH) e `limit = min(x + 2w - 1, maxX)`; com coordenadas com borda (`x+1`), isso é EQUIVALENTE ao clamp da spec (`maxX - 1`).
