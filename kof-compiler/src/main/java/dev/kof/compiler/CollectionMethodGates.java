@@ -131,6 +131,78 @@ public final class CollectionMethodGates {
                 || t instanceof Type.TypeVariable;
     }
 
+    /**
+     * #845: quantos args LÍDERES de um método de List são índice/count Int —
+     * o lowerer abre um {@code Int?} estreitado neles (a pilha recebia a caixa:
+     * JVM VerifyError no {@code ArrayList.get(I)}, Native o ponteiro como índice).
+     */
+    static int indexArgCount(String listFn) {
+        return switch (listFn) {
+            case "kof_list_get", "kof_list_set", "kof_list_remove", "kof_list_take", "kof_list_drop" -> 1;
+            case "kof_list_sub_list", "kof_list_slice" -> 2;
+            default -> 0;
+        };
+    }
+
+    /**
+     * #845: o arg que GRAVA um elemento (add arg0, set arg1); -1 = nenhum. As
+     * buscas (contains/indexOf) ficam de fora: lá {@code T?} sem guarda é legítimo
+     * (null nunca está numa List&lt;Int&gt;) e abrir a caixa daria NPE no null.
+     */
+    static int elementValueArg(String listFn) {
+        return switch (listFn) {
+            case "kof_list_add" -> 0;
+            case "kof_list_set" -> 1;
+            default -> -1;
+        };
+    }
+
+    /**
+     * #845: na SEMÂNTICA (que enxerga o narrowing), índice/count de List e
+     * elemento gravado numa List de primitivo com tipo {@code T?} são a mesma
+     * violação de null safety de passar {@code Int?} a um formal {@code Int}
+     * (SEM014) — antes eram aceitos em silêncio e quebravam diferente em cada
+     * alvo. Infere os args (ghost-check) e reporta o primeiro.
+     */
+    static void inferListArgs(SemanticAnalyzer sa, MethodCallExpr mc, SymbolTable scope, Type elemType) {
+        String fn = switch (mc.methodName()) {
+            case "get" -> "kof_list_get";
+            case "set" -> "kof_list_set";
+            case "add" -> "kof_list_add";
+            case "remove" -> "kof_list_remove";
+            case "take" -> "kof_list_take";
+            case "drop" -> "kof_list_drop";
+            case "subList" -> "kof_list_sub_list";
+            case "slice" -> "kof_list_slice";
+            default -> "";
+        };
+        int indexArgs = indexArgCount(fn);
+        int elementArg = elemType instanceof Type.PrimitiveType ep && !Type.isVoid(ep) ? elementValueArg(fn) : -1;
+        boolean reported = false;
+        for (int i = 0; i < mc.arguments().size(); i++) {
+            Type t = SemExpressionTyper.inferType(sa, mc.arguments().get(i), scope);
+            if ((i < indexArgs || i == elementArg) && !reported && TypeMetrics.isNullablePrimitive(t)) {
+                reported = reportNullable(sa, mc.arguments().get(i), i + 1, mc.methodName(),
+                        i < indexArgs ? Type.PrimitiveType.INT : elemType, t);
+            }
+        }
+    }
+
+    /** #845: índice de {@code x[i]} (array/List) com tipo {@code T?} sem narrowing — mesma SEM014. */
+    static void subscriptIndex(SemanticAnalyzer sa, ExpressionNode index, Type indexType) {
+        if (TypeMetrics.isNullablePrimitive(indexType)) {
+            reportNullable(sa, index, 1, "[]", Type.PrimitiveType.INT, indexType);
+        }
+    }
+
+    private static boolean reportNullable(SemanticAnalyzer sa, ExpressionNode arg, int n, String what,
+                                          Type expected, Type got) {
+        if (sa.diagnostics() == null) return false;
+        sa.diagnostics().error(arg, "Argument " + n + " of '" + what + "': expected '" + Type.display(expected)
+                + "' but got '" + Type.display(got) + "'", "SEM014");
+        return true;
+    }
+
     /** pagination P1 — take/drop/slice exigem Int count; null = ok. */
     static String countDomainError(String opFn, String mn, java.util.List<Type> argTypes) {
         if (!("kof_list_take".equals(opFn) || "kof_list_drop".equals(opFn)

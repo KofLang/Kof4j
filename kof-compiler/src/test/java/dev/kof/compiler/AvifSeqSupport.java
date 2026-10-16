@@ -169,7 +169,9 @@ final class AvifSeqSupport {
             int fid = readBits(b, bits, 1); bits += 1;
             if (fid == 1) bits += 7;
         }
-        bits += 3;
+        int use128 = readBits(b, bits, 1); bits += 1;
+        int filterIntra = readBits(b, bits, 1); bits += 1;
+        int intraEdge = readBits(b, bits, 1); bits += 1;
         if (reduced == 0) {
             bits += 4;
             int oh = readBits(b, bits, 1); bits += 1;
@@ -227,7 +229,8 @@ final class AvifSeqSupport {
         if (film == 1) throw new AssertionError("film");
         return "p=" + profile + " r=" + reduced + " w=" + maxW + " h=" + maxH
                 + " mono=" + mono + " sub=" + subX + "/" + subY
-                + " depth=" + depth + " still=" + still;
+                + " depth=" + depth + " still=" + still
+                + " fi=" + filterIntra + " ie=" + intraEdge;
     }
 
     static int readBits(byte[] b, int bitPos, int n) {
@@ -321,25 +324,25 @@ final class AvifSeqSupport {
                     + " w=" + m.maxWidth + " h=" + m.maxHeight
                     + " mono=" + of(m.monochrome) + " sub=" + of(m.subsamplingX)
                     + "/" + of(m.subsamplingY) + " depth=" + m.bitDepth
-                    + " still=" + of(m.stillPicture))
+                    + " still=" + of(m.stillPicture) + " fi=" + of(m.enableFilterIntra) + " ie=" + of(m.enableIntraEdgeFilter))
                 var t = readAvifSeqHeader(base + "/nr12t.avif")
                 println("nr12t p=" + t.seqProfile + " r=" + of(t.reduced)
                     + " w=" + t.maxWidth + " h=" + t.maxHeight
                     + " mono=" + of(t.monochrome) + " sub=" + of(t.subsamplingX)
                     + "/" + of(t.subsamplingY) + " depth=" + t.bitDepth
-                    + " still=" + of(t.stillPicture))
+                    + " still=" + of(t.stillPicture) + " fi=" + of(t.enableFilterIntra) + " ie=" + of(t.enableIntraEdgeFilter))
                 var f = readAvifSeqHeader(base + "/flat.avif")
                 println("flat p=" + f.seqProfile + " r=" + of(f.reduced)
                     + " w=" + f.maxWidth + " h=" + f.maxHeight
                     + " mono=" + of(f.monochrome) + " sub=" + of(f.subsamplingX)
                     + "/" + of(f.subsamplingY) + " depth=" + f.bitDepth
-                    + " still=" + of(f.stillPicture))
+                    + " still=" + of(f.stillPicture) + " fi=" + of(f.enableFilterIntra) + " ie=" + of(f.enableIntraEdgeFilter))
                 var r1 = readAvifSeqHeader(base + "/r1.avif")
                 println("r1 p=" + r1.seqProfile + " r=" + of(r1.reduced)
                     + " w=" + r1.maxWidth + " h=" + r1.maxHeight
                     + " mono=" + of(r1.monochrome) + " sub=" + of(r1.subsamplingX)
                     + "/" + of(r1.subsamplingY) + " depth=" + r1.bitDepth
-                    + " still=" + of(r1.stillPicture))
+                    + " still=" + of(r1.stillPicture) + " fi=" + of(r1.enableFilterIntra) + " ie=" + of(r1.enableIntraEdgeFilter))
             }
             """.formatted(base);
     }

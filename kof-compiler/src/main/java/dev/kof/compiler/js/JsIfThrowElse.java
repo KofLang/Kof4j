@@ -70,10 +70,23 @@ public final class JsIfThrowElse {
                 // §701: um label ESTRUTURAL de switch (corpo/default/fim) não é
                 // o fim do else — consumi-lo faz o corpo do default vazar.
                 if (ctx.isSwitchStruct(kl.label())) return out;
+                // §734: o fim (merge) do if ENVOLVENTE não é o fim deste else —
+                // consumi-lo faz o if aninhado roubar o end label e o epílogo
+                // cair dentro do else externo (a função devolve `undefined`).
+                if (ctx.isEnclosingIfEnd(kl.label())) return out;
                 pos[0]++;
                 return out;
             }
             if (op instanceof KofJump) {
+                // §734: um else VAZIO não tem terminador próprio — o Jump
+                // seguinte é a saída da região ENVOLVENTE (o alvo é o fim do if
+                // EXTERNO, ex.: `if (r>12) { return r }` seguido do Jump de
+                // saída do então externo). Consumi-lo aqui ESCONDE o end label
+                // do if envolvente: o if aninhado no else externo o rouba e
+                // absorve o epílogo (a função/loop pula o statement seguinte).
+                // Deixa o dono (parseStatements do então envolvente) registrar
+                // o exit no seu `exits`.
+                if (out.isEmpty()) return out;
                 pos[0]++;
                 return out;
             }
@@ -87,6 +100,10 @@ public final class JsIfThrowElse {
             if (op instanceof KofReturnVoid && pos[0] == ctx.ops.size() - 1) {
                 return out;
             }
+            // §707: a condição (back-edge) de um do-while ATIVO é fronteira —
+            // consumi-la aqui (o corpo do do-while vem antes da condição)
+            // deixava o CJump no nível de statement → COMP002.
+            if (flow.isDoWhileConditionAheadAny(ctx, pos)) return out;
             out.addAll(flow.parseStatement(ctx, pos));
         }
         return out;

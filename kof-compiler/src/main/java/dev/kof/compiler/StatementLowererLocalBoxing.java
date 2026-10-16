@@ -89,10 +89,27 @@ final class StatementLowererLocalBoxing {
                         && dft.returnType().equals(ift.returnType())) {
                     varType = ift;
                 } else {
+                    // #845: `Int j = i` com `i: Int?` estreitado — abre a caixa
+                    // pela origem antes do widening (o slot de i segue boxed)
+                    initT = CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops, initT, varType);
                     driver.emitWideningIfNeeded(ops, initT, varType);
                     // §696: estreita o store num slot Byte/Short (o widening
                     // acima é NO-OP para esses destinos)
                     CompilerEmissionHelpers.emitStoreNarrow(driver, ops, initT, varType);
+                    // §736: um `T?` (Nullable(primitivo)) usado como valor de
+                    // um local PRIMITIVO CRU chega FISICAMENTE boxed — o slot
+                    // de origem é boxed desde D-NULL-INTENT — mas o slot de
+                    // destino é o primitivo crú, então sem o unbox o `istore`
+                    // recebe um Integer (VerifyError "Integer not assignable
+                    // to integer"). Espelho EXATO do caminho de ARGUMENTO
+                    // (#770, CompilerEmission2). Cobre o estreitamento por
+                    // `if (x != null)` e os produtores erased (Map.get) e o
+                    // getter de campo de record nullable.
+                    if (varType instanceof Type.PrimitiveType
+                            && initT instanceof Type.NullableType unboxNt
+                            && unboxNt.inner() instanceof Type.PrimitiveType) {
+                        driver.emitErasureUnboxSoft(ops, varType);
+                    }
                 }
             }
         }

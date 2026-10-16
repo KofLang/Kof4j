@@ -1,0 +1,23 @@
+class Counter {
+    static Int count = 0
+    static Int bump() {
+        count = count + 1
+        return count
+    }
+    static String label(Int n) {
+        return "n=" + n
+    }
+    static Int sum(Int a, Int b) {
+        return a + b
+    }
+}
+main() {
+    println(Counter.bump())
+    println(Counter.bump())
+    println(Counter.count)
+    println(Counter.label(7))
+    println(Counter.sum(3, 4))
+    Counter.count = 10
+    println(Counter.count)
+    println(Counter.bump())
+}

@@ -1,0 +1,72 @@
+package legacy
+
+import legacy.Adapter
+
+// kof.legacy.transport — KofBOL Fatia 7 (plan §20 slice 7; §11): the
+// TRANSPORT abstraction + the honest capability matrix. Separate the axes:
+// the payload moves over a transport; the legacy encoding stays in
+// Legacy/Copybook; the RC discipline stays in Adapter. NOT every transport
+// is wired: the matrix says so explicitly, and using a declared-but-unwired
+// transport refuses LEG018 — never a silent fallback.
+
+record Transport(String kind, String target)
+
+record LegacyPayload(String text, LegacyResponse response)
+
+record Capability(String kind, String reads, String writes, String state)
+
+// capabilityMatrix — the honest per-transport state (§11). `file` is the
+// wired MVP; the others are DECLARED with what they will need (batch stdio
+// via kof.process; TCP behind kof_net_socket_*; HTTP via kof.http; MQ via
+// kof.mq) and refuse LEG018 until a slice wires them.
+List<Capability> capabilityMatrix() {
+    return listOf(
+        Capability("file", "yes", "yes", "wired"),
+        Capability("stdio", "no", "print", "declared"),
+        Capability("tcp", "no", "no", "declared"),
+        Capability("http", "no", "no", "declared"),
+        Capability("mq", "no", "no", "declared"))
+}
+
+Bool isWired(String kind) {
+    var m = capabilityMatrix()
+    var i = 0
+    while (i < m.size) {
+        var c = m.get(i)
+        if (c.kind == kind) {
+            return c.state == "wired"
+        }
+        i = i + 1
+    }
+    return false
+}
+
+// transport — the only constructor that returns: a WIRED transport. Anything
+// else is refused LEG018 (never a silent no-op transport).
+Transport transport(String kind, String target) {
+    if (!isWired(kind)) {
+        throw "transport not wired yet: " + kind + " (LEG018)"
+    }
+    return Transport(kind, target)
+}
+
+// readPayload — the file transport read, wrapped in the RC discipline.
+LegacyPayload readPayload(Transport t) {
+    if (t.kind != "file") {
+        throw "transport not wired yet: " + t.kind + " (LEG018)"
+    }
+    var maybe = File(t.target).readText()
+    if (maybe == null) {
+        throw "cannot read transport target: " + t.target + " (LEG019)"
+    }
+    return LegacyPayload(maybe, response(0, "read " + t.target))
+}
+
+// writePayload — the file transport write, wrapped in the RC discipline.
+LegacyResponse writePayload(Transport t, String text) {
+    if (t.kind != "file") {
+        throw "transport not wired yet: " + t.kind + " (LEG018)"
+    }
+    File(t.target).writeText(text)
+    return response(0, "wrote " + t.target)
+}

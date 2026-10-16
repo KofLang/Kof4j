@@ -1,0 +1,13 @@
+big
+ans
+i=0
+i=1
+i=2
+inner5
+outer1
+q=0
+q=1
+afterloop
+caught=boom
+aftertry
+isB

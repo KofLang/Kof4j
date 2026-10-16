@@ -2338,4 +2338,33 @@ class ConformanceMatrixTest {
                 }
                 """, "2\nname:String\nage:Int", Set.of(), tempDir);
     }
+
+    // TIER 2.7 (D-VALUE-RECORD, step 2.7.5 — célula `valuerecord`): um
+    // `value record` parseia/tipa/executa exatamente como `record` + o
+    // modificador `value` (2.7.1 = front-end contextual; 2.7.2 = a flag no
+    // ClassSymbol/IRClass; 2.7.3 = Native mantém o heap atual; 2.7.4 = JS
+    // congela o objeto). A semântica observável é idêntica nos 4 alvos.
+    @Test
+    void conformanceValueRecord(@TempDir Path tempDir) throws IOException {
+        // Campos Int: a formatação de Float no toString do record tem a
+        // divergência pré-existente do bug 44 (floatprint, KofJS excluído lá
+        // também) — esta célula é o contrato do VALUE RECORD, não a impressão
+        // de Float.
+        matrix("valuerecord", """
+                value record Vec2(Int x, Int y)
+                main() {
+                    var a = Vec2(1, 2)
+                    var b = Vec2(1, 2)
+                    var c = Vec2(3, 4)
+                    println(a.x)
+                    println(a.y)
+                    println(a == b)
+                    println(a == c)
+                    println(a)
+                    var l = listOf(a, c)
+                    println(l.size())
+                    println(l.get(1).x)
+                }
+                """, "1\n2\ntrue\nfalse\nVec2[x=1, y=2]\n2\n3", Set.of(), tempDir);
+    }
 }

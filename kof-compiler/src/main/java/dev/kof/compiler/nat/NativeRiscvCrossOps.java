@@ -327,14 +327,46 @@ public final class NativeRiscvCrossOps {
                 boolean charArgs = first instanceof Type.PrimitiveType pt
                         && "char".equals(Type.canonicalPrimitiveName(pt.name()));
                 sb.append("    pop a2\n    pop a1\n    pop a0\n");
-                sb.append("    call ").append(charArgs ? "kof_string_replace_char" : "kof_string_replace").append("\n");
+                if (!charArgs) {
+                    // §738 (face CROSS): agulha VAZIA -> helper por code point
+                    // (o kof_string_replace nunca casaria 0 bytes -> no-op).
+                    int rseq = nb.inlineSeq++;
+                    String rep = ".Lkrr_rep" + rseq;
+                    String rdone = ".Lkrr_done" + rseq;
+                    sb.append("    lw   t0, 16(a1)\n");
+                    sb.append("    bnez t0, " + rep + "\n");
+                    sb.append("    mv   a1, a2\n");
+                    sb.append("    call kof_string_replace_empty\n");
+                    sb.append("    j    " + rdone + "\n");
+                    sb.append(rep + ":\n");
+                    sb.append("    call kof_string_replace\n");
+                    sb.append(rdone + ":\n");
+                    other.pushRiscv(sb, "a0");
+                    return;
+                }
+                sb.append("    call kof_string_replace_char\n");
                 other.pushRiscv(sb, "a0");
                 return;
             }
             // split(sep) -> String[] (array de KofString)
             if ("split".equals(mn) && kc.parameterTypes().size() == 1) {
+                // §738 (face CROSS): separador VAZIO (`split("")`) — o
+                // kof_string_split recebia sep=0 (NUL), que nunca casa -> 1
+                // elemento; o ramo vazio vai p/ o helper por code point. O
+                // caminho do separador não-vazio fica INTACTO. Labels únicos
+                // por call site (um 2º split no mesmo programa colidiria).
+                int seq = nb.inlineSeq++;
+                String split = ".Lksp_split" + seq;
+                String done = ".Lksp_done" + seq;
                 sb.append("    pop a1\n    pop a0\n");
+                sb.append("    lw   t0, 16(a1)\n");
+                sb.append("    bnez t0, " + split + "\n");
+                sb.append("    li   a1, 0\n");
+                sb.append("    call kof_string_split_chars\n");
+                sb.append("    j    " + done + "\n");
+                sb.append(split + ":\n");
                 sb.append("    call kof_string_split\n");
+                sb.append(done + ":\n");
                 other.pushRiscv(sb, "a0");
                 return;
             }
@@ -342,8 +374,18 @@ public final class NativeRiscvCrossOps {
             // limit (contrato JDK: limit>0 = o RESTO no último elemento);
             // antes desta face a sobrecarga de 2 args caía no path genérico.
             if ("split".equals(mn) && kc.parameterTypes().size() == 2) {
+                int seq = nb.inlineSeq++;
+                String split = ".Lkspl_split" + seq;
+                String done = ".Lkspl_done" + seq;
                 sb.append("    pop a2\n    pop a1\n    pop a0\n");
+                sb.append("    lw   t0, 16(a1)\n");
+                sb.append("    bnez t0, " + split + "\n");
+                sb.append("    mv   a1, a2\n");
+                sb.append("    call kof_string_split_chars\n");
+                sb.append("    j    " + done + "\n");
+                sb.append(split + ":\n");
                 sb.append("    call kof_string_split_limit\n");
+                sb.append(done + ":\n");
                 other.pushRiscv(sb, "a0");
                 return;
             }

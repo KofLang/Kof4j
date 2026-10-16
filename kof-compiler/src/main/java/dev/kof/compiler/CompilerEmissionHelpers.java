@@ -137,9 +137,30 @@ public final class CompilerEmissionHelpers {
     static int emitArgsCoercingValue(CompilerDriver driver, MethodCallExpr mc,
             List<KofOperation> ops, String owner, int localIdx, List<IRLocalVariable> locals,
             List<Type> argTypes, Type slotType, int valIdx, boolean listSite) {
+        return emitArgsCoercingValue(driver, mc, ops, owner, localIdx, locals,
+                argTypes, slotType, "", valIdx, listSite);
+    }
+
+    /**
+     * #845: num método de List ({@code listFn}), um {@code Int?} estreitado abre a
+     * caixa antes da chamada e o argType acompanha o que ficou na pilha — nos
+     * ÍNDICES Int ({@link CollectionMethodGates#indexArgCount}) e no VALOR de
+     * elemento primitivo ({@link CollectionMethodGates#elementValueArg}): o slot
+     * nativo de List é cru (§253, o ponteiro da caixa nunca casa no cmpq) e o box
+     * JVM segue o argType (valueOf(I) sobre a referência era VerifyError).
+     */
+    static int emitArgsCoercingValue(CompilerDriver driver, MethodCallExpr mc,
+            List<KofOperation> ops, String owner, int localIdx, List<IRLocalVariable> locals,
+            List<Type> argTypes, Type slotType, String listFn, int valIdx, boolean listSite) {
+        int indexArgs = CollectionMethodGates.indexArgCount(listFn);
+        int elementArg = CollectionMethodGates.elementValueArg(listFn);
         for (int ai = 0; ai < mc.arguments().size(); ai++) {
             ExpressionNode arg = mc.arguments().get(ai);
             localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
+            if (ai < argTypes.size() && (ai < indexArgs || ai == elementArg)) {
+                argTypes.set(ai, emitNarrowedNullableUnbox(driver, ops, argTypes.get(ai),
+                        ai < indexArgs ? Type.PrimitiveType.INT : slotType));
+            }
             if (ai == valIdx && coerceStoreWiden(driver, ops, argTypes.get(ai), slotType, listSite)) {
                 argTypes.set(valIdx, slotType instanceof Type.NullableType nt ? nt.inner() : slotType);
             }
@@ -250,6 +271,32 @@ public final class CompilerEmissionHelpers {
             return;
         }
         ops.add(new KofCall(primitive, "kof_unbox", List.of(boxed), primitive, KofCallKind.FUNCTION));
+    }
+
+    /**
+     * #845: consumidor PRIMITIVO (store num local, return, formal, índice de
+     * List) recebendo um {@code T?} primitivo que o frontend estreitou
+     * ({@code if (i != null) { Int j = i }}). O estreitamento é semântico: o
+     * slot continua Nullable — boxed desde o D-NULL-INTENT — e o valor chega
+     * como a REFERÊNCIA do wrapper (JVM: istore/ireturn sobre Integer =
+     * VerifyError; Native: o ponteiro da caixa lido como número). Abre a caixa
+     * pelo inner da ORIGEM (soft no native, §284-map) e devolve o tipo agora
+     * na pilha; o widening para o destino vem DEPOIS, no chamador
+     * ({@code Int? → Long} = intValue + I2L — abrir pelo destino era o
+     * {@code checkcast Long} → ClassCastException). Destino Nullable/referência
+     * ou origem já crua: no-op, devolve {@code from}. A ACEITAÇÃO (só com
+     * narrowing) é da semântica — aqui só se conserta a representação.
+     */
+    static Type emitNarrowedNullableUnbox(CompilerDriver driver, List<KofOperation> ops, Type from, Type to) {
+        if (!TypeMetrics.isNullablePrimitive(from)
+                || !(to instanceof Type.PrimitiveType tp) || Type.isVoid(tp)) {
+            return from;
+        }
+        Type inner = ((Type.NullableType) from).inner();
+        // Char? é boxed como Integer (boxPrimitive/kof_box: param INT) — abre como
+        // Int (Integer.intValue()I; `intValue()C` não existe); na pilha char já é int
+        emitErasureUnboxSoft(driver, ops, TypeMetrics.isCharType(inner) ? Type.PrimitiveType.INT : inner);
+        return inner;
     }
 
     /**

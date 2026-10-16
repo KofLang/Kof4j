@@ -352,8 +352,22 @@ public class SymbolTable {
         }
     }
 
+    /**
+     * @param isValueRecord TIER 2.7 (D-VALUE-RECORD): a declaração era
+     * {@code value record} — semântica de valor, sem identidade observável.
+     * O ABI JVM é o record comum (igualdade estrutural já é o contrato do
+     * record); a flag é o que 2.7.3/2.7.4 (Native by-value, JS frozen) e o
+     * erro de compilação futuro ("uso onde identidade é exigida") consultam.
+     */
     record ClassSymbol(String name, String packageName, String superClass,
-                       List<String> interfaces, SymbolTable members) implements Symbol {
+                       List<String> interfaces, SymbolTable members,
+                       boolean isValueRecord) implements Symbol {
+        /** Compatibilidade: os sites que não são de value record passam false. */
+        ClassSymbol(String name, String packageName, String superClass,
+                    List<String> interfaces, SymbolTable members) {
+            this(name, packageName, superClass, interfaces, members, false);
+        }
+
         @Override
         public Type type() {
             return new Type.ClassType(packageName, name, List.of());

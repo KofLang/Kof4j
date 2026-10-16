@@ -84,9 +84,13 @@ public final class DeadCodeElimination implements IrPass {
             }
             if (op instanceof KofStoreLocal sl) {
                 LiveStore p = live.get(sl.index());
-                if (p != null) {
+                if (p != null && p.producer() != null) {
                     // the previous store's value was never read -> both ops are dead.
-                    if (p.producer() != null) dead.add(p.producer());
+                    // A store is ONLY removable together with its producer: removing
+                    // a store whose value came from an opaque producer (a call, a
+                    // dup, an arithmetic chain) would leave that pushed value on the
+                    // stack, unbalancing the op stream (ASM frame crash).
+                    dead.add(p.producer());
                     dead.add(p.store());
                 }
                 boolean pureProducer = isPureProducer(prev);

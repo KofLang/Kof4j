@@ -1,0 +1,63 @@
+package financial
+
+import financial.Ledger
+
+// kof.financial.ledger.store-db — the DB-PAPersistED ledger store (plan
+// §5.2: `DbLedgerStore` over `kof.db`). Journals are append-only ROWS; the
+// balance is DERIVED by SQL (the same rule as the in-memory store). Values
+// are integer or library-controlled identifiers; the identifiers are
+// single-quote escaped at the boundary.
+
+record DbLedgerStore(String url)
+
+// initLedger — the DDL (idempotent: `if not exists`).
+DbLedgerStore initLedger(String url) {
+    var db = db.connect(url)
+    db.execute(db, "create table if not exists ledger_journal (id text primary key, correlation_id text, posted_at integer)")
+    db.execute(db, "create table if not exists ledger_entry (journal_id text, account_id text, direction text, minor integer, currency text)")
+    db.close(db)
+    return DbLedgerStore(url)
+}
+
+String sqlText(String raw) {
+    return raw.replace("'", "''")
+}
+
+// appendDb — one ENTRY row (the caller composes the journal's entries; the
+// journal row should exist first for the correlationId join).
+DbLedgerStore appendDb(DbLedgerStore s, String journalId, String accountId,
+                       String direction, Long minor, String currency) {
+    var db = db.connect(s.url)
+    db.execute(db, "insert into ledger_entry (journal_id, account_id, direction, minor, currency) values ('"
+        + sqlText(journalId) + "', '" + sqlText(accountId) + "', '"
+        + sqlText(direction) + "', " + minor + ", '" + sqlText(currency) + "')")
+    db.close(db)
+    return s
+}
+
+// journalDb — the journal row.
+DbLedgerStore journalDb(DbLedgerStore s, String journalId, String correlationId, Long atMillis) {
+    var db = db.connect(s.url)
+    db.execute(db, "insert into ledger_journal (id, correlation_id, posted_at) values ('"
+        + sqlText(journalId) + "', '" + sqlText(correlationId) + "', " + atMillis + ")")
+    db.close(db)
+    return s
+}
+
+record LedgerBalRow(Long bal)
+
+// postedBalanceDb — DERIVED by SQL: debits minus credits for one account.
+// The raw db.query row is a JSON String (SEM066): decode it into the row
+// record. (The TYPED db.query<LedgerBalRow> is a compiler-lane gap when the
+// record lives in a LIB file — the emitter loses the class.)
+Long postedBalanceDb(String url, String accountId) {
+    var db = db.connect(url)
+    var rows = db.query(db, "select coalesce(sum(case when direction = 'debit' then minor else -minor end), 0) as bal"
+        + " from ledger_entry where account_id = '" + sqlText(accountId) + "'")
+    var total = 0L
+    if (rows.size > 0) {
+        total = json.decode<LedgerBalRow>(rows.get(0)).bal
+    }
+    db.close(db)
+    return total
+}

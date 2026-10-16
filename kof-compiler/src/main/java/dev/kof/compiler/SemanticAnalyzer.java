@@ -428,6 +428,9 @@ public class SemanticAnalyzer {
 
     /** X5.3: variâncias declaradas do tipo, ou {@code null} sem type-params no módulo. */
     java.util.List<String> varianceOf(String name) { return typeRegistry.varianceOf(name); }
+
+    /** §713: nomes dos type-params declarados do tipo (ordem), vazio se não-genérico. */
+    java.util.List<String> typeParamNames(String name) { return typeRegistry.typeParamNames(name); }
     // REFACTOR-500 (split p/ SemDeclarationAnalyzer): mutadores de ESTADO DE
     // CONTEXTO — a mutacao acontece no dono do estado (mesmo padrao da fase 6);
     // os satellites dirigem via estes setters.

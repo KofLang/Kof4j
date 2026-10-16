@@ -1,6 +1,7 @@
 package image
 
 import image.Av1Block
+import image.Av1DecodeTileRecon
 import image.Av1ModeCdf
 import image.Av1Symbol
 
@@ -44,6 +45,7 @@ class Av1Partition {
     Int[] left
     List<Int[]> store
     List<Int[]> steps
+    Av1TileDecode? decoder
 
     constructor(Int[] data, Int miCols, Int miRows) {
         this.sym = Av1Symbol(data)
@@ -77,6 +79,16 @@ class Av1Partition {
     // the reader it was GIVEN rather than one it built itself.
     Int position() {
         return this.sym.position()
+    }
+
+    // Binds a BLOCK DECODER: from here on every `decode_block` step decodes its
+    // block IMMEDIATELY, before the walk reads the next partition symbol. That is
+    // libaom's own interleaving — `decode_partition` calls `decode_block` inline
+    // (av1/decoder/decodeframe.c:1296) — and it is the only way to stay in sync
+    // with a real tile stream, whose partition symbols and block payloads share
+    // one reader. With no decoder bound the walk stays a pure partition walk.
+    void bindDecoder(Av1TileDecode tile) {
+        this.decoder = tile
     }
 
     // Walks the whole frame, one 64x64 superblock at a time, zeroing the left
@@ -150,6 +162,15 @@ class Av1Partition {
         s[3] = value
         s[4] = partition
         this.steps.add(s)
+        // The `decode_block` call happens RIGHT HERE when a decoder is bound: the
+        // block payload must be consumed before the next partition symbol, or the
+        // two readers drift apart.
+        if (kind == 1) {
+            var dec = this.decoder
+            if (dec != null) {
+                dec.decodeBlock(r, c, value)
+            }
+        }
     }
 
     void decodePartition(Int r, Int c, Int bs) {

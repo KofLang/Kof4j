@@ -64,7 +64,12 @@ JsIr.JsStatement parse(MethodCtx ctx, int[] pos) {
             }
         }
         ctx.currentReturnFinallyLabel = myReturnFinally;
+        // §703: com return-finally, o corpo do try é parseado com o flag ligado
+        // para que os stores em `#retVal` virem `return X` (try/finally nativo).
+        boolean prevInRf = ctx.inReturnFinallyTry;
+        ctx.inReturnFinallyTry = myReturnFinally != null;
         List<JsIr.JsStatement> tryBody = flow.parseStatements(ctx, pos, Set.of(ts.endLabel()), new ArrayList<>());
+        ctx.inReturnFinallyTry = prevInRf;
         // DD-01: com return no corpo (sem catch), o body para no primeiro
         // region-exit (jump p/ returnFinally) e sobra o jump do fluxo normal
         // p/ o finally — consumir jumps soltos até o endLabel/TryEnd/CatchStart.
@@ -105,7 +110,12 @@ JsIr.JsStatement parse(MethodCtx ctx, int[] pos) {
             }
             pos[0]++;
             String param = p.expr.localName(ctx, cs.localIndex());
+            // §703: um `return` DENTRO do catch também usa o `#retVal`/epílogo
+            // return-finally — o corpo do catch precisa do mesmo flag do try.
+            boolean prevInCatch = ctx.inReturnFinallyTry;
+            ctx.inReturnFinallyTry = myReturnFinally != null;
             List<JsIr.JsStatement> catchBody = flow.parseStatements(ctx, pos, Set.of(), new ArrayList<>());
+            ctx.inReturnFinallyTry = prevInCatch;
             catches.add(new JsIr.JsCatchClause(param, catchBody));
         }
         if (pos[0] >= ctx.ops.size() || !(ctx.ops.get(pos[0]) instanceof KofTryEnd)) {
@@ -188,7 +198,16 @@ JsIr.JsStatement parse(MethodCtx ctx, int[] pos) {
                     && epilogue.get(epiStart).equals(finallyBody.get(epiStart))) {
                 epiStart++;
             }
-            returnFinally.addAll(epilogue.subList(epiStart, epilogue.size()));
+            // §703: com a conversão #retVal->return, o try/finally NATIVO do JS
+            // já roda o finally e propaga o return — o epílogo inline é
+            // REDUNDANTE (e fora de loop cai no tail, dentro de loop roda a cada
+            // iteração devolvendo `undefined`). Descartar.
+            if (myReturnFinally == null) {
+                returnFinally.addAll(epilogue.subList(epiStart, epilogue.size()));
+            }
+            // §703: quando convertemos (#retVal->return), o epílogo é
+            // descartado — o try/finally NATIVO do JS roda o finally e propaga
+            // o return. Os ops já foram consumidos pelo parse acima.
             // o Label(done) do try encerra o epílogo — consumir (não é loop:
             // nenhum jump posterior aponta p/ ele depois do epílogo parseado).
             // §617 face B: NÃO consumir se for o endLabel de um try ENVOLVENTE

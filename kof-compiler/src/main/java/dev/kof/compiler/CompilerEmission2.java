@@ -61,6 +61,12 @@ public final class CompilerEmission2 {
             }
             localIdx = ExpressionLowerer.emitExpression(driver, args.get(i), ops, owner, localIdx, locals);
             Type argType = ExpressionTyper.inferExprType(driver, args.get(i), locals);
+            // #770/#845: formal CRU recebendo arg Nullable(primitivo) estreitado
+            // (`math.abs(x)`, `asLong(i)` com `i: Int?` sob `if (i != null)`): o
+            // arg chega como a referência do wrapper (slot boxed, D-NULL-INTENT).
+            // Abre pelo inner da ORIGEM e só então alarga — abrir pelo formal
+            // fazia `checkcast Long` sobre o Integer real (CCE, `Int? → Long`).
+            argType = CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops, argType, formal);
             if (formal != null && formal instanceof Type.PrimitiveType
                     && argType instanceof Type.PrimitiveType
                     && !BuiltinTypes.isString(formal)) {
@@ -82,16 +88,6 @@ public final class CompilerEmission2 {
             if (formal instanceof Type.NullableType formalNt && formalNt.inner() instanceof Type.PrimitiveType
                     && argType instanceof Type.PrimitiveType) {
                 TypeEmitter.boxPrimitive(ops, formal);
-            }
-            // #770: espelho do caso acima — formal CRU recebendo arg
-            // Nullable(primitivo) narrowed (`math.abs(x)` com `x: Int?` sob
-            // `if (x != null)`): o arg chega como referencia do wrapper (o
-            // slot de Int? e boxed, D-NULL-INTENT) e o invokestatic espera o
-            // primitivo cru; sem o unbox simetrico o JVM da VerifyError
-            // "Integer not assignable to integer".
-            if (formal instanceof Type.PrimitiveType && argType instanceof Type.NullableType nt
-                    && nt.inner() instanceof Type.PrimitiveType) {
-                driver.emitErasureUnboxSoft(ops, formal);
             }
             if (formal != null && BuiltinTypes.isString(formal)
                     && argType instanceof Type.PrimitiveType pt

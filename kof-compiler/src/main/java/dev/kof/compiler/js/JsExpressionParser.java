@@ -112,6 +112,12 @@ JsIr.JsStatement storeLocalStatement(MethodCtx ctx, KofStoreLocal sl, JsIr.JsExp
         // DD-01 (bug 45): #retVal é sempre ATRIBUIÇÃO — a declaração (let)
         // sobe para o topo do método via predecl em JsMethodParser, pois o
         // epílogo return-finally lê o slot FORA do bloco do try.
+        // §703: dentro do corpo de um try COM return-finally, o store em
+        // `#retVal` é o valor de um `return` — emite `return X` para o
+        // try/finally NATIVO do JS rodar o finally no caminho do return.
+        if ("#retVal".equals(ctx.rawLocalNames.get(sl.index())) && ctx.inReturnFinallyTry) {
+            return new JsIr.JsReturn(value);
+        }
         if (!"#retVal".equals(ctx.rawLocalNames.get(sl.index())) && ctx.declared.add(sl.index())) {
             return new JsIr.JsVarDecl(name, value, false);
         }

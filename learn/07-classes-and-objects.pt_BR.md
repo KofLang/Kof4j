@@ -30,6 +30,20 @@ de `Map` e como valor de `containsValue` — no JVM, Native (x86-64, riscv64,
 aarch64) e JS igualmente. O `equals` sintetizado recursa em campos record/classe
 aninhados; o `hashCode` é por conteúdo para String, Double e records aninhados.
 
+### `value record` — mesmo modelo de dados, sem identidade (TIER 2.7, 14/10)
+
+```kf
+value record Vec2(Float x, Float y)
+```
+
+Um `value record` comporta-se **exatamente como `record`** (campos, `==`
+estrutural, `toString` — verificado nos quatro alvos) mas declara **sem
+identidade de objeto** (`D-VALUE-RECORD`; `value` aplica-se só a `record`,
+coleções guardam boxado). Por alvo: JVM = a classe record comum, Native = a
+representação de heap atual, JS = o objeto é **congelado**. `value` é uma
+keyword *contextual*: só antes de `record` — em qualquer outro lugar `value`
+continua identificador comum.
+
 Records podem ter métodos:
 
 ```kf

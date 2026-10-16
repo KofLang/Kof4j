@@ -479,6 +479,7 @@ public final class JsRuntimeCore {
                     ".kof-column { display:flex; flex-direction:column; gap:8px; }",
                     ".kof-row { display:flex; flex-direction:row; flex-wrap:wrap;",
                     "  gap:8px; align-items:flex-start; }",
+                    ".kof-box { display:flex; gap:8px; }",
                     ".kof-button { font-size:13px; padding:6px 14px; cursor:pointer;",
                     "  background:var(--panel); color:var(--fg);",
                     "  border:1px solid var(--border); border-radius:6px; }",
@@ -488,6 +489,7 @@ public final class JsRuntimeCore {
                     "  border:1px solid var(--border); border-radius:6px; }",
                     ".kof-input { width:100%; }",
                     ".kof-view { box-sizing:border-box; }",
+                    ".kof-canvas { align-self:flex-start; max-width:100%; height:auto; }",
                     ".kof-window { box-sizing:border-box; padding:16px; border-radius:8px;",
                     "  border:1px solid var(--border); background:var(--bg);",
                     "  display:flex; flex-direction:column; gap:8px; }"

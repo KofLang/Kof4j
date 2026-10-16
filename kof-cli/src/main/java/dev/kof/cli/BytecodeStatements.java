@@ -28,6 +28,14 @@ final class BytecodeStatements {
      * Por-rodada (limpo no fim de recoverStatements).
      */
     static java.util.Set<Integer> skipFirst;
+
+    // Fase E (14/10): os slots de StringBuilder desta recuperação (o idioma
+    // Kof é concat; StringBuilder não existe — SEM015). Reset por método.
+    static java.util.Set<Integer> builderSlots = new HashSet<>();
+
+    // Fase E (14/10): quantas insns iniciais do bloco já foram consumidas
+    // (o binding do for-each: aload it; next; checkcast; astore x = 4).
+    static java.util.Map<Integer, Integer> skipCount = new HashMap<>();
     /**
      * Fase C (13/10): o alvo da SAÍDA do loop aberto — um bloco de goto único
      * para ele É o `break`. Por-rodada (salvo/restaurado por loop aninhado).
@@ -35,8 +43,11 @@ final class BytecodeStatements {
     static int currentLoopExit = -1;
     /** Atribuição com declaração `var` na 1ª escrita do slot. */
     static String assign(int slot, String value, BytecodeFrame frame, Set<Integer> declared) {
-        String name = BytecodeDecoder.slotName(slot, frame);
-        if (!declared.contains(slot)) {
+        String name = BytecodeDecoderStack.slotName(slot, frame);
+        // Fase E (14/10): slot NOMEADO (parâmetro/this) NUNCA redeclara — o
+        // `var arg1 = ...` criava local de BLOCO e o parâmetro nunca
+        // atualizava (medido: o gcd decompilado rodava para sempre, R6).
+        if (!frame.isNamedSlot(slot) && !declared.contains(slot)) {
             declared.add(slot);
             return "var " + name + " = " + value;
         }
@@ -61,6 +72,10 @@ final class BytecodeStatements {
         if (skipFirst != null && skipFirst.contains(b.start) && !seq.isEmpty()) {
             return seq.subList(1, seq.size());
         }
+        if (skipCount != null && skipCount.containsKey(b.start)) {
+            int n = Math.min(skipCount.get(b.start), seq.size());
+            return seq.subList(n, seq.size());
+        }
         return seq;
     }
 
@@ -74,16 +89,44 @@ final class BytecodeStatements {
         if (sw != null) return sw;
         // Fase C (statement-switch): só tenta se o de expressão recusou
         // (saída do de expressão preservada byte-idêntica onde aceitava).
+        // Fase E (14/10): o switch de STRING (o desdobramento hashCode/
+        // equals do javac) antes do switch comum — o hashCode recusaria
+        // no linearExpr e o método inteiro stubaria.
+        List<String> ssw = BytecodeSwitch.stringSwitchExpr(code, insns, cp, frame);
+        if (ssw != null) return ssw;
+        // Fase E (14/10): a comparação por sinal COM prólogo (o inCircle:
+        //  com d computado no prólogo)
+        List<String> cmpP = BytecodeDecoderCond.comparisonReturnPrologue(insns, cp, frame);
+        if (cmpP != null) return cmpP;
         List<String> sws = BytecodeSwitch.recoverSwitchStmt(code, insns, cp, frame);
         if (sws != null) return sws;
         if (handlers != null && handlers.length > 0) {
             List<String> fin = recoverFinally(insns, cp, frame, handlers);
             if (fin != null) return fin;
+            // Fase E (15/10): o finally com valor (a fatia nomeada)
+            List<String> fs = finallyStored(insns, cp, frame, handlers);
+            if (fs != null) return fs;
             List<String> tc = tryCatch(insns, cp, frame, handlers);
             if (tc != null) return tc;
+            // Fase E (15/10): o try/catch NÃO-LINEAR (o if dentro do try —
+            // a fatia nomeada)
+            List<String> tcs = tryCatchStored(insns, cp, frame, handlers);
+            if (tcs != null) return tcs;
+            // Fase E (15/10): handlers NÃO-recuperados → stub honesto. O
+            // walk cego (que ignora a tabela de handlers) emitia o catch
+            // DERRUBADO e a cauda absorvida no else — código compilável
+            // ERRADO (medido no Res.describe: `describe(-3)` THREW onde o
+            // Java imprime `bad!`; e o Res.withFinally perdeu o return).
+            // R6: recusa antes do código errado.
+            refuse("handlers-unrecovered");
+            return null;
         }
         skipFirst = null;   // por-método: nenhum skip vaza entre corpos
         currentLoopExit = -1;
+        builderSlots = new HashSet<>();
+        BytecodeKofTypes.resetArrTmps();
+        if (skipCount == null) skipCount = new HashMap<>();
+        skipCount.clear();
         List<BytecodeReader.Block> blocks = BytecodeReader.cfg(insns, new int[0]);
         if (blocks.isEmpty()) { refuse("cfg-empty"); return null; }
         if (refusalSink != null) {
@@ -138,6 +181,177 @@ final class BytecodeStatements {
         out.add("} catch (String e) {");
         out.addAll(handlerStmts);
         out.add("}");
+        return out;
+    }
+
+    /**
+     * Fase E (15/10): o try/catch NÃO-LINEAR — os DOIS lados terminam na
+     * store do MESMO slot (o local hoisted `var v = ""`), o handler termina
+     * em goto J e o tail [J..) usa o slot. Shape medido no Res.describe
+     * (`String base; try { if (c<0) throw ..; base = "ok:"+c; } catch (..)
+     * { base = "bad"; } return base + "!"`). R6: o valor do handler tem que
+     * ser ldc-String e ambos os stores astore — qualquer desvio → null (o
+     * stub honesto do caller).
+     */
+    static List<String> tryCatchStored(List<BytecodeReader.Insn> insns, String[] cp,
+                                              BytecodeFrame frame, int[][] handlers) {
+        if (handlers.length != 1) return null;
+        int start = handlers[0][0];
+        int handler = handlers[0][2];
+        List<BytecodeReader.Insn> handlerSeq = BytecodeSwitch.range(insns, handler, Integer.MAX_VALUE);
+        if (handlerSeq.size() < 3) return null;
+        // o strip do bind implícito da exceção
+        int hop = handlerSeq.get(0).opcode();
+        if (!(hop == 0x3a || (hop >= 0x4b && hop <= 0x4e))) return null;
+        // o core do handler = [ldc-String, astore S] (o valor = literal; R6)
+        BytecodeReader.Insn hVal = handlerSeq.get(1);
+        if (hVal.opcode() != 0x12 && hVal.opcode() != 0x13) return null;
+        String lit = BytecodeCp.ldc(cp, hVal.operands()[0]);
+        if (lit == null || !lit.startsWith("\"")) return null;
+        BytecodeReader.Insn hStore = handlerSeq.get(2);
+        int hop2 = hStore.opcode();
+        if (!(hop2 == 0x3a || (hop2 >= 0x4b && hop2 <= 0x4e))) return null;
+        // Fase E (15/10): o slot do VALOR do handler (o bind da exceção é
+        // OUTRO slot — o guard antigo comparava os dois e recusava sempre;
+        // medido no Res.describe: o e=slot 2, o base=slot 1)
+        int hSlot = hop2 == 0x3a ? hStore.operands()[0] : hop2 - 0x4b;
+        // o try region tem uma store do MESMO slot (o binding do valor)
+        List<BytecodeReader.Insn> trySeq = BytecodeSwitch.range(insns, start, handler);
+        boolean tryStores = false;
+        for (BytecodeReader.Insn ti : trySeq) {
+            int tp = ti.opcode();
+            if (tp == 0x3a || (tp >= 0x4b && tp <= 0x4e)) {
+                int ts = tp == 0x3a ? ti.operands()[0] : tp - 0x4b;
+                if (ts == hSlot) { tryStores = true; break; }
+            }
+        }
+        if (!tryStores) return null;
+        // Fase E (15/10): o HANDLER-AWARE — o main-flow struct sobre o
+        // MÉTODO INTEIRO (o bloco do handler fica sem preds no CFG e nunca
+        // é andado; os braços convergem no join REAL). O transform: o out
+        // tem que terminar [.., "return X", "}"] — o return SAI do try e
+        // vira o tail (o Kof: try { if/throw; v = X } catch { v = lit };
+        // return v + ...). Medido no Res.describe.
+        var declared = new HashSet<Integer>();
+        declared.add(hSlot);
+        List<String> main = BytecodeStatementsRecover.recoverRegionStruct(insns, cp, frame, declared,
+                new int[]{handler});
+        if (main == null || main.size() < 3) return null;
+        if (!main.get(main.size() - 1).equals("}")) return null;
+        String ret = main.get(main.size() - 2);
+        if (!ret.startsWith("return ")) return null;
+        String name = BytecodeDecoderStack.slotName(hSlot, frame);
+        List<String> out = new ArrayList<>();
+        out.add("var " + name + " = \"\"");
+        out.add("try {");
+        for (int i = 0; i < main.size() - 2; i++) out.add(main.get(i));
+        // o } do else-block (o transform extraiu o return que estava DEPOIS
+        // dele; o fecho do else fica DENTRO do try — medido: sem ele o
+        // `} catch` fechava o else pela metade = não-compilável)
+        out.add("}");
+        out.add("} catch (String e) {");
+        out.add("    " + name + " = " + lit);
+        out.add("}");
+        out.add(ret);
+        return out;
+    }
+
+    /**
+     * Fase E (15/10): o FINALLY com valor — o shape do javac (o corpo do
+     * finally DUPLICADO: a cópia no main-flow + a cópia no handler catch-all
+     * seguida de aload/athrow). O main-flow struct sobre o método inteiro
+     * recupera a cópia do main; o handler dá a cópia canônica; o GUARD R6:
+     * as duas cópias têm que ser IDÊNTICAS (o texto exato) e a cópia do
+     * main tem que estar imediatamente antes do return. Kof: try/finally
+     * nativo (medido: compila e roda, 21).
+     */
+    static List<String> finallyStored(List<BytecodeReader.Insn> insns, String[] cp,
+                                             BytecodeFrame frame, int[][] handlers) {
+        if (handlers.length != 1 || handlers[0].length < 4 || handlers[0][3] != 1) return null;
+        int handler = handlers[0][2];
+        List<BytecodeReader.Insn> handlerSeq = BytecodeSwitch.range(insns, handler, Integer.MAX_VALUE);
+        if (handlerSeq.size() < 3) return null;
+        // Fase E (15/10): o handler NAO vai ate o fim do metodo — o JOIN
+        // (o return do main) vem DEPOIS do re-throw (medido no withFinally:
+        // o range(29, MAX) incluia o [iload, ireturn] do join e o 'last'
+        // era o IRETURN, nao o athrow). O re-throw = o ULTIMO athrow do
+        // handler; o core = [bind strip, corpo, aload, athrow].
+        int athIdx = -1;
+        for (int i = handlerSeq.size() - 1; i >= 0; i--) {
+            if (handlerSeq.get(i).opcode() == 0xbf) { athIdx = i; break; }
+        }
+        if (athIdx < 2) return null;
+        int pen = handlerSeq.get(athIdx - 1).opcode();
+        if (!(pen == 0x2a || pen == 0x19 || pen == 0x2c || (pen >= 0x4b && pen <= 0x4e))) return null;
+        List<BytecodeReader.Insn> finBody = handlerSeq.subList(0, athIdx - 1);
+        // o strip do bind da exceção (o catch-all abre com astore do objeto —
+        // o corpo do finally não o usa; o emitLinear recusaria o pop vazio)
+        if (!finBody.isEmpty()) {
+            int fb0 = finBody.get(0).opcode();
+            if (fb0 == 0x3a || (fb0 >= 0x4b && fb0 <= 0x4e)) {
+                finBody = finBody.subList(1, finBody.size());
+            }
+        }
+        if (finBody.isEmpty()) return null;
+        // o declared SEMEADO com o slot do valor — a cópia sai SEM o prefixo
+        // var (o main-flow a emite como assign; o guard da cópia exata
+        // compara os TEXTOS — medido: 'var v1 = ...' != 'v1 = ...')
+        int vSlot = finBody.get(finBody.size() - 1).opcode();
+        var declared = new HashSet<Integer>();
+        // o slot do store: as famílias INT (0x36/0x3b-0x3e) E REF (0x3a/0x4b-0x4e)
+        // — o istore_1 do withFinally é 0x3c (a cópia saía com o prefixo var
+        // porque o declared nunca semeava — medido)
+        if (vSlot == 0x36 || (vSlot >= 0x3b && vSlot <= 0x3e)) {
+            declared.add(vSlot == 0x36 ? finBody.get(finBody.size() - 1).operands()[0] : vSlot - 0x3b);
+        } else if (vSlot == 0x3a || (vSlot >= 0x4b && vSlot <= 0x4e)) {
+            declared.add(vSlot == 0x3a ? finBody.get(finBody.size() - 1).operands()[0] : vSlot - 0x4b);
+        }
+        List<String> finStmts = BytecodeStatementsEmit.emitLinear(finBody, cp, frame, declared);
+        if (finStmts == null || finStmts.isEmpty()) return null;
+        // o main-flow struct sobre o método inteiro (o handler sem preds)
+        declared = new HashSet<>();
+        List<String> main = BytecodeStatementsRecover.recoverRegionStruct(insns, cp, frame, declared,
+                new int[]{handler});
+        if (main == null || main.size() < finStmts.size() + 2) return null;
+        // Fase E (15/10): o main termina [.., COPY, return, }] — o } do
+        // if/else interno é o ÚLTIMO (medido: o return em size-2 e o } em
+        // size-1; o transform extrai o return e o } fecha o else DENTRO do
+        // try)
+        if (!main.get(main.size() - 1).equals("}")) return null;
+        String ret = main.get(main.size() - 2);
+        if (!ret.startsWith("return ")) return null;
+        int copyEnd = main.size() - 2;
+        int idx = copyEnd - finStmts.size();
+        if (idx < 1) return null;
+        if (!main.subList(idx, copyEnd).equals(finStmts)) return null;
+        // a declaração var do slot sai ANTES do try (o bounded: main[0] é o
+        // var do slot)
+        int vOp = finBody.get(finBody.size() - 1).opcode();
+        String name = BytecodeDecoderStack.slotName(
+                vOp == 0x36 || (vOp >= 0x3b && vOp <= 0x3e)
+                        ? (vOp == 0x36 ? finBody.get(finBody.size() - 1).operands()[0] : vOp - 0x3b)
+                        : (vOp == 0x3a ? finBody.get(finBody.size() - 1).operands()[0] : vOp - 0x4b),
+                frame);
+        if (!main.get(0).startsWith("var ") || !main.get(0).contains(name + " = ")) return null;
+        List<String> out = new ArrayList<>();
+        out.add(main.get(0));
+        out.add("try {");
+        for (int i = 1; i < idx; i++) out.add(main.get(i));
+        // o fecho do bloco aberto entre o if/else e a cópia (o bounded: 1
+        // chave aberta = o } do else; balanceado = nada; outro = recusa)
+        int opens = 0;
+        for (int i = 1; i < idx; i++) {
+            for (char c : main.get(i).toCharArray()) {
+                if (c == '{') opens++;
+                if (c == '}') opens--;
+            }
+        }
+        if (opens == 1) out.add("}");
+        else if (opens != 0) return null;
+        out.add("} finally {");
+        out.addAll(finStmts);
+        out.add("}");
+        out.add(ret);
         return out;
     }
 
@@ -255,12 +469,12 @@ final class BytecodeStatements {
                     if (expr == null) { refuse(opcodeTag); return null; }
                     stack.push(expr);
                 }
-                case 0x1a, 0x1b, 0x1c, 0x1d -> stack.push(BytecodeDecoder.slotName(op - 0x1a, frame));
-                case 0x1e, 0x1f, 0x20, 0x21 -> stack.push(BytecodeDecoder.slotName(op - 0x1e, frame));   // lload_0..3
-                case 0x26, 0x27, 0x28, 0x29 -> stack.push(BytecodeDecoder.slotName(op - 0x26, frame));   // dload_0..3
-                case 0x2a, 0x2b, 0x2c, 0x2d -> stack.push(BytecodeDecoder.slotName(op - 0x2a, frame));
-                case 0x15, 0x19 -> stack.push(BytecodeDecoder.slotName(in.operands()[0], frame));
-                case 0x16, 0x17, 0x18 -> stack.push(BytecodeDecoder.slotName(in.operands()[0], frame));   // lload/fload/dload
+                case 0x1a, 0x1b, 0x1c, 0x1d -> stack.push(BytecodeDecoderStack.slotName(op - 0x1a, frame));
+                case 0x1e, 0x1f, 0x20, 0x21 -> stack.push(BytecodeDecoderStack.slotName(op - 0x1e, frame));   // lload_0..3
+                case 0x26, 0x27, 0x28, 0x29 -> stack.push(BytecodeDecoderStack.slotName(op - 0x26, frame));   // dload_0..3
+                case 0x2a, 0x2b, 0x2c, 0x2d -> stack.push(BytecodeDecoderStack.slotName(op - 0x2a, frame));
+                case 0x15, 0x19 -> stack.push(BytecodeDecoderStack.slotName(in.operands()[0], frame));
+                case 0x16, 0x17, 0x18 -> stack.push(BytecodeDecoderStack.slotName(in.operands()[0], frame));   // lload/fload/dload
                 case 0x36, 0x37, 0x38, 0x39, 0x3a -> { // istore..astore idx
                     if (stack.isEmpty()) { refuse(opcodeTag); return null; }
                     String val = stack.pop();
@@ -288,15 +502,15 @@ final class BytecodeStatements {
                     int w = in.operands()[0];
                     int slot = (w >> 8) & 0xFF;
                     int k = (byte) (w & 0xFF);
-                    String name = BytecodeDecoder.slotName(slot, frame);
+                    String name = BytecodeDecoderStack.slotName(slot, frame);
                     declared.add(slot);
                     stmts.add(name + " = " + name + " + " + k);
                 }
-                case 0x60 -> { if (!BytecodeDecoder.bin(stack, "+")) { refuse(opcodeTag); return null; } }
-                case 0x64 -> { if (!BytecodeDecoder.bin(stack, "-")) { refuse(opcodeTag); return null; } }
-                case 0x68 -> { if (!BytecodeDecoder.bin(stack, "*")) { refuse(opcodeTag); return null; } }
-                case 0x6c -> { if (!BytecodeDecoder.bin(stack, "/")) { refuse(opcodeTag); return null; } }
-                case 0x70 -> { if (!BytecodeDecoder.bin(stack, "%")) { refuse(opcodeTag); return null; } }
+                case 0x60 -> { if (!BytecodeDecoderStack.bin(stack, "+")) { refuse(opcodeTag); return null; } }
+                case 0x64 -> { if (!BytecodeDecoderStack.bin(stack, "-")) { refuse(opcodeTag); return null; } }
+                case 0x68 -> { if (!BytecodeDecoderStack.bin(stack, "*")) { refuse(opcodeTag); return null; } }
+                case 0x6c -> { if (!BytecodeDecoderStack.bin(stack, "/")) { refuse(opcodeTag); return null; } }
+                case 0x70 -> { if (!BytecodeDecoderStack.bin(stack, "%")) { refuse(opcodeTag); return null; } }
                 case 0x74 -> { if (stack.isEmpty()) { refuse(opcodeTag); return null; } stack.push("-" + stack.pop()); }
                 // Fase E: construção/teste-emit (0xbb new, 0xbd anewarray,
                 // 0x59 dup, 0xb7 init, 0x57 pop, 0xc0 cast, 0xc1 instanceof)

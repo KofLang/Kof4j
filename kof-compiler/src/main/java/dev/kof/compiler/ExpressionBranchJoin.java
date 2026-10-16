@@ -76,8 +76,42 @@ final class ExpressionBranchJoin {
     /** Tipos dos ramos do if (then, else) p/ `branchTypesDiffer`. */
     static List<Type> ifBranchTypes(CompilerDriver driver, IfExpr ie,
                                     List<IRLocalVariable> locals) {
-        return List.of(branchTypeOrNullAsRef(driver, ie.thenExpr(), locals),
-                branchTypeOrNullAsRef(driver, ie.elseExpr(), locals));
+        return List.of(
+                withNarrowing(branchTypeOrNullAsRef(driver, ie.thenExpr(), locals),
+                        ie.thenExpr(), ie.condition(), true),
+                withNarrowing(branchTypeOrNullAsRef(driver, ie.elseExpr(), locals),
+                        ie.elseExpr(), ie.condition(), false));
+    }
+
+    /**
+     * #870 — o tipo EFETIVO de um ramo do if-expr, com o narrowing de
+     * nullabilidade da CONDIÇÃO aplicado. `if (x != null) { x } else { 0 }` com
+     * `x: Int?`: dentro do ramo THEN `x` é NÃO-NULO, então o ramo é `Int` e o
+     * join tem de ser `Int`. Sem isto o ramo era tipado pelo tipo DECLARADO
+     * (`Int?`), os ramos divergiam (`Int?` vs `Int`), o join caía em
+     * `java.lang.Object` e o consumidor (`v + 5`) emitia `iadd` sobre a CAIXA:
+     * JVM `VerifyError`, Native lendo o ponteiro (saída vazia), Script/JS certos.
+     *
+     * <p>Mesma regra que o semântico já coleta
+     * ({@code StatementAnalyzer.collectNarrowing}): a condição é `<path> != null`
+     * (narrowa o THEN) ou `<path> == null` (narrowa o ELSE), o path é um
+     * identificador ou campo, e o ramo é AQUELE MESMO path. Sem casar, devolve o
+     * tipo base intacto (inclusive o literal `null` → referência, vindo do base).
+     *
+     * <p>É só TIPAGEM: a representação física continua boxeada (D-NULL-INTENT) e
+     * quem abre a caixa é o lowering, na convergência dos ramos.
+     */
+    static Type withNarrowing(Type base, ExpressionNode branch,
+                              ExpressionNode cond, boolean then) {
+        if (!(base instanceof Type.NullableType nt)) return base;
+        if (!(cond instanceof BinaryExpr be)) return base;
+        boolean thenOp = "!=".equals(be.operator());
+        if (!thenOp && !"==".equals(be.operator())) return base;
+        if (thenOp != then) return base;
+        if (!(be.right() instanceof LiteralExpr lit) || lit.kind() != ConcreteLiteralKind.NULL) return base;
+        String path = Narrowing.pathOf(branch);
+        if (path == null || !path.equals(Narrowing.pathOf(be.left()))) return base;
+        return nt.inner();
     }
 
     /** Tipos dos corpos do switch (+ default; sem default, o sintético tem o

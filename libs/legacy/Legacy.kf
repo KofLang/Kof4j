@@ -1,0 +1,392 @@
+package legacy
+
+// kof.legacy — KofBOL Fatia 1: FIXED-WIDTH records (PIC X / PIC 9, ASCII
+// only). `D-KOFBOL`, plan slice 1 (§20). The descriptor model over `record`
+// — the plan's open decision Q1 is resolved WITHOUT a new `legacy`
+// declaration, so the Kof language surface is untouched (rule 6 honored).
+//
+// Byte-exact by construction: `decode` returns the RAW slices (never trimmed
+// silently); `encode` pads (X → right with spaces, 9 → left with '0') and
+// refuses anything that would lose data. Gap codes LEG001..LEG006 — never a
+// silent fallback.
+
+record Field(String name, String kind, Int length, Int scale)
+
+record Layout(List<Field> fields)
+
+// textOf / digitsOf — the explicit constructors (no PIC parsing needed).
+Field textOf(String name, Int length) {
+    return Field(name, "X", length, 0)
+}
+
+Field digitsOf(String name, Int length) {
+    return Field(name, "9", length, 0)
+}
+
+// decimalOf — a signed packed field: `digits` digit positions, `scale`
+// implied decimals (the PIC S9(n)V9(m) shape; the COMP-3/fixed route).
+Field decimalOf(String name, Int digits, Int scale) {
+    return Field(name, "9", digits, scale)
+}
+
+// fieldPic — the simple fixed-width PIC clause: `X`, `9`, `X(n)`, `9(n)`.
+// Anything else is refused: LEG005 (unsupported clause), LEG006 (malformed).
+Field fieldPic(String name, String pic) {
+    var p = pic.trim()
+    if (p.length == 0) {
+        throw "malformed PIC clause: " + pic + " (LEG006)"
+    }
+    var kind = p.substring(0, 1)
+    if (kind != "X" && kind != "9") {
+        throw "unsupported PIC clause: " + pic + " (LEG005)"
+    }
+    var len = 1
+    if (p.length > 1) {
+        if (p.charAt(1) != '(' || p.charAt(p.length - 1) != ')') {
+            throw "malformed PIC clause: " + pic + " (LEG006)"
+        }
+        var digits = p.substring(2, p.length - 1)
+        if (digits.length == 0 || !allDigits(digits)) {
+            throw "malformed PIC count: " + pic + " (LEG006)"
+        }
+        len = digits.toInt()
+    }
+    return Field(name, kind, len, 0)
+}
+
+Bool allDigits(String s) {
+    var i = 0
+    while (i < s.length) {
+        var c = s.charAt(i)
+        if (c < '0' || c > '9') {
+            return false
+        }
+        i = i + 1
+    }
+    return true
+}
+
+// totalLength — the width of one record for this layout.
+Int totalLength(Layout l) {
+    var n = 0
+    for (var f in l.fields) {
+        n = n + f.length
+    }
+    return n
+}
+
+// decode — the fixed-width record → the field values, in order, RAW (byte-exact).
+List<String> decode(Layout l, String rec) {
+    var expected = totalLength(l)
+    if (rec.length != expected) {
+        throw "record length " + rec.length + " != layout length " + expected + " (LEG001)"
+    }
+    var out: List<String> = listOf()
+    var at = 0
+    for (var f in l.fields) {
+        var raw = rec.substring(at, at + f.length)
+        if (f.kind == "9" && !allDigits(raw)) {
+            throw "non-digit in numeric field " + f.name + " (LEG002)"
+        }
+        out.add(raw)
+        at = at + f.length
+    }
+    return out
+}
+
+// encode — the field values → the fixed-width record.
+String encode(Layout l, List<String> values) {
+    if (values.size != l.fields.size) {
+        throw "value count " + values.size + " != field count " + l.fields.size + " (LEG004)"
+    }
+    var out = ""
+    var i = 0
+    while (i < l.fields.size) {
+        var f = l.fields.get(i)
+        var v = values.get(i)
+        if (v.length > f.length) {
+            throw "value too long for field " + f.name + ": " + v.length + " > " + f.length + " (LEG003)"
+        }
+        if (f.kind == "9") {
+            if (!allDigits(v)) {
+                throw "non-digit in numeric field " + f.name + " (LEG002)"
+            }
+            out = out + padLeft(v, f.length, "0")
+        } else {
+            out = out + padRight(v, f.length, " ")
+        }
+        i = i + 1
+    }
+    return out
+}
+
+// padLeft / padRight — explicit, never silent truncation.
+String padLeft(String v, Int width, String fill) {
+    var out = v
+    while (out.length < width) {
+        out = fill + out
+    }
+    return out
+}
+
+String padRight(String v, Int width, String fill) {
+    var out = v
+    while (out.length < width) {
+        out = out + fill
+    }
+    return out
+}
+
+// numericOf — the number carried by a `9` field (leading zeros are padding).
+Int numericOf(String digits) {
+    if (!allDigits(digits)) {
+        throw "non-digit in numeric value (LEG002)"
+    }
+    return digits.toInt()
+}
+
+
+// ------------------------------------------------------------------
+// Fatia 2 — the EBCDIC codec, code page CP037 (US English), ONE page
+// with EXPLICIT tables (plan §20 fatia 2; Q5 stays open for MORE pages).
+// The tables were generated from a real CP037 codec and are embedded as
+// decimal byte lists (the Av1ModeCdf split/toInt pattern — pure Kof, all
+// targets). Round-trip verified over the full printable ASCII range.
+//
+// EBCDIC37_TO_ASCII: index = byte - 0x40 (192 entries) → the ASCII code.
+// ASCII_TO_EBCDIC37: index = code - 0x20 (95 entries) → the EBCDIC byte.
+
+String EBCDIC37_TO_ASCII() {
+    return "32,160,226,228,224,225,227,229,231,241,162,46,60,40,43,124,38,233,234,235,232,237,238,239,236,223,33,36,42,41,59,172,45,47,194,196,192,193,195,197,199,209,166,44,37,95,62,63,248,201,202,203,200,205,206,207,204,96,58,35,64,39,61,34,216,97,98,99,100,101,102,103,104,105,171,187,240,253,254,177,176,106,107,108,109,110,111,112,113,114,170,186,230,184,198,164,181,126,115,116,117,118,119,120,121,122,161,191,208,221,222,174,94,163,165,183,169,167,182,188,189,190,91,93,175,168,180,215,123,65,66,67,68,69,70,71,72,73,173,244,246,242,243,245,125,74,75,76,77,78,79,80,81,82,185,251,252,249,250,255,92,247,83,84,85,86,87,88,89,90,178,212,214,210,211,213,48,49,50,51,52,53,54,55,56,57,179,219,220,217,218,159"
+}
+
+String ASCII_TO_EBCDIC37() {
+    return "64,90,127,123,91,108,80,125,77,93,92,78,107,96,75,97,240,241,242,243,244,245,246,247,248,249,122,94,76,126,110,111,124,193,194,195,196,197,198,199,200,201,209,210,211,212,213,214,215,216,217,226,227,228,229,230,231,232,233,186,224,187,176,109,121,129,130,131,132,133,134,135,136,137,145,146,147,148,149,150,151,152,153,162,163,164,165,166,167,168,169,192,79,208,161"
+}
+
+List<Int> tableOf(String csv) {
+    var out: List<Int> = listOf()
+    var parts = csv.split(",")
+    var i = 0
+    while (i < parts.size) {
+        out.add(parts[i].toInt())
+        i = i + 1
+    }
+    return out
+}
+
+// encode37 — ASCII text → CP037 bytes. Chars outside the printable ASCII
+// range are refused: LEG008 (no silent substitution).
+List<Int> encode37(String s) {
+    var tbl = tableOf(ASCII_TO_EBCDIC37())
+    var out: List<Int> = listOf()
+    var i = 0
+    while (i < s.length) {
+        var code = s.charAt(i) as Int
+        if (code < 0x20 || code > 0x7e) {
+            throw "char outside the CP037 printable range at " + i + " (LEG008)"
+        }
+        out.add(tbl.get(code - 0x20))
+        i = i + 1
+    }
+    return out
+}
+
+// decode37 — CP037 bytes → ASCII text. Bytes outside the CP037 text range
+// (0x40..0xFF) are refused: LEG007 (no silent substitution).
+String decode37(List<Int> bytes) {
+    var tbl = tableOf(EBCDIC37_TO_ASCII())
+    var out = ""
+    var i = 0
+    while (i < bytes.size) {
+        var b = bytes.get(i)
+        if (b < 0x40 || b > 0xff) {
+            throw "byte outside the CP037 text range at " + i + ": " + b + " (LEG007)"
+        }
+        out = out + (tbl.get(b - 0x40) as Char)
+        i = i + 1
+    }
+    return out
+}
+
+// encodeLayout37 — the fixed-width record (fatia 1) → CP037 bytes.
+List<Int> encodeLayout37(Layout l, List<String> values) {
+    return encode37(encode(l, values))
+}
+
+// decodeLayout37 — CP037 bytes → the fixed-width record → the field values.
+List<String> decodeLayout37(Layout l, List<Int> bytes) {
+    return decode(l, decode37(bytes))
+}
+
+
+// ------------------------------------------------------------------
+// Fatia 3 — PACKED DECIMAL (COMP-3): two digits per byte, the sign in the
+// last nibble (C/F/A/E positive, D/B negative), an implied decimal point at
+// `scale` (plan §20 fatia 3; the pure-Kof scaled-integer route — Q3). An odd
+// nibble count gets a LEADING zero pad. Gap codes: LEG009 overflow, LEG010
+// malformed decimal, LEG011 bad digit nibble, LEG012 bad sign nibble, LEG013
+// width mismatch — never a silent fix-up.
+
+Int comp3Width(Int digits) {
+    var nibbles = digits + 1
+    if (nibbles % 2 == 1) {
+        nibbles = nibbles + 1
+    }
+    return nibbles / 2
+}
+
+Int nibble(Char c) {
+    var v = c as Int
+    if (v >= 48 && v <= 57) {
+        return v - 48
+    }
+    if (v >= 65 && v <= 70) {
+        return v - 55
+    }
+    throw "malformed packed decimal nibble (LEG011)"
+}
+
+// packComp3 — the decimal text ("12345", "-12.34") → the COMP-3 bytes.
+List<Int> packComp3(String decimal, Int digits, Int scale) {
+    var s = decimal.trim()
+    var negative = false
+    if (s.length > 0 && s.charAt(0) == '-') {
+        negative = true
+        s = s.substring(1, s.length)
+    }
+    var intPart = s
+    var fracPart = ""
+    var dot = s.indexOf(".")
+    if (dot >= 0) {
+        intPart = s.substring(0, dot)
+        fracPart = s.substring(dot + 1, s.length)
+    }
+    if (intPart.length == 0) {
+        intPart = "0"
+    }
+    if (fracPart.length > scale || intPart.length + fracPart.length > digits) {
+        throw "value does not fit in " + digits + " digits with scale " + scale + " (LEG009)"
+    }
+    if (!allDigits(intPart + fracPart)) {
+        throw "malformed decimal: " + decimal + " (LEG010)"
+    }
+    while (fracPart.length < scale) {
+        fracPart = fracPart + "0"
+    }
+    var all = ""
+    var i = 0
+    while (i < digits - intPart.length - fracPart.length) {
+        all = all + "0"
+        i = i + 1
+    }
+    all = all + intPart + fracPart
+    // the sign nibble comes FIRST in the layout math: total nibbles =
+    // digits + 1; only THAT total gets the leading zero pad when odd.
+    var nib = all
+    if (negative) {
+        nib = nib + "D"
+    } else {
+        nib = nib + "C"
+    }
+    if (nib.length % 2 == 1) {
+        nib = "0" + nib
+    }
+    var out: List<Int> = listOf()
+    i = 0
+    while (i < nib.length) {
+        out.add(nibble(nib.charAt(i)) * 16 + nibble(nib.charAt(i + 1)))
+        i = i + 2
+    }
+    return out
+}
+
+// unpackComp3 — the COMP-3 bytes → the decimal text (the sign as stored).
+String unpackComp3(List<Int> bytes, Int digits, Int scale) {
+    var total = comp3Width(digits) * 2
+    if (bytes.size * 2 != total) {
+        throw "packed width mismatch: " + bytes.size + " bytes for " + digits + " digits (LEG013)"
+    }
+    var nibs: List<Int> = listOf()
+    var i = 0
+    while (i < bytes.size) {
+        var b = bytes.get(i)
+        if (b < 0 || b > 255) {
+            throw "byte out of range: " + b + " (LEG011)"
+        }
+        nibs.add(b / 16)
+        nibs.add(b % 16)
+        i = i + 1
+    }
+    var sign = nibs.get(total - 1)
+    var negative = false
+    if (sign == 11 || sign == 13) {
+        negative = true
+    } else if (sign != 10 && sign != 12 && sign != 14 && sign != 15) {
+        throw "bad sign nibble: " + sign + " (LEG012)"
+    }
+    var all = ""
+    // a FRESH loop variable: reusing the first loop's `i` here trips a JS
+    // backend bug (the function returns undefined — catalogued §734).
+    var j = total - 1 - digits
+    while (j < total - 1) {
+        var d = nibs.get(j)
+        if (d > 9) {
+            throw "bad digit nibble: " + d + " (LEG011)"
+        }
+        all = all + ((d + 48) as Char)
+        j = j + 1
+    }
+    var out = all
+    if (scale > 0) {
+        out = all.substring(0, all.length - scale) + "." + all.substring(all.length - scale, all.length)
+    }
+    if (negative) {
+        out = "-" + out
+    }
+    return out
+}
+
+
+// decodeFrom — the overlay read: the field values of a REDEFINES view
+// starting at `start` (the base `decode` stays byte-exact at 0).
+List<String> decodeFrom(Layout l, String rec, Int start) {
+    var expected = totalLength(l)
+    if (rec.length < start + expected) {
+        throw "record length " + rec.length + " too short for offset " + start + " + " + expected + " (LEG001)"
+    }
+    var out: List<String> = listOf()
+    var at = start
+    for (var f in l.fields) {
+        var raw = rec.substring(at, at + f.length)
+        if (f.kind == "9" && !allDigits(raw)) {
+            throw "non-digit in numeric field " + f.name + " (LEG002)"
+        }
+        out.add(raw)
+        at = at + f.length
+    }
+    return out
+}
+
+record BatchReport(Int total, Int ok, Int failed, List<Int> failedIndexes)
+
+// batchDecode — the BATCH discipline (§4.6): decode every record; one bad
+// record NEVER kills the batch and is NEVER silent — it is counted and its
+// index is reported. The caller decides what a failed record means.
+BatchReport batchDecode(Layout l, List<String> records) {
+    var ok = 0
+    var failed = 0
+    var idx: List<Int> = listOf()
+    var i = 0
+    while (i < records.size) {
+        try {
+            decode(l, records.get(i))
+            ok = ok + 1
+        } catch (String e) {
+            failed = failed + 1
+            idx.add(i)
+        }
+        i = i + 1
+    }
+    return BatchReport(records.size, ok, failed, idx)
+}

@@ -47,15 +47,93 @@ final class StructWalker {
             for (BytecodeReader.Insn in : BytecodeDecoder.insnsWithin(b, insns)) {
                 int slot = storeSlot(in);
                 if (slot < 0 || declared.contains(slot) || seen.contains(slot)) continue;
+                // Fase E (14/10): slot NOMEADO (parâmetro/this) NUNCA hoista —
+                // o `var arg0 = 0` do default sombreava o parâmetro e o loop
+                // rodava para sempre (medido no collatz; R6)
+                if (frame.isNamedSlot(slot)) continue;
                 String def = storeDefault(in.opcode());
                 if (def == null) return null;                 // float/ref: recusar (R6)
                 seen.add(slot);
-                hoisted.add("var " + BytecodeDecoder.slotName(slot, frame) + " = " + def);
+                hoisted.add("var " + BytecodeDecoderStack.slotName(slot, frame) + " = " + def);
             }
         }
         declared.addAll(seen);
         return hoisted;
     }
+
+    /**
+     * Fase E (15/10): o hoist PROFUNDO para a cadeia else-if SEM init —
+     * `String s;` do Java NÃO gera store no prólogo; o primeiro `var` nascia
+     * DENTRO do primeiro braço e os demais atribuíam slot não-declarado
+     * (SEM011, medido no Range.size). O scan é por RANGE de offsets: o
+     * then-subtree e o else-subtree ocupam [start, tail) contíguos no
+     * bytecode, então um único varredura pega os stores ANINHADOS que o
+     * hoist raso (insnsWithin do bloco imediato) não vê. Um slot é hoistado
+     * quando armazenado em AMBOS os lados (escapa do if); o default vem do
+     * opcode; qualquer divergência de tipo/parametro nomeado → null (R6).
+     */
+    static java.util.List<String> hoistEscapingLocalsDeep(List<BytecodeReader.Insn> insns,
+                                                          int thenLo, int thenHi,
+                                                          int elseLo, int elseHi,
+                                                          BytecodeFrame frame,
+                                                          Set<Integer> declared) {
+        java.util.LinkedHashSet<Integer> thenSlots = new java.util.LinkedHashSet<>();
+        java.util.LinkedHashSet<Integer> elseSlots = new java.util.LinkedHashSet<>();
+        for (BytecodeReader.Insn in : insns) {
+            int off = in.offset();
+            int slot = storeSlot(in);
+            if (slot < 0) continue;
+            if (off >= thenLo && off < thenHi) thenSlots.add(slot);
+            if (off >= elseLo && off < elseHi) elseSlots.add(slot);
+        }
+        thenSlots.retainAll(elseSlots);            // só o que escapa
+        java.util.List<String> hoisted = new java.util.ArrayList<>();
+        for (int slot : thenSlots) {
+            if (declared.contains(slot)) continue;
+            if (frame.isNamedSlot(slot)) continue; // a lei do named-slot (R6)
+            // o default precisa ser consistente nos DOIS lados (o opcode do
+            // store determina; qualquer mistura de categoria → recusa)
+            String def = null;
+            boolean sawStore = false;
+            for (int k = 0; k < insns.size(); k++) {
+                BytecodeReader.Insn in = insns.get(k);
+                int off = in.offset();
+                boolean inThen = off >= thenLo && off < thenHi;
+                boolean inElse = off >= elseLo && off < elseHi;
+                if (!inThen && !inElse) continue;
+                if (storeSlot(in) != slot) continue;
+                sawStore = true;
+                int op = in.opcode();
+                if (op == 0x3a || (op >= 0x4b && op <= 0x4e)) {
+                    // Fase E (15/10): o default de REFERÊNCIA não existe
+                    // honestamente (SEM048 bane o literal null) — EXCETO
+                    // quando TODOS os valores armazenados são LITERAIS
+                    // String (o `ldc` imediatamente antes): o `""` é o
+                    // default do TIPO REAL medido. Qualquer outra fonte →
+                    // recusa (R6).
+                    if (k == 0) return null;
+                    BytecodeReader.Insn prev = insns.get(k - 1);
+                    if (prev.opcode() != 0x12 && prev.opcode() != 0x13) return null;
+                    String lit = BytecodeCp.ldc(cpRef, prev.operands()[0]);
+                    if (lit == null || !lit.startsWith("\"")) return null;
+                    if (def != null && !def.equals("\"\"")) return null;
+                    def = "\"\"";
+                } else {
+                    String d = storeDefault(op);
+                    if (d == null) return null;
+                    if (def != null && !def.equals(d)) return null;
+                    def = d;
+                }
+            }
+            if (!sawStore || def == null) continue;
+            declared.add(slot);
+            hoisted.add("var " + BytecodeDecoderStack.slotName(slot, frame) + " = " + def);
+        }
+        return hoisted;
+    }
+
+    /** O pool de constantes p/ o hoist profundo (o ldc dos literais). */
+    static String[] cpRef;
 
     /** Slot que o insn escreve (store), ou -1 se nao e store. */
     private static int storeSlot(BytecodeReader.Insn in) {

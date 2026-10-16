@@ -32,6 +32,8 @@ class Av1Symbol {
     Int range
     Int maxBits
     Bool adapt
+    Bool trace
+    List<Int> symLog
 
     // `sz = data.length` bytes; the first `Min(sz*8, 15)` bits seed the
     // decoder (init_symbol, §9.2.2).
@@ -40,6 +42,8 @@ class Av1Symbol {
         this.bitPos = 0
         this.range = 1 << 15
         this.adapt = true
+        this.trace = false
+        this.symLog = listOf()
         var numBits = data.length * 8
         if (numBits > 15) {
             numBits = 15
@@ -106,7 +110,23 @@ class Av1Symbol {
         if (this.adapt) {
             this.adaptCdf(cdf, n, symbol)
         }
+        if (this.trace) {
+            this.symLog.add(n)
+            this.symLog.add(symbol)
+            this.symLog.add(this.position())
+        }
         return symbol
+    }
+
+    // Opt-in per-symbol trace (diagnostic): when enabled, every readSymbol
+    // appends `n` then the decoded `symbol` to `symLog`. readBool/readLiteral
+    // route through readSymbol, so this captures the WHOLE read sequence.
+    void enableTrace() {
+        this.trace = true
+    }
+
+    List<Int> log() {
+        return this.symLog
     }
 
     // Boolean decoding process (§9.2.3): read_symbol over the fixed

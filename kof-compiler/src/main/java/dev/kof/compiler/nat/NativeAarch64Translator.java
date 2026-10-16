@@ -259,6 +259,13 @@ public final class NativeAarch64Translator {
             String[] args = rest.split(",");
             String rd = R.apply(args[0].trim()), rs = R.apply(args[1].trim());
             long imm = NativeAarch64Helpers.parseImm(args[2].trim());
+            // §7 AArch64 ("use of immediate forms"): a valid bitmask immediate goes
+            // DIRECTLY into and/orr (one instruction) instead of materializing it in
+            // x17 first (mov + op). Only a non-bitmask constant (e.g. 0xFF00) needs
+            // the temp.
+            if (NativeAarch64Helpers.isLogicalImm(imm)) {
+                return List.of(indent + op + " " + rd + ", " + rs + ", #" + imm);
+            }
             // sempre expande via temp x17 para garantir encodabilidade
             String tmp = "x17";
             List<String> out = new ArrayList<>();

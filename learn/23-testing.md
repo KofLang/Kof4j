@@ -29,6 +29,14 @@ main() {
 kof test Suite.kf                     # jvm
 kof test Suite.kf --target native     # native
 kof test Suite.kf --target js         # js
+
+# module root, when the test lives outside the source tree (`src/`):
+kof test --module-root src tests/Suite.kf      # run ONE file, packages
+                                               # resolve against the module
+kof test --module-root src tests/              # the whole tests dir
+kof test --module-root src --tests-only src    # tests only: the module's
+                                               # `main` is NOT run as a
+                                               # program test (SKIP, named)
 ```
 
 Output:

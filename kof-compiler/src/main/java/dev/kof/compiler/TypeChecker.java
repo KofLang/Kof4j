@@ -479,8 +479,16 @@ public final class TypeChecker {
             return isAssignable(from, to);
         }
         // classes de domínio: BFS nominal
-        String fromName = fc.name();
-        if (fromName.equals(toName)) return true;
+        // §726: os nomes de heritage divergem entre arquivos — um tipo do
+        // MESMO arquivo fica SIMPLES ("Greeter") e um resolvido por IMPORT fica
+        // QUALIFICADO ("ifc.Greeter"), enquanto `sa.getClass` só resolve por
+        // nome SIMPLES. Comparar a entrada contra `toName` (simples) rejeitava
+        // o caso cross-file no MESMO pacote (SEM021 falso-positivo, bloqueando
+        // qualquer biblioteca interface+implementações). Normaliza AMBOS pelo
+        // FQN do símbolo resolvido.
+        String fromName = simpleName(fc.name());
+        String toFqn = fqnOf(tc);
+        if (fqnOf(fc).equals(toFqn)) return true;
         SymbolTable.ClassSymbol node = sa.getClass(fromName);
         if (node == null) return true; // externa/desconhecida — conservador
         java.util.Set<String> visited = new java.util.HashSet<>();
@@ -491,17 +499,18 @@ public final class TypeChecker {
         }
         for (String iface : node.interfaces()) queue.add(rawTypeName(iface));
         while (!queue.isEmpty()) {
-            String current = queue.poll();
-            if (current.equals(toName)) return true;
+            String raw = queue.poll();
+            String current = fqnOfString(sa, raw);
+            if (current.equals(toFqn)) return true;
             if (!visited.add(current)) continue;
-            SymbolTable.ClassSymbol cur = sa.getClass(current);
+            SymbolTable.ClassSymbol cur = sa.getClass(simpleName(raw));
             if (cur == null) continue; // ancestral externo — para o ramo
             if (cur.superClass() != null && !"Object".equals(cur.superClass())) queue.add(rawTypeName(cur.superClass()));
             for (String iface : cur.interfaces()) queue.add(rawTypeName(iface));
         }
         // from pode ser subtipo declarado com nome qualificado divergente —
         // conservador quando o símbolo de to não existe no módulo
-        return sa.getClass(toName) == null;
+        return sa.getClass(simpleName(toFqn)) == null;
     }
 
     /**
@@ -518,6 +527,31 @@ public final class TypeChecker {
         int lt = declared.indexOf('<');
         if (lt < 0) return declared;
         return declared.substring(0, lt).trim();
+    }
+
+    /** §726: nome simples (após o último '.') — as entradas de heritage e os
+     *  nomes de símbolo convivem em formas simples e qualificadas. */
+    private static String simpleName(String name) {
+        if (name == null) return "";
+        int dot = name.lastIndexOf('.');
+        return dot < 0 ? name : name.substring(dot + 1);
+    }
+
+    /** §726: FQN de um ClassType (pkg.nome; sem pacote = o nome). */
+    private static String fqnOf(Type.ClassType ct) {
+        String p = ct.packageName();
+        return p == null || p.isEmpty() ? ct.name() : p + "." + ct.name();
+    }
+
+    /** §726: FQN de uma entrada de heritage — resolve o símbolo por nome
+     *  SIMPLES e usa o pacote dele; sem símbolo (externo), conserva o cru. */
+    private static String fqnOfString(SemanticAnalyzer sa, String declared) {
+        String bare = rawTypeName(declared);
+        SymbolTable.ClassSymbol c = sa.getClass(simpleName(bare));
+        if (c != null && c.packageName() != null && !c.packageName().isEmpty()) {
+            return c.packageName() + "." + c.name();
+        }
+        return bare;
     }
 
     /** Referência → referência (o único caminho que a subtipagem nominal rege). */

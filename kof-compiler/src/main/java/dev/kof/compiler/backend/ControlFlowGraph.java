@@ -7,7 +7,9 @@ import dev.kof.compiler.KofLabel;
 import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.KofReturn;
 import dev.kof.compiler.KofReturnVoid;
+import dev.kof.compiler.KofCatchStart;
 import dev.kof.compiler.KofThrow;
+import dev.kof.compiler.KofTryStart;
 import dev.kof.compiler.LabelId;
 
 import java.util.ArrayList;
@@ -102,6 +104,26 @@ public final class ControlFlowGraph {
                 leader[i] = true;
             }
         }
+        // §709: um KofCatchStart é a entrada do HANDLER de exceção (o IR não
+        // emite um KofLabel para o handlerLabel — o handler é o próprio op). Ele
+        // é fronteira de bloco e a origem da aresta de EXCEÇÃO try→handler; sem
+        // isto blockOf(handlerLabel) devolve -1 e a liveness subestima (um slot
+        // lido só no catch vira "morto" → o dead-store o remove).
+        for (int i = 0; i < ops.size(); i++) {
+            if (ops.get(i) instanceof KofCatchStart) {
+                leader[i] = true;
+            }
+        }
+        // §709 (face finally): o KofTryStart é fronteira de bloco. A região protegida começa
+        // NELE; uma exceção pode ocorrer em qualquer ponto dela, então um store
+        // ANTERIOR ao try que inicializa um slot lido no handler está VIVO (não
+        // pode ser removido como dead store). Sem a fronteira, esse store cai no
+        // MESMO bloco do try e o walk backward o mata.
+        for (int i = 0; i < ops.size(); i++) {
+            if (ops.get(i) instanceof KofTryStart) {
+                leader[i] = true;
+            }
+        }
 
         // 2) partition into blocks.
         List<List<KofOperation>> raw = new ArrayList<>();
@@ -122,6 +144,14 @@ public final class ControlFlowGraph {
             KofOperation first = raw.get(b).get(0);
             if (first instanceof KofLabel kl) {
                 labelToBlock.putIfAbsent(kl.label(), b);
+            }
+        }
+        // §709: mapeia o handlerLabel de cada try ao bloco do seu KofCatchStart.
+        for (int b = 0; b < raw.size(); b++) {
+            for (KofOperation op : raw.get(b)) {
+                if (op instanceof KofCatchStart cs) {
+                    labelToBlock.putIfAbsent(cs.handlerLabel(), b);
+                }
             }
         }
 

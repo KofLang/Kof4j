@@ -200,7 +200,8 @@ JsIr.JsStatement parseIfBody(MethodCtx ctx, int[] pos, KofConditionalJump cj,
         // §380: falseLabel ativo na pilha — um `if` interno nunca consome label de
         // estrutura envolvente (exceção aborta a compilação: sem leak de pilha).
         ctx.enclosingIfFalses.push(cj.falseLabel());
-        List<JsIr.JsStatement> thenBranch = parseStatements(ctx, pos, Set.of(cj.falseLabel()), new ArrayList<>());
+        List<LabelId> thenExits = new ArrayList<>();
+        List<JsIr.JsStatement> thenBranch = parseStatements(ctx, pos, Set.of(cj.falseLabel()), thenExits);
         if (pos[0] < ctx.ops.size() && ctx.ops.get(pos[0]) instanceof KofLabel kl2
                 && kl2.label().equals(cj.falseLabel())) {
             pos[0]++;
@@ -211,12 +212,18 @@ JsIr.JsStatement parseIfBody(MethodCtx ctx, int[] pos, KofConditionalJump cj,
             // KofCatchStart solto no statement level — COMP002, §174).
             KofLabel end = (KofLabel) ctx.ops.get(pos[0]);
             if (ctx.isIfEndLabel(pos, end.label())
-                    && !ctx.isEnclosingIfFalse(end.label())) { // §380: fronteira alheia
+                    && !ctx.isEnclosingIfFalse(end.label())   // §380: fronteira alheia
+                    && !ctx.isEnclosingIfEnd(end.label())) {  // §734: fim do if envolvente
                 pos[0]++;
             }
             ctx.enclosingIfFalses.pop();
             return new JsIr.JsIf(condition, thenBranch, List.of());
         }
+        // §734: o alvo do Jump de saída do then é o FIM deste if. Um if ANINHADO
+        // no else não pode tomá-lo como o seu próprio fim — roubava o label e o
+        // epílogo do método era absorvido no else externo (a função devolvia
+        // `undefined`; JVM/Script/native corretos). Guardado durante o else.
+        ctx.enclosingIfEnds.addAll(thenExits);
         // §147 (12/09, #101 — detalhe em JsIfThrowElse): IR linear sem
         // Jump/Label de end; o else pára antes do trailing-return do método
         // (senão ganha `return` fantasma e o epílogo "some").
@@ -226,9 +233,11 @@ JsIr.JsStatement parseIfBody(MethodCtx ctx, int[] pos, KofConditionalJump cj,
         } else {
             elseBranch = parseStatements(ctx, pos, Set.of(), new ArrayList<>());
         }
+        ctx.enclosingIfEnds.removeAll(thenExits);
         if (pos[0] < ctx.ops.size() && ctx.ops.get(pos[0]) instanceof KofLabel kl3
                 && ctx.isIfEndLabel(pos, kl3.label())
-                && !ctx.isEnclosingIfFalse(kl3.label())) { // §380
+                && !ctx.isEnclosingIfFalse(kl3.label())   // §380
+                && !ctx.isEnclosingIfEnd(kl3.label())) {  // §734: fim do if envolvente
             // Label(end) — end of else branch (loop labels belong to the loop)
             pos[0]++;
         }
@@ -494,7 +503,33 @@ JsIr.JsStatement parseDoWhile(MethodCtx ctx, int[] pos, LabelId startLabel,
         return new JsIr.JsWhile(condition, body, true);
     }
 
-boolean isDoWhileConditionAhead(MethodCtx ctx, int[] pos, LabelId startLabel) {
+/**
+     * §707: um `KofConditionalJump` que aponta para o START de um loop ATIVO é a
+     * condição (back-edge) de um do-while. Como a condição do do-while vem
+     * DEPOIS do corpo, um `parseElse`/`parseStatements` aninhado que consuma
+     * além do fim do corpo engole a condição e estoura (COMP002). Este guard
+     * marca a fronteira: para antes dela.
+     */
+    boolean isDoWhileConditionAheadAny(MethodCtx ctx, int[] pos) {
+        for (int i = pos[0]; i < ctx.ops.size(); i++) {
+            KofOperation op = ctx.ops.get(i);
+            if (op instanceof KofConditionalJump cj) {
+                for (LoopCtx lc : ctx.loops) {
+                    if (cj.trueLabel().equals(lc.start)) return true;
+                }
+                return false;
+            }
+            if (op instanceof KofStoreLocal || op instanceof KofLabel
+                    || op instanceof KofJump || op instanceof KofReturn
+                    || op instanceof KofReturnVoid || op instanceof KofThrow) {
+                return false;
+            }
+            if (!p.expr.isExpressionOp(op)) return false;
+        }
+        return false;
+    }
+
+    boolean isDoWhileConditionAhead(MethodCtx ctx, int[] pos, LabelId startLabel) {
         for (int i = pos[0]; i < ctx.ops.size(); i++) {
             KofOperation op = ctx.ops.get(i);
             if (op instanceof KofConditionalJump cj) {

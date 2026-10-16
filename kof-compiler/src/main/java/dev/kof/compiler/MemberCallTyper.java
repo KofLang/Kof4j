@@ -185,12 +185,16 @@ public final class MemberCallTyper {
                     && !(elemType instanceof Type.UnknownType)) {
                 for (int i = 0; i < mc.arguments().size(); i++) {
                     if (mc.arguments().get(i) instanceof LambdaExpr le) {
-                        mc.arguments().set(i, contextualLambda(le, elemType));
+                        LambdaExpr rw = contextualLambda(le, elemType);
+                        if (rw != le) {
+                            mc.arguments().set(i, rw);
+                            sa.portuKofSurface().recordLambdaRewrite(le, rw);
+                        }
                     }
                 }
             }
-            // inferir args para detectar identificadores não declarados (ghost) nos argumentos/lambdas
-            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+            // inferir args p/ detectar ghosts nos argumentos/lambdas + #845: índice `T?` sem narrowing = SEM014
+            CollectionMethodGates.inferListArgs(sa, mc, scope, elemType);
             // #336 — `add`/`push`/`append` são APPEND de UM elemento no Kof
             // (learn/12, training/idioms/collections). `l.add(i, v)` (o
             // insert posicional do Java) compilava e quebrava DIFERENTE em
@@ -286,7 +290,7 @@ public final class MemberCallTyper {
             if (!"toArray".equals(mn) && !"sublist".equals(mn) && !"subSet".equals(mn)) {
                 if (sa.diagnostics() != null) {
                     sa.diagnostics().error(mc,
-                            "Cannot resolve method '" + mn + "' on type 'List' (valid: add/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/find/forEach/flatMap/distinct/sorted/groupBy/zip)",
+                            "Cannot resolve method '" + mn + "' on type 'List' (valid: add/push/append/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/zip)",
                             "SEM025");
                 }
             }
@@ -323,7 +327,7 @@ public final class MemberCallTyper {
             if ("values".equals(mn)) return new Type.ClassType("kof", "List", List.of(valueType));
             if (sa.diagnostics() != null) {
                 sa.diagnostics().error(mc,
-                        "Cannot resolve method '" + mn + "' on type 'Map' (valid: put/get/getOrDefault/putIfAbsent/remove/containsKey/contains/containsValue/size/clear/isEmpty/keys/values)",
+                        "Cannot resolve method '" + mn + "' on type 'Map' (valid: put/get/getOrDefault/putIfAbsent/remove/containsKey/contains/containsValue/size/length/count/clear/isEmpty/keys/values)",
                         "SEM025");
             }
         }
@@ -338,7 +342,7 @@ public final class MemberCallTyper {
             if ("clear".equals(mn)) return Type.PrimitiveType.VOID;
             if (sa.diagnostics() != null && !"toArray".equals(mn) && !"subSet".equals(mn) && !"sublist".equals(mn)) {
                 sa.diagnostics().error(mc,
-                        "Cannot resolve method '" + mn + "' on type 'Set' (valid: add/contains/remove/size/clear/isEmpty)",
+                        "Cannot resolve method '" + mn + "' on type 'Set' (valid: add/contains/remove/size/length/count/clear/isEmpty)",
                         "SEM025");
             }
         }
@@ -382,7 +386,7 @@ public final class MemberCallTyper {
                 for (ExpressionNode arg : mc.arguments()) argTypes0.add(SemExpressionTyper.inferType(sa, arg, scope));
                 SymbolTable.MethodSymbol ms = set.select(mc.arguments().size(), argTypes0);
                 if (ms != null) {
-                    checkMemberAccess(sa, ms.accessFlags(), ms.ownerClass(),
+                    MemberAccessChecks.checkMemberAccess(sa, ms.accessFlags(), ms.ownerClass(),
                             "'" + ct.name() + "." + mc.methodName() + "'");
                     sa.putResolvedMethod(mc, ms);
                     TypeChecker.checkArgTypes(sa, sa.diagnostics(), mc.methodName(), argTypes0, ms.parameterTypes(), mc.arguments());
@@ -393,7 +397,7 @@ public final class MemberCallTyper {
                 // SG-013 (SEM046): private/protected checados em compile-time
                 // (antes viravam flags JVM e acesso indevido só explodia em
                 // runtime com IllegalAccessError).
-                checkMemberAccess(sa, ms.accessFlags(), ms.ownerClass(),
+                MemberAccessChecks.checkMemberAccess(sa, ms.accessFlags(), ms.ownerClass(),
                         "'" + ct.name() + "." + mc.methodName() + "'");
                 sa.putResolvedMethod(mc, ms);
                 List<Type> argTypes = new ArrayList<>();
@@ -488,95 +492,6 @@ public final class MemberCallTyper {
         return null;
     }
 
-    /**
-     * SG-013 (SEM046): visibilidade em compile-time. `private` só é acessível
-     * dentro da própria classe declarante; `protected` dentro da declarante ou
-     * subclasses. Chamada fora → erro SEM046 (antes: IllegalAccessError runtime).
-     */
-    static void checkMemberAccess(SemanticAnalyzer sa, int accessFlags,
-                                  String ownerClass,
-                                  String memberDesc) {
-        if (sa.diagnostics() == null) return;
-        boolean isPriv = (accessFlags & AccessFlags.PRIVATE) != 0;
-        boolean isProt = (accessFlags & AccessFlags.PROTECTED) != 0;
-        if (!isPriv && !isProt) return;
-        String caller = sa.currentClassName();
-        if (caller == null) {
-            // contexto top-level (main/função livre): não é dono de nada —
-            // private E protected são inacessíveis
-            sa.diagnostics().error("", 0, 0, 0,
-                    memberDesc + " is " + (isPriv ? "private" : "protected")
-                            + " (declared in '" + ownerClass
-                            + "') and cannot be accessed from top-level code",
-                    "SEM046");
-            return;
-        }
-        if (isPriv) {
-            // private: só a própria classe declarante
-            if (!ownerClass.equals(caller)) {
-                sa.diagnostics().error("", 0, 0, 0,
-                        memberDesc + " is private (declared in '" + ownerClass
-                                + "') and cannot be accessed from '" + caller + "'",
-                        "SEM046");
-            }
-        } else {
-            // protected: declarante ou subclasse (hierarquia transitiva)
-            if (!isInHierarchy(sa, caller, ownerClass)) {
-                sa.diagnostics().error("", 0, 0, 0,
-                        memberDesc + " is protected (declared in '" + ownerClass
-                                + "') and cannot be accessed from '" + caller + "'",
-                        "SEM046");
-            }
-        }
-    }
-
-    /**
-     * #331/#327 — face de CAMPO do mesmo contrato SG-013: private só na
-     * declarante, protected na declarante/subclasses (JVM aplica em runtime;
-     * sem o cheque o compile deixava passar e o load estourava
-     * IllegalAccessError — R6/Q7: nunca silencioso). O método-irmão já fazia
-     * isso (SEM046); o campo não fazia porque o FieldSymbol perdia os
-     * modificadores no SymbolTableBuilder. `this.x`/`x` nu na própria classe
-     * passa (owner == caller).
-     */
-    static void checkFieldAccess(SemanticAnalyzer sa, SymbolTable.FieldSymbol fs) {
-        checkMemberAccess(sa, fs.accessFlags(), fs.ownerClass(),
-                "field '" + fs.name() + "'");
-    }
-
-    /**
-     * #327 — escrita em campo `final`: o JVM so aceita putfield de um campo
-     * final no <init> DA CLASSE DECLARANTE (JVMS 4.4). Fora disso o runtime
-     * estoura IllegalAccessError ("Update to non-static final field ...
-     * attempted from a different class") em silencio no compile (R6/Q7).
-     * O inicializador `final Int x = 30` passa pelo fieldInits/<clinit>
-     * sintetizado (nao e um statement do usuario) — nunca chega aqui.
-     */
-    static void checkFinalFieldWrite(SemanticAnalyzer sa, SymbolTable.FieldSymbol fs) {
-        if (sa == null || sa.diagnostics() == null) return;
-        if ((fs.accessFlags() & AccessFlags.FINAL) == 0) return;
-        boolean staticField = (fs.accessFlags() & AccessFlags.STATIC) != 0;
-        boolean legal = sa.inConstructor && !staticField
-                && fs.ownerClass().equals(sa.currentClassName());
-        if (legal) return;
-        sa.diagnostics().error("", 0, 0, 0,
-                "cannot assign to final field '" + fs.name() + "' (declared in '"
-                        + fs.ownerClass() + "') from outside its constructor",
-                "SEM065");
-    }
-
-    /** caller está na hierarquia de `base` (caller == base ou estende transitivamente)? */
-    static boolean isInHierarchy(SemanticAnalyzer sa, String caller, String base) {
-        String current = caller;
-        int depth = 0;
-        while (current != null && depth++ < 32) {
-            if (current.equals(base)) return true;
-            SymbolTable.ClassSymbol cs = sa.allClasses().get(current);
-            if (cs == null) return false;
-            current = cs.superClass();
-        }
-        return false;
-    }
 
     /**
      * Invariante central de resolução (P0, R6): método inexistente em

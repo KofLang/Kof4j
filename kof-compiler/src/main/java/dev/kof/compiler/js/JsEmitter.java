@@ -231,6 +231,22 @@ public final class JsEmitter {
                     for (JsIr.JsCatchClause c : t.catches()) {
                         line("} catch (" + c.param() + ") {");
                         indent++;
+                        // #843: os throws INTERNOS do runtime JS usam
+                        // `new Error(msg)`, então o binding do catch recebia um
+                        // OBJETO Error e não a String do contrato — `e == "msg"`,
+                        // `e.length()` e `e.startsWith(...)` quebravam no JS
+                        // enquanto JVM/Script devolvem a String
+                        // (docs/language-reference/statements.md §8: "catch
+                        // (String e) catches Kof exceptions (strings)"). Normaliza
+                        // AQUI, uma vez, cobrindo todos os sites de throw do
+                        // runtime sem tocar em cada um: String passa intacta,
+                        // `Error` vira a mensagem, qualquer outro valor vira
+                        // String (a mesma coerção do JVM, que entrega
+                        // `RuntimeException.getMessage()`).
+                        line("if (typeof " + c.param() + " !== \"string\") { " + c.param()
+                                + " = (" + c.param() + " && " + c.param()
+                                + ".message !== undefined) ? String(" + c.param()
+                                + ".message) : String(" + c.param() + "); }");
                         for (JsIr.JsStatement s : c.body()) emitStatement(s);
                         indent--;
                     }
@@ -240,6 +256,13 @@ public final class JsEmitter {
                     indent++;
                     for (JsIr.JsStatement s : t.finallyBody()) emitStatement(s);
                     indent--;
+                } else if (t.catches() == null || t.catches().isEmpty()) {
+                    // §703: o corpo do finally foi esvaziado (o otimizador
+                    // removeu um dead store) e não há catch — sem isto o JS
+                    // emite `try { ... }` sem cláusula (SyntaxError). Um
+                    // `finally {}` mantém a sintaxe e a semântica (o finally
+                    // vazio não faz nada).
+                    line("} finally {");
                 }
                 line("}");
                 // DD-01 (bug 45): epílogo do return que saiu do try — roda DEPOIS

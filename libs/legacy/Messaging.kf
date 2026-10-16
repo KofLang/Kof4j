@@ -1,0 +1,112 @@
+package legacy
+
+import legacy.Legacy
+import legacy.Adapter
+
+// kof.legacy.messaging — KofBOL Fatia 9 (plan §20 slice 9; §12 + §4.6): the
+// MQ-SHAPED messaging abstraction (engine-agnostic — IBM MQ can back it
+// later) + the BATCH report. The in-memory broker keeps the send/receive
+// shape (queue, correlation id, FIFO); timeouts/retry/dead-letter belong to
+// a real engine and are NOT faked here. §10 discipline: an EMPTY queue is a
+// WARNING VALUE, never an exception.
+
+record LegacyMessage(String queue, String payload, String correlationId)
+
+record LegacyQueue(String name, List<LegacyMessage> pending)
+
+record LegacyBroker(List<LegacyQueue> queues)
+
+record Delivery(LegacyBroker broker, String text, String correlationId,
+                LegacyResponse response)
+// the EMPTY delivery: text = "" and response = the WARNING (4) — the §10
+// signal is the STATUS, never a null.
+
+LegacyBroker broker() {
+    return LegacyBroker(listOf())
+}
+
+// publish — appends to the queue (created on first use). Functional: the
+// broker in, the new broker out.
+LegacyBroker publish(LegacyBroker b, LegacyMessage m) {
+    var out: List<LegacyQueue> = listOf()
+    var hit = false
+    var i = 0
+    while (i < b.queues.size) {
+        var q = b.queues.get(i)
+        if (q.name == m.queue) {
+            hit = true
+            var pend: List<LegacyMessage> = listOf()
+            var j = 0
+            while (j < q.pending.size) {
+                pend.add(q.pending.get(j))
+                j = j + 1
+            }
+            pend.add(m)
+            out.add(LegacyQueue(q.name, pend))
+        } else {
+            out.add(q)
+        }
+        i = i + 1
+    }
+    if (!hit) {
+        out.add(LegacyQueue(m.queue, listOf(m)))
+    }
+    return LegacyBroker(out)
+}
+
+// receive — FIFO: the head of the queue. An empty/unknown queue is a
+// WARNING response (§10) with a null payload — never an exception.
+Delivery receive(LegacyBroker b, String queue) {
+    // phase 1: locate the head WITHOUT nullable locals (null safety works
+    // by narrowing, never by direct null assignment).
+    var qIdx = -1
+    var headText = ""
+    var headCorr = ""
+    var i = 0
+    while (i < b.queues.size) {
+        var q = b.queues.get(i)
+        if (q.name == queue && q.pending.size > 0) {
+            qIdx = i
+            headText = q.pending.get(0).payload
+            headCorr = q.pending.get(0).correlationId
+        }
+        i = i + 1
+    }
+    if (qIdx < 0) {
+        return Delivery(LegacyBroker(b.queues), "", "", response(4, "no message on " + queue))
+    }
+    // phase 2: rebuild the broker with the head consumed.
+    var out: List<LegacyQueue> = listOf()
+    i = 0
+    while (i < b.queues.size) {
+        var q = b.queues.get(i)
+        if (i == qIdx) {
+            var rest: List<LegacyMessage> = listOf()
+            var j = 1
+            while (j < q.pending.size) {
+                rest.add(q.pending.get(j))
+                j = j + 1
+            }
+            out.add(LegacyQueue(q.name, rest))
+        } else {
+            out.add(q)
+        }
+        i = i + 1
+    }
+    var resp = response(0, "received from " + queue)
+    return Delivery(LegacyBroker(out), headText, headCorr, resp)
+}
+
+// pendingCount — the queue depth (a small tail helper).
+Int pendingCount(LegacyBroker b, String queue) {
+    var n = 0
+    var i = 0
+    while (i < b.queues.size) {
+        if (b.queues.get(i).name == queue) {
+            n = b.queues.get(i).pending.size
+        }
+        i = i + 1
+    }
+    return n
+}
+

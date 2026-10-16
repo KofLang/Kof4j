@@ -105,6 +105,23 @@ public class ParseContext {
     }
 
     /**
+     * TIER 2.7 (`D-VALUE-RECORD`, 2.7.1) — {@code value} é keyword CONTEXTUAL
+     * (IDENTIFIER no lexer), como `sealed`: só é modificador quando precede
+     * (direta ou após outros modificadores) um {@code record}. Em qualquer
+     * outro lugar `value` segue um identificador comum — o campo `value` das
+     * caixas de captura e o `value` de `kof.ui` continuam válidos (R2
+     * aditivo/retro-compatível). `D-VALUE-RECORDS-GO` resolveu: `value` aplica
+     * SÓ a `record` (nunca `class`).
+     */
+    public boolean valueModifierAhead() {
+        if (!wordIs("value")) return false;
+        int i = pos + 1;
+        while (i < tokens.size() && MODIFIER_TOKENS.contains(tokens.get(i).type())) i++;
+        if (i >= tokens.size()) return false;
+        return tokens.get(i).type() == TokenType.RECORD;
+    }
+
+    /**
      * Connector ecosystem (plan §9.16 slice A): {@code foreign module <name> {}
      * — `foreign`/`module` são keywords CONTEXTUAIS (IDENTIFIER), como `sealed`.
      * Só é um bloco de módulo quando IDENTIFIER("foreign") precede IDENTIFIER e

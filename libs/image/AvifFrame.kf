@@ -63,7 +63,11 @@ record AvifFrameHeader(Int frameType, Bool showFrame, Bool errorResilient,
                       Bool allowScreenContent, Bool allowIntrabc,
                       Int tileColumns, Int tileRows, Int tileBits,
                       Int tileSizeBytes, Int headerBytes,
-                      Int baseQIdx, Int loopFilterLevel0, Int cdefBits)
+                      Int baseQIdx, Int loopFilterLevel0, Int cdefBits,
+                      Int lossless, Int txModeSelect, Int reducedTxSet,
+                      Int deltaQPresent, Int deltaQRes,
+                      Int deltaLfPresent, Int deltaLfRes, Int deltaLfMulti,
+                      Int segEnabled, Int[] segAltQ)
 
 AvifFrameHeader readAvifFrameHeader(String path) {
     var bytes = File(path).readRange(0, 65536)
@@ -74,7 +78,7 @@ AvifFrameHeader readAvifFrameHeader(String path) {
 AvifFrameHeader avifItemFrameHeader(Int[] item) {
     var seq = AvifSeqHeader(0, false, false, 0, 0, false, false, false, 8, 0,
                             false, false, false, false, false, false, 2, 2, 0, 0, 0, 0, 0,
-                            false, false)
+                            false, false, false, false)
     var haveSeq = false
     var pos = 0
     var n = item.length
@@ -276,7 +280,10 @@ AvifFrameHeader frameWalk(Int[] b, Int p, Int limit, AvifSeqHeader seq) {
                            allowSct == 1, allowIntrabc == 1,
                            tiles[1], tiles[2], tiles[3], tiles[4],
                            (hb - p * 8) / 8,
-                           tail[1], tail[2], tail[3])
+                           tail[1], tail[2], tail[3],
+                           tail[4], tail[5], tail[6],
+                           tail[7], tail[8], tail[9], tail[10], tail[11],
+                           tail[12], segAltQOut(tail))
 }
 
 // uncompressed_header() tail per AV1 5.9.2, after tile_info() and before the
@@ -290,6 +297,16 @@ AvifFrameHeader frameWalk(Int[] b, Int p, Int limit, AvifSeqHeader seq) {
 // byte-aligns. CodedLossless/AllLossless are derived exactly per 5.9.2 (no
 // superres, so AllLossless == CodedLossless), which is what makes the
 // loop-filter/cdef/restoration/tx-mode guards parse-correct.
+Int[] segAltQOut(Int[] tail) {
+    var q = new Int[8]
+    var i = 0
+    while (i < 8) {
+        q[i] = tail[13 + i]
+        i = i + 1
+    }
+    return q
+}
+
 Int[] frameTailWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq,
                     Int allowSct, Int allowIntrabc, Int numPlanes) {
     var separateUv = 0
@@ -379,16 +396,28 @@ Int[] frameTailWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq,
             i = i + 1
         }
     }
-    // delta_q_params() / delta_lf_params()
+    // delta_q_params() / delta_lf_params() (5.9.12/5.9.13). The mode-info
+    // TAIL the tile driver reads (`Av1ModeTail`) needs the PRESENCE and
+    // RESOLUTION of both, so carry them out instead of only counting bits.
+    var dqPresent = 0
+    var dqRes = 0
+    var dflPresent = 0
+    var dlRes = 0
+    var dlMulti = 0
     if (baseQ > 0) {
         var dqp = seqRead(b, bits, 1)
         bits = bits + 1
+        dqPresent = dqp
         if (dqp == 1) {
+            dqRes = seqRead(b, bits, 2)
             bits = bits + 2
             if (allowIntrabc == 0) {
                 var dflp = seqRead(b, bits, 1)
                 bits = bits + 1
+                dflPresent = dflp
                 if (dflp == 1) {
+                    dlRes = seqRead(b, bits, 2)
+                    dlMulti = seqRead(b, bits + 2, 1)
                     bits = bits + 2 + 1
                 }
             }
@@ -479,20 +508,46 @@ Int[] frameTailWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq,
             }
         }
     }
-    // read_tx_mode() (skipped when CodedLossless)
+    // read_tx_mode(): tx_mode_select is present only when not CodedLossless;
+    // CodedLossless forces TX_MODE_ONLY_4X4 (libaom's `read_tx_mode`).
+    var txModeSelect = 0
     if (codedLossless == 0) {
+        txModeSelect = seqRead(b, bits, 1)
         bits = bits + 1
     }
     // reduced_tx_set (frame_reference_mode/skip_mode_params inferred for intra)
+    var reducedTxSet = seqRead(b, bits, 1)
     bits = bits + 1
     if (bits > limit * 8) {
         throw "IMAGE: truncated avif frame header"
     }
-    var out = new Int[4]
+    // The frame-level facts the TILE DECODE consumes: `codedLossless`
+    // (drives the driver's `lossless`), `tx_mode_select` and
+    // `reduced_tx_set`. Exposed so the composition never re-derives them.
+    // The SEGMENTATION state the tile decode needs: `segEnabled` gates whether
+    // `intra_frame_mode_info` reads a segment id at all, and `segAltQ[seg]` is
+    // the per-segment qindex offset (`qIndex = baseQ + segAltQ[seg]`). Parsed
+    // here but never surfaced before — the driver took the segEnabled==0 branch
+    // and the stream desynced.
+    var out = new Int[21]
     out[0] = bits
     out[1] = baseQ
     out[2] = lf0Out
     out[3] = cdefBitsOut
+    out[4] = codedLossless
+    out[5] = txModeSelect
+    out[6] = reducedTxSet
+    out[7] = dqPresent
+    out[8] = dqRes
+    out[9] = dflPresent
+    out[10] = dlRes
+    out[11] = dlMulti
+    out[12] = segEnabled
+    var si = 0
+    while (si < 8) {
+        out[13 + si] = segAltQ[si]
+        si = si + 1
+    }
     return out
 }
 

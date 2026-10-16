@@ -156,4 +156,19 @@ public final class KofIo {
     static boolean isIdentityMethod(String name) {
         return "path".equals(name);
     }
+
+    /**
+     * #847: a chamada de identidade (`path()`) com tipo de resultado {@code
+     * String} — em receptor {@code kof.io} (File/Path/Directory, onde o emissor
+     * não gera chamada: o valor É a String do caminho) E em receptor STRING (a
+     * própria String é o caminho; mesma decisão que a forma de CAMPO já toma).
+     * Sem isto o ramo de identidade devolvia o tipo do receptor Io (contra
+     * {@code IO.md}: {@code name()}/{@code path()} → String) e, no receptor
+     * String, a chamada nem chegava ao ramo (é gateado por {@link #isIoType}),
+     * escapando para o caminho genérico — emitia {@code String.path()} e morria
+     * em {@code NoSuchMethodError}.
+     */
+    static boolean isStringIdentityCall(Type recv, String methodName) {
+        return isIdentityMethod(methodName) && (isIoType(recv) || Type.isString(recv));
+    }
 }

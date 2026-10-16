@@ -2,11 +2,455 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 13/10 — AVIF slice 3au DIAGNOSTICADA e CATALOGADA como `known-bugs` §705: o travamento do nativo x86 é uma divergência cross-target REAL (mesmo Kof correto em JVM/Script/JS). Reapliquei a 3au e reproduzi; estreitei a uma chamada direta `tile.decodeBlock(0,0,9)` (construtor e `planes()` funcionam); inspecionei o assembly (frame 992, todos os 46 slots escritos, ZERO offsets fora do frame → a hipótese "frame pequeno demais" está REFUTADA); 4 repros mínimos REFUTADOS, um revelou um defeito separado (8 campos + 38 params soma 742 no nativo vs 749 no JVM). Nada pousado; a 3au segue revertida.
-doing: nenhum — ciclo de diagnóstico; árvore limpa
-next: entregar o §705 à lane compilador/nativo (`.30:9092`/`.117:0`) OU achar a causa raiz com um debugger funcional (o bloqueador é o backtrace ausente — `perf` e `gdb` estão bloqueados neste ambiente); a repro é um comando de teste e a fonte está em `0f8ca55ff`. Depois: a camada de tile group/OBU (não depende da 3au) e o `decodeRaster` AVIF.
+last: 16/10 — AVIF slice 3bd 43ª PASSAGEM (CORREÇÃO): a alegação da 42ª ("o escritor é a predição intra") está RETRATADA — a predição é ARITMETICAMENTE EXCLUÍDA. O `av1IntraPredictBlock` JÁ faz clamp (`maxX`/`maxY` = frameW/frameH, `limit = min(x + 2w - 1, maxX)`), e com coordenadas com borda isso é EQUIVALENTE ao clamp da spec. Aritmética: com stride 34 e acessos limitados a linha 32/coluna 32, o índice máximo é 32*34+32 = 1120 << 1156, enquanto o crash é 1186 = linha 34, col 30 ⇒ a predição não pode ser o escritor. O marcador da 42ª era fraco (lançava ANTES da chamada que deveria exonerar ⇒ nunca chegou ao crash real). Fica da 42ª: o croma não escreve buffer de quadro (escritor na LUMA) e os guards de BLOCO/TX excluem bloco/TX fora do quadro. Próximo: RASTRO de marcadores que IMPRIME (não lança) em cada escritor candidato (recon, edge filter intra, filter-intra, coeficientes) — a última linha antes do crash nomeia o escritor.
+doing: §3bd — 32x32: predição EXCLUÍDA por aritmética (máx 1120 << 1186); escritor está na LUMA, com offset além do bloco/TX ou stride errado
+next: §3bd — rastro de marcadores que IMPRIME (não lança) em cada escritor candidato (recon/edge-filter/filter-intra/coeficientes) para a última linha antes do crash nomear o escritor do índice 1186
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 16/10 (70ª) — 3bd 43ª: CORREÇÃO — a predição está ARITMETICAMENTE EXCLUÍDA (retratação)
+- **Retratação:** a 42ª passagem afirmou "o escritor é a predição intra" — ERRADO. O `av1IntraPredictBlock` JÁ faz clamp: `maxX`/`maxY` (driver = frameW/frameH) e `limit = min(x + 2w - 1, maxX)`; com coordenadas com borda (`x+1`), isso é EQUIVALENTE ao clamp da spec (`maxX - 1`).
+- **Aritmética decisiva:** stride 34, acessos limitados a linha 32 / coluna 32 ⇒ índice máximo `32*34 + 32 = 1120` — muito dentro do buffer de 1156 — enquanto o crash é **1186 = linha 34, coluna 30**. Máximo 1120 não escreve 1186 ⇒ a predição NÃO é o escritor.
+- **Falha de método da 42ª:** o marcador LANÇAVA antes da chamada que deveria exonerar ⇒ a execução nunca chegou ao crash real ⇒ não localizou nada.
+- **Fica da 42ª:** o croma não escreve buffer de quadro (escritor na LUMA) e os guards de BLOCO/TX excluem bloco/TX fora do quadro.
+- **Próximo (método corrigido):** RASTRO de marcadores que IMPRIME em cada escritor candidato (recon, edge filter intra, filter-intra, coeficientes) — a última linha antes do crash nomeia o escritor. Um escritor que alcança a linha 34 precisa de offset além do bloco/TX ou stride errado (`frameW` onde o buffer usa `frameW + 2`).
+- **Árvore:** inalterada (docs-only); `AvifRealFileE2ETest` **10/10**.
+
+## Sessão 16/10 (69ª) — 3bd 42ª: ESCRITOR NOMEADO (predição intra over-read na borda)
+- **Marcador** no laço de TX, antes do `av1IntraPredictBlock`: lança se `x + 2*w > frameW + 1 || y + 2*h > frameH + 1` ⇒ **DISPAROU**: `IMAGE: DIAG predict-extent x=16 y=0 w=16 h=16 r=0 c=4 bs=6`.
+- **Leitura:** bloco 16x16 nos pixels x=16..31 (encostado na borda DIREITA do quadro 32) com predição angular quer amostras até x+2w-1 = 47 ⇒ **35 colunas além do quadro** ⇒ cai no índice 1186 do buffer luma (1156) — o que nem o guard de bloco nem o de TX podiam ver (ambos dentro dos limites).
+- **Causa:** pela spec/libaom os preditores intra leem um `AboveRow`/`LeftCol` PREPARADO (amostras indisponíveis marcadas + clamp `get_...`); o `av1IntraPredictBlock` do Kof lê o QUADRO DIRETO com offsets crus ⇒ over-read na borda direita.
+- **Fix (próxima fatia):** o modelo de disponibilidade/clamp — o fix correto (afeta também os PIXELS, não só o crash).
+- **Só o 32x32 alcança** hoje: precisa de modo angular num bloco de borda direita cuja extensão topo-direita passe do quadro; os fixtures 64x64 não atingem.
+- **Diagnóstico REVERTIDO** (temporário); árvore no estado provado, `AvifRealFileE2ETest` **10/10** (commit docs-only).
+
+## Sessão 16/10 (68ª) — 3bd 41ª: eliminações medidas (bloco e TX dentro do plano); estouro é interno
+- **Diagnóstico 1 (REVERTIDO):** guard de extensão do BLOCO no topo do `decodeBlock` ⇒ **NUNCA DISPAROU** ⇒ nenhum bloco ultrapassa o quadro ⇒ elimina a hipótese de bloco fora do quadro (vindo da partição dessincronizada).
+- **Diagnóstico 2 (REVERTIDO):** guard de extensão do BLOCO DE TRANSFORMADA antes da caminhada de coeficientes (`y+h>frameH || x+w>frameW`, x/y absolutos) ⇒ **NUNCA DISPAROU** ⇒ a enumeração de TX fica dentro do plano.
+- **Confirmado:** o buffer é o plano LUMA com borda (`34*34 = 1156` num 32x32, stride 34) e o índice 1186 está **30 além do fim do buffer** (não apenas uma linha além da borda — a linha 34 não existe).
+- **Conclusão:** o estouro vem de DENTRO de um estágio com extensões nominais dentro dos limites ⇒ candidatos = leituras de borda do `av1IntraPredictBlock`, o edge filter intra, ou efeito luma da caminhada de croma. cb16/pskip/testsrc (64x64) limpos.
+- **Árvore no estado provado:** `AvifRealFileE2ETest` **10/10** (nada landado — commit docs-only).
+- **Próximo:** instrumentar dentro do `av1IntraPredictBlock`/edge filter com a mesma técnica de marcador.
+
+## Sessão 16/10 (67ª) — 3bd 40ª: fora-de-limites do 32x32 estreitado; paleta EXONERADA por experimento
+- **Array identificado:** `1156 = 34*34` = plano 32x32 + borda de 1 amostra (stride 34); `1186` = linha 34, col 30 ⇒ **uma linha além da borda inferior** (linhas 0..33).
+- **Discriminador (duas rodadas):** (1) implementei o fix óbvio (recortar a pintura da paleta ao plano) ⇒ o throw PERSISTIU; (2) DESLIGUEI o caminho de paleta (`pal = 0` no `AvifRealTileProbe`) ⇒ o throw persistiu **IDÊNTICO**. Uma falha que sobrevive à remoção do suspeito não é dele ⇒ **a pintura da paleta não é o escritor**.
+- **Revertido:** as duas mudanças (a não-provada e o discriminador temporário) — árvore no estado provado; `AvifRealFileE2ETest` **10/10**.
+- **Defeito como está:** fora-de-limites no caminho SEM paleta, um escritor uma linha além da borda inferior, num quadro 32x32; cb16/pskip/testsrc (64x64) não lançam ⇒ específico de quadro pequeno/geometria de borda.
+- **Próximo:** achar o escritor (luma `av1ReconBlockInto`/laço de TX num bloco de borda inferior, ou o caminho de croma) com o discriminador registrado.
+
+## Sessão 16/10 (66ª) — 3bd 39ª: fixture mínimo EXATO landado + NOVO defeito (fora-de-limites no 32x32)
+- **Landado:** `avif_real_pskip.avif` — 64x64, metade esquerda plana (100), direita rampa de 4px, `allow_screen_content_tools`; 1 bloco, **328/328 bits**, Y **EXATO** vs ffmpeg (100,235,207,100,234,208) ⇒ teste permanente; `AvifRealFileE2ETest` **10/10**.
+- **DEFEITO NOVO (pista forte):** testsrc 32x32 LANÇA `Index 1186 out of bounds for length 1156` DENTRO da decodificação Kof ⇒ fora-de-limites em quadro pequeno (não dessincronismo). Um índice derivado de geometria pode ser a MESMA raiz do dessincronismo do 64x64.
+- **Não commitei** o fixture 32x32 (ele lança; suíte vermelha não é permitida) — a receita ffmpeg fica no plano e é reprodutível.
+- **testsrc 64x64** segue em 1257/2344 (26 blocos).
+- **Próximo:** investigar o fora-de-limites do 32x32 (qual array tem 1156 entradas e de onde vem o 1186) — alvo menor, determinístico e autocontido.
+
+## Sessão 16/10 (65ª) — 3bd 38ª: reset em bloco pulado REFUTADO (medido); revertido
+- **Implementei** o `av1_reset_entropy_context` do libaom fiel (zera above/left de coeficiente na extensão 4x4 do bloco, croma com subsampling, logo após o tx size).
+- **MEDI no testsrc: NADA mudou** (blocks=26 symBits=1257 txb=62 nzTot=103, mesmos pixels).
+- **Por quê (do instrumento):** o dump por bloco mostra que **todos os 26 blocos têm skip=0** ⇒ o reset nunca dispara ⇒ a pista da 37ª passagem não se aplica.
+- **Decisão:** REVERTI (não lando comportamento que não consigo exercitar; a árvore fica no último estado provado). `check_test_hygiene`/`check_owner_identity`/`check_doc_refs`/`check_plan_index` rc=0.
+- **O que fica:** paleta correta onde exercitada (cb8 EXATO); o dessincronismo do testsrc NÃO é o reset; cb8 tem 1 bloco e é exato ⇒ a falha é INTERAÇÃO MULTI-BLOCO; a contagem de blocos se move a cada correção (25→41→26) ⇒ divergência CEDO no tile.
+- **Próximo:** fixture de screen-content MÍNIMO com poucos blocos (receita ffmpeg no plano) para isolar o primeiro bloco divergente.
+- **Caveat:** o fixture gerado em /tmp nesta passagem não chegou a ser medido (erro de compilação no harness temporário) ⇒ não landei o fixture; a receita fica registrada e é reprodutível.
+
+## Sessão 15/10 (64ª) — 3bd 37ª: reconstrução por paleta ⇒ cb8 EXATO (marco) + correção do "100%"
+- **Fatia:** pixels de plano de paleta pintados direto das cores (índice → mapa), laço de coeficientes esvaziado p/ paleta LUMA, caminhada de croma pulada p/ paleta UV, UV pintada uma vez p/ U e V.
+- **MARCO:** `avif_real_cb8.avif` (xadrez 8x8, ALTA frequência) agora bate EXATAMENTE com o ffmpeg (Y 16,16,235,16,16,235) — assertado. Primeiro fixture de alta frequência exato.
+- **CORREÇÃO (importante):** o consumo do testsrc caiu para **1257/2344** ⇒ o "100% em sincronia" da 36ª passagem era EM PARTE SORTE (as leituras espúrias de coeficientes comiam a cauda do fluxo). testsrc AINDA tem dessincronismo; a afirmação fica corrigida no plano (EN+PT).
+- **PISTA p/ o próximo:** libaom faz `if (mbmi->skip_txfm) av1_reset_entropy_context(xd, bsize, num_planes);` — bloco PULADO reseta os contextos de entropia de coeficientes. cb8 é 1 bloco (não expõe); testsrc tem 41 blocos (expõe) ⇒ encaixa no dessincronismo restante.
+- **Prova:** AvifRealFileE2ETest 9/9 (cb8 assere pixels exatos + consumo total) + Av1PaletteTokensE2ETest 2/2.
+
+## Sessão 15/10 (63ª) — 3bd 36ª: TOKENS ligados ⇒ ENTROPIA 100% EM SINCRONIA (marco)
+- **Fatia:** `av1PaletteColorMap` ligado ao driver na ordem da referência (mode info → tokens → tx size), por plano (Y/UV), com mapas `colorIndexY`/`colorIndexUv`.
+- **Precisou:** 70 linhas PERSISTENTES de CDF de índice de cor no `Av1ModeInfo` (`palColorIndexStore` + `palYColorIndexCdf`/`palUvColorIndexCdf`) — a adaptação tem de sobreviver ao tile; e `av1PaletteColorMap` passou a receber o mode-info em vez de um slice novo.
+- **MEDIÇÃO (o marco):** cb8 23/152 → **152/152** bits; testsrc 1351/2344 → **2344/2344**; cb16 384/384 (inalterado). **100% em todos** ⇒ o leitor, a ordem da sintaxe, os contextos e as CDFs estão em sincronia sobre saída real de encoder. O `txb` do cb8 cai 16→4 com `nzTot` 0 porque bloco de paleta carrega o MAPA DE ÍNDICES em vez de coeficientes (desenho do AV1).
+- **Prova:** `AvifRealFileE2ETest` **9/9** (cb8 agora assere `symBits == payloadBits`; travessia fixa testsrc em 2344/2344) + `Av1PaletteTokensE2ETest` **2/2**.
+- **Falta (última peça):** a reconstrução por paleta — o Y do cb8 ainda é 128 porque nada pinta as cores.
+
+## Sessão 15/10 (62ª) — 3bd 35ª: leitor de tokens de paleta (`Av1Palette.kf`) landado e verificado
+- **Módulo novo:** `libs/image/Av1Palette.kf` — `av1ReadUniform`, `av1PaletteColorIndexContext` (pesos 2/1/2, ordenação top-3 que preenche `colorOrder`, hash + `av1_palette_color_index_context_lookup`) e `av1PaletteColorMap` (índice inicial uniforme, frente de onda, cópia da última coluna/linha). Transcrito de `av1/common/entropymode.c` e `av1/decoder/detokenize.c` (obtidos pelo gitiles).
+- **Prova:** `Av1PaletteTokensE2ETest` **2/2 (JVM + Script)** — lookup fixado nos valores EXATOS do libaom (`-1,-1,0,-1,-1,4,3,2,1`) + 2 casos de contexto calculados À MÃO (n=2 → ctx 0; n=3 com deslocamento da ordem → [0,2,1] e ctx 1).
+- **Colisão de nome evitada:** já existia `Av1PaletteE2ETest` (fatia 3v, o modo-info de paleta) ⇒ o novo é `Av1PaletteTokensE2ETest`.
+- **Caveat:** o módulo NÃO está ligado ao driver ⇒ nenhum comportamento muda nesta passagem (sem risco de regressão).
+- **Próximo:** ligar ao driver DEPOIS do mode info e ANTES do tx size, por plano; guardar os mapas; medir consumo/pixels; depois a reconstrução.
+
+## Sessão 15/10 (61ª) — 3bd 34ª: CDFs de índice de cor da paleta + ORDEM dos tokens (da referência)
+- **Pré-requisito landado:** `Av1ModeCdf` tinha ZERO CDFs de índice de cor de paleta. Agora tem `Palette_Color_Index_Cdf[7][5][9]` (Y e UV, 35 linhas cada; a linha do tamanho s tem s-1 probabilidades) + `paletteYColorIndex(size,ctx)`/`paletteUvColorIndex(size,ctx)`, valores do `entropymode.c` do libaom.
+- **Ordem CORRETA (da referência):** libaom `parse_decode_block` → `decode_mbmi_block()` e DEPOIS `av1_visit_palette(..., av1_decode_palette_tokens)` ANTES do tx size; spec: `mode_info()` → `palette_tokens()` → `read_block_tx_size()`. O driver do Kof lê o tx size logo após o mode info ⇒ lê o tx size onde estão os TOKENS ⇒ desync (explica 58% + pixels errados).
+- **Prova:** `Av1ModeCdfE2ETest` **8/8** (EXT ganhou 70 linhas, golden regerado do libaom + novo pin de SHA). A 1ª tentativa FALHOU e o teste pegou meu próprio erro de ordem (probe intercala PYC/PUC; golden agrupava).
+- **Caveat:** mudança aditiva (dados+acessores), sem consumidor ainda ⇒ nenhum comportamento de decodificação mudou; não re-rodei as suítes AVIF por isso (risco nulo de comportamento), mas o teste de paridade cobre os valores.
+- **Próximo:** implementar `palette_tokens` e depois a reconstrução por paleta.
+
+## Sessão 15/10 (60ª) — 3bd 33ª: FIX RED-first do throw de paleta (`av1AllowPalette`)
+- **Bug:** `read_palette_mode_info` deve ser guardado por `av1_allow_palette` = screen-content tools **E `sb_type >= BLOCK_8X8`** (e bloco ≤ 64x64). O port do Kof checava só `palettePossible == 1`.
+- **Mecanismo:** num bloco 4x8/8x4, `palette_bsize_ctx = num_pels_log2[bs] - 6 = -1` ⇒ `PalYModeStore.get(-1*3 + ctx)` = índice **-2** num store de 21 entradas ⇒ `Index -2 out of bounds for length 21` (o libaom faz assert).
+- **Fix:** `av1AllowPalette(sct, bs)` espelhando o libaom, usado no guard do `readBodyBd`.
+- **Prova RED-first:** código antigo ⇒ testsrc LANÇA; com o fix ⇒ decodifica: `blocks` 21->25, `symBits` 862->**1351**/2344 (37%->58%), `nzTot` 0->**171**, `nzHead` de tudo-zero a `7,21,6,8,0,2,3,8,4,1,3,1` ⇒ o caminho de residual ficou REAL. A leitura de paleta aparece (`2:1` + aridade 7) e o teste assere isso + `nzTot > 0`.
+- **Restante (próximo):** as cores de paleta não são aplicadas à reconstrução (Y 133/91/87 vs 16/41/235) e o consumo de 58% ⇒ provavelmente os ÍNDICES de paleta por pixel ainda não são lidos.
+- **Prova:** AvifRealFileE2ETest 9/9, BUILD SUCCESS.
+
+## Sessão 15/10 (59ª) — 3bd 32ª: CAUSA RAIZ = o HARNESS (palettePossible), não o leitor
+- **Descoberta:** `allowScreenContent` é TRUE nos dois fixtures que FALHAM (cb8, testsrc) e FALSE nos dois que decodificam EXATAMENTE (cb16, solid). `allowIntrabc` = false em todos. Essa flag governa `read_palette_mode_info` (libaom) — o símbolo de paleta é escrito em todo bloco elegível.
+- **Correlação:** 4/4 fixtures explicados pela flag. O oracle independente (31ª) já provara que o leitor e a ordem de sintaxe são fiéis ao fluxo ⇒ o suspeito tinha de ser a própria ordem/sintaxe.
+- **Correção:** `palettePossible` agora vem do quadro (`h.allowScreenContent`) no probe. Efeito medido no cb8: `2:1` (has_palette_y) + símbolo de aridade 7, `txb` 16->1, `nzTot` 0->6, consumo 23->76 de 152 bits.
+- **Defeito novo:** com o portão ligado o testsrc LANÇA `Index -2 out of bounds for length 21` no caminho de paleta (antes subconsumia). O instrumento foi reapontado para cb16 (controle de consumo total) e o teste do cb8 assere a leitura de paleta.
+- **Prova:** AvifRealFileE2ETest 9/9, BUILD SUCCESS.
+- **Caveat:** `decodeRaster` segue sem poder anunciar AVIF (reconstrução de paleta inacabada); sem cmake/ninja/pip não há oracle instrumentado do libaom — mas o oracle independente em Python passou a cobrir o leitor.
+
+## Sessão 15/10 (58ª) — 3bd 31ª: oracle INDEPENDENTE do leitor (sem cmake) + posições por símbolo
+- **Fatia:** rastro por símbolo com POSIÇÃO (`n:sym@pos`) e despejo dos bytes do payload pelo probe.
+- **Medição:** cb8 `10:0@16 2:0@16 13:0@17 13:0@18 3:2@18 2:1@19...`; cb16 `10:3@18 10:0@19 2:0@19 13:0@20 14:0@21 2:0@22 3:1@26...`. Diferem só onde o tamanho de bloco difere (64x64: sem filter-intra, uv 13; 32x32: filter-intra, uv 14 com CFL) — AMBOS corretos.
+- **Custos:** CDF do tx-size cat3/ctx0 → P(0)=0.1765 P(1)=0.1737 P(2)=0.6498 ⇒ `3:2` 0 bits (cb8) e `3:1` 4 bits (cb16) plausíveis.
+- **Pista-chave:** a decodificação lê valores de ALTA PROBABILIDADE em todo lugar (all_zero=1 com P≈0.9) ⇒ assinatura de leitor DESLOCADO — o mesmo mecanismo que produz o consumo de 15%.
+- **ORACLE NOVO (importante):** decodificador de símbolos da spec em Python (init_symbol + read_symbol) + a linha de CDF de partição verificada ⇒ primeiro símbolo = 0 (NONE) = **igual ao Kof** ⇒ init e símbolo 0 CORRETOS. **Isto destrava a verificação sem cmake** (que não existe neste host, nem pip).
+- **Prova:** AvifRealFileE2ETest 9/9 + Av1CoeffsE2ETest 6/6, BUILD SUCCESS.
+- **Próximo:** estender o oracle aos primeiros N símbolos (renorm + linhas default) e localizar o símbolo exato da divergência.
+
+## Sessão 15/10 (57ª) — 3bd 30ª: CONTROLES estreitam a falha a um EOB grande (par RED commitado)
+- **Fatia:** `Av1Symbol.enableTrace()`/`log()` (rastro por símbolo; readBool/readLiteral passam por readSymbol ⇒ captura tudo).
+- **Controles (decisivos, commitados):** cb16 (xadrez 16x16, **4 blocos**, tx=1) consome **384/384 = 100%** e reconstrói EXATAMENTE; cb8 (xadrez 8x8, alta frequência, 1 bloco/16 TX) consome **23/152 = 15%** com todos os TX lendo all_zero=1 e DC nua 128 vs 16/235.
+- **Exonerados por esses controles:** partição MULTI-BLOCO e o caminho `txModeSelect=1`. **Fica:** a falha acompanha EOB GRANDE.
+- **Também:** `adaptCdf` vs `update_cdf` do libaom = EQUIVALENTE (taxa da spec `3+(c>15)+(c>31)+Min(Log2(N),2)` e direção, traduzindo entre as representações inversa/forward) ⇒ adaptação de CDF exonerada.
+- **Teste:** `AvifRealFileE2ETest` **9/9** (cb16 = pixels exatos + consumo total; cb8 = reproducer com invariantes sem referência), BUILD SUCCESS.
+- **Caveat:** o cb8 assere só invariantes (asserir o valor errado seria false-green; suíte vermelha não é permitida); sem `cmake`/`ninja` (e sem `pip`) não há oracle instrumentado do libaom aqui.
+
+## Sessão 15/10 (56ª) — 3bd 29ª: instrumentação por bloco landada; errado+subconsumo confirmados juntos
+- **Fatia (código):** `Av1TileDecode` (libs/image/Av1DecodeTileRecon.kf) ganhou `posOut` + o getter aditivo `positions()` — 2 ints por bloco (posição após o mode info, após os residuais). SEM mudar o construtor ⇒ nenhum harness existente quebra.
+- **Teste:** `AvifRealFileE2ETest` assere a estrutura do registro (1 por bloco = 21, não-decrescente, último == `walk.position()`). **7/7**, BUILD SUCCESS.
+- **Medição:** bloco 0 = mode info 0->32 bits, residual 0 bits (all_zero=1); demais = 7-13 bits de mode info, 0-170 de residual; total 862.
+- **Oracle de pixels (executado):** ffmpeg Y (0,0)=16 (0,32)=41 (0,63)=235 (32,0)=16 (32,32)=210 (32,63)=16 vs Kof 128 2 10 128 127 83. `128` = DC nua ⇒ o residual do bloco 0 foi pulado. **Decodificação errada e subconsumo de 63% são o MESMO evento** — base reprodutível para as afirmações de pixel das passagens anteriores.
+- **Verificado contra libaom:** `update_ext_partition_context` bate EXATAMENTE (incl. `PARTITION_SPLIT: if (bsize != BLOCK_8X8) break;` — o split atualiza o contexto só em 8x8; minha 1ª leitura sugeria inversão e NÃO há) e `partition_plane_context` bate.
+- **Caveat:** o consumo total do payload segue NÃO asserido (falha hoje); sem `cmake`/`ninja` não há oracle instrumentado do libaom aqui.
+
+## Sessão 15/10 (55ª) — 3bd 28ª: instrumento validado + contextos conferidos na SPEC
+- **Medição (executada):** corromper o byte 285 (cauda NÃO lida) deixa o dump IDÊNTICO ao baseline; o byte 10 (consumido) muda tudo. ⇒ `position()` = consumido; o déficit de 63% do tile é REAL. Isto blinda a premissa das passagens 25–26.
+- **Verificação (executada):** `Av1CoeffCtx.kf` contra a SPEC §10 — `Coeff_Base_Ctx_Offset` 475/475, `Sig_Ref_Diff_Offset` 30/30, `Mag_Ref_Offset_With_Tx_Class` 18/18, `Coeff_Base_Pos_Ctx_Offset` = {26,31,36}: EXATAS. Motivada pela armadilha da transposição do libaom (o header do módulo citava verificação contra o libaom).
+- **Cobertura:** `Av1CoeffCtxE2ETest` já re-deriva cada contexto da spec num leitor Java independente — re-rodado **6/6**, BUILD SUCCESS (corrobora, não acrescenta).
+- **Caveat:** o teste `AvifRealFileE2ETest` continua asserindo só as invariantes que passam (consumo total do payload NÃO é asserido — falha hoje); sem `cmake`/`ninja` não há oracle instrumentado do libaom aqui.
+
+## Sessão 15/10 (54ª) — 3bd 27ª: scan order sem teste → fixada na SPEC (e armadilha do libaom)
+- **Unidade landada:** nova suíte `Av1ScanOrderE2ETest` + `Av1ScanOrderSupport` + recurso `av1_scan_order_golden.txt.b64`.
+- **Por quê:** a ordem de varredura era o melhor suspeito restante para o dessincronismo de EOB grande (fixa posições E contextos) e estava COMPLETAMENTE sem teste.
+- **Prova executada:** `Av1ScanOrderE2ETest` **2/2** (JVM + Script), BUILD SUCCESS. Golden da SPEC §9.3 (`Default_Scan_*`/`Mrow_Scan_*`/`Mcol_Scan_*`), não do libaom.
+- **Resultado:** Kof bate com a spec em TODAS as 14 varreduras default e nas 9 mrow/mcol → scan order EXONERADO.
+- **Armadilha (importante):** as tabelas do `av1/common/scan.c` do libaom são a TRANSPOSTA das da spec (layout do buffer de coeficientes difere), então comparar Kof×libaom acusa divergência em toda entrada e sugere uma troca linha/coluna nos retangulares — puro artefato. **Para scan order o oracle é a SPEC.** Isto quase virou um "bug" landado.
+- **Caveat:** o consumo do payload (862/2344 bits) segue o único dado discriminante; sem `cmake`/`ninja` não há oracle instrumentado do libaom aqui.
+
+## Sessão 15/10 (53ª) — 3bd 26ª: retratação MEDIDA do instrumento (controle fraco)
+- **O que fiz:** testei a premissa da passagem anterior ("o tiling exato exonera a partição") perturbando UM byte do payload e re-percorrendo o tile. **Ela é FALSA.**
+- **Medição:** com o byte 10 corrompido, AINDA dá `covered=256 overlap=0` — mas `blocks` 21->25, `symBits` 862->1302, `txb` 63->67, `nzTot` 102->174. `decode_partition` particiona o retângulo FIXO do quadro e corta nas bordas ⇒ qualquer sequência de símbolos gera um tiling válido. O tiling NÃO distingue decodificação correta de corrompida (armadilha do controle fraco, ver [[kof4j-weak-control-trap]]).
+- **Consequências:** (1) a partição NÃO está exonerada; (2) a hipótese de dessincronismo VOLTA; (3) o único dado discriminante é o CONSUMO do payload — 862/2344 bits (37%), com `ffprobe` confirmando que o OBU de quadro tem 311 bytes = 293 de tile após 18 de cabeçalho, exatamente o payload.
+- **Unidade landada:** o teste foi corrigido para asserir só a invariante real (`symBits <= payloadBits`) + uma guarda de cobertura explicitamente documentada como NÃO discriminante; o experimento de corrupção ficou no javadoc como prova.
+- **Prova executada:** `AvifRealFileE2ETest` **7/7**, BUILD SUCCESS.
+- **Próximo passo:** instrumentar a posição do leitor POR BLOCO (início/fim do mode-info, posição do `all_zero`) e despejar os campos do mode-info — agora SEM apoiar no tiling.
+- **Caveat de ambiente:** sem `cmake`/`ninja`, o oracle instrumentado do libaom continua inviável aqui.
+
+## Sessão 15/10 (52ª) — 3bd 25ª: instrumento sem referência; subconsumo do payload fixado
+- **Unidade landada (teste+docs):** `AvifRealFileE2ETest#realTileGridTilesTheFrameOnJvm` — invariantes SEM referência sobre o fixture REAL commitado (`avif_real_64.avif`): (1) a grade de blocos cobre o quadro exatamente; (2) a travessia não lê além do payload.
+- **Prova executada:** `AvifRealFileE2ETest` **7/7** (era 6/6), BUILD SUCCESS. Medição: `blocks=21 covered=256 frame=256 overlap=0 symBits=862 payloadBits=2344 txb=63 nzTot=102`.
+- **Fato 1 (exonera a partição):** o tiling é EXATO (256/256 células, 0 sobreposição) ⇒ os símbolos de partição não foram deslocados; um dessincronismo de posição de bit no nível da partição fica insustentável.
+- **Fato 2 (localiza a falha):** a travessia consome só 862/2344 bits (37%) — ~63% do fluxo é lido como `all_zero` e pulado. Geometria certa + residual colapsando ⇒ o defeito está no caminho do RESIDUAL por bloco (contabilidade de bits do mode-info/tx-size ou a leitura dos coeficientes).
+- **Correção de método:** os probes ad-hoc de STRIPES (passagens 17–22) davam números que se contradiziam; este instrumento é reprodutível e vive no teste. Também re-verifiquei por leitura que `av1DecodeBlockGridOrder` está correto (16x64 com TX_8X4 = 32 blocos de TX, não os 2 que uma passagem registrou).
+- **Caveat:** o consumo total do payload é o critério de correção e NÃO está asserido — falha hoje; asserir o valor errado seria false-green e um teste vermelho não é permitido. Fica registrado no plano. `mvn -o` não funciona (asm 9.11): usei mvn online; execuções longas em `setsid nohup`.
+- **Ambiente:** falta `cmake`/`ninja` ⇒ NÃO é possível construir o oracle instrumentado do libaom aqui (o instrumento decisivo continua indisponível).
+
+## Sessão 15/10 (51ª) — 3bd 24ª: paridade das CDFs de modo FECHADA; caminho sintático exonerado
+- **Unidade landada (código+teste+docs):** teste estendido — `Av1ModeCdfE2ETest` + `Av1ModeCdfSupport` (+ recurso `av1_mode_cdf_ext_golden.txt.b64`) cobrindo as SEIS tabelas que faltavam (segment id, segment id predicted, palette Y/UV size, palette Y/UV mode).
+- **Prova executada:** `Av1ModeCdfE2ETest` **8/8** (era 6/6), BUILD SUCCESS. O golden novo foi GERADO do `entropymode.c` do libaom (`default_spatial_pred_seg_tree_cdf`, `default_segment_pred_cdf`, `default_palette_{y,uv}_{size,mode}_cdf`), não copiado do Kof — então é paridade real.
+- **Verificado contra o libaom (fonte canônica, `aomedia.googlesource.com`):** o caminho do TX-SIZE (`bsize_to_max_depth_table`/`bsize_to_tx_size_depth_table`/`depth_to_tx_size`/`read_tx_size`/`get_tx_size_context`), `intra_mode_context` e a ORDEM da sintaxe do mode-info (`read_intra_frame_mode_info`) — todos batem. `is_cfl_allowed` (lossy) equivalente.
+- **Observação aberta (honesta, NÃO bug confirmado):** libaom `is_cfl_allowed` LOSSLESS = `get_plane_block_size(bsize,ssx,ssy)==BLOCK_4X4` (4:2:0 BLOCK_8X8 permitido) vs Kof `bs==0`. A spec não foi alcançável (HTML não expõe a função; markdown 404). Latente — nenhum fixture exercita lossless CFL.
+- **Caveat:** árvore carrega WIP de lanes irmãs; `git add` por caminho explícito. Porta `0` (sessão flatt CLI). Push via `sync-push.sh`; `--no-verify` só se o CodeQL estiver vermelho por alerta ALIEN.
+
+## Sessão 15/10 (50ª) — 3bd 23ª: a pista txbSkip[1][1] está REFUTADA (e o bloqueio da 22ª era erro de busca)
+- **Unidade landada:** docs-only (plan EN+PT 23ª passagem + DOING EN+PT). Sem mudança de código — a pista era sobre uma tabela já coberta por teste.
+- **Prova executada:** (1) `Av1CoeffCdfE2ETest` **6/6** (BUILD SUCCESS) — compara TODOS os ~16k números de CDF, incluindo as 260 entradas `txbSkip`, contra a referência derivada do libaom embutida em `Av1CoeffCdfSupport.TXB_SKIP_B64`; (2) decodifiquei o blob e comparei valor-a-valor com a tabela Kof: **260/260, ZERO divergências**; (3) re-derivei da fonte canônica (`aomedia.googlesource.com/aom/+/refs/heads/main/av1/common/token_cdfs.h`, via `curl` + `base64 -d`): os 260 valores canônicos == o blob in-repo == a tabela Kof.
+- **Conclusão:** `txbSkip[1][1]` (e todas as 260) já estava provado correto. Nem a CDF nem o ctx explicam o `all_zero` mal-lido na origem.
+- **Suspeito restante:** a POSIÇÃO DE BIT do leitor A MONTANTE — a sintaxe de mode-info / tx-size para blocos de TX PEQUENO (o `readSelectedTxSize`/`@@tx_depth` lido ANTES do residual sob txMode=SELECT), exatamente a sintaxe que os 7 quadros exatos de bloco único 64x64 nunca leem.
+- **Lição de método (registrada):** alegação de "referência inalcançável" deve primeiro procurar os dados de teste derivados do PRÓPRIO repo e os testes que já a fixam. E o gate `check_doc_refs` pegou um SHA FANTASMA inventado na 22ª passagem — nunca citar um SHA/revisão sem verificar que existe.
+- **Caveat:** a árvore carrega WIP de lanes irmãs; usei `git add` por caminho explícito. Porta `0` (sessão flatt CLI, sem servidor opencode).
+
+## Sessão 15/10 (49ª) — 3bd 22ª: a verificação da pista está BLOQUEADA (sem referência do libaom)
+- **O que tentei (4 rotas para a referência):** (1) `/tmp/opencode` + `/tmp/s3ag` apagados; (2) GitHub mirror de `av1/common/token_cdfs.h` -> HTTP 404 (duas revisões); (3) o repo só menciona token_cdfs.h em prosa, sem valores; (4) busca posicional no `libaom.so.3.8.2`.
+- **A 4ª rota é inconclusiva, mas o MÉTODO se verifica:** encontrei 48 corridas do terminador de CDF `32768` (16-bit LE), e os valores individuais da linha Kof (`31957` 12x, `3230` 14x, `11153` 25x) — mas NENHUMA das 20 linhas Kof aparece como sequência CONTÍGUA, então o layout da tabela difere e não dá para casar posicionalmente.
+- **A conclusão honesta:** a pista (`txbSkip[1][1]`) segue NÃO VERIFICADA. Não afirmo que a entrada está errada.
+- **O destravamento (concreto):** re-clonar o aom na revisão pinada `d53e6d0b14568ddbd36ad7354bfb9a59a127346e` e comparar `default_txb_skip_cdfs[1][1]`. Com os 7 quadros exatos + os 2 que falham, o par RED-first fica completo.
+- **O que landei:** só docs (a rota de verificação + o bloqueio + o destravamento). Árvore limpa.
+- **Lições:** (1) uma pista não é uma prova — registrar o BLOQUEIO e a rota de destravamento é mais útil que afirmar; (2) antes de buscar numa fonte, conferir que ela ainda existe (o /tmp foi apagado em algum momento desta série longa); (3) um método de busca precisa de um controle (aqui: o terminador 32768) para separar "não achei" de "não existe".
+
+## Sessão 15/10 (48ª) — 3bd 21ª: os dados corrigidos apontam para `txbSkip[1][1]`
+- **O dump corrigido** (levels por TX, modes por modo): M0/M1 `bs=5 txSz=1 txCnt=2 nzSum=0`; M2 `bs=17 txSz=6 txCnt=2 nzSum=0`; M3 `txSz=14 nzSum=6`; M4 `nzSum=1`.
+- **A grade está certa:** um bloco 16x8 com tx 8x8 -> `txCnt=2` ✓ (o par tx/bloco está correto).
+- **Os 3 primeiros blocos leem all-zero** onde o conteúdo (faixas 16/235) exige resíduos. Os seguintes decodificam.
+- **A pista nova e concreta:** os que falham usam `txSz=1` (TX_8X8) e ambos vizinhos 0 na origem -> `txSzCtx=1`, `ctx=1` -> a entrada **`txbSkip[1][1]`**. Os 7 quadros exatos usam `txSz=4` (TX_64X64) com `tx==bloco` -> `txSzCtx=4`, `ctx=0` -> **`txbSkip[4][0]`**.
+- **A consequência:** os quadros exatos NUNCA exercitam `txbSkip[1][1]`; os que falham a atingem só na origem. Uma entrada de CDF default errada ali produziria EXATAMENTE o padrão observado.
+- **A verificação a fazer:** comparar o default de `txbSkip[1][1]` com o `token_cdfs.h` do libaom. A fatia 3c verificou 15.996 números, mas a evidência dos quadros exatos nunca tocou essa entrada — a verificação pode ter deixado passar um erro justamente onde nenhum teste olhava.
+- **Lições:** (1) `levels`/`modes` têm índices DIFERENTES — corrigir isso deu a primeira leitura confiável do padrão; (2) o argumento "os quadros exatos nunca tocam essa entrada" é o que dá confiança à pista: uma CDF só erra onde ninguém olhou; (3) a série inteira mostra que o instrumento errado precede o bug real — verificar o INVARIANTE antes de concluir.
+
+## Sessão 15/10 (47ª) — 3bd 20ª: correções de instrumento (grade 22, e os rótulos da 18ª estavam trocados)
+- **A grade com bind:** `gridTriples=22 == modes=22`. O `35` que eu vi era o artefato de ler a grade SEM bind.
+- **B0:** `bs=5` (BLOCK_16X8, 4x2 unidades) com `txSz=1` (TX_8X8) -> `av1TxSizeToBsize(1)=3 != 5` -> a tx difere do bloco -> ctx pelo ramo de vizinhos (spec: skipCtx=1 na origem). Ou seja, o caminho de ctx NÃO é obviamente errado neste bloco.
+- **A CORREÇÃO:** `levels` é indexado por BLOCO DE TX; `modes` por BLOCO DE MODO. A 18ª passagem imprimiu `modes[b*17 ..]` ao lado de `levels.get(b)` com o MESMO `b` -> todo rótulo `txSz` além de b=0 estava TROCADO (os `nz` estavam certos, vêm de `levels`). Um bloco 16x8 tem dois TX de 8x8 -> o bloco de modo b possui os TX 2b e 2b+1.
+- **O estado:** a leitura errada de `all_zero` na origem permanece a falha; o código de ctx/CDF é correto pela spec; sobram (a) a posição de bit do mode-info para os blocos de tx pequena ou (b) uma interação que o dump pareado escondia.
+- **O que landei:** só docs (correção de instrumento + estado).
+- **Lições:** (1) ao dumpar duas listas paralelas, CONFERIR que compartilham o índice — aqui `levels` (por TX) e `modes` (por modo) NÃO compartilham; (2) conferir o invariante conhecido (22 blocos com bind) antes de confiar no dump; (3) em séries longas, as correções de instrumento acumulam-se e valem registro.
+
+## Sessão 15/10 (46ª) — 3bd 19ª: verifiquei ctx/CDF contra a spec; sobrou o tamanho de bloco
+- **O que verifiquei (leitura contra a spec, sem medição nova):** `av1TxSzCtx` = `(Sqr + SqrUp + 1) >> 1` — exatamente a AV1 8.3.2; `av1AllZeroCtxY` = 0 sse tx==bloco, 1 sse ambos vizinhos 0 — exatamente o `get_txb_ctx` da spec; as tabelas `txbSkip` são verificadas vs libaom (fatia 3c).
+- **O discriminador que sobra:** `av1TxbCtx` escolhe `skipCtx = 0` DETERMINÍSTICO quando `planeBsize == av1TxSizeToBsize(txSz)` (o caso dos 7 quadros exatos: tx == bloco). Para tx < bloco, o ctx vem dos vizinhos (0 no origem -> 1). **Um `bs` errado inverte esse teste** -> ctx 0 vs 1 -> CDF diferente -> `all_zero` mal lido. É a assinatura só-na-origem.
+- **Suspeitos estreitos:** (a) o `bs` que o walk de partição dá para os primeiros blocos de tx pequena; (b) um erro de posição de bit no mode-info a montante.
+- **A correção de instrumento (medida agora):** tentei dumpar a grade de blocos SEM `bindDecoder` e deu **35 blocos** contra os **22** reais — o walk precisa do decoder ligado para avançar o leitor pelos payloads (a nota do `addStep`). Dump sem bind é INVÁLIDO.
+- **O que landei:** só docs (diagnóstico).
+- **Lições:** (1) ler o código de contexto CONTRA a spec descarta três suspeitos de uma vez — nem toda verificação precisa de execução; (2) um instrumento sem o bind produz uma árvore FALSA (35 vs 22) — conferir o invariante conhecido (o número de blocos do dump com decoder) antes de tirar conclusões da grade.
+
+## Sessão 15/10 (45ª) — 3bd 18ª: all_zero errado na ORIGEM; o discriminador é o tamanho da transformada
+- **O dump por bloco das FAIXAS:** 22 blocos; os SEIS primeiros com `nz=0` (`txSz=1`, `1`, `6`, `14`, `14`, `14`); o total da rodada é 481 não-zero -> os posteriores decodificam.
+- **A consistência:** `symPos=216` = o payload inteiro -> o stream NÃO dessincronizou. A falha é a leitura de `all_zero` nos primeiros blocos.
+- **O discriminador NOVO:** o TAMANHO DA TRANSFORMADA. Os 7 quadros exatos são de bloco ÚNICO **TX_64X64 (txSz=4)**; os primeiros blocos das FAIXAS são tx PEQUENAS (1/6/14) na origem.
+- **A leitura:** o mapa de contexto de `all_zero` (txb_skip) para uma tx pequena na ORIGEM (above/left = 0) está errado -> o índice de CDF aponta para a entrada errada -> o bloco lê como vazio.
+- **Por que isso explica o padrão todo:** os quadros de 1 bloco grande passam (tx grande, contexto lê certo); os de blocos pequenos falham na origem (checker-8 e STRIPES).
+- **Onde olhar:** `av1TxbCtx` / `av1TxbEntropyContext` (Av1CoeffCtx/Av1Block) — a derivação do contexto e o índice da CDF.
+- **Próximo:** dumpar o contexto do bloco 0 e comparar com `get_txb_ctx` do libaom.
+- **Lições:** (1) contar nz POR BLOCO (não só o total) foi o que mostrou que a falha é nos PRIMEIROS; (2) comparar o TAMANHO DA TX entre o que passa e o que falha deu o discriminador — e ele explica por que 7 quadros passaram; (3) esta série mostrou 3 vezes que o instrumento estava errado; agora o padrão (tx pequena na origem) é consistente com TODAS as observações.
+
+## Sessão 15/10 (44ª) — 3bd 17ª: DIVISÃO — entropia OK, PREDIÇÃO errada (STRIPES)
+- **Os dois controles:** RAMP (rampa `clip(X*4)`) e STRIPES (faixas verticais de 4px).
+- **RAMP:** blocks=1, nz=13, `Y=1,64,128,240` == referência -> SÉTIMO quadro real exato.
+- **STRIPES:** blocks=22, payload=27 B, **symPos=216 bits = 27x8 -> consome o payload INTEIRO**, nz=481 (muitos coeficientes!) -> **NÃO dessincronizou**; mas `Y≈128` (DC nua) vs 16/235.
+- **A conclusão:** o decode de ENTROPIA está correto nas FAIXAS; a RECONSTRUÇÃO está errada. É um SEGUNDO modo de falha, distinto do dessincronizado (checker-8/testsrc).
+- **O mecanismo provável:** num quadro multi-bloco, os vizinhos (acima/esquerda) deveriam fornecer as amostras de referência para a predição intra; se a DISPONIBILIDADE estiver errada, cada bloco prediz a DC sem vizinhos -> Y≈128.
+- **Onde olhar:** `av1IntraPredictBlock` / `av1IntraAvail` e o cálculo de haveTop/haveLeft do driver (que usa `br != 0`/`bc != 0`).
+- **Lições:** (1) medir `symPos` contra o payload SEPARA "dessincronizou" de "decodificou e errou a saída" — duas causas com remédios diferentes; (2) eu vinha enquadrando TUDO como dessincronizado; a FAIXAS provou que há dois modos; (3) 7 quadros exatos (sólido, cinza-escuro, 2-tons, diagonal, checker-32, checker-16, rampa) delimitam o que funciona.
+
+## Sessão 15/10 (43ª) — 3bd 16ª: fixei o oráculo ffprobe no teste commitado
+- **O que faltava:** o teste commitado do arquivo real pinava `monochrome=false` mas NÃO a subsampling/bit depth — então o artefato do harness (av1C do builder) não era pego por um pin.
+- **O que fiz:** estendi a linha `meta` para afirmar `sub=true/true bd=8/8 prof=0` (valores do ffprobe). 6/6.
+- **O efeito:** o parse de contêiner, o walk da sequência e o ffprobe agora são CHECADOS para concordar. Se algum divergir, o teste falha — o que teria impedido as passagens 12ª/14ª.
+- **O que landei:** a extensão do pin (teste) + os docs. compile rc=0.
+- **O item aberto:** o dessincronizado do decode de TILE. Regra que fica: caçar SÓ com multi-bloco.
+- **Lições:** (1) um pin deve ancorar contra um oráculo EXTERNO (ffprobe), não só contra o que o código produz; (2) se eu tivesse fixado os fatos de contêiner antes, as duas hipóteses erradas (12ª/14ª) teriam morrido no primeiro teste.
+
+## Sessão 15/10 (42ª) — 3bd 15ª: retratei o av1C (era o meu harness) e a caça multi-bloco
+- **O que eu afirmei (12ª/14ª):** "o contêiner av1C discorda do walk da sequência" -> bug do av1C.
+- **A verificação decisiva:** os BYTES do av1C real são `81 00 0c`; byte2 = 0x0c = 0000 1100 -> mono=0, subX=1, subY=1. O parse do Kof (`mono=(b2>>4)&1`) dá exatamente isso. **O parse está CERTO.**
+- **A causa do erro:** meu fixture canonizado é construído por `containerWithItem` (helper de TESTE), que escreve o SEU PRÓPRIO av1C (`AvifMetadataSupport.av1c(..., true, ...)`) em volta dos bytes do ITEM do ffmpeg. Contêiner e item vinham de fontes DIFERENTES -> a "discordância" era do harness.
+- **A retratação:** 12ª e 14ª passagens retiradas. Sem bug de av1C.
+- **O que permanece sólido:** ffprobe diz yuv420p; o walk da seq do Kof está certo; com np=3 o checker-8 dessincroniza (nz=0) e o checker-16 (37 blocos) decodifica EXATO.
+- **O estado:** dessincronizado ABERTO. A regra: caçar SÓ com multi-bloco.
+- **Próximo:** (a) consertar a infra (o fixture canonizado deve preservar o av1C do encoder); (b) diff testsrc (falha) vs checker-16 (passa), ambos multi-bloco.
+- **Lições:** (1) ANTES de acusar o código sob teste, conferir se o meu INSTRUMENTO mistura fontes (aqui: item do ffmpeg + av1C do builder) — dois oráculos conflitantes apontam para o harness, não para o código; (2) conferir os BYTES crus antes de concluir um bit mal lido (0x0c é 5 segundos de xxd); (3) é a TERCEIRA vez nesta série que o culpado é o meu harness — checar o instrumento primeiro é regra, não reflexo.
+
+## Sessão 15/10 (41ª) — 3bd 14ª: o ffprobe retrata tudo; e um bug NOVO no parse do av1C
+- **O oráculo definitivo:** `ffprobe -show_entries stream=pix_fmt` -> o checker é `yuv420p`. NÃO é monocromático.
+- **A retratação:** o walk da SEQUÊNCIA do Kof (`mono=false subX=true subY=true`) está CERTO. O parse do `av1C` em `readAvifMetadata` (`mono=true subX=false subY=false`) é que está ERRADO -> um bug NOVO e real de parse de contêiner (oráculo ffprobe).
+- **A segunda retratação:** o `numPlanes=1` da 13ª foi COINCIDÊNCIA — com UM bloco, pular o croma não dessincroniza NADA depois, então um campo errado "funciona" por acidente.
+- **A correção metodológica (a lição desta passagem):** TODO experimento de 1 bloco desta série é FRACO. Um campo errado sobrevive se nada vier depois. Só MULTI-bloco discrimina — e o checker-16 (37 blocos) PASSA enquanto o testsrc (21 blocos) FALHA.
+- **O estado:** a causa do dessincronizado do decode de tile segue ABERTA. O misparse do av1C é um bug novo, independente e verificável.
+- **Próximo:** catalogar o av1C (ffprobe como oráculo) e retomar a caça usando SÓ multi-bloco; o testsrc é o caso que falha.
+- **Lições:** (1) procurar um oráculo FORA do código sob teste (ffprobe) — ele derrubou duas conclusões minhas de uma vez; (2) desenhar o experimento para DISCRIMINAR: com 1 bloco quase tudo "passa", então a família de controle precisa de multi-bloco; (3) eu flipei de hipótese 6 vezes — o padrão é que cada oráculo novo derruba a anterior, o que significa que eu estava testando com instrumentos fracos, não que as hipóteses fossem boas.
+
+## Sessão 15/10 (40ª) — 3bd 13ª: DECISIVO — numPlanes/monochrome é a causa (não a segmentação)
+- **O experimento:** rodar o checker com `numPlanes=1` (mono, segEnabled=0) vs `numPlanes=3`.
+- **O resultado:** np=1 -> symPos=130, nz=28 (DECODIFICA); np=3 -> symPos=21, nz=0 (PULA).
+- **A conclusão:** o driver consumia símbolos de CHROMA que um stream monocromático não tem -> dessincronizava. O campo errado é `numPlanes`, que vem de `monochrome`.
+- **A retratação:** a hipótese de segmentação (12ª) cai — "passar segEnabled=1 funcionou" foi COINCIDÊNCIA (ressincronizou o stream, mas não era o campo). Eu tinha avisado que era suspeito; a medição derrubou.
+- **O oráculo:** o `av1C` (contêiner) diz `monochrome=true`; o walk da SEQUÊNCIA do Kof diz `false`. O av1C está certo (o conteúdo é cinza) e o walk da seq está errado.
+- **Segundo defeito já visível:** com np=1 a reconstrução ainda sai `Y=130,128,127,127` vs `16,235,16,235` -> falta algo (qindex/predição) além do dessincronizado.
+- **Próximo:** consertar a posição de `mono_chrome` no walk da seq (per `color_config`, só quando `seq_profile != 1`), contra o oráculo av1C; depois o segundo defeito.
+- **Lições:** (1) um "fix" que funciona por COINCIDÊNCIA (ressincronizar o stream) é uma armadilha — testar a hipótese com o campo CERTO (numPlanes) derrubou a errada; (2) o oráculo independente (av1C) apontou o campo JÁ na passagem anterior; a medição seguinte só confirmou; (3) quando o dessincronizado some mas a saída ainda erra, é SEGUNDO defeito — separar os dois é essencial para não atribuir tudo a uma causa.
+
+## Sessão 15/10 (39ª) — 3bd 12ª: o av1C (oráculo independente) discorda do walk da sequência (monochrome)
+- **O instrumento novo (o que faltava):** o registro `av1C` do contêiner — um parse INDEPENDENTE dos fatos da sequência, que eu nunca tinha usado como oráculo.
+- **A divergência:** av1C `mono=true subX=false subY=false` vs seqWalk `mono=false subX=true subY=true`. Dois parses do MESMO arquivo não podem discordar. O conteúdo é um xadrez p/b (croma constante) -> mono=true é a verdade.
+- **Por que isso amarra tudo:** `monochrome` define `numPlanes` (1 vs 3). Com numPlanes errado (3), o cabeçalho de quadro lê os campos de delta-Q de UV que NÃO existem num stream mono -> todo campo seguinte desloca -> `segEnabled` lê 0 onde é 1 -> o driver pula o segment id -> o tile dessincroniza.
+- **A cadeia completa agora:** seq misparsed (mono) -> numPlanes errado -> frame header deslocado -> segEnabled errado -> tile desync -> all_zero. Cada elo foi medido.
+- **O que landei:** o diagnóstico nos docs (nada em libs neste passo).
+- **Lições:** (1) procurar um ORÁCULO INDEPENDENTE para os fatos que eu estava assumindo — o av1C estava no arquivo desde o começo; (2) quando dois parses do mesmo dado discordam, é BUG, não ambiguidade — e a discordância é o teste mais afiado que existe; (3) a cadeia de causas (mono -> numPlanes -> shift -> seg -> tile) só ficou visível depois que cada elo foi medido isoladamente.
+
+## Sessão 15/10 (38ª) — 3bd 11ª: exposição de segmentação LANDADA + achado um bug REAL de parse do cabeçalho
+- **A exposição:** `AvifFrameHeader` agora carrega `segEnabled` + `segAltQ[8]` (o walk já os calculava e descartava). Aditiva: `headerBytes` inalterado, os 8 fixtures sintéticos leem `seg=0`, AvifFrameE2ETest 16/16.
+- **A verificação ponta-a-ponta levou ao bug de verdade:** passando `h.segEnabled` (que lê 0) o checker NÃO conserta; passando 1 conserta. Logo o cabeçalho lê o bit ERRADO.
+- **Onde:** `using_qmatrix` É lido (grep 0 para o nome da spec, mas o código usa `usingQm` e trata certo) — então a falha está ANTES. Suspeito nº1: o `separate_uv_delta_q` da SEQUÊNCIA (ler 0 onde é 1 pula o bit `diff_uv_delta` e desloca todo o resto).
+- **Por que os testes sintéticos não pegam:** os 8 fixtures leem `seg=0` — nenhum exercita uma sequência real com `separate_uv_delta_q=1`. Só um arquivo de ENCODER REAL expõe isso.
+- **O que landei:** a exposição (libs + oráculo Java + golden, 16/16) + o diagnóstico nos docs. Próximo: cruzar os fatos de seq reais e consertar a posição de bit do walk da seq.
+- **Lições:** (1) um teste sintético só cobre o que ele EXERCITA — 8 fixtures com o mesmo shape não valem por um arquivo real; (2) "a exposição é aditiva e verde" não significa "a feature funciona" — a verificação ponta-a-ponta com um arquivo real foi o que revelou que o VALOR exposto estava errado; (3) grep pelo nome da SPEC (using_qmatrix) não acha o identificador do código (usingQm) — conferir os dois.
+
+## Sessão 15/10 (37ª) — 3bd CAUSA RAIZ: o quadro é SEGMENTADO e a composição não passa o estado de segmentação
+- **O instrumento:** posição do leitor (BITS) passo a passo pelo mode-info nos três quadros.
+- **O achado:** o prefix do CHECKER lê `seg=1` e consome 4 bits (15->19); o SÓLIDO/DIAG leem `seg=0` em 1 bit (15->16). O checker é SEGMENTADO, os outros não.
+- **A confirmação (decisiva):** re-rodando o checker com `segEnabled=1` -> `symPos=152` (o payload INTEIRO) e `nz=13`; com `segEnabled=0` -> `symPos=21` e `nz=0`. Os coeficientes estavam sendo PULADOS por causa do ramo segEnabled==0.
+- **O mecanismo:** `AvifFrame.frameTailWalk` PARSEIA a segmentação mas o `AvifFrameHeader` não a expõe -> a composição não pode passá-la -> o driver pula o segment id -> dessincroniza -> os blocos leem all_zero.
+- **Segunda metade:** a reconstrução ainda sai errada (`Y=128,129,...`) porque falta o qindex por segmento (`baseQ + segAltQ[seg]`).
+- **O conserto:** uma fatia de EXPOSIÇÃO (o padrão 3ax/3bb/3bc que já usei duas vezes) + passar segEnabled + aplicar o qindex do segmento.
+- **A limpeza:** isto também explica o testsrc e APOSENTA as hipóteses "alta-frequência/EOB" (5ª) e "partição" (6ª) — as duas eram sintomas do mesmo desync.
+- **Lições:** (1) instrumentar a POSIÇÃO (estado) e não os valores foi o que achou isto — os campos reportados eram idênticos; (2) quando um campo reportado coincide entre o que passa e o que falha, o estado NÃO está nos valores — olhe o estado; (3) um quadro real exercita features que a família de controle não tem — a segmentação apareceu só agora.
+
+## Sessão 15/10 (36ª) — 3bd nona passagem: a contagem de BITS prova que o stream de coeficientes é pulado
+- **O instrumento novo:** `Av1Symbol.position()` (em BITS) depois do walk, contra o tamanho do payload.
+- **O resultado:** SÓLIDO 16 bits / payload 2 B -> consome TUDO (2 B = 16 bits), nz=1, exato. DIAG 144 bits / payload 18 B -> consome TUDO (144 bits), nz=13, exato. CHECKER 21 bits / payload 19 B (152 bits) -> consome 2,6 bytes e PARA, nz=0.
+- **A leitura:** o `all_zero` do bloco do checker é lido como 1 (skip) e o walk para, deixando ~16 B de coeficientes no stream.
+- **O que isso descarta:** NÃO é truncamento, NÃO é o walk parando na partição, NÃO é o payload errado — é o SÍMBOLO `all_zero` do bloco lido errado.
+- **E o mais forte:** o mode-info do checker é IDÊNTICO ao do diagonal (skip=0 txSz=4 y=0 uv=0 fi=0, TX_64X64 na origem, mesmo contexto) — MAS o all_zero sai errado. Logo a divergência está A MONTANTE: ou o read do mode-info consumiu bits errados sem mudar os valores reportados, ou uma CDF em que os dois quadros divergem.
+- **Próximo:** instrumentar a POSIÇÃO imediatamente ANTES do `all_zero` nos dois casos e comparar a SEQUÊNCIA de símbolos, não só os valores finais.
+- **Lições:** (1) `position()` de um decoder de entropia é um instrumento de primeira linha para separar "leu errado" de "pulou demais" — medi-lo contra o tamanho do payload é barato e decisivo; (2) comparar dois casos que REPORTAM os mesmos valores mas divergem no resultado aponta para "os valores reportados não capturam o estado" — o próximo instrumento tem de olhar o ESTADO (posição/contexto), não os valores.
+
+## Sessão 15/10 (35ª) — 3bd oitava passagem: retratei a partição; a falha é o DECODE DE COEFICIENTES (EOB grande)
+- **A retratação:** na sexta passagem concluí "a partição está errada" porque o xadrez-8 lê 1 bloco. A aritmética do PAYLOAD mostrou que 1 bloco está CORRETO.
+- **A aritmética (a prova):** testsrc 21 blocos = 293 B de tile; checker-16 37 blocos = 111 B; o ITEM INTEIRO do checker-8 = 36 B. Não cabem 64 blocos ali. Um xadrez perfeito é UMA frequência espacial -> 1 bloco 64x64 com poucos coeficientes de alta frequência.
+- **A conclusão correta:** a falha é o DECODE DE COEFICIENTES daquele bloco. O diagonal (1 bloco, TX_64X64, EOB moderado) bate EXATO; o checker-8 (1 bloco, TX_64X64, EOB grande) lê all-zero — mas o stream tem os coeficientes (36 bytes!).
+- **O discriminador:** a magnitude do EOB (`eob_pt`/`eob_extra`/walk de coeficientes além de um limiar).
+- **Seis exatos:** sólido, cinza-escuro, 2-tons, diagonal, checker-32, checker-16.
+- **Próximo:** dumpar `all_zero` + `eob_pt` + o EOB para o sólido (nz=1, exato) vs checker-8 (lê 0).
+- **Lições:** (1) a aritmética de BYTES é um oráculo barato e decisivo — excluiu "64 blocos" sem precisar de um decodificador de referência; (2) QUATRO hipóteses minhas caíram nesta série; o padrão que funcionou foi sempre achar um invariante mensurável (tamanho de payload, contagem de blocos, nz) que separe o que passa do que falha.
+
+## Sessão 15/10 (34ª) — 3bd sexta passagem: o limiar está entre xadrez 16 (bate) e 8 (falha) — e o 8 lê 1 BLOCO
+- **A família monotônica:** xadrez 32x32 (4 blocos) e 16x16 (37 blocos) decodificam EXATO. Só o 8x8 falha.
+- **O sinal:** o 8x8 reporta `blocks=1` — onde um xadrez 8x8 são 64 tiles alternados, o encoder NÃO codifica como 1 bloco 64x64. Então o walk leu a partição errada (parou em 1 bloco).
+- **A correção:** minha hipótese da quinta passagem (conteúdo de coeficientes / EOB grande) caiu — o xadrez 16x16 exercita 37 blocos com 24 coeficientes não-zero e bate EXATO. O caminho de coeficientes está correto.
+- **O suspeito agora:** o SÍMBOLO de partição. Se o primeiro símbolo é mal lido, o walk para (ou divide demais), e tudo depois lê lixo.
+- **Seis quadros reais exatos:** sólido, cinza-escuro, 2-tons, diagonal, xadrez 32, xadrez 16.
+- **Próximo:** dumpar os primeiros símbolos de partição do 8x8 com seus contextos (above/left na origem, que são 0) e comparar com o split que o encoder escreveu.
+- **Lições:** (1) uma FAMÍLIA monotônica (32 -> 16 -> 8) localizou o limiar em duas medidas; (2) a contagem de blocos que o walk REPORTA é um oráculo barato — `blocks=1` num xadrez já dizia que a partição estava errada; (3) três hipóteses minhas caíram nesta série, cada uma derrubada por um controle positivo novo.
+
+## Sessão 15/10 (33ª) — 3bd quinta passagem: NÃO é a contagem de blocos, é o conteúdo (EOB grande)
+- **O controle do gradiente diagonal:** esperava provocar modos ANGULARES; o encoder usou 1 bloco DC_PRED com coeficientes ricos — e decodificou EXATO (`Yr0=19,73,126`...). QUARTO match real exato.
+- **O controle do xadrez 8x8:** o walk reporta `blocks=1` (1 bloco também!), mas a saída é `Y=128` (DC nua). FALHA.
+- **A correção:** eu achava que a contagem de blocos era o discriminador (todos os 4 que passam têm blocks=1). O xadrez também tem blocks=1 e falha -> NÃO é a contagem.
+- **O que difere de verdade:** o CONTEÚDO de coeficientes. Diagonal suave = EOB baixo (poucos coeficientes não-zero, energia no DC/baixa freq). Xadrez = ALTA frequência, EOB grande.
+- **A hipótese:** o decode de coeficientes lê blocos de ALTA frequência (EOB grande, casos de borda de `eob_pt`/`dc_sign`) como all-zero -> reconstrói a DC nua. Isso também explicaria os primeiros blocos all-zero do testsrc (textura).
+- **Próximo:** uma família monotônica (gradiente -> xadrez 16 -> 8 -> 4) para achar o limiar exato de EOB/complexidade onde o decode quebra — o primeiro xadrez que falhar dá o caso mínimo.
+- **Lições:** (1) DUAS hipóteses minhas caíram nesta sequência ("multi-bloco quebrado", depois "contagem de blocos") — cada controle positivo novo derrubou a anterior, e é assim que se converge; (2) manter uma família de casos de controle que variam UMA dimensão é o instrumento que faz isso.
+
+## Sessão 15/10 (32ª) — 3bd quarta passagem: um multi-bloco SIMPLES também bate; o testsrc é a exceção
+- **O controle novo:** um 2-tons 64x64 (esquerda preto, direita branco) — multi-bloco, mas simples.
+- **O resultado:** `Y=16,235,235` == ffmpeg EXATO. Terceiro quadro real correto.
+- **A correção da leitura:** eu tinha concluído (terceira passagem) que a maquinaria multi-bloco estava quebrada — o 2-tons REFUTA isso. Multi-bloco funciona.
+- **O que realmente difere no testsrc:** 21 blocos (vs 1), modos intra ANGULARES, CFL (`uv_mode=13`) e filter-intra (`fi=1`) — features que nenhum dos três quadros que passam usa.
+- **Próximo:** bisseccionar por FEATURE — somar uma por vez (angular -> CFL -> filter-intra) até um quadro parar de bater; a primeira que falhar é o bug.
+- **Lições:** (1) eu ia por um caminho errado ("multi-bloco quebrado") e o controle simples me corrigiu — vale SEMPRE testar a afirmação com o caso mais simples que a exercita; (2) três positivos exatos (sólido/uniforme/2-tons) dão confiança muito maior que um só.
+
+## Sessão 15/10 (31ª) — 3bd terceira passagem: dois quadros reais EXATOS isolam a falha no MULTI-BLOCO
+- **O experimento:** em vez de caçar o quadro complexo, encodei mais um caso de controle — um `#404040` 64x64 uniforme, que tem um resíduo REAL (não zero).
+- **O resultado:** decodifica para `Y=71`, EXATO do ffmpeg (`K0 n=1024 nz=1 c0=-237`). Junto com o cinza-sólido (`126` exato), TENHO DOIS quadros reais corretos.
+- **O contraste:** ambos são de BLOCO ÚNICO (`blocks=1 txSz=4`). O testsrc é o único MULTI-bloco (21 blocos, txSz=1) e falha nos PRIMEIROS blocos.
+- **A conclusão:** o resíduo, os coeficientes, a predição e a reconstrução estão TODOS corretos em quadros reais. O bug está na maquinaria MULTI-bloco: o walk de partição, a ordem da grade de blocos de transformada, ou a seleção de tx-size por bloco.
+- **O que landei:** o diagnóstico no plano + DOING + myself. Árvore limpa.
+- **Lições:** (1) um caso de controle positivo (um quadro real que TAMBÉM exercita o caminho suspeito — aqui, um resíduo real) é o que separa "caminho quebrado" de "caminho não exercitado"; (2) comparar o que passa com o que falha NO MESMO instrumento é o que isola a variável — aqui, 1 bloco vs 21 blocos.
+
+## Sessão 14/10 (30ª) — 3bd segunda passagem: o PRIMEIRO bloco lê all_zero errado
+- **O dump:** `blocks=21 levels=63`, cada K com n=64 (TX_8X8). `K0 nz=0`, `K1 nz=0` (vazios), `K2 nz=26`, `K3 nz=8` (com coeficientes).
+- **A leitura:** `D0` tem `skip=0` → o bloco TEM resíduo. Mas K0 (o primeiro bloco de transformada) lê all_zero → reconstrói a predição DC nua (128). A referência é 16 → o resíduo (≈ -112) sumiu.
+- **O que isso prova:** o caminho de resíduo/reconstrução FUNCIONA neste mesmo quadro (K2/K3 são não-zero). O erro está no SÍMBOLO `all_zero` (txb_skip) do PRIMEIRO bloco.
+- **Suspeito:** o CONTEXTO do txb_skip/all_zero na origem do quadro (above/left = 0) — ou o estado inicial de CDF do tile.
+- **Próximo:** dumpar as ENTRADAS de contexto (allZeroCtx, dcSignCtx) do K0 e comparar com o que libaom usaria.
+- **Lições:** (1) `nz=0` num bloco com `skip=0` é autocontraditório — o resíduo deveria estar lá; usei isso para localizar o estágio; (2) comparar blocos que passam (K2/K3) com blocos que falham (K0/K1) NO MESMO quadro é o que dá o contraste.
+
+## Sessão 14/10 (29ª) — slice 3bd: o caso sólido bate, o complexo diverge com assinatura ESTREITA (resíduo do 1º bloco)
+- **O que apliquei:** o mapeamento `txMode` corrigido (3bc) no quadro real COMPLEXO (testsrc).
+- **O resultado:** `blocks=21 levels=63`, e `Y0=128,0,10` / `Y32=128,128,83` vs ffmpeg `16,145,235` / `16,106,16`.
+- **A leitura:** `128` é a predição DC de um bloco SEM vizinhos. O primeiro bloco (canto superior esquerdo) prediz 128 e o resíduo NÃO é somado — enquanto no quadro sólido o resíduo É aplicado (`126`, não `128`).
+- **O que isso descarta:** o mapeamento txMode (corrigido), contêiner/cabeçalho/cfg (verde), e o caminho de resíduo em geral (o sólido funciona). Sobra o RESÍDUO MULTI-BLOCO: `all_zero` mal lido, ou o resíduo não somado para um bloco sem vizinhos.
+- **O que landei:** o diagnóstico no plano + DOING + myself. Árvore limpa.
+- **Lições:** (1) corrigir uma causa não significa que TODOS os casos passam — re-medir o caso complexo depois do fix foi o que expôs a segunda causa; (2) `128` como valor de saída num decodificador é a assinatura da predição DC sem vizinhos — reconhecê-la poupa um passo.
+
+## Sessão 14/10 (28ª) — slice 3bc: a composição decodifica um AVIF REAL (e o §731 era bug MEU)
+- **O dump por estágio resolveu:** no cinza-sólido, `blocks=1` mas `levels=256` e `txSz=0` (4x4) para um bloco 64x64. Um bloco virando 256 blocos de 4x4 = o transform size estava errado.
+- **A causa:** o `txMode` do driver toma o VALOR `TxMode` do AV1 (0=ONLY_4X4, 1=LARGEST, 2=SELECT), não o bit cru `tx_mode_select`. Eu passava o bit -> bit 0 virava ONLY_4X4 -> 4x4. Mapeando (bit 0 -> 1, bit 1 -> 2): `blocks=1 levels=1 txSz=4` (TX_64X64) e **`Y=126`, igual ao ffmpeg**.
+- **Correção honesta:** o §731 que eu cataloguei como bug do DECODER era um bug da MINHA cola de composição. Retratei o §731 (o decoder está correto o tempo todo) e mantive a entrada como registro da armadilha de integração. Não deixei um falso bug no ledger.
+- **Marco:** primeiro casamento de pixels PONTA-A-PONTA num arquivo de encoder REAL (antes só estágios em streams sintéticos).
+- **O que landei:** as duas faces do cinza-sólido no `AvifRealFileE2ETest` (fixture real commitado) + a retratação do §731 + README 11→10. 6/6.
+- **Lição:** quando eu sou o único consumidor do que estou testando, "bug do decoder" tem que passar por "o bug está no MEU chamador?" primeiro — o dump por estágio é o que separa os dois.
+
+## Sessão 14/10 (27ª) — §731: a cadeia composite DIVERGE da referência no frame real mais simples
+- **O instrumento:** em vez de caçar o arquivo complexo (testsrc 64x64), encodei o AVIF MAIS SIMPLES possível — `color=c=gray:s=64x64` — porque se o caso trivial falha, o caminho básico está errado.
+- **O resultado:** ffmpeg lê Y=126 uniforme; o Kof lê `Y=0,173,165`, com 1 bloco e um payload de tile de só 2 bytes. Divergência no caso mais simples.
+- **O que isso descarta:** todas as fatias acima (contêiner, seq header, cabeçalho de quadro, cfg) estão fixadas em verde contra os bytes reais — então a divergência está DENTRO do decode de tile composto.
+- **Descartei o cfg antes:** a 3bb expôs delta-Q/LF e o quadro real lê `dq=0 dfl=0` → o cfg já estava certo; a hipótese do cfg foi refutada por medição. Também corrigi um valor de referência que eu tinha lido errado (o Y real do ffmpeg é 16,145,235, não 16,81,81).
+- **O que landei:** o §731 no ledger (EN+PT) + README (10→11) + o plano + DOING/myself. Árvore limpa (nada em libs).
+- **Próximo:** o reprodutor de 2 bytes é barato de dirigir com uma trilha de marcadores (mode-info tail -> tx size -> walk de coeficientes -> reconstruct) para achar o primeiro marcador que diverge.
+
+## Sessão 14/10 (26ª) — slice 3bb: expus delta-Q/LF e REFUTEI a hipótese do cfg
+- **Hipótese:** a divergência de pixels vinha do `cfg` (`Av1ModeTail`) que eu passava com defaults — o driver pularia a sintaxe delta-q do stream e dessincronizaria.
+- **A refutação:** expus os fatos reais (`deltaQPresent`/`Res`, `deltaLfPresent`/`Res`/`Multi`) no `AvifFrameHeader` e li o quadro real: `dq=0 dfl=0 cdefBits=0 seq.enableCdef=1`. Ou seja, o cfg JÁ estava correto nesses campos → o cfg NÃO é a causa. (Um experimento anterior com variantes de cfg já mostrava que mexer nele mudava os pixels sem casar com o ffmpeg — sinal de que era ruído, não a causa.)
+- **Correção de registro:** o valor de referência do ffmpeg que eu citei antes (`Y0=16,81,81`) estava ERRADO — li o `/tmp/ref.yuv` errado. O correto é `Y0=16,145,235`, `Y32=16,106,16`. Regenerei e conferi.
+- **O que landei:** a exposição (slice 3bb), com probe + leitor Java + golden em passo; `headerBytes` inalterado. 36/36 nos quatro suites.
+- **Bônus:** as faces NATIVAS agora passam (incl. a que era o §723 pré-existente) — a lane de codegen corrigiu o default de locais-em-registradores.
+- **Lição:** quando um experimento 'muda o resultado' em várias direções sem casar com o oráculo, é ruído — não confirmei a hipótese, e a medição direta (ler os fatos reais) foi o que a matou.
+
+## Sessão 14/10 (25ª) — slice 3ba: destravei a 3az no lado do teste, e os flags de sequência reais são fi=1 ie=1
+- **A sacada:** a 3az estava bloqueada porque o walk do Kof exige o temporal delimiter primeiro e o ffmpeg não o emite. Em vez de mexer no Kof (decisão de subset), PREPENDI o delimiter ao item REAL do ffmpeg -> ordem canônica do AV1, semântica idêntica (mesmo seq header, frame e tile). O walk passou a ler o item real normalmente.
+- **O achado grande:** com o item legível, os FLAGS DE SEQUÊNCIA REAIS aparecem: `enable_filter_intra=1` e `enable_intra_edge_filter=1`. Eu vinha passando `0` para ambos (só podia adivinhar, porque o seq real era ilegível) — então TODOS os meus decodes anteriores alimentaram o driver com a config errada. Zero surpresa que divergissem.
+- **O que landei:** as faces `realAvifCanonicalizedReadOnJvm/Script` no `AvifRealFileE2ETest` (fixture canonizado em teste + golden dos fatos reais). 4/4.
+- **Caveat:** o container do fixture canonizado é o builder mínimo do teste (ispe 8x8) — o ITEM é o do ffmpeg; os fatos fixados vêm do item (contêiner incidental). Documentado no teste.
+- **Próximo:** a composição de pixels. Com fi/ie corretos, os próximos suspeitos são o parse do cabeçalho de quadro (segmentação/`using_qmatrix`) e o `intraEdgeFilterType` — o oráculo é `ffmpeg ... -f rawvideo`.
+- **Lição:** quando um fato é ilegível, os valores que eu 'adivinho' para ele viram um viés silencioso em TODOS os experimentos. Tornei o fato legível (destravando a leitura) e o valor real (fi=1) invalidou várias suposições de uma vez.
+
+## Sessão 14/10 (24ª) — consertei uma REGRESSÃO da 3ay (o suite cruzado do OBU) + confirmei a 3az por tentativa
+- **A regressão:** a 3ay adicionou `fi=`/`ie=` aos fatos de sequência e atualizou o leitor Java + o probe do `AvifSeqE2ETest` — mas NÃO o `facts()` do `AvifObuSupport` (o lado Kof do cross-check `javaObuReaderAgreesOnStreams`) nem o `GOLDEN` do `AvifObuE2ETest`. Eu não rodei o suite do OBU na 3ay, então a regressão passou. **Conserto:** `fi=0 ie=0` nos dois; agora `AvifObuE2ETest` só falha a face nativa pré-existente (§723).
+- **A tentativa da 3az (revertida):** tentei destravar a composição relaxando o guard `type != 2` do `avifItemObus` para aceitar `type == 1` (seq header) primeiro — o padrão do ffmpeg. **O teste refutou minha hipótese:** o fixture `nodelim` É `[seq header][delimiter]` (não payload cru como eu calculei), então a face de erro `obuRefusalsAreHonest` passou de 'delimiter' para 'obu truncated'. Ou seja, o teste PINa a recusa do seq-primeiro → a 3az está CONFIRMADA (é decisão de subset do mantenedor, não um conserto de agente). Revertido.
+- **Prova:** `AvifObuE2ETest` 8/8 → 1 falha (nativa §723 pré-existente); `javaObuReaderAgreesOnStreams` verde. compile rc=0.
+- **Lição (a que importa):** quando mudo um FATO compartilhado (o formato de `seq`), tenho que rodar TODOS os suites que o comparam — há cross-checks (Kof vs oráculo Java) em mais de um arquivo de teste. Rodar só o suite direto deixou a regressão passar.
+
+## Sessão 14/10 (23ª) — slice 3az: um item AVIF REAL começa com o SEQ HEADER, e o walk de OBU do Kof exige um delimitador
+- **O que eu fui fazer:** reconciliar os pixels do decode de tile no AVIF real com o ffmpeg (a composição).
+- **O bloqueio:** preciso do seq header REAL (bit depth, `enable_filter_intra`) do arquivo — `readAvifSeqHeader(path)` falha (o `av1C` do ffmpeg tem `configOBUs` VAZIO; o seq está no item data) e `readAvifItemObus(path)` RECUSA o item: ele começa com `0x0a` = `OBU_SEQUENCE_HEADER` (tipo 1), sem o temporal delimiter (tipo 2) que o walk exige PRIMEIRO.
+- **Verificação antes de consertar:** a regra está FIXADA por uma face de erro (`AvifObuE2ETest`'s `nodelim`, e o fixture `nodelim.avif` = `[configObu][delimiter]`). Ou seja, é uma escolha de conformidade DELIBERADA — relaxá-la é decisão de subset, não um conserto de agente. **Não mexi.**
+- **O que landei:** só docs (o diagnóstico no plano + DOING + myself). Árvore limpa.
+- **Prova executada:** o item data começa em `0x0a` (lido no `xxd`); `readAvifItemObus` lança `IMAGE: avif item does not begin with a temporal delimiter`; o fixture `nodelim` + a face de erro confirmam que a regra é intencional.
+- **Lição:** antes de "consertar" um comportamento que bloqueia, checar se ele é TESTADO — se há uma face de erro que o fixa, é uma decisão de design (aqui, de subset), e o certo é levar a decisão ao mantenedor, não virá-la sozinho.
+
+## Sessão 14/10 (22ª) — slice 3ay: o cabeçalho de sequência + um AVIF REAL (e o ffmpeg como oráculo)
+- **O achado grande:** `ffmpeg` no host tem `libaom-av1` (encoder), o muxer `avif` E `libdav1d`/`libaom-av1` (decoders). Então posso GERAR um AVIF real e usá-lo como fixture, e usar o decode do ffmpeg como ORÁCULO de pixels. Isso destranca a composição (antes eu não tinha nem arquivo real nem oráculo).
+- **A prova imediata:** o walk AVIF do Kof (metadados + cabeçalho de quadro + tile-group + payload) lê PERFEITAMENTE um AVIF real de ffmpeg — `AvifRealFileE2ETest` 2/2. É o primeiro container NÃO-sintetizado da suíte.
+- **O bug que destravei:** o walk da SEQUÊNCIA lia e PULAVA `enable_filter_intra`/`enable_intra_edge_filter` (AV1 §5.5.1) sem expô-los — o driver de tile recebia `enableFilterIntra` sem fonte. Expor os dois é a 3ay; com a adivinhação errada, o decode de um frame real DIVERGIA.
+- **A fronteira honesta:** dirigindo o decode de tile do Kof no payload real, ele RODA (21 blocos, sem exceção) mas os pixels NÃO batem com o ffmpeg. Não landei nenhuma reivindicação de pixel — o teste de arquivo real para no payload. A próxima fatia é fazer os pixels baterem.
+- **Prova:** `AvifRealFileE2ETest` 2/2; `AvifSeqE2ETest` 8/8 (os novos `fi=0 ie=0` batem com o leitor Java independente); `AvifFrameE2ETest` 14/16 (as 2 nativas são o §723 pré-existente, A/B idênticas antes); compile rc=0.
+- **Lição:** procurar a ferramenta no HOST antes de assumir que falta oráculo — o ffmpeg estava lá desde o início e teria economizado ciclos de "oracle-source gone".
+
+## Sessão 14/10 (21ª) — AVIF slice 3ax: o cabeçalho de quadro expõe os fatos que a composição precisa
+- **O buraco:** `AvifFrame.frameTailWalk` derivava `CodedLossless` e pulava os bits de `tx_mode_select` e `reduced_tx_set`, mas retornava só `{bits, baseQ, lf0, cdefBits}`. A composição (`decodeRaster` AVIF) precisa exatamente desses três valores (`lossless`/`txMode`/`reducedTxSet`) para dirigir o driver de tile a partir de um quadro real — e não tinha como obtê-los.
+- **O que fiz:** o walk agora lê e retorna os três; `AvifFrameHeader` ganhou `lossless`, `txModeSelect`, `reducedTxSet`. `headerBytes` ficou inalterado porque as posições de bit são as mesmas (o skip virou leitura).
+- **Especificação (não inventei semântica):** `CodedLossless` força `TX_MODE_ONLY_4X4` (bit ausente); `read_tx_mode` = `TX_MODE_SELECT` quando o bit é 1, senão `TX_MODE_LARGEST`; `reduced_tx_set` força `TX_SET_INTRA_2`.
+- **Prova:** o probe Kof + o leitor Java independente (`AvifFrameJavaSupport`) + o golden carregam os novos fatos e CONCORDAM (3/3 faces não-nativas). `AvifFrameE2ETest` 14/16.
+- **As 2 falhas nativas são PRÉ-EXISTENTES — provei por A/B:** revertendo só `AvifFrame.kf`/`AvifGroup.kf` para o upstream, `avifFrameHeaderOnNativeX86` falha com o MESMO erro (`IMAGE: avif item obu missing size field`). É o §723 (o default de locais-em-registradores), não esta fatia. Zero regressão.
+- **Lição de método:** quando uma face nativa falha logo depois de uma mudança minha, a pergunta certa é "ela falhava ANTES?" — o A/B contra a árvore upstream custa ~3 min e transforma uma suspeita em fato. Já evitei atribuir duas falhas pré-existentes (§723) à minha fatia.
+
+## Sessão 14/10 (20ª) — AVIF slice 3aw: a prova do tile real agora pina os PIXELS reconstruídos
+- **O buraco que achei:** o probe de árvore da 3au (`Av1PartitionSupport.TREE_PROBE`) afirmava "decodifica ponta a ponta" mas só imprimia os registros de modo (D) e o contexto de entropia (A) — nunca lia o `frame` reconstruído. Um erro de predição/transformada/offset de plano passaria.
+- **O que fiz:** o probe agora também imprime as quatro amostras DC dos quadrantes (`P`) e a soma do interior (`S`); o golden fixa `P 128 128 128 128` e `S 524288`.
+- **Por que esses valores são corretos (não só observados):** `DC_PRED` sem vizinhos (`haveAbove == haveLeft == 0`) é `1 << (bitDepth - 1)` = 128 em bit depth 8, e o resíduo do fixture é zero — então o plano é cinza-médio plano e 64x64x128 = 524288. É o valor da especificação, não uma coincidência.
+- **Bônus:** as faces de árvore agora cobrem JVM + Script + JS (3/3). As nativas ficam de fora pelo §723 (a lane irmã), não por esta fatia.
+- **Prova:** 3 faces de árvore 3/3; `Av1PartitionE2ETest` completo 19/19 com a escotilha OFF (17 → 19); compile rc=0.
+- **Investigação descartada (registrada para não repetir):** a recusa `IMAGE: AV1 directional intra prediction is not supported yet` em `Av1Intra.kf:218` NÃO é um bug — `av1IntraPred` é o dispatch dos modos NÃO-direcionais e o chamador (`Av1IntraBlock.kf`) roteia os direcionais (3..8) para `av1DrPredict` (fatia 3k) antes. O ramo é defensivo/morto.
+
+## Sessão 14/10 (19ª) — 3au RE-LANDADA e §705 CORRIGIDO (o giro do nativo morreu com o trabalho concorrente de emissão)
+- **O que eu fui fazer:** o próximo slice do plano (3y) já estava landado; o trabalho vivo era a 3au, revertida em 13/10 pelo §705.
+- **A medição que mudou tudo:** re-rodei a face nativa do driver com a 3au re-aplicada e a escotilha `-Dkof.native.register.locals=false` — PASSOU (7/7, 196 s). O §705 (o giro) não se reproduz mais.
+- **A prova direta:** reconstruí o reprodutor original do §705 (stream de 1 byte, `data[0]=236` e `data[0]=11`, chamando `Av1TileDecode.decodeBlock(0,0,9)`) — ambos saem LIMPOS (`rc=0`, `BEFORE | AFTER`) onde antes giravam.
+- **A atribuição:** a correção veio do trabalho concorrente da lane de codegen (`D-CODEGEN-REWRITE` + Fase E ISA), não de nada meu; e o pad de alinhamento de 16 bytes que eu tinha proposto na sexta passagem NÃO era a causa (o reprodutor mínimo de 21 argumentos é correto COM e SEM o pad — a sétima passagem já tinha enfraquecido essa hipótese).
+- **O que landei:** 3au re-aplicada byte-idêntica a `0f8ca55ff` (os dois `.kf` + os dois arquivos de teste da partição), `§705` marcado ✅ CORRIGIDO com a resolução, o plano, `status.md`, o README (fila 11→10).
+- **Prova:** `Av1DecodeTileReconE2ETest` 7/7 e `Av1PartitionE2ETest` 17/17 com a escotilha OFF; compile rc=0; os cinco gates de ledger rc=0.
+- **Caveat honesto:** no caminho DEFAULT (locais-em-registradores ON) a face nativa do driver FALHA e a da partição TRAVA (>900 s) — mas medi o BASELINE sem a 3au e ele TRAVA igual, então é o §723 (regressão da lane de codegen), não a 3au. Landar a 3au não piora nada e destrava a frente.
+- **Lição:** re-medir um bug "conhecido" na ponta corrente antes de assumir que ele ainda existe — o §705 tinha 7 passagens de diagnóstico e simplesmente desapareceu quando uma lane irmã mudou a emissão.
+
+## Sessão 14/10 (18ª) — §705 SÉTIMA PASSAGEM: a hipótese do alinhamento de 16 bytes ENFRAQUECIDA (a correção da passagem anterior foi uma super-generalização)
+- **O que eu tinha dito (17ª):** "o bloco de argumentos de pilha nunca é alinhado a 16 bytes; o pad `pushq $0` faz o probe girante sair limpo — pista MEDIDA". Isso tratou UMA observação como causa.
+- **As duas medições que a enfraquecem:** (1) um reprodutor MÍNIMO de 21 argumentos (15 args de pilha, ímpar — a mesma forma da chamada do `decodeBlock`) que aloca e concatena dentro do callee roda correto (`rc=0`, `21`) TANTO com o pad quanto SEM ele; (2) o runtime emitido não tem SSE alinhado a 16 bytes para dar falta — todo uso é de registrador (`movd`/`movq`/`ucomiss`/`ucomisd`) e o `kof_alloc` é `lock cmpxchg` + `futex`. Um frame desalinhado é benigno aqui.
+- **O que ficou provado sobre o pad:** é correto pela ABI SysV e ZERO-REGRESSÃO — com ele, `Av1DecodeTileReconE2ETest#av1DecodeTileReconOnNativeX86` passa com a escotilha OFF, e uma bateria nativa de 114 testes (NativeE2ETest 68, Av1DecodeChroma 8, Av1FrameAssembly 6, Av1Coeffs 6, Av1Partition 16, NativeCallScratch 4, NativeCrossWideArgs 3, NativeRegisterLocals 3) está **114/114 verde**. NÃO corrige o §723 (a flag ON ainda falha com o pad).
+- **Decisão:** NÃO landei. `nat/` é a frente da lane de compilador/nativo (`D-CODEGEN-REWRITE` ativo); landar um endurecimento de ABI sem uma prova RED-first que ele corrige algo é mudança não verificável. Árvore limpa.
+- **Prova executada:** o probe mínimo com e sem o pad (ambos `rc=0`); a face do driver com o pad + flag OFF (passa); a bateria de 114 (verde); `check_ledger_anchors` rc=0; compile rc=0.
+- **Lição (a terceira vez nesta série):** "um experimento mudou o resultado" não é o mesmo que "o experimento explica o resultado" — num bug dependente da entrada, um antes/depois é um ponto. A pergunta certa é "o mecanismo prediz o sintoma em TODAS as entradas?", e a resposta aqui foi não (o reprodutor mínimo não falha).
+
+## Sessão 14/10 (17ª) — §723 catalogado (a virada de locais-em-registradores quebrou as faces nativas AVIF) + a SEXTA PASSADA do §705 (o alinhamento de 16 bytes)
+- **Contexto ao retomar:** a 3au estava revertida, a árvore limpa, e o §705 (o giro nativo) aberto. O objetivo era landar a correção de alinhamento de pilha e re-landar a 3au.
+- **O bloqueio que apareceu:** a face `Av1DecodeTileReconE2ETest#av1DecodeTileReconOnNativeX86`, que eu tinha medido VERDE mais cedo no mesmo dia, agora FALHAVA — inclusive no baseline pré-3au. Não era a minha correção: era a ponta.
+- **A causa (medida, não inferida):** `c044a2add` ("flag de locais em registradores VIRADA PARA ON") tornou `kof.native.register.locals` default TRUE. **A/B na escotilha, mesma árvore:** com `-Dkof.native.register.locals=false` a face PASSA (79,14 s); com a flag ON FALHA (`Runtime error: array index out of bounds`). O mesmo para `Av1CoeffsE2ETest#av1CoeffsOnNativeX86` (PASSA OFF, 32,20 s). Reconfirmado na ponta após dois syncs.
+- **O achado que importa tanto quanto o bug:** a mensagem de `c044a2add` afirma que a falha do coeffs é "PRÉ-EXISTENTE, independente desta mudança". A medição contradiz isso para OS DOIS testes. Registrado como `known-bugs` §723 — a lane de codegen (`.130:9093`) é a dona do modelo; eu registrei a medição, não a causa raiz no alocador.
+- **§705 — SEXTA PASSADA (pista medida, NÃO landada):** o x86-64 emitido empurra 15 argumentos de pilha (120 B) e limpa com `addq $120, %rsp`; 120 não é múltiplo de 16, então `%rsp ≡ 8 (mod 16)` no `call` e o frame do callee roda desalinhado. **Isolamento:** um `pushq $0` antes dos argumentos (+8 na limpeza) fez o binário que girava sair LIMPO. Não landei porque as faces AVIF estão RED pelo §723 — não dá para distinguir "a correção funciona" de "o §723 continua quebrado". Revertido; a pista ficou no §705.
+- **Prova executada:** A/B do §723 (OFF passa / ON falha) na ponta, reconfirmado duas vezes; §705 gira com a flag OFF (independente do §723); gates `check_known_bugs_status` / `check_ledger_anchors` / `check_live_records` / `check_queue_enum` / `check_doc_refs` / `check_owner_identity` rc=0.
+- **Caveat:** `check_500` está RED em arquivos `kof-cli` de uma lane irmã (`BytecodeDecoder` 603 linhas, `BytecodeSwitch` 619) — não é desta lane; minha mudança é só de docs.
+- **Lição de método (de novo):** "medi uma vez, hoje" não é uma propriedade — a face estava verde de manhã e vermelha à tarde porque uma lane irmã mudou o DEFAULT do codegen. Re-medir na ponta corrente antes de concluir que o meu experimento regrediu algo.
 
 ## Sessão 13/10 (14ª) — 3ar REVERTIDA por um stash-pop de terceiro, e RESTAURADA
 - **O achado:** a ponta do `lab` (`8004dcf0a`, "docs(dev) — house policy") era um STASH-POP velho. Medi hasheando cada arquivo do commit contra `git rev-list <commit>^`: `Decompile.java` = estado de 12/10; `ClassFileParser.java` = **14/09**; `RuntimeOrmHistory2.java` = pré-fix-do-segv; `AvifFrameChromaSupport.java` DELETADO e `AvifFrameSupport`/`AvifFrameE2ETest` = 03–04/10 (a minha 3ar sumiu). O sinal que fecha o caso: a mensagem diz que resolveu marcadores de conflito CRUS, mas o PAI `0d9ec60b5` tem **ZERO** marcadores (`git grep '^<<<<<<< '` vazio).
@@ -60,6 +504,35 @@ state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (u
 - **O bloqueador do diagnóstico é de AMBIENTE, e eu o registrei:** `perf` está bloqueado (`perf_event_paranoid=4`) e o `gdb` não anexa (`ptrace_scope=1`) nem roda o binário até o fim em batch (o próprio gdb travou). Sem backtrace, o resto vira tentativa-e-erro sobre 780 linhas de assembly. O que FALTA é um debugger, não a reprodução.
 - **Decisão:** a 3au segue revertida; o achado vai para a lane compilador/nativo como §705, porque o mesmo Kof é correto em três alvos — é interação do backend, não de `libs/image`. Pousei o catálogo + a retratação, não um "fix" que eu não conseguiria provar.
 - **Armadilha de doc que custou tempo:** o `check_live_records`/`check_queue_enum`/`check_ledger_anchors` ficaram vermelhos porque catalogar um bug novo exige atualizar TRÊS declarações no README de development (a contagem da fila, a linha `**N live**`, e a enumeração em prosa) MAIS as âncoras EN↔PT, que precisam ser o slug COMPLETO derivado do heading. Anotei a receita.
+
+## Sessão 13/10 (20ª) — §705 segunda passada: a sonda mudou o suspeito, e eu segui a medição
+- **Reapliquei a 3au, reproduzi, e fui mais fundo com marcadores impressos.** A regra que segui: instrumentar SÓ os CALLEES, nunca o `decodeBlock` — assim o codegen da função suspeita fica intocado e os marcadores não podem mascarar o defeito.
+- **O que a medição mostrou (cada item é uma execução do binário nativo emitido):** (1) um único `tile.decodeBlock(0,0,9)` imprime `BEFORE`/`AFTER` na JVM e TRAVA no nativo — uma fonte, uma entrada, dois alvos; (2) a sonda lê os 46 campos ANTES da chamada e todos estão CERTOS (então o estado da classe não é a corrupção); (3) trocar o byte de entrada para `0` AINDA trava ⇒ ESTRUTURAL, não dependente de dado; (4) a trilha `pre-coeffs → post-coeffs → post-avail → post-pred → RB in w=32 h=32 lv=1024 pr=1024 → DQ in → DQ log2W=5 log2H=5 tw=32 th=32 denom=2 total=1024 → i=0 … i=31` e então PARA: **o laço de dequantização COMPLETA e a função nunca retorna**; (5) guardas de runaway dentro dos dois laços NUNCA disparam ⇒ não é laço infinito.
+- **Duas hipóteses minhas testadas e REFUTADAS, não descartadas por argumento:** (a) "os 46 `var x = this.x` são o gatilho" — removi a hoste inteira (sobraram ~8 locais) e **ainda trava** ⇒ tamanho de frame/locais está morto; (b) "é exaustão de pilha" — `ulimit -s unlimited` não muda nada.
+- **A pista que realmente carrega o caso:** o `av1DecodeTileRecon` de topo pré-3au chama a MESMA cadeia `av1ReconBlockInto → av1ReconstructBlock → av1Dequant` nos mesmos alvos e NÃO trava. O callee está bem. A falha é a interação de frame CHAMADOR/CALLEE quando o `decodeBlock` é o chamador. A forma (laço termina, função nunca retorna) aponta para endereço de retorno ou `%rbp` corrompidos — então o próximo passo é ler o ASSEMBLY (call-site + os dois prólogos), não o Kof.
+- **Retitulei o §705.** O título antigo ("um método de classe com 46 locais trava...") afirmava uma causa que eu agora medi como falsa. Deixar o título antigo seria perpetuar a hipótese refutada para quem ler o ledger depois.
+- **Lição de método (a terceira nesta frente):** o instrumento É o experimento. A cada camada de instrumentação o travamento "mudava de lugar" (do 3º coeficiente → `av1ReconBlockInto` → `av1Dequant`) — eu poderia ter lido isso como "o bug se move" e desistido; em vez disso, notei que só os callees estavam instrumentados na última camada e o ponto ficou estável. **Estabilize o instrumento antes de acreditar no ponto que ele aponta.**
+
+## Sessão 14/10 (21ª) — §705 terceira passada: a ambiguidade era o instrumento, não o bug
+- **A pergunta que a segunda passada deixou em aberto era binária: bloqueado ou girando?** "A função nunca retorna" admite as duas leituras, e eu não tinha medido qual. Medi: **`strace` mostra que as únicas syscalls do binário depois do startup são um `futex(0x453820, FUTEX_WAKE, 0) = 0` repetido, e o `nm` resolve esse endereço para `kof_alloc_lock`.** Ou seja: o programa está ALOCANDO em laço (cada `kof_alloc` pega o lock com `lock cmpxchg` e o solta com um `FUTEX_WAKE`), não esperando. Um `ps` limpo de um único processo confirma: estado **R**, CPU acumulando, zero saída.
+- **EU ERREI A MEDIÇÃO PRIMEIRO, E ISSO IMPORTA.** Um `pgrep` meu pegou um processo **Electron** alheio e reportou estado `S` com 0 ticks — que teria "confirmado" a leitura de deadlock. Só percebi porque os file descriptors daquele PID apontavam para o asar do Electron, não para o meu binário. **Lição: confirme a IDENTIDADE do processo, não só o estado.** Junto: `pkill -f <nome>` casou — e matou — o meu próprio shell (o padrão casava a linha de comando do bash que continha o nome); é preciso `pkill -x` com nome exato.
+- **O assembly está limpo nas fronteiras que inspecionei — e isso retira outra hipótese minha.** O call-site do `decodeBlock` para o `av1ReconBlockInto` de 11 argumentos está balanceado (5 args de pilha empurrados, `addq $48, %rsp` depois); os laços emitidos do `av1Dequant` têm cabeça, incremento e back-edge corretos, com epílogo `movq %rbp, %rsp; popq %rbp; ret`. A leitura de "endereço de retorno/frame pointer corrompidos" da segunda passada **cai**.
+- **A hipótese que fica é estreita e testável:** `kof_alloc` bem-sucedido repetido ⇒ o laço ALOCA por iteração. O `av1InvTx2d` faz exatamente isso (`var T = new Int[w]` dentro de `while (i < h)`, e `var T = new Int[h]` dentro de `while (col < w)`), então um `h` espúrio ali reproduz o sintoma inteiro. E o detalhe que estreita: o `av1Dequant` imprimiu os limites CORRETOS (`log2W=5 log2H=5 tw=32 th=32`) — se um limite está errado, é na SEGUNDA chamada ao helper log2, a que o `av1InvTx2d` faz.
+- **Padrão desta frente que se confirma pela quarta vez:** o defeito está numa CONVENÇÃO/limite, e o instrumento é que precisa ser estabilizado primeiro. Cada camada de sonda mudou o "suspeito" (3º coeficiente → `av1ReconBlockInto` → `av1Dequant` → `av1InvTx2d`); só quando parei de instrumentar o suspeito e passei a medir o PROCESSO (strace/nm/ps) é que a resposta ficou binária.
+
+## Sessão 14/10 (22ª) — §705 quarta passada: localizei de verdade, e retratei a minha própria pista
+- **A pergunta era ONDE o laço descontrolado está.** A terceira passada tinha inferido `av1InvTx2d` a partir do padrão de `strace` (futex repetido no lock do alocador ⇒ "um laço que aloca por iteração"). Isso era INFERÊNCIA, não medição — e estava errado. Instrumentei os callees outra vez e obtive a trilha que faltava: `DB grid n=16 size=32 txSz=1 bw=8 bh=8` → iterações 0 e 1 completam (`post-coeffs → post-avail → post-pred → post-recon`) → `DB iter 2 of 16` → `ordervals 0 4` → `brbc 0 4` → **NADA**. Os marcadores DENTRO do `av1DecodeCoeffsBlockEdgeTx`/`Core` disparam em 0–1 e nunca em 2. **Logo o giro está na chamada de 21 argumentos, depois de os argumentos serem calculados e antes da primeira instrução do callee.**
+- **Retratei o `av1InvTx2d`.** Ele nem é alcançado neste caminho (é chamado depois, de dentro do `av1ReconstructBlock`), e quando o instrumentei ele entrou e retornou limpo duas vezes. Registrei POR QUE a inferência falhou, não só que falhou: o padrão de futex diz *que* há alocação em laço, não *onde*.
+- **Refutei a hipótese mais óbvia da nova localização:** "é a aridade de 21 argumentos". Escrevi o repro mínimo — um método de classe com `while` chamando uma função de topo de 21 argumentos que imprime e devolve `Int[]` — e ele roda as 16 iterações corretamente no nativo. Então a aridade sozinha não é o gatilho; é o conjunto real de argumentos ou o estado do callee.
+- **Cuidado de método que se confirmou:** os marcadores só valem se o output não for bufferizado. Verifiquei o `kof_print` no assembly — ele faz um write por chamada (`movq $1, %rdi; call kof_plat_write`), sem buffering, então a trilha é confiável. **Antes de confiar numa trilha de prints, confirme que o print chega ao disco.**
+- **Padrão desta frente (quinta vez):** a cada passada o suspeito "muda de lugar", e a cada vez o que resolveu foi ESTABILIZAR O INSTRUMENTO (primeiro instrumentando só os callees; agora confirmando que o print não é bufferizado). O que não funciona é inferir a localização a partir de um sintoma indireto (o padrão de syscalls) — isso me custou uma retratação.
+
+## Sessão 14/10 (23ª) — §705 quinta passada: a entrada importa, e eu retratei a minha própria leitura
+- **A segunda passada tinha escrito "estrutural, não dependente de dado".** Era falso para a sonda atual, e eu descobri isso testando o byte de entrada: com `data[0]=236` o binário nativo GIRA; com `data[0]=11` o MESMO binário sai limpo com `Runtime error: array index out of bounds`. **Retratei.** A afirmação antiga veio de um harness diferente (o `data[0]=0` da segunda passada), e eu a generalizei sem re-testar na sonda em uso — exatamente o erro de classe que esta frente já cometeu (§682: afirmar sem medir).
+- **A medição que mais informa:** a **pré-3au** de topo, dirigida com o MESMO buffer de 1 byte e o mesmo `BLOCK_32X32`, sai com erro de limite (rc=1). A 3au com essa entrada GIRA. Ou seja, a 3au não move o erro de lugar — **ela converte um erro limpo e diagnosticável num giro que não termina.** Isso reposiciona o bug: não é "o decode não termina", é "a propagação do erro não termina".
+- **Duas hipóteses testadas e refutadas nesta passada:** (a) "qualquer erro de runtime dentro do decodeBlock trava" — falso: forçar um erro de limite dentro do decodeBlock (above/left de tamanho 2) sai limpo; (b) "a maquinaria de throw do nativo está quebrada" — falso: um throw não capturado no topo sai limpo (rc=1, imprime a mensagem), e um throw de dois níveis em métodos de classe também sai limpo.
+- **A forma que sobra:** o giro precisa do leitor de entropia esgotando no meio do bloco E da exaustão cair nas iterações POSTERIORES do laço de blocos de transformada. Com 256 bytes de dados o binário sai limpo — só o stream curto/degenerado gira.
+- **Padrão de método (sexta vez nesta frente):** eu generalizei a partir de UMA execução (`data[0]=0`) e registrei como lei ("estrutural"). O que teria evitado: variar a entrada na PRIMEIRA vez que declarei a propriedade. **Uma medição não estabelece uma propriedade; ela estabelece um ponto.**
 
 ## O que EU sou
 - lane pipeline/image-vision — identidade honesta `owner = 192.168.15.21:0` (flatt CLI, NÃO opencode; não há listener opencode neste host — porta anotada como `0`/n/a conforme a regra de nunca-inventar).

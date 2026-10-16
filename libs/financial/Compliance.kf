@@ -1,0 +1,60 @@
+package financial
+
+import financial.Money
+
+// kof.financial.compliance — structured checks + jurisdiction profiles AS
+// DATA (plan §5: "jurisdiction profiles as data"; §14 the compliance
+// boundary). A check returns a structured CheckResult — never throws — so a
+// compliance DECISION (block, review, allow) stays application policy.
+
+record JurisdictionProfile(String code, Long maxMinorPerTx, List<String> allowedKinds)
+
+record CheckResult(String check, Bool passed, String detail)
+
+// checkTxAmount — the transaction amount within the jurisdiction's per-tx cap.
+CheckResult checkTxAmount(JurisdictionProfile p, Money amount) {
+    if (amount.minor > p.maxMinorPerTx) {
+        return CheckResult("tx-amount", false,
+            amount.minor + " exceeds the per-tx cap of " + p.maxMinorPerTx + " (" + p.code + ")")
+    }
+    return CheckResult("tx-amount", true,
+        amount.minor + " within the per-tx cap of " + p.maxMinorPerTx + " (" + p.code + ")")
+}
+
+// checkAccountKind — the account kind is allowed in this jurisdiction.
+CheckResult checkAccountKind(JurisdictionProfile p, String kind) {
+    var i = 0
+    while (i < p.allowedKinds.size()) {
+        if (p.allowedKinds.get(i) == kind) {
+            return CheckResult("account-kind", true, kind + " is allowed in " + p.code)
+        }
+        i = i + 1
+    }
+    return CheckResult("account-kind", false,
+        kind + " is not an allowed account kind in " + p.code)
+}
+
+// allPassed — the structured decision helper: every check passed.
+Bool allPassed(List<CheckResult> checks) {
+    var i = 0
+    while (i < checks.size()) {
+        if (!checks.get(i).passed) {
+            return false
+        }
+        i = i + 1
+    }
+    return true
+}
+
+// failures — the failing checks only (for the report).
+List<CheckResult> failures(List<CheckResult> checks) {
+    var out: List<CheckResult> = listOf()
+    var i = 0
+    while (i < checks.size()) {
+        if (!checks.get(i).passed) {
+            out.add(checks.get(i))
+        }
+        i = i + 1
+    }
+    return out
+}

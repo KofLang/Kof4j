@@ -1,0 +1,190 @@
+package image
+
+import image.Av1Block
+import image.Av1ModeInfo
+import image.Av1Symbol
+
+// kof.image — AV1 palette colour-index decoding (the `palette_tokens()` stage of
+// `decode_block`). Transcribed from the reference, not from memory:
+//
+//   - `av1/common/entropymode.c`:
+//       `av1_get_palette_color_index_context` and
+//       `av1_palette_color_index_context_lookup`
+//   - `av1/decoder/detokenize.c`:
+//       `av1_decode_palette_tokens` -> `decode_color_map_tokens`
+//   - `av1/decoder/decodeframe.c`: the CALL SITE — `parse_decode_block` runs
+//       `decode_mbmi_block(...)` and then
+//       `av1_visit_palette(pbi, xd, r, av1_decode_palette_tokens)` BEFORE the
+//       transform size, matching the spec's `mode_info()` -> `palette_tokens()`
+//       -> `read_block_tx_size()`. Kof's driver must insert this read there.
+//
+// The colour-index CDFs live in `Av1ModeCdf` (`Palette_Color_Index_Cdf`, 35 rows
+// of 9, verified against libaom). Pure Kof, no `kof.io`.
+
+// PALETTE_MAX_SIZE / NUM_PALETTE_NEIGHBORS / PALETTE_MIN_SIZE.
+Int av1PaletteMaxSize() {
+    return 8
+}
+
+Int av1PaletteMinSize() {
+    return 2
+}
+
+// av1_palette_color_index_context_lookup[ MAX_COLOR_CONTEXT_HASH + 1 ].
+Int av1PaletteCtxHashLookup(Int h) {
+    return listOf(-1, -1, 0, -1, -1, 4, 3, 2, 1).get(h)
+}
+
+Int av1PaletteMinI(Int a, Int b) {
+    if (a < b) {
+        return a
+    }
+    return b
+}
+
+Int av1PaletteMaxI(Int a, Int b) {
+    if (a > b) {
+        return a
+    }
+    return b
+}
+
+// `av1_read_uniform( r, n )`: `l = get_unsigned_bits(n)`, `m = (1 << l) - n`;
+// read `l - 1` bits, and if that lands at or above `m` read one more bit.
+Int av1ReadUniform(Av1Symbol sym, Int n) {
+    var l = 0
+    while ((1 << l) < n) {
+        l = l + 1
+    }
+    var m = (1 << l) - n
+    var v = sym.readLiteral(l - 1)
+    if (v < m) {
+        return v
+    }
+    var extra = sym.readLiteral(1)
+    return (v * 2) - m + extra
+}
+
+// `av1_get_palette_color_index_context( color_map, stride, r, c, palette_size,
+// color_order )`: the neighbour scores (left 2, top-left 1, top 2), the
+// descending sort of the top NUM_PALETTE_NEIGHBORS colours (which also fills
+// `colorOrder`), the hash and the lookup. `r > 0 || c > 0` is the caller's
+// invariant (the first pixel is read as a uniform symbol).
+Int av1PaletteColorIndexContext(Int[] colorMap, Int stride, Int r, Int c, Int n,
+                                Int[] colorOrder) {
+    var nbrs = new Int[3]
+    nbrs[0] = -1
+    if (c - 1 >= 0) {
+        nbrs[0] = colorMap[r * stride + c - 1]
+    }
+    nbrs[1] = -1
+    if (c - 1 >= 0 && r - 1 >= 0) {
+        nbrs[1] = colorMap[(r - 1) * stride + c - 1]
+    }
+    nbrs[2] = -1
+    if (r - 1 >= 0) {
+        nbrs[2] = colorMap[(r - 1) * stride + c]
+    }
+    var scores = new Int[8]
+    var weights = listOf(2, 1, 2)
+    var i = 0
+    while (i < 3) {
+        if (nbrs[i] >= 0) {
+            scores[nbrs[i]] = scores[nbrs[i]] + weights.get(i)
+        }
+        i = i + 1
+    }
+    var inv = new Int[8]
+    i = 0
+    while (i < 8) {
+        colorOrder[i] = i
+        inv[i] = i
+        i = i + 1
+    }
+    i = 0
+    while (i < 3) {
+        var mx = scores[i]
+        var mxIdx = i
+        var j = i + 1
+        while (j < n) {
+            if (scores[j] > mx) {
+                mx = scores[j]
+                mxIdx = j
+            }
+            j = j + 1
+        }
+        if (mxIdx != i) {
+            var mxScore = scores[mxIdx]
+            var mxOrder = colorOrder[mxIdx]
+            var k = mxIdx
+            while (k > i) {
+                scores[k] = scores[k - 1]
+                colorOrder[k] = colorOrder[k - 1]
+                inv[colorOrder[k]] = k
+                k = k - 1
+            }
+            scores[i] = mxScore
+            colorOrder[i] = mxOrder
+            inv[colorOrder[i]] = i
+        }
+        i = i + 1
+    }
+    var hash = 0
+    var mult = listOf(1, 2, 2)
+    i = 0
+    while (i < 3) {
+        hash = hash + scores[i] * mult.get(i)
+        i = i + 1
+    }
+    return av1PaletteCtxHashLookup(hash)
+}
+
+// `decode_color_map_tokens( params, r )`: the first index is uniform, the rest
+// run a WAVEFRONT over the colour map, and the last coded column/row is copied
+// into any area the plane block has beyond `cols`/`rows`. `planeW`/`planeH` are
+// the plane block's dimensions, `rows`/`cols` the coded (clamped) extents.
+// `plane` selects the Y (0) or UV (1) colour-index CDF.
+Int[] av1PaletteColorMap(Av1Symbol sym, Av1ModeInfo modeInfo, Int plane, Int n,
+                         Int planeW, Int planeH, Int rows, Int cols) {
+    var map = new Int[planeW * planeH]
+    map[0] = av1ReadUniform(sym, n)
+    var order = new Int[8]
+    var i = 1
+    while (i < rows + cols - 1) {
+        var j = av1PaletteMinI(i, cols - 1)
+        var lo = av1PaletteMaxI(0, i - rows + 1)
+        while (j >= lo) {
+            var ctx = av1PaletteColorIndexContext(map, planeW, i - j, j, n, order)
+            var cdf = modeInfo.palYColorIndexCdf(n - av1PaletteMinSize(), ctx)
+            if (plane == 1) {
+                cdf = modeInfo.palUvColorIndexCdf(n - av1PaletteMinSize(), ctx)
+            }
+            var idx = sym.readSymbol(cdf, n)
+            map[(i - j) * planeW + j] = order[idx]
+            j = j - 1
+        }
+        i = i + 1
+    }
+    if (cols < planeW) {
+        i = 0
+        while (i < rows) {
+            var v = map[i * planeW + cols - 1]
+            var cc = cols
+            while (cc < planeW) {
+                map[i * planeW + cc] = v
+                cc = cc + 1
+            }
+            i = i + 1
+        }
+    }
+    i = rows
+    while (i < planeH) {
+        var cc = 0
+        while (cc < planeW) {
+            map[i * planeW + cc] = map[(rows - 1) * planeW + cc]
+            cc = cc + 1
+        }
+        i = i + 1
+    }
+    return map
+}

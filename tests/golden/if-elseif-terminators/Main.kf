@@ -1,0 +1,60 @@
+Int classify(Int s) {
+    var r = 0
+    if (s == 1) { r = 1 }
+    else if (s == 2) { r = 2 }
+    else if (s == 3) { return 30 }
+    else if (s == 4) { throw "bad4" }
+    else { r = 9 }
+    return r + 100
+}
+Int withElse(Int s) {
+    var r = 0
+    if (s == 1) { r = 10 }
+    else if (s == 2) { throw "bad2" }
+    else { r = 30 }
+    r = r + 1
+    return r
+}
+Int earlyRet(Int s) {
+    var r = 0
+    if (s == 1) { r = 10 }
+    else if (s == 2) { return 20 }
+    r = r + 1
+    return r
+}
+Int nestedThen(Int s) {
+    var r = 0
+    if (s == 1) {
+        if (s != 99) { r = 5 }
+        r = r + 2
+    } else if (s == 2) { throw "x" }
+    return r + 1
+}
+Int loopTrail(Int n) {
+    var r = 0
+    while (r < 5) {
+        if (r == n) {
+            r = r + 10
+            if (r > 12) { return r }
+        } else if (r == 4) { break }
+        r = r + 1
+    }
+    return r
+}
+main() {
+    println(classify(1))
+    println(classify(2))
+    println(classify(3))
+    println(classify(7))
+    println(withElse(1))
+    println(withElse(3))
+    println(earlyRet(1))
+    println(earlyRet(2))
+    println(earlyRet(5))
+    println(nestedThen(1))
+    println(nestedThen(5))
+    println(loopTrail(0))
+    println(loopTrail(9))
+    try { println(classify(4)) } catch (String e) { println("bad4c") }
+    try { println(withElse(2)) } catch (String e) { println("bad2c") }
+}

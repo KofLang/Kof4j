@@ -17,8 +17,8 @@ final class SemNarrowing {
      * collectNarrowing do StatementAnalyzer, nível expressão — só `x != null`
      * e conjunção; `||` não narrow.
      */
-    static SymbolTable narrowedScope(ExpressionNode cond, SymbolTable scope) {
-        return narrowedScope(cond, scope, false);
+    static SymbolTable narrowedScope(SemanticAnalyzer sa, ExpressionNode cond, SymbolTable scope) {
+        return narrowedScope(sa, cond, scope, false);
     }
 
     /**
@@ -31,35 +31,50 @@ final class SemNarrowing {
      * SEM025 honesto p/ `return if (q != null) { math.parseInt(q) } else
      * { 0 }` enquanto a forma-statement compilava.
      */
-    static SymbolTable narrowedScope(ExpressionNode cond, SymbolTable scope, boolean negated) {
+    static SymbolTable narrowedScope(SemanticAnalyzer sa, ExpressionNode cond,
+                                    SymbolTable scope, boolean negated) {
         if (scope == null) return scope;
         java.util.List<SymbolTable.LocalVariableSymbol> narrow = new java.util.ArrayList<>();
-        collectCondNarrowing(cond, scope, narrow, negated);
+        collectCondNarrowing(sa, cond, scope, narrow, negated);
         if (narrow.isEmpty()) return scope;
         SymbolTable child = scope.enterScope();
         for (SymbolTable.LocalVariableSymbol s : narrow) child.define(s);
         return child;
     }
 
-    private static void collectCondNarrowing(ExpressionNode cond, SymbolTable scope,
+    private static void collectCondNarrowing(SemanticAnalyzer sa, ExpressionNode cond, SymbolTable scope,
             java.util.List<SymbolTable.LocalVariableSymbol> out, boolean negated) {
         if (!(cond instanceof BinaryExpr be)) return;
         String op = be.operator();
         if ("&&".equals(op)) {
-            collectCondNarrowing(be.left(), scope, out, negated);
-            collectCondNarrowing(be.right(), scope, out, negated);
+            collectCondNarrowing(sa, be.left(), scope, out, negated);
+            collectCondNarrowing(sa, be.right(), scope, out, negated);
             return;
         }
         if ("||".equals(op)) return;
         if (!(be.right() instanceof LiteralExpr rl && rl.kind() == ConcreteLiteralKind.NULL)) return;
-        if (!(be.left() instanceof IdentifierExpr id)) return;
         boolean thenNarrow = "!=".equals(op);
         boolean elseNarrow = "==".equals(op);
         if (!thenNarrow && !elseNarrow) return;
         if (negated ? !elseNarrow : !thenNarrow) return;
-        SymbolTable.Symbol sym = scope.resolve(id.name());
-        if (sym != null && sym.type() instanceof Type.NullableType nt) {
-            out.add(new SymbolTable.LocalVariableSymbol(id.name(), nt.inner(), 0));
+        if (be.left() instanceof IdentifierExpr id) {
+            SymbolTable.Symbol sym = scope.resolve(id.name());
+            if (sym != null && sym.type() instanceof Type.NullableType nt) {
+                out.add(new SymbolTable.LocalVariableSymbol(id.name(), nt.inner(), 0));
+            }
+            return;
+        }
+        // D-NARROW-WHILE (#159) gêmeo: o CAMPO de um receiver (`if (b.data != null)`)
+        // narrowa o campo no ramo — o tipo efetivo vem da inferência da própria
+        // expressão (o receiver pode ser Nullable também). O lado STATEMENT já
+        // fazia isso; o lado EXPRESSÃO (if-expr e o direito de `&&`) só cobria
+        // locais, então o join do if-expr caía em Object (#870: SEM001
+        // `'+'` não-numérico / `iadd` sobre a caixa no JVM).
+        if (be.left() instanceof FieldAccessExpr) {
+            String path = Narrowing.pathOf(be.left());
+            Type fieldType = SemExpressionTyper.inferType(sa, be.left(), scope);
+            if (!(fieldType instanceof Type.NullableType nt) || path == null) return;
+            out.add(Narrowing.fieldNarrow(path, nt.inner()));
         }
     }
 

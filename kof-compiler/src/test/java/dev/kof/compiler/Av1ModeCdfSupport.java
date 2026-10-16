@@ -29,11 +29,33 @@ final class Av1ModeCdfSupport {
     static final String GOLDEN_SHA256 =
         "5e6a448d0cf17c229ca718ef4edc6b68697b9216bfb040469bb4d247d839e41d";
 
+    /**
+     * The six mode CDFs the base {@link #golden()} dump does NOT cover — segment
+     * id, segment id predicted, palette Y/UV size and palette Y/UV mode —
+     * derived the same way from libaom ({@code default_spatial_pred_seg_tree_cdf},
+     * {@code default_segment_pred_cdf}, {@code default_palette_{y,uv}_size_cdf},
+     * {@code default_palette_{y,uv}_mode_cdf}), expanded to the spec CDF shape.
+     */
+    static final String RESOURCE_EXT = "/av1_mode_cdf_ext_golden.txt.b64";
+
+    /** Expected SHA-256 of the decoded EXT golden text, to catch a stale resource. */
+    static final String GOLDEN_EXT_SHA256 =
+        "b324b339e9b60c40285c89774abd2eafce9db6160b70d3cb7e71f7a0f07fd7a8";
+
     /** The canonical dump the Kof probe must reproduce. */
     static String golden() {
-        try (InputStream raw = Av1ModeCdfSupport.class.getResourceAsStream(RESOURCE)) {
+        return load(RESOURCE);
+    }
+
+    /** The reference dump the EXT probe must reproduce (segment + palette CDFs). */
+    static String goldenExt() {
+        return load(RESOURCE_EXT);
+    }
+
+    private static String load(String resource) {
+        try (InputStream raw = Av1ModeCdfSupport.class.getResourceAsStream(resource)) {
             if (raw == null) {
-                throw new IllegalStateException("missing test resource " + RESOURCE);
+                throw new IllegalStateException("missing test resource " + resource);
             }
             byte[] b64 = raw.readAllBytes();
             StringBuilder sb = new StringBuilder(b64.length);
@@ -48,7 +70,7 @@ final class Av1ModeCdfSupport {
                 return new String(in.readAllBytes(), StandardCharsets.UTF_8).strip();
             }
         } catch (java.io.IOException e) {
-            throw new IllegalStateException("cannot read " + RESOURCE, e);
+            throw new IllegalStateException("cannot read " + resource, e);
         }
     }
 
@@ -56,6 +78,69 @@ final class Av1ModeCdfSupport {
     static String kofProbe() {
         return PROBE;
     }
+
+    /** Kof probe source that dumps the segment + palette CDF rows. */
+    static String kofProbeExt() {
+        return PROBE_EXT;
+    }
+
+    private static final String PROBE_EXT = """
+import image.Av1ModeCdf
+
+String row(String tag, Int r, Int[] c) {
+    var line = tag + " " + r
+    var i = 0
+    while (i < c.size) {
+        line = line + " " + c[i]
+        i = i + 1
+    }
+    return line
+}
+
+main() {
+    var m = Av1ModeCdf()
+    var sg = 0
+    while (sg < 3) {
+        println(row("SEG", sg, m.segmentId(sg)))
+        sg = sg + 1
+    }
+    var sp = 0
+    while (sp < 3) {
+        println(row("SEGP", sp, m.segmentIdPred(sp)))
+        sp = sp + 1
+    }
+    var ys = 0
+    while (ys < 7) {
+        println(row("PYS", ys, m.paletteYSize(ys)))
+        ys = ys + 1
+    }
+    var us = 0
+    while (us < 7) {
+        println(row("PUS", us, m.paletteUvSize(us)))
+        us = us + 1
+    }
+    var ym = 0
+    while (ym < 21) {
+        println(row("PYM", ym, m.paletteYMode(ym / 3, ym % 3)))
+        ym = ym + 1
+    }
+    var um = 0
+    while (um < 2) {
+        println(row("PUM", um, m.paletteUvMode(um)))
+        um = um + 1
+    }
+    var py = 0
+    while (py < 7) {
+        var pc = 0
+        while (pc < 5) {
+            println(row("PYC", py * 5 + pc, m.paletteYColorIndex(py, pc)))
+            println(row("PUC", py * 5 + pc, m.paletteUvColorIndex(py, pc)))
+            pc = pc + 1
+        }
+        py = py + 1
+    }
+}
+""";
 
     private static final String PROBE = """
 import image.Av1ModeCdf

@@ -83,7 +83,19 @@ public final class ExpressionBareCallLowerer {
                 GenericReturnAdapter.emit(driver, mc, ops, locals, selfMethod.returnType());
                 return localIdx;
             }
-            ops.add(new KofLoadLocal(ownerType, 0));
+            // #846 (`known-bugs` §735): o receptor implícito NÃO é sempre o slot 0.
+            // Numa LAMBDA, o slot 0 é a PRÓPRIA lambda (`locals[0] = ("this",
+            // Lambda0)`) e o `this` EXTERNO — quando a chamada nua é de um método
+            // de instância da classe envolvente — vive numa captura re-hospedada
+            // DEPOIS dele, com o mesmo nome. `findLocalVar` varre de trás para
+            // frente, então resolver pelo NOME devolve a captura (o receptor real).
+            // Antes disto o emissor empilhava `aload_0` (a lambda) → JVM
+            // `VerifyError: Bad type on operand stack`, Script imprimindo o objeto,
+            // JS lançando e nativo com SIGSEGV — medido nos quatro alvos.
+            IRLocalVariable selfThis = driver.findLocalVar("this", locals);
+            ops.add(selfThis != null
+                    ? new KofLoadLocal(selfThis.type(), selfThis.index())
+                    : new KofLoadLocal(ownerType, 0));
             localIdx = driver.emitArgumentsWithFormalTypes(mc.arguments(), selfMethod.parameterTypes(),
                     ops, owner, localIdx, locals);
             // #213: chamada nua dentro de default method de interface resolve p/ a

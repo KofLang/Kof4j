@@ -35,6 +35,10 @@ final class ClassTypeRegistry {
      *  type-params. Ausente = invariante (compatibilidade total com o que
      *  já existia, §270). */
     private final Map<String, java.util.List<String>> genericVariance = new HashMap<>();
+    /** §713: NOMES dos type-params (limpos, sem variância/bound) por tipo
+     *  genérico — a inferência de type-args de `new C(args)` precisa deles na
+     *  ORDEM declarada (a variância não basta). */
+    private final Map<String, java.util.List<String>> genericTypeParams = new HashMap<>();
 
     /**
      * #639 face 2 (D-DECISION-BATCH-2709B): símbolo do tipo por DECLARAÇÃO
@@ -113,6 +117,14 @@ final class ClassTypeRegistry {
     void registerTypeParameters(String name, java.util.List<String> typeParameters) {
         if (name == null || typeParameters == null || typeParameters.isEmpty()) return;
         genericVariance.put(name, typeParameters.stream().map(TypeParams::variance).toList());
+        genericTypeParams.put(name, TypeParams.names(typeParameters));
+    }
+
+    /** §713: nomes dos type-params declarados do tipo (ordem de declaração),
+     *  ou lista vazia quando o tipo não é genérico neste módulo. */
+    java.util.List<String> typeParamNames(String name) {
+        java.util.List<String> n = genericTypeParams.get(name);
+        return n == null ? java.util.List.of() : n;
     }
 
     /** X5.3: variâncias declaradas do tipo (índice = posição do type-param),

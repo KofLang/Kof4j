@@ -14,190 +14,137 @@ public final class NativeX86Arith {
 
     private NativeX86Arith() {}
 
+    /**
+     * The integer value of the last value-producing line pushed, when it is a
+     * constant ({@code pushq $N}) — skipping any trailing {@code .loc} debug lines.
+     * Returns {@code null} when the top of the operand stack was produced by
+     * something other than a literal push.
+     */
+    static Integer constantPushedOnTop(StringBuilder sb) {
+        java.util.List<String> lines = new java.util.ArrayList<>(
+                java.util.Arrays.asList(sb.toString().split("\n", -1)));
+        int i = lines.size() - 1;
+        if (i >= 0 && lines.get(i).isEmpty()) i--;
+        while (i >= 0 && lines.get(i).startsWith("    .loc ")) i--;
+        if (i < 0) return null;
+        String l = lines.get(i);
+        if (!l.startsWith("    pushq $")) return null;
+        try {
+            return Integer.parseInt(l.substring("    pushq $".length()).trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** Removes the last value-producing line (skipping trailing {@code .loc} lines). */
+    static void dropLastNonLocLine(StringBuilder sb) {
+        java.util.List<String> lines = new java.util.ArrayList<>(
+                java.util.Arrays.asList(sb.toString().split("\n", -1)));
+        int i = lines.size() - 1;
+        if (i >= 0 && lines.get(i).isEmpty()) i--;
+        while (i >= 0 && lines.get(i).startsWith("    .loc ")) i--;
+        if (i < 0) return;
+        lines.remove(i);
+        sb.setLength(0);
+        sb.append(String.join("\n", lines));
+    }
+
     static void emitBinary(StringBuilder sb, KofBinary kb) {
         Type opTy = kb.operandType();
         if (NativeTypeKinds.isFloatType(opTy)) {
-            sb.append("    popq %rcx\n");
-            sb.append("    popq %rax\n");
-            sb.append("    movd %eax, %xmm0\n");
-            sb.append("    movd %ecx, %xmm1\n");
-            switch (kb.op()) {
-                case ADD -> sb.append("    addss %xmm1, %xmm0\n");
-                case SUB -> sb.append("    subss %xmm1, %xmm0\n");
-                case MUL -> sb.append("    mulss %xmm1, %xmm0\n");
-                case DIV -> sb.append("    divss %xmm1, %xmm0\n");
-                case EQ -> {
-                    sb.append("    ucomiss %xmm1, %xmm0\n");
-                    sb.append("    sete %al\n");
-                    sb.append("    setnp %dl\n");
-                    sb.append("    andb %dl, %al\n");
-                    sb.append("    movzbl %al, %eax\n");
-                    sb.append("    pushq %rax\n");
-                    return;
-                }
-                case NE -> {
-                    sb.append("    ucomiss %xmm1, %xmm0\n");
-                    sb.append("    setne %al\n");
-                    sb.append("    setp %dl\n");
-                    sb.append("    orb %dl, %al\n");
-                    sb.append("    movzbl %al, %eax\n");
-                    sb.append("    pushq %rax\n");
-                    return;
-                }
-                case LT -> {
-                    // §101 (IEEE): unordered (NaN) força false — mesmo guard do LE.
-                    sb.append("    ucomiss %xmm1, %xmm0\n");
-                    sb.append("    setb %al\n");
-                    sb.append("    setp %dl\n");
-                    sb.append("    testb %dl, %dl\n");
-                    sb.append("    jnz 1f\n");
-                    sb.append("    movzbl %al, %eax\n");
-                    sb.append("    pushq %rax\n");
-                    sb.append("    jmp 2f\n");
-                    sb.append("1: xorl %eax, %eax\n");
-                    sb.append("    pushq %rax\n");
-                    sb.append("2:\n");
-                    return;
-                }
-                case LE -> {
-                    sb.append("    ucomiss %xmm1, %xmm0\n");
-                    sb.append("    setbe %al\n");
-                    sb.append("    setp %dl\n");
-                    // NaN => unordered => CF=1 PF=1 => be would be true, clear it
-                    sb.append("    testb %dl, %dl\n");
-                    sb.append("    jnz 1f\n");
-                    sb.append("    movzbl %al, %eax\n");
-                    sb.append("    pushq %rax\n");
-                    sb.append("    jmp 2f\n");
-                    sb.append("1: xorl %eax, %eax\n");
-                    sb.append("    pushq %rax\n");
-                    sb.append("2:\n");
-                    return;
-                }
-                case GT -> {
-                    sb.append("    ucomiss %xmm1, %xmm0\n");
-                    sb.append("    seta %al\n");
-                    sb.append("    movzbl %al, %eax\n");
-                    sb.append("    pushq %rax\n");
-                    return;
-                }
-                case GE -> {
-                    sb.append("    ucomiss %xmm1, %xmm0\n");
-                    sb.append("    setae %al\n");
-                    sb.append("    setp %dl\n");
-                    sb.append("    testb %dl, %dl\n");
-                    sb.append("    jnz 1f\n");
-                    sb.append("    movzbl %al, %eax\n");
-                    sb.append("    pushq %rax\n");
-                    sb.append("    jmp 2f\n");
-                    sb.append("1: xorl %eax, %eax\n");
-                    sb.append("    pushq %rax\n");
-                    sb.append("2:\n");
-                    return;
-                }
-                default -> { sb.append("    movd %xmm0, %eax\n"); sb.append("    pushq %rax\n"); return; }
-            }
-            sb.append("    movd %xmm0, %eax\n");
-            sb.append("    movl %eax, %eax\n");
-            sb.append("    pushq %rax\n");
+            NativeX86SseArith.emitFloat(sb, kb);
             return;
         }
         if (NativeTypeKinds.isDoubleType(opTy)) {
-            sb.append("    popq %rcx\n");
-            sb.append("    popq %rax\n");
-            // §146 (12/09, #101): MOD Double caía no `default` abaixo e
-            // devolvia o dividendo. fmod via kof_double_mod (SSE2, sem libm):
-            // topo=b, abaixo=a — a pilha x86 entrega b em %rcx e a em %rax,
-            // a convenção do helper é rdi=a, rsi=b.
-            if (kb.op() == KofBinaryOp.MOD) {
-                sb.append("    movq %rax, %rdi\n");
-                sb.append("    movq %rcx, %rsi\n");
-                sb.append("    call kof_double_mod\n");
+            NativeX86SseArith.emitDouble(sb, kb);
+            return;
+        }
+        // §7 x86_64 ("reduction of instructions for constants"): a CONSTANT shift
+        // count is the last value pushed (`pushq $N`); emit the immediate form
+        // `shl{l,q} $N, %{e,r}ax` and drop the push/pop instead of round-tripping
+        // the count through %rcx. A computed count (the tail is not a literal push)
+        // keeps the %cl form. The count is masked (31 for int, 63 for long) to match
+        // the JVM/hardware semantics exactly.
+        if (kb.op() == KofBinaryOp.SHL || kb.op() == KofBinaryOp.SHR || kb.op() == KofBinaryOp.USHR) {
+            Integer imm = constantPushedOnTop(sb);
+            if (imm != null) {
+                dropLastNonLocLine(sb);
+                boolean i32 = NativeTypeKinds.isInt32Type(opTy);
+                String mn = switch (kb.op()) {
+                    case SHL -> "shl";
+                    case SHR -> "sar";
+                    default -> "shr";
+                };
+                sb.append("    popq %rax\n");
+                sb.append("    ").append(mn).append(i32 ? "l" : "q")
+                        .append(" $").append(imm & (i32 ? 31 : 63))
+                        .append(", %").append(i32 ? "e" : "r").append("ax\n");
                 sb.append("    pushq %rax\n");
                 return;
             }
-            sb.append("    movq %rax, %xmm0\n");
-            sb.append("    movq %rcx, %xmm1\n");
-            sb.append("    movq %xmm0, %xmm0\n");
-            switch (kb.op()) {
-                case ADD -> sb.append("    addsd %xmm1, %xmm0\n");
-                case SUB -> sb.append("    subsd %xmm1, %xmm0\n");
-                case MUL -> sb.append("    mulsd %xmm1, %xmm0\n");
-                case DIV -> sb.append("    divsd %xmm1, %xmm0\n");
-                case EQ -> {
-                    sb.append("    ucomisd %xmm1, %xmm0\n");
-                    sb.append("    sete %al\n");
-                    sb.append("    setnp %dl\n");
-                    sb.append("    andb %dl, %al\n");
-                    sb.append("    movzbl %al, %eax\n");
-                    sb.append("    pushq %rax\n");
-                    return;
-                }
-                case NE -> {
-                    sb.append("    ucomisd %xmm1, %xmm0\n");
-                    sb.append("    setne %al\n");
-                    sb.append("    setp %dl\n");
-                    sb.append("    orb %dl, %al\n");
-                    sb.append("    movzbl %al, %eax\n");
-                    sb.append("    pushq %rax\n");
-                    return;
-                }
-                case LT -> {
-                    // §101 (IEEE): unordered (NaN) força false. `setb` sozinho
-                    // dava CF=1 no NaN (PF=1) → true — mesmo guard do LE.
-                    sb.append("    ucomisd %xmm1, %xmm0\n");
-                    sb.append("    setb %al\n");
-                    sb.append("    setp %dl\n");
-                    sb.append("    testb %dl, %dl\n");
-                    sb.append("    jnz 1f\n");
-                    sb.append("    movzbl %al, %eax\n");
-                    sb.append("    pushq %rax\n");
-                    sb.append("    jmp 2f\n");
-                    sb.append("1: xorl %eax, %eax\n");
-                    sb.append("    pushq %rax\n");
-                    sb.append("2:\n");
-                    return;
-                }
-                case LE -> {
-                    sb.append("    ucomisd %xmm1, %xmm0\n");
-                    sb.append("    setbe %al\n");
-                    sb.append("    setp %dl\n");
-                    sb.append("    testb %dl, %dl\n");
-                    sb.append("    jnz 1f\n");
-                    sb.append("    movzbl %al, %eax\n");
-                    sb.append("    pushq %rax\n");
-                    sb.append("    jmp 2f\n");
-                    sb.append("1: xorl %eax, %eax\n");
-                    sb.append("    pushq %rax\n");
-                    sb.append("2:\n");
-                    return;
-                }
-                case GT -> {
-                    sb.append("    ucomisd %xmm1, %xmm0\n");
-                    sb.append("    seta %al\n");
-                    sb.append("    movzbl %al, %eax\n");
-                    sb.append("    pushq %rax\n");
-                    return;
-                }
-                case GE -> {
-                    sb.append("    ucomisd %xmm1, %xmm0\n");
-                    sb.append("    setae %al\n");
-                    sb.append("    setp %dl\n");
-                    sb.append("    testb %dl, %dl\n");
-                    sb.append("    jnz 1f\n");
-                    sb.append("    movzbl %al, %eax\n");
-                    sb.append("    pushq %rax\n");
-                    sb.append("    jmp 2f\n");
-                    sb.append("1: xorl %eax, %eax\n");
-                    sb.append("    pushq %rax\n");
-                    sb.append("2:\n");
-                    return;
-                }
-                default -> { sb.append("    movq %xmm0, %rax\n"); sb.append("    pushq %rax\n"); return; }
+        }
+        // §7 x86_64 ("reduction of instructions for constants"): a CONSTANT right
+        // operand uses the immediate form `op{l,q} $N, %{e,r}ax` (or `imul{l,q}
+        // $N, %{e,r}ax`) instead of round-tripping it through %rcx. The constant is
+        // the LAST value pushed (the RHS); for a non-commutative op (SUB) that is
+        // exactly the operand the immediate form expects, so the result is
+        // identical. The immediate must fit a sign-extended imm32 (always true for
+        // int; a wide long falls back).
+        if (kb.op() == KofBinaryOp.ADD || kb.op() == KofBinaryOp.SUB || kb.op() == KofBinaryOp.MUL
+                || kb.op() == KofBinaryOp.AND || kb.op() == KofBinaryOp.OR || kb.op() == KofBinaryOp.XOR) {
+            Integer imm = constantPushedOnTop(sb);
+            if (imm != null) {
+                dropLastNonLocLine(sb);
+                boolean i32 = NativeTypeKinds.isInt32Type(opTy);
+                String mn = switch (kb.op()) {
+                    case ADD -> "add";
+                    case SUB -> "sub";
+                    case MUL -> "imul";
+                    case AND -> "and";
+                    case OR -> "or";
+                    default -> "xor";
+                };
+                sb.append("    popq %rax\n");
+                sb.append("    ").append(mn).append(i32 ? "l" : "q")
+                        .append(" $").append(imm)
+                        .append(", %").append(i32 ? "e" : "r").append("ax\n");
+                sb.append("    pushq %rax\n");
+                return;
             }
-            sb.append("    movq %xmm0, %rax\n");
-            sb.append("    pushq %rax\n");
-            return;
+        }
+        // §7 x86_64 ("reduction of instructions for constants"): a CONSTANT right
+        // operand of a comparison also uses the immediate form `cmp{l,q} $N,
+        // %{e,r}ax` instead of round-tripping it through %rcx. The constant is the
+        // RHS (pushed last), so `cmp $N, %eax` compares the same way the register
+        // form did (left - right). `x == 0` gets the canonical `testl %eax, %eax`.
+        if (kb.op() == KofBinaryOp.EQ || kb.op() == KofBinaryOp.NE || kb.op() == KofBinaryOp.LT
+                || kb.op() == KofBinaryOp.LE || kb.op() == KofBinaryOp.GT || kb.op() == KofBinaryOp.GE) {
+            Integer imm = constantPushedOnTop(sb);
+            if (imm != null) {
+                dropLastNonLocLine(sb);
+                boolean i32 = NativeTypeKinds.isInt32Type(opTy);
+                String setcc = switch (kb.op()) {
+                    case EQ -> "sete";
+                    case NE -> "setne";
+                    case LT -> "setl";
+                    case LE -> "setle";
+                    case GT -> "setg";
+                    default -> "setge";
+                };
+                sb.append("    popq %rax\n");
+                if (imm == 0 && (kb.op() == KofBinaryOp.EQ || kb.op() == KofBinaryOp.NE)) {
+                    sb.append("    test").append(i32 ? "l" : "q")
+                            .append(" %").append(i32 ? "e" : "r").append("ax, %")
+                            .append(i32 ? "e" : "r").append("ax\n");
+                } else {
+                    sb.append("    cmp").append(i32 ? "l" : "q")
+                            .append(" $").append(imm)
+                            .append(", %").append(i32 ? "e" : "r").append("ax\n");
+                }
+                sb.append("    ").append(setcc).append(" %al\n    movzbl %al, %eax\n");
+                sb.append("    pushq %rax\n");
+                return;
+            }
         }
         sb.append("    popq %rcx\n");
         sb.append("    popq %rax\n");
@@ -417,7 +364,13 @@ public final class NativeX86Arith {
     private static void emitDivZeroGuardEnd(StringBuilder sb, String sfx) {
         sb.append("    jmp .Ldivz_done_").append(sfx).append("\n");
         sb.append(".Ldivz_").append(sfx).append(":\n");
+        // §693/§729: a mensagem precisa ser uma KofString (o catch do usuario
+        // LE o header — len@16); um `.asciz` cru faz `e` virar lixo e o uso de
+        // `e` SIGSEGVA (medido). kof_string_from_literal constroi a KofString.
         sb.append("    leaq .Ldivz_msg_").append(sfx).append("(%rip), %rdi\n");
+        sb.append("    movl $9, %esi\n");  // len("/ by zero")
+        sb.append("    call kof_string_from_literal\n");
+        sb.append("    movq %rax, %rdi\n");
         sb.append("    call kof_throw_string\n");
         sb.append("    ud2\n");
         sb.append(".Ldivz_done_").append(sfx).append(":\n");

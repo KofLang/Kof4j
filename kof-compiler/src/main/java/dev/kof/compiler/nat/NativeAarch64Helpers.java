@@ -107,6 +107,35 @@ final class NativeAarch64Helpers {
         };
     }
 
+    /**
+     * §7 AArch64 ("use of immediate forms"): true when {@code imm} is a valid
+     * AArch64 logical (bitmask) immediate — a run of {@code n} ones (1 &lt;= n &lt;
+     * size) at any rotation within a size of 2/4/8/16/32/64 bits, that size then
+     * replicated to fill 64 bits. VERIFIED against the real assembler
+     * (aarch64-linux-gnu-as) over a table of values: it accepts 1/3/6/7/…/0xFF00FF00
+     * and rejects 0, -1, 0xFF00, 0xAAAAAAAA… (the naive "run of ones, even rotation"
+     * rule wrongly rejected 0/6/0xAA…). When true, {@code and}/{@code orr}/{@code
+     * eor} take the immediate directly instead of materializing it in a scratch
+     * register first.
+     */
+    static boolean isLogicalImm(long imm) {
+        for (int size : new int[]{2, 4, 8, 16, 32, 64}) {
+            long mask = (size == 64) ? -1L : ((1L << size) - 1);
+            long elem = imm & mask;
+            // imm must be `elem` replicated to fill 64 bits with period `size`.
+            long rep = 0;
+            for (int k = 0; k < 64; k += size) rep |= (elem << k);
+            if (rep != imm) continue;
+            // `elem` must be a rotation (within `size`) of a run of n consecutive
+            // ones (1 <= n < size) at the low end.
+            for (int r = 0; r < size; r++) {
+                long w = (r == 0) ? elem : (((elem >>> r) | (elem << (size - r))) & mask);
+                if (w != 0 && w != mask && (w & (w + 1)) == 0) return true;
+            }
+        }
+        return false;
+    }
+
     static List<String> aarch64MovImm(String rd, long imm) {
         long u = imm;
         if (u == 0) return List.of("mov " + rd + ", #0");

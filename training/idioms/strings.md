@@ -37,7 +37,7 @@ a + "!"                     // concatenation
 
 ```kof
 // ✅ static receiver of a builtin type works (String/Integer/Long/
-// Float/Double/Boolean/Char/Math/System):
+// Float/Double/Boolean/Char):
 var s = "n=" + String.valueOf(42)
 var c = String.valueOf(104 as Char)   // "h" — codepoint→character
 
@@ -50,6 +50,12 @@ var c = String.valueOf(104 as Char)   // "h" — codepoint→character
   COMP002 01/09; **`"str" + double` discarded the FP operand → empty output,
   fixed 02/09**).
 - Do not build manual digit-by-digit conversion — use `String.valueOf`.
+- **`Math` and `System` are NOT receivers** (measured 15/10 at the tip: both give
+  `SEM011 Undefined variable or type`). Arithmetic helpers live in the `math`
+  NAMESPACE — `math.max(3, 4)`, `math.abs(-3)` (`learn/stdlib/math.md`) — and there
+  is no `System.*` surface at all (output is `println`). This line used to list both
+  among the builtin static receivers — corrected 15/10 (#851); the negative is now
+  locked by `BuiltinStaticReceiverSurfaceE2ETest`.
 
 ## BAD — Java's equals
 

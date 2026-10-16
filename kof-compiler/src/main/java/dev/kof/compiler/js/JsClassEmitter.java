@@ -83,6 +83,10 @@ public final class JsClassEmitter {
                 methods.add(new JsIr.JsFunction("_kof_clinit", clinit.parameters(), clinit.body(),
                         true, false, false, clinit.isAsync(), clinit.kofLine()));
             } else {
+                // §724: um método ABSTRACT de interface não tem corpo — emitir
+                // um stub quebraria a classe JS. Uma interface só chega aqui
+                // quando tem membro static (skipClass).
+                if ((method.accessFlags() & AccessFlags.ABSTRACT) != 0) continue;
                 boolean isStatic = (method.accessFlags() & AccessFlags.STATIC) != 0;
                 methods.add(p.lowerFunction(method, clazz, isStatic));
             }
@@ -259,7 +263,14 @@ public final class JsClassEmitter {
      * (this.name as a property would shadow the name() accessor).
      */
     String jsFieldName(IRClass clazz, String name) {
-        if ("java/lang/Record".equals(clazz.superName())) {
+        // #836: o mesmo predicado de record-ness do emit da classe (linha ~40):
+        // um record SINTÉTICO (class X(p) extends Base → componentes+acessores)
+        // tem o acessor `p()`; o backing field PRECISA do prefixo `_` mesmo sem
+        // a superclasse literal java/lang/Record, senão `this.p = <default>`
+        // SOBRESCREVE o método p() (o campo vira número, `p()` deixa de existir
+        // → TypeError no JS). Antes só o Record literal levava o prefixo.
+        if ("java/lang/Record".equals(clazz.superName())
+                || p.lc.recordClassNames.contains(clazz.name())) {
             return "_" + JsTypeMapper.sanitizeName(name);
         }
         return JsTypeMapper.sanitizeName(name);
@@ -270,6 +281,15 @@ public final class JsClassEmitter {
         List<JsIr.JsStatement> body = p.parseMethodBody(ctx);
         insertFieldDefaults(clazz, body);
         insertSuperCall(clazz, body);
+        // TIER 2.7 (D-VALUE-RECORD, 2.7.4 — ABI JS): um `value record` é um
+        // objeto CONGELADO (o plano §4) — sem identidade observável e sem
+        // mutação. Kof não muta record, então o freeze é invisível ao código
+        // Kof e entrega a garantia de valor no nível do objeto JS.
+        if (clazz.isValueRecord()) {
+            body.add(new JsIr.JsExprStmt(new JsIr.JsCall(
+                    new JsIr.JsIdentifier("Object.freeze"),
+                    List.of(new JsIr.JsIdentifier("this")))));
+        }
         return new JsIr.JsFunction("constructor", p.parameterNames(ctx), body, false, true, false, false,
                 JsMethodParser.firstKofLine(method));
     }

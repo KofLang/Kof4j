@@ -69,8 +69,21 @@ final class NativeOpHelpers {
 
     static void emitLoadLiteral(NativeBackend nb, StringBuilder sb, KofLoadLiteral lit) {
         switch (lit.value()) {
-            case Integer i -> sb.append("    movq $").append(i).append(", %rax\n");
-            case Long l -> sb.append("    movq $").append(l).append(", %rax\n");
+            // §7 x86_64 ("reduction of instructions for constants"): an immediate
+            // that fits in a sign-extended imm32 is pushed with a single `pushq
+            // $imm` instead of `movq $imm, %rax; pushq %rax`. Kof `int` is 32-bit
+            // (always fits); a `long` only when it round-trips through int.
+            case Integer i -> {
+                sb.append("    pushq $").append(i).append("\n");
+                return;
+            }
+            case Long l -> {
+                if (l == (int) (long) l) {
+                    sb.append("    pushq $").append(l).append("\n");
+                    return;
+                }
+                sb.append("    movq $").append(l).append(", %rax\n");
+            }
             case Float f -> sb.append("    movq $").append(Float.floatToIntBits(f)).append(", %rax\n");
             case Double d -> sb.append("    movq $").append(Double.doubleToLongBits(d)).append(", %rax\n");
             case String s -> {
@@ -80,8 +93,14 @@ final class NativeOpHelpers {
                 sb.append("    movl $").append(byteLen).append(", %esi\n");
                 sb.append("    call kof_string_from_literal\n");
             }
-            case Boolean b -> sb.append("    movq $").append(b ? 1 : 0).append(", %rax\n");
-            case null -> sb.append("    movq $0, %rax\n");
+            case Boolean b -> {
+                sb.append("    pushq $").append(b ? 1 : 0).append("\n");
+                return;
+            }
+            case null -> {
+                sb.append("    pushq $0\n");
+                return;
+            }
             default -> { }
         }
         sb.append("    pushq %rax\n");
@@ -152,8 +171,6 @@ final class NativeOpHelpers {
             sb.append("    jmp ").append(nb.resolveLabel(kc.falseLabel())).append("\n");
             return;
         }
-        sb.append("    popq %rax\n");
-        sb.append("    popq %rcx\n");
         String cond = switch (kc.comparison()) {
             case EQ -> "je";
             case NE -> "jne";
@@ -162,7 +179,32 @@ final class NativeOpHelpers {
             case GT -> "jg";
             case GE -> "jge";
         };
-        if (opTy != null && NativeTypeKinds.isInt32Type(opTy)) {
+        boolean int32 = opTy != null && NativeTypeKinds.isInt32Type(opTy);
+        // §7 x86_64 ("reduction of instructions for constants"): a CONSTANT right
+        // operand (the last value pushed) uses the immediate form `cmp{l,q} $N,
+        // %{e,r}ax` (or the canonical `test` for == 0/!= 0) instead of popping it
+        // into %rcx and comparing registers. The constant is the RHS, so the
+        // comparison direction is unchanged.
+        Integer imm = NativeX86Arith.constantPushedOnTop(sb);
+        if (imm != null) {
+            NativeX86Arith.dropLastNonLocLine(sb);
+            sb.append("    popq %rax\n");
+            if (imm == 0 && (kc.comparison() == KofComparison.EQ || kc.comparison() == KofComparison.NE)) {
+                sb.append("    test").append(int32 ? "l" : "q")
+                        .append(" %").append(int32 ? "e" : "r").append("ax, %")
+                        .append(int32 ? "e" : "r").append("ax\n");
+            } else {
+                sb.append("    cmp").append(int32 ? "l" : "q")
+                        .append(" $").append(imm)
+                        .append(", %").append(int32 ? "e" : "r").append("ax\n");
+            }
+            sb.append("    ").append(cond).append(" ").append(nb.resolveLabel(kc.trueLabel())).append("\n");
+            sb.append("    jmp ").append(nb.resolveLabel(kc.falseLabel())).append("\n");
+            return;
+        }
+        sb.append("    popq %rax\n");
+        sb.append("    popq %rcx\n");
+        if (int32) {
             sb.append("    cmpl %eax, %ecx\n");
         } else {
             sb.append("    cmpq %rax, %rcx\n");
@@ -170,6 +212,8 @@ final class NativeOpHelpers {
         sb.append("    ").append(cond).append(" ").append(nb.resolveLabel(kc.trueLabel())).append("\n");
         sb.append("    jmp ").append(nb.resolveLabel(kc.falseLabel())).append("\n");
     }
+
+
 
     /** B-6.2b: {@code ring1(fn)} — empilha o endereco do simbolo da funcao
      *  top-level (leaq <sym>(%rip),%rax; pushq %rax). */

@@ -1,0 +1,56 @@
+package legacy
+
+import legacy.Legacy
+import legacy.Adapter
+import legacy.Messaging
+
+// kof.legacy.tx — KofBOL Fatia 10 (plan §20 slice 10; §13): TRANSACTIONS
+// over the in-memory broker, reusing the existing functional pattern.
+// begin/stage/commit/rollback — NOTHING is visible until commit; rollback
+// discards. §13's own words govern: do NOT invent a distributed transaction
+// protocol — timeout/retry/idempotency across engines belong to the engines
+// (the same honesty as the transport matrix).
+
+record LegacyTx(LegacyBroker base, List<LegacyMessage> staged)
+
+record TxCommit(LegacyBroker broker, LegacyResponse response)
+
+// begin — a transaction over a base broker.
+LegacyTx begin(LegacyBroker base) {
+    return LegacyTx(base, listOf())
+}
+
+// stage — add a message to the transaction (NOT visible to the broker yet).
+LegacyTx stage(LegacyTx tx, LegacyMessage m) {
+    var staged: List<LegacyMessage> = listOf()
+    var i = 0
+    while (i < tx.staged.size) {
+        staged.add(tx.staged.get(i))
+        i = i + 1
+    }
+    staged.add(m)
+    return LegacyTx(tx.base, staged)
+}
+
+// commit — publish EVERY staged message onto the base broker. All-or-
+// nothing: the base broker is untouched until this call.
+TxCommit commit(LegacyTx tx) {
+    var b = tx.base
+    var i = 0
+    while (i < tx.staged.size) {
+        b = publish(b, tx.staged.get(i))
+        i = i + 1
+    }
+    return TxCommit(b, response(0, "committed " + tx.staged.size + " message(s)"))
+}
+
+// rollback — discard the staged messages: the base broker comes back
+// unchanged (an explicit VALUE, never a silent no-op).
+TxCommit rollback(LegacyTx tx) {
+    return TxCommit(tx.base, response(0, "rolled back " + tx.staged.size + " message(s)"))
+}
+
+// stagedCount — how many messages the transaction is holding.
+Int stagedCount(LegacyTx tx) {
+    return tx.staged.size
+}

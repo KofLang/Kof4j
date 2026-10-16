@@ -1,0 +1,89 @@
+package cobol
+
+import cobol.Scanner
+
+// kof.cobol.report — the COBOL→Kof translator, PHASE 10 MVP (plan §30): the
+// DIAGNOSTICS REPORT — the CB codes collected into one structured report
+// with the CLI render shape (`path: code: message`). The scan's notes (the
+// CB001-style lines) are collectable; the thrown CB codes enter as explicit
+// adds. Nothing is silently swallowed: a report is the migration TODO list.
+
+record Diag(String code, String path, String message)
+
+record DiagReport(String project, List<Diag> diags)
+
+DiagReport newReport(String project) {
+    return DiagReport(project, listOf())
+}
+
+DiagReport addDiag(DiagReport r, String code, String path, String message) {
+    var diags: List<Diag> = listOf()
+    var i = 0
+    while (i < r.diags.size) {
+        diags.add(r.diags.get(i))
+        i = i + 1
+    }
+    diags.add(Diag(code, path, message))
+    return DiagReport(r.project, diags)
+}
+
+// collectScan — the scan's CB notes (`CB001 no PROGRAM-ID in src/x.cbl`)
+// become structured diags (the code parsed out of the note).
+DiagReport collectScan(DiagReport r, CobolProject proj) {
+    var out = r
+    var i = 0
+    while (i < proj.notes.size) {
+        var note = proj.notes.get(i)
+        if (note.length > 6 && note.startsWith("CB")) {
+            var sp = note.indexOf(" ")
+            var code = note.substring(0, sp)
+            var rest = note.substring(sp + 1, note.length)
+            var pth = ""
+            if (rest.indexOf(" in ") >= 0) {
+                pth = rest.substring(rest.indexOf(" in ") + 4, rest.length)
+                rest = rest.substring(0, rest.indexOf(" in "))
+            }
+            out = addDiag(out, code, pth, rest)
+        }
+        i = i + 1
+    }
+    return out
+}
+
+Bool hasCode(DiagReport r, String code) {
+    var i = 0
+    while (i < r.diags.size) {
+        if (r.diags.get(i).code == code) {
+            return true
+        }
+        i = i + 1
+    }
+    return false
+}
+
+List<Diag> withCode(DiagReport r, String code) {
+    var out: List<Diag> = listOf()
+    var i = 0
+    while (i < r.diags.size) {
+        if (r.diags.get(i).code == code) {
+            out.add(r.diags.get(i))
+        }
+        i = i + 1
+    }
+    return out
+}
+
+// render — the CLI report shape, one line per diagnostic.
+String render(DiagReport r) {
+    var out = ""
+    var i = 0
+    while (i < r.diags.size) {
+        var d = r.diags.get(i)
+        out = out + d.path + ": " + d.code + ": " + d.message
+        i = i + 1
+        if (i < r.diags.size) {
+            out = out + "\n"
+        }
+    }
+    return out
+}

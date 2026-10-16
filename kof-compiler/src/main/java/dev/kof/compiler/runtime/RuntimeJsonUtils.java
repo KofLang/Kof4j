@@ -284,16 +284,11 @@ public final class RuntimeJsonUtils {
                 call .Ljf_mkstr
                 jmp .Jfv_exit
             .Jfv_empty:
-                movl $25, %edi
-                call kof_alloc
-                movq %rax, %rcx
-                movl $1, 0(%rcx)
-                movl $0, 4(%rcx)
-                movq $0, 8(%rcx)
-                movl $0, 16(%rcx)
-                movl $0, 20(%rcx)
-                movb $0, 24(%rcx)
-                movq %rcx, %rax
+                # §733 (face STRING): a AUSENCIA devolve NULL, distinto de um
+                # valor de string VAZIO mas LEGITIMO (KofString de len 0). Um
+                # componente de REFERENCIA ausente fica NULL (contrato §565);
+                # um PRIMITIVO ausente e' pego por kof_json_require.
+                xorq %rax, %rax
             .Jfv_exit:
                 popq %r15
                 popq %r14
@@ -414,6 +409,40 @@ public final class RuntimeJsonUtils {
                 popq %r12
                 popq %rbx
                 ret
+            """);
+    }
+
+
+    /** §733 (face nativa x86): o `json.decode<Rec>` defaultava SILENCIOSAMENTE
+     *  um campo PRIMITIVO ausente (o `kof_json_find_value` devolve uma KofString
+     *  VAZIA). Este helper LANÇA `JSN004` quando o valor é vazio — emitido pelo
+     *  lowering SÓ para campos primitivos (o campo String mantém a ambiguidade
+     *  vazio-vs-ausente). Só o x86 chega aqui (os alvos cross recusam o decode
+     *  com COMP001 em compile-time). */
+    public static void emitJsonRequire(StringBuilder sb) {
+        sb.append("""
+            .globl kof_json_require
+            .type kof_json_require, @function
+            kof_json_require:
+                # §733: NULL = ausencia; uma KofString VAZIA (len 0) tambem
+                # conta como ausencia p/ um PRIMITIVO ("" nao e' numero/bool).
+                testq %rdi, %rdi
+                jz   .Ljr_miss
+                movl 16(%rdi), %eax
+                testl %eax, %eax
+                jz   .Ljr_miss
+                movq %rdi, %rax
+                ret
+            .Ljr_miss:
+                leaq .Ljr_msg(%rip), %rdi
+                movl $21, %esi
+                call kof_string_from_literal
+                movq %rax, %rdi
+                call kof_throw_string
+                ud2
+            .pushsection .rodata
+            .Ljr_msg: .asciz "JSN004: missing field"
+            .popsection
             """);
     }
 

@@ -39,7 +39,7 @@ final class NativeDwarfCrossRegister {
                         continue;
                     }
                     NativeDwarf.Local slot = new NativeDwarf.Local(lv.name(),
-                            re.crossLocalOffRiscv(lv.index()), NativeMethodEmitter.dwarfKindOf(lv.type()));
+                            re.crossLocalOffRiscv(lv.index()), NativeDwarf.dwarfKindOf(lv.type()));
                     if (lv.name().equals("this") || lv.index() < paramSlotMax) {
                         params.add(slot);
                     } else {
@@ -47,6 +47,6 @@ final class NativeDwarfCrossRegister {
                     }
                 }
                 re.nb.kofDwarf.add(mangled, method.name(), declLine,
-                        NativeMethodEmitter.dwarfKindOf(method.returnType()), params, locals);
+                        NativeDwarf.dwarfKindOf(method.returnType()), params, locals);
     }
 }

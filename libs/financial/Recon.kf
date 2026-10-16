@@ -1,0 +1,102 @@
+package financial
+
+import financial.Ledger
+
+// kof.financial.recon — RECONCILIATION against external statements (plan §11).
+//
+// Matching is DETERMINISTIC: exact amount+currency first, then tolerance
+// (`toleranceMinor` is explicit; 0 means exact). Unmatched items are
+// RETURNED, never dropped. The result is a report VALUE; a reconciliation
+// DECISION is application policy.
+
+record StatementLine(String externalId, Long minor, String currency, Long valueDateMillis, String raw)
+
+record Match(String journalId, String statementLineId, String kind)
+
+// reconcile — match ledger journals against statement lines.
+//   exact    = same minor + same currency (the direction is normalized: the
+//              ledger's sign is folded into the absolute amount)
+//   tolerance= |difference| <= toleranceMinor (kind "tolerance")
+//   unmatched= everything left on either side (kind "unmatched"; the
+//              journalId or the statementLineId is empty for the orphan side)
+List<Match> reconcile(List<Journal> ours, List<StatementLine> theirs, Int toleranceMinor) {
+    var out: List<Match> = listOf()
+    var used: List<Bool> = listOf()
+    var i = 0
+    while (i < theirs.size()) {
+        used.add(false)
+        i = i + 1
+    }
+    var k = 0
+    while (k < ours.size()) {
+        var j = ours.get(k)
+        var abs = journalAbsMinor(j)
+        var cur = journalCurrency(j)
+        var best = -1
+        var kind = ""
+        var n = 0
+        while (n < theirs.size()) {
+            if (used.get(n)) {
+                n = n + 1
+                continue
+            }
+            var line = theirs.get(n)
+            if (line.currency != cur) {
+                n = n + 1
+                continue
+            }
+            var diff = line.minor - abs
+            if (diff < 0L) {
+                diff = 0L - diff
+            }
+            if (diff == 0L) {
+                best = n
+                kind = "exact"
+                n = theirs.size()
+                continue
+            }
+            if (diff <= toleranceMinor && best == -1) {
+                best = n
+                kind = "tolerance"
+            }
+            n = n + 1
+        }
+        if (best >= 0) {
+            out.add(Match(j.id, theirs.get(best).externalId, kind))
+            used.set(best, true)
+        } else {
+            out.add(Match(j.id, "", "unmatched"))
+        }
+        k = k + 1
+    }
+    var n = 0
+    while (n < theirs.size()) {
+        if (!used.get(n)) {
+            out.add(Match("", theirs.get(n).externalId, "unmatched"))
+        }
+        n = n + 1
+    }
+    return out
+}
+
+// the absolute summed amount of a journal (a balanced journal has
+// debits == credits, so the DEBIT side is the movement's magnitude)
+Long journalAbsMinor(Journal j) {
+    var total = 0L
+    var i = 0
+    while (i < j.entries.size()) {
+        var e = j.entries.get(i)
+        if (e.direction == Direction.debit) {
+            total = total + e.minor
+        }
+        i = i + 1
+    }
+    return total
+}
+
+String journalCurrency(Journal j) {
+    if (j.entries.size() == 0) {
+        return ""
+    }
+    return j.entries.get(0).currency
+}

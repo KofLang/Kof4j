@@ -444,8 +444,12 @@ public final class NativeRiscvAsmRt0 {
 
             .globl kof_bounds_error
             kof_bounds_error:
+                # §729: erro de bounds CAPTURAVEL (era kof_panic/aborto);
+                # a mensagem e' uma KofString (o catch LE o header).
                 la   a0, .Lstr_bounds_err
-                call kof_panic
+                li   a1, 40
+                call kof_string_from_literal
+                call kof_throw_string
 
             # kof_throw_string(str) — chain; sem handler imprime a KofString e sai 1 (paridade x86).
             .globl kof_throw_string

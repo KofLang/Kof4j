@@ -42,7 +42,7 @@ about reading/writing files, working with paths and listing directories.
 | `File("x").writeBytes(b)` / `.appendBytes(b)` | Bool |
 | Bytes params and printing an `Int[]` (§388) | The bytes params take a **primitive array** — `writeBytes(listOf(65,66))` is a compile-time error (`SEM099`, §388-A); printing a whole array uses the §107 container format: `println(f.readBytes())` → `[65, 66]` (maintainer vote 21/09, §388-B) |
 | `File("x").size()` | Long; **throws an exception** if the file does not exist (02/09 — no `-1` sentinel) |
-| `File("x").delete()` | Bool |
+| `File("x").delete()` | Bool — deletes the file or an EMPTY directory; a NON-empty directory returns `false` and stays (use `Directory("d").delete()` for a tree) |
 | `File("x").mkdir()` / `.mkdirs()` | POSIX-style aliases of `create()` / `createDirectories()`: create the directory / the whole path (Bool) |
 
 **Unknown members are a compile-time error (`SEM102`, #617):** a method that is not in the tables above on a `File`/`Directory`/`Path` value fails compilation with `'File' has no method 'x()'` (hint: `Directory(path).createDirectories()` for directory creation). Before the guard, the call compiled silently and did nothing at runtime — the member tables here ARE the contract.
@@ -64,7 +64,7 @@ arm is NOT wired). Always construct the handle first: `File("x").exists()`,
 | `Directory("d").createDirectories()` | creates recursively |
 | `Directory("d").mkdir()` / `.mkdirs()` | POSIX-style aliases of `create()` / `createDirectories()` |
 | `Directory("d").list()` | `List<String>` of the names (sorted) |
-| `Directory("d").delete()` | removes an empty directory |
+| `Directory("d").delete()` | removes the directory, recursively when non-empty (on every target since 08/10, `known-bugs` §618; before that JS only removed an empty one) |
 
 Iteration:
 

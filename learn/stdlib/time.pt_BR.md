@@ -24,6 +24,7 @@
 | `addDays` | `addDays(String iso, Int days) -> String` |
 | `diffDays` | `diffDays(String isoA, String isoB) -> Int` |
 | `todayIso` | `todayIso() -> String` |
+| `formatInstantIso` | `formatInstantIso(Long millis) -> String` — instante completo em UTC (`2026-10-14T16:09:47.555Z`); família JVM (JVM/Script) — JS/nativo diagnosticam `TIME005` |
 | `formatDateIso` | `formatDateIso(Int y, Int m, Int d) -> String` |
 | `parseDateIso` | `parseDateIso(String iso) -> Int` |
 | `tzOffsetSeconds` | `tzOffsetSeconds() -> Int` |

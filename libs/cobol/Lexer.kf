@@ -1,0 +1,129 @@
+package cobol
+
+import cobol.Scanner
+
+// kof.cobol.lexer — the COBOL→Kof translator, PHASE 2 MVP (plan §30): the
+// LEXER as a pure-Kof library. Tokens carry kind/text/line (1-based). The
+// §6 rules honored: fixed-format lines skip columns 1–6 and the column-7
+// `*` comment; free-format `*>` comments to end-of-line; `>>` directive
+// LINES are consumed (handled before lexing per §6) and counted as
+// pseudo-tokens. Gap codes CB005 (unterminated string) and CB006 (an
+// unexpected character that is not a COBOL word/number/separator) — never a
+// silent skip of real content.
+
+record Token(String kind, String text, Int line)
+
+// tokenize — the source text → the token stream.
+List<Token> tokenize(String text, String format) {
+    var out: List<Token> = listOf()
+    var lines = text.split("\n")
+    var i = 0
+    while (i < lines.length) {
+        var line = i + 1
+        var raw = lines[i]
+        var body = raw
+        if (format == "fixed" && raw.length > 6) {
+            if (raw.charAt(6) == '*') {
+                i = i + 1
+                continue
+            }
+            body = raw.substring(7, raw.length)
+        }
+        var t = body.trim()
+        if (t.startsWith("*")) {
+            i = i + 1
+            continue
+        }
+        if (t.startsWith(">>")) {
+            out.add(Token("PSEUDO", t, line))
+            i = i + 1
+            continue
+        }
+        var col = 0
+        while (col < t.length) {
+            var c = t.charAt(col)
+            if (c == ' ' || c == '\t') {
+                col = col + 1
+                continue
+            }
+            if (c == '\'') {
+                var end = t.indexOf("'", col + 1)
+                if (end < 0) {
+                    throw "unterminated string literal at line " + line + " (CB005)"
+                }
+                out.add(Token("STRING", t.substring(col, end + 1), line))
+                col = end + 1
+                continue
+            }
+            if (c == '"') {
+                var end2 = t.indexOf("\"", col + 1)
+                if (end2 < 0) {
+                    throw "unterminated string literal at line " + line + " (CB005)"
+                }
+                out.add(Token("STRING", t.substring(col, end2 + 1), line))
+                col = end2 + 1
+                continue
+            }
+            if (c == '.') {
+                out.add(Token("PERIOD", ".", line))
+                col = col + 1
+                continue
+            }
+            if (c == '(') {
+                out.add(Token("LPAREN", "(", line))
+                col = col + 1
+                continue
+            }
+            if (c == ')') {
+                out.add(Token("RPAREN", ")", line))
+                col = col + 1
+                continue
+            }
+            if (c == ',') {
+                col = col + 1
+                continue
+            }
+            if (isCobolWordChar(c)) {
+                var start = col
+                while (col < t.length && isCobolWordChar(t.charAt(col))) {
+                    col = col + 1
+                }
+                var w = t.substring(start, col)
+                var kind = "WORD"
+                if (allDigits(w)) {
+                    kind = "NUMBER"
+                }
+                out.add(Token(kind, w, line))
+                continue
+            }
+            throw "unexpected character at line " + line + ": " + c + " (CB006)"
+        }
+        i = i + 1
+    }
+    return out
+}
+
+Bool isCobolWordChar(Char c) {
+    var v = c as Int
+    if (v >= 48 && v <= 57) {
+        return true
+    }
+    if (v >= 65 && v <= 90) {
+        return true
+    }
+    if (v >= 97 && v <= 122) {
+        return true
+    }
+    return v == 45
+}
+
+// tokenKinds — the kind sequence, for the tests and the callers.
+List<String> tokenKinds(List<Token> ts) {
+    var out: List<String> = listOf()
+    var i = 0
+    while (i < ts.size) {
+        out.add(ts.get(i).kind)
+        i = i + 1
+    }
+    return out
+}

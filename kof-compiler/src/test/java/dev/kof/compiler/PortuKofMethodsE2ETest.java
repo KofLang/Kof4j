@@ -222,4 +222,31 @@ class PortuKofMethodsE2ETest {
             }
         }
     }
+
+    private static String runJvm(String src, String fileName, Path root) throws Exception {
+        Path f = root.resolve(fileName);
+        Files.writeString(f, src);
+        Path out = Files.createTempDirectory(root, "ptkf-jvm-out-");
+        CompilationResult r = new CompilerDriver().compileSources(List.of(f), out, Target.JVM, root);
+        assertTrue(r.diagnostics().getDiagnostics().stream()
+                        .noneMatch(d -> d.message().contains("SEM")),
+                "sem erros semanticos: " + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder("java", "-cp", out.toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process p = pb.start();
+        String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
+                .replace("\r\n", "\n").trim();
+        assertEquals(0, p.waitFor(), "exit 0, output:\n" + output);
+        return output;
+    }
+
+    @Test
+    void untypedLambdaOnAliasSpecializesLikeCanonicalOnJvm() throws Exception {
+        Path root = Files.createTempDirectory("ptkf-lambda-box-");
+        String ptkf = pt("    var nums = listaDe(1, 2, 3, 4)\n"
+                + "    escrevaln(nums.mapear((x) -> x * 2))\n"
+                + "    escrevaln(nums.filtrar((x) -> x % 2 == 0))\n");
+        assertEquals("[2, 4, 6, 8]\n[2, 4]", runJvm(ptkf, "Main.ptkf", root),
+                "lambda sem anotacao em alias herda o elemento (JVM especializa)");
+    }
 }

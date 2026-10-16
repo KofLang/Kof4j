@@ -1,0 +1,425 @@
+package legacy
+
+import legacy.Legacy
+
+// kof.legacy — KofBOL Fatia 4: the COPYBOOK import (plan §20 fatia 4).
+// A copybook is parsed into the fatia-1 `Layout` descriptor and rendered as
+// a Kof contract — a standalone generator, NOT a compiler front-end (the
+// plan's open decision Q2 takes the recommended standalone-CLI route; no
+// language-surface change). MVP scope: flat 01–49 items with a PIC clause.
+// Gap codes LEG014 (clause not supported YET — OCCURS/REDEFINES/88/COMP are
+// fatia 5+) and LEG015 (malformed copybook line) — never a silent drop.
+
+// picField — the PIC clause → the Field, incl. the signed/decimal shapes:
+// `X`, `9`, `X(n)`, `9(n)`, `XXX`, `999`, `S9(n)V9(m)`, `S9(n)V99`.
+Field picField(String name, String pic) {
+    var p = pic.trim()
+    while (p.length > 0 && p.charAt(p.length - 1) == '.') {
+        p = p.substring(0, p.length - 1)
+    }
+    var signed = false
+    if (p.length > 0 && p.charAt(0) == 'S') {
+        signed = true
+        p = p.substring(1, p.length)
+    }
+    if (p.indexOf("V") >= 0) {
+        var v = p.indexOf("V")
+        var intPic = p.substring(0, v)
+        var fracPic = p.substring(v + 1, p.length)
+        var digits = picNines(intPic) + picNines(fracPic)
+        var scale = picNines(fracPic)
+        if (digits == 0 || picNines(intPic) == 0) {
+            throw "malformed decimal PIC: " + pic + " (LEG015)"
+        }
+        return decimalOf(name, digits, scale)
+    }
+    if (signed) {
+        throw "signed PIC without V: " + pic + " (LEG015)"
+    }
+    var runs = picRuns(p)
+    if (runs.startsWith("X")) {
+        return textOf(name, runs.substring(1, runs.length).toInt())
+    }
+    if (runs.startsWith("9")) {
+        return digitsOf(name, runs.substring(1, runs.length).toInt())
+    }
+    return fieldPic(name, p)
+}
+
+// picRuns — the expanded-form counter: `XXX` → "X3", `99` → "92", `X(4)` →
+// "X4"; anything mixed/unsupported → LEG015 (the caller falls back to
+// fieldPic for nothing — every accepted shape is counted here or refused).
+String picRuns(String p) {
+    var kind = ""
+    var n = 0
+    var i = 0
+    while (i < p.length) {
+        var c = p.charAt(i)
+        var k = ""
+        if (c == 'X') {
+            k = "X"
+        } else if (c == '9') {
+            k = "9"
+        } else {
+            throw "unsupported PIC symbol: " + p + " (LEG015)"
+        }
+        if (kind.length == 0) {
+            kind = k
+        } else if (kind != k) {
+            throw "mixed PIC runs not supported yet: " + p + " (LEG015)"
+        }
+        n = n + 1
+        i = i + 1
+        if (i < p.length && p.charAt(i) == '(') {
+            var close = p.indexOf(")", i)
+            if (close < 0) {
+                throw "malformed PIC repeat: " + p + " (LEG015)"
+            }
+            var count = p.substring(i + 1, close)
+            if (!allDigits(count)) {
+                throw "malformed PIC repeat: " + p + " (LEG015)"
+            }
+            n = n + count.toInt() - 1
+            i = close + 1
+        }
+    }
+    if (kind.length == 0) {
+        throw "empty PIC: " + p + " (LEG015)"
+    }
+    return kind + n
+}
+
+// picNines — the digit positions in a 9-run: `9(3)` → 3, `999` → 3, "" → 0.
+// The `9(n)` form is consumed as ONE unit (the 9 and its repeat are not
+// counted separately).
+Int picNines(String pic) {
+    var p = pic.trim()
+    var n = 0
+    var i = 0
+    while (i < p.length) {
+        var c = p.charAt(i)
+        if (c == '9') {
+            n = n + 1
+            i = i + 1
+            if (i < p.length && p.charAt(i) == '(') {
+                var close = p.indexOf(")", i)
+                if (close < 0) {
+                    throw "malformed PIC repeat: " + pic + " (LEG015)"
+                }
+                var count = p.substring(i + 1, close)
+                if (!allDigits(count)) {
+                    throw "malformed PIC repeat: " + pic + " (LEG015)"
+                }
+                n = n + count.toInt() - 1
+                i = close + 1
+            }
+        } else {
+            throw "unsupported PIC symbol: " + pic + " (LEG014)"
+        }
+    }
+    return n
+}
+
+// parseCopybook — the copybook text → the flat Layout (01–49 items with a
+// PIC clause). Group items (no PIC) are structural and skipped; clauses the
+// MVP does not implement are refused LEG014.
+Layout parseCopybook(String text) {
+    var fields: List<Field> = listOf()
+    var lines = text.split("\n")
+    var i = 0
+    while (i < lines.length) {
+        var raw = lines[i]
+        var comment = raw.length > 6 && raw.charAt(6) == '*'
+        var line = raw.trim()
+        if (!comment && line.length > 0) {
+            var parts = line.split(" ")
+            var tok: List<String> = listOf()
+            var j = 0
+            while (j < parts.length) {
+                if (parts[j].length > 0) {
+                    tok.add(parts[j])
+                }
+                j = j + 1
+            }
+            if (tok.size >= 2) {
+                var level = tok.get(0)
+                if (!allDigits(level) || level.length > 2) {
+                    throw "malformed level: " + level + " (LEG015)"
+                }
+                var lv = level.toInt()
+                if (lv == 88 || lv == 66) {
+                    throw "clause not supported yet: level " + level + " (LEG014)"
+                }
+                if (lv >= 1 && lv <= 49) {
+                    var name = tok.get(1)
+                    var pic = ""
+                    var k = 2
+                    var hasPic = false
+                    var occurs = 0
+                    while (k < tok.size) {
+                        var t = tok.get(k)
+                        // the COBOL sentence period rides the LAST token —
+                        // strip it before matching clauses (names keep theirs).
+                        while (t.length > 0 && t.charAt(t.length - 1) == '.') {
+                            t = t.substring(0, t.length - 1)
+                        }
+                        if (t == "PIC" || t == "PICTURE") {
+                            hasPic = true
+                            if (k + 1 >= tok.size) {
+                                throw "PIC without a clause on " + name + " (LEG015)"
+                            }
+                            pic = tok.get(k + 1)
+                            k = k + 1
+                        } else if (t == "OCCURS") {
+                            if (k + 1 >= tok.size) {
+                                throw "OCCURS without a count on " + name + " (LEG015)"
+                            }
+                            var cnt = tok.get(k + 1)
+                            if (!allDigits(cnt)) {
+                                throw "malformed OCCURS count on " + name + " (LEG015)"
+                            }
+                            occurs = cnt.toInt()
+                            if (occurs < 1) {
+                                throw "OCCURS count must be >= 1 on " + name + " (LEG015)"
+                            }
+                            if (k + 2 < tok.size && tok.get(k + 2) == "TIMES") {
+                                k = k + 1
+                            }
+                            k = k + 1
+                        } else if (t == "REDEFINES" || t == "COMP"
+                                || t == "COMP-3" || t == "COMP-1" || t == "COMP-2"
+                                || t == "COMP-4" || t == "USAGE" || t == "VALUE"
+                                || t == "BINARY" || t == "PACKED-DECIMAL" || t == "DISPLAY") {
+                            throw "clause not supported yet: " + t + " (LEG014)"
+                        }
+                        k = k + 1
+                    }
+                    if (hasPic) {
+                        if (occurs == 0) {
+                            fields.add(picField(name, pic))
+                        } else {
+                            var n = 1
+                            while (n <= occurs) {
+                                fields.add(picField(name + "(" + n + ")", pic))
+                                n = n + 1
+                            }
+                        }
+                    } else if (occurs > 0) {
+                        throw "clause not supported yet: OCCURS on a group item (LEG014)"
+                    }
+                }
+            }
+        }
+        i = i + 1
+    }
+    return Layout(fields)
+}
+
+// renderLayout — the generated Kof contract (one statement, ready to paste).
+String renderLayout(Layout l, String varName) {
+    var out = "var " + varName + " = Layout(listOf("
+    var i = 0
+    while (i < l.fields.size) {
+        var f = l.fields.get(i)
+        if (i > 0) {
+            out = out + ", "
+        }
+        if (f.scale > 0) {
+            out = out + "decimalOf(\"" + f.name + "\", " + f.length + ", " + f.scale + ")"
+        } else if (f.kind == "9") {
+            out = out + "digitsOf(\"" + f.name + "\", " + f.length + ")"
+        } else {
+            out = out + "textOf(\"" + f.name + "\", " + f.length + ")"
+        }
+        i = i + 1
+    }
+    return out + "))"
+}
+
+
+// ------------------------------------------------------------------
+// Fatia 5b — the 88-LEVEL condition names (plan §20 slice 5). `parseCopybook`
+// keeps refusing 88 (a silent drop is never an option); `parseCopybookFull`
+// parses them into named value constants the application can compare against
+// the parent field's decoded value. MVP: ONE literal per condition — multiple
+// values / THRU ranges are refused LEG014, malformed lines LEG015.
+
+record Condition(String name, String value)
+
+record Redef(String name, Int offset, Layout view)
+
+record Copybook(Layout layout, List<Condition> conditions, List<Redef> redefines)
+
+Copybook parseCopybookFull(String text) {
+    var fields: List<Field> = listOf()
+    var conds: List<Condition> = listOf()
+    var redefs: List<Redef> = listOf()
+    var starts: List<String> = listOf()
+    var at = 0
+    var lines = text.split("\n")
+    var i = 0
+    while (i < lines.length) {
+        var raw = lines[i]
+        var comment = raw.length > 6 && raw.charAt(6) == '*'
+        var line = raw.trim()
+        if (!comment && line.length > 0) {
+            var parts = line.split(" ")
+            var tok: List<String> = listOf()
+            var j = 0
+            while (j < parts.length) {
+                if (parts[j].length > 0) {
+                    tok.add(parts[j])
+                }
+                j = j + 1
+            }
+            if (tok.size >= 2) {
+                var level = tok.get(0)
+                if (!allDigits(level) || level.length > 2) {
+                    throw "malformed level: " + level + " (LEG015)"
+                }
+                var lv = level.toInt()
+                if (lv == 88) {
+                    if (tok.size < 4 || tok.get(2) != "VALUE") {
+                        throw "malformed 88 condition: " + tok.get(1) + " (LEG015)"
+                    }
+                    if (tok.size > 4) {
+                        throw "clause not supported yet: multiple 88 values / THRU (LEG014)"
+                    }
+                    var lit = tok.get(3)
+                    while (lit.length > 0 && lit.charAt(lit.length - 1) == '.') {
+                        lit = lit.substring(0, lit.length - 1)
+                    }
+                    if (lit.length < 2 || lit.charAt(0) != '\'' || lit.charAt(lit.length - 1) != '\'') {
+                        throw "malformed 88 literal: " + tok.get(3) + " (LEG015)"
+                    }
+                    conds.add(Condition(tok.get(1), lit.substring(1, lit.length - 1)))
+                } else if (lv >= 1 && lv <= 49) {
+                    var name = tok.get(1)
+                    var pic = ""
+                    var k = 2
+                    var hasPic = false
+                    var occurs = 0
+                    var redefTarget = ""
+                    while (k < tok.size) {
+                        var t = tok.get(k)
+                        // the COBOL sentence period rides the LAST token —
+                        // strip it before matching clauses (names keep theirs).
+                        while (t.length > 0 && t.charAt(t.length - 1) == '.') {
+                            t = t.substring(0, t.length - 1)
+                        }
+                        if (t == "PIC" || t == "PICTURE") {
+                            hasPic = true
+                            if (k + 1 >= tok.size) {
+                                throw "PIC without a clause on " + name + " (LEG015)"
+                            }
+                            pic = tok.get(k + 1)
+                            k = k + 1
+                        } else if (t == "OCCURS") {
+                            if (k + 1 >= tok.size) {
+                                throw "OCCURS without a count on " + name + " (LEG015)"
+                            }
+                            var cnt = tok.get(k + 1)
+                            if (!allDigits(cnt)) {
+                                throw "malformed OCCURS count on " + name + " (LEG015)"
+                            }
+                            occurs = cnt.toInt()
+                            if (occurs < 1) {
+                                throw "OCCURS count must be >= 1 on " + name + " (LEG015)"
+                            }
+                            if (k + 2 < tok.size && tok.get(k + 2) == "TIMES") {
+                                k = k + 1
+                            }
+                            k = k + 1
+                        } else if (t == "REDEFINES") {
+                            if (k + 1 >= tok.size) {
+                                throw "REDEFINES without a target on " + name + " (LEG015)"
+                            }
+                            redefTarget = tok.get(k + 1)
+                            if (redefTarget.indexOf("(") >= 0) {
+                                throw "clause not supported yet: REDEFINES of an OCCURS item (LEG014)"
+                            }
+                            k = k + 1
+                        } else if (t == "COMP"
+                                || t == "COMP-3" || t == "COMP-1" || t == "COMP-2"
+                                || t == "COMP-4" || t == "USAGE" || t == "VALUE"
+                                || t == "BINARY" || t == "PACKED-DECIMAL" || t == "DISPLAY") {
+                            throw "clause not supported yet: " + t + " (LEG014)"
+                        }
+                        k = k + 1
+                    }
+                    if (hasPic) {
+                        if (redefTarget.length > 0) {
+                            if (occurs > 0) {
+                                throw "clause not supported yet: REDEFINES + OCCURS (LEG014)"
+                            }
+                            var off = -1
+                            var s = 0
+                            while (s < starts.size) {
+                                var pair = starts.get(s)
+                                if (pair.substring(pair.indexOf("|") + 1, pair.length) == redefTarget) {
+                                    off = pair.substring(0, pair.indexOf("|")).toInt()
+                                }
+                                s = s + 1
+                            }
+                            if (off < 0) {
+                                throw "REDEFINES target not found: " + redefTarget + " (LEG015)"
+                            }
+                            redefs.add(Redef(name, off, Layout(listOf(picField(name, pic)))))
+                        } else if (occurs == 0) {
+                            var f = picField(name, pic)
+                            starts.add(at + "|" + name)
+                            fields.add(f)
+                            at = at + f.length
+                        } else {
+                            var n = 1
+                            while (n <= occurs) {
+                                var f = picField(name + "(" + n + ")", pic)
+                                starts.add(at + "|" + name + "(" + n + ")")
+                                fields.add(f)
+                                at = at + f.length
+                                n = n + 1
+                            }
+                        }
+                    } else if (occurs > 0) {
+                        throw "clause not supported yet: OCCURS on a group item (LEG014)"
+                    }
+                }
+            }
+        }
+        i = i + 1
+    }
+    return Copybook(Layout(fields), conds, redefs)
+}
+
+// renderRedefines — the generated overlay views: one commented layout var
+// per REDEFINES, with the decode offset made explicit.
+String renderRedefines(List<Redef> rs) {
+    var out = ""
+    var i = 0
+    while (i < rs.size) {
+        var r = rs.get(i)
+        if (i > 0) {
+            out = out + "\n"
+        }
+        out = out + "// " + r.name + " overlays offset " + r.offset + "\n"
+        out = out + renderLayout(r.view, r.name + "View")
+        out = out + " // decode with decodeFrom(" + r.name + "View, rec, " + r.offset + ")"
+        i = i + 1
+    }
+    return out
+}
+
+// renderConditions — the generated named constants (one `var` per 88).
+String renderConditions(List<Condition> cs) {
+    var out = ""
+    var i = 0
+    while (i < cs.size) {
+        var c = cs.get(i)
+        out = out + "var " + c.name + " = \"" + c.value + "\""
+        i = i + 1
+        if (i < cs.size) {
+            out = out + "\n"
+        }
+    }
+    return out
+}

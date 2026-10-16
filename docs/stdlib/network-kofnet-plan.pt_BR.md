@@ -4,7 +4,7 @@ last: fatia 6 POUSADA 02/10 (adendo `74f956575`): `Listener`/`Conn`/`Endpoint` v
 doing: fatia 8 POUSADA 05/10 (JVM/Script + Native x86-64 + riscv64/aarch64) — NET1 `net.resolve` + `net.connect(host, port, address)` (endereço validado, `D-MAINT-BATCH-0510`/NET1, issue #759); JS recusa `NETN001`
 next: nenhum — as faces NET1 são reais em todo alvo de socket; o seletor de navegador em compile-time (decisão da mantenedora) e a troca de chaves `SECN005` ficam fora deste plano
 location: docs/stdlib
-state: ativo
+state: concluido
 
 intent: frente unificada kof.net TCP+UDP (D-KOF-NET)
 

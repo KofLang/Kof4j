@@ -59,7 +59,8 @@ public final class Optimizer {
             }
             classes.add(new IRClass(cls.name(), cls.superName(), cls.interfaces(),
                     cls.accessFlags(), cls.fields(), methods,
-                    cls.innerClasses(), cls.signature(), cls.typeId(), cls.annotations(), cls.isRecord()));
+                    cls.innerClasses(), cls.signature(), cls.typeId(), cls.annotations(), cls.isRecord(),
+                    cls.isValueRecord()));
         }
         return new IRModule(module.name(), classes, module.imports(), module.sourceName(), module.sourceContent());
     }
@@ -74,8 +75,12 @@ public final class Optimizer {
         if (method.debugInfo() != null) {
             positions.putAll(method.debugInfo().positions());
         }
+        // #866: os slots dos locais DECLARADOS — o otimizador nunca remove o
+        // store deles (o local é estado observável: a LVT/DAP o leem de lá).
+        java.util.Set<Integer> declaredSlots = new java.util.HashSet<>();
+        for (var lv : method.localVariables()) declaredSlots.add(lv.index());
         for (int i = 0; i < 8; i++) {
-            List<KofOperation> next = passes(ops, positions);
+            List<KofOperation> next = passes(ops, positions, declaredSlots);
             if (next.size() == ops.size() && next.equals(ops)) break;
             ops = next;
         }
@@ -89,13 +94,38 @@ public final class Optimizer {
     }
 
     private static List<KofOperation> passes(List<KofOperation> ops,
-                                             Map<KofOperation, SourcePosition> positions) {
+                                             Map<KofOperation, SourcePosition> positions,
+                                             java.util.Set<Integer> declaredSlots) {
         ops = OptimizerConstantFold.constantFold(ops, positions);
+        // Phase B of docs/development/assembly-optimization-plan.md: the new
+        // passes are stack-balanced load rewrites (a LoadLocal becomes a
+        // LoadLiteral / another LoadLocal), so they never remove a store/load
+        // pair the backends pattern-match on. Wired after folding so folded
+        // literals feed the propagation.
+        ops = CONSTANT_PROPAGATION.run(ops, positions);
+        ops = COPY_PROPAGATION.run(ops, positions);
+        ops = DEAD_CODE_ELIMINATION.run(ops, positions);
+        // Phase C of the same plan: a liveness-driven dead-store pass — the
+        // materialization that consumes LivenessAnalysis (Phase C slice 1) to
+        // remove stores whose slot is never read (the §21 "reduction in
+        // artificial loads/stores"). Runs after the Phase B passes so it sees
+        // their output.
+        ops = LIVENESS_DEAD_STORES.run(ops, positions, declaredSlots);
+        ops = STRENGTH_REDUCTION.run(ops, positions);
+        // §3 O1: algebraic simplification of absorbing elements (x*0, x&0, x%1).
+        ops = ALGEBRAIC_SIMPLIFICATION.run(ops, positions);
         ops = deadEffects(ops, positions);
         ops = reachability(ops, positions);
         ops = removeJumpToNext(ops, positions);
         return ops;
     }
+
+    private static final ConstantPropagation CONSTANT_PROPAGATION = new ConstantPropagation();
+    private static final CopyPropagation COPY_PROPAGATION = new CopyPropagation();
+    private static final DeadCodeElimination DEAD_CODE_ELIMINATION = new DeadCodeElimination();
+    private static final LivenessDeadStores LIVENESS_DEAD_STORES = new LivenessDeadStores();
+    private static final StrengthReduction STRENGTH_REDUCTION = new StrengthReduction();
+    private static final AlgebraicSimplification ALGEBRAIC_SIMPLIFICATION = new AlgebraicSimplification();
 
     // ── Dead stack effects ────────────────────────────────────────────
 

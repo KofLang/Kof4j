@@ -1,6 +1,6 @@
 [English](wasm-wasi-plan.md) | [Português](wasm-wasi-plan.pt_BR.md)
 
-**Owner:** `192.168.15.101:9092` (TIER 15 lane; 15.1+15.2+15.3-slice1+15.3b+15.3c-sliceA+15.3c-sliceB+15.3d-inc1+15.3d-inc2-A+15.3d-inc2-B+15.3d-inc2-C1+C2 landed; nested-record/`Double.toString` + collections next) — promoted by `D-WEB-WASI-DEFAULT-0710` (0.6.0 GATE, #776); any free lane claims it in DOING first (`D-PLAN-ONE-OWNER`).
+**Owner:** ⏹ **ORPHANED 15/10 (audit) — the claim `192.168.15.101:9092` is abandoned: the last plan work is 09/10 and every commit from that lane since 10/10 is release-protocol/native-bug work, NOT this plan; the maintainer-ordered unit 15.4 (the frontend-default flip) is NOT in the code (measured, `AGENTS.md` `last:`). Per `D-PLAN-ONE-OWNER` the front is RELEASED to SEM DONO — any lane re-claims it in DOING first. History: promoted by `D-WEB-WASI-DEFAULT-0710` (0.6.0 GATE, #776); 15.1+15.2+15.3-slice1+15.3b+15.3c-sliceA+15.3c-sliceB+15.3d-inc1+15.3d-inc2-A/B/C1+C2/E landed by that lane.**
 
 # Kof WASM & WASI — future implementation specification
 

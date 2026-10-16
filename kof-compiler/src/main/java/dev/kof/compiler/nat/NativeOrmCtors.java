@@ -28,15 +28,18 @@ final class NativeOrmCtors {
         sb.append("            .globl kof_orm_ctors\n");
         sb.append("            .type kof_orm_ctors, @function\n");
         sb.append("        kof_orm_ctors:\n");
+        // #835: o ajuste de sufixo de CADA entrada avança %rdi (rdi += len-n)
+        // — com 2+ entradas o ponteiro CUMULATIVAMENTE desloca e as entradas
+        // seguintes comparam bytes errados (Ghost após User/Item lia "ost" →
+        // ORM001). r11 (scratch, a função é folha) guarda o body ORIGINAL e
+        // cada entrada o restaura antes do add.
+        sb.append("            movq %rdi, %r11\n");
         // F2b (23/09): os dados .ascii são emitidos no FIM (fora do fluxo) —
         // antes ficavam colados ao rótulo de miss e o fall-through executava
         // bytes como instrução (quebrava com 2+ entidades). O miss de cada
         // entrada salta para a próxima; a última cai no retorno 0.
         int emitted = 0;
         int total = 0;
-        System.err.println("ORMCTORS-DEBUG: classNames=" + classNames
-                + " found=" + classNames.stream().filter(c -> findClass(nb, c) != null).count()
-                + " allClasses=" + nb.allClassesMap.size());
         for (String cn : classNames) {
             if (findClass(nb, cn) != null) total++;
         }
@@ -54,6 +57,7 @@ final class NativeOrmCtors {
             // contra a entrada (o NUL em +n fecha o caso exato).
             sb.append("            cmpl $").append(bytes.length).append(", %esi\n");
             sb.append("            jl ").append(miss).append("\n");
+            sb.append("            movq %r11, %rdi\n");
             sb.append("            movl %esi, %edx\n");
             sb.append("            subl $").append(bytes.length).append(", %edx\n");
             sb.append("            addq %rdx, %rdi\n");

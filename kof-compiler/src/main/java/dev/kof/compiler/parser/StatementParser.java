@@ -92,9 +92,15 @@ public class StatementParser {
             String message = null;
             if (ctx.check(TokenType.COMMA)) {
                 ctx.advance();
+                Token msgStart = ctx.peek();
                 ExpressionNode msgExpr = ExpressionParser.parseExpression(ctx);
                 if (msgExpr instanceof LiteralExpr lit && lit.kind() == ConcreteLiteralKind.STRING) {
                     message = lit.value();
+                } else {
+                    // #849: the grammar takes a string literal only (statements.md §9);
+                    // dropping any other expression silently lost the message.
+                    ctx.diagnostics.error(ctx.file, msgStart.line(), msgStart.column(), msgStart.length(),
+                            "assert message must be a string literal (statements.md §9)", "PARSE087");
                 }
             }
             ctx.expect(TokenType.RPAREN, "Expected ')'", "PARSE040");

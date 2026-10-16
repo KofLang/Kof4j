@@ -168,6 +168,7 @@ final class AvifObuSupport {
                     + " h=" + c.seq.maxHeight + " mono=" + of(c.seq.monochrome)
                     + " sub=" + of(c.seq.subsamplingX) + "/" + of(c.seq.subsamplingY)
                     + " depth=" + c.seq.bitDepth + " still=" + of(c.seq.stillPicture)
+                    + " fi=" + of(c.seq.enableFilterIntra) + " ie=" + of(c.seq.enableIntraEdgeFilter)
             }
 
             main() {
