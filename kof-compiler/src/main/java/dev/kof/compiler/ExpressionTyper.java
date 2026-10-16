@@ -194,6 +194,27 @@ public final class ExpressionTyper {
                     t = new Type.ClassType(cts.packageName(), cts.name(),
                             ne.typeArguments().stream().map(n -> CompilerTypes.toType(n,
                                     driver.currentUnit, driver.semanticAnalyzer)).toList());
+                } else if (ne.typeArguments().isEmpty() && t instanceof Type.ClassType cts
+                        && driver.semanticAnalyzer != null) {
+                    // §713: sem args explícitos, INFERE-os — o emit constrói o
+                    // tipo do NewExpr independentemente do semântico, então a
+                    // inferência precisa acontecer AQUI também (senão o
+                    // receptor fica com args vazios e o JVM/nativo usam Object
+                    // apagado). Usa o construtor resolvido pelo semântico e os
+                    // tipos inferidos dos argumentos.
+                    SymbolTable.ConstructorSymbol ctor = driver.semanticAnalyzer.getResolvedConstructor(ne);
+                    if (ctor != null) {
+                        java.util.List<Type> argTypes = new java.util.ArrayList<>();
+                        for (ExpressionNode arg : ne.arguments()) {
+                            argTypes.add(driver.semanticAnalyzer.getExpressionType(arg));
+                        }
+                        java.util.List<Type> inferred = GenericTypeArgInference.infer(
+                                driver.semanticAnalyzer.typeParamNames(cts.name()),
+                                ctor.parameterTypes(), argTypes);
+                        if (inferred != null) {
+                            t = new Type.ClassType(cts.packageName(), cts.name(), inferred);
+                        }
+                    }
                 }
                 yield t;
             }
@@ -246,8 +267,15 @@ public final class ExpressionTyper {
                 yield new Type.FunctionType(paramTypes, returnType, driver.lambdaClassNames.get(le));
             }
             case IfExpr ie -> {
-                Type thenType = inferExprType(driver, ie.thenExpr(), locals);
-                Type elseType = ie.elseExpr() != null ? inferExprType(driver, ie.elseExpr(), locals) : Type.UnknownType.UNKNOWN;
+                // #870: o narrowing da CONDIÇÃO vale dentro do ramo — `if (x != null) x else 0`
+                // com `x: Int?` tem os DOIS ramos `Int` (senão o join caía em Object e o
+                // consumidor emitia iadd sobre a caixa: VerifyError no JVM).
+                Type thenType = ExpressionBranchJoin.withNarrowing(
+                        inferExprType(driver, ie.thenExpr(), locals), ie.thenExpr(), ie.condition(), true);
+                Type elseType = ie.elseExpr() != null
+                        ? ExpressionBranchJoin.withNarrowing(
+                                inferExprType(driver, ie.elseExpr(), locals), ie.elseExpr(), ie.condition(), false)
+                        : Type.UnknownType.UNKNOWN;
                 if (thenType.equals(elseType)) yield thenType;
                 // JVM-03 (audit 0.6.0, §673): two lambda branches of the SAME
                 // signature must unify to the synthetic INTERFACE, not fall to

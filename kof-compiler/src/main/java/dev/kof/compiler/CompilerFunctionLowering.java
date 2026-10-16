@@ -124,10 +124,19 @@ Type vt = vds.type() != null && !"var".equals(vds.type())
         }
         driver.mutatedCapturedNames = savedMutated;
         driver.finallyFrames.addAll(savedFrames); // DD-01: restaura
-        KofOperation last = body.isEmpty() ? null : body.get(body.size() - 1);
-        if (last == null || !(last instanceof KofReturn || last instanceof KofReturnVoid)) {
+        // #837: critério = ÚLTIMA STATEMENT (não o último op): um corpo
+        // terminando em switch/while/try tem KofReturn nos braços (o último op
+        // É KofReturn) mas o CONSTRUTO pode CAIR FORA e chegar ao fim com a
+        // pilha vazia → ireturn/areturn sob pilha vazia = VerifyError. Se a
+        // última statement não é `return`, injeta o DEFAULT do tipo antes do
+        // KofReturn (paridade com o `return` vazio) — nunca bytecode inválido.
+        StatementNode lastStmt = func.body().isEmpty() ? null : func.body().getLast();
+        if (!(lastStmt instanceof ReturnStmt)) {
             if (Type.isVoid(returnType)) body.add(new KofReturnVoid());
-            else body.add(new KofReturn(returnType));
+            else {
+                body.add(CompilerTypes.defaultValueOp(returnType));
+                body.add(new KofReturn(returnType));
+            }
         }
         KofDebugInfo debugInfo = driver.currentDebugPositions.isEmpty()
                 ? KofDebugInfo.EMPTY

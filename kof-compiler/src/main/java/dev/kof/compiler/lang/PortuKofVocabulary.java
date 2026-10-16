@@ -114,6 +114,7 @@ public final class PortuKofVocabulary {
             {"infra", "infra"},
             {"using", "usando"},
             {"sealed", "selado"},
+            {"value", "valor"},
             {"foreign", "modulo"},
             {"constructor", "construtor"},
             {"in", "em"},

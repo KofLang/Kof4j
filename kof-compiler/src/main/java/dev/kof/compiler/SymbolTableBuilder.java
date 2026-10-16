@@ -37,7 +37,8 @@ public final class SymbolTableBuilder {
             String superQualified = HeritageQualifier.qualify(sa.unit(), sa, rec.superClass());
             SymbolTable.ClassSymbol sym = new SymbolTable.ClassSymbol(rec.name(), sa.packageOf(rec),
                     rec.superClass() != null ? superQualified : "Record",
-                    rec.interfaces().stream().map(n -> HeritageQualifier.qualifyInterface(sa.unit(), sa, n)).toList(), members);
+                    rec.interfaces().stream().map(n -> HeritageQualifier.qualifyInterface(sa.unit(), sa, n)).toList(), members,
+                    rec.modifiers().contains("value"));
             sa.putClass(rec.name(), sym);
             sa.registerSymbol(decl, sym);
             sa.currentScope().define(sym);

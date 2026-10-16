@@ -1,0 +1,52 @@
+package financial
+
+// kof.financial.jurisdiction — jurisdiction profiles AS DATA (plan §5: the
+// profile table lives in a Kof file, not in code). Each entry feeds a
+// `JurisdictionProfile` (Compliance.kf), so a new jurisdiction is a new ROW,
+// never a code change. The cap is in the jurisdiction's primary-currency
+// minor units.
+
+record JurisdictionRow(String code, String currency, Long maxMinorPerTx,
+                       List<String> allowedKinds, String symbol)
+
+// the table — the v1 data set (extend by adding a ROW)
+record JurisdictionTable(List<JurisdictionRow> rows)
+
+JurisdictionTable defaultJurisdictions() {
+    return JurisdictionTable(listOf(
+        JurisdictionRow("BR", "BRL", 500000L,
+            listOf("customer", "merchant", "fee", "settlement"), "R$"),
+        JurisdictionRow("US", "USD", 1000000L,
+            listOf("customer", "merchant", "fee", "fx", "settlement"), "$"),
+        JurisdictionRow("EU", "EUR", 1000000L,
+            listOf("customer", "merchant", "fee", "settlement"), "EUR")
+    ))
+}
+
+// lookup — the row for a jurisdiction code, or null.
+JurisdictionRow? jurisdictionOf(JurisdictionTable table, String code) {
+    var i = 0
+    while (i < table.rows.size()) {
+        var r = table.rows.get(i)
+        if (r.code == code) {
+            return r
+        }
+        i = i + 1
+    }
+    return null
+}
+
+// toProfile — the row becomes a Compliance `JurisdictionProfile` (the seam
+// between the DATA table and the structured checks).
+JurisdictionProfile toProfile(JurisdictionRow r) {
+    return JurisdictionProfile(r.code, r.maxMinorPerTx, r.allowedKinds)
+}
+
+// currencyFor — the jurisdiction's primary currency code.
+String currencyFor(JurisdictionTable table, String code) {
+    var r = jurisdictionOf(table, code)
+    if (r == null) {
+        throw "unknown jurisdiction: " + code + " (FIN008)"
+    }
+    return r.currency
+}

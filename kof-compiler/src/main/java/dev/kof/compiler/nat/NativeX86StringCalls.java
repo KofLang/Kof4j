@@ -226,6 +226,7 @@ public final class NativeX86StringCalls {
         }
         if (kc.kind() == KofCallKind.INSTANCE && BuiltinTypes.isString(kc.ownerType())
                 && "replace".equals(kc.methodName())) {
+            int seq = nb.inlineSeq++;
             sb.append("    popq %rdx\n");
             sb.append("    popq %rsi\n");
             sb.append("    popq %rdi\n");
@@ -235,10 +236,29 @@ public final class NativeX86StringCalls {
             Type first = !kc.parameterTypes().isEmpty() ? kc.parameterTypes().get(0) : null;
             boolean charArgs = first instanceof Type.PrimitiveType pt
                     && "char".equals(Type.canonicalPrimitiveName(pt.name()));
-            sb.append(charArgs
-                    ? "    call kof_string_replace_char\n"
-                    : "    call kof_string_replace\n");
+            if (charArgs) {
+                sb.append("    call kof_string_replace_char\n");
+                sb.append("    pushq %rax\n");
+                return true;
+            }
+            // §738 (face NATIVA): agulha VAZIA (`replace("", to)`) — o
+            // `kof_string_replace` procura a SUBSTRING da agulha e uma agulha de
+            // 0 bytes nunca casa, então o native no-opava enquanto o JVM/Script
+            // inserem `to` em TODA posição. O ramo vazio vai p/ o helper
+            // dedicado (aditivo; o caminho da agulha não-vazia fica intacto).
+            String empty = ".Lkof_rep_empty" + seq;
+            String done = ".Lkof_rep_done" + seq;
+            sb.append("    movl 16(%rsi), %ecx\n");
+            sb.append("    testl %ecx, %ecx\n");
+            sb.append("    jz " + empty + "\n");
+            sb.append("    call kof_string_replace\n");
             sb.append("    pushq %rax\n");
+            sb.append("    jmp " + done + "\n");
+            sb.append(empty + ":\n");
+            sb.append("    movq %rdx, %rsi\n");
+            sb.append("    call kof_string_replace_empty\n");
+            sb.append("    pushq %rax\n");
+            sb.append(done + ":\n");
             return true;
         }
         if (kc.kind() == KofCallKind.INSTANCE && BuiltinTypes.isString(kc.ownerType())
@@ -259,6 +279,13 @@ public final class NativeX86StringCalls {
             int seq = nb.inlineSeq++;
             String empty = ".Lkof_split_empty_sep" + seq;
             String call = ".Lkof_split_call" + seq;
+            String done = ".Lkof_split_done" + seq;
+            // §738 (face NATIVA): separador VAZIO (`split("")`) — o ramo antigo
+            // passava `sep_char = 0` (NUL), que nunca casa → 1 elemento; o
+            // JVM/Script/JS devolvem UM elemento por CARACTERE. O ramo vazio
+            // agora vai p/ o helper dedicado `kof_string_split_chars` (por code
+            // point UTF-8, aditivo — o caminho do separador não-vazio fica
+            // BYTE-IDÊNTICO ao de antes).
             if (kc.parameterTypes().size() == 2) {
                 // §655: a sobrecarga (String, Int) tem UM operando a mais na
                 // pilha (o limit) — a sequência de 1 arg o deixava empilhado
@@ -269,28 +296,36 @@ public final class NativeX86StringCalls {
                 sb.append("    movl 16(%rsi), %ecx\n");
                 sb.append("    testl %ecx, %ecx\n");
                 sb.append("    jz " + empty + "\n");
-                sb.append("    movzbl 24(%rsi), %esi\n");
-                sb.append("    jmp " + call + "\n");
-                sb.append(empty + ":\n");
-                sb.append("    xorl %esi, %esi\n");
-                sb.append(call + ":\n");
+                // §740: separador NAO-vazio → helper de SUBSTRING (o antigo
+                // passava so o 1o byte e dividia errado "XX"); rsi = o
+                // PONTEIRO do separador, edx = o limit.
                 sb.append("    popq %rdi\n");
-                sb.append("    call kof_string_split_limit\n");
+                sb.append("    call kof_string_split_str\n");
                 sb.append("    pushq %rax\n");
+                sb.append("    jmp " + done + "\n");
+                sb.append(empty + ":\n");
+                sb.append("    popq %rdi\n");
+                sb.append("    movl %edx, %esi\n");
+                sb.append("    call kof_string_split_chars\n");
+                sb.append("    pushq %rax\n");
+                sb.append(done + ":\n");
                 return true;
             }
             sb.append("    popq %rsi\n");
             sb.append("    movl 16(%rsi), %ecx\n");
             sb.append("    testl %ecx, %ecx\n");
             sb.append("    jz " + empty + "\n");
-            sb.append("    movzbl 24(%rsi), %esi\n");
-            sb.append("    jmp " + call + "\n");
-            sb.append(empty + ":\n");
-            sb.append("    xorl %esi, %esi\n");
-            sb.append(call + ":\n");
+            sb.append("    xorl %edx, %edx\n");          // §740: limit 0 = ilimitado
             sb.append("    popq %rdi\n");
-            sb.append("    call kof_string_split\n");
+            sb.append("    call kof_string_split_str\n");
             sb.append("    pushq %rax\n");
+            sb.append("    jmp " + done + "\n");
+            sb.append(empty + ":\n");
+            sb.append("    popq %rdi\n");
+            sb.append("    xorl %esi, %esi\n");
+            sb.append("    call kof_string_split_chars\n");
+            sb.append("    pushq %rax\n");
+            sb.append(done + ":\n");
             return true;
         }
         if ("kof_string_to_int".equals(kc.methodName())

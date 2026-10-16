@@ -297,9 +297,15 @@ public final class ExpressionJsonCallLowerer {
                     case "bool" -> "kof_json_decode_bool";
                     default -> null; // §516: String ja vem pronta do
                 };               // find_value (sem aspas, desescapado);
-                if (dec != null) // decode_string so serve p/ literal
+                if (dec != null) { // decode_string so serve p/ literal
+                    // §733: campo PRIMITIVO ausente -> o find_value devolve uma
+                    // KofString VAZIA e o decode silenciava (0). kof_json_require
+                    // LANÇA JSN004 se vazio (o campo String mantem a ambiguidade).
+                    ops.add(new KofCall(BuiltinTypes.STRING, "kof_json_require",
+                            List.of(BuiltinTypes.STRING), BuiltinTypes.STRING, KofCallKind.FUNCTION));
                     ops.add(new KofCall(targetType, dec,
                             List.of(BuiltinTypes.STRING), ft, KofCallKind.FUNCTION));
+                }
             }
             ops.add(new KofCall(targetType, "<init>", ctorTypes,
                     Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));

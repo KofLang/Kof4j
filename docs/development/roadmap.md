@@ -221,7 +221,7 @@ Do not reimplement Spring. Instead, transform recurring capabilities into Kof Ru
 Future objectives:
 - HTTP / REST / WebSocket / SSE (WebSocket/SSE + JVM hardening completed 04/09; JS/Native follow-up);
 - HTTP client;
-- **Unified `kof.net` network front (TCP + UDP)** — ✅ CONCLUDED 02/10/2026 (`D-KOF-NET`, maintainer rule-6 votes; subsumes `D-UDP` from the 01/10 maintainer directive): all five slices LANDED — surface + real JVM runtime + real Native x86-64 runtime + real JS host bridge + real Native riscv64/aarch64 (x86 front ported to riscv asm, aarch64 via translator) + Script parity by construction; plan moved to [`../stdlib/network-kofnet-plan.md`](../stdlib/network-kofnet-plan.md); the `future/network-udp-plan.md` is superseded;
+- **Unified `kof.net` network front (TCP + UDP)** — ✅ CONCLUDED 02/10/2026 (`D-KOF-NET`, maintainer rule-6 votes; subsumes `D-UDP` from the 01/10 maintainer directive): all five slices LANDED — surface + real JVM runtime + real Native x86-64 runtime + real JS host bridge + real Native riscv64/aarch64 (x86 front ported to riscv asm, aarch64 via translator) + Script parity by construction; plan moved to [`../stdlib/network-kofnet-plan.md`](../stdlib/network-kofnet-plan.md); the the former UDP tombstone (KILLED 15/10: superseded, file removed) is superseded;
 - JSON;
 - RPC;
 - events / queues / pub/sub;
@@ -972,6 +972,12 @@ science) **without** destroying the language's simplicity.
 > AVIF pixel decode (`decodeRaster` refuses AVIF by policy). Queue per the plan §34 — authoritative state lives there.
 > **SURFACE COMPLETE (8th front):** `graphics-gaming` — promoted 30/09 (`D-GRAPHICS-SPIKE`, `D-FUTURE-PROMOTION`) to
 > [`graphics-gaming.md`](../graphics-gaming.md); stack `G1` DECIDED (SDL3) + form `D-GRAPHICS-WINDOW-FORM` + loop `D-MAINT-BATCH-0610`/A1–A3; pure surface LANDED 05–07/10 (`Clock`/`Keys`/`Mouse`/`Pad`/`Window`/`Sprite`/`Draw`/`Trig`/`Tilemap`/`Audio`/`Wav`/`Video`, E2E goldens every target) + SDL3 ABI/pump/audio/stream measured headless on all four targets + corpus 3.6a (`training/idioms/game` + `learn/42-games`). Decision F ORDERED 08/10 (maintainer: vendor the upstream LGPL-2.1+ FFmpeg from source, no `--enable-gpl`; probe license must NOT be GPLv3+ before any decode lands) + 3.5 (3D) PROMOTED to active scope 08/10 (maintainer). Authoritative state lives in `docs/graphics-gaming.md` (promoted 09/10 — the pure-surface mission complete; the backend faces stay the documented boundary).
+> **PROMOTED (14th front):** `kof-financial` — promoted 14/10 (maintainer order "pega mais um" + `D-FUTURE-UNFREEZE`) to
+> [`financial.md`](../financial.md) (+PT) — **PROMOTED to `docs/` 14/10**: 12/13 namespaces landed with executed proof (money, fx, ledger, tx, fees, events+idempotency, recon, compliance, provider, jurisdiction, account, db-ledger); the OrmLedgerStore (§5.2) deferred behind the measured §727 compiler gap (lib-file records invisible to the typed lowering).
+> currency-safe + overflow-checked arithmetic, integer-only rounding (6 modes), library-first pure Kof; slices 2+ (fx/account/ledger/tx/...) remain.
+> **PROMOTED (13th front):** `value-records` — promoted 14/10 (maintainer order "puxa um de future" + `D-FUTURE-UNFREEZE`) to
+> [`value-records-plan.md`](value-records-plan.md) (+PT); **step 2.7.1 (the `value` front-end keyword) LANDED 14/10** — `value record` parses/types
+> like `record` + the `value` modifier (contextual like `sealed`), no identity semantics yet; 2.7.2–2.7.5 (per-target ABI + parity) remain.
 > **PROMOTED (12th front):** `entity-history` — promoted 14/10 (from `docs/development/`, `D-FUTURE-UNFREEZE`) to
 > [`entity-history.md`](../entity-history.md) (+PT); Phases 2–5 ALL LANDED with executed proof — JDBC recording +
 > historical queries + context, and the NATIVE backend (`EntityHistoryNativeCreateE2ETest` 5/5: createHistory,
@@ -979,11 +985,34 @@ science) **without** destroying the language's simplicity.
 > (advanced) deferred post-promotion by `D-ENTITY-HISTORY-PHASE6`.
 > **CORE COMPLETE (9th front):** `testing-platform` — promoted 10/10 (`D-TESTING-PLATFORM`, maintainer order "pode finalizar o plano então, ja promover e vida que segue") to
 > [`testing-platform.md`](../testing-platform.md); §11 phases 1–4 COMPLETE — unit core §4 (assertions 1–6 + tables §4.4 + clock/random seams §4.6) + harness §5 (temp-dir/readiness, withDb, withServer) + runner §7 (honest discovery, tags OR, level breakdown) + browser §6 FULL STACK (manifesto `kof-test.kofmd` → gate `kof test --tag browser` → SPI `BrowserProvider` → ChromeHeadlessProvider (zero-dep) + PlaywrightLibProvider (lib 1.49.0, normal pom dep) → `kof.test.browser` Kof-level API → REAL Chromium E2E); §12 with NO open decisions (4 chat polls). Phases 5–8 under the confirmed §11 order — measured 11/10 (lane `192.168.100.14:0`): **phase 7 CORE LANDED** (kind-parameterized `PlaywrightLibProvider`, real Firefox render E2E green + Chromium, WebKit launch-blocked on the host → named skips); **phase 5 CORE LANDED** (`CypressProvider` over the REAL `cypress run` — generated ad-hoc specs, honest probe; host unlocked by the maintainer mid-slice: node 24.18.1/npm 11.16.0, Cypress 16.1.1 in the Kof cache); phase 6's KofJS face already proven by the seed `KofJsBrowserE2ETest`, the KofWasm face gated by #776; phase 8 (advanced) OPEN — each slice under a NEW claim. Authoritative state lives in `docs/testing-platform.md`.
-> > **OPEN (11th front):** `assembly-optimization` — promoted 13/10 (`D-FUTURE-PROMOTION` + `D-ASSEMBLY-OPT-GO`) to [`assembly-optimization-plan.md`](assembly-optimization-plan.md); the only `future/` plan whose gate was already decided (no new syntax, additive compiler-internal). Phase A COMPLETE (structured CFG + effect/use + virtual registers + pass pipeline over the existing linear `Optimizer.java`); Phase B (constant/copy propagation + dead-store elimination landed, block-simplification next) is current.
+> > **OPEN (11th front):** `assembly-optimization` — promoted 13/10 (`D-FUTURE-PROMOTION` + `D-ASSEMBLY-OPT-GO`) to [`assembly-optimization-plan.md`](assembly-optimization-plan.md); the only `future/` plan whose gate was already decided (no new syntax, additive compiler-internal). Phase A COMPLETE (structured CFG + effect/use + virtual registers + pass pipeline over the existing linear `Optimizer.java`); Phase B COMPLETE (constant/copy propagation + dead-store elimination wired into the production `Optimizer` with a measured instruction reduction); Phase C (register allocation) is current — slice 1 (liveness, `LivenessAnalysis.java`) landed.
 > > **OPEN (10th front):** `qrcode-wasm` — promoted 11/10 (`D-FUTURE-PROMOTION` resumed per `D-FUTURE-UNFREEZE`, maintainer 11/10) to [`qrcode-wasm-plan.md`](qrcode-wasm-plan.md); state 12/10: Phase 1 slices 1-2b LANDED (writer `Qrcode.kf`+`QrPng.kf` 8/8; file reader `QrDecode.kf` 8/8 incl. Reed-Solomon error correction — damaged symbols up to floor(ecc/2) byte errors per block decode exactly, over-capacity refused by name); next slice = camera reader; Phase 3 (`KofWasm` target) rule-6 (maintainer decision).
 All remaining `future/` plans are authorized with their
 > design questions resolved (`D-FUTURE-BATCH-2809B`); promotion stays
 > one-at-a-time (`D-FUTURE-PROMOTION`).
+>
+> **NEW PLAN-ONLY (`future/`, 14/10 — maintainer request "Kof Future — ESP8266 Embedded Target"):**
+> [`kof-esp8266-plan.md`](future/kof-esp8266-plan.md) (+PT) — the ESP8266 (Xtensa L106, 32-bit
+> single-core Wi-Fi SoC) as a **planned** Kof target. **NOT promoted and NOT authorized**: it needs a
+> rule-6 maintainer decision (no `D-*` id is invented) and an **R12 override** (the same pattern as
+> `D-BAREMETAL-BOOT`) because it opens a new front. It deliberately does **not** re-invent the MCU
+> machinery: it reuses the CLOSED bare-metal front's precedent — the targets `NATIVE_RISCV32` (B-4) /
+> `NATIVE_MCU_ARM` (B-4.3) and the `kof_plat_*` HAL seam (B-0) — as its architectural pattern.
+> Gates 0–5 (feasibility → target infra → minimal runtime → HAL → workflow → verified on physical
+> hardware); 8 hardware stages H1–H8. The plan touches zero code.
+>
+> **PROMOTED (15th front) → LANDED AT `docs/` 15/10:** `kofbol` — promoted 14/10 (maintainer order "assume um novo plano em future" + `D-FUTURE-PROMOTION`,
+> cheapest eligible plan); library-first by construction, the rule-6 gate resolved in the non-rule-6 direction (descriptor over `record`, no new syntax).
+> **ALL 11 §20 slices LANDED with executed proof** (fixed-width, EBCDIC CP037, COMP-3, the copybook import with OCCURS/88/REDEFINES, the adapter + the
+> return-code model, the transport matrix, messaging + batch, transactions, the guide + the LEG001–LEG019 table) — the plan moved to
+> [`docs/kofbol.md`](../kofbol.md) (+PT +the guide); the EBCDIC pages = Q5, the JS COMP-3 face = §734, the advanced clauses = LEG014 (all bounded).
+>
+> **PROMOTED (16th front) → LANDED AT `docs/` 15/10:** `kof-cobol-translator` — promoted 15/10 (maintainer order "pega um de future" + `D-FUTURE-PROMOTION`).
+> **ALL §30 Phases 1–13 LANDED with executed proof** (the scanner, the lexer, the AST, the semantic model, the Data Division → the KofBOL mapping,
+> the Procedure Division + the call graph, the Kof generation — the acceptance seed PROVEN: the generated source compiles and runs, the formatter
+> integration idempotent, the project generation, the diagnostics, the golden corpus, the behavioral equivalence, the advanced constructs named and
+> refused) — the plan moved to [`docs/kof-cobol-translator.md`](../kof-cobol-translator.md) (+PT +the guide); the tool home and the exact CLI grammar
+> (Q1/Q2) stay the maintainer’s — no CLI surface invented; the phases 14/15 are future by design.
 
 ### TIER 0 — Guardrails and processes (E, ≈ zero) ✅ 01/09
 
@@ -1049,14 +1078,14 @@ origin issue #275). Additive, backward compatible. **Planned only — not
 current work** (R12: new fronts do not open before the SYSTEMS stage closes;
 lanes must not attack without new authorization).
 
-**Design plan:** [`future/value-records-plan.md`](future/value-records-plan.md) (zero code).
+**Plan (PROMOTED to `docs/` 14/10):** [`../../value-records-plan.md`](../../value-records-plan.md) — moved out of `future/` (maintainer order + `D-FUTURE-UNFREEZE`); **step 2.7.1 (the `value` front-end keyword) LANDED 14/10**.
 
 | # | Step | Scope (one line) | Depends on |
 |---|------|------------------|------------|
 | 2.7.1 | **front-end `value` keyword** | `value record Name(fields)` parses and types like `record` + `value` modifier; no identity semantics yet | — |
-| 2.7.2 | **JVM ABI** | value/inline class mapping (`invokevirtual` value semantics, no `Object` identity) | 2.7.1 |
-| 2.7.3 | **Native ABI** | pass-by-value (struct by value / registers) | 2.7.1 |
-| 2.7.4 | **JS ABI** | plain frozen object (no identity) | 2.7.1 |
+| 2.7.2 | **JVM ABI** ✅ LANDED 14/10 | the JVM ABI (decided during implementation, `D-VALUE-RECORDS-GO`) is the COMMON record class — Java 25 has no stable value classes, so no layout change; structural equality is already the record contract, collections hold value records boxed; the `value` modifier is carried into `ClassSymbol.isValueRecord` (`ValueRecordFrontEndE2ETest` 6/6) | 2.7.1 |
+| 2.7.3 | **Native ABI** ✅ LANDED 14/10 (decision recorded) | the CURRENT heap representation stays — a value record is immutable and compares by fields, so the value semantics are already delivered; pass-by-value is unobservable through the language and is explicitly DEFERRED; the flag travels on `IRClass.isValueRecord` | 2.7.1 |
+| 2.7.4 | **JS ABI** ✅ LANDED 14/10 | a `value record` is emitted with `Object.freeze(this)` in its constructor (a plain record is NOT frozen); invisible to Kof code, delivers the no-mutation guarantee at the JS-object level | 2.7.1 |
 | 2.7.5 | **parity + docs** | conformance cells `valuerecord` + parity matrix + `training/` + `learn/` | 2.7.1–2.7.4 |
 
 #### 2.8 — Queue opened 21/09 (`DECISIONS.md` §D-CODEGEN-STEP/§D-R3-3.3/§D-R3-3.5/§D-TYPE-VARIANCE/§D-INTEROP-REFLECT)

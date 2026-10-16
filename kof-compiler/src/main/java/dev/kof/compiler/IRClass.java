@@ -13,7 +13,8 @@ import java.util.Map;
 public record IRClass(String name, String superName, List<String> interfaces,
                int accessFlags, List<IRField> fields, List<IRMethod> methods,
                List<String> innerClasses, String signature, int typeId,
-               List<IRAnnotation> annotations, boolean isRecord) {
+               List<IRAnnotation> annotations, boolean isRecord,
+               boolean isValueRecord) {
 
     /** Compatibilidade: as fábricas que não são de record passam isRecord=false. */
     public IRClass(String name, String superName, List<String> interfaces,
@@ -21,7 +22,16 @@ public record IRClass(String name, String superName, List<String> interfaces,
             List<String> innerClasses, String signature, int typeId,
             List<IRAnnotation> annotations) {
         this(name, superName, interfaces, accessFlags, fields, methods,
-                innerClasses, signature, typeId, annotations, false);
+                innerClasses, signature, typeId, annotations, false, false);
+    }
+
+    /** Compatibilidade: os sites de `record` que ainda não consultam a flag. */
+    public IRClass(String name, String superName, List<String> interfaces,
+            int accessFlags, List<IRField> fields, List<IRMethod> methods,
+            List<String> innerClasses, String signature, int typeId,
+            List<IRAnnotation> annotations, boolean isRecord) {
+        this(name, superName, interfaces, accessFlags, fields, methods,
+                innerClasses, signature, typeId, annotations, isRecord, false);
     }
 
     public IRClass(String name, String superName, List<String> interfaces,

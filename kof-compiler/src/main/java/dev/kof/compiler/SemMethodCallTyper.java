@@ -242,11 +242,14 @@ public final class SemMethodCallTyper {
         // SEM014 ("expected 'function' but got 'function'"). Espelha o typer do
         // emit (MethodCallTyper, ramo KofIo.isIoType) — mesma tabela, nenhum
         // contrato novo.
+        if (KofIo.isStringIdentityCall(recv, mc.methodName())) {
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+            return BuiltinTypes.STRING;
+        }
         if (KofIo.isIoType(recv)) {
             for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             KofIo.IoCall ioCall = KofIo.instanceMethod(recv, mc.methodName(), mc.arguments().size());
             if (ioCall != null) return ioCall.returnType();
-            if (KofIo.isIdentityMethod(mc.methodName())) return recv;
         }
         // D-R3-BUFFER: espelha o ramo do emit (MethodCallTyper) para Buffer(U8).
         if (KofBuffer.isBufferType(recv)) {
@@ -348,13 +351,50 @@ public final class SemMethodCallTyper {
                 return Type.UnknownType.UNKNOWN;
             }
         }
+        // #850: o TIPO DE RETORNO do estático real do JDK, BEST-EFFORT e SEM
+        // diagnóstico próprio (o gate de existência é o SEM074 acima, por
+        // ARIDADE — a resolução por tipos é estrita demais para decidir
+        // existência: `String.format("%d", 42)` é varargs e casa por aridade).
+        // Sem o tipo, o pipeline terminava em UNKNOWN e a inferência morria
+        // ali: `var h = Long.toHexString(255L)` deixava `h` UNKNOWN e a
+        // resolução de overload em POSIÇÃO DE ARGUMENTO
+        // (`strings.padLeft(h, 8, "0")`) falhava SEM025, embora a mesma chamada
+        // com literal ou com `String t = ...` funcionasse (o valor emitido
+        // sempre foi String — faltava o TIPO). Usado só como PADRÃO do
+        // pipeline, para não atropelar o que Kof já resolve.
+        Type jdkStaticReturn = jdkStaticReturnType(sa, mc, scope);
         Type builtin = BuiltinCallTyper.infer(sa, mc, scope);
         if (builtin != null) return builtin;
         if (mc.receiver() != null) {
             Type member = MemberCallTyper.infer(sa, mc, scope);
             if (member != null) return member;
         }
-        return BuiltinCallTyper.inferTail(sa, mc, scope);
+        Type tail = BuiltinCallTyper.inferTail(sa, mc, scope);
+        if (jdkStaticReturn != null && tail instanceof Type.UnknownType) return jdkStaticReturn;
+        return tail;
+    }
+
+    /**
+     * #850: tipo de retorno do estático do JDK chamado pelo NOME da classe
+     * (`Long.toHexString(x)`), ou {@code null} quando a face não se aplica ou a
+     * resolução não é conclusiva. Nunca emite diagnóstico — a existência já é
+     * gateada pelo SEM074 (por aridade); aqui só se preenche o TIPO.
+     */
+    private static Type jdkStaticReturnType(SemanticAnalyzer sa, MethodCallExpr mc, SymbolTable scope) {
+        if (!(mc.receiver() instanceof IdentifierExpr typeRecv)
+                || typeRecv.name().isEmpty()
+                || !Character.isUpperCase(typeRecv.name().charAt(0))) {
+            return null;
+        }
+        String jdkOwner = jdkStaticOwner(typeRecv.name());
+        if (jdkOwner == null || !JdkReflectionResolver.isJdkClass(jdkOwner)) return null;
+        List<Type> argTypes = new ArrayList<>();
+        for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
+        ExternalClasspath.MethodSignature sig = JdkReflectionResolver.resolveJdkMethodWithArgs(
+                jdkOwner, mc.methodName(), mc.arguments().size(), argTypes);
+        if (sig == null) return null;
+        Type ret = ExternalClasspath.typeFromDescriptor(sig.returnDescriptor());
+        return ret instanceof Type.UnknownType ? null : ret;
     }
 
     /**

@@ -1,0 +1,53 @@
+record P(Int x, Int y)
+
+Int total(Int[] a) {
+    var s = 0
+    for (var v in a) {
+        s = s + v
+    }
+    return s
+}
+
+Int[] doubled(Int[] a) {
+    var r = new Int[a.length]
+    var i = 0
+    while (i < a.length) {
+        r[i] = a[i] * 2
+        i = i + 1
+    }
+    return r
+}
+
+main() {
+    var xs = new Int[3]
+    xs[0] = 10
+    xs[1] = 20
+    xs[2] = 30
+    println(xs[0] + "," + xs[1] + "," + xs[2])
+    println(xs.length)
+    println(total(xs))
+    var zs = new Int[2]
+    println(zs[0] + "," + zs[1])
+    var ss = new String[2]
+    ss[0] = "a"
+    ss[1] = "b"
+    println(ss[0] + ss[1])
+    var ds = new Double[2]
+    ds[0] = 1.5
+    ds[1] = 2.5
+    println(ds[0] + "," + ds[1])
+    try { println("v=" + xs[5]) } catch (String e) { println("readOOB caught") }
+    try { xs[9] = 7 } catch (String e) { println("writeOOB caught") }
+    println("end")
+    var g = new Int[2][3]
+    g[0][0] = 5
+    g[1][2] = 8
+    println(g[0][0] + "," + g[1][2])
+    println(g[0].length)
+    var dd = doubled(xs)
+    println(dd[0] + "," + dd[1] + "," + dd[2])
+    var ps = new P[2]
+    ps[0] = P(10, 20)
+    ps[1] = P(30, 40)
+    println(ps[0].x + "," + ps[1].y)
+}

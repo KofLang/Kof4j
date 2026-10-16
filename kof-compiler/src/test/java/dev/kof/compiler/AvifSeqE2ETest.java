@@ -35,10 +35,10 @@ class AvifSeqE2ETest implements LibraryInstallSupport {
     @TempDir Path tmp;
 
     private static final String GOLDEN = String.join("\n",
-            "nr8 p=0 r=0 w=8 h=8 mono=1 sub=1/1 depth=8 still=0",
-            "nr12t p=2 r=0 w=32 h=24 mono=1 sub=1/1 depth=12 still=0",
-            "flat p=0 r=1 w=32 h=32 mono=1 sub=1/1 depth=8 still=1",
-            "r1 p=1 r=1 w=32 h=32 mono=0 sub=0/0 depth=8 still=1");
+            "nr8 p=0 r=0 w=8 h=8 mono=1 sub=1/1 depth=8 still=0 fi=0 ie=0",
+            "nr12t p=2 r=0 w=32 h=24 mono=1 sub=1/1 depth=12 still=0 fi=0 ie=0",
+            "flat p=0 r=1 w=32 h=32 mono=1 sub=1/1 depth=8 still=1 fi=0 ie=0",
+            "r1 p=1 r=1 w=32 h=32 mono=0 sub=0/0 depth=8 still=1 fi=0 ie=0");
 
     @Test
     void avifSeqHeaderOnJvm() throws Exception {

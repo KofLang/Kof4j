@@ -12,8 +12,20 @@ class KofmdSchemas {
         var schemas = listOf(seed)
         schemas.clear()
         String[] lines = text.split("\n")
+        Bool inFence = false
         for (var line in lines) {
-            String trimmed = line.trim()
+            String rest = line
+            if (rest.endsWith("\r")) {
+                rest = rest.substring(0, rest.length - 1)
+            }
+            if (rest.startsWith("```")) {
+                inFence = !inFence
+                continue
+            }
+            if (inFence) {
+                continue
+            }
+            String trimmed = rest.trim()
             if (KofmdScan().isSchemaLine(trimmed)) {
                 var parsed = parseSchemaLine(trimmed)
                 if (parsed.name().length > 0) {

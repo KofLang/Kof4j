@@ -44,7 +44,7 @@ import java.util.List;
  */
 final class CmdDeploy {
 
-    private static final String USAGE = "usage: kof deploy <source-dir|file.kf> --target <t>[,<t>...|all]"
+    private static final String USAGE = "usage: kof deploy <source-dir|file.kf> --target <t>[,<t>...|all] [--jvm-option <opt>]"
             + " [--output <dir>] [--name <n>] [--version <v>] [--publish <registry>]\n"
             + "  targets: jvm|native|js|android (all = jvm,native,js); --publish publica"
             + " virgula faz o multi-target 8.4 (mesma fonte, uma release por alvo"
@@ -85,6 +85,8 @@ final class CmdDeploy {
         String name = null;
         String version = "0.0.0";
         String publish = null;
+        // #855: opcoes da JVM que o COMANDO PUBLICADO deve carregar (`-Xmx512m`).
+        List<String> jvmOptions = new ArrayList<>();
         for (int i = 2; i < args.length; i++) {
             String arg = args[i];
             if (arg.startsWith("--target=")) {
@@ -103,6 +105,10 @@ final class CmdDeploy {
                 version = arg.substring("--version=".length());
             } else if (arg.equals("--version") && i + 1 < args.length) {
                 version = args[++i];
+            } else if (arg.startsWith("--jvm-option=")) {
+                jvmOptions.add(arg.substring("--jvm-option=".length()));
+            } else if (arg.equals("--jvm-option") && i + 1 < args.length) {
+                jvmOptions.add(args[++i]);
             } else if (arg.startsWith("--publish=")) {
                 publish = arg.substring("--publish=".length());
             } else if (arg.equals("--publish") && i + 1 < args.length) {
@@ -146,11 +152,11 @@ final class CmdDeploy {
             return;
         }
         if (targets.size() > 1) {
-            deployMulti(src, out, safeName, version, new ArrayList<>(targets), publish);
+            deployMulti(src, out, safeName, version, new ArrayList<>(targets), publish, jvmOptions);
             return;
         }
         try {
-            Release r = deploy(src, out, safeName, version, targets.iterator().next(), "");
+            Release r = deploy(src, out, safeName, version, targets.iterator().next(), "", jvmOptions);
             System.out.println("deploy → " + r.releaseDir());
             System.out.println("artifact → " + r.tgz()
                     + (r.sha256() == null ? " (library: sources only)"
@@ -192,13 +198,14 @@ final class CmdDeploy {
      * (R6/R7) e o exit é 1 se houve falha.
      */
     private static void deployMulti(Path src, Path out, String name, String version,
-                                    List<Target> targets, String publish) {
+                                    List<Target> targets, String publish,
+                                    List<String> jvmOptions) {
         List<Release> results = new ArrayList<>();
         boolean anyFail = false;
         for (Target t : targets) {
             String tn = TargetMatrix.name(t);
             try {
-                Release r = deploy(src, out, name, version, t, "-" + tn);
+                Release r = deploy(src, out, name, version, t, "-" + tn, jvmOptions);
                 results.add(r);
                 System.out.println("  " + tn + " → " + r.releaseDir());
             } catch (IOException e) {
@@ -237,7 +244,8 @@ final class CmdDeploy {
     }
 
     private static Release deploy(Path src, Path out, String name, String version,
-                                  Target target, String dirSuffix) throws IOException {
+                                  Target target, String dirSuffix,
+                                  List<String> jvmOptions) throws IOException {
         // 1) compila o módulo (mesma convenção Go-like do build)
         KofCliSupport.Layout layout = KofCliSupport.detectLayout(src);
         Path backendDir = layout.backendDir();
@@ -342,7 +350,12 @@ final class CmdDeploy {
         String timestamp = DateTimeFormatter.ISO_INSTANT.format(Instant.now().atOffset(ZoneOffset.UTC));
         String runCmd;
         if (target == Target.JVM) {
-            runCmd = "java -jar " + artifact;
+            // #855: o comando PUBLICADO carrega as mesmas opcoes da JVM que o
+            // `kof run --jvm-option` — antes o teto de memoria so existia se o
+            // operador lembrasse de escrever `java -Xmx... -jar` a mao.
+            runCmd = jvmOptions.isEmpty()
+                    ? "java -jar " + artifact
+                    : "java " + String.join(" ", jvmOptions) + " -jar " + artifact;
         } else if (target == Target.NATIVE || target == Target.NATIVE_RISCV64
                 || target == Target.NATIVE_AARCH64) {
             runCmd = "./" + artifact; // cross roda no alvo (ou qemu -L sysroot)
@@ -350,6 +363,14 @@ final class CmdDeploy {
             runCmd = "node " + artifact;
         } else {
             runCmd = "adb install " + artifact;
+        }
+        if (!jvmOptions.isEmpty() && target != Target.JVM) {
+            // #855: o comando publicado de um alvo sem JVM nao tem onde carregar a
+            // opcao — recusa NOMEADA (R6) em vez de ignora-la em silencio.
+            System.err.println("deploy: --jvm-option only applies to --target jvm"
+                    + " (the published command of " + TargetMatrix.name(target) + " has no JVM)");
+            System.exit(1);
+            return null;
         }
         String mainLine = target == Target.JVM && !library
                 ? "- main class: " + KofCliSupport.findMainClass(classes) + "\n" : "";

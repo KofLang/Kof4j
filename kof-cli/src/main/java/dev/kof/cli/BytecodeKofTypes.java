@@ -10,6 +10,13 @@ package dev.kof.cli;
  */
 final class BytecodeKofTypes {
 
+    // Fase E (14/10): o contador dos temps de array fresh (por método —
+    // resetado pelo chamador via resetArrTmps).
+    private static int arrTmpCount = 0;
+
+    /** Zera o contador dos temps de array (por método recuperado). */
+    static void resetArrTmps() { arrTmpCount = 0; }
+
     private BytecodeKofTypes() {
     }
 
@@ -48,6 +55,13 @@ final class BytecodeKofTypes {
                 if (cn == null) return false;
                 if (BytecodeCp.isJdkClass(cp, in.operands()[0])) {
                     String simple = cn.substring(cn.lastIndexOf('/') + 1);
+                    // Fase E (14/10): o StringBuilder vira STRING no Kof
+                    // (SEM015 — o idioma é concat); a marca alimenta o
+                    // astore (var sb = "") e os appends (sb = sb + x).
+                    if (simple.equals("StringBuilder")) {
+                        stack.push("⟦sb⟧");
+                        return true;
+                    }
                     if (simple.endsWith("Exception") || simple.endsWith("Error")) {
                         stack.push("\u27e6ex\u27e7" + simple);
                         if (BytecodeDecoder.blockerSink != null) BytecodeDecoder.blockerSink.accept(-99);
@@ -71,13 +85,40 @@ final class BytecodeKofTypes {
                 stack.push("⟦new⟧" + cn);
                 return true;
             }
-            case 0x59 -> { // dup — padrão new E o padrão de exceção (⟦ex⟧)
+            case 0x59 -> { // dup — new, exceção, coleção E o multi-assign
+                // Fase E (13/10): o `x = y = 5` compila p/ iconst_5, dup,
+                // istore, istore — o dup de um valor SIMPLES (sem "(") é puro
+                // (sem efeito colateral a duplicar). Chamadas seguem recusadas
+                // (duplicar uma chamada executaria duas vezes).
                 if (stack.isEmpty()) return false;
                 String top = stack.peek();
-                if (top == null || !(top.startsWith("⟦new⟧") || top.startsWith("\u27e6ex\u27e7")
-                        || top.startsWith("\u27e6col\u27e7"))) return false;
-                stack.push(top);
-                return true;
+                if (top == null) return false;
+                if (top.startsWith("⟦new⟧") || top.startsWith("\u27e6ex\u27e7")
+                        || top.startsWith("\u27e6col\u27e7") || top.startsWith("⟦sb⟧")) {
+                    stack.push(top);
+                    return true;
+                }
+                // Fase E (14/10): o ARRAY LITERAL fresh (`new Int[2]` + dup +
+                // iastore×N + return) → temp: `var arrT1 = new Int[2]` + as
+                // stores no var (o texto `new Int[2][0] = v` não parseia;
+                // medido no minMax). O nome único por recuperação.
+                if (top.matches("new \\w+\\[.*")) {
+                    stack.pop();
+                    String tmp = "arrT" + (++arrTmpCount);
+                    stmts.add("var " + tmp + " = " + top);
+                    stack.push(tmp);
+                    stack.push(tmp);
+                    return true;
+                }
+                // o dup de um valor PURO (aritmetica/variavel) e seguro — o
+                // texto aparece duas vezes mas avalia igual. O risco e apenas
+                // CHAMADA (executaria duas vezes): rejeita se ha `ident(` no
+                // texto (medido: `(arg0 * 2)` do imul passa; `at(` recusa).
+                if (!top.matches(".*\\w\\(.*")) {
+                    stack.push(top);
+                    return true;
+                }
+                return false;
             }
             case 0xb7 -> { // invokespecial <init> (mirror do linear)
                 String[] m = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
@@ -101,12 +142,38 @@ final class BytecodeKofTypes {
                     return false;
                 }
                 int argc = BytecodeCp.argCount(m[2]);
+                // Fase E (14/10): o `invokespecial Object.<init>` do CONSTRUCTOR
+                // com só `this` na pilha (o ctor decompilado é [aload_0, super])
+                // → SKIP: o Kof chama super implicitamente (classes.md, a forma
+                // real `constructor(...) { this.x = x }` não tem super()).
+                if ("java/lang/Object".equals(m[0]) && argc == 0
+                        && stack.size() == 1 && "this".equals(stack.peek())) {
+                    stack.pop();
+                    return true;
+                }
+                // Fase E (14/10): o `invokespecial B.<init>` do CONSTRUCTOR
+                // (o shape [this, args] SEM dup) → `super(args)` explícito
+                // (medido: o Kof aceita super(v) no ctor e o Base.v recebe).
+                if (!"java/lang/Object".equals(m[0]) && stack.size() == argc + 1
+                        && "this".equals(stack.peek())) {
+                    var supArgs = new java.util.ArrayList<String>();
+                    for (int i = 0; i < argc; i++) supArgs.add(0, stack.pop());
+                    stack.pop();   // this
+                    stack.push("super(" + String.join(", ", supArgs) + ")");
+                    return true;
+                }
                 if (stack.size() < argc + 2) return false;
                 var callArgs = new java.util.ArrayList<String>();
                 for (int i = 0; i < argc; i++) callArgs.add(0, stack.pop());
                 stack.pop();   // receiver (cópia do dup)
                 String marker = stack.pop();
                 if (marker == null) return false;
+                // Fase E (14/10): StringBuilder() sem args — a marca segue
+                // para o astore (var sb = "")
+                if (marker.equals("⟦sb⟧")) {
+                    stack.push(marker);   // o pop do receiver consumiu a cópia do dup — repõe
+                    return true;
+                }
                 // idioma errors.md: a construção de EXCEÇÃO devolve a String
                 // do message (o Kof lança String; `throw msg` direto)
                 if (marker.startsWith("\u27e6ex\u27e7")) {
@@ -149,6 +216,36 @@ final class BytecodeKofTypes {
                 stmts.add(arr + "[" + idx + "] = " + v);
                 return true;
             }
+            case 0xc5 -> { // multianewarray → `new Int[d1][d2]...`
+                // (medido: new Int[3][2] + m[0][0] compila e roda no Kof).
+                // O CP entry é o DESCRIPTOR do array ("[[I"); as dimensões
+                // estão na pilha (operand[1] = quantidade).
+                int dims = in.operands()[1];
+                if (dims < 1 || dims > 3 || stack.size() < dims) return false;
+                String internal = indexInternalName(cp, in.operands()[0]);
+                if (internal == null || !internal.startsWith("[")) return false;
+                String base = internal;
+                while (base.startsWith("[")) base = base.substring(1);
+                String elem = switch (base) {
+                    case "I" -> "Int"; case "J" -> "Long"; case "F" -> "Float";
+                    case "D" -> "Double"; case "Z" -> "Bool"; case "C" -> "Char";
+                    case "B" -> "Byte"; case "S" -> "Short";
+                    default -> null;
+                };
+                if (elem == null && base.startsWith("L") && base.endsWith(";")) {
+                    String simple = base.substring(1, base.length() - 1);
+                    int slash = simple.lastIndexOf('/');
+                    simple = slash >= 0 ? simple.substring(slash + 1) : simple;
+                    if (simple.equals("String") || simple.equals("Object")) elem = simple;
+                }
+                if (elem == null) return false;   // domínio — fora do slice
+                String[] ds = new String[dims];
+                for (int i = dims - 1; i >= 0; i--) ds[i] = stack.pop();
+                StringBuilder sb2 = new StringBuilder("new ").append(elem);
+                for (int i = 0; i < dims; i++) sb2.append("[").append(ds[i]).append("]");
+                stack.push(sb2.toString());
+                return true;
+            }
             case 0xbc -> { // newarray → `new Int[n]` (arrays PRIMITIVOS; JVMS 6.5)
                 if (stack.isEmpty()) return false;
                 String elem = primitiveArrayType(in.operands()[0]);
@@ -173,6 +270,7 @@ final class BytecodeKofTypes {
         switch (op) {
             case 0x57 -> {   // pop: descarta CHAMADA de valor não-usado
                 String top = stack.pop();
+                if (top.equals("⟦sb⟧")) return true;   // append já virou statement
                 if (!isCallExpr(top)) return false;
                 stmts.add(top);
                 return true;
@@ -197,7 +295,16 @@ final class BytecodeKofTypes {
                 String t = inlineKofType(cp, cpIdx);
                 if (t == null) {
                     t = indexKofType(cp, cpIdx, frame);
-                    if (t == null) return false;
+                    if (t == null) {
+                        // Fase E (14/10): classe de DOMÍNIO não-JDK no modo
+                        // 1-arquivo (sem treeScope) → o NOME SIMPLES é fiel:
+                        // o .kf irmão decompilado declara a classe (medido no
+                        // Repo/Prod: `(arg0.get(0) as Prod)` compila e roda)
+                        String internal = indexInternalName(cp, cpIdx);
+                        if (internal == null || BytecodeCp.isJdkClass(cp, cpIdx)) return false;
+                        int slash = internal.lastIndexOf('/');
+                        t = slash >= 0 ? internal.substring(slash + 1) : internal;
+                    }
                     stack.push("(" + stack.pop() + " as " + t + ")");
                     return true;
                 }

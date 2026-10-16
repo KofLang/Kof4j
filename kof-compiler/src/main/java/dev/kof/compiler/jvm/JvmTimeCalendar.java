@@ -201,6 +201,20 @@ public final class JvmTimeCalendar {
                     return String.format("%04d-%02d-%02d", ymd[0], ymd[1], ymd[2]);
                 }
 
+                // #857: instante COMPLETO em UTC (data + hora + ms, ISO-8601) a
+                // partir dos milissegundos desde a epoca — reusa o MESMO
+                // civilFromEpochDay do calendario, sem dependencia de fuso (D1:
+                // UTC-only, como todayIso/formatDateIso).
+                public static String kof_time_formatInstantIso(long millis) {
+                    long epochDay = Math.floorDiv(millis, 86400000L);
+                    long msOfDay = millis - epochDay * 86400000L;
+                    long[] ymd = kof_time_civilFromEpochDay(epochDay);
+                    return String.format("%04d-%02d-%02dT%02d:%02d:%02d.%03dZ",
+                            ymd[0], ymd[1], ymd[2],
+                            msOfDay / 3600000L, (msOfDay / 60000L) % 60L,
+                            (msOfDay / 1000L) % 60L, msOfDay % 1000L);
+                }
+
                 public static String kof_time_formatDateIso(int year, int month, int day) {
                     if (!kof_time_validDate(year, month, day)) return "";
                     return String.format("%04d-%02d-%02d", year, month, day);

@@ -1,0 +1,27 @@
+main() {
+    var m = mapOf("a", 1)
+    m.put("b", 2)
+    m.put("c", 3)
+    var sum = 0
+    for (var v in m.values()) {
+        sum = sum + v
+    }
+    println(sum)
+    var n = 0
+    for (var k in m.keys()) {
+        if (m.get(k) > 1) {
+            n = n + 1
+        }
+    }
+    println(n)
+    println(m.keys().size)
+    println(m.values().size)
+    var xs = listOf(1, 2, 3, 4)
+    var acc = 0
+    for (var x in xs) {
+        if (x % 2 == 0) {
+            acc = acc + x
+        }
+    }
+    println(acc)
+}

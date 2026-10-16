@@ -123,11 +123,15 @@ class InheritedFieldAssignE2ETest {
         assertNoObjectFieldStore(j, "superw");
         assertTrue(j.contains("Field Shape.width:F"),
                 "superw: esperado putfield/getfield em Shape.width:F —\n" + j);
-        // O sintoma literal do relatório (`Object var11 = w`): o valor precisa
-        // vertir como FLOAT (fstore), nunca como referência Object (astore de
-        // #fldval). aload_0/astore do RECEIVER continua referência legítima.
-        assertTrue(j.contains("fstore"),
-                "superw: valor do campo herdado vertido sem tipo float (temp Object voltou) —\n" + j);
+        // O sintoma original do relatório (`Object var11 = w`) foi corrigido:
+        // o valor vertia como FLOAT (fstore num temp). O re-baseline (13/10,
+        // D-CODEGEN-REWRITE/value-propagation) remove o TEMP redundante — o
+        // valor agora flui direto do parâmetro (`fload_1`) para o putfield,
+        // byte-comportamento idêntico (run imprime 3.5; putfield/getfield
+        // tipados em Shape.width:F; sem Object store). O contrato é o
+        // COMPORTAMENTO, não a forma do temp.
+        assertTrue(j.contains("fload_1") || j.contains("fload"),
+                "superw: o valor deve fluir como FLOAT até o putfield —\n" + j);
     }
 
     @Test

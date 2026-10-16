@@ -1,0 +1,4 @@
+       01  CUSTOMER-RECORD.
+           05  CUST-NAME        PIC X(10).
+           05  CUST-BALANCE     PIC S9(5)V99.
+           05  CUST-QTY         PIC 9(3).

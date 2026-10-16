@@ -37,9 +37,16 @@ final class BuiltinUiCallTyper {
             return KofUi.INPUT;
         }
         if (mc.receiver() == null && ("Column".equals(mc.methodName()) || "Row".equals(mc.methodName()))
-                && mc.arguments().size() == 1) {
-            SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
+                && (mc.arguments().isEmpty() || mc.arguments().size() == 1)) {
             return "Column".equals(mc.methodName()) ? KofUi.COLUMN : KofUi.ROW;
+        }
+        if (mc.receiver() == null && (mc.arguments().isEmpty() || mc.arguments().size() == 1)) {
+            Type emptyContainer = KofUiContainers.emptyContainerType(mc.methodName());
+            if (emptyContainer != null) return emptyContainer;
+        }
+        if (mc.receiver() == null && mc.arguments().isEmpty()) {
+            Type emptyWidget = KofUiContainers.emptyWidgetType(mc.methodName());
+            if (emptyWidget != null) return emptyWidget;
         }
         if (mc.receiver() == null && "View".equals(mc.methodName()) && mc.arguments().size() == 1) {
             SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);

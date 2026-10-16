@@ -47,6 +47,8 @@ import java.util.Set;
         if (lin != null) return lin;
         String cmp = BytecodeDecoderCond.comparisonReturn(insns, frame);
         if (cmp != null) return cmp;
+        String va = BytecodeDecoderCond.varargsCall(insns, cp, frame);
+        if (va != null) return va;
         return BytecodeDecoderCond.ifElseReturn(insns, cp, frame);
     }
 
@@ -105,8 +107,30 @@ import java.util.Set;
 
     static MachineRun machineRun(List<BytecodeReader.Insn> insns, String[] cp,
                                        BytecodeFrame frame) {
+        return machineRun(insns, cp, frame, null);
+    }
+
+    static MachineRun machineRun(List<BytecodeReader.Insn> insns, String[] cp,
+                                       BytecodeFrame frame, java.util.Map<Integer, String[]> seed) {
+        // Fase E (14/10): memória de LOCAIS da fatia (o binding do
+        // `instanceof String s` compila p/ checkcast+astore+aload); só
+        // referências (o tipo "L" basta p/ os usos no braço).
+        // Fase E (15/10): o SEED — os braços do ternário avaliam com o mapa
+        // do run EXTERNO (medido no verdict: o `g` do astore_1 virava o
+        // `v1` fantasma no braço else = SEM011).
+        java.util.Map<Integer, String[]> locals = seed != null
+                ? new java.util.HashMap<>(seed) : new java.util.HashMap<>();
         BytecodeTypes.TStack stack = new BytecodeTypes.TStack();
+        // Fase E (14/10): o TERNÁRIO-EM-ARGUMENTO — branches no MEIO de uma
+        // expressão linear (`money`: `.. < 10 ? "0" : ""` alimentando o
+        // invokedynamic). O pcJump consome os 2 braços avaliados e salta p/
+        // o join.
+        int pcJump = -1;
         for (BytecodeReader.Insn in : insns) {
+            if (pcJump >= 0) {
+                if (in.offset() < pcJump) continue;
+                pcJump = -1;
+            }
             int op = in.opcode();
             switch (op) {
                 case 0x01 -> stack.push("null", "L");                 // aconst_null
@@ -131,15 +155,19 @@ import java.util.Set;
                     if (c == null) return null;
                     stack.push(c, c.endsWith("L") ? "J" : "D");
                 }
-                case 0x1a, 0x1b, 0x1c, 0x1d -> stack.push(slotName(op - 0x1a, frame), "I");
-                case 0x1e, 0x1f, 0x20, 0x21 -> stack.push(slotName(op - 0x1e, frame), "J");   // lload_0..3
-                case 0x26, 0x27, 0x28, 0x29 -> stack.push(slotName(op - 0x26, frame), "D");   // dload_0..3
-                case 0x2a, 0x2b, 0x2c, 0x2d -> stack.push(slotName(op - 0x2a, frame), "L");
-                case 0x15 -> stack.push(slotName(in.operands()[0], frame), "I");
-                case 0x19 -> stack.push(slotName(in.operands()[0], frame), "L");
-                case 0x16 -> stack.push(slotName(in.operands()[0], frame), "J");   // lload
+                case 0x1a, 0x1b, 0x1c, 0x1d -> stack.push(BytecodeDecoderStack.slotName(op - 0x1a, frame), "I");
+                case 0x1e, 0x1f, 0x20, 0x21 -> stack.push(BytecodeDecoderStack.slotName(op - 0x1e, frame), "J");   // lload_0..3
+                case 0x26, 0x27, 0x28, 0x29 -> stack.push(BytecodeDecoderStack.slotName(op - 0x26, frame), "D");   // dload_0..3
+                case 0x2a, 0x2b, 0x2c, 0x2d -> {
+                    int slot = op - 0x2a;
+                    if (locals.containsKey(slot)) stack.push(locals.get(slot)[0], locals.get(slot)[1]);
+                    else stack.push(BytecodeDecoderStack.slotName(slot, frame), "L");
+                }
+                case 0x15 -> stack.push(BytecodeDecoderStack.slotName(in.operands()[0], frame), "I");
+                case 0x19 -> stack.push(BytecodeDecoderStack.slotName(in.operands()[0], frame), "L");
+                case 0x16 -> stack.push(BytecodeDecoderStack.slotName(in.operands()[0], frame), "J");   // lload
                 case 0x17 -> { return null; }                                       // fload (fconst já recusado)
-                case 0x18 -> stack.push(slotName(in.operands()[0], frame), "D");   // dload
+                case 0x18 -> stack.push(BytecodeDecoderStack.slotName(in.operands()[0], frame), "D");   // dload
                 case 0x60 -> { if (!stack.bin("+", "I")) return null; }
                 case 0x64 -> { if (!stack.bin("-", "I")) return null; }
                 case 0x68 -> { if (!stack.bin("*", "I")) return null; }
@@ -184,6 +212,14 @@ import java.util.Set;
                 case 0xb6, 0xb9 -> { // invokevirtual / invokeinterface
                     String[] m = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
                     if (m == null) return null;
+                    // Fase E (14/10): o overload INT de indexOf/lastIndexOf
+                    // (char) não tem equivalente — o do Kof é String-param
+                    // (SEM051 medida: o verbatim `lastIndexOf(46)` não
+                    // compila). Recusar ANTES do pass-through.
+                    if ("java/lang/String".equals(m[0])
+                            && ((("indexOf".equals(m[1]) || "lastIndexOf".equals(m[1]))
+                            && !m[2].startsWith("(Ljava/lang/String;"))
+                            || "strip".equals(m[1]) || "stripLeading".equals(m[1]) || "stripTrailing".equals(m[1]))) return null;
                     String a = stack.args(BytecodeCp.argCount(m[2]));
                     if (a == null) return null;
                     String recv = stack.popExpr();
@@ -203,7 +239,14 @@ import java.util.Set;
                     if (f == null) return null;
                     stack.push(BytecodeCp.simpleOwner(f[0]) + "." + f[1], BytecodeCp.retOf(f[2]));
                 }
-                case 0xba -> { // invokedynamic — só String concat (CONCAT: no CP)
+                case 0xba -> { // invokedynamic — String concat OU lambda
+                    int idynIdx = in.operands()[0];
+                    String idyn = idynIdx < cp.length ? cp[idynIdx] : null;
+                    if (idyn != null && idyn.startsWith("LAMBDA:")
+                            && BytecodeConcat.LAMBDA_TEXT.containsKey(idynIdx)) {
+                        stack.push(BytecodeConcat.LAMBDA_TEXT.get(idynIdx), "L");
+                        continue;
+                    }
                     String rec = BytecodeConcat.recipe(cp, in.operands()[0]);
                     if (rec == null) return null;
                     int n = 0;
@@ -267,6 +310,74 @@ import java.util.Set;
                     if (result == null || !result.startsWith("⟦new⟧")) return null;
                     stack.push(result.substring("⟦new⟧".length()) + "(" + a + ")", "L");
                 }
+                case 0x3a, 0x4b, 0x4c, 0x4d, 0x4e -> {   // astore (binding; JVMS: astore_0=0x4b)
+                    if (stack.isEmpty()) return null;
+                    int slot = op == 0x3a ? in.operands()[0] : op - 0x4b;
+                    String v = stack.popExpr();
+                    // Fase E (15/10): o inline de um CONCAT sem parênteses
+                    // quebra a PRECEDÊNCIA quando uma call anda em cima
+                    // (medido no Sess.token: `raw = user + ":" + now` +
+                    // `.hashCode()` emitia `arg1.hashCode()` — o hashCode
+                    // anexava ao ÚLTIMO ARG). O store guarda PARENTEZADO.
+                    if (v.contains(" + ")) v = "(" + v + ")";
+                    locals.put(slot, new String[]{v, "L"});
+                }
+                case 0xc0 -> {                            // checkcast → `as`
+                    String ct = BytecodeKofTypes.inlineKofType(cp, in.operands()[0]);
+                    if (ct == null) {
+                        ct = BytecodeKofTypes.indexKofType(cp, in.operands()[0], frame);
+                        if (ct == null) return null;
+                    }
+                    if (stack.isEmpty()) return null;
+                    String v = stack.popExpr();
+                    stack.push(ct.equals("Object") ? v : "(" + v + " as " + ct + ")", "L");
+                }
+                case 0x99, 0x9a, 0x9b, 0x9c, 0x9d, 0x9e, 0x9f, 0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xc6, 0xc7 -> {
+                    // Fase E (14/10): TERNÁRIO-EM-ARGUMENTO — o branch no meio
+                    // da expressão ([operandos, ifXX T, then..., goto J,
+                    // else..., J]). Os 2 braços avaliam standalone (insns
+                    // autocontidas); qualquer desvio → null = stub (R6).
+                    int t = in.target();
+                    int myIdx = -1;
+                    for (int k = 0; k < insns.size(); k++)
+                        if (insns.get(k).offset() == in.offset()) { myIdx = k; break; }
+                    if (myIdx < 0) return null;
+                    int gIdx = -1;
+                    int join = -1;
+                    for (int k = myIdx + 1; k < insns.size(); k++) {
+                        BytecodeReader.Insn g = insns.get(k);
+                        if (g.offset() >= t) break;
+                        if (g.opcode() == 0xa7 && g.target() > t) { gIdx = k; join = g.target(); break; }
+                    }
+                    if (gIdx < 0 || join <= t) return null;
+                    List<BytecodeReader.Insn> thenSeq = insns.subList(myIdx + 1, gIdx);
+                    List<BytecodeReader.Insn> elseSeq = new java.util.ArrayList<>();
+                    for (BytecodeReader.Insn g : insns)
+                        if (g.offset() >= t && g.offset() < join) elseSeq.add(g);
+                    if (thenSeq.isEmpty() || elseSeq.isEmpty()) return null;
+                    MachineRun ra = machineRun(thenSeq, cp, frame, locals);
+                    if (ra == null || ra.stopped || ra.stack.size() != 1) return null;
+                    MachineRun rb = machineRun(elseSeq, cp, frame, locals);
+                    if (rb == null || rb.stopped || rb.stack.size() != 1) return null;
+                    int arity = (op >= 0x9f && op <= 0xa4) ? 2 : 1;
+                    if (stack.size() < arity) return null;
+                    String c;
+                    if (arity == 2) {
+                        String b2 = stack.popExpr();
+                        String a2 = stack.popExpr();
+                        String iv = BytecodeCp.invCond(op);
+                        if (iv == null) return null;
+                        c = a2 + " " + iv + " " + b2;
+                    } else {
+                        String v = stack.popExpr();
+                        // o instanceof NÃO leva sufixo (a queda é o C-true);
+                        // os null-comps levam o inv dele (`== null`/`!= null`)
+                        if (op == 0x99 || op == 0x9a) c = v;
+                        else c = v + " " + BytecodeCp.invCond(op);
+                    }
+                    stack.push("(if (" + c + ") " + ra.stack.topExpr() + " else " + rb.stack.topExpr() + ")", "L");
+                    pcJump = join;
+                }
                 case 0xac -> { return new MachineRun(stack, stack.retTyped("I"), true); }
                 case 0xad -> { return new MachineRun(stack, stack.retTyped("J"), true); }
                 case 0xae -> { return new MachineRun(stack, stack.retTyped("F"), true); }
@@ -325,7 +436,7 @@ import java.util.Set;
         if (block.size() - 1 == arity) {
             List<String> operands = new java.util.ArrayList<>();
             for (int i = 0; i < block.size() - 1; i++) {
-                String v = loadValue(block.get(i), frame);
+                String v = BytecodeDecoderStack.loadValue(block.get(i), frame, cp);
                 if (v == null) return null;
                 operands.add(v);
             }
@@ -350,24 +461,74 @@ import java.util.Set;
         // recuperavel aqui: null = stub honesto (R6).
         int arity = (last.opcode() >= 0x9f && last.opcode() <= 0xa4) ? 2 : 1;
         if (block.size() - 1 < arity) return null;
-        // Path EXATO original: o bloco do teste é SÓ os loads (aridade igual)
+        // Path EXATO original: o bloco do teste é SÓ os loads (aridade igual).
+        // Fase E (14/10): se um load falha (ex.: `ldc 65535` — fora do
+        // bipush), CAI no mini-avaliador (que modela o ldc) em vez de
+        // recusar — medido no parsePort: o `||` quebrava no 2º termo.
         if (block.size() - 1 == arity) {
             java.util.List<String> operands = new java.util.ArrayList<>();
+            boolean exactOk = true;
             for (int i = 0; i < block.size() - 1; i++) {
-                String v = loadValue(block.get(i), frame);
-                if (v == null) return null;
+                String v = BytecodeDecoderStack.loadValue(block.get(i), frame, cp);
+                if (v == null) { exactOk = false; break; }
                 operands.add(v);
             }
-            return operands.get(0) + " " + inv + (arity == 2 ? " " + operands.get(1) : "");
+            if (exactOk) {
+                return operands.get(0) + " " + inv + (arity == 2 ? " " + operands.get(1) : "");
+            }
+        }
+        // Fase E (14/10): comparação LONG — o javac emite [x, y, lcmp, ifXX]
+        // (o ifXX testa o SINAL do lcmp): a condição real tem DOIS operandos.
+        // A queda do ifXX é o inv de 2 operandos = invCond(ifXX + 0x06).
+        int lastOp = block.get(block.size() - 1).opcode();
+        // Fase E (14/10): a família de comparação por SINAL alarga — o lcmp
+        // (0x94, Long) E o dcmpg/dcmpl (0x98/0x97, Double; o NaN-handling
+        // difere mas o shape [a, b, cmp, ifXX] é o mesmo, medido no
+        // inCircle: `d <= r*r`).
+        // Fase E (15/10): a guarda PUREZA — o par-case só vale no bloco
+        // EXATO [op2, op1, cmp, ifXX]; com prólogo fundido (medido no
+        // withTax: [dstore, dload, ldc2, dcmpl, ifle]) o cond saía do rabo
+        // e o PRÓLOGO era engolido (cond referenciava local não-declarada =
+        // código errado). O prólogo é do caminho fundido (testSplit).
+        if (lastOp >= 0x99 && lastOp <= 0x9e && block.size() == 4
+                && (block.get(block.size() - 2).opcode() == 0x94
+                    || block.get(block.size() - 2).opcode() == 0x97
+                    || block.get(block.size() - 2).opcode() == 0x98)) {
+            String x = BytecodeDecoderStack.loadValue(block.get(block.size() - 4), frame, cp);
+            String y = BytecodeDecoderStack.loadValue(block.get(block.size() - 3), frame, cp);
+            String lcmpInv = switch (lastOp) {
+                case 0x99 -> "!="; case 0x9a -> "=="; case 0x9b -> ">=";
+                case 0x9c -> "<"; case 0x9d -> "<="; case 0x9e -> ">";
+                default -> null;
+            };
+            if (x != null && y != null && lcmpInv != null) return x + " " + lcmpInv + " " + y;
+            return null;
         }
         // Fase E (fatia array-cond, 14/10): o teste tem CÁLCULO simples —
         // mini-avaliador de pilha com conjunto FECHADO de opcodes (cada um
         // modelado exatamente; qualquer outro → null = stub honesto). No fim
         // a pilha tem EXATAMENTE os `arity` operandos em ordem.
         java.util.Deque<String> st = new java.util.ArrayDeque<>();
+        // Fase E (14/10): STORES no trecho = statements que o caller precisa
+        // emitir (o fusion-path) — a memória de locais do avaliador não pode
+        // engoli-las (medido: `var v1 = 0` do prólogo sumia e o corpo
+        // referenciava v1 antes da declaração, SEM011).
+        for (BytecodeReader.Insn in : block.subList(0, block.size() - 1)) {
+            int sop = in.opcode();
+            if (sop >= 0x36 && sop <= 0x4e) return null;
+        }
         if (!evalInto(block.subList(0, block.size() - 1), frame, cp, st)) return null;
         if (st.size() != arity) return null;
-        if (arity == 1) return st.pop() + " " + inv;   // ifne→`== 0` etc.
+        if (arity == 1) {
+            String v = st.pop();
+            // Fase E (14/10): instanceof como condição — o inv `!= 0` sobre
+            // Bool é ruído (espelho do testSplit/testExpr; medido describe)
+            if (block.get(block.size() - 2).opcode() == 0xc1) {
+                if (v.startsWith("(") && v.endsWith(")")) v = v.substring(1, v.length() - 1);
+                return "!= 0".equals(inv) ? v : "!(" + v + ")";
+            }
+            return v + " " + inv;   // ifne→`== 0` etc.
+        }
         String b = st.pop();
         String a = st.pop();
         return a + " " + inv + " " + b;
@@ -399,21 +560,72 @@ import java.util.Set;
      */
     static TestSplit testSplit(java.util.List<BytecodeReader.Insn> blk, BytecodeFrame frame,
                                String[] cp, int arity, String inv) {
+        return testSplit(blk, frame, cp, arity, inv, false);
+    }
+
+    /**
+     * Fase E (15/10): o overload com allowLoad — o pre terminando em LOAD
+     * (o aload: o RECEIVER da call do join andando na pilha). O caller TEM
+     * que validar o shape callarg (o join = [call 1-arg, pop]) ANTES de
+     * usar — sem o consumo o receiver se perde = código errado (R6).
+     */
+    static TestSplit testSplit(java.util.List<BytecodeReader.Insn> blk, BytecodeFrame frame,
+                               String[] cp, int arity, String inv, boolean allowLoad) {
         int max = Math.min(blk.size() - 1, 24);
         for (int len = arity; len <= max; len++) {
             java.util.List<BytecodeReader.Insn> pre = blk.subList(0, blk.size() - 1 - len);
             java.util.List<BytecodeReader.Insn> suf = blk.subList(blk.size() - 1 - len, blk.size() - 1);
             if (!pre.isEmpty()) {
                 int lo = pre.get(pre.size() - 1).opcode();
-                boolean stmtEnd = (lo >= 0x36 && lo <= 0x4e) || lo == 0x57;
+                boolean stmtEnd = (lo >= 0x36 && lo <= 0x4e) || lo == 0x57
+                        || (allowLoad && (lo == 0x19 || (lo >= 0x2a && lo <= 0x2d)));
                 if (!stmtEnd) continue;
             }
             java.util.Deque<String> st = new java.util.ArrayDeque<>();
+            boolean hasStore = false;
+            for (BytecodeReader.Insn sin : suf) {
+                int sop = sin.opcode();
+                if (sop >= 0x36 && sop <= 0x4e) { hasStore = true; break; }
+            }
+            if (hasStore) continue;   // stores = statements (fusion-path)
+            // Fase E (15/10): a família de SINAL no sufixo — [ops.., lcmp/
+            // dcmpl/dcmpg]: a fatia ANTES do cmp deixa EXATAMENTE 2 valores
+            // (evalInto avalia loads/consts/arith) e o cond é a composição
+            // DIRETA `a inv b` (o espelho do pair-case do blockCondition;
+            // medido no withTax: `if (v3 > 200.0)` com o prólogo emitido).
+            int tailOp = suf.get(suf.size() - 1).opcode();
+            if (tailOp == 0x94 || tailOp == 0x97 || tailOp == 0x98) {
+                java.util.Deque<String> st2 = new java.util.ArrayDeque<>();
+                if (!evalInto(suf.subList(0, suf.size() - 1), frame, cp, st2)) continue;
+                if (st2.size() != 2) continue;
+                String b2 = st2.pop();
+                String a2 = st2.pop();
+                // o inv AQUI é o espelho 2-op (o inv do caller é o
+                // valor-teste `> 0` — medido: saía `v3 > 0 200.0`)
+                String cmpInv = switch (blk.get(blk.size() - 1).opcode()) {
+                    case 0x99 -> "!="; case 0x9a -> "=="; case 0x9b -> ">=";
+                    case 0x9c -> "<"; case 0x9d -> "<="; case 0x9e -> ">";
+                    default -> null;
+                };
+                if (cmpInv == null) continue;
+                return new TestSplit(a2 + " " + cmpInv + " " + b2, blk.size() - 1 - len);
+            }
             if (!evalInto(suf, frame, cp, st)) continue;
             if (st.size() != arity) continue;
             String cond;
             if (arity == 1) {
-                cond = st.pop() + " " + inv;
+                String v = st.pop();
+                // Fase E (14/10): o sufixo terminando em INSTANCEOF — o
+                // inv `!= 0`/`== 0` sobre Bool é ruído; o instanceof É a
+                // condição (ifeq salta no FALSO → a queda é o verdadeiro =
+                // o instanceof puro; ifne → negado).
+                int lop = suf.get(suf.size() - 1).opcode();
+                if (lop == 0xc1) {
+                    if (v.startsWith("(") && v.endsWith(")")) v = v.substring(1, v.length() - 1);
+                    cond = "!= 0".equals(inv) ? v : "!(" + v + ")";
+                } else {
+                    cond = v + " " + inv;
+                }
             } else {
                 String b = st.pop();
                 String a = st.pop();
@@ -427,9 +639,23 @@ import java.util.Set;
     static String testExpr(java.util.List<BytecodeReader.Insn> seq, BytecodeFrame frame,
                            int arity, String inv, String[] cp) {
         java.util.Deque<String> st = new java.util.ArrayDeque<>();
+        for (BytecodeReader.Insn in : seq) {
+            int sop = in.opcode();
+            if (sop >= 0x36 && sop <= 0x4e) return null;   // stores = statements
+        }
         if (!evalInto(seq, frame, cp, st)) return null;
         if (st.size() != arity) return null;
-        if (arity == 1) return st.pop() + " " + inv;
+        if (arity == 1) {
+            String v = st.pop();
+            // Fase E (14/10): instanceof como condição — o inv `!= 0` sobre
+            // Bool é ruído (espelho do testSplit; medido no describe)
+            int lop = seq.get(seq.size() - 1).opcode();
+            if (lop == 0xc1) {
+                if (v.startsWith("(") && v.endsWith(")")) v = v.substring(1, v.length() - 1);
+                return "!= 0".equals(inv) ? v : "!(" + v + ")";
+            }
+            return v + " " + inv;
+        }
         String b = st.pop();
         String a = st.pop();
         return a + " " + inv + " " + b;
@@ -455,154 +681,10 @@ import java.util.Set;
      */
     static boolean evalInto(java.util.List<BytecodeReader.Insn> seq, BytecodeFrame frame,
                             String[] cp, java.util.Deque<String> st) {
-        for (BytecodeReader.Insn in : seq) {
-            int op = in.opcode();
-            switch (op) {
-                case 0x01 -> st.push("null");
-                case 0x02 -> st.push("-1");
-                case 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 -> st.push(String.valueOf(op - 0x03));
-                case 0x09 -> st.push("0L");
-                case 0x0a -> st.push("1L");
-                case 0x0e -> st.push("0.0");
-                case 0x0f -> st.push("1.0");
-                case 0x10 -> st.push(String.valueOf((byte) in.operands()[0]));
-                case 0x11 -> st.push(String.valueOf((short) in.operands()[0]));
-                case 0x12, 0x13 -> {
-                    String c = BytecodeCp.ldc(cp, in.operands()[0]);
-                    if (c == null) return false;
-                    st.push(c);
-                }
-                case 0x14 -> {
-                    String c = BytecodeCp.ldc2(cp, in.operands()[0]);
-                    if (c == null) return false;
-                    st.push(c);
-                }
-                case 0x1a, 0x1b, 0x1c, 0x1d -> st.push(slotName(op - 0x1a, frame));
-                case 0x1e, 0x1f, 0x20, 0x21 -> st.push(slotName(op - 0x1e, frame));
-                case 0x26, 0x27, 0x28, 0x29 -> st.push(slotName(op - 0x26, frame));
-                case 0x2a, 0x2b, 0x2c, 0x2d -> st.push(slotName(op - 0x2a, frame));
-                case 0x15, 0x19 -> st.push(slotName(in.operands()[0], frame));
-                case 0x16, 0x17, 0x18 -> st.push(slotName(in.operands()[0], frame));
-                case 0xbe -> {                                 // arraylength
-                    if (st.isEmpty()) return false;
-                    st.push(st.pop() + ".length");
-                }
-                // binárias (+ %): ABERTAS desde 14/10 — o contFor do join do
-                // `continue` emite `if (cond) { } else { body }` + o
-                // incremento comum, e o ZERO-DRIFT foi provado contra o
-                // ORÁCULO JAVA REAL (n=0..20 idênticos). A lista de oráculo
-                // antiga da face de guarda (`0 0 1 3 3 7 12`) estava
-                // matematicamente errada para esse corpo — foi ela, não o
-                // join, que fechava esta porta.
-                case 0x70 -> { if (!bin2(st, "%")) return false; }
-                case 0x78, 0x79 -> { if (!bin2(st, "<<")) return false; }
-                case 0x7a, 0x7b -> { if (!bin2(st, ">>")) return false; }
-                case 0x7c, 0x7d -> { if (!bin2(st, ">>>")) return false; }
-                case 0x60 -> { if (!bin2(st, "+")) return false; }
-                case 0x64 -> { if (!bin2(st, "-")) return false; }
-                case 0x68 -> { if (!bin2(st, "*")) return false; }
-                case 0x6c -> { if (!bin2(st, "/")) return false; }
-                // Fase C (13/10): CHAMADAS em condição (`s.isEmpty()`) — o
-                // MESMO gate R6 do emitLinear (JDK-owner recusa; método em
-                // objeto novo recusa; void em condição não existe).
-                case 0xb6, 0xb9 -> {                           // invokevirtual/interface
-                    String[] m = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
-                    if (m == null) return false;
-                    String a = BytecodeCp.callArgs(st, BytecodeCp.argCount(m[2]));
-                    if (a == null || st.isEmpty()) return false;
-                    String recv = st.pop();
-                    String mapped = BytecodeStdlib.virtual(recv, m[0], m[1], a);
-                    String NEW = new String(new char[]{'\u27e6', 'n', 'e', 'w', '\u27e7'});
-                    if (mapped == null && recv.startsWith(NEW)) return false;
-                    st.push(mapped != null ? mapped : recv + "." + m[1] + "(" + a + ")");
-                }
-                case 0xb8 -> {                                 // invokestatic
-                    String[] m = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
-                    if (m == null) return false;
-                    String a = BytecodeCp.callArgs(st, BytecodeCp.argCount(m[2]));
-                    if (a == null) return false;
-                    String mapped = BytecodeStdlib.statics(m[0], m[1], a, m[2]);
-                    if (mapped == null && BytecodeCp.isJdkOwner(m[0])) return false;
-                    st.push(mapped != null ? mapped : BytecodeCp.simpleOwner(m[0]) + "." + m[1] + "(" + a + ")");
-                }
-                case 0xb2 -> {                                 // getstatic
-                    String[] f = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
-                    if (f == null) return false;
-                    st.push(BytecodeCp.simpleOwner(f[0]) + "." + f[1]);
-                }
-                case 0xb4 -> {                                 // getfield
-                    String[] f = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
-                    if (f == null || st.isEmpty()) return false;
-                    String obj = st.pop();
-                    st.push(obj + "." + f[1]);
-                }
-                case 0xc0 -> {                                 // checkcast
-                    String ct = BytecodeKofTypes.inlineKofType(cp, in.operands()[0]);
-                    if (ct == null) {
-                        ct = BytecodeKofTypes.indexKofType(cp, in.operands()[0], frame);
-                        if (ct == null) return false;
-                    }
-                    if (st.isEmpty()) return false;
-                    String v = st.pop();
-                    st.push(ct.equals("Object") ? v : "(" + v + " as " + ct + ")");
-                }
-                default -> { return false; }
-            }
-        }
-        return true;
+        return BytecodeEval.evalInto(seq, frame, cp, st);
     }
 
-    private static boolean bin2(java.util.Deque<String> st, String op) {
-        if (st.size() < 2) return false;
-        String b = st.pop();
-        String a = st.pop();
-        st.push("(" + a + " " + op + " " + b + ")");
-        return true;
-    }
-
-    static String blockReturnExpr(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
-                                          String[] cp, BytecodeFrame frame) {
-        return linearReturn(insnsWithin(b, insns), cp, frame);
-    }
-
-    static String slotName(int slot, BytecodeFrame frame) {
-        return frame.name(slot);
-    }
-
-    static String loadValue(BytecodeReader.Insn in, BytecodeFrame frame) {
-        return switch (in.opcode()) {
-            case 0x1a, 0x1b, 0x1c, 0x1d -> slotName(in.opcode() - 0x1a, frame);
-            case 0x1e, 0x1f, 0x20, 0x21 -> slotName(in.opcode() - 0x1e, frame);
-            case 0x26, 0x27, 0x28, 0x29 -> slotName(in.opcode() - 0x26, frame);
-            case 0x2a, 0x2b, 0x2c, 0x2d -> slotName(in.opcode() - 0x2a, frame);
-            case 0x15, 0x19, 0x16, 0x17, 0x18 -> slotName(in.operands()[0], frame);
-            case 0x03 -> "0";
-            case 0x04 -> "1";
-            case 0x05 -> "2";
-            case 0x06 -> "3";
-            case 0x07 -> "4";
-            case 0x08 -> "5";
-            case 0x02 -> "-1";
-            case 0x01 -> "null";
-            case 0x10 -> String.valueOf((byte) in.operands()[0]);
-            case 0x11 -> String.valueOf((short) in.operands()[0]);   // sipush — 14/09
-            // espelha o machineRun (linha 114 ja tratava 0x11): o loadValue SEM
-            // sipush fazia `if (a == 30000)` (const > bipush-range) stubar em
-            // blockCondition/comparisonReturn = DIVERGENCIA de passada, nao
-            // forma-nova. Seguranca: so e emitido COM o hoist §238 no lugar (sem
-            // ele, o `int r` escapante viraria saida nao-compilavel — o que o
-            // re-medidor Roi3 marcou como pre-requisito).
-            default -> null;
-        };
-    }
-
-    static boolean bin(Deque<String> stack, String op) {
-        if (stack.size() < 2) return false;
-        String b = stack.pop();
-        String a = stack.pop();
-        stack.push("(" + a + " " + op + " " + b + ")");
-        return true;
-    }
+    /** Converte o topo da pilha com o metodo Kof do opcode (0x85-0x90), ou false. */
 
 
     // ── statement-based body (loops / stores / multi-statement) ──────────

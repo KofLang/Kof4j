@@ -17,6 +17,7 @@ final class PortuKofSurfaceState {
 
     private final Map<MethodCallExpr, String> methodAliases = new IdentityHashMap<>();
     private final Map<FieldAccessExpr, String> fieldAliases = new IdentityHashMap<>();
+    private final Map<ExpressionNode, ExpressionNode> lambdaRewrites = new IdentityHashMap<>();
 
     private final Map<ExpressionNode, Type> expressionTypes;
     private final Map<MethodCallExpr, SymbolTable.MethodSymbol> resolvedMethods;
@@ -33,6 +34,12 @@ final class PortuKofSurfaceState {
     void recordMethod(MethodCallExpr mc, String canon) { methodAliases.put(mc, canon); }
 
     void recordField(FieldAccessExpr fa, String canon) { fieldAliases.put(fa, canon); }
+
+    void recordLambdaRewrite(ExpressionNode from, ExpressionNode to) {
+        if (from != to) lambdaRewrites.put(from, to);
+    }
+
+    ExpressionNode lambdaRewrite(ExpressionNode node) { return lambdaRewrites.get(node); }
 
     String methodAlias(MethodCallExpr mc) { return methodAliases.get(mc); }
 

@@ -28,6 +28,24 @@ record Av1ModeTail(Int sbSize, Int cdefBits, Int enableCdef, Int codedLossless,
                    Int deltaQPresent, Int deltaQRes, Int deltaLfPresent,
                    Int deltaLfMulti, Int deltaLfRes, Int numPlanes)
 
+// libaom `av1_allow_palette( allow_sct, sb_type )`: screen-content tools on, the
+// block no larger than 64x64, and — the condition this port was MISSING — at
+// least BLOCK_8X8. Without the lower bound a 4x8/8x4 block reaches
+// `read_palette_mode_info` with `palette_bsize_ctx = num_pels_log2[bs] - 6 == -1`
+// and indexes `PaletteYModeCdf[ ctx ]` at -2 (libaom asserts instead).
+Int av1AllowPalette(Int sct, Int bs) {
+    if (sct == 0) {
+        return 0
+    }
+    if (bs < 3) {
+        return 0
+    }
+    if (av1BlockWidth(bs) > 64 || av1BlockHeight(bs) > 64) {
+        return 0
+    }
+    return 1
+}
+
 // Clip3( low, high, x ).
 Int av1ModeInfoClip3(Int lo, Int hi, Int x) {
     if (x < lo) {
@@ -236,6 +254,7 @@ class Av1ModeInfo {
     List<Int[]> segStore
     List<Int[]> skipStore
     List<Int[]> kfYStore
+    List<Int[]> palColorIndexStore
     List<Int[]> uvStore
     List<Int[]> angleStore
     List<Int[]> filterIntraStore
@@ -282,6 +301,19 @@ class Av1ModeInfo {
             this.segStore.add(this.modes.segmentId(i))
             this.skipStore.add(this.modes.skip(i))
             i = i + 1
+        }
+        // Palette_Color_Index_Cdf rows, kept ADAPTING across the tile: 35 Y rows
+        // then 35 UV rows, each at `size * 5 + ctx`.
+        this.palColorIndexStore = listOf()
+        var pci = 0
+        while (pci < 35) {
+            this.palColorIndexStore.add(this.modes.paletteYColorIndex(pci / 5, pci % 5))
+            pci = pci + 1
+        }
+        pci = 0
+        while (pci < 35) {
+            this.palColorIndexStore.add(this.modes.paletteUvColorIndex(pci / 5, pci % 5))
+            pci = pci + 1
         }
         this.kfYStore = listOf()
         i = 0
@@ -401,6 +433,14 @@ class Av1ModeInfo {
             }
             i = i + 1
         }
+    }
+
+    Int[] palYColorIndexCdf(Int size, Int ctx) {
+        return this.palColorIndexStore.get(size * 5 + ctx)
+    }
+
+    Int[] palUvColorIndexCdf(Int size, Int ctx) {
+        return this.palColorIndexStore.get(35 + size * 5 + ctx)
     }
 
     Int palSizeYAt(Int r, Int c) {
@@ -671,7 +711,7 @@ class Av1ModeInfo {
         // palette_mode_info( ) (§5.11.8), between uv_mode and
         // filter_intra_mode_info. Only a DC_PRED luma/uv mode can start a
         // palette; the guard is the caller's `palettePossible`.
-        if (palettePossible == 1) {
+        if (av1AllowPalette(palettePossible, bs) == 1) {
             if (yMode == 0) {
                 this.readPaletteY(r, c, bs, bitDepth)
             }

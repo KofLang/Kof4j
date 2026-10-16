@@ -8,6 +8,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -38,6 +39,11 @@ class KofGcE2ETest {
     private final CompilerDriver driver = new CompilerDriver();
 
     private void runNative(Path tempDir, String kof, String expected) throws IOException {
+        runNative(tempDir, kof, expected, 60);
+    }
+
+    private void runNative(
+            Path tempDir, String kof, String expected, long timeoutSeconds) throws IOException {
         Path src = tempDir.resolve("Main.kf");
         Files.writeString(src, kof);
         Path outDir = tempDir.resolve("out");
@@ -46,12 +52,20 @@ class KofGcE2ETest {
         Path bin = outDir.resolve("Default/Main");
         try {
             Process p = new ProcessBuilder(bin.toString()).redirectErrorStream(true).start();
-            String out = new String(p.getInputStream().readAllBytes(),
-                    java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
-            int ec = p.waitFor();
-            assertEquals(0, ec, "exit, output: " + out);
+            boolean done = p.waitFor(timeoutSeconds, TimeUnit.SECONDS);
+            String out = done
+                    ? new String(p.getInputStream().readAllBytes(),
+                            java.nio.charset.StandardCharsets.UTF_8)
+                            .replace("\r\n", "\n").trim()
+                    : "";
+            if (!done) {
+                p.destroyForcibly();
+            }
+            assertTrue(done, "native process timed out after " + timeoutSeconds + "s");
+            assertEquals(0, p.exitValue(), "exit, output: " + out);
             assertEquals(expected, out, "output");
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new IOException(e);
         }
     }
@@ -164,6 +178,45 @@ class KofGcE2ETest {
                     println(sum)
                 }
                 """, "1249975000");
+    }
+
+    @Test
+    @Timeout(20)
+    void gcTerminatesOnCyclicGraph(@TempDir Path tempDir) throws IOException {
+        runNative(tempDir, """
+                class Node {
+                    Int value
+                    Node? next
+
+                    constructor(Int value) {
+                        this.value = value
+                    }
+
+                    void link(Node? nextNode) {
+                        this.next = nextNode
+                    }
+
+                    Int nextValue() {
+                        if (next == null) { return -1 }
+                        return next.value
+                    }
+                }
+
+                main() {
+                    var root = new Node(7)
+                    var peer = new Node(11)
+                    root.link(peer)
+                    peer.link(root)
+                    var i = 0
+                    while (i < 200000) {
+                        var junk = "cycle-" + i
+                        i = i + 1
+                    }
+                    println(root.value)
+                    println(root.nextValue())
+                    println(peer.nextValue())
+                }
+                """, "7\n11\n7", 10);
     }
 
     @Test

@@ -1,0 +1,57 @@
+package cobol
+
+import cobol.Ast
+
+// kof.cobol.advanced — the COBOL→Kof translator, PHASE 13 MVP (plan §30):
+// the ADVANCED-CONSTRUCT DETECTOR — the honest boundary. ALTER / GO TO /
+// PERFORM THRU / SET ADDRESS are exactly what the anti-transliteration rule
+// (§1) refuses to translate: each use is NAMED (construct + paragraph +
+// detail) so the migration decision is informed. The generator already
+// refuses them in the output (CB010) — this detector is the INVENTORY of
+// what a migration must rewrite by hand.
+
+record AdvUse(String construct, String paragraph, String detail)
+
+// advancedScan — the paragraphs → the advanced constructs found, in order.
+List<AdvUse> advancedScan(List<Paragraph> paras) {
+    var out: List<AdvUse> = listOf()
+    var p = 0
+    while (p < paras.size) {
+        var para = paras.get(p)
+        var s = 0
+        while (s < para.sentences.size) {
+            var toks = para.sentences.get(s).tokens
+            var k = 0
+            while (k < toks.size) {
+                var t = toks.get(k)
+                if (t.kind != "WORD") {
+                    k = k + 1
+                    continue
+                }
+                var up = t.text.toUpperCase()
+                if (up == "GO" && k + 1 < toks.size
+                        && toks.get(k + 1).text.toUpperCase() == "TO") {
+                    var target = ""
+                    if (k + 2 < toks.size && toks.get(k + 2).kind == "WORD") {
+                        target = toks.get(k + 2).text
+                    }
+                    out.add(AdvUse("GO TO", para.name, target))
+                } else if (up == "ALTER") {
+                    out.add(AdvUse("ALTER", para.name, "the ALTER verb"))
+                } else if (up == "PERFORM" && k + 2 < toks.size) {
+                    var nxt = toks.get(k + 2).text.toUpperCase()
+                    if (nxt == "THRU" || nxt == "THROUGH") {
+                        out.add(AdvUse("PERFORM THRU", para.name, "range perform"))
+                    }
+                } else if (up == "SET" && k + 1 < toks.size
+                        && toks.get(k + 1).text.toUpperCase() == "ADDRESS") {
+                    out.add(AdvUse("SET ADDRESS", para.name, "pointer addressing"))
+                }
+                k = k + 1
+            }
+            s = s + 1
+        }
+        p = p + 1
+    }
+    return out
+}

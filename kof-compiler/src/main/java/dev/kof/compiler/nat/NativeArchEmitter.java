@@ -208,6 +208,9 @@ final class NativeArchEmitter {
         Files.createDirectories(asmFile.getParent());
         if (nb.debugInfo) nb.kofDwarf.emit(sb, nb.sourceFile);
         String prunedRiscv = pruneRiscvRuntime(sb, rtStart, rtEnd, "riscv64");
+        // §7 RISC-V "lower-cost instruction selection": collapse the stack machine's
+        // push+pop triples (addi sp,sp,-8 / sd X,0(sp) / pop Y == mv Y, X).
+        prunedRiscv = applyRiscvPeephole(prunedRiscv);
         Files.writeString(asmFile, prunedRiscv);
         System.err.println("NativeBackend: generated riscv64 " + asmFile);
 
@@ -422,11 +425,17 @@ final class NativeArchEmitter {
         // traduz linha-a-linha (runtime já podado — a poda no riscv vale p/ os 2)
         if (nb.debugInfo) nb.kofDwarf.emit(riscvSb, nb.sourceFile);
         String prunedRiscv = pruneRiscvRuntime(riscvSb, rtStart, rtEnd, "aarch64");
-        StringBuilder sb = new StringBuilder();
+        prunedRiscv = applyRiscvPeephole(prunedRiscv);
+        List<String> a64Lines = new ArrayList<>();
         for (String line : prunedRiscv.split("\n", -1)) {
-            List<String> tr = NativeAarch64Translator.translateRiscvToAarch64(line);
-            for (String t : tr) sb.append(t).append("\n");
+            a64Lines.addAll(NativeAarch64Translator.translateRiscvToAarch64(line));
         }
+        // §7 AArch64 "lower-cost instruction selection": collapse the riscv stack
+        // machine's push+pop pairs (sub sp,sp,#8 / str X,[sp] / pop Y == Y = X).
+        NativeAarch64Peephole.collapsePushPopPairs(a64Lines);
+        NativeAarch64Peephole.dropSelfMoves(a64Lines);
+        StringBuilder sb = new StringBuilder();
+        for (String t : a64Lines) sb.append(t).append("\n");
         String className = module.classes().isEmpty() ? "Default/Main" : module.classes().getFirst().name();
         Path asmFile = outputDir.resolve(className + ".s");
         Path binFile = outputDir.resolve(className);
@@ -476,6 +485,15 @@ final class NativeArchEmitter {
      *  pré-S-4, zero regressão). Mapa falho → runtime COMPLETO + stderr
      *  (R6: nunca link quebrado silencioso). aarch64: o chamador poda o
      *  riscvSb ANTES do tradutor — aarch herda a poda linha-a-linha. */
+    /** Applies the riscv text peephole; identity when nothing folds. */
+    private static String applyRiscvPeephole(String asm) {
+        List<String> lines = new ArrayList<>(java.util.Arrays.asList(asm.split("\n", -1)));
+        int folded = NativeRiscvPeephole.collapsePushPopPairs(lines);
+        folded += NativeRiscvPeephole.dropSelfMoves(lines);
+        if (folded == 0) return asm;
+        return String.join("\n", lines);
+    }
+
     static String pruneRiscvRuntime(StringBuilder sb, int rtStart, int rtEnd, String arch) {
         String all = sb.toString();
         try {

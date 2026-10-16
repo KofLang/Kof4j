@@ -149,6 +149,69 @@ if (mc.receiver() == null && "Table".equals(mc.methodName()) && mc.arguments().s
             Type.PrimitiveType.INT, KofCallKind.FUNCTION));
     return localIdx;
 }
+if (mc.receiver() == null && ("Column".equals(mc.methodName()) || "Row".equals(mc.methodName()))
+        && mc.arguments().isEmpty()) {
+    ops.add(new KofCall(BuiltinTypes.LIST, "kof_list_new", List.of(), BuiltinTypes.LIST, KofCallKind.FUNCTION));
+    String fn = "Column".equals(mc.methodName()) ? "kof_ui_column_new" : "kof_ui_row_new";
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            fn, List.of(new Type.ClassType("kof", "List", List.of(Type.PrimitiveType.INT))),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
+// ── #873: Form/Fieldset/View/Input/Style/Select/Ul/Ol/Table 0-arg — antes
+// emitiam o global nu (`let f = Form()`), ReferenceError na primeira linha.
+// Defaults honestos que os runtimes já tratam: listas vazias, "" e 0
+// (applyStyle ignora id ausente, style 0s é entrada inerte).
+if (mc.receiver() == null && mc.arguments().isEmpty()) {
+    Type ui = new Type.ClassType("kof.ui", "Ui", List.of());
+    Type listInt = new Type.ClassType("kof", "List", List.of(Type.PrimitiveType.INT));
+    Type listStr = new Type.ClassType("kof", "List", List.of(BuiltinTypes.STRING));
+    switch (mc.methodName()) {
+        case "Form", "Fieldset" -> {
+            ops.add(new KofCall(BuiltinTypes.LIST, "kof_list_new", List.of(), BuiltinTypes.LIST, KofCallKind.FUNCTION));
+            String fn = "Form".equals(mc.methodName()) ? "kof_ui_form_new" : "kof_ui_fieldset_new";
+            ops.add(new KofCall(ui, fn, List.of(listInt), Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+            return localIdx;
+        }
+        case "View" -> {
+            ops.add(KofLoadLiteral.ofInt(0));
+            ops.add(new KofCall(ui, "kof_ui_view_new", List.of(Type.PrimitiveType.INT),
+                    Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+            return localIdx;
+        }
+        case "Input" -> {
+            ops.add(KofLoadLiteral.ofString(""));
+            ops.add(new KofCall(ui, "kof_ui_input_new", List.of(BuiltinTypes.STRING),
+                    Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+            return localIdx;
+        }
+        case "Style" -> {
+            for (int i = 0; i < 4; i++) ops.add(KofLoadLiteral.ofInt(0));
+            ops.add(new KofCall(ui, "kof_ui_style_new", List.of(Type.PrimitiveType.INT, Type.PrimitiveType.INT,
+                    Type.PrimitiveType.INT, Type.PrimitiveType.INT),
+                    Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+            return localIdx;
+        }
+        case "Select", "Ul", "Ol" -> {
+            ops.add(new KofCall(BuiltinTypes.LIST, "kof_list_new", List.of(), BuiltinTypes.LIST, KofCallKind.FUNCTION));
+            String fn = "Select".equals(mc.methodName()) ? "kof_ui_select_new"
+                    : "Ul".equals(mc.methodName()) ? "kof_ui_ul_new" : "kof_ui_ol_new";
+            ops.add(new KofCall(ui, fn, List.of(listStr), Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+            return localIdx;
+        }
+        case "Table" -> {
+            ops.add(new KofCall(BuiltinTypes.LIST, "kof_list_new", List.of(), BuiltinTypes.LIST, KofCallKind.FUNCTION));
+            ops.add(new KofCall(BuiltinTypes.LIST, "kof_list_new", List.of(), BuiltinTypes.LIST, KofCallKind.FUNCTION));
+            Type listListStr = new Type.ClassType("kof", "List",
+                    List.of(new Type.ClassType("kof", "List", List.of(BuiltinTypes.STRING))));
+            ops.add(new KofCall(ui, "kof_ui_table_new", List.of(listStr, listListStr),
+                    Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+            return localIdx;
+        }
+        default -> {
+        }
+    }
+}
 if (mc.receiver() == null && ("Column".equals(mc.methodName()) || "Row".equals(mc.methodName())
         || "Form".equals(mc.methodName()) || "Fieldset".equals(mc.methodName()))
         && mc.arguments().size() == 1) {
@@ -219,6 +282,67 @@ if (mc.receiver() == null && "Hr".equals(mc.methodName()) && mc.arguments().size
     return localIdx;
 }
 // ── Fase 4: primitivas de layout (docs/ui/architecture.md §2.8)
+if (mc.receiver() == null && "Box".equals(mc.methodName())
+        && mc.arguments().isEmpty()) {
+    ops.add(new KofCall(BuiltinTypes.LIST, "kof_list_new", List.of(), BuiltinTypes.LIST, KofCallKind.FUNCTION));
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_box_new", List.of(new Type.ClassType("kof", "List", List.of(Type.PrimitiveType.INT))),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
+if (mc.receiver() == null && "Stack".equals(mc.methodName())
+        && mc.arguments().isEmpty()) {
+    ops.add(new KofCall(BuiltinTypes.LIST, "kof_list_new", List.of(), BuiltinTypes.LIST, KofCallKind.FUNCTION));
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_stack_new", List.of(new Type.ClassType("kof", "List", List.of(Type.PrimitiveType.INT))),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
+if (mc.receiver() == null && "Center".equals(mc.methodName())
+        && mc.arguments().isEmpty()) {
+    ops.add(new KofCall(BuiltinTypes.LIST, "kof_list_new", List.of(), BuiltinTypes.LIST, KofCallKind.FUNCTION));
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_center_new", List.of(new Type.ClassType("kof", "List", List.of(Type.PrimitiveType.INT))),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
+if (mc.receiver() == null && "Align".equals(mc.methodName())
+        && mc.arguments().isEmpty()) {
+    ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
+    ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
+    ops.add(new KofCall(BuiltinTypes.LIST, "kof_list_new", List.of(), BuiltinTypes.LIST, KofCallKind.FUNCTION));
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_align_new", List.of(Type.PrimitiveType.INT, Type.PrimitiveType.INT,
+            new Type.ClassType("kof", "List", List.of(Type.PrimitiveType.INT))),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
+if (mc.receiver() == null && "Scroll".equals(mc.methodName())
+        && mc.arguments().isEmpty()) {
+    ops.add(new KofCall(BuiltinTypes.LIST, "kof_list_new", List.of(), BuiltinTypes.LIST, KofCallKind.FUNCTION));
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_scroll_new", List.of(new Type.ClassType("kof", "List", List.of(Type.PrimitiveType.INT))),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
+if (mc.receiver() == null && "Wrap".equals(mc.methodName())
+        && mc.arguments().isEmpty()) {
+    ops.add(new KofCall(BuiltinTypes.LIST, "kof_list_new", List.of(), BuiltinTypes.LIST, KofCallKind.FUNCTION));
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_wrap_new", List.of(new Type.ClassType("kof", "List", List.of(Type.PrimitiveType.INT))),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
+if (mc.receiver() == null && "Grid".equals(mc.methodName())
+        && mc.arguments().isEmpty()) {
+    ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
+    ops.add(new KofCall(BuiltinTypes.LIST, "kof_list_new", List.of(), BuiltinTypes.LIST, KofCallKind.FUNCTION));
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_grid_new", List.of(Type.PrimitiveType.INT,
+            new Type.ClassType("kof", "List", List.of(Type.PrimitiveType.INT))),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
 if (mc.receiver() == null && ("Box".equals(mc.methodName())
         || "Stack".equals(mc.methodName()) || "Wrap".equals(mc.methodName())
         || "Center".equals(mc.methodName()) || "Scroll".equals(mc.methodName()))
@@ -242,6 +366,13 @@ if (mc.receiver() == null && "Grid".equals(mc.methodName()) && mc.arguments().si
     ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
             "kof_ui_grid_new", List.of(Type.PrimitiveType.INT,
             new Type.ClassType("kof", "List", List.of(Type.PrimitiveType.INT))),
+            Type.PrimitiveType.INT, KofCallKind.FUNCTION));
+    return localIdx;
+}
+if (mc.receiver() == null && "Spacer".equals(mc.methodName()) && mc.arguments().isEmpty()) {
+    ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
+    ops.add(new KofCall(new Type.ClassType("kof.ui", "Ui", List.of()),
+            "kof_ui_spacer_new", List.of(Type.PrimitiveType.INT),
             Type.PrimitiveType.INT, KofCallKind.FUNCTION));
     return localIdx;
 }

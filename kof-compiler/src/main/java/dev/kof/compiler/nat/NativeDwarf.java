@@ -74,6 +74,26 @@ final class NativeDwarf {
         return -(index + 1) * 8;
     }
 
+    /** The DWARF type kind for a Kof type (a scalar kind, or {@code Opaque} for
+     *  String/classes/arrays — an 8-byte handle without a DW_TAG_structure for now). */
+    static String dwarfKindOf(dev.kof.compiler.Type t) {
+        if (t instanceof dev.kof.compiler.Type.PrimitiveType pt) {
+            return switch (dev.kof.compiler.Type.canonicalPrimitiveName(pt.name())) {
+                case "int" -> "Int";
+                case "long" -> "Long";
+                case "short" -> "Short";
+                case "byte" -> "Byte";
+                case "float" -> "Float";
+                case "double" -> "Double";
+                case "bool", "boolean" -> "Bool";
+                case "char" -> "Char";
+                case "void" -> "Void";
+                default -> "Opaque";
+            };
+        }
+        return "Opaque";
+    }
+
     void add(String label, String kofName, int declLine, String retKind,
              List<Local> params, List<Local> locals) {
         fns.add(new Fn(label, kofName, declLine, retKind, params, locals));

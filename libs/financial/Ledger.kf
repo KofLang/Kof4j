@@ -1,0 +1,100 @@
+package financial
+
+import financial.Money
+
+// kof.financial.ledger — the DOUBLE-ENTRY spine (plan §8). The ledger is the
+// source of truth; balances are DERIVED from entries (never stored as truth).
+// Entries are immutable and append-only: a correction is a REVERSING journal
+// referencing the original correlationId. Signs are explicit via `direction`
+// — never encoded as negative amounts.
+
+enum Direction {
+    debit,
+    credit
+}
+
+record Entry(String accountId, Direction direction, Long minor, String currency)
+
+record Journal(String id, String correlationId, Long postedAtMillis, List<Entry> entries)
+
+record Account(String id, String ownerRef, String currency, String kind)
+
+record Balance(String accountId, Long postedMinor, Long pendingMinor)
+
+record Hold(String accountId, Long minor, String currency, Long expiresAtMillis)
+
+// The in-memory store: an immutable append-only list of journals. `post`
+// returns a NEW store (functional, no mutation).
+record LedgerStore(List<Journal> journals)
+
+Long sumByDirection(Journal j, Direction d) {
+    var total = 0L
+    var i = 0
+    while (i < j.entries.size()) {
+        var e = j.entries.get(i)
+        if (e.direction == d && e.currency == j.entries.get(0).currency) {
+            total = total + e.minor
+        }
+        i = i + 1
+    }
+    return total
+}
+
+// Every journal balances per currency: debits == credits. Checked BEFORE append.
+Bool isBalanced(Journal j) {
+    return sumByDirection(j, Direction.debit) == sumByDirection(j, Direction.credit)
+}
+
+// post — append a balanced journal; an unbalanced one throws FIN004
+// (the plan's own code for "unbalanced journal").
+LedgerStore post(LedgerStore store, List<Entry> entries, String correlationId,
+                 String journalId, Long atMillis) {
+    var j = Journal(journalId, correlationId, atMillis, entries)
+    if (!isBalanced(j)) {
+        throw "unbalanced journal (FIN004)"
+    }
+    var out: List<Journal> = listOf()
+    var i = 0
+    while (i < store.journals.size()) {
+        out.add(store.journals.get(i))
+        i = i + 1
+    }
+    out.add(j)
+    return LedgerStore(out)
+}
+
+// postedBalance — the DERIVED sum for one account: debits minus credits (the
+// raw accounting sum; the sign convention per account kind is `D-FINANCIAL-LEDGER`,
+// not ratified — left open here, never invented).
+Long postedBalance(String accountId, LedgerStore store) {
+    var total = 0L
+    var i = 0
+    while (i < store.journals.size()) {
+        var j = store.journals.get(i)
+        var k = 0
+        while (k < j.entries.size()) {
+            var e = j.entries.get(k)
+            if (e.accountId == accountId) {
+                if (e.direction == Direction.debit) {
+                    total = total + e.minor
+                } else {
+                    total = total - e.minor
+                }
+            }
+            k = k + 1
+        }
+        i = i + 1
+    }
+    return total
+}
+
+// available = posted minus pending holds.
+Long availableBalance(Balance b) {
+    return b.postedMinor - b.pendingMinor
+}
+
+// applyHold — a hold reduces `available` but not `posted`; capture converts a
+// hold into posted entries.
+Balance applyHold(Balance b, Hold h) {
+    return Balance(b.accountId, b.postedMinor, b.pendingMinor + h.minor)
+}

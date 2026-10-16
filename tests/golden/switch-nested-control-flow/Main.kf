@@ -1,0 +1,61 @@
+main() {
+    var n = 42
+    switch (n) {
+        case 1:
+            println("one")
+        case 42:
+            if (n > 40) { println("big") }
+            println("ans")
+        default:
+            println("other")
+    }
+    var m = 2
+    switch (m) {
+        case 2:
+            for (var i in listOf(0, 1, 2)) { println("i=" + i) }
+        default:
+            println("d")
+    }
+    var a = 1
+    switch (a) {
+        case 1:
+            var b = 5
+            switch (b) {
+                case 5:
+                    println("inner5")
+                default:
+                    println("innerD")
+            }
+            println("outer1")
+        default:
+            println("outerD")
+    }
+    var k = 1
+    switch (k) {
+        case 1:
+            for (var q in listOf(0, 1, 2, 3)) {
+                if (q == 2) { break }
+                println("q=" + q)
+            }
+            println("afterloop")
+        default:
+            println("dk")
+    }
+    var t = 1
+    switch (t) {
+        case 1:
+            try { throw "boom" } catch (String e) { println("caught=" + e) }
+            println("aftertry")
+        default:
+            println("dt")
+    }
+    var s = "b"
+    switch (s) {
+        case "a":
+            println("isA")
+        case "b":
+            println("isB")
+        default:
+            println("isD")
+    }
+}

@@ -44,13 +44,14 @@ public final class JsMethodParser {
         for (int slot : parameterSlots(ctx)) {
             ctx.declared.add(slot);
         }
-        int[] pos = {0};
-        List<JsIr.JsStatement> body = flow.parseStatements(ctx, pos, Set.of(), new ArrayList<>());
-        if (pos[0] < ctx.ops.size()) {
-            throw new IllegalStateException("KofJS: unconsumed ops in method "
-                    + ctx.kofClassName + "." + (ctx.methodName == null ? "?" : ctx.methodName)
-                    + " at " + ctx.ops.get(pos[0]));
-        }
+        // §708: pré-declara TODOS os locais do método ANTES de parsear o corpo.
+        // O `storeLocalStatement` emite `let x = v` no PRIMEIRO store de cada
+        // slot; quando esse primeiro store está DENTRO de um ramo (o store do
+        // topo foi removido pelo otimizador — dead-store/propagação), o `let`
+        // caía no escopo do ramo e o nome ficava invisível fora dele
+        // (`ReferenceError`). Declarando tudo no topo, todo store vira
+        // ATRIBUIÇÃO e a declaração fica no escopo do método — robusto a IR
+        // otimizado (a direção que o bloqueio da §3 O2 do assembly-opt nomeia).
         List<JsIr.JsStatement> predecl = new ArrayList<>();
         int paramStart = ctx.instanceMethod ? 1 : 0;
         int paramEnd = paramStart + ctx.paramCount
@@ -66,9 +67,16 @@ public final class JsMethodParser {
         for (int slot : ctx.localNames.keySet()) {
             if (slot < paramEnd) continue;
             String name = ctx.localNames.get(slot);
-            if (name != null && ctx.declared.add(slot)) {
+            if (name != null && !name.startsWith("#") && ctx.declared.add(slot)) {
                 predecl.add(new JsIr.JsVarDecl(name, null, false));
             }
+        }
+        int[] pos = {0};
+        List<JsIr.JsStatement> body = flow.parseStatements(ctx, pos, Set.of(), new ArrayList<>());
+        if (pos[0] < ctx.ops.size()) {
+            throw new IllegalStateException("KofJS: unconsumed ops in method "
+                    + ctx.kofClassName + "." + (ctx.methodName == null ? "?" : ctx.methodName)
+                    + " at " + ctx.ops.get(pos[0]));
         }
         if (!predecl.isEmpty() || !ctx.tempDecls.isEmpty()) {
             List<JsIr.JsStatement> withTemps = new ArrayList<>();
@@ -114,6 +122,14 @@ public final class JsMethodParser {
             // E método de classe — o JS não tem overload; classe não-sobre-
             // carregada mantém o nome cru, zero churn no structural dispatch).
             name = this.lc.jsFunctionName(name, method.parameterTypes(), method.parameterTypes().size());
+        }
+        // §722: um método cujo nome é uma PALAVRA RESERVADA do JS (`of`,
+        // `class`, `delete`, ...) é DEFINIDO com o nome cru mas CHAMADO com o
+        // `sanitizeName` do call site (→ `_of`), então o método não existe
+        // (`TypeError: f._of is not a function`). A definição passa pelo MESMO
+        // sanitize do call site. `<init>`/`constructor` ficam intactos.
+        if (!"<init>".equals(method.name()) && !"constructor".equals(name)) {
+            name = JsTypeMapper.sanitizeName(name);
         }
         return new JsIr.JsFunction(name, parameterNames(ctx), parseMethodBody(ctx), isStatic, false, isTopLevel,
                 ctx.isAsync, firstKofLine(method));

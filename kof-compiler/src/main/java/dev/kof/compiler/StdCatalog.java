@@ -112,6 +112,7 @@ public final class StdCatalog {
                     Map.entry("diffDays", List.of("diffDays(String isoA, String isoB) -> Int")),
                     Map.entry("todayIso", List.of("todayIso() -> String")),
                     Map.entry("formatDateIso", List.of("formatDateIso(Int y, Int m, Int d) -> String")),
+                    Map.entry("formatInstantIso", List.of("formatInstantIso(Long millis) -> String")),
                     Map.entry("parseDateIso", List.of("parseDateIso(String iso) -> Int")),
                     Map.entry("tzOffsetSeconds", List.of("tzOffsetSeconds() -> Int")),
                     Map.entry("hoursBetween", List.of("hoursBetween(Int y1, Int m1, Int d1, Int h1, Int y2, Int m2, Int d2, Int h2) -> Int")))),

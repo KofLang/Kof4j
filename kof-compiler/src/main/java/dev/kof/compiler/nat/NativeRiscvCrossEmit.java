@@ -335,7 +335,15 @@ public final class NativeRiscvCrossEmit {
                 sb.append("    addi sp, sp, 16\n");
                 sb.append("    ret\n");
             }
-            default -> sb.append("    # NATIVE002: op fora do caminho feliz riscv64: ").append(op.getClass().getSimpleName()).append("\n");
+            default -> {
+                // Q7 (no silent fallback): an op NOT in NativeOpSupport.RISCV64_CROSS
+                // must REFUSE (diagnosed NATIVE002 by CompilerPipeline), never emit a
+                // bare comment — a comment would leave the compile "succeeding" with a
+                // wrong binary. The cross declaration and this switch are guarded to
+                // match by NativeOpSupportTest.
+                throw new IllegalStateException("NATIVE002: op fora do caminho feliz riscv64: "
+                        + op.getClass().getSimpleName());
+            }
         }
     }
 

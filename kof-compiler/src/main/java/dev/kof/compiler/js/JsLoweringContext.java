@@ -1,6 +1,7 @@
 package dev.kof.compiler.js;
 import dev.kof.compiler.AccessFlags;
 import dev.kof.compiler.IRClass;
+import dev.kof.compiler.IRField;
 import dev.kof.compiler.IRMethod;
 import dev.kof.compiler.KofCall;
 import dev.kof.compiler.KofOperation;
@@ -118,7 +119,23 @@ public class JsLoweringContext {
         // Interfaces are type-level only in Kof; JavaScript has no runtime
         // interface. Calls through interfaces lower to structural method
         // calls (receiver.method(...)), so no JS entity is required.
-        return (clazz.accessFlags() & AccessFlags.INTERFACE) != 0;
+        // §724: EXCEPT when the interface has a STATIC member — a static call
+        // `Shape.sides()` names the interface, so it must be a real JS entity
+        // (otherwise `ReferenceError: Shape is not defined`). A pure-abstract
+        // interface (no static) still needs no JS entity.
+        if ((clazz.accessFlags() & AccessFlags.INTERFACE) != 0) return !hasStaticMember(clazz);
+        return false;
+    }
+
+    /** §724: a interface tem método ou campo STATIC? Então precisa de entidade JS. */
+    private static boolean hasStaticMember(IRClass clazz) {
+        for (IRMethod m : clazz.methods()) {
+            if ((m.accessFlags() & AccessFlags.STATIC) != 0 && !"<clinit>".equals(m.name())) return true;
+        }
+        for (IRField f : clazz.fields()) {
+            if ((f.accessFlags() & AccessFlags.STATIC) != 0) return true;
+        }
+        return false;
     }
 
     static boolean isMainClass(IRClass clazz) {

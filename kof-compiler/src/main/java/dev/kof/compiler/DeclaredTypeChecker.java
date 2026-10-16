@@ -32,6 +32,7 @@ final class DeclaredTypeChecker {
             switch (decl) {
                 case FunctionDeclarationNode f -> {
                     Set<String> tps = new HashSet<>(TypeParams.names(f.typeParameters())); // §355: nome limpo
+                    checkBounds(dc, sa, f.typeParameters(), "function '" + f.name() + "'");
                     report(dc, sa, f.returnType(), tps,
                             "return type of function '" + f.name() + "'");
                     for (FormalParameterNode p : f.parameters()) {
@@ -40,10 +41,12 @@ final class DeclaredTypeChecker {
                     }
                 }
                 case ClassDeclarationNode c -> {
+                    checkBounds(dc, sa, c.typeParameters(), "class '" + c.name() + "'");
                     checkHeritage(sa, dc, c.superClass(), c.interfaces(), c.typeParameters(), c.name());
                     checkMembers(sa, dc, c.typeParameters(), c.members());
                 }
                 case RecordDeclarationNode r -> {
+                    checkBounds(dc, sa, r.typeParameters(), "record '" + r.name() + "'");
                     checkHeritage(sa, dc, r.superClass(), r.interfaces(), r.typeParameters(), r.name());
                     Set<String> tps = new HashSet<>(TypeParams.names(r.typeParameters())); // §355
                     for (RecordComponentNode comp : r.components()) {
@@ -53,6 +56,7 @@ final class DeclaredTypeChecker {
                     checkMembers(sa, dc, r.typeParameters(), r.members());
                 }
                 case InterfaceDeclarationNode i -> {
+                    checkBounds(dc, sa, i.typeParameters(), "interface '" + i.name() + "'");
                     checkHeritage(sa, dc, null, i.interfaces(), i.typeParameters(), i.name());
                     checkMembers(sa, dc, i.typeParameters(), i.members());
                 }
@@ -106,6 +110,32 @@ final class DeclaredTypeChecker {
             return;
         }
         reportCompositeTypeParam(dc, sa, declType, typeParams, where);
+    }
+
+    /**
+     * §716: valida o BOUND de cada type-parameter genérico. O bound vira o
+     * descritor da ERASURE do type-var; um bound inexistente (`T: Foobar`) ou
+     * um não-tipo (`T: Any`) compilava em silêncio e a classe emitida
+     * referenciava uma classe inexistente -> `NoClassDefFoundError` no load do
+     * JVM (R6/Q7: nunca silencioso). Reusa o MESMO predicado dos tipos
+     * declarados (§251/SEM011), isentando os type-params do próprio escopo.
+     */
+    private static void checkBounds(DiagnosticCollector dc, SemanticAnalyzer sa,
+                                    List<String> typeParameters, String where) {
+        if (typeParameters == null || typeParameters.isEmpty()) return;
+        Set<String> names = new HashSet<>(TypeParams.names(typeParameters));
+        for (String entry : typeParameters) {
+            String bound = TypeParams.boundText(entry);
+            if (bound == null || bound.isEmpty()) continue;
+            if (MemberResolver.declaredTypeUnresolved(sa, bound, names)) {
+                dc.error("", 0, 0, 0,
+                        "Undefined variable or type: '" + bound.trim() + "' as the bound of type-parameter '"
+                                + TypeParams.name(entry) + "' in " + where
+                                + " — declare the bound type or fix the name (R6: an undefined bound must"
+                                + " not compile)",
+                        "SEM011");
+            }
+        }
     }
 
     /**

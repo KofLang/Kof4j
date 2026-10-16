@@ -1,0 +1,127 @@
+package cobol
+
+import legacy.Legacy
+import legacy.Copybook
+
+// kof.cobol.datadiv — the COBOL→Kof translator, PHASE 5 MVP (plan §30): the
+// DATA DIVISION of a full program → the Layout + the VALUE initial values.
+// Reuses the copybook machinery (the KofBOL data mapping — never
+// duplicated). Gap code CB008: a VALUE literal that is neither quoted nor a
+// number — refused, never guessed.
+
+// dataSection — the lines between DATA DIVISION and PROCEDURE DIVISION
+// (exclusive on both ends). A program without a DATA DIVISION yields "".
+String dataSection(String text) {
+    var lines = text.split("\n")
+    var start = -1
+    var end = -1
+    var i = 0
+    while (i < lines.length) {
+        var up = lines[i].toUpperCase()
+        if (start < 0 && up.indexOf("DATA DIVISION") >= 0) {
+            start = i
+        } else if (start >= 0 && up.indexOf("PROCEDURE DIVISION") >= 0) {
+            end = i
+            i = lines.length
+        }
+        i = i + 1
+    }
+    if (start < 0) {
+        return ""
+    }
+    var stop = end
+    if (stop < 0) {
+        stop = lines.length
+    }
+    var out = ""
+    i = start + 1
+    while (i < stop) {
+        // the SECTION headers (WORKING-STORAGE SECTION. etc.) are structure,
+        // not data items — the copybook parser has no levels for them.
+        var up = lines[i].toUpperCase()
+        if (up.indexOf("SECTION") < 0 || up.indexOf("DIVISION") >= 0) {
+            out = out + lines[i]
+            if (i < stop - 1) {
+                out = out + "\n"
+            }
+        }
+        i = i + 1
+    }
+    return out
+}
+
+// parseDataDivision — the program text → the Layout of its DATA DIVISION
+// (the copybook machinery over the extracted region). The VALUE clauses on
+// ELEMENTARY items are stripped here: the initialValues pass captures them
+// (the copybook parser refuses VALUE outside the 88-levels by design). The
+// 88-level lines keep their VALUE (it IS their semantics).
+Copybook parseDataDivision(String text) {
+    var lines = dataSection(text).split("\n")
+    var out = ""
+    var i = 0
+    while (i < lines.length) {
+        var line = lines[i]
+        var t = line.trim()
+        if (!(t.startsWith("88 ") || t.startsWith("88.")) && t.indexOf(" VALUE ") >= 0) {
+            var v = line.toUpperCase().indexOf(" VALUE ")
+            if (v >= 0) {
+                line = line.substring(0, v) + "."
+            }
+        }
+        out = out + line
+        if (i < lines.length - 1) {
+            out = out + "\n"
+        }
+        i = i + 1
+    }
+    return parseCopybookFull(out)
+}
+
+record Init(String field, String literal)
+
+// initialValues — the VALUE literals of the elementary items, in order:
+// `05 NAME PIC X(3) VALUE 'ABC'.` → Init("NAME", "ABC"). A literal that is
+// neither quoted nor numeric is refused CB008.
+List<Init> initialValues(String text) {
+    var out: List<Init> = listOf()
+    var lines = dataSection(text).split("\n")
+    var i = 0
+    while (i < lines.length) {
+        var parts = lines[i].trim().split(" ")
+        var toks: List<String> = listOf()
+        var j = 0
+        while (j < parts.length) {
+            if (parts[j].length > 0) {
+                toks.add(parts[j])
+            }
+            j = j + 1
+        }
+        var hasValue = false
+        var k = 0
+        while (k < toks.size) {
+            var w = toks.get(k)
+            while (w.length > 0 && w.charAt(w.length - 1) == '.') {
+                w = w.substring(0, w.length - 1)
+            }
+            if (w == "VALUE") {
+                hasValue = true
+            }
+            k = k + 1
+        }
+        if (hasValue && toks.size >= 4 && toks.get(2) == "PIC") {
+            var lit = toks.get(toks.size - 1)
+            while (lit.length > 0 && lit.charAt(lit.length - 1) == '.') {
+                lit = lit.substring(0, lit.length - 1)
+            }
+            if (lit.length >= 2 && lit.charAt(0) == '\'' && lit.charAt(lit.length - 1) == '\'') {
+                out.add(Init(toks.get(1), lit.substring(1, lit.length - 1)))
+            } else if (allDigits(lit)) {
+                out.add(Init(toks.get(1), lit))
+            } else {
+                throw "VALUE literal is neither quoted nor numeric: " + lit + " (CB008)"
+            }
+        }
+        i = i + 1
+    }
+    return out
+}

@@ -2,7 +2,8 @@
 
 # Known Bugs — handoff para o próximo agente
 
-last: §705
+last: §738 (CATALOGADO)
+last: §731 (FIXED/RETRACTED)
 doing: close-open-rows
 next: triage-new-issues
 location: known-bugs
@@ -1855,7 +1856,7 @@ EXTERNA produzia lixo (JVM correto) — a causa era o prólogo tratando captura 
 |---------|---------------|---------|
 | `l.get(5)` em lista de 3 | `IndexOutOfBoundsException` | bounds check (verificado 27/08) |
 | `json.decode<Int>("abc")` | `NumberFormatException` | parse inválido |
-| `json.decode<Point>("{\"x\":5}")` sem `y` | NPE/IllegalArgumentException | campo ausente — erro pouco claro (gap de mensagem, não bug de semântica) |
+| `json.decode<Point>("{\"x\":5}")` sem `y` | JVM/JS lançam `JSN004`, nativo/Script defaultam o campo a 0 (§733 — 14/10) | campo ausente — erro pouco claro (gap de mensagem, não bug de semântica) |
 | `"abc".toInt()` | `NumberFormatException` | parse inválido |
 | `10 / 0` (variáveis) | `ArithmeticException` runtime | ARITH001 só pega constantes |
 | `"Olá 😀".length` | 6 (JVM UTF-16) | gap `STR001` documentado |
@@ -14672,7 +14673,7 @@ compilava em JVM/Script/nativo x86-64/riscv64/aarch64 (todos devolvendo `11`) ma
 
 <!-- en-switch --> **EN:** [§702 (en)](known-bugs.md#702--a-try-nested-inside-a-try-whose-inner-try-has-a-finally-did-not-compile-on-js-an-internal-compiler-error-comp002-kofjs-unexpected-kofcatchstart-at-statement-level---fixed-1310-found-1310-by-lane-compilerjvmnative-19216815309092-fixed-by-the-same-lane)
 
-## §703 — um `return` dentro de um `try`/`finally` dentro de um LOOP emite JS ERRADO no backend JS: `undefined` (return aninhado num `if`), ou JS INVÁLIDO (`SyntaxError: Missing catch or finally after try` / `ReferenceError: _idx is not defined`, return como último statement do try) — 🟡 ABERTO (medido 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+## §703 — um `return` dentro de um `try`/`finally` dentro de um LOOP emite JS ERRADO no backend JS: `undefined` (return aninhado num `if`), ou JS INVÁLIDO (`SyntaxError: Missing catch or finally after try` / `ReferenceError: _idx is not defined`, return como último statement do try) — ✅ CORRIGIDO 14/10 (a família inteira: non-loop + return-em-`if`/`catch`/aninhado + a forma for-in trailing-return, fechada com §704/§710) — lane compilador/JVM/nativo `192.168.15.30:9092`
 
 **Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):**
 
@@ -14699,11 +14700,13 @@ devolve `100` em JVM/Script/nativo x86-64/riscv64/aarch64 mas **`undefined` no J
 
 **Por que ficou ABERTO:** o valor está silenciosamente errado (ou incompilável) num ÚNICO alvo; o fix é uma mudança estrutural na reconstrução return-finally, uma área de IR compartilhada que quatro bugs anteriores (§617, DD-01, bug45, §147) já tocaram. Registrado com o patch exato tentado e seu resultado medido, para a próxima passada começar da evidência, não do zero.
 
-**Fronteira:** só o backend JS; os outros cinco alvos estão corretos. A forma não-loop de try/finally com return está correta. `break`/`continue` dentro de um try/finally (já corrigidos por uma lane anterior, §6xx) NÃO são este bug.
+**Correção (POUSADA 14/10, em duas etapas):** o backend JS agora converte um store em `#retVal` DENTRO de um try com return-finally (tanto o corpo do try quanto cada corpo de catch) em `return X` — o try/finally NATIVO do JS então roda o finally na conclusão abrupta — e DESCARTA o epílogo inline; um try com finally VAZIO e sem catch emite um `finally {}` explícito para a sintaxe seguir válida (o otimizador tinha removido o dead store do finally, deixando `try { ... }` sem cláusula → SyntaxError). `JsMethodParser`/`JsTryParser`/`JsExpressionParser`/`JsEmitter`. **Formas corrigidas (medidas, `JsReturnTryFinallyE2ETest` 3/0F, RED-first):** return trailing não-loop (`SyntaxError` → `5`), `return` aninhado num `if` dentro de try/finally dentro de loop (`undefined` → `100`), try/finally aninhado (`inner|outer|1|inner|outer|2`), e um `return` no catch com finally. **RESTANTE (→ §710):** um `return` trailing como ÚLTIMO statement do corpo do try dentro de um for-in ainda quebra a reconstrução do for-in. Bateria 654 run / 0F; zero regressão.
 
-<!-- en-switch --> **EN:** [§703 (en)](known-bugs.md#703--a-return-inside-a-tryfinally-inside-a-loop-emits-wrong-js-on-the-js-backend-undefined-return-nested-in-an-if-or-invalid-js-syntaxerror-missing-catch-or-finally-after-try--referenceerror-_idx-is-not-defined-return-as-the-trys-last-statement---open-measured-1310-by-lane-compilerjvmnative-19216815309092)
+**Resíduo FECHADO 14/10 (→ §704/§710):** a última forma restante — um `return` trailing como último statement do corpo do try dentro de um for-in — foi fechada pelo fix do §704/§710 (a reconstrução do JS descartava o prólogo do for-in quando o otimizador removia o back-edge; emitir o preamble antes do `if` remontado corrige). **Prova:** `JsReturnTryFinallyLoopE2ETest` (novo) **4 run / 0F** (JVM/Script/JS/nativo x86); com o fix do §704/§710 revertido a face JS falha. A família §703 inteira agora está CORRIGIDA. **Fronteira (CORRIGIDA 13/10 por uma segunda medição):** só o backend JS; os outros cinco alvos estão corretos. **A afirmação "a forma não-loop está correta" estava ERRADA** — o repro mínimo NÃO-loop `Int f() { var x = 0; try { return 5 } finally { x = 7 } return x }` TAMBÉM emite JS inválido (`Missing catch or finally after try`): a função gerada é `try { _retVal = 5; }` com a cláusula finally DESCARTADA, depois `return _retVal;`. A forma é sensível ao CORPO do finally: `finally { x += 7 }` (composto) e `finally { println("fin") }` (uma chamada) sobrevivem, enquanto `finally { x = 7 }` (atribuição simples) e `finally { var z = 1 }` (uma declaração) descartam a cláusula. Então o bug NÃO é específico de loop — é a forma trailing-`return`-no-`try`-com-`finally` em geral, e a nota anterior "não-loop está correto" veio de uma sonda cujo corpo de finally era por acaso um statement composto. `break`/`continue` dentro de um try/finally (já corrigidos por uma lane anterior, §6xx) NÃO são este bug.
 
-## §704 — um LOOP cujo corpo termina incondicionalmente (`return`/`throw` como último statement executado) emite JS INVÁLIDO: o otimizador remove o back-edge do loop, a reconstrução do JS então remonta um `if` e DESCARTA o setup do loop, então o programa morre com `ReferenceError: _idx is not defined` — 🟡 ABERTO (medido 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+<!-- en-switch --> **EN:** [§703 (en)](known-bugs.md#703--a-return-inside-a-tryfinally-inside-a-loop-emits-wrong-js-on-the-js-backend-undefined-return-nested-in-an-if-or-invalid-js-syntaxerror-missing-catch-or-finally-after-try--referenceerror-_idx-is-not-defined-return-as-the-trys-last-statement---fixed-1410-the-whole-family-non-loop--return-in-ifcatchnested--the-for-in-trailing-return-shape-closed-with-704710--lane-compilerjvmnative-19216815309092)
+
+## §704 — um LOOP cujo corpo termina incondicionalmente (`return`/`throw` como último statement executado) emite JS INVÁLIDO: o otimizador remove o back-edge do loop, a reconstrução do JS então remonta um `if` e DESCARTA o setup do loop, então o programa morre com `ReferenceError: _idx is not defined` — ✅ CORRIGIDO 14/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido 14/10 pela mesma lane)
 
 **Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):**
 
@@ -14734,13 +14737,13 @@ Um `while` com `return` incondicional, e um `for` cujo corpo lança, falham do m
 
 **Raiz (rastreada dumpando o IR):** o corpo `return 100` de um for-in é um terminador incondicional, então as ops de BACK-EDGE do loop (`idx++` depois `Jump(start)`) são genuinamente inalcançáveis — nada salta para elas. O passe de reachability do otimizador (que trata `KofReturn`/`KofThrow` como terminadores de região) portanto as REMOVE como código morto. Sem o back-edge o IR deixa de parecer um loop, e a reconstrução do JS — que identifica um loop pelo back-edge — remonta a forma residual `Label(start); cond; CJump(body, exit); body; exit` como um `if` simples, DESCARTANDO as ops de setup do loop que consumiu (a cadeia `kofListNew`/`kofListAdd` e os stores `_coll`/`_idx`) junto com o header `for-in` que não conseguiu formar.
 
-**Caminho de correção (nomeado, NÃO pousado — e MEDIDO como NÃO sendo um problema de seeding de reachability):** o back-edge fica estruturalmente DEPOIS do terminador incondicional do corpo, então o scan de reachability (linear, para em `KofReturn`/`KofThrow`) nunca pode marcá-lo — semear raízes extras (início do loop, alvos de jump) NÃO ajuda, porque o scan de qualquer semente também para no `Return` do corpo antes de chegar ao back-edge. O lowerer do loop também não pode emiti-lo numa posição alcançável (ele fica depois de um return incondicional). Então o ÚNICO sítio viável é a reconstrução do JS. **MEDIDO mais (13/10, segunda tentativa):** estender o `JsLabelParser.isLoopStart` para aceitar a forma sem back-edge NÃO é suficiente — instrumentado, o `isLoopStart` nem é CHAMADO para o label de início do loop nesta forma, então as ops são consumidas por outro caminho (o dispatch de expressão/if) antes da checagem de loop-start. O fix tem portanto de interceptar MAIS CEDO — no ponto onde o setup `#coll`/`#idx` + `Label; cond; CJump` é primeiro despachado — reconhecer a forma for-in e roteá-la para uma reconstrução de loop que sintetize o update `_idx++` ausente (determinístico num for-in) e mantenha o setup. É uma mudança estrutural no dispatch do JS, não uma guarda de uma linha; tem de pousar com a bateria loop/control-flow como rede de regressão. Deixado ABERTO com o diagnóstico em vez de apressado: é uma mudança de reconstrução estrutural e a reconstrução do JS já produziu cinco bugs em quatro ciclos (§700–§703 + a família de casts).
+**Raiz + correção (POUSADA 14/10):** o back-edge é genuinamente inalcançável (o terminador incondicional do corpo para o scan de reachability), então o otimizador o remove e a reconstrução do JS — que identifica um loop pelo back-edge — remonta a forma residual `Label; cond; CJump(body, exit); body; exit` como um `if` simples. As ops que a reconstrução CONSUMIU ao falhar em formar o loop (a cadeia `kofListNew`/`kofListAdd` e os stores `_coll`/`_idx`) tinham sido acumuladas no PREAMBLE do caminho do `if`, e o caminho do `if` DESCARTAVA o preamble (`return List.of(parseIfBody(...))`). A correção: emitir o preamble ANTES do `if` remontado. Um sítio no caminho do CJump do `JsExpressionStatementParser`. **Prova RED-first:** o novo `JsLoopPreambleE2ETest` **4 run / 0F** (JVM/Script/JS/nativo x86); com o fix revertido a face JS falha com o `TypeError`. Bateria JS/control-flow 393/0F/25 skipped.
 
 **Fronteira:** só o backend JS; os outros cinco alvos estão corretos. Não é o mesmo que o §703 — aquele precisa de try/finally com return CONDICIONAL; este precisa só de um terminador incondicional como último statement do corpo do loop.
 
-<!-- en-switch --> **EN:** [§704 (en)](known-bugs.md#704--a-loop-whose-body-unconditionally-terminates-returnthrow-as-its-last-executed-statement-emits-invalid-js-the-optimizer-removes-the-loops-back-edge-the-js-reconstruction-then-rebuilds-an-if-and-drops-the-loop-setup-so-the-program-dies-with-referenceerror-_idx-is-not-defined---open-measured-1310-by-lane-compilerjvmnative-19216815309092)
+<!-- en-switch --> **EN:** [§704 (en)](known-bugs.md#704--a-loop-whose-body-unconditionally-terminates-returnthrow-as-its-last-executed-statement-emits-invalid-js-the-optimizer-removes-the-loops-back-edge-the-js-reconstruction-then-rebuilds-an-if-and-drops-the-loop-setup-so-the-program-dies-with-referenceerror-_idx-is-not-defined---fixed-1410-found-1310-by-lane-compilerjvmnative-19216815309092-fixed-1410-by-the-same-lane)
 
-## §706 — um argumento de tipo genérico ANINHADO (`Box<Box<Int>>`) quebra o acessor EXTERNO: no JVM o call site espera `int Box.get()` e crasha com `NoSuchMethodError`, no nativo lê LIXO — enquanto Script/JS devolvem o valor correto — 🟡 ABERTO (medido 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+## §706 — um argumento de tipo genérico ANINHADO (`Box<Box<Int>>`) quebra o acessor EXTERNO: no JVM o call site espera `int Box.get()` e crasha com `NoSuchMethodError`, no nativo lê LIXO — enquanto Script/JS devolvem o valor correto — ✅ CORRIGIDO 14/10 (achado 13/10, corrigido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
 
 **Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):**
 
@@ -14764,11 +14767,444 @@ Um genérico de UM parâmetro (`Box<Int>`) e um de MÚLTIPLOS parâmetros (`Pair
 
 **Raiz (INSTRUMENTADA neste ciclo — o mecanismo exato):** o `returnType` do `KofCall` é o tipo SUBSTITUÍDO, não o DECLARADO. Para o encadeado `outer.get().get()` o lowerer emite `KofCall(ownerType=Box<Int>, returnType=Int)` (o receiver do segundo `get` é `outer.get()` = `Box<Int>`, então `T` substitui para `Int`). O emissor JVM então deriva o DESCRIPTOR do method-ref desse `returnType` → `()I`, mas o método realmente emitido é o ERASED `Box.get()Ljava/lang/Object;` — daí o `NoSuchMethodError: 'int Box.get()'`. E o caminho de unbox (`GenericReturnAdapter.emit`) só dispara quando o retorno declarado é um `TypeVariable`; aqui é `Int`, então ele não faz nada e nenhum `checkcast Integer`+`intValue` é emitido. O fix precisa manter o tipo de retorno DECLARADO (erased) no `KofCall` (para o descriptor ser `()Ljava/lang/Object;`) e deixar o `GenericReturnAdapter` desboxar o `Int` substituído — ou seja, o tipo substituído é para TIPAGEM, o declarado é para o DESCRIPTOR. O sítio exato da divergência é o fallback que seta `methodReturnType` a partir de `ExpressionTyper.inferExprType` (o tipo substituído) quando `resolvedMethod` é null para a chamada encadeada.
 
-**Caminho de correção (nomeado, NÃO pousado):** a substituição genérica que resolve o tipo de retorno de um membro num receptor parametrizado precisa recursar corretamente por argumentos de tipo aninhados — `Box<Box<Int>>.get()` devolve `Box<Int>`, e só o SEGUNDO `.get()` devolve `Int`. O bug está na substituição/erasure do argumento de tipo do receptor EXTERNO. Toca a maquinaria de tipos compartilhada (JVM + nativo + JS leem a mesma substituição), então tem de pousar com a bateria de genéricos como rede de regressão. Deixado ABERTO com o diagnóstico em vez de apressado: a substituição errada é mudança de código compartilhado e a face JVM é crash duro (alto, não silencioso) enquanto a nativa é valor errado silencioso.
+**Correção (POUSADA 14/10):** o CALL SITE emitia o descriptor de retorno SUBSTITUÍDO (`()I`) enquanto a classe declara o ERASED (`()Ljava/lang/Object;`) — o descriptor que a classe de fato emite. O sítio do emit `ExpressionInstanceCallLowerer` tem um fallback (quando o analisador semântico não cacheou um método resolvido — ex.: a chamada INTERNA de um encadeamento) que usava `ExpressionTyper.inferExprType`, que devolve o tipo SUBSTITUÍDO. Correção: para um método de classe do USUÁRIO, resolver o símbolo pelo receptor e usar o retorno DECLARADO (a erasure), caindo para a inferência só quando não há símbolo de classe. **Prova RED-first:** `NestedGenericAccessorE2ETest` (novo) **6 run / 0F** (JVM/Script/JS/nativo x86-64/riscv64/aarch64); com o fix revertido 4/6 faces falham (JVM `NoSuchMethodError`, nativo lixo). Bateria genéricos/coleções 433/0F.
 
 **Fronteira:** só argumentos de tipo genéricos aninhados. Genéricos de um e de múltiplos parâmetros num nível estão corretos nos seis alvos. Os alvos Script e JS estão corretos (dinamicamente tipados).
 
-<!-- en-switch --> **EN:** [§706 (en)](known-bugs.md#706--a-nested-generic-type-argument-boxboxint-breaks-the-outer-accessor-on-the-jvm-the-call-site-expects-int-boxget-and-crashes-with-nosuchmethoderror-on-native-it-reads-garbage--while-scriptjs-return-the-correct-value---open-measured-1310-by-lane-compilerjvmnative-19216815309092)
+<!-- en-switch --> **EN:** [§706 (en)](known-bugs.md#706--a-nested-generic-type-argument-boxboxint-breaks-the-outer-accessor-on-the-jvm-the-call-site-expects-int-boxget-and-crashes-with-nosuchmethoderror-on-native-it-reads-garbage--while-scriptjs-return-the-correct-value---fixed-1410-found-1310-fixed-1410-by-lane-compilerjvmnative-19216815309092)
+
+**RE-MEDIDO 14/10 (raiz exata de codegen encontrada):** o sítio do emit é o `ExpressionInstanceCallLowerer` — ele pega `resolvedMethod.returnType()` (o tipo DECLARADO do membro, `TypeVariable(T)`) como descriptor de retorno da chamada. A classe emite `get()` com a erasure `()Ljava/lang/Object;`, então um call site que resolveu `T` para `Int` emite `invokevirtual Box.get:()I` → `NoSuchMethodError` (JVM) / lixo (nativo). O `MethodCallTyper` FAZ a substituição corretamente (`Box<Box<Int>>.get()` → `Box<Int>`), mas o LOWERER re-deriva o receiver com `ExpressionTyper.inferExprType`, que devolve o receiver CRU (`Box` com type-args VAZIOS) na fase do emit — então a substituição não dispara. A correção tem de fazer o lowerer substituir o tipo do membro usando o tipo semântico do receiver (ou passar o tipo substituído do typer), e o receiver-cru-no-emit é uma causa compartilhada. **Fronteira:**
+## §707 — um loop `do-while` cujo corpo contém um `break` ou `continue` NÃO COMPILA no JS: o backend lança um ERRO INTERNO DO COMPILADOR (`COMP002: KofJS: unexpected op in expression statement: KofConditionalJump`) — ✅ CORRIGIDO 13/10 (achado e corrigido 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):**
+
+```kof
+Int doWhileBreak() {
+    var s = 0
+    var i = 0
+    do {
+        i++
+        if (i == 3) { break }
+        s += i
+    } while (i < 10)
+    return s
+}
+```
+
+compila e devolve `3` em JVM/Script/nativo x86-64/riscv64/aarch64, mas no **JS o próprio compilador crasha**: `COMP002: Internal compiler error: KofJS: unexpected op in expression statement: KofConditionalJump[comparison=LT, ...]`. O mesmo vale para um `continue` num corpo de do-while. Um do-while SEM break/continue compila e roda corretamente no JS.
+
+**Raiz (análise):** o do-while é o único construto cujo salto condicional aponta para o PRÓPRIO label de início (`JsControlFlowParser.parseLoop` o detecta varrendo um `KofConditionalJump` cujo `trueLabel` é o início do loop, então roteia para `parseDoWhile`). Um `break`/`continue` no corpo introduz jumps/labels adicionais que a reconstrução do do-while não considera, então depois de parsear o corpo o `KofConditionalJump` final da condição fica no nível de expression-statement e o dispatcher estoura. A reconstrução da cauda do do-while (condição + back-edge) não consome as saídas de break/continue que o corpo produziu.
+
+**Correção (POUSADA):** o `parseElse` do JS agora para numa FRONTEIRA DE CONDIÇÃO de do-while. O `JsControlFlowParser.isDoWhileConditionAheadAny` checa se as próximas ops alcançam um `KofConditionalJump` apontando para o START de algum loop na pilha `loops` do contexto (isto é, a condição de back-edge de um do-while ativo, que vem DEPOIS do corpo); o `JsIfThrowElse.parseElse` retorna antes de consumi-la. Sem isto o `parseElse` de um `if` cujo ramo then terminava incondicionalmente consumia o resto do corpo do do-while E a sua condição, deixando o CJump da condição no nível de expression-statement (COMP002). Uma guarda, aditiva: a checagem só dispara quando um do-while está na pilha de loops e a condição dele está de fato à frente.
+
+**Fronteira:** só o backend JS; os outros cinco alvos estão corretos. O do-while SEM break/continue está correto em todos os alvos. `break`/`continue` num `while`/`for` estão corretos (isto é específico da reconstrução do do-while).
+
+<!-- en-switch --> **EN:** [§707 (en)](known-bugs.md#707--a-do-while-loop-whose-body-contains-a-break-or-continue-does-not-compile-on-js-the-backend-throws-an-internal-compiler-error-comp002-kofjs-unexpected-op-in-expression-statement-kofconditionaljump---fixed-1310-found-and-fixed-1310-by-lane-compilerjvmnative-19216815309092)
+
+## §708 — um LOCAL declarado com inicializador e depois atribuído dentro de um `if`/`else` perde a declaração no JS: o `let` vai para DENTRO do ramo e o outro ramo o referencia sem declarar — `ReferenceError: <var> is not defined` em runtime (e o inicializador é descartado) — ✅ CORRIGIDO 13/10 (achado e corrigido 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR):**
+
+```kof
+main() {
+    var w = 5
+    var x = 3
+    println(w + x)
+    var flag = true
+    if (flag) { w = 6 } else { w = 7 }
+    println(w)
+}
+```
+
+compila em JVM/Script/nativo mas no JS a função gerada está ERRADA:
+
+```js
+function main() {
+    let x;                          // `w` NÃO está declarado
+    kofPrintln(kofFormat(8));       // `w + x` foi dobrado para 8 — `w` sumiu
+    let flag = true;
+    if (flag) {
+        let w = 6;                  // a declaração foi para DENTRO do ramo then
+    } else {
+        w = 7;                      // atribuição a um nome não declarado
+    }
+    kofPrintln(kofFormat(w));       // `w` fora de escopo
+    return;
+}
+```
+
+O runtime morre com `ReferenceError: w is not defined`. A mesma forma se reproduz como `ReferenceError: <var> is not defined` em vários testes existentes (`JsIfFoldStatementE2ETest`, `JsDivideByZeroE2ETest`, `JsSwitchCaseZeroE2ETest` todos falham com um `ReferenceError` nomeando um local), o que é uma regressão REAL no backend JS, NÃO um problema de JavaFX/ambiente.
+
+**Raiz (análise):** um local DECLARADO com inicializador e depois ATRIBUÍDO dentro de um ramo tem o `let` emitido na PRIMEIRA posição de atribuição em vez da declaração — e quando essa primeira atribuição está dentro de um ramo `if`, o `let` cai no escopo de bloco do ramo, então o outro ramo e o código depois do `if` não o enxergam. Combinado com o constant-fold de `w + x` (o valor do inicializador), a declaração se perde por completo. A colocação da declaração JS precisa ser no PONTO DE DECLARAÇÃO da variável (escopo do método/bloco), não no primeiro store.
+
+**Por que ficou escondido:** os testes que exercitam essa forma TAMBÉM têm um passo de oráculo JVM, e neste host o launcher JVM imprime "os componentes de runtime do JavaFX não foram encontrados" e sai com código não-zero — o que parece um problema de ambiente. **Pela regra do projeto, uma mensagem de JavaFX ausente NUNCA é benigna: ela estava MASCARANDO este `ReferenceError` real do lado do JS.** A falha do JS está presente COM e SEM o fix do §707 (verificado), então é pré-existente, não uma regressão daquela unidade.
+
+**Correção (POUSADA):** o `JsMethodParser.parseMethodBody` agora pré-declara TODOS os locais no TOPO do método ANTES de parsear o corpo (antes o predecl rodava DEPOIS do parse do corpo, então o `storeLocalStatement` já tinha emitido um `let x = v` inline no primeiro store de cada slot). Com todos os slots declarados no topo, nenhum store emite `let` inline e todo store é atribuição simples — a declaração fica sempre no escopo do método, robusto a IR otimizado. Um bloco movido + um filtro de temp `#`, aditivo.
+
+**Fronteira:** só o backend JS; os outros cinco alvos estão corretos. Distinto do §707 (do-while break/continue) e do §703/§704 (reconstrução de loop/try) — isto é COLOCAÇÃO DA DECLARAÇÃO de local.
+
+<!-- en-switch --> **EN:** [§708 (en)](known-bugs.md#708--a-local-declared-with-an-initializer-then-assigned-inside-an-ifelse-loses-its-declaration-on-js-the-let-moves-inside-the-branch-and-the-other-branch-references-it-undeclared--referenceerror-var-is-not-defined-at-runtime-and-the-initializer-is-dropped---fixed-1310-found-and-fixed-1310-by-lane-compilerjvmnative-19216815309092)
+
+## §709 — o pass Phase C `LivenessDeadStores` REMOVE a inicialização de um local LIDO SÓ num handler `catch`/`finally`: o CFG da liveness não modela a aresta de exceção (`KofTryStart.handlerLabel` é carregado pelo op `KofCatchStart`, não por um `KofLabel`), então `blockOf(handler)` devolve `-1` e a aresta é descartada em silêncio — o Script lança `not an int: null` e o JVM lança `VerifyError: Bad local variable type` — ✅ CORRIGIDO 13/10 (achado e corrigido 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 13/10 pelo MÓDULO DO COMPILADOR, otimizador LIGADO):**
+
+```kof
+Int catchOnlyRead() {
+    var r = 0
+    try {
+        throw "x"
+    } catch (String e) {
+        r += 1
+    }
+    return r
+}
+```
+
+devolve `1` em JVM/Script/nativo com o otimizador de IR DESLIGADO, mas LIGADO: o Script lança `ClassCastException: not an int: null` (o catch lê um `r` nunca armazenado) e o JVM `Default.Main` não verifica com `VerifyError: Bad local variable type ... iload_0 ... Type top`. A face `finally` é a mesma: `try { r = 3 } finally { r += 2 }` dá o mesmo `VerifyError`. **É uma REGRESSÃO introduzida pelo commit `66a2fb756` (assembly-opt Phase B/C CLOSE), que ligou `ConstantPropagation`/`CopyPropagation`/`DeadCodeElimination`/`LivenessDeadStores` no `Optimizer` de produção** — os testes que ele quebrou também têm um passo de oráculo JVM, e o launcher JVM imprime a mensagem FALSA "os componentes de runtime do JavaFX não foram encontrados" para uma classe que falha ao VERIFICAR, então o `VerifyError` ficou mascarado. **Mensagem de JavaFX ausente NUNCA é benigna.**
+
+**Raiz (análise, duas facetas):** (a) o `ControlFlowGraph` calcula líderes de bloco só a partir de alvos de `KofJump`/`KofConditionalJump` — nem `KofTryStart.handlerLabel` (carregado pelo op `KofCatchStart`, NÃO por um `KofLabel`) nem o próprio `KofTryStart` são fronteira, então `blockOf(handler)` é `-1` e o laço de aresta de exceção do `LivenessAnalysis` (`if (h >= 0 ...)`) descarta a aresta em SILÊNCIO; (b) mesmo com o handler mapeado, um store ANTES do `KofTryStart` (ex.: `r = 0`) compartilha o bloco protegido, então o walk backward mata `r` no def posterior `r = 3` — mas a exceção pode disparar ANTES desse def, então o liveIn do handler não pode ser morto pelos defs do bloco.
+
+**Correção (POUSADA):** o `ControlFlowGraph` marca um `KofCatchStart` E um `KofTryStart` como líderes de bloco, e mapeia o `handlerLabel` de cada try ao bloco do seu `KofCatchStart` (o alvo da aresta de exceção); o `LivenessAnalysis` adiciona o liveIn do handler de cada bloco como um pseudo-USE do bloco, então a liveness do handler não é morta pelos defs da região protegida. Com a aresta de exceção presente, um slot lido só num handler está vivo e seu store é preservado.
+
+**Prova RED-first:** `CatchLivenessDeadStoreE2ETest` (novo) **6 run / 0F**; com o fix do CFG + liveness REVERTIDO todas as seis faces falham (Script `not an int: null`, JS errado, nativo errado). O caso cobre catch-only-read, catch+after, catch aninhado e finally-only-read.
+
+**Fronteira:** o otimizador de IR de produção (todos os seis alvos consomem o IR otimizado, então todos os seis divergem com o otimizador ligado); NÃO é bug do backend JS. Distinto de §707/§708 (reconstrução JS).
+
+<!-- en-switch --> **EN:** [§709](known-bugs.md#709--the-phase-c-livenessdeadstores-pass-removes-the-initialization-of-a-local-that-is-read-only-in-a-catchfinally-handler-the-liveness-cfg-does-not-model-the-exception-edge-koftrystarthandlerlabel-is-carried-by-the-kofcatchstart-op-not-a-koflabel-so-blockofhandler-returns--1-and-the-edge-is-silently-dropped--the-script-throws-not-an-int-null-and-the-jvm-throws-verifyerror-bad-local-variable-type---fixed-1310-found-and-fixed-1310-by-lane-compilerjvmnative-19216815309092)
+
+## §710 — um loop for-in cujo corpo é um try/finally terminando num `return` TRAILING perde a estrutura de loop no JS: o PRÓLOGO do for-in (`_coll`/`_idx` init) e o incremento são descartados e o loop vira um `if` puro (`_coll`/`_idx` lidos como `undefined`) — ✅ CORRIGIDO 14/10 (achado e corrigido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 14/10 pelo MÓDULO DO COMPILADOR):**
+
+```kof
+Int f() {
+    var r = 0
+    for (var i in listOf(0, 1, 2)) {
+        try {
+            r += i
+            return r
+        } finally {
+            r += 10
+        }
+    }
+    return r
+}
+```
+
+devolve `0` em JVM/Script/nativo mas no JS a função gerada é:
+
+```js
+r = 0;
+if ((_idx < kofListSize(_coll))) {   // o `while` virou `if`; `_coll`/`_idx` nunca inicializados
+    _forInVar = kofListGet(_coll, _idx);
+    try { r = ((r + _forInVar) | 0); return r; } finally { r = ((r + 10) | 0); }
+    return r;
+}
+```
+
+O PRÓLOGO do for-in (`_coll = listOf(...)`; `_idx = 0`) e o incremento (`_idx = _idx + 1`) estão FALTANDO, então `_coll`/`_idx` são `undefined` → `TypeError: Cannot read property 'length' of undefined`. **O IR está CORRETO** (os ops do prólogo estão presentes) — a reconstrução do for-in do JS os descarta.
+
+**Raiz (análise):** o for-in é dessugarado para `_coll = <list>; _idx = 0; while (_idx < size(_coll)) { _forInVar = get(_coll, _idx); <body>; _idx++ }`. Quando o ÚLTIMO statement do corpo do try é um `return`, o consumo da saída-de-região / jump trailing do try na reconstrução JS consome os ops do prólogogo e do incremento do for-in, e a back-edge do loop se perde — o CJump da condição então é renderizado como um `if` puro com o init sumido. O `return` ANINHADO num `if` NÃO dispara (só o `return` TRAILING), e é por isso que a forma `loop_retInIf` do §703 está corrigida enquanto esta não.
+
+**Raiz + correção (POUSADA 14/10 — a MESMA raiz do §704):** o `return` trailing consome a cauda do loop, o otimizador descarta o back-edge, e a reconstrução do JS remonta um `if` cujo PREAMBLE (o prólogo do for-in `_coll = <list>; _idx = 0`) foi DESCARTADO. Correção: emitir o preamble antes do `if` remontado (`JsExpressionStatementParser`). **Prova RED-first:** `JsLoopPreambleE2ETest` **4 run / 0F**; bateria JS/control-flow 393/0F/25 skipped.
+
+**Fronteira:** só o backend JS; os outros cinco alvos estão corretos. Distinto do §703 (a colocação do EPÍLOGO return-finally, agora corrigida para as formas non-loop/return-em-if) — isto é a ESTRUTURA do loop for-in.
+
+<!-- en-switch --> **EN:** [§710](known-bugs.md#710--a-for-in-loop-whose-body-is-a-tryfinally-ending-in-a-trailing-return-loses-its-loop-structure-on-js-the-for-in-prologue-_coll_idx-init-and-increment-are-dropped-and-the-loop-renders-as-a-bare-if-_coll_idx-read-as-undefined---fixed-1410-found-and-fixed-1410-by-lane-compilerjvmnative-19216815309092)
+
+**RE-MEDIDO 14/10 (causa exata encontrada):** com o otimizador LIGADO, o IR perde o `KofLabel(startLabel)` do loop, o marcador `KofContinueLabel`, E a back-edge `Jump(start)` — os três são removidos como MORTOS porque o corpo do loop sempre termina num `return` (a cauda após o return é inalcançável). A reconstrução for-in/for do JS depende desses marcadores, então não reconhece o loop e emite um `if` puro com o prólogo descartado. É o bloqueio geral que o plano assembly-opt registra ("qualquer pass que transforme fluxo quebra o descompilador do JS") — o fix é uma frente separada, de maior risco: ou tornar a reconstrução do JS robusta ao IR otimizado, ou o JS consumir IR NÃO-otimizado (mudança de pipeline). **Fronteira:** só o backend JS; os outros cinco alvos estão corretos. Distinto do §703
+## §711 — o suffix-match do `kof_orm_ctors` nativo DESLOCAVA CUMULATIVAMENTE o ponteiro do className entre entradas: com 2+ entidades registradas, `orm.find` numa entidade cujo nome é MAIS LONGO que uma anterior lia os bytes ERRADOS e lançava ORM001 "entity class not registered" — ✅ CORRIGIDO 14/10 (issue #835, bloqueia-0.6.5; achado+corrigido pela lane ORM/native `192.168.100.14:0`)
+
+**Sintoma (medido 14/10, issue #835 — determinístico 2/2):** `KofOrmE2ETest#crossNativeF2bFindMatchesX86Oracle`: `orm.find<Ghost>(db, 1)` (a entidade `Ghost` DEPOIS de `User`/`Item` na tabela de ctors, len 5 vs 4) lançava `orm.find: entity class not registered (ORM001)` onde o oráculo x86 lança `sqlite: no column "name"` (a tabela `ghost` não tem `name`). Os finds em `User`/`Item` (len 4) funcionavam. Veio à tona AGORA porque essas faces eram PULADAS até a libsqlite3 chegar neste host.
+
+**Raiz (disassemblado):** a entrada de suffix-match da F2b faz `rdi += (len − entryLen)` para apontar os ÚLTIMOS entryLen bytes — e NUNCA RESTAURAVA `%rdi` antes da entrada seguinte, então com um className mais longo o deslocamento ACUMULA entre as entradas: a entrada `User` deslocou `rdi` em 1 ("Ghost"→"host"), a `Item` em mais 1 ("ost"), e a entrada `Ghost` comparou `"ost"` contra `Ghost` → miss → ORM001. Tabelas de entrada única eram imunes (por isso as faces da entity-history ficaram verdes).
+
+**Correção:** o `kof_orm_ctors` salva o body original em `%r11` (scratch; a função é folha) na entrada e CADA entrada restaura `%rdi` dele antes do `add`. Prova: o tail do repro agora imprime `sqlite: no column "name"` (a linha do oráculo) e o `KofOrmE2ETest` está **82 corridas / 0F / 38 skips honestos** (era 4F). RED-first: pré-fix o mesmo repro falhava com o diff ORM001 (medido duas vezes).
+## §712 — um `try`/`catch`/`finally` cujo `finally` LÊ um local que o try/catch atribui é dead-stored pelo pass Phase C `LivenessDeadStores` → JVM `VerifyError: Bad local variable type` (o handler do finally vê o local como `top`) — ✅ CORRIGIDO 14/10 (achado e corrigido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 14/10 pelo MÓDULO DO COMPILADOR, otimizador LIGADO):**
+
+```kof
+Int f() {
+    var v = 0
+    try {
+        v = 1
+        throw "x"
+    } catch (String e) {
+        v = 99
+    } finally {
+        v = v + 1
+    }
+    return v
+}
+```
+
+devolve `100` em JVM/Script/nativo com o otimizador de IR DESLIGADO, mas LIGADO o JVM `Default.Main` não verifica: `VerifyError: Bad local variable type ... iload_0 ... Type top` no handler do FINALLY. Um `try/finally` SEM catch, e um `try/catch` SEM finally, estão ambos OK — o bug precisa das três cláusulas com o finally lendo um local atribuído. **É a família §709** (a aresta de exceção não é modelada), mas o fix do §709 cobriu só o `handlerLabel` declarado do try.
+
+**Raiz (análise):** um try tem MAIS DE UM handler de exceção — o `catch` do usuário E o catch-all SINTÉTICO que emula o `finally` — com `handlerLabel`s DISTINTOS. O fix de liveness do §709 construía a aresta de exceção só a partir do `KofTryStart.handlerLabel`, então o bloco do handler do `finally` ficava FORA do fluxo: um slot lido só nele (ou inicializado antes do try) parecia morto, o dead-store removia sua inicialização, e o handler do finally lia o slot como `top`.
+
+**Correção (POUSADA):** as arestas de exceção da liveness agora cobrem TODO `KofCatchStart` da região do try — TANTO nas arestas de sucessor (o jump de exceção) QUANTO no pseudo-USE do liveIn do handler (um slot lido em qualquer handler é vivo no INÍCIO do bloco protegido, porque a exceção pode disparar antes de qualquer def). A aresta do `handlerLabel` declarado também é mantida (um shape sintético pode não ter `KofCatchStart`).
+
+**Prova RED-first:** `CatchFinallyLivenessE2ETest` (novo) **4 run / 0F**; com o fix do `LivenessAnalysis` revertido a face JVM FALHA (o VerifyError). `LivenessAnalysisTest` 7/0F (o teste sintético pré-existente do handler ainda passa — a aresta do handlerLabel declarado é mantida).
+
+**Fronteira:** o otimizador de IR de produção (todos os seis alvos consomem o IR otimizado); NÃO é bug do backend JS. Distinto do §709 (o catch-only-read de handler único, já corrigido) — isto é o caso MULTI-handler (catch + finally sintético).
+
+<!-- en-switch --> **EN:** [§712](known-bugs.md#712--a-trycatchfinally-whose-finally-reads-a-local-that-the-trycatch-assigns-is-dead-stored-by-the-phase-c-livenessdeadstores-pass--jvm-verifyerror-bad-local-variable-type-the-finally-handler-sees-the-local-as-top---fixed-1410-found-and-fixed-1410-by-lane-compilerjvmnative-19216815309092)
+
+## §713 — uma classe genérica construída SEM type-arguments explícitos (`Box(n)`) não os INFERE: o acesso a campo/método mantém o `Object` apagado, então o JVM lança `VerifyError: Bad type on operand stack` e os alvos nativos `ClassCastException` — ✅ CORRIGIDO 14/10 (achado e corrigido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 14/10 pelo MÓDULO DO COMPILADOR, todos os seis alvos):**
+
+```kof
+record Box<T>(T value)
+Int f(Int n) {
+    var b = Box(n)
+    return b.value + 1
+}
+main() { println(f(5)) }
+```
+
+devolve `6` em Script e JS, mas:
+- **JVM:** `VerifyError: Bad type on operand stack ... iadd ... Type 'java/lang/Object' is not assignable to integer` (o load de `b.value` mantém o descritor `Object` apagado);
+- **nativo x86-64/riscv64/aarch64:** `type error: class java.lang.Integer cannot be cast` em runtime.
+
+Com type-arguments EXPLÍCITOS o mesmo programa está correto nos seis: `Box<Int>(n)` → `b.value + 1` = `6`. A divergência é específica da forma INFERIDA. Atinge tanto um acesso a CAMPO de record (`b.value`) quanto uma chamada de MÉTODO genérico (`b.get()`), e um genérico de vários parâmetros (`Pair(n, n+1)`).
+
+**Raiz (análise):** NÃO existe inferência de type-arguments para chamadas de construtor em lugar algum do compilador — nenhum unificador existe (`SemMethodCallTyper` e `SemNewExprTyper` se espelham e NENHUM infere; um grep não acha helper `inferTypeArguments`/`unify`/`bindTypeVar`). Quando `ne.typeArguments()` é vazio, tanto o semântico (`SemNewExprTyper.infer`) quanto o emit (braço NewExpr do `ExpressionTyper`) constroem um `ClassType` com type-arguments VAZIOS, então o tipo do receptor não tem um `T` concreto; o `TypeSubstitution.substituteTypeVariableIn` não resolve `T`, e o tipo do campo/método fica o `Object` apagado. Os backends JVM/nativo então usam `Object` onde a fonte diz `Int`. Script/JS são lenientes (tipagem dinâmica) e por acaso concordam.
+
+**Correção (POUSADA 14/10):** um unificador (`GenericTypeArgInference`) liga os type-parameters da classe a partir dos tipos DECLARADOS dos parâmetros do construtor contra os tipos inferidos dos argumentos. Está ligado nos TRÊS sítios de construção do tipo (cada um construía o tipo independentemente): `BuiltinCallTyper` (o caminho de construção implícita `Box(n)`, que era o que de fato produzia o tipo quebrado), `SemNewExprTyper.infer` (o caminho semântico de `new Box(n)`), e o braço NewExpr do emit (`ExpressionTyper`). Os NOMES dos type-parameters da classe são expostos via `ClassTypeRegistry.typeParamNames` (o registry guardava só a VARIÂNCIA). O unificador é conservador: um type-param não ligado vira `Object` (erasure), um tipo real `Unknown`/`TypeVariable` não é ligado, e uma forma que não casa deixa o tipo cru — então nada antes aceito é rejeitado. **Prova:** `GenericCtorInferenceE2ETest` 6/0F (JVM/Script/JS/nativo x86-64/riscv64/aarch64), RED-first (a face JVM lançava `VerifyError` antes); bateria de genéricos/records 500/0F; suíte golden 296/0F/0skip.
+
+**Fronteira:** os backends JVM + nativo (Script/JS são lenientes); a forma com type-arguments explícitos está correta nos seis. Distinto do §706 (`Box<Box<Int>>` ANINHADO com args EXPLÍCITOS) — isto é a INFERÊNCIA dos args em si.
+
+<!-- en-switch --> **EN:** [§713](known-bugs.md#713--a-generic-class-constructed-without-explicit-type-arguments-boxn-does-not-infer-them-the-fieldmethod-access-keeps-the-erased-object-so-the-jvm-throws-verifyerror-bad-type-on-operand-stack-and-the-native-targets-classcastexception---fixed-1410-found-and-fixed-1410-by-lane-compilerjvmnative-19216815309092)
+
+## §714 — uma classe com um CAMPO e um MÉTODO de MESMO nome (`class H(Int item) { Int item() { return item } }`) compila em JVM/JS mas FALHA no Script (compilação) e no nativo (`as`: `symbol 'H_item' is already defined`) — ✅ CORRIGIDO 14/10 (achado e corrigido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 14/10 pelo MÓDULO DO COMPILADOR):**
+
+```kof
+class H(Int item) {
+    Int item() { return item }
+}
+Int f(Int n) {
+    var h = H(n)
+    return h.item() + 1
+}
+main() { println(f(5)) }
+```
+
+compila e roda em JVM e JS, mas: o **Script** falha na compilação, e o **nativo x86-64/riscv64/aarch64** falha na montagem — o `.s` gerado define o símbolo `H_item` DUAS vezes (`as: symbol 'H_item' is already defined` / `.Lfe_H_item`), uma para o campo `item` e uma para o método `item()`. O backend nativo mangla um campo e um método de mesmo nome para o MESMO símbolo; o backend Script também rejeita a forma.
+
+**Raiz (análise):** o mangling de símbolo nativo (`Owner_member`) não distingue um campo de um método, então campo+método de mesmo nome colidem. É a mesma classe do trabalho de inferência de record genérico (§713) — achado ao escrever aquele E2E — mas é INDEPENDENTE de genéricos: uma `class H(Int item)` não-genérica com um método de mesmo nome reproduz. Se o Kof PRETENDE permitir campo e método de mesmo nome é uma questão de semântica; o bug é que os alvos DIVERGEM (JVM/JS aceitam, Script/nativo rejeitam) — pelo contrato devem concordar, ou todos aceitando (então corrigir o mangling + o Script) ou todos rejeitando com um diagnóstico.
+
+**Correção (POUSADA 14/10):** como no record do Java (onde `record R(int x) { int x() {...} }` é legal e o acessor explícito SUBSTITUI o implícito), o método explícito de 0 parâmetros do usuário SUPRIME o acessor sintético do componente em `CompilerIfaceRecordLowering.lowerRecord` (idem para o acessor de um campo-membro não-componente). Os seis alvos então concordam no método do usuário. **Prova RED-first:** `RecordExplicitAccessorE2ETest` (novo) **6 run / 0F** (JVM/Script/JS/nativo x86-64/riscv64/aarch64); com o fix revertido 5/6 faces falham (JVM `ClassFormatError`, nativo `symbol already defined`). Bateria records/classes 386/0F.
+
+**Fronteira:** Script + nativo x86-64/riscv64/aarch64; JVM/JS estão corretos. Distinto do §713 (inferência de type-arguments) — isto é uma COLISÃO de nome.
+
+<!-- en-switch --> **EN:** [§714](known-bugs.md#714--a-class-with-a-field-and-a-method-of-the-same-name-class-hint-item--int-item--return-item---compiles-on-jvmjs-but-fails-on-script-compile-and-native-as-symbol-h_item-is-already-defined---fixed-1410-found-and-fixed-1410-by-lane-compilerjvmnative-19216815309092)
+
+## §715 — um componente de record acessado como CAMPO (`p.x`) DIVERGE quando o record declara um acessor explícito de mesmo nome: o JVM roteia `p.x` pelo acessor (o valor sobrescrito) enquanto Script/JS/nativo leem o campo CRU — 🟡 ABERTO (medido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 14/10 pelo MÓDULO DO COMPILADOR):**
+
+```kof
+record Point(Int x, Int y) {
+    Int x() { return x + 100 }
+}
+Int f() {
+    var p = Point(3, 4)
+    return p.x + p.y
+}
+main() { println(f()) }
+```
+
+devolve `107` no JVM (o acesso `p.x` passa pelo acessor SOBRESCRITO: `x()+y = 103+4`) mas `7` em Script/JS/nativo (o campo CRU: `x+y = 3+4`). A divergência é específica de um record que declara um acessor explícito de mesmo nome que um componente e é então acessado com a sintaxe de CAMPO.
+
+**Raiz (análise):** no JVM um campo de record e seu acessor compartilham o nome no class file, então `p.x` (compilado como leitura de campo) ainda resolve para o mesmo slot que o acessor lê — mas o emitter JVM TAMBÉM roteia o `p.x` do Kof pelo método acessor, pegando o override. Os backends Script/JS/nativo leem o slot do campo direto. Qual é o contrato Kof — `p.x` é leitura de CAMPO (crua) ou um atalho para o acessor — é uma questão de SEMÂNTICA (decisão da mantenedora); o bug é que os seis alvos DIVERGEM.
+
+**Caminho de correção (nomeado, NÃO pousado, GATEADO POR DECISÃO):** decidir se `p.x` é leitura crua do campo (então o JVM não deve rotear pelo acessor) ou uma chamada de acessor (então Script/JS/nativo devem rotear por ele); alinhar os seis. Como muda o SIGNIFICADO de `p.x` quando um acessor o sobrescreve, precisa de uma decisão de semântica congelada antes de implementar.
+
+**Fronteira:** JVM vs Script/JS/nativo; distinto do §714 (a colisão de método duplicado, agora CORRIGIDO) — isto é a semântica de leitura CAMPO-vs-ACESSOR.
+
+<!-- en-switch --> **EN:** [§715](known-bugs.md#715--a-record-component-accessed-as-a-field-px-diverges-when-the-record-declares-an-explicit-accessor-of-the-same-name-the-jvm-routes-px-through-the-accessor-the-overridden-value-while-scriptjsnative-read-the-raw-field---open-measured-1410-by-lane-compilerjvmnative-19216815309092)
+
+## §717 — um método genérico que retorna uma coleção genérica ANINHADA (`List<T> asList()`) dá LIXO nos alvos nativos (JVM/Script/JS corretos) — 🟡 ABERTO (medido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 14/10 pelo MÓDULO DO COMPILADOR):**
+
+```kof
+record Box<T>(T value) {
+    List<T> asList() { return listOf(value) }
+}
+main() {
+    var b = Box<Int>(5)
+    var xs = b.asList()
+    println(xs.get(0))
+}
+```
+
+imprime `5` em JVM/Script/JS mas um valor LIXO nos nativos x86-64/riscv64/aarch64 (`1855979680`/`201072`/`4395376`) — o handle `List<T>` retornado é mal-lido. Relacionado ao §706 (o tipo de retorno de um membro genérico no call site) mas a divergência aqui é SÓ do nativo (JVM/JS corretos), então é uma face distinta: o backend nativo trata mal o retorno de coleção genérica.
+
+**Raiz (RASTREADA 14/10 — um DESCOMPASSO de representação boxed-vs-cru):** o IR do main é IDÊNTICO para `List<T>` e `List<Int>`, mas o CORPO de `asList` difere. Para `List<Int>` o `kof_list_add` é precedido de `KofCheckCast[Int]` + `kof_unbox`, então armazena um int CRU; para `List<T>` (elemento apagado para Object) o valor é adicionado BOXED (sem unbox). No CALL SITE o retorno `List<T>` é SUBSTITUÍDO para `List<Int>` (o receptor é `Box<Int>`), então o `kof_list_get` lê o slot como int CRU. `List<Int>` (add cru × get cru) concorda e funciona; `List<T>` (add boxed × get cru) descorda — o ponteiro boxed é mal-lido como lixo. O invariante que faz o JVM funcionar é que ele SEMPRE boxeia (erasure) e desembrulha na leitura; o nativo usa CRU para um elemento primitivo concreto e BOXED para um elemento type-variable apagado, então os dois lados do MESMO tipo substituído descordam. Distinto do §706 (um DESCRIPTOR ERRADO, corrigido pelo retorno declarado) — isto é a REPRESENTAÇÃO física do ELEMENTO. Caminho de correção: fazer o construtor e o leitor concordarem — ou a lista construída genericamente é lida como boxed+desembrulhada (paridade JVM), ou a lista carrega sua representação física do elemento. Precisa da decisão de representação, então registrado com o mecanismo exato.
+
+**Face SCRIPT CORRIGIDA 14/10:** o `KofInterpreterRuntime.decodeKofValue` agora lança a MESMA String que o JVM/JS lançam — `JSN004: missing field '<nome>' for <Classe>` (via `KofInterpreterFrame.asThrowable`) — quando o objeto parseado não contém um campo declarado; `containsKey` distingue ausente de um JSON null. **Prova RED-first:** o novo `JsonDecodeMissingFieldE2ETest` **3 run / 0F** (JVM/Script/JS) — com o fix revertido `scriptRaisesTheMissingFieldInsteadOfDefaulting` FALHA. **As faces NATIVAS RESTAM:** o `kof_json_find_value` nativo (`RuntimeJsonUtils`) devolve uma KofString VAZIA para "não achado" E para um valor legitimamente vazio, então o decode por campo do lowering (`ExpressionJsonCallLowerer`) não distingue um campo faltando de `""` — o fix nativo precisa de um SENTINELA de não-achado do runtime (unidade separada). Um payload malformado dá o mesmo default silencioso no nativo.
+
+**Fronteira:** só nativo x86-64/riscv64/aarch64; JVM/Script/JS corretos.
+
+<!-- en-switch --> **EN:** [§717](known-bugs.md#717--a-generic-method-returning-a-nested-generic-collection-listt-aslist-gives-garbage-on-the-native-targets-the-jvmscriptjs-are-correct---open-measured-1410-by-lane-compilerjvmnative-19216815309092)
+
+## §716 — o BOUND de um type-parameter genérico NÃO é validado: um bound desconhecido (`T: Foobar`) ou o não-tipo `T: Any` compila limpo e a classe emitida referencia uma classe inexistente (`NoClassDefFoundError: Foobar`/`Any` no load do JVM) — ✅ CORRIGIDO 14/10 (achado e corrigido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 14/10 pelo MÓDULO DO COMPILADOR):**
+
+```kof
+record Box<T: Foobar>(T value) {
+    T id() { return value }
+}
+main() { println(Box<Int>(4).id()) }
+```
+
+compila LIMPO (sem diagnóstico) e a classe emitida referencia `Foobar` — no load do JVM `NoClassDefFoundError: Foobar`. O mesmo acontece com o aparentemente plausível mas inexistente `T: Any` (`NoClassDefFoundError: Any`): o bound é resolvido para um `ClassType` sem validação de que o tipo existe, então um erro de digitação num bound é SILENCIOSO até o JVM crashar no load (viola R6/Q7 — sem fallback silencioso). Os alvos nativos por acaso imprimem o valor (podem apagar diferente), então as faces DIVERGEM.
+
+**Raiz (análise):** o `TypeParams.variable` / `CompilerTypes.toType` constroem o bound do `TypeVariable` a partir do texto cru do bound via `toType` SEM checar que o tipo nomeado é uma classe conhecida (declarada no módulo, importada, ou um builtin). Um bound desconhecido deveria ser um diagnóstico de compilação (ex.: SEM — tipo desconhecido no bound), nunca um `NoClassDefFoundError` adiado.
+
+**Correção (POUSADA 14/10):** o `DeclaredTypeChecker` (o checador de tipos declarados do §251/SEM011) agora valida CADA bound de type-parameter com o MESMO predicado (`MemberResolver.declaredTypeUnresolved`), isentando os type-params do próprio dono. Um bound que é uma classe do módulo, um import, um builtin, ou `java.lang` resolve; qualquer outro é SEM011. **Prova RED-first:** `GenericBoundValidationE2ETest` (novo) **6 run / 0F**; com o fix revertido 3/6 falham (os casos bound desconhecido / `Any` / bound de função compilam limpos). Bateria genéricos/records 273/0F.
+
+**Fronteira:** todos os alvos que emitem o bound num descriptor (o JVM falha alto no load; o nativo silenciosamente ignora/apaga). Distinto do §706/§717 (tipos de retorno de membros) — isto é VALIDAÇÃO de bound.
+
+<!-- en-switch --> **EN:** [§716](known-bugs.md#716--a-generic-type-parameter-bound-is-not-validated-an-unknown-bound-t-foobar-or-the-non-type-t-any-compiles-clean-and-the-emitted-class-references-a-nonexistent-class-noclassdeffounderror-foobarany-at-jvm-load---fixed-1410-found-and-fixed-1410-by-lane-compilerjvmnative-19216815309092)
+
+## §718 — uma classe que implementa uma interface GENÉRICA cujo método retorna `List<T>` produz um método DUPLICADO no JVM (`ClassFormatError: Duplicate method name "children" with signature "()Ljava/util/ArrayList;"`): `interface Tree<T> { List<T> children() }` / `class Leaf implements Tree<Int>` — ✅ CORRIGIDO 14/10 (achado e corrigido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 14/10 pelo MÓDULO DE COMPILADOR):** `interface Tree<T> { List<T> children() }` com `class Leaf(Int v) implements Tree<Int> { List<Int> children() { return listOf(v) } }` — roda em Script/JS/nativo (`7`) mas o JVM falha no load com `ClassFormatError: Duplicate method name "children" with signature "()Ljava/util/ArrayList;" in class file Leaf`. O override de um método de interface genérica (retornando uma coleção genérica) emite DOIS métodos idênticos (o concreto + um bridge com o MESMO descriptor apagado). Distinto do §714 (colisão de nome campo/método) — isto é um DUPLICADO de bridge de override de interface.
+
+**Raiz (RASTREADA 14/10):** o gerador de bridge de retorno covariante (`CompilerRecordSupport.generateCovariantReturnBridges`) emitia um bridge mesmo o método concreto JÁ ocupando o slot apagado do pai — o `List<T> children()` da interface e o `List<Int> children()` da classe apagam ambos para `ArrayList`, então o próprio `m` implementa o slot. O guard `alreadyExists` EXCLUÍA `m` (`existing != m`), então nunca notava. **Correção (POUSADA):** incluir o próprio `m` no guard — um bridge só é necessário quando a ERASURE difere (ex.: filho `Int` vs pai `Object`, que precisa do box). **Prova RED-first:** `GenericInterfaceCovariantBridgeE2ETest` (novo) **6 run / 0F** (JVM/Script/JS/nativo x86-64/riscv64/aarch64); com o fix revertido a face JVM lança `ClassFormatError`. Bateria records/interfaces/bridge 348/0F.
+
+<!-- en-switch --> **EN:** [§718](known-bugs.md#718--a-class-implementing-a-generic-interface-whose-method-returns-listt-produces-a-duplicate-method-on-the-jvm-classformaterror-duplicate-method-name-children-with-signature-ljavautilarraylist-interface-treet--listt-children---class-leaf-implements-treeint---fixed-1410-found-and-fixed-1410-by-lane-compilerjvmnative-19216815309092)
+
+## §719 — implementar DUAS interfaces genéricas dá um valor ERRADO no nativo: `class AB(Int v) implements A<Int>, B<Int>` — `y.b()` devolve `5` em vez de `6` no nativo x86-64/riscv64/aarch64 (JVM/Script/JS corretos) — 🟡 ABERTO (medido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 14/10 pelo MÓDULO DO COMPILADOR):** `interface A<T> { T a() }` e `interface B<T> { T b() }` com `class AB(Int v) implements A<Int>, B<Int> { Int a() { return v }; Int b() { return v + 1 } }` — `x.a()` imprime `5` (correto) mas `y.b()` imprime `5` no nativo (deveria ser `6`); JVM/Script/JS imprimem `5|6`. O dispatch de vtable/método da SEGUNDA interface genérica mapeia `b()` para o slot errado.
+
+**Raiz (RASTREADA 14/10):** o backend nativo usa UMA vtable plana por classe. Para `class AB implements A<Int>, B<Int>` a vtable é construída semeando os métodos de A PRIMEIRO (`a` no índice 0) e depois os de B (`b` no índice 1), dando `AB_vtable = [a, b]`. Mas o call site resolve o slot a partir da INTERFACE SOZINHA: `interface B { T b() }` tem `B_vtable = [b]`, então `b` está no índice 0 → `y.b()` despacha para o índice 0 = `a` → devolve 5. Uma vtable única NÃO consegue satisfazer A (a@0) e B (b@0) ao mesmo tempo. **Caminho de correção (nomeado, NÃO pousado):** uma mudança real de ABI — itables por-interface (a abordagem do JVM: cada interface tem sua própria method table e a classe carrega uma itable) OU um layout global de slots compartilhado por todas as classes, para o slot de uma interface ser o MESMO em todo implementador. É uma mudança de ABI nativa, não um fix local. **Fronteira:** só nativo x86-64/riscv64/aarch64; JVM/Script/JS corretos (usam itables / dispatch estrutural).
+
+<!-- en-switch --> **EN:** [§719](known-bugs.md#719--implementing-two-generic-interfaces-gives-a-wrong-value-on-native-class-abint-v-implements-aint-bint--yb-returns-5-instead-of-6-on-native-x86-64riscv64aarch64-jvmscriptjs-correct---open-measured-1410-by-lane-compilerjvmnative-19216815309092)
+
+## §720 — uma classe base genérica ABSTRATA com subclasse concreta quebra o JVM (`VerifyError: Bad operand type when invoking <init>`) e o nativo (`ClassCastException`): `abstract class Base<T> { abstract T value() }` / `class Impl extends Base<Int>` — 🟡 PARCIALMENTE CORRIGIDO 14/10 (a face JVM está CORRIGIDA; a face nativa resta) — lane compilador/JVM/nativo `192.168.15.30:9092`
+
+**Sintoma (medido 14/10 pelo MÓDULO DO COMPILADOR):** `abstract class Base<T> { abstract T value(); T twice() { return value() } }` com `class Impl(Int n) extends Base<Int> { Int value() { return n } }` — `x.value()` roda em Script/JS (`4`) mas o JVM lança `VerifyError: Bad operand type when invoking <init>` e o nativo `type error: class java.lang.Integer cannot be cast`. O caminho de construtor/override da base genérica abstrata é mal-tipado no JVM e no nativo.
+
+**Face JVM CORRIGIDA 14/10:** o `Impl.<init>` emitia DUAS chamadas de super — a injetada `Base."<init>":()V` E uma explícita `"Base<Int>"."<init>":()V` cujo OWNER carregava o type-argument. Raiz: o `CompilerRecordSupport.generateRecordConstructor` usava `rec.superClass()` CRU, diferente do `CompilerClassLowering` (linha 24) e do `CompilerIfaceRecordLowering` (linha 48), que ambos chamam `eraseTypeArgs`. Correção: apagar os type-args (`eraseTypeArgs`). **Prova RED-first:** `AbstractGenericBaseCtorE2ETest` (novo) **3 run / 0F** (JVM/Script/JS); com o fix revertido a face JVM lança `VerifyError`. Bateria records/abstrato/genérico 269/0F. **A face NATIVA RESTA:** o call site do método genérico abstrato usa o `T` apagado (um `Object` BOXED) enquanto o override concreto `Impl.value():Int` retorna CRU — o `kof_unbox` nativo então falha (`type error: class java.lang.Integer cannot be cast to the boxed value`) — a mesma família boxed-vs-cru do §717. Uma base abstrata NÃO-genérica funciona no nativo. **Fronteira:** a face nativa resta para x86-64/riscv64/aarch64; JVM/Script/JS agora corretos.
+
+<!-- en-switch --> **EN:** [§720](known-bugs.md#720--an-abstract-generic-base-class-with-a-concrete-subclass-breaks-the-jvm-verifyerror-bad-operand-type-when-invoking-init-and-the-native-classcastexception-abstract-class-baset--abstract-t-value---class-impl-extends-baseint---partially-fixed-1410-the-jvm-face-is-fixed-the-native-face-remains--lane-compilerjvmnative-19216815309092)
+
+## §721 — um método DEFAULT de interface GENÉRICA não é despachado no Script: `interface Container<T> { T get(); default String describe() { return "c" } }` / `class CB implements Container<Int>` e `c.describe()` falha com `CB.describe` — ✅ CORRIGIDO 14/10 (achado e corrigido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 14/10 pelo MÓDULO DO COMPILADOR):** `interface Container<T> { T get(); default String describe() { return "c" } }` com `class CB(Int v) implements Container<Int>` — `c.get()` imprime `3` mas `c.describe()` (o DEFAULT da interface) falha no Script com `CB.describe`. JVM/JS/nativo imprimem `3|c`. O método default de uma interface GENÉRICA não é herdado/despachado pelo Script quando a classe implementadora não o sobrescreve.
+
+**Raiz (RASTREADA 14/10):** o `KofInterpreterMembers.findKofMethod` buscava na classe e na sua SUPERCLASSE só (`c.methods()` e então `superName`), NUNCA nas suas INTERFACES — um método default vive na INTERFACE, não na classe implementadora, então o Script lançava `NoSuchMethodError` (`CB.describe`). **Correção (POUSADA):** a busca agora também percorre as interfaces (BFS, visited-set para evitar ciclos), cobrindo interfaces diretas e herdadas. **Prova RED-first:** `ScriptInterfaceDefaultMethodE2ETest` (novo) **4 run / 0F**; com o fix revertido a face Script falha. Bateria interfaces/interpretador 337/0F.
+
+<!-- en-switch --> **EN:** [§721](known-bugs.md#721--a-default-method-of-a-generic-interface-is-not-dispatched-on-the-script-interface-containert--t-get-default-string-describe--return-c----class-cb-implements-containerint-then-cdescribe-fails-with-cbdescribe---fixed-1410-found-and-fixed-1410-by-lane-compilerjvmnative-19216815309092)
+
+## §722 — uma chamada de MÉTODO numa instância de classe GENÉRICA é emitida como acesso a CAMPO no JS: `class Factory<T> { T of(Int n) { return n } }` / `Factory<Int>().of(5)` emite `f._of(5)` (o método é DEFINIDO como `of`) → `TypeError: f._of is not a function` — ✅ CORRIGIDO 14/10 (achado e corrigido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 14/10 pelo MÓDULO DO COMPILADOR):** `class Factory<T> { T of(Int n) { return n } }` e `Factory<Int>().of(5)` roda em JVM/Script/nativo (`5`) mas no JS lança `TypeError: f._of is not a function` — a classe DEFINE `of(n)` mas o CALL SITE renderiza `f._of(5)`. O prefixo `_` é o marcador de CAMPO de record (`JsExpressionParser` o adiciona quando o dono é uma classe record), então uma chamada de MÉTODO numa instância de classe genérica é mal-classificada como acesso a campo. Distinto do §714 (colisão de NOME campo/método) — isto é uma MIS-CLASSIFICAÇÃO de método no JS.
+
+**Raiz (RASTREADA 14/10 — NÃO é genérico, NÃO é campo de record):** `of` está em `JsTypeMapper.RESERVED` (uma palavra reservada do JS, junto com `async`/`arguments`/`eval`), então o `JsTypeMapper.sanitizeName` o prefixa com `_`. O CALL SITE (`JsCallEmitter`) aplica `sanitizeName` (→ `_of`), mas a DEFINIÇÃO (`JsMethodParser.lowerFunction`) usava o nome CRU (`of`) — então o método não existia no JS. Um nome de método não-reservado (`make`) funciona, e uma classe NÃO-genérica reproduz (`class Factory { Int of(Int n) }`), então o bug é um descompasso de nome PALAVRA-RESERVADA, não genéricos. **Correção (POUSADA):** a definição agora passa pelo MESMO `sanitizeName` do call site (`<init>`/`constructor` intactos). **Prova RED-first:** `JsReservedMethodNameE2ETest` (novo) **3 run / 0F**; com o fix revertido a face JS falha. Bateria JS/classes/métodos 549/0F.
+
+<!-- en-switch --> **EN:** [§722](known-bugs.md#722--a-method-call-on-a-generic-class-instance-is-emitted-as-a-field-access-on-js-class-factoryt--t-ofint-n--return-n----factoryintof5-emits-f_of5-the-method-is-defined-as-of--typeerror-f_of-is-not-a-function---fixed-1410-found-and-fixed-1410-by-lane-compilerjvmnative-19216815309092)
+
+## §723 — a virada de locais-em-registradores do `D-CODEGEN-REWRITE` (`kof.native.register.locals` default TRUE, `c044a2add`) QUEBRA as faces nativas AVIF x86: `Av1DecodeTileReconE2ETest#av1DecodeTileReconOnNativeX86` e `Av1CoeffsE2ETest#av1CoeffsOnNativeX86` PASSAM com a escotilha OFF e FALHAM com a flag ON — e a própria mensagem da virada registra a falha do coeffs como "PRÉ-EXISTENTE, independente desta mudança", o que esta medição contradiz — 🟡 ABERTO (medido 14/10 pela lane pipeline/image-vision `192.168.15.21:0`)
+
+**Sintoma (medido 14/10):** depois de puxar `c044a2add` ("flag de locais em registradores VIRADA PARA ON (default)"), o `Av1DecodeTileReconE2ETest#av1DecodeTileReconOnNativeX86` falha com `native output: Runtime error: array index out of bounds` (esperado exit 0, veio 1).
+
+**Atribuição — um A/B na escotilha, mesma árvore no resto:**
+- `-Dkof.native.register.locals=false` (a escotilha OFF que a própria mensagem da virada anuncia): **PASSA** — `Av1DecodeTileReconE2ETest#av1DecodeTileReconOnNativeX86` verde em 79,14 s.
+- default (flag ON): **FALHA** com o erro de limite.
+- O mesmo vale para o teste que a mensagem da virada nomeia: `Av1CoeffsE2ETest#av1CoeffsOnNativeX86` **PASSA** com a flag OFF (32,20 s) — onde a mensagem de `c044a2add` afirma que ele "falha com erro native de bounds de array TANTO com a flag ON quanto OFF — PRÉ-EXISTENTE, independente desta mudança".
+
+**A atribuição errada importa tanto quanto o bug:** a mensagem de `c044a2add` afirma que a falha nativa AVIF é pré-existente e independente da virada. O A/B acima contradiz isso para OS DOIS testes: estão verdes com a escotilha OFF e vermelhos com ela ON. Qualquer que seja a intenção, a mensagem como está escrita deixaria uma regressão real arquivada como conhecida-e-não-relacionada — exatamente o modo de falha que o portão de qualidade existe para impedir.
+
+**Fronteira:** o modelo de locais-em-registradores é a frente da lane de codegen (`.130:9093` dona da virada, `D-CODEGEN-REWRITE`); este registro reporta a medição, não reivindica a causa raiz dentro do alocador de registradores. Só as duas faces nativas AVIF nomeadas foram A/B'd aqui; uma varredura nativa completa com a escotilha OFF não foi rodada.
+
+**Não é o mesmo que o §705:** o giro do §705 ainda se reproduz com a flag OFF (medido no mesmo ciclo), então o §705 é um bug genuíno e independente desta virada. Os dois são achados separados.
+
+**Próximo passo sugerido para a lane de codegen:** rodar as faces nativas AVIF (e a bateria nativa mais ampla) com a flag ON e bisseccionar a emissão de locais-em-registrador num método que falha — o `Av1DecodeTileReconE2ETest#av1DecodeTileReconOnNativeX86` é um reprodutor rápido e determinístico (só precisa dos dois arquivos de `libs/image` em `0f8ca55ff` no lugar).
+
+<!-- pt-switch --> **EN:** [§723 (en)](known-bugs.md#723--the-d-codegen-rewrite-register-locals-flip-kofnativeregisterlocals-default-true-c044a2add-breaks-the-avif-native-x86-faces-av1decodetilerecone2etestav1decodetilerecononnativex86-and-av1coeffse2etestav1coeffsonnativex86-both-pass-with-the-escape-hatch-off-and-fail-with-the-flag-on--and-the-flips-own-commit-message-records-the-coeffs-failure-as-pre-existent-independent-of-this-change-which-this-measurement-contradicts---open-measured-1410-by-lane-pipelineimage-vision-19216815210)
+
+## §724 — uma interface com membro STATIC produzia `ReferenceError: Shape is not defined` no JS: `interface Shape { static Int sides() { return 4 } }` / `Shape.sides()` — JVM/Script/nativo imprimem `4`, o JS lança — ✅ CORRIGIDO 14/10 (achado e corrigido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 14/10 pelo MÓDULO COMPILADOR):**
+
+```kof
+interface Shape {
+    static Int sides() { return 4 }
+}
+main() { println(Shape.sides()) }
+```
+
+JVM/Script/nativo imprimem `4`; o backend JS lança `ReferenceError: Shape is not defined`.
+
+**Raiz:** o lowering JS descarta TODA interface (`JsLoweringContext.skipClass`: "JavaScript has no runtime interface..."), o que vale para métodos de INSTÂNCIA (dispatch estrutural) mas NÃO para um membro STATIC — uma chamada estática `Shape.sides()` NOMEIA a interface, então precisa de uma entidade JS real.
+
+**Correção (POUSADA):** o `skipClass` não descarta mais uma interface que tenha membro STATIC (método ou campo); uma interface puramente abstrata ainda não precisa de entidade. O emitter de classe pula métodos ABSTRACT (sem corpo), então só o corpo estático real é emitido.
+
+**Prova (executada, RED-first):** o novo `JsInterfaceStaticMemberE2ETest` **4 run / 0F** (JVM/Script/JS/nativo x86); com o fix revertido a face JS lança o `ReferenceError`. Bateria JS/interface/static/enum/lambda **480 run / 0F / 25 skipped**.
+
+**Fronteira:** só o backend JS; os outros cinco alvos corretos. Uma CONSTANTE de interface usada NÃO-qualificada dentro de um implementador é uma face distinta (§725).
+
+<!-- en-switch --> **EN:** [§724](known-bugs.md#724--an-interface-with-a-static-member-produced-referenceerror-shape-is-not-defined-on-js-interface-shape--static-int-sides--return-4----shapesides--jvmscriptnative-print-4-js-throws---fixed-1410-found-and-fixed-1410-by-lane-compilerjvmnative-19216815309092)
+
+## §725 — uma CONSTANTE de interface usada NÃO-qualificada dentro de um implementador dá `null`/`undefined` fora do JVM: `interface Named { String NAME = "kof"; String tag() }` / `class T() implements Named { String tag() { return NAME } }` — o JVM imprime `kof` (a constante é INLINADA), Script/JS/nativo dão `null`/`undefined` — ✅ CORRIGIDO 14/10 (achado e corrigido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 14/10 pelo MÓDULO COMPILADOR):**
+
+```kof
+interface Named {
+    String NAME = "kof"
+    String tag()
+}
+class T() implements Named {
+    String tag() { return NAME }
+}
+main() { println(T().tag()) }
+```
+
+O JVM imprime `kof`; Script/nativo imprimem `null` e o JS imprime `undefined`. A forma QUALIFICADA `Named.NAME` está correta nos quatro alvos.
+
+**Raiz (análise):** um campo de interface é `static final`; o JVM INLINA a referência de constante em tempo de compilação (`ConstantValue`), então o `NAME` não-qualificado dentro de `T.tag()` resolve. Script/JS/nativo o leem como um campo estático comum na CLASSE, que não o tem (ele vive na INTERFACE) → null/undefined.
+
+**Raiz (RASTREADA 14/10):** o caminho identificador→campo-estático do `ExpressionLowerer` resolvia o campo pela hierarquia (`MemberResolver.resolveFieldInHierarchy`, que ALCANÇA a interface via `enqueueAncestors`) mas emitia o OWNER como a classe ATUAL (`cs.type()`), não a DECLARANTE. O JVM resolve `getstatic T.NAME` pela hierarquia / inlina a constante, então só Script/JS/nativo divergiam. A MESMA raiz quebrava um campo estático de SUPERCLASSE acessado não-qualificado (Script/nativo devolviam o default `0`). **Correção (POUSADA):** emitir a classe DECLARANTE como owner — `FieldSymbol.ownerClass()` (já preenchido pelo `SymbolTableBuilder`) em vez de `cs.type()` quando diferem. Um sítio no `ExpressionLowerer`. **Prova (executada, RED-first):** o novo `StaticFieldOwnerResolutionE2ETest` **5 run / 0F** (JVM/Script/JS/nativo x86-64/riscv64); com o fix revertido as faces Script/JS/nativo falham (const de interface null/undefined, const de superclasse 0). Bateria static/interface/const/field/generic 436/0F.
+
+**Fronteira:** Script/JS/nativo; o JVM inlina. Distinto do §724 (o método STATIC, CORRIGIDO).
+
+<!-- en-switch --> **EN:** [§725](known-bugs.md#725--an-interface-constant-used-unqualified-inside-an-implementor-gives-nullundefined-off-the-jvm-interface-named--string-name--kof-string-tag---class-t-implements-named--string-tag--return-name----jvm-prints-kof-the-constant-is-inlined-scriptjsnative-give-nullundefined---fixed-1410-found-and-fixed-1410-by-lane-compilerjvmnative-19216815309092)
+
+
+## §726 — uma classe que `implements` uma interface NÃO é atribuível ao tipo da interface quando a classe e a interface vivem em ARQUIVOS DIFERENTES (SEM021) — ✅ CORRIGIDO 14/10 (achado 14/10 pela lane ORM/native `192.168.100.14:0`; corrigido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (repro mínimo, medido em isolamento):** dois arquivos — `ifc/Greeter.kf` (`package ifc`, `interface Greeter { String greet() }`) e `ifc/PtGreeter.kf` (`package ifc`, `class PtGreeter(String who) implements Greeter { String greet() {...} }`) — mais `Main.kf` (`import ifc.Greeter`, `import ifc.PtGreeter`, `var g: Greeter = PtGreeter("mel")`) → **SEM021** `type mismatch: cannot assign ifc.PtGreeter to 'g: ifc.Greeter'` em TODOS os alvos. A MESMA interface + classe + atribuição num ÚNICO arquivo compila limpa (medido).
+
+**Raiz (RASTREADA 14/10 — um descompasso FQN-vs-nome-simples):** os nomes de heritage são armazenados INCONSISTENTEMENTE — o `HeritageQualifier.qualify` devolve um nome QUALIFICADO ("ifc.Greeter") para um tipo resolvido por IMPORT, mas o nome SIMPLES ("Greeter") para um tipo do MESMO arquivo; e o `SemanticAnalyzer.getClass` só resolve por nome SIMPLES (`getClass("ifc.Greeter")` → null). O BFS nominal do `TypeChecker.isAssignable` comparava cada entrada de supertipo contra o nome SIMPLES do alvo (`tc.name()`), então o caso cross-file no mesmo pacote nunca casava → SEM021 espúrio. A MESMA raiz também quebrava a herança de CLASSE cross-file. **Correção (POUSADA):** normalizar ambos os lados pelo FQN do símbolo resolvido (`fqnOf(ClassType)`, `fqnOfString(sa, entrada)` que resolve a entrada por nome SIMPLES e remonta pkg+name); o BFS resolve cada entrada por `simpleName`, e o fallback final de 'alvo desconhecido' usa o nome simples. Um método no `TypeChecker`. **Prova (executada, RED-first):** o novo `CrossFileInterfaceAssignabilityE2ETest` **3 run / 0F** (impl de interface cross-file, herança de classe cross-file, e um controle NEGATIVO de que um par sem relação ainda rejeita); com o fix REVERTIDO as duas faces positivas FALHAM com SEM021. Fronteira preservada: um par sem relação ainda rejeita, e o mesmo-arquivo continua funcionando. Bateria assignabilidade/tipo/genérico/interface **971 run / 0F / 27 skipped**; golden 300/0F/0skip.
+
+**Impacto:** toda biblioteca que expõe uma interface + implementações é inutilizável pelo tipo da interface através da fronteira de arquivo — a costura de inversão de dependência (uma interface `Provider` com adapters trocáveis) não pode ser tipada.
+
+**Fronteira:** NÃO é a família §673/§714/§715 (dispatch/pontes de métodos de interface com atribuição funcionando in-file). Same-file funciona. Bloqueia a fatia 9 do `kof.financial` (a costura Provider pousou com os doubles concretos apenas).
+
+
+## §727 — um record definido em arquivo de LIB é invisível para o lowering TIPADO: `db.query<Rec>` perde a classe no emit (ClassNotFoundException) e `orm.save`/`orm.all`/`orm.find<Rec>` falham com ORM002 `unknown entity` — 🟡 ABERTA (medido 14/10 pela lane ORM/native `192.168.100.14:0`; bloqueia o OrmLedgerStore do `kof.financial` e o padrão de typed-rows em bibliotecas)
+
+**Sintoma (medido em isolamento, 14/10):** (a) um arquivo de lib define `record LedgerBalRow(Long bal)` e chama `db.query<LedgerBalRow>(db, sql)` — o módulo COMPILA (o check de tipos vê o record da lib) mas o bytecode JVM emitido referencia o nome bare da classe e o RUNTIME falha com `ClassNotFoundException: LedgerBalRow` (o emitter nunca emite o record da lib sob o nome bare); (b) um arquivo de lib define `record OrmEntry(...)` e chama `orm.save`/`orm.all<OrmEntry>` — **ORM002 `unknown entity 'OrmEntry'` em tempo de COMPILAÇÃO** (o registro de entidades do ORM não inclui records de arquivos de lib). As MESMAS chamadas com o record definido no Main.kf funcionam (medido: as suítes ORM + db E2E estão verdes).
+
+**Raiz (análise):** o lowering tipado (db.query/orm.*) resolve o record por um registro populado das declarações da UNIDADE ATUAL — os records de arquivos de lib chegam ao CHECK DE TIPOS (atribuição, acesso a campo) mas nunca ao registro de ENTIDADE/EMIT, então o lowering emite uma referência bare-name para uma classe não emitida/registrada.
+
+**Impacto:** toda biblioteca que quiser o padrão de typed-rows (entidades ORM ou queries db tipadas) está bloqueada — bibliotecas precisam recorrer ao `db.query` bruto + `json.decode<Rec>` (funciona: o caminho de decode no runtime, medido). O OrmLedgerStore do `kof.financial` (plano §5.2) fica adiado até o conserto; o DbLedgerStore cobre a costura de persistência enquanto isso.
+
+ **RE-MEDIDO 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092` (tentativa de repro, não um fix):** repros multi-arquivo no formato módulo — um arquivo de lib declarando `entity Row`/`record Row` no pacote RAIZ e num pacote NOMEADO (`app/Row.kf`) com outro arquivo chamando `orm.save<Row>(db, …)` / `db.query<Row>(db, …)` — COMPILAM LIMPO nesta árvore (sem ORM002), então o gatilho é MAIS ESTREITO que um arquivo-fonte comum no mesmo módulo: precisa do contexto de DEPENDÊNCIA `libs/` (um module root compilado à parte, com o runtime H2 para a face de emit a) em que a lane ORM/nativo (`.100.14:0`) o reproduziu.
+
+**Fronteira:** NÃO é o §726 (a ATRIBUIBILIDADE de interface cross-file — um check diferente, também de fronteira de lib). O gap do registro é território da lane compiler (o lowering ORM/db).
 
 ## §699 — a divisão inteira por um zero de RUNTIME NÃO lançava nos alvos CROSS: o `div`/`rem` do riscv não levanta com divisor zero (devolve o valor "indefinido" da ISA), então o `try`/`catch` do Kof nunca disparava e o programa seguia com um valor lixo SILENCIOSO — riscv64 `10 / 0` → `-1`, aarch64 → `0`, onde JVM/Script/JS/nativo-x86 lançam um `/ by zero` capturável — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
 
@@ -14784,7 +15220,7 @@ Um genérico de UM parâmetro (`Box<Int>`) e um de MÚLTIPLOS parâmetros (`Pair
 
 **Fronteira:** só o divisor zero de runtime no cross. A face x86 e a face JS foram o §693. O `INT_MIN / -1` foi medido na mesma sonda e concorda nos seis alvos (o JVM alarga para `2147483648`), então está pinado por este caso em vez de ficar como suposição. O jar do CLI está velho (predata §692–§698) porque o `kof-cli` não compila — conflito vivo de um peer — então isto foi medido e pinado pelo módulo do compilador.
 
-<!-- en-switch --> **EN:** [§699 (en)](known-bugs.md#699--integer-division-by-a-runtime-zero-did-not-throw-on-the-cross-targets-riscv-divrem-do-not-raise-on-a-zero-divisor-they-return-the-isas-undefined-value-so-the-kof-trycatch-never-fired-and-the-program-continued-with-a-silent-garbage-value--riscv64-10--0---1-aarch64--0-where-jvmscriptjsnative-x86-all-throw-a-catchable--by-zero---fixed-1310-found-1310-by-lane-compilerjvmnative-19216815309092-fixed-by-the-same-lane)
+<!-- en-switch --> **EN:** [§699 (en)](known-bugs.md#726--a-class-that-implements-an-interface-is-not-assignable-to-the-interface-type-when-the-class-and-the-interface-live-in-different-files-sem021---fixed-1410-found-1410-by-lane-ormnative-192168100140-fixed-1410-by-lane-compilerjvmnative-19216815309092)
 
 ## §698 — os SHIFTS de Int NÃO batiam com o JVM nos alvos CROSS, e o `>>>` estava errado no JS: `sll`/`srl`/`sra` do riscv operam em 64 bits e usam a contagem mod 64, enquanto `ishl`/`iushr`/`ishr` do JVM operam em 32 bits e usam mod 32 — `1 << 31` → `2147483648` (não `-2147483648`), `1 << 33` → `2^33` (não `2`), `-5 >>> 1` vazava um resultado de 64 bits e `-5 >> 32` → `-1` (não `-5`); no JS `-5 >>> 0` → `4294967291` (a coerção sem sinal) — ✅ CORRIGIDO 13/10 (achado 13/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`; corrigido pela mesma lane)
 
@@ -15155,7 +15591,7 @@ JVM/Script/Native imprimiam `fin-inner`, `fin-outer`, `inner`. KofJS abortava: `
 
 <!-- pt-switch --> **EN:** [§617 (en)](known-bugs.md#617--tryfinally-control-flow-parity-2-faces-a-breakcontinue-leaving-a-try-skipped-the-finally-on-jvmscriptnative-js-was-java-correct-b-a-nested-tryfinally-whose-inner-try-returns-iced-the-kofjs-target-comp002-unexpected-kofcatchstart---fixed-0610-owner--19216815309092-lane-compilerjvmnative-bugs-and-gaps-front-found-in-the-phase-6-equivalence-sweep-after-613)
 
-## §705 — um método de classe com 46 locais TRAVA o binário nativo x86 em RUNTIME (o mesmo Kof é correto no JVM/Script/JS e o assembly emitido parece correto) — 🟡 ABERTO (medido 13/10 pela lane pipeline/image-vision `192.168.15.21:0`, exposto pela fatia 3au do AVIF)
+## §705 — o LAÇO DE BLOCOS DE TRANSFORMADA de um MÉTODO de classe faz o binário nativo x86 GIRAR quando o leitor de entropia acaba no meio de um bloco: o mesmo Kof é correto no JVM/Script/JS, a pré-3au reporta um erro de limite LIMPO na mesma entrada, e o travamento depende dos bytes de entrada — ✅ CORRIGIDO 14/10 (medido 13-14/10 pela lane pipeline/image-vision `192.168.15.21:0`; o giro foi o gatilho para reverter a fatia 3au — re-landada no mesmo dia, ver a resolução abaixo)
 
 **Sintoma (medido 13/10, pelo MÓDULO COMPILADOR):** o estágio por bloco do driver de tile do AVIF saiu da função de topo `av1DecodeTileRecon` (fatia 3ag) para o método `Av1TileDecode.decodeBlock(r, c, bs)` (fatia 3au, `libs/image/Av1DecodeTileRecon.kf`). As faces JVM, Script e JS de `Av1DecodeTileReconE2ETest` / `Av1DecodeTileTxTypeE2ETest` / `Av1DecodeChromaE2ETest` PASSAM; `Av1DecodeTileReconE2ETest#av1DecodeTileReconOnNativeX86` TRAVA — o `Main` emitido gira a ~10% de CPU SEM saída e nunca termina. Reverter a biblioteca para o pré-3au faz a MESMA face passar em 54–58s, em três execuções; restaurar a 3au trava de novo. **É uma divergência cross-target: um Kof, correto em três alvos, travamento no nativo.**
 
@@ -15169,7 +15605,17 @@ JVM/Script/Native imprimiam `fin-inner`, `fin-outer`, `inner`. KofJS abortava: `
 
 **Estado:** a fatia que o expôs (3au) está REVERTIDA; a árvore está verde. O defeito NÃO é de `libs/image` — é uma interação do backend nativo que qualquer método extraído suficientemente grande pode atingir, então pertence à lane compilador/nativo.
 
-<!-- pt-switch --> **EN:** [§705 (en)](known-bugs.md#705--a-class-method-carrying-46-locals-hangs-the-native-x86-binary-at-runtime-the-same-kof-is-correct-on-the-jvmscriptjs-and-the-emitted-assembly-looks-correct---open-measured-1310-by-lane-pipelineimage-vision-19216815210-surfaced-by-avif-slice-3au)
+**SEXTA PASSAGEM (14/10) — o bloco de argumentos de pilha nunca é alinhado a 16 bytes (uma pista concreta e medida; NÃO landada).** O x86-64 emitido para a chamada de `image_Av1TileDecode_decodeBlock` à função de 21 argumentos `av1DecodeCoeffsBlockEdgeTx` empurra 15 argumentos de pilha (120 bytes) e limpa com `addq $120, %rsp`. 120 não é múltiplo de 16, então `%rsp ≡ 8 (mod 16)` no `call` — a ABI SysV exige alinhamento de 16 bytes ali, e o callee passa a rodar com frame desalinhado, de modo que toda chamada C dentro dele (incluindo o caminho `lock cmpxchg`/futex do `kof_alloc`) roda desalinhada. Os quatro sítios de chamada com argumentos de pilha do emissor (`kof-compiler/src/main/java/dev/kof/compiler/nat/NativeX86Calls.java`: construtor, instância, interface, top-level) fazem `addq $stackArgs*8` sem preenchimento.
+
+**O experimento que isola isso:** inserir um `pushq $0` antes dos argumentos de pilha (para tornar ímpar em par) e somar 8 à limpeza fez o binário `Tmp705Probe`, que antes girava, sair LIMPO (`rc=1`, `Runtime error: array index out of bounds`) em vez de girar — o mesmo binário que gira sem o preenchimento. É um antes/depois direto sobre uma única variável.
+
+**Por que NÃO é landado aqui:** as duas faces nativas AVIF que isto exerceria estão VERMELHAS por um motivo DIFERENTE e mais novo (§723: a virada de locais-em-registradores do `D-CODEGEN-REWRITE` as quebra com a flag ON). Com o §723 na árvore, uma rodada das faces do driver não distingue "a correção de alinhamento funciona" de "o §723 continua quebrado", então landar a correção de alinhamento agora seria inverificável. A mudança em `NativeX86Calls` foi portanto revertida; a pista fica registrada aqui para quem pegar o §705 depois que o §723 for resolvido. (O preenchimento também precisa respeitar o padrão de save/restore dos scratch slots — o pad deve ficar ABAIXO do bloco de argumentos, nunca no índice de um argumento.)
+
+**Contraprova sobre o §723:** o giro do §705 ainda se reproduz com `-Dkof.native.register.locals=false` (medido no mesmo ciclo), então o §705 é um defeito genuíno e independente da virada de locais-em-registradores. Ver §723 para o A/B que os separa.
+
+**RESOLVIDO 14/10 — o giro não se reproduz mais.** O reprodutor reconstruído do stream degenerado (o `data[0]=236` e o `data[0]=11` originais, um stream de 1 byte chamando `Av1TileDecode.decodeBlock(0,0,9)` num `BLOCK_32X32`) agora **SAI LIMPO** (`rc=0`, saída `BEFORE | AFTER`) no x86 nativo onde antes GIRAVA — medido com a escotilha de locais-em-registradores OFF (`-Dkof.native.register.locals=false`). A própria face nativa da fatia 3au está verde com a escotilha OFF: a suíte completa do driver `Av1DecodeTileReconE2ETest` **7/7** e a suíte de partição `Av1PartitionE2ETest` **17/17** (com o teste `bindDecoder` da 3au). A correção veio do trabalho concorrente da lane de codegen (as mudanças de emissão do `D-CODEGEN-REWRITE` + Fase E ISA pousadas depois da última passagem do §705); nenhuma mudança específica do §705 foi necessária. **O preenchimento de alinhamento de 16 bytes dos argumentos de pilha NÃO era a causa** (ver a sétima passagem acima — o reprodutor mínimo de 21 argumentos é correto COM e SEM o pad, e o runtime não tem acesso SSE alinhado a 16 bytes para dar falta). **Fronteira:** esta resolução vale no caminho de emissão por frame-slot; no caminho DEFAULT de locais-em-registradores (`kof.native.register.locals` ON, `c044a2add`) as faces nativas AVIF falham ou travam — isso é o `known-bugs` **§723**, um bug aberto separado (regressão de uma lane irmã), não o §705.
+
+<!-- pt-switch --> **EN:** [§705 (en)](known-bugs.md#705--a-class-methods-transform-block-loop-spins-the-native-x86-binary-when-the-entropy-reader-runs-out-mid-block-the-same-kof-is-correct-on-the-jvmscriptjs-pre-3au-reports-a-clean-bounds-error-on-the-same-input-and-the-hang-depends-on-the-input-bytes---fixed-1410-measured-13-1410-by-lane-pipelineimage-vision-19216815210-the-spin-was-the-trigger-for-reverting-slice-3au--re-landed-the-same-day-see-the-resolution-below)
 
 ## §613 — native (x86-64 + riscv64 + aarch64): um `return` DENTRO do `catch` de um `try/finally` corrompia a cadeia do handler de exceção e dava SIGSEGV no `throw` seguinte — o frame de finally do DD-01 era empilhado antes do corpo do `try`, então o return no catch emitia um `KofExcUnlink` a mais (o throw já tinha desempilhado o handler deste `try`); JVM/Script/JS corretos — ✅ FIXED 06/10 (dona = 192.168.15.30:9092; lane compiler/JVM/native, frente bugs-and-gaps; o residual do §551)
 
@@ -15391,7 +15837,54 @@ superfície da linguagem, sem mudança de ABI.
 
 ## §627 — `assertEqual`/`assertNotEqual` do `kof.test` sobre `Double`/`Float` FALHAM EM FALHAR no Script e no Native riscv64: as quatro faces negativas de float imprimem `NO-THROW` (e a execução riscv64 sai com 1 em `eqFlt (expected 1.5, got 1.5)`) — o oráculo JVM/JS imprime `assertion failed: boomeqDbl/boomneqDbl/boomeqFlt/boomneqFlt` — ✅ CORRIGIDO 08/10 (achada 08/10 pela suíte completa da lane WASI; corrigida pela lane native-backend, dona = `192.168.15.30:9092`)
 
+**SEGUNDA PASSADA (13/10, mesma lane — mais afiada): o travamento é na SAÍDA do `av1Dequant`, é ESTRUTURAL (não depende do dado), e o MESMO callee funciona a partir do chamador de topo pré-3au.** Medições novas, cada uma uma execução com marcadores do binário nativo emitido (as marcas são emitidas instrumentando temporariamente os CALLEES, nunca o `decodeBlock`, então o codegen da função suspeita fica intocado):
+
+- Um único `tile.decodeBlock(0, 0, 9)` na **JVM imprime `BEFORE`/`AFTER`; a mesma sonda no nativo TRAVA** — uma fonte, uma entrada, dois alvos.
+- A sonda imprime todos os 46 campos ANTES da chamada e todos estão certos (`frame=4356 stride=66 fw=64 fh=64 above=16 left=16 txTypes=256 bq=80 bd=8 txMode=2 dcq=74 acq=87 planes=1 maxX=64 maxY=64 cur=4 cdef=256`). Então o estado da classe NÃO é a corrupção.
+- Trocar o byte de entrada para `0` em vez de `236` **ainda trava** ⇒ o gatilho é ESTRUTURAL, não um laço dependente de valor.
+- Trilha de marcadores no nativo: `LOOP n=1 txSz=3 yMode=0 skip=0` → `ITER 0 br=0 bc=0` → `pre-coeffs` → `post-coeffs` → `post-avail` → `post-pred` → `RB in w=32 h=32 lv=1024 pr=1024` → `DQ in` → `DQ log2W=5 log2H=5 tw=32 th=32 denom=2 total=1024` → linhas `i=0 … i=31` → **e então nada**. O laço de dequantização roda até o fim e o travamento é na saída do laço / no `return out`.
+- Os limites da dequantização estão todos certos (`tw=th=32`, `denom=2`, `total=1024`), e guardas de runaway dentro dos dois laços nunca disparam ⇒ NÃO é laço infinito.
+- **Remover os 46 `var x = this.x` do `decodeBlock` (deixando ~8 locais) NÃO corrige** ⇒ tamanho de frame / número de locais está DESCARTADO, o que também mata de vez a leitura original dos "46 locais".
+- `ulimit -s unlimited` não muda nada ⇒ não é exaustão de pilha.
+
+**A pista que carrega o caso para quem pegar:** o `av1DecodeTileRecon` de topo pré-3au chama a MESMA cadeia `av1ReconBlockInto` → `av1ReconstructBlock` → `av1Dequant` nos mesmos alvos e NÃO trava (`Av1DecodeTileReconE2ETest#av1DecodeTileReconOnNativeX86` passa em 54–58s). Ou seja, o callee está bem e a falha está na interação de frame CHAMADOR/CALLEE quando o `decodeBlock` é o chamador — o próximo passo é diferenciar o call-site emitido e os dois prólogos/epílogos (`KOF_KEEP_ASM=1`), olhando o endereço de retorno / o `%rbp` em vez do próprio `av1Dequant`. A forma do sintoma (o laço termina e a função nunca retorna) é consistente com endereço de retorno ou frame pointer corrompidos.
+**TERCEIRA PASSADA (14/10, mesma lane): é um LAÇO DE COMPUTAÇÃO INFINITO, não um travamento, e o laço está DEPOIS das linhas do `av1Dequant`.** A segunda passada deixou uma ambiguidade — "a função nunca retorna" pode ser um deadlock (bloqueado) ou um laço (girando). Medido, com `strace` e `ps` sobre o binário emitido:
+
+- O `strace` mostra que as ÚNICAS syscalls do programa depois do startup são um `futex(0x453820, FUTEX_WAKE, 0) = 0` repetido. Resolver esse endereço com `nm` dá **`kof_alloc_lock`** — é o lock do ALOCADOR nativo, ou seja, o programa está alocando em laço (cada `kof_alloc` pega o lock com `lock cmpxchg` e o solta com um `FUTEX_WAKE`), não esperando nada.
+- Uma medição limpa de um único processo (`ps -eo pid,stat,pcpu,time,comm` filtrado por nome exato, depois de limpar os órfãos) mostra estado **R** com tempo de CPU acumulando e NENHUMA saída — está girando, não bloqueado. (Isto corrige um erro de medição meu: um `pgrep` anterior pegou um processo Electron alheio e reportou estado `S`/0 CPU, o que teria sustentado a leitura de deadlock. O `pkill -f <nome>` também casou — e matou — o meu próprio shell; é preciso `pkill -x` com nome exato.)
+- A trilha de marcadores ainda para depois das linhas da dequantização (`i=0 … i=31`), então o laço descontrolado está no estágio SEGUINTE — `av1InvTx2d` (`libs/image/Av1InvTx.kf`), cujo laço de linhas é `while (i < h)` com `h = 1 << av1TxHeightLog2(txSz)` — ou na saída do laço do próprio `av1Dequant`.
+- O assembly NÃO é o culpado nas fronteiras inspecionadas: o call-site do `decodeBlock` para o `av1ReconBlockInto` de 11 argumentos está corretamente balanceado (5 args de pilha empurrados, `addq $48, %rsp` depois), e os laços emitidos do `av1Dequant` têm cabeças, incrementos e back-edges corretos, com epílogo limpo `movq %rbp, %rsp; popq %rbp; ret`.
+
+Ou seja, a pergunta que resta é estreita: qual limite de laço dá errado dentro do `av1InvTx2d` (ou na saída do `av1Dequant`) só no nativo. A próxima sonda é instrumentar a entrada e a saída do `av1InvTx2d` — se imprimir a entrada e não a saída, o laço está lá, e então imprimir os `h`/`w`/`log2H` dele.
+**QUARTA PASSADA (14/10, mesma lane): o giro está localizado no LAÇO DE BLOCOS DE TRANSFORMADA do `decodeBlock` — e a minha pista da terceira passada (`av1InvTx2d`) está RETRATADA.** Instrumentando de novo os callees (prints + guardas de runaway, nunca dentro do corpo da chamada suspeita) obtém-se uma trilha estável para um único `tile.decodeBlock(0, 0, 9)` no nativo:
+
+```
+DB grid n=16 size=32 txSz=1 bw=8 bh=8     <- 16 blocos de transformada esperados
+DB iter 0 of 16   -> post-coeffs, post-avail, post-pred -> DB post-recon
+DB iter 1 of 16   -> post-coeffs, post-avail, post-pred -> DB post-recon
+DB iter 2 of 16   -> ordervals 0 4 -> brbc 0 4 -> (NADA)
+```
+
+Ou seja, a grade de transformadas do bloco é `n=16` e o laço completa as iterações 0 e 1 e então PARA na iteração 2. Marcadores colocados DENTRO do callee `av1DecodeCoeffsBlockEdgeTx`/`av1DecodeCoeffsBlockCore` (`CORE in txSz=… r4=… c4=… twu=… thu=… aboveSize=… leftSize=…`, `CORE coeffs lv=… skipCtx=…`, `CORE allZero=…`) disparam nas iterações 0 e 1 e NUNCA na iteração 2 — então o giro está **na chamada ao `av1DecodeCoeffsBlockEdgeTx` de 21 argumentos**, depois de seus argumentos serem calculados corretamente (`br=0`, `bc=4`, `order.get(4)=4`) e antes da primeira instrução do callee executar. NÃO está no `av1InvTx2d`, que a terceira passada chutou: essa função nem chega a ser alcançada (é chamada depois, de dentro do `av1ReconstructBlock`), e instrumentá-la mostrou que ela entrou e retornou limpa duas vezes.
+
+**Por que o palpite da terceira passada estava errado (vale registrar):** a terceira passada leu a evidência do `strace` — `futex(FUTEX_WAKE)` repetido em `kof_alloc_lock` — como "um laço que aloca por iteração" e apontou o `new Int[w]` do laço de linhas do `av1InvTx2d`. Isso foi uma inferência a partir do padrão de syscalls, não uma medição de onde a execução parou, e estava errada. A trilha de marcadores é a medição; o padrão de futex só diz *que* a alocação está em laço, não *onde*.
+
+**Um repro mínimo da forma da chamada NÃO trava, então a aridade sozinha não é o gatilho:** um método de classe com um laço `while` chamando uma função de topo de 21 argumentos que imprime e devolve um `Int[]` roda as 16 iterações corretamente no nativo. Então o gatilho está no conjunto real de argumentos ou no estado do callee, não no mecanismo de chamada de 21 argumentos por si.
+
+**Sonda mais barata a seguir:** mover a fronteira para dentro, uma chamada por vez — imprimir imediatamente antes da chamada `av1DecodeCoeffsBlockEdgeTx(...)` e como primeira instrução do próprio `av1DecodeCoeffsBlockEdgeTx` (o wrapper fino), para separar "avaliação de argumentos no chamador" de "o encaminhamento do wrapper". Se a primeira instrução do wrapper disparar, o giro está dentro do `av1DecodeCoeffsBlockCore` antes do print dele (isto é, no `av1TxbCtx`, a primeira coisa que ele chama).
+**QUINTA PASSADA (14/10, mesma lane): o travamento DEPENDE DA ENTRADA — o que CORRIGE a segunda passada — e a 3au transforma um erro nativo limpo em travamento.** Quatro medições novas, todas no binário emitido:
+
+1. **Dependência da entrada (corrige a segunda passada).** A segunda passada registrou "estrutural, não dependente de dado" a partir de uma execução com o byte de entrada em `0`. Aquele harness era diferente do atual e a afirmação não vale para a sonda atual: com `data[0] = 236` o binário nativo GIRA, e com `data[0] = 11` o MESMO binário sai limpo com `Runtime error: array index out of bounds`. Então o gatilho depende dos bytes de entropia — o decodificador dessincroniza e percorre um caminho patológico para certas entradas. A afirmação "estrutural" da segunda passada está RETRATADA.
+2. **A pré-3au erra LIMPO onde a 3au trava.** O `av1DecodeTileRecon` de topo pré-3au, dirigido com o MESMO buffer de entropia de 1 byte e o mesmo `BLOCK_32X32` único, sai com `Runtime error: array index out of bounds` (rc=1). O caminho do `decodeBlock` da 3au com essa mesma entrada GIRA. Ou seja, a 3au não muda apenas ONDE um erro acontece — ela converte um erro limpo e diagnosticável num giro que não termina.
+3. **Um erro DENTRO do `decodeBlock` não trava por si.** Forçar um erro de limite dentro do `decodeBlock` (passar `above`/`left` de tamanho 2 onde o walk de coeficientes indexa 8) faz o binário da 3au sair limpo com `Runtime error: array index out of bounds`. Então não é "qualquer erro de runtime dentro de um método de classe".
+4. **Mais dados de entropia também saem limpos.** Com 256 bytes de dados o binário da 3au sai com o erro de limite em vez de girar; só o stream curto/degenerado gira.
+
+**Juntas, estas apontam para uma forma específica:** o giro acontece quando o leitor de entropia acaba no meio de um bloco E a exaustão cai nas iterações posteriores do laço de blocos de transformada — isto é, a interação entre o caminho de exaustão do leitor e o laço, não a exaustão em si nem o caminho de erro em geral.
+
+**Também medido e descartado nesta passada:** um `throw` não capturado no topo sai limpo (rc=1, imprime a mensagem); um `throw` de dois níveis de profundidade em métodos de classe (`Tile.decode` → `Reader.readSym` → `Reader.raw`) também sai limpo. Então a maquinaria nativa de throw está bem nos casos simples e aninhados.
 **Status:** ✅ CORRIGIDO 08/10 pela lane `192.168.15.30:9092` (compilador/JVM/nativo) — dois defeitos independentes, um por face; `KofTestingE2ETest` 7/7 e `FpCompareCrossE2ETest` 4/4 em JVM+Script+JS+x86-64+riscv64+aarch64 (qemu).
+
+**A leitura mais afiada da evidência do futex (vale testar primeiro):** `FUTEX_WAKE` repetido em `kof_alloc_lock` significa chamadas de `kof_alloc` BEM-SUCEDIDAS repetidas, então o laço descontrolado é um que ALOCA a cada iteração. O `av1InvTx2d` aloca exatamente assim — `var T = new Int[w]` dentro de `while (i < h)` e `var T = new Int[h]` dentro de `while (col < w)` — então um limite grande espúrio ali (`h = 1 << av1TxHeightLog2(txSz)`) produziria precisamente isto: um laço de alocação infinito sem saída. Repare que o `av1Dequant` imprimiu limites CORRETOS (`log2W=5 log2H=5 tw=32 th=32`), então se o limite está errado é na SEGUNDA chamada ao helper log2 (o `av1InvTx2d` calcula os próprios `log2W`/`log2H`), não na primeira — o que é uma coisa muito mais estreita de checar do que "o frame está corrompido".
 
 **Repro (medido 08/10, tips `0230723e3` e `898bc50ab`, determinista em execuções ISOLADAS):** `mvn -o test -pl kof-compiler -Dtest='KofTestingE2ETest'` — 7 run / 2 F: `assertionsRunOnScript` e `assertionsRunOnNativeRiscv64`. O diff da face Script contra o oráculo JVM é exatamente quatro linhas: esperado `assertion failed: boomeqDbl (expected 1.5, got 2.5)` / `boomneqDbl (did not expect 2.5)` / `boomeqFlt (expected 1.5, got 2.5)` / `boomneqFlt (did not expect 2.5)`, obtido `NO-THROW` ×4 — isto é, `assertEqual(1.5, 2.5)` e `assertNotEqual(2.5, 2.5)` de `Double`/`Float` PASSAM silenciosamente no Script; a face riscv64 ainda mostra `assertion failed: eqFlt (expected 1.5, got 1.5)` e sai `1` (a harness espera exit 0) — no cross uma IGUALDADE de dois `FLOAT` IDÊNTICOS falha. Verificado independente desta lane: `git stash` de TODAS as mudanças da 15.3c-sliceA reproduz as duas faces RED nos mesmos tips.
 
@@ -16294,3 +16787,301 @@ O `CFL_SIGN_TYPE` do libaom é `{ CFL_SIGN_ZERO, CFL_SIGN_NEG, CFL_SIGN_POS }` (
 **Prova (executada, RED-first):** os dois casos entraram no `RecordExtendsUserClassValueSemanticsE2ETest`; revertendo só os dois arquivos do fix → **2/6 RED** com os erros exatos do relato; com o fix → **6/6 GREEN**. Bateria `*Record*`/interpretador **99/0F**, **golden 284/284** (quatro alvos).
 
 **Fronteira:** só JVM (native inalterado, já correto; JS/Script usam emitters próprios).
+
+## §728 — [JS] os throws internos do runtime agora ligam uma String, mas carregam o TEXTO próprio do runtime JS (bounds, parse de Int/Double, JWT, …) — a linha de IGUALDADE de mensagem da issue #843 continua falsa no JS — 🟡 ABERTO (achado 14/10 pela lane issues/tooling `192.168.100.21:9093` ao corrigir a #843; a mudança de texto abrange ≈61 sítios de throw em 16 arquivos `js/JsRuntime*.java`)
+
+**Medido (14/10, `kof-cli-0.6.5.jar` construído COM o fix da #843):** o mesmo programa em cada alvo —
+
+```kof
+try { println(listOf(1, 2).get(99)) } catch (String e) { println("msg=[" + e + "]") }
+```
+
+**JVM** `msg=[Index 99 out of bounds for length 2]` · **Script** `msg=[Index 99 out of bounds for length 2]` · **JS** `msg=[Index out of bounds: 99 (size 2)]`. A mesma forma vale para `"nope".toInt()` (JVM/Script `For input string: "nope"` ↔ JS `Cannot parse "nope" as Int`), para `.toDouble()`, para `List.set` fora de faixa e para o operador `list[i]`. JVM e Script batem BYTE A BYTE — o interpretador espelha o texto do JDK — enquanto o runtime JS usa texto próprio.
+
+**Por que é catalogado e não descartado:** o contrato congelado (`docs/language-reference/statements.md` §8, `semantics.md` §5) fixa o TIPO — exceções são Strings e o `catch (String e)` liga essa String — e é SILENTE sobre o texto. Mas o projeto já trata divergência SÓ de texto entre alvos como defeito real de paridade (a família do prefixo `file not found: `, reconciliada fazendo o alvo cross emitir o mesmo texto), e o repro da issue #843 afirma `e == "Index 99 out of bounds for length 2"`, isto é, o texto do JVM/Script.
+
+**A OUTRA metade da #843 está CORRIGIDA (mesmo dia, mesma lane):** a ligação tipada. O `JsEmitter` agora normaliza o binding do catch para String (`typeof <e> !== "string"` → `.message`, senão `String(e)`), então `e.length()`/`e.startsWith(...)` funcionam e o `TypeError: e.startsWith is not a function` que matava programas reais desapareceu — `JsCatchStringContractE2ETest` 5/0F, RED-first (reverter a normalização faz a face JS morrer com exatamente esse TypeError).
+
+**Fix (não tentado — decisão + frente):** alinhar o JS ao texto do JVM/Script significa adotar o texto derivado do JDK no runtime JS (`"Index " + i + " out of bounds for length " + n`, `For input string: "…"`) em ≈61 sítios de `new Error(` em 16 arquivos (`JsRuntimeUiLayout`, `JsRuntimeUiSecurity`, `JsRuntimeCollections`, `JsRuntimeCron`, `JsRuntimeUiChacha`/`Crypto`, …). Se as mensagens do runtime Kof passam a ser texto NORMATIVO (idênticas em todo alvo, estendido quando novos throws entrarem) ou seguem específicas do alvo é decisão da mantenedora; a mudança de código é frente da lane JS/codegen — os mesmos arquivos que essa lane edita.
+
+**Fronteira:** a face `substring`/`charAt` fora de faixa do JS é outra divergência (§730) e a face nativa de bounds outra (§729) — as três foram medidas na mesma sondagem da superfície de exceções.
+
+<!-- en-switch --> **EN:** [§728 (en)](known-bugs.md.md#728--js-the-internal-runtime-throws-now-bind-a-string-but-carry-the-js-runtimes-own-message-text-bounds-intdouble-parse-jwt---issue-843s-message-equality-line-stays-false-on-js---open-found-1410-by-lane-issuestooling-192168100219093-while-fixing-843-the-text-parity-change-spans-61-throw-sites-in-16-jsjsruntimejava-files)
+
+## §729 — NATIVE: um erro de bounds é ABORTO DURO (kof_bounds_error → kof_panic), então o catch (String e) nunca o vê, enquanto JVM/Script/JS capturam o mesmo acesso fora de faixa — ✅ CORRIGIDO 14/10 (achado 14/10 pela lane issues/tooling `192.168.100.21:9093` na sondagem da #843; corrigido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 14/10, `kof-cli-0.6.5.jar`):**
+
+```kof
+Int get1(List<Int> xs, Int i) { return xs.get(i) }
+main() {
+    var xs = listOf(1, 2)
+    try { println(get1(xs, 99)) } catch (String e) { println("caught=" + (e.length() > 0)) }
+}
+```
+
+JVM/Script/JS imprimem `caught=true`; **o native x86-64 imprime `Runtime error: array index out of bounds` e o `catch` NUNCA roda**. Um `throw "boom"` do USUÁRIO dentro do mesmo `try` É capturado no native — a divergência é específica das faltas do RUNTIME, não da cadeia de handlers.
+
+**Causa raiz:** os helpers de bounds do runtime nativo chamam `kof_panic` (`NativeRiscvAsmRt0.kof_bounds_error` → `la a0, .Lstr_bounds_err; call kof_panic`, com os blobs x86 e cross espelhando) — aborto duro. O `kof_throw_string` — o helper que o `throw "msg"` usa, e sobre o qual toda a máquina do `catch (String e)` é construída — nunca é alcançado dali, então nenhum handler é consultado.
+
+**Por que é divergência e não escolha de projeto:** a §699 (face cross da §693) tomou o caminho OPOSTO na falta IRMÃ — a divisão inteira por zero em runtime foi roteada para `kof_throw_string` nos alvos cross justamente porque "o `try`/`catch` do próprio Kof não a capturava" — e a direção falta-de-runtime → String capturável é a que a documentação promete (`semantics.md` §5: o `throw` propaga para o `catch (String e)` mais próximo).
+
+**Impacto:** todo programa Kof que guarda um acesso fora de faixa com o idioma documentado `try`/`catch (String e)` se comporta diferente no native — ABORTA em vez de seguir o caminho de recuperação. As suítes dos engines não pegam isso (os decoders AV1/WebP são escritos para nunca ler fora de faixa), e é por isso que sobreviveu.
+
+**Correção (POUSADA 14/10):** rotear `kof_bounds_error` para `kof_throw_string` nos três alvos nativos — x86 (`RuntimeGc.emitBoundsError`), riscv64 (`NativeRiscvAsmRt0`), aarch64 (via o tradutor riscv→aarch64) — construindo a mensagem como uma **KofString** real via `kof_string_from_literal(chars, len)` (o helper de runtime, sempre emitido) antes do throw, então um `catch (String e)` que USE `e` lê um header válido. O MESMO ciclo achou e corrigiu a face irmã x86-only (§732): o guard de divisão do x86 era o único passando um `.asciz` — um catch que usasse `e` SIGSEGVava. **Prova (executada, RED-first):** o novo `NativeCatchableRuntimeFaultE2ETest` **6 run / 0F** (JVM/Script/JS/nativo x86-64/riscv64/aarch64); com o fix REVERTIDO as faces nativas FALHAM. **Fronteira (documentada):** o TEXTO da falha nativa fica o do runtime (`Runtime error: array index out of bounds`) vs o do JVM (`Index 99 out of bounds for length 2`) — este fix torna a falha CAPTURÁVEL com uma mensagem KofString utilizável, não alinha o texto; a falha de NULL (`kof_null_error`) não foi medida.
+
+**Fronteira:** só faltas fora de faixa. A falta de NULL do native (`kof_null_error`, mesma forma de `kof_panic`) NÃO foi medida neste ciclo e não é afirmada aqui.
+
+<!-- en-switch --> **EN:** [§729 (en)](known-bugs.md.md#729--native-a-bounds-error-is-a-hard-abort-kof_bounds_error--kof_panic-so-a-catch-string-e-never-sees-it-while-jvmscriptjs-catch-the-same-out-of-range-access---open-measured-1410-by-lane-issuestooling-192168100219093-during-the-843-probe-the-native-runtime-lanes-front)
+
+## §730 — [JS] String.substring/charAt FORA DE FAIXA trancam em silêncio (string vazia) onde o JVM/Script lançam a mensagem nomeada de Range/Index — ✅ CORRIGIDO 14/10 (achado 14/10 pela lane issues/tooling `192.168.100.21:9093` na sondagem da #843; corrigido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Medido (14/10, `kof-cli-0.6.5.jar`), mesma fonte em todo alvo:**
+
+| expressão | JVM | Script | JS |
+|---|---|---|---|
+| `"abc".substring(9)` | lança `Range [9, 3) out of bounds for length 3` | idem | `""` |
+| `"abc".substring(2, 1)` | lança `Range [2, 1) out of bounds for length 3` | idem | `"b"` (os argumentos são TROCADOS) |
+| `"abc".substring(-1)` | lança `Range [-1, 3) out of bounds for length 3` | idem | `"abc"` |
+| `"abc".charAt(9)` | lança `Index 9 out of bounds for length 3` | idem | `""` |
+| `"abc".charAt(-1)` | lança `Index -1 out of bounds for length 3` | idem | `""` |
+
+**Causa raiz:** o alvo JS delega ao `String.prototype` do host, que TRUNCA por definição e TROCA os argumentos do `substring`, em vez de fazer a checagem de faixa que os outros alvos fazem. Mesma família do bug 102 (onde `indexOf`/`lastIndexOf`/`startsWith` COM `from` divergiam dos clamps do JDK e foram reconciliados no JS) — aqui é o limite do próprio método.
+
+**Impacto:** esta é a variante SILENCIOSA, a pior classe que o ledger rastreia (regra 5): o programa segue rodando com uma string vazia ou curta e o valor errado se propaga, onde JVM/Script falham alto.
+
+**Correção (POUSADA 14/10):** o emitter do JS agora roteia `charAt`/`substring` para `kofStrCharAt`/`kofStrSubstring`, que fazem a checagem de faixa e LANÇAM a mensagem EXATA do JVM (uma string do JS que o `catch (String e)` do Kof recebe) — a mesma forma do `kofDivZero` (§693), num bloco de runtime próprio (`JsRuntimeStrBounds`, registrado como bloco `strbounds`). `JsCallEmitter`. **Prova (executada, RED-first):** o novo `JsStringBoundsE2ETest` **3 run / 0F** (JVM/Script/JS); com o emitter revertido a face JS falha (o clamp silencioso). **Fronteira:** só a face JS. A face NATIVA ABORTA no mesmo acesso (o bug §729 — uma falha de bounds que nunca é capturável); a tabela original do ledger cobria só JVM/Script/JS.
+
+**Fronteira:** só fora de faixa. O comportamento UTF-16 DENTRO da faixa no alvo JS é a convenção de referência (§43) e não é tocado; `indexOf`/`lastIndexOf`/`startsWith` COM `from` foram reconciliados pelo bug 102.
+
+<!-- en-switch --> **EN:** [§730 (en)](known-bugs.md.md#730--js-stringsubstringcharat-out-of-range-silently-clamp-empty-string-where-the-jvmscript-raise-the-named-rangeindex-message---open-measured-1410-by-lane-issuestooling-192168100219093-during-the-843-probe)
+
+## §731 — o decode de tile AVIF em Kof puro DIVERGE do decoder de referência mesmo no frame real MAIS SIMPLES: um AVIF verde-cinza sólido 64x64 (um bloco, payload de tile de 2 bytes) reconstrói como `Y = 0,173,165` onde o `libdav1d` do ffmpeg lê um plano `126` — ✅ CORRIGIDO 14/10 — DIAGNÓSTICO ERRADO RETRATADO: o decode de tile do Kof está CORRETO; a 'divergência' era a COLA DA COMPOSIÇÃO passando o bit cru `tx_mode_select` onde o driver quer o VALOR `TxMode` do AV1 (0=ONLY_4X4, 1=LARGEST, 2=SELECT) — ver a resolução abaixo (medido pela lane pipeline/image-vision `192.168.15.21:0`)
+
+**Sintoma (medido 14/10):** a cadeia AVIF inteira lê corretamente o arquivo de um encoder REAL — contêiner, sequence header (fatias 3ay/3ba) e cabeçalho de quadro (3ax/3bb) todos batem — mas a RECONSTRUÇÃO da luma no DECODE DE TILE discorda da referência. Não é problema de config: o quadro real lê `deltaQPresent=0`, `deltaLfPresent=0`, `cdefBits=0` (fatia 3bb), então o `Av1ModeTail` já está correto.
+
+**O reprodutor mínimo:** um frame de cor sólida é o AVIF mais simples possível, então se ele diverge o caminho básico está errado, não uma feature rara:
+```
+ffmpeg -f lavfi -i "color=c=gray:s=64x64" -frames:v 1 -pix_fmt yuv420p \
+       -c:v libaom-av1 -crf 30 -cpu-used 8 -still-picture 1 -f avif solid.avif
+ffmpeg -i solid.avif -pix_fmt yuv420p -f rawvideo solid.yuv   # oráculo: Y = 126 em tudo
+```
+O item do ffmpeg é `[OBU_SEQUENCE_HEADER][OBU_FRAME]` sem temporal delimiter liderando, que o walk de item do Kof exige; prependa um (`AvifSeqSupport.delimiter()`) para a ordem canônica (receita da fatia 3ba). O quadro então lê `bq=120 tx=0 ll=0 64x64 cdef=0/1 fi=1 ie=1 payload=2`, o walk reporta **1 bloco**, e o driver reconstrói `Y = 0,173,165` — não `126`.
+
+**Por que é a próxima investigação certa:** toda fatia anterior fixou um ESTÁGIO contra libaom em streams SINTÉTICOS; esta é a primeira checagem ponta-a-ponta da cadeia composta contra os bytes de um encoder REAL, e ela falha na entrada MAIS SIMPLES. Os suspeitos agora são estreitos — a cauda de mode-info / transform size / walk de coeficientes / reconstruct do único bloco 64x64 — e o reprodutor é 2 bytes de tile, então é barato de dirigir com uma trilha de marcadores.
+
+**Fronteira:** só JVM aqui (as faces nativas não são afetadas pelo trabalho da lane de codegen). NÃO é o problema de locais-em-registradores §723. NÃO é um bug de contêiner/cabeçalho (esses estão fixados em verde).
+
+**RESOLVIDO 14/10 — a divergência estava na COLA DA COMPOSIÇÃO, não no decoder.** Dirigindo o reprodutor cinza-sólido com um dump por estágio, apareceu UM bloco de mode-info mas 256 blocos de transformada com coeficientes lixo e `txSz=0` (TX_4X4) para um bloco 64x64. O parâmetro `txMode` do driver de tile toma o VALOR `TxMode` do AV1 (0=ONLY_4X4, 1=LARGEST, 2=SELECT), NÃO o bit cru `tx_mode_select` do cabeçalho — a cola passava o bit, então `tx_mode_select == 0` virava TX_MODE_ONLY_4X4 e um bloco 64x64 decodificava como 256 blocos 4x4. Mapeando (bit 0 -> LARGEST(1), bit 1 -> SELECT(2)) o quadro lê UM bloco, uma transformada TX_64X64, e reconstrói `Y=126` — EXATAMENTE a saída do `libdav1d` do ffmpeg. Prova: `AvifRealFileE2ETest#realSolidGrayDecodesToReferenceOnJvm/OnScript`. **O decoder AVIF do Kof estava correto o tempo todo; esta entrada é retratada como bug de decoder e mantida como registro de uma armadilha de integração real (o mapeamento do valor TxMode) que a composição precisa acertar.**
+
+<!-- pt-switch --> **EN:** [§731 (en)](known-bugs.md#731--the-pure-kof-avif-tile-decode-diverges-from-the-reference-decoder-even-on-the-simplest-real-frame-a-solid-gray-64x64-avif-one-block-a-2-byte-tile-payload-reconstructs-as-y--0173165-where-ffmpegs-libdav1d-reads-a-flat-126---fixed-1410--misdiagnosis-retracted-the-kof-tile-decode-is-correct-the-divergence-was-the-composition-glue-passing-the-raw-tx_mode_select-bit-where-the-driver-wants-the-av1-txmode-value-0only_4x4-1largest-2select--see-the-resolution-below-measured-by-lane-pipelineimage-vision-19216815210)
+
+## §732 — [nativo x86] uma mensagem de falha de RUNTIME capturada era um `.asciz` (C-string), não uma KofString: um `catch (String e)` que USESSE `e` (`e + "…"`, `e.length`) SIGSEGVava — mascarado porque o E2E do §693 nunca usou `e` — ✅ CORRIGIDO 14/10 (achado e corrigido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 14/10):** no nativo x86-64,
+
+```kof
+main() {
+    var z = 0
+    try { println(10 / z) } catch (String e) { println("caught=[" + e + "]") }
+}
+```
+
+SIGSEGVava (exit 139) em vez de imprimir `caught=[/ by zero]` — o catch DISPARAVA mas USAR `e` crashava.
+
+**Raiz:** o guard de divisão por zero do x86 (§693) passava `.Ldivz_msg` — um `.asciz` (C-string crua) — ao `kof_throw_string`, enquanto o guard do CROSS (e todo `throw "msg"` do usuário) passa uma KofString real. Uma KofString tem header (typeId@0 super@4 vtable@8 len@16 data@24); `e + "]"`/`e.length` leem `len@16` de um `.asciz` → um tamanho-lixo → leitura fora de faixa → SIGSEGV.
+
+**Correção (POUSADA):** o guard de divisão do x86 constrói uma KofString via `kof_string_from_literal(chars, len)` antes do `kof_throw_string` — a mesma forma que o guard do CROSS já usava. `NativeX86Arith`.
+
+**Prova (executada, RED-first):** `NativeCatchableRuntimeFaultE2ETest` cobre o catch de divisão USANDO `e` em JVM/Script/JS/nativo; com o fix revertido as faces nativas falham. **O `CrossDivideByZeroE2ETest` (§693/§699) MASCAROU isto** — capturava `(String e)` mas só imprimia `"caught"`, sem usar `e`, então o catch disparar era tomado como sucesso.
+
+**Fronteira:** a face x86; o guard do CROSS já estava correto (usava `kof_string_from_literal`).
+
+<!-- en-switch --> **EN:** [§732](known-bugs.md#732--native-x86-a-caught-runtime-fault-message-was-an-asciz-c-string-not-a-kofstring-a-catch-string-e-that-used-e-e---elength-sigsegvd--masked-because-693s-e2e-never-used-e---fixed-1410-found-and-fixed-1410-by-lane-compilerjvmnative-19216815309092)
+
+## §733 — json.decode<Rec> devolve um record DEFAULT na NATIVE (JSON malformado E campo faltando) e na SCRIPT (campo faltando), onde JVM/JS lançam — 🟡 QUASE CORRIGIDO 15/10 (a face SCRIPT de campo faltando CORRIGIDA 14/10; a face NATIVA x86 de campo PRIMITIVO faltando CORRIGIDA 15/10 — o cross recusa `json.decode<Rec>` em compile-time com COMP001; resta uma divergência de TEXTO no payload malformado) — lane compilador/JVM/nativo `192.168.15.30:9092`
+
+**Sintoma (medido 14/10 pelo MÓDULO COMPILADOR), `record Point(Int x, Int y)`, `json.decode<Point>(j)` num `try`/`catch (String e)`:**
+
+| `j` | JVM | Script | JS | nativo |
+|---|---|---|---|---|
+| `"{bad"` | captura | captura | captura | **`Point(x=0, y=0)` — NÃO lança** |
+| `"xyz"` | captura | captura | captura | **`Point(x=0, y=0)` — NÃO lança** |
+| `"{\"x\":1}"` (sem `y`) | captura `JSN004: missing field 'y' for Point` | **`Point(x=1, y=0)` — NÃO lança** | captura `JSN004` | **`Point(x=1, y=0)` — NÃO lança** |
+| `"{\"x\":1,\"y\":2}"` | `Point(x=1, y=2)` | idem | idem | idem |
+
+O NATIVO nunca lança num payload MALFORMADO — devolve um record zero/default e o programa segue com um valor ERRADO (a variante SILENCIOSA, a pior classe, regra 5). NATIVO e SCRIPT ignoram um campo FALTANDO (default 0) onde JVM/JS levantam `JSN004`.
+
+**Raiz (análise):** o decode JSON nativo (o runtime `kof_json_decode_*`, `runtime/RuntimeJsonDecode.java`) lê campos por nome e deixa o slot do record no default quando o campo está ausente, e não valida o payload; o decode da SCRIPT espelha esse default de campo faltando. O decode JVM/JS levanta uma String `JSN004`, que um `catch (String e)` recupera — o contrato.
+
+**Caminho de correção (nomeado, NÃO pousado):** fazer o decode nativo (e o da Script) LANÇAR a MESMA String `JSN004` num payload malformado e num campo faltando, espelhando JVM/JS — via o caminho de `throw` nativo com mensagem KofString (§729/§732 tornaram esse mecanismo capturável). NOTA: a linha da tabela `Behaviors that LOOK like bugs` do ledger está ESTALE — o JVM agora lança um `JSN004` limpo, não `NPE/IllegalArgumentException`.
+
+ **RE-MEDIDO 15/10 pela lane compilador/JVM/nativo `192.168.15.30:9092` (por TIPO de campo):** no x86-64 um campo PRIMITIVO faltando (`Int`/`Long`/`Bool`) defaulta em silêncio (o catch nunca dispara — `ok`); os alvos CROSS (riscv64/aarch64) NEM COMPILAM `json.decode<Rec>` (`COMP001`) — então esta face nativa é x86-only (o cross recusa em compile-time). O fix fica portanto restrito ao x86: um helper de runtime `kof_json_check_present` (lança um `JSN004` quando o resultado do `kof_json_find_value` é vazio) emitido pelo `ExpressionJsonCallLowerer` após o `find_value` para campos PRIMITIVOS (o campo `String` mantém a ambiguidade de valor vazio).
+
+**Face NATIVA x86 CORRIGIDA 15/10:** o `ExpressionJsonCallLowerer` agora emite `kof_json_require` após o `kof_json_find_value` para campos PRIMITIVOS (Int/Long/Bool/Char/Byte/Short); o novo helper de runtime x86 (`RuntimeJsonUtils.emitJsonRequire`) LANÇA `JSN004: missing field` quando o resultado do find é vazio — o default silencioso sumiu. O campo STRING/REFERÊNCIA está CORRIGIDO abaixo (a face de valor vazio/ausente foi resolvida); o CROSS (riscv64/aarch64) nunca chega a esta emissão (recusa `json.decode<Rec>` com COMP001). **Prova RED-first:** `NativeJsonDecodeRequiresFieldE2ETest` (novo) **4 run / 0F** (JVM/Script/JS/nativo x86) — a medição pré-fix no nativo (14/10) era `ok` (o default silencioso). **Fronteira de texto:** a mensagem nativa é a forma curta `JSN004: missing field` vs `JSN004: missing field 'a' for P` do JVM; e um payload MALFORMADO faz JVM/Script/JS lançarem a própria mensagem de PARSE enquanto o nativo lança `JSN004` — uma divergência de texto remanescente. **Fronteira:** o NATIVO (as duas faces) e a SCRIPT (campo faltando); JVM/JS são o oráculo. Distinto do §728 (o TEXTO da mensagem JS) e das faces json §48/§667.
+
+**Face STRING/REFERÊNCIA CORRIGIDA 15/10:** o contrato §565 (`D-JSON-MISSING-PRIMITIVE`) limita o `JSN004` a um componente PRIMITIVO faltando — um componente de REFERÊNCIA (String) fica `null` SEM erro (o JVM é o oráculo: `record S(String a, Int b)` + `json.decode<S>("{\"b\":2}")` liga `a = null`). DOIS alvos divergiam: a SCRIPT lançava `JSN004` também para uma String faltando (o `decodeKofValue` chaveava em `!containsKey` para TODO campo — o fix §733 da Script passou do §565), e o nativo x86 devolvia a STRING VAZIA (o `kof_json_find_value` usava uma KofString vazia como sentinela de ausente E como valor vazio legítimo). CORREÇÃO: o `KofInterpreterRuntime.decodeKofValue` agora lança só quando o tipo do campo é um `Type.PrimitiveType` não-nulável; o ramo de not-found do `kof_json_find_value` nativo devolve NULL (sentinela distinto de uma string vazia real), os três sítios JWT/segurança (que desreferenciavam o resultado) ganharam null-check, e o `kof_json_require` agora também trata NULL como ausente. **Prova RED-first:** novo `NativeJsonDecodeMissingStringE2ETest` **4 run / 0F** (JVM/Script/JS/nativo x86) — a corrida com os fontes revertidos FALHOU no nativo (`""` → `missingNotE=true`) e na Script (`JSN004: missing field 'a' for S` não capturado) enquanto JVM/JS passavam; a mudança do sentinela é coberta por `KofSecurityTest` 42/0F + `SecretE2ETest` 9/0F (o runtime JWT) + a bateria json. Fronteira: o encoder JSON nativo RECUSA um campo `String?` (JSN002, "not supported yet"), então a face de referência NULÁVEL é inobservável ali e a sonda usa uma String não-nulável comparada com `""`; uma referência faltando vira `undefined` no JS (não `null`), então `x == ""` é falso em todo alvo enquanto um `x == null` estrito é verdadeiro só em JVM/Script/nativo.
+
+<!-- en-switch --> **EN:** [§733](known-bugs.md#733--jsondecoderec-silently-returns-a-default-initialized-record-on-the-native-malformed-json-and-missing-field-and-on-the-script-missing-field-where-jvmjs-throw---mostly-fixed-1510-the-script-missing-field-face-fixed-1410-the-native-x86-missing-primitive-field-face-fixed-1510--the-cross-refuses-jsondecoderec-at-compile-time-with-comp001-a-malformed-payload-message-text-divergence-remains--lane-compilerjvmnative-19216815309092)
+
+
+## §734 — [JS] uma função Kof pura que constrói uma String a partir de nibbles `List<Int>` devolve `undefined` no alvo JS (JVM/Script/Native x86 todos corretos) — ✅ CORRIGIDA 15/10 (medido 15/10 pela lane KofBOL `192.168.100.14:0`; CORRIGIDA pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (repro single-file mínimo, medido em isolamento):** uma função que (1) constrói uma `List<Int>` de nibbles via `bytes.get(i) / 16` e `bytes.get(i) % 16` num `listOf()` novo, (2) lê um elemento de SINAL e ramifica (`sign == 11 || sign == 13` …), (3) constrói uma String com `all = all + ((d + 48) as Char)` num segundo loop sobre a lista, (4) aplica `substring(0, all.length - scale) + "." + …` e um prefixo `"-"` — devolve **`undefined`** no alvo JS; JVM, Script e Native x86 devolvem `-12.34` para a mesma entrada `[1, 35, 77]`. Medido COM o corpo exato do `unpackComp3` inline no Main.kf (sem biblioteca envolvida) — e ainda `undefined`.
+
+**Estreitado (medido):** `/`, `%`, `as Char` e o concat de char funcionam no JS **em isolamento** (um probe com `95 / 16`, `95 % 16`, `(12 + 48) as Char` está correto nos dois alvos); uma variável de loop fresca NÃO conserta a função. O gatilho é uma COMBINAÇÃO dentro da função — o emitter JS desce mal um dos construtos (o round-trip de lista, o check de sinal multi-ramo, ou o substring de limites computados) — ainda não bisecado ao construto único.
+
+**Impacto:** qualquer programa Kof que exercite essa forma no JS recebe um `undefined` silencioso (sem diagnóstico). A face JS do COMP-3 do `kof.legacy` está bloqueada; o E2E de paridade documenta a face como §734 e cobre o resto do núcleo portável nos 4 alvos.
+
+**Fronteira:** lane compiler (o emitter JS), NÃO a lib — a forma da lib está sob suspeita, então o repro é o corpo puro acima.
+
+**BISSECADO + CORRIGIDO 15/10 (lane compilador/JVM/nativo `192.168.15.30:9092`):** o gatilho é um `if (A) { … } else if (B) { throw … }` cujo corpo do ELSE-IF LANÇA, seguido de mais statements — `if (s == 11) { neg = true } else if (s != 10) { throw "bad" }` + `return …` reduz a forma (o ramo do SINAL é o shape inteiro; o round-trip de lista e o substring são inocentes). RAIZ (medida dumppando o IR): o IR tem um **end label compartilhado** — o then do if envolvente sai com `Jump(end)` (op 9 → Label id 7), e o `if (B) { throw }` aninhado (cujo then termina incondicionalmente, então toma o caminho `JsIfThrowElse`) CONSUMIU esse `Label(end)` como o SEU próprio fim. O else externo então corria até o epílogo do método e absorvia o `return` final, então no caminho `A` o else era pulado e a função caía no fim → `undefined`. CORREÇÃO: o `JsControlFlowParser.parseIfBody` agora captura os alvos de salto de saída do then e os empilha num novo conjunto `MethodCtx.enclosingIfEnds` durante o parse do else; os dois sítios de consumo do end-label (o early-return sem-else e o fim-do-else) recusam um label nesse conjunto — a guarda §380 é a regra análoga para o FALSE label do if envolvente. Prova RED-first: novo `JsIfElseIfThrowE2ETest` **4 run / 0F** (JVM/Script/JS/nativo x86, golden `-12.34 / -42.34 / labeltrue / labelfalse / caught`); a corrida com os fontes revertidos FALHOU na face JS (`undefined`) enquanto JVM/Script/nativo passavam. Não-regressão: bateria JS/control-flow **563 run / 0F / 25 skip** + a suíte golden nos 4 alvos. **NOTA DE MEDIÇÃO:** o shade do jar `kof-cli` é INCREMENTAL — um `-pl kof-cli -am package` após uma edição do compiler pode manter as classes VELHAS do `kof-compiler` no uber-jar (medido: `dev/kof/compiler/js/MethodCtx.class` sem o campo novo); apagar `kof-cli/target/kof-cli-*.jar` antes do package força o re-shade. Sondas do compiler durante o bisect DEVEM passar por `mvn test -pl kof-compiler`, nunca pelo jar do CLI (possivelmente stale).
+
+**FACE IRMÃ CORRIGIDA 15/10 (mesma família, lane compilador/JVM/nativo `192.168.15.30:9092`):** o primeiro fix guardou os DOIS sítios de consumo de label no `JsControlFlowParser.parseIfBody`, mas um TERCEIRO sítio rouba o mesmo end label compartilhado — o `JsIfThrowElse.parseElse` consome QUALQUER label não-loop como o fim do else. Então a forma COM UM ELSE FINAL ainda devolvia `undefined` no JS: `Int chain(Int s) { var r = 0  if (s == 1) { r = 10 } else if (s == 2) { throw "bad" } else { r = 30 }  r = r + 1  return r }` — medido JVM/Script/nativo `11` para `s == 1`, JS `undefined`. Mesmo end label compartilhado (o `Jump(end)` do then externo); o `parseElse` do `if/else` aninhado (cujo then termina em `throw` → o caminho `JsIfThrowElse`) consumiu `Label(end)` e o else externo absorveu o epílogo. CORREÇÃO: o `JsIfThrowElse.parseElse` agora RETORNA num label em `MethodCtx.enclosingIfEnds` (a mesma guarda que os dois sítios de `parseIfBody` ganharam), e o consumo fim-do-else do `parseIfBody` também o recusa. Prova: o MESMO `JsIfElseIfThrowE2ETest` agora fixa CINCO shapes — um else-if cujo corpo lança, um com ELSE FINAL, um terminador `return`, um `if` aninhado no then, e um `while` cujo corpo é um `if`/`else if` com break/throw — **4 run / 0F** (JVM/Script/JS/nativo x86); RED-first (reverter as duas guardas novas faz a face JS dar `undefined`); não-regressão bateria JS/control-flow **563 run / 0F / 25 skip** + a suíte golden **308 passed / 0F / 0 skip**.
+
+**TERCEIRA FACE CORRIGIDA 15/10 (mesma família, lane compilador/JVM/nativo `192.168.15.30:9092`):** outra rodada de sondagem achou o roubo num LOOP — `Int loopTrail(Int n) { var r = 0  while (r < 5) { if (r == n) { r = r + 10  if (r > 12) { return r } } else if (r == 4) { break }  r = r + 1 }  return r }` — medido JVM/Script/nativo `11` para `n == 0`, JS `10`. RAIZ (IR dumpado): o if INTERNO `if (r > 12) { return r }` (cujo then termina em `return` → o caminho `JsIfThrowElse`) tem um else VAZIO, e o `JsIfThrowElse.parseElse` CONSUMIU o `Jump(end)` de saída do then ENVOLVENTE como se fosse o terminador daquele else vazio — então o if EXTERNO nunca registrou seu end label (`thenExits` vazio), o `if (r == 4) { break }` aninhado roubou `Label(end)`, e o else externo absorveu o `r = r + 1` final (o incremento do loop era pulado no caminho `if`). CORREÇÃO: o `JsIfThrowElse.parseElse` NÃO consome um KofJump quando o else é VAZIO (`out.isEmpty()`) — um else vazio não tem terminador próprio, então o jump pertence à região ENVOLVENTE e precisa chegar ao `parseStatements` dela para ser registrado como exit. Prova: o MESMO `JsIfElseIfThrowE2ETest` agora fixa SETE shapes (somando o loop-com-statement-final e uma cadeia `else if` de 4 ramos cujo ramo do meio RETORNA/LANÇA) — **4 run / 0F** (JVM/Script/JS/nativo x86); RED-first (reverter as guardas faz a face JS falhar); não-regressão bateria JS/control-flow **563 run / 0F / 25 skip** + a suíte golden **308 passed / 0F / 0 skip**.
+
+
+## §735 — [BUG #846] uma lambda cujo corpo chama um MÉTODO DE INSTÂNCIA da classe envolvente com receptor IMPLÍCITO (`somar(n)`, sem `this.`) valida como `VerifyError: Bad type on operand stack` no JVM — ✅ CORRIGIDO 15/10 (lane issues/tooling `192.168.100.21:9093`)
+**Correção (15/10, lane issues/tooling `192.168.100.21:9093` — DOIS sítios, medidos):** (a) `CompilerCaptures` trata a chamada nua de método de INSTÂNCIA da classe envolvente como uso do `this` EXTERNO, resolvido por **CLASSE + aridade** (`semanticAnalyzer.getClass` + `members().resolve`); (b) **`ExpressionBareCallLowerer` carregava SEMPRE o slot 0 FIXO** como receptor — é AQUI que estava o `aload_0` da issue (não em `ExpressionMethodCallLowerer:107`); agora resolve pelo NOME (`findLocalVar("this", locals)`), que varre de trás para frente e acha a captura re-hospedada. **Prova RED-first:** `LambdaImplicitReceiverE2ETest` **2/2** (oráculo da JVM byte-idêntico em Script e JS + o controle explícito); antes: JVM rc=1 e Script rc=1. Golden 328 passed. **FACE NATIVA SEPARADA (#876):** no nativo o controle explícito também dá SIGSEGV (lambda que CAPTURA), pré-existente e independente.
+
+
+**Sintoma (medido, jar da `lab`):** `class Contador { somar(Int n) {…} (Int) -> void implicito() { return (n: Int) -> somar(n) } }` — o `kof check` passa e `c.implicito()` morre na CARGA da classe. Isolado nos dois caminhos: com `this.somar(n)` → roda (`total=1`); com `somar(n)` nu → `VerifyError`.
+
+**Causa raiz (bytecode da classe sintética, medida):**
+
+```
+Location: Lambda0.invoke(I)V @2: invokevirtual
+Reason:   Type 'Lambda0' (current frame, stack[0]) is not assignable to 'Contador'
+locals:   { 'Lambda0', integer }
+Bytecode: 2a 1b b6 000e b1     // aload_0; iload_1; invokevirtual; return
+```
+
+O receptor empilhado é `aload_0` — a PRÓPRIA lambda — em vez da instância externa capturada. No caminho que funciona, a mesma chamada compila para `aload_2` (slot re-homed do campo `this:LContador;`).
+
+**Mecanismo:** o `CompilerCaptures`/`CompilerCaptureScanner` capturam os nomes que o corpo da lambda **menciona**; uma chamada NUA não menciona `this`, então o `this` externo nunca é capturado. Sem captura a lambda tem só `locals[0] = ("this", Lambda0)` (`CompilerLambdaClass:112`) e o lowering da chamada de instância resolve o receptor por `findLocalVar("this")` → slot 0 = a lambda. Com `this.` explícito a captura acontece e o prólogo re-homed a coloca num slot próprio — por isso só o caminho explícito funciona.
+
+**Onde o fix mora:** no scanner de capturas (`CompilerCaptures.collectCaptures`), tratar uma chamada de instância NUA da classe envolvente como uso de `this` (capturar o `this` externo), como o caminho explícito já faz — não no emissor, que só materializa o receptor escolhido pelo lowering. O cuidado é a detecção (chamada nua de método de INSTÂNCIA da classe envolvente vs. função top-level), porque capturar sem critério muda a forma de TODA lambda (campo + parâmetro de construtor).
+
+**Fronteira:** o receptor implícito dentro de lambda. Chaves explícitas (`this.x`) e capturas de variáveis locais continuam corretas (medido no mesmo probe).
+**RE-MEDIDO 15/10 (lane compilador/JVM/nativo `192.168.15.30:9092`) — o caminho de fix é INCOMPLETO como escrito acima: a mudança no scanner de capturas sozinha NÃO basta.** Medido: acrescentar o predicado de método de instância da classe envolvente ao `CompilerCaptures` DISPARA corretamente (`bare=somar enclosing=Contador thisVar=slot 0`, verificado por corrida instrumentada), e o `this` externo É adicionado às capturas — mas a classe ainda falha (VerifyError no sítio da chamada `implicito()`). RAIZ do resíduo: o `CompilerLambdaClass` põe `locals.add(new IRLocalVariable(0, "this", ownerType))` (a LAMBDA) e depois carrega cada captura no SEU próprio slot COM O MESMO NOME — então um `this` capturado vira um SEGUNDO local chamado "this", e o `ExpressionMethodCallLowerer` (`IRLocalVariable thisVar = calleeStatic ? null : driver.findLocalVar("this", locals)` — linha 107) resolve o slot 0 (a lambda) PRIMEIRO. O caminho explícito `this.somar(n)` funciona via um identificador `this` de verdade (outro caminho de lowering), não pela captura sozinha. **O fix precisa então de um SEGUNDO sítio**: o receptor IMPLÍCITO do corpo da lambda deve resolver ao `this` EXTERNO capturado (o slot da captura deve SOMBREAR o slot 0 para "this", ou o `collectCaptures` deve emitir o sentinel índice −1 no estilo do #381). NÃO pousado — revertido em vez de shippar meio-fix — registrado aqui para a lane dona partir do mecanismo medido.
+**RE-MEDIDO 15/10 #2 (lane compilador/JVM/nativo `192.168.15.30:9092`) — SEGUNDA rodada de instrumentacao ESTREITA o residuo (ainda NAO pousado; revertido de novo, sem meio-fix).** Apos re-aplicar o predicado do capture-scan, a corrida instrumentada mostra que a lambda IMPLICITA continua com **`lambdaClass captures=[]`** (o meu `isEnclosingInstanceCall` NAO disparou na fase do capture-scan — o debug anterior imprimiu `enclosing=Contador` mas o `resolveInHierarchy("Contador", "somar")` evidentemente nao devolveu nada usavel para o nome simples), enquanto a EXPLICITA ganha `captures=[this@0]`. E NENHUMA resolucao de receptor de `somar` chegou ao `ExpressionMethodCallLowerer` linha 107 — entao a chamada nua de instancia e baixada por um caminho DIFERENTE, nao pelo sitio `findLocalVar("this")` que o comentario acima culpa. **Dois sitios independentes seguem abertos: (a) o capture-scan precisa RESOLVER o metodo de instancia da classe envolvente (o lookup por nome simples via `resolveInHierarchy` nao basta — use `semanticAnalyzer.getClass(<enclosing>)` + um scan de membro/aridade); (b) a chamada nua de instancia no corpo da lambda precisa ser roteada ao lowering de chamada de instancia com o `this` externo capturado como receptor.** O `CompilerLambdaClass` coloca as capturas DEPOIS de `locals[0]=("this", Lambda0)` e o `findLocalVar` varre de TRAS para FRENTE, entao a captura VENCERIA assim que (a) a colocar na lista — (a) e o primeiro bloqueio real. NAO pousado; registado para a lane dona.
+
+**RE-MEDIDO 15/10 pela lane compilador/JVM/nativo `192.168.15.30:9092` (os QUATRO alvos):** o `VerifyError` do JVM é só UMA das faces — `class Contador { Int somar(Int n) { return n + 1 }  (Int) -> Int implicito() { return (n: Int) -> somar(n) } }` + `c.implicito()(5)` diverge em toda parte: **JVM** `VerifyError: Bad type on operand stack` (a face registrada); **Script** imprime `Lambda0.somar` (um valor ERRADO, silencioso); **JS** lança em runtime (`return this.somar(n)` — `this` é a lambda); **native x86 dá SIGSEGV (rc=139)**. O caminho explícito `this.somar(n)` devolve `6` correto nos quatro, confirmando o diagnóstico do capture-scanner.
+
+<!-- en-switch --> **EN:** [§735 (en)](known-bugs.md#735--bug-846-a-lambda-cujo-corpo-chama-um-metodo-de-instancia-da-classe-envolvente-com-receptor-implicito-somarn-sem-this-valida-como-verifyerror-bad-type-on-operand-stack-no-jvm---fixed-1510-lane-issuestooling-192168100219093)
+
+## §736 — [BUG #845] um `T?` ESTREITADO (`if (i != null)` → `Int j = i`) chega ao `istore` ainda BOXED: o valor na pilha é `java/lang/Integer` e o JVM recusa a classe (`VerifyError`) — ✅ CORRIGIDO 15/10 (medido 15/10 pela lane issues/tooling `192.168.100.21:9093`; ação de código da lane compiler/frontend, família §609/§610)
+
+**Sintoma (medido, jar da `lab`):** `var i = m.get("a")` num `Map<String, Int>` (o `get` ERASADO devolve `Object`/`Integer`) + `if (i != null) { Int j = i; … }` → `kof check` limpo e, na carga da classe, `VerifyError`.
+
+**Causa raiz (bytecode medido):**
+
+```
+Location: Default/Main.main([Ljava/lang/String;)V @84: istore
+Reason:   Type 'java/lang/Integer' (current frame, stack[0]) is not assignable to integer
+locals:   { String[], HashMap, ArrayList, java/lang/Integer }
+stack:    { java/lang/Integer }
+```
+
+O estreitamento faz o TYPER dizer `Int` (e o `check` concorda), mas o EMIT não materializa o unbox na fronteira: o slot do local `i` é `java/lang/Integer` e o `Int j = i` é baixado como um `istore` de valor `Int`. Um `Integer` não é atribuível a `int` no `istore` → a JVM recusa a classe no validate (e o launcher mascara com a mensagem enganosa de JavaFX — ver o anti-padrão no `training/anti-patterns/common-mistakes`: o remédio é `java -Xdiag`).
+
+**Onde o fix mora:** na fronteira do estreitamento `T?` → `T` usado como PRIMITIVO, o valor precisa passar por `intValue()`/`longValue()`/… antes do store — a mesma família do §609/§610 (`emitErasureUnboxSoft` + o unbox no boundary), que já cobre o caminho de ARGUMENTO; aqui o buraco é o caminho de **atribuição/local**. Vale cobrir `Long?`/`Float?`/`Double?`/`Bool?` com o unbox correspondente.
+
+**Fronteira:** o caso medido é `Map.get` (erasure por genérico). Não afirmei outros produtores de `T?` (getter de record, campo nullable) — não medidos aqui.
+
+**RE-MEDIDO 15/10 pela lane compilador/JVM/nativo `192.168.15.30:9092` (um SEGUNDO produtor, e uma face NATIVA):** o getter de CAMPO DE RECORD NULÁVEL também reproduz — `record Box(Int? v)` + `var x = Box(5).v` + `if (x != null) { Int k = x }` → **JVM** `VerifyError` E, pior, **o native x86 imprime LIXO (`field=-1308622688` em vez de `5`)** — um valor ERRADO SILENCIOSO (regra 5), enquanto o JS imprime `5` corretamente. Então o produtor de erasure (`Map.get`) NÃO é o único (o getter de record era marcado 'não medido' acima — agora medido). `listOf(Int).get(0)` NÃO é produtor de `T?` (é um `Int`, sem estreitamento) e está ok.
+**CORRIGIDO 15/10 (lane compilador/JVM/nativo `192.168.15.30:9092`):** o caminho de ATRIBUIÇÃO/local agora ESPELHA o caminho de argumento (#770) — o `StatementLowererLocalBoxing.emitLocalDeclaration` emite `emitErasureUnboxSoft` quando o tipo declarado do local é um primitivo CRU e o tipo inferido do inicializador é um `Nullable(primitivo)`. Prova RED-first: novo `NarrowedNullableAssignE2ETest` **4 run / 0F** (JVM/Script/JS/nativo x86); a corrida com o fonte revertido falha (a face nativa imprime LIXO `map=952107584` — o valor errado silencioso). Cobertura: AMBOS os produtores (o `Map.get` erased E o getter de CAMPO DE RECORD nullable) mais um caso `Long?`. Não-regressão: a bateria do compiler **1774 run / 3F — PRÉ-EXISTENTES** (as faces LVT/scratch da regressão §866 do register-locals; falhas IDÊNTICAS sem esta mudança) + golden **324 passed / 0F / 0 skip**.
+
+<!-- en-switch --> **EN:** [§736 (en)](known-bugs.md#736--bug-845-um-t-estreitado-if-i--null--int-j--i-chega-ao-istore-ainda-boxed-o-valor-na-pilha-e-javalanginteger-e-o-jvm-recusa-a-classe-verifyerror---fixed-1510-medido-1510-pela-lane-issuestooling-192168100219093-acao-de-codigo-da-lane-compilerfrontend-familia-609610)
+
+## §737 — a dica `SEM025` "Cannot resolve method … on type 'List' (valid: …)" OMITIA métodos reais (`push`/`append`/`count`) que o typer ACEITA — ✅ CORRIGIDO 15/10 (achado por uma auditoria proactiva de diagnóstico, lane compilador/JVM/nativo `192.168.15.30:9092`)
+
+**Sintoma (medido 15/10):** após um método desconhecido numa `List` (`xs.nope()`), a dica `SEM025` listava `add/get/set/remove/…/zip` mas NÃO `push`, `append` nem `count` — sendo que os três SÃO aceitos (`MemberCallTyper` ~linha 183 p/ `count`, ~linha 284 p/ `push`/`append`) e medidos a FUNCIONAR (`xs.push(4)`, `xs.append(5)`, `xs.count((x: Int) -> x > 2)` compilam limpos). Uma dica INCOMPLETA engana o leitor (e um agente) a evitar idiomas reais.
+
+**Raiz:** a dica é um literal de string HARDCODED no sítio do `SEM025` de List em `MemberCallTyper` que derivou do conjunto aceito pelo typer.
+
+**Correção:** estender a dica com `push`/`append` (ao lado de `add`) e `count` (ao lado de `none`) — um literal de string, ZERO mudança de comportamento.
+
+**Prova RED-first:** novo `ListValidMethodsDiagnosticE2ETest` — um controle positivo (`push`/`append`/`count` compilam limpos) + a asserção da dica (a mensagem `SEM025` nomeia os três); a corrida com o fonte revertido FALHA em `push`. **Drift de corpus relacionado corrigido no MESMO commit:** a linha do `training/anti-patterns/fake-idioms` '`xs.any { it > 3 }` / `all`/`none`/`count { }` / `it`' dizia que o idioma era `filter` + `.size()` — mas `any`/`all`/`none`/`count` SÃO Kof real (a parte estrangeira é a SINTAXE de trailing-lambda `{ it }`; o parâmetro do lambda é sempre explícito).
+
+**FACE IRMÃ CORRIGIDA 15/10 (mesma família, lane compilador/JVM/nativo `192.168.15.30:9092`):** a mesma auditoria achou que as dicas `SEM025` de **`Map` e `Set` também estavam incompletas** — ambas listavam `size` mas OMITIAM `length` e `count`, sendo que o typer aceita o triplo size-like `size`/`length`/`count` em AMBOS, medido a funcionar (`s.length`=2, `s.count()`=2, `m.length`=1, `m.count()`=1; nota: a PROPRIEDADE nua `s.count`/`m.count` dá `SEM102` — só `size` é propriedade; a forma real é o MÉTODO `count()`). Correção: adicionei `length`/`count` aos literais das dicas de Map e Set (duas edições de string, zero mudança de comportamento). Prova RED-first: novo `MapSetValidMethodsDiagnosticE2ETest` (um controle positivo + uma asserção de dica por tipo); a corrida com o fonte revertido FALHA no `length` da dica do Set. Com eles, as três listas 'valid' do `SEM025` (List §737, Map, Set) batem agora com os conjuntos aceitos pelo typer.
+
+**TERCEIRA FACE CORRIGIDA 15/10 (mesma família, lane compilador/JVM/nativo `192.168.15.30:9092`): a dica `SEM025` de `String` OMITIA `getBytes` —** um método real de String que o próprio guard aceita (medido `"abc".getBytes().size` = 3) mas a dica hardcoded não listava. CONTRA-CHECAGEM (NÃO adicionar): `isBlank`/`strip` são **RECUSADOS** (`SEM025`) — o comentário do próprio ficheiro dizia que eram 'legais via classpath'; o comentário estava ESTALE e é corrigido aqui (só `getBytes` entra na dica). Também sincronizei as TRÊS listas 'valid' defensivas do `CollectionCallLowerer` (List/Map/Set) — duplicatas INALCANÇÁVEIS que o typer pré-empta, mas cópias estale do texto pré-§737 (hazard latente) — ao texto corrigido do `MemberCallTyper`. Prova RED-first: novo `StringValidMethodsDiagnosticE2ETest` (controle positivo `getBytes` + a asserção da dica, incl. o NEGATIVO de que `isBlank`/`strip` NÃO podem aparecer); a dica pré-fix (capturada verbatim antes) não tinha `getBytes`. Com isto, TODAS as listas 'valid' do `SEM025` (typer List/Map/Set + String + as 3 duplicatas do lowerer) estão consistentes com os conjuntos aceitos pelo typer.
+
+## §738 — Divergência de padrão-vazio em String no NATIVE x86 e JS
+**FIX (FACES CROSS: riscv64 + aarch64) 15/10 — lane compilador/JVM/nativo `192.168.15.30:9092`.** O cross tinha as MESMAS duas divergências (medido sob qemu: `"abc".split("")` = 1 e `"aXbXc".replace("","-")` = `aXbXc`). Correção: o emissor cross (`NativeRiscvCrossOps`) ganhou ramos de padrão vazio para o `split` de 1 e 2 args e para o `replace`, apontando a dois helpers ADITIVOS de runtime em `NativeRiscvAsmStrn1`: `kof_string_split_chars(str, limit)` (por code point UTF-8, REUSANDO o construtor de fatia `.Lsk_emit` do `kof_string_split`, com o contrato JDK do limit) e `kof_string_replace_empty(str, to)` (laços de cópia inline, sem `kof_memcpy` por byte — a lição do x86). O alvo aarch64 herda os dois pelo `NativeAarch64Translator`; os caminhos do padrão não-vazio ficam intactos (ambos aparecem na prova). Prova RED-first: com o emissor cross revertido AS DUAS faces falham sob qemu; `NativeCrossEmptySeparatorE2ETest` 2/2 (riscv64 + aarch64). Medido no caminho: a minha primeira condição de teto estava INVERTIDA (`bge` em vez de `ble`), o que fazia o overload com limit dimensionar o array pela contagem cheia de code points.
+
+**FIX (FACE NATIVA x86 — `replace("", to)`) 15/10 — lane compilador/JVM/nativo `192.168.15.30:9092`.** O irmão da face `split("")`, mesma forma de raiz: o `kof_string_replace` procura a SUBSTRING da agulha e uma agulha de 0 bytes nunca casa, então `"aXbXc".replace("", "-")` devolvia a string INTACTA onde o JVM/Script dão `-a-X-b-X-c-`. O ramo da agulha vazia agora chama o helper ADITIVO `kof_string_replace_empty(str@rdi, to@rsi)` (`RuntimeStringEdit`, registrado no `NativeRuntime`), que percorre por CODE POINT UTF-8; o caminho da agulha não-vazia fica byte-idêntico (o caso inalterado `replace("X","-")` está na prova). O helper mantém os laços INLINE (um único `kof_alloc`; sem chamadas `kof_memcpy` por byte) porque o primeiro rascunho, com chamadas, corrompia em silêncio os cursores de cópia — e o `total` é salvo através do `kof_alloc` (registrador volátil). Prova RED-first: com o emissor revertido SÓ a face nativa x86 falha; `NativeReplaceEmptySeparatorE2ETest` 4/4 (JVM/Script/JS/nativo x86; as 7 formas medidas incl. `to=""`, `to="XY"` e `café` multi-byte) + a face `split("")` ainda 4/4. Fronteira documentada: caractere ASTRAL insere UMA vez (o JVM, por code unit UTF-16, duas). **Segue ABERTO: os alvos CROSS.**
+
+**FIX (FACE NATIVA x86 — `split("")`) 15/10 — lane compilador/JVM/nativo `192.168.15.30:9092`.** O emissor detectava o separador vazio e passava `sep_char = 0` (NUL) ao `kof_string_split`, que nunca casa um NUL → UM elemento em vez de um por caractere. O ramo vazio agora chama o helper ADITIVO `kof_string_split_chars(str@rdi, limit@esi)` (`RuntimeStringEdit`, registrado no `NativeRuntime`), que percorre a string por CODE POINT UTF-8 (a direção do `D-STR-UNICODE`) e cobre a sobrecarga `(String, Int)` (`limit > 0` → no máximo `limit` pieces, a ÚLTIMA sendo o resto não dividido); o caminho do separador não-vazio fica BYTE-IDÊNTICO ao de antes. Medido o oráculo primeiro (Script ≡ JVM), depois RED-first: com o emissor revertido SÓ a face nativa x86 falha (`a1=1` em vez de `3`) e JVM/Script/JS passam. Prova: `NativeSplitEmptySeparatorE2ETest` 4/4 (JVM/Script/JS/nativo x86) — tamanhos, o CONTEÚDO das fatias, o overload com limit e um caso multi-byte (`café`). Fronteira documentada: um caractere ASTRAL é UM elemento aqui (o JVM, cortando por code unit UTF-16, dá 2 para um par surrogado). **Seguem ABERTOS: o `replace("", x)` no-op nativo (helper próprio) e os alvos CROSS.**
+
+**FIX (FACE JS) 15/10 — lane compilador/JVM/nativo `192.168.15.30:9092`.** O emissor (`JsCallEmitter`, `case "replace"`) agora roteia para o helper de runtime `kofStrReplace` — a forma da fatia do §730, porque o IR do JS NÃO tem nó de EXPRESSÃO condicional, então o ramo da agulha vazia vive num helper (`JsRuntimeStrBounds`): agulha não-vazia mantém a baixa anterior `s.split(from).join(to)` BYTE-IDÊNTICA, e agulha vazia insere `to` em toda posição (`s.length === 0` → `to`). Medido o oráculo primeiro (Script ≡ JVM em 8 formas), depois RED-first: com o emissor revertido SÓ a face JS falha (o JS pré-fix imprimia `r2=[a-X-b-X-c]` / `r3=[]`). Prova: `JsStringReplaceEmptyE2ETest` 3/3 (JVM/Script/JS); regressão do §730 `JsStringBoundsE2ETest` 3/3. A **face NATIVA x86 segue ABERTA** (`replace("",x)` é no-op, `split("")` = 1 — o caminho `sep_char = 0` do `NativeX86StringCalls`).
+
+
+**Status:** ✅ CORRIGIDO 15/10 — TODAS as faces fechadas: JS (kofStrReplace), NATIVA x86 (ambos os helpers) e CROSS riscv64+aarch64 (kof_string_split_chars + kof_string_replace_empty, o aarch64 herdado pelo tradutor).
+
+**CATALOGADO (medido) 15/10 — lane compilador/JVM/nativo `192.168.15.30:9092`.** Uma sondagem da família busca/substituição/split de `String` (antes NÃO sondada como grupo) achou a fronteira do PADRÃO VAZIO divergindo em SILÊNCIO — o código roda e imprime um valor ERRADO plausível (regra 5). Fonte da sonda `S = "aXbXc"`, medido no jar da `lab` nos quatro alvos:
+
+```
+S.replace("X","-")     JVM/Script/JS/nativo = [a-b-c]        (concordam)
+S.replace("","-")      JVM/Script = [-a-X-b-X-c-]            JS = [-a-X-b-X-c]   NATIVO = [aXbXc]
+"abc".split("")        JVM/Script/JS = 3 elementos           NATIVO = 1 elemento
+```
+
+**Causas raiz (lidas no emissor, não adivinhadas):**
+- **JS** — `JsCallEmitter` rebaixa `replace` para `receiver.split(from).join(to)`, emulação CORRETA do replace-all do JVM para agulha NÃO-vazia; para agulha VAZIA o `split("")` do JS não produz elemento nas pontas, então os separadores de borda se perdem (o `-` final na sonda).
+- **NATIVO x86** — `NativeX86StringCalls` detecta o separador vazio (`testl %ecx,%ecx; jz empty`) e passa `sep_char = 0` (NUL) ao `kof_string_split` (`RuntimeStringEdit`); um NUL nunca existe no texto, então o split é a string inteira. O `replace("",x)` pega o mesmo caminho.
+
+**Fronteira (NÃO re-decidir aqui):** `"ß".toUpperCase()` também foi medido — JVM/Script/JS = `SS`, NATIVO x86 = `ß` (mapeamento simples por code-unit, ou seja, a área DECIDIDA `NAT-STR01` / `D-STR-UNICODE`, cujo golden cobre outros casos). Sinalizado para a dona do `D-STR-UNICODE`; NÃO alterado aqui.
+
+**Por que CATALOGADO e não corrigido neste ciclo:** a face JS precisa de um helper de runtime (a forma da fatia `kofStr*` do §730); a face NATIVA precisa de split por caractere + inserção em toda posição no asm do runtime x86 (`RuntimeStringEdit`) — nenhuma é uma linha. Sem stub, nenhum teste assevera o valor errado, nenhuma asserção enfraquecida.
+
+**Reprodutor:** `Main.kf` no estilo de `tests/golden/` com as três linhas acima; `java -jar kof-cli/target/kof-cli-*.jar run --target script Main.kf` (oráculo) vs `build --target js` / `--target native`.
+<!-- pt-switch --> **EN:** [§738 (en)](known-bugs.md#738--string-empty-pattern-divergence-on-native-x86-and-js)
+
+## §739 — String.trim() diverge em silêncio no trim do host JS e nos backends nativos
+
+**Status:** ✅ CORRIGIDO 15/10 — o ramo JS usa `kofStrTrim` e o asm nativo trima `<= ' '` (x86 `cmpb $32/jbe`, riscv `bltu`; o aarch64 herda pelo tradutor).
+
+**CATALOGADO + CORRIGIDO 15/10 — lane compilador/JVM/nativo `192.168.15.30:9092`.** O contrato é o do JVM: `String.trim()` remove TODO char `<= ' '` (U+0020) e nada acima. Dois backends divergiam em SILÊNCIO (regra 5 — valor errado, sem diagnóstico), em sentidos OPOSTOS (medido nos seis alvos):
+
+```
+char                      JVM/Script   JS    NATIVO (x86/riscv/arm)
+\u0001, \u0008, \u001F      1 (tirado)   3 ✗   3 ✗
+\u000B (VT), \u000C (FF)    1 (tirado)   1 ✓   3 ✗
+' '                       1 ✓          1 ✓   1 ✓
+\u00A0 (NBSP)            3 (mantido)  1 ✗   3 ✓
+\u2000                   3 (mantido)  1 ✗   3 ✓
+```
+
+**Causas raiz (lidas, não adivinhadas):** o `String.prototype.trim` do host JS usa o conjunto WhiteSpace+LineTerminator — tira NBSP/U+2000 (um SUPERconjunto do JVM nos chars altos) e NÃO tira os controles C0 (um SUBconjunto nos baixos), porque `trim` não estava no switch de instância de String e caía na chamada ao host; o `kof_string_trim` nativo (`RuntimeStringOps` x86, `NativeRiscvAsmStrn0` riscv) reconhecia só espaço/tab/LF/CR, então VT/FF/controles passavam (um SUBconjunto).
+
+**Correção (ADITIVA no lado JS, uma SIMPLIFICAÇÃO estrita no nativo):** o ramo JS chama o helper novo `kofStrTrim` (a forma da fatia `strbounds`, §730), que percorre as unidades UTF-16 comparando `<= 32`; o asm nativo troca as quatro comparações por UM teste `<= 0x20` (`cmpb $32/jbe`; riscv `li t1, 33; bltu` — escolhido porque o tradutor aarch64 já conhece `bltu`, ao contrário de `bleu`).
+
+**Prova RED-first:** com o fix revertido 4 das 6 faces falham (js, x86, riscv64, aarch64) e JVM/Script passam; `StringTrimContractE2ETest` 6/6 depois (JVM/Script/JS/x86 nativo + riscv64/aarch64 sob qemu, o mesmo golden).
+
+**Relacionado (medido, NÃO é bug):** a ordem de iteração do `Map.keys()` difere entre alvos (JVM/Script vs ordem de inserção no JS/nativo) — `docs/language-reference/semantics.md` §"hash/order of `Map.keys`/`Set`" a declara **Unspecified**, então está dentro do contrato documentado e NÃO deve ser "corrigido" sem decisão da mantenedora (semântica CONGELADA de `List/Map/Set`).
+<!-- pt-switch --> **EN:** [§739 (en)](known-bugs.md#739--stringtrim-diverges-silently-on-the-js-host-trim-and-on-the-native-backends)
+
+## §740 — String.split com separador de VÁRIOS caracteres divide pelo PRIMEIRO byte nos backends nativos
+**FIX (FACE NATIVA x86) 15/10 — lane compilador/JVM/nativo `192.168.15.30:9092`.** O ramo do separador não-vazio do `NativeX86StringCalls` não trunca mais o separador ao primeiro byte: passa o PONTEIRO do separador e o limit ao helper ADITIVO novo `kof_string_split_str(str@rdi, sep@rsi, limit@edx)` (`RuntimeStringEdit`, registrado no `NativeRuntime`), que COMPÕE o `kof_string_index_of2` existente (busca de substring, em code units) com o `kof_string_substring` (fatias em code units): conta os casamentos não-sobrepostos avançando pelo comprimento do separador em CODE UNITS (contado inline, astral = 2 units), aloca o array, materializa as fatias e mantém a poda §111 dos vazios à direita quando `limit <= 0` (com `limit > 0` a última fatia é o RESTO não dividido, sem poda — o contrato do §655). O separador vazio segue indo para o `kof_string_split_chars` do §738. Prova RED-first: com o emissor revertido SÓ a face nativa x86 falha; `NativeSplitSubstrSeparatorE2ETest` 4/4 (JVM/Script/JS/nativo x86) sobre TREZE formas — separadores de vários caracteres, a regressão de 1 caractere, as bordas do §111, o overload com limit (2/1/5) e conteúdo E separador Unicode. **MEDIDO NO CAMINHO (o golden pegou uma regressão da primeira tentativa):** a minha primeira versão aplicava a poda §111 dos vazios à direita para todo `limit <= 0`; o JDK exige a poda SÓ com `limit == 0` — um limit NEGATIVO MANTÉM todos os vazios à direita (`"a,,b,,".split(",", -1)` = 5 fatias, `",0"` = 3). A face nativa do `tests/golden/string-methods-extended` pegou isso (linha `o`: 3 em vez de 5), a condição virou `jne` (poda só no exato 0) e as seis formas de limit do próprio caso foram dobradas no `NativeSplitSubstrSeparatorE2ETest` para não voltarem. **Seguem ABERTAS: as faces CROSS (riscv64 + aarch64)** — o runtime riscv já oferece `kof_string_index_of` e `kof_string_substring`, então a mesma composição é portável (confirmando as convenções de unidade do `NativeRiscvAsmStrn1`).
+
+**Status:** 🟡 ABERTO/PARCIAL (a face NATIVA x86 CORRIGIDA 15/10 com o `kof_string_split_str`; as faces CROSS — riscv64/aarch64 — ainda dividem pelo primeiro byte).
+
+**CATALOGADO (medido) 15/10 — lane compilador/JVM/nativo `192.168.15.30:9092`.** Achado por uma sondagem cross-target da superfície do separador do `split` (a veia irmã do §738). Um separador de MAIS de um caractere é dividido errado em SILÊNCIO nos backends nativos (x86 E riscv64; o aarch64 herda pelo tradutor): o código roda e devolve um resultado ERRADO plausível (regra 5).
+
+```
+"aXXb".split("XX")        JVM/Script/JS = 2  [a][b]      NATIVO = 3  [a][][b] ✗
+"abc".split("bc")         JVM/Script/JS = 1  [abc]       NATIVO = 2           ✗
+"aaa".split("aa")         JVM/Script/JS = 2              NATIVO = 0           ✗
+"aXXbXXc".split("XX", 2)  JVM/Script/JS = 2  [a][bXXc]   NATIVO = 2 [a][XbXXc] ✗ (conteúdo)
+"aXbXc".split("X")        os quatro          = 3         (um caractere está correto)
+```
+
+**Causa raiz (lida no emissor, não adivinhada):** os dois emissores nativos passam só o PRIMEIRO BYTE do separador ao runtime — o `NativeX86StringCalls` emite `movzbl 24(%rsi), %esi` e o `NativeRiscvCrossOps` depende dos mesmos helpers de `sep_char` único (`kof_string_split` / `kof_string_split_limit`, que varrem UM byte). Então `"XX"` divide no `'X'`; `"bc"` no `'b'` (2 fatias); `"aa"` no `'a'` (3 vazias → a poda §111 de vazios à direita as reduz a 0).
+
+**Desenho do fix (para o próximo ciclo; as peças já existem):** um helper ADITIVO novo `kof_string_split_str(str@rdi, sep@rsi, limit@edx)` que COMPÕE o `kof_string_index_of2` já existente (busca de substring, em code units) com o `kof_string_substring` (fatias em code units) — conta os casamentos não-sobrepostos avançando pelo comprimento do separador em CODE UNITS (contado inline, para não criar dependência de símbolo de outra fatia sob a poda de runtime), aloca o array, corta as fatias e mantém a poda §111 dos vazios à direita quando `limit <= 0`; o emissor roteia as duas sobrecargas para ele, passando o PONTEIRO do separador em vez do primeiro byte (o ramo do separador vazio continua indo para o `kof_string_split_chars` do §738). Atenção: no nativo o `index_of`/`substring` são em code units, então o avanço tem de ser em code units (um separador astral conta 2).
+
+**Nota de fronteira:** `String.split` devolve um ARRAY no Kof (`arr[i]`; não há `.get`, SEM028), então o fix tem de produzir a mesma forma de array de hoje.
+<!-- pt-switch --> **EN:** [§740 (en)](known-bugs.md#740--stringsplit-with-a-multi-character-separator-silently-splits-on-its-first-byte-on-the-native-backends)

@@ -254,18 +254,30 @@ public final class CompilerClassLowering {
             for (StatementNode stmt : method.body()) localIdx = driver.emitStatement(stmt, ops, owner, localIdx, localVars, returnType);
             driver.mutatedCapturedNames = savedMutated;
             driver.finallyFrames.addAll(savedFrames); // DD-01: restaura
-            KofOperation lastOp = ops.isEmpty() ? null : ops.get(ops.size() - 1);
-            if (lastOp == null || !(lastOp instanceof KofReturn || lastOp instanceof KofReturnVoid)) {
-                if (Type.isVoid(returnType)) ops.add(new KofReturnVoid());
-                else ops.add(new KofReturn(returnType));
+            // #837: o critério é a ÚLTIMA STATEMENT, não o último op — um
+            // corpo terminando em switch/while/try tem KofReturn nos braços
+            // (o último op É um KofReturn), mas o CONSTRUTO pode CAIR FORA
+            // (case não casado, laço que não entra) e chegar ao fim do método
+            // com a pilha vazia → ireturn/areturn sob pilha vazia = VerifyError.
+            // Se a última statement NÃO é um `return`, injeta o default do tipo
+            // (paridade com o `return` vazio explícito) — nunca bytecode inválido.
+            StatementNode lastStmt = method.body().isEmpty() ? null : method.body().getLast();
+            if (!(lastStmt instanceof ReturnStmt)) {
+                if (Type.isVoid(returnType)) {
+                    ops.add(new KofReturnVoid());
+                } else {
+                    ops.add(CompilerTypes.defaultValueOp(returnType));
+                    ops.add(new KofReturn(returnType));
+                }
             }
             body = List.of(new IRBasicBlock(0, ops));
             locals = localVars;
         } else if (!isInterface && !driver.isAbstractMethod(method)) {
             // corpo vazio em classe concreta: sem Code attribute o JVM rejeita
             // a classe (Absent Code attribute) — emite corpo com return default
-            List<KofOperation> ops = new ArrayList<>(List.of(Type.isVoid(returnType)
-                    ? new KofReturnVoid() : new KofReturn(returnType)));
+            List<KofOperation> ops = new ArrayList<>(Type.isVoid(returnType)
+                    ? List.of(new KofReturnVoid())
+                    : List.of(CompilerTypes.defaultValueOp(returnType), new KofReturn(returnType)));
             body = List.of(new IRBasicBlock(0, ops));
         }
         KofDebugInfo debugInfo = driver.currentDebugPositions.isEmpty()

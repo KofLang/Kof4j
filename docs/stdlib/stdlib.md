@@ -60,7 +60,7 @@ JSN00x) — never silently different behavior.
 | `kof.web` | ✅ | `web.app()`, routes, `app.use` middleware, `listenSecure(port)` TLS, `status(code[, body])`/`headerSet`, `app.ws` (WebSocket RFC 6455) + `app.sse` (SSE) — JVM (Native `WEB001/002` + `WEB003`/`WEB004`; JS base + SSE handler-scoped ✅ 16/09, residual `app.ws` = `WEB004`, SSE push after-return = `WEB003` compile-time) |
 | `kof.security` | ✅ (v1 + G9) | passwords, crypto, jwt, secrets, auth, security, rateLimit, sessions, apiKeys — 3 targets; Native free-list 27/08 — see `docs/stdlib/security.md` |
 | `kof.concurrent` | ✅ | `spawn` (statement) + `val r = spawn f()` / `await r` (typed handle) — JVM (virtual threads) + Native (pthread, 31/08, `CONC001` closed) + event-loop JS (`CONC003` closed 03/09) |
-| `kof.test` | ✅ | `kof test` (`test "name" { }` on the 3 targets) + `assert` — `StructuredTestE2ETest` 12/12 (measured 11/10); the official equivalence suite is 74 cases / 296 checks (`tests/run-golden.sh`, `test-architecture-plan`) |
+| `kof.test` | ✅ | `kof test` (`test "name" { }` on the 3 targets) + `assert` — `StructuredTestE2ETest` 12/12 (measured 11/10); the official equivalence suite is 82 cases / 328 checks (`tests/run-golden.sh`, `test-architecture-plan`) |
 | `kof.cli` | ✅ | `kof build/run/serve/check/md/test/bench/profile/inspect/decompile/translate/compare/migrate/debug/info/lsp/install/script/repl/init/new/connector/deps/deploy/workflow/makealive/c/fmt/editor/config/version` (31 commands — measured in `Main.java`; see `docs/status.md`; debug DAP, `kof script --watch` SIGPIPE fix 27/08) |
 | `kof.script` | ✅ | `KofScript` top-level `var`/`val` → static fields of `KofScriptGlobals` + REPL (`kof-script` core suite 64/0, measured 11/10 — `KofScriptTest` 25/25, `KofScriptStdlibParityTest` 22/22, `KofScriptSyntaxCoverageTest` 9/9, `KofReplTest` 6/6, `KofScriptReplTest` 2/2; the interop classes are separate; the old `let` sugar was removed in `183cb048` — see §263) |
 | `kof.c` | ✅ | `KofCcompiler` C subset (`int` globals, `void` funcs, `if`/`while`/`*(int*)`/`&`) → native x86_64 (5 kof-c-compiler tests, 27/08) |
@@ -112,7 +112,7 @@ Executive summary (0.5.0-beta, re-synced 17/09):
 | security (crypto, jwt, secrets, web auth + G9) | DONE (JVM/Native/JS core; web auth JVM; Native free-list 27/08) |
 | web server (`web.app()`) + `kof.http` client | DONE (JVM; `kof.http` JVM+JS + retry/circuit; WebSocket/SSE JVM) |
 | concurrency (`spawn` + `await`) | DONE (JVM + Native pthread (31/08) + event-loop JS (CONC003 03/09)) |
-| test (`assert`, `kof test` `test "name" {}`) | DONE (3 targets; the official equivalence suite `tests/run-golden.sh` is 74 cases / 296 checks — see `test-architecture-plan`) |
+| test (`assert`, `kof test` `test "name" {}`) | DONE (3 targets; the official equivalence suite `tests/run-golden.sh` is 82 cases / 328 checks — see `test-architecture-plan`) |
 | observability | DONE (kof.observability: health/metrics/request IDs — JVM/Native/JS) |
 | `KofScript` / `KofCcompiler` / riscv64/aarch64 targets | DONE (KofScript 8, KofC 5, riscv64 toolchain stable) |
 | messaging (`kof.mq` 3 targets), scheduling (`scheduler` 3 targets — SCHED001 closed 31/08), sessions, rate limiting, TLS, WebSocket/SSE (JVM), `kof.cache` (3 targets) | DONE (real gaps: `WEB002` TLS, `WEB003/004` WS/SSE) |

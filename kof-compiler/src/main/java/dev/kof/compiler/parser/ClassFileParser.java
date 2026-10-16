@@ -424,17 +424,39 @@ public final class ClassFileParser {
             int n = bb.getShort() & 0xFFFF;
             String[] recipes = new String[n];
             for (int i = 0; i < n; i++) {
-                bb.getShort();                       // bootstrap_method_ref
+                int mhRef = bb.getShort() & 0xFFFF;  // bootstrap_method_ref
                 int nargs = bb.getShort() & 0xFFFF;
                 recipes[i] = null;
+                int implHandle = -1;
+                int stringArg = -1;
                 for (int a = 0; a < nargs; a++) {
                     int idx = bb.getShort() & 0xFFFF;
-                    if (a == 0 && idx < constPool.length && constPool[idx] != null
-                            && constPool[idx].startsWith("#")) {
-                        // tag-8 String → "#<utf8Idx>" → o Utf8 é a receita
-                        int ui = Integer.parseInt(constPool[idx].substring(1));
-                        if (ui < constPool.length && constPool[ui] != null) recipes[i] = constPool[ui];
-                    }
+                    // Fase E (14/10): LAMBDA primeiro — o arg[1] é o
+                    // MethodHandle do método de implementação (lambda$X$0).
+                    // O arg[0] (a receita do CONCAT ou um MethodType — o
+                    // formato "#idx" não distingue tag 8 de 16) só vale
+                    // como receita quando NÃO é lambda (medido: o
+                    // MethodType do lambda produzia a receita falsa
+                    // "(Ljava/lang/Object;)Z" e escondia o LAMBDA).
+                    if (a == 1) implHandle = idx;
+                    if (a == 0) stringArg = idx;
+                }
+                if (implHandle > 0) {
+                    String nm = implNameFromHandle(constPool, implHandle);
+                    if (nm != null) recipes[i] = "LAMBDA:" + nm;
+                }
+                if (recipes[i] == null && stringArg > 0 && stringArg < constPool.length
+                        && constPool[stringArg] != null && constPool[stringArg].startsWith("#")) {
+                    // tag-8 String → "#<utf8Idx>" → o Utf8 é a receita
+                    int ui = Integer.parseInt(constPool[stringArg].substring(1));
+                    if (ui < constPool.length && constPool[ui] != null) recipes[i] = constPool[ui];
+                }
+                // Fase E (14/10): LAMBDA — sem receita String, o arg[1] é o
+                // MethodHandle do MÉTODO de implementação (lambda$X$0);
+                // resolve a cadeia MethodHandle→Methodref→NameAndType→nome.
+                if (recipes[i] == null && implHandle > 0) {
+                    String nm = implNameFromHandle(constPool, implHandle);
+                    if (nm != null) recipes[i] = "LAMBDA:" + nm;
                 }
             }
             return recipes;
@@ -443,6 +465,25 @@ public final class ClassFileParser {
         } finally {
             bb.position(start + attrLen);            // robusto ao schema real
         }
+    }
+
+    /** MethodHandle → Methodref → NameAndType → nome do método, ou null. */
+    private static String implNameFromHandle(String[] constPool, int mhIdx) {
+        if (mhIdx >= constPool.length || constPool[mhIdx] == null
+                || !constPool[mhIdx].startsWith("#")) return null;
+        int refIdx = parseCpIndex(constPool[mhIdx].substring(1));
+        if (refIdx < 0 || refIdx >= constPool.length || constPool[refIdx] == null) return null;
+        String ref = constPool[refIdx];
+        int h1 = ref.indexOf('#', 1);
+        if (h1 < 0) return null;
+        int natIdx = parseCpIndex(ref.substring(h1 + 1));
+        if (natIdx < 0 || natIdx >= constPool.length || constPool[natIdx] == null) return null;
+        String nat = constPool[natIdx];
+        int h2 = nat.indexOf('#', 1);
+        if (h2 < 0) return null;
+        int nameIdx = parseCpIndex(nat.substring(1, h2));
+        if (nameIdx < 0 || nameIdx >= constPool.length || constPool[nameIdx] == null) return null;
+        return constPool[nameIdx];
     }
 
     /**
@@ -472,8 +513,14 @@ public final class ClassFileParser {
             if (hash2 < 0) continue;
             int nameIdx = parseCpIndex(nt.substring(1, hash2));
             if (nameIdx < 0) continue; // .class corrompido: "#<utf8>" no slot NameAndType
-            if (!"makeConcatWithConstants".equals(constPool[nameIdx])) continue;
-            constPool[i] = "CONCAT:" + recipes[bsIdx];
+            if ("makeConcatWithConstants".equals(constPool[nameIdx])) {
+                constPool[i] = "CONCAT:" + recipes[bsIdx];
+            } else if (recipes[bsIdx] != null && recipes[bsIdx].startsWith("LAMBDA:")) {
+                // Fase E (14/10): o invokedynamic do LAMBDA expõe o nome do
+                // método de implementação (lambda$X$0) — o decompilador
+                // recupera o corpo dele e emite a lambda Kof.
+                constPool[i] = recipes[bsIdx];
+            }
         }
     }
 }

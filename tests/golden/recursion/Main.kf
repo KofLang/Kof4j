@@ -1,0 +1,38 @@
+Int fact(Int n) {
+    if (n <= 1) { return 1 }
+    return n * fact(n - 1)
+}
+Int fib(Int n) {
+    if (n < 2) { return n }
+    return fib(n - 1) + fib(n - 2)
+}
+Int sumTo(Int n) {
+    if (n == 0) { return 0 }
+    return n + sumTo(n - 1)
+}
+Bool isEven(Int n) {
+    if (n == 0) { return true }
+    return isOdd(n - 1)
+}
+Bool isOdd(Int n) {
+    if (n == 0) { return false }
+    return isEven(n - 1)
+}
+Int sumList(List<Int> xs, Int i) {
+    if (i >= xs.size) { return 0 }
+    return xs.get(i) + sumList(xs, i + 1)
+}
+String rev(String s) {
+    if (s.length <= 1) { return s }
+    return rev(s.substring(1, s.length)) + s.substring(0, 1)
+}
+main() {
+    println(fact(5))
+    println(fact(10))
+    println(fib(10))
+    println(sumTo(100))
+    println(isEven(10))
+    println(isOdd(7))
+    println(sumList(listOf(1, 2, 3, 4, 5), 0))
+    println(rev("kof"))
+}

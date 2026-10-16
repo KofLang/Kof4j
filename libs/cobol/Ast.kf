@@ -1,0 +1,75 @@
+package cobol
+
+import cobol.Lexer
+
+// kof.cobol.ast — the COBOL→Kof translator, PHASE 3 MVP (plan §30): the
+// SENTENCE/PARAGRAPH structure over the token stream. A SENTENCE is the
+// tokens up to (and including) a PERIOD; a PARAGRAPH is a WORD token
+// followed directly by a PERIOD (the COBOL `NAME.` head) plus the sentences
+// that follow it. Gap code CB007 (a sentence without a terminator at the
+// end of the stream) — never a silent trailing drop.
+
+record Sentence(Int line, List<Token> tokens)
+
+record Paragraph(String name, Int line, List<Sentence> sentences)
+
+// splitSentences — the token stream → the sentences (the PERIOD-terminated
+// groups). A trailing group WITHOUT a PERIOD is refused CB007.
+List<Sentence> splitSentences(List<Token> ts) {
+    var out: List<Sentence> = listOf()
+    var cur: List<Token> = listOf()
+    var i = 0
+    while (i < ts.size) {
+        var t = ts.get(i)
+        cur.add(t)
+        if (t.kind == "PERIOD") {
+            out.add(Sentence(t.line, cur))
+            cur = listOf()
+        }
+        i = i + 1
+    }
+    if (cur.size > 0) {
+        throw "sentence without a terminating PERIOD at line " + ts.get(ts.size - 1).line + " (CB007)"
+    }
+    return out
+}
+
+// parseParagraphs — the token stream → the paragraphs. A paragraph HEAD is
+// a WORD directly followed by a PERIOD; the tokens before the first head
+// form the anonymous "" paragraph.
+List<Paragraph> parseParagraphs(List<Token> ts) {
+    var sentences = splitSentences(ts)
+    var out: List<Paragraph> = listOf()
+    var curName = ""
+    var curLine = 1
+    var cur: List<Sentence> = listOf()
+    var i = 0
+    while (i < sentences.size) {
+        var s = sentences.get(i)
+        var head = isParagraphHead(s)
+        if (head.length > 0) {
+            if (cur.size > 0 || curName.length > 0) {
+                out.add(Paragraph(curName, curLine, cur))
+            }
+            curName = head
+            curLine = s.line
+            cur = listOf()
+        } else {
+            cur.add(s)
+        }
+        i = i + 1
+    }
+    if (cur.size > 0 || curName.length > 0) {
+        out.add(Paragraph(curName, curLine, cur))
+    }
+    return out
+}
+
+// isParagraphHead — a WORD followed by a PERIOD as the whole sentence.
+String isParagraphHead(Sentence s) {
+    if (s.tokens.size == 2 && s.tokens.get(0).kind == "WORD"
+            && s.tokens.get(1).kind == "PERIOD") {
+        return s.tokens.get(0).text
+    }
+    return ""
+}

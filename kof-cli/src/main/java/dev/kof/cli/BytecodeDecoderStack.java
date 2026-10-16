@@ -1,0 +1,93 @@
+package dev.kof.cli;
+
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.List;
+
+/**
+ * Satélite do REFACTOR-500 (check_500, BytecodeDecoder 603→<600): a família
+ * de PILHA SIMBÓLICA (conv/bin2/bin/loadValue) movida verbatim.
+ */
+final class BytecodeDecoderStack {
+
+    private BytecodeDecoderStack() {}
+
+static boolean conv(java.util.Deque<String> st, int op) {
+    String m = switch (op) {
+        case 0x85 -> "toLong"; case 0x86 -> "toFloat"; case 0x87 -> "toDouble";
+        case 0x88 -> "toInt"; case 0x89 -> "toFloat"; case 0x8a -> "toDouble";
+        case 0x8b -> "toInt"; case 0x8c -> "toLong"; case 0x8d -> "toDouble";
+        case 0x8e -> "toInt"; case 0x8f -> "toLong"; case 0x90 -> "toFloat";
+        default -> null;
+    };
+    if (m == null || st.isEmpty()) return false;
+    st.push(st.pop() + "." + m + "()");
+    return true;
+}
+
+static boolean bin2(java.util.Deque<String> st, String op) {
+    if (st.size() < 2) return false;
+    String b = st.pop();
+    String a = st.pop();
+    st.push("(" + a + " " + op + " " + b + ")");
+    return true;
+}
+
+static String blockReturnExpr(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
+                                      String[] cp, BytecodeFrame frame) {
+    return BytecodeDecoder.linearReturn(BytecodeDecoder.insnsWithin(b, insns), cp, frame);
+}
+
+static String slotName(int slot, BytecodeFrame frame) {
+    return frame.name(slot);
+}
+
+/**
+ * Fase E (15/10): o overload COM pool de constantes — o `ldc2_w` (0x14,
+ * const Long/Double do CP) agora resolve na extração de condições (medido no
+ * withTax: `if (sub > 200.0)` via [dload, ldc2_w, dcmpl, ifle] stubava porque
+ * o loadValue de 2 args não tem o cp). Sem cp (null) o 0x14 continua null =
+ * recusa honesta.
+ */
+static String loadValue(BytecodeReader.Insn in, BytecodeFrame frame, String[] cp) {
+    if (in.opcode() == 0x14 && cp != null) {
+        return BytecodeCp.ldc2(cp, in.operands()[0]);
+    }
+    return loadValue(in, frame);
+}
+
+static String loadValue(BytecodeReader.Insn in, BytecodeFrame frame) {
+    return switch (in.opcode()) {
+        case 0x1a, 0x1b, 0x1c, 0x1d -> BytecodeDecoderStack.slotName(in.opcode() - 0x1a, frame);
+        case 0x1e, 0x1f, 0x20, 0x21 -> BytecodeDecoderStack.slotName(in.opcode() - 0x1e, frame);
+        case 0x26, 0x27, 0x28, 0x29 -> BytecodeDecoderStack.slotName(in.opcode() - 0x26, frame);
+        case 0x2a, 0x2b, 0x2c, 0x2d -> BytecodeDecoderStack.slotName(in.opcode() - 0x2a, frame);
+        case 0x15, 0x19, 0x16, 0x17, 0x18 -> BytecodeDecoderStack.slotName(in.operands()[0], frame);
+        case 0x03 -> "0";
+        case 0x04 -> "1";
+        case 0x05 -> "2";
+        case 0x06 -> "3";
+        case 0x07 -> "4";
+        case 0x08 -> "5";
+        case 0x02 -> "-1";
+        case 0x01 -> "null";
+        case 0x10 -> String.valueOf((byte) in.operands()[0]);
+        case 0x11 -> String.valueOf((short) in.operands()[0]);   // sipush — 14/09
+        // espelha o machineRun (linha 114 ja tratava 0x11): o loadValue SEM
+        // sipush fazia `if (a == 30000)` (const > bipush-range) stubar em
+        // blockCondition/comparisonReturn = DIVERGENCIA de passada, nao
+        // forma-nova. Seguranca: so e emitido COM o hoist §238 no lugar (sem
+        // ele, o `int r` escapante viraria saida nao-compilavel — o que o
+        // re-medidor Roi3 marcou como pre-requisito).
+        default -> null;
+    };
+}
+
+static boolean bin(Deque<String> stack, String op) {
+    if (stack.size() < 2) return false;
+    String b = stack.pop();
+    String a = stack.pop();
+    stack.push("(" + a + " " + op + " " + b + ")");
+    return true;
+}
+}

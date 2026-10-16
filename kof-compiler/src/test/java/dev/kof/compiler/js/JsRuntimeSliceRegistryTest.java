@@ -17,6 +17,7 @@ class JsRuntimeSliceRegistryTest {
                 .append(JsRuntimeStringSplit.SPLIT_RUNTIME)  // §655: kofSplit vive no bloco "core" (REFACTOR-500)
                 .append(JsRuntimeCastFail.CASTFAIL_RUNTIME)  // §678: o cast falho estoura (bloco próprio — o CORE quebrava o slicing)
                 .append(JsRuntimeDivZero.DIVZERO_RUNTIME)    // §693: divisor zero na divisão INTEIRA (bloco próprio, mesma razão)
+                .append(JsRuntimeStrBounds.STR_BOUNDS_RUNTIME) // §730: substring/charAt fora de faixa (bloco próprio, mesma razão)
                 .append(JsRuntimeEquality.EQUALITY_RUNTIME)  // #518: kofValEq por conteudo (registro posicao 2)
                 .append(JsRuntimeUiComponents.UI_COMPONENT_RUNTIME)
                 .append(JsRuntimeUiLinkImageIcon.UI_LINK_IMAGE_ICON_RUNTIME)

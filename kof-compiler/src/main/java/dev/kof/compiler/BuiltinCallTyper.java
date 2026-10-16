@@ -152,8 +152,18 @@ public final class BuiltinCallTyper {
             // → NoSuchMethodError no JVM com argumento reference-type; a face
             // primitiva §288 mascarava o furo). Resolve o witness como o
             // listOf/records fazem acima.
-            return new Type.ClassType(ctorClass.packageName(), ctorClass.name(),
-                    resolveWitnessTypeArgs(sa, mc, scope));
+            // §713: sem witness explícito, INFERE os type-args dos tipos dos
+            // argumentos contra os parâmetros DECLARADOS do construtor. Sem
+            // isto o receptor fica com args vazios, o `T` do campo/método não
+            // resolve e o JVM/nativo usam Object apagado (VerifyError /
+            // ClassCastException).
+            List<Type> witnessArgs = resolveWitnessTypeArgs(sa, mc, scope);
+            if (witnessArgs.isEmpty() && ctor != null) {
+                List<Type> inferred = GenericTypeArgInference.infer(
+                        sa.typeParamNames(ctorClass.name()), ctor.parameterTypes(), ctorArgTypes);
+                if (inferred != null) witnessArgs = inferred;
+            }
+            return new Type.ClassType(ctorClass.packageName(), ctorClass.name(), witnessArgs);
         }
         if (mc.receiver() == null && ("println".equals(mc.methodName()) || "print".equals(mc.methodName()))) {
             // #495 (maintainer 19/09: "empty println should not compile"): o

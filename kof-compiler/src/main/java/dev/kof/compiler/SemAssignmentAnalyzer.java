@@ -124,8 +124,8 @@ public final class SemAssignmentAnalyzer {
             if (ownerName != null) {
                 SymbolTable.Symbol wf = MemberResolver.resolveFieldInHierarchy(sa, ownerName, fa.fieldName());
                 if (wf instanceof SymbolTable.FieldSymbol wfs) {
-                    MemberCallTyper.checkFieldAccess(sa, wfs);
-                    MemberCallTyper.checkFinalFieldWrite(sa, wfs);
+                    MemberAccessChecks.checkFieldAccess(sa, wfs);
+                    MemberAccessChecks.checkFinalFieldWrite(sa, wfs);
                     // §379 (era §376; originally §363/§371): escrita de lambda em campo de tipo-funcao tem o MESMO
                     // contrato da declaracao SC2 (`var f: (T) -> U = ...`): o lambda
                     // e emitido com a interface da assinatura INFERIDA do corpo e o

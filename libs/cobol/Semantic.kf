@@ -1,0 +1,121 @@
+package cobol
+
+import cobol.Ast
+import cobol.Lexer
+
+// kof.cobol.semantic — the COBOL→Kof translator, PHASE 4 MVP (plan §30):
+// the SEMANTIC INVENTORY with an explicit CONFIDENCE tag (the plan's
+// "Legacy Semantic IR + confidence"). COBOL is verb-first: the first token
+// of a sentence IS the verb. A verb in the KNOWN table maps with HIGH
+// confidence; an unknown verb is DATA — reported with "unknown" confidence,
+// never guessed and never dropped.
+
+record VerbUse(String verb, String paragraph, Int count, String confidence)
+
+record SemanticReport(List<VerbUse> verbs, Int sentences, Int unknownVerbs)
+
+// isKnownVerb — the explicit table (the v1 set the translator will map).
+Bool isKnownVerb(String verb) {
+    var up = verb.toUpperCase()
+    var known: List<String> = listOf("DISPLAY", "MOVE", "STOP", "ADD", "SUBTRACT",
+        "MULTIPLY", "DIVIDE", "COMPUTE", "PERFORM", "ACCEPT", "INITIALIZE",
+        "SET", "IF", "GOBACK", "EXIT", "CONTINUE")
+    var i = 0
+    while (i < known.size) {
+        if (known.get(i) == up) {
+            return true
+        }
+        i = i + 1
+    }
+    return false
+}
+
+// findVerbUse — the row for (verb, paragraph), or null.
+VerbUse? findVerbUse(List<VerbUse> verbs, String verb, String paragraph) {
+    var i = 0
+    while (i < verbs.size) {
+        var v = verbs.get(i)
+        if (v.verb == verb && v.paragraph == paragraph) {
+            return v
+        }
+        i = i + 1
+    }
+    return null
+}
+
+// analyze — the paragraphs → the semantic report: every sentence's first
+// token counted per (verb, paragraph) with its confidence tag; the totals
+// carry the unknown-verb count so nothing is silent.
+SemanticReport analyze(List<Paragraph> paras) {
+    var verbs: List<VerbUse> = listOf()
+    var sentences = 0
+    var unknown = 0
+    var p = 0
+    while (p < paras.size) {
+        var para = paras.get(p)
+        var s = 0
+        while (s < para.sentences.size) {
+            var sent = para.sentences.get(s)
+            if (sent.tokens.size > 0 && sent.tokens.get(0).kind == "WORD") {
+                var verb = sent.tokens.get(0).text.toUpperCase()
+                sentences = sentences + 1
+                var confidence = "unknown"
+                if (isKnownVerb(verb)) {
+                    confidence = "known"
+                } else {
+                    unknown = unknown + 1
+                }
+                var row = findVerbUse(verbs, verb, para.name)
+                if (row == null) {
+                    verbs.add(VerbUse(verb, para.name, 1, confidence))
+                } else {
+                    verbs = bump(verbs, verb, para.name)
+                }
+            }
+            s = s + 1
+        }
+        p = p + 1
+    }
+    return SemanticReport(verbs, sentences, unknown)
+}
+
+// bump — +1 on the (verb, paragraph) row (a functional rebuild).
+List<VerbUse> bump(List<VerbUse> verbs, String verb, String paragraph) {
+    var out: List<VerbUse> = listOf()
+    var i = 0
+    while (i < verbs.size) {
+        var v = verbs.get(i)
+        if (v.verb == verb && v.paragraph == paragraph) {
+            out.add(VerbUse(v.verb, v.paragraph, v.count + 1, v.confidence))
+        } else {
+            out.add(v)
+        }
+        i = i + 1
+    }
+    return out
+}
+
+// unknownVerbsOf — the distinct unknown verbs (the migration TODO list).
+List<String> unknownVerbsOf(SemanticReport r) {
+    var out: List<String> = listOf()
+    var i = 0
+    while (i < r.verbs.size) {
+        var v = r.verbs.get(i)
+        if (v.confidence == "unknown" && !containsStr(out, v.verb)) {
+            out.add(v.verb)
+        }
+        i = i + 1
+    }
+    return out
+}
+
+Bool containsStr(List<String> xs, String v) {
+    var i = 0
+    while (i < xs.size) {
+        if (xs.get(i) == v) {
+            return true
+        }
+        i = i + 1
+    }
+    return false
+}

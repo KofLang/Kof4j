@@ -1,0 +1,32 @@
+interface Shape {
+    Int area()
+    default String describe() { return "shape" }
+    static Int sides() { return 4 }
+    static String kind() { return "polygon" }
+}
+
+interface Config {
+    static Int MAX = 99
+}
+
+class Square(Int s) implements Shape {
+    Int area() { return s * s }
+}
+
+class Base {
+    static Int LIMIT = 42
+}
+
+class Sub() extends Base {
+    Int lim() { return LIMIT }
+}
+
+main() {
+    var sq: Shape = Square(3)
+    println(sq.area())
+    println(sq.describe())
+    println(Shape.sides())
+    println(Shape.kind())
+    println(Config.MAX)
+    println(Sub().lim())
+}

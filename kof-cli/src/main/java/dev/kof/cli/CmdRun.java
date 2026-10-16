@@ -23,9 +23,9 @@ final class CmdRun {
     }
 
     static void run(String[] args) {
-        if (args.length < 2) { System.err.println("usage: kof run <file.kf> [--target jvm|native|js|native.risc|native.arm|android] [--profile host|freestanding] [--backend <t>] [--frontend <t>] [--release] [--deps] [args...]"); return; }
+        if (args.length < 2) { System.err.println("usage: kof run <file.kf> [--target jvm|native|js|native.risc|native.arm|android] [--profile host|freestanding] [--backend <t>] [--frontend <t>] [--release] [--deps] [--jvm-option <opt>] [args...]"); return; }
         if ("--help".equals(args[1]) || "-h".equals(args[1]) || "--version".equals(args[1])) {
-            System.out.println("usage: kof run <file.kf> [--target jvm|native|js|native.risc|native.arm|android] [--profile host|freestanding] [--backend <t>] [--frontend <t>] [--release] [--deps] [args...]");
+            System.out.println("usage: kof run <file.kf> [--target jvm|native|js|native.risc|native.arm|android] [--profile host|freestanding] [--backend <t>] [--frontend <t>] [--release] [--deps] [--jvm-option <opt>] [args...]");
             return;
         }
         // O arquivo é o primeiro arg não-flag; --target/--deps/--release podem
@@ -51,6 +51,8 @@ final class CmdRun {
         boolean targetFlagged = false;
         boolean release = false;
         boolean useDeps = false;
+        // #855: opcoes da JVM repassadas a execucao (`--jvm-option -Xmx512m`).
+        List<String> jvmOptions = new ArrayList<>();
         String backendFlag = null;
         String frontendFlag = null;
         String profileArg = null;
@@ -92,7 +94,25 @@ final class CmdRun {
             } else if (args[i].equals("--deps")) {
                 useDeps = true;
                 argStart = i + 1;
+            } else if (args[i].startsWith("--jvm-option=")) {
+                // #855: o teto de memoria/encoding da aplicacao, no caminho de
+                // DESENVOLVIMENTO (`kof run`) — antes so o jar do deploy aceitava.
+                jvmOptions.add(args[i].substring("--jvm-option=".length()));
+                argStart = i + 1;
+            } else if (args[i].equals("--jvm-option") && i + 1 < args.length) {
+                jvmOptions.add(args[i + 1]);
+                argStart = i + 2;
+                i++;
             }
+        }
+        // #855: `--jvm-option` promete um limite/opcao da JVM — onde NAO existe JVM
+        // (binario nativo) ou a execucao e in-process (script) nao ha como honrar.
+        // Recusa honesta (R6) em vez de ignorar em silencio.
+        if (!jvmOptions.isEmpty() && (target == Target.NATIVE || target == Target.SCRIPT)) {
+            System.err.println("run: --jvm-option only applies where a JVM runs"
+                    + " (a native binary has no JVM; --target script runs in-process)");
+            System.exit(1);
+            return;
         }
         // program args: sempre após o arquivo e após as flags
         if (argStart <= fileIdx) argStart = fileIdx + 1;
@@ -289,6 +309,7 @@ final class CmdRun {
                 String driverCp = joinPaths(driverJars);
                 List<String> cmd = new ArrayList<>();
                 cmd.add(KofCliSupport.javaExecutable());
+                cmd.addAll(jvmOptions);   // #855: o driver JS tambem e uma JVM
                 for (String key : new java.util.TreeSet<>(System.getProperties().stringPropertyNames())) {
                     if (key.startsWith("kof.") && !"kof.js.driver.cp".equals(key)) {
                         cmd.add("-D" + key + "=" + System.getProperty(key));
@@ -377,6 +398,7 @@ final class CmdRun {
         List<String> javaArgs = new ArrayList<>();
         javaArgs.add(KofCliSupport.javaExecutable());
         javaArgs.addAll(KofStdio.inheritedJvmFlags());
+        javaArgs.addAll(jvmOptions);   // #855
         javaArgs.add("-Dkof.root=" + file.toAbsolutePath().normalize().getParent());
         String jvmCp = tempDir.toString();
         if (useDeps) {

@@ -156,6 +156,43 @@ public final class CompilerCaptures {
         shadowed.add(vds.name());
     }
 
+    /**
+     * #846 (`known-bugs` §735): chamada **NUA** (`somar(n)`) de um método de
+     * INSTÂNCIA da classe ENVOLVENTE — o receptor implícito é o `this` EXTERNO,
+     * não a própria lambda. Sem esta captura, o corpo da lambda resolve o
+     * receptor para o seu próprio slot 0 (`locals[0] = ("this", Lambda0)`) e:
+     * JVM recusa a classe (`VerifyError: Bad type on operand stack`), Script
+     * imprime o objeto (valor ERRADO e silencioso), JS lança em runtime e o
+     * nativo dá SIGSEGV — medido nos quatro alvos.
+     *
+     * <p>O caminho EXPLÍCITO (`this.somar(n)`) já funciona porque menciona `this`
+     * e a captura acontece; aqui a chamada nua não menciona nada. A resolução é
+     * pela CLASSE + varredura de membro/aridade (`semanticAnalyzer.getClass` +
+     * `members().resolve`) — o lookup por nome simples no escopo não bastava (§735).
+     * Captura-se o `this` na ordem em que o `CompilerLambdaClass` re-hospeda as
+     * capturas DEPOIS de `locals[0]`, e `findLocalVar` varre de trás para frente,
+     * então a captura vence o slot 0.
+     */
+    private static void captureEnclosingThis(CompilerDriver driver, MethodCallExpr mc,
+                                             List<IRLocalVariable> outerLocals,
+                                             List<IRLocalVariable> captures,
+                                             java.util.Set<String> captured) {
+        if (driver.semanticAnalyzer == null || captured.contains("this")) return;
+        String enclosing = driver.currentLoweringOwner;
+        if (enclosing == null || enclosing.isEmpty()) return;
+        String className = enclosing.substring(enclosing.lastIndexOf('/') + 1);
+        SymbolTable.ClassSymbol cls = driver.semanticAnalyzer.getClass(className);
+        if (cls == null) return;
+        SymbolTable.Symbol sym = cls.members().resolve(mc.methodName());
+        if (!(sym instanceof SymbolTable.MethodSymbol ms)) return;
+        if ((ms.accessFlags() & AccessFlags.STATIC) != 0) return;
+        if (ms.parameterTypes().size() != mc.arguments().size()) return;
+        IRLocalVariable outerThis = driver.findLocalVar("this", outerLocals);
+        if (outerThis == null) return;
+        captures.add(outerThis);
+        captured.add("this");
+    }
+
     static void collectCapturesExpr(CompilerDriver driver, ExpressionNode expr,
                                          List<IRLocalVariable> outerLocals,
                                      List<IRLocalVariable> captures, java.util.Set<String> captured,
@@ -218,6 +255,8 @@ public final class CompilerCaptures {
                     if (outerFn != null) {
                         captures.add(outerFn);
                         captured.add(mc.methodName());
+                    } else {
+                        captureEnclosingThis(driver, mc, outerLocals, captures, captured);
                     }
                 }
                 for (ExpressionNode arg : mc.arguments()) {

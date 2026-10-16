@@ -102,6 +102,14 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_ui_window_set_title", "kof_ui_label_set_text", "kof_ui_button_set_text",
                     "kof_ui_input_set_text" -> "(ILjava/lang/String;)V";
             case "kof_ui_window_bind", "kof_ui_view_bind" -> "(II)V";
+            case "kof_ui_row_bind", "kof_ui_column_bind" -> "(II)V";
+            case "kof_ui_box_bind" -> "(II)V";
+            case "kof_ui_center_bind" -> "(II)V";
+            case "kof_ui_stack_bind" -> "(II)V";
+            case "kof_ui_align_bind" -> "(II)V";
+            case "kof_ui_scroll_bind" -> "(II)V";
+            case "kof_ui_wrap_bind" -> "(II)V";
+            case "kof_ui_grid_bind" -> "(II)V";
             case "kof_ui_window_set_size" -> "(III)V";
             case "kof_ui_form_on_submit" -> "(ILjava/lang/Object;)V";
             case "kof_ui_form_submit" -> "(I)V";
@@ -122,7 +130,8 @@ public final class JvmRuntimeCallDescriptors {
                     "kof_ui_wrap_new", "kof_ui_center_new", "kof_ui_scroll_new",
                     "kof_ui_column_new",
                     "kof_ui_row_new", "kof_ui_fieldset_new" -> "(Ljava/util/ArrayList;)I";
-            case "kof_ui_grid_new", "kof_ui_align_new" -> "(ILjava/util/ArrayList;)I";
+            case "kof_ui_grid_new" -> "(ILjava/util/ArrayList;)I";
+            case "kof_ui_align_new" -> "(IILjava/util/ArrayList;)I";
             case "kof_ui_spacer_new" -> "(I)I";
             // ── Component Core (docs/ui/architecture.md) ──
             case "kof_ui_component_new" -> "(I)I";
@@ -288,6 +297,7 @@ public final class JvmRuntimeCallDescriptors {
             // S7e (D-STDLIB 13/09): hoje/formato UTC-only
             case "kof_time_todayIso" -> "()Ljava/lang/String;";
             case "kof_time_formatDateIso" -> "(III)Ljava/lang/String;";
+            case "kof_time_formatInstantIso" -> "(J)Ljava/lang/String;";
             case "kof_time_isToday" -> "(III)Z";
             case "kof_time_hoursBetween" -> "(IIIIIIII)I";
             case "kof_time_parseDateIso" -> "(Ljava/lang/String;)I";

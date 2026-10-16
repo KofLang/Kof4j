@@ -23,13 +23,27 @@ class ConstantPropagationTest {
 
     @Test
     void propagatesAStoredConstantIntoALaterLoad() {
-        // literal 7; store(0); load(0)  -> the load becomes the literal 7.
+        // literal 7; store(0); [an intervening read of another slot]; load(0)
+        // -> the later, non-adjacent load becomes the literal 7.
+        List<KofOperation> out = run(List.of(
+                KofLoadLiteral.ofInt(7),
+                new KofStoreLocal(Type.PrimitiveType.INT, 0),
+                new KofLoadLocal(Type.PrimitiveType.INT, 9),
+                new KofLoadLocal(Type.PrimitiveType.INT, 0)));
+        assertEquals(4, out.size());
+        assertEquals(KofLoadLiteral.ofInt(7), out.get(3), "load(0) propagates to literal 7");
+    }
+
+    @Test
+    void adjacentReadBackIsKeptVerbatim() {
+        // literal 7; store(0); load(0) — the immediate store/load read-back is a
+        // compiler-internal encoding the backends pattern-match on; it is NOT folded.
         List<KofOperation> out = run(List.of(
                 KofLoadLiteral.ofInt(7),
                 new KofStoreLocal(Type.PrimitiveType.INT, 0),
                 new KofLoadLocal(Type.PrimitiveType.INT, 0)));
-        assertEquals(3, out.size());
-        assertEquals(KofLoadLiteral.ofInt(7), out.get(2), "load(0) propagates to literal 7");
+        assertInstanceOf(KofLoadLocal.class, out.get(2),
+                "an adjacent store;load read-back stays verbatim");
     }
 
     @Test
@@ -74,12 +88,13 @@ class ConstantPropagationTest {
 
     @Test
     void typeMismatchIsNotPropagated() {
-        // literal 7 (Int); store(0) as Long -> the recorded const is Int, load(0) as Long
-        // must NOT be replaced by the Int literal.
+        // literal 7 (Int); store(0) as Long; [intervening read]; load(0) as Long
+        // -> the recorded const is Int, the Long load must NOT become the Int literal.
         List<KofOperation> out = run(List.of(
                 KofLoadLiteral.ofInt(7),
                 new KofStoreLocal(Type.PrimitiveType.LONG, 0),
+                new KofLoadLocal(Type.PrimitiveType.LONG, 9),
                 new KofLoadLocal(Type.PrimitiveType.LONG, 0)));
-        assertInstanceOf(KofLoadLocal.class, out.get(2), "a type mismatch blocks propagation");
+        assertInstanceOf(KofLoadLocal.class, out.get(3), "a type mismatch blocks propagation");
     }
 }

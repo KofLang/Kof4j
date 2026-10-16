@@ -219,7 +219,7 @@ final class SemFieldAccessTyper {
                         // silencio (R6/Q7). so com `this.x`/x nu (owner ==
                         // caller) e dentro da declarante/subclasse passa.
                         if (field instanceof SymbolTable.FieldSymbol fs) {
-                            MemberCallTyper.checkFieldAccess(sa, fs);
+                            MemberAccessChecks.checkFieldAccess(sa, fs);
                         }
                         return TypeSubstitution.substituteTypeVariableIn(field.type(), recvType, sa.unit());
                     }

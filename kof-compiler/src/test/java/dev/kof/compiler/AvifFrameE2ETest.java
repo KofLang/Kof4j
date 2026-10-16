@@ -54,14 +54,14 @@ class AvifFrameE2ETest implements LibraryInstallSupport {
     @TempDir Path tmp;
 
     private static final String GOLDEN = String.join("\n",
-            "red-k t=0 show=1 err=1 ov=0 w=32 h=32 rd=0 rw=32 rh=32 tiles=1x1 hb=3 bq=0 lf=0 cd=0",
-            "nr-k t=0 show=1 err=1 ov=1 w=5 h=3 rd=0 rw=5 rh=3 tiles=1x1 hb=4 bq=0 lf=0 cd=0",
-            "rend t=0 show=1 err=1 ov=0 w=32 h=32 rd=1 rw=11 rh=6 tiles=1x1 hb=7 bq=0 lf=0 cd=0",
-            "tile4 t=0 show=1 err=1 ov=0 w=128 h=128 rd=0 rw=128 rh=128 tiles=2x2 hb=3 bq=0 lf=0 cd=0",
-            "intra t=2 show=1 err=0 ov=1 w=5 h=3 rd=0 rw=5 rh=3 tiles=1x1 hb=5 bq=0 lf=0 cd=0",
-            "q32 t=0 show=1 err=1 ov=0 w=32 h=32 rd=0 rw=32 rh=32 tiles=1x1 hb=6 bq=32 lf=7 cd=0",
-            "nonuni t=0 show=1 err=1 ov=0 w=128 h=128 rd=0 rw=128 rh=128 tiles=2x1 hb=3 bq=0 lf=0 cd=0",
-            "qchroma t=0 show=1 err=1 ov=0 w=128 h=128 rd=0 rw=128 rh=128 tiles=2x2 hb=6 bq=80 lf=0 cd=0");
+            "red-k t=0 show=1 err=1 ov=0 w=32 h=32 rd=0 rw=32 rh=32 tiles=1x1 hb=3 bq=0 lf=0 cd=0 ll=1 tx=0 rts=1 dq=0 dqr=0 dfl=0 dlr=0 dlm=0 seg=0 aq=0,0,0,0,0,0,0,0",
+            "nr-k t=0 show=1 err=1 ov=1 w=5 h=3 rd=0 rw=5 rh=3 tiles=1x1 hb=4 bq=0 lf=0 cd=0 ll=1 tx=0 rts=0 dq=0 dqr=0 dfl=0 dlr=0 dlm=0 seg=0 aq=0,0,0,0,0,0,0,0",
+            "rend t=0 show=1 err=1 ov=0 w=32 h=32 rd=1 rw=11 rh=6 tiles=1x1 hb=7 bq=0 lf=0 cd=0 ll=1 tx=0 rts=1 dq=0 dqr=0 dfl=0 dlr=0 dlm=0 seg=0 aq=0,0,0,0,0,0,0,0",
+            "tile4 t=0 show=1 err=1 ov=0 w=128 h=128 rd=0 rw=128 rh=128 tiles=2x2 hb=3 bq=0 lf=0 cd=0 ll=1 tx=0 rts=1 dq=0 dqr=0 dfl=0 dlr=0 dlm=0 seg=0 aq=0,0,0,0,0,0,0,0",
+            "intra t=2 show=1 err=0 ov=1 w=5 h=3 rd=0 rw=5 rh=3 tiles=1x1 hb=5 bq=0 lf=0 cd=0 ll=1 tx=0 rts=0 dq=0 dqr=0 dfl=0 dlr=0 dlm=0 seg=0 aq=0,0,0,0,0,0,0,0",
+            "q32 t=0 show=1 err=1 ov=0 w=32 h=32 rd=0 rw=32 rh=32 tiles=1x1 hb=6 bq=32 lf=7 cd=0 ll=0 tx=1 rts=0 dq=0 dqr=0 dfl=0 dlr=0 dlm=0 seg=0 aq=0,0,0,0,0,0,0,0",
+            "nonuni t=0 show=1 err=1 ov=0 w=128 h=128 rd=0 rw=128 rh=128 tiles=2x1 hb=3 bq=0 lf=0 cd=0 ll=1 tx=0 rts=0 dq=0 dqr=0 dfl=0 dlr=0 dlm=0 seg=0 aq=0,0,0,0,0,0,0,0",
+            "qchroma t=0 show=1 err=1 ov=0 w=128 h=128 rd=0 rw=128 rh=128 tiles=2x2 hb=6 bq=80 lf=0 cd=0 ll=0 tx=0 rts=0 dq=0 dqr=0 dfl=0 dlr=0 dlm=0 seg=0 aq=0,0,0,0,0,0,0,0");
 
     @Test
     void avifFrameHeaderOnJvm() throws Exception {

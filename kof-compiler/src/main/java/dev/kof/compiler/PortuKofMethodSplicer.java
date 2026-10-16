@@ -307,10 +307,15 @@ public final class PortuKofMethodSplicer {
                         : new IfExpr(ie.position(), c, t, f));
             }
             case LambdaExpr l -> {
-                List<FormalParameterNode> ps = params(l.parameters());
-                List<StatementNode> b = stmts(l.body());
-                yield keep(l, ps == l.parameters() && b == l.body() ? l
-                        : new LambdaExpr(l.position(), ps, b));
+                ExpressionNode sub = sa.portuKofSurface().lambdaRewrite(l);
+                LambdaExpr base = (sub instanceof LambdaExpr lw) ? lw : l;
+                List<FormalParameterNode> ps = params(base.parameters());
+                List<StatementNode> b = stmts(base.body());
+                LambdaExpr out = (ps == base.parameters() && b == base.body()) ? base
+                        : new LambdaExpr(base.position(), ps, b);
+                if (out == l) yield l;
+                sa.portuKofSurface().spliceTypeCache(base, out);
+                yield out;
             }
             case NewExpr ne -> {
                 List<ExpressionNode> as = exprs(ne.arguments());
