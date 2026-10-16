@@ -205,16 +205,23 @@ public final class Migrate {
                 }
             }
             Files.createDirectories(outDir);
+            Path outRoot = outDir.toAbsolutePath().normalize();
             for (java.util.jar.JarEntry e : classEntries) {
+                String internalName = e.getName().replaceFirst("\\.class$", "");
+                // CodeQL java/zipslip (#1131): the entry name comes from the jar (untrusted) —
+                // "../x.class" would write outside --output. Honest skip, never a silent write.
+                Path kfPath = outRoot.resolve(internalName + ".kf").normalize();
+                if (!kfPath.startsWith(outRoot) || internalName.contains("\\")) {
+                    warnings.add(e.getName() + ": entry escapes the output directory — skipped");
+                    continue;
+                }
                 Path tmp = Files.createTempFile("migrate-", ".class");
                 try (var in = jar.getInputStream(e)) {
                     Files.copy(in, tmp, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                 }
-                String internalName = e.getName().replaceFirst("\\.class$", "");
                 try {
                     String kof = Decompile.decompile(tmp);
                     // package structure preserved in the output dir
-                    Path kfPath = outDir.resolve(internalName + ".kf");
                     if (kfPath.getParent() != null) {
                         Files.createDirectories(kfPath.getParent());
                     }
@@ -243,7 +250,8 @@ public final class Migrate {
                             // the legacy side needs the class file under its OWN
                             // name for `java -cp dir Name` to find it
                             Path legacyDir = Files.createTempDirectory("migrate-legacy-");
-                            Path legacyClass = legacyDir.resolve(internalName + ".class");
+                            Path legacyClass = legacyDir.resolve(kfPath.getFileName().toString()
+                                    .replaceFirst("\\.kf$", ".class"));
                             Files.copy(tmp, legacyClass, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                             try {
                                 String simple = internalName.substring(internalName.lastIndexOf('/') + 1);

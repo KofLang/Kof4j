@@ -219,7 +219,8 @@ public final class ExpressionTyper {
                 yield t;
             }
             case ArrayAccessExpr aa -> {
-                Type recvType = inferExprType(driver, aa.receiver(), locals);
+                // #882: sem a anulabilidade — o receptor ESTREITADO segue `Nullable(...)` no IR.
+                Type recvType = Type.withoutNullable(inferExprType(driver, aa.receiver(), locals));
                 // #152/#149: `list[i]`/`m[k]` sobre coleção = get do elemento
                 // (o emit baixa p/ kof_list_get/kof_map_get — espelha aqui).
                 if (BuiltinTypes.isList(recvType)) {
@@ -232,8 +233,8 @@ public final class ExpressionTyper {
                             ? ct.typeArguments().get(1) : Type.UnknownType.UNKNOWN;
                     yield val;
                 }
-                if (recvType instanceof Type.ArrayType at) yield at.componentType();
-                yield Type.UnknownType.UNKNOWN;
+                // #878: `arrayElementType` atravessa o `NullableType` (o local ESTREITADO de `T[]?` é `Nullable(ArrayType)`).
+                yield Type.arrayElementType(recvType);
             }
             case FieldAccessExpr fa -> ExpressionFieldAccessTyper.type(driver, fa, locals);
             case LambdaExpr le -> {

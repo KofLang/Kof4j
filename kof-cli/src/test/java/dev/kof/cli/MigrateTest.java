@@ -87,6 +87,41 @@ class MigrateTest extends CliJavacSupport {
         }
     }
 
+    /** CodeQL java/zipslip (#1131): uma entrada "../x.class" não escreve fora do --output. */
+    @Test
+    void jarEntryEscapingOutputDirIsSkippedWithWarning(@TempDir Path dir) throws Exception {
+        createClass(dir, "Calc", """
+                public class Calc {
+                    public int add(int a, int b) { return a + b; }
+                }
+                """);
+        byte[] bytes = Files.readAllBytes(dir.resolve("Calc.class"));
+        try (var jos = new java.util.jar.JarOutputStream(Files.newOutputStream(dir.resolve("evil.jar")))) {
+            for (String name : new String[] {"../escape.class", "a/../../escape2.class", "Calc.class"}) {
+                jos.putNextEntry(new java.util.jar.JarEntry(name));
+                jos.write(bytes);
+                jos.closeEntry();
+            }
+        }
+        Path outDir = dir.resolve("out").resolve("kf");
+        var err = new java.io.ByteArrayOutputStream();
+        var oldErr = System.err;
+        System.setErr(new java.io.PrintStream(err, true, java.nio.charset.StandardCharsets.UTF_8));
+        Migrate.MigrationReport report;
+        try {
+            report = Migrate.jarReport(dir.resolve("evil.jar"), outDir, false);
+        } finally {
+            System.setErr(oldErr);
+        }
+        assertFalse(Files.exists(dir.resolve("out").resolve("escape.kf")), "escaped ../ entry");
+        assertFalse(Files.exists(dir.resolve("out").resolve("escape2.kf")), "escaped a/../../ entry");
+        assertTrue(Files.exists(outDir.resolve("Calc.kf")), "the legitimate entry is still migrated");
+        assertEquals(1, report.classes(), "only the legitimate entry counts");
+        String warn = err.toString(java.nio.charset.StandardCharsets.UTF_8);
+        assertTrue(warn.contains("../escape.class: entry escapes the output directory"), warn);
+        assertTrue(warn.contains("a/../../escape2.class: entry escapes the output directory"), warn);
+    }
+
     @Test
     void jarReportCountsStubsFromActualOutput(@TempDir Path dir) throws Exception {
         createClass(dir, "Calc", """

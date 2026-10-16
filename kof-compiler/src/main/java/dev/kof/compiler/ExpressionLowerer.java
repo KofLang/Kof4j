@@ -282,8 +282,13 @@ public final class ExpressionLowerer {
                 localIdx = ExpressionLowerer.emitExpression(driver, aa.receiver(), ops, owner, localIdx, locals);
                  localIdx = ExpressionLowerer.emitExpression(driver, aa.index(), ops, owner, localIdx, locals);
                  Type recvType = ExpressionTyper.inferExprType(driver, aa.receiver(), locals);
+                 // #882: o receptor ESTREITADO (`if (l != null)`) segue `Nullable(...)` no
+                 // IR (o estreitamento é semântico) — a classificação e a extração do
+                 // elemento olham o tipo SEM a anulabilidade; senão um `List<T>?` cai no
+                 // caminho de ARRAY (`aaload`/`arraylength` sobre ArrayList → VerifyError).
+                 Type recvBase = Type.withoutNullable(recvType);
                  // #845: índice `Int?` estreitado de array/List (a chave de Map é referência)
-                 if (!BuiltinTypes.isMap(recvType)) {
+                 if (!BuiltinTypes.isMap(recvBase)) {
                      CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops,
                              ExpressionTyper.inferExprType(driver, aa.index(), locals), Type.PrimitiveType.INT);
                  }
@@ -292,28 +297,28 @@ public final class ExpressionLowerer {
                  // VerifyError (o receptor é referência, não array). Baixa p/
                  // as mesmas funções de runtime do `.get()`
                  // (CollectionCallLowerer: kof_list_get/kof_map_get, INSTANCE).
-                 if (BuiltinTypes.isList(recvType) || BuiltinTypes.isMap(recvType)) {
-                     String fn = BuiltinTypes.isList(recvType) ? "kof_list_get" : "kof_map_get";
+                 if (BuiltinTypes.isList(recvBase) || BuiltinTypes.isMap(recvBase)) {
+                     String fn = BuiltinTypes.isList(recvBase) ? "kof_list_get" : "kof_map_get";
                      // elemType real (idem CollectionCallLowerer) — o retorno
                      // Unknown fazia o desugar de println tratar Int como
                      // Object cru (VerifyError: integer na pilha do println).
-                     Type elem = BuiltinTypes.isList(recvType)
-                             ? driver.listElementType(recvType)
-                             : (recvType instanceof Type.ClassType ct && ct.typeArguments().size() > 1
+                     Type elem = BuiltinTypes.isList(recvBase)
+                             ? driver.listElementType(recvBase)
+                             : (recvBase instanceof Type.ClassType ct && ct.typeArguments().size() > 1
                                  ? ct.typeArguments().get(1) : Type.UnknownType.UNKNOWN);
                      // #150: o param do get é o ÍNDICE (List → Int) ou a CHAVE
                      // (Map → tipo da chave). Hardcodar INT boxava a chave String
                      // como Integer → VerifyError (`Integer.valueOf(String)`).
-                     Type indexOrKey = BuiltinTypes.isList(recvType)
+                     Type indexOrKey = BuiltinTypes.isList(recvBase)
                              ? Type.PrimitiveType.INT
-                             : BuiltinTypes.mapKey(recvType);
-                     ops.add(new KofCall(recvType, fn,
+                             : BuiltinTypes.mapKey(recvBase);
+                     ops.add(new KofCall(recvBase, fn,
                              List.of(indexOrKey), elem,
                              KofCallKind.INSTANCE));
                      yield localIdx;
                  }
                  // Set[i] não existe (R6): sem op de indexação — erro honesto.
-                 if (BuiltinTypes.isSet(recvType)) {
+                 if (BuiltinTypes.isSet(recvBase)) {
                      if (driver.currentDiagnostics != null) {
                          var p = aa.position();
                          driver.currentDiagnostics.error(p != null ? p.file() : "",

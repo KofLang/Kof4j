@@ -40,7 +40,7 @@ aarch64); o alvo JS a recusa em compile time com `IOJS001`.
 | `isFile()` / `isDirectory()` | Bool |
 | `readText()` | `String?` — `null` se falhar (JVM e Native) |
 | `writeText(s)` / `appendText(s)` | Bool, UTF-8 |
-| `readBytes()` | `Int[]` (0-255), `null` se falhar |
+| `readBytes()` | `Int[]` (0-255); **lança** na falha (#848): `file not found: <path>` quando o arquivo não existe, `cannot read file: <path>` quando existe mas não pode ser lido (ex.: um diretório) — nunca `null` |
 | `writeBytes(b)` / `appendBytes(b)` | Bool |
 | `size()` | Long; lança exceção se o arquivo não existe (02/09 — sem sentinela `-1`) |
 | `delete()` | Bool — apaga o ARQUIVO, ou um diretório VAZIO. Um diretório não-vazio NÃO é recursivo aqui: devolve `false` e o diretório fica intacto (medido em JVM + Script, 15/10) — para uma árvore use `Directory(x).delete()` (recursivo em todo alvo desde 08/10, `known-bugs` §618). Caminho inexistente devolve `false` |
@@ -96,6 +96,7 @@ println(path.size())
   (`null` para arquivo inexistente) em JVM e Native; `size()` lança exceção
   recuperável (`catch (String e)`) — o `-1` sentinela foi removido.
 - Booleanas: `true`/`false`. `size()` lança exceção quando o arquivo não existe (sem `-1`).
+- Leituras binárias (#848): `readBytes()` e `readRange(offset, len)` são `Int[]` não anuláveis e **lançam** uma `String` recuperável (`catch (String e)`) na falha — `file not found: <path>` quando o arquivo não existe, `cannot read file: <path>` quando existe mas não pode ser lido ou a faixa é inválida (`offset`/`len` negativos). Arquivo vazio, leitura curta e faixa além do EOF NÃO são falha: devolvem os bytes que existem (talvez zero).
 
 ## Streaming (`libs/file`)
 

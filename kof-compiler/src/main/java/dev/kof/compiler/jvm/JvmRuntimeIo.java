@@ -61,6 +61,13 @@ public final class JvmRuntimeIo {
                     }
                 }
 
+                // #848: readBytes/readRange são Int[] não anuláveis — falha LANÇA (catch (String e)),
+                // como size(); antes devolviam null e o primeiro uso dava NPE fora do contrato
+                private static RuntimeException readFailure(String path) {
+                    return new RuntimeException((java.nio.file.Files.exists(p(path))
+                            ? "cannot read file: " : "file not found: ") + path);
+                }
+
                 public static int[] kof_io_read_bytes(String path) {
                     try {
                         byte[] b = java.nio.file.Files.readAllBytes(p(path));
@@ -68,7 +75,7 @@ public final class JvmRuntimeIo {
                         for (int i = 0; i < b.length; i++) out[i] = b[i] & 0xFF;
                         return out;
                     } catch (java.io.IOException e) {
-                        return null;
+                        throw readFailure(path);
                     }
                 }
 
@@ -77,6 +84,7 @@ public final class JvmRuntimeIo {
                 }
 
                 public static int[] kof_io_read_range_path(String path, long offset, long len) {
+                    if (offset < 0 || len < 0) throw new RuntimeException("cannot read file: " + path);
                     int ilen = (int) Math.min(len, Integer.MAX_VALUE);
                     try {
                         byte[] b = new byte[ilen];
@@ -88,7 +96,7 @@ public final class JvmRuntimeIo {
                             return out;
                         }
                     } catch (java.io.IOException e) {
-                        return null;
+                        throw readFailure(path);
                     }
                 }
 

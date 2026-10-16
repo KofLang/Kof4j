@@ -424,7 +424,7 @@ public final class ClassFileParser {
             int n = bb.getShort() & 0xFFFF;
             String[] recipes = new String[n];
             for (int i = 0; i < n; i++) {
-                int mhRef = bb.getShort() & 0xFFFF;  // bootstrap_method_ref
+                bb.getShort();  // bootstrap_method_ref (avança; não usado — CodeQL #1155)
                 int nargs = bb.getShort() & 0xFFFF;
                 recipes[i] = null;
                 int implHandle = -1;

@@ -23,7 +23,7 @@ public final class JsJsonOps {
      * Trata uma op {@code kof_json_*}. Devolve {@code true} quando consumiu a op
      * (o chamador não deve seguir com o dispatch genérico).
      */
-    boolean handle(MethodCtx ctx, List<Object> stack, KofCall kc,
+    boolean handle(List<Object> stack, KofCall kc,
                    JsIr.JsExpression receiver, List<JsIr.JsExpression> args) {
         String name = kc.methodName();
         if (!name.startsWith("kof_json_")) return false;

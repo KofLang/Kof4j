@@ -278,7 +278,6 @@ public final class NativeX86StringCalls {
             // site (nb.inlineSeq, resetado por programa).
             int seq = nb.inlineSeq++;
             String empty = ".Lkof_split_empty_sep" + seq;
-            String call = ".Lkof_split_call" + seq;
             String done = ".Lkof_split_done" + seq;
             // §738 (face NATIVA): separador VAZIO (`split("")`) — o ramo antigo
             // passava `sep_char = 0` (NUL), que nunca casa → 1 elemento; o

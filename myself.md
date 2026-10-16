@@ -2,11 +2,52 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 16/10 — AVIF slice 3bd 44ª PASSAGEM: com o buffer ALARGADO (linhas extra, stride igual) o 32x32 COMPLETA e mostra o MESMO DESSINCRONISMO do testsrc 64x64: `blocks=8 covered=64 frame=64` mas `symBits=503 payloadBits=1968` (26%) e `Y(0,0)=17` batendo com o ffmpeg ⇒ a falha é uma escrita na linha 34 de um buffer de 34 linhas, e o ESTOURO é SINTOMA do desync (modo/geometria lixo) ⇒ a RAIZ compartilhada é o DESSINCRONISMO. Limitação do probe: amostras Y fixas de 64x64 ⇒ num 32x32 só (0,0) vale. Mudanças temporárias REVERTIDAS; árvore provada, AvifRealFileE2ETest 10/10. Próximo: o desync (discriminante = CONTEÚDO: testsrc mistura modos ANGULARES) ⇒ despejar yMode/uvMode/angleY por bloco.
-doing: §3bd — 32x32: estouro é SINTOMA; raiz compartilhada = o DESSINCRONISMO (26% no 32x32, 54% no 64x64); fixtures exatos são planos/xadrez/paleta
-next: §3bd — despejar yMode/uvMode/angleY por bloco de um testsrc que falha e procurar o modo/ângulo angular que os fixtures exatos nunca exercitam (o desync é o discriminante de CONTEÚDO)
+last: 16/10 — AVIF slice 3bd 49ª PASSAGEM: a hipótese do CFL está REFUTADA pelo seu próprio teste (neutralizar `if (uvMode == 13)` — que desliga modulação E `av1CflAcFromLuma`, a única leitura da luma no croma — mantendo a entropia intacta: o 32x32 AINDA lança Index 1186/1156). Nota: a alegação estava rotulada HIPÓTESE ⇒ nenhuma retratação foi necessária (o rótulo pagou). ACHADO: com TODOS os acessos NOMEADOS à luma excluídos (paleta, bloco, bloco de TX, predição simples/arith 1120, escritas do croma, edge filter, filter-intra, CFL) o crash persiste ⇒ ao menos uma exclusão se apoia nos PARÂMETROS DO CALLER, não nos acessos reais. Próximo: registrar ÍNDICES REAIS DENTRO DOS ACESSORES (helpers), com o quadro alargado p/ completar e o print sobreviver.
+doing: §3bd — 32x32: CFL refutado; TODOS os acessos nomeados à luma excluídos e o crash persiste ⇒ uma exclusão de call-site é inválida; medir índices REAIS dentro dos helpers
+next: §3bd — instrumento por ÍNDICES REAIS: alargar o quadro (decode COMPLETA) + cada ACESSOR da luma atualiza um maxIndex de diagnóstico, impresso depois do decode ⇒ nomeia o escritor do índice 1186
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 16/10 (76ª) — 3bd 49ª: CFL REFUTADO; e a falha de toda exclusão por call-site é o achado
+- **Teste (como planejado):** neutralizar `if (uvMode == 13)` em `Av1DecodeChroma.kf` desliga a modulação E o `av1CflAcFromLuma` (única leitura da luma no croma) mantendo a ENTROPIA intacta ⇒ o 32x32 AINDA lança `Index 1186 out of bounds for length 1156` ⇒ **CFL não é o escritor**.
+- **Nota de processo:** a alegação da 48ª estava rotulada **HIPÓTESE** ⇒ esta refutação NÃO exigiu retratação — o rótulo pagou (contraste com a 42ª, onde uma conclusão mal rotulada custou uma retratação).
+- **Excluídos (todos os acessos NOMEADOS à luma):** paleta, BLOCO, BLOCO DE TX, predição simples (arith 1120), escritas do plano de CROMA (outro buffer), EDGE FILTER, FILTER-INTRA, e agora CFL (leitura + modulação).
+- **ACHADO:** todo acesso nomeado excluído e o crash persiste ⇒ **ao menos uma exclusão se apoia nos PARÂMETROS DO CALLER, não nos acessos realmente executados** (um helper cuja aritmética interna de índice sai de faixa sobrevive a todos os guards de call-site).
+- **Próximo:** instrumento por ÍNDICES REAIS — o registro deve viver DENTRO DOS ACESSORES (helpers), não nos call-sites; quadro alargado p/ a decodificação COMPLETAR; imprimir o `maxIndex` depois (o stdout sobrevive sem crash).
+- **Árvore:** temporários revertidos; `AvifRealFileE2ETest` **10/10** (commit docs-only).
+
+## Sessão 16/10 (75ª) — 3bd 48ª: HIPÓTESE — CFL é a única leitura da luma e só aparece nos que falham
+- **Medido (dump da 45ª, já no plano):** testsrc-64 tem `uvMode=13` (CFL) — `(6,0,0,13,0)`, `(5,2,0,13,0)`, `(2,0,0,13,0)`; cb16 = `(2,0,0,0,0)`×4 e pskip = `(3,0,0,0,0)` ⇒ **CFL SÓ no fixture que falha**.
+- **E o cb8?** Exato e NÃO pode CFL (bloco 64x64 > 32; `is_cfl_allowed` exige ambas as dimensões ≤ 32) ⇒ **o conjunto que falha = o conjunto que pode CFL**.
+- **Mecânica (por que casa):** a caminhada de croma é o ÚNICO lugar que LÊ a luma, via `av1CflAcFromLuma(luma, lumaStride, ...)` (`Av1DecodeChroma.kf:184`). Um erro de limite/offset ali (a) estoura o buffer luma nas bordas e (b) está no caminho de PIXELS, invisível a todos os discriminadores de ENTROPIA já tentados. Casa com a conclusão de stride/offset da 47ª.
+- **Honestidade:** rotulado **HIPÓTESE** ✗ conclusão — a 42ª passagem ensinou o custo de nomear escritor por sinal indireto. O medido é a presença do CFL e que a caminhada de croma é a única leitora da luma.
+- **Próximo (decisivo, um tiro):** neutralizar o ramo CFL (predição UV simples, sem a modulação `av1CflAcFromLuma`) e rodar o 32x32 — se o crash E o desync sumirem, CFL é o gatilho; se só o crash sumir, o desync é defeito separado.
+- **Árvore:** inalterada; `AvifRealFileE2ETest` **10/10** (commit docs-only).
+
+## Sessão 16/10 (74ª) — 3bd 47ª: FILTER-INTRA excluído; o índice implica STRIDE/OFFSET, não geometria de bloco
+- **Discriminador:** `useFilterIntra = 0` (temp, na chamada de predição do driver) ⇒ o 32x32 AINDA lança `Index 1186 out of bounds for length 1156` ⇒ **filter-intra NÃO é o escritor**.
+- **Excluídos (todos):** paleta (`pal=0`), BLOCO além do quadro (guard), BLOCO DE TX além do quadro (guard), predição intra SIMPLES (arith: máx 1120), CROMA (não escreve quadro), EDGE FILTER (`de=1`), FILTER-INTRA (`useFilterIntra=0`).
+- **Leitura refinada do índice:** 1186 com stride 34 = linha 34, col 30 = DUAS linhas além da última interior (31). Mas o guard provou que nenhum bloco tem `y+h > frameH` (32) ⇒ um escritor com a convenção de bloco chega no máximo a `32*34+32 = 1120` ⇒ **o escritor deve usar STRIDE DIFERENTE** (p.ex. `frameW`=32 onde o buffer usa `frameW+2`=34 ⇒ 1186 = linha 37, col 2) **ou um OFFSET fora da extensão do bloco/TX** ⇒ a busca deixa de ser geometria de bloco.
+- **Método para a próxima (decisivo):** (1) alargar o quadro (truque da 44ª) para a decodificação COMPLETAR sem crash; (2) instrumentar cada escritor luma para REGISTRAR seu índice máximo tocado numa lista que o probe IMPRIME **depois** da decodificação ⇒ o print sobrevive (stdout é PERDIDO num crash, e é por isso que a ideia do rastro de marcadores falhou) ⇒ o escritor com máximo > 1156 fica NOMEADO.
+- **Árvore:** temporários revertidos; `AvifRealFileE2ETest` **10/10** (commit docs-only).
+
+## Sessão 16/10 (73ª) — 3bd 46ª: EDGE FILTER excluído; sobra o ramo FILTER-INTRA (só-angular)
+- **Discriminador:** `de = 1` no probe (edge filter intra NUNCA aplicado) ⇒ o 32x32 AINDA lança `Index 1186 out of bounds for length 1156` ⇒ **o edge filter NÃO é o escritor**.
+- **Excluídos (experimento/aritmética):** paleta (`pal=0`), BLOCO além do quadro (guard), BLOCO DE TX além do quadro (guard), predição intra SIMPLES (limite `maxX`/`maxY` ⇒ máx `1120` << 1186), CROMA (não escreve buffer de quadro), EDGE FILTER (`de=1`).
+- **Qualificação honesta:** o limite 1120 cobre só as leituras SIMPLES do preditor; o RAMO DE FILTER-INTRA (que o `av1IntraPredictBlock` também implementa via `useFilterIntra`/`filterIntraMode`) NÃO está coberto por ele ⇒ "predição excluída" vale apenas para o caminho sem filter-intra.
+- **O que sobra (e é consistente):** a predição de FILTER-INTRA (borda de 2-3 amostras) ou a borda/cópia da predição luma para o plano — ambos SÓ-ANGULARES, casando com o estouro aparecer SÓ nos fixtures que falham (angulares); cb16/pskip/cb8 são não-angulares e limpos. O testsrc lê `use_filter_intra`; os exatos não.
+- **Árvore:** temporários revertidos; `AvifRealFileE2ETest` **10/10** (commit docs-only).
+- **Próximo:** forçar `useFilterIntra = 0` no probe e rodar o 32x32 (discriminador de um tiro, como o `pal=0` e o `de=1`).
+
+## Sessão 16/10 (72ª) — 3bd 45ª: DISCRIMINANTE por ENTROPIA medido (deltas de ângulo)
+- **Fatia (landada):** o dump por bloco do probe de tile agora inclui `angleY`/`angleUV` ⇒ o mix de modos de qualquer fixture se lê direto. Prova: `AvifRealFileE2ETest` **10/10**.
+- **MEDIDO** `(txSz, yMode, angleY, uvMode, angleUV)`:
+  - **testsrc-64 (FALHA):** `(6,2,-2,2,3)`, `(6,0,0,9,0)`, `(6,0,0,13,0)`, `(5,2,2,9,0)`, `(5,2,0,13,0)`, `(7,0,0,0,0)`, `(2,0,0,13,0)` — modos LUMA **ANGULARES** (2 = V_PRED) com deltas **NÃO-ZERO** (−2, +2), UV direcional (9), CFL (13), e uma leitura de **7 símbolos** no rastro = o delta de ângulo.
+  - **cb16 (EXATO):** `(2,0,0,0,0)` ×4 — só DC, ângulos 0, **ZERO** leituras de 7 símbolos.
+  - **pskip (EXATO):** `(3,0,0,0,0)` — só DC, ângulos 0, **ZERO** leituras de 7 símbolos.
+- **Conclusão:** é o primeiro discriminante que separa os fixtures por um elemento de ENTROPIA (leitura de modo/ângulo), não só por conteúdo ⇒ o caminho DIRECIONAL/ÂNGULO é o suspeito.
+- **Caveats:** (a) a linha de rastro imprime só os primeiros 24 símbolos ⇒ a contagem de 7-símbolos é parcial (o dump de modos é completo); (b) a leitura do ângulo JÁ foi verificada contra o libaom ⇒ o suspeito não é a forma da leitura, mas a interação (adaptação da CDF ao longo do tile, ou o mapeamento `get_uv_mode` para a linha do ângulo UV).
+- **Próximo:** gradiente FORA DO EIXO num 64x64 (força delta de ângulo não-zero) com conteúdo simples ⇒ se falhar enquanto o gradiente no eixo (que era EXATO) passa, o delta de ângulo é o gatilho.
 
 ## Sessão 16/10 (71ª) — 3bd 44ª: estouro = SINTOMA; a raiz é o DESSINCRONISMO (medido)
 - **Experimento (temporário, revertido):** buffer de quadro do probe com LINHAS EXTRA (`stride*(mh+8)`, stride 34 inalterado) ⇒ a escrita da linha 34 cai DENTRO ⇒ **o crash DESAPARECE e a decodificação COMPLETA**.

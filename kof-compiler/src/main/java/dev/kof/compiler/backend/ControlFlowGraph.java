@@ -100,7 +100,7 @@ public final class ControlFlowGraph {
             }
         }
         for (int i = 0; i < ops.size(); i++) {
-            if (ops.get(i) instanceof KofLabel kl && jumpTargets.contains(i)) {
+            if (ops.get(i) instanceof KofLabel && jumpTargets.contains(i)) {
                 leader[i] = true;
             }
         }
@@ -127,12 +127,10 @@ public final class ControlFlowGraph {
 
         // 2) partition into blocks.
         List<List<KofOperation>> raw = new ArrayList<>();
-        List<Integer> startIdx = new ArrayList<>();
         int cur = -1;
         for (int i = 0; i < ops.size(); i++) {
             if (leader[i] || cur < 0) {
                 raw.add(new ArrayList<>());
-                startIdx.add(i);
                 cur = raw.size() - 1;
             }
             raw.get(cur).add(ops.get(i));

@@ -160,7 +160,7 @@ final class BytecodeDecoderCond {
         // converge no MESMO else (o falso externo), o shape e `if (A) { if (B)
         // X else Y } else Y` = `if (A && B) X else Y` — a forma IDIOMATICA
         // (sem isso a recursao o emitia como ternario aninhado, ofuscando o &&).
-        if (thenB != null && thenB.succ.size() == 2) {
+        if (thenB.succ.size() == 2) {   // thenB != null: guard da linha 151 (CodeQL #1149)
             // DUAS orientacoes do teste interno do `&&` (medidas):
             //  (a) jump=FALSO (succ[0]==elseStart) — invCond; o verdadeiro e
             //      o fall-through (orientacao do && simples);

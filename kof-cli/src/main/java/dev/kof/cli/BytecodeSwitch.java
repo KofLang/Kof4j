@@ -124,8 +124,7 @@ final class BytecodeSwitch {
                     ? BytecodeCp.resolveMethodRef(cp, insns.get(i).operands()[0]) : null;
             if (hmP == null || !"java/lang/String".equals(hmP[0])
                     || !"hashCode".equals(hmP[1]) || insns.get(i + 1).opcode() != 0xab) continue;
-            int d = i - 5;
-            if (d < 0) continue;
+            int d = i - 5;   // i parte de 5: d >= 0 sempre (CodeQL #1156)
             boolean d0 = insns.get(d).opcode() == 0x19 || (insns.get(d).opcode() >= 0x2a && insns.get(d).opcode() <= 0x2d);
             boolean d1 = insns.get(d + 1).opcode() == 0x3a || (insns.get(d + 1).opcode() >= 0x4a && insns.get(d + 1).opcode() <= 0x4d);
             boolean d2 = insns.get(d + 2).opcode() == 0x02;
@@ -237,7 +236,6 @@ final class BytecodeSwitch {
                 return stringSwitchStmt(insns, cp, frame, disc, idx, caseLit,
                         starts, commonEnd, prologue, shared);
             }
-            if (r == null || r.stopped || r.stack.size() != 1) return null;
             String val = r.stack.topExpr();
             if (s == idx.dflt) {
                 sb.append("default -> ").append(val);

@@ -16,14 +16,13 @@ public final class RuntimeIo3 {
                 popq %rbx
                 ret
             .Lio_range_err:
-                xorl %eax, %eax
+                addq $8, %rsp        # #848: realinha antes do throw (não retorna)
+                movq %rbx, %rdi
+                call kof_io_throw_not_found
+            .Lio_range_inval:
                 addq $8, %rsp
-                popq %r15
-                popq %r14
-                popq %r13
-                popq %r12
-                popq %rbx
-                ret
+                movq %rbx, %rdi
+                call kof_io_throw_unreadable
 
             .globl kof_io_write_bytes
             .type kof_io_write_bytes, @function

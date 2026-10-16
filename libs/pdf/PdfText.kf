@@ -70,8 +70,10 @@ class PdfPage {
 }
 
 String? pdfText(String path) {
-    Int[]? raw = File(path).readBytes()
-    if (raw == null) {
+    var raw = new Int[0]
+    try {
+        raw = File(path).readBytes()
+    } catch (String e) {
         throw "PDF: cannot read file"
     }
     if (raw.length < 5 || !pdfMatch(raw, 0, "%PDF-")) {
