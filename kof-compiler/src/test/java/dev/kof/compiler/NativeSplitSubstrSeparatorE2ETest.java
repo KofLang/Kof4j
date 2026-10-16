@@ -135,6 +135,29 @@ class NativeSplitSubstrSeparatorE2ETest {
         assertEquals(GOLDEN, o);
     }
 
+    @Test
+    void riscv64SplitSubstrMatchesTheJvm() throws Exception {
+        runCross("riscv64", Target.NATIVE_RISCV64);
+    }
+
+    @Test
+    void aarch64SplitSubstrMatchesTheJvm() throws Exception {
+        runCross("aarch64", Target.NATIVE_AARCH64);
+    }
+
+    private void runCross(String arch, Target target) throws Exception {
+        Assumptions.assumeTrue(NativeRiscv64E2ETest.hasToolchain(arch),
+                arch + " cross toolchain/qemu absent");
+        Path dir = tmp.resolve(arch);
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("Main.kf"), SRC);
+        Path out = dir.resolve("out");
+        CompilationResult r = driver.compile(dir.resolve("Main.kf"), out, target);
+        assertTrue(r.success(), () -> arch + " compile: " + r.diagnostics().getDiagnostics());
+        String o = NativeRiscv64E2ETest.runQemu(arch, out.resolve("Default/Main"));
+        assertEquals(GOLDEN, o.strip());
+    }
+
     private String runJvm() throws Exception {
         Path dir = tmp.resolve("jvm");
         Files.createDirectories(dir);

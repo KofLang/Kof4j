@@ -485,10 +485,13 @@ void handleStringOp(MethodCtx ctx, List<Object> stack,
                     new JsIr.JsMember(receiver, "length"), "===",
                     new JsIr.JsNumber("0")));
             case "equals" -> stack.add(new JsIr.JsBinary(receiver, "===", args.get(0)));
-            case "equalsIgnoreCase" -> stack.add(new JsIr.JsBinary(
-                    new JsIr.JsCall(new JsIr.JsMember(receiver, "toUpperCase"), List.of()),
-                    "===",
-                    new JsIr.JsCall(new JsIr.JsMember(args.get(0), "toUpperCase"), List.of())));
+            case "equalsIgnoreCase" -> {
+                // §741: o toUpperCase do HOST nao segue o contrato do JVM
+                // (fold char-a-char 1:1, upper OU lower) -> helper de runtime.
+                p.lc.registerRuntime("kofStrEqIgnoreCase");
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofStrEqIgnoreCase"),
+                        List.of(receiver, args.get(0))));
+            }
             case "replace" -> {
                 // §738: a agulha VAZIA divergia (SILENCIOSO, regra 5) — a baixa
                 // `split(from).join(to)` não gera elemento de BORDA, e o

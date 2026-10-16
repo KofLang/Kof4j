@@ -442,6 +442,40 @@ import java.util.Set;
             }
             return operands.get(0) + " " + op + (arity == 2 ? " " + operands.get(1) : "");
         }
+        // Fase E (16/10): o PAR-CMP GERAL no TAKEN — o bloco
+        // [ops..., lcmp/dcmpl/dcmpg, ifXX] com o cmp DIRETAMENTE antes do
+        // ifXX: o avaliador fechado avalia o prefixo e deixa EXATAMENTE 2
+        // valores → `x takenOp y` (a direção do JUMP; medido no
+        // isRightAngle: `normalize(deg) == 90 || normalize(deg) == 270` —
+        // o dcmpl + ldc2_w sem isto = null). Stores no prefixo = prólogo
+        // (statement) → recusa (a pureza do 15/10; o fusion-path cuida).
+        int lastOpT = block.get(block.size() - 1).opcode();
+        if (lastOpT >= 0x99 && lastOpT <= 0x9e && block.size() >= 3) {
+            int cmpIdxT = block.size() - 2;
+            int co = block.get(cmpIdxT).opcode();
+            if (co == 0x94 || co == 0x97 || co == 0x98) {
+                String takenOp = switch (lastOpT) {
+                    case 0x99 -> "=="; case 0x9a -> "!="; case 0x9b -> "<";
+                    case 0x9c -> ">="; case 0x9d -> "<="; case 0x9e -> ">";
+                    default -> null;
+                };
+                if (takenOp != null) {
+                    java.util.Deque<String> stT = new java.util.ArrayDeque<>();
+                    boolean pureT = true;
+                    for (BytecodeReader.Insn in : block.subList(0, cmpIdxT)) {
+                        int sop = in.opcode();
+                        if (sop >= 0x36 && sop <= 0x4e) { pureT = false; break; }
+                    }
+                    if (pureT && evalInto(block.subList(0, cmpIdxT), frame, cp, stT)
+                            && stT.size() == 2) {
+                        String bT = stT.pop();
+                        String aT = stT.pop();
+                        return aT + " " + takenOp + " " + bT;
+                    }
+                    return null;
+                }
+            }
+        }
         return testExpr(block.subList(0, block.size() - 1), frame, arity, op, cp);
     }
 
@@ -516,6 +550,36 @@ import java.util.Set;
         for (BytecodeReader.Insn in : block.subList(0, block.size() - 1)) {
             int sop = in.opcode();
             if (sop >= 0x36 && sop <= 0x4e) return null;
+        }
+        // Fase E (16/10): o PAR-CMP GERAL (o espelho do TAKEN) — o bloco
+        // [ops..., cmp, ifXX] com o cmp antes do ifXX: o avaliador no
+        // prefixo → 2 valores → `x inv y` (medido no isRightAngle: o 2º
+        // termo do || com o dcmpl + ldc2_w num bloco de 5 insns).
+        if (lastOp >= 0x99 && lastOp <= 0x9e && block.size() >= 3) {
+            int cmpIdxF = block.size() - 2;
+            int co = block.get(cmpIdxF).opcode();
+            if (co == 0x94 || co == 0x97 || co == 0x98) {
+                String fallOp = switch (lastOp) {
+                    case 0x99 -> "!="; case 0x9a -> "=="; case 0x9b -> ">=";
+                    case 0x9c -> "<"; case 0x9d -> "<="; case 0x9e -> ">";
+                    default -> null;
+                };
+                if (fallOp != null) {
+                    java.util.Deque<String> stF = new java.util.ArrayDeque<>();
+                    boolean pureF = true;
+                    for (BytecodeReader.Insn in : block.subList(0, cmpIdxF)) {
+                        int sop = in.opcode();
+                        if (sop >= 0x36 && sop <= 0x4e) { pureF = false; break; }
+                    }
+                    if (pureF && evalInto(block.subList(0, cmpIdxF), frame, cp, stF)
+                            && stF.size() == 2) {
+                        String bF = stF.pop();
+                        String aF = stF.pop();
+                        return aF + " " + fallOp + " " + bF;
+                    }
+                    return null;
+                }
+            }
         }
         if (!evalInto(block.subList(0, block.size() - 1), frame, cp, st)) return null;
         if (st.size() != arity) return null;

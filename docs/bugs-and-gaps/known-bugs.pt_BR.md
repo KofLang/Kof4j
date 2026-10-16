@@ -17065,9 +17065,11 @@ char                      JVM/Script   JS    NATIVO (x86/riscv/arm)
 <!-- pt-switch --> **EN:** [§739 (en)](known-bugs.md#739--stringtrim-diverges-silently-on-the-js-host-trim-and-on-the-native-backends)
 
 ## §740 — String.split com separador de VÁRIOS caracteres divide pelo PRIMEIRO byte nos backends nativos
+**FIX (FACES CROSS: riscv64 + aarch64) 15/10 — lane compilador/JVM/nativo `192.168.15.30:9092`.** O emissor cross (`NativeRiscvCrossOps`) agora passa o PONTEIRO do separador (e o limit) ao `kof_string_split_str(str@a0, sep@a1, limit@a2)` ADITIVO do próprio runtime riscv (`NativeRiscvAsmStrn1`), espelhando o helper x86: compõe o `kof_string_index_of2` riscv (busca de substring em CODE UNITS — o index_of/substring riscv são unit-based como o x86) com o `kof_string_substring`, avançando pelo comprimento do separador em code units (astral = 2), alocando o array e mantendo a poda §111 SÓ com `limit == 0` / o contrato §655 'última fatia = o resto' com `limit > 0`. O separador vazio segue no `kof_string_split_chars` do §738. Prova: o E2E do §740 cobre os SEIS alvos (`NativeSplitSubstrSeparatorE2ETest` 6/6), RED-first nas DUAS faces cross (reverter só o emissor cross falha exactamente riscv64 + aarch64); e o caso golden PRÉ-EXISTENTE `string-methods-extended` — que pegou a regressão do limit negativo da tentativa x86 — agora bate o `expected.txt` integralmente sob **qemu-riscv64 E qemu-aarch64** (todas as 35 linhas, incl. as seis formas de limit).
+
 **FIX (FACE NATIVA x86) 15/10 — lane compilador/JVM/nativo `192.168.15.30:9092`.** O ramo do separador não-vazio do `NativeX86StringCalls` não trunca mais o separador ao primeiro byte: passa o PONTEIRO do separador e o limit ao helper ADITIVO novo `kof_string_split_str(str@rdi, sep@rsi, limit@edx)` (`RuntimeStringEdit`, registrado no `NativeRuntime`), que COMPÕE o `kof_string_index_of2` existente (busca de substring, em code units) com o `kof_string_substring` (fatias em code units): conta os casamentos não-sobrepostos avançando pelo comprimento do separador em CODE UNITS (contado inline, astral = 2 units), aloca o array, materializa as fatias e mantém a poda §111 dos vazios à direita quando `limit <= 0` (com `limit > 0` a última fatia é o RESTO não dividido, sem poda — o contrato do §655). O separador vazio segue indo para o `kof_string_split_chars` do §738. Prova RED-first: com o emissor revertido SÓ a face nativa x86 falha; `NativeSplitSubstrSeparatorE2ETest` 4/4 (JVM/Script/JS/nativo x86) sobre TREZE formas — separadores de vários caracteres, a regressão de 1 caractere, as bordas do §111, o overload com limit (2/1/5) e conteúdo E separador Unicode. **MEDIDO NO CAMINHO (o golden pegou uma regressão da primeira tentativa):** a minha primeira versão aplicava a poda §111 dos vazios à direita para todo `limit <= 0`; o JDK exige a poda SÓ com `limit == 0` — um limit NEGATIVO MANTÉM todos os vazios à direita (`"a,,b,,".split(",", -1)` = 5 fatias, `",0"` = 3). A face nativa do `tests/golden/string-methods-extended` pegou isso (linha `o`: 3 em vez de 5), a condição virou `jne` (poda só no exato 0) e as seis formas de limit do próprio caso foram dobradas no `NativeSplitSubstrSeparatorE2ETest` para não voltarem. **Seguem ABERTAS: as faces CROSS (riscv64 + aarch64)** — o runtime riscv já oferece `kof_string_index_of` e `kof_string_substring`, então a mesma composição é portável (confirmando as convenções de unidade do `NativeRiscvAsmStrn1`).
 
-**Status:** 🟡 ABERTO/PARCIAL (a face NATIVA x86 CORRIGIDA 15/10 com o `kof_string_split_str`; as faces CROSS — riscv64/aarch64 — ainda dividem pelo primeiro byte).
+**Status:** ✅ CORRIGIDO 15/10 — TODAS as seis faces fechadas: o backend JS já estava correto (separador é string), e o NATIVO x86 e o CROSS riscv64+aarch64 agora roteiam separadores não-vazios pelo `kof_string_split_str`.
 
 **CATALOGADO (medido) 15/10 — lane compilador/JVM/nativo `192.168.15.30:9092`.** Achado por uma sondagem cross-target da superfície do separador do `split` (a veia irmã do §738). Um separador de MAIS de um caractere é dividido errado em SILÊNCIO nos backends nativos (x86 E riscv64; o aarch64 herda pelo tradutor): o código roda e devolve um resultado ERRADO plausível (regra 5).
 
@@ -17085,3 +17087,26 @@ char                      JVM/Script   JS    NATIVO (x86/riscv/arm)
 
 **Nota de fronteira:** `String.split` devolve um ARRAY no Kof (`arr[i]`; não há `.get`, SEM028), então o fix tem de produzir a mesma forma de array de hoje.
 <!-- pt-switch --> **EN:** [§740 (en)](known-bugs.md#740--stringsplit-with-a-multi-character-separator-silently-splits-on-its-first-byte-on-the-native-backends)
+
+## §741 — String.equalsIgnoreCase diverge em silêncio nos backends nativos (fold só ASCII) e no JS (fold completo do host)
+
+**Status:** ✅ CORRIGIDO 15/10 — as faces nativas (x86/riscv64/aarch64) compõem o fold Unicode já existente e a face JS usa o helper novo `kofStrEqIgnoreCase`.
+
+**CATALOGADO + CORRIGIDO 15/10 — lane compilador/JVM/nativo `192.168.15.30:9092`.** Achado na sondagem cross-target da superfície de String (a veia do §738/§739/§740). O contrato é o do JVM: comparação CHAR-A-CHAR com fold por code unit (upper OU lower, mapeamento SIMPLES 1:1). DUAS faces divergiam em SILÊNCIO — um BOOLEANO errado, em sentidos OPOSTOS (medido nos cinco alvos de código):
+
+```
+par                           JVM/Script   NATIVO (x86/riscv/arm)   JS
+"É" / "é"                     true         false ✗                  true ✓
+"café" / "CAFÉ"               true         false ✗                  true ✓
+"straße" / "STRASSE"          false        false ✓                  true ✗
+"İ" / "i"                     true         false ✗                  false ✗
+"ABC"/"abc", "123!"/"123!"    true/…       ✓                        ✓
+"abc"/"abd", "abc"/"ab"       false        ✓                        ✓
+```
+
+**Causas raiz (lidas, não adivinhadas):** o `kof_string_equals_ignore_case` nativo (`RuntimeStringOps` x86, `NativeRiscvAsmStrn1` riscv) comparava BYTES com fold ASCII inline (A-Z/a-z), então qualquer par não-ASCII era simplesmente desigual; a baixa JS era `receiver.toUpperCase() === arg.toUpperCase()` no HOST, cujo mapeamento COMPLETO expande o eszett (`"straße"` vs `"STRASSE"` => `true`, errado) e transforma o I-dot em `"i"` + marca combinante (`"İ"` vs `"i"` => `false`, errado).
+
+**Correção (ADITIVA no lado JS, reuso-e-simplificação no nativo):** os helpers nativos agora COMPÕEM o fold Unicode por code unit que o `D-STR-UNICODE` já tinha corrigido (`kof_string_to_upper` / `kof_string_to_lower`) com o `kof_string_equals` — comparando `upper(a)==upper(b)` OU `lower(a)==lower(b)`, que é exactamente a regra char-a-char do JVM; o ramo JS chama o helper novo `kofStrEqIgnoreCase` (fatia `strbounds`), cujo `kofStrSimpleFold` implementa o mapeamento SIMPLES 1:1 por code unit (uma expansão "base + marcas combinantes" usa a base — o caso I-dot; qualquer outra expansão mantém o original — o caso eszett).
+
+**Prova RED-first:** com o fix revertido QUATRO das seis faces falham (js, nativo x86, riscv64, aarch64) e JVM/Script passam; `StringEqualsIgnoreCaseUnicodeE2ETest` 6/6 depois, sobre os nove pares medidos nos seis alvos.
+<!-- pt-switch --> **EN:** [§741 (en)](known-bugs.md#741--stringequalsignorecase-diverges-silently-on-the-native-backends-ascii-only-fold-and-on-js-host-full-fold)
