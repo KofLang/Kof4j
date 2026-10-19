@@ -40,6 +40,14 @@ final class BytecodeStdlib {
         if ("java/util/Map".equals(ownerInternal) && "keySet".equals(name) && args.isEmpty()) {
             return receiver + ".keys()";
         }
+        // Fase E (17/10): o String.repeat do JDK → strings.repeat(s, n) do
+        // Kof (medido SEM052: o Kof NÃO tem String.repeat, mas a stdlib TEM
+        // strings.repeat(String,Int) — kof_strings_repeat). A forma
+        // `recv.repeat(arg)` vira a chamada da stdlib.
+        if ("java/lang/String".equals(ownerInternal) && "repeat".equals(name)
+                && !args.isEmpty()) {
+            return "strings.repeat(" + receiver + ", " + args + ")";
+        }
         // métodos sem-argumento que em Kof são PROPRIEDADES (não métodos).
         // `isEmpty` NÃO é propriedade (13/10, medido: `.isEmpty` compilava e
         // quebrava em runtime com NoSuchField — nem String nem ArrayList têm

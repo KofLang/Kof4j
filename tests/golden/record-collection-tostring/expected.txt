@@ -1,0 +1,2 @@
+Outer[in1=Inner[a=1, b=x], xs=[2, 3], tag=t]
+Plain[ss=[a, b], mm={k=1}]

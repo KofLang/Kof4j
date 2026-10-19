@@ -48,7 +48,7 @@ The Kof runtime has two implementations:
 
 ### JVM Runtime
 
-The JVM backend delegates to the JVM's facilities (java.lang.String, native arrays, GC, etc.). The JVM runtime is the JVM itself — there is no Kof-specific code being incorporated into the executable.
+The JVM backend delegates to the JVM's facilities (java.lang.String, native arrays, GC, etc.) for those facilities themselves. What it does **not** delegate is Kof's own runtime: the slices a program uses (`dev.kof.runtime.*`) are embedded into the output and the program does not run without them (see §7 for the measurement).
 
 ### Native Runtime
 
@@ -104,7 +104,9 @@ As long as the software is not incorporating components that impose another inco
 
 ### JVM Target
 
-The JVM executable (`.class` or `.jar`) contains JVM bytecode. The runtime is the JVM itself. There is no Kof code being incorporated.
+The JVM executable (`.class` or `.jar`) contains the program's own bytecode **plus the Kof runtime classes that the program actually needs** — `dev.kof.runtime.*`, embedded from the distribution (measured on this tree: a program using `json`/`crypto`/collections carries **32 classes, ~284 KiB**, and it does **not** run without them — `NoClassDefFoundError: dev/kof/runtime/KofRuntime`; a program that needs no runtime slice carries **none**, because the compiler prunes the runtime to the slices the program uses).
+
+Kof's own license therefore covers those embedded runtime classes exactly as it covers the program they are linked into. This section states the measured FACT; whether the project also wants to grant an explicit runtime exception (the GCC/Classpath-Exception style) is a **licensing-policy decision for the maintainer**, not something this text decides.
 
 ### Native Target
 

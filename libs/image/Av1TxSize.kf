@@ -34,6 +34,19 @@ Int av1TxModeSelect() {
     return 2
 }
 
+// The extent of the transform-context arrays: the frame's mi grid ROUNDED UP
+// to the superblock (16 mi = 64 px), which is the padding libaom's
+// `ALIGN_POWER_OF_TWO(num_mi_cols, MAX_MIB_SIZE_LOG2)` gives its own context
+// buffers (av1/common/alloccommon.c). A block may overhang the frame, so the
+// cells past its edge have to exist.
+Int av1TxCtxExtent(Int mi) {
+    var n = mi
+    while (n > 0 && n % 16 != 0) {
+        n = n + 1
+    }
+    return n
+}
+
 // Split_Tx_Size[ TX_SIZES_ALL ] (libaom `sub_tx_size_map`): the next smaller
 // square/rectangular transform a split yields.
 Int av1SplitTxSize(Int txSz) {
@@ -110,15 +123,22 @@ class Av1TxSize {
         this.sym = sym
         this.miCols = miCols
         this.miRows = miRows
-        this.txfmAbove = new Int[miCols]
-        this.txfmLeft = new Int[miRows]
+        // The context arrays are PADDED to the superblock grid, exactly as
+        // libaom pads its own (`ALIGN_POWER_OF_TWO(num_mi_cols,
+        // MAX_MIB_SIZE_LOG2)`, av1/common/alloccommon.c): a block may OVERHANG
+        // the frame (a HORZ partition at the bottom edge keeps its full height)
+        // and the transform-size context is read over the BLOCK's own columns
+        // and rows — so the cells past the frame must EXIST, holding the same
+        // unset value the rest starts with, rather than be clamped away.
+        this.txfmAbove = new Int[av1TxCtxExtent(miCols)]
+        this.txfmLeft = new Int[av1TxCtxExtent(miRows)]
         var a = 0
-        while (a < miCols) {
+        while (a < this.txfmAbove.size) {
             this.txfmAbove[a] = 64
             a = a + 1
         }
         var l = 0
-        while (l < miRows) {
+        while (l < this.txfmLeft.size) {
             this.txfmLeft[l] = 64
             l = l + 1
         }

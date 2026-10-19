@@ -1,0 +1,8 @@
+record Inner(Int a, String b)
+record Outer(Inner in1, List<Int> xs, String tag)
+record Plain(List<String> ss, Map<String, Int> mm)
+
+main() {
+    println(Outer(Inner(1, "x"), listOf(2, 3), "t"))
+    println(Plain(listOf("a", "b"), mapOf("k", 1)))
+}

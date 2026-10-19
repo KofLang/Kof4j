@@ -217,6 +217,41 @@ class BareCollectionPrimitiveArgE2ETest {
         assertEquals("2\n2", s, "Native == JVM (regra 5)");
     }
 
+    @Test
+    void bareListAddPrimitiveInsideLambdaRunsEverywhere(@TempDir Path tmp) throws Exception {
+        String source = """
+            main() {
+              var b = listOf()
+              listOf(1, 2, 3).forEach((x) -> b.add(x * 2))
+              println(b)
+              println(b.get(0) + 1)
+            }
+            """;
+        assertAllTargets(tmp, "B745Lambda", source, "[2, 4, 6]\n3");
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                dev.kof.compiler.nat.NativeToolchainGate.present(),
+                "Native toolchain (as/ld) ausente no host, pulando (NATIVE002)");
+        Path src = tmp.resolve("B745LambdaNat.kf");
+        Files.writeString(src, source);
+        Path out = tmp.resolve("o-745-nat");
+        CompilationResult r = driver.compile(src, out, Target.NATIVE);
+        assertTrue(r.success(), "compilação Native falhou: " + diags(r));
+        assertEquals("[2, 4, 6]\n3", runNative(out), "Native == JVM (§745)");
+        for (Target t : new Target[]{Target.NATIVE_RISCV64, Target.NATIVE_AARCH64}) {
+            String arch = t == Target.NATIVE_RISCV64 ? "riscv64" : "aarch64";
+            org.junit.jupiter.api.Assumptions.assumeTrue(
+                    NativeRiscv64E2ETest.hasToolchain(arch),
+                    "cross toolchain " + arch + " + qemu ausente, pulando (NATIVE002)");
+            Path f = tmp.resolve("B745LambdaCross-" + t + ".kf");
+            Files.writeString(f, source);
+            Path co = tmp.resolve("o-745-" + t);
+            CompilationResult rc = driver.compile(f, co, t);
+            assertTrue(rc.success(), t + " compilação falhou: " + diags(rc));
+            assertEquals("[2, 4, 6]\n3", NativeRiscv64E2ETest.runQemu(arch, co.resolve("Default/Main")),
+                    t + " == JVM (§745)");
+        }
+    }
+
     // ── faces medidas e travadas pela lane #553 (re-trigger 20/09): os
     //     slots Object que o fallback do §374 alcança e que ainda nao
     //     tinham golden ────────────────────────────────────────────────

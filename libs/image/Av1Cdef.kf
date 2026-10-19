@@ -1,0 +1,498 @@
+package image
+
+import image.Av1Symbol
+
+// kof.image — AV1 CDEF, the constrained directional enhancement filter.
+//
+// Transcribed from the FETCHED libaom sources (never from memory):
+// `av1/common/cdef_block.c` (`cdef_find_dir_c`, `cdef_directions`,
+// `cdef_pri_taps`/`cdef_sec_taps`, `cdef_filter_block_internal`,
+// `av1_cdef_filter_fb`), `av1/common/cdef.h` (`constrain`) and
+// `av1/common/cdef.c` (the packed strengths and the damping rule). The
+// out-of-frame border is `CDEF_VERY_LARGE` (16384): `constrain` makes it
+// contribute ZERO, and it never lowers the clip bound.
+//
+// This slice is the FILTER CORE: the direction search over a plane and the
+// per-plane filter, with the directions and the frame-header strengths
+// supplied by the caller. The tile integration (the skip-block list and the
+// per-64x64 configuration index) is the next slice — until then the core is
+// exercised by `Av1CdefE2ETest` against `scripts/av1_cdef_ref.py`, whose
+// transcription reproduces ffmpeg's whole post-CDEF V plane.
+
+// `CDEF_VERY_LARGE` (cdef_block.h).
+Int av1CdefVeryLarge() {
+    return 16384
+}
+
+Int av1CdefAbs(Int v) {
+    if (v < 0) {
+        return -v
+    }
+    return v
+}
+
+// `constrain(diff, threshold, damping)` (cdef.h):
+//   shift = AOMMAX(0, damping - get_msb(threshold))
+//   sign(diff) * clamp(threshold - (abs(diff) >> shift), 0, abs(diff))
+Int av1CdefConstrain(Int diff, Int threshold, Int damping) {
+    if (threshold == 0) {
+        return 0
+    }
+    var shift = damping - av1FloorLog2(threshold)
+    if (shift < 0) {
+        shift = 0
+    }
+    var d = av1CdefAbs(diff)
+    var v = threshold - (d >> shift)
+    if (v < 0) {
+        v = 0
+    }
+    if (v > d) {
+        v = d
+    }
+    if (diff < 0) {
+        return -v
+    }
+    return v
+}
+
+// `cdef_directions[dir][k]` (dy, dx) — the two tap offsets of direction
+// `dir`. libaom's padded table gives the same result for `dir +/- 2` by
+// wrapping: its two leading entries duplicate 6 and 7, its two trailing
+// entries duplicate 0 and 1.
+Int av1CdefDirDy(Int dir, Int k) {
+    var t = listOf(-1, -2, 0, -1, 0, 0, 0, 1, 1, 2, 1, 2, 1, 2, 1, 2)
+    if (dir < 0) {
+        dir = dir + 8
+    }
+    if (dir > 7) {
+        dir = dir - 8
+    }
+    return t.get(dir * 2 + k)
+}
+
+Int av1CdefDirDx(Int dir, Int k) {
+    var t = listOf(1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 0, 1, 0, 0, 0, -1)
+    if (dir < 0) {
+        dir = dir + 8
+    }
+    if (dir > 7) {
+        dir = dir - 8
+    }
+    return t.get(dir * 2 + k)
+}
+
+// A plane sample by plane-relative coordinates; outside the plane is the
+// CDEF border value.
+Int av1CdefSample(Int[] p, Int stride, Int ox, Int oy, Int w, Int h, Int x, Int y) {
+    if (x < 0 || y < 0 || x >= w || y >= h) {
+        return av1CdefVeryLarge()
+    }
+    return p[(oy + y) * stride + (ox + x)]
+}
+
+// `cdef_find_dir_c`: the directionality score of one 8x8 block. Returns
+// `[best_dir, var]`. The block is read at its 8x8 pixel position; cells past
+// the plane are the CDEF border, exactly as libaom's prepared buffer holds.
+Int[] av1CdefFindDir(Int[] p, Int stride, Int ox, Int oy, Int w, Int h,
+                     Int bx, Int by, Int coeffShift) {
+    var partial = new Int[8 * 15]
+    var i = 0
+    while (i < 8) {
+        var j = 0
+        while (j < 8) {
+            var x = (av1CdefSample(p, stride, ox, oy, w, h, bx * 8 + j, by * 8 + i) >> coeffShift) - 128
+            partial[0 * 15 + i + j] = partial[0 * 15 + i + j] + x
+            partial[1 * 15 + i + j / 2] = partial[1 * 15 + i + j / 2] + x
+            partial[2 * 15 + i] = partial[2 * 15 + i] + x
+            partial[3 * 15 + 3 + i - j / 2] = partial[3 * 15 + 3 + i - j / 2] + x
+            partial[4 * 15 + 7 + i - j] = partial[4 * 15 + 7 + i - j] + x
+            partial[5 * 15 + 3 - i / 2 + j] = partial[5 * 15 + 3 - i / 2 + j] + x
+            partial[6 * 15 + j] = partial[6 * 15 + j] + x
+            partial[7 * 15 + i / 2 + j] = partial[7 * 15 + i / 2 + j] + x
+            j = j + 1
+        }
+        i = i + 1
+    }
+    // The look-up is 840x larger than the mean (libaom's comment); only the
+    // comparison matters.
+    var div = listOf(0, 840, 420, 280, 210, 168, 140, 120, 105)
+    var cost = new Int[8]
+    i = 0
+    while (i < 8) {
+        cost[2] = cost[2] + partial[2 * 15 + i] * partial[2 * 15 + i]
+        cost[6] = cost[6] + partial[6 * 15 + i] * partial[6 * 15 + i]
+        i = i + 1
+    }
+    cost[2] = cost[2] * 105
+    cost[6] = cost[6] * 105
+    i = 0
+    while (i < 7) {
+        cost[0] = cost[0] + (partial[i] * partial[i] + partial[14 - i] * partial[14 - i]) * div.get(i + 1)
+        cost[4] = cost[4] + (partial[4 * 15 + i] * partial[4 * 15 + i]
+            + partial[4 * 15 + 14 - i] * partial[4 * 15 + 14 - i]) * div.get(i + 1)
+        i = i + 1
+    }
+    cost[0] = cost[0] + partial[7] * partial[7] * 105
+    cost[4] = cost[4] + partial[4 * 15 + 7] * partial[4 * 15 + 7] * 105
+    i = 1
+    while (i < 8) {
+        var j = 0
+        while (j < 5) {
+            cost[i] = cost[i] + partial[i * 15 + 3 + j] * partial[i * 15 + 3 + j]
+            j = j + 1
+        }
+        cost[i] = cost[i] * 105
+        j = 0
+        while (j < 3) {
+            cost[i] = cost[i] + (partial[i * 15 + j] * partial[i * 15 + j]
+                + partial[i * 15 + 10 - j] * partial[i * 15 + 10 - j]) * div.get(2 * j + 2)
+            j = j + 1
+        }
+        i = i + 2
+    }
+    var bestCost = 0
+    var bestDir = 0
+    i = 0
+    while (i < 8) {
+        if (cost[i] > bestCost) {
+            bestCost = cost[i]
+            bestDir = i
+        }
+        i = i + 1
+    }
+    var opp = (bestDir + 4) & 7
+    var out = new Int[2]
+    out[0] = bestDir
+    out[1] = (bestCost - cost[opp]) >> 10
+    return out
+}
+
+// The direction/var pairs of every 8x8 block of a plane, row-major:
+// `[dir, var]` at `(by * nbx + bx) * 2`, `nbx = (w + 7) / 8`.
+Int[] av1CdefDirs(Int[] p, Int stride, Int ox, Int oy, Int w, Int h, Int coeffShift) {
+    var nbx = (w + 7) / 8
+    var nby = (h + 7) / 8
+    var out = new Int[nby * nbx * 2]
+    var by = 0
+    while (by < nby) {
+        var bx = 0
+        while (bx < nbx) {
+            var d = av1CdefFindDir(p, stride, ox, oy, w, h, bx, by, coeffShift)
+            out[(by * nbx + bx) * 2] = d[0]
+            out[(by * nbx + bx) * 2 + 1] = d[1]
+            bx = bx + 1
+        }
+        by = by + 1
+    }
+    return out
+}
+
+// `adjust_strength`: the luma primary strength raised by the block's
+// directional variance (a high-contrast edge derings more).
+Int av1CdefAdjustStrength(Int strength, Int variance) {
+    if (variance == 0) {
+        return 0
+    }
+    var i = 0
+    var s = variance >> 6
+    if (s != 0) {
+        i = av1FloorLog2(s)
+        if (i > 12) {
+            i = 12
+        }
+    }
+    return (strength * (4 + i) + 8) >> 4
+}
+
+// One 8x8 (luma) or 8>>xdec x 8>>ydec (chroma) block. `src` is the plane
+// BEFORE the filter for every block — libaom filters a prepared copy into the
+// destination, so reading already-filtered neighbours would move block edges.
+void av1CdefFilterBlock(Int[] src, Int[] out, Int stride, Int ox, Int oy,
+                        Int w, Int h, Int bx0, Int by0, Int bsW, Int bsH,
+                        Int pri, Int sec, Int priRaw, Int dir, Int damping,
+                        Int coeffShift) {
+    var priEn = pri != 0
+    var secEn = sec != 0
+    var clip = priEn && secEn
+    var tapA = 4
+    var tapB = 2
+    var parity = (pri >> coeffShift) & 1
+    if (parity == 1) {
+        tapA = 3
+        tapB = 3
+    }
+    var dirArg = 0
+    if (priRaw != 0) {
+        dirArg = dir
+    }
+    // The four tap offsets, computed once per block.
+    var pDy0 = av1CdefDirDy(dirArg, 0)
+    var pDx0 = av1CdefDirDx(dirArg, 0)
+    var pDy1 = av1CdefDirDy(dirArg, 1)
+    var pDx1 = av1CdefDirDx(dirArg, 1)
+    var aDy0 = av1CdefDirDy(dirArg + 2, 0)
+    var aDx0 = av1CdefDirDx(dirArg + 2, 0)
+    var aDy1 = av1CdefDirDy(dirArg + 2, 1)
+    var aDx1 = av1CdefDirDx(dirArg + 2, 1)
+    var bDy0 = av1CdefDirDy(dirArg - 2, 0)
+    var bDx0 = av1CdefDirDx(dirArg - 2, 0)
+    var bDy1 = av1CdefDirDy(dirArg - 2, 1)
+    var bDx1 = av1CdefDirDx(dirArg - 2, 1)
+    var i = 0
+    while (i < bsH) {
+        var j = 0
+        while (j < bsW) {
+            var px = bx0 + j
+            var py = by0 + i
+            if (px < w && py < h) {
+                var x = src[(oy + py) * stride + (ox + px)]
+                if (!priEn && !secEn) {
+                    out[py * w + px] = x
+                } else {
+                    var sum = 0
+                    var lo = x
+                    var hi = x
+                    var k = 0
+                    while (k < 2) {
+                        var dy = pDy0
+                        var dx = pDx0
+                        var tap = tapA
+                        if (k == 1) {
+                            dy = pDy1
+                            dx = pDx1
+                            tap = tapB
+                        }
+                        if (priEn) {
+                            var p0 = av1CdefSample(src, stride, ox, oy, w, h, px + dx, py + dy)
+                            var p1 = av1CdefSample(src, stride, ox, oy, w, h, px - dx, py - dy)
+                            sum = sum + tap * (av1CdefConstrain(p0 - x, pri, damping)
+                                + av1CdefConstrain(p1 - x, pri, damping))
+                            if (clip) {
+                                if (p0 != 16384) {
+                                    if (p0 > hi) {
+                                        hi = p0
+                                    }
+                                }
+                                if (p1 != 16384) {
+                                    if (p1 > hi) {
+                                        hi = p1
+                                    }
+                                }
+                                if (p0 < lo) {
+                                    lo = p0
+                                }
+                                if (p1 < lo) {
+                                    lo = p1
+                                }
+                            }
+                        }
+                        if (secEn) {
+                            var sTap = 2
+                            if (k == 1) {
+                                sTap = 1
+                            }
+                            var ady = aDy0
+                            var adx = aDx0
+                            var bdy = bDy0
+                            var bdx = bDx0
+                            if (k == 1) {
+                                ady = aDy1
+                                adx = aDx1
+                                bdy = bDy1
+                                bdx = bDx1
+                            }
+                            var s0 = av1CdefSample(src, stride, ox, oy, w, h, px + adx, py + ady)
+                            var s1 = av1CdefSample(src, stride, ox, oy, w, h, px - adx, py - ady)
+                            var s2 = av1CdefSample(src, stride, ox, oy, w, h, px + bdx, py + bdy)
+                            var s3 = av1CdefSample(src, stride, ox, oy, w, h, px - bdx, py - bdy)
+                            sum = sum + sTap * (av1CdefConstrain(s0 - x, sec, damping)
+                                + av1CdefConstrain(s1 - x, sec, damping)
+                                + av1CdefConstrain(s2 - x, sec, damping)
+                                + av1CdefConstrain(s3 - x, sec, damping))
+                            if (clip) {
+                                if (s0 != 16384) {
+                                    if (s0 > hi) {
+                                        hi = s0
+                                    }
+                                }
+                                if (s1 != 16384) {
+                                    if (s1 > hi) {
+                                        hi = s1
+                                    }
+                                }
+                                if (s2 != 16384) {
+                                    if (s2 > hi) {
+                                        hi = s2
+                                    }
+                                }
+                                if (s3 != 16384) {
+                                    if (s3 > hi) {
+                                        hi = s3
+                                    }
+                                }
+                                if (s0 < lo) {
+                                    lo = s0
+                                }
+                                if (s1 < lo) {
+                                    lo = s1
+                                }
+                                if (s2 < lo) {
+                                    lo = s2
+                                }
+                                if (s3 < lo) {
+                                    lo = s3
+                                }
+                            }
+                        }
+                        k = k + 1
+                    }
+                    var bias = 0
+                    if (sum < 0) {
+                        bias = 1
+                    }
+                    var yv = x + ((8 + sum - bias) >> 4)
+                    if (clip) {
+                        if (yv < lo) {
+                            yv = lo
+                        }
+                        if (yv > hi) {
+                            yv = hi
+                        }
+                    }
+                    out[py * w + px] = yv
+                }
+            }
+            j = j + 1
+        }
+        i = i + 1
+    }
+}
+
+// `av1_cdef_filter_fb` for one plane: filters every block from the unfiltered
+// `src` into a new `w * h` plane. `plane` 0 is the luma (whose `dirs` are its
+// own); any other value is chroma using the co-located luma directions.
+// `yPacked`/`uvPacked` are the frame header's `pri * 4 + sec` values (the
+// classic `sec == 3 -> 4` adjustment and the `layer != Y` damping -1 live
+// here); `coeffShift = Max(0, bitDepth - 8)`.
+// Whether an 8x8 block is fully skipped: ALL FOUR of its mi carry the skip
+// flag (libaom `is_8x8_block_skip`). `miR`/`miC` are the block's top-left mi;
+// the grid is the aligned one, so the four cells always exist.
+Bool av1CdefSkip8(Int[] skipMap, Int miW, Int miR, Int miC) {
+    var r = 0
+    while (r < 2) {
+        var c = 0
+        while (c < 2) {
+            if (skipMap[(miR + r) * miW + miC + c] == 0) {
+                return false
+            }
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return true
+}
+
+// Copies one block's in-frame cells (the skipped-block path: CDEF leaves those
+// pixels as the reconstruction produced them).
+void av1CdefCopyBlock(Int[] src, Int[] out, Int stride, Int ox, Int oy,
+                      Int w, Int h, Int bx0, Int by0, Int bsW, Int bsH) {
+    var i = 0
+    while (i < bsH) {
+        var j = 0
+        while (j < bsW) {
+            var px = bx0 + j
+            var py = by0 + i
+            if (px < w && py < h) {
+                out[py * w + px] = src[(oy + py) * stride + (ox + px)]
+            }
+            j = j + 1
+        }
+        i = i + 1
+    }
+}
+
+// The per-plane driver with the TILE's per-block state: `blockPacked` holds the
+// `pri * 4 + sec` value selected for each 8x8 block (the per-64x64 `cdef_idx`
+// resolved by the caller) and `blockSkip` is 1 for a block the skip rule
+// excludes. Both are indexed by the LUMA 8x8 grid (`by * dirsNbx + bx`), which
+// every chroma subsampling maps onto one block.
+Int[] av1CdefFilterPlaneBlocks(Int[] src, Int stride, Int ox, Int oy, Int w, Int h,
+                               Int plane, Int[] blockPacked, Int[] blockSkip,
+                               Int damping, Int[] dirs, Int dirsNbx, Int ssX,
+                               Int ssY, Int coeffShift) {
+    var damp = damping
+    var xdec = 0
+    var ydec = 0
+    if (plane != 0) {
+        xdec = ssX
+        ydec = ssY
+        damp = damping + coeffShift - 1
+    }
+    var bsW = 8 >> xdec
+    var bsH = 8 >> ydec
+    var nbx = (w + bsW - 1) / bsW
+    var nby = (h + bsH - 1) / bsH
+    var out = new Int[w * h]
+    var by = 0
+    while (by < nby) {
+        var bx = 0
+        while (bx < nbx) {
+            var gi = by * dirsNbx + bx
+            var dir = dirs[gi * 2]
+            var v = dirs[gi * 2 + 1]
+            // The 4:2:2 / 4:4:0 direction conversion (`conv422` / `conv440`).
+            if (plane != 0 && ssX != ssY) {
+                if (ssX == 1) {
+                    dir = listOf(7, 0, 2, 4, 5, 6, 6, 6).get(dir)
+                } else {
+                    dir = listOf(1, 2, 2, 2, 3, 4, 6, 0).get(dir)
+                }
+            }
+            if (blockSkip[gi] != 0) {
+                av1CdefCopyBlock(src, out, stride, ox, oy, w, h, bx * bsW, by * bsH, bsW, bsH)
+            } else {
+                var packed = blockPacked[gi]
+                var priRaw = packed >> 2
+                var pri = priRaw << coeffShift
+                var secRaw = packed & 3
+                if (secRaw == 3) {
+                    secRaw = 4
+                }
+                var sec = secRaw << coeffShift
+                var t = pri
+                if (plane == 0) {
+                    t = av1CdefAdjustStrength(pri, v)
+                }
+                av1CdefFilterBlock(src, out, stride, ox, oy, w, h, bx * bsW, by * bsH,
+                                   bsW, bsH, t, sec, priRaw, dir, damp, coeffShift)
+            }
+            bx = bx + 1
+        }
+        by = by + 1
+    }
+    return out
+}
+
+// The single-configuration entry point (the CDEF core's own test and the
+// callers without a tile state): every block uses the same plane strengths and
+// none is skipped.
+Int[] av1CdefFilterPlane(Int[] src, Int stride, Int ox, Int oy, Int w, Int h,
+                         Int plane, Int yPacked, Int uvPacked, Int damping,
+                         Int[] dirs, Int dirsNbx, Int ssX, Int ssY,
+                         Int coeffShift) {
+    var packed = yPacked
+    if (plane != 0) {
+        packed = uvPacked
+    }
+    var n = dirs.size / 2
+    var bp = new Int[n]
+    var bs = new Int[n]
+    var i = 0
+    while (i < n) {
+        bp[i] = packed
+        i = i + 1
+    }
+    return av1CdefFilterPlaneBlocks(src, stride, ox, oy, w, h, plane, bp, bs,
+                                    damping, dirs, dirsNbx, ssX, ssY, coeffShift)
+}

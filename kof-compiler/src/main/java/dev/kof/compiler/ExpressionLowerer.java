@@ -380,6 +380,7 @@ public final class ExpressionLowerer {
                 Type.FunctionType ft = (Type.FunctionType) ExpressionTyper.inferExprType(driver, le, locals);
                 List<IRLocalVariable> captures = driver.collectCaptures(le, locals);
                 String lambdaClass = driver.lambdaClass(le, ft, captures);
+                CompilerLambdaClass.propagateCapturePins(driver, lambdaClass, captures, locals);
                 List<IRLocalVariable> effective = driver.lambdaEffectiveCaptures.get(le);
                 if (effective != null) captures = effective;
                 if (ft.className() == null) {

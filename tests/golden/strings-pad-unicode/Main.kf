@@ -1,0 +1,7 @@
+main() {
+    println("[" + strings.padLeft("café", 6, "é") + "]")
+    println("[" + strings.padRight("café", 6, "é") + "]")
+    println("[" + strings.padLeft("ab", 4, "😀") + "]")
+    println("[" + strings.padRight("😀", 3, "-") + "]")
+    println("[" + strings.padLeft("abc", 2, "x") + "]")
+}

@@ -68,13 +68,18 @@ Int av1CflSubsamplePixel(Int[] luma, Int stride, Int x, Int y,
 // The whole `cfl_store` face: the chroma-sized q3 luma of the block whose LUMA
 // origin is `(x, y)` (in LUMA samples) — `cw` x `ch` chroma pixels, flat
 // row-major.
+// `wIn`/`hIn` bound the cells whose LUMA samples lie inside the plane: the rest
+// of the block overhangs it (a partition block at the frame's edge keeps its
+// full height), and their luma does not exist — reading it would run past the
+// plane's buffer. libaom never reads it either: its `cfl_store` writes only the
+// within-bounds part and `cfl_pad` fills the rest.
 Int[] av1CflSubsample(Int[] luma, Int stride, Int x, Int y,
-                      Int cw, Int ch, Int ssX, Int ssY) {
+                      Int cw, Int ch, Int ssX, Int ssY, Int wIn, Int hIn) {
     var out = new Int[cw * ch]
     var j = 0
-    while (j < ch) {
+    while (j < hIn) {
         var i = 0
-        while (i < cw) {
+        while (i < wIn) {
             out[j * cw + i] = av1CflSubsamplePixel(luma, stride,
                     x + (i << ssX), y + (j << ssY), ssX, ssY)
             i = i + 1
@@ -128,12 +133,58 @@ Int[] av1CflPredict(Int[] dc, Int[] ac, Int alphaQ3, Int w, Int h, Int bitDepth)
     return out
 }
 
+// libaom `cfl_pad` (av1/common/cfl.c), whose own comment is the rule: "Due to
+// frame boundary issues, it is possible that the total area covered by chroma
+// exceeds that of luma. When this happens, we fill the missing pixels by
+// repeating the last columns and/or rows." The AC therefore covers the FULL
+// chroma block — the cells past the luma plane take the last in-frame value of
+// their row (columns first, then the whole last row for the rows past the
+// frame). libaom does it on the STORED chroma buffer, so the replication is at
+// the CHROMA level, not the luma one: replicating luma samples first and
+// subsampling after would average the last real sample with its copy instead.
+Int[] av1CflPad(Int[] sub, Int cw, Int ch, Int wIn, Int hIn) {
+    if (wIn >= cw && hIn >= ch) {
+        return sub
+    }
+    var out = new Int[cw * ch]
+    var j = 0
+    while (j < ch) {
+        var sj = j
+        if (sj > hIn - 1) { sj = hIn - 1 }
+        var i = 0
+        while (i < cw) {
+            var si = i
+            if (si > wIn - 1) { si = wIn - 1 }
+            out[j * cw + i] = sub[sj * cw + si]
+            i = i + 1
+        }
+        j = j + 1
+    }
+    return out
+}
+
 // The composed `cfl_compute_parameters` for one chroma plane block: the AC
 // contribution of the LUMA at `(x, y)` for a `cw` x `ch` chroma extent whose
-// transform log2 area is `numPelLog2`.
+// transform log2 area is `numPelLog2`. `lumaW`/`lumaH` are the LUMA PLANE's
+// pixel extent — the block may overhang it (a partition block at the frame's
+// bottom edge keeps its full height), and the part outside is PADDED, not
+// dropped: libaom computes the AC over the whole block.
 Int[] av1CflAcFromLuma(Int[] luma, Int stride, Int x, Int y,
-                       Int cw, Int ch, Int ssX, Int ssY, Int numPelLog2) {
-    var sub = av1CflSubsample(luma, stride, x, y, cw, ch, ssX, ssY)
+                       Int cw, Int ch, Int ssX, Int ssY, Int numPelLog2,
+                       Int lumaW, Int lumaH) {
+    // The cells whose LUMA samples are inside the plane: `x`/`y` are BORDERED
+    // coordinates (the plane's samples are 1..lumaW / 1..lumaH) and each chroma
+    // cell covers `1 << ssX` / `1 << ssY` of them, so the count is
+    // `(lumaW - x + 1) >> ssX` (at least one — the cell holding the block's own
+    // first sample is in-frame by construction).
+    var wIn = (lumaW - x + 1) >> ssX
+    if (wIn > cw) { wIn = cw }
+    if (wIn < 1) { wIn = 1 }
+    var hIn = (lumaH - y + 1) >> ssY
+    if (hIn > ch) { hIn = ch }
+    if (hIn < 1) { hIn = 1 }
+    var sub = av1CflSubsample(luma, stride, x, y, cw, ch, ssX, ssY, wIn, hIn)
+    sub = av1CflPad(sub, cw, ch, wIn, hIn)
     return av1CflSubtractAverage(sub, cw, ch, numPelLog2)
 }
 

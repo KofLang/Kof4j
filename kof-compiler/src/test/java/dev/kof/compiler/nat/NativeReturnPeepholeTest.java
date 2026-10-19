@@ -43,4 +43,25 @@ class NativeReturnPeepholeTest {
         assertEquals("    pushq %rbx\n    popq %rax\n", sb.toString(),
                 "a register-placed local push still needs the pop into rax");
     }
+    @Test
+    void aPushRaxWithoutTrailingNewlineIsDropped() {
+        StringBuilder sb = new StringBuilder("    pushq %rax");
+        NativeReturnEmit.popReturnValue(sb);
+        assertEquals("", sb.toString());
+    }
+
+    @Test
+    void multipleTrailingLocLinesAreSkipped() {
+        StringBuilder sb = new StringBuilder(
+                "    pushq %rax\n    .loc 1 1 0\n    .loc 1 2 0\n");
+        NativeReturnEmit.popReturnValue(sb);
+        assertEquals("    .loc 1 1 0\n    .loc 1 2 0\n", sb.toString());
+    }
+
+    @Test
+    void anEmptyAssemblyGetsTheRequiredPop() {
+        StringBuilder sb = new StringBuilder();
+        NativeReturnEmit.popReturnValue(sb);
+        assertEquals("    popq %rax\n", sb.toString());
+    }
 }

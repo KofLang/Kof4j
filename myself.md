@@ -2,11 +2,242 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 16/10 — AVIF slice 3bd 49ª PASSAGEM: a hipótese do CFL está REFUTADA pelo seu próprio teste (neutralizar `if (uvMode == 13)` — que desliga modulação E `av1CflAcFromLuma`, a única leitura da luma no croma — mantendo a entropia intacta: o 32x32 AINDA lança Index 1186/1156). Nota: a alegação estava rotulada HIPÓTESE ⇒ nenhuma retratação foi necessária (o rótulo pagou). ACHADO: com TODOS os acessos NOMEADOS à luma excluídos (paleta, bloco, bloco de TX, predição simples/arith 1120, escritas do croma, edge filter, filter-intra, CFL) o crash persiste ⇒ ao menos uma exclusão se apoia nos PARÂMETROS DO CALLER, não nos acessos reais. Próximo: registrar ÍNDICES REAIS DENTRO DOS ACESSORES (helpers), com o quadro alargado p/ completar e o print sobreviver.
-doing: §3bd — 32x32: CFL refutado; TODOS os acessos nomeados à luma excluídos e o crash persiste ⇒ uma exclusão de call-site é inválida; medir índices REAIS dentro dos helpers
-next: §3bd — instrumento por ÍNDICES REAIS: alargar o quadro (decode COMPLETA) + cada ACESSOR da luma atualiza um maxIndex de diagnóstico, impresso depois do decode ⇒ nomeia o escritor do índice 1186
+last: 19/10 — 3bd 138ª PASSAGEM: a janela do §754 fixada nos bits 357..370 e TODAS as tabelas/contextos nela auditados contra as fontes buscadas do libaom (partition_cdf_length, contexto de partição, skip, delta-Q/LF, contexto/store/extensão da paleta, is_cfl_allowed, adaptação in-place) — TODOS coincidem. Spans: y-mode do bloco 1 em 361 = 9 (SMOOTH), corpo termina em 365, tx size + 16 all_zero = 365..370, tile para 190 bits antes (370/560). Suspeito restante: uma tabela de CDF DEFAULT (kf_y, uv_mode, paleta modo/tamanho, tx_size, txb_skip).
+doing: §3bd — §754 com a janela e as tabelas auditadas; falta a comparação das CDFs default entrada-a-entrada
+next: §3bd — comparar kf_y_cdf/uv_mode_cdf/palette mode-size/tx_size_cdf/txb_skip_cdf entrada a entrada entre o entropymode.c buscado e Av1ModeCdf/Av1CoeffCdf
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 18/10 (138ª) — 3bd: janela do §754 e auditoria das tabelas
+- **SHA:** `ba96c19c1` (push 0/0).
+- **SPANS:** y-mode do bloco 1 em 361 = 9, corpo até 365, tx+all_zero até 370, payload 560 (190 por consumir).
+- **AUDITADO:** todas as tabelas/contextos da janela coincidem com o libaom buscado.
+- **RESTA:** uma CDF default errada (layout/valor) na janela — próxima medição.
+
+## Sessão 18/10 (137ª) — 3bd: §754 reduzido ao estado de entropia
+- **SHA:** `f94decc96` (push 0/0).
+- **MEDIDO:** t0 = 2 blocos/16 TXB/0 níveis/[85,357,365,365]/370 de 560 bits; t1 = 1/0/352 de 352.
+- **LEITURA:** bloco 0 paleta 64x64 (272 bits exactos); corpo do bloco 1 = 8 bits; all_zero baratos.
+- **CAVEATS:** nenhuma mudança de comportamento; o fix exige o dump do contexto/CDF do all_zero.
+
+## Sessão 18/10 (136ª) — 3bd: auditoria de plano inteiro do corpus
+- **SHA:** `bd430dc51` (push 0/0).
+- **AUDITORIA:** 5/11 geo fixtures exactos; 6 divergentes pré-CDEF (ll, mt192, oh24, oh40, sq1, tall).
+- **CATALOGADO:** §754 (tile multi-SB), §755 (overhang), §756 (lossless) — com evidência medida.
+- **DIAGNÓSTICO:** `MODESA` (modos de todos os tiles); mt192 SB1: yMode=9 SMOOTH, plano 235.
+
+## Sessão 18/10 (135ª) — 3bd: §753 corrigido
+- **SHA:** `2a9561500` (push 0/0).
+- **CAUSA:** clamp do mapa de paleta ao quadro em pixels em vez da grelha mi alinhada.
+- **FIX:** codificado = alinhado, pintura = visível; `Av1DecodeTileRecon.kf`.
+- **PROVA:** full-plane ua20 (600 amostras) RED->GREEN; regressão 24/24.
+
+## Sessão 18/10 (134ª) — 3bd: plano inteiro multi-tile + §753
+- **SHA:** `062319e9e` (push 0/0).
+- **PIN:** `AvifFullPlaneE2ETest` (novo) com `avif_ref_mt128.yuv`; 24.576 amostras exactas.
+- **ACHADO:** `avif_real_ua20.avif` divergente pré-CDEF (luma linha 6+, chroma toda) ⇒ `known-bugs` §753 OPEN.
+- **CAVEATS:** o teste geo amostrado continua verde (só vê as linhas 0/2); o §753 é o próximo.
+
+## Sessão 18/10 (133ª) — 3bd: quadro pós-CDEF completo
+- **LANDADO:** a diag filtra Y, U e V pelo caminho do tile e imprime as linhas contíguas `YROWF`/`UROWF`/`VROWF`.
+- **SHA:** `3a5496b6d` (push 0/0).
+- **PROVA:** os três planos completos == ffmpeg (luma/U copiados/invariantes, V filtrado); RED-first e GREEN.
+- **CAVEATS:** o loop filter ainda não existe; fixtures com lf>0 e arestas internas precisam dele para o raster.
+
+## Sessão 18/10 (132ª) — 3bd: integração do CDEF no tile
+- **LANDADO:** acessores `skipMap()`/`cdefMap()`/`miCols()` no driver; `av1CdefSkip8`, `av1CdefCopyBlock`, `av1CdefFilterPlaneBlocks`; a diag resolve a config por 64x64 e o skip por 8x8.
+- **SHA:** `609ff2eb3` (após rebase com o tip do compilador; push 0/0).
+- **PROVA:** `VROWF` = ffmpeg exacto (12 linhas, 130..159) no teste do CFL; RED-first antes da integração.
+- **CAVEATS:** a probe filtra só o plano V (o U é invariante e a luma tem força 0); luma/U e o `decodeRaster` continuam como próximo slice.
+
+## Sessão 18/10 (131ª) — 3bd: o núcleo do CDEF landado
+- **LANDADO:** `libs/image/Av1Cdef.kf`; `Av1CdefE2ETest` novo (JVM+Script) com o fixture `av1_cdef_cfl.bin`.
+- **PROVA:** direcções e variâncias exactas, luma copiada, U invariante, V == ffmpeg (12x16 inteiro).
+- **RED-FIRST:** marcador ausente -> `var` como parâmetro (palavra reservada) -> `import image.Av1Symbol` em falta -> verde.
+- **CAVEATS:** falta a integração no tile (skip list, cdef_idx por 64x64) e o `decodeRaster`; o núcleo está provado isolado pelo fixture.
+
+## Sessão 18/10 (130ª) — 3bd: o ±1 do plano V é o CDEF (provado)
+- **MEDIDO:** `libdav1d` e `libaom` produzem YUV byte-idêntico no `avif_real_cfl32x24.avif` ⇒ a hipótese de 'arredondamento entre decodificadores' morre.
+- **O ESTÁGIO NÃO FILTRADO:** CDEF activo na sequência, uma configuração, luma 0, chroma pri 14/sec 0, damping 5. O `AvifFrameHeader` captura agora `cdefDamping`/`cdefYStrengths`/`cdefUvStrengths`.
+- **PROVA:** `scripts/av1_cdef_ref.py` (transcrição do libaom) aplicado aos planos pré-CDEF do Kof ⇒ o plano V 12x16 inteiro bate com o ffmpeg (130..159); a luma é copiada (força 0) e o U é invariante.
+- **CORRIGIDO NO CAMINHO:** o construtor de 39 args da 129ª deixou `AvifRealFileE2ETest`/`Av1PartitionSupport` com 38 (encontrado na execução focada); e o NAT009 da lane do compilador exigiu `listOf<Int>()` em `Av1Partition.kf`/`Av1ModeInfo.kf` nas faces nativas.
+- **CAVEATS:** o filtro CDEF ainda NÃO está implementado em Kof — é o slice seguinte; a prova é o oráculo validado + a asserção dos parâmetros no teste.
+
+## Sessão 18/10 (129ª) — 3bd: a predição da chroma medida e exonerada
+- **MEDIDO:** `CPRED n=2 [113, 115, 128, 128]`; o V = 128/128 = o DC derivado.
+- **FECHADO:** todos os termos da cadeia do V medidos ⇒ o ±1 é arredondamento/multi-coeficiente.
+
+## Sessão 18/10 (128ª) — 3bd: a predição revertida (2ª) e a lista estrutural escrita
+- **REVERTIDO:** tudo de volta a `c6cd419e5` (nada meio-landado).
+- **A LISTA:** as 2 assinaturas da chroma; o driver (campo/construtor/local/chamada); os DOIS sítios de construção; a probe (lista + impressão).
+
+## Sessão 18/10 (127ª) — 3bd: o coeficiente excluído; o ±1 é a predição (nunca medida)
+- **BUSCA:** nenhuma perturbação de ±1/±2 níveis reproduz o (2,31) implícito ⇒ o nível está certo.
+- **REVERTIDO:** a instrumentação incompleta da predição (não meio-landada).
+
+## Sessão 18/10 (126ª) — 3bd: deltas por plano a zero (candidata refutada); o ±1 fica na sintaxe de coeficientes
+- **LANDADO:** os deltas (Y/Udc/Uac/Vdc/Vac/usingQm) capturados e expostos; `QDELTAS [0,0,0,0,0,0]` medido.
+- **REFUTADO:** a candidata da 125ª.
+- **PRÓXIMO:** os 3 símbolos de coeficiente do V e os seus contextos/CDFs.
+
+## Sessão 18/10 (125ª) — 3bd: a predição é 128 correto ⇒ o ±1 está nas entradas do resíduo; deltas por plano descartados
+- **MEDIDO:** `(0,11)=32 (8,11)=32` no resíduo do V; 129−1 = 160−32 = 128 ⇒ a predição está certa.
+- **CANDIDATO REAL:** o `quantization_params()` é analisado e os deltas por plano DESCARTADOS ⇒ todos os planos usam os quantizadores da luma.
+
+## Sessão 18/10 (124ª) — 3bd: alfas CFL medidos (cflV=0); a dispersão fica entre o resíduo e o DC
+- **MEDIDO:** `CFLA 1 0` ⇒ o AC do V não entra na predição; excluído por medição.
+- **ABERTO:** a predição derivada varia entre linhas (129→127/125) com alfa 0 ⇒ um dos lados da subtração não é o que parece.
+- **PRÓXIMO:** o resíduo do decodificador nas linhas 0 e 11.
+
+## Sessão 18/10 (123ª) — 3bd: o IDCT de 16x16 PROVADO correto; o ±1 está na predição/soma
+- **VALIDAÇÃO:** só-DC plano + o V exato (1/1/2/2/34) ⇒ a referência validada e o decodificador coincidem; o U plano em 16 confirma do lado do decodificador.
+- **REFUTADO:** o "±1 no IDCT" da 118ª.
+- **PRÓXIMO:** a PREDIÇÃO do V (o CFL antes do resíduo).
+
+## Sessão 18/10 (122ª) — 3bd: a referência 2D transcrita; discorda, mas não é achado (não validada)
+- **LANDADO:** `scripts/av1_idct16_ref.py` (transcrição de sete estágios + o driver 2D), com o estado NÃO RESOLVIDO no docstring.
+- **MEDIDO:** referência 4/4/5/5/38 vs Kof 1/1/2/2/34 — forma igual, nível ~4 acima.
+- **PRÓXIMO:** validar no caso só-DC do U (exato no decodificador).
+
+## Sessão 18/10 (121ª) — 3bd: U só-DC, shifts 2D exonerados, resíduo do V instrumentado
+- **LANDADO:** `ULEV` + `VRES` (o resíduo reconstruído do V) + as asserções registadas (`ULEV n=1 t0[0]=9`, `VRES (0,0)=1 (0,1)=1 (1,0)=2 (1,1)=2 (15,15)=34`).
+- **MEDIDO:** o U é só-DC (as borboletas de AC só correm no V); os shifts 2D batem o libaom.
+
+## Sessão 18/10 (120ª) — 3bd: txType do V medido; a experiência do varrimento REFUTADA
+- **LANDADO:** `VTXT` (os tipos de transformada da chroma) + a asserção registada `VTXT n=1 [0]`.
+- **REFUTAÇÃO:** inverter o zigzag quebrou o U exato ⇒ o varrimento do Kof está certo (medido, não assumido).
+- **PROVA:** 22/22 BUILD SUCCESS após o revert.
+
+## Sessão 18/10 (119ª) — 3bd: ratchet fechado (a cauda de diagnósticos é uma função companheira)
+- **LANDADO:** `AvifRealTileProbeDiag.java` + o marcador `//#DIAG` + `probeTail(...)`; programa 476 linhas, `check_test_hygiene` OK.
+- **PROVA:** geo 11/11, BUILD SUCCESS (as asserções existentes intactas).
+
+## Sessão 18/10 (118ª) — 3bd: desquantização exata ⇒ o ±1 fica no IDCT de 16x16
+- **LANDADO:** o diagnóstico `DQV` (desquantizados do bloco V) + a asserção registada (12x223=2676, -5x305=-1525, -1x305=-305 = exato).
+- **FIXA:** o ±1 só pode vir do IDCT de 16x16 (entrada não-nula só aqui; o U é zero e a luma é 32x32).
+- **PRÓXIMO:** comparar o IDCT de 16 pontos com o `av1_idct16` do libaom.
+
+## Sessão 18/10 (117ª) — 3bd: o ±1 do V fixado no resíduo (AC exato à mão)
+- **FEITO:** o AC calculado à mão (offline) e EXATO; a predição exonerada; a probe passa a reportar `VLEV` (níveis da chroma, antes descartados).
+- **MEDIDO:** `VLEV n=1 t0[0]=12 t0[16]=-5 t0[32]=-1` (assertado como REGISTADO).
+- **PRÓXIMO:** seguir esses coeficientes pela desquantização/IDCT do V.
+
+## Sessão 18/10 (116ª) — 3bd: o oráculo de chroma landado; desvio de ±1 no V encontrado
+- **LANDADO:** linha `UV` na probe (U/V nos mesmos pontos que a `Y`) + a asserção no teste do CFL numa borda (U exato; V REGISTADO com o desvio declarado).
+- **ACHADO:** V 129/160 vs ffmpeg 130/159 (±1, dispersão maior) ⇒ suspeitos: o q3 do AC e o DC de chroma; a predição e o escalonamento já batem o libaom.
+- **PROVA:** geo 11/11, BUILD SUCCESS.
+
+## Sessão 18/10 (115ª) — 3bd: CFL numa borda alcançado; a subamostragem fora do plano corrigida
+- **LANDADO:** `avif_real_cfl32x24.avif` + `cflAtAFrameEdgeMatchesReferenceOnJvm` (uvCFL=1, a summary e as amostras do ffmpeg); `av1CflSubsample` LIMITADA às células dentro dos limites (`wIn`/`hIn`).
+- **RED:** o fixture ESTOURAVA antes (`Index 885 out of bounds for length 884`) ⇒ reparação RED-provada.
+- **ABERTO:** um oráculo de CHROMA (a probe só reporta luma; um AC errado ainda passaria).
+
+## Sessão 18/10 (114ª) — 3bd: dois crashes de ultrapassamento (contextos de entropia + mapa de tipos)
+- **LANDADO:** `avif_real_grad64x40.avif` + o teste com as amostras do ffmpeg; a probe PREENCHE os contextos `above`/`left` e o mapa de tipos até à grelha do superbloco (`av1TxCtxExtent`); o contrato documentado no doc do `Av1DecodeTileRecon`.
+- **RED:** os dois `Index ... out of bounds` medidos antes da correção (10 = altura mi do frame; 160 = miw*mih).
+- **ABERTO:** o CFL numa borda (o fixture mede `uvCFL=0` ⇒ a correção da 112ª sem exercício por stream real).
+
+## Sessão 18/10 (112ª) — 3bd: o AC do CFL preenche o exterior do plano (regra do libaom)
+- **LANDADO:** `av1CflPad` + `av1CflAcFromLuma` com a extensão do plano (3 call sites); novo `Av1CflAcPadE2ETest` (1/1) com oráculo independente e sentinela na borda.
+- **RED:** por mutação (remover a chamada ao pad ⇒ o sentinela vaza para o AC ⇒ o teste falha; restaurado ⇒ passa).
+- **LIÇÃO:** a regra veio do COMENTÁRIO do próprio `cfl_pad` ("repeating the last columns and/or rows") — buscar a fonte pagou outra vez.
+
+## Sessão 18/10 (111ª) — 3bd: tiles desiguais (o clamp do último tile) provados
+- **LANDADO:** fixture `avif_real_mt192.avif` (192x64, xadrez 4px, `-tiles 2x1`) + `unequalTilesDecodeToReferenceOnJvm` (TILES n=2, TILEY dos dois tiles, covered=768).
+- **PORQUÊ:** no fixture 2x2 da 110ª os tiles são iguais ⇒ o clamp da probe nunca disparava; aqui o último tile tem 1 superbloco e o seu fim mi excede o frame (limitado).
+- **PROVA:** geo 9/9, BUILD SUCCESS; passou à primeira corrida.
+
+## Sessão 18/10 (110ª) — 3bd: multi-tile INTEIRO (caminhada por tile + CDF por tile)
+- **LANDADO:** `Av1Partition.walkTile` (o `walk()` delega) + a probe a decodificar todos os tiles com estado próprio e `TILEY` por tile; `multiTileFrameDecodesTheWholeFrameToReferenceOnJvm` afirma os quatro tiles + `covered=1024 frame=1024`.
+- **PROVA:** geo 8/8, BUILD SUCCESS; zero regressão por construção nos fixtures de um tile.
+- **ARMADILHAS (3 corridas):** o programa da probe é um text block Java via `String.formatted` ⇒ um `%` do Kof (o módulo) tem de ser duplicado, e uma percentagem num COMENTÁRIO também quebra; e os diagnósticos por bloco têm de ser reconstruídos POR TILE (partilhá-los cruza contagens de blocos entre tiles).
+
+## Sessão 18/10 (109ª) — 3bd: multi-tile exercitado (tile 0 exato; store por tile é o próximo)
+- **LANDADO:** fixture `avif_real_mt128.avif` (128x128, xadrez 4px, `-tiles 2x2`) + `multiTileFrameDecodesItsFirstTileToReferenceOnJvm` (afirma `TILES n=4` e as seis amostras do tile 0 contra o ffmpeg) + a linha `TILES n=` na probe.
+- **PROVA:** geo 7/7, BUILD SUCCESS. Passou à primeira corrida ⇒ cobertura/prova de capacidade.
+- **ACHADO (buscado):** CDF por tile (`tile_data->tctx = *cm->fc`) ⇒ decodificar o frame inteiro exige um store novo por tile e uma caminhada limitada ao tile.
+
+## Sessão 18/10 (108ª) — 3bd: grelha mi única (caminhada + driver), inconsistência própria fechada
+- **LANDADO:** o driver do tile calcula `miW`/`miH` alinhados (`2*ceil(w/8)`, evidência `dec_set_mb_mi`) e todos os arrays/strides chaveados por mi usam-nos: `Av1ModeInfo`, `Av1TxSize`, o array CDEF e o índice da unidade, o mapa de tipos de transformada (luma), o `txTypeStride` de chroma e a chamada de `av1IntraAvail`.
+- **MOTIVO:** a minha 107ª alinhou só a CAMINHADA ⇒ o stride do floor mapeava `(r, miW_floor)` em `(r+1, 0)` ⇒ células de blocos diferentes colidiam em frames não-alinhados.
+- **PROVA:** 19/19 (2+11+6), BUILD SUCCESS; no-op nos alinhados, neutro no 20x20 ⇒ remoção de inconsistência, com a árvore discriminante nomeada.
+
+## Sessão 18/10 (107ª) — 3bd: grelha mi alinhada + a alcançabilidade da 105ª RETRATADA
+- **LANDADO:** a probe calcula a grelha mi como o `MiCols` da especificação/libaom (`2*ceil(w/8)`, `dec_set_mb_mi` buscado) em vez do floor `mw >> 2`; o doc de classe do `Av1Partition` declara o contrato do chamador; novo fixture `avif_real_ua20.avif` (20x20, xadrez 2px) + `unalignedFrameDecodesToReferenceOnJvm` (PATCH linhas 0 e 2 vs ffmpeg).
+- **RETRATAÇÃO:** a 105ª dizia "alcançável em 30x30/20x24" — MEDIDO: um 20x20 decodifica exato sob as DUAS grelhas (xadrez 4px e 2px) e o A/B sobre os 6 fixtures geo é NEUTRO ⇒ o desvio é REAL mas LATENTE (precisa de um 8x8 na linha mi 4).
+- **PROVA:** 19/19 (Av1PartitionRead 2 + AvifRealFile 11 + geo 6), BUILD SUCCESS; gates rc=0.
+
+## Sessão 18/10 (106ª) — 3bd: o frame não-quadrado corrigido (a classe dos blocos que ultrapassam o frame)
+- **LANDADO (código):** `Av1ModeInfo.clampedWidth`/`clampedHeight` + os três broadcasts limitados (`setModes`, `setSkipSeg`, `storePalette`); a pintura do mapa de índices de paleta limitada (luma+chroma); os contextos do `Av1TxSize` PREENCHIDOS até à grelha do superbloco (`av1TxCtxExtent`); novo `av1ReconBlockIntoClip` (driver + chroma); laços de reconstrução de paleta limitados; e o DECISIVO — `av1PaletteColorMap` recebe as dimensões DENTRO DOS LIMITES (`av1_get_block_dimensions`) e não as do bloco.
+- **PROVA:** `AvifScreenContentGeoE2ETest` 5/5 — o novo `nonSquareFrameDecodesToReferenceOnJvm` (fixture `avif_real_ns6416.avif`) LANÇAVA antes da correção e agora bate a referência do ffmpeg nas seis amostras (`symBits=240 payloadBits=240`).
+- **LIÇÃO (repetida):** 100% de consumo de payload NÃO é prova de sincronia (a wavefront da paleta lia células não codificadas e o leitor saturava no fim) — a mesma implicação de mão única da 37ª passagem.
+- **Próximo:** (a) alinhamento da grelha mi; (b) o clamp do AC do CFL na borda; (c) o decodificador independente.
+
+## Sessão 18/10 (105ª) — 3bd: origem assentada, loop restoration REFUTADO, sintaxe/gates verificados contra a fonte BUSCADA
+- **LANDADO:** `Av1PartitionReadE2ETest` (2 testes, RED-provado por mutação) fixa (a) os conjuntos de elementos das duas gathers de partição, calculados a partir da linha que o PRÓPRIO Kof imprime, e (b) o conjunto de células que o update de contexto escreve em cada uma das 10 partições, sobre arrays com sentinela; comentários das duas gathers reescritos (descreviam a OUTRA gather, não nomeavam a contraparte espelhada no libaom, não declaravam a pré-condição `bs > BLOCK_8X8`).
+- **ASSENTADO:** `Av1Symbol` deixa `bitPos = 15` após a semente; `position()` é esse contador e o trace liga antes de tudo ⇒ sem prelúdio não-traçado e sem offset de origem.
+- **REFUTADO POR MEDIÇÃO:** loop restoration — o `decode_partition` do libaom lê os coeficientes de LR ANTES do símbolo de partição e o Kof não tem essa leitura; mas o sq1 re-codificado com `-enable-restoration 0` é byte-idêntico ⇒ RESTORE_NONE, nada faltando.
+- **VERIFICADO contra o BUSCADO:** partição (gathers, call sites, mapeamento SPLIT/HORZ/VERT, `partition_cdf_length`, `partition_subsize`, `update_ext_partition_context`) e mode info (prefixo, skip, cdef, delta-q/lf, modo Y com CLASSES, angle, UV n=14/13, CFL, palette, filter intra) + todos os gates ⇒ **nenhum desvio**.
+- **LIÇÃO (representação):** a MESMA tabela existe em duas formas — cumulativa na especificação (a que o Kof guarda, `cdf[N-1] == 1<<15`) e INVERSA no libaom (`cdf[e-1] - cdf[e]`) — misturá-las inverte o sinal de cada probabilidade de elemento.
+- **Próximo:** (a) alinhar a grelha mi + fixture 30x30/20x24 como prova RED-first; (b) o decodificador de símbolos independente.
+
+## Sessão 16/10 (83ª) — 3bd 56ª: coeficientes plausíveis; a questão fica específica no bloco 1
+- **Fatia landada (código):** o probe despeja os 3 primeiros blocos de TX NÃO-VAZIOS como `LEVELS tx<i>:<primeiros 10 coeficientes>`.
+- **MEDIDO (testsrc-64):** `tx2:[3,0,0,…]` (um DC de 3), `tx5:[1,1,0,…]`, `tx6:[1,0,3,0,0,-1,1,-1,1,-1]` (sinais mistos) ⇒ **a decodificação de coeficientes NÃO está colapsando em zero**; cb8/cb16/pskip/sólido seguem exatos.
+- **QUESTÃO (com incerteza declarada):** o bloco 1 reconstrói exatamente a sua predição (16) vs ffmpeg 81, e há coeficientes não-zero por perto ⇒ OU (a) o residual do bloco 1 é decodificado mas NÃO somado, OU (b) o dump pareia `tx<i>` com o bloco de modo ERRADO — armadilha CONHECIDA nesta frente (a 20ª passagem pareou índice por-TX com índice por-bloco-de-modo e rotulou errado tudo depois do primeiro). **Fixar o mapeamento antes de qualquer conclusão.**
+- **Próximo (mecânico, limitado):** fixar TX→bloco-de-modo (a ordem dos passos `decode_block` da travessia vs o `txCnt` por bloco do driver) e reportar, para o bloco 1 especificamente, a predição, o residual dequantizado e a reconstrução contra o 81 implicado pela referência.
+- **Árvore:** `AvifRealFileE2ETest` **11/11** (o instrumento foi landado com os testes verdes).
+
+## Sessão 16/10 (82ª) — 3bd 55ª: instrumento por bloco ⇒ a falha está no PRIMEIRO BLOCO ANGULAR
+- **Fatia LANDADA (código):** o probe de tile imprime, para os 12 primeiros blocos, o Y reconstruído na origem 4x4 do próprio bloco (`BLKY (r,c)=Y ...`), pareando os passos `decode_block` da travessia com o quadro ⇒ comparável pixel a pixel com o ffmpeg. Prova: `AvifRealFileE2ETest` **11/11**.
+- **MEDIDO (testsrc-64, Kof vs ffmpeg na origem de cada bloco):**
+  - bloco 0 (0,0) `skip 0 txSz 7 y=0 angY=0 uv=0` → **16 = 16 EXATO** ✓ (a 29ª passagem media 128 vs 16; o trabalho de paleta desde então consertou).
+  - bloco 1 (0,2) `skip 0 txSz 1 **y=7 (D203)** **angY=-1** uv=7 angUV=2` → **16 vs 81 = PRIMEIRA DIVERGÊNCIA**.
+  - bloco 2 (0,4) `y=0 uv=13` → 192 vs 145. bloco 3 (4,0) `y=0 uv=0` → 235 vs 16.
+- **ACHADO (a localização mais afiada da frente):** o primeiro bloco (DC nos dois planos) é EXATO e o primeiro que diverge é o **primeiro a usar o caminho ANGULAR** — yMode 7 (D203), delta de ângulo NÃO-ZERO (−1) e UV direcional. É o discriminante de entropia da 45ª passagem, agora fixado a UM bloco.
+- **ESTREITAMENTO:** o bloco 1 NÃO é skip all-zero (o TX 2 dele lê `nz=2`) e TODOS os seus elementos de entropia (modo Y, delta de ângulo, modo/ângulo UV) estão verificados contra o libaom ⇒ resta o caminho de PIXELS de um modo angular: a predição dos vizinhos, a aplicação do ângulo, ou o edge filter.
+- **Próximo:** despejar a PREDIÇÃO do bloco 1 (antes do residual) e comparar com a predição direcional calculada à mão dos vizinhos.
+
+## Sessão 16/10 (81ª) — 3bd 54ª: alfas CFL EXONERADOS (macros reais); todos os elementos de modo verificados
+- **Hipótese testada:** a seleção de linha de CDF dos alf as CFL do Kof (`(signU-1)*3 + signV` para U; `(signV-1)*3 + signU` para V) parecia errada contra a MINHA lembrança (`js/3` e `3 + js%3`).
+- **REFUTADA lendo `av1/common/enums.h`:** `CFL_CONTEXT_U(js) = js + 1 - CFL_SIGNS` (com CFL_SIGNS=3 ⇒ **js-2**) e `CFL_CONTEXT_V(js) = CFL_SIGN_V(js)*CFL_SIGNS + CFL_SIGN_U(js) - CFL_SIGNS` (⇒ `(signV-1)*3 + signU`).
+- **Varredura de joint signs:** o `(signU-1)*3 + signV` do Kof == `js-2` para TODO js com `signU != 0` (0,1,2,3,4,5 em js=2..7) e a linha V é a do libaom literalmente ⇒ **o caminho CFL está CORRETO** (joint sign 8 = CFL_JOINT_SIGNS; alfa 16 = CFL_ALPHABET_SIZE; condições `signU/signV != 0` ✓).
+- **LIÇÃO (3ª ocorrência):** comparação com libaom **de memória** gerou pista falsa (ordem de varredura, ramo PARTITION_SPLIT, agora as linhas CFL) — em TODAS o código estava certo e a lembrança errada ⇒ **buscar a fonte, nunca lembrar**.
+- **ESTADO:** os caminhos de entropia que os testesrc exercitam e os exatos não estão TODOS verificados contra o libaom (deltas de ângulo, portão do filter-intra, modo/tamanho de paleta, CFL) ⇒ o desync NÃO é nenhum elemento de modo nomeável.
+- **Próximo:** comparar a SEQUÊNCIA DE SÍMBOLOS — estender o decodificador de símbolos independente em Python (31ª) à região CFL/modo do testsrc, com as MESMAS linhas de CDF, e diff símbolo a símbolo com o Kof; sem nenhuma comparação de memória.
+- **Árvore:** inalterada; `AvifRealFileE2ETest` **11/11** (commit docs-only).
+
+## Sessão 16/10 (80ª) — 3bd 53ª: RESOLVIDO — o "estouro do 32x32" era o PRÓPRIO PROBE
+- **O sentinela achou (técnica que funciona):** alargar o quadro + encher a cauda com 111 ⇒ a amostra Y impressa lê **`3263=111`** ⇒ há uma LEITURA na cauda... que é DO PRÓPRIO PROBE.
+- **Causa:** a amostra em `(32,63)` está FIXA para 64x64 ⇒ num 32x32 o probe lia `frame[(32+1)*34 + (63+1)]` = **índice 1186** de um buffer de 1156 (plano + borda) = **exatamente o "índice do crash"** perseguido por 8 passagens.
+- **Por que TODA inferência era insonda:** o probe imprime o resumo ANTES das amostras Y ⇒ o DECODE já havia completado quando o print lançou; e o `runJvm` só devolve stdout em caso de SUCESSO ⇒ um throw perde a captura inteira ⇒ o resumo nunca era visto ⇒ todas as frases "o crash foi antes/depois do estágio X" se apoiavam em evidência que não podia existir.
+- **Fix landado (código):** o probe LIMITA as posições de amostra Y ao quadro (`min(32, mw-1)`, idem 63 e a linha) — NO-OP para os fixtures 64x64 (goldens byte-idênticos).
+- **Teste:** o fixture 32x32 está COMMITADO (`avif_real_ts32.avif`) + `realSmallFrameDecodesWithoutCrashOnJvm` (asserções sem referência + consumo REGISTRADO) ⇒ `AvifRealFileE2ETest` **11/11**; o teste crasharia de novo se o clamp regredisse.
+- **O que resta REAL:** o 32x32 decodifica para `blocks=8 covered=64 frame=64` e **`symBits=503 payloadBits=1968` (desync de 26%)**, mesma família dos 54% do testsrc-64; `Y(0,0)=17` bate com o ffmpeg ⇒ **nunca houve estouro do decodificador** e a caça 47–52 ao "escritor com stride errado" perseguia o harness (o "é LEITURA, não escrita" da 52ª estava CERTO — a leitura vinha do harness).
+- **Pergunta real (inalterada e agora desobstruída):** por que os testsrc consomem só 26%/54% do payload enquanto cb8, cb16, o fixture mínimo e o sólido são EXATOS?
+
+## Sessão 16/10 (79ª) — 3bd 52ª: ACHADO DECISIVO — o estouro é LEITURA, não escrita (`TAIL n=0`)
+- **Experimento:** quadro do probe alargado para `mh + 12` linhas (44*34 = 1496 > 1186) ⇒ a decodificação COMPLETA; varredura de TODA célula a partir de `stride*(mh+2)` = índice 1156 ⇒ **`TAIL n=0`** (nada escrito além da região legítima).
+- **Conclusão:** uma ESCRITA não pode ser o crash (o mesmo código não escreve ali com buffer grande) ⇒ **o acesso que crasha é uma LEITURA**.
+- **Por que isso explica a busca inteira:** TODO instrumento era orientado a ESCRITA — guards de extensão (pegada do bloco), padding+scan (escritas perdidas), portões de call-site (`pal=0`, `de=1`, `useFilterIntra=0` — suprimem caminhos sem observar acessos) ⇒ nenhum podia ver uma leitura; e leituras não são limitadas pela "extensão do escritor", o que resolve a contradição da 51ª.
+- **Reexame para LEITURAS:** predição (limite `maxX`/`maxY` ⇒ 1120 — ou o limite não é o que penso, ou a leitura está num ramo cujo portão NÃO porta a leitura), EDGE FILTER, FILTER-INTRA, e CFL (este realmente está OFF: o teste removeu a CHAMADA, não uma flag).
+- **Assimetria que importa:** no CFL removi a CHAMADA; no edge-filter/filter-intra mudei só FLAGS — e uma flag que o leitor ignora deixa a leitura no lugar.
+- **Próximo (detector de LEITURA = SENTINELA):** alargar o quadro, preencher a cauda com um valor distintivo e ver se a SAÍDA muda quando ele muda ⇒ se mudar, uma leitura alcança a cauda; bisseccionar limita a extensão e o valor nomeia o helper. Esse instrumento não pode ser enganado por uma flag.
+- **Árvore:** temporários revertidos; `AvifRealFileE2ETest` **10/10** (commit docs-only).
+
+## Sessão 16/10 (78ª) — 3bd 51ª: encanamento LIMPO + CONTRADIÇÃO DURA (o instrumento é o único caminho)
+- **Auditoria (alvo da 50ª CLEARED — negativo é resultado):** `av1DecodeChromaBlock` chama `av1DecodeChromaPlane(chroma.u, chroma.strideU, chroma.wU, chroma.hU, luma, lumaStride, …, lumaFrameW, lumaFrameH, …)` (idem V) ⇒ o plano de croma recebe o SEU `(frame, stride, w, h)` e os da luma como parâmetros SEPARADOS ⇒ **nenhum pareamento cruzado** (era a hipótese da 50ª).
+- **CONTRADIÇÃO DURA:** (a) predição intra ≤ 1120 (`maxX`/`maxY`); (b) reconstrução ≤ 1120 (dentro das extensões de TX, em blocos com `y+h <= frameH` pelos guards); (c) paleta e leitura CFL da luma EXCLUÍDAS por experimento (`pal=0`, uv-13 neutralizado ⇒ ambos ainda crasham); (d) o plano de croma ≤ 324 (o seu buffer). **E o crash é 1186 num buffer de 1156** ⇒ **uma premissa está errada**; raciocinar sobre o código não resolve mais.
+- **Instrumento (deixa de ser opcional):** registrar `(índice, stride, comprimento)` em CADA acesso ao quadro **DENTRO DOS ACESSORES**, rotulado por acessor; quadro alargado para a decodificação COMPLETAR; imprimir o máximo depois. Ou um registro mostra `índice > comprimento` (nomeia o acessor + o stride), ou nenhum mostra — e então a instrumentação não cobre o acesso que crasha e a lista vira o mapa do que falta.
+- **Árvore:** inalterada; `AvifRealFileE2ETest` **10/10** (commit docs-only).
+
+## Sessão 16/10 (77ª) — 3bd 50ª: PROVA (≤1120) ⇒ o 1186 exige STRIDE/BASE diferente; alvo no encanamento de croma
+- **PROVA (stride 34, quadro 32x32):** (a) a predição intra ≤ 1120 (above limitado por `limit = min(x + 2w - 1, maxX = frameW)`; left pelo `maxY`) e (b) a reconstrução ≤ 1120 (`plane[(y+i)*stride + (x+j)]`, `i<h, j<w`, e `y+h <= frameH` pelos guards de extensão) ⇒ **nenhum acessor na convenção de bloco com stride 34 produz o índice 1186**.
+- **Consequência 1:** o crash EXIGE um STRIDE maior ou uma BASE diferente.
+- **Consequência 2 (por que a busca falhou):** todos os guards de call-site que escrevi são estruturalmente incapazes — **nenhum examina o STRIDE que o acessor usa** (o modo de falha identificado na 49ª).
+- **ALVO (do encanamento):** `av1DecodeChromaPlane(Int[] frame, Int stride, Int frameW, Int frameH, Int[] luma, Int lumaStride, …)` (`Av1DecodeChroma.kf:77`) tem **DOIS pares `(buffer, stride)` e DOIS pares de dimensões** em escopo ⇒ parear o buffer de um plano com o stride/dimensões do OUTRO dá exatamente um erro de stride que (i) fica em faixa em algumas posições de bloco, (ii) estoura em outras e (iii) é invisível ao call-site.
+- **Instrumento refinado:** registrar `(índice, stride, comprimento)` em cada acesso DENTRO DOS ACESSORES (não nos call-sites), com o quadro alargado p/ a decodificação COMPLETAR.
+- **Árvore:** inalterada; `AvifRealFileE2ETest` **10/10** (commit docs-only).
 
 ## Sessão 16/10 (76ª) — 3bd 49ª: CFL REFUTADO; e a falha de toda exclusão por call-site é o achado
 - **Teste (como planejado):** neutralizar `if (uvMode == 13)` em `Av1DecodeChroma.kf` desliga a modulação E o `av1CflAcFromLuma` (única leitura da luma no croma) mantendo a ENTROPIA intacta ⇒ o 32x32 AINDA lança `Index 1186 out of bounds for length 1156` ⇒ **CFL não é o escritor**.
@@ -743,3 +974,473 @@ state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (u
 - **Prova pós-rebase:** `mvn -o -pl kof-compiler -am compile` rc=0; `Av1DecodeTileReconE2ETest` 7/7 + `Av1DecodeTileTxTypeE2ETest` 7/7 + `Av1UvTxSizeE2ETest` 8/8 = **22/0F/0 pulados**.
 - **Próximo passo:** re-pousar a composição de croma (`Av1DecodeChroma.kf` + a chamada no driver + a sonda/golden) com rastreamento por SÍMBOLO dos DOIS lados (encoder/decoder libaom instrumentado e sonda Kof) e diferenciar a sequência de símbolos de croma bloco a bloco — a fórmula do contexto está EXCLUÍDA por medição, então a causa tem de estar na geometria de iteração/offset ou na ESCRITA do contexto (`av1SetEntropyContexts`, o broadcast).
 - **Caveat:** o oráculo de croma (`/tmp/s3ag/chroma_oracle.c`) e o de 3ag com croma (`/tmp/s3ag/oracle3.c`) estão em `/tmp` e não versionados; as correções de encoder acima estão neles, não no repositório.
+
+## Sessão 16/10 (quinta) — slice 3bd: o mapeamento TX->bloco-de-modo FIXADO (57ª passagem)
+- **Unidade:** instrumento `AvifRealTileProbe` estendido com a coluna `bs` na linha `BLKY` (cada bloco amostrado leva o seu BLOCK_SIZE) + o teste temporário `tmpBs` REMOVIDO. Nenhuma mudança em `libs/` — é prova + instrumento. SHA desta unidade registrado no commit; `AvifRealFileE2ETest` **11/11** verde.
+- **Medido (testsrc-64):** `(0,0,bs4)=16 (0,2,bs4)=16 (0,4,bs6)=192 (4,0,bs4)=235 (4,2,bs4)=151 (4,4,bs16)=223 (0,8,bs9)=192 (8,0,bs4)=151 (8,2,bs4)=149`.
+- **Conclusão (decisiva):** na ordem `BLOCK_SIZES_ALL`, bloco 0 = `BLOCK_8X16` (bs4) com `txSz=7` (TX_8X16) => tx == bloco => UM bloco de transformada (`tx0`, nz=0) — o 16 dele é só predição. Bloco 1 = **também** `BLOCK_8X16` (bs4) mas `txSz=1` (**TX_8X8**) => **DOIS** blocos de transformada => **o bloco 1 possui tx1 E tx2** — e `tx2` é o PRIMEIRO NÃO-VAZIO (`[3,0,0,...]`, DC=3). **Logo o ramo "mapeamento errado" da 56ª passagem MORRE por medição: o bloco 1 TEM resíduo decodificado.**
+- **O que resta (duas hipóteses, declaradas):** o pixel amostrado cai no PRIMEIRO bloco TX 8x8 (superior) do bloco 1, aquele que lê `all_zero=1` => reconstrói exatamente 16 contra os 81 do ffmpeg. Ou (a) esse `all_zero=1` é LEITURA ERRADA, ou (b) a PREDIÇÃO do bloco 1 está errada (16 é o valor plano do vizinho esquerdo, não a predição direcional D203 que o modo/ângulo implicam).
+- **Por que (a) não pode ser erro de tabela:** o contexto é o ramo de ambos-zero (ctx=1) selecionando `txbSkip[1][1]`, e as 260 entradas de `txbSkip` foram verificadas uma a uma contra o libaom (22ª passagem). Logo uma leitura errada significa que a POSIÇÃO do leitor já está errada ANTES dessa leitura — o dessincronismo está A MONTANTE, nas leituras de partição/modo-info (o mode-info do bloco 0 custa 77 bits pelos deltas `posMI`/`posEnd` da própria sonda — a reexaminar).
+- **Lição:** a comparação de padrão `(r,c,bs<k>)` paga — eu tinha DUAS inferências conflitantes sobre a mesma evidência (índice de TX vs bloco de modo) e o `bs` do bloco resolveu em uma medição, sem auditar mais nenhuma tabela. **Nunca inferir o dono de um bloco de transformada a partir do tamanho de transformada sozinho** — `txSz != bs` é possível (aqui só no bloco 1).
+- **Próximo passo (limitado e mecânico):** amostrar o bloco 1 no seu SEGUNDO bloco TX 8x8 (inferior), onde o DC=3 de tx2 realmente cai, e dumpar explicitamente a PREDIÇÃO do bloco 1 (vizinho-esquerdo vs direcional) — as duas medições separam "predição errada" de "resíduo aplicado na posição errada" sem nova auditoria de tabelas.
+- **Caveat:** o probe `AvifRealTileProbe` continua sendo o instrumento (não versionado como recurso golden; é um helper de teste Java). Os fixtures `avif_real_*.avif` e o golden de modo estão em `src/test/resources/`.
+
+## Sessão 16/10 (quinta) — slice 3bd 58ª passagem: o diagnóstico de predição LANDADO (corrige o mapa da 57ª)
+- **Unidade:** `Av1TileDecode.predBlocks()` em `libs/image/Av1DecodeTileRecon.kf` — aditivo (`predLog` inicializado no construtor, como o `posOut`; **SEM mudança de assinatura**), gravando 7 ints por bloco de transformada: índice do TX, `(r,c)` do bloco de modo, origem em pixels `(x,y)`, amostra **predita** ali, amostra **reconstruída** ali. A sonda imprime `PREDBLK ...`; `realTileWalkDoesNotReadPastThePayloadOnJvm` fixa que está ligado. `AvifRealFileE2ETest` **11/11**, compile rc=0. Teste temporário de captura REMOVIDO.
+- **Medido (testsrc-64):** `PREDBLK tx0(r0,c2)+8,0 p=16/r=16 tx1(r0,c2)+8,8 p=235/r=235 tx2(r0,c4)+16,0 p=192/r=192 tx3(r4,c2)+8,16 p=151/r=151 ...`, `txb=62 nzTot=103 symBits=1257 payloadBits=2344`.
+- **CORREÇÃO da 57ª passagem:** o emparelhamento agora é **direto** — tx0 E tx1 pertencem ao bloco de modo 1 `(r0,c2)`, **não** tx1+tx2 como eu havia inferido. O bloco 0 **não tem bloco de transformada**: `B 0 77 77 0 7 0 0 0 0` (fim do mode-info == fim do resíduo) mas reconstrói 16, e um DC_PRED sem vizinhos preveria 128 ⇒ **o bloco 0 é um bloco de PALETA** — facto que esta frente nunca tinha registado (e explica os 77 bits do mode-info: os tokens de paleta vivem lá). A conclusão da 57ª sobrevive (o bloco 1 tem DOIS blocos TX); os índices deslocam-se em um.
+- **RESPOSTA à pergunta da 57ª:** os dois blocos TX do bloco 1 leem `all_zero=1` (nz=0) ⇒ recon == pred (16 em cima, 235 em baixo). A referência do ffmpeg sobre a região do TX de CIMA (x 8..15, y 0..7) é **81 plano**; o vizinho esquerdo (bloco 0) é **16 plano** e a linha de cima está indisponível — uma predição direcional (`yMode=7` = D203_PRED, `angleY=-1`) a partir de vizinhos planos só pode ser plana ⇒ o 81 plano **exige um resíduo (~+65) que falta** ⇒ o ramo é a **LEITURA ERRADA de `all_zero`**, não a predição errada. E como o contexto (ambos-zero → `txbSkip[1][1]`) e a CDF foram verificados contra o libaom, a **POSIÇÃO do leitor está errada nessa leitura**.
+- **Segunda anomalia, independente:** o TX de baixo prevê **235**, que nenhuma vizinhança de 16 plano pode produzir (tem a mesma coluna esquerda plana de 16 E o seu próprio TX de cima reconstruído 16 logo acima). 235 é o branco do quadro e aparece em `BLKY (4,0,bs4)=235` (pixel (0,16)) ⇒ o caminho de **predição** lê amostras de referência erradas no SEGUNDO bloco TX de um bloco 8x16. Logo o defeito NÃO é uma só coisa.
+- **Lição:** o instrumento que grava PARES (predição, reconstrução) por bloco decidiu em uma medição o que duas passagens de inferência não decidiram — e corrigiu a minha própria inferência anterior. **Nunca inferir o emparelhamento TX↔bloco de modo a partir de índices de lista: gravá-lo no ponto onde ele é produzido.** Segunda lição: um bloco de PALETA **não emite bloco de transformada**, então ele desloca TODOS os índices que uma lista por-TX usa.
+- **Próximo passo:** dumpar as amostras de referência do preditor (a linha de cima e a coluna esquerda que ele realmente lê) para o TX de BAIXO do bloco 1 — um dump separa "leitura da linha errada" de "disponibilidade errada".
+- **Caveat:** o `predLog` cresce por bloco TX em TODOS os frames (diagnóstico permanente, custo desprezível: 7 ints por bloco). O fixture é `src/test/resources/avif_real_64.avif`; a referência é `ffmpeg -i x.avif -f rawvideo -pix_fmt yuv420p -` (os primeiros 4096 bytes são o plano Y 64x64). **Cuidado:** `-pix_fmt gray` NÃO dá a mesma leitura — usar **yuv420p**.
+
+## Sessão 16/10 (quinta) — slice 3bd 59ª passagem: as anomalias de PIXEL são ASSINATURA do desync
+- **Unidade:** dois diagnósticos landados na sonda `AvifRealTileProbe` (nenhuma mudança em `libs/`): (a) `PREDTEST` — reproduz o bloco de transformada de BAIXO do bloco 1 (8x8 na origem (8,8)) chamando `av1IntraPredictBlock` DIRETAMENTE com argumentos explícitos, para as quatro combinações `(aboveRight, belowLeft)`; (b) `PATCH` — dump 18x18 do quadro FINAL a partir da origem. Ambos fixados por `realTileWalkDoesNotReadPastThePayloadOnJvm`.
+- **Medido:** `PREDREF above=235,235,235 left=235,235,235 corner=235` e `PREDTEST mode=7 ang=-1 fi=0 fim=0 ar0bl0=235 ar0bl1=235 ar1bl0=235 ar1bl1=235` — o preditor devolve 235 em TODAS as combinações de disponibilidade **e as amostras de referência que ele deriva são elas próprias 235**. Logo **o preditor está CORRETO dados os seus inputs; os inputs já eram 235**.
+- **Consequência:** a leitura da 58ª ("o caminho de predição lê amostras de referência erradas") fica **confirmada como mecanismo** e **refutada como defeito independente** — o quadro já tinha sido escrito com 235 ali pelo trabalho ANTERIOR da decodificação dessincronizada. **O defeito é UMA raiz: o DESSINCRONISMO DE ENTROPIA.** As anomalias de pixel ("o TX de baixo prevê 235", o retângulo 235) são a assinatura dele; persegui-las bloco a bloco era perseguir sintomas.
+- **Medido (PATCH, Kof, linhas 0..17 × cols 0..17):** linhas 0-5 × cols 0-7 = 16 (bate com o 16 plano da referência); linhas 0-1 × cols 8-15 = 16 onde a referência tem 81 (o resíduo ausente de novo); linhas 2-5 × cols 8-15 = um gradiente espúrio; linhas 6-9 = 235 sólido em cols 0-15; linhas 10-15 = 16 nas cols 0-5 mas 235 nas cols 6-15; cols 16-17 = 192/193. A referência na mesma janela é plana ⇒ a janela está caótica exatamente como um stream dessincronizado produz.
+- **Verificação extra:** a geometria da PINTURA DE PALETA (`libs/image/Av1DecodeTileRecon.kf`) foi relida e está **correta** (extensão completa do bloco via `av1BlockWidth`/`av1BlockHeight` — não é pintura curta) ⇒ a perda da região é **sobrescrita** por trabalho posterior.
+- **Prova:** `AvifRealFileE2ETest` **11/11**, compile rc=0, teste temporário de captura REMOVIDO, ambos os diagnósticos fixados.
+- **Bug de sonda consertado no caminho (meu):** o `PREDTEST` indexava o registo do bloco 1 (`modes[17+…]`) e estourava `Index 22 out of bounds for length 17` nos fixtures de UM bloco (cb8, pskip) — guardado por `modes.size >= 34`.
+- **Próximo passo:** estender o decodificador de símbolos INDEPENDENTE em Python (31ª passagem) à região de modo/coeficientes de um quadro falhante e comparar a sequência de símbolos do Kof **símbolo a símbolo** — a inspeção de campo está esgotada e o caminho de pixel está exonerado, logo o stream de entropia é a questão restante inteira.
+- **Caveat:** o `PATCH` imprime 18 linhas por execução da sonda (diagnóstico permanente); `PREDTEST`/`PREDREF` só imprimem quando há ≥ 2 blocos de modo. Referência ffmpeg: `ffmpeg -i x.avif -f rawvideo -pix_fmt yuv420p -` (primeiros 4096 bytes = plano Y 64x64); `-pix_fmt gray` NÃO dá a mesma leitura.
+
+## Sessão 16/10 (quinta) — slice 3bd 60ª passagem: verificação NA FONTE (ordem intra + eobMultiSize) + primeiro teste do eobMultiSize
+- **Unidade:** (1) verificação da ORDEM SINTÁTICA INTRA contra `av1/decoder/decodemv.c` (`read_intra_frame_mode_info`) e `decodeframe.c` (`parse_decode_block`) do libaom — **confirmada** (mode info → tokens de paleta → tx size); `read_tx_size` lê símbolo para intra sob `TX_MODE_SELECT`; `av1_allow_intrabc` entre delta-Q e o modo Y está ausente porque o Kof lê o bit de cabeçalho e recusa quando é 1. (2) `Av1Coeffs.eobMultiSize` verificado **19/19** contra `txsize_log2_minus4[TX_SIZES_ALL]` (`av1/common/common_data.h`). (3) LANDADO `Av1EobMultiSizeE2ETest` (2/2 JVM+Script) fixando os dezenove valores — a classe estava **sem teste**.
+- **Sub-achado importante:** a enum de TX-size do libaom é a ordem **PAREADA** da especificação (4X8 depois 8X4, 8X16 depois 16X8, …), **não** uma ordem "largos-primeiro" — logo os índices 17/18 são mesmo TX_16X64/TX_64X16 e o caso especial `17||18 → 5` do Kof está certo. (A ordem dos tx-size é onde esta frente já perdeu tempo duas vezes.)
+- **Prova RED:** mutei a biblioteca (`17||18` → `15||18`) e o teste falhou **2/2** com `multi 15 5` onde o libaom tem `4`; **mutação revertida**, `git diff libs/` vazio. Depois do revert, 2/2 verde de novo.
+- **Armadilha Kof reencontrada (custou uma execução):** `import image.X` nomeia o **ARQUIVO**, não o tipo — `Av1CoeffCdfStore` é declarado dentro de `Av1Coeffs.kf`, logo `import image.Av1CoeffCdfStore` falha com **PKG006** e só `import image.Av1Coeffs` compila.
+- **Lição de método:** as duas verificações saíram **limpas** — o valor está em (a) substituir "suposto" por "conferido na fonte" e (b) converter a verificação num TESTE permanente (o `eobMultiSize` seleciona quais e quantos símbolos o `eob_pt` consome: um erro desincroniza todo bloco daquele tamanho). Nenhum bug novo.
+- **Próximo passo:** verificar o RESTANTE do `read_coeffs_txb` contra o `av1/decoder/decodetxb.c` já buscado (o condicional `all_zero` → `tx_type`, limites dos laços base/br, ordem dos sinais, `read_golomb`) — o último subsistema que a frente não conferiu contra a fonte real. **Caveat:** as fontes buscadas estão em `/tmp` (`/tmp/dmv.c`, `/tmp/df.c`, `/tmp/dtxb.c`, `/tmp/enums.h`) e **não** são versionadas — se `/tmp` for limpo, rebuscar de `aomedia.googlesource.com/aom/+/refs/heads/main/<path>?format=TEXT` + `base64 -d`.
+
+## Sessão 16/10 (quinta) — slice 3bd 61ª passagem: coeficientes verificados na fonte + hipótese de harness REFUTADA
+- **Unidade:** (1) laço de nível/sinal do coeficiente verificado contra `av1/decoder/decodetxb.c` (buscado) — o libaom divide em `read_coeffs_reverse_2d` + `read_coeffs_reverse` mas AMBOS iteram descendente `for (c = end_si; c >= start_si; --c)` = o laço único da especificação, logo o do Kof é equivalente; regras base/br/sinal/golomb batem. (2) `get_br_ctx_eob` (decoder) vs `get_br_ctx` (encoder): **parecia** discrepância, **não é** — no coeficiente EOB todos os níveis ainda são zero, logo a forma genérica colapsa na forma fechada {0,7,14}; o `av1GetCoeffBrCtx` genérico do Kof já a reproduz. (3) `av1_eob_group_start`/`av1_eob_offset_bits` **12/12 exatos**. (4) **Hipótese de harness TESTADA e REFUTADA**: a sonda hardcoda `segEnabled=0`; medi `SEG segEnabled=0 altQ0=0 altQ1=0` ⇒ o quadro não é segmentado e o hardcode está certo (a sonda agora imprime a linha SEG permanentemente).
+- **Landado:** `Av1EobMultiSizeE2ETest` estendido a um golden de geometria do EOB com **235 comparações** (19 multi-tamanho + 12 offset-bits + 12 group-start + 192 contexto-br), 2/2 (JVM+Script). **Prova RED:** mutar `av1EobOffsetBits[11]` 9→8 falha 2/2 com `off 11 8`; **mutação revertida**, `git diff libs/` vazio. `AvifRealFileE2ETest` **11/11** com a nova linha SEG.
+- **Nenhum bug encontrado** nesta passagem. Todo elemento/tabela/ORDEM nomeado da sintaxe de modo + coeficientes está agora verificado contra a fonte real do libaom — a inspeção de campo está **esgotada**.
+- **Lição de método (a mais importante desta série):** o método "buscar a fonte, nunca recordar" produziu 3 verificações limpas seguidas e **zero** bugs — o que é informação, não fracasso: significa que o dessincronismo **não** está em nenhuma constante, tabela ou ordem nomeada. O próximo passo tem de mudar de método, não de tabela.
+- **Próximo passo:** um diff INDEPENDENTE da sequência de símbolos num quadro falhante (o decodificador Python independente da 31ª passagem é o caminho) — comparar símbolo a símbolo, porque a inspeção de campo ao nível da fonte está esgotada.
+- **Caveat:** fontes buscadas em `/tmp` (`/tmp/dtxb.c`, `/tmp/txb.h`, `/tmp/etxb.c`, `/tmp/df.c`, `/tmp/dmv.c`) — não versionadas; rebuscar de `aomedia.googlesource.com/aom/+/refs/heads/main/<path>?format=TEXT` + `base64 -d`. Nota: `mvn test -Dtest='A+B'` **não** executa os testes (BUILD SUCCESS com 0 testes) — usar um padrão por vez.
+
+## Sessão 16/10 (quinta) — slice 3bd 62ª passagem: REPRODUTOR PEQUENO landado + um critério QUEBRADO
+- **Unidade:** LANDADO `AvifScreenContentGeoE2ETest` (1/1) + fixture `avif_real_sq1.avif` (32x32 screen content, payload de **18 bytes**; receita `color=black:s=32x32,geq=lum='if(lt(X\,16)\,100\,if(mod(floor(X/4)\,2)\,235\,16))'`).
+- **Medido:** `blocks=10 covered=64 frame=64 overlap=0 symBits=144 payloadBits=144` — **todo o payload consumido** — e a **metade ESQUERDA EXATA** (bloco 0 = um BLOCK_16X16, quatro TX_8X8, todos reconstroem o plano 100; toda a região esquerda do `PATCH` lê 100) enquanto a **metade DIREITA está ERRADA** (referência: faixas verticais de 4px 16/235; Kof lê `235 235` nas cols 16,17 onde a referência é `16 16`, e lixo abaixo: 118, 99, 102, 105…).
+- **CRITÉRIO QUEBRADO (o achado importante):** a 36ª passagem registou "consumo total do payload = critério de correção da entropia". Este fixture consome **144/144** e está errado em metade do quadro ⇒ a implicação vale **numa só direção**: sub-consumo prova dessincronismo, **consumo total NÃO prova nada**. Toda medição que usou 100% como sinal verde tem de ser relida.
+- **Onde o dessincronismo começa:** `B 0 25 74` e depois `B 1 … B 9` **todos reportando `144 144`** ⇒ o mode info do bloco 0 custa 25 bits, os resíduos 49 (74 no total), o mode info do bloco 1 come os 70 restantes e os blocos 2-9 não leem nada (leitor saturado). A divergência começa no **bloco 1**.
+- **Bug de harness consertado (meu, a classe da 53ª passagem):** o dump `PATCH` iterava 0..17 sem condição e estourava em quadros com menos de 18 linhas; agora limitado a `mw`/`mh`.
+- **Nova alavanca (fixture NÃO commitado — estoura):** um quadro **64x16 NÃO QUADRADO** com screen content (`color=black:s=64x16,geq=lum='if(mod(floor(X/4)+floor(Y/4)\,2)\,235\,16)'`) estoura `Index 64 out of bounds for length 64` **dentro da decodificação Kof** mesmo com o PATCH limitado; o 64 que falha casa com `(frameW>>2)*(frameH>>2)` = 16×4 (`cdefUnits` do driver ou o array de cobertura) — uma suposição de geometria para quadro **não quadrado**, exatamente o que nenhum fixture antes exato exercitava.
+- **Próximo passo:** bissectar sobre `avif_real_sq1.avif` (10 blocos, 18 bytes, uma metade exata) bloco a bloco — dumpar o mode info do bloco 1 e a posição do leitor bit a bit. É o primeiro quadro desta frente pequeno o bastante para raciocinar bloco a bloco.
+- **Caveat:** `check_test_hygiene` rc=0 — a nova classe usa helpers de nomes **únicos** (`canonical`/`runKof`/`installLib`), logo não acrescenta dívida `dupname` (a chave do ratchet é só o NOME do método). O fixture `avif_real_nsq.avif` foi **removido** do repo (estoura); a receita está no plano.
+
+## Sessão 16/10 (quinta) — slice 3bd 63ª passagem: instrumento por ESTÁGIO localiza o consumidor excessivo
+- **Unidade:** `Av1TileDecode.stages()` em `libs/image/Av1DecodeTileRecon.kf` — aditivo (padrão `predLog`/`posOut`, **sem mudança de assinatura**), 2 ints por bloco: posição do leitor depois do **corpo do mode-info** e depois dos **tokens de paleta** (imediatamente antes do tamanho de transformada). Com `positions()` (depois do tx size e depois dos resíduos) dá os QUATRO estágios de cada bloco. A sonda imprime `STAGES b<i>:corpo>paleta>txsize>resíduo`.
+- **Medido (sq1, 32x32, payload de 144 bits):** `b0:24>24>25>74 b1:107>144>144>144 b2:144>144>144>144 b3:…` ⇒ o bloco 0 não tem paleta (corpo 24, tx 25, resíduos 25→74); o bloco 1 gasta **33 bits de corpo** e **37 bits de TOKENS DE PALETA**, o que leva o leitor ao **fim do payload**; os blocos 2–9 decodificam de um leitor ESGOTADO (todo estágio = 144), que é exatamente o lixo do PATCH.
+- **Medido (testsrc-64, payload de 2344 bits):** `b0:54>76>77>77 b1:89>89>90>90 b2:99>99>101>111 b3:219>468>470>470` ⇒ o bloco 0 É de paleta (tokens 22 bits) — o facto que a 58ª inferiu —, o bloco 1 tem 12 bits de mode info e **nenhum** resíduo (all_zero, confirmando a 58ª), e o **bloco 3 gasta 108 bits de corpo + 249 bits de tokens de paleta**, de longe o maior estágio do quadro.
+- **Achado:** os dois quadros falham em **direções opostas** (sq1 sobre-consome até esgotar; testsrc sub-consome a 54%) ⇒ a razão payload-consumido **não** é o diagnóstico; as posições por ESTÁGIO são. E é a **primeira vez** que a frente nomeia um ESTÁGIO (o mapa de cores de paleta) como o consumidor excessivo num quadro cuja metade esquerda é EXATA.
+- **Prova:** `AvifRealFileE2ETest` **11/11** re-executado após o instrumento; compile rc=0.
+- **Próximo passo:** bissectar o mapa de cores de paleta do bloco 1 em `avif_real_sq1.avif` — o seu `n` (tamanho da paleta), os seus `rows`/`cols` (dimensões do bloco) e as posições por símbolo estão agora todos alcançáveis com este instrumento + o `TRACE` existente.
+- **Caveat:** o instrumento grava 2 ints por bloco em TODOS os frames (custo desprezível). `check_test_hygiene` continua verde (o instrumento é em `libs/`, não em teste).
+
+## Sessão 16/10 (quinta) — slice 3bd 64ª passagem: estágio de paleta medido + um LIMITE de método
+- **Unidade (só na sonda, sem mudança em `libs/`):** o probe conta os símbolos traçados cuja posição cai na janela de tokens de paleta de um bloco (janela vinda do `STAGES`) e imprime `PALTOK window=<a>..<b> bits=<n> symbols=<n> lastPos=<p> total=<todos>`.
+- **Medido (sq1):** `PALTOK window=107..144 bits=37 symbols=61 lastPos=144 total=550` ⇒ o estágio de paleta do bloco 1 custa **37 bits** e leu **≥ 61 símbolos**.
+- **LIMITE DO MÉTODO (registado, invalida o próximo passo óbvio):** num quadro que esgota o payload o leitor **satura** em 144, logo as ~432 leituras seguintes reportam **todas** a mesma posição e são indistinguíveis de leituras de paleta. Uma janela mais frouxa contou **493** "símbolos de paleta" para os mesmos 37 bits — **artefacto**.
+- **Hipótese das dimensões FECHADA:** `av1BlockWidth(5)=16` / `av1BlockHeight(5)=8` (`libs/image/Av1Block.kf`, casando com `block_size_wide/high` do libaom) ⇒ o bloco 1 (`bs5` = BLOCK_16X8) precisa de 16×8 = 128 células = 127 índices + 1 uniforme. O Kof leu **≥ 61** em 37 bits ⇒ OU os ~66 restantes foram lidos na posição saturada 144, OU o Kof **sub-lê** o mapa de cores — e a janela de posição **não separa** os dois.
+- **Medido (testsrc-64):** `PALTOK window=89..89 bits=0 symbols=0` (bloco 1 não tem paleta, consistente com `STAGES b1:89>89>90>90`) e `total=1150` símbolos traçados no quadro (contra 550 no sq1).
+- **Lição de método:** um contador derivado de POSIÇÕES de leitura deixa de ser válido quando o leitor satura — o instrumento tem de contar onde a coisa acontece (dentro do `av1PaletteColorMap`), não onde ela aparece no fluxo de posições.
+- **Prova:** `AvifScreenContentGeoE2ETest` **1/1** com a medição fixada como asserção **gravada** (`PALTOK window=107..144 bits=37 symbols=61`); `check_test_hygiene` rc=0.
+- **Próximo passo (instrumento nomeado):** expor o TAMANHO da paleta por bloco — um contador **dentro** do `av1PaletteColorMap` devolvendo quantos símbolos de índice ele realmente leu, mais `palY`/`palUv` por bloco — para comparar a contagem real com o esperado `rows*cols−1`. É a única forma de decidir "lido na posição saturada" vs "sub-leitura do mapa".
+- **Caveat:** a asserção nova é GRAVADA (não afirma correção) — ela fixa uma medição que vai mudar quando o bug for corrigido; nesse momento deve ser atualizada, não "consertada" às cegas.
+
+## Sessão 16/10 (quinta) — slice 3bd 65ª passagem: DEFEITO PROVADO NA FONTE no mapa de cores de paleta
+- **Achado (cadeia buscada na fonte, nunca recordada):** `av1/decoder/detokenize.c` `av1_decode_palette_tokens` **não** passa as dimensões do bloco ao `decode_color_map_tokens`; chama `av1_get_block_dimensions(mbmi->bsize, plane, xd, &plane_width, &plane_height, &rows, &cols)`, e o `decode_color_map_tokens` usa esses `rows`/`cols` nos limites da frente de onda. Em `av1/common/blockd.h`, `av1_get_block_dimensions` calcula `block_rows = (mb_to_bottom_edge >= 0) ? block_height : (mb_to_bottom_edge >> 3) + block_height` (e o análogo para colunas com `mb_to_right_edge`).
+- **Consequência:** quando um bloco de paleta ULTRAPASSA a borda inferior/direita do quadro, o libaom **REDUZ** `rows`/`cols` à parte dentro do quadro e depois **COPIA** a última coluna/linha codificada para a região excedente. O Kof passa `rows = ph, cols = pw` (dimensões **inteiras**) incondicionalmente nos dois call sites ⇒ lê símbolos de índice que o encoder **nunca escreveu** ⇒ **consumo excessivo** que dessincroniza o stream (e pode esgotar o payload, que é o que o sq1 mostra).
+- **Prova de que a cópia existia sem sentido:** os ramos `if (cols < planeW) …` e o laço da última linha já estão no `av1PaletteColorMap` — mas são **código morto** no Kof, porque `cols == planeW` e `rows == planeH` sempre. A frente escreveu a cópia e nunca ligou os `rows`/`cols` reduzidos que a tornam significativa.
+- **Escopo HONESTO:** é divergência **provada na fonte** com direção de correção precisa (derivar `rows`/`cols` de `mb_to_right_edge`/`mb_to_bottom_edge`, isto é de `(miCols - blockW4 - miCol)`/`(miRows - blockH4 - miRow)`, como o `av1IntraAvail` já faz para o §660), mas **AINDA NÃO provada RED**: o bloco 1 do sq1 é (0,4) BLOCK_16X8 que exatamente ALCANÇA a borda direita do quadro de 32 (`mb_to_right_edge == 0`), logo ele não é reduzido; o consumo excessivo medido tem de vir de um bloco que ultrapassa a borda **inferior** (o quadro 32x32 cabe num único superbloco 64x64) ou compor com ele.
+- **Método:** a verificação veio de **buscar as duas fontes** (`detokenize.c` + `blockd.h`) depois de o instrumento ter mostrado que o candidato eram os tokens de paleta — o `PALTOK`/`STAGES` apontou o estágio, a fonte nomeou o defeito.
+- **Próximo passo:** (1) corrigir os `rows`/`cols` reduzidos no driver; (2) provar RED-first com um fixture cujo bloco de paleta ultrapasse a borda inferior — uma altura **não múltipla** da grade (p.ex. 32x24 ou 32x8 com screen content), que a frente nunca tentou; (3) catalogar como `known-bugs` §NNN (ledger EN+PT + contagem viva) na mesma unidade da correção.
+
+## Sessão 16/10 (quinta) — slice 3bd 66ª passagem: fixtures de ultrapassagem + uma REFUTAÇÃO
+- **Unidade:** construí e landei (com teste) dois quadros com screen content cuja **altura NÃO é múltipla da grade** — **32x24 e 32x40**, mesmo conteúdo do `sq1` — exatamente para exercitar o defeito de ultrapassagem achado na 65ª passagem (blocos da borda inferior teriam de ter `rows`/`cols` reduzidos).
+- **Medido:** ambos falham no **mesmo padrão** do quadro 32x32 — `STAGES b0:24>24>25>74 b1:107>136>136>136` (32x24, payload de 136 bits) e `STAGES b0:25>25>26>76 b1:109>152>152>152` (32x40, 152 bits). Em ambos, o estágio de tokens de paleta do bloco 1 come o resto do payload (29 e 43 bits), todo bloco posterior lê de um leitor **saturado**, e o pixel inferior-direito lê **81** onde a referência é 235.
+- **REFUTAÇÃO (o resultado importante):** o defeito de ultrapassagem **NÃO PODE** ser o gatilho. O bloco 1 está em `(0,4)` `BLOCK_16X8` num quadro de 32 de largura ⇒ `mb_to_right_edge == 0` ⇒ o `av1_get_block_dimensions` **não** o reduz, e a falha se reproduz num bloco que **não ultrapassa**. Nesses quadros a ultrapassagem está em **baixo** e a falha em **cima**.
+- **Consequência de método:** o defeito da 65ª fica **catalogado** e **explicitamente NÃO é "a correção"** — uma correção que não resolve a falha observada seria um **falso verde**. (É a lição da 5ª/6ª passagens aplicada: duas hipóteses caíram por controles; aqui caiu a MINHA própria hipótese, antes de eu ter escrito a correção.)
+- **O gatilho segue:** o estágio de tokens de paleta do bloco 1 — 29 / 37 / 43 bits nos três quadros falhantes, sempre o estágio que esgota o payload.
+- **Prova:** `AvifScreenContentGeoE2ETest` **2/2** com as duas posições de estágio fixadas como asserções **gravadas**; `check_test_hygiene` rc=0.
+- **Próximo passo (instrumento nomeado):** dumpar o **mode info de paleta** do bloco 1 (`has_palette_y`, `palette_size_y_minus_2`, `has_palette_uv` e o tamanho UV) logo depois do corpo do mode-info. A pergunta: **o stream real tem mesmo paleta ali?** Se o encoder não codificou paleta nesse bloco, o Kof toma o caminho de paleta onde o encoder não escreveu nada — e sobre-consome exatamente como observado.
+
+## Sessão 16/10 (quinta) — slice 3bd 67ª passagem: mode info de paleta medido + REFUTAÇÃO da paleta espúria
+- **Unidade:** `Av1TileDecode.palInfos()` em `libs/image/Av1DecodeTileRecon.kf` — aditivo (padrão `predLog`/`stagesOut`, **sem mudança de assinatura**): 2 ints por bloco (tamanhos de paleta Y e UV, 0 = nenhum). A sonda imprime `PALINFO b<i>:palY<n>/palUv<m>` para os 6 primeiros blocos.
+- **Medido (sq1):** `PALINFO b0:palY0/palUv0 b1:palY2/palUv0 b2:palY0/palUv0 …` ⇒ o bloco 1 **É** um bloco de paleta de **2 cores** num mapa **16x8**. Isso **responde à pergunta da passagem anterior** e **REFUTA** a hipótese de "o Kof toma o caminho de paleta onde o encoder não escreveu nada": 2 cores é exatamente o certo para as faixas de 4px 16/235 da referência, e ~37 bits para o mapa de 128 células é plausível.
+- **Medido (testsrc-64):** `b0:palY2/palUv0 b1:palY0/palUv0 b2:palY0/palUv0 b3:palY6/palUv7 …` ⇒ o bloco 0 é paleta de 2 cores num mapa 16x16 (estágio de paleta de 22 bits, consistente com região plana) e o bloco 3 tem paleta nos **dois** planos com o estágio de 249 bits (o maior do quadro). As bandeiras de paleta são lidas de forma plausível nos dois quadros.
+- **Nova alavanca (declarada como próxima medição, não como afirmação):** o bloco 0 do sq1 — 16x16 DC **sem** paleta — custa **74 bits**, dos quais **49 são de resíduo** para **um único** coeficiente não-nulo (`nzHead 1,0,0,0`). Num quadro cujo payload inteiro tem 144 bits e 10 blocos, esse é o maior custo coerente que sobra. **Ressalva:** o fim-de-corpo do `stagesOut` (24) **inclui** os símbolos de partição que a caminhada leu antes do bloco 0 — a janela tem de ser decomposta antes de chamar 74 bits de anómalo.
+- **Método:** duas hipóteses minhas caíram em duas passagens consecutivas (a ultrapassagem da 65ª e a paleta espúria desta) — **ambas antes de eu escrever qualquer correção**, que é a ordem certa. O padrão que está a funcionar: instrumento → medição → hipótese testada → refutação honesta.
+- **Prova:** `AvifScreenContentGeoE2ETest` **2/2** com o registo `PALINFO` fixado como asserção **gravada**; `check_test_hygiene` rc=0.
+- **Próximo passo:** decompor os 74 bits do bloco 0 — dumpar as primeiras entradas do `TRACE` com posições para separar o custo de **partição** do de **mode info**, e dumpar a caminhada de coeficientes do `tx0` (eob, nível, posições por símbolo).
+
+## Sessão 16/10 (quinta) — slice 3bd 68ª passagem: decomposição partição/mode-info/resíduo por bloco
+- **Unidade:** `Av1TileDecode.blockStarts()` em `libs/image/Av1DecodeTileRecon.kf` — aditivo (sem mudança de assinatura): a posição do leitor na **ENTRADA** de cada bloco (depois dos símbolos de partição da caminhada, antes do mode info). A sonda imprime `BSTART b<i>:<pos>`.
+- **Medido (sq1):** `BSTART b0:19 b1:76 b2:144 …` com `STAGES b0:24>24>25>74 b1:107>144>144>144` ⇒
+  - bits **0..18** = o **cabeçalho do tile** (o primeiro símbolo do trace está em 18 ⇒ essas leituras não são traçadas);
+  - bloco 0 = **1 bit de partição** + **5 de corpo** + **1 de tx size** + **49 de resíduo**;
+  - bloco 1 = **2 de partição** + **31 de corpo** + **37 de tokens de paleta** → esgota o payload.
+- **RETIRA a leitura da 67ª passagem** ("os 74 bits do bloco 0 são a anomalia"): decomposto, o mode-info + partição do bloco 0 são **7 bits** e o custo está no **RESÍDUO** (49 bits para o único coeficiente não-nulo do `tx0`, eob=2 — plausível para um degrau DC grande). A ressalva que declarei na 67ª (a janela incluía os símbolos de partição) era exatamente a ressalva certa.
+- **Medido (testsrc-64):** `BSTART b0:24 b1:77 b2:92 b3:114 b4:470 b5:485` com `STAGES … b3:219>468>470>470` ⇒ bloco 3 = **3 bits de partição** + **105 bits de CORPO de mode-info** (o bloco com paleta nos **dois** planos, `palY=6`/`palUv=7`, contra um mínimo plausível de ~35 bits) + **249 bits de tokens de paleta**.
+- **Nova alavanca (nomeada):** o **CORPO do mode-info** é o estágio desproporcionado (105 bits no bloco 3 do testsrc). Próximo instrumento: posições por **CAMPO** dentro do `readBodyBd` (modo Y, angleY, modo UV, alfas CFL, angleUV, mode info de paleta, filter-intra) para ver qual campo come os 105 bits.
+- **Método:** três leituras minhas caíram em três passagens consecutivas (ultrapassagem na 65ª, paleta espúria na 67ª, bloco 0 na 67ª→retirada na 68ª) — **todas antes de qualquer correção**. O instrumento novo (posição na entrada do bloco) foi o que transformou "74 bits é muito" em "1+5+1+49".
+- **Prova:** `AvifScreenContentGeoE2ETest` **2/2** com a decomposição `BSTART` fixada como asserção **gravada**; `check_test_hygiene` rc=0.
+
+## Sessão 16/10 (quinta) — slice 3bd 69ª passagem: LOCALIZAÇÃO por campo — o mode info de paleta
+- **Unidade:** `Av1ModeInfo.bodyPositions()` em `libs/image/Av1ModeInfo.kf` — aditivo (sem mudança de assinatura): **4 ints por bloco** (depois do modo Y; depois do grupo de ângulo Y; depois do grupo UV/CFL/ângulo UV **+ o mode info de paleta**; depois do filter-intra = fim do corpo). Exposto por `Av1TileDecode.bodyFields()` e impresso como `BODYF`.
+- **Medido (sq1):** `BODYF 21 21 22 24 78 78 105 107 …` ⇒ bloco 0 (entrada 19) = `[21,21,22,24]` (modo Y 2 bits, ângulo 0, UV+paleta 1, filter-intra 2); bloco 1 (entrada 76) = `[78,78,105,107]` (modo Y 2 bits, ângulo 0, **UV+paleta 78→105 = 27 bits**, filter-intra 2). Como o `palUv` do bloco 1 é 0 e o `uvMode` é DC, a parte UV é ~1-2 bits ⇒ **o mode info de paleta custa ~25 bits para uma paleta de 2 cores**.
+- **Medido (testsrc-64):** `BODYF 25 25 53 54 82 85 89 89 93 93 98 99 115 115 216` ⇒ bloco 0 (entrada 24): grupo UV+paleta = **28 bits** (`palY=2`); bloco 3 (entrada 114): **115→216 = 101 bits** (`palY=6`, `palUv=7`). E os blocos **sem** paleta estão normais: b1 `85→89` = 4 bits, b2 `93→98` = 5 bits.
+- **CONCLUSÃO:** o consumo excessivo está localizado no **mode info de paleta** (`readPaletteY`/`readPaletteUv`, chamados pelo `readBodyBd`) — ~25 bits para 2 cores, ~28 para 2 cores num 16x16, ~95 para 6 cores + UV — contra um punhado de símbolos (`has_palette_y`, `palette_size_y_minus_2`, `has_palette_uv`, `palette_size_uv_minus_2`). O grupo é **normal quando não há paleta** e explode **exatamente quando há**.
+- **Método:** este instrumento (posições por CAMPO) veio depois de três leituras minhas caírem — e foi o primeiro que produziu uma localização em algo que o Kof **controla** (uma tabela/CDF) em vez de uma descrição de sintoma.
+- **Prova:** `AvifScreenContentGeoE2ETest` **2/2** com a decomposição `BODYF` fixada como asserção **gravada**; `check_test_hygiene` rc=0.
+- **Próximo passo (nomeado, afiado e barato):** verificar as CDFs do mode info de paleta — `palette_y_mode_cdf`, `palette_y_size_cdf`, `palette_uv_mode_cdf`, `palette_uv_size_cdf` — contra o `av1/common/entropymode.c` do libaom **buscado da fonte**. Uma tabela errada ali precifica cada símbolo muito acima da sua probabilidade real e produz exatamente esta assinatura (e seria um defeito de TIPO FIXÁVEL, como os das passagens 33–37).
+
+## Sessão 16/10 (quinta) — slice 3bd 70ª passagem: CDFs de paleta VERIFICADAS (próximo passo volta negativo) + uma conclusão RETIRADA
+- **Unidade:** verificação contra a **fonte buscada** (`av1/common/entropymode.c` e `av1/decoder/decodemv.c`) das peças de paleta que a 69ª tinha nomeado como suspeitas.
+- **(1) CDFs VERIFICADAS — e BATEM:** `paletteYSizeData`, `paletteUvSizeData`, `paletteYModeData`, `paletteUvModeData` (em `Av1ModeCdf.kf`) são **idênticas** às `default_palette_y_size_cdf` (7×6), `default_palette_uv_size_cdf` (7×6), `default_palette_y_mode_cdf` (7×3) e `default_palette_uv_mode_cdf` (2) do libaom, entrada por entrada ⇒ **as CDFs não são o custo**; o próximo passo nomeado pela 69ª volta **NEGATIVO**.
+- **(2) ESTRUTURA VERIFICADA:** a leitura de cores do `readPaletteY` bate com o `read_palette_colors_y` do libaom **passo a passo** (laço de cache `for (i = 0; i < n_cache && idx < n; ++i) if (aom_read_bit(r)) …`; depois um literal cru de `bit_depth`; depois `bits = (bit_depth - 3) + read_literal(2)` e o laço de deltas), e `av1GetPaletteCache` faz merge/dedup como `av1_get_palette_cache`.
+- **(3) CONCLUSÃO DA 69ª RETIRADA (em parte):** ~25 bits para uma paleta de 2 cores **não** é prima facie anómalo — a sintaxe sozinha custa `modo(1) + tamanho(~3) + literal(8) + 2 + bits(5..8)` = 19-22 bits mais o laço de cache. Chamar o mode info de paleta de "o consumidor excessivo" é **forte demais**; o anómalo é só que o **TOTAL** excede o payload, e a pergunta honesta passa a ser **se o stream real tem mesmo paleta ali** (o `palY = 2` pode ser ele mesmo leitura errada).
+- **(4) Divergência CONCRETA encontrada na fonte:** o `av1_get_palette_mode_ctx` do libaom testa disponibilidade com `above_mbmi != NULL` / `left_mbmi != NULL`, enquanto o Kof guarda o vizinho de **cima** com **`r % 16 != 0`** (a primeira linha de mi da unidade 64×64) — predicado **diferente**, que reporta "cima indisponível" em todo início de linha de unidade. O guarda da esquerda (`c > 0`) esse bate. Um contexto de modo de paleta errado muda os **preços** dos símbolos (e pode inverter o `has_palette_y`) **sem** mudar os valores vizinhos — exatamente a forma do que se observa.
+- **Método:** quarta leitura minha consecutiva a cair/afinar (ultrapassagem 65ª, paleta espúria 67ª, bloco 0 67ª→retirada 68ª, "mode info é o consumidor" 69ª→retirada 70ª) — **todas antes de qualquer correção**. O padrão "buscar a fonte" continua a pagar: desta vez produziu uma divergência nova e CONCRETA (o predicado `r % 16 != 0`) depois de negar a hipótese anterior.
+- **Próximo passo (nomeado):** verificar os predicados de disponibilidade do contexto de modo de paleta contra um `av1_get_palette_mode_ctx` **buscado** mais as regras de `is_available` da especificação, e dumpar o contexto de modo de paleta e o `n_cache` por bloco.
+
+## Sessão 16/10 (quinta) — slice 3bd 71ª passagem: call site de paleta verificado + UMA DIVERGÊNCIA CONFIRMADA
+- **Unidade:** verificação do call site do mode info de paleta contra a **fonte buscada** (`av1/decoder/decodemv.c` `read_palette_mode_info` + `av1_get_palette_mode_ctx`).
+- **Verificado e BATENDO:** (a) as guardas — libaom lê a paleta Y só quando `mbmi->mode == DC_PRED` e a UV só quando `uv_mode == UV_DC_PRED && is_chroma_ref`; Kof usa `yMode == 0` e `hasChroma == 1 && uvMode == 0` ✓ equivalentes. (b) os contextos — o tamanho Y usa `palette_y_size_cdf[bsize_ctx]` com 7 símbolos ✓; o contexto do MODO de paleta UV é o **booleano** `(palette_size[0] > 0)` e o `readPaletteUv` do Kof usa exatamente isso ✓.
+- **DIVERGÊNCIA CONFIRMADA:** o `av1_get_palette_mode_ctx` do libaom testa disponibilidade com `above_mi != NULL` / `left_mi != NULL` (= `mi_row > 0` / `mi_col > 0`), enquanto o `readPaletteY` do Kof guarda o vizinho de **cima** com **`r % 16 != 0`** — a primeira linha de mi do **superbloco 64×64**. Concordam em `r = 0` e **divergem em todo início de linha de superbloco** (`r = 16, 32, 48`): o Kof reporta "cima indisponível" onde o libaom reporta disponível ⇒ o Kof usaria a linha de cdf 0 em vez da 1 ou 2 ⇒ **preço errado do símbolo** e possível inversão do `has_palette_y`.
+- **Escopo HONESTO:** a divergência está **dormente** nos dois fixtures que reproduzem a falha (o bloco 1 do sq1 está em `r = 0`; o testsrc de 64×64 tem linhas de mi 0..15, logo `r = 16` nunca ocorre). É **real** e **corrigível**, mas **ainda não provada como o gatilho** — e fixá-la sem um teste que a exercite seria um falso verde (a lição da 66ª).
+- **Método:** "buscar a fonte" produziu, em duas passagens seguidas, duas negações (CDFs 70ª) e agora **uma divergência concreta** (o predicado) — o saldo continua positivo mesmo com as hipóteses minhas caindo.
+- **Próximo passo (nomeado):** (1) corrigir o predicado para `r > 0` (o `r` do Kof é a linha de mi dentro do tile, então `r > 0` casa com `above_mi != NULL`); (2) provar RED-first com um fixture **alto** com screen content cujo bloco de paleta comece na linha de mi 16 ou 32 (>128 px de altura); (3) catalogar como `known-bugs` §NNN na mesma unidade da correção.
+
+## Sessão 16/10 (quinta) — slice 3bd 72ª passagem: correção PROVADA RED (contexto de modo de paleta)
+- **Fix:** em `libs/image/Av1ModeInfo.kf`, o vizinho de cima do `readPaletteY` passou de `r % 16 != 0` (primeira linha de mi do **superbloco 64×64**) para **`r > 0`** — o teste de disponibilidade do libaom (`above_mi != NULL`), e o contexto foi extraído para uma função exportada e testável **`av1PaletteModeCtx(r, c, palSizeYMap, miCols)`**.
+- **Medido antes:** fixture NOVO e alto `avif_real_tall.avif` (64×256 com screen content, payload de 296 bits, feito para atingir os inícios de linha de superbloco): consumo **total** (`symBits=296 payloadBits=296`) e pixels **errados** (`Y 032=235` vs referência 16; `Y 063=0` vs 235).
+- **Medido depois (o passo que importa):** a saída do fixture alto fica **BYTE-IDÊNTICA** — este fixture tem só UM bloco de paleta e nenhum cai em `r = 16/32/48` com vizinho de cima com paleta, logo o predicado **nunca é consultado no caso que mudou**. Ou seja: a correção era **correta e indetectável ponta a ponta**.
+- **Consequência de método:** em vez de landar uma mudança sem prova (o falso verde da 66ª), extraí o contexto para uma **função testável** e fixei-a com um oráculo que é a **regra de referência** transcrita do `av1_get_palette_mode_ctx` buscado.
+- **PROVA RED (a primeira genuína deste fio):** com o predicado antigo o `Av1PaletteModeCtxE2ETest` **FALHA** — `ctx 16 0 = 0` e `ctx 16 1 = 1` onde a referência exige **1** e **2** (com todas as células com paleta, o contexto é exatamente o número de vizinhos que EXISTEM). Com a correção: **1/1 verde**. Predicado revertido → 1/1 RED → restaurado → 1/1 verde.
+- **Novo fixture landado:** `avif_real_tall.avif` (64×256) — um segundo reprodutor, também com consumo total e pixels errados, e um exercício real dos inícios de linha de superbloco.
+- **Próximo passo:** (1) catalogar como `known-bugs` §NNN — ledger EN+PT **mais** as atualizações de contagem-viva/fila na MESMA unidade (é por isso que não foi junto neste commit: editar metade quebraria os gates de ledger); (2) continuar o dessincronismo sobre `avif_real_tall.avif`.
+
+### Adendo à 72ª passagem — regressão de harness encontrada e corrigida
+- **Regressão MINHA, da 64ª passagem:** o contador `PALTOK` (na sonda) indexa `sg[2]`/`sg[3]` — as posições de estágio dos DOIS primeiros blocos — **sem guarda**, logo estourava `Index 2 out of bounds for length 2` nos fixtures de UM bloco (`cb8`, `pskip`).
+- **Por que passou despercebido OITO passagens:** da 64ª à 71ª eu rodei os gates estruturais e a suíte `AvifScreenContentGeoE2ETest`, mas **nunca re-executei o `AvifRealFileE2ETest`** (que é quem conduz a sonda em cb8/pskip). Rodar a suíte nesta passagem apanhou-o imediatamente → **11/11** depois da guarda `sg.size >= 4`.
+- **Lição (a levar para o DOING):** uma mudança na SONDA tem de re-executar **toda** suíte que a conduz, não só a que está a ser estendida. Vai para a memória como regra operacional.
+
+## Sessão 16/10 (quinta) — slice 3bd 73ª passagem: catalogação §751 no ledger
+- **Unidade:** catalogação da divergência cross-implementação da 72ª passagem no **ledger máquina** — `known-bugs` **§751** EN+PT, `**Status:** ✅ FIXED 16/10` / `✅ CORRIGIDO 16/10`, com a cadeia buscada na fonte (`av1_get_palette_mode_ctx`), a correção (`r > 0` + `av1PaletteModeCtx` extraída) e a **prova RED-first**, espelhada com as âncoras `pt-switch` nos dois sentidos.
+- **Gates:** `check_known_bugs_status` rc=0, `check_live_records` rc=0, e `check_ledger_anchors` rc=1 na primeira tentativa — o gate **nomeou o slug exato que esperava**: `...indisponivel-em-todo-inicio...` (acentos reduzidos à **letra base**), e não a minha suposição (`indisponvel`/`inicio`). Corrigida a âncora → rc=0. É o sinal de correção mais limpo possível: o gate diz o valor certo em vez de só recusar.
+- **Nada de contagem viva mudou:** §751 nasce **FECHADO**, logo o conjunto ABERTO (e a contagem viva dos READMEs de development) fica intacto — por isso a catalogação é um commit limpo.
+- **Próximo passo:** continuar o dessincronismo sobre `avif_real_tall.avif` (64×256): consumo **total** do payload e pixels errados — o segundo reprodutor independente, que agora também exercita os inícios de linha de superbloco.
+
+## Sessão 16/10 (quinta) — slice 3bd 74ª passagem: fixture alto USADO + padrão consistente em 4 fixtures
+- **Unidade:** o `avif_real_tall.avif` (landado na 72ª) estava **commitado e SEM teste** — recurso morto. Agora o `AvifScreenContentGeoE2ETest` registra os seus factos como asserções **gravadas** (**3/3 verde**).
+- **Medido e gravado (64×256):** `blocks=14 covered=1024 frame=1024 overlap=0 symBits=296 payloadBits=296` (consumo **total**), `Y 00=100` (metade **esquerda** exata) com `032=235`/`063=0` **errados** à direita, e a geometria `BLKY (0,0,bs9)=100 (0,8,bs5)=235` — o bloco 0 é um `BLOCK_32X32` cobrindo a metade esquerda plana (reconstruído 100 = a referência) e o **primeiro** bloco da metade direita, `(0,8)` `BLOCK_16X8`, é um bloco de **paleta de 2 cores** (`PALINFO b1:palY2`) cujo estágio de tokens custa **90 bits** (118→208 dos 296) e **esgota o leitor**.
+- **Novo dado de geometria:** a partição do quadro alto usa `bs17` = `BLOCK_16X4`, um tamanho que **nenhum** outro fixture usa.
+- **O PADRÃO agora é consistente em QUATRO fixtures independentes** (sq1 32×32, oh24 32×24, oh40 32×40, tall 64×256): a parte **plana/esquerda decodifica EXATA** e a divergência **começa no primeiro bloco de paleta**, cujo estágio de tokens é o que esgota o payload (37, 29, 43 e 90 bits respectivamente). Isso é uma localização forte e reprodutível, não um sintoma isolado.
+- **Próximo passo (nomeado):** dumpar os símbolos de **leitura de cores** desse primeiro bloco de paleta — os bits do laço de cache, o primeiro literal de `bit_depth` e o seletor de `bits` — que a 70ª passagem verificou **estruturalmente** contra o `read_palette_colors_y` mas **nunca contra os bits reais**.
+- **Prova:** `AvifScreenContentGeoE2ETest` **3/3**; `check_test_hygiene` rc=0; todos os 11 gates estruturais rc=0.
+
+## Sessão 16/10 (quinta) — slice 3bd 75ª passagem: decomposição do fixture alto + contexto de índice verificado
+- **Unidade (sem nova execução — uso os dumps JÁ registados):**
+  - **Decomposição do bloco 1 do fixture alto (entrada 88):** `BODYF [89, 89, 117, 118]` ⇒ modo Y **1 bit**, grupo de ângulo Y **0**, **grupo UV/CFL/ângulo UV + mode info de paleta + CORES de paleta = 89→117 = 28 bits**, filter-intra **1 bit**; e `STAGES b1:118>208` ⇒ **o MAPA DE ÍNDICES de paleta = 118→208 = 90 bits**.
+  - **Isto REFINA a 74ª passagem:** os 90 bits são o **mapa de índices**, não as cores — as cores partilham os 28 bits do grupo do corpo com o mode info.
+  - **Contexto verificado contra a fonte buscada:** o `av1PaletteColorIndexContext` do Kof bate **exatamente** com o `av1_get_palette_color_index_context` do libaom — `colorMap[r*stride + c-1]` (ESQUERDA), `[(r-1)*stride + c-1]` (ACIMA-ESQUERDA), `[(r-1)*stride + c]` (ACIMA), pesos `{2,1,2}`, acumulação de scores e ordenação top-3 descendente. **O stride, que um mapa NÃO QUADRADO 16×8 exporia, está certo.**
+- **ESTADO DO FIO (a conclusão importante):** cada elemento do caminho de paleta está agora verificado ao nível da fonte — guardas, contextos, CDFs, leitura de cores, merge/dedup do cache, contexto de índice, CDFs de índice, ordem de cores, limites da frente de onda, cópia de volta. O espaço de hipóteses que resta é a **ESCOLHA DE SINTAXE** (o Kof decodificar uma paleta onde o encoder não codificou nenhuma, ou uma partição diferente) — e isso só um **diff independente de símbolos** resolve, **não mais inspeção de campo**.
+- **Próximo passo (nomeado, e agora o ÚNICO instrumento restante):** o diff independente da sequência de símbolos num dos quatro fixtures que reproduzem (sq1 32×32, oh24 32×24, oh40 32×40, tall 64×256), usando o `TRACE n=... n:sym@pos` que a sonda **já imprime**.
+- **Caveat:** a decomposição desta passagem veio de logs de execuções anteriores (`/tmp/tall1.log`), não de uma execução nova — é medição, mas medição REAPROVEITADA; os números estão reproduzíveis pela sonda a qualquer momento.
+
+## Sessão 16/10 (quinta) — slice 3bd 76ª passagem: aberturas do TRACE comparadas entre fixtures + inventário de ferramentas
+- **Unidade (medição a partir de traces JÁ existentes + inventário do host):**
+  - **Aberturas idênticas em estrutura:** dois fixtures distintos abrem com a MESMA forma — `10:3@18` e depois `10:0@19` (o **cabeçalho do tile consome 18 bits**, depois **DOIS** símbolos de **PARTIÇÃO de 10 vias**, valor 3 e depois 0), um de **2 vias** em 19, o **MODO Y de 13 vias** (valor 0 = DC) e o **MODO UV de 14 vias** (valor 0 = DC). Divergem depois na **posição em bits** (`13:0@21` vs `13:0@20`), **não na estrutura**.
+  - **Consequência:** o **cabeçalho de quadro/tile** e a **primeira partição** **não** são onde a falha dos quatro fixtures começa — o que é consistente com o padrão dos quatro (o bloco plano/primeiro decodifica **exato** em todos) e com a divergência estar fixada no **primeiro bloco de PALETA**.
+  - **Inventário de ferramentas (medido, não suposto):** o host **não** tem `aomdec`, **não** tem CLI `dav1d`, **não** tem `aomdec --framestats`; o `ffmpeg` traz `libdav1d` mas expõe apenas opções de threads/operating-point — **nada** consegue dumpar leituras de símbolos AV1. Logo o **diff independente de símbolos tem de ser escrito de raiz** e **não há oráculo pronto a encontrar** (matando a esperança de um atalho que teria encurtado o fio).
+- **Próximo passo (nomeado):** escrever o decodificador de intervalo independente em Python (`init_symbol`/`read_symbol`/`renormalize`, a forma da 31ª passagem) e conduzi-lo sobre um dos quatro fixtures que reproduzem, comparando a sequência **entrada por entrada** com o `TRACE n=... n:sym@pos` que a sonda já imprime.
+- **Caveat:** as medições desta passagem vieram de logs anteriores (`/tmp/*.log`), reprodutíveis pela sonda a qualquer momento.
+
+## Sessão 17/10 (sexta) — slice 3bd 77ª passagem: FAMÍLIA de codificação + a INVERÇÃO de paleta (o fixture mais nítido)
+- **Unidade:** construí uma **família controlada** — o MESMO conteúdo 32×32 recodificado cinco vezes (crf 20/30/50, cpu-used 4, `-lossless 1`).
+- **Medido:** os **cinco** consomem o payload até o último bit (168/168, 152/152, 128/128, 136/136, 152/152) e os **cinco** falham na metade direita ⇒ nenhuma configuração do encoder dá decodificação exata, e a falha **não** está confinada a uma característica do encoder.
+- **O FIXTURE MAIS NÍTIDO (landado: `avif_enc_ll.avif`, a codificação `-lossless 1`):** a metade **esquerda está exata** (`100`×16) e a direita é pintada com **as duas cores da paleta INVERTIDAS** — o Kof escreve **235 em x = 16..19** onde a referência escreve **16** (as faixas de 4 px começam com 16 em x=16). **E o payload é consumido por INTEIRO (152/152)** ⇒ **é um sintoma de MAPA/ORDEM DE CORES, NÃO um dessincronismo.**
+- **Por que isto importa:** é o **primeiro sintoma desta frente que um dessincronismo não explica** — logo o primeiro que **isola o caminho de paleta** em vez da posição no stream. Depois de ~40 passagens de verificação de campo, este é o fixture que separa as duas famílias de causa.
+- **Também landado:** `avif_enc_cpu4.avif` — um quadro de **2 blocos** com **`txb=0 nzTot=0`** (ZERO blocos de transformada, zero coeficientes não-nulos), que é em si uma anomalia a perseguir.
+- **Prova:** `AvifScreenContentGeoE2ETest` **4/4** com o novo teste gravado; `check_test_hygiene` rc=0.
+- **Próximo passo (nomeado):** verificar a **ORDEM DE CORES** de paleta contra a fonte buscada — o `merge_colors`/`read_palette_colors_y` do libaom **reordena o array de paleta DEPOIS das cores codificadas**, e um merge ausente/errado (ou uma confusão índice↔cor no mapa) produz **exatamente** uma inversão limpa de 2 cores como esta.
+- **Caveat:** os fixtures `avif_enc_crf{20,30,50}.avif` foram construídos e medidos mas **não** commitados (os dois mantidos cobrem o fenómeno melhor); as receitas estão no próprio histórico desta passagem.
+
+## Sessão 17/10 (sexta) — slice 3bd 78ª passagem: ordem de cores verificada + o MERGE eliminado
+- **Unidade (verificação contra a fonte buscada):**
+  - **`merge_colors` ELIMINADO como causa da inversão do LL:** o código do libaom começa com `if (n_cached_colors == 0) return;` ⇒ **sem cache é um NO-OP**, e o bloco de paleta do fixture LL **não tem cache** (o seu único vizinho, o bloco 0, tem `palY = 0` — `PALINFO b0:palY0/palUv0 b1:palY2/palUv0`). **A hipótese morre ANTES de qualquer mudança de código** (é a ordem certa: refutar primeiro, corrigir depois).
+  - **A leitura de cores do `readPaletteY` do Kof BATE com o `read_palette_colors_y` do libaom passo a passo:** laço de cache; `colors[idx] = readLiteral(bitDepth)`; `bits = (bitDepth - 3) + readLiteral(2)`; o laço de deltas `delta = readLiteral(bits) + 1` com `colors[idx] = clamp(colors[idx-1] + delta)`, `range -= (…)` e `bits = AOMMIN(bits, ceil_log2(range))`.
+  - **Consequência útil:** como o esquema de deltas **força** a paleta a ser monótona crescente, as duas cores do encoder são `{16, 235}` **nessa ordem** e o índice 0 da referência é o valor 16 — o que fixa a convenção sem ambiguidade.
+  - **ESCOPO AFIADO:** com as cores e o merge ilibados, as células invertidas (x = 16, 17 — **as PRIMEIRAS CÉLULAS** do bloco de paleta) têm de vir dos **valores de índice do MAPA** ou do **`av1ReadUniform`** (que preenche `map[0]`). O bloco abre com o mínimo possível de vizinhos, logo um defeito de contexto ou de cdf uniforme apareceria **exatamente ali e em nenhum outro lugar**.
+- **Método:** duas refutações consecutivas contra a fonte (o merge e as cores), cada uma matando uma hipótese antes de virar código — e a segunda deixou um **intervalo de duas alternativas** em vez de uma vaga suspeita.
+- **Prova:** só documentação; **todos os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado):** verificar o `av1ReadUniform` e o **contexto da PRIMEIRA CÉLULA** contra a fonte buscada — o `av1_read_uniform` usa a `uniform_cdf[n]` de probabilidade igual, e o `av1_get_palette_color_index_context` **só** é chamado para `r > 0 || c > 0`, logo a origem é caso especial dos dois lados.
+
+## Sessão 17/10 (sexta) — slice 3bd 79ª passagem: o lado de DECODIFICAÇÃO da paleta está ESGOTADO
+- **Unidade (verificação das duas alternativas nomeadas na 78ª):**
+  - **`av1ReadUniform` VERIFICADO** contra o `av1_read_uniform` buscado: o Kof calcula `l = ceil(log2(n))`, `m = (1 << l) - n`, lê `l - 1` bits e, quando `v >= m`, soma um bit extra como `(v * 2) - m + extra` — o `(v << 1) - m + extra_bit` do libaom — **IDÊNTICO**, incluindo o caso **n = 2** (`l = 1`, `m = 0` ⇒ o bit extra decide 0/1) ✓.
+  - **Primeira célula VERIFICADA:** a origem `map[0]` é preenchida por essa leitura uniforme **nos dois lados** e o contexto só é usado para `r > 0 || c > 0` (verificado na 75ª) ⇒ a origem é caso especial **consistente**, não divergência.
+  - **Tabela de cores conferida:** `palColorYAt(r, c, i) = palColorYMap[(r * miCols + c) * 8 + i]` — tabela de 8 posições por bloco, indexada **pelo valor do mapa** e lida com a **origem do bloco** (`Av1DecodeTileRecon.kf:493`) — estruturalmente sólido.
+- **SALDO (o resultado desta passagem):** **toda alternativa que este fio nomeou para o lado de DECODIFICAÇÃO está agora verificada contra a fonte buscada** — e o fixture LL **continua** a pintar as duas cores invertidas com o payload consumido por inteiro. Por eliminação, o espaço restante é a **semântica da PINTURA/tabela de cores**: o que o índice decodificado *significa*.
+- **Por que isto é progresso:** o fio começou com "dessincronismo em toda parte" e chega a **um único lado do caminho** (a pintura), com quatro fixtures que reproduzem e um (LL) que isola o sintoma **sem** dessincronismo.
+- **Prova:** só documentação; **todos os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado, e NÃO precisa de leitura de fonte):** dumpar, para o bloco de paleta do fixture LL, as **cores decodificadas** (`colors[0..1]`) e os **primeiros 8 valores do mapa** lado a lado com os dois valores da referência (**16** e **235**) — uma única medição decide se estão invertidas as **cores** ou os **índices**.
+
+## Sessão 17/10 (sexta) — slice 3bd 80ª passagem: MEDIÇÃO DECISIVA (cores certas, índices errados)
+- **Unidade:** `Av1TileDecode.palColorAt(r, c, i)` + `palIndexAt(r, c, k)` (aditivos, sem mudança de assinatura) e a linha **`PALBLK`** na sonda — as cores do PRIMEIRO bloco de paleta e as oito primeiras células do seu mapa.
+- **MEDIÇÃO (uma só, como a 79ª previu):** `PALBLK pal(r0,c4,bs5,n2) col0=16 col1=235 idx0=1 idx1=1 idx2=1 idx3=1 idx4=1 idx5=1 idx6=1 idx7=1`.
+  - **As CORES estão CORRETAS:** 16 e 235 — os dois valores da referência, **em ordem monótona**, exatamente como a 78ª previu que o esquema de deltas força.
+  - **Os ÍNDICES estão ERRADOS:** as **oito** células da primeira linha do mapa decodificam para **1** (→ 235) onde a referência precisa de `0,0,0,0,1,1,1,1` (x = 16..23 são `16,16,16,16,235,235,235,235`).
+- **CONCLUSÃO (o resultado que reorienta o fio):** a pintura recebe um **ÍNDICE errado, não uma cor errada** ⇒ o defeito está na **decodificação do MAPA** (frente de onda + contexto/CDF de índice) — **não** na leitura de cores (78ª), **não** na tabela de cores (79ª), **não** na indexação da pintura.
+- **E o detalhe que torna isto afiado:** o payload continua consumido **por inteiro (152/152)** ⇒ as leituras do mapa estão **posicionadas certo** mas **decodificam valores errados** ⇒ assinatura de um **contexto/CDF errado para TODAS as células**, não de um dessincronismo.
+- **Hipótese que a medição produz (e é testável de imediato):** o **contexto de índice é CONSTANTE** (provavelmente sempre 0) onde devia variar com os vizinhos — um contexto constante precifica todas as células igualmente, e é exatamente isso que dá uma sequência de valores idênticos (todos 1).
+- **Prova:** `AvifScreenContentGeoE2ETest` **4/4** com a medição fixada como asserção **gravada**; `check_test_hygiene` rc=0.
+- **Próximo passo (nomeado):** dumpar o **CONTEXTO de cada uma das oito primeiras células** do mapa e conferi-lo à mão contra o `av1_get_palette_color_index_context` (verificado na 75ª). Se o contexto for constante, o defeito está em **como** o contexto é computado no call site, não na função.
+
+## Sessão 17/10 (sexta) — slice 3bd 81ª passagem: CONTEXTO verificado ponta a ponta + hipótese REFUTADA
+- **Unidade:** verificação, contra o `av1_get_palette_color_index_context` buscado, da **última peça não lida** do caminho de paleta.
+- **Verificado e batendo em TODOS os componentes:** vizinhos (`colorMap[r*stride + c-1]` esquerda, `[(r-1)*stride + c-1]` acima-esquerda, `[(r-1)*stride + c]` acima), pesos `{2,1,2}`, a ordenação top-3 descendente **incluindo** o laço de deslocamento e o registo `inverse_color_order`, os multiplicadores de hash **`{1,2,2}`** sobre os três scores **ordenados**, e a tabela de lookup **`{-1,-1,0,-1,-1,4,3,2,1}`**. O **call site** também: `palYColorIndexCdf(n - 2, ctx)` vs `color_map_cdf[n - PALETTE_MIN_SIZE][color_ctx]`.
+- **HIPÓTESE DA 80ª REFUTADA:** o contexto **não** é constante — é calculado corretamente e alimentado com o mapa certo.
+- **O alvo muda (e fica preciso):** a sequência de índices idênticos tem de vir de o mapa ser **SEMEADO errado** — `map[0] = av1ReadUniform(sym, n)` decodificou **1** onde a primeira célula da referência precisa de **0** (x = 16 é `16` = cor 0). E como o `av1ReadUniform` está verificado (79ª, incluindo o caso n = 2 que lê exatamente **um** bit), a única possibilidade restante é que a **posição do leitor no início do mapa** esteja errada — isto é, que a **leitura de CORES** tenha consumido o número errado de bits, apesar de as cores saírem certas.
+- **Por que "cores certas + posição errada" é coerente:** o literal de 8 bits e o delta podem coincidir com os valores certos (16/235 são os dois valores óbvios deste conteúdo) e mesmo assim consumir um bit a menos ou a mais — e nesse caso **tudo depois** desloca, semeando o mapa com o bit errado e produzindo uma sequência consistente de índices errados **sem** dessincronizar o consumo total.
+- **Prova:** só documentação; **todos os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado, preciso):** dumpar a **posição em bits imediatamente depois da leitura de cores e antes do mapa** e conferir à mão a contagem (literal de 8 bits + seletor de 2 bits + delta de `bits` = 15-18 bits para 2 cores) — o que ou confirma a fronteira ou mostra o número exato de bits ganho/perdido.
+
+## Sessão 17/10 (sexta) — slice 3bd 82ª passagem: **CAUSA RAIZ ACHADA, CORRIGIDA E PROVADA**
+- **A CAUSA RAIZ:** em `libs/image/Av1ModeInfo.kf`, a guarda do **filter-intra** era `enableFilterIntra == 1 && yMode == 0 && av1ModeInfoMaxDim(bs) <= 32` — e o libaom exige **também `mbmi->palette_mode_info.palette_size[0] == 0`** (`av1_filter_intra_allowed`, `av1/common/blockd.h`, buscado). **Faltava o termo da paleta** ⇒ em todo bloco de paleta ≤32×32 o Kof lia uma bandeira de filter-intra que o **encoder nunca escreveu**, deslocando o stream ~2 bits e corrompendo **o mapa de índices inteiro**.
+- **Como o TRACE o mostrou (dump novo `TRACEW`, janela 80..130):** partição, modos Y/UV, `has_palette_y`, o **tamanho** da paleta e as **cores** — todas **corretas** (literal de 8 bits = **16**, seletor de 2 bits = 3, delta de 8 bits = 218 → +1 → **235**, exatamente os dois valores da referência) — e logo depois um **`2:0@116` que o libaom nunca faz num bloco de paleta**.
+- **Por que isto explicava tudo:** cores certas + índices errados + payload consumido **por inteiro** (152/152) — a assinatura de um deslocamento DEPOIS das cores, não de um dessincronismo global. E porque cb8 (64×64) não passa no teste `maxDim <= 32`, **cb8 nunca leu a bandeira espúria** — daí ele ser exato desde a 37ª passagem enquanto todos os outros falhavam.
+- **CORREÇÃO:** a guarda passa a exigir `palSizeYMap[r * miCols + c] == 0`.
+- **PROVA (RED→GREEN):** o mapa de índices passa de `1,1,1,1,1,1,1,1` para **`0,0,0,0,1,1,1,1`** (o padrão de faixas da referência); a pintura lê **`16 16`** onde lia `235 235`; e os blocos de transformada do bloco de paleta alternam **`p=16/r=16`** e **`p=235/r=235`** — as faixas de 4 px.
+- **IMPACTO, SEM REGRESSÃO:** testsrc-64 (o dessincronismo de longa data) **1257 → 1779** bits consumidos (54% → **76%**); sq1 4/6 pixels amostrados exatos (era 1); ll/oh24/tall com o primeiro bloco de paleta exato; **cb8/cb16/pskip INALTERADOS e ainda exatos**.
+- **Prova:** `AvifScreenContentGeoE2ETest` **4/4** (asserções gravadas atualizadas para os valores pós-correção — várias agora **reforçadas** em asserções de correção, e uma renomeada: `losslessEncodePaletteMapIsExactOnJvm`) e `AvifRealFileE2ETest` **11/11**; compile rc=0; `check_test_hygiene` rc=0.
+- **Próximo passo:** catalogar como `known-bugs` §NNN (ledger EN+PT + CHANGELOG + contagem viva **na mesma unidade**) e depois perseguir a **divergência restante** — o testsrc está em **76%**, não em 100%.
+
+## Sessão 17/10 (sexta) — slice 3bd 83ª passagem: catalogação §752
+- **Unidade:** a correção da causa raiz está agora no **ledger máquina** — `known-bugs` **§752** EN+PT (`**Status:** ✅ FIXED 17/10` / `✅ CORRIGIDO 17/10`), com a cadeia buscada (`av1_filter_intra_allowed`: `mode == DC_PRED && palette_size[0] == 0 && bsize ok`), a evidência do trace (a leitura espúria `2:0@116` logo depois das cores), a correção de **um termo**, a prova RED-first (mapa `1,1,1,…` → `0,0,0,0,1,1,1,1`; pintura `16 16`; blocos de transformada alternando `p=16/r=16` / `p=235/r=235`) e o impacto medido **sem regressão** (testsrc **1257 → 1779** de 2344; sq1 4/6 pixels; cb8/cb16/pskip inalterados e exatos).
+- **Âncoras:** escrevi os slugs **na convenção do próprio gate** desta vez (título curto, sem acentos problemáticos) — e o `check_ledger_anchors` passou à primeira ✓ (na 73ª o gate teve de me dizer o slug).
+- **Nada muda na contagem viva:** §752 nasce **fechado** ⇒ o conjunto ABERTO e a contagem dos READMEs de development ficam intactos.
+- **CHANGELOG EN+PT:** as entradas que o gate exige para o fecho de um § ≥ 400.
+- **Prova:** `check_known_bugs_status`, `check_ledger_anchors`, `check_live_records`, `check_changelog_ledger` e `check_doc_refs` todos rc=0; **os 11 gates estruturais rc=0**.
+- **Próximo passo:** a **divergência restante** — o testsrc-64 está em **76%** (1779/2344), não em 100%; e o padrão dos quatro fixtures agora tem de ser re-medido (a correção mudou todos os números).
+
+## Sessão 17/10 (sexta) — slice 3bd 84ª passagem: RE-MEDIÇÃO pós-correção (a divergência MUDOU)
+- **Unidade:** re-medição do padrão dos quatro fixtures depois da correção (§752), a partir dos dumps pós-correção — **a divergência mudou de lugar**, o que é exatamente o que uma correção verdadeira deve fazer.
+- **Medido (sq1):** `BLKY (0,0,bs6)=100 (0,4,bs5)=16 (2,4,bs5)=16 (4,0,bs5)=100 (6,0,bs5)=100 (4,4,bs3)=24 (4,6,bs3)=75 (6,4,bs5)=71` ⇒ o bloco de paleta `(0,4)` e o seu vizinho `(2,4)` reconstroem agora **16 = a referência** (liam **235** antes da correção) ✓✓. A referência nas origens **seguintes** é **16, 16, 16** (x = 16 e 24 são colunas de faixa de valor 16) e o Kof lê **24, 75, 71** ✗ ⇒ **a falha desceu e andou para a direita**: do próprio bloco de paleta para os blocos `(4,4)`, `(4,6)` e `(6,4)`.
+- **Mesma forma (tall):** `(0,8,bs5)=16` ✓ (a referência) e a divergência começa em `(2,8)` = 4 vs 16 e `(0,12)` = 236.
+- **Consumo:** testsrc-64 **1779/2344 (76%)**, sq1 144/144 com 2 de 6 amostras erradas, tall 296/296 com 2 de 6 erradas ⇒ **os quadros consomem o payload enquanto os pixels abaixo do bloco reparado estão errados** — a assinatura de uma falha no **resíduo/coeficientes dos blocos seguintes**, não de um deslocamento do stream.
+- **Porque isto é o resultado certo:** uma correção de causa raiz **move** o sintoma; se nada tivesse mudado, a correção seria suspeita. Aqui o bloco que o fix reparou ficou **exato** e o que sobra está **noutro lugar**, com uma localização nova e precisa.
+- **Prova:** só documentação; **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado):** dumpar as **posições de estágio e os registos de coeficientes** dos blocos `(4,4)`, `(4,6)` e `(6,4)` do sq1 — os três imediatamente depois do bloco de paleta reparado — para decidir entre **falha de resíduo/coeficientes** (as leituras alinham) e **um SEGUNDO deslocamento** (outra guarda em falta da mesma família).
+
+## Sessão 17/10 (sexta) — slice 3bd 85ª passagem: decomposição pós-correção + uma INCONSISTÊNCIA de instrumento
+- **Unidade:** leitura da decomposição por bloco do sq1 **depois** da correção §752, a partir dos dumps existentes.
+- **Medido (sq1 pós-correção):** `STAGES b0:24>24>25>74 b1:105>127>128>129 b2:134>134>138>144 b3:144>144>144>144` + `BODYF 21 21 22 24 78 78 105 105 133 133 134 134 136 136 136 136`:
+  - bloco 0 (16x16 DC) = 74 bits e **EXATO** (100 = a referência);
+  - bloco 1 (o de paleta) **EXATO**: 27 bits de mode info + cores, depois 22 de mapa de índices;
+  - bloco 2 = 15 bits;
+  - **blocos 3 a 7 não leem NADA** — o leitor está no fim do payload (144) ⇒ o quadro de 18 bytes esgota-se **com quatro blocos por decodificar**.
+- **A INCONSISTÊNCIA (o achado desta passagem):** `stagesOut[2i]` (gravado no `decodeBlock`) e `bodyPosOut[4i+3]` (gravado **dentro** do `readBodyBd`) **concordam** para os blocos 0/1/2 (24, 105, 134) mas **discordam no bloco 3 — 144 vs 136** — embora ambos sejam tirados **no mesmo ponto da mesma chamada**. Um dos dois registos está errado ali.
+- **Porque isto importa:** toda a minha localização recente se apoia em posições por estágio; se um dos dois registos pode divergir sem explicação, as conclusões tiradas deles (incluindo parte da 84ª) precisam do registo **verificado** antes de continuar. É a mesma disciplina que já salvou esta frente três vezes (o preditor, o `PATCH`, o `PALTOK`).
+- **O que é SÓLIDO e não depende disso:** os blocos 0 e 1 estão **exatos** ⇒ os seus custos em bits **são** os do encoder ⇒ o esgotamento vem dos blocos cujos **valores** ainda estão errados (do bloco 2 em diante) — exatamente onde a 84ª apontou.
+- **Prova:** só documentação; **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado, dois passos):** (a) resolver a discordância `stagesOut`/`bodyPosOut` do bloco 3 (descobrir **qual** dos registos está errado) e (b) com os registos confiáveis, decompor o **bloco 2** — o primeiro bloco cujos valores estão errados e aquele cujas leituras esgotam o payload.
+
+## Sessão 17/10 (sexta) — slice 3bd 86ª passagem: RETRATAÇÃO (erro de proveniência meu)
+- **Unidade:** investiguei a "inconsistência de instrumento" que reportei na 85ª — e ela **não existe**. Com a sonda a imprimir os **tamanhos** das duas listas: `BODYF n=8 stages=8 21 21 22 24 78 78 105 105 133 133 134 134 **144 144 144 144**` vs `STAGES b0:24>24>25>74 b1:105>127>128>129 b2:134>134>138>144 b3:144>144>144>144` ⇒ as duas listas têm **oito** entradas e o fim-de-corpo do bloco 3 é **144 em AMBAS** ⇒ `stagesOut[2i]` e `bodyPosOut[4i+3]` **concordam em todos os blocos**.
+- **A causa real:** o `136 136 136 136` que reportei veio do **log de uma OUTRA execução**, emparelhado com a linha `STAGES` **desta**. **Comparei números de duas execuções diferentes como se fossem um só registo.**
+- **RETRATAÇÃO registada** (EN+PT, plano e DOING) — o instrumento está **bem** e **nenhuma mudança de código** é necessária.
+- **LIÇÃO (a quinta vez que esta frente se apanha assim):** um registo por bloco só tem sentido **com a sua proveniência** — nunca emparelhar um valor de um dump com um valor de outro; imprimir os tamanhos (ou o registo inteiro) e lê-los de **uma única execução**. As quatro anteriores: o preditor (42ª), o `PATCH` (53ª), o `PALTOK` (64ª), o `PKG006` (60ª).
+- **Melhoria permanente landada:** a linha `BODYF` passa a trazer `n=<blocos> stages=<blocos>` — os tamanhos das duas listas — para que a proveniência seja **visível na própria medição** (é a correção estrutural do erro, não só a sua retratação).
+- **O que se mantém da 85ª (medido numa só execução):** bloco 0 = 74 bits e **exato**; bloco 1 (paleta) **exato**; o payload de 18 bytes **esgota-se no bloco 3**, deixando os blocos 4-7 por decodificar.
+- **Prova:** `AvifScreenContentGeoE2ETest` **4/4** (com a asserção do `BODYF` atualizada para a nova forma); compile rc=0.
+- **Próximo passo (agora desbloqueado):** decompor o **bloco 2** — o primeiro bloco cujos valores estão errados e aquele cujas leituras esgotam o payload.
+
+## Sessão 17/10 (sexta) — slice 3bd 87ª passagem: registo por bloco de UMA execução (proveniência limpa)
+- **Unidade:** leitura do registo bloco a bloco do sq1 **de uma única execução** — aplicando imediatamente a lição da 86ª (nunca emparelhar números de dumps diferentes).
+- **Medido (uma execução):** `B 0 25 74 0 1 0 0 0 0` / `B 1 128 129 0 1 0 0 0 0` / `B 2 138 144 0 1 0 0 12 0` / `B 3 144 144 …` / `B 4-7 … 144 144`, com `BLKY (0,0,bs6)=100 (0,4,bs5)=16 (2,4,bs5)=16 (4,0,bs5)=100 (6,0,bs5)=100 (4,4,bs3)=24 (4,6,bs3)=75 (6,4,bs5)=71`.
+- **A estrutura da falha:** os blocos 0 e 1 são **exatos** ⇒ os seus custos em bits **são** os do encoder; o bloco 2 — um 16x8 na metade **plana** — também dá 100, **mas a sua exatidão não pode ser evidência: num bloco plano a PREDIÇÃO sozinha dá 100**. Com o `nzHead` todo a zero a partir do `tx0`, os blocos 2-7 **não têm coeficientes** ⇒ qualquer um deles pode imprimir o valor certo sem um único bit correto. **O bloco 2 é o último que ainda tem bits (129 → 144) e o primeiro cuja correção o valor não consegue verificar.**
+- **Os dois estágios a suspeitar no bloco 2:** o `tx size` custa **4 bits** para um símbolo `txSz = 1` (TX_8X8), e o resíduo **6 bits** sem nenhum coeficiente não-nulo — ambos caros para um bloco plano.
+- **Nota de método:** este registo foi lido **todo da mesma execução** (`/tmp/sz1.log`), com a linha `BODYF` já a trazer `n=8 stages=8` — a correção estrutural da 86ª a funcionar na prática seguinte.
+- **Prova:** só documentação; **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado):** dumpar os **símbolos individuais do bloco 2** na janela do trace (modo Y, modo UV, tx size e a caminhada de coeficientes) e **precificar cada um contra a sintaxe** — um bloco plano com `txSz = 1` e zero coeficientes tem um custo esperado pequeno e conferível à mão.
+
+## Sessão 17/10 (sexta) — slice 3bd 88ª passagem: símbolos do bloco 2 + uma CONTRADIÇÃO
+- **Unidade:** movi a janela do trace para **120..150** (cobre a cauda do bloco de paleta + o bloco 2) e dumpámo-la.
+- **As leituras, em ordem:** a longa sequência de **2 vias** (o mapa de índices do bloco 1) até 128; `3:1@128`; `2:1@129 2:1@129 2:0@129`; **`13:12@133`** — um símbolo de **13 vias**, que é o **MODO Y intra**, com valor **12 (PAETH)**; `14:12@134` (o modo UV de 14 vias, valor 12); `3:2@138` (3 vias, na posição do tx size); e o resíduo a partir de 138.
+- **A CONTRADIÇÃO:** o registo do próprio bloco 2 imprime **`yMode = 0`** (`B 2 138 144 0 1 0 0 12 0`, campos skip/txSz/yMode/angleY/uvMode/angleUV) enquanto o trace mostra a **leitura do modo Y devolvendo 12**.
+- **Duas saídas possíveis:** (a) as leituras da janela pertencem a um bloco diferente do que eu lhes atribuo; ou (b) **o modo que o decodificador USA difere do modo que ele REPORTA** — defeito sério por si, e **invisível nos pixels** porque num bloco plano a predição dá 100 seja qual for o modo.
+- **Porque isto é a armadilha já registada:** a 9ª passagem deixou escrito que **os valores reportados não capturam o estado**; aqui a leitura e o valor reportado discordam, e é a LEITURA (o símbolo) que diz o que o stream contém.
+- **Disciplina aplicada:** declarei a contradição como **pergunta com evidência**, e o primeiro passo do próximo ciclo é **verificar a minha própria atribuição** (pelas posições de entrada `BSTART b2:129` / `b3:144`) antes de acusar o código — a ordem que já evitou falsos positivos nesta frente.
+- **Prova:** só documentação; **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado):** atribuir cada leitura da janela a um bloco pelas posições de entrada medidas; se a leitura de 13 vias em 133 for mesmo do bloco 2, reconciliar o `0` reportado com o `12` decodificado — começando por verificar se os dois vêm do **mesmo valor**.
+
+## Sessão 17/10 (sexta) — slice 3bd 89ª passagem: verificação do CAMINHO DE CÓDIGO (o decodificador ilibado)
+- **Unidade:** antes de acusar o decodificador pela contradição da 88ª, verifiquei o **caminho de código** — e ele resolve a direção do problema.
+- **O caminho inteiro é UM valor:** `Av1ModeInfo.kf:760` `out[0] = yMode` (o valor que a leitura de 13 vias devolveu) → `Av1DecodeTileRecon.kf:334` `var yMode = body[0]` (o preditor) → `:392` `modeOut.add(body[0])` (o registo) → a sonda imprime `modes[mi + 5]` com `mi = b2 * 17` (índice 5 = `body[0]`).
+- **Conclusão:** **não existe caminho pelo qual o decodificador possa ler 12 e reportar 0** — o valor reportado **É** o valor lido. Logo a contradição é entre **dois instrumentos meus** (o TRACE cronológico e o registo `modeOut`), e o primeiro a corrigir é a **atribuição** (a janela do trace ou a minha indexação de campos na linha `B`).
+- **A ordem foi deliberada:** a 88ª levantou a contradição **como pergunta** exatamente para que esta verificação viesse primeiro — e é a segunda vez seguida que "verificar o meu próprio instrumento antes do código" muda a conclusão (86ª: o `136` era de outro log; 89ª: o `12 vs 0` não pode vir do decodificador).
+- **O que os dois instrumentos CONCORDAM:** o modo UV é **12** em ambos. A discordância está confinada ao campo do **modo Y** — a forma de um **erro de indexação num dos dois impressores**, não de uma diferença de decodificação.
+- **Prova:** só documentação; **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado, e elimina a questão da atribuição por completo):** imprimir **uma linha por bloco** com o modo Y **como o decodificador o leu** e o valor do `modeOut` para o **mesmo bloco** — um registo feito para o efeito, que não pode ser mal atribuído; depois disso a questão do modo Y fica resolvida num sentido ou no outro.
+
+## Sessão 17/10 (sexta) — slice 3bd 90ª passagem: correlação por extensão + duas verificações limpas
+- **Unidade:** correlacionei as leituras do bloco 2 com a **sua própria extensão** (entrada 129 → fim do corpo 134), tudo de uma execução:
+  - `13:12@133` termina em **133** ⇒ **dentro** da extensão ⇒ é o **modo Y** do bloco 2;
+  - `14:12@134` termina em **134** ⇒ dentro ⇒ é o **modo UV** (14 vias = CFL permitido);
+  - `3:2@138` termina em **138** ⇒ **depois** do corpo, onde o **tx size** é lido.
+- **A atribuição É consistente** — não é ela o problema.
+- **Verificação LIMPA #1:** a "discordância" do tx size **não é uma** — o símbolo 2 do trace contra o `txSz` 1 do registo é um **mapeamento símbolo→tamanho de transformada** (o registo guarda o ÍNDICE, não o símbolo).
+- **Verificação LIMPA #2:** o `modeOut` recebe **exatamente 17 ints por bloco** (o laço de `deltaLf` é `while (lk < 4)` com preenchimento de zeros) ⇒ o **stride** da minha sonda (`mi = b2 * 17`, índice 5 = `body[0]`) está **certo**.
+- **Consequência:** com o caminho de código já ilibado (89ª) e o stride verificado, a contradição fica **confinada a UM campo** — o modo Y, lido como **12** e reportado como **0** — enquanto o seu modo UV (**12**) concorda dos dois lados.
+- **A leitura honesta:** **um único campo a discordar, com o caminho de dados e a indexação ambos verificados, é a assinatura de um problema de MEDIÇÃO na leitura do trace** — mas isso é **hipótese, não resultado**, e ficou assim rotulado.
+- **Prova:** só documentação; **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado, e não pode ser mal atribuído):** registar **por bloco** o valor do modo Y **e** a posição do leitor **imediatamente antes e depois** da sua leitura, **do mesmo call site** — assim o `13:12@133` do trace é conferido contra uma extensão registada **na própria leitura**, e não contra uma extensão que eu derivo de duas outras listas.
+
+## Sessão 17/10 (sexta) — slice 3bd 91ª passagem: RETRATAÇÃO (segundo erro de emparelhamento) + o instrumento que a resolveu
+- **Unidade:** construí o instrumento que a 90ª tinha nomeado — `Av1ModeInfo.ySpans()`: **por bloco e NA PRÓPRIA LEITURA**, três ints (posição **antes** da leitura do modo Y, o **valor** devolvido, a posição **depois**), exposto pelo driver e impresso como `YSPAN n=<blocos> b<i>:<antes>v<valor>><depois>`, **agora também com os valores do `modeOut` para os mesmos blocos** (`modesY=…`).
+- **MEDIDO, numa ÚNICA execução:** `YSPAN n=8 b0:19v0>21 b1:77v0>78 b2:129v12>133 b3:144v0>144 modesY=0,0,12,0` — a leitura do modo Y do bloco 2 corre **129→133** e devolve **12**, e o registo `modeOut` do **mesmo** bloco diz **12** ⇒ **CONCORDAM**. A linha `B 2 138 144 0 0 12 0 12 0` da mesma execução também tem modo Y **12**.
+- **A RETRATAÇÃO:** a "contradição" da 88ª (leitura 12 vs registo 0) era **erro meu de emparelhamento entre logs** — peguei o TRACE de uma execução e a linha `B` de **outra**. **É o SEGUNDO erro deste tipo em cinco passagens** (o primeiro foi na 86ª, com uma linha `BODYF`).
+- **Porque a lição da 86ª não bastou:** ela dizia "um registo por bloco só tem sentido COM a sua proveniência" — mas eu continuava a guardar o **emparelhamento na cabeça** em vez de no output. **A correção estrutural desta vez põe o emparelhamento NO output** (a linha `YSPAN` imprime os dois valores lado a lado), e é isso que impede a repetição.
+- **O decodificador nunca esteve implicado:** a 89ª já mostrara que o caminho de dados é um só valor; esta passagem fecha o ciclo com a medição.
+- **Prova:** `AvifScreenContentGeoE2ETest` **4/4** (com o instrumento novo); compile rc=0; `check_test_hygiene` rc=0; todos os 11 gates estruturais rc=0.
+- **Próximo passo (nomeado):** retomar onde o desvio começou — o bloco 2 do sq1 é o último com bits (129→144) e o primeiro cuja correção o **valor** não verifica; o seu **`tx size`** (134→138) e o seu **resíduo** (138→144) são os dois estágios a **precificar contra a sintaxe**.
+
+## Sessão 17/10 (sexta) — slice 3bd 92ª passagem: a extensão do bloco 2 lida por inteiro (a 87ª REFUTADA)
+- **Unidade:** extraí a extensão completa do bloco 2 do log de **uma única execução** (o da 91ª, proveniência limpa) e li as leituras por ordem.
+- **Medido:** a extensão (entrada 129 → 144) contém `2:1@129 2:1@129 2:0@129` (o prefixo), `13:12@133` (o modo Y), `14:12@134` (o modo UV), `3:2@138` (o tx size), depois **DEZ leituras de duas vias** (138 → 142) e **uma leitura de seis vias `6:0@143`**; a partir de 144 todas reportam 144 (o leitor saturado).
+- **A REFUTAÇÃO:** a 87ª inferiu que "os blocos 2-7 não têm coeficientes" a partir do `nzHead` (todo zero depois do `tx0`) e construiu sobre isso todo o argumento do "acidentalmente exato". **Mas o `nzHead` conta níveis NÃO-NULOS: não distingue "sem resíduo" de "um resíduo que decodifica para zeros" — a contagem não é um custo, e eu usei-a como se fosse.** O trace mostra o bloco 2 a gastar **doze leituras** no seu estágio de resíduo.
+- **O que continua por resolver (declarado como perguntas):** dez leituras de duas vias seguidas são a assinatura de um **literal** (bit a bit) ou de uma sequência de símbolos binários; e um símbolo de **seis vias** é ou um `eob_flag_cdf32` (`eob_pt` para TX_8X16/16X8, cujo `eob_multi_size` é 1) ou um tamanho ligado à paleta. **Qual dos dois decide se o resíduo do bloco 2 é LUMA** (dois blocos de transformada para um 16x8 em TX_8X8) **ou CROMA** (cujo tipo de transformada é derivado e não lê símbolo).
+- **Lição de método:** uma CONTAGEM de resultados não é uma medida de CUSTO. Foi a terceira vez nesta frente que tratei um resumo (`nzHead`) como se fosse a medição que ele resume.
+- **Prova:** só documentação; **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado):** identificar essas doze leituras pelo seu **contexto** — as leituras imediatamente em volta na **mesma execução** — e não pela aridade, já que dois símbolos da mesma aridade vêm de CDFs diferentes e só a sequência em volta os distingue.
+
+## Sessão 17/10 (sexta) — slice 3bd 93ª passagem: as leituras do bloco 2 explicadas (as TRÊS fontes concordam)
+- **A observação que eu estava prestes a reportar como discrepância:** a ordem do driver para um bloco é prefixo → modo Y → modo UV → **bandeira de paleta** → **filter-intra** → tx size → o laço de transformada; o trace mostra o modo Y (até 133), o modo UV (até 134) e o tx size (até 138) com **nada** entre eles — como se a bandeira de paleta e o filter-intra estivessem em falta.
+- **A explicação (e está no código):** o `readPaletteY` **só** é chamado quando `yMode == 0` (DC) e a guarda do filter-intra **também** exige `yMode == 0` — e o modo Y do bloco 2 é **12 (PAETH)**, não DC ⇒ **nenhuma das duas leituras acontece, e a ausência delas no trace está CORRETA.**
+- **O que isto resolve (o resultado da passagem):** é a **primeira vez em ~30 passagens** que **as três fontes concordam por completo** — a ordem do **código**, as leituras do **trace** e o registo **por bloco**. A frente vinha alternando entre "o código diz X, a medição diz Y" — aqui os três alinham em **todas** as leituras do bloco.
+- **Corroboração independente do erro da 88ª:** um bloco DC **teria** tido as duas leituras naquela extensão, e o trace não tem nenhuma ⇒ **o `yMode = 0` que eu emparelhei com este trace não podia vir deste bloco** — o erro de emparelhamento passa a ser visível **só pelo código**, e não apenas pelos nomes dos ficheiros.
+- **Limite do próprio trace (registado):** o `readSymbol` regista, mas o **`readBool`/`readLiteral` NÃO** — logo os bits de um literal **nunca** aparecem e só símbolos podem ser contados. Isso restringe o que o trace pode provar e está agora escrito.
+- **Prova:** só documentação; **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado):** precificar o **laço de transformada do bloco 2** a partir das leituras visíveis (**dez símbolos de duas vias + um de seis vias**) contra o que um **16x8 em TX_8X8** deve — **dois** blocos de transformada, cada um com um `all_zero` e, quando for 0, um **tipo de transformada** e um **`eob_pt`** — já que as aridades restringem agora muito os candidatos.
+
+## Sessão 17/10 (sexta) — slice 3bd 94ª passagem: CORREÇÃO (o trace captura tudo) + as leituras contabilizadas
+- **A CORREÇÃO:** a 93ª passagem registou que "o `readBool`/`readLiteral` não são registados no trace". **Está errado — e o próprio módulo di-lo:** `Av1Symbol.kf:121-122` diz *"readBool/readLiteral route through readSymbol, so this captures the WHOLE read sequence"*, e o corpo do `readBool` (linha 142) é `var s = this.readSymbol(cdf, 2)` com uma cdf uniforme. **Citei a primeira frase daquele comentário e presumi o resto.**
+- **Consequência:** as **dez leituras de duas vias** na extensão do bloco 2 são os **símbolos binários da caminhada de coeficientes** — bits de **sinal**, de **`eob_extra`** e de **`golomb`** — que só existem quando um bloco **tem** resíduo ⇒ **a refutação da 92ª** ("os blocos 2-7 não têm coeficientes") fica confirmada **também pelo lado do código**, não só pelo trace.
+- **Enumeração (a partir da biblioteca):** toda leitura de símbolo de **duas vias** em `libs/image` é uma de `Av1Partition.kf:199/209` (bits de partição), `Av1ModeInfo.kf:500/550` (bandeiras de modo de paleta Y/UV), `:769` (filter-intra), `:944` (skip) ou `Av1Symbol.kf:142` (o próprio `readBool`). Para um bloco **PAETH** dentro de uma caminhada de partição **já concluída**, só a última é alcançável ⇒ **as dez leituras só podem ser de um resíduo.**
+- **DISCREPÂNCIA NOVA E CONCRETA (o ganho da passagem):** a leitura de **seis vias** `6:0@143` é um **`eob_pt`**, e uma CDF de `eob_pt` tem **seis** símbolos **só** quando `eob_multi_size` é **1** — isto é, para uma transformada **TX_8X16/TX_16X8** — enquanto o registo do bloco diz **`txSz = 1` (TX_8X8)**, cujo `eob_multi_size` é **2** e cuja CDF tem **sete**. **Os dois não podem estar ambos certos.**
+- **Prova:** só documentação; **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado):** ler o **`readSelectedTxSize`** e conferir o seu **mapeamento símbolo→tamanho de transformada** para um bloco 16x8 contra o registo — é uma tabela pequena e auto-contida, e um erro nela explicaria tanto a aridade do `eob_pt` como o custo do resíduo.
+
+## Sessão 17/10 (sexta) — slice 3bd 95ª passagem: tabelas de tx-size lidas + uma CONTRADIÇÃO computável
+- **Unidade:** li as tabelas do tamanho de transformada para responder à discrepância da 94ª (o `eob_pt` de seis vias vs o `txSz` do registo).
+- **As tabelas (da biblioteca):**
+  - `av1BsizeToMaxDepth(BLOCK_16X8 = 5)` = **2** ⇒ a leitura do tamanho de transformada é `readSymbol(cdf, 3)` — **três vias**, casando com o `3:2@138` do trace ✓;
+  - `av1DepthToTxSize(depth, BLOCK_16X8)` parte de `av1BlockMaxTxRect(BLOCK_16X8)` = `TX_16X8` (índice 8) e aplica `av1SplitTxSize`: **`split(8) = 1` (TX_8X8)** e **`split(1) = 0` (TX_4X4)**.
+  - ⇒ Para um bloco **16x8**, a profundidade lida só pode significar: **0 → TX_16X8, 1 → TX_8X8, 2 → TX_4X4**.
+- **A CONTRADIÇÃO (computável, sem nova execução):** o símbolo do trace é **2 ⇒ TX_4X4**, cuja CDF de `eob_pt` tem **cinco** símbolos; o registo do bloco diz **`txSz = 1` ⇒ TX_8X8**, cuja CDF tem **sete**. **Nenhum dos dois é o SEIS que o trace mostra.**
+- **O que isso deixa:** uma CDF de `eob_pt` com **seis** símbolos só existe para `eob_multi_size == 1` (transformada **TX_8X16/TX_16X8**) — e **nenhuma** profundidade alcançável por um bloco 16x8 produz uma (a tabela de split nunca gera TX_8X16/TX_16X8 a partir de TX_16X8). ⇒ **A leitura de seis vias pertence muito provavelmente a um bloco DIFERENTE do bloco 2** (o seguinte da caminhada), e a leitura de "resíduo do bloco 2" da 92ª precisa da **atribuição conferida** — exatamente como a do modo Y precisou.
+- **O que NÃO é tocado:** as dez leituras de duas vias continuam a ser `readBool`s (sinais/`eob_extra`/`golomb`) e continuam a **implicar um resíduo**; o bloco 2 continua a ser o **último com bits**.
+- **Nota:** uma substituição de escapes que rodei tocou de novo linhas de outras lanes; corrigi **só a minha linha** (o `DOING.pt_BR.md` mantém os 11 `\"` das outras ✓ intactos) — a lição da 92ª aplicada.
+- **Prova:** só documentação; **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado):** atribuir a leitura de seis vias **como a extensão do modo Y foi atribuída** — registando, **por bloco**, a posição do leitor **na leitura do tamanho de transformada** e **no fim de cada bloco de transformada**, para que a leitura seja colocada **dentro** da extensão de um bloco em vez de inferida de uma janela.
+
+## Sessão 17/10 (sexta) — slice 3bd 96ª passagem: posições de FIM dos blocos de transformada (a leitura de 6 vias é do CROMA)
+- **Unidade:** `Av1TileDecode.txEnds()` em `libs/image/Av1DecodeTileRecon.kf` — aditivo: grava a **posição do leitor logo após os coeficientes de CADA bloco de transformada**, para que um símbolo seja colocado **dentro** da extensão de um bloco em vez de inferido de uma janela.
+- **Medido (uma execução):** `TXEND n=19 44,45,45,46,138,139,139,139` com `BODYF n=8 stages=8 21 21 22 24 78 78 105 105 133 133 134 134 144 144 144 144`.
+- **A atribuição:** as entradas 0-3 (44, 45, 45, 46) são os **quatro** blocos de transformada do bloco 0; a entrada 4 é **138**, que **não pode ser do bloco 1** — o bloco de **paleta** tem o laço de transformada **vazio por construção** (`if (palY > 0) { n = 0 }`), logo o registo simplesmente **não tem entrada** para ele — e é portanto **o único bloco de transformada de luma do bloco 2**, terminando em 138.
+- **Consequência:** a leitura de **seis vias** está em **143**, isto é **DEPOIS de 138** ⇒ **não é um símbolo de coeficiente de LUMA do bloco 2**.
+- **Grandeza nova e mensurável:** o fim do resíduo de um bloco (`posOut`) menos o fim do seu **último** bloco de transformada é o **custo do CROMA** — para o bloco 0: **46 → 74 = 28 bits de croma**. Luma e croma ficam **separáveis no registo pela primeira vez**.
+- **O que continua por explicar (dito sem rodeios):** um `eob_pt` de **croma** também não pode ter **seis** símbolos — um bloco de plano de croma **8x4** em 4:2:0 toma `TX_4X4`, cujo `eob_multi_size` é **0** e cuja CDF tem **cinco**. ⇒ O símbolo de seis vias está agora **localizado na etapa de croma**, mas **continua sem explicação pela sintaxe que tenho**.
+- **Prova:** `AvifScreenContentGeoE2ETest` **4/4**; compile rc=0; `check_test_hygiene` rc=0.
+- **Próximo passo (nomeado):** precificar a **etapa de CROMA do bloco 2** contra a sintaxe — o **tamanho de transformada derivado** do croma, os seus **contextos de entropia por plano** e a **aridade do seu `eob_pt`** — já que a etapa de luma está agora limitada pelo registo e o croma é o único lugar onde o símbolo de seis vias pode viver.
+
+## Sessão 17/10 (sexta) — slice 3bd 97ª passagem: a leitura de 6 vias EXPLICADA + a 95ª RETIRADA
+- **Unidade:** apliquei a aritmética do próprio `eobMultiSize` do Kof aos tamanhos de transformada candidatos do croma — e a leitura de seis vias **deixa de ser uma discrepância**.
+- **A aritmética:** `eobMultiSize(TX_8X4) = min(3,5) + min(2,5) − 4 = **1**`, e `eob_multi_size == 1` seleciona a CDF de `eob_pt` com **SEIS** símbolos. Para um bloco de **luma 16x8 em 4:2:0**, o bloco de plano de **croma** é **8x4** ⇒ o tamanho de transformada derivado do croma é **exatamente `TX_8X4`** ⇒ **o `6:0@143` é o `eob_pt` de croma do bloco 2** ✓✓ **plenamente consistente com a sintaxe.**
+- **A RETRATAÇÃO:** a 95ª calculou `av1BsizeToMaxDepth`, `av1DepthToTxSize` e `av1SplitTxSize` e concluiu que um `eob_pt` de seis vias era **impossível** para o bloco 2. **As tabelas estavam certas e a ATRIBUIÇÃO estava errada** — aquelas tabelas descrevem o tamanho de transformada da **luma**, e a leitura é do **croma**. O instrumento por bloco de transformada da 96ª é que a localizou (o único bloco de transformada da luma termina em **138**; a leitura está em **143**). ⇒ **Nenhuma discrepância, nenhum bug: um erro de atribuição.**
+- **Agora contabilizado, leitura a leitura:** prefixo (3 de duas vias) + modo Y (13 vias, PAETH) + modo UV (14 vias) + tx size (3 vias) + o bloco de transformada de luma (coeficientes até 138) + o croma (dez `readBool` de duas vias + o `eob_pt` de seis vias) ⇒ **toda leitura na extensão do bloco 2 está explicada pela sintaxe** ✓.
+- **Consequências:** o **croma do bloco 2 tem resíduo** (um `eob_pt` só é lido quando `all_zero` é 0) ⇒ o "os blocos 2-7 não têm coeficientes" da 87ª está refutado **também para o croma**; e o "impossível" da 95ª está **retirado na íntegra**.
+- **O PADRÃO (agora inconfundível, e vale como regra):** **todos os erros desta frente nas últimas dez passagens foram erros de ATRIBUIÇÃO** — de que **log** veio um número, a que **bloco** pertence uma leitura, que **estágio** uma tabela descreve — e **nenhum** foi erro de tabela, de fórmula ou de CDF. Ou seja: quando este fio erra, erra na **ligação entre a medição e o seu objecto**, não na aritmética.
+- **Prova:** só documentação; **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado):** voltar ao fio que os desvios de atribuição interromperam — o payload do quadro **esgota-se no bloco 3** enquanto o encoder codificou **oito** blocos; com a extensão do bloco 2 agora explicada por inteiro, **o custo de cada estágio pode finalmente ser comparado com o que a sintaxe deve**.
+
+## Sessão 17/10 (sexta) — slice 3bd 98ª passagem: custos por estágio vs a sintaxe (e um ORÇAMENTO)
+- **Unidade:** voltei ao fio interrompido pelos desvios de atribuição e comparei **o custo de cada bloco com o que a sintaxe deve** — agora com um número, não com um juízo.
+- **A aritmética (registos de UMA execução, `avif_real_sq1.avif`):**
+  - cabeçalho do tile: 0 → 19 = **19 bits**;
+  - bloco 0: 19 → 74 = **55 bits**;
+  - bloco 1: 76 → 129 = **53 bits**;
+  - bloco 2: 129 → 144 = **15 bits**.
+- **⇒ Os três primeiros blocos + cabeçalho tomam 142 dos 144 bits, e a média do encoder por bloco — OITO blocos nos 125 bits restantes — é 15,6.**
+- **O que isso significa:** os 15 bits do bloco 2 **batem** com a média do encoder; os blocos 0 (55) e 1 (53) são **3,5×** essa média. E ambos estão **exatos em valor** — o que é precisamente por que a inflação é **invisível nos pixels**: **um valor pode estar certo enquanto o seu custo está inflado, se os símbolos extra decodificarem benignamente.** É a lição da 9ª passagem e a forma exata do bug `3bd` que a 82ª encontrou.
+- **Onde o custo está (registos já em mão):** bloco 0 — mode info 5 bits, tx size 1, quatro blocos de transformada de luma terminando em 44/45/45/46 (o primeiro 19 bits, os outros três 1 bit cada) e o **croma 46 → 74 = 28 bits para dois planos**; bloco 1 — 29 bits de corpo (modos, bandeira de paleta, tamanho, as duas cores) e 22 de mapa de índices de 128 células.
+- **Cada um é plausível ISOLADAMENTE** — e é por isso que a inflação sobreviveu tanto tempo: **não é um número errado, é uma soma que não pode ser paga.**
+- **O ganho desta passagem:** esta frente **nunca teve um orçamento**; agora tem — **15,6 bits por bloco** — e qualquer estágio que o exceda fica suspeito por aritmética, não por opinião.
+- **Prova:** só documentação; **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado):** dumpar os **símbolos individuais do bloco 0** — o seu primeiro bloco de transformada de **19 bits** e o seu **croma de 28 bits** — e precificar cada um contra a sintaxe, com o orçamento conhecido em vez de um juízo de plausibilidade.
+
+## Sessão 17/10 (sexta) — slice 3bd 99ª passagem: símbolos do bloco 0 (TRÊS símbolos extra por bloco de transformada)
+- **Unidade:** movi a janela do trace para **19..74** (a extensão do bloco 0) e dumpámo-la — o primeiro olhar sobre os símbolos do bloco mais caro do quadro.
+- **O dump (uma execução):** `10:0@19` (partição) · `2:0@19` (skip) · `13:0@21` (modo Y DC) · `14:0@22` (modo UV DC) · `2:0@22 2:0@22` (bandeira de paleta + filter-intra) · `2:0@24` · `3:1@25` (tx size) — e o laço de transformada:
+  - `2:0@28` **all_zero = 0** (o primeiro bloco **tem** resíduo) · `7:1@30` **o TIPO de transformada** (sete símbolos = TX_SET_INTRA_1, o que `reduced_tx_set == 0` usa) · `7:0@32` **o `eob_pt`** (sete símbolos = `eob_multi_size == 2` = TX_8X8; valor 0 ⇒ `eob_pt = 1` ⇒ **`eob = 1`, UM coeficiente**) · `3:2@37` (`coeff_base_eob`) · `4:3@39 4:2@43` (base-range) · `2:1@44` (sinal);
+  - **e depois `2:1@45 2:1@45 2:1@46`** — três leituras de duas vias que a sintaxe **não deve** para um bloco de um coeficiente — antes do `2:0@49` do bloco seguinte.
+- **A contagem, contra o orçamento da 98ª:** um bloco de transformada de **um** coeficiente deve **sete** símbolos (`all_zero`, tipo, `eob_pt`, `coeff_base_eob`, duas de base-range, sinal) e o trace mostra **dez**. ⇒ **Três símbolos binários extra por bloco de transformada** — e o bloco 0 tem **seis** (quatro de luma + dois de croma) ⇒ **~18 bits dos seus 55**, contra um orçamento de **15,6**.
+- **O que eles NÃO são (por eliminação imediata):** não são um escape `golomb` (exige `level >= 15`; este nível é **8**), nem o `all_zero` do bloco seguinte (esse é o `2:0@49`, que precede o tipo `7:0@50` do bloco seguinte).
+- **O ganho:** a pergunta deixou de ser "55 bits contra 15,6" e passou a ser **"que três símbolos são estes"** — um espaço de busca pequeno e fechado.
+- **Prova:** só documentação; **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado):** identificar essas três leituras **pelo caminho de código** — enumerar os símbolos binários que a caminhada de coeficientes pode emitir **depois** do sinal de um bloco quando `eob == 1` — a mesma enumeração que resolveu as leituras de duas vias do bloco 2.
+
+## Sessão 17/10 (sexta) — slice 3bd 100ª passagem: RETRATAÇÃO (a contagem estava certa) + redireccionamento para a PARTIÇÃO
+- **A aritmética que eu deixei de fazer na 99ª:** o bloco 0 é **`BLOCK_16X16` em `TX_8X8`** ⇒ tem **2 × 2 = QUATRO blocos de transformada de luma** (não um!). O primeiro deve **sete** leituras (`all_zero`, tipo, `eob_pt`, `coeff_base_eob`, duas de base-range, sinal) e **cada um dos outros três deve um único `all_zero`** — porque estão **vazios**. **7 + 3 = 10, exatamente o que o trace mostra** (`2:0@28 7:1@30 7:0@32 3:2@37 4:3@39 4:2@43 2:1@44` e depois `2:1@45 2:1@45 2:1@46`), e o `TXEND` concorda: **44, 45, 45, 46** — os quatro blocos de luma, três custando um bit cada.
+- **RETRATAÇÃO:** o "três símbolos binários extra" da 99ª **está retirado** — a contagem está **exactamente certa**.
+- **O modo de falha, idêntico ao das últimas cinco:** comparei uma **contagem** com uma **geometria que presumi em vez de ler**. A 87ª presumiu que um bloco não tinha resíduo (contagem de níveis); a 95ª presumiu o dono de uma leitura; esta presumiu a contagem de transformadas de um bloco. **A aritmética estava certa e o objeto a que foi aplicada estava errado — todas as vezes.**
+- **O que cai com a retratação:** os **55 bits do bloco 0 ficam inteiramente explicados pela sintaxe** (mode info 5 + tx size 1 + luma 21 + croma 28) ⇒ **não há inflação de símbolos extra no bloco 0**, e a comparação 55-contra-15,6 da 98ª **não é evidência de uma**.
+- **O que isso deixa (o redireccionamento):** se os custos por bloco **são** o que a sintaxe deve, então o payload esgota-se cedo porque **a partição do Kof codifica mais blocos, ou blocos menores, do que a do encoder**. O orçamento por bloco só é comparável quando as **árvores coincidem** — e **a árvore é a única coisa nesta frente que nunca foi comparada com um oráculo**.
+- **Prova:** só documentação; **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado):** comparar a **árvore de partição** do Kof com a do encoder — a lista de blocos da caminhada contra a da referência, usando o **tamanho do payload** como a verificação grosseira que sempre foi (uma árvore que codifica oito blocos onde o encoder codificou quatro não cabe nos mesmos bits).
+
+## Sessão 17/10 (sexta) — slice 3bd 101ª passagem: a PARTIÇÃO passa a ser o suspeito (e uma contradição no trace)
+- **Unidade:** a verificação grosseira prometida na 100ª — comparar a árvore com o que o payload permite.
+- **A aritmética grosseira:** payload 144 bits / 8 blocos = **18 bits/bloco**; o overhead medido por bloco (mode info + tx size) é **6 bits** ⇒ 8 blocos devem ≥48 bits de overhead e deixam **96** para os resíduos. **Isso não refuta oito blocos — mas a FORMA refuta:** a metade **esquerda** do quadro é **plana** (um único valor, 100) e o Kof cobre-a com **TRÊS** blocos (`(0,0)` 16x16 + `(4,0)` e `(6,0)` 16x8), gastando **~85 bits numa região sem detalhe nenhum**, com o **bloco 0 sozinho a valer 38% do payload**. **Nenhum encoder gasta 85 bits para dizer "plano".**
+- **A CONTRADIÇÃO NO TRACE:** a primeira leitura de partição da caminhada é **`10:0@19`** — um símbolo de partição de **dez vias** com valor **0**, que na ordem da especificação é **`PARTITION_NONE`** (UM bloco cobrindo a região) — enquanto a árvore que o Kof construiu põe um **`BLOCK_16X16`** em `(0,0)`, que é o que **`PARTITION_SPLIT`** (valor 3) produziria. **Um símbolo que diz NONE e uma árvore que diz SPLIT não podem estar ambos certos.**
+- **Porque isto é novo:** é a **primeira vez** nesta frente que o **VALOR de um símbolo** é confrontado com a **árvore** que a caminhada produziu a partir dele — todas as verificações anteriores foram sobre tabelas, contextos e CDFs.
+- **O que verificar ANTES de chamar isto um bug** (a disciplina das últimas dez passagens): (a) se a primeira leitura é mesmo **deste nível** (um quadro 32x32 dentro de um superbloco 64x64 **força** uma divisão no topo, sem ler símbolo ⇒ a primeira leitura deve ser a do nível 32x32); (b) se o valor **0** mapeia mesmo em `PARTITION_NONE` na **linha de CDF** que o Kof seleciona (a ordem é a da especificação, mas a **linha** vem do **contexto de partição**).
+- **Prova:** só documentação; **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado):** ler a primeira leitura da caminhada de partição **contra o código** — que linha de CDF ela seleciona para um bloco 32x32 na origem do superbloco, e o que o valor 0 significa ali — porque **uma única leitura de partição errada produziria exatamente os três blocos onde um pertence** que a aritmética acha implausível.
+
+## Sessão 17/10 (sexta) — slice 3bd 102ª passagem: a contradição de partição confirmada (três componentes verificados)
+- **Unidade:** em vez de acusar a partição, **li os três componentes** que poderiam explicar a contradição da 101ª — e os três estão **certos**.
+  1. **O despacho** (`Av1Partition.kf`): `partition == 0` ⇒ **UMA FOLHA** (`addStep(1, r, c, subSize, 0)`) com `subSize = av1BlockPartitionSubsize(partition, bs)` ✓ **correto**.
+  2. **A tabela de subsize** (`Av1Block.kf`): `av1BlockPartitionSubsize(0, 9) = 9` ⇒ `PARTITION_NONE` num `BLOCK_32X32` devolve um `BLOCK_32X32` ✓ **correta**.
+  3. **O nível**: para um quadro 32x32 dentro de um superbloco 64x64 o nível de topo é **forçado** a dividir e **não lê símbolo** (`hasRows`/`hasCols` ambos falsos) ⇒ a primeira leitura traçada **é** a do nível 32x32, e é uma leitura de **dez vias com valor 0** ✓.
+- **A contradição, agora mais forte:** `PARTITION_NONE` no nível 32x32 significa **um** bloco cobrindo o quadro, e a caminhada emitiu **oito** blocos cujo primeiro é um `BLOCK_16X16` em `(0,0)`. **Com o despacho, a tabela e o nível todos verificados, a árvore não decorre do símbolo lido** — duas das três saídas possíveis ficaram **excluídas por leitura**, não por presunção.
+- **O único elo não conferido (o próximo instrumento):** a caminhada **regista** cada decisão de partição (`addStep(0, r, c, bs, partition)`) e a sonda imprime **apenas as folhas**. Imprimir os **passos internos** mostra, uma linha por nó, **que valor de `partition` a caminhada usou em cada nível**:
+  - se for **0** no nível 32x32 enquanto a folha é um 16x16 ⇒ a falha é a **contabilidade entre as duas chamadas**;
+  - se for **3** (SPLIT) ⇒ o símbolo que o trace mostra **não** é aquele sobre o qual o despacho agiu, e a atribuição do próprio trace volta a estar errada.
+- **Prova:** só documentação; **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado):** imprimir os **passos internos de partição** da caminhada e resolver numa execução — mudança só na sonda, resposta pequena e fechada, e o **último elo não conferido** na cadeia do símbolo à árvore.
+
+## Sessão 17/10 (sexta) — slice 3bd 103ª passagem: RETRATAÇÃO (a janela do trace excluía o símbolo) + a PARTIÇÃO ilibada
+- **O instrumento que resolveu:** a caminhada **regista** cada decisão de partição (`addStep(0, r, c, bs, partition)`) e a sonda imprime-as agora: `PART n=6 (r0,c0,bs12)p3 (r0,c0,bs9)p3 (r0,c0,bs6)p0 (r0,c4,bs6)p1 (r4,c0,bs6)p1 (r4,c4,bs6)p4` — **reproduz exactamente a árvore que as folhas mostram** ✓.
+- **A RESOLUÇÃO (e a causa era minha):** o **primeiro** símbolo de partição do trace é **`10:3`** — valor **3 = SPLIT** — e está na **posição 18**, isto é **abaixo do limite inferior 19** que eu fixei na 99ª passagem para olhar o bloco 0. **A minha janela descartou em silêncio o símbolo sobre o qual a caminhada agiu**, e a entrada seguinte (`10:0@19`, o NONE do 16x16) foi lida como se fosse a do 32x32.
+- **Com o símbolo restaurado, trace e árvore concordam PERFEITAMENTE:** `10:3@18` = o SPLIT do 32x32 ✓ e `10:0@19` = o NONE do 16x16 ✓ — e todas as partições registadas decorrem.
+- **RETRATAÇÃO:** o "um símbolo que diz NONE e uma árvore que diz SPLIT não podem estar ambos certos" (101ª e 102ª) fica **retirado**. Os três componentes que verifiquei na 102ª estavam corretos **precisamente porque não havia nada errado para encontrar**.
+- **A LIÇÃO (a mais afiada desta série):** **um limite de janela É uma decisão de atribuição** — onde um dump começa decide **que símbolo é atribuído a que evento**, e isso é **invisível no output**. É o primeiro erro em que foi o **próprio parâmetro do instrumento** (e não a proveniência de um log ou a identidade de um bloco) a fazer a má atribuição.
+- **O que fica ILIBADO:** a **partição** — a árvore casa com o stream **símbolo a símbolo** ⇒ a aritmética da 98ª (85 bits para meia moldura plana, em três blocos) é **escolha do próprio encoder**, não erro do Kof ⇒ a questão do custo volta ao **resíduo e à sintaxe**, com a árvore descartada.
+- **Prova:** `AvifScreenContentGeoE2ETest` (instrumento novo na sonda), compile rc=0, `check_test_hygiene` rc=0, **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado):** com a partição e a árvore em concordância, **reprecificar o resíduo do bloco 0** (49 bits em seis blocos de transformada) contra a sintaxe — agora que a única alternativa estrutural está eliminada.
+
+## Sessão 17/10 (sexta) — slice 3bd 104ª passagem: resíduo do bloco 0 REPRECIFICADO (exato) — a localização está completa
+- **Unidade:** reprecifiquei o resíduo do bloco 0 **leitura a leitura** contra a sintaxe, agora com a correção da partição (103ª) a garantir a atribuição certa.
+- **O resultado (uma execução):** mode info + tx size = **6 leituras, 6 bits**; o primeiro bloco de transformada = **7 símbolos, 19 bits** (`all_zero`, tipo, `eob_pt`, `coeff_base_eob`, duas de base-range, sinal); os outros três blocos de luma = **3 leituras, 2 bits** (um `all_zero` cada — estão vazios); o croma = **10 leituras, 28 bits** (dois planos, cada um com `all_zero` + `eob_pt` + um coeficiente + o seu sinal). **Total 55 bits em 26 leituras — e CADA uma dessas leituras é um símbolo que a sintaxe deve para o estado em que o decodificador está.**
+- **O que isto FECHA:** não há símbolo extra, nem tabela errada, nem árvore errada. Com a 103ª (a partição casa com o stream símbolo a símbolo) e com todas as verificações anteriores (CDFs, contextos, tabelas contra a fonte buscada), **toda explicação LOCAL para o payload esgotar-se cedo está excluída.**
+- **A contradição que resta (agora afiada):** os três primeiros blocos do Kof consomem **142 dos 144 bits**, o encoder encaixa **oito** nos mesmos 144, e as leituras do Kof são o que a sintaxe deve **dado o seu próprio estado** ⇒ **o estado divergiu ANTES do bloco 3** — e **nenhum instrumento construído sobre o leitor do Kof o consegue ver**, porque todos medem esse mesmo estado consistente. Os valores certos nos blocos 0-2 não salvam: a lição da 9ª passagem (um leitor dessincronizado pode produzir valores certos por um tempo).
+- **O ganho das ~50 passagens de verificação:** o passo seguinte — um **decodificador de símbolos INDEPENDENTE** — tem agora âmbito **pequeno e precisamente limitado** (cabeçalho do tile, caminhada de partição, mode info dos primeiros blocos) e **não precisa de dados de referência novos**: cada CDF e contexto que ele tem de usar já está verificado contra o libaom e fixado no repositório.
+- **Prova:** só documentação; **os 11 gates estruturais rc=0**.
+- **Próximo passo (nomeado):** construir esse decodificador sobre `avif_real_sq1.avif` (**18 bytes** de payload, o menor fixture) e comparar a sua sequência de símbolos com o trace do Kof **entrada por entrada** desde o primeiro símbolo — **a primeira discordância é o dessincronismo**, e é a única coisa desta investigação que os instrumentos do próprio Kof não conseguem produzir.

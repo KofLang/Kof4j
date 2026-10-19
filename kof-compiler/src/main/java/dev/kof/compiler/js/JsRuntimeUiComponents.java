@@ -414,6 +414,9 @@ public final class JsRuntimeUiComponents {
                     finally { kofUiCurrentComponent = prevCtx; }
                 }
                 for (const f of n.effectFns) kofUiRunEffect(n, f);
+                // D-UI-FOCUS (#811): a montagem é o ponto em que o foco pedido
+                // antes do nó existir (ou antes de ele conectar) é aplicado.
+                kofUiFocusFlush();
             }
 
             export function kofUiComponentUnmount(c) {
@@ -459,6 +462,7 @@ public final class JsRuntimeUiComponents {
                 }
                 const childEl = window.__kofNodes && window.__kofNodes[child];
                 if (childEl) n.el.appendChild(childEl);
+                kofUiFocusFlush();
             }
 
             export function kofUiComponentRemove(c) {

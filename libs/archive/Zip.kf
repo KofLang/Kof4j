@@ -34,10 +34,11 @@ import image.Inflate
 // confinement primitive of #854 (`createNew`), which is a maintainer scope
 // decision.
 //
-// Honest limit: an entry name is decoded as UTF-8. APPNOTE allows CP437 when
-// the UTF-8 flag (bit 11) is clear; we do not transliterate CP437, so a legacy
-// archive with accented names shows the replacement characters. The raw bytes
-// stay reachable by reading `nameOffset`/`nameLength` from the file.
+// Names follow the format's own rule: the UTF-8 flag (bit 11) decides. With it
+// set the name is UTF-8; CLEAR means CP437 (code page 437), the encoding the
+// spec mandates for legacy archives — decoding those as UTF-8 used to show
+// replacement characters. Both halves are covered: 0x00..0x7F is ASCII and the
+// 0x80..0xFF table lives below.
 
 /** One central-directory entry, exactly as the archive declares it. */
 record ZipEntry(String name, Int flags, Int method, Int crc32, Int compressedSize,
@@ -75,7 +76,13 @@ Int zipCrc32(Int[] data) {
 /** CRC-32 over the first `len` bytes — the GZIP's `Inflate.out` is a
  *  caller-sized window, so only the bytes the stream actually produced count. */
 Int zipCrc32(Int[] data, Int len) {
-    var crc = -1
+    return zipCrc32State(-1, data, len) ^ -1
+}
+
+/** CRC-32 state update over the first `len` bytes, WITHOUT the final xor — the
+ *  incremental form the writers need (a stream arrives in several calls, and
+ *  holding all of it to compute the CRC once would defeat the streaming). */
+Int zipCrc32State(Int crc, Int[] data, Int len) {
     var poly = -306674912
     var i = 0
     while (i < len) {
@@ -91,7 +98,74 @@ Int zipCrc32(Int[] data, Int len) {
         }
         i = i + 1
     }
-    return crc ^ -1
+    return crc
+}
+
+/** Bytes UTF-8 de uma string — o par do DECODIFICADOR `zipUtf8`, e o que os
+ *  escritores da família precisam (o `kof.io` grava texto mas não expõe o
+ *  codificador). 1/2/3/4 bytes por code point, com o par surrogate tratado (o
+ *  armazenamento nativo tem WTF-8, §537). */
+Int[] zipUtf8Bytes(String s) {
+    var out: List<Int> = listOf()
+    var i = 0
+    while (i < s.length) {
+        var cp = s.charAt(i) as Int
+        if (cp >= 55296 && cp <= 56319 && i + 1 < s.length) {
+            var lo = s.charAt(i + 1) as Int
+            if (lo >= 56320 && lo <= 57343) {
+                cp = 65536 + ((cp - 55296) << 10) + (lo - 56320)
+                i = i + 1
+            }
+        }
+        if (cp < 128) {
+            out.add(cp)
+        } else if (cp < 2048) {
+            out.add(192 | (cp >> 6))
+            out.add(128 | (cp & 63))
+        } else if (cp < 65536) {
+            out.add(224 | (cp >> 12))
+            out.add(128 | ((cp >> 6) & 63))
+            out.add(128 | (cp & 63))
+        } else {
+            out.add(240 | (cp >> 18))
+            out.add(128 | ((cp >> 12) & 63))
+            out.add(128 | ((cp >> 6) & 63))
+            out.add(128 | (cp & 63))
+        }
+        i = i + 1
+    }
+    var bytes = new Int[out.size()]
+    var k = 0
+    while (k < out.size()) {
+        bytes[k] = out[k]
+        k = k + 1
+    }
+    return bytes
+}
+
+/** The 0x80..0xFF half of CP437 (code page 437) — the table APPNOTE 6.3.x
+ *  mandates for an entry name when the UTF-8 flag (bit 11) is CLEAR. The
+ *  0x00..0x7F half is ASCII, so only this half needs a table. */
+String zipCp437High() {
+    return "ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜ¢£¥₧ƒáíóúñÑªº¿⌐¬½¼¡«»░▒▓│┤╡╢╖╕╣║╗╝╜╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀αßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠⌡÷≈°∙·√ⁿ²■ "
+}
+
+/** CP437 of `len` bytes from `from`. Used for a legacy archive (bit 11 clear):
+ *  decoding those names as UTF-8 produced replacement characters. */
+String zipCp437(Int[] b, Int from, Int len) {
+    var high = zipCp437High()
+    var s = ""
+    var i = 0
+    while (i < len) {
+        var c = b[from + i] & 255
+        if (c < 128) {
+            s = s + (c as Char)
+        } else {
+            s = s + high.charAt(c - 128)
+        }
+        i = i + 1
+    }
+    return s
 }
 
 /** UTF-8 of `len` bytes from `from` (see the CP437 limit in the header). */
@@ -169,7 +243,9 @@ List<ZipEntry> zipReadCentralDirectory(Int[] b) {
         var commentLen = zipU16(b, at + 32)
         var externAttrs = zipU32(b, at + 38)
         var localOffset = zipU32(b, at + 42)
-        var name = zipUtf8(b, at + 46, nameLen)
+        // APPNOTE 6.3.x: bit 11 (EFS) set = the name is UTF-8; CLEAR = CP437.
+        var name = (if ((flags & 2048) != 0) zipUtf8(b, at + 46, nameLen)
+                else zipCp437(b, at + 46, nameLen))
         out.add(ZipEntry(name, flags, method, crc, compressed, uncompressed,
                 externAttrs, localOffset, nameLen))
         at = at + 46 + nameLen + extraLen + commentLen
@@ -300,4 +376,324 @@ class Zip {
         }
         return out
     }
+
+// --- extração com CONFINAMENTO (a política que a #852 pede) -------------------
+
+/** Nome relativo SEGURO, ou `""` quando o nome ESCAPA do destino. Recusa:
+ *  caminho absoluto (`/...`), unidade Windows (`:`), separador `\` (contrabando
+ *  de separador), e os segmentos `..`, `.` e vazios. Esta é a barreira que
+ *  protege contra o ZIP malicioso comum — ela olha o NOME, não o sistema de
+ *  arquivos, e por isso vale antes de qualquer coisa tocar o disco. */
+String zipSafeRelative(String name) {
+    if (name.length == 0) {
+        return ""
+    }
+    if (name.indexOf("/") == 0) {
+        return ""
+    }
+    if (name.indexOf(":") >= 0) {
+        return ""
+    }
+    if (name.indexOf("\\") >= 0) {
+        return ""
+    }
+    var parts = name.split("/")
+    var out = ""
+    var i = 0
+    while (i < parts.length) {
+        var p = parts[i]
+        if (p == "" || p == "." || p == "..") {
+            return ""
+        }
+        out = if (out == "") p else out + "/" + p
+        i = i + 1
+    }
+    return out
 }
+
+/** Extrai TODAS as entradas para `destDir`, com confinamento obrigatório e SEM
+ *  sobrescrever nada. Devolve quantos ARQUIVOS escreveu (diretórios não contam).
+ *
+ *  Recusa, com mensagem explícita: entrada que escapa (via `zipSafeRelative`),
+ *  caminho que já existe (arquivo OU link) e conteúdo acima do teto do chamador
+ *  (`zip.readEntry` aplica o `maxBytes` por entrada, como em todo o resto).
+ *
+ *  LIMITE HONESTO, e é por isso que a #854 existe: a checagem de link é
+ *  "conferir-depois-gravar", então a JANELA TOCTOU entre `isSymlink()`/`exists()`
+ *  e a gravação continua aberta — um atacante que planta um link pendente entre
+ *  as duas chamadas ainda consegue escrever através dele. O que está fechado
+ *  aqui é o confinamento de NOME, que é o vetor do ZIP malicioso comum; o de
+ *  corrida exige a primitiva `createNew` (criação exclusiva) da #854. */
+
+    /** Valida a ESTRUTURA do arquivo e devolve quantas entradas conferiu.
+     *
+     *  A #852 pede isto explicitamente no escopo ("consistência entre cabeçalho
+     *  local e diretório central, sobreposição de dados entre entradas"), e são
+     *  dois vetores que a LEITURA sozinha não pega:
+     *
+     *  1. **local x central** — o mesmo nome declarando método, tamanhos ou CRC
+     *     diferentes nos dois lugares. Um extrator que confia num e outro no
+     *     outro entrega bytes que ninguém pode prever. O `data descriptor`
+     *     (flag bit 3) é a EXCEÇÃO prevista na especificação: ali os campos do
+     *     cabeçalho local são ZERO por definição, e comparar seria falso
+     *     positivo — então nesse caso quem manda é o diretório central;
+     *  2. **sobreposição de dados** — duas entradas cujas faixas de bytes se
+     *     cruzam; é assim que um arquivo faz o conteúdo de uma aparecer sob o
+     *     nome da outra.
+     *
+     *  Custo honesto: a ordenação é por INSERÇÃO sobre duas listas paralelas —
+     *  O(n) para o caso comum (as entradas vêm na ordem do arquivo, que já é a
+     *  ordenada) e O(n^2) só com entradas fora de ordem, que é o caso em que a
+     *  checagem importa. `extractTo` chama isto antes de escrever nada. */
+    Int validate() {
+        var starts: List<Int> = listOf()
+        var ends: List<Int> = listOf()
+        var n = 0
+        for (var e in this.entries) {
+            var at = e.localHeaderOffset
+            if (at < 0 || at + 30 > this.bytes.length || zipU32(this.bytes, at) != 67324752) {
+                throw "archive: entry '" + e.name + "' has no readable local header"
+            }
+            var localFlags = zipU16(this.bytes, at + 6)
+            var localMethod = zipU16(this.bytes, at + 8)
+            var localNameLen = zipU16(this.bytes, at + 26)
+            var localExtraLen = zipU16(this.bytes, at + 28)
+            if (localMethod != e.method) {
+                throw "archive: entry '" + e.name + "' declares method " + localMethod
+                    + " in the local header and " + e.method + " in the central directory"
+            }
+            var localName = (if ((e.flags & 2048) != 0)
+                    zipUtf8(this.bytes, at + 30, localNameLen)
+                    else zipCp437(this.bytes, at + 30, localNameLen))
+            if (localName != e.name) {
+                throw "archive: entry '" + e.name + "' is named '" + localName
+                    + "' in the local header — inconsistent with the central directory"
+            }
+            if ((e.flags & 8) == 0) {          // sem data descriptor: os campos valem
+                var localCrc = zipU32(this.bytes, at + 14)
+                var localComp = zipU32(this.bytes, at + 18)
+                var localUncomp = zipU32(this.bytes, at + 22)
+                if (localComp != e.compressedSize || localUncomp != e.uncompressedSize) {
+                    throw "archive: entry '" + e.name + "' sizes differ between the local header ("
+                        + localComp + "/" + localUncomp + ") and the central directory ("
+                        + e.compressedSize + "/" + e.uncompressedSize + ")"
+                }
+                if (localCrc != e.crc32) {
+                    throw "archive: entry '" + e.name + "' CRC-32 differs between the local header ("
+                        + localCrc + ") and the central directory (" + e.crc32 + ")"
+                }
+            }
+            var dataAt = at + 30 + localNameLen + localExtraLen
+            if (dataAt < 0 || dataAt + e.compressedSize > this.bytes.length) {
+                throw "archive: entry '" + e.name + "' data runs past the end of the archive"
+            }
+            // inserção ordenada (paralela) — O(n) quando já está ordenado
+            var k = starts.size()
+            while (k > 0 && starts.get(k - 1) > dataAt) { k = k - 1 }
+            starts.add(0)
+            ends.add(0)
+            var j = starts.size() - 1
+            while (j > k) {
+                starts.set(j, starts.get(j - 1))
+                ends.set(j, ends.get(j - 1))
+                j = j - 1
+            }
+            starts.set(k, dataAt)
+            ends.set(k, dataAt + e.compressedSize)
+            n = n + 1
+        }
+        var i = 1
+        while (i < starts.size()) {
+            if (starts.get(i) < ends.get(i - 1) && ends.get(i) > starts.get(i - 1)) {
+                throw "archive: entries overlap in the file — the data at " + starts.get(i)
+                    + " is inside another entry's range (refused)"
+            }
+            i = i + 1
+        }
+        return n
+    }
+
+    Int extractTo(String destDir, Int maxBytes) {
+        // A validação estrutural vem PRIMEIRO: extrair de um arquivo que mente
+        // sobre a própria estrutura é o caso em que o confinamento por nome não
+        // basta (o nome é o que ele quer, o conteúdo é o que ele forjou).
+        this.validate()
+        Directory(destDir).createDirectories()
+        var written = 0
+        for (var e in this.entries) {
+            var safe = zipSafeRelative(e.name)
+            if (safe == "") {
+                throw "archive: refusing entry '" + e.name + "' — it escapes the destination"
+            }
+            var isDirEntry = e.name.indexOf("/") == e.name.length - 1
+            var parts = safe.split("/")
+            var walked = destDir
+            var k = 0
+            while (k < parts.length - 1) {
+                walked = walked + "/" + parts[k]
+                Directory(walked).createDirectories()
+                k = k + 1
+            }
+            var full = destDir + "/" + safe
+            if (isDirEntry) {
+                Directory(full).createDirectories()
+            } else {
+                if (File(full).exists() || File(full).isSymlink()) {
+                    throw "archive: refusing to overwrite '" + safe + "' — it already exists"
+                }
+                // `writeBytes` toma Int[] (bytes como inteiros), a MESMA moeda que
+                // `readBytes` devolve — sem ponte aqui. (A face binária do crypto é
+                // que pede Byte[], e é a única conversão da família.)
+                File(full).writeBytes(this.readEntry(e, maxBytes))
+                written = written + 1
+            }
+        }
+        return written
+    }
+}
+
+// --- escrita (método 0 = STORED) ---------------------------------------------
+
+/** Escritor de ZIP. Escreve entradas **STORED** (método 0): o conteúdo entra
+ *  VERBATIM, sem compressor — nenhuma primitiva nova e nenhuma dependência.
+ *  Método 8 (deflate) precisaria de um compressor, e é uma fatia própria; um
+ *  escritor que se diz "zip" e não comprime tem de DIZER isso, e diz.
+ *
+ *  Estrutura: cada entrada é gravada na hora (cabeçalho local + dados), e o
+ *  diretório central é montado no `close()` a partir do que ficou ANOTADO
+ *  (nome, CRC, tamanhos, offset) — o escritor não retém as cargas em memória.
+ *
+ *  Determinismo: data/hora ZERO em todo cabeçalho, então o mesmo input produz
+ *  bytes idênticos (a mesma regra do `TarWriter`, e a que os goldens exigem).
+ *
+ *  Nomes vão em **UTF-8 com o bit 11 (EFS) ligado** — que é o sinal que o
+ *  formato define para isso, e o mesmo bit que o LEITOR desta livraria já
+ *  consulta: o que este escritor produz, ele próprio lê de volta pelo caminho
+ *  certo. Nome acima de 65535 bytes é recusado (o campo é u16). */
+class ZipWriter {
+
+    String path
+    List<String> names
+    List<Int> crcs
+    List<Int> sizes
+    List<Int> offsets
+    Int total
+    Bool started
+
+    public constructor(String path) {
+        this.path = path
+        this.names = listOf()
+        this.crcs = listOf()
+        this.sizes = listOf()
+        this.offsets = listOf()
+        this.total = 0
+        this.started = false
+    }
+
+    /** Acrescenta uma entrada STORED. Nome repetido é RECUSADO: o ZIP não tem
+     *  identidade por nome, e duas entradas iguais viram, na extração, um
+     *  sobrescrever o outro sem aviso. */
+    void addFile(String name, Int[] data) {
+        var nameBytes = zipUtf8Bytes(name)
+        if (nameBytes.length == 0) {
+            throw "archive: empty zip entry name"
+        }
+        if (nameBytes.length > 65535) {
+            throw "archive: zip entry name over 65535 bytes (the length field is 16-bit)"
+        }
+        var i = 0
+        while (i < this.names.size()) {
+            if (this.names.get(i) == name) {
+                throw "archive: entry '" + name + "' was already added — duplicate names are refused"
+            }
+            i = i + 1
+        }
+        var crc = zipCrc32(data)
+        var header = new Int[30 + nameBytes.length]
+        zipU32Put(header, 0, 67324752)                 // PK\x03\x04
+        zipU16Put(header, 4, 20)                       // version needed
+        zipU16Put(header, 6, 2048)                     // bit 11 = nome em UTF-8
+        zipU16Put(header, 8, 0)                        // método 0 = STORED
+        zipU32Put(header, 14, crc)
+        zipU32Put(header, 18, data.length)
+        zipU32Put(header, 22, data.length)
+        zipU16Put(header, 26, nameBytes.length)
+        var k = 0
+        while (k < nameBytes.length) {
+            header[30 + k] = nameBytes[k]
+            k = k + 1
+        }
+        this.offsets.add(this.total)
+        this.names.add(name)
+        this.crcs.add(crc)
+        this.sizes.add(data.length)
+        this.push(header)
+        this.push(data)
+    }
+
+    /** Acrescenta uma entrada a partir de TEXTO (UTF-8). */
+    void addText(String name, String text) {
+        this.addFile(name, zipUtf8Bytes(text))
+    }
+
+    /** Escreve o diretório central + o EOCD e devolve o tamanho em bytes. */
+    Int close() {
+        var cdStart = this.total
+        var i = 0
+        while (i < this.names.size()) {
+            var nameBytes = zipUtf8Bytes(this.names.get(i))
+            var rec = new Int[46 + nameBytes.length]
+            zipU32Put(rec, 0, 33639248)                // PK\x01\x02
+            zipU16Put(rec, 4, 20)                      // version made by
+            zipU16Put(rec, 6, 20)                      // version needed
+            zipU16Put(rec, 8, 2048)                    // bit 11 = UTF-8
+            zipU16Put(rec, 10, 0)                      // método 0
+            zipU32Put(rec, 16, this.crcs.get(i))
+            zipU32Put(rec, 20, this.sizes.get(i))
+            zipU32Put(rec, 24, this.sizes.get(i))
+            zipU16Put(rec, 28, nameBytes.length)
+            zipU32Put(rec, 42, this.offsets.get(i))
+            var k = 0
+            while (k < nameBytes.length) {
+                rec[46 + k] = nameBytes[k]
+                k = k + 1
+            }
+            this.push(rec)
+            i = i + 1
+        }
+        var cdSize = this.total - cdStart
+        var eocd = new Int[22]
+        zipU32Put(eocd, 0, 101010256)                  // PK\x05\x06
+        zipU16Put(eocd, 8, this.names.size())
+        zipU16Put(eocd, 10, this.names.size())
+        zipU32Put(eocd, 12, cdSize)
+        zipU32Put(eocd, 16, cdStart)
+        this.push(eocd)
+        return this.total
+    }
+
+    void push(Int[] bytes) {
+        if (this.started) {
+            File(this.path).appendBytes(bytes)
+        } else {
+            File(this.path).writeBytes(bytes)
+            this.started = true
+        }
+        this.total = this.total + bytes.length
+    }
+}
+
+/** Escrita little-endian num buffer de Int — o par dos leitores `zipU16`/`zipU32`. */
+void zipU16Put(Int[] b, Int at, Int value) {
+    b[at] = value & 255
+    b[at + 1] = (value >> 8) & 255
+}
+
+void zipU32Put(Int[] b, Int at, Int value) {
+    b[at] = value & 255
+    b[at + 1] = (value >> 8) & 255
+    b[at + 2] = (value >> 16) & 255
+    b[at + 3] = (value >> 24) & 255
+}
+
+

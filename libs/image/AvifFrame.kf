@@ -67,7 +67,9 @@ record AvifFrameHeader(Int frameType, Bool showFrame, Bool errorResilient,
                       Int lossless, Int txModeSelect, Int reducedTxSet,
                       Int deltaQPresent, Int deltaQRes,
                       Int deltaLfPresent, Int deltaLfRes, Int deltaLfMulti,
-                      Int segEnabled, Int[] segAltQ)
+                      Int segEnabled, Int[] segAltQ, List<Int> quantDeltas,
+                      Int cdefDamping, List<Int> cdefYStrengths,
+                      List<Int> cdefUvStrengths)
 
 AvifFrameHeader readAvifFrameHeader(String path) {
     var bytes = File(path).readRange(0, 65536)
@@ -283,7 +285,23 @@ AvifFrameHeader frameWalk(Int[] b, Int p, Int limit, AvifSeqHeader seq) {
                            tail[1], tail[2], tail[3],
                            tail[4], tail[5], tail[6],
                            tail[7], tail[8], tail[9], tail[10], tail[11],
-                           tail[12], segAltQOut(tail))
+                           tail[12], segAltQOut(tail),
+                           listOf(tail[21], tail[22], tail[23], tail[24], tail[25], tail[26]),
+                           tail[27], avifCdefStrengths(tail, 28), avifCdefStrengths(tail, 36))
+}
+
+// The `1 << cdef_bits` packed CDEF strengths of one plane type: the frame
+// header stores one value per configuration, selected per 64x64 unit by the
+// decoded `cdef_idx`.
+List<Int> avifCdefStrengths(Int[] tail, Int base) {
+    var out = listOf<Int>()
+    var n = 1 << tail[3]
+    var i = 0
+    while (i < n) {
+        out.add(tail[base + i])
+        i = i + 1
+    }
+    return out
 }
 
 // uncompressed_header() tail per AV1 5.9.2, after tile_info() and before the
@@ -315,30 +333,58 @@ Int[] frameTailWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq,
     }
     var lf0Out = 0
     var cdefBitsOut = 0
+    // cdef_params(): the damping and the per-configuration strengths were
+    // WALKED but never captured (only the bit position survived), so the CDEF
+    // filter could not be applied even though the sequence enables it. The
+    // 130th pass exposed them: the V plane's +/−1 is the missing filter.
+    var cdefDampingOut = 0
+    var cdefYOut = new Int[8]
+    var cdefUvOut = new Int[8]
     // quantization_params()
     var baseQ = seqRead(b, bits, 8)
     bits = bits + 8
+    // The per-plane quantizer deltas and the quantization-matrix flag are
+    // PARSED here and were DISCARDED — only the bit position survived, so every
+    // plane was dequantized with the luma quantizers (the 125th pass's finding).
+    // They are captured now, in [Y, Udc, Uac, Vdc, Vac, usingQm] order, so the
+    // dequantization can apply them per plane.
+    var qd = listOf<Int>()
     var d = frameDeltaQ(b, bits)
     bits = d[0]
+    qd.add(d[1])
+    var diffUv = 0
     if (numPlanes > 1) {
-        var diffUv = 0
         if (separateUv == 1) {
             diffUv = seqRead(b, bits, 1)
             bits = bits + 1
         }
         d = frameDeltaQ(b, bits)
         bits = d[0]
+        qd.add(d[1])
         d = frameDeltaQ(b, bits)
         bits = d[0]
+        qd.add(d[1])
         if (diffUv == 1) {
             d = frameDeltaQ(b, bits)
             bits = d[0]
+            qd.add(d[1])
             d = frameDeltaQ(b, bits)
             bits = d[0]
+            qd.add(d[1])
+        } else {
+            // diff_uv_delta = 0: the V plane uses the U plane's deltas.
+            qd.add(qd.get(1))
+            qd.add(qd.get(2))
         }
+    } else {
+        qd.add(0)
+        qd.add(0)
+        qd.add(0)
+        qd.add(0)
     }
     var usingQm = seqRead(b, bits, 1)
     bits = bits + 1
+    qd.add(usingQm)
     if (usingQm == 1) {
         bits = bits + 4 + 4
         if (separateUv == 1) {
@@ -463,6 +509,7 @@ Int[] frameTailWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq,
     }
     // cdef_params() (skipped when CodedLossless || allow_intrabc || !enable_cdef)
     if (codedLossless == 0 && allowIntrabc == 0 && seq.enableCdef) {
+        cdefDampingOut = seqRead(b, bits, 2) + 3
         bits = bits + 2
         var cdefBits = seqRead(b, bits, 2)
         bits = bits + 2
@@ -470,10 +517,23 @@ Int[] frameTailWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq,
         var c = 0
         var n = 1 << cdefBits
         while (c < n) {
-            bits = bits + 4 + 2
+            // cdef_y_pri_strength f(4), cdef_y_sec_strength f(2); libaom packs
+            // each pair as pri * 4 + sec (`cdef_strengths`), which is how the
+            // driver recovers level = packed / 4 and sec = packed % 4.
+            var yPri = seqRead(b, bits, 4)
+            bits = bits + 4
+            var ySec = seqRead(b, bits, 2)
+            bits = bits + 2
+            cdefYOut[c] = yPri * 4 + ySec
+            var uvPri = 0
+            var uvSec = 0
             if (numPlanes > 1) {
-                bits = bits + 4 + 2
+                uvPri = seqRead(b, bits, 4)
+                bits = bits + 4
+                uvSec = seqRead(b, bits, 2)
+                bits = bits + 2
             }
+            cdefUvOut[c] = uvPri * 4 + uvSec
             c = c + 1
         }
     }
@@ -529,7 +589,19 @@ Int[] frameTailWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq,
     // the per-segment qindex offset (`qIndex = baseQ + segAltQ[seg]`). Parsed
     // here but never surfaced before — the driver took the segEnabled==0 branch
     // and the stream desynced.
-    var out = new Int[21]
+    var out = new Int[44]
+    var qi = 0
+    while (qi < 6) {
+        out[21 + qi] = qd.get(qi)
+        qi = qi + 1
+    }
+    out[27] = cdefDampingOut
+    var ci = 0
+    while (ci < 8) {
+        out[28 + ci] = cdefYOut[ci]
+        out[36 + ci] = cdefUvOut[ci]
+        ci = ci + 1
+    }
     out[0] = bits
     out[1] = baseQ
     out[2] = lf0Out

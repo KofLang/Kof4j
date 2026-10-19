@@ -84,38 +84,6 @@ flowchart TD
 
     %% Relacionamento Principal
     Compiler -.->|implemented by| Spec
-flowchart TB
-    SRC(["Kof source<br/>.kf / .ks"]) --> CLI["kof-cli<br/>build · run · test · fmt · script · serve · debug · lsp"]
-
-    CLI --> FE["kof-compiler · frontend<br/>Lexer → Parser (raw AST) → imports + desugar → SemanticAnalyzer<br/>types live in side maps — no typed AST"]
-
-    FE --> ME["kof-compiler · middle-end<br/>AST → lowerToIR → applySuperBridges → Optimizer<br/>typed linear stack machine (30 ops) — minimal, no inlining/LICM"]
-
-    ME --> BE{"selectBackend(Target)"}
-    BE --> JVM["JvmBackend<br/>ASM 9.8 → .class + generated KofRuntime"]
-    BE --> NAT["NativeBackend<br/>x86-64 · riscv64 · aarch64 (translated)<br/>single .s → static ELF"]
-    BE --> JS["JsBackend<br/>stack IR → JS tree → .mjs + kof-runtime.mjs"]
-    BE --> AND["JvmBackend + AndroidProjectWriter<br/>bytecode + AndroidManifest/pom/assets"]
-
-    JVM --> OUT1(["JVM / Android"])
-    NAT --> OUT2(["Native ELF"])
-    JS --> OUT3(["JS / edge"])
-
-    FE -. "same frontend, no codegen" .-> INTERP["KofInterpreter (IR)<br/>KofScript .ks / REPL — direct execution"]
-
-    ME -. "not consumed" .-> CC["kof-c-compiler<br/>C subset → Native"]
-    JVM -. "does not use" .-> RT["kof-runtime<br/>auxiliary Java classes (§5.1)"]
-
-    classDef process fill:#f0f9ff,stroke:#38bdf8,stroke-width:1px,color:#0369a1
-    classDef data fill:#f5f3ff,stroke:#a78bfa,stroke-width:1px,color:#6d28d9
-    classDef backend fill:#f0fdf4,stroke:#4ade80,stroke-width:1px,color:#15803d
-    classDef alt fill:#fefce8,stroke:#facc15,stroke-width:1px,color:#854d0e
-
-    class SRC,CLI process
-    class FE,ME,INTERP process
-    class OUT1,OUT2,OUT3 data
-    class JVM,NAT,JS,AND backend
-    class BE,CC,RT alt
 ```
 
 **Related Maven modules:**

@@ -148,11 +148,24 @@ Int av1PartitionCtx(Int bsl, Int above, Int left) {
     return bsl * 4 + left * 2 + above
 }
 
-// The split_or_horz 2-symbol CDF: HORZ is coded as 0, SPLIT as 1; the CDF sums
-// the probabilities of every partition that is not VERT. `partitionCdf` is the
-// spec row `TilePartitionW<bsl>Cdf[ctx]` (length `av1PartitionCdfLength(bs)`).
-// `PARTITION_HORZ_A`=4, `PARTITION_VERT_A`=6, `PARTITION_VERT_B`=7 and
-// `PARTITION_VERT_4`=9; with `cdf_element_prob(cdf,e)=(e>0?cdf[e-1]:1<<15)-cdf[e]`.
+// The split_or_horz 2-symbol CDF: symbol 0 is "not split" (HORZ), symbol 1 is
+// SPLIT. It sums the probability of every partition that is NOT horz-alike —
+// VERT, SPLIT, HORZ_A, VERT_A, VERT_B, VERT_4 — so `out[0]` is the complement,
+// NONE + HORZ + HORZ_B + HORZ_4.
+//
+// NOTE the naming: libaom's counterpart is `partition_gather_vert_alike`
+// (av1/common/av1_common_int.h) — libaom names the gather after the branch's
+// IMPOSSIBLE direction, this file names it after the mass it collects, so the
+// two names are the mirror of each other. The caller is the `!hasRows &&
+// hasCols` branch of `read_partition` (the block overhangs the frame's bottom
+// edge, so VERT cannot be picked): bit 1 = SPLIT, bit 0 = HORZ. libaom asserts
+// `bsize > BLOCK_8X8` there, and this gather READS ELEMENT 9: an 8x8 row
+// carries 4 symbols, so the walk must never reach it with `bs <= 3`.
+//
+// `partitionCdf` is the spec row `TilePartitionW<bsl>Cdf[ctx]` (length
+// `av1PartitionCdfLength(bs)`); `PARTITION_HORZ_A`=4, `PARTITION_VERT_A`=6,
+// `PARTITION_VERT_B`=7 and `PARTITION_VERT_4`=9; with
+// `cdf_element_prob(cdf,e)=(e>0?cdf[e-1]:1<<15)-cdf[e]`.
 Int[] av1PartitionGatherHorzAlike(Int[] partitionCdf, Int bs) {
     var psum = partitionCdf[2] - partitionCdf[1]
     psum = psum + (partitionCdf[3] - partitionCdf[2])
@@ -169,9 +182,14 @@ Int[] av1PartitionGatherHorzAlike(Int[] partitionCdf, Int bs) {
     return out
 }
 
-// The split_or_vert 2-symbol CDF: VERT is coded as 0, SPLIT as 1. Sums every
-// partition that is not HORZ (`PARTITION_HORZ`=1, `PARTITION_SPLIT`=3,
-// `PARTITION_HORZ_A`=4, `PARTITION_HORZ_B`=5, `PARTITION_HORZ_4`=8).
+// The split_or_vert 2-symbol CDF: symbol 0 is "not split" (VERT), symbol 1 is
+// SPLIT. It sums the probability of every partition that is NOT vert-alike —
+// HORZ, SPLIT, HORZ_A, HORZ_B, VERT_A, HORZ_4 — so `out[0]` is the complement,
+// NONE + VERT + VERT_B + VERT_4. libaom's counterpart is
+// `partition_gather_horz_alike` (the mirror name again, see above); the caller
+// is the `hasRows && !hasCols` branch of `read_partition` (the block overhangs
+// the frame's right edge, so HORZ cannot be picked). Same `bs > BLOCK_8X8`
+// precondition as the other gather (this one reads element 8).
 Int[] av1PartitionGatherVertAlike(Int[] partitionCdf, Int bs) {
     var psum = partitionCdf[1] - partitionCdf[0]
     psum = psum + (partitionCdf[3] - partitionCdf[2])

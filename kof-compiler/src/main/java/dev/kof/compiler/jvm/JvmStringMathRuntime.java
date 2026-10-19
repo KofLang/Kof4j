@@ -195,22 +195,27 @@ public final class JvmStringMathRuntime {
                     return v.length() <= n ? v : v.substring(0, n);
                 }
 
-                // pad = 1ª char do 3º arg; sem pad (null/"") ou len>=n => original.
+                // pad = 1º CODE POINT do 3º arg; sem pad (null/"") ou len>=n => original.
+                // (code points, não unidades UTF-16 — paridade com o caminho nativo §747)
                 public static String kof_strings_padLeft(String v, int n, String pad) {
                     if (v == null) return null;
-                    if (pad == null || pad.isEmpty() || v.length() >= n) return v;
-                    char p = pad.charAt(0);
+                    if (pad == null || pad.isEmpty()) return v;
+                    int vChars = v.codePointCount(0, v.length());
+                    if (vChars >= n) return v;
+                    String p = new String(Character.toChars(pad.codePointAt(0)));
                     StringBuilder sb = new StringBuilder(n);
-                    for (int i = v.length(); i < n; i++) sb.append(p);
+                    for (int i = vChars; i < n; i++) sb.append(p);
                     return sb.append(v).toString();
                 }
 
                 public static String kof_strings_padRight(String v, int n, String pad) {
                     if (v == null) return null;
-                    if (pad == null || pad.isEmpty() || v.length() >= n) return v;
-                    char p = pad.charAt(0);
+                    if (pad == null || pad.isEmpty()) return v;
+                    int vChars = v.codePointCount(0, v.length());
+                    if (vChars >= n) return v;
+                    String p = new String(Character.toChars(pad.codePointAt(0)));
                     StringBuilder sb = new StringBuilder(v);
-                    for (int i = v.length(); i < n; i++) sb.append(p);
+                    for (int i = vChars; i < n; i++) sb.append(p);
                     return sb.toString();
                 }
 

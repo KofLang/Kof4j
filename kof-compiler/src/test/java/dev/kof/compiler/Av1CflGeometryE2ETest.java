@@ -215,8 +215,8 @@ class Av1CflGeometryE2ETest implements LibraryInstallSupport {
         StringBuilder sb = new StringBuilder();
         sb.append("import image.Av1Cfl\n\n");
         sb.append("void emitRegion(Int[] buf, Int stride, Int cw, Int ch, Int ox, Int oy, ")
-          .append("Int alpha, Int log2n) {\n");
-        sb.append("    var ac = av1CflAcFromLuma(buf, stride, ox + 1, oy + 1, cw, ch, 1, 1, log2n)\n");
+          .append("Int alpha, Int log2n, Int planeW, Int planeH) {\n");
+        sb.append("    var ac = av1CflAcFromLuma(buf, stride, ox + 1, oy + 1, cw, ch, 1, 1, log2n, planeW, planeH)\n");
         sb.append("    var dc = new Int[cw * ch]\n");
         sb.append("    var k = 0\n");
         sb.append("    while (k < dc.size) {\n");
@@ -257,7 +257,7 @@ class Av1CflGeometryE2ETest implements LibraryInstallSupport {
             int log2n = Integer.numberOfTrailingZeros(cw * ch);
             sb.append("    emitRegion(buf, stride, ").append(cw).append(", ").append(ch)
               .append(", ").append(ox).append(", ").append(oy).append(", ")
-              .append(alpha).append(", ").append(log2n).append(")\n");
+              .append(alpha).append(", ").append(log2n).append(", PW, PW)\n");
         }
         sb.append("}\n");
         return sb.toString();

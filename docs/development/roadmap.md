@@ -1013,6 +1013,11 @@ All remaining `future/` plans are authorized with their
 > integration idempotent, the project generation, the diagnostics, the golden corpus, the behavioral equivalence, the advanced constructs named and
 > refused) — the plan moved to [`docs/kof-cobol-translator.md`](../kof-cobol-translator.md) (+PT +the guide); the tool home and the exact CLI grammar
 > (Q1/Q2) stay the maintainer’s — no CLI surface invented; the phases 14/15 are future by design.
+>
+> **PROMOTED (17th front):** `kofscript-embedding` — promoted 17/10 (maintainer order "puxa uma de future" + `D-FUTURE-PROMOTION`) to
+> [`kofscript-embedding-plan.md`](kofscript-embedding-plan.md) (+PT). **Spike-0 (the measured inventory) LANDED** — the batch-only `KofScript`,
+> the completion-only executor, the GLOBAL `ScriptGlobals`, the absent capability model (all file-anchored); the RUNTIME slices 2–4 stay
+> BLOCKED behind the maintainer’s CONTRACT decision + the compiler lane’s active interpreter (`KofInterpreter`) territory.
 
 ### TIER 0 — Guardrails and processes (E, ≈ zero) ✅ 01/09
 

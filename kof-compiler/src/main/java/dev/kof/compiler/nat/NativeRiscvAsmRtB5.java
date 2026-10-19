@@ -15,7 +15,12 @@ public final class NativeRiscvAsmRtB5 {
                 bltz a0, .Lv_math_abs_neg
                 ret
             .Lv_math_abs_neg:
+                # §748: a negacao de 64 bits NAO estoura como a de 32 (o
+                # INT_MIN virava +2^31); o JVM/x86 negam em 32 bits (o INT_MIN
+                # continua INT_MIN). Re-estende o sinal dos 32 bits baixos.
                 neg  a0, a0
+                slli a0, a0, 32
+                srai a0, a0, 32
                 ret
 
             # kof_math_sign(a0=v) -> 1/0/-1
