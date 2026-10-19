@@ -19,19 +19,24 @@ final class NativeClassMeta {
         // §483: nomes de slot vindos da INTERFACE — um bridge da classe (erased,
         // ACC_BRIDGE) DEVE sobrescrever esse slot (é o mesmo contrato), senão a
         // chamada via interface cai no método abstrato vazio.
-        java.util.Set<String> ifaceSlotNames = new java.util.HashSet<>();
+        // §720: o MESMO vale para a SUPERCLASSE — um bridge sobre um método
+        // abstrato genérico herdado tem de ocupar o slot da base (senão o
+        // dispatch por tipo-base chama o stub abstrato vazio e o valor 0 é
+        // desembalado → `type error: ... cannot be cast`).
+        java.util.Set<String> inheritedSlotNames = new java.util.HashSet<>();
         String current = clazz.superName();
         while (current != null && !current.isEmpty() && !"java/lang/Object".equals(current)) {
             IRClass superClazz = nb.allClassesMap.get(current);
             if (superClazz == null) break;
             for (IRMethod m : superClazz.methods()) {
-                addSlot(nb, methods, methodNames, superClazz.name(), m, ifaceSlotNames);
+                addSlot(nb, methods, methodNames, superClazz.name(), m, inheritedSlotNames);
             }
             for (String iface : superClazz.interfaces()) {
                 if (visited.add(iface)) queue.add(iface);
             }
             current = superClazz.superName();
         }
+        inheritedSlotNames.addAll(methodNames);
         // §248: as interfaces DIRETAMENTE implementadas pela classe também
         // entram na fila. Sem isso um default method herdado (ex.: `greetLoud`)
         // não ganhava slot na vtable do implementor e a chamada caía fora do
@@ -54,7 +59,7 @@ final class NativeClassMeta {
                 // impl concreto já ocupa aquele índice). §483.
                 if (!methodNames.contains(m.name())) {
                     methodNames.add(m.name());
-                    ifaceSlotNames.add(m.name());
+                    inheritedSlotNames.add(m.name());
                     methods.add(NativeSymbolMangling.fnSymbol(ifaceClazz.name(), m, nb.allClassesMap));
                 }
             }
@@ -63,7 +68,7 @@ final class NativeClassMeta {
             }
         }
         for (IRMethod m : clazz.methods()) {
-            addSlot(nb, methods, methodNames, clazz.name(), m, ifaceSlotNames);
+            addSlot(nb, methods, methodNames, clazz.name(), m, inheritedSlotNames);
         }
         return methods;
     }
@@ -78,7 +83,7 @@ final class NativeClassMeta {
      * no slot errado).
      */
     private static void addSlot(NativeBackend nb, List<String> methods, List<String> methodNames,
-                                String ownerName, IRMethod m, java.util.Set<String> ifaceSlotNames) {
+                                String ownerName, IRMethod m, java.util.Set<String> inheritedSlotNames) {
         if ("<init>".equals(m.name()) || "<clinit>".equals(m.name()) || m.name().startsWith("kof_")) {
             return;
         }
@@ -89,12 +94,13 @@ final class NativeClassMeta {
         // por assinatura (fnSymbol tageia) — antes o 2º def sobrescrevia o slot
         // (methods.set) e os 2 .globl colidiam.
         String sym = NativeSymbolMangling.fnSymbol(ownerName, m, nb.allClassesMap);
-        // §483: um bridge de erasure (ACC_BRIDGE) da classe é o MESMO contrato do
-        // slot abstrato vindo da interface — sobrescreve por nome para a chamada
-        // via interface cair no bridge (e não no abstrato vazio). Sem isto a
-        // semeadura das interfaces da própria classe (§248) deslocaria o bridge.
+        // §483 + §720: um bridge de erasure (ACC_BRIDGE) da classe é o MESMO
+        // contrato do slot herdado (interface OU superclasse abstrata) —
+        // sobrescreve por nome para a chamada pelo tipo-base cair no bridge (e
+        // não no abstrato vazio). Sem isto a semeadura da própria classe (§248)
+        // deslocaria o bridge para um slot que o call site nunca consulta.
         if ((m.accessFlags() & dev.kof.compiler.AccessFlags.BRIDGE) != 0
-                && ifaceSlotNames.contains(m.name())) {
+                && inheritedSlotNames.contains(m.name())) {
             int bi = methodNames.indexOf(m.name());
             methods.set(bi, sym);
             return;

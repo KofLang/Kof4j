@@ -545,9 +545,34 @@ Considerar segurança contra path traversal dentro de arquivos compactados.
 > declarado mentiroso é RECUSADO em vez de truncado, que é a defesa contra bomba
 > de descompressão. ZIP64, entrada criptografada e método fora de {0, 8} são
 > recusados com diagnóstico explícito, nunca silêncio. **Segue aberto na #852:**
-> o streaming `open()`/`readChunk()` dirigido pelo chamador, o `extractTo` (que
-> precisa da primitiva de confinamento da #854), GZIP e TAR, e o fallback CP437
-> para nomes legados.
+> o streaming `open()`/`readChunk()` dirigido pelo chamador.
+> **A ESCRITA de ZIP está DENTRO:** `ZipWriter(path)` + `addFile`/`addText` + `close()` escreve
+> entradas STORED (método 0) — verbatim, SEM compressor — com o cabeçalho local gravado conforme
+> anda e o diretório central montado no `close()` a partir do que foi anotado (as cargas nunca
+> ficam em memória). Os nomes saem em UTF-8 com o bit EFS (11) ligado, o MESMO bit que o leitor
+> consulta, e nomes duplicados são recusados. Método 8 precisaria de compressor: fatia própria.
+> **A ESCRITA de GZIP está DENTRO:** `GzipWriter(path)` + `addText`/`addBytes` + `close()` escreve
+> membros RFC 1952 com blocos DEFLATE **STORED** (BTYPE=00) — verbatim, SEM compressor, o mesmo
+> precedente honesto do `ZipWriter`. O cabeçalho de 10 bytes carrega MTIME 0 (bytes determinísticos),
+> cada chamada vira um ou mais blocos STORED de até 65535 bytes, e o `close()` emite o bloco final
+> vazio mais o trailer CRC-32/ISIZE acumulado incrementalmente (`zipCrc32State`) — as cargas nunca
+> ficam em memória só para calcular o trailer. Saída comprimida (blocos fixed/dynamic) precisaria
+> de compressor: fatia própria.
+> **A validação estrutural está DENTRO:** o `Zip.validate()` recusa um arquivo cujo header
+> LOCAL e diretório CENTRAL discordam (nome/método/tamanhos/CRC-32, tolerando o data
+> descriptor legítimo da especificação) e qualquer par de entradas com faixas de dados
+> SOBREPOSTAS — as duas mentiras que a issue nomeia e que a leitura sozinha nunca pega.
+> O `extractTo` roda isso ANTES de escrever qualquer coisa.
+> **A ESCRITA de TAR também está DENTRO:** `TarWriter(path)` + `addFile`/`addText` +
+> `close()` escreve ustar (store-only, sem compressão) incrementalmente, com `mtime`
+> zero para o mesmo input sair byte-idêntico. Nomes acima de 100 bytes são recusados
+> (nome longo GNU é fatia própria), nunca truncados.
+> **O `extractTo` está DENTRO, com confinamento:** `Zip(path).extractTo(destDir, maxBytes)`
+> recusa `..`, absolutos, unidade Windows e o separador `\` — a barreira de NOME roda
+> antes de qualquer coisa tocar o disco — e nunca sobrescreve um caminho existente.
+> Limite honesto: a checagem de link é conferir-depois-gravar, então a janela TOCTOU
+> segue aberta até a primitiva `createNew` da #854 chegar.
+> **Os nomes já seguem a regra do formato:** quem decide é o bit 11 (UTF-8) — setado é UTF-8, limpo é CP437 (o caso legado, que antes saía com caracteres de substituição).
 
 > **GZIP entregue no mesmo dia (fatia 2 da #852):** o `libs/archive/Gzip.kf` lê
 > fluxos RFC 1952 pela MESMA composição — o payload deflate vai para o
@@ -560,6 +585,14 @@ Considerar segurança contra path traversal dentro de arquivos compactados.
 > buffer quando satura, então a contagem real é o campo `outPos` — um membro só de
 > literais nunca estoura a janela e escaparia do teto. TAR, a API de streaming em
 > blocos e os nomes em CP437 seguem abertos.
+
+> **TAR entregue no mesmo dia (fatia 3 da #852):** o `libs/archive/Tar.kf` lê
+> POSIX ustar (mais os marcadores GNU de nome longo `L`/`K`, que são seguidos),
+> com o CHECKSUM do header conferido em todo bloco, o teto do chamador na leitura
+> da entrada e os headers estendidos pax (`x`/`g`) RECUSADOS pelo nome. Ele não
+> carrega compressão, então o que acrescenta é a ESTRUTURA — e a composição é o
+> ponto: `tarEntriesFrom(gzipRead(...))` (ou o wrapper `tarGzEntries`) lê um
+> `.tar.gz` sem máquina nova. Escrita não está aqui (só leitura).
 
 ---
 

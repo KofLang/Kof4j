@@ -119,6 +119,13 @@ public final class KofInterpreterObjects {
                 }
                 return sb.append(']').toString();
             }
+            // §749: um ENUM e uma classe REAL (§211) com o campo `kofName`
+            // (CompilerEnumLowering) e um toString sintetico que o devolve —
+            // o JVM/JS/nativo imprimem o NOME. O interpretador caia no
+            // `Nome@hash` (a representacao interna vazava). Le o campo.
+            if (ko.fields.containsKey(CompilerEnumLowering.NAME_FIELD)) {
+                return String.valueOf(ko.fields.get(CompilerEnumLowering.NAME_FIELD));
+            }
             return KofInterpreterValues.simpleOf(ko.internalName()) + "@"
                     + Integer.toHexString(System.identityHashCode(ko));
         }

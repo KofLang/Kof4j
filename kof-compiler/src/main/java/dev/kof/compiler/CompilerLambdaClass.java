@@ -202,6 +202,39 @@ public final class CompilerLambdaClass {
         return name;
     }
 
+    static void propagateCapturePins(CompilerDriver driver, String lambdaClass,
+                                     List<IRLocalVariable> captures, List<IRLocalVariable> outerLocals) {
+        List<IRLocalVariable> lambdaLocals = null;
+        for (IRClass cls : driver.syntheticClasses) {
+            if (!cls.name().equals(lambdaClass)) continue;
+            for (IRMethod m : cls.methods()) {
+                if ("invoke".equals(m.name())) lambdaLocals = m.localVariables();
+            }
+        }
+        if (lambdaLocals == null) return;
+        for (IRLocalVariable cap : captures) {
+            if (cap.index() < 0 || !isBareList(driver, cap.type())) continue;
+            Type pinned = null;
+            for (IRLocalVariable lv : lambdaLocals) {
+                if (lv.name().equals(cap.name())) {
+                    pinned = lv.type();
+                    break;
+                }
+            }
+            if (pinned == null || !BuiltinTypes.isList(pinned) || isBareList(driver, pinned)) continue;
+            for (int i = 0; i < outerLocals.size(); i++) {
+                IRLocalVariable lv = outerLocals.get(i);
+                if (lv.index() == cap.index() && lv.name().equals(cap.name()) && isBareList(driver, lv.type())) {
+                    outerLocals.set(i, new IRLocalVariable(lv.index(), lv.name(), pinned));
+                }
+            }
+        }
+    }
+
+    private static boolean isBareList(CompilerDriver driver, Type t) {
+        return BuiltinTypes.isList(t) && driver.listElementType(t) instanceof Type.UnknownType;
+    }
+
     /**
      * Interface sintética por assinatura de função — o dispatch por interface
      * (bug 8) para valores de tipo de função DECLARADO (`f(x)` com

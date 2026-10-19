@@ -64,6 +64,30 @@ class DbNamespaceLocalShadowE2ETest {
             }
             """;
 
+    private static final String UNRESOLVED_QUERY = """
+            main() {
+                var db = db.connect("jdbc:h2:mem:shadow883")
+                var x = db.query("SELECT 1")
+                println(x.length())
+            }
+            """;
+
+    private static final String UNRESOLVED_STATEMENT = """
+            main() {
+                var db = db.connect("jdbc:h2:mem:shadow883")
+                db.exec(db, "create table t(id int)")
+                db.close(db)
+            }
+            """;
+
+    private java.util.List<Diagnostic> compileFailing(Path dir, String name, String source) throws IOException {
+        Path src = dir.resolve(name);
+        Files.writeString(src, source);
+        CompilationResult result = driver.compile(src, dir.resolve("out"), Target.JVM);
+        assertFalse(result.success(), "Compilation should fail: " + result.diagnostics().getDiagnostics());
+        return result.diagnostics().getDiagnostics();
+    }
+
     private String runJvm(Path source, Path outDir, String extraCp, String expected) throws IOException {
         CompilationResult result = driver.compile(source, outDir, Target.JVM);
         assertTrue(result.success(), "Compilation should succeed: " + result.diagnostics().getDiagnostics());
@@ -116,5 +140,22 @@ class DbNamespaceLocalShadowE2ETest {
         Path src = dir.resolve("HandleIdiom.kf");
         Files.writeString(src, HANDLE_IDIOM);
         runJvm(src, dir.resolve("out"), h2, "1");
+    }
+
+    @Test
+    void unresolvedDbCallOnTheHandleIsDiagnosedInsteadOfCrashingTheBackend(@TempDir Path dir) throws IOException {
+        var diags = compileFailing(dir, "Unresolved883.kf", UNRESOLVED_QUERY);
+        assertTrue(diags.stream().anyMatch(d -> "SEM025".equals(d.code())
+                        && d.message().contains("'query'") && d.message().contains("1 argument")),
+                "SEM025 esperado para db.query com 1 argumento: " + diags);
+        assertTrue(diags.stream().noneMatch(d -> "COMP002".equals(d.code())),
+                "o backend não pode morrer com erro interno: " + diags);
+    }
+
+    @Test
+    void unresolvedDbCallAsStatementIsDiagnosedInsteadOfDropped(@TempDir Path dir) throws IOException {
+        var diags = compileFailing(dir, "Dropped883.kf", UNRESOLVED_STATEMENT);
+        assertTrue(diags.stream().anyMatch(d -> "SEM025".equals(d.code()) && d.message().contains("'exec'")),
+                "SEM025 esperado para db.exec (a chamada não pode sumir da IR): " + diags);
     }
 }

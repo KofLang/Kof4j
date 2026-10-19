@@ -330,15 +330,21 @@ public final class RuntimeStringsConv {
             # null=>0; pad null/"" ou len(v)>=n => v; senao (n-len)×pad[0] + v.
             .globl kof_strings_padLeft
             .type kof_strings_padLeft, @function
+            # §747 (D-FULL-PARITY-050 NAT-STR01): o pad e o PRIMEIRO CARACTERE
+            # do pad repetido ate n CARACTERES (contrato do JVM/JS/Script,
+            # medido: padLeft("7",5,"ab") = "aaaa7"). O helper antigo escrevia
+            # UM BYTE por slot e contava o comprimento da vitima em BYTES ->
+            # pad nao-ASCII corrompia a String (UTF-8 invalido) e uma vitima
+            # multi-byte recebia pads a menos.
             kof_strings_padLeft:
                 pushq %rbx
                 pushq %r12
                 pushq %r13
                 pushq %r14
                 pushq %r15
-                subq $16, %rsp
-                movq %rdi, %rbx          # v
-                movl %esi, %r12d         # n
+                subq $32, %rsp
+                movq %rdi, %rbx
+                movl %esi, %r12d
                 testq %rbx, %rbx
                 jz .Lv_str_pl_null
                 testq %rdx, %rdx
@@ -346,40 +352,90 @@ public final class RuntimeStringsConv {
                 movl 16(%rdx), %eax
                 testl %eax, %eax
                 jle .Lv_str_pl_orig
-                movzbl 24(%rdx), %r14d   # pad[0]
-                movl 16(%rbx), %r13d     # vlen
-                cmpl %r13d, %r12d
+                movq %rdx, %r14
+                movl $1, %r11d
+                movzbl 24(%r14), %edx
+                movl %edx, %eax
+                andl $0xE0, %eax
+                cmpl $0xC0, %eax
+                jne .Lv_pl_l3
+                movl $2, %r11d
+                jmp .Lv_pl_plen
+            .Lv_pl_l3:
+                movl %edx, %eax
+                andl $0xF0, %eax
+                cmpl $0xE0, %eax
+                jne .Lv_pl_l4
+                movl $3, %r11d
+                jmp .Lv_pl_plen
+            .Lv_pl_l4:
+                movl %edx, %eax
+                andl $0xF8, %eax
+                cmpl $0xF0, %eax
+                jne .Lv_pl_plen
+                movl $4, %r11d
+            .Lv_pl_plen:
+                movl %r11d, 8(%rsp)
+                movl 16(%rbx), %r13d
+                xorl %r10d, %r10d
+                xorl %ecx, %ecx
+            .Lv_pl_cnt:
+                cmpl %r13d, %ecx
+                jge .Lv_pl_cntd
+                movzbl 24(%rbx,%rcx), %eax
+                andl $0xC0, %eax
+                cmpl $0x80, %eax
+                je .Lv_pl_cntn
+                incl %r10d
+            .Lv_pl_cntn:
+                incq %rcx
+                jmp .Lv_pl_cnt
+            .Lv_pl_cntd:
+                movl %r10d, 16(%rsp)
+                cmpl %r10d, %r12d
                 jle .Lv_str_pl_orig
-                leal 25(%r12), %edi
+                movl %r12d, %eax
+                subl %r10d, %eax
+                imull 8(%rsp), %eax
+                addl %r13d, %eax
+                movl %eax, 24(%rsp)
+                leal 25(%rax), %edi
                 call kof_alloc
-                movq %rax, (%rsp)        # novo
+                movq %rax, (%rsp)
                 movl $1, (%rax)
                 movl $0, 4(%rax)
                 movq $0, 8(%rax)
-                movl %r12d, 16(%rax)
+                movl 24(%rsp), %ecx
+                movl %ecx, 16(%rax)
                 movl $0, 20(%rax)
                 movq (%rsp), %r15
-                # preenche pad: i em [0, n-vlen)
                 xorq %rcx, %rcx
-            .Lv_str_pl_fill:
-                movl %r12d, %eax
-                subl %r13d, %eax
-                cmpl %eax, %ecx
-                jge .Lv_str_pl_copy
-                movb %r14b, 24(%r15,%rcx)
-                incl %ecx
-                jmp .Lv_str_pl_fill
-            .Lv_str_pl_copy:
+            .Lv_pl_pad:
+                movl 24(%rsp), %r11d
+                subl %r13d, %r11d
+            .Lv_pl_pchk:
+                cmpl %r11d, %ecx
+                jge .Lv_pl_copy
+                xorl %r10d, %r10d
+            .Lv_pl_pbyte:
+                cmpl 8(%rsp), %r10d
+                jge .Lv_pl_pchk
+                movzbl 24(%r14,%r10), %eax
+                movb %al, 24(%r15,%rcx)
+                incq %rcx
+                incl %r10d
+                jmp .Lv_pl_pbyte
+            .Lv_pl_copy:
                 leaq 24(%r15), %rdi
                 addq %rcx, %rdi
                 leaq 24(%rbx), %rsi
                 movl %r13d, %edx
                 testl %edx, %edx
-                jle .Lv_str_pl_term
+                jle .Lv_pl_term
                 call kof_memcpy
-            .Lv_str_pl_term:
+            .Lv_pl_term:
                 movq (%rsp), %r15
-                movl %r12d, %eax
+                movl 24(%rsp), %eax
                 movb $0, 24(%r15,%rax)
                 movq %r15, %rax
                 jmp .Lv_str_pl_done
@@ -389,7 +445,7 @@ public final class RuntimeStringsConv {
             .Lv_str_pl_null:
                 xorl %eax, %eax
             .Lv_str_pl_done:
-                addq $16, %rsp
+                addq $32, %rsp
                 popq %r15
                 popq %r14
                 popq %r13
@@ -398,7 +454,7 @@ public final class RuntimeStringsConv {
                 ret
 
             # kof_strings_padRight(rdi=v, esi=n, rdx=pad) -> String
-            # v + (n-len)×pad[0]; mesmas regras de borda.
+            # §747: vitima PRIMEIRO, depois o pad (primeiro caractere repetido).
             .globl kof_strings_padRight
             .type kof_strings_padRight, @function
             kof_strings_padRight:
@@ -407,7 +463,7 @@ public final class RuntimeStringsConv {
                 pushq %r13
                 pushq %r14
                 pushq %r15
-                subq $16, %rsp
+                subq $32, %rsp
                 movq %rdi, %rbx
                 movl %esi, %r12d
                 testq %rbx, %rbx
@@ -417,33 +473,88 @@ public final class RuntimeStringsConv {
                 movl 16(%rdx), %eax
                 testl %eax, %eax
                 jle .Lv_str_pr_orig
-                movzbl 24(%rdx), %r14d
+                movq %rdx, %r14
+                movl $1, %r11d
+                movzbl 24(%r14), %edx
+                movl %edx, %eax
+                andl $0xE0, %eax
+                cmpl $0xC0, %eax
+                jne .Lv_pr_l3
+                movl $2, %r11d
+                jmp .Lv_pr_plen
+            .Lv_pr_l3:
+                movl %edx, %eax
+                andl $0xF0, %eax
+                cmpl $0xE0, %eax
+                jne .Lv_pr_l4
+                movl $3, %r11d
+                jmp .Lv_pr_plen
+            .Lv_pr_l4:
+                movl %edx, %eax
+                andl $0xF8, %eax
+                cmpl $0xF0, %eax
+                jne .Lv_pr_plen
+                movl $4, %r11d
+            .Lv_pr_plen:
+                movl %r11d, 8(%rsp)
                 movl 16(%rbx), %r13d
-                cmpl %r13d, %r12d
+                xorl %r10d, %r10d
+                xorl %ecx, %ecx
+            .Lv_pr_cnt:
+                cmpl %r13d, %ecx
+                jge .Lv_pr_cntd
+                movzbl 24(%rbx,%rcx), %eax
+                andl $0xC0, %eax
+                cmpl $0x80, %eax
+                je .Lv_pr_cntn
+                incl %r10d
+            .Lv_pr_cntn:
+                incq %rcx
+                jmp .Lv_pr_cnt
+            .Lv_pr_cntd:
+                movl %r10d, 16(%rsp)
+                cmpl %r10d, %r12d
                 jle .Lv_str_pr_orig
-                leal 25(%r12), %edi
+                movl %r12d, %eax
+                subl %r10d, %eax
+                imull 8(%rsp), %eax
+                addl %r13d, %eax
+                movl %eax, 24(%rsp)
+                leal 25(%rax), %edi
                 call kof_alloc
-                movq %rax, %r15
-                movl $1, (%r15)
-                movl $0, 4(%r15)
-                movq $0, 8(%r15)
-                movl %r12d, 16(%r15)
-                movl $0, 20(%r15)
-                # copia v primeiro: memcpy(novo.bytes, v.bytes, vlen)
+                movq %rax, (%rsp)
+                movl $1, (%rax)
+                movl $0, 4(%rax)
+                movq $0, 8(%rax)
+                movl 24(%rsp), %ecx
+                movl %ecx, 16(%rax)
+                movl $0, 20(%rax)
+                movq (%rsp), %r15
                 leaq 24(%r15), %rdi
                 leaq 24(%rbx), %rsi
                 movl %r13d, %edx
+                testl %edx, %edx
+                jle .Lv_pr_pad
                 call kof_memcpy
-                # preenche cauda: i em [vlen, n)
-                movl %r13d, %ecx
-            .Lv_str_pr_fill:
-                cmpl %r12d, %ecx
-                jge .Lv_str_pr_term
-                movb %r14b, 24(%r15,%rcx)
-                incl %ecx
-                jmp .Lv_str_pr_fill
-            .Lv_str_pr_term:
-                movl %r12d, %eax
+            .Lv_pr_pad:
+                movq (%rsp), %r15
+                movq %r13, %rcx
+                movl 24(%rsp), %r11d
+            .Lv_pr_pchk:
+                cmpl %r11d, %ecx
+                jge .Lv_pr_term
+                xorl %r10d, %r10d
+            .Lv_pr_pbyte:
+                cmpl 8(%rsp), %r10d
+                jge .Lv_pr_pchk
+                movzbl 24(%r14,%r10), %eax
+                movb %al, 24(%r15,%rcx)
+                incq %rcx
+                incl %r10d
+                jmp .Lv_pr_pbyte
+            .Lv_pr_term:
+                movq (%rsp), %r15
+                movl 24(%rsp), %eax
                 movb $0, 24(%r15,%rax)
                 movq %r15, %rax
                 jmp .Lv_str_pr_done
@@ -453,7 +564,7 @@ public final class RuntimeStringsConv {
             .Lv_str_pr_null:
                 xorl %eax, %eax
             .Lv_str_pr_done:
-                addq $16, %rsp
+                addq $32, %rsp
                 popq %r15
                 popq %r14
                 popq %r13

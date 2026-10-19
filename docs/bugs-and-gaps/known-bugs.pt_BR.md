@@ -5428,6 +5428,8 @@ para o label) é o predicado correto e **já era usado** no `parseStatements`.
   Native; casos não-ASCII ficam em KofStringsTest (JVM+JS)"). A matriz trava
   só ASCII de propósito (`conformance-matrix.md` §"S2b ASCII"/NAT-STR01).
   **`reverse` deixou esta lista em 27/09** (D-FULL-PARITY-050 linha 11): agora
+  **`padLeft`/`padRight` sairam desta lista em 16/10 (`§747`):** a corrupcao com pad nao-ASCII foi corrigida nos tres nativos — a vitima agora e contada em CODE POINTS e os bytes UTF-8 do char de pad sao escritos por inteiro (as saidas ASCII ficam byte-identicas); `StringsPadUnicodeE2ETest` 6/6.
+  **MEDIDO 16/10 (lane compilador/JVM/nativo `192.168.15.30:9092`): a fronteira e PIOR que "ASCII-first" para o PAR do pad — um char de pad nao-ASCII emite UM BYTE por slot, entao o resultado e uma String Kof MALFORMADA (UTF-8 invalido), nao apenas uma aproximacao ASCII.** `padLeft("7", 3, 'é')` da `éé7` no JVM/Script/JS e `??7` (um 0xE9 solto por slot) nos TRES nativos; `padRight("7", 3, 'é')` → `7??`; pad de 3 bytes (`'€'`) igual; pad ASCII (`'x'`) correto em todos (medido). Os helpers leem `pad[0]` e fixam o comprimento a `n` BYTES (`RuntimeStringsConv` x86, `NativeRiscvAsmRtB9` riscv). **O fix vive na frente JA AUTORIZADA `D-FULL-PARITY-050` linha 11** (a que fechou o `reverse`): repetir a STRING do pad e truncar a `n` CARACTERES (code points no nativo) — sem decisao nova.
   está correto por code point UTF-8 nos três targets nativos.
 - **Estado do registro (13/09):** o `docs/development/README.md:91` já listava
   NAT-STR01 como "`known-bugs.md`/conformance-matrix", mas a seção **não
@@ -15093,13 +15095,15 @@ compila LIMPO (sem diagnóstico) e a classe emitida referencia `Foobar` — no l
 
 <!-- en-switch --> **EN:** [§719](known-bugs.md#719--implementing-two-generic-interfaces-gives-a-wrong-value-on-native-class-abint-v-implements-aint-bint--yb-returns-5-instead-of-6-on-native-x86-64riscv64aarch64-jvmscriptjs-correct---open-measured-1410-by-lane-compilerjvmnative-19216815309092)
 
-## §720 — uma classe base genérica ABSTRATA com subclasse concreta quebra o JVM (`VerifyError: Bad operand type when invoking <init>`) e o nativo (`ClassCastException`): `abstract class Base<T> { abstract T value() }` / `class Impl extends Base<Int>` — 🟡 PARCIALMENTE CORRIGIDO 14/10 (a face JVM está CORRIGIDA; a face nativa resta) — lane compilador/JVM/nativo `192.168.15.30:9092`
+## §720 — uma classe base genérica ABSTRATA com subclasse concreta quebra o JVM (`VerifyError: Bad operand type when invoking <init>`) e o nativo (`ClassCastException`): `abstract class Base<T> { abstract T value() }` / `class Impl extends Base<Int>` — ✅ CORRIGIDO 18/10 (face JVM 14/10, face NATIVA 18/10) — lane compilador/JVM/nativo `192.168.15.30:9092`
 
 **Sintoma (medido 14/10 pelo MÓDULO DO COMPILADOR):** `abstract class Base<T> { abstract T value(); T twice() { return value() } }` com `class Impl(Int n) extends Base<Int> { Int value() { return n } }` — `x.value()` roda em Script/JS (`4`) mas o JVM lança `VerifyError: Bad operand type when invoking <init>` e o nativo `type error: class java.lang.Integer cannot be cast`. O caminho de construtor/override da base genérica abstrata é mal-tipado no JVM e no nativo.
 
-**Face JVM CORRIGIDA 14/10:** o `Impl.<init>` emitia DUAS chamadas de super — a injetada `Base."<init>":()V` E uma explícita `"Base<Int>"."<init>":()V` cujo OWNER carregava o type-argument. Raiz: o `CompilerRecordSupport.generateRecordConstructor` usava `rec.superClass()` CRU, diferente do `CompilerClassLowering` (linha 24) e do `CompilerIfaceRecordLowering` (linha 48), que ambos chamam `eraseTypeArgs`. Correção: apagar os type-args (`eraseTypeArgs`). **Prova RED-first:** `AbstractGenericBaseCtorE2ETest` (novo) **3 run / 0F** (JVM/Script/JS); com o fix revertido a face JVM lança `VerifyError`. Bateria records/abstrato/genérico 269/0F. **A face NATIVA RESTA:** o call site do método genérico abstrato usa o `T` apagado (um `Object` BOXED) enquanto o override concreto `Impl.value():Int` retorna CRU — o `kof_unbox` nativo então falha (`type error: class java.lang.Integer cannot be cast to the boxed value`) — a mesma família boxed-vs-cru do §717. Uma base abstrata NÃO-genérica funciona no nativo. **Fronteira:** a face nativa resta para x86-64/riscv64/aarch64; JVM/Script/JS agora corretos.
+**Face JVM CORRIGIDA 14/10:** o `Impl.<init>` emitia DUAS chamadas de super — a injetada `Base."<init>":()V` E uma explícita `"Base<Int>"."<init>":()V` cujo OWNER carregava o type-argument. Raiz: o `CompilerRecordSupport.generateRecordConstructor` usava `rec.superClass()` CRU, diferente do `CompilerClassLowering` (linha 24) e do `CompilerIfaceRecordLowering` (linha 48), que ambos chamam `eraseTypeArgs`. Correção: apagar os type-args (`eraseTypeArgs`). **Prova RED-first:** `AbstractGenericBaseCtorE2ETest` (novo) **3 run / 0F** (JVM/Script/JS); com o fix revertido a face JVM lança `VerifyError`. Bateria records/abstrato/genérico 269/0F. **Face NATIVA:** corrigida 18/10 — ver abaixo.
 
-<!-- en-switch --> **EN:** [§720](known-bugs.md#720--an-abstract-generic-base-class-with-a-concrete-subclass-breaks-the-jvm-verifyerror-bad-operand-type-when-invoking-init-and-the-native-classcastexception-abstract-class-baset--abstract-t-value---class-impl-extends-baseint---partially-fixed-1410-the-jvm-face-is-fixed-the-native-face-remains--lane-compilerjvmnative-19216815309092)
+**Face NATIVA CORRIGIDA 18/10 (raiz MEDIDA — NAO e a familia de representacao do §717; essa atribuicao estava errada).** O call site emitido ja pareava o contrato apagado corretamente (`kof_unbox_int` apos a chamada virtual). O defeito estava na VTABLE da subclasse: `Impl_vtable = [Base_value, Base_twice, Impl_equals, Impl_value_B_O, Impl_n, Impl_value, …]` — o BRIDGE apagado `Impl_value_B_O` (que chama o metodo cru e BOXA o resultado) era ACRESCENTADO no slot 3, enquanto o slot 0 — o que uma chamada tipada `Base<Int>` le (`addq $0`) — continuava apontando para `Base_value`, cujo corpo inteiro e `movq $0, %rax`. O `kof_unbox_int(0)` entao lancava o diagnostico de cast. Raiz: `NativeClassMeta.collectVirtualMethods` deixava um bridge substituir apenas slots semeados por INTERFACE (§483), nunca os semeados pela SUPERCLASSE, e o `sigMangles` (duas defs de `value`: o metodo concreto + o bridge) acrescentava os dois. Correcao: o conjunto de slots herdados agora carrega tambem os nomes da superclasse, entao o bridge OCUPA o slot da base (`Impl_vtable[0] = Impl_value_B_O`) e substitui o stub abstrato vazio, enquanto o metodo cru mantem o seu slot acrescentado para chamadas de tipo concreto. Um unico coletor serve x86-64 e o cross (aarch64 via tradutor). **Prova RED-first:** `AbstractGenericBaseCtorE2ETest` ganhou as tres faces nativas — **6/6** depois (JVM/Script/JS/x86-64/riscv64/aarch64 imprimem `4/4/6/end`), VERMELHO antes nas tres nativas com o `type error: class java.lang.Integer cannot be cast` exato; a face acrescentada `Impl(6).value()` prova que o slot CRU de tipo concreto continua alcancavel. Regressao: 12 classes genericas/interface/bridge **55/55** + o lote box/erasure **14/14**.
+
+<!-- en-switch --> **EN:** [§720](known-bugs.md#720--an-abstract-generic-base-class-with-a-concrete-subclass-breaks-the-jvm-verifyerror-bad-operand-type-when-invoking-init-and-the-native-classcastexception-abstract-class-baset--abstract-t-value---class-impl-extends-baseint---fixed-1810-jvm-face-1410-native-face-1810--lane-compilerjvmnative-19216815309092)
 
 ## §721 — um método DEFAULT de interface GENÉRICA não é despachado no Script: `interface Container<T> { T get(); default String describe() { return "c" } }` / `class CB implements Container<Int>` e `c.describe()` falha com `CB.describe` — ✅ CORRIGIDO 14/10 (achado e corrigido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
 
@@ -16210,13 +16214,17 @@ EAD
 **Fronteira:** isto faz as três constantes funcionarem em todo alvo dobrando em compile-time; NÃO adiciona símbolo nativo `kof_math_*` e NÃO toca a recusa trig do §621 (segue `MATH001` honesto no nativo — aquelas precisam de libm, uma decisão de arquitetura regra 6 não tomada). A afirmação do texto do §621 de que as constantes "funcionam em todo lugar" agora é verdadeira, e não aspiracional.
 
 <!-- en-switch --> **EN:** [§651 (en)](known-bugs.md#651--the-math-constants-mathpimathemathtau-type-checked-on-every-target-but-only-the-jvm-runtime-defined-kof_math_pikof_math_ekof_math_tau-so-a-native-build-x86-64-and-the-cross-died-at-ld-with-a-mislabeled-comp001--the-621-false-support-fix-covered-the-nine-trig-functions-but-left-the-three-constants-behind-the-lowering-now-folds-them-to-a-kofloadliteralofdouble---fixed-1110-lane-compilerjvmnative-19216815309092)
-## §652 — o bump do ASM 9.10.1→9.11 do dependabot (PR #793, `4b58a15e1`, mergeado 10/10) introduziu `ComputeLimits` no COMPUTE do backend JVM, então `CoreRegressionE2ETest.largeDenseFileLoadsOnJvm` (60 blocos try/for/while/finally aninhados) morria com `LimitExceededException: Too many operations` em vez de compilar — 🟡 ABERTO / MITIGADO (medido 11/10 pela lane nativa/GC `192.168.15.117:9092` no tip pré-pin; dona = a lane de backend JVM `192.168.15.30:9092`)
+## §652 — o bump do ASM 9.10.1→9.11 do dependabot (PR #793, `4b58a15e1`, mergeado 10/10) introduziu `ComputeLimits` no COMPUTE do backend JVM, então `CoreRegressionE2ETest.largeDenseFileLoadsOnJvm` (60 blocos try/for/while/finally aninhados) morria com `LimitExceededException: Too many operations` em vez de compilar — ✅ CORRIGIDO 18/10 (o pin esta RE-POUSADO, o teste de arquivo denso esta VERDE no tip e um tripwire o mantem duravel — lane compilador/JVM/nativo `192.168.15.30:9092`)
 
 **⚠️ CORRIGIDO 11/10 (lane docs/lab, medido):** o sintoma não reproduz mais no tip atual — a árvore PINa o ASM `9.10.1` (`c2faa9fd9`, pom raiz `<asm.version>9.10.1</asm.version>`, 11/10 04:42, que "corrige a #805"), então `CoreRegressionE2ETest#largeDenseFileLoadsOnJvm` **PASSA** (executado neste ciclo: `Tests run: 1, Failures: 0, Errors: 0, Skipped: 0`). A medição "agora morre" da lane do §602 foi no tip pré-pin `82e737544` (verificado: o pin NÃO é ancestral dele). O §652 segue 🟡 ABERTO porque o pin é WORKAROUND, não a correção-raiz: a raiz é `ClassWriter.setComputeLimits(int, long)` (subir os limites do ClassWriter do compilador) ou dividir métodos enormes, o que exige um re-bump — decisão registrada como "re-bump só depois que o upstream levantar o limite".
 
 **⚠️ RE-MEDIDO 14/10 (lane `192.168.100.14:0`, flatt CLI): o pin foi DESFEITO EM SILÊNCIO e o bug estava VIVO na ponta.** O bump de grupo do dependabot `137ea696d` (13/10 05:32, "bump the maven-minor-patch group with 3 updates") re-bumpou `<asm.version>` `9.10.1` → `9.11` enquanto o comentário do pom ainda dizia "9.10.1 PINNED (#805)" — então a mitigação em que a correção de 11/10 confiava tinha sumido e `largeDenseFileLoadsOnJvm` estava VERMELHO de novo (`LimitExceededException: Too many operations`, executado: `Tests run: 1, Failures: 1`). O pin foi RESTAURADO (`9.10.1`), o comentário do pom agora registra o incidente, e o `.github/dependabot.yml` ganhou um `ignore: org.ow2.asm:*` no bloco maven para que o bump automático não o desfaça uma terceira vez. Prova: com `9.11` o teste denso é VERMELHO, com `9.10.1` o `CoreRegressionE2ETest` é 104/0F. **A MITIGAÇÃO está restaurada; a correção-RAIZ (setComputeLimits / split) segue da lane de backend JVM** (`192.168.15.30:9092`).
 
 **Medido (11/10):** RED determinístico no tip limpo `82e737544` E com a correção do §602 aplicada (duas corridas completas, máquina quieta) — `JVM compile failed: Internal compiler error: frame crash in Default/Main.main ... phase: JVM backend / ASM COMPUTE_FRAMES (visitMaxs) ... ASM error: LimitExceededException: Too many operations` (~6788 ops IR no método denso, últimas ops nas linhas 416→423 do fonte). **Raiz (lida dos jars):** o ASM 9.11 adicionou `org.objectweb.asm.ComputeLimits` — a computação de frames agora conta operações/bytes e lança `LimitExceededException` acima dos padrões (`DEFAULT_MAX_MEMORY_LIMIT = 10485760`, `DEFAULT_MAX_OPERATIONS_LIMIT = 100000000`); o ASM 9.10.1 não tem essa classe e o teste compilava verde antes do bump (os 60 blocos try/finally aninhados estouram o orçamento de operações na computação de frames). **Caminho de correção (nomeado na API do ASM):** `ClassWriter.setComputeLimits(int maxMemory, long maxOperations)` é público no 9.11 — elevá-lo no ClassWriter do compilador (ou dividir métodos enormes). **Fronteira:** apenas backend JVM; NÃO causada pela correção do §602 (falha idênticamente com a correção em stash, medido); os alvos cross/native não são tocados.
+
+**Status:** ✅ CORRIGIDO 18/10 (lane compilador/JVM/nativo `192.168.15.30:9092`) — o pin esta RE-POUSADO e agora PROTEGIDO por tripwire.
+
+**RE-MEDIDO NO TIP 18/10 (executado):** o `git blame` poe o re-pouso em `f8f01d36f` (13/10 14:37), DEPOIS do bump de grupo `137ea696d` (13/10 05:32) — portanto a medicao de 14/10 "VIVO no tip" nao vale neste tip; `mvn -o -pl kof-compiler dependency:tree -Dincludes=org.ow2.asm` resolve **9.10.1** (asm, asm-tree, asm-util, asm-analysis) e `CoreRegressionE2ETest#largeDenseFileLoadsOnJvm` esta **1/1 VERDE**. O comentario do pom registra o historico e `.github/dependabot.yml` mantem `ignore: dependency-name: "org.ow2.asm:*"`, entao o bump semanal de grupo nao pode re-elevar. **NOVO TRIPWIRE:** `AsmVersionPinTest` **2/2** falha se `<asm.version>` passar de 9.10.1 ou se o ignore do dependabot cair — RED provado nas DUAS faces: a face do pin `expected: <9.10.1> but was: <9.11.0>` pelo hook de auto-teste `KOF_TEST_REPO_ROOT` (editar o pom real nao serve offline: o Maven falha resolvendo o artefato ausente ANTES do teste rodar), a face do dependabot `expected: <true> but was: <false>` com o ignore renomeado. Um re-bump agora exige prova consciente do limite upstream, nao uma atualizacao rotineira de dependencia.
 
 ## §653 — `passwords.verify` no alvo JS devolvia um `false` SILENCIOSO para um hash VÁLIDO porque o shim #104 de `kof_platform` torna `typeof kof_platform.pbkdf2Hex === "function"` verdadeiro fora do host, então o fallback PBKDF2 puro-JS era inalcançável — ✅ CORRIGIDO 11/10 (lane compiler/JVM/native `192.168.15.30:9092`)
 
@@ -17040,6 +17048,7 @@ S.replace("","-")      JVM/Script = [-a-X-b-X-c-]            JS = [-a-X-b-X-c]  
 **Por que CATALOGADO e não corrigido neste ciclo:** a face JS precisa de um helper de runtime (a forma da fatia `kofStr*` do §730); a face NATIVA precisa de split por caractere + inserção em toda posição no asm do runtime x86 (`RuntimeStringEdit`) — nenhuma é uma linha. Sem stub, nenhum teste assevera o valor errado, nenhuma asserção enfraquecida.
 
 **Reprodutor:** `Main.kf` no estilo de `tests/golden/` com as três linhas acima; `java -jar kof-cli/target/kof-cli-*.jar run --target script Main.kf` (oráculo) vs `build --target js` / `--target native`.
+**FIXADO PELO GOLDEN 18/10:** o `string-methods-extended` agora inclui as faces de PADRAO VAZIO — `"abc".split("")` → 3 (`a|c`), `"".split("")` → 1, `"aXbXc".replace("", "-")` → `-a-X-b-X-c-`, `"".replace("", "-")` → `-`, `"abc".replace("", "XY")` → `XYaXYbXYcXY` — medido primeiro no alvo Script, **4/4 PASS** (jvm/native/js/script).
 <!-- pt-switch --> **EN:** [§738 (en)](known-bugs.md#738--string-empty-pattern-divergence-on-native-x86-and-js)
 
 ## §739 — String.trim() diverge em silêncio no trim do host JS e nos backends nativos
@@ -17088,6 +17097,7 @@ char                      JVM/Script   JS    NATIVO (x86/riscv/arm)
 **Desenho do fix (para o próximo ciclo; as peças já existem):** um helper ADITIVO novo `kof_string_split_str(str@rdi, sep@rsi, limit@edx)` que COMPÕE o `kof_string_index_of2` já existente (busca de substring, em code units) com o `kof_string_substring` (fatias em code units) — conta os casamentos não-sobrepostos avançando pelo comprimento do separador em CODE UNITS (contado inline, para não criar dependência de símbolo de outra fatia sob a poda de runtime), aloca o array, corta as fatias e mantém a poda §111 dos vazios à direita quando `limit <= 0`; o emissor roteia as duas sobrecargas para ele, passando o PONTEIRO do separador em vez do primeiro byte (o ramo do separador vazio continua indo para o `kof_string_split_chars` do §738). Atenção: no nativo o `index_of`/`substring` são em code units, então o avanço tem de ser em code units (um separador astral conta 2).
 
 **Nota de fronteira:** `String.split` devolve um ARRAY no Kof (`arr[i]`; não há `.get`, SEM028), então o fix tem de produzir a mesma forma de array de hoje.
+**FIXADO PELO GOLDEN 18/10:** o `string-methods-extended` agora inclui as faces de SEPARADOR MULTI-CHAR — `"aXXbXXc".split("XX")` → `3 a|b|c`, `.split("XX", 2)` → `2 a|bXXc`, e o caso de separadores adjacentes `"aXXXXb".split("XX")` → `3 [a][][b]` — medido no Script primeiro, **4/4 PASS** (jvm/native/js/script); corromper o golden faz 4/4 FAIL.
 <!-- pt-switch --> **EN:** [§740 (en)](known-bugs.md#740--stringsplit-with-a-multi-character-separator-silently-splits-on-its-first-byte-on-the-native-backends)
 
 ## §741 — String.equalsIgnoreCase diverge em silêncio nos backends nativos (fold só ASCII) e no JS (fold completo do host)
@@ -17186,8 +17196,12 @@ l[0] = "z"           SEM054 honesto ("use l.set(i, v)") — correto, não é o d
 <!-- pt-switch --> **EN:** [§744 (en)](known-bugs.md#744--a-narrowed-nullable-collection-emitted-the-array-path-index-and-iteration-over-a-list-raised-a-verifyerror-on-the-jvm)
 
 ## §745 — uma List inferida com tipo de elemento NU QUEBRA os alvos nativos quando um primitivo e adicionado (SIGSEGV; JVM/Script/JS dao o valor certo)
+**REVERTIDO 18/10 (lane compilador/JVM/nativo `192.168.15.30:9092`) — o guard violava um CONTRATO GOLDEN, por isso saiu.** O `BareCollectionPrimitiveArgE2ETest.bareListAddPrimitiveNativeRuns` (§374) e autoridade de contrato (AGENTS.md) e fixa `List xs = listOf(1); xs.add(2); ...` → `2\n2` no nativo. O guard NAT009 recusava exactamente isso → o golden ficou 12 run/1F e NOVE faces Av1 ficaram vermelhas — um `1.0-blocks` (#889). **Distingui por medicao:** o `add` do golden esta no TOPO e funciona ✓; o meu repro do §745 faz o `add` DENTRO de uma lambda `forEach` e da `[?, ?, ?]` ✗ (e morre no `get`). Os tipos estaticos sao IDENTICOS nos dois, logo nenhuma checagem de tipo os separa — por isso a recusa so podia ser larga demais. **Estado agora:** guard REMOVIDO, `BareCollectionPrimitiveArgE2ETest` 12/12 verde, o repro de volta ao valor errado silencioso. **Fix real:** boxar na fronteira de erasure generica ou um gate ciente do CONTEXTO de lambda — a escolha e da mantenedora, pela triagem do #889.
 
-**Status:** 🟡 ABERTO (catalogado com a repro medida e o ponteiro do fix; NÃO corrigido).
+**FIX 16/10 — lane compilador/JVM/nativo `192.168.15.30:9092`.** Os alvos nativos agora RECUSAM o hazard em tempo de COMPILACAO, espelhando a politica do NAT008: o `MemberCallTyper` (no sitio de tipagem do `add`/`push`/`append`) checa `sa.target().isNative()`, um tipo de elemento NU (`Object`/unknown) e um argumento PRIMITIVO, e emite `NAT009` explicando a causa e apontando o conserto. A guarda chaveia no tipo NU E no argumento primitivo, entao um elemento de REFERENCIA numa lista nua e um tipo explicito continuam aceitos — medido correto nos seis alvos. Nova linha de gap no `docs/backend-parity.md` ao lado do `NAT008` (o ficheiro PT nao tem tabela de gap codes — estado pre-existente EN-only, igual ao irmao NAT008), cuja nota estale 'NAT004 e o unico gap NAT* VIVO' foi corrigida. Prova RED-first: sem a guarda o `addPrimitiveToBareListOnNativeIsNat009` FALHA e o `bareListBoundaryIsNotOverRefusedOnNative` passa; com ela, the gap tests 33/33 (`DomainGapCodesTest` 31 + the split-out `NativeBareListStoreGapTest` 2).
+
+
+**Status:** 🟡 ABERTO/PARCIAL — o guard `NAT009` foi REVERTIDO 18/10: recusava o contrato golden do §374 (`BareCollectionPrimitiveArgE2ETest` 12/12) e 9 faces Av1 (#889, `1.0-blocks`). O crash e especifico do CONTEXTO de lambda; o fix real e boxar na fronteira de erasure ou um gate ciente de lambda — decisao da mantenedora. **A issue #889 em si foi FECHADA 19/10**: o PR #898 (`aef143001`) truncou o golden de paleta na linha MI 16, o primeiro bloco em que o fixture desatualizado (encodado com a regra antiga `r % 16 != 0` de contexto de paleta) diverge da regra corrigida do libaom; verificacao `Av1PaletteE2ETest` 6/6 + `Av1PaletteModeCtxE2ETest` 1/1 + `AvifRealFileE2ETest` 11/11 + `AvifScreenContentGeoE2ETest` 11/11 = 29/29. ESTE §745 segue ABERTO/PARCIAL — o crash de contexto de lambda e independente da face de paleta.
 
 **CATALOGADO (medido) 16/10 — lane compilador/JVM/nativo `192.168.15.30:9092`.** Achado na sondagem cross-target das arestas de coleção (a veia do §738–§742). Uma lista criada do `listOf()` VAZIO recebe um tipo de elemento NU inferido; adicionar um PRIMITIVO a ela dentro de uma lambda QUEBRA os backends nativos onde os outros três alvos dão o valor certo — a pior classe (um crash, regra 5):
 
@@ -17205,3 +17219,221 @@ List<Int> a = listOf()  OS QUATRO = [2, 4, 6] ✓ — um tipo de elemento EXPLÍ
 
 **Fronteira:** um tipo de elemento EXPLÍCITO em qualquer ponto do pipeline (`List<Int>`, ou um receptor `listOf(1,2,3)` não-vazio) está CORRETO nos quatro alvos — medido — logo a guarda tem de ser chaveada no tipo NU/inferido, não no `add` em si.
 <!-- pt-switch --> **EN:** [§743 (en)](known-bugs.md#743--a-narrowed-nullable-primitive-array-emitted-reference-element-loads-and-stores-over-an-int-array-verifyerror-on-the-jvm-and-sigsegv-on-the-three-natives)
+
+## §746 — o toString de record no JS renderizava um CAMPO de colecao com a coercao do JavaScript (List como a,b e Map como [object Map])
+
+**Status:** ✅ CORRIGIDO 16/10 — o valor de cada campo passa agora pelo `kofFormat`.
+
+**CATALOGADO + CORRIGIDO 16/10 — lane compilador/JVM/nativo `192.168.15.30:9092`.** Achado na sondagem cross-target da superficie de records aninhados (a veia do §738–§745). O `toString` sintetico de record no JS juntava o valor de cada campo com o `+` do JavaScript, entao um campo de COLECAO era coagido pelas regras do HOST — uma `List` saia como `xs=2,3` (sem [ ]/espaco) e um `Map` como o inutil `mm=[object Map]`, onde JVM/Script e os tres alvos nativos concordam:
+
+```
+Outer(Inner(1,"x"), listOf(2,3), "t")   JVM/Script/nativo = Outer[in1=Inner[a=1, b=x], xs=[2, 3], tag=t]
+                                        JS = Outer[in1=Inner[a=1, b=x], xs=2,3, tag=t] ✗
+Plain(listOf("a","b"), mapOf("k",1))    JVM/Script/nativo = Plain[ss=[a, b], mm={k=1}]
+                                        JS = Plain[ss=a,b, mm=[object Map]] ✗
+```
+
+**Causa raiz (lida, nao adivinhada):** o `JsRecordSynthetics.lowerRecordToString` montava `"Name[" + "f=" + value + …` e o `+` deixava o JS stringificar o array/Map cru. O compilador JA tem o formatador certo — o `kofFormat` (helper do `JsRuntimeCore` que o caminho do `println(list)` nu usa, produzindo as formas Kof `[a, b]` / `{k=1}`) — so nao estava aplicado aos CAMPOS do record.
+
+**Correcao (aditiva, sem mudar a forma dos escalares):** o valor de cada campo e envolvido em `kofFormat(...)` e o helper e registrado (`p.lc.registerRuntime("kofFormat")`) — o mesmo padrao que os sinteticos vizinhos usam para `kofValEq`/`kofHashCode`. O `kofFormat` cai em `String(x)` para escalares, entao um campo String fica SEM aspas (`b=x`, como o oraculo imprime) e um record aninhado continua saindo pelo seu proprio `toString` sintetico. Medido depois: a face JS e identica a do JVM nas quatro formas.
+
+**Prova RED-first:** com o fix revertido SO a face JS falha (`jsRecordToStringMatchesTheJvm`) e JVM/Script/x86/riscv64/aarch64 passam; com ele, `JsRecordToStringCollectionFieldE2ETest` 6/6 (o mesmo golden nos seis alvos).
+
+**Relacionado (medido, NAO e bug):** o encoder JSON nativo recusa campos de record aninhado/List nos alvos nativos com um diagnostico `JSN002` HONESTO ("class Outer has field of type Inner not supported by the Native JSON encoder yet …") — sem fallback silencioso, logo e limitacao documentada, nao divergencia.
+<!-- pt-switch --> **EN:** [§746 (en)](known-bugs.md#746--the-js-record-tostring-rendered-a-collection-field-with-javascript-coercion-a-list-as-ab-and-a-map-as-object-map)
+
+## §747 — strings.padLeft/padRight CORROMPIAM o valor com pad nao-ASCII (e contavam mal a vitima multi-byte) nos tres alvos nativos
+
+**Status:** ✅ CORRIGIDO 16/10 — os dois helpers nativos medem agora a vitima em code points e escrevem os bytes UTF-8 completos do char de pad.
+
+**CATALOGADO + CORRIGIDO 16/10 — lane compilador/JVM/nativo `192.168.15.30:9092` (a frente NAT-STR01 da linha 11 de `D-FULL-PARITY-050` — a mesma que fechou o `reverse` em 27/09).** Achado na sondagem do namespace `strings.` (24 funcoes). O par do pad era pior que a fronteira documentada "ASCII-first in Native" — nao aproximava, CORROMPIA (regra 5, uma String Kof MALFORMADA, UTF-8 invalido):
+
+```
+strings.padLeft("7", 3, 'é')      JVM/Script/JS = éé7      NATIVO = ??7 (um 0xE9 solto por slot) ✗
+strings.padLeft("7", 3, '€')      JVM/Script/JS = €€7      NATIVO = ??7 ✗
+strings.padRight("café", 6, '-')  JVM/Script/JS = café--   NATIVO = café- ✗ (a CONTAGEM usou os BYTES da vitima)
+strings.padLeft("7", 3, 'x')      todos = xx7 ✓ (pads ASCII sempre estiveram certos)
+```
+
+**O contrato medido** (JVM ≡ Script ≡ JS): pad com o PRIMEIRO CARACTERE do pad repetido ate o resultado chegar a `n` CARACTERES — um pad de varios chars contribui so com o primeiro (`padLeft("7",5,"ab")` = `aaaa7`, NAO o `abab7` do Java), `n <= len(s)` ou pad vazio devolvem a string intacta. A estrutura nativa estava certa; so a contabilidade byte/char estava errada.
+
+**Correcao (ADITIVA — as saidas ASCII ficam byte-identicas):** os dois helpers (`RuntimeStringsConv` x86 e `NativeRiscvAsmRtB9` riscv, o aarch64 herdando pelo tradutor) agora (a) contam a vitima em CODE POINTS, (b) pegam os 1-4 bytes UTF-8 do char de pad pelo lead byte, (c) fixam o comprimento em BYTES a `vBytes + pads*padBytes` e preenchem byte a byte. A segunda face significa que uma VITIMA multi-byte agora tambem recebe o numero certo de pads.
+
+**Prova RED-first:** com o fix revertido falham EXACTAMENTE as tres faces nativas (`nativeX86`/`riscv64`/`aarch64`) e JVM/Script/JS passam; `StringsPadUnicodeE2ETest` 6/6 depois (o mesmo golden nos seis alvos, incluindo o pad de 3 bytes `€`).
+**FACE NON-BMP CORRIGIDA 18/10 (encontrada ao escrever o caso de equivalencia):** um CARACTERE de pad e um CODE POINT, nao uma unidade UTF-16. O nativo ja fazia isso (o fix do §747 acima); JVM/Script/JS usavam `charAt(0)`/`length`, entao `strings.padLeft("ab",4,"😀")` imprimia `??ab` nesses tres onde o nativo imprimia `😀😀ab`, e uma VITIMA non-BMP (`padRight("😀",3,"-")`) era contada como dois caracteres (`😀-` em vez de `😀--`). Correcao: `JvmStringMathRuntime` (JVM+Script) usa `codePointCount`/`codePointAt`+`Character.toChars`; `JsRuntimeUiStdlib` (JS) usa `Array.from(...).length`/`codePointAt`+`String.fromCodePoint`. O caminho nativo nao muda. **Prova RED-first:** o `StringsPadUnicodeE2ETest` estendido falhou EXACTAMENTE em jvm/script/js (as tres faces nativas ja estavam verdes) e fica **6/6** depois; o novo golden `strings-pad-unicode` fica **4/4** (jvm/native/js/script) com as faces BMP (`é`), non-BMP (`😀`) e no-op. As saidas ASCII sao byte-identicas (aditivo).
+<!-- pt-switch --> **EN:** [§747 (en)](known-bugs.md#747--stringspadleftpadright-corrupted-the-value-for-a-non-ascii-pad-and-mis-counted-a-multi-byte-victim-on-all-three-native-targets)
+
+## §748 — math.abs(Int.MIN_VALUE) divergia no JS e nos nativos CROSS (sem estouro de 32 bits; JVM e x86 voltam a MIN_VALUE)
+
+**Status:** ✅ CORRIGIDO 16/10 — o helper JS coerciona para Int32 e o riscv re-estende o sinal do resultado de 32 bits.
+
+**CATALOGADO + CORRIGIDO 16/10 — lane compilador/JVM/nativo `192.168.15.30:9092`.** Achado na sondagem do namespace `math.` (37 funcoes). O `Math.abs(int)` do JVM ESTOURA no `Int.MIN_VALUE` e devolve o proprio `MIN_VALUE` — facto documentado do Java, seguido pelo interpretador Script e pelo NATIVO x86 (`negl`, 32 bits). Duas faces NAO faziam o wrap:
+
+```
+math.abs(minInt())   JVM/Script/x86 = -2147483648 ✓   JS = 2147483648 ✗   riscv64/aarch64 = 2147483648 ✗
+```
+
+**Causas raiz (lidas, nao adivinhadas):** o helper JS era `v < 0 ? -v : v` (`JsRuntimeUiStdlib`), e negar `-2147483648` no JavaScript da `2147483648` (um numero comum, sem wrap de Int32); o helper riscv (`NativeRiscvAsmRtB5`) fazia `neg a0, a0` — em RV64 a negacao de 64 bits de `-2^31` e `+2^31`, logo o valor tambem nao envolvia.
+
+**Correcao (uma linha em cada, ADITIVA):** o JS usa agora `Math.abs(v) | 0` — a mesma coercao Int32 de toda a superficie Int, que envolve `2^31` de volta a `-2^31` e deixa os outros Int intactos; o riscv nega e re-estende o sinal dos 32 bits baixos (`slli 32` + `srai 32` — escolhido porque o tradutor aarch64 ja trata `neg`/`slli`/`srai`, ao contrario de `negw`). Medido depois: os seis alvos imprimem `-2147483648`, e `abs(-5)`/`abs(7)`/`sign`/`isNegative` ficam iguais.
+
+**Prova RED-first:** com o helper JS revertido SO `jsAbsOverflowMatchesTheJvm` falha; a face cross foi apanhada pelo proprio teste de seis faces (a minha sonda anterior so construia o nativo x86, onde o `negl` ja estava certo — a licao e que uma sonda de um alvo pode esconder uma face cross). `MathAbsIntOverflowE2ETest` 6/6 depois. O valor e derivado em RUNTIME (uma funcao pequena) para o constant folding nao o mascarar.
+
+**Relacionado (medido, NAO e bug):** o resto da superficie math sondada concorda entre JVM/Script/x86/JS — `roundTo` half-away-from-zero, o artefacto de binario `roundTo(1.005,2)` = 1.0, `sqrt(-1)` = NaN, `pow`/`percentage`/`lerp`/`toDegrees(pi)` — e `math.toDegrees`/`toRadians` sao recusados nos nativos com um `MATH001` HONESTO.
+**FIXADO PELO GOLDEN 18/10:** o caso oficial de equivalencia `math-namespace` agora inclui `math.abs(0 - 2147483647 - 1)` → `-2147483648`, medido primeiro no alvo Script e **4/4 PASS** (jvm/native/js/script); corromper essa linha do expected faz 4/4 FAIL. O fix `|0` do JS fica portanto guardado pela suite de conformidade, nao apenas pelo `MathAbsIntOverflowE2ETest`.
+<!-- pt-switch --> **EN:** [§748 (en)](known-bugs.md#748--mathabsintmin_value-diverged-on-js-and-on-the-cross-natives-no-32-bit-overflow-the-jvm-and-x86-wrap-back-to-min_value)
+
+## §749 — o interpretador Script vazava Enum@hash onde todos os outros alvos imprimem o NOME da constante
+
+**Status:** ✅ CORRIGIDO 16/10 — `kofToString` reads the enum's `kofName` field.
+
+**CATALOGUED + FIXED 16/10 — lane compiler/JVM/native `192.168.15.30:9092`.** Found by the probe of the `enum` surface. Turning an enum VALUE into a String — `println(Dir.N)` or a `Dir.valueOf("S")` result — printed the interpreter's internal representation where the JVM/JS/native print the constant's name:
+
+```
+println(Dir.N)          JVM/JS/native = N     Script = Dir@3ace6346 ✗
+println(Dir.valueOf("S")) JVM/JS/native = S   Script = Dir@6b832551 ✗
+```
+
+**Root cause (read, not guessed):** an enum is a REAL class (§211) carrying the field `kofName` plus a synthetic `toString` accessor that returns it (`CompilerEnumLowering`), so the compiled backends were already right; the interpreter's own `kofToString` dispatched RECORDS and then fell through to `Name@identityHash` for every other object — and an enum instance is exactly that "other object".
+
+**Fix (precise marker, additive):** `kofToString` now returns `kofName` when the object's class carries that field (a normal class has no such field, so nothing else changes); the record shape and the identity fallback stay untouched. Measured after: the Script prints `N`/`S`, and `name()`/`ordinal()`/`values()`/`==`/Map-with-enum-keys are unchanged.
+
+**Proof RED-first:** with the fix reverted ONLY `scriptEnumToStringMatchesTheJvm` fails; `ScriptEnumAsStringE2ETest` 4/4 afterwards (JVM/Script/JS/native x86).
+<!-- pt-switch --> **EN:** [§749 (en)](known-bugs.md#749--the-script-interpreter-leaked-enumhash-where-every-other-target-prints-the-constant-name)
+
+## §750 — Enum.valueOf(String) faz SEGFAULT nos nativos riscv64/aarch64 (o x86 devolve a constante certa)
+**CONJUNTO DE REFUTACOES COMPLETO 16/10 (terceira passagem) — o bug e especifico da GERACAO DA CLASSE ENUM.** Mais quatro equivalentes a mao foram medidos CORRETOS nos tres nativos: (i) campo estatico da PROPRIA classe lido de dentro do seu metodo estatico — funciona; (ii) metodo estatico de CLASSE COM argumentos — funciona; (iii) a FORMA exacta do `valueOf` numa classe normal (param `String`, comparacao, `getstatic` da propria classe, fallthrough `null`) — funciona; (iv) `Dir.values()` (estatico NO enum, sem argumento) — funciona. So o `valueOf` gerado na classe do enum morre. Os candidatos restantes sao a GERACAO da propria classe do enum: o `<clinit>` (a publicacao das constantes), a tipagem dos CAMPOS de constante (o tipo enum, nao `String`) e o owner/retorno tipados como o enum.
+
+**ESTREITADO AINDA MAIS 16/10 (segunda passagem de medicao):** o gatilho e a **chamada estatica COM parametro String NA classe do enum** no `valueOf` gerado, nao a superficie do enum. Medido em riscv64/aarch64: `Dir.values()` (um metodo estatico no enum, SEM argumento) esta CERTO — logo uma chamada estatica na classe do enum funciona; `Dir.valueOf("S")` e `Dir.valueOf(n)` (uma variavel) MORREM os dois, sem saida nenhuma antes do fault — o crash precede/entra a chamada. Uma reproducao minima a mao da forma gerada (um `return Dir.S` cedo apos uma comparacao + um `return null` de fallthrough, como funcao de TOPO) esta CERTA nos tres nativos — o defeito e especifico do metodo estatico DA CLASSE do enum com o seu parametro `String`. Proxima tentativa: a emissao cross do `KofCall(STATIC, owner=enum, param=(String))` e do `KofGetStatic` do proprio campo dentro dela.
+
+**MECANISMO MEDIDO 16/10 (lane compilador/JVM/nativo `192.168.15.30:9092`) — o beco sem saida e tao util como o acerto.** Bissecei forma a forma no riscv64 sob qemu: `Dir.N`, `Dir.N.name()`, `Dir.values().size` e um `Map` com chaves enum estao CERTOS; SO o `valueOf(String)` morre. Tres hipoteses foram medidas e REFUTADAS, para a proxima tentativa nao as repetir: (a) NAO e um construto geral — um equivalente ESCRITO A MAO (um `for (var d in Dir.values())` a comparar `d.name() == n`, devolvendo o match ou `null`) FUNCIONA no cross; (b) NAO e um bug de comparacao bool-vs-int — condicoes BOOL da fonte (`if (s.contains(..))`, etc.) funcionam la; (c) o salto gerado TINHA um `operandType` errado (INT sobre o BOOL do `kof_string_equals` — o construtor de 3 args de `KofConditionalJump` assume INT) e corrigi-lo para BOOL e um fix REAL de tipo do IR, mas NAO parou o crash (medido e REVERTIDO, para a arvore nao ficar com mudanca nao verificada). O gatilho esta portanto noutro sitio do `valueOf` gerado — o `KofGetStatic` da constante + o `KofReturn` cedo + o layout das labels.
+
+
+**Status:** ✅ CORRIGIDO 18/10 (lane compilador/JVM/nativo `192.168.15.30:9092`) — o ramo cross `STATIC "valueOf"` passa a aceitar SÓ donos BUILTIN.
+
+**CAUSA RAIZ (lida no asm gerado, nao adivinhada) 18/10:** o caso especial `STATIC && "valueOf"` do emissor cross (`NativeRiscvCrossOps`) existe para `String.valueOf`/`wrapper.valueOf`, mas capturava TODO `valueOf` estatico — inclusive o `valueOf(String) -> Enum` gerado na classe do enum. Com argumento `String` nenhum dos ramos de tipo de argumento casava, e o ramo fazia `return` SEM emitir nada: o argumento ficava na pilha de operandos e o dispatch virtual seguinte lia a String como receiver (`ld t0, 8(a0)` = o ponteiro de classe da String, `ld t0, 0(t0)`, `jalr t0`) → SIGSEGV. Confirmado no assembly preservado (`KOF_KEEP_ASM=1`): o binario quebrado nao contem nenhum `call Dir_valueOf`.
+
+**Correcao (precisa, aditiva):** o ramo passa a exigir dono builtin (`BuiltinTypes.isString(owner)` ou `NativeOpHelpers.wrapperValueOfBoxFn(kc) != null`); dono de usuario (enum/classe) cai na chamada DIRETA do fim do emissor cross (`call Dir_valueOf`). O emissor x86 nunca teve esse ramo.
+
+**Prova RED-first:** `CrossEnumValueOfE2ETest` (riscv64 + aarch64 sob qemu, oraculo JVM `S / E:2 / true / 4 / true`) fica 2/2 VERDE depois da correcao e VERMELHO antes — as duas faces saem com 139, o SIGSEGV exato. Zero-regressao: o contrato §749 ganhou as duas faces cross — `ScriptEnumAsStringE2ETest` 6/6 (JVM/Script/JS/x86/riscv64/aarch64), cobrindo concat de enum, `name()`, `ordinal()`, `values()` e Map/Set com chaves enum; o lote valueOf/box (`BoxE2ETest`, `NativeErasureBoxE2ETest`, `NativeStringValueOfContainerE2ETest`, `NativeObjectBoxPrintE2ETest`, `EnumIdentityE2ETest`, `EnumCrossFileE2ETest`, `NativeCrossEmptySeparatorE2ETest`) fica 31/31.
+
+**CATALOGUED (measured) 16/10 — lane compiler/JVM/native `192.168.15.30:9092`.** Found while writing §749's six-face test: `Dir.valueOf("S")` CRASHES on BOTH cross native targets — a SEGFAULT, the worst class — where the x86 native returns the right constant. My earlier probe had only built the x86 native, so the cross face stayed hidden until the test covered it.
+
+```
+println(Dir.valueOf("S"))   jvm/script/js = S ✓   native x86 = S (exit 0) ✓   riscv64 = SEGFAULT (exit 139) ✗   aarch64 = SEGFAULT (exit 139) ✗
+```
+
+**Bisected shape by shape on riscv64:** `Dir.N`, `Dir.N.name()`, `Dir.values().size` and a `Map` keyed by enum constants all print correctly — ONLY `valueOf(String)` dies (it produces no output at all before the fault). So the defect is confined to the cross implementation of the enum's `valueOf` (the JVM/JS/x86 emitters are fine), which makes it a bounded face rather than a systemic enum problem.
+
+**Next step (the fix is a cross-side unit of its own):** locate the cross lowering/runtime for the generated `valueOf` (`CompilerEnumLowering` emits it; the riscv path — and aarch64 through the translator — is where it goes wrong) e fixa-lo com as faces cross do `ScriptEnumAsStringE2ETest` (EXECUTADO 18/10: a exclusao no javadoc foi removida e o teste esta 6/6).
+<!-- pt-switch --> **EN:** [§750 (en)](known-bugs.md#750--enumvalueofstring-segfaults-on-the-riscv64aarch64-natives-x86-gives-the-right-constant)
+
+## §751 — o contexto do modo de paleta tratava o vizinho de cima como indisponível em todo início de linha de superbloco 64x64
+**Status:** ✅ CORRIGIDO 16/10 — `av1PaletteModeCtx` testa disponibilidade com `r > 0` (o `above_mi != NULL` do libaom).
+
+**CATALOGADO + CORRIGIDO 16/10 — lane pipeline/image-vision `192.168.15.21:0`.** Encontrado ao BUSCAR o `av1_get_palette_mode_ctx` do libaom (`av1/common/pred_common.h`) e compará-lo com o `readPaletteY` do Kof: o libaom testa os vizinhos com `above_mi != NULL` / `left_mi != NULL` — isto é `mi_row > 0` / `mi_col > 0` — enquanto o Kof guardava o vizinho de CIMA com `r % 16 != 0`, a primeira linha de mi DO SUPERBLOCO 64x64. Os dois concordam em `r = 0` e divergem em todo início de linha de superbloco (`r = 16, 32, 48, …`), onde o Kof escolhia `palette_y_mode_cdf[bsize_ctx][0]` em vez da linha 1 ou 2: o preço errado do símbolo `has_palette_y` e a possível inversão da bandeira de paleta, o que dessincroniza o tile a partir daquele bloco.
+
+**Correção (precisa, aditiva):** o contexto passa a ser a função exportada e testável `av1PaletteModeCtx(r, c, palSizeYMap, miCols)` em `libs/image/Av1ModeInfo.kf`, usando `r > 0`; o `readPaletteY` chama-a. Nada mais muda.
+
+**Prova RED-first:** o `Av1PaletteModeCtxE2ETest` FALHA com o predicado antigo em `ctx 16 0 = 0` e `ctx 16 1 = 1` onde a referência exige 1 e 2 (todas as células sondadas têm paleta, logo o contexto é exatamente o número de vizinhos que EXISTEM), e fica 1/1 com a correção. Escopo honesto: a divergência está DORMENTE nos fixtures que reproduzem o dessincronismo `3bd` — nenhum bloco de paleta deles cai num início de linha de superbloco com vizinho de cima com paleta — logo a correção NÃO muda a saída deles; está provada ao nível da FUNÇÃO, não ponta a ponta.
+
+**Defeito companheiro achado na mesma passagem (meu, do lado do teste):** o contador `PALTOK` da sonda indexava o seu array de estágios sem guarda e estourava nos fixtures de um bloco; guardado, o `AvifRealFileE2ETest` está 11/11.
+<!-- pt-switch --> **EN:** [§751 (en)](known-bugs.md#751--the-palette-y-mode-context-treated-the-above-neighbour-as-unavailable-at-every-64x64-superblock-row-start)
+
+## §752 — a guarda do filter-intra faltava o termo da paleta do libaom
+**Status:** ✅ CORRIGIDO 17/10 — a guarda passa a exigir `palSizeYMap[r * miCols + c] == 0`.
+
+**CATALOGADO + CORRIGIDO 17/10 — lane pipeline/image-vision `192.168.15.21:0`.** Encontrado ao ler o TRACE de SÍMBOLOS da decodificação do tile (um dump por janela, `TRACEW`) de um bloco de paleta e BUSCAR o `av1_filter_intra_allowed` (`av1/common/blockd.h`):
+
+```
+mbmi->mode == DC_PRED && mbmi->palette_mode_info.palette_size[0] == 0 &&
+av1_filter_intra_allowed_bsize(cm, mbmi->bsize)
+```
+
+A guarda do Kof era `enableFilterIntra == 1 && yMode == 0 && av1ModeInfoMaxDim(bs) <= 32` — **faltava o termo da paleta**. Logo em TODO bloco de paleta cujas duas dimensões são <= 32 o Kof lia uma bandeira `use_filter_intra` que o encoder nunca escreveu: o stream deslocava ~2 bits e o MAPA de índices inteiro decodificava errado. É esse o dessincronismo `3bd`: as CORES da paleta do bloco estavam certas (precedem a leitura espúria) enquanto os ÍNDICES estavam errados, e o payload continuava consumido até o último bit, porque as leituras do mapa simplesmente comiam o que viesse depois. Explica também porque o fixture de paleta 64x64 (`avif_real_cb8.avif`) era EXATO desde a 37ª passagem: `maxDim <= 32` exclui-o, logo ele nunca leu a bandeira espúria.
+
+**Correção (precisa, um termo):** `palSizeYMap[r * this.miCols + c] == 0` acrescentado à guarda em `libs/image/Av1ModeInfo.kf`.
+
+**Prova (RED-first, no fixture que o isola):** o mapa de índices passa de `1,1,1,1,1,1,1,1` para `0,0,0,0,1,1,1,1` — o padrão de faixas da referência — a pintura lê `16 16` onde lia `235 235`, e os blocos de transformada do bloco de paleta alternam `p=16/r=16` e `p=235/r=235`. Impacto medido, SEM regressão: o quadro testsrc 64x64 vai de 1257 para 1779 bits consumidos de 2344 (54% -> 76%), o quadro 32x32 bate 4 dos seus 6 pixels amostrados (era 1), e `avif_real_cb8.avif`, `avif_real_cb16.avif` e `avif_real_pskip.avif` ficam INALTERADOS e ainda exatos. Suítes: `AvifScreenContentGeoE2ETest` 4/4, `AvifRealFileE2ETest` 11/11.
+<!-- pt-switch --> **EN:** [§752 (en)](known-bugs.md#752--the-filter-intra-guard-was-missing-libaoms-palette-term)
+
+## §753 — o decode AVIF de um quadro NÃO ALINHADO 20x20 erra para além das suas linhas de topo (luma a partir da linha 6, toda a chroma)
+**Estado:** ✅ CORRIGIDO 19/10 — a extensão CODIFICADA do mapa de paleta é a grelha mi alinhada, não o quadro em pixels.
+
+**CATALOGADO (medido) 19/10 — lane pipeline/image-vision `192.168.15.21:0`.** Encontrado pela comparação de PLANO INTEIRO da 134ª passagem de `avif_real_ua20.avif` (20x20, um superbloco 64x64 com blocos que transbordam) contra o YUV 4:2:0 decodificado pelo ffmpeg (libdav1d == libaom byte a byte). O `unalignedFrameDecodesToReferenceOnJvm` existente amostra apenas as linhas 0 e 2 do PATCH — que coincidem — logo o defeito era invisível para ele.
+
+**Medido, nos planos PRÉ-CDEF do próprio Kof (as linhas `YROW`/`UROW`/`VROW` da probe):**
+```
+luma linhas 0-5, colunas 0-14: EXACTO
+luma linha 6, primeira divergência em (15,6): Kof `...16 235 16 16 235 235` vs ffmpeg `...16 16 235 235 16 16`
+luma linhas 8-9, primeira divergência na coluna 12; as linhas 10+ alargam mais
+luma 14/20 linhas diferem (linhas 6-19)
+chroma 10x10: TODAS as linhas diferem; U(0,0)=235 onde o ffmpeg tem 16, e o padrão não é um deslocamento
+```
+**Não é o CDEF:** a divergência está presente ANTES do filtro (as forças CDEF do quadro são irrelevantes para ela).
+**Suspeito:** a colocação dos blocos que transbordam (a posição do mode-info/transformada na borda direita/inferior do superbloco parcial) — a mesma classe de overhang que §751/§752 corrigiram para os CONTEXTOS, mas aqui nas POSIÇÕES dos blocos.
+**Próximo passo:** correr os dumps por bloco da probe (`PART`, `B`, `PREDBLK`) no ua20 e comparar o bloco cuja origem cruza x=16 / y=16 com a caminhada de partição.
+
+**CAUSA RAIZ + FIX 19/10 (lane pipeline/image-vision `192.168.15.21:0`):** o mapa de índices de cor do bloco PALETA 32x32 era decodificado com as `rows`/`cols` da wavefront limitadas ao quadro em PIXELS (20), enquanto o `av1_get_block_dimensions` do libaom (buscado) limita à grelha mi ALINHADA: `block_rows = block_height + (mi_rows - bh - mi_row) * 4` = 24 aqui. A wavefront divergiu na diagonal 20 (a primeira célula decodificada depois do limite de 20 colunas) e, como os tokens da chroma seguem o mapa da luma no MESMO leitor, toda a decodificação da chroma começou no bit errado (U(0,0)=235 vs 16). O fix separa as duas extensões em `libs/image/Av1DecodeTileRecon.kf`: o mapa é decodificado em `Min(bloco, (miH - r) * 4)` x `Min(bloco, (miW - c) * 4)` (alinhada), enquanto a PINTURA fica limitada ao plano visível (`frameH`/`frameW`, `chroma.hU`/`wU`), para que as células codificadas fora do ecrã nunca sejam escritas.
+
+**Prova (RED-first):** `AvifFullPlaneE2ETest#unalignedFrameMatchesFfmpegOnEverySample` compara TODAS as amostras do fixture — luma 20x20, U e V 10x10 — contra o YUV do ffmpeg (`avif_ref_ua20.yuv`, libdav1d == libaom byte a byte; as forças CDEF do quadro são 0, logo são planos puros de decode). FALHA com o clamp antigo (luma da linha 6, toda a chroma) e passa depois do fix.
+<!-- pt-switch --> **PT:** [§753](known-bugs.md#753--the-avif-tile-decode-mis-decodes-the-unaligned-20x20-frame-beyond-its-top-rows-luma-from-row-6-the-whole-chroma)
+
+## §754 — um tile que abrange VÁRIOS superblocos desdecodifica o superbloco seguinte (mt192: o segundo SB do tile 0 é uma predição plana)
+**Estado:** 🔴 ABERTO — catalogado 19/10; o caminho de tile com vários SBs é o suspeito.
+
+**CATALOGADO (medido) 19/10 — lane pipeline/image-vision `192.168.15.21:0`.** Encontrado pela auditoria de PLANO INTEIRO de todo o corpus da 136ª passagem (`avif_real_mt192.avif`, 192x64, 2x1 tiles desiguais de 128+64 px). O teste geo `unequalTilesDecodeToReferenceOnJvm` amostra só as ORIGENS dos tiles e passa, mas o plano inteiro diverge a partir de x=64.
+
+**Medido (PRÉ-CDEF, `YROW` do próprio Kof vs o YUV do ffmpeg; libdav1d == libaom byte a byte):**
+```
+tile 0 = SBs 0 e 1 (x 0..127); tile 1 = SB 2 (x 128..191)
+luma x 0..63: EXACTO (SB 0)
+luma x 64..127: 235 PLANO (SB 1) vs o xadrez de referência 16,16,16,16,235,...
+as 64 linhas diferem a partir de x=64; U/V idem a partir de x=32
+BLKY (0,0,bs12)=16 (0,16,bs12)=235 (0,32,bs12)=16 — a amostragem nas ORIGENS dos blocos concorda com o plano errado, logo o teste nunca o viu
+MODESA n=3 (0,3,0,0) (0,2,9,0) (0,3,0,0) — o bloco do SB 1 lê skip=0, txSz=2, yMode=9 (SMOOTH)
+```
+**Não é o CDEF** (as forças CDEF do quadro são 0) e **não é a divisão de tiles** (TILEY e os passos de partição colocam os três blocos correctamente). O fixture mt128 (um SB por tile) é EXACTO, logo o defeito é específico do SEGUNDO superbloco de um tile.
+**Suspeitos:** o estado de mode-info/contexto através da fronteira de SB dentro do tile, ou a predição/resíduo SMOOTH desse bloco (yMode=9; o 235 plano é o valor do vizinho esquerdo).
+**Próximo passo:** despejar os estágios/níveis por bloco do SB 1 (o diagnóstico já acumula os registos de todos os tiles em `MODESA`; os níveis precisam do mesmo) e comparar o modo/coeficientes com o libaom.
+**EVIDÊNCIA MAIS PROFUNDA 19/10 (137ª passagem):** os contadores por tile (`TILESTATS`) mostram a forma exacta da falha:
+```
+t0: 2 blocos, 16 blocos de transformada, NÍVEIS NÃO ZERO 0, estágios [85, 357, 365, 365], pos 370 dos 560 bits de payload do tile
+t1: 1 bloco, 0 TXB, estágios [85, 352], pos 352 de 352 (totalmente consumido)
+```
+O bloco 0 é o bloco PALETA 64x64 (o seu mapa de cores custa 85..357 = 272 bits e pinta o xadrez de referência exactamente). O corpo de mode-info do bloco 1 custa depois só **8 bits** (357..365), os seus 16 blocos de transformada decodificam **todos zero** (~5 bits), e o tile PARA 190 bits antes do fim do payload. Uma decodificação correcta deveria consumir esses bits: as flags all-zero são baratas precisamente porque o decodificador acredita que nenhum dos 16 blocos tem coeficientes. O suspeito é portanto o ESTADO DE ENTROPIA depois do bloco de paleta — a linha de contexto/CDF do `all_zero` dos coeficientes ou o contexto do mode-info do bloco 1 — não a colocação dos blocos, o mapa de paleta ou a reconstrução (a predição é aplicada, o resíduo é simplesmente decodificado como ausente).
+**Próximo passo:** capturar a primeira leitura `all_zero` do bloco 1 (a sua linha de contexto e as probabilidades da CDF) e comparar com a presença esperada de resíduo; o tratamento do contexto de coeficientes do bloco de paleta (`av1_set_entropy_contexts` não é chamado para ele) é o primeiro sítio a verificar contra o decodificador buscado.
+**SEGUNDA MEDIÇÃO 19/10 (138ª passagem):** os spans de leitura por bloco e a auditoria de cada tabela/contexto na janela:
+```
+ySpans: bloco 0 [16, 0, 17] (y-mode no bit 16, DC, termina em 17); bloco 1 [361, 9, 364] (y-mode em 361, SMOOTH, termina em 364)
+bodyFields: [17, 17, 85, 85, 364, 364, 365, 365] — o corpo inteiro do bloco 1 termina em 365, um bit depois do y-mode
+```
+EXCLUÍDOS por comparação directa com as fontes buscadas: `partition_cdf_length` (`PARTITION_TYPES`=4 até 8x8, `EXT_PARTITION_TYPES`=10, `-2`=8 para 128x128 — o Kof coincide), o lookup do contexto de partição e o byte esquerdo na fronteira de SB, `av1_get_skip_txfm_context` (above+left), as guardas e contagens de delta-Q e delta-LF (`FRAME_LF_COUNT` 4/2), o contexto do MODO de paleta (o broadcast do `palSizeYMap` cobre a extensão mi do bloco) e a extensão codificada da paleta, `is_cfl_allowed` (um bloco 64x64 não é CFL-allowed, logo usa-se a CDF UV de 13 símbolos), e a adaptação das CDFs in-place nos stores.
+SUSPEITO RESTANTE: uma tabela de CDF DEFAULT (ou o seu layout/intervalo) para um símbolo lido na janela 357..370 — o y mode em 361 decodifica 9 (SMOOTH) onde o SB0 (o mesmo quadrante de xadrez) é um bloco de paleta com DC.
+**Próximo passo:** extrair as CDFs default de `kf_y_cdf`, `uv_mode_cdf`, `palette_y_mode_cdf`/`palette_y_size_cdf`, `tx_size_cdf` e `txb_skip_cdf` do `av1/common/entropymode.c` BUSCADO e compará-las entrada a entrada com `libs/image/Av1ModeCdf.kf` / `Av1CoeffCdf.kf`.
+
+
+<!-- pt-switch --> **PT:** [§754](known-bugs.md#754--a-tile-that-spans-multiple-superblocks-mis-decodes-its-later-superblock-mt192-tile-0s-second-sb-is-a-flat-prediction)
+
+## §755 — o decode dos blocos que transbordam em baixo/à direita ainda diverge, oh24, oh40, sq1, tall (o fix §753 cobriu só paletas)
+**Estado:** 🔴 ABERTO — catalogado 19/10.
+
+**CATALOGADO (medido) 19/10 — lane pipeline/image-vision `192.168.15.21:0`.** Encontrado pela auditoria de PLANO INTEIRO de todo o corpus da 136ª passagem; os testes geo existentes amostram as linhas/colunas de topo-esquerda destes fixtures e passam.
+
+**Medido (PRÉ-CDEF, `YROW` do Kof vs o YUV do ffmpeg; as forças CDEF dos quatro quadros são 0):**
+```
+oh24 (32x24): a luma diverge da linha 16 (x=16: 107,116,123,128 vs 16,16,16,16); U/V da linha 8
+oh40 (32x40): a luma da linha 16 (x=16: 59,21,11 vs 16); U/V da linha 12
+sq1  (32x32): a luma da linha 16 (x=16: 24,24,24,24 vs 16); U/V da linha 8
+tall (64x256): a luma de x=48 (236,237,238 vs 16); as 256 linhas afectadas
+```
+**Não é CDEF**, nem a extensão de paleta (são blocos com resíduo). As primeiras divergências ficam exactamente nas fronteiras de bloco/transformada (linha 16 / x=48): a PREDIÇÃO ou a COLOCAÇÃO do RESÍDUO dos blocos que transbordam em baixo/à direita.
+**Próximo passo:** os registos por bloco da probe (`MODESA`, `STAGES`, `BLKY`) no sq1 (o 32x32 mais simples), começando pelo bloco cuja origem cruza y=16.
+<!-- pt-switch --> **PT:** [§755](known-bugs.md#755--the-bottomright-overhang-decode-still-diverges-beyond-the-sampled-rows-oh24-oh40-sq1-tall-753s-fix-covered-only-palettes)
+
+## §756 — o fixture LOSSLESS 32x32 diverge na metade inferior (ll, da linha 16 em x=4)
+**Estado:** 🔴 ABERTO — catalogado 19/10.
+
+**CATALOGADO (medido) 19/10 — lane pipeline/image-vision `192.168.15.21:0`.** A auditoria de plano inteiro da 136ª passagem de `avif_enc_ll.avif` (32x32, lossless): a luma das linhas 0..15 coincide com o ffmpeg, da linha 16 (x=4) os valores são um gradiente (94,94,... vs 100) e o U/V também diverge. O quadro não transborda; a divergência começa na fronteira de linha de 16 blocos, logo o caminho LOSSLESS (WHT / colocação de coeficientes) ou o mode-info da segunda linha de blocos é o suspeito. `ll` é o único fixture lossless da suite geo.
+**Próximo passo:** os TX/níveis por bloco da probe no ll (txSz, WHT), o mesmo instrumento que o §754 precisa.
+<!-- pt-switch --> **PT:** [§756](known-bugs.md#756--the-lossless-32x32-fixture-diverges-in-its-bottom-half-ll-from-row-16-at-x4)

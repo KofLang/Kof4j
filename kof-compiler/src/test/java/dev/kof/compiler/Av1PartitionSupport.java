@@ -239,7 +239,9 @@ main() {
     var levelsV = listOf<Int[]>()
     var txU = listOf<Int>()
     var txV = listOf<Int>()
-    var tile = Av1TileDecode(frame, stride, mw, mh, cfg, 0, 1, 1, 0, 0, 8, 2, 80, 0, 0, 0, 0, 74, 87, 1, 0, 0, sym, store, txStore, txTypes, above, left, levels, txTypeOut, modes, chroma, 0, 0, levelsU, levelsV, txU, txV)
+    // The 39th argument (the 129th pass's chroma-prediction sink) was missing
+    // here too; this support program does not read it.
+    var tile = Av1TileDecode(frame, stride, mw, mh, cfg, 0, 1, 1, 0, 0, 8, 2, 80, 0, 0, 0, 0, 74, 87, 1, 0, 0, sym, store, txStore, txTypes, above, left, levels, txTypeOut, modes, chroma, 0, 0, levelsU, levelsV, txU, txV, listOf<Int>())
     var walk = Av1Partition(data, miw, mih)
     walk.useReader(sym)
     walk.bindDecoder(tile)

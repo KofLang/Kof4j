@@ -353,6 +353,33 @@ class LspServerTest {
         assertNull(definitionStart(text, 0, 17), "parâmetro não é declarado por var/val/função — null honesto");
     }
 
+    private static String didChange(String text) {
+        return "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didChange\",\"params\":{"
+                + "\"textDocument\":{\"uri\":\"" + URI + "\",\"version\":2},"
+                + "\"contentChanges\":[{\"text\":\"" + Json.escape(text) + "\"}]}}";
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void definitionAfterDidChangeUsesTheChangedText() throws Exception {
+        String didOpen = "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{"
+                + "\"textDocument\":{\"uri\":\"" + URI + "\",\"text\":\""
+                + Json.escape("main() {\n    println(1)\n}\n") + "\"}}}";
+        String changed = "main() {\n    var total = 0\n    println(total)\n}\n";
+        String req = "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"textDocument/definition\",\"params\":{"
+                + "\"textDocument\":{\"uri\":\"" + URI + "\"},"
+                + "\"position\":{\"line\":2,\"character\":13}}}";
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        new LspServer(new ByteArrayInputStream(
+                all(frame(didOpen), frame(didChange(changed)), frame(req))), out).run();
+        List<Object> locs = (List<Object>) byId(messages(out.toString(StandardCharsets.UTF_8)), 9).get("result");
+        assertNotNull(locs, "definition deve ler o texto enviado pelo didChange");
+        Map<String, Object> range = (Map<String, Object>) ((Map<String, Object>) locs.get(0)).get("range");
+        Map<String, Object> start = (Map<String, Object>) range.get("start");
+        assertEquals(1L, ((Number) start.get("line")).longValue(), "linha da declaração no texto alterado");
+        assertEquals(8L, ((Number) start.get("character")).longValue(), "coluna do nome 'total'");
+    }
+
     // ---- EDI001 §15: textDocument/formatting (delegado ao KofFormatter) ----
 
     @SuppressWarnings("unchecked")
@@ -395,6 +422,27 @@ class LspServerTest {
         List<Object> edits = formattingEdits(formatted);
         assertNotNull(edits);
         assertTrue(edits.isEmpty(), "já formatado → nenhum edit, foi: " + edits);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void formattingAfterDidChangeFormatsTheChangedText() throws Exception {
+        String formatted = dev.kof.compiler.KofFormatter.format("main(){\nprintln(1)\n}\n", "Main.kf");
+        String didOpen = "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{"
+                + "\"textDocument\":{\"uri\":\"" + URI + "\",\"text\":\"" + Json.escape(formatted) + "\"}}}";
+        String changed = "main(){\nprintln(   1+2 )\n}\n";
+        String req = "{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"textDocument/formatting\",\"params\":{"
+                + "\"textDocument\":{\"uri\":\"" + URI + "\"},\"options\":{\"tabSize\":4,\"insertSpaces\":true}}}";
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        new LspServer(new ByteArrayInputStream(
+                all(frame(didOpen), frame(didChange(changed)), frame(req))), out).run();
+        List<Object> edits = (List<Object>) byId(messages(out.toString(StandardCharsets.UTF_8)), 8).get("result");
+        assertNotNull(edits);
+        assertEquals(1, edits.size(), "um edit de substituição total do texto alterado: " + edits);
+        Map<String, Object> e = (Map<String, Object>) edits.get(0);
+        assertTrue(((String) e.get("newText")).contains("println(1 + 2)"), "formata o texto do didChange: " + e);
+        Map<String, Object> end = (Map<String, Object>) ((Map<String, Object>) e.get("range")).get("end");
+        assertEquals(3L, ((Number) end.get("line")).longValue(), "o range cobre o texto alterado inteiro: " + e);
     }
 
     // ---- §509 / issue #625: formatting nunca perde comentario, nunca NPE --

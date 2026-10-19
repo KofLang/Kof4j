@@ -548,6 +548,46 @@ public final class JsRuntimeUiWidgets {
                 }
             }
 
+
+            // D-UI-FOCUS (issue #811): foco explícito + auto-focus na montagem.
+            // Real só no KofJS (no-op JVM/Native, como setId/setDisabled).
+            //
+            // O CICLO DE VIDA é o ponto, e é a razão de isto não ser um
+            // `n.focus()` solto: os nós entram em __kofNodes na CONSTRUÇÃO,
+            // ANTES de serem anexados ao documento, e focar um nó DESANEXADO é
+            // no-op no DOM real. Um `focus()` emitido dentro do view (o caso
+            // que a issue pede) fica PENDENTE e é aplicado quando o nó fica
+            // conectado — nunca descartado em silêncio.
+            const __kofPendingFocus = new Set();
+
+            function kofUiFocusConnected(n) {
+                if (typeof n.isConnected === "boolean") return n.isConnected;
+                // Shim do DOM (hostless/SSR) não modela `isConnected`: a conexão
+                // é inferida subindo `parentNode` até o corpo do documento —
+                // mesma semântica (nó desanexado não recebe foco).
+                if (typeof document === "undefined" || !document.body) return true;
+                let p = n;
+                while (p) {
+                    if (p === document.body) return true;
+                    p = p.parentNode;
+                }
+                return false;
+            }
+            function kofUiFocusTake(id) {
+                const n = window.__kofNodes && window.__kofNodes[id];
+                if (!n || !n.focus) return false;
+                if (!kofUiFocusConnected(n)) return false;
+                n.focus();
+                return true;
+            }
+            export function kofUiWidgetFocus(widget) {
+                if (!kofUiFocusTake(widget)) __kofPendingFocus.add(widget);
+            }
+            export function kofUiFocusFlush() {
+                for (const id of Array.from(__kofPendingFocus)) {
+                    if (kofUiFocusTake(id)) __kofPendingFocus.delete(id);
+                }
+            }
             """;
 
 }

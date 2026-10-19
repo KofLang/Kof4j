@@ -127,8 +127,9 @@ public final class JsRuntimeCore {
                             return child;
                         },
                         remove() { if (el.parentNode) el.parentNode.removeChild(el); },
-                        focus() {},
-                        blur() {},
+                        // D-UI-FOCUS (#811): o shim MODELA o foco (sem isto
+                        // `focus()` era no-op e nada seria provável sem navegador).
+                        focus() { if (globalThis.document) globalThis.document.activeElement = el; },
                         click() {
                             const hs = (el._handlers && el._handlers.click) || [];
                             for (const fn of hs) fn({ target: el, preventDefault() {}, stopPropagation() {} });
@@ -189,7 +190,10 @@ public final class JsRuntimeCore {
                     createTextNode(text) { const t = kofMakeEl("#text"); t.textContent = String(text); return t; },
                     getElementById(id) { return kofElements[id] || null; },
                     querySelector(sel) { return kofRoot.querySelector(sel); },
-                    querySelectorAll(sel) { return kofRoot.querySelectorAll(sel); }
+                    querySelectorAll(sel) { return kofRoot.querySelectorAll(sel); },
+                    // D-UI-FOCUS (#811): o shim modela o elemento ativo (só
+                    // `focus()` o muda, como no DOM real).
+                    activeElement: kofRoot
                 };
                 globalThis.window = globalThis;
                 globalThis.__kofRegisterElement = function (id, el) { kofElements[id] = el; };

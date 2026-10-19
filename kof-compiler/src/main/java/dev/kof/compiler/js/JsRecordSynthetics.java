@@ -31,11 +31,16 @@ final class JsRecordSynthetics {
                 ? clazz.name().substring(clazz.name().lastIndexOf('/') + 1) : clazz.name();
         List<JsIr.JsExpression> parts = new ArrayList<>();
         parts.add(new JsIr.JsString(simpleName + "["));
+        // §746: o valor de cada campo passa pelo kofFormat — a coercao nativa
+        // do `+` renderizava uma List como `a,b` (sem os [ ]) e um Map como
+        // `[object Map]`, divergindo do toString do JVM/Script/nativo (medido).
+        p.lc.registerRuntime("kofFormat");
         for (int i = 0; i < clazz.fields().size(); i++) {
             if (i > 0) parts.add(new JsIr.JsString(", "));
             parts.add(new JsIr.JsString(clazz.fields().get(i).name() + "="));
-            parts.add(new JsIr.JsMember(new JsIr.JsThis(),
-                    "_" + JsTypeMapper.sanitizeName(clazz.fields().get(i).name())));
+            parts.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofFormat"),
+                    List.of(new JsIr.JsMember(new JsIr.JsThis(),
+                            "_" + JsTypeMapper.sanitizeName(clazz.fields().get(i).name())))));
         }
         parts.add(new JsIr.JsString("]"));
         JsIr.JsExpression joined = parts.get(0);

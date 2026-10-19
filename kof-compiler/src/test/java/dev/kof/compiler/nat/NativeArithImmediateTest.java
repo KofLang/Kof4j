@@ -53,4 +53,12 @@ class NativeArithImmediateTest {
         assertEquals("    pushq $100\n    pushq %rbx\n    popq %rcx\n    popq %rax\n    subl %ecx, %eax\n    pushq %rax\n",
                 sb.toString());
     }
+    @Test
+    void aConstantWithoutTrailingNewlineUsesTheImmediateForm() {
+        StringBuilder sb = new StringBuilder("    pushq %rbx\n    pushq $5");
+        NativeX86Arith.emitBinary(sb, new KofBinary(KofBinaryOp.ADD, Type.PrimitiveType.INT));
+        assertEquals("    pushq %rbx\n    popq %rax\n"
+                        + "    addl $5, %eax\n    pushq %rax\n",
+                sb.toString());
+    }
 }

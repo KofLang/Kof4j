@@ -18,19 +18,23 @@ final class NativeReturnEmit {
      * literal's {@code pushq $imm}) still needs the pop into rax.
      */
     static void popReturnValue(StringBuilder sb) {
-        // Split into lines (keeping the trailing empty element for a final \n).
-        // Skip any trailing debug (.loc) lines — the value push may be separated
-        // from the return by source-position directives — then drop the push if it
-        // is `pushq %rax` (rax already holds the value), else pop it into rax.
-        java.util.List<String> lines = new java.util.ArrayList<>(
-                java.util.Arrays.asList(sb.toString().split("\n", -1)));
-        int i = lines.size() - 1;
-        if (i >= 0 && lines.get(i).isEmpty()) i--;
-        while (i >= 0 && lines.get(i).startsWith("    .loc ")) i--;
-        if (i >= 0 && lines.get(i).equals("    pushq %rax")) {
-            lines.remove(i);
-            sb.setLength(0);
-            sb.append(String.join("\n", lines));
+        int end = sb.length();
+        if (end > 0 && sb.charAt(end - 1) == '\n') end--;
+        while (end > 0) {
+            int start = sb.lastIndexOf("\n", end - 1) + 1;
+            if (sb.indexOf("    .loc ", start) == start) {
+                end = start - 1;
+                continue;
+            }
+            if (sb.substring(start, end).equals("    pushq %rax")) {
+                int deleteEnd = end;
+                if (deleteEnd < sb.length() && sb.charAt(deleteEnd) == '\n') {
+                    deleteEnd++;
+                }
+                sb.delete(start, deleteEnd);
+                return;
+            }
+            sb.append("    popq %rax\n");
             return;
         }
         sb.append("    popq %rax\n");

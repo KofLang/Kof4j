@@ -1,10 +1,11 @@
 [English](kofscript-embedding-plan.md) | [Português](kofscript-embedding-plan.pt_BR.md)
 
-last: none
-doing: none-planned
-next: spike-0-inventory
-location: docs/development/future
-state: planned
+last: PROMOTED from `docs/development/future/` 17/10 (maintainer order "puxa uma de future" + `D-FUTURE-PROMOTION`)
+doing: spike-0 (the inventory) LANDED 17/10 — the MEASURED entry points below; the RUNTIME slices (2–4) stay BLOCKED behind the maintainer's contract decision + the compiler lane's active interpreter territory
+next: the maintainer's contract decision (the embedding surface + the capability model) — then slice 2 (stepping)
+location: docs/development/kofscript-embedding-plan.md
+state: under-development
+owner: 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a
 
 intent: kofscript-embedding-api
 
@@ -50,6 +51,29 @@ scripting language needs the same three things.
 
 So the three requirements above are precisely what is missing; nothing in the
 current tree provides them.
+
+## Spike-0 — the MEASURED inventory (17/10, this promotion)
+
+Measured against the tree at the promotion (file-anchored, not from memory):
+
+| Surface | Measured state | Where |
+|---|---|---|
+| `KofScript` public API | `RunResult(exitCode, stdout, stderr, success)` + `eval(String)` / `eval(String, Target)` — BATCH-only. An eval **cache** (`ConcurrentHashMap<String, RunResult>` + a `FileCacheEntry(lastModified, size, hash, result)`) exists | `KofScript.java:35`, `:41`, `:43`, `:45`, `:49` |
+| Executor | runs a COMPILED unit to completion — the JVM path delegates to `KofJsRunner.run(entry, ps, System.in, pe, false)`; NO per-cycle budget, NO `step`/`pause`/`resume` | `KofScriptExecutor.java:18`, `:23` |
+| Interpreter | `KofInterpreter` lives in **kof-compiler** (the IR interpreter) — the module the compiler lane is actively landing in | `KofInterpreter.java:36` |
+| `ScriptGlobals` | a GLOBAL static `ConcurrentHashMap<String, Object>` (17 lines) — no session scope, no per-run isolation | `ScriptGlobals.java:11` |
+| Capability model | ABSENT — no sandbox, no capability set, no deny-list | (nothing to measure) |
+
+**Conclusion of the spike:** the plan's three requirements (execution control,
+capability model, scoped bindings) are exactly what is missing — nothing in the
+tree provides them. The module is small (`kof-script` = 1,202 lines), so the
+CONTRACT surface is the open question, not the code volume.
+
+**Boundary (why slices 2–4 are not started):** (a) the embedding CONTRACT
+(the surface names + the capability/isolation model) is a frozen-semantics-
+adjacent surface — the maintainer's decision; (b) the stepping slice touches
+`KofInterpreter` in **kof-compiler**, the compiler lane's ACTIVE territory —
+starting it without that lane would race it (the collision rule).
 
 ## Proposed shape (to be decided by the maintainer — not fixed here)
 

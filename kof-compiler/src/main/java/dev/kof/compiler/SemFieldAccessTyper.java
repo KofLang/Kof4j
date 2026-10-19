@@ -117,10 +117,16 @@ final class SemFieldAccessTyper {
                 if (KofProcess.isResult(recvType) && KofProcess.isField(fa.fieldName())) {
                     return KofProcess.fieldType(fa.fieldName());
                 }
-                if (recvType instanceof Type.ArrayType && "length".equals(fa.fieldName())) {
+                if (recvType instanceof Type.ArrayType && ("length".equals(fa.fieldName())
+                        || "size".equals(fa.fieldName()) || "count".equals(fa.fieldName()))) {
                     return Type.PrimitiveType.INT;
                 }
                 if (Type.isString(recvType) && "length".equals(fa.fieldName())) {
+                    return Type.PrimitiveType.INT;
+                }
+                if ((BuiltinTypes.isList(recvType) || BuiltinTypes.isMap(recvType)
+                        || BuiltinTypes.isSet(recvType))
+                        && ("size".equals(fa.fieldName()) || "length".equals(fa.fieldName()))) {
                     return Type.PrimitiveType.INT;
                 }
                 if (Type.isString(recvType) && ("name".equals(fa.fieldName()) || "path".equals(fa.fieldName()))) {

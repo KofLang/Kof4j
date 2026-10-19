@@ -24,4 +24,5 @@ main() {
     println(math.isDecimal(4.5))
     println(math.roundTo(3.14159, 2))
     println(math.roundTo(1234.0, -2))
+    println(math.abs(0 - 2147483647 - 1))
 }

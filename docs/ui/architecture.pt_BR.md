@@ -88,7 +88,7 @@ Backend
 | **Ciclo de vida** | não existe | só `bind`/`show`/`remove`; não há mount/unmount/dispose, nem cleanup |
 | **Layout** | parcial | só `Column`/`Row` (flexbox, gap fixo); não há Stack/Box/Spacer/Scroll/Grid/Wrap/Center/Align, nem gap/padding/flex por widget |
 | **Eventos** | parcial | só clique no Button, cada um a sua maneira (DOM `addEventListener` espalhado); não há target/propagação/stopPropagation/foco/teclado |
-| **Foco** | não existe | nenhum gerenciamento global; Tab/Shift+Tab, traversal, restoration ausentes |
+| **Foco** | parcial | `focus()` em todo widget DOM existe (issue #811, 16/10) com o ciclo de vida pré-montagem: o pedido feito dentro do `view` é LEMBRADO e aplicado quando o nó conecta. Ainda ausentes: `setAutoFocus` na montagem, ordem Tab/Shift+Tab, traversal e restoration na re-renderização |
 | **Navegação** | não existe | sem Route/Router; uma janela só |
 | **Estado** | ad-hoc | estado em **campos estáticos de classes** + lambda que atualiza label na mão; não há estado de componente nem invalidação |
 | **Renderização/invalidação** | imperativo | cada clique faz `label.text = ...` à mão; não há re-render, diffing, scheduling |

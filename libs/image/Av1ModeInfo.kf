@@ -157,6 +157,21 @@ Int av1CeilLog2(Int x) {
 // multiple of 16); the left palette when `c > 0`. Returns the number of cached
 // colors. `sizeMap` holds the per-MI palette size, `colorMap` the per-MI sorted
 // colors (`mi * 8 + i`).
+// libaom `av1_get_palette_mode_ctx` (av1/common/pred_common.h): the palette-Y
+// MODE context is the number of AVAILABLE neighbours that carry a palette —
+// availability being `mi_row > 0` / `mi_col > 0` (the neighbour exists), NOT a
+// superblock-row boundary.
+Int av1PaletteModeCtx(Int r, Int c, Int[] palSizeYMap, Int miCols) {
+    var ctx = 0
+    if (r > 0 && palSizeYMap[(r - 1) * miCols + c] > 0) {
+        ctx = ctx + 1
+    }
+    if (c > 0 && palSizeYMap[r * miCols + (c - 1)] > 0) {
+        ctx = ctx + 1
+    }
+    return ctx
+}
+
 Int av1GetPaletteCache(Int[] sizeMap, Int[] colorMap, Int r, Int c, Int miCols,
                        Int[] out) {
     var aboveN = 0
@@ -241,6 +256,17 @@ class Av1ModeInfo {
     Av1ModeCdf modes
     Int miCols
     Int miRows
+    // Per-block BODY field positions (diagnostic, read via `bodyPositions()`):
+    // FOUR ints per block — the reader position after the Y mode, after the Y
+    // angle group, after the UV mode/CFL/UV angle group PLUS the palette MODE
+    // info, and after the filter-intra field (the end of the body).
+    List<Int> bodyPosOut
+    // Per-block Y-MODE span (diagnostic, read via `ySpans()`): three ints per
+    // block — the reader position BEFORE the Y-mode read, the value the read
+    // returned, and the position AFTER it. Recorded AT the read, so a value
+    // cannot be attributed to the wrong block.
+    List<Int> ySpanOut
+
     Int[] segMap
     Int[] skipMap
     Int[] yModeMap
@@ -275,6 +301,8 @@ class Av1ModeInfo {
     // at the block. A standalone caller wraps its bytes:
     // `Av1ModeInfo(Av1Symbol(data), w, h)`.
     constructor(Av1Symbol sym, Int miCols, Int miRows) {
+        this.bodyPosOut = listOf()
+        this.ySpanOut = listOf()
         this.sym = sym
         this.modes = Av1ModeCdf()
         this.miCols = miCols
@@ -399,9 +427,31 @@ class Av1ModeInfo {
         return this.uvModeMap[r * this.miCols + c]
     }
 
+    // A mode-info block may OVERHANG the frame's mi grid: libaom's partition
+    // walk decodes blocks whose bottom/right edge lies past `mi_rows`/`mi_cols`
+    // (a HORZ partition at the frame's bottom edge keeps its full height, and
+    // libaom's mi grid carries PADDING rows for exactly that), so a 64x16 frame
+    // really does decode a 64x32 block. Kof's per-cell maps are frame-sized, so
+    // every broadcast over a block is CLAMPED to the cells that exist. Nothing
+    // is lost: a neighbour lookup is up/left only, and every in-frame cell of an
+    // overhanging block IS written.
+    Int clampedWidth(Int c, Int bw) {
+        if (c + bw > this.miCols) {
+            return this.miCols - c
+        }
+        return bw
+    }
+
+    Int clampedHeight(Int r, Int bh) {
+        if (r + bh > this.miRows) {
+            return this.miRows - r
+        }
+        return bh
+    }
+
     void setModes(Int r, Int c, Int bs, Int yMode, Int uvMode) {
-        var bw = av1BlockNum4x4Wide(bs)
-        var bh = av1BlockNum4x4High(bs)
+        var bw = this.clampedWidth(c, av1BlockNum4x4Wide(bs))
+        var bh = this.clampedHeight(r, av1BlockNum4x4High(bs))
         var i = 0
         while (i < bh) {
             var j = 0
@@ -421,8 +471,8 @@ class Av1ModeInfo {
     // it covers. `readSkip`/`readSegmentId` write only the block's origin cell;
     // this restores the block-shared semantics the skip/segment contexts read.
     void setSkipSeg(Int r, Int c, Int bs, Int skip, Int seg) {
-        var bw = av1BlockNum4x4Wide(bs)
-        var bh = av1BlockNum4x4High(bs)
+        var bw = this.clampedWidth(c, av1BlockNum4x4Wide(bs))
+        var bh = this.clampedHeight(r, av1BlockNum4x4High(bs))
         var i = 0
         while (i < bh) {
             var j = 0
@@ -468,13 +518,7 @@ class Av1ModeInfo {
     // them over the block's MI grid and returns the size (0 when no palette).
     Int readPaletteY(Int r, Int c, Int bs, Int bitDepth) {
         var bsizeCtx = av1BlockNumPelsLog2(bs) - 6
-        var ctx = 0
-        if (r % 16 != 0 && this.palSizeYMap[(r - 1) * this.miCols + c] > 0) {
-            ctx = ctx + 1
-        }
-        if (c > 0 && this.palSizeYMap[r * this.miCols + (c - 1)] > 0) {
-            ctx = ctx + 1
-        }
+        var ctx = av1PaletteModeCtx(r, c, this.palSizeYMap, this.miCols)
         var modev = this.sym.readSymbol(this.palYModeStore.get(bsizeCtx * 3 + ctx), 2)
         if (modev == 0) {
             return 0
@@ -598,8 +642,8 @@ class Av1ModeInfo {
     // Broadcasts a palette size and its colors over the block's MI grid.
     void storePalette(Int[] sizeMap, Int[] colorMap, Int r, Int c, Int bs,
                       Int n, Int[] colors) {
-        var w4 = av1BlockNum4x4Wide(bs)
-        var h4 = av1BlockNum4x4High(bs)
+        var w4 = this.clampedWidth(c, av1BlockNum4x4Wide(bs))
+        var h4 = this.clampedHeight(r, av1BlockNum4x4High(bs))
         var rr = 0
         while (rr < h4) {
             var cc = 0
@@ -632,6 +676,18 @@ class Av1ModeInfo {
                                palettePossible, 8)
     }
 
+    // The per-block Y-MODE span (diagnostic), three ints per block: the reader
+    // position before the Y-mode read, the value it returned, and the position
+    // after it.
+    List<Int> ySpans() {
+        return this.ySpanOut
+    }
+
+    // The per-block BODY field positions (diagnostic), four ints per block.
+    List<Int> bodyPositions() {
+        return this.bodyPosOut
+    }
+
     Int[] readBodyBd(Int r, Int c, Int bs, Int lossless, Int hasChroma,
                      Int enableFilterIntra, Int palettePossible, Int bitDepth) {
         var hasU = 0
@@ -651,12 +707,17 @@ class Av1ModeInfo {
         if (hasL == 1) {
             leftMode = imc.get(this.yModeAt(r, c - 1))
         }
+        this.ySpanOut.add(this.sym.position())
         var yMode = this.sym.readSymbol(this.kfYStore.get(aboveMode * 5 + leftMode), 13)
+        this.ySpanOut.add(yMode)
+        this.ySpanOut.add(this.sym.position())
+        this.bodyPosOut.add(this.sym.position())
         var angleY = 0
         if (bs >= 3 && av1IsDirectionalMode(yMode) == 1) {
             var raw = this.sym.readSymbol(this.angleStore.get(yMode - 1), 7)
             angleY = raw - 3
         }
+        this.bodyPosOut.add(this.sym.position())
         var uvMode = 0
         var angleUV = 0
         var cflU = 0
@@ -719,9 +780,14 @@ class Av1ModeInfo {
                 this.readPaletteUv(r, c, bs, bitDepth)
             }
         }
+        this.bodyPosOut.add(this.sym.position())
         var useFilterIntra = 0
         var filterMode = 0
-        if (enableFilterIntra == 1 && yMode == 0 && av1ModeInfoMaxDim(bs) <= 32) {
+        // libaom `av1_filter_intra_allowed`: DC_PRED AND NO PALETTE on the block
+        // AND both dims <= 32. The palette term is load-bearing: on a palette
+        // block the encoder never writes this flag, so reading it shifts the
+        // whole colour-index map (the 3bd desync of the <=32 palette blocks).
+        if (enableFilterIntra == 1 && yMode == 0 && this.palSizeYMap[r * this.miCols + c] == 0 && av1ModeInfoMaxDim(bs) <= 32) {
             useFilterIntra = this.sym.readSymbol(this.filterIntraStore.get(bs), 2)
             if (useFilterIntra == 1) {
                 filterMode = this.sym.readSymbol(this.filterModeStore, 5)
@@ -735,6 +801,7 @@ class Av1ModeInfo {
         out[3] = angleUV
         out[4] = cflU
         out[5] = cflV
+        this.bodyPosOut.add(this.sym.position())
         out[6] = useFilterIntra
         out[7] = filterMode
         return out
@@ -833,7 +900,7 @@ class Av1ModeInfo {
                 count = 2
             }
         }
-        var out = listOf()
+        var out = listOf<Int>()
         var i = 0
         while (i < count) {
             var store = this.deltaLfStore.get(0)

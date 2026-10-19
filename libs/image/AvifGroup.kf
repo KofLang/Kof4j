@@ -268,6 +268,7 @@ AvifTileGroup tileGroupWalk(Int[] b, Int p0, Int limit, AvifFrameHeader frame,
 AvifFrameHeader avifFrameSentinel() {
     return AvifFrameHeader(0, false, false, false, 0, 0, false, 0, 0, false,
                            false, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                           0, new Int[8])
+                           0, new Int[8], listOf(0, 0, 0, 0, 0, 0),
+                           0, listOf(), listOf())
 }
 

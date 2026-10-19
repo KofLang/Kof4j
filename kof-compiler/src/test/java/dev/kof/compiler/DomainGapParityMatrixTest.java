@@ -29,9 +29,12 @@ class DomainGapParityMatrixTest {
     void everyPinnedGapIsDocumentedInTheParityMatrix() throws IOException {
         Path root = repoRoot();
         Set<String> pinned = new LinkedHashSet<>();
-        Matcher m = GAP_CODE.matcher(Files.readString(root.resolve(
-                "kof-compiler/src/test/java/dev/kof/compiler/DomainGapCodesTest.java")));
-        while (m.find()) pinned.add(m.group(1));
+        for (String pinFile : new String[]{
+                "kof-compiler/src/test/java/dev/kof/compiler/DomainGapCodesTest.java",
+                "kof-compiler/src/test/java/dev/kof/compiler/NativeBareListStoreGapTest.java"}) {
+            Matcher m = GAP_CODE.matcher(Files.readString(root.resolve(pinFile)));
+            while (m.find()) pinned.add(m.group(1));
+        }
         assertFalse(pinned.isEmpty(), "no gap codes found in the pin file's assertGap calls");
 
         String matrix = Files.readString(root.resolve("docs/backend-parity.md"));

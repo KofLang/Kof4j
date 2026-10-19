@@ -4810,6 +4810,3806 @@ class DecompileTest {
                 "zero-drift: balance/overdrawn/feeTier/formatCents id\u00eanticos ao Java");
     }
 
+    @Test
+    void orInLoopSharedContinueJoinRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o || dentro de loop com o CONTINUE-JOIN
+        // COMPARTILHADO fatia LANÇADA — o alvo do falso real do || = a
+        // CONTINUAÇÃO do loop (os preds = os testes da cadeia + a QUEDA do
+        // then; o discriminador = o pred da queda) → if-SEM-ELSE e o join
+        // (o iinc compartilhado) anda DEPOIS, fora do if; o else não
+        // re-emite. Os shapes: as INICIAIS com o || de `i == 0 || charAt(
+        // i-1) == ' '` (o isub no índice + o char contra const), o palíndromo
+        // com o while de 2 ponteiros e o early-false, o repeat com o
+        // acumulador de concat no for e o join de 3 com o sep. Zero-drift
+        // executado: a-b-c/ababab/true/false/amt/g — 6/6 idênticos ao Java.
+        Path javaFile = dir.resolve("Text.java");
+        Files.writeString(javaFile, """
+                public class Text {
+                    static String join(String sep, String a, String b, String c) {
+                        return a + sep + b + sep + c;
+                    }
+                    static String repeat(String s, int n) {
+                        String r = "";
+                        for (int i = 0; i < n; i++) {
+                            r = r + s;
+                        }
+                        return r;
+                    }
+                    static boolean isPalindrome(String s) {
+                        int i = 0;
+                        int j = s.length() - 1;
+                        while (i < j) {
+                            if (s.charAt(i) != s.charAt(j)) { return false; }
+                            i++;
+                            j--;
+                        }
+                        return true;
+                    }
+                    static String initials(String name) {
+                        String out = "";
+                        for (int i = 0; i < name.length(); i++) {
+                            if (i == 0 || name.charAt(i - 1) == ' ') {
+                                out = out + name.charAt(i);
+                            }
+                        }
+                        return out;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Text.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Text.join("-", "a", "b", "c"))
+                    println(Text.repeat("ab", 3))
+                    println(Text.isPalindrome("arara"))
+                    println(Text.isPalindrome("java"))
+                    println(Text.initials("alan mathison turing"))
+                    println(Text.initials("guido"))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: a-b-c | ababab | true | false | amt | g
+        assertEquals("a-b-c\nababab\ntrue\nfalse\namt\ng", output,
+                "zero-drift: join/repeat/isPalindrome/initials id\u00eanticos ao Java");
+    }
+
+    @Test
+    void gradebookDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio DIÁRIO — 4 shapes sem código novo: a
+        // MÉDIA com o ternário de guarda (vazio → 0.0) + o cast (double)
+        // sum/size, a LETRA com as CINCO faixas encadeadas (A/B/C/D/F), o
+        // contador de abaixo-do-piso e o allPassed com o early-false.
+        // Zero-drift executado: 79.0/0.0/A/B/C/D/F/1/true/true — 10/10
+        // id\u00eanticos ao Java — a 23\u00aa valida\u00e7\u00e3o.
+        Path javaFile = dir.resolve("Grade2.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Grade2 {
+                    static double average(List<Integer> grades) {
+                        int sum = 0;
+                        for (int g : grades) {
+                            sum += g;
+                        }
+                        return grades.isEmpty() ? 0 : (double) sum / grades.size();
+                    }
+                    static String letter(double avg) {
+                        if (avg >= 90) { return "A"; }
+                        if (avg >= 80) { return "B"; }
+                        if (avg >= 70) { return "C"; }
+                        if (avg >= 60) { return "D"; }
+                        return "F";
+                    }
+                    static int belowCount(List<Integer> grades, int floor) {
+                        int n = 0;
+                        for (int g : grades) {
+                            if (g < floor) { n++; }
+                        }
+                        return n;
+                    }
+                    static boolean allPassed(List<Integer> grades) {
+                        for (int g : grades) {
+                            if (g < 60) { return false; }
+                        }
+                        return true;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Grade2.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var gs = listOf(95, 88, 72, 61)
+                    println(Grade2.average(gs))
+                    println(Grade2.average(listOf()))
+                    println(Grade2.letter(92.0))
+                    println(Grade2.letter(85.0))
+                    println(Grade2.letter(75.0))
+                    println(Grade2.letter(65.0))
+                    println(Grade2.letter(40.0))
+                    println(Grade2.belowCount(gs, 70))
+                    println(Grade2.allPassed(gs))
+                    println(Grade2.allPassed(listOf(75, 90)))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 79.0 | 0.0 | A | B | C | D | F | 1 | true | true
+        assertEquals("79.0\n0.0\nA\nB\nC\nD\nF\n1\ntrue\ntrue", output,
+                "zero-drift: average/letter/belowCount/allPassed id\u00eanticos ao Java");
+    }
+
+    @Test
+    void tripDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio VIAGEM — 4 shapes sem c\u00f3digo novo: o
+        // custo com a cadeia de ddiv/dmul (fuelCost), a ETA com o local
+        // intermediário + TR\u00caS faixas, o WHILE com a SUBTRA\u00c7\u00c3O
+        // decrementante (stops: `left = left - range` com o contador) e o
+        // needsPassport com o contains + a NEGA\u00c7\u00c3O. Zero-drift
+        // executado: 137.5/less-than-an-hour/same-day/overnight/3/0/true/
+        // false — 8/8 id\u00eanticos ao Java — a 24\u00aa valida\u00e7\u00e3o
+        // zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Trip.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Trip {
+                    static double fuelCost(double km, double kmPerLiter, double pricePerLiter) {
+                        return km / kmPerLiter * pricePerLiter;
+                    }
+                    static String eta(double km, double kmPerHour) {
+                        double hours = km / kmPerHour;
+                        if (hours < 1) { return "less than an hour"; }
+                        if (hours < 5) { return "same day"; }
+                        return "overnight";
+                    }
+                    static int stops(double km, double range) {
+                        int n = 0;
+                        double left = km;
+                        while (left > range) {
+                            left = left - range;
+                            n++;
+                        }
+                        return n;
+                    }
+                    static boolean needsPassport(String country, List<String> domestic) {
+                        return !domestic.contains(country);
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Trip.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Trip.fuelCost(300.0, 12.0, 5.5))
+                    println(Trip.eta(40.0, 60.0))
+                    println(Trip.eta(200.0, 60.0))
+                    println(Trip.eta(600.0, 60.0))
+                    println(Trip.stops(350.0, 100.0))
+                    println(Trip.stops(90.0, 100.0))
+                    var domestic = listOf("BR", "UY")
+                    println(Trip.needsPassport("AR", domestic))
+                    println(Trip.needsPassport("BR", domestic))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 137.5 | less than an hour | same day | overnight | 3 | 0 | true | false
+        assertEquals("137.5\nless than an hour\nsame day\novernight\n3\n0\ntrue\nfalse", output,
+                "zero-drift: fuelCost/eta/stops/needsPassport id\u00eanticos ao Java");
+    }
+
+    @Test
+    void chatDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio CHAT — 4 shapes sem c\u00f3digo novo: o
+        // unread com o contains + a NEGA\u00c7\u00c3O dentro do for-each duplo
+        // (o seen contra o all), o PREVIEW com o corte + o sufixo "..."
+        // (o if-simples + a concat no return), o mentions com o EARLY-TRUE
+        // (o contains dentro do loop) e o charCount com o ACUMULADOR Long
+        // (o ladd no for-each de Strings). Zero-drift executado: 2/ola
+        // mund.../curto/true/false/10 — 6/6 id\u00eanticos ao Java — a 25\u00aa
+        // valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Chat.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Chat {
+                    static int unread(List<String> seen, List<String> all) {
+                        int n = 0;
+                        for (String m : all) {
+                            if (!seen.contains(m)) { n++; }
+                        }
+                        return n;
+                    }
+                    static String preview(String msg, int max) {
+                        if (msg.length() <= max) { return msg; }
+                        return msg.substring(0, max) + "...";
+                    }
+                    static boolean mentions(String msg, List<String> names) {
+                        for (String name : names) {
+                            if (msg.contains(name)) { return true; }
+                        }
+                        return false;
+                    }
+                    static long charCount(List<String> msgs) {
+                        long total = 0;
+                        for (String m : msgs) {
+                            total += m.length();
+                        }
+                        return total;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Chat.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var seen = listOf("oi", "tchau")
+                    var all = listOf("oi", "tchau", "e ai", "bom dia")
+                    println(Chat.unread(seen, all))
+                    println(Chat.preview("ola mundo tudo bem", 8))
+                    println(Chat.preview("curto", 8))
+                    println(Chat.mentions("oi joao", listOf("maria", "joao")))
+                    println(Chat.mentions("oi ze", listOf("maria", "joao")))
+                    var msgs = listOf("abc", "de", "fghij")
+                    println(Chat.charCount(msgs))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 2 | ola mund... | curto | true | false | 10
+        assertEquals("2\nola mund...\ncurto\ntrue\nfalse\n10", output,
+                "zero-drift: unread/preview/mentions/charCount id\u00eanticos ao Java");
+    }
+
+    @Test
+    void matrix3DomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio MATRIZ-3 — 4 shapes sem c\u00f3digo novo: a
+        // DIAGONAL com o `m[i][i]` no for contado, o rowSums com o LOOP
+        // ANINHADO completo + o array de sa\u00edda preenchido por \u00edndice
+        // (`out[i] = r`), o isSquare com o early-false do comprimento e o
+        // MAX com o best inicializado + o aninhado. Zero-drift executado:
+        // 16/2/5/9/true/9 — 6/6 id\u00eanticos ao Java — a 26\u00aa valida\u00e7\u00e3o
+        // zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Matrix3.java");
+        Files.writeString(javaFile, """
+                public class Matrix3 {
+                    static int diagonalSum(int[][] m) {
+                        int sum = 0;
+                        for (int i = 0; i < m.length; i++) {
+                            sum += m[i][i];
+                        }
+                        return sum;
+                    }
+                    static int[] rowSums(int[][] m) {
+                        int[] out = new int[m.length];
+                        for (int i = 0; i < m.length; i++) {
+                            int r = 0;
+                            for (int j = 0; j < m[i].length; j++) {
+                                r += m[i][j];
+                            }
+                            out[i] = r;
+                        }
+                        return out;
+                    }
+                    static boolean isSquare(int[][] m) {
+                        for (int i = 0; i < m.length; i++) {
+                            if (m[i].length != m.length) { return false; }
+                        }
+                        return true;
+                    }
+                    static int max(int[][] m) {
+                        int best = m[0][0];
+                        for (int i = 0; i < m.length; i++) {
+                            for (int j = 0; j < m[i].length; j++) {
+                                if (m[i][j] > best) { best = m[i][j]; }
+                            }
+                        }
+                        return best;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Matrix3.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var m = new Int[3][0]
+                    var r0 = new Int[3]
+                    r0[0] = 2; r0[1] = 0; r0[2] = 0
+                    var r1 = new Int[3]
+                    r1[0] = 0; r1[1] = 5; r1[2] = 0
+                    var r2 = new Int[3]
+                    r2[0] = 0; r2[1] = 0; r2[2] = 9
+                    m[0] = r0; m[1] = r1; m[2] = r2
+                    println(Matrix3.diagonalSum(m))
+                    var rs = Matrix3.rowSums(m)
+                    for (var r in rs) { println(r) }
+                    println(Matrix3.isSquare(m))
+                    println(Matrix3.max(m))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 16 | 2 | 5 | 9 | true | 9
+        assertEquals("16\n2\n5\n9\ntrue\n9", output,
+                "zero-drift: diagonalSum/rowSums/isSquare/max id\u00eanticos ao Java");
+    }
+
+    @Test
+    void payrollDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio FOLHA — 4 shapes sem c\u00f3digo novo: o
+        // l\u00edquido com a álgebra de Double (netSalary: `gross * (1 -
+        // taxRate)` + o benefício), as QUATRO faixas salariais (bracket), o
+        // bônus com o ACUMULADOR Double no for-each (a fatia dos stores
+        // wide por trás) e o deservesRaise com o && de comparações MISTAS
+        // (o `years >= 2` inteiro contra o `score >= 4.0` double).
+        // Zero-drift executado: 4300.0/exempt/low/mid/high/350.0/true/
+        // false/false — 9/9 id\u00eanticos ao Java — a 27\u00aa valida\u00e7\u00e3o
+        // zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Payroll.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Payroll {
+                    static double netSalary(double gross, double taxRate, double benefits) {
+                        double taxed = gross * (1 - taxRate);
+                        return taxed + benefits;
+                    }
+                    static String bracket(double salary) {
+                        if (salary < 2000) { return "exempt"; }
+                        if (salary < 5000) { return "low"; }
+                        if (salary < 10000) { return "mid"; }
+                        return "high";
+                    }
+                    static double bonus(List<Double> sales, double rate) {
+                        double total = 0;
+                        for (double s : sales) {
+                            total += s;
+                        }
+                        return total * rate;
+                    }
+                    static boolean deservesRaise(int years, double score) {
+                        return years >= 2 && score >= 4.0;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Payroll.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Payroll.netSalary(5000.0, 0.2, 300.0))
+                    println(Payroll.bracket(1500.0))
+                    println(Payroll.bracket(3500.0))
+                    println(Payroll.bracket(8000.0))
+                    println(Payroll.bracket(12000.0))
+                    var sales = listOf(1000.0, 2000.0, 500.0)
+                    println(Payroll.bonus(sales, 0.1))
+                    println(Payroll.deservesRaise(3, 4.5))
+                    println(Payroll.deservesRaise(1, 4.5))
+                    println(Payroll.deservesRaise(3, 3.5))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 4300.0 | exempt | low | mid | high | 350.0 | true | false | false
+        assertEquals("4300.0\nexempt\nlow\nmid\nhigh\n350.0\ntrue\nfalse\nfalse", output,
+                "zero-drift: netSalary/bracket/bonus/deservesRaise id\u00eanticos ao Java");
+    }
+
+    @Test
+    void clockDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio REL\u00d3GIO — 4 shapes sem c\u00f3digo novo:
+        // a conversão com a ARITMÉTICA ENCADEADA (toSeconds: `h * 3600 +
+        // m * 60 + s`), o período com as QUATRO faixas (dawn/morning/
+        // afternoon/night), o addMinutes com o wrap do módulo (`total / 60
+        // % 24` — o encadeamento de div+rem) e o isBusinessDay com o &&
+        // TRIPLO (a NEGAÇÃO + as duas comparações). Zero-drift executado:
+        // 3723/dawn/morning/afternoon/night/0/10/true/false/false — 10/10
+        // id\u00eanticos ao Java — a 28\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Time.java");
+        Files.writeString(javaFile, """
+                public class Time {
+                    static int toSeconds(int h, int m, int s) {
+                        return h * 3600 + m * 60 + s;
+                    }
+                    static String period(int hour) {
+                        if (hour < 6) { return "dawn"; }
+                        if (hour < 12) { return "morning"; }
+                        if (hour < 18) { return "afternoon"; }
+                        return "night";
+                    }
+                    static int addMinutes(int h, int m, int add) {
+                        int total = h * 60 + m + add;
+                        return total / 60 % 24;
+                    }
+                    static boolean isBusinessDay(int day, boolean holiday) {
+                        return !holiday && day >= 2 && day <= 6;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Time.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Time.toSeconds(1, 2, 3))
+                    println(Time.period(4))
+                    println(Time.period(9))
+                    println(Time.period(15))
+                    println(Time.period(23))
+                    println(Time.addMinutes(23, 50, 20))
+                    println(Time.addMinutes(10, 10, 5))
+                    println(Time.isBusinessDay(3, false))
+                    println(Time.isBusinessDay(1, false))
+                    println(Time.isBusinessDay(3, true))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 3723 | dawn | morning | afternoon | night | 0 | 10 | true | false | false
+        assertEquals("3723\ndawn\nmorning\nafternoon\nnight\n0\n10\ntrue\nfalse\nfalse", output,
+                "zero-drift: toSeconds/period/addMinutes/isBusinessDay id\u00eanticos ao Java");
+    }
+
+    @Test
+    void votingDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio VOTA\u00c7\u00c3O — 4 shapes sem c\u00f3digo novo:
+        // o contador de votos com o equals no for-each, o canVote com o
+        // gate do early-false + o return do boolean param, o runoff com as
+        // DUAS calls ANTES do if (o reuso dos resultados como locais) e o
+        // turnout com a PROMO\u00c7\u00c3O int→double no multiplicador (`votes *
+        // 100.0 / eligible`). Zero-drift executado: 3/0/false/true/false/
+        // ana/68.0 — 7/7 id\u00eanticos ao Java — a 29\u00aa valida\u00e7\u00e3o
+        // zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Voting.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Voting {
+                    static int countVotes(List<String> ballots, String cand) {
+                        int n = 0;
+                        for (String b : ballots) {
+                            if (b.equals(cand)) { n++; }
+                        }
+                        return n;
+                    }
+                    static boolean canVote(int age, boolean registered) {
+                        if (age < 18) { return false; }
+                        return registered;
+                    }
+                    static String runoff(String a, String b, List<String> ballots) {
+                        int va = countVotes(ballots, a);
+                        int vb = countVotes(ballots, b);
+                        if (va > vb) { return a; }
+                        if (vb > va) { return b; }
+                        return a;
+                    }
+                    static double turnout(int votes, int eligible) {
+                        return votes * 100.0 / eligible;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Voting.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var bs = listOf("ana", "bia", "ana", "ana", "bia")
+                    println(Voting.countVotes(bs, "ana"))
+                    println(Voting.countVotes(bs, "caio"))
+                    println(Voting.canVote(17, true))
+                    println(Voting.canVote(25, true))
+                    println(Voting.canVote(25, false))
+                    println(Voting.runoff("ana", "bia", bs))
+                    println(Voting.turnout(340, 500))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 3 | 0 | false | true | false | ana | 68.0
+        assertEquals("3\n0\nfalse\ntrue\nfalse\nana\n68.0", output,
+                "zero-drift: countVotes/canVote/runoff/turnout id\u00eanticos ao Java");
+    }
+
+    @Test
+    void weatherDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio CLIMA — 4 shapes sem c\u00f3digo novo: a
+        // média com o ACUMULADOR Double + o ternário de guarda (vazio →
+        // 0.0), o alerta com as DUAS faixas opostas (freezing/hot/normal),
+        // o hotDays com o contador de threshold e o willRain com a
+        // comparação direta no return. Zero-drift executado: 21.9/0.0/
+        // freezing/normal/hot/2/true/false — 8/8 id\u00eanticos ao Java —
+        // a 30\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Weather.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Weather {
+                    static double averageTemp(List<Double> temps) {
+                        double sum = 0;
+                        for (double t : temps) {
+                            sum += t;
+                        }
+                        return temps.isEmpty() ? 0 : sum / temps.size();
+                    }
+                    static String alert(double temp) {
+                        if (temp < 0) { return "freezing"; }
+                        if (temp > 35) { return "hot"; }
+                        return "normal";
+                    }
+                    static int hotDays(List<Double> temps, double threshold) {
+                        int n = 0;
+                        for (double t : temps) {
+                            if (t > threshold) { n++; }
+                        }
+                        return n;
+                    }
+                    static boolean willRain(int humidity) {
+                        return humidity > 80;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Weather.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var ts = listOf(22.0, 31.5, -2.0, 40.0, 18.0)
+                    println(Weather.averageTemp(ts))
+                    println(Weather.averageTemp(listOf()))
+                    println(Weather.alert(-5.0))
+                    println(Weather.alert(22.0))
+                    println(Weather.alert(38.0))
+                    println(Weather.hotDays(ts, 30.0))
+                    println(Weather.willRain(85))
+                    println(Weather.willRain(40))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 21.9 | 0.0 | freezing | normal | hot | 2 | true | false
+        assertEquals("21.9\n0.0\nfreezing\nnormal\nhot\n2\ntrue\nfalse", output,
+                "zero-drift: averageTemp/alert/hotDays/willRain id\u00eanticos ao Java");
+    }
+
+    @Test
+    void lockDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio COFE — 4 shapes sem c\u00f3digo novo: o
+        // tryOpen com o gate do boolean + as TR\u00caS sa\u00eddas, o code com a
+        // combinação posicional (`a * 100 + b * 10 + c`), o matches com o
+        // WHILE de DOIS decrementos paralelos (os d\u00edgitos por div/10 +
+        // o early-false no %10) e o attemptsLeft com a subtração direta.
+        // Zero-drift executado: open/locked/waiting/472/true/false/false/4
+        // — 8/8 id\u00eanticos ao Java — a 31\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Lock.java");
+        Files.writeString(javaFile, """
+                public class Lock {
+                    static String tryOpen(int attempts, int max, boolean keyFound) {
+                        if (keyFound) { return "open"; }
+                        if (attempts >= max) { return "locked"; }
+                        return "waiting";
+                    }
+                    static int code(int a, int b, int c) {
+                        return a * 100 + b * 10 + c;
+                    }
+                    static boolean matches(int guess, int secret) {
+                        int digits = 0;
+                        int g = guess;
+                        int s = secret;
+                        while (g > 0 && s > 0) {
+                            if (g % 10 != s % 10) { return false; }
+                            g = g / 10;
+                            s = s / 10;
+                            digits++;
+                        }
+                        return digits == 3;
+                    }
+                    static int attemptsLeft(int used, int max) {
+                        return max - used;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Lock.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Lock.tryOpen(2, 3, true))
+                    println(Lock.tryOpen(3, 3, false))
+                    println(Lock.tryOpen(1, 3, false))
+                    println(Lock.code(4, 7, 2))
+                    println(Lock.matches(123, 123))
+                    println(Lock.matches(125, 123))
+                    println(Lock.matches(12, 123))
+                    println(Lock.attemptsLeft(1, 5))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: open | locked | waiting | 472 | true | false | false | 4
+        assertEquals("open\nlocked\nwaiting\n472\ntrue\nfalse\nfalse\n4", output,
+                "zero-drift: tryOpen/code/matches/attemptsLeft id\u00eanticos ao Java");
+    }
+
+    @Test
+    void recipeDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio RECEITA — 4 shapes sem c\u00f3digo novo: o
+        // tempo com a soma direta, o spiceLevel com as faixas ==/<=
+        // (mild/medium/hot/inferno), o vegetarian com o || de equals DENTRO
+        // do early-false (`ing.equals("chicken") || ing.equals("beef")` —
+        // a cadeia || com o return antecipado) e o scale com a regra de
+        // três (`amount * target / servings`). Zero-drift executado: 55/
+        // mild/medium/hot/inferno/true/false/300.0 — 8/8 id\u00eanticos ao
+        // Java — a 32\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Recipe.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Recipe {
+                    static int totalTime(int prep, int cook) {
+                        return prep + cook;
+                    }
+                    static String spiceLevel(int peppers) {
+                        if (peppers == 0) { return "mild"; }
+                        if (peppers <= 2) { return "medium"; }
+                        if (peppers <= 5) { return "hot"; }
+                        return "inferno";
+                    }
+                    static boolean vegetarian(List<String> ingredients) {
+                        for (String ing : ingredients) {
+                            if (ing.equals("chicken") || ing.equals("beef")) { return false; }
+                        }
+                        return true;
+                    }
+                    static double scale(double amount, int servings, int target) {
+                        return amount * target / servings;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Recipe.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Recipe.totalTime(15, 40))
+                    println(Recipe.spiceLevel(0))
+                    println(Recipe.spiceLevel(2))
+                    println(Recipe.spiceLevel(4))
+                    println(Recipe.spiceLevel(9))
+                    var ings = listOf("rice", "beans", "salad")
+                    var meat = listOf("rice", "chicken")
+                    println(Recipe.vegetarian(ings))
+                    println(Recipe.vegetarian(meat))
+                    println(Recipe.scale(200.0, 4, 6))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 55 | mild | medium | hot | inferno | true | false | 300.0
+        assertEquals("55\nmild\nmedium\nhot\ninferno\ntrue\nfalse\n300.0", output,
+                "zero-drift: totalTime/spiceLevel/vegetarian/scale id\u00eanticos ao Java");
+    }
+
+    @Test
+    void logDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio LOG — 4 shapes sem c\u00f3digo novo: o
+        // errorCount com o startsWith no for-each, o hasFatal com o
+        // EARLY-TRUE, o firstLine com o guard do isEmpty (o <empty> no
+        // vazio) e o join com o acumulador de concat + o \u005c\u005cn
+        // literal (o newline final PRESERVADO byte a byte). Zero-drift
+        // executado: 2/false/true/INFO ok/<empty>/a\u005cnb\u005cn (len 4) —
+        // id\u00eanticos ao Java — a 33\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Log.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Log {
+                    static int errorCount(List<String> lines) {
+                        int n = 0;
+                        for (String line : lines) {
+                            if (line.startsWith("ERROR")) { n++; }
+                        }
+                        return n;
+                    }
+                    static boolean hasFatal(List<String> lines) {
+                        for (String line : lines) {
+                            if (line.startsWith("FATAL")) { return true; }
+                        }
+                        return false;
+                    }
+                    static String firstLine(List<String> lines) {
+                        if (lines.isEmpty()) { return "<empty>"; }
+                        return lines.get(0);
+                    }
+                    static String join(List<String> lines) {
+                        String out = "";
+                        for (String line : lines) {
+                            out = out + line + "\\n";
+                        }
+                        return out;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Log.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var lines = listOf("INFO ok", "ERROR falhou", "INFO de novo", "ERROR outra vez")
+                    println(Log.errorCount(lines))
+                    println(Log.hasFatal(lines))
+                    println(Log.hasFatal(listOf("INFO a", "FATAL x")))
+                    println(Log.firstLine(lines))
+                    println(Log.firstLine(listOf()))
+                    var j = Log.join(listOf("a", "b"))
+                    println(j.length())
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 2 | false | true | INFO ok | <empty> | 4 (o join =
+        // "a\nb\n", o newline final preservado)
+        assertEquals("2\nfalse\ntrue\nINFO ok\n<empty>\n4", output,
+                "zero-drift: errorCount/hasFatal/firstLine/join id\u00eanticos ao Java");
+    }
+
+    @Test
+    void fitnessDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio FITNESS — 4 shapes sem c\u00f3digo novo: o
+        // IMC com o denominador parentesado (bmi: `weight / (h * h)`), as
+        // QUATRO faixas de categoria (under/normal/over/obese), as
+        // calorias com o CAST d2i no return (`(int) (minutes * rate)`) e
+        // o hitGoal com a comparação direta. Zero-drift executado:
+        // 22.857142857142858/under/normal/over/obese/225/true/false — 8/8
+        // id\u00eanticos ao Java — a 34\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Fit.java");
+        Files.writeString(javaFile, """
+                public class Fit {
+                    static double bmi(double weightKg, double heightM) {
+                        return weightKg / (heightM * heightM);
+                    }
+                    static String category(double bmi) {
+                        if (bmi < 18.5) { return "under"; }
+                        if (bmi < 25) { return "normal"; }
+                        if (bmi < 30) { return "over"; }
+                        return "obese";
+                    }
+                    static int caloriesBurned(int minutes, double rate) {
+                        return (int) (minutes * rate);
+                    }
+                    static boolean hitGoal(int steps, int goal) {
+                        return steps >= goal;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Fit.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Fit.bmi(70.0, 1.75))
+                    println(Fit.category(17.0))
+                    println(Fit.category(22.0))
+                    println(Fit.category(27.0))
+                    println(Fit.category(33.0))
+                    println(Fit.caloriesBurned(30, 7.5))
+                    println(Fit.hitGoal(11000, 10000))
+                    println(Fit.hitGoal(9000, 10000))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 22.857142857142858 | under | normal | over | obese | 225 | true | false
+        assertEquals("22.857142857142858\nunder\nnormal\nover\nobese\n225\ntrue\nfalse", output,
+                "zero-drift: bmi/category/caloriesBurned/hitGoal id\u00eanticos ao Java");
+    }
+
+    @Test
+    void orderDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio PEDIDO — 4 shapes sem c\u00f3digo novo: o
+        // total com o acumulador + o desconto algébrico (`sum * (1 -
+        // discount)`), o status com as faixas ==/> (empty/bulk/standard),
+        // o freeShipping com o gate do early-true + o return do boolean
+        // param e o itemCount com o equals contra um PARAM (o sku
+        // dinâmico). Zero-drift executado: 90.0/empty/bulk/standard/true/
+        // true/false/2/0 — 9/9 id\u00eanticos ao Java — a 35\u00aa valida\u00e7\u00e3o
+        // zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Order.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Order {
+                    static double total(List<Double> prices, double discount) {
+                        double sum = 0;
+                        for (double p : prices) {
+                            sum += p;
+                        }
+                        return sum * (1 - discount);
+                    }
+                    static String status(int items) {
+                        if (items == 0) { return "empty"; }
+                        if (items > 20) { return "bulk"; }
+                        return "standard";
+                    }
+                    static boolean freeShipping(double total, boolean member) {
+                        if (total >= 100) { return true; }
+                        return member;
+                    }
+                    static int itemCount(List<String> skus, String sku) {
+                        int n = 0;
+                        for (String s : skus) {
+                            if (s.equals(sku)) { n++; }
+                        }
+                        return n;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Order.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var prices = listOf(50.0, 30.0, 20.0)
+                    println(Order.total(prices, 0.1))
+                    println(Order.status(0))
+                    println(Order.status(25))
+                    println(Order.status(3))
+                    println(Order.freeShipping(150.0, false))
+                    println(Order.freeShipping(50.0, true))
+                    println(Order.freeShipping(50.0, false))
+                    var skus = listOf("a", "b", "a", "c")
+                    println(Order.itemCount(skus, "a"))
+                    println(Order.itemCount(skus, "z"))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 90.0 | empty | bulk | standard | true | true | false | 2 | 0
+        assertEquals("90.0\nempty\nbulk\nstandard\ntrue\ntrue\nfalse\n2\n0", output,
+                "zero-drift: total/status/freeShipping/itemCount id\u00eanticos ao Java");
+    }
+
+    @Test
+    void gameDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio JOGO — 4 shapes sem c\u00f3digo novo: o
+        // cr\u00edtico com o == no return, o damage com o CAST d2i
+        // BRANCH-DEPENDENTE (os DOIS returns com casts, o cr\u00edtico
+        // multiplicando x2), o rank com as QUATRO faixas e o canLevel com
+        // a comparação contra a PRODUTORIA (`xp >= level * 100` — a
+        // multiplicação no lado direito). Zero-drift executado: true/
+        // false/30/15/legend/master/novice/beginner/true/false — 10/10
+        // id\u00eanticos ao Java — a 36\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Game.java");
+        Files.writeString(javaFile, """
+                public class Game {
+                    static boolean isCritical(int roll) {
+                        return roll == 20;
+                    }
+                    static int damage(int base, double multiplier, boolean crit) {
+                        if (crit) { return (int) (base * multiplier * 2); }
+                        return (int) (base * multiplier);
+                    }
+                    static String rank(int score) {
+                        if (score >= 1000) { return "legend"; }
+                        if (score >= 500) { return "master"; }
+                        if (score >= 100) { return "novice"; }
+                        return "beginner";
+                    }
+                    static boolean canLevel(int xp, int level) {
+                        return xp >= level * 100;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Game.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Game.isCritical(20))
+                    println(Game.isCritical(18))
+                    println(Game.damage(10, 1.5, true))
+                    println(Game.damage(10, 1.5, false))
+                    println(Game.rank(1200))
+                    println(Game.rank(700))
+                    println(Game.rank(150))
+                    println(Game.rank(50))
+                    println(Game.canLevel(350, 3))
+                    println(Game.canLevel(250, 3))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: true | false | 30 | 15 | legend | master | novice | beginner | true | false
+        assertEquals("true\nfalse\n30\n15\nlegend\nmaster\nnovice\nbeginner\ntrue\nfalse", output,
+                "zero-drift: isCritical/damage/rank/canLevel id\u00eanticos ao Java");
+    }
+
+    @Test
+    void docDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio DOC — 4 shapes sem c\u00f3digo novo: o
+        // wordCount com a MÁQUINA DE ESTADOS de char (o boolean inWord + o
+        // if/else-if dentro do loop de charAt), o firstWord com o while de
+        // CONDIÇÃO COMPOSTA + o substring, o isUpper com as CALLS
+        // ENCADEADAS no return (equals(toUpperCase())) e o countChar com o
+        // char PARAM na comparação. Zero-drift executado: 4/1/ola/so/true/
+        // false/3/0 — 8/8 id\u00eanticos ao Java — a 37\u00aa valida\u00e7\u00e3o
+        // zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Doc.java");
+        Files.writeString(javaFile, """
+                public class Doc {
+                    static int wordCount(String text) {
+                        int n = 0;
+                        boolean inWord = false;
+                        for (int i = 0; i < text.length(); i++) {
+                            char c = text.charAt(i);
+                            if (c == ' ') {
+                                inWord = false;
+                            } else if (!inWord) {
+                                n++;
+                                inWord = true;
+                            }
+                        }
+                        return n;
+                    }
+                    static String firstWord(String text) {
+                        int end = 0;
+                        while (end < text.length() && text.charAt(end) != ' ') {
+                            end++;
+                        }
+                        return text.substring(0, end);
+                    }
+                    static boolean isUpper(String tag) {
+                        return tag.equals(tag.toUpperCase());
+                    }
+                    static int countChar(String s, char target) {
+                        int n = 0;
+                        for (int i = 0; i < s.length(); i++) {
+                            if (s.charAt(i) == target) { n++; }
+                        }
+                        return n;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Doc.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Doc.wordCount("um dois tres quatro"))
+                    println(Doc.wordCount("unico"))
+                    println(Doc.firstWord("ola mundo"))
+                    println(Doc.firstWord("so"))
+                    println(Doc.isUpper("ABC"))
+                    println(Doc.isUpper("AbC"))
+                    println(Doc.countChar("banana", 'a'))
+                    println(Doc.countChar("teste", 'z'))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 4 | 1 | ola | so | true | false | 3 | 0
+        assertEquals("4\n1\nola\nso\ntrue\nfalse\n3\n0", output,
+                "zero-drift: wordCount/firstWord/isUpper/countChar id\u00eanticos ao Java");
+    }
+
+    @Test
+    void parallelListsDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio LISTAS-PARALELAS — 4 shapes sem
+        // c\u00f3digo novo: o subtotal com o for INDEXADO sobre DUAS listas
+        // (`qtys.get(i) * prices.get(i)` — o get duplo no mesmo \u00edndice),
+        // o cheapest com o tracking do melhor \u00cdNDICE (`prices.get(i) <
+        // prices.get(best)` — o get cruzado) + a concat no return, o
+        // inStock com a comparação direta e o shipping com o zero literal
+        // no early-return. Zero-drift executado: 57.0/item 2/true/false/
+        // 0.0/15.5 — 6/6 id\u00eanticos ao Java — a 38\u00aa valida\u00e7\u00e3o
+        // zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Cart2.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Cart2 {
+                    static double subtotal(List<Integer> qtys, List<Double> prices) {
+                        double total = 0;
+                        for (int i = 0; i < qtys.size(); i++) {
+                            total += qtys.get(i) * prices.get(i);
+                        }
+                        return total;
+                    }
+                    static String cheapest(List<Double> prices) {
+                        int best = 0;
+                        for (int i = 1; i < prices.size(); i++) {
+                            if (prices.get(i) < prices.get(best)) { best = i; }
+                        }
+                        return "item " + best;
+                    }
+                    static boolean inStock(int qty) {
+                        return qty > 0;
+                    }
+                    static double shipping(double total) {
+                        if (total >= 200) { return 0; }
+                        return 15.5;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Cart2.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var qtys = listOf(2, 1, 3)
+                    var prices = listOf(10.0, 25.0, 4.0)
+                    println(Cart2.subtotal(qtys, prices))
+                    println(Cart2.cheapest(prices))
+                    println(Cart2.inStock(5))
+                    println(Cart2.inStock(0))
+                    println(Cart2.shipping(250.0))
+                    println(Cart2.shipping(100.0))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 57.0 | item 2 | true | false | 0.0 | 15.5
+        assertEquals("57.0\nitem 2\ntrue\nfalse\n0.0\n15.5", output,
+                "zero-drift: subtotal/cheapest/inStock/shipping id\u00eanticos ao Java");
+    }
+
+    @Test
+    void creditDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio CR\u00c9DITO + a fatia dos CONSTS WIDE —
+        // o loadValue n\u00e3o cobria o lconst/fconst/dconst (0x09-0x0f): o
+        // `while (left > 0)` com Double compila o header como [dload,
+        // dconst_0, dcmpl, ifle] e o par-case recusava = cond-null (medido
+        // no Bank2.monthsToPay). Os shapes: a taxa dobrada no negativo, o
+        // riskLevel com a raz\u00e3o local + as faixas de double, o canLoan com
+        // o && TRIPLO misto (boolean >= int >=) e o monthsToPay com o
+        // while de subtra\u00e7\u00e3o. Zero-drift executado: -60.0/95.0/high/
+        // medium/low/true/false/false/4/3 — 10/10 id\u00eanticos ao Java — a
+        // 39\u00aa valida\u00e7\u00e3o.
+        Path javaFile = dir.resolve("Bank2.java");
+        Files.writeString(javaFile, """
+                public class Bank2 {
+                    static double applyFee(double balance, double fee) {
+                        if (balance < 0) { return balance - fee * 2; }
+                        return balance - fee;
+                    }
+                    static String riskLevel(double debt, double income) {
+                        double ratio = debt / income;
+                        if (ratio > 0.5) { return "high"; }
+                        if (ratio > 0.2) { return "medium"; }
+                        return "low";
+                    }
+                    static boolean canLoan(double income, int years, boolean employed) {
+                        return employed && income >= 2000 && years >= 1;
+                    }
+                    static int monthsToPay(double debt, double payment) {
+                        int m = 0;
+                        double left = debt;
+                        while (left > 0) {
+                            left -= payment;
+                            m++;
+                        }
+                        return m;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Bank2.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Bank2.applyFee(-50.0, 5.0))
+                    println(Bank2.applyFee(100.0, 5.0))
+                    println(Bank2.riskLevel(6000.0, 10000.0))
+                    println(Bank2.riskLevel(2500.0, 10000.0))
+                    println(Bank2.riskLevel(1000.0, 10000.0))
+                    println(Bank2.canLoan(3000.0, 2, true))
+                    println(Bank2.canLoan(3000.0, 2, false))
+                    println(Bank2.canLoan(1000.0, 2, true))
+                    println(Bank2.monthsToPay(100.0, 30.0))
+                    println(Bank2.monthsToPay(90.0, 30.0))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: -60.0 | 95.0 | high | medium | low | true | false | false | 4 | 3
+        assertEquals("-60.0\n95.0\nhigh\nmedium\nlow\ntrue\nfalse\nfalse\n4\n3", output,
+                "zero-drift: applyFee/riskLevel/canLoan/monthsToPay id\u00eanticos ao Java");
+    }
+
+    @Test
+    void pizzaDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio PIZZA — 4 shapes sem c\u00f3digo novo: o
+        // preço com o ACUMULADOR RE-ATRIBUÍDO no for-each (`base = base +
+        // 2.5` — a forma explícita, não o +=), o sizeName com as faixas ==
+        // (small/medium/large), o isVegetarian com o && de NEGAÇÕES no
+        // return e o slicesFor com a multiplicação direta. Zero-drift
+        // executado: 17.5/5.0/small/medium/large/true/false/12 — 8/8
+        // id\u00eanticos ao Java — a 40\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Pizza.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Pizza {
+                    static double price(int size, List<String> toppings) {
+                        double base = size * 5.0;
+                        for (String t : toppings) {
+                            base = base + 2.5;
+                        }
+                        return base;
+                    }
+                    static String sizeName(int size) {
+                        if (size == 1) { return "small"; }
+                        if (size == 2) { return "medium"; }
+                        return "large";
+                    }
+                    static boolean isVegetarian(List<String> toppings) {
+                        return !toppings.contains("pepperoni") && !toppings.contains("ham");
+                    }
+                    static int slicesFor(int people) {
+                        return people * 3;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Pizza.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var tops = listOf("queijo", "milho", "catupiry")
+                    println(Pizza.price(2, tops))
+                    println(Pizza.price(1, listOf()))
+                    println(Pizza.sizeName(1))
+                    println(Pizza.sizeName(2))
+                    println(Pizza.sizeName(3))
+                    println(Pizza.isVegetarian(tops))
+                    println(Pizza.isVegetarian(listOf("queijo", "ham")))
+                    println(Pizza.slicesFor(4))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 17.5 | 5.0 | small | medium | large | true | false | 12
+        assertEquals("17.5\n5.0\nsmall\nmedium\nlarge\ntrue\nfalse\n12", output,
+                "zero-drift: price/sizeName/isVegetarian/slicesFor id\u00eanticos ao Java");
+    }
+
+    @Test
+    void textProcessDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio TEXTO-PROC — 4 shapes sem c\u00f3digo novo: o
+        // longest com a compara\u00e7\u00e3o CALL-vs-CALL (`w.length() >
+        // best.length()` — os DOIS lados sendo chamadas), o totalLength com
+        // o contador de lengths no for-each, o allShort com o early-false
+        // de threshold e o initials-v2 com a MÁQUINA DE ESTADOS invertida
+        // (o newWord setado no espaço e consumido no else-if). Zero-drift
+        // executado: jardim/13/true/false/amt — 5/5 id\u00eanticos ao Java —
+        // a 41\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Stream.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Stream {
+                    static String longest(List<String> words) {
+                        String best = "";
+                        for (String w : words) {
+                            if (w.length() > best.length()) { best = w; }
+                        }
+                        return best;
+                    }
+                    static int totalLength(List<String> words) {
+                        int n = 0;
+                        for (String w : words) {
+                            n += w.length();
+                        }
+                        return n;
+                    }
+                    static boolean allShort(List<String> words, int max) {
+                        for (String w : words) {
+                            if (w.length() > max) { return false; }
+                        }
+                        return true;
+                    }
+                    static String initials(String phrase) {
+                        String out = "";
+                        boolean newWord = true;
+                        for (int i = 0; i < phrase.length(); i++) {
+                            char c = phrase.charAt(i);
+                            if (c == ' ') {
+                                newWord = true;
+                            } else if (newWord) {
+                                out = out + c;
+                                newWord = false;
+                            }
+                        }
+                        return out;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Stream.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var ws = listOf("casa", "jardim", "sol")
+                    println(Stream.longest(ws))
+                    println(Stream.totalLength(ws))
+                    println(Stream.allShort(ws, 7))
+                    println(Stream.allShort(ws, 4))
+                    println(Stream.initials("alan mathison turing"))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: jardim | 13 | true | false | amt
+        assertEquals("jardim\n13\ntrue\nfalse\namt", output,
+                "zero-drift: longest/totalLength/allShort/initials id\u00eanticos ao Java");
+    }
+
+    @Test
+    void investDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio INVESTIMENTO — 4 shapes sem c\u00f3digo
+        // novo: o juros compostos com o for de re-atribuição
+        // (`balance = balance * (1 + rate)`), o profitable com a comparação
+        // direta, o yearsToDouble com o WHILE contra a PRODUTÓRIA
+        // (`balance < principal * 2` — o threshold calculado no header) e
+        // o fee com as duas taxas por braço. Zero-drift executado:
+        // 1331.0/true/false/8/5.0/10.0 — 6/6 id\u00eanticos ao Java — a
+        // 42\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Invest.java");
+        Files.writeString(javaFile, """
+                public class Invest {
+                    static double compoundInterest(double principal, double rate, int years) {
+                        double balance = principal;
+                        for (int i = 0; i < years; i++) {
+                            balance = balance * (1 + rate);
+                        }
+                        return balance;
+                    }
+                    static boolean profitable(double initial, double current) {
+                        return current > initial;
+                    }
+                    static int yearsToDouble(double principal, double rate) {
+                        int years = 0;
+                        double balance = principal;
+                        while (balance < principal * 2) {
+                            balance = balance * (1 + rate);
+                            years++;
+                        }
+                        return years;
+                    }
+                    static double fee(double amount, boolean premium) {
+                        if (premium) { return amount * 0.005; }
+                        return amount * 0.01;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Invest.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Invest.compoundInterest(1000.0, 0.1, 3))
+                    println(Invest.profitable(1000.0, 1200.0))
+                    println(Invest.profitable(1000.0, 900.0))
+                    println(Invest.yearsToDouble(1000.0, 0.1))
+                    println(Invest.fee(1000.0, true))
+                    println(Invest.fee(1000.0, false))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 1331.0 | true | false | 8 | 5.0 | 10.0
+        assertEquals("1331.0\ntrue\nfalse\n8\n5.0\n10.0", output,
+                "zero-drift: compoundInterest/profitable/yearsToDouble/fee id\u00eanticos ao Java");
+    }
+
+    @Test
+    void socialDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio SOCIAL — 4 shapes sem c\u00f3digo novo: o
+        // follows com o contains direto, o handle com a concat + o
+        // toLowerCase no return, o isNew com o equals NEGADO e o
+        // likesToLevel com as QUATRO faixas decrescentes (3/2/1/0).
+        // Zero-drift executado: true/false/@maria/true/false/3/2/1/0 —
+        // 9/9 id\u00eanticos ao Java — a 43\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Social.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Social {
+                    static boolean follows(List<String> myFollows, String user) {
+                        return myFollows.contains(user);
+                    }
+                    static String handle(String name) {
+                        return "@" + name.toLowerCase();
+                    }
+                    static boolean isNew(String post, String lastSeen) {
+                        return !post.equals(lastSeen);
+                    }
+                    static int likesToLevel(int likes) {
+                        if (likes >= 1000) { return 3; }
+                        if (likes >= 100) { return 2; }
+                        if (likes >= 10) { return 1; }
+                        return 0;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Social.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var follows = listOf("ana", "bia")
+                    println(Social.follows(follows, "ana"))
+                    println(Social.follows(follows, "caio"))
+                    println(Social.handle("Maria"))
+                    println(Social.isNew("post2", "post1"))
+                    println(Social.isNew("post1", "post1"))
+                    println(Social.likesToLevel(1500))
+                    println(Social.likesToLevel(250))
+                    println(Social.likesToLevel(15))
+                    println(Social.likesToLevel(3))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: true | false | @maria | true | false | 3 | 2 | 1 | 0
+        assertEquals("true\nfalse\n@maria\ntrue\nfalse\n3\n2\n1\n0", output,
+                "zero-drift: follows/handle/isNew/likesToLevel id\u00eanticos ao Java");
+    }
+
+    @Test
+    void parkingDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (16/10): o dom\u00ednio ESTACIONAMENTO — 4 shapes sem c\u00f3digo
+        // novo: a tarifa com a DIVISÃO INT→DOUBLE no local (`minutes /
+        // 60.0` + o excedente multiplicado), o isFull com a comparação
+        // direta, o zone com o CHAR PARAM nas faixas (== 'A' / == 'B') e o
+        // spotsLeft com a subtra\u00e7\u00e3o dupla encadeada. Zero-drift
+        // executado: 5.0/8.0/true/false/premium/standard/economy/30 — 8/8
+        // id\u00eanticos ao Java — a 44\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Parking.java");
+        Files.writeString(javaFile, """
+                public class Parking {
+                    static double fee(int minutes) {
+                        double hours = minutes / 60.0;
+                        if (hours <= 1) { return 5.0; }
+                        return 5.0 + (hours - 1) * 3.0;
+                    }
+                    static boolean isFull(int occupied, int total) {
+                        return occupied >= total;
+                    }
+                    static String zone(char code) {
+                        if (code == 'A') { return "premium"; }
+                        if (code == 'B') { return "standard"; }
+                        return "economy";
+                    }
+                    static int spotsLeft(int total, int occupied, int reserved) {
+                        return total - occupied - reserved;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Parking.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Parking.fee(30))
+                    println(Parking.fee(120))
+                    println(Parking.isFull(50, 50))
+                    println(Parking.isFull(49, 50))
+                    println(Parking.zone('A'))
+                    println(Parking.zone('B'))
+                    println(Parking.zone('C'))
+                    println(Parking.spotsLeft(100, 60, 10))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 5.0 | 8.0 | true | false | premium | standard | economy | 30
+        assertEquals("5.0\n8.0\ntrue\nfalse\npremium\nstandard\neconomy\n30", output,
+                "zero-drift: fee/isFull/zone/spotsLeft id\u00eanticos ao Java");
+    }
+
+    @Test
+    void metricDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio M\u00c9TRICAS — 4 shapes sem c\u00f3digo novo:
+        // a convers\u00e3o km→milhas com a constante longa, a FAHRENHEIT com a
+        // f\u00f3rmula mista int-double (`c * 9 / 5 + 32` — o 9/5 INTEIRO
+        // aplicado após a promoção), o sizeLabel com as QUATRO faixas e o
+        // isRoomTemp com o && de FAIXA (`>= 20 && <= 26`). Zero-drift
+        // executado: 6.21371/212.0/32.0/S/M/L/XL/true/false — 9/9
+        // id\u00eanticos ao Java — a 45\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Metric.java");
+        Files.writeString(javaFile, """
+                public class Metric {
+                    static double kmToMiles(double km) {
+                        return km * 0.621371;
+                    }
+                    static double celsiusToFahrenheit(double c) {
+                        return c * 9 / 5 + 32;
+                    }
+                    static String sizeLabel(int cm) {
+                        if (cm < 100) { return "S"; }
+                        if (cm < 150) { return "M"; }
+                        if (cm < 180) { return "L"; }
+                        return "XL";
+                    }
+                    static boolean isRoomTemp(double c) {
+                        return c >= 20 && c <= 26;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Metric.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Metric.kmToMiles(10.0))
+                    println(Metric.celsiusToFahrenheit(100.0))
+                    println(Metric.celsiusToFahrenheit(0.0))
+                    println(Metric.sizeLabel(80))
+                    println(Metric.sizeLabel(120))
+                    println(Metric.sizeLabel(165))
+                    println(Metric.sizeLabel(190))
+                    println(Metric.isRoomTemp(23.0))
+                    println(Metric.isRoomTemp(30.0))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 6.21371 | 212.0 | 32.0 | S | M | L | XL | true | false
+        assertEquals("6.21371\n212.0\n32.0\nS\nM\nL\nXL\ntrue\nfalse", output,
+                "zero-drift: kmToMiles/celsiusToFahrenheit/sizeLabel/isRoomTemp id\u00eanticos ao Java");
+    }
+
+    @Test
+    void menuDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio MENU — 4 shapes sem c\u00f3digo novo: o
+        // total com o acumulador Double no for-each (a fatia dos stores
+        // wide), o spicyLabel com as faixas ==/<= (no-spice/mild/spicy/
+        // fire), o hasVegan com o EARLY-TRUE do equals e o perPerson com a
+        // divis\u00e3o double/int. Zero-drift executado: 56.0/no spice/mild/
+        // spicy/fire/false/true/30.0 — 8/8 id\u00eanticos ao Java — a
+        // 46\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Menu.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Menu {
+                    static double totalPrice(List<Double> items) {
+                        double sum = 0;
+                        for (double item : items) {
+                            sum += item;
+                        }
+                        return sum;
+                    }
+                    static String spicyLabel(int level) {
+                        if (level == 0) { return "no spice"; }
+                        if (level <= 3) { return "mild"; }
+                        if (level <= 6) { return "spicy"; }
+                        return "fire";
+                    }
+                    static boolean hasVegan(List<String> tags) {
+                        for (String tag : tags) {
+                            if (tag.equals("vegan")) { return true; }
+                        }
+                        return false;
+                    }
+                    static double perPerson(double total, int people) {
+                        return total / people;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Menu.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var items = listOf(25.5, 18.0, 12.5)
+                    println(Menu.totalPrice(items))
+                    println(Menu.spicyLabel(0))
+                    println(Menu.spicyLabel(2))
+                    println(Menu.spicyLabel(5))
+                    println(Menu.spicyLabel(9))
+                    var tags = listOf("veg", "gluten-free")
+                    var vegan = listOf("veg", "vegan")
+                    println(Menu.hasVegan(tags))
+                    println(Menu.hasVegan(vegan))
+                    println(Menu.perPerson(120.0, 4))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 56.0 | no spice | mild | spicy | fire | false | true | 30.0
+        assertEquals("56.0\nno spice\nmild\nspicy\nfire\nfalse\ntrue\n30.0", output,
+                "zero-drift: totalPrice/spicyLabel/hasVegan/perPerson id\u00eanticos ao Java");
+    }
+
+    @Test
+    void bikeDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio BICICLETA — 4 shapes sem c\u00f3digo novo:
+        // o gear-inches com o CAST i2d NO MEIO (`chainring / (double) cog *
+        // wheelDiameter` — o cast mudando o tipo da divis\u00e3o), o
+        // terrainType com as TR\u00caS faixas de gradient, as calorias com o
+        // CAST d2i no return (`(int) (minutes * 8 * intensity)` — a
+        // promo\u00e7\u00e3o int→double na cadeia) e o needsService com a
+        // compara\u00e7\u00e3o direta. Zero-drift executado: 108.0/flat/rolling/
+        // climbing/360/true/false — 7/7 id\u00eanticos ao Java — a 47\u00aa
+        // valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Bike.java");
+        Files.writeString(javaFile, """
+                public class Bike {
+                    static double gearInches(int chainring, int cog, double wheelDiameter) {
+                        return chainring / (double) cog * wheelDiameter;
+                    }
+                    static String terrainType(double gradient) {
+                        if (gradient < 2) { return "flat"; }
+                        if (gradient < 6) { return "rolling"; }
+                        return "climbing";
+                    }
+                    static int calories(int minutes, double intensity) {
+                        return (int) (minutes * 8 * intensity);
+                    }
+                    static boolean needsService(double kmSince, double limit) {
+                        return kmSince >= limit;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Bike.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Bike.gearInches(52, 13, 27.0))
+                    println(Bike.terrainType(1.0))
+                    println(Bike.terrainType(4.0))
+                    println(Bike.terrainType(8.0))
+                    println(Bike.calories(30, 1.5))
+                    println(Bike.needsService(500.0, 400.0))
+                    println(Bike.needsService(300.0, 400.0))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 108.0 | flat | rolling | climbing | 360 | true | false
+        assertEquals("108.0\nflat\nrolling\nclimbing\n360\ntrue\nfalse", output,
+                "zero-drift: gearInches/terrainType/calories/needsService id\u00eanticos ao Java");
+    }
+
+    @Test
+    void courseDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio CURSO — 4 shapes sem c\u00f3digo novo: a
+        // média com o acumulador int + o ternário de guarda + o CAST
+        // (`(double) total / size`), o grade com as QUATRO faixas, o
+        // approved com a compara\u00e7\u00e3o direta e o failedCount com o
+        // contador de abaixo-do-piso. Zero-drift executado: 76.25/0.0/A/
+        // B/C/F/true/false/1 — 9/9 id\u00eanticos ao Java — a 48\u00aa
+        // valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Course.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Course {
+                    static double average(List<Integer> scores) {
+                        int total = 0;
+                        for (int s : scores) {
+                            total += s;
+                        }
+                        return scores.isEmpty() ? 0 : (double) total / scores.size();
+                    }
+                    static String grade(double score) {
+                        if (score >= 90) { return "A"; }
+                        if (score >= 75) { return "B"; }
+                        if (score >= 60) { return "C"; }
+                        return "F";
+                    }
+                    static boolean approved(double average) {
+                        return average >= 60;
+                    }
+                    static int failedCount(List<Integer> scores) {
+                        int n = 0;
+                        for (int s : scores) {
+                            if (s < 60) { n++; }
+                        }
+                        return n;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Course.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var scores = listOf(85, 92, 58, 70)
+                    println(Course.average(scores))
+                    println(Course.average(listOf()))
+                    println(Course.grade(95.0))
+                    println(Course.grade(80.0))
+                    println(Course.grade(65.0))
+                    println(Course.grade(40.0))
+                    println(Course.approved(72.0))
+                    println(Course.approved(55.0))
+                    println(Course.failedCount(scores))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 76.25 | 0.0 | A | B | C | F | true | false | 1
+        assertEquals("76.25\n0.0\nA\nB\nC\nF\ntrue\nfalse\n1", output,
+                "zero-drift: average/grade/approved/failedCount id\u00eanticos ao Java");
+    }
+
+    @Test
+    void shapeDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio GEOMETRIA — 4 shapes sem c\u00f3digo novo:
+        // o retângulo com o produto direto, o círculo com a CONSTANTE na
+        // FRENTE (`3.14159 * r * r` — a constante primeiro no encadeamento),
+        // o kind com as faixas == (triangle/quadrilateral/pentagon/polygon)
+        // e o isSquare com o == entre os DOIS params. Zero-drift executado:
+        // 20.0/12.56636/triangle/quadrilateral/pentagon/polygon/true/false
+        // — 8/8 id\u00eanticos ao Java — a 49\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Shape.java");
+        Files.writeString(javaFile, """
+                public class Shape {
+                    static double rectArea(double w, double h) {
+                        return w * h;
+                    }
+                    static double circleArea(double r) {
+                        return 3.14159 * r * r;
+                    }
+                    static String kind(int sides) {
+                        if (sides == 3) { return "triangle"; }
+                        if (sides == 4) { return "quadrilateral"; }
+                        if (sides == 5) { return "pentagon"; }
+                        return "polygon";
+                    }
+                    static boolean isSquare(double w, double h) {
+                        return w == h;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Shape.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Shape.rectArea(4.0, 5.0))
+                    println(Shape.circleArea(2.0))
+                    println(Shape.kind(3))
+                    println(Shape.kind(4))
+                    println(Shape.kind(5))
+                    println(Shape.kind(7))
+                    println(Shape.isSquare(3.0, 3.0))
+                    println(Shape.isSquare(3.0, 4.0))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 20.0 | 12.56636 | triangle | quadrilateral | pentagon | polygon | true | false
+        assertEquals("20.0\n12.56636\ntriangle\nquadrilateral\npentagon\npolygon\ntrue\nfalse", output,
+                "zero-drift: rectArea/circleArea/kind/isSquare id\u00eanticos ao Java");
+    }
+
+    @Test
+    void emailDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio EMAIL + a fatia do String.repeat — o
+        // mapeamento java-instance → stdlib-call: o `s.repeat(n)` do JDK
+        // vira `strings.repeat(s, n)` (o Kof NÃO tem String.repeat —
+        // SEM052 — mas a stdlib TEM strings.repeat/kof_strings_repeat; o
+        // precedente keySet→keys). Os shapes: o isValid com o && TRIPLO de
+        // calls encadeadas (o indexOf reusado), o domain com o indexOf +
+        // substring no local, o mask com o REPEAT MAPEADO + a concat e o
+        // sameDomain com a chamada local reusada duas vezes. Zero-drift
+        // executado: true/false/false/test.com/***@test.com/true/false —
+        // 7/7 id\u00eanticos ao Java — a 50\u00aa valida\u00e7\u00e3o.
+        Path javaFile = dir.resolve("Email.java");
+        Files.writeString(javaFile, """
+                public class Email {
+                    static boolean isValid(String email) {
+                        return email.contains("@") && email.indexOf("@") > 0 && email.indexOf("@") < email.length() - 1;
+                    }
+                    static String domain(String email) {
+                        int at = email.indexOf("@");
+                        return email.substring(at + 1);
+                    }
+                    static String mask(String email) {
+                        int at = email.indexOf("@");
+                        return "*".repeat(at) + email.substring(at);
+                    }
+                    static boolean sameDomain(String a, String b) {
+                        return domain(a).equals(domain(b));
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Email.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertTrue(kof.contains("strings.repeat"), "o repeat mapeado:\n" + kof);
+        String kofRun = kof + """
+                main() {
+                    println(Email.isValid("ana@test.com"))
+                    println(Email.isValid("ana@"))
+                    println(Email.isValid("@test.com"))
+                    println(Email.domain("ana@test.com"))
+                    println(Email.mask("ana@test.com"))
+                    println(Email.sameDomain("a@x.com", "b@x.com"))
+                    println(Email.sameDomain("a@x.com", "b@y.com"))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: true | false | false | test.com | ***@test.com | true | false
+        assertEquals("true\nfalse\nfalse\ntest.com\n***@test.com\ntrue\nfalse", output,
+                "zero-drift: isValid/domain/mask/sameDomain id\u00eanticos ao Java");
+    }
+
+    @Test
+    void noteDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio NOTA — 4 shapes sem c\u00f3digo novo: o
+        // pad com o repeat MAPEADO dentro da aritm\u00e9tica (`word + " "
+        // .repeat(width - word.length())` — o repeat com a EXPRESS\u00c3O
+        // calculada no arg), o isBlank com a cadeia trim().isEmpty() no
+        // return, o capitalize com o substring(0,1).toUpperCase() + a
+        // concat e o guard do isEmpty. Zero-drift executado: 6/ola+5
+        // espa\u00e7os/comprida.../true/false/Ola/Ola — 7/7 id\u00eanticos ao
+        // Java — a 51\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Note.java");
+        Files.writeString(javaFile, """
+                public class Note {
+                    static int wordLen(String word) {
+                        return word.length();
+                    }
+                    static String pad(String word, int width) {
+                        if (word.length() >= width) { return word; }
+                        return word + " ".repeat(width - word.length());
+                    }
+                    static boolean isBlank(String line) {
+                        return line.trim().isEmpty();
+                    }
+                    static String capitalize(String word) {
+                        if (word.isEmpty()) { return word; }
+                        return word.substring(0, 1).toUpperCase() + word.substring(1);
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Note.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Note.wordLen("banana"))
+                    println(Note.pad("ola", 8) + "|")
+                    println(Note.pad("comprida o suficiente", 8) + "|")
+                    println(Note.isBlank("   "))
+                    println(Note.isBlank(" x "))
+                    println(Note.capitalize("ola"))
+                    println(Note.capitalize("").length())
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 6 | ola     | | comprida o suficiente | | true | false | Ola | 0
+        // (o capitalize("") imprime 0 — o length do vazio; o trim do harness
+        // comeria a linha vazia no println direto)
+        assertEquals("6\nola     |\ncomprida o suficiente|\ntrue\nfalse\nOla\n0", output,
+                "zero-drift: wordLen/pad/isBlank/capitalize id\u00eanticos ao Java");
+    }
+
+    @Test
+    void timerDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio TIMER — 4 shapes sem c\u00f3digo novo: o
+        // formatDuration com a concat MISTA int+literal (m + "m" + s +
+        // "s"), o isExpired com a compara\u00e7\u00e3o de Longs no return, o
+        // addSeconds com o encadeamento div/rem (%3600/60) e o countdown
+        // com o for DESCENDENTE (`i = n; i > 0; i--`) + o acumulador de
+        // concat + o sufixo "go". Zero-drift executado: 2m5s/1m0s/true/
+        // false/2/3 2 1 go — 6/6 id\u00eanticos ao Java — a 52\u00aa
+        // valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Timer2.java");
+        Files.writeString(javaFile, """
+                public class Timer2 {
+                    static String formatDuration(int seconds) {
+                        int m = seconds / 60;
+                        int s = seconds % 60;
+                        return m + "m" + s + "s";
+                    }
+                    static boolean isExpired(long deadline, long now) {
+                        return now > deadline;
+                    }
+                    static int addSeconds(int h, int m, int s) {
+                        int total = s + m * 60 + h * 3600;
+                        return total % 3600 / 60;
+                    }
+                    static String countdown(int n) {
+                        String out = "";
+                        for (int i = n; i > 0; i--) {
+                            out = out + i + " ";
+                        }
+                        return out + "go";
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Timer2.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Timer2.formatDuration(125))
+                    println(Timer2.formatDuration(60))
+                    println(Timer2.isExpired(100, 150))
+                    println(Timer2.isExpired(100, 50))
+                    println(Timer2.addSeconds(1, 2, 3))
+                    println(Timer2.countdown(3))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 2m5s | 1m0s | true | false | 2 | 3 2 1 go
+        assertEquals("2m5s\n1m0s\ntrue\nfalse\n2\n3 2 1 go", output,
+                "zero-drift: formatDuration/isExpired/addSeconds/countdown id\u00eanticos ao Java");
+    }
+
+    @Test
+    void doorDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio PORTA — 4 shapes sem c\u00f3digo novo: o
+        // canEnter com o || de booleans no return, o doorState com as duas
+        // faixas booleanas, o openCount com o contador no for-each de
+        // Bool[] (o array PRIMITIVO de booleans iterado) e o anyOpen com o
+        // EARLY-TRUE. Zero-drift executado: true/true/false/open/locked/
+        // closed/2/true/0/false — 10/10 id\u00eanticos ao Java — a 53\u00aa
+        // valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Door.java");
+        Files.writeString(javaFile, """
+                public class Door {
+                    static boolean canEnter(boolean hasKey, boolean isStaff) {
+                        return hasKey || isStaff;
+                    }
+                    static String doorState(boolean open, boolean locked) {
+                        if (open) { return "open"; }
+                        if (locked) { return "locked"; }
+                        return "closed";
+                    }
+                    static int openCount(boolean[] states) {
+                        int n = 0;
+                        for (boolean s : states) {
+                            if (s) { n++; }
+                        }
+                        return n;
+                    }
+                    static boolean anyOpen(boolean[] states) {
+                        for (boolean s : states) {
+                            if (s) { return true; }
+                        }
+                        return false;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Door.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Door.canEnter(true, false))
+                    println(Door.canEnter(false, true))
+                    println(Door.canEnter(false, false))
+                    println(Door.doorState(true, true))
+                    println(Door.doorState(false, true))
+                    println(Door.doorState(false, false))
+                    var st = new Bool[3]
+                    st[0] = true; st[1] = false; st[2] = true
+                    println(Door.openCount(st))
+                    println(Door.anyOpen(st))
+                    var st2 = new Bool[2]
+                    st2[0] = false; st2[1] = false
+                    println(Door.openCount(st2))
+                    println(Door.anyOpen(st2))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: true | true | false | open | locked | closed | 2 | true | 0 | false
+        assertEquals("true\ntrue\nfalse\nopen\nlocked\nclosed\n2\ntrue\n0\nfalse", output,
+                "zero-drift: canEnter/doorState/openCount/anyOpen id\u00eanticos ao Java");
+    }
+
+    @Test
+    void farmDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio FAZENDA — 4 shapes sem c\u00f3digo novo: o
+        // harvestValue com o unbox×double no for-each (`c * pricePerCrate`
+        // — a promo\u00e7\u00e3o int→double no acumulador), as esta\u00e7\u00f5es com o
+        // || de COMPARA\u00c7\u00d5ES nas faixas (`m <= 2 || m == 12` — o wrap do
+        // ano) e as TR\u00caS faixas encadeadas, o needsIrrigation com o && de
+        // compara\u00e7\u00e3o+nega\u00e7\u00e3o e o totalTrees com o acumulador int.
+        // Zero-drift executado: 200.0/summer/summer/autumn/winter/spring/
+        // true/false/false/16 — 10/10 id\u00eanticos ao Java — a 54\u00aa
+        // valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Farm.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Farm {
+                    static double harvestValue(List<Integer> crates, double pricePerCrate) {
+                        double total = 0;
+                        for (int c : crates) {
+                            total += c * pricePerCrate;
+                        }
+                        return total;
+                    }
+                    static String season(int month) {
+                        if (month <= 2 || month == 12) { return "summer"; }
+                        if (month <= 5) { return "autumn"; }
+                        if (month <= 8) { return "winter"; }
+                        return "spring";
+                    }
+                    static boolean needsIrrigation(double soilMoisture, boolean forecastRain) {
+                        return soilMoisture < 30 && !forecastRain;
+                    }
+                    static int totalTrees(List<Integer> perRow) {
+                        int sum = 0;
+                        for (int t : perRow) {
+                            sum += t;
+                        }
+                        return sum;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Farm.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var crates = listOf(5, 3, 8)
+                    println(Farm.harvestValue(crates, 12.5))
+                    println(Farm.season(1))
+                    println(Farm.season(12))
+                    println(Farm.season(4))
+                    println(Farm.season(7))
+                    println(Farm.season(10))
+                    println(Farm.needsIrrigation(25.0, false))
+                    println(Farm.needsIrrigation(25.0, true))
+                    println(Farm.needsIrrigation(40.0, false))
+                    println(Farm.totalTrees(crates))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 200.0 | summer | summer | autumn | winter | spring | true | false | false | 16
+        assertEquals("200.0\nsummer\nsummer\nautumn\nwinter\nspring\ntrue\nfalse\nfalse\n16", output,
+                "zero-drift: harvestValue/season/needsIrrigation/totalTrees id\u00eanticos ao Java");
+    }
+
+    @Test
+    void cafeDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio CAF\u00c9 — 4 shapes sem c\u00f3digo novo: o
+        // price com o TERN\u00c1RIO de call-condition no init (`size.equals(
+        // "large") ? 8.0 : 5.0`) + o RE-ATRIBUTO depois do if, o
+        // loyaltyPoints com o cast d2i no return, o isMorning com o && de
+        // faixa e o tip com a regra de três (`bill * percent / 100`).
+        // Zero-drift executado: 10.0/8.0/7.0/5.0/8/true/false/5.0 — 8/8
+        // id\u00eanticos ao Java — a 55\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Cafe.java");
+        Files.writeString(javaFile, """
+                public class Cafe {
+                    static double price(String size, boolean extraShot) {
+                        double base = size.equals("large") ? 8.0 : 5.0;
+                        if (extraShot) { base = base + 2.0; }
+                        return base;
+                    }
+                    static int loyaltyPoints(double amount) {
+                        return (int) (amount / 10);
+                    }
+                    static boolean isMorning(int hour) {
+                        return hour >= 6 && hour < 12;
+                    }
+                    static double tip(double bill, int percent) {
+                        return bill * percent / 100;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Cafe.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Cafe.price("large", true))
+                    println(Cafe.price("large", false))
+                    println(Cafe.price("small", true))
+                    println(Cafe.price("small", false))
+                    println(Cafe.loyaltyPoints(85.0))
+                    println(Cafe.isMorning(8))
+                    println(Cafe.isMorning(14))
+                    println(Cafe.tip(50.0, 10))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 10.0 | 8.0 | 7.0 | 5.0 | 8 | true | false | 5.0
+        assertEquals("10.0\n8.0\n7.0\n5.0\n8\ntrue\nfalse\n5.0", output,
+                "zero-drift: price/loyaltyPoints/isMorning/tip id\u00eanticos ao Java");
+    }
+
+    @Test
+    void gymDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio ACADEMIA — 4 shapes sem c\u00f3digo novo: o
+        // bmi com o get POR PARAM (`weights.get(idx)` — o índice
+        // dinâmico) + o denominador calculado, o plan com as faixas ==,
+        // o isPeak com o && de faixa e o totalVisits com o acumulador.
+        // Zero-drift executado: 22.857142857142858/27.755102040816325/
+        // basic/pro/custom/true/false/36 — 8/8 id\u00eanticos ao Java — a
+        // 56\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Gym.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Gym {
+                    static double bmi(List<Double> weights, int idx) {
+                        return weights.get(idx) / (1.75 * 1.75);
+                    }
+                    static String plan(int days) {
+                        if (days == 3) { return "basic"; }
+                        if (days == 5) { return "pro"; }
+                        return "custom";
+                    }
+                    static boolean isPeak(int hour) {
+                        return hour >= 17 && hour <= 20;
+                    }
+                    static int totalVisits(List<Integer> monthly) {
+                        int sum = 0;
+                        for (int v : monthly) {
+                            sum += v;
+                        }
+                        return sum;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Gym.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var weights = listOf(70.0, 85.0)
+                    println(Gym.bmi(weights, 0))
+                    println(Gym.bmi(weights, 1))
+                    println(Gym.plan(3))
+                    println(Gym.plan(5))
+                    println(Gym.plan(2))
+                    println(Gym.isPeak(18))
+                    println(Gym.isPeak(10))
+                    var visits = listOf(12, 15, 9)
+                    println(Gym.totalVisits(visits))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 22.857142857142858 | 27.755102040816325 | basic | pro | custom | true | false | 36
+        assertEquals("22.857142857142858\n27.755102040816325\nbasic\npro\ncustom\ntrue\nfalse\n36", output,
+                "zero-drift: bmi/plan/isPeak/totalVisits id\u00eanticos ao Java");
+    }
+
+    @Test
+    void vaultDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio COFRE-2 — 4 shapes sem c\u00f3digo novo: o
+        // unlocked com o == entre os DOIS params, o status com o boolean
+        // param nas TR\u00caS sa\u00eddas (open/seized/locked), o remaining com o
+        // zero literal no early-return e o alarmLevel com a divis\u00e3o
+        // int/double no return. Zero-drift executado: true/false/open/
+        // seized/locked/2/0/0.3 — 8/8 id\u00eanticos ao Java — a 57\u00aa
+        // valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Vault.java");
+        Files.writeString(javaFile, """
+                public class Vault {
+                    static boolean unlocked(int code, int expected) {
+                        return code == expected;
+                    }
+                    static String status(int attempts, int max, boolean unlocked) {
+                        if (unlocked) { return "open"; }
+                        if (attempts >= max) { return "seized"; }
+                        return "locked";
+                    }
+                    static int remaining(int attempts, int max) {
+                        if (attempts >= max) { return 0; }
+                        return max - attempts;
+                    }
+                    static double alarmLevel(int failedRecently, double threshold) {
+                        return failedRecently / threshold;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Vault.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Vault.unlocked(1234, 1234))
+                    println(Vault.unlocked(999, 1234))
+                    println(Vault.status(2, 5, true))
+                    println(Vault.status(5, 5, false))
+                    println(Vault.status(2, 5, false))
+                    println(Vault.remaining(3, 5))
+                    println(Vault.remaining(5, 5))
+                    println(Vault.alarmLevel(3, 10.0))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: true | false | open | seized | locked | 2 | 0 | 0.3
+        assertEquals("true\nfalse\nopen\nseized\nlocked\n2\n0\n0.3", output,
+                "zero-drift: unlocked/status/remaining/alarmLevel id\u00eanticos ao Java");
+    }
+
+    @Test
+    void libraryDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio BIBLIOTECA — 4 shapes sem c\u00f3digo novo:
+        // o findTitle com o EARLY-RETURN DENTRO do for INDEXADO (o get +
+        // equals + o return do próprio elemento), a multa com o zero no
+        // early-return (o days <= 0 cobrindo 0 e negativo), o canBorrow
+        // com a comparação direta e o countByGenre com o equals contra um
+        // PARAM. Zero-drift executado: o cortico/not found/2.5/0.0/0.0/
+        // true/false/2 — 8/8 id\u00eanticos ao Java — a 58\u00aa valida\u00e7\u00e3o
+        // zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Library.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Library {
+                    static String findTitle(List<String> titles, String isbn) {
+                        for (int i = 0; i < titles.size(); i++) {
+                            if (titles.get(i).equals(isbn)) {
+                                return titles.get(i);
+                            }
+                        }
+                        return "not found";
+                    }
+                    static double lateFee(int days, double rate) {
+                        if (days <= 0) { return 0; }
+                        return days * rate;
+                    }
+                    static boolean canBorrow(int active, int limit) {
+                        return active < limit;
+                    }
+                    static int countByGenre(List<String> genres, String genre) {
+                        int n = 0;
+                        for (String g : genres) {
+                            if (g.equals(genre)) { n++; }
+                        }
+                        return n;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Library.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var titles = listOf("dom casmurro", "o cortico", "iracema")
+                    println(Library.findTitle(titles, "o cortico"))
+                    println(Library.findTitle(titles, "ausente"))
+                    println(Library.lateFee(5, 0.5))
+                    println(Library.lateFee(0, 0.5))
+                    println(Library.lateFee(-2, 0.5))
+                    println(Library.canBorrow(2, 5))
+                    println(Library.canBorrow(5, 5))
+                    var genres = listOf("romance", "ficcao", "romance")
+                    println(Library.countByGenre(genres, "romance"))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: o cortico | not found | 2.5 | 0.0 | 0.0 | true | false | 2
+        assertEquals("o cortico\nnot found\n2.5\n0.0\n0.0\ntrue\nfalse\n2", output,
+                "zero-drift: findTitle/lateFee/canBorrow/countByGenre id\u00eanticos ao Java");
+    }
+
+    @Test
+    void planetDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio PLANETA — 4 shapes sem c\u00f3digo novo: a
+        // gravidade marciana com a constante decimal, o sizeClass com as
+        // TR\u00caS faixas (dwarf/terrestrial/giant), o hasMoon com a
+        // compara\u00e7\u00e3o direta e a escapeVelocity com a NOTA\u00c7\u00c3O
+        // CIENT\u00cdFICA no ldc2_w (`6.674e-11`) + o Math.sqrt + a cadeia
+        // mista (`2 * const * mass / radius`). Zero-drift executado:
+        // 30.4/dwarf/terrestrial/giant/false/true/11185.72649237147 — 7/7
+        // id\u00eanticos ao Java — a 59\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Planet.java");
+        Files.writeString(javaFile, """
+                public class Planet {
+                    static double weightOnMars(double earthKg) {
+                        return earthKg * 0.38;
+                    }
+                    static String sizeClass(double radiusKm) {
+                        if (radiusKm < 2500) { return "dwarf"; }
+                        if (radiusKm < 12000) { return "terrestrial"; }
+                        return "giant";
+                    }
+                    static boolean hasMoon(int moons) {
+                        return moons > 0;
+                    }
+                    static double escapeVelocity(double mass, double radius) {
+                        return Math.sqrt(2 * 6.674e-11 * mass / radius);
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Planet.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Planet.weightOnMars(80.0))
+                    println(Planet.sizeClass(2000.0))
+                    println(Planet.sizeClass(6371.0))
+                    println(Planet.sizeClass(69911.0))
+                    println(Planet.hasMoon(0))
+                    println(Planet.hasMoon(2))
+                    println(Planet.escapeVelocity(5.972e24, 6.371e6))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 30.4 | dwarf | terrestrial | giant | false | true | 11185.72649237147
+        assertEquals("30.4\ndwarf\nterrestrial\ngiant\nfalse\ntrue\n11185.72649237147", output,
+                "zero-drift: weightOnMars/sizeClass/hasMoon/escapeVelocity id\u00eanticos ao Java");
+    }
+
+    @Test
+    void vendingDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio MÁQUINA — 4 shapes sem c\u00f3digo novo: o
+        // charge com o get POR PARAM (o índice do item), o display com o
+        // early-string + a concat no return (`"credit: " + credit`), o
+        // canBuy com a compara\u00e7\u00e3o direta e o change com o early-return
+        // do pr\u00f3prio param. Zero-drift executado: 2.0/insert coins/
+        // credit: 2.5/true/false/1.5/2.0 — 7/7 id\u00eanticos ao Java — a
+        // 60\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Vending.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Vending {
+                    static double charge(List<Double> prices, int item) {
+                        return prices.get(item);
+                    }
+                    static String display(double credit) {
+                        if (credit <= 0) { return "insert coins"; }
+                        return "credit: " + credit;
+                    }
+                    static boolean canBuy(double credit, double price) {
+                        return credit >= price;
+                    }
+                    static double change(double credit, double price) {
+                        if (credit < price) { return credit; }
+                        return credit - price;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Vending.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var prices = listOf(3.5, 2.0, 4.75)
+                    println(Vending.charge(prices, 1))
+                    println(Vending.display(0.0))
+                    println(Vending.display(2.5))
+                    println(Vending.canBuy(5.0, 3.5))
+                    println(Vending.canBuy(2.0, 3.5))
+                    println(Vending.change(5.0, 3.5))
+                    println(Vending.change(2.0, 3.5))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 2.0 | insert coins | credit: 2.5 | true | false | 1.5 | 2.0
+        assertEquals("2.0\ninsert coins\ncredit: 2.5\ntrue\nfalse\n1.5\n2.0", output,
+                "zero-drift: charge/display/canBuy/change id\u00eanticos ao Java");
+    }
+
+    @Test
+    void stock2DomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio CARTEIRA — 4 shapes sem c\u00f3digo novo: o
+        // portfolioValue com o for indexado sobre DUAS listas (o get duplo
+        // × a promo\u00e7\u00e3o), o performance com as TR\u00caS faixas de sinal
+        // (gain/loss/flat), o profitLots com a subtra\u00e7\u00e3o direta e o
+        // worthSelling com a aritm\u00e9tica no && impl\u00edcito do return
+        // (`current - fee > purchase` — a subtra\u00e7\u00e3o no lado esquerdo da
+        // compara\u00e7\u00e3o). Zero-drift executado: 2350.0/gain/loss/flat/150/
+        // true/false — 7/7 id\u00eanticos ao Java — a 61\u00aa valida\u00e7\u00e3o
+        // zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Stock2.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Stock2 {
+                    static double portfolioValue(List<Integer> shares, List<Double> prices) {
+                        double total = 0;
+                        for (int i = 0; i < shares.size(); i++) {
+                            total += shares.get(i) * prices.get(i);
+                        }
+                        return total;
+                    }
+                    static String performance(double change) {
+                        if (change > 0) { return "gain"; }
+                        if (change < 0) { return "loss"; }
+                        return "flat";
+                    }
+                    static int profitLots(int bought, int sold) {
+                        return sold - bought;
+                    }
+                    static boolean worthSelling(double current, double purchase, double fee) {
+                        return current - fee > purchase;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Stock2.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var shares = listOf(100, 50, 200)
+                    var prices = listOf(10.5, 20.0, 1.5)
+                    println(Stock2.portfolioValue(shares, prices))
+                    println(Stock2.performance(0.5))
+                    println(Stock2.performance(-0.5))
+                    println(Stock2.performance(0.0))
+                    println(Stock2.profitLots(300, 450))
+                    println(Stock2.worthSelling(110.0, 100.0, 5.0))
+                    println(Stock2.worthSelling(103.0, 100.0, 5.0))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 2350.0 | gain | loss | flat | 150 | true | false
+        assertEquals("2350.0\ngain\nloss\nflat\n150\ntrue\nfalse", output,
+                "zero-drift: portfolioValue/performance/profitLots/worthSelling id\u00eanticos ao Java");
+    }
+
+    @Test
+    void kitchenDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio COZINHA — 4 shapes sem c\u00f3digo novo: o
+        // costPerServing com a divis\u00e3o double/int, o doneness com as TR\u00caS
+        // faixas de temperatura (rare/medium/well done — o label com
+        // ESPA\u00c7O), o hasIngredient com o EARLY-TRUE do equals contra param
+        // e o servingsFor com a soma direta. Zero-drift executado: 15.0/
+        // rare/medium/well done/true/false/12 — 7/7 id\u00eanticos ao Java —
+        // a 62\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Recipe2.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Recipe2 {
+                    static double costPerServing(double totalCost, int servings) {
+                        return totalCost / servings;
+                    }
+                    static String doneness(double internalTemp) {
+                        if (internalTemp < 52) { return "rare"; }
+                        if (internalTemp < 63) { return "medium"; }
+                        return "well done";
+                    }
+                    static boolean hasIngredient(List<String> ingredients, String wanted) {
+                        for (String ing : ingredients) {
+                            if (ing.equals(wanted)) { return true; }
+                        }
+                        return false;
+                    }
+                    static int servingsFor(int guests, int extra) {
+                        return guests + extra;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Recipe2.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Recipe2.costPerServing(75.0, 5))
+                    println(Recipe2.doneness(48.0))
+                    println(Recipe2.doneness(58.0))
+                    println(Recipe2.doneness(70.0))
+                    var ings = listOf("farinha", "ovos", "leite")
+                    println(Recipe2.hasIngredient(ings, "ovos"))
+                    println(Recipe2.hasIngredient(ings, "fermento"))
+                    println(Recipe2.servingsFor(10, 2))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 15.0 | rare | medium | well done | true | false | 12
+        assertEquals("15.0\nrare\nmedium\nwell done\ntrue\nfalse\n12", output,
+                "zero-drift: costPerServing/doneness/hasIngredient/servingsFor id\u00eanticos ao Java");
+    }
+
+    @Test
+    void commuteDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio DESLOCAMENTO — 4 shapes sem c\u00f3digo
+        // novo: o costPerDay com a divis\u00e3o double/int, o mode com as
+        // QUATRO faixas (walk/bike/bus/train), o arrivesEarly com a
+        // ARITMÉTICA na compara\u00e7\u00e3o (`h * 60 + m < limit` — a convers\u00e3o
+        // para minutos no && impl\u00edcito) e o weeklyCost com a
+        // multiplica\u00e7\u00e3o direta. Zero-drift executado: 10.0/walk/bike/bus/
+        // train/true/false/110 — 8/8 id\u00eanticos ao Java — a 63\u00aa
+        // valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Commute.java");
+        Files.writeString(javaFile, """
+                public class Commute {
+                    static double costPerDay(double monthlyPass, int workdays) {
+                        return monthlyPass / workdays;
+                    }
+                    static String mode(int distanceKm) {
+                        if (distanceKm < 2) { return "walk"; }
+                        if (distanceKm < 8) { return "bike"; }
+                        if (distanceKm < 30) { return "bus"; }
+                        return "train";
+                    }
+                    static boolean arrivesEarly(int departHour, int departMin, int limitMin) {
+                        return departHour * 60 + departMin < limitMin;
+                    }
+                    static int weeklyCost(int daily) {
+                        return daily * 5;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Commute.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Commute.costPerDay(200.0, 20))
+                    println(Commute.mode(1))
+                    println(Commute.mode(5))
+                    println(Commute.mode(20))
+                    println(Commute.mode(45))
+                    println(Commute.arrivesEarly(7, 30, 500))
+                    println(Commute.arrivesEarly(8, 30, 500))
+                    println(Commute.weeklyCost(22))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 10.0 | walk | bike | bus | train | true | false | 110
+        assertEquals("10.0\nwalk\nbike\nbus\ntrain\ntrue\nfalse\n110", output,
+                "zero-drift: costPerDay/mode/arrivesEarly/weeklyCost id\u00eanticos ao Java");
+    }
+
+    @Test
+    void hotelDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio HOTEL — 4 shapes sem c\u00f3digo novo: o
+        // cost com o produto + o ADENDO condicional (`total = total +
+        // nights * 25.0` — a aritm\u00e9tica dupla no branch), o roomClass
+        // com as faixas == (single/double/suite), o hasVacancy com a
+        // compara\u00e7\u00e3o direta e o cancellationFee com o zero literal.
+        // Zero-drift executado: 525.0/450.0/single/double/suite/true/false/
+        // 0.0/50.0 — 9/9 id\u00eanticos ao Java — a 64\u00aa valida\u00e7\u00e3o
+        // zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Hotel.java");
+        Files.writeString(javaFile, """
+                public class Hotel {
+                    static double cost(int nights, double nightly, boolean breakfast) {
+                        double total = nights * nightly;
+                        if (breakfast) { total = total + nights * 25.0; }
+                        return total;
+                    }
+                    static String roomClass(int guests) {
+                        if (guests == 1) { return "single"; }
+                        if (guests == 2) { return "double"; }
+                        return "suite";
+                    }
+                    static boolean hasVacancy(int booked, int total) {
+                        return booked < total;
+                    }
+                    static double cancellationFee(int daysBefore) {
+                        if (daysBefore >= 7) { return 0; }
+                        return 50.0;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Hotel.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Hotel.cost(3, 150.0, true))
+                    println(Hotel.cost(3, 150.0, false))
+                    println(Hotel.roomClass(1))
+                    println(Hotel.roomClass(2))
+                    println(Hotel.roomClass(4))
+                    println(Hotel.hasVacancy(10, 20))
+                    println(Hotel.hasVacancy(20, 20))
+                    println(Hotel.cancellationFee(10))
+                    println(Hotel.cancellationFee(2))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 525.0 | 450.0 | single | double | suite | true | false | 0.0 | 50.0
+        assertEquals("525.0\n450.0\nsingle\ndouble\nsuite\ntrue\nfalse\n0.0\n50.0", output,
+                "zero-drift: cost/roomClass/hasVacancy/cancellationFee id\u00eanticos ao Java");
+    }
+
+    @Test
+    void tradeDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio COM\u00c9RCIO — 4 shapes sem c\u00f3digo novo:
+        // o sellValue com o produto int×double, o verdict com as TR\u00caS
+        // faixas de sinal (gain/even/loss — o == 0 no meio), o worthIt com
+        // o PRODUTO no lado direito (`expected > cost * 1.1` — a
+        // multiplicação como threshold) e o breakEven com o DIVISOR
+        // PARENTESADO (`fixed / (price - unit)`). Zero-drift executado:
+        // 1250.0/gain/even/loss/true/false/40 — 7/7 id\u00eanticos ao Java —
+        // a 65\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Trade.java");
+        Files.writeString(javaFile, """
+                public class Trade {
+                    static double sellValue(int quantity, double unitPrice) {
+                        return quantity * unitPrice;
+                    }
+                    static String verdict(double profit) {
+                        if (profit > 0) { return "gain"; }
+                        if (profit == 0) { return "even"; }
+                        return "loss";
+                    }
+                    static boolean worthIt(double expected, double cost) {
+                        return expected > cost * 1.1;
+                    }
+                    static int breakEven(int fixed, int unit, int price) {
+                        return fixed / (price - unit);
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Trade.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Trade.sellValue(100, 12.5))
+                    println(Trade.verdict(100.0))
+                    println(Trade.verdict(0.0))
+                    println(Trade.verdict(-50.0))
+                    println(Trade.worthIt(120.0, 100.0))
+                    println(Trade.worthIt(105.0, 100.0))
+                    println(Trade.breakEven(1000, 20, 45))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 1250.0 | gain | even | loss | true | false | 40
+        assertEquals("1250.0\ngain\neven\nloss\ntrue\nfalse\n40", output,
+                "zero-drift: sellValue/verdict/worthIt/breakEven id\u00eanticos ao Java");
+    }
+
+    @Test
+    void keychainDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio CHAVEIRO — 4 shapes sem c\u00f3digo novo: o
+        // fits com o equals entre os DOIS params, o ringLabel com as faixas
+        // <= (empty/small/medium/large), o sparesNeeded com o ZERO no
+        // early-return e o brassTag com o ENDSWITH no return. Zero-drift
+        // executado: true/false/empty/small/medium/large/2/0/true/false —
+        // 10/10 id\u00eanticos ao Java — a 66\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Keychain.java");
+        Files.writeString(javaFile, """
+                public class Keychain {
+                    static boolean fits(String key, String lock) {
+                        return key.equals(lock);
+                    }
+                    static String ringLabel(int keys) {
+                        if (keys <= 1) { return "empty"; }
+                        if (keys <= 5) { return "small"; }
+                        if (keys <= 10) { return "medium"; }
+                        return "large";
+                    }
+                    static int sparesNeeded(int total, int have) {
+                        if (total <= have) { return 0; }
+                        return total - have;
+                    }
+                    static boolean brassTag(String key) {
+                        return key.endsWith("-brass");
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Keychain.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Keychain.fits("casa", "casa"))
+                    println(Keychain.fits("casa", "carro"))
+                    println(Keychain.ringLabel(0))
+                    println(Keychain.ringLabel(3))
+                    println(Keychain.ringLabel(8))
+                    println(Keychain.ringLabel(15))
+                    println(Keychain.sparesNeeded(5, 3))
+                    println(Keychain.sparesNeeded(3, 5))
+                    println(Keychain.brassTag("portao-brass"))
+                    println(Keychain.brassTag("portao-steel"))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: true | false | empty | small | medium | large | 2 | 0 | true | false
+        assertEquals("true\nfalse\nempty\nsmall\nmedium\nlarge\n2\n0\ntrue\nfalse", output,
+                "zero-drift: fits/ringLabel/sparesNeeded/brassTag id\u00eanticos ao Java");
+    }
+
+    @Test
+    void elevatorDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio ELEVADOR — 4 shapes sem c\u00f3digo novo: a
+        // dire\u00e7\u00e3o com as TR\u00caS faixas de sinal (up/down/here), o
+        // overloaded com a compara\u00e7\u00e3o direta, o floorsToTravel com a
+        // subtra\u00e7\u00e3o e o stopCount com o contador != PARAM no for-each
+        // (`floor != currentFloor` — o != contra param, o primeiro do
+        // corpus). Zero-drift executado: up/down/here/true/false/6/2/4 —
+        // 8/8 id\u00eanticos ao Java — a 67\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Elevator.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Elevator {
+                    static String direction(int current, int target) {
+                        if (target > current) { return "up"; }
+                        if (target < current) { return "down"; }
+                        return "here";
+                    }
+                    static boolean overloaded(int people, int capacity) {
+                        return people > capacity;
+                    }
+                    static int floorsToTravel(int from, int to) {
+                        return to - from;
+                    }
+                    static int stopCount(List<Integer> stops, int currentFloor) {
+                        int n = 0;
+                        for (int floor : stops) {
+                            if (floor != currentFloor) { n++; }
+                        }
+                        return n;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Elevator.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Elevator.direction(3, 7))
+                    println(Elevator.direction(7, 3))
+                    println(Elevator.direction(5, 5))
+                    println(Elevator.overloaded(11, 10))
+                    println(Elevator.overloaded(10, 10))
+                    println(Elevator.floorsToTravel(3, 9))
+                    var stops = listOf(2, 5, 2, 7)
+                    println(Elevator.stopCount(stops, 2))
+                    println(Elevator.stopCount(stops, 9))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: up | down | here | true | false | 6 | 2 | 4
+        assertEquals("up\ndown\nhere\ntrue\nfalse\n6\n2\n4", output,
+                "zero-drift: direction/overloaded/floorsToTravel/stopCount id\u00eanticos ao Java");
+    }
+
+    @Test
+    void wardrobeDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio GUARDA-ROUPA — 4 shapes sem c\u00f3digo
+        // novo: o sizeTag com as faixas < (P/M/G/GG), o fitsColor com o
+        // equals entre os DOIS params, o hangersNeeded com a soma direta e
+        // o isFormal com o STARTSWITH de 1 char no return. Zero-drift
+        // executado: P/M/G/GG/true/false/15/true/false — 9/9 id\u00eanticos
+        // ao Java — a 68\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Wardrobe.java");
+        Files.writeString(javaFile, """
+                public class Wardrobe {
+                    static String sizeTag(int waist) {
+                        if (waist < 30) { return "P"; }
+                        if (waist < 36) { return "M"; }
+                        if (waist < 42) { return "G"; }
+                        return "GG";
+                    }
+                    static boolean fitsColor(String item, String outfit) {
+                        return item.equals(outfit);
+                    }
+                    static int hangersNeeded(int items, int spare) {
+                        return items + spare;
+                    }
+                    static boolean isFormal(String tag) {
+                        return tag.startsWith("f");
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Wardrobe.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Wardrobe.sizeTag(28))
+                    println(Wardrobe.sizeTag(34))
+                    println(Wardrobe.sizeTag(40))
+                    println(Wardrobe.sizeTag(44))
+                    println(Wardrobe.fitsColor("azul", "azul"))
+                    println(Wardrobe.fitsColor("azul", "preto"))
+                    println(Wardrobe.hangersNeeded(10, 5))
+                    println(Wardrobe.isFormal("formal"))
+                    println(Wardrobe.isFormal("casual"))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: P | M | G | GG | true | false | 15 | true | false
+        assertEquals("P\nM\nG\nGG\ntrue\nfalse\n15\ntrue\nfalse", output,
+                "zero-drift: sizeTag/fitsColor/hangersNeeded/isFormal id\u00eanticos ao Java");
+    }
+
+    @Test
+    void gasDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio G\u00c1S — 4 shapes sem c\u00f3digo novo: a
+        // conta com o produto int×double, o usageLevel com as faixas < (low/
+        // normal/high), o leakDetected com a compara\u00e7\u00e3o direta e o
+        // daysLeft com o CAST d2i no return (`(int) (m3 / dailyUse)` — a
+        // divis\u00e3o truncada: 50/4.5 = 11). Zero-drift executado: 75.0/low/
+        // normal/high/true/false/11 — 7/7 id\u00eanticos ao Java — a
+        // 69\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Gas.java");
+        Files.writeString(javaFile, """
+                public class Gas {
+                    static double bill(int m3, double perM3) {
+                        return m3 * perM3;
+                    }
+                    static String usageLevel(int m3) {
+                        if (m3 < 10) { return "low"; }
+                        if (m3 < 25) { return "normal"; }
+                        return "high";
+                    }
+                    static boolean leakDetected(double ppm, double limit) {
+                        return ppm > limit;
+                    }
+                    static int daysLeft(int m3, double dailyUse) {
+                        return (int) (m3 / dailyUse);
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Gas.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Gas.bill(30, 2.5))
+                    println(Gas.usageLevel(5))
+                    println(Gas.usageLevel(15))
+                    println(Gas.usageLevel(40))
+                    println(Gas.leakDetected(150.0, 100.0))
+                    println(Gas.leakDetected(50.0, 100.0))
+                    println(Gas.daysLeft(50, 4.5))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 75.0 | low | normal | high | true | false | 11
+        assertEquals("75.0\nlow\nnormal\nhigh\ntrue\nfalse\n11", output,
+                "zero-drift: bill/usageLevel/leakDetected/daysLeft id\u00eanticos ao Java");
+    }
+
+    @Test
+    void backpackDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio MOCHILA — 4 shapes sem c\u00f3digo novo: o
+        // weight com o acumulador Double, o canCarry com o PRODUTO no lado
+        // direito (`load <= strength * 2` — o i2d na promoção), o
+        // packPriority com os booleanos nas faixas (medical/hydration/food)
+        // e o pockets com o contador > 0. Zero-drift executado: 7.0/true/
+        // false/medical/hydration/food/2 — 7/7 id\u00eanticos ao Java — a
+        // 70\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Backpack.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Backpack {
+                    static double weight(List<Double> items) {
+                        double total = 0;
+                        for (double w : items) {
+                            total += w;
+                        }
+                        return total;
+                    }
+                    static boolean canCarry(double load, int strength) {
+                        return load <= strength * 2;
+                    }
+                    static String packPriority(boolean firstAid, boolean water) {
+                        if (firstAid) { return "medical"; }
+                        if (water) { return "hydration"; }
+                        return "food";
+                    }
+                    static int pockets(List<Integer> sizes) {
+                        int n = 0;
+                        for (int s : sizes) {
+                            if (s > 0) { n++; }
+                        }
+                        return n;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Backpack.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var items = listOf(2.5, 1.5, 3.0)
+                    println(Backpack.weight(items))
+                    println(Backpack.canCarry(15.0, 10))
+                    println(Backpack.canCarry(25.0, 10))
+                    println(Backpack.packPriority(true, false))
+                    println(Backpack.packPriority(false, true))
+                    println(Backpack.packPriority(false, false))
+                    var sizes = listOf(2, 0, 3, 0)
+                    println(Backpack.pockets(sizes))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 7.0 | true | false | medical | hydration | food | 2
+        assertEquals("7.0\ntrue\nfalse\nmedical\nhydration\nfood\n2", output,
+                "zero-drift: weight/canCarry/packPriority/pockets id\u00eanticos ao Java");
+    }
+
+    @Test
+    void fishingDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio PESCA — 4 shapes sem c\u00f3digo novo: o
+        // weightKg com a constante decimal (`length * 0.15`), o sizeClass
+        // com as faixas < (small/medium/trophy), o legal com a comparação
+        // contra o min PARAM e o pointsPerFish com o CAST d2i no return
+        // (`(int) (kg * 10)` — 3.5×10 = 35). Zero-drift executado: 6.0/
+        // small/medium/trophy/true/false/35 — 7/7 id\u00eanticos ao Java —
+        // a 71\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Fishing.java");
+        Files.writeString(javaFile, """
+                public class Fishing {
+                    static double weightKg(int lengthCm) {
+                        return lengthCm * 0.15;
+                    }
+                    static String sizeClass(double kg) {
+                        if (kg < 1) { return "small"; }
+                        if (kg < 5) { return "medium"; }
+                        return "trophy";
+                    }
+                    static boolean legal(double kg, double minKg) {
+                        return kg >= minKg;
+                    }
+                    static int pointsPerFish(double kg) {
+                        return (int) (kg * 10);
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Fishing.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Fishing.weightKg(40))
+                    println(Fishing.sizeClass(0.5))
+                    println(Fishing.sizeClass(3.0))
+                    println(Fishing.sizeClass(8.0))
+                    println(Fishing.legal(2.0, 1.5))
+                    println(Fishing.legal(1.0, 1.5))
+                    println(Fishing.pointsPerFish(3.5))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 6.0 | small | medium | trophy | true | false | 35
+        assertEquals("6.0\nsmall\nmedium\ntrophy\ntrue\nfalse\n35", output,
+                "zero-drift: weightKg/sizeClass/legal/pointsPerFish id\u00eanticos ao Java");
+    }
+
+    @Test
+    void gardenDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio JARDIM — 4 shapes sem c\u00f3digo novo: o
+        // waterNeeded com o produto int×double, o growthStage com as
+        // QUATRO faixas (seed/sprout/growing/mature), o needsWater com a
+        // comparação direta e o weeklyWater com o PRODUTO TRIPLO
+        // (`plants * perPlant * dryDays` — a cadeia de 3 multiplicadores
+        // com a promoção int→double no meio). Zero-drift executado: 5.0/
+        // seed/sprout/growing/mature/true/false/35.0 — 8/8 id\u00eanticos
+        // ao Java — a 72\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Garden.java");
+        Files.writeString(javaFile, """
+                public class Garden {
+                    static double waterNeeded(int plants, double perPlant) {
+                        return plants * perPlant;
+                    }
+                    static String growthStage(int days) {
+                        if (days < 7) { return "seed"; }
+                        if (days < 21) { return "sprout"; }
+                        if (days < 60) { return "growing"; }
+                        return "mature";
+                    }
+                    static boolean needsWater(double moisture) {
+                        return moisture < 40;
+                    }
+                    static double weeklyWater(int plants, double perPlant, int dryDays) {
+                        return plants * perPlant * dryDays;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Garden.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Garden.waterNeeded(10, 0.5))
+                    println(Garden.growthStage(3))
+                    println(Garden.growthStage(14))
+                    println(Garden.growthStage(45))
+                    println(Garden.growthStage(90))
+                    println(Garden.needsWater(35.0))
+                    println(Garden.needsWater(50.0))
+                    println(Garden.weeklyWater(10, 0.5, 7))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 5.0 | seed | sprout | growing | mature | true | false | 35.0
+        assertEquals("5.0\nseed\nsprout\ngrowing\nmature\ntrue\nfalse\n35.0", output,
+                "zero-drift: waterNeeded/growthStage/needsWater/weeklyWater id\u00eanticos ao Java");
+    }
+
+    @Test
+    void chessDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio XADREZ — 4 shapes sem c\u00f3digo novo: o
+        // pieceName com as faixas == (pawn/knight/bishop/other), o
+        // isValidMove com o != entre os DOIS params, o materialScore com a
+        // SOMA DE PRODUTOS (`pawns * 1 + knights * 3` — os pesos
+        // multiplicados) e o inCheck com o IDENTITY RETURN do boolean
+        // param. Zero-drift executado: pawn/knight/bishop/other/true/
+        // false/14/true/false — 9/9 id\u00eanticos ao Java — a 73\u00aa
+        // valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Chess.java");
+        Files.writeString(javaFile, """
+                public class Chess {
+                    static String pieceName(int type) {
+                        if (type == 1) { return "pawn"; }
+                        if (type == 2) { return "knight"; }
+                        if (type == 3) { return "bishop"; }
+                        return "other";
+                    }
+                    static boolean isValidMove(int from, int to) {
+                        return from != to;
+                    }
+                    static int materialScore(int pawns, int knights) {
+                        return pawns * 1 + knights * 3;
+                    }
+                    static boolean inCheck(boolean kingAttacked) {
+                        return kingAttacked;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Chess.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Chess.pieceName(1))
+                    println(Chess.pieceName(2))
+                    println(Chess.pieceName(3))
+                    println(Chess.pieceName(5))
+                    println(Chess.isValidMove(3, 5))
+                    println(Chess.isValidMove(4, 4))
+                    println(Chess.materialScore(8, 2))
+                    println(Chess.inCheck(true))
+                    println(Chess.inCheck(false))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: pawn | knight | bishop | other | true | false | 14 | true | false
+        assertEquals("pawn\nknight\nbishop\nother\ntrue\nfalse\n14\ntrue\nfalse", output,
+                "zero-drift: pieceName/isValidMove/materialScore/inCheck id\u00eanticos ao Java");
+    }
+
+    @Test
+    void solarDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio SOLAR — 4 shapes sem c\u00f3digo novo: o
+        // dailyKwh com a CADEIA TRIPLO (`panels * 0.4 * hours` — a
+        // promoção no meio), o condition com as faixas < (cloudy/partial/
+        // full), o batteryOk com a comparação direta e o savings com o
+        // produto double×double. Zero-drift executado: 20.0/cloudy/
+        // partial/full/true/false/17.0 — 7/7 id\u00eanticos ao Java — a
+        // 74\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Solar.java");
+        Files.writeString(javaFile, """
+                public class Solar {
+                    static double dailyKwh(double panels, double hours) {
+                        return panels * 0.4 * hours;
+                    }
+                    static String condition(double kwh) {
+                        if (kwh < 2) { return "cloudy"; }
+                        if (kwh < 8) { return "partial"; }
+                        return "full";
+                    }
+                    static boolean batteryOk(double charge) {
+                        return charge > 20;
+                    }
+                    static double savings(double kwh, double rate) {
+                        return kwh * rate;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Solar.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Solar.dailyKwh(10, 5.0))
+                    println(Solar.condition(1.0))
+                    println(Solar.condition(5.0))
+                    println(Solar.condition(15.0))
+                    println(Solar.batteryOk(25.0))
+                    println(Solar.batteryOk(15.0))
+                    println(Solar.savings(20.0, 0.85))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 20.0 | cloudy | partial | full | true | false | 17.0
+        assertEquals("20.0\ncloudy\npartial\nfull\ntrue\nfalse\n17.0", output,
+                "zero-drift: dailyKwh/condition/batteryOk/savings id\u00eanticos ao Java");
+    }
+
+    @Test
+    void batteryDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio BATERIA — 4 shapes sem c\u00f3digo novo: o
+        // percentRemaining com a FÓRMULA DE PERCENTUAL (`(capacity - used)
+        // * 100 / capacity` — o parêntese no numerador + a divisão
+        // inteira), o state com as faixas < (low/ok/full), o needsCharge
+        // com a comparação direta e o hoursLeft com a divisão int/double.
+        // Zero-drift executado: 70/low/ok/full/true/false/10.0 — 7/7
+        // id\u00eanticos ao Java — a 75\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Battery.java");
+        Files.writeString(javaFile, """
+                public class Battery {
+                    static int percentRemaining(int used, int capacity) {
+                        return (capacity - used) * 100 / capacity;
+                    }
+                    static String state(double pct) {
+                        if (pct < 20) { return "low"; }
+                        if (pct < 80) { return "ok"; }
+                        return "full";
+                    }
+                    static boolean needsCharge(double pct) {
+                        return pct < 15;
+                    }
+                    static double hoursLeft(int remainingPct, double drainPerHour) {
+                        return remainingPct / drainPerHour;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Battery.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Battery.percentRemaining(30, 100))
+                    println(Battery.state(10.0))
+                    println(Battery.state(50.0))
+                    println(Battery.state(90.0))
+                    println(Battery.needsCharge(10.0))
+                    println(Battery.needsCharge(50.0))
+                    println(Battery.hoursLeft(50, 5.0))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 70 | low | ok | full | true | false | 10.0
+        assertEquals("70\nlow\nok\nfull\ntrue\nfalse\n10.0", output,
+                "zero-drift: percentRemaining/state/needsCharge/hoursLeft id\u00eanticos ao Java");
+    }
+
+    @Test
+    void phoneDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio TELEFONE — 4 shapes sem c\u00f3digo novo: o
+        // dialKey com o CHAR ARITMÉTICO (`digit - '0'` — o char menos o
+        // literal de char), o isValidNumber com o && de COMPARAÇÃO+CALL
+        // (`length() == 11 && startsWith("55")`), o format com a concat de
+        // 4 termos com o parêntese no literal e o firstDigit com o charAt
+        // no return. Zero-drift executado: 7/0/false/false/false/(11)
+        // 999998888/5 — 7/7 id\u00eanticos ao Java — a 76\u00aa valida\u00e7\u00e3o
+        // zero-c\u00f3digo (o == 11 rejeita o 12 dígitos NOS DOIS — o drift
+        // zero honesto).
+        Path javaFile = dir.resolve("Phone.java");
+        Files.writeString(javaFile, """
+                public class Phone {
+                    static int dialKey(char digit) {
+                        return digit - '0';
+                    }
+                    static boolean isValidNumber(String number) {
+                        return number.length() == 11 && number.startsWith("55");
+                    }
+                    static String format(String areaCode, String local) {
+                        return "(" + areaCode + ") " + local;
+                    }
+                    static char firstDigit(String number) {
+                        return number.charAt(0);
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Phone.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Phone.dialKey('7'))
+                    println(Phone.dialKey('0'))
+                    println(Phone.isValidNumber("551199998888"))
+                    println(Phone.isValidNumber("1199998888"))
+                    println(Phone.isValidNumber("331199998888"))
+                    println(Phone.format("11", "999998888"))
+                    println(Phone.firstDigit("5511"))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 7 | 0 | false | false | false | (11) 999998888 | 5
+        assertEquals("7\n0\nfalse\nfalse\nfalse\n(11) 999998888\n5", output,
+                "zero-drift: dialKey/isValidNumber/format/firstDigit id\u00eanticos ao Java");
+    }
+
+    @Test
+    void movieDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00ednio CINEMA — 4 shapes sem c\u00f3digo novo: o
+        // ticketPrice com as faixas idade+boolean (10/14/20), o rating
+        // com as faixas >= (great/good/bad), o isBlockbuster com a
+        // compara\u00e7\u00e3o direta e o runtimeInMinutes com a convers\u00e3o
+        // (`hours * 60 + minutes` — o 135 exato). Zero-drift executado:
+        // 10.0/14.0/20.0/great/good/bad/true/false/135 — 9/9 id\u00eanticos
+        // ao Java — a 77\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Movie.java");
+        Files.writeString(javaFile, """
+                public class Movie {
+                    static double ticketPrice(int age, boolean student) {
+                        if (age < 12) { return 10.0; }
+                        if (student) { return 14.0; }
+                        return 20.0;
+                    }
+                    static String rating(double score) {
+                        if (score >= 8) { return "great"; }
+                        if (score >= 6) { return "good"; }
+                        return "bad";
+                    }
+                    static boolean isBlockbuster(double revenueM) {
+                        return revenueM >= 100;
+                    }
+                    static int runtimeInMinutes(int hours, int minutes) {
+                        return hours * 60 + minutes;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Movie.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Movie.ticketPrice(8, false))
+                    println(Movie.ticketPrice(20, true))
+                    println(Movie.ticketPrice(20, false))
+                    println(Movie.rating(9.0))
+                    println(Movie.rating(7.0))
+                    println(Movie.rating(4.0))
+                    println(Movie.isBlockbuster(150.0))
+                    println(Movie.isBlockbuster(50.0))
+                    println(Movie.runtimeInMinutes(2, 15))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 10.0 | 14.0 | 20.0 | great | good | bad | true | false | 135
+        assertEquals("10.0\n14.0\n20.0\ngreat\ngood\nbad\ntrue\nfalse\n135", output,
+                "zero-drift: ticketPrice/rating/isBlockbuster/runtimeInMinutes id\u00eanticos ao Java");
+    }
+
+    @Test
+    void goalDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00eddio META — 4 shapes sem c\u00f3digo novo: o
+        // achieved com a comparação direta, o progressLabel com as QUATRO
+        // faixas (done/halfway/started/not started — o label ESPAÇADO), o
+        // daysToGoal com a divisão inteira e o completionPct com a
+        // PROMOÇÃO EXPLÍCITA (`done * 100.0 / total` — o 75.0 exato).
+        // Zero-drift executado: true/false/done/halfway/started/not
+        // started/10/75.0 — 8/8 id\u00eanticos ao Java — a 78\u00aa
+        // valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Goal.java");
+        Files.writeString(javaFile, """
+                public class Goal {
+                    static boolean achieved(int current, int target) {
+                        return current >= target;
+                    }
+                    static String progressLabel(double pct) {
+                        if (pct >= 100) { return "done"; }
+                        if (pct >= 50) { return "halfway"; }
+                        if (pct > 0) { return "started"; }
+                        return "not started";
+                    }
+                    static int daysToGoal(int remaining, int perDay) {
+                        return remaining / perDay;
+                    }
+                    static double completionPct(int done, int total) {
+                        return done * 100.0 / total;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Goal.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Goal.achieved(15, 10))
+                    println(Goal.achieved(5, 10))
+                    println(Goal.progressLabel(100.0))
+                    println(Goal.progressLabel(75.0))
+                    println(Goal.progressLabel(25.0))
+                    println(Goal.progressLabel(0.0))
+                    println(Goal.daysToGoal(50, 5))
+                    println(Goal.completionPct(30, 40))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: true | false | done | halfway | started | not started | 10 | 75.0
+        assertEquals("true\nfalse\ndone\nhalfway\nstarted\nnot started\n10\n75.0", output,
+                "zero-drift: achieved/progressLabel/daysToGoal/completionPct id\u00eanticos ao Java");
+    }
+
+    @Test
+    void recipe3DomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00eddio RECEITA-3 — 4 shapes sem c\u00f3digo novo:
+        // o pricePerServing com o DIVISOR PARENTESADO de soma (`(ingredients
+        // + overhead) / servings`), o spice com as faixas ==/<= (none/mild/
+        // medium/hot), o isVegetarian com o && de DUAS NEGAÇÕES de params
+        // booleanos e o totalMinutes com a soma tripla. Zero-drift
+        // executado: 10.0/none/mild/medium/hot/true/false/false/40 — 9/9
+        // id\u00eanticos ao Java — a 79\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Recipe3.java");
+        Files.writeString(javaFile, """
+                public class Recipe3 {
+                    static double pricePerServing(double ingredients, double overhead, int servings) {
+                        return (ingredients + overhead) / servings;
+                    }
+                    static String spice(int peppers) {
+                        if (peppers == 0) { return "none"; }
+                        if (peppers <= 2) { return "mild"; }
+                        if (peppers <= 5) { return "medium"; }
+                        return "hot";
+                    }
+                    static boolean isVegetarian(boolean hasMeat, boolean hasFish) {
+                        return !hasMeat && !hasFish;
+                    }
+                    static int totalMinutes(int prep, int cook, int rest) {
+                        return prep + cook + rest;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Recipe3.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Recipe3.pricePerServing(40.0, 10.0, 5))
+                    println(Recipe3.spice(0))
+                    println(Recipe3.spice(2))
+                    println(Recipe3.spice(4))
+                    println(Recipe3.spice(8))
+                    println(Recipe3.isVegetarian(false, false))
+                    println(Recipe3.isVegetarian(true, false))
+                    println(Recipe3.isVegetarian(false, true))
+                    println(Recipe3.totalMinutes(10, 25, 5))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 10.0 | none | mild | medium | hot | true | false | false | 40
+        assertEquals("10.0\nnone\nmild\nmedium\nhot\ntrue\nfalse\nfalse\n40", output,
+                "zero-drift: pricePerServing/spice/isVegetarian/totalMinutes id\u00eanticos ao Java");
+    }
+
+    @Test
+    void beachDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00eddio PRAIA — 4 shapes sem c\u00f3digo novo: o
+        // sunscreenDoses com o produto double×double, o uvIndexLabel com
+        // as faixas <= (low/moderate/high/very high — o label espaçado), o
+        // safeToSwim com o && de COMPARAÇÃO+BOOLEAN (`waves <= 3 &&
+        // lifeguard` — a comparação && o param nu) e o maxPeople com a
+        // divisão inteira. Zero-drift executado: 75.0/low/moderate/high/
+        // very high/true/false/false/50 — 9/9 id\u00eanticos ao Java — a
+        // 80\u00aa valida\u00e7\u00e3o zero-c\u00f3digo.
+        Path javaFile = dir.resolve("Beach.java");
+        Files.writeString(javaFile, """
+                public class Beach {
+                    static double sunscreenDoses(double areaM2, double perM2) {
+                        return areaM2 * perM2;
+                    }
+                    static String uvIndexLabel(int uv) {
+                        if (uv <= 2) { return "low"; }
+                        if (uv <= 5) { return "moderate"; }
+                        if (uv <= 7) { return "high"; }
+                        return "very high";
+                    }
+                    static boolean safeToSwim(int waves, boolean lifeguard) {
+                        return waves <= 3 && lifeguard;
+                    }
+                    static int maxPeople(int areaM2, int perPerson) {
+                        return areaM2 / perPerson;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Beach.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Beach.sunscreenDoses(2.5, 30.0))
+                    println(Beach.uvIndexLabel(1))
+                    println(Beach.uvIndexLabel(4))
+                    println(Beach.uvIndexLabel(6))
+                    println(Beach.uvIndexLabel(10))
+                    println(Beach.safeToSwim(2, true))
+                    println(Beach.safeToSwim(5, true))
+                    println(Beach.safeToSwim(2, false))
+                    println(Beach.maxPeople(200, 4))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 75.0 | low | moderate | high | very high | true | false | false | 50
+        assertEquals("75.0\nlow\nmoderate\nhigh\nvery high\ntrue\nfalse\nfalse\n50", output,
+                "zero-drift: sunscreenDoses/uvIndexLabel/safeToSwim/maxPeople id\u00eanticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
