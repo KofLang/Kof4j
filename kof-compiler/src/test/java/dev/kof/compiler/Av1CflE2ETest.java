@@ -105,7 +105,7 @@ class Av1CflE2ETest implements LibraryInstallSupport {
             int ch = Integer.parseInt(f[3]);
             int numPelLog2 = Integer.numberOfTrailingZeros(cw * ch);
             sb.append("    var ac").append(tx).append(" = av1CflAcFromLuma(luma, 64, 0, 0, ")
-              .append(cw).append(", ").append(ch).append(", 1, 1, ").append(numPelLog2).append(")\n");
+              .append(cw).append(", ").append(ch).append(", 1, 1, ").append(numPelLog2).append(", 64, 64)\n");
             sb.append("    var sa").append(tx).append(" = \"A ").append(tx).append(' ')
               .append(cw).append(' ').append(ch).append("\"\n");
             sb.append("    i = 0\n");

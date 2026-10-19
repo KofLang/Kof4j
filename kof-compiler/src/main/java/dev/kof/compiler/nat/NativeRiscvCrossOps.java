@@ -96,8 +96,15 @@ public final class NativeRiscvCrossOps {
         // call so `java_lang_Integer_parseInt` never reaches the linker.
         if (NativeRiscvWrapperStatics.emit(sb, kc)) return;
 
-        // String.valueOf (STATIC)
-        if (kc.kind() == KofCallKind.STATIC && "valueOf".equals(mn)) {
+        // String.valueOf / wrapper.valueOf (STATIC) — SÓ donos BUILTIN.
+        // §750: um enum/classe de usuário também declara `valueOf` static e
+        // caía aqui; com argumento String nenhum caso abaixo casava e o ramo
+        // retornava SEM emitir nada, deixando o argumento na pilha — o dispatch
+        // virtual seguinte lia a String como receiver (SIGSEGV no qemu). Dono
+        // de usuário segue para a chamada DIRETA do fim deste emissor.
+        if (kc.kind() == KofCallKind.STATIC && "valueOf".equals(mn)
+                && (BuiltinTypes.isString(kc.ownerType())
+                || NativeOpHelpers.wrapperValueOfBoxFn(kc) != null)) {
             // #772: Wrapper.valueOf(primitivo) é o BOX de erasure do slot T?
             // (§284 MAGIC box), NÃO String.valueOf. Sem este ramo o box virava
             // `kof_*_to_string` e o consumidor do slot lia o ponteiro como

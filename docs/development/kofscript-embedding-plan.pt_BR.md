@@ -1,10 +1,11 @@
 [English](kofscript-embedding-plan.md) | [Português](kofscript-embedding-plan.pt_BR.md)
 
-last: none
-doing: none-planned
-next: spike-0-inventory
-location: docs/development/future
-state: planned
+last: PROMOVIDO de `docs/development/future/` 17/10 (ordem da mantenedora "puxa uma de future" + `D-FUTURE-PROMOTION`)
+doing: spike-0 (o inventário) POUSADO 17/10 — os entry points MEDIDOS abaixo; as fatias de RUNTIME (2–4) seguem BLOQUEADAS atrás da decisão de contrato da mantenedora + do território ativo do interpretador da lane compiler
+next: a decisão de contrato da mantenedora (a superfície de embedding + o modelo de capacidades) — depois a fatia 2 (stepping)
+local: docs/development/kofscript-embedding-plan.pt_BR.md
+state: under-development
+dona: 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a
 
 intent: kofscript-embedding-api
 

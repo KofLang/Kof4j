@@ -311,7 +311,8 @@ main() {
     var modes = listOf<Int>()
     var levels = listOf<Int[]>()
     var cfg = Av1ModeTail(12, h.cdefBits, ec, h.lossless, h.deltaQPresent, h.deltaQRes, h.deltaLfPresent, h.deltaLfMulti, h.deltaLfRes, 3)
-    var tile = Av1TileDecode(frame, stride, mw, mh, cfg, h.lossless, 1, 3, fi, 0, seq.bitDepth, txMode, h.baseQIdx, 0, 0, 0, 0, dcq, acq, de, 0, h.reducedTxSet, sym, store, txStore, new Int[miw * mih], new Int[miw], new Int[mih], levels, listOf<Int>(), modes, chroma, 1, 1, listOf<Int[]>(), listOf<Int[]>(), listOf<Int>(), listOf<Int>())
+    // 39th arg = the 129th pass's chroma-prediction sink (unused by this program).
+    var tile = Av1TileDecode(frame, stride, mw, mh, cfg, h.lossless, 1, 3, fi, 0, seq.bitDepth, txMode, h.baseQIdx, 0, 0, 0, 0, dcq, acq, de, 0, h.reducedTxSet, sym, store, txStore, new Int[miw * mih], new Int[miw], new Int[mih], levels, listOf<Int>(), modes, chroma, 1, 1, listOf<Int[]>(), listOf<Int[]>(), listOf<Int>(), listOf<Int>(), listOf<Int>())
     var walk = Av1Partition(data, miw, mih)
     walk.useReader(sym)
     walk.bindDecoder(tile)
@@ -331,14 +332,6 @@ main() {
      * path is the fault; the failure tracks a large EOB (see the cb8 case in the
      * plan's 30th pass).
      */
-    /** The probe's `blocks=...` summary line (the trace line comes first). */
-    private static String summary(String out) {
-        for (var l : out.split("\\n")) {
-            if (l.startsWith("blocks=")) return l;
-        }
-        throw new IllegalStateException("no summary line in: " + out);
-    }
-
     @Test
     void realChecker16DecodesToReferenceOnJvm() throws Exception {
         var line = runJvm(AvifRealTileProbe.probe(canonResource("avif_real_cb16.avif", "cb16.avif").toString()));
@@ -370,7 +363,7 @@ main() {
     @Test
     void realMinimalScreenContentDecodesToReferenceOnJvm() throws Exception {
         var line = runJvm(AvifRealTileProbe.probe(canonResource("avif_real_pskip.avif", "ps.avif").toString()));
-        var parts = summary(line).split(" ");
+        var parts = AvifRealTileProbe.summary(line).split(" ");
         var symBits = Integer.parseInt(parts[4].split("=")[1]);
         var payloadBits = Integer.parseInt(parts[5].split("=")[1]);
         assertEquals(payloadBits, symBits, () -> "the whole payload must be consumed: " + line);
@@ -378,10 +371,36 @@ main() {
                 () -> "must match the ffmpeg reference: " + line);
     }
 
+    /**
+     * A SMALLER frame (32x32) — the fixture that used to "crash the decoder".
+     * It never did: the tile probe's Y SAMPLE POSITIONS were hardcoded for a
+     * 64x64 frame, so the `(32,63)` sample read index 1186 of a 1156-entry
+     * plane+border buffer and threw. The probe now clamps its sample positions
+     * to the frame, and this test pins that: the fixture decodes to completion
+     * and its block grid tiles the frame. The PIXELS are still wrong (a real
+     * desync: 503 of 1968 payload bits consumed), so only the reference-free
+     * invariants are asserted and the consumption is RECORDED.
+     */
+    @Test
+    void realSmallFrameDecodesWithoutCrashOnJvm() throws Exception {
+        var line = runJvm(AvifRealTileProbe.probe(canonResource("avif_real_ts32.avif", "ts32.avif").toString()));
+        var parts = AvifRealTileProbe.summary(line).split(" ");
+        var covered = Integer.parseInt(parts[1].split("=")[1]);
+        var frameMi = Integer.parseInt(parts[2].split("=")[1]);
+        var overlap = Integer.parseInt(parts[3].split("=")[1]);
+        var symBits = Integer.parseInt(parts[4].split("=")[1]);
+        var payloadBits = Integer.parseInt(parts[5].split("=")[1]);
+        assertEquals(frameMi, covered, () -> "the block grid does not cover the frame: " + line);
+        assertEquals(0, overlap, () -> "the block grid overlaps blocks: " + line);
+        assertTrue(symBits <= payloadBits, () -> "the walk read past the payload: " + line);
+        // Recorded, NOT asserted as correct: the frame is still desynced.
+        assertTrue(line.contains("symBits=503 payloadBits=1968"), () -> "consumption moved: " + line);
+    }
+
     @Test
     void realChecker8UnderConsumptionRecordedOnJvm() throws Exception {
         var line = runJvm(AvifRealTileProbe.probe(canonResource("avif_real_cb8.avif", "cb8.avif").toString()));
-        var parts = summary(line).split(" ");
+        var parts = AvifRealTileProbe.summary(line).split(" ");
         var covered = Integer.parseInt(parts[1].split("=")[1]);
         var frameMi = Integer.parseInt(parts[2].split("=")[1]);
         var overlap = Integer.parseInt(parts[3].split("=")[1]);
@@ -411,7 +430,7 @@ main() {
     @Test
     void realTileWalkDoesNotReadPastThePayloadOnJvm() throws Exception {
         var line = runJvm(AvifRealTileProbe.probe(canonicalized().toString()));
-        var parts = summary(line).split(" ");
+        var parts = AvifRealTileProbe.summary(line).split(" ");
         var covered = Integer.parseInt(parts[1].split("=")[1]);
         var frameMi = Integer.parseInt(parts[2].split("=")[1]);
         var overlap = Integer.parseInt(parts[3].split("=")[1]);
@@ -429,9 +448,14 @@ main() {
         // the walk THREW (`Index -2 out of bounds`, palette-bsize-ctx -1 on a 4x8
         // block); with it, the walk reads the palette and the residual path is
         // real: nzTot 0 -> 171 with the first TX blocks non-zero (nzHead 7,21,6,8).
-        var nzTot = Integer.parseInt(summary(line).split("nzTot=")[1].split(" ")[0]);
+        var nzTot = Integer.parseInt(AvifRealTileProbe.summary(line).split("nzTot=")[1].split(" ")[0]);
         assertTrue(line.contains(" 7:"), () -> "the palette size symbol was not read: " + line);
         assertTrue(nzTot > 0, () -> "the residual path must decode coefficients: " + line);
+        // The prediction/reconstruction diagnostic is wired: it pairs each
+        // transform block's PREDICTION with its RECONSTRUCTION at the block's
+        // own origin (7 ints per TX block).
+        assertTrue(line.contains("PREDBLK tx0") && line.contains("PATCH r0") && line.contains("PREDTEST mode="),
+                () -> "the prediction/patch diagnostics are not wired: " + line);
 
         // The per-block position record must be consistent: 2 ints per block,
         // non-decreasing across the tile, ending exactly at the walk's position.

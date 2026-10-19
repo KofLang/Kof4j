@@ -159,3 +159,108 @@ String gzipReadText(String path, Int maxBytes) {
     var bytes = gzipRead(path, maxBytes)
     return zipUtf8(bytes, 0, bytes.length)
 }
+
+// --- escrita (blocos STORED) -------------------------------------------------
+
+/** Escritor GZIP (RFC 1952) com blocos DEFLATE **STORED** (BTYPE=00): o
+ *  conteúdo entra VERBATIM, sem compressor — o mesmo precedente honesto do
+ *  `ZipWriter`, e ele DIZ isso. Comprimir de verdade (blocos fixed/dynamic com
+ *  um compressor) é uma fatia própria; um escritor que se diz "gzip" e não
+ *  comprime não pode esconder o fato.
+ *
+ *  Estrutura: cabeçalho de 10 bytes na primeira escrita, cada `addBytes` vira
+ *  um ou mais blocos STORED de até 65535 bytes (LEN/NLEN), e o `close()` emite
+ *  o bloco final VAZIO (BFINAL=1) seguido do trailer CRC-32 + ISIZE.
+ *
+ *  Determinismo: MTIME zero, então o mesmo input produz bytes idênticos (a
+ *  mesma regra do `ZipWriter`/`TarWriter`, e a que os goldens exigem).
+ *
+ *  O CRC-32 é acumulado a cada chamada (`zipCrc32State`) — o escritor não
+ *  retém as cargas em memória só para calcular o trailer. */
+class GzipWriter {
+
+    String path
+    Int crcState
+    Int total
+    Bool started
+
+    public constructor(String path) {
+        this.path = path
+        this.crcState = -1
+        this.total = 0
+        this.started = false
+    }
+
+    /** Acrescenta bytes ao membro. Cada pedaço vira blocos STORED de até
+     *  65535 bytes; `data` vazio só garante o cabeçalho. */
+    void addBytes(Int[] data) {
+        if (!this.started) {
+            this.writeHeader()
+        }
+        var i = 0
+        while (i < data.length) {
+            var n = data.length - i
+            if (n > 65535) {
+                n = 65535
+            }
+            var block = new Int[n + 5]
+            block[0] = 0                            // BFINAL=0, BTYPE=00 (+ padding)
+            block[1] = n & 255
+            block[2] = (n >> 8) & 255
+            var nlen = 65535 - n
+            block[3] = nlen & 255
+            block[4] = (nlen >> 8) & 255
+            var k = 0
+            while (k < n) {
+                block[5 + k] = data[i + k] & 255
+                k = k + 1
+            }
+            File(this.path).appendBytes(block)
+            i = i + n
+        }
+        this.crcState = zipCrc32State(this.crcState, data, data.length)
+        this.total = this.total + data.length
+    }
+
+    /** Acrescenta TEXTO (UTF-8) ao membro. */
+    void addText(String text) {
+        this.addBytes(zipUtf8Bytes(text))
+    }
+
+    /** Fecha o membro: bloco final vazio + trailer CRC-32/ISIZE. Devolve o
+     *  número de bytes NAO comprimidos (o ISIZE do trailer). */
+    Int close() {
+        if (!this.started) {
+            this.writeHeader()
+        }
+        var finalBlock = new Int[5]
+        finalBlock[0] = 1                           // BFINAL=1, BTYPE=00 (+ padding)
+        finalBlock[3] = 255                         // NLEN = 0xFFFF (LEN = 0)
+        finalBlock[4] = 255
+        File(this.path).appendBytes(finalBlock)
+        var trailer = new Int[8]
+        var crc = this.crcState ^ -1
+        trailer[0] = crc & 255
+        trailer[1] = (crc >> 8) & 255
+        trailer[2] = (crc >> 16) & 255
+        trailer[3] = (crc >> 24) & 255
+        trailer[4] = this.total & 255
+        trailer[5] = (this.total >> 8) & 255
+        trailer[6] = (this.total >> 16) & 255
+        trailer[7] = (this.total >> 24) & 255
+        File(this.path).appendBytes(trailer)
+        return this.total
+    }
+
+    void writeHeader() {
+        var header = new Int[10]
+        header[0] = 31                              // magic 0x1f
+        header[1] = 139                             // magic 0x8b
+        header[2] = 8                               // CM = deflate
+        header[3] = 0                               // FLG = 0 (no optional fields)
+        header[8] = 0                               // XFL
+        header[9] = 255                             // OS = unknown
+        File(this.path).writeBytes(header)
+        this.started = true
+    }
+}

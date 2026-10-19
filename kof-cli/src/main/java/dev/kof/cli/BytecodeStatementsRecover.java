@@ -308,8 +308,10 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
             BytecodeReader.Block tb = b;
             String orCond = null;
             int realFalse = -1;
+            java.util.List<Integer> chainStarts = new java.util.ArrayList<>();
             while (guard < 8 && tb != null && tb.succ.size() == 2
                     && !BytecodeReader.isLoopHeader(tb)) {
+                chainStarts.add(tb.start);
                 if (tb.succ.get(0) == exitStart) {
                     // nao-final: jump=VERDADEIRO
                     String c2;
@@ -363,6 +365,27 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                 System.out.println("OR-WALK orCond=" + orCond + " realFalse=" + realFalse
                         + " cond=" + (cond == null ? "NULL" : cond));
             if (orCond != null && realFalse >= 0) {
+                // Fase E (16/10): o CONTINUE-JOIN COMPARTILHADO — o alvo do
+                // falso real é a CONTINUAÇÃO do loop (os preds = os testes
+                // da cadeia + a QUEDA do then — o then caiu nele) e não o
+                // braço falso: emite if-SEM-else e anda o join DEPOIS (o
+                // iinc compartilhado fica FORA do if; o else não re-emite;
+                // medido no Text.initials). O discriminador: o braço falso
+                // puro NÃO tem o pred da queda do then.
+                BytecodeReader.Block sjb = byStart.get(realFalse);
+                if (sjb != null && sjb.pred.contains(exitStart)
+                        && sjb.pred.size() <= chainStarts.size() + 1) {
+                    cond = orCond;
+                    Set<Integer> jstops = new HashSet<>(stops);
+                    jstops.add(realFalse);
+                    out.add("if (" + cond + ") {");
+                    if (!struct(byStart.get(exitStart), insns, byStart, cp, frame,
+                            out, emitted, declared, header, jstops))
+                        { BytecodeStatements.refuse("struct-generic"); return false; }
+                    out.add("}");
+                    return struct(sjb, insns, byStart, cp, frame, out, emitted,
+                            declared, header, stops);
+                }
                 cond = orCond;
                 thenStart = exitStart;   // o verdadeiro
                 exitStart = realFalse;   // o falso real
@@ -896,6 +919,11 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
         // acima já emitiu o return. Guarda o get(0) (os corpos mais fundos do
         // callarg/binding alcançam este caminho agora).
         if (b.succ.isEmpty()) return true;
+        // Fase E (16/10): o goto de VOLTA ao header do próprio loop = o
+        // continue implícito — o loop walk fecha o corpo; não re-andar o
+        // header (o re-andar duplicava a emissão e quebrava o else do ||
+        // dentro do loop; medido no Text.initials).
+        if (header >= 0 && b.succ.get(0) == header) return true;
         // Fase C (13/10): goto para a SAÍDA do loop aberto = `break`
         if (BytecodeStatements.currentLoopExit >= 0 && b.succ.get(0) == BytecodeStatements.currentLoopExit) {
             out.add("break");

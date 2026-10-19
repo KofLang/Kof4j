@@ -64,8 +64,9 @@ import image.Av1TxType
 //     transform set of §5.9.2 to `TX_SET_INTRA_2`).
 //   - `store`: the tile's adapting coefficient CDF store.
 //   - `txTypeStore`/`txTypes`: the tile's adapting transform-type CDF store and
-//     the frame's `TxTypes` map (4x4 units, `frameW >> 2` columns), which the
-//     luma `transform_type` read fills per transform block.
+//     the frame's `TxTypes` map (4x4 units, `miW` columns — the same ALIGNED mi
+//     grid every other mi-keyed array here uses), which the luma
+//     `transform_type` read fills per transform block.
 //   - `above`/`left`: the plane's entropy-context arrays (4x4 units); the
 //     coefficient walk reads and updates them, so they must span the tile.
 //   - `levelsOut`: receives each transform block's decoded signed coefficients,
@@ -91,6 +92,8 @@ class Av1TileDecode {
     Int stride
     Int frameW
     Int frameH
+    Int miW
+    Int miH
     Av1ModeTail cfg
     Int lossless
     Int hasChroma
@@ -119,12 +122,39 @@ class Av1TileDecode {
     List<Int> txTypeOut
     List<Int> modeOut
     List<Int> posOut
+    // Per-TX-block prediction/reconstruction diagnostic (read via `predBlocks()`):
+    // 7 ints per transform block — the global TX index, the mode block's `(r, c)`,
+    // the TX block's pixel origin `(x, y)`, the predicted sample at that origin
+    // and the reconstructed sample there after the residual. It pairs a
+    // prediction with its own block without touching the reconstruction path.
+    List<Int> predLog
+    // Per-block STAGE reader positions (diagnostic, read via `stages()`):
+    // two ints per block — the position after the mode-info BODY (Y/UV mode,
+    // angles, CFL, palette MODE info, filter-intra) and after the palette
+    // TOKENS, i.e. immediately before the transform size. Paired with
+    // `positions()` (after the transform size, and after the residuals) it
+    // shows which stage of one block eats the bits.
+    List<Int> stagesOut
+    // Per-block palette MODE info (diagnostic, read via `palInfos()`): two ints
+    // per block — the decoded Y and UV palette sizes (0 = no palette).
+    List<Int> palOut
+    // Per-TRANSFORM-BLOCK end positions (diagnostic, read via `txEnds()`): the
+    // reader position right after each transform block's coefficients, so a
+    // symbol in the trace can be placed INSIDE one transform block's span
+    // instead of being inferred from a window.
+    List<Int> txEndOut
+    // Per-block reader position at block ENTRY (diagnostic, read via
+    // `blockStarts()`): one int per block, taken after the walk's partition
+    // symbols and before the mode info, so the PARTITION cost of a block is
+    // its entry minus the previous block's residual end.
+    List<Int> blockStartOut
     Int[] colorIndexY
     Int[] colorIndexUv
     Av1ChromaPlanes chroma
     Int ssX
     Int ssY
     List<Int[]> levelsUOut
+    List<Int> chromaPredOut
     List<Int[]> levelsVOut
     List<Int> txTypeUOut
     List<Int> txTypeVOut
@@ -151,7 +181,8 @@ class Av1TileDecode {
                 List<Int[]> levelsOut, List<Int> txTypeOut,
                 List<Int> modeOut, Av1ChromaPlanes chroma, Int ssX, Int ssY,
                 List<Int[]> levelsUOut, List<Int[]> levelsVOut,
-                List<Int> txTypeUOut, List<Int> txTypeVOut) {
+                List<Int> txTypeUOut, List<Int> txTypeVOut,
+                List<Int> chromaPredOut) {
         this.frame = frame
         this.stride = stride
         this.frameW = frameW
@@ -187,11 +218,21 @@ class Av1TileDecode {
         this.ssX = ssX
         this.ssY = ssY
         this.levelsUOut = levelsUOut
+        this.chromaPredOut = chromaPredOut
         this.levelsVOut = levelsVOut
         this.txTypeUOut = txTypeUOut
         this.txTypeVOut = txTypeVOut
-        this.modeInfo = Av1ModeInfo(this.reader, this.frameW >> 2, this.frameH >> 2)
-        this.txSize = Av1TxSize(this.reader, this.frameW >> 2, this.frameH >> 2)
+        // The mi grid is the SPEC's `MiCols`/`MiRows` — the frame ROUNDED UP to
+        // whole 8x8 luma blocks (`2 * ceil(w / 8)`), which is what libaom's
+        // decoder derives (`dec_set_mb_mi`, av1/decoder/decoder.c) and what the
+        // partition walk is handed. EVERY mi-keyed array below uses it — the
+        // mode-info maps, the transform contexts, the CDEF units and the
+        // transform-type map all key on the SAME grid, so a FLOOR here would
+        // disagree with the walk's coordinates at the frame's edge.
+        this.miW = 2 * ((this.frameW + 7) >> 3)
+        this.miH = 2 * ((this.frameH + 7) >> 3)
+        this.modeInfo = Av1ModeInfo(this.reader, this.miW, this.miH)
+        this.txSize = Av1TxSize(this.reader, this.miW, this.miH)
         this.maxX = this.frameW
         this.maxY = this.frameH
         this.edgeFilter = true
@@ -203,12 +244,17 @@ class Av1TileDecode {
         // Per-block reader positions (diagnostic): two ints per block,
         // the position after the mode info and after the block's residuals.
         this.posOut = listOf()
+        this.predLog = listOf()
+        this.stagesOut = listOf()
+        this.palOut = listOf()
+        this.txEndOut = listOf()
+        this.blockStartOut = listOf()
         // The palette COLOUR-INDEX maps the `palette_tokens()` stage fills
         // (per pixel, per plane); the reconstruction reads them.
         this.colorIndexY = new Int[this.frameW * this.frameH]
         this.colorIndexUv = new Int[this.chroma.wU * this.chroma.hU]
         // The 64x64 CDEF-unit strengths, keyed by the unit origin (row*miCols+col).
-        this.cdefUnits = new Int[(this.frameW >> 2) * (this.frameH >> 2)]
+        this.cdefUnits = new Int[this.miW * this.miH]
         var ci = 0
         while (ci < this.cdefUnits.size) {
             this.cdefUnits[ci] = -1
@@ -222,6 +268,9 @@ class Av1TileDecode {
     // evolve across blocks (`qIndex` from delta-Q, `cur` from delta-LF) are
     // written back at the end.
     void decodeBlock(Int r, Int c, Int bs) {
+        // Diagnostic: the reader position at block ENTRY — i.e. after every
+        // partition symbol the walk read for this leaf, before the mode info.
+        this.blockStartOut.add(this.reader.position())
         var frame = this.frame
         var stride = this.stride
         var frameW = this.frameW
@@ -257,6 +306,7 @@ class Av1TileDecode {
         var ssX = this.ssX
         var ssY = this.ssY
         var levelsUOut = this.levelsUOut
+        var chromaPredOut = this.chromaPredOut
         var levelsVOut = this.levelsVOut
         var txTypeUOut = this.txTypeUOut
         var txTypeVOut = this.txTypeVOut
@@ -288,7 +338,7 @@ class Av1TileDecode {
         var cdef = modeInfo.readCdef(r, c, bs, skip, cfg)
         var r0 = r - (r % 16)
         var c0 = c - (c % 16)
-        var uidx = r0 * (frameW >> 2) + c0
+        var uidx = r0 * this.miW + c0
         if (cdef >= 0) {
             cdefUnits[uidx] = cdef
         }
@@ -307,6 +357,7 @@ class Av1TileDecode {
         var angleY = body[1]
         var useFilterIntra = body[6]
         var filterIntraMode = body[7]
+        this.stagesOut.add(this.reader.position())
 
         // 1d. `palette_tokens()`, BETWEEN the mode info and the transform size:
         // av1/decoder/decodeframe.c `parse_decode_block` runs `decode_mbmi_block(..)`
@@ -316,11 +367,35 @@ class Av1TileDecode {
         if (palY > 0) {
             var pw = av1BlockWidth(bs)
             var ph = av1BlockHeight(bs)
-            var cmy = av1PaletteColorMap(reader, modeInfo, 0, palY, pw, ph, ph, pw)
+            // The block may OVERHANG the frame (a HORZ partition at the bottom
+            // edge keeps its full height), and libaom's palette map codes only
+            // the WITHIN-BOUNDS cells: `av1_get_block_dimensions` (fetched,
+            // av1/common/blockd.h) returns `block_rows = block_height +
+            // (mi_rows - bh - mi_row) * 4` as the wavefront's `rows`/`cols`,
+            // while the map's own width/height stay the FULL block — the cells
+            // past the edge are then filled by the last-column/last-row copy.
+            // The CODED extent is the aligned mi grid's: libaom's
+            // `av1_get_block_dimensions` uses `(mi_rows - bh - mi_row) * 4`,
+            // i.e. the 24px-aligned grid, NOT the 20px frame. The map's
+            // wavefront and the tokens that follow (the chroma map shares the
+            // reader) depend on it; clamping to the pixel frame desyncs the
+            // stream (known-bugs §753). PAINTING stays inside the visible
+            // frame, since the extra coded cells are off-screen.
+            var hMax = ph
+            var yBottom = this.miH * 4
+            if (r * 4 + hMax > yBottom) { hMax = yBottom - r * 4 }
+            var wMax = pw
+            var yRight = this.miW * 4
+            if (c * 4 + wMax > yRight) { wMax = yRight - c * 4 }
+            var cmy = av1PaletteColorMap(reader, modeInfo, 0, palY, pw, ph, hMax, wMax)
+            var paintH = hMax
+            if (r * 4 + paintH > this.frameH) { paintH = this.frameH - r * 4 }
+            var paintW = wMax
+            if (c * 4 + paintW > this.frameW) { paintW = this.frameW - c * 4 }
             var pry = 0
-            while (pry < ph) {
+            while (pry < paintH) {
                 var pcy = 0
-                while (pcy < pw) {
+                while (pcy < paintW) {
                     this.colorIndexY[(r * 4 + pry) * this.frameW + (c * 4 + pcy)] = cmy[pry * pw + pcy]
                     pcy = pcy + 1
                 }
@@ -328,23 +403,40 @@ class Av1TileDecode {
             }
         }
         var palUv = modeInfo.palSizeUvAt(r, c)
+        this.palOut.add(palY)
+        this.palOut.add(palUv)
         if (palUv > 0) {
             var pbs = av1PlaneBlockSize(bs, this.ssX, this.ssY)
             var puw = av1BlockWidth(pbs)
             var puh = av1BlockHeight(pbs)
-            var cmu = av1PaletteColorMap(reader, modeInfo, 1, palUv, puw, puh, puh, puw)
             var u0r = r >> this.ssY
             var u0c = c >> this.ssX
+            // Same within-bounds rule as the luma map, on the chroma plane.
+            // Same rule on the chroma plane: the coded extent is the aligned
+            // mi grid subsampled, the painted extent the visible plane.
+            var uhMax = puh
+            var uBottom = (this.miH * 4) >> this.ssY
+            if (u0r * 4 + uhMax > uBottom) { uhMax = uBottom - u0r * 4 }
+            var uwMax = puw
+            var uRight = (this.miW * 4) >> this.ssX
+            if (u0c * 4 + uwMax > uRight) { uwMax = uRight - u0c * 4 }
+            var cmu = av1PaletteColorMap(reader, modeInfo, 1, palUv, puw, puh, uhMax, uwMax)
+            var paintHu = uhMax
+            if (u0r * 4 + paintHu > this.chroma.hU) { paintHu = this.chroma.hU - u0r * 4 }
+            var paintWu = uwMax
+            if (u0c * 4 + paintWu > this.chroma.wU) { paintWu = this.chroma.wU - u0c * 4 }
             var pru = 0
-            while (pru < puh) {
+            while (pru < paintHu) {
                 var pcu = 0
-                while (pcu < puw) {
+                while (pcu < paintWu) {
                     this.colorIndexUv[(u0r * 4 + pru) * this.chroma.wU + (u0c * 4 + pcu)] = cmu[pru * puw + pcu]
                     pcu = pcu + 1
                 }
                 pru = pru + 1
             }
         }
+
+        this.stagesOut.add(this.reader.position())
 
         // 2. Transform size + the transform-context broadcast.
         var txSz = txSize.readTxSize(r, c, bs, skip, txMode, 0, lossless)
@@ -408,16 +500,17 @@ class Av1TileDecode {
             var levels = av1DecodeCoeffsBlockEdgeTx(reader, store, bs, 0,
                     br, bc, txSz, above, left, 0, 0, txTypeStore,
                     reducedTxSet, qIndex, yMode, useFilterIntra,
-                    filterIntraMode, txTypes, frameW >> 2, bc, br)
-            var txType = txTypes[br * (frameW >> 2) + bc]
+                    filterIntraMode, txTypes, this.miW, bc, br)
+            var txType = txTypes[br * this.miW + bc]
             levelsOut.add(levels)
             txTypeOut.add(txType)
+            this.txEndOut.add(this.reader.position())
 
             // 3c. Availability (3ab) from the transform block's ABSOLUTE position.
             var avail = av1IntraAvail(12, bs, 0, txSz, 0, 0,
                     order.get(bi * 2), order.get(bi * 2 + 1), yMode,
                     angleY, useFilterIntra, haveTop, haveLeft, br, bc,
-                    frameW >> 2, frameH >> 2, frameW, frameH)
+                    this.miW, this.miH, frameW, frameH)
             var haveAboveRight = avail[0]
             var haveBelowLeft = avail[1]
 
@@ -429,9 +522,23 @@ class Av1TileDecode {
                                             useFilterIntra, filterIntraMode,
                                             bitDepth, intraEdgeFilterType, edgeFilter)
 
-            // 3e. Dequantize + inverse transform + reconstruct (3z).
-            av1ReconBlockInto(frame, stride, x + 1, y + 1, levels, pred, txSz,
-                              txType, bitDepth, false, dcQuant, acQuant)
+            // 3e. Dequantize + inverse transform + reconstruct (3z). CLIPPED:
+            // this block may overhang the frame (a HORZ partition at the bottom
+            // edge keeps its full height), and the cells past the frame have no
+            // place in a frame-sized plane.
+            av1ReconBlockIntoClip(frame, stride, this.frameW, this.frameH,
+                                  x + 1, y + 1, levels, pred, txSz,
+                                  txType, bitDepth, false, dcQuant, acQuant)
+
+            // Diagnostic: pair this transform block's PREDICTION with its
+            // RECONSTRUCTION at the block's own origin (post-residual).
+            predLog.add(this.levelsOut.size - 1)
+            predLog.add(r)
+            predLog.add(c)
+            predLog.add(x)
+            predLog.add(y)
+            predLog.add(pred[0])
+            predLog.add(frame[(y + 1) * stride + (x + 1)])
 
             bi = bi + 1
         }
@@ -442,6 +549,11 @@ class Av1TileDecode {
         if (palY > 0) {
             var pbh = av1BlockHeight(bs)
             var pbw = av1BlockWidth(bs)
+            // The block may OVERHANG the frame (see `clampedWidth`): only the
+            // cells that exist are painted, which is also what keeps the colour
+            // MAP read inside its frame-sized array.
+            if (r * 4 + pbh > this.frameH) { pbh = this.frameH - r * 4 }
+            if (c * 4 + pbw > this.frameW) { pbw = this.frameW - c * 4 }
             var pyy = 0
             while (pyy < pbh) {
                 var pxx = 0
@@ -462,6 +574,8 @@ class Av1TileDecode {
             var puh2 = av1BlockHeight(pbs2)
             var u0r2 = r >> ssY
             var u0c2 = c >> ssX
+            if (u0r2 * 4 + puh2 > chroma.hU) { puh2 = chroma.hU - u0r2 * 4 }
+            if (u0c2 * 4 + puw2 > chroma.wU) { puw2 = chroma.wU - u0c2 * 4 }
             var puy = 0
             while (puy < puh2) {
                 var pux = 0
@@ -488,8 +602,8 @@ class Av1TileDecode {
                     useFilterIntra, filterIntraMode, bitDepth,
                     intraEdgeFilterType, edgeFilter, dcQuant, acQuant, qIndex,
                     reducedTxSet, lossless, reader, store, txTypeStore, txTypes,
-                    frameW >> 2, frameW, frameH, levelsUOut, levelsVOut,
-                    txTypeUOut, txTypeVOut)
+                    this.miW, frameW, frameH, levelsUOut, levelsVOut,
+                    txTypeUOut, txTypeVOut, chromaPredOut)
         }
         this.posOut.add(this.reader.position())
         this.qIndex = qIndex
@@ -511,6 +625,78 @@ class Av1TileDecode {
     // The per-block reader positions (diagnostic), two ints per block.
     List<Int> positions() {
         return this.posOut
+    }
+
+    // The per-mi SKIP grid and the per-64x64 CDEF configuration index, the two
+    // inputs `av1_cdef_compute_sb_list` and `cdef_fb_col` read. Exposed so the
+    // CDEF integration never re-derives state the tile walk already owns.
+    Int[] skipMap() {
+        return this.modeInfo.skipMap
+    }
+
+    Int[] cdefMap() {
+        return this.modeInfo.cdefMap
+    }
+
+    // The mi grid's width (the aligned one the maps are indexed with).
+    Int miCols() {
+        return this.miW
+    }
+
+    // The palette COLOUR TABLE of a block (diagnostic): `palColorYAt` indexed by
+    // the decoded map value. Paired with `palIndexAt` it settles whether a wrong
+    // paint comes from the COLOURS or from the INDICES.
+    Int palColorAt(Int r, Int c, Int i) {
+        return this.modeInfo.palColorYAt(r, c, i)
+    }
+
+    // The decoded palette INDEX at a pixel of the block (diagnostic).
+    Int palIndexAt(Int r, Int c, Int k) {
+        return this.colorIndexY[(r * 4) * this.frameW + (c * 4 + k)]
+    }
+
+    // The per-block Y-MODE span (diagnostic), three ints per block.
+    List<Int> ySpans() {
+        return this.modeInfo.ySpans()
+    }
+
+    // The per-block BODY field positions (diagnostic), four ints per block:
+    // after the Y mode, the Y angle group, the UV/CFL/UV-angle group PLUS the
+    // palette MODE info, and the filter-intra field (the end of the body).
+    List<Int> bodyFields() {
+        return this.modeInfo.bodyPositions()
+    }
+
+    // The per-block reader position at block ENTRY (diagnostic), one int per
+    // block: after the walk's partition symbols, before the mode info.
+    List<Int> blockStarts() {
+        return this.blockStartOut
+    }
+
+    // The per-TRANSFORM-BLOCK end positions (diagnostic), one int per transform
+    // block: the reader position right after its coefficients.
+    List<Int> txEnds() {
+        return this.txEndOut
+    }
+
+    // The per-block palette MODE info (diagnostic), 2 ints per block: the Y and
+    // UV palette sizes (0 = no palette).
+    List<Int> palInfos() {
+        return this.palOut
+    }
+
+    // The per-block STAGE reader positions (diagnostic), 2 ints per block: after
+    // the mode-info body and after the palette tokens (before the tx size).
+    List<Int> stages() {
+        return this.stagesOut
+    }
+
+    // The per-TX-block prediction/reconstruction record (diagnostic), 7 ints per
+    // transform block: TX index, mode-block `(r, c)`, TX pixel origin `(x, y)`,
+    // the predicted sample at the origin, and the reconstructed sample there
+    // after the residual.
+    List<Int> predBlocks() {
+        return this.predLog
     }
 
     // The reconstructed plane, flat row-major of size `frameW * frameH`
@@ -560,7 +746,7 @@ Int[] av1DecodeTileRecon(Int[] frame, Int stride, Int frameW, Int frameH,
         segIdPreSkip, lastActiveSegId, segSkipActive, dcQuant, acQuant, disableEdgeFilter,
         intraEdgeFilterType, reducedTxSet, reader, store, txTypeStore, txTypes, above, left,
         levelsOut, txTypeOut, modeOut, chroma, ssX, ssY, levelsUOut, levelsVOut, txTypeUOut,
-        txTypeVOut)
+        txTypeVOut, listOf())
     tile.run(blocks)
     return tile.planes()
 }

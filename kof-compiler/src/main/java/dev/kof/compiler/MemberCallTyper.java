@@ -510,4 +510,10 @@ public final class MemberCallTyper {
         }
         return Type.UnknownType.UNKNOWN;
     }
+    /** §745: o tipo de elemento e NU (Object/unknown) — o erasure do nativo
+     *  guardaria um primitivo sem box onde se espera uma referencia. */
+    private static boolean bareElementType(Type elem) {
+        if (elem instanceof Type.UnknownType) return true;
+        return elem instanceof Type.ClassType ct && "Object".equals(ct.name());
+    }
 }

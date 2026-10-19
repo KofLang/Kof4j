@@ -88,7 +88,7 @@ Backend
 | **Lifecycle** | does not exist | only `bind`/`show`/`remove`; there is no mount/unmount/dispose, nor cleanup |
 | **Layout** | partial | only `Column`/`Row` (flexbox, fixed gap); there is no Stack/Box/Spacer/Scroll/Grid/Wrap/Center/Align, nor per-widget gap/padding/flex |
 | **Events** | partial | only click on Button, each in its own way (scattered DOM `addEventListener`); there is no target/propagation/stopPropagation/focus/keyboard |
-| **Focus** | does not exist | no global management; Tab/Shift+Tab, traversal, restoration absent |
+| **Focus** | partial | `focus()` on every DOM widget exists (issue #811, 16/10) with the pre-mount lifecycle: a request made inside `view` is REMEMBERED and applied when the node connects. Still absent: `setAutoFocus` on mount, Tab/Shift+Tab order, traversal and restoration on re-render |
 | **Navigation** | does not exist | no Route/Router; a single window |
 | **State** | ad-hoc | state in **static class fields** + lambda that updates the label by hand; there is no component state nor invalidation |
 | **Rendering/invalidation** | imperative | each click does `label.text = ...` by hand; there is no re-render, diffing, scheduling |

@@ -63,6 +63,15 @@ public final class ExpressionDbCallLowerer {
         }
         ops.add(new KofCall(new Type.ClassType("kof.db", "Db", List.of()),
                 dbCall.function(), params, retType, KofCallKind.FUNCTION));
+    } else if (driver.currentDiagnostics != null) {
+        driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
+                mc.position() != null ? mc.position().line() : 0,
+                mc.position() != null ? mc.position().column() : 0,
+                0,
+                "Cannot resolve method '" + mc.methodName() + "' on namespace 'db' with "
+                        + mc.arguments().size() + " argument(s) (valid: "
+                        + String.join(", ", KofDb.functions()) + ")",
+                "SEM025");
     }
     return localIdx;
     }

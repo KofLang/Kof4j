@@ -1,0 +1,9 @@
+enum Color { RED, GREEN, BLUE }
+
+main() {
+    println(Color.valueOf("BLUE"))
+    println(Color.valueOf("RED").ordinal())
+    println(Color.valueOf("GREEN").name())
+    println(Color.valueOf("RED") == Color.RED)
+    println(Color.valueOf("BLUE") == Color.BLUE)
+}

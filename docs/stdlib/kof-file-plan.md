@@ -361,9 +361,33 @@ Consider security against path traversal inside archives.
 > declared size is refused instead of truncated, which is the
 > decompression-bomb defence. ZIP64, an encrypted entry and any method outside
 > {0, 8} are refused with an explicit diagnostic, never silence. **Still open in
-> #852:** `open()`/`readChunk()` streaming driven by the caller, `extractTo`
-> (which needs the confinement primitive from #854), GZIP and TAR, and the CP437
-> fallback for legacy names.
+> #852:** `open()`/`readChunk()` streaming driven by the caller.
+> **ZIP WRITING is IN:** `ZipWriter(path)` + `addFile`/`addText` + `close()` writes STORED (method 0)
+> entries — verbatim, NO compressor — with the local header written as it goes and the central
+> directory built at `close()` from what was recorded (the payloads are never held in memory).
+> Names go out as UTF-8 with the spec's EFS bit (11) set, which is the same bit the reader
+> consults, and duplicate names are refused. Method 8 would need a compressor: a separate slice.
+> **GZIP WRITING is IN:** `GzipWriter(path)` + `addText`/`addBytes` + `close()` writes RFC 1952
+> members using DEFLATE **STORED** blocks (BTYPE=00) — verbatim, NO compressor, the same honest
+> precedent as `ZipWriter`. The 10-byte header carries MTIME 0 (deterministic bytes), each call
+> becomes one or more stored blocks of up to 65535 bytes, and `close()` emits the empty final
+> block plus the CRC-32/ISIZE trailer accumulated incrementally (`zipCrc32State`) — the payloads
+> are never held in memory to compute it. Compressed output (fixed/dynamic blocks) would need a
+> compressor: a separate slice.
+> **Structural validation is IN:** `Zip.validate()` refuses an archive whose LOCAL header and
+> CENTRAL directory disagree (name/method/sizes/CRC-32, tolerating the spec's legitimate
+> data descriptor) and any pair of entries whose data ranges OVERLAP — the two lies the
+> issue names, which reading alone never catches. `extractTo` runs it BEFORE writing anything.
+> **TAR WRITING is IN too:** `TarWriter(path)` + `addFile`/`addText` + `close()`
+> writes ustar (store-only, no compression) incrementally, with `mtime` zero so the
+> same input is byte-identical. Names over 100 bytes are refused (GNU long names
+> are a separate slice), never truncated.
+> **`extractTo` is IN, with confinement:** `Zip(path).extractTo(destDir, maxBytes)`
+> refuses `..`, absolute paths, Windows drives and the `\` separator — the NAME bar
+> runs before anything touches the disk — and never overwrites an existing path.
+> Honest limit: the symlink check is check-then-write, so the TOCTOU window stays
+> open until the `createNew` primitive of #854 lands.
+> **Names already follow the format's rule:** the UTF-8 flag (bit 11) decides — set means UTF-8, clear means CP437 (the legacy case, which used to come out with replacement characters).
 
 > **GZIP landed the same day (slice 2 of #852):** `libs/archive/Gzip.kf` reads
 > RFC 1952 streams by the SAME composition — the deflate payload goes to
@@ -376,6 +400,14 @@ Consider security against path traversal inside archives.
 > size on saturation, so the real count is the `outPos` field — a literals-only
 > member never walks off the window and would otherwise slip through the cap.
 > TAR, the chunked streaming API and CP437 names remain open.
+
+> **TAR landed the same day (slice 3 of #852):** `libs/archive/Tar.kf` reads
+> POSIX ustar (plus the GNU long-name `L`/`K` markers, which are followed), with
+> the header CHECKSUM verified on every block, the caller's ceiling on entry
+> reads, and pax extended headers (`x`/`g`) REFUSED by name. It carries no
+> compression, so what it adds is the structure — and the composition is the
+> point: `tarEntriesFrom(gzipRead(...))` (or the `tarGzEntries` wrapper) reads a
+> `.tar.gz` with no new machinery. Writing is not here (reader only).
 
 ---
 

@@ -131,6 +131,11 @@ public final class JvmRuntimeUi {
                 public static void kof_ui_widget_set_disabled(int widget, int disabled) {
                 }
 
+                // D-UI-FOCUS (#811): foco — no-op JVM como setId/setDisabled
+                // (kof.ui é KofJS; mesmo racional do bloco D-UI-A11Y).
+                public static void kof_ui_widget_focus(int widget) {
+                }
+
                 // D-UI-A11Y (#789): acessibilidade intent-based — real só no
                 // KofJS (no-op JVM, como setId/setDisabled — kof.ui é KofJS).
                 public static void kof_ui_widget_set_accessible_name(int widget, String name) {
@@ -187,6 +192,7 @@ public final class JvmRuntimeUi {
 
                 public static void kof_ui_component_on(int c, String type, Object handler) {
                 }
+
 
                 public static void kof_ui_component_bind(int c, int child) {
                     // JVM mirrors the component tree (no rendering): bind

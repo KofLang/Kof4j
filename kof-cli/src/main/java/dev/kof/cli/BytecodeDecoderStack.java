@@ -71,6 +71,17 @@ static String loadValue(BytecodeReader.Insn in, BytecodeFrame frame) {
         case 0x08 -> "5";
         case 0x02 -> "-1";
         case 0x01 -> "null";
+        // Fase E (16/10): os consts WIDE (o lconst/fconst/dconst) — o
+        // `while (left > 0)` com o Double compila o header como [dload,
+        // dconst_0, dcmpl, ifle]; sem isto o par-case recusa = cond-null
+        // (medido no Bank2.monthsToPay).
+        case 0x09 -> "0L";
+        case 0x0a -> "1L";
+        case 0x0b -> "0.0f";
+        case 0x0c -> "1.0f";
+        case 0x0d -> "2.0f";
+        case 0x0e -> "0.0";
+        case 0x0f -> "1.0";
         case 0x10 -> String.valueOf((byte) in.operands()[0]);
         case 0x11 -> String.valueOf((short) in.operands()[0]);   // sipush — 14/09
         // espelha o machineRun (linha 114 ja tratava 0x11): o loadValue SEM

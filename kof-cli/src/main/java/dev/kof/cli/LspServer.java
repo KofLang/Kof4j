@@ -163,12 +163,18 @@ final class LspServer {
         Map<String, Object> textDoc = params.get("textDocument") instanceof Map<?, ?> td
                 ? (Map<String, Object>) td : Map.of();
         String uri = textDoc.get("uri") == null ? "" : textDoc.get("uri").toString();
+        // #894: o `didChange` traz um VersionedTextDocumentIdentifier — `uri` +
+        // `version`, SEM `text` — e o texto novo vem em `contentChanges`. Ler o
+        // texto ANTES de gravar no cache é o que faz a troca valer para os
+        // handlers que leem `openText` (hover/formatting/symbols/rename/…):
+        // gravando primeiro, o cache recebia "" e os diagnostics — que leem a
+        // variável local — continuavam certos, escondendo o defeito.
         String text = textDoc.get("text") == null ? "" : textDoc.get("text").toString();
-        openText.put(uri, text);
         if (params.get("contentChanges") instanceof List<?> changes && !changes.isEmpty()
                 && changes.get(0) instanceof Map<?, ?> c) {
             text = String.valueOf(((Map<?, ?>) c).get("text"));
         }
+        openText.put(uri, text);
 
         List<Object> diagnostics = analyze(uri, text);
 

@@ -68,3 +68,38 @@ void av1ReconBlockInto(Int[] plane, Int stride, Int x, Int y,
         i = i + 1
     }
 }
+
+// `av1ReconBlockInto` for a transform block that may OVERHANG the plane: the
+// partition walk decodes blocks whose bottom/right edge lies past the frame (a
+// HORZ partition at the bottom edge keeps its full height), and their lower
+// transform blocks lie outside it. libaom reconstructs those into plane buffers
+// padded to the superblock (`ALIGN_POWER_OF_TWO(plane_w, 5)`,
+// av1/common/alloccommon.c); a caller that hands in a frame-sized plane wants
+// the same VISIBLE result, so the cells outside the plane are dropped here.
+// Nothing reads them: the prediction clamps its reads to the frame's border.
+//
+// `x`/`y` are plane coordinates (the caller's border offset included), so the
+// pixel origin is `(x - 1, y - 1)` and the plane's visible extent is `maxW` by
+// `maxH` pixels.
+void av1ReconBlockIntoClip(Int[] plane, Int stride, Int maxW, Int maxH,
+                           Int x, Int y, Int[] levels, Int[] pred, Int txSz,
+                           Int txType, Int bitDepth, Bool lossless,
+                           Int dcQuant, Int acQuant) {
+    var rec = av1ReconstructBlock(levels, pred, txSz, txType, bitDepth,
+                                  lossless, dcQuant, acQuant)
+    var w = av1TxWidth(txSz)
+    var h = av1TxHeight(txSz)
+    var i = 0
+    while (i < h) {
+        if (y - 1 + i < maxH) {
+            var j = 0
+            while (j < w) {
+                if (x - 1 + j < maxW) {
+                    plane[(y + i) * stride + (x + j)] = rec[i * w + j]
+                }
+                j = j + 1
+            }
+        }
+        i = i + 1
+    }
+}

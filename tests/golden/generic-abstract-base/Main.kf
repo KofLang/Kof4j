@@ -1,0 +1,22 @@
+abstract class Base<T> {
+    abstract T value()
+    T twice() { return value() }
+}
+
+class Impl(Int n) extends Base<Int> {
+    Int value() { return n }
+}
+
+class Text extends Base<String> {
+    String value() { return "k" }
+}
+
+main() {
+    var x: Base<Int> = Impl(4)
+    println(x.value())
+    println(x.twice())
+    println(Impl(6).value())
+    var y: Base<String> = Text()
+    println(y.value())
+    println(y.twice())
+}

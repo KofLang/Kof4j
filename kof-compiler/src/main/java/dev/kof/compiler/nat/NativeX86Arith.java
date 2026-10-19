@@ -21,32 +21,42 @@ public final class NativeX86Arith {
      * something other than a literal push.
      */
     static Integer constantPushedOnTop(StringBuilder sb) {
-        java.util.List<String> lines = new java.util.ArrayList<>(
-                java.util.Arrays.asList(sb.toString().split("\n", -1)));
-        int i = lines.size() - 1;
-        if (i >= 0 && lines.get(i).isEmpty()) i--;
-        while (i >= 0 && lines.get(i).startsWith("    .loc ")) i--;
-        if (i < 0) return null;
-        String l = lines.get(i);
-        if (!l.startsWith("    pushq $")) return null;
-        try {
-            return Integer.parseInt(l.substring("    pushq $".length()).trim());
-        } catch (NumberFormatException e) {
-            return null;
+        int end = sb.length();
+        if (end > 0 && sb.charAt(end - 1) == '\n') end--;
+        while (end > 0) {
+            int start = sb.lastIndexOf("\n", end - 1) + 1;
+            if (sb.indexOf("    .loc ", start) == start) {
+                end = start - 1;
+                continue;
+            }
+            String line = sb.substring(start, end);
+            if (!line.startsWith("    pushq $")) return null;
+            try {
+                return Integer.parseInt(line.substring("    pushq $".length()).trim());
+            } catch (NumberFormatException e) {
+                return null;
+            }
         }
+        return null;
     }
 
-    /** Removes the last value-producing line (skipping trailing {@code .loc} lines). */
+    /** Removes the last value-producing line without copying the assembly buffer. */
     static void dropLastNonLocLine(StringBuilder sb) {
-        java.util.List<String> lines = new java.util.ArrayList<>(
-                java.util.Arrays.asList(sb.toString().split("\n", -1)));
-        int i = lines.size() - 1;
-        if (i >= 0 && lines.get(i).isEmpty()) i--;
-        while (i >= 0 && lines.get(i).startsWith("    .loc ")) i--;
-        if (i < 0) return;
-        lines.remove(i);
-        sb.setLength(0);
-        sb.append(String.join("\n", lines));
+        int end = sb.length();
+        if (end > 0 && sb.charAt(end - 1) == '\n') end--;
+        while (end > 0) {
+            int start = sb.lastIndexOf("\n", end - 1) + 1;
+            if (sb.indexOf("    .loc ", start) == start) {
+                end = start - 1;
+                continue;
+            }
+            int deleteEnd = end;
+            if (deleteEnd < sb.length() && sb.charAt(deleteEnd) == '\n') {
+                deleteEnd++;
+            }
+            sb.delete(start, deleteEnd);
+            return;
+        }
     }
 
     static void emitBinary(StringBuilder sb, KofBinary kb) {

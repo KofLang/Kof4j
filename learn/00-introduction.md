@@ -16,23 +16,85 @@ Kof keeps the power of the JVM and the Java ecosystem, but removes most of the c
 
 Kof is not just a language for the JVM. It is a language that can compile to different targets:
 
-```text
-                         KOF
-                          │
-                    Kof Compiler
-                          │
-                       Kof IR
-                          │
-          ┌───────────────┼────────────────┬───────────┐
-          │               │                │           │
-       Kof4J          KofNative         KofJS      KofScript
-          │          ┌────┼────┐          │           │
-          ▼          ▼    ▼    ▼          ▼           ▼
-        JVM       x86-64 riscv arm    ES Module   KofScriptGlobals
-       .class      ELF   ELF  ELF      .mjs        repl --watch
-          │               │                │           │
-          ▼               ▼                ▼           ▼
-        JVM             OS/CPU         Engine JS    Kof Runtime
+```mermaid
+
+---
+config:
+  theme: default
+  themeVariables:
+    darkMode: false
+    background: "#ffffff"
+    textColor: "#000000"
+    lineColor: "#333333"
+---
+flowchart TD
+    %% Estilos baseados no exemplo
+    classDef process fill:#f0f9ff,stroke:#38bdf8,stroke-width:1px,color:#0369a1
+    classDef backend fill:#f0fdf4,stroke:#4ade80,stroke-width:1px,color:#15803d
+    classDef data fill:#f5f3ff,stroke:#a78bfa,stroke-width:1px,color:#6d28d9
+    classDef alt fill:#fefce8,stroke:#facc15,stroke-width:1px,color:#854d0e
+
+    %% Elementos Principais
+    KOF["KOF"]:::process
+    KofCompiler["Kof Compiler"]:::process
+    KofIR["Kof IR"]:::process
+
+    KOF --> KofCompiler
+    KofCompiler --> KofIR
+
+    subgraph Targets ["Targets & Runtimes"]
+        direction TB
+
+        subgraph Path4J ["Kof4J"]
+            direction TB
+            Kof4J["Kof4J"]:::process
+            JVMClass["JVM .class"]:::data
+            JVM["JVM"]:::backend
+            
+            Kof4J --> JVMClass --> JVM
+        end
+
+        subgraph PathNative ["KofNative"]
+            direction TB
+            KofNative["KofNative"]:::process
+            x86ELF["x86-64 ELF"]:::data
+            riscvELF["riscv ELF"]:::data
+            armELF["arm ELF"]:::data
+            OSCPU["OS/CPU"]:::backend
+
+            KofNative --> x86ELF
+            KofNative --> riscvELF
+            KofNative --> armELF
+            x86ELF --> OSCPU
+            riscvELF --> OSCPU
+            armELF --> OSCPU
+        end
+
+        subgraph PathJS ["KofJS"]
+            direction TB
+            KofJS["KofJS"]:::process
+            ESModule["ES Module .mjs"]:::data
+            EngineJS["Engine JS"]:::backend
+
+            KofJS --> ESModule --> EngineJS
+        end
+
+        subgraph PathScript ["KofScript"]
+            direction TB
+            KofScript["KofScript"]:::process
+            ScriptEnv["KofScriptGlobals<br/>repl --watch"]:::data
+            KofRuntime["Kof Runtime"]:::backend
+
+            KofScript --> ScriptEnv --> KofRuntime
+        end
+    end
+
+    %% Conexão da IR para os caminhos
+    KofIR ==> Path4J
+    KofIR ==> PathNative
+    KofIR ==> PathJS
+    KofIR ==> PathScript
+
 ```
 
 **The language does not change. The target changes.**

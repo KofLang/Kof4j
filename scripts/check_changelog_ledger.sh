@@ -82,11 +82,11 @@ i = text.find("\n## [")
 j = text.find("\n## [", i + 1) if i != -1 else -1
 top = text[: j if j != -1 else len(text)]   # mesma janela do DUP (historico nao toca)
 try:
-    known = set(re.findall(r"D-[A-Z0-9][A-Z0-9-]*", open(dec_path, encoding="utf-8").read()))
+    known = set(re.findall(r"\bD-[A-Z0-9][A-Z0-9-]*", open(dec_path, encoding="utf-8").read()))
 except OSError:
     print(f"NO-DECISIONS: {dec_path} ilegivel — gate de D-* falha fechado (nunca false-PASS)")
     sys.exit(1)
-cited = set(re.findall(r"D-[A-Z0-9][A-Z0-9-]*", top))
+cited = set(re.findall(r"\bD-[A-Z0-9][A-Z0-9-]*", top))
 # corpo de UMA letra (D-A, D-B...): placeholder literal do historico (medido #669);
 # ids reais de 1 corpo sao numericos (D-1) e seguem conferidos.
 ghosts = sorted(t for t in cited - known if not re.fullmatch(r"D-[A-Z]", t))
