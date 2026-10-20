@@ -640,7 +640,7 @@ The backend should track, when possible:
 * runtime;
 * final ELF size.
 
-The metric should be chosen according to the optimization’s goal.
+The metric should be chosen according to the optimization’s goal. **§18 asm-level metrics LANDED (14/10):** §18 also lists counters for the EMITTED backend (instruction count, loads, stores, branches, calls) — `IrMetrics` only covers the IR stream, so the ISA peepholes (§7) had no way to be measured on the text they rewrite. New `AsmMetrics` counts an emitted x86-64 method body: labels, directives (`.loc`/`.file`) and comments are not instructions; only the MOV family is classified by memory operand (a `lea` does not dereference, so it is never a "load"). Measured on a real loop method (`s = s + a*2 + b - c` with continue/break): **instructions=45 loads=9 stores=12 branches=6 calls=0 returns=1**. `AsmMetricsTest` 5/5. Additive and read-only — it never changes what is emitted.
 
 ---
 

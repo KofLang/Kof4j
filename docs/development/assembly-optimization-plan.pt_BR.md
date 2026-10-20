@@ -640,7 +640,7 @@ O backend deve acompanhar, quando possível:
 * tempo de execução;
 * tamanho final do ELF.
 
-A métrica deve ser escolhida conforme o objetivo da otimização.
+A métrica deve ser escolhida conforme o objetivo da otimização. **Métricas de asm do §18 POUSADAS (14/10):** o §18 tambem lista contadores para o backend EMITIDO (contagem de instrucoes, loads, stores, branches, calls) — o `IrMetrics` cobre so o fluxo de IR, entao os peepholes de ISA (§7) nao tinham como ser medidos no texto que reescrevem. Novo `AsmMetrics` conta o corpo emitido de um metodo x86-64: labels, diretivas (`.loc`/`.file`) e comentarios nao sao instrucoes; so a familia MOV e classificada por operando de memoria (um `lea` nao desreferencia, entao nunca e "load"). Medido num metodo de laco real (`s = s + a*2 + b - c` com continue/break): **instructions=45 loads=9 stores=12 branches=6 calls=0 returns=1**. `AsmMetricsTest` 5/5. Aditivo e read-only — nunca muda o que e emitido.
 
 ---
 
