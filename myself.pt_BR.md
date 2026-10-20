@@ -2,11 +2,17 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 19/10 — 154ª PASSAGEM: CAUSA RAIZ DA FAMÍLIA CU0 do §760 CORRIGIDA — a caminhada do tile ignorava `use_128x128_superblock` (TRUE em todos os fixtures `-cpu-used 0`, FALSE nos cpu-used 6 = a divisão exata entre falhar e descodificar). Fix: `av1SuperblockSize(use128)` + `Av1Partition.setSuperblockSize`/`walkTileSb` (passo de 128 mi + decoder notificado) + `Av1TileDecode.setSuperblockSize` para o `av1IntraAvail` (luma e chroma) + entradas 128x128 do `Partition_Subsize` (HORZ_A/B 128x64, VERT_A/B 64x128; eram BLOCK_INVALID). ORÁCULO construído: harness C mínimo ligado a um libaom novo (tip 9440aeedd; `aom_dsp/bitreader+entdec+entcode` + CDFs default do `entropymode.c`) que descodifica o primeiro bloco do payload que falha IGUAL ao Kof pós-fix (`split_or_horz=1 partition=9 skip=1 y_mode=0 uv_mode=0 palette=0 filter_intra=0 tx_size=2`). Decodes gravados cu0 mudaram (128x64 704->585; 2 tiles 4632->4513, intervalo skipped ainda 30->30 zero); fixtures de superbloco 64 intactos.
-doing: §760 — família CU0 corrigida (superbloco 128); próximo = a divergência no skip do bloco 1, com o oráculo libaom
-next: §760 — estender o harness do oráculo (sym5/sym6 em /tmp/aomo) passo a passo a partir do bloco 1 e encontrar o primeiro símbolo divergente; depois o desync real e, a seguir, §761 (rebuild skip-aware do oráculo do tile-recon)
+last: 19/10 — 155ª PASSAGEM: a CADEIA DO ORÁCULO libaom avança até ao bloco 3 (30+ símbolos iguais em `split_or_horz -> partition -> mode info`, incluindo os 4 `txb_skip` de luma + U/V do bloco 1, depois de corrigir 3 bugs do próprio harness: `allow_update_cdf`, os símbolos de coeficientes em falta, e a linha uv errada). A adaptação do `txb_skip` do Kof é EXACTA vs libaom (10692->10024->9398->8811->8261 forward = 22744->23370->23957->24507 invertido). Primeira divergência inexplicada: `uv_mode` do bloco 3 (Kof 0 vs cadeia 6) — o próximo instrumento é o oráculo COMPLETO por tile em C. FIX landado: a probe passava `Av1ModeTail(12, ...)` (sbSize fixo) que os gates de delta-Q/delta-LF usam (`bs == sbSize && skip`, `r % sb4`); passa agora `av1SuperblockSize(seq.use128x128Superblock)`.
+doing: §760 — cadeia do oráculo até b3, fix do cfg.sbSize da probe; próximo = oráculo completo por tile (partição + mode info + coeficientes)
+next: §760 — implementar o oráculo COMPLETO (decodificador de tile em C sobre as CDFs do libaom) e difundir símbolo a símbolo; responder ao `uv_mode` do b3 e seguir até ao desync TX_16X64
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 19/10 (155ª) — §760: cadeia do oráculo até ao b3 + fix do cfg.sbSize
+- **SHA:** a registar no commit desta passagem.
+- **ORÁCULO:** harness em /tmp/aomo (clone libaom 9440aeedd); cadeia sym7/sym8/sym9; 3 correcções do harness (adaptação, coeficientes do b1, uv(0,6)).
+- **FACTOS:** cadeia == Kof nos blocos 0..3 até ao y; adaptação txb_skip exacta; divergência candidata no uv do b3.
+- **FIX:** probe `Av1ModeTail(av1SuperblockSize(seq.use128x128Superblock), ...)`; AvifFullPlane 7/7.
 
 ## Sessão 19/10 (154ª) — §760 família CU0: superbloco 128 corrigido + oráculo libaom construído
 - **SHA:** a registar no commit desta passagem.

@@ -102,7 +102,7 @@ main() {
     var chromaPreds = listOf<Int>()
     var pal = 0
     if (h.allowScreenContent) { pal = 1 }
-    var cfg = Av1ModeTail(12, h.cdefBits, ec, h.lossless, h.deltaQPresent, h.deltaQRes, h.deltaLfPresent, h.deltaLfMulti, h.deltaLfRes, 3)
+    var cfg = Av1ModeTail(av1SuperblockSize(seq.use128x128Superblock), h.cdefBits, ec, h.lossless, h.deltaQPresent, h.deltaQRes, h.deltaLfPresent, h.deltaLfMulti, h.deltaLfRes, 3)
     // EVERY TILE: a fresh CDF store, transform-type store, driver and walk.
     // libaom gives each tile its own copy of the frame context
     // (`tile_data->tctx = *cm->fc`, av1/decoder/decodeframe.c) and bounds its
