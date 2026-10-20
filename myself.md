@@ -2,11 +2,17 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 19/10 — 155ª PASSAGEM: a CADEIA DO ORÁCULO libaom avança até ao bloco 3 (30+ símbolos iguais em `split_or_horz -> partition -> mode info`, incluindo os 4 `txb_skip` de luma + U/V do bloco 1, depois de corrigir 3 bugs do próprio harness: `allow_update_cdf`, os símbolos de coeficientes em falta, e a linha uv errada). A adaptação do `txb_skip` do Kof é EXACTA vs libaom (10692->10024->9398->8811->8261 forward = 22744->23370->23957->24507 invertido). Primeira divergência inexplicada: `uv_mode` do bloco 3 (Kof 0 vs cadeia 6) — o próximo instrumento é o oráculo COMPLETO por tile em C. FIX landado: a probe passava `Av1ModeTail(12, ...)` (sbSize fixo) que os gates de delta-Q/delta-LF usam (`bs == sbSize && skip`, `r % sb4`); passa agora `av1SuperblockSize(seq.use128x128Superblock)`.
-doing: §760 — cadeia do oráculo até b3, fix do cfg.sbSize da probe; próximo = oráculo completo por tile (partição + mode info + coeficientes)
-next: §760 — implementar o oráculo COMPLETO (decodificador de tile em C sobre as CDFs do libaom) e difundir símbolo a símbolo; responder ao `uv_mode` do b3 e seguir até ao desync TX_16X64
+last: 19/10 — 156ª PASSAGEM: a CADEIA DO ORÁCULO está VALIDADA SÍMBOLO A SÍMBOLO até ao EOB do bloco 3 (≈45 símbolos; estados `range/value/bitPos` do Kof == `rng/dif>>16/tell` do libaom em TODOS os pontos). Todas as 5 divergências desta passagem eram bugs do HARNESS (adaptação desligada, `txb_skip` de coeficientes do b1 em falta, linha uv não seguir o y_mode, linha/leitura do ângulo Y, flags de paleta não condicionadas aos modos DC) — o Kof está correcto até ao EOB (b3: y=6 angle=5 uv=0 tx=0 = TX_16X64, EOB eobPt=7 extra=9 = 42). Sem mudança no Kof nesta passagem.
+doing: §760 — cadeia validada até ao EOB do b3; próximo = estender a cadeia pela CAMINHADA DE NÍVEIS (coeff_base_eob/br/base/signs + inversa), chroma e blocos seguintes
+next: §760 — estender o oráculo à caminhada de níveis do b3 (as CDFs de coeficientes do token_cdfs.h e as funções de contexto) e comparar símbolo a símbolo; depois chroma/blocos seguintes e o desync real
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 19/10 (156ª) — §760: cadeia validada até ao EOB do bloco 3
+- **TÉCNICA:** comparar `range/value/bitPos` (Kof) com `rng/dif>>16/tell` (libaom) nas entradas de bloco e símbolos escolhidos.
+- **5 bugs do harness:** adaptação, txb_skip do b1, linha uv, ângulo Y (linha+leitura), paleta condicional aos modos DC.
+- **VALIDADO:** b0..b3 símbolo a símbolo; b3 = TX_16X64 com EOB eobPt=7 extra=9; Kof correcto.
+- **SEM MUDANÇA NO KOF** nesta passagem (só docs); SHA no commit.
 
 ## Sessão 19/10 (155ª) — §760: cadeia do oráculo até ao b3 + fix do cfg.sbSize
 - **SHA:** a registar no commit desta passagem.
