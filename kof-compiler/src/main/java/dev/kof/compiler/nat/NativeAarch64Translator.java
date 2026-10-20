@@ -497,8 +497,13 @@ public final class NativeAarch64Translator {
         if (mn.equals("ecall")) return List.of(indent + "svc #0");
         if (mn.equals("nop")) return List.of(indent + "nop");
         if (mn.equals("fence")) return List.of(indent + "dmb ish");
-        // Fallback: linhas desconhecidas (ex: data com aspas) — manter como está para não quebrar o pipeline
-        System.err.println("WARN translateRiscvToAarch64 UNHANDLED: " + mn + " | " + line);
-        return List.of(line);
+        // Q7 (no silent fallback): a mnemonic with no aarch64 translation must
+        // REFUSE. Passing the riscv text through verbatim would let the aarch64
+        // assembler either fail obscurely or — worse — accept a same-named
+        // instruction with DIFFERENT semantics, a silent miscompile. Labels,
+        // directives (.loc/.file/.align/…), comments and empty lines are all
+        // handled before this point, so reaching here means a real unknown op.
+        throw new IllegalStateException("NATIVE002: instrucao sem traducao aarch64: "
+                + mn + " | " + line);
     }
 }
