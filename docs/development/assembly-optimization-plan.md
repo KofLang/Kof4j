@@ -658,7 +658,7 @@ IR
 machine instruction
 ```
 
-Optimizations may remove variables or merge operations, but that should be represented correctly in future DWARF information.
+Optimizations may remove variables or merge operations, but that should be represented correctly in future DWARF information. **§19 DWARF register locations LANDED (14/10):** the register-locals model (`D-CODEGEN-REWRITE`) keeps an int/bool local in a physical register for the whole function, but `NativeDwarf` described EVERY local as frame-relative (`DW_OP_fbreg slotOffset`). For a register-placed local that frame slot is never written after the prologue, so the debug info told a debugger to read a stale slot — §19's "represented correctly" violated. `NativeDwarf.Local` now carries an optional DWARF register number and emits `DW_OP_regN` (0x50+N, SysV numbering rbx=3 … r15=15) for a placed local, keeping `DW_OP_fbreg` for a framed one; `NativeMethodEmitter` passes the placement it already computes. `locationBytes` was extracted so the encoding is unit-testable. Proof `NativeDwarfLocalLocationTest` 5/5 + all DWARF suites (`NativeDwarfSubprogramTest`, `NativeDwarfLineInfoTest`, `NativeDwarfCrossTest`) 16/16 + broad native batch 220/220 (incl. cross + register locals).
 
 ---
 

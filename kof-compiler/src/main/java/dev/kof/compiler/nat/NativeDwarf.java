@@ -62,7 +62,33 @@ final class NativeDwarf {
         };
     }
 
-    record Local(String name, int offset, String kind) {}
+    /**
+     * A described variable. {@code offset} is the frame-relative location used
+     * when the variable lives in a frame slot; {@code regNumber} is the DWARF
+     * register number when the register-locals model keeps the value in a
+     * register instead (null → frame-relative).
+     */
+    record Local(String name, int offset, String kind, Integer regNumber) {
+        Local(String name, int offset, String kind) {
+            this(name, offset, kind, null);
+        }
+    }
+
+    /**
+     * §19: the DWARF register number for an x86-64 register name (bare, no
+     * {@code %}), per the SysV psABI numbering — rax=0 … rdi=7, r8..r15=8..15.
+     * Returns null for a name outside that table (the cross targets never
+     * register-place a local, so their locals stay frame-relative).
+     */
+    static Integer dwarfRegNumber(String name) {
+        return switch (name) {
+            case "rax" -> 0; case "rcx" -> 1; case "rdx" -> 2; case "rbx" -> 3;
+            case "rsp" -> 4; case "rbp" -> 5; case "rsi" -> 6; case "rdi" -> 7;
+            case "r8" -> 8; case "r9" -> 9; case "r10" -> 10; case "r11" -> 11;
+            case "r12" -> 12; case "r13" -> 13; case "r14" -> 14; case "r15" -> 15;
+            default -> null;
+        };
+    }
 
     record Fn(String label, String kofName, int declLine, String retKind,
               List<Local> params, List<Local> locals) {}
@@ -217,16 +243,37 @@ final class NativeDwarf {
     }
 
     private static void emitLoc(StringBuilder sb, int abbrev, Local loc, Map<String, Integer> idx) {
-        byte[] fbreg = sleb128(loc.offset());
         sb.append("    .byte ").append(abbrev).append("\n");
         sb.append("    .asciz \"").append(escape(loc.name())).append("\"\n");
-        sb.append("    .byte ").append(1 + fbreg.length).append("\n");
-        sb.append("    .byte 0x91");
-        for (byte b : fbreg) {
-            sb.append(", 0x").append(String.format("%02x", b));
+        byte[] location = locationBytes(loc);
+        sb.append("    .byte ").append(location.length).append("\n");
+        for (int i = 0; i < location.length; i++) {
+            sb.append(i == 0 ? "    .byte " : ", ")
+                    .append(String.format("0x%02x", location[i] & 0xFF));
         }
         sb.append("\n");
         sb.append("    .4byte .Lbty").append(idx.get(loc.kind())).append(" - .Lkof_info\n");
+    }
+
+    /**
+     * The DWARF location expression for a variable (§19): a register location
+     * ({@code DW_OP_regN}) when the register-locals model keeps the value in a
+     * register, otherwise a frame-relative location ({@code DW_OP_fbreg}, 0x91 +
+     * SLEB128 offset).
+     */
+    static byte[] locationBytes(Local loc) {
+        if (loc.regNumber() != null) {
+            int reg = loc.regNumber();
+            if (reg < 0 || reg > 31) {
+                throw new IllegalStateException("DWARF register out of reg0..reg31: " + reg);
+            }
+            return new byte[]{(byte) (0x50 + reg)};
+        }
+        byte[] fbreg = sleb128(loc.offset());
+        byte[] out = new byte[1 + fbreg.length];
+        out[0] = (byte) 0x91;
+        System.arraycopy(fbreg, 0, out, 1, fbreg.length);
+        return out;
     }
 
     static byte[] sleb128(long value) {

@@ -658,7 +658,7 @@ IR
 machine instruction
 ```
 
-Otimizações podem remover variáveis ou fundir operações, mas isso deve ser representado corretamente nas informações DWARF futuras.
+Otimizações podem remover variáveis ou fundir operações, mas isso deve ser representado corretamente nas informações DWARF futuras. **Localizacoes de registrador no DWARF do §19 POUSADAS (14/10):** o modelo de locals-em-registrador (`D-CODEGEN-REWRITE`) mantem um local int/bool num registrador fisico pela funcao inteira, mas o `NativeDwarf` descrevia TODO local como relativo ao frame (`DW_OP_fbreg slotOffset`). Para um local colocado em registrador esse slot de frame nao e escrito depois do prologo, entao a debug info mandava o depurador ler um slot velho — violando o "representado corretamente" do §19. O `NativeDwarf.Local` agora carrega um numero de registrador DWARF opcional e emite `DW_OP_regN` (0x50+N, numeracao SysV rbx=3 … r15=15) para um local colocado, mantendo `DW_OP_fbreg` para um local em frame; o `NativeMethodEmitter` passa o placement que ja calcula. `locationBytes` foi extraido para a codificacao ser testavel unitariamente. Prova `NativeDwarfLocalLocationTest` 5/5 + todas as suites DWARF (`NativeDwarfSubprogramTest`, `NativeDwarfLineInfoTest`, `NativeDwarfCrossTest`) 16/16 + lote native amplo 220/220 (incl. cross + register locals).
 
 ---
 
