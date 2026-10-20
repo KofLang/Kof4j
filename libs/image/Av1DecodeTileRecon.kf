@@ -117,6 +117,9 @@ class Av1TileDecode {
     // row/column is an edge for both the tx-size context and the prediction.
     Int tileRow0
     Int tileCol0
+    // The sequence's superblock size index (12 = BLOCK_64X64, 15 = BLOCK_128X128);
+    // `av1IntraAvail`'s above-right/below-left rules are keyed on it.
+    Int sbBs
     Av1Symbol reader
     Av1CoeffCdfStore store
     Av1TxType txTypeStore
@@ -238,6 +241,7 @@ class Av1TileDecode {
         this.miH = 2 * ((this.frameH + 7) >> 3)
         this.tileRow0 = 0
         this.tileCol0 = 0
+        this.sbBs = 12
         this.modeInfo = Av1ModeInfo(this.reader, this.miW, this.miH)
         this.txSize = Av1TxSize(this.reader, this.miW, this.miH)
         this.maxX = this.frameW
@@ -276,6 +280,11 @@ class Av1TileDecode {
         this.tileRow0 = r
         this.tileCol0 = c
         this.txSize.setTileOrigin(r, c)
+    }
+
+    // Sets the sequence's superblock size (12 = BLOCK_64X64, 15 = BLOCK_128X128).
+    void setSuperblockSize(Int bs) {
+        this.sbBs = bs
     }
 
     // Decodes and reconstructs ONE mode-info block.  The body is the tile
@@ -533,7 +542,7 @@ class Av1TileDecode {
             this.txEndOut.add(this.reader.position())
 
             // 3c. Availability (3ab) from the transform block's ABSOLUTE position.
-            var avail = av1IntraAvail(12, bs, 0, txSz, 0, 0,
+            var avail = av1IntraAvail(this.sbBs, bs, 0, txSz, 0, 0,
                     order.get(bi * 2), order.get(bi * 2 + 1), yMode,
                     angleY, useFilterIntra, haveTop, haveLeft, br, bc,
                     this.miW, this.miH, frameW, frameH)
@@ -647,7 +656,7 @@ class Av1TileDecode {
                     intraEdgeFilterType, edgeFilter, dcQuant, acQuant, qIndex,
                     reducedTxSet, lossless, reader, store, txTypeStore, txTypes,
                     this.miW, frameW, frameH, levelsUOut, levelsVOut,
-                    txTypeUOut, txTypeVOut, chromaPredOut, skip)
+                    txTypeUOut, txTypeVOut, chromaPredOut, skip, this.sbBs)
         }
         this.posOut.add(this.reader.position())
         this.qIndex = qIndex

@@ -87,7 +87,7 @@ void av1DecodeChromaPlane(Int[] frame, Int stride, Int frameW, Int frameH,
                           Int[] above, Int[] left,
                           Int lumaFrameW, Int lumaFrameH,
                           List<Int[]> levelsOut, List<Int> txTypeOut,
-                          List<Int> predOut, Int skip) {
+                          List<Int> predOut, Int skip, Int sbBs) {
     var uvTx = av1GetMaxUvTxSize(bs, ssX, ssY)
     var uvBs = av1PlaneBlockSize(bs, ssX, ssY)
     var uw4 = av1BlockNum4x4Wide(uvBs)
@@ -155,7 +155,7 @@ void av1DecodeChromaPlane(Int[] frame, Int stride, Int frameW, Int frameH,
             txTypeOut.add(txType)
 
             // 3. Availability from the transform block's position.
-            var avail = av1IntraAvail(12, bs, 0, uvTx, ssX, ssY, i, j, uvMode,
+            var avail = av1IntraAvail(sbBs, bs, 0, uvTx, ssX, ssY, i, j, uvMode,
                     angleUV, useFilterIntra, haveTop, haveLeft, br, bc,
                     lumaFrameW >> 2, lumaFrameH >> 2, lumaFrameW, lumaFrameH)
             var haveAboveRight = avail[0]
@@ -242,7 +242,7 @@ void av1DecodeChromaBlock(Av1ChromaPlanes chroma, Int bs, Int ssX, Int ssY,
                           Int lumaFrameW, Int lumaFrameH,
                           List<Int[]> levelsUOut, List<Int[]> levelsVOut,
                           List<Int> txTypeUOut, List<Int> txTypeVOut,
-                          List<Int> predOut, Int skip) {
+                          List<Int> predOut, Int skip, Int sbBs) {
     av1DecodeChromaPlane(chroma.u, chroma.strideU, chroma.wU, chroma.hU,
             luma, lumaStride, bs, ssX, ssY, r, c, 1, uvMode, angleUV, cflAlphaU,
             useFilterIntra,
@@ -250,7 +250,7 @@ void av1DecodeChromaBlock(Av1ChromaPlanes chroma, Int bs, Int ssX, Int ssY,
             dcQuant, acQuant, qIndex, reducedTxSet, lossless,
             reader, store, txTypeStore, txTypes, txTypeStride,
             chroma.aboveU, chroma.leftU, lumaFrameW, lumaFrameH,
-            levelsUOut, txTypeUOut, predOut, skip)
+            levelsUOut, txTypeUOut, predOut, skip, sbBs)
     av1DecodeChromaPlane(chroma.v, chroma.strideV, chroma.wV, chroma.hV,
             luma, lumaStride, bs, ssX, ssY, r, c, 2, uvMode, angleUV, cflAlphaV,
             useFilterIntra,
@@ -258,5 +258,5 @@ void av1DecodeChromaBlock(Av1ChromaPlanes chroma, Int bs, Int ssX, Int ssY,
             dcQuant, acQuant, qIndex, reducedTxSet, lossless,
             reader, store, txTypeStore, txTypes, txTypeStride,
             chroma.aboveV, chroma.leftV, lumaFrameW, lumaFrameH,
-            levelsVOut, txTypeVOut, predOut, skip)
+            levelsVOut, txTypeVOut, predOut, skip, sbBs)
 }

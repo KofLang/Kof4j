@@ -155,10 +155,10 @@ class AvifFullPlaneE2ETest implements LibraryInstallSupport {
      * makes the first block skip=1), 2x1 tiles, palette off. The {@code TILESTATS}
      * prefix is the driver's per-tile stage data: tile 0's block 0 runs
      * 10 -> 34 -> 34 (its transform size ends at 34 and its residual ends at
-     * 34: ZERO coefficient bits) and the tile yields 12 transform blocks /
-     * 53 levels. Before the guard the same block ran 34 -> 528 (494 bits of
-     * coefficient syntax the encoder never wrote) and the tile read 32
-     * transform blocks / 366 levels. Tile 1's own sync
+     * 30: ZERO coefficient bits) and the tile yields 29 transform blocks /
+     * 100 levels. Before the guard the same block ran past its transform-size
+     * read (hundreds of coefficient bits the encoder never wrote). Tile 1's own
+     * sync
      * ({@code b32/txb256/nz256}, its exact-payload decode) is the control: the
      * guard must not disturb a block that is not skipped.
      */
@@ -167,7 +167,7 @@ class AvifFullPlaneE2ETest implements LibraryInstallSupport {
         var line = runFullPlaneProbe(
                 Path.of("src/test/resources", "avif_enc_nopal_cu0_2tile192.avif")
                         .toAbsolutePath());
-        assertTrue(line.contains("t0:b5/txb12/nz53/st10,34,34,37,37"),
+        assertTrue(line.contains("t0:b5/txb29/nz100/st10,30,30,33,33"),
                 () -> "a skipped block must consume no coefficient symbols: " + line);
         assertTrue(line.contains("t1:b32/txb256/nz256"),
                 () -> "the non-skipped tile must keep its exact decode: " + line);
@@ -192,6 +192,13 @@ class AvifFullPlaneE2ETest implements LibraryInstallSupport {
      * the FIRST block cannot be {@code skip=1} while the decode says it is, so
      * the divergence sits at or before the first block's skip symbol —
      * upstream of the coefficient walk.
+     *
+     * <p>The 154th pass moved these recorded numbers (704/7368 -> 585/7368 and
+     * the mode records) when the tile walk started honouring the sequence's
+     * {@code use_128x128_superblock}: these encodes use 128x128 superblocks and
+     * the walk had hard-coded 64x64. The recorded divergence itself is
+     * unchanged; the walk now matches libaom's own reader for the first block's
+     * eight mode-info symbols.
      */
     @Test
     void cu0SingleTileStreamRecordsTheTx16x64Divergence() throws Exception {
@@ -200,10 +207,10 @@ class AvifFullPlaneE2ETest implements LibraryInstallSupport {
                         .toAbsolutePath());
         assertTrue(line.contains("TILES n=1"), () -> "the stream must be 1 tile: " + line);
         assertTrue(line.contains("blocks=5 covered=512 frame=512 overlap=0 "
-                        + "symBits=704 payloadBits=7368"),
+                        + "symBits=585 payloadBits=7368"),
                 () -> "the recorded TX_16X64 walk moved: " + line);
-        assertTrue(line.contains("MODESA n=5 (1,2,10,0) (0,17,0,0) (0,9,11,0) "
-                        + "(0,17,0,0) (0,3,6,-3)"),
+        assertTrue(line.contains("MODESA n=5 (1,2,0,0) (0,2,0,0) (1,2,0,0) "
+                        + "(0,17,6,2) (0,2,9,0)"),
                 () -> "the recorded mode records moved: " + line);
     }
 

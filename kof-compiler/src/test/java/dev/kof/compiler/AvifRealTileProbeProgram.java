@@ -155,7 +155,7 @@ main() {
         walk = Av1Partition(tiles.get(ti), miw, mih)
         walk.useReader(tsym)
         walk.bindDecoder(tile)
-        var tsteps = walk.walkTile(t0r, t0c, t1r, t1c)
+        var tsteps = walk.walkTileSb(t0r, t0c, t1r, t1c, av1SuperblockSize(seq.use128x128Superblock))
         var si = 0
         while (si < tsteps.size) {
             allSteps.add(tsteps.get(si))

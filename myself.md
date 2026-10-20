@@ -2,11 +2,18 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 19/10 — 153ª PASSAGEM: §760 TX_16X64 — REPRODUTOR MÍNIMO landado (`avif_enc_nopal_128x64_cu0.avif`, 128x64 xadrez 4x4 `-cpu-used 0`, 1 tile; falha com os mesmos 5 blocos e 704/7368 bits que o tile 0 do fixture 192x64) e maquinaria da caminhada AUDITADA LIMPA: 102 contextos base/eob repetem exactamente; `Default_Scan_16x32` da spec 512/512; tabelas EOB/`eobMultiSize`/partição == libaom; auditoria de CDFs de modo verde; inícios de payload provados (o tile 1 do ficheiro 192x64 descodifica exacto; shifts de 1/2 bytes não recuperam a referência). PARADOXO: a referência tem um XADREZ no primeiro bloco (não pode ser `skip=1`) mas o decode lê `skip=1` com a CDF auditada ⇒ a divergência está no primeiro par partição/skip, a montante da caminhada de coeficientes.
-doing: §760 — reprodutor mínimo + auditoria limpa; próximo = oráculo skip-aware (§761) e diff do trace DESDE O PRIMEIRO SÍMBOLO
-next: §760 — reconstruir o oráculo instrumentado skip-aware (sem `av1_read_coeffs_txb` para `skip_txfm`, com `av1_reset_entropy_context`) e comparar o seu trace de símbolos com o do Kof desde o primeiro símbolo (partição e skip do bloco 0); depois o desync do TX_16X64 propriamente dito
+last: 19/10 — 154ª PASSAGEM: CAUSA RAIZ DA FAMÍLIA CU0 do §760 CORRIGIDA — a caminhada do tile ignorava `use_128x128_superblock` (TRUE em todos os fixtures `-cpu-used 0`, FALSE nos cpu-used 6 = a divisão exata entre falhar e descodificar). Fix: `av1SuperblockSize(use128)` + `Av1Partition.setSuperblockSize`/`walkTileSb` (passo de 128 mi + decoder notificado) + `Av1TileDecode.setSuperblockSize` para o `av1IntraAvail` (luma e chroma) + entradas 128x128 do `Partition_Subsize` (HORZ_A/B 128x64, VERT_A/B 64x128; eram BLOCK_INVALID). ORÁCULO construído: harness C mínimo ligado a um libaom novo (tip 9440aeedd; `aom_dsp/bitreader+entdec+entcode` + CDFs default do `entropymode.c`) que descodifica o primeiro bloco do payload que falha IGUAL ao Kof pós-fix (`split_or_horz=1 partition=9 skip=1 y_mode=0 uv_mode=0 palette=0 filter_intra=0 tx_size=2`). Decodes gravados cu0 mudaram (128x64 704->585; 2 tiles 4632->4513, intervalo skipped ainda 30->30 zero); fixtures de superbloco 64 intactos.
+doing: §760 — família CU0 corrigida (superbloco 128); próximo = a divergência no skip do bloco 1, com o oráculo libaom
+next: §760 — estender o harness do oráculo (sym5/sym6 em /tmp/aomo) passo a passo a partir do bloco 1 e encontrar o primeiro símbolo divergente; depois o desync real e, a seguir, §761 (rebuild skip-aware do oráculo do tile-recon)
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 19/10 (154ª) — §760 família CU0: superbloco 128 corrigido + oráculo libaom construído
+- **SHA:** a registar no commit desta passagem.
+- **FIX:** `use_128x128_superblock` honrado pela caminhada (`av1SuperblockSize`, `walkTileSb`, `setSuperblockSize` no driver/chroma, `Partition_Subsize` 128x128).
+- **ORÁCULO:** harness C mínimo + clone libaom (tip 9440aeedd) — primeira cadeia de símbolos validada 1:1 (partição reunida, partição, skip, y, uv, palette, filter-intra, tx-size).
+- **MEDIÇÕES:** 128x64 cu0 704->585; 2 tiles 4632->4513; skipped 30->30 (zero bits); 64-superbloco 11400/11400 intacto.
+- **PRÓXIMO:** bloco 1 skip (Kof 0 vs libaom 1 na cadeia) — estender o oráculo símbolo a símbolo.
 
 ## Sessão 19/10 (153ª) — §760 TX_16X64: reprodutor mínimo + auditoria limpa
 - **SHA:** a registar no commit desta passagem.

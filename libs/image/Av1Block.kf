@@ -103,6 +103,15 @@ Int av1TxSizeToBsize(Int txSz) {
     return listOf(0, 3, 6, 9, 12, 1, 2, 4, 5, 7, 8, 10, 11, 16, 17, 18, 19, 20, 21).get(txSz)
 }
 
+// The sequence's superblock size index: 12 = BLOCK_64X64, 15 =
+// BLOCK_128X128 (`use_128x128_superblock`), libaom `cm->seq_params->sb_size`.
+Int av1SuperblockSize(Bool use128) {
+    if (use128) {
+        return 15
+    }
+    return 12
+}
+
 // Partition_Subsize[ p ][ bS ]; BLOCK_INVALID (22) when not allowed.
 Int av1BlockPartitionSubsize(Int p, Int bs) {
     var rows = listOf(

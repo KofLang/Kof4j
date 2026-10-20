@@ -55,12 +55,19 @@ class Av1Partition {
     List<Int[]> store
     List<Int[]> steps
     Av1TileDecode? decoder
+    // The superblock size this walk starts from: 12 = BLOCK_64X64 (the default)
+    // or 15 = BLOCK_128X128 when the sequence sets `use_128x128_superblock`.
+    // libaom's `decode_tile` steps `mi_row`/`mi_col` by `cm->seq_params.mib_size`
+    // (16 or 32 mi) and starts `decode_partition` at the SAME size — the
+    // partition CDF row and the allowed partition types both depend on it.
+    Int sbBs
 
     constructor(Int[] data, Int miCols, Int miRows) {
         this.sym = Av1Symbol(data)
         this.modes = Av1ModeCdf()
         this.miCols = miCols
         this.miRows = miRows
+        this.sbBs = 12
         this.above = new Int[miCols + 16]
         this.left = new Int[16]
         this.store = listOf()
@@ -100,6 +107,17 @@ class Av1Partition {
         this.decoder = tile
     }
 
+    // Sets the SUPERBLOCK size the walk starts from: 12 = BLOCK_64X64 (the
+    // default) or 15 = BLOCK_128X128 when the sequence's
+    // `use_128x128_superblock` is 1. libaom starts `decode_partition` at
+    // `cm->seq_params->sb_size` and steps by `mib_size` (16 or 32 mi); the
+    // partition symbol's CDF row and the allowed partition types both depend
+    // on it, so a 128-superblock stream decoded as 64 desyncs at the first
+    // partition symbol.
+    void setSuperblockSize(Int bs) {
+        this.sbBs = bs
+    }
+
     // Walks the whole frame, one 64x64 superblock at a time, zeroing the left
     // context per superblock row (libaom `av1_zero_left_context`).
     List<Int[]> walk() {
@@ -121,6 +139,18 @@ class Av1Partition {
     // array needs no reset here: each tile writes only its own columns (blocks
     // never cross a tile boundary — tiles are superblock-aligned), and the
     // `left` context is zeroed per superblock row by the loop.
+    // `walkTile` with the sequence's superblock size (12 = 64x64, 15 = 128x128).
+    // The walk start size and the bound decoder's availability margins both
+    // depend on it; the caller reads `use_128x128_superblock` from the sequence.
+    List<Int[]> walkTileSb(Int r0, Int c0, Int r1, Int c1, Int sb) {
+        this.sbBs = sb
+        var dec = this.decoder
+        if (dec != null) {
+            dec.setSuperblockSize(sb)
+        }
+        return this.walkTile(r0, c0, r1, c1)
+    }
+
     List<Int[]> walkTile(Int r0, Int c0, Int r1, Int c1) {
         // The bound decoder's availability margins are TILE-relative (libaom
         // `set_offsets`: `up_available = mi_row > tile->mi_row_start`), so it
@@ -130,15 +160,19 @@ class Av1Partition {
         if (dec0 != null) {
             dec0.setTileOrigin(r0, c0)
         }
+        var step = 16
+        if (this.sbBs == 15) {
+            step = 32
+        }
         var r = r0
         while (r < r1) {
             this.zeroLeft()
             var c = c0
             while (c < c1) {
-                this.decodePartition(r, c, 12)
-                c = c + 16
+                this.decodePartition(r, c, this.sbBs)
+                c = c + step
             }
-            r = r + 16
+            r = r + step
         }
         return this.steps
     }
