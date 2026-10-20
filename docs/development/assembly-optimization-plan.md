@@ -208,7 +208,7 @@ if (condition) {
 }
 ```
 
-must reach the backend already represented as a minimal flow.
+must reach the backend already represented as a minimal flow. **§3 O2 jump threading WIRED (14/10):** `JumpThreading` is now LIVE in the production `Optimizer.passes()` (between algebraic simplification and dead-effect elimination), unconditional jumps only. Two guards make it safe, both found by MEASURING the JS decompiler's failure: (1) only a trampoline entered PURELY by jumps is threaded — when the previous op falls into it, the `Label(L); Jump(M)` is a structural JOIN (the merge of an if-expression) and retargeting the jumps that enter it makes their target look like a region EXIT; (2) conditional jumps are not retargeted at all (the `JsExpressionStatementParser` requires a `KofConditionalJump` whose target is the very next label — `new JumpThreading(true)` opts in for non-JS consumers). Plus the orphaned-trampoline removal from the previous slice. This UNBLOCKS `D-JS-ROBUST` without touching the JS backend: the earlier conclusion that the JS decompiler needed multi-file changes was wrong — the pass just had to avoid rewriting the shapes the decompiler depends on. Proof: `JumpThreadingTest` 11/11 (incl. `aTrampolineReachedByFallThroughIsNotThreaded`, PROVEN RED with the guard removed → `nestedJs` fails `KofJS: store with empty stack`) + `KofJsE2ETest` 38/38 + `KofSwitchExprE2ETest` 32/32 + `CoreRegressionE2ETest` 104/104 + broad backend batch 408/408 (cross riscv64/aarch64, register locals, peepholes, DWARF, determinism).
 
 ---
 

@@ -114,6 +114,7 @@ public final class Optimizer {
         ops = STRENGTH_REDUCTION.run(ops, positions);
         // §3 O1: algebraic simplification of absorbing elements (x*0, x&0, x%1).
         ops = ALGEBRAIC_SIMPLIFICATION.run(ops, positions);
+        ops = new JumpThreading().run(ops, positions);
         ops = deadEffects(ops, positions);
         ops = reachability(ops, positions);
         ops = removeJumpToNext(ops, positions);

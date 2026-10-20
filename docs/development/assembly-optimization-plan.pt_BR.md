@@ -208,7 +208,7 @@ if (condition) {
 }
 ```
 
-deve chegar ao backend já representado como um fluxo mínimo.
+deve chegar ao backend já representado como um fluxo mínimo. **Jump threading do §3 O2 LIGADO (14/10):** o `JumpThreading` agora esta VIVO no `Optimizer.passes()` de producao (entre a simplificacao algebrica e a eliminacao de efeitos mortos), so saltos incondicionais. Duas guardas o tornam seguro, ambas achadas MEDINDO a falha do decompilador JS: (1) so e threadado um trampolim atingido PURAMENTE por saltos — quando a op anterior cai nele, o `Label(L); Jump(M)` e um JOIN estrutural (o merge de um if-expressao) e retargetar os saltos que entram nele faz o alvo parecer uma SAIDA de regiao; (2) saltos condicionais nao sao retargetados (o `JsExpressionStatementParser` exige um `KofConditionalJump` cujo alvo e o label imediatamente seguinte — `new JumpThreading(true)` opta por incluir para consumidores nao-JS). Mais a remocao de trampolim orfao da fatia anterior. Isso DESBLOQUEIA `D-JS-ROBUST` sem tocar o backend JS: a conclusao anterior de que o decompilador JS precisaria de mudancas multi-arquivo estava errada — o passe so precisava evitar reescrever as formas de que o decompilador depende. Prova: `JumpThreadingTest` 11/11 (incl. `aTrampolineReachedByFallThroughIsNotThreaded`, PROVADO RED com a guarda removida → `nestedJs` falha `KofJS: store with empty stack`) + `KofJsE2ETest` 38/38 + `KofSwitchExprE2ETest` 32/32 + `CoreRegressionE2ETest` 104/104 + lote amplo de backend 408/408 (cross riscv64/aarch64, register locals, peepholes, DWARF, determinismo).
 
 ---
 

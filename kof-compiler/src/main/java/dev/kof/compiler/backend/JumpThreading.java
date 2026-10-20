@@ -67,9 +67,17 @@ public final class JumpThreading implements IrPass {
         //    that label always jumps to the jump's target.
         Map<LabelId, LabelId> tramp = new HashMap<>();
         for (int i = 0; i + 1 < ops.size(); i++) {
-            if (ops.get(i) instanceof KofLabel kl && ops.get(i + 1) instanceof KofJump j) {
-                tramp.putIfAbsent(kl.label(), j.target());
+            if (!(ops.get(i) instanceof KofLabel kl) || !(ops.get(i + 1) instanceof KofJump j)) {
+                continue;
             }
+            // Only thread a trampoline entered PURELY by jumps. When the
+            // previous op falls into it, the trampoline is a structural JOIN
+            // (e.g. the merge of an if-expression), and retargeting the jumps
+            // that enter it makes their target look like a region EXIT to the
+            // JS decompiler — measured: `KofSwitchExprE2ETest.nestedJs` broke
+            // exactly this way (a jump retargeted past the outer region).
+            if (fallsThrough(ops, i - 1)) continue;
+            tramp.putIfAbsent(kl.label(), j.target());
         }
         if (tramp.isEmpty()) return ops;
 
