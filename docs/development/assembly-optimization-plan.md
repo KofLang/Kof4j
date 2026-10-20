@@ -675,7 +675,7 @@ same flags
 same compiler version
 ```
 
-the result must be reproducible.
+the result must be reproducible. **§20 artifact determinism LANDED (14/10):** `OptimizerDeterminismTest` only proves the OPTIMIZER is deterministic (same ops in, same ops out). §20 claims the emitted result is reproducible, so new `NativeAsmDeterminismTest` compiles the same source twice into two SEPARATE output directories and asserts the executables are byte-identical — an end-to-end check that also covers the §7 ISA peepholes and the label counter (both only visible after emission). Two shapes (loop+branch+arithmetic; branch-heavy classify) both reproduce exactly. Proof `NativeAsmDeterminismTest` 2/2.
 
 This helps:
 

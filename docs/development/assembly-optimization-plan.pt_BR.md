@@ -675,7 +675,7 @@ mesmas flags
 mesma versão do compilador
 ```
 
-o resultado deve ser reproduzível.
+o resultado deve ser reproduzível. **Determinismo do artefato do §20 POUSADO (14/10):** o `OptimizerDeterminismTest` so prova que o OTIMIZADOR e deterministico (mesmas ops entram, mesmas ops saem). O §20 afirma que o resultado emitido e reproduzivel, entao o novo `NativeAsmDeterminismTest` compila a mesma fonte duas vezes em dois diretorios de saida SEPARADOS e assevera que os executaveis sao byte-identicos — uma checagem ponta-a-ponta que tambem cobre os peepholes de ISA do §7 e o contador de labels (ambos so visiveis apos a emissao). Duas formas (laco+branch+aritmetica; classify com muitos branches) reproduzem exatamente. Prova `NativeAsmDeterminismTest` 2/2.
 
 Isso facilita:
 
