@@ -123,7 +123,7 @@ main() {
     var totalSymBits = 0
     var totalPayloadBits = 0
     var tile = Av1TileDecode(frame, stride, mw, mh, cfg, h.lossless, 1, 3, fi, pal, seq.bitDepth, txMode, h.baseQIdx, 0, 0, 0, 0, dcq, acq, de, 0, h.reducedTxSet, sym, Av1CoeffCdfStore(h.baseQIdx), Av1TxType(sym), new Int[ctxW * ctxH], new Int[ctxW], new Int[ctxH], levels, listOf<Int>(), modes, chroma, 1, 1, levelsU, levelsV, txTypesU, txTypesV, chromaPreds)
-    var walk = Av1Partition(data, miw, mih)
+    var walk = Av1Partition(data, miw, mih, av1RestorationFor(h.lrTypeY, h.lrTypeU, h.lrTypeV, h.lrUnitSize0, h.lrUnitSize1, 1, 1, mw, mh, av1SuperblockSize(seq.use128x128Superblock)))
     var tline = ""
     var ti = 0
     while (ti < tiles.size) {
@@ -152,7 +152,7 @@ main() {
         chromaPreds = listOf<Int>()
         chroma = Av1ChromaPlanes(chroma.u, chroma.strideU, chroma.wU, chroma.hU, new Int[ctxW], new Int[ctxH], chroma.v, chroma.strideV, chroma.wV, chroma.hV, new Int[ctxW], new Int[ctxH])
         tile = Av1TileDecode(frame, stride, mw, mh, cfg, h.lossless, 1, 3, fi, pal, seq.bitDepth, txMode, h.baseQIdx, 0, 0, 0, 0, dcq, acq, de, 0, h.reducedTxSet, tsym, Av1CoeffCdfStore(h.baseQIdx), Av1TxType(tsym), new Int[ctxW * ctxH], new Int[ctxW], new Int[ctxH], levels, listOf<Int>(), modes, chroma, 1, 1, levelsU, levelsV, txTypesU, txTypesV, chromaPreds)
-        walk = Av1Partition(tiles.get(ti), miw, mih)
+        walk = Av1Partition(tiles.get(ti), miw, mih, av1RestorationFor(h.lrTypeY, h.lrTypeU, h.lrTypeV, h.lrUnitSize0, h.lrUnitSize1, 1, 1, mw, mh, av1SuperblockSize(seq.use128x128Superblock)))
         walk.useReader(tsym)
         walk.bindDecoder(tile)
         var tsteps = walk.walkTileSb(t0r, t0c, t1r, t1c, av1SuperblockSize(seq.use128x128Superblock))

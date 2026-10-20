@@ -146,72 +146,67 @@ class AvifFullPlaneE2ETest implements LibraryInstallSupport {
     }
 
     /**
-     * A SKIPPED block ({@code skip_txfm == 1}) reads NO coefficient symbols:
-     * libaom's {@code read_coeffs_tx_intra_block} guards the whole
-     * {@code av1_read_coeffs_txb} call on {@code !mbmi->skip_txfm}, and
-     * {@code decode_block} then resets the block's entropy contexts
-     * ({@code av1_reset_entropy_context}). Fixture: the same 4x4-pixel
-     * checkerboard 16/235, encoded with {@code -cpu-used 0} (the slower search
-     * makes the first block skip=1), 2x1 tiles, palette off. The {@code TILESTATS}
-     * prefix is the driver's per-tile stage data: tile 0's block 0 runs
-     * 10 -> 34 -> 34 (its transform size ends at 34 and its residual ends at
-     * 30: ZERO coefficient bits) and the tile yields 29 transform blocks /
-     * 100 levels. Before the guard the same block ran past its transform-size
-     * read (hundreds of coefficient bits the encoder never wrote). Tile 1's own
-     * sync
-     * ({@code b32/txb256/nz256}, its exact-payload decode) is the control: the
-     * guard must not disturb a block that is not skipped.
+     * The same 192x64 -cpu-used 0 checkerboard with the RESTORATION syntax read
+     * ({@code known-bugs} §760): both tiles now consume their whole payload and
+     * reconstruct the checkerboard. The pre-fix record ({@code t0:b5/txb29/
+     * nz100/st10,30,30,33,33}) was an ARTIFACT of the 16-bit shift — the frame
+     * restores its luma with a WIENER filter, libaom reads the unit's
+     * coefficients BEFORE the first partition symbol
+     * ({@code loop_restoration_read_sb_coeffs}, tell 1 -> 16 in the reference
+     * decode), and a walk that skips them decodes every later symbol from the
+     * wrong bits. The reference decoder reads 96 blocks over the two tiles and
+     * ends at bit 11296 of 11296.
      */
     @Test
-    void skippedBlockReadsNoCoefficientSymbols() throws Exception {
+    void cu0TwoTileStreamDecodesBothTilesInFull() throws Exception {
         var line = runFullPlaneProbe(
                 Path.of("src/test/resources", "avif_enc_nopal_cu0_2tile192.avif")
                         .toAbsolutePath());
-        assertTrue(line.contains("t0:b5/txb29/nz100/st10,30,30,33,33"),
-                () -> "a skipped block must consume no coefficient symbols: " + line);
-        assertTrue(line.contains("t1:b32/txb256/nz256"),
-                () -> "the non-skipped tile must keep its exact decode: " + line);
+        assertTrue(line.contains("TILEY t0(0,0)=17(4,0)=234 t1(128,0)=17(132,0)=234"),
+                () -> "both tiles must reconstruct the checkerboard: " + line);
+        assertTrue(line.contains("t0:b64/txb512/nz512/st128,45,45,255,255"),
+                () -> "tile 0 must decode its whole superblock: " + line);
+        assertTrue(line.contains("pos7368/pay7368"),
+                () -> "tile 0 must consume its whole payload: " + line);
+        assertTrue(line.contains("t1:b32/txb256/nz256/st64,28,28,239,239")
+                        && line.contains("pos3928/pay3928"),
+                () -> "tile 1 must keep its whole-payload decode: " + line);
     }
 
     /**
-     * RECORDED, not asserted as correct ({@code known-bugs} §760): the SMALLEST
-     * self-contained reproducer of the TX_16X64 desync — 128x64, 4x4-pixel
-     * checkerboard 16/235, {@code -cpu-used 0}, ONE tile (its tile stream is
-     * byte-identical to the 192x64 fixture's tile 0, so it decodes identically
-     * and isolates the failure from the tile split). The walk reads 5 blocks —
-     * the first SB as {@code PARTITION_VERT_4} (four 16x64 strips) plus the
-     * second SB — and stops at 704 of 7368 bits; the reference decodes a
-     * checkerboard while Kof reconstructs a flat ~127.
+     * FIXED 20/10 ({@code known-bugs} §760): the SMALLEST self-contained
+     * reproducer — 128x64, 4x4-pixel checkerboard 16/235, {@code -cpu-used 0},
+     * ONE tile (its tile stream is byte-identical to the 192x64 fixture's tile
+     * 0). The walk now reads 64 blocks and consumes 7368 of 7368 payload bits;
+     * its partition tree — {@code SPLIT -> SPLIT -> SPLIT -> VERT} — is
+     * IDENTICAL to libaom's own decoder (patched {@code aomdec} on the same
+     * fixture: {@code PART mi=0,0 bs=15 p=3 tell=18}, {@code bs=12 p=3
+     * tell=21}, {@code bs=9 p=3 tell=24}, {@code bs=6 p=2 tell=27}).
      *
-     * <p>Audit trail measured for the next slice: the failing transform block's
-     * 102 base/eob contexts replay EXACTLY against an independent computation
-     * from the decoded levels; the 16x64 effective scan equals the spec's
-     * {@code Default_Scan_16x32} entry for entry (512/512); the EOB group/offset
-     * tables match libaom's; the partition context tables and formulas are
-     * libaom-exact and the mode-CDF audit is green. The reference pixels imply
-     * the FIRST block cannot be {@code skip=1} while the decode says it is, so
-     * the divergence sits at or before the first block's skip symbol —
-     * upstream of the coefficient walk.
-     *
-     * <p>The 154th pass moved these recorded numbers (704/7368 -> 585/7368 and
-     * the mode records) when the tile walk started honouring the sequence's
-     * {@code use_128x128_superblock}: these encodes use 128x128 superblocks and
-     * the walk had hard-coded 64x64. The recorded divergence itself is
-     * unchanged; the walk now matches libaom's own reader for the first block's
-     * eight mode-info symbols.
+     * <p>The ROOT CAUSE was measured, not inferred: the frame sets
+     * {@code lr_type = WIENER} for luma, and libaom reads a restoration unit's
+     * coefficients at the start of EVERY superblock BEFORE the partition
+     * symbol ({@code decode_partition} -> {@code av1_loop_restoration_corners_
+     * in_sb} -> {@code loop_restoration_read_sb_coeffs}). Kof read none, so
+     * the first partition symbol landed 16 bits early and the whole tile was
+     * decoded from the wrong position - the "5 blocks / 585 bits" tree was the
+     * artifact. {@code Av1Restoration} now reads that syntax.
      */
     @Test
-    void cu0SingleTileStreamRecordsTheTx16x64Divergence() throws Exception {
+    void cu0SingleTileStreamDecodesItsWholePayload() throws Exception {
         var line = runFullPlaneProbe(
                 Path.of("src/test/resources", "avif_enc_nopal_128x64_cu0.avif")
                         .toAbsolutePath());
         assertTrue(line.contains("TILES n=1"), () -> "the stream must be 1 tile: " + line);
-        assertTrue(line.contains("blocks=5 covered=512 frame=512 overlap=0 "
-                        + "symBits=585 payloadBits=7368"),
-                () -> "the recorded TX_16X64 walk moved: " + line);
-        assertTrue(line.contains("MODESA n=5 (1,2,0,0) (0,2,0,0) (1,2,0,0) "
-                        + "(0,17,6,2) (0,2,9,0)"),
-                () -> "the recorded mode records moved: " + line);
+        assertTrue(line.contains("blocks=64 covered=512 frame=512 overlap=0 "
+                        + "symBits=7368 payloadBits=7368"),
+                () -> "the walk must consume the whole payload: " + line);
+        assertTrue(line.contains("PART n=8 (r0,c0,bs15)p3 (r0,c0,bs12)p3 (r0,c0,bs9)p3 "
+                        + "(r0,c0,bs6)p2 (r0,c4,bs6)p2 (r4,c0,bs6)p2 (r4,c4,bs6)p2 "
+                        + "(r0,c8,bs9)p3"),
+                () -> "the partition tree must match the reference decoder: " + line);
+        assertTrue(line.contains("TILEY t0(0,0)=17(4,0)=234"),
+                () -> "the tile must reconstruct the checkerboard: " + line);
     }
 
     /** One full plane's rows, read from ffmpeg's decoded YUV 4:2:0. */

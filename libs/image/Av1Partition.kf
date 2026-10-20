@@ -4,6 +4,7 @@ import image.Av1Block
 import image.Av1DecodeTileRecon
 import image.Av1ModeCdf
 import image.Av1Symbol
+import image.Av1Restoration
 
 // kof.image — AV1 partition tree walk, slice 3o of the AVIF front (plan §34).
 // The recursive `decode_partition( r, c, bSize )` of AV1 §5.11.4 / §6.10.4:
@@ -55,6 +56,12 @@ class Av1Partition {
     List<Int[]> store
     List<Int[]> steps
     Av1TileDecode? decoder
+    // The tile's loop-restoration syntax reader (libaom `decode_partition`
+    // reads a restoration unit's coefficients at the start of every
+    // SUPERBLOCK, before the partition symbol). Null when the frame restores
+    // nothing — then the walk reads no restoration bits at all.
+    Av1Restoration? lr
+
     // The superblock size this walk starts from: 12 = BLOCK_64X64 (the default)
     // or 15 = BLOCK_128X128 when the sequence sets `use_128x128_superblock`.
     // libaom's `decode_tile` steps `mi_row`/`mi_col` by `cm->seq_params.mib_size`
@@ -63,6 +70,17 @@ class Av1Partition {
     Int sbBs
 
     constructor(Int[] data, Int miCols, Int miRows) {
+        this.initWalk(data, miCols, miRows)
+    }
+
+    // A tile whose frame restores: the walk reads the restoration units of
+    // each superblock before its partition symbol.
+    constructor(Int[] data, Int miCols, Int miRows, Av1Restoration? lr) {
+        this.initWalk(data, miCols, miRows)
+        this.lr = lr
+    }
+
+    void initWalk(Int[] data, Int miCols, Int miRows) {
         this.sym = Av1Symbol(data)
         this.modes = Av1ModeCdf()
         this.miCols = miCols
@@ -151,6 +169,14 @@ class Av1Partition {
         return this.walkTile(r0, c0, r1, c1)
     }
 
+    // Binds the frame's restoration syntax. The walk reads one SB's unit
+    // coefficients before that SB's partition (never inside the recursion:
+    // libaom returns early from `av1_loop_restoration_corners_in_sb` unless
+    // the block IS the superblock).
+    void setRestoration(Av1Restoration r) {
+        this.lr = r
+    }
+
     List<Int[]> walkTile(Int r0, Int c0, Int r1, Int c1) {
         // The bound decoder's availability margins are TILE-relative (libaom
         // `set_offsets`: `up_available = mi_row > tile->mi_row_start`), so it
@@ -169,6 +195,10 @@ class Av1Partition {
             this.zeroLeft()
             var c = c0
             while (c < c1) {
+                var lr0 = this.lr
+                if (lr0 != null) {
+                    lr0.readSb(this.sym, r, c, this.sbBs)
+                }
                 this.decodePartition(r, c, this.sbBs)
                 c = c + step
             }
