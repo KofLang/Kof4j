@@ -538,7 +538,7 @@ C / foreign function
 
 deve produzir exatamente a convenção esperada pelo alvo.
 
-Uma otimização que quebra ABI é incorreta mesmo que produza assembly aparentemente melhor.
+Uma otimização que quebra ABI é incorreta mesmo que produza assembly aparentemente melhor. **Alinhamento de pilha do §14 POUSADO (14/10):** "Otimizacoes nunca podem alterar incorretamente … o alinhamento de pilha" NAO se sustentava: MEDIDO (simulacao do delta de `%rsp` sobre o asm emitido) que corpos de metodos gerados chamavam com `%rsp % 16 == 8` — um push de operando impar em voo — em todo call sob uma janela de push impar, ex.: `main` apos `leaq System.out; pushq %rax` e entao tres calls. SysV exige 16 bytes de alinhamento no `call`; um callee que use SSE alinhado (glibc `pthread_create`) falha — a classe ja registrada no §253. Novo `NativeX86StackAlign` (passe de texto, roda por ULTIMO no peephole apos toda dobra de push/pop decidir a forma final da pilha) insere `subq $8,%rsp` antes e `addq $8,%rsp` depois de cada call desalinhado. **Um risco de argumento-na-pilha foi achado e corrigido no pouso:** um call com 7+ args empurra os args de pilha logo antes do `call` (arg7 em `0(%rsp)`), entao padding entre eles faz o callee ler a palavra de padding como arg7 — o `Av1CoeffsE2ETest` estourou os limites; o `subq` agora e inserido ABAIXO desses pushes (so a forma `pushq -N(%rbp)` do emissor e tratada como arg de pilha). MEDIDO num programa real: metodos gerados 6 desalinhados -> 0. Prova `NativeX86StackAlignTest` 5/5 (incl. a colocacao do arg de pilha) + `Av1CoeffsE2ETest` + `NativeE2ETest` 68/68 + `KofTimeE2ETest` + `CoreRegressionE2ETest` 104/104 + lote amplo 539/539.
 
 ---
 

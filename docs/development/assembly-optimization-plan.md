@@ -538,7 +538,7 @@ C / foreign function
 
 must produce exactly the convention expected by the target.
 
-An optimization that breaks the ABI is incorrect even if it appears to produce better assembly.
+An optimization that breaks the ABI is incorrect even if it appears to produce better assembly. **§14 stack alignment LANDED (14/10):** "Optimizations must never incorrectly change … stack alignment" was NOT held: MEASURED (a `%rsp`-delta simulation over the emitted asm) that generated method bodies called with `%rsp % 16 == 8` — an odd operand push in flight — at every call site under an odd-push span, e.g. `main` after `leaq System.out; pushq %rax` then three calls. SysV requires 16-byte alignment at `call`; a callee using aligned SSE (glibc `pthread_create`) faults — the class already recorded in §253. New `NativeX86StackAlign` (a text pass, run LAST in the peephole after every push/pop fold decides the final stack shape) inserts `subq $8,%rsp` before and `addq $8,%rsp` after each misaligned call. **A stack-passed-argument hazard was found and fixed during the landing:** a 7+-arg call pushes its stack args just before the `call` (arg7 at `0(%rsp)`), so padding between them makes the callee read the padding word as arg7 — `Av1CoeffsE2ETest` went out-of-bounds; the `subq` is now inserted BELOW those pushes (only the emitter's `pushq -N(%rbp)` form is treated as a stack arg). MEASURED on a real program: generated methods 6 misaligned → 0. Proof `NativeX86StackAlignTest` 5/5 (incl. the stack-arg placement) + `Av1CoeffsE2ETest` + `NativeE2ETest` 68/68 + `KofTimeE2ETest` + `CoreRegressionE2ETest` 104/104 + broad batch 539/539.
 
 ---
 

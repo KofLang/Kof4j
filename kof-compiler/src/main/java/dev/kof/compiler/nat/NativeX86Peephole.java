@@ -87,6 +87,9 @@ final class NativeX86Peephole {
         collapsed += NativeX86BranchFold.dropJumpToNext(lines);
         collapsed += NativeX86BranchFold.invertJumpOverJump(lines);
         collapsed += NativeX86LeaFold.foldLeaIntoDestination(lines);
+        // §14: LAST, after every push/pop fold decides the final operand-stack
+        // shape — pad any call whose %rsp is not 16-byte aligned (SysV).
+        collapsed += NativeX86StackAlign.alignCalls(lines, 0);
         sb.setLength(from);
         sb.append(String.join("\n", lines));
         return collapsed;
