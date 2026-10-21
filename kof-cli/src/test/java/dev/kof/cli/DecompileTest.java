@@ -8985,6 +8985,71 @@ class DecompileTest {
                 "zero-drift: findFirst/sumUntilNegative/skipZeros/allPositive — o break/continue com a semântica idêntica ao Java");
     }
 
+    @Test
+    void weather2DomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o domínio CLIMA-2 — 4 shapes sem código novo: o
+        // windChill com a fórmula de sensação térmica, o jacket com as
+        // faixas < (heavy/light/none), o isStorm com o && duplo de
+        // comparações e o daysAbove com o loop sobre Double[] (o ARRAY
+        // PRIMITIVO de doubles iterado no for-each — o contador de
+        // acima-do-limite). Zero-drift executado: 4.0/heavy/light/none/
+        // true/false/false/1 — 8/8 idênticos ao Java — a 87ª validação
+        // zero-código.
+        Path javaFile = dir.resolve("Weather2.java");
+        Files.writeString(javaFile, """
+                public class Weather2 {
+                    static double windChill(double tempC, double windKmh) {
+                        return tempC - windKmh * 0.05;
+                    }
+                    static String jacket(double tempC) {
+                        if (tempC < 10) { return "heavy"; }
+                        if (tempC < 20) { return "light"; }
+                        return "none";
+                    }
+                    static boolean isStorm(double rainMm, double windKmh) {
+                        return rainMm > 20 && windKmh > 50;
+                    }
+                    static int daysAbove(double[] temps, double threshold) {
+                        int count = 0;
+                        for (double t : temps) {
+                            if (t > threshold) { count++; }
+                        }
+                        return count;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Weather2.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Weather2.windChill(5.0, 20.0))
+                    println(Weather2.jacket(5.0))
+                    println(Weather2.jacket(15.0))
+                    println(Weather2.jacket(25.0))
+                    println(Weather2.isStorm(25.0, 60.0))
+                    println(Weather2.isStorm(25.0, 40.0))
+                    println(Weather2.isStorm(10.0, 60.0))
+                    var ts = new Double[3]
+                    ts[0] = 25.0; ts[1] = 31.0; ts[2] = 28.0
+                    println(Weather2.daysAbove(ts, 30.0))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 4.0 | heavy | light | none | true | false | false | 1
+        assertEquals("4.0\nheavy\nlight\nnone\ntrue\nfalse\nfalse\n1", output,
+                "zero-drift: windChill/jacket/isStorm/daysAbove idênticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
