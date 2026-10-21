@@ -7,7 +7,7 @@ import java.util.Set;
 
 /**
  * Caller/callee-saved register classification per target ABI (Phase C of
- * {@code docs/development/assembly-optimization-plan.md} §5: "caller/callee-saved
+ * {@code docs/assembly-optimization-plan.md} §5: "caller/callee-saved
  * awareness").
  *
  * <p>The register allocator must know which registers a callee may clobber

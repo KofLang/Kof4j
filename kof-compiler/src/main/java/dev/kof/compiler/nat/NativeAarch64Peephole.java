@@ -5,7 +5,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * §7 AArch64 of {@code docs/development/assembly-optimization-plan.md}
+ * §7 AArch64 of {@code docs/assembly-optimization-plan.md}
  * ("lower-cost instruction selection"): a text peephole over the aarch64 output
  * (after the riscv→aarch64 line translation). The riscv stack machine pushes a
  * value with {@code sub sp, sp, #8} + {@code str X, [sp]} and pops it with the

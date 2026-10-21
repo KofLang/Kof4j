@@ -18,7 +18,7 @@ import java.util.Set;
 
 /**
  * Jump threading over the linear op stream (Phase B/§3 O2 of
- * {@code docs/development/assembly-optimization-plan.md}: "jump threading").
+ * {@code docs/assembly-optimization-plan.md}: "jump threading").
  *
  * <p>A TRAMPOLINE is a block that is exactly {@code Label(L); Jump(M)} — reaching
  * {@code L} immediately jumps to {@code M}. Threading retargets every jump whose

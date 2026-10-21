@@ -24,7 +24,7 @@ import dev.kof.compiler.KofUnary;
 import java.util.Set;
 
 /**
- * Phase D of {@code docs/development/assembly-optimization-plan.md}: "each
+ * Phase D of {@code docs/assembly-optimization-plan.md}: "each
  * backend must explicitly declare which operations it supports."
  *
  * <p>The native backends declare theirs in {@code NativeOpSupport}; this is the

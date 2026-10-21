@@ -10,7 +10,7 @@ import java.util.Arrays;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * §20 (determinism) of {@code docs/development/assembly-optimization-plan.md}:
+ * §20 (determinism) of {@code docs/assembly-optimization-plan.md}:
  * "given same source, same target, same flags, same compiler version, the result
  * must be reproducible."
  *

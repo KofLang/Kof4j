@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * §22 (promotion criteria) of
- * {@code docs/development/assembly-optimization-plan.md}: an optimization must
+ * {@code docs/assembly-optimization-plan.md}: an optimization must
  * "not introduce target-dependent behavior in cross-target code".
  *
  * <p>{@code OptimizationScopeTest} proves WHICH passes are universal; this proves

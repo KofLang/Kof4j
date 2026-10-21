@@ -10,7 +10,7 @@ import java.util.TreeMap;
 
 /**
  * Register allocation over the {@link InterferenceGraph} (Phase C of
- * {@code docs/development/assembly-optimization-plan.md} §5: "allocation").
+ * {@code docs/assembly-optimization-plan.md} §5: "allocation").
  *
  * <p>The initial strategy is deliberately simple and deterministic, as §5
  * allows: greedy graph coloring in descending-degree order (ties broken by

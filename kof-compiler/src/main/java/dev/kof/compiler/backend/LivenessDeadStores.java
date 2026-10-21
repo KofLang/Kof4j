@@ -18,7 +18,7 @@ import java.util.Set;
 
 /**
  * Liveness-driven dead-store elimination (Phase C of
- * {@code docs/development/assembly-optimization-plan.md} §5: "allocation" /
+ * {@code docs/assembly-optimization-plan.md} §5: "allocation" /
  * §10).
  *
  * <p>This pass CONSUMES the Phase C {@link LivenessAnalysis}: a store to a slot

@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * §22 (promotion criteria) of
- * {@code docs/development/assembly-optimization-plan.md}: "An optimization that
+ * {@code docs/assembly-optimization-plan.md}: "An optimization that
  * improves x86_64 but degrades AArch64 and RISC-V should not be treated as
  * universal. It must be explicitly classified as target-specific."
  *

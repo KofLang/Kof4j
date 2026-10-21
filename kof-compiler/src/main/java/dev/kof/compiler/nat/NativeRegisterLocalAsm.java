@@ -4,7 +4,7 @@ import java.util.List;
 
 /**
  * x86-64 assembly fragments for the register-mapped local model (Phase D of
- * {@code docs/development/assembly-optimization-plan.md}; decision
+ * {@code docs/assembly-optimization-plan.md}; decision
  * {@code D-CODEGEN-REWRITE}).
  *
  * <p>Emits the exact instruction text the native backend's prologue, epilogue and

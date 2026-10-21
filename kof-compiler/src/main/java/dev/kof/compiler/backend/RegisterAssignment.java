@@ -10,7 +10,7 @@ import java.util.TreeSet;
 
 /**
  * Local→physical-register mapping (Phase D of
- * {@code docs/development/assembly-optimization-plan.md}; decision
+ * {@code docs/assembly-optimization-plan.md}; decision
  * {@code D-CODEGEN-REWRITE}, maintainer 13/10).
  *
  * <p>Resolves the {@link RegisterAllocator}'s ABSTRACT colours to real x86-64

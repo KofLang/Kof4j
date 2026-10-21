@@ -8,7 +8,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Phase B close criterion of {@code docs/development/assembly-optimization-plan.md}
+ * Phase B close criterion of {@code docs/assembly-optimization-plan.md}
  * §21: "measurable reduction in instructions on representative fixtures". These
  * fixtures go through the PRODUCTION {@link Optimizer#optimize}, so they pin the
  * wired pass pipeline (constant propagation + copy propagation + dead-store

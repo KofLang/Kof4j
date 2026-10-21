@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * §17 (benchmark-driven optimization) of
- * {@code docs/development/assembly-optimization-plan.md}: "no ISA-specific
+ * {@code docs/assembly-optimization-plan.md}: "no ISA-specific
  * optimization may be promoted just because it 'looks better in assembly'. Each
  * relevant optimization must have … a before/after comparison … correctness
  * validation."

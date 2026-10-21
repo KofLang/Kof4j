@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * §19 (debuggability) of {@code docs/development/assembly-optimization-plan.md}:
+ * §19 (debuggability) of {@code docs/assembly-optimization-plan.md}:
  * "Optimizations may remove variables or merge operations, but that should be
  * represented correctly in future DWARF information."
  *

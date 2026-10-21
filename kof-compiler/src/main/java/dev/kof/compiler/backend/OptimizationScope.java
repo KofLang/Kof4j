@@ -4,7 +4,7 @@ import java.util.List;
 
 /**
  * §22 (promotion criteria) of
- * {@code docs/development/assembly-optimization-plan.md}: an optimization that
+ * {@code docs/assembly-optimization-plan.md}: an optimization that
  * helps one ISA but hurts another "must be explicitly classified as
  * target-specific" — it should not silently pass as universal.
  *

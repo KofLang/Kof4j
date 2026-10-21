@@ -5,7 +5,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * §7 x86_64 of {@code docs/development/assembly-optimization-plan.md}
+ * §7 x86_64 of {@code docs/assembly-optimization-plan.md}
  * ("lower-cost instruction selection"): a text peephole over an emitted method
  * body. The x86-64 emitter is a stack machine — a value produced by one op is
  * {@code push}ed and consumed by the next op's {@code pop}. When a push is

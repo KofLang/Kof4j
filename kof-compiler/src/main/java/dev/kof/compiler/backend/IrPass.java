@@ -8,7 +8,7 @@ import java.util.Map;
 
 /**
  * An IR optimization pass (Phase A of
- * {@code docs/development/assembly-optimization-plan.md} §21: "define the pass
+ * {@code docs/assembly-optimization-plan.md} §21: "define the pass
  * pipeline").
  *
  * <p>A pass is a semantics-preserving rewrite of the linear op stream. It gets

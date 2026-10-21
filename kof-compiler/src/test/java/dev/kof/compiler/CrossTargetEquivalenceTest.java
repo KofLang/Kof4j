@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * §16 (cross-target equivalence) of
- * {@code docs/development/assembly-optimization-plan.md}: "the same Kof program
+ * {@code docs/assembly-optimization-plan.md}: "the same Kof program
  * should produce semantically equivalent results on x86_64/aarch64/riscv64. The
  * assembly does not need to be identical. It is necessary that results,
  * observable effects, ABI, layout, semantics are equivalent."

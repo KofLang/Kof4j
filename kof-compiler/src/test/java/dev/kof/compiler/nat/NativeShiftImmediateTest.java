@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * §7 x86_64 of {@code docs/development/assembly-optimization-plan.md}
+ * §7 x86_64 of {@code docs/assembly-optimization-plan.md}
  * ("reduction of instructions for constants"): a CONSTANT shift count uses the
  * immediate form {@code shl{l,q} $N, %{e,r}ax} instead of round-tripping the
  * count through {@code %rcx} ({@code pushq $N; popq %rcx; shl %cl}).

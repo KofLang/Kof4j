@@ -4264,6 +4264,18 @@ first; never the most interesting, never frozen-semantics). Individual locks:
   stack only, no API).
 - **D-ASSEMBLY-OPT-GO** — assembly-optimization authorized (from phase A,
   no semantics change).
+- **Closure 20/10:** plan CONCLUDED and moved to `docs/assembly-optimization-plan.md`
+  (three-states). All six §21 phases landed (A CFG/pass-pipeline, B constant/copy/DEAD/strength,
+  C liveness+interference+allocator+spill/call-aware, D target-lowering declarations for
+  native/cross/MCU/WASM, E 27 ISA slices across x86-64/aarch64/riscv64, F benchmark harness);
+  the §3–§22 criteria are each guarded by a test — jump threading wired (O2), §14 stack
+  alignment + ABI invariants, §15 padding layouts vs the real C compiler (+ §762 fixed),
+  §16 cross-target equivalence on 4 targets, §17 before/after measured on all three native
+  targets, §18 IR+asm metrics, §19 DWARF register locations, §20 artifact determinism,
+  §22 universal-vs-target-specific classification + target-independence proved. The remaining
+  large face the plan names (a multi-instruction lowering contract) is backend architecture
+  and stays maintainer-scoped; it is NOT a blocker to the conclusion, which covers the plan's
+  own promotion criteria.
 - **D-IMAGE-VISION-GO** — image-vision authorized.
 - **D-MULTIPARADIGMA-GO** — Tier 2.x authorized.
 - **D-BOOTSTRAP-GO** — Kof-in-Kof authorized.

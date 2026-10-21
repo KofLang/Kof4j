@@ -42,7 +42,7 @@ import dev.kof.compiler.KofUnary;
 import java.util.Set;
 
 /**
- * Phase D of {@code docs/development/assembly-optimization-plan.md} §6/§735:
+ * Phase D of {@code docs/assembly-optimization-plan.md} §6/§735:
  * "each backend must explicitly declare which operations it supports."
  *
  * <p>An EXPLICIT, machine-readable declaration of the IR operations the native

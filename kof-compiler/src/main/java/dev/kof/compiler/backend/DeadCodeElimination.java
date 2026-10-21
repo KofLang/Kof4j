@@ -24,7 +24,7 @@ import java.util.Set;
 
 /**
  * Dead store elimination over the linear op stream (Phase B of
- * {@code docs/development/assembly-optimization-plan.md} §10).
+ * {@code docs/assembly-optimization-plan.md} §10).
  *
  * <p>A store is DEAD when the slot it writes is overwritten by a later store
  * before any read of that slot — the first value is never observed. When such a

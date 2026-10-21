@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * §7 x86_64 of {@code docs/development/assembly-optimization-plan.md}
+ * §7 x86_64 of {@code docs/assembly-optimization-plan.md}
  * ("reduction of instructions for constants"): a CONSTANT right operand uses the
  * immediate form {@code op{l,q} $N, %{e,r}ax} instead of round-tripping it
  * through {@code %rcx}.

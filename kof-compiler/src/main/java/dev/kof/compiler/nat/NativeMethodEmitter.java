@@ -434,7 +434,7 @@ final class NativeMethodEmitter {
                 sb.append("    call kof_throw_string\n");
             }
             default -> {
-                // Phase D contract (docs/development/assembly-optimization-plan.md):
+                // Phase D contract (docs/assembly-optimization-plan.md):
                 // the emitter lowers exactly NativeOpSupport.X86_64; the switch's
                 // cases are its materialization (drift is caught by
                 // NativeOpSupportTest BEFORE this can run). R6: never silent.

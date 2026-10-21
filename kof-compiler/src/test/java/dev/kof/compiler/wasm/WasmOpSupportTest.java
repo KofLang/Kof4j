@@ -15,7 +15,7 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Phase D of {@code docs/development/assembly-optimization-plan.md}: "each
+ * Phase D of {@code docs/assembly-optimization-plan.md}: "each
  * backend must explicitly declare which operations it supports."
  *
  * <p>{@code NativeOpSupportTest} guards the native declarations; this guards the

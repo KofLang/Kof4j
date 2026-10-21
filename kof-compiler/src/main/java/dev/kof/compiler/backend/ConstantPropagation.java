@@ -23,7 +23,7 @@ import java.util.Map;
 
 /**
  * Constant propagation over the linear op stream (Phase B of
- * {@code docs/development/assembly-optimization-plan.md} §9).
+ * {@code docs/assembly-optimization-plan.md} §9).
  *
  * <p>When a literal is stored to a local slot and the slot is later read with no
  * intervening write, the read is replaced by the literal. This is a

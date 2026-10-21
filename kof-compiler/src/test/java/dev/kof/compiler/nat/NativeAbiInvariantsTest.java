@@ -17,7 +17,7 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * §14 (ABI and optimization) of {@code docs/development/assembly-optimization-plan.md}:
+ * §14 (ABI and optimization) of {@code docs/assembly-optimization-plan.md}:
  * "Optimizations must never incorrectly change … caller-saved; callee-saved;
  * stack alignment; parameter layout".
  *

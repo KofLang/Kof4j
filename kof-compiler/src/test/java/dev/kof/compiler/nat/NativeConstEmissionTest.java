@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * §7 x86_64 of {@code docs/development/assembly-optimization-plan.md}:
+ * §7 x86_64 of {@code docs/assembly-optimization-plan.md}:
  * "reduction of instructions for constants". An immediate that fits in a
  * sign-extended imm32 is emitted as a single {@code pushq $imm} instead of
  * {@code movq $imm, %rax; pushq %rax} (2 instructions → 1).

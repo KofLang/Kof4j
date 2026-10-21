@@ -97,7 +97,7 @@ public final class Optimizer {
                                              Map<KofOperation, SourcePosition> positions,
                                              java.util.Set<Integer> declaredSlots) {
         ops = OptimizerConstantFold.constantFold(ops, positions);
-        // Phase B of docs/development/assembly-optimization-plan.md: the new
+        // Phase B of docs/assembly-optimization-plan.md: the new
         // passes are stack-balanced load rewrites (a LoadLocal becomes a
         // LoadLiteral / another LoadLocal), so they never remove a store/load
         // pair the backends pattern-match on. Wired after folding so folded

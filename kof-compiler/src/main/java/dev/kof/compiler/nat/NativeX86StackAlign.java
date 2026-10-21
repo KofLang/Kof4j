@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * §14 (ABI and optimization) of {@code docs/development/assembly-optimization-plan.md}:
+ * §14 (ABI and optimization) of {@code docs/assembly-optimization-plan.md}:
  * "Optimizations must never incorrectly change … stack alignment".
  *
  * <p>The x86-64 System V ABI requires {@code %rsp} to be 16-byte aligned at every

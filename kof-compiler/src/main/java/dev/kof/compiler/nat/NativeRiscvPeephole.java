@@ -5,7 +5,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * §7 RISC-V 64 of {@code docs/development/assembly-optimization-plan.md}
+ * §7 RISC-V 64 of {@code docs/assembly-optimization-plan.md}
  * ("lower-cost instruction selection"): a text peephole over the riscv64 output.
  * The riscv stack machine pushes a value with {@code addi sp, sp, -8} +
  * {@code sd X, 0(sp)} and pops it with the {@code pop Y} assembler macro. When a

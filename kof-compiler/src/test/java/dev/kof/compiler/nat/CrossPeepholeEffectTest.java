@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * §17 (benchmark-driven optimization) of
- * {@code docs/development/assembly-optimization-plan.md}, "coverage on the
+ * {@code docs/assembly-optimization-plan.md}, "coverage on the
  * supported targets": the before/after measurement of the §7 peepholes must
  * cover the CROSS targets too, not only x86-64.
  *

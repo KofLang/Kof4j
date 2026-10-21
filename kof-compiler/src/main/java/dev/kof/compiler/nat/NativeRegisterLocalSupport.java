@@ -9,7 +9,7 @@ import java.util.List;
 
 /**
  * Register-mapped local support for the native x86-64 emitter (Phase D of
- * {@code docs/development/assembly-optimization-plan.md}; decision
+ * {@code docs/assembly-optimization-plan.md}; decision
  * {@code D-CODEGEN-REWRITE}).
  *
  * <p>Holds the {@link RegisterPlanner.Placement} for ONE method (or is absent when

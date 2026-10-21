@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * §7 x86_64 of {@code docs/development/assembly-optimization-plan.md}
+ * §7 x86_64 of {@code docs/assembly-optimization-plan.md}
  * ("reduction of instructions"): the return value is the last value pushed; when
  * that push is {@code pushq %rax} the {@code pushq %rax} + {@code popq %rax}
  * pair is a no-op and is dropped (the value is already in rax).

@@ -8,7 +8,7 @@ import java.util.Map;
 
 /**
  * Virtual-register numbering over a method's local slots (Phase A of
- * {@code docs/development/assembly-optimization-plan.md} §21: "define virtual
+ * {@code docs/assembly-optimization-plan.md} §21: "define virtual
  * registers").
  *
  * <p>The IR addresses locals by {@code (type, index)} slot pairs (a slot may be

@@ -4252,6 +4252,18 @@ individuais:
   stack apenas, sem API).
 - **D-ASSEMBLY-OPT-GO** — assembly-optimization autorizado (da fase A,
   sem mudança de semântica).
+- **Closure 20/10:** plano CONCLUÍDO e movido para `docs/assembly-optimization-plan.pt_BR.md`
+  (três estados). As seis fases do §21 pousaram (A CFG/pipeline, B constant/copy/dead/strength,
+  C liveness+interferência+alocador+spill/call-aware, D declaracoes de target-lowering para
+  native/cross/MCU/WASM, E 27 fatias de ISA em x86-64/aarch64/riscv64, F harness de benchmark);
+  os critérios do §3–§22 estão cada um guardado por teste — jump threading ligado (O2), §14
+  alinhamento de pilha + invariantes de ABI, §15 layouts com padding vs o compilador C real
+  (+ §762 corrigido), §16 equivalência cross-target em 4 alvos, §17 antes/depois medido nos
+  três alvos native, §18 métricas de IR+asm, §19 localizações de registrador no DWARF, §20
+  determinismo do artefato, §22 classificação universal-vs-target-specific + independência de
+  alvo provada. A face grande que o plano nomeia (contrato de lowering multi-instrução) é
+  arquitetura de backend e segue escopo da mantenedora; NÃO bloqueia a conclusão, que cobre os
+  próprios critérios de promoção do plano.
 - **D-IMAGE-VISION-GO** — image-vision autorizado.
 - **D-MULTIPARADIGMA-GO** — Tier 2.x autorizado.
 - **D-BOOTSTRAP-GO** — Kof-em-Kof autorizado.

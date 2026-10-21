@@ -13,7 +13,7 @@ import java.util.Map;
 
 /**
  * Strength reduction over the linear op stream (Phase B/§12 of
- * {@code docs/development/assembly-optimization-plan.md}).
+ * {@code docs/assembly-optimization-plan.md}).
  *
  * <p>Replaces a multiplication by a power of two with a left shift:
  * {@code x * 2^n} becomes {@code x << n}. On the stack IR the pattern is

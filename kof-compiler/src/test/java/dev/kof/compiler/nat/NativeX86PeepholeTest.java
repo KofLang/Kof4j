@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * §7 x86_64 of {@code docs/development/assembly-optimization-plan.md}
+ * §7 x86_64 of {@code docs/assembly-optimization-plan.md}
  * ("lower-cost instruction selection"): the {@code pushq %X; popq %Y} pair
  * collapses to {@code movq %X, %Y} (or vanishes when {@code X == Y}).
  */

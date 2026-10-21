@@ -4,7 +4,7 @@ import java.util.List;
 
 /**
  * Assembly-level metrics over an emitted x86-64 method body (§18 of
- * {@code docs/development/assembly-optimization-plan.md}).
+ * {@code docs/assembly-optimization-plan.md}).
  *
  * <p>{@code IrMetrics} counts the IR op stream. §18 also lists counters for the
  * emitted backend — instruction count, loads, stores, branches, calls — and the
