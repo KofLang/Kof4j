@@ -8735,6 +8735,63 @@ class DecompileTest {
                 "zero-drift: costPerLoad/cycleFor/isFull/timeFor idênticos ao Java");
     }
 
+    @Test
+    void pizza2DomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o domínio PIZZA-2 — 4 shapes sem código novo: o
+        // pricePerSlice com a divisão double/int, o sizeFor com as faixas
+        // <= (small/medium/large), o isVegetarian com o && de negação+positivo
+        // (!pepperoni && mushrooms) e o totalSlices com o produto. Zero-drift
+        // executado: 7.5/small/medium/large/true/false/false/24 — 8/8
+        // idênticos ao Java — a 83ª validação zero-código.
+        Path javaFile = dir.resolve("Pizza2.java");
+        Files.writeString(javaFile, """
+                public class Pizza2 {
+                    static double pricePerSlice(double total, int slices) {
+                        return total / slices;
+                    }
+                    static String sizeFor(int diameter) {
+                        if (diameter <= 20) { return "small"; }
+                        if (diameter <= 30) { return "medium"; }
+                        return "large";
+                    }
+                    static boolean isVegetarian(boolean pepperoni, boolean mushrooms) {
+                        return !pepperoni && mushrooms;
+                    }
+                    static int totalSlices(int pizzas, int perPizza) {
+                        return pizzas * perPizza;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Pizza2.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Pizza2.pricePerSlice(60.0, 8))
+                    println(Pizza2.sizeFor(18))
+                    println(Pizza2.sizeFor(25))
+                    println(Pizza2.sizeFor(35))
+                    println(Pizza2.isVegetarian(false, true))
+                    println(Pizza2.isVegetarian(true, true))
+                    println(Pizza2.isVegetarian(false, false))
+                    println(Pizza2.totalSlices(3, 8))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 7.5 | small | medium | large | true | false | false | 24
+        assertEquals("7.5\nsmall\nmedium\nlarge\ntrue\nfalse\nfalse\n24", output,
+                "zero-drift: pricePerSlice/sizeFor/isVegetarian/totalSlices idênticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
