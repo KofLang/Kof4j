@@ -3,7 +3,7 @@
 # Licenciamento do Kof
 
 **Última atualização:** 17 de setembro de 2026
-**Versão:** 0.6.4 (7 targets; free-list + pthread spawn + FP XMM)
+**Versão:** 0.6.7 (7 targets; free-list + pthread spawn + FP XMM)
 
 ---
 

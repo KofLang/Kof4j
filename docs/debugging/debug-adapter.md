@@ -4,7 +4,7 @@
 
 **Status:** JVM (raw JDWP, no jdk.jdi) + NATIVE (console gdb + DAP↔GDB/MI, X7-3/X7-4) implemented and validated — console gdb (X7-3, `--break`/`--output`) and `kof debug --dap --target native` bridging DAP to the real gdb/MI2 (X7-4 `bda631a7`: `KofGdbMi` + `KofDebugNativeDap`, `KofDebugNativeDapTest`); sources in `stackTrace`/breakpoints are always the `.kf`; no gdb = honest DAP error naming the tool (R6); JS = honest refusal (the target runs on the EMBEDDED engine — there is no node/inspector to attach to). **20/09 (X7-5):** attach is REAL on JVM (`--dap --attach <pid>`, raw JDWP into a live VM) and Native (`--dap --attach <pid>`, gdb `-p`); the JVM client was rebuilt against the JDK 25 wire (`known-bugs.md §376`) and the full launch/attach conversations now have E2E tests (`KofDebugJvmTest`, `KofDebugAttachTest`)`. **20/09 (Phase 7):** JVM `next`/`stepIn`/`stepOut` + `evaluate` (`KofDebugJvmStepTest`) and `pause` + `setExceptionBreakpoints` (`KofDebugJvmExceptionTest`); Native `pause` + `setExceptionBreakpoints` (`KofDebugNativeDapTest`)
 **Date:** August 27, 2026 (updated 20/09 with the Native faces)
-**Version:** 0.6.4 (7 targets; free-list + pthread spawn + FP XMM)
+**Version:** 0.6.7 (7 targets; free-list + pthread spawn + FP XMM)
 
 ---
 

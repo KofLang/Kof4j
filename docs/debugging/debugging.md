@@ -6,7 +6,7 @@
 `kof debug --dap --target native`), batch `--break` on Native, `--attach` on
 both; JS = honest gap (embedded engine — see `debugging-js.md`)
 **Date:** September 20, 2026
-**Version:** 0.6.4 (7 targets; free-list + pthread spawn + FP XMM)
+**Version:** 0.6.7 (7 targets; free-list + pthread spawn + FP XMM)
 
 ---
 

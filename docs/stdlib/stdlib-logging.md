@@ -3,7 +3,7 @@
 # stdlib log — Kof Native Logging
 
 **Last updated:** September 3, 2026
-**Version:** 0.6.4 (test counts in `docs/status.md`)
+**Version:** 0.6.7 (test counts in `docs/status.md`)
 **Status:** implemented (Phase 4 of the Spring independence plan) — JVM+Native (Native asm UTC `kof_log_*`, 27/08); JS `console.*` (LOG001 closed 01/09)
 
 ---

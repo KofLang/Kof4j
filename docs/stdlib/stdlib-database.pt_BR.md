@@ -3,7 +3,7 @@
 # stdlib database — Banco de Dados Nativo do Kof
 
 **Última atualização:** 18 de setembro de 2026
-**Versão:** 0.6.4
+**Versão:** 0.6.7
 **Status:** implementado (Fase 5 do plano de independência do Spring) — JVM (JDBC) + Native (SQLite via `.so` direto + MySQL wire real no x86-64, F2d1–F2d7 22/09) + `kof.orm` (JVM + MongoDB); JS nao-tipado ✅ (16/09), tipado `query<T>` ✅ (18/09, `DB002` fechado), `kof.orm` ✅ no JS (18/09, `ORM001` fechado); `ORM001` segue só no Native cross riscv64/aarch64
 
 ---

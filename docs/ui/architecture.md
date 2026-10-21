@@ -6,7 +6,7 @@
 > Core + Navigation/Router — `go/replace/back/forward/param/current/depth`,
 > real in JS, no-op in the JVM — 30-31/08); Phases 8-11 in progress.
 > **Last updated:** October 11, 2026
-> **Version:** 0.6.4
+> **Version:** 0.6.7
 
 This document is the map of the `kof.ui` architecture: the real state found in
 the inspection, the problems, and the foundation the UI needs before any new

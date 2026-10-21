@@ -7,8 +7,8 @@
 
 > **Updated (0.2.6-beta):** `kof serve` with top-level handlers + native web stack `web.app()` (Spring independence Phase 1) — routes with trailing lambda, path params, query, headers, body, middleware, typed JSON, custom status/headers and HTTP server generated in the runtime; `kof.http` client `http.get/post/put/delete/patch/options/status` + `timeout/retry/circuit` works on **JVM + JS + Native** (JS via `Java HttpClient` interop in `KofJsRunner`; Native = asm HTTP/1.1, https + real DNS still gaps; retry/circuit at 3-target parity, native knobs real on the 4 targets since 17/09 — §259); TLS `listenSecure` JVM. See [docs/stdlib/stdlib-web.md](stdlib-web.md) and `docs/status.md` (current suite count).
 
-**Status:** Implemented (Phase H) — `VERSION` 0.6.4
-**Version:** 0.6.4
+**Status:** Implemented (Phase H) — `VERSION` 0.6.7
+**Version:** 0.6.7
 
 ---
 

@@ -2,7 +2,7 @@
 
 # Kof Language Reference
 
-**Versão da especificação:** 0.6.4 · **Extraída de:** `kof-compiler` (branch de extração inicial `beta-0.3.0`, 06/09/2026; branch atual `beta-0.5.0`)
+**Versão da especificação:** 0.6.7 · **Extraída de:** `kof-compiler` (branch de extração inicial `beta-0.3.0`, 06/09/2026; branch atual `beta-0.5.0`)
 
 Esta é a **referência da linguagem Kof**. Ela descreve *o que é um programa Kof
 válido* e *qual é o significado desse programa* — independentemente de como o

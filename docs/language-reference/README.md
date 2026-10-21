@@ -2,7 +2,7 @@
 
 # Kof Language Reference
 
-**Specification version:** 0.6.4 · **Extracted from:** `kof-compiler` (initial extraction branch `beta-0.3.0`, 06/09/2026; current branch `beta-0.5.0`)
+**Specification version:** 0.6.7 · **Extracted from:** `kof-compiler` (initial extraction branch `beta-0.3.0`, 06/09/2026; current branch `beta-0.5.0`)
 
 This is the **Kof language reference**. It describes *what a valid Kof program
 is* and *what that program means* — regardless of how the current compiler

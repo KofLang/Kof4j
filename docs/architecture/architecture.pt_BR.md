@@ -7,7 +7,7 @@
 ## Status: Accepted
 
 **Última atualização:** 13 de setembro de 2026
-**Versão:** 0.6.4
+**Versão:** 0.6.7
 
 > **Melhoria visual 13/09 (issue #109):** os diagramas em ASCII deste ADR
 > (Pipeline, Type Representation, IR, backends e dispatch da stdlib) passaram

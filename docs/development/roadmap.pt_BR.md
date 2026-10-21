@@ -21,7 +21,7 @@ mantenedora 15/09 — trio de volta a `future/`). (antes: fusão de planos: §23
 plano de implementação ÚNICO (ex-`ACTION_PLAN`+`IMPLEMENTATION_PLAN`); cluster de
 migração consolidado — `LEGACY_IR`+`DIFFERENTIAL_TESTING` fundidos em
 `LEGACY_MIGRATION.md`)
-**Versão:** 0.6.4 (branch de desenvolvimento ativa `lab`)
+**Versão:** 0.6.7 (branch de desenvolvimento ativa `lab`)
 
 ---
 

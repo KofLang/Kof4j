@@ -3,7 +3,7 @@
 # kof.observability — Health, Metrics e Request IDs (G5)
 
 **Última atualização:** 17 de setembro de 2026
-**Versão:** 0.6.4 (`VERSION` 0.6.4)
+**Versão:** 0.6.7 (`VERSION` 0.6.7)
 
 > **Status:** DONE (JVM/Native/JS) — `KofObservabilityTest` 12/12 (VERSION 0.6.0, free-list Native); API confirmada em `KofObservability.java`; histogramas/spans/export Prometheus fechados como `OBS002` (16/09); **export OpenTelemetry (`exportSpans`) fechado como `OBS003` — JVM/JS ✅, gap honesto no Native**
 > **Módulo:** `kof.observability` — `observability.*`
