@@ -80,4 +80,21 @@ final class WasmOpSupport {
     static boolean isDeclared(KofOperation op) {
         return SUPPORTED.contains(op.getClass());
     }
+
+    /**
+     * The diagnosed refusal for an op this method did not handle. Splitting the
+     * two cases keeps a DRIFT loud: an op the set claims to support but the
+     * lowerer never handles is a declared capability that does not exist, while
+     * an op absent from the set is an honest, expected refusal.
+     */
+    static RuntimeException refusal(KofOperation op, String funcName) {
+        if (isDeclared(op)) {
+            return new WasmUnsupportedException("WASM002 DRIFT: '" + op.getClass().getSimpleName()
+                    + "' esta declarada em WasmOpSupport mas o lowerer nao a trata, em '"
+                    + funcName + "'");
+        }
+        return new WasmUnsupportedException("construcao fora do subset escalar 15.2 (WASM002): '"
+                + op.getClass().getSimpleName() + "' em '" + funcName
+                + "' — docs/wasm-wasi-plan.md (#776)");
+    }
 }
