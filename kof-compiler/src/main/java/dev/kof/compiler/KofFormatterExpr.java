@@ -115,7 +115,13 @@ final class KofFormatterExpr {
             StringBuilder sb = new StringBuilder("(");
             for (int i = 0; i < le.parameters().size(); i++) {
                 if (i > 0) sb.append(", ");
-                sb.append(KofFormatter.formatParam(le.parameters().get(i), p));
+                FormalParameterNode fp = le.parameters().get(i);
+                if ("Object".equals(fp.type()) && fp.modifiers().isEmpty() && fp.annotations().isEmpty()
+                        && fp.defaultExpression() == null) {
+                    sb.append(fp.name());
+                } else {
+                    sb.append(KofFormatter.formatParam(fp, p));
+                }
             }
             sb.append(") -> ");
             if (le.body().size() == 1 && le.body().get(0) instanceof ReturnStmt rs && rs.value() != null) sb.append(formatExpr(rs.value(), p));
