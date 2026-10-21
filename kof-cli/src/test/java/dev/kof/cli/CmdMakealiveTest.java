@@ -204,6 +204,21 @@ class CmdMakealiveTest {
 
         CliResult tgt = run(dir, "makealive", "plan", f.toString(), "--target", "native");
         assertEquals(1, tgt.exit(), tgt.out());
-        assertTrue(tgt.out().contains("not supported yet"), tgt.out());
+        assertTrue(tgt.out().contains("is not supported"), tgt.out());
+    }
+
+    @Test
+    void anUnsupportedTargetNamesItselfAndTheRealSupportSet(@TempDir Path dir) throws Exception {
+        // Before the fix the message said "script/native are follow-up" while the
+        // guard actually allowed jvm|js — it named targets that are REFUSED today.
+        Path f = writeDesign(dir, "t.kf", DESIGN);
+        for (String target : java.util.List.of("wasm", "script", "native")) {
+            CliResult r = run(dir, "makealive", "plan", f.toString(), "--target", target);
+            assertEquals(1, r.exit(), target + " must be refused: " + r.out());
+            assertTrue(r.out().contains("--target " + target + " is not supported"),
+                    target + " names the rejected target: " + r.out());
+            assertTrue(r.out().contains("supported today: jvm|js"),
+                    target + " states the real support set: " + r.out());
+        }
     }
 }
