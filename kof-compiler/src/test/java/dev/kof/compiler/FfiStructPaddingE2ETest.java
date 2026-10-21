@@ -45,20 +45,16 @@ class FfiStructPaddingE2ETest extends FfiStructSupport {
         String nat = runNative(dir, "padbool", kof);
         assertEquals(expected, nat, "NATIVE x86-64: bool-padding struct offsets");
 
-        // §762: the JVM/FFM path REFUSES this shape (INTEROP010) because the
-        // struct token `@` makes the runtime derive the layout leniently from the
-        // record, with no padding between `i1` and `i4`. That is a catalogued
-        // gap, not something this test should paper over — assert the CURRENT
-        // behaviour explicitly so the day it is fixed this test goes green-side
-        // red (loud), instead of silently drifting.
+        // §762 FIXED (20/10): the JVM/FFM derived layout now inserts INTERIOR
+        // padding (a 1-byte field before a wider one), so this shape crosses by
+        // value on the JVM too and must match the native result exactly.
         Path jvmSrc = dir.resolve("padbool-jvm.kf");
         Files.writeString(jvmSrc, kof);
-        CompilationResult rj = driver.compile(jvmSrc, dir.resolve("out-padbool-jvm"), Target.JVM);
-        assertTrue(rj.success(), "JVM compile should succeed (failure is at RUN time): "
-                + rj.diagnostics().getDiagnostics());
-        String jvmFailure = runJvmRaw(dir.resolve("out-padbool-jvm"));
-        assertTrue(jvmFailure.contains("INTEROP010") || jvmFailure.contains("Invalid alignment"),
-                "§762: the JVM FFI struct path is expected to REFUSE a padded layout; "
-                        + "if this now passes, update the test and CLOSE §762. Got: " + jvmFailure);
+        Path jvmOut = dir.resolve("out-padbool-jvm");
+        CompilationResult rj = driver.compile(jvmSrc, jvmOut, Target.JVM);
+        assertTrue(rj.success(), "JVM compile: " + rj.diagnostics().getDiagnostics());
+        String jvm = runJvm(jvmOut);
+        assertEquals(expected, jvm, "JVM golden (bool-padding struct param) — §762");
+        assertEquals(jvm, nat, "JVM<->Native parity (bool-padding struct, §762)");
     }
 }

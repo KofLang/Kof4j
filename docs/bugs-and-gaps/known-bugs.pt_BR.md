@@ -17550,7 +17550,7 @@ O alfabeto do EOB coincide com o libaom (`eob_multi_size` 6 => 11 símbolos). AO
 **PRÓXIMO:** reconstruir o caso skip do oráculo com a guarda (sem `av1_read_coeffs_txb` para `skip_txfm`, mais `av1_reset_entropy_context`), regenerar o golden e re-incluir o caso.
 
 ## §762 — o caminho FFI do JVM/FFM RECUSA um struct cujo layout C tem PADDING DE ALINHAMENTO (`Bool`+`Int`)
-**Estado:** 🟡 ABERTO — catalogado 20/10 pela lane docs/lab `192.168.15.130:9093`; pinado por `FfiStructPaddingE2ETest#structParamBoolPaddingNative` (que assevera TANTO o sucesso nativo QUANTO esta recusa).
+**Estado:** ✅ FECHADO 20/10 pela lane docs/lab `192.168.15.130:9093` — o layout derivado do JVM/FFM agora insere padding INTERNO, entao um record `Bool`+`Int` atravessa por valor no JVM tambem e bate com o native byte a byte. Pinado por `FfiStructPaddingE2ETest#structParamBoolPaddingNative`.
 
 **MEDIDO 20/10.** Um record cujo primeiro campo tem 1 byte e o segundo 4 bytes (`record PB(Bool a, Int b)` → C `struct { _Bool a; int b; }`) é passado POR VALOR a um shim C. O NATIVE x86-64 está CORRETO: os offsets emitidos são os do C (`a` em 0, `b` em **4**, struct 8 B) e o programa imprime exatamente a aritmética da própria função C (`pbsum(PB(true,7))` = 107; `pbsum3(PBB(true,false,true,5))` = 5101, onde `PBB` = `{_Bool,_Bool,_Bool,int}` tem 8 B com `d` no offset 4). O caminho JVM/FFM FALHA EM TEMPO DE EXECUÇÃO com `INTEROP010: kof_ffi: … (i@) failed: Invalid alignment constraint for member layout: i4`.
 
@@ -17560,5 +17560,5 @@ O alfabeto do EOB coincide com o libaom (`eob_multi_size` 6 => 11 símbolos). AO
 
 **IMPACTO.** Qualquer record Kof com um campo de 1 byte (`Bool`) antes de um campo mais largo não atravessa FFI POR VALOR no JVM; está correto no native. Não há resultado errado silencioso — o JVM recusa alto (INTEROP010).
 
-**PRÓXIMO:** emitir os chars dos campos para o token de struct do JVM e preencher os vãos internos no layout, depois rodar de novo `FfiStructPaddingE2ETest#structParamBoolPaddingNative` — a metade JVM está escrita para falhar no momento em que a recusa desaparecer (ela assevera que a recusa existe), entao vira a prova RED→GREEN.
+**CORRIGIDO 20/10.** Tres sitios carregavam a mesma suposicao de ausencia de padding: `JvmFfiRuntime.kof_ffi_struct_layout_of` (agora percorre os membros com um `paddingLayout` interno explicito por alinhamento C, mais o de cauda), o ESCRITOR e o LEITOR de campos do struct (que usavam `PathElement.groupElement(k)` — com membros de padding, o grupo k deixa de ser o campo k; ambos agora usam um helper `kof_ffi_field_offset` com a mesma regra), e o espelho JS (`KofJsFfiBridge.structLayout` + um novo `fieldOffset`, usado pelo `KofJsFfiMarshal` e pelo `readStruct`). PROVADO RED: zerando o vao interno, `FfiStructPaddingE2ETest` falha `Target offset 1 is incompatible with alignment constraint 4 (of i4)`. Prova: `FfiStructPaddingE2ETest` 1/1 (golden JVM + paridade JVM↔Native) + `FfiStructE2ETest` 14/14 + lote amplo FFI/native 217/217.
 <!-- pt-switch --> **EN:** [§762 (en)](known-bugs.md#762--the-jvmffm-ffi-path-refuses-a-struct-whose-c-layout-has-alignment-padding-boolint)

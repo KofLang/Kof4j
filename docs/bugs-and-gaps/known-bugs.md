@@ -20076,7 +20076,7 @@ The EOB alphabet matches libaom (`eob_multi_size` 6 => 11 symbols). BYTE LEVEL: 
 **NEXT:** rebuild the oracle's skip case with the guard (no `av1_read_coeffs_txb` for `skip_txfm`, plus `av1_reset_entropy_context`), regenerate the golden and re-include the case.
 
 ## §762 — the JVM/FFM FFI path REFUSES a struct whose C layout has ALIGNMENT PADDING (`Bool`+`Int`)
-**Status:** 🟡 OPEN — catalogued 20/10 by lane docs/lab `192.168.15.130:9093`; pinned by `FfiStructPaddingE2ETest#structParamBoolPaddingNative` (which asserts BOTH the native success and this refusal).
+**Status:** ✅ CLOSED 20/10 by lane docs/lab `192.168.15.130:9093` — the JVM/FFM derived layout now inserts INTERIOR padding, so a `Bool`+`Int` record crosses by value on the JVM too and matches native byte-for-byte. Pinned by `FfiStructPaddingE2ETest#structParamBoolPaddingNative`.
 
 **MEASURED 20/10.** A record whose first field is 1 byte and second 4 bytes (`record PB(Bool a, Int b)` → C `struct { _Bool a; int b; }`) is passed BY VALUE to a C shim. NATIVE x86-64 is CORRECT: the emitted offsets are C's (`a` at 0, `b` at **4**, struct 8 B) and the program prints the C function's own arithmetic exactly (`pbsum(PB(true,7))` = 107; `pbsum3(PBB(true,false,true,5))` = 5101, where `PBB` = `{_Bool,_Bool,_Bool,int}` is 8 B with `d` at offset 4). The JVM/FFM path FAILS AT RUN TIME with `INTEROP010: kof_ffi: … (i@) failed: Invalid alignment constraint for member layout: i4`.
 
@@ -20086,5 +20086,5 @@ The EOB alphabet matches libaom (`eob_multi_size` 6 => 11 symbols). BYTE LEVEL: 
 
 **IMPACT.** Any Kof record with a 1-byte field (`Bool`) before a wider field cannot cross FFI BY VALUE on the JVM; it is correct on native. No silent wrong result — the JVM refuses loudly (INTEROP010).
 
-**NEXT:** emit field chars for the JVM struct token and pad interior gaps in the struct layout, then re-run `FfiStructPaddingE2ETest#structParamBoolPaddingNative` — the JVM half is written to fail the moment the refusal disappears (it asserts the refusal is present), so it becomes the RED→GREEN proof.
+**FIXED 20/10.** Three sites carried the same missing-padding assumption: `JvmFfiRuntime.kof_ffi_struct_layout_of` (now walks the members with an explicit interior `paddingLayout` per C alignment, plus the trailing one), the struct field WRITER and READER (which used `PathElement.groupElement(k)` — once padding members exist, group k is no longer field k; both now use a `kof_ffi_field_offset` helper applying the same rule), and the JS mirror (`KofJsFfiBridge.structLayout` + a new `fieldOffset`, used by `KofJsFfiMarshal` and `readStruct`). PROVEN RED: with the interior gap zeroed, `FfiStructPaddingE2ETest` fails `Target offset 1 is incompatible with alignment constraint 4 (of i4)`. Proof: `FfiStructPaddingE2ETest` 1/1 (JVM golden + JVM↔Native parity) + `FfiStructE2ETest` 14/14 + broad FFI/native batch 217/217.
 <!-- pt-switch --> **PT:** [§762 (pt_BR)](known-bugs.pt_BR.md#762--o-caminho-ffi-do-jvmffm-recusa-um-struct-cujo-layout-c-tem-padding-de-alinhamento-boolint)

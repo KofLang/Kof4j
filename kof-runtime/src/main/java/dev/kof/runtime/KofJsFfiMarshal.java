@@ -173,7 +173,7 @@ final class KofJsFfiMarshal {
         StructLayout sl = KofJsFfiBridge.structLayout(chars);
         MemorySegment seg = arena.allocate(sl);
         for (int k = 0; k < chars.length(); k++) {
-            long off = sl.byteOffset(MemoryLayout.PathElement.groupElement(k));
+            long off = KofJsFfiBridge.fieldOffset(chars, k);   // §762
             Value f = fields.getArrayElement(k);
             switch (chars.charAt(k)) {
                 case 'i' -> seg.set(ValueLayout.JAVA_INT, off, f.asInt());
