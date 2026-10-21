@@ -432,8 +432,10 @@ final class NativeArchEmitter {
         }
         // §7 AArch64 "lower-cost instruction selection": collapse the riscv stack
         // machine's push+pop pairs (sub sp,sp,#8 / str X,[sp] / pop Y == Y = X).
-        NativeAarch64Peephole.collapsePushPopPairs(a64Lines);
-        NativeAarch64Peephole.dropSelfMoves(a64Lines);
+        if (!peepholeDisabled()) {
+            NativeAarch64Peephole.collapsePushPopPairs(a64Lines);
+            NativeAarch64Peephole.dropSelfMoves(a64Lines);
+        }
         StringBuilder sb = new StringBuilder();
         for (String t : a64Lines) sb.append(t).append("\n");
         String className = module.classes().isEmpty() ? "Default/Main" : module.classes().getFirst().name();
@@ -488,8 +490,11 @@ final class NativeArchEmitter {
     /** Applies the riscv text peephole; identity when nothing folds. */
     private static String applyRiscvPeephole(String asm) {
         List<String> lines = new ArrayList<>(java.util.Arrays.asList(asm.split("\n", -1)));
-        int folded = NativeRiscvPeephole.collapsePushPopPairs(lines);
-        folded += NativeRiscvPeephole.dropSelfMoves(lines);
+        int folded = 0;
+        if (!peepholeDisabled()) {
+            folded = NativeRiscvPeephole.collapsePushPopPairs(lines);
+            folded += NativeRiscvPeephole.dropSelfMoves(lines);
+        }
         if (folded == 0) return asm;
         return String.join("\n", lines);
     }
@@ -536,6 +541,15 @@ final class NativeArchEmitter {
      * so a test can request the assembly with {@code -DKOF_KEEP_ASM=1} in the
      * surefire JVM instead of depending on the shell environment.
      */
+    /**
+     * §17: the same debug kill switch the x86-64 peephole honours, so the cross
+     * targets' peepholes can be MEASURED before/after on the same program. Default
+     * ON (the property is absent); production is unchanged.
+     */
+    private static boolean peepholeDisabled() {
+        return System.getProperty("kof.native.peephole.disable") != null;
+    }
+
     private static boolean keepAsm() {
         return System.getenv("KOF_KEEP_ASM") != null
                 || System.getProperty("KOF_KEEP_ASM") != null;

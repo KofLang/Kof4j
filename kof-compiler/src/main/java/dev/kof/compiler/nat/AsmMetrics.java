@@ -37,11 +37,11 @@ public record AsmMetrics(int instructions, int loads, int stores, int branches,
             if (line.isEmpty()) continue;
             String mnemonic = line.split("[\\s,]", 2)[0];
             instructions++;
-            if (mnemonic.startsWith("call")) {
+            if (isCall(mnemonic)) {
                 calls++;
-            } else if (mnemonic.startsWith("j")) {
+            } else if (isBranch(mnemonic)) {
                 branches++;
-            } else if (mnemonic.equals("ret")) {
+            } else if (isReturn(mnemonic)) {
                 returns++;
             }
             String operands = line.length() > mnemonic.length()
@@ -59,6 +59,25 @@ public record AsmMetrics(int instructions, int loads, int stores, int branches,
             }
         }
         return new AsmMetrics(instructions, loads, stores, branches, calls, returns);
+    }
+
+    // The four architectures spell these differently: x86-64 `call`/`j*`/`ret`,
+    // AArch64 `bl`/`b`/`b.cond`/`cbz`/`tbz`/`ret`, RISC-V `call`/`jal`/`jalr`/
+    // `beq`…/`ret`. Counting only the x86 spellings silently reported 0 branches
+    // and 0 calls on the cross targets (measured), so each family is recognised.
+    private static boolean isCall(String m) {
+        return m.startsWith("call") || m.equals("bl") || m.equals("jal") || m.equals("jalr");
+    }
+
+    private static boolean isBranch(String m) {
+        return m.startsWith("j") || m.startsWith("b.") || m.equals("b")
+                || m.equals("cbz") || m.equals("cbnz") || m.equals("tbz") || m.equals("tbnz")
+                || m.equals("beq") || m.equals("bne") || m.equals("blt") || m.equals("bge")
+                || m.equals("bltu") || m.equals("bgeu");
+    }
+
+    private static boolean isReturn(String m) {
+        return m.equals("ret");
     }
 
     /**

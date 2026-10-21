@@ -69,4 +69,29 @@ class AsmMetricsTest {
         AsmMetrics after = AsmMetrics.of(List.of("    movq %r12, %rax"));
         assertTrue(after.instructions() < before.instructions());
     }
+
+    @Test
+    void aarch64BranchesAndCallsAreCounted() {
+        // Measured limitation fixed: counting only x86 spellings reported 0
+        // branches/calls on aarch64/riscv64 asm.
+        AsmMetrics m = AsmMetrics.of(List.of(
+                "    b.le .Lkof_0",
+                "    bl kof_alloc",
+                "    cbz x0, .Lkof_1",
+                "    ret"));
+        assertEquals(1, m.calls());
+        assertEquals(2, m.branches());
+        assertEquals(1, m.returns());
+    }
+
+    @Test
+    void riscv64BranchesAndCallsAreCounted() {
+        AsmMetrics m = AsmMetrics.of(List.of(
+                "    beq a0, a1, .Lkof_0",
+                "    jal ra, kof_alloc",
+                "    ret"));
+        assertEquals(1, m.calls());
+        assertEquals(1, m.branches());
+        assertEquals(1, m.returns());
+    }
 }
