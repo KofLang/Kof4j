@@ -9307,6 +9307,77 @@ class DecompileTest {
                 "zero-drift: megapixels/quality/needsFlash/maxZoom idênticos ao Java");
     }
 
+    @Test
+    void podcastDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o domínio PODCAST — 4 shapes sem código novo: o
+        // totalDuration com o acumulador no loop e a divisão FORA dele
+        // (`total / 60.0` — o 1.8333333333333333 de 17 dígitos batendo), o
+        // popularityLabel com as faixas < (niche/growing/popular), o
+        // isNewEpisode com a comparação de prazo e o averageMinutes com o
+        // acumulador + o GUARDA do vazio (0 na lista vazia, o 27 exato).
+        // Zero-drift executado: 1.8333333333333333/niche/growing/popular/
+        // true/false/27/0 — 8/8 idênticos ao Java — a 92ª validação
+        // zero-código.
+        Path javaFile = dir.resolve("Podcast.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Podcast {
+                    static double totalDuration(List<Integer> episodeMinutes) {
+                        int total = 0;
+                        for (int m : episodeMinutes) {
+                            total += m;
+                        }
+                        return total / 60.0;
+                    }
+                    static String popularityLabel(int listens) {
+                        if (listens < 100) { return "niche"; }
+                        if (listens < 10000) { return "growing"; }
+                        return "popular";
+                    }
+                    static boolean isNewEpisode(int daysSinceRelease) {
+                        return daysSinceRelease <= 7;
+                    }
+                    static int averageMinutes(List<Integer> episodes) {
+                        if (episodes.isEmpty()) { return 0; }
+                        int total = 0;
+                        for (int m : episodes) {
+                            total += m;
+                        }
+                        return total / episodes.size();
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Podcast.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var eps = listOf(25, 30, 35, 20)
+                    println(Podcast.totalDuration(eps))
+                    println(Podcast.popularityLabel(50))
+                    println(Podcast.popularityLabel(5000))
+                    println(Podcast.popularityLabel(50000))
+                    println(Podcast.isNewEpisode(3))
+                    println(Podcast.isNewEpisode(10))
+                    println(Podcast.averageMinutes(eps))
+                    println(Podcast.averageMinutes(listOf()))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 1.8333333333333333 | niche | growing | popular | true | false | 27 | 0
+        assertEquals("1.8333333333333333\nniche\ngrowing\npopular\ntrue\nfalse\n27\n0", output,
+                "zero-drift: totalDuration/popularityLabel/isNewEpisode/averageMinutes idênticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
