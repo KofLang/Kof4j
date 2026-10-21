@@ -8908,6 +8908,83 @@ class DecompileTest {
                 "zero-drift: breakValue/frameState/isCentury/pointsToWin idênticos ao Java");
     }
 
+    @Test
+    void flowControlDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o domínio CONTROLE-DE-FLUXO — 4 shapes sem código
+        // novo: o findFirst com o early-return no for INDEXADO, o
+        // sumUntilNegative com o BREAK no for-each, o skipZeros com o
+        // CONTINUE no for-each (o contador pulando os zeros) e o
+        // allPositive com o early-false. Os dois primeiros exercitam as
+        // instruções de fluxo que mais arriscam código ERRADO compilável —
+        // o zero-drift prova a semântica (10 = 4+6 para antes do -1; 3 =
+        // os não-zeros). Executado: 2/-1/10/5/3/true/false — 7/7. A 86ª
+        // validação zero-código.
+        Path javaFile = dir.resolve("Queue2.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Queue2 {
+                    static int findFirst(List<Integer> values, int target) {
+                        for (int i = 0; i < values.size(); i++) {
+                            if (values.get(i) == target) { return i; }
+                        }
+                        return -1;
+                    }
+                    static int sumUntilNegative(List<Integer> values) {
+                        int sum = 0;
+                        for (int v : values) {
+                            if (v < 0) { break; }
+                            sum += v;
+                        }
+                        return sum;
+                    }
+                    static int skipZeros(List<Integer> values) {
+                        int count = 0;
+                        for (int v : values) {
+                            if (v == 0) { continue; }
+                            count++;
+                        }
+                        return count;
+                    }
+                    static boolean allPositive(List<Integer> values) {
+                        for (int v : values) {
+                            if (v <= 0) { return false; }
+                        }
+                        return true;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Queue2.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    var vals = listOf(5, 8, 3, 8)
+                    println(Queue2.findFirst(vals, 3))
+                    println(Queue2.findFirst(vals, 9))
+                    var mixed = listOf(4, 6, -1, 9)
+                    println(Queue2.sumUntilNegative(mixed))
+                    println(Queue2.sumUntilNegative(listOf(2, 3)))
+                    var zeros = listOf(1, 0, 2, 0, 3)
+                    println(Queue2.skipZeros(zeros))
+                    println(Queue2.allPositive(vals))
+                    println(Queue2.allPositive(listOf(1, -2)))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 2 | -1 | 10 | 5 | 3 | true | false
+        assertEquals("2\n-1\n10\n5\n3\ntrue\nfalse", output,
+                "zero-drift: findFirst/sumUntilNegative/skipZeros/allPositive — o break/continue com a semântica idêntica ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
