@@ -621,7 +621,7 @@ Each relevant optimization must have:
 
 The goal is to avoid cosmetic optimizations.
 
-Smaller assembly does not necessarily mean faster code.
+Smaller assembly does not necessarily mean faster code. **§17 before/after for the §7 peephole LANDED (14/10):** §17 requires each relevant optimization to have a before/after comparison plus correctness validation — the §7 x86-64 peephole had per-fold unit tests but NO measurement on a real program. Added a kill switch (`-Dkof.native.peephole.disable`, a debug property, default ON) and `NativePeepholeEffectTest`, which compiles the same source with the peephole ON and OFF and asserts: the instruction count strictly DROPS, loads/stores do not GROW, and BOTH binaries print exactly the same output (correctness). MEASURED on the fixture: instructions **3227 → 3162 (−65)**, loads **597 → 523 (−74)**, stores **479 → 416 (−63)**. The assertion is only "strictly fewer" so it does not pin an exact count as the peephole keeps gaining folds; the figures are the reference point recorded at the landing. PROVEN load-bearing: forcing the kill switch to always fire makes the test fail with the identical on/off metrics. Proof `NativePeepholeEffectTest` 1/1 + broad batch 239/239.
 
 ---
 

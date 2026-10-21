@@ -33,6 +33,12 @@ final class NativeX86Peephole {
      * pairs collapsed (for tests/metrics).
      */
     static int collapsePushPopPairs(StringBuilder sb, int from) {
+        // §17: a kill switch so the peephole's effect can be MEASURED
+        // before/after on the same program (an optimization must have a
+        // before/after comparison, not only "it looks better in assembly").
+        if (System.getProperty("kof.native.peephole.disable") != null) {
+            return 0;
+        }
         String region = sb.substring(from);
         List<String> lines = new ArrayList<>(Arrays.asList(region.split("\n", -1)));
         int collapsed = 0;

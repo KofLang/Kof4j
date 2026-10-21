@@ -621,7 +621,7 @@ Cada otimização relevante deve possuir:
 
 O objetivo é evitar otimizações cosméticas.
 
-Assembly menor também não significa necessariamente código mais rápido.
+Assembly menor também não significa necessariamente código mais rápido. **Antes/depois do peephole do §7 POUSADO (14/10):** o §17 exige que cada otimizacao relevante tenha uma comparacao antes/depois mais validacao de correcao — o peephole x86-64 do §7 tinha testes unitarios por dobra mas NENHUMA medicao num programa real. Adicionei um kill switch (`-Dkof.native.peephole.disable`, property de debug, default LIGADO) e `NativePeepholeEffectTest`, que compila a mesma fonte com o peephole LIGADO e DESLIGADO e assevera: a contagem de instrucoes DROPA estritamente, loads/stores nao CRESCEM, e os DOIS binarios imprimem exatamente a mesma saida (correcao). MEDIDO na fixture: instrucoes **3227 -> 3162 (-65)**, loads **597 -> 523 (-74)**, stores **479 -> 416 (-63)**. A asseveracao e so "estritamente menos", entao nao pina uma contagem exata enquanto o peephole continua ganhando dobras; os numeros sao o ponto de referencia registrado no pouso. PROVADO load-bearing: forcar o kill switch a disparar sempre faz o teste falhar com as metricas on/off identicas. Prova `NativePeepholeEffectTest` 1/1 + lote amplo 239/239.
 
 ---
 
