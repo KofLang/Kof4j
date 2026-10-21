@@ -8672,6 +8672,69 @@ class DecompileTest {
                 "zero-drift: ticketPrice/seatClass/onTime/totalStops idênticos ao Java");
     }
 
+    @Test
+    void laundryDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o domínio LAVANDERIA — 4 shapes sem código novo: o
+        // costPerLoad com o DIVISOR PARENTESADO de soma, o cycleFor com as
+        // faixas de equals (gentle/normal/heavy), o isFull com a
+        // comparação de limite e o timeFor com o SWITCH-EXPRESSION de
+        // String (gentle/normal/default). Zero-drift executado: 5.0/gentle/
+        // normal/heavy/true/false/30/45/60 — 9/9 idênticos ao Java — a
+        // 82ª validação zero-código.
+        Path javaFile = dir.resolve("Laundry.java");
+        Files.writeString(javaFile, """
+                public class Laundry {
+                    static double costPerLoad(double detergent, double electricity, int loads) {
+                        return (detergent + electricity) / loads;
+                    }
+                    static String cycleFor(String fabric) {
+                        if (fabric.equals("delicate")) { return "gentle"; }
+                        if (fabric.equals("cotton")) { return "normal"; }
+                        return "heavy";
+                    }
+                    static boolean isFull(int items, int capacity) {
+                        return items >= capacity;
+                    }
+                    static int timeFor(String cycle) {
+                        return switch (cycle) {
+                            case "gentle" -> 30;
+                            case "normal" -> 45;
+                            default -> 60;
+                        };
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Laundry.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Laundry.costPerLoad(10.0, 15.0, 5))
+                    println(Laundry.cycleFor("delicate"))
+                    println(Laundry.cycleFor("cotton"))
+                    println(Laundry.cycleFor("jeans"))
+                    println(Laundry.isFull(10, 10))
+                    println(Laundry.isFull(5, 10))
+                    println(Laundry.timeFor("gentle"))
+                    println(Laundry.timeFor("normal"))
+                    println(Laundry.timeFor("heavy"))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 5.0 | gentle | normal | heavy | true | false | 30 | 45 | 60
+        assertEquals("5.0\ngentle\nnormal\nheavy\ntrue\nfalse\n30\n45\n60", output,
+                "zero-drift: costPerLoad/cycleFor/isFull/timeFor idênticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
