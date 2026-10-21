@@ -9248,6 +9248,65 @@ class DecompileTest {
                 "zero-drift: applyInterest/accountType/canWithdraw/fee idênticos ao Java");
     }
 
+    @Test
+    void cameraDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o domínio CÂMERA — 4 shapes sem código novo: o
+        // megapixels com a divisão por literal double (`width * height /
+        // 1000000.0` — a promoção int×int para double na divisão, o
+        // 12.0 e o 2.0736 exatos), o quality com as faixas < (low/medium/
+        // high), o needsFlash com a comparação simples e o maxZoom com a
+        // multiplicação int×int. Zero-drift executado: 12.0/2.0736/low/
+        // medium/high/true/false/12 — 8/8 idênticos ao Java — a 91ª
+        // validação zero-código.
+        Path javaFile = dir.resolve("Camera.java");
+        Files.writeString(javaFile, """
+                public class Camera {
+                    static double megapixels(int width, int height) {
+                        return width * height / 1000000.0;
+                    }
+                    static String quality(int pixels) {
+                        if (pixels < 2) { return "low"; }
+                        if (pixels < 8) { return "medium"; }
+                        return "high";
+                    }
+                    static boolean needsFlash(double lightLevel) {
+                        return lightLevel < 50;
+                    }
+                    static int maxZoom(int opticalZoom, int digitalZoom) {
+                        return opticalZoom * digitalZoom;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Camera.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Camera.megapixels(4000, 3000))
+                    println(Camera.megapixels(1920, 1080))
+                    println(Camera.quality(1))
+                    println(Camera.quality(5))
+                    println(Camera.quality(12))
+                    println(Camera.needsFlash(30.0))
+                    println(Camera.needsFlash(80.0))
+                    println(Camera.maxZoom(3, 4))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 12.0 | 2.0736 | low | medium | high | true | false | 12
+        assertEquals("12.0\n2.0736\nlow\nmedium\nhigh\ntrue\nfalse\n12", output,
+                "zero-drift: megapixels/quality/needsFlash/maxZoom idênticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
