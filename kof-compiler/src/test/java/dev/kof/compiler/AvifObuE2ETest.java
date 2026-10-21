@@ -105,9 +105,31 @@ class AvifObuE2ETest implements LibraryInstallSupport {
                 "IMAGE: avif item obu missing size field",
                 "IMAGE: avif item obu reserved bit set",
                 "IMAGE: avif item obu forbidden bits",
-                "IMAGE: avif item does not begin with a temporal delimiter",
                 "IMAGE: avif item has no sequence header");
         assertEquals(goldens, runJvm(errorProbe(dir)));
+    }
+
+    /**
+     * #900's other missing face: the 141st pass lifted the "must begin with a
+     * temporal delimiter" requirement. This pins the ACCEPTANCE — an item whose
+     * first OBU is the sequence header parses; the TD is OPTIONAL in an AV1
+     * temporal_unit() and ISOBMFF items are self-delimited.
+     */
+    @Test
+    void temporalDelimiterIsOptional() throws Exception {
+        Path root = tmp.resolve("obu-nodelim");
+        Files.createDirectories(root);
+        Path dir = errorFixtures(root);
+        String code = """
+            import image.AvifObu
+
+            main() {
+                var c = readAvifItemObus("%s")
+                println("t=" + c.total + " d=" + c.delimiters + " s=" + c.seqHeaders
+                    + " w=" + c.seq.maxWidth + " h=" + c.seq.maxHeight)
+            }
+            """.formatted(dir.resolve("nodelim.avif").toString().replace('\\', '/'));
+        assertEquals("t=2 d=1 s=1 w=32 h=32", runJvm(code));
     }
 
     @Test

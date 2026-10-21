@@ -132,6 +132,32 @@ class AvifFrameE2ETest implements LibraryInstallSupport {
         assertEquals(goldens, runJvm(errorProbe(dir)));
     }
 
+    /**
+     * The film-grain gate is a FRAME decision, not a sequence one (140th pass):
+     * the same sequence header with {@code film_grain_params_present = 1}
+     * refuses when the frame's {@code apply_grain} is 1 and parses when it is 0.
+     * This pins the pair the sequence-level refusal used to cover (#900): the
+     * refusal moved to the real gate — it did not disappear.
+     */
+    @Test
+    void filmGrainGateIsAFrameDecision() throws Exception {
+        Path root = tmp.resolve("film-gate");
+        Path dir = AvifFilmGrainSupport.fixtures(root);
+        // The refused half: apply_grain = 1, same string the sequence walk used.
+        assertEquals("IMAGE: avif film grain not covered",
+                runJvm(AvifFilmGrainSupport.errorProbe(dir)));
+        // The accepted half: apply_grain = 0 (libaom memsets and returns).
+        String accepted = """
+            import image.AvifFrame
+
+            main() {
+                var h = readAvifFrameHeader("%s")
+                println("accepted w=" + h.codedWidth + " h=" + h.codedHeight)
+            }
+            """.formatted(dir.resolve("nograin.avif").toString().replace('\\', '/'));
+        assertEquals("accepted w=32 h=32", runJvm(accepted));
+    }
+
     @Test
     void javaFrameReaderAgreesOnFixtures() throws Exception {
         // second independent implementation: plain-Java AV1 5.9 prefix walk
