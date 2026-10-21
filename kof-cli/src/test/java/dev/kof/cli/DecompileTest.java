@@ -9120,6 +9120,67 @@ class DecompileTest {
                 "zero-drift: countOccurrences/truncate/startsWithVowel/averageWordLength idênticos ao Java");
     }
 
+    @Test
+    void fitnessDomainRecovers2(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o domínio ACADEMIA-2 — 4 shapes sem código novo:
+        // o bmi com o denominador ao quadrado (o double de 17 dígitos
+        // batendo), o bmiCategory com as 4 faixas (underweight/normal/
+        // overweight/obese), o caloriesBurned com a FÓRMULA MET DE 5
+        // FATORES (`(int) (minutes * met * 3.5 * weightKg / 200)` — a
+        // cadeia de multiplicação com a divisão e o cast no fim, o 294
+        // exato) e o needsRest com o >= simples. Zero-drift executado:
+        // 22.857142857142858/underweight/normal/overweight/obese/294/true/
+        // false — 8/8 idênticos ao Java — a 89ª validação zero-código.
+        Path javaFile = dir.resolve("Gym2.java");
+        Files.writeString(javaFile, """
+                public class Gym2 {
+                    static double bmi(double weightKg, double heightM) {
+                        return weightKg / (heightM * heightM);
+                    }
+                    static String bmiCategory(double bmi) {
+                        if (bmi < 18.5) { return "underweight"; }
+                        if (bmi < 25) { return "normal"; }
+                        if (bmi < 30) { return "overweight"; }
+                        return "obese";
+                    }
+                    static int caloriesBurned(int minutes, double met, double weightKg) {
+                        return (int) (minutes * met * 3.5 * weightKg / 200);
+                    }
+                    static boolean needsRest(int consecutiveDays) {
+                        return consecutiveDays >= 5;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Gym2.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Gym2.bmi(70.0, 1.75))
+                    println(Gym2.bmiCategory(17.0))
+                    println(Gym2.bmiCategory(22.0))
+                    println(Gym2.bmiCategory(27.0))
+                    println(Gym2.bmiCategory(35.0))
+                    println(Gym2.caloriesBurned(30, 8.0, 70.0))
+                    println(Gym2.needsRest(5))
+                    println(Gym2.needsRest(3))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 22.857142857142858 | underweight | normal | overweight | obese | 294 | true | false
+        assertEquals("22.857142857142858\nunderweight\nnormal\noverweight\nobese\n294\ntrue\nfalse", output,
+                "zero-drift: bmi/bmiCategory/caloriesBurned/needsRest idênticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
