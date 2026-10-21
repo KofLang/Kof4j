@@ -8850,6 +8850,64 @@ class DecompileTest {
                 "zero-drift: speed/level/isOlympicPool/lapsFor idênticos ao Java");
     }
 
+    @Test
+    void snookerDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o domínio SNOOKER — 4 shapes sem código novo: o
+        // breakValue com o produto int×double, o frameState com as faixas
+        // ==/<= (colors only/endgame/open — o label com espaço), o
+        // isCentury com a comparação direta e o pointsToWin com a FÓRMULA
+        // DE PRECEDÊNCIA MISTA (bestOf / 2 + 1 - framesPlayed — a divisão
+        // antes da soma e da subtração). Zero-drift executado: 7.5/colors
+        // only/endgame/open/true/false/3 — 7/7 idênticos ao Java — a 85ª
+        // validação zero-código.
+        Path javaFile = dir.resolve("Snooker.java");
+        Files.writeString(javaFile, """
+                public class Snooker {
+                    static double breakValue(int balls, double perBall) {
+                        return balls * perBall;
+                    }
+                    static String frameState(int redsLeft) {
+                        if (redsLeft == 0) { return "colors only"; }
+                        if (redsLeft <= 3) { return "endgame"; }
+                        return "open";
+                    }
+                    static boolean isCentury(int breakScore) {
+                        return breakScore >= 100;
+                    }
+                    static int pointsToWin(int framesPlayed, int bestOf) {
+                        return bestOf / 2 + 1 - framesPlayed;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Snooker.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Snooker.breakValue(5, 1.5))
+                    println(Snooker.frameState(0))
+                    println(Snooker.frameState(2))
+                    println(Snooker.frameState(7))
+                    println(Snooker.isCentury(120))
+                    println(Snooker.isCentury(80))
+                    println(Snooker.pointsToWin(2, 9))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 7.5 | colors only | endgame | open | true | false | 3
+        assertEquals("7.5\ncolors only\nendgame\nopen\ntrue\nfalse\n3", output,
+                "zero-drift: breakValue/frameState/isCentury/pointsToWin idênticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
