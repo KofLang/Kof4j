@@ -2,7 +2,7 @@
 
 **Dono:** ⏹ **ORFAO 15/10 (auditoria) — o claim `192.168.15.101:9092` esta abandonado: o ultimo trabalho no plano e 09/10 e todo commit dessa lane desde 10/10 e trabalho de release-protocol/native-bug, NAO deste plano; a unidade 15.4 ordenada pela mantenedora (o flip do frontend-padrao) NAO esta no codigo (medido, `AGENTS.md` `last:`). Por `D-PLAN-ONE-OWNER` a frente e LIBERADA para SEM DONO — qualquer lane a reivindica no DOING primeiro. Historico: promovido por `D-WEB-WASI-DEFAULT-0710` (GATE 0.6.0, #776); 15.1+15.2+15.3-fatia1+15.3b+15.3c-fatiaA+15.3c-fatiaB+15.3d-inc1+15.3d-inc2-A/B/C1+C2/E pousadas por essa lane.**
 
-# WebAssembly (WASM) + WASI — especificação de implementação futura
+# WebAssembly (WASM) + WASI — especificação de implementação (EM DESENVOLVIMENTO: emissão pousada, flip 15.4 pendente)
 
 last: 15.3d-increment2-FATIA-E POUSADA 09/10 (`p.equals(q)` explícito num dono-record conhecido roteado p/ o MESMO fold de conteúdo do `==` — sem dispatch virtual, contrato §262 equals explícito == igualdade de conteúdo; `WasmWasiE2ETest` 13/13 com `explicitRecordEqualsMatchesTheJvmOracle` byte-igual ao oráculo JVM 5 faces, bateria 31/31, zero recusas de record restantes; reparo de dano externo commitado no tip: marcadores de conflito em DOING EN+PT + known-bugs.md, e a entrada do GC cross renumerada §640->§643 no PT/CHANGELOG onde colidia com o §640 do gpu); antes: 15.3d-increment2-FATIA-D POUSADA 09/10 (campos record-aninhados = handles i32 no bump heap; o alloc salva/restaura o receiver em andamento via `nestR[profundidade]` — a corrupção de objIdx entre alloc e stores foi a causa-raiz medida; `toString`/`==`/`!=` descem com um slot de scratch por profundidade; split `WasmRecordCtor` mantém `check_500` rc=0 (`WasmLowering` 644→545); E2E `nestedRecordFieldsMatchTheJvmOracle` byte-igual ao oráculo JVM (8 faces), bateria 31/31, suíte completa pulada por ordem do mantenedor; `.equals()` explícito continua `WASM002` honesto) — plano PROMOVIDO `docs/development/` → `docs/` no corte da lane por ordem do mantenedor 09/10 (fatias E/F/G + 15.4 ficam abertas dentro do doc); antes: 15.3d-increment2-FATIA-C2 POUSADA 09/10 (igualdade de conteúdo `==`/`!=`/`== null` de record = `kofRecordEq` opaca + fold inline, byte-igual ao oráculo JVM 12/12 faces, bateria 30/30);
 doing: 15.3 continua — fatia E POUSADA 09/10 (`p.equals(q)` explícito roteado p/ o fold inline; `explicitRecordEqualsMatchesTheJvmOracle` verde, a ÚLTIMA recusa WASM002 de record removida); fatia F: campos `Double` no `toString` + paridade `Double.toString`; fatia G: coleções (`kof.list/map/set` no bump heap); flip 15.4 por último.
@@ -31,9 +31,11 @@ state: EM DESENVOLVIMENTO
 > `DECISIONS.md` §`D-WASM-GO` (`D-WASM-01..09`: backend direto, `Int`=i64,
 > unwinding por string lançada, handles+tabela de handles, GC mark-sweep do
 > design nativo, env de closure explícito, WASI preview1, wasmtime primeiro,
-> concorrência cooperativa). A spec continua **future/zero-código**; a promoção
-> é uma-por-vez por `D-FUTURE-PROMOTION`. Não leia os marcadores TBD inline como
-> decisões ainda abertas.
+> concorrência cooperativa). A spec, porém, JÁ FOI PROMOVIDA (07/10 — este doc
+> vive em `docs/`, não em `future/`) e as unidades de emissão pousaram: MEDIDO
+> 21/10, o backend `wasm/` tem 15 arquivos e `kof build --target=wasi --output X`
+> realmente gera `Default/Main.wasm`; só o flip de frontend **15.4** segue
+> pendente. Não leia os marcadores TBD inline como decisões ainda abertas.
 >
 ## Como ler este documento
 

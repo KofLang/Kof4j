@@ -2,7 +2,7 @@
 
 **Owner:** ⏹ **ORPHANED 15/10 (audit) — the claim `192.168.15.101:9092` is abandoned: the last plan work is 09/10 and every commit from that lane since 10/10 is release-protocol/native-bug work, NOT this plan; the maintainer-ordered unit 15.4 (the frontend-default flip) is NOT in the code (measured, `AGENTS.md` `last:`). Per `D-PLAN-ONE-OWNER` the front is RELEASED to SEM DONO — any lane re-claims it in DOING first. History: promoted by `D-WEB-WASI-DEFAULT-0710` (0.6.0 GATE, #776); 15.1+15.2+15.3-slice1+15.3b+15.3c-sliceA+15.3c-sliceB+15.3d-inc1+15.3d-inc2-A/B/C1+C2/E landed by that lane.**
 
-# Kof WASM & WASI — future implementation specification
+# Kof WASM & WASI — implementation specification (UNDER DEVELOPMENT: emission landed, 15.4 flip pending)
 
 last: 15.3d-increment2-SLICE-E LANDED 09/10 (explicit `p.equals(q)` on a known-record owner routes to the SAME inline content fold as `==` — no virtual dispatch needed, contract §262 explicit-equals == content-equality; `WasmWasiE2ETest` 13/13 with `explicitRecordEqualsMatchesTheJvmOracle` byte-equal JVM oracle 5 faces, battery 31/31, zero record refusals left; repaired external damage committed on the tip: conflict markers in DOING EN+PT + known-bugs.md, and the cross-GC entry renumbered §640->§643 in PT/CHANGELOG where it collided with the gpu §640); before it 15.3d-increment2-SLICE-D LANDED 09/10 (nested-record fields = i32 handles on the bump heap; the alloc saves/restores the in-progress constructor receiver via `nestR[depth]` — objIdx corruption between alloc and stores was the measured root cause; `toString`/`==`/`!=` recurse with one scratch slot per depth; `WasmRecordCtor` split keeps `check_500` rc=0 (`WasmLowering` 644→545); E2E `nestedRecordFieldsMatchTheJvmOracle` byte-equal to the JVM oracle (8 faces), battery 31/31, full suite skipped by maintainer order; explicit `.equals()` keeps `WASM002` honest) — plan PROMOTED `docs/development/` → `docs/` at the lane cut by maintainer order 09/10 (slices E/F/G + 15.4 stay open inside the doc); before it 15.3d-increment2-SLICE-C2 LANDED 09/10 (record `==`/`!=`/`== null` CONTENT equality = opaque `kofRecordEq` + inline single-block field fold, byte-equal JVM oracle 12/12 faces, battery 30/30, `WasmPrintCode` split keeps `check_500` rc=0);
 doing: 15.3 continues — slice E LANDED 09/10 (explicit `p.equals(q)` routed to the inline fold; `explicitRecordEqualsMatchesTheJvmOracle` green, the LAST record WASM002 refusal removed); slice F: `Double` fields in `toString` + `Double.toString` parity; slice G: collections (`kof.list/map/set` on the bump heap); then 15.4 flip LAST.
@@ -11,7 +11,11 @@ location: docs/wasm-wasi-plan.md
 state: UNDER DEVELOPMENT
 
 > **State (07/10): UNDER DEVELOPMENT — promoted by the maintainer's own order**
-> (`D-WEB-WASI-DEFAULT-0710`); **zero code at promotion day**. The plan is a
+> (`D-WEB-WASI-DEFAULT-0710`); **zero code at promotion day — that was 07/10.**
+> **MEASURED 21/10: units 15.1, 15.2, 15.3 (slices A–E) and 15.3d LANDED** — the
+> `wasm/` backend is 15 source files and `kof build --target=wasi --output X`
+> really emits `Default/Main.wasm`. Only the **15.4 frontend-default flip** is
+> still pending. The plan is a
 > **GATE for the 0.6.0 cut** (issue #776): Kof's web target becomes **WASI by
 > default**, desktop frontend likewise; the JS/`kofjs` target **continues to
 > exist** when explicitly specified; the **language surface does not change**;
@@ -26,9 +30,9 @@ state: UNDER DEVELOPMENT
 > §`D-WASM-GO` (`D-WASM-01..09`: direct backend, `Int`=i64, thrown-string
 > unwinding, handles+handle table, native mark-sweep GC design, explicit
 > closure env, WASI preview1, wasmtime first, cooperative concurrency). The
-> spec is still **future/zero-code**; promotion is one-at-a-time per
-> `D-FUTURE-PROMOTION`. Do not read the inline TBD markers as still-open
-> decisions.
+> spec has since been PROMOTED (07/10, this doc lives in `docs/`, not
+> `future/`) and its emission units have landed as measured above; do not read
+> the inline TBD markers as still-open decisions.
 >
 > **Sibling docs:** `qrcode-wasm-plan.md` PART 2 (the frontend strategy: JS ×
 > WASM coexistence — this spec is its implementation detail for the compiler
