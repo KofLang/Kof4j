@@ -139,9 +139,9 @@ REQUIRED** from the maintainer to freeze this as official (rule 6).
 
 ```bash
 kof build --target=wasm   # 15.2: emits the scalar subset; outside it: WASM002 honest rejection
-kof build --target=wasi   # PLANNED
-kof check --target=wasm   # PLANNED (diagnostic parity with other targets)
-kof run --target=wasi     # PLANNED (requires a WASI host, §19)
+kof build --target=wasi   # LANDED: emits Main.wasm (measured 21/10 — `--output` yields Default/Main.wasm)
+kof check --target=wasm   # LANDED: `checked 1 file(s) — no errors` (measured 21/10)
+kof run --target=wasi     # REFUSED: `kof run` has no WASI host and says so (Q7; use `kof build` + a runtime)
 ```
 
 **Implementation order honesty:** each command appears in the CLI only with

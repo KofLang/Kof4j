@@ -267,13 +267,14 @@ orientada a WASM — decidir na Fase 0 (§31).
 CURRENT (real hoje):
   kof compile/build/run → jvm | native (native.risc/arm cross) | js | script | --android
   kof --target wasm → EMITE o subset escalar desde 15.2 (fora dele: WASM002 honesto)
-  kof --target wasi → PARSEIA; o compile recusa com WASM001 honesto — nunca silencioso
+  kof --target wasi → EMITE desde a unidade 15.3 (medido 21/10: `kof build --output` gera Default/Main.wasm)
 
-PLANNED (só esta doc — não documentar como existente):
-  kof build --target=wasm / --target=wasi
-  kof check --target=wasm / --target=wasi
-  kof run   --target=wasm   (precisa de host — §19)
-  kof run   --target=wasi   (precisa de runtime WASI — §19)
+MEDIDO 21/10 (antes esta secao listava tudo como PLANNED):
+  kof build --target=wasm  → LANDADO (emite o subset escalar)
+  kof build --target=wasi  → LANDADO (emite Main.wasm)
+  kof check --target=wasm  → LANDADO ("checked 1 file(s) — no errors")
+  kof run   --target=wasm|wasi → RECUSADO com causa nomeada (Q7: nao ha host;
+                                 use `kof build` + um runtime WASI)
 ```
 
 Formato da flag (`--target=x` vs uso atual) medido no `dev.kof.cli` na
