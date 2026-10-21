@@ -56,9 +56,32 @@ public record AsmMetrics(int instructions, int loads, int stores, int branches,
                 // would over-count a plain read as a "load".
                 if (isLoad(operands)) loads++;
                 else if (isStore(operands)) stores++;
+            } else if (isRiscvLoad(mnemonic)) {
+                // RISC-V spells memory access by WIDTH (ld/lw/lh/lb + the
+                // unsigned lbu/lhu/lwu), not with a `mov` family — without these
+                // the cross runs reported loads=0/stores=0 apart from push/pop
+                // (measured). AArch64 keeps `ldr`/`str`, covered below.
+                loads++;
+            } else if (isRiscvStore(mnemonic)) {
+                stores++;
+            } else if (mnemonic.equals("ldr") || mnemonic.startsWith("ldur")
+                    || mnemonic.startsWith("ldp")) {
+                loads++;
+            } else if (mnemonic.equals("str") || mnemonic.startsWith("stur")
+                    || mnemonic.startsWith("stp")) {
+                stores++;
             }
         }
         return new AsmMetrics(instructions, loads, stores, branches, calls, returns);
+    }
+
+    private static boolean isRiscvLoad(String m) {
+        return m.equals("ld") || m.equals("lw") || m.equals("lh") || m.equals("lb")
+                || m.equals("lbu") || m.equals("lhu") || m.equals("lwu");
+    }
+
+    private static boolean isRiscvStore(String m) {
+        return m.equals("sd") || m.equals("sw") || m.equals("sh") || m.equals("sb");
     }
 
     // The four architectures spell these differently: x86-64 `call`/`j*`/`ret`,

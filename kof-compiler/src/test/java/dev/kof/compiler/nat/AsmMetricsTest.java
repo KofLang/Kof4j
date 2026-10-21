@@ -94,4 +94,28 @@ class AsmMetricsTest {
         assertEquals(1, m.branches());
         assertEquals(1, m.returns());
     }
+
+    @Test
+    void riscv64LoadsAndStoresAreCounted() {
+        // Measured defect: RISC-V spells memory access by WIDTH (ld/sd/lw/sw),
+        // not with a `mov` family, so the cross runs reported loads=0/stores=0.
+        AsmMetrics m = AsmMetrics.of(List.of(
+                "    ld a0, 0(sp)",
+                "    lw a1, 8(sp)",
+                "    lbu a2, 3(sp)",
+                "    sd a0, 16(sp)",
+                "    sw a1, 24(sp)",
+                "    sb a2, 2(sp)"));
+        assertEquals(3, m.loads());
+        assertEquals(3, m.stores());
+    }
+
+    @Test
+    void aarch64LoadsAndStoresAreCounted() {
+        AsmMetrics m = AsmMetrics.of(List.of(
+                "    ldr x0, [sp, #8]",
+                "    str x0, [sp, #16]"));
+        assertEquals(1, m.loads());
+        assertEquals(1, m.stores());
+    }
 }
