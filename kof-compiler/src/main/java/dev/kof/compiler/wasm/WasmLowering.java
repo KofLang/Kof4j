@@ -523,6 +523,16 @@ final class WasmLowering {
         } else if (op instanceof KofStatementIf || op instanceof KofContinueLabel) {
             // marcadores estruturais — no-op (mesma decisao medida no JvmOpEmitter)
         } else {
+            // Phase D: the DECLARATION is the contract. An op the set claims to
+            // support but the lowerer does not handle is a DRIFT (a declared
+            // capability that does not exist); an op absent from the set is an
+            // honest, diagnosed refusal. Keeping the two in one message makes a
+            // drift obvious instead of silently degrading to "unsupported".
+            if (WasmOpSupport.isDeclared(op)) {
+                throw new WasmUnsupportedException("WASM002 DRIFT: '" + op.getClass().getSimpleName()
+                        + "' esta declarada em WasmOpSupport mas o lowerer nao a trata, em '"
+                        + ctx.funcName + "'");
+            }
             throw new WasmUnsupportedException("construcao fora do subset escalar 15.2 (WASM002): '"
                     + op.getClass().getSimpleName() + "' em '" + ctx.funcName
                     + "' — docs/wasm-wasi-plan.md (#776)");
