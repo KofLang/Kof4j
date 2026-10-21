@@ -214,7 +214,9 @@ public final class KofFormatter {
                 for (AnnotationNode ann : rec.annotations()) out.append(pad).append(formatAnnotation(ann, p)).append("\n");
                 if (!rec.modifiers().isEmpty()) out.append(pad).append(joinKw(p, rec.modifiers())).append(" ");
                 else out.append(pad);
-                out.append(kw(p, "record")).append(' ').append(rec.name());
+                boolean classForm = rec.superClass() != null && !rec.modifiers().contains("value");
+                out.append(kw(p, classForm ? "class" : "record")).append(' ').append(rec.name());
+                if (!rec.typeParameters().isEmpty()) out.append("<").append(typeList(p, rec.typeParameters())).append(">");
                 out.append("(");
                 for (int i = 0; i < rec.components().size(); i++) {
                     if (i > 0) out.append(", ");
