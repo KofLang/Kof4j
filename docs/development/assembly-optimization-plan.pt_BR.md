@@ -602,7 +602,7 @@ x86_64     AArch64    RISC-V
 asm A       asm B      asm C
 ```
 
-é esperado.
+é esperado. **Equivalencia cross-target do §16 POUSADA (14/10):** o §16 exige que o mesmo programa produza resultados/efeitos/ABI/layout equivalentes em x86_64, aarch64 e riscv64, mas o `BackendParityTest` existente comparava so JVM×JS — nenhum alvo native. O novo `CrossTargetEquivalenceTest` compila cada programa UMA vez e o roda em todo alvo cuja toolchain esteja presente: o JVM como referencia, x86-64 native direto, e riscv64/aarch64 sob qemu (toolchain ausente PULA aquele alvo honestamente — condicao de ambiente, nunca regressao do Kof). Dois programas exercitam o que o §16 nomeia: calls, layout de record, lacos/branches, aritmetica Int/Long/Double, concatenacao de string; e LIMITES inteiros (wraparound, sinais de divisao/modulo, shift de 64 bits, mascara). MEDIDO AQUI: os quatro alvos rodam, **0 skips** — JVM, x86-64, riscv64 (qemu) e aarch64 (qemu) concordam. O golden e a semantica Kof MEDIDA, nao uma suposicao Java: `max + 1` da wrap para Int.MIN enquanto `min - 1` avalia como `-2147483649` (o literal nao e constante Int, entao a subtracao alarga para Long) — o §16 pede EQUIVALENCIA, entao o teste pina o que o Kof faz e exige que todo alvo bata. Prova `CrossTargetEquivalenceTest` 4/4 (0 skipped) + lote amplo de paridade 308/308.
 
 ---
 
