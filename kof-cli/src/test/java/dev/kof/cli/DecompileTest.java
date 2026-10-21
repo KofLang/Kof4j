@@ -8610,6 +8610,68 @@ class DecompileTest {
                 "zero-drift: sunscreenDoses/uvIndexLabel/safeToSwim/maxPeople id\u00eanticos ao Java");
     }
 
+    @Test
+    void trainDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o dom\u00eddio TREM — 4 shapes sem c\u00f3digo novo: o
+        // ticketPrice com o produto double×double, o seatClass com as
+        // faixas < (short/regional/long), o onTime com a comparação de
+        // limite e o totalStops com o acumulador int. Zero-drift
+        // executado: 87.5/short/regional/long/true/false/6 — 7/7
+        // idênticos ao Java — a 81ª validação zero-código.
+        Path javaFile = dir.resolve("Train.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Train {
+                    static double ticketPrice(double km, double perKm) {
+                        return km * perKm;
+                    }
+                    static String seatClass(double km) {
+                        if (km < 100) { return "short"; }
+                        if (km < 500) { return "regional"; }
+                        return "long";
+                    }
+                    static boolean onTime(int minutesLate) {
+                        return minutesLate <= 5;
+                    }
+                    static int totalStops(List<Integer> perStation) {
+                        int sum = 0;
+                        for (int s : perStation) {
+                            sum += s;
+                        }
+                        return sum;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Train.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Train.ticketPrice(250.0, 0.35))
+                    println(Train.seatClass(80.0))
+                    println(Train.seatClass(300.0))
+                    println(Train.seatClass(700.0))
+                    println(Train.onTime(3))
+                    println(Train.onTime(8))
+                    var stops = listOf(2, 3, 1)
+                    println(Train.totalStops(stops))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 87.5 | short | regional | long | true | false | 6
+        assertEquals("87.5\nshort\nregional\nlong\ntrue\nfalse\n6", output,
+                "zero-drift: ticketPrice/seatClass/onTime/totalStops idênticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
