@@ -127,9 +127,10 @@ final class KofFormatterExpr {
             return sb.toString();
         }
         if (expr instanceof PatternExpr pe) {
-            if (!pe.fieldVars().isEmpty()) return KofFormatter.typeText(p, pe.typeName()) + "(" + String.join(", ", pe.fieldVars()) + ")";
-            if (pe.varName() != null) return KofFormatter.typeText(p, pe.typeName()) + " " + pe.varName();
-            return KofFormatter.typeText(p, pe.typeName());
+            String head = KofFormatter.typeText(p, pe.typeName());
+            if (!pe.fieldVars().isEmpty()) head += "(" + String.join(", ", pe.fieldVars()) + ")";
+            else if (pe.varName() != null) head += " " + pe.varName();
+            return pe.guard() == null ? head : head + " " + KofFormatter.kw(p, "if") + " " + formatExpr(pe.guard(), p);
         }
         return expr.toString();
     }
