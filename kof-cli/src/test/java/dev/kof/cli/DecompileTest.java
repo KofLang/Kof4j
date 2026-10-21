@@ -9378,6 +9378,69 @@ class DecompileTest {
                 "zero-drift: totalDuration/popularityLabel/isNewEpisode/averageMinutes idênticos ao Java");
     }
 
+    @Test
+    void recipe4DomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o domínio RECEITA-4 — 4 shapes sem código novo: o
+        // caloriesPerServing com a divisão inteira, o heatLevel com as
+        // faixas < (simmer/medium heat/high heat — os labels espaçados), o
+        // isVegan com o && TRIPLO de negações de params booleanos (!meat &&
+        // !dairy && !eggs — o maior && de negações do corpus) e o
+        // pricePerKg com a DIVISÃO ANINHADA no divisor (`total /
+        // (weightGrams / 1000)` — a conversão g→kg dentro do divisor, o
+        // 30.0 exato). Zero-drift executado: 300/simmer/medium heat/high
+        // heat/true/false/false/false/30.0 — 9/9 idênticos ao Java — a
+        // 93ª validação zero-código.
+        Path javaFile = dir.resolve("Recipe4.java");
+        Files.writeString(javaFile, """
+                import java.util.List;
+                public class Recipe4 {
+                    static int caloriesPerServing(int totalCalories, int servings) {
+                        return totalCalories / servings;
+                    }
+                    static String heatLevel(double celsius) {
+                        if (celsius < 100) { return "simmer"; }
+                        if (celsius < 150) { return "medium heat"; }
+                        return "high heat";
+                    }
+                    static boolean isVegan(boolean hasMeat, boolean hasDairy, boolean hasEggs) {
+                        return !hasMeat && !hasDairy && !hasEggs;
+                    }
+                    static double pricePerKg(double total, double weightGrams) {
+                        return total / (weightGrams / 1000);
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Recipe4.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Recipe4.caloriesPerServing(1200, 4))
+                    println(Recipe4.heatLevel(80.0))
+                    println(Recipe4.heatLevel(120.0))
+                    println(Recipe4.heatLevel(200.0))
+                    println(Recipe4.isVegan(false, false, false))
+                    println(Recipe4.isVegan(true, false, false))
+                    println(Recipe4.isVegan(false, true, false))
+                    println(Recipe4.isVegan(false, false, true))
+                    println(Recipe4.pricePerKg(15.0, 500.0))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 300 | simmer | medium heat | high heat | true | false | false | false | 30.0
+        assertEquals("300\nsimmer\nmedium heat\nhigh heat\ntrue\nfalse\nfalse\nfalse\n30.0", output,
+                "zero-drift: caloriesPerServing/heatLevel/isVegan/pricePerKg idênticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
