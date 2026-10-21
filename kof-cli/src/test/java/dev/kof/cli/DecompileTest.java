@@ -9181,6 +9181,73 @@ class DecompileTest {
                 "zero-drift: bmi/bmiCategory/caloriesBurned/needsRest idênticos ao Java");
     }
 
+    @Test
+    void bank3DomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o domínio BANCO-3 — 4 shapes sem código novo: o
+        // applyInterest com o juros condicional (o parêntese `1 + rate` no
+        // multiplicador + o retorno do saldo inalterado no else), o
+        // accountType com as quatro faixas (overdrawn/basic/standard/
+        // premium), o canWithdraw com a CONDIÇÃO DUPLA REVERSA (`amount <=
+        // balance && amount > 0` — o limite antes do positivo) e o fee com
+        // o 2% condicional e o 0 promovido para double. Zero-drift
+        // executado: 1050.0/-500.0/overdrawn/basic/standard/premium/true/
+        // false/false/20.0/0.0 — 11/11 idênticos ao Java — a 90ª validação
+        // zero-código.
+        Path javaFile = dir.resolve("Bank3.java");
+        Files.writeString(javaFile, """
+                public class Bank3 {
+                    static double applyInterest(double balance, double rate) {
+                        if (balance > 0) { return balance * (1 + rate); }
+                        return balance;
+                    }
+                    static String accountType(double balance) {
+                        if (balance < 0) { return "overdrawn"; }
+                        if (balance < 1000) { return "basic"; }
+                        if (balance < 10000) { return "standard"; }
+                        return "premium";
+                    }
+                    static boolean canWithdraw(double balance, double amount) {
+                        return amount <= balance && amount > 0;
+                    }
+                    static double fee(double amount, int transactions) {
+                        if (transactions > 10) { return amount * 0.02; }
+                        return 0;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Bank3.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Bank3.applyInterest(1000.0, 0.05))
+                    println(Bank3.applyInterest(-500.0, 0.05))
+                    println(Bank3.accountType(-100.0))
+                    println(Bank3.accountType(500.0))
+                    println(Bank3.accountType(5000.0))
+                    println(Bank3.accountType(50000.0))
+                    println(Bank3.canWithdraw(1000.0, 500.0))
+                    println(Bank3.canWithdraw(1000.0, 1500.0))
+                    println(Bank3.canWithdraw(1000.0, -50.0))
+                    println(Bank3.fee(1000.0, 15))
+                    println(Bank3.fee(1000.0, 5))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 1050.0 | -500.0 | overdrawn | basic | standard | premium | true | false | false | 20.0 | 0.0
+        assertEquals("1050.0\n-500.0\noverdrawn\nbasic\nstandard\npremium\ntrue\nfalse\nfalse\n20.0\n0.0", output,
+                "zero-drift: applyInterest/accountType/canWithdraw/fee idênticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
