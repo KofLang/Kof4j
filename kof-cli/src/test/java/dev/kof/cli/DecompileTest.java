@@ -8792,6 +8792,64 @@ class DecompileTest {
                 "zero-drift: pricePerSlice/sizeFor/isVegetarian/totalSlices idênticos ao Java");
     }
 
+    @Test
+    void swimmingDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o domínio NATAÇÃO — 4 shapes sem código novo: o
+        // speed com a divisão double/double (o 1.6666666666666667 de 17
+        // dígitos batendo), o level com as faixas <= (competitive/fit/
+        // casual), o isOlympicPool com o == de CONSTANTE DOUBLE (50.0) e o
+        // lapsFor com o CAST d2i sobre a cadeia (`(int) (km * 1000 /
+        // poolLength)`). Zero-drift executado: 1.6666666666666667/
+        // competitive/fit/casual/true/false/20 — 7/7 idênticos ao Java — a
+        // 84ª validação zero-código.
+        Path javaFile = dir.resolve("Swimming.java");
+        Files.writeString(javaFile, """
+                public class Swimming {
+                    static double speed(double meters, double seconds) {
+                        return meters / seconds;
+                    }
+                    static String level(int minutesPerKm) {
+                        if (minutesPerKm <= 15) { return "competitive"; }
+                        if (minutesPerKm <= 25) { return "fit"; }
+                        return "casual";
+                    }
+                    static boolean isOlympicPool(double meters) {
+                        return meters == 50;
+                    }
+                    static int lapsFor(double km, double poolLength) {
+                        return (int) (km * 1000 / poolLength);
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Swimming.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Swimming.speed(100.0, 60.0))
+                    println(Swimming.level(12))
+                    println(Swimming.level(20))
+                    println(Swimming.level(30))
+                    println(Swimming.isOlympicPool(50.0))
+                    println(Swimming.isOlympicPool(25.0))
+                    println(Swimming.lapsFor(1.0, 50.0))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 1.6666666666666667 | competitive | fit | casual | true | false | 20
+        assertEquals("1.6666666666666667\ncompetitive\nfit\ncasual\ntrue\nfalse\n20", output,
+                "zero-drift: speed/level/isOlympicPool/lapsFor idênticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
