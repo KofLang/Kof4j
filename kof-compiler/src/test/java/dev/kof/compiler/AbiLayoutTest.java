@@ -117,7 +117,37 @@ class AbiLayoutTest {
             4, 4, new int[]{0},
             List.of(ArgClass.SSE),
             List.of(ArgClass.HFA),
-            List.of(ArgClass.SSE))
+            List.of(ArgClass.SSE)),
+        // §14: padding shapes. Every shape above is composed of 4/8-byte fields,
+        // so none exercises the alignment padding a 2-byte `short`/Kof-`char`
+        // introduces. Measured 14/10 against gcc 13.3 x86-64 (`_Static_assert`
+        // of sizeof/alignof/offsetof); the aarch64/riscv64 compilers are absent
+        // in this environment, so those columns are the engine's own values,
+        // re-proved live wherever the cross toolchains exist.
+        new Shape("PadCI", List.of(f("a", Scalar.CHAR), f("b", Scalar.INT)), "int16_t a; int b;",
+            8, 4, new int[]{0, 4},
+            List.of(ArgClass.INTEGER),
+            List.of(ArgClass.INTEGER),
+            List.of(ArgClass.INTEGER)),
+        new Shape("PadCL", List.of(f("a", Scalar.CHAR), f("b", Scalar.LONG), f("c", Scalar.CHAR)),
+            "int16_t a; int64_t b; int16_t c;",
+            24, 8, new int[]{0, 8, 16},
+            List.of(ArgClass.MEMORY),
+            List.of(ArgClass.BYREF),
+            List.of(ArgClass.BYREF)),
+        new Shape("PadICD", List.of(f("a", Scalar.INT), f("b", Scalar.CHAR), f("c", Scalar.DOUBLE)),
+            "int a; int16_t b; double c;",
+            16, 8, new int[]{0, 4, 8},
+            List.of(ArgClass.INTEGER, ArgClass.SSE),
+            List.of(ArgClass.INTEGER, ArgClass.INTEGER),
+            List.of(ArgClass.INTEGER, ArgClass.INTEGER)),
+        new Shape("PadCCC", List.of(f("a", Scalar.CHAR), f("b", Scalar.CHAR),
+                f("c", Scalar.CHAR), f("d", Scalar.INT)),
+            "int16_t a; int16_t b; int16_t c; int d;",
+            12, 4, new int[]{0, 2, 4, 8},
+            List.of(ArgClass.INTEGER, ArgClass.INTEGER),
+            List.of(ArgClass.INTEGER, ArgClass.INTEGER),
+            List.of(ArgClass.INTEGER, ArgClass.INTEGER))
     );
 
     @Test

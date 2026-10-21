@@ -259,7 +259,7 @@ final class NativeArchEmitter {
             nb.runCommand(NativeCrossLink.ldArgs(crossTool("riscv64-linux-gnu-ld"), binFile, objFile,
                     "riscv64", dynamic, sysroot, sqlite, nb.ffiLibs, libm), "riscv64-ld");
             Files.deleteIfExists(objFile);
-            if (System.getenv("KOF_KEEP_ASM") == null) Files.deleteIfExists(asmFile);
+            if (!keepAsm()) Files.deleteIfExists(asmFile);
             binFile.toFile().setExecutable(true);
         } catch (NativeAssembler.ToolchainMissing e) {
             // toolchain ausente: gracioso (assumeToolchain pula o teste)
@@ -461,7 +461,7 @@ final class NativeArchEmitter {
             nb.runCommand(NativeCrossLink.ldArgs(crossTool("aarch64-linux-gnu-ld"), binFile, objFile,
                     "aarch64", dynamic, sysroot, sqlite, nb.ffiLibs, libm), "aarch64-ld");
             Files.deleteIfExists(objFile);
-            if (System.getenv("KOF_KEEP_ASM") == null) Files.deleteIfExists(asmFile);
+            if (!keepAsm()) Files.deleteIfExists(asmFile);
             binFile.toFile().setExecutable(true);
         } catch (NativeAssembler.ToolchainMissing e) {
             System.err.println("NativeBackend: aarch64 toolchain missing (NATIVE002), keeping asm: " + e.getMessage());
@@ -528,5 +528,16 @@ final class NativeArchEmitter {
                 }
             }
         }
+    }
+
+    /**
+     * Whether the emitted {@code .s} is kept. Honours the {@code KOF_KEEP_ASM}
+     * environment variable (as before) AND the system property of the same name,
+     * so a test can request the assembly with {@code -DKOF_KEEP_ASM=1} in the
+     * surefire JVM instead of depending on the shell environment.
+     */
+    private static boolean keepAsm() {
+        return System.getenv("KOF_KEEP_ASM") != null
+                || System.getProperty("KOF_KEEP_ASM") != null;
     }
 }

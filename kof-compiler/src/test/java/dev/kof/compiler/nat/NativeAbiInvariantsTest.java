@@ -98,7 +98,17 @@ class NativeAbiInvariantsTest {
     private static List<String> compileAndReadAsm(Path dir) throws Exception {
         Path source = dir.resolve("Main.kf");
         Files.writeString(source, SOURCE);
-        new CompilerDriver().compile(source, dir.resolve("out"), Target.NATIVE);
+        // The emitter deletes the .s after linking unless asked to keep it. Set
+        // the property HERE so the test does not depend on the shell environment
+        // (`NativeArchEmitter.keepAsm` honours both env and property).
+        String prior = System.getProperty("KOF_KEEP_ASM");
+        System.setProperty("KOF_KEEP_ASM", "1");
+        try {
+            new CompilerDriver().compile(source, dir.resolve("out"), Target.NATIVE);
+        } finally {
+            if (prior == null) System.clearProperty("KOF_KEEP_ASM");
+            else System.setProperty("KOF_KEEP_ASM", prior);
+        }
         return Files.readAllLines(dir.resolve("out").resolve("Default").resolve("Main.s"));
     }
 
