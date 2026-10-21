@@ -64,4 +64,24 @@ class CmdTestCrossTargetRefusalTest {
     void nativeAarch64IsRefusedHonestly(@TempDir Path dir) throws Exception {
         assertRefusedHonestly(dir, "native.arm");
     }
+
+    @Test
+    void scriptIsRefusedHonestly(@TempDir Path dir) throws Exception {
+        // Measured before the guard: `test --target script` surfaced COMP003 and
+        // counted as a TEST FAILURE ("0 passed, 1 failed") — indistinguishable from
+        // a real regression in CI. The runner needs an artifact; script has none.
+        assertRefusedHonestly(dir, "script");
+    }
+
+    @Test
+    void wasmIsRefusedHonestly(@TempDir Path dir) throws Exception {
+        assertRefusedHonestly(dir, "wasm");
+    }
+
+    @Test
+    void wasiIsRefusedHonestly(@TempDir Path dir) throws Exception {
+        // Measured before the guard: the worst message of the three — the bare
+        // "no binary produced", which names no cause at all.
+        assertRefusedHonestly(dir, "wasi");
+    }
 }
