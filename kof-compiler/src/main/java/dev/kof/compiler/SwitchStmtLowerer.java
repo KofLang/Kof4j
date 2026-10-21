@@ -89,10 +89,11 @@ if (hasPattern) {
             }
             ops.add(new KofLoadLocal(switchType, switchTmp));
             ops.add(new KofInstanceOf(patType));
-            // SG-014: guarda — depois do instanceof, o corpo é só alcançado
-            // se a guarda avaliar true (a var é bound no início do corpo;
-            // a guarda referencia a var pelo ACCESO por cast implícito)
             if (pe.guard() != null) {
+                LabelId guardLabel = LabelId.create();
+                ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
+                ops.add(new KofConditionalJump(KofComparison.EQ, nextTest, guardLabel));
+                ops.add(new KofLabel(guardLabel));
                 localIdx = emitGuard(driver, pe, patType, switchTmp, ops, owner, localIdx, locals);
             }
             ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
@@ -313,6 +314,14 @@ ops.add(new KofLabel(endLabel));
         ops.add(new KofStoreLocal(patType, castIdx));
         List<IRLocalVariable> guardLocals = new ArrayList<>(locals);
         guardLocals.add(new IRLocalVariable(castIdx, pe.varName() != null ? pe.varName() : "#patCast", patType));
+        if (pe.varName() == null && !pe.fieldVars().isEmpty()) {
+            List<IRLocalVariable> bound = new ArrayList<>();
+            localIdx = SwitchExprLowerer.emitPatternBinding(driver, pe, patType, patType, castIdx, ops, localIdx, bound);
+            for (IRLocalVariable lv : bound) {
+                locals.add(new IRLocalVariable(lv.index(), "#guard" + lv.name(), lv.type()));
+                guardLocals.add(lv);
+            }
+        }
         return ExpressionLowerer.emitExpression(driver, pe.guard(), ops, owner, localIdx, guardLocals);
     }
 
