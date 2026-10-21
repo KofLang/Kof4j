@@ -122,14 +122,14 @@ public final class KofFormatter {
                 else out.append(pad);
                 if (!"void".equals(fn.returnType())) out.append(typeText(p, fn.returnType())).append(" ");
                 out.append(fn.name());
-                if (!fn.typeParameters().isEmpty()) out.append("<").append(joinKw(p, fn.typeParameters())).append(">");
+                if (!fn.typeParameters().isEmpty()) out.append("<").append(typeList(p, fn.typeParameters())).append(">");
                 out.append("(");
                 for (int i = 0; i < fn.parameters().size(); i++) {
                     if (i > 0) out.append(", ");
                     out.append(formatParam(fn.parameters().get(i), p));
                 }
                 out.append(")");
-                if (!fn.thrownExceptions().isEmpty()) out.append(" ").append(kw(p, "throw")).append(" ").append(joinKw(p, fn.thrownExceptions()));
+                if (!fn.thrownExceptions().isEmpty()) out.append(" ").append(kw(p, "throw")).append(" ").append(typeList(p, fn.thrownExceptions()));
                 if (fn.body().isEmpty()) {
                     out.append(";\n");
                 } else if (fn.body().size() == 1 && fn.body().get(0) instanceof ReturnStmt rs && rs.value() != null) {
@@ -145,9 +145,9 @@ public final class KofFormatter {
                 if (!cls.modifiers().isEmpty()) out.append(pad).append(joinKw(p, cls.modifiers())).append(" ");
                 else out.append(pad);
                 out.append(kw(p, "class")).append(' ').append(cls.name());
-                if (!cls.typeParameters().isEmpty()) out.append("<").append(joinKw(p, cls.typeParameters())).append(">");
+                if (!cls.typeParameters().isEmpty()) out.append("<").append(typeList(p, cls.typeParameters())).append(">");
                 if (cls.superClass() != null) out.append(" ").append(kw(p, "extends")).append(' ').append(typeText(p, cls.superClass()));
-                if (!cls.interfaces().isEmpty()) out.append(" ").append(kw(p, "implements")).append(' ').append(joinKw(p, cls.interfaces()));
+                if (!cls.interfaces().isEmpty()) out.append(" ").append(kw(p, "implements")).append(' ').append(typeList(p, cls.interfaces()));
                 out.append(" {\n");
                 for (AstNode m : cls.members()) formatDecl(m, out, indent + 1, pending, p);
                 out.append(pad).append("}\n");
@@ -182,7 +182,7 @@ public final class KofFormatter {
                     out.append(formatParam(md.parameters().get(i), p));
                 }
                 out.append(")");
-                if (!md.thrownExceptions().isEmpty()) out.append(" ").append(kw(p, "throw")).append(" ").append(joinKw(p, md.thrownExceptions()));
+                if (!md.thrownExceptions().isEmpty()) out.append(" ").append(kw(p, "throw")).append(" ").append(typeList(p, md.thrownExceptions()));
                 if (md.body().isEmpty()) out.append(";\n");
                 else if (md.body().size() == 1 && md.body().get(0) instanceof ReturnStmt rs && rs.value() != null) {
                     out.append(" = ").append(KofFormatterExpr.formatExpr(rs.value(), p)).append("\n");
@@ -202,7 +202,7 @@ public final class KofFormatter {
                     out.append(formatParam(ctor.parameters().get(i), p));
                 }
                 out.append(")");
-                if (!ctor.thrownExceptions().isEmpty()) out.append(" ").append(kw(p, "throw")).append(" ").append(joinKw(p, ctor.thrownExceptions()));
+                if (!ctor.thrownExceptions().isEmpty()) out.append(" ").append(kw(p, "throw")).append(" ").append(typeList(p, ctor.thrownExceptions()));
                 if (ctor.body().isEmpty()) out.append(" {}\n");
                 else {
                     out.append(" {\n");
@@ -225,7 +225,7 @@ public final class KofFormatter {
                 }
                 out.append(")");
                 if (rec.superClass() != null) out.append(" ").append(kw(p, "extends")).append(' ').append(typeText(p, rec.superClass()));
-                if (!rec.interfaces().isEmpty()) out.append(" ").append(kw(p, "implements")).append(' ').append(joinKw(p, rec.interfaces()));
+                if (!rec.interfaces().isEmpty()) out.append(" ").append(kw(p, "implements")).append(' ').append(typeList(p, rec.interfaces()));
                 if (rec.members().isEmpty()) out.append("\n");
                 else {
                     out.append(" {\n");

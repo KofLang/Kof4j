@@ -66,7 +66,7 @@ final class KofFormatterExpr {
             StringBuilder sb = new StringBuilder();
             if (mce.receiver() != null) sb.append(formatExpr(mce.receiver(), p)).append(".");
             sb.append(mce.methodName());
-            if (!mce.typeArguments().isEmpty()) sb.append("<").append(KofFormatter.joinKw(p, mce.typeArguments())).append(">");
+            if (!mce.typeArguments().isEmpty()) sb.append("<").append(KofFormatter.typeList(p, mce.typeArguments())).append(">");
             sb.append("(");
             for (int i = 0; i < mce.arguments().size(); i++) {
                 if (i > 0) sb.append(", ");
@@ -77,7 +77,7 @@ final class KofFormatterExpr {
         }
         if (expr instanceof NewExpr ne) {
             StringBuilder sb = new StringBuilder(KofFormatter.kw(p, "new")).append(' ').append(KofFormatter.typeText(p, ne.typeName()));
-            if (!ne.typeArguments().isEmpty()) sb.append("<").append(KofFormatter.joinKw(p, ne.typeArguments())).append(">");
+            if (!ne.typeArguments().isEmpty()) sb.append("<").append(KofFormatter.typeList(p, ne.typeArguments())).append(">");
             sb.append("(");
             for (int i = 0; i < ne.arguments().size(); i++) {
                 if (i > 0) sb.append(", ");
