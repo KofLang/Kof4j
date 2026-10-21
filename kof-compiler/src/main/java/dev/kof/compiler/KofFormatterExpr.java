@@ -64,7 +64,7 @@ final class KofFormatterExpr {
         }
         if (expr instanceof MethodCallExpr mce) {
             StringBuilder sb = new StringBuilder();
-            if (mce.receiver() != null) sb.append(formatExpr(mce.receiver(), p)).append(".");
+            if (mce.receiver() != null) sb.append(formatExpr(mce.receiver(), p)).append(mce.methodName().isEmpty() ? "" : ".");
             sb.append(mce.methodName());
             if (!mce.typeArguments().isEmpty()) sb.append("<").append(KofFormatter.joinKw(p, mce.typeArguments())).append(">");
             sb.append("(");
