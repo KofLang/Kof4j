@@ -82,6 +82,33 @@ class CrossTargetEquivalenceTest {
     private static final String EXPECTED_BOUNDARIES =
             "-2147483648\n-2147483649\n3\n-3\n1\n-1\n1099511627776\n31";
 
+    /** Collections, `switch` and exceptions — the remaining §16 surface. */
+    private static final String SRC_COLLECTIONS = """
+            String classify(Int n) {
+                switch (n) {
+                    case 0: return "zero"
+                    case 1: return "one"
+                    default: return "many"
+                }
+            }
+
+            main() {
+                var xs = listOf(3, 1, 2)
+                var m = mapOf("a", 1, "b", 2)
+                println(xs.size())
+                println(m.get("b"))
+                println(classify(0))
+                println(classify(1))
+                println(classify(9))
+                var t = 0
+                for (var x in xs) { t = t + x }
+                println(t)
+                try { throw "boom" } catch (String e) { println("caught:" + e) }
+            }
+            """;
+    private static final String EXPECTED_COLLECTIONS =
+            "3\n2\nzero\none\nmany\n6\ncaught:boom";
+
     private final CompilerDriver driver = new CompilerDriver();
 
     private static boolean hasTools(String... names) {
@@ -100,6 +127,7 @@ class CrossTargetEquivalenceTest {
     void theProgramsAreEquivalentOnTheJvmReference(@TempDir Path dir) throws IOException {
         assertEquals(EXPECTED_MIXED, runJvm(dir, "mixed", SRC_MIXED));
         assertEquals(EXPECTED_BOUNDARIES, runJvm(dir, "b", SRC_BOUNDARIES));
+        assertEquals(EXPECTED_COLLECTIONS, runJvm(dir, "c", SRC_COLLECTIONS));
     }
 
     @Test
@@ -107,6 +135,7 @@ class CrossTargetEquivalenceTest {
         Assumptions.assumeTrue(hasTools("as", "ld"), "native x86-64 toolchain absent");
         assertEquals(EXPECTED_MIXED, runNative(dir, "mixed", SRC_MIXED, Target.NATIVE));
         assertEquals(EXPECTED_BOUNDARIES, runNative(dir, "b", SRC_BOUNDARIES, Target.NATIVE));
+        assertEquals(EXPECTED_COLLECTIONS, runNative(dir, "c", SRC_COLLECTIONS, Target.NATIVE));
     }
 
     @Test
@@ -116,6 +145,8 @@ class CrossTargetEquivalenceTest {
                 "cross riscv64 + qemu absent — skipping (environment, not a Kof regression)");
         assertEquals(EXPECTED_MIXED, runCross(dir, "mixed", SRC_MIXED, "riscv64", Target.NATIVE_RISCV64));
         assertEquals(EXPECTED_BOUNDARIES, runCross(dir, "b", SRC_BOUNDARIES, "riscv64", Target.NATIVE_RISCV64));
+        assertEquals(EXPECTED_COLLECTIONS,
+                runCross(dir, "c", SRC_COLLECTIONS, "riscv64", Target.NATIVE_RISCV64));
     }
 
     @Test
@@ -125,6 +156,8 @@ class CrossTargetEquivalenceTest {
                 "cross aarch64 + qemu absent — skipping (environment, not a Kof regression)");
         assertEquals(EXPECTED_MIXED, runCross(dir, "mixed", SRC_MIXED, "aarch64", Target.NATIVE_AARCH64));
         assertEquals(EXPECTED_BOUNDARIES, runCross(dir, "b", SRC_BOUNDARIES, "aarch64", Target.NATIVE_AARCH64));
+        assertEquals(EXPECTED_COLLECTIONS,
+                runCross(dir, "c", SRC_COLLECTIONS, "aarch64", Target.NATIVE_AARCH64));
     }
 
     // ── runners ──────────────────────────────────────────────────────
