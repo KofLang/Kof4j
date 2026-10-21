@@ -802,7 +802,7 @@ An optimization may leave `future/` when:
 
 An optimization that improves x86_64 but degrades AArch64 and RISC-V should not be treated as universal.
 
-It must be explicitly classified as target-specific.
+It must be explicitly classified as target-specific. **§22 classification LANDED (14/10):** the plan's §7 slices recorded their scope only in PROSE, so nothing stopped a one-ISA win from being read as a cross-target one. `OptimizationScope` now holds the classification as EXPLICIT DATA: every optimization the backend applies is listed once with a `Scope` — `UNIVERSAL` (over the target-independent IR, before lowering) or `X86_64`/`AARCH64`/`RISCV64` (a text pass over one target's assembly). The companion `OptimizationScopeTest` guards both directions: (1) every pass the standard pipeline seeds must be classified UNIVERSAL, (2) every classified entry must name a class that really exists, (3) a UNIVERSAL entry must NOT live in the per-target `nat/` layer (the inverse mistake — a target pass claiming cross-target scope), (4) each native target has at least one classified optimization. PROVEN RED in both directions: removing an entry fails (1), and reclassifying `x86-lea-fold` as UNIVERSAL fails (2) and (3). Inventory today: **8 universal** IR passes + **4 x86-64** + **1 aarch64** + **1 riscv64** text passes. Proof `OptimizationScopeTest` 4/4.
 
 ---
 

@@ -804,7 +804,7 @@ Uma otimização pode sair de `future/` quando:
 
 Uma otimização que melhora x86_64 mas degrada AArch64 e RISC-V não deve ser tratada como otimização universal.
 
-Ela deve ser explicitamente classificada como target-specific.
+Ela deve ser explicitamente classificada como target-specific. **Classificacao do §22 POUSADA (14/10):** as fatias do §7 registravam o seu escopo so em PROSA, entao nada impedia que uma vitoria de uma ISA fosse lida como cross-target. O `OptimizationScope` agora guarda a classificacao como DADOS EXPLICITOS: toda otimizacao que o backend aplica e listada uma vez com um `Scope` — `UNIVERSAL` (sobre o IR independente de alvo, antes do lowering) ou `X86_64`/`AARCH64`/`RISCV64` (passe de texto sobre o asm de um alvo). O `OptimizationScopeTest` guarda as DUAS direcoes: (1) todo passe que a pipeline padrao semeia tem de ser UNIVERSAL, (2) toda entrada classificada tem de nomear uma classe que existe de fato, (3) uma entrada UNIVERSAL NAO pode viver na camada por-alvo `nat/` (o erro inverso — um passe de alvo reivindicando escopo cross-target), (4) cada alvo native tem ao menos uma otimizacao classificada. PROVADO RED nas duas direcoes: remover uma entrada falha (1), e reclassificar `x86-lea-fold` como UNIVERSAL falha (2) e (3). Inventario hoje: **8 passes de IR universais** + **4 x86-64** + **1 aarch64** + **1 riscv64** de texto. Prova `OptimizationScopeTest` 4/4.
 
 ---
 
