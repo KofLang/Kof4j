@@ -9050,6 +9050,76 @@ class DecompileTest {
                 "zero-drift: windChill/jacket/isStorm/daysAbove idênticos ao Java");
     }
 
+    @Test
+    void textAnalysisDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (18/10): o domínio ANÁLISE-DE-TEXTO — 4 shapes sem código
+        // novo: o countOccurrences com o loop de charAt, o truncate com o
+        // corte + o sufixo, o startsWithVowel com a CADEIA DE 5 COMPARAÇÕES
+        // DE CHAR ligadas por || (o teste de vogal — o maior encadeamento ||
+        // de comparações no corpus) e o averageWordLength com o loop sobre
+        // String[] + o GUARDA do vazio (0.0 na lista vazia). Zero-drift
+        // executado: 3/ola m.../curto/true/false/4.0/0.0 — 7/7 idênticos ao
+        // Java — a 88ª validação zero-código.
+        Path javaFile = dir.resolve("Library2.java");
+        Files.writeString(javaFile, """
+                public class Library2 {
+                    static int countOccurrences(String text, char target) {
+                        int count = 0;
+                        for (int i = 0; i < text.length(); i++) {
+                            if (text.charAt(i) == target) { count++; }
+                        }
+                        return count;
+                    }
+                    static String truncate(String text, int maxLen) {
+                        if (text.length() <= maxLen) { return text; }
+                        return text.substring(0, maxLen) + "...";
+                    }
+                    static boolean startsWithVowel(String word) {
+                        char first = word.charAt(0);
+                        return first == 'a' || first == 'e' || first == 'i' || first == 'o' || first == 'u';
+                    }
+                    static double averageWordLength(String[] words) {
+                        if (words.length == 0) { return 0; }
+                        int total = 0;
+                        for (String w : words) {
+                            total += w.length();
+                        }
+                        return total / words.length;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Library2.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Library2.countOccurrences("banana", 'a'))
+                    println(Library2.truncate("ola mundo", 5))
+                    println(Library2.truncate("curto", 10))
+                    println(Library2.startsWithVowel("abacate"))
+                    println(Library2.startsWithVowel("pera"))
+                    var ws = new String[3]
+                    ws[0] = "ola"; ws[1] = "mundo"; ws[2] = "grande"
+                    println(Library2.averageWordLength(ws))
+                    var empty = new String[0]
+                    println(Library2.averageWordLength(empty))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 3 | ola m... | curto | true | false | 4.0 | 0.0
+        assertEquals("3\nola m...\ncurto\ntrue\nfalse\n4.0\n0.0", output,
+                "zero-drift: countOccurrences/truncate/startsWithVowel/averageWordLength idênticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
