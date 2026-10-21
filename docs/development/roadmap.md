@@ -792,7 +792,7 @@ Kof is a distributable platform, not just a JAR:
 - releases by 2 jobs (`release.yml`: `test-and-bump` exports `bump_sha` → `package-and-release` checks the bump commit + version sanity check) on push to `main`, per platform linux-x86_64 / macos-arm64 / windows-x86_64 (tests 819 → bump → package 3 platforms → GitHub Release);
 - `scripts/package.sh` PASS (dist layout + tar.gz/zip + SHA256SUMS + jars), golden 16/16, integration 9/9;
 - official editor support: TextMate grammar + LSP (hover/completion + real diagnostics) + `kof editor install` (VS Code/Neovim/Vim/Emacs/Geany/Nano + honest step-10 IntelliJ 13/09: filetype XML + External Tools + LSP4IJ README, no plugin — issue #1);
-- `kof build/run/serve/check/md/test/bench/profile/inspect/decompile/translate/compare/migrate/debug/info/lsp/install/script/repl/init/new/connector/deps/deploy/workflow/makealive/c/fmt/editor/config/version` PASS (31 commands, measured in `Main.java`; `fmt` and `config gen` 31/08).
+- `kof build/run/serve/check/md/test/bench/profile/inspect/decompile/translate/compare/migrate/debug/info/lsp/install/script/repl/init/new/connector/legacy/deps/deploy/workflow/makealive/c/fmt/editor/config/version` PASS (32 commands, measured in `Main.java`; `fmt` and `config gen` 31/08).
 
 References: `docs/distribution/`, `docs/tooling/`.
 

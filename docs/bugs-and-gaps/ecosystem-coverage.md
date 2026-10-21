@@ -78,7 +78,7 @@ JSN00x, WEB001) — never silent divergence.
 | `kof.interop` (engines, X2 fatias 1–3) | `KofPy(src)`/`KofR(src)` + `callInt/callDouble/callBool/callString/callJson(fn, listOf(...))` + `timeout(ms)`/`cancel()` — deadline runs in the CHILD, failures NAMED `INTEROP004`–`INTEROP008` (never exit-code guessing); JVM/x86/JS/Script CI-certified 26–27/09 — `experimental` until the cross encoders land (§514, R5); targets without a proven process runtime refuse at compile-time `INTEROP005` keeping the face (ANDROID/MCU/RISCV32/cross) | resources `interop-py-host.kf`/`interop-r-host.kf`/`interop-py-refusal.kf` — pure Kof over `kof.process`+`kof.json` (rule 12: the core supplies only the process mechanism) | `InteropPy*E2ETest` (8) · `InteropR*E2ETest` (12 — CI 10/10 skipped-0 with real R) · `InteropTimeout*E2ETest` (5) · refusal `InteropIdiomsCompileTest` (3) |
 | `kof.config` | `config.get/env/has`, `config.str/int/long/bool(name, fallback)` — JVM/Native (file+profiles+env) + JS (env) | KofConfig.java | KofConfigE2ETest (8) |
 | `kof.log` | `log.debug/info/warn/error`, levels (default INFO), `off`, warn→stderr | KofLog.java | KofLogE2ETest (7), NativeLogE2ETest (17) |
-| `kof.cli` | 31 commands (measured in `Main.java`): `kof build/run/serve/check/md/test/bench/profile/inspect/decompile/translate/compare/migrate/debug/info/lsp/install/script/repl/init/new/connector/deps/deploy/workflow/makealive/c/fmt/editor/config/version` (`fmt` + `config gen` 08/31) | kof-cli | Bench, KofDebug E2E |
+| `kof.cli` | 32 commands (measured in `Main.java`): `kof build/run/serve/check/md/test/bench/profile/inspect/decompile/translate/compare/migrate/debug/info/lsp/install/script/repl/init/new/connector/legacy/deps/deploy/workflow/makealive/c/fmt/editor/config/version` (`fmt` + `config` 08/31) | kof-cli | Bench, KofDebug E2E |
 
 ## 2.3 kof.security — inventory (6 namespaces, compile-time dispatch)
 
@@ -324,7 +324,7 @@ Legend in the target columns: `y` = supported, `~` = partial, `–` = no.
 
 | Capability | Kof | JVM | Native | JS | Tests | Docs |
 |-----------|-----|-----|--------|----|-------|------|
-| full `kof` CLI | `DONE` (31 commands, measured in `Main.java`: build/run/serve/check/md/test/bench/profile/inspect/decompile/translate/compare/migrate/debug/info/lsp/install/script/repl/init/new/connector/deps/deploy/workflow/makealive/c/fmt/editor/config/version — `fmt` + `config gen` 08/31) | y (native.risc/native.arm) | y (free-list + pthread) | y (GraalJS) | — | tooling/ |
+| full `kof` CLI | `DONE` (32 commands, measured in `Main.java`: build/run/serve/check/md/test/bench/profile/inspect/decompile/translate/compare/migrate/debug/info/lsp/install/script/repl/init/new/connector/legacy/deps/deploy/workflow/makealive/c/fmt/editor/config/version — `fmt` + `config` 08/31) | y (native.risc/native.arm) | y (free-list + pthread) | y (GraalJS) | — | tooling/ |
 | `kof script` / `kof repl` | `DONE` (top-level `var`/`val` → `KofScriptGlobals`, `--watch`, SIGPIPE fix) | y | y | y | KofScript | stdlib/stdlib.md |
 | `kof c` (KofCcompiler) | `DONE` (C subset `while/if/deref &/*` → ELF x86_64) | — | y x86_64 native-only | — | KofCCompilerTest | architecture/architecture.md |
 | command parsing (in Kof) | `PLANNED` (`kof.cli` as lib) | — | — | — | — | development/roadmap.md |
