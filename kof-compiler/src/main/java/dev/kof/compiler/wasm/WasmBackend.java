@@ -261,8 +261,10 @@ public class WasmBackend implements Backend {
                     if (usesStringMethod(scanAll, "indexOf")
                             || usesStringMethod(scanAll, "lastIndexOf")) {
                         funcs.add(WasmStrInspect.kofStrIndexOf());
+                        funcs.add(WasmStrInspect.kofStrLastIndexOf());
                         funcs.add(WasmStrSearch.kofStrMatchAt());
                         funcs.add(WasmStrSearch.kofStrUnitsBefore());
+                        funcs.add(WasmStrSlice.kofStrByteOff());
                     }
                     if (usesStringMethod(scanAll, "charAt")
                             || usesStringMethod(scanAll, "substring")) {

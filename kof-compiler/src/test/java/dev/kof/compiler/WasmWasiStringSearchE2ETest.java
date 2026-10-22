@@ -171,24 +171,48 @@ class WasmWasiStringSearchE2ETest {
     }
 
     @Test
-    void indexOfWithFromIndexRefusesHonestlyInsteadOfSilentlyIgnoringIt(@TempDir Path dir) throws Exception {
-        // REGRESSAO MEDIDA 22/10: a forma de 2 argumentos (`indexOf(str, fromIndex)`)
-        // compilava e devolvia o resultado da forma de 1 — com o operando extra
-        // IGNORADO na pilha. Compilar e responder errado em silencio e' o pior
-        // desfecho (Q7/R6); a face nao implementada tem de recusar NOMEADA.
+    void indexOfAndLastIndexOfWithFromIndexMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // fromIndex (aridades de 2). Os contratos MEDIDOS do JVM sao DIFERENTES
+        // nas duas: `indexOf(str,from)` acha o MENOR acerto com indice >= from
+        // (from acima do fim da' -1); `lastIndexOf(str,from)` acha o MAIOR acerto
+        // com indice <= from, com from CLAMPADO (99 da' o ultimo acerto, nao -1).
+        // A pilha do frontend e' [receiver,str,from] — a MESMA ordem da assinatura
+        // do helper, entao nada e' reordenado.
+        var wasmtime = host("wasmtime");
+        assumeTrue(wasmtime != null, "wasmtime host absent — run scripts/provision-wasmtime.sh");
         Files.writeString(dir.resolve("Main.kf"), """
                 main(String[] args) {
                     var s = "abcabc"
                     println(s.indexOf("b", 1))
+                    println(s.indexOf("b", 2))
+                    println(s.indexOf("b", 5))
+                    println(s.lastIndexOf("b", 3))
+                    println(s.lastIndexOf("b", 1))
+                    println(s.lastIndexOf("b", 0))
+                    println(s.lastIndexOf("b", 99))
+                    println(s.indexOf("b"))
+                    println(s.lastIndexOf("b"))
                 }
                 """);
-        var wasi = new CompilerDriver().compile(dir.resolve("Main.kf"),
-                dir.resolve("out-wasi"), Target.WASI);
-        assertFalse(wasi.success(), "indexOf(str, fromIndex) nao pode 'passar' ignorando o indice");
-        assertTrue(wasi.diagnostics().getDiagnostics().stream()
-                        .anyMatch(d -> "WASM002".equals(d.code())
-                                && d.message().contains("fromIndex")),
-                "a recusa tem de nomear a face em falta (fromIndex): "
-                        + wasi.diagnostics().getDiagnostics());
+        var driver = new CompilerDriver();
+        var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
+        assertTrue(jvm.success(), "jvm fromIndex compile: " + jvm.diagnostics().getDiagnostics());
+        var oracle = new ProcessBuilder(List.of(jvmBin(), "-cp",
+                Path.of(dir.toString(), "out-jvm").toString(), "Default.Main"))
+                .redirectErrorStream(true).start();
+        String expected = new String(oracle.getInputStream().readAllBytes());
+        assertTrue(oracle.waitFor(120, TimeUnit.SECONDS) && oracle.exitValue() == 0,
+                "JVM oracle fromIndex: " + expected);
+        var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
+        assertTrue(wasi.success(), "wasi fromIndex compile: " + wasi.diagnostics().getDiagnostics());
+        var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
+                Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm").toString()))
+                .redirectErrorStream(true).start();
+        String out = new String(proc.getInputStream().readAllBytes());
+        assertTrue(proc.waitFor(60, TimeUnit.SECONDS), "host within 60s");
+        assertEquals(0, proc.exitValue(), "clean WASI exit fromIndex: " + out);
+        assertEquals(expected.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                "fromIndex overloads must equal the JVM oracle");
     }
 }

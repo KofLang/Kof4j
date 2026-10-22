@@ -74,32 +74,32 @@ final class WasmStrCalls {
                         return true;
                     }
                     case "indexOf" -> {
-                        // So' a forma de 1 argumento esta implementada. A de 2
-                        // (com fromIndex) tem um operando EXTRA na pilha, e
-                        // ignora-lo aqui compilaria e daria o resultado errado
-                        // EM SILENCIO — o pior desfecho possivel (Q7/R6). Por
-                        // isso recusa WASM002 nomeando a face em falta.
-                        if (kc.parameterTypes().size() != 1) {
-                            throw new WasmUnsupportedException("String.indexOf com "
-                                    + kc.parameterTypes().size() + " argumentos (fromIndex) "
-                                    + "fora da fatia F (WASM002) — so' a forma de 1 argumento;"
-                                    + " docs/wasm-wasi-plan.md (#776)");
+                        if (kc.parameterTypes().isEmpty()) {
+                            throw new WasmUnsupportedException("String.indexOf sem argumentos"
+                                    + " (WASM002); docs/wasm-wasi-plan.md (#776)");
                         }
-                        out.add(new WasmInstr.Const(0, 0));   // last = false
+                        // A pilha e' [receiver, str, (from)] e a assinatura do
+                        // helper e' (a, b, from) — MESMA ordem, sem reordenar
+                        // operandos (era o que quebrava a tentativa anterior).
+                        if (kc.parameterTypes().size() == 1) {
+                            out.add(new WasmInstr.Const(1, 0));   // from = 0
+                        }
                         out.add(new WasmInstr.Call("kof.strIndexOf"));
                         ctx.lastPush = "long";
                         ctx.lastPushWide = true;
                         return true;
                     }
                     case "lastIndexOf" -> {
-                        if (kc.parameterTypes().size() != 1) {
-                            throw new WasmUnsupportedException("String.lastIndexOf com "
-                                    + kc.parameterTypes().size() + " argumentos (fromIndex) "
-                                    + "fora da fatia F (WASM002) — so' a forma de 1 argumento;"
-                                    + " docs/wasm-wasi-plan.md (#776)");
+                        if (kc.parameterTypes().isEmpty()) {
+                            throw new WasmUnsupportedException("String.lastIndexOf sem"
+                                    + " argumentos (WASM002); docs/wasm-wasi-plan.md (#776)");
                         }
-                        out.add(new WasmInstr.Const(0, 1));   // last = true
-                        out.add(new WasmInstr.Call("kof.strIndexOf"));
+                        if (kc.parameterTypes().size() == 1) {
+                            // "sem limite": from no maximo, para todos os acertos
+                            // contarem sem precisar de um caminho separado.
+                            out.add(new WasmInstr.Const(1, Long.MAX_VALUE));
+                        }
+                        out.add(new WasmInstr.Call("kof.strLastIndexOf"));
                         ctx.lastPush = "long";
                         ctx.lastPushWide = true;
                         return true;

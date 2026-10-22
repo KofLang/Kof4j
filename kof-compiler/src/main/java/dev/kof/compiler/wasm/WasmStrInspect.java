@@ -208,16 +208,74 @@ final class WasmStrInspect {
      * 6 = u (contagem de units do prefixo); 7 = c (byte).
      */
     /**
-     * `kof.strIndexOf(a,b,last) -> i64`: `indexOf`/`lastIndexOf`.
+     * `kof.strIndexOf(a,b,from) -> i64`: `indexOf(str)` / `indexOf(str,from)`.
      *
-     * <p>Laco de varredura PLANO: um block de saida, pergunta sim/nao ao
-     * `kof.strMatchAt` e resolve o indice com `kof.strUnitsBefore` — nenhuma
-     * comparacao aninhada aqui, que era a origem de todo erro de profundidade.
+     * <p>A assinatura e' (a, b, from) — a MESMA ordem em que o frontend empilha
+     * `[receiver, str, from]`, entao nao ha reordenacao de operandos (era o que
+     * quebrava a tentativa anterior). A forma de 1 argumento empilha from=0 no
+     * roteamento.
      *
-     * <p>Locais: 0=a, 1=b, 2=last (i32); 3=p (i32), 4=la (i32), 5=lb (i32),
-     * 6=res (i64); 7=found (i32)
+     * <p>Locais: 0=a, 1=b, 2=from (i64); 3=p,4=la,5=lb (i32); 6=res (i64)
      */
     static WasmFunc kofStrIndexOf() {
+        List<WasmInstr> b = new ArrayList<>();
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "a"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 4, "la"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "b"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 5, "lb"));
+        // p = offset de byte do code unit `from` (clampa no fim se from > units)
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "a"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "from"));
+        b.add(new WasmInstr.Call("kof.strByteOff"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 3, "p"));
+        b.add(new WasmInstr.Const(1, -1));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 6, "res"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, "sx", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, "sl", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "p"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "lb"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "la"));
+        b.add(new WasmInstr.Simple(0x4a, "i32.gt_u"));
+        b.add(new WasmInstr.Branch("sx", 1, true));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "a"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "b"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "p"));
+        b.add(new WasmInstr.Call("kof.strMatchAt"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "hit", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "a"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "p"));
+        b.add(new WasmInstr.Call("kof.strUnitsBefore"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 6, "res"));
+        b.add(new WasmInstr.Branch("sx", 2));               // achou: sai (IF, LOOP -> BLOCK)
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "hit", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "p"));
+        b.add(new WasmInstr.Const(0, 1));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 3, "p"));
+        b.add(new WasmInstr.Branch("sl", 0));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "sl", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "sx", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 6, "res"));
+        return new WasmFunc("kof.strIndexOf", List.of(0x7f, 0x7f, 0x7e), List.of(0x7e),
+                // locais 3,4,5: p,la,lb (i32); 6: res (i64)
+                List.of(0x7f, 0x7f, 0x7f, 0x7e), b);
+    }
+
+    /**
+     * `kof.strLastIndexOf(a,b,from) -> i64`: `lastIndexOf(str)` / `(str,from)`.
+     *
+     * <p>Varre de 0 ate' o fim mas so' GUARDA o acerto cujo indice em code units
+     * e' `<= from` — o contrato medido do JVM (`"abcabc".lastIndexOf("b",3)` = 1,
+     * com `(…,0)` = -1 e `(…,99)` = 4 por clamp). A forma de 1 argumento empilha
+     * um from grande, o que a torna "todos os acertos" sem caminho separado.
+     *
+     * <p>Locais: 0=a, 1=b, 2=from (i64); 3=p,4=la,5=lb (i32); 6=res (i64);
+     * 7=u (i64)
+     */
+    static WasmFunc kofStrLastIndexOf() {
         List<WasmInstr> b = new ArrayList<>();
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "a"));
         b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
@@ -229,49 +287,43 @@ final class WasmStrInspect {
         b.add(new WasmInstr.Local(WasmInstr.Local.SET, 3, "p"));
         b.add(new WasmInstr.Const(1, -1));
         b.add(new WasmInstr.Local(WasmInstr.Local.SET, 6, "res"));
-        b.add(new WasmInstr.Const(0, 0));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 7, "found"));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, "sx", 0x40));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, "sl", 0x40));
-        // (last == 0) && found -> sai
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "last"));
-        b.add(new WasmInstr.Simple(0x45, "i32.eqz"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 7, "found"));
-        b.add(new WasmInstr.Simple(0x71, "i32.and"));
-        b.add(new WasmInstr.Branch("sx", 1, true));
-        // p + lb > la -> sai
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, "lx", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, "ll", 0x40));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "p"));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "lb"));
         b.add(new WasmInstr.Simple(0x6a, "i32.add"));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "la"));
         b.add(new WasmInstr.Simple(0x4a, "i32.gt_u"));
-        b.add(new WasmInstr.Branch("sx", 1, true));
-        // casou em p?
+        b.add(new WasmInstr.Branch("lx", 1, true));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "a"));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "b"));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "p"));
         b.add(new WasmInstr.Call("kof.strMatchAt"));
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "hit", 0x40));
-        // res = unitsBefore(a, p) ; found = 1
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "a"));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "p"));
         b.add(new WasmInstr.Call("kof.strUnitsBefore"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 7, "u"));
+        // u <= from ? guarda : ignora — mas CONTINUA a varredura
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 7, "u"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "from"));
+        b.add(new WasmInstr.Simple(0x57, "i64.le_s"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "keep", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 7, "u"));
         b.add(new WasmInstr.Local(WasmInstr.Local.SET, 6, "res"));
-        b.add(new WasmInstr.Const(0, 1));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 7, "found"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "keep", 0x40));
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "hit", 0x40));
-        // p++
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "p"));
         b.add(new WasmInstr.Const(0, 1));
         b.add(new WasmInstr.Simple(0x6a, "i32.add"));
         b.add(new WasmInstr.Local(WasmInstr.Local.SET, 3, "p"));
-        b.add(new WasmInstr.Branch("sl", 0));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "sl", 0x40));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "sx", 0x40));
+        b.add(new WasmInstr.Branch("ll", 0));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "ll", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "lx", 0x40));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 6, "res"));
-        return new WasmFunc("kof.strIndexOf", List.of(0x7f, 0x7f, 0x7f), List.of(0x7e),
-                // locais 3,4,5,7: p,la,lb,found (i32); 6: res (i64)
-                List.of(0x7f, 0x7f, 0x7f, 0x7e, 0x7f), b);
+        return new WasmFunc("kof.strLastIndexOf", List.of(0x7f, 0x7f, 0x7e), List.of(0x7e),
+                // locais 3,4,5: p,la,lb (i32); 6,7: res,u (i64)
+                List.of(0x7f, 0x7f, 0x7f, 0x7e, 0x7e), b);
     }
 
     /**
