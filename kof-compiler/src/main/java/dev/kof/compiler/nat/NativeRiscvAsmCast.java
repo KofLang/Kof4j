@@ -37,7 +37,9 @@ final class NativeRiscvAsmCast {
                 ld   ra, 8(sp)
                 addi sp, sp, 16
                 la   a0, .Lkof_castfail_msg
-                call kof_panic
+                li   a1, 16
+                call kof_string_from_literal
+                call kof_throw_string
             .Lkof_cast_ok:
                 ret
             """;

@@ -66,8 +66,12 @@ public final class RuntimeMisc {
                 movq %rdi, %rax
                 ret
             .Lkof_cast_fail:
+                andq $-16, %rsp
                 leaq .Lkof_cast_msg(%rip), %rdi
-                call kof_panic
+                movl $16, %esi
+                call kof_string_from_literal
+                movq %rax, %rdi
+                call kof_throw_string
             .Lkof_cast_msg: .asciz "type cast failed"
             """);
     }
