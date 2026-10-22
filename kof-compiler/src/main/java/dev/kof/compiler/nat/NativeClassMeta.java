@@ -24,17 +24,21 @@ final class NativeClassMeta {
         // dispatch por tipo-base chama o stub abstrato vazio e o valor 0 é
         // desembalado → `type error: ... cannot be cast`).
         java.util.Set<String> inheritedSlotNames = new java.util.HashSet<>();
+        java.util.Deque<IRClass> ancestors = new java.util.ArrayDeque<>();
         String current = clazz.superName();
         while (current != null && !current.isEmpty() && !"java/lang/Object".equals(current)) {
             IRClass superClazz = nb.allClassesMap.get(current);
             if (superClazz == null) break;
+            ancestors.push(superClazz);
+            current = superClazz.superName();
+        }
+        for (IRClass superClazz : ancestors) {
             for (IRMethod m : superClazz.methods()) {
                 addSlot(nb, methods, methodNames, superClazz.name(), m, inheritedSlotNames);
             }
             for (String iface : superClazz.interfaces()) {
                 if (visited.add(iface)) queue.add(iface);
             }
-            current = superClazz.superName();
         }
         inheritedSlotNames.addAll(methodNames);
         // §248: as interfaces DIRETAMENTE implementadas pela classe também
@@ -82,6 +86,22 @@ final class NativeClassMeta {
      * não espelhava o do pai (o método concreto ficava sem slot → dispatch caía
      * no slot errado).
      */
+    private static int overriddenSlot(NativeBackend nb, List<String> methods, String ownerName, IRMethod m) {
+        IRClass owner = nb.allClassesMap.get(ownerName);
+        String want = dev.kof.compiler.TopLevelOverload.sigTag(m.parameterTypes());
+        for (IRClass c = owner == null ? null : nb.allClassesMap.get(owner.superName()); c != null;
+                c = nb.allClassesMap.get(c.superName())) {
+            if (!NativeSymbolMangling.sigMangles(c.name(), m.name(), nb.allClassesMap)) continue;
+            for (IRMethod pm : c.methods()) {
+                if (!pm.name().equals(m.name())
+                        || !dev.kof.compiler.TopLevelOverload.sigTag(pm.parameterTypes()).equals(want)) continue;
+                int idx = methods.indexOf(NativeSymbolMangling.fnSymbol(c.name(), pm, nb.allClassesMap));
+                if (idx >= 0) return idx;
+            }
+        }
+        return -1;
+    }
+
     private static void addSlot(NativeBackend nb, List<String> methods, List<String> methodNames,
                                 String ownerName, IRMethod m, java.util.Set<String> inheritedSlotNames) {
         if ("<init>".equals(m.name()) || "<clinit>".equals(m.name()) || m.name().startsWith("kof_")) {
@@ -105,7 +125,10 @@ final class NativeClassMeta {
             methods.set(bi, sym);
             return;
         }
-        if (NativeSymbolMangling.sigMangles(ownerName, m.name(), nb.allClassesMap)) {
+        int overridden = overriddenSlot(nb, methods, ownerName, m);
+        if (overridden >= 0) {
+            methods.set(overridden, sym);
+        } else if (NativeSymbolMangling.sigMangles(ownerName, m.name(), nb.allClassesMap)) {
             methodNames.add(m.name());
             methods.add(sym);
         } else {
@@ -150,17 +173,17 @@ final class NativeClassMeta {
                 // um call site com owner de CLASSE quer o método CONCRETO; a
                 // assinatura apagada (bridge) só é alcançada via owner INTERFACE,
                 // cujos slots usam os símbolos da própria interface (sem sufixo).
-                String mangled = NativeSymbolMangling.fnSymbol(clazz.name(), methodName,
-                        methodsForCall(clazz, methodName, argTypes), nb.allClassesMap);
-                int bySig = indexOfSymbol(methods, mangled);
-                if (bySig >= 0) return bySig;
-                // sem casamento por tipo (arg Unknown): casa QUALQUER overload
-                // do nome — melhor que -1 (sem dispatch).
-                for (IRMethod m : clazz.methods()) {
-                    if (m.name().equals(methodName) && !"<init>".equals(m.name()) && !"<clinit>".equals(m.name())) {
-                        String m2 = NativeSymbolMangling.fnSymbol(clazz.name(), m.name(), m.parameterTypes(), nb.allClassesMap);
-                        int idx = indexOfSymbol(methods, m2);
-                        if (idx >= 0) return idx;
+                for (IRClass c = clazz; c != null; c = nb.allClassesMap.get(c.superName())) {
+                    String mangled = NativeSymbolMangling.fnSymbol(c.name(), methodName,
+                            methodsForCall(c, methodName, argTypes), nb.allClassesMap);
+                    int bySig = indexOfSymbol(methods, mangled);
+                    if (bySig >= 0) return bySig;
+                    for (IRMethod m : c.methods()) {
+                        if (m.name().equals(methodName) && !"<init>".equals(m.name()) && !"<clinit>".equals(m.name())) {
+                            String m2 = NativeSymbolMangling.fnSymbol(c.name(), m.name(), m.parameterTypes(), nb.allClassesMap);
+                            int idx = indexOfSymbol(methods, m2);
+                            if (idx >= 0) return idx;
+                        }
                     }
                 }
                 return -1;
