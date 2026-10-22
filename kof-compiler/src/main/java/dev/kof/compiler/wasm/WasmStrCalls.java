@@ -62,6 +62,16 @@ final class WasmStrCalls {
                         return true;
                     }
                     case "startsWith" -> {
+                        // `startsWith(str, fromIndex)` empilha um TERCEIRO
+                        // operando (i64) que o helper de 2 handles nao consome —
+                        // sem esta guarda o modulo saia INVALIDO (host recusa)
+                        // em vez de recusar honesto na compilacao (Q7/R6).
+                        if (kc.parameterTypes().size() != 1) {
+                            throw new WasmUnsupportedException("String.startsWith com "
+                                    + kc.parameterTypes().size() + " argumentos (fromIndex) "
+                                    + "fora da fatia F (WASM002) — so' a forma de 1 argumento;"
+                                    + " docs/wasm-wasi-plan.md (#776)");
+                        }
                         out.add(new WasmInstr.Call("kof.strStarts"));
                         ctx.lastPush = "bool";
                         ctx.lastPushWide = false;
@@ -135,8 +145,18 @@ final class WasmStrCalls {
                         return true;
                     }
                     case "replace" -> {
-                        // replace(String, String). A forma com Char nao entra:
-                        // exigiria converter o Char para handle aqui.
+                        // SO' a forma (String, String) esta implementada. A de
+                        // (Char, Char) empilha dois i64 (Char e' i64 na pilha),
+                        // enquanto o helper espera dois HANDLES i32 — sem esta
+                        // guarda o modulo saia INVALIDO (host recusa) em vez de
+                        // recusar honesto na compilacao (Q7/R6).
+                        if (!kc.parameterTypes().isEmpty()
+                                && kc.parameterTypes().stream().anyMatch(
+                                        t -> "char".equalsIgnoreCase(typeName(t)))) {
+                            throw new WasmUnsupportedException("String.replace(Char, Char) "
+                                    + "fora da fatia F (WASM002) — so' a forma"
+                                    + " (String, String); docs/wasm-wasi-plan.md (#776)");
+                        }
                         out.add(new WasmInstr.Call("kof.strReplace"));
                         ctx.lastPush = "string";
                         ctx.lastPushWide = false;

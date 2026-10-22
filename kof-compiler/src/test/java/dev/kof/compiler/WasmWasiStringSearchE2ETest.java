@@ -254,4 +254,33 @@ class WasmWasiStringSearchE2ETest {
                 out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
                 "String.contains must equal the JVM oracle");
     }
+
+    @Test
+    void unimplementedOverloadsRefuseInsteadOfEmittingAnInvalidModule(@TempDir Path dir) throws Exception {
+        // REGRESSAO MEDIDA 22/10 (classe, nao instancia): sobrecargas que o
+        // lowering NAO consome empilhavam um operando extra e o modulo saia
+        // INVALIDO — `compile(...).success()` era true, e so' o HOST recusava.
+        // Achadas sondando TODAS as faces ja' pousadas: instances
+        // `startsWith(str, fromIndex)` e `replace(Char, Char)`.
+        // O contrato (Q7/R6): cada uma tem de RECUSAR na compilacao, nomeada.
+        record Shape(String label, String call, String needle) {}
+        var shapes = List.of(
+                new Shape("startsWith(str,from)", "\"abcdef\".startsWith(\"cd\", 2)", "fromIndex"),
+                new Shape("replace(Char,Char)", "\"abc\".replace('b', 'X')", "Char"));
+        for (var shape : shapes) {
+            Files.writeString(dir.resolve("Main.kf"), """
+                    main(String[] args) {
+                        println(%s)
+                    }
+                    """.formatted(shape.call()));
+            var wasi = new CompilerDriver().compile(dir.resolve("Main.kf"),
+                    dir.resolve("out-" + shape.label().replaceAll("[^a-z]", "")), Target.WASI);
+            assertFalse(wasi.success(),
+                    shape.label() + " nao pode 'passar' e emitir modulo invalido");
+            assertTrue(wasi.diagnostics().getDiagnostics().stream()
+                            .anyMatch(d -> d.message().contains(shape.needle())),
+                    shape.label() + " deve nomear a face em falta (" + shape.needle() + "): "
+                            + wasi.diagnostics().getDiagnostics());
+        }
+    }
 }
