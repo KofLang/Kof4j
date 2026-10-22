@@ -43,6 +43,20 @@ class ResourceLeakE2ETest {
             }
             """;
 
+    /**
+     * MEASURED 21/10: {@code app.listen(port)} is the DOCUMENTED way to run a
+     * kof-native server and it transfers the handle — the running server owns the
+     * app for the process lifetime. Without recognizing it, the language's OWN
+     * scaffold (`kof new --type full-stack`) emitted L-05/MEM014 against itself.
+     */
+    private static final String SERVED = """
+            main() {
+                var app = web.app()
+                app.get("/api/ping") { return "ok" }
+                app.listen(8080)
+            }
+            """;
+
     private static final String GUARDED_CLOSE = """
             main() {
                 var app = web.app()
@@ -147,5 +161,27 @@ class ResourceLeakE2ETest {
         assertFalse(r.diagnostics().getDiagnostics().toString().contains("MEM"),
                 "handed to another function in statement position — never a false positive: "
                         + r.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void aServedServerIsNotALeak(@TempDir Path tmp) throws IOException {
+        Path src = write(tmp, "mem014-served", SERVED);
+        CompilationResult r = driver.compile(src, tmp.resolve("mem014-served-classes"), Target.JVM);
+        assertTrue(r.success(), "compile: " + r.diagnostics().getDiagnostics());
+        boolean warned = r.diagnostics().getDiagnostics().stream()
+                .anyMatch(d -> "MEM014".equals(d.code()));
+        assertFalse(warned, "app.listen(port) TRANSFERS the handle — not a leak: "
+                + r.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void aGenuineLeakStillWarns(@TempDir Path tmp) throws IOException {
+        // Guard against the fix over-reaching: no close AND no listen = leak.
+        Path src = write(tmp, "mem014-still-leaks", LEAK_BODY);
+        CompilationResult r = driver.compile(src, tmp.resolve("mem014-still-leaks-classes"), Target.JVM);
+        boolean warned = r.diagnostics().getDiagnostics().stream()
+                .anyMatch(d -> "MEM014".equals(d.code()));
+        assertTrue(warned, "a never-closed, never-served app must STILL warn: "
+                + r.diagnostics().getDiagnostics());
     }
 }

@@ -112,6 +112,17 @@ public final class ResourceLeakAnalysis {
         if (node == null || shadows(node, name)) {
             return false;
         }
+        // MEASURED 21/10: `app.listen(port)`/`app.listenSecure(port)` is the
+        // DOCUMENTED way to run a kof-native server (docs/stdlib/http.md §"kof-native
+        // mode") and it TRANSFERS the handle: the running server owns the app for
+        // the process lifetime, so there is nothing left to close in this scope.
+        // Without this the language's OWN scaffold (`kof new --type full-stack`)
+        // emitted L-05/MEM014 against itself.
+        if (node instanceof MethodCallExpr lmc
+                && ("listen".equals(lmc.methodName()) || "listenSecure".equals(lmc.methodName()))
+                && lmc.receiver() instanceof IdentifierExpr lrecv && lrecv.name().equals(name)) {
+            return true;
+        }
         if (node instanceof MethodCallExpr mc && "close".equals(mc.methodName())) {
             // web.app(): handle.close()
             if (mc.arguments().isEmpty()
