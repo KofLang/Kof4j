@@ -196,15 +196,20 @@ nota em contrário.
 | `json.decode<Record>` | — (não medido aqui) | 🔴 JSN004 (asm pura) | 🔴 JSN004 | lista de recusas cross na re-auditagem 12/09 |
 | `process` / `kof.ui` | PROC001 / sem port | recusas idênticas | recusas idênticas | as recusas de compile-time são do alvo inteiro, não por arco (a C-FFI quebrou essa regra 20/09: #431 binda a ABI escalar por arco no Native) |
 
-## Cobertura WASM / WASI (MEDIDO 21/10 — só emissão; execução NÃO verificada aqui)
+## Cobertura WASM / WASI (MEDIDO 21/10 — emissão E uma checagem de execução no Node)
 
 Este backend está **EM DESENVOLVIMENTO** (15.1–15.3d pousados; o flip de frontend
 15.4 pendente), então NÃO é uma coluna da tabela principal acima — a afirmação de
 paridade ali é sobre JVM/Native/KofJS, que RODAM a feature. Para WASM esta tabela
 registra o que `kof build --target wasm` realmente ACEITA, medido compilando cada
-forma e checando que `Default/Main.wasm` foi produzido. **Nenhum módulo foi
-executado** (`wasmtime` ausente neste ambiente e `WasmWasiE2ETest` pula
-honestamente), então "emite" aqui significa EMITE, nunca "roda corretamente".
+forma e checando que `Default/Main.wasm` foi produzido. **Execução: parcialmente verificada — via Node, não wasmtime.** O `wasmtime`
+está ausente aqui (então `WasmWasiE2ETest` segue pulando honestamente), mas o
+motor WebAssembly do Node COMPILA e INSTANCIA os módulos emitidos. MEDIDO em dois
+programas: `Int f() { return 42 }` valida e instancia com `f()` = `42n`;
+`Int f(Int a) { return a * 2 + 1 }` dá `f(3)` = **`7n`**, batendo com a fonte
+Kof. Logo o subset escalar não é apenas emitido — é carregável e calcula
+corretamente. Ainda NÃO verificado: o caminho `println`/host do WASI preview1
+(exige um host WASI real) e o que está nas linhas 🔴.
 
 | Forma | WASM | Evidência (medida) |
 |-------|------|--------------------|
@@ -219,6 +224,14 @@ honestamente), então "emite" aqui significa EMITE, nunca "roda corretamente".
 | `try` / `catch` | 🔴 WASM002 | `'KofTrySta…' fora do subset escalar 15.2` |
 | Lambdas / ordem superior | 🔴 WASM002 | lowering de lambda precisa de `<init>` |
 | Módulo SEM função escalar top-level | 🔴 WASM002 | `nenhuma funcao top-level escalar para emitir` |
+
+**Checagem de execução (motor WebAssembly do Node, 21/10):**
+
+| Forma | Valida + instancia | Resultado da chamada |
+|-------|--------------------|----------------------|
+| `Int f() { return 42 }` | ✅ | `f()` = `42n` |
+| `Int f(Int a) { return a * 2 + 1 }` | ✅ | `f(3)` = `7n` (bate com o Kof) |
+| Caminho de saída `println` do WASI | — NÃO VERIFICADO (exige host WASI) | — |
 
 ## Gaps documentados (não mascarados)
 
