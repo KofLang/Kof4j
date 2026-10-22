@@ -601,10 +601,16 @@ Fase 6  Integração KofUI    — segundo alvo do D-UI-SCOPE navega.
 Fase 7  Conformance         — suíte §25 verde sobre as capabilities declaradas.
 ```
 
-## 32. Release gates
+## 32. Release gates (para o flip 15.4 e um corte — o doc JÁ foi promovido em 07/10)
 
-Esta doc sai de `docs/development/future/` para `docs/` **somente** com a
-implementação real. Gerar `.wasm` **não** é suficiente:
+**Medido 21/10:** esta doc saiu de `docs/development/future/` para `docs/` em
+07/10, portanto os gates abaixo não governam mais a mudança — governam o
+**flip de frontend 15.4** e qualquer corte que dependa de WASI. Estado medível
+aqui: backend real **CUMPRIDO** (15 arquivos-fonte em `wasm/`; `kof build
+--target=wasi --output X` gera `Default/Main.wasm`); validator **NÃO VERIFICADO**
+(`wasm-tools` ausente neste ambiente); colunas WASM/WASI da matriz
+**NÃO FEITAS** (`backend-parity.md` ainda tem só `| Feature | JVM | Native |
+KofJS | Notes |`). Gerar `.wasm` **não** é suficiente:
 
 ```
 [ ] backend real (sem roundtrip JS/C — requisito §4)

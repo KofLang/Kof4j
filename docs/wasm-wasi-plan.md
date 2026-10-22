@@ -607,16 +607,23 @@ Module system & packaging: related to `PKG001` but **not** a hard blocker
 Each phase = a full vertical cut (Q7): ships complete-with-diagnostic,
 never facade-complete.
 
-## 33. Release gates (moving this doc `future/` → `docs/`)
+## 33. Release gates (for the 15.4 flip AND a cut — the doc was already promoted 07/10)
 
-Only when implemented + validated — "generates .wasm" is **not** enough:
+**Measured 21/10:** this doc moved `future/` → `docs/` on 07/10, so the gates
+below no longer govern the move — they govern the **15.4 frontend-default flip**
+and any release cut that depends on WASI. Status of each, where measurable here:
 
-- [ ] real backend (not glue to another compiler)
+- [x] real backend (not glue to another compiler) — **15 source files** in `wasm/`,
+      emitting real `.wasm` (`kof build --target=wasi --output X` → `Default/Main.wasm`)
+- [ ] every emitted module passes a validator — NOT VERIFIED HERE (`wasm-tools`
+      absent in this environment; the E2E test skips honestly)
 - [ ] every emitted module passes a validator
 - [ ] runtime: memory + strings work
 - [ ] language parity (records/objects/closures/control flow) on green goldens
 - [ ] WASI at the chosen version with capability gates
 - [ ] capabilities matrix columns WASM/WASI filled with ✓/~/-/diagnosed (no `?` left unexplained)
+      — MEASURED NOT DONE: `backend-parity.md` still has only
+      `| Feature | JVM | Native | KofJS | Notes |`; no WASM/WASI column exists
 - [ ] execution tests + conformance + fuzzing rig green (toolchain guards honest)
 - [ ] docs + training synchronized (EN/PT)
 - [ ] CodeQL/CI not degraded by the new surface
@@ -649,15 +656,15 @@ D-WASM-10  Target enum addition (frozen-surface adjacent)             rule 6 (§
 
 ## 36. Validation performed for this document (19/09)
 
-- files live in `docs/development/future/` ✓ (EN + PT pair, repo convention —
-  a one-pair set was chosen as the minimum instead of the 8-file folder
-  sketch in the request, per "criar a menor quantidade de documentos
-  necessária / seguir o padrão existente")
+- files live in `docs/` since the 07/10 promotion (EN + PT pair; they lived in
+  `docs/development/future/` when this section was written 19/09)
 - all CURRENT claims measured in code (`Target.java`, `TargetMatrix.java`,
   `CompilerPipeline.java`, `js/` package, `backend-parity.md` D-UI-SCOPE,
   roadmap GC lines, host toolchain check) ✓
-- no future feature described as existing (the doc states repeatedly that
-  wasm today = `WASM001` rejection) ✓
+- no future feature described as existing. **SUPERSEDED 21/10:** the parenthetical
+  that used to read "wasm today = `WASM001` rejection" is no longer true — units
+  15.1-15.3d landed and `build --target=wasm|wasi` emit real modules; only the
+  15.4 frontend flip remains future
 - no code was changed ✓; internal links resolve ✓; TBDs reviewed ✓.
 
 **No implementation performed. Documentation only.**
