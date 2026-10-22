@@ -208,4 +208,275 @@ final class WasmStrSearch {
         return new WasmFunc("kof.strCompare", List.of(0x7f, 0x7f), List.of(0x7e),
                 List.of(0x7e, 0x7e, 0x7e, 0x7f, 0x7f, 0x7e), b);
     }
+
+    /**
+     * `kof.strReplace(h, t, r) -> handle`: `String.replace(String, String)`.
+     *
+     * <p>Alvo NAO-vazio: busca em BYTES, exata porque UTF-8 e' prefix-free (a
+     * mesma propriedade do `startsWith`); a saida e' montada num handle novo.
+     * Alvo VAZIO: o JVM insere a substituicao antes de CADA code unit e no fim
+     * — isso sim precisa da contagem de leaders (`wu` por code unit).
+     *
+     * <p>Locais: 0=h, 1=t, 2=r; 3=lt (i32), 4=lr (i32), 5=p (i32), 6=out (i32),
+     * 7=n (i32 tamanho final), 8=c (i32), 9=k (i64)
+     */
+    static WasmFunc kofStrReplace() {
+        List<WasmInstr> b = new ArrayList<>();
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "t"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 3, "lt"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "r"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 4, "lr"));
+        // ---- caminho do alvo VAZIO: insere r antes de cada code unit e no fim ----
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "lt"));
+        b.add(new WasmInstr.Simple(0x45, "i32.eqz"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "empty", 0x40));
+        // n = r.byteLen * (units + 1) ; units = strLen(h)
+        // n = lr * (units + 1). As duas partes vao para locais ANTES do mul:
+        // empilhar o wrap e depois um local.get inverteria os operandos.
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
+        b.add(new WasmInstr.Call("kof.strLen"));
+        b.add(new WasmInstr.Const(1, 1));
+        b.add(new WasmInstr.Simple(0x7c, "i64.add"));
+        b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 8, "c"));     // c = units + 1
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "lr"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 8, "c"));
+        b.add(new WasmInstr.Simple(0x6c, "i32.mul"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 7, "n"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 7, "n"));   // n para o alloc
+        b.add(new WasmInstr.Call("kof.strAlloc"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 6, "out"));
+        // percorre os bytes de h; a cada LEADER, copia r primeiro
+        b.add(new WasmInstr.Const(0, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 5, "p"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, "ex", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, "el", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "p"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
+        b.add(new WasmInstr.Simple(0x4e, "i32.ge_u"));
+        b.add(new WasmInstr.Branch("ex", 1, true));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "p"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD8U, 4));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 8, "c"));
+        // leader? se sim, copia r ANTES deste byte
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 8, "c"));
+        b.add(new WasmInstr.Const(0, 0xC0));
+        b.add(new WasmInstr.Simple(0x71, "i32.and"));
+        b.add(new WasmInstr.Const(0, 0x80));
+        b.add(new WasmInstr.Simple(0x47, "i32.ne"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "ld", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 6, "out"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "r"));
+        b.add(new WasmInstr.Call("kof.strAppend"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 6, "out"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "ld", 0x40));
+        // copia o byte
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 6, "out"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "p"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD8U, 4));
+        b.add(new WasmInstr.Call("kof.strAppendByte"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 6, "out"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "p"));
+        b.add(new WasmInstr.Const(0, 1));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 5, "p"));
+        b.add(new WasmInstr.Branch("el", 0));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "el", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "ex", 0x40));
+        // e a insercao final
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 6, "out"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "r"));
+        b.add(new WasmInstr.Call("kof.strAppend"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 6, "out"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 6, "out"));
+        b.add(new WasmInstr.Simple(0x0f, "return"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "empty", 0x40));
+        // ---- alvo NAO-vazio: calcula o tamanho e copia ----
+        // n = h.byteLen ; depois ajusta por ocorrencia (n += lr - lt por acerto)
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 7, "n"));
+        b.add(new WasmInstr.Const(0, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 5, "p"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, "nx", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, "nl", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "p"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "lt"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
+        b.add(new WasmInstr.Simple(0x4a, "i32.gt_u"));
+        b.add(new WasmInstr.Branch("nx", 1, true));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "t"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "p"));
+        b.add(new WasmInstr.Call("kof.strMatchAt"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "m", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 7, "n"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "lr"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "lt"));
+        b.add(new WasmInstr.Simple(0x6b, "i32.sub"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 7, "n"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "p"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "lt"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 5, "p"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, "m", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "p"));
+        b.add(new WasmInstr.Const(0, 1));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 5, "p"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "m", 0x40));
+        b.add(new WasmInstr.Branch("nl", 0));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "nl", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "nx", 0x40));
+        // aloca com n bytes
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 7, "n"));
+        b.add(new WasmInstr.Call("kof.strAlloc"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 6, "out"));
+        // copia com substituicao
+        b.add(new WasmInstr.Const(0, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 5, "p"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, "fx", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, "fl", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "p"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
+        b.add(new WasmInstr.Simple(0x4e, "i32.ge_u"));
+        b.add(new WasmInstr.Branch("fx", 1, true));
+        // casa no p? entao copia r e avanca lt
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "t"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "p"));
+        b.add(new WasmInstr.Call("kof.strMatchAt"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "mm", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 6, "out"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "r"));
+        b.add(new WasmInstr.Call("kof.strAppend"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 6, "out"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "p"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "lt"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 5, "p"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, "mm", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 6, "out"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "p"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD8U, 4));
+        b.add(new WasmInstr.Call("kof.strAppendByte"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 6, "out"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "p"));
+        b.add(new WasmInstr.Const(0, 1));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 5, "p"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "mm", 0x40));
+        b.add(new WasmInstr.Branch("fl", 0));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "fl", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "fx", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 6, "out"));
+        return new WasmFunc("kof.strReplace", List.of(0x7f, 0x7f, 0x7f), List.of(0x7f),
+                List.of(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7e), b);
+    }
+
+    /** `kof.strAlloc(n) -> handle`: bump-aloca `[n][n bytes]` (sem copia). */
+    static WasmFunc kofStrAlloc() {
+        List<WasmInstr> b = new ArrayList<>();
+        b.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 1, "h"));
+        b.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "n"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Const(0, 5));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Global(WasmInstr.Global.SET, 0));
+        // O cabecalho comeca em ZERO: o buffer nasce vazio e quem escreve
+        // (`strAppend`/`strAppendByte`) e' que incrementa o comprimento. Po'
+        // `n` aqui faria o primeiro append somar em cima do tamanho reservado
+        // e o handle sairia com `n` bytes de lixo na frente.
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "h"));
+        b.add(new WasmInstr.Const(0, 0));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "h"));
+        return new WasmFunc("kof.strAlloc", List.of(0x7f), List.of(0x7f),
+                List.of(0x7f), b);
+    }
+
+    /** `kof.strAppendByte(dst, b) -> dst'` cresce `dst` em 1 byte. */
+    static WasmFunc kofStrAppendByte() {
+        List<WasmInstr> b = new ArrayList<>();
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "d"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "n"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "d"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "n"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Const(0, 4));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "c"));
+        b.add(new WasmInstr.Store8(0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "d"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "n"));
+        b.add(new WasmInstr.Const(0, 1));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "d"));
+        return new WasmFunc("kof.strAppendByte", List.of(0x7f, 0x7f), List.of(0x7f),
+                List.of(0x7f), b);
+    }
+
+    /** `kof.strAppend(dst, src) -> dst'` cresce `dst` pelos bytes de `src`. */
+    static WasmFunc kofStrAppend() {
+        List<WasmInstr> b = new ArrayList<>();
+        // Locais: 0=d, 1=s; 2=n (i32), 3=ls (i32), 4=i (i32)
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "s"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 3, "ls"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "d"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "n"));
+        b.add(new WasmInstr.Const(0, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 4, "i"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, "ax", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, "al", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "i"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "ls"));
+        b.add(new WasmInstr.Simple(0x4e, "i32.ge_u"));
+        b.add(new WasmInstr.Branch("ax", 1, true));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "d"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "n"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "i"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Const(0, 4));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "s"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "i"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD8U, 4));
+        b.add(new WasmInstr.Store8(0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "i"));
+        b.add(new WasmInstr.Const(0, 1));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 4, "i"));
+        b.add(new WasmInstr.Branch("al", 0));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "al", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "ax", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "d"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "n"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "ls"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "d"));
+        return new WasmFunc("kof.strAppend", List.of(0x7f, 0x7f), List.of(0x7f),
+                List.of(0x7f, 0x7f, 0x7f), b);
+    }
 }

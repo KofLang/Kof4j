@@ -132,6 +132,8 @@ public class WasmBackend implements Backend {
                             || ("trim".equals(kc.methodName())
                                 && "string".equalsIgnoreCase(typeName(kc.ownerType())))
                             || ("compareTo".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            || ("replace".equals(kc.methodName())
                                 && "string".equalsIgnoreCase(typeName(kc.ownerType()))))) {
                         continue; // wrapper intrinseco de String tratado na emissao
                     }
@@ -237,7 +239,8 @@ public class WasmBackend implements Backend {
                     || usesStringMethod(scanAll, "charAt")
                     || usesStringMethod(scanAll, "substring")
                     || usesStringMethod(scanAll, "trim")
-                    || usesStringMethod(scanAll, "compareTo")) printed.add("string");
+                    || usesStringMethod(scanAll, "compareTo")
+                    || usesStringMethod(scanAll, "replace")) printed.add("string");
             if (printed.contains("int") || printed.contains("long")) funcs.add(kofWriteInt());
             if (printed.contains("bool") || printed.contains("boolean")) funcs.add(kofWriteBool());
             if (printed.contains("char")) funcs.add(WasmCharOut.kofWriteChar());
@@ -271,6 +274,14 @@ public class WasmBackend implements Backend {
                     if (usesStringMethod(scanAll, "compareTo")) {
                         funcs.add(WasmStrSearch.kofStrCompare());
                         funcs.add(WasmStrSlice.kofStrCharAt());
+                        funcs.add(WasmStrInspect.kofStrLen());
+                    }
+                    if (usesStringMethod(scanAll, "replace")) {
+                        funcs.add(WasmStrSearch.kofStrReplace());
+                        funcs.add(WasmStrSearch.kofStrAlloc());
+                        funcs.add(WasmStrSearch.kofStrAppend());
+                        funcs.add(WasmStrSearch.kofStrAppendByte());
+                        funcs.add(WasmStrSearch.kofStrMatchAt());
                         funcs.add(WasmStrInspect.kofStrLen());
                     }
                     // 15.3d fatia F: `==`/`!=` de String. Antes so entrava via

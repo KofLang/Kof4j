@@ -127,4 +127,46 @@ class WasmWasiStringSearchE2ETest {
                 out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
                 "String.lastIndexOf must equal the JVM oracle");
     }
+
+    @Test
+    void replaceMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // fatia F face 2k: `replace(String, String)`. Alvo nao-vazio e' EXATO em
+        // BYTES (UTF-8 e' prefix-free), e nao-sobreposto da esquerda p/ direita.
+        // Alvo VAZIO e' o caso que exige atencao: o JVM insere a substituicao
+        // antes de CADA code unit e no fim — um "replace de bytes" daria outra
+        // coisa, e por isso ele tem caminho proprio com a contagem de units.
+        var wasmtime = host("wasmtime");
+        assumeTrue(wasmtime != null, "wasmtime host absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    println("abcabc".replace("b", "X"))
+                    println("café".replace("é", "e"))
+                    println("abc".replace("zz", "Y"))
+                    println("aaaa".replace("aa", "b"))
+                    println("ab".replace("", "-"))
+                    println("abc".replace("abc", "Z"))
+                    println("aéa".replace("é", "€"))
+                }
+                """);
+        var driver = new CompilerDriver();
+        var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
+        assertTrue(jvm.success(), "jvm replace compile: " + jvm.diagnostics().getDiagnostics());
+        var oracle = new ProcessBuilder(List.of(jvmBin(), "-cp",
+                Path.of(dir.toString(), "out-jvm").toString(), "Default.Main"))
+                .redirectErrorStream(true).start();
+        String expected = new String(oracle.getInputStream().readAllBytes());
+        assertTrue(oracle.waitFor(120, TimeUnit.SECONDS) && oracle.exitValue() == 0,
+                "JVM oracle replace: " + expected);
+        var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
+        assertTrue(wasi.success(), "wasi replace compile: " + wasi.diagnostics().getDiagnostics());
+        var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
+                Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm").toString()))
+                .redirectErrorStream(true).start();
+        String out = new String(proc.getInputStream().readAllBytes());
+        assertTrue(proc.waitFor(60, TimeUnit.SECONDS), "host within 60s");
+        assertEquals(0, proc.exitValue(), "clean WASI exit replace: " + out);
+        assertEquals(expected.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                "String.replace must equal the JVM oracle");
+    }
 }

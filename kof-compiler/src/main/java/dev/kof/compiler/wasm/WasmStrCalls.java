@@ -106,6 +106,14 @@ final class WasmStrCalls {
                         ctx.lastPushWide = false;
                         return true;
                     }
+                    case "replace" -> {
+                        // replace(String, String). A forma com Char nao entra:
+                        // exigiria converter o Char para handle aqui.
+                        out.add(new WasmInstr.Call("kof.strReplace"));
+                        ctx.lastPush = "string";
+                        ctx.lastPushWide = false;
+                        return true;
+                    }
                     case "compareTo" -> {
                         out.add(new WasmInstr.Call("kof.strCompare"));
                         ctx.lastPush = "long";
