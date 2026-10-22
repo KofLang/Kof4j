@@ -108,8 +108,10 @@ public class WasmBackend implements Backend {
                     if (!(op instanceof KofCall kc)) continue;
                     if (wasi && printIntrinsic && ("valueOf".equals(kc.methodName())
                             || "kof_string_concat".equals(kc.methodName())
-                            || "kof_string_equals".equals(kc.methodName()))) {
-                        continue; // wrapper intrinseco (println / concat / igualdade) tratado na emissao
+                            || "kof_string_equals".equals(kc.methodName())
+                            || ("length".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType()))))) {
+                        continue; // wrapper intrinseco (println / concat / igualdade / length) tratado na emissao
                     }
                     if (wasi && usesRecords && "kofRecordEq".equals(kc.methodName())) {
                         continue; // igualdade de record: fold inline no call site (15.3d inc2 C2)
@@ -201,7 +203,8 @@ public class WasmBackend implements Backend {
             java.util.Set<String> printed = printOperandTypes(scanAll);
             // records com String/Char/Bool (15.3d inc2 fatia C) + `==` de String
             // entre variaveis, que nao carrega literal nenhum (15.3d fatia F)
-            if (usesStringOps(scanAll) || usesRecords || usesStringEquals(scanAll)) printed.add("string");
+            if (usesStringOps(scanAll) || usesRecords || usesStringEquals(scanAll)
+                    || usesStringLength(scanAll)) printed.add("string");
             if (printed.contains("int") || printed.contains("long")) funcs.add(kofWriteInt());
             if (printed.contains("bool") || printed.contains("boolean")) funcs.add(kofWriteBool());
             if (printed.contains("char")) funcs.add(kofWriteChar());
@@ -219,6 +222,7 @@ public class WasmBackend implements Backend {
                     // records (fold de campo String); agora a comparacao direta
                     // entre duas variaveis tambem precisa do helper.
                     if (!usesRecords && usesStringEquals(scanAll)) funcs.add(kofStrEq());
+                    if (usesStringLength(scanAll)) funcs.add(kofStrLen());
                     usesHeap = true; // bump pointer global 0
                 }
             if (usesArgs) {

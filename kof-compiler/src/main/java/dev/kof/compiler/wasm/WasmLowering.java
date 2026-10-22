@@ -461,6 +461,15 @@ final class WasmLowering {
                 out.add(new WasmInstr.Call("kof.strEq"));
                 ctx.lastPush = "bool";
                 ctx.lastPushWide = false;
+            } else if (ctx.wasi && "length".equals(kc.methodName())
+                    && "string".equalsIgnoreCase(typeName(kc.ownerType()))) {
+                // 15.3d fatia F face 2b: `s.length()`. O handle guarda BYTES
+                // UTF-8, mas `length()` do Kof e a contagem de code units UTF-16
+                // (JVM: "café" = 4, bytes = 5) — o helper conta, nao le o
+                // cabecalho, senao toda string nao-ASCII divergia em silencio.
+                out.add(new WasmInstr.Call("kof.strLen"));
+                ctx.lastPush = "long";
+                ctx.lastPushWide = true;
             } else if (ctx.wasi && "valueOf".equals(kc.methodName())
                     && printlnFollows(ops, idx)) {
                 // String.valueOf(X) seguido de println: o valor bruto ja esta na

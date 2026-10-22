@@ -409,6 +409,86 @@ public final class WasmStdoutRuntime {
 
     // ---- 15.3d inc2 fatia C: handles de String sintetizados no bump heap ----
 
+    /**
+     * `kof.strLen(h) -> i64`: numero de CODE UNITS UTF-16 de um handle
+     * `[len][bytes]` — a semantica do `String.length()` do Kof (JVM).
+     *
+     * <p>O handle guarda o comprimento em BYTES UTF-8 (`internLen`), enquanto
+     * `length()` conta code units UTF-16: `"café"` tem 5 bytes e 4 units, e um
+     * emoji (4 bytes) vale 2 units (par surrogate). Ler o cabecalho do handle
+     * daria o valor errado em toda string nao-ASCII — divergencia SILENCIOSA,
+     * por isso a contagem percorre os bytes.
+     *
+     * <p>Regra de contagem por byte lider (UTF-8 e auto-sincronizante, so os
+     * bytes lideres precisam ser classificados): `0xxxxxxx` = 1 unit; `110xxxxx`
+     * e `1110xxxx` = 1 unit; `11110xxx` = 2 units. Bytes de continuacao
+     * (`10xxxxxx`) nao contam.
+     */
+    public static WasmFunc kofStrLen() {
+        // Locais: 0 = handle (i32 param); 1 = n bytes (i32); 2 = i (i32);
+        // 3 = u code units (i64, tipo de retorno do Kof Int); 4 = c byte (i32).
+        List<WasmInstr> b = new ArrayList<>();
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));             // i32: [h] = bytes
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 1, "n"));
+        b.add(new WasmInstr.Const(0, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "i"));
+        b.add(new WasmInstr.Const(1, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 3, "u"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, "slen_x", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, "slen", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "i"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "n"));
+        b.add(new WasmInstr.Simple(0x4e, "i32.ge_s"));
+        b.add(new WasmInstr.Branch("slen_x", 1, true));              // i >= n -> sai
+        // c = byte em [h+4+i]
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
+        b.add(new WasmInstr.Const(0, 4));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "i"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD8U, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 4, "c"));
+        // NAO-continuacao (byte lider: ASCII, 2/3/4-byte) -> e' ele que conta.
+        // (c & 0xC0) != 0x80 distingue lider de byte de continuacao; bytes de
+        // continuacao nao entram no IF e portanto nao contam.
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "c"));
+        b.add(new WasmInstr.Const(0, 0xC0));
+        b.add(new WasmInstr.Simple(0x71, "i32.and"));
+        b.add(new WasmInstr.Const(0, 0x80));
+        b.add(new WasmInstr.Simple(0x47, "i32.ne"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "cont", 0x40));
+        // 4-byte leader (11110xxx): 2 units (par surrogate). Um lider de 3 bytes
+        // (1110xxxx) casa 0xE0..0xEF em &0xF8, nunca 0xF0.
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "c"));
+        b.add(new WasmInstr.Const(0, 0xF8));
+        b.add(new WasmInstr.Simple(0x71, "i32.and"));
+        b.add(new WasmInstr.Const(0, 0xF0));
+        b.add(new WasmInstr.Simple(0x46, "i32.eq"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "four", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "u"));
+        b.add(new WasmInstr.Const(1, 2));
+        b.add(new WasmInstr.Simple(0x7c, "i64.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 3, "u"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, "four", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "u"));
+        b.add(new WasmInstr.Const(1, 1));
+        b.add(new WasmInstr.Simple(0x7c, "i64.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 3, "u"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "four", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "cont", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "i"));
+        b.add(new WasmInstr.Const(0, 1));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "i"));
+        b.add(new WasmInstr.Branch("slen", 0));                      // continue INCONDICIONAL
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "slen", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "slen_x", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "u"));
+        return new WasmFunc("kof.strLen", List.of(0x7f), List.of(0x7e),
+                List.of(0x7f, 0x7f, 0x7e, 0x7f), b);
+    }
+
     /** `kof.strEq(a,b)` -> 1/0: igualdade de CONTEUDO de dois handles `[len][bytes]`
      * do heap bump (15.3d inc2 fatia C2): fold de campo String de record via
      * `kofRecordEq`; mesma semantica do `kofRecordEq`/`kof_string_equals` dos

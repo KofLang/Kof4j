@@ -334,6 +334,50 @@ class WasmWasiE2ETest {
     }
 
     @Test
+    void stringLengthCountsUtf16CodeUnitsLikeTheJvm(@TempDir Path dir) throws Exception {
+        // 15.3d fatia F face 2b: `s.length()`. O handle WASI guarda BYTES UTF-8,
+        // mas `length()` do Kof conta code units UTF-16 — ler o cabecalho daria
+        // certo so em ASCII e divergiria EM SILENCIO em qualquer string nao-ASCII.
+        // Este teste e o que tranca essa distincao: 'é' sao 2 bytes / 1 unit,
+        // '€' sao 3 bytes / 1 unit, um emoji sao 4 bytes / 2 units (par surrogate).
+        var wasmtime = host("wasmtime");
+        assumeTrue(wasmtime != null, "wasmtime host absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    println("abc".length())
+                    var s = "café"
+                    println(s.length())
+                    println("".length())
+                    var e = "a€b"
+                    println(e.length())
+                    var f = "x\uD83D\uDE00y"
+                    println(f.length())
+                    println(("ab" + "c").length())
+                }
+                """);
+        var driver = new CompilerDriver();
+        var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
+        assertTrue(jvm.success(), "jvm string-length compile: " + jvm.diagnostics().getDiagnostics());
+        var oracle = new ProcessBuilder(List.of(jvmBin(), "-cp",
+                Path.of(dir.toString(), "out-jvm").toString(), "Default.Main"))
+                .redirectErrorStream(true).start();
+        String expected = new String(oracle.getInputStream().readAllBytes());
+        assertTrue(oracle.waitFor(120, TimeUnit.SECONDS) && oracle.exitValue() == 0,
+                "JVM oracle string-length: " + expected);
+        var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
+        assertTrue(wasi.success(), "wasi string-length compile: " + wasi.diagnostics().getDiagnostics());
+        var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
+                Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm").toString()))
+                .redirectErrorStream(true).start();
+        String out = new String(proc.getInputStream().readAllBytes());
+        assertTrue(proc.waitFor(60, TimeUnit.SECONDS), "host within 60s");
+        assertEquals(0, proc.exitValue(), "clean WASI exit string-length: " + out);
+        assertEquals(expected.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                "String.length() must count UTF-16 code units, like the JVM oracle");
+    }
+
+    @Test
     void recordFieldWidthsMatchTheJvmOracle(@TempDir Path dir) throws Exception {
         // 15.3d inc2 fatia B: campos Bool/Char (i32) e String-handle (i32) no slot de
         // 8 bytes do bump heap; leitura + println com paridade byte-a-byte do oraculo JVM.

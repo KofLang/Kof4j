@@ -117,6 +117,22 @@ final class WasmTypeOracle {
         return false;
     }
 
+    /** 15.3d fatia F face 2b: algum `String.length()` (ou `.length` como campo)
+     *  foi baixado para `kof.strLen`. */
+    static boolean usesStringLength(Iterable<IRMethod> ms) {
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (op instanceof KofCall kc && "length".equals(kc.methodName())
+                            && "string".equalsIgnoreCase(typeName(kc.ownerType()))) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     static boolean usesStringConcat(Iterable<IRMethod> ms) {
         for (IRMethod m : ms) {
             for (IRBasicBlock bb : m.basicBlocks()) {
