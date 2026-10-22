@@ -187,6 +187,11 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
             && StringFormatCallLowerer.matches(driver, mc, locals)) {
         return StringFormatCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
     }
+    if ("toString".equals(mc.methodName()) && mc.arguments().size() == 1
+            && wrapperArgMatches(rid.name(), ExpressionTyper.inferExprType(driver, mc.arguments().get(0), locals))) {
+        return lower(driver, new MethodCallExpr(mc.position(), new IdentifierExpr(rid.position(), "String"),
+                "valueOf", List.of(), mc.arguments()), ops, owner, localIdx, locals);
+    }
     String javaClass = switch (rid.name()) {
         case "Int", "Integer" -> "java/lang/Integer";
         case "Long" -> "java/lang/Long";
@@ -411,4 +416,17 @@ return localIdx;
                 localIdx, locals, entityName);
     }
 
+
+    private static boolean wrapperArgMatches(String wrapper, Type argType) {
+        if (!(argType instanceof Type.PrimitiveType)) return false;
+        String prim = TypeMetrics.primitiveName(argType);
+        return switch (wrapper) {
+            case "Int", "Integer" -> "int".equals(prim) || "Int".equals(prim);
+            case "Long" -> "long".equals(prim) || "Long".equals(prim);
+            case "Double" -> "double".equals(prim) || "Double".equals(prim);
+            case "Float" -> "float".equals(prim) || "Float".equals(prim);
+            case "Bool", "Boolean" -> "boolean".equals(prim) || "bool".equals(prim) || "Bool".equals(prim);
+            default -> false;
+        };
+    }
 }
