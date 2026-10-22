@@ -98,6 +98,12 @@ final class WasmStrCalls {
                         ctx.lastPushWide = false;
                         return true;
                     }
+                    case "trim" -> {
+                        out.add(new WasmInstr.Call("kof.strTrim"));
+                        ctx.lastPush = "string";
+                        ctx.lastPushWide = false;
+                        return true;
+                    }
                     case "concat" -> {
                         out.add(new WasmInstr.Call("kof.strConcat"));
                         ctx.lastPush = "string";

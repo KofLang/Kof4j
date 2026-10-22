@@ -343,4 +343,119 @@ final class WasmStrInspect {
         return new WasmFunc("kof.strIndexOf", List.of(0x7f, 0x7f), List.of(0x7e),
                 // locais 2..9: p,i,la,lb (i32), u (i64), c (i32), found (i32), res (i64)
                 List.of(0x7f, 0x7f, 0x7f, 0x7f, 0x7e, 0x7f, 0x7f, 0x7e), b);    }
+
+    /**
+     * `kof.strTrim(h) -> handle`: `String.trim()` do Kof, recortando pelos BYTES.
+     *
+     * <p>E' EXATO porque o `trim()` do JVM corta code units `<= U+0020`, e em
+     * UTF-8 todo code unit assim e' UM byte `<= 0x20` enquanto toda sequencia
+     * multibyte comeca com byte `>= 0xC2` — entao os conjuntos de pontas
+     * coincidem e nao precisamos contar code units.
+     *
+     * <p>Locais: 0 = h; 1 = b (i32 inicio), 2 = e (i32 fim exclusivo),
+     * 3 = len (i32), 4 = p (i32 destino), 5 = k (i32 indice de copia)
+     */
+    static WasmFunc kofStrTrim() {
+        List<WasmInstr> b = new ArrayList<>();
+        // b = 0 ; e = [h] (contagem de bytes)
+        b.add(new WasmInstr.Const(0, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 1, "b"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "e"));
+        // avanca o inicio enquanto byte <= 0x20
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, "tb_x", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, "tb", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "b"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "e"));
+        b.add(new WasmInstr.Simple(0x4f, "i32.ge_u"));
+        b.add(new WasmInstr.Branch("tb_x", 1, true));        // b >= e -> tudo espaco
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "b"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD8U, 4));
+        b.add(new WasmInstr.Const(0, 0x21));
+        b.add(new WasmInstr.Simple(0x49, "i32.lt_u"));
+        b.add(new WasmInstr.Simple(0x45, "i32.eqz"));
+        b.add(new WasmInstr.Branch("tb_x", 1, true));         // byte > 0x20 -> para
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "b"));
+        b.add(new WasmInstr.Const(0, 1));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 1, "b"));
+        b.add(new WasmInstr.Branch("tb", 0));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "tb", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "tb_x", 0x40));
+        // recua o fim enquanto byte <= 0x20 (e > b)
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, "te_x", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, "te", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "e"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "b"));
+        b.add(new WasmInstr.Simple(0x4d, "i32.le_u"));
+        b.add(new WasmInstr.Branch("te_x", 1, true));         // e <= b -> nada resta
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "e"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD8U, 3));
+        b.add(new WasmInstr.Const(0, 0x21));
+        b.add(new WasmInstr.Simple(0x49, "i32.lt_u"));
+        b.add(new WasmInstr.Simple(0x45, "i32.eqz"));
+        b.add(new WasmInstr.Branch("te_x", 1, true));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "e"));
+        b.add(new WasmInstr.Const(0, 1));
+        b.add(new WasmInstr.Simple(0x6b, "i32.sub"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "e"));
+        b.add(new WasmInstr.Branch("te", 0));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "te", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "te_x", 0x40));
+        // len = e - b
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "e"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "b"));
+        b.add(new WasmInstr.Simple(0x6b, "i32.sub"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 3, "len"));
+        // p = global 0 ; global 0 += len + 5
+        b.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 4, "p"));
+        b.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "len"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Const(0, 5));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Global(WasmInstr.Global.SET, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "p"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "len"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));
+        // copia len bytes de h+4+b
+        b.add(new WasmInstr.Const(0, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 5, "k"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, "cp_x", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, "cp", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "k"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "len"));
+        b.add(new WasmInstr.Simple(0x4e, "i32.ge_u"));
+        b.add(new WasmInstr.Branch("cp_x", 1, true));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "p"));
+        b.add(new WasmInstr.Const(0, 4));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "k"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
+        b.add(new WasmInstr.Const(0, 4));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "b"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "k"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD8U, 0));
+        b.add(new WasmInstr.Store8(0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "k"));
+        b.add(new WasmInstr.Const(0, 1));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 5, "k"));
+        b.add(new WasmInstr.Branch("cp", 0));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "cp", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "cp_x", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "p"));
+        return new WasmFunc("kof.strTrim", List.of(0x7f), List.of(0x7f),
+                List.of(0x7f, 0x7f, 0x7f, 0x7f, 0x7f), b);
+    }
 }

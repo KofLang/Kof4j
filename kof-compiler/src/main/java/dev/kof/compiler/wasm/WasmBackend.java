@@ -126,6 +126,8 @@ public class WasmBackend implements Backend {
                             || ("charAt".equals(kc.methodName())
                                 && "string".equalsIgnoreCase(typeName(kc.ownerType())))
                             || ("substring".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            || ("trim".equals(kc.methodName())
                                 && "string".equalsIgnoreCase(typeName(kc.ownerType()))))) {
                         continue; // wrapper intrinseco de String tratado na emissao
                     }
@@ -228,7 +230,8 @@ public class WasmBackend implements Backend {
                     || usesStringMethod(scanAll, "endsWith")
                     || usesStringMethod(scanAll, "indexOf")
                     || usesStringMethod(scanAll, "charAt")
-                    || usesStringMethod(scanAll, "substring")) printed.add("string");
+                    || usesStringMethod(scanAll, "substring")
+                    || usesStringMethod(scanAll, "trim")) printed.add("string");
             if (printed.contains("int") || printed.contains("long")) funcs.add(kofWriteInt());
             if (printed.contains("bool") || printed.contains("boolean")) funcs.add(kofWriteBool());
             if (printed.contains("char")) funcs.add(WasmCharOut.kofWriteChar());
@@ -253,6 +256,7 @@ public class WasmBackend implements Backend {
                     }
                     if (usesStringMethod(scanAll, "charAt")) funcs.add(WasmStrSlice.kofStrCharAt());
                     if (usesStringMethod(scanAll, "substring")) funcs.add(WasmStrSlice.kofStrSub());
+                    if (usesStringMethod(scanAll, "trim")) funcs.add(WasmStrInspect.kofStrTrim());
                     // 15.3d fatia F: `==`/`!=` de String. Antes so entrava via
                     // records (fold de campo String); agora a comparacao direta
                     // entre duas variaveis tambem precisa do helper.

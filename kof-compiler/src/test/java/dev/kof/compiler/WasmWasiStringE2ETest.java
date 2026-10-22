@@ -174,6 +174,52 @@ class WasmWasiStringE2ETest {
     }
 
     @Test
+    void trimMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // fatia F face 2h: `trim()`. Exato como operacao de BYTES porque o JVM
+        // corta code units <= U+0020 e em UTF-8 todo code unit assim e' UM byte
+        // <= 0x20, enquanto toda sequencia multibyte comeca com byte >= 0xC2 —
+        // os conjuntos de pontas coincidem, sem contar code units.
+        // Casos: sem padding, ambos os lados, so' espacos (vira vazia), TAB e
+        // newline (tambem <= U+0020), nao-ASCII com e sem padding, e um espaco
+        // INTERNO que NAO pode ser cortado.
+        var wasmtime = host("wasmtime");
+        assumeTrue(wasmtime != null, "wasmtime host absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    println("  ab  ".trim() + "|")
+                    println("ab".trim() + "|")
+                    println("   ".trim() + "|")
+                    println("\\tab\\t".trim() + "|")
+                    println("\\nab\\n".trim() + "|")
+                    println("café  ".trim() + "|")
+                    println("  café  ".trim() + "|")
+                    println(("  €  ".trim()).length())
+                    println("  a b  ".trim() + "|")
+                }
+                """);
+        var driver = new CompilerDriver();
+        var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
+        assertTrue(jvm.success(), "jvm trim compile: " + jvm.diagnostics().getDiagnostics());
+        var oracle = new ProcessBuilder(List.of(jvmBin(), "-cp",
+                Path.of(dir.toString(), "out-jvm").toString(), "Default.Main"))
+                .redirectErrorStream(true).start();
+        String expected = new String(oracle.getInputStream().readAllBytes());
+        assertTrue(oracle.waitFor(120, TimeUnit.SECONDS) && oracle.exitValue() == 0,
+                "JVM oracle trim: " + expected);
+        var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
+        assertTrue(wasi.success(), "wasi trim compile: " + wasi.diagnostics().getDiagnostics());
+        var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
+                Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm").toString()))
+                .redirectErrorStream(true).start();
+        String out = new String(proc.getInputStream().readAllBytes());
+        assertTrue(proc.waitFor(60, TimeUnit.SECONDS), "host within 60s");
+        assertEquals(0, proc.exitValue(), "clean WASI exit trim: " + out);
+        assertEquals(expected.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                "String.trim must equal the JVM oracle");
+    }
+
+    @Test
     void charAtReturnsBothSurrogateHalvesAndNonAsciiCharsPrintAsUtf8(@TempDir Path dir) throws Exception {
         // fatia F face 2g — a que exigiu quatro desenhos. Duas coisas quebram
         // juntas aqui:
