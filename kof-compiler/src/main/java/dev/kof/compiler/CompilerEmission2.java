@@ -106,6 +106,26 @@ public final class CompilerEmission2 {
         ExpressionNode target = ue.operand();
         if (target instanceof IdentifierExpr ie) {
             IRLocalVariable var = driver.findLocalVar(ie.name(), locals);
+            if (var != null && driver.boxFactory.isBoxType(var.type())) {
+                Type vt = driver.boxFactory.boxValueType(var.type());
+                int tmp = localIdx;
+                localIdx += TypeMetrics.isDoubleWidth(vt) ? 2 : 1;
+                locals.add(new IRLocalVariable(tmp, "#inc", vt));
+                ops.add(new KofLoadLocal(var.type(), var.index()));
+                ops.add(new KofLoadField(var.type(), "value", vt));
+                ops.add(new KofStoreLocal(vt, tmp));
+                ops.add(new KofLoadLocal(var.type(), var.index()));
+                ops.add(new KofLoadLocal(vt, tmp));
+                CompilerEmissionHelpers.emitIncrementStep(ops, op, vt);
+                ops.add(new KofStoreField(var.type(), "value", vt));
+                if (prefix) {
+                    ops.add(new KofLoadLocal(var.type(), var.index()));
+                    ops.add(new KofLoadField(var.type(), "value", vt));
+                } else {
+                    ops.add(new KofLoadLocal(vt, tmp));
+                }
+                return localIdx;
+            }
             if (var != null) {
                 // local: [load v, (dup), 1, add, (dup), store v]
                 // §168: long/double ocupam 2 slots no JVM e o KofDup2 tem
@@ -120,8 +140,7 @@ public final class CompilerEmission2 {
                     ops.add(new KofLoadLocal(var.type(), var.index()));
                     ops.add(new KofStoreLocal(var.type(), tmp));
                     ops.add(new KofLoadLocal(var.type(), tmp));
-                    CompilerEmissionHelpers.emitIncrementOne(ops, var.type());
-                    ops.add(new KofBinary(op, var.type()));
+                    CompilerEmissionHelpers.emitIncrementStep(ops, op, var.type());
                     ops.add(new KofStoreLocal(var.type(), var.index()));
                     ops.add(new KofLoadLocal(var.type(), prefix ? var.index() : tmp));
                     return localIdx;
@@ -137,16 +156,14 @@ public final class CompilerEmission2 {
                     Type incIn = ((Type.NullableType) var.type()).inner();
                     if (!prefix) ops.add(new KofDup());
                     driver.emitErasureUnbox(ops, incIn);
-                    CompilerEmissionHelpers.emitIncrementOne(ops, incIn);
-                    ops.add(new KofBinary(op, incIn));
+                    CompilerEmissionHelpers.emitIncrementStep(ops, op, incIn);
                     driver.emitErasureBox(ops, incIn);
                     if (prefix) ops.add(new KofDup());
                     ops.add(new KofStoreLocal(var.type(), var.index()));
                     return localIdx;
                 }
                 if (!prefix) ops.add(new KofDup());
-                CompilerEmissionHelpers.emitIncrementOne(ops, var.type());
-                ops.add(new KofBinary(op, var.type()));
+                CompilerEmissionHelpers.emitIncrementStep(ops, op, var.type());
                 if (prefix) ops.add(new KofDup());
                 ops.add(new KofStoreLocal(var.type(), var.index()));
                 return localIdx;
@@ -211,8 +228,7 @@ public final class CompilerEmission2 {
             ops.add(new KofArrayLoad(elemType));
             ops.add(new KofStoreLocal(elemType, valTmp));
             ops.add(new KofLoadLocal(elemType, valTmp));
-            CompilerEmissionHelpers.emitIncrementOne(ops, elemType);
-            ops.add(new KofBinary(op, elemType));
+            CompilerEmissionHelpers.emitIncrementStep(ops, op, elemType);
             ops.add(new KofStoreLocal(elemType, newTmp));
             ops.add(new KofLoadLocal(recvType, arrTmp));
             ops.add(new KofLoadLocal(Type.PrimitiveType.INT, idxTmp));
@@ -223,8 +239,7 @@ public final class CompilerEmission2 {
         }
         // non-assignable operand: evaluate as expression (legacy behavior)
         localIdx = ExpressionLowerer.emitExpression(driver, ue.operand(), ops, owner, localIdx, locals);
-        CompilerEmissionHelpers.emitIncrementOne(ops, operandType);
-        ops.add(new KofBinary(op, operandType));
+        CompilerEmissionHelpers.emitIncrementStep(ops, op, operandType);
         return localIdx;
     }
 
@@ -241,8 +256,7 @@ public final class CompilerEmission2 {
         ops.add(new KofGetStatic(ownerType, fieldName, fieldType));
         ops.add(new KofStoreLocal(fieldType, valTmp));
         ops.add(new KofLoadLocal(fieldType, valTmp));
-        CompilerEmissionHelpers.emitIncrementOne(ops, fieldType);
-        ops.add(new KofBinary(op, fieldType));
+        CompilerEmissionHelpers.emitIncrementStep(ops, op, fieldType);
         ops.add(new KofStoreLocal(fieldType, newTmp));
         ops.add(new KofLoadLocal(fieldType, newTmp));
         ops.add(new KofPutStatic(ownerType, fieldName, fieldType));

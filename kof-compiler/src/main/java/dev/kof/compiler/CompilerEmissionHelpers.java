@@ -305,6 +305,18 @@ public final class CompilerEmissionHelpers {
      * do alvo: `long x; x++` virava `LADD` sobre (long, int) → VerifyError no
      * JVM; `double`/`float` idem. O literal tem de casar com o tipo do alvo.
      */
+    static void emitIncrementStep(List<KofOperation> ops, KofBinaryOp op, Type type) {
+        emitIncrementOne(ops, type);
+        ops.add(new KofBinary(op, type));
+        KofUnaryOp narrow = switch (TypeMetrics.primitiveName(type)) {
+            case "byte", "Byte" -> KofUnaryOp.I2B;
+            case "short", "Short" -> KofUnaryOp.I2S;
+            case "char", "Char" -> KofUnaryOp.I2C;
+            default -> null;
+        };
+        if (narrow != null) ops.add(new KofUnary(narrow, Type.PrimitiveType.INT));
+    }
+
     static void emitIncrementOne(List<KofOperation> ops, Type type) {
         String name = TypeMetrics.primitiveName(type);
         switch (name) {

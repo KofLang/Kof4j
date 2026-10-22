@@ -78,8 +78,7 @@ public final class CompilerUiEmitter {
         ops.add(new KofLoadField(ownerType, fieldName, fieldType));
         ops.add(new KofStoreLocal(fieldType, valTmp));
         ops.add(new KofLoadLocal(fieldType, valTmp));
-        CompilerEmissionHelpers.emitIncrementOne(ops, fieldType);
-        ops.add(new KofBinary(op, fieldType));
+        CompilerEmissionHelpers.emitIncrementStep(ops, op, fieldType);
         ops.add(new KofStoreLocal(fieldType, newTmp));
         ops.add(new KofLoadLocal(ownerType, recvTmp));
         ops.add(new KofLoadLocal(fieldType, newTmp));
