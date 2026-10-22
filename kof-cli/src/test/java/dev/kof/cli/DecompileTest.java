@@ -9441,6 +9441,63 @@ class DecompileTest {
                 "zero-drift: caloriesPerServing/heatLevel/isVegan/pricePerKg idênticos ao Java");
     }
 
+    @Test
+    void savingsDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o domínio POUPANÇA — 4 shapes sem código novo: o
+        // monthlyInterest com a cadeia triple (`balance * annualRate / 12`
+        // — o 6.0 exato), o goalStatus com o LIMIAR RELATIVO (`saved >=
+        // target / 2` — a divisão DENTRO da comparação), o afterFees com a
+        // subtração do percentual e o monthsToGoal com o CAST sobre a
+        // expressão parentesada (`(int) ((target - saved) / monthly)` — o
+        // 8 exato). Zero-drift executado: 6.0/reached/halfway/in progress/
+        // 980.0/8 — 6/6 idênticos ao Java — a 94ª validação zero-código.
+        Path javaFile = dir.resolve("Savings.java");
+        Files.writeString(javaFile, """
+                public class Savings {
+                    static double monthlyInterest(double balance, double annualRate) {
+                        return balance * annualRate / 12;
+                    }
+                    static String goalStatus(double saved, double target) {
+                        if (saved >= target) { return "reached"; }
+                        if (saved >= target / 2) { return "halfway"; }
+                        return "in progress";
+                    }
+                    static double afterFees(double amount, double feePercent) {
+                        return amount - amount * feePercent;
+                    }
+                    static int monthsToGoal(double saved, double target, double monthly) {
+                        return (int) ((target - saved) / monthly);
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Savings.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Savings.monthlyInterest(1200.0, 0.06))
+                    println(Savings.goalStatus(1000.0, 1000.0))
+                    println(Savings.goalStatus(600.0, 1000.0))
+                    println(Savings.goalStatus(100.0, 1000.0))
+                    println(Savings.afterFees(1000.0, 0.02))
+                    println(Savings.monthsToGoal(200.0, 1000.0, 100.0))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 6.0 | reached | halfway | in progress | 980.0 | 8
+        assertEquals("6.0\nreached\nhalfway\nin progress\n980.0\n8", output,
+                "zero-drift: monthlyInterest/goalStatus/afterFees/monthsToGoal idênticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
