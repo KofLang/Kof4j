@@ -129,4 +129,52 @@ final class WasmCharOut {
         b.add(new WasmInstr.Simple(0x1a, "drop"));
         return new WasmFunc("kof.writeChar", List.of(0x7e), List.of(), List.of(0x7f, 0x7f), b);
     }
+
+    /**
+     * `kof.writeDouble(v)` — `println(Double)` para o subconjunto DECIMAL
+     * (unidade 15.3, primeiro incremento).
+     *
+     * <p>O `Double.toString` COMPLETO exige o Schubfach shortest-round-trip
+     * (`RuntimeDtoaSchubfach`, 500+ linhas de asm) para bater o JDK byte-a-byte.
+     * Este incremento cobre so' o que o rendering decimal simples reproduz:
+     * valores INTEGRAIS imprimem `<digitos>.0` (reusa `kof.intToStr`, ja'
+     * provado). Qualquer valor com parte fracionaria TRAPA em vez de imprimir
+     * uma string silenciosamente diferente (regra 5 / Q7) — a face exponencial
+     * (`1.0E-4`, `1.0E7`) fica para o port do Schubfach.
+     *
+     * <p>Locais: 0 = v (f64); 1 = truncado (i64); 2 = h (i32 handle)
+     */
+    static WasmFunc kofWriteDouble() {
+        List<WasmInstr> b = new ArrayList<>();
+        // trunca: i64.trunc_f64_s (0xb0)
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "v"));
+        b.add(new WasmInstr.Simple(0xb0, "i64.trunc_f64_s"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 1, "t"));
+        // se v != (f64)t -> nao-integral: trap honesto (nunca string errada)
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "t"));
+        b.add(new WasmInstr.Simple(0xb9, "f64.convert_i64_s"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "v"));
+        b.add(new WasmInstr.Simple(0x62, "f64.ne"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "frac", 0x40));
+        b.add(new WasmInstr.Simple(0x00, "unreachable"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "frac", 0x40));
+        // Monta UM handle "<digitos>.0" e escreve UMA vez: kof.writeStr
+        // acrescenta o '\n', entao duas escritas imprimiriam duas linhas.
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "t"));
+        b.add(new WasmInstr.Call("kof.intToStr"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "h"));
+        // h = intToStr ; h = appendByte(h, '.') ; h = appendByte(h, '0')
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "h"));
+        b.add(new WasmInstr.Const(0, '.'));
+        b.add(new WasmInstr.Call("kof.strAppendByte"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "h"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "h"));
+        b.add(new WasmInstr.Const(0, '0'));
+        b.add(new WasmInstr.Call("kof.strAppendByte"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "h"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "h"));
+        b.add(new WasmInstr.Call("kof.writeStr"));
+        return new WasmFunc("kof.writeDouble", List.of(WasmFunc.TYPE_F64), List.of(),
+                List.of(WasmFunc.TYPE_I64, WasmFunc.TYPE_I32), b);
+    }
 }

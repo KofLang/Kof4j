@@ -182,7 +182,9 @@ final class WasmTypeOracle {
     static boolean printableScalar(String name) {
         if ("string".equals(name.toLowerCase())) return true; // 15.3b (literal)
         return switch (name.toLowerCase()) {
-            case "int", "long", "bool", "boolean", "char" -> true;
+            // double: so' o subconjunto INTEGRAL esta implementado (kof.writeDouble
+            // trapa em valor fracionario) — o Schubfach completo e' multi-ciclo.
+            case "int", "long", "bool", "boolean", "char", "double" -> true;
             default -> false;
         };
     }

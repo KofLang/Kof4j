@@ -326,4 +326,61 @@ class WasmWasiStringSearchE2ETest {
                 out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
                 "Char in a variable must print/convert like the JVM oracle");
     }
+
+    @Test
+    void integralDoublePrintsLikeTheJvmAndFractionalTraps(@TempDir Path dir) throws Exception {
+        // Unidade 15.3, face Double — PRIMEIRO incremento, escopo medido.
+        // O Double.toString completo exige o Schubfach shortest-round-trip
+        // (500+ linhas de asm) para bater o JDK. Este incremento cobre so' o
+        // subconjunto INTEGRAL, onde o rendering decimal simples JA' e' a saida
+        // do JDK (`2.0`, `-3.0`, `100.0`). Valor FRACIONARIO trapa em vez de
+        // imprimir uma string silenciosamente diferente (regra 5 / Q7) — o
+        // teste fixa as DUAS metades do contrato.
+        var wasmtime = host("wasmtime");
+        assumeTrue(wasmtime != null, "wasmtime host absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    println(2.0)
+                    println(100.0)
+                    println(-3.0)
+                    println(0.0)
+                }
+                """);
+        var driver = new CompilerDriver();
+        var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
+        assertTrue(jvm.success(), "jvm integral-double compile: " + jvm.diagnostics().getDiagnostics());
+        var oracle = new ProcessBuilder(List.of(jvmBin(), "-cp",
+                Path.of(dir.toString(), "out-jvm").toString(), "Default.Main"))
+                .redirectErrorStream(true).start();
+        String expected = new String(oracle.getInputStream().readAllBytes());
+        assertTrue(oracle.waitFor(120, TimeUnit.SECONDS) && oracle.exitValue() == 0,
+                "JVM oracle integral-double: " + expected);
+        var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
+        assertTrue(wasi.success(), "wasi integral-double compile: " + wasi.diagnostics().getDiagnostics());
+        var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
+                Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm").toString()))
+                .redirectErrorStream(true).start();
+        String out = new String(proc.getInputStream().readAllBytes());
+        assertTrue(proc.waitFor(60, TimeUnit.SECONDS), "host within 60s");
+        assertEquals(0, proc.exitValue(), "clean WASI exit integral-double: " + out);
+        assertEquals(expected.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                "integral Double printing must equal the JVM oracle");
+
+        // Metade 2: fracionario NAO imprime string errada — falha.
+        Files.writeString(dir.resolve("Frac.kf"), """
+                main(String[] args) {
+                    println(1.5)
+                }
+                """);
+        var fracWasi = driver.compile(dir.resolve("Frac.kf"), dir.resolve("out-frac"), Target.WASI);
+        assertTrue(fracWasi.success(), "fracional ainda COMPILA (o trap e' em execucao)");
+        var fracProc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
+                Path.of(dir.toString(), "out-frac", "Default", "Frac.wasm").toString()))
+                .redirectErrorStream(true).start();
+        String fracOut = new String(fracProc.getInputStream().readAllBytes());
+        assertTrue(fracProc.waitFor(60, TimeUnit.SECONDS), "host within 60s");
+        assertNotEquals(0, fracProc.exitValue(),
+                "valor fracionario tem de TRAPAR, nunca imprimir string divergente: " + fracOut);
+    }
 }

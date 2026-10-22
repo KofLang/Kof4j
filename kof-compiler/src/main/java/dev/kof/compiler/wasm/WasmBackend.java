@@ -247,6 +247,14 @@ public class WasmBackend implements Backend {
             if (printed.contains("int") || printed.contains("long")) funcs.add(kofWriteInt());
             if (printed.contains("bool") || printed.contains("boolean")) funcs.add(kofWriteBool());
             if (printed.contains("char")) funcs.add(WasmCharOut.kofWriteChar());
+                if (printed.contains("double")) {
+                    // Um programa so' com double ainda escreve pelo writeStr, entao
+                    // MARCA "string" e deixa o bloco de string registrar o resto —
+                    // registrar aqui tambem duplicava kof.intToStr/kof.strLit.
+                    funcs.add(WasmCharOut.kofWriteDouble());
+                    funcs.add(WasmStrSearch.kofStrAppendByte());
+                    printed.add("string");
+                }
                 if (printed.contains("string")) {
                     funcs.add(kofStrLit());
                     funcs.add(kofWriteStr());
