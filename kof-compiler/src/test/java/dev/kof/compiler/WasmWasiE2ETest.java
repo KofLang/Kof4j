@@ -285,6 +285,55 @@ class WasmWasiE2ETest {
     }
 
     @Test
+    void stringEqualityMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // 15.3d fatia F face 1: `==`/`!=` de String. O frontend baixa o operador
+        // para `kof_string_equals(a,b)`; antes o lowering WASI nao tinha destino e
+        // recusava WASM002 na comparacao mais basica do runtime de strings.
+        // As formas cobrem conteudo igual, prefixo, vazio, literal-vs-literal e o
+        // resultado de um concat — todas paridade byte-a-byte com o oraculo JVM.
+        var wasmtime = host("wasmtime");
+        assumeTrue(wasmtime != null, "wasmtime host absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var a = "ab"
+                    var b = "ab"
+                    var c = "cd"
+                    var d = "abcd"
+                    var e = ""
+                    println(a == b)
+                    println(a == c)
+                    println(a != c)
+                    println(a != b)
+                    println(a == d)
+                    println("lit" == "lit")
+                    println(a == e)
+                    println(e == e)
+                    println("ab" + "cd" == d)
+                }
+                """);
+        var driver = new CompilerDriver();
+        var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
+        assertTrue(jvm.success(), "jvm string-eq compile: " + jvm.diagnostics().getDiagnostics());
+        var oracle = new ProcessBuilder(List.of(jvmBin(), "-cp",
+                Path.of(dir.toString(), "out-jvm").toString(), "Default.Main"))
+                .redirectErrorStream(true).start();
+        String expected = new String(oracle.getInputStream().readAllBytes());
+        assertTrue(oracle.waitFor(120, TimeUnit.SECONDS) && oracle.exitValue() == 0,
+                "JVM oracle string-eq: " + expected);
+        var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
+        assertTrue(wasi.success(), "wasi string-eq compile: " + wasi.diagnostics().getDiagnostics());
+        var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
+                Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm").toString()))
+                .redirectErrorStream(true).start();
+        String out = new String(proc.getInputStream().readAllBytes());
+        assertTrue(proc.waitFor(60, TimeUnit.SECONDS), "host within 60s");
+        assertEquals(0, proc.exitValue(), "clean WASI exit string-eq: " + out);
+        assertEquals(expected.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                "String ==/!= must equal the JVM oracle");
+    }
+
+    @Test
     void recordFieldWidthsMatchTheJvmOracle(@TempDir Path dir) throws Exception {
         // 15.3d inc2 fatia B: campos Bool/Char (i32) e String-handle (i32) no slot de
         // 8 bytes do bump heap; leitura + println com paridade byte-a-byte do oraculo JVM.

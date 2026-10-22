@@ -107,8 +107,9 @@ public class WasmBackend implements Backend {
                     var op = cops.get(ci);
                     if (!(op instanceof KofCall kc)) continue;
                     if (wasi && printIntrinsic && ("valueOf".equals(kc.methodName())
-                            || "kof_string_concat".equals(kc.methodName()))) {
-                        continue; // wrapper intrinseco (println / concat) tratado na emissao
+                            || "kof_string_concat".equals(kc.methodName())
+                            || "kof_string_equals".equals(kc.methodName()))) {
+                        continue; // wrapper intrinseco (println / concat / igualdade) tratado na emissao
                     }
                     if (wasi && usesRecords && "kofRecordEq".equals(kc.methodName())) {
                         continue; // igualdade de record: fold inline no call site (15.3d inc2 C2)
@@ -198,7 +199,9 @@ public class WasmBackend implements Backend {
             java.util.List<IRMethod> scanAll = new java.util.ArrayList<>(entries);
             if (startM != null) scanAll.add(startM);
             java.util.Set<String> printed = printOperandTypes(scanAll);
-            if (usesStringOps(scanAll) || usesRecords) printed.add("string"); // records com String/Char/Bool (15.3d inc2 fatia C)
+            // records com String/Char/Bool (15.3d inc2 fatia C) + `==` de String
+            // entre variaveis, que nao carrega literal nenhum (15.3d fatia F)
+            if (usesStringOps(scanAll) || usesRecords || usesStringEquals(scanAll)) printed.add("string");
             if (printed.contains("int") || printed.contains("long")) funcs.add(kofWriteInt());
             if (printed.contains("bool") || printed.contains("boolean")) funcs.add(kofWriteBool());
             if (printed.contains("char")) funcs.add(kofWriteChar());
@@ -212,6 +215,10 @@ public class WasmBackend implements Backend {
                         funcs.add(kofStrEq());   // campo String do fold de == (15.3d inc2 fatia C2)
                     }
                     if (usesStringConcat(scanAll) || usesRecords) funcs.add(kofStrConcat());
+                    // 15.3d fatia F: `==`/`!=` de String. Antes so entrava via
+                    // records (fold de campo String); agora a comparacao direta
+                    // entre duas variaveis tambem precisa do helper.
+                    if (!usesRecords && usesStringEquals(scanAll)) funcs.add(kofStrEq());
                     usesHeap = true; // bump pointer global 0
                 }
             if (usesArgs) {

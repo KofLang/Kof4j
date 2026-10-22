@@ -451,6 +451,16 @@ final class WasmLowering {
             } else if (ctx.wasi && "kof_string_concat".equals(kc.methodName())) {
                 out.add(new WasmInstr.Call("kof.strConcat")); // a+b de strings (15.3c)
                 ctx.lastPush = "string";
+            } else if (ctx.wasi && "kof_string_equals".equals(kc.methodName())) {
+                // 15.3d fatia F: `a == b` / `a != b` de String. O frontend ja baixa
+                // o operador para `kof_string_equals(a,b)` (e o `!=` acrescenta o
+                // `== 0` DEPOIS desta chamada), entao basta mapear para o helper de
+                // CONTEUDO que ja existe e esta provado verde nos records
+                // (`kof.strEq`, 15.3d inc2-C2). Sem este mapeamento a comparacao
+                // mais basica do runtime de strings recusava WASM002.
+                out.add(new WasmInstr.Call("kof.strEq"));
+                ctx.lastPush = "bool";
+                ctx.lastPushWide = false;
             } else if (ctx.wasi && "valueOf".equals(kc.methodName())
                     && printlnFollows(ops, idx)) {
                 // String.valueOf(X) seguido de println: o valor bruto ja esta na

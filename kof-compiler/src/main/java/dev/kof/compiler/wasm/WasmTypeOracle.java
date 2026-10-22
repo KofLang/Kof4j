@@ -101,6 +101,22 @@ final class WasmTypeOracle {
         return false;
     }
 
+    /** 15.3d fatia F: algum `==`/`!=` de String foi baixado para `kof_string_equals`.
+     *  Cobre a comparacao entre duas VARIAVEIS, que nao passa por
+     *  {@link #usesStringOps} (nao ha literal de string no codigo). */
+    static boolean usesStringEquals(Iterable<IRMethod> ms) {
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (op instanceof KofCall kc && "kof_string_equals".equals(kc.methodName())) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     static boolean usesStringConcat(Iterable<IRMethod> ms) {
         for (IRMethod m : ms) {
             for (IRBasicBlock bb : m.basicBlocks()) {
