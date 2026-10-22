@@ -143,7 +143,12 @@ public final class WasmScalarOps {
         return switch (name.toLowerCase()) {
             case "int", "long" -> WasmFunc.TYPE_I64;
             case "double" -> WasmFunc.TYPE_F64;
-            case "bool", "boolean", "char", "string" -> WasmFunc.TYPE_I32; // string = handle i32 (15.3c)
+            //  e' I64: o Char do Kof viaja como i64 na pilha (emitLiteral
+            // 15.2, e kof.writeChar/kof.strChar recebem i64). Declarar o slot
+            // como i32 fazia um Char em VARIAVEL sair i32 e o helper de escrita
+            // recusar o modulo inteiro (bug medido 22/10 em println(c)).
+            case "bool", "boolean", "string" -> WasmFunc.TYPE_I32; // string = handle i32 (15.3c)
+            case "char" -> WasmFunc.TYPE_I64;
             case "object" -> WasmFunc.TYPE_I32; // handle/opaque i32 (15.3d record temp)
             default -> throw new WasmUnsupportedException(role + " '" + name + "' em '" + context
                     + "' fora do subset escalar 15.2 (WASM002) — docs/wasm-wasi-plan.md (#776)");

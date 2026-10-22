@@ -283,4 +283,47 @@ class WasmWasiStringSearchE2ETest {
                             + wasi.diagnostics().getDiagnostics());
         }
     }
+
+    @Test
+    void charInAVariablePrintsAndConvertsLikeTheJvm(@TempDir Path dir) throws Exception {
+        // REGRESSAO MEDIDA 22/10 (defeito PRE-EXISTENTE, reproduzia sem nenhuma
+        // mudanca minha): `char` era declarado como slot i32 enquanto o Char do
+        // Kof viaja como i64 na pilha e kof.writeChar/kof.strChar recebem i64.
+        // Resultado: println(c) com c em VARIAVEL emitia module invalido
+        // (expected i32, found i64). Literal direto funcionava porque nao passava
+        // por slot. A correcao e' no mapType: char => TYPE_I64.
+        var wasmtime = host("wasmtime");
+        assumeTrue(wasmtime != null, "wasmtime host absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var c = 'k'
+                    println(c)
+                    println(c.toString())
+                    println(String.valueOf(c))
+                    var d = "abc".charAt(0)
+                    println(d)
+                    println(d.toString())
+                }
+                """);
+        var driver = new CompilerDriver();
+        var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
+        assertTrue(jvm.success(), "jvm char-var compile: " + jvm.diagnostics().getDiagnostics());
+        var oracle = new ProcessBuilder(List.of(jvmBin(), "-cp",
+                Path.of(dir.toString(), "out-jvm").toString(), "Default.Main"))
+                .redirectErrorStream(true).start();
+        String expected = new String(oracle.getInputStream().readAllBytes());
+        assertTrue(oracle.waitFor(120, TimeUnit.SECONDS) && oracle.exitValue() == 0,
+                "JVM oracle char-var: " + expected);
+        var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
+        assertTrue(wasi.success(), "wasi char-var compile: " + wasi.diagnostics().getDiagnostics());
+        var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
+                Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm").toString()))
+                .redirectErrorStream(true).start();
+        String out = new String(proc.getInputStream().readAllBytes());
+        assertTrue(proc.waitFor(60, TimeUnit.SECONDS), "host within 60s");
+        assertEquals(0, proc.exitValue(), "clean WASI exit char-var: " + out);
+        assertEquals(expected.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                "Char in a variable must print/convert like the JVM oracle");
+    }
 }
