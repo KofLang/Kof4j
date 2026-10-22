@@ -78,8 +78,8 @@ imports the module declares*, not two compilers.
 
 | Component | Real state (19/09) |
 |---|---|
-| Target enum | `dev.kof.compiler.Target` = `JVM, NATIVE, NATIVE_RISCV64, NATIVE_AARCH64, JS, ANDROID, SCRIPT` — **no WASM/WASI value exists** |
-| Honest rejection | `TargetMatrix` already maps the strings `wasm`/`kofwebasm` → gap **`WASM001`** ("planejado Fase 6 — rejeitado com gap honesto, nunca silencioso"): asking for wasm today yields a diagnostic, never a silent fallback |
+| Target enum | **SUPERSEDED 21/10:** `dev.kof.compiler.Target` DOES now have `WASM` and `WASI` (added by unit 15.1); the row above described the pre-15.1 state. A **backend** role exists for both — `kof build --target=wasm\|wasi` emit real modules (verified, see `backend-parity.md`). The **frontend** role is what is still missing (unit 15.4) |
+| Honest rejection | `TargetMatrix` maps the strings `wasm`/`kofwebasm` → gap **`WASM001`**, but ONLY for the FRONTEND role ("cannot be a frontend yet — emission exists (units 15.2/15.3) but the frontend/deploy surface and the default flip arrive with unit 15.4"). As a BUILD backend it no longer refuses. Original wording:  a diagnostic, never a silent fallback |
 | Pipeline | `CompilerPipeline.compile(driver, sourceFile, outputDir, Target)` — one frontend (Lexer→Parser→AST→semantic analysis) into per-target lowering/codegen; `SCRIPT` interprets the **shared IR** (`CompilerPipeline.interpret`) — proof the IR is backend-agnostic enough to host a new backend |
 | JS backend | `dev.kof.compiler.js` (`JsBackend`, `JsArtifactWriter`, `JsCallEmitter`, `JsClassEmitter`, …) — text-emitting reference for a new `wasm` package |
 | Native backend | `dev.kof.compiler.nativex8664` (+ `riscv/`, `aarch64/` siblings) — the **closest relative of a WASM backend**: own allocator, own object layout, hand-rolled runtime; reuse analysis in §7 |
@@ -159,7 +159,9 @@ recognizes `wasm32`, `wasm32-wasi`, `wasi`, `wasi-preview1`, `wasip1`, `kofwasi`
 (besides the existing `wasm`/`kofwasm`/`kofwebasm`/`kofwebassembly`/`webassembly`)
 and both CLI paths (`--frontend=wasi`/`kof.toml` via `TargetMatrix.parse`, legacy
 `--target=wasi` via `KofCliSupport.parseTarget`) refuse with `WASM001`, never the
-generic "unknown target". The message now names the promoted plan + issue #776 +
+generic "unknown target". **CORRECTED 21/10:** that refusal is the FRONTEND role
+only — `--target=wasi` as a BUILD backend stopped refusing at unit 15.3 and now
+emits `Main.wasm` (measured; runs under `node:wasi`, see `backend-parity.md`). The message now names the promoted plan + issue #776 +
 `D-WEB-WASI-DEFAULT-0710`. Additive plumbing only — **no `Target` enum value
 yet** (that is the frozen-surface-adjacent step, rule 6, deferred to the codegen
 phase). Proof: `TargetMatrixTest.wasiSpellingsAreHonestGap` +

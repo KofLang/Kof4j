@@ -111,7 +111,10 @@ implementar — não assumir mais deste diagrama do que está escrito aqui):
   (`--frontend=wasi`/`kof.toml` via `TargetMatrix.parse`, legado
   `--target=wasi` via `KofCliSupport.parseTarget`) recusam com `WASM001`
   nomeado — nunca "unknown target" (R6) — e a mensagem aponta para o plano
-  promovido + issue #776 + `D-WEB-WASI-DEFAULT-0710` (antes o obsoleto
+  promovido + issue #776 + `D-WEB-WASI-DEFAULT-0710`. **CORRIGIDO 21/10:** essa
+  recusa vale para o papel de FRONTEND; como backend de BUILD, `--target=wasi`
+  parou de recusar na unidade 15.3 e hoje emite `Main.wasm` (medido; roda sob
+  `node:wasi`, ver `backend-parity.md`). Histórico: (antes o obsoleto
   "Phase 6 of the platform plan"). Plumbing aditivo: **ainda sem valor no enum
   `Target`** (adjacente a superfície congelada, regra 6) e sem codegen. Prova
   RED-first: `TargetMatrixTest.wasiSpellingsAreHonestGap` +
