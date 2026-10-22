@@ -297,9 +297,9 @@ Mapeamento `conceito Kof → IR → WASM`:
 | função | função WASM (type + code) | PLANNED |
 | local | local WASM | PLANNED |
 | control flow (`if`/`while`/`for`/`switch`) | `block`/`loop`/`if`/`br`/`br_table` | PLANNED |
-| `Int` | `i64` ou `i32`? | **TBD — segue a spec numérica do Kof, nunca arbitráio** |
+| `Int` | `i64` | **RESOLVIDO 28/09** — `D-WASM-GO`/`D-WASM-02`: `Int`=i64 (bate com o golden JVM/Native) |
 | `Float`/`Double` | `f32`/`f64` | PLANNED |
-| referência (objeto/record/String) | `i32` offset na linear memory vs GC `ref` | **DECISION REQUIRED (§8)** |
+| referência (objeto/record/String) | handles + tabela de handles | **RESOLVIDO 28/09** — `D-WASM-GO`/`D-WASM-04` |
 | chamada ao host | `import` + adaptador JS/WASI | PLANNED |
 
 Mapeamento que dependa de decisão aberta fica **TBD** — não inventar.
@@ -583,6 +583,14 @@ Só o que a análise do código justifica:
 | Split da abstração KofUI (§17) | compartilhado vs host impl. | **TBD** |
 
 ## 31. Fases futuras
+
+**Estado MEDIDO 21/10** (o cabeçalho `doing:` do plano acompanha as fatias): as
+fases 1 e 4 estão PARCIALMENTE pousadas — `wasm/` tem 15 arquivos-fonte,
+`kof build --target=wasm|wasi` emitem módulos reais, e o módulo RODA sob um host
+WASI (`WasmWasiNodeHostTest` 2/2, sem skips). O subset é só-escalar:
+records/coleções/exceções/lambdas são recusados com `WASM002`, que é a fronteira
+que a tabela abaixo descreve como fases 2–3. O **flip de frontend 15.4** (a
+precondição da última linha) segue pendente, então este plano NÃO está concluído.
 
 Cada fase: objetivo · dependências · componentes · testes · critérios.
 

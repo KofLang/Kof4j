@@ -331,8 +331,9 @@ Investigation points (no choices made): allocator strategy; alignment;
 object layout; pointer representation (`i32` offset — wasm has no 64-bit
 linear pointers pre-Memory64); growth (`memory.grow` + relocation problem —
 growing invalidates offsets, ties directly to the GC/handle decision);
-free; root tracking. **DECISION REQUIRED:** GC strategy vs handle-table —
-the repo has not chosen; this spec does not choose for it.
+free; root tracking. **RESOLVED 28/09:** `D-WASM-GO` chose
+**handles + a handle table** with the native mark-sweep GC design (`D-WASM-04`,
+`D-WASM-05`) — the text above described the pre-decision state.
 
 **WASM must not create a second memory-management semantics independent of
 Kof's** (freeze rule 5): the same program must observe the same
@@ -584,16 +585,24 @@ Justified by code analysis (not padded):
 |---|---|---|
 | IR formality | a new backend needs a stable lowering input (today shared with native/script) | Phase 0 subject |
 | Native GC (mark-sweep G-1..G-5) | §9–10: wasm memory story reuses it | in development |
-| Runtime ABI (wasm) | closures/objects/errors all sit on it | DECISION REQUIRED |
+| Runtime ABI (wasm) | closures/objects/errors all sit on it | **RESOLVED 28/09** — `D-WASM-GO` (`D-WASM-01..09`): direct backend, `Int`=i64, thrown-string unwinding, handles+handle table, explicit closure env |
 | Capability system (supportedOn + gap codes) | §15: the join point | CURRENT |
 | KofUI D-UI-SCOPE | §18: the frontend contract exists, wasm side waits | CURRENT decision |
-| WASI runtime decision | §20 | TBD |
+| WASI runtime decision | §20 | **RESOLVED 28/09** — `D-WASM-GO`: WASI preview1, **wasmtime first** (the plan's own banner notes these markers are not still-open decisions) |
 | Conformance harness style | §26 | CURRENT (extend) |
 
 Module system & packaging: related to `PKG001` but **not** a hard blocker
 (single-module output sidesteps it in Phases 1–4) — listed as soft.
 
 ## 32. Future phases
+
+**Status MEASURED 21/10** (the plan's `doing:` header tracks the slices): phases
+1 and 4 are PARTLY landed — `wasm/` is 15 source files, `kof build --target=wasm|wasi`
+emit real modules, and the module RUNS under a WASI host (`WasmWasiNodeHostTest`
+2/2, no skips). The subset is scalar-only: records/collections/exceptions/lambdas
+are refused with `WASM002`, which is the boundary the table below describes as
+phases 2–3. The **15.4 frontend flip** (the last row's precondition) is still
+pending, so this plan is NOT concluded.
 
 | Phase | Objective | Depends on | Components touched | Tests | Done when |
 |---|---|---|---|---|---|
