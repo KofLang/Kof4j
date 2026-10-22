@@ -434,10 +434,29 @@ public final class Profile {
             case "native" -> Target.NATIVE;
             case "js" -> Target.JS;
             default -> {
-                System.err.println("unknown target: " + value);
+                // Q7 (R6): a REAL Kof target must never be reported as "unknown".
+                // `profile` only RUNS jvm|native|js; wasm/wasi/script/native.* exist.
+                if (isRealTarget(value)) {
+                    System.err.println("profile: --target " + value
+                            + " is not a profiling target (profile runs jvm|native|js;"
+                            + " '" + value + "' is a real target but has no profiling runner)");
+                } else {
+                    System.err.println("unknown target: " + value
+                            + " (profile targets: jvm|native|js)");
+                }
                 System.exit(1);
                 yield Target.JVM;
             }
+        };
+    }
+
+    /** True when {@code value} names a real Kof target the CLI parses elsewhere. */
+    private static boolean isRealTarget(String value) {
+        return switch (value) {
+            case "script", "kofscript", "wasm", "kofwasm", "wasi", "android",
+                 "native.risc", "native.riscv64", "native.riscv",
+                 "native.arm", "native.aarch64", "native.aarch" -> true;
+            default -> false;
         };
     }
 
