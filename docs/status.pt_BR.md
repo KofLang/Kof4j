@@ -382,7 +382,7 @@ state: active
 constraint: maintainer-gated-promotion
 decision: D-KOF-FIRST-IMPL
 
-**Versão:** 0.6.7 (pom `revision`) · **Última atualização:** 30 de setembro de 2026.
+**Versão:** 0.6.7 (pom `revision`) · **Última atualização:** 21 de outubro de 2026.
 
 **28/09 — frente pipeline + biblioteca (branch ativa = `lab`, `D-BRANCH-PIPELINE`).**
 - **memory-safety #651 fatia A1 pousada (29/09, `D-BUFFER-INOUT-NATIVE`):** `Buffer(U8)` abre no Native x86-64 — `buffer.alloc(Int)`, `Buffer.bytes()` e `println(Buffer)` tipado direto bindam com paridade JVM/JS (objeto nativo `[0..8]=header, cap@16, payload@24`; `kof_buffer_alloc` clampa negativo→0 e zero-fill, `kof_buffer_bytes` copia `cap` bytes, `kof_buffer_to_string` imprime `Buffer[cap]`; `NativeX86ValueOf` roteia prints nominais pelo novo `RuntimeBuffer`). `KofBuffer.supportedOn` admite só `Target.NATIVE`; riscv64/aarch64 e Script/Android seguem `FFI001` nesta superfície; o parâmetro FFI `B` é a A2. Prova `BufferE2ETest#allocBytesAndPrintlnNativeParity` (JVM==x86 byte a byte) + `StdParityGapAuditTest`; suíte focada FFI/Buffer verde; #651 segue ABERTA até B (B pousada abaixo).

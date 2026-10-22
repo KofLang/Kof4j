@@ -2,7 +2,7 @@
 
 # Kof — Long-Term Roadmap
 
-last: 0.6.3-published
+last: 0.6.6-published (0.6.7 CUT on the tree, tags pending — `VERSION` = 0.6.7; 0.6.6 published 19/10 per `AGENTS.md` + `git tag kof-0.6.6-*`)
 doing: 1.0-exit-gate
 next: promotion-sweep
 location: roadmap

@@ -2,7 +2,7 @@
 
 # Backend Parity — Kof JVM × Native × KofJS
 
-**Última atualização:** 28 de setembro de 2026
+**Última atualização:** 21 de outubro de 2026
 **Versão:** 0.6.7
 
 > Deltas desde 0.1.0: Targets `native.risc` (riscv64) e `native.arm` (aarch64) separados de `native` x86_64 (**core completo 02-03/09** — `NativeRiscv64E2ETest 13/13` + `NativeAarch64E2ETest 13/13` em asm puro + qemu, estado atual na seção "Native por arco" abaixo + `docs/native-multiarch.md`); Native free-list (`kof_free_head`) + `kof_gc_collect` (mark-sweep implementado 03/09; **auto-collect LIGADO 19/09 — §260/G-6(a) fechado**: o gatilho chama `kof_gc_collect_now` 1x por programa, gate `spawn_count==0`; histórico honesto no §260); MySQL wire protocol real no x86-64 (`kof_db_mysql_scramble` + `user:pass@`; handshake/COM_QUERY/prepared completos + as 13 faces ORM medidas contra o MariaDB 12.3.2, F2d1–F2d7 22/09); `mariadb://` é alias do wire `mysql://` no Native x86-64 (paridade DB S1, 23/09 — `kof_db_type` reporta a família mysql; cross segue `DB001` honesto, R7); pattern matching `switch case String s` + record destructuring `Point(x,y)` em JVM/Native/JS; `String?` null safety básica; `KofScript` top-level `let` → `KofScriptGlobals`; `KofCcompiler` (`kof c`) native-only C subset; `List map/filter/reduce` + `Box<T>`; Windows SIGPIPE fix.
