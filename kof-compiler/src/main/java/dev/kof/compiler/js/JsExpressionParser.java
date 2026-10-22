@@ -295,10 +295,8 @@ void consumeExpressionOp(MethodCtx ctx, int[] pos, List<Object> stack,
                 // §678 / D-SEM-REJECTS-1210: o falho NÃO é mais no-op (o soft
                 // era a divergência §678). Alvo NÃO-nulo: null passa; não-
                 // instância ESTOURA (kofCastFail — o decidido). Alvo nullable
-                // (`as T?`): a grafia sempre-null. As faces de classe seguem
-                // o padrão inline do KofInstanceOf (a dupla-avaliação do
-                // operando é a limitação pré-existente da casa aqui).
-                JsIr.JsExpression operand = pop(stack);
+                // (`as T?`): a grafia sempre-null.
+                JsIr.JsExpression raw = pop(stack);
                 // O check estrito só vale para CLASSES DE USUÁRIO geradas no
                 // módulo (a face decidida `a as Dog` — o binding existe);
                 // String = a face typeof (o espelho do KofInstanceOf);
@@ -309,34 +307,42 @@ void consumeExpressionOp(MethodCtx ctx, int[] pos, List<Object> stack,
                         : cc.type() instanceof Type.ClassType c ? c.internalName() : null;
                 boolean userClass = internal != null
                         && p.lc.classMethodNames.containsKey(internal);
-                if (cc.type() instanceof Type.NullableType nt
-                        && nt.inner() instanceof Type.ClassType
-                        && p.lc.classMethodNames.containsKey(
-                                ((Type.ClassType) nt.inner()).internalName())) {
-                    stack.add(new JsIr.JsConditional(
-                            new JsIr.JsInstanceOf(operand,
-                                    JsTypeMapper.jsClassName(JsTypeMapper.ownerInternalName(nt.inner()))),
-                            operand, new JsIr.JsNull()));
+                boolean nullableUser = userClass && cc.type() instanceof Type.NullableType;
+                if (!userClass && !BuiltinTypes.isString(cc.type())) {
+                    stack.add(raw);
+                    return;
+                }
+                String temp = raw instanceof JsIr.JsIdentifier || raw instanceof JsIr.JsNumber
+                        || raw instanceof JsIr.JsString || raw instanceof JsIr.JsNull ? null : ctx.freshTemp();
+                JsIr.JsExpression operand = temp == null ? raw : new JsIr.JsIdentifier(temp);
+                JsIr.JsExpression cast;
+                if (nullableUser) {
+                    cast = new JsIr.JsConditional(
+                            new JsIr.JsInstanceOf(operand, JsTypeMapper.jsClassName(internal)),
+                            operand, new JsIr.JsNull());
                 } else if (BuiltinTypes.isString(cc.type())) {
-                    stack.add(new JsIr.JsConditional(
-                            new JsIr.JsBinary(new JsIr.JsUnary("typeof", operand),
-                                    "===", new JsIr.JsString("string")),
-                            operand, new JsIr.JsNull()));
-                } else if (userClass) {
+                    cast = new JsIr.JsConditional(
+                            new JsIr.JsBinary(new JsIr.JsBinary(new JsIr.JsUnary("typeof", operand),
+                                    "===", new JsIr.JsString("string")), "||",
+                                    new JsIr.JsBinary(operand, "==", new JsIr.JsNull())),
+                            operand,
+                            new JsIr.JsCall(new JsIr.JsIdentifier("kofCastFail"),
+                                    List.of(new JsIr.JsString("java/lang/String"))));
+                    p.lc.registerRuntime("kofCastFail");
+                } else {
                     // §678: a face ESTRITA do JS — o `as T` que falha ESTOURA
                     // (o bloco PRÓPRIO kofCastFail é seeded só aqui; o helper no
                     // CORE quebrava o slicing do runner — medido no ciclo 50).
-                    JsIr.JsExpression kept = new JsIr.JsConditional(
+                    cast = new JsIr.JsConditional(
                             new JsIr.JsInstanceOf(operand,
                                     JsTypeMapper.jsClassName(internal)),
                             operand,
                             new JsIr.JsCall(new JsIr.JsIdentifier("kofCastFail"),
                                     List.of(new JsIr.JsString(internal))));
                     p.lc.registerRuntime("kofCastFail");
-                    stack.add(kept);
-                } else {
-                    stack.add(operand);
                 }
+                stack.add(temp == null ? cast
+                        : new JsIr.JsSequence(List.of(new JsIr.JsAssignExpr(temp, raw)), cast));
             }
             case KofInstanceOf io -> {
                 JsIr.JsExpression operand = pop(stack);
