@@ -133,6 +133,22 @@ final class WasmTypeOracle {
         return false;
     }
 
+    /** 15.3d fatia F face 2c: faces de String cujo helper e' `kof.strIsEmpty` /
+     *  `kof.strEq` / `kof.strConcat` conforme o metodo chamado. */
+    static boolean usesStringMethod(Iterable<IRMethod> ms, String method) {
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (op instanceof KofCall kc && method.equals(kc.methodName())
+                            && "string".equalsIgnoreCase(typeName(kc.ownerType()))) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     static boolean usesStringConcat(Iterable<IRMethod> ms) {
         for (IRMethod m : ms) {
             for (IRBasicBlock bb : m.basicBlocks()) {

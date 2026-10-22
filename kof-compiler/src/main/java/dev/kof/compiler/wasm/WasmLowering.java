@@ -470,6 +470,25 @@ final class WasmLowering {
                 out.add(new WasmInstr.Call("kof.strLen"));
                 ctx.lastPush = "long";
                 ctx.lastPushWide = true;
+            } else if (ctx.wasi && "isEmpty".equals(kc.methodName())
+                    && "string".equalsIgnoreCase(typeName(kc.ownerType()))) {
+                // fatia F face 2c: `s.isEmpty()`. Zero bytes UTF-8 <=> zero code
+                // units UTF-16, entao nao ha sutileza de largura aqui.
+                out.add(new WasmInstr.Call("kof.strIsEmpty"));
+                ctx.lastPush = "bool";
+                ctx.lastPushWide = false;
+            } else if (ctx.wasi && "equals".equals(kc.methodName())
+                    && "string".equalsIgnoreCase(typeName(kc.ownerType()))) {
+                // fatia F face 2c: `s.equals(t)` de String = igualdade de CONTEUDO,
+                // o mesmo `kof.strEq` que `==` ja usa.
+                out.add(new WasmInstr.Call("kof.strEq"));
+                ctx.lastPush = "bool";
+                ctx.lastPushWide = false;
+            } else if (ctx.wasi && "concat".equals(kc.methodName())
+                    && "string".equalsIgnoreCase(typeName(kc.ownerType()))) {
+                // fatia F face 2c: `s.concat(t)` — o mesmo `kof.strConcat` do `+`.
+                out.add(new WasmInstr.Call("kof.strConcat"));
+                ctx.lastPush = "string";
             } else if (ctx.wasi && "valueOf".equals(kc.methodName())
                     && printlnFollows(ops, idx)) {
                 // String.valueOf(X) seguido de println: o valor bruto ja esta na

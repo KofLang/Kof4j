@@ -489,6 +489,22 @@ public final class WasmStdoutRuntime {
                 List.of(0x7f, 0x7f, 0x7e, 0x7f), b);
     }
 
+    /**
+     * `kof.strIsEmpty(h) -> 1/0`: `String.isEmpty()` do Kof.
+     *
+     * <p>Exato sem varredura: um handle com ZERO bytes UTF-8 tem zero code units
+     * UTF-16 (a reciproca tambem vale), entao o comprimento em bytes decide.
+     */
+    public static WasmFunc kofStrIsEmpty() {
+        List<WasmInstr> b = new ArrayList<>();
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
+        b.add(new WasmInstr.Const(0, 0));
+        b.add(new WasmInstr.Simple(0x46, "i32.eq"));
+        return new WasmFunc("kof.strIsEmpty", List.of(0x7f), List.of(0x7f),
+                List.of(), b);
+    }
+
     /** `kof.strEq(a,b)` -> 1/0: igualdade de CONTEUDO de dois handles `[len][bytes]`
      * do heap bump (15.3d inc2 fatia C2): fold de campo String de record via
      * `kofRecordEq`; mesma semantica do `kofRecordEq`/`kof_string_equals` dos

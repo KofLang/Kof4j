@@ -110,8 +110,14 @@ public class WasmBackend implements Backend {
                             || "kof_string_concat".equals(kc.methodName())
                             || "kof_string_equals".equals(kc.methodName())
                             || ("length".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            || ("isEmpty".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            || ("equals".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            || ("concat".equals(kc.methodName())
                                 && "string".equalsIgnoreCase(typeName(kc.ownerType()))))) {
-                        continue; // wrapper intrinseco (println / concat / igualdade / length) tratado na emissao
+                        continue; // wrapper intrinseco de String tratado na emissao
                     }
                     if (wasi && usesRecords && "kofRecordEq".equals(kc.methodName())) {
                         continue; // igualdade de record: fold inline no call site (15.3d inc2 C2)
@@ -204,7 +210,10 @@ public class WasmBackend implements Backend {
             // records com String/Char/Bool (15.3d inc2 fatia C) + `==` de String
             // entre variaveis, que nao carrega literal nenhum (15.3d fatia F)
             if (usesStringOps(scanAll) || usesRecords || usesStringEquals(scanAll)
-                    || usesStringLength(scanAll)) printed.add("string");
+                    || usesStringLength(scanAll)
+                    || usesStringMethod(scanAll, "isEmpty")
+                    || usesStringMethod(scanAll, "equals")
+                    || usesStringMethod(scanAll, "concat")) printed.add("string");
             if (printed.contains("int") || printed.contains("long")) funcs.add(kofWriteInt());
             if (printed.contains("bool") || printed.contains("boolean")) funcs.add(kofWriteBool());
             if (printed.contains("char")) funcs.add(kofWriteChar());
@@ -217,12 +226,17 @@ public class WasmBackend implements Backend {
                         funcs.add(kofStrChar()); // toString de campo Char
                         funcs.add(kofStrEq());   // campo String do fold de == (15.3d inc2 fatia C2)
                     }
-                    if (usesStringConcat(scanAll) || usesRecords) funcs.add(kofStrConcat());
+                    if (usesStringConcat(scanAll) || usesRecords || usesStringMethod(scanAll, "concat")) {
+                        funcs.add(kofStrConcat());
+                    }
                     // 15.3d fatia F: `==`/`!=` de String. Antes so entrava via
                     // records (fold de campo String); agora a comparacao direta
                     // entre duas variaveis tambem precisa do helper.
                     if (!usesRecords && usesStringEquals(scanAll)) funcs.add(kofStrEq());
                     if (usesStringLength(scanAll)) funcs.add(kofStrLen());
+                    if (usesStringMethod(scanAll, "isEmpty")) funcs.add(kofStrIsEmpty());
+                    if (!usesRecords && usesStringMethod(scanAll, "equals")) funcs.add(kofStrEq());
+
                     usesHeap = true; // bump pointer global 0
                 }
             if (usesArgs) {
