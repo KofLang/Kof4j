@@ -120,6 +120,8 @@ public class WasmBackend implements Backend {
                             || ("startsWith".equals(kc.methodName())
                                 && "string".equalsIgnoreCase(typeName(kc.ownerType())))
                             || ("endsWith".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            || ("indexOf".equals(kc.methodName())
                                 && "string".equalsIgnoreCase(typeName(kc.ownerType()))))) {
                         continue; // wrapper intrinseco de String tratado na emissao
                     }
@@ -219,7 +221,8 @@ public class WasmBackend implements Backend {
                     || usesStringMethod(scanAll, "equals")
                     || usesStringMethod(scanAll, "concat")
                     || usesStringMethod(scanAll, "startsWith")
-                    || usesStringMethod(scanAll, "endsWith")) printed.add("string");
+                    || usesStringMethod(scanAll, "endsWith")
+                    || usesStringMethod(scanAll, "indexOf")) printed.add("string");
             if (printed.contains("int") || printed.contains("long")) funcs.add(kofWriteInt());
             if (printed.contains("bool") || printed.contains("boolean")) funcs.add(kofWriteBool());
             if (printed.contains("char")) funcs.add(kofWriteChar());
@@ -237,6 +240,7 @@ public class WasmBackend implements Backend {
                     }
                     if (usesStringMethod(scanAll, "startsWith")) funcs.add(WasmStrInspect.kofStrAffix(false));
                     if (usesStringMethod(scanAll, "endsWith")) funcs.add(WasmStrInspect.kofStrAffix(true));
+                    if (usesStringMethod(scanAll, "indexOf")) funcs.add(WasmStrInspect.kofStrIndexOf());
                     // 15.3d fatia F: `==`/`!=` de String. Antes so entrava via
                     // records (fold de campo String); agora a comparacao direta
                     // entre duas variaveis tambem precisa do helper.

@@ -174,6 +174,50 @@ class WasmWasiStringE2ETest {
     }
 
     @Test
+    void stringIndexOfReturnsUtf16CodeUnitIndex(@TempDir Path dir) throws Exception {
+        // fatia F face 2e: `s.indexOf(t)`. A busca casa em BYTES (pela mesma
+        // propriedade prefix-free do startsWith), mas o INDICE devolvido e' de
+        // CODE UNITS UTF-16 — o helper conta os units do prefixo [0,p).
+        // O ultimo caso separa uma implementacao correta de uma que devolve o
+        // offset de byte: em 'x😀y' o 'y' esta no byte 5 e no unit 3.
+        var wasmtime = host("wasmtime");
+        assumeTrue(wasmtime != null, "wasmtime host absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var s = "abcabc"
+                    println(s.indexOf("bc"))
+                    println(s.indexOf("zz"))
+                    println(s.indexOf(""))
+                    println(s.indexOf("abc"))
+                    println(s.indexOf("c"))
+                    println("caféx".indexOf("x"))
+                    println("caféx".indexOf("é"))
+                    println("x\\uD83D\\uDE00y".indexOf("y"))
+                }
+                """);
+        var driver = new CompilerDriver();
+        var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
+        assertTrue(jvm.success(), "jvm indexOf compile: " + jvm.diagnostics().getDiagnostics());
+        var oracle = new ProcessBuilder(List.of(jvmBin(), "-cp",
+                Path.of(dir.toString(), "out-jvm").toString(), "Default.Main"))
+                .redirectErrorStream(true).start();
+        String expected = new String(oracle.getInputStream().readAllBytes());
+        assertTrue(oracle.waitFor(120, TimeUnit.SECONDS) && oracle.exitValue() == 0,
+                "JVM oracle indexOf: " + expected);
+        var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
+        assertTrue(wasi.success(), "wasi indexOf compile: " + wasi.diagnostics().getDiagnostics());
+        var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
+                Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm").toString()))
+                .redirectErrorStream(true).start();
+        String out = new String(proc.getInputStream().readAllBytes());
+        assertTrue(proc.waitFor(60, TimeUnit.SECONDS), "host within 60s");
+        assertEquals(0, proc.exitValue(), "clean WASI exit indexOf: " + out);
+        assertEquals(expected.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                "String.indexOf must return the UTF-16 code-unit index");
+    }
+
+    @Test
     void stringStartsWithAndEndsWithMatchTheJvmOracle(@TempDir Path dir) throws Exception {
         // fatia F face 2d: prefixo/sufixo comparados em BYTES. E' exato porque
         // UTF-8 e' prefix-free (nenhuma sequencia valida e' prefixo de outra),
