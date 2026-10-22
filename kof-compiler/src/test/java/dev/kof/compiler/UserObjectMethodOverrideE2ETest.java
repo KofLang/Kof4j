@@ -37,6 +37,23 @@ class UserObjectMethodOverrideE2ETest {
                 toString(): String = "Box(" + v + ")"
             }
 
+            class Point {
+                Int x
+                Int y
+                public constructor(Int x, Int y) {
+                    this.x = x
+                    this.y = y
+                }
+                equals(Object o): Bool {
+                    if (o instanceof Point) {
+                        Point p = o as Point
+                        return p.x == x && p.y == y
+                    }
+                    return false
+                }
+                hashCode(): Int = x * 31 + y
+            }
+
             main() {
                 var m = Money(150L)
                 println(m)
@@ -49,6 +66,11 @@ class UserObjectMethodOverrideE2ETest {
                 println(Box(4))
                 println("b=" + Box(5))
                 println(listOf(Box(1)))
+                println(setOf(Point(1, 2), Point(1, 2), Point(2, 1)).size)
+                println(listOf(Point(1, 2)).contains(Point(1, 2)))
+                println(listOf(Point(5, 5), Point(1, 2)).indexOf(Point(1, 2)))
+                println(setOf(Tag("a", 1), Tag("b", 2)).size)
+                println(listOf(Tag("a", 1)).contains(Tag("z", 9)))
             }
             """;
 
@@ -63,6 +85,11 @@ class UserObjectMethodOverrideE2ETest {
             Box(4)
             b=Box(5)
             [Box(1)]
+            2
+            true
+            1
+            1
+            true
             """;
 
     @TempDir

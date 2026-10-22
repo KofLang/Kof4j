@@ -71,8 +71,7 @@ public final class KofInterpreter {
         }
 
         @Override public int hashCode() {
-            return isRecord() ? KofInterpreterObjects.objectHash(this)
-                              : System.identityHashCode(this);
+            return KofInterpreterObjects.objectHash(this);
         }
 
         @Override public String toString() {
