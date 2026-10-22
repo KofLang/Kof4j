@@ -190,64 +190,92 @@ final class WasmStrSlice {
      *  devolve o code unit ALTO (o par inteiro nao cabe num `Char` do Kof, que e'
      *  uma unidade — mesma semantica do `String.charAt` do JVM). */
     static WasmFunc kofStrCharAt() {
+        // Desenho FINAL (os 3 anteriores falharam por fluxo, nao por decode):
+        // o laco SO' localiza o caractere e guarda o code point + o numero de
+        // code units JA' consumidos ANTES dele (k0). TODA a classificacao de
+        // metade acontece DEPOIS do laco, reta, sem branch aninhado:
+        //     wu = (w == 4) ? 2 : 1
+        //     r  = (wu == 2 && u == k0+1) ? low(cp) : (wu == 2 ? high(cp)
+        //                                                  : cp)
+        // Locais: 0=h, 1=u(i64), 2=i(i32), 3=k(i64), 4=c(i32), 5=w(i32),
+        // 6=wu(i32), 7=r(i32), 8=cp(i32), 9=k0(i64)
         List<WasmInstr> b = new ArrayList<>();
-        // Locais: 0 = h, 1 = u (i64); 2 = o (i32 offset), 3 = c (i32);
-        // 4 = n (i32 bytes restantes)
+        b.add(new WasmInstr.Const(0, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "i"));
+        b.add(new WasmInstr.Const(1, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 3, "k"));
+        b.add(new WasmInstr.Const(1, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 9, "k0"));
+        b.add(new WasmInstr.Const(0, 1));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 5, "w"));
+        b.add(new WasmInstr.Const(0, '?'));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 8, "cp"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, "cx", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, "ca", 0x40));
+        // fim da string -> '?' (cp fica '?', w fica 1 => r = '?')
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "i"));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "u"));
-        b.add(new WasmInstr.Call("kof.strByteOff"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "o"));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, "ca_x", 0x7e));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
+        b.add(new WasmInstr.Simple(0x4e, "i32.ge_u"));
+        b.add(new WasmInstr.Branch("cx", 1, true));
+        // k0 = k (units antes DESTE caractere)
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "k"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 9, "k0"));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "o"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "i"));
         b.add(new WasmInstr.Simple(0x6a, "i32.add"));
         b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD8U, 4));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 3, "c"));
-        // ASCII?
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "c"));
-        b.add(new WasmInstr.Const(0, 0x80));
-        b.add(new WasmInstr.Simple(0x49, "i32.lt_u"));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "a1", 0x40));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "c"));
-        b.add(new WasmInstr.Simple(0xac, "i64.extend_i32_u"));
-        b.add(new WasmInstr.Branch("ca_x", 1));            // retorna no fim
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "a1", 0x40));
-        // 2-byte?
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "c"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 4, "c"));
+        // w = 1 por omissao; cp = c
+        b.add(new WasmInstr.Const(0, 1));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 5, "w"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "c"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 8, "cp"));
+        // Classificacao pelo BYTE LIDER (nao pelo valor ja decodificado — um
+        // lider de 4 bytes decodificado so' com 2 bytes pode dar valor < 0x800,
+        // e testar o valor escolheria a largura errada). Bits do lider:
+        //   110xxxxx (0xC0) = 2 | 1110xxxx (0xE0) = 3 | 11110xxx (0xF0) = 4
+        // (c & 0xE0) == 0xC0 — a mascara TEM de ser 0xE0: com 0xC0 um lider de
+        // 4 bytes (0xF0) tambem casa 0xC0 e cai no ramo de 2 bytes.
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "c"));
         b.add(new WasmInstr.Const(0, 0xE0));
         b.add(new WasmInstr.Simple(0x71, "i32.and"));
         b.add(new WasmInstr.Const(0, 0xC0));
         b.add(new WasmInstr.Simple(0x46, "i32.eq"));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "a2", 0x40));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "c"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "d2", 0x40));
+        // ---- 2 bytes ----
+        b.add(new WasmInstr.Const(0, 2));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 5, "w"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "c"));
         b.add(new WasmInstr.Const(0, 0x1F));
         b.add(new WasmInstr.Simple(0x71, "i32.and"));
         b.add(new WasmInstr.Const(0, 6));
         b.add(new WasmInstr.Simple(0x74, "i32.shl"));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "o"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "i"));
         b.add(new WasmInstr.Simple(0x6a, "i32.add"));
         b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD8U, 5));
         b.add(new WasmInstr.Const(0, 0x3F));
         b.add(new WasmInstr.Simple(0x71, "i32.and"));
         b.add(new WasmInstr.Simple(0x72, "i32.or"));
-        b.add(new WasmInstr.Simple(0xac, "i64.extend_i32_u"));
-        b.add(new WasmInstr.Branch("ca_x", 1));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "a2", 0x40));
-        // 3-byte?
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "c"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 8, "cp"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, "d2", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "c"));
         b.add(new WasmInstr.Const(0, 0xF0));
         b.add(new WasmInstr.Simple(0x71, "i32.and"));
         b.add(new WasmInstr.Const(0, 0xE0));
         b.add(new WasmInstr.Simple(0x46, "i32.eq"));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "a3", 0x40));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "c"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "d3", 0x40));
+        // ---- 3 bytes ----
+        b.add(new WasmInstr.Const(0, 3));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 5, "w"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "c"));
         b.add(new WasmInstr.Const(0, 0x0F));
         b.add(new WasmInstr.Simple(0x71, "i32.and"));
         b.add(new WasmInstr.Const(0, 12));
         b.add(new WasmInstr.Simple(0x74, "i32.shl"));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "o"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "i"));
         b.add(new WasmInstr.Simple(0x6a, "i32.add"));
         b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD8U, 5));
         b.add(new WasmInstr.Const(0, 0x3F));
@@ -256,24 +284,31 @@ final class WasmStrSlice {
         b.add(new WasmInstr.Simple(0x74, "i32.shl"));
         b.add(new WasmInstr.Simple(0x72, "i32.or"));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "o"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "i"));
         b.add(new WasmInstr.Simple(0x6a, "i32.add"));
         b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD8U, 6));
         b.add(new WasmInstr.Const(0, 0x3F));
         b.add(new WasmInstr.Simple(0x71, "i32.and"));
         b.add(new WasmInstr.Simple(0x72, "i32.or"));
-        b.add(new WasmInstr.Simple(0xac, "i64.extend_i32_u"));
-        b.add(new WasmInstr.Branch("ca_x", 1));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "a3", 0x40));
-        // 4-byte: par surrogate — devolve o code unit ALTO (0xD800 | ((c-0xF0)<<8 ...))
-        // Formula do JVM: high = 0xD800 + ((cp - 0x10000) >> 10)
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "c"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 8, "cp"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, "d3", 0x40));
+        // 4 bytes (11110xxx)? O ELSE acima cobre TUDO que nao e' 2/3 bytes —
+        // inclusive ASCII — entao o teste do lider de 4 e' obrigatorio aqui.
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "c"));
+        b.add(new WasmInstr.Const(0, 0xF8));
+        b.add(new WasmInstr.Simple(0x71, "i32.and"));
+        b.add(new WasmInstr.Const(0, 0xF0));
+        b.add(new WasmInstr.Simple(0x46, "i32.eq"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "d4", 0x40));
+        b.add(new WasmInstr.Const(0, 4));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 5, "w"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "c"));
         b.add(new WasmInstr.Const(0, 0x07));
         b.add(new WasmInstr.Simple(0x71, "i32.and"));
         b.add(new WasmInstr.Const(0, 18));
         b.add(new WasmInstr.Simple(0x74, "i32.shl"));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "o"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "i"));
         b.add(new WasmInstr.Simple(0x6a, "i32.add"));
         b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD8U, 5));
         b.add(new WasmInstr.Const(0, 0x3F));
@@ -282,7 +317,7 @@ final class WasmStrSlice {
         b.add(new WasmInstr.Simple(0x74, "i32.shl"));
         b.add(new WasmInstr.Simple(0x72, "i32.or"));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "o"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "i"));
         b.add(new WasmInstr.Simple(0x6a, "i32.add"));
         b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD8U, 6));
         b.add(new WasmInstr.Const(0, 0x3F));
@@ -291,22 +326,89 @@ final class WasmStrSlice {
         b.add(new WasmInstr.Simple(0x74, "i32.shl"));
         b.add(new WasmInstr.Simple(0x72, "i32.or"));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "o"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "i"));
         b.add(new WasmInstr.Simple(0x6a, "i32.add"));
         b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD8U, 7));
         b.add(new WasmInstr.Const(0, 0x3F));
         b.add(new WasmInstr.Simple(0x71, "i32.and"));
         b.add(new WasmInstr.Simple(0x72, "i32.or"));
-        // cp >= 0x10000 aqui sempre (lider de 4 bytes) -> high = 0xD800 + ((cp-0x10000)>>10)
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 8, "cp"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "d4", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "d3", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "d2", 0x40));
+        // ---- fim da classificacao ----
+        // wu = (w == 4) ? 2 : 1
+        b.add(new WasmInstr.Const(0, 1));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 6, "wu"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "w"));
+        b.add(new WasmInstr.Const(0, 4));
+        b.add(new WasmInstr.Simple(0x46, "i32.eq"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "f4", 0x40));
+        b.add(new WasmInstr.Const(0, 2));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 6, "wu"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "f4", 0x40));
+        // contem u?  k0 <= u < k0 + wu
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 9, "k0"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "u"));
+        b.add(new WasmInstr.Simple(0x57, "i64.le_s"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "u"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 9, "k0"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 6, "wu"));
+        b.add(new WasmInstr.Simple(0xac, "i64.extend_i32_u"));
+        b.add(new WasmInstr.Simple(0x7c, "i64.add"));
+        b.add(new WasmInstr.Simple(0x53, "i64.lt_s"));
+        b.add(new WasmInstr.Simple(0x71, "i32.and"));
+        b.add(new WasmInstr.Branch("cx", 1, true));          // achou: sai do laco
+        // avanca: k += wu ; i += w
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "k"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 6, "wu"));
+        b.add(new WasmInstr.Simple(0xac, "i64.extend_i32_u"));
+        b.add(new WasmInstr.Simple(0x7c, "i64.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 3, "k"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "i"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "w"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "i"));
+        b.add(new WasmInstr.Branch("ca", 0));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "ca", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "cx", 0x40));
+        // ---- DEPOIS do laco, reto: escolhe a metade ----
+        // r = cp (default: ASCII/2/3-byte, ou o '?' do fim)
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 8, "cp"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 7, "r"));
+        // se wu == 2 -> par surrogate: high ou low por u == k0
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 6, "wu"));
+        b.add(new WasmInstr.Const(0, 2));
+        b.add(new WasmInstr.Simple(0x46, "i32.eq"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "par", 0x40));
+        // u == k0 ? high : low
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "u"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 9, "k0"));
+        b.add(new WasmInstr.Simple(0x51, "i64.eq"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "hi", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 8, "cp"));
         b.add(new WasmInstr.Const(0, 0x10000));
         b.add(new WasmInstr.Simple(0x6b, "i32.sub"));
         b.add(new WasmInstr.Const(0, 10));
         b.add(new WasmInstr.Simple(0x76, "i32.shr_u"));
         b.add(new WasmInstr.Const(0, 0xD800));
         b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 7, "r"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, "hi", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 8, "cp"));
+        b.add(new WasmInstr.Const(0, 0x10000));
+        b.add(new WasmInstr.Simple(0x6b, "i32.sub"));
+        b.add(new WasmInstr.Const(0, 0x3FF));
+        b.add(new WasmInstr.Simple(0x71, "i32.and"));
+        b.add(new WasmInstr.Const(0, 0xDC00));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 7, "r"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "hi", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "par", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 7, "r"));
         b.add(new WasmInstr.Simple(0xac, "i64.extend_i32_u"));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "ca_x", 0x7e));
         return new WasmFunc("kof.strCharAt", List.of(0x7f, 0x7e), List.of(0x7e),
-                List.of(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f), b);
+                // locais 2..8: i,c,w,wu,r,cp (i32); 3=k e 9=k0 (i64)
+                List.of(0x7f, 0x7e, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7e), b);
     }
 }

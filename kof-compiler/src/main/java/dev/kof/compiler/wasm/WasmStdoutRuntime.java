@@ -147,32 +147,6 @@ public final class WasmStdoutRuntime {
         b.add(new WasmInstr.Store8(0));
     }
 
-    public static WasmFunc kofWriteChar() {
-        List<WasmInstr> b = new ArrayList<>();
-        // char chega como i64 no stack (emitLiteral 15.2, medido no oracle JVM) -> wrap i32
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "c"));
-        b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 1, "cw"));
-        b.add(new WasmInstr.Const(0, SCRATCH_IOVEC));
-        b.add(new WasmInstr.Const(0, SCRATCH_OUT));
-        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));
-        b.add(new WasmInstr.Const(0, SCRATCH_IOVEC + 4));
-        b.add(new WasmInstr.Const(0, 2));
-        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));
-        // buffer = char (i32, byte baixo — subset ASCII) + '\n'
-        b.add(new WasmInstr.Const(0, SCRATCH_OUT));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "cw"));
-        b.add(new WasmInstr.Store8(0));
-        emitStore8(b, '\n', SCRATCH_OUT + 1);
-        b.add(new WasmInstr.Const(0, 1));
-        b.add(new WasmInstr.Const(0, SCRATCH_IOVEC));
-        b.add(new WasmInstr.Const(0, 1));
-        b.add(new WasmInstr.Const(0, SCRATCH_NWRITTEN));
-        b.add(new WasmInstr.Call("fd_write"));
-        b.add(new WasmInstr.Simple(0x1a, "drop"));
-        return new WasmFunc("kof.writeChar", List.of(0x7e), List.of(), List.of(0x7f), b);
-    }
-
 
     /** 15.3b: `kof.writeString(addr,len)` — iovec aponta o data segment e
      * um '\n' ocupa o byte reservado apos a string. */

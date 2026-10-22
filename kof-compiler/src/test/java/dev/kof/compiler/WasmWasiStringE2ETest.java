@@ -174,6 +174,54 @@ class WasmWasiStringE2ETest {
     }
 
     @Test
+    void charAtReturnsBothSurrogateHalvesAndNonAsciiCharsPrintAsUtf8(@TempDir Path dir) throws Exception {
+        // fatia F face 2g — a que exigiu quatro desenhos. Duas coisas quebram
+        // juntas aqui:
+        //  (1) `charAt` de um par surrogate: o indice do unit ALTO devolve
+        //      0xD800+.. e o do BAIXO 0xDC00+.. — imprimir o valor NUMERICO e'
+        //      o que prova a metade (imprimir o Char mostraria '?' nos dois,
+        //      porque um Char isolado de par e' replacement no JVM tambem).
+        //  (2) `println(Char)` nao-ASCII: o JVM escreve UTF-8 (e' = 2 bytes,
+        //      'euro' = 3), nao o byte baixo.
+        var wasmtime = host("wasmtime");
+        assumeTrue(wasmtime != null, "wasmtime host absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var f = "x\uD83D\uDE00y"
+                    println(f.charAt(0) as Int)
+                    println(f.charAt(1) as Int)
+                    println(f.charAt(2) as Int)
+                    println(f.charAt(3) as Int)
+                    println("café".charAt(3))
+                    println("a€b".charAt(1))
+                    println(f.charAt(1))
+                    println(f.charAt(2))
+                    println('A')
+                }
+                """);
+        var driver = new CompilerDriver();
+        var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
+        assertTrue(jvm.success(), "jvm surrogate compile: " + jvm.diagnostics().getDiagnostics());
+        var oracle = new ProcessBuilder(List.of(jvmBin(), "-cp",
+                Path.of(dir.toString(), "out-jvm").toString(), "Default.Main"))
+                .redirectErrorStream(true).start();
+        String expected = new String(oracle.getInputStream().readAllBytes());
+        assertTrue(oracle.waitFor(120, TimeUnit.SECONDS) && oracle.exitValue() == 0,
+                "JVM oracle surrogate: " + expected);
+        var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
+        assertTrue(wasi.success(), "wasi surrogate compile: " + wasi.diagnostics().getDiagnostics());
+        var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
+                Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm").toString()))
+                .redirectErrorStream(true).start();
+        String out = new String(proc.getInputStream().readAllBytes());
+        assertTrue(proc.waitFor(60, TimeUnit.SECONDS), "host within 60s");
+        assertEquals(0, proc.exitValue(), "clean WASI exit surrogate: " + out);
+        assertEquals(expected.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                "surrogate halves + non-ASCII Char printing must equal the JVM oracle");
+    }
+
+    @Test
     void stringCharAtAndSubstringMatchTheJvmOracle(@TempDir Path dir) throws Exception {
         // fatia F face 2f: `charAt`/`substring`, que exigem o MAPEAMENTO de
         // indice de code unit UTF-16 para offset de BYTE UTF-8 (`kof.strByteOff`).

@@ -231,7 +231,7 @@ public class WasmBackend implements Backend {
                     || usesStringMethod(scanAll, "substring")) printed.add("string");
             if (printed.contains("int") || printed.contains("long")) funcs.add(kofWriteInt());
             if (printed.contains("bool") || printed.contains("boolean")) funcs.add(kofWriteBool());
-            if (printed.contains("char")) funcs.add(kofWriteChar());
+            if (printed.contains("char")) funcs.add(WasmCharOut.kofWriteChar());
                 if (printed.contains("string")) {
                     funcs.add(kofStrLit());
                     funcs.add(kofWriteStr());
