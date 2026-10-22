@@ -104,7 +104,20 @@ final class BytecodeStdlib {
                 // sqrt(9.0)=3.0, pow(2,3)=8.0); floor/round/ceil NÃO existem
                 // (SEM025) → teto honesto (exigiria stdlib nova = mantenedora).
                 case "(D)D":
-                    if ("sqrt".equals(name)) return "math.sqrt(" + args + ")";
+                    // Fase E (18/10): o javac emite o I2D quando o arg é uma
+                    // expressão Int (o Screen.ppi: Math.sqrt(w*w + h*h)) — o
+                    // decompiler converte I2D para `.toDouble()`, mas a
+                    // resolução do namespace do math NÃO reconhece o tipo do
+                    // resultado do método (o SEM025). O idioma que compila é
+                    // o cast `as Double` (medido: sqrt((w*w + h*h) as
+                    // Double) = 5.0). A conversão do args final.
+                    if ("sqrt".equals(name)) {
+                        String a = args;
+                        if (a.endsWith(".toDouble()")) {
+                            a = a.substring(0, a.length() - ".toDouble()".length()) + " as Double";
+                        }
+                        return "math.sqrt(" + a + ")";
+                    }
                     return null;
                 case "(DD)D":
                     if ("pow".equals(name)) return "math.pow(" + args + ")";

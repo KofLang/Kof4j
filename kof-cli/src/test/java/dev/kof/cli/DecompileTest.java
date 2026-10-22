@@ -9616,6 +9616,70 @@ class DecompileTest {
                 "zero-drift: cost/zone/isExpress/total idênticos ao Java");
     }
 
+    @Test
+    void screenDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (18/10): o domínio TELA + a fatia do MATH.SQRT com
+        // expressão Int — o javac emite I2D quando o arg do Math.sqrt é
+        // uma expressão Int (ppi: Math.sqrt(w*w + h*h)), o decompiler
+        // convertia para `.toDouble()` mas a resolução do namespace do
+        // math NÃO reconhece o tipo do resultado do método (SEM025) — o
+        // idioma que compila é o cast `as Double` (medido). Os shapes: o
+        // ppi com o SQRT + a divisão pela diagonal (o 102.460798608479 de
+        // 15 dígitos batendo), o sizeCategory com as faixas (low/standard/
+        // retina), o isWide com a comparação de dimensões e o totalPixels
+        // com o produto (2073600). Zero-drift executado: 102.460798608479/
+        // low/standard/retina/true/false/2073600 — 7/7 idênticos ao Java —
+        // a 96ª validação.
+        Path javaFile = dir.resolve("Screen.java");
+        Files.writeString(javaFile, """
+                public class Screen {
+                    static double pixelsPerInch(int width, int height, double diagonalInches) {
+                        double diagonalPixels = Math.sqrt(width * width + height * height);
+                        return diagonalPixels / diagonalInches;
+                    }
+                    static String sizeCategory(double ppi) {
+                        if (ppi < 150) { return "low"; }
+                        if (ppi < 300) { return "standard"; }
+                        return "retina";
+                    }
+                    static boolean isWide(int width, int height) {
+                        return width > height;
+                    }
+                    static int totalPixels(int width, int height) {
+                        return width * height;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Screen.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        assertTrue(kof.contains(" as Double"), "o sqrt com o cast:\n" + kof);
+        String kofRun = kof + """
+                main() {
+                    println(Screen.pixelsPerInch(1920, 1080, 21.5))
+                    println(Screen.sizeCategory(100.0))
+                    println(Screen.sizeCategory(200.0))
+                    println(Screen.sizeCategory(400.0))
+                    println(Screen.isWide(1920, 1080))
+                    println(Screen.isWide(1080, 1920))
+                    println(Screen.totalPixels(1920, 1080))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 102.460798608479 | low | standard | retina | true | false | 2073600
+        assertEquals("102.460798608479\nlow\nstandard\nretina\ntrue\nfalse\n2073600", output,
+                "zero-drift: pixelsPerInch/sizeCategory/isWide/totalPixels idênticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
