@@ -133,6 +133,8 @@ public class WasmBackend implements Backend {
                                 && "string".equalsIgnoreCase(typeName(kc.ownerType())))
                             || ("compareTo".equals(kc.methodName())
                                 && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            || ("contains".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
                             || ("replace".equals(kc.methodName())
                                 && "string".equalsIgnoreCase(typeName(kc.ownerType()))))) {
                         continue; // wrapper intrinseco de String tratado na emissao
@@ -240,7 +242,8 @@ public class WasmBackend implements Backend {
                     || usesStringMethod(scanAll, "substring")
                     || usesStringMethod(scanAll, "trim")
                     || usesStringMethod(scanAll, "compareTo")
-                    || usesStringMethod(scanAll, "replace")) printed.add("string");
+                    || usesStringMethod(scanAll, "replace")
+                    || usesStringMethod(scanAll, "contains")) printed.add("string");
             if (printed.contains("int") || printed.contains("long")) funcs.add(kofWriteInt());
             if (printed.contains("bool") || printed.contains("boolean")) funcs.add(kofWriteBool());
             if (printed.contains("char")) funcs.add(WasmCharOut.kofWriteChar());
@@ -259,7 +262,8 @@ public class WasmBackend implements Backend {
                     if (usesStringMethod(scanAll, "startsWith")) funcs.add(WasmStrInspect.kofStrAffix(false));
                     if (usesStringMethod(scanAll, "endsWith")) funcs.add(WasmStrInspect.kofStrAffix(true));
                     if (usesStringMethod(scanAll, "indexOf")
-                            || usesStringMethod(scanAll, "lastIndexOf")) {
+                            || usesStringMethod(scanAll, "lastIndexOf")
+                            || usesStringMethod(scanAll, "contains")) {
                         funcs.add(WasmStrInspect.kofStrIndexOf());
                         funcs.add(WasmStrInspect.kofStrLastIndexOf());
                         funcs.add(WasmStrSearch.kofStrMatchAt());

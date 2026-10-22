@@ -104,6 +104,17 @@ final class WasmStrCalls {
                         ctx.lastPushWide = true;
                         return true;
                     }
+                    case "contains" -> {
+                        // contains(t) === indexOf(t) >= 0 — reusa a busca ja'
+                        // provada; from = 0, e o resultado e' um Bool.
+                        out.add(new WasmInstr.Const(1, 0));   // from = 0
+                        out.add(new WasmInstr.Call("kof.strIndexOf"));
+                        out.add(new WasmInstr.Const(1, 0));
+                        out.add(new WasmInstr.Simple(0x59, "i64.ge_s"));
+                        ctx.lastPush = "bool";
+                        ctx.lastPushWide = false;
+                        return true;
+                    }
                     case "charAt" -> {
                         // Entrega o code unit como Char (o Kof Char e' i64 na
                         // pilha — ver emitLiteral).
