@@ -40,4 +40,22 @@ public record IRClass(String name, String superName, List<String> interfaces,
         this(name, superName, interfaces, accessFlags, fields, methods,
                 innerClasses, signature, typeId, List.of(), false);
     }
+
+    public boolean overridesObjectMethod(String method) {
+        return overridesObjectMethod(methods, method);
+    }
+
+    public static boolean overridesObjectMethod(List<IRMethod> methods, String method) {
+        for (IRMethod m : methods) {
+            if (!m.name().equals(method)) continue;
+            List<Type> ps = m.parameterTypes();
+            if ("equals".equals(method)) {
+                if (ps.size() == 1 && ps.get(0) instanceof Type.ClassType ct
+                        && "java/lang/Object".equals(ct.internalName())) return true;
+            } else if (ps.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

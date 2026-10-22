@@ -258,7 +258,7 @@ public final class KofInterpreterRuntime {
      * só existem como KofObj no interpretador.
      */
     private Object decodeKofValue(IRClass c, Object parsed) throws Throwable {
-        KofInterpreter.KofObj obj = new KofInterpreter.KofObj(c);
+        KofInterpreter.KofObj obj = new KofInterpreter.KofObj(c, interp);
         if (parsed instanceof java.util.Map<?, ?> m) {
             for (IRField f : c.fields()) {
                 if (java.lang.reflect.Modifier.isStatic(f.accessFlags())) continue;

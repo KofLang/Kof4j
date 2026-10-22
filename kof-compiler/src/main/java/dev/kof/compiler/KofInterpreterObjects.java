@@ -108,6 +108,8 @@ public final class KofInterpreterObjects {
             }
         }
         if (v instanceof KofInterpreter.KofObj ko) {
+            String own = userToString(ko);
+            if (own != null) return own;
             if (ko.isRecord()) {
                 String simple = KofInterpreterValues.simpleOf(ko.internalName());
                 StringBuilder sb = new StringBuilder(simple).append('[');
@@ -131,6 +133,19 @@ public final class KofInterpreterObjects {
         }
         if (v instanceof Integer[] arr) return java.util.Arrays.toString(arr);
         return String.valueOf(v);
+    }
+
+    private static String userToString(KofInterpreter.KofObj ko) {
+        if (ko.interp == null) return null;
+        IRMethod m = ko.interp.members.findKofMethod(ko.clazz, "toString", 0, java.util.List.of());
+        if (m == null) return null;
+        try {
+            return String.valueOf(ko.interp.invokeKof(ko.clazz, m, new Object[]{ko}, true));
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new RuntimeException(t);
+        }
     }
 
     private static String trimTrailingNewline(String s) {
