@@ -448,47 +448,9 @@ final class WasmLowering {
                 WasmRecordCtor.lowerRecordEq(ctx, kc, out);
             } else if (WasmRecordCtor.isRecordInit(ctx, kc)) {
                 WasmRecordCtor.lowerRecordInit(ctx, kc, out);
-            } else if (ctx.wasi && "kof_string_concat".equals(kc.methodName())) {
-                out.add(new WasmInstr.Call("kof.strConcat")); // a+b de strings (15.3c)
-                ctx.lastPush = "string";
-            } else if (ctx.wasi && "kof_string_equals".equals(kc.methodName())) {
-                // 15.3d fatia F: `a == b` / `a != b` de String. O frontend ja baixa
-                // o operador para `kof_string_equals(a,b)` (e o `!=` acrescenta o
-                // `== 0` DEPOIS desta chamada), entao basta mapear para o helper de
-                // CONTEUDO que ja existe e esta provado verde nos records
-                // (`kof.strEq`, 15.3d inc2-C2). Sem este mapeamento a comparacao
-                // mais basica do runtime de strings recusava WASM002.
-                out.add(new WasmInstr.Call("kof.strEq"));
-                ctx.lastPush = "bool";
-                ctx.lastPushWide = false;
-            } else if (ctx.wasi && "length".equals(kc.methodName())
-                    && "string".equalsIgnoreCase(typeName(kc.ownerType()))) {
-                // 15.3d fatia F face 2b: `s.length()`. O handle guarda BYTES
-                // UTF-8, mas `length()` do Kof e a contagem de code units UTF-16
-                // (JVM: "café" = 4, bytes = 5) — o helper conta, nao le o
-                // cabecalho, senao toda string nao-ASCII divergia em silencio.
-                out.add(new WasmInstr.Call("kof.strLen"));
-                ctx.lastPush = "long";
-                ctx.lastPushWide = true;
-            } else if (ctx.wasi && "isEmpty".equals(kc.methodName())
-                    && "string".equalsIgnoreCase(typeName(kc.ownerType()))) {
-                // fatia F face 2c: `s.isEmpty()`. Zero bytes UTF-8 <=> zero code
-                // units UTF-16, entao nao ha sutileza de largura aqui.
-                out.add(new WasmInstr.Call("kof.strIsEmpty"));
-                ctx.lastPush = "bool";
-                ctx.lastPushWide = false;
-            } else if (ctx.wasi && "equals".equals(kc.methodName())
-                    && "string".equalsIgnoreCase(typeName(kc.ownerType()))) {
-                // fatia F face 2c: `s.equals(t)` de String = igualdade de CONTEUDO,
-                // o mesmo `kof.strEq` que `==` ja usa.
-                out.add(new WasmInstr.Call("kof.strEq"));
-                ctx.lastPush = "bool";
-                ctx.lastPushWide = false;
-            } else if (ctx.wasi && "concat".equals(kc.methodName())
-                    && "string".equalsIgnoreCase(typeName(kc.ownerType()))) {
-                // fatia F face 2c: `s.concat(t)` — o mesmo `kof.strConcat` do `+`.
-                out.add(new WasmInstr.Call("kof.strConcat"));
-                ctx.lastPush = "string";
+            } else if (WasmStrCalls.emit(kc, ctx, out)) {
+                // chamadas de String (==/!=, length, isEmpty, equals,
+                // startsWith, endsWith, concat) — WasmStrCalls
             } else if (ctx.wasi && "valueOf".equals(kc.methodName())
                     && printlnFollows(ops, idx)) {
                 // String.valueOf(X) seguido de println: o valor bruto ja esta na

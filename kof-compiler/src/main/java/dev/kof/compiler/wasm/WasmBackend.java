@@ -116,6 +116,10 @@ public class WasmBackend implements Backend {
                             || ("equals".equals(kc.methodName())
                                 && "string".equalsIgnoreCase(typeName(kc.ownerType())))
                             || ("concat".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            || ("startsWith".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            || ("endsWith".equals(kc.methodName())
                                 && "string".equalsIgnoreCase(typeName(kc.ownerType()))))) {
                         continue; // wrapper intrinseco de String tratado na emissao
                     }
@@ -213,7 +217,9 @@ public class WasmBackend implements Backend {
                     || usesStringLength(scanAll)
                     || usesStringMethod(scanAll, "isEmpty")
                     || usesStringMethod(scanAll, "equals")
-                    || usesStringMethod(scanAll, "concat")) printed.add("string");
+                    || usesStringMethod(scanAll, "concat")
+                    || usesStringMethod(scanAll, "startsWith")
+                    || usesStringMethod(scanAll, "endsWith")) printed.add("string");
             if (printed.contains("int") || printed.contains("long")) funcs.add(kofWriteInt());
             if (printed.contains("bool") || printed.contains("boolean")) funcs.add(kofWriteBool());
             if (printed.contains("char")) funcs.add(kofWriteChar());
@@ -229,12 +235,14 @@ public class WasmBackend implements Backend {
                     if (usesStringConcat(scanAll) || usesRecords || usesStringMethod(scanAll, "concat")) {
                         funcs.add(kofStrConcat());
                     }
+                    if (usesStringMethod(scanAll, "startsWith")) funcs.add(WasmStrInspect.kofStrAffix(false));
+                    if (usesStringMethod(scanAll, "endsWith")) funcs.add(WasmStrInspect.kofStrAffix(true));
                     // 15.3d fatia F: `==`/`!=` de String. Antes so entrava via
                     // records (fold de campo String); agora a comparacao direta
                     // entre duas variaveis tambem precisa do helper.
                     if (!usesRecords && usesStringEquals(scanAll)) funcs.add(kofStrEq());
-                    if (usesStringLength(scanAll)) funcs.add(kofStrLen());
-                    if (usesStringMethod(scanAll, "isEmpty")) funcs.add(kofStrIsEmpty());
+                    if (usesStringLength(scanAll)) funcs.add(WasmStrInspect.kofStrLen());
+                    if (usesStringMethod(scanAll, "isEmpty")) funcs.add(WasmStrInspect.kofStrIsEmpty());
                     if (!usesRecords && usesStringMethod(scanAll, "equals")) funcs.add(kofStrEq());
 
                     usesHeap = true; // bump pointer global 0
