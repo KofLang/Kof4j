@@ -32,29 +32,11 @@ static int lowerField(CompilerDriver driver, AssignmentExpr ae, FieldAccessExpr 
             boolean sfaConcat = sfaCompound && "+=".equals(sfaOp)
                     && (Type.isString(fld.type()) || Type.isString(sfaValueType));
             if (sfaConcat) {
-                if (!Type.isString(fld.type()) && TypeMetrics.isPrimitiveType(fld.type())) {
-                    TypeEmitter.boxPrimitive(ops, fld.type());
-                }
-                if (!Type.isString(fld.type())) {
-                    ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
-                            List.of(driver.target.isNative() && !Type.isString(fld.type())
-                                    && !(fld.type() instanceof Type.PrimitiveType)
-                                    ? fld.type() : Type.UnknownType.UNKNOWN),
-                            BuiltinTypes.STRING, KofCallKind.STATIC));
-                }
+                ExpressionBinaryLowerer.emitOperandToString(driver, ops, fld.type());
             }
             localIdx = ExpressionLowerer.emitExpression(driver, ae.value(), ops, owner, localIdx, locals);
             if (sfaConcat) {
-                if (!Type.isString(sfaValueType) && TypeMetrics.isPrimitiveType(sfaValueType)) {
-                    TypeEmitter.boxPrimitive(ops, sfaValueType);
-                }
-                if (!Type.isString(sfaValueType)) {
-                    ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
-                            List.of(driver.target.isNative() && !Type.isString(sfaValueType)
-                                    && !(sfaValueType instanceof Type.PrimitiveType)
-                                    ? sfaValueType : Type.UnknownType.UNKNOWN),
-                            BuiltinTypes.STRING, KofCallKind.STATIC));
-                }
+                ExpressionBinaryLowerer.emitOperandToString(driver, ops, sfaValueType);
                 ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_concat",
                         List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
                         BuiltinTypes.STRING, KofCallKind.FUNCTION));
@@ -81,6 +63,7 @@ static int lowerField(CompilerDriver driver, AssignmentExpr ae, FieldAccessExpr 
                 // (`<<=`) exige contagem int (L2I) e resultado no tipo do alvo.
                 ExpressionAssignmentLowerer.emitCompoundRhsConv(driver, ops, sfaOp, fld.type(), sfaValueType);
                 ops.add(new KofBinary(ExpressionAssignmentLowerer.compoundBinaryOp(sfaOp), fld.type()));
+                CompilerEmissionHelpers.emitStoreNarrow(driver, ops, Type.PrimitiveType.INT, fld.type());
             } else if ("=".equals(sfaOp)) {
                 // §361: isPrimitiveType UNBOXA Nullable(p/ widening), entao o
                 // gate de widening puro NAO pode engolir um campo Int? (slot
@@ -282,7 +265,18 @@ static int lowerField(CompilerDriver driver, AssignmentExpr ae, FieldAccessExpr 
     localIdx = ExpressionLowerer.emitExpression(driver, ae.value(), ops, owner, localIdx, locals);
     boolean faCompound = ExpressionAssignmentLowerer.isCompoundOp(faOp);
     Type faValType = ExpressionTyper.inferExprType(driver, ae.value(), locals);
-    if (faCompound) {
+    if (faCompound && "+=".equals(faOp) && Type.isString(fieldType)) {
+        ExpressionBinaryLowerer.emitOperandToString(driver, ops, faValType);
+        ops.add(new KofStoreLocal(BuiltinTypes.STRING, localIdx));
+        locals.add(new IRLocalVariable(localIdx, "#fldrhs" + localIdx, BuiltinTypes.STRING));
+        faValSlot = localIdx;
+        localIdx++;
+        ops.add(new KofLoadLocal(fieldType, faCurSlot));
+        ops.add(new KofLoadLocal(BuiltinTypes.STRING, faValSlot));
+        ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_concat",
+                List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
+                BuiltinTypes.STRING, KofCallKind.FUNCTION));
+    } else if (faCompound) {
         // §361 (composto): campo Int? -> o cur (slot boxed) e o RHS cru nao
         // casam com o putfield boxed; a aritmetica roda no INNER (unbox do
         // cur, conv do rhs p/ inner, binario, box do resultado) — espelho do
@@ -296,18 +290,20 @@ static int lowerField(CompilerDriver driver, AssignmentExpr ae, FieldAccessExpr 
         // §103.2 (#103): widening do valor p/ o tipo do campo (h.value = n,
         // Int→Long); no shift (`<<=`) a contagem é int (L2I) — regra do §167.
         ExpressionAssignmentLowerer.emitCompoundRhsConv(driver, ops, faOp, faBinType, faValType);
+        Type faRhsType = ExpressionAssignmentLowerer.isShiftAssignOp(faOp) ? Type.PrimitiveType.INT : faBinType;
         // o binario quer [cur, rhs]; derrama o rhs e recolhe na ordem certa
         // (commutatividade NAO pode ser assumida — sub/div/shift).
-        ops.add(new KofStoreLocal(faBinType, localIdx));
-        locals.add(new IRLocalVariable(localIdx, "#fldrhs" + localIdx, faBinType));
+        ops.add(new KofStoreLocal(faRhsType, localIdx));
+        locals.add(new IRLocalVariable(localIdx, "#fldrhs" + localIdx, faRhsType));
         faValSlot = localIdx;
-        localIdx = localIdx + (TypeMetrics.isDoubleWidth(faBinType) ? 2 : 1);
+        localIdx = localIdx + (TypeMetrics.isDoubleWidth(faRhsType) ? 2 : 1);
         ops.add(new KofLoadLocal(fieldType, faCurSlot));
         if (faCInner != null) {
             driver.emitErasureUnbox(ops, faCInner);
         }
-        ops.add(new KofLoadLocal(faBinType, faValSlot));
+        ops.add(new KofLoadLocal(faRhsType, faValSlot));
         ops.add(new KofBinary(ExpressionAssignmentLowerer.compoundBinaryOp(faOp), faBinType));
+        CompilerEmissionHelpers.emitStoreNarrow(driver, ops, Type.PrimitiveType.INT, faBinType);
         if (faCInner != null) {
             driver.emitErasureBox(ops, faCInner);
         }
