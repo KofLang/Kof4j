@@ -9680,6 +9680,69 @@ class DecompileTest {
                 "zero-drift: pixelsPerInch/sizeCategory/isWide/totalPixels idênticos ao Java");
     }
 
+    @Test
+    void pharmacyDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (22/10): o domínio FARMÁCIA — o % MODULO como forma nova do
+        // sweep (primeiro uso nos domínios) + a promoção de int para Double
+        // na aritmética mista via o cast `as Double` (o I2D do javac, o mesmo
+        // mecanismo do sqrt da rodada SCREEN), a cadeia if/else de 4 faixas,
+        // o || de boolean-param com comparação e o local mutável
+        // reatribuído dentro do if. Zero-drift executado: 100.0/drops/syrup/
+        // tablet/capsule/true/true/false/4/5 — 10/10 idênticos ao Java.
+        Path javaFile = dir.resolve("Pharmacy.java");
+        Files.writeString(javaFile, """
+                public class Pharmacy {
+                    static double pediatricDose(int weightKg, double adultDose) {
+                        return adultDose * weightKg / 70.0;
+                    }
+                    static String dosageForm(int age) {
+                        if (age <= 2) { return "drops"; }
+                        if (age <= 12) { return "syrup"; }
+                        if (age <= 65) { return "tablet"; }
+                        return "capsule";
+                    }
+                    static boolean needsPrescription(boolean controlled, int refillsLeft) {
+                        return controlled || refillsLeft <= 0;
+                    }
+                    static int pillsForDays(int pillsPerDay, int totalPills) {
+                        int days = totalPills / pillsPerDay;
+                        if (totalPills % pillsPerDay > 0) { days = days + 1; }
+                        return days;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Pharmacy.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Pharmacy.pediatricDose(14, 500.0))
+                    println(Pharmacy.dosageForm(1))
+                    println(Pharmacy.dosageForm(8))
+                    println(Pharmacy.dosageForm(40))
+                    println(Pharmacy.dosageForm(70))
+                    println(Pharmacy.needsPrescription(true, 3))
+                    println(Pharmacy.needsPrescription(false, 0))
+                    println(Pharmacy.needsPrescription(false, 5))
+                    println(Pharmacy.pillsForDays(3, 10))
+                    println(Pharmacy.pillsForDays(2, 10))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 100.0 | drops | syrup | tablet | capsule | true | true | false | 4 | 5
+        assertEquals("100.0\ndrops\nsyrup\ntablet\ncapsule\ntrue\ntrue\nfalse\n4\n5", output,
+                "zero-drift: pediatricDose/dosageForm/needsPrescription/pillsForDays idênticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
