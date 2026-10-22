@@ -213,8 +213,10 @@ RODA sob o host WASI e imprime `42`** — provado passar pelo host instrumentand
 `wasi_snapshot_preview1.fd_write` + `proc_exit`). Um programa com string também
 imprime corretamente (`println("hi")` e depois `println(f())` -> `hi` / `1`).
 Logo o subset escalar não é apenas emitido — é carregável, executa e o caminho de
-stdout funciona ponta-a-ponta. Ainda NÃO verificado: o que está nas linhas 🔴
-(recusado em compilação).
+stdout funciona ponta-a-ponta. Isto roda a CADA build como
+`WasmWasiNodeHostTest` (2/2, sem skips) — um oráculo separado e mais fraco que o
+`WasmWasiE2ETest`, que ainda exige `wasmtime`. Ainda NÃO verificado: o que está
+nas linhas 🔴 (recusado em compilação).
 
 | Forma | WASM | Evidência (medida) |
 |-------|------|--------------------|

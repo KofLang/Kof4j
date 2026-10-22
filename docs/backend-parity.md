@@ -230,8 +230,9 @@ WASI host and prints `42`** — proved to go through the host by instrumenting
 `wasi_snapshot_preview1.fd_write` + `proc_exit`). A string program also prints
 correctly (`println("hi")` then `println(f())` → `hi` / `1`). So the scalar
 subset is not merely emitted — it is loadable, executes, and its stdout path
-works end-to-end. Still NOT verified: anything in the 🔴 rows (refused at
-compile time).
+works end-to-end. This runs on EVERY build as `WasmWasiNodeHostTest` (2/2, no
+skips) — a separate, weaker oracle than `WasmWasiE2ETest`, which still needs
+`wasmtime`. Still NOT verified: anything in the 🔴 rows (refused at compile time).
 
 | Shape | WASM | Evidence (measured) |
 |-------|------|---------------------|
