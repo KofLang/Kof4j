@@ -160,23 +160,27 @@ O nome é curto, fácil de digitar, e não conflita com nenhuma biblioteca Java 
 
 ## Como funciona por baixo
 
-```
-Você escreve:     record User(String name)          // intenção
-                        ↓
-Compilador Kof:   lexer → parser → AST → IR → backend   // intention->Kof->frontend->IR->backend->runtime
-                        ↓
-                  ┌──────┼──────┐
-                  │      │      │
-               JVM    Native   JS
-                  │      │      │
-                  ▼      ▼      ▼
-             User.class ELF*  .mjs
-                  │      │      │
-                  ▼      ▼      ▼
-              funciona executável ES Module
-              como uma  direto no  na engine
-              classe    Linux      embarcada
-              Java normal (x86-64/riscv/arm)
+```mermaid
+flowchart TD
+    Start(["Início (Intenção)"])
+    Intent{"Você escreve<br/>record User(String<br/>name) //<br/>intenção"}
+    Start --> Intent
+    Intent --> lexer["lexer"]
+    lexer --> parser["parser"]
+    parser --> AST["AST"]
+    AST --> IR["IR"]
+    IR --> backend["backend"]
+    backend --> JVM["backend JVM"]
+    backend --> Native["backend Native"]
+    backend --> JS["backend JS"]
+    backend -.-> Pipeline["Pipeline do Compilador Kof"]
+    JVM --> Class["User.class"]
+    Native --> ELF["ELF*"]
+    JS --> MJS[".mjs"]
+    Class --> Works["funciona como uma<br/>classe Java normal"]
+    ELF --> Exec["executável<br/>direto no Linux<br/>(x86-64/riscv/arm)"]
+    MJS --> ES["ES Module na<br/>engine embarcada"]
+    Pipeline --> Chain["Compilador Kof: //<br/>intention->Kof-><br/>frontend->IR-><br/>backend-><br/>runtime"]
 ```
 
 `*` Native inclui `native` (x86-64), `native.risc` (riscv64) e `native.arm` (aarch64) — seleção via `Target` enum.
