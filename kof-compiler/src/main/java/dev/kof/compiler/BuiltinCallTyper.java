@@ -79,6 +79,8 @@ public final class BuiltinCallTyper {
             return new Type.ClassType("kof", "List", List.of(elemType));
         }
         if (mc.receiver() == null && "mapOf".equals(mc.methodName())) {
+            Type explicitMap = CollectionLiteralTypes.explicit(sa, mc, scope, "Map", 2);
+            if (explicitMap != null) return explicitMap;
             for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             // pinning no primeiro par (k1, v1, ...) — espelha o emit e o
             // CompilerDriver.inferExprType; sem isso Map<Unknown,Unknown>
@@ -90,6 +92,8 @@ public final class BuiltinCallTyper {
             return new Type.ClassType("kof", "Map", List.of(keyType, valueType));
         }
         if (mc.receiver() == null && "setOf".equals(mc.methodName())) {
+            Type explicitSet = CollectionLiteralTypes.explicit(sa, mc, scope, "Set", 1);
+            if (explicitSet != null) return explicitSet;
             Type elemType = Type.UnknownType.UNKNOWN;
             if (!mc.arguments().isEmpty()) {
                 elemType = SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
