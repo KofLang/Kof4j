@@ -227,8 +227,8 @@ public final class JsEmitter {
                 indent++;
                 for (JsIr.JsStatement s : t.tryBody()) emitStatement(s);
                 indent--;
-                if (t.catches() != null) {
-                    for (JsIr.JsCatchClause c : t.catches()) {
+                if (t.catches() != null && !t.catches().isEmpty()) {
+                    for (JsIr.JsCatchClause c : List.of(t.catches().get(0))) {
                         line("} catch (" + c.param() + ") {");
                         indent++;
                         // #843: os throws INTERNOS do runtime JS usam
