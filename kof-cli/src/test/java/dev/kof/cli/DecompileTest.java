@@ -9498,6 +9498,66 @@ class DecompileTest {
                 "zero-drift: monthlyInterest/goalStatus/afterFees/monthsToGoal idênticos ao Java");
     }
 
+    @Test
+    void garden2DomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o domínio JARDIM-2 — 4 shapes sem código novo: o
+        // plantsFor com o cast sobre a divisão (`(int) (area / perPlant)` —
+        // o 24 exato), o wateringSchedule com a DISJUNÇÃO DE IGUALDADES
+        // (`day == 1 || day == 4` — o padrão de agendamento), o
+        // needsFertilizer com a DISJUNÇÃO DE FAIXA DUPLO-LADO (`soilPH < 6.0
+        // || soilPH > 7.5` — o teste do fora-do-intervalo, o complemento do
+        // && de intervalo) e o growthRate com a subtração no numerador
+        // (`(current - start) / days` — o 4.0 exato). Zero-drift executado:
+        // 24/water/water/rest/true/false/true/4.0 — 8/8 idênticos ao Java
+        // — a 95ª validação zero-código.
+        Path javaFile = dir.resolve("Garden2.java");
+        Files.writeString(javaFile, """
+                public class Garden2 {
+                    static int plantsFor(double area, double perPlant) {
+                        return (int) (area / perPlant);
+                    }
+                    static String wateringSchedule(int dayOfWeek) {
+                        if (dayOfWeek == 1 || dayOfWeek == 4) { return "water"; }
+                        return "rest";
+                    }
+                    static boolean needsFertilizer(double soilPH) {
+                        return soilPH < 6.0 || soilPH > 7.5;
+                    }
+                    static double growthRate(double currentHeight, double startHeight, int days) {
+                        return (currentHeight - startHeight) / days;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Garden2.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Garden2.plantsFor(12.0, 0.5))
+                    println(Garden2.wateringSchedule(1))
+                    println(Garden2.wateringSchedule(4))
+                    println(Garden2.wateringSchedule(2))
+                    println(Garden2.needsFertilizer(5.5))
+                    println(Garden2.needsFertilizer(7.0))
+                    println(Garden2.needsFertilizer(8.0))
+                    println(Garden2.growthRate(30.0, 10.0, 5))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 24 | water | water | rest | true | false | true | 4.0
+        assertEquals("24\nwater\nwater\nrest\ntrue\nfalse\ntrue\n4.0", output,
+                "zero-drift: plantsFor/wateringSchedule/needsFertilizer/growthRate idênticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
