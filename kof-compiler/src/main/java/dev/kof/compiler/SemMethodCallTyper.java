@@ -411,7 +411,7 @@ public final class SemMethodCallTyper {
             case "Float", "float" -> "java/lang/Float";
             case "Double", "double" -> "java/lang/Double";
             case "Bool", "bool", "boolean", "Boolean" -> "java/lang/Boolean";
-            case "Char", "char" -> "java/lang/Character";
+            case "Char", "char", "Character" -> "java/lang/Character";
             case "Byte", "byte" -> "java/lang/Byte";
             case "Short", "short" -> "java/lang/Short";
             case "Object" -> "java/lang/Object";

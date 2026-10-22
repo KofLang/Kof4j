@@ -178,7 +178,9 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
         && ("Double".equals(rid.name()) || "Float".equals(rid.name()) || "Long".equals(rid.name())
             || "Integer".equals(rid.name()) || "Int".equals(rid.name()) || "Boolean".equals(rid.name())
-            || "Bool".equals(rid.name()) || "String".equals(rid.name()))) {
+            || "Bool".equals(rid.name()) || "String".equals(rid.name())
+            || "Char".equals(rid.name()) || "Character".equals(rid.name())
+            || "Byte".equals(rid.name()) || "Short".equals(rid.name()))) {
     // #156/#216: String.format(String, Object...) é varargs do JDK — o
     // classpath externo só casa name+arity e o descritor fabricado
     // `(String,String,int)Object` dava NoSuchMethodError. Ver
@@ -193,6 +195,9 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
         case "Float" -> "java/lang/Float";
         case "Double" -> "java/lang/Double";
         case "Bool", "Boolean" -> "java/lang/Boolean";
+        case "Char", "Character" -> "java/lang/Character";
+        case "Byte" -> "java/lang/Byte";
+        case "Short" -> "java/lang/Short";
         default -> "java/lang/String";
     };
     List<Type> actualArgTypes = new ArrayList<>();
