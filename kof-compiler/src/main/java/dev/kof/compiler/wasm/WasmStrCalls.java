@@ -106,6 +106,12 @@ final class WasmStrCalls {
                         ctx.lastPushWide = false;
                         return true;
                     }
+                    case "compareTo" -> {
+                        out.add(new WasmInstr.Call("kof.strCompare"));
+                        ctx.lastPush = "long";
+                        ctx.lastPushWide = true;
+                        return true;
+                    }
                     case "trim" -> {
                         out.add(new WasmInstr.Call("kof.strTrim"));
                         ctx.lastPush = "string";

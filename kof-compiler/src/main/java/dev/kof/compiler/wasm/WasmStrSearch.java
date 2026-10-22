@@ -135,4 +135,77 @@ final class WasmStrSearch {
                 // locais 2,3: i,c (i32); 4: u (i64)
                 List.of(0x7f, 0x7f, 0x7e), b);
     }
+
+    /**
+     * `kof.strCompare(a,b) -> i64`: `String.compareTo` do Kof — lexicografico
+     * sobre CODE UNITS UTF-16.
+     *
+     * <p>Reusa o `kof.strCharAt` (ja' provado para metades de surrogate) e o
+     * `kof.strLen`, em vez de reimplementar varredura de bytes: a semantica e'
+     * de UNITS, nao de bytes, e o `charAt` ja' resolve esse mapeamento.
+     *
+     * <p>Locais: 0=a, 1=b; 2=la (i64), 3=lb (i64), 4=i (i64), 5=ca (i32),
+     * 6=cb (i32), 7=r (i64)
+     */
+    static WasmFunc kofStrCompare() {
+        List<WasmInstr> b = new ArrayList<>();
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "a"));
+        b.add(new WasmInstr.Call("kof.strLen"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "la"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "b"));
+        b.add(new WasmInstr.Call("kof.strLen"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 3, "lb"));
+        b.add(new WasmInstr.Const(1, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 4, "i"));
+        // resultado por omissao: la - lb (caso "um e' prefixo do outro")
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "la"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "lb"));
+        b.add(new WasmInstr.Simple(0x7d, "i64.sub"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 7, "r"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, "kx", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, "kl", 0x40));
+        // i >= min(la,lb) -> fim, devolve la-lb
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "i"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "la"));
+        b.add(new WasmInstr.Simple(0x59, "i64.ge_s"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "i"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "lb"));
+        b.add(new WasmInstr.Simple(0x59, "i64.ge_s"));
+        b.add(new WasmInstr.Simple(0x72, "i32.or"));
+        b.add(new WasmInstr.Branch("kx", 1, true));
+        // ca = charAt(a, i) ; cb = charAt(b, i)
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "a"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "i"));
+        b.add(new WasmInstr.Call("kof.strCharAt"));
+        b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 5, "ca"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "b"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "i"));
+        b.add(new WasmInstr.Call("kof.strCharAt"));
+        b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 6, "cb"));
+        // diferentes? -> r = ca - cb e sai
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "ca"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 6, "cb"));
+        b.add(new WasmInstr.Simple(0x47, "i32.ne"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "dif", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "ca"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 6, "cb"));
+        b.add(new WasmInstr.Simple(0x6b, "i32.sub"));
+        b.add(new WasmInstr.Simple(0xac, "i64.extend_i32_s"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 7, "r"));
+        b.add(new WasmInstr.Branch("kx", 2));                // sai do BLOCK (IF,LOOP -> BLOCK)
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "dif", 0x40));
+        // i++
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "i"));
+        b.add(new WasmInstr.Const(1, 1));
+        b.add(new WasmInstr.Simple(0x7c, "i64.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 4, "i"));
+        b.add(new WasmInstr.Branch("kl", 0));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "kl", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "kx", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 7, "r"));
+        return new WasmFunc("kof.strCompare", List.of(0x7f, 0x7f), List.of(0x7e),
+                List.of(0x7e, 0x7e, 0x7e, 0x7f, 0x7f, 0x7e), b);
+    }
 }

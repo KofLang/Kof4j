@@ -130,6 +130,8 @@ public class WasmBackend implements Backend {
                             || ("substring".equals(kc.methodName())
                                 && "string".equalsIgnoreCase(typeName(kc.ownerType())))
                             || ("trim".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            || ("compareTo".equals(kc.methodName())
                                 && "string".equalsIgnoreCase(typeName(kc.ownerType()))))) {
                         continue; // wrapper intrinseco de String tratado na emissao
                     }
@@ -234,7 +236,8 @@ public class WasmBackend implements Backend {
                     || usesStringMethod(scanAll, "lastIndexOf")
                     || usesStringMethod(scanAll, "charAt")
                     || usesStringMethod(scanAll, "substring")
-                    || usesStringMethod(scanAll, "trim")) printed.add("string");
+                    || usesStringMethod(scanAll, "trim")
+                    || usesStringMethod(scanAll, "compareTo")) printed.add("string");
             if (printed.contains("int") || printed.contains("long")) funcs.add(kofWriteInt());
             if (printed.contains("bool") || printed.contains("boolean")) funcs.add(kofWriteBool());
             if (printed.contains("char")) funcs.add(WasmCharOut.kofWriteChar());
@@ -265,6 +268,11 @@ public class WasmBackend implements Backend {
                     if (usesStringMethod(scanAll, "charAt")) funcs.add(WasmStrSlice.kofStrCharAt());
                     if (usesStringMethod(scanAll, "substring")) funcs.add(WasmStrSlice.kofStrSub());
                     if (usesStringMethod(scanAll, "trim")) funcs.add(WasmStrInspect.kofStrTrim());
+                    if (usesStringMethod(scanAll, "compareTo")) {
+                        funcs.add(WasmStrSearch.kofStrCompare());
+                        funcs.add(WasmStrSlice.kofStrCharAt());
+                        funcs.add(WasmStrInspect.kofStrLen());
+                    }
                     // 15.3d fatia F: `==`/`!=` de String. Antes so entrava via
                     // records (fold de campo String); agora a comparacao direta
                     // entre duas variaveis tambem precisa do helper.
