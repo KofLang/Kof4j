@@ -9558,6 +9558,64 @@ class DecompileTest {
                 "zero-drift: plantsFor/wateringSchedule/needsFertilizer/growthRate idênticos ao Java");
     }
 
+    @Test
+    void shippingDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (17/10): o domínio FRETE — 4 shapes sem código novo: o cost
+        // com o produto peso×tarifa, o zone com as faixas de CHAR (N/S/E/W
+        // — a tabela de regiões), o isExpress com a comparação de prazo e
+        // o total com a soma simples. Zero-drift executado: 25.0/north/
+        // south/east/west/true/false/125.0 — 8/8 idênticos ao Java — a
+        // 95ª validação zero-código.
+        Path javaFile = dir.resolve("Shipping.java");
+        Files.writeString(javaFile, """
+                public class Shipping {
+                    static double cost(double weightKg, double ratePerKg) {
+                        return weightKg * ratePerKg;
+                    }
+                    static String zone(char region) {
+                        if (region == 'N') { return "north"; }
+                        if (region == 'S') { return "south"; }
+                        if (region == 'E') { return "east"; }
+                        return "west";
+                    }
+                    static boolean isExpress(int days) {
+                        return days <= 2;
+                    }
+                    static double total(double subtotal, double shippingCost) {
+                        return subtotal + shippingCost;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Shipping.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Shipping.cost(10.0, 2.5))
+                    println(Shipping.zone('N'))
+                    println(Shipping.zone('S'))
+                    println(Shipping.zone('E'))
+                    println(Shipping.zone('W'))
+                    println(Shipping.isExpress(1))
+                    println(Shipping.isExpress(5))
+                    println(Shipping.total(100.0, 25.0))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: 25.0 | north | south | east | west | true | false | 125.0
+        assertEquals("25.0\nnorth\nsouth\neast\nwest\ntrue\nfalse\n125.0", output,
+                "zero-drift: cost/zone/isExpress/total idênticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
