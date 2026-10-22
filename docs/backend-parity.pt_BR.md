@@ -202,14 +202,19 @@ Este backend está **EM DESENVOLVIMENTO** (15.1–15.3d pousados; o flip de fron
 15.4 pendente), então NÃO é uma coluna da tabela principal acima — a afirmação de
 paridade ali é sobre JVM/Native/KofJS, que RODAM a feature. Para WASM esta tabela
 registra o que `kof build --target wasm` realmente ACEITA, medido compilando cada
-forma e checando que `Default/Main.wasm` foi produzido. **Execução: parcialmente verificada — via Node, não wasmtime.** O `wasmtime`
-está ausente aqui (então `WasmWasiE2ETest` segue pulando honestamente), mas o
-motor WebAssembly do Node COMPILA e INSTANCIA os módulos emitidos. MEDIDO em dois
-programas: `Int f() { return 42 }` valida e instancia com `f()` = `42n`;
-`Int f(Int a) { return a * 2 + 1 }` dá `f(3)` = **`7n`**, batendo com a fonte
-Kof. Logo o subset escalar não é apenas emitido — é carregável e calcula
-corretamente. Ainda NÃO verificado: o caminho `println`/host do WASI preview1
-(exige um host WASI real) e o que está nas linhas 🔴.
+forma e checando que `Default/Main.wasm` foi produzido. **Execução: VERIFICADA — via Node, não wasmtime.** O `wasmtime` está ausente aqui
+(então `WasmWasiE2ETest` segue pulando honestamente), mas o motor WebAssembly do
+Node COMPILA e INSTANCIA os módulos emitidos, e o `node:wasi` do Node é um HOST
+WASI preview1 real. MEDIDO: `Int f() { return 42 }` valida e instancia com
+`f()` = `42n`; `Int f(Int a) { return a * 2 + 1 }` dá `f(3)` = **`7n`**, batendo
+com a fonte Kof; e `--target wasi` com `main() { println(f()) }` **realmente
+RODA sob o host WASI e imprime `42`** — provado passar pelo host instrumentando o
+`fd_write`, que disparou exatamente uma vez (o módulo importa só
+`wasi_snapshot_preview1.fd_write` + `proc_exit`). Um programa com string também
+imprime corretamente (`println("hi")` e depois `println(f())` -> `hi` / `1`).
+Logo o subset escalar não é apenas emitido — é carregável, executa e o caminho de
+stdout funciona ponta-a-ponta. Ainda NÃO verificado: o que está nas linhas 🔴
+(recusado em compilação).
 
 | Forma | WASM | Evidência (medida) |
 |-------|------|--------------------|
@@ -231,7 +236,8 @@ corretamente. Ainda NÃO verificado: o caminho `println`/host do WASI preview1
 |-------|--------------------|----------------------|
 | `Int f() { return 42 }` | ✅ | `f()` = `42n` |
 | `Int f(Int a) { return a * 2 + 1 }` | ✅ | `f(3)` = `7n` (bate com o Kof) |
-| Caminho de saída `println` do WASI | — NÃO VERIFICADO (exige host WASI) | — |
+| Caminho de saída `println` do WASI | ✅ | imprime `42` sob `node:wasi`; `fd_write` disparou 1x |
+| WASI `println(String)` + int depois | ✅ | `hi` e depois `1` |
 
 ## Gaps documentados (não mascarados)
 

@@ -218,14 +218,20 @@ claim there is about JVM/Native/KofJS, all of which RUN the feature. For WASM
 this table records what `kof build --target wasm` actually ACCEPTS, measured by
 compiling each shape and checking that `Default/Main.wasm` was produced.
 
-**Execution: partially verified — via Node, not wasmtime.** `wasmtime` is absent
-here (so `WasmWasiE2ETest` still skips honestly), but Node's WebAssembly engine
-compiles AND instantiates the emitted modules. MEASURED on two programs:
+**Execution: VERIFIED — via Node, not wasmtime.** `wasmtime` is absent here (so
+`WasmWasiE2ETest` still skips honestly), but Node's WebAssembly engine compiles
+AND instantiates the emitted modules, and Node's `node:wasi` is a real WASI
+preview1 HOST. MEASURED:
 `Int f() { return 42 }` validates and instantiates with `f()` = `42n`;
 `Int f(Int a) { return a * 2 + 1 }` gives `f(3)` = **`7n`**, matching the Kof
-source. So the scalar subset is not merely emitted — it is loadable and computes
-correctly. Still NOT verified here: the WASI preview1 `println`/host path (needs
-a real WASI host) and anything in the 🔴 rows.
+source; and `--target wasi` `main() { println(f()) }` **actually RUNS under the
+WASI host and prints `42`** — proved to go through the host by instrumenting
+`fd_write`, which fired exactly once (the module imports only
+`wasi_snapshot_preview1.fd_write` + `proc_exit`). A string program also prints
+correctly (`println("hi")` then `println(f())` → `hi` / `1`). So the scalar
+subset is not merely emitted — it is loadable, executes, and its stdout path
+works end-to-end. Still NOT verified: anything in the 🔴 rows (refused at
+compile time).
 
 | Shape | WASM | Evidence (measured) |
 |-------|------|---------------------|
@@ -247,7 +253,8 @@ a real WASI host) and anything in the 🔴 rows.
 |-------|--------------------------|-------------|
 | `Int f() { return 42 }` | ✅ | `f()` = `42n` |
 | `Int f(Int a) { return a * 2 + 1 }` | ✅ | `f(3)` = `7n` (matches Kof) |
-| WASI `println` output path | — NOT VERIFIED (needs a WASI host) | — |
+| WASI `println` output path | ✅ | prints `42` under `node:wasi`; `fd_write` fired once |
+| WASI `println(String)` + later int | ✅ | `hi` then `1` |
 
 **Note on `--target wasi`:** it emits the same module (`Main.wasm`), but there is
 no WASI host here; `kof run --target wasi` refuses honestly (Q7).
