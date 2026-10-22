@@ -259,6 +259,17 @@ final class CmdDeploy {
         if (library) files = new ArrayList<>(tree);
         if (files.isEmpty()) throw new IOException("no .kf/.kof files found in " + backendDir);
         files.sort(java.util.Comparator.comparing(p -> p.getFileName().toString()));
+        // Q7 honest-early-refusal, same pattern as CmdTest/CmdCheck: `script`
+        // emits NO artifacts (direct IR interpretation), so compiling for it here
+        // only produced a raw COMP003 from deep inside the pipeline — the same
+        // phantom failure the other commands refuse up front. Say it plainly.
+        if (target == Target.SCRIPT) {
+            throw new IOException(
+                    "--target script emits no artifacts (it is direct IR"
+                            + " interpretation, not a compiled output) — use"
+                            + " 'kof run --target script', or deploy jvm|native|js");
+        }
+
         Path classes = out.resolve("deploy-classes" + dirSuffix);
         CompilerDriver driver = new CompilerDriver();
         CompilationResult module = driver.compileSources(files, classes, target,
