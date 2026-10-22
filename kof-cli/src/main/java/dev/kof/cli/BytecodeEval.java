@@ -93,7 +93,11 @@ static boolean evalInto(java.util.List<BytecodeReader.Insn> seq, BytecodeFrame f
             case 0x68, 0x69, 0x6a, 0x6b -> { if (!BytecodeDecoderStack.bin2(st, "*")) return false; }
             case 0x6c, 0x6d, 0x6e, 0x6f -> { if (!BytecodeDecoderStack.bin2(st, "/")) return false; }
             case 0x70, 0x71, 0x72, 0x73 -> { if (!BytecodeDecoderStack.bin2(st, "%")) return false; }
-            case 0x85, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8d, 0x8e, 0x8f, 0x90 -> {
+            case 0x85, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8d, 0x8e, 0x8f, 0x90,
+                 0x91, 0x92, 0x93 -> {
+                // Fase E (22/10): o 0x91-0x93 segue a mesma semantica fiel
+                // do §695/#471 que o emitLinear — (x as Byte)/(as Short)/
+                // (as Char) truncam como o i2b/i2s/i2c do Java.
                 if (!BytecodeDecoderStack.conv(st, op)) return false;
             }
             // Fase E (14/10): bitwise & | ^ (o Kof tem os tres; medido)

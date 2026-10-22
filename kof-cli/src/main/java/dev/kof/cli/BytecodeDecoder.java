@@ -192,13 +192,15 @@ import java.util.Set;
                 case 0x8a -> { if (!stack.mono("(%s as Double)", "J", "D")) return null; }  // l2d
                 case 0x8e -> { if (!stack.mono("(%s as Int)", "D", "I")) return null; }     // d2i
                 case 0x8f -> { if (!stack.mono("(%s as Long)", "D", "J")) return null; }    // d2l
-                // i2c é o ÚNICO cast narrowing de Kof que é fiel: o codegen
-                // emite i2c real para `x as Char` (16 bits, wrap igual ao
-                // (char) do Java). i2b/i2s NÃO têm equivalente fiel — Kof
-                // `as Byte`/`as Short` são no-op (Int 32 bits alarga; (byte)
-                // 256 = 0 em Java mas 256 as Byte = 256 em Kof) — deixam no
-                // default (recusa → stub honesto, bug-62 discipline).
+                // Fase E (22/10): i2c/i2b/i2s — os tres truncam fielmente
+                // desde o §695/#471 (o JVM emite i2b/i2s/i2c reais para
+                // `as Byte`/`as Short`/`as Char`; x86 e riscv idem). O
+                // comentario antigo de "i2b/i2s NAO tem equivalente"
+                // descrevia o codigo PRE-§695. Medido: 300 as Byte=44,
+                // 256 as Byte=0, -1 as Byte=-1, 70000 as Short=4464.
+                case 0x91 -> { if (!stack.mono("(%s as Byte)", "I", "I")) return null; }    // i2b
                 case 0x92 -> { if (!stack.mono("(%s as Char)", "I", "I")) return null; }    // i2c
+                case 0x93 -> { if (!stack.mono("(%s as Short)", "I", "I")) return null; }   // i2s
                 case 0xb8 -> { // invokestatic
                     String[] m = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
                     if (m == null) return null;

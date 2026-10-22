@@ -810,6 +810,20 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
         if (pureElseIfThen || elseIfElseInner > 0) {
             String innerCond = BytecodeDecoder.blockCondition(elseB, insns, frame, cp);
             if (innerCond == null) { BytecodeStatements.refuse("elseif-cond"); return false; }
+            // Fase E (22/10): o hoist da CADEIA else-if — o slot armazenado
+            // no then E dentro do then aninhado do else (o shiftChar do
+            // Cipher: `int pos` nos dois ramos) escapava do escopo: o var
+            // nascia no 1º ramo e o 2º atribuía fora dele (SEM011). O deep
+            // hoist (por ranges) cobre os stores aninhados; o default vem
+            // do opcode; named-slot nunca (R6). O null NÃO é fatal aqui:
+            // sem hoist a emissão segue exatamente como antes (o fallback
+            // conservativo — nenhum shape que hoje passa regride).
+            StructWalker.cpRef = cp;
+            List<String> deepHoist = StructWalker.hoistEscapingLocalsDeep(insns,
+                    thenB.start, tail, elseB.start, tail, frame, declared);
+            if (deepHoist != null && !deepHoist.isEmpty()) {
+                out.addAll(deepHoist);
+            }
             Set<Integer> bstops = new HashSet<>(stops);
             bstops.add(tail);
             out.add("if (" + cond + ") {");
@@ -903,11 +917,23 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
             out.add("}");
             return struct(byStart.get(tail), insns, byStart, cp, frame, out, emitted, declared, header, stops);
         }
+        // Fase E (22/10): DECLARAÇÃO COM ESCOPO DE RAMO — o snapshot/restore
+        // do declared: cada ramo declara os seus próprios locais (o Kof
+        // aceita o mesmo nome em blocos irmãos — medido no Shadow.kf).
+        // Sem isto, o local declarado no ramo then vaza para o else e o
+        // segundo use sai BARE (SEM011) — o shiftChar do Cipher:
+        // `var v2 = (arg0 - 97)` no then e `v2 = (arg0 - 65)` bare no
+        // else. O restore cobre também o REUSE de slot do javac (tipos
+        // por ramo). Java válido não produz local declarado num ramo e
+        // lido fora dele, então o restore não derrama nada.
+        Set<Integer> branchScopeBase = new HashSet<>(declared);
         if (!struct(byStart.get(thenStart), insns, byStart, cp, frame, out, emitted, declared, header, stops))
             { BytecodeStatements.refuse("struct-generic"); return false; }
+        declared.retainAll(branchScopeBase);
         out.add("} else {");
         if (!struct(byStart.get(exitStart), insns, byStart, cp, frame, out, emitted, declared, header, stops))
             { BytecodeStatements.refuse("struct-generic"); return false; }
+        declared.retainAll(branchScopeBase);
         out.add("}");
         return true;
     }

@@ -9743,6 +9743,87 @@ class DecompileTest {
                 "zero-drift: pediatricDose/dosageForm/needsPrescription/pillsForDays idênticos ao Java");
     }
 
+    @Test
+    void cipherDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (22/10): o domínio CIFRA — a fatia do NARROWING 0x91-0x93
+        // (i2b/i2c/i2s) na linha linear + a declaração COM ESCOPO DE RAMO.
+        // O shiftChar do Cipher tinha `int pos = c - 'a'; return (char)
+        // ('a' + (pos + shift) % 26);` em dois ramos de um else-if — dois
+        // defeitos: (1) o i2c do ramo era `emitLinear-null:0x92` (a linha
+        // linear recusava o narrowing inteiro porque o comentário
+        // descrevia o código PRE-§695; o §695/#471 deu ao Kof
+        // `as Byte`/`as Short`/`as Char` a semântica fiel — medido:
+        // 300 as Byte=44, 256 as Byte=0, 70000 as Short=4464, os cinco
+        // idênticos ao Java); (2) o slot 2 era armazenado nos dois ramos
+        // (dois `int pos` com escopos separados no Java, um slot no
+        // bytecode) — o var nascia no 1º ramo e o 2º use saía bare
+        // (SEM011); o snapshot/restore do declared no ramo genérico dá a
+        // cada ramo a sua declaração (o Kof aceita o mesmo nome em blocos
+        // irmãos — medido no Shadow.kf). O collatzSteps (do-while com if
+        // no corpo) segue o stub honesto (o loop-body-separate — a fatia
+        // do do-while multi-bloco é a próxima). Zero-drift executado:
+        // k/K/khoor zruog/IFMMP/true/false — 6/6 idênticos ao Java.
+        Path javaFile = dir.resolve("Cipher.java");
+        Files.writeString(javaFile, """
+                public class Cipher {
+                    static char shiftChar(char c, int shift) {
+                        if (c >= 'a' && c <= 'z') {
+                            int pos = c - 'a';
+                            return (char) ('a' + (pos + shift) % 26);
+                        }
+                        if (c >= 'A' && c <= 'Z') {
+                            int pos = c - 'A';
+                            return (char) ('A' + (pos + shift) % 26);
+                        }
+                        return c;
+                    }
+                    static String encode(String text, int shift) {
+                        String result = "";
+                        for (int i = 0; i < text.length(); i++) {
+                            result = result + shiftChar(text.charAt(i), shift);
+                        }
+                        return result;
+                    }
+                    static boolean isPalindrome(String word) {
+                        int left = 0;
+                        int right = word.length() - 1;
+                        while (left < right) {
+                            if (word.charAt(left) != word.charAt(right)) return false;
+                            left++;
+                            right--;
+                        }
+                        return true;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Cipher.class"));
+        assertFalse(kof.contains("body not recovered"), kof);
+        String kofRun = kof + """
+                main() {
+                    println(Cipher.shiftChar('h', 3))
+                    println(Cipher.shiftChar('H', 3))
+                    println(Cipher.encode("hello world", 3))
+                    println(Cipher.encode("HELLO", 1))
+                    println(Cipher.isPalindrome("level"))
+                    println(Cipher.isPalindrome("hello"))
+                }
+                """;
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        // oracle Java: k | K | khoor zruog | IFMMP | true | false
+        assertEquals("k\nK\nkhoor zruog\nIFMMP\ntrue\nfalse", output,
+                "zero-drift: shiftChar/encode/isPalindrome idênticos ao Java");
+    }
+
     private Path writeKof(Path dir, String kof) throws Exception {
         Path f = dir.resolve("Arr.kf");
         Files.writeString(f, kof);
@@ -10684,16 +10765,18 @@ class DecompileTest {
 
         String kof = Decompile.decompile(dir.resolve("Cast.class"));
 
-        // i2c → `as Char`: ÚNICO narrowing de Kof fiel ao Java (o codegen do
-        // Kof emite i2c real p/ `x as Char`, wrap 16 bits igual (char)).
+        // Fase E (22/10): os TRÊS narrowings recuperam — o §695/#471 deu ao
+        // Kof `as Byte`/`as Short`/`as Char` a semântica FIEL do Java (o
+        // JVM emite i2b/i2s/i2c reais; x86 e riscv idem). O comentário
+        // antigo de "i2c é o único fiel" descrevia o código PRE-§695.
+        // Medido: 300 as Byte=44, 256 as Byte=0, -1 as Byte=-1,
+        // 70000 as Short=4464, 70000 as Byte=112 — idênticos ao Java.
         assertTrue(kof.contains("Char toChar(Int arg0) = ((arg0 + 65) as Char)"),
                 "i2c deve recuperar as Char:\n" + kof);
-        // i2b/i2s NÃO têm equivalente fiel: Kof `as Byte`/`as Short` são no-op
-        // (256 as Byte = 256 ≠ (byte) 256 = 0). Recusa → stub honesto (R6).
-        assertTrue(kof.contains("Byte toByte(Int arg0) {\n        throw \"body not recovered\""),
-                "i2b deve ficar stub (sem cast fiel em Kof):\n" + kof);
-        assertTrue(kof.contains("Short toShort(Int arg0) {\n        throw \"body not recovered\""),
-                "i2s deve ficar stub (sem cast fiel em Kof):\n" + kof);
+        assertTrue(kof.contains("Byte toByte(Int arg0) = (arg0 as Byte)"),
+                "i2b deve recuperar as Byte (fiel desde o §695):\n" + kof);
+        assertTrue(kof.contains("Short toShort(Int arg0) = (arg0 as Short)"),
+                "i2s deve recuperar as Short (fiel desde o §695):\n" + kof);
 
         Path out = dir.resolve("Cast.kf");
         Files.writeString(out, kof);
