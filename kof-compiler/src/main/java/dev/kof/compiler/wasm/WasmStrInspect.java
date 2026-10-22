@@ -342,6 +342,5 @@ final class WasmStrInspect {
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 9, "res"));
         return new WasmFunc("kof.strIndexOf", List.of(0x7f, 0x7f), List.of(0x7e),
                 // locais 2..9: p,i,la,lb (i32), u (i64), c (i32), found (i32), res (i64)
-                List.of(0x7f, 0x7f, 0x7f, 0x7f, 0x7e, 0x7f, 0x7f, 0x7e), b);
-    }
+                List.of(0x7f, 0x7f, 0x7f, 0x7f, 0x7e, 0x7f, 0x7f, 0x7e), b);    }
 }

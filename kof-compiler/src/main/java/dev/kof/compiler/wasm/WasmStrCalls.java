@@ -79,6 +79,25 @@ final class WasmStrCalls {
                         ctx.lastPushWide = true;
                         return true;
                     }
+                    case "charAt" -> {
+                        // Entrega o code unit como Char (o Kof Char e' i64 na
+                        // pilha — ver emitLiteral).
+                        out.add(new WasmInstr.Call("kof.strCharAt"));
+                        ctx.lastPush = "char";
+                        ctx.lastPushWide = true;
+                        return true;
+                    }
+                    case "substring" -> {
+                        // `substring(i)` (1 arg) chega so' com o indice: sintetiza
+                        // o sentinela j = -1 que `kof.strSub` traduz p/ "ate' o fim".
+                        if (kc.parameterTypes().size() == 1) {
+                            out.add(new WasmInstr.Const(1, -1));
+                        }
+                        out.add(new WasmInstr.Call("kof.strSub"));
+                        ctx.lastPush = "string";
+                        ctx.lastPushWide = false;
+                        return true;
+                    }
                     case "concat" -> {
                         out.add(new WasmInstr.Call("kof.strConcat"));
                         ctx.lastPush = "string";

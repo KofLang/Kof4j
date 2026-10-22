@@ -174,6 +174,52 @@ class WasmWasiStringE2ETest {
     }
 
     @Test
+    void stringCharAtAndSubstringMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // fatia F face 2f: `charAt`/`substring`, que exigem o MAPEAMENTO de
+        // indice de code unit UTF-16 para offset de BYTE UTF-8 (`kof.strByteOff`).
+        // Cobre o sentinela de 1 arg de `substring(i)` ("ate' o fim"), o recorte
+        // vazio e os casos nao-ASCII nos dois sentidos — um avanco byte-a-byte
+        // pararia no MEIO de um caractere multibyte.
+        var wasmtime = host("wasmtime");
+        assumeTrue(wasmtime != null, "wasmtime host absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var s = "abcdef"
+                    println(s.charAt(0))
+                    println(s.charAt(5))
+                    println(s.substring(1, 3))
+                    println(s.substring(2))
+                    println(s.substring(0, 0).length())
+                    println("café".charAt(3) == 'é')
+                    println("café".substring(3))
+                    println("a€b".substring(1, 2))
+                    println("a€b".length())
+                    println("a€b".substring(2))
+                }
+                """);
+        var driver = new CompilerDriver();
+        var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
+        assertTrue(jvm.success(), "jvm charAt/substring compile: " + jvm.diagnostics().getDiagnostics());
+        var oracle = new ProcessBuilder(List.of(jvmBin(), "-cp",
+                Path.of(dir.toString(), "out-jvm").toString(), "Default.Main"))
+                .redirectErrorStream(true).start();
+        String expected = new String(oracle.getInputStream().readAllBytes());
+        assertTrue(oracle.waitFor(120, TimeUnit.SECONDS) && oracle.exitValue() == 0,
+                "JVM oracle charAt/substring: " + expected);
+        var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
+        assertTrue(wasi.success(), "wasi charAt/substring compile: " + wasi.diagnostics().getDiagnostics());
+        var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
+                Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm").toString()))
+                .redirectErrorStream(true).start();
+        String out = new String(proc.getInputStream().readAllBytes());
+        assertTrue(proc.waitFor(60, TimeUnit.SECONDS), "host within 60s");
+        assertEquals(0, proc.exitValue(), "clean WASI exit charAt/substring: " + out);
+        assertEquals(expected.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                "String charAt/substring must equal the JVM oracle");
+    }
+
+    @Test
     void stringIndexOfReturnsUtf16CodeUnitIndex(@TempDir Path dir) throws Exception {
         // fatia F face 2e: `s.indexOf(t)`. A busca casa em BYTES (pela mesma
         // propriedade prefix-free do startsWith), mas o INDICE devolvido e' de
