@@ -210,6 +210,34 @@ unless a dedicated note says otherwise.
 | `process` / `kof.ui` | PROC001 / no port | identical refusals | identical refusals | compile-time refusals are target-wide, not per-arch (C-FFI broke this rule 20/09: #431 binds the scalar ABI per-arch on Native) |
 | `kof.config` typed | ✅ | ✅ x86_64 real (precedence `KOF_CONFIG` > env > profile) | 🟡 CONF001 — riscv64/aarch64 stub echoed defaults, now an honest refusal at lowering (§425; `DomainGapCodesTest.configOnCrossIsConf001`) | `KofConfig.supportedOn` false for the two cross targets |
 
+## WASM / WASI coverage (MEASURED 21/10 — emission only; execution NOT verified here)
+
+This backend is **UNDER DEVELOPMENT** (15.1–15.3d landed; the 15.4 frontend
+flip is pending), so it is NOT a column of the main table above — the parity
+claim there is about JVM/Native/KofJS, all of which RUN the feature. For WASM
+this table records what `kof build --target wasm` actually ACCEPTS, measured by
+compiling each shape and checking that `Default/Main.wasm` was produced. **No
+module was executed** (`wasmtime` is absent in this environment and
+`WasmWasiE2ETest` skips honestly), so "emis" here means "emits", never "runs
+correctly".
+
+| Shape | WASM | Evidence (measured) |
+|-------|------|---------------------|
+| Top-level scalar function + `println` of it | ✅ | `Int f() { return 42 }` → `Main.wasm` |
+| Integer arithmetic, if/else, `switch` | ✅ | `a * 2 + 1`, `if (x > 0)`, `case 0:` |
+| `for` / `while` loops with break-free bodies | ✅ | `for (var i…)`, `while (i < 3)` |
+| `Long`, `Double`, `Bool` scalars | ✅ | each compiled standalone |
+| Function-to-function calls | ✅ | `f() { return g(1) }` |
+| String literals in `println` + `+` concat | ✅ | only WITH a top-level scalar fn present |
+| `record` construction / `.x()` field read | 🔴 WASM002 | `'<init>' nao resolvida no subset escalar` |
+| `List` / `Map` / `Set` | 🔴 WASM002 | `'kof_list_new' nao resolvida no subset escalar` |
+| `try` / `catch` | 🔴 WASM002 | `'KofTrySta…' fora do subset escalar 15.2` |
+| Lambdas / higher-order | 🔴 WASM002 | lambda lowering needs `<init>` |
+| A module with NO top-level scalar function | 🔴 WASM002 | `nenhuma funcao top-level escalar para emitir` |
+
+**Note on `--target wasi`:** it emits the same module (`Main.wasm`), but there is
+no WASI host here; `kof run --target wasi` refuses honestly (Q7).
+
 ## Documented Gaps (not masked)
 
 | Gap | Diagnostic | Status |

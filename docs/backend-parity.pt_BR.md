@@ -196,6 +196,30 @@ nota em contrário.
 | `json.decode<Record>` | — (não medido aqui) | 🔴 JSN004 (asm pura) | 🔴 JSN004 | lista de recusas cross na re-auditagem 12/09 |
 | `process` / `kof.ui` | PROC001 / sem port | recusas idênticas | recusas idênticas | as recusas de compile-time são do alvo inteiro, não por arco (a C-FFI quebrou essa regra 20/09: #431 binda a ABI escalar por arco no Native) |
 
+## Cobertura WASM / WASI (MEDIDO 21/10 — só emissão; execução NÃO verificada aqui)
+
+Este backend está **EM DESENVOLVIMENTO** (15.1–15.3d pousados; o flip de frontend
+15.4 pendente), então NÃO é uma coluna da tabela principal acima — a afirmação de
+paridade ali é sobre JVM/Native/KofJS, que RODAM a feature. Para WASM esta tabela
+registra o que `kof build --target wasm` realmente ACEITA, medido compilando cada
+forma e checando que `Default/Main.wasm` foi produzido. **Nenhum módulo foi
+executado** (`wasmtime` ausente neste ambiente e `WasmWasiE2ETest` pula
+honestamente), então "emite" aqui significa EMITE, nunca "roda corretamente".
+
+| Forma | WASM | Evidência (medida) |
+|-------|------|--------------------|
+| Função escalar top-level + `println` dela | ✅ | `Int f() { return 42 }` -> `Main.wasm` |
+| Aritmética inteira, if/else, `switch` | ✅ | `a * 2 + 1`, `if (x > 0)`, `case 0:` |
+| Laços `for` / `while` | ✅ | `for (var i…)`, `while (i < 3)` |
+| Escalares `Long`, `Double`, `Bool` | ✅ | cada um compilado isoladamente |
+| Chamada de função para função | ✅ | `f() { return g(1) }` |
+| Literal de string em `println` + concat `+` | ✅ | só COM uma função escalar top-level presente |
+| `record` (construção / `.x()`) | 🔴 WASM002 | `'<init>' nao resolvida no subset escalar` |
+| `List` / `Map` / `Set` | 🔴 WASM002 | `'kof_list_new' nao resolvida no subset escalar` |
+| `try` / `catch` | 🔴 WASM002 | `'KofTrySta…' fora do subset escalar 15.2` |
+| Lambdas / ordem superior | 🔴 WASM002 | lowering de lambda precisa de `<init>` |
+| Módulo SEM função escalar top-level | 🔴 WASM002 | `nenhuma funcao top-level escalar para emitir` |
+
 ## Gaps documentados (não mascarados)
 
 | Gap | Diagnostic | Status |
