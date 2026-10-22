@@ -169,4 +169,26 @@ class WasmWasiStringSearchE2ETest {
                 out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
                 "String.replace must equal the JVM oracle");
     }
+
+    @Test
+    void indexOfWithFromIndexRefusesHonestlyInsteadOfSilentlyIgnoringIt(@TempDir Path dir) throws Exception {
+        // REGRESSAO MEDIDA 22/10: a forma de 2 argumentos (`indexOf(str, fromIndex)`)
+        // compilava e devolvia o resultado da forma de 1 — com o operando extra
+        // IGNORADO na pilha. Compilar e responder errado em silencio e' o pior
+        // desfecho (Q7/R6); a face nao implementada tem de recusar NOMEADA.
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var s = "abcabc"
+                    println(s.indexOf("b", 1))
+                }
+                """);
+        var wasi = new CompilerDriver().compile(dir.resolve("Main.kf"),
+                dir.resolve("out-wasi"), Target.WASI);
+        assertFalse(wasi.success(), "indexOf(str, fromIndex) nao pode 'passar' ignorando o indice");
+        assertTrue(wasi.diagnostics().getDiagnostics().stream()
+                        .anyMatch(d -> "WASM002".equals(d.code())
+                                && d.message().contains("fromIndex")),
+                "a recusa tem de nomear a face em falta (fromIndex): "
+                        + wasi.diagnostics().getDiagnostics());
+    }
 }
