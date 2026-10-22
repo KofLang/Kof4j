@@ -207,6 +207,16 @@ final class WasmStrInspect {
      * <p>Locais: 0 = a, 1 = b; 2 = p (byte); 3 = i; 4 = la; 5 = lb;
      * 6 = u (contagem de units do prefixo); 7 = c (byte).
      */
+    /**
+     * `kof.strIndexOf(a,b,last) -> i64`: `indexOf`/`lastIndexOf`.
+     *
+     * <p>Laco de varredura PLANO: um block de saida, pergunta sim/nao ao
+     * `kof.strMatchAt` e resolve o indice com `kof.strUnitsBefore` — nenhuma
+     * comparacao aninhada aqui, que era a origem de todo erro de profundidade.
+     *
+     * <p>Locais: 0=a, 1=b, 2=last (i32); 3=p (i32), 4=la (i32), 5=lb (i32),
+     * 6=res (i64); 7=found (i32)
+     */
     static WasmFunc kofStrIndexOf() {
         List<WasmInstr> b = new ArrayList<>();
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "a"));
@@ -216,133 +226,53 @@ final class WasmStrInspect {
         b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
         b.add(new WasmInstr.Local(WasmInstr.Local.SET, 5, "lb"));
         b.add(new WasmInstr.Const(0, 0));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "p"));
-        // locais 8/9: found (i32) e o unit index resolvido (i64)
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 3, "p"));
+        b.add(new WasmInstr.Const(1, -1));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 6, "res"));
         b.add(new WasmInstr.Const(0, 0));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 8, "found"));
-        b.add(new WasmInstr.Const(1, 0));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 9, "res"));
-        // while (p + lb <= la)
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, "sidx_x", 0x40));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, "sidx", 0x40));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "p"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 7, "found"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, "sx", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, "sl", 0x40));
+        // (last == 0) && found -> sai
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "last"));
+        b.add(new WasmInstr.Simple(0x45, "i32.eqz"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 7, "found"));
+        b.add(new WasmInstr.Simple(0x71, "i32.and"));
+        b.add(new WasmInstr.Branch("sx", 1, true));
+        // p + lb > la -> sai
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "p"));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "lb"));
         b.add(new WasmInstr.Simple(0x6a, "i32.add"));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "la"));
         b.add(new WasmInstr.Simple(0x4a, "i32.gt_u"));
-        b.add(new WasmInstr.Branch("sidx_x", 1, true));      // passou do fim -> sai
-        // i = 0; casou = 1 implicito: compara ate' lb
-        b.add(new WasmInstr.Const(0, 0));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 3, "i"));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, "cmp_x", 0x40));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, "cmp", 0x40));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "i"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "lb"));
-        b.add(new WasmInstr.Simple(0x4e, "i32.ge_u"));
-        b.add(new WasmInstr.Branch("cmp_x", 1, true));       // todos iguais
-        // a[p+i] e b[i], ambos com o +4 do cabecalho [len:i32] (LOAD8U offset=4
-        // cobre o +4 em cada lado)
+        b.add(new WasmInstr.Branch("sx", 1, true));
+        // casou em p?
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "a"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "p"));
-        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "i"));
-        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
-        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD8U, 4));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "b"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "i"));
-        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
-        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD8U, 4));
-        b.add(new WasmInstr.Simple(0x47, "i32.ne"));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "diff", 0x40));
-        b.add(new WasmInstr.Branch("cmp_x", 2));             // byte difere: abandona este p
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "diff", 0x40));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "i"));
-        b.add(new WasmInstr.Const(0, 1));
-        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 3, "i"));
-        b.add(new WasmInstr.Branch("cmp", 0));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "cmp", 0x40));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "cmp_x", 0x40));
-        // o laco acima so sai normalmente quando lb bytes casaram; se saiu por
-        // diferenca, `i < lb` -> tenta o proximo p
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "i"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "lb"));
-        b.add(new WasmInstr.Simple(0x49, "i32.lt_u"));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "next", 0x40));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "p"));
-        b.add(new WasmInstr.Const(0, 1));
-        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "p"));
-        // depth 1 = o LOOP sidx (dentro do IF "next": 0=IF, 1=LOOP, 2=BLOCK)
-        b.add(new WasmInstr.Branch("sidx", 1));               // continua
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "next", 0x40));
-        // CASOU em p: conta code units de a[0,p)
-        b.add(new WasmInstr.Const(1, 0));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 6, "u"));
-        b.add(new WasmInstr.Const(0, 0));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 3, "i"));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, "uc_x", 0x40));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, "uc", 0x40));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "i"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "p"));
-        b.add(new WasmInstr.Simple(0x4e, "i32.ge_u"));
-        b.add(new WasmInstr.Branch("uc_x", 1, true));         // prefixo inteiro contado
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "p"));
+        b.add(new WasmInstr.Call("kof.strMatchAt"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "hit", 0x40));
+        // res = unitsBefore(a, p) ; found = 1
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "a"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "i"));
-        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
-        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD8U, 4));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 7, "c"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 7, "c"));
-        b.add(new WasmInstr.Const(0, 0xC0));
-        b.add(new WasmInstr.Simple(0x71, "i32.and"));
-        b.add(new WasmInstr.Const(0, 0x80));
-        b.add(new WasmInstr.Simple(0x47, "i32.ne"));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "lead", 0x40));
-        // 4-byte leader (11110xxx) = 2 code units (par surrogate); os demais
-        // leaders (ASCII / 2 bytes / 3 bytes) = 1. Same rule as kof.strLen.
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 7, "c"));
-        b.add(new WasmInstr.Const(0, 0xF8));
-        b.add(new WasmInstr.Simple(0x71, "i32.and"));
-        b.add(new WasmInstr.Const(0, 0xF0));
-        b.add(new WasmInstr.Simple(0x46, "i32.eq"));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "four", 0x40));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 6, "u"));
-        b.add(new WasmInstr.Const(1, 2));
-        b.add(new WasmInstr.Simple(0x7c, "i64.add"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 6, "u"));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, "four", 0x40));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 6, "u"));
-        b.add(new WasmInstr.Const(1, 1));
-        b.add(new WasmInstr.Simple(0x7c, "i64.add"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 6, "u"));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "four", 0x40));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "lead", 0x40));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "i"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "p"));
+        b.add(new WasmInstr.Call("kof.strUnitsBefore"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 6, "res"));
+        b.add(new WasmInstr.Const(0, 1));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 7, "found"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "hit", 0x40));
+        // p++
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "p"));
         b.add(new WasmInstr.Const(0, 1));
         b.add(new WasmInstr.Simple(0x6a, "i32.add"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 3, "i"));
-        b.add(new WasmInstr.Branch("uc", 0));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "uc", 0x40));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "uc_x", 0x40));
-        // CASOU: guarda o indice resolvido e marca found=1, depois sai do laco
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 6, "u"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 9, "res"));
-        b.add(new WasmInstr.Const(0, 1));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 8, "found"));
-        b.add(new WasmInstr.Branch("sidx_x", 1));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "sidx", 0x40));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "sidx_x", 0x40));
-        // nao achou -> -1
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 8, "found"));
-        b.add(new WasmInstr.Simple(0x45, "i32.eqz"));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "nf", 0x40));
-        b.add(new WasmInstr.Const(1, -1));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 9, "res"));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "nf", 0x40));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 9, "res"));
-        return new WasmFunc("kof.strIndexOf", List.of(0x7f, 0x7f), List.of(0x7e),
-                // locais 2..9: p,i,la,lb (i32), u (i64), c (i32), found (i32), res (i64)
-                List.of(0x7f, 0x7f, 0x7f, 0x7f, 0x7e, 0x7f, 0x7f, 0x7e), b);    }
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 3, "p"));
+        b.add(new WasmInstr.Branch("sl", 0));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "sl", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "sx", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 6, "res"));
+        return new WasmFunc("kof.strIndexOf", List.of(0x7f, 0x7f, 0x7f), List.of(0x7e),
+                // locais 3,4,5,7: p,la,lb,found (i32); 6: res (i64)
+                List.of(0x7f, 0x7f, 0x7f, 0x7e, 0x7f), b);
+    }
 
     /**
      * `kof.strTrim(h) -> handle`: `String.trim()` do Kof, recortando pelos BYTES.

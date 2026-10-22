@@ -123,6 +123,8 @@ public class WasmBackend implements Backend {
                                 && "string".equalsIgnoreCase(typeName(kc.ownerType())))
                             || ("indexOf".equals(kc.methodName())
                                 && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            || ("lastIndexOf".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
                             || ("charAt".equals(kc.methodName())
                                 && "string".equalsIgnoreCase(typeName(kc.ownerType())))
                             || ("substring".equals(kc.methodName())
@@ -229,6 +231,7 @@ public class WasmBackend implements Backend {
                     || usesStringMethod(scanAll, "startsWith")
                     || usesStringMethod(scanAll, "endsWith")
                     || usesStringMethod(scanAll, "indexOf")
+                    || usesStringMethod(scanAll, "lastIndexOf")
                     || usesStringMethod(scanAll, "charAt")
                     || usesStringMethod(scanAll, "substring")
                     || usesStringMethod(scanAll, "trim")) printed.add("string");
@@ -249,7 +252,12 @@ public class WasmBackend implements Backend {
                     }
                     if (usesStringMethod(scanAll, "startsWith")) funcs.add(WasmStrInspect.kofStrAffix(false));
                     if (usesStringMethod(scanAll, "endsWith")) funcs.add(WasmStrInspect.kofStrAffix(true));
-                    if (usesStringMethod(scanAll, "indexOf")) funcs.add(WasmStrInspect.kofStrIndexOf());
+                    if (usesStringMethod(scanAll, "indexOf")
+                            || usesStringMethod(scanAll, "lastIndexOf")) {
+                        funcs.add(WasmStrInspect.kofStrIndexOf());
+                        funcs.add(WasmStrSearch.kofStrMatchAt());
+                        funcs.add(WasmStrSearch.kofStrUnitsBefore());
+                    }
                     if (usesStringMethod(scanAll, "charAt")
                             || usesStringMethod(scanAll, "substring")) {
                         funcs.add(WasmStrSlice.kofStrByteOff());

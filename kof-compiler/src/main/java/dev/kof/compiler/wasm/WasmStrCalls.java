@@ -74,6 +74,14 @@ final class WasmStrCalls {
                         return true;
                     }
                     case "indexOf" -> {
+                        out.add(new WasmInstr.Const(0, 0));   // last = false
+                        out.add(new WasmInstr.Call("kof.strIndexOf"));
+                        ctx.lastPush = "long";
+                        ctx.lastPushWide = true;
+                        return true;
+                    }
+                    case "lastIndexOf" -> {
+                        out.add(new WasmInstr.Const(0, 1));   // last = true
                         out.add(new WasmInstr.Call("kof.strIndexOf"));
                         ctx.lastPush = "long";
                         ctx.lastPushWide = true;
