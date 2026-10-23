@@ -294,16 +294,10 @@ if (mc.receiver() != null
     return (lamT instanceof Type.FunctionType ft) ? ft.returnType() : Type.UnknownType.UNKNOWN;
 }
 if ("mapOf".equals(mc.methodName()) && mc.receiver() == null) {
-    // pinning do tipo no primeiro par — espelha o emit (mapOf(k1,v1,...))
-    Type keyType = mc.arguments().isEmpty() ? Type.UnknownType.UNKNOWN
-            : ExpressionTyper.inferExprType(driver, mc.arguments().get(0), locals);
-    Type valueType = mc.arguments().size() < 2 ? Type.UnknownType.UNKNOWN
-            : ExpressionTyper.inferExprType(driver, mc.arguments().get(1), locals);
-    return new Type.ClassType("kof", "Map", List.of(keyType, valueType));
+    return CollectionLiteralTypes.mapOf(driver, mc, locals);
 }
 if ("setOf".equals(mc.methodName()) && mc.receiver() == null) {
-    Type elemType = mc.arguments().isEmpty() ? Type.UnknownType.UNKNOWN : ExpressionTyper.inferExprType(driver, mc.arguments().get(0), locals);
-    return new Type.ClassType("kof", "Set", List.of(elemType));
+    return CollectionLiteralTypes.setOf(driver, mc, locals);
 }
 if (mc.receiver() == null && "__kof_spawn_expr".equals(mc.methodName())) {
     ExpressionNode body = mc.arguments().get(0);

@@ -417,16 +417,8 @@ if (mc.receiver() instanceof IdentifierExpr rid && CompilerTypes.isEnumName(rid.
 }
 if ("mapOf".equals(mc.methodName()) && mc.receiver() == null) {
 
-    Type keyType = Type.UnknownType.UNKNOWN;
-    Type valueType = Type.UnknownType.UNKNOWN;
-    if (!mc.arguments().isEmpty()) {
-        // mapOf(k1, v1, k2, v2, ...): pinning do tipo no primeiro par
-        keyType = ExpressionTyper.inferExprType(driver, mc.arguments().get(0), locals);
-        if (mc.arguments().size() > 1) {
-            valueType = ExpressionTyper.inferExprType(driver, mc.arguments().get(1), locals);
-        }
-    }
-    Type mapType = new Type.ClassType("kof", "Map", List.of(keyType, valueType));
+    Type mapType = CollectionLiteralTypes.mapOf(driver, mc, locals);
+    Type valueType = ((Type.ClassType) mapType).typeArguments().get(1);
     ops.add(new KofCall(mapType, "kof_map_new", List.of(), mapType, KofCallKind.FUNCTION));
     // pares: (k0,v0), (k1,v1), ...
     for (int ai = 0; ai + 1 < mc.arguments().size(); ai += 2) {
@@ -468,9 +460,8 @@ if ("mapOf".equals(mc.methodName()) && mc.receiver() == null) {
     return localIdx;
 }
 if ("setOf".equals(mc.methodName()) && mc.receiver() == null) {
-    Type elemType = Type.UnknownType.UNKNOWN;
-    if (!mc.arguments().isEmpty()) elemType = ExpressionTyper.inferExprType(driver, mc.arguments().get(0), locals);
-    Type setType = new Type.ClassType("kof", "Set", List.of(elemType));
+    Type setType = CollectionLiteralTypes.setOf(driver, mc, locals);
+    Type elemType = ((Type.ClassType) setType).typeArguments().get(0);
     ops.add(new KofCall(setType, "kof_set_new", List.of(), setType, KofCallKind.FUNCTION));
     for (ExpressionNode arg : mc.arguments()) {
         ops.add(new KofDup());
