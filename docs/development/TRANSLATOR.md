@@ -10,9 +10,9 @@
 still plan-only here; promotion to current work is one-at-a-time per
 `D-FUTURE-PROMOTION`. Code
 already in the repo stays (`Translate.java` + `TranslateLexer`/`TranslateExpr`,
-`TranslateTest` 61/61) — only the *queue* stops here. Phase F
+`TranslateTest` **77/77**, re-measured 22/10 by the lane that took this orphan) — only the *queue* stops here. Phase F
 implemented: `Translate.java` + `TranslateLexer`/`TranslateExpr`;
-proof: `TranslateTest` **61/61** (re-measured 15/09 on tip `7b0bfbe0`;
+proof: `TranslateTest` **77/77** (re-measured 22/10;
 the header's 30/30 was the 22/08 baseline) — output compiles and runs; +do-while +switch
 +try/catch/throw +arrays +cast/instanceof +throws +generics +constructor
 +enum-body/multi-decl +interface-extends +bitwise/shift +parentheses

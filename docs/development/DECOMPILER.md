@@ -6,10 +6,11 @@
 still plan-only here; promotion to current work is one-at-a-time per
 `D-FUTURE-PROMOTION` (the
 three-states rule). Code already in the repo stays (kof-cli `Decompile.java` +
-decoders, `DecompileTest` 133/133 as of 15/10) — only the *queue* stops here; the full
+decoders, `DecompileTest` **228/228** (re-measured 22/10 by lane docs/lab
+taking this orphaned plan) — only the *queue* stops here; the full
 work-log below remains as the record for a future session. Implemented:
 `Decompile.java` + bytecode decoders, Phases A–E with code; proof:
-`DecompileTest` **133/133** green (measured 15/10) + `DecompilePostDominatorTest` 6/6
+`DecompileTest` **228/228** green (measured 22/10) + `DecompilePostDominatorTest` 6/6
 (re-measured 15/09 on tip `7b0bfbe0`; the header's 45/45 was the 22/08
 baseline). The remaining gap
 (measured 15/09: 1793 stubs on the 706-class corpus; the biggest one —

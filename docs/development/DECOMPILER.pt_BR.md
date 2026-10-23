@@ -5,10 +5,11 @@
 **Status:** **EM DESENVOLVIMENTO — promovida a trabalho corrente 14/10 (`D-FUTURE-PROMOTION`, lane nativa/GC `192.168.15.117:0`); a superfície de formas estruturais está no teto honesto (as faces restantes precisam da decisão da lei do diamante ou da lane de interop); **a frente JVM está COMPLETA em 14/10** — Fases A–H entregues (decompile 133/133, translate 77/77 lista §3.3 19/19, compare 15/15 seis canais incl. exceções tipadas + digest de DB, migrate 11/11 JAR + integração comportamental + vetores de entrada; bateria 236/236); as faces restantes do decompilador são o teto structured-shape (decisão da lei do diamante) e a lane de interop; o work-log vive em `LEGACY_MIGRATION.pt_BR.md`** —
 ainda só-plano aqui; a promoção a trabalho corrente é uma-por-vez por
 `D-FUTURE-PROMOTION` (regra dos três estados). O código já no repo fica (kof-cli `Decompile.java` +
-decoders, `DecompileTest` 133/133) — só a *fila* para aqui; o work-log completo
+decoders, `DecompileTest` **228/228** (re-medido 22/10 pela lane docs/lab
+que assumiu este plano orfao) — só a *fila* para aqui; o work-log completo
 abaixo permanece como registro para uma sessão futura. Implementado:
 `Decompile.java` + decoders de bytecode, Fases A–E com código; prova:
-`DecompileTest` **133/133** verdes + `DecompilePostDominatorTest` 6/6
+`DecompileTest` **228/228** verdes (medido 22/10) + `DecompilePostDominatorTest` 6/6
 (re-medido 15/09 no tip `7b0bfbe0`; o 45/45 do cabeçalho era a linha de base
 de 22/08). A lacuna restante
 (medida 15/09: 1793 stubs no corpus de 706 classes; a maior — joins de

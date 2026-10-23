@@ -9,9 +9,9 @@
 **Status:** **EM DESENVOLVIMENTO — promovida a trabalho corrente 14/10 (`D-FUTURE-PROMOTION`, lane nativa/GC `192.168.15.117:0`); a superfície de formas do tradutor está no teto honesto (o mapeamento JDK→stdlib precisa de decisão rule-6); **a superfície de formas do tradutor está COMPLETA para a lista planejada em 14/10** — a lista de suporte progressivo §3.3 está em 19/19 (classes aninhadas static hoistam como `Outer_Inner`; anônimas SAM baixam para lambda; blocos static/instance init dobram; cada decisão com prova executada, `TranslateTest` 77/77); as faces restantes são o mapeamento JDK→stdlib (decisão rule-6, ex.: `ArrayList`→`List`) e a Opção B do inner não-static (campo sintético `this$Outer`, não aprovada); o work-log vive em `LEGACY_MIGRATION.pt_BR.md`** —
 ainda só-plano aqui; a promoção a trabalho corrente é uma-por-vez por
 `D-FUTURE-PROMOTION`. O código já no repo fica (`Translate.java` + `TranslateLexer`/`TranslateExpr`,
-`TranslateTest` 61/61) — só a *fila* para aqui. Fase F
+`TranslateTest` **77/77**, re-medido 22/10 pela lane que assumiu este orfao) — só a *fila* para aqui. Fase F
 implementada: `Translate.java` + `TranslateLexer`/`TranslateExpr`;
-prova: `TranslateTest` **61/61** (re-medido 15/09 no tip `7b0bfbe0`;
+prova: `TranslateTest` **77/77** (re-medido 22/10;
 o 30/30 do cabeçalho era a linha de base de 22/08) — output compila e roda; +do-while +switch
 +try/catch/throw +arrays +cast/instanceof +throws +generics +constructor
 +enum-body/multi-decl +interface-extends +bitwise/shift +parênteses
