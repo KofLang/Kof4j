@@ -158,6 +158,25 @@ final class WasmCharOut {
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "frac", 0x40));
         b.add(new WasmInstr.Simple(0x00, "unreachable"));
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "frac", 0x40));
+        // A partir de 1.0E7 o JVM troca para FORMA EXPONENCIAL (`1.0E7`), que
+        // este incremento nao implementa. Sem esta guarda o valor integral
+        // grande sairia `10000000.0` — string que o JVM NUNCA produz, ou seja
+        // um valor errado em silencio (regra 5). Trap honesto (medido 22/10).
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "t"));
+        b.add(new WasmInstr.Const(1, 10000000));
+        // Tabela i64 (0x50 = eqz): 0x59 = ge_s, 0x5a = ge_u. Usar a SIGNED,
+        // senao qualquer negativo vira valor enorme e todo -3.0 trapava.
+        b.add(new WasmInstr.Simple(0x59, "i64.ge_s"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "big", 0x40));
+        b.add(new WasmInstr.Simple(0x00, "unreachable"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "big", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "t"));
+        b.add(new WasmInstr.Const(1, -10000000));
+        // 0x53 = i64.lt_s (0x56 seria i64.gt_u).
+        b.add(new WasmInstr.Simple(0x53, "i64.lt_s"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "sml", 0x40));
+        b.add(new WasmInstr.Simple(0x00, "unreachable"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "sml", 0x40));
         // Monta UM handle "<digitos>.0" e escreve UMA vez: kof.writeStr
         // acrescenta o '\n', entao duas escritas imprimiriam duas linhas.
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "t"));

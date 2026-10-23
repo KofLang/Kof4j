@@ -350,6 +350,8 @@ class WasmWasiStringSearchE2ETest {
                     println(-0.0)
                     println(1.0)
                     println(-1.0)
+                    println(9999999.0)
+                    println(-9999999.0)
                 }
                 """);
         var driver = new CompilerDriver();
@@ -388,6 +390,24 @@ class WasmWasiStringSearchE2ETest {
         assertTrue(fracProc.waitFor(60, TimeUnit.SECONDS), "host within 60s");
         assertNotEquals(0, fracProc.exitValue(),
                 "valor fracionario tem de TRAPAR, nunca imprimir string divergente: " + fracOut);
+
+        // Metade 3: a FRONTEIRA 1.0E7 — o JVM troca para forma exponencial ali,
+        // entao imprimir "10000000.0" seria um valor errado em silencio. Tem de
+        // trapar, nao imprimir.
+        Files.writeString(dir.resolve("Big.kf"), """
+                main(String[] args) {
+                    println(10000000.0)
+                }
+                """);
+        var bigWasi = driver.compile(dir.resolve("Big.kf"), dir.resolve("out-big"), Target.WASI);
+        assertTrue(bigWasi.success(), "10000000.0 ainda COMPILA (o trap e' em execucao)");
+        var bigProc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
+                Path.of(dir.toString(), "out-big", "Default", "Big.wasm").toString()))
+                .redirectErrorStream(true).start();
+        String bigOut = new String(bigProc.getInputStream().readAllBytes());
+        assertTrue(bigProc.waitFor(60, TimeUnit.SECONDS), "host within 60s");
+        assertNotEquals(0, bigProc.exitValue(),
+                "10000000.0 tem de TRAPAR: o JVM imprime 1.0E7, nunca 10000000.0: " + bigOut);
     }
 
     @Test
