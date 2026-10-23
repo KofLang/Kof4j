@@ -2,7 +2,7 @@
 
 # DECISIONS — registro de decisões da linguagem
 
-**Última atualização:** 02/10/2026
+**Última atualização:** 22/10/2026
 **Mantenedora:** Mel Santos
 **Natureza:** registro normativo e histórico de decisões de arquitetura, semântica e evolução da linguagem.
 
@@ -4795,6 +4795,15 @@ individuais:
 - **Handoff / órfão:** um plano que perde a dona ou cujo claim é revogado deve declarar `**Dono:** SEM DONO / ABERTO` no cabeçalho, até nova reivindicação com `IP:PORTA` fresco e exclusivo que não detenha outro plano. Plano sem dona exclusiva não pode ser avançado sob identidade compartilhada/silenciosa.
 - **Autoridade / execução:** `scripts/check_plan_owners.sh` (varre todos os cabeçalhos de plano, falha em IPs duplicados, campos ausentes ou nomes de lane sem âncora).
 - **Relações:** `Estende: D-AGENT-IDENTITY-IPPORT (granularidade de identidade)`, `Complementa: AGENTS.md §Multi-agent state (disciplina de claims)`.
+
+## D-PLAN-ORPHAN-ASSUME — um plano sem alteração há >6h é ÓRFÃO e uma lane pode assumir vários de uma vez (mantenedora 22/10/2026, diretriz no chat)
+
+**Estado:** DECIDIDO (mantenedora) — regra operacional; exceção explícita a `D-PLAN-ONE-OWNER`.
+- **Critério de órfão:** um plano em `docs/development/` cujo FICHEIRO não mudou nas últimas 6 horas é órfão, independentemente da lane nomeada no cabeçalho.
+- **Assunção em lote:** a mantenedora autorizou a lane compiler/JVM/native `192.168.15.30:9092` a assumir TODOS os planos órfãos em 22/10/2026 num só lote (`image-vision`, `kofscript-embedding`, `qrcode-wasm`). Os planos assumidos levam o marcador `D-PLAN-ORPHAN-ASSUME` na linha de dona.
+- **Exceção do gate:** `scripts/check_plan_owners.sh` isenta os planos com esse marcador da verificação de um-plano-por-identidade; todas as outras regras (`IP:PORTA` nomeado, sem IP solto, sem campo ausente) continuam a valer. Remover o marcador restaura a lei normal de unicidade.
+- **Execução:** a assunção é de DONO, não de trabalho paralelo — as fatias continuam a ser executadas UMA de cada vez, e um plano cujo próximo passo está bloqueado pela mantenedora (o contrato de embedding) fica bloqueado.
+- **Relações:** `Exceção a: D-PLAN-ONE-OWNER`; `Estende: D-AGENT-IDENTITY-IPPORT`.
 
 ---
 

@@ -2,7 +2,7 @@
 
 # DECISIONS — language decision record
 
-**Last updated:** 2026-10-02
+**Last updated:** 2026-10-22
 
 **Maintainer:** Mel Santos
 
@@ -4805,6 +4805,15 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Handoff / orphan:** a plan that loses its owner or has its claim revoked must declare `**Owner:** SEM DONO / OPEN` in its header, until re-claimed with a fresh, unique `IP:PORTA` that does not already hold another plan. A plan without an exclusive owner cannot be advanced under a shared/silent identity.
 - **Authority / enforcement:** `scripts/check_plan_owners.sh` (scans all plan headers, fails on duplicate IPs, missing owner fields, or unanchored lane names).
 - **Relationships:** `Extends: D-AGENT-IDENTITY-IPPORT (identity granularity)`, `Complements: AGENTS.md §Multi-agent state (claim discipline)`.
+
+## D-PLAN-ORPHAN-ASSUME — a plan untouched for >6h is an ORPHAN and one lane may assume several at once (maintainer 22/10/2026, chat directive)
+
+**State:** DECIDED (maintainer) — operational rule; explicit exception to `D-PLAN-ONE-OWNER`.
+- **Orphan criterion:** a plan in `docs/development/` whose FILE has not changed in the last 6 hours is an orphan, independent of the lane named in its header.
+- **Batch assumption:** the maintainer authorized the compiler/JVM/native lane `192.168.15.30:9092` to assume ALL orphan plans on 22/10/2026 in one batch (`image-vision`, `kofscript-embedding`, `qrcode-wasm`). The assumed plans carry the marker `D-PLAN-ORPHAN-ASSUME` in their owner line.
+- **Gate exception:** `scripts/check_plan_owners.sh` exempts plans carrying that marker from the one-plan-per-identity check; every other rule (named `IP:PORTA`, no bare IP, no missing field) still applies. Removing the marker restores the normal uniqueness law.
+- **Execution:** the assumption is OWNERSHIP, not parallel work — slices are still executed ONE at a time, and a plan whose next step is maintainer-blocked (the embedding contract) stays blocked.
+- **Relationships:** `Exception to: D-PLAN-ONE-OWNER`; `Extends: D-AGENT-IDENTITY-IPPORT`.
 
 ---
 

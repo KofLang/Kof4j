@@ -5,7 +5,7 @@ doing: spike-0 (the inventory) LANDED 17/10 — the MEASURED entry points below;
 next: the maintainer's contract decision (the embedding surface + the capability model) — then slice 2 (stepping)
 location: docs/development/kofscript-embedding-plan.md
 state: under-development
-owner: 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a
+owner: 192.168.15.30:9092 — assumed as ORPHAN 22/10 under D-PLAN-ORPHAN-ASSUME (maintainer directive; exception to D-PLAN-ONE-OWNER)
 
 intent: kofscript-embedding-api
 

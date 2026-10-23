@@ -5,7 +5,7 @@ doing: spike-0 (o inventário) POUSADO 17/10 — os entry points MEDIDOS abaixo;
 next: a decisão de contrato da mantenedora (a superfície de embedding + o modelo de capacidades) — depois a fatia 2 (stepping)
 local: docs/development/kofscript-embedding-plan.pt_BR.md
 state: under-development
-dona: 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a
+dona: 192.168.15.30:9092 — assumido como ÓRFÃO em 22/10 sob D-PLAN-ORPHAN-ASSUME (diretriz da mantenedora; exceção a D-PLAN-ONE-OWNER)
 
 intent: kofscript-embedding-api
 
