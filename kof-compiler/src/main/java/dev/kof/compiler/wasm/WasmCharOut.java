@@ -163,6 +163,30 @@ final class WasmCharOut {
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "t"));
         b.add(new WasmInstr.Call("kof.intToStr"));
         b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "h"));
+        // ZERO NEGATIVO (regressao medida 22/10): trunc(-0.0) = 0, entao o sinal
+        // se perde antes do intToStr e saia "0.0" onde o JVM imprime "-0.0".
+        // O bit de sinal e' legivel SEM truncar: i64.reinterpret_f64 < 0.
+        // So' precisa do prefixo quando t == 0 (para nao-zero o intToStr ja'
+        // carrega o '-', e prefixar de novo daria "--1.0").
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "v"));
+        b.add(new WasmInstr.Simple(0xbd, "i64.reinterpret_f64"));
+        b.add(new WasmInstr.Const(1, 0));
+        b.add(new WasmInstr.Simple(0x53, "i64.lt_s"));       // sinal ligado?
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "t"));
+        b.add(new WasmInstr.Const(1, 0));
+        b.add(new WasmInstr.Simple(0x51, "i64.eq"));         // t == 0?
+        b.add(new WasmInstr.Simple(0x71, "i32.and"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "nz", 0x40));
+        b.add(new WasmInstr.Const(0, 0));
+        b.add(new WasmInstr.Call("kof.strAlloc"));
+        b.add(new WasmInstr.Const(0, '-'));
+        b.add(new WasmInstr.Call("kof.strAppendByte"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 3, "nh"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "nh"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "h"));
+        b.add(new WasmInstr.Call("kof.strAppend"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "h"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "nz", 0x40));
         // h = intToStr ; h = appendByte(h, '.') ; h = appendByte(h, '0')
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "h"));
         b.add(new WasmInstr.Const(0, '.'));
@@ -175,6 +199,7 @@ final class WasmCharOut {
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "h"));
         b.add(new WasmInstr.Call("kof.writeStr"));
         return new WasmFunc("kof.writeDouble", List.of(WasmFunc.TYPE_F64), List.of(),
-                List.of(WasmFunc.TYPE_I64, WasmFunc.TYPE_I32), b);
+                // 1=t (i64); 2=h, 3=nh (i32)
+                List.of(WasmFunc.TYPE_I64, WasmFunc.TYPE_I32, WasmFunc.TYPE_I32), b);
     }
 }

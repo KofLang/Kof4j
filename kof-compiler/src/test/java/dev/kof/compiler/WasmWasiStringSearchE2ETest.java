@@ -333,7 +333,10 @@ class WasmWasiStringSearchE2ETest {
         // O Double.toString completo exige o Schubfach shortest-round-trip
         // (500+ linhas de asm) para bater o JDK. Este incremento cobre so' o
         // subconjunto INTEGRAL, onde o rendering decimal simples JA' e' a saida
-        // do JDK (`2.0`, `-3.0`, `100.0`). Valor FRACIONARIO trapa em vez de
+        // do JDK (`2.0`, `-3.0`, `100.0`). `-0.0` esta' aqui de proposito: e' a
+        // REGRESSAO que este teste passou a pegar — trunc(-0.0) = 0, entao o
+        // sinal se perdia e saia `0.0` onde o JVM imprime `-0.0`.
+        // Valor FRACIONARIO trapa em vez de
         // imprimir uma string silenciosamente diferente (regra 5 / Q7) — o
         // teste fixa as DUAS metades do contrato.
         var wasmtime = host("wasmtime");
@@ -344,6 +347,9 @@ class WasmWasiStringSearchE2ETest {
                     println(100.0)
                     println(-3.0)
                     println(0.0)
+                    println(-0.0)
+                    println(1.0)
+                    println(-1.0)
                 }
                 """);
         var driver = new CompilerDriver();

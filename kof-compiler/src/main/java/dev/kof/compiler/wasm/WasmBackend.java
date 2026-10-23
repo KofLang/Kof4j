@@ -253,6 +253,8 @@ public class WasmBackend implements Backend {
                     // registrar aqui tambem duplicava kof.intToStr/kof.strLit.
                     funcs.add(WasmCharOut.kofWriteDouble());
                     funcs.add(WasmStrSearch.kofStrAppendByte());
+                    funcs.add(WasmStrSearch.kofStrAlloc());
+                    funcs.add(WasmStrSearch.kofStrAppend());
                     printed.add("string");
                 }
                 if (printed.contains("string")) {
