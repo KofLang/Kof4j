@@ -20,11 +20,15 @@ public final class JvmRecordEmitter {
     private JvmRecordEmitter() {}
 
     static void emitRecordMethods(ClassWriter cw, IRClass clazz) {
+        if (!clazz.overridesObjectMethod("toString")) emitToString(cw, clazz);
+        if (!clazz.overridesObjectMethod("equals")) emitEquals(cw, clazz);
+        if (!clazz.overridesObjectMethod("hashCode")) emitHashCode(cw, clazz);
+    }
+
+    private static void emitToString(ClassWriter cw, IRClass clazz) {
         List<IRField> fields = clazz.fields();
         String cn = clazz.name();
         String simpleName = cn.contains("/") ? cn.substring(cn.lastIndexOf('/') + 1) : cn;
-
-
         MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "toString", "()Ljava/lang/String;", null, null);
         mv.visitCode();
         mv.visitTypeInsn(NEW, "java/lang/StringBuilder");
@@ -51,9 +55,12 @@ public final class JvmRecordEmitter {
         mv.visitInsn(ARETURN);
         mv.visitMaxs(0, 0);
         mv.visitEnd();
+    }
 
-
-        mv = cw.visitMethod(ACC_PUBLIC, "equals", "(Ljava/lang/Object;)Z", null, null);
+    private static void emitEquals(ClassWriter cw, IRClass clazz) {
+        List<IRField> fields = clazz.fields();
+        String cn = clazz.name();
+        MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "equals", "(Ljava/lang/Object;)Z", null, null);
         mv.visitCode();
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 1);
@@ -81,9 +88,12 @@ public final class JvmRecordEmitter {
         mv.visitInsn(IRETURN);
         mv.visitMaxs(0, 0);
         mv.visitEnd();
+    }
 
-
-        mv = cw.visitMethod(ACC_PUBLIC, "hashCode", "()I", null, null);
+    private static void emitHashCode(ClassWriter cw, IRClass clazz) {
+        List<IRField> fields = clazz.fields();
+        String cn = clazz.name();
+        MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "hashCode", "()I", null, null);
         mv.visitCode();
         mv.visitInsn(ICONST_1);
         mv.visitVarInsn(ISTORE, 1);

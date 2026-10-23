@@ -92,13 +92,13 @@ public final class JsClassEmitter {
             }
         }
         if (isRecord) {
-            methods.add(p.records.lowerRecordToString(clazz));
+            if (!clazz.overridesObjectMethod("toString")) methods.add(p.records.lowerRecordToString(clazz));
             methods.add(p.records.lowerRecordToJson(clazz));
             if (JsRecordSynthetics.hasFpField(clazz)) methods.add(p.records.lowerRecordToJsonFp(clazz));
             methods.add(p.records.lowerRecordFfiFields(clazz));
             methods.add(p.records.lowerRecordFfiFrom(clazz, jsName));
-            methods.add(p.records.lowerRecordEquals(clazz));
-            methods.add(p.records.lowerRecordHashCode(clazz));
+            if (!clazz.overridesObjectMethod("equals")) methods.add(p.records.lowerRecordEquals(clazz));
+            if (!clazz.overridesObjectMethod("hashCode")) methods.add(p.records.lowerRecordHashCode(clazz));
         }
         return new JsIr.JsClass(jsName, jsSuper, fields, methods);
     }

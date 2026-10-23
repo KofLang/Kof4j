@@ -52,7 +52,8 @@ public final class KofInterpreter {
     static final class KofObj {
         final IRClass clazz;
         final Map<String, Object> fields = new LinkedHashMap<>();
-        KofObj(IRClass clazz) { this.clazz = clazz; }
+        final KofInterpreter interp;
+        KofObj(IRClass clazz, KofInterpreter interp) { this.clazz = clazz; this.interp = interp; }
         String internalName() { return clazz.name(); }
         // #818: record-ness do lowering (IRClass.isRecord) além da superclasse —
         // um record que estende classe do usuário continua sendo record para
@@ -70,8 +71,7 @@ public final class KofInterpreter {
         }
 
         @Override public int hashCode() {
-            return isRecord() ? KofInterpreterObjects.objectHash(this)
-                              : System.identityHashCode(this);
+            return KofInterpreterObjects.objectHash(this);
         }
 
         @Override public String toString() {
@@ -304,7 +304,7 @@ public final class KofInterpreter {
                     }
                     case KofNewObject no -> {
                         IRClass k = members.kofClassOrNull(no.type());
-                        st.push(k != null ? new KofObj(k) : new PendingNew(no.type()));
+                        st.push(k != null ? new KofObj(k, this) : new PendingNew(no.type()));
                     }
                     case KofReturn kr -> {
                         f.returnValue = Type.isVoid(kr.returnType()) ? null : st.pop();
