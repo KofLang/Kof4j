@@ -444,7 +444,7 @@ public final class KofFormatter {
                     out.append("    ".repeat(indent + 1)).append(kw(p, "case")).append(' ').append(KofFormatterExpr.formatExpr(c.value(), p)).append(":\n");
                     for (StatementNode s : c.body()) formatStmt(s, out, indent + 2, pending, p);
                 }
-                if (!sw.defaultBody().isEmpty()) {
+                if (sw.hasDefault() || !sw.defaultBody().isEmpty()) {
                     out.append("    ".repeat(indent + 1)).append(kw(p, "default")).append(":\n");
                     for (StatementNode s : sw.defaultBody()) formatStmt(s, out, indent + 2, pending, p);
                 }
