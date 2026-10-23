@@ -83,11 +83,14 @@ final class NativeRiscvCrossFrame {
         }
         List<IRLocalVariable> sortedLocals = new ArrayList<>(method.localVariables());
         sortedLocals.sort(Comparator.comparingInt(IRLocalVariable::index));
-        int argIdx = 0;
+        // §758: o receiver é o SLOT 0, não o NOME "this" — a captura de `this`
+        // numa lambda também se chama "this" (slot >= 1) e era tratada como
+        // receiver, gravando a própria lambda no campo de captura; o invoke
+        // então despachava pela vtable da lambda → recursão/SIGSEGV no cross.
+        int argIdx = 1; // a0 = slot 0 (receiver ou 1º param static); params em a1+
         for (IRLocalVariable lv : sortedLocals) {
-            if (lv.name().equals("this")) {
+            if (lv.index() == 0) {
                 emitLocalMem(sb, "sd", "a0", lv.index());
-                argIdx++;
                 continue;
             }
             if (lv.index() >= paramSlotMax) {

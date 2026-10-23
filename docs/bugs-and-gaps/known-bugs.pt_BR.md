@@ -17460,7 +17460,7 @@ O stream traz film grain presente com apply_grain 0 (aceite desde a 140ª passag
 **Próximo passo:** recodificar com `-enable-palette 0`, com um só tile, e lossless, e comparar cada variante — o xadrez da chroma aponta ao caminho CFL/paleta, os valores de Y à interpretação da cor da paleta ou do intervalo.
 <!-- pt-switch --> **PT:** [§757](known-bugs.md#757--a-raw-ffmpeglibaom-avif-decodes-to-the-end-of-its-payload-but-its-planes-diverge-y-235-vs-ffmpeg-218-chroma-a-checkerboard-where-the-source-is-gray)
 
-## §758 — uma lambda que CAPTURA o `this` da classe envolvente ainda faz SEGFAULT nos nativos CROSS (riscv64/aarch64) enquanto o x86-64 roda — 🟡 ABERTO (medido 18/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+## §758 — uma lambda que CAPTURA o `this` da classe envolvente fazia SEGFAULT nos nativos CROSS (riscv64/aarch64) enquanto o x86-64 rodava — ✅ CORRIGIDO 22/10 (o prologo cross mapeava o receptor por NOME, e a captura de `this` tambem se chama "this") — lane compilador/JVM/nativo `192.168.15.30:9092`
 
 **Sintoma (medido 18/10, `kof-cli-0.6.7.jar` no tip):** o mesmo programa do lado EN — JVM/Script/JS/nativo x86-64 imprimem `6` (exit 0); riscv64 e aarch64 saem com **139** (SIGSEGV sob qemu). A forma EXPLICITA `this.somar(n)` morre igual, portanto o gatilho e a CAPTURA da instancia envolvente, nao a resolucao do receptor implicito — o §735 esta CORRIGIDO, o teste dele excluia o nativo por causa deste crash e agora roda a face x86, e o golden `lambda-implicit-receiver` fixa os quatro alvos do runner.
 
@@ -17469,7 +17469,9 @@ O stream traz film grain presente com apply_grain 0 (aceite desde a 140ª passag
 **Fronteira:** so riscv64/aarch64; x86-64/JVM/Script/JS corretos.
 
 **Proximo passo:** rastrear o load do campo de captura no cross (o campo `this` capturado do objeto lambda vs o registo do receptor) com a tecnica de dump do §620.
-<!-- pt-switch --> **EN:** [§758 (en)](known-bugs.md#758--a-lambda-that-captures-its-enclosing-this-still-segfaults-on-the-cross-natives-riscv64aarch64-while-x86-64-runs-it---open-measured-1810-by-lane-compilerjvmnative-19216815309092)
+
+**CORRIGIDO 22/10 (raiz lida no asm cross gerado):** o `NativeRiscvCrossFrame.emitPrologue` identificava o RECEPTOR POR NOME — qualquer local chamado `this` recebia `a0` — e a captura de `this` tambem se chama "this". O construtor sintetico da lambda recebia entao `a0` (a lambda) nos DOIS slots, gravava a LAMBDA no campo de captura (offset 16), e o `Lambda0_invoke` despachava `somar` pela vtable da LAMBDA (slot 0 = o proprio `Lambda0_invoke`) → recursao infinita → SIGSEGV. O prologo passa a mapear por INDICE de slot: `idx 0 → a0` (receptor ou o 1o parametro static), `idx 1.. → a1..`, `idx >= paramSlotMax → zerado` (GC do §625). **Prova RED-first:** com o fix em stash a nova face cross do `LambdaImplicitReceiverE2ETest` falha com o `exit 139` exacto; com ele o teste fica **4/4** e cobre JVM/Script/JS/x86-64/riscv64/aarch64. Regressao: `LambdaCapturingArgCrossE2ETest` 4, `NativeLambdaThisCaptureE2ETest` 1, `CrossHeapParityE2ETest` 6, `CrossTargetCollectionContractE2ETest` 6, `NativeCrossEmptySeparatorE2ETest` 2, `NativeRiscv64E2ETest` 58 → **77 run / 0F / 1 skip**; golden `lambda-implicit-receiver` **4/4**.
+<!-- pt-switch --> **EN:** [§758 (en)](known-bugs.md#758--a-lambda-that-captures-its-enclosing-this-segfaulted-on-the-cross-natives-riscv64aarch64-while-x86-64-ran-it---fixed-2210-the-cross-prologue-mapped-the-receiver-by-name-and-the-captured-this-is-also-named-this--lane-compilerjvmnative-19216815309092)
 
 ## §759 — o TILE GROUP do stream libaom com `-enable-palette 0` é recusado como truncado (a tabela de tamanhos por tile não percorre)
 **Estado:** ✅ CORRIGIDO 19/10 — `tile_size_minus_1` é `le(TileSizeBytes)`: a caminhada lia o campo BIG-endian.

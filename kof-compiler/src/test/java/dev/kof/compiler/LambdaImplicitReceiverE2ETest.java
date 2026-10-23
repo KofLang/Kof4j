@@ -1,7 +1,6 @@
 package dev.kof.compiler;
 
 import org.junit.jupiter.api.Assumptions;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -44,12 +43,13 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * O oráculo é a JVM (rule 5): a MESMA saída tem de valer em Script e JS.
  *
- * <p><b>NATIVE:</b> the x86-64 face joined 18/10 — the old exclusion's blocker
- * (a capturing lambda SIGSEGV) no longer reproduces there, measured with the
- * 0.6.7 jar (this shape prints `6`, exit 0). The CROSS targets (riscv64/
- * aarch64) still DIE with exit 139 on the same `this`-capture shape — a
- * separate, now-catalogued gap (`known-bugs` §758), so those faces stay out of
- * this test.
+ * <p><b>NATIVE:</b> the x86-64 face joined 18/10 and the CROSS faces (riscv64/
+ * aarch64) joined 22/10 with the §758 fix. The cross crash was the prologue
+ * identifying the receiver by NAME: the captured `this` is ALSO named "this",
+ * so its slot received `a0` — the lambda itself — and the synthetic
+ * constructor stored the lambda in the capture field, which made `invoke`
+ * dispatch through the LAMBDA's vtable (infinite recursion, exit 139).
+ * `NativeRiscvCrossFrame.emitPrologue` now maps by SLOT INDEX (idx 0 = a0).
  */
 class LambdaImplicitReceiverE2ETest {
 
@@ -146,6 +146,23 @@ class LambdaImplicitReceiverE2ETest {
         String o = NativeRiscv64E2ETest.runBounded(p, "x86-lambda-implicit");
         assertEquals(0, p.exitValue(), () -> "x86 saída (SIGSEGV here before 18/10): " + o);
         assertEquals(GOLDEN, o);
+    }
+
+    @Test
+    void implicitReceiverOnCrossNatives(@TempDir Path tempDir) throws Exception {
+        runCross(tempDir, "riscv64", Target.NATIVE_RISCV64);
+        runCross(tempDir, "aarch64", Target.NATIVE_AARCH64);
+    }
+
+    private void runCross(Path tempDir, String arch, Target target) throws Exception {
+        Assumptions.assumeTrue(NativeRiscv64E2ETest.hasToolchain(arch),
+                arch + " cross toolchain/qemu absent");
+        Path src = write(tempDir, "implicit-" + arch, IMPLICIT);
+        Path out = tempDir.resolve("out-" + arch);
+        CompilationResult r = driver.compile(src, out, target);
+        assertTrue(r.success(), arch + " compile: " + r.diagnostics().getDiagnostics());
+        String o = NativeRiscv64E2ETest.runQemu(arch, out.resolve("Default/Main"));
+        assertEquals(GOLDEN, o.strip(), arch + " must match the JVM oracle (rule 5)");
     }
 
     private static boolean has(String... cmds) {

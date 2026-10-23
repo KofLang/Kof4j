@@ -19973,7 +19973,7 @@ The stream carries film grain present with apply_grain 0 (accepted since the 140
 **Next step:** re-encode with `-enable-palette 0`, with a single tile, and lossless, and compare each variant — the chroma checkerboard points at the CFL/palette path, the Y values at the palette-colour or range interpretation.
 <!-- pt-switch --> **PT:** [§757 (pt_BR)](known-bugs.pt_BR.md#757--um-avif-cru-do-ffmpeglibaom-decoda-ate-ao-fim-do-payload-mas-os-seus-planos-divergem-y-235-vs-ffmpeg-218-chroma-em-xadrez-onde-a-fonte-e-cinzenta)
 
-## §758 — a lambda that CAPTURES its enclosing `this` still SEGFAULTS on the CROSS natives (riscv64/aarch64) while x86-64 runs it — 🟡 OPEN (measured 18/10 by lane compiler/JVM/native `192.168.15.30:9092`)
+## §758 — a lambda that CAPTURES its enclosing `this` SEGFAULTED on the CROSS natives (riscv64/aarch64) while x86-64 ran it — ✅ FIXED 22/10 (the cross prologue mapped the receiver by NAME, and the captured `this` is also named "this") — lane compiler/JVM/native `192.168.15.30:9092`
 
 **Symptom (measured 18/10, `kof-cli-0.6.7.jar` at the tip):**
 
@@ -19995,7 +19995,9 @@ JVM/Script/JS/native x86-64 print `6` (exit 0); riscv64 and aarch64 exit **139**
 **Boundary:** riscv64/aarch64 only; x86-64/JVM/Script/JS correct.
 
 **Next step:** trace the cross capture field load (the lambda object's captured `this` field vs the receiver register) with the §620 dump technique.
-<!-- pt-switch --> **PT:** [§758 (pt_BR)](known-bugs.pt_BR.md#758--uma-lambda-que-captura-o-this-da-classe-envolvente-ainda-faz-segfault-nos-nativos-cross-riscv64aarch64-enquanto-o-x86-64-roda---aberto-medido-1810-pela-lane-compiladorjvmnativo-19216815309092)
+
+**FIXED 22/10 (root cause read in the generated cross asm):** `NativeRiscvCrossFrame.emitPrologue` identified the RECEIVER BY NAME — any local called `this` got `a0` — and a captured `this` is ALSO named "this". The synthetic lambda constructor therefore received `a0` (the lambda) in BOTH slots, stored the LAMBDA in the capture field at offset 16, and `Lambda0_invoke` dispatched `somar` through the LAMBDA's vtable slot 0 (= `Lambda0_invoke` itself) → infinite recursion → SIGSEGV. The prologue now maps by SLOT INDEX: `idx 0 → a0` (receiver or the first static parameter), `idx 1.. → a1..`, `idx >= paramSlotMax → zeroed` (§625 GC). **Proof RED-first:** with the fix stashed the new cross face of `LambdaImplicitReceiverE2ETest` fails with the exact `exit 139`; with it the test is **4/4** and now covers JVM/Script/JS/x86-64/riscv64/aarch64. Regression: `LambdaCapturingArgCrossE2ETest` 4, `NativeLambdaThisCaptureE2ETest` 1, `CrossHeapParityE2ETest` 6, `CrossTargetCollectionContractE2ETest` 6, `NativeCrossEmptySeparatorE2ETest` 2, `NativeRiscv64E2ETest` 58 → **77 run / 0F / 1 skip**; golden `lambda-implicit-receiver` **4/4**.
+<!-- pt-switch --> **PT:** [§758 (pt_BR)](known-bugs.pt_BR.md#758--uma-lambda-que-captura-o-this-da-classe-envolvente-fazia-segfault-nos-nativos-cross-riscv64aarch64-enquanto-o-x86-64-rodava---corrigido-2210-o-prologo-cross-mapeava-o-receptor-por-nome-e-a-captura-de-this-tambem-se-chama-this--lane-compiladorjvmnativo-19216815309092)
 
 ## §759 — the `-enable-palette 0` libaom stream's TILE GROUP is refused as truncated (the tile-size table does not walk)
 **Status:** ✅ FIXED 19/10 — `tile_size_minus_1` is `le(TileSizeBytes)`: the walk read the field BIG-endian.
