@@ -120,7 +120,8 @@ public final class KofFormatter {
                 for (AnnotationNode ann : fn.annotations()) out.append(pad).append(formatAnnotation(ann, p)).append("\n");
                 if (!fn.modifiers().isEmpty()) out.append(pad).append(joinKw(p, fn.modifiers())).append(" ");
                 else out.append(pad);
-                if (!"void".equals(fn.returnType())) out.append(typeText(p, fn.returnType())).append(" ");
+                boolean fnTrailing = trailingReturn(fn.returnType(), !fn.typeParameters().isEmpty());
+                if (!"void".equals(fn.returnType()) && !fnTrailing) out.append(typeText(p, fn.returnType())).append(" ");
                 out.append(fn.name());
                 if (!fn.typeParameters().isEmpty()) out.append("<").append(typeList(p, fn.typeParameters())).append(">");
                 out.append("(");
@@ -129,6 +130,7 @@ public final class KofFormatter {
                     out.append(formatParam(fn.parameters().get(i), p));
                 }
                 out.append(")");
+                if (fnTrailing) out.append(": ").append(typeText(p, fn.returnType()));
                 if (!fn.thrownExceptions().isEmpty()) out.append(" ").append(kw(p, "throw")).append(" ").append(typeList(p, fn.thrownExceptions()));
                 if (fn.body().isEmpty()) {
                     out.append(";\n");
@@ -175,13 +177,15 @@ public final class KofFormatter {
                 for (AnnotationNode ann : md.annotations()) out.append(pad).append(formatAnnotation(ann, p)).append("\n");
                 if (!md.modifiers().isEmpty()) out.append(pad).append(joinKw(p, md.modifiers())).append(" ");
                 else out.append(pad);
-                if (!"void".equals(md.returnType())) out.append(typeText(p, md.returnType())).append(" ");
+                boolean mdTrailing = trailingReturn(md.returnType(), false);
+                if (!"void".equals(md.returnType()) && !mdTrailing) out.append(typeText(p, md.returnType())).append(" ");
                 out.append(md.name()).append("(");
                 for (int i = 0; i < md.parameters().size(); i++) {
                     if (i > 0) out.append(", ");
                     out.append(formatParam(md.parameters().get(i), p));
                 }
                 out.append(")");
+                if (mdTrailing) out.append(": ").append(typeText(p, md.returnType()));
                 if (!md.thrownExceptions().isEmpty()) out.append(" ").append(kw(p, "throw")).append(" ").append(typeList(p, md.thrownExceptions()));
                 if (md.body().isEmpty()) out.append(";\n");
                 else if (md.body().size() == 1 && md.body().get(0) instanceof ReturnStmt rs && rs.value() != null) {
@@ -308,6 +312,10 @@ public final class KofFormatter {
                 out.append(pad).append(decl.toString()).append("\n");
             }
         }
+    }
+
+    static boolean trailingReturn(String returnType, boolean generic) {
+        return !"void".equals(returnType) && (generic || returnType.startsWith("("));
     }
 
     static String typeList(LanguageProfile p, List<String> types) {
