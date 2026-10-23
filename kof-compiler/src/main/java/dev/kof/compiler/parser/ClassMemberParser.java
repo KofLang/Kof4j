@@ -55,6 +55,7 @@ public class ClassMemberParser {
         }
         if (ctx.check(TokenType.LPAREN)) {
             // Function type as field or method return type: `(Int) -> Int transform` (issue #218)
+            SourcePosition start = ctx.pos();
             String type = TypeParser.parseTypeRef(ctx);
             String name = ctx.expectId("Expected member name", "PARSE018");
             if (ctx.check(TokenType.LPAREN)) {
@@ -74,7 +75,7 @@ public class ClassMemberParser {
                 return finishMethod(ctx, mods, annos, name, params, returnType, thrown);
             }
             FieldDeclarationNode f = (FieldDeclarationNode) parseField(ctx, mods, type, name);
-            return new FieldDeclarationNode(f.position(), f.modifiers(), f.type(), f.name(),
+            return new FieldDeclarationNode(start, f.modifiers(), f.type(), f.name(),
                     f.initializer(), annos);
         }
         if ((ctx.check(TokenType.IDENTIFIER) || ctx.check(TokenType.AWAIT) || ctx.check(TokenType.SPAWN)) && ctx.checkNext(TokenType.LPAREN)) {
@@ -112,6 +113,7 @@ public class ClassMemberParser {
             // Campo ou método com tipo de retorno explícito: `Type name(...)`.
             // parseTypeRef cobre retornos genéricos (`Set<Int>`, `List<String>`,
             // `Map<K,V>`), nullable (`String?`) e primitive types.
+            SourcePosition start = ctx.pos();
             String type = TypeParser.parseTypeRef(ctx);
             String name = ctx.expectId("Expected member name", "PARSE018");
             if (ctx.check(TokenType.LPAREN) && paramsOnSameLine(ctx)) {
@@ -131,7 +133,7 @@ public class ClassMemberParser {
                 return finishMethod(ctx, mods, annos, name, params, returnType, thrown);
             }
             FieldDeclarationNode f = (FieldDeclarationNode) parseField(ctx, mods, type, name);
-            return new FieldDeclarationNode(f.position(), f.modifiers(), f.type(), f.name(),
+            return new FieldDeclarationNode(start, f.modifiers(), f.type(), f.name(),
                     f.initializer(), annos);
         }
         if (ctx.check(TokenType.CLASS, TokenType.INTERFACE, TokenType.RECORD, TokenType.ENTITY)) {
@@ -187,6 +189,7 @@ public class ClassMemberParser {
     }
 
     static ConstructorDeclarationNode parseConstructor(ParseContext ctx, List<String> mods) {
+        SourcePosition start = ctx.pos();
         String name;
         if (ctx.wordIs("constructor")) {
             ctx.advance();
@@ -203,6 +206,6 @@ public class ClassMemberParser {
         if (ctx.check(TokenType.LBRACE)) {
             body = StatementParser.parseBlock(ctx);
         }
-        return new ConstructorDeclarationNode(ctx.pos(), mods, name, params, thrown, body);
+        return new ConstructorDeclarationNode(start, mods, name, params, thrown, body);
     }
 }

@@ -26,28 +26,29 @@ final class KofFormatterComments {
 
     private KofFormatterComments() {}
 
-    record Comment(int line, String text) {}
+    record Comment(int line, int column, String text) {}
 
     /** Coleta os comentarios do texto-fonte na ordem em que aparecem. */
     static List<Comment> scan(String src) {
         List<Comment> out = new ArrayList<>();
         int line = 1;
+        int lineStart = 0;
         int i = 0;
         int n = src.length();
         while (i < n) {
             char c = src.charAt(i);
-            if (c == '\n') { line++; i++; continue; }
+            if (c == '\n') { line++; i++; lineStart = i; continue; }
             if (c == '"' || c == '\'') {
                 char quote = c;
                 i++;
                 while (i < n) {
                     char s = src.charAt(i);
                     if (s == '\\' && i + 1 < n) {
-                        if (src.charAt(i + 1) == '\n') line++;
+                        if (src.charAt(i + 1) == '\n') { line++; lineStart = i + 2; }
                         i += 2;
                         continue;
                     }
-                    if (s == '\n') { line++; i++; continue; }
+                    if (s == '\n') { line++; i++; lineStart = i; continue; }
                     if (s == quote) { i++; break; }
                     i++;
                 }
@@ -56,20 +57,21 @@ final class KofFormatterComments {
             if (c == '/' && i + 1 < n && src.charAt(i + 1) == '/') {
                 int start = i;
                 while (i < n && src.charAt(i) != '\n') i++;
-                out.add(new Comment(line, src.substring(start, i)));
+                out.add(new Comment(line, start - lineStart, src.substring(start, i)));
                 continue;
             }
             if (c == '/' && i + 1 < n && src.charAt(i + 1) == '*') {
                 int startLine = line;
                 int start = i;
+                int column = start - lineStart;
                 i += 2;
                 while (i + 1 < n && !(src.charAt(i) == '*' && src.charAt(i + 1) == '/')) {
-                    if (src.charAt(i) == '\n') line++;
+                    if (src.charAt(i) == '\n') { line++; lineStart = i + 1; }
                     i++;
                 }
                 if (i + 1 >= n) return out; // unterminated: LEX001 cuida do diagnostico
                 i += 2;
-                out.add(new Comment(startLine, src.substring(start, i)));
+                out.add(new Comment(startLine, column, src.substring(start, i)));
                 continue;
             }
             i++;
@@ -91,7 +93,7 @@ final class KofFormatterComments {
             if (pos == null) return;
             String pad = "    ".repeat(indent);
             while (idx < comments.size() && comments.get(idx).line() < pos.line()) {
-                emit(out, pad, comments.get(idx).text());
+                emit(out, pad, comments.get(idx));
                 idx++;
             }
         }
@@ -101,7 +103,7 @@ final class KofFormatterComments {
             if (pos == null) return;
             String pad = "    ".repeat(indent);
             while (idx < comments.size() && comments.get(idx).line() <= pos.line()) {
-                emit(out, pad, comments.get(idx).text());
+                emit(out, pad, comments.get(idx));
                 idx++;
             }
         }
@@ -110,15 +112,23 @@ final class KofFormatterComments {
         void flushAll(StringBuilder out, int indent) {
             String pad = "    ".repeat(indent);
             while (idx < comments.size()) {
-                emit(out, pad, comments.get(idx).text());
+                emit(out, pad, comments.get(idx));
                 idx++;
             }
         }
 
-        private static void emit(StringBuilder out, String pad, String text) {
-            for (String l : text.split("\n", -1)) {
+        private static void emit(StringBuilder out, String pad, Comment c) {
+            String[] lines = c.text().split("\n", -1);
+            for (int k = 0; k < lines.length; k++) {
+                String l = k == 0 ? lines[k] : dropIndent(lines[k], c.column());
                 out.append(pad).append(l.stripTrailing()).append('\n');
             }
+        }
+
+        private static String dropIndent(String l, int column) {
+            int k = 0;
+            while (k < column && k < l.length() && (l.charAt(k) == ' ' || l.charAt(k) == '\t')) k++;
+            return l.substring(k);
         }
     }
 }
