@@ -494,9 +494,8 @@ public final class KofInterpreter {
         // bug #54 (método, não ctor): `super.metodo()` (KofCallKind.SUPER) é
         // NÃO-virtual — sem o bump, findKofMethod pelo runtime-class pegaria
         // a sobrecarga da subclasse (dispatch virtual) em vez do da superclasse.
-        if (kc.kind() == KofCallKind.SUPER && !"<init>".equals(name)
-                && owner != null && owner.superName() != null) {
-            IRClass sup = members.classByInternal(owner.superName());
+        if (kc.kind() == KofCallKind.SUPER && !"<init>".equals(name) && owner != null) {
+            IRClass sup = members.kofClassOrNull(kc.ownerType());
             if (sup != null) owner = sup;
         }
         // métodos sintéticos de objeto Kof (record equals/hashCode/toString)
