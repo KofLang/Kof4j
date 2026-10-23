@@ -484,6 +484,10 @@ final class WasmLowering {
                     } else if ("int".equalsIgnoreCase(vt) || "long".equalsIgnoreCase(vt)) {
                         out.add(new WasmInstr.Call("kof.intToStr"));
                         ctx.lastPush = "string";
+                    } else if ("bool".equalsIgnoreCase(vt) || "boolean".equalsIgnoreCase(vt)) {
+                        // "t=" + true — paridade JVM (String.valueOf(boolean)).
+                        out.add(new WasmInstr.Call("kof.strBool"));
+                        ctx.lastPush = "string";
                     } else if (vl != null) {
                         WasmRecordCode.emitToString(vl, vt, ctx, out, 0);
                         ctx.lastPush = "string";

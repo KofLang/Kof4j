@@ -63,10 +63,15 @@ public final class ExpressionBinaryLowerer {
         // vazava para consumidores de Object (bind de DB, heap do cross),
         // regredindo 5 faces (#773). JVM/JS/Script mantêm o box (o JVM
         // precisa do Object para `String.valueOf(Object)`).
-        boolean nativeRawPrimitive = driver.target.isNative() && stringified;
+        // WASI (15.3): o backend nao tem caixa generica para `String.valueOf(Object)`
+        // — ele stringifica pelo TIPO REAL (kof.intToStr/strBool/strChar). Boxar
+        // aqui fazia o concat "x" + n nao casar nenhum ramo e recusar WASM002.
+        // Mesma decisao ja' tomada no Native (#773): primitivo CRU, sem box.
+        boolean nativeRawPrimitive = (driver.target.isNative()
+                || driver.target == Target.WASI) && stringified;
         if (stringified && !nativeRawPrimitive) TypeEmitter.boxPrimitive(ops, type);
         ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
-                List.of(driver.target.isNative()
+                List.of((driver.target.isNative() || driver.target == Target.WASI)
                         && (nativeRawPrimitive || (!stringified && !Type.isString(type)
                                 && !(type instanceof Type.PrimitiveType)))
                         ? type : Type.UnknownType.UNKNOWN),
