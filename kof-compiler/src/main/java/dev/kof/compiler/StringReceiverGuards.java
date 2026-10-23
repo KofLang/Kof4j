@@ -152,5 +152,26 @@ final class StringReceiverGuards {
                 }
             }
         }
+        StringMethodRegistry.Sig intSig = StringMethodRegistry.stringMethodSignature(
+                mc.methodName(), mc.arguments().size(), methodParamTypes);
+        if (intSig != null) {
+            List<Type> formals = intSig.parameterTypes();
+            for (int ai = 0; ai < mc.arguments().size() && ai < formals.size(); ai++) {
+                if (!Type.PrimitiveType.INT.equals(formals.get(ai))) continue;
+                Type at = ExpressionTyper.inferExprType(driver, mc.arguments().get(ai), locals);
+                if (notIntForFormal(at)) {
+                    driver.currentDiagnostics.error(mc.arguments().get(ai),
+                            "Argument " + (ai + 1) + " of '" + mc.methodName() + "': expected 'Int' but got '"
+                                    + Type.display(at) + "'",
+                            "SEM014");
+                    break;
+                }
+            }
+        }
+    }
+
+    private static boolean notIntForFormal(Type t) {
+        if (BuiltinTypes.isString(t) || t instanceof Type.ArrayType) return true;
+        return t instanceof Type.PrimitiveType && !TypeChecker.isAssignable(t, Type.PrimitiveType.INT);
     }
 }
