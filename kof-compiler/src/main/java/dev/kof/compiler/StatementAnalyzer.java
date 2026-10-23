@@ -318,57 +318,10 @@ public final class StatementAnalyzer {
                 SymbolTable switchScope = scope.enterScope();
                 for (SwitchCase sc : ss.cases()) {
                     if (sc.value() instanceof PatternExpr pe) {
-                        Type patType = MemberResolver.resolveType(sa, pe.typeName(), scope);
-                        if (patType == null) patType = Type.UnknownType.UNKNOWN;
                         SymbolTable caseScope = switchScope.enterScope();
-                        if (pe.varName() != null) {
-                            caseScope.define(new SymbolTable.LocalVariableSymbol(pe.varName(), patType, 0));
-                        }
-                        // SG-014: guarda analisada com a var do pattern bound
+                        SemNarrowing.bindPatternVars(sa, pe, caseScope);
                         if (pe.guard() != null) {
                             SemExpressionTyper.inferType(sa, pe.guard(), caseScope);
-                        }
-                        if (!pe.fieldVars().isEmpty()) {
-                            String simple = patType instanceof Type.ClassType ct ? ct.name() : pe.typeName();
-                            SymbolTable.ClassSymbol cls = sa.getClass(simple);
-                            if (cls == null) {
-                                // Try via scope resolve
-                                Type t2 = MemberResolver.resolveType(sa, pe.typeName(), scope);
-                                if (t2 instanceof Type.ClassType ct2) cls = sa.getClass(ct2.name());
-                            }
-                            java.util.List<String> fieldNames = pe.fieldVars();
-                            for (int i = 0; i < fieldNames.size(); i++) {
-                                String fv = fieldNames.get(i);
-                                Type fieldType = Type.UnknownType.UNKNOWN;
-                                if (cls != null) {
-                                    // Try to find field by index or name
-                                    var members = cls.members();
-                                    // For records, fields are in order; try to get by index
-                                    java.util.List<SymbolTable.Symbol> fields = new java.util.ArrayList<>();
-                                    for (var e : members.localSymbols().values()) {
-                                        if (e instanceof SymbolTable.FieldSymbol) fields.add(e);
-                                    }
-                                    // If fieldVars size matches record field count, use positional
-                                    if (fields.size() == fieldNames.size() && i < fields.size()) {
-                                        fieldType = fields.get(i).type();
-                                    } else {
-                                        SymbolTable.Symbol sym = members.resolve(fv);
-                                        if (sym != null) fieldType = sym.type();
-                                        else {
-                                            // Try by field name from record declaration
-                                            for (AstNode d : sa.unit().declarations()) {
-                                                if (d instanceof RecordDeclarationNode rec && rec.name().equals(simple)) {
-                                                    if (i < rec.components().size()) {
-                                                        fieldType = MemberResolver.resolveType(sa, rec.components().get(i).type(), scope);
-                                                    }
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                caseScope.define(new SymbolTable.LocalVariableSymbol(fv, fieldType, 0));
-                            }
                         }
                         analyzeBody(sa, sc.body(), caseScope, returnType);
                     } else {

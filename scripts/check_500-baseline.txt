@@ -100,7 +100,6 @@
 540	kof-compiler/src/main/java/dev/kof/compiler/runtime/RuntimeTime.java
 579	kof-compiler/src/main/java/dev/kof/compiler/runtime/RuntimeUi.java
 569	kof-compiler/src/main/java/dev/kof/compiler/SemanticAnalyzer.java
-521	kof-compiler/src/main/java/dev/kof/compiler/StatementAnalyzer.java
 588	kof-compiler/src/main/java/dev/kof/compiler/TypeChecker.java
 529	kof-compiler/src/main/java/dev/kof/compiler/Type.java
 563	kof-compiler/src/main/java/dev/kof/compiler/wasm/WasmLowering.java
