@@ -370,8 +370,14 @@ public final class KofFormatter {
             }
             case VarDeclStmt vds -> {
                 out.append(pad);
-                out.append(typeText(p, vds.type())).append(" ");
-                out.append(vds.name());
+                String t = vds.type();
+                boolean inferred = "var".equals(t) || "val".equals(t);
+                if (!inferred && (vds.isVal() || t.startsWith("("))) {
+                    out.append(kw(p, vds.isVal() ? "val" : "var")).append(' ').append(vds.name())
+                            .append(": ").append(typeText(p, t));
+                } else {
+                    out.append(typeText(p, t)).append(" ").append(vds.name());
+                }
                 if (vds.initializer() != null) out.append(" = ").append(KofFormatterExpr.formatExpr(vds.initializer(), p));
                 out.append("\n");
             }
