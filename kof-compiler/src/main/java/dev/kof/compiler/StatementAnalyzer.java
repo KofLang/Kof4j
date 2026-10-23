@@ -183,7 +183,7 @@ public final class StatementAnalyzer {
                     Type valueType = SemExpressionTyper.inferType(sa, ret.value(), scope);
                     sa.putExpressionType(ret.value(), valueType);
                     if (sa.currentExplicitVoid && sa.diagnostics() != null) {
-                        sa.diagnostics().error(ret.position() != null ? ret.position().file() : "", 0, 0, 0,
+                        sa.diagnostics().error(ret,
                                 "void function cannot return a value - drop the value (bare `return` exits) or declare a return type",
                                 "SEM093");
                     }
