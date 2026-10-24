@@ -7906,6 +7906,79 @@ class DecompileTest {
     }
 
     @Test
+    void primesDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (24/10): o domínio PRIMOS — zero código novo: o isPrime
+        // com a condição do loop ARITMÉTICA ((v1 * v1) <= arg0 — o imul
+        // no teste do while) e o early-return false dentro do loop, o
+        // countPrimes com o for que chama o método (isPrime(v2) != 0 —
+        // booleanos comparam contra 0), o nextPrime com a condição
+        // NEGADA (!isPrime → == 0) e o largestPrimeBelow com a guarda
+        // composta (v1 >= 2 && isPrime(v1) == 0). Zero-drift executado
+        // (oráculo Java REAL: true/false/true/8/15/11/17/7/1). Chamadas
+        // qualificadas pela classe (os defeitos do compilador).
+        Path javaFile = dir.resolve("Primes.java");
+        Files.writeString(javaFile, """
+                public class Primes {
+                    static boolean isPrime(int n) {
+                        if (n < 2) return false;
+                        int d = 2;
+                        while (d * d <= n) {
+                            if (n % d == 0) return false;
+                            d = d + 1;
+                        }
+                        return true;
+                    }
+                    static int countPrimes(int limit) {
+                        int count = 0;
+                        for (int n = 2; n <= limit; n++) {
+                            if (isPrime(n)) count = count + 1;
+                        }
+                        return count;
+                    }
+                    static int nextPrime(int n) {
+                        int candidate = n + 1;
+                        while (!isPrime(candidate)) {
+                            candidate = candidate + 1;
+                        }
+                        return candidate;
+                    }
+                    static int largestPrimeBelow(int limit) {
+                        int n = limit;
+                        while (n >= 2 && !isPrime(n)) {
+                            n = n - 1;
+                        }
+                        return n;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Primes.class"));
+        assertFalse(kof.contains("body not recovered"), "sem stubs:\n" + kof);
+        assertTrue(kof.contains("while ((v1 * v1) <= arg0)"), "a condição aritmética do while:\n" + kof);
+        assertTrue(kof.contains("Primes.isPrime(v2) != 0"), "a chamada booleana no for:\n" + kof);
+        assertTrue(kof.contains("while (Primes.isPrime(v1) == 0)"), "a condição negada:\n" + kof);
+        assertTrue(kof.contains("while (v1 >= 2 && Primes.isPrime(v1) == 0)"), "a guarda composta:\n" + kof);
+        // zero-drift executado (oráculo Java REAL: true/false/true/8/15/11/17/7/1)
+        String kofRun = kof + "\nmain() {\n"
+                + "    println(Primes.isPrime(2))\n    println(Primes.isPrime(15))\n    println(Primes.isPrime(97))\n"
+                + "    println(Primes.countPrimes(20))\n    println(Primes.countPrimes(50))\n"
+                + "    println(Primes.nextPrime(10))\n    println(Primes.nextPrime(13))\n"
+                + "    println(Primes.largestPrimeBelow(10))\n    println(Primes.largestPrimeBelow(1))\n}\n";
+        CompilationResult result = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(result.success(), "compila zero drift:\n" + kofRun + "\n" + result.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("true\nfalse\ntrue\n8\n15\n11\n17\n7\n1", output,
+                "zero-drift: os primos como no Java");
+    }
+
+    @Test
     void commuteDomainRecovers(@TempDir Path dir) throws Exception {
         // Fase E (17/10): o dom\u00ednio DESLOCAMENTO — 4 shapes sem c\u00f3digo
         // novo: o costPerDay com a divis\u00e3o double/int, o mode com as
