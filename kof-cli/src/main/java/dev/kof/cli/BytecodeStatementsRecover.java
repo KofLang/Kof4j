@@ -770,10 +770,24 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                 if (pr != b.start && pr != thenStart && !chainTests.contains(pr)) { chainJoin = false; break; }
             }
         }
+        // Fase E (24/10): o join pode ser o PRÓPRIO header do loop em
+        // auto-loop (o do-while fundido) — o guard `if (n < 0) n = -n;`
+        // antes de um do-while converge nele: os preds não-self são
+        // exatamente {branch, fim-do-then}, e o pred extra é o próprio
+        // join (a aresta de retorno do auto-loop). Qualquer OUTRO header
+        // de loop (back edge de um bloco posterior) continua excluído.
+        java.util.List<Integer> joinPredsNoSelf = new java.util.ArrayList<>();
+        boolean joinSelfLoop = false;
+        if (join != null) {
+            for (int jp : join.pred) {
+                if (jp == exitStart) { joinSelfLoop = true; continue; }
+                joinPredsNoSelf.add(jp);
+            }
+        }
         boolean pureIfThen = join != null
-                && ((join.pred.size() == 2 && join.pred.contains(b.start)
-                        && join.pred.contains(thenStart)) || chainJoin)
-                && !BytecodeReader.isLoopHeader(join)
+                && ((joinPredsNoSelf.size() == 2 && joinPredsNoSelf.contains(b.start)
+                        && joinPredsNoSelf.contains(thenStart)) || chainJoin)
+                && (joinSelfLoop || !BytecodeReader.isLoopHeader(join))
                 && byStart.get(thenStart) != null
                 && byStart.get(thenStart).succ.equals(List.of(exitStart));
         BytecodeReader.Block thenB = byStart.get(thenStart);

@@ -379,6 +379,88 @@ class DecompileTest {
     }
 
     @Test
+    void digitsDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (24/10): o domínio DÍGITOS — o guard if SEM else que
+        // converge no PRÓPRIO header do do-while em auto-loop (o
+        // `if (n < 0) n = -n;` antes do loop): os preds não-self do join
+        // são {branch, fim-do-then} e o pred extra é o join (a aresta de
+        // retorno do auto-loop) — o pureIfThen agora aceita. Mais: o
+        // `long` com multiplicação no corpo do do-while (scale, wide
+        // arithmetic) e o early-return com while (countDigits).
+        Path javaFile = dir.resolve("Digits.java");
+        Files.writeString(javaFile, """
+                public class Digits {
+                    static int digitSum(int n) {
+                        int sum = 0;
+                        if (n < 0) n = -n;
+                        do {
+                            sum = sum + n % 10;
+                            n = n / 10;
+                        } while (n > 0);
+                        return sum;
+                    }
+                    static int reverse(int n) {
+                        int r = 0;
+                        do {
+                            r = r * 10 + n % 10;
+                            n = n / 10;
+                        } while (n > 0);
+                        return r;
+                    }
+                    static long scale(long n, long factor) {
+                        long result = n;
+                        int steps = 0;
+                        do {
+                            result = result * factor;
+                            steps = steps + 1;
+                        } while (steps < 3);
+                        return result;
+                    }
+                    static int countDigits(int n) {
+                        if (n == 0) return 1;
+                        int c = 0;
+                        while (n > 0) { c++; n = n / 10; }
+                        return c;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Digits.class"));
+        assertFalse(kof.contains("body not recovered"), "sem stubs:\n" + kof);
+        assertTrue(kof.contains("if (arg0 < 0) {"), "o guard antes do loop:\n" + kof);
+        assertTrue(kof.contains("} while (arg0 > 0)"), "as conds no FIM:\n" + kof);
+        assertTrue(kof.contains("Long scale"), "o long no corpo do do-while:\n" + kof);
+        // zero-drift executado (oráculo Java: 15/11/4321/1/5/3000). As
+        // chamadas são QUALIFICADAS pela CLASSE por causa de dois defeitos
+        // do compilador medidos nesta rodada e registrados para a lane do
+        // compilador (não são desta lane): (1) a chamada estática via
+        // INSTÂNCIA com argumento que precisa de transformação emite o
+        // RECEIVER como base do argumento — `p.twice(3)` com parâmetro
+        // Long sai `aload_1; i2l`, `p.twice(-47)` sai `aload_1; ineg`
+        // (bytecode inválido, VerifyError no load mascarado pela mensagem
+        // de JavaFX no launcher); (2) a mesma chamada long via instância
+        // em PRIMEIRO lugar no main derruba o COMPUTE_FRAMES
+        // (NegativeArraySizeException no visitMaxs, ordem-dependente).
+        // A forma qualificada pela classe emite limpo (medido: P3/DR3).
+        String kofRun = kof + "\nmain() {\n"
+                + "    println(Digits.digitSum(591))\n    println(Digits.digitSum(-47))\n"
+                + "    println(Digits.reverse(1234))\n"
+                + "    println(Digits.countDigits(0))\n    println(Digits.countDigits(90210))\n"
+                + "    println(Digits.scale(3, 10))\n}\n";
+        CompilationResult result = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(result.success(), "compila zero drift:\n" + kofRun + "\n" + result.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("15\n11\n4321\n1\n5\n3000", output, "zero-drift: os dígitos como no Java");
+    }
+
+    @Test
     void shortcircuitAndTernaryRecoveredZeroDrift(@TempDir Path dir) throws Exception {
         // Fase C (13/10): `&&` (combinação de condições — a cadeia de
         // branches do bytecode É o curto-circuito) e o ternário
