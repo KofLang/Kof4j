@@ -37,10 +37,22 @@ final class JsRecordSynthetics {
         p.lc.registerRuntime("kofFormat");
         for (int i = 0; i < clazz.fields().size(); i++) {
             if (i > 0) parts.add(new JsIr.JsString(", "));
-            parts.add(new JsIr.JsString(clazz.fields().get(i).name() + "="));
-            parts.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofFormat"),
-                    List.of(new JsIr.JsMember(new JsIr.JsThis(),
-                            "_" + JsTypeMapper.sanitizeName(clazz.fields().get(i).name())))));
+            IRField field = clazz.fields().get(i);
+            parts.add(new JsIr.JsString(field.name() + "="));
+            JsIr.JsExpression value = new JsIr.JsMember(new JsIr.JsThis(),
+                    "_" + JsTypeMapper.sanitizeName(field.name()));
+            Type ft = field.type();
+            Type num = ft instanceof Type.NullableType nt ? nt.inner() : ft;
+            if (Type.PrimitiveType.DOUBLE.equals(num) || Type.PrimitiveType.FLOAT.equals(num)) {
+                p.lc.registerRuntime("kofNumFmt");
+                parts.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofNumFmt"), List.of(value,
+                        new JsIr.JsNumber(Type.PrimitiveType.FLOAT.equals(num) ? "1" : "0"))));
+            } else if (Type.PrimitiveType.CHAR.equals(ft)) {
+                parts.add(new JsIr.JsCall(new JsIr.JsMember(new JsIr.JsIdentifier("String"), "fromCharCode"),
+                        List.of(value)));
+            } else {
+                parts.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofFormat"), List.of(value)));
+            }
         }
         parts.add(new JsIr.JsString("]"));
         JsIr.JsExpression joined = parts.get(0);
