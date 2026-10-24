@@ -643,7 +643,11 @@ import java.util.Set;
             java.util.List<BytecodeReader.Insn> suf = blk.subList(blk.size() - 1 - len, blk.size() - 1);
             if (!pre.isEmpty()) {
                 int lo = pre.get(pre.size() - 1).opcode();
+                // Fase E (24/10): putstatic/putfield também encerram o
+                // statement (o primeiro statement do corpo do do-while
+                // fundido ao header — medido no sep: `OUT = i; if ...`)
                 boolean stmtEnd = (lo >= 0x36 && lo <= 0x4e) || lo == 0x57
+                        || lo == 0xb3 || lo == 0xb5
                         || (allowLoad && (lo == 0x19 || (lo >= 0x2a && lo <= 0x2d)));
                 if (!stmtEnd) continue;
             }

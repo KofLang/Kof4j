@@ -362,6 +362,48 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                 out.addAll(pre);
             }
         }
+        boolean splitLoop = false;
+        if (cond == null && loop0) {
+            // Fase E (24/10): o do-while com o PRIMEIRO statement do corpo
+            // fundido ao bloco do header (medido no sep: `OUT = i; if ...`
+            // — o back edge aponta ao statement, não ao teste). O
+            // testSplit da Fase C dá o prefixo + a condição, mas só vale
+            // se a DETECÇÃO do bottom-tested disparar (o teste do header
+            // é o if interno do corpo); sem ela o comportamento antigo
+            // permanece (cond-null = stub honesto) — nunca while com a
+            // condição do if interno (R6). O marcador do `do {` é
+            // gravado ANTES da emissão do prefixo (o statement fundido
+            // pertence ao corpo do loop).
+            List<BytecodeReader.Insn> lblk = BytecodeStatements.blkSeq(b, insns);
+            BytecodeReader.Insn llast = lblk.get(lblk.size() - 1);
+            int llop = llast.opcode();
+            int lk = (llop >= 0x9f && llop <= 0xa4) ? 2 : 1;
+            String linv = BytecodeCp.invCond(llop);
+            BytecodeDecoder.TestSplit lsplit = (linv != null && llast.isCond())
+                    ? BytecodeDecoder.testSplit(lblk, frame, cp, lk, linv) : null;
+            if (lsplit != null) {
+                List<BytecodeReader.Insn> lpre = lblk.subList(0, lsplit.prologueLen());
+                boolean lfluxo = false;
+                for (BytecodeReader.Insn lpi : lpre) {
+                    int lpo = lpi.opcode();
+                    if ((lpo >= 0x99 && lpo <= 0xa7) || (lpo >= 0xaa && lpo <= 0xb1) || lpo == 0xbf) { lfluxo = true; break; }
+                }
+                if (!lfluxo) {
+                    BytecodeReader.Block lbt = bottomTestedSource(b, thenStart, exitStart, byStart, insns);
+                    if (lbt != null) {
+                        List<String> lpreCode = BytecodeStatementsEmit.emitLinear(lpre, cp, frame, declared);
+                        if (lpreCode == null) { BytecodeStatements.refuse("emitLinear-null"); return false; }
+                        int lmark = out.size();
+                        out.addAll(lpreCode);
+                        // {header, marker, saída externa, início do teste, SAÍDA}
+                        pendingDoWhile.push(new int[]{b.start, lmark, BytecodeStatements.currentLoopExit, lbt.start, lbt.succ.get(1)});
+                        BytecodeStatements.currentLoopExit = lbt.succ.get(1);
+                        cond = lsplit.cond();
+                        splitLoop = true;
+                    }
+                }
+            }
+        }
         if (cond == null) { BytecodeStatements.refuse("cond-null"); return false; }
         // Fase C (13/10, short-circuit ||): o `||` tem a orientacao
         // ESPELHADA do &&. Medido (or2/or3): os testes NAO-finais saltam
@@ -573,7 +615,7 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                 }
             }
         }
-        boolean loop = loop0;
+        boolean loop = loop0 && !splitLoop;   // o split do loop0 já registrou o pendente do-while
         // Fase E (22/10): a DETECÇÃO do bottom-tested — o back edge ao
         // header vem de um bloco condicional POSTERIOR cujo alvo de
         // branch é o header, e AMBOS os braços do if do header alcançam
@@ -583,39 +625,13 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
         // cairia no loop-body-separate (medido no collatz2). Registra o
         // pendente e NÃO emite while; o bloco de fechamento processa o
         // wrap do do-when.
-        if (loop && cond != null) {
-            BytecodeReader.Block btSrc = null;
-            for (int p : b.pred) {
-                if (p <= b.start) continue;
-                BytecodeReader.Block pb = byStart.get(p);
-                if (pb == null || pb.succ.size() != 2) continue;
-                if (!pb.succ.get(0).equals(b.start)) continue;
-                List<BytecodeReader.Insn> pblk = BytecodeDecoder.insnsWithin(pb, insns);
-                if (pblk.isEmpty() || !pblk.get(pblk.size() - 1).isCond()) continue;
-                btSrc = pb;
-                break;
-            }
-            if (btSrc != null) {
-                int btExit = btSrc.succ.get(1);
-                // Fase E (24/10): o braço BREAK — o ramo que sai do corpo:
-                // (a) um bloco cujo único succ é a saída (o `goto` do
-                // break), (b) o ramo que aponta DIRETO ao bloco de saída
-                // (o `else break` do javac ramifica à saída sem goto —
-                // medido no clampSmall: B@0 succ[13,5] com 13 = o retorno),
-                // ou (c) alcança o bloco do teste (o caminho normal).
-                boolean thenArm = armReachesJoin(thenStart, btSrc.start, byStart, insns, 0)
-                        || thenStart == btExit
-                        || isDirectBreakArm(thenStart, btExit, byStart);
-                boolean elseArm = armReachesJoin(exitStart, btSrc.start, byStart, insns, 0)
-                        || exitStart == btExit
-                        || isDirectBreakArm(exitStart, btExit, byStart);
-                if (thenArm && elseArm) {
-                    loop = false;
-                    // {header, marker, saída externa (restaurada no wrap), início do bloco de teste, SAÍDA deste loop}
-                    pendingDoWhile.push(new int[]{b.start, out.size(), BytecodeStatements.currentLoopExit, btSrc.start, btExit});
-                    BytecodeStatements.currentLoopExit = btExit;   // a saída = a queda do bloco de teste
-                }
-            }
+        BytecodeReader.Block btEarly = loop && cond != null
+                ? bottomTestedSource(b, thenStart, exitStart, byStart, insns) : null;
+        if (btEarly != null) {
+            loop = false;
+            // {header, marker, saída externa (restaurada no wrap), início do bloco de teste, SAÍDA deste loop}
+            pendingDoWhile.push(new int[]{b.start, out.size(), BytecodeStatements.currentLoopExit, btEarly.start, btEarly.succ.get(1)});
+            BytecodeStatements.currentLoopExit = btEarly.succ.get(1);   // a saída = a queda do bloco de teste
         }
         if (loop) {
             // Fase E (14/10): for-each — `var it = X.iterator(); while
@@ -1094,6 +1110,36 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
 }
     /** Fase E (14/10): o braço alcança o join? Direto, por queda única, ou
      *  por até 2 níveis de testes puros (a cadeia else-if). Limitado. */
+    /**
+     * Fase E (24/10): a fonte do BOTTOM-TESTED — o primeiro predecessor
+     * condicional POSTERIOR ao header cujo alvo de branch é o header,
+     * desde que AMBOS os braços do if do header saiam para dentro do
+     * loop: alcançam o bloco de teste (o caminho normal), são o braço
+     * break (o goto à saída, ou o ramo que aponta direto à saída). Null
+     * se não houver — o header então é um while top-tested normal.
+     */
+    private static BytecodeReader.Block bottomTestedSource(BytecodeReader.Block b,
+            int thenStart, int exitStart, Map<Integer, BytecodeReader.Block> byStart,
+            List<BytecodeReader.Insn> insns) {
+        for (int p : b.pred) {
+            if (p <= b.start) continue;
+            BytecodeReader.Block pb = byStart.get(p);
+            if (pb == null || pb.succ.size() != 2) continue;
+            if (!pb.succ.get(0).equals(b.start)) continue;
+            List<BytecodeReader.Insn> pblk = BytecodeDecoder.insnsWithin(pb, insns);
+            if (pblk.isEmpty() || !pblk.get(pblk.size() - 1).isCond()) continue;
+            int btExit = pb.succ.get(1);
+            boolean thenArm = armReachesJoin(thenStart, pb.start, byStart, insns, 0)
+                    || thenStart == btExit
+                    || isDirectBreakArm(thenStart, btExit, byStart);
+            boolean elseArm = armReachesJoin(exitStart, pb.start, byStart, insns, 0)
+                    || exitStart == btExit
+                    || isDirectBreakArm(exitStart, btExit, byStart);
+            if (thenArm && elseArm) return pb;
+        }
+        return null;
+    }
+
     /** Fase E (24/10): o braço BREAK — o bloco salta direto (goto único)
      *  à saída do do-while (a queda do bloco de teste). Dentro do corpo,
      *  um goto à saída só é o `break` (o fluxo normal vai ao teste);

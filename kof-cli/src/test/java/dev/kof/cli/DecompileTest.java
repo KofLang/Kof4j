@@ -270,7 +270,7 @@ class DecompileTest {
     }
 
     @Test
-    void bottomTestedLoopWithBranchInsideStaysHonestStub(@TempDir Path dir) throws Exception {
+    void bottomTestedLoopWithFusedHeaderAndBreakRecover(@TempDir Path dir) throws Exception {
         Path javaFile = dir.resolve("DoBr.java");
         Files.writeString(javaFile, """
                 public class DoBr {
@@ -289,18 +289,23 @@ class DecompileTest {
 
         String kof = Decompile.decompile(dir.resolve("DoBr.class"));
 
-        // Fase E (24/10): face atualizada quando o brk virou TRADUÇÃO — o
-        // do-while com break no corpo recupera (o `break` sai no ramo do
-        // if, o wrap fecha no bloco do teste); o sep (a atribuição do
-        // campo fundida ao bloco do teste — cond nula, o cabeçalho não é
-        // um teste puro) segue o stub honesto. A proteção anti-R6
-        // permanece: o sep NUNCA sai como while de corpo errado.
-        assertTrue(kof.contains("throw \"body not recovered\""), "o sep (cond nula) segue stub honesto:\n" + kof);
-        assertTrue(kof.contains("do {"), "o brk recupera com o wrap:\n" + kof);
-        assertTrue(kof.contains("if (arg0 == 3) {\n        break"), "o break no ramo:\n" + kof);
-        assertTrue(kof.contains("} while (arg0 > 0)"), "a cond no FIM:\n" + kof);
-        // zero-drift executado contra o oráculo Java (sep não roda — stub)
-        String kofRun = kof + "\nmain() {\n    println(DoBr.brk(5))\n    println(DoBr.brk(3))\n    println(DoBr.brk(0))\n}\n";
+        // Fase E (24/10): face atualizada quando o sep virou TRADUÇÃO — o
+        // do-while com o primeiro statement do corpo fundido ao header
+        // (cond nula) recupera via testSplit + detecção gated: o prefixo
+        // `DoBr.OUT = arg0` sai DENTRO do corpo (o marcador do `do {` é
+        // gravado antes da emissão do prefixo). O brk (break no ramo)
+        // já recuperava da rodada anterior. Nenhum stub; nenhum while
+        // inventado com a condição do if interno (R6).
+        assertFalse(kof.contains("body not recovered"), "nenhum stub:\n" + kof);
+        assertTrue(kof.contains("do {"), "o wrap `do {`:\n" + kof);
+        assertTrue(kof.contains("DoBr.OUT = arg0"), "o prefixo fundido dentro do corpo:\n" + kof);
+        assertTrue(kof.contains("if (arg0 > 100) {"), "o if interno do sep:\n" + kof);
+        assertTrue(kof.contains("if (arg0 == 3) {\n        break"), "o break no ramo do brk:\n" + kof);
+        assertTrue(kof.contains("} while (arg0 > 0)"), "as conds no FIM:\n" + kof);
+        // zero-drift executado contra o oráculo Java
+        String kofRun = kof + "\nmain() {\n"
+                + "    println(DoBr.sep(5))\n    println(DoBr.sep(0))\n    println(DoBr.sep(3))\n    println(DoBr.sep(200))\n"
+                + "    println(DoBr.brk(5))\n    println(DoBr.brk(3))\n    println(DoBr.brk(0))\n}\n";
         CompilationResult result = new CompilerDriver().compileSources(java.util.List.of(
                 writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
         assertTrue(result.success(), "compila zero drift:\n" + kofRun + "\n" + result.diagnostics().getDiagnostics());
@@ -311,7 +316,7 @@ class DecompileTest {
         String output = new String(proc.getInputStream().readAllBytes(),
                 java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
         assertEquals(0, proc.waitFor(), "run exit\n" + output);
-        assertEquals("3\n3\n-1", output, "zero-drift: o brk como no Java (o do-while executa ao menos uma vez)");
+        assertEquals("2\n0\n3\n2\n3\n3\n-1", output, "zero-drift: sep + brk como no Java");
     }
 
     @Test
