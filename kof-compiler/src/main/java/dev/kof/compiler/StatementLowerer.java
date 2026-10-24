@@ -231,12 +231,14 @@ public final class StatementLowerer {
                 if (fs.update() != null) {
                     if (fs.update() instanceof UnaryExpr ue
                             && ("++".equals(ue.operator()) || "--".equals(ue.operator()))
-                            && ue.operand() instanceof IdentifierExpr id) {
+                            && ue.operand() instanceof IdentifierExpr id
+                            && driver.findLocalVar(id.name(), locals) != null
+                            && !driver.boxFactory.isBoxType(driver.findLocalVar(id.name(), locals).type())) {
                         IRLocalVariable var = driver.findLocalVar(id.name(), locals);
                         if (var != null) {
                             ops.add(new KofLoadLocal(var.type(), var.index()));
-                            CompilerEmissionHelpers.emitIncrementOne(ops, var.type());
-                            ops.add(new KofBinary("++".equals(ue.operator()) ? KofBinaryOp.ADD : KofBinaryOp.SUB, var.type()));
+                            CompilerEmissionHelpers.emitIncrementStep(ops,
+                                    "++".equals(ue.operator()) ? KofBinaryOp.ADD : KofBinaryOp.SUB, var.type());
                             ops.add(new KofStoreLocal(var.type(), var.index()));
                         }
                     } else {
