@@ -320,6 +320,65 @@ class DecompileTest {
     }
 
     @Test
+    void coinBoxLoopDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (24/10): o domínio MÁQUINA DE VENDAS — a integração das
+        // fatias do do-while desta roda num domínio realista: o
+        // insertCoins tem o PRIMEIRO statement do corpo fundido ao header
+        // (v1 += 25; v2 += 1 antes do if) MAIS o break no ramo (a
+        // integração do header fundido + break), e o refund tem o break
+        // como primeiro statement do corpo (o header puro). Zero código
+        // novo — tudo sai das fatias já aterrissadas.
+        Path javaFile = dir.resolve("CoinBox.java");
+        Files.writeString(javaFile, """
+                public class CoinBox {
+                    static int insertCoins(int target) {
+                        int credit = 0;
+                        int coins = 0;
+                        do {
+                            credit = credit + 25;
+                            coins = coins + 1;
+                            if (credit >= target) break;
+                        } while (coins < 10);
+                        return coins;
+                    }
+                    static int refund(int price, int paid) {
+                        int change = paid - price;
+                        int coins = 0;
+                        do {
+                            if (change < 10) break;
+                            change = change - 10;
+                            coins = coins + 1;
+                        } while (change >= 0);
+                        return coins;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("CoinBox.class"));
+        assertFalse(kof.contains("body not recovered"), "sem stubs:\n" + kof);
+        assertTrue(kof.contains("do {"), "os wraps:\n" + kof);
+        assertTrue(kof.contains("if (v1 >= arg0) {\n        break"), "o break do insertCoins:\n" + kof);
+        assertTrue(kof.contains("if (v2 < 10) {\n        break"), "o break do refund:\n" + kof);
+        assertTrue(kof.contains("} while (v2 < 10)") && kof.contains("} while (v2 >= 0)"),
+                "as conds no FIM:\n" + kof);
+        // zero-drift executado (oráculo Java: 4/10/1/5/0/0)
+        String kofRun = kof + "\nmain() {\n    var c = CoinBox()\n"
+                + "    println(c.insertCoins(100))\n    println(c.insertCoins(500))\n    println(c.insertCoins(0))\n"
+                + "    println(c.refund(50, 100))\n    println(c.refund(50, 55))\n    println(c.refund(50, 50))\n}\n";
+        CompilationResult result = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(result.success(), "compila zero drift:\n" + kofRun + "\n" + result.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("4\n10\n1\n5\n0\n0", output, "zero-drift: a máquina de vendas como no Java");
+    }
+
+    @Test
     void shortcircuitAndTernaryRecoveredZeroDrift(@TempDir Path dir) throws Exception {
         // Fase C (13/10): `&&` (combinação de condições — a cadeia de
         // branches do bytecode É o curto-circuito) e o ternário
