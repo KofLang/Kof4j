@@ -36,10 +36,17 @@ if (ae.target() instanceof IdentifierExpr ie && !owner.isEmpty()) {
                     ops.add(new KofGetStatic(ownerType, ie.name(), fsStatic.type()));
                 }
                 localIdx = ExpressionLowerer.emitExpression(driver, ae.value(), ops, owner, localIdx, locals);
-                if (compound) {
+                if (compound && "+=".equals(sop) && Type.isString(fsStatic.type())) {
+                    ExpressionBinaryLowerer.emitOperandToString(driver, ops,
+                            ExpressionTyper.inferExprType(driver, ae.value(), locals));
+                    ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_concat",
+                            List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
+                            BuiltinTypes.STRING, KofCallKind.FUNCTION));
+                } else if (compound) {
                     emitCompoundRhsConv(driver, ops, sop, fsStatic.type(),
                             ExpressionTyper.inferExprType(driver, ae.value(), locals));
                     ops.add(new KofBinary(compoundBinaryOp(sop), fsStatic.type()));
+                    CompilerEmissionHelpers.emitStoreNarrow(driver, ops, Type.PrimitiveType.INT, fsStatic.type());
                 }
                 ops.add(new KofPutStatic(ownerType, ie.name(), fsStatic.type()));
                 return localIdx;
@@ -93,6 +100,7 @@ if (ae.target() instanceof IdentifierExpr ie && !owner.isEmpty()) {
             }
             if (compoundAsgn && !instConcat) {
                 ops.add(new KofBinary(compoundBinaryOp(op), fieldSym.type()));
+                CompilerEmissionHelpers.emitStoreNarrow(driver, ops, Type.PrimitiveType.INT, fieldSym.type());
             }
             ops.add(new KofStoreField(ownerType, ie.name(),
                     instConcat ? BuiltinTypes.STRING : fieldSym.type()));
