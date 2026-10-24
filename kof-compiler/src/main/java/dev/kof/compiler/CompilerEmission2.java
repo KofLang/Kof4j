@@ -105,6 +105,11 @@ public final class CompilerEmission2 {
         KofBinaryOp op = "++".equals(ue.operator()) ? KofBinaryOp.ADD : KofBinaryOp.SUB;
         ExpressionNode target = ue.operand();
         if (target instanceof IdentifierExpr ie) {
+            FieldAccessExpr outerFa = CompilerCaptures.outerField(driver, ie, locals);
+            if (outerFa != null) {
+                return emitIncrement(driver, new UnaryExpr(ue.position(), ue.operator(), outerFa, prefix),
+                        operandType, ops, owner, localIdx, locals);
+            }
             IRLocalVariable var = driver.findLocalVar(ie.name(), locals);
             if (var != null && driver.boxFactory.isBoxType(var.type())) {
                 Type vt = driver.boxFactory.boxValueType(var.type());

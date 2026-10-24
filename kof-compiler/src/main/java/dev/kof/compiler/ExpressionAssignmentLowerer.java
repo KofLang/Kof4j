@@ -11,6 +11,13 @@ public final class ExpressionAssignmentLowerer {
 
     static int lower(CompilerDriver driver, AssignmentExpr ae, List<KofOperation> ops,
                         String owner, int localIdx, List<IRLocalVariable> locals) {
+if (ae.target() instanceof IdentifierExpr oie) {
+    FieldAccessExpr outerFa = CompilerCaptures.outerField(driver, oie, locals);
+    if (outerFa != null) {
+        return lower(driver, new AssignmentExpr(ae.position(), outerFa, ae.operator(), ae.value()),
+                ops, owner, localIdx, locals);
+    }
+}
 if (ae.target() instanceof IdentifierExpr ie && !owner.isEmpty()) {
     boolean isLocal = false;
     for (int i = locals.size() - 1; i >= 0; i--) {
