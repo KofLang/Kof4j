@@ -8714,6 +8714,67 @@ class DecompileTest {
     }
 
     @Test
+    void unitsDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (24/10): o domínio UNIDADES — a divisão/módulo LONG e o
+        // while(true) — zero código novo: a divisão LONG pelo literal
+        // com sufixo (arg0 / 1048576L), a comparação LONG com o
+        // early-return (v4 < 0L → return 0L) e o while(true) com break
+        // que recupera como o do-while EQUIVALENTE (do { v0 = v0 + 10 }
+        // while (v0 < 100) — o corpo roda antes do teste, como no
+        // Java). Probed no mesmo lote: o while(true) com RETURN no meio
+        // do corpo (o firstDivisor) segue o stub honesto — o registro
+        // fica nesta entrada. Zero-drift executado (oráculo Java REAL:
+        // 5/0/8/0/100).
+        Path javaFile = dir.resolve("Units.java");
+        Files.writeString(javaFile, """
+                public class Units {
+                    static long bytesToMB(long bytes) {
+                        return bytes / 1048576;
+                    }
+                    static long remainingMB(long total, long used) {
+                        long avail = total - used;
+                        if (avail < 0) return 0;
+                        return avail / 1048576;
+                    }
+                    static int countToHundred() {
+                        int i = 0;
+                        while (true) {
+                            i = i + 10;
+                            if (i >= 100) break;
+                        }
+                        return i;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Units.class"));
+        assertFalse(kof.contains("body not recovered"), "sem stubs:\n" + kof);
+        assertTrue(kof.contains("static Long bytesToMB(Long arg0) = (arg0 / 1048576L)"),
+                "a divisão LONG com o literal sufixado:\n" + kof);
+        assertTrue(kof.contains("if (v4 < 0L)") && kof.contains("return 0L"),
+                "a comparação LONG com o early-return:\n" + kof);
+        assertTrue(kof.contains("do {\n        v0 = (v0 + 10)\n        } while (v0 < 100)"),
+                "o while(true) com break como do-while:\n" + kof);
+        // zero-drift executado (oráculo Java REAL: 5/0/8/0/100)
+        String kofRun = kof + "\nmain() {\n"
+                + "    println(Units.bytesToMB(5242880L))\n    println(Units.bytesToMB(999999L))\n"
+                + "    println(Units.remainingMB(10485760L, 2097152L))\n    println(Units.remainingMB(100L, 500L))\n"
+                + "    println(Units.countToHundred())\n}\n";
+        CompilationResult result = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(result.success(), "compila zero drift:\n" + kofRun + "\n" + result.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("5\n0\n8\n0\n100", output,
+                "zero-drift: as unidades e o while(true) como no Java");
+    }
+
+    @Test
     void commuteDomainRecovers(@TempDir Path dir) throws Exception {
         // Fase E (17/10): o dom\u00ednio DESLOCAMENTO — 4 shapes sem c\u00f3digo
         // novo: o costPerDay com a divis\u00e3o double/int, o mode com as
