@@ -8565,6 +8565,70 @@ class DecompileTest {
     }
 
     @Test
+    void vec2DomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (24/10): o domínio VETOR-2D — a INSTANCIAÇÃO dentro de
+        // métodos — zero código novo: a fábrica estática que devolve um
+        // novo objeto (new Point(0, 0) → Point(0, 0), a sintaxe de
+        // construtor do Kof), o método de instância que instancia
+        // misturando campos do this e do outro (this.x + arg0.x), o
+        // getter de expressão e a distância ao quadrado. Probed no mesmo
+        // lote: o construtor DELEGADO (this(0, 0)) segue o stub honesto —
+        // o registro fica nesta entrada. Zero-drift executado (oráculo
+        // Java REAL: 0,0/0/2,3/13).
+        Path javaFile = dir.resolve("Vec2.java");
+        Files.writeString(javaFile, """
+                public class Vec2 {
+                    int x;
+                    int y;
+
+                    Vec2(int x, int y) {
+                        this.x = x;
+                        this.y = y;
+                    }
+                    static Vec2 origin() {
+                        return new Vec2(0, 0);
+                    }
+                    Vec2 plus(Vec2 other) {
+                        return new Vec2(this.x + other.x, this.y + other.y);
+                    }
+                    int distanceSquared() {
+                        return this.x * this.x + this.y * this.y;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Vec2.class"));
+        assertFalse(kof.contains("body not recovered"), "sem stubs:\n" + kof);
+        assertTrue(kof.contains("static Vec2 origin() = Vec2(0, 0)"),
+                "a fábrica estática com o construtor do Kof:\n" + kof);
+        assertTrue(kof.contains("Vec2 plus(Vec2 arg0) = Vec2((this.x + arg0.x), (this.y + arg0.y))"),
+                "a instanciação misturando this e outro:\n" + kof);
+        assertTrue(kof.contains("Int distanceSquared() = ((this.x * this.x) + (this.y * this.y))"),
+                "a distância ao quadrado:\n" + kof);
+        // zero-drift executado (oráculo Java REAL: 0,0/0/2,3/13)
+        String kofRun = kof + "\nmain() {\n"
+                + "    var p1 = Vec2(2, 3)\n"
+                + "    var o = Vec2.origin()\n"
+                + "    println(o.x + \",\" + o.y)\n"
+                + "    println(o.distanceSquared())\n"
+                + "    var p4 = p1.plus(o)\n"
+                + "    println(p4.x + \",\" + p4.y)\n"
+                + "    println(p4.distanceSquared())\n}\n";
+        CompilationResult result = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(result.success(), "compila zero drift:\n" + kofRun + "\n" + result.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("0,0\n0\n2,3\n13", output,
+                "zero-drift: a instanciação como no Java");
+    }
+
+    @Test
     void commuteDomainRecovers(@TempDir Path dir) throws Exception {
         // Fase E (17/10): o dom\u00ednio DESLOCAMENTO — 4 shapes sem c\u00f3digo
         // novo: o costPerDay com a divis\u00e3o double/int, o mode com as
