@@ -7690,6 +7690,81 @@ class DecompileTest {
     }
 
     @Test
+    void textSearchDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (24/10): o domínio BUSCA EM TEXTO — 4 shapes sem código
+        // novo: o countWord com o loop indexOf-com-início (o while do
+        // `indexOf(word, pos + word.length)` — a busca com ponto de
+        // partida), o countChar com o charAt no while e parâmetro Char,
+        // o firstLine com o early-return no indexOf STRING ("\\n" — a
+        // sobrecarga INT/char do indexOf é SEM051/bug 100, sem
+        // equivalente Kof: registrada na rodada, o texto usa a forma
+        // String) e o truncate com o ternário + concat de substring.
+        // Zero-drift executado (oráculo Java: 2/2/0/6/INFO ok/INFO ok/
+        // ER.../short). Chamadas QUALIFICADAS pela classe (os defeitos do
+        // compilador da rodada anterior).
+        Path javaFile = dir.resolve("TextSearch.java");
+        Files.writeString(javaFile, """
+                public class TextSearch {
+                    static int countWord(String text, String word) {
+                        int count = 0;
+                        int pos = text.indexOf(word);
+                        while (pos != -1) {
+                            count++;
+                            pos = text.indexOf(word, pos + word.length());
+                        }
+                        return count;
+                    }
+                    static int countChar(String text, char c) {
+                        int count = 0;
+                        for (int i = 0; i < text.length(); i++) {
+                            if (text.charAt(i) == c) count++;
+                        }
+                        return count;
+                    }
+                    static String firstLine(String text) {
+                        int end = text.indexOf("\\n");
+                        if (end == -1) return text;
+                        return text.substring(0, end);
+                    }
+                    static String truncate(String s, int max) {
+                        if (s.length() <= max) return s;
+                        return s.substring(0, max) + "...";
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("TextSearch.class"));
+        assertFalse(kof.contains("body not recovered"), "sem stubs:\n" + kof);
+        assertTrue(kof.contains("indexOf(arg1, (v3 + arg1.length))"), "o indexOf com início:\n" + kof);
+        assertTrue(kof.contains("charAt(v3) == arg1"), "o charAt no while:\n" + kof);
+        assertTrue(kof.contains("indexOf(\"\\n\")"), "o indexOf String no firstLine:\n" + kof);
+        assertTrue(kof.contains("= if (arg0.length <= arg1) arg0 else"), "o ternário do truncate:\n" + kof);
+        // zero-drift executado (oráculo Java: 2/2/0/6/INFO ok/INFO ok/ER.../short)
+        String log = "INFO ok\\nERROR disk full\\nINFO retry\\nERROR timeout";
+        String kofRun = kof + "\nmain() {\n"
+                + "    var log = \"" + log + "\"\n"
+                + "    println(TextSearch.countWord(log, \"ERROR\"))\n"
+                + "    println(TextSearch.countWord(log, \"INFO\"))\n"
+                + "    println(TextSearch.countWord(log, \"WARN\"))\n"
+                + "    println(TextSearch.countChar(log, 'R'))\n"
+                + "    println(TextSearch.firstLine(log))\n"
+                + "    println(TextSearch.truncate(log, 10))\n"
+                + "    println(TextSearch.truncate(\"short\", 10))\n}\n";
+        CompilationResult result = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(result.success(), "compila zero drift:\n" + kofRun + "\n" + result.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("2\n2\n0\n6\nINFO ok\nINFO ok\nER...\nshort", output,
+                "zero-drift: a busca em texto como no Java");
+    }
+
+    @Test
     void commuteDomainRecovers(@TempDir Path dir) throws Exception {
         // Fase E (17/10): o dom\u00ednio DESLOCAMENTO — 4 shapes sem c\u00f3digo
         // novo: o costPerDay com a divis\u00e3o double/int, o mode com as
