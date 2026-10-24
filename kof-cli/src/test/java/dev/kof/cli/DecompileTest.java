@@ -7979,6 +7979,76 @@ class DecompileTest {
     }
 
     @Test
+    void gridDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (24/10): o domínio GRADE — zero código novo: os loops
+        // ANINHADOS recuperam como whiles empilhados (o sumTable com o
+        // produto i*j no acumulador, o fillDiagonal com a igualdade
+        // i==j), e o countPairs traz o BREAK dentro do loop INTERNO
+        // (o break sai do while interno, não do externo — o while
+        // externo continua) mais o else do if (os incrementos no
+        // caminho normal). Zero-drift executado (oráculo Java REAL:
+        // 36/225/6/10/1/4/0). Chamadas qualificadas pela classe.
+        Path javaFile = dir.resolve("Grid.java");
+        Files.writeString(javaFile, """
+                public class Grid {
+                    static int sumTable(int n) {
+                        int total = 0;
+                        for (int i = 1; i <= n; i++) {
+                            for (int j = 1; j <= n; j++) {
+                                total = total + i * j;
+                            }
+                        }
+                        return total;
+                    }
+                    static int countPairs(int n, int limit) {
+                        int count = 0;
+                        for (int i = 0; i < n; i++) {
+                            for (int j = i + 1; j < n; j++) {
+                                if (i + j > limit) break;
+                                count++;
+                            }
+                        }
+                        return count;
+                    }
+                    static int fillDiagonal(int n) {
+                        int cells = 0;
+                        for (int i = 0; i < n; i++) {
+                            for (int j = 0; j < n; j++) {
+                                if (i == j) cells++;
+                            }
+                        }
+                        return cells;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Grid.class"));
+        assertFalse(kof.contains("body not recovered"), "sem stubs:\n" + kof);
+        assertTrue(kof.contains("while (v2 <= arg0)"), "o while externo:\n" + kof);
+        assertTrue(kof.contains("v1 = (v1 + (v2 * v3))"), "o produto no acumulador:\n" + kof);
+        assertTrue(kof.contains("var v4 = (v3 + 1)"), "o j = i + 1 do countPairs:\n" + kof);
+        assertTrue(kof.contains("break"), "o break no loop interno:\n" + kof);
+        assertTrue(kof.contains("if (v2 == v3)"), "a igualdade da diagonal:\n" + kof);
+        // zero-drift executado (oráculo Java REAL: 36/225/6/10/1/4/0)
+        String kofRun = kof + "\nmain() {\n"
+                + "    println(Grid.sumTable(3))\n    println(Grid.sumTable(5))\n"
+                + "    println(Grid.countPairs(5, 4))\n    println(Grid.countPairs(5, 100))\n    println(Grid.countPairs(4, 1))\n"
+                + "    println(Grid.fillDiagonal(4))\n    println(Grid.fillDiagonal(0))\n}\n";
+        CompilationResult result = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(result.success(), "compila zero drift:\n" + kofRun + "\n" + result.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("36\n225\n6\n10\n1\n4\n0", output,
+                "zero-drift: os loops aninhados como no Java");
+    }
+
+    @Test
     void commuteDomainRecovers(@TempDir Path dir) throws Exception {
         // Fase E (17/10): o dom\u00ednio DESLOCAMENTO — 4 shapes sem c\u00f3digo
         // novo: o costPerDay com a divis\u00e3o double/int, o mode com as
