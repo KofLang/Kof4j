@@ -8184,6 +8184,72 @@ class DecompileTest {
     }
 
     @Test
+    void contactsDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (24/10): o domínio CONTATOS — o null-handling realista —
+        // zero código novo: as comparações de null saem das ifnull/
+        // ifnonnull (o `== null` e o `!= null` do invCond), o `!isEmpty()`
+        // vira `isEmpty() == 0` (booleans comparam contra 0), o `||` do
+        // guard inverte para `&&` De Morgan no ramo oposto, e o `.length`
+        // sai sem parênteses (a propriedade do Kof). O Java não tem
+        // strings não-nulas, então o zero-drift EXERCE os casos null de
+        // verdade (o decompiler emite `String` e o Kof aceita null nos
+        // parâmetros — medido). Zero-drift executado (oráculo Java REAL:
+        // Ada Lovelace/Byron/Byron/5/0/0/true/false/false/anon/bob).
+        // Chamadas qualificadas pela classe.
+        Path javaFile = dir.resolve("Contacts.java");
+        Files.writeString(javaFile, """
+                public class Contacts {
+                    static String displayName(String first, String last) {
+                        if (first == null || first.isEmpty()) {
+                            return last;
+                        }
+                        return first + " " + last;
+                    }
+                    static int lengthOrZero(String s) {
+                        if (s == null) return 0;
+                        return s.length();
+                    }
+                    static boolean hasContent(String s) {
+                        return s != null && !s.isEmpty();
+                    }
+                    static String orDefault(String s, String fallback) {
+                        if (s == null || s.isEmpty()) return fallback;
+                        return s;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Contacts.class"));
+        assertFalse(kof.contains("body not recovered"), "sem stubs:\n" + kof);
+        assertTrue(kof.contains("arg0 != null && arg0.isEmpty() == 0"),
+                "o guard De Morgan com null e isEmpty:\n" + kof);
+        assertTrue(kof.contains("if (arg0 == null) 0 else arg0.length"),
+                "o == null com o length sem parênteses:\n" + kof);
+        assertTrue(kof.contains("if (arg0 != null && arg0.isEmpty() == 0) true else false"),
+                "o hasContent como expressão:\n" + kof);
+        // zero-drift executado (oráculo Java REAL: Ada Lovelace/Byron/Byron/5/0/0/true/false/false/anon/bob)
+        String kofRun = kof + "\nmain() {\n"
+                + "    println(Contacts.displayName(\"Ada\", \"Lovelace\"))\n"
+                + "    println(Contacts.displayName(null, \"Byron\"))\n"
+                + "    println(Contacts.displayName(\"\", \"Byron\"))\n"
+                + "    println(Contacts.lengthOrZero(\"hello\"))\n    println(Contacts.lengthOrZero(null))\n    println(Contacts.lengthOrZero(\"\"))\n"
+                + "    println(Contacts.hasContent(\"x\"))\n    println(Contacts.hasContent(null))\n    println(Contacts.hasContent(\"\"))\n"
+                + "    println(Contacts.orDefault(null, \"anon\"))\n    println(Contacts.orDefault(\"bob\", \"anon\"))\n}\n";
+        CompilationResult result = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(result.success(), "compila zero drift:\n" + kofRun + "\n" + result.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("Ada Lovelace\nByron\nByron\n5\n0\n0\ntrue\nfalse\nfalse\nanon\nbob", output,
+                "zero-drift: o null-handling como no Java");
+    }
+
+    @Test
     void commuteDomainRecovers(@TempDir Path dir) throws Exception {
         // Fase E (17/10): o dom\u00ednio DESLOCAMENTO — 4 shapes sem c\u00f3digo
         // novo: o costPerDay com a divis\u00e3o double/int, o mode com as
