@@ -8447,6 +8447,61 @@ class DecompileTest {
     }
 
     @Test
+    void switchExpressionDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (24/10): a EXPRESSÃO SWITCH (Java 14+) — o arrow form —
+        // zero código novo: o javac compila como um tableswitch cujos
+        // braços carregam o valor e saltam ao join comum, e o decompiler
+        // recupera a forma de seta (`return switch (arg0) { case 1 ->
+        // "Mon" case 2 -> "Tue" ... }`) que o compilador Kof ACEITA. O
+        // segundo método é a versão char (os cases saem como códigos
+        // 65/66). Zero-drift executado (oráculo Java REAL:
+        // Mon/Wed/???/4/3/0).
+        Path javaFile = dir.resolve("Days.java");
+        Files.writeString(javaFile, """
+                public class Days {
+                    static String dayName(int d) {
+                        return switch (d) {
+                            case 1 -> "Mon";
+                            case 2 -> "Tue";
+                            case 3 -> "Wed";
+                            default -> "???";
+                        };
+                    }
+                    static int points(char grade) {
+                        return switch (grade) {
+                            case 'A' -> 4;
+                            case 'B' -> 3;
+                            default -> 0;
+                        };
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Days.class"));
+        assertFalse(kof.contains("body not recovered"), "sem stubs:\n" + kof);
+        assertTrue(kof.contains("return switch (arg0) { case 1 -> \"Mon\" case 2 -> \"Tue\" case 3 -> \"Wed\" default -> \"???\" }"),
+                "a expressão switch de seta:\n" + kof);
+        assertTrue(kof.contains("case 65 -> 4 case 66 -> 3 default -> 0 }"),
+                "a versão char com códigos:\n" + kof);
+        // zero-drift executado (oráculo Java REAL: Mon/Wed/???/4/3/0)
+        String kofRun = kof + "\nmain() {\n"
+                + "    println(Days.dayName(1))\n    println(Days.dayName(3))\n    println(Days.dayName(9))\n"
+                + "    println(Days.points('A'))\n    println(Days.points('B'))\n    println(Days.points('F'))\n}\n";
+        CompilationResult result = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(result.success(), "compila zero drift:\n" + kofRun + "\n" + result.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("Mon\nWed\n???\n4\n3\n0", output,
+                "zero-drift: a expressão switch como no Java");
+    }
+
+    @Test
     void commuteDomainRecovers(@TempDir Path dir) throws Exception {
         // Fase E (17/10): o dom\u00ednio DESLOCAMENTO — 4 shapes sem c\u00f3digo
         // novo: o costPerDay com a divis\u00e3o double/int, o mode com as
