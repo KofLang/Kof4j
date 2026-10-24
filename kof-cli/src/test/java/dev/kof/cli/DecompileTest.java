@@ -8304,6 +8304,76 @@ class DecompileTest {
     }
 
     @Test
+    void accountClassDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (24/10): o domínio CONTA-CLASSE — o ESTADO DE INSTÂNCIA
+        // completo — zero código novo: os campos de instância (`Int
+        // balance`, `String owner`), o CONSTRUTOR com parâmetros e as
+        // atribuições `this.campo = ...`, os métodos de instância lendo
+        // e escrevendo `this.campo` (o getfield/putfield), o early-return
+        // no withdraw e o getter como expressão (`Int getBalance() =
+        // this.balance`). A ponta decisiva: o main CRIA a instância e
+        // chama os métodos — zero-drift executado (oráculo Java REAL:
+        // 150/true/120/false/120/Ada: 120).
+        Path javaFile = dir.resolve("BankAccount.java");
+        Files.writeString(javaFile, """
+                public class BankAccount {
+                    private int balance;
+                    private String owner;
+
+                    BankAccount(String owner, int initial) {
+                        this.owner = owner;
+                        this.balance = initial;
+                    }
+                    void deposit(int amount) {
+                        balance = balance + amount;
+                    }
+                    boolean withdraw(int amount) {
+                        if (amount > balance) return false;
+                        balance = balance - amount;
+                        return true;
+                    }
+                    int getBalance() {
+                        return balance;
+                    }
+                    String describe() {
+                        return owner + ": " + balance;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("BankAccount.class"));
+        assertFalse(kof.contains("body not recovered"), "sem stubs:\n" + kof);
+        assertTrue(kof.contains("constructor(String arg0, Int arg1)"), "o construtor com parâmetros:\n" + kof);
+        assertTrue(kof.contains("this.owner = arg0") && kof.contains("this.balance = arg1"),
+                "as atribuições do construtor:\n" + kof);
+        assertTrue(kof.contains("this.balance = (this.balance + arg0)"), "a escrita de instância:\n" + kof);
+        assertTrue(kof.contains("Int getBalance() = this.balance"), "o getter como expressão:\n" + kof);
+        assertTrue(kof.contains("String describe() = this.owner + \": \" + this.balance"), "a concat de instância:\n" + kof);
+        // zero-drift executado (oráculo Java REAL: 150/true/120/false/120/Ada: 120)
+        String kofRun = kof + "\nmain() {\n"
+                + "    var acc = BankAccount(\"Ada\", 100)\n"
+                + "    acc.deposit(50)\n"
+                + "    println(acc.getBalance())\n"
+                + "    println(acc.withdraw(30))\n"
+                + "    println(acc.getBalance())\n"
+                + "    println(acc.withdraw(500))\n"
+                + "    println(acc.getBalance())\n"
+                + "    println(acc.describe())\n}\n";
+        CompilationResult result = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(result.success(), "compila zero drift:\n" + kofRun + "\n" + result.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("150\ntrue\n120\nfalse\n120\nAda: 120", output,
+                "zero-drift: o estado de instância como no Java");
+    }
+
+    @Test
     void commuteDomainRecovers(@TempDir Path dir) throws Exception {
         // Fase E (17/10): o dom\u00ednio DESLOCAMENTO — 4 shapes sem c\u00f3digo
         // novo: o costPerDay com a divis\u00e3o double/int, o mode com as
