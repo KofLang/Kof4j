@@ -8250,6 +8250,60 @@ class DecompileTest {
     }
 
     @Test
+    void overloadsDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (24/10): o domínio SOBRECARGAS — três métodos com o mesmo
+        // nome e assinaturas diferentes (o caso realista mais comum: a
+        // área de um quadrado/retângulo/círculo). Cada método é
+        // descompilado independentemente e o compilador Kof aceita a
+        // sobrecarga (zero-drift: o dispatch acontece pelo tipo e pela
+        // aridade dos argumentos). O String-switch do mesmo lote segue o
+        // stub honesto (a compilacão hashCode + equals do javac não é
+        // recuperada — sem código errado).
+        Path javaFile = dir.resolve("Shapes.java");
+        Files.writeString(javaFile, """
+                public class Shapes {
+                    static int area(int side) {
+                        return side * side;
+                    }
+                    static int area(int width, int height) {
+                        return width * height;
+                    }
+                    static double area(double radius) {
+                        return 3.14159 * radius * radius;
+                    }
+                    static String describe(int side) {
+                        return "square " + side;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Shapes.class"));
+        assertFalse(kof.contains("body not recovered"), "sem stubs:\n" + kof);
+        assertTrue(kof.contains("static Int area(Int arg0) = (arg0 * arg0)"), "o overload 1-arg:\n" + kof);
+        assertTrue(kof.contains("static Int area(Int arg0, Int arg1) = (arg0 * arg1)"), "o overload 2-arg:\n" + kof);
+        assertTrue(kof.contains("static Double area(Double arg0) = ((3.14159 * arg0) * arg0)"), "o overload Double:\n" + kof);
+        assertTrue(kof.contains("static String describe(Int arg0) = \"square \" + arg0"), "o concat:\n" + kof);
+        // zero-drift executado (oráculo Java REAL: 25/24/12.56636/square 7)
+        String kofRun = kof + "\nmain() {\n"
+                + "    println(Shapes.area(5))\n"
+                + "    println(Shapes.area(4, 6))\n"
+                + "    println(Shapes.area(2.0))\n"
+                + "    println(Shapes.describe(7))\n}\n";
+        CompilationResult result = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(result.success(), "compila zero drift:\n" + kofRun + "\n" + result.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("25\n24\n12.56636\nsquare 7", output,
+                "zero-drift: as sobrecargas como no Java");
+    }
+
+    @Test
     void commuteDomainRecovers(@TempDir Path dir) throws Exception {
         // Fase E (17/10): o dom\u00ednio DESLOCAMENTO — 4 shapes sem c\u00f3digo
         // novo: o costPerDay com a divis\u00e3o double/int, o mode com as
