@@ -97,6 +97,7 @@ final class JsExpressionStatementParser {
                     dropped = parser.pop(stack);
                 }
                 boolean sideEffecting = dropped instanceof JsIr.JsCall
+                        || dropped instanceof JsIr.JsNew
                         || dropped instanceof JsIr.JsSequence
                         || dropped instanceof JsIr.JsAwait
                         || (dropped instanceof JsIr.JsBinary jb

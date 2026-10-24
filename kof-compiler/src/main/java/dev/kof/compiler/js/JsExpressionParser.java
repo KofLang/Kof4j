@@ -393,7 +393,8 @@ void consumeExpressionOp(MethodCtx ctx, int[] pos, List<Object> stack,
                 // short-circuit) → preserva no preamble, como o handler de
                 // statement faz.
                 JsIr.JsExpression dropped = pop(stack);
-                if (dropped instanceof JsIr.JsCall || dropped instanceof JsIr.JsSequence
+                if (dropped instanceof JsIr.JsCall || dropped instanceof JsIr.JsNew
+                        || dropped instanceof JsIr.JsSequence
                         || dropped instanceof JsIr.JsAwait
                         || (dropped instanceof JsIr.JsBinary jb
                                 && (jb.left() instanceof JsIr.JsCall
