@@ -8775,6 +8775,68 @@ class DecompileTest {
     }
 
     @Test
+    void caesarDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (24/10): o domínio CÉSAR — zero código novo: a recursão
+        // MÚTUA (isEven chama isOdd, isOdd chama isEven — as chamadas
+        // qualificadas pela classe), a aritmética de CHAR (o
+        // shiftChar: `((97 + (((arg0 - 97) + arg1) % 26)) as Char` — os
+        // literais de char saem como os códigos inteiros e o cast do
+        // i2c vira `as Char`) e o building de string no loop (o caesar
+        // acumulando com o charAt e a chamada ao shiftChar). Zero-drift
+        // executado (oráculo Java REAL: true/false/true/false/d/khoor/
+        // hello — incluindo a ida e volta do cifrador com o shift 23).
+        Path javaFile = dir.resolve("Caesar.java");
+        Files.writeString(javaFile, """
+                public class Caesar {
+                    static boolean isEven(int n) {
+                        if (n == 0) return true;
+                        return isOdd(n - 1);
+                    }
+                    static boolean isOdd(int n) {
+                        if (n == 0) return false;
+                        return isEven(n - 1);
+                    }
+                    static char shiftChar(char c, int shift) {
+                        return (char) ('a' + (c - 'a' + shift) % 26);
+                    }
+                    static String caesar(String s, int shift) {
+                        String result = "";
+                        for (int i = 0; i < s.length(); i++) {
+                            result = result + shiftChar(s.charAt(i), shift);
+                        }
+                        return result;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Caesar.class"));
+        assertFalse(kof.contains("body not recovered"), "sem stubs:\n" + kof);
+        assertTrue(kof.contains("return Caesar.isOdd((arg0 - 1))"), "a recursão mútua:\n" + kof);
+        assertTrue(kof.contains("((97 + (((arg0 - 97) + arg1) % 26)) as Char)"),
+                "a aritmética de char com o cast:\n" + kof);
+        assertTrue(kof.contains("v2 = v2 + Caesar.shiftChar(arg0.charAt(v3), arg1)"),
+                "o building no loop:\n" + kof);
+        // zero-drift executado (oráculo Java REAL: true/false/true/false/d/khoor/hello)
+        String kofRun = kof + "\nmain() {\n"
+                + "    println(Caesar.isEven(10))\n    println(Caesar.isEven(7))\n"
+                + "    println(Caesar.isOdd(3))\n    println(Caesar.isOdd(0))\n"
+                + "    println(Caesar.shiftChar('a', 3))\n"
+                + "    println(Caesar.caesar(\"hello\", 3))\n    println(Caesar.caesar(\"khoor\", 23))\n}\n";
+        CompilationResult result = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(result.success(), "compila zero drift:\n" + kofRun + "\n" + result.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("true\nfalse\ntrue\nfalse\nd\nkhoor\nhello", output,
+                "zero-drift: o cifrador como no Java");
+    }
+
+    @Test
     void commuteDomainRecovers(@TempDir Path dir) throws Exception {
         // Fase E (17/10): o dom\u00ednio DESLOCAMENTO — 4 shapes sem c\u00f3digo
         // novo: o costPerDay com a divis\u00e3o double/int, o mode com as
