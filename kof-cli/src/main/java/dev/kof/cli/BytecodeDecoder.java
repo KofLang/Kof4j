@@ -372,9 +372,19 @@ import java.util.Set;
                         c = a2 + " " + iv + " " + b2;
                     } else {
                         String v = stack.popExpr();
-                        // o instanceof NÃO leva sufixo (a queda é o C-true);
-                        // os null-comps levam o inv dele (`== null`/`!= null`)
-                        if (op == 0x99 || op == 0x9a) c = v;
+                        // Fase E (24/10): a POLARIDADE do 1-operando no shape
+                        // [ifXX salta ao else, queda = then, goto ao join] —
+                        // a condição da QUEDA é o não-salto: o ifeq (salta
+                        // quando v==0) deixa a queda em v!=0, e o `v` nu é
+                        // equivalente sob o truthiness do Kof; o ifne (salta
+                        // quando v!=0, o javac usa no `x == 0 ? A : B`)
+                        // deixa a queda em v==0 — o `v` nu era CÓDIGO
+                        // ERRADO (o label do Fizz: `n % 15 == 0 ?`
+                        // saía invertido — medido: label(9) dava
+                        // "FizzBuzz" onde o Java dá "Fizz"); o ifne leva
+                        // o inv dele (`== 0`), como os null-comps levam
+                        // o seu (`== null`/`!= null`).
+                        if (op == 0x99) c = v;
                         else c = v + " " + BytecodeCp.invCond(op);
                     }
                     stack.push("(if (" + c + ") " + ra.stack.topExpr() + " else " + rb.stack.topExpr() + ")", "L");

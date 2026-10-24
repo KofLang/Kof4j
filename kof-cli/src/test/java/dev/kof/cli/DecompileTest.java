@@ -7765,6 +7765,147 @@ class DecompileTest {
     }
 
     @Test
+    void dateMathDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (24/10): o domínio ARITMÉTICA DE DATAS — zero código
+        // novo: o isLeap com a precedência MISTA ((a && b) || c) que
+        // recupera como cadeia de condicionais (if a true else if c
+        // true else false — semântica idêntica ao ||), o daysInMonth
+        // com a cadeia || de QUATRO comparações que recupera como
+        // encadeamento != aninhado (if != 4 if != 6 if != 9 if == 11
+        // 30 else 31 else 30 else 30 else 30) e o ternário dentro do
+        // early-return, o dayOfYear com o for que CHAMA o método
+        // (daysInMonth no acumulador) e o season com a guarda || que
+        // recupera aplicando De Morgan (if > 2 && != 12). Os booleans
+        // comparam contra 0 (isLeap(arg0) != 0). Zero-drift executado
+        // (oráculo Java: true/false/true/false/29/28/30/61/365/winter/
+        // winter/summer). Chamadas qualificadas pela classe.
+        Path javaFile = dir.resolve("Calendar2.java");
+        Files.writeString(javaFile, """
+                public class Calendar2 {
+                    static boolean isLeap(int year) {
+                        return (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+                    }
+                    static int daysInMonth(int year, int month) {
+                        if (month == 2) return isLeap(year) ? 29 : 28;
+                        if (month == 4 || month == 6 || month == 9 || month == 11) return 30;
+                        return 31;
+                    }
+                    static int dayOfYear(int year, int month, int day) {
+                        int total = day;
+                        for (int m = 1; m < month; m++) {
+                            total = total + daysInMonth(year, m);
+                        }
+                        return total;
+                    }
+                    static String season(int month) {
+                        if (month <= 2 || month == 12) return "winter";
+                        if (month <= 5) return "spring";
+                        if (month <= 8) return "summer";
+                        return "autumn";
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Calendar2.class"));
+        assertFalse(kof.contains("body not recovered"), "sem stubs:\n" + kof);
+        assertTrue(kof.contains("if ((arg0 % 4) == 0 && (arg0 % 100) != 0) true else if ((arg0 % 400) == 0) true else false"),
+                "o || misto como cadeia:\n" + kof);
+        assertTrue(kof.contains("if (arg1 == 11) 30 else 31 else 30 else 30 else 30"),
+                "a cadeia || de 4 como != aninhado:\n" + kof);
+        assertTrue(kof.contains("v3 = (v3 + Calendar2.daysInMonth(arg0, v4))"),
+                "o for que chama o método:\n" + kof);
+        assertTrue(kof.contains("if (arg0 > 2 && arg0 != 12)"), "a guarda || com De Morgan:\n" + kof);
+        // zero-drift executado (oráculo Java: true/false/true/false/29/28/30/61/365/winter/winter/summer)
+        String kofRun = kof + "\nmain() {\n"
+                + "    println(Calendar2.isLeap(2024))\n    println(Calendar2.isLeap(1900))\n"
+                + "    println(Calendar2.isLeap(2000))\n    println(Calendar2.isLeap(2023))\n"
+                + "    println(Calendar2.daysInMonth(2024, 2))\n    println(Calendar2.daysInMonth(2023, 2))\n"
+                + "    println(Calendar2.daysInMonth(2024, 11))\n"
+                + "    println(Calendar2.dayOfYear(2024, 3, 1))\n    println(Calendar2.dayOfYear(2023, 12, 31))\n"
+                + "    println(Calendar2.season(1))\n    println(Calendar2.season(12))\n    println(Calendar2.season(7))\n}\n";
+        CompilationResult result = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(result.success(), "compila zero drift:\n" + kofRun + "\n" + result.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("true\nfalse\ntrue\nfalse\n29\n28\n30\n61\n365\nwinter\nwinter\nsummer", output,
+                "zero-drift: a aritmética de datas como no Java");
+    }
+
+    @Test
+    void everydayClassicDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (24/10): o domínio CLÁSSICO DO DIA-A-DIA (fizzbuzz +
+        // loja + banco) — zero código novo: o fizzCount com o else-if
+        // de contagem (o && misto e o || no meio do encadeamento),
+        // o label com o ternário ANINHADO de strings (15/3/5), o
+        // total da loja com a multiplicação e o desconto condicional
+        // (sum - sum*pct/100), e o withdraw do banco com o early-return
+        // -1 no guard. Zero-drift executado (oráculo Java REAL: 8/5/1/FizzBuzz/Fizz/Buzz/none/8100/9000/9000/-1/500). Chamadas
+        // qualificadas pela classe.
+        Path javaFile = dir.resolve("Classic.java");
+        Files.writeString(javaFile, """
+                public class Classic {
+                    static int fizzCount(int n) {
+                        int count = 0;
+                        for (int i = 1; i <= n; i++) {
+                            if (i % 3 == 0 && i % 5 == 0) count = count + 2;
+                            else if (i % 3 == 0 || i % 5 == 0) count = count + 1;
+                        }
+                        return count;
+                    }
+                    static String label(int n) {
+                        return n % 15 == 0 ? "FizzBuzz" : (n % 3 == 0 ? "Fizz" : (n % 5 == 0 ? "Buzz" : "none"));
+                    }
+                    static int total(int price, int qty, int discountPct) {
+                        int sum = price * qty;
+                        if (discountPct > 0) {
+                            sum = sum - sum * discountPct / 100;
+                        }
+                        return sum;
+                    }
+                    static int withdraw(int balance, int amount) {
+                        if (amount > balance) return -1;
+                        return balance - amount;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Classic.class"));
+        assertFalse(kof.contains("body not recovered"), "sem stubs:\n" + kof);
+        assertTrue(kof.contains("if ((v2 % 3) == 0 && (v2 % 5) == 0)"),
+                "o && misto do fizzCount:\n" + kof);
+        assertTrue(kof.contains("if ((arg0 % 15) == 0) \"FizzBuzz\" else"),
+                "o ternário aninhado do label:\n" + kof);
+        assertTrue(kof.contains("v3 = (v3 - ((v3 * arg2) / 100))"),
+                "o desconto condicional:\n" + kof);
+        assertTrue(kof.contains("if (arg1 > arg0)"), "o guard do withdraw:\n" + kof);
+        // zero-drift executado (oráculo Java REAL: 8/5/1/FizzBuzz/Fizz/Buzz/none/8100/9000/9000/-1/500)
+        String kofRun = kof + "\nmain() {\n"
+                + "    println(Classic.fizzCount(15))\n    println(Classic.fizzCount(10))\n    println(Classic.fizzCount(4))\n"
+                + "    println(Classic.label(15))\n    println(Classic.label(9))\n    println(Classic.label(10))\n    println(Classic.label(7))\n"
+                + "    println(Classic.total(900, 10, 10))\n    println(Classic.total(1000, 9, 0))\n"
+                + "    println(Classic.total(1000, 10, 10))\n"
+                + "    println(Classic.withdraw(100, 500))\n    println(Classic.withdraw(1000, 500))\n}\n";
+        CompilationResult result = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(result.success(), "compila zero drift:\n" + kofRun + "\n" + result.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("8\n5\n1\nFizzBuzz\nFizz\nBuzz\nnone\n8100\n9000\n9000\n-1\n500", output,
+                "zero-drift: os clássicos do dia-a-dia como no Java");
+    }
+
+    @Test
     void commuteDomainRecovers(@TempDir Path dir) throws Exception {
         // Fase E (17/10): o dom\u00ednio DESLOCAMENTO — 4 shapes sem c\u00f3digo
         // novo: o costPerDay com a divis\u00e3o double/int, o mode com as
