@@ -9863,6 +9863,84 @@ class DecompileTest {
         assertEquals("ok\n4", output, "zero-drift: cast + len como no Java");
     }
 
+    @Test
+    void doWhileBodyRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (22/10): o do-while com corpo MULTI-BLOCO — o teste do
+        // loop mora no bloco final (back edge de CONDICIONAL ao header),
+        // não no header; o header é o if INTERNO do corpo. Antes: o while
+        // top-tested tomava a condição do if interno como condição do
+        // loop (errado) e o fechamento caía no loop-body-separate (stub).
+        // Agora: `do { if...else... } while (cond)` zero-drift, incluindo
+        // a cauda do contador no próprio bloco do teste (steps).
+        Path javaFile = dir.resolve("Lw.java");
+        Files.writeString(javaFile, """
+                public class Lw {
+                    static int collatz(int n) {
+                        do {
+                            if (n % 2 == 0) n = n / 2;
+                            else n = 3 * n + 1;
+                        } while (n != 1);
+                        return n;
+                    }
+                    static int parityWalk(int n) {
+                        do {
+                            if (n % 2 == 0) n = n / 2;
+                            else n = n - 1;
+                        } while (n > 0);
+                        return n;
+                    }
+                    static int countDown(int n) {
+                        do {
+                            if (n > 0) n = n - 1;
+                        } while (n > 0);
+                        return n;
+                    }
+                    static int decUntil(int n) {
+                        do {
+                            n = n - 1;
+                        } while (n > 0);
+                        return n;
+                    }
+                    static int steps(int n) {
+                        int count = 0;
+                        do {
+                            if (n % 2 == 0) n = n / 2;
+                            else n = n - 1;
+                            count++;
+                        } while (n > 0);
+                        return count;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Lw.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "do-while com corpo multi-bloco deve recuperar (nao stub):\n" + kof);
+        assertTrue(kof.contains("do {"), "o wrap `do {`:\n" + kof);
+        assertTrue(kof.contains("} while (arg0 != 1)"), "a cond do collatz no FIM:\n" + kof);
+        assertTrue(kof.contains("} while (arg0 > 0)"), "as conds do while no FIM:\n" + kof);
+        assertTrue(kof.contains("v1 = v1 + 1"), "a cauda do contador no corpo:\n" + kof);
+        // zero-drift executado (oráculo Java: 1/1/0/0/0/0/0/5/1/5)
+        String kofRun = kof + "\nmain() {\n    var lw = Lw()\n"
+                + "    println(lw.collatz(6))\n    println(lw.collatz(1))\n"
+                + "    println(lw.parityWalk(10))\n    println(lw.parityWalk(7))\n"
+                + "    println(lw.countDown(5))\n    println(lw.countDown(0))\n"
+                + "    println(lw.decUntil(3))\n"
+                + "    println(lw.steps(10))\n    println(lw.steps(0))\n    println(lw.steps(7))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("1\n1\n0\n0\n0\n0\n0\n5\n1\n5", output,
+                "zero-drift: os do-whiles como no Java");
+    }
+
 
 
     @Test
