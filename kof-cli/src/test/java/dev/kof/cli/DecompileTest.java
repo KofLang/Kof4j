@@ -8049,6 +8049,73 @@ class DecompileTest {
     }
 
     @Test
+    void switchDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (24/10): o domínio MENU — zero código novo: o switch de
+        // RETORNO por case (o action), o switch de CHAR (os cases saem
+        // como os códigos 65/66/67 — o Char do Kof é o mesmo Int) e o
+        // switch que ATRIBUI uma variável declarada antes dele (o
+        // dayName com `var v1` compartilhado entre os cases e os
+        // breaks; o default no fim sem break). Zero-drift executado
+        // (oráculo Java REAL: open/save/close/unknown/4/3/2/0/Mon/Wed/
+        // ???). Chamadas qualificadas pela classe.
+        Path javaFile = dir.resolve("SwitchMenu.java");
+        Files.writeString(javaFile, """
+                public class SwitchMenu {
+                    static String action(int option) {
+                        switch (option) {
+                            case 1: return "open";
+                            case 2: return "save";
+                            case 3: return "close";
+                            default: return "unknown";
+                        }
+                    }
+                    static int points(char grade) {
+                        switch (grade) {
+                            case 'A': return 4;
+                            case 'B': return 3;
+                            case 'C': return 2;
+                            default: return 0;
+                        }
+                    }
+                    static String dayName(int d) {
+                        String name;
+                        switch (d) {
+                            case 1: name = "Mon"; break;
+                            case 2: name = "Tue"; break;
+                            case 3: name = "Wed"; break;
+                            default: name = "???"; break;
+                        }
+                        return name;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("SwitchMenu.class"));
+        assertFalse(kof.contains("body not recovered"), "sem stubs:\n" + kof);
+        assertTrue(kof.contains("switch (arg0)"), "o switch nativo:\n" + kof);
+        assertTrue(kof.contains("case 65: return 4"), "o switch de char com códigos:\n" + kof);
+        assertTrue(kof.contains("var v1"), "a variável compartilhada do dayName:\n" + kof);
+        assertTrue(kof.contains("v1 = \"Mon\""), "a atribuição por case:\n" + kof);
+        // zero-drift executado (oráculo Java REAL: open/save/close/unknown/4/3/2/0/Mon/Wed/???)
+        String kofRun = kof + "\nmain() {\n"
+                + "    println(SwitchMenu.action(1))\n    println(SwitchMenu.action(2))\n    println(SwitchMenu.action(3))\n    println(SwitchMenu.action(9))\n"
+                + "    println(SwitchMenu.points('A'))\n    println(SwitchMenu.points('B'))\n    println(SwitchMenu.points('C'))\n    println(SwitchMenu.points('F'))\n"
+                + "    println(SwitchMenu.dayName(1))\n    println(SwitchMenu.dayName(3))\n    println(SwitchMenu.dayName(7))\n}\n";
+        CompilationResult result = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(result.success(), "compila zero drift:\n" + kofRun + "\n" + result.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("open\nsave\nclose\nunknown\n4\n3\n2\n0\nMon\nWed\n???", output,
+                "zero-drift: os switches como no Java");
+    }
+
+    @Test
     void commuteDomainRecovers(@TempDir Path dir) throws Exception {
         // Fase E (17/10): o dom\u00ednio DESLOCAMENTO — 4 shapes sem c\u00f3digo
         // novo: o costPerDay com a divis\u00e3o double/int, o mode com as
