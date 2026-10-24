@@ -75,6 +75,10 @@ public final class ExpressionLowerer {
                         yield localIdx;
                     }
                 }
+                FieldAccessExpr outerFa = CompilerCaptures.outerField(driver, ie, locals);
+                if (outerFa != null) {
+                    yield emitExpression(driver, outerFa, ops, owner, localIdx, locals);
+                }
                 if (!owner.isEmpty() && driver.semanticAnalyzer != null) {
                     String className = owner.substring(owner.lastIndexOf('/') + 1);
                     // #639 face 2 (D-DECISION-BATCH-2709B): o `owner` é o nome

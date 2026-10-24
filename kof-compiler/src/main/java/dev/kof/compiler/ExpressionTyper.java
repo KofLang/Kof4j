@@ -46,6 +46,8 @@ public final class ExpressionTyper {
                         yield lv.type();
                     }
                 }
+                FieldAccessExpr outerFa = CompilerCaptures.outerField(driver, ie, locals);
+                if (outerFa != null) yield inferExprType(driver, outerFa, locals);
                 if ("super".equals(ie.name()) && driver.semanticAnalyzer != null
                         && !locals.isEmpty()
                         && locals.get(0).type() instanceof Type.ClassType selfType

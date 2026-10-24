@@ -29,6 +29,18 @@ public final class CompilerCaptures {
         }
     }
 
+    static FieldAccessExpr outerField(CompilerDriver driver, IdentifierExpr ie, List<IRLocalVariable> locals) {
+        if (driver.semanticAnalyzer == null) return null;
+        for (IRLocalVariable lv : locals) {
+            if (lv.name().equals(ie.name())) return null;
+        }
+        IRLocalVariable self = driver.findLocalVar("this", locals);
+        if (self == null || self.index() == 0 || !(self.type() instanceof Type.ClassType ct)) return null;
+        SymbolTable.Symbol sym = HierarchyResolver.resolveFieldInHierarchy(ct.name(), ie.name(), driver.semanticAnalyzer);
+        if (!(sym instanceof SymbolTable.FieldSymbol fs) || (fs.accessFlags() & AccessFlags.STATIC) != 0) return null;
+        return new FieldAccessExpr(ie.position(), new IdentifierExpr(ie.position(), "this"), ie.name());
+    }
+
     static List<IRLocalVariable> collectCaptures(CompilerDriver driver, LambdaExpr le,
                     List<IRLocalVariable> outerLocals) {        List<IRLocalVariable> captures = new ArrayList<>();
         java.util.Set<String> captured = new java.util.HashSet<>();
@@ -183,7 +195,7 @@ public final class CompilerCaptures {
         String className = enclosing.substring(enclosing.lastIndexOf('/') + 1);
         SymbolTable.ClassSymbol cls = driver.semanticAnalyzer.getClass(className);
         if (cls == null) return;
-        SymbolTable.Symbol sym = cls.members().resolve(mc.methodName());
+        SymbolTable.Symbol sym = driver.semanticAnalyzer.resolveInHierarchy(cls.name(), mc.methodName());
         if (!(sym instanceof SymbolTable.MethodSymbol ms)) return;
         if ((ms.accessFlags() & AccessFlags.STATIC) != 0) return;
         if (ms.parameterTypes().size() != mc.arguments().size()) return;
@@ -225,8 +237,18 @@ public final class CompilerCaptures {
                             HierarchyResolver.resolveFieldInHierarchy(className, ie.name(), driver.semanticAnalyzer);
                     if (fieldSym instanceof SymbolTable.FieldSymbol fs
                             && (fs.accessFlags() & AccessFlags.STATIC) == 0) {
-                        captures.add(new IRLocalVariable(-1, ie.name(), fs.type()));
-                        captured.add(ie.name());
+                        IRLocalVariable outerThis = driver.findLocalVar("this", outerLocals);
+                        if (outerThis != null && outerThis.type() instanceof Type.ClassType tt
+                                && HierarchyResolver.resolveFieldInHierarchy(tt.name(), ie.name(),
+                                        driver.semanticAnalyzer) instanceof SymbolTable.FieldSymbol) {
+                            if (!captured.contains("this")) {
+                                captures.add(outerThis);
+                                captured.add("this");
+                            }
+                        } else {
+                            captures.add(new IRLocalVariable(-1, ie.name(), fs.type()));
+                            captured.add(ie.name());
+                        }
                     }
                 }
             }
