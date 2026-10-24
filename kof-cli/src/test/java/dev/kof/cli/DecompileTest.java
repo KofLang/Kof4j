@@ -8502,6 +8502,69 @@ class DecompileTest {
     }
 
     @Test
+    void guardedDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (24/10): o domínio GUARDA — o try/catch realista — zero
+        // código novo: o catch (Exception e) do Java vira catch (String e)
+        // (o idioma do Kof), o Integer.parseInt vira toInt() (o idioma de
+        // conversão), e a estrutura try/return/catch/return é preservada.
+        // O ponto decisivo: as EXCEÇÕES DO RUNTIME DO KOF são capturadas
+        // pelo catch (String e) exatamente como o Java captura as suas —
+        // o divide-por-zero, a falha de parse e o substring fora da
+        // faixa. Zero-drift executado (oráculo Java REAL: 5/-1/42/0/
+        // hello worl/(vazio)).
+        Path javaFile = dir.resolve("Guarded.java");
+        Files.writeString(javaFile, """
+                public class Guarded {
+                    static int safeDivide(int a, int b) {
+                        try {
+                            return a / b;
+                        } catch (Exception e) {
+                            return -1;
+                        }
+                    }
+                    static int safeParse(String s) {
+                        try {
+                            return Integer.parseInt(s);
+                        } catch (Exception e) {
+                            return 0;
+                        }
+                    }
+                    static String safeAccess(String s) {
+                        try {
+                            return s.substring(0, 10);
+                        } catch (Exception e) {
+                            return "";
+                        }
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Guarded.class"));
+        assertFalse(kof.contains("body not recovered"), "sem stubs:\n" + kof);
+        assertTrue(kof.contains("try {\n        return (arg0 / arg1)\n        } catch (String e) {\n        return -1"),
+                "o try/catch de divisão:\n" + kof);
+        assertTrue(kof.contains("arg0.toInt()"), "a conversão parseInt→toInt:\n" + kof);
+        assertTrue(kof.contains("return arg0.substring(0, 10)"), "o substring guardado:\n" + kof);
+        // zero-drift executado (oráculo Java REAL: 5/-1/42/0/hello worl/(vazio))
+        String kofRun = kof + "\nmain() {\n"
+                + "    println(Guarded.safeDivide(10, 2))\n    println(Guarded.safeDivide(10, 0))\n"
+                + "    println(Guarded.safeParse(\"42\"))\n    println(Guarded.safeParse(\"abc\"))\n"
+                + "    println(Guarded.safeAccess(\"hello world\"))\n    println(Guarded.safeAccess(\"short\"))\n}\n";
+        CompilationResult result = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(result.success(), "compila zero drift:\n" + kofRun + "\n" + result.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("5\n-1\n42\n0\nhello worl", output,
+                "zero-drift: o try/catch como no Java");
+    }
+
+    @Test
     void commuteDomainRecovers(@TempDir Path dir) throws Exception {
         // Fase E (17/10): o dom\u00ednio DESLOCAMENTO — 4 shapes sem c\u00f3digo
         // novo: o costPerDay com a divis\u00e3o double/int, o mode com as
