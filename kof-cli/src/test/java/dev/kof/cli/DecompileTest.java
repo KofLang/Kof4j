@@ -8116,6 +8116,74 @@ class DecompileTest {
     }
 
     @Test
+    void trigDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (24/10): o mapeamento DOUBLE do math COMPLETO — o
+        // sin/cos/tan/asin/acos/atan/toRadians/toDegrees existiam no
+        // namespace do Kof (KofMath) mas o decompiler só mapeava o sqrt
+        // (o (D)D) e o pow (o (DD)D); agora a família inteira mapeia 1:1
+        // com o java.lang.Math, com a MESMA reescrita do sufixo
+        // `.toDouble()` → `as Double` do sqrt (o I2D do javac). O atan2
+        // acompanha o pow no (DD)D. O abs NÃO entra (o abs do Kof é
+        // Int-only, SEM025 — teto honesto). Zero-drift executado
+        // (oráculo Java REAL: 5.0/2.0/0.6435011087932844/90.0/
+        // 1.5707963267948966/5.0/3/0).
+        Path javaFile = dir.resolve("Trig.java");
+        Files.writeString(javaFile, """
+                public class Trig {
+                    static double circleX(double angle, double radius) {
+                        return Math.cos(angle) * radius;
+                    }
+                    static double circleY(double angle, double radius) {
+                        return Math.sin(angle) * radius;
+                    }
+                    static double slopeAngle(double rise, double run) {
+                        return Math.atan2(rise, run);
+                    }
+                    static double toDeg(double rad) {
+                        return Math.toDegrees(rad);
+                    }
+                    static double toRad(double deg) {
+                        return Math.toRadians(deg);
+                    }
+                    static double hypotenuse(double a, double b) {
+                        return Math.sqrt(a * a + b * b);
+                    }
+                    static int clamp(int v, int lo, int hi) {
+                        if (v < lo) return lo;
+                        if (v > hi) return hi;
+                        return v;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Trig.class"));
+        assertFalse(kof.contains("body not recovered"), "sem stubs:\n" + kof);
+        assertTrue(kof.contains("math.cos(arg0) * arg1"), "o cos mapeado:\n" + kof);
+        assertTrue(kof.contains("math.sin(arg0) * arg1"), "o sin mapeado:\n" + kof);
+        assertTrue(kof.contains("math.atan2(arg0, arg1)"), "o atan2 mapeado:\n" + kof);
+        assertTrue(kof.contains("math.toDegrees(arg0)") && kof.contains("math.toRadians(arg0)"),
+                "as conversões de ângulo:\n" + kof);
+        assertTrue(kof.contains("math.sqrt(((arg0 * arg0) + (arg1 * arg1)))"), "o sqrt:\n" + kof);
+        // zero-drift executado (oráculo Java REAL: 5.0/2.0/0.6435011087932844/90.0/1.5707963267948966/5.0/3/0)
+        String kofRun = kof + "\nmain() {\n"
+                + "    println(Trig.circleX(0.0, 5.0))\n    println(Trig.circleY(1.5707963267948966, 2.0))\n"
+                + "    println(Trig.slopeAngle(3.0, 4.0))\n    println(Trig.toDeg(1.5707963267948966))\n    println(Trig.toRad(90.0))\n"
+                + "    println(Trig.hypotenuse(3.0, 4.0))\n    println(Trig.clamp(5, 0, 3))\n    println(Trig.clamp(-2, 0, 3))\n}\n";
+        CompilationResult result = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(result.success(), "compila zero drift:\n" + kofRun + "\n" + result.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("5.0\n2.0\n0.6435011087932844\n90.0\n1.5707963267948966\n5.0\n3\n0", output,
+                "zero-drift: a trigonometria como no Java");
+    }
+
+    @Test
     void commuteDomainRecovers(@TempDir Path dir) throws Exception {
         // Fase E (17/10): o dom\u00ednio DESLOCAMENTO — 4 shapes sem c\u00f3digo
         // novo: o costPerDay com a divis\u00e3o double/int, o mode com as
