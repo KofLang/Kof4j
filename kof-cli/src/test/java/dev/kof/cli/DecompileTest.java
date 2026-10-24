@@ -9941,6 +9941,80 @@ class DecompileTest {
                 "zero-drift: os do-whiles como no Java");
     }
 
+    @Test
+    void doWhileContinueRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (24/10): o CONTINUE dentro do corpo multi-blocos do
+        // do-while — o braço verdadeiro do if salta direto ao bloco do
+        // teste (o continue é um goto ao teste), então os DOIS braços
+        // alcançam o bloco do teste e a detecção do bottom-tested
+        // dispara; o braço do continue sai como o THEN VAZIO do
+        // if/else invertido (`if (c) { } else { corpo }`) — fiel ao
+        // Java sem código novo. O BREAK (braço que sai ao pós-loop)
+        // NÃO dispara a detecção (o braço não alcança o teste) — segue
+        // o stub honesto `loop-body-separate` (medido; a fatia do
+        // caminho genérico vem depois).
+        Path javaFile = dir.resolve("Scan.java");
+        Files.writeString(javaFile, """
+                public class Scan {
+                    static int countNonZero(int n) {
+                        int seen = 0;
+                        do {
+                            if (n == 0) continue;
+                            seen = seen + 1;
+                            n = n - 1;
+                        } while (n > 0);
+                        return seen;
+                    }
+                    static int sumNonZero(int n) {
+                        int sum = 0;
+                        do {
+                            if (n == 0) continue;
+                            sum = sum + n;
+                            n = n - 1;
+                        } while (n > 0);
+                        return sum;
+                    }
+                    static int tallyPairs(int n) {
+                        int pairs = 0;
+                        int left = n;
+                        do {
+                            if (left < 2) continue;
+                            pairs = pairs + 1;
+                            left = left - 2;
+                        } while (left > 1);
+                        return pairs;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Scan.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "o continue no corpo do do-while deve recuperar (nao stub):\n" + kof);
+        assertTrue(kof.contains("do {"), "o wrap `do {`:\n" + kof);
+        assertTrue(kof.contains("} while (arg0 > 0)"), "as conds no FIM:\n" + kof);
+        assertTrue(kof.contains("if (arg0 == 0) {\n        } else {")
+                || kof.contains("if (v2 < 2) {\n        } else {"),
+                "o braço vazio do continue:\n" + kof);
+        // zero-drift executado (oráculo Java: 4/0/1/10/0/2/2/0/0)
+        String kofRun = kof + "\nmain() {\n    var s = Scan()\n"
+                + "    println(s.countNonZero(4))\n    println(s.countNonZero(0))\n    println(s.countNonZero(1))\n"
+                + "    println(s.sumNonZero(4))\n    println(s.sumNonZero(0))\n"
+                + "    println(s.tallyPairs(5))\n    println(s.tallyPairs(4))\n"
+                + "    println(s.tallyPairs(0))\n    println(s.tallyPairs(1))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("4\n0\n1\n10\n0\n2\n2\n0\n0", output,
+                "zero-drift: os do-whiles com continue como no Java");
+    }
+
 
 
     @Test
