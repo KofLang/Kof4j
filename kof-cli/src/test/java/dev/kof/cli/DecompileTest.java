@@ -8629,6 +8629,91 @@ class DecompileTest {
     }
 
     @Test
+    void cartClassDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (24/10): o domínio CARRINHO-CLASSE — zero código novo:
+        // o campo estático lido pelo método de instância (tax() lendo
+        // Cart.TAX_RATE — o getstatic no meio da expressão), os métodos
+        // de instância CHAMANDO outros métodos de instância (total()
+        // chamando this.tax(), summary() chamando this.total()), o
+        // método com dois parâmetros e o if/else como expressão
+        // (discountedTotal) e o concat misto (Int + String + Double).
+        // Zero-drift executado (oráculo Java REAL: 12.5/1.0/13.5/12.15/
+        // 13.5/2 items: 13.5).
+        Path javaFile = dir.resolve("ShopCart.java");
+        Files.writeString(javaFile, """
+                public class ShopCart {
+                    static double TAX_RATE = 0.08;
+
+                    int itemCount;
+                    double subtotal;
+
+                    ShopCart() {
+                        this.itemCount = 0;
+                        this.subtotal = 0.0;
+                    }
+
+                    void addItem(double price) {
+                        this.subtotal = this.subtotal + price;
+                        this.itemCount = this.itemCount + 1;
+                    }
+
+                    double tax() {
+                        return this.subtotal * TAX_RATE;
+                    }
+
+                    double total() {
+                        return this.subtotal + this.tax();
+                    }
+
+                    double discountedTotal(double rate, int minItems) {
+                        if (this.itemCount >= minItems) {
+                            return this.total() * (1.0 - rate);
+                        }
+                        return this.total();
+                    }
+
+                    String summary() {
+                        return this.itemCount + " items: " + this.total();
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("ShopCart.class"));
+        assertFalse(kof.contains("body not recovered"), "sem stubs:\n" + kof);
+        assertTrue(kof.contains("(this.subtotal * Cart.TAX_RATE)".replace("Cart", "ShopCart")),
+                "o campo estático lido pela instância:\n" + kof);
+        assertTrue(kof.contains("Double total() = (this.subtotal + this.tax())"),
+                "o método chamando outro método:\n" + kof);
+        assertTrue(kof.contains("Double discountedTotal(Double arg0, Int arg1) = if (this.itemCount >= arg1)"),
+                "o método de dois parâmetros:\n" + kof);
+        assertTrue(kof.contains("String summary() = this.itemCount + \" items: \" + this.total()"),
+                "o concat misto:\n" + kof);
+        // zero-drift executado (oráculo Java REAL: 12.5/1.0/13.5/12.15/13.5/2 items: 13.5)
+        String kofRun = kof + "\nmain() {\n"
+                + "    var cart = ShopCart()\n"
+                + "    cart.addItem(10.0)\n"
+                + "    cart.addItem(2.5)\n"
+                + "    println(cart.subtotal)\n"
+                + "    println(cart.tax())\n"
+                + "    println(cart.total())\n"
+                + "    println(cart.discountedTotal(0.1, 2))\n"
+                + "    println(cart.discountedTotal(0.1, 5))\n"
+                + "    println(cart.summary())\n}\n";
+        CompilationResult result = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(result.success(), "compila zero drift:\n" + kofRun + "\n" + result.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("12.5\n1.0\n13.5\n12.15\n13.5\n2 items: 13.5", output,
+                "zero-drift: a composição de instância como no Java");
+    }
+
+    @Test
     void commuteDomainRecovers(@TempDir Path dir) throws Exception {
         // Fase E (17/10): o dom\u00ednio DESLOCAMENTO — 4 shapes sem c\u00f3digo
         // novo: o costPerDay com a divis\u00e3o double/int, o mode com as
