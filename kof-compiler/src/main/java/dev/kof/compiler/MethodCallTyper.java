@@ -518,7 +518,7 @@ if (mc.receiver() != null) {
                 for (int pi = 0; pi < fn.parameters().size() && pi < mc.arguments().size(); pi++) {
                     Type formal = CompilerTypes.resolveWithTypeParams(fn.parameters().get(pi).type(),
                             fn.typeParameters(), driver.currentUnit, driver.semanticAnalyzer);
-                    Type actual = ExpressionTyper.inferExprType(driver, mc.arguments().get(pi), locals);
+                    Type actual = GenericSupertypeView.as(driver, ExpressionTyper.inferExprType(driver, mc.arguments().get(pi), locals), formal);
                     TypeSubstitution.bindTypeVars(formal, actual, fn.typeParameters(), bind);
                 }
                 if (!bind.isEmpty()) {
