@@ -595,12 +595,26 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                 btSrc = pb;
                 break;
             }
-            if (btSrc != null
-                    && armReachesJoin(thenStart, btSrc.start, byStart, insns, 0)
-                    && armReachesJoin(exitStart, btSrc.start, byStart, insns, 0)) {
-                loop = false;
-                pendingDoWhile.push(new int[]{b.start, out.size(), BytecodeStatements.currentLoopExit});
-                BytecodeStatements.currentLoopExit = btSrc.succ.get(1);   // a saída = a queda do bloco de teste
+            if (btSrc != null) {
+                int btExit = btSrc.succ.get(1);
+                // Fase E (24/10): o braço BREAK — o ramo que sai do corpo:
+                // (a) um bloco cujo único succ é a saída (o `goto` do
+                // break), (b) o ramo que aponta DIRETO ao bloco de saída
+                // (o `else break` do javac ramifica à saída sem goto —
+                // medido no clampSmall: B@0 succ[13,5] com 13 = o retorno),
+                // ou (c) alcança o bloco do teste (o caminho normal).
+                boolean thenArm = armReachesJoin(thenStart, btSrc.start, byStart, insns, 0)
+                        || thenStart == btExit
+                        || isDirectBreakArm(thenStart, btExit, byStart);
+                boolean elseArm = armReachesJoin(exitStart, btSrc.start, byStart, insns, 0)
+                        || exitStart == btExit
+                        || isDirectBreakArm(exitStart, btExit, byStart);
+                if (thenArm && elseArm) {
+                    loop = false;
+                    // {header, marker, saída externa (restaurada no wrap), início do bloco de teste, SAÍDA deste loop}
+                    pendingDoWhile.push(new int[]{b.start, out.size(), BytecodeStatements.currentLoopExit, btSrc.start, btExit});
+                    BytecodeStatements.currentLoopExit = btExit;   // a saída = a queda do bloco de teste
+                }
             }
         }
         if (loop) {
@@ -1021,14 +1035,39 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
         // por ramo). Java válido não produz local declarado num ramo e
         // lido fora dele, então o restore não derrama nada.
         Set<Integer> branchScopeBase = new HashSet<>(declared);
-        if (!struct(byStart.get(thenStart), insns, byStart, cp, frame, out, emitted, declared, header, stops))
+        // Fase E (24/10): o do-while com BREAK no corpo — se este header
+        // registrou um pendente, os braços param no BLOCO DE TESTE (o
+        // then/break e o else/corpo) e a continuação acontece aqui, após
+        // o fechamento do if/else: o bloco de teste processa o wrap.
+        // Sem pendente o comportamento é idêntico ao anterior.
+        int pendingCond = -1;
+        int pendingExit = -1;
+        for (int[] pe : pendingDoWhile) {
+            if (pe[0] == b.start) { pendingCond = pe[3]; pendingExit = pe[4]; break; }
+        }
+        Set<Integer> armStops = stops;
+        if (pendingCond >= 0) {
+            armStops = new HashSet<>(stops);
+            armStops.add(pendingCond);
+        }
+        // Fase E (24/10): o ramo que É o bloco de saída = o `break` (o
+        // `else break` do javac ramifica direto à saída) — não pode ser
+        // andado (emitiria o código pós-loop dentro do ramo).
+        if (pendingExit >= 0 && thenStart == pendingExit) {
+            out.add("break");
+        } else if (!struct(byStart.get(thenStart), insns, byStart, cp, frame, out, emitted, declared, header, armStops))
             { BytecodeStatements.refuse("struct-generic"); return false; }
         declared.retainAll(branchScopeBase);
         out.add("} else {");
-        if (!struct(byStart.get(exitStart), insns, byStart, cp, frame, out, emitted, declared, header, stops))
+        if (pendingExit >= 0 && exitStart == pendingExit) {
+            out.add("break");
+        } else if (!struct(byStart.get(exitStart), insns, byStart, cp, frame, out, emitted, declared, header, armStops))
             { BytecodeStatements.refuse("struct-generic"); return false; }
         declared.retainAll(branchScopeBase);
         out.add("}");
+        if (pendingCond >= 0) {
+            return struct(byStart.get(pendingCond), insns, byStart, cp, frame, out, emitted, declared, header, stops);
+        }
         return true;
     }
     if (b.succ.size() == 1) {
@@ -1055,6 +1094,19 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
 }
     /** Fase E (14/10): o braço alcança o join? Direto, por queda única, ou
      *  por até 2 níveis de testes puros (a cadeia else-if). Limitado. */
+    /** Fase E (24/10): o braço BREAK — o bloco salta direto (goto único)
+     *  à saída do do-while (a queda do bloco de teste). Dentro do corpo,
+     *  um goto à saída só é o `break` (o fluxo normal vai ao teste);
+     *  o braço return tem succ vazio e NÃO entra aqui. Estreito de
+     *  propósito (R6): um braço break de vários blocos segue sem
+     *  detecção. */
+    private static boolean isDirectBreakArm(int start, int exit,
+            Map<Integer, BytecodeReader.Block> byStart) {
+        if (exit < 0) return false;
+        BytecodeReader.Block b = byStart.get(start);
+        return b != null && b.succ.equals(java.util.List.of(exit));
+    }
+
     private static boolean armReachesJoin(int start, int tail,
             Map<Integer, BytecodeReader.Block> byStart,
             List<BytecodeReader.Insn> insns, int depth) {

@@ -289,15 +289,29 @@ class DecompileTest {
 
         String kof = Decompile.decompile(dir.resolve("DoBr.class"));
 
-        // do-while com corpo ramificado (diamond/break): o teste fica em bloco
-        // SEPARADO do corpo (back-edge p/ bloco anterior) — recuperar isso
-        // exige análise de merge estruturado (o corpo com if-join sairia com o
-        // ponto de junção emitido dentro de um ramo; break escaparia p/ o pós-
-        // loop dentro do corpo). Enquanto isso: stub UNKNOWN honesto — NUNCA
-        // while de corpo vazio (código errado, anti-R6).
-        assertTrue(kof.contains("throw \"body not recovered\""), "deve degradar p/ stub:\n" + kof);
-        assertFalse(kof.contains("do {"), "não deve emitir do-while errado:\n" + kof);
-        assertFalse(kof.contains("while ("), "não deve inventar while:\n" + kof);
+        // Fase E (24/10): face atualizada quando o brk virou TRADUÇÃO — o
+        // do-while com break no corpo recupera (o `break` sai no ramo do
+        // if, o wrap fecha no bloco do teste); o sep (a atribuição do
+        // campo fundida ao bloco do teste — cond nula, o cabeçalho não é
+        // um teste puro) segue o stub honesto. A proteção anti-R6
+        // permanece: o sep NUNCA sai como while de corpo errado.
+        assertTrue(kof.contains("throw \"body not recovered\""), "o sep (cond nula) segue stub honesto:\n" + kof);
+        assertTrue(kof.contains("do {"), "o brk recupera com o wrap:\n" + kof);
+        assertTrue(kof.contains("if (arg0 == 3) {\n        break"), "o break no ramo:\n" + kof);
+        assertTrue(kof.contains("} while (arg0 > 0)"), "a cond no FIM:\n" + kof);
+        // zero-drift executado contra o oráculo Java (sep não roda — stub)
+        String kofRun = kof + "\nmain() {\n    println(DoBr.brk(5))\n    println(DoBr.brk(3))\n    println(DoBr.brk(0))\n}\n";
+        CompilationResult result = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(result.success(), "compila zero drift:\n" + kofRun + "\n" + result.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("3\n3\n-1", output, "zero-drift: o brk como no Java (o do-while executa ao menos uma vez)");
     }
 
     @Test
@@ -10013,6 +10027,73 @@ class DecompileTest {
         assertEquals(0, proc.waitFor(), "run exit\n" + output);
         assertEquals("4\n0\n1\n10\n0\n2\n2\n0\n0", output,
                 "zero-drift: os do-whiles com continue como no Java");
+    }
+
+    @Test
+    void doWhileBreakRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (24/10): o BREAK dentro do corpo multi-blocos do
+        // do-while — o braço do break NÃO alcança o bloco do teste, então
+        // a detecção aceita agora os dois formatos de saída: (a) o bloco
+        // `goto saída` (o break como o THEN — firstOddStop, dropTo), (b)
+        // o `else break` do javac que ramifica DIRETO ao bloco de saída
+        // sem goto (clampSmall — B@0 succ[13,5] com 13 = o retorno); o
+        // caminho genérico para os braços no bloco do teste (o pendente
+        // carrega o início do teste) e emite `break` no ramo que É a
+        // saída, continuando no teste depois do if/else para o wrap.
+        // O braço return (succ vazio) NÃO entra — segue sem detecção.
+        Path javaFile = dir.resolve("Halt.java");
+        Files.writeString(javaFile, """
+                public class Halt {
+                    static int firstOddStop(int n) {
+                        do {
+                            if (n % 2 != 0) break;
+                            n = n - 2;
+                        } while (n > 0);
+                        return n;
+                    }
+                    static int clampSmall(int n) {
+                        do {
+                            if (n > 3) n = n - 3;
+                            else break;
+                        } while (n > 0);
+                        return n;
+                    }
+                    static int dropTo(int n, int stop) {
+                        do {
+                            if (n <= stop) {
+                                n = stop;
+                                break;
+                            }
+                            n = n - 1;
+                        } while (n > stop);
+                        return n;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Halt.class"));
+        assertFalse(kof.contains("body not recovered"),
+                "o break no corpo do do-while deve recuperar (nao stub):\n" + kof);
+        assertTrue(kof.contains("do {"), "o wrap `do {`:\n" + kof);
+        assertTrue(kof.contains("} while (arg0 > 0)"), "as conds no FIM:\n" + kof);
+        assertTrue(kof.contains("break"), "o break emitido:\n" + kof);
+        // zero-drift executado (oráculo Java: 0/7/-2/1/2/2/3/3/0)
+        String kofRun = kof + "\nmain() {\n    var h = Halt()\n"
+                + "    println(h.firstOddStop(10))\n    println(h.firstOddStop(7))\n    println(h.firstOddStop(0))\n"
+                + "    println(h.clampSmall(10))\n    println(h.clampSmall(2))\n    println(h.clampSmall(5))\n"
+                + "    println(h.dropTo(10, 3))\n    println(h.dropTo(2, 3))\n    println(h.dropTo(10, 0))\n}\n";
+        CompilationResult r = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(r.success(), "compila zero drift:\n" + kofRun + "\n" + r.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("0\n7\n-2\n1\n2\n2\n3\n3\n0", output,
+                "zero-drift: os do-whiles com break como no Java");
     }
 
 
