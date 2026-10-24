@@ -8374,6 +8374,79 @@ class DecompileTest {
     }
 
     @Test
+    void textsDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (24/10): o domínio TEXTOS — zero código novo: as
+        // chamadas encadeadas no receptor (substring(0, 1).toUpperCase()
+        // dentro de concatenação), o loop de dois ponteiros com charAt
+        // (o isPalindrome, com o `v2 = v2 + -1` do j--), as comparações
+        // de CHAR contra os códigos inteiros (o countVowels: v3 == 97 ||
+        // ... — o Char do Kof é o mesmo Int), o length como propriedade
+        // no limite do loop e o slugify com trim/toLowerCase/replace
+        // encadeados. Zero-drift executado (oráculo Java REAL:
+        // A.L./true/false/false/3/0/hello-world/(vazio)).
+        Path javaFile = dir.resolve("Texts.java");
+        Files.writeString(javaFile, """
+                public class Texts {
+                    static String initials(String first, String last) {
+                        String f = first.substring(0, 1).toUpperCase();
+                        String l = last.substring(0, 1).toUpperCase();
+                        return f + "." + l + ".";
+                    }
+                    static boolean isPalindrome(String s) {
+                        int i = 0;
+                        int j = s.length() - 1;
+                        while (i < j) {
+                            if (s.charAt(i) != s.charAt(j)) return false;
+                            i++;
+                            j--;
+                        }
+                        return true;
+                    }
+                    static int countVowels(String s) {
+                        int count = 0;
+                        for (int i = 0; i < s.length(); i++) {
+                            char c = s.charAt(i);
+                            if (c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'u') {
+                                count++;
+                            }
+                        }
+                        return count;
+                    }
+                    static String slugify(String s) {
+                        String t = s.trim();
+                        if (t.isEmpty()) return "";
+                        return t.toLowerCase().replace(" ", "-");
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Texts.class"));
+        assertFalse(kof.contains("body not recovered"), "sem stubs:\n" + kof);
+        assertTrue(kof.contains("arg0.substring(0, 1).toUpperCase() + \".\""), "a cadeia encadeada:\n" + kof);
+        assertTrue(kof.contains("arg0.charAt(v1) != arg0.charAt(v2)"), "o loop de dois ponteiros:\n" + kof);
+        assertTrue(kof.contains("v3 == 97 || v3 == 101"), "os códigos de char:\n" + kof);
+        assertTrue(kof.contains("v1.toLowerCase().replace(\" \", \"-\")"), "o slugify encadeado:\n" + kof);
+        // zero-drift executado (oráculo Java REAL: A.L./true/false/false/3/0/hello-world/(vazio))
+        String kofRun = kof + "\nmain() {\n"
+                + "    println(Texts.initials(\"ada\", \"lovelace\"))\n"
+                + "    println(Texts.isPalindrome(\"radar\"))\n    println(Texts.isPalindrome(\"hello\"))\n    println(Texts.isPalindrome(\"ab\"))\n"
+                + "    println(Texts.countVowels(\"hello world\"))\n    println(Texts.countVowels(\"xyz\"))\n"
+                + "    println(Texts.slugify(\"  Hello World  \"))\n    println(Texts.slugify(\"   \"))\n}\n";
+        CompilationResult result = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(result.success(), "compila zero drift:\n" + kofRun + "\n" + result.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("A.L.\ntrue\nfalse\nfalse\n3\n0\nhello-world", output,
+                "zero-drift: os textos como no Java");
+    }
+
+    @Test
     void commuteDomainRecovers(@TempDir Path dir) throws Exception {
         // Fase E (17/10): o dom\u00ednio DESLOCAMENTO — 4 shapes sem c\u00f3digo
         // novo: o costPerDay com a divis\u00e3o double/int, o mode com as
