@@ -58,13 +58,38 @@ final class NativeX86StackAlign {
         return sites.size();
     }
 
-    /** The index just before the call, moved up past its stack-argument pushes. */
+    /**
+     * The index just before the call, moved up past its stack-argument pushes.
+     *
+     * <p>A virtual/interface dispatch places the vtable RESOLUTION instructions
+     * ({@code movq 8(%rax), %r11}, {@code addq $N, %r11}, {@code movq (%r11), %r11})
+     * between the argument pushes and the {@code call *%r11}. Stopping at the first
+     * non-push line therefore left the padding ABOVE the stack arguments, so the
+     * callee read the padding as arg7 and every stack-passed argument came out
+     * shifted (measured, #935: an 8-parameter method received f/g/h wrong, which
+     * made the AV1 palette probe read zero palettes on native x86-64). The scan
+     * skips those resolution lines so the padding lands BELOW the arguments,
+     * exactly as the direct-call path already did.
+     */
     private static int stackArgInsertionPoint(List<String> lines, int callIndex) {
         int ins = callIndex;
-        while (ins > 0 && isStackArgPush(lines.get(ins - 1).trim())) {
-            ins--;
+        while (ins > 0) {
+            String t = lines.get(ins - 1).trim();
+            if (isStackArgPush(t) || isVtableResolution(t) || t.startsWith(".loc")
+                    || t.startsWith("#") || t.isEmpty()) {
+                ins--;
+                continue;
+            }
+            break;
         }
         return ins;
+    }
+
+    /** The vtable tail the emitter places immediately before an indirect call. */
+    private static boolean isVtableResolution(String t) {
+        return t.equals("movq 8(%rax), %r11")
+                || t.equals("movq (%r11), %r11")
+                || (t.startsWith("addq $") && t.endsWith(", %r11"));
     }
 
     /** The emitter's stack-argument push is exactly {@code pushq -N(%rbp)}. */
