@@ -72,17 +72,52 @@ final class NativeX86StackAlign {
      * exactly as the direct-call path already did.
      */
     private static int stackArgInsertionPoint(List<String> lines, int callIndex) {
+        // A helper whose pushed IMMEDIATES are its arguments located by a FIXED
+        // rsp offset: the padding must go below the whole block, so the setup
+        // lines are crossed too. `kof_multi_alloc` (§113) documents
+        // `rsp + 56i + 8(n-i)` for d_i, which only holds when nothing is
+        // inserted between the dimension pushes and the call — padding there
+        // shifted every dimension (measured, #970: `new Int[2][2][2]` read
+        // c[0][1].length as 4). Any other immediate push is an ordinary operand
+        // and is NOT crossed (that regressed Av1PaletteE2ETest).
+        boolean crossSetup = lines.get(callIndex).trim().equals("call kof_multi_alloc");
         int ins = callIndex;
         while (ins > 0) {
             String t = lines.get(ins - 1).trim();
-            if (isStackArgPush(t) || isVtableResolution(t) || t.startsWith(".loc")
-                    || t.startsWith("#") || t.isEmpty()) {
+            if (isStackArgPush(t) || isVtableResolution(t)
+                    || (crossSetup && (isImmediatePush(t) || isRegOnlySetup(t)))
+                    || t.startsWith(".loc") || t.startsWith("#") || t.isEmpty()) {
                 ins--;
                 continue;
             }
             break;
         }
         return ins;
+    }
+
+    /** A literal operand push the emitter produces (`pushq $8`, `pushq $0`). */
+    private static boolean isImmediatePush(String t) {
+        if (!t.startsWith("pushq $") && !t.startsWith("push $")) return false;
+        int i = t.indexOf('$') + 1;
+        if (i >= t.length()) return false;
+        int j = i;
+        if (j < t.length() && t.charAt(j) == '-') j++;
+        while (j < t.length() && Character.isDigit(t.charAt(j))) j++;
+        return j == t.length();
+    }
+
+    /**
+     * Writes an argument register/scratch WITHOUT touching the stack — the
+     * `movl $n, %esi` / `movl $n, %ebx` setup of a runtime helper call such as
+     * `kof_multi_alloc`. Crossing these keeps the padding below the pushed
+     * dimensions (#970's second face).
+     */
+    private static boolean isRegOnlySetup(String t) {
+        if (!(t.startsWith("movl ") || t.startsWith("movq ") || t.startsWith("movzbl ")
+                || t.startsWith("leaq ") || t.startsWith("xorl "))) {
+            return false;
+        }
+        return !t.contains("%rsp") && !t.contains("(%rbp)") && !t.contains("(%rip)");
     }
 
     /** The vtable tail the emitter places immediately before an indirect call. */

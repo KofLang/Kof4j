@@ -133,4 +133,68 @@ class NativeX86StackAlignVtableTest {
         long pads = lines.stream().filter("    subq $8, %rsp"::equals).count();
         assertEquals(1, pads, "exactly one padding insert for one misaligned call: " + lines);
     }
+
+    /**
+     * #970 — {@code kof_multi_alloc} locates dimension {@code d_i} at a FIXED
+     * {@code rsp + 56i + 8(n-i)} offset, so the padding must go below the whole
+     * dimension block. The dimensions are IMMEDIATE pushes ({@code pushq $2}),
+     * not the {@code pushq -N(%rbp)} form, and the helper setup
+     * ({@code movl $N,%edx} / {@code movl $N,%ebx} / {@code movl $1,%esi}) sits
+     * between them and the call. Padding in between shifted every dimension by
+     * one slot: {@code new Int[2][2][2]} read {@code c[0][1].length} as 4
+     * instead of 2.
+     */
+    @Test
+    void multiAllocPaddingGoesBelowTheDimensionPushes() {
+        List<String> lines = new java.util.ArrayList<>(List.of(
+                "Default_Main_main:",
+                "    pushq %rbp",
+                "    movq %rsp, %rbp",
+                "    subq $32, %rsp",
+                "    movq %rdi, -16(%rbp)",
+                "    pushq $2",
+                "    pushq $2",
+                "    pushq $2",
+                "    movl $3, %edx",
+                "    movl $4, %ebx",
+                "    movl $1, %esi",
+                "    call kof_multi_alloc",
+                "    addq $24, %rsp",
+                "    leave",
+                "    ret"));
+        NativeX86StackAlign.alignCalls(lines, 0);
+
+        int subq = lines.indexOf("    subq $8, %rsp");
+        assertTrue(subq >= 0, "the misaligned multi-alloc call must be padded: " + lines);
+        int firstDim = lines.indexOf("    pushq $2");
+        assertTrue(subq < firstDim,
+                "padding must sit BELOW every dimension push, or kof_multi_alloc's fixed"
+                        + " rsp offset reads the wrong dimension (#970: c[0][1].length was 4, not 2)."
+                        + " lines=" + lines);
+    }
+
+    /**
+     * Counter-proof: an ordinary operand push must NOT be crossed — doing so
+     * regressed {@code Av1PaletteE2ETest} (the palette probe's data pointer is an
+     * immediate-pushed operand of a normal call).
+     */
+    @Test
+    void ordinaryImmediateOperandIsNotCrossed() {
+        List<String> lines = new java.util.ArrayList<>(List.of(
+                "Fn_ordinary:",
+                "    pushq %rbp",
+                "    movq %rsp, %rbp",
+                "    pushq $7",
+                "    call kof_array_alloc",
+                "    pushq %rax",
+                "    leave",
+                "    ret"));
+        NativeX86StackAlign.alignCalls(lines, 0);
+        int subq = lines.indexOf("    subq $8, %rsp");
+        if (subq >= 0) {
+            assertTrue(subq > lines.indexOf("    pushq $7"),
+                    "for a normal call the operand push stays the callee's argument;"
+                            + " the padding must not slip below it: " + lines);
+        }
+    }
 }
