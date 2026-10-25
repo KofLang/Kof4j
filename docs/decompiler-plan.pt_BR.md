@@ -1,8 +1,8 @@
-[English](DECOMPILER.md) | [Português](DECOMPILER.pt_BR.md)
+[English](decompiler-plan.md) | [Português](decompiler-plan.pt_BR.md)
 
 # DECOMPILER.md — Decompilador Kof (DESPRIORIZADO 15/09 → REABERTO 28/09, ainda em future/)
 
-**Status:** **EM DESENVOLVIMENTO — promovida a trabalho corrente 14/10 (`D-FUTURE-PROMOTION`, lane nativa/GC `192.168.15.117:0`); a superfície de formas estruturais está no teto honesto (as faces restantes precisam da decisão da lei do diamante ou da lane de interop); **a frente JVM está COMPLETA em 14/10** — Fases A–H entregues (decompile 133/133, translate 77/77 lista §3.3 19/19, compare 15/15 seis canais incl. exceções tipadas + digest de DB, migrate 11/11 JAR + integração comportamental + vetores de entrada; bateria 236/236); as faces restantes do decompilador são o teto structured-shape (decisão da lei do diamante) e a lane de interop; o work-log vive em `LEGACY_MIGRATION.pt_BR.md`** —
+**Status:** **CONCLUÍDO para o escopo autônomo 24/10 (`D-FUTURE-CLOSE`, varredura da mantenedora após a morte de todas as lanes; movido para `docs/`).** A frente JVM está completa e ainda avançava no fechamento — medido no tip **24/10: `DecompileTest` 252/252, `TranslateTest` 77/77 (§3.3 19/19), `CompareTest` 15/15, `MigrateTest` 11/11 — bateria 355/355, zero-drift executado ao longo da campanha (controle de fluxo e formas de switch, sobrecargas, null, estado de instância, math/trig, try/catch, instanceof — idênticos ao oráculo Java real).** **ESTACIONADO (decisão necessária / outra lane):** o teto de formas estruturais — a decisão da lei do diamante (como o Kof deve emitir fluxo de controle em diamante) e as faces da lane de interop; ambas com suas condições de retomada no §remaining deste plano. O texto anterior segue.
 ainda só-plano aqui; a promoção a trabalho corrente é uma-por-vez por
 `D-FUTURE-PROMOTION` (regra dos três estados). O código já no repo fica (kof-cli `Decompile.java` +
 decoders, `DecompileTest` **228/228** (re-medido 22/10 pela lane docs/lab

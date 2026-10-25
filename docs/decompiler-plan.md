@@ -1,8 +1,8 @@
-[English](DECOMPILER.md) | [Português](DECOMPILER.pt_BR.md)
+[English](decompiler-plan.md) | [Português](decompiler-plan.pt_BR.md)
 
 # DECOMPILER.md — Kof Decompiler (DEPRIORITIZED 15/09 → REOPENED 28/09, still in future/)
 
-**Status:** **UNDER DEVELOPMENT — promoted to current work 14/10 (`D-FUTURE-PROMOTION`, lane nativa/GC `192.168.15.117:0`); the structured-shape surface is at its honest ceiling (remaining faces need the diamond-law decision or the interop lane); **the JVM front is COMPLETE and still ADVANCING — measured 15/10: decompile 133/133, translate 77/77 (§3.3 list 19/19), compare 15/15, migrate 11/11 (battery 236/236); the §3.3-frontier slices keep landing (the sign-comparison/ternary/chain families, ~40 slices since 14/10, each behind its own zero-drift face)** — the original Phases A–H landed (decompile 133/133, translate 77/77, compare 15/15, migrate 11/11; battery 236/236, measured 15/10); the remaining decompiler faces are the structured-shape ceiling (diamond-law decision) and the interop lane; the work-log lives in `LEGACY_MIGRATION.md`** —
+**Status:** **CONCLUDED for the autonomous scope 24/10 (`D-FUTURE-CLOSE`, maintainer's sweep after all lanes died; moved to `docs/`).** The JVM front is complete and was still advancing at the close — measured at the tip **24/10: `DecompileTest` 252/252, `TranslateTest` 77/77 (§3.3 19/19), `CompareTest` 15/15, `MigrateTest` 11/11 — battery 355/355, executed zero-drift throughout the campaign (control flow and switch forms, overloading, null handling, instance state, math/trig, try/catch, instanceof — byte-identical to the real Java oracle).** **PARKED (decision-required / other lane):** the structured-shape ceiling — the diamond-law decision (how Kof should emit diamond control flow) and the interop-lane faces; both with their resume conditions in this plan's §remaining. The former wording follows.
 still plan-only here; promotion to current work is one-at-a-time per
 `D-FUTURE-PROMOTION` (the
 three-states rule). Code already in the repo stays (kof-cli `Decompile.java` +

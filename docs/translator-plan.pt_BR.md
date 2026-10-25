@@ -1,4 +1,4 @@
-[English](TRANSLATOR.md) | [Português](TRANSLATOR.pt_BR.md)
+[English](translator-plan.md) | [Português](translator-plan.pt_BR.md)
 
 # TRANSLATOR.md — Tradutor Kof (DESPRIORIZADO 15/09 → REABERTO 28/09, ainda em future/)
 
@@ -6,7 +6,7 @@
 > no header; último código há 6 dias `84c48041`; regra dono-sem-IP=órfão da
 > mantenedora).
 
-**Status:** **EM DESENVOLVIMENTO — promovida a trabalho corrente 14/10 (`D-FUTURE-PROMOTION`, lane nativa/GC `192.168.15.117:0`); a superfície de formas do tradutor está no teto honesto (o mapeamento JDK→stdlib precisa de decisão rule-6); **a superfície de formas do tradutor está COMPLETA para a lista planejada em 14/10** — a lista de suporte progressivo §3.3 está em 19/19 (classes aninhadas static hoistam como `Outer_Inner`; anônimas SAM baixam para lambda; blocos static/instance init dobram; cada decisão com prova executada, `TranslateTest` 77/77); as faces restantes são o mapeamento JDK→stdlib (decisão rule-6, ex.: `ArrayList`→`List`) e a Opção B do inner não-static (campo sintético `this$Outer`, não aprovada); o work-log vive em `LEGACY_MIGRATION.pt_BR.md`** —
+**Status:** **CONCLUÍDO para o escopo autônomo 24/10 (`D-FUTURE-CLOSE`, varredura da mantenedora após a morte de todas as lanes; movido para `docs/`).** A lista de suporte progressivo §3.3 está em 19/19 — `TranslateTest` **77/77**, medido no tip 24/10 — classes aninhadas static hoistam como `Outer_Inner`, anônimas SAM baixam para lambda, blocos static/instance init dobram, cada decisão com prova executada. **ESTACIONADO (decisão necessária):** o mapeamento JDK→stdlib (decisão rule-6, ex.: `ArrayList`→`List`) e a Opção B do inner não-static (campo sintético `this$Outer`, não aprovada). O texto anterior segue.
 ainda só-plano aqui; a promoção a trabalho corrente é uma-por-vez por
 `D-FUTURE-PROMOTION`. O código já no repo fica (`Translate.java` + `TranslateLexer`/`TranslateExpr`,
 `TranslateTest` **77/77**, re-medido 22/10 pela lane que assumiu este orfao) — só a *fila* para aqui. Fase F

@@ -938,6 +938,8 @@ science) **without** destroying the language's simplicity.
 
 ### Promotion queue (`D-FUTURE-PROMOTION`, maintainer 28/09)
 
+> **CLOSED 24/10 (`D-FUTURE-CLOSE`):** the maintainer's sweep after all lanes died concluded the six open plans — `LEGACY_MIGRATION`, `DECOMPILER`, `TRANSLATOR` (autonomous scope complete, moved to `docs/`), `qrcode-wasm` (Phase 1 complete → `docs/`), `image-vision` (delivered surface → `docs/`, the AVIF 3bd divergence parked in `known-bugs` §757-family) and `kofscript-embedding` (zero code, returned to `future/`). The remainders are parked with their resume conditions in each plan; nothing in `development/` is open.
+
 > Before new work: migrate everything to `lab`, then promote exactly ONE plan
 > from `future/` and implement it (cheapest first). **CONCLUDED:** `http-policies`
 > — promoted 28/09 (`D-HTTP-POLICIES`), all slices F0–F6 landed 28/09

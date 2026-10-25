@@ -25,7 +25,7 @@ ok=1
 # image-vision: blocos "AVIF slice <tok> LANDED|FIXED", body prepend (topo = mais novo).
 # A fatia mais nova pode ser FIXED (ex. 3ap = o fix do §689), não só LANDED — casar os dois
 # (blind spot corrigido 13/10: só LANDED deixava o gate cego a um fix recente).
-PLAN=docs/development/image-vision-plan.md
+PLAN=docs/image-vision-plan.md
 TOK=$(grep -oE "AVIF slice [0-9]+[a-z]* (LANDED|FIXED)" "$PLAN" | head -1 | grep -oE "[0-9]+[a-z]*")
 if [ -z "$TOK" ]; then
   echo "PLAN-INDEX: SKIP — $PLAN sem bloco 'AVIF slice <tok> LANDED|FIXED' (formato mudou?)"

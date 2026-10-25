@@ -943,6 +943,8 @@ ciência) **sem** destruir a simplicidade da linguagem.
 
 ### Fila de promoção (`D-FUTURE-PROMOTION`, mantenedora 28/09)
 
+> **FECHADO 24/10 (`D-FUTURE-CLOSE`):** a varredura da mantenedora após a morte de todas as lanes concluiu os seis planos abertos — `LEGACY_MIGRATION`, `DECOMPILER`, `TRANSLATOR` (escopo autônomo completo, movidos para `docs/`), `qrcode-wasm` (Fase 1 completa → `docs/`), `image-vision` (superfície entregue → `docs/`, a divergência AVIF 3bd estacionada na família §757 do `known-bugs`) e `kofscript-embedding` (zero código, devolvido a `future/`). Os restos estão estacionados com suas condições de retomada em cada plano; nada em `development/` está aberto.
+
 > Antes de trabalho novo: migrar tudo para `lab`, então promover exatamente UM
 > plano de `future/` e implementá-lo (mais barato primeiro). **CONCLUÍDO:**
 > `http-policies` — promovido 28/09 (`D-HTTP-POLICIES`), todas as fatias F0–F6

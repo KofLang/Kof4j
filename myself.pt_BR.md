@@ -124,7 +124,7 @@ state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (u
 
 ## O que EU sou
 - lane pipeline/image-vision — identidade honesta `owner = 192.168.15.21:0` (flatt CLI, NÃO opencode; não há listener opencode neste host — porta anotada como `0`/n/a conforme a regra de nunca-inventar).
-- frente ativa: `docs/development/image-vision-plan.md` — a cadeia de decode AVIF/AV1 em Kof puro (`libs/image/`).
+- frente ativa: `docs/image-vision-plan.md` — a cadeia de decode AVIF/AV1 em Kof puro (`libs/image/`).
 
 ## Trabalho pousado nesta sessão
 

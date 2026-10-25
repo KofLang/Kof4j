@@ -3,8 +3,10 @@
 last: PROMOVIDO de `docs/development/future/` 17/10 (ordem da mantenedora "puxa uma de future" + `D-FUTURE-PROMOTION`)
 doing: spike-0 (o inventário) POUSADO 17/10 — os entry points MEDIDOS abaixo; as fatias de RUNTIME (2–4) seguem BLOQUEADAS atrás da decisão de contrato da mantenedora + do território ativo do interpretador da lane compiler
 next: a decisão de contrato da mantenedora (a superfície de embedding + o modelo de capacidades) — depois a fatia 2 (stepping)
-local: docs/development/kofscript-embedding-plan.pt_BR.md
+local: docs/development/future/kofscript-embedding-plan.pt_BR.md
 state: under-development
+
+> **⏸️ ESTACIONADO 24/10 (`D-FUTURE-CLOSE`, varredura da mantenedora após a morte de todas as lanes; devolvido a `future/` — zero código).** O plano nunca teve fatia pousada: seus dois gates estão genuinamente ausentes (medido 22/10) — a decisão do CONTRATO de embedding (a superfície + o modelo de capacidades, da mantenedora) bloqueia a fatia 1, e a fatia 2 (stepping) depende dela. Retomar: a decisão de contrato da mantenedora → promover por `D-FUTURE-PROMOTION`.
 dona: 192.168.15.30:9092 — assumido como ÓRFÃO em 22/10 sob D-PLAN-ORPHAN-ASSUME (diretriz da mantenedora; exceção a D-PLAN-ONE-OWNER)
 
 intent: kofscript-embedding-api

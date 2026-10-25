@@ -1,4 +1,4 @@
-[English](TRANSLATOR.md) | [Português](TRANSLATOR.pt_BR.md)
+[English](translator-plan.md) | [Português](translator-plan.pt_BR.md)
 
 # TRANSLATOR.md — Kof Translator (DEPRIORITIZED 15/09 → REOPENED 28/09, still in future/)
 
@@ -6,7 +6,7 @@
 > in the header; last code 6 days ago `84c48041`; maintainer's owner-without-IP=orphan
 > rule).
 
-**Status:** **UNDER DEVELOPMENT — promoted to current work 14/10 (`D-FUTURE-PROMOTION`, lane nativa/GC `192.168.15.117:0`); the translator shape surface is at its honest ceiling (JDK-to-stdlib mapping needs a rule-6 decision); **the translator shape surface is COMPLETE for the planned list as of 14/10** — the §3.3 progressive-support list is 19/19 (nested static classes hoist as `Outer_Inner`; anonymous SAM classes lower to lambdas; static/instance init blocks fold; each decision recorded with executed proof, `TranslateTest` 77/77); the remaining faces are the JDK-to-stdlib mapping (rule-6 decision, e.g. `ArrayList`→`List`) and the non-static-inner Option B (`this$Outer` synthetic field, not approved); the work-log lives in `LEGACY_MIGRATION.md`** —
+**Status:** **CONCLUDED for the autonomous scope 24/10 (`D-FUTURE-CLOSE`, maintainer's sweep after all lanes died; moved to `docs/`).** The §3.3 progressive-support list is 19/19 — `TranslateTest` **77/77**, measured at the tip 24/10 — nested static classes hoist as `Outer_Inner`, anonymous SAM lower to lambdas, static/instance init blocks fold, each decision with executed proof. **PARKED (decision-required):** the JDK-to-stdlib mapping (rule-6 decision, e.g. `ArrayList`→`List`) and the non-static-inner Option B (`this$Outer` synthetic field, not approved). The former wording follows.
 still plan-only here; promotion to current work is one-at-a-time per
 `D-FUTURE-PROMOTION`. Code
 already in the repo stays (`Translate.java` + `TranslateLexer`/`TranslateExpr`,
@@ -107,7 +107,7 @@ marked for **manual review**, not silently altered.
 
 ## 6. Implementation Phase
 
-Phase F of the platform roadmap (`LEGACY_MIGRATION.md`).
+Phase F of the platform roadmap (`legacy-migration-plan.md`).
 
 Before implementing: a small prototype with a subset of Java
 (classes, fields, methods, if/while, strings) validated against differential

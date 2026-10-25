@@ -3,8 +3,10 @@
 last: PROMOTED from `docs/development/future/` 17/10 (maintainer order "puxa uma de future" + `D-FUTURE-PROMOTION`)
 doing: spike-0 (the inventory) LANDED 17/10 — the MEASURED entry points below; the RUNTIME slices (2–4) stay BLOCKED behind the maintainer's contract decision + the compiler lane's active interpreter territory
 next: the maintainer's contract decision (the embedding surface + the capability model) — then slice 2 (stepping)
-location: docs/development/kofscript-embedding-plan.md
+location: docs/development/future/kofscript-embedding-plan.md
 state: under-development
+
+> **⏸️ PARKED 24/10 (`D-FUTURE-CLOSE`, maintainer's sweep after all lanes died; moved back to `future/` — zero code).** The plan never had a landed slice: its two gates are genuinely absent (measured 22/10) — the embedding CONTRACT decision (the surface + the capability model, maintainer-owned) blocks slice 1, and slice 2 (stepping) depends on it. Resume: the maintainer's contract decision → promote per `D-FUTURE-PROMOTION`.
 owner: 192.168.15.30:9092 — assumed as ORPHAN 22/10 under D-PLAN-ORPHAN-ASSUME (maintainer directive; exception to D-PLAN-ONE-OWNER)
 
 intent: kofscript-embedding-api

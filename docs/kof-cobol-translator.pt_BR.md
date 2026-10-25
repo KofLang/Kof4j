@@ -33,7 +33,7 @@ promoção de future (`docs/development/future/README.md` §"When to move",
   *migração*. A decisão aberta Q9 do KofBOL (o caminho COBOL→contrato Kof é
   KofBOL ou interop?) é **respondida aqui**: o contrato de dados é compartilhado;
   o tradutor o consome.
-- `docs/development/LEGACY_MIGRATION.md` §4 — a **Legacy Semantic IR**
+- `docs/legacy-migration-plan.md` §4 — a **Legacy Semantic IR**
   + o modelo de confiança de 5 níveis (`Confidence.java`) + mapeamento de
   origem. COBOL já é nomeado lá como *frontend possível* (`:185,294,357`). Este
   plano instancia essa IR para COBOL.
