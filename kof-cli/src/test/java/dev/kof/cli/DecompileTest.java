@@ -8837,6 +8837,62 @@ class DecompileTest {
     }
 
     @Test
+    void typedDomainRecovers(@TempDir Path dir) throws Exception {
+        // Fase E (24/10): o domínio TIPOS — zero código novo: o
+        // instanceof com o parâmetro Object (`if (arg0 instanceof String)
+        // "text" else "other"` — o Object do Kof aceita qualquer valor e
+        // o instanceof despacha pelo tipo de execução), o ternário de
+        // tipos MISTOS (flag ? 1 : 2.5 — o braço int é normalizado para
+        // 1.0 no literal, o i2d dobrado no literal) e a negação do
+        // booleano como comparação (toggle → arg0 == 0). Zero-drift
+        // executado (oráculo Java REAL: text/other/1.0/2.5/false/true).
+        Path javaFile = dir.resolve("Typed.java");
+        Files.writeString(javaFile, """
+                public class Typed {
+                    static String describe(Object o) {
+                        if (o instanceof String) return "text";
+                        return "other";
+                    }
+                    static double pick(boolean flag) {
+                        return flag ? 1 : 2.5;
+                    }
+                    static boolean toggle(boolean state) {
+                        return !state;
+                    }
+                }
+                """);
+        runJavac(javaFile, dir);
+        String kof = Decompile.decompile(dir.resolve("Typed.class"));
+        assertFalse(kof.contains("body not recovered"), "sem stubs:\n" + kof);
+        assertTrue(kof.contains("if (arg0 instanceof String) \"text\" else \"other\""),
+                "o instanceof no Object:\n" + kof);
+        assertTrue(kof.contains("if (arg0 != 0) 1.0 else 2.5"),
+                "o ternário de tipos mistos normalizado:\n" + kof);
+        assertTrue(kof.contains("toggle(Bool arg0) = arg0 == 0"),
+                "a negação booleana:\n" + kof);
+        // zero-drift executado (oráculo Java REAL: text/other/1.0/2.5/false/true)
+        String kofRun = kof + "\nmain() {\n"
+                + "    println(Typed.describe(\"hello\"))\n"
+                + "    println(Typed.describe(42))\n"
+                + "    println(Typed.pick(true))\n"
+                + "    println(Typed.pick(false))\n"
+                + "    println(Typed.toggle(true))\n"
+                + "    println(Typed.toggle(false))\n}\n";
+        CompilationResult result = new CompilerDriver().compileSources(java.util.List.of(
+                writeKof(dir, kofRun)), dir.resolve("o"), Target.JVM, dir);
+        assertTrue(result.success(), "compila zero drift:\n" + kofRun + "\n" + result.diagnostics().getDiagnostics());
+        ProcessBuilder pb = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java")
+                .toString(), "-cp", dir.resolve("o").toString(), "Default.Main");
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        assertEquals(0, proc.waitFor(), "run exit\n" + output);
+        assertEquals("text\nother\n1.0\n2.5\nfalse\ntrue", output,
+                "zero-drift: os tipos e o despacho como no Java");
+    }
+
+    @Test
     void commuteDomainRecovers(@TempDir Path dir) throws Exception {
         // Fase E (17/10): o dom\u00ednio DESLOCAMENTO — 4 shapes sem c\u00f3digo
         // novo: o costPerDay com a divis\u00e3o double/int, o mode com as
