@@ -44,7 +44,7 @@ jobs:
           java-version: "25"
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4
+        uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
         with:
           languages: ${{ matrix.language }}
           # security-and-quality + paths-ignore (src/test) no config:
@@ -57,14 +57,14 @@ jobs:
           config-file: .github/codeql/kof4j-config.yml
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4
+        uses: github/codeql-action/autobuild@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
 
       - name: Perform CodeQL Analysis
         # #563/§386: paths-ignore no config NAO suprime suite importada por
         # `- uses:` (medido 20/09 — #941/#942 nasceram com config ativo).
         # Mecanismo que vale em qualquer versao: pos-filtrar o SARIF e subir
         # so o resultado (src/main permanece 100% varrido).
-        uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4
+        uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
         with:
           category: "/language:${{ matrix.language }}"
           upload: false
@@ -76,7 +76,7 @@ jobs:
           python3 scripts/codeql-sarif-filter.py "${{ runner.temp }}/codeql-sarif-${{ matrix.language }}"
 
       - name: Upload filtered SARIF
-        uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
         with:
           sarif_file: ${{ runner.temp }}/codeql-sarif-${{ matrix.language }}
           category: "/language:${{ matrix.language }}"
