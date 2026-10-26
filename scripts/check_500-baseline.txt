@@ -15,14 +15,14 @@
 584	kof-compiler/src/main/java/dev/kof/compiler/CollectionCallLowerer.java
 568	kof-compiler/src/main/java/dev/kof/compiler/CompilerCaptureScanner.java
 561	kof-compiler/src/main/java/dev/kof/compiler/CompilerClassLowering.java
-598	kof-compiler/src/main/java/dev/kof/compiler/CompilerComparisons.java
+608	kof-compiler/src/main/java/dev/kof/compiler/CompilerComparisons.java
 517	kof-compiler/src/main/java/dev/kof/compiler/CompilerDesugar.java
 526	kof-compiler/src/main/java/dev/kof/compiler/CompilerDriver.java
 598	kof-compiler/src/main/java/dev/kof/compiler/CompilerDriverState.java
 583	kof-compiler/src/main/java/dev/kof/compiler/CompilerPipeline.java
 548	kof-compiler/src/main/java/dev/kof/compiler/CompilerRecordSupport.java
 573	kof-compiler/src/main/java/dev/kof/compiler/CompilerTypes.java
-517	kof-compiler/src/main/java/dev/kof/compiler/ExpressionBinaryLowerer.java
+524	kof-compiler/src/main/java/dev/kof/compiler/ExpressionBinaryLowerer.java
 595	kof-compiler/src/main/java/dev/kof/compiler/ExpressionInstanceCallLowerer.java
 515	kof-compiler/src/main/java/dev/kof/compiler/ExpressionStaticCallLowerer.java
 558	kof-compiler/src/main/java/dev/kof/compiler/ExpressionTyper.java
@@ -102,7 +102,7 @@
 569	kof-compiler/src/main/java/dev/kof/compiler/SemanticAnalyzer.java
 588	kof-compiler/src/main/java/dev/kof/compiler/TypeChecker.java
 529	kof-compiler/src/main/java/dev/kof/compiler/Type.java
-566	kof-compiler/src/main/java/dev/kof/compiler/wasm/WasmLowering.java
+633	kof-compiler/src/main/java/dev/kof/compiler/wasm/WasmLowering.java
 503	kof-compiler/src/main/java/dev/kof/compiler/wasm/WasmStdoutRuntime.java
 598	kof-runtime/src/main/java/dev/kof/runtime/KofJsRunner.java
 576	kof-script/src/main/java/dev/kof/script/KofScript.java
