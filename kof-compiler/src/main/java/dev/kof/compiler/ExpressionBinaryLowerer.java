@@ -109,8 +109,15 @@ public final class ExpressionBinaryLowerer {
                     driver, bin.left(), locals);
             ExpressionNode rightC = CompilerComparisons.nullableBoolTruthinessRewrite(
                     driver, bin.right(), locals);
+            // Fase E (24/10, #776): os literais sinteticos da cadeia logica
+            // levam o TIPO da expressao — um `b1 && b2` de BOOLs no WASI
+            // empilha i32 e o zero/um INT (i64) rompia a largura (MODULO
+            // INVALIDO; os valores do join tambem tinham de casar).
+            Type logicType = ExpressionTyper.inferExprType(driver, bin, locals);
+            Type zeroLit = logicType instanceof Type.PrimitiveType lpt
+                    && "bool".equalsIgnoreCase(lpt.name()) ? Type.PrimitiveType.BOOL : Type.PrimitiveType.INT;
             localIdx = ExpressionLowerer.emitExpression(driver, leftC, ops, owner, localIdx, locals);
-            ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
+            ops.add(new KofLoadLiteral(zeroLit, 0));
             if ("||".equals(bin.operator())) {
                 ops.add(new KofConditionalJump(KofComparison.NE, trueLabel, falseLabel));
             } else {
@@ -121,9 +128,9 @@ public final class ExpressionBinaryLowerer {
     ops.add(new KofJump(endLabel));
     ops.add(new KofLabel(trueLabel));
     if ("||".equals(bin.operator())) {
-        ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 1));
+        ops.add(new KofLoadLiteral(zeroLit, 1));
     } else {
-        ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
+        ops.add(new KofLoadLiteral(zeroLit, 0));
     }
     ops.add(new KofLabel(endLabel));
     return localIdx;

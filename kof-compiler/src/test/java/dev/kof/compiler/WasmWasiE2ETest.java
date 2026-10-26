@@ -324,4 +324,92 @@ class WasmWasiE2ETest {
                 "record Bool/Char/String fields must equal the JVM oracle");
     }
 
+
+    @Test
+    void boolVariableConditionsMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // Fase E (24/10, #776): as condicoes sobre BOOL-VARIAVEL — o defeito
+        // medido no plano (`var b = 1 > 2` + `if (b)` gerava modulo INVALIDO:
+        // o slot bool e i32 no WASI e o literal INT (i64) rompia a largura).
+        // Cobre if/else, if, while(flag), do-while(comparacao com false),
+        // a negacao !d e a chamada Bool como condicao; o oracle e o JVM.
+        var wasmtime = host("wasmtime");
+        var wasmTools = host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                Bool isBig(Int n) {
+                    return n > 100
+                }
+                main(String[] args) {
+                    var b = 1 > 2
+                    if (b) { println(10) } else { println(20) }
+                    var t = 1 < 2
+                    if (t) { println(30) }
+                    var flag = true
+                    var i = 0
+                    while (flag) {
+                        i = i + 1
+                        if (i >= 3) { flag = false }
+                    }
+                    println(i)
+                    var d = false
+                    var n = 0
+                    do {
+                        n = n + 1
+                        if (n >= 2) { d = true }
+                    } while (d == false)
+                    println(n)
+                    if (!d) { println(40) } else { println(50) }
+                    if (isBig(200)) { println(70) }
+                }
+                """);
+        var driver = new CompilerDriver();
+        var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
+        assertTrue(jvm.success(), "jvm bool-cond compile: " + jvm.diagnostics().getDiagnostics());
+        var oracle = new ProcessBuilder(List.of(jvmBin(), "-cp",
+                Path.of(dir.toString(), "out-jvm").toString(), "Default.Main"))
+                .redirectErrorStream(true).start();
+        String expected = new String(oracle.getInputStream().readAllBytes());
+        assertTrue(oracle.waitFor(120, TimeUnit.SECONDS) && oracle.exitValue() == 0,
+                "JVM bool-cond oracle: " + expected);
+        var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
+        assertTrue(wasi.success(), "wasi bool-cond compile: " + wasi.diagnostics().getDiagnostics());
+        Path wasm = Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm");
+        var v = new ProcessBuilder(wasmTools.toString(), "validate", wasm.toString())
+                .redirectErrorStream(true).start();
+        String vout = new String(v.getInputStream().readAllBytes());
+        assertTrue(v.waitFor(60, TimeUnit.SECONDS) && v.exitValue() == 0,
+                "bool-cond module must pass the official validator: " + vout);
+        var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run", wasm.toString()))
+                .redirectErrorStream(true).start();
+        String out = new String(proc.getInputStream().readAllBytes());
+        assertTrue(proc.waitFor(60, TimeUnit.SECONDS), "host within 60s");
+        assertEquals(0, proc.exitValue(), "clean WASI exit bool-cond: " + out);
+        assertEquals(expected.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                "Bool-variable conditions must equal the JVM oracle");
+    }
+
+    @Test
+    void andOverBoolVariablesIsAnHonestRefusal(@TempDir Path dir) throws Exception {
+        // Fase E (24/10, #776): `a && b` sobre BOOLs carrega um valor pela
+        // fronteira de bloco e a maquina de estados do WASI nao transporta a
+        // pilha entre estados — o subset recusa com WASM002 e NAO emite
+        // artefato (Q7: modulo invalido nunca). O shape continua certo nos
+        // outros alvos (JVM/nativo/JS), cobertos pelas suites deles.
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var b1 = true
+                    var b2 = false
+                    if (b1 && b2) { println(40) } else { println(50) }
+                }
+                """);
+        var wasi = new CompilerDriver().compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
+        assertFalse(wasi.success(), "the bool && bool shape is outside the WASI subset");
+        assertTrue(wasi.diagnostics().getDiagnostics().stream()
+                        .anyMatch(d -> String.valueOf(d).contains("WASM002")),
+                "refusal must be the named WASM002: " + wasi.diagnostics().getDiagnostics());
+        assertFalse(Files.exists(Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm")),
+                "Q7: no artifact for the refused shape");
+    }
+
 }

@@ -220,9 +220,19 @@ public final class CompilerComparisons {
     static int emitTruthinessJump(CompilerDriver driver, ExpressionNode cond,
                                   List<KofOperation> ops, String owner, int localIdx,
                                   List<IRLocalVariable> locals, LabelId trueLabel, LabelId falseLabel) {
-        localIdx = ExpressionLowerer.emitExpression(driver,
-                nullableBoolTruthinessRewrite(driver, cond, locals), ops, owner, localIdx, locals);
-        ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
+        ExpressionNode c = nullableBoolTruthinessRewrite(driver, cond, locals);
+        localIdx = ExpressionLowerer.emitExpression(driver, c, ops, owner, localIdx, locals);
+        // Fase E (24/10, #776): o zero sintetico leva o TIPO da condicao — um
+        // Bool do WASI empilha i32 e o literal INT (i64.const) batia em
+        // largura diferente (MODULO INVALIDO medido: `var b = 1 > 2` +
+        // `if (b)`, `if (isBig(200))`, `while (flag)`). Com BOOL o literal sai
+        // i32.const (o emitLiteral do WASI ja mapeia bool → i32) e o JVM/
+        // nativo tratam bool como int — o salto fica INT (o WASI decide a
+        // comparacao pela largura real empilhada).
+        Type condType = ExpressionTyper.inferExprType(driver, c, locals);
+        Type zeroType = condType instanceof Type.PrimitiveType pt
+                && "bool".equalsIgnoreCase(pt.name()) ? Type.PrimitiveType.BOOL : Type.PrimitiveType.INT;
+        ops.add(new KofLoadLiteral(zeroType, 0));
         ops.add(new KofConditionalJump(KofComparison.NE, trueLabel, falseLabel));
         return localIdx;
     }

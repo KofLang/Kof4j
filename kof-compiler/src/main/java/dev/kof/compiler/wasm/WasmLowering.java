@@ -234,8 +234,50 @@ final class WasmLowering {
         }
     }
 
+    /**
+     * Fase E (24/10, #776): valor VIVO na fronteira de bloco — um produtor
+     * imediatamente antes do salto/queda deixa um valor na pilha que a maquina
+     * de estados do WASI NAO carrega entre estados (cada estado e um bloco
+     * `if` sem resultado). Medido no `if (b1 && b2)` de BOOLs: o valor do
+     * segundo operando cruzava o salto e o modulo saia INVALIDO
+     * ("expected i32 but nothing on stack"). O subset nao cobre o shape —
+     * recusa honesta com o diagnostico nomeado (Q7: nunca artefato invalido).
+     */
+    private static boolean isValueProducer(KofOperation op) {
+        if (op instanceof KofCall kc) {
+            // println/print sao VOID (o WasmPrintCode consome o valor); so uma
+            // chamada com retorno deixa valor na pilha
+            if ("println".equals(kc.methodName()) || "print".equals(kc.methodName())) return false;
+            return kc.returnType() != null && !(kc.returnType() instanceof Type.PrimitiveType pt
+                    && "void".equalsIgnoreCase(pt.name()));
+        }
+        return op instanceof KofLoadLocal || op instanceof KofLoadLiteral
+                || op instanceof KofBinary || op instanceof KofUnary
+                || op instanceof KofLoadField || op instanceof KofArrayLoad
+                || op instanceof KofNewObject;
+    }
+
+    private static void refuseLiveStack(List<KofOperation> ops, int terminatorIdx) {
+        if (terminatorIdx > 0 && isValueProducer(ops.get(terminatorIdx - 1))) {
+            throw new WasmUnsupportedException("valor vivo na fronteira de bloco ("
+                    + ops.get(terminatorIdx - 1).getClass().getSimpleName()
+                    + ") — a maquina de estados do WASI nao carrega a pilha entre estados"
+                    + " (ex.: `a && b` sobre variaveis); WASM002 — docs/wasm-wasi-plan.md (#776)");
+        }
+    }
+
     private static void emitBlock(int blockIdx, List<KofOperation> ops, int nextBlock,
                                   Ctx ctx, List<WasmInstr> out) {
+        // Fase E (24/10, #776): o rastreio de largura e POR BLOCO — um valor
+        // empilhado num bloco nao pode ditar a largura de um literal no bloco
+        // SEGUINTE (a maquina de estados separa statements em blocos): sem o
+        // reset, o `println(1)` do estado seguinte herdava lastPush=="bool" e
+        // saia i32.const contra o parametro i64 do println -> MODULO INVALIDO
+        // ("expected i64, found i32", o defeito medido no bool-if). Os padroes
+        // que usam lastPush (literal bool do desugar, null handle, truthiness)
+        // sao contiguos DENTRO do bloco.
+        ctx.lastPush = null;
+        ctx.lastPushWide = false;
         out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.pcIdx, "pc"));
         out.add(new WasmInstr.Const(0, blockIdx));
         out.add(new WasmInstr.Simple(0x46, "i32.eq"));
@@ -245,6 +287,7 @@ final class WasmLowering {
         for (; i < ops.size(); i++) {
             KofOperation op = ops.get(i);
             if (op instanceof KofJump kj) {
+                refuseLiveStack(ops, i);
                 jumpTo(ctx.blockOf(kj.target()), 1, ctx, out);
                 terminateBlock(i + 1 == ops.size(), out);
                 out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
@@ -265,6 +308,7 @@ final class WasmLowering {
             emitPlain(ops, i, ctx, out);
         }
         // bloco sem terminador: continua no proximo por ordem (fallthrough do IR linear)
+        refuseLiveStack(ops, ops.size());
         if (nextBlock >= 0) {
             jumpTo(nextBlock, 1, ctx, out);
         } else {
@@ -282,6 +326,22 @@ final class WasmLowering {
                 default -> throw new WasmUnsupportedException("comparacao de handle '" + cj.comparison()
                         + "' fora do subset (WASM002) — docs/wasm-wasi-plan.md (#776)");
             }
+        } else if ("bool".equals(ctx.lastPush)) {
+            // Fase E (24/10, #776): a truthiness sobre um BOOL-VARIAVEL —
+            // [load b (slot i32 no WASI), literal 0] + este salto. O literal
+            // ja sai i32 (o caso especial do KofLoadLiteral mantem
+            // lastPush=="bool"), mas o operando do IR carrega o tipo PADRAO
+            // INT e o cmp emitia i64.ne sobre dois i32 -> MODULO INVALIDO
+            // ("type mismatch: expected i64, found i32" — o defeito medido:
+            // `var b = 1 > 2` + `if (b)`; os mesmos produtores de truthiness
+            // do if/while/do-while/for/&&). A largura REAL da pilha decide:
+            // bool -> i32; so eq/ne fazem sentido sobre um bool.
+            switch (cj.comparison()) {
+                case EQ -> out.add(new WasmInstr.Simple(0x46, "i32.eq"));
+                case NE -> out.add(new WasmInstr.Simple(0x47, "i32.ne"));
+                default -> throw new WasmUnsupportedException("comparacao '" + cj.comparison()
+                        + "' sobre Bool fora do subset (WASM002) — docs/wasm-wasi-plan.md (#776)");
+            }
         } else {
             switch (cj.comparison()) {
                 case EQ -> out.add(cmp(cj, "eq", 0x51, 0x61));
@@ -297,6 +357,9 @@ final class WasmLowering {
         out.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, null, 0x40));
         jumpTo(ctx.blockOf(cj.falseLabel()), 2, ctx, out);
         out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
+        // o salto consumiu os dois operandos: o rastro de largura nao vale mais
+        ctx.lastPush = null;
+        ctx.lastPushWide = false;
     }
 
     private static void terminateBlock(boolean cleanEnd, List<WasmInstr> out) {
@@ -324,6 +387,10 @@ final class WasmLowering {
                 out.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
             }
             out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.w(sl.index()), "l" + sl.index()));
+            // Fase E (24/10, #776): o store CONSOME o valor — limpar o rastro
+            // (sem isto `var flag = true` + `var i = 0` fazia o zero do i
+            // herdar "bool" e sair i32 num slot i64 -> MODULO INVALIDO).
+            ctx.lastPush = null;
             ctx.lastPushWide = false;
         } else if (op instanceof KofLoadLiteral lit) {
             if (ctx.wasi && lit.value() instanceof String str) {
