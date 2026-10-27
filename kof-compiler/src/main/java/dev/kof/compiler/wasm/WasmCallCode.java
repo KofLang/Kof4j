@@ -204,6 +204,29 @@ final class WasmCallCode {
                                 + " — docs/wasm-wasi-plan.md (#776)");
                     }
                 }
+                case "kof_list_set", "kof_list_remove", "kof_list_clear" -> {
+                    // Fase E (27/10, #776): os MUTADORES (fatia 3). O set e'
+                    // [h, i, v] SEM fantasma (medido no WAT: o drop aqui
+                    // consumia o proprio valor); o remove e' [int]→int SEM
+                    // fantasma (o KofPop do desugar consome o elemento
+                    // devolvido); o clear e' []→void.
+                    if ("kof_list_set".equals(kc.methodName())) {
+                        if ("string".equals(elem)) {
+                            if (!"string".equals(ctx.lastPush)) {
+                                throw new WasmUnsupportedException("List.set('" + ctx.lastPush
+                                        + "') em List<String> (WASM002) — docs/wasm-wasi-plan.md (#776)");
+                            }
+                            out.add(new WasmInstr.Simple(0xad, "i64.extend_i32_u"));
+                        }
+                        out.add(new WasmInstr.Call("kof.listSet"));
+                    } else if ("kof_list_remove".equals(kc.methodName())) {
+                        out.add(new WasmInstr.Call("kof.listRemove"));
+                    } else {
+                        out.add(new WasmInstr.Call("kof.listClear"));
+                    }
+                    ctx.lastPush = null;
+                    ctx.lastPushWide = false;
+                }
                 case "kof_list_contains", "kof_list_index_of", "kof_list_last_index_of" -> {
                     // a JVM compara .equals: so' o Int tem igualdade barata
                     // aqui — a igualdade de CONTEUDO de String no runtime e'

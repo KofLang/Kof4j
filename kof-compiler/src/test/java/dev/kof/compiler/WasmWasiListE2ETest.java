@@ -99,6 +99,40 @@ class WasmWasiListE2ETest {
     }
 
     @Test
+    void listMutatorsMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // Fase E (27/10, #776): LIST fatia 3 — os MUTADORES: set (store com
+        // trap de fronteira — o Kof set e' void, o velho NAO volta), remove
+        // (por indice, desloca para a esquerda, DEVOLVE o elemento — o
+        // KofPop do desugar o consome) e clear (len=0). set/remove tem SEM
+        // fantasma na pilha (diferente das consultas da fatia 2 — medido no
+        // WAT: o drop aqui consumia o proprio valor). Os elems String viajam
+        // como na fatia 2 (o handle zero-extendido no slot i64).
+        var wasmtime = host("wasmtime");
+        var wasmTools = host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var xs = listOf(10, 20, 30)
+                    xs.set(1, 99)
+                    println(xs.get(1))
+                    xs.remove(0)
+                    println(xs.size())
+                    println(xs.get(0))
+                    xs.clear()
+                    println(xs.size())
+                    println(xs.isEmpty())
+                    var ss = listOf("a", "b", "c")
+                    ss.set(1, "z")
+                    println(ss.get(1))
+                    ss.remove(0)
+                    println(ss.get(0))
+                    println(ss.size())
+                }
+                """);
+        assertListFaceMatchesJvm(dir);
+    }
+
+    @Test
     void listOfNonIntElementIsHonestRefusal(@TempDir Path dir) throws Exception {
         // Fase E (27/10, #776): a fatia so' admite elems Int — um add de
         // String recusa pelo nome (WASM002, sem artefato — Q7: nunca lista

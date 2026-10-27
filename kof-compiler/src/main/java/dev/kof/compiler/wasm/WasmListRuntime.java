@@ -32,7 +32,7 @@ final class WasmListRuntime {
     static final Set<String> NAMES = Set.of(
             "kof_list_new", "kof_list_add", "kof_list_size", "kof_list_get",
             "kof_list_contains", "kof_list_index_of", "kof_list_last_index_of",
-            "kof_list_is_empty");
+            "kof_list_is_empty", "kof_list_set", "kof_list_remove", "kof_list_clear");
 
     /**
      * O corpo COMUM de contains/indexOf/lastIndexOf: varre [data+i*8]
@@ -337,6 +337,124 @@ final class WasmListRuntime {
                 List.of(WasmFunc.TYPE_I64), List.of(WasmFunc.TYPE_I64, WasmFunc.TYPE_I32), b);
     }
 
+
+    /** `kof.listSet(h i32, i i64, v i64)` — store com trap de fronteira. */
+    private static WasmFunc listSet() {
+        List<WasmInstr> b = new ArrayList<>();
+        // os params 0,1,2 = h,i,v — os locais comecam no 3 (o set 2
+        // SOBRESCREVEA o proprio param v: o validator rejeitou o store)
+        get(b, 0, "h");
+        i32c(b, 8);
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD64, 0));
+        set(b, 3, "len");
+        get(b, 1, "i");
+        get(b, 3, "len");
+        b.add(new WasmInstr.Simple(0x5a, "i64.ge_u"));           // 0x5a = ge_u
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "oob", 0x40));
+        b.add(new WasmInstr.Simple(0x00, "unreachable"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "oob", 0x40));
+        get(b, 0, "h");
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
+        set(b, 4, "data");
+        get(b, 4, "data");
+        get(b, 1, "i");
+        i64c(b, 8);
+        b.add(new WasmInstr.Simple(0x7e, "i64.mul"));
+        b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        get(b, 2, "v");
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE64, 0));
+        return new WasmFunc("kof.listSet", List.of(WasmFunc.TYPE_I32, WasmFunc.TYPE_I64, WasmFunc.TYPE_I64),
+                List.of(), List.of(WasmFunc.TYPE_I64, WasmFunc.TYPE_I32), b);
+    }
+
+    /** `kof.listRemove(h i32, i i64) -> i64` — desloca para a esquerda,
+     *  len-1, DEVOLVE o elemento removido (o contrato ArrayList). */
+    private static WasmFunc listRemove() {
+        List<WasmInstr> b = new ArrayList<>();
+        // 0=h, 1=i; 2=len, 3=data, 4=old, 5=j
+        get(b, 0, "h");
+        i32c(b, 8);
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD64, 0));
+        set(b, 2, "len");
+        get(b, 1, "i");
+        get(b, 2, "len");
+        b.add(new WasmInstr.Simple(0x5a, "i64.ge_u"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "oob", 0x40));
+        b.add(new WasmInstr.Simple(0x00, "unreachable"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "oob", 0x40));
+        get(b, 0, "h");
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
+        set(b, 3, "data");
+        get(b, 3, "data");
+        get(b, 1, "i");
+        i64c(b, 8);
+        b.add(new WasmInstr.Simple(0x7e, "i64.mul"));
+        b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD64, 0));
+        set(b, 4, "old");
+        // for j in i..len-2: [data+j*8] = [data+(j+1)*8]
+        get(b, 1, "i");
+        set(b, 5, "j");
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, "sh", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, "shl", 0x40));
+        get(b, 5, "j");
+        get(b, 2, "len");
+        i64c(b, 1);
+        b.add(new WasmInstr.Simple(0x7d, "i64.sub"));
+        b.add(new WasmInstr.Simple(0x5a, "i64.ge_u"));           // j >= len-1 sai
+        b.add(new WasmInstr.Branch("sh", 1, true));
+        get(b, 3, "data");
+        get(b, 5, "j");
+        i64c(b, 8);
+        b.add(new WasmInstr.Simple(0x7e, "i64.mul"));
+        b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));            // data+j*8
+        get(b, 3, "data");
+        get(b, 5, "j");
+        i64c(b, 8);
+        b.add(new WasmInstr.Simple(0x7e, "i64.mul"));
+        b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        i32c(b, 8);
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD64, 0));       // [data+(j+1)*8]
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE64, 0));
+        get(b, 5, "j");
+        i64c(b, 1);
+        b.add(new WasmInstr.Simple(0x7c, "i64.add"));
+        set(b, 5, "j");
+        b.add(new WasmInstr.Branch("shl", 0));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "shl", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "sh", 0x40));
+        get(b, 0, "h");
+        i32c(b, 8);
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        get(b, 2, "len");
+        i64c(b, 1);
+        b.add(new WasmInstr.Simple(0x7d, "i64.sub"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE64, 0));      // len-1
+        get(b, 4, "old");
+        return new WasmFunc("kof.listRemove", List.of(WasmFunc.TYPE_I32, WasmFunc.TYPE_I64),
+                List.of(WasmFunc.TYPE_I64), List.of(WasmFunc.TYPE_I64, WasmFunc.TYPE_I32,
+                        WasmFunc.TYPE_I64, WasmFunc.TYPE_I64), b);
+    }
+
+    /** `kof.listClear(h i32)` — len = 0 (a capacidade fica; o bump nao libera). */
+    private static WasmFunc listClear() {
+        List<WasmInstr> b = new ArrayList<>();
+        get(b, 0, "h");
+        i32c(b, 8);
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        i64c(b, 0);
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE64, 0));
+        return new WasmFunc("kof.listClear", List.of(WasmFunc.TYPE_I32),
+                List.of(), List.of(), b);
+    }
+
     /** Toda a familia (o chamador registra quando um kof_list_* aparece). */
     static List<WasmFunc> all() {
         List<WasmFunc> fs = new ArrayList<>();
@@ -348,6 +466,9 @@ final class WasmListRuntime {
         fs.add(listContains());
         fs.add(listIndexOf());
         fs.add(listLastIndexOf());
+        fs.add(listSet());
+        fs.add(listRemove());
+        fs.add(listClear());
         return fs;
     }
 }
