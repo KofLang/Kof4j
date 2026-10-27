@@ -518,8 +518,13 @@ final class WasmMathRuntime {
         // do roundTo) + sign (o select i64)
         fs.add(new WasmFunc("kof_math_dclamp", List.of(0x7c, 0x7c, 0x7c), List.of(0x7c), List.of(), mathDClampBody()));
         fs.add(new WasmFunc("kof_math_dsign", List.of(0x7c), List.of(0x7e), List.of(0x7f), mathDSignBody()));
-        // MATH-LIBM-1 (27/10): o kernel_sin fdlibm — WasmSinKernel (split)
+        // MATH-LIBM-1/2 (27/10): o kernel_sin + o caso especial n=±1 + o
+        // kernel_cos — WasmSinKernel (split check_500)
         fs.add(WasmSinKernel.sinFunc());
+        fs.add(WasmSinKernel.smallFunc());
+        fs.add(WasmSinKernel.specialFunc());
+        fs.add(WasmSinKernel.nearHalfFunc());
+        fs.add(WasmSinKernel.cosFunc());
         return fs;
     }
 }
