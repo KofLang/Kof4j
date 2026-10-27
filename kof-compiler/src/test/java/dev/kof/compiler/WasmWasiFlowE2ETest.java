@@ -233,4 +233,34 @@ class WasmWasiFlowE2ETest {
         assertFaceMatchesJvm(dir);
     }
 
+
+    @Test
+    void mathDoubleArithmeticFamilyMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // Fase E (27/10, #776): a familia DOUBLE de aritmetica pura do math —
+        // sqrt (a INSTRUCAO f64.sqrt do WASM), toRadians/toDegrees (a MESMA
+        // ordem do Math.toRadians/ToDegrees da JVM: v/180*PI e v*180/PI —
+        // bit a bit), lerp (a+(b-a)*t) e percentage (part/total*100). Os
+        // casos usam resultados INTEGRAIS porque o print fracionario segue
+        // atras do port Schubfach (o teto honesto registrado). sin/cos/tan/
+        // atan2/pow seguem fora (libm — fatia propria). O oracle e o JVM.
+        var wasmtime = host("wasmtime");
+        var wasmTools = host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    println(math.sqrt(9.0))
+                    println(math.sqrt(16.0))
+                    println(math.sqrt(25.0))
+                    println(math.toDegrees(1.5707963267948966))
+                    println(math.toDegrees(3.141592653589793))
+                    println(math.lerp(0.0, 10.0, 0.4))
+                    println(math.lerp(10.0, 20.0, 0.5))
+                    println(math.percentage(200.0, 400.0))
+                    var w = 3.0
+                    println(math.sqrt(w * w * 4.0))
+                }
+                """);
+        assertFaceMatchesJvm(dir);
+    }
+
 }

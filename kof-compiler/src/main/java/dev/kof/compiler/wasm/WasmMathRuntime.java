@@ -28,7 +28,15 @@ final class WasmMathRuntime {
     static final Set<String> NAMES = Set.of(
             "kof_math_abs", "kof_math_sign", "kof_math_min", "kof_math_max",
             "kof_math_clamp", "kof_math_isEven", "kof_math_isOdd",
-            "kof_math_isPositive", "kof_math_isNegative", "kof_math_isZero");
+            "kof_math_isPositive", "kof_math_isNegative", "kof_math_isZero",
+            // Fase E (27/10, #776): a familia DOUBLE de aritmetica pura —
+            // sqrt e' INSTRUCAO nativa do WASM (0x9f); toRadians/toDegrees
+            // repl ica m a ordem do Math.toRadians/Degrees da JVM (div 180,
+            // mul PI — a mesma sequencia, bit a bit); lerp/percentage sao
+            // aritmetica pura com a ordem do runtime nativo. sin/cos/tan/
+            // asin/acos/atan/atan2/pow continuam FORA (libm — fatia propria).
+            "kof_math_sqrt", "kof_math_toRadians", "kof_math_toDegrees",
+            "kof_math_lerp", "kof_math_percentage");
 
     static boolean usesAny(List<IRMethod> methods) {
         for (IRMethod m : methods) {
@@ -167,6 +175,62 @@ final class WasmMathRuntime {
         return b;
     }
 
+    // ---- familia DOUBLE (f64): sqrt = instrucao nativa; toRadians/
+    // toDegrees com a MESMA ordem do Math.toRadians/ToDegrees da JVM
+    // (v/180*PI e v*180/PI) para zero-drift bit a bit; lerp/percentage
+    // com a ordem do runtime nativo. ----
+
+    private static List<WasmInstr> sqrtBody() {
+        List<WasmInstr> b = new ArrayList<>();
+        get(b, 0, "x");
+        b.add(new WasmInstr.Simple(0x9f, "f64.sqrt"));
+        return b;
+    }
+
+    private static List<WasmInstr> toRadiansBody() {
+        List<WasmInstr> b = new ArrayList<>();
+        get(b, 0, "d");
+        b.add(new WasmInstr.Const(180.0));
+        b.add(new WasmInstr.Simple(0xa3, "f64.div"));
+        b.add(new WasmInstr.Const(Math.PI));
+        b.add(new WasmInstr.Simple(0xa2, "f64.mul"));
+        return b;
+    }
+
+    private static List<WasmInstr> toDegreesBody() {
+        List<WasmInstr> b = new ArrayList<>();
+        get(b, 0, "d");
+        b.add(new WasmInstr.Const(180.0));
+        b.add(new WasmInstr.Simple(0xa2, "f64.mul"));
+        b.add(new WasmInstr.Const(Math.PI));
+        b.add(new WasmInstr.Simple(0xa3, "f64.div"));
+        return b;
+    }
+
+    /** lerp(a,b,t) = a + (b-a)*t (a ordem do runtime nativo). Locais: 3=t? nao — sem locais. */
+    private static List<WasmInstr> lerpBody() {
+        List<WasmInstr> b = new ArrayList<>();
+        get(b, 0, "a");
+        get(b, 1, "b");
+        get(b, 0, "a");
+        b.add(new WasmInstr.Simple(0xa1, "f64.sub"));
+        get(b, 2, "t");
+        b.add(new WasmInstr.Simple(0xa2, "f64.mul"));
+        b.add(new WasmInstr.Simple(0xa0, "f64.add"));
+        return b;
+    }
+
+    /** percentage(part,total) = part/total*100.0 (div-then-mul, ordem do nativo). */
+    private static List<WasmInstr> percentageBody() {
+        List<WasmInstr> b = new ArrayList<>();
+        get(b, 0, "part");
+        get(b, 1, "total");
+        b.add(new WasmInstr.Simple(0xa3, "f64.div"));
+        b.add(new WasmInstr.Const(100.0));
+        b.add(new WasmInstr.Simple(0xa2, "f64.mul"));
+        return b;
+    }
+
     /** Todas as funcoes da familia (o chamador registra quando usadas). */
     static List<WasmFunc> all() {
         List<WasmFunc> fs = new ArrayList<>();
@@ -180,6 +244,12 @@ final class WasmMathRuntime {
         fs.add(new WasmFunc("kof_math_isPositive", List.of(0x7e), List.of(0x7f), List.of(), isPositiveBody()));
         fs.add(new WasmFunc("kof_math_isNegative", List.of(0x7e), List.of(0x7f), List.of(), isNegativeBody()));
         fs.add(new WasmFunc("kof_math_isZero", List.of(0x7e), List.of(0x7f), List.of(), isZeroBody()));
+        // DOUBLE
+        fs.add(new WasmFunc("kof_math_sqrt", List.of(0x7c), List.of(0x7c), List.of(), sqrtBody()));
+        fs.add(new WasmFunc("kof_math_toRadians", List.of(0x7c), List.of(0x7c), List.of(), toRadiansBody()));
+        fs.add(new WasmFunc("kof_math_toDegrees", List.of(0x7c), List.of(0x7c), List.of(), toDegreesBody()));
+        fs.add(new WasmFunc("kof_math_lerp", List.of(0x7c, 0x7c, 0x7c), List.of(0x7c), List.of(), lerpBody()));
+        fs.add(new WasmFunc("kof_math_percentage", List.of(0x7c, 0x7c), List.of(0x7c), List.of(), percentageBody()));
         return fs;
     }
 }
