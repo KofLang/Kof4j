@@ -48,7 +48,12 @@ final class WasmMathRuntime {
             "kof_math_dmin", "kof_math_dmax",
             // MATH-D-2 (27/10): clamp/sign doubles — as cadeias branchy do
             // CONTRATO da família int (nunca min/max); o select só no sign
-            "kof_math_dclamp", "kof_math_dsign");
+            "kof_math_dclamp", "kof_math_dsign",
+            // MATH-LIBM-1 (27/10): o __kernel_sin fdlibm — WasmSinKernel
+            // (split check_500). A fundação MEDIDA: Math.sin == StrictMath
+            // em 29/29; cos DERIVA 5/29 por 1 ulp (a face cos paridade está
+            // MORTA — veredito registrado)
+            "kof_math_sin");
 
     static boolean usesAny(List<IRMethod> methods) {
         for (IRMethod m : methods) {
@@ -513,6 +518,8 @@ final class WasmMathRuntime {
         // do roundTo) + sign (o select i64)
         fs.add(new WasmFunc("kof_math_dclamp", List.of(0x7c, 0x7c, 0x7c), List.of(0x7c), List.of(), mathDClampBody()));
         fs.add(new WasmFunc("kof_math_dsign", List.of(0x7c), List.of(0x7e), List.of(0x7f), mathDSignBody()));
+        // MATH-LIBM-1 (27/10): o kernel_sin fdlibm — WasmSinKernel (split)
+        fs.add(WasmSinKernel.sinFunc());
         return fs;
     }
 }

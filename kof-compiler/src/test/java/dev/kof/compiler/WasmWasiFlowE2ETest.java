@@ -468,4 +468,32 @@ class WasmWasiFlowE2ETest {
                 """);
         assertFaceMatchesJvm(dir);
     }
+
+    @Test
+    void mathSinSmallRangeMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // MATH-LIBM-1 (27/10, #776): o __kernel_sin fdlibm na faixa PEQUENA
+        // (|x| ≤ π/4) — a FUNDAÇÃO MEDIDA: Math.sin == StrictMath.sin em
+        // 29/29 entradas (o port fixa o oráculo byte a byte) MAS Math.cos
+        // deriva 5/29 por 1 ulp (0.1, ±1000, 1e15) — a face cos paridade
+        // está MORTA (o cos segue recusado no WASI; o veredito registrado).
+        // As constantes são as do FdLibm.Sin DO PRÓPRIO JDK (os literais
+        // hex — a tabela decimal da memória tinha os expoentes TODOS
+        // deslocados e o F5 mediu o erro). O guard trapa além de π/4 (a
+        // redução MÉDIA é a fatia seguinte — o F6 mediu o trap rc=134).
+        var wasmtime = host("wasmtime");
+        var wasmTools = host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    println(math.sin(0.001))
+                    println(math.sin(0.5))
+                    println(math.sin(-0.5))
+                    println(math.sin(0.7))
+                    println(math.sin(0.7853981633974483))
+                    println(math.sin(-0.7853981633974483))
+                    println(math.sin(0.0))
+                }
+                """);
+        assertFaceMatchesJvm(dir);
+    }
 }

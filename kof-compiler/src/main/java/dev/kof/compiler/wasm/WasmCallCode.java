@@ -179,7 +179,8 @@ final class WasmCallCode {
                     || kc.methodName().equals("kof_math_ceil")
                     || kc.methodName().equals("kof_math_dmin")
                     || kc.methodName().equals("kof_math_dmax")
-                    || kc.methodName().equals("kof_math_dclamp");
+                    || kc.methodName().equals("kof_math_dclamp")
+                    || kc.methodName().equals("kof_math_sin");
             ctx.lastPush = pred ? "bool" : (dbl ? "double" : "int");
             ctx.lastPushWide = !pred;
         } else if (ctx.wasi && "println".equals(kc.methodName())) {
