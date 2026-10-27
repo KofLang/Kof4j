@@ -233,6 +233,45 @@ class WasmWasiListE2ETest {
     }
 
     @Test
+    void listNestedMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // Fase E (27/10, #776): LIST fatia 7 — listas ANINHADAS
+        // (List<List<X>>): o handle da lista interna anda no slot i64
+        // EXATAMENTE como o handle de String (extend no add/set, wrap no
+        // get) e o rastro do get e' "list" — os encadeamentos (.size()/
+        // .get() sobre o resultado) sao a maquinaria da LIST-1. Pego
+        // rodando: o rastro do load de um LOCAL tipado List e' "List"
+        // (capital — o typeName da classe), o check era case-sensitive.
+        // contains/indexOf sobre aninhadas RECUSAM (a igualdade profunda
+        // de listas e' uma face propria).
+        var wasmtime = host("wasmtime");
+        var wasmTools = host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var nested = listOf(listOf(1, 2), listOf(3, 4))
+                    println(nested.size())
+                    println(nested.get(0).size())
+                    println(nested.get(1).get(0))
+                    var row = listOf(5, 6)
+                    var grid = listOf(row, listOf(7, 8))
+                    grid.add(listOf(9, 10))
+                    grid.set(0, listOf(1, 1))
+                    println(grid.size())
+                    println(grid.get(0).get(1))
+                    println(grid.get(2).get(0))
+                    var s = 0
+                    var i = 0
+                    while (i < grid.size()) {
+                        s = s + grid.get(i).get(0)
+                        i = i + 1
+                    }
+                    println(s)
+                }
+                """);
+        assertListFaceMatchesJvm(dir);
+    }
+
+    @Test
     void listOfNonIntElementIsHonestRefusal(@TempDir Path dir) throws Exception {
         // Fase E (27/10, #776): a fatia so' admite elems Int — um add de
         // String recusa pelo nome (WASM002, sem artefato — Q7: nunca lista

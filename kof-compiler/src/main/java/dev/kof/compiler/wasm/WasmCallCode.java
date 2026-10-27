@@ -49,6 +49,12 @@ final class WasmCallCode {
         return "int".equals(elem) || "long".equals(elem) || "char".equals(elem);
     }
 
+    /** Os elems que andam como HANDLE de referencia (i32 estendido no slot
+     *  i64): String e a LISTA ANINHADA (fatia 7) — o mesmo extend/wrap. */
+    private static boolean isRefElem(String elem) {
+        return "string".equals(elem) || "list".equalsIgnoreCase(elem);
+    }
+
     static void emitCall(KofCall kc, List<KofOperation> ops, int idx,
                          WasmLowering.Ctx ctx, List<WasmInstr> out) {
         if (WasmRecordCtor.isRecordEq(ctx, kc) || WasmRecordCtor.isRecordEqualsCall(ctx, kc)) {
@@ -191,12 +197,17 @@ final class WasmCallCode {
                         // comparam bits = exatamente Double.equals)
                         out.add(new WasmInstr.Simple(0xbd, "i64.reinterpret_f64"));
                         out.add(new WasmInstr.Call("kof.listAdd"));
-                    } else if ("string".equals(elem)) {
-                        if (!"string".equals(ctx.lastPush)) {
+                    } else if (isRefElem(elem)) {
+                        // String e a lista aninhada: o handle i32 vira o slot
+                        // i64 (zero-extend; handle e' positivo) — o rastro do
+                        // arg de uma lista aninhada e' "list" (o tee do desugar)
+                        // o rastro do arg pode ser "list" (o tee do desugar)
+                        // ou "List" (o load de um LOCAL tipado List — o
+                        // typeName da classe, capitalizado)
+                        if (!"string".equals(ctx.lastPush) && !"list".equalsIgnoreCase(ctx.lastPush)) {
                             throw new WasmUnsupportedException("List.add('" + ctx.lastPush
-                                    + "') em List<String> (WASM002) — docs/wasm-wasi-plan.md (#776)");
+                                    + "') em List<" + elem + "> (WASM002) — docs/wasm-wasi-plan.md (#776)");
                         }
-                        // o handle i32 vira o slot i64 (zero-extend; handle e' positivo)
                         out.add(new WasmInstr.Simple(0xad, "i64.extend_i32_u"));
                         out.add(new WasmInstr.Call("kof.listAdd"));
                     } else {
@@ -216,11 +227,13 @@ final class WasmCallCode {
                     ctx.lastPushWide = true;
                 }
                 case "kof_list_get" -> {
-                    if ("string".equals(elem)) {
-                        // o slot i64 guarda o handle: volta i32 (o rastro diz handle)
+                    if (isRefElem(elem)) {
+                        // o slot i64 guarda o handle: volta i32; o rastro e'
+                        // "string" ou "list" (a lista aninhada encadeia
+                        // size/get — a maquinaria da LIST-1)
                         out.add(new WasmInstr.Call("kof.listGet"));
                         out.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
-                        ctx.lastPush = "string";
+                        ctx.lastPush = "list".equalsIgnoreCase(elem) ? "list" : "string";
                         ctx.lastPushWide = false;
                     } else if (isDirectI64Elem(elem)) {
                         out.add(new WasmInstr.Call("kof.listGet"));
@@ -253,10 +266,10 @@ final class WasmCallCode {
                     // fantasma (o KofPop do desugar consome o elemento
                     // devolvido); o clear e' []→void.
                     if ("kof_list_set".equals(kc.methodName())) {
-                        if ("string".equals(elem)) {
-                            if (!"string".equals(ctx.lastPush)) {
+                        if (isRefElem(elem)) {
+                            if (!"string".equals(ctx.lastPush) && !"list".equalsIgnoreCase(ctx.lastPush)) {
                                 throw new WasmUnsupportedException("List.set('" + ctx.lastPush
-                                        + "') em List<String> (WASM002) — docs/wasm-wasi-plan.md (#776)");
+                                        + "') em List<" + elem + "> (WASM002) — docs/wasm-wasi-plan.md (#776)");
                             }
                             out.add(new WasmInstr.Simple(0xad, "i64.extend_i32_u"));
                         } else if ("double".equals(elem)) {
@@ -304,6 +317,13 @@ final class WasmCallCode {
                             case "kof_list_index_of" -> "kof.listIndexOfStr";
                             default -> "kof.listLastIndexOfStr";
                         };
+                    } else if ("list".equalsIgnoreCase(elem)) {
+                        // a JVM compara equals = igualdade PROFUNDA de lista —
+                        // uma face propria (recusa nomeada, nunca handle-identidade)
+                        throw new WasmUnsupportedException("List." + kc.methodName()
+                                + " sobre List<List> fora da fatia (a igualdade profunda"
+                                + " de listas e' uma face propria) (WASM002)"
+                                + " — docs/wasm-wasi-plan.md (#776)");
                     } else {
                         throw new WasmUnsupportedException("List." + kc.methodName()
                                 + " sobre List<" + elem + "> fora da fatia (WASM002)"
