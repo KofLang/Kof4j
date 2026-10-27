@@ -33,13 +33,15 @@ public final class OptimizerConstantFold {
     static List<KofOperation> constantFold(List<KofOperation> ops,
                                                    Map<KofOperation, SourcePosition> positions) {
         List<KofOperation> out = new ArrayList<>(ops.size());
-        // #975: o CJump de um `if` de STATEMENT é PARTE DO CONTRATO do
-        // marcador KofStatementIf (§267) — o backend JS reconstrói o if a
-        // partir dele. Dobrar o CJump constante deixa o marcador órfão (o
-        // label do if some com o fold) e o parse estrutural do JS perde o
-        // dono do Label(end): o break aninhado era descartado (o laço JS
-        // rodava até o fim; a JVM parava) ou o label residual estourava
-        // COMP002. Statement-if não dobra; if-EXPRESSÃO segue dobrando.
+        // #975: dobrar o CJump de um `if` de STATEMENT para o TRUE label
+        // COLAPSA a estrutura — o marcador KofStatementIf (§267) fica órfão
+        // (o backend JS reconstrói o if a partir do CJump marcado), o label
+        // de fim do if some e o parse estrutural do JS perde o dono do
+        // Label(end): o break aninhado era descartado (o laço JS rodava até
+        // o fim; a JVM parava) ou o label residual estourava COMP002. Só o
+        // colapso para o TRUE é vedado; o fold para o FALSE label (branch
+        // morta, ex.: `x == null` em não-anulável, N3) preserva a fronteira
+        // e segue dobrando — if-EXPRESSÕES também seguem dobrando.
         java.util.Set<LabelId> statementIfTrues = new java.util.HashSet<>();
         for (KofOperation op : ops) {
             if (op instanceof KofStatementIf si) statementIfTrues.add(si.branchTrueLabel());
@@ -47,12 +49,13 @@ public final class OptimizerConstantFold {
         for (int i = 0; i < ops.size(); i++) {
             KofOperation op = ops.get(i);
             if (op instanceof KofConditionalJump cj) {
-                if (statementIfTrues.contains(cj.trueLabel())) {
-                    out.add(op);
-                    continue;
-                }
                 if (i >= 1) {
                     KofOperation folded = foldConditionalJump(ops, i, cj, positions);
+                    if (folded instanceof KofJump fj
+                            && statementIfTrues.contains(cj.trueLabel())
+                            && fj.target().equals(cj.trueLabel())) {
+                        folded = null; // #975: colapso TRUE de statement-if é vedado
+                    }
                     if (folded != null) {
                         replaceLastTwo(out, folded, positions);
                         continue;
