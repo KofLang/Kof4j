@@ -32,9 +32,13 @@ final class WasmArrayOps {
             // (i64); aloca 4 + n*4 no bump heap e grava o count. O layout e'
             // o da 15.3c-sliceB: [count i32][slots i32×N]. A disciplina de
             // scratch (sIdx/wIdx) e' a mesma dos loads — so em _start.
-            if (!"int".equals(typeName(na.elementType()))) {
-                throw new WasmUnsupportedException("new " + typeName(na.elementType())
-                        + "[n] fora da fatia Int do array-heap (WASM002) —"
+            String ane = typeName(na.elementType());
+            // ARRAY-2 (27/10): String entra — os slots zerados do bump SAO os
+            // handles null (o boxToStr(0) renderiza "null", medido); long/
+            // double truncariam no slot de 4 bytes
+            if (!"int".equals(ane) && !"string".equals(ane)) {
+                throw new WasmUnsupportedException("new " + ane
+                        + "[n] fora da fatia Int/String do array-heap (WASM002) —"
                         + " docs/wasm-wasi-plan.md (#776)");
             }
             if (ctx.wIdx < 0 || ctx.sIdx < 0) {
@@ -61,16 +65,24 @@ final class WasmArrayOps {
             // ARRAY-1 (27/10, #776): a[i] = v — bounds-trap (count <= idx →
             // unreachable, D-WASM-03: nunca lixo) e o Int na boca do slot de
             // 4 bytes (o wrap do i64 da pilha). [arr, idx(i64), v(i64)]
-            if (!"int".equals(typeName(st.elementType()))) {
-                throw new WasmUnsupportedException("store de " + typeName(st.elementType())
-                        + " em array fora da fatia Int (WASM002) —"
+            String ase = typeName(st.elementType());
+            if (!"int".equals(ase) && !"string".equals(ase)) {
+                throw new WasmUnsupportedException("store de " + ase
+                        + " em array fora da fatia Int/String (WASM002) —"
                         + " docs/wasm-wasi-plan.md (#776)");
             }
+            // ARRAY-2 (27/10): o handle String ja e' i32 — SEM wrap (o wrap
+            // do i32 leria o vizinho); o Int continua wrapped (i64 → i32)
+            boolean wrapStore = "int".equals(ase);
+            // o scratch acompanha a LARGURA: o dupWideIdx e' I64 (o
+            // validator pegou o handle i32 do String entrando nele) — o
+            // string usa o dupIdx I32
+            int vSlot = wrapStore ? ctx.dupWideIdx : ctx.dupIdx;
             if (ctx.wIdx < 0 || ctx.sIdx < 0) {
                 throw new WasmUnsupportedException("store de array fora de '_start' (WASM002) —"
                         + " docs/wasm-wasi-plan.md (#776)");
             }
-            out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.dupWideIdx, "v")); // [arr, idx]
+            out.add(new WasmInstr.Local(WasmInstr.Local.SET, vSlot, "v")); // [arr, idx]
             out.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));      // [arr, idx(i32)]
             out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.sIdx, "idx"));  // [arr]
             out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.wIdx, "arr"));  // []
@@ -88,8 +100,10 @@ final class WasmArrayOps {
             out.add(new WasmInstr.Simple(0x6a, "i32.add"));
             out.add(new WasmInstr.Const(0, 4));
             out.add(new WasmInstr.Simple(0x6a, "i32.add"));           // addr
-            out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.dupWideIdx, "v"));// [addr, v(i64)]
-            out.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));      // [addr, v(i32)]
+            out.add(new WasmInstr.Local(WasmInstr.Local.GET, vSlot, "v"));// [addr, v]
+            if (wrapStore) {
+                out.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));  // [addr, v(i32)]
+            }
             out.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));       // []
             ctx.lastPush = null;
             ctx.lastPushWide = false;

@@ -83,4 +83,36 @@ class WasmWasiArrayE2ETest {
         assertTrue(wasi.diagnostics().getDiagnostics().toString().contains("SEM021"),
                 "a recusa e' SEM021: " + wasi.diagnostics().getDiagnostics());
     }
+
+    @Test
+    void stringArraysMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // ARRAY-2 (27/10, #776): `new String[n]` — o MESMO alloc da fatia
+        // Int (os slots zerados do bump SAO os handles null); o store SEM
+        // wrap (o handle ja e' i32 — o wrap do i32 leria o vizinho) e o
+        // scratch pela LARGURA (o dupWideIdx e' I64 — o handle i32 no slot
+        // errado o validator pegou); o load e a maquinaria da face args.
+        // A LEITURA do slot NAO inicializado renderiza "null" como o JVM —
+        // o kof.writeStr ganhou o branch 0-handle (um handle REAL nunca e'
+        // 0; os modulos existentes nao mudam). A leitura do slot Int nao
+        // inicializado mediu GRATIS (o bump entrega zeros — 0/0 nos dois).
+        var wasmtime = WasmWasiListE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiListE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null,
+                "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var a = new String[3]
+                    a[0] = "x"
+                    a[2] = "z"
+                    println(a.length)
+                    println(a[0])
+                    println(a[1])
+                    println(a[2])
+                    var b = new Int[3]
+                    b[0] = 5
+                    println(b[1])
+                }
+                """);
+        WasmWasiListE2ETest.assertListFaceMatchesJvm(dir);
+    }
 }

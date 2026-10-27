@@ -273,9 +273,41 @@ public final class WasmStdoutRuntime {
                 List.of(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f), b);
     }
 
-    /** `println` de handle String: iovec = h+4, len = [h]+1 ('\n' no slot reservado). */
+    /** `println` de handle String: iovec = h+4, len = [h]+1 ('\n' no slot reservado).
+     *  ARRAY-2 (27/10): o handle 0 (o slot NAO inicializado do array String —
+     *  os slots zerados do bump SAO null) renderiza "null" como o JVM (o A5
+     *  mediu): o head constroi "null\n" num bump do heap e cai no caminho
+     *  normal — um handle REAL nunca e' 0, os modulos existentes nao mudam. */
     public static WasmFunc kofWriteStr() {
         List<WasmInstr> b = new ArrayList<>();
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
+        b.add(new WasmInstr.Simple(0x45, "i32.eqz"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, null, 0x40));
+        b.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));         // o bump
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 1, "n"));
+        b.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
+        b.add(new WasmInstr.Const(0, 16));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Global(WasmInstr.Global.SET, 0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "n"));
+        b.add(new WasmInstr.Const(0, 4));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));             // [n] = 4
+        int[] nullBytes = {'n', 'u', 'l', 'l'};
+        for (int i = 0; i < 4; i++) {
+            b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "n"));
+            b.add(new WasmInstr.Const(0, 4 + i));
+            b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+            b.add(new WasmInstr.Const(0, nullBytes[i]));
+            b.add(new WasmInstr.Store8(0));
+        }
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "n"));
+        b.add(new WasmInstr.Const(0, 8));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Const(0, '\n'));
+        b.add(new WasmInstr.Store8(0));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "n"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 0, "h"));      // h = o "null" novo
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
         b.add(new WasmInstr.Const(0, SCRATCH_IOVEC));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
         b.add(new WasmInstr.Const(0, 4));
@@ -301,7 +333,8 @@ public final class WasmStdoutRuntime {
         b.add(new WasmInstr.Const(0, SCRATCH_NWRITTEN));
         b.add(new WasmInstr.Call("fd_write"));
         b.add(new WasmInstr.Simple(0x1a, "drop"));
-        return new WasmFunc("kof.writeStr", List.of(0x7f), List.of(), List.of(), b);
+        return new WasmFunc("kof.writeStr", List.of(0x7f), List.of(),
+                List.of(0x7f), b); // 1 = o scratch do "null" (ARRAY-2)
     }
 
     /** `kof.intToStr(v)` -> handle `[len][digits]` no bump heap (15.3d inc2; JVM
