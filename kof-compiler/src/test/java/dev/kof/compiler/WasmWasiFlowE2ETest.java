@@ -18,8 +18,9 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * comportamento diferente entre backends — cada face compara o stdout do
  * wasmtime com o ORACULO JVM da MESMA fonte, e valida o modulo no wasm-tools
  * oficial. O caso heterogeneo do if-expression (`if (c) 1 else "x"`, join
- * boxed) ainda recusa honestamente no WASI e tem a fatia propria registrada
- * em `docs/wasm-wasi-plan.md`.
+ * boxed) foi FECHADO pela caixa de erasure §284 (27/10) — a face
+ * heterogeneousJoinMatchesTheJvmOracle cobre inline, bind a variavel, os
+ * quatro tipos de ramo e o concat com a variavel boxeada.
  */
 class WasmWasiFlowE2ETest {
 
@@ -296,6 +297,41 @@ class WasmWasiFlowE2ETest {
         assertFaceMatchesJvm(dir);
     }
 
+
+    @Test
+    void heterogeneousJoinMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // Fase E (27/10, #776): o join HETEROGENEO do if-expression (`if (c) 1
+        // else "x"`) — o LUB unifica em java.lang.Object com os ramos
+        // primitivos BOXEADOS (a CAIXA DE ERASURE §284, o MESMO contrato da
+        // nativa: 24B [MAGIC][tag][valor]; boxToStr despacha pela tag, null →
+        // "null", String/record passam crus). Medido antes: com flag de
+        // RUNTIME a familia INTEIRA recusava ("valor vivo na fronteira de
+        // bloco") — as formas inline que "passavam" eram DOBRADAS no
+        // compile-time (flag literal true). Cobertos: bind a variavel (Int|
+        // String), Double integral (2.0 — o fracionario segue no teto
+        // Schubfach), Char (boxa como Int no contrato §284: 'c' → 99, o
+        // MESMO valor do JVM), Bool (true) e o CONCAT com a variavel boxeada
+        // ("m=" + m via o valueOf(Object) → boxToStr). O oracle e o JVM.
+        var wasmtime = host("wasmtime");
+        var wasmTools = host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var flag = args.length == 0
+                    var m = if (flag) 1 else "x"
+                    println(m)
+                    var d = if (flag) 2.0 else "s"
+                    println(d)
+                    var c = if (flag) 'c' else "str"
+                    println(c)
+                    var b = if (flag) true else "no"
+                    println(b)
+                    println("m=" + m)
+                    println(if (flag) 1 else "x")
+                }
+                """);
+        assertFaceMatchesJvm(dir);
+    }
 
     @Test
     void combinedStringSearchAndSliceMatchesTheJvmOracle(@TempDir Path dir) throws Exception {

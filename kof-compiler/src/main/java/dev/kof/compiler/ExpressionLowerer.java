@@ -378,6 +378,20 @@ public final class ExpressionLowerer {
                         joinT = thenPhys;
                     }
                 }
+                // Fase E (27/10, #776): o join HETEROGENEO no WASI — o LUB
+                // unifica em Object com os ramos primitivos BOXEADOS (contrato
+                // §284, terceiro backend; o bytecode JVM mede Integer.valueOf
+                // + String.valueOf). Sem o temporario o valor cru/boxeado
+                // atravessa a fronteira de bloco e a maquina de estados recusa
+                // (refuseLiveStack) — a familia INTEIRA (`if (c) 1 else "x"`)
+                // estava fechada no WASI. O temp do LUB engata a MESMA maquina
+                // de stores/loads do join homogeneo (logo abaixo).
+                if (joinT == null && differ && driver.target == Target.WASI) {
+                    Type lub = ExpressionTyper.inferExprType(driver, ie, locals);
+                    if (lub instanceof Type.ClassType) {
+                        joinT = lub;
+                    }
+                }
                 int tmpIdx = -1;
                 if (joinT != null) {
                     tmpIdx = Math.max(localIdx, CompilerComparisons.nextFreeLocalIndex(locals));
@@ -385,16 +399,20 @@ public final class ExpressionLowerer {
                     localIdx = tmpIdx + 1;
                 }
                 localIdx = ExpressionLowerer.emitExpression(driver, ie.thenExpr(), ops, owner, localIdx, locals);
-                if (differ) ExpressionTyper.boxPrimitiveBranch(driver, ops, thenPhys);
-                else if (!bts.isEmpty()) {
+                if (differ) {
+                    ExpressionTyper.boxPrimitiveBranch(driver, ops, thenPhys);
+                    emitWasiBox(driver, ops, thenPhys);
+                } else if (!bts.isEmpty()) {
                     CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops, thenPhys, bts.get(0));
                 }
                 if (joinT != null) ops.add(new KofStoreLocal(joinT, tmpIdx));
                 ops.add(new KofJump(endLabel));
                 ops.add(new KofLabel(elseLabel));
                 localIdx = ExpressionLowerer.emitExpression(driver, ie.elseExpr(), ops, owner, localIdx, locals);
-                if (differ) ExpressionTyper.boxPrimitiveBranch(driver, ops, elsePhys);
-                else if (!bts.isEmpty()) {
+                if (differ) {
+                    ExpressionTyper.boxPrimitiveBranch(driver, ops, elsePhys);
+                    emitWasiBox(driver, ops, elsePhys);
+                } else if (!bts.isEmpty()) {
                     CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops, elsePhys, bts.get(1));
                 }
                 if (joinT != null) ops.add(new KofStoreLocal(joinT, tmpIdx));
@@ -433,5 +451,31 @@ public final class ExpressionLowerer {
             }
             default -> localIdx;
         };
+    }
+
+    /**
+     * Fase E (27/10, #776): a CAIXA WASI do ramo heterogeneo — o MESMO
+     * contrato da nativa §284 ({@code kof_box_*}, 24B [MAGIC][tag][valor]).
+     * O JVM/native boxeiam via {@code emitErasureBox} (gate needsErasureBoxing);
+     * o WASI NAO boxeia globalmente (o subset escalar nao tem caixa nos
+     * consumidores legados) — so o join heterogeneo do if-expression boxea,
+     * aqui, explicitamente. Ramo referencia (String/record): sem box — o
+     * handle passa cru e o MAGIC e o que distingue no despacho.
+     */
+    private static void emitWasiBox(CompilerDriver driver, List<KofOperation> ops, Type branchT) {
+        if (driver.target != Target.WASI) return;
+        if (!(branchT instanceof Type.PrimitiveType pt) || TypeMetrics.isNullablePrimitive(branchT)) return;
+        String name = switch (pt.name().toLowerCase()) {
+            case "int", "char", "short", "byte" -> "kof_box_int";
+            case "long" -> "kof_box_long";
+            case "bool", "boolean" -> "kof_box_bool";
+            case "double", "float" -> "kof_box_double";
+            default -> null;
+        };
+        if (name == null) return;
+        Type boxed = TypeMetrics.boxedTypeFor(branchT);
+        // O Char boxa como INT no contrato §284 (mesma largura i64 na pilha)
+        ops.add(new KofCall(boxed, name,
+                List.of(Type.PrimitiveType.INT), boxed, KofCallKind.FUNCTION));
     }
 }

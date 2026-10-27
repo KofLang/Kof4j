@@ -540,6 +540,18 @@ final class WasmLowering {
                 // outros tipos recusam honesto (WASM002) sem artefato (Q7).
                 if ("string".equals(ctx.lastPush)) {
                     ctx.lastPush = "string";
+                } else if ("Object".equalsIgnoreCase(ctx.lastPush)
+                        && (kc.parameterTypes().isEmpty()
+                            || !(kc.parameterTypes().get(0) instanceof Type.PrimitiveType))) {
+                    // Fase E (27/10, #776): valueOf sobre um local OBJECT — o
+                    // valor e CRU (handle String/record) ou CAIXA §284 (join
+                    // heterogeneo): kof.boxToStr despacha pelo MAGIC/tag e
+                    // devolve handle de String nos dois casos. O walk do
+                    // operandTypeBefore PULA loads Object (compat do desugar
+                    // bool) e chegaria a um produtor aleatorio — convertido
+                    // errado era memory fault (medido: "m=" + m trapava).
+                    out.add(new WasmInstr.Call("kof.boxToStr"));
+                    ctx.lastPush = "string";
                 } else {
                     Type p0 = kc.parameterTypes().isEmpty() ? null : kc.parameterTypes().get(0);
                     String vt = (p0 instanceof Type.PrimitiveType)
@@ -590,6 +602,22 @@ final class WasmLowering {
                 throw new WasmUnsupportedException("chamada explicita de 'equals' de record (WASM002)"
                         + " — o backend WASI ainda nao tem dispatch virtual; o `==` de conteudo ja e"
                         + " suportado (15.3d inc2 C2, kofRecordEq inline). docs/wasm-wasi-plan.md (#776)");
+            } else if (ctx.wasi && WasmBoxRuntime.NAMES.contains(kc.methodName())) {
+                // Fase E (27/10, #776): a CAIXA DE ERASURE — o MESMO contrato
+                // da nativa §284 (24B [MAGIC][tag][valor]); o join HETEROGENEO
+                // do if-expression unifica em Object com os ramos primitivos
+                // boxeados (Integer.valueOf/String.valueOf no JVM medido). O
+                // resultado e um handle i32 — "object" no rastro, nunca wide.
+                String rn = switch (kc.methodName()) {
+                    case "kof_box_int" -> "kof.boxInt";
+                    case "kof_box_long" -> "kof.boxLong";
+                    case "kof_box_bool" -> "kof.boxBool";
+                    case "kof_box_double" -> "kof.boxDouble";
+                    default -> "kof.boxToStr";
+                };
+                out.add(new WasmInstr.Call(rn));
+                ctx.lastPush = "object";
+                ctx.lastPushWide = false;
             } else if (ctx.wasi && WasmMathRuntime.NAMES.contains(kc.methodName())) {
                 // Fase E (26/10, #776): a familia INT do math — o nome DA
                 // funcao e' o nome do runtime (kof_math_*, aritmetica i64

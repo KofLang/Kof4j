@@ -146,6 +146,26 @@ final class WasmCharOut {
      */
     static WasmFunc kofWriteDouble() {
         List<WasmInstr> b = new ArrayList<>();
+        // Fase E (27/10): a construcao do handle mora em kof.doubleToStr
+        // (os traps honestos tambem — o despacho da caixa kof.boxToStr reusa);
+        // writeDouble = str + write, UMA escrita (o writeStr acrescenta o \n).
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "v")); // o param NAO flui sozinho
+        b.add(new WasmInstr.Call("kof.doubleToStr"));
+        b.add(new WasmInstr.Call("kof.writeStr"));
+        return new WasmFunc("kof.writeDouble", List.of(WasmFunc.TYPE_F64), List.of(),
+                List.of(), b);
+    }
+
+    /**
+     * `kof.doubleToStr(v) -> handle` — a CONSTRUCAO do rendering INTEGRAL
+     * (<digitos>.0) extraida do kof.writeDouble (27/10): o despacho da caixa
+     * ({@code kof.boxToStr}, tag Double) devolve o handle em vez de escrever.
+     * O MESMO contrato honesto: fracionario/expoenencial TRAPA (Schubfach,
+     * fatia registrada); zero negativo preserva o sinal.
+     * Locais: 0 = v (f64); 1 = truncado (i64); 2 = h, 3 = nh (i32)
+     */
+    public static WasmFunc kofDoubleToStr() {
+        List<WasmInstr> b = new ArrayList<>();
         // trunca: i64.trunc_f64_s (0xb0)
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "v"));
         b.add(new WasmInstr.Simple(0xb0, "i64.trunc_f64_s"));
@@ -177,8 +197,6 @@ final class WasmCharOut {
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "sml", 0x40));
         b.add(new WasmInstr.Simple(0x00, "unreachable"));
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "sml", 0x40));
-        // Monta UM handle "<digitos>.0" e escreve UMA vez: kof.writeStr
-        // acrescenta o '\n', entao duas escritas imprimiriam duas linhas.
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "t"));
         b.add(new WasmInstr.Call("kof.intToStr"));
         b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "h"));
@@ -216,8 +234,7 @@ final class WasmCharOut {
         b.add(new WasmInstr.Call("kof.strAppendByte"));
         b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "h"));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "h"));
-        b.add(new WasmInstr.Call("kof.writeStr"));
-        return new WasmFunc("kof.writeDouble", List.of(WasmFunc.TYPE_F64), List.of(),
+        return new WasmFunc("kof.doubleToStr", List.of(WasmFunc.TYPE_F64), List.of(WasmFunc.TYPE_I32),
                 // 1=t (i64); 2=h, 3=nh (i32)
                 List.of(WasmFunc.TYPE_I64, WasmFunc.TYPE_I32, WasmFunc.TYPE_I32), b);
     }

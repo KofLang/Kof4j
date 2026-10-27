@@ -71,6 +71,11 @@ final class WasmTypeOracle {
                 if (kc.kind() == KofCallKind.CONSTRUCTOR && kc.ownerType() instanceof Type.ClassType oct) {
                     return oct.name(); // record: o handle fica na pilha apesar do ret void
                 }
+                // Fase E (27/10, #776): o produtor CAIXA (join heterogeneo do
+                // if-expression) — imprimivel via kof.boxToStr no emitPrintln.
+                if (WasmBoxRuntime.NAMES.contains(kc.methodName())) {
+                    return "box";
+                }
                 if ("valueOf".equals(kc.methodName()) && !kc.parameterTypes().isEmpty()
                         && kc.parameterTypes().get(0) instanceof Type.PrimitiveType) {
                     return typeName(kc.parameterTypes().get(0));
@@ -200,6 +205,7 @@ final class WasmTypeOracle {
 
     static boolean printableScalar(String name) {
         if ("string".equals(name.toLowerCase())) return true; // 15.3b (literal)
+        if ("box".equals(name.toLowerCase())) return true; // caixa §284 (27/10)
         return switch (name.toLowerCase()) {
             // double: so' o subconjunto INTEGRAL esta implementado (kof.writeDouble
             // trapa em valor fracionario) — o Schubfach completo e' multi-ciclo.

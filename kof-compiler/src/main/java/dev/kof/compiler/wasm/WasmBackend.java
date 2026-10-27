@@ -145,7 +145,9 @@ public class WasmBackend implements Backend {
                                 && "string".equalsIgnoreCase(typeName(kc.ownerType())))
                             // Fase E (26/10, #776): a familia INT do math — o
                             // runtime WASI implementa aritmetica i64 pura
-                            || (wasi && WasmMathRuntime.NAMES.contains(kc.methodName())))) {
+                            || (wasi && WasmMathRuntime.NAMES.contains(kc.methodName()))
+                            // Fase E (27/10, #776): a caixa de erasure §284
+                            || (wasi && WasmBoxRuntime.NAMES.contains(kc.methodName())))) {
                         continue; // wrapper intrinseco de String tratado na emissao
                     }
                     if (wasi && usesRecords && "kofRecordEq".equals(kc.methodName())) {
@@ -261,6 +263,10 @@ public class WasmBackend implements Backend {
                     // MARCA "string" e deixa o bloco de string registrar o resto —
                     // registrar aqui tambem duplicava kof.intToStr/kof.strLit.
                     funcs.add(WasmCharOut.kofWriteDouble());
+                    // Fase E (27/10): a CONSTRUCAO mora em kof.doubleToStr
+                    // (o writeDouble = str + write) — vem JUNTO, com ou sem
+                    // caixa (o dup SAFE: o dedupe por nome fecha).
+                    funcs.add(WasmCharOut.kofDoubleToStr());
                     funcs.add(WasmStrSearch.kofStrAppendByte());
                     funcs.add(WasmStrSearch.kofStrAlloc());
                     funcs.add(WasmStrSearch.kofStrAppend());
@@ -312,6 +318,20 @@ public class WasmBackend implements Backend {
                     // SEM host imports (o WASM tambem poderia usa-las).
                     if (wasi && WasmMathRuntime.usesAny(scanAll)) {
                         funcs.addAll(WasmMathRuntime.all());
+                    }
+                    // Fase E (27/10, #776): a CAIXA DE ERASURE (§284, 3º
+                    // backend) — boxToStr despacha por intToStr/strBool/
+                    // doubleToStr: as DEPENDENCIAS vem junto (o dedupe por
+                    // nome antes da serializacao torna o add redundante seguro).
+                    if (wasi && WasmBoxRuntime.usesAny(scanAll)) {
+                        funcs.addAll(WasmBoxRuntime.all());
+                        funcs.add(kofStrBool());
+                        funcs.add(WasmCharOut.kofDoubleToStr());
+                        // deps do doubleToStr (o caminho do zero negativo):
+                        // strAlloc + strAppendByte + strAppend
+                        funcs.add(WasmStrSearch.kofStrAlloc());
+                        funcs.add(WasmStrSearch.kofStrAppendByte());
+                        funcs.add(WasmStrSearch.kofStrAppend());
                     }
                     // Fase E (26/10, #776): o case fold Unicode (D-STR-UNICODE)
                     // — as tabelas BMP vao no cursor de dados (o heap comeca
