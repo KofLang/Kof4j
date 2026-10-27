@@ -217,6 +217,21 @@ final class WasmTypeOracle {
         return false;
     }
 
+    /** Fase E (27/10, #776): algum desugar de Set (kof_set_*) no metodo —
+     *  o registro da familia WasmSetRuntime segue este gancho. */
+    static boolean usesSet(Iterable<IRMethod> ms) {
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (op instanceof KofCall kc && WasmSetRuntime.NAMES.contains(kc.methodName())) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     static boolean usesStringMethod(Iterable<IRMethod> ms, String method) {
         for (IRMethod m : ms) {
             for (IRBasicBlock bb : m.basicBlocks()) {

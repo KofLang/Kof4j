@@ -54,6 +54,8 @@ final class WasmLowering {
                 locals.add(WasmFunc.TYPE_I32); // List = handle i32 (celula indireta, fatia coleções 1 — 27/10)
             } else if (wasi && lv.type() instanceof Type.ClassType ct && "Map".equals(ct.name())) {
                 locals.add(WasmFunc.TYPE_I32); // Map = handle i32 (celula indireta, fatia coleções 8 — 27/10)
+            } else if (wasi && lv.type() instanceof Type.ClassType ct && "Set".equals(ct.name())) {
+                locals.add(WasmFunc.TYPE_I32); // Set = handle i32 (celula indireta, fatia coleções 9 — 27/10)
             } else {
                 locals.add(mapType(typeName(lv.type()), m.name(), "local " + lv.name()));
             }
@@ -494,7 +496,8 @@ final class WasmLowering {
             // (tee+get no scratch i32; o wasm nao tem stack dup). A fatia
             // so' torna o dup real no rastro "list" — todo o resto fica
             // no-op como antes (blast radius zero nas shapes existentes).
-            if ("list".equals(ctx.lastPush) || "map".equals(ctx.lastPush)) {
+            if ("list".equals(ctx.lastPush) || "map".equals(ctx.lastPush)
+                    || "set".equals(ctx.lastPush)) {
                 out.add(new WasmInstr.Local(WasmInstr.Local.TEE, ctx.dupIdx, "dup"));
                 out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.dupIdx, "dup"));
             }

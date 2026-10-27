@@ -303,6 +303,37 @@ class WasmWasiListE2ETest {
     }
 
     @Test
+    void setBasicsMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // Fase E (27/10, #776): SET fatia 1 — Set<Int> no WASI: o add
+        // DEDUPLICA (o scan de conteudo antes do anexa — o contrato
+        // HashSet) e DEVOLVE o booleano (anexou ou dedup — a forma void da
+        // cadeia setOf dropa no despacho, o add-declaracao deixa o KofPop
+        // consumir); o remove por valor devolve "removeu" (o KofPop idem).
+        // Pego rodando: a condicao do has INVERTIDA (lt_s em vez de ge_s —
+        // o shift rodava na NAO-remocao e corrompia o vizinho, S12 mediu).
+        var wasmtime = host("wasmtime");
+        var wasmTools = host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var s = setOf(5, 6, 7)
+                    s.add(6)
+                    println(s.size())
+                    s.remove(5)
+                    println(s.size())
+                    println(s.contains(7))
+                    println(s.contains(5))
+                    s.remove(99)
+                    println(s.size())
+                    var x = 42
+                    s.add(x)
+                    println(s.contains(42))
+                }
+                """);
+        assertListFaceMatchesJvm(dir);
+    }
+
+    @Test
     void listOfNonIntElementIsHonestRefusal(@TempDir Path dir) throws Exception {
         // Fase E (27/10, #776): a fatia so' admite elems Int — um add de
         // String recusa pelo nome (WASM002, sem artefato — Q7: nunca lista

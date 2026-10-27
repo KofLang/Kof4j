@@ -152,6 +152,8 @@ public class WasmBackend implements Backend {
                             || (wasi && WasmListRuntime.NAMES.contains(kc.methodName()))
                             // Fase E (27/10, #776): a fatia MAP<String, Int>
                             || (wasi && WasmMapRuntime.NAMES.contains(kc.methodName()))
+                            // Fase E (27/10, #776): a fatia SET<Int>
+                            || (wasi && WasmSetRuntime.NAMES.contains(kc.methodName()))
                             // Fase E (27/10, #776): a caixa de erasure §284
                             || (wasi && WasmBoxRuntime.NAMES.contains(kc.methodName())))) {
                         continue; // wrapper intrinseco de String tratado na emissao
@@ -378,6 +380,12 @@ public class WasmBackend implements Backend {
                         funcs.addAll(WasmMapRuntime.all());
                         funcs.addAll(WasmBoxRuntime.all());
                         funcs.add(kofStrEq());
+                    }
+                    // Fase E (27/10, #776): a fatia SET<Int> — o mesmo
+                    // alocador compartilhado
+                    if (wasi && WasmTypeOracle.usesSet(scanAll)) {
+                        funcs.add(WasmListRuntime.heapAlloc());
+                        funcs.addAll(WasmSetRuntime.all());
                     }
                     // Fase E (27/10, #776): a CAIXA DE ERASURE (§284, 3º
                     // backend) — boxToStr despacha por intToStr/strBool/

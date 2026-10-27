@@ -48,6 +48,15 @@ final class WasmCallCode {
         return "";
     }
 
+    /** O tipo do elemento de SET pelo type argument do OWNER (medido no IR:
+     *  `Set<Int>` chega com typeArguments=[int]). */
+    private static String elemSet(KofCall kc) {
+        if (kc.ownerType() instanceof Type.ClassType ct && !ct.typeArguments().isEmpty()) {
+            return typeName(ct.typeArguments().get(0));
+        }
+        return "";
+    }
+
     /** O tipo do elemento pelo type argument do OWNER (medido no IR:
      *  `List<Int>` chega com typeArguments=[int]); lista BARE (sem args,
      *  o caso §374) devolve "" — o add/get dela recusa na fatia. */
@@ -236,6 +245,68 @@ final class WasmCallCode {
                 }
                 default -> {                                             // kof_map_size
                     out.add(new WasmInstr.Call("kof.mapSize"));
+                    ctx.lastPush = "int";
+                    ctx.lastPushWide = true;
+                }
+            }
+        } else if (ctx.wasi && WasmSetRuntime.NAMES.contains(kc.methodName())) {
+            // Fase E (27/10, #776): SET fatia 1 — Set<Int> (o par medido):
+            // new/add/contains/remove/size. O add DEDUPLICA (o scan de
+            // conteudo no runtime — o contrato HashSet); os widths como os
+            // da lista (o valor i64 direto); o rastro do tee do desugar e'
+            // "set".
+            switch (kc.methodName()) {
+                case "kof_set_new" -> {
+                    out.add(new WasmInstr.Call("kof.setNew"));
+                    ctx.lastPush = "set";
+                    ctx.lastPushWide = false;
+                }
+                case "kof_set_add" -> {
+                    // o rastro do TOPO no call e' o VALOR (o arg — "int");
+                    // o receiver (o tee do desugar) esta' embaixo
+                    if (!"int".equals(ctx.lastPush)) {
+                        throw new WasmUnsupportedException("Set.add('" + ctx.lastPush
+                                + "') fora da fatia Set<Int> (WASM002)"
+                                + " — docs/wasm-wasi-plan.md (#776)");
+                    }
+                    if (!"int".equals(elemSet(kc))) {
+                        throw new WasmUnsupportedException("Set<" + elemSet(kc)
+                                + "> fora da fatia Set<Int> (WASM002)"
+                                + " — docs/wasm-wasi-plan.md (#776)");
+                    }
+                    out.add(new WasmInstr.Call("kof.setAdd"));
+                    // o runtime DEVOLVE o booleano do HashSet.add (anexou ou
+                    // dedup): a forma VOID da cadeia setOf dropa aqui (o
+                    // add-declaracao deixa o KofPop consumir)
+                    if (kc.returnType() instanceof Type.PrimitiveType pt
+                            && "void".equalsIgnoreCase(pt.name())) {
+                        out.add(new WasmInstr.Simple(0x1a, "drop"));
+                    }
+                    ctx.lastPush = "set";
+                    ctx.lastPushWide = false;
+                }
+                case "kof_set_contains" -> {
+                    if (!"int".equals(elemSet(kc))) {
+                        throw new WasmUnsupportedException("Set.contains sobre Set<"
+                                + elemSet(kc) + "> fora da fatia Set<Int> (WASM002)"
+                                + " — docs/wasm-wasi-plan.md (#776)");
+                    }
+                    out.add(new WasmInstr.Call("kof.setContains"));
+                    ctx.lastPush = "bool";
+                    ctx.lastPushWide = false;
+                }
+                case "kof_set_remove" -> {
+                    if (!"int".equals(elemSet(kc))) {
+                        throw new WasmUnsupportedException("Set.remove sobre Set<"
+                                + elemSet(kc) + "> fora da fatia Set<Int> (WASM002)"
+                                + " — docs/wasm-wasi-plan.md (#776)");
+                    }
+                    out.add(new WasmInstr.Call("kof.setRemove"));
+                    ctx.lastPush = null;
+                    ctx.lastPushWide = false;
+                }
+                default -> {                                             // kof_set_size
+                    out.add(new WasmInstr.Call("kof.setSize"));
                     ctx.lastPush = "int";
                     ctx.lastPushWide = true;
                 }
