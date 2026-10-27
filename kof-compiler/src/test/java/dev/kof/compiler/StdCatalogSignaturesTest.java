@@ -189,6 +189,8 @@ class StdCatalogSignaturesTest {
         assertNotNull(KofMath.staticMethod("math", "min", List.of(D, D)), "math.min(Double,Double) (MATH-D)");
         assertNotNull(KofMath.staticMethod("math", "max", List.of(D, D)), "math.max(Double,Double) (MATH-D)");
         assertNull(KofMath.staticMethod("math", "floor", List.of(I)), "floor(Int) NAO (Int nao alarga — R6)");
+        assertNotNull(KofMath.staticMethod("math", "clamp", List.of(D, D, D)), "clamp(Double,Double,Double) (MATH-D-2)");
+        assertNotNull(KofMath.staticMethod("math", "sign", List.of(D)), "sign(Double) (MATH-D-2)");
         assertNotNull(KofMath.staticMethod("math", "sqrt", List.of(D)), "sqrt(Double)");
         assertNull(KofMath.staticMethod("math", "sqrt", List.of(I)), "sqrt(Int) NAO binda");
         assertNotNull(KofMath.staticMethod("math", "clamp", List.of(I, I, I)), "clamp/3");

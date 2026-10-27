@@ -69,6 +69,17 @@ public final class JvmStringMathRuntime {
                 public static double kof_math_ceil(double v) { return Math.ceil(v); }
                 public static double kof_math_dmin(double a, double b) { return Math.min(a, b); }
                 public static double kof_math_dmax(double a, double b) { return Math.max(a, b); }
+
+                // MATH-D-2 (27/10, #776): clamp/sign doubles — o CONTRATO da
+                // família int carregado (as cadeias branchy EXATAS; NaN
+                // propaga no clamp e vira 0 no sign — a mesma semântica da
+                // cadeia, nunca min/max).
+                public static double kof_math_dclamp(double v, double lo, double hi) {
+                    return v < lo ? lo : (v > hi ? hi : v);
+                }
+                public static int kof_math_dsign(double v) {
+                    return v > 0 ? 1 : (v < 0 ? -1 : 0);
+                }
                 public static double kof_math_sin(double v) { return Math.sin(v); }
                 public static double kof_math_cos(double v) { return Math.cos(v); }
                 public static double kof_math_tan(double v) { return Math.tan(v); }

@@ -50,14 +50,19 @@ public final class KofMath {
                 : argc == 1 && isDouble(argTypes.get(0))
                     ? new MathCall("kof_math_dabs", DOUBLE, List.of(DOUBLE)) : null;
             case "sign" -> argc == 1 && isInt(argTypes.get(0))
-                    ? new MathCall("kof_math_sign", INT, List.of(INT)) : null;
+                    ? new MathCall("kof_math_sign", INT, List.of(INT))
+                : argc == 1 && isDouble(argTypes.get(0))
+                    ? new MathCall("kof_math_dsign", INT, List.of(DOUBLE)) : null;
             // audit 0.6.0 MATH-02 (ledger §658): a familia S1 Int exige a
             // guarda isInt como abs/sign — sem ela, math.min(1, 2.5) passava
             // no check e morria como VerifyError no JVM / 0 silencioso no
             // nativo. Número não alarga em silêncio (SEM025, R6).
             case "clamp" -> argc == 3 && isInt(argTypes.get(0))
                     && isInt(argTypes.get(1)) && isInt(argTypes.get(2))
-                    ? new MathCall("kof_math_clamp", INT, List.of(INT, INT, INT)) : null;
+                    ? new MathCall("kof_math_clamp", INT, List.of(INT, INT, INT))
+                : argc == 3 && isDouble(argTypes.get(0))
+                    && isDouble(argTypes.get(1)) && isDouble(argTypes.get(2))
+                    ? new MathCall("kof_math_dclamp", DOUBLE, List.of(DOUBLE, DOUBLE, DOUBLE)) : null;
             case "min" -> argc == 2 && isInt(argTypes.get(0)) && isInt(argTypes.get(1))
                     ? new MathCall("kof_math_min", INT, List.of(INT, INT))
                 : argc == 2 && isDouble(argTypes.get(0)) && isDouble(argTypes.get(1))
@@ -170,7 +175,8 @@ public final class KofMath {
             // MATH-D (27/10): as cinco double esperam o asm da lane nat
             // (absd/minsd/maxsd/roundsd — SSE/SSE4.1); MATH001 honesto até lá
             "kof_math_dabs", "kof_math_floor", "kof_math_ceil",
-            "kof_math_dmin", "kof_math_dmax");
+            "kof_math_dmin", "kof_math_dmax",
+            "kof_math_dclamp", "kof_math_dsign");
 
     /** S1 (Int) + S1b/S1b.1 (Double) em TODOS os targets (MATH001 fechado
      * 11/09 — fatia riscv B32 + tradutor aarch fsqrt.d/fcvtzs; prova qemu).

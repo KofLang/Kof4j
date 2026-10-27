@@ -458,6 +458,12 @@ class WasmWasiFlowE2ETest {
                     println(math.max(1.5, -2.5))
                     println(math.floor(-0.0))
                     println(math.abs(-0.0))
+                    println(math.clamp(1.5, 0.0, 2.0))
+                    println(math.clamp(-0.5, 0.0, 2.0))
+                    println(math.clamp(9.5, 0.0, 2.0))
+                    println(math.sign(-2.5))
+                    println(math.sign(0.0))
+                    println(math.sign(3.5))
                 }
                 """);
         assertFaceMatchesJvm(dir);

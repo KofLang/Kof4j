@@ -41,16 +41,19 @@ class KofMathTypeGuardTest {
         // the audit's MIXED faces (Int does not widen into Double — R6)
         assertTrue(diagOf("minMix", "main() {\n    println(\"\" + math.min(1, 2.5))\n}").contains("SEM025"),
                 "math.min(Int, Double) must be refused at the binding layer");
-        assertTrue(diagOf("clampD", "main() {\n    println(\"\" + math.clamp(1.5, 0.0, 2.0))\n}").contains("SEM025"),
-                "math.clamp(Double, ...) must be refused (no double variant yet — MATH-D lifted only abs/min/max)");
+        // MATH-D-2 (27/10): clamp(Double,Double,Double) BINDS now (the
+        // branchy contract implemented on JVM/JS/WASI — the F4 oracle)
+        assertTrue(diagOf("clampD", "main() {\n    println(\"\" + math.clamp(1.5, 0.0, 2.0))\n}").isEmpty(),
+                "math.clamp(Double, ...) binds (MATH-D-2)");
         assertTrue(diagOf("isEvenD", "main() {\n    println(\"\" + math.isEven(2.5))\n}").contains("SEM025"),
                 "math.isEven(Double) must be refused");
         assertTrue(diagOf("minStr", "main() {\n    println(\"\" + math.min(\"a\", \"b\"))\n}").contains("SEM025"),
                 "math.min(String, String) must be refused (the audit's garbage-pointer face)");
         assertTrue(diagOf("floorI", "main() {\n    println(\"\" + math.floor(2))\n}").contains("SEM025"),
                 "math.floor(Int) must be refused (Int does not widen — R6)");
-        assertTrue(diagOf("signD", "main() {\n    println(\"\" + math.sign(1.5))\n}").contains("SEM025"),
-                "math.sign(Double) must be refused (no double variant yet)");
+        // MATH-D-2: sign(Double) BINDS (-> Int, o contrato da família int)
+        assertTrue(diagOf("signD", "main() {\n    println(\"\" + math.sign(1.5))\n}").isEmpty(),
+                "math.sign(Double) binds (MATH-D-2)");
     }
 
     @Test
@@ -77,5 +80,9 @@ class KofMathTypeGuardTest {
                 "math.floor(Double) binds (MATH-D)");
         assertTrue(diagOf("ceilD", "main() {\n    println(\"\" + math.ceil(2.1))\n}").isEmpty(),
                 "math.ceil(Double) binds (MATH-D)");
+        assertTrue(diagOf("clampDDD", "main() {\n    println(\"\" + math.clamp(1.5, 0.0, 2.0))\n}").isEmpty(),
+                "math.clamp(Double,Double,Double) binds (MATH-D-2)");
+        assertTrue(diagOf("signD2", "main() {\n    println(\"\" + math.sign(1.5))\n}").isEmpty(),
+                "math.sign(Double) binds (MATH-D-2)");
     }
 }

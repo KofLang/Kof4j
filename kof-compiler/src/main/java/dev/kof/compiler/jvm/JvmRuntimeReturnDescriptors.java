@@ -173,6 +173,8 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_math_sqrt" -> "D";
             case "kof_math_dabs", "kof_math_floor", "kof_math_ceil",
                     "kof_math_dmin", "kof_math_dmax" -> "D";
+            case "kof_math_dclamp" -> "D";
+            case "kof_math_dsign" -> "I";
             case "kof_math_sin", "kof_math_cos", "kof_math_tan",
                     "kof_math_asin", "kof_math_acos", "kof_math_atan",
                     "kof_math_atan2", "kof_math_toRadians", "kof_math_toDegrees",

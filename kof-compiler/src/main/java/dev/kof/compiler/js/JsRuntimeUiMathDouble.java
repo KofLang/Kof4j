@@ -56,6 +56,10 @@ final class JsRuntimeUiMathDouble {
             export function kofMathCeil(v) { return Math.ceil(v); }
             export function kofMathDMin(a, b) { return Math.min(a, b); }
             export function kofMathDMax(a, b) { return Math.max(a, b); }
+            // MATH-D-2 (27/10): clamp/sign doubles — as cadeias branchy
+            // EXATAS do contrato (o NaN propaga / vira 0 — igual aos alvos)
+            export function kofMathDClamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+            export function kofMathDSign(v) { return v > 0 ? 1 : (v < 0 ? -1 : 0); }
             export function kofMathRoundTo(v, decimals) {
                 if (v !== v || v === Infinity || v === -Infinity) return v;
                 let m = decimals < 0 ? -decimals : decimals;

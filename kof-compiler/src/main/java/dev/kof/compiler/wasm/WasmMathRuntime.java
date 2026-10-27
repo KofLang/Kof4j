@@ -45,7 +45,10 @@ final class WasmMathRuntime {
             // instruções IEEE nativas do WASM (abs 0x8b, min 0xA4, max 0xA5,
             // floor 0x9c, ceil 0x9b); min/max casam o contrato ±0/NaN da JVM
             "kof_math_dabs", "kof_math_floor", "kof_math_ceil",
-            "kof_math_dmin", "kof_math_dmax");
+            "kof_math_dmin", "kof_math_dmax",
+            // MATH-D-2 (27/10): clamp/sign doubles — as cadeias branchy do
+            // CONTRATO da família int (nunca min/max); o select só no sign
+            "kof_math_dclamp", "kof_math_dsign");
 
     static boolean usesAny(List<IRMethod> methods) {
         for (IRMethod m : methods) {
@@ -237,6 +240,58 @@ final class WasmMathRuntime {
         get(b, 0, "a");
         get(b, 1, "b");
         b.add(new WasmInstr.Simple(0xa5, "f64.max"));
+        return b;
+    }
+
+    // ---- MATH-D-2 (27/10): clamp/sign doubles ----
+
+    /** v<lo?lo:(v>hi?hi:v) — o if/else RESULT-TYPED (a máquina do
+     *  roundTo): o CONTRATO branchy da família int VERBATIM (o ±0 pela
+     *  igualdade IEEE — lt(-0.0,0.0) e' false como no JVM; o NaN propaga —
+     *  toda comparação da cadeia da false e o v cru volta). */
+    private static List<WasmInstr> mathDClampBody() {
+        List<WasmInstr> b = new ArrayList<>();
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, null, 0x7c));
+        get(b, 0, "v");
+        get(b, 1, "lo");
+        b.add(new WasmInstr.Simple(0x63, "f64.lt"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, null, 0x7c));
+        get(b, 1, "lo");
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, null, 0x7c)); // o ELSE SUBSTITUI o end do then
+        get(b, 0, "v");
+        get(b, 2, "hi");
+        b.add(new WasmInstr.Simple(0x64, "f64.gt"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, null, 0x7c));
+        get(b, 2, "hi");
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, null, 0x7c)); // idem
+        get(b, 0, "v");                                                     // ELSE: v
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x7c));  // fecha o if interno
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x7c));  // fecha o if externo
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x7c));  // fecha o block
+        return b;
+    }
+
+    /** x>0?1:(x<0?-1:0) — a cadeia do sign int (o NaN → 0: as duas
+     *  comparações da false e o select devolve o 0 do meio). */
+    private static List<WasmInstr> mathDSignBody() {
+        List<WasmInstr> b = new ArrayList<>();
+        // x<0 ? -1 : (x>0 ? 1 : 0) — o cond do select EXTERNO tem de ficar
+        // NO TOPO: c1 salvo no scratch i32 (local 1), o select interno
+        // empilha o r sobre o -1 e o c1 entra por último (o zero das
+        // comparações é f64 — o Const(0,·) seria o i32 errado)
+        get(b, 0, "x");
+        b.add(new WasmInstr.Const(0.0));
+        b.add(new WasmInstr.Simple(0x63, "f64.lt"));                 // x < 0
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 1, "c1"));    // c1 salvo
+        b.add(new WasmInstr.Const(1, -1));                           // v1 = -1
+        b.add(new WasmInstr.Const(1, 1));                            // v2a = 1
+        b.add(new WasmInstr.Const(1, 0));                            // v2b = 0
+        get(b, 0, "x");
+        b.add(new WasmInstr.Const(0.0));
+        b.add(new WasmInstr.Simple(0x64, "f64.gt"));                 // o cond POR ÚLTIMO
+        b.add(new WasmInstr.Simple(0x1b, "select"));                 // interno = x>0 ? 1 : 0
+        get(b, 1, "c1");                                             // o cond do externo
+        b.add(new WasmInstr.Simple(0x1b, "select"));                 // c1 ? -1 : interno
         return b;
     }
 
@@ -454,6 +509,10 @@ final class WasmMathRuntime {
         fs.add(new WasmFunc("kof_math_ceil", List.of(0x7c), List.of(0x7c), List.of(), mathDCeilBody()));
         fs.add(new WasmFunc("kof_math_dmin", List.of(0x7c, 0x7c), List.of(0x7c), List.of(), mathDMinBody()));
         fs.add(new WasmFunc("kof_math_dmax", List.of(0x7c, 0x7c), List.of(0x7c), List.of(), mathDMaxBody()));
+        // MATH-D-2 (27/10): clamp (o if/else RESULT-TYPED 0x7c — a máquina
+        // do roundTo) + sign (o select i64)
+        fs.add(new WasmFunc("kof_math_dclamp", List.of(0x7c, 0x7c, 0x7c), List.of(0x7c), List.of(), mathDClampBody()));
+        fs.add(new WasmFunc("kof_math_dsign", List.of(0x7c), List.of(0x7e), List.of(0x7f), mathDSignBody()));
         return fs;
     }
 }
