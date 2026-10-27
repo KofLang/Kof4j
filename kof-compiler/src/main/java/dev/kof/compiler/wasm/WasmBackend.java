@@ -280,6 +280,17 @@ public class WasmBackend implements Backend {
                     }
                     if (usesStringMethod(scanAll, "startsWith")) funcs.add(WasmStrInspect.kofStrAffix(false));
                     if (usesStringMethod(scanAll, "endsWith")) funcs.add(WasmStrInspect.kofStrAffix(true));
+                    // Fase E (27/10, #776): o strByteOff e' DEPENDENCIA comum de
+                    // indexOf/lastIndexOf/contains E de charAt/substring — com os
+                    // dois grupos na mesma fonte o handle era registrado DUAS
+                    // VEZES e o modulo saia com export duplicado (invalido:
+                    // `s.contains(x)` + `s.substring(i)`). Os guardas de
+                    // dependencia agora se acumulam numa condicao unica.
+                    boolean needsByteOff = usesStringMethod(scanAll, "indexOf")
+                            || usesStringMethod(scanAll, "lastIndexOf")
+                            || usesStringMethod(scanAll, "contains")
+                            || usesStringMethod(scanAll, "charAt")
+                            || usesStringMethod(scanAll, "substring");
                     if (usesStringMethod(scanAll, "indexOf")
                             || usesStringMethod(scanAll, "lastIndexOf")
                             || usesStringMethod(scanAll, "contains")) {
@@ -287,10 +298,8 @@ public class WasmBackend implements Backend {
                         funcs.add(WasmStrInspect.kofStrLastIndexOf());
                         funcs.add(WasmStrSearch.kofStrMatchAt());
                         funcs.add(WasmStrSearch.kofStrUnitsBefore());
-                        funcs.add(WasmStrSlice.kofStrByteOff());
                     }
-                    if (usesStringMethod(scanAll, "charAt")
-                            || usesStringMethod(scanAll, "substring")) {
+                    if (needsByteOff) {
                         funcs.add(WasmStrSlice.kofStrByteOff());
                     }
                     if (usesStringMethod(scanAll, "charAt")) funcs.add(WasmStrSlice.kofStrCharAt());
@@ -378,6 +387,15 @@ public class WasmBackend implements Backend {
             imports = List.of(WasmImport.wasi("fd_write", List.of(0x7f, 0x7f, 0x7f, 0x7f), List.of(0x7f)),
                               WasmImport.wasi("proc_exit", List.of(0x7f), List.of()));
         }
+        // Fase E (27/10, #776): DEDUPE por nome preservando a primeira
+        // ocorrencia — os blocos de registro por metodo (indexOf vs compareTo
+        // vs replace vs length) compartilham DEPENDENCIAS (strByteOff,
+        // strLen, strMatchAt, strAlloc/strAppendByte) e dois blocos na mesma
+        // fonte registravam a mesma funcao DUAS VEZES: export duplicado,
+        // modulo invalido (`s.contains(x)` + `s.substring(i)` medido).
+        java.util.LinkedHashMap<String, WasmFunc> byName = new java.util.LinkedHashMap<>();
+        for (WasmFunc f : funcs) byName.putIfAbsent(f.name(), f);
+        funcs = new ArrayList<>(byName.values());
         byte[] bin = new WasmModule(imports, funcs, dataSegments, globals).serialize();
         String rel = entryClass.replace('/', java.io.File.separatorChar);
         Path wasmPath = outputDir.resolve(rel + ".wasm");

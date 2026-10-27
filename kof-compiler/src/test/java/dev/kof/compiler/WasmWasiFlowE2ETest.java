@@ -263,4 +263,30 @@ class WasmWasiFlowE2ETest {
         assertFaceMatchesJvm(dir);
     }
 
+
+    @Test
+    void combinedStringSearchAndSliceMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // Fase E (27/10, #776): os metodos de busca e de fatia NA MESMA
+        // fonte — o strByteOff era dependencia comum de indexOf/contains E
+        // de charAt/substring e era registrado DUAS VEZES (export
+        // duplicado, modulo invalido). O dedupe por nome no backend fecha
+        // a classe inteira de pares; os metodos combinados sao o oracle.
+        var wasmtime = host("wasmtime");
+        var wasmTools = host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var s = "hello"
+                    println(s.length())
+                    println(s.contains("ell"))
+                    println(s.indexOf("l"))
+                    println(s.substring(1))
+                    println(s.charAt(0))
+                    println(s.startsWith("he"))
+                    println(s.endsWith("lo"))
+                }
+                """);
+        assertFaceMatchesJvm(dir);
+    }
+
 }
