@@ -426,6 +426,8 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_math_isEven", "kof_math_isOdd", "kof_math_isPositive",
                     "kof_math_isNegative", "kof_math_isZero" -> "(I)Z";
             case "kof_math_sqrt" -> "(D)D";
+            case "kof_math_dabs", "kof_math_floor", "kof_math_ceil" -> "(D)D";
+            case "kof_math_dmin", "kof_math_dmax" -> "(DD)D";
             case "kof_math_sin", "kof_math_cos", "kof_math_tan",
                     "kof_math_asin", "kof_math_acos", "kof_math_atan",
                     "kof_math_toRadians", "kof_math_toDegrees" -> "(D)D";

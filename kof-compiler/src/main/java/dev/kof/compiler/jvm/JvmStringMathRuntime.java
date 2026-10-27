@@ -60,6 +60,15 @@ public final class JvmStringMathRuntime {
                 public static double kof_math_sqrt(double v) {
                     return Math.sqrt(v);
                 }
+
+                // MATH-D (27/10, #776): as cinco double de arredondamento/
+                // extremos — o Math.* EXATO da JDK (o WASI usa as instruções
+                // IEEE; min/max casam o contrato ±0/NaN da JVM).
+                public static double kof_math_dabs(double v) { return Math.abs(v); }
+                public static double kof_math_floor(double v) { return Math.floor(v); }
+                public static double kof_math_ceil(double v) { return Math.ceil(v); }
+                public static double kof_math_dmin(double a, double b) { return Math.min(a, b); }
+                public static double kof_math_dmax(double a, double b) { return Math.max(a, b); }
                 public static double kof_math_sin(double v) { return Math.sin(v); }
                 public static double kof_math_cos(double v) { return Math.cos(v); }
                 public static double kof_math_tan(double v) { return Math.tan(v); }

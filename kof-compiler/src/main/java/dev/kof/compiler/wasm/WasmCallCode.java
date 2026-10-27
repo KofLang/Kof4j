@@ -173,7 +173,12 @@ final class WasmCallCode {
             // resultado i32 (modulo invalido).
             out.add(new WasmInstr.Call(kc.methodName()));
             boolean pred = kc.methodName().startsWith("kof_math_is");
-            boolean dbl = kc.methodName().equals("kof_math_roundTo");
+            boolean dbl = kc.methodName().equals("kof_math_roundTo")
+                    || kc.methodName().equals("kof_math_dabs")
+                    || kc.methodName().equals("kof_math_floor")
+                    || kc.methodName().equals("kof_math_ceil")
+                    || kc.methodName().equals("kof_math_dmin")
+                    || kc.methodName().equals("kof_math_dmax");
             ctx.lastPush = pred ? "bool" : (dbl ? "double" : "int");
             ctx.lastPushWide = !pred;
         } else if (ctx.wasi && "println".equals(kc.methodName())) {

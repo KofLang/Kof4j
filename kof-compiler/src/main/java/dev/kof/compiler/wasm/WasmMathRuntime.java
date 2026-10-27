@@ -40,7 +40,12 @@ final class WasmMathRuntime {
             // S1b.3: roundTo(value, decimals) — half-away-from-zero por escala
             // repetida (a MESMA aritmetica do JVM/native: p = 10^m por
             // multiplicacao repetida, cada passo 1 op IEEE arredondada)
-            "kof_math_roundTo", "kof_math_round_half");
+            "kof_math_roundTo", "kof_math_round_half",
+            // MATH-D (27/10, #776): abs/min/max/floor/ceil DOUBLE — as
+            // instruções IEEE nativas do WASM (abs 0x8b, min 0xA4, max 0xA5,
+            // floor 0x9c, ceil 0x9b); min/max casam o contrato ±0/NaN da JVM
+            "kof_math_dabs", "kof_math_floor", "kof_math_ceil",
+            "kof_math_dmin", "kof_math_dmax");
 
     static boolean usesAny(List<IRMethod> methods) {
         for (IRMethod m : methods) {
@@ -195,6 +200,45 @@ final class WasmMathRuntime {
     // toDegrees com a MESMA ordem do Math.toRadians/ToDegrees da JVM
     // (v/180*PI e v*180/PI) para zero-drift bit a bit; lerp/percentage
     // com a ordem do runtime nativo. ----
+
+    // ---- MATH-D (27/10): as cinco double — instruções IEEE nativas ----
+
+    private static List<WasmInstr> mathDAbsBody() {
+        List<WasmInstr> b = new ArrayList<>();
+        get(b, 0, "x");
+        b.add(new WasmInstr.Simple(0x99, "f64.abs"));
+        return b;
+    }
+
+    private static List<WasmInstr> mathDFloorBody() {
+        List<WasmInstr> b = new ArrayList<>();
+        get(b, 0, "x");
+        b.add(new WasmInstr.Simple(0x9c, "f64.floor"));
+        return b;
+    }
+
+    private static List<WasmInstr> mathDCeilBody() {
+        List<WasmInstr> b = new ArrayList<>();
+        get(b, 0, "x");
+        b.add(new WasmInstr.Simple(0x9b, "f64.ceil"));
+        return b;
+    }
+
+    private static List<WasmInstr> mathDMinBody() {
+        List<WasmInstr> b = new ArrayList<>();
+        get(b, 0, "a");
+        get(b, 1, "b");
+        b.add(new WasmInstr.Simple(0xa4, "f64.min"));
+        return b;
+    }
+
+    private static List<WasmInstr> mathDMaxBody() {
+        List<WasmInstr> b = new ArrayList<>();
+        get(b, 0, "a");
+        get(b, 1, "b");
+        b.add(new WasmInstr.Simple(0xa5, "f64.max"));
+        return b;
+    }
 
     private static List<WasmInstr> sqrtBody() {
         List<WasmInstr> b = new ArrayList<>();
@@ -404,6 +448,12 @@ final class WasmMathRuntime {
         // roundTo(value: f64, decimals: i64) -> f64 + o helper half-away
         fs.add(new WasmFunc("kof_math_round_half", List.of(0x7c), List.of(0x7c), List.of(0x7c, 0x7c), roundHalfBody()));
         fs.add(new WasmFunc("kof_math_roundTo", List.of(0x7c, 0x7e), List.of(0x7c), List.of(0x7c, 0x7f, 0x7f, 0x7c), roundToBody()));
+        // MATH-D (27/10): as cinco double — instruções IEEE nativas
+        fs.add(new WasmFunc("kof_math_dabs", List.of(0x7c), List.of(0x7c), List.of(), mathDAbsBody()));
+        fs.add(new WasmFunc("kof_math_floor", List.of(0x7c), List.of(0x7c), List.of(), mathDFloorBody()));
+        fs.add(new WasmFunc("kof_math_ceil", List.of(0x7c), List.of(0x7c), List.of(), mathDCeilBody()));
+        fs.add(new WasmFunc("kof_math_dmin", List.of(0x7c, 0x7c), List.of(0x7c), List.of(), mathDMinBody()));
+        fs.add(new WasmFunc("kof_math_dmax", List.of(0x7c, 0x7c), List.of(0x7c), List.of(), mathDMaxBody()));
         return fs;
     }
 }

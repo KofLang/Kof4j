@@ -438,4 +438,28 @@ class WasmWasiFlowE2ETest {
         assertFaceMatchesJvm(dir);
     }
 
+    @Test
+    void mathDoubleRoundExtremesMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // MATH-D (27/10, #776): math.abs/floor/ceil/min/max DOUBLE — as
+        // instruções IEEE nativas do WASM (abs 0x99, floor 0x9c, ceil 0x9b,
+        // min 0xA4, max 0xA5); a JVM é o Math.* exato. Os pins: floor(-0.0)
+        // = -0.0 e abs(-0.0) = 0.0 (a impressão do zero com sinal da JVM —
+        // o F1 mediu byte a byte). NATIVO segue MATH001 (o asm é frente da
+        // lane nat); JS ganhou os cinco no bloco math-double (o node rodou).
+        var wasmtime = host("wasmtime");
+        var wasmTools = host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    println(math.abs(-2.5))
+                    println(math.floor(2.7))
+                    println(math.ceil(2.1))
+                    println(math.min(1.5, -2.5))
+                    println(math.max(1.5, -2.5))
+                    println(math.floor(-0.0))
+                    println(math.abs(-0.0))
+                }
+                """);
+        assertFaceMatchesJvm(dir);
+    }
 }

@@ -47,6 +47,15 @@ final class JsRuntimeUiMathDouble {
             // 308) por multiplicação REPETIDA (cada passo IEEE → byte-idêntico
             // JVM/Native). d>=0: scaled=v*p, r/p. d<0: scaled=v/p, r*p.
             // Overflow de v*p → devolve v (no-op).
+            // MATH-D (27/10, #776): as cinco double de arredondamento/
+            // extremos — o Math.* do JS casando o contrato da JVM (o floor/
+            // ceil do JS sao IEEE; o abs preserva -0.0 → 0.0 como o JVM
+            // imprime; o min/max do JS propagam NaN e o -0.0 como a JVM).
+            export function kofMathDAbs(v) { return Math.abs(v); }
+            export function kofMathFloor(v) { return Math.floor(v); }
+            export function kofMathCeil(v) { return Math.ceil(v); }
+            export function kofMathDMin(a, b) { return Math.min(a, b); }
+            export function kofMathDMax(a, b) { return Math.max(a, b); }
             export function kofMathRoundTo(v, decimals) {
                 if (v !== v || v === Infinity || v === -Infinity) return v;
                 let m = decimals < 0 ? -decimals : decimals;

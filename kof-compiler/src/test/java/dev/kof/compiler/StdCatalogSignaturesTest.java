@@ -181,7 +181,14 @@ class StdCatalogSignaturesTest {
     @Test
     void fatiaFourMathAndLogBindAgainstRealDispatchers() {
         assertNotNull(KofMath.staticMethod("math", "abs", List.of(I)), "math.abs(Int)");
-        assertNull(KofMath.staticMethod("math", "abs", List.of(D)), "abs(Double) NAO binda (familia Int)");
+        // MATH-D (27/10): abs(Double) BINDA agora (a sobrecarga implementada
+        // em JVM/JS/WASI — o F1 byte-idêntico); o lock velho flipou
+        assertNotNull(KofMath.staticMethod("math", "abs", List.of(D)), "math.abs(Double) binda (MATH-D)");
+        assertNotNull(KofMath.staticMethod("math", "floor", List.of(D)), "math.floor(Double) (MATH-D)");
+        assertNotNull(KofMath.staticMethod("math", "ceil", List.of(D)), "math.ceil(Double) (MATH-D)");
+        assertNotNull(KofMath.staticMethod("math", "min", List.of(D, D)), "math.min(Double,Double) (MATH-D)");
+        assertNotNull(KofMath.staticMethod("math", "max", List.of(D, D)), "math.max(Double,Double) (MATH-D)");
+        assertNull(KofMath.staticMethod("math", "floor", List.of(I)), "floor(Int) NAO (Int nao alarga — R6)");
         assertNotNull(KofMath.staticMethod("math", "sqrt", List.of(D)), "sqrt(Double)");
         assertNull(KofMath.staticMethod("math", "sqrt", List.of(I)), "sqrt(Int) NAO binda");
         assertNotNull(KofMath.staticMethod("math", "clamp", List.of(I, I, I)), "clamp/3");

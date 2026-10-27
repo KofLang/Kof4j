@@ -37,7 +37,7 @@ public final class KofMath {
     // 19/09 LSP-A fatia 3: a familia case "isEven","isOdd",... e o case
     // "isInteger","isDecimal" bindam os 5/2 — a lista so tinha o primeiro
     // literal de cada (drift do tipo db/process/net; lock novo segue virgulas).
-    static List<String> functions() { return List.of("abs", "sign", "clamp", "min", "max",
+    static List<String> functions() { return List.of("abs", "sign", "clamp", "min", "max", "floor", "ceil",
             "isEven", "isOdd", "isPositive", "isNegative", "isZero", "sqrt", "lerp", "percentage", "isInteger", "isDecimal",
       "sin", "cos", "tan", "asin", "acos", "atan", "atan2",
       "toRadians", "toDegrees", "pi", "e", "tau", "roundTo", "pow", "parseInt", "parseLong", "parseDouble", "parseIntOrDefault", "parseLongOrDefault", "parseDoubleOrDefault"); }
@@ -46,7 +46,9 @@ public final class KofMath {
         int argc = argTypes.size();
         return switch (name) {
             case "abs" -> argc == 1 && isInt(argTypes.get(0))
-                    ? new MathCall("kof_math_abs", INT, List.of(INT)) : null;
+                    ? new MathCall("kof_math_abs", INT, List.of(INT))
+                : argc == 1 && isDouble(argTypes.get(0))
+                    ? new MathCall("kof_math_dabs", DOUBLE, List.of(DOUBLE)) : null;
             case "sign" -> argc == 1 && isInt(argTypes.get(0))
                     ? new MathCall("kof_math_sign", INT, List.of(INT)) : null;
             // audit 0.6.0 MATH-02 (ledger §658): a familia S1 Int exige a
@@ -57,9 +59,21 @@ public final class KofMath {
                     && isInt(argTypes.get(1)) && isInt(argTypes.get(2))
                     ? new MathCall("kof_math_clamp", INT, List.of(INT, INT, INT)) : null;
             case "min" -> argc == 2 && isInt(argTypes.get(0)) && isInt(argTypes.get(1))
-                    ? new MathCall("kof_math_min", INT, List.of(INT, INT)) : null;
+                    ? new MathCall("kof_math_min", INT, List.of(INT, INT))
+                : argc == 2 && isDouble(argTypes.get(0)) && isDouble(argTypes.get(1))
+                    ? new MathCall("kof_math_dmin", DOUBLE, List.of(DOUBLE, DOUBLE)) : null;
             case "max" -> argc == 2 && isInt(argTypes.get(0)) && isInt(argTypes.get(1))
-                    ? new MathCall("kof_math_max", INT, List.of(INT, INT)) : null;
+                    ? new MathCall("kof_math_max", INT, List.of(INT, INT))
+                : argc == 2 && isDouble(argTypes.get(0)) && isDouble(argTypes.get(1))
+                    ? new MathCall("kof_math_dmax", DOUBLE, List.of(DOUBLE, DOUBLE)) : null;
+            // MATH-D (27/10, #776): floor/ceil = as PRIMEIRAS funções double
+            // de arredondamento inteiro (o WASM tem as instruções IEEE
+            // 0x9c/0x9b; a JVM é o Math.floor/ceil exato). Nomes NOVOS no
+            // catálogo (o lock do StdCatalogTest acompanha o switch).
+            case "floor" -> argc == 1 && isDouble(argTypes.get(0))
+                    ? new MathCall("kof_math_floor", DOUBLE, List.of(DOUBLE)) : null;
+            case "ceil" -> argc == 1 && isDouble(argTypes.get(0))
+                    ? new MathCall("kof_math_ceil", DOUBLE, List.of(DOUBLE)) : null;
             case "isEven", "isOdd", "isPositive", "isNegative", "isZero" ->
                 argc == 1 && isInt(argTypes.get(0))
                     ? new MathCall("kof_math_" + name, BOOL, List.of(INT)) : null;
@@ -152,7 +166,11 @@ public final class KofMath {
     private static final java.util.Set<String> NATIVE_MISSING = java.util.Set.of(
             "kof_math_sin", "kof_math_cos", "kof_math_tan",
             "kof_math_asin", "kof_math_acos", "kof_math_atan", "kof_math_atan2",
-            "kof_math_toRadians", "kof_math_toDegrees");
+            "kof_math_toRadians", "kof_math_toDegrees",
+            // MATH-D (27/10): as cinco double esperam o asm da lane nat
+            // (absd/minsd/maxsd/roundsd — SSE/SSE4.1); MATH001 honesto até lá
+            "kof_math_dabs", "kof_math_floor", "kof_math_ceil",
+            "kof_math_dmin", "kof_math_dmax");
 
     /** S1 (Int) + S1b/S1b.1 (Double) em TODOS os targets (MATH001 fechado
      * 11/09 — fatia riscv B32 + tradutor aarch fsqrt.d/fcvtzs; prova qemu).
