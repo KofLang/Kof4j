@@ -196,6 +196,43 @@ class WasmWasiListE2ETest {
     }
 
     @Test
+    void listScalarElemsMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // Fase E (27/10, #776): LIST fatia 6 — os elems escalares restantes:
+        // Long (i64 nativo, slots diretos), Char (i64 nativo no WASI — o
+        // rastro "char"; o print/strChar recebem i64) e Bool (i32 — estende
+        // no slot e volta com wrap; as consultas estendem o valor antes do
+        // bit-scan). O rastro do ARG de um literal Long e' "long" (medido) —
+        // o check de largura aceita as tres trilhas i64-wide.
+        var wasmtime = host("wasmtime");
+        var wasmTools = host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var ls = listOf(1L, 2L)
+                    ls.add(3000000000L)
+                    ls.set(0, 7L)
+                    println(ls.size())
+                    println(ls.get(0))
+                    println(ls.contains(3000000000L))
+                    println(ls.indexOf(7L))
+                    ls.remove(1)
+                    println(ls.get(1))
+                    var bs = listOf(true, false, true)
+                    bs.set(1, true)
+                    println(bs.get(1))
+                    println(bs.contains(false))
+                    bs.remove(0)
+                    println(bs.get(0))
+                    var cs = listOf('a', 'b')
+                    cs.set(0, 'c')
+                    println(cs.get(0))
+                    println(cs.contains(99))
+                }
+                """);
+        assertListFaceMatchesJvm(dir);
+    }
+
+    @Test
     void listOfNonIntElementIsHonestRefusal(@TempDir Path dir) throws Exception {
         // Fase E (27/10, #776): a fatia so' admite elems Int — um add de
         // String recusa pelo nome (WASM002, sem artefato — Q7: nunca lista

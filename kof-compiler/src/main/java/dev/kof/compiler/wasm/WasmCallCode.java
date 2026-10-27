@@ -42,6 +42,13 @@ final class WasmCallCode {
         return "";
     }
 
+    /** A largura do elemento no slot i64: int/long/char viajam i64 DIRETO;
+     *  bool e' i32 e estende; string e' o HANDLE estendido; double vai como
+     *  BITS (o reinterpret fica no call site). "" = bare (recusa). */
+    private static boolean isDirectI64Elem(String elem) {
+        return "int".equals(elem) || "long".equals(elem) || "char".equals(elem);
+    }
+
     static void emitCall(KofCall kc, List<KofOperation> ops, int idx,
                          WasmLowering.Ctx ctx, List<WasmInstr> out) {
         if (WasmRecordCtor.isRecordEq(ctx, kc) || WasmRecordCtor.isRecordEqualsCall(ctx, kc)) {
@@ -157,11 +164,23 @@ final class WasmCallCode {
                     ctx.lastPushWide = false;
                 }
                 case "kof_list_add" -> {
-                    if ("int".equals(elem)) {
-                        if (!"int".equals(ctx.lastPush)) {
+                    if (isDirectI64Elem(elem)) {
+                        // o rastro do ARG diz a largura: int/long/char sao
+                        // todos i64-wide (o literal 1L chega com o rastro
+                        // "long" — medido) — o TIPO do elem vem do owner
+                        if (!"int".equals(ctx.lastPush) && !"long".equals(ctx.lastPush)
+                                && !"char".equals(ctx.lastPush)) {
                             throw new WasmUnsupportedException("List.add('" + ctx.lastPush
-                                    + "') em List<Int> (WASM002) — docs/wasm-wasi-plan.md (#776)");
+                                    + "') em List<" + elem + "> (WASM002) — docs/wasm-wasi-plan.md (#776)");
                         }
+                        out.add(new WasmInstr.Call("kof.listAdd"));
+                    } else if ("bool".equals(elem)) {
+                        // bool = i32: estende para o slot i64
+                        if (!"bool".equals(ctx.lastPush)) {
+                            throw new WasmUnsupportedException("List.add('" + ctx.lastPush
+                                    + "') em List<Bool> (WASM002) — docs/wasm-wasi-plan.md (#776)");
+                        }
+                        out.add(new WasmInstr.Simple(0xad, "i64.extend_i32_u"));
                         out.add(new WasmInstr.Call("kof.listAdd"));
                     } else if ("double".equals(elem)) {
                         if (!"double".equals(ctx.lastPush)) {
@@ -203,10 +222,18 @@ final class WasmCallCode {
                         out.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
                         ctx.lastPush = "string";
                         ctx.lastPushWide = false;
-                    } else if ("int".equals(elem)) {
+                    } else if (isDirectI64Elem(elem)) {
                         out.add(new WasmInstr.Call("kof.listGet"));
-                        ctx.lastPush = "int";
+                        // long rende o rastro "int" (a caixa 0/2 renderiza igual);
+                        // char rende "char" (o strChar/writeChar recebem i64)
+                        ctx.lastPush = "char".equals(elem) ? "char" : "int";
                         ctx.lastPushWide = true;
+                    } else if ("bool".equals(elem)) {
+                        // o slot guarda o bool estendido: volta i32
+                        out.add(new WasmInstr.Call("kof.listGet"));
+                        out.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+                        ctx.lastPush = "bool";
+                        ctx.lastPushWide = false;
                     } else if ("double".equals(elem)) {
                         // os BITS do slot voltam f64
                         out.add(new WasmInstr.Call("kof.listGet"));
@@ -238,6 +265,16 @@ final class WasmCallCode {
                                         + "') em List<Double> (WASM002) — docs/wasm-wasi-plan.md (#776)");
                             }
                             out.add(new WasmInstr.Simple(0xbd, "i64.reinterpret_f64"));
+                        } else if (isDirectI64Elem(elem) && !"char".equals(ctx.lastPush)
+                                && !"int".equals(ctx.lastPush) && !"long".equals(ctx.lastPush)) {
+                            throw new WasmUnsupportedException("List.set('" + ctx.lastPush
+                                    + "') em List<" + elem + "> (WASM002) — docs/wasm-wasi-plan.md (#776)");
+                        } else if ("bool".equals(elem)) {
+                            if (!"bool".equals(ctx.lastPush)) {
+                                throw new WasmUnsupportedException("List.set('" + ctx.lastPush
+                                        + "') em List<Bool> (WASM002) — docs/wasm-wasi-plan.md (#776)");
+                            }
+                            out.add(new WasmInstr.Simple(0xad, "i64.extend_i32_u"));
                         }
                         out.add(new WasmInstr.Call("kof.listSet"));
                     } else if ("kof_list_remove".equals(kc.methodName())) {
@@ -255,7 +292,7 @@ final class WasmCallCode {
                     // recebem o HANDLE cru (i32 — sem extend). Sobre outros
                     // elems recusa (nunca compare errado).
                     String rn;
-                    if ("int".equals(elem) || "double".equals(elem)) {
+                    if (isDirectI64Elem(elem) || "double".equals(elem) || "bool".equals(elem)) {
                         rn = switch (kc.methodName()) {
                             case "kof_list_contains" -> "kof.listContains";
                             case "kof_list_index_of" -> "kof.listIndexOf";
@@ -278,11 +315,19 @@ final class WasmCallCode {
                     // reinterpreta o valor (a ordem antiga reinterpretava o
                     // proprio phantom — o validador rejeitou)
                     out.add(new WasmInstr.Simple(0x1a, "drop"));
+                    // as larguras do valor DEPOIS do drop (o topo era o
+                    // phantom — a LIST-5 pagou essa lei pro double e a
+                    // LIST-6 repetiu-a pro bool: o extend antes do drop
+                    // consumia o phantom)
                     if ("double".equals(elem)) {
                         // o valor chega f64 e vai como BITS (a comparacao de
                         // bits = exatamente Double.equals: NaN=NaN por bits,
                         // 0.0 vs -0.0 distintos)
                         out.add(new WasmInstr.Simple(0xbd, "i64.reinterpret_f64"));
+                    } else if ("bool".equals(elem)) {
+                        // o valor i32 estende antes do bit-scan (o slot
+                        // guarda o estendido — bits 0/1 exatos)
+                        out.add(new WasmInstr.Simple(0xad, "i64.extend_i32_u"));
                     }
                     out.add(new WasmInstr.Call(rn));
                     if ("kof_list_contains".equals(kc.methodName())) {
