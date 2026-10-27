@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -29,6 +30,14 @@ class WasmOpSupportTest {
     private static final Path LOWERING =
             Path.of("src/main/java/dev/kof/compiler/wasm/WasmLowering.java");
 
+    /** Os despachos extraídos (os splits do check_500): um op é "tratado"
+     *  quando qualquer uma das classes de despacho o menciona. */
+    private static final List<Path> DISPATCHES = List.of(
+            LOWERING,
+            Path.of("src/main/java/dev/kof/compiler/wasm/WasmCallCode.java"),
+            Path.of("src/main/java/dev/kof/compiler/wasm/WasmCollCallCode.java"),
+            Path.of("src/main/java/dev/kof/compiler/wasm/WasmArrayOps.java"));
+
     @Test
     void everyDeclaredOpIsARealOperationType() throws IOException {
         Set<String> operations = allKofOperationClasses();
@@ -41,7 +50,11 @@ class WasmOpSupportTest {
 
     @Test
     void everyDeclaredOpIsActuallyHandledByTheLowerer() throws IOException {
-        String source = Files.readString(LOWERING);
+        StringBuilder all = new StringBuilder();
+        for (Path p : DISPATCHES) {
+            all.append(Files.readString(p));
+        }
+        String source = all.toString();
         for (Class<?> c : WasmOpSupport.SUPPORTED) {
             assertTrue(source.contains("instanceof " + c.getSimpleName())
                             || source.contains(c.getSimpleName() + " "),

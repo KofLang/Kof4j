@@ -214,22 +214,56 @@ class WasmWasiRecordE2ETest {
     }
 
     @Test
-    void argsAndOutOfSlicePrintRefuseWithNoArtifacts(@TempDir Path dir) throws Exception {
+    void arrayPrintRefusesWithNoArtifacts(@TempDir Path dir) throws Exception {
+        // ARRAY-1 (27/10): o println do array INTEIRO segue fora da fatia
+        // (o format [I@1b6d3586 e' identidade de ponteiro — recusa nomeada,
+        // sem artefato). O iter (`for (a in args)`) saiu daqui: a fatia
+        // ARRAY-1 legitimou o desugar (length/get provados) e virou a face
+        // de paridade argsIterationMatchesTheJvmOracle abaixo.
         var driver = new CompilerDriver();
-        record Case(String name, String src) {}
-        for (Case c : List.of(
-                new Case("array-print", "main(String[] args) { println(args) }\n"),
-                new Case("iter", "main(String[] args) {\n    for (var a in args) { println(a) }\n}\n"))) {
-            Path src = dir.resolve("Refuse-" + c.name() + ".kf");
-            Files.writeString(src, c.src().replace("\\n", "\n"));
-            Path out = dir.resolve("out-" + c.name());
-            var r = driver.compile(src, out, Target.WASI);
-            assertFalse(r.success(), c.name() + " must refuse WASM002");
-            String msg = r.diagnostics().getDiagnostics().toString();
-            assertTrue(msg.contains("WASM002") && msg.contains("#776")
-                    && msg.contains("wasm-wasi-plan"), c.name() + " honest: " + msg);
-            assertFalse(Files.exists(out.resolve("Default")),
-                    c.name() + ": refusal emits NO artifacts");
-        }
+        Path src = dir.resolve("Refuse-array-print.kf");
+        Files.writeString(src, "main(String[] args) { println(args) }\n");
+        Path out = dir.resolve("out-array-print");
+        var r = driver.compile(src, out, Target.WASI);
+        assertFalse(r.success(), "array-print must refuse WASM002");
+        String msg = r.diagnostics().getDiagnostics().toString();
+        assertTrue(msg.contains("WASM002") && msg.contains("#776")
+                && msg.contains("wasm-wasi-plan"), "array-print honest: " + msg);
+        assertFalse(Files.exists(out.resolve("Default")),
+                "array-print: refusal emits NO artifacts");
+    }
+
+    @Test
+    void argsIterationMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // ARRAY-1 (27/10, #776): `for (var a in args)` — o desugar (length/
+        // get) anda na maquinaria da fatia; a antiga RECUSA registrada
+        // (WasmWasiRecordE2ETest) vira paridade byte-idêntica na MESMA
+        // commit em que virou tradução. Sem args o desugar imprime NADA
+        // (length 0) — o wasmtime roda sem host args.
+        var wasmtime = host("wasmtime");
+        assumeTrue(wasmtime != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"),
+                "main(String[] args) {\n    for (var a in args) { println(a) }\n}\n");
+        var driver = new CompilerDriver();
+        var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
+        assertTrue(jvm.success(), "jvm iter compile: " + jvm.diagnostics().getDiagnostics());
+        var oracle = new ProcessBuilder(List.of(jvmBin(), "-cp",
+                Path.of(dir.toString(), "out-jvm").toString(), "Default.Main"))
+                .redirectErrorStream(true).start();
+        String expected = new String(oracle.getInputStream().readAllBytes());
+        assertTrue(oracle.waitFor(120, TimeUnit.SECONDS) && oracle.exitValue() == 0,
+                "JVM iter oracle: " + expected);
+        var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
+        assertTrue(wasi.success(), "wasi iter compile (ARRAY-1 legitimou o desugar): "
+                + wasi.diagnostics().getDiagnostics());
+        var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
+                Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm").toString()))
+                .redirectErrorStream(true).start();
+        String out = new String(proc.getInputStream().readAllBytes());
+        assertTrue(proc.waitFor(60, TimeUnit.SECONDS), "host within 60s");
+        assertEquals(0, proc.exitValue(), "clean WASI exit iter: " + out);
+        assertEquals(expected.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                "args iteration must equal the JVM oracle");
     }
 }

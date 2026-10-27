@@ -368,6 +368,11 @@ public class WasmBackend implements Backend {
                     // que cresce nao invalida o handle do chamador — contrato
                     // ArrayList) + as consultas (a fatia 4 compara STRINGS
                     // pelo kof.strEq — o runtime entra junto, dedupe-safe).
+                    // ARRAY-1 (27/10, #776): `new Int[n]` — os ops de array
+                    // sao memoria pura; so o alocador compartilhado entra
+                    if (wasi && WasmTypeOracle.usesArray(scanAll)) {
+                        funcs.add(WasmListRuntime.heapAlloc());
+                    }
                     if (wasi && WasmTypeOracle.usesList(scanAll)) {
                         funcs.addAll(WasmListRuntime.all());
                         funcs.add(kofStrEq());

@@ -56,6 +56,11 @@ final class WasmLowering {
                 locals.add(WasmFunc.TYPE_I32); // Map = handle i32 (celula indireta, fatia coleções 8 — 27/10)
             } else if (wasi && lv.type() instanceof Type.ClassType ct && "Set".equals(ct.name())) {
                 locals.add(WasmFunc.TYPE_I32); // Set = handle i32 (celula indireta, fatia coleções 9 — 27/10)
+            } else if (wasi && lv.type() instanceof Type.ArrayType) {
+                // ARRAY-1 (27/10): o array = o PONTEIRO CRU i32 para
+                // [count i32][slots i32×N] no bump heap — o MESMO layout da
+                // 15.3c-sliceB (o args); o store/load/length ja andam nele
+                locals.add(WasmFunc.TYPE_I32);
             } else {
                 locals.add(mapType(typeName(lv.type()), m.name(), "local " + lv.name()));
             }
@@ -508,35 +513,8 @@ final class WasmLowering {
             // o MESMO (o wasm nao distingue largura no descarte); o desugar
             // do remove de List<Int> chega com ele (a fatia LIST-5 mediu)
             out.add(new WasmInstr.Simple(0x1a, "drop"));
-        } else if (op instanceof KofArrayLength) {
-            out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0)); // [arr] = count (15.3c-sliceB)
-            out.add(new WasmInstr.Simple(0xac, "i64.extend_i32_s")); // Int = i64 (D-WASM-02)
-            ctx.lastPush = "int";
-        } else if (op instanceof KofArrayLoad al) {
-            if (ctx.wIdx < 0 || ctx.sIdx < 0) {
-                throw new WasmUnsupportedException("leitura de array fora de '_start' (WASM002) —"
-                        + " docs/wasm-wasi-plan.md (#776)");
-            }
-            // [arr, idx(i64)] -> bounds-check explícito (trap deterministico, nunca lixo)
-            out.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64")); // [arr, idx(i32)]
-            out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.sIdx, "idx"));  // [arr]
-            out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.wIdx, "arr"));  // []
-            out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.wIdx, "arr"));
-            out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));   // [count]
-            out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.sIdx, "idx"));  // [count, idx]
-            out.add(new WasmInstr.Simple(0x4c, "i32.le_u"));     // count <= idx => fora
-            out.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, null, 0x40));
-            out.add(new WasmInstr.Simple(0x00, "unreachable"));  // D-WASM-03: trap honesto
-            out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
-            out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.wIdx, "arr"));
-            out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.sIdx, "idx"));
-            out.add(new WasmInstr.Const(0, 4));
-            out.add(new WasmInstr.Simple(0x6c, "i32.mul"));      // [arr, idx*4]
-            out.add(new WasmInstr.Simple(0x6a, "i32.add"));      // [arr + idx*4]
-            out.add(new WasmInstr.Const(0, 4));
-            out.add(new WasmInstr.Simple(0x6a, "i32.add"));      // [arr + idx*4 + 4]
-            out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
-            ctx.lastPush = typeName(al.elementType());
+        } else if (WasmArrayOps.emit(op, ctx, out)) {
+            // os ops de array (ARRAY-1) — WasmArrayOps (split check_500)
         } else if (op instanceof KofGetStatic gs
                 && ctx.wasi && "System".equals(ownerSimpleName(gs.ownerType())) && "out".equals(gs.name())) {
             // receiver do println — nao empilha nada; a rota println consome so o argumento

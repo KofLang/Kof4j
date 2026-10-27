@@ -178,6 +178,28 @@ public final class SemAssignmentAnalyzer {
                         "`[]` assignment only works on arrays in Kof; for a List use l.set(i, v)",
                         "SEM054");
             }
+            // ARRAY-1 (27/10, #776): o §368 para ELEMENTO de array real — a
+            // store `a[i] = v` passa pelo MESMO gate de atributibilidade do
+            // local e do campo. Sem isto, `a[0] = 3000000000L` (Long em
+            // Int[]) compila "clean" e morre em VerifyError na carga da
+            // classe (o launcher JVM disfarça de "JavaFX runtime missing" —
+            // o diagnóstico da mensagem nunca é benigno). MESMO código do
+            // gate da variável (o N2 mediu SEM021); compound (`+=`) tem o
+            // próprio caminho de conversão (emitCompoundRhsConv) e não
+            // passa aqui.
+            Type arrT = unwrapped instanceof Type.ArrayType aat ? aat.componentType() : null;
+            if (sa.diagnostics() != null && arrT != null) {
+                Type vT = SemExpressionTyper.inferType(sa, ae.value(), scope);
+                if (!Type.isUnknown(vT) && !Type.isUnknown(arrT)
+                        && !TypeChecker.isAssignable(sa, vT, arrT)) {
+                    SourcePosition apos = aa.position();
+                    sa.diagnostics().error(apos != null ? apos.file() : "",
+                            apos != null ? apos.line() : 0, apos != null ? apos.column() : 0, 0,
+                            "type mismatch: cannot assign " + Type.display(vT)
+                                    + " to array element of " + Type.display(arrT),
+                            "SEM021");
+                }
+            }
             targetType = SemExpressionTyper.inferType(sa, ae.target(), scope);
         } else if (ae.target() != null) {
             targetType = SemExpressionTyper.inferType(sa, ae.target(), scope);

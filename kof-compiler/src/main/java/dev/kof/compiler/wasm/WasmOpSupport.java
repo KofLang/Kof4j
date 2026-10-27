@@ -1,6 +1,8 @@
 package dev.kof.compiler.wasm;
 
 import dev.kof.compiler.KofArrayLength;
+import dev.kof.compiler.KofNewArray;
+import dev.kof.compiler.KofArrayStore;
 import dev.kof.compiler.KofArrayLoad;
 import dev.kof.compiler.KofBinary;
 import dev.kof.compiler.KofCall;
@@ -49,6 +51,8 @@ final class WasmOpSupport {
     static final Set<Class<?>> SUPPORTED = Set.of(
             KofArrayLength.class,
             KofArrayLoad.class,
+            KofNewArray.class,
+            KofArrayStore.class,
             KofBinary.class,
             KofCall.class,
             KofCheckCast.class,

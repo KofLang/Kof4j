@@ -188,6 +188,19 @@ final class WasmTypeOracle {
 
     /** Fase E (27/10, #776): algum desugar de List (kof_list_*) no metodo —
      *  o registro da familia WasmListRuntime segue este gancho. */
+    /** ARRAY-1 (27/10): o modulo aloca array? (o heapAlloc compartilhado
+     *  entra junto — os ops de array sao memoria pura, so o alocador falta). */
+    static boolean usesArray(Iterable<IRMethod> ms) {
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (op instanceof KofNewArray) return true;
+                }
+            }
+        }
+        return false;
+    }
+
     static boolean usesList(Iterable<IRMethod> ms) {
         for (IRMethod m : ms) {
             for (IRBasicBlock bb : m.basicBlocks()) {

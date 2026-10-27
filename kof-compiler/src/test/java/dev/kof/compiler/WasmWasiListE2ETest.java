@@ -32,7 +32,7 @@ class WasmWasiListE2ETest {
         return Files.isExecutable(p) ? p : null;
     }
 
-    private static void assertListFaceMatchesJvm(Path dir) throws Exception {
+    static void assertListFaceMatchesJvm(Path dir) throws Exception {
         var wasmtime = host("wasmtime");
         var wasmTools = host("wasm-tools");
         var driver = new CompilerDriver();
