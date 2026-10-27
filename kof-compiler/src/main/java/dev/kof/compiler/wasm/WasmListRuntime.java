@@ -455,6 +455,117 @@ final class WasmListRuntime {
                 List.of(), List.of(), b);
     }
 
+
+    /**
+     * O corpo COMUM das consultas de List<String>: o match e' IGUALDADE DE
+     * CONTEUDO — o slot guarda o HANDLE (i64 zero-extendido), volta i32 e
+     * o `kof.strEq` existente (o mesmo do fold de `==` de record) decide.
+     */
+    private static void scanBodyStr(List<WasmInstr> b, String lbl, int hLocal,
+                                    int sLocal, int resLocal, boolean fromEnd) {
+        // 0=h, 1=s(handle i32); 2=len, 3=data, 4=i, 5=tmp, res
+        get(b, hLocal, "h");
+        i32c(b, 8);
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD64, 0));
+        set(b, 2, "len");
+        get(b, hLocal, "h");
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
+        set(b, 3, "data");
+        if (fromEnd) {
+            get(b, 2, "len");
+            i64c(b, 1);
+            b.add(new WasmInstr.Simple(0x7d, "i64.sub"));
+        } else {
+            i64c(b, 0);
+        }
+        set(b, 4, "i");
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, lbl, 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, lbl + "i", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, lbl + "l", 0x40));
+        get(b, 4, "i");
+        i64c(b, 0);
+        b.add(new WasmInstr.Simple(0x53, "i64.lt_s"));
+        b.add(new WasmInstr.Branch(lbl, 1, true));
+        get(b, 4, "i");
+        get(b, 2, "len");
+        b.add(new WasmInstr.Simple(0x5a, "i64.ge_u"));
+        b.add(new WasmInstr.Branch(lbl, 1, true));
+        // if strEq(wrap([data+i*8]), s): res = i; br externo
+        get(b, 3, "data");
+        get(b, 4, "i");
+        i64c(b, 8);
+        b.add(new WasmInstr.Simple(0x7e, "i64.mul"));
+        b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD64, 0));
+        b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));       // o handle do slot
+        get(b, sLocal, "s");
+        b.add(new WasmInstr.Call("kof.strEq"));
+        set(b, 5, "eq");                                         // i32 bool
+        get(b, 5, "eq");
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, lbl + "m", 0x40));
+        get(b, 4, "i");
+        set(b, resLocal, "res");
+        b.add(new WasmInstr.Branch(lbl, 3));                     // 0=if,1=loop,2=inner,3=outer
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, lbl + "m", 0x40));
+        get(b, 4, "i");
+        if (fromEnd) {
+            i64c(b, 1);
+            b.add(new WasmInstr.Simple(0x7d, "i64.sub"));
+        } else {
+            i64c(b, 1);
+            b.add(new WasmInstr.Simple(0x7c, "i64.add"));
+        }
+        set(b, 4, "i");
+        b.add(new WasmInstr.Branch(lbl + "l", 0));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, lbl + "l", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, lbl + "i", 0x40));
+        i64c(b, -1);
+        set(b, resLocal, "res");
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, lbl, 0x40));
+    }
+
+    /** `kof.listContainsStr(h i32, s i32) -> i32` — igualdade de conteudo. */
+    private static WasmFunc listContainsStr() {
+        List<WasmInstr> b = new ArrayList<>();
+        scanBodyStr(b, "sc", 0, 1, 6, false);
+        get(b, 6, "res");
+        i64c(b, 0);
+        b.add(new WasmInstr.Simple(0x53, "i64.lt_s"));
+        set(b, 7, "found");
+        get(b, 7, "found");
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "f", 0x7f));
+        i32c(b, 0);
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, "f", 0x7f));
+        i32c(b, 1);
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "f", 0x7f));
+        return new WasmFunc("kof.listContainsStr", List.of(WasmFunc.TYPE_I32, WasmFunc.TYPE_I32),
+                List.of(WasmFunc.TYPE_I32), List.of(WasmFunc.TYPE_I64, WasmFunc.TYPE_I32,
+                        WasmFunc.TYPE_I64, WasmFunc.TYPE_I32, WasmFunc.TYPE_I64,
+                        WasmFunc.TYPE_I32), b);
+    }
+
+    /** `kof.listIndexOfStr(h i32, s i32) -> i64` — o primeiro indice, -1 ausente. */
+    private static WasmFunc listIndexOfStr() {
+        List<WasmInstr> b = new ArrayList<>();
+        scanBodyStr(b, "ix", 0, 1, 6, false);
+        get(b, 6, "res");
+        return new WasmFunc("kof.listIndexOfStr", List.of(WasmFunc.TYPE_I32, WasmFunc.TYPE_I32),
+                List.of(WasmFunc.TYPE_I64), List.of(WasmFunc.TYPE_I64, WasmFunc.TYPE_I32,
+                        WasmFunc.TYPE_I64, WasmFunc.TYPE_I32, WasmFunc.TYPE_I64), b);
+    }
+
+    /** `kof.listLastIndexOfStr(h i32, s i32) -> i64` — o ultimo, -1 ausente. */
+    private static WasmFunc listLastIndexOfStr() {
+        List<WasmInstr> b = new ArrayList<>();
+        scanBodyStr(b, "lx", 0, 1, 6, true);
+        get(b, 6, "res");
+        return new WasmFunc("kof.listLastIndexOfStr", List.of(WasmFunc.TYPE_I32, WasmFunc.TYPE_I32),
+                List.of(WasmFunc.TYPE_I64), List.of(WasmFunc.TYPE_I64, WasmFunc.TYPE_I32,
+                        WasmFunc.TYPE_I64, WasmFunc.TYPE_I32, WasmFunc.TYPE_I64), b);
+    }
+
     /** Toda a familia (o chamador registra quando um kof_list_* aparece). */
     static List<WasmFunc> all() {
         List<WasmFunc> fs = new ArrayList<>();
@@ -469,6 +580,9 @@ final class WasmListRuntime {
         fs.add(listSet());
         fs.add(listRemove());
         fs.add(listClear());
+        fs.add(listContainsStr());
+        fs.add(listIndexOfStr());
+        fs.add(listLastIndexOfStr());
         return fs;
     }
 }

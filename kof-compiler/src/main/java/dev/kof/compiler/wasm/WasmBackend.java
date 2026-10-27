@@ -356,11 +356,14 @@ public class WasmBackend implements Backend {
                     if (wasi && WasmMathRuntime.usesAny(scanAll)) {
                         funcs.addAll(WasmMathRuntime.all());
                     }
-                    // Fase E (27/10, #776): a fatia LIST<Int> — new/add/size/
-                    // get no bump heap (celula indireta; o add que cresce nao
-                    // invalida o handle do chamador — contrato ArrayList).
+                    // Fase E (27/10, #776): a fatia LIST<Int>/LIST<String> —
+                    // new/add/size/get no bump heap (celula indireta; o add
+                    // que cresce nao invalida o handle do chamador — contrato
+                    // ArrayList) + as consultas (a fatia 4 compara STRINGS
+                    // pelo kof.strEq — o runtime entra junto, dedupe-safe).
                     if (wasi && WasmTypeOracle.usesList(scanAll)) {
                         funcs.addAll(WasmListRuntime.all());
+                        funcs.add(kofStrEq());
                     }
                     // Fase E (27/10, #776): a CAIXA DE ERASURE (§284, 3º
                     // backend) — boxToStr despacha por intToStr/strBool/

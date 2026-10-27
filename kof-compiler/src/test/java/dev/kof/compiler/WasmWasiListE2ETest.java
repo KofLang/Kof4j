@@ -133,6 +133,35 @@ class WasmWasiListE2ETest {
     }
 
     @Test
+    void listStringQueriesMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // Fase E (27/10, #776): LIST fatia 4 — as consultas sobre
+        // List<String> com IGUALDADE DE CONTEUDO (o kof.strEq existente, o
+        // mesmo do fold de `==` de record — nenhum comparador novo). O slot
+        // guarda o HANDLE (i64 zero-extendido): volta i32 (wrap) antes do
+        // strEq; o phantom das consultas (o receiver tipado como param 0 —
+        // para strings o desugar materializa `int 1`, medido no IR) continua
+        // sendo dropado. A face tambem sela o achado da rodada: a insercao
+        // posicional NAO existe na linguagem (SEM072 nos dois backends).
+        var wasmtime = host("wasmtime");
+        var wasmTools = host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var ss = listOf("a", "b", "c")
+                    println(ss.contains("b"))
+                    println(ss.contains("x"))
+                    println(ss.indexOf("c"))
+                    println(ss.lastIndexOf("a"))
+                    println(ss.lastIndexOf("x"))
+                    var t = listOf("hello", "world")
+                    println(t.contains("world"))
+                    println(t.indexOf("hello"))
+                }
+                """);
+        assertListFaceMatchesJvm(dir);
+    }
+
+    @Test
     void listOfNonIntElementIsHonestRefusal(@TempDir Path dir) throws Exception {
         // Fase E (27/10, #776): a fatia so' admite elems Int — um add de
         // String recusa pelo nome (WASM002, sem artefato — Q7: nunca lista

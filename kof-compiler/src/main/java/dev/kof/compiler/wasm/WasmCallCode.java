@@ -228,23 +228,32 @@ final class WasmCallCode {
                     ctx.lastPushWide = false;
                 }
                 case "kof_list_contains", "kof_list_index_of", "kof_list_last_index_of" -> {
-                    // a JVM compara .equals: so' o Int tem igualdade barata
-                    // aqui — a igualdade de CONTEUDO de String no runtime e'
-                    // a face seguinte (recusa nomeada, nunca compare errado)
-                    if (!"int".equals(elem)) {
+                    // Fase E (27/10, #776): fatia 4 — sobre List<String> o
+                    // match e' IGUALDADE DE CONTEUDO (o kof.strEq existente,
+                    // o mesmo do fold de `==` de record): as variantes Str
+                    // recebem o HANDLE cru (i32 — sem extend). Sobre outros
+                    // elems recusa (nunca compare errado).
+                    String rn;
+                    if ("int".equals(elem)) {
+                        rn = switch (kc.methodName()) {
+                            case "kof_list_contains" -> "kof.listContains";
+                            case "kof_list_index_of" -> "kof.listIndexOf";
+                            default -> "kof.listLastIndexOf";
+                        };
+                    } else if ("string".equals(elem)) {
+                        rn = switch (kc.methodName()) {
+                            case "kof_list_contains" -> "kof.listContainsStr";
+                            case "kof_list_index_of" -> "kof.listIndexOfStr";
+                            default -> "kof.listLastIndexOfStr";
+                        };
+                    } else {
                         throw new WasmUnsupportedException("List." + kc.methodName()
-                                + " sobre List<" + elem + "> fora da fatia (a igualdade"
-                                + " de conteudo de String e' a face seguinte) (WASM002)"
+                                + " sobre List<" + elem + "> fora da fatia (WASM002)"
                                 + " — docs/wasm-wasi-plan.md (#776)");
                     }
-                    String rn = switch (kc.methodName()) {
-                        case "kof_list_contains" -> "kof.listContains";
-                        case "kof_list_index_of" -> "kof.listIndexOf";
-                        default -> "kof.listLastIndexOf";
-                    };
-                    // o desugar materializa o PARAM 0 (o receiver tipado int)
-                    // como um 0 FANTASMA no topo — medido no IR ([h, v, 0]);
-                    // a JVM o salta para INSTANCE, o despacho WASI o dropa
+                    // o desugar materializa o PARAM 0 (o receiver) como um
+                    // FANTASMA no topo — medido no IR ([h, v, 0]); o drop
+                    // devolve [h, v]
                     out.add(new WasmInstr.Simple(0x1a, "drop"));
                     out.add(new WasmInstr.Call(rn));
                     if ("kof_list_contains".equals(kc.methodName())) {
