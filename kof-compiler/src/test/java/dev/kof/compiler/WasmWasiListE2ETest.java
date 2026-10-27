@@ -424,4 +424,37 @@ class WasmWasiListE2ETest {
                 """);
         assertListFaceMatchesJvm(dir);
     }
+
+    @Test
+    void setScalarElemsMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // Fase E (27/10, #776): SET fatia 3 — os ESCALARES restantes: o
+        // long entra DIRETO no slot i64 (3e9 > Int.MAX prova a largura), o
+        // double via BITS (i64.reinterpret_f64 — a igualdade binaria do
+        // HashSet; NaN == NaN aqui e' falso como no JVM), o bool estende o
+        // i32 (i64.extend_i32_u), o char e' o codel i64. O despacho converte
+        // ANTES do call; o runtime i64 e o mesmo do Set<Int>.
+        var wasmtime = host("wasmtime");
+        var wasmTools = host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var ls = setOf(1L, 2L)
+                    ls.add(3000000000L)
+                    println(ls.size())
+                    println(ls.contains(3000000000L))
+                    var ds = setOf(1.5, 2.5)
+                    ds.add(3.5)
+                    println(ds.size())
+                    println(ds.contains(2.5))
+                    ds.remove(1.5)
+                    println(ds.contains(1.5))
+                    var bs = setOf(true, false)
+                    println(bs.size())
+                    println(bs.contains(true))
+                    var cs = setOf('a', 'b')
+                    println(cs.contains(97))
+                }
+                """);
+        assertListFaceMatchesJvm(dir);
+    }
 }
