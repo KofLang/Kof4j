@@ -146,6 +146,10 @@ public class WasmBackend implements Backend {
                             // Fase E (26/10, #776): a familia INT do math — o
                             // runtime WASI implementa aritmetica i64 pura
                             || (wasi && WasmMathRuntime.NAMES.contains(kc.methodName()))
+                            // Fase E (27/10, #776): a fatia LIST<Int> — os
+                            // quatro nomes de desugar do listOf tratados na
+                            // emissao (WasmCallCode/WasmListRuntime)
+                            || (wasi && WasmListRuntime.NAMES.contains(kc.methodName()))
                             // Fase E (27/10, #776): a caixa de erasure §284
                             || (wasi && WasmBoxRuntime.NAMES.contains(kc.methodName())))) {
                         continue; // wrapper intrinseco de String tratado na emissao
@@ -351,6 +355,12 @@ public class WasmBackend implements Backend {
                     // SEM host imports (o WASM tambem poderia usa-las).
                     if (wasi && WasmMathRuntime.usesAny(scanAll)) {
                         funcs.addAll(WasmMathRuntime.all());
+                    }
+                    // Fase E (27/10, #776): a fatia LIST<Int> — new/add/size/
+                    // get no bump heap (celula indireta; o add que cresce nao
+                    // invalida o handle do chamador — contrato ArrayList).
+                    if (wasi && WasmTypeOracle.usesList(scanAll)) {
+                        funcs.addAll(WasmListRuntime.all());
                     }
                     // Fase E (27/10, #776): a CAIXA DE ERASURE (§284, 3º
                     // backend) — boxToStr despacha por intToStr/strBool/

@@ -186,6 +186,21 @@ final class WasmTypeOracle {
         return false;
     }
 
+    /** Fase E (27/10, #776): algum desugar de List (kof_list_*) no metodo —
+     *  o registro da familia WasmListRuntime segue este gancho. */
+    static boolean usesList(Iterable<IRMethod> ms) {
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (op instanceof KofCall kc && WasmListRuntime.NAMES.contains(kc.methodName())) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     static boolean usesStringMethod(Iterable<IRMethod> ms, String method) {
         for (IRMethod m : ms) {
             for (IRBasicBlock bb : m.basicBlocks()) {

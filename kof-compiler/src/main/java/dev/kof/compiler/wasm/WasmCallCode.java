@@ -132,6 +132,41 @@ final class WasmCallCode {
             throw new WasmUnsupportedException("chamada explicita de 'equals' de record (WASM002)"
                     + " — o backend WASI ainda nao tem dispatch virtual; o `==` de conteudo ja e"
                     + " suportado (15.3d inc2 C2, kofRecordEq inline). docs/wasm-wasi-plan.md (#776)");
+        } else if (ctx.wasi && WasmListRuntime.NAMES.contains(kc.methodName())) {
+            // Fase E (27/10, #776): LIST fatia 1 — o desugar do listOf:
+            // `kof_list_new` + N× `kof_list_add` (INSTANCE, void) + size/get
+            // (→ int). O handle e' i32 (celula indireta — ver WasmListRuntime);
+            // os elems Int viajam i64; fora do Int o add recusa pelo nome.
+            switch (kc.methodName()) {
+                case "kof_list_new" -> {
+                    out.add(new WasmInstr.Call("kof.listNew"));
+                    ctx.lastPush = "list";
+                    ctx.lastPushWide = false;
+                }
+                case "kof_list_add" -> {
+                    if (!"list".equals(ctx.lastPush)
+                            && !"int".equals(ctx.lastPush)) {
+                        throw new WasmUnsupportedException("List.add('" + ctx.lastPush
+                                + "') fora da fatia List<Int> (WASM002) — docs/wasm-wasi-plan.md (#776)");
+                    }
+                    out.add(new WasmInstr.Call("kof.listAdd"));
+                    // o tee do KofDup DEIXOU o handle original na pilha: o
+                    // rastro verdadeiro depois do add e' "list" (os dups
+                    // seguintes do desugar leem este rastro)
+                    ctx.lastPush = "list";
+                    ctx.lastPushWide = false;
+                }
+                case "kof_list_size" -> {
+                    out.add(new WasmInstr.Call("kof.listSize"));
+                    ctx.lastPush = "int";
+                    ctx.lastPushWide = true;
+                }
+                default -> {                                             // kof_list_get
+                    out.add(new WasmInstr.Call("kof.listGet"));
+                    ctx.lastPush = "int";
+                    ctx.lastPushWide = true;
+                }
+            }
         } else if (ctx.wasi && WasmBoxRuntime.NAMES.contains(kc.methodName())) {
             // Fase E (27/10, #776): a CAIXA DE ERASURE — o MESMO contrato
             // da nativa §284 (24B [MAGIC][tag][valor]); o join HETEROGENEO

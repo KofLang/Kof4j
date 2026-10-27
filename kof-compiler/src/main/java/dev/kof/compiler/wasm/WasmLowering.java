@@ -50,6 +50,8 @@ final class WasmLowering {
                 locals.add(WasmFunc.TYPE_I32); // args = handle de array no heap (15.3c-sliceB)
             } else if (lv.type() instanceof Type.ClassType ct && records != null && records.containsKey(ct.name())) {
                 locals.add(WasmFunc.TYPE_I32); // record = handle no heap (15.3d)
+            } else if (wasi && lv.type() instanceof Type.ClassType ct && "List".equals(ct.name())) {
+                locals.add(WasmFunc.TYPE_I32); // List = handle i32 (celula indireta, fatia coleções 1 — 27/10)
             } else {
                 locals.add(mapType(typeName(lv.type()), m.name(), "local " + lv.name()));
             }
@@ -106,6 +108,14 @@ final class WasmLowering {
                 }
             }
         }
+        // Fase E (27/10, #776): o scratch do KofDup REAL (o desugar do listOf
+        // duplica o handle da celula para os N adds; o wasm nao tem stack dup:
+        // tee+get no scratch — a largura pelo rastro do produtor)
+        final int dupIdx = nextWasm;
+        locals.add(WasmFunc.TYPE_I32);
+        final int dupWideIdx = nextWasm + 1;
+        locals.add(WasmFunc.TYPE_I64);
+        nextWasm += 2;
         final int pcIdx = nextWasm;
         locals.add(WasmFunc.TYPE_I32); // $pc
         List<Integer> results = new ArrayList<>();
@@ -133,6 +143,8 @@ final class WasmLowering {
         Ctx ctx = new Ctx(slotMap, pcIdx, labelToBlock, m.name(), stringPool, dataSegments, records, dataCursor);
         ctx.wIdx = wIdx;
         ctx.sIdx = sIdx;
+        ctx.dupIdx = dupIdx;
+        ctx.dupWideIdx = dupWideIdx;
         ctx.objIdx = objIdx;
         ctx.vIdx = vIdx;
         ctx.v32Idx = v32Idx;
@@ -180,6 +192,7 @@ final class WasmLowering {
         final Map<String, ClassLayout> records;
         final DataCursor data;
         int wIdx = -1, sIdx = -1;
+        int dupIdx = -1, dupWideIdx = -1;
         int objIdx = -1, vIdx = -1, v32Idx = -1, vf64Idx = -1;
         int eqAccIdx = -1, eqEqIdx = -1, eqCmpIdx = -1, eqDblIdx = -1, eqAndIdx = -1;
         int[] nestH, nestA, nestB, nestR;
@@ -472,8 +485,17 @@ final class WasmLowering {
         } else if (op instanceof KofNewObject no) {
             WasmRecordCtor.lowerNewObject(ctx, no, out);
         } else if (op instanceof KofDup) {
-            // no-op no contexto de construtor de record: o handle colocado pelo
-            // KofNewObject permanece na base da pilha e sera consumido pelo KofStoreLocal
+            // no CONSTRUTOR de record o no-op permanece: o handle colocado pelo
+            // KofNewObject permanece na base da pilha e sera consumido pelo
+            // KofStoreLocal (mudar aqui regredia records). No DESUGAR DO LIST
+            // o dup e' REAL — o receptor da celula duplica para os N adds
+            // (tee+get no scratch i32; o wasm nao tem stack dup). A fatia
+            // so' torna o dup real no rastro "list" — todo o resto fica
+            // no-op como antes (blast radius zero nas shapes existentes).
+            if ("list".equals(ctx.lastPush)) {
+                out.add(new WasmInstr.Local(WasmInstr.Local.TEE, ctx.dupIdx, "dup"));
+                out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.dupIdx, "dup"));
+            }
         } else if (op instanceof KofLoadField lf) {
             WasmRecordCtor.lowerLoadField(ctx, lf, out);
         } else if (op instanceof KofPop) {
