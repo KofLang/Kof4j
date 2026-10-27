@@ -583,8 +583,23 @@ final class WasmLowering {
                 throw new WasmUnsupportedException("chamada explicita de 'equals' de record (WASM002)"
                         + " — o backend WASI ainda nao tem dispatch virtual; o `==` de conteudo ja e"
                         + " suportado (15.3d inc2 C2, kofRecordEq inline). docs/wasm-wasi-plan.md (#776)");
+            } else if (ctx.wasi && WasmMathRuntime.NAMES.contains(kc.methodName())) {
+                // Fase E (26/10, #776): a familia INT do math — o nome DA
+                // funcao e' o nome do runtime (kof_math_*, aritmetica i64
+                // pura). O rastro de largura TEM de ser atualizado: sem ele o
+                // println(isEven(x)) despachava para o println i64 com um
+                // resultado i32 (modulo invalido).
+                out.add(new WasmInstr.Call(kc.methodName()));
+                boolean pred = kc.methodName().startsWith("kof_math_is");
+                ctx.lastPush = pred ? "bool" : "int";
+                ctx.lastPushWide = !pred;
             } else if (ctx.wasi && "println".equals(kc.methodName())) {
                 WasmPrintCode.emitPrintln(kc, ctx, out);
+                // o print CONSOME o valor: limpar o rastro de largura (sem
+                // isto o literal 0 do statement seguinte herdava "bool" e
+                // saia i32.const no parametro i64 do call seguinte)
+                ctx.lastPush = null;
+                ctx.lastPushWide = false;
             } else if (kc.kind() == KofCallKind.FUNCTION || kc.kind() == KofCallKind.STATIC) {
                 out.add(new WasmInstr.Call(kc.methodName()));
             } else {

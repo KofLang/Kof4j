@@ -199,4 +199,38 @@ class WasmWasiFlowE2ETest {
         assertFaceMatchesJvm(dir);
     }
 
+
+    @Test
+    void mathIntFamilyMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // Fase E (26/10, #776): a familia INT do math — abs/sign/min/max/
+        // clamp + os predicados isEven/isOdd/isPositive/isNegative/isZero —
+        // aritmetica i64 pura no runtime WASI (sem host imports). O oracle
+        // e o JVM; inclui os edges (negativos, zero, clamp fora da faixa
+        // dos dois lados e dentro).
+        var wasmtime = host("wasmtime");
+        var wasmTools = host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    println(math.abs(-7))
+                    println(math.abs(7))
+                    println(math.max(3, 9))
+                    println(math.min(3, 9))
+                    println(math.clamp(15, 0, 10))
+                    println(math.clamp(-5, 0, 10))
+                    println(math.clamp(5, 0, 10))
+                    println(math.sign(-9))
+                    println(math.sign(0))
+                    println(math.sign(9))
+                    println(math.isEven(4))
+                    println(math.isEven(7))
+                    println(math.isOdd(7))
+                    println(math.isPositive(5))
+                    println(math.isNegative(-5))
+                    println(math.isZero(0))
+                }
+                """);
+        assertFaceMatchesJvm(dir);
+    }
+
 }

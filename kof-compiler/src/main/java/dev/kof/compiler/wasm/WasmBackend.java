@@ -142,7 +142,10 @@ public class WasmBackend implements Backend {
                             || ("toUpperCase".equals(kc.methodName())
                                 && "string".equalsIgnoreCase(typeName(kc.ownerType())))
                             || ("toLowerCase".equals(kc.methodName())
-                                && "string".equalsIgnoreCase(typeName(kc.ownerType()))))) {
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            // Fase E (26/10, #776): a familia INT do math — o
+                            // runtime WASI implementa aritmetica i64 pura
+                            || (wasi && WasmMathRuntime.NAMES.contains(kc.methodName())))) {
                         continue; // wrapper intrinseco de String tratado na emissao
                     }
                     if (wasi && usesRecords && "kofRecordEq".equals(kc.methodName())) {
@@ -293,6 +296,12 @@ public class WasmBackend implements Backend {
                     if (usesStringMethod(scanAll, "charAt")) funcs.add(WasmStrSlice.kofStrCharAt());
                     if (usesStringMethod(scanAll, "substring")) funcs.add(WasmStrSlice.kofStrSub());
                     if (usesStringMethod(scanAll, "trim")) funcs.add(WasmStrInspect.kofStrTrim());
+                    // Fase E (26/10, #776): a familia INT do math (abs/sign/
+                    // min/max/clamp + os predicados) — aritmetica i64 pura,
+                    // SEM host imports (o WASM tambem poderia usa-las).
+                    if (wasi && WasmMathRuntime.usesAny(scanAll)) {
+                        funcs.addAll(WasmMathRuntime.all());
+                    }
                     // Fase E (26/10, #776): o case fold Unicode (D-STR-UNICODE)
                     // — as tabelas BMP vao no cursor de dados (o heap comeca
                     // DEPOIS delas, o global e' calculado no fim do emit).
