@@ -152,8 +152,9 @@ final class WasmListRuntime {
                         WasmFunc.TYPE_I64, WasmFunc.TYPE_I64), b);
     }
 
-    /** `kof.heapAlloc(size i32) -> i32` — o bump global 0 alinhado em 8. */
-    private static WasmFunc heapAlloc() {
+    /** `kof.heapAlloc(size i32) -> i32` — o bump global 0 alinhado em 8
+     *  (COMPARTILHADO: a lista e o mapa alocam pelo mesmo helper). */
+    public static WasmFunc heapAlloc() {
         List<WasmInstr> b = new ArrayList<>();
         b.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
         i32c(b, 7);

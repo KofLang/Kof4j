@@ -272,6 +272,37 @@ class WasmWasiListE2ETest {
     }
 
     @Test
+    void mapBasicsMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // Fase E (27/10, #776): MAP fatia 1 — Map<String, Int> no WASI: o
+        // put SOBRESCREVE pela chave (igualdade de CONTEUDO via o kof.strEq
+        // existente) e DEVOLVE o valor anterior como caixa (o contrato do
+        // HashMap.put — a forma void da cadeia mapOf dropa no despacho, a
+        // forma declaracao deixa o KofPop consumir); o get de chave ausente
+        // devolve o handle 0 e o boxToStr renderiza "null" (a paridade
+        // String.valueOf(null)). Pego rodando: o END do bloco externo do
+        // put (4 aberturas, 3 fechamentos) e a lei do br do match (o bloco
+        // de fora, depth 3).
+        var wasmtime = host("wasmtime");
+        var wasmTools = host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var m = mapOf("a", 1, "b", 2)
+                    m.put("a", 99)
+                    println(m.get("a"))
+                    println(m.get("zz"))
+                    println(m.size())
+                    m.put("c", 3)
+                    println(m.size())
+                    println(m.get("c"))
+                    var k = "b"
+                    println(m.get(k))
+                }
+                """);
+        assertListFaceMatchesJvm(dir);
+    }
+
+    @Test
     void listOfNonIntElementIsHonestRefusal(@TempDir Path dir) throws Exception {
         // Fase E (27/10, #776): a fatia so' admite elems Int — um add de
         // String recusa pelo nome (WASM002, sem artefato — Q7: nunca lista

@@ -44,7 +44,7 @@ final class WasmPrintCode {
                     // (`if (c) 1 else "x"`) unifica em Object — o valor chega
                     // CRU ou ENCAIXOTADO (§284): kof.boxToStr despacha pela tag
                     // e devolve handle de String (null -> "null"); writeStr imprime.
-                    case "object", "box" -> {
+                    case "object", "box", "mapval" -> {
                         out.add(new WasmInstr.Call("kof.boxToStr"));
                         out.add(new WasmInstr.Call("kof.writeStr"));
                         ctx.lastPush = "string";

@@ -32,6 +32,22 @@ final class WasmCallCode {
     private WasmCallCode() {
     }
 
+    /** A chave/o valor do Map pelo type argument do OWNER (medido no IR:
+     *  `Map<String, Int>` chega com typeArguments=[String, int]). */
+    private static String mapKeyType(KofCall kc) {
+        if (kc.ownerType() instanceof Type.ClassType ct && ct.typeArguments().size() > 0) {
+            return typeName(ct.typeArguments().get(0));
+        }
+        return "";
+    }
+
+    private static String mapValueType(KofCall kc) {
+        if (kc.ownerType() instanceof Type.ClassType ct && ct.typeArguments().size() > 1) {
+            return typeName(ct.typeArguments().get(1));
+        }
+        return "";
+    }
+
     /** O tipo do elemento pelo type argument do OWNER (medido no IR:
      *  `List<Int>` chega com typeArguments=[int]); lista BARE (sem args,
      *  o caso §374) devolve "" — o add/get dela recusa na fatia. */
@@ -77,7 +93,22 @@ final class WasmCallCode {
                 // o lastPush do equals/Boolean.valueOf anterior ja diz o tipo real
                 v = ctx.lastPush;
             }
-            ctx.lastPush = v;
+            // Fase E (27/10, #776): o MAP.get devolve o HANDLE DA CAIXA (a
+            // nullable anda na §284, rastro "mapval") — o rastro TEM de
+            // vencer sobre o walk (o NullableType[int] dizia "int" e o
+            // writeInt consumia o handle: o validador rejeitou). A cadeia
+            // valueOf tem DOIS passes (Integer.valueOf e String.valueOf) —
+            // CADA pass normaliza v e RE-ARMA o rastro (o "object" PURO dos
+            // records nao entra: o walk do record diz o tipo real e o print
+            // usa o toString dele — a regressao dos records mediu isso)
+            if ("mapval".equals(ctx.lastPush)) {
+                // o valor e' o HANDLE DA CAIXA: normaliza E RE-ARMA (a cadeia
+                // valueOf tem dois passes — o segundo walk diz "int" de novo)
+                v = "object";
+                ctx.lastPush = "mapval";
+            } else {
+                ctx.lastPush = v;   // o comportamento ORIGINAL (o char/records)
+            }
         } else if (ctx.wasi && "valueOf".equals(kc.methodName())
                 && "String".equals(ownerSimpleName(kc.ownerType()))) {
             // String.valueOf como VALOR (variavel/concat) — paridade JVM:
@@ -155,6 +186,60 @@ final class WasmCallCode {
             throw new WasmUnsupportedException("chamada explicita de 'equals' de record (WASM002)"
                     + " — o backend WASI ainda nao tem dispatch virtual; o `==` de conteudo ja e"
                     + " suportado (15.3d inc2 C2, kofRecordEq inline). docs/wasm-wasi-plan.md (#776)");
+        } else if (ctx.wasi && WasmMapRuntime.NAMES.contains(kc.methodName())) {
+            // Fase E (27/10, #776): MAP fatia 1 — Map<String, Int> (o par
+            // medido): put [h, key(handle), v(i64)] SEM fantasma; get [h,
+            // key] -> o HANDLE DA CAIXA (boxInt no hit, 0=null na falta —
+            // o rastro "object" manda pro boxToStr, que renderiza "null");
+            // size -> i64. O rastro do tee do desugar e' "map".
+            switch (kc.methodName()) {
+                case "kof_map_new" -> {
+                    out.add(new WasmInstr.Call("kof.mapNew"));
+                    ctx.lastPush = "map";
+                    ctx.lastPushWide = false;
+                }
+                case "kof_map_put" -> {
+                    // os tipos do par vem do IR (o typer ja' garante a
+                    // compatibilidade com o owner — a fatia e' <String, Int>)
+                    if (!"string".equalsIgnoreCase(mapKeyType(kc))
+                            || !"int".equalsIgnoreCase(mapValueType(kc))) {
+                        throw new WasmUnsupportedException("Map<"
+                                + mapKeyType(kc) + ", " + mapValueType(kc)
+                                + "> fora da fatia Map<String, Int> (WASM002)"
+                                + " — docs/wasm-wasi-plan.md (#776)");
+                    }
+                    out.add(new WasmInstr.Call("kof.mapPut"));
+                    // o runtime DEVOLVE o valor anterior como caixa (o
+                    // contrato HashMap.put): a forma VOID do desugar (a链 do
+                    // mapOf) dropa aqui; a forma Nullable (o put-declaracao)
+                    // deixa o KofPop consumir
+                    if (kc.returnType() instanceof Type.PrimitiveType pt
+                            && "void".equalsIgnoreCase(pt.name())) {
+                        out.add(new WasmInstr.Simple(0x1a, "drop"));
+                    }
+                    // o rastro volta "map": CADA put da cadeia tem o seu Dup
+                    // (o tee deixou o original na pilha e ele permanece — a
+                    // MESMA lei do add da lista; o null aqui deixava o
+                    // segundo put sem receiver: nothing on stack, medido)
+                    ctx.lastPush = "map";
+                    ctx.lastPushWide = false;
+                }
+                case "kof_map_get" -> {
+                    if (!"string".equalsIgnoreCase(mapKeyType(kc))) {
+                        throw new WasmUnsupportedException("Map.get com chave '"
+                                + mapKeyType(kc) + "' fora da fatia Map<String, Int> (WASM002)"
+                                + " — docs/wasm-wasi-plan.md (#776)");
+                    }
+                    out.add(new WasmInstr.Call("kof.mapGet"));
+                    ctx.lastPush = "mapval";                     // o handle DA CAIXA (0 = null)
+                    ctx.lastPushWide = false;
+                }
+                default -> {                                             // kof_map_size
+                    out.add(new WasmInstr.Call("kof.mapSize"));
+                    ctx.lastPush = "int";
+                    ctx.lastPushWide = true;
+                }
+            }
         } else if (ctx.wasi && WasmListRuntime.NAMES.contains(kc.methodName())) {
             // Fase E (27/10, #776): LIST fatia 2 — o desugar do listOf:
             // `kof_list_new` + N× `kof_list_add` (INSTANCE, void) + size/get

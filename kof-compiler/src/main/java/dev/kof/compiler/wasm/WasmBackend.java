@@ -150,6 +150,8 @@ public class WasmBackend implements Backend {
                             // quatro nomes de desugar do listOf tratados na
                             // emissao (WasmCallCode/WasmListRuntime)
                             || (wasi && WasmListRuntime.NAMES.contains(kc.methodName()))
+                            // Fase E (27/10, #776): a fatia MAP<String, Int>
+                            || (wasi && WasmMapRuntime.NAMES.contains(kc.methodName()))
                             // Fase E (27/10, #776): a caixa de erasure §284
                             || (wasi && WasmBoxRuntime.NAMES.contains(kc.methodName())))) {
                         continue; // wrapper intrinseco de String tratado na emissao
@@ -269,7 +271,10 @@ public class WasmBackend implements Backend {
             // vai para a caixa (o kof.doubleToStr delega ao kof.schubFull).
             boolean schub = false;
             if (printed.contains("double") || WasmTypeOracle.usesDoubleValueOf(scanAll)
-                    || (wasi && WasmBoxRuntime.usesAny(scanAll))) {
+                    || (wasi && WasmBoxRuntime.usesAny(scanAll))
+                    // a fatia MAP: o boxToStr (do get nullable) referencia
+                    // doubleToStr/schubFull ESTATICAMENTE — a familia vem
+                    || (wasi && WasmTypeOracle.usesMap(scanAll))) {
                 byte[] gB = WasmSchubfachRuntime.gTable();
                 int gTab = dataCursor.next;
                 dataSegments.add(new WasmData(gTab, gB));
@@ -363,6 +368,15 @@ public class WasmBackend implements Backend {
                     // pelo kof.strEq — o runtime entra junto, dedupe-safe).
                     if (wasi && WasmTypeOracle.usesList(scanAll)) {
                         funcs.addAll(WasmListRuntime.all());
+                        funcs.add(kofStrEq());
+                    }
+                    // Fase E (27/10, #776): a fatia MAP<String, Int> — o get
+                    // nullable anda na CAIXA (boxInt no hit, 0=null na falta)
+                    // e a chave compara pelo strEq: os dois entram junto
+                    if (wasi && WasmTypeOracle.usesMap(scanAll)) {
+                        funcs.add(WasmListRuntime.heapAlloc());  // o alocador COMPARTILHADO
+                        funcs.addAll(WasmMapRuntime.all());
+                        funcs.addAll(WasmBoxRuntime.all());
                         funcs.add(kofStrEq());
                     }
                     // Fase E (27/10, #776): a CAIXA DE ERASURE (§284, 3º

@@ -201,6 +201,22 @@ final class WasmTypeOracle {
         return false;
     }
 
+    /** Fase E (27/10, #776): algum desugar de Map (kof_map_*) no metodo —
+     *  o registro da familia WasmMapRuntime (com a caixa + strEq) segue
+     *  este gancho. */
+    static boolean usesMap(Iterable<IRMethod> ms) {
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (op instanceof KofCall kc && WasmMapRuntime.NAMES.contains(kc.methodName())) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     static boolean usesStringMethod(Iterable<IRMethod> ms, String method) {
         for (IRMethod m : ms) {
             for (IRBasicBlock bb : m.basicBlocks()) {
