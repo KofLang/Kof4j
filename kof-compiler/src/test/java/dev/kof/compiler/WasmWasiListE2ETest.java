@@ -457,4 +457,40 @@ class WasmWasiListE2ETest {
                 """);
         assertListFaceMatchesJvm(dir);
     }
+
+    @Test
+    void mapKeysValuesMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // Fase E (27/10, #776): MAP fatia 3 — a ITERACAO: m.keys()/
+        // m.values() devolvem a LISTA nova (a celula 24B provada, cap=len,
+        // SEM grow — o tamanho final e' conhecido; o mapa vazio da
+        // heapAlloc(0), um bump valido). O rastro "list" entrega o
+        // resultado a toda a maquinaria da LISTA (size/get/contains/
+        // for-in). A ORDEM nao e' o contrato (o HashMap nao a expoe — a
+        // celula WASI e' de insercao): as assercoes sao livres de ordem +
+        // o get de par UNICO. Pego rodando: a lista de locals do extract
+        // tinha len/cell TROCADOS (slot2=I32/slot3=I64 — o validator
+        // apontava o call com "expected i32, found i64"; o bisect
+        // byte-a-byte do binario fixou o mapa).
+        var wasmtime = host("wasmtime");
+        var wasmTools = host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var m = mapOf("a", 1, "b", 2, "c", 3)
+                    var ks = m.keys()
+                    println(ks.size())
+                    println(ks.contains("b"))
+                    var vs = m.values()
+                    println(vs.size())
+                    println(vs.contains(3))
+                    var m2 = mapOf("k", 42)
+                    println(m2.keys().get(0))
+                    println(m2.values().get(0))
+                    var e = mapOf()
+                    println(e.keys().size())
+                    println(e.values().size())
+                }
+                """);
+        assertListFaceMatchesJvm(dir);
+    }
 }

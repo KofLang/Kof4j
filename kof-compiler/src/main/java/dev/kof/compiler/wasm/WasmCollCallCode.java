@@ -147,6 +147,18 @@ final class WasmCollCallCode {
                     ctx.lastPush = "mapval";                     // o handle DA CAIXA (0 = null)
                     ctx.lastPushWide = false;
                 }
+                case "kof_map_keys", "kof_map_values" -> {
+                    // FATIA 3 (27/10): a iteracao — keys/values devolvem a
+                    // LISTA nova (o rastro "list" entrega à maquinaria da
+                    // LISTA provada: size/get/contains/for-in). A ORDEM nao
+                    // e' o contrato (HashMap nao a expoe; a celula WASI e'
+                    // de insercao) — as faces de paridade sao livres de
+                    // ordem + o get de par unico.
+                    out.add(new WasmInstr.Call("kof_map_keys".equals(kc.methodName())
+                            ? "kof.mapKeys" : "kof.mapValues"));
+                    ctx.lastPush = "list";
+                    ctx.lastPushWide = false;
+                }
                 default -> {                                             // kof_map_size
                     out.add(new WasmInstr.Call("kof.mapSize"));
                     ctx.lastPush = "int";

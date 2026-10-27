@@ -21,6 +21,9 @@ import static dev.kof.compiler.wasm.WasmSchubfachRuntime.set;
  *
  * <pre>celula 16B: [dataPtr i32][len i64];  dados: cap pares de 16B [k i64][v i64]</pre>
  *
+ * A FATIA 3 (a iteracao — keys/values) vive no {@link WasmMapExtract}
+ * (split check_500: 645 ≥ 600).
+ *
  * O handle e' INDIRETO (o grow copia e reescreve a celula — o chamador nao
  * invalida); o bump heap nao libera o bloco velho (documentado). A busca e'
  * LINEAR — a semantica do HashMap nao expõe ordem nem complexidade; o O(1)
@@ -34,7 +37,7 @@ final class WasmMapRuntime {
     /** Os nomes de desugar atendidos (a whitelist do scan e o despacho). */
     static final Set<String> NAMES = Set.of(
             "kof_map_new", "kof_map_put", "kof_map_get", "kof_map_size",
-            "kof_map_contains", "kof_map_remove");
+            "kof_map_contains", "kof_map_remove", "kof_map_keys", "kof_map_values");
 
     /** `kof.mapNew() -> i32` — a celula + o bloco inicial cap=8 pares. */
     private static WasmFunc mapNew() {
@@ -543,6 +546,8 @@ final class WasmMapRuntime {
         fs.add(mapSize());
         fs.add(mapContains());
         fs.add(mapRemove());
+        fs.add(WasmMapExtract.mapKeys());
+        fs.add(WasmMapExtract.mapValues());
         return fs;
     }
 }
