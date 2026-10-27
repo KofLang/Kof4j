@@ -88,6 +88,78 @@ class NativeX86StackAlignTest {
     }
 
     @Test
+    void anAlreadyAlignedFfiCallIsNotPadded() {
+        // The FFI downcall aligns itself: `andq $-16` forces %rsp to a multiple
+        // of 16 no matter the operand pushes in flight. Padding it again leaves
+        // %rsp % 16 == 8 at the call (#974: libm's movaps, exit 139).
+        List<String> ls = lines(
+                "Default_f:",
+                "    pushq %rbp",
+                "    movq %rsp, %rbp",
+                "    subq $32, %rsp",
+                "    pushq %rax",            // odd operand in flight
+                "    movq %rsp, %rbx",
+                "    andq $-16, %rsp",
+                "    call sqrt@PLT",
+                "    movq %rbx, %rsp",
+                "    leave",
+                "    ret");
+        assertEquals(0, NativeX86StackAlign.alignCalls(ls, 0),
+                "an `andq $-16` call is aligned already: " + ls);
+        int call = ls.indexOf("    call sqrt@PLT");
+        assertEquals("    andq $-16, %rsp", ls.get(call - 1), "nothing inserted: " + ls);
+        assertEquals("    movq %rbx, %rsp", ls.get(call + 1), "nothing restored: " + ls);
+    }
+
+    @Test
+    void theFfiOddSpillPaddingIsAccounted() {
+        // With a stack-passed (spilled) argument the emitter subtracts 8 itself
+        // so the ODD spill count lands aligned; the pass must count that
+        // subtraction instead of adding its own.
+        List<String> ls = lines(
+                "Default_f:",
+                "    pushq %rbp",
+                "    movq %rsp, %rbp",
+                "    subq $32, %rsp",
+                "    pushq %rax",            // odd operand in flight
+                "    movq %rsp, %rbx",
+                "    andq $-16, %rsp",
+                "    subq $8, %rsp",          // the emitter's odd-spill parity
+                "    pushq -48(%rbp)",        // the spilled argument
+                "    call probe9i@PLT",
+                "    movq %rbx, %rsp",
+                "    leave",
+                "    ret");
+        assertEquals(0, NativeX86StackAlign.alignCalls(ls, 0),
+                "parity already handled by the emitter: " + ls);
+    }
+
+    @Test
+    void theRestoreKeepsModellingTheFollowingCalls() {
+        // `movq %rbx, %rsp` puts the stack back where the save found it; a call
+        // after the FFI sequence is still judged against that real delta.
+        List<String> ls = lines(
+                "Default_f:",
+                "    pushq %rbp",
+                "    movq %rsp, %rbp",
+                "    subq $32, %rsp",
+                "    pushq %rax",            // odd push survives the FFI call
+                "    movq %rsp, %rbx",
+                "    andq $-16, %rsp",
+                "    call sqrt@PLT",
+                "    movq %rbx, %rsp",
+                "    call kof_alloc",        // still misaligned -> must be padded
+                "    leave",
+                "    ret");
+        assertEquals(1, NativeX86StackAlign.alignCalls(ls, 0),
+                "only the call after the restore is padded: " + ls);
+        int ffi = ls.indexOf("    call sqrt@PLT");
+        assertEquals("    andq $-16, %rsp", ls.get(ffi - 1), "the FFI call stays alone: " + ls);
+        int alloc = ls.indexOf("    call kof_alloc");
+        assertEquals("    subq $8, %rsp", ls.get(alloc - 1), "restored delta is 8: " + ls);
+    }
+
+    @Test
     void paddingNeverCrossesStackArguments() {
         // 7-arg call: arg7 is pushed so the callee reads it at 0(%rsp). The
         // padding must sit BELOW that push, or it becomes arg7 (measured:

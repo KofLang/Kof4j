@@ -1,6 +1,8 @@
 package dev.kof.compiler.nat;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 
 /**
@@ -26,6 +28,14 @@ import java.util.List;
  * {@code subq} is inserted after the register-argument pops but before the
  * stack-argument pushes; only the emitter's {@code pushq -N(%rbp)} form is
  * treated as a stack argument, so an operand push is never crossed.
+ *
+ * <p><b>Already-aligned sequences:</b> the FFI downcall (and the sret buffer, and
+ * the {@code _start} fflush shim) align themselves — {@code movq %rsp, %rbx},
+ * {@code andq $-16, %rsp}, the call, {@code movq %rbx, %rsp}. The delta model
+ * understands that shape, so such a call is never padded a second time (padding
+ * an aligned stack puts {@code %rsp % 16 == 8} at the call; #974 proved it with a
+ * libm SIGSEGV). The saved delta is restored at {@code movq %rbx, %rsp}, so the
+ * calls that follow are still judged against the real stack.
  */
 final class NativeX86StackAlign {
 
@@ -147,10 +157,27 @@ final class NativeX86StackAlign {
     private static int[] deltas(List<String> lines, int from) {
         int[] deltaAt = new int[lines.size()];
         int delta = 8; // a call pushed the 8-byte return address
+        // The emitter's own SELF-ALIGNING sequences save the operand-stack top in
+        // %rbx, force %rsp to a multiple of 16 and restore it afterwards (the FFI
+        // downcall, an sret buffer, the _start fflush shim). The pass must model
+        // them: `andq $-16` makes the delta 0 no matter how many pushes are in
+        // flight, and the FFI emitter's own odd-spill `subq $8` is exactly what
+        // keeps the call aligned. Unmodelled, every FFI call looked misaligned and
+        // got a SECOND padding `subq $8` right after its `andq $-16`, leaving
+        // %rsp % 16 == 8 at `call sqrt@PLT` — libm's aligned SSE faulted (measured
+        // #974: exit 139 before any output).
+        Deque<Integer> rbxSaved = new ArrayDeque<>();
         for (int i = from; i < lines.size(); i++) {
             String t = lines.get(i).trim();
             if (isLabel(t)) {
                 delta = 8; // each function/section starts fresh
+                rbxSaved.clear();
+            } else if (t.equals("andq $-16, %rsp")) {
+                delta = 0; // %rsp is a multiple of 16 by construction
+            } else if (t.equals("movq %rsp, %rbx")) {
+                rbxSaved.push(delta);
+            } else if (t.equals("movq %rbx, %rsp")) {
+                delta = rbxSaved.isEmpty() ? 8 : rbxSaved.pop();
             } else if (t.startsWith("push")) {
                 delta -= 8;
             } else if (t.startsWith("pop")) {

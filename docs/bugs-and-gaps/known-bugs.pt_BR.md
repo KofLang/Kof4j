@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §763 (FIXED)
 last: §744 (FIXED)
 last: §743 (FIXED)
 last: §738 (CATALOGADO)
@@ -17564,3 +17565,24 @@ O alfabeto do EOB coincide com o libaom (`eob_multi_size` 6 => 11 símbolos). AO
 
 **CORRIGIDO 20/10.** Tres sitios carregavam a mesma suposicao de ausencia de padding: `JvmFfiRuntime.kof_ffi_struct_layout_of` (agora percorre os membros com um `paddingLayout` interno explicito por alinhamento C, mais o de cauda), o ESCRITOR e o LEITOR de campos do struct (que usavam `PathElement.groupElement(k)` — com membros de padding, o grupo k deixa de ser o campo k; ambos agora usam um helper `kof_ffi_field_offset` com a mesma regra), e o espelho JS (`KofJsFfiBridge.structLayout` + um novo `fieldOffset`, usado pelo `KofJsFfiMarshal` e pelo `readStruct`). PROVADO RED: zerando o vao interno, `FfiStructPaddingE2ETest` falha `Target offset 1 is incompatible with alignment constraint 4 (of i4)`. Prova: `FfiStructPaddingE2ETest` 1/1 (golden JVM + paridade JVM↔Native) + `FfiStructE2ETest` 14/14 + lote amplo FFI/native 217/217.
 <!-- pt-switch --> **EN:** [§762 (en)](known-bugs.md#762--the-jvmffm-ffi-path-refuses-a-struct-whose-c-layout-has-alignment-padding-boolint)
+
+## §763 — o passe de alinhamento §14 preencheu uma chamada FFI ja alinhada, por isso o sqrt e os args mistos fizeram SEGV (exit 139) no native x86-64
+**Estado:** ✅ FECHADO 26/10 pela lane compiler/JVM/native `192.168.15.30:9092` — o modelo de delta agora conhece a sequencia de auto-alinhamento do emissor, entao um downcall que se alinha sozinho nunca recebe padding uma segunda vez. Pinado por tres faces novas do `NativeX86StackAlignTest` + `FfiNativeE2ETest` 20/20.
+
+**MEDIDO 26/10 (issue #974, `1.0-blocks`).** `FfiNativeE2ETest#fpSpecialsNanInfNegativeZero` e `#mixedIntDoubleArgsPerClassCounting` saiam com **139 e nenhuma saida** no tip (`origin/lab` `50a4fcc2f`, as faces verdes no corte 0.6.6). O call site do binario gerado (objdump do proprio `out-fps-nat/Default/Main` do teste) mostrava o defeito literalmente:
+
+```
+movq %rsp, %rbx
+andq $-16, %rsp        # forca %rsp % 16 == 0
+subq $8, %rsp          # <- padding inserido pelo passe
+call sqrt@PLT          # %rsp % 16 == 8: violacao SysV
+addq $8, %rsp
+movq %rbx, %rsp
+```
+
+**CAUSA RAIZ.** O emissor FFI (`NativeFfiCall`) alinha a pilha sozinho: guarda o topo da pilha de operandos em `%rbx`, faz `andq $-16`, compensa um spill de argumento de pilha IMPAR com o seu proprio `subq $8`, empilha os derramados, chama e restaura com `movq %rbx, %rsp`. O `NativeX86StackAlign` (§14, pousado em `168babb1d`) mantem um modelo de delta para preencher todo call cujo `%rsp % 16 != 0`, mas o modelo nao conhecia nenhuma dessas tres linhas: mantinha o delta que os pushes de operandos tinham deixado (8 nas faces que falharam), julgava o call FFI desalinhado e inseria um SEGUNDO `subq $8` logo apos o `andq`. A pilha estava alinhada em 16 antes do `andq` e `%rsp % 16 == 8` no call, entao o SSE alinhado do libm (`movaps`) faltava. Externs so-de-inteiros sobreviviam por sorte (nenhum SSE alinhado dentro); os especiais do libm e a face mista int/double nao.
+
+**FIX.** O `NativeX86StackAlign.deltas()` modela a sequencia: `andq $-16, %rsp` zera o delta, `movq %rsp, %rbx` empilha o delta corrente numa pilha de salvamento e `movq %rbx, %rsp` o restaura (limpa a cada label). Um call que se alinha sozinho passa a ser julgado alinhado, e os calls depois do restore continuam julgados contra a pilha real.
+
+**PROVA (executada).** RED-first: com so o fix do passe em stash, as tres faces novas falham de uma vez (`anAlreadyAlignedFfiCallIsNotPadded`, `theFfiOddSpillPaddingIsAccounted`, `theRestoreKeepsModellingTheFollowingCalls`) na forma medida ganhando `subq $8` apos `andq $-16`; com o fix, `NativeX86StackAlignTest` **8/8** e `NativeX86StackAlignVtableTest` **5/5** (a face de vtable do #935 continua verde). As faces da propria issue: `FfiNativeE2ETest` **20/20, 0 falhas** — os especiais do libm imprimem `NaN / -Infinity / Infinity / -0.0` e a face mista imprime `MIX 10 1.5 32 64.25 / 42`, ambas byte-a-byte iguais ao oraculo JVM. Regressao: o lote native/AV1/FFI **278 run / 0 falhas / 6 skips de ambiente** (`NativeE2ETest` 68, `CoreRegressionE2ETest` 104, `Av1CoeffsE2ETest` 6, `Av1PaletteE2ETest` 6, `KofTimeE2ETest` 62, `NativeX86GcMarkScopeTest` 3, `BufferFfiE2ETest` 6 e as suites `FfiNative*`) e golden native **87/87** (90 dirs; os 3 fixtures `cobol-*` nao tem `Main.kf`).
+<!-- pt-switch --> **EN:** [§763 (en)](known-bugs.md#763--the-14-stack-alignment-pass-padded-an-already-aligned-ffi-downcall-so-sqrtmixed-args-segfaulted-exit-139-on-native-x86-64)

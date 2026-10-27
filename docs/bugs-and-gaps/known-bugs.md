@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §763 (FIXED)
 last: §744 (FIXED)
 last: §743 (FIXED)
 last: §738 (CATALOGUED)
@@ -20090,3 +20091,24 @@ The EOB alphabet matches libaom (`eob_multi_size` 6 => 11 symbols). BYTE LEVEL: 
 
 **FIXED 20/10.** Three sites carried the same missing-padding assumption: `JvmFfiRuntime.kof_ffi_struct_layout_of` (now walks the members with an explicit interior `paddingLayout` per C alignment, plus the trailing one), the struct field WRITER and READER (which used `PathElement.groupElement(k)` — once padding members exist, group k is no longer field k; both now use a `kof_ffi_field_offset` helper applying the same rule), and the JS mirror (`KofJsFfiBridge.structLayout` + a new `fieldOffset`, used by `KofJsFfiMarshal` and `readStruct`). PROVEN RED: with the interior gap zeroed, `FfiStructPaddingE2ETest` fails `Target offset 1 is incompatible with alignment constraint 4 (of i4)`. Proof: `FfiStructPaddingE2ETest` 1/1 (JVM golden + JVM↔Native parity) + `FfiStructE2ETest` 14/14 + broad FFI/native batch 217/217.
 <!-- pt-switch --> **PT:** [§762 (pt_BR)](known-bugs.pt_BR.md#762--o-caminho-ffi-do-jvmffm-recusa-um-struct-cujo-layout-c-tem-padding-de-alinhamento-boolint)
+
+## §763 — the §14 stack-alignment pass padded an ALREADY aligned FFI downcall, so `sqrt`/mixed-args SEGFAULTED (exit 139) on native x86-64
+**Status:** ✅ CLOSED 26/10 by lane compiler/JVM/native `192.168.15.30:9092` — the delta model now knows the emitter's self-aligning sequence, so a downcall that aligns itself is never padded a second time. Pinned by three new `NativeX86StackAlignTest` faces + `FfiNativeE2ETest` 20/20.
+
+**MEASURED 26/10 (issue #974, `1.0-blocks`).** `FfiNativeE2ETest#fpSpecialsNanInfNegativeZero` and `#mixedIntDoubleArgsPerClassCounting` exited **139 with no output** at the tip (`origin/lab` `50a4fcc2f`, the 0.6.6-green faces). The generated binary's call site (objdump of the test's own `out-fps-nat/Default/Main`) showed the defect literally:
+
+```
+movq %rsp, %rbx
+andq $-16, %rsp        # forces %rsp % 16 == 0
+subq $8, %rsp          # <- padding inserted by the pass
+call sqrt@PLT          # %rsp % 16 == 8: SysV violation
+addq $8, %rsp
+movq %rbx, %rsp
+```
+
+**ROOT CAUSE.** The FFI emitter (`NativeFfiCall`) aligns the stack itself: it saves the operand-stack top in `%rbx`, `andq $-16`, compensates an ODD stack-argument spill with its own `subq $8`, pushes the spilled args, calls, and restores with `movq %rbx, %rsp`. `NativeX86StackAlign` (§14, landed `168babb1d`) keeps a running delta model to pad every call whose `%rsp % 16 != 0`, but the model knew none of those three lines: it kept whatever delta the operand pushes had left (8 in the failing faces) and judged the FFI call misaligned, inserting a SECOND `subq $8` right after the `andq`. The stack was 16-aligned before the `andq` and `%rsp % 16 == 8` at the call, so libm's aligned SSE (`movaps`) faulted. Integer-only externs survived by luck (no aligned SSE inside); the libm specials and the mixed int/double face did not.
+
+**FIX.** `NativeX86StackAlign.deltas()` models the sequence: `andq $-16, %rsp` sets the delta to 0, `movq %rsp, %rbx` pushes the current delta on a save stack and `movq %rbx, %rsp` restores it (cleared at every label). A call that aligns itself is judged aligned, and the calls after the restore are still judged against the real stack.
+
+**PROOF (executed).** RED-first: with only the pass fix stashed, the three new faces fail at once (`anAlreadyAlignedFfiCallIsNotPadded`, `theFfiOddSpillPaddingIsAccounted`, `theRestoreKeepsModellingTheFollowingCalls`) on the measured shape gaining `subq $8` after `andq $-16`; with the fix `NativeX86StackAlignTest` **8/8** and `NativeX86StackAlignVtableTest` **5/5** (the #935 vtable face stays green). The issue's own faces: `FfiNativeE2ETest` **20/20, 0 failures** — the libm specials print `NaN / -Infinity / Infinity / -0.0` and the mixed face prints `MIX 10 1.5 32 64.25 / 42`, both byte-equal to the JVM oracle. Regression: the native/AV1/FFI batch **278 run / 0 failures / 6 environment skips** (`NativeE2ETest` 68, `CoreRegressionE2ETest` 104, `Av1CoeffsE2ETest` 6, `Av1PaletteE2ETest` 6, `KofTimeE2ETest` 62, `NativeX86GcMarkScopeTest` 3, `BufferFfiE2ETest` 6 and the `FfiNative*` suites) and golden native **87/87** (90 dirs; the 3 `cobol-*` fixtures carry no `Main.kf`).
+<!-- pt-switch --> **PT:** [§763 (pt_BR)](known-bugs.pt_BR.md#763--o-passe-de-alinhamento-14-preencheu-uma-chamada-ffi-ja-alinhada-por-isso-o-sqrt-e-os-args-mistos-fizeram-segv-exit-139-no-native-x86-64)
