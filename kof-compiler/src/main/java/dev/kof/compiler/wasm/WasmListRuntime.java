@@ -30,7 +30,127 @@ final class WasmListRuntime {
 
     /** Os nomes de desugar atendidos (a whitelist do scan e o despacho). */
     static final Set<String> NAMES = Set.of(
-            "kof_list_new", "kof_list_add", "kof_list_size", "kof_list_get");
+            "kof_list_new", "kof_list_add", "kof_list_size", "kof_list_get",
+            "kof_list_contains", "kof_list_index_of", "kof_list_last_index_of",
+            "kof_list_is_empty");
+
+    /**
+     * O corpo COMUM de contains/indexOf/lastIndexOf: varre [data+i*8]
+     * comparando com v; devolve o indice (ou -1) no local {@code res}.
+     * `fromEnd` varre de tras para frente (o lastIndexOf do JVM).
+     */
+    private static void scanBody(List<WasmInstr> b, String lbl, int hLocal,
+                                 int vLocal, int resLocal, boolean fromEnd) {
+        // 0=h, 1=v; 2=len, 3=data, 4=i, res
+        get(b, hLocal, "h");
+        i32c(b, 8);
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD64, 0));
+        set(b, 2, "len");
+        get(b, hLocal, "h");
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
+        set(b, 3, "data");
+        if (fromEnd) {
+            get(b, 2, "len");
+            i64c(b, 1);
+            b.add(new WasmInstr.Simple(0x7d, "i64.sub"));
+        } else {
+            i64c(b, 0);
+        }
+        set(b, 4, "i");
+        // DOIS blocos: o br das FRONTEIRAS mira o bloco DE DENTRO (cai no
+        // -1, que mora depois do loop de dentro do bloco externo); o br do
+        // MATCH mira o bloco DE FORA (salta o -1 — res fica o indice). Um
+        // bloco so' nao serve: br para bloco salta DEPOIS do END dele.
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, lbl, 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, lbl + "i", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, lbl + "l", 0x40));
+        get(b, 4, "i");
+        i64c(b, 0);
+        b.add(new WasmInstr.Simple(0x53, "i64.lt_s"));
+        b.add(new WasmInstr.Branch(lbl, 1, true));
+        get(b, 4, "i");
+        get(b, 2, "len");
+        b.add(new WasmInstr.Simple(0x5a, "i64.ge_u"));
+        b.add(new WasmInstr.Branch(lbl, 1, true));
+        // if [data+i*8] == v: res = i; sai
+        get(b, 3, "data");
+        get(b, 4, "i");
+        i64c(b, 8);
+        b.add(new WasmInstr.Simple(0x7e, "i64.mul"));
+        b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD64, 0));
+        get(b, vLocal, "v");
+        b.add(new WasmInstr.Simple(0x51, "i64.eq"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, lbl + "m", 0x40));
+        get(b, 4, "i");
+        set(b, resLocal, "res");
+        // DENTRO do if: 0=if, 1=loop, 2=bloco interno, 3=bloco externo —
+        // br 3 (e INCONDICIONAL: a comparacao ja foi consumida pelo if)
+        b.add(new WasmInstr.Branch(lbl, 3));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, lbl + "m", 0x40));
+        // passo: ++ (ou --) e volta
+        get(b, 4, "i");
+        if (fromEnd) {
+            i64c(b, 1);
+            b.add(new WasmInstr.Simple(0x7d, "i64.sub"));
+        } else {
+            i64c(b, 1);
+            b.add(new WasmInstr.Simple(0x7c, "i64.add"));
+        }
+        set(b, 4, "i");
+        b.add(new WasmInstr.Branch(lbl + "l", 0));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, lbl + "l", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, lbl + "i", 0x40));
+        // o -1 (nao achei): so as saidas de FRONTEIRA (br ao bloco interno)
+        // caem aqui — o br do MATCH foi ao bloco EXTERNO e preserva o res
+        i64c(b, -1);
+        set(b, resLocal, "res");
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, lbl, 0x40));
+    }
+
+    /** `kof.listContains(h i32, v i64) -> i32` — 1 se o elemento existe. */
+    private static WasmFunc listContains() {
+        List<WasmInstr> b = new ArrayList<>();
+        scanBody(b, "sc", 0, 1, 5, false);
+        get(b, 5, "res");
+        i64c(b, 0);
+        b.add(new WasmInstr.Simple(0x53, "i64.lt_s"));
+        set(b, 6, "found");                                      // res < 0 = ausente
+        get(b, 6, "found");
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "f", 0x7f));
+        i32c(b, 0);
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, "f", 0x7f));
+        i32c(b, 1);
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "f", 0x7f));
+        // o mapa do scanBody: 2=len(I64), 3=data(I32), 4=i(I64), 5=res(I64),
+        // 6=found(I32) — a ordem antiga trocava data/i (o validador rejeitou
+        // o get 4 como i64 no slot I32)
+        return new WasmFunc("kof.listContains", List.of(WasmFunc.TYPE_I32, WasmFunc.TYPE_I64),
+                List.of(WasmFunc.TYPE_I32), List.of(WasmFunc.TYPE_I64, WasmFunc.TYPE_I32,
+                        WasmFunc.TYPE_I64, WasmFunc.TYPE_I64, WasmFunc.TYPE_I32), b);
+    }
+
+    /** `kof.listIndexOf(h i32, v i64) -> i64` — o primeiro indice, -1 ausente. */
+    private static WasmFunc listIndexOf() {
+        List<WasmInstr> b = new ArrayList<>();
+        scanBody(b, "ix", 0, 1, 5, false);
+        get(b, 5, "res");
+        return new WasmFunc("kof.listIndexOf", List.of(WasmFunc.TYPE_I32, WasmFunc.TYPE_I64),
+                List.of(WasmFunc.TYPE_I64), List.of(WasmFunc.TYPE_I64, WasmFunc.TYPE_I32,
+                        WasmFunc.TYPE_I64, WasmFunc.TYPE_I64), b);
+    }
+
+    /** `kof.listLastIndexOf(h i32, v i64) -> i64` — o ultimo indice, -1 ausente. */
+    private static WasmFunc listLastIndexOf() {
+        List<WasmInstr> b = new ArrayList<>();
+        scanBody(b, "lx", 0, 1, 5, true);
+        get(b, 5, "res");
+        return new WasmFunc("kof.listLastIndexOf", List.of(WasmFunc.TYPE_I32, WasmFunc.TYPE_I64),
+                List.of(WasmFunc.TYPE_I64), List.of(WasmFunc.TYPE_I64, WasmFunc.TYPE_I32,
+                        WasmFunc.TYPE_I64, WasmFunc.TYPE_I64), b);
+    }
 
     /** `kof.heapAlloc(size i32) -> i32` — o bump global 0 alinhado em 8. */
     private static WasmFunc heapAlloc() {
@@ -225,6 +345,9 @@ final class WasmListRuntime {
         fs.add(listAdd());
         fs.add(listSize());
         fs.add(listGet());
+        fs.add(listContains());
+        fs.add(listIndexOf());
+        fs.add(listLastIndexOf());
         return fs;
     }
 }

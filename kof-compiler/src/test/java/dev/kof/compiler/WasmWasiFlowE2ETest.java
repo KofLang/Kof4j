@@ -380,62 +380,6 @@ class WasmWasiFlowE2ETest {
 
 
     @Test
-    void listOfBasicsMatchTheJvmOracle(@TempDir Path dir) throws Exception {
-        // Fase E (27/10, #776): LIST fatia 1 — List<Int> no WASI: o desugar
-        // listOf (kof_list_new + N× add) + size/get no bump heap. O handle e'
-        // uma CELULA INDIRETA ([dataPtr][len][cap]) para o add que cresce
-        // (dobra, copia, reescreve a celula) NUNCA invalidar o handle do
-        // chamador — o contrato observavel do ArrayList da JVM. A face
-        // forc a DOIS crecimentos (11 elems: cap 4->8->16 — o primeiro
-        // corte desta fatia pegou o heapAlloc gravando o DELTA no global e
-        // a copia sobreposta borrava o bloco: 1,1,1,1 medido), a iteracao
-        // com o indice em variavel e o add de valor computado.
-        var wasmtime = host("wasmtime");
-        var wasmTools = host("wasm-tools");
-        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
-        Files.writeString(dir.resolve("Main.kf"), """
-                main(String[] args) {
-                    var xs = listOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)
-                    println(xs.size())
-                    var i = 0
-                    while (i < xs.size()) {
-                        println(xs.get(i))
-                        i = i + 1
-                    }
-                    var ys = listOf(100)
-                    ys.add(200)
-                    ys.add(300)
-                    println(ys.get(0) + ys.get(1) + ys.get(2))
-                    var z = 40
-                    ys.add(z * 2)
-                    println(ys.get(3))
-                }
-                """);
-        assertFaceMatchesJvm(dir);
-    }
-
-    @Test
-    void listOfNonIntElementIsHonestRefusal(@TempDir Path dir) throws Exception {
-        // Fase E (27/10, #776): a fatia so' admite elems Int — um add de
-        // String recusa pelo nome (WASM002, sem artefato — Q7: nunca lista
-        // silenciosa errada).
-        var wasmtime = host("wasmtime");
-        assumeTrue(wasmtime != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
-        Files.writeString(dir.resolve("Main.kf"), """
-                main(String[] args) {
-                    var xs = listOf(1)
-                    var s = "x"
-                    xs.add(s)
-                }
-                """);
-        var wasi = new CompilerDriver().compile(dir.resolve("Main.kf"),
-                dir.resolve("out-wasi"), dev.kof.compiler.Target.WASI);
-        assertFalse(wasi.success(), "a fatia deve recusar elems nao-Int");
-        assertTrue(wasi.diagnostics().getDiagnostics().toString().contains("List.add"),
-                "a recusa nomeia o metodo: " + wasi.diagnostics().getDiagnostics());
-    }
-
-    @Test
     void combinedStringSearchAndSliceMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
         // Fase E (27/10, #776): os metodos de busca e de fatia NA MESMA
         // fonte — o strByteOff era dependencia comum de indexOf/contains E

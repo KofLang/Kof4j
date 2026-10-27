@@ -32,6 +32,16 @@ final class WasmCallCode {
     private WasmCallCode() {
     }
 
+    /** O tipo do elemento pelo type argument do OWNER (medido no IR:
+     *  `List<Int>` chega com typeArguments=[int]); lista BARE (sem args,
+     *  o caso §374) devolve "" — o add/get dela recusa na fatia. */
+    private static String listElemType(KofCall kc) {
+        if (kc.ownerType() instanceof Type.ClassType ct && !ct.typeArguments().isEmpty()) {
+            return typeName(ct.typeArguments().get(0));
+        }
+        return "";
+    }
+
     static void emitCall(KofCall kc, List<KofOperation> ops, int idx,
                          WasmLowering.Ctx ctx, List<WasmInstr> out) {
         if (WasmRecordCtor.isRecordEq(ctx, kc) || WasmRecordCtor.isRecordEqualsCall(ctx, kc)) {
@@ -133,10 +143,13 @@ final class WasmCallCode {
                     + " — o backend WASI ainda nao tem dispatch virtual; o `==` de conteudo ja e"
                     + " suportado (15.3d inc2 C2, kofRecordEq inline). docs/wasm-wasi-plan.md (#776)");
         } else if (ctx.wasi && WasmListRuntime.NAMES.contains(kc.methodName())) {
-            // Fase E (27/10, #776): LIST fatia 1 — o desugar do listOf:
+            // Fase E (27/10, #776): LIST fatia 2 — o desugar do listOf:
             // `kof_list_new` + N× `kof_list_add` (INSTANCE, void) + size/get
-            // (→ int). O handle e' i32 (celula indireta — ver WasmListRuntime);
-            // os elems Int viajam i64; fora do Int o add recusa pelo nome.
+            // (→ int) + contains/index_of/last_index_of/is_empty. O handle e'
+            // i32 (celula indireta — ver WasmListRuntime). O tipo do elemento
+            // vem do type argument do OWNER (medido no IR): Int viaja i64;
+            // String viaja como handle i32 zero-extendido no slot i64.
+            String elem = listElemType(kc);
             switch (kc.methodName()) {
                 case "kof_list_new" -> {
                     out.add(new WasmInstr.Call("kof.listNew"));
@@ -144,12 +157,25 @@ final class WasmCallCode {
                     ctx.lastPushWide = false;
                 }
                 case "kof_list_add" -> {
-                    if (!"list".equals(ctx.lastPush)
-                            && !"int".equals(ctx.lastPush)) {
-                        throw new WasmUnsupportedException("List.add('" + ctx.lastPush
-                                + "') fora da fatia List<Int> (WASM002) — docs/wasm-wasi-plan.md (#776)");
+                    if ("int".equals(elem)) {
+                        if (!"int".equals(ctx.lastPush)) {
+                            throw new WasmUnsupportedException("List.add('" + ctx.lastPush
+                                    + "') em List<Int> (WASM002) — docs/wasm-wasi-plan.md (#776)");
+                        }
+                        out.add(new WasmInstr.Call("kof.listAdd"));
+                    } else if ("string".equals(elem)) {
+                        if (!"string".equals(ctx.lastPush)) {
+                            throw new WasmUnsupportedException("List.add('" + ctx.lastPush
+                                    + "') em List<String> (WASM002) — docs/wasm-wasi-plan.md (#776)");
+                        }
+                        // o handle i32 vira o slot i64 (zero-extend; handle e' positivo)
+                        out.add(new WasmInstr.Simple(0xad, "i64.extend_i32_u"));
+                        out.add(new WasmInstr.Call("kof.listAdd"));
+                    } else {
+                        throw new WasmUnsupportedException("List<' + " + elem
+                                + " + '> fora da fatia List<Int>/List<String> (WASM002)"
+                                + " — docs/wasm-wasi-plan.md (#776)");
                     }
-                    out.add(new WasmInstr.Call("kof.listAdd"));
                     // o tee do KofDup DEIXOU o handle original na pilha: o
                     // rastro verdadeiro depois do add e' "list" (os dups
                     // seguintes do desugar leem este rastro)
@@ -161,10 +187,57 @@ final class WasmCallCode {
                     ctx.lastPush = "int";
                     ctx.lastPushWide = true;
                 }
-                default -> {                                             // kof_list_get
-                    out.add(new WasmInstr.Call("kof.listGet"));
-                    ctx.lastPush = "int";
-                    ctx.lastPushWide = true;
+                case "kof_list_get" -> {
+                    if ("string".equals(elem)) {
+                        // o slot i64 guarda o handle: volta i32 (o rastro diz handle)
+                        out.add(new WasmInstr.Call("kof.listGet"));
+                        out.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+                        ctx.lastPush = "string";
+                        ctx.lastPushWide = false;
+                    } else if ("int".equals(elem)) {
+                        out.add(new WasmInstr.Call("kof.listGet"));
+                        ctx.lastPush = "int";
+                        ctx.lastPushWide = true;
+                    } else {
+                        throw new WasmUnsupportedException("List.get de '" + elem
+                                + "' fora da fatia List<Int>/List<String> (WASM002)"
+                                + " — docs/wasm-wasi-plan.md (#776)");
+                    }
+                }
+                case "kof_list_contains", "kof_list_index_of", "kof_list_last_index_of" -> {
+                    // a JVM compara .equals: so' o Int tem igualdade barata
+                    // aqui — a igualdade de CONTEUDO de String no runtime e'
+                    // a face seguinte (recusa nomeada, nunca compare errado)
+                    if (!"int".equals(elem)) {
+                        throw new WasmUnsupportedException("List." + kc.methodName()
+                                + " sobre List<" + elem + "> fora da fatia (a igualdade"
+                                + " de conteudo de String e' a face seguinte) (WASM002)"
+                                + " — docs/wasm-wasi-plan.md (#776)");
+                    }
+                    String rn = switch (kc.methodName()) {
+                        case "kof_list_contains" -> "kof.listContains";
+                        case "kof_list_index_of" -> "kof.listIndexOf";
+                        default -> "kof.listLastIndexOf";
+                    };
+                    // o desugar materializa o PARAM 0 (o receiver tipado int)
+                    // como um 0 FANTASMA no topo — medido no IR ([h, v, 0]);
+                    // a JVM o salta para INSTANCE, o despacho WASI o dropa
+                    out.add(new WasmInstr.Simple(0x1a, "drop"));
+                    out.add(new WasmInstr.Call(rn));
+                    if ("kof_list_contains".equals(kc.methodName())) {
+                        ctx.lastPush = "bool";
+                        ctx.lastPushWide = false;
+                    } else {
+                        ctx.lastPush = "int";
+                        ctx.lastPushWide = true;
+                    }
+                }
+                default -> {                                             // kof_list_is_empty
+                    // size == 0: SEM runtime novo (o listSize + eqz aqui)
+                    out.add(new WasmInstr.Call("kof.listSize"));
+                    out.add(new WasmInstr.Simple(0x50, "i64.eqz"));
+                    ctx.lastPush = "bool";
+                    ctx.lastPushWide = false;
                 }
             }
         } else if (ctx.wasi && WasmBoxRuntime.NAMES.contains(kc.methodName())) {
