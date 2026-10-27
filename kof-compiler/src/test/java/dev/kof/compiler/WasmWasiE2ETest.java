@@ -390,26 +390,59 @@ class WasmWasiE2ETest {
     }
 
     @Test
-    void andOverBoolVariablesIsAnHonestRefusal(@TempDir Path dir) throws Exception {
-        // Fase E (24/10, #776): `a && b` sobre BOOLs carrega um valor pela
-        // fronteira de bloco e a maquina de estados do WASI nao transporta a
-        // pilha entre estados — o subset recusa com WASM002 e NAO emite
-        // artefato (Q7: modulo invalido nunca). O shape continua certo nos
-        // outros alvos (JVM/nativo/JS), cobertos pelas suites deles.
+    void logicalChainsMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // Fase E (26/10, #776): as cadeias logicas — `&&`/`||` sobre bools e
+        // sobre comparacoes — agora avaliam no WASI: o join vai para um
+        // temporario (a maquina de estados nao transporta a pilha entre
+        // estados; antes o modulo saia invalido). O curto-circuito e
+        // PRESERVADO: o RHS com armadilha (1/z com z=0) nao roda quando o
+        // lado esquerdo decide. O oracle e o JVM.
+        var wasmtime = host("wasmtime");
+        var wasmTools = host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
         Files.writeString(dir.resolve("Main.kf"), """
                 main(String[] args) {
                     var b1 = true
                     var b2 = false
-                    if (b1 && b2) { println(40) } else { println(50) }
+                    if (b1 && b2) { println(1) } else { println(2) }
+                    if (b1 || b2) { println(3) } else { println(4) }
+                    var x = 5
+                    var y = 3
+                    if (x > 0 && y > 0) { println(5) } else { println(6) }
+                    if (x == 1 || x == 2) { println(7) } else { println(8) }
+                    var z = 0
+                    if (false && 1/z == 1) { println(9) } else { println(10) }
+                    if (true || 1/z == 1) { println(11) } else { println(12) }
+                    if (false && true || true) { println(13) } else { println(14) }
+                    var c = false || true
+                    println(c)
                 }
                 """);
-        var wasi = new CompilerDriver().compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
-        assertFalse(wasi.success(), "the bool && bool shape is outside the WASI subset");
-        assertTrue(wasi.diagnostics().getDiagnostics().stream()
-                        .anyMatch(d -> String.valueOf(d).contains("WASM002")),
-                "refusal must be the named WASM002: " + wasi.diagnostics().getDiagnostics());
-        assertFalse(Files.exists(Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm")),
-                "Q7: no artifact for the refused shape");
+        var driver = new CompilerDriver();
+        var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
+        assertTrue(jvm.success(), "jvm chain compile: " + jvm.diagnostics().getDiagnostics());
+        var oracle = new ProcessBuilder(List.of(jvmBin(), "-cp",
+                Path.of(dir.toString(), "out-jvm").toString(), "Default.Main"))
+                .redirectErrorStream(true).start();
+        String expected = new String(oracle.getInputStream().readAllBytes());
+        assertTrue(oracle.waitFor(120, TimeUnit.SECONDS) && oracle.exitValue() == 0,
+                "JVM chain oracle: " + expected);
+        var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
+        assertTrue(wasi.success(), "wasi chain compile: " + wasi.diagnostics().getDiagnostics());
+        Path wasm = Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm");
+        var v = new ProcessBuilder(wasmTools.toString(), "validate", wasm.toString())
+                .redirectErrorStream(true).start();
+        String vout = new String(v.getInputStream().readAllBytes());
+        assertTrue(v.waitFor(60, TimeUnit.SECONDS) && v.exitValue() == 0,
+                "chain module must pass the official validator: " + vout);
+        var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run", wasm.toString()))
+                .redirectErrorStream(true).start();
+        String out = new String(proc.getInputStream().readAllBytes());
+        assertTrue(proc.waitFor(60, TimeUnit.SECONDS), "host within 60s");
+        assertEquals(0, proc.exitValue(), "clean WASI exit chains: " + out);
+        assertEquals(expected.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
+                "logical chains must equal the JVM oracle");
     }
 
 }

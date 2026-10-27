@@ -144,7 +144,7 @@ public final class CompilerComparisons {
     }
 
     /** {@code ($name == <boolLiteral>)} no caminho de VALOR (null-safe) + push 0 p/ o jump. */
-    private static int nextFreeLocalIndex(List<IRLocalVariable> locals) {
+    static int nextFreeLocalIndex(List<IRLocalVariable> locals) {
         int m = 0;
         for (IRLocalVariable lv : locals) m = Math.max(m, lv.index() + 1);
         return m;

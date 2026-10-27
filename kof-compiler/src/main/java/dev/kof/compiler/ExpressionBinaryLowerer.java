@@ -123,8 +123,22 @@ public final class ExpressionBinaryLowerer {
             } else {
                 ops.add(new KofConditionalJump(KofComparison.NE, falseLabel, trueLabel));
             }
+            // Fase E (26/10, #776): o JOIN da cadeia logica vai para um
+            // TEMPORARIO — o valor do arco nao pode atravessar a fronteira de
+            // bloco (a maquina de estados do WASI nao transporta a pilha entre
+            // estados; o modulo saia INVALIDO no `b1 && b2`). Mesma maquina do
+            // caminho troolean (temporario unico, IR com store nos arcos).
+            boolean chainTemp = logicType instanceof Type.PrimitiveType ctp
+                    && "bool".equalsIgnoreCase(ctp.name());
+            int tmpIdx = -1;
+            if (chainTemp) {
+                tmpIdx = Math.max(localIdx, CompilerComparisons.nextFreeLocalIndex(locals));
+                locals.add(new IRLocalVariable(tmpIdx, "$klogic" + tmpIdx, logicType));
+                localIdx = tmpIdx + 1;
+            }
     ops.add(new KofLabel(falseLabel));
     localIdx = ExpressionLowerer.emitExpression(driver, rightC, ops, owner, localIdx, locals);
+    if (chainTemp) ops.add(new KofStoreLocal(logicType, tmpIdx));
     ops.add(new KofJump(endLabel));
     ops.add(new KofLabel(trueLabel));
     if ("||".equals(bin.operator())) {
@@ -132,7 +146,9 @@ public final class ExpressionBinaryLowerer {
     } else {
         ops.add(new KofLoadLiteral(zeroLit, 0));
     }
+    if (chainTemp) ops.add(new KofStoreLocal(logicType, tmpIdx));
     ops.add(new KofLabel(endLabel));
+    if (chainTemp) ops.add(new KofLoadLocal(logicType, tmpIdx));
     return localIdx;
 }
 // Left-associative chains (huge string concatenations in
