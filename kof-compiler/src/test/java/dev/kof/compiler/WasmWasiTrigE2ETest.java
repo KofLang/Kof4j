@@ -5,6 +5,11 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import dev.kof.compiler.CompilerDriver;
+import dev.kof.compiler.Target;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Fase E (27/10, #776 — split test-hygiene): as faces TRIG do WASI
@@ -56,5 +61,30 @@ class WasmWasiTrigE2ETest {
                 }
                 """);
         WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
+
+    @Test
+    void sinBeyondMediumRangeTrapsHonestly(@TempDir Path dir) throws Exception {
+        // MATH-LIBM-4 scoping (27/10, #776): além de 2^19·π/2 ≈ 823549 o
+        // guard TRAPA honestamente (o caminho GRANDE ipio2 = a fatia
+        // seguinte — nunca valor errado silencioso; a F10 mediu rc=134).
+        // A face pina o trap via o EXIT CODE do wasmtime (o corpo nem roda).
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null,
+                "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        var driver = new CompilerDriver();
+        Files.writeString(dir.resolve("Main.kf"),
+                "main(String[] args) {\n    println(math.sin(2000000.0))\n}\n");
+        var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
+        assertTrue(jvm.success(), "jvm compile: " + jvm.diagnostics().getDiagnostics());
+        var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
+        assertTrue(wasi.success(), "wasi compile (o guard da faixa valida): " + wasi.diagnostics().getDiagnostics());
+        var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
+                Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm").toString()))
+                .redirectErrorStream(true).start();
+        proc.waitFor(60, java.util.concurrent.TimeUnit.SECONDS);
+        assertTrue(proc.exitValue() != 0,
+                "sin além de 2^19·π/2 TRAPA honestamente (rc=" + proc.exitValue() + ")");
     }
 }
