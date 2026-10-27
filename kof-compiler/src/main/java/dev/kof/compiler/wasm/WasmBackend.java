@@ -270,10 +270,12 @@ public class WasmBackend implements Backend {
                     funcs.add(kofStrLit());
                     funcs.add(kofWriteStr());
                     funcs.add(kofIntToStr());
-                    if (usesRecords) {
-                        funcs.add(kofStrBool()); // toString de campo Bool (15.3d inc2 fatia C)
-                        funcs.add(kofStrChar()); // toString de campo Char
-                        funcs.add(kofStrEq());   // campo String do fold de == (15.3d inc2 fatia C2)
+                    if (usesRecords || WasmTypeOracle.usesCharValueOf(scanAll)) {
+                        if (usesRecords) {
+                            funcs.add(kofStrBool()); // toString de campo Bool (15.3d inc2 fatia C)
+                            funcs.add(kofStrEq());   // campo String do fold de == (15.3d inc2 fatia C2)
+                        }
+                        funcs.add(kofStrChar()); // toString de campo Char E String.valueOf(char)/concat (27/10)
                     }
                     if (usesStringConcat(scanAll) || usesRecords || usesStringMethod(scanAll, "concat")) {
                         funcs.add(kofStrConcat());

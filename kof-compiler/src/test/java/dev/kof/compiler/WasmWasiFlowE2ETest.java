@@ -289,4 +289,38 @@ class WasmWasiFlowE2ETest {
         assertFaceMatchesJvm(dir);
     }
 
+
+    @Test
+    void charToStringAndConcatMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // Fase E (27/10, #776): o Char vira string — `"s" + c` e
+        // `String.valueOf(c)` usam o MESMO kof.strChar que os campos Char de
+        // record ja usavam (o runtime existia; o gancho do valueOf e o
+        // registro condicional e' que faltavam). O loop constroi string a
+        // partir de charAt — o padrao comum de filtragem por caractere.
+        // O oracle e o JVM.
+        var wasmtime = host("wasmtime");
+        var wasmTools = host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var c = 'x'
+                    println(c)
+                    println("val: " + c)
+                    println(String.valueOf('q'))
+                    var word = "kof"
+                    var initials = ""
+                    var i = 0
+                    while (i < word.length()) {
+                        var ch = word.charAt(i)
+                        if (i == 0 || ch != 'f') {
+                            initials = initials + ch
+                        }
+                        i = i + 1
+                    }
+                    println(initials)
+                }
+                """);
+        assertFaceMatchesJvm(dir);
+    }
+
 }

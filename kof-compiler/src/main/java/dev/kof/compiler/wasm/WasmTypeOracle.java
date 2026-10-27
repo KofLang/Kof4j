@@ -135,6 +135,25 @@ final class WasmTypeOracle {
 
     /** 15.3d fatia F face 2c: faces de String cujo helper e' `kof.strIsEmpty` /
      *  `kof.strEq` / `kof.strConcat` conforme o metodo chamado. */
+    /** Fase E (27/10, #776): algum String.valueOf com parametro Char (o
+     *  kof.strChar do runtime atende o concat/valor — o mesmo dos campos
+     *  Char de record). */
+    static boolean usesCharValueOf(Iterable<IRMethod> ms) {
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (op instanceof KofCall kc && "valueOf".equals(kc.methodName())
+                            && !kc.parameterTypes().isEmpty()
+                            && kc.parameterTypes().get(0) instanceof Type.PrimitiveType pt
+                            && "char".equalsIgnoreCase(pt.name())) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     static boolean usesStringMethod(Iterable<IRMethod> ms, String method) {
         for (IRMethod m : ms) {
             for (IRBasicBlock bb : m.basicBlocks()) {

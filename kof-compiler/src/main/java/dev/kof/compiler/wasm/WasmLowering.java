@@ -555,6 +555,13 @@ final class WasmLowering {
                         // "t=" + true — paridade JVM (String.valueOf(boolean)).
                         out.add(new WasmInstr.Call("kof.strBool"));
                         ctx.lastPush = "string";
+                    } else if ("char".equalsIgnoreCase(vt)) {
+                        // Fase E (27/10, #776): "s" + c / String.valueOf(c) — o
+                        // MESMO kof.strChar dos campos Char de record (o runtime
+                        // ja existia; o gancho e' que faltava). O Char na pilha
+                        // e' i64 e o strChar recebe i64 (wrap interno).
+                        out.add(new WasmInstr.Call("kof.strChar"));
+                        ctx.lastPush = "string";
                     } else if (vl != null) {
                         WasmRecordCode.emitToString(vl, vt, ctx, out, 0);
                         ctx.lastPush = "string";
