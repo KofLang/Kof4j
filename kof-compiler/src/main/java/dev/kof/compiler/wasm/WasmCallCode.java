@@ -163,6 +163,15 @@ final class WasmCallCode {
                                     + "') em List<Int> (WASM002) — docs/wasm-wasi-plan.md (#776)");
                         }
                         out.add(new WasmInstr.Call("kof.listAdd"));
+                    } else if ("double".equals(elem)) {
+                        if (!"double".equals(ctx.lastPush)) {
+                            throw new WasmUnsupportedException("List.add('" + ctx.lastPush
+                                    + "') em List<Double> (WASM002) — docs/wasm-wasi-plan.md (#776)");
+                        }
+                        // o f64 anda no slot i64 como BITS (o contains/indexOf
+                        // comparam bits = exatamente Double.equals)
+                        out.add(new WasmInstr.Simple(0xbd, "i64.reinterpret_f64"));
+                        out.add(new WasmInstr.Call("kof.listAdd"));
                     } else if ("string".equals(elem)) {
                         if (!"string".equals(ctx.lastPush)) {
                             throw new WasmUnsupportedException("List.add('" + ctx.lastPush
@@ -172,8 +181,8 @@ final class WasmCallCode {
                         out.add(new WasmInstr.Simple(0xad, "i64.extend_i32_u"));
                         out.add(new WasmInstr.Call("kof.listAdd"));
                     } else {
-                        throw new WasmUnsupportedException("List<' + " + elem
-                                + " + '> fora da fatia List<Int>/List<String> (WASM002)"
+                        throw new WasmUnsupportedException("List<" + elem
+                                + "> fora da fatia List<Int>/List<String>/List<Double> (WASM002)"
                                 + " — docs/wasm-wasi-plan.md (#776)");
                     }
                     // o tee do KofDup DEIXOU o handle original na pilha: o
@@ -198,9 +207,15 @@ final class WasmCallCode {
                         out.add(new WasmInstr.Call("kof.listGet"));
                         ctx.lastPush = "int";
                         ctx.lastPushWide = true;
+                    } else if ("double".equals(elem)) {
+                        // os BITS do slot voltam f64
+                        out.add(new WasmInstr.Call("kof.listGet"));
+                        out.add(new WasmInstr.Simple(0xbf, "f64.reinterpret_i64"));
+                        ctx.lastPush = "double";
+                        ctx.lastPushWide = true;
                     } else {
                         throw new WasmUnsupportedException("List.get de '" + elem
-                                + "' fora da fatia List<Int>/List<String> (WASM002)"
+                                + "' fora da fatia List<Int>/List<String>/List<Double> (WASM002)"
                                 + " — docs/wasm-wasi-plan.md (#776)");
                     }
                 }
@@ -217,6 +232,12 @@ final class WasmCallCode {
                                         + "') em List<String> (WASM002) — docs/wasm-wasi-plan.md (#776)");
                             }
                             out.add(new WasmInstr.Simple(0xad, "i64.extend_i32_u"));
+                        } else if ("double".equals(elem)) {
+                            if (!"double".equals(ctx.lastPush)) {
+                                throw new WasmUnsupportedException("List.set('" + ctx.lastPush
+                                        + "') em List<Double> (WASM002) — docs/wasm-wasi-plan.md (#776)");
+                            }
+                            out.add(new WasmInstr.Simple(0xbd, "i64.reinterpret_f64"));
                         }
                         out.add(new WasmInstr.Call("kof.listSet"));
                     } else if ("kof_list_remove".equals(kc.methodName())) {
@@ -234,7 +255,7 @@ final class WasmCallCode {
                     // recebem o HANDLE cru (i32 — sem extend). Sobre outros
                     // elems recusa (nunca compare errado).
                     String rn;
-                    if ("int".equals(elem)) {
+                    if ("int".equals(elem) || "double".equals(elem)) {
                         rn = switch (kc.methodName()) {
                             case "kof_list_contains" -> "kof.listContains";
                             case "kof_list_index_of" -> "kof.listIndexOf";
@@ -252,9 +273,17 @@ final class WasmCallCode {
                                 + " — docs/wasm-wasi-plan.md (#776)");
                     }
                     // o desugar materializa o PARAM 0 (o receiver) como um
-                    // FANTASMA no topo — medido no IR ([h, v, 0]); o drop
-                    // devolve [h, v]
+                    // FANTASMA no topo — medido no IR ([h, v, 0]); o drop vem
+                    // PRIMEIRO (sobre o phantom) e SO entao o double
+                    // reinterpreta o valor (a ordem antiga reinterpretava o
+                    // proprio phantom — o validador rejeitou)
                     out.add(new WasmInstr.Simple(0x1a, "drop"));
+                    if ("double".equals(elem)) {
+                        // o valor chega f64 e vai como BITS (a comparacao de
+                        // bits = exatamente Double.equals: NaN=NaN por bits,
+                        // 0.0 vs -0.0 distintos)
+                        out.add(new WasmInstr.Simple(0xbd, "i64.reinterpret_f64"));
+                    }
                     out.add(new WasmInstr.Call(rn));
                     if ("kof_list_contains".equals(kc.methodName())) {
                         ctx.lastPush = "bool";

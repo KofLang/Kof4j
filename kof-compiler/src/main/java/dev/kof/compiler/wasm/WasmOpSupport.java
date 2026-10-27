@@ -17,6 +17,7 @@ import dev.kof.compiler.KofLoadLocal;
 import dev.kof.compiler.KofNewObject;
 import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.KofPop;
+import dev.kof.compiler.KofPop2;
 import dev.kof.compiler.KofReturnVoid;
 import dev.kof.compiler.KofStoreLocal;
 import dev.kof.compiler.KofUnary;
@@ -62,6 +63,7 @@ final class WasmOpSupport {
             KofLoadLocal.class,
             KofNewObject.class,
             KofPop.class,
+            KofPop2.class,
             KofReturnVoid.class,
             KofStoreLocal.class,
             KofUnary.class);

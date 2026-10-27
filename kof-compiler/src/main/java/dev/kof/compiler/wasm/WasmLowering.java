@@ -498,7 +498,10 @@ final class WasmLowering {
             }
         } else if (op instanceof KofLoadField lf) {
             WasmRecordCtor.lowerLoadField(ctx, lf, out);
-        } else if (op instanceof KofPop) {
+        } else if (op instanceof KofPop || op instanceof KofPop2) {
+            // KofPop2 = o descarte de valor WIDE (categoria 2) — o drop e'
+            // o MESMO (o wasm nao distingue largura no descarte); o desugar
+            // do remove de List<Int> chega com ele (a fatia LIST-5 mediu)
             out.add(new WasmInstr.Simple(0x1a, "drop"));
         } else if (op instanceof KofArrayLength) {
             out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0)); // [arr] = count (15.3c-sliceB)

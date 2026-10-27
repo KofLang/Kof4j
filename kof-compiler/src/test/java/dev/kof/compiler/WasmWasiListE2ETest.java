@@ -162,6 +162,40 @@ class WasmWasiListE2ETest {
     }
 
     @Test
+    void listDoubleElemsMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // Fase E (27/10, #776): LIST fatia 5 — List<Double>: o f64 anda nos
+        // slots i64 como BITS (add/set reinterpretam 0xbd; get volta 0xbf) —
+        // ZERO runtime novo; as consultas comparam BITS = exatamente
+        // Double.equals (NaN=NaN por bits; 0.0 vs -0.0 distintos). A ordem
+        // nas consultas: o drop do fantasma vem ANTES do reinterpret (a
+        // ordem antiga reinterpretava o proprio phantom — o validador
+        // rejeitou). O descarte do remove de Int usa KofPop2 (o pop WIDE) —
+        // baixado como o mesmo drop.
+        var wasmtime = host("wasmtime");
+        var wasmTools = host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var ds = listOf(1.5, 2.5, 3.5)
+                    ds.add(4.5)
+                    ds.set(0, 9.75)
+                    println(ds.size())
+                    println(ds.get(0))
+                    println(ds.contains(2.5))
+                    println(ds.contains(9.9))
+                    println(ds.indexOf(3.5))
+                    ds.remove(1)
+                    println(ds.get(1))
+                    println(ds.size())
+                    var e = 5.5
+                    ds.add(e * 2.0)
+                    println(ds.get(ds.size() - 1))
+                }
+                """);
+        assertListFaceMatchesJvm(dir);
+    }
+
+    @Test
     void listOfNonIntElementIsHonestRefusal(@TempDir Path dir) throws Exception {
         // Fase E (27/10, #776): a fatia so' admite elems Int — um add de
         // String recusa pelo nome (WASM002, sem artefato — Q7: nunca lista
