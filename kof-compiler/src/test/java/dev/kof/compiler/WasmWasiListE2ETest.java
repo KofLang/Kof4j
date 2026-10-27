@@ -334,6 +334,37 @@ class WasmWasiListE2ETest {
     }
 
     @Test
+    void setAndMapStringMembersMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // Fase E (27/10, #776): SET/MAP fatia 2 — os membros de STRING:
+        // Set<String> (o add deduplica por CONTEUDO via o kof.strEq
+        // existente — o mesmo do fold de `==`) e Map.containsKey/remove (o
+        // remove devolve a CAIXA do valor removido — 0=null, o KofPop da
+        // forma declaracao consome). Pego rodando: o phantom NAO existe no
+        // map-contains (o IR tem UM param — o drop copiado das consultas
+        // da lista consumia o handle da chave).
+        var wasmtime = host("wasmtime");
+        var wasmTools = host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var s = setOf("a", "b")
+                    s.add("c")
+                    s.add("a")
+                    println(s.size())
+                    println(s.contains("b"))
+                    println(s.contains("z"))
+                    var m = mapOf("a", 1)
+                    println(m.containsKey("a"))
+                    println(m.containsKey("zz"))
+                    m.remove("a")
+                    println(m.size())
+                    println(m.containsKey("a"))
+                }
+                """);
+        assertListFaceMatchesJvm(dir);
+    }
+
+    @Test
     void listOfNonIntElementIsHonestRefusal(@TempDir Path dir) throws Exception {
         // Fase E (27/10, #776): a fatia so' admite elems Int — um add de
         // String recusa pelo nome (WASM002, sem artefato — Q7: nunca lista

@@ -233,6 +233,32 @@ final class WasmCallCode {
                     ctx.lastPush = "map";
                     ctx.lastPushWide = false;
                 }
+                case "kof_map_contains" -> {
+                    if (!"string".equalsIgnoreCase(mapKeyType(kc))) {
+                        throw new WasmUnsupportedException("Map.contains com chave '"
+                                + mapKeyType(kc) + "' fora da fatia Map<String, Int> (WASM002)"
+                                + " — docs/wasm-wasi-plan.md (#776)");
+                    }
+                    // SEM phantom: o IR do contains tem UM param (a chave —
+                    // medido; o drop aqui consumia o handle da chave)
+                    out.add(new WasmInstr.Call("kof.mapContains"));
+                    ctx.lastPush = "bool";
+                    ctx.lastPushWide = false;
+                }
+                case "kof_map_remove" -> {
+                    if (!"string".equalsIgnoreCase(mapKeyType(kc))
+                            || !"int".equalsIgnoreCase(mapValueType(kc))) {
+                        throw new WasmUnsupportedException("Map<"
+                                + mapKeyType(kc) + ", " + mapValueType(kc)
+                                + "> fora da fatia Map<String, Int> (WASM002)"
+                                + " — docs/wasm-wasi-plan.md (#776)");
+                    }
+                    out.add(new WasmInstr.Call("kof.mapRemove"));
+                    // o remove devolve a CAIXA do valor removido (0=null):
+                    // a forma declaracao tem o KofPop (consome)
+                    ctx.lastPush = "object";
+                    ctx.lastPushWide = false;
+                }
                 case "kof_map_get" -> {
                     if (!"string".equalsIgnoreCase(mapKeyType(kc))) {
                         throw new WasmUnsupportedException("Map.get com chave '"
@@ -262,19 +288,17 @@ final class WasmCallCode {
                     ctx.lastPushWide = false;
                 }
                 case "kof_set_add" -> {
-                    // o rastro do TOPO no call e' o VALOR (o arg — "int");
-                    // o receiver (o tee do desugar) esta' embaixo
-                    if (!"int".equals(ctx.lastPush)) {
+                    // fatia 1 (Int: o valor i64 direto) e fatia 2 (String: o
+                    // HANDLE i32 cru — o setAddStr compara CONTEUDO); o
+                    // rastro do TOPO no call e' o VALOR
+                    boolean strElem = "string".equals(elemSet(kc));
+                    String want = strElem ? "string" : "int";
+                    if (!want.equals(ctx.lastPush)) {
                         throw new WasmUnsupportedException("Set.add('" + ctx.lastPush
-                                + "') fora da fatia Set<Int> (WASM002)"
+                                + "') fora da fatia Set<Int>/Set<String> (WASM002)"
                                 + " — docs/wasm-wasi-plan.md (#776)");
                     }
-                    if (!"int".equals(elemSet(kc))) {
-                        throw new WasmUnsupportedException("Set<" + elemSet(kc)
-                                + "> fora da fatia Set<Int> (WASM002)"
-                                + " — docs/wasm-wasi-plan.md (#776)");
-                    }
-                    out.add(new WasmInstr.Call("kof.setAdd"));
+                    out.add(new WasmInstr.Call(strElem ? "kof.setAddStr" : "kof.setAdd"));
                     // o runtime DEVOLVE o booleano do HashSet.add (anexou ou
                     // dedup): a forma VOID da cadeia setOf dropa aqui (o
                     // add-declaracao deixa o KofPop consumir)
@@ -286,12 +310,13 @@ final class WasmCallCode {
                     ctx.lastPushWide = false;
                 }
                 case "kof_set_contains" -> {
-                    if (!"int".equals(elemSet(kc))) {
+                    boolean strElem2 = "string".equals(elemSet(kc));
+                    if (!strElem2 && !"int".equals(elemSet(kc))) {
                         throw new WasmUnsupportedException("Set.contains sobre Set<"
-                                + elemSet(kc) + "> fora da fatia Set<Int> (WASM002)"
+                                + elemSet(kc) + "> fora da fatia Set<Int>/Set<String> (WASM002)"
                                 + " — docs/wasm-wasi-plan.md (#776)");
                     }
-                    out.add(new WasmInstr.Call("kof.setContains"));
+                    out.add(new WasmInstr.Call(strElem2 ? "kof.setContainsStr" : "kof.setContains"));
                     ctx.lastPush = "bool";
                     ctx.lastPushWide = false;
                 }

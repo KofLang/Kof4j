@@ -33,7 +33,8 @@ final class WasmMapRuntime {
 
     /** Os nomes de desugar atendidos (a whitelist do scan e o despacho). */
     static final Set<String> NAMES = Set.of(
-            "kof_map_new", "kof_map_put", "kof_map_get", "kof_map_size");
+            "kof_map_new", "kof_map_put", "kof_map_get", "kof_map_size",
+            "kof_map_contains", "kof_map_remove");
 
     /** `kof.mapNew() -> i32` — a celula + o bloco inicial cap=8 pares. */
     private static WasmFunc mapNew() {
@@ -339,6 +340,200 @@ final class WasmMapRuntime {
                 List.of(WasmFunc.TYPE_I64), List.of(), b);
     }
 
+
+    /** `kof.mapContains(h i32, key i32) -> i32` — o strEq scan (bool). */
+    private static WasmFunc mapContains() {
+        List<WasmInstr> b = new ArrayList<>();
+        // 0=h, 1=key; 2=len, 3=data, 4=i, 5=found, 6=eq
+        get(b, 0, "h");
+        i32c(b, 8);
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD64, 0));
+        set(b, 2, "len");
+        get(b, 0, "h");
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
+        set(b, 3, "data");
+        i64c(b, 0);
+        set(b, 4, "i");
+        i32c(b, 0);
+        set(b, 5, "found");
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, "ck", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, "ckl", 0x40));
+        get(b, 4, "i");
+        get(b, 2, "len");
+        b.add(new WasmInstr.Simple(0x5a, "i64.ge_u"));
+        b.add(new WasmInstr.Branch("ck", 1, true));
+        get(b, 3, "data");
+        get(b, 4, "i");
+        i64c(b, 16);
+        b.add(new WasmInstr.Simple(0x7e, "i64.mul"));
+        b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD64, 0));
+        b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+        get(b, 1, "key");
+        b.add(new WasmInstr.Call("kof.strEq"));
+        set(b, 6, "eq");
+        get(b, 6, "eq");
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "cm", 0x40));
+        i32c(b, 1);
+        set(b, 5, "found");
+        b.add(new WasmInstr.Branch("ck", 2));                    // 0=if,1=loop,2=block
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "cm", 0x40));
+        get(b, 4, "i");
+        i64c(b, 1);
+        b.add(new WasmInstr.Simple(0x7c, "i64.add"));
+        set(b, 4, "i");
+        b.add(new WasmInstr.Branch("ckl", 0));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "ckl", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "ck", 0x40));
+        get(b, 5, "found");
+        // o mapa REAL: 2=len(I64), 3=data(I32), 4=i(I64), 5=found(I32),
+        // 6=eq(I32) — found era I64 (a emissao grava i32.const)
+        return new WasmFunc("kof.mapContains", List.of(WasmFunc.TYPE_I32, WasmFunc.TYPE_I32),
+                List.of(WasmFunc.TYPE_I32), List.of(WasmFunc.TYPE_I64, WasmFunc.TYPE_I32,
+                        WasmFunc.TYPE_I64, WasmFunc.TYPE_I32, WasmFunc.TYPE_I32), b);
+    }
+
+    /** `kof.mapRemove(h i32, key i32) -> i32` — o HANDLE da caixa do valor
+     *  removido (0 = null); desloca os pares e len-1 quando achou. */
+    private static WasmFunc mapRemove() {
+        List<WasmInstr> b = new ArrayList<>();
+        // 0=h, 1=key; 2=len, 3=data, 4=i, 5=idx, 6=res, 7=eq, 8=j, 9=tmp
+        get(b, 0, "h");
+        i32c(b, 8);
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD64, 0));
+        set(b, 2, "len");
+        get(b, 0, "h");
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
+        set(b, 3, "data");
+        i64c(b, -1);
+        set(b, 5, "idx");
+        i32c(b, 0);
+        set(b, 6, "res");
+        i64c(b, 0);
+        set(b, 4, "i");
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, "rk", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, "rkl", 0x40));
+        get(b, 4, "i");
+        get(b, 2, "len");
+        b.add(new WasmInstr.Simple(0x5a, "i64.ge_u"));
+        b.add(new WasmInstr.Branch("rk", 1, true));
+        get(b, 3, "data");
+        get(b, 4, "i");
+        i64c(b, 16);
+        b.add(new WasmInstr.Simple(0x7e, "i64.mul"));
+        b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD64, 0));
+        b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+        get(b, 1, "key");
+        b.add(new WasmInstr.Call("kof.strEq"));
+        set(b, 7, "eq");
+        get(b, 7, "eq");
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "rm", 0x40));
+        get(b, 4, "i");
+        set(b, 5, "idx");
+        b.add(new WasmInstr.Branch("rk", 2));                    // 0=if,1=loop,2=block
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "rm", 0x40));
+        get(b, 4, "i");
+        i64c(b, 1);
+        b.add(new WasmInstr.Simple(0x7c, "i64.add"));
+        set(b, 4, "i");
+        b.add(new WasmInstr.Branch("rkl", 0));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "rkl", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "rk", 0x40));
+        // achou: res = boxInt(valor); desloca os pares; len-1
+        // (o idx e' I64: o comparador tambem — o i32.const aqui dava
+        // expected i64 found i32)
+        get(b, 5, "idx");
+        i64c(b, 0);
+        b.add(new WasmInstr.Simple(0x59, "i64.ge_s"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "has", 0x40));
+        get(b, 3, "data");
+        get(b, 5, "idx");
+        i64c(b, 16);
+        b.add(new WasmInstr.Simple(0x7e, "i64.mul"));
+        b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        i32c(b, 8);
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD64, 0));
+        b.add(new WasmInstr.Call("kof.boxInt"));
+        set(b, 6, "res");
+        get(b, 5, "idx");
+        set(b, 8, "j");
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, "rs", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, "rsl", 0x40));
+        get(b, 8, "j");
+        get(b, 2, "len");
+        i64c(b, 1);
+        b.add(new WasmInstr.Simple(0x7d, "i64.sub"));
+        b.add(new WasmInstr.Simple(0x5a, "i64.ge_u"));
+        b.add(new WasmInstr.Branch("rs", 1, true));
+        get(b, 3, "data");
+        get(b, 8, "j");
+        i64c(b, 16);
+        b.add(new WasmInstr.Simple(0x7e, "i64.mul"));
+        b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        get(b, 3, "data");
+        get(b, 8, "j");
+        i64c(b, 16);
+        b.add(new WasmInstr.Simple(0x7e, "i64.mul"));
+        b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        i32c(b, 16);
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD64, 0));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE64, 0));
+        get(b, 3, "data");
+        get(b, 8, "j");
+        i64c(b, 16);
+        b.add(new WasmInstr.Simple(0x7e, "i64.mul"));
+        b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        i32c(b, 8);
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        get(b, 3, "data");
+        get(b, 8, "j");
+        i64c(b, 16);
+        b.add(new WasmInstr.Simple(0x7e, "i64.mul"));
+        b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        i32c(b, 16);
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        i32c(b, 8);
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD64, 0));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE64, 0));
+        get(b, 8, "j");
+        i64c(b, 1);
+        b.add(new WasmInstr.Simple(0x7c, "i64.add"));
+        set(b, 8, "j");
+        b.add(new WasmInstr.Branch("rsl", 0));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "rsl", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "rs", 0x40));
+        get(b, 0, "h");
+        i32c(b, 8);
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        get(b, 2, "len");
+        i64c(b, 1);
+        b.add(new WasmInstr.Simple(0x7d, "i64.sub"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE64, 0));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "has", 0x40));
+        get(b, 6, "res");
+        // o mapa REAL: 2=len(I64), 3=data(I32), 4=i(I64), 5=idx(I64),
+        // 6=res(I32), 7=eq(I32 — o resultado do strEq!), 8=j(I64),
+        // 9=livre, 10=res2 — a ordem antiga punha eq em I64
+        return new WasmFunc("kof.mapRemove", List.of(WasmFunc.TYPE_I32, WasmFunc.TYPE_I32),
+                List.of(WasmFunc.TYPE_I32), List.of(WasmFunc.TYPE_I64, WasmFunc.TYPE_I32,
+                        WasmFunc.TYPE_I64, WasmFunc.TYPE_I64, WasmFunc.TYPE_I32,
+                        WasmFunc.TYPE_I32, WasmFunc.TYPE_I64, WasmFunc.TYPE_I64,
+                        WasmFunc.TYPE_I32), b);
+    }
+
     /** Toda a familia (o chamador registra quando um kof_map_* aparece). */
     static List<WasmFunc> all() {
         List<WasmFunc> fs = new ArrayList<>();
@@ -346,6 +541,8 @@ final class WasmMapRuntime {
         fs.add(mapPut());
         fs.add(mapGet());
         fs.add(mapSize());
+        fs.add(mapContains());
+        fs.add(mapRemove());
         return fs;
     }
 }
