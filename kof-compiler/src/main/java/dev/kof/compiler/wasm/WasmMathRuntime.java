@@ -36,7 +36,11 @@ final class WasmMathRuntime {
             // aritmetica pura com a ordem do runtime nativo. sin/cos/tan/
             // asin/acos/atan/atan2/pow continuam FORA (libm — fatia propria).
             "kof_math_sqrt", "kof_math_toRadians", "kof_math_toDegrees",
-            "kof_math_lerp", "kof_math_percentage");
+            "kof_math_lerp", "kof_math_percentage",
+            // S1b.3: roundTo(value, decimals) — half-away-from-zero por escala
+            // repetida (a MESMA aritmetica do JVM/native: p = 10^m por
+            // multiplicacao repetida, cada passo 1 op IEEE arredondada)
+            "kof_math_roundTo", "kof_math_round_half");
 
     static boolean usesAny(List<IRMethod> methods) {
         for (IRMethod m : methods) {
@@ -55,6 +59,18 @@ final class WasmMathRuntime {
 
     private static void i64c(List<WasmInstr> b, long v) {
         b.add(new WasmInstr.Const(1, v));
+    }
+
+    private static void i32c(List<WasmInstr> b, int v) {
+        b.add(new WasmInstr.Const(0, v));
+    }
+
+    private static void set(List<WasmInstr> b, int i, String n) {
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, i, n));
+    }
+
+    private static void load8(List<WasmInstr> b, int off) {
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD8U, off));
     }
 
     private static List<WasmInstr> absBody() {
@@ -231,6 +247,141 @@ final class WasmMathRuntime {
         return b;
     }
 
+    // ---- roundTo(value, decimals): half-away-from-zero por escala decimal
+    // repetida (S1b.3/DECISIONS §3 — a MESMA aritmetica do JVM e do nativo:
+    // p = 10^|d| saturado em 308 por multiplicacao repetida, cada passo 1 op
+    // IEEE; d>=0 escala p/ cima, d<0 p/ baixo; overflow devolve v) ----
+
+    private static List<WasmInstr> roundHalfBody() {
+        // x com |x| >= 2^52 ja e' inteiro → devolve x (NaN/Inf nunca chegam)
+        List<WasmInstr> b = new ArrayList<>();
+        get(b, 0, "x");
+        b.add(new WasmInstr.Simple(0x99, "f64.abs"));
+        b.add(new WasmInstr.Const(4503599627370496.0));
+        b.add(new WasmInstr.Simple(0x64, "f64.gt"));
+        // if/else com RESULTADO f64 (0x7c): cada braco deixa exatamente 1 f64
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "big", 0x7c));
+        get(b, 0, "x");
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, "big", 0x7c));
+        // t = trunc(x); f = x - t
+        get(b, 0, "x");
+        b.add(new WasmInstr.Simple(0x9d, "f64.trunc"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 1, "t"));
+        get(b, 0, "x");
+        get(b, 1, "t");
+        b.add(new WasmInstr.Simple(0xa1, "f64.sub"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "f"));
+        // f >= 0.5 → t+1; senao f <= -0.5 → t-1
+        get(b, 2, "f");
+        b.add(new WasmInstr.Const(0.5));
+        b.add(new WasmInstr.Simple(0x66, "f64.ge"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "up", 0x40));
+        get(b, 1, "t");
+        b.add(new WasmInstr.Const(1.0));
+        b.add(new WasmInstr.Simple(0xa0, "f64.add"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 1, "t"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, "up", 0x40));
+        get(b, 2, "f");
+        b.add(new WasmInstr.Const(-0.5));
+        b.add(new WasmInstr.Simple(0x65, "f64.le"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "dn", 0x40));
+        get(b, 1, "t");
+        b.add(new WasmInstr.Const(1.0));
+        b.add(new WasmInstr.Simple(0xa1, "f64.sub"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 1, "t"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "dn", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "up", 0x40));
+        get(b, 1, "t");
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "big", 0x7c));
+        return b;
+    }
+
+    /** roundTo(v, d): d>=0 escala v*p e r/p; d<0 escala v/p e r*p; Inf devolve v. */
+    private static List<WasmInstr> roundToBody() {
+        List<WasmInstr> b = new ArrayList<>();
+        // m = |d| saturado em 308 (i32)
+        get(b, 1, "d");
+        b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 3, "m"));
+        get(b, 3, "m");
+        b.add(new WasmInstr.Const(0, 0));
+        b.add(new WasmInstr.Simple(0x48, "i32.lt_s"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "neg", 0x40));
+        i32c(b, 0);
+        get(b, 3, "m");
+        b.add(new WasmInstr.Simple(0x6b, "i32.sub"));
+        set(b, 3, "m");
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "neg", 0x40));
+        get(b, 3, "m");
+        i32c(b, 308);
+        b.add(new WasmInstr.Simple(0x4a, "i32.gt_s"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "sat", 0x40));
+        i32c(b, 308);
+        set(b, 3, "m");
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "sat", 0x40));
+        // p = 10^m por multiplicacao repetida
+        b.add(new WasmInstr.Const(1.0));
+        set(b, 2, "p");
+        i32c(b, 0);
+        set(b, 4, "i");
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, "pw", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, "pl", 0x40));
+        get(b, 4, "i");
+        get(b, 3, "m");
+        b.add(new WasmInstr.Simple(0x4e, "i32.ge_s"));
+        b.add(new WasmInstr.Branch("pw", 1, true));
+        get(b, 2, "p");
+        b.add(new WasmInstr.Const(10.0));
+        b.add(new WasmInstr.Simple(0xa2, "f64.mul"));
+        set(b, 2, "p");
+        get(b, 4, "i");
+        i32c(b, 1);
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        set(b, 4, "i");
+        b.add(new WasmInstr.Branch("pl", 0));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "pl", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "pw", 0x40));
+        // d >= 0: (roundHalf(v*p))/p ; d < 0: (roundHalf(v/p))*p
+        get(b, 1, "d");
+        i64c(b, 0);
+        b.add(new WasmInstr.Simple(0x59, "i64.ge_s"));
+        // if/else com RESULTADO f64 (0x7c): cada braco deixa exatamente 1 f64
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "pos", 0x7c));
+        get(b, 0, "v");
+        get(b, 2, "p");
+        b.add(new WasmInstr.Simple(0xa2, "f64.mul"));
+        set(b, 5, "scaled");
+        scaledOverflowNoOp(b);
+        get(b, 2, "p");
+        b.add(new WasmInstr.Simple(0xa3, "f64.div"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, "pos", 0x7c));
+        get(b, 0, "v");
+        get(b, 2, "p");
+        b.add(new WasmInstr.Simple(0xa3, "f64.div"));
+        set(b, 5, "scaled");
+        scaledOverflowNoOp(b);
+        get(b, 2, "p");
+        b.add(new WasmInstr.Simple(0xa2, "f64.mul"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "pos", 0x7c));
+        return b;
+    }
+
+
+    /** JVM kof_math_roundTo: Infinite(scaled) → devolve v (no-op de overflow).
+     *  scaled entra em local 5; o if/else deixa exatamente 1 f64. */
+    private static void scaledOverflowNoOp(List<WasmInstr> b) {
+        get(b, 5, "scaled");
+        b.add(new WasmInstr.Simple(0x99, "f64.abs"));
+        b.add(new WasmInstr.Const(Double.POSITIVE_INFINITY));
+        b.add(new WasmInstr.Simple(0x61, "f64.eq"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "ovf", 0x7c));
+        get(b, 0, "v");
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, "ovf", 0x7c));
+        get(b, 5, "scaled");
+        b.add(new WasmInstr.Call("kof_math_round_half"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "ovf", 0x7c));
+    }
+
     /** Todas as funcoes da familia (o chamador registra quando usadas). */
     static List<WasmFunc> all() {
         List<WasmFunc> fs = new ArrayList<>();
@@ -250,6 +401,9 @@ final class WasmMathRuntime {
         fs.add(new WasmFunc("kof_math_toDegrees", List.of(0x7c), List.of(0x7c), List.of(), toDegreesBody()));
         fs.add(new WasmFunc("kof_math_lerp", List.of(0x7c, 0x7c, 0x7c), List.of(0x7c), List.of(), lerpBody()));
         fs.add(new WasmFunc("kof_math_percentage", List.of(0x7c, 0x7c), List.of(0x7c), List.of(), percentageBody()));
+        // roundTo(value: f64, decimals: i64) -> f64 + o helper half-away
+        fs.add(new WasmFunc("kof_math_round_half", List.of(0x7c), List.of(0x7c), List.of(0x7c, 0x7c), roundHalfBody()));
+        fs.add(new WasmFunc("kof_math_roundTo", List.of(0x7c, 0x7e), List.of(0x7c), List.of(0x7c, 0x7f, 0x7f, 0x7c), roundToBody()));
         return fs;
     }
 }

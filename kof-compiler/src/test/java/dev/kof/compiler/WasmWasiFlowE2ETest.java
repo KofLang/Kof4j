@@ -263,6 +263,39 @@ class WasmWasiFlowE2ETest {
         assertFaceMatchesJvm(dir);
     }
 
+    @Test
+    void roundToMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // Fase E (27/10, #776): math.roundTo(value, decimals) — a MESMA
+        // aritmetica S1b.3 do JVM/nativo: m=|d| saturado em 308, p=10^m por
+        // multiplicacao repetida, half-away-from-zero (f >= 0.5 → +1 — GE,
+        // nao GT: o meio-exato arredonda PARA LONGE do zero), overflow de
+        // scaled devolve v. Casos INTEGRAIS (o print fracionario segue no
+        // port Schubfach): d=0 nos dois sinais, o meio-exato 1.5/-1.5/0.5/
+        // -0.5, o ANTI-DOUBLE-ROUNDING 0.49999999999999994 → 0, a escala
+        // d<0 (1234.5678,-2 → 1200; 267.5,-1 → 270) e d>0 identidade
+        // (12345.0,5). O oracle e o JVM.
+        var wasmtime = host("wasmtime");
+        var wasmTools = host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    println(math.roundTo(2.675, 0))
+                    println(math.roundTo(-2.5, 0))
+                    println(math.roundTo(1234.5678, -2))
+                    println(math.roundTo(1.5, 0))
+                    println(math.roundTo(-1.5, 0))
+                    println(math.roundTo(7.0, 3))
+                    println(math.roundTo(267.5, -1))
+                    println(math.roundTo(-267.5, -1))
+                    println(math.roundTo(0.5, 0))
+                    println(math.roundTo(-0.5, 0))
+                    println(math.roundTo(0.49999999999999994, 0))
+                    println(math.roundTo(12345.0, 5))
+                }
+                """);
+        assertFaceMatchesJvm(dir);
+    }
+
 
     @Test
     void combinedStringSearchAndSliceMatchesTheJvmOracle(@TempDir Path dir) throws Exception {

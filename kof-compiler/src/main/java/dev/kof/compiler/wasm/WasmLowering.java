@@ -598,7 +598,8 @@ final class WasmLowering {
                 // resultado i32 (modulo invalido).
                 out.add(new WasmInstr.Call(kc.methodName()));
                 boolean pred = kc.methodName().startsWith("kof_math_is");
-                ctx.lastPush = pred ? "bool" : "int";
+                boolean dbl = kc.methodName().equals("kof_math_roundTo");
+                ctx.lastPush = pred ? "bool" : (dbl ? "double" : "int");
                 ctx.lastPushWide = !pred;
             } else if (ctx.wasi && "println".equals(kc.methodName())) {
                 WasmPrintCode.emitPrintln(kc, ctx, out);
