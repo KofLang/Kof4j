@@ -258,6 +258,39 @@ public class WasmBackend implements Backend {
             if (printed.contains("int") || printed.contains("long")) funcs.add(kofWriteInt());
             if (printed.contains("bool") || printed.contains("boolean")) funcs.add(kofWriteBool());
             if (printed.contains("char")) funcs.add(WasmCharOut.kofWriteChar());
+            // Fase E (27/10, #776): a familia SCHUBFACH — as tabelas g/pow10 e
+            // os literais especiais vao no cursor de dados (o heap comeca
+            // DEPOIS, o global e' calculado no fim do emit — mesmo padrao do
+            // strCase) e as 11 funcoes entram quando um double e' impresso ou
+            // vai para a caixa (o kof.doubleToStr delega ao kof.schubFull).
+            boolean schub = false;
+            if (printed.contains("double") || WasmTypeOracle.usesDoubleValueOf(scanAll)
+                    || (wasi && WasmBoxRuntime.usesAny(scanAll))) {
+                byte[] gB = WasmSchubfachRuntime.gTable();
+                int gTab = dataCursor.next;
+                dataSegments.add(new WasmData(gTab, gB));
+                dataCursor.next = (dataCursor.next + gB.length + 3) & ~3;
+                byte[] pB = WasmSchubfachRuntime.pow10Table();
+                int pTab = dataCursor.next;
+                dataSegments.add(new WasmData(pTab, pB));
+                dataCursor.next = (dataCursor.next + pB.length + 3) & ~3;
+                String[] lits = {"0.0", "-0.0", "NaN", "Infinity", "-Infinity"};
+                int[] litA = new int[lits.length];
+                for (int i = 0; i < lits.length; i++) {
+                    byte[] lb = lits[i].getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                    litA[i] = dataCursor.next;
+                    dataSegments.add(new WasmData(litA[i], lb));
+                    dataCursor.next = (dataCursor.next + lb.length + 3) & ~3;
+                }
+                WasmSchubfachRuntime.bindTables(gTab, pTab);
+                WasmSchubfachFormat.bindLiterals(litA[0], litA[1], litA[2], litA[3], litA[4]);
+                funcs.addAll(WasmSchubfachRuntime.all());
+                // o ENTRY do consumidor: o doubleToStr (println/concat/caixa)
+                // vem JUNTO com a familia (o dedupe por nome torna o add
+                // redundante seguro nos outros blocos)
+                funcs.add(WasmCharOut.kofDoubleToStr());
+                schub = true;
+            }
                 if (printed.contains("double")) {
                     // Um programa so' com double ainda escreve pelo writeStr, entao
                     // MARCA "string" e deixa o bloco de string registrar o resto —

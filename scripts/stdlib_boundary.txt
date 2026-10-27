@@ -68,3 +68,7 @@ this excluded - — keyword receiver (same pattern), not a module
 rng base-stdlib experimental — KofRng.java
 ffi interop experimental — FfiStructLayout.java (PKG marker "kof.ffi"; KofCall owner emitted by the extern lowering for FFI marshaling, R3/3.7)
 interop interop experimental — CompilerInterop.java (HOST_IMPORT "kof.interop"; interop.schema(R) compile-time intrinsic, X6.1/D-INTEROP-REFLECT)
+flog10pow2 excluded - — WasmSchubfachRuntime.java (internal WASM runtime function name of the Schubfach dtoa, never a Kof-visible namespace; 15.3-schubfach 27/10)
+flog10threequarters excluded - — WasmSchubfachRuntime.java (same)
+flog2pow10 excluded - — WasmSchubfachRuntime.java (same)
+mulhi64 excluded - — WasmSchubfachRuntime.java (the 128-bit unsigned multiply-high the WASM lacks, internal helper; same)

@@ -334,6 +334,52 @@ class WasmWasiFlowE2ETest {
     }
 
     @Test
+    void schubfachDoubleToStringMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // Fase E (27/10, #776): o Double.toString COMPLETO no WASI — o
+        // kof.doubleToStr delega ao driver Schubfach kof.schubFull (re-emissao
+        // WASM do asm nativo PROVADO RuntimeDtoaSchubfachCore/Double). Fecha
+        // o teto antigo (fracionario/expoenencial trapavam WASM002-artifact).
+        // Faces: as TRES faixas do rendering (plain 0<e<=7, zeros -3<e<=0,
+        // cientifica), o atalho do literal removivel, o caminho geral
+        // to_decimal com a remocao de digito (3.14/2.675 — o caso que o
+        // interpretador op-a-op achou o 0x6d-instead-of-0x6b), subnormal,
+        // ±0.0, concat ("s" + d via o gancho usesDoubleValueOf) e o literal
+        // especial pelo kof.strLit. O oracle e o JVM da MESMA fonte.
+        var wasmtime = host("wasmtime");
+        var wasmTools = host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var d = 3.14
+                    println(d)
+                    println(2.675)
+                    println(100.0)
+                    println(3.0)
+                    println(0.1)
+                    println(-0.5)
+                    println(1.5)
+                    println(0.001)
+                    println(1.0E7)
+                    println(15000000.0)
+                    println(123456789.01234567)
+                    println(1.0E-5)
+                    println(-0.0)
+                    println(4.9E-324)
+                    println(1.0E-323)
+                    println(9999999.0)
+                    println(1234567.891234567)
+                    println("" + d)
+                    println("v=" + (-2.5))
+                    var w = 2.0
+                    println(w * 1.5)
+                    if (d > 3.0) { println(0.5 + 0.25) }
+                }
+                """);
+        assertFaceMatchesJvm(dir);
+    }
+
+
+    @Test
     void combinedStringSearchAndSliceMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
         // Fase E (27/10, #776): os metodos de busca e de fatia NA MESMA
         // fonte — o strByteOff era dependencia comum de indexOf/contains E

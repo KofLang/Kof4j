@@ -97,6 +97,13 @@ final class WasmCallCode {
                     // e' i64 e o strChar recebe i64 (wrap interno).
                     out.add(new WasmInstr.Call("kof.strChar"));
                     ctx.lastPush = "string";
+                } else if ("double".equalsIgnoreCase(vt)) {
+                    // Fase E (27/10, #776): "s" + d / String.valueOf(d) — o
+                    // MESMO kof.doubleToStr do println (o Schubfach completo);
+                    // o registro das tabelas/funcoes segue o gancho
+                    // WasmTypeOracle.usesDoubleValueOf.
+                    out.add(new WasmInstr.Call("kof.doubleToStr"));
+                    ctx.lastPush = "string";
                 } else if (vl != null) {
                     WasmRecordCode.emitToString(vl, vt, ctx, out, 0);
                     ctx.lastPush = "string";

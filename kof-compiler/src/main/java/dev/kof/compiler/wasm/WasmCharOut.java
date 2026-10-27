@@ -131,18 +131,14 @@ final class WasmCharOut {
     }
 
     /**
-     * `kof.writeDouble(v)` — `println(Double)` para o subconjunto DECIMAL
-     * (unidade 15.3, primeiro incremento).
+     * `kof.writeDouble(v)` — `println(Double)` (unidade 15.3, Fase E 27/10).
      *
-     * <p>O `Double.toString` COMPLETO exige o Schubfach shortest-round-trip
-     * (`RuntimeDtoaSchubfach`, 500+ linhas de asm) para bater o JDK byte-a-byte.
-     * Este incremento cobre so' o que o rendering decimal simples reproduz:
-     * valores INTEGRAIS imprimem `<digitos>.0` (reusa `kof.intToStr`, ja'
-     * provado). Qualquer valor com parte fracionaria TRAPA em vez de imprimir
-     * uma string silenciosamente diferente (regra 5 / Q7) — a face exponencial
-     * (`1.0E-4`, `1.0E7`) fica para o port do Schubfach.
+     * <p>A construcao do rendering mora em `kof.doubleToStr` — desde a Fase E
+     * do Schubfach (27/10) o rendering e' o `Double.toString` COMPLETO
+     * (shortest-round-trip byte-a-byte com o JDK). writeDouble = str + write,
+     * UMA escrita (o writeStr acrescenta o \n).
      *
-     * <p>Locais: 0 = v (f64); 1 = truncado (i64); 2 = h (i32 handle)
+     * <p>Locais: 0 = v (f64)
      */
     static WasmFunc kofWriteDouble() {
         List<WasmInstr> b = new ArrayList<>();
@@ -157,85 +153,23 @@ final class WasmCharOut {
     }
 
     /**
-     * `kof.doubleToStr(v) -> handle` — a CONSTRUCAO do rendering INTEGRAL
-     * (<digitos>.0) extraida do kof.writeDouble (27/10): o despacho da caixa
-     * ({@code kof.boxToStr}, tag Double) devolve o handle em vez de escrever.
-     * O MESMO contrato honesto: fracionario/expoenencial TRAPA (Schubfach,
-     * fatia registrada); zero negativo preserva o sinal.
-     * Locais: 0 = v (f64); 1 = truncado (i64); 2 = h, 3 = nh (i32)
+     * `kof.doubleToStr(v) -> handle` — o `Double.toString` COMPLETO (Fase E,
+     * 27/10, #776): delega ao driver Schubfach `kof.schubFull` (a re-emissao
+     * WASM do asm nativo PROVADO `RuntimeDtoaSchubfachCore`/`Double`,
+     * transcricao valida pelo interpretador op-a-op contra o `Double.toString`
+     * do JVM em 28 casos — 3 estagios: to_decimal, format(f,e), composto).
+     * Fecha o teto antigo (fracionario/expoenencial trapavam): agora fracao,
+     * exponencial, subnormal, NaN/±Inf e ±0.0 saem byte-a-byte com o JVM.
+     *
+     * <p>O handle devolvido e' ESTATICO ([len][bytes] no scratch SCHUB_OUT) —
+     * cada chamada SOBRESCREVE o anterior, valido porque todo consumidor
+     * (writeStr/strConcat/boxToStr) copia os bytes sincronamente.
      */
     public static WasmFunc kofDoubleToStr() {
         List<WasmInstr> b = new ArrayList<>();
-        // trunca: i64.trunc_f64_s (0xb0)
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "v"));
-        b.add(new WasmInstr.Simple(0xb0, "i64.trunc_f64_s"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 1, "t"));
-        // se v != (f64)t -> nao-integral: trap honesto (nunca string errada)
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "t"));
-        b.add(new WasmInstr.Simple(0xb9, "f64.convert_i64_s"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "v"));
-        b.add(new WasmInstr.Simple(0x62, "f64.ne"));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "frac", 0x40));
-        b.add(new WasmInstr.Simple(0x00, "unreachable"));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "frac", 0x40));
-        // A partir de 1.0E7 o JVM troca para FORMA EXPONENCIAL (`1.0E7`), que
-        // este incremento nao implementa. Sem esta guarda o valor integral
-        // grande sairia `10000000.0` — string que o JVM NUNCA produz, ou seja
-        // um valor errado em silencio (regra 5). Trap honesto (medido 22/10).
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "t"));
-        b.add(new WasmInstr.Const(1, 10000000));
-        // Tabela i64 (0x50 = eqz): 0x59 = ge_s, 0x5a = ge_u. Usar a SIGNED,
-        // senao qualquer negativo vira valor enorme e todo -3.0 trapava.
-        b.add(new WasmInstr.Simple(0x59, "i64.ge_s"));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "big", 0x40));
-        b.add(new WasmInstr.Simple(0x00, "unreachable"));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "big", 0x40));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "t"));
-        b.add(new WasmInstr.Const(1, -10000000));
-        // 0x53 = i64.lt_s (0x56 seria i64.gt_u).
-        b.add(new WasmInstr.Simple(0x53, "i64.lt_s"));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "sml", 0x40));
-        b.add(new WasmInstr.Simple(0x00, "unreachable"));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "sml", 0x40));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "t"));
-        b.add(new WasmInstr.Call("kof.intToStr"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "h"));
-        // ZERO NEGATIVO (regressao medida 22/10): trunc(-0.0) = 0, entao o sinal
-        // se perde antes do intToStr e saia "0.0" onde o JVM imprime "-0.0".
-        // O bit de sinal e' legivel SEM truncar: i64.reinterpret_f64 < 0.
-        // So' precisa do prefixo quando t == 0 (para nao-zero o intToStr ja'
-        // carrega o '-', e prefixar de novo daria "--1.0").
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "v"));
-        b.add(new WasmInstr.Simple(0xbd, "i64.reinterpret_f64"));
-        b.add(new WasmInstr.Const(1, 0));
-        b.add(new WasmInstr.Simple(0x53, "i64.lt_s"));       // sinal ligado?
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "t"));
-        b.add(new WasmInstr.Const(1, 0));
-        b.add(new WasmInstr.Simple(0x51, "i64.eq"));         // t == 0?
-        b.add(new WasmInstr.Simple(0x71, "i32.and"));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "nz", 0x40));
-        b.add(new WasmInstr.Const(0, 0));
-        b.add(new WasmInstr.Call("kof.strAlloc"));
-        b.add(new WasmInstr.Const(0, '-'));
-        b.add(new WasmInstr.Call("kof.strAppendByte"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 3, "nh"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "nh"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "h"));
-        b.add(new WasmInstr.Call("kof.strAppend"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "h"));
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "nz", 0x40));
-        // h = intToStr ; h = appendByte(h, '.') ; h = appendByte(h, '0')
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "h"));
-        b.add(new WasmInstr.Const(0, '.'));
-        b.add(new WasmInstr.Call("kof.strAppendByte"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "h"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "h"));
-        b.add(new WasmInstr.Const(0, '0'));
-        b.add(new WasmInstr.Call("kof.strAppendByte"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 2, "h"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "h"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "v")); // o param NAO flui sozinho
+        b.add(new WasmInstr.Call("kof.schubFull"));
         return new WasmFunc("kof.doubleToStr", List.of(WasmFunc.TYPE_F64), List.of(WasmFunc.TYPE_I32),
-                // 1=t (i64); 2=h, 3=nh (i32)
-                List.of(WasmFunc.TYPE_I64, WasmFunc.TYPE_I32, WasmFunc.TYPE_I32), b);
+                List.of(), b);
     }
 }

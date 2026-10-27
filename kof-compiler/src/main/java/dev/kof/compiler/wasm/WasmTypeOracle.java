@@ -159,6 +159,33 @@ final class WasmTypeOracle {
         return false;
     }
 
+    /** Fase E (27/10, #776): algum String.valueOf com parametro Double (o
+     *  kof.doubleToStr do Schubfach atende o concat/valor — o mesmo do
+     *  println; o registro das tabelas/funcoes segue este gancho). O
+     *  parametro pode vir boxed/ausente (o desugar do concat com literal
+     *  negativo) — o MESMO operandTypeBefore do despacho decide. */
+    static boolean usesDoubleValueOf(Iterable<IRMethod> ms) {
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                List<KofOperation> ops = bb.operations();
+                for (int i = 0; i < ops.size(); i++) {
+                    if (!(ops.get(i) instanceof KofCall kc)
+                            || !"valueOf".equals(kc.methodName())) {
+                        continue;
+                    }
+                    Type p0 = kc.parameterTypes().isEmpty() ? null : kc.parameterTypes().get(0);
+                    String vt = (p0 instanceof Type.PrimitiveType)
+                            ? typeName(p0)
+                            : operandTypeBefore(ops, i);
+                    if ("double".equalsIgnoreCase(vt)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     static boolean usesStringMethod(Iterable<IRMethod> ms, String method) {
         for (IRMethod m : ms) {
             for (IRBasicBlock bb : m.basicBlocks()) {
