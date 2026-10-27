@@ -525,6 +525,8 @@ final class WasmMathRuntime {
         fs.add(WasmSinKernel.specialFunc());
         fs.add(WasmSinKernel.nearHalfFunc());
         fs.add(WasmSinKernel.cosFunc());
+        fs.add(WasmRemPio2.smallTailFunc());
+        fs.add(WasmRemPio2.mediumFunc());
         return fs;
     }
 }

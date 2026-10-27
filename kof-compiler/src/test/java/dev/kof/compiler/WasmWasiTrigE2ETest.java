@@ -44,6 +44,15 @@ class WasmWasiTrigE2ETest {
                     println(math.sin(-1.0))
                     println(math.sin(-2.0))
                     println(math.sin(1.5707963267948966))
+                    println(math.sin(4.0))
+                    println(math.sin(6.5))
+                    println(math.sin(10.0))
+                    println(math.sin(100.0))
+                    println(math.sin(1000.0))
+                    println(math.sin(123456.789))
+                    println(math.sin(500000.0))
+                    println(math.sin(-4.0))
+                    println(math.sin(-1000.0))
                 }
                 """);
         WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);

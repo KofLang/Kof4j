@@ -39,13 +39,26 @@ final class WasmSinKernel {
     private static final double COS_C4 = -0x1.27e4f809c52adp-22;
     private static final double COS_C5 = 0x1.1ee9ebdb4b1c4p-29;
     private static final double COS_C6 = -0x1.8fae9be8838d4p-37;
+    // MATH-LIBM-3 (27/10): as constantes do RemPio2 (o FdLibm do JDK)
+    private static final double INV_PIO2 = 0x1.45f306dc9c883p-1;
+    private static final double PIO2_3 = 0x1.3198a2ep-69;
+    private static final double PIO2_3T = 0x1.b839a252049c1p-104;
+    // a tabela npio2_hw do fdlibm (os hi-words de (k−1)·π/2)
+    private static final int[] NPIO2_HW = {
+            0x3FF921FB, 0x400921FB, 0x4012D97C, 0x401921FB, 0x401F6A7A, 0x4022D97C,
+            0x4025FDBB, 0x402921FB, 0x402C463A, 0x402F6A7A, 0x4031475C, 0x4032D97C,
+            0x40346B9C, 0x4035FDBB, 0x40378FDB, 0x403921FB, 0x403AB41B, 0x403C463A,
+            0x403DD85A, 0x403F6A7A, 0x40407E4C, 0x4041475C, 0x4042106C, 0x4042D97C,
+            0x4043A28C, 0x40446B9C, 0x404534AC, 0x4045FDBB, 0x4046C6CB, 0x40478FDB,
+            0x404858EB, 0x404921FB,
+    };
 
     private static List<WasmInstr> get(List<WasmInstr> b, int i) {
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, i, "l" + i));
         return b;
     }
 
-    /** A func {@code kof_math_sin} — o DESPACHO das três faixas. */
+    /** A func {@code kof_math_sin}    /** A func {@code kof_math_sin} — o DESPACHO das três faixas. */
     static WasmFunc sinFunc() {
         List<WasmInstr> b = new ArrayList<>();
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, null, 0x7c));
@@ -65,8 +78,18 @@ final class WasmSinKernel {
         get(b, 0);                                               // LEI: os args no site
         b.add(new WasmInstr.Call("kof.sin.special"));
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, null, 0x7c));
-        b.add(new WasmInstr.Simple(0x00, "unreachable"));        // a fronteira honesta (≥ 3π/4)
-        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x7c));
+        // faixa 3: |x| ≤ 2^19·π/2 → o laço MÉDIO (MATH-LIBM-3)
+        get(b, 0);
+        b.add(new WasmInstr.Simple(0x99, "f64.abs"));            // LEI: o abs NO X
+        b.add(new WasmInstr.Const(0x1.921fb54442d18p19));        // 2^19·π/2 (o bound do fdlibm)
+        b.add(new WasmInstr.Simple(0x65, "f64.le"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, null, 0x7c));
+        get(b, 0);                                               // LEI: os args no site
+        b.add(new WasmInstr.Call("kof.sin.medium"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, null, 0x7c));
+        b.add(new WasmInstr.Simple(0x00, "unreachable"));        // a fronteira honesta (o caminho GRANDE é a fatia seguinte)
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x7c));  // fecha o if do médio
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x7c));  // fecha o if do especial
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x7c));
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x7c));
         return new WasmFunc("kof_math_sin", List.of(0x7c), List.of(0x7c), List.of(), b);
@@ -193,7 +216,7 @@ final class WasmSinKernel {
         b.add(new WasmInstr.Simple(0x99, "f64.abs"));
         b.add(new WasmInstr.Simple(0xbd, "i64.reinterpret_f64"));
         b.add(new WasmInstr.Const(1, 32));                           // LEI: o count I64
-        b.add(new WasmInstr.Simple(0x89, "i64.shr_u"));              // o shr_u REAL (0x88 = shr_s)
+        b.add(new WasmInstr.Simple(0x88, "i64.shr_u"));              // o shr_u REAL (0x88 = shr_s)
         b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
         b.add(new WasmInstr.Const(0, 0x3ff921fb));
         b.add(new WasmInstr.Simple(0x46, "i32.eq"));
@@ -285,13 +308,13 @@ final class WasmSinKernel {
         b.add(new WasmInstr.Simple(0x99, "f64.abs"));
         b.add(new WasmInstr.Simple(0xbd, "i64.reinterpret_f64"));
         b.add(new WasmInstr.Const(1, 32));                           // LEI: o count I64
-        b.add(new WasmInstr.Simple(0x89, "i64.shr_u"));              // o shr_u REAL
+        b.add(new WasmInstr.Simple(0x88, "i64.shr_u"));              // o shr_u REAL
         b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
         b.add(new WasmInstr.Const(0, 0x200000));
         b.add(new WasmInstr.Simple(0x6b, "i32.sub"));
         b.add(new WasmInstr.Simple(0xad, "i64.extend_i32_u"));       // LEI: o valor volta a I64
         b.add(new WasmInstr.Const(1, 32));                           // LEI: o count I64
-        b.add(new WasmInstr.Simple(0x85, "i64.shl"));                // LEI: 0x85 (0x86 = rotl)
+        b.add(new WasmInstr.Simple(0x86, "i64.shl"));                // LEI: 0x85 (0x86 = rotl)
         b.add(new WasmInstr.Simple(0xbf, "f64.reinterpret_i64"));
         b.add(new WasmInstr.Local(WasmInstr.Local.SET, 4, "qx"));
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
