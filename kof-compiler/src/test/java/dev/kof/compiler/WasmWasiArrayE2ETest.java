@@ -115,4 +115,36 @@ class WasmWasiArrayE2ETest {
                 """);
         WasmWasiListE2ETest.assertListFaceMatchesJvm(dir);
     }
+
+    @Test
+    void boolCharArraysMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // ARRAY-3 (27/10, #776): os elems Bool/Char no slot de 4 bytes — o
+        // store da wrap para o char (i64) e vai CRU para o bool (i32); o
+        // load ZERO-estende o char (os code points sao nao-negativos) e NAO
+        // estende o bool (o rastro "bool" e' estreito — o wide stale
+        // zerado). A leitura do slot NAO inicializado anda no bump zerado:
+        // false / o char NUL — o oraculo mediu os DOIS.
+        var wasmtime = WasmWasiListE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiListE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null,
+                "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var a = new Bool[3]
+                    a[0] = true
+                    a[2] = false
+                    println(a.length)
+                    println(a[0])
+                    println(a[1])
+                    println(a[2])
+                    var c = new Char[3]
+                    c[0] = 'a'
+                    c[2] = 'z'
+                    println(c.length)
+                    println(c[0])
+                    println(c[2])
+                }
+                """);
+        WasmWasiListE2ETest.assertListFaceMatchesJvm(dir);
+    }
 }
