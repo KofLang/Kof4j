@@ -136,6 +136,12 @@ public class WasmBackend implements Backend {
                             || ("contains".equals(kc.methodName())
                                 && "string".equalsIgnoreCase(typeName(kc.ownerType())))
                             || ("replace".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            // Fase E (26/10, #776): o case fold Unicode (a mesma
+                            // semantica D-STR-UNICODE do nativo)
+                            || ("toUpperCase".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            || ("toLowerCase".equals(kc.methodName())
                                 && "string".equalsIgnoreCase(typeName(kc.ownerType()))))) {
                         continue; // wrapper intrinseco de String tratado na emissao
                     }
@@ -287,6 +293,30 @@ public class WasmBackend implements Backend {
                     if (usesStringMethod(scanAll, "charAt")) funcs.add(WasmStrSlice.kofStrCharAt());
                     if (usesStringMethod(scanAll, "substring")) funcs.add(WasmStrSlice.kofStrSub());
                     if (usesStringMethod(scanAll, "trim")) funcs.add(WasmStrInspect.kofStrTrim());
+                    // Fase E (26/10, #776): o case fold Unicode (D-STR-UNICODE)
+                    // — as tabelas BMP vao no cursor de dados (o heap comeca
+                    // DEPOIS delas, o global e' calculado no fim do emit).
+                    if (usesStringMethod(scanAll, "toUpperCase")
+                            || usesStringMethod(scanAll, "toLowerCase")) {
+                        byte[] upT = WasmStrCase.tableBytes(true);
+                        byte[] loT = WasmStrCase.tableBytes(false);
+                        int tabUp = dataCursor.next;
+                        dataSegments.add(new WasmData(tabUp, upT));
+                        dataCursor.next = (dataCursor.next + upT.length + 3) & ~3;
+                        int tabLo = dataCursor.next;
+                        dataSegments.add(new WasmData(tabLo, loT));
+                        dataCursor.next = (dataCursor.next + loT.length + 3) & ~3;
+                        funcs.add(WasmStrCase.kofStrCaseAt("kof.strCaseUp", tabUp, true));
+                        funcs.add(WasmStrCase.kofStrCaseAt("kof.strCaseLo", tabLo, false));
+                        if (usesStringMethod(scanAll, "toUpperCase")) funcs.add(WasmStrCase.kofStrFold("kof.strUpper", "kof.strCaseUp"));
+                        if (usesStringMethod(scanAll, "toLowerCase")) funcs.add(WasmStrCase.kofStrFold("kof.strLower", "kof.strCaseLo"));
+                        // o fold aloca/preenche via strAlloc/strAppendByte — sem o
+                        // bloco do double eles nao foram registrados
+                        if (!printed.contains("double")) {
+                            funcs.add(WasmStrSearch.kofStrAppendByte());
+                            funcs.add(WasmStrSearch.kofStrAlloc());
+                        }
+                    }
                     if (usesStringMethod(scanAll, "compareTo")) {
                         funcs.add(WasmStrSearch.kofStrCompare());
                         funcs.add(WasmStrSlice.kofStrCharAt());

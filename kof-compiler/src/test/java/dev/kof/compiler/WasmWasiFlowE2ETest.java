@@ -168,4 +168,35 @@ class WasmWasiFlowE2ETest {
                 out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
                 "the frontend must behave identically on the JVM and on WASI");
     }
+
+    @Test
+    void stringCaseFoldMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // Fase E (26/10, #776): o case fold Unicode — toUpper/toLower com a
+        // MESMA semantica D-STR-UNICODE do nativo (fold SIMPLES por code
+        // unit; tabela BMP gerada do JDK; ASCII inline; astral passa
+        // intocado). O oracle e o JVM; as excecoes de full-case-mapping
+        // (ß→SS, İ→i̇, sigma final) ficam FORA do escopo ratificado — o
+        // nativo tem o mesmo comportamento (a frente nao diverge entre
+        // WASI e nativo).
+        var wasmtime = host("wasmtime");
+        var wasmTools = host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var s = "hello World"
+                    println(s.toUpperCase())
+                    println(s.toLowerCase())
+                    var a = "caf\\c3\\a9 na\\c3\\afve"
+                    println(a.toUpperCase())
+                    println(a.toLowerCase())
+                    var g = "ΣΟΣ"
+                    println(g.toUpperCase())
+                    println("σος".toUpperCase())
+                    println("MiXeD123 !?".toUpperCase())
+                    println("MiXeD123 !?".toLowerCase())
+                }
+                """);
+        assertFaceMatchesJvm(dir);
+    }
+
 }

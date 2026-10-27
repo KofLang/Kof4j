@@ -168,6 +168,21 @@ final class WasmStrCalls {
                         ctx.lastPushWide = true;
                         return true;
                     }
+                    // Fase E (26/10, #776): o case fold Unicode — a MESMA
+                    // semantica D-STR-UNICODE do nativo (por code unit, tabela
+                    // BMP do JDK), entao o frontend nao diverge entre backends.
+                    case "toUpperCase" -> {
+                        out.add(new WasmInstr.Call("kof.strUpper"));
+                        ctx.lastPush = "string";
+                        ctx.lastPushWide = false;
+                        return true;
+                    }
+                    case "toLowerCase" -> {
+                        out.add(new WasmInstr.Call("kof.strLower"));
+                        ctx.lastPush = "string";
+                        ctx.lastPushWide = false;
+                        return true;
+                    }
                     case "trim" -> {
                         out.add(new WasmInstr.Call("kof.strTrim"));
                         ctx.lastPush = "string";
