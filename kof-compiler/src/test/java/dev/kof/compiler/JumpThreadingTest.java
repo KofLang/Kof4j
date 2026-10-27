@@ -47,13 +47,13 @@ class JumpThreadingTest {
     }
 
     @Test
-    void aConditionalJumpIsThreadedToo() {
+    void aConditionalJumpIsThreadedTooWhenEnabled() {
         LabelId a = new LabelId(0), m = new LabelId(1), f = new LabelId(2);
-        List<KofOperation> out = run(List.of(
+        List<KofOperation> out = new JumpThreading(true).run(List.of(
                 new KofConditionalJump(KofComparison.EQ, Type.PrimitiveType.INT, a, f),
                 new KofLabel(a), new KofJump(m),
                 new KofLabel(m), new KofReturnVoid(),
-                new KofLabel(f), new KofReturnVoid()));
+                new KofLabel(f), new KofReturnVoid()), new java.util.IdentityHashMap<>());
         KofConditionalJump cj = (KofConditionalJump) out.get(0);
         assertEquals(m, cj.trueLabel(), "the conditional true-branch is retargeted");
         assertEquals(f, cj.falseLabel(), "the unrelated false-branch is untouched");
@@ -86,5 +86,80 @@ class JumpThreadingTest {
                 new KofJump(a),
                 new KofLabel(a), new KofJump(a)));
         assertEquals(a, ((KofJump) out.get(0)).target(), "a self-loop is not threaded");
+    }
+
+    @Test
+    void aConditionalJumpIsNotThreadedByDefault() {
+        // The JS decompiler requires a CJump whose target is the very next label;
+        // retargeting a conditional jump breaks if/loop reconstruction (measured).
+        LabelId a = new LabelId(0), m = new LabelId(1), f = new LabelId(2);
+        List<KofOperation> out = run(List.of(
+                new KofConditionalJump(KofComparison.EQ, Type.PrimitiveType.INT, a, f),
+                new KofLabel(a), new KofJump(m),
+                new KofLabel(m), new KofReturnVoid(),
+                new KofLabel(f), new KofReturnVoid()));
+        assertEquals(a, ((KofConditionalJump) out.get(0)).trueLabel(),
+                "default: conditional jumps keep their exact target");
+    }
+
+    @Test
+    void anOrphanedTrampolineIsRemoved() {
+        // Jump(a) is retargeted to m, so Label(a); Jump(m) has no referent and no
+        // fall-through into it — the pair is dead and is dropped.
+        LabelId a = new LabelId(0), m = new LabelId(1);
+        List<KofOperation> out = run(List.of(
+                new KofJump(a),
+                new KofLabel(a), new KofJump(m),
+                new KofLabel(m), new KofReturnVoid()));
+        assertEquals(3, out.size(), "trampoline label+jump removed: " + out);
+        assertEquals(m, ((KofJump) out.get(0)).target());
+        assertInstanceOf(KofLabel.class, out.get(1));
+        assertEquals(m, ((KofLabel) out.get(1)).label());
+    }
+
+    @Test
+    void aTrampolineReachedByFallThroughIsKept() {
+        // Control falls into Label(a) from the preceding load, so removing the
+        // label+jump would skip the jump's destination.
+        LabelId a = new LabelId(0), m = new LabelId(1);
+        List<KofOperation> out = run(List.of(
+                new KofLoadLiteral(Type.PrimitiveType.INT, 1),
+                new KofLabel(a), new KofJump(m),
+                new KofLabel(m), new KofReturnVoid()));
+        assertEquals(5, out.size(), "fall-through trampoline must stay: " + out);
+    }
+
+    @Test
+    void aTrampolineReachedByFallThroughIsNotThreaded() {
+        // An if-expression JOIN: both arms merge at Label(a), which is reached by
+        // fall-through from the then-arm. Retargeting the jumps that enter it
+        // makes their target look like a region EXIT to the JS decompiler
+        // (measured: KofSwitchExprE2ETest.nestedJs).
+        LabelId a = new LabelId(0), m = new LabelId(1), x = new LabelId(2);
+        List<KofOperation> out = run(List.of(
+                new KofLabel(x), new KofJump(a),                 // a jump INTO the join
+                new KofLoadLiteral(Type.PrimitiveType.INT, 1),   // then-arm value
+                new KofLabel(a), new KofJump(m),                 // join: falls in
+                new KofLabel(m), new KofReturnVoid()));
+        KofJump intoJoin = (KofJump) out.get(1);
+        assertEquals(a, intoJoin.target(),
+                "a join reached by fall-through is not retargeted: " + out);
+        List<KofJump> jumps = out.stream().filter(KofJump.class::isInstance)
+                .map(KofJump.class::cast).toList();
+        assertTrue(jumps.stream().anyMatch(o -> o.target().equals(m)),
+                "the join's own jump to m stays: " + out);
+    }
+
+    @Test
+    void aJumpOnlyTrampolineIsStillThreaded() {
+        // No fall-through into the trampoline: the jump entering it IS retargeted.
+        LabelId a = new LabelId(0), m = new LabelId(1), end = new LabelId(2);
+        List<KofOperation> out = run(List.of(
+                new KofJump(a),
+                new KofLabel(a), new KofJump(m),
+                new KofLabel(m), new KofReturnVoid(),
+                new KofLabel(end), new KofReturnVoid()));
+        assertEquals(m, ((KofJump) out.get(0)).target(),
+                "a jump-only trampoline is bypassed: " + out);
     }
 }

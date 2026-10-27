@@ -2,7 +2,7 @@
 
 # Kof — Roadmap de Longo Prazo
 
-last: 0.6.3-published
+last: 0.6.6-publicada (0.6.7 CORTADA na árvore, tags pendentes — `VERSION` = 0.6.7; 0.6.6 publicada 19/10 conforme `AGENTS.md` + `git tag kof-0.6.6-*`)
 doing: 1.0-exit-gate
 next: promotion-sweep
 location: roadmap
@@ -21,7 +21,7 @@ mantenedora 15/09 — trio de volta a `future/`). (antes: fusão de planos: §23
 plano de implementação ÚNICO (ex-`ACTION_PLAN`+`IMPLEMENTATION_PLAN`); cluster de
 migração consolidado — `LEGACY_IR`+`DIFFERENTIAL_TESTING` fundidos em
 `LEGACY_MIGRATION.md`)
-**Versão:** 0.6.4 (branch de desenvolvimento ativa `lab`)
+**Versão:** 0.6.7 (branch de desenvolvimento ativa `lab`)
 
 ---
 
@@ -794,7 +794,7 @@ O Kof é uma plataforma distribuível, não apenas um JAR:
 - releases por 2 jobs (`release.yml`: `test-and-bump` exporta `bump_sha` → `package-and-release` checkeia o commit de bump + sanity check de versão) por push na `main`, por plataforma linux-x86_64 / macos-arm64 / windows-x86_64 (testes 819 → bump → package 3 plataformas → GitHub Release);
 - `scripts/package.sh` PASS (layout dist + tar.gz/zip + SHA256SUMS + jars), golden 16/16, integration 9/9;
 - editor support oficial: grammar TextMate + LSP (hover/completion + diagnostics reais) + `kof editor install` (VS Code/Neovim/Vim/Emacs/Geany/Nano + IntelliJ degrau-10 honesto 13/09: filetype XML + External Tools + README LSP4IJ, sem plugin — issue #1);
-- `kof build/run/serve/check/md/test/bench/profile/inspect/decompile/translate/compare/migrate/debug/info/lsp/install/script/repl/init/new/connector/deps/deploy/workflow/makealive/c/fmt/editor/config/version` PASS (31 comandos, medidos no `Main.java`; `fmt` e `config gen` 31/08).
+- `kof build/run/serve/check/md/test/bench/profile/inspect/decompile/translate/compare/migrate/debug/info/lsp/install/script/repl/init/new/connector/legacy/deps/deploy/workflow/makealive/c/fmt/editor/config/version` PASS (32 comandos, medidos no `Main.java`; `fmt` e `config gen` 31/08).
 
 Referências: `docs/distribution/`, `docs/tooling/`.
 
@@ -943,6 +943,8 @@ ciência) **sem** destruir a simplicidade da linguagem.
 
 ### Fila de promoção (`D-FUTURE-PROMOTION`, mantenedora 28/09)
 
+> **FECHADO 24/10 (`D-FUTURE-CLOSE`):** a varredura da mantenedora após a morte de todas as lanes concluiu os seis planos abertos — `LEGACY_MIGRATION`, `DECOMPILER`, `TRANSLATOR` (escopo autônomo completo, movidos para `docs/`), `qrcode-wasm` (Fase 1 completa → `docs/`), `image-vision` (superfície entregue → `docs/`, a divergência AVIF 3bd estacionada na família §757 do `known-bugs`) e `kofscript-embedding` (zero código, devolvido a `future/`). Os restos estão estacionados com suas condições de retomada em cada plano; nada em `development/` está aberto.
+
 > Antes de trabalho novo: migrar tudo para `lab`, então promover exatamente UM
 > plano de `future/` e implementá-lo (mais barato primeiro). **CONCLUÍDO:**
 > `http-policies` — promovido 28/09 (`D-HTTP-POLICIES`), todas as fatias F0–F6
@@ -987,7 +989,7 @@ ciência) **sem** destruir a simplicidade da linguagem.
 > Fase 6 (avançado) diferida pós-promoção por `D-ENTITY-HISTORY-PHASE6`.
 > **NÚCLEO COMPLETO (9ª frente):** `testing-platform` — promovido 10/10 (`D-TESTING-PLATFORM`, ordem da mantenedora "pode finalizar o plano então, ja promover e vida que segue") para
 > [`testing-platform.md`](../testing-platform.md); fases 1–4 do §11 COMPLETAS — núcleo unit §4 (asserções 1–6 + tabelas §4.4 + seams de clock/random §4.6) + harness §5 (temp-dir/readiness, withDb, withServer) + runner §7 (discovery honesta, tags OR, breakdown por nível) + browser §6 PILHA COMPLETA (manifesto `kof-test.kofmd` → gate `kof test --tag browser` → SPI `BrowserProvider` → ChromeHeadlessProvider (zero-dep) + PlaywrightLibProvider (lib 1.49.0, dependência normal no pom) → API `kof.test.browser` no nível Kof → E2E REAL de Chromium); §12 SEM decisões abertas (4 chat polls). Fases 5–8 na ordem confirmada do §11 — medidas 11/10 (lane `192.168.100.14:0`): **fase 7 NÚCLEO POUSADO** (`PlaywrightLibProvider` parametrizado por kind, E2E real de renderização no Firefox verde + Chromium, WebKit bloqueado no launch neste host → skips nomeados); **fase 5 NÚCLEO POUSADO** (`CypressProvider` sobre o `cypress run` REAL — specs ad-hoc geradas, probe honesto; host destravado pela mantenedora no meio da fatia: node 24.18.1/npm 11.16.0, Cypress 16.1.1 no cache Kof); a face KofJS da fase 6 já provada pela semente `KofJsBrowserE2ETest`, a face KofWasm barrada pelo #776; fase 8 (avançado) ABERTA — cada fatia sob NOVO claim. O estado autoritativo vive em `docs/testing-platform.md`.
-> > **ABERTA (11ª frente):** `assembly-optimization` — promovida 13/10 (`D-FUTURE-PROMOTION` + `D-ASSEMBLY-OPT-GO`) para [`assembly-optimization-plan.pt_BR.md`](assembly-optimization-plan.pt_BR.md); o único plano de `future/` cujo gate já estava decidido (sem sintaxe nova, aditivo compilador-interno). Fase A COMPLETA (CFG estruturado + uso/efeito + registradores virtuais + pipeline de passes sobre o `Optimizer.java` linear existente); Fase B COMPLETA (propagação de constantes/cópias + eliminação de stores mortos ligadas no `Optimizer` de produção com redução de instruções medida); a Fase C (alocação de registradores) é a atual — fatia 1 (liveness, `LivenessAnalysis.java`) pousada.
+> > **CONCLUÍDA (11ª frente):** `assembly-optimization` — promovida 13/10 (`D-FUTURE-PROMOTION` + `D-ASSEMBLY-OPT-GO`), CONCLUÍDA 20/10 para [`../assembly-optimization-plan.pt_BR.md`](../assembly-optimization-plan.pt_BR.md); o único plano de `future/` cujo gate já estava decidido (sem sintaxe nova, aditivo compilador-interno). Fase A COMPLETA (CFG estruturado + uso/efeito + registradores virtuais + pipeline de passes sobre o `Optimizer.java` linear existente); Fase B COMPLETA (propagação de constantes/cópias + eliminação de stores mortos ligadas no `Optimizer` de produção com redução de instruções medida); a Fase C (alocação de registradores) é a atual — fatia 1 (liveness, `LivenessAnalysis.java`) pousada.
 > > **ABERTA (10ª frente):** `qrcode-wasm` — promovida 11/10 (`D-FUTURE-PROMOTION` retomada por `D-FUTURE-UNFREEZE`, mantenedora 11/10) para [`qrcode-wasm-plan.pt_BR.md`](qrcode-wasm-plan.pt_BR.md); estado 12/10: Fase 1 fatias 1-2b ENTREGUES (escritor `Qrcode.kf`+`QrPng.kf` 8/8; leitor de arquivo `QrDecode.kf` 8/8 incl. correção de erros Reed-Solomon — símbolos danificados até floor(ecc/2) erros de byte por bloco decodificam exatos, acima da capacidade recusados por nome); próxima fatia = leitor de câmera; a Fase 3 (target `KofWasm`) segue rule-6 (decisão da mantenedora).
 Todos os planos restantes de `future/` estão autorizados com suas
 > questões de design resolvidas (`D-FUTURE-BATCH-2809B`); a promoção segue

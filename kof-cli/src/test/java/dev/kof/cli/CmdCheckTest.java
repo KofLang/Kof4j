@@ -176,4 +176,41 @@ class CmdCheckTest {
         assertTrue(err.toString(StandardCharsets.UTF_8).contains("unknown flag"),
                 err.toString(StandardCharsets.UTF_8));
     }
+
+    @Test
+    void scriptTargetIsRefusedHonestlyBeforeTypeChecking(@TempDir Path tmp) throws Exception {
+        // MEASURED before the guard: `check --target script` ran the FULL pipeline
+        // and returned rc=1 on VALID code with COMP003 "emits no artifacts" — an
+        // EMISSION diagnostic, while this command's help says "type-check without
+        // emitting output". A phantom error on a correct program.
+        Path file = tmp.resolve("Main.kf");
+        Files.writeString(file, "Int f() { return 42 }\nmain() { println(f()) }");
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        int ec = CmdCheck.run(new String[]{"check", file.toString(), "--target", "script"},
+                new PrintStream(out, true, StandardCharsets.UTF_8),
+                new PrintStream(err, true, StandardCharsets.UTF_8));
+
+        assertEquals(1, ec, "must refuse: " + err);
+        String stderr = err.toString(StandardCharsets.UTF_8);
+        assertTrue(stderr.contains("cannot be checked"), stderr);
+        assertTrue(stderr.contains("default jvm"), "points at the working default: " + stderr);
+        assertFalse(stderr.contains("COMP003"),
+                "must not leak the internal emission code: " + stderr);
+    }
+
+    @Test
+    void wasmAndWasiTargetsStillTypeCheck(@TempDir Path tmp) throws Exception {
+        Path file = tmp.resolve("Main.kf");
+        Files.writeString(file, "Int f() { return 42 }\nmain() { println(f()) }");
+        for (String t : java.util.List.of("jvm", "wasm", "wasi")) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            ByteArrayOutputStream err = new ByteArrayOutputStream();
+            int ec = CmdCheck.run(new String[]{"check", file.toString(), "--target", t},
+                    new PrintStream(out, true, StandardCharsets.UTF_8),
+                    new PrintStream(err, true, StandardCharsets.UTF_8));
+            assertEquals(0, ec, t + " must type-check: " + err);
+        }
+    }
 }

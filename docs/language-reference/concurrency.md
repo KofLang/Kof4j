@@ -3,7 +3,7 @@
 # CONCURRENCY.md — Kof Concurrency Model
 
 **Status:** Implemented on all 3 targets, real concurrency on all 3 (JVM virtual threads + JS async/await/Promise + Native pthread) — 0.2.6-beta 03/09
-**Version:** 0.6.4
+**Version:** 0.6.7
 **Date:** September 3, 2026 (CONC003 closed — JS is no longer sequential)
 
 ---

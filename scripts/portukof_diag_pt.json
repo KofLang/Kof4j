@@ -1064,6 +1064,11 @@
       "arity": 3,
       "en": "'{0}' does not have method '{1}' with {2} argument(s)",
       "pt": "'{0}' não tem o método '{1}' com {2} argumento(s)"
+    },
+    {
+      "arity": 3,
+      "en": "Cannot resolve method '{0}' on namespace 'db' with {1} argument(s) (valid: {2})",
+      "pt": "não é possível resolver o método '{0}' no namespace 'db' com {1} argumento(s) (válidos: {2})"
     }
   ],
   "SEM026": [

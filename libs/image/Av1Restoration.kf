@@ -1,0 +1,468 @@
+package image
+
+import image.Av1Symbol
+import image.Av1Block
+
+// kof.image — AV1 loop-restoration per-superblock coefficients (slice 3be of
+// the AVIF front, plan §34). libaom reads a restoration unit's filter
+// coefficients at the START of every superblock, BEFORE the partition symbol
+// (`decode_partition` -> `av1_loop_restoration_corners_in_sb` ->
+// `loop_restoration_read_sb_coeffs`, av1/decoder/decodeframe.c). A walk that
+// skips them decodes the whole tile from a shifted position: the CU0 fixtures
+// set `lr_type = WIENER` for luma, so the first superblock of
+// `avif_enc_nopal_128x64_cu0.avif` loses 16 bits (tell 1 -> 16 in the patched
+// reference decoder) and every later symbol lands on the wrong bits (§760).
+//
+// This slice reads the SYNTAX and keeps the state the syntax needs (the CDFs
+// adapt per tile; the filter references chain across units — libaom
+// `av1_reset_loop_restoration` at the tile start, then `*ref = *info` after
+// every read). Applying the filters to pixels is a later stage.
+//
+// Every constant/rule below is quoted from libaom tip 9440aeedd
+// (av1/decoder/decodeframe.c, av1/common/restoration.h, aom_dsp/recenter.h,
+// aom_dsp/binary_codes_reader.c) on the dev host 20/10.
+
+// RESTORE_NONE / WIENER / SGRPROJ / SWITCHABLE (av1/common/enums.h).
+Int av1RestoreNone() {
+    return 0
+}
+
+Int av1RestoreWiener() {
+    return 1
+}
+
+Int av1RestoreSgrproj() {
+    return 2
+}
+
+Int av1RestoreSwitchable() {
+    return 3
+}
+
+// `decode_restoration_mode`'s 2-bit lr_type value -> RESTORE_*: the first bit
+// selects WIENER({0})/SGRPROJ({1}), the second SWITCHABLE({0})/NONE({1}).
+Int av1LrTypeFromBits(Int v) {
+    if (v == 2) {
+        return av1RestoreWiener()
+    }
+    if (v == 3) {
+        return av1RestoreSgrproj()
+    }
+    if (v == 1) {
+        return av1RestoreSwitchable()
+    }
+    return av1RestoreNone()
+}
+
+// `av1_lr_count_units(unit_size, plane_size)` (av1/common/restoration.c):
+// round to nearest, at least one.
+Int av1LrCountUnits(Int unitSize, Int planeSize) {
+    var n = (planeSize + (unitSize >> 1)) / unitSize
+    if (n < 1) {
+        return 1
+    }
+    return n
+}
+
+// WIENER_WIN is 7 for luma and 5 for chroma (WIENER_WIN_CHROMA).
+Int av1WienerWin(Int plane) {
+    if (plane > 0) {
+        return 5
+    }
+    return 7
+}
+
+// The three wiener taps: min/range/subexp-k per tap (restoration.h).
+Int av1WienerTapMin(Int tap) {
+    var t = listOf(-5, -23, -17)
+    return t.get(tap)
+}
+
+Int av1WienerTapRange(Int tap) {
+    var t = listOf(16, 32, 64)
+    return t.get(tap)
+}
+
+Int av1WienerTapK(Int tap) {
+    var t = listOf(1, 2, 3)
+    return t.get(tap)
+}
+
+// SGRPROJ_PRJ_{MIN,MAX,SUBEXP_K}{0,1} and SGRPROJ_PARAMS_BITS.
+Int av1SgrPrjMin(Int i) {
+    if (i == 0) {
+        return -96
+    }
+    return -32
+}
+
+Int av1SgrPrjRange(Int i) {
+    if (i == 0) {
+        return 128
+    }
+    return 128
+}
+
+// `av1_sgr_params[ep].r[j] == 0` switches the coded-parameter shape
+// (restoration.c). Only the zero tests matter to the syntax.
+Int av1SgrParamsR(Int ep, Int j) {
+    var r0 = listOf(2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0, 0, 0, 0, 2, 2)
+    var r1 = listOf(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0)
+    if (j == 0) {
+        return r0.get(ep)
+    }
+    return r1.get(ep)
+}
+
+// get_msb(n): the position of the highest set bit.
+Int av1GetMsb(Int n) {
+    var b = 0
+    var v = n
+    while (v > 1) {
+        v = v >> 1
+        b = b + 1
+    }
+    return b
+}
+
+// inv_recenter_nonneg(r, v) (aom_dsp/recenter.h).
+Int av1InvRecenterNonneg(Int r, Int v) {
+    if (v > (r << 1)) {
+        return v
+    }
+    if ((v & 1) == 0) {
+        return (v >> 1) + r
+    }
+    return r - ((v + 1) >> 1)
+}
+
+// inv_recenter_finite_nonneg(n, r, v).
+Int av1InvRecenterFiniteNonneg(Int n, Int r, Int v) {
+    if ((r << 1) <= n) {
+        return av1InvRecenterNonneg(r, v)
+    }
+    return n - 1 - av1InvRecenterNonneg(n - 1 - r, v)
+}
+
+// read_primitive_quniform_(n) (aom_dsp/binary_codes_reader.c).
+Int av1ReadPrimitiveQuniform(Av1Symbol reader, Int n) {
+    if (n <= 1) {
+        return 0
+    }
+    var l = av1GetMsb(n) + 1
+    var m = (1 << l) - n
+    var v = reader.readLiteral(l - 1)
+    if (v < m) {
+        return v
+    }
+    return (v << 1) - m + reader.readBool()
+}
+
+// read_primitive_subexpfin_(n, k).
+Int av1ReadPrimitiveSubexpfin(Av1Symbol reader, Int n, Int k) {
+    var i = 0
+    var mk = 0
+    var v = 0
+    var done = 0
+    while (done == 0) {
+        var b = k
+        if (i > 0) {
+            b = k + i - 1
+        }
+        var a = 1 << b
+        if (n <= mk + 3 * a) {
+            v = av1ReadPrimitiveQuniform(reader, n - mk) + mk
+            done = 1
+        } else if (reader.readBool() == 0) {
+            v = reader.readLiteral(b) + mk
+            done = 1
+        } else {
+            i = i + 1
+            mk = mk + a
+        }
+    }
+    return v
+}
+
+// aom_read_primitive_refsubexpfin_(n, k, ref).
+Int av1ReadPrimitiveRefsubexpfin(Av1Symbol reader, Int n, Int k, Int ref) {
+    return av1InvRecenterFiniteNonneg(n, ref, av1ReadPrimitiveSubexpfin(reader, n, k))
+}
+
+// One plane's restoration state: the frame/unit parameters plus the filter
+// REFERENCE (`xd->wiener_info + plane` / `xd->sgrproj_info + plane`), which
+// chains across the units of a tile (libaom `av1_reset_loop_restoration`
+// resets it to the defaults at the tile start).
+class Av1RestorationPlane {
+    Int type
+    Int unitSize
+    Int planeW
+    Int planeH
+    Int horzUnits
+    Int vertUnits
+    Int ssX
+    Int ssY
+    Int[] vfilter
+    Int[] hfilter
+    Int[] xqd
+
+    constructor(Int type, Int unitSize, Int planeW, Int planeH, Int ssX, Int ssY) {
+        this.type = type
+        this.unitSize = unitSize
+        this.planeW = planeW
+        this.planeH = planeH
+        this.ssX = ssX
+        this.ssY = ssY
+        this.horzUnits = av1LrCountUnits(unitSize, planeW)
+        this.vertUnits = av1LrCountUnits(unitSize, planeH)
+        this.vfilter = av1DefaultWienerFilter()
+        this.hfilter = av1DefaultWienerFilter()
+        this.xqd = av1DefaultSgrprojXqd()
+    }
+}
+
+// set_default_wiener (restoration.h).
+Int[] av1DefaultWienerFilter() {
+    var f = new Int[7]
+    f[0] = 3
+    f[1] = -7
+    f[2] = 15
+    f[3] = -22
+    f[4] = 15
+    f[5] = -7
+    f[6] = 3
+    return f
+}
+
+// set_default_sgrproj: the midpoints of the coded ranges.
+Int[] av1DefaultSgrprojXqd() {
+    // (MIN + MAX) / 2 with MAX = MIN + RANGE - 1: (-96 + 31) / 2 = -32 and
+    // (-32 + 95) / 2 = 31 (C truncation, written out so no target's division
+    // rounding can move them).
+    var x = new Int[2]
+    x[0] = -32
+    x[1] = 31
+    return x
+}
+
+// The tile's restoration state: the three planes' parameters, the adapted
+// restoration CDFs and the per-unit read.
+class Av1Restoration {
+    Av1RestorationPlane yPlane
+    Av1RestorationPlane uPlane
+    Av1RestorationPlane vPlane
+    Int[] switchableCdf
+    Int[] wienerCdf
+    Int[] sgrprojCdf
+    // The sequence's superblock size (12 = 64x64, 15 = 128x128): libaom reads
+    // a unit's coefficients only when the block under decode IS the superblock.
+    Int sbBs
+
+    // `lrType*` are the RESTORE_* values from the frame header's
+    // `lr_params()`; `unitSize0`/`unitSize1` the luma/chroma restoration unit
+    // sizes it derived; `ssX`/`ssY` the sequence's subsampling.
+    constructor(Int lrTypeY, Int lrTypeU, Int lrTypeV, Int unitSize0, Int unitSize1,
+                Int ssX, Int ssY, Int frameW, Int frameH, Int sbBs) {
+        this.sbBs = sbBs
+        var wU = 0
+        var hU = 0
+        if (ssX == 1) {
+            wU = (frameW + 1) / 2
+        } else {
+            wU = frameW
+        }
+        if (ssY == 1) {
+            hU = (frameH + 1) / 2
+        } else {
+            hU = frameH
+        }
+        this.yPlane = Av1RestorationPlane(lrTypeY, unitSize0, frameW, frameH, 0, 0)
+        this.uPlane = Av1RestorationPlane(lrTypeU, unitSize1, wU, hU, ssX, ssY)
+        this.vPlane = Av1RestorationPlane(lrTypeV, unitSize1, wU, hU, ssX, ssY)
+        // default_switchable_restore_cdf / _wiener_ / _sgrproj_ (entropymode.c),
+        // in the spec's cumulative form (the store adapts them in place).
+        this.switchableCdf = av1LrCdfOf(listOf(9413, 22581))
+        this.wienerCdf = av1LrCdfOf(listOf(11570))
+        this.sgrprojCdf = av1LrCdfOf(listOf(16855))
+    }
+
+    // The plane's state by index (0 = luma, 1 = U, 2 = V).
+    Av1RestorationPlane planeAt(Int plane) {
+        if (plane == 0) {
+            return this.yPlane
+        }
+        if (plane == 1) {
+            return this.uPlane
+        }
+        return this.vPlane
+    }
+
+    // The restoration units of one superblock. `sbMiRow`/`sbMiCol` are the
+    // superblock's mi origin and `sbBs` its block size (15 = 128x128); libaom
+    // returns early unless the block IS the superblock.
+    void readSb(Av1Symbol reader, Int sbMiRow, Int sbMiCol, Int sbBs) {
+        var p = 0
+        while (p < 3) {
+            var pl = this.planeAt(p)
+            if (pl.type != av1RestoreNone()) {
+                if (sbBs == this.sbBs) {
+                    this.readSbPlane(reader, p, pl, sbMiRow, sbMiCol, sbBs)
+                }
+            }
+            p = p + 1
+        }
+    }
+
+    // `av1_loop_restoration_corners_in_sb` + the unit loop of
+    // `decode_partition` (superres is not supported by this decoder, so
+    // `mi_to_num_x`/`denom_x` reduce to the plane's mi size / unit size).
+    void readSbPlane(Av1Symbol reader, Int plane, Av1RestorationPlane pl,
+                     Int sbMiRow, Int sbMiCol, Int sbBs) {
+        var miW = 4
+        var miH = 4
+        if (pl.ssX == 1) {
+            miW = 2
+        }
+        if (pl.ssY == 1) {
+            miH = 2
+        }
+        var miRow1 = sbMiRow + av1BlockNum4x4High(sbBs)
+        var miCol1 = sbMiCol + av1BlockNum4x4Wide(sbBs)
+        var rnd = pl.unitSize - 1
+        var rcol0 = (sbMiCol * miW + rnd) / pl.unitSize
+        var rrow0 = (sbMiRow * miH + rnd) / pl.unitSize
+        var rcol1 = (miCol1 * miW + rnd) / pl.unitSize
+        if (rcol1 > pl.horzUnits) {
+            rcol1 = pl.horzUnits
+        }
+        var rrow1 = (miRow1 * miH + rnd) / pl.unitSize
+        if (rrow1 > pl.vertUnits) {
+            rrow1 = pl.vertUnits
+        }
+        if (rcol0 >= rcol1 || rrow0 >= rrow1) {
+            return
+        }
+        var rrow = rrow0
+        while (rrow < rrow1) {
+            var rcol = rcol0
+            while (rcol < rcol1) {
+                this.readUnit(reader, plane, pl)
+                rcol = rcol + 1
+            }
+            rrow = rrow + 1
+        }
+    }
+
+    // `loop_restoration_read_sb_coeffs` for one unit.
+    void readUnit(Av1Symbol reader, Int plane, Av1RestorationPlane pl) {
+        if (pl.type == av1RestoreSwitchable()) {
+            var t = reader.readSymbol(this.switchableCdf, 3)
+            if (t == 1) {
+                this.readWienerFilter(reader, plane, pl)
+            } else if (t == 2) {
+                this.readSgrprojFilter(reader, pl)
+            }
+        } else if (pl.type == av1RestoreWiener()) {
+            if (reader.readSymbol(this.wienerCdf, 2) == 1) {
+                this.readWienerFilter(reader, plane, pl)
+            }
+        } else if (pl.type == av1RestoreSgrproj()) {
+            if (reader.readSymbol(this.sgrprojCdf, 2) == 1) {
+                this.readSgrprojFilter(reader, pl)
+            }
+        }
+    }
+
+    // `read_wiener_filter`: three coded taps (chained around the previous
+    // unit's filter), mirrored around the implicit centre. Chroma uses the
+    // 5-tap window, whose outermost tap is not coded.
+    void readWienerFilter(Av1Symbol reader, Int plane, Av1RestorationPlane pl) {
+        var win = av1WienerWin(plane)
+        var v = new Int[7]
+        var h = new Int[7]
+        var tap = 0
+        while (tap < 3) {
+            if (plane == 0 || tap > 0) {
+                var lo = av1WienerTapMin(tap)
+                var vv = av1ReadPrimitiveRefsubexpfin(reader, av1WienerTapRange(tap),
+                        av1WienerTapK(tap), pl.vfilter[tap] - lo) + lo
+                v[tap] = vv
+                v[6 - tap] = vv
+            }
+            tap = tap + 1
+        }
+        tap = 0
+        while (tap < 3) {
+            if (plane == 0 || tap > 0) {
+                var lo2 = av1WienerTapMin(tap)
+                var hv = av1ReadPrimitiveRefsubexpfin(reader, av1WienerTapRange(tap),
+                        av1WienerTapK(tap), pl.hfilter[tap] - lo2) + lo2
+                h[tap] = hv
+                h[6 - tap] = hv
+            }
+            tap = tap + 1
+        }
+        v[3] = -2 * (v[0] + v[1] + v[2])
+        h[3] = -2 * (h[0] + h[1] + h[2])
+        pl.vfilter = v
+        pl.hfilter = h
+    }
+
+    // `read_sgrproj_filter`: a 4-bit parameter set (its `r[]` selects which of
+    // the two coded projections are present) then the projections themselves.
+    void readSgrprojFilter(Av1Symbol reader, Av1RestorationPlane pl) {
+        var ep = reader.readLiteral(4)
+        var x = new Int[2]
+        if (av1SgrParamsR(ep, 0) == 0) {
+            x[0] = 0
+            x[1] = av1ReadSgrX(reader, 1, pl, 1)
+        } else if (av1SgrParamsR(ep, 1) == 0) {
+            x[0] = av1ReadSgrX(reader, 0, pl, 0)
+            var v = (1 << 7) - x[0]
+            if (v < av1SgrPrjMin(1)) {
+                v = av1SgrPrjMin(1)
+            }
+            if (v > av1SgrPrjMin(1) + av1SgrPrjRange(1) - 1) {
+                v = av1SgrPrjMin(1) + av1SgrPrjRange(1) - 1
+            }
+            x[1] = v
+        } else {
+            x[0] = av1ReadSgrX(reader, 0, pl, 0)
+            x[1] = av1ReadSgrX(reader, 1, pl, 1)
+        }
+        pl.xqd = x
+    }
+
+    Int av1ReadSgrX(Av1Symbol reader, Int i, Av1RestorationPlane pl, Int refIdx) {
+        var lo = av1SgrPrjMin(i)
+        return av1ReadPrimitiveRefsubexpfin(reader, av1SgrPrjRange(i), 4,
+                pl.xqd[refIdx] - lo) + lo
+    }
+}
+
+// A spec-form CDF row from the libaom AOM_CDF macro arguments: cumulative
+// entries plus the 1<<15 terminator and the adaptation counter.
+Int[] av1LrCdfOf(List<Int> args) {
+    var out = new Int[args.size + 2]
+    var i = 0
+    while (i < args.size) {
+        out[i] = args.get(i)
+        i = i + 1
+    }
+    out[args.size] = 32768
+    out[args.size + 1] = 0
+    return out
+}
+
+// The tile's restoration context for a parsed frame header: null when no
+// plane restores (then the walk reads no restoration bits, exactly like
+// libaom's `decode_partition`, which skips the planes whose
+// `frame_restoration_type` is RESTORE_NONE). Parameters are PRIMITIVES so this
+// file depends on nothing but the reader — a caller compiles no extra file.
+Av1Restoration? av1RestorationFor(Int lrTypeY, Int lrTypeU, Int lrTypeV, Int unit0,
+                                  Int unit1, Int ssX, Int ssY, Int w, Int hgt, Int sbBs) {
+    if (lrTypeY == 0 && lrTypeU == 0 && lrTypeV == 0) {
+        return null
+    }
+    return Av1Restoration(lrTypeY, lrTypeU, lrTypeV, unit0, unit1, ssX, ssY, w, hgt, sbBs)
+}

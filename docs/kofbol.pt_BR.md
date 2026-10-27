@@ -24,7 +24,7 @@ intent: kofbol-legacy-banking-interop
 - `KofBuffer.java` (`Buffer(U8)`, D-R3-BUFFER) — a superfície de bytes.
 - `KofDb.java`/`KofOrm.java` `transaction { … }` — o padrão transacional.
 - `KofObservability.java` — ids de correlação/requisição.
-- `docs/development/LEGACY_MIGRATION.md` + `DECOMPILER.md` +
+- `docs/legacy-migration-plan.md` + `DECOMPILER.md` +
   `TRANSLATOR.md` — o cluster de migração (bytecode JVM); COBOL é nomeado lá
   como *possível frontend* (`LEGACY_MIGRATION.md:185,294,357`).
 

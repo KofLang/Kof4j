@@ -5,6 +5,11 @@
 # IP:PORTA is INVALID (same absolute-identity law as `D-AGENT-IDENTITY-IPPORT`).
 # Plans still awaiting a re-claim must say so explicitly ("SEM DONO / OPEN") —
 # that is honest; a shared/silent owner is not.
+# EXCEPTION: D-PLAN-ORPHAN-ASSUME (maintainer 22/10/2026, chat directive) — a
+# plan untouched for >6h is an ORPHAN and one lane may assume several at once.
+# A plan carrying the `D-PLAN-ORPHAN-ASSUME` marker is exempt from the
+# one-plan-per-identity rule ONLY; every other check still applies, and
+# removing the marker restores the normal uniqueness law.
 # Uso: scripts/check_plan_owners.sh            # rc!=0 em violação
 #      scripts/check_plan_owners.sh --selftest
 set -u
@@ -31,6 +36,8 @@ def owners_from(text):
                     out.append("INVALID")
     return out
 
+EXEMPT = []  # D-PLAN-ORPHAN-ASSUME batch-assumed plans (module-level: reported at the end)
+
 def scan(files):
     per = {}
     bad = []
@@ -49,6 +56,9 @@ def scan(files):
             continue
         chosen = [x for x in o if x not in ("OPEN",)][0] if [x for x in o if x not in ("OPEN",)] else "OPEN"
         if chosen in ("maintainer", "OPEN"):
+            continue
+        if "D-PLAN-ORPHAN-ASSUME" in text:
+            EXEMPT.append(f)
             continue
         per.setdefault(chosen, []).append(f)
     for ip, fs in per.items():
@@ -82,9 +92,19 @@ if SELF:
         nof = scan([a, b])
         if not any("sem campo" in x for x in nof):
             print("SELFTEST FALHOU: plano sem Owner não foi pego"); sys.exit(1)
+        open(a, "w").write("# A\n\n**Owner:** 9.9.9.9:1 (lane x) D-PLAN-ORPHAN-ASSUME\n")
+        open(b, "w").write("# B\n\n**Owner:** 9.9.9.9:1 (lane x) D-PLAN-ORPHAN-ASSUME\n")
+        ex = scan([a, b])
+        if ex:
+            print("SELFTEST FALHOU: isenção D-PLAN-ORPHAN-ASSUME não aplicada"); sys.exit(1)
+        open(a, "w").write("# A\n\n**Owner:** 9.9.9.9:1 (lane x)\n")
+        open(b, "w").write("# B\n\n**Owner:** 9.9.9.9:1 (lane x)\n")
+        ex2 = scan([a, b])
+        if not any("D-PLAN-ONE-OWNER" in x for x in ex2):
+            print("SELFTEST FALHOU: sem o marcador, o duplicado deve falhar"); sys.exit(1)
     finally:
         shutil.rmtree(d, ignore_errors=True)
-    print("selftest OK (duplicado + anônimo + ausente capturados)")
+    print("selftest OK (duplicado + anônimo + ausente + isenção ORPHAN-ASSUME)")
     sys.exit(0)
 
 if bad:
@@ -92,5 +112,6 @@ if bad:
         print("VIOLACAO:", x)
     sys.exit(1)
 n = len(plan_files)
-print(f"OK: {n} planos, dono único nomeado ou SEM DONO explícito (D-PLAN-ONE-OWNER)")
+print(f"OK: {n} planos, dono único nomeado ou SEM DONO explícito (D-PLAN-ONE-OWNER); "
+      f"{len(EXEMPT)} assumidos em lote por D-PLAN-ORPHAN-ASSUME")
 PYEOF

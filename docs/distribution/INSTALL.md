@@ -5,7 +5,7 @@
 Official installation guide from the artifacts published on **GitHub
 Releases**. Follow the step-by-step for **your system** and you are done.
 
-> **Current version:** 0.6.4 (see `VERSION` at the repo root). The
+> **Current version:** 0.6.7 (see `VERSION` at the repo root). The
 > commands below work on **any** release: they resolve the newest one for
 > your platform automatically, so there is no version to type.
 

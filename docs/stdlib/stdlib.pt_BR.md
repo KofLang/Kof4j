@@ -3,7 +3,7 @@
 # Kof Standard Library — Arquitetura
 
 **Última atualização:** 12 de setembro de 2026
-**Versão:** 0.6.4
+**Versão:** 0.6.7
 
 > A Standard Library do Kof é a plataforma: HTTP, REST, auth, autorização,
 > validação, serialização, database, messaging, observabilidade e testing
@@ -60,8 +60,8 @@ CONC001, JSN00x) — nunca comportamento silenciosamente diferente.
 | `kof.web` | ✅ | `web.app()`, rotas, middleware `app.use`, `listenSecure(port)` TLS, `status(code[, body])`/`headerSet`, `app.ws` (WebSocket RFC 6455) + `app.sse` (SSE) — JVM (Native `WEB001/002` + `WEB003`/`WEB004`; base JS + SSE handler-scoped ✅ 16/09, residual `app.ws` = `WEB004`, push SSE pós-return = `WEB003` compile-time) |
 | `kof.security` | ✅ (v1 + G9) | passwords, crypto, jwt, secrets, auth, security, rateLimit, sessions, apiKeys — 3 targets; free-list Native 27/08 — ver `docs/stdlib/security.md` |
 | `kof.concurrent` | ✅ | `spawn` (statement) + `val r = spawn f()` / `await r` (handle tipado) — JVM (virtual threads) + Native (pthread, 31/08, `CONC001` fechado) + JS event-loop (`CONC003` fechado 03/09) |
-| `kof.test` | ✅ | `kof test` (`test "nome" { }` nos 3 targets) + `assert` — `StructuredTestE2ETest` 12/12 (medido 11/10); a suíte oficial de equivalência é 86 casos / 344 checagens (`tests/run-golden.sh`, `test-architecture-plan`) |
-| `kof.cli` | ✅ | `kof build/run/serve/check/md/test/bench/profile/inspect/decompile/translate/compare/migrate/debug/info/lsp/install/script/repl/init/new/connector/deps/deploy/workflow/makealive/c/fmt/editor/config/version` (31 comandos — medidos no `Main.java`; ver `docs/status.md`; debug DAP, `kof script --watch` SIGPIPE fix 27/08) |
+| `kof.test` | ✅ | `kof test` (`test "nome" { }` nos 3 targets) + `assert` — `StructuredTestE2ETest` 12/12 (medido 11/10); a suíte oficial de equivalência é 90 casos / 360 checagens (`tests/run-golden.sh`, `test-architecture-plan`) |
+| `kof.cli` | ✅ | `kof build/run/serve/check/md/test/bench/profile/inspect/decompile/translate/compare/migrate/debug/info/lsp/install/script/repl/init/new/connector/legacy/deps/deploy/workflow/makealive/c/fmt/editor/config/version` (32 comandos — medidos no `Main.java`; ver `docs/status.md`; debug DAP, `kof script --watch` SIGPIPE fix 27/08) |
 | `kof.script` | ✅ | `KofScript` top-level `var`/`val` → campos estáticos de `KofScriptGlobals` + REPL (suíte core `kof-script` 64/0, medido 11/10 — `KofScriptTest` 25/25, `KofScriptStdlibParityTest` 22/22, `KofScriptSyntaxCoverageTest` 9/9, `KofReplTest` 6/6, `KofScriptReplTest` 2/2; as classes de interop são separadas; o antigo sugar `let` foi removido em `183cb048` — ver §263) |
 | `kof.c` | ✅ | `KofCcompiler` C subset (`int` globals, `void` funcs, `if`/`while`/`*(int*)`/`&`) → native x86_64 (5 testes kof-c-compiler, 27/08) |
 | `kof.metrics` | ✅ | `kof bench`/`kof profile` (harness + baseline, 37 benchmarks, `benchmark.yml` threshold 1.20) |
@@ -112,11 +112,11 @@ Resumo executivo (0.5.0-beta, re-synced 17/09):
 | security (crypto, jwt, secrets, auth web + G9) | DONE (JVM/Native/JS core; web auth JVM; free-list Native 27/08) |
 | web server (`web.app()`) + `kof.http` client | DONE (JVM; `kof.http` JVM+JS + retry/circuit; WebSocket/SSE JVM) |
 | concurrency (`spawn` + `await`) | DONE (JVM + Native pthread (31/08) + JS event-loop (CONC003 03/09)) |
-| test (`assert`, `kof test` `test "nome" {}`) | DONE (3 targets; a suíte oficial de equivalência `tests/run-golden.sh` é 86 casos / 344 checagens — ver `test-architecture-plan`) |
+| test (`assert`, `kof test` `test "nome" {}`) | DONE (3 targets; a suíte oficial de equivalência `tests/run-golden.sh` é 90 casos / 360 checagens — ver `test-architecture-plan`) |
 | observability | DONE (kof.observability: health/metrics/request IDs — JVM/Native/JS) |
 | `KofScript` / `KofCcompiler` / targets riscv64/aarch64 | DONE (KofScript 8, KofC 5, riscv64 toolchain estável) |
 | messaging (`kof.mq` 3 targets), scheduling (`scheduler` 3 targets — SCHED001 fechado 31/08), sessions, rate limiting, TLS, WebSocket/SSE (JVM), `kof.cache` (3 targets) | DONE (gaps reais: `WEB002` TLS, `WEB003/004` WS/SSE) |
-| GC mark-sweep no Native | ✅ sweep real 03/09 (`kof_gc_mark` conservador stack+bss + `kof_gc_sweep` → free-list + `kof_gc_collect_now` manual; `KofGcE2ETest` 8/8, medido 11/10). ✅ **auto-collect na exaustão pousou 19/09** (D1-A, §260 FECHADO: blanket-spill dos 15 GPRs + gate `kof_spawn_count==0` + flag one-shot; `a904317e`) |
+| GC mark-sweep no Native | ✅ sweep real 03/09 (`kof_gc_mark` conservador stack+bss + `kof_gc_sweep` → free-list + `kof_gc_collect_now` manual; `KofGcE2ETest` 9/9, medido 11/10). ✅ **auto-collect na exaustão pousou 19/09** (D1-A, §260 FECHADO: blanket-spill dos 15 GPRs + gate `kof_spawn_count==0` + flag one-shot; `a904317e`) |
 
 # 6. PRÓXIMAS ETAPAS (residual pós-0.2.0)
 

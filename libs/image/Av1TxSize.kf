@@ -113,6 +113,12 @@ class Av1TxSize {
     Int[] txfmAbove
     Int[] txfmLeft
     List<Int[]> txDepthStore
+    // The tile's mi origin: libaom's above/left availability is TILE-relative
+    // (`xd->up_available = mi_row > tile->mi_row_start`, decodeframe.c
+    // `set_offsets`), so a tile's first row/column has NO neighbour even though
+    // its frame coordinates are non-zero.
+    Int tileRow0
+    Int tileCol0
 
     // The symbol decoder is the CALLER's: the tile walk (slice 3af) reads the
     // mode info, the transform size and the transform type from ONE entropy
@@ -123,6 +129,8 @@ class Av1TxSize {
         this.sym = sym
         this.miCols = miCols
         this.miRows = miRows
+        this.tileRow0 = 0
+        this.tileCol0 = 0
         // The context arrays are PADDED to the superblock grid, exactly as
         // libaom pads its own (`ALIGN_POWER_OF_TWO(num_mi_cols,
         // MAX_MIB_SIZE_LOG2)`, av1/common/alloccommon.c): a block may OVERHANG
@@ -151,6 +159,15 @@ class Av1TxSize {
         }
     }
 
+    // The decode caller (partition walk) sets the tile's mi origin before its
+    // blocks are decoded, so a tile boundary is treated exactly like the frame
+    // edge: libaom `set_offsets` computes `up_available`/`left_available`
+    // against the TILE's start.
+    void setTileOrigin(Int r, Int c) {
+        this.tileRow0 = r
+        this.tileCol0 = c
+    }
+
     // get_above_tx_width( row, col ) / get_left_tx_height( row, col ) collapsed
     // to the still-intra face (no inter neighbours): the stored per-4x4 width /
     // height, or 64 at the frame edge.
@@ -158,21 +175,29 @@ class Av1TxSize {
         var maxTx = av1BlockMaxTxRect(bs)
         var maxW = av1TxWidth(maxTx)
         var maxH = av1TxHeight(maxTx)
+        var hasAbove = 0
+        if (r > this.tileRow0) {
+            hasAbove = 1
+        }
+        var hasLeft = 0
+        if (c > this.tileCol0) {
+            hasLeft = 1
+        }
         var above = 0
         var left = 0
-        if (r > 0) {
+        if (hasAbove == 1) {
             above = av1Bool(this.txfmAbove[c] >= maxW)
         }
-        if (c > 0) {
+        if (hasLeft == 1) {
             left = av1Bool(this.txfmLeft[r] >= maxH)
         }
-        if (r > 0 && c > 0) {
+        if (hasAbove == 1 && hasLeft == 1) {
             return above + left
         }
-        if (r > 0) {
+        if (hasAbove == 1) {
             return above
         }
-        if (c > 0) {
+        if (hasLeft == 1) {
             return left
         }
         return 0

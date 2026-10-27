@@ -3,7 +3,7 @@
 # Workflows — `kof.workflow`
 
 **Data:** 19 de setembro de 2026
-**Status:** MVP implementado (plano universal Estágio 2, linha 2.1, fatia 2.1.2) — `VERSION` 0.6.4
+**Status:** MVP implementado (plano universal Estágio 2, linha 2.1, fatia 2.1.2) — `VERSION` 0.6.7
 
 > **Escopo do MVP (Q2, enquete da mantenedora 19/09):** `job` / `dag` / `after` /
 > `run` / `Report`. **Face 1 do 2.1.3 ENTREGUE 19/09:** `retry` (Q3 — helper aditivo

@@ -133,9 +133,16 @@ public final class CompilerIfaceRecordLowering {
         boolean nativeTarget = driver.target == Target.NATIVE || driver.target == Target.NATIVE_RISCV64
                 || driver.target == Target.NATIVE_AARCH64;
         if (nativeTarget) {
-            methods.add(CompilerRecordSupport.buildRecordToStringMethod(driver, internalName, rec, fields, typeParams));
-            methods.add(CompilerRecordSupport.buildRecordEqualsMethod(driver, internalName, fields, typeParams));
-            methods.add(CompilerRecordSupport.buildRecordHashCodeMethod(driver, internalName, fields, typeParams));
+            List<IRMethod> own = List.copyOf(methods);
+            if (!IRClass.overridesObjectMethod(own, "toString")) {
+                methods.add(CompilerRecordSupport.buildRecordToStringMethod(driver, internalName, rec, fields, typeParams));
+            }
+            if (!IRClass.overridesObjectMethod(own, "equals")) {
+                methods.add(CompilerRecordSupport.buildRecordEqualsMethod(driver, internalName, fields, typeParams));
+            }
+            if (!IRClass.overridesObjectMethod(own, "hashCode")) {
+                methods.add(CompilerRecordSupport.buildRecordHashCodeMethod(driver, internalName, fields, typeParams));
+            }
         }
         // #613 (face Native do #608): um record que implementa interface
         // genérica precisa do bridge de erasure, igual a `lowerClass` (§356/§483)

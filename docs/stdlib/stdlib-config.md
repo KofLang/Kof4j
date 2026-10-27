@@ -3,7 +3,7 @@
 # stdlib config — Kof Native Configuration
 
 **Last updated:** September 12, 2026
-**Version:** 0.6.4
+**Version:** 0.6.7
 **Status:** implemented (Phase 3 of the Spring independence plan) — 3 targets (JVM / Native own asm `/proc/self/environ` + free-list / JS `kof_platform`) + `required`/`${key}` interpolation/`kof config gen` (30/08)
 
 ---

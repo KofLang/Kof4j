@@ -967,7 +967,7 @@ work — reference it.
   performance). **Complementary, not duplicated.**
 * `docs/wasm-wasi-plan.md` — KofWasm; the platform's cross-target/WASM E2E
   depends on it (`WASM001` until then).
-* `docs/development/qrcode-wasm-plan.md` — another WASM front consumer.
+* `docs/qrcode-wasm-plan.md` — another WASM front consumer.
 * `docs/stdlib/kof-file-plan.md` — `kof.file` for upload/download test helpers.
 * `docs/stdlib/kof-connector-ecosystem-plan.md` — providers (browser drivers) are a
   natural connector-style SPI; cross-reference for the SPI/manifest pattern.

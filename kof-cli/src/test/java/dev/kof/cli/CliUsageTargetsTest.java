@@ -103,4 +103,45 @@ class CliUsageTargetsTest {
                 "deve dizer o que falta (nao um AIOOBE/stacktrace):\n" + out);
     }
 
+    /**
+     * Q7 (R6): a REAL Kof target must never be reported as "unknown". `bench` and
+     * `profile` only RUN jvm|native|js, but `wasm`/`wasi`/`script`/`native.*`
+     * exist — the refusal must say so instead of denying the target exists.
+     *
+     * <p>Checked at the SOURCE-visible seam: any message produced for a real
+     * target must not contain "unknown target".
+     */
+    @Test
+    void realTargetsAreNeverReportedAsUnknown() throws Exception {
+        for (String t : java.util.List.of("wasm", "wasi", "script")) {
+            for (String cmd : java.util.List.of("bench", "profile")) {
+                java.util.List<String> args = cmd.equals("bench")
+                        ? java.util.List.of(cmd, "/nonexistent.kf", "--target", t)
+                        : java.util.List.of(cmd, "/nonexistent.kf", "--target", t);
+                java.util.List<String> full = new java.util.ArrayList<>();
+                full.add(Path.of(System.getProperty("java.home"), "bin", "java").toString());
+                full.add("-cp");
+                full.add(System.getProperty("java.class.path"));
+                full.add("dev.kof.cli.Main");
+                full.addAll(args);
+                Process p = new ProcessBuilder(full).redirectErrorStream(true).start();
+                String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+                p.waitFor();
+                assertFalse(out.contains("unknown target"),
+                        cmd + " --target " + t + " must not call a REAL target 'unknown':\n" + out);
+            }
+        }
+    }
+
+    @Test
+    void aGenuinelyUnknownTargetStillSaysUnknown() throws Exception {
+        java.util.List<String> full = java.util.List.of(
+                Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                "-cp", System.getProperty("java.class.path"),
+                "dev.kof.cli.Main", "bench", "/nonexistent.kf", "--target", "notatarget");
+        Process p = new ProcessBuilder(full).redirectErrorStream(true).start();
+        String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        p.waitFor();
+        assertTrue(out.contains("unknown target"), "a bogus name should still say unknown:\n" + out);
+    }
 }

@@ -61,10 +61,10 @@ public final class Main {
 
     private static void printUsage() {
         System.out.println("usage: kof <command>");
-        System.out.println("  build <dir|file.kf> [--target jvm|native|js|native.risc|native.arm|android] [--profile host|freestanding] [--output <dir>] [--release] [--apk] [--aab] [--min-sdk <n>] [--target-sdk <n>]");
-        System.out.println("  run <file.kf> [--target jvm|native|js|native.risc|native.arm|android] [--profile host|freestanding] [--backend <t>] [--frontend <t>] [--release] [--deps] [args...]");
+        System.out.println("  build <dir|file.kf> [--target jvm|native|js|native.risc|native.arm|android|wasm|wasi] [--profile host|freestanding] [--output <dir>] [--release] [--apk] [--aab] [--min-sdk <n>] [--target-sdk <n>]");
+        System.out.println("  run <file.kf> [--target jvm|native|js|script|native.risc|native.arm|android] [--profile host|freestanding] [--backend <t>] [--frontend <t>] [--release] [--deps] [args...]");
         System.out.println("  serve <file.kf> [--port <port>] [--host <host>] [--backend <t>] [--frontend <t>]");
-        System.out.println("  check <file.kf|dir> [--target <t>] [--json]   type-check without emitting output");
+        System.out.println("  check <file.kf|dir> [--target jvm|native|js|wasm|wasi] [--json]   type-check without emitting output");
         System.out.println("  md check|format <file.md>     Kofmd validate (non-zero exit on MDxxx) / canonical rewrite (JVM-first)");
         System.out.println("  script <file.ks|kf> [--target jvm|native|js]   direct KofScript execution (JVM/Native/JS, diagnostics with file:line)");
         System.out.println("  repl                         REPL incremental KofScript (type 'exit' to quit)");
@@ -90,6 +90,13 @@ public final class Main {
         System.out.println("  workflow <list|run> <file.kf> [--json] [--job <name>] [--dry-run]   run a pipeline (pipeline(): KofWfDag)");
         System.out.println("  editor <list|detect|status|setup|install|uninstall|update>   editor integration (EDI001)");
         System.out.println("  version");
+        System.out.println("  init [dir]                   scaffold a new Kof project (main.kf) in dir (default: .)");
+        System.out.println("  new <dir> [--type mono|backend|frontend|full-stack]   project from a template");
+        System.out.println("  fmt <file.kf|dir> [-w]       canonical source formatting (-w writes in place)");
+        System.out.println("  debug [--dap] [--attach <port|pid>] [--target jvm|native] [--break <line>]... [--output <dir>] <file.kf>   debugger");
+        System.out.println("  legacy <copybook> [varName]  COBOL copybook -> Kof source");
+        System.out.println("  makealive <plan|apply|destroy> <file.kf> [--state PATH] [--json] [--target jvm|js]");
+        System.out.println("  c <file.c> [--output <bin>] [--run] [--target x86_64|riscv64|aarch64]   compile a C subset to native ELF");
         System.out.println();
         System.out.println("note: the js target is in development (alpha); it runs on Kof's embedded JS engine");
     }

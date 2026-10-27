@@ -16,7 +16,7 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Phase D of {@code docs/development/assembly-optimization-plan.md} §735: "each
+ * Phase D of {@code docs/assembly-optimization-plan.md} §735: "each
  * backend must explicitly declare which operations it supports." This guards the
  * {@link NativeOpSupport#X86_64} declaration against the emitter: it must match the
  * switch's cases EXACTLY (no unhandled declaration, no undeclared case), and it

@@ -13,7 +13,7 @@ import java.util.TreeMap;
 
 /**
  * Per-method register-placement driver (Phase D of
- * {@code docs/development/assembly-optimization-plan.md}; decision
+ * {@code docs/assembly-optimization-plan.md}; decision
  * {@code D-CODEGEN-REWRITE}, maintainer 13/10).
  *
  * <p>Chains the Phase C analyses and the Phase D mapping for one method: build

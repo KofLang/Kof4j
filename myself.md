@@ -2,11 +2,121 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 19/10 — 3bd 138ª PASSAGEM: a janela do §754 fixada nos bits 357..370 e TODAS as tabelas/contextos nela auditados contra as fontes buscadas do libaom (partition_cdf_length, contexto de partição, skip, delta-Q/LF, contexto/store/extensão da paleta, is_cfl_allowed, adaptação in-place) — TODOS coincidem. Spans: y-mode do bloco 1 em 361 = 9 (SMOOTH), corpo termina em 365, tx size + 16 all_zero = 365..370, tile para 190 bits antes (370/560). Suspeito restante: uma tabela de CDF DEFAULT (kf_y, uv_mode, paleta modo/tamanho, tx_size, txb_skip).
-doing: §3bd — §754 com a janela e as tabelas auditadas; falta a comparação das CDFs default entrada-a-entrada
-next: §3bd — comparar kf_y_cdf/uv_mode_cdf/palette mode-size/tx_size_cdf/txb_skip_cdf entrada a entrada entre o entropymode.c buscado e Av1ModeCdf/Av1CoeffCdf
+last: 20/10 — 157ª PASSAGEM: **§760 CAUSA-RAIZ CORRIGIDA** — a caminhada do tile nunca lia os coeficientes de LOOP-RESTORATION por SUPERBLOCO (o libaom lê-os ANTES de cada símbolo de partição; todas as fixtures `-cpu-used 0` põem `lr_type = WIENER`), logo o tile inteiro era descodificado 16 bits fora de fase. Prova de referência: descodificador libaom REAL construído nesta passagem (cmake 3.28.3 + `decodeframe.c` instrumentado, tip 9440aeedd) — `DPART tell=1` -> `LR plane=0 type=2` -> `LRDONE tell=16` -> `GATHER tell=16` -> `PART mi=0,0 bs=15 p=3 tell=18`, 107 registos PART/MI até ao bit ~7300 de 7368; bytes do tile idênticos dos dois lados (`TILEINIT size=921 first=ff f8 2d 49 61 18`). Antes disso, a caminhada de níveis do b3 (69 eventos) foi validada símbolo a símbolo contra as funções de contexto do próprio libaom (`get_lower_levels_ctx_eob`/`_2d`, `get_br_ctx`, `token_cdfs.h`) — ctx/símbolo/estado iguais — logo a caminhada de coeficientes nunca foi a culpa.
+doing: §760 CORRIGIDO: `Av1Restoration` (subexpfin/quniform/inv_recenter, `read_wiener_filter`, `read_sgrproj_filter`, geometria das unidades do SB, CDFs adaptadas do tile, referências por plano) + `AvifFrameHeader` guarda `lr_params` + `Av1Partition` lê as unidades de cada SB antes da partição. 128x64 cu0 585/7368 -> **7368/7368** (64 blocos, txb=512/nz=512, árvore == referência, `TILEY 17/234`); 192x64 2 tiles 4632/11296 -> **11296/11296**; testes 7/7 (AvifFullPlaneE2ETest), 8/8 (AvifRealFileE2ETest), 2/2 (Av1DecodeTileReconE2ETest), 11/11 (AvifScreenContentGeoE2ETest), Av1PartitionReadE2ETest 2/2
+next: §760 restante: APLICAR Wiener/SGRPROJ aos planos reconstruídos (são lidos, não aplicados) e re-medir contra o ffmpeg; corrigir o defeito medido do caminho GATHER (CDF default vs adaptada — registado no `known-bugs` §760); re-incluir o caso 2 do §761. Caveat medido: `AvifSeqE2ETest#seqRefusalsAreHonest` está VERMELHO já na árvore limpa (golden obsoleto do film-grain do 140º passe; NÃO é regressão desta passagem).
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 19/10 (156ª) — §760: cadeia validada até ao EOB do bloco 3
+- **TÉCNICA:** comparar `range/value/bitPos` (Kof) com `rng/dif>>16/tell` (libaom) nas entradas de bloco e símbolos escolhidos.
+- **5 bugs do harness:** adaptação, txb_skip do b1, linha uv, ângulo Y (linha+leitura), paleta condicional aos modos DC.
+- **VALIDADO:** b0..b3 símbolo a símbolo; b3 = TX_16X64 com EOB eobPt=7 extra=9; Kof correcto.
+- **SEM MUDANÇA NO KOF** nesta passagem (só docs); SHA no commit.
+
+## Sessão 19/10 (155ª) — §760: cadeia do oráculo até ao b3 + fix do cfg.sbSize
+- **SHA:** a registar no commit desta passagem.
+- **ORÁCULO:** harness em /tmp/aomo (clone libaom 9440aeedd); cadeia sym7/sym8/sym9; 3 correcções do harness (adaptação, coeficientes do b1, uv(0,6)).
+- **FACTOS:** cadeia == Kof nos blocos 0..3 até ao y; adaptação txb_skip exacta; divergência candidata no uv do b3.
+- **FIX:** probe `Av1ModeTail(av1SuperblockSize(seq.use128x128Superblock), ...)`; AvifFullPlane 7/7.
+
+## Sessão 19/10 (154ª) — §760 família CU0: superbloco 128 corrigido + oráculo libaom construído
+- **SHA:** a registar no commit desta passagem.
+- **FIX:** `use_128x128_superblock` honrado pela caminhada (`av1SuperblockSize`, `walkTileSb`, `setSuperblockSize` no driver/chroma, `Partition_Subsize` 128x128).
+- **ORÁCULO:** harness C mínimo + clone libaom (tip 9440aeedd) — primeira cadeia de símbolos validada 1:1 (partição reunida, partição, skip, y, uv, palette, filter-intra, tx-size).
+- **MEDIÇÕES:** 128x64 cu0 704->585; 2 tiles 4632->4513; skipped 30->30 (zero bits); 64-superbloco 11400/11400 intacto.
+- **PRÓXIMO:** bloco 1 skip (Kof 0 vs libaom 1 na cadeia) — estender o oráculo símbolo a símbolo.
+
+## Sessão 19/10 (153ª) — §760 TX_16X64: reprodutor mínimo + auditoria limpa
+- **SHA:** a registar no commit desta passagem.
+- **REPRODUTOR:** `avif_enc_nopal_128x64_cu0.avif` + `AvifFullPlaneE2ETest#cu0SingleTileStreamRecordsTheTx16x64Divergence` (gravado, não correcto).
+- **AUDITORIA:** contextos 102/102, scan 512/512, EOB/partição == libaom, modo-CDF verde, payload certo.
+- **PARADOXO:** referência xadrez vs Kof plano no 1º bloco ⇒ o alvo é o primeiro par partição/skip; instrumento = oráculo §761.
+
+## Sessão 19/10 (152ª) — §760 caminho skip corrigido + §761 catalogado
+- **SHA:** `53fa866e1` (push 0/0).
+- **FIX:** guarda `skip_txfm=1` na luma e nos dois planos de chroma (sem coeficientes, resíduo zero, reset de contextos).
+- **PROVA:** `AvifFullPlaneE2ETest#skippedBlockReadsNoCoefficientSymbols` (stream real, RED-first 34→528 ⇒ 34→34; controlo `t1:b32/txb256/nz256`).
+- **HARNESS:** probe com contextos de chroma por tile (o `Av1ChromaPlanes` compartilhado mascarava a anomalia); diag VRES com índices clampados por largura E altura (16x4/4x16).
+- **§761:** golden do tile-recon caso 2 é não-conforme (caracteriza o harness) → excluído por nome; próximo = rebuild do oráculo.
+
+## Sessão 19/10 (151ª) — §760: disponibilidade tile-relative CORRIGIDA + nível -442 retractado
+- **PROVA:** `AvifFullPlaneE2ETest#paletteFreeMultiTileStreamDecodesItsWholePayload` (fixture novo, 11400/11400 bits e plano == ffmpeg); foco AVIF 27/27 verde (full-plane 5/5, geo 11/11, real-file 8/8, chroma/tile-recon/cdef/film-grain).
+- **RETRACÇÕES:** nível `-442` (instalação de probe obsoleta) e o "consumo exacto" do stream com paleta (instrumento SATURA; medido corrompendo a cauda).
+- **MÉTODO:** payload do tile 1 é byte-idêntico ao crop standalone; forçar a origem (0,0) reproduziu o trace standalone EXACTO (6291 símbolos) — a localização veio dessa comparação.
+- **PRÓXIMO:** skip_txfm=1 e TX_16X64 (ver `next`).
+
+## Sessão 18/10 (150ª) — 3bd: nível DC isolado
+- **SHA:** `5599f4d06` (push 0/0).
+- **NÚMEROS:** p=128, nível -442, r=64; referência Y=71 ⇒ nível ~-394.
+- **EXONERADO:** tabelas de quantização 8-bit exactas.
+- **ALVO:** coeff_base/br do DC; contexto do coeff_br suspeito.
+
+## Sessão 18/10 (149ª) — 3bd: correção do EOB + alvo mínimo
+- **SHA:** `e9a59fec1` (push 0/0).
+- **CORREÇÃO:** o EOB de 11 vias é válido para 32x32 e 64x64; suspeita retirada.
+- **ALVO:** ffmpeg Y=71 plano, U=V=128; Kof Y=64 (7 de erro, um bloco, um DC).
+- **PRÓXIMO:** predição/DC desquantizado/valor do bloco único.
+
+## Sessão 18/10 (148ª) — 3bd: trace do bloco + bytes
+- **SHA:** `630e90f12` (push 0/0).
+- **TRACEL:** 34 símbolos; EOB 11:0@22 (classe 0), paragem em 49-50.
+- **BYTES:** prefixo comum 03ce15df… nos dois tiles; tile 0 completo, tile 1 a meio.
+- **LEITURA:** a paragem não é dependente de valor no início; falta sintaxe depois (chroma).
+
+## Sessão 18/10 (147ª) — 3bd: §760 localizado num bloco
+- **SHA:** `463741c41` (push 0/0).
+- **MEDIDO:** m_s64 tile0 104/104 exacto; tile1 49/96.
+- **EXCLUÍDO:** divisão/leitor de tiles, primeiro tile, modo/tx (m_solid 8/8).
+- **ALVO:** eob/all_zero do bloco com resíduo pequeno.
+
+## Sessão 18/10 (146ª) — 3bd: progressão do resíduo (§760)
+- **SHA:** `3724c7f1a` (push 0/0).
+- **MEDIDO:** plano 24/24; só DC 153/200; rampa 340/1512; xadrez 7283/23888.
+- **SUSPEITO ÚNICO:** o caminho dos coeficientes; o skip/all_zero está são.
+- **MENOR CASO:** m_s64/m_s200 (um DC, 153/200).
+
+## Sessão 18/10 (145ª) — 3bd: matriz de features, paleta isolada (§760)
+- **SHA:** `2d46be927` (push 0/0).
+- **MATRIZ:** paleta ON = 2376/2376 exacto; paleta OFF = ~30% (7283/23888) em todas as variantes.
+- **CDEF/lossless/qualidade:** não são o interruptor; restoration/intrabc já estavam off.
+- **NOVO:** §760 catalogado; cobertura não é sincronia.
+
+## Sessão 18/10 (144ª) — 3bd: guardas do nopal + medição
+- **SHA:** `e120dd76c` (push 0/0).
+- **FIX:** limite por tile do `palInfos` + índice da config CDEF.
+- **MEDIDO:** `blocks=77 ... symBits=7283 payloadBits=23888`; CDEF 46/46 vs 0/0 da base.
+- **PRÓXIMO:** isolar a dessincronização sem paleta com encodes CDEF off/on.
+
+## Sessão 18/10 (143ª) — 3bd: §759 (tile size LITTLE-endian) corrigido
+- **SHA:** `44021467b` (push 0/0).
+- **CAUSA:** leitura big-endian de `tile_size_minus_1 le(TileSizeBytes)`.
+- **FIX:** acumulação LE em `AvifGroup.kf`; base de 1 byte inalterada.
+- **PROVA:** `sizes 2 1981 1005` no nopal; RED-first era `truncated avif tile group`.
+
+## Sessão 18/10 (142ª) — 3bd: variantes do reprodutor (§757/§759)
+- **SHA:** `e37050a52` (push 0/0).
+- **BASE:** `-tiles 2x1` byte-idêntica ao fixture; divergência confirmada.
+- **§759:** `-enable-palette 0` → `truncated avif tile group` (ffmpeg decodifica).
+- **SEM TILES:** apply_grain=1 (a guarda fiel recusa, correcto).
+
+## Sessão 18/10 (141ª) — 3bd: TD opcional + reprodutor controlado (§757)
+- **SHA:** `1fdad2b00` (push 0/0).
+- **LANDADO:** `avifItemObus` aceita um item sem delimitador temporal (OBUs validados).
+- **PROVA:** `AvifFullPlaneE2ETest#encodedLibaomStreamDecodesItsWholePayload` (2376/2376) — RED-first era a recusa antiga.
+- **ACHADO §757:** planos divergentes do ffmpeg no stream controlado; próximo passo = variações do encoder.
+
+## Sessão 18/10 (140ª) — 3bd: film grain + reprodutor controlado
+- **SHA:** `2f5af376e` (push 0/0).
+- **LANDADO:** `AvifSeqHeader.filmGrainPresent`, `showable_frame`, `apply_grain` (recusa só quando aplicado).
+- **PROVA:** `AvifEncodedFilmGrainE2ETest` (RED-first) com um AVIF real do ffmpeg/libaom; 29/29 no batch.
+- **CAVEAT:** a comparação de plano inteiro do stream controlado usa um wrap fiel do item (próximo passo).
+
+## Sessão 18/10 (139ª) — 3bd: CDFs default exoneradas
+- **SHA:** `6266cf130` (push 0/0).
+- **AUDITADAS:** 13 tabelas da janela contra o entropymode.c/token_cdfs.h buscados — zero diferenças.
+- **RESTA:** selecção/estado (lookup + posição do leitor pós-mapa de cor).
+- **REPRODUTOR:** ffmpeg codifica AVIF; film-grain do libaom e o grupo do rav1e precisam de tratamento.
 
 ## Sessão 18/10 (138ª) — 3bd: janela do §754 e auditoria das tabelas
 - **SHA:** `ba96c19c1` (push 0/0).
@@ -816,7 +926,7 @@ state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (u
 
 ## O que EU sou
 - lane pipeline/image-vision — identidade honesta `owner = 192.168.15.21:0` (flatt CLI, NÃO opencode; não há listener opencode neste host — porta anotada como `0`/n/a conforme a regra de nunca-inventar).
-- frente ativa: `docs/development/image-vision-plan.md` — a cadeia de decode AVIF/AV1 em Kof puro (`libs/image/`).
+- frente ativa: `docs/image-vision-plan.md` — a cadeia de decode AVIF/AV1 em Kof puro (`libs/image/`).
 
 ## Trabalho pousado nesta sessão
 

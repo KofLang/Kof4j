@@ -3,6 +3,7 @@ package image
 import image.Avif
 import image.AvifItems
 import image.AvifSeq
+import image.Av1Restoration
 
 // kof.image — AV1 frame header prefix walk, slices 2d/2e/2l of the AVIF
 // front (plan §34). The bit widths and branch structure are quoted from the
@@ -69,7 +70,9 @@ record AvifFrameHeader(Int frameType, Bool showFrame, Bool errorResilient,
                       Int deltaLfPresent, Int deltaLfRes, Int deltaLfMulti,
                       Int segEnabled, Int[] segAltQ, List<Int> quantDeltas,
                       Int cdefDamping, List<Int> cdefYStrengths,
-                      List<Int> cdefUvStrengths)
+                      List<Int> cdefUvStrengths,
+                      Int lrTypeY, Int lrTypeU, Int lrTypeV,
+                      Int lrUnitSize0, Int lrUnitSize1)
 
 AvifFrameHeader readAvifFrameHeader(String path) {
     var bytes = File(path).readRange(0, 65536)
@@ -80,7 +83,7 @@ AvifFrameHeader readAvifFrameHeader(String path) {
 AvifFrameHeader avifItemFrameHeader(Int[] item) {
     var seq = AvifSeqHeader(0, false, false, 0, 0, false, false, false, 8, 0,
                             false, false, false, false, false, false, 2, 2, 0, 0, 0, 0, 0,
-                            false, false, false, false)
+                            false, false, false, false, false)
     var haveSeq = false
     var pos = 0
     var n = item.length
@@ -150,6 +153,7 @@ AvifFrameHeader frameWalk(Int[] b, Int p, Int limit, AvifSeqHeader seq) {
     }
     var frameType = 0
     var showFrame = 1
+    var showableFrame = 0
     var errorResilient = 1
     if (reduced == 0) {
         if (seqRead(b, bits, 1) == 1) {
@@ -163,8 +167,13 @@ AvifFrameHeader frameWalk(Int[] b, Int p, Int limit, AvifSeqHeader seq) {
         }
         showFrame = seqRead(b, bits, 1)
         bits = bits + 1
+        // showable_frame: read when show_frame is 0, else
+        // `frame_type != KEY_FRAME` (libaom's uncompressed_header).
         if (showFrame == 0) {
+            if (seqRead(b, bits, 1) == 1) { showableFrame = 1 }
             bits = bits + 1
+        } else {
+            if (frameType != 0) { showableFrame = 1 }
         }
         if (frameType == 0 && showFrame == 1) {
             errorResilient = 1
@@ -267,7 +276,9 @@ AvifFrameHeader frameWalk(Int[] b, Int p, Int limit, AvifSeqHeader seq) {
     if (seq.monochrome) {
         numPlanes = 1
     }
-    var tail = frameTailWalk(b, bits, limit, seq, allowSct, allowIntrabc, numPlanes)
+    var filmReadable = 0
+    if (showFrame == 1 || showableFrame == 1) { filmReadable = 1 }
+    var tail = frameTailWalk(b, bits, limit, seq, allowSct, allowIntrabc, numPlanes, filmReadable)
     bits = tail[0]
     var hb = bits
     while ((hb & 7) != 0) {
@@ -287,7 +298,8 @@ AvifFrameHeader frameWalk(Int[] b, Int p, Int limit, AvifSeqHeader seq) {
                            tail[7], tail[8], tail[9], tail[10], tail[11],
                            tail[12], segAltQOut(tail),
                            listOf(tail[21], tail[22], tail[23], tail[24], tail[25], tail[26]),
-                           tail[27], avifCdefStrengths(tail, 28), avifCdefStrengths(tail, 36))
+                           tail[27], avifCdefStrengths(tail, 28), avifCdefStrengths(tail, 36),
+                           tail[44], tail[45], tail[46], tail[47], tail[48])
 }
 
 // The `1 << cdef_bits` packed CDEF strengths of one plane type: the frame
@@ -326,7 +338,8 @@ Int[] segAltQOut(Int[] tail) {
 }
 
 Int[] frameTailWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq,
-                    Int allowSct, Int allowIntrabc, Int numPlanes) {
+                    Int allowSct, Int allowIntrabc, Int numPlanes,
+                    Int filmReadable) {
     var separateUv = 0
     if (seq.separateUvDeltaQ) {
         separateUv = 1
@@ -537,7 +550,13 @@ Int[] frameTailWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq,
             c = c + 1
         }
     }
-    // lr_params() (skipped when AllLossless || allow_intrabc || !enable_restoration)
+    // lr_params() (skipped when AllLossless || allow_intrabc || !enable_restoration).
+    // The values are KEPT: the tile walk must read a restoration unit's
+    // coefficients at the start of every superblock (libaom
+    // `decode_partition` -> `loop_restoration_read_sb_coeffs`), and the unit
+    // geometry is what decides which units a superblock covers.
+    var lrTypeOut = listOf(0, 0, 0)
+    var lrUnitSizeOut = listOf(0, 0)
     if (codedLossless == 0 && allowIntrabc == 0 && seq.enableRestoration) {
         var usesLr = 0
         var usesChromaLr = 0
@@ -545,6 +564,7 @@ Int[] frameTailWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq,
         while (p < numPlanes) {
             var lr = seqRead(b, bits, 2)
             bits = bits + 2
+            lrTypeOut.set(p, av1LrTypeFromBits(lr))
             if (lr != 0) {
                 usesLr = 1
                 if (p > 0) {
@@ -554,18 +574,43 @@ Int[] frameTailWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq,
             p = p + 1
         }
         if (usesLr == 1) {
+            // decode_restoration_mode: the unit starts at the superblock size
+            // and grows by the coded shifts (128: one shift; 64: a second one
+            // only when the first was set).
+            var unitSize = 64
+            if (seq.use128x128Superblock) {
+                unitSize = 128
+            }
             var lrUnitShift = seqRead(b, bits, 1)
             bits = bits + 1
             if (seq.use128x128Superblock) {
-                // shift is unconditional; nothing else is read here
+                unitSize = unitSize << lrUnitShift
             } else {
                 if (lrUnitShift != 0) {
+                    unitSize = unitSize * 2
+                    var more = seqRead(b, bits, 1)
                     bits = bits + 1
+                    if (more != 0) {
+                        unitSize = unitSize * 2
+                    }
                 }
             }
-            if (seq.subsamplingX && seq.subsamplingY && usesChromaLr == 1) {
-                bits = bits + 1
+            var unit1 = unitSize
+            if (numPlanes > 1) {
+                var s = seq.subsamplingX
+                if (seq.subsamplingY < s) {
+                    s = seq.subsamplingY
+                }
+                if (s == 1 && usesChromaLr == 1) {
+                    var uvShift = seqRead(b, bits, 1)
+                    bits = bits + 1
+                    if (uvShift != 0) {
+                        unit1 = unitSize >> s
+                    }
+                }
             }
+            lrUnitSizeOut.set(0, unitSize)
+            lrUnitSizeOut.set(1, unit1)
         }
     }
     // read_tx_mode(): tx_mode_select is present only when not CodedLossless;
@@ -578,6 +623,16 @@ Int[] frameTailWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq,
     // reduced_tx_set (frame_reference_mode/skip_mode_params inferred for intra)
     var reducedTxSet = seqRead(b, bits, 1)
     bits = bits + 1
+    // film_grain_params(): the FIRST bit is apply_grain; when it is 0 the
+    // parameters end there (libaom memsets and returns). Only an actually
+    // APPLIED grain is refused — the sequence flag alone is not a gap.
+    if (seq.filmGrainPresent == true && filmReadable == 1) {
+        var applyGrain = seqRead(b, bits, 1)
+        bits = bits + 1
+        if (applyGrain == 1) {
+            throw "IMAGE: avif film grain not covered"
+        }
+    }
     if (bits > limit * 8) {
         throw "IMAGE: truncated avif frame header"
     }
@@ -589,13 +644,18 @@ Int[] frameTailWalk(Int[] b, Int bits, Int limit, AvifSeqHeader seq,
     // the per-segment qindex offset (`qIndex = baseQ + segAltQ[seg]`). Parsed
     // here but never surfaced before — the driver took the segEnabled==0 branch
     // and the stream desynced.
-    var out = new Int[44]
+    var out = new Int[49]
     var qi = 0
     while (qi < 6) {
         out[21 + qi] = qd.get(qi)
         qi = qi + 1
     }
     out[27] = cdefDampingOut
+    out[44] = lrTypeOut.get(0)
+    out[45] = lrTypeOut.get(1)
+    out[46] = lrTypeOut.get(2)
+    out[47] = lrUnitSizeOut.get(0)
+    out[48] = lrUnitSizeOut.get(1)
     var ci = 0
     while (ci < 8) {
         out[28 + ci] = cdefYOut[ci]

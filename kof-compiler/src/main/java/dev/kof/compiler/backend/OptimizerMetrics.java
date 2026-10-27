@@ -13,7 +13,7 @@ import java.util.List;
 
 /**
  * Before/after metric comparison for the optimization pipeline (Phase F/§17 of
- * {@code docs/development/assembly-optimization-plan.md}).
+ * {@code docs/assembly-optimization-plan.md}).
  *
  * <p>§17 requires every relevant optimization to have a "before/after
  * comparison" — measured, not asserted ("the goal is to avoid cosmetic

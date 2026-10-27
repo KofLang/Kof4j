@@ -11,7 +11,7 @@
 > not a pending item of this vision.
 
 **Last updated:** September 12, 2026
-**Version:** 0.6.4
+**Version:** 0.6.7
 **Status:** Levels 0-2 and 4 implemented (`kof.db` + `kof.orm`, 0.4.0-beta):
 `entity` (schema in the language), `orm.create/save/saveAll/find/all/where/
 where-op/delete/deleteAll/count/count-filtrado/page/migrate` (JDBC on the JVM:
@@ -19,7 +19,7 @@ H2, MySQL, MariaDB, PostgreSQL, SQLite; record mappings; versioned
 migrations) + **MongoDB**; native SQLite via `libsqlite3.so.0` directly
 (real E2E roundtrip); native MySQL/MariaDB via wire protocol in progress
 (auth scramble SHA-1 `kof_db_mysql_scramble` + `lenenc` + parse `user:pass@`
-done; full handshake/query/prepared pending); `VERSION` 0.6.4;
+done; full handshake/query/prepared pending); `VERSION` 0.6.7;
 build 3225 tests.
 
 ---

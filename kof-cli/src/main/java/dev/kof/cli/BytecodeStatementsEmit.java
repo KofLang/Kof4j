@@ -140,9 +140,16 @@ final class BytecodeStatementsEmit {
                 // semantica por-target e do COMPILADOR, corrigida no §698)
                 // Fase C (13/10): CONVERSOES primitivas (0x85-0x90) — Int/Long/
                 // Float/Double via .toInt()/.toLong()/.toFloat()/.toDouble()
-                // (medido: os unicos conversores de primitivo do Kof). 0x91-0x93
-                // (i2b/i2c/i2s) NAO tem equivalente Kof -> seguem recusados.
-                case 0x85, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8d, 0x8e, 0x8f, 0x90 -> {
+                // Fase E (22/10): o NARROWING 0x91-0x93 (i2b/i2c/i2s) — o
+                // §695/#471 deu ao Kof `as Byte`/`as Short`/`as Char` a
+                // semantica fiel do Java (o JVM emite i2b/i2s/i2c reais; o
+                // x86 e o riscv idem). O comentario antigo de "sem
+                // equivalente" descrevia o codigo PRE-§695 — a recusa
+                // reprovava o metodo inteiro (medido: o t1 do Micro6, o
+                // shiftChar do Cipher: `int pos = c - 'a';
+                // return (char) ('a' + pos);` = emitLinear-null:0x92).
+                case 0x85, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8d, 0x8e, 0x8f, 0x90,
+                     0x91, 0x92, 0x93 -> {
                     if (!BytecodeDecoderStack.conv(stack, op)) { refuse(opcodeTag); return null; }
                 }
                 // Fase E (14/10): BITWISE (0x7e-0x83) — & | ^ p/ Int/Long

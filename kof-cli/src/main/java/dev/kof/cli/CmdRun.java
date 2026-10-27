@@ -369,6 +369,21 @@ final class CmdRun {
             return;
         }
 
+        // Q7 honest-early-refusal, same pattern as CmdTest/CmdScript: WASM/WASI
+        // emit a module, not something this runner can execute. MEASURED before
+        // the guard: both fell through to the JVM class lookup and printed the
+        // bare "no main class found" — a message that names no cause at all.
+        if (target == Target.WASM || target == Target.WASI) {
+            String name = target == Target.WASM ? "wasm" : "wasi";
+            System.err.println("run: --target " + name
+                    + " cannot be executed by 'kof run' (it emits a WASI/WASM module,"
+                    + " not a runnable artifact); use 'kof build --target " + name
+                    + "' and run the module with a WASI runtime (e.g. wasmtime)");
+            KofCliSupport.cleanup(tempDir);
+            System.exit(1);
+            return;
+        }
+
         // Target nativo: executa o ELF produzido — não há classes JVM aqui
         if (target == Target.NATIVE) {
             Path bin = tempDir.resolve("Default/Main");

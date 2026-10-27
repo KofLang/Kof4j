@@ -123,6 +123,7 @@ final class BytecodeStatements {
         }
         skipFirst = null;   // por-método: nenhum skip vaza entre corpos
         currentLoopExit = -1;
+        BytecodeStatementsRecover.resetDoWhile();   // por-método (Fase E 22/10: o bottom-tested)
         builderSlots = new HashSet<>();
         BytecodeKofTypes.resetArrTmps();
         if (skipCount == null) skipCount = new HashMap<>();

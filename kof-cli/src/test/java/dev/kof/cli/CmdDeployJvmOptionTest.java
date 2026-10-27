@@ -81,4 +81,30 @@ class CmdDeployJvmOptionTest {
         assertTrue(c.out().contains("--jvm-option only applies to --target jvm"),
                 "a recusa e NOMEADA, nunca silenciosa:\n" + c.out());
     }
+
+    @Test
+    void scriptTargetRefusesHonestlyBeforeCompiling(@TempDir Path dir) throws Exception {
+        // MEASURED before the guard: `deploy --target script` fell through to the
+        // compile and surfaced a raw COMP003 "emits no artifacts" — the same
+        // phantom failure the other commands refuse up front. It must name the
+        // reason and point at the real route instead.
+        writeDeployApp(dir);
+        Cli c = cli(dir, "deploy", "src", "--target", "script", "--name", "app",
+                "--version", "1.0.0", "--output", "dist");
+        assertNotEquals(0, c.exit(), "script nao emite artefatos:\n" + c.out());
+        assertTrue(c.out().contains("--target script emits no artifacts"),
+                "a recusa e NOMEADA:\n" + c.out());
+        assertTrue(c.out().contains("kof run --target script"),
+                "aponta a rota real:\n" + c.out());
+        assertFalse(c.out().contains("COMP003"),
+                "nao vaza o codigo interno de emissao:\n" + c.out());
+    }
+
+    @Test
+    void jvmTargetStillDeploys(@TempDir Path dir) throws Exception {
+        writeDeployApp(dir);
+        Cli c = cli(dir, "deploy", "src", "--target", "jvm", "--name", "app",
+                "--version", "1.0.0", "--output", "dist");
+        assertEquals(0, c.exit(), "jvm deve continuar empacotando:\n" + c.out());
+    }
 }

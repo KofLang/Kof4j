@@ -200,8 +200,13 @@ final class NativeMethodEmitter {
                         || lv.name().startsWith("cap") || lv.name().startsWith("lambda$")) {
                     continue; // temporarios do lowering nao sao nome Kof
                 }
+                // §19: a register-placed local is described by its register,
+                // not by a frame slot the register model never writes.
+                String placed = regOf(lv.index());
+                Integer regNumber = placed == null ? null : NativeDwarf.dwarfRegNumber(placed);
                 NativeDwarf.Local slot = new NativeDwarf.Local(lv.name(),
-                        NativeDwarf.slotOffset(lv.index()), NativeDwarf.dwarfKindOf(lv.type()));
+                        NativeDwarf.slotOffset(lv.index()), NativeDwarf.dwarfKindOf(lv.type()),
+                        regNumber);
                 if (lv.index() < paramSlotMax) {
                     params.add(slot);
                 } else {
@@ -429,7 +434,7 @@ final class NativeMethodEmitter {
                 sb.append("    call kof_throw_string\n");
             }
             default -> {
-                // Phase D contract (docs/development/assembly-optimization-plan.md):
+                // Phase D contract (docs/assembly-optimization-plan.md):
                 // the emitter lowers exactly NativeOpSupport.X86_64; the switch's
                 // cases are its materialization (drift is caught by
                 // NativeOpSupportTest BEFORE this can run). R6: never silent.

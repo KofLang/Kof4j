@@ -236,31 +236,58 @@ final class JvmFfiRuntime {
                 // D6-1(A)/3.8b: layout FFM de um `record` Kof com campos escalares
                 // (numérico/bool). O struct atravessa POR VALOR (o Linker classifica
                 // pela StructLayout) — sem refatorar a ABI escalar.
+                // §762: o offset C do k-esimo campo, calculado pela MESMA regra do
+                // layout (alinhamento por membro). Nao da para usar
+                // PathElement.groupElement(k) porque o layout agora carrega membros
+                // de PADDING explicitos — o grupo k deixaria de ser o campo k.
+                static long kof_ffi_field_offset(java.lang.reflect.RecordComponent[] cs, int k) {
+                    long off = 0;
+                    for (int i = 0; i <= k; i++) {
+                        java.lang.foreign.MemoryLayout m = kof_ffi_field_layout(cs[i].getType());
+                        long a = m.byteAlignment();
+                        long gap = java.lang.Math.floorMod(-off, a);
+                        off += gap;
+                        if (i == k) return off;
+                        off += m.byteSize();
+                    }
+                    return off;
+                }
+
                 static java.lang.foreign.StructLayout kof_ffi_struct_layout(Object rec) {
                     return kof_ffi_struct_layout_of(rec.getClass());
                 }
 
                 static java.lang.foreign.StructLayout kof_ffi_struct_layout_of(Class<?> cls) {
                     java.lang.reflect.RecordComponent[] cs = cls.getRecordComponents();
-                    java.lang.foreign.MemoryLayout[] ls =
-                            new java.lang.foreign.MemoryLayout[cs.length];
-                    for (int k = 0; k < cs.length; k++) {
-                        ls[k] = kof_ffi_field_layout(cs[k].getType());
+                    // §762: a ABI C paddinga o struct em DOIS lugares — ENTRE os
+                    // campos (cada membro começa no múltiplo do seu alinhamento;
+                    // ex. {_Bool,int} põe o int em 4) e na CAUDA (até o alinhamento
+                    // do maior membro). O FFM exige o layout com os offsets/size
+                    // exatos, então os dois paddings entram EXPLÍCITOS. Sem o
+                    // interno, `MemoryLayout.structLayout` rejeita i1 seguido de i4
+                    // ("Invalid alignment constraint").
+                    java.util.List<java.lang.foreign.MemoryLayout> lp =
+                            new java.util.ArrayList<>(cs.length + 2);
+                    long off = 0;
+                    long align = 1;
+                    for (java.lang.reflect.RecordComponent c : cs) {
+                        java.lang.foreign.MemoryLayout m = kof_ffi_field_layout(c.getType());
+                        long a = m.byteAlignment();
+                        long gap = java.lang.Math.floorMod(-off, a);
+                        if (gap > 0) {
+                            lp.add(java.lang.foreign.MemoryLayout.paddingLayout(gap));
+                            off += gap;
+                        }
+                        lp.add(m);
+                        off += m.byteSize();
+                        if (a > align) align = a;
                     }
-                    java.lang.foreign.StructLayout sl =
-                            java.lang.foreign.MemoryLayout.structLayout(ls);
-                    // A ABI C paddinga o struct até o alinhamento do maior membro;
-                    // o FFM exige que o layout tenha esse tamanho exato (ex.
-                    // {double,int} = 16, não 12). Fecha com padding explícito.
-                    long align = sl.byteAlignment();
-                    long size = sl.byteSize();
-                    long padded = (size + align - 1) / align * align;
-                    if (padded == size) return sl;
-                    java.lang.foreign.MemoryLayout[] lp =
-                            new java.lang.foreign.MemoryLayout[ls.length + 1];
-                    System.arraycopy(ls, 0, lp, 0, ls.length);
-                    lp[ls.length] = java.lang.foreign.MemoryLayout.paddingLayout(padded - size);
-                    return java.lang.foreign.MemoryLayout.structLayout(lp);
+                    long padded = (off + align - 1) / align * align;
+                    if (padded > off) {
+                        lp.add(java.lang.foreign.MemoryLayout.paddingLayout(padded - off));
+                    }
+                    return java.lang.foreign.MemoryLayout.structLayout(
+                            lp.toArray(new java.lang.foreign.MemoryLayout[0]));
                 }
 
                 // 3.8b fatia 2: lê o struct devolvido POR VALOR e reconstrói o
@@ -274,8 +301,7 @@ final class JvmFfiRuntime {
                     Object[] vals = new Object[cs.length];
                     for (int k = 0; k < cs.length; k++) {
                         types[k] = cs[k].getType();
-                        long off = sl.byteOffset(
-                                java.lang.foreign.MemoryLayout.PathElement.groupElement(k));
+                        long off = kof_ffi_field_offset(cs, k);   // §762
                         vals[k] = kof_ffi_read_field(seg, off, types[k]);
                     }
                     java.lang.reflect.Constructor<?> ctor = cls.getDeclaredConstructor(types);
@@ -317,7 +343,7 @@ final class JvmFfiRuntime {
                     java.lang.reflect.RecordComponent[] cs = rec.getClass().getRecordComponents();
                     for (int k = 0; k < cs.length; k++) {
                         Object v = cs[k].getAccessor().invoke(rec);
-                        long off = sl.byteOffset(java.lang.foreign.MemoryLayout.PathElement.groupElement(k));
+                        long off = kof_ffi_field_offset(cs, k);
                         Class<?> t = cs[k].getType();
                         if (t == int.class || t == Integer.class) {
                             seg.set(java.lang.foreign.ValueLayout.JAVA_INT, off, ((Integer) v).intValue());

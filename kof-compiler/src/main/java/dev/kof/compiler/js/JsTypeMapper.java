@@ -20,7 +20,7 @@ public final class JsTypeMapper {
             "for", "switch", "case", "default", "break", "continue", "new", "delete", "typeof",
             "instanceof", "in", "try", "catch", "finally", "throw", "this", "super", "null",
             "true", "false", "void", "static", "extends", "import", "export", "yield", "await",
-            "async", "of", "arguments", "eval");
+            "async", "of", "arguments", "eval", "with", "debugger");
 
     static Type listElementType(Type listType) {
         if (listType instanceof Type.ClassType ct && !ct.typeArguments().isEmpty()) {

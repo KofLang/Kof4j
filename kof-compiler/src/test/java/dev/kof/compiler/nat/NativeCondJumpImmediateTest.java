@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * §7 x86_64 of {@code docs/development/assembly-optimization-plan.md}
+ * §7 x86_64 of {@code docs/assembly-optimization-plan.md}
  * ("reduction of instructions for constants"): a CONSTANT right operand of an
  * integer conditional jump uses the immediate form {@code cmp{l,q} $N,
  * %{e,r}ax} (or the canonical {@code test} for {@code == 0}/{@code != 0})

@@ -31,7 +31,7 @@ libraries over primitives that already exist.
 - `KofBuffer.java` (`Buffer(U8)`, D-R3-BUFFER) — the byte surface.
 - `KofDb.java`/`KofOrm.java` `transaction { … }` — the transaction pattern.
 - `KofObservability.java` — correlation/request ids.
-- `docs/development/LEGACY_MIGRATION.md` + `DECOMPILER.md` +
+- `docs/legacy-migration-plan.md` + `DECOMPILER.md` +
   `TRANSLATOR.md` — the (JVM-bytecode) migration cluster; COBOL is named there
   as a *possible frontend* (`LEGACY_MIGRATION.md:185,294,357`).
 

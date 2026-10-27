@@ -101,6 +101,73 @@ final class WasmTypeOracle {
         return false;
     }
 
+    /** 15.3d fatia F: algum `==`/`!=` de String foi baixado para `kof_string_equals`.
+     *  Cobre a comparacao entre duas VARIAVEIS, que nao passa por
+     *  {@link #usesStringOps} (nao ha literal de string no codigo). */
+    static boolean usesStringEquals(Iterable<IRMethod> ms) {
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (op instanceof KofCall kc && "kof_string_equals".equals(kc.methodName())) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** 15.3d fatia F face 2b: algum `String.length()` (ou `.length` como campo)
+     *  foi baixado para `kof.strLen`. */
+    static boolean usesStringLength(Iterable<IRMethod> ms) {
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (op instanceof KofCall kc && "length".equals(kc.methodName())
+                            && "string".equalsIgnoreCase(typeName(kc.ownerType()))) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** 15.3d fatia F face 2c: faces de String cujo helper e' `kof.strIsEmpty` /
+     *  `kof.strEq` / `kof.strConcat` conforme o metodo chamado. */
+    /** Fase E (27/10, #776): algum String.valueOf com parametro Char (o
+     *  kof.strChar do runtime atende o concat/valor — o mesmo dos campos
+     *  Char de record). */
+    static boolean usesCharValueOf(Iterable<IRMethod> ms) {
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (op instanceof KofCall kc && "valueOf".equals(kc.methodName())
+                            && !kc.parameterTypes().isEmpty()
+                            && kc.parameterTypes().get(0) instanceof Type.PrimitiveType pt
+                            && "char".equalsIgnoreCase(pt.name())) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    static boolean usesStringMethod(Iterable<IRMethod> ms, String method) {
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (op instanceof KofCall kc && method.equals(kc.methodName())
+                            && "string".equalsIgnoreCase(typeName(kc.ownerType()))) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     static boolean usesStringConcat(Iterable<IRMethod> ms) {
         for (IRMethod m : ms) {
             for (IRBasicBlock bb : m.basicBlocks()) {
@@ -134,7 +201,9 @@ final class WasmTypeOracle {
     static boolean printableScalar(String name) {
         if ("string".equals(name.toLowerCase())) return true; // 15.3b (literal)
         return switch (name.toLowerCase()) {
-            case "int", "long", "bool", "boolean", "char" -> true;
+            // double: so' o subconjunto INTEGRAL esta implementado (kof.writeDouble
+            // trapa em valor fracionario) — o Schubfach completo e' multi-ciclo.
+            case "int", "long", "bool", "boolean", "char", "double" -> true;
             default -> false;
         };
     }

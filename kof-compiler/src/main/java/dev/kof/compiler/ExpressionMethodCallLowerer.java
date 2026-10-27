@@ -178,7 +178,9 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
         && ("Double".equals(rid.name()) || "Float".equals(rid.name()) || "Long".equals(rid.name())
             || "Integer".equals(rid.name()) || "Int".equals(rid.name()) || "Boolean".equals(rid.name())
-            || "Bool".equals(rid.name()) || "String".equals(rid.name()))) {
+            || "Bool".equals(rid.name()) || "String".equals(rid.name())
+            || "Char".equals(rid.name()) || "Character".equals(rid.name())
+            || "Byte".equals(rid.name()) || "Short".equals(rid.name()))) {
     // #156/#216: String.format(String, Object...) é varargs do JDK — o
     // classpath externo só casa name+arity e o descritor fabricado
     // `(String,String,int)Object` dava NoSuchMethodError. Ver
@@ -187,12 +189,20 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
             && StringFormatCallLowerer.matches(driver, mc, locals)) {
         return StringFormatCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
     }
+    if ("toString".equals(mc.methodName()) && mc.arguments().size() == 1
+            && wrapperArgMatches(rid.name(), ExpressionTyper.inferExprType(driver, mc.arguments().get(0), locals))) {
+        return lower(driver, new MethodCallExpr(mc.position(), new IdentifierExpr(rid.position(), "String"),
+                "valueOf", List.of(), mc.arguments()), ops, owner, localIdx, locals);
+    }
     String javaClass = switch (rid.name()) {
         case "Int", "Integer" -> "java/lang/Integer";
         case "Long" -> "java/lang/Long";
         case "Float" -> "java/lang/Float";
         case "Double" -> "java/lang/Double";
         case "Bool", "Boolean" -> "java/lang/Boolean";
+        case "Char", "Character" -> "java/lang/Character";
+        case "Byte" -> "java/lang/Byte";
+        case "Short" -> "java/lang/Short";
         default -> "java/lang/String";
     };
     List<Type> actualArgTypes = new ArrayList<>();
@@ -411,4 +421,17 @@ return localIdx;
                 localIdx, locals, entityName);
     }
 
+
+    private static boolean wrapperArgMatches(String wrapper, Type argType) {
+        if (!(argType instanceof Type.PrimitiveType)) return false;
+        String prim = TypeMetrics.primitiveName(argType);
+        return switch (wrapper) {
+            case "Int", "Integer" -> "int".equals(prim) || "Int".equals(prim);
+            case "Long" -> "long".equals(prim) || "Long".equals(prim);
+            case "Double" -> "double".equals(prim) || "Double".equals(prim);
+            case "Float" -> "float".equals(prim) || "Float".equals(prim);
+            case "Bool", "Boolean" -> "boolean".equals(prim) || "bool".equals(prim) || "Bool".equals(prim);
+            default -> false;
+        };
+    }
 }

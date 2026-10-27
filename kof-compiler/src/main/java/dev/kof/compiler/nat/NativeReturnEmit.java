@@ -1,7 +1,7 @@
 package dev.kof.compiler.nat;
 
 /**
- * §7 x86_64 of {@code docs/development/assembly-optimization-plan.md}
+ * §7 x86_64 of {@code docs/assembly-optimization-plan.md}
  * ("reduction of instructions"): return-site emission helpers for the x86-64
  * emitter, extracted to keep {@code NativeMethodEmitter} under the 500-line gate.
  */

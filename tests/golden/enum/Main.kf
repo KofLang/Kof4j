@@ -5,4 +5,7 @@ main() {
     println(c.name())
     println(Color.GREEN.name())
     println(Color.values().size)
+    println(c)
+    println(Color.BLUE)
+    println("e=" + Color.GREEN)
 }

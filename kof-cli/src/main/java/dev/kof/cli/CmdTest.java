@@ -99,6 +99,21 @@ final class CmdTest {
             System.exit(1);
             return;
         }
+        // §762-style honest-early-refusal (R6/Q7), same pattern as android and the
+        // cross natives above: `script`/`wasm`/`wasi` are NOT test targets here.
+        // Measured before: `script` surfaced COMP003 and `wasi` the bare "no binary
+        // produced", both counted as a TEST FAILURE — indistinguishable from a real
+        // regression in CI. Say so up front instead.
+        if (target == Target.SCRIPT || target == Target.WASM || target == Target.WASI) {
+            System.err.println("test: --target " + targetName(target)
+                    + " is not a test target (the runner needs an artifact to execute)"
+                    + (target == Target.SCRIPT
+                        ? "; use 'kof run --target script' for direct IR interpretation"
+                        : "; it is a preview subset — test the logic with --target jvm|native|js")
+                    + " — test the logic with --target jvm|native|js");
+            System.exit(1);
+            return;
+        }
         boolean dirMode = Files.isDirectory(src);
         List<Path> files = dirMode ? collectTests(src) : List.of(src);
         if (files.isEmpty()) {
@@ -543,5 +558,15 @@ final class CmdTest {
         output.append(new String(buf.toByteArray(), StandardCharsets.UTF_8));
         if (!finished) return null;
         return p.exitValue();
+    }
+
+    /** The CLI spelling of a target, for diagnostics. */
+    private static String targetName(Target t) {
+        return switch (t) {
+            case SCRIPT -> "script";
+            case WASM -> "wasm";
+            case WASI -> "wasi";
+            default -> t.name();
+        };
     }
 }

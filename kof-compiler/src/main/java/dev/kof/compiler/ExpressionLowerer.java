@@ -75,6 +75,10 @@ public final class ExpressionLowerer {
                         yield localIdx;
                     }
                 }
+                FieldAccessExpr outerFa = CompilerCaptures.outerField(driver, ie, locals);
+                if (outerFa != null) {
+                    yield emitExpression(driver, outerFa, ops, owner, localIdx, locals);
+                }
                 if (!owner.isEmpty() && driver.semanticAnalyzer != null) {
                     String className = owner.substring(owner.lastIndexOf('/') + 1);
                     // #639 face 2 (D-DECISION-BATCH-2709B): o `owner` é o nome
@@ -356,20 +360,46 @@ public final class ExpressionLowerer {
                         ? ExpressionBranchJoin.ifBranchTypes(driver, ie, locals) : List.of();
                 boolean differ = !bts.isEmpty() && ExpressionBranchJoin.branchTypesDiffer(bts);
                 Type thenPhys = ExpressionTyper.inferExprType(driver, ie.thenExpr(), locals);
+                Type elsePhys = ExpressionTyper.inferExprType(driver, ie.elseExpr(), locals);
+                // Fase E (26/10, #776): o JOIN do if-expression vai para um
+                // TEMPORARIO quando os dois ramos convergem no MESMO tipo — o
+                // valor nao pode atravessar a fronteira de bloco (a maquina de
+                // estados do WASI nao transporta a pilha entre estados: o
+                // frontend tem de comportar IGUAL em todos os backends). Mesma
+                // maquina de temporario unico do troolean e das cadeias logicas.
+                Type joinT = null;
+                // O alvo JS dobra o shape de if-expression por PARSER proprio
+                // (stores entre os arcos quebram a deteccao — mesmo achado do
+                // troolean 19/09); la o caminho antigo de pilha fica.
+                if (driver.target != Target.JS) {
+                    if (!differ && !bts.isEmpty() && bts.get(0).equals(bts.get(1))) {
+                        joinT = bts.get(0);
+                    } else if (!differ && bts.isEmpty() && elsePhys != null && thenPhys.equals(elsePhys)) {
+                        joinT = thenPhys;
+                    }
+                }
+                int tmpIdx = -1;
+                if (joinT != null) {
+                    tmpIdx = Math.max(localIdx, CompilerComparisons.nextFreeLocalIndex(locals));
+                    locals.add(new IRLocalVariable(tmpIdx, "$kif" + tmpIdx, joinT));
+                    localIdx = tmpIdx + 1;
+                }
                 localIdx = ExpressionLowerer.emitExpression(driver, ie.thenExpr(), ops, owner, localIdx, locals);
                 if (differ) ExpressionTyper.boxPrimitiveBranch(driver, ops, thenPhys);
                 else if (!bts.isEmpty()) {
                     CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops, thenPhys, bts.get(0));
                 }
+                if (joinT != null) ops.add(new KofStoreLocal(joinT, tmpIdx));
                 ops.add(new KofJump(endLabel));
                 ops.add(new KofLabel(elseLabel));
-                Type elsePhys = ExpressionTyper.inferExprType(driver, ie.elseExpr(), locals);
                 localIdx = ExpressionLowerer.emitExpression(driver, ie.elseExpr(), ops, owner, localIdx, locals);
                 if (differ) ExpressionTyper.boxPrimitiveBranch(driver, ops, elsePhys);
                 else if (!bts.isEmpty()) {
                     CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops, elsePhys, bts.get(1));
                 }
+                if (joinT != null) ops.add(new KofStoreLocal(joinT, tmpIdx));
                 ops.add(new KofLabel(endLabel));
+                if (joinT != null) ops.add(new KofLoadLocal(joinT, tmpIdx));
                 yield localIdx;
             }
             case SwitchExpr se -> {

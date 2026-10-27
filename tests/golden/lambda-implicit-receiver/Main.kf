@@ -1,0 +1,12 @@
+class Contador {
+    Int somar(Int n) { return n + 1 }
+
+    (Int) -> Int implicito() { return (n: Int) -> somar(n) }
+    (Int) -> Int explicito() { return (n: Int) -> this.somar(n) }
+}
+
+main() {
+    var c = Contador()
+    println(c.implicito()(5))
+    println(c.explicito()(5))
+}

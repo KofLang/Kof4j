@@ -3,7 +3,7 @@
 # Kof Standard Library — Security + Enterprise Capability Audit
 
 **Last updated:** September 12, 2026
-**Version:** 0.6.4 (free-list + riscv64; `kof.http` JVM+JS + retry/circuit)
+**Version:** 0.6.7 (free-list + riscv64; `kof.http` JVM+JS + retry/circuit)
 
 > Permanent architectural document.
 >

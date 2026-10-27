@@ -11,4 +11,10 @@ main() {
     println(t.toLowerCase())
     println(t.charAt(1) as Int)
     println("A" + "B" == "AB")
+    println("\u00a0x\u00a0".trim().length)
+    println("  x  ".trim().length)
+    println("CAF\u00c9".equalsIgnoreCase("caf\u00e9"))
+    println("stra\u00dfe".equalsIgnoreCase("STRASSE"))
+    println("\u03a3".equalsIgnoreCase("\u03c3"))
+    println("\u03a3".equalsIgnoreCase("\u03c2"))
 }

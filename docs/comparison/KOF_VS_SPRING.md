@@ -3,7 +3,7 @@
 # Kof vs Spring — The Problem Kof Solves
 
 **Last updated:** September 12, 2026
-**Version:** 0.6.4 (complete web stack: ws/sse/middleware/cache; `kof.http` JVM+JS with retry/circuit; `kof.db` native SQLite + MySQL wire x86-64 real, 13 ORM faces)
+**Version:** 0.6.7 (complete web stack: ws/sse/middleware/cache; `kof.http` JVM+JS with retry/circuit; `kof.db` native SQLite + MySQL wire x86-64 real, 13 ORM faces)
 
 ---
 

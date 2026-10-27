@@ -64,9 +64,9 @@ final class KofFormatterExpr {
         }
         if (expr instanceof MethodCallExpr mce) {
             StringBuilder sb = new StringBuilder();
-            if (mce.receiver() != null) sb.append(formatExpr(mce.receiver(), p)).append(".");
+            if (mce.receiver() != null) sb.append(formatExpr(mce.receiver(), p)).append(mce.methodName().isEmpty() ? "" : ".");
             sb.append(mce.methodName());
-            if (!mce.typeArguments().isEmpty()) sb.append("<").append(KofFormatter.joinKw(p, mce.typeArguments())).append(">");
+            if (!mce.typeArguments().isEmpty()) sb.append("<").append(KofFormatter.typeList(p, mce.typeArguments())).append(">");
             sb.append("(");
             for (int i = 0; i < mce.arguments().size(); i++) {
                 if (i > 0) sb.append(", ");
@@ -77,7 +77,7 @@ final class KofFormatterExpr {
         }
         if (expr instanceof NewExpr ne) {
             StringBuilder sb = new StringBuilder(KofFormatter.kw(p, "new")).append(' ').append(KofFormatter.typeText(p, ne.typeName()));
-            if (!ne.typeArguments().isEmpty()) sb.append("<").append(KofFormatter.joinKw(p, ne.typeArguments())).append(">");
+            if (!ne.typeArguments().isEmpty()) sb.append("<").append(KofFormatter.typeList(p, ne.typeArguments())).append(">");
             sb.append("(");
             for (int i = 0; i < ne.arguments().size(); i++) {
                 if (i > 0) sb.append(", ");
@@ -115,7 +115,13 @@ final class KofFormatterExpr {
             StringBuilder sb = new StringBuilder("(");
             for (int i = 0; i < le.parameters().size(); i++) {
                 if (i > 0) sb.append(", ");
-                sb.append(KofFormatter.formatParam(le.parameters().get(i), p));
+                FormalParameterNode fp = le.parameters().get(i);
+                if ("Object".equals(fp.type()) && fp.modifiers().isEmpty() && fp.annotations().isEmpty()
+                        && fp.defaultExpression() == null) {
+                    sb.append(fp.name());
+                } else {
+                    sb.append(KofFormatter.formatParam(fp, p));
+                }
             }
             sb.append(") -> ");
             if (le.body().size() == 1 && le.body().get(0) instanceof ReturnStmt rs && rs.value() != null) sb.append(formatExpr(rs.value(), p));
@@ -127,9 +133,10 @@ final class KofFormatterExpr {
             return sb.toString();
         }
         if (expr instanceof PatternExpr pe) {
-            if (!pe.fieldVars().isEmpty()) return KofFormatter.typeText(p, pe.typeName()) + "(" + String.join(", ", pe.fieldVars()) + ")";
-            if (pe.varName() != null) return KofFormatter.typeText(p, pe.typeName()) + " " + pe.varName();
-            return KofFormatter.typeText(p, pe.typeName());
+            String head = KofFormatter.typeText(p, pe.typeName());
+            if (!pe.fieldVars().isEmpty()) head += "(" + String.join(", ", pe.fieldVars()) + ")";
+            else if (pe.varName() != null) head += " " + pe.varName();
+            return pe.guard() == null ? head : head + " " + KofFormatter.kw(p, "if") + " " + formatExpr(pe.guard(), p);
         }
         return expr.toString();
     }

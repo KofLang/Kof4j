@@ -16,6 +16,24 @@ final class BytecodeStatementsRecover {
     private BytecodeStatementsRecover() {}
 
     /**
+     * Fase E (22/10): os loops BOTTOM-TESTED pendentes — o header do loop
+     * cujo back edge vem de um BLOCO CONDICIONAL posterior (não de um goto)
+     * é um do-while com corpo multi-bloco: o teste do loop mora no bloco
+     * final, não no header. O header NÃO emite `while` (a sua própria
+     * condição é o if INTERNO do corpo — medido: collatz2 → o while
+     * errado `while ((n%2)==0)` seguido de loop-body-separate → stub);
+     * registra (header, marker do out, saída externa) e o bloco de
+     * FECHAMENTO — que cai no handler do do-while com back != b.start —
+     * faz o wrap `do { corpo } while (cond)` inserindo o `do {` no marker.
+     */
+    private static final java.util.ArrayDeque<int[]> pendingDoWhile = new java.util.ArrayDeque<>();
+
+    /** O reset por-método (o chamador em BytecodeStatements zera o estado). */
+    static void resetDoWhile() {
+        pendingDoWhile.clear();
+    }
+
+    /**
      * Fase E (15/10): a recovery de REGIAO — o struct sobre UMA SUB-REGIAO
      * (o corpo do try nao-linear), estado global fresco + um `declared`
      * EXTERNO compartilhado (o local hoisted pelo caller). null = o stub
@@ -33,6 +51,7 @@ final class BytecodeStatementsRecover {
         for (BytecodeReader.Block b : blocks) byStart.put(b.start, b);
         BytecodeStatements.skipFirst = null;
         BytecodeStatements.currentLoopExit = -1;
+        resetDoWhile();
         BytecodeStatements.builderSlots = new HashSet<>();
         if (BytecodeStatements.skipCount == null) BytecodeStatements.skipCount = new java.util.HashMap<>();
         BytecodeStatements.skipCount.clear();
@@ -92,8 +111,54 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
             if (s <= b.start) back = s; else exit = s;
         }
         if (back >= 0) {
-            if (back != b.start) { BytecodeStatements.refuse("loop-body-separate"); return false; }  // corpo separado do teste — não recuperar
-            List<BytecodeReader.Insn> block = BytecodeDecoder.insnsWithin(b, insns);
+            // Fase E (22/10): o corpo MULTI-BLOCO — o header detectou o
+            // bottom-tested e registrou o pendente (header, marker, saída
+            // externa); o walk do corpo parou neste bloco (o stop) e o
+            // continuation do pureIfThen/pureIfElse alcançou. Fecha o
+            // loop: extrai a condição deste bloco (o mesmo formato do
+            // fused), emite os statements deste bloco ANTES do teste como
+            // cauda do corpo, insere o `do {` no marker e fecha com
+            // `} while (cond)`.
+            if (back != b.start) {
+                int marker = -1;
+                int outerExit = -1;
+                for (java.util.Iterator<int[]> pit = pendingDoWhile.iterator(); pit.hasNext(); ) {
+                    int[] pe = pit.next();
+                    if (pe[0] == back) { marker = pe[1]; outerExit = pe[2]; pit.remove(); break; }
+                }
+                if (marker < 0) { BytecodeStatements.refuse("loop-body-separate"); return false; }
+                List<BytecodeReader.Insn> cblk = BytecodeDecoder.insnsWithin(b, insns);
+                if (cblk.isEmpty()) { BytecodeStatements.refuse("loop-body-separate"); return false; }
+                BytecodeReader.Insn lastC = cblk.get(cblk.size() - 1);
+                if (!lastC.isCond()) { BytecodeStatements.refuse("do-while-no-cond"); return false; }
+                int opC = lastC.opcode();
+                String condD;
+                List<BytecodeReader.Insn> tailSt;
+                if (opC >= 0x99 && opC <= 0x9e) {
+                    if (cblk.size() < 2) { BytecodeStatements.refuse("do-while-short"); return false; }
+                    String aD = BytecodeDecoderStack.loadValue(cblk.get(cblk.size() - 2), frame);
+                    if (aD == null) { BytecodeStatements.refuse("do-while-load-null"); return false; }
+                    condD = aD + " " + BytecodeStatements.contCond(opC);
+                    tailSt = cblk.subList(0, cblk.size() - 2);
+                } else if (opC >= 0x9f && opC <= 0xa4) {
+                    if (cblk.size() < 3) { BytecodeStatements.refuse("do-while-short"); return false; }
+                    String xD = BytecodeDecoderStack.loadValue(cblk.get(cblk.size() - 3), frame);
+                    String yD = BytecodeDecoderStack.loadValue(cblk.get(cblk.size() - 2), frame);
+                    if (xD == null || yD == null) { BytecodeStatements.refuse("do-while-load-null"); return false; }
+                    condD = xD + " " + BytecodeStatements.contCond(opC) + " " + yD;
+                    tailSt = cblk.subList(0, cblk.size() - 3);
+                } else { BytecodeStatements.refuse("struct-generic"); return false; }
+                if (!tailSt.isEmpty()) {
+                    List<String> tailCode = BytecodeStatementsEmit.emitLinear(tailSt, cp, frame, declared);
+                    if (tailCode == null) { BytecodeStatements.refuse("emitLinear-null"); return false; }
+                    out.addAll(tailCode);
+                }
+                out.add(marker, "do {");
+                out.add("} while (" + condD + ")");
+                BytecodeStatements.currentLoopExit = outerExit;
+                return struct(byStart.get(exit), insns, byStart, cp, frame, out, emitted, declared, header, stops);
+            }
+            List<BytecodeReader.Insn> block = BytecodeDecoder.insnsWithin(b, insns);  // corpo separado do teste — não recuperar
             if (block.isEmpty()) { BytecodeStatements.refuse("empty-body"); return false; }
             BytecodeReader.Insn last = block.get(block.size() - 1);
             if (!last.isCond()) { BytecodeStatements.refuse("do-while-no-cond"); return false; }
@@ -295,6 +360,48 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                             declared, header, stops);
                 }
                 out.addAll(pre);
+            }
+        }
+        boolean splitLoop = false;
+        if (cond == null && loop0) {
+            // Fase E (24/10): o do-while com o PRIMEIRO statement do corpo
+            // fundido ao bloco do header (medido no sep: `OUT = i; if ...`
+            // — o back edge aponta ao statement, não ao teste). O
+            // testSplit da Fase C dá o prefixo + a condição, mas só vale
+            // se a DETECÇÃO do bottom-tested disparar (o teste do header
+            // é o if interno do corpo); sem ela o comportamento antigo
+            // permanece (cond-null = stub honesto) — nunca while com a
+            // condição do if interno (R6). O marcador do `do {` é
+            // gravado ANTES da emissão do prefixo (o statement fundido
+            // pertence ao corpo do loop).
+            List<BytecodeReader.Insn> lblk = BytecodeStatements.blkSeq(b, insns);
+            BytecodeReader.Insn llast = lblk.get(lblk.size() - 1);
+            int llop = llast.opcode();
+            int lk = (llop >= 0x9f && llop <= 0xa4) ? 2 : 1;
+            String linv = BytecodeCp.invCond(llop);
+            BytecodeDecoder.TestSplit lsplit = (linv != null && llast.isCond())
+                    ? BytecodeDecoder.testSplit(lblk, frame, cp, lk, linv) : null;
+            if (lsplit != null) {
+                List<BytecodeReader.Insn> lpre = lblk.subList(0, lsplit.prologueLen());
+                boolean lfluxo = false;
+                for (BytecodeReader.Insn lpi : lpre) {
+                    int lpo = lpi.opcode();
+                    if ((lpo >= 0x99 && lpo <= 0xa7) || (lpo >= 0xaa && lpo <= 0xb1) || lpo == 0xbf) { lfluxo = true; break; }
+                }
+                if (!lfluxo) {
+                    BytecodeReader.Block lbt = bottomTestedSource(b, thenStart, exitStart, byStart, insns);
+                    if (lbt != null) {
+                        List<String> lpreCode = BytecodeStatementsEmit.emitLinear(lpre, cp, frame, declared);
+                        if (lpreCode == null) { BytecodeStatements.refuse("emitLinear-null"); return false; }
+                        int lmark = out.size();
+                        out.addAll(lpreCode);
+                        // {header, marker, saída externa, início do teste, SAÍDA}
+                        pendingDoWhile.push(new int[]{b.start, lmark, BytecodeStatements.currentLoopExit, lbt.start, lbt.succ.get(1)});
+                        BytecodeStatements.currentLoopExit = lbt.succ.get(1);
+                        cond = lsplit.cond();
+                        splitLoop = true;
+                    }
+                }
             }
         }
         if (cond == null) { BytecodeStatements.refuse("cond-null"); return false; }
@@ -508,7 +615,24 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                 }
             }
         }
-        boolean loop = loop0;
+        boolean loop = loop0 && !splitLoop;   // o split do loop0 já registrou o pendente do-while
+        // Fase E (22/10): a DETECÇÃO do bottom-tested — o back edge ao
+        // header vem de um bloco condicional POSTERIOR cujo alvo de
+        // branch é o header, e AMBOS os braços do if do header alcançam
+        // esse bloco (o teste do header pertence ao CORPO — é o if
+        // interno). Nesse formato o while top-tested usaria a condição
+        // do if interno como condição do loop (errado) e o fechamento
+        // cairia no loop-body-separate (medido no collatz2). Registra o
+        // pendente e NÃO emite while; o bloco de fechamento processa o
+        // wrap do do-when.
+        BytecodeReader.Block btEarly = loop && cond != null
+                ? bottomTestedSource(b, thenStart, exitStart, byStart, insns) : null;
+        if (btEarly != null) {
+            loop = false;
+            // {header, marker, saída externa (restaurada no wrap), início do bloco de teste, SAÍDA deste loop}
+            pendingDoWhile.push(new int[]{b.start, out.size(), BytecodeStatements.currentLoopExit, btEarly.start, btEarly.succ.get(1)});
+            BytecodeStatements.currentLoopExit = btEarly.succ.get(1);   // a saída = a queda do bloco de teste
+        }
         if (loop) {
             // Fase E (14/10): for-each — `var it = X.iterator(); while
             // (it.hasNext()) { var x = (it.next() as T); ... }` → o idioma
@@ -646,10 +770,24 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                 if (pr != b.start && pr != thenStart && !chainTests.contains(pr)) { chainJoin = false; break; }
             }
         }
+        // Fase E (24/10): o join pode ser o PRÓPRIO header do loop em
+        // auto-loop (o do-while fundido) — o guard `if (n < 0) n = -n;`
+        // antes de um do-while converge nele: os preds não-self são
+        // exatamente {branch, fim-do-then}, e o pred extra é o próprio
+        // join (a aresta de retorno do auto-loop). Qualquer OUTRO header
+        // de loop (back edge de um bloco posterior) continua excluído.
+        java.util.List<Integer> joinPredsNoSelf = new java.util.ArrayList<>();
+        boolean joinSelfLoop = false;
+        if (join != null) {
+            for (int jp : join.pred) {
+                if (jp == exitStart) { joinSelfLoop = true; continue; }
+                joinPredsNoSelf.add(jp);
+            }
+        }
         boolean pureIfThen = join != null
-                && ((join.pred.size() == 2 && join.pred.contains(b.start)
-                        && join.pred.contains(thenStart)) || chainJoin)
-                && !BytecodeReader.isLoopHeader(join)
+                && ((joinPredsNoSelf.size() == 2 && joinPredsNoSelf.contains(b.start)
+                        && joinPredsNoSelf.contains(thenStart)) || chainJoin)
+                && (joinSelfLoop || !BytecodeReader.isLoopHeader(join))
                 && byStart.get(thenStart) != null
                 && byStart.get(thenStart).succ.equals(List.of(exitStart));
         BytecodeReader.Block thenB = byStart.get(thenStart);
@@ -810,6 +948,20 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
         if (pureElseIfThen || elseIfElseInner > 0) {
             String innerCond = BytecodeDecoder.blockCondition(elseB, insns, frame, cp);
             if (innerCond == null) { BytecodeStatements.refuse("elseif-cond"); return false; }
+            // Fase E (22/10): o hoist da CADEIA else-if — o slot armazenado
+            // no then E dentro do then aninhado do else (o shiftChar do
+            // Cipher: `int pos` nos dois ramos) escapava do escopo: o var
+            // nascia no 1º ramo e o 2º atribuía fora dele (SEM011). O deep
+            // hoist (por ranges) cobre os stores aninhados; o default vem
+            // do opcode; named-slot nunca (R6). O null NÃO é fatal aqui:
+            // sem hoist a emissão segue exatamente como antes (o fallback
+            // conservativo — nenhum shape que hoje passa regride).
+            StructWalker.cpRef = cp;
+            List<String> deepHoist = StructWalker.hoistEscapingLocalsDeep(insns,
+                    thenB.start, tail, elseB.start, tail, frame, declared);
+            if (deepHoist != null && !deepHoist.isEmpty()) {
+                out.addAll(deepHoist);
+            }
             Set<Integer> bstops = new HashSet<>(stops);
             bstops.add(tail);
             out.add("if (" + cond + ") {");
@@ -903,12 +1055,49 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
             out.add("}");
             return struct(byStart.get(tail), insns, byStart, cp, frame, out, emitted, declared, header, stops);
         }
-        if (!struct(byStart.get(thenStart), insns, byStart, cp, frame, out, emitted, declared, header, stops))
+        // Fase E (22/10): DECLARAÇÃO COM ESCOPO DE RAMO — o snapshot/restore
+        // do declared: cada ramo declara os seus próprios locais (o Kof
+        // aceita o mesmo nome em blocos irmãos — medido no Shadow.kf).
+        // Sem isto, o local declarado no ramo then vaza para o else e o
+        // segundo use sai BARE (SEM011) — o shiftChar do Cipher:
+        // `var v2 = (arg0 - 97)` no then e `v2 = (arg0 - 65)` bare no
+        // else. O restore cobre também o REUSE de slot do javac (tipos
+        // por ramo). Java válido não produz local declarado num ramo e
+        // lido fora dele, então o restore não derrama nada.
+        Set<Integer> branchScopeBase = new HashSet<>(declared);
+        // Fase E (24/10): o do-while com BREAK no corpo — se este header
+        // registrou um pendente, os braços param no BLOCO DE TESTE (o
+        // then/break e o else/corpo) e a continuação acontece aqui, após
+        // o fechamento do if/else: o bloco de teste processa o wrap.
+        // Sem pendente o comportamento é idêntico ao anterior.
+        int pendingCond = -1;
+        int pendingExit = -1;
+        for (int[] pe : pendingDoWhile) {
+            if (pe[0] == b.start) { pendingCond = pe[3]; pendingExit = pe[4]; break; }
+        }
+        Set<Integer> armStops = stops;
+        if (pendingCond >= 0) {
+            armStops = new HashSet<>(stops);
+            armStops.add(pendingCond);
+        }
+        // Fase E (24/10): o ramo que É o bloco de saída = o `break` (o
+        // `else break` do javac ramifica direto à saída) — não pode ser
+        // andado (emitiria o código pós-loop dentro do ramo).
+        if (pendingExit >= 0 && thenStart == pendingExit) {
+            out.add("break");
+        } else if (!struct(byStart.get(thenStart), insns, byStart, cp, frame, out, emitted, declared, header, armStops))
             { BytecodeStatements.refuse("struct-generic"); return false; }
+        declared.retainAll(branchScopeBase);
         out.add("} else {");
-        if (!struct(byStart.get(exitStart), insns, byStart, cp, frame, out, emitted, declared, header, stops))
+        if (pendingExit >= 0 && exitStart == pendingExit) {
+            out.add("break");
+        } else if (!struct(byStart.get(exitStart), insns, byStart, cp, frame, out, emitted, declared, header, armStops))
             { BytecodeStatements.refuse("struct-generic"); return false; }
+        declared.retainAll(branchScopeBase);
         out.add("}");
+        if (pendingCond >= 0) {
+            return struct(byStart.get(pendingCond), insns, byStart, cp, frame, out, emitted, declared, header, stops);
+        }
         return true;
     }
     if (b.succ.size() == 1) {
@@ -935,6 +1124,49 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
 }
     /** Fase E (14/10): o braço alcança o join? Direto, por queda única, ou
      *  por até 2 níveis de testes puros (a cadeia else-if). Limitado. */
+    /**
+     * Fase E (24/10): a fonte do BOTTOM-TESTED — o primeiro predecessor
+     * condicional POSTERIOR ao header cujo alvo de branch é o header,
+     * desde que AMBOS os braços do if do header saiam para dentro do
+     * loop: alcançam o bloco de teste (o caminho normal), são o braço
+     * break (o goto à saída, ou o ramo que aponta direto à saída). Null
+     * se não houver — o header então é um while top-tested normal.
+     */
+    private static BytecodeReader.Block bottomTestedSource(BytecodeReader.Block b,
+            int thenStart, int exitStart, Map<Integer, BytecodeReader.Block> byStart,
+            List<BytecodeReader.Insn> insns) {
+        for (int p : b.pred) {
+            if (p <= b.start) continue;
+            BytecodeReader.Block pb = byStart.get(p);
+            if (pb == null || pb.succ.size() != 2) continue;
+            if (!pb.succ.get(0).equals(b.start)) continue;
+            List<BytecodeReader.Insn> pblk = BytecodeDecoder.insnsWithin(pb, insns);
+            if (pblk.isEmpty() || !pblk.get(pblk.size() - 1).isCond()) continue;
+            int btExit = pb.succ.get(1);
+            boolean thenArm = armReachesJoin(thenStart, pb.start, byStart, insns, 0)
+                    || thenStart == btExit
+                    || isDirectBreakArm(thenStart, btExit, byStart);
+            boolean elseArm = armReachesJoin(exitStart, pb.start, byStart, insns, 0)
+                    || exitStart == btExit
+                    || isDirectBreakArm(exitStart, btExit, byStart);
+            if (thenArm && elseArm) return pb;
+        }
+        return null;
+    }
+
+    /** Fase E (24/10): o braço BREAK — o bloco salta direto (goto único)
+     *  à saída do do-while (a queda do bloco de teste). Dentro do corpo,
+     *  um goto à saída só é o `break` (o fluxo normal vai ao teste);
+     *  o braço return tem succ vazio e NÃO entra aqui. Estreito de
+     *  propósito (R6): um braço break de vários blocos segue sem
+     *  detecção. */
+    private static boolean isDirectBreakArm(int start, int exit,
+            Map<Integer, BytecodeReader.Block> byStart) {
+        if (exit < 0) return false;
+        BytecodeReader.Block b = byStart.get(start);
+        return b != null && b.succ.equals(java.util.List.of(exit));
+    }
+
     private static boolean armReachesJoin(int start, int tail,
             Map<Integer, BytecodeReader.Block> byStart,
             List<BytecodeReader.Insn> insns, int depth) {

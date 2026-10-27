@@ -21,7 +21,7 @@ import java.util.Set;
 
 /**
  * Structured control-flow graph over the linear op stream (Phase A of
- * {@code docs/development/assembly-optimization-plan.md}).
+ * {@code docs/assembly-optimization-plan.md}).
  *
  * <p>The IR is a linear, stack-based op stream with label ops; every backend
  * consumes it in that same order and the existing {@link Optimizer} works on

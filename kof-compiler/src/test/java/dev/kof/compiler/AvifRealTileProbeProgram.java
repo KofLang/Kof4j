@@ -89,7 +89,7 @@ main() {
     // sequence-header switch and the frame header's `cdef_bits` so the next
     // measurement knows whether the filter is even on for this fixture.
     println("CDEF ec=" + ec + " bits=" + h.cdefBits + " damp=" + h.cdefDamping
-        + " y=" + h.cdefYStrengths + " uv=" + h.cdefUvStrengths)
+        + " y=" + h.cdefYStrengths + " uv=" + h.cdefUvStrengths + " bq=" + h.baseQIdx)
     var modes = listOf<Int>()
     var levels = listOf<Int[]>()
     // The CHROMA transform blocks' decoded levels: the V plane's residual is where
@@ -102,7 +102,7 @@ main() {
     var chromaPreds = listOf<Int>()
     var pal = 0
     if (h.allowScreenContent) { pal = 1 }
-    var cfg = Av1ModeTail(12, h.cdefBits, ec, h.lossless, h.deltaQPresent, h.deltaQRes, h.deltaLfPresent, h.deltaLfMulti, h.deltaLfRes, 3)
+    var cfg = Av1ModeTail(av1SuperblockSize(seq.use128x128Superblock), h.cdefBits, ec, h.lossless, h.deltaQPresent, h.deltaQRes, h.deltaLfPresent, h.deltaLfMulti, h.deltaLfRes, 3)
     // EVERY TILE: a fresh CDF store, transform-type store, driver and walk.
     // libaom gives each tile its own copy of the frame context
     // (`tile_data->tctx = *cm->fc`, av1/decoder/decodeframe.c) and bounds its
@@ -123,7 +123,7 @@ main() {
     var totalSymBits = 0
     var totalPayloadBits = 0
     var tile = Av1TileDecode(frame, stride, mw, mh, cfg, h.lossless, 1, 3, fi, pal, seq.bitDepth, txMode, h.baseQIdx, 0, 0, 0, 0, dcq, acq, de, 0, h.reducedTxSet, sym, Av1CoeffCdfStore(h.baseQIdx), Av1TxType(sym), new Int[ctxW * ctxH], new Int[ctxW], new Int[ctxH], levels, listOf<Int>(), modes, chroma, 1, 1, levelsU, levelsV, txTypesU, txTypesV, chromaPreds)
-    var walk = Av1Partition(data, miw, mih)
+    var walk = Av1Partition(data, miw, mih, av1RestorationFor(h.lrTypeY, h.lrTypeU, h.lrTypeV, h.lrUnitSize0, h.lrUnitSize1, 1, 1, mw, mh, av1SuperblockSize(seq.use128x128Superblock)))
     var tline = ""
     var ti = 0
     while (ti < tiles.size) {
@@ -137,9 +137,8 @@ main() {
         var t1c = t0c + tileSbW * 16
         if (t1c > miw) { t1c = miw }
         var tsym = sym
-        if (ti > 0) {
-            tsym = Av1Symbol(tiles.get(ti))
-        }
+        if (ti > 0) { tsym = Av1Symbol(tiles.get(ti)) }
+        tsym.enableTrace()
         // The per-block diagnostics are rebuilt per tile as well: they pair a
         // driver's own lists (positions, stages) with `modes`/`levels`, so a
         // SHARED pair across tiles would index one tile's list with another
@@ -151,11 +150,12 @@ main() {
         txTypesU = listOf<Int>()
         txTypesV = listOf<Int>()
         chromaPreds = listOf<Int>()
+        chroma = Av1ChromaPlanes(chroma.u, chroma.strideU, chroma.wU, chroma.hU, new Int[ctxW], new Int[ctxH], chroma.v, chroma.strideV, chroma.wV, chroma.hV, new Int[ctxW], new Int[ctxH])
         tile = Av1TileDecode(frame, stride, mw, mh, cfg, h.lossless, 1, 3, fi, pal, seq.bitDepth, txMode, h.baseQIdx, 0, 0, 0, 0, dcq, acq, de, 0, h.reducedTxSet, tsym, Av1CoeffCdfStore(h.baseQIdx), Av1TxType(tsym), new Int[ctxW * ctxH], new Int[ctxW], new Int[ctxH], levels, listOf<Int>(), modes, chroma, 1, 1, levelsU, levelsV, txTypesU, txTypesV, chromaPreds)
-        walk = Av1Partition(tiles.get(ti), miw, mih)
+        walk = Av1Partition(tiles.get(ti), miw, mih, av1RestorationFor(h.lrTypeY, h.lrTypeU, h.lrTypeV, h.lrUnitSize0, h.lrUnitSize1, 1, 1, mw, mh, av1SuperblockSize(seq.use128x128Superblock)))
         walk.useReader(tsym)
         walk.bindDecoder(tile)
-        var tsteps = walk.walkTile(t0r, t0c, t1r, t1c)
+        var tsteps = walk.walkTileSb(t0r, t0c, t1r, t1c, av1SuperblockSize(seq.use128x128Superblock))
         var si = 0
         while (si < tsteps.size) {
             allSteps.add(tsteps.get(si))
@@ -245,7 +245,7 @@ main() {
             lvOut = lvOut + "tx" + li + ":"
             var q3 = 0
             while (q3 < lv.size && q3 < 10) {
-                lvOut = lvOut + lv[q3]
+                lvOut = lvOut + "[" + q3 + "]=" + lv[q3] + " "
                 q3 = q3 + 1
             }
             ln = ln + 1
@@ -307,7 +307,8 @@ main() {
     while (st3 < steps.size) {
         var s3 = steps.get(st3)
         if (s3[0] == 1) {
-            if (found == 0 && pi2[fi2 * 2] > 0) {
+            // pi2 = the LAST tile's info; steps spans the frame: bound the index.
+            if (found == 0 && fi2 * 2 + 1 < pi2.size && pi2[fi2 * 2] > 0) {
                 fline = fline + "pal(r" + s3[1] + ",c" + s3[2] + ",bs" + s3[3] + ",n" + pi2[fi2 * 2] + ")"
                 var k3 = 0
                 while (k3 < pi2[fi2 * 2]) {

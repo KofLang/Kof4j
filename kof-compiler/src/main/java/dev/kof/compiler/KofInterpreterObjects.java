@@ -33,6 +33,8 @@ public final class KofInterpreterObjects {
 
     static boolean objectEquals(KofInterpreter.KofObj ko, Object other) {
         if (other == ko) return true;
+        Object own = invokeUserObjectMethod(ko, "equals", other);
+        if (own != null) return own instanceof Number n ? n.intValue() != 0 : Boolean.TRUE.equals(own);
         if (!ko.isRecord()) return false;
         if (!(other instanceof KofInterpreter.KofObj ok)) return false;
         if (!ok.isRecord() || !ok.clazz.name().equals(ko.clazz.name())) return false;
@@ -45,6 +47,8 @@ public final class KofInterpreterObjects {
     }
 
     static int objectHash(KofInterpreter.KofObj ko) {
+        Object own = invokeUserObjectMethod(ko, "hashCode", null);
+        if (own instanceof Number n) return n.intValue();
         if (!ko.isRecord()) return System.identityHashCode(ko);
         int h = 1;
         for (IRField f : ko.clazz.fields()) {
@@ -108,6 +112,8 @@ public final class KofInterpreterObjects {
             }
         }
         if (v instanceof KofInterpreter.KofObj ko) {
+            String own = userToString(ko);
+            if (own != null) return own;
             if (ko.isRecord()) {
                 String simple = KofInterpreterValues.simpleOf(ko.internalName());
                 StringBuilder sb = new StringBuilder(simple).append('[');
@@ -131,6 +137,37 @@ public final class KofInterpreterObjects {
         }
         if (v instanceof Integer[] arr) return java.util.Arrays.toString(arr);
         return String.valueOf(v);
+    }
+
+    private static Object invokeUserObjectMethod(KofInterpreter.KofObj ko, String name, Object arg) {
+        if (ko.interp == null) return null;
+        for (IRClass c = ko.clazz; c != null; c = ko.interp.classByInternal(c.superName())) {
+            for (IRMethod m : c.methods()) {
+                if (!m.name().equals(name) || !IRClass.overridesObjectMethod(java.util.List.of(m), name)) continue;
+                Object[] args = arg == null && "hashCode".equals(name) ? new Object[]{ko} : new Object[]{ko, arg};
+                try {
+                    return ko.interp.invokeKof(c, m, args, true);
+                } catch (RuntimeException | Error e) {
+                    throw e;
+                } catch (Throwable t) {
+                    throw new RuntimeException(t);
+                }
+            }
+        }
+        return null;
+    }
+
+    private static String userToString(KofInterpreter.KofObj ko) {
+        if (ko.interp == null) return null;
+        IRMethod m = ko.interp.members.findKofMethod(ko.clazz, "toString", 0, java.util.List.of());
+        if (m == null) return null;
+        try {
+            return String.valueOf(ko.interp.invokeKof(ko.clazz, m, new Object[]{ko}, true));
+        } catch (RuntimeException | Error e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new RuntimeException(t);
+        }
     }
 
     private static String trimTrailingNewline(String s) {

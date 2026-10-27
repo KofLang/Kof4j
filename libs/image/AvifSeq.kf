@@ -48,7 +48,8 @@ record AvifSeqHeader(Int seqProfile, Bool stillPicture, Bool reduced,
                     Int orderHintBits, Int widthBitsMinus1, Int heightBitsMinus1,
                     Int deltaFrameIdLengthMinus2, Int additionalFrameIdLengthMinus1,
                     Bool enableCdef, Bool enableRestoration,
-                    Bool enableFilterIntra, Bool enableIntraEdgeFilter)
+                    Bool enableFilterIntra, Bool enableIntraEdgeFilter,
+                    Bool filmGrainPresent)
 
 AvifSeqHeader readAvifSeqHeader(String path) {
     return avifSeqHeader(File(path).readRange(0, 4096))
@@ -312,16 +313,16 @@ AvifSeqHeader seqWalk(Int[] b, Int p, Int limit) {
     if (bits > limit * 8) {
         throw "IMAGE: truncated avif sequence header"
     }
-    if (filmGrain == 1) {
-        throw "IMAGE: avif film grain not covered"
-    }
+    // `film_grain_params_present` is CARRIED, not refused: the frame header
+    // reads `apply_grain` and only refuses when grain is actually applied
+    // (ffmpeg's libaom stills signal the sequence flag with apply_grain = 0).
     return AvifSeqHeader(profile, still == 1, reduced == 1, maxWidth, maxHeight,
                          mono == 1, subX == 1, subY == 1, depth, csp,
                          separate == 1, frameIds == 1, enableSuperres == 1,
                          orderHint == 1, use128 == 1, refMvs == 1, forceSct, forceMv, orderHintBits,
                          wBits, hBits, deltaIdLen, addIdLen,
                          enableCdef == 1, enableRestoration == 1,
-                         filterIntra == 1, intraEdgeFilter == 1)
+                         filterIntra == 1, intraEdgeFilter == 1, filmGrain == 1)
 }
 
 // Locate the PRIMARY item's av1C configuration record through the same

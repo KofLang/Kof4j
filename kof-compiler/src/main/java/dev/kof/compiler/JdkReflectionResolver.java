@@ -163,7 +163,7 @@ final class JdkReflectionResolver {
         try {
             Class<?> cls = Class.forName(ownerInternalName.replace('/', '.'));
             for (Method m : cls.getMethods()) {
-                if (!m.getName().equals(methodName)) continue;
+                if (!m.getName().equals(methodName) || !Modifier.isStatic(m.getModifiers())) continue;
                 int pc = m.getParameterCount();
                 if (pc == argumentCount) return true;
                 if (m.isVarArgs() && argumentCount >= pc - 1) return true;

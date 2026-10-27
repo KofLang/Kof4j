@@ -103,11 +103,34 @@ final class BytecodeStdlib {
                 // Fase E (14/10): sqrt/pow EXISTEM no math p/ Double (medido:
                 // sqrt(9.0)=3.0, pow(2,3)=8.0); floor/round/ceil NÃO existem
                 // (SEM025) → teto honesto (exigiria stdlib nova = mantenedora).
-                case "(D)D":
-                    if ("sqrt".equals(name)) return "math.sqrt(" + args + ")";
-                    return null;
+                case "(D)D": {
+                    // Fase E (18/10): o javac emite o I2D quando o arg é uma
+                    // expressão Int (o Screen.ppi: Math.sqrt(w*w + h*h)) — o
+                    // decompiler converte I2D para `.toDouble()`, mas a
+                    // resolução do namespace do math NÃO reconhece o tipo do
+                    // resultado do método (o SEM025). O idioma que compila é
+                    // o cast `as Double` (medido: sqrt((w*w + h*h) as
+                    // Double) = 5.0). A conversão do args final.
+                    // Fase E (24/10): a FAMÍLIA DOUBLE inteira do math —
+                    // sin/cos/tan/asin/acos/atan/toRadians/toDegrees
+                    // existem no namespace do Kof (KofMath) e mapeiam 1:1
+                    // com o java.lang.Math; o abs NÃO (o abs do Kof é
+                    // Int-only, SEM025) e floor/round/ceil idem — ficam os
+                    // tetos honestos.
+                    if (!("sqrt".equals(name) || "sin".equals(name) || "cos".equals(name)
+                            || "tan".equals(name) || "asin".equals(name) || "acos".equals(name)
+                            || "atan".equals(name) || "toRadians".equals(name)
+                            || "toDegrees".equals(name))) return null;
+                    String a = args;
+                    if (a.endsWith(".toDouble()")) {
+                        a = a.substring(0, a.length() - ".toDouble()".length()) + " as Double";
+                    }
+                    return "math." + name + "(" + a + ")";
+                }
                 case "(DD)D":
-                    if ("pow".equals(name)) return "math.pow(" + args + ")";
+                    // Fase E (24/10): o atan2 acompanha o pow (os dois
+                    // Double-por-Double no namespace do Kof).
+                    if ("pow".equals(name) || "atan2".equals(name)) return "math." + name + "(" + args + ")";
                     return null;
                 default:
                     return null;

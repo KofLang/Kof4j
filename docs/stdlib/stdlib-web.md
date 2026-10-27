@@ -3,7 +3,7 @@
 # stdlib web — Kof's Native Web Stack
 
 **Last updated:** September 4, 2026
-**Version:** 0.6.4 (`kof.http` JVM+JS + retry/circuit; WebSocket/SSE JVM + hardening)
+**Version:** 0.6.7 (`kof.http` JVM+JS + retry/circuit; WebSocket/SSE JVM + hardening)
 **Status:** implemented (Phase 1 of the Spring independence plan) — `kof serve` + `kof.http` JVM+JS + `app.ws`/`app.sse` JVM + limits/counters
 
 ---

@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
+import dev.kof.compiler.TargetMatrix;
 
 /**
  * {@code kof workflow} — runner de pipelines (D-WORKFLOW-RUN, Stage 2 rows
@@ -84,7 +85,7 @@ final class CmdWorkflow {
             return 1;
         }
         if (target != Target.JVM && target != Target.JS) {
-            System.err.println("workflow: target not supported yet (R7: JVM first; script/native are follow-up slices)");
+            System.err.println("workflow: --target " + TargetMatrix.name(target) + " is not supported (R7; supported today: jvm|js — native/script/wasm/wasi are follow-up slices)");
             return 1;
         }
         if (!Files.exists(file)) { System.err.println("not found: " + file); return 1; }

@@ -1,4 +1,5 @@
 package dev.kof.compiler.js;
+import dev.kof.compiler.KofCall;
 import dev.kof.compiler.KofCatchStart;
 import dev.kof.compiler.KofCheckCast;
 import dev.kof.compiler.KofComparison;
@@ -9,6 +10,7 @@ import dev.kof.compiler.KofLabel;
 import dev.kof.compiler.KofLoadLocal;
 import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.KofPop;
+import dev.kof.compiler.KofPop2;
 import dev.kof.compiler.KofReturn;
 import dev.kof.compiler.KofReturnVoid;
 import dev.kof.compiler.KofStatementIf;
@@ -472,6 +474,10 @@ JsIr.JsStatement parseDoWhile(MethodCtx ctx, int[] pos, LabelId startLabel,
             if (isDoWhileConditionAhead(ctx, pos, startLabel)) {
                 break;
             }
+            if (ctx.ops.get(pos[0]) instanceof KofLabel kl && JsLabelParser.isLoopStart(ctx, pos, kl.label())) {
+                body.add(parseLoop(ctx, pos, kl.label()));
+                continue;
+            }
             body.addAll(parseStatement(ctx, pos));
         }
         ctx.loops.remove(ctx.loops.size() - 1);
@@ -521,7 +527,8 @@ JsIr.JsStatement parseDoWhile(MethodCtx ctx, int[] pos, LabelId startLabel,
             }
             if (op instanceof KofStoreLocal || op instanceof KofLabel
                     || op instanceof KofJump || op instanceof KofReturn
-                    || op instanceof KofReturnVoid || op instanceof KofThrow) {
+                    || op instanceof KofReturnVoid || op instanceof KofThrow
+                    || endsStatement(op)) {
                 return false;
             }
             if (!p.expr.isExpressionOp(op)) return false;
@@ -539,7 +546,8 @@ JsIr.JsStatement parseDoWhile(MethodCtx ctx, int[] pos, LabelId startLabel,
             // last assignment), a label, a jump or a return.
             if (op instanceof KofStoreLocal || op instanceof KofLabel
                     || op instanceof KofJump || op instanceof KofReturn
-                    || op instanceof KofReturnVoid || op instanceof KofThrow) {
+                    || op instanceof KofReturnVoid || op instanceof KofThrow
+                    || endsStatement(op)) {
                 return false;
             }
             if (!p.expr.isExpressionOp(op)) {
@@ -547,6 +555,11 @@ JsIr.JsStatement parseDoWhile(MethodCtx ctx, int[] pos, LabelId startLabel,
             }
         }
         return false;
+    }
+
+    private static boolean endsStatement(KofOperation op) {
+        return op instanceof KofPop || op instanceof KofPop2
+                || (op instanceof KofCall kc && Type.isVoid(kc.returnType()));
     }
 
 }

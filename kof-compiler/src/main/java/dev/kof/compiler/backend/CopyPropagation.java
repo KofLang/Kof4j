@@ -22,7 +22,7 @@ import java.util.Map;
 
 /**
  * Copy propagation over the linear op stream (Phase B of
- * {@code docs/development/assembly-optimization-plan.md} §11).
+ * {@code docs/assembly-optimization-plan.md} §11).
  *
  * <p>When a local is copied from another local — {@code LoadLocal(x); StoreLocal(y)}
  * with matching types — later reads of {@code y} are redirected to read {@code x}

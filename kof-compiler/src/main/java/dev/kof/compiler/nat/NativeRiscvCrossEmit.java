@@ -535,9 +535,11 @@ public final class NativeRiscvCrossEmit {
                 pushRiscv(sb, "t0");
             }
             default -> {
-                sb.append("    # NATIVE002: literal fora do caminho feliz: ").append(lit.value()).append("\n");
-                sb.append("    li t0, 0\n");
-                pushRiscv(sb, "t0");
+                // Q7 (no silent fallback): an unsupported literal kind must REFUSE
+                // (diagnosed NATIVE002 by CompilerPipeline), never silently push 0 —
+                // a zero would leave the compile "succeeding" with a WRONG binary.
+                throw new IllegalStateException("NATIVE002: literal fora do caminho feliz: "
+                        + lit.value());
             }
         }
     }

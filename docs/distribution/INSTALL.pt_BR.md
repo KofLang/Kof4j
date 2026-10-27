@@ -5,7 +5,7 @@
 Guia oficial de instalação a partir dos artefatos publicados no **GitHub
 Releases**. Siga o passo a passo do **seu sistema** e pronto.
 
-> **Versão atual:** 0.6.4 (ver `VERSION` na raiz do repo). Os comandos
+> **Versão atual:** 0.6.7 (ver `VERSION` na raiz do repo). Os comandos
 > abaixo funcionam em **qualquer** release: eles resolvem a mais nova para a
 > sua plataforma automaticamente, então não há versão para digitar.
 

@@ -9,7 +9,7 @@ import java.util.Map;
 
 /**
  * A deterministic, ordered IR pass pipeline (Phase A of
- * {@code docs/development/assembly-optimization-plan.md} §21: "define the pass
+ * {@code docs/assembly-optimization-plan.md} §21: "define the pass
  * pipeline").
  *
  * <p>The existing {@link Optimizer} hard-codes its pass order inline; this class

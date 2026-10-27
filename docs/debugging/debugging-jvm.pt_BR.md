@@ -4,7 +4,7 @@
 
 **Status:** Implementado (Fases 1-3 do debugger: metadata + JDWP via `kof-debug`)
 **Data:** 27 de agosto de 2026
-**Versão:** 0.6.4 (7 targets; free-list + pthread spawn + FP XMM)
+**Versão:** 0.6.7 (7 targets; free-list + pthread spawn + FP XMM)
 
 ---
 

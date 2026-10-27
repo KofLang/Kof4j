@@ -91,10 +91,34 @@ final class BenchDiscovery {
             case "native" -> Target.NATIVE;
             case "js" -> Target.JS;
             default -> {
-                System.err.println("unknown target: " + value);
+                // Q7 (R6): a REAL Kof target must never be reported as "unknown".
+                // `bench` only RUNS jvm|native|js, but wasm/wasi/script/native.*
+                // exist — say that plainly instead of denying they exist.
+                Target real = realTargetOrNull(value);
+                if (real != null) {
+                    System.err.println("bench: --target " + value
+                            + " is not a benchmark target (bench runs jvm|native|js;"
+                            + " '" + value + "' is a real target but has no bench runner)");
+                } else {
+                    System.err.println("unknown target: " + value
+                            + " (bench targets: jvm|native|js)");
+                }
                 System.exit(1);
                 yield Target.JVM;
             }
+        };
+    }
+
+    /** The real {@link Target} for a CLI spelling, or null when the name is not a target. */
+    private static Target realTargetOrNull(String value) {
+        return switch (value) {
+            case "script", "kofscript" -> Target.SCRIPT;
+            case "wasm", "kofwasm" -> Target.WASM;
+            case "wasi" -> Target.WASI;
+            case "android" -> Target.ANDROID;
+            case "native.risc", "native.riscv64", "native.riscv" -> Target.NATIVE_RISCV64;
+            case "native.arm", "native.aarch64", "native.aarch" -> Target.NATIVE_AARCH64;
+            default -> null;
         };
     }
 }

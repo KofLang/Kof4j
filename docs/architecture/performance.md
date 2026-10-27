@@ -8,7 +8,7 @@ next: none
 location: docs/architecture
 state: normative
 
-**Version:** 0.6.4 (37 benchmarks; `kof bench` + `benchmark.yml` threshold 1.20)
+**Version:** 0.6.7 (37 benchmarks; `kof bench` + `benchmark.yml` threshold 1.20)
 Permanent principles, not suggestions: type system, IR, backends, runtime, stdlib and tooling obey them.
 
 # 1. Core

@@ -15,7 +15,7 @@ import java.util.Map;
 
 /**
  * Algebraic simplification over the linear op stream (Phase B/§3 O1 of
- * {@code docs/development/assembly-optimization-plan.md}).
+ * {@code docs/assembly-optimization-plan.md}).
  *
  * <p>Folds the ABSORBING elements of int/long arithmetic — the identities the
  * constant folder's {@code foldIdentity} does not cover, because the result is a

@@ -6,7 +6,7 @@ import java.util.List;
 
 /**
  * x86-64 System V register file (Phase D of
- * {@code docs/development/assembly-optimization-plan.md}; decision
+ * {@code docs/assembly-optimization-plan.md}; decision
  * {@code D-CODEGEN-REWRITE}, maintainer 13/10).
  *
  * <p>The codegen rewrite maps Kof locals to PHYSICAL registers, so the

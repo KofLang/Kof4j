@@ -11,7 +11,7 @@ import java.util.TreeMap;
 
 /**
  * Spill-materialization plan (Phase C of
- * {@code docs/development/assembly-optimization-plan.md} §5: "spills").
+ * {@code docs/assembly-optimization-plan.md} §5: "spills").
  *
  * <p>Given the register {@link RegisterAllocator.Allocation}, the slots it
  * spilled must be kept in memory: a spilled slot is RELOADED before each of its

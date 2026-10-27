@@ -2,7 +2,7 @@
 
 # DECISIONS — language decision record
 
-**Last updated:** 2026-10-02
+**Last updated:** 2026-10-22
 
 **Maintainer:** Mel Santos
 
@@ -4264,6 +4264,18 @@ first; never the most interesting, never frozen-semantics). Individual locks:
   stack only, no API).
 - **D-ASSEMBLY-OPT-GO** — assembly-optimization authorized (from phase A,
   no semantics change).
+- **Closure 20/10:** plan CONCLUDED and moved to `docs/assembly-optimization-plan.md`
+  (three-states). All six §21 phases landed (A CFG/pass-pipeline, B constant/copy/DEAD/strength,
+  C liveness+interference+allocator+spill/call-aware, D target-lowering declarations for
+  native/cross/MCU/WASM, E 27 ISA slices across x86-64/aarch64/riscv64, F benchmark harness);
+  the §3–§22 criteria are each guarded by a test — jump threading wired (O2), §14 stack
+  alignment + ABI invariants, §15 padding layouts vs the real C compiler (+ §762 fixed),
+  §16 cross-target equivalence on 4 targets, §17 before/after measured on all three native
+  targets, §18 IR+asm metrics, §19 DWARF register locations, §20 artifact determinism,
+  §22 universal-vs-target-specific classification + target-independence proved. The remaining
+  large face the plan names (a multi-instruction lowering contract) is backend architecture
+  and stays maintainer-scoped; it is NOT a blocker to the conclusion, which covers the plan's
+  own promotion criteria.
 - **D-IMAGE-VISION-GO** — image-vision authorized.
 - **D-MULTIPARADIGMA-GO** — Tier 2.x authorized.
 - **D-BOOTSTRAP-GO** — Kof-in-Kof authorized.
@@ -4422,7 +4434,7 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Relationships:** `Related: D-MULTIPARADIGMA-GO, D-FUTURE-BATCH-2809B, D-FUTURE-PROMOTION, D-KOF-FIRST, rule 6, rule 11, rule 12`.
 ## D-IMAGE-VISION-GO — `kof.image`/`kof.vision` promoted as official package; first slice = pure-Kof metadata (maintainer 29/09/2026, batch `D-FUTURE-BATCH-2809` + `D-FUTURE-PROMOTION`)
 
-**State:** DECIDED (maintainer) / IN DEVELOPMENT — promoted front under `D-FUTURE-PROMOTION` (`docs/development/image-vision-plan.md`).
+**State:** DECIDED (maintainer) / IN DEVELOPMENT — promoted front under `D-FUTURE-PROMOTION` (`docs/image-vision-plan.md`).
 
 - **Scope:** image manipulation (`kof.image`) and computer vision (`kof.vision`), delivered as an **official package** (R1; born `experimental`), interop-first per R9 (imageio/turbojpeg/OpenCV/ONNX behind the Kof API; codecs never reimplemented).
 - **Slice 1 LANDED 29/09 (library-first, `D-KOF-FIRST-IMPL`):** pure-Kof `libs/image/` reads **format + pixel dimensions** from the leading bytes (PNG/GIF/BMP info+core/JPEG SOF/WEBP VP8·VP8L·VP8X) over a bounded 4 KiB `kof.io.readRange` prefix — no codec, no pixels, no new syntax. `ImageMetadataE2ETest` 7/7 on JVM + Native x86-64 + riscv64 (qemu) + Script; JS gap `IOJS001`.
@@ -4492,7 +4504,7 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 
 - **Surface:** no new `Image`/`Pixel`/`Color` types; the value is the existing `Raster(format, width, height, channels, samples)`. `decode(path): Raster` covers every supported format.
 - **Codecs:** implement in **pure Kof** whenever feasible — full cross-target parity, no gap (`PNM`, `farbfeld`, `BMP`, `QOI` today). Use JVM **imageio** interop only where a pure-Kof decoder is technically infeasible (JPEG, and GIF/WebP/AVIF unless prioritized), with an honest compile-time gap on the other targets — never a silent fallback, and never a gap added "just to add one".
-- **Plan:** `docs/development/image-vision-plan.md` §34 (TODO) lists the missing decoders, ordered by cost (PNG pure-Kof via zlib inflate = high value highest; JPEG = imageio).
+- **Plan:** `docs/image-vision-plan.md` §34 (TODO) lists the missing decoders, ordered by cost (PNG pure-Kof via zlib inflate = high value highest; JPEG = imageio).
 - **Progress:** slice 2f LANDED — pure-Kof QOI decode on all targets; `RasterDecodeE2ETest` 7/7 (JVM + Native x86-64/riscv64 + Script).
 
 - **Relationships:** `Related: D-IMAGE-VISION-GO, D-FUTURE-BATCH-2809, D-FUTURE-PROMOTION, D-KOF-FIRST, D-KOF-FIRST-IMPL, R1, R9, rule 6, rule 11`.
@@ -4506,7 +4518,7 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Why pure Kof over imageio:** `D-IMAGE-SURFACE` says pure Kof whenever feasible; a full third-party imageio plugin set would break the offline (`mvn -o`) build and the "no reimplement, no gratuitous dependency" balance. VP8 lossy is large but bounded and fully described by RFC 6386.
 - **Slices (each one complete unit, tested):** (1) RIFF/`VP8 ` chunk parser + frame-header + the boolean **range decoder** (RFC 6386 §7); (2) the per-macroblock mode/segment header + coefficient probability tables; (3) intra prediction (`VP8 ` keyframes are all-intra) + the inverse DCT/WHT + reconstruction; (4) the in-loop deblocking filter; (5) the adaptive (non-keyframe) path — if in scope.
 - **Honest boundary:** the pure-Kof key-frame chain is complete (slices 1–7, 30/09–01/10) and `decodeRaster` routes a lossy WebP through it (`libs/image/Vp8Raster.kf`); the adaptive (non-keyframe) path and multi-partition token streams remain explicit `IMAGE:` refusals (no half decode, no stub, Q7).
-- **Relationships:** `Related: D-IMAGE-SURFACE, D-IMAGE-VISION-GO, D-KOF-FIRST, D-KOF-FIRST-IMPL, R1, R9, rule 6, rule 11`; plan `docs/development/image-vision-plan.md` §34.
+- **Relationships:** `Related: D-IMAGE-SURFACE, D-IMAGE-VISION-GO, D-KOF-FIRST, D-KOF-FIRST-IMPL, R1, R9, rule 6, rule 11`; plan `docs/image-vision-plan.md` §34.
 
 ## D-KOF-IS-KOF — Kof source never embeds HTML, CSS or JavaScript (maintainer directive 29/09/2026: "NÃO ENFIAR HTML NEM JS DENTRO DE CÓDIGO KOF. KOF É KOF")
 
@@ -4793,6 +4805,23 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 - **Handoff / orphan:** a plan that loses its owner or has its claim revoked must declare `**Owner:** SEM DONO / OPEN` in its header, until re-claimed with a fresh, unique `IP:PORTA` that does not already hold another plan. A plan without an exclusive owner cannot be advanced under a shared/silent identity.
 - **Authority / enforcement:** `scripts/check_plan_owners.sh` (scans all plan headers, fails on duplicate IPs, missing owner fields, or unanchored lane names).
 - **Relationships:** `Extends: D-AGENT-IDENTITY-IPPORT (identity granularity)`, `Complements: AGENTS.md §Multi-agent state (claim discipline)`.
+
+## D-FUTURE-CLOSE — with every other lane dead, the maintainer ordered ALL open plans CLOSED (maintainer 24/10/2026, chat directive)
+
+**State:** DECIDED (maintainer) — operational closure; supersedes the open-front state of the six plans in `docs/development/`.
+- **Order:** "todos os outros agentes morreram, so sobrou voce. feche todos os planos em aberto" (24/10/2026).
+- **Closure rule:** a plan is closed by concluding what is implemented and PARKING what is not, each parked item carrying its resume condition in the plan; nothing stays open in `development/`.
+- **Applied:** `LEGACY_MIGRATION`/`DECOMPILER`/`TRANSLATOR` — autonomous scope complete (measured battery 355/355 at the tip) → moved to `docs/` (Status CONCLUDED); parked: the diamond-law decision for the structured shapes, the rule-6 JDK-to-stdlib mapping, the non-static-inner Option B. `qrcode-wasm` — Phase 1 complete (15/15 QR tests) → `docs/`; parked: the camera reader (`kof.process`/FFI absent), Phase 2, the rule-6 `KofWasm` target. `image-vision` — the delivered pure-Kof surface → `docs/`; parked: AVIF slice 3bd, catalogued in `known-bugs` §757-family with its exact next dump. `kofscript-embedding` — zero code, blocked on the maintainer's embedding-contract decision → returned to `future/`. `quality-pipeline.md` stays as the standing branch policy (14.4 is the maintainer's).
+- **Resume:** any parked item requires the maintainer's decision named in it, then `D-FUTURE-PROMOTION` to re-open it; no agent re-opens a closed plan on its own.
+
+## D-PLAN-ORPHAN-ASSUME — a plan untouched for >6h is an ORPHAN and one lane may assume several at once (maintainer 22/10/2026, chat directive)
+
+**State:** DECIDED (maintainer) — operational rule; explicit exception to `D-PLAN-ONE-OWNER`.
+- **Orphan criterion:** a plan in `docs/development/` whose FILE has not changed in the last 6 hours is an orphan, independent of the lane named in its header.
+- **Batch assumption:** the maintainer authorized the compiler/JVM/native lane `192.168.15.30:9092` to assume ALL orphan plans on 22/10/2026 in one batch (`image-vision`, `kofscript-embedding`, `qrcode-wasm`). The assumed plans carry the marker `D-PLAN-ORPHAN-ASSUME` in their owner line.
+- **Gate exception:** `scripts/check_plan_owners.sh` exempts plans carrying that marker from the one-plan-per-identity check; every other rule (named `IP:PORTA`, no bare IP, no missing field) still applies. Removing the marker restores the normal uniqueness law.
+- **Execution:** the assumption is OWNERSHIP, not parallel work — slices are still executed ONE at a time, and a plan whose next step is maintainer-blocked (the embedding contract) stays blocked.
+- **Relationships:** `Exception to: D-PLAN-ONE-OWNER`; `Extends: D-AGENT-IDENTITY-IPPORT`.
 
 ---
 

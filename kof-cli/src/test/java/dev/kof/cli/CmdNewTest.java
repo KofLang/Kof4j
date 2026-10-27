@@ -69,6 +69,33 @@ class CmdNewTest {
     }
 
     @Test
+    void everySkeletonCompilesWithoutASingleDiagnostic(@TempDir Path dir) throws IOException {
+        // success() sozinho esconde WARNING — foi assim que o scaffold backend
+        // passou meses emitindo MEM014 contra si mesmo (L-05 em app.listen).
+        // O scaffold do próprio Kof é o pior lugar possível para ruído: o
+        // usuário conclui que escreveu errado algo que o template escreveu.
+        record Shape(String type, String entry, dev.kof.compiler.Target target) {}
+        var shapes = java.util.List.of(
+                new Shape("mono", "src/Main.kf", dev.kof.compiler.Target.JVM),
+                new Shape("backend", "src/Main.kf", dev.kof.compiler.Target.JVM),
+                new Shape("frontend", "src/web/Index.kf", dev.kof.compiler.Target.JS),
+                new Shape("full-stack", "src/Main.kf", dev.kof.compiler.Target.JVM));
+        for (var shape : shapes) {
+            Path project = dir.resolve(shape.type());
+            assertEquals(0, CmdNew.run(new String[]{project.toString(), "--type", shape.type()}),
+                    "kof new --type " + shape.type());
+            var result = new dev.kof.compiler.CompilerDriver()
+                    .compile(project.resolve(shape.entry()), project.resolve("target/probe"), shape.target());
+            assertTrue(result.success(), "esqueleto " + shape.type() + " deve compilar: "
+                    + result.diagnostics().getDiagnostics());
+            assertTrue(result.diagnostics().getDiagnostics().isEmpty(),
+                    "esqueleto '" + shape.type() + "' não pode emitir NENHUM diagnóstico "
+                            + "(o usuário não escreveu o template): "
+                            + result.diagnostics().getDiagnostics());
+        }
+    }
+
+    @Test
     void unknownTypeIsHonestGapApp003(@TempDir Path dir) {
         assertNotEquals(0, CmdNew.run(with(dir, "--type", "microservices")));
         assertFalse(Files.exists(dir.resolve("kof.toml")), "falha não deve criar projeto parcial");

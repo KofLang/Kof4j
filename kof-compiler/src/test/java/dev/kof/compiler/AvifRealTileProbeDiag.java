@@ -163,15 +163,23 @@ void probeTail(Int[] frame, Int stride, Int mw, Int mh,
         var z = new Int[av1TxWidth(uvTx2) * av1TxHeight(uvTx2)]
         var rec = av1ReconstructBlock(levelsV.get(0), z, uvTx2, txTypesV.get(0), bitDepth, false, dcq, acq)
         var w2 = av1TxWidth(uvTx2)
-        vres = " (0,0)=" + rec[0] + " (0,1)=" + rec[1] + " (1,0)=" + rec[w2]
+        // The V transform may be a NON-SQUARE 16x4/4x16 (the guard above only
+        // checks the COEFFICIENT COUNT), so the sample indices are clamped by
+        // BOTH dimensions; for the square blocks this prints exactly as before.
+        var h2 = av1TxHeight(uvTx2)
+        var iB = w2
+        if (h2 < 2) { iB = 0 }
+        vres = " (0,0)=" + rec[0] + " (0,1)=" + rec[1] + " (1,0)=" + rec[iB]
         var s15 = 15
         if (s15 >= w2) { s15 = w2 - 1 }
-        vres = vres + " (1,1)=" + rec[w2 + 1] + " (15,15)=" + rec[w2 * s15 + s15]
+        if (s15 >= h2) { s15 = h2 - 1 }
+        vres = vres + " (1,1)=" + rec[iB + 1] + " (15,15)=" + rec[w2 * s15 + s15]
         // The BOTTOM rows the derived prediction uses (the 124th pass): with
         // alpha_V = 0 the prediction should be a per-block constant, so the
         // spread 129 -> 127/125 has to be in the residual or in the DC.
         var r11 = 11
         if (r11 >= w2) { r11 = w2 - 1 }
+        if (r11 >= h2) { r11 = h2 - 1 }
         vres = vres + " (0,11)=" + rec[w2 * r11] + " (8,11)=" + rec[w2 * r11 + (w2 >> 1)]
     }
     // The U transform block's residual too: it is DC-ONLY, so it is the case the
@@ -243,7 +251,10 @@ void probeTail(Int[] frame, Int stride, Int mw, Int mh,
             var unitR = ((byc * 2) / 16) * 16
             var unitC = ((bxc * 2) / 16) * 16
             var idx = cdefsC[unitR * miWc + unitC]
-            if (idx < 0) {
+            // An index outside the frame header's configuration list cannot
+            // select a strength: copy the block (and stay in bounds — the
+            // palette-free stream exposed an index past the list).
+            if (idx < 0 || idx >= cdefY.size) {
                 bsk[gi] = 1
             } else {
                 if (av1CdefSkip8(skipsC, miWc, byc * 2, bxc * 2)) {
@@ -309,6 +320,16 @@ void probeTail(Int[] frame, Int stride, Int mw, Int mh,
         mb = mb + 1
     }
     println("MODESA n=" + (allModes.size / 17) + ma)
+    // The LAST tile reader's per-symbol trace (n:symbol@bit): the coefficient
+    // walk of its blocks, which is where a palette-free stream stops short.
+    var sl2 = tile.reader.log()
+    var sl2line = ""
+    var li2 = 0
+    while (li2 + 2 < sl2.size) {
+        sl2line = sl2line + " " + sl2[li2] + ":" + sl2[li2 + 1] + "@" + sl2[li2 + 2]
+        li2 = li2 + 3
+    }
+    println("TRACEL n=" + (sl2.size / 3) + sl2line)
     var pos = tile.positions()
     var b2 = 0
     while (b2 < modes.size / 17) {

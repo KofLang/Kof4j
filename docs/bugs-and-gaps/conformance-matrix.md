@@ -97,7 +97,7 @@
 | field-store assignability gate — §368 | SEM012 at the call-site | DONE (`5cd078c1`) | DONE | DONE | DONE | `FieldAssignabilityPhantomE2ETest` 8/8; medido 20/09: `x.n = "s"`(Int) e `y.c = "x"`(Char?) -> SEM012 em check+build; `y.c = 'x'` imprime `x` nos 4 alvos |
 | constructor-arity/type at call site (implicit `Class(args)` no `new`) — §362 | `SEM023 no call-site` | DONE (`57a0d5f0`) | DONE | N/D (frontend compartilhado) | DONE | `ConstructorPhantomE2ETest` 7/7 |
 | bare `List` in declared field (`List items = listOf(1,2)`; `b.items.size`) — §373 CLOSED | `2` | DONE (`d969bc3a`) | DONE | DONE | DONE | `BareCollectionFieldE2ETest` 8/8 (RED 6/8 pre-fix); twin controls: typed collection + user shadow class intact; Q4 hunt opened §374/#553 |
-| primitive arg into `add`/`set` of a BARE builtin collection (`List xs = listOf(1)` + `xs.add(2)`; `println(xs.size)`+`println(xs.get(1))`) — §374 CLOSED | `2` / `2` | DONE (`238d1a35`) | DONE | DONE | DONE | `BareCollectionPrimitiveArgE2ETest` 7/7 (RED 4/4 pre-fix); mirrors bug-35/#382 box-by-ARG; the typed/Set/Map paths byte-identical |
+| primitive arg into `add`/`set` of a BARE builtin collection (`List xs = listOf(1)` + `xs.add(2)`; `println(xs.size)`+`println(xs.get(1))`) — §374 CLOSED | `2` / `2` | DONE (`238d1a35`) | DONE | DONE | DONE | `BareCollectionPrimitiveArgE2ETest` 13/13 (RED 4/4 pre-fix); mirrors bug-35/#382 box-by-ARG; the typed/Set/Map paths byte-identical |
 | static field `+=` | `2` / `4` / `4` | DONE | DONE (bug 41) | DONE | DONE | `staticpluseq` |
 | concat string+num (order) | `n=42` / `3x` / `x12` | DONE | DONE | DONE | DONE | `concat` |
 | boolean logic + comparison | `false` / `true` / `false` / `true` | DONE | DONE | DONE | DONE | `boollogic` |
@@ -178,10 +178,10 @@ CLOSED 11/09 (riscv64/aarch64)**: `addDays`/`diffDays` run on the 5 targets —
 > (B23, **ENC002 closed 09/09** — riscv port with arithmetic alphabet + tolerant
 > decode, single spec from x86/JVM/JS; `KofEncodingTest.base64RunsOnCrossArch`
 > proves riscv+aarch under qemu) run on the 3 natives + JVM + JS + Script.
-| stdlib kof.uuid (S3b: v4 — non-deterministic, NO matrix case) | shape `xxxxxxxx-xxxx-4xxx-[89ab]xxx-xxxxxxxxxxxx` | ✅ assert | ✅ assert¹ | ✅ | ✅ assert (+riscv/aarch qemu) | `KofUuidTest` 4/4 |
+| stdlib kof.uuid (S3b: v4 — non-deterministic, NO matrix case) | shape `xxxxxxxx-xxxx-4xxx-[89ab]xxx-xxxxxxxxxxxx` | ✅ assert | ✅ assert¹ | ✅ | ✅ assert (+riscv/aarch qemu) | `KofUuidTest` 14/14 |
 | stdlib kof.uuid (S3b.1: isUuid — shape predicate 8-4-4-4-12, lower/upper hex, version/variant not checked; riscv/aarch = slice B25, UUID001 closed in the beta→main merge 10/09) | `true` / `true` / `false` / `false` / `false` / `false` / `true` | DONE | DONE | DONE | DONE | `stduuidform` |
 | stdlib kof.uuid (S3b.2: v7 — RFC 9562 time-ordered, NO matrix case; riscv/aarch slice B25b) | shape `xxxxxxxx-xxxx-7xxx-[89ab]xxx-xxxxxxxxxxxx` | ✅ assert | ✅ assert | ✅ | ✅ assert | `KofUuidTest` (v7) |
-| stdlib kof.random (S10/S10a/S10b — non-deterministic, NO matrix case) | contract `0<=randomInt(b)<b` / `randomBoolean∈{0,1}` / `randomString: len==n, chars∈alphabet` + main face `double∈[0,1)` / `hex: 2n chars, n<=0→null (JVM/JS; x86 →""` pre-existing from the crypto lane) + lenient edges (`b<=0→0`) | ✅ assert | ✅ assert | ✅ | ✅ assert (+riscv/aarch qemu) | `KofRandomTest` 12/12 |
+| stdlib kof.random (S10/S10a/S10b — non-deterministic, NO matrix case) | contract `0<=randomInt(b)<b` / `randomBoolean∈{0,1}` / `randomString: len==n, chars∈alphabet` + main face `double∈[0,1)` / `hex: 2n chars, n<=0→null (JVM/JS; x86 →""` pre-existing from the crypto lane) + lenient edges (`b<=0→0`) | ✅ assert | ✅ assert | ✅ | ✅ assert (+riscv/aarch qemu) | `KofRandomTest` 15/15 |
 
 > `random.*` does not enter the equality matrix (entropy — same reason as uuid):
 > parity proven by CONTRACT ASSERTS on the 5 targets (JVM SecureRandom, JS

@@ -8,7 +8,7 @@ import java.util.TreeMap;
 
 /**
  * Spill cost of a local slot (Phase C of
- * {@code docs/development/assembly-optimization-plan.md} §5: "spill
+ * {@code docs/assembly-optimization-plan.md} §5: "spill
  * heuristics").
  *
  * <p>A slot's spill cost estimates how much the program pays if the slot is

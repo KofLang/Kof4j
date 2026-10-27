@@ -32,37 +32,37 @@ final class DeclaredTypeChecker {
             switch (decl) {
                 case FunctionDeclarationNode f -> {
                     Set<String> tps = new HashSet<>(TypeParams.names(f.typeParameters())); // §355: nome limpo
-                    checkBounds(dc, sa, f.typeParameters(), "function '" + f.name() + "'");
-                    report(dc, sa, f.returnType(), tps,
+                    checkBounds(dc, sa, f, f.typeParameters(), "function '" + f.name() + "'");
+                    report(dc, sa, f, f.returnType(), tps,
                             "return type of function '" + f.name() + "'");
                     for (FormalParameterNode p : f.parameters()) {
-                        report(dc, sa, p.type(), tps,
+                        report(dc, sa, p, p.type(), tps,
                                 "parameter '" + p.name() + "' of function '" + f.name() + "'");
                     }
                 }
                 case ClassDeclarationNode c -> {
-                    checkBounds(dc, sa, c.typeParameters(), "class '" + c.name() + "'");
-                    checkHeritage(sa, dc, c.superClass(), c.interfaces(), c.typeParameters(), c.name());
+                    checkBounds(dc, sa, c, c.typeParameters(), "class '" + c.name() + "'");
+                    checkHeritage(sa, dc, c, c.superClass(), c.interfaces(), c.typeParameters(), c.name());
                     checkMembers(sa, dc, c.typeParameters(), c.members());
                 }
                 case RecordDeclarationNode r -> {
-                    checkBounds(dc, sa, r.typeParameters(), "record '" + r.name() + "'");
-                    checkHeritage(sa, dc, r.superClass(), r.interfaces(), r.typeParameters(), r.name());
+                    checkBounds(dc, sa, r, r.typeParameters(), "record '" + r.name() + "'");
+                    checkHeritage(sa, dc, r, r.superClass(), r.interfaces(), r.typeParameters(), r.name());
                     Set<String> tps = new HashSet<>(TypeParams.names(r.typeParameters())); // §355
                     for (RecordComponentNode comp : r.components()) {
-                        report(dc, sa, comp.type(), tps,
+                        report(dc, sa, comp, comp.type(), tps,
                                 "component '" + comp.name() + "' of record '" + r.name() + "'");
                     }
                     checkMembers(sa, dc, r.typeParameters(), r.members());
                 }
                 case InterfaceDeclarationNode i -> {
-                    checkBounds(dc, sa, i.typeParameters(), "interface '" + i.name() + "'");
-                    checkHeritage(sa, dc, null, i.interfaces(), i.typeParameters(), i.name());
+                    checkBounds(dc, sa, i, i.typeParameters(), "interface '" + i.name() + "'");
+                    checkHeritage(sa, dc, i, null, i.interfaces(), i.typeParameters(), i.name());
                     checkMembers(sa, dc, i.typeParameters(), i.members());
                 }
                 case EntityDeclarationNode e -> {
                     for (EntityFieldNode f : e.fields()) {
-                        report(dc, sa, f.type(), Set.of(),
+                        report(dc, sa, f, f.type(), Set.of(),
                                 "field '" + f.name() + "' of entity '" + e.name() + "'");
                     }
                 }
@@ -77,19 +77,19 @@ final class DeclaredTypeChecker {
         Set<String> tps = new HashSet<>(TypeParams.names(classTypeParams)); // §355
         for (AstNode member : members) {
             switch (member) {
-                case FieldDeclarationNode field -> report(dc, sa, field.type(), tps,
+                case FieldDeclarationNode field -> report(dc, sa, field, field.type(), tps,
                         "field '" + field.name() + "'");
                 case MethodDeclarationNode method -> {
-                    report(dc, sa, method.returnType(), tps,
+                    report(dc, sa, method, method.returnType(), tps,
                             "return type of method '" + method.name() + "'");
                     for (FormalParameterNode p : method.parameters()) {
-                        report(dc, sa, p.type(), tps,
+                        report(dc, sa, p, p.type(), tps,
                                 "parameter '" + p.name() + "' of method '" + method.name() + "'");
                     }
                 }
                 case ConstructorDeclarationNode ctor -> {
                     for (FormalParameterNode p : ctor.parameters()) {
-                        report(dc, sa, p.type(), tps,
+                        report(dc, sa, p, p.type(), tps,
                                 "parameter '" + p.name() + "' of constructor '" + ctor.name() + "'");
                     }
                 }
@@ -98,18 +98,18 @@ final class DeclaredTypeChecker {
         }
     }
 
-    private static void report(DiagnosticCollector dc, SemanticAnalyzer sa, String declType,
+    private static void report(DiagnosticCollector dc, SemanticAnalyzer sa, AstNode at, String declType,
                                Set<String> typeParams, String where) {
         if (declType == null) return;
         if (MemberResolver.declaredTypeUnresolved(sa, declType, typeParams)) {
-            dc.error("", 0, 0, 0,
+            dc.error(at,
                     "Undefined variable or type: '" + declType.trim() + "' in " + where
                             + " — declare the type or fix the name (R6: undefined declared types"
                             + " must not compile)",
                     "SEM011");
             return;
         }
-        reportCompositeTypeParam(dc, sa, declType, typeParams, where);
+        reportCompositeTypeParam(dc, sa, at, declType, typeParams, where);
     }
 
     /**
@@ -120,7 +120,7 @@ final class DeclaredTypeChecker {
      * JVM (R6/Q7: nunca silencioso). Reusa o MESMO predicado dos tipos
      * declarados (§251/SEM011), isentando os type-params do próprio escopo.
      */
-    private static void checkBounds(DiagnosticCollector dc, SemanticAnalyzer sa,
+    private static void checkBounds(DiagnosticCollector dc, SemanticAnalyzer sa, AstNode at,
                                     List<String> typeParameters, String where) {
         if (typeParameters == null || typeParameters.isEmpty()) return;
         Set<String> names = new HashSet<>(TypeParams.names(typeParameters));
@@ -128,7 +128,7 @@ final class DeclaredTypeChecker {
             String bound = TypeParams.boundText(entry);
             if (bound == null || bound.isEmpty()) continue;
             if (MemberResolver.declaredTypeUnresolved(sa, bound, names)) {
-                dc.error("", 0, 0, 0,
+                dc.error(at,
                         "Undefined variable or type: '" + bound.trim() + "' as the bound of type-parameter '"
                                 + TypeParams.name(entry) + "' in " + where
                                 + " — declare the bound type or fix the name (R6: an undefined bound must"
@@ -152,7 +152,7 @@ final class DeclaredTypeChecker {
      * o rio da erasure as cobre (§355/§356/§357).
      */
     private static void reportCompositeTypeParam(DiagnosticCollector dc, SemanticAnalyzer sa,
-                                                 String declType, Set<String> typeParams,
+                                                 AstNode at, String declType, Set<String> typeParams,
                                                  String where) {
         if (typeParams == null || typeParams.isEmpty()) return;
         String t = declType.trim();
@@ -160,7 +160,7 @@ final class DeclaredTypeChecker {
         Type resolved = CompilerTypes.resolveWithTypeParams(
                 t, java.util.List.copyOf(typeParams), sa.unit(), sa);
         if (fnTypeUsesOwnerTypeParam(resolved, typeParams)) {
-            dc.error("", 0, 0, 0,
+            dc.error(at,
                     "function type with a type-parameter of the owner in '" + t + "' in " + where
                             + " — generic function types are not lowered yet (erasure ABI is 1.0-line);"
                             + " the form is rejected instead of compiling to a load crash (SEM085)",
@@ -213,22 +213,22 @@ final class DeclaredTypeChecker {
      * cru virava super_class inválido e a classe morria no load
      * (`NoClassDefFoundError: Zebra`/`IOException`), silenciosamente.
      */
-    private static void checkHeritage(SemanticAnalyzer sa, DiagnosticCollector dc,
+    private static void checkHeritage(SemanticAnalyzer sa, DiagnosticCollector dc, AstNode at,
                                       String superDecl, List<String> interfaces,
                                       List<String> classTypeParams, String typeName) {
         Set<String> tps = new HashSet<>(TypeParams.names(classTypeParams));
-        reportHeritage(dc, sa, superDecl, tps, "superclass of '" + typeName + "'");
+        reportHeritage(dc, sa, at, superDecl, tps, "superclass of '" + typeName + "'");
         if (interfaces == null) return;
         for (String iface : interfaces) {
-            reportHeritage(dc, sa, iface, tps, "interface of '" + typeName + "'");
+            reportHeritage(dc, sa, at, iface, tps, "interface of '" + typeName + "'");
         }
     }
 
-    private static void reportHeritage(DiagnosticCollector dc, SemanticAnalyzer sa, String declType,
-                                       Set<String> typeParams, String where) {
+    private static void reportHeritage(DiagnosticCollector dc, SemanticAnalyzer sa, AstNode at,
+                                       String declType, Set<String> typeParams, String where) {
         if (declType == null) return;
         if (MemberResolver.declaredTypeUnresolved(sa, declType, typeParams)) {
-            dc.error("", 0, 0, 0,
+            dc.error(at,
                     "Undefined superclass or interface: '" + declType.trim() + "' in " + where
                             + " — import the type or fix the name (R6: a raw super fails at load)",
                     "SEM087");

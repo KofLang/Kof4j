@@ -35,6 +35,12 @@ abstract class FfiStructSupport {
                 struct ParamMix m; m.l = l; m.d = d; m.i = i; return m;
             }
             struct MixIF { int i; float f; };
+            // §14/§15 padding: a 1-byte _Bool forces 3 bytes of alignment padding
+            // before the int (C offset 4) — the shape no 4/8-byte field exercises.
+            struct PB { _Bool a; int b; };
+            int pbsum(struct PB p) { return (int)p.a * 100 + p.b; }
+            struct PBB { _Bool a; _Bool b; _Bool c; int d; };
+            int pbsum3(struct PBB p) { return (int)p.a + (int)p.b*10 + (int)p.c*100 + p.d*1000; }
             double mixif(struct MixIF m) { return m.i + m.f; }
             struct Time { long t; double d; };
             double timesum(struct Time t) { return (double)t.t + t.d; }
@@ -100,6 +106,30 @@ abstract class FfiStructSupport {
             int ec = p.waitFor();
             assertEquals(0, ec, () -> "NATIVE run " + base + " exit code, output: " + o);
             return o;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("interrupted", e);
+        }
+    }
+
+    /**
+     * Runs the JVM output WITHOUT asserting a zero exit code — for tests that pin
+     * the CURRENT behaviour of a catalogued gap (an expected failure).
+     */
+    protected String runJvmRaw(Path outDir) throws IOException {
+        try {
+            String javaHome = System.getProperty("java.home");
+            ProcessBuilder pb = new ProcessBuilder(
+                    Path.of(javaHome, "bin", "java").toString(),
+                    "--enable-native-access=ALL-UNNAMED",
+                    "-cp", outDir.toString(),
+                    "Default.Main");
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            String output = new String(p.getInputStream().readAllBytes(),
+                    java.nio.charset.StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+            p.waitFor();
+            return output;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("interrupted", e);

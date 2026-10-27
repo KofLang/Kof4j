@@ -19,7 +19,7 @@ import java.util.TreeSet;
 
 /**
  * Liveness analysis over the structured CFG (Phase C of
- * {@code docs/development/assembly-optimization-plan.md} §5: "liveness
+ * {@code docs/assembly-optimization-plan.md} §5: "liveness
  * analysis").
  *
  * <p>The IR addresses locals by slot index; a slot is LIVE at a program point

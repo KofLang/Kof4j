@@ -1,3 +1,6 @@
 RED
 GREEN
 3
+RED
+BLUE
+e=GREEN

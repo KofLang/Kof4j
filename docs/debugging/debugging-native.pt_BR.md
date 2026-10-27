@@ -28,7 +28,7 @@ alvo sobre o DWARF Kof (breakpoints em `Main.kf:N`, nunca no mangle);
 `.kf`); `--attach <pid>` = gdb `-p`. Prova: `KofDebugNativeTest` 7/7,
 `KofDebugNativeDapTest` 3/3 (stub-gdb no host, gdb real na CI).
 **Data:** 20 de setembro de 2026
-**Versão:** 0.6.4 (7 targets)
+**Versão:** 0.6.7 (7 targets)
 
 ---
 

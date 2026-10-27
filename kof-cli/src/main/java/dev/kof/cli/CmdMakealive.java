@@ -12,6 +12,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
+import dev.kof.compiler.TargetMatrix;
 
 /**
  * `kof makealive &lt;plan|apply|destroy&gt; &lt;file.kf&gt;` — tooling da linha 3.8
@@ -76,7 +77,7 @@ final class CmdMakealive {
             }
         }
         if (target != Target.JVM && target != Target.JS) {
-            System.err.println("makealive: target not supported yet (R7: JVM first; script/native are follow-up)");
+            System.err.println("makealive: --target " + TargetMatrix.name(target) + " is not supported (R7; supported today: jvm|js — native/script/wasm/wasi are follow-up slices)");
             return 1;
         }
         if (!Files.exists(file)) { System.err.println("not found: " + file); return 1; }

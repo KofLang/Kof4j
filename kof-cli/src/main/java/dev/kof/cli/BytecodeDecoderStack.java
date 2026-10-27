@@ -13,6 +13,18 @@ final class BytecodeDecoderStack {
     private BytecodeDecoderStack() {}
 
 static boolean conv(java.util.Deque<String> st, int op) {
+    // Fase E (22/10): o NARROWING 0x91-0x93 (i2b/i2c/i2s) — o §695/#471
+    // deu ao Kof `as Byte`/`as Short`/`as Char` a semântica FIEL do Java
+    // (o JVM emite i2b/i2s/i2c reais; o x86 e o riscv idem). O comentário
+    // antigo de "sem equivalente Kof" descrevia o código PRE-§695. Medido:
+    // 300 as Byte=44, 256 as Byte=0, -1 as Byte=-1, 70000 as Short=4464,
+    // 70000 as Byte=112 — os cinco idênticos ao Java.
+    if (op == 0x91 || op == 0x92 || op == 0x93) {
+        if (st.isEmpty()) return false;
+        String t = op == 0x91 ? "Byte" : op == 0x92 ? "Char" : "Short";
+        st.push("(" + st.pop() + " as " + t + ")");
+        return true;
+    }
     String m = switch (op) {
         case 0x85 -> "toLong"; case 0x86 -> "toFloat"; case 0x87 -> "toDouble";
         case 0x88 -> "toInt"; case 0x89 -> "toFloat"; case 0x8a -> "toDouble";

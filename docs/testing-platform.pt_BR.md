@@ -968,7 +968,7 @@ Java interna**. Não duplicar o trabalho de profiling — referenciá-lo.
   performance). **Complementar, não duplicado.**
 * `docs/wasm-wasi-plan.md` — KofWasm; o E2E cross-target/WASM da plataforma
   depende dele (`WASM001` até então).
-* `docs/development/qrcode-wasm-plan.md` — outro consumidor da frente WASM.
+* `docs/qrcode-wasm-plan.md` — outro consumidor da frente WASM.
 * `docs/stdlib/kof-file-plan.md` — `kof.file` para helpers de upload/download.
 * `docs/stdlib/kof-connector-ecosystem-plan.md` — providers (drivers de browser) são
   uma SPI natural no estilo connector; referência cruzada para o padrão SPI/manifest.

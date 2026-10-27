@@ -2,11 +2,43 @@
 
 # Sessão lane pipeline/image-vision — contexto completo para migração (11/10/2026)
 
-last: 14/10 — §705 QUINTA PASSADA: o travamento DEPENDE DA ENTRADA (retratei o "estrutural" da segunda passada) e a 3au converte um erro nativo LIMPO num giro. Com `data[0]=236` gira; com `data[0]=11` o MESMO binário sai limpo com erro de limite; a pré-3au na MESMA entrada sai limpa onde a 3au gira; um erro de limite DENTRO do decodeBlock (above/left de tamanho 2) sai limpo ⇒ não é qualquer erro de runtime; 256 bytes também saem limpos. A forma: o leitor esgota no meio do bloco E a exaustão cai nas iterações posteriores do laço. Nada pousado; árvore limpa.
-doing: nenhum — ciclo de diagnóstico; árvore limpa
-next: reproduzir com um stream de dois blocos cujo segundo esgota o leitor num símbolo CONHECIDO, e inspecionar o caminho de exaustão do `Av1Symbol.rawBits` nesse contexto — a pergunta é se o throw que deveria propagar para fora do laço é engolido ou reentrado no nativo. Ou entregar o §705 à lane compilador/nativo. Depois: a camada de tile group/OBU (não depende da 3au) e o `decodeRaster` AVIF.
+last: 19/10 — 156ª PASSAGEM: a CADEIA DO ORÁCULO está VALIDADA SÍMBOLO A SÍMBOLO até ao EOB do bloco 3 (≈45 símbolos; estados `range/value/bitPos` do Kof == `rng/dif>>16/tell` do libaom em TODOS os pontos). Todas as 5 divergências desta passagem eram bugs do HARNESS (adaptação desligada, `txb_skip` de coeficientes do b1 em falta, linha uv não seguir o y_mode, linha/leitura do ângulo Y, flags de paleta não condicionadas aos modos DC) — o Kof está correcto até ao EOB (b3: y=6 angle=5 uv=0 tx=0 = TX_16X64, EOB eobPt=7 extra=9 = 42). Sem mudança no Kof nesta passagem.
+doing: §760 — cadeia validada até ao EOB do b3; próximo = estender a cadeia pela CAMINHADA DE NÍVEIS (coeff_base_eob/br/base/signs + inversa), chroma e blocos seguintes
+next: §760 — estender o oráculo à caminhada de níveis do b3 (as CDFs de coeficientes do token_cdfs.h e as funções de contexto) e comparar símbolo a símbolo; depois chroma/blocos seguintes e o desync real
 location: repository
 state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (usar `git add` por caminho explícito).
+
+## Sessão 19/10 (156ª) — §760: cadeia validada até ao EOB do bloco 3
+- **TÉCNICA:** comparar `range/value/bitPos` (Kof) com `rng/dif>>16/tell` (libaom) nas entradas de bloco e símbolos escolhidos.
+- **5 bugs do harness:** adaptação, txb_skip do b1, linha uv, ângulo Y (linha+leitura), paleta condicional aos modos DC.
+- **VALIDADO:** b0..b3 símbolo a símbolo; b3 = TX_16X64 com EOB eobPt=7 extra=9; Kof correcto.
+- **SEM MUDANÇA NO KOF** nesta passagem (só docs); SHA no commit.
+
+## Sessão 19/10 (155ª) — §760: cadeia do oráculo até ao b3 + fix do cfg.sbSize
+- **SHA:** a registar no commit desta passagem.
+- **ORÁCULO:** harness em /tmp/aomo (clone libaom 9440aeedd); cadeia sym7/sym8/sym9; 3 correcções do harness (adaptação, coeficientes do b1, uv(0,6)).
+- **FACTOS:** cadeia == Kof nos blocos 0..3 até ao y; adaptação txb_skip exacta; divergência candidata no uv do b3.
+- **FIX:** probe `Av1ModeTail(av1SuperblockSize(seq.use128x128Superblock), ...)`; AvifFullPlane 7/7.
+
+## Sessão 19/10 (154ª) — §760 família CU0: superbloco 128 corrigido + oráculo libaom construído
+- **SHA:** a registar no commit desta passagem.
+- **FIX:** `use_128x128_superblock` honrado pela caminhada (`av1SuperblockSize`, `walkTileSb`, `setSuperblockSize` no driver/chroma, `Partition_Subsize` 128x128).
+- **ORÁCULO:** harness C mínimo + clone libaom (tip 9440aeedd) — primeira cadeia de símbolos validada 1:1 (partição reunida, partição, skip, y, uv, palette, filter-intra, tx-size).
+- **MEDIÇÕES:** 128x64 cu0 704->585; 2 tiles 4632->4513; skipped 30->30 (zero bits); 64-superbloco 11400/11400 intacto.
+- **PRÓXIMO:** bloco 1 skip (Kof 0 vs libaom 1 na cadeia) — estender o oráculo símbolo a símbolo.
+
+## Sessão 19/10 (153ª) — §760 TX_16X64: reprodutor mínimo + auditoria limpa
+- **SHA:** a registar no commit desta passagem.
+- **REPRODUTOR:** `avif_enc_nopal_128x64_cu0.avif` + `AvifFullPlaneE2ETest#cu0SingleTileStreamRecordsTheTx16x64Divergence` (gravado, não correcto).
+- **AUDITORIA:** contextos 102/102, scan 512/512, EOB/partição == libaom, modo-CDF verde, payload certo.
+- **PARADOXO:** referência xadrez vs Kof plano no 1º bloco ⇒ o alvo é o primeiro par partição/skip; instrumento = oráculo §761.
+
+## Sessão 19/10 (152ª) — §760 caminho skip corrigido + §761 catalogado
+- **SHA:** `53fa866e1` (push 0/0).
+- **FIX:** guarda `skip_txfm=1` na luma e nos dois planos de chroma (sem coeficientes, resíduo zero, reset de contextos).
+- **PROVA:** `AvifFullPlaneE2ETest#skippedBlockReadsNoCoefficientSymbols` (stream real, RED-first 34->528 ⇒ 34->34; controlo `t1:b32/txb256/nz256`).
+- **HARNESS:** probe com contextos de chroma por tile; diag VRES com índices clampados por largura E altura (16x4/4x16).
+- **§761:** golden do tile-recon caso 2 é não-conforme (caracteriza o harness) → excluído por nome; próximo = rebuild do oráculo.
 
 ## Sessão 13/10 (14ª) — 3ar REVERTIDA por um stash-pop de terceiro, e RESTAURADA
 - **O achado:** a ponta do `lab` (`8004dcf0a`, "docs(dev) — house policy") era um STASH-POP velho. Medi hasheando cada arquivo do commit contra `git rev-list <commit>^`: `Decompile.java` = estado de 12/10; `ClassFileParser.java` = **14/09**; `RuntimeOrmHistory2.java` = pré-fix-do-segv; `AvifFrameChromaSupport.java` DELETADO e `AvifFrameSupport`/`AvifFrameE2ETest` = 03–04/10 (a minha 3ar sumiu). O sinal que fecha o caso: a mensagem diz que resolveu marcadores de conflito CRUS, mas o PAI `0d9ec60b5` tem **ZERO** marcadores (`git grep '^<<<<<<< '` vazio).
@@ -92,7 +124,7 @@ state: STABLE (para a lane) — NOTE: a árvore carrega o WIP de outras lanes (u
 
 ## O que EU sou
 - lane pipeline/image-vision — identidade honesta `owner = 192.168.15.21:0` (flatt CLI, NÃO opencode; não há listener opencode neste host — porta anotada como `0`/n/a conforme a regra de nunca-inventar).
-- frente ativa: `docs/development/image-vision-plan.md` — a cadeia de decode AVIF/AV1 em Kof puro (`libs/image/`).
+- frente ativa: `docs/image-vision-plan.md` — a cadeia de decode AVIF/AV1 em Kof puro (`libs/image/`).
 
 ## Trabalho pousado nesta sessão
 

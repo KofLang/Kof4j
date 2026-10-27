@@ -9,7 +9,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Q7 (no silent fallback) / Phase D of {@code docs/development/assembly-optimization-plan.md}:
+ * Q7 (no silent fallback) / Phase D of {@code docs/assembly-optimization-plan.md}:
  * the cross (riscv64/aarch64) emitter must REFUSE an op it does not lower — never
  * silently emit a comment (which would leave the compile "succeeding" with a wrong
  * binary). {@code KofFunctionAddress} is the one IR op NOT in

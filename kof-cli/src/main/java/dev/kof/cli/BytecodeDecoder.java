@@ -192,13 +192,15 @@ import java.util.Set;
                 case 0x8a -> { if (!stack.mono("(%s as Double)", "J", "D")) return null; }  // l2d
                 case 0x8e -> { if (!stack.mono("(%s as Int)", "D", "I")) return null; }     // d2i
                 case 0x8f -> { if (!stack.mono("(%s as Long)", "D", "J")) return null; }    // d2l
-                // i2c é o ÚNICO cast narrowing de Kof que é fiel: o codegen
-                // emite i2c real para `x as Char` (16 bits, wrap igual ao
-                // (char) do Java). i2b/i2s NÃO têm equivalente fiel — Kof
-                // `as Byte`/`as Short` são no-op (Int 32 bits alarga; (byte)
-                // 256 = 0 em Java mas 256 as Byte = 256 em Kof) — deixam no
-                // default (recusa → stub honesto, bug-62 discipline).
+                // Fase E (22/10): i2c/i2b/i2s — os tres truncam fielmente
+                // desde o §695/#471 (o JVM emite i2b/i2s/i2c reais para
+                // `as Byte`/`as Short`/`as Char`; x86 e riscv idem). O
+                // comentario antigo de "i2b/i2s NAO tem equivalente"
+                // descrevia o codigo PRE-§695. Medido: 300 as Byte=44,
+                // 256 as Byte=0, -1 as Byte=-1, 70000 as Short=4464.
+                case 0x91 -> { if (!stack.mono("(%s as Byte)", "I", "I")) return null; }    // i2b
                 case 0x92 -> { if (!stack.mono("(%s as Char)", "I", "I")) return null; }    // i2c
+                case 0x93 -> { if (!stack.mono("(%s as Short)", "I", "I")) return null; }   // i2s
                 case 0xb8 -> { // invokestatic
                     String[] m = BytecodeCp.resolveMethodRef(cp, in.operands()[0]);
                     if (m == null) return null;
@@ -370,9 +372,19 @@ import java.util.Set;
                         c = a2 + " " + iv + " " + b2;
                     } else {
                         String v = stack.popExpr();
-                        // o instanceof NÃO leva sufixo (a queda é o C-true);
-                        // os null-comps levam o inv dele (`== null`/`!= null`)
-                        if (op == 0x99 || op == 0x9a) c = v;
+                        // Fase E (24/10): a POLARIDADE do 1-operando no shape
+                        // [ifXX salta ao else, queda = then, goto ao join] —
+                        // a condição da QUEDA é o não-salto: o ifeq (salta
+                        // quando v==0) deixa a queda em v!=0, e o `v` nu é
+                        // equivalente sob o truthiness do Kof; o ifne (salta
+                        // quando v!=0, o javac usa no `x == 0 ? A : B`)
+                        // deixa a queda em v==0 — o `v` nu era CÓDIGO
+                        // ERRADO (o label do Fizz: `n % 15 == 0 ?`
+                        // saía invertido — medido: label(9) dava
+                        // "FizzBuzz" onde o Java dá "Fizz"); o ifne leva
+                        // o inv dele (`== 0`), como os null-comps levam
+                        // o seu (`== null`/`!= null`).
+                        if (op == 0x99) c = v;
                         else c = v + " " + BytecodeCp.invCond(op);
                     }
                     stack.push("(if (" + c + ") " + ra.stack.topExpr() + " else " + rb.stack.topExpr() + ")", "L");
@@ -641,7 +653,11 @@ import java.util.Set;
             java.util.List<BytecodeReader.Insn> suf = blk.subList(blk.size() - 1 - len, blk.size() - 1);
             if (!pre.isEmpty()) {
                 int lo = pre.get(pre.size() - 1).opcode();
+                // Fase E (24/10): putstatic/putfield também encerram o
+                // statement (o primeiro statement do corpo do do-while
+                // fundido ao header — medido no sep: `OUT = i; if ...`)
                 boolean stmtEnd = (lo >= 0x36 && lo <= 0x4e) || lo == 0x57
+                        || lo == 0xb3 || lo == 0xb5
                         || (allowLoad && (lo == 0x19 || (lo >= 0x2a && lo <= 0x2d)));
                 if (!stmtEnd) continue;
             }

@@ -3,7 +3,7 @@
 # Filosofia do Kof
 
 **Última atualização:** 12 de setembro de 2026
-**Versão:** 0.6.4 (7 targets; `VERSION` 0.6.4)
+**Versão:** 0.6.7 (7 targets; `VERSION` 0.6.7)
 
 ---
 
@@ -290,7 +290,7 @@ instalação não depende de Java externo, `JAVA_HOME` ou SDKMAN. Build
 `mvn test` 3225 (2762+50+7+406), golden 16/16, integration 9/9.
 
 O usuário que instala o Kof recebe tudo o que precisa para desenvolver,
-compilar, executar e usar o tooling da linguagem (31 comandos:
+compilar, executar e usar o tooling da linguagem (32 comandos:
 `kof build, run, serve, check, md, test, bench, profile, inspect, decompile, translate, compare, migrate, debug, info, lsp, install, script, repl, init, new, connector, deps, deploy, workflow, makealive, c, fmt, editor, config, version`).
 
 ---

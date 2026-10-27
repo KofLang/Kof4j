@@ -2,7 +2,7 @@
 
 # Kof — Long-Term Roadmap
 
-last: 0.6.3-published
+last: 0.6.6-published (0.6.7 CUT on the tree, tags pending — `VERSION` = 0.6.7; 0.6.6 published 19/10 per `AGENTS.md` + `git tag kof-0.6.6-*`)
 doing: 1.0-exit-gate
 next: promotion-sweep
 location: roadmap
@@ -20,7 +20,7 @@ TIER 3–5 marked DEPRIORITIZED by the maintainer 15/09 — trio back to `future
 implementation plan (ex-`ACTION_PLAN`+`IMPLEMENTATION_PLAN`);
 migration cluster consolidated — `LEGACY_IR`+`DIFFERENTIAL_TESTING` merged into
 `LEGACY_MIGRATION.md`)
-**Version:** 0.6.4 (active development branch `lab`)
+**Version:** 0.6.7 (active development branch `lab`)
 
 ---
 
@@ -792,7 +792,7 @@ Kof is a distributable platform, not just a JAR:
 - releases by 2 jobs (`release.yml`: `test-and-bump` exports `bump_sha` → `package-and-release` checks the bump commit + version sanity check) on push to `main`, per platform linux-x86_64 / macos-arm64 / windows-x86_64 (tests 819 → bump → package 3 platforms → GitHub Release);
 - `scripts/package.sh` PASS (dist layout + tar.gz/zip + SHA256SUMS + jars), golden 16/16, integration 9/9;
 - official editor support: TextMate grammar + LSP (hover/completion + real diagnostics) + `kof editor install` (VS Code/Neovim/Vim/Emacs/Geany/Nano + honest step-10 IntelliJ 13/09: filetype XML + External Tools + LSP4IJ README, no plugin — issue #1);
-- `kof build/run/serve/check/md/test/bench/profile/inspect/decompile/translate/compare/migrate/debug/info/lsp/install/script/repl/init/new/connector/deps/deploy/workflow/makealive/c/fmt/editor/config/version` PASS (31 commands, measured in `Main.java`; `fmt` and `config gen` 31/08).
+- `kof build/run/serve/check/md/test/bench/profile/inspect/decompile/translate/compare/migrate/debug/info/lsp/install/script/repl/init/new/connector/legacy/deps/deploy/workflow/makealive/c/fmt/editor/config/version` PASS (32 commands, measured in `Main.java`; `fmt` and `config gen` 31/08).
 
 References: `docs/distribution/`, `docs/tooling/`.
 
@@ -938,6 +938,8 @@ science) **without** destroying the language's simplicity.
 
 ### Promotion queue (`D-FUTURE-PROMOTION`, maintainer 28/09)
 
+> **CLOSED 24/10 (`D-FUTURE-CLOSE`):** the maintainer's sweep after all lanes died concluded the six open plans — `LEGACY_MIGRATION`, `DECOMPILER`, `TRANSLATOR` (autonomous scope complete, moved to `docs/`), `qrcode-wasm` (Phase 1 complete → `docs/`), `image-vision` (delivered surface → `docs/`, the AVIF 3bd divergence parked in `known-bugs` §757-family) and `kofscript-embedding` (zero code, returned to `future/`). The remainders are parked with their resume conditions in each plan; nothing in `development/` is open.
+
 > Before new work: migrate everything to `lab`, then promote exactly ONE plan
 > from `future/` and implement it (cheapest first). **CONCLUDED:** `http-policies`
 > — promoted 28/09 (`D-HTTP-POLICIES`), all slices F0–F6 landed 28/09
@@ -985,7 +987,7 @@ science) **without** destroying the language's simplicity.
 > (advanced) deferred post-promotion by `D-ENTITY-HISTORY-PHASE6`.
 > **CORE COMPLETE (9th front):** `testing-platform` — promoted 10/10 (`D-TESTING-PLATFORM`, maintainer order "pode finalizar o plano então, ja promover e vida que segue") to
 > [`testing-platform.md`](../testing-platform.md); §11 phases 1–4 COMPLETE — unit core §4 (assertions 1–6 + tables §4.4 + clock/random seams §4.6) + harness §5 (temp-dir/readiness, withDb, withServer) + runner §7 (honest discovery, tags OR, level breakdown) + browser §6 FULL STACK (manifesto `kof-test.kofmd` → gate `kof test --tag browser` → SPI `BrowserProvider` → ChromeHeadlessProvider (zero-dep) + PlaywrightLibProvider (lib 1.49.0, normal pom dep) → `kof.test.browser` Kof-level API → REAL Chromium E2E); §12 with NO open decisions (4 chat polls). Phases 5–8 under the confirmed §11 order — measured 11/10 (lane `192.168.100.14:0`): **phase 7 CORE LANDED** (kind-parameterized `PlaywrightLibProvider`, real Firefox render E2E green + Chromium, WebKit launch-blocked on the host → named skips); **phase 5 CORE LANDED** (`CypressProvider` over the REAL `cypress run` — generated ad-hoc specs, honest probe; host unlocked by the maintainer mid-slice: node 24.18.1/npm 11.16.0, Cypress 16.1.1 in the Kof cache); phase 6's KofJS face already proven by the seed `KofJsBrowserE2ETest`, the KofWasm face gated by #776; phase 8 (advanced) OPEN — each slice under a NEW claim. Authoritative state lives in `docs/testing-platform.md`.
-> > **OPEN (11th front):** `assembly-optimization` — promoted 13/10 (`D-FUTURE-PROMOTION` + `D-ASSEMBLY-OPT-GO`) to [`assembly-optimization-plan.md`](assembly-optimization-plan.md); the only `future/` plan whose gate was already decided (no new syntax, additive compiler-internal). Phase A COMPLETE (structured CFG + effect/use + virtual registers + pass pipeline over the existing linear `Optimizer.java`); Phase B COMPLETE (constant/copy propagation + dead-store elimination wired into the production `Optimizer` with a measured instruction reduction); Phase C (register allocation) is current — slice 1 (liveness, `LivenessAnalysis.java`) landed.
+> > **CONCLUDED (11th front):** `assembly-optimization` — promoted 13/10 (`D-FUTURE-PROMOTION` + `D-ASSEMBLY-OPT-GO`), CONCLUDED 20/10 to [`../assembly-optimization-plan.md`](../assembly-optimization-plan.md); the only `future/` plan whose gate was already decided (no new syntax, additive compiler-internal). Phase A COMPLETE (structured CFG + effect/use + virtual registers + pass pipeline over the existing linear `Optimizer.java`); Phase B COMPLETE (constant/copy propagation + dead-store elimination wired into the production `Optimizer` with a measured instruction reduction); Phase C (register allocation) is current — slice 1 (liveness, `LivenessAnalysis.java`) landed.
 > > **OPEN (10th front):** `qrcode-wasm` — promoted 11/10 (`D-FUTURE-PROMOTION` resumed per `D-FUTURE-UNFREEZE`, maintainer 11/10) to [`qrcode-wasm-plan.md`](qrcode-wasm-plan.md); state 12/10: Phase 1 slices 1-2b LANDED (writer `Qrcode.kf`+`QrPng.kf` 8/8; file reader `QrDecode.kf` 8/8 incl. Reed-Solomon error correction — damaged symbols up to floor(ecc/2) byte errors per block decode exactly, over-capacity refused by name); next slice = camera reader; Phase 3 (`KofWasm` target) rule-6 (maintainer decision).
 All remaining `future/` plans are authorized with their
 > design questions resolved (`D-FUTURE-BATCH-2809B`); promotion stays

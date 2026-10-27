@@ -7,7 +7,7 @@
 ## Status: Accepted
 
 **Last updated:** September 13, 2026
-**Version:** 0.6.4
+**Version:** 0.6.7
 
 > **Visual improvement 13/09 (issue #109):** the ASCII diagrams of this ADR
 > (Pipeline, Type Representation, IR, backends and stdlib dispatch) became
@@ -288,7 +288,7 @@ flowchart TD
 Target gaps produce **clear compile-time diagnostics** (SECN00x,
 CONC001, JSN00x, DB001, CONF001, LOG001) — never silently different behavior.
 
-Modules (0.5.0-beta, re-synced 17/09): `kof.core`, `kof.collections` (`List map/filter/reduce`, `Map/Set`, `Box<T>`), `kof.io`, `kof.time` (scheduler `every` JVM+JS via `setInterval`), `kof.json` (objects/records + arrays on the 3 targets, 31/08), `kof.http` (JVM+JS via HttpClient; retry/circuit breaker 30/08), `kof.web` (routes/middleware + WebSocket/SSE JVM, 30/08), `kof.cache` (3 targets, 30/08), `kof.security`, `kof.concurrent` (`spawn` — JVM virtual threads, Native pthread 31/08, JS sequential), `kof.test`, `kof.cli` (31 commands, measured in `Main.java`: `build/run/serve/check/md/test/bench/profile/inspect/decompile/translate/compare/migrate/debug/info/lsp/install/script/repl/init/new/connector/deps/deploy/workflow/makealive/c/fmt/editor/config/version`), `kof.db`/`kof.orm` (native SQLite `.so` + MySQL wire x86-64 real (13 ORM faces, F2d1–F2d7)), `kof.config`/`kof.log`. Full state in docs/stdlib/stdlib.md and docs/status.md (current suite count).
+Modules (0.5.0-beta, re-synced 17/09): `kof.core`, `kof.collections` (`List map/filter/reduce`, `Map/Set`, `Box<T>`), `kof.io`, `kof.time` (scheduler `every` JVM+JS via `setInterval`), `kof.json` (objects/records + arrays on the 3 targets, 31/08), `kof.http` (JVM+JS via HttpClient; retry/circuit breaker 30/08), `kof.web` (routes/middleware + WebSocket/SSE JVM, 30/08), `kof.cache` (3 targets, 30/08), `kof.security`, `kof.concurrent` (`spawn` — JVM virtual threads, Native pthread 31/08, JS sequential), `kof.test`, `kof.cli` (32 commands, measured in `Main.java`: `build/run/serve/check/md/test/bench/profile/inspect/decompile/translate/compare/migrate/debug/info/lsp/install/script/repl/init/new/connector/legacy/deps/deploy/workflow/makealive/c/fmt/editor/config/version`), `kof.db`/`kof.orm` (native SQLite `.so` + MySQL wire x86-64 real (13 ORM faces, F2d1–F2d7)), `kof.config`/`kof.log`. Full state in docs/stdlib/stdlib.md and docs/status.md (current suite count).
 
 ## Diagnostics
 

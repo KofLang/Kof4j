@@ -100,12 +100,36 @@ class AvifSeqE2ETest implements LibraryInstallSupport {
         Path root = tmp.resolve("item-errors");
         Files.createDirectories(root);
         Path dir = fixtures(root);
+        // The film-grain line left this list on purpose (140th pass): the
+        // sequence flag is CARRIED now, and only an applied grain is refused —
+        // the refusal itself is pinned at its real gate by
+        // AvifFrameE2ETest#frameRefusalsAreHonest (filmGrainGateIsAFrameDecision).
         String goldens = String.join("\n",
                 "IMAGE: avif decoder model info not covered",
-                "IMAGE: avif film grain not covered",
                 "IMAGE: avif sequence profile not covered",
                 "IMAGE: avif config obu absent");
         assertEquals(goldens, runJvm(errorProbe(dir)));
+    }
+
+    /**
+     * The other half of the pair above: a sequence header that SIGNALS film
+     * grain parses and reports the flag. "#900: the refusal vanished" is
+     * answered by these two tests together — the flag is read, not dropped.
+     */
+    @Test
+    void filmGrainFlagIsCarriedNotRefused() throws Exception {
+        Path root = tmp.resolve("film-flag");
+        Files.createDirectories(root);
+        Path dir = fixtures(root);
+        String code = """
+            import image.AvifSeq
+
+            main() {
+                var f = readAvifSeqHeader("%s")
+                println("film=" + f.filmGrainPresent + " w=" + f.maxWidth)
+            }
+            """.formatted(dir.resolve("film.avif").toString().replace('\\', '/'));
+        assertEquals("film=true w=8", runJvm(code));
     }
 
     @Test

@@ -450,5 +450,4 @@ class FfiStructE2ETest extends FfiStructSupport {
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
-
 }

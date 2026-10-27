@@ -44,7 +44,7 @@ import java.util.Set;
 
 /**
  * Effect and local def/use analysis over the IR (Phase A of
- * {@code docs/development/assembly-optimization-plan.md} §21: "define use
+ * {@code docs/assembly-optimization-plan.md} §21: "define use
  * analysis; define effect analysis").
  *
  * <p>The IR is a linear, stack-based op stream with local slots. Later passes

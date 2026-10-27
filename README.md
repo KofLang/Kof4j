@@ -411,9 +411,11 @@ kof run <file.kf> [--target jvm|native|native.risc|native.arm|js] [args...]
 kof serve <file.kf> [--port <port>] [--host <host>]
 kof check <file.kf|dir> [--json]
 kof test <file.kf|dir> [--target jvm|native|js]
-kof script | repl | c | fmt | config
+kof md check|format <file.md>
+kof script | repl | c | fmt | config | init | new
 kof bench | profile | inspect | debug
-kof decompile | translate | compare | migrate | deps | editor | new
+kof decompile | translate | compare | migrate | deps | editor | connector | legacy
+kof workflow | makealive <plan|apply|destroy> <file.kf>
 kof info | lsp | install | version
 ```
 

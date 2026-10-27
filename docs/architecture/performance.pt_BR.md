@@ -8,7 +8,7 @@ next: none
 location: docs/architecture
 state: normative
 
-**Versão:** 0.6.4 (37 benchmarks; `kof bench` + `benchmark.yml` limiar 1.20)
+**Versão:** 0.6.7 (37 benchmarks; `kof bench` + `benchmark.yml` limiar 1.20)
 Princípios permanentes, não sugestões: type system, IR, backends, runtime, stdlib e tooling obedecem.
 
 # 1. Núcleo

@@ -93,7 +93,7 @@ List<Int[]> readAvifTilePayloads(String path) {
 List<AvifTileGroup> avifItemTileGroups(Int[] item) {
     var seq = AvifSeqHeader(0, false, false, 0, 0, false, false, false, 8, 0,
                             false, false, false, false, false, false, 2, 2, 0, 0, 0, 0, 0,
-                            false, false, false, false)
+                            false, false, false, false, false)
     var haveSeq = false
     var groups = listOf<AvifTileGroup>()
     var totalTileNum = 0
@@ -240,10 +240,13 @@ AvifTileGroup tileGroupWalk(Int[] b, Int p0, Int limit, AvifFrameHeader frame,
         if (p + tsb > limit) {
             throw "IMAGE: truncated avif tile group"
         }
+        // tile_size_minus_1 le(TileSizeBytes): LITTLE-endian (§5.11.1 `le(n)`).
+        // A 1-byte field hides the byte order; the 2-byte fields of a
+        // palette-free stream do not (known-bugs §759).
         var v = 0
         var k = 0
         while (k < tsb) {
-            v = (v << 8) | u8(b, p)
+            v = v | (u8(b, p) << (8 * k))
             p = p + 1
             k = k + 1
         }
@@ -269,6 +272,6 @@ AvifFrameHeader avifFrameSentinel() {
     return AvifFrameHeader(0, false, false, false, 0, 0, false, 0, 0, false,
                            false, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                            0, new Int[8], listOf(0, 0, 0, 0, 0, 0),
-                           0, listOf(), listOf())
+                           0, listOf(), listOf(), 0, 0, 0, 0, 0)
 }
 

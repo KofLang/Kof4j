@@ -196,6 +196,7 @@ if touches '^docs/development/'; then
     run_gate queue_enum "${AGENT_VERIFY_QUEUEENUM:-bash scripts/check_queue_enum.sh}"
     run_gate plan_owners "${AGENT_VERIFY_PLANOWNERS:-bash scripts/check_plan_owners.sh}"
     run_gate plan_index "${AGENT_VERIFY_PLANINDEX:-bash scripts/check_plan_index.sh}"
+    run_gate index_dup "${AGENT_VERIFY_INDEXDUP:-bash scripts/check_index_dup.sh}"
 fi
 if touches '(^|/)(kof-runtime|stdlib)/|stdlib_boundary'; then
     run_gate stdlib_boundary "${AGENT_VERIFY_STDLIB:-bash scripts/check_stdlib_boundary.sh}"

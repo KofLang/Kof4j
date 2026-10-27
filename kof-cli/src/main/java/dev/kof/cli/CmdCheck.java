@@ -78,6 +78,20 @@ final class CmdCheck {
             return 0;
         }
 
+        // Q7 honest-early-refusal, same pattern as CmdTest/CmdScript/CmdRun:
+        // `check` runs the FULL pipeline, so `--target script` fails on an
+        // EMISSION diagnostic (COMP003 "emits no artifacts") even though the
+        // program is valid — while this command's own help promises "type-check
+        // without emitting output". MEASURED: `check --target script` returned
+        // rc=1 on correct code. Type-checking does not depend on that target, so
+        // say so and point at the default instead of reporting a phantom error.
+        if (target == Target.SCRIPT) {
+            err.println("check: --target script cannot be checked (it emits no"
+                    + " artifacts; type-checking does not depend on it) — omit"
+                    + " --target (default jvm) or use --target jvm|native|js|wasm|wasi");
+            return 1;
+        }
+
         CompilerDriver driver = new CompilerDriver();
         int count = files.size();
         Path tmp;

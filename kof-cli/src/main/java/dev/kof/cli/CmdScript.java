@@ -47,6 +47,20 @@ final class CmdScript {
             else if (a.startsWith("-")) { System.err.println("unknown option: " + a); return 1; }
             else progArgs.add(a);
         }
+        // Q7 honest-early-refusal, same pattern as `kof test` (CmdTest): WASM/WASI
+        // cannot be EXECUTED by this command — it compiles, then fails to locate a
+        // runnable artifact. MEASURED before the guard: `--target wasi` printed the
+        // raw "Não foi possível localizar nem carregar a classe principal
+        // Default.Main" and `--target wasm` a compiler diagnostic, neither naming
+        // the real problem. Say so up front and point at the working targets.
+        if (target == Target.WASM || target == Target.WASI) {
+            System.err.println("script: --target "
+                    + (target == Target.WASM ? "wasm" : "wasi")
+                    + " cannot be executed by 'kof script' (no runnable artifact is produced)"
+                    + "; use --target jvm|js|native (or 'kof build --target "
+                    + (target == Target.WASM ? "wasm" : "wasi") + "' to emit the module)");
+            return 1;
+        }
         // Modo inline (zero-state): o argumento não é um path existente, mas
         // parece fonte Kof → é um programa KofScript efêmero, não um arquivo.
         boolean inline = !Files.exists(Path.of(sourceArg));

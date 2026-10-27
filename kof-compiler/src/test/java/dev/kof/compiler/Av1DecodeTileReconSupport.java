@@ -90,6 +90,20 @@ final class Av1DecodeTileReconSupport {
         }
     }
 
+    /**
+     * {@code known-bugs} §761: the golden's case 2 (the "skip path") is
+     * NON-CONFORMANT — its stream carries transform-block syntax for a
+     * {@code skip_txfm=1} block (the oracle's writer emits it and the oracle
+     * calls {@code av1_read_coeffs_txb} directly, without libaom's
+     * {@code read_coeffs_tx_intra_block} guard). A real encoder writes nothing
+     * for a skipped block (measured on
+     * {@code avif_enc_nopal_cu0_2tile192.avif}: the skipped block's span is
+     * ZERO bits), so the case is EXCLUDED by name here; cases 0/1 stay pinned,
+     * and the skip semantics are pinned by the real-stream test
+     * {@code AvifFullPlaneE2ETest#skippedBlockReadsNoCoefficientSymbols}.
+     */
+    private static final int EXCLUDED_NON_CONFORMANT_SKIP_CASE = 2;
+
     static List<Case> cases() {
         List<Case> out = new ArrayList<>();
         Case cur = null;
@@ -97,7 +111,9 @@ final class Av1DecodeTileReconSupport {
         for (String line : golden().split("\n")) {
             String[] f = line.split(" ");
             if (f[0].equals("C")) {
-                if (cur != null) out.add(finish(cur, blocks));
+                if (cur != null && cur.ci() != EXCLUDED_NON_CONFORMANT_SKIP_CASE) {
+                    out.add(finish(cur, blocks));
+                }
                 cur = new Case(Integer.parseInt(f[1]), Integer.parseInt(f[2]),
                         Integer.parseInt(f[3]), Integer.parseInt(f[4]),
                         Integer.parseInt(f[5]), Integer.parseInt(f[6]),
@@ -108,7 +124,9 @@ final class Av1DecodeTileReconSupport {
                         Integer.parseInt(f[4])));
             }
         }
-        if (cur != null) out.add(finish(cur, blocks));
+        if (cur != null && cur.ci() != EXCLUDED_NON_CONFORMANT_SKIP_CASE) {
+            out.add(finish(cur, blocks));
+        }
         return out;
     }
 

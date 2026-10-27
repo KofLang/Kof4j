@@ -33,7 +33,7 @@ real gdb over the Kof DWARF (breakpoints on `Main.kf:N`, never the mangle);
 `.kf`); `--attach <pid>` = gdb `-p`. Proof: `KofDebugNativeTest` 7/7,
 `KofDebugNativeDapTest` 3/3 (stub-gdb on the host, real gdb in CI).
 **Date:** September 20, 2026
-**Version:** 0.6.4 (7 targets)
+**Version:** 0.6.7 (7 targets)
 
 ---
 

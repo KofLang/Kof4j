@@ -107,11 +107,18 @@ class AvifScreenContentGeoE2ETest implements LibraryInstallSupport {
      * reference) and the FIRST right-half block — `(0,8)` `BLOCK_16X8` — is a
      * 2-colour palette block (`PALINFO b1:palY2`) whose palette-token stage costs
      * 90 bits (118 -> 208) of the 296, after which the reader is exhausted.
+     *
+     * <p>The RECORDED block count moved 30 -> 59 in the 152nd pass: the
+     * `skip_txfm=1` guard and the per-tile chroma entropy contexts changed the
+     * walk (the pre-fix pass read coefficient syntax for skipped blocks). The
+     * facts this test guards — left half exact, right half divergent, palette
+     * MODE info and stage positions — are unchanged; whether the new structure is
+     * fully correct still needs the oracle (§757 family).
      */
     @Test
     void tallFrameRecordsTheRightHalfDivergenceOnJvm() throws Exception {
         var line = runKof(canonical("avif_real_tall.avif", "tall.avif"));
-        assertTrue(line.contains("blocks=30 covered=1024 frame=1024 overlap=0 "
+        assertTrue(line.contains("blocks=59 covered=1024 frame=1024 overlap=0 "
                 + "symBits=296 payloadBits=296"), () -> "the tall walk moved: " + line);
         assertTrue(line.contains("Y 00=100 "), () -> "the left half must be exact: " + line);
         assertTrue(line.contains("BLKY (0,0,bs9)=100 (0,8,bs5)=16"),

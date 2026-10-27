@@ -32,7 +32,7 @@ authored under that freeze, not promoted.
   KofBOL is the bridge; this translator is the *migration* path. Open decision
   Q9 of KofBOL (is a COBOL→Kof *data contract* path KofBOL or interop?) is
   **answered here**: the data contract is shared; the translator consumes it.
-- `docs/development/LEGACY_MIGRATION.md` §4 — the **Legacy Semantic IR**
+- `docs/legacy-migration-plan.md` §4 — the **Legacy Semantic IR**
   + the 5-level confidence model (`Confidence.java`) + source mapping. COBOL is
   already named there as a *possible frontend* (`:185,294,357`). This plan
   instantiates that IR for COBOL.

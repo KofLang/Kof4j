@@ -190,9 +190,10 @@ public final class StatementLowerer {
                     localIdx = driver.emitComparisonShortcut(bin, ops, owner, localIdx, locals);
                     ops.add(new KofConditionalJump(driver.mapComparison(bin.operator()), driver.comparisonOperandType(bin, locals), startLabel, endLabel));
                 } else {
-                    localIdx = ExpressionLowerer.emitExpression(driver, dws.condition(), ops, owner, localIdx, locals);
-                    ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
-                    ops.add(new KofConditionalJump(KofComparison.NE, startLabel, endLabel));
+                    // Fase E (24/10, #776): roteado pelo helper central — o
+                    // zero leva o TIPO da condicao (BOOL do WASI = i32).
+                    localIdx = CompilerComparisons.emitTruthinessJump(driver, dws.condition(),
+                            ops, owner, localIdx, locals, startLabel, endLabel);
                 }
                 ops.add(new KofLabel(endLabel));
                 yield localIdx;
@@ -211,9 +212,9 @@ public final class StatementLowerer {
                         localIdx = driver.emitComparisonShortcut(bin, ops, owner, localIdx, locals);
                         ops.add(new KofConditionalJump(driver.mapComparison(bin.operator()), driver.comparisonOperandType(bin, locals), bodyLabel, endLabel));
                     } else {
-                        localIdx = ExpressionLowerer.emitExpression(driver, fs.condition(), ops, owner, localIdx, locals);
-                        ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, 0));
-                        ops.add(new KofConditionalJump(KofComparison.NE, bodyLabel, endLabel));
+                        // Fase E (24/10, #776): helper central — zero tipado.
+                        localIdx = CompilerComparisons.emitTruthinessJump(driver, fs.condition(),
+                                ops, owner, localIdx, locals, bodyLabel, endLabel);
                     }
                 }
                 ops.add(new KofLabel(bodyLabel));
@@ -231,12 +232,14 @@ public final class StatementLowerer {
                 if (fs.update() != null) {
                     if (fs.update() instanceof UnaryExpr ue
                             && ("++".equals(ue.operator()) || "--".equals(ue.operator()))
-                            && ue.operand() instanceof IdentifierExpr id) {
+                            && ue.operand() instanceof IdentifierExpr id
+                            && driver.findLocalVar(id.name(), locals) != null
+                            && !driver.boxFactory.isBoxType(driver.findLocalVar(id.name(), locals).type())) {
                         IRLocalVariable var = driver.findLocalVar(id.name(), locals);
                         if (var != null) {
                             ops.add(new KofLoadLocal(var.type(), var.index()));
-                            CompilerEmissionHelpers.emitIncrementOne(ops, var.type());
-                            ops.add(new KofBinary("++".equals(ue.operator()) ? KofBinaryOp.ADD : KofBinaryOp.SUB, var.type()));
+                            CompilerEmissionHelpers.emitIncrementStep(ops,
+                                    "++".equals(ue.operator()) ? KofBinaryOp.ADD : KofBinaryOp.SUB, var.type());
                             ops.add(new KofStoreLocal(var.type(), var.index()));
                         }
                     } else {

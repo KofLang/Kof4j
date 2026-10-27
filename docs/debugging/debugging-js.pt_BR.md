@@ -7,7 +7,7 @@
 declaração de função), não por linha. O target JS roda no **motor GraalJS
 embutido** (`KofJsRunner`), não no Node.
 **Data:** 20 de setembro de 2026
-**Versão:** 0.6.4 (7 targets; free-list + pthread spawn + FP XMM)
+**Versão:** 0.6.7 (7 targets; free-list + pthread spawn + FP XMM)
 
 ---
 

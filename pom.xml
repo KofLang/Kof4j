@@ -26,7 +26,7 @@
           repository root. The release pipeline reads it and updates this property
           (scripts/bump-version.sh). Do not edit this by hand.
         -->
-        <revision>0.6.6</revision>
+        <revision>0.6.7</revision>
         <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!--
@@ -94,7 +94,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
-                    <version>3.6.0</version>
+                    <version>3.6.1</version>
                     <configuration>
                         <!-- -Xshare:off: o CDS do fork quebra o class loading
                              com NoClassDefFoundError intermitente de classes

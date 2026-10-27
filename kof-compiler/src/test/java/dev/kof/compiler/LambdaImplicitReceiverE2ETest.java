@@ -43,12 +43,13 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * O oráculo é a JVM (rule 5): a MESMA saída tem de valer em Script e JS.
  *
- * <p><b>O alvo NATIVE não está aqui de propósito — e não é este defeito:</b>
- * MEDIDO (15/10), o controle EXPLÍCITO `this.somar(n)` também morre com SIGSEGV
- * (rc=139) no native x86-64, enquanto uma lambda SEM captura roda normal
- * (`6/6`) — ou seja, o crash é de "lambda que CAPTURA algo" no backend nativo,
- * pré-existente e independente do receptor implícito (issue própria). Travar a
- * face nativa aqui seria travar um defeito de OUTRA família.
+ * <p><b>NATIVE:</b> the x86-64 face joined 18/10 and the CROSS faces (riscv64/
+ * aarch64) joined 22/10 with the §758 fix. The cross crash was the prologue
+ * identifying the receiver by NAME: the captured `this` is ALSO named "this",
+ * so its slot received `a0` — the lambda itself — and the synthetic
+ * constructor stored the lambda in the capture field, which made `invoke`
+ * dispatch through the LAMBDA's vtable (infinite recursion, exit 139).
+ * `NativeRiscvCrossFrame.emitPrologue` now maps by SLOT INDEX (idx 0 = a0).
  */
 class LambdaImplicitReceiverE2ETest {
 
@@ -131,6 +132,50 @@ class LambdaImplicitReceiverE2ETest {
         KofInterpreter.Result script = driver.interpret(java.util.List.of(src), tempDir, new String[0]);
         assertEquals(0, script.exitCode(), "Script exit, stderr=" + script.stderr());
         assertEquals(oracle, script.stdout().trim(), "Script must match the JVM oracle (rule 5)");
+    }
+
+    @Test
+    void implicitReceiverOnNativeX86(@TempDir Path tempDir) throws Exception {
+        Assumptions.assumeTrue(has("as", "ld"), "native toolchain absent");
+        Path src = write(tempDir, "implicit-native", IMPLICIT);
+        Path out = tempDir.resolve("out-native");
+        CompilationResult r = driver.compile(src, out, Target.NATIVE);
+        assertTrue(r.success(), "x86 compile: " + r.diagnostics().getDiagnostics());
+        Process p = new ProcessBuilder(out.resolve("Default/Main").toString())
+                .redirectErrorStream(true).start();
+        String o = NativeRiscv64E2ETest.runBounded(p, "x86-lambda-implicit");
+        assertEquals(0, p.exitValue(), () -> "x86 saída (SIGSEGV here before 18/10): " + o);
+        assertEquals(GOLDEN, o);
+    }
+
+    @Test
+    void implicitReceiverOnCrossNatives(@TempDir Path tempDir) throws Exception {
+        runCross(tempDir, "riscv64", Target.NATIVE_RISCV64);
+        runCross(tempDir, "aarch64", Target.NATIVE_AARCH64);
+    }
+
+    private void runCross(Path tempDir, String arch, Target target) throws Exception {
+        Assumptions.assumeTrue(NativeRiscv64E2ETest.hasToolchain(arch),
+                arch + " cross toolchain/qemu absent");
+        Path src = write(tempDir, "implicit-" + arch, IMPLICIT);
+        Path out = tempDir.resolve("out-" + arch);
+        CompilationResult r = driver.compile(src, out, target);
+        assertTrue(r.success(), arch + " compile: " + r.diagnostics().getDiagnostics());
+        String o = NativeRiscv64E2ETest.runQemu(arch, out.resolve("Default/Main"));
+        assertEquals(GOLDEN, o.strip(), arch + " must match the JVM oracle (rule 5)");
+    }
+
+    private static boolean has(String... cmds) {
+        for (String c : cmds) {
+            try {
+                Process p = new ProcessBuilder("sh", "-c", "command -v " + c)
+                        .redirectErrorStream(true).start();
+                if (p.waitFor() != 0) return false;
+            } catch (Exception e) {
+                return false;
+            }
+        }
+        return true;
     }
 
 }

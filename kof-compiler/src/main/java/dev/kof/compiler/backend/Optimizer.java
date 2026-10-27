@@ -97,7 +97,7 @@ public final class Optimizer {
                                              Map<KofOperation, SourcePosition> positions,
                                              java.util.Set<Integer> declaredSlots) {
         ops = OptimizerConstantFold.constantFold(ops, positions);
-        // Phase B of docs/development/assembly-optimization-plan.md: the new
+        // Phase B of docs/assembly-optimization-plan.md: the new
         // passes are stack-balanced load rewrites (a LoadLocal becomes a
         // LoadLiteral / another LoadLocal), so they never remove a store/load
         // pair the backends pattern-match on. Wired after folding so folded
@@ -114,6 +114,7 @@ public final class Optimizer {
         ops = STRENGTH_REDUCTION.run(ops, positions);
         // §3 O1: algebraic simplification of absorbing elements (x*0, x&0, x%1).
         ops = ALGEBRAIC_SIMPLIFICATION.run(ops, positions);
+        ops = new JumpThreading().run(ops, positions);
         ops = deadEffects(ops, positions);
         ops = reachability(ops, positions);
         ops = removeJumpToNext(ops, positions);

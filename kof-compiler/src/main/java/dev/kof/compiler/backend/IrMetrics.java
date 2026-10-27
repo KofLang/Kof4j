@@ -16,7 +16,7 @@ import java.util.List;
 
 /**
  * Instruction metrics over the IR (Phase C/§18 of
- * {@code docs/development/assembly-optimization-plan.md}).
+ * {@code docs/assembly-optimization-plan.md}).
  *
  * <p>§18 lists the counters the backend should track: instruction count, load
  * count, store count, branch count, call count, spill count, register usage.

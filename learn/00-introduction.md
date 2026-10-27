@@ -18,15 +18,6 @@ Kof is not just a language for the JVM. It is a language that can compile to dif
 
 ```mermaid
 
----
-config:
-  theme: default
-  themeVariables:
-    darkMode: false
-    background: "#ffffff"
-    textColor: "#000000"
-    lineColor: "#333333"
----
 flowchart TD
     %% Estilos baseados no exemplo
     classDef process fill:#f0f9ff,stroke:#38bdf8,stroke-width:1px,color:#0369a1
@@ -222,23 +213,27 @@ The name is short, easy to type, and does not conflict with any known Java libra
 
 ## How it works under the hood
 
-```
-You write:        record User(String name)          // intention
-                        ↓
-Kof compiler:     lexer → parser → AST → IR → backend   // intention->Kof->frontend->IR->backend->runtime
-                        ↓
-                  ┌──────┼──────┐
-                  │      │      │
-               JVM    Native   JS
-                  │      │      │
-                  ▼      ▼      ▼
-             User.class ELF*  .mjs
-                  │      │      │
-                  ▼      ▼      ▼
-              works    executable ES Module
-              as a     directly on in the
-              class    Linux       embedded engine
-              Java normal (x86-64/riscv/arm)
+```mermaid
+flowchart TD
+    Start(["Start (Intent)"])
+    Intent{"You write<br/>record User(String<br/>name) //<br/>intention"}
+    Start --> Intent
+    Intent --> lexer["lexer"]
+    lexer --> parser["parser"]
+    parser --> AST["AST"]
+    AST --> IR["IR"]
+    IR --> backend["backend"]
+    backend --> JVM["JVM backend"]
+    backend --> Native["Native backend"]
+    backend --> JS["JS backend"]
+    backend -.-> Pipeline["Kof Compiler Pipeline"]
+    JVM --> Class["User.class"]
+    Native --> ELF["ELF*"]
+    JS --> MJS[".mjs"]
+    Class --> Works["works as a class<br/>Java normal"]
+    ELF --> Exec["executable<br/>directly on Linux<br/>(x86-64/riscv/arm)"]
+    MJS --> ES["ES Module in the<br/>embedded engine"]
+    Pipeline --> Chain["Kof compiler: //<br/>intention->Kof-><br/>frontend->IR-><br/>backend-><br/>runtime"]
 ```
 
 `*` Native includes `native` (x86-64), `native.risc` (riscv64) and `native.arm` (aarch64) — selection via the `Target` enum.

@@ -6,7 +6,7 @@
 > Core + Navegação/Router — `go/replace/back/forward/param/current/depth`,
 > real no JS, no-op no JVM — 30-31/08); Fases 8-11 em progresso.
 > **Última atualização:** 11 de outubro de 2026
-> **Versão:** 0.6.4
+> **Versão:** 0.6.7
 
 Este documento é o mapa da arquitetura do `kof.ui`: o estado real encontrado na
 inspeção, os problemas, e a fundação que a UI precisa antes de qualquer widget

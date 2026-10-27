@@ -5,7 +5,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * §7 x86_64 of {@code docs/development/assembly-optimization-plan.md}
+ * §7 x86_64 of {@code docs/assembly-optimization-plan.md}
  * ("lower-cost instruction selection"): a text peephole over an emitted method
  * body. The x86-64 emitter is a stack machine — a value produced by one op is
  * {@code push}ed and consumed by the next op's {@code pop}. When a push is
@@ -33,6 +33,12 @@ final class NativeX86Peephole {
      * pairs collapsed (for tests/metrics).
      */
     static int collapsePushPopPairs(StringBuilder sb, int from) {
+        // §17: a kill switch so the peephole's effect can be MEASURED
+        // before/after on the same program (an optimization must have a
+        // before/after comparison, not only "it looks better in assembly").
+        if (System.getProperty("kof.native.peephole.disable") != null) {
+            return 0;
+        }
         String region = sb.substring(from);
         List<String> lines = new ArrayList<>(Arrays.asList(region.split("\n", -1)));
         int collapsed = 0;
@@ -87,6 +93,9 @@ final class NativeX86Peephole {
         collapsed += NativeX86BranchFold.dropJumpToNext(lines);
         collapsed += NativeX86BranchFold.invertJumpOverJump(lines);
         collapsed += NativeX86LeaFold.foldLeaIntoDestination(lines);
+        // §14: LAST, after every push/pop fold decides the final operand-stack
+        // shape — pad any call whose %rsp is not 16-byte aligned (SysV).
+        collapsed += NativeX86StackAlign.alignCalls(lines, 0);
         sb.setLength(from);
         sb.append(String.join("\n", lines));
         return collapsed;

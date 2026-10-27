@@ -102,6 +102,15 @@ class TargetMatrixTest {
         assertTrue(msg.contains("WASM001"), msg);
         assertTrue(msg.contains("docs/development/DECISIONS.md"),
                 "referência do plano deve apontar para o arquivo real: " + msg);
+        // MEASURED 21/10: the old message said the TARGET does not exist, while
+        // plain `wasm` actually emits real modules. It must not repeat that lie —
+        // it should name the canonical spelling and say what is really pending.
+        assertFalse(msg.contains("does not exist yet"),
+                "o alvo wasm EXISTE (emite módulos); não repetir a mentira: " + msg);
+        assertTrue(msg.contains("canonical names are `wasm` and `wasi`"),
+                "deve nomear a grafia canônica que funciona: " + msg);
+        assertTrue(msg.contains("FRONTEND role"),
+                "deve dizer que o que falta é o papel de FRONTEND: " + msg);
         // caminho relativo ao repo root (cwd do teste é o módulo)
         java.util.List<String> candidates = java.util.List.of(
                 "docs/development/DECISIONS.md");

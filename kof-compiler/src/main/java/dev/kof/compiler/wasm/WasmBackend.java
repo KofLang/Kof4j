@@ -107,8 +107,46 @@ public class WasmBackend implements Backend {
                     var op = cops.get(ci);
                     if (!(op instanceof KofCall kc)) continue;
                     if (wasi && printIntrinsic && ("valueOf".equals(kc.methodName())
-                            || "kof_string_concat".equals(kc.methodName()))) {
-                        continue; // wrapper intrinseco (println / concat) tratado na emissao
+                            || "kof_string_concat".equals(kc.methodName())
+                            || "kof_string_equals".equals(kc.methodName())
+                            || ("length".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            || ("isEmpty".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            || ("equals".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            || ("concat".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            || ("startsWith".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            || ("endsWith".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            || ("indexOf".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            || ("lastIndexOf".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            || ("charAt".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            || ("substring".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            || ("trim".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            || ("compareTo".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            || ("contains".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            || ("replace".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            // Fase E (26/10, #776): o case fold Unicode (a mesma
+                            // semantica D-STR-UNICODE do nativo)
+                            || ("toUpperCase".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            || ("toLowerCase".equals(kc.methodName())
+                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
+                            // Fase E (26/10, #776): a familia INT do math — o
+                            // runtime WASI implementa aritmetica i64 pura
+                            || (wasi && WasmMathRuntime.NAMES.contains(kc.methodName())))) {
+                        continue; // wrapper intrinseco de String tratado na emissao
                     }
                     if (wasi && usesRecords && "kofRecordEq".equals(kc.methodName())) {
                         continue; // igualdade de record: fold inline no call site (15.3d inc2 C2)
@@ -198,20 +236,128 @@ public class WasmBackend implements Backend {
             java.util.List<IRMethod> scanAll = new java.util.ArrayList<>(entries);
             if (startM != null) scanAll.add(startM);
             java.util.Set<String> printed = printOperandTypes(scanAll);
-            if (usesStringOps(scanAll) || usesRecords) printed.add("string"); // records com String/Char/Bool (15.3d inc2 fatia C)
+            // records com String/Char/Bool (15.3d inc2 fatia C) + `==` de String
+            // entre variaveis, que nao carrega literal nenhum (15.3d fatia F)
+            if (usesStringOps(scanAll) || usesRecords || usesStringEquals(scanAll)
+                    || usesStringLength(scanAll)
+                    || usesStringMethod(scanAll, "isEmpty")
+                    || usesStringMethod(scanAll, "equals")
+                    || usesStringMethod(scanAll, "concat")
+                    || usesStringMethod(scanAll, "startsWith")
+                    || usesStringMethod(scanAll, "endsWith")
+                    || usesStringMethod(scanAll, "indexOf")
+                    || usesStringMethod(scanAll, "lastIndexOf")
+                    || usesStringMethod(scanAll, "charAt")
+                    || usesStringMethod(scanAll, "substring")
+                    || usesStringMethod(scanAll, "trim")
+                    || usesStringMethod(scanAll, "compareTo")
+                    || usesStringMethod(scanAll, "replace")
+                    || usesStringMethod(scanAll, "contains")) printed.add("string");
             if (printed.contains("int") || printed.contains("long")) funcs.add(kofWriteInt());
             if (printed.contains("bool") || printed.contains("boolean")) funcs.add(kofWriteBool());
-            if (printed.contains("char")) funcs.add(kofWriteChar());
+            if (printed.contains("char")) funcs.add(WasmCharOut.kofWriteChar());
+                if (printed.contains("double")) {
+                    // Um programa so' com double ainda escreve pelo writeStr, entao
+                    // MARCA "string" e deixa o bloco de string registrar o resto —
+                    // registrar aqui tambem duplicava kof.intToStr/kof.strLit.
+                    funcs.add(WasmCharOut.kofWriteDouble());
+                    funcs.add(WasmStrSearch.kofStrAppendByte());
+                    funcs.add(WasmStrSearch.kofStrAlloc());
+                    funcs.add(WasmStrSearch.kofStrAppend());
+                    printed.add("string");
+                }
                 if (printed.contains("string")) {
                     funcs.add(kofStrLit());
                     funcs.add(kofWriteStr());
                     funcs.add(kofIntToStr());
-                    if (usesRecords) {
-                        funcs.add(kofStrBool()); // toString de campo Bool (15.3d inc2 fatia C)
-                        funcs.add(kofStrChar()); // toString de campo Char
-                        funcs.add(kofStrEq());   // campo String do fold de == (15.3d inc2 fatia C2)
+                    if (usesRecords || WasmTypeOracle.usesCharValueOf(scanAll)) {
+                        if (usesRecords) {
+                            funcs.add(kofStrBool()); // toString de campo Bool (15.3d inc2 fatia C)
+                            funcs.add(kofStrEq());   // campo String do fold de == (15.3d inc2 fatia C2)
+                        }
+                        funcs.add(kofStrChar()); // toString de campo Char E String.valueOf(char)/concat (27/10)
                     }
-                    if (usesStringConcat(scanAll) || usesRecords) funcs.add(kofStrConcat());
+                    if (usesStringConcat(scanAll) || usesRecords || usesStringMethod(scanAll, "concat")) {
+                        funcs.add(kofStrConcat());
+                    }
+                    if (usesStringMethod(scanAll, "startsWith")) funcs.add(WasmStrInspect.kofStrAffix(false));
+                    if (usesStringMethod(scanAll, "endsWith")) funcs.add(WasmStrInspect.kofStrAffix(true));
+                    // Fase E (27/10, #776): o strByteOff e' DEPENDENCIA comum de
+                    // indexOf/lastIndexOf/contains E de charAt/substring — com os
+                    // dois grupos na mesma fonte o handle era registrado DUAS
+                    // VEZES e o modulo saia com export duplicado (invalido:
+                    // `s.contains(x)` + `s.substring(i)`). Os guardas de
+                    // dependencia agora se acumulam numa condicao unica.
+                    boolean needsByteOff = usesStringMethod(scanAll, "indexOf")
+                            || usesStringMethod(scanAll, "lastIndexOf")
+                            || usesStringMethod(scanAll, "contains")
+                            || usesStringMethod(scanAll, "charAt")
+                            || usesStringMethod(scanAll, "substring");
+                    if (usesStringMethod(scanAll, "indexOf")
+                            || usesStringMethod(scanAll, "lastIndexOf")
+                            || usesStringMethod(scanAll, "contains")) {
+                        funcs.add(WasmStrInspect.kofStrIndexOf());
+                        funcs.add(WasmStrInspect.kofStrLastIndexOf());
+                        funcs.add(WasmStrSearch.kofStrMatchAt());
+                        funcs.add(WasmStrSearch.kofStrUnitsBefore());
+                    }
+                    if (needsByteOff) {
+                        funcs.add(WasmStrSlice.kofStrByteOff());
+                    }
+                    if (usesStringMethod(scanAll, "charAt")) funcs.add(WasmStrSlice.kofStrCharAt());
+                    if (usesStringMethod(scanAll, "substring")) funcs.add(WasmStrSlice.kofStrSub());
+                    if (usesStringMethod(scanAll, "trim")) funcs.add(WasmStrInspect.kofStrTrim());
+                    // Fase E (26/10, #776): a familia INT do math (abs/sign/
+                    // min/max/clamp + os predicados) — aritmetica i64 pura,
+                    // SEM host imports (o WASM tambem poderia usa-las).
+                    if (wasi && WasmMathRuntime.usesAny(scanAll)) {
+                        funcs.addAll(WasmMathRuntime.all());
+                    }
+                    // Fase E (26/10, #776): o case fold Unicode (D-STR-UNICODE)
+                    // — as tabelas BMP vao no cursor de dados (o heap comeca
+                    // DEPOIS delas, o global e' calculado no fim do emit).
+                    if (usesStringMethod(scanAll, "toUpperCase")
+                            || usesStringMethod(scanAll, "toLowerCase")) {
+                        byte[] upT = WasmStrCase.tableBytes(true);
+                        byte[] loT = WasmStrCase.tableBytes(false);
+                        int tabUp = dataCursor.next;
+                        dataSegments.add(new WasmData(tabUp, upT));
+                        dataCursor.next = (dataCursor.next + upT.length + 3) & ~3;
+                        int tabLo = dataCursor.next;
+                        dataSegments.add(new WasmData(tabLo, loT));
+                        dataCursor.next = (dataCursor.next + loT.length + 3) & ~3;
+                        funcs.add(WasmStrCase.kofStrCaseAt("kof.strCaseUp", tabUp, true));
+                        funcs.add(WasmStrCase.kofStrCaseAt("kof.strCaseLo", tabLo, false));
+                        if (usesStringMethod(scanAll, "toUpperCase")) funcs.add(WasmStrCase.kofStrFold("kof.strUpper", "kof.strCaseUp"));
+                        if (usesStringMethod(scanAll, "toLowerCase")) funcs.add(WasmStrCase.kofStrFold("kof.strLower", "kof.strCaseLo"));
+                        // o fold aloca/preenche via strAlloc/strAppendByte — sem o
+                        // bloco do double eles nao foram registrados
+                        if (!printed.contains("double")) {
+                            funcs.add(WasmStrSearch.kofStrAppendByte());
+                            funcs.add(WasmStrSearch.kofStrAlloc());
+                        }
+                    }
+                    if (usesStringMethod(scanAll, "compareTo")) {
+                        funcs.add(WasmStrSearch.kofStrCompare());
+                        funcs.add(WasmStrSlice.kofStrCharAt());
+                        funcs.add(WasmStrInspect.kofStrLen());
+                    }
+                    if (usesStringMethod(scanAll, "replace")) {
+                        funcs.add(WasmStrSearch.kofStrReplace());
+                        funcs.add(WasmStrSearch.kofStrAlloc());
+                        funcs.add(WasmStrSearch.kofStrAppend());
+                        funcs.add(WasmStrSearch.kofStrAppendByte());
+                        funcs.add(WasmStrSearch.kofStrMatchAt());
+                        funcs.add(WasmStrInspect.kofStrLen());
+                    }
+                    // 15.3d fatia F: `==`/`!=` de String. Antes so entrava via
+                    // records (fold de campo String); agora a comparacao direta
+                    // entre duas variaveis tambem precisa do helper.
+                    if (!usesRecords && usesStringEquals(scanAll)) funcs.add(kofStrEq());
+                    if (usesStringLength(scanAll)) funcs.add(WasmStrInspect.kofStrLen());
+                    if (usesStringMethod(scanAll, "isEmpty")) funcs.add(WasmStrInspect.kofStrIsEmpty());
+                    if (!usesRecords && usesStringMethod(scanAll, "equals")) funcs.add(kofStrEq());
+
                     usesHeap = true; // bump pointer global 0
                 }
             if (usesArgs) {
@@ -243,6 +389,15 @@ public class WasmBackend implements Backend {
             imports = List.of(WasmImport.wasi("fd_write", List.of(0x7f, 0x7f, 0x7f, 0x7f), List.of(0x7f)),
                               WasmImport.wasi("proc_exit", List.of(0x7f), List.of()));
         }
+        // Fase E (27/10, #776): DEDUPE por nome preservando a primeira
+        // ocorrencia — os blocos de registro por metodo (indexOf vs compareTo
+        // vs replace vs length) compartilham DEPENDENCIAS (strByteOff,
+        // strLen, strMatchAt, strAlloc/strAppendByte) e dois blocos na mesma
+        // fonte registravam a mesma funcao DUAS VEZES: export duplicado,
+        // modulo invalido (`s.contains(x)` + `s.substring(i)` medido).
+        java.util.LinkedHashMap<String, WasmFunc> byName = new java.util.LinkedHashMap<>();
+        for (WasmFunc f : funcs) byName.putIfAbsent(f.name(), f);
+        funcs = new ArrayList<>(byName.values());
         byte[] bin = new WasmModule(imports, funcs, dataSegments, globals).serialize();
         String rel = entryClass.replace('/', java.io.File.separatorChar);
         Path wasmPath = outputDir.resolve(rel + ".wasm");

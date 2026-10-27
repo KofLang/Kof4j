@@ -13,7 +13,7 @@ import java.util.TreeSet;
 
 /**
  * Interference graph over local slots (Phase C of
- * {@code docs/development/assembly-optimization-plan.md} §5: "interference
+ * {@code docs/assembly-optimization-plan.md} §5: "interference
  * graph").
  *
  * <p>Two slots interfere when they cannot share a physical register: one is

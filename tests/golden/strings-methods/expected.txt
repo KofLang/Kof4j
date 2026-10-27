@@ -8,3 +8,9 @@ HELLO WORLD
 hello world
 101
 true
+3
+1
+true
+false
+true
+true

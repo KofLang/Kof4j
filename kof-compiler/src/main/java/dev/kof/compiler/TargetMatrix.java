@@ -117,11 +117,13 @@ public final class TargetMatrix {
         String gap = frontendGapFor(value);
         if (gap != null) {
             if (outError != null) outError.add(
-                    "target '" + value + "' (KofWebAssembly/WASI) does not exist yet — the"
-                            + " wasm/wasi frontend is promoted and is a 0.6.0 cut gate"
-                            + " (docs/wasm-wasi-plan.md, issue #776,"
-                            + " D-WEB-WASI-DEFAULT-0710, docs/development/DECISIONS.md) ["
-                            + gap + "]");
+                    "target '" + value + "' is not a Kof target spelling — the"
+                            + " canonical names are `wasm` and `wasi`, which ARE real"
+                            + " targets and emit modules today (`kof build --target=wasm`)."
+                            + " What is still pending is the FRONTEND role (unit 15.4):"
+                            + " docs/wasm-wasi-plan.md, issue #776,"
+                            + " D-WEB-WASI-DEFAULT-0710, docs/development/DECISIONS.md"
+                            + " [" + gap + "]");
             return null;
         }
         return switch (value.trim().toLowerCase()) {

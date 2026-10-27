@@ -112,6 +112,14 @@ class Av1TileDecode {
     Int disableEdgeFilter
     Int intraEdgeFilterType
     Int reducedTxSet
+    // The tile's mi origin (`setTileOrigin` from the partition walk). Above/left
+    // availability is TILE-relative in libaom (`set_offsets`), so a tile's first
+    // row/column is an edge for both the tx-size context and the prediction.
+    Int tileRow0
+    Int tileCol0
+    // The sequence's superblock size index (12 = BLOCK_64X64, 15 = BLOCK_128X128);
+    // `av1IntraAvail`'s above-right/below-left rules are keyed on it.
+    Int sbBs
     Av1Symbol reader
     Av1CoeffCdfStore store
     Av1TxType txTypeStore
@@ -231,6 +239,9 @@ class Av1TileDecode {
         // disagree with the walk's coordinates at the frame's edge.
         this.miW = 2 * ((this.frameW + 7) >> 3)
         this.miH = 2 * ((this.frameH + 7) >> 3)
+        this.tileRow0 = 0
+        this.tileCol0 = 0
+        this.sbBs = 12
         this.modeInfo = Av1ModeInfo(this.reader, this.miW, this.miH)
         this.txSize = Av1TxSize(this.reader, this.miW, this.miH)
         this.maxX = this.frameW
@@ -260,6 +271,20 @@ class Av1TileDecode {
             this.cdefUnits[ci] = -1
             ci = ci + 1
         }
+    }
+
+    // The tile's mi origin, handed in by the partition walk (`walkTile`).
+    // libaom's above/left availability is tile-relative (`set_offsets`), so the
+    // transform-size context must see the tile boundary as an edge.
+    void setTileOrigin(Int r, Int c) {
+        this.tileRow0 = r
+        this.tileCol0 = c
+        this.txSize.setTileOrigin(r, c)
+    }
+
+    // Sets the sequence's superblock size (12 = BLOCK_64X64, 15 = BLOCK_128X128).
+    void setSuperblockSize(Int bs) {
+        this.sbBs = bs
     }
 
     // Decodes and reconstructs ONE mode-info block.  The body is the tile
@@ -485,11 +510,11 @@ class Av1TileDecode {
             var x = bc << 2
             var y = br << 2
             var haveTop = 0
-            if (br != 0) {
+            if (br > this.tileRow0) {
                 haveTop = 1
             }
             var haveLeft = 0
-            if (bc != 0) {
+            if (bc > this.tileCol0) {
                 haveLeft = 1
             }
 
@@ -497,17 +522,27 @@ class Av1TileDecode {
             //     the `all_zero` flag FIRST, then — only when it is 0 — the luma
             //     `transform_type` (slice 3t), then the level walk. The order is
             //     load-bearing: the type symbol sits BETWEEN the two.
-            var levels = av1DecodeCoeffsBlockEdgeTx(reader, store, bs, 0,
-                    br, bc, txSz, above, left, 0, 0, txTypeStore,
-                    reducedTxSet, qIndex, yMode, useFilterIntra,
-                    filterIntraMode, txTypes, this.miW, bc, br)
-            var txType = txTypes[br * this.miW + bc]
+            //
+            //     A SKIPPED block (`skip_txfm == 1`) reads NO coefficient
+            //     symbols at all — libaom's `read_coeffs_tx_intra_block` guards
+            //     the whole `av1_read_coeffs_txb` call on `!mbmi->skip_txfm` —
+            //     so its transform blocks contribute a zero residual and the
+            //     prediction alone is reconstructed.
+            var levels = new Int[w * h]
+            var txType = 0
+            if (skip == 0) {
+                levels = av1DecodeCoeffsBlockEdgeTx(reader, store, bs, 0,
+                        br, bc, txSz, above, left, 0, 0, txTypeStore,
+                        reducedTxSet, qIndex, yMode, useFilterIntra,
+                        filterIntraMode, txTypes, this.miW, bc, br)
+                txType = txTypes[br * this.miW + bc]
+            }
             levelsOut.add(levels)
             txTypeOut.add(txType)
             this.txEndOut.add(this.reader.position())
 
             // 3c. Availability (3ab) from the transform block's ABSOLUTE position.
-            var avail = av1IntraAvail(12, bs, 0, txSz, 0, 0,
+            var avail = av1IntraAvail(this.sbBs, bs, 0, txSz, 0, 0,
                     order.get(bi * 2), order.get(bi * 2 + 1), yMode,
                     angleY, useFilterIntra, haveTop, haveLeft, br, bc,
                     this.miW, this.miH, frameW, frameH)
@@ -541,6 +576,24 @@ class Av1TileDecode {
             predLog.add(frame[(y + 1) * stride + (x + 1)])
 
             bi = bi + 1
+        }
+
+        // A skipped block carries no residual in ANY plane, so its coefficient
+        // entropy contexts are RESET over the block's footprint instead of being
+        // written by a coefficient walk (libaom `av1_reset_entropy_context`,
+        // called from `decode_block` when `skip_txfm`). Without this the next
+        // block's `all_zero`/`dc_sign` contexts would carry stale levels.
+        if (skip == 1) {
+            var z4 = 0
+            while (z4 < bw) {
+                above[c + z4] = 0
+                z4 = z4 + 1
+            }
+            z4 = 0
+            while (z4 < bh) {
+                left[r + z4] = 0
+                z4 = z4 + 1
+            }
         }
 
         // 3b. The PALETTE reconstruction: each pixel takes the block's palette
@@ -603,7 +656,7 @@ class Av1TileDecode {
                     intraEdgeFilterType, edgeFilter, dcQuant, acQuant, qIndex,
                     reducedTxSet, lossless, reader, store, txTypeStore, txTypes,
                     this.miW, frameW, frameH, levelsUOut, levelsVOut,
-                    txTypeUOut, txTypeVOut, chromaPredOut)
+                    txTypeUOut, txTypeVOut, chromaPredOut, skip, this.sbBs)
         }
         this.posOut.add(this.reader.position())
         this.qIndex = qIndex

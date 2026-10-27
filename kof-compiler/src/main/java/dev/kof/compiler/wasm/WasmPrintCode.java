@@ -38,6 +38,7 @@ final class WasmPrintCode {
                     case "int", "long" -> out.add(new WasmInstr.Call("kof.writeInt"));
                     case "bool", "boolean" -> out.add(new WasmInstr.Call("kof.writeBool"));
                     case "char" -> out.add(new WasmInstr.Call("kof.writeChar"));
+                    case "double" -> out.add(new WasmInstr.Call("kof.writeDouble"));
                     case "string" -> out.add(new WasmInstr.Call("kof.writeStr"));
                     default -> throw new WasmUnsupportedException("println '" + t
                             + "' fora da fatia 1 da unidade 15.3 (WASM002) — o runtime de strings/"

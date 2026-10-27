@@ -191,7 +191,7 @@ class CmdWorkflowTest {
 
         CliResult nativeT = run(dir, "workflow", "run", f.toString(), "--target", "native");
         assertEquals(1, nativeT.exit(), nativeT.out());
-        assertTrue(nativeT.out().contains("not supported yet"), nativeT.out());
+        assertTrue(nativeT.out().contains("is not supported"), nativeT.out());
 
         CliResult jsOk = run(dir, "workflow", "run", f.toString(), "--target", "js");
         assertEquals(0, jsOk.exit(), jsOk.out());

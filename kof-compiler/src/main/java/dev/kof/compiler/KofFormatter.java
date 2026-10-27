@@ -120,16 +120,18 @@ public final class KofFormatter {
                 for (AnnotationNode ann : fn.annotations()) out.append(pad).append(formatAnnotation(ann, p)).append("\n");
                 if (!fn.modifiers().isEmpty()) out.append(pad).append(joinKw(p, fn.modifiers())).append(" ");
                 else out.append(pad);
-                if (!"void".equals(fn.returnType())) out.append(typeText(p, fn.returnType())).append(" ");
+                boolean fnTrailing = trailingReturn(fn.returnType(), !fn.typeParameters().isEmpty());
+                if (!"void".equals(fn.returnType()) && !fnTrailing) out.append(typeText(p, fn.returnType())).append(" ");
                 out.append(fn.name());
-                if (!fn.typeParameters().isEmpty()) out.append("<").append(joinKw(p, fn.typeParameters())).append(">");
+                if (!fn.typeParameters().isEmpty()) out.append("<").append(typeList(p, fn.typeParameters())).append(">");
                 out.append("(");
                 for (int i = 0; i < fn.parameters().size(); i++) {
                     if (i > 0) out.append(", ");
                     out.append(formatParam(fn.parameters().get(i), p));
                 }
                 out.append(")");
-                if (!fn.thrownExceptions().isEmpty()) out.append(" ").append(kw(p, "throw")).append(" ").append(joinKw(p, fn.thrownExceptions()));
+                if (fnTrailing) out.append(": ").append(typeText(p, fn.returnType()));
+                if (!fn.thrownExceptions().isEmpty()) out.append(" ").append(kw(p, "throw")).append(" ").append(typeList(p, fn.thrownExceptions()));
                 if (fn.body().isEmpty()) {
                     out.append(";\n");
                 } else if (fn.body().size() == 1 && fn.body().get(0) instanceof ReturnStmt rs && rs.value() != null) {
@@ -145,64 +147,80 @@ public final class KofFormatter {
                 if (!cls.modifiers().isEmpty()) out.append(pad).append(joinKw(p, cls.modifiers())).append(" ");
                 else out.append(pad);
                 out.append(kw(p, "class")).append(' ').append(cls.name());
-                if (!cls.typeParameters().isEmpty()) out.append("<").append(joinKw(p, cls.typeParameters())).append(">");
+                if (!cls.typeParameters().isEmpty()) out.append("<").append(typeList(p, cls.typeParameters())).append(">");
                 if (cls.superClass() != null) out.append(" ").append(kw(p, "extends")).append(' ').append(typeText(p, cls.superClass()));
-                if (!cls.interfaces().isEmpty()) out.append(" ").append(kw(p, "implements")).append(' ').append(joinKw(p, cls.interfaces()));
+                if (!cls.interfaces().isEmpty()) out.append(" ").append(kw(p, "implements")).append(' ').append(typeList(p, cls.interfaces()));
                 out.append(" {\n");
-                for (AstNode m : cls.members()) {
-                    if (m instanceof FieldDeclarationNode f) {
-                        for (AnnotationNode ann : f.annotations()) out.append("    ".repeat(indent + 1)).append(formatAnnotation(ann, p)).append("\n");
-                        if (!f.modifiers().isEmpty()) out.append("    ".repeat(indent + 1)).append(joinKw(p, f.modifiers())).append(" ");
-                        else out.append("    ".repeat(indent + 1));
-                        out.append(typeText(p, f.type())).append(" ").append(f.name());
-                        if (f.initializer() != null) out.append(" = ").append(KofFormatterExpr.formatExpr(f.initializer(), p));
-                        out.append("\n");
-                    } else if (m instanceof MethodDeclarationNode md) {
-                        for (AnnotationNode ann : md.annotations()) out.append("    ".repeat(indent + 1)).append(formatAnnotation(ann, p)).append("\n");
-                        if (!md.modifiers().isEmpty()) out.append("    ".repeat(indent + 1)).append(joinKw(p, md.modifiers())).append(" ");
-                        else out.append("    ".repeat(indent + 1));
-                        if (!"void".equals(md.returnType())) out.append(typeText(p, md.returnType())).append(" ");
-                        out.append(md.name()).append("(");
-                        for (int i = 0; i < md.parameters().size(); i++) {
-                            if (i > 0) out.append(", ");
-                            out.append(formatParam(md.parameters().get(i), p));
-                        }
-                        out.append(")");
-                        if (!md.thrownExceptions().isEmpty()) out.append(" ").append(kw(p, "throw")).append(" ").append(joinKw(p, md.thrownExceptions()));
-                        if (md.body().isEmpty()) out.append(";\n");
-                        else if (md.body().size() == 1 && md.body().get(0) instanceof ReturnStmt rs && rs.value() != null) {
-                            out.append(" = ").append(KofFormatterExpr.formatExpr(rs.value(), p)).append("\n");
-                        } else {
-                            out.append(" {\n");
-                            for (StatementNode st : md.body()) formatStmt(st, out, indent + 2, pending, p);
-                            out.append("    ".repeat(indent + 1)).append("}\n");
-                        }
-                    } else if (m instanceof ConstructorDeclarationNode ctor) {
-                        for (AnnotationNode ann : ctor.annotations()) out.append("    ".repeat(indent + 1)).append(formatAnnotation(ann, p)).append("\n");
-                        if (!ctor.modifiers().isEmpty()) out.append("    ".repeat(indent + 1)).append(joinKw(p, ctor.modifiers())).append(" ");
-                        else out.append("    ".repeat(indent + 1));
-                        out.append(kw(p, "constructor")).append("(");
-                        for (int i = 0; i < ctor.parameters().size(); i++) {
-                            if (i > 0) out.append(", ");
-                            out.append(formatParam(ctor.parameters().get(i), p));
-                        }
-                        out.append(")");
-                        if (!ctor.thrownExceptions().isEmpty()) out.append(" ").append(kw(p, "throw")).append(" ").append(joinKw(p, ctor.thrownExceptions()));
-                        if (ctor.body().isEmpty()) out.append(" {}\n");
-                        else {
-                            out.append(" {\n");
-                            for (StatementNode st : ctor.body()) formatStmt(st, out, indent + 2, pending, p);
-                            out.append("    ".repeat(indent + 1)).append("}\n");
-                        }
-                    }
-                }
+                for (AstNode m : cls.members()) formatDecl(m, out, indent + 1, pending, p);
                 out.append(pad).append("}\n");
+            }
+            case InterfaceDeclarationNode it -> {
+                for (AnnotationNode ann : it.annotations()) out.append(pad).append(formatAnnotation(ann, p)).append("\n");
+                if (!it.modifiers().isEmpty()) out.append(pad).append(joinKw(p, it.modifiers())).append(" ");
+                else out.append(pad);
+                out.append(kw(p, "interface")).append(' ').append(it.name());
+                if (!it.typeParameters().isEmpty()) out.append("<").append(typeList(p, it.typeParameters())).append(">");
+                if (!it.interfaces().isEmpty()) out.append(" ").append(kw(p, "extends")).append(' ').append(typeList(p, it.interfaces()));
+                out.append(" {\n");
+                for (AstNode m : it.members()) formatDecl(m, out, indent + 1, pending, p);
+                out.append(pad).append("}\n");
+            }
+            case FieldDeclarationNode f -> {
+                for (AnnotationNode ann : f.annotations()) out.append(pad).append(formatAnnotation(ann, p)).append("\n");
+                if (!f.modifiers().isEmpty()) out.append(pad).append(joinKw(p, f.modifiers())).append(" ");
+                else out.append(pad);
+                out.append(typeText(p, f.type())).append(" ").append(f.name());
+                if (f.initializer() != null) out.append(" = ").append(KofFormatterExpr.formatExpr(f.initializer(), p));
+                out.append("\n");
+            }
+            case MethodDeclarationNode md -> {
+                for (AnnotationNode ann : md.annotations()) out.append(pad).append(formatAnnotation(ann, p)).append("\n");
+                if (!md.modifiers().isEmpty()) out.append(pad).append(joinKw(p, md.modifiers())).append(" ");
+                else out.append(pad);
+                boolean mdTrailing = trailingReturn(md.returnType(), false);
+                if (!"void".equals(md.returnType()) && !mdTrailing) out.append(typeText(p, md.returnType())).append(" ");
+                out.append(md.name()).append("(");
+                for (int i = 0; i < md.parameters().size(); i++) {
+                    if (i > 0) out.append(", ");
+                    out.append(formatParam(md.parameters().get(i), p));
+                }
+                out.append(")");
+                if (mdTrailing) out.append(": ").append(typeText(p, md.returnType()));
+                if (!md.thrownExceptions().isEmpty()) out.append(" ").append(kw(p, "throw")).append(" ").append(typeList(p, md.thrownExceptions()));
+                if (md.body().isEmpty()) out.append(";\n");
+                else if (md.body().size() == 1 && md.body().get(0) instanceof ReturnStmt rs && rs.value() != null) {
+                    out.append(" = ").append(KofFormatterExpr.formatExpr(rs.value(), p)).append("\n");
+                } else {
+                    out.append(" {\n");
+                    for (StatementNode st : md.body()) formatStmt(st, out, indent + 1, pending, p);
+                    out.append(pad).append("}\n");
+                }
+            }
+            case ConstructorDeclarationNode ctor -> {
+                for (AnnotationNode ann : ctor.annotations()) out.append(pad).append(formatAnnotation(ann, p)).append("\n");
+                if (!ctor.modifiers().isEmpty()) out.append(pad).append(joinKw(p, ctor.modifiers())).append(" ");
+                else out.append(pad);
+                out.append(kw(p, "constructor")).append("(");
+                for (int i = 0; i < ctor.parameters().size(); i++) {
+                    if (i > 0) out.append(", ");
+                    out.append(formatParam(ctor.parameters().get(i), p));
+                }
+                out.append(")");
+                if (!ctor.thrownExceptions().isEmpty()) out.append(" ").append(kw(p, "throw")).append(" ").append(typeList(p, ctor.thrownExceptions()));
+                if (ctor.body().isEmpty()) out.append(" {}\n");
+                else {
+                    out.append(" {\n");
+                    for (StatementNode st : ctor.body()) formatStmt(st, out, indent + 1, pending, p);
+                    out.append(pad).append("}\n");
+                }
             }
             case RecordDeclarationNode rec -> {
                 for (AnnotationNode ann : rec.annotations()) out.append(pad).append(formatAnnotation(ann, p)).append("\n");
                 if (!rec.modifiers().isEmpty()) out.append(pad).append(joinKw(p, rec.modifiers())).append(" ");
                 else out.append(pad);
-                out.append(kw(p, "record")).append(' ').append(rec.name());
+                boolean classForm = rec.superClass() != null && !rec.modifiers().contains("value");
+                out.append(kw(p, classForm ? "class" : "record")).append(' ').append(rec.name());
+                if (!rec.typeParameters().isEmpty()) out.append("<").append(typeList(p, rec.typeParameters())).append(">");
                 out.append("(");
                 for (int i = 0; i < rec.components().size(); i++) {
                     if (i > 0) out.append(", ");
@@ -213,7 +231,7 @@ public final class KofFormatter {
                 }
                 out.append(")");
                 if (rec.superClass() != null) out.append(" ").append(kw(p, "extends")).append(' ').append(typeText(p, rec.superClass()));
-                if (!rec.interfaces().isEmpty()) out.append(" ").append(kw(p, "implements")).append(' ').append(joinKw(p, rec.interfaces()));
+                if (!rec.interfaces().isEmpty()) out.append(" ").append(kw(p, "implements")).append(' ').append(typeList(p, rec.interfaces()));
                 if (rec.members().isEmpty()) out.append("\n");
                 else {
                     out.append(" {\n");
@@ -244,6 +262,17 @@ public final class KofFormatter {
                     if (f.unique()) out.append(" ").append(kw(p, "unique"));
                     out.append("\n");
                 }
+                out.append(pad).append("}\n");
+            }
+            case ApplicationDeclarationNode app -> {
+                out.append(pad).append(kw(p, "application")).append(" {\n");
+                formatLifecycle("onStart", app.onStart(), out, indent + 1, pending, p);
+                formatLifecycle("onShutdown", app.onShutdown(), out, indent + 1, pending, p);
+                out.append(pad).append("}\n");
+            }
+            case InfraDeclarationNode inf -> {
+                out.append(pad).append(kw(p, "infra")).append(" \"").append(inf.name()).append("\" {\n");
+                for (StatementNode st : inf.body()) formatStmt(st, out, indent + 1, pending, p);
                 out.append(pad).append("}\n");
             }
             case TestDeclarationNode t -> {
@@ -283,6 +312,25 @@ public final class KofFormatter {
                 out.append(pad).append(decl.toString()).append("\n");
             }
         }
+    }
+
+    static boolean trailingReturn(String returnType, boolean generic) {
+        return !"void".equals(returnType) && (generic || returnType.startsWith("("));
+    }
+
+    static String typeList(LanguageProfile p, List<String> types) {
+        List<String> out = new ArrayList<>(types.size());
+        for (String t : types) out.add(typeText(p, t));
+        return String.join(", ", out);
+    }
+
+    static void formatLifecycle(String name, List<StatementNode> body, StringBuilder out, int indent,
+                                KofFormatterComments.Pending pending, LanguageProfile p) {
+        if (body.isEmpty()) return;
+        String pad = "    ".repeat(indent);
+        out.append(pad).append(name).append(" {\n");
+        for (StatementNode st : body) formatStmt(st, out, indent + 1, pending, p);
+        out.append(pad).append("}\n");
     }
 
     static String formatAnnotation(AnnotationNode ann, LanguageProfile p) {
@@ -370,8 +418,14 @@ public final class KofFormatter {
             }
             case VarDeclStmt vds -> {
                 out.append(pad);
-                out.append(typeText(p, vds.type())).append(" ");
-                out.append(vds.name());
+                String t = vds.type();
+                boolean inferred = "var".equals(t) || "val".equals(t);
+                if (!inferred && (vds.isVal() || t.startsWith("("))) {
+                    out.append(kw(p, vds.isVal() ? "val" : "var")).append(' ').append(vds.name())
+                            .append(": ").append(typeText(p, t));
+                } else {
+                    out.append(typeText(p, t)).append(" ").append(vds.name());
+                }
                 if (vds.initializer() != null) out.append(" = ").append(KofFormatterExpr.formatExpr(vds.initializer(), p));
                 out.append("\n");
             }
@@ -398,7 +452,7 @@ public final class KofFormatter {
                     out.append("    ".repeat(indent + 1)).append(kw(p, "case")).append(' ').append(KofFormatterExpr.formatExpr(c.value(), p)).append(":\n");
                     for (StatementNode s : c.body()) formatStmt(s, out, indent + 2, pending, p);
                 }
-                if (!sw.defaultBody().isEmpty()) {
+                if (sw.hasDefault() || !sw.defaultBody().isEmpty()) {
                     out.append("    ".repeat(indent + 1)).append(kw(p, "default")).append(":\n");
                     for (StatementNode s : sw.defaultBody()) formatStmt(s, out, indent + 2, pending, p);
                 }

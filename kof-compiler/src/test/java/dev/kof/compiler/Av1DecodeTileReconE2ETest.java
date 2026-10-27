@@ -62,7 +62,11 @@ class Av1DecodeTileReconE2ETest implements LibraryInstallSupport {
     void tileReconGoldenIsPinned() {
         assertTrue(golden().startsWith("C 0 8 0 2 2 16 8"),
                 "golden must be the libaom dump");
-        assertEquals(3, cases().size(), "3 oracle cases");
+        assertEquals(2, cases().size(),
+                "2 oracle cases — case 2 (the skip path) is EXCLUDED by known-bugs §761 "
+                        + "(its stream carries coefficient syntax for a skip_txfm block, which a "
+                        + "real encoder never writes); the skip semantics are pinned by "
+                        + "AvifFullPlaneE2ETest#skippedBlockReadsNoCoefficientSymbols");
         assertEquals(4, cases().get(1).blocks().size(), "case 1 is a four-block plane");
     }
 
