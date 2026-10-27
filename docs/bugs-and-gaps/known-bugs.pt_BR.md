@@ -17567,7 +17567,7 @@ O alfabeto do EOB coincide com o libaom (`eob_multi_size` 6 => 11 símbolos). AO
 <!-- pt-switch --> **EN:** [§762 (en)](known-bugs.md#762--the-jvmffm-ffi-path-refuses-a-struct-whose-c-layout-has-alignment-padding-boolint)
 
 ## §763 — o passe de alinhamento §14 preencheu uma chamada FFI ja alinhada, por isso o sqrt e os args mistos fizeram SEGV (exit 139) no native x86-64
-**Estado:** ✅ FECHADO 26/10 pela lane compiler/JVM/native `192.168.15.30:9092` — o modelo de delta agora conhece a sequencia de auto-alinhamento do emissor, entao um downcall que se alinha sozinho nunca recebe padding uma segunda vez. Pinado por tres faces novas do `NativeX86StackAlignTest` + `FfiNativeE2ETest` 20/20.
+**Estado:** ✅ FECHADO 26/10 pela lane compiler/JVM/native `192.168.15.30:9092` (commit `ccac81ddf`; issue #974 fechada com a prova) — o modelo de delta agora conhece a sequencia de auto-alinhamento do emissor, entao um downcall que se alinha sozinho nunca recebe padding uma segunda vez. Pinado por tres faces novas do `NativeX86StackAlignTest` + `FfiNativeE2ETest` 20/20.
 
 **MEDIDO 26/10 (issue #974, `1.0-blocks`).** `FfiNativeE2ETest#fpSpecialsNanInfNegativeZero` e `#mixedIntDoubleArgsPerClassCounting` saiam com **139 e nenhuma saida** no tip (`origin/lab` `50a4fcc2f`, as faces verdes no corte 0.6.6). O call site do binario gerado (objdump do proprio `out-fps-nat/Default/Main` do teste) mostrava o defeito literalmente:
 

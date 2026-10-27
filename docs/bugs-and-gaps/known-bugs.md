@@ -20093,7 +20093,7 @@ The EOB alphabet matches libaom (`eob_multi_size` 6 => 11 symbols). BYTE LEVEL: 
 <!-- pt-switch --> **PT:** [§762 (pt_BR)](known-bugs.pt_BR.md#762--o-caminho-ffi-do-jvmffm-recusa-um-struct-cujo-layout-c-tem-padding-de-alinhamento-boolint)
 
 ## §763 — the §14 stack-alignment pass padded an ALREADY aligned FFI downcall, so `sqrt`/mixed-args SEGFAULTED (exit 139) on native x86-64
-**Status:** ✅ CLOSED 26/10 by lane compiler/JVM/native `192.168.15.30:9092` — the delta model now knows the emitter's self-aligning sequence, so a downcall that aligns itself is never padded a second time. Pinned by three new `NativeX86StackAlignTest` faces + `FfiNativeE2ETest` 20/20.
+**Status:** ✅ CLOSED 26/10 by lane compiler/JVM/native `192.168.15.30:9092` (commit `ccac81ddf`; issue #974 closed with the proof) — the delta model now knows the emitter's self-aligning sequence, so a downcall that aligns itself is never padded a second time. Pinned by three new `NativeX86StackAlignTest` faces + `FfiNativeE2ETest` 20/20.
 
 **MEASURED 26/10 (issue #974, `1.0-blocks`).** `FfiNativeE2ETest#fpSpecialsNanInfNegativeZero` and `#mixedIntDoubleArgsPerClassCounting` exited **139 with no output** at the tip (`origin/lab` `50a4fcc2f`, the 0.6.6-green faces). The generated binary's call site (objdump of the test's own `out-fps-nat/Default/Main`) showed the defect literally:
 
