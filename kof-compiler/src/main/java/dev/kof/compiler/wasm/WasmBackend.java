@@ -90,6 +90,16 @@ public class WasmBackend implements Backend {
             records.put(simple, ClassLayout.build(clazz));
         }
         boolean usesRecords = !records.isEmpty();
+        // FATIA F face 2 (28/10, #776): algum record tem campo Double — a
+        // familia Schubfach + o kof.doubleToStr entram pelo MESMO gancho
+        // do println/concat (o toString do record consome o doubleToStr)
+        boolean recordDoubles = false;
+        for (ClassLayout rl : records.values()) {
+            for (FieldLayout fl : rl.fields()) {
+                if (WasmRecordOps.isF64Field(fl.type())) { recordDoubles = true; break; }
+            }
+            if (recordDoubles) break;
+        }
         final int recDepth = maxRecordNesting(records);
         // fecho transitivo de chamadas a partir das entradas escalares: qualquer
         // declaracao FORA do subset que seja de fato alcancada recusa honesto
@@ -273,6 +283,7 @@ public class WasmBackend implements Backend {
             // vai para a caixa (o kof.doubleToStr delega ao kof.schubFull).
             boolean schub = false;
             if (printed.contains("double") || WasmTypeOracle.usesDoubleValueOf(scanAll)
+                    || recordDoubles
                     || (wasi && WasmBoxRuntime.usesAny(scanAll))
                     // a fatia MAP: o boxToStr (do get nullable) referencia
                     // doubleToStr/schubFull ESTATICAMENTE — a familia vem

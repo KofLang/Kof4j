@@ -213,9 +213,12 @@ final class WasmRecordCode {
             out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD64, 0));
             out.add(new WasmInstr.Call("kof.intToStr"));
         } else if (dev.kof.compiler.wasm.WasmRecordOps.isF64Field(f.type())) {
-            throw new WasmUnsupportedException("toString de record campo '" + f.name() + "' Double fora da 15.3d inc2 (WASM002)"
-                    + " — Double.toString paridade chega na proxima fatia;"
-                    + " docs/wasm-wasi-plan.md (#776)");
+            // FATIA F face 2 (28/10, #776): o campo Double no toString — o
+            // MESMO kof.doubleToStr do println/concat/caixa (o Schubfach
+            // completo, delega ao kof.schubFull; a familia entra pelo
+            // gancho recordDoubles do scan)
+            out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD_F64, 0));
+            out.add(new WasmInstr.Call("kof.doubleToStr"));
         } else {
             throw new WasmUnsupportedException("toString de record campo '" + tn
                     + "' fora da 15.3d inc2 (WASM002) — docs/wasm-wasi-plan.md (#776)");

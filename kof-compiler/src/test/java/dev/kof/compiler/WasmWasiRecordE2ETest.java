@@ -266,4 +266,35 @@ class WasmWasiRecordE2ETest {
                 out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
                 "args iteration must equal the JVM oracle");
     }
+
+    @Test
+    void recordToStringWithDoubleFieldsMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA F face 2 (28/10, #776): o toString de record com campos
+        // Double — o MESMO kof.doubleToStr do println/concat/caixa (o
+        // Schubfach completo; a familia entra pelo gancho recordDoubles
+        // do scan). A rodada MEDIU antes: o concat e o valueOf com
+        // Doubles JA eram byte-idênticos (F2b) — o que faltava era SÓ o
+        // campo do record (o WASM002 honesto no WasmRecordCode). Também
+        // fecha a MEDIDA do pow: Math.pow == StrictMath.pow deriva 3/30
+        // por 1 ulp (o intrinseco da JVM vs o fdlibm puro) — o pow segue
+        // RECUSADO no WASI (o precedente do cos), nunca um port com drift.
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                record Point(Double x, Double y)
+                main(String[] args) {
+                    var p = Point(0.5, -2.25)
+                    println(p)
+                    println("v=" + 0.1)
+                    println(0.1 + 0.2)
+                    var s = "x" + p.x
+                    println(s)
+                    println(p.x)
+                    var n = Point(0.0, -0.0)
+                    println(n)
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
 }
