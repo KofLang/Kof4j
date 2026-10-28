@@ -276,6 +276,13 @@ public final class OptimizerConstantFold {
         return null;
     }
 
+
+    /** o tipo do operando e BOOL (o desugar do ! sobre Boolean)? */
+    private static boolean isBoolType(Type t) {
+        return t instanceof Type.PrimitiveType pt
+                && ("bool".equalsIgnoreCase(pt.name()) || "boolean".equalsIgnoreCase(pt.name()));
+    }
+
     private static KofLoadLiteral foldUnary(KofLoadLiteral la, KofUnary ku) {
         if (!(la.value() instanceof Number v)) return null;
         return switch (ku.op()) {
@@ -286,7 +293,17 @@ public final class OptimizerConstantFold {
                 if (v instanceof Double d) yield KofLoadLiteral.ofDouble(-d);
                 yield null;
             }
-            case NOT -> v instanceof Integer i ? KofLoadLiteral.ofInt(i == 0 ? 1 : 0) : null;
+            // FATIA N6 (28/10, #776): o NOT sobre um literal BOOL tem de sair
+            // ofBool (o literal BOOL carrega o tipo na VALUE, nao so no
+            // campo type) — o ofInt emitia o i64 do Int e o println bool do
+            // WASI despachava i32 contra um i64 na pilha (o modulo INVALIDO,
+            // a classe Q7). O desugar do ! sobre Boolean usa o Integer 0/1;
+            // a VOZ do tipo = o operandType do proprio KofUnary.
+            case NOT -> v instanceof Integer i
+                    ? (isBoolType(ku.operandType())
+                            ? KofLoadLiteral.ofBool(i == 0)
+                            : KofLoadLiteral.ofInt(i == 0 ? 1 : 0))
+                    : null;
             case I2L -> v instanceof Integer i ? KofLoadLiteral.ofLong(i.longValue()) : null;
             case I2C -> v instanceof Integer i ? KofLoadLiteral.ofInt(i & 0xFFFF) : null;
             case I2B -> v instanceof Integer i ? KofLoadLiteral.ofInt((byte) (int) i) : null;

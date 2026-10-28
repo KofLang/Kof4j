@@ -297,4 +297,37 @@ class WasmWasiRecordE2ETest {
                 """);
         WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
     }
+
+    @Test
+    void recordEqualityWithNotAndNegMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA N-FOLD (28/10, #776): o fold constante do `!` sobre um
+        // literal BOOL emitia ofInt (o i64 do Int) e o println bool do
+        // WASI despachava i32 contra um i64 — o modulo INVALIDO (a classe
+        // Q7: compila "clean", o HOST recusa). O fix = ofBool quando o
+        // operandType do KofUnary e bool. A face cobre o REPRO medido
+        // (a eq de record plana + o ! bool + o - int JUNTOS — o combo que
+        // o N3 reproduziu) e os vizinhos (o ! true, o - de Int literal).
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                record Inner(Int v)
+                record Outer(Inner i, Int n)
+                main(String[] args) {
+                    var a = Outer(Inner(1), 2)
+                    var b = Outer(Inner(1), 2)
+                    println(a == b)
+                    println(!(a == b))
+                    var f = false
+                    println(!f)
+                    var g = true
+                    println(!g)
+                    var d = -5
+                    println(-d)
+                    var e = 3
+                    println(-e)
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
 }
