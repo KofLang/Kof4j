@@ -552,6 +552,13 @@ final class WasmMathRuntime {
         fs.add(WasmAtan2Kernel.atan2Func());
         fs.add(WasmRemPio2.smallTailFunc());
         fs.add(WasmRemPio2.mediumFunc());
+        // MATH-LIBM-4 fatia B (28/10): o caminho GRANDE — o driver (a quebra
+        // tx + o despacho n&3) + o kernel da memória-scratch. O heapAlloc
+        // entra junto: o driver aloca o scratch de 928B (o dedupe por nome
+        // torna o add redundante seguro quando já há coleções)
+        fs.add(WasmRemPio2Large.largeFunc());
+        fs.add(WasmRemPio2Kernel.kernelFunc());
+        fs.add(WasmListRuntime.heapAlloc());
         return fs;
     }
 }

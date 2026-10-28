@@ -70,17 +70,20 @@ class WasmWasiTrigE2ETest {
 
     @Test
     void sinBeyondMediumRangeTrapsHonestly(@TempDir Path dir) throws Exception {
-        // MATH-LIBM-4 scoping (27/10, #776): além de 2^19·π/2 ≈ 823549 o
-        // guard TRAPA honestamente (o caminho GRANDE ipio2 = a fatia
-        // seguinte — nunca valor errado silencioso; a F10 mediu rc=134).
-        // A face pina o trap via o EXIT CODE do wasmtime (o corpo nem roda).
+        // MATH-LIBM-4 fatia B (28/10, #776): o caminho GRANDE agora TRADUZ o
+        // ramo n&3=0/2 (a face mathSinLargeRangeSinBranch) e mantém o TRAP
+        // honesto no ramo n&3=1/3 (o __kernel_cos — o veredicto MORTO do cos).
+        // A MEDIÇÃO que corrigiu a rodada 51: o n do fdlibm é ARREDONDADO
+        // (round-half-up: trunca + o ih do frac ≥ 0.5), não o floor da sonda
+        // antiga — 2000000 tem n&3=0 (vira tradução) e 1193046 tem n&3=1.
+        // A face pina o trap via o EXIT CODE do wasmtime.
         var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
         var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
         org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null,
                 "wasm hosts absent — run scripts/provision-wasmtime.sh");
         var driver = new CompilerDriver();
         Files.writeString(dir.resolve("Main.kf"),
-                "main(String[] args) {\n    println(math.sin(2000000.0))\n}\n");
+                "main(String[] args) {\n    println(math.sin(1193046.0))\n}\n");
         var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
         assertTrue(jvm.success(), "jvm compile: " + jvm.diagnostics().getDiagnostics());
         var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
@@ -90,7 +93,44 @@ class WasmWasiTrigE2ETest {
                 .redirectErrorStream(true).start();
         proc.waitFor(60, java.util.concurrent.TimeUnit.SECONDS);
         assertTrue(proc.exitValue() != 0,
-                "sin além de 2^19·π/2 TRAPA honestamente (rc=" + proc.exitValue() + ")");
+                "sin no ramo cos (n&3=1/3) TRAPA honestamente (rc=" + proc.exitValue() + ")");
+    }
+
+    @Test
+    void mathSinLargeRangeSinBranchMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // MATH-LIBM-4 fatia B (28/10, #776): o caminho GRANDE do sin — o
+        // KernelRemPio2 (a tabela two_over_pi 66×24-bit + o scratch de
+        // memória iq/f/q/fq + o PIo2[8]) portado verbatim do FdLibm do JDK;
+        // o ramo n&3=0/2 despacha ao kof.sin.smalltail (o kernel_sin iy=1).
+        // AS FACES: as de n&3=0/2 MEDIDAS byte-idênticas vs o oráculo JVM
+        // (Math.sin = o glibc) + os Inf/NaN (o x−x do fdlibm). O PORT é
+        // FIEL ao fdlibm: 19/19 == StrictMath.sin (a sonda Q7), incluindo
+        // as faces em que o PRÓPRIO glibc deriva 1 ulp do fdlibm (ex.:
+        // 2100000.0 — o drift medido ~3% em 1e8-1e9, nunca um defeito do
+        // port) — essas ficam FORA do oráculo JVM, registradas na lei.
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    println(math.sin(823550.0))
+                    println(math.sin(1000000.0))
+                    println(math.sin(1100000.0))
+                    println(math.sin(1300000.0))
+                    println(math.sin(2000000.0))
+                    println(math.sin(7000000.0))
+                    println(math.sin(1000000000.0))
+                    println(math.sin(5000000000.0))
+                    println(math.sin(10000000000.0))
+                    println(math.sin(87654321.0))
+                    println(math.sin(-823550.0))
+                    println(math.sin(-1100000.0))
+                    println(math.sin(1.0 / 0.0))
+                    println(math.sin(0.0 / 0.0))
+                    println(math.sin(-1.0 / 0.0))
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
     }
 
     @Test

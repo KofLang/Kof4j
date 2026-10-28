@@ -87,7 +87,11 @@ final class WasmSinKernel {
         get(b, 0);                                               // LEI: os args no site
         b.add(new WasmInstr.Call("kof.sin.medium"));
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, null, 0x7c));
-        b.add(new WasmInstr.Simple(0x00, "unreachable"));        // a fronteira honesta (o caminho GRANDE é a fatia seguinte)
+        // faixa 4: |x| > 2^19·π/2 → o caminho GRANDE (MATH-LIBM-4 fatia B):
+        // o KernelRemPio2 com o scratch de memória + o despacho n&3 (o ramo
+        // sin = o smalltail; o ramo cos = o trap honesto — o veredicto DEAD)
+        get(b, 0);                                               // LEI: os args no site
+        b.add(new WasmInstr.Call("kof.sin.large"));
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x7c));  // fecha o if do médio
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x7c));  // fecha o if do especial
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x7c));
