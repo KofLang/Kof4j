@@ -90,8 +90,9 @@ final class WasmCollCallCode {
                     // compatibilidade com o owner — a fatia e' <String, Int>
                     // e, desde a MV (28/10), <String, String>)
                     boolean strVal = "string".equalsIgnoreCase(mapValueType(kc));
+                    boolean dblVal = "double".equalsIgnoreCase(mapValueType(kc));
                     if (!"string".equalsIgnoreCase(mapKeyType(kc))
-                            || (!"int".equalsIgnoreCase(mapValueType(kc)) && !strVal)) {
+                            || (!"int".equalsIgnoreCase(mapValueType(kc)) && !strVal && !dblVal)) {
                         throw new WasmUnsupportedException("Map<"
                                 + mapKeyType(kc) + ", " + mapValueType(kc)
                                 + "> fora da fatia Map<String, Int> (WASM002)"
@@ -99,15 +100,31 @@ final class WasmCollCallCode {
                     }
                     // FATIA MV (28/10, #776): o valor String = o mapPutStr (o
                     // handle ESTENDIDO no slot i64, o res CRU); a largura do
-                    // valor esta' na pilha como i32 — o extend fica NO RUNTIME
-                    out.add(new WasmInstr.Call(strVal ? "kof.mapPutStr" : "kof.mapPut"));
-                    // o runtime DEVOLVE o valor anterior como caixa (o
-                    // contrato HashMap.put): a forma VOID do desugar (a链 do
-                    // mapOf) dropa aqui; a forma Nullable (o put-declaracao)
-                    // deixa o KofPop consumir
-                    if (kc.returnType() instanceof Type.PrimitiveType pt
-                            && "void".equalsIgnoreCase(pt.name())) {
-                        out.add(new WasmInstr.Simple(0x1a, "drop"));
+                    // valor esta' na pilha como i32 — o extend fica NO RUNTIME.
+                    // FATIA MAP-D (28/10, #776): o valor Double = o mapPut CRU
+                    // com os BITS (o reinterpret fica no CALL SITE — o rastro
+                    // double = o f64 na pilha; o mapPut pede i64); o res CRU
+                    // (o i64 dos bits) nunca consume — dropa na forma VOID da
+                    // cadeia (a链 do mapOf) e na forma Nullable
+                    if (dblVal) {
+                        out.add(new WasmInstr.Simple(0xbd, "i64.reinterpret_f64"));
+                        out.add(new WasmInstr.Call("kof.mapPut"));
+                        if (kc.returnType() instanceof Type.PrimitiveType pt
+                                && "void".equalsIgnoreCase(pt.name())) {
+                            out.add(new WasmInstr.Simple(0x1a, "drop"));
+                        }
+                    } else if (strVal) {
+                        out.add(new WasmInstr.Call("kof.mapPutStr"));
+                        if (kc.returnType() instanceof Type.PrimitiveType pt
+                                && "void".equalsIgnoreCase(pt.name())) {
+                            out.add(new WasmInstr.Simple(0x1a, "drop"));
+                        }
+                    } else {
+                        out.add(new WasmInstr.Call("kof.mapPut"));
+                        if (kc.returnType() instanceof Type.PrimitiveType pt
+                                && "void".equalsIgnoreCase(pt.name())) {
+                            out.add(new WasmInstr.Simple(0x1a, "drop"));
+                        }
                     }
                     // o rastro volta "map": CADA put da cadeia tem o seu Dup
                     // (o tee deixou o original na pilha e ele permanece — a
@@ -130,22 +147,26 @@ final class WasmCollCallCode {
                 }
                 case "kof_map_remove" -> {
                     boolean strVal = "string".equalsIgnoreCase(mapValueType(kc));
+                    boolean dblVal = "double".equalsIgnoreCase(mapValueType(kc));
                     if (!"string".equalsIgnoreCase(mapKeyType(kc))
-                            || (!"int".equalsIgnoreCase(mapValueType(kc)) && !strVal)) {
+                            || (!"int".equalsIgnoreCase(mapValueType(kc)) && !strVal && !dblVal)) {
                         throw new WasmUnsupportedException("Map<"
                                 + mapKeyType(kc) + ", " + mapValueType(kc)
                                 + "> fora da fatia Map<String, Int> (WASM002)"
                                 + " — docs/wasm-wasi-plan.md (#776)");
                     }
-                    // FATIA MV: o remove do valor String devolve o CRU
-                    out.add(new WasmInstr.Call(strVal ? "kof.mapRemoveStr" : "kof.mapRemove"));
+                    // FATIA MV: o remove do valor String devolve o CRU; a
+                    // FATIA MAP-D: o remove do Double BOXA (o boxDouble dos bits)
+                    out.add(new WasmInstr.Call(strVal ? "kof.mapRemoveStr"
+                            : (dblVal ? "kof.mapRemoveDbl" : "kof.mapRemove")));
                     // o remove devolve a CAIXA do valor removido (0=null): a
                     // forma declaracao tem o KofPop (consome); a forma VOID
                     // tem o KofPop DO STATEMENT (o hasReturnValue do Compiler
                     // Comparisons — o mesmo pop dos outros valores). FATIA MV:
                     // o rastro do CRU (o String? no KofPop/renderizar `null`)
                     // e' o nullablestring
-                    ctx.lastPush = strVal ? "nullablestring" : "object";
+                    ctx.lastPush = strVal ? "nullablestring"
+                            : (dblVal ? "nullabledouble" : "object");
                     ctx.lastPushWide = false;
                 }
                 case "kof_map_get" -> {
@@ -156,9 +177,13 @@ final class WasmCollCallCode {
                     }
                     // FATIA MV: o valor String = o mapGetStr (o CRU — o
                     // mapval passthrough do boxToStr renderiza o String e o
-                    // `null` no 0; o MESMO rastro dos dois consumidores)
+                    // `null` no 0; o MESMO rastro dos dois consumidores). A
+                    // FATIA MAP-D: o Double = o mapGetDbl (o boxDouble — o
+                    // mapval rota)
                     boolean strVal = "string".equalsIgnoreCase(mapValueType(kc));
-                    out.add(new WasmInstr.Call(strVal ? "kof.mapGetStr" : "kof.mapGet"));
+                    boolean dblVal = "double".equalsIgnoreCase(mapValueType(kc));
+                    out.add(new WasmInstr.Call(strVal ? "kof.mapGetStr"
+                            : (dblVal ? "kof.mapGetDbl" : "kof.mapGet")));
                     ctx.lastPush = "mapval";                     // o handle da caixa OU o cru (0 = null)
                     ctx.lastPushWide = false;
                 }

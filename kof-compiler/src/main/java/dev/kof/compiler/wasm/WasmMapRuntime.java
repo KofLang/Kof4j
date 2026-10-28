@@ -333,7 +333,6 @@ final class WasmMapRuntime {
                         WasmFunc.TYPE_I64, WasmFunc.TYPE_I32, WasmFunc.TYPE_I32), b);
     }
 
-    /** `kof.mapSize(h i32) -> i64` — [h+8]. */
     private static WasmFunc mapSize() {
         List<WasmInstr> b = new ArrayList<>();
         get(b, 0, "h");
@@ -538,6 +537,7 @@ final class WasmMapRuntime {
                         WasmFunc.TYPE_I32), b);
     }
 
+
     /** Toda a familia (o chamador registra quando um kof_map_* aparece). */
     static List<WasmFunc> all() {
         List<WasmFunc> fs = new ArrayList<>();
@@ -554,6 +554,12 @@ final class WasmMapRuntime {
         fs.add(WasmMapStrRuntime.mapPutStr());
         fs.add(WasmMapStrRuntime.mapGetStr());
         fs.add(WasmMapStrRuntime.mapRemoveStr());
+        // FATIA MAP-D (28/10, #776): os valores Double — o get/remove BOXAM
+        // (boxDouble dos bits — o Double? tem o null REAL: os 0-bits = 0.0
+        // nao pode ser a null-sentinel); o put = o mapPut CRU (o reinterpret
+        // fica no CALL SITE)
+        fs.add(WasmMapDblRuntime.mapGetDbl());
+        fs.add(WasmMapDblRuntime.mapRemoveDbl());
         fs.add(WasmMapExtract.mapKeys());
         fs.add(WasmMapExtract.mapValues());
         return fs;

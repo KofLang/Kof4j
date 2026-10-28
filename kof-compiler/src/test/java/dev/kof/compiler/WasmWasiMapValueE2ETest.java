@@ -94,4 +94,46 @@ class WasmWasiMapValueE2ETest {
                 """);
         WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
     }
+
+    @Test
+    void mapStringDoubleMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA MAP-D (28/10, #776): Map<String, Double> — os valores Double
+        // ANDAM como a CAIXA §284 (o boxDouble dos bits; o handle i32, o 0 =
+        // null). Os rotros pagos: o put leva o reinterpret NO CALL SITE (a
+        // f64 da pilha → o i64 dos bits do mapPut); o get/remove devolvem a
+        // CAIXA (o mapGetDbl/mapRemoveDbl — os clones NAMED corrigidos da lei
+        // do dedupe byName); o rastro "nullabledouble" (o typeName +
+        // printableScalar + mapType — o trio) + o RE-ARME na cadeia valueOf
+        // do println (o Double.valueOf do desugar chega com o param
+        // PRIMITIVE apagado e limpava o rastro — o MESMO padrão do re-arme
+        // do mapval); o print/concat renderizam via boxToStr (o null =
+        // `null`); a ARITMÉTICA (o b + a) desboxa ANTES do op f64 — o
+        // f64.load 16 dos bits da caixa (a dança do scratch vf64; o null
+        // trapa = a paridade do NPE do unbox do JVM; a forma MISTA caixa +
+        // escalar cru recusa no validate — o rastro de op1 não sobrevive).
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var m = mapOf("a", 0.5, "b", 1.5, "c", 2.5)
+                    println(m.get("a"))
+                    println(m.get("z"))
+                    println("v=" + m.get("z"))
+                    println("w=" + m.get("a"))
+                    println(m.size())
+                    println(m.contains("b"))
+                    println(m.contains("z"))
+                    m.put("a", 9.75)
+                    println(m.get("a"))
+                    println(m.size())
+                    var old = m.remove("c")
+                    println(old)
+                    println(m.size())
+                    println("d=" + m.remove("z"))
+                    println(m.get("b") + m.get("a"))
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
 }

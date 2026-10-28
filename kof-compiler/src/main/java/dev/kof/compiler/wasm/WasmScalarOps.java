@@ -134,6 +134,13 @@ public final class WasmScalarOps {
                 && "String".equals(sct.name()) && "java.lang".equals(sct.packageName())) {
             return "nullableString";
         }
+        // FATIA MAP-D (28/10, #776): o Double? (o valor do map.get/remove) =
+        // a CAIXA (o boxDouble dos bits) — o local decl anda no handle i32
+        if (t instanceof Type.NullableType nt
+                && nt.inner() instanceof Type.PrimitiveType dpt
+                && "double".equalsIgnoreCase(dpt.name())) {
+            return "nullabledouble";
+        }
         if (t instanceof Type.PrimitiveType pt) return pt.name();
         if (t instanceof Type.ClassType ct) {
             if ("String".equals(ct.name()) && "java.lang".equals(ct.packageName())) {
@@ -159,6 +166,9 @@ public final class WasmScalarOps {
             // FATIA MV (28/10, #776): o String? (o valor do map.get) anda no
             // MESMO handle i32 (o 0 = null)
             case "nullablestring" -> WasmFunc.TYPE_I32;
+            // FATIA MAP-D (28/10, #776): o Double? (o valor do map.get/remove)
+            // anda no MESMO handle i32 (a CAIXA §284 — o boxDouble; o 0 = null)
+            case "nullabledouble" -> WasmFunc.TYPE_I32;
             case "char" -> WasmFunc.TYPE_I64;
             case "object" -> WasmFunc.TYPE_I32; // handle/opaque i32 (15.3d record temp)
             default -> throw new WasmUnsupportedException(role + " '" + name + "' em '" + context

@@ -67,6 +67,13 @@ final class WasmCallCode {
                 // valueOf tem dois passes — o segundo walk diz "int" de novo)
                 v = "object";
                 ctx.lastPush = "mapval";
+            } else if ("nullabledouble".equals(ctx.lastPush)) {
+                // FATIA MAP-D (28/10, #776): o Double? na cadeia do println —
+                // o Double.valueOf do desugar (o param = o PRIMITIVE apagado)
+                // NAO unboxa no WASI: a caixa anda (§284) e o rastro RE-ARMA
+                // (os DOIS passes chegam nullabledouble; o print renderiza via
+                // boxToStr — o null = `null`, o MESMO do valueOf)
+                ctx.lastPush = "nullabledouble";
             } else {
                 ctx.lastPush = v;   // o comportamento ORIGINAL (o char/records)
             }
@@ -101,6 +108,13 @@ final class WasmCallCode {
                 // medido); RE-ARMA o mapval (a cadeia tem dois passes)
                 out.add(new WasmInstr.Call("kof.boxToStr"));
                 ctx.lastPush = "mapval";
+            } else if ("nullabledouble".equals(ctx.lastPush)) {
+                // FATIA MAP-D (28/10, #776): o Double? na cadeia valueOf — a
+                // CAIXA (o boxDouble): o boxToStr renderiza (o null = `null`,
+                // o MESMO render do print). Sem re-arm: o passe 2 ve "string"
+                // e a identidade nao emite
+                out.add(new WasmInstr.Call("kof.boxToStr"));
+                ctx.lastPush = "string";
             } else if ("Object".equalsIgnoreCase(ctx.lastPush)
                     && (kc.parameterTypes().isEmpty()
                         || !(kc.parameterTypes().get(0) instanceof Type.PrimitiveType))) {

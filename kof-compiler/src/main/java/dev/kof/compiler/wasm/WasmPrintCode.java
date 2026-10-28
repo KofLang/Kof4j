@@ -65,6 +65,14 @@ final class WasmPrintCode {
                         out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
                         ctx.lastPush = "string";
                     }
+                    // FATIA MAP-D (28/10, #776): o Double? (a caixa do
+                    // boxDouble) = o MESMO render do mapval (o boxToStr +
+                    // writeStr; o null = a literal)
+                    case "nullabledouble" -> {
+                        out.add(new WasmInstr.Call("kof.boxToStr"));
+                        out.add(new WasmInstr.Call("kof.writeStr"));
+                        ctx.lastPush = "string";
+                    }
                     case "object", "box", "mapval" -> {
                         out.add(new WasmInstr.Call("kof.boxToStr"));
                         out.add(new WasmInstr.Call("kof.writeStr"));

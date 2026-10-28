@@ -35,6 +35,12 @@ final class WasmLowering {
         int jvmSlot = 0;
         Map<Integer, String> varNameBySlot = new HashMap<>();
         for (IRLocalVariable lv : m.localVariables()) varNameBySlot.putIfAbsent(lv.index(), lv.name());
+        // FATIA MAP-D (28/10, #776): o rastro REAL dos locals nullable-double
+        Map<Integer, String> localNullableTrace = new HashMap<>();
+        for (IRLocalVariable lv : m.localVariables()) {
+            String lvtn = typeName(lv.type());
+            if ("nullabledouble".equals(lvtn)) localNullableTrace.put(lv.index(), lvtn);
+        }
         for (int i = 0; i < m.parameterTypes().size(); i++) {
             Type t = m.parameterTypes().get(i);
             params.add(mapType(typeName(t), m.name(), "parametro"));
@@ -153,7 +159,8 @@ final class WasmLowering {
             }
         }
 
-        Ctx ctx = new Ctx(slotMap, pcIdx, labelToBlock, m.name(), stringPool, dataSegments, records, dataCursor);
+        Ctx ctx = new Ctx(slotMap, pcIdx, labelToBlock, m.name(), stringPool, dataSegments,
+                records, dataCursor, localNullableTrace);
         ctx.wIdx = wIdx;
         ctx.sIdx = sIdx;
         ctx.dupIdx = dupIdx;
@@ -214,11 +221,19 @@ final class WasmLowering {
         String lastPush;
         boolean lastPushWide;
         List<KofOperation> flat;
+        // FATIA MAP-D (28/10, #776): o tipo IR do LOAD de local ERASA o
+        // nullable (o KofLoadLocal.type() de um `Double? old` chega `double`
+        // — medido: o println(old) despachou writeDouble sobre o handle da
+        // caixa) enquanto o SLOT (o mapType do lv.type()) viu o nullable (o
+        // local.set validou i32). O mapa guarda o rastro REAL (o typeName do
+        // lv.type()) para o emitPlain consultar no load.
+        final Map<Integer, String> localNullableTrace;
 
         Ctx(Map<Integer, Integer> slotMap, int pcIdx,
                 Map<Integer, Integer> labelToBlock, String funcName,
                 Map<String, Integer> stringPool, List<WasmData> dataSegments,
-                Map<String, ClassLayout> records, DataCursor data) {
+                Map<String, ClassLayout> records, DataCursor data,
+                Map<Integer, String> localNullableTrace) {
             this.slotMap = slotMap;
             this.pcIdx = pcIdx;
             this.labelToBlock = labelToBlock;
@@ -227,6 +242,7 @@ final class WasmLowering {
             this.dataSegments = dataSegments;
             this.records = records;
             this.data = data;
+            this.localNullableTrace = localNullableTrace;
         }
 
         /** record IR alcancado nesta fatia (15.3d); null = fora do subset. */
@@ -400,7 +416,11 @@ final class WasmLowering {
         KofOperation op = ops.get(idx);
         if (op instanceof KofLoadLocal ll) {
             out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.w(ll.index()), "l" + ll.index()));
-            ctx.lastPush = (ll.type() instanceof Type.ClassType ct && !("String".equals(ct.name())
+            // FATIA MAP-D (28/10, #776): o tipo do LOAD erasa o nullable — o
+            // rastro REAL vem do lv.type() (o slot allocation o viu)
+            String lt = ctx.localNullableTrace.get(ll.index());
+            ctx.lastPush = lt != null ? lt
+                    : (ll.type() instanceof Type.ClassType ct && !("String".equals(ct.name())
                     && "java.lang".equals(ct.packageName()))) ? ct.name() : typeName(ll.type());
             ctx.lastPushWide = "int".equalsIgnoreCase(ctx.lastPush) || "long".equalsIgnoreCase(ctx.lastPush)
                     || "double".equalsIgnoreCase(ctx.lastPush);
@@ -482,8 +502,23 @@ final class WasmLowering {
                 ctx.lastPushWide = false;
                 return;
             }
-            emitBinaryOp(bin.op(), typeName(bin.operandType()), out);
-            ctx.lastPush = typeName(bin.operandType());
+            String binT = typeName(bin.operandType());
+            if (ctx.wasi && "double".equalsIgnoreCase(binT)
+                    && ("mapval".equals(ctx.lastPush) || "nullabledouble".equals(ctx.lastPush))) {
+                // FATIA MAP-D (28/10, #776): os operandos CAIXA (o get/remove
+                // do map Double, o local Double?) — o unbox ANTES do op f64:
+                // [h2] f64.load 16 → v2 no scratch vf64; [h1] f64.load 16 →
+                // v1; o op f64. O null (o handle 0) trapa no load = a paridade
+                // do NPE do unbox do JVM. A forma MISTA (caixa + escalar cru)
+                // recusa no validate (o rastro de op1 nao sobrevive ao 2o
+                // operando — a proxima fatia mede)
+                out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD_F64, 16));
+                out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.vf64Idx, "vf64"));
+                out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD_F64, 16));
+                out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.vf64Idx, "vf64"));
+            }
+            emitBinaryOp(bin.op(), binT, out);
+            ctx.lastPush = binT;
             ctx.lastPushWide = "int".equalsIgnoreCase(ctx.lastPush) || "long".equalsIgnoreCase(ctx.lastPush)
                     || "double".equalsIgnoreCase(ctx.lastPush);
         } else if (op instanceof KofUnary un && ctx.wasi && "bool".equals(ctx.lastPush)) {
