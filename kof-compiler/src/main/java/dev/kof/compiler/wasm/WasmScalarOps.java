@@ -126,6 +126,14 @@ public final class WasmScalarOps {
     }
 
     static String typeName(Type t) {
+        // FATIA MV (28/10, #776): o String? (o valor do map.get) recebe o
+        // NOME PROPRI0 — o scan aceita e o print despacha com o check do
+        // handle null (o JVM imprime `null`)
+        if (t instanceof Type.NullableType nt
+                && nt.inner() instanceof Type.ClassType sct
+                && "String".equals(sct.name()) && "java.lang".equals(sct.packageName())) {
+            return "nullableString";
+        }
         if (t instanceof Type.PrimitiveType pt) return pt.name();
         if (t instanceof Type.ClassType ct) {
             if ("String".equals(ct.name()) && "java.lang".equals(ct.packageName())) {
@@ -148,6 +156,9 @@ public final class WasmScalarOps {
             // como i32 fazia um Char em VARIAVEL sair i32 e o helper de escrita
             // recusar o modulo inteiro (bug medido 22/10 em println(c)).
             case "bool", "boolean", "string" -> WasmFunc.TYPE_I32; // string = handle i32 (15.3c)
+            // FATIA MV (28/10, #776): o String? (o valor do map.get) anda no
+            // MESMO handle i32 (o 0 = null)
+            case "nullablestring" -> WasmFunc.TYPE_I32;
             case "char" -> WasmFunc.TYPE_I64;
             case "object" -> WasmFunc.TYPE_I32; // handle/opaque i32 (15.3d record temp)
             default -> throw new WasmUnsupportedException(role + " '" + name + "' em '" + context

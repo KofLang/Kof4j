@@ -78,6 +78,22 @@ final class WasmCallCode {
             // outros tipos recusam honesto (WASM002) sem artefato (Q7).
             if ("string".equals(ctx.lastPush)) {
                 ctx.lastPush = "string";
+            } else if ("nullablestring".equals(ctx.lastPush)) {
+                // FATIA MV (28/10, #776): o String? na cadeia valueOf — o
+                // 0 = a literal `null` (o MESMO render do print); o handle
+                // cru passa (o scratch dupIdx = sempre alocado)
+                out.add(new WasmInstr.Local(WasmInstr.Local.TEE, ctx.dupIdx, "sv"));
+                out.add(new WasmInstr.Const(0, 0));
+                out.add(new WasmInstr.Simple(0x46, "i32.eq"));
+                out.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, null, 0x7f));
+                int na = ctx.internString("null");
+                out.add(new WasmInstr.Const(0, na));
+                out.add(new WasmInstr.Const(0, 4));
+                out.add(new WasmInstr.Call("kof.strLit"));
+                out.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, null, 0x7f));
+                out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.dupIdx, "sv"));
+                out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x7f));
+                ctx.lastPush = "string";
             } else if ("mapval".equals(ctx.lastPush)) {
                 // FATIA SNULL (28/10, #776): o valor do map.get na CADEIA
                 // valueOf do concat — o HANDLE DA CAIXA (o mapval) → o

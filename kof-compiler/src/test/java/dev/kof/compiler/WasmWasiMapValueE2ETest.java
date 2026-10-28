@@ -39,4 +39,59 @@ class WasmWasiMapValueE2ETest {
                 """);
         WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
     }
+
+    @Test
+    void mapStringStringMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA MV (28/10, #776): Map<String, String> — os valores String no
+        // MESMO slot i64 (o handle ESTENDIDO no put; o get/remove devolvem o
+        // CRU com o rastro nullablestring — o passthrough do boxToStr
+        // renderiza o String cru e o `null` no 0). Os rotros: o print com o
+        // if VOID (o write DENTRO dos bracos — a LEI do if void: os bracos
+        // terminam vazios; o if RESULT-typed na cadeia valueOf), o concat
+        // pelo valueOf nullablestring (o 0 = a literal `null`), o remove
+        // VOID consumido pelo KofPop do statement (o hasReturnValue do
+        // Compiler Comparisons — a camada SEM drop proprio). Os defeitos
+        // pagos: os clones NAMED kof.mapPutStr (o dedupe por nome tinha o
+        // putIfAbsent com o nome VELHO — o modulo perdia os Str), o rastro
+        // do remove (o object = o unbox do Int) e o if do print VOID vs o
+        // if do concat RESULT-typed.
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var m = mapOf("a", "x", "b", "y")
+                    println(m.get("a"))
+                    println(m.get("z"))
+                    println("v=" + m.get("z"))
+                    println("w=" + m.get("a"))
+                    println(m.size())
+                    println(m.contains("b"))
+                    println(m.contains("z"))
+                    m.put("c", "z")
+                    println(m.get("c"))
+                    println(m.size())
+                    var old = m.remove("c")
+                    println(old)
+                    println(m.size())
+                    println("d=" + m.remove("z"))
+                    println(m.get("a"))
+                    println(m.get("z"))
+                    m.put("a", "w")
+                    println(m.get("a"))
+                    println(m.size())
+                    m.remove("c")
+                    println(m.size())
+                    println(m.contains("c"))
+                    println(m.contains("a"))
+                    var l = m.keys()
+                    println(l.size())
+                    var v = m.values()
+                    println(v.size())
+                    println("k=" + m.get("a"))
+                    println(m.get("b") == "y")
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
 }

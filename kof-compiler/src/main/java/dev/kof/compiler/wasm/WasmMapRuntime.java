@@ -40,33 +40,6 @@ final class WasmMapRuntime {
             "kof_map_contains", "kof_map_remove", "kof_map_keys", "kof_map_values");
 
     /** `kof.mapNew() -> i32` — a celula + o bloco inicial cap=8 pares. */
-    private static WasmFunc mapNew() {
-        List<WasmInstr> b = new ArrayList<>();
-        i32c(b, 16);
-        b.add(new WasmInstr.Call("kof.heapAlloc"));
-        set(b, 0, "cell");
-        i32c(b, 128);                                            // 8 pares × 16B
-        b.add(new WasmInstr.Call("kof.heapAlloc"));
-        set(b, 1, "data");
-        get(b, 0, "cell");
-        get(b, 1, "data");
-        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));        // [cell] = data
-        get(b, 0, "cell");
-        i32c(b, 8);
-        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
-        i64c(b, 0);
-        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE64, 0));      // len = 0
-        get(b, 0, "cell");
-        i32c(b, 16);
-        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
-        i64c(b, 8);
-        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE64, 0));      // [cell+16] = cap 8
-        get(b, 0, "cell");
-        return new WasmFunc("kof.mapNew", List.of(), List.of(WasmFunc.TYPE_I32),
-                List.of(WasmFunc.TYPE_I32, WasmFunc.TYPE_I32), b);
-    }
-
-    /** O GROW comum do put: dobra o bloco de pares, copia, reescreve a celula. */
     private static void growBody(List<WasmInstr> b, String lbl, int hLocal,
                                  int lenLocal, int capLocal) {
         // 3=od, 4=nc, 5=nd, 6=i(i64)
@@ -132,6 +105,34 @@ final class WasmMapRuntime {
         get(b, 4, "nc");
         b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE64, 0));      // [h+16] = nc
     }
+
+    private static WasmFunc mapNew() {
+        List<WasmInstr> b = new ArrayList<>();
+        i32c(b, 16);
+        b.add(new WasmInstr.Call("kof.heapAlloc"));
+        set(b, 0, "cell");
+        i32c(b, 128);                                            // 8 pares × 16B
+        b.add(new WasmInstr.Call("kof.heapAlloc"));
+        set(b, 1, "data");
+        get(b, 0, "cell");
+        get(b, 1, "data");
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));        // [cell] = data
+        get(b, 0, "cell");
+        i32c(b, 8);
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        i64c(b, 0);
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE64, 0));      // len = 0
+        get(b, 0, "cell");
+        i32c(b, 16);
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        i64c(b, 8);
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE64, 0));      // [cell+16] = cap 8
+        get(b, 0, "cell");
+        return new WasmFunc("kof.mapNew", List.of(), List.of(WasmFunc.TYPE_I32),
+                List.of(WasmFunc.TYPE_I32, WasmFunc.TYPE_I32), b);
+    }
+
+    /** O GROW comum do put: dobra o bloco de pares, copia, reescreve a celula. */
 
     /** `kof.mapPut(h i32, key i32, v i64)` — sobrescreve ou anexa. */
     private static WasmFunc mapPut() {
@@ -546,6 +547,13 @@ final class WasmMapRuntime {
         fs.add(mapSize());
         fs.add(mapContains());
         fs.add(mapRemove());
+        // FATIA MV (28/10, #776): os valores STRING — os variantes CRUZ (o
+        // res = o handle do valor, nunca o boxInt; o mapval passthrough do
+        // boxToStr renderiza o String cru e o `null` no 0)
+        // FATIA MV: os valores String — WasmMapStrRuntime (split check_500)
+        fs.add(WasmMapStrRuntime.mapPutStr());
+        fs.add(WasmMapStrRuntime.mapGetStr());
+        fs.add(WasmMapStrRuntime.mapRemoveStr());
         fs.add(WasmMapExtract.mapKeys());
         fs.add(WasmMapExtract.mapValues());
         return fs;

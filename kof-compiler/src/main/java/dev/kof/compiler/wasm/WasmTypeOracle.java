@@ -316,6 +316,9 @@ final class WasmTypeOracle {
 
     static boolean printableScalar(String name) {
         if ("string".equals(name.toLowerCase())) return true; // 15.3b (literal)
+        // FATIA MV (28/10, #776): o String? (o valor do map.get) imprime
+        // com o check do handle null (o JVM imprime `null`)
+        if ("nullablestring".equals(name.toLowerCase())) return true;
         if ("box".equals(name.toLowerCase())) return true; // caixa §284 (27/10)
         return switch (name.toLowerCase()) {
             // double: so' o subconjunto INTEGRAL esta implementado (kof.writeDouble
