@@ -15,8 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Fase E (27-28/10, #776 — split test-hygiene): as faces TRIG do WASI
  * (MATH-LIBM), extraídas do {@code WasmWasiFlowE2ETest} (o ratchet do
  * check_test_hygiene). Responsabilidade única: math.sin + math.tan +
- * math.atan fdlibm (o kernel pequeno + o caso especial n=±1 + o kernel_cos
- * + o kernel_tan + o kernel_atan).
+ * math.atan + math.asin fdlibm (o kernel pequeno + o caso especial n=±1 +
+ * o kernel_cos + o kernel_tan + o kernel_atan + o kernel_asin).
  */
 class WasmWasiTrigE2ETest {
 
@@ -202,6 +202,53 @@ class WasmWasiTrigE2ETest {
                     println(math.atan(1e15))
                     println(math.atan(1e300))
                     println(math.atan(-1e300))
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
+
+    @Test
+    void mathAsinFullRangeMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // MATH-ASIN-1 (28/10, #776): o __ieee754_asin fdlibm (o FdLibm.Asin
+        // do JDK — pio2/pio4 + pS0..pS5/qS1..qS4 verbatim do src.zip). Os
+        // MESMOS polinômios nos DOIS trilhos (o pequeno |x| < 0.5 com o x
+        // assinado; o grande com o t = (1−|x|)/2 e o __LO(s,0) — o zero do
+        // word baixo via reinterpret/AND/reinterpret i64). O wrapper
+        // acos = π/2 − asin está MORTO (8/18 por 1 ulp, medido) — o acos
+        // terá a própria fatia. Os defeitos que a rodada pagou: a decl
+        // dos locals tinha UM f64 a mais (o neg caía num slot f64 —
+        // "expected f64, found i32" no set); o threshold 0x3FEF3333 = o
+        // double 0x1.F3333p-1 = 0.9749999046325684 (o MENOR double do
+        // hi-word). O NaN = bit-idêntico (0/0 do fdlibm = o canônico).
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    println(math.asin(0.0))
+                    println(math.asin(-0.0))
+                    println(math.asin(1e-300))
+                    println(math.asin(1e-8))
+                    println(math.asin(0.001))
+                    println(math.asin(-0.001))
+                    println(math.asin(0.1))
+                    println(math.asin(0.25))
+                    println(math.asin(-0.25))
+                    println(math.asin(0.4999))
+                    println(math.asin(0.5))
+                    println(math.asin(-0.5))
+                    println(math.asin(0.6))
+                    println(math.asin(0.7))
+                    println(math.asin(-0.7))
+                    println(math.asin(0.9))
+                    println(math.asin(0.9749))
+                    println(math.asin(0.9749999046325684))
+                    println(math.asin(0.975))
+                    println(math.asin(-0.975))
+                    println(math.asin(0.999))
+                    println(math.asin(1.0))
+                    println(math.asin(-1.0))
+                    println(math.asin(0.0/0.0))
                 }
                 """);
         WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
