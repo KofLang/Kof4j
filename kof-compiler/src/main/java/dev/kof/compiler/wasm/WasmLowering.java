@@ -503,19 +503,32 @@ final class WasmLowering {
                 return;
             }
             String binT = typeName(bin.operandType());
-            if (ctx.wasi && "double".equalsIgnoreCase(binT)
-                    && ("mapval".equals(ctx.lastPush) || "nullabledouble".equals(ctx.lastPush))) {
-                // FATIA MAP-D (28/10, #776): os operandos CAIXA (o get/remove
-                // do map Double, o local Double?) — o unbox ANTES do op f64:
-                // [h2] f64.load 16 → v2 no scratch vf64; [h1] f64.load 16 →
-                // v1; o op f64. O null (o handle 0) trapa no load = a paridade
-                // do NPE do unbox do JVM. A forma MISTA (caixa + escalar cru)
-                // recusa no validate (o rastro de op1 nao sobrevive ao 2o
-                // operando — a proxima fatia mede)
-                out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD_F64, 16));
-                out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.vf64Idx, "vf64"));
-                out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD_F64, 16));
-                out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.vf64Idx, "vf64"));
+            if (ctx.wasi && "double".equalsIgnoreCase(binT)) {
+                // FATIA MAP-MX (28/10, #776): as TRÊS danças pelas formas dos
+                // operandos (o rastro do topo diz op2; a simulação
+                // WasmOperandShape diz op1). O null (o handle 0) trapa no
+                // load = a paridade do NPE do unbox do JVM; a forma NÃO-coberta
+                // (ex.: op1 desconhecido + op2 caixa) recusa no validate
+                boolean op2Box = "mapval".equals(ctx.lastPush) || "nullabledouble".equals(ctx.lastPush);
+                String[] pair = WasmOperandShape.pairAt(ops, idx, ctx);
+                boolean op1Box = pair != null && WasmOperandShape.isBox(pair[0]);
+                if (op2Box && op1Box) {
+                    // caixa+caixa (o get+get — a lei MAP-D): [h2] load → v2 no
+                    // scratch vf64; [h1] load → v1; o op
+                    out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD_F64, 16));
+                    out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.vf64Idx, "vf64"));
+                    out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD_F64, 16));
+                    out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.vf64Idx, "vf64"));
+                } else if (op2Box) {
+                    // escalar+caixa: [v1, h2] — o load 16 do op2 basta
+                    out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD_F64, 16));
+                } else if (op1Box) {
+                    // caixa+escalar: [h1, v2] — o v2 no scratch vf64, o load
+                    // do h1, o v2 de volta
+                    out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.vf64Idx, "vf64"));
+                    out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD_F64, 16));
+                    out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.vf64Idx, "vf64"));
+                }
             }
             emitBinaryOp(bin.op(), binT, out);
             ctx.lastPush = binT;

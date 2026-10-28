@@ -166,6 +166,33 @@ class WasmWasiMapValueE2ETest {
     }
 
     @Test
+    void mapDoubleMixedArithmeticMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA MAP-MX (28/10, #776): a ARITMÉTICA MISTAS das caixas — as
+        // TRÊS danças pelas formas dos operandos (o rastro do topo diz op2; a
+        // simulação FORWARD WasmOperandShape diz op1): caixa+caixa (o get+
+        // get — a lei MAP-D: o load+scratch+load), escalar+caixa (o load 16
+        // do op2 basta) e caixa+escalar (o escalar no scratch vf64, o load do
+        // op1, o scratch de volta). O null trapa no load = a paridade do NPE
+        // do unbox do JVM; a forma NÃO-coberta recusa no validate (o erro da
+        // simulação = módulo inválido, nunca saída errada silenciosa).
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var m = mapOf("a", 0.5, "b", 1.5)
+                    println(m.get("a") + 1.0)
+                    println(2.0 + m.get("a"))
+                    println(m.get("a") + m.get("b"))
+                    var d = 2.25
+                    println(m.get("b") + d)
+                    println(d + m.get("a"))
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
+
+    @Test
     void mapStringDoubleMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
         // FATIA MAP-D (28/10, #776): Map<String, Double> — os valores Double
         // ANDAM como a CAIXA §284 (o boxDouble dos bits; o handle i32, o 0 =
