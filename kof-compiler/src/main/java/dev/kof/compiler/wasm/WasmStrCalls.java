@@ -145,19 +145,17 @@ final class WasmStrCalls {
                         return true;
                     }
                     case "replace" -> {
-                        // SO' a forma (String, String) esta implementada. A de
-                        // (Char, Char) empilha dois i64 (Char e' i64 na pilha),
-                        // enquanto o helper espera dois HANDLES i32 — sem esta
-                        // guarda o modulo saia INVALIDO (host recusa) em vez de
-                        // recusar honesto na compilacao (Q7/R6).
+                        // FATIA R-CHAR (28/10, #776): a forma (Char, Char) DELEGA
+                        // ao kof.strReplaceChar (o runtime converte os chars via
+                        // strChar e reusa o strReplace — a MESMA maquinaria byte
+                        // da forma (String, String)). O Char e' i64 na pilha.
                         if (!kc.parameterTypes().isEmpty()
                                 && kc.parameterTypes().stream().anyMatch(
                                         t -> "char".equalsIgnoreCase(typeName(t)))) {
-                            throw new WasmUnsupportedException("String.replace(Char, Char) "
-                                    + "fora da fatia F (WASM002) — so' a forma"
-                                    + " (String, String); docs/wasm-wasi-plan.md (#776)");
+                            out.add(new WasmInstr.Call("kof.strReplaceChar"));
+                        } else {
+                            out.add(new WasmInstr.Call("kof.strReplace"));
                         }
-                        out.add(new WasmInstr.Call("kof.strReplace"));
                         ctx.lastPush = "string";
                         ctx.lastPushWide = false;
                         return true;

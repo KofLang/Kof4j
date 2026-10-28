@@ -387,6 +387,116 @@ final class WasmStrSearch {
                 List.of(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7e), b);
     }
 
+    /** um byte do encoding: `out.appendByte(lead | (c >> shift))` (o lead
+     *  e' 0 para o byte unico; o c>>shift e' o c cru quando shift=0). */
+    private static void encByte(List<WasmInstr> b, int outLocal, int cLocal,
+            int shift, long lead) {
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, outLocal, "out"));
+        if (shift > 0) {
+            b.add(new WasmInstr.Local(WasmInstr.Local.GET, cLocal, "c"));
+            b.add(new WasmInstr.Const(1, (long) shift));
+            b.add(new WasmInstr.Simple(0x87, "i64.shr_s"));
+        } else {
+            b.add(new WasmInstr.Local(WasmInstr.Local.GET, cLocal, "c"));
+        }
+        b.add(new WasmInstr.Const(1, lead));
+        b.add(new WasmInstr.Simple(0x84, "i64.or"));
+        b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+        b.add(new WasmInstr.Call("kof.strAppendByte"));
+        b.add(new WasmInstr.Simple(0x1a, "drop"));
+    }
+
+    /** um byte do encoding com a MASCARA antes do lead:
+     *  `out.appendByte(lead | ((c >> shift) & 0x3F))` (os bytes de
+     *  continuacao). */
+    private static void encCont(List<WasmInstr> b, int outLocal, int cLocal, int shift) {
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, outLocal, "out"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, cLocal, "c"));
+        if (shift > 0) {
+            b.add(new WasmInstr.Const(1, (long) shift));
+            b.add(new WasmInstr.Simple(0x87, "i64.shr_s"));
+        }
+        b.add(new WasmInstr.Const(1, 0x3FL));
+        b.add(new WasmInstr.Simple(0x83, "i64.and"));
+        b.add(new WasmInstr.Const(1, 0x80L));
+        b.add(new WasmInstr.Simple(0x84, "i64.or"));
+        b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+        b.add(new WasmInstr.Call("kof.strAppendByte"));
+        b.add(new WasmInstr.Simple(0x1a, "drop"));
+    }
+
+    /** `kof.utf8Enc(c, out) -> len`: codifica o code unit `c` em UTF-8 e
+     *  APPENDA os bytes no handle `out` (o strAppendByte incrementa o len
+     *  do handle) — 1 byte < 0x80, 2 < 0x800, 3 < 0x10000, 4 senao. O
+     *  UTF-8 e auto-sincronizado: a agulha de um char casa SO em
+     *  fronteira de char (o MESMO conjunto de casamentos do scan de code
+     *  units da JVM). */
+    static WasmFunc kofUtf8Enc() {
+        List<WasmInstr> b = new ArrayList<>();
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "c"));
+        b.add(new WasmInstr.Const(1, 0x80L));
+        b.add(new WasmInstr.Simple(0x53, "i64.lt_s"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, null, 0x7f));
+        encByte(b, 1, 0, 0, 0L);
+        b.add(new WasmInstr.Const(0, 1));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, null, 0x7f));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "c"));
+        b.add(new WasmInstr.Const(1, 0x800L));
+        b.add(new WasmInstr.Simple(0x53, "i64.lt_s"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, null, 0x7f));
+        encByte(b, 1, 0, 6, 0xC0L);
+        encCont(b, 1, 0, 0);
+        b.add(new WasmInstr.Const(0, 2));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, null, 0x7f));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "c"));
+        b.add(new WasmInstr.Const(1, 0x10000L));
+        b.add(new WasmInstr.Simple(0x53, "i64.lt_s"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, null, 0x7f));
+        encByte(b, 1, 0, 12, 0xE0L);
+        encCont(b, 1, 0, 6);
+        encCont(b, 1, 0, 0);
+        b.add(new WasmInstr.Const(0, 3));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, null, 0x7f));
+        encByte(b, 1, 0, 18, 0xF0L);
+        encCont(b, 1, 0, 12);
+        encCont(b, 1, 0, 6);
+        encCont(b, 1, 0, 0);
+        b.add(new WasmInstr.Const(0, 4));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x7f));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x7f));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x7f));
+        return new WasmFunc("kof.utf8Enc", List.of(0x7e, 0x7f), List.of(0x7f),
+                List.of(), b);
+    }
+
+    /** `kof.strReplaceChar(h, from, to) -> handle`: a forma (Char, Char) do
+     *  replace — codifica os dois chars em UTF-8 (o kof.utf8Enc; o
+     *  kof.strChar é ASCII-subset e NÃO serve) e delega ao strReplace (a
+     *  MESMA maquinaria byte da forma (String, String); a rodada 35). */
+    static WasmFunc kofStrReplaceChar() {
+        List<WasmInstr> b = new ArrayList<>();
+        b.add(new WasmInstr.Const(0, 4));                        // a capacidade do char (4 bytes)
+        b.add(new WasmInstr.Call("kof.strAlloc"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 3, "fs"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "from"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "fs"));
+        b.add(new WasmInstr.Call("kof.utf8Enc"));
+        b.add(new WasmInstr.Simple(0x1a, "drop"));
+        b.add(new WasmInstr.Const(0, 4));
+        b.add(new WasmInstr.Call("kof.strAlloc"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 4, "ts"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "to"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "ts"));
+        b.add(new WasmInstr.Call("kof.utf8Enc"));
+        b.add(new WasmInstr.Simple(0x1a, "drop"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "h"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "fs"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 4, "ts"));
+        b.add(new WasmInstr.Call("kof.strReplace"));
+        return new WasmFunc("kof.strReplaceChar", List.of(0x7f, 0x7e, 0x7e), List.of(0x7f),
+                List.of(0x7f, 0x7f), b);
+    }
+
     /** `kof.strAlloc(n) -> handle`: bump-aloca `[n][n bytes]` (sem copia). */
     static WasmFunc kofStrAlloc() {
         List<WasmInstr> b = new ArrayList<>();

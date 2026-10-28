@@ -260,13 +260,14 @@ class WasmWasiStringSearchE2ETest {
         // REGRESSAO MEDIDA 22/10 (classe, nao instancia): sobrecargas que o
         // lowering NAO consome empilhavam um operando extra e o modulo saia
         // INVALIDO — `compile(...).success()` era true, e so' o HOST recusava.
-        // Achadas sondando TODAS as faces ja' pousadas: instances
-        // `startsWith(str, fromIndex)` e `replace(Char, Char)`.
+        // ACHADA sondando TODAS as faces ja' pousadas: `startsWith(str,
+        // fromIndex)`. O `replace(Char, Char)` saiu desta lista 28/10 (a
+        // FATIA R-CHAR POUSOU — virou traducao byte-idêntica; a lei da
+        // face stale: sai da recusa na MESMA commit da traducao).
         // O contrato (Q7/R6): cada uma tem de RECUSAR na compilacao, nomeada.
         record Shape(String label, String call, String needle) {}
         var shapes = List.of(
-                new Shape("startsWith(str,from)", "\"abcdef\".startsWith(\"cd\", 2)", "fromIndex"),
-                new Shape("replace(Char,Char)", "\"abc\".replace('b', 'X')", "Char"));
+                new Shape("startsWith(str,from)", "\"abcdef\".startsWith(\"cd\", 2)", "fromIndex"));
         for (var shape : shapes) {
             Files.writeString(dir.resolve("Main.kf"), """
                     main(String[] args) {
@@ -453,5 +454,44 @@ class WasmWasiStringSearchE2ETest {
         assertEquals(expected.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
                 out.replaceAll("(?m)^warning:.*$", "").replaceAll("\n+$", ""),
                 "string + number concat must equal the JVM oracle");
+    }
+
+    @Test
+    void stringReplaceCharMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA R-CHAR (28/10, #776): o String.replace(Char, Char) — o
+        // runtime codifica os DOIS chars em UTF-8 (o kof.utf8Enc — o
+        // kof.strChar e' ASCII-subset e nao serve) e delega ao
+        // kof.strReplace (a MESMA maquinaria byte da forma (String,
+        // String)). O UTF-8 auto-sincronizado = a agulha de um char casa
+        // SO em fronteira de char (o mesmo conjunto do scan de code units
+        // da JVM). A rodada pagou: o 0x49 = i32.lt_u (o i64.lt_s = 0x53),
+        // o strAppendByte RETORNA o handle (o drop), e a ordem dos args
+        // do call (o p0 = o MAIS FUNDO da pilha).
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var s = "banana"
+                    println(s.indexOf("na"))
+                    println(s.indexOf("z"))
+                    println(s.lastIndexOf("an"))
+                    println(s.startsWith("ban"))
+                    println(s.endsWith("na"))
+                    println(s.length())
+                    println(s.substring(1, 3))
+                    println(s.indexOf("a", 2))
+                    println(s.replace('a', 'o'))
+                    println(s.replace('a', 'é'))
+                    println(s.replace('z', 'q'))
+                    println("áéí".replace('í', 'u'))
+                    var t = s.replace('n', '_')
+                    println(t)
+                    println(t.replace('_', 'N'))
+                    println(s.replace('a', 'a'))
+                    println("aaa".replace('a', 'b'))
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
     }
 }

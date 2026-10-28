@@ -453,6 +453,14 @@ public class WasmBackend implements Backend {
                         funcs.add(WasmStrSearch.kofStrAppendByte());
                         funcs.add(WasmStrSearch.kofStrMatchAt());
                         funcs.add(WasmStrInspect.kofStrLen());
+                        // FATIA R-CHAR: a forma (Char, Char) delega ao
+                        // strReplaceChar (strChar por dentro) — os dois entram
+                        // pelo gancho proprio (o programa pode nao ter valueOf
+                        // de char nem records)
+                        if (WasmTypeOracle.usesStringReplaceChar(scanAll)) {
+                            funcs.add(WasmStrSearch.kofStrReplaceChar());
+                            funcs.add(WasmStrSearch.kofUtf8Enc());
+                        }
                     }
                     // 15.3d fatia F: `==`/`!=` de String. Antes so entrava via
                     // records (fold de campo String); agora a comparacao direta

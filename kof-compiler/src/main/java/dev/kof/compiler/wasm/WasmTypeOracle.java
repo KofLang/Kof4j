@@ -186,6 +186,31 @@ final class WasmTypeOracle {
         return false;
     }
 
+    /** FATIA R-CHAR (28/10, #776): algum String.replace com parametro Char
+     *  (a forma (Char, Char)) — o registro do kof.strReplaceChar + do
+     *  kof.strChar segue este gancho (o programa pode NAO ter valueOf de
+     *  char nem records, entao o strChar nao entraria por eles). */
+    static boolean usesStringReplaceChar(Iterable<IRMethod> ms) {
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (!(op instanceof KofCall kc)
+                            || !"replace".equals(kc.methodName())) {
+                        continue;
+                    }
+                    for (Type pt : kc.parameterTypes()) {
+                        if (pt instanceof Type.PrimitiveType prim
+                                && "char".equalsIgnoreCase(prim.name())) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+
     /** Fase E (27/10, #776): algum desugar de List (kof_list_*) no metodo —
      *  o registro da familia WasmListRuntime segue este gancho. */
     /** ARRAY-1 (27/10): o modulo aloca array? (o heapAlloc compartilhado
