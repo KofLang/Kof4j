@@ -134,6 +134,38 @@ class WasmWasiMapValueE2ETest {
     }
 
     @Test
+    void mapIntStringKeysValuesMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA MAP-KX (28/10, #776): a EXTRAÇÃO keys()/values() sobre a
+        // chave Int — o extract é AGNÓSTICO da chave (os slots 16B copiam
+        // RAW: as chaves Int = os i64 cru, a MESMA fatia da lista Int; as
+        // chaves String = os handles estendidos; o values() = os handles do
+        // valor Str). As faces são LIVRES DE ORDEM (o HashMap não expõe a
+        // ordem): o size/contains da lista + o get de par ÚNICO.
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var m = mapOf(1, "x", 2, "y")
+                    var k = m.keys()
+                    println(k.size())
+                    println(k.contains(1))
+                    println(k.contains(2))
+                    println(k.contains(9))
+                    var s = mapOf(7, "only")
+                    var v = s.values()
+                    println(v.size())
+                    println(v.get(0))
+                    var w = mapOf(3, "solo")
+                    var kw = w.keys()
+                    println(kw.get(0))
+                    println(v.contains("x"))
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
+
+    @Test
     void mapStringDoubleMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
         // FATIA MAP-D (28/10, #776): Map<String, Double> — os valores Double
         // ANDAM como a CAIXA §284 (o boxDouble dos bits; o handle i32, o 0 =

@@ -212,15 +212,13 @@ final class WasmCollCallCode {
                     ctx.lastPushWide = false;
                 }
                 case "kof_map_keys", "kof_map_values" -> {
-                    // FATIA MAP-KI: a EXTRAÇÃO das chaves Int (o slot i64 RAW
-                    // não é o handle String) recusa HONESTA — a extração de
-                    // chaves inteiras = a própria fatia (o values() do valor
-                    // Str anda, mas o gate fica ÚNICO por escopo medido)
-                    if ("int".equalsIgnoreCase(mapKeyType(kc))) {
-                        throw new WasmUnsupportedException("Map.keys()/values() sobre chave '"
-                                + mapKeyType(kc) + "' fora da fatia das chaves String"
-                                + " (WASM002) — docs/wasm-wasi-plan.md (#776)");
-                    }
+                    // FATIA MAP-KX (28/10, #776): a extração é AGNÓSTICA da
+                    // chave — o extract copia os slots 16B RAW (LOAD64→
+                    // STORE64): as chaves String = os handles estendidos (as
+                    // chaves Int = os i64 cru, a MESMA fatia da lista Int);
+                    // o values() do valor Str = os handles (o MESMO do mapa
+                    // Str). Medido no MK4: o size/contains/get da lista nas
+                    // duas larguras. 
                     // FATIA 3 (27/10): a iteracao — keys/values devolvem a
                     // LISTA nova (o rastro "list" entrega à maquinaria da
                     // LISTA provada: size/get/contains/for-in). A ORDEM nao
