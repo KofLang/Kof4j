@@ -71,12 +71,19 @@ final class WasmCollCallCode {
                     // BOOL estende o i32 no call site (o mapPut CRU)
                     boolean strKey = "string".equalsIgnoreCase(mapKeyType(kc));
                     boolean intKey = "int".equalsIgnoreCase(mapKeyType(kc));
+                    // FATIA MAP-KI-LONG (28/10, #776): a chave LONG = o MESMO
+                    // caminho da Int (o key RAW i64, a busca i64.eq — os
+                    // MESMOS runtimes Ki; ZERO conversão: o Long literal
+                    // anda i64 como o Int no slot)
+                    boolean longKey = "long".equalsIgnoreCase(mapKeyType(kc));
+                    boolean kiKey = intKey || longKey;
+                    boolean longVal = "long".equalsIgnoreCase(mapValueType(kc));
                     // FATIA MAP-KI-VAL (28/10, #776): a chave INT admite as
-                    // CINCO larguras de valor (o Int/Char = o mapPutKiRaw
+                    // CINCO larguras de valor (o Int/Char/Long = o mapPutKiRaw
                     // CRU; o Double = os bits; o Bool = o estendido; só o
                     // String continua no mapPutKi)
-                    if ((!strKey && !intKey)
-                            || (!"int".equalsIgnoreCase(mapValueType(kc)) && !strVal && !dblVal && !boolVal && !charVal)) {
+                    if ((!strKey && !kiKey)
+                            || (!"int".equalsIgnoreCase(mapValueType(kc)) && !longVal && !strVal && !dblVal && !boolVal && !charVal)) {
                         throw new WasmUnsupportedException("Map<"
                                 + mapKeyType(kc) + ", " + mapValueType(kc)
                                 + "> fora das fatias Map<String, Int|String|Double|Bool|Char> /"
@@ -93,7 +100,7 @@ final class WasmCollCallCode {
                     // cadeia (a链 do mapOf) e na forma Nullable
                     if (dblVal) {
                         out.add(new WasmInstr.Simple(0xbd, "i64.reinterpret_f64"));
-                        out.add(new WasmInstr.Call(intKey ? "kof.mapPutKiRaw" : "kof.mapPut"));
+                        out.add(new WasmInstr.Call(kiKey ? "kof.mapPutKiRaw" : "kof.mapPut"));
                         if (kc.returnType() instanceof Type.PrimitiveType pt
                                 && "void".equalsIgnoreCase(pt.name())) {
                             out.add(new WasmInstr.Simple(0x1a, "drop"));
@@ -103,7 +110,7 @@ final class WasmCollCallCode {
                         // o slot i64 (o qword zero-estendido, o MESMO do
                         // setAdd do bool) e o put CRU
                         out.add(new WasmInstr.Simple(0xad, "i64.extend_i32_u"));
-                        out.add(new WasmInstr.Call(intKey ? "kof.mapPutKiRaw" : "kof.mapPut"));
+                        out.add(new WasmInstr.Call(kiKey ? "kof.mapPutKiRaw" : "kof.mapPut"));
                         if (kc.returnType() instanceof Type.PrimitiveType pt
                                 && "void".equalsIgnoreCase(pt.name())) {
                             out.add(new WasmInstr.Simple(0x1a, "drop"));
@@ -111,7 +118,7 @@ final class WasmCollCallCode {
                     } else if (strVal) {
                         // FATIA MAP-KI: a chave Int = o mapPutKi (a chave raw
                         // i64 no slot; o valor Str estende — o MESMO slot)
-                        out.add(new WasmInstr.Call(intKey ? "kof.mapPutKi" : "kof.mapPutStr"));
+                        out.add(new WasmInstr.Call(kiKey ? "kof.mapPutKi" : "kof.mapPutStr"));
                         if (kc.returnType() instanceof Type.PrimitiveType pt
                                 && "void".equalsIgnoreCase(pt.name())) {
                             out.add(new WasmInstr.Simple(0x1a, "drop"));
@@ -119,7 +126,7 @@ final class WasmCollCallCode {
                     } else {
                         // o Int/Char = o CRU (o Char = o MESMO slot do Int —
                         // a lei MAP-C); a chave Int = o mapPutKiRaw
-                        out.add(new WasmInstr.Call(intKey ? "kof.mapPutKiRaw" : "kof.mapPut"));
+                        out.add(new WasmInstr.Call(kiKey ? "kof.mapPutKiRaw" : "kof.mapPut"));
                         if (kc.returnType() instanceof Type.PrimitiveType pt
                                 && "void".equalsIgnoreCase(pt.name())) {
                             out.add(new WasmInstr.Simple(0x1a, "drop"));
@@ -136,14 +143,15 @@ final class WasmCollCallCode {
                     // FATIA MAP-KI: a chave Int = o mapContainsKi (o i64.eq)
                     boolean cStrKey = "string".equalsIgnoreCase(mapKeyType(kc));
                     boolean cIntKey = "int".equalsIgnoreCase(mapKeyType(kc));
-                    if (!cStrKey && !cIntKey) {
+                    boolean cLongKey = "long".equalsIgnoreCase(mapKeyType(kc));
+                    if (!cStrKey && !cIntKey && !cLongKey) {
                         throw new WasmUnsupportedException("Map.contains com chave '"
                                 + mapKeyType(kc) + "' fora da fatia Map<String, Int> (WASM002)"
                                 + " — docs/wasm-wasi-plan.md (#776)");
                     }
                     // SEM phantom: o IR do contains tem UM param (a chave —
                     // medido; o drop aqui consumia o handle da chave)
-                    out.add(new WasmInstr.Call(cIntKey ? "kof.mapContainsKi" : "kof.mapContains"));
+                    out.add(new WasmInstr.Call((cIntKey || cLongKey) ? "kof.mapContainsKi" : "kof.mapContains"));
                     ctx.lastPush = "bool";
                     ctx.lastPushWide = false;
                 }
@@ -161,11 +169,14 @@ final class WasmCollCallCode {
                     // NUNCA o boxToStr da tag 0)
                     boolean rStrKey = "string".equalsIgnoreCase(mapKeyType(kc));
                     boolean rIntKey = "int".equalsIgnoreCase(mapKeyType(kc));
-                    // FATIA MAP-KI-VAL (28/10, #776): a chave INT admite as
-                    // CINCO larguras (o remove = a caixa por largura; o
+                    boolean rLongKey = "long".equalsIgnoreCase(mapKeyType(kc));
+                    boolean rKiKey = rIntKey || rLongKey;
+                    boolean rLongVal = "long".equalsIgnoreCase(mapValueType(kc));
+                    // FATIA MAP-KI-VAL (28/10, #776): a chave INT/LONG admite
+                    // as CINCO larguras (o remove = a caixa por largura; o
                     // String continua no mapRemoveKi)
-                    if ((!rStrKey && !rIntKey)
-                            || (!"int".equalsIgnoreCase(mapValueType(kc)) && !strVal && !dblVal && !boolVal && !charVal)) {
+                    if ((!rStrKey && !rKiKey)
+                            || (!"int".equalsIgnoreCase(mapValueType(kc)) && !rLongVal && !strVal && !dblVal && !boolVal && !charVal)) {
                         throw new WasmUnsupportedException("Map<"
                                 + mapKeyType(kc) + ", " + mapValueType(kc)
                                 + "> fora das fatias Map<String, Int|String|Double|Bool|Char> /"
@@ -175,10 +186,10 @@ final class WasmCollCallCode {
                     // FATIA MV: o remove do valor String devolve o CRU; a
                     // FATIA MAP-D: o remove do Double BOXA (o boxDouble dos bits)
                     out.add(new WasmInstr.Call(strVal
-                            ? (rIntKey ? "kof.mapRemoveKi" : "kof.mapRemoveStr")
-                            : (dblVal ? (rIntKey ? "kof.mapRemoveKiDbl" : "kof.mapRemoveDbl")
-                                : (boolVal ? (rIntKey ? "kof.mapRemoveKiBool" : "kof.mapRemoveBool")
-                                    : (rIntKey ? "kof.mapRemoveKiInt" : "kof.mapRemove")))));
+                            ? (rKiKey ? "kof.mapRemoveKi" : "kof.mapRemoveStr")
+                            : (dblVal ? (rKiKey ? "kof.mapRemoveKiDbl" : "kof.mapRemoveDbl")
+                                : (boolVal ? (rKiKey ? "kof.mapRemoveKiBool" : "kof.mapRemoveBool")
+                                    : (rKiKey ? "kof.mapRemoveKiInt" : "kof.mapRemove")))));
                     // o remove devolve a CAIXA do valor removido (0=null): a
                     // forma declaracao tem o KofPop (consome); a forma VOID
                     // tem o KofPop DO STATEMENT (o hasReturnValue do Compiler
@@ -201,7 +212,9 @@ final class WasmCollCallCode {
                     // FATIA MAP-KI: a chave Int = o mapGetKi (o i64.eq)
                     boolean gStrKey = "string".equalsIgnoreCase(mapKeyType(kc));
                     boolean gIntKey = "int".equalsIgnoreCase(mapKeyType(kc));
-                    if (!gStrKey && !gIntKey) {
+                    boolean gLongKey = "long".equalsIgnoreCase(mapKeyType(kc));
+                    boolean gKiKey = gIntKey || gLongKey;
+                    if (!gStrKey && !gIntKey && !gLongKey) {
                         throw new WasmUnsupportedException("Map.get com chave '"
                                 + mapKeyType(kc) + "' fora da fatia Map<String, Int> (WASM002)"
                                 + " — docs/wasm-wasi-plan.md (#776)");
@@ -216,16 +229,16 @@ final class WasmCollCallCode {
                     boolean boolVal = "bool".equalsIgnoreCase(mapValueType(kc));
                     boolean charVal = "char".equalsIgnoreCase(mapValueType(kc));
                     // FATIA MAP-B: o valor Bool = o mapGetBool (o boxBool)
-                    if (!"int".equalsIgnoreCase(mapValueType(kc)) && !strVal && !dblVal && !boolVal && !charVal) {
+                    if (!"int".equalsIgnoreCase(mapValueType(kc)) && !"long".equalsIgnoreCase(mapValueType(kc)) && !strVal && !dblVal && !boolVal && !charVal) {
                         throw new WasmUnsupportedException("Map.get com valor '"
                                 + mapValueType(kc) + "' fora da fatia Map<String, Int|String|Double|Bool|Char>"
                                 + " (WASM002) — docs/wasm-wasi-plan.md (#776)");
                     }
                     out.add(new WasmInstr.Call(strVal
-                            ? (gIntKey ? "kof.mapGetKi" : "kof.mapGetStr")
-                            : (dblVal ? (gIntKey ? "kof.mapGetKiDbl" : "kof.mapGetDbl")
-                                : (boolVal ? (gIntKey ? "kof.mapGetKiBool" : "kof.mapGetBool")
-                                    : (gIntKey ? "kof.mapGetKiInt" : "kof.mapGet")))));
+                            ? (gKiKey ? "kof.mapGetKi" : "kof.mapGetStr")
+                            : (dblVal ? (gKiKey ? "kof.mapGetKiDbl" : "kof.mapGetDbl")
+                                : (boolVal ? (gKiKey ? "kof.mapGetKiBool" : "kof.mapGetBool")
+                                    : (gKiKey ? "kof.mapGetKiInt" : "kof.mapGet")))));
                     // FATIA MAP-C: o valor CHAR anda no MESMO mapGet do Int (a
                     // MESMA caixa boxInt) mas o rastro e' nullablechar — o
                     // render = o strChar (o boxToStr da tag 0 = intToStr viria

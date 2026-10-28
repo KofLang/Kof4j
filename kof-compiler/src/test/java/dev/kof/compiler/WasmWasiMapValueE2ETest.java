@@ -436,4 +436,62 @@ class WasmWasiMapValueE2ETest {
                 """);
         WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
     }
+
+    @Test
+    void mapLongKeyValuesMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA MAP-KI-LONG (28/10, #776): as chaves LONG = o MESMO caminho
+        // da Int (o key RAW i64, a busca i64.eq — os MESMOS runtimes Ki, o
+        // mapPutKiRaw/mapGetKi*/mapRemoveKi*; ZERO conversão: o Long literal
+        // anda i64 como o Int no slot). As faces: as cinco larguras de valor
+        // (Long/String/Double/Bool/Char) + o get hit/miss, o contains, o
+        // put-overwrite, o remove (o nullable via o print) e o GROW de 11
+        // pares + o keys/values.
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var m = mapOf(1L, 10L, 2L, 20L)
+                    println(m.get(1L))
+                    println(m.get(9L))
+                    println(m.containsKey(2L))
+                    println(m.size())
+                    m.put(2L, 99L)
+                    println(m.get(2L))
+                    println(m.remove(1L))
+                    println(m.size())
+                    var s = mapOf(1L, "a", 2L, "b")
+                    println(s.get(1L))
+                    println(s.remove(2L))
+                    println(s.size())
+                    var d = mapOf(1L, 1.5, 2L, 2.5)
+                    println(d.get(1L))
+                    println(d.remove(2L))
+                    println(d.size())
+                    var b = mapOf(1L, true, 2L, false)
+                    println(b.get(1L))
+                    println(b.remove(2L))
+                    println(b.get(2L))
+                    var c = mapOf(1L, 'a', 2L, 'b')
+                    println(c.get(1L))
+                    println(c.remove(2L))
+                    println(c.size())
+                    var g = mapOf(1L, 10, 2L, 20, 3L, 30, 4L, 40, 5L, 50, 6L, 60, 7L, 70, 8L, 80, 9L, 90, 10L, 100, 11L, 110)
+                    println(g.size())
+                    println(g.get(9L))
+                    println(g.get(12L))
+                    g.put(4L, 44)
+                    println(g.get(4L))
+                    println(g.remove(2L))
+                    println(g.get(3L))
+                    var ks = g.keys()
+                    println(ks.size())
+                    println(ks.contains(9L))
+                    var vs = g.values()
+                    println(vs.size())
+                    println(vs.contains(90))
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
 }
