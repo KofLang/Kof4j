@@ -77,6 +77,12 @@ final class WasmLowering {
         int objIdx = -1, vIdx = -1, v32Idx = -1, vf64Idx = -1;
         int eqAccIdx = -1, eqEqIdx = -1, eqCmpIdx = -1, eqDblIdx = -1, eqAndIdx = -1;
         int[] nestH = null, nestA = null, nestB = null, nestR = null;
+        // FATIA WIDE (28/10, #776): o scratch vf64 entra SEMPRE (o store de
+        // Double em array consome um slot f64 em programas SEM records — o
+        // alocar-condicional deixava vf64Idx = -1 e o modulo invalidava)
+        vf64Idx = nextWasm;
+        locals.add(WasmFunc.TYPE_F64); // scratch vf64 (Double)
+        nextWasm += 1;
         if (records != null && !records.isEmpty()) {
             objIdx = nextWasm;
             locals.add(WasmFunc.TYPE_I32); // scratch obj (handle)
@@ -84,19 +90,17 @@ final class WasmLowering {
             locals.add(WasmFunc.TYPE_I64); // scratch v (valor i64)
             v32Idx = nextWasm + 2;
             locals.add(WasmFunc.TYPE_I32); // scratch v32 (handle i32: Bool/Char/String)
-            vf64Idx = nextWasm + 3;
-            locals.add(WasmFunc.TYPE_F64); // scratch vf64 (Double)
-            eqAccIdx = nextWasm + 4;
+            eqAccIdx = nextWasm + 3;
             locals.add(WasmFunc.TYPE_I32); // scratch eqAcc (and do fold de ==)
-            eqEqIdx = nextWasm + 5;
+            eqEqIdx = nextWasm + 4;
             locals.add(WasmFunc.TYPE_I32); // scratch eqEq (handle R)
-            eqCmpIdx = nextWasm + 6;
+            eqCmpIdx = nextWasm + 5;
             locals.add(WasmFunc.TYPE_I32); // scratch eqCmp (cmp de campo)
-            eqDblIdx = nextWasm + 7;
+            eqDblIdx = nextWasm + 6;
             locals.add(WasmFunc.TYPE_I64); // scratch eqDbl (bits de Double)
-            eqAndIdx = nextWasm + 8;
+            eqAndIdx = nextWasm + 7;
             locals.add(WasmFunc.TYPE_I32); // scratch eqAnd (AND do fold; eqAcc guarda o handle L)
-            nextWasm += 9;
+            nextWasm += 8;
             // slice D (15.3d inc2): um slot por nivel de aninhamento alem da raiz —
             // toString usa 1 handle por profundidade; equals usa par (L,R) por profundidade
             if (recordDepth >= 1) {

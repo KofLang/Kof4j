@@ -39,8 +39,13 @@ final class WasmArrayOps {
             // ARRAY-3 (27/10): Bool/Char entram (os slots zerados do bump
             // sao false / o char NUL — medido); long/double truncariam no
             // slot de 4 bytes
+            // FATIA WIDE (28/10, #776): long/double entram — os slots de 8
+            // bytes ([count i32][slots 8xN]) e o MESMO bounds-trap; os
+            // zerados do bump = 0L/0.0 (o zero-init da JVM)
+            boolean wideElem = "long".equals(ane) || "double".equals(ane);
             if (!"int".equals(ane) && !"string".equals(ane)
-                    && !"bool".equals(ane) && !"char".equals(ane)) {
+                    && !"bool".equals(ane) && !"char".equals(ane)
+                    && !wideElem) {
                 throw new WasmUnsupportedException("new " + ane
                         + "[n] fora da fatia Int/String/Bool/Char do array-heap (WASM002) —"
                         + " docs/wasm-wasi-plan.md (#776)");
@@ -49,13 +54,14 @@ final class WasmArrayOps {
                 throw new WasmUnsupportedException("new Int[n] fora de '_start' (WASM002) —"
                         + " docs/wasm-wasi-plan.md (#776)");
             }
+            int stride = wideElem ? 8 : 4;
             out.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));      // [n(i32)]
             out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.sIdx, "n"));  // []
             out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.sIdx, "n"));
+            out.add(new WasmInstr.Const(0, stride));
+            out.add(new WasmInstr.Simple(0x6c, "i32.mul"));           // [n*stride]
             out.add(new WasmInstr.Const(0, 4));
-            out.add(new WasmInstr.Simple(0x6c, "i32.mul"));           // [n*4]
-            out.add(new WasmInstr.Const(0, 4));
-            out.add(new WasmInstr.Simple(0x6a, "i32.add"));           // [n*4+4]
+            out.add(new WasmInstr.Simple(0x6a, "i32.add"));           // [n*stride+4]
             out.add(new WasmInstr.Call("kof.heapAlloc"));
             out.add(new WasmInstr.Local(WasmInstr.Local.TEE, ctx.wIdx, "arr")); // [arr]
             out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.wIdx, "arr")); // [arr, arr]
@@ -73,19 +79,32 @@ final class WasmArrayOps {
             // ARRAY-2/3 (27/10): int/char chegam i64 (wrap); bool/string ja
             // sao i32 (CRU — o wrap do i32 leria o vizinho). O scratch
             // acompanha a LARGURA: os i64 usam o dupWideIdx, os i32 o dupIdx
+            boolean wideStore = "long".equals(ase) || "double".equals(ase);
             if (!"int".equals(ase) && !"string".equals(ase)
-                    && !"bool".equals(ase) && !"char".equals(ase)) {
+                    && !"bool".equals(ase) && !"char".equals(ase)
+                    && !wideStore) {
                 throw new WasmUnsupportedException("store de " + ase
                         + " em array fora da fatia Int/String/Bool/Char (WASM002) —"
                         + " docs/wasm-wasi-plan.md (#776)");
             }
             boolean wrapStore = "int".equals(ase) || "char".equals(ase);
+            // FATIA WIDE: o long fica no scratch I64 (o dupWide), o double no
+            // F64 (o vf64 — o scratch alocado SEMPRE pela fatia); o store =
+            // 8 bytes no stride 8
+            boolean dblStore = "double".equals(ase);
+            int storeOp = dblStore ? WasmInstr.Mem.STORE_F64
+                    : (wideStore ? WasmInstr.Mem.STORE64 : WasmInstr.Mem.STORE);
             // o scratch acompanha a LARGURA: o dupWideIdx e' I64 (o
             // validator pegou o handle i32 do String entrando nele) — o
             // string usa o dupIdx I32
-            int vSlot = wrapStore ? ctx.dupWideIdx : ctx.dupIdx;
+            int vSlot = dblStore ? ctx.vf64Idx
+                    : (wideStore ? ctx.dupWideIdx : (wrapStore ? ctx.dupWideIdx : ctx.dupIdx));
             if (ctx.wIdx < 0 || ctx.sIdx < 0) {
                 throw new WasmUnsupportedException("store de array fora de '_start' (WASM002) —"
+                        + " docs/wasm-wasi-plan.md (#776)");
+            }
+            if (dblStore && ctx.vf64Idx < 0) {
+                throw new WasmUnsupportedException("store de Double em array sem scratch f64 (WASM002) —"
                         + " docs/wasm-wasi-plan.md (#776)");
             }
             out.add(new WasmInstr.Local(WasmInstr.Local.SET, vSlot, "v")); // [arr, idx]
@@ -99,10 +118,11 @@ final class WasmArrayOps {
             out.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, null, 0x40));
             out.add(new WasmInstr.Simple(0x00, "unreachable"));       // D-WASM-03
             out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
+            int strideS = wideStore ? 8 : 4;
             out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.wIdx, "arr"));
             out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.sIdx, "idx"));
-            out.add(new WasmInstr.Const(0, 4));
-            out.add(new WasmInstr.Simple(0x6c, "i32.mul"));           // idx*4
+            out.add(new WasmInstr.Const(0, strideS));
+            out.add(new WasmInstr.Simple(0x6c, "i32.mul"));           // idx*stride
             out.add(new WasmInstr.Simple(0x6a, "i32.add"));
             out.add(new WasmInstr.Const(0, 4));
             out.add(new WasmInstr.Simple(0x6a, "i32.add"));           // addr
@@ -110,7 +130,7 @@ final class WasmArrayOps {
             if (wrapStore) {
                 out.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));  // [addr, v(i32)]
             }
-            out.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));       // []
+            out.add(new WasmInstr.Mem(storeOp, 0));                   // []
             ctx.lastPush = null;
             ctx.lastPushWide = false;
         return true;
@@ -137,18 +157,23 @@ final class WasmArrayOps {
             out.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, null, 0x40));
             out.add(new WasmInstr.Simple(0x00, "unreachable"));  // D-WASM-03: trap honesto
             out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
+            String ale = typeName(al.elementType());
+            boolean wideLoad = "long".equals(ale) || "double".equals(ale);
+            int strideL = wideLoad ? 8 : 4;
             out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.wIdx, "arr"));
             out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.sIdx, "idx"));
+            out.add(new WasmInstr.Const(0, strideL));
+            out.add(new WasmInstr.Simple(0x6c, "i32.mul"));      // [arr, idx*stride]
+            out.add(new WasmInstr.Simple(0x6a, "i32.add"));      // [arr + idx*stride]
             out.add(new WasmInstr.Const(0, 4));
-            out.add(new WasmInstr.Simple(0x6c, "i32.mul"));      // [arr, idx*4]
-            out.add(new WasmInstr.Simple(0x6a, "i32.add"));      // [arr + idx*4]
-            out.add(new WasmInstr.Const(0, 4));
-            out.add(new WasmInstr.Simple(0x6a, "i32.add"));      // [arr + idx*4 + 4]
-            out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
+            out.add(new WasmInstr.Simple(0x6a, "i32.add"));      // [arr + idx*stride + 4]
+            out.add(new WasmInstr.Mem(wideLoad
+                    ? ("double".equals(ale) ? WasmInstr.Mem.LOAD_F64 : WasmInstr.Mem.LOAD64)
+                    : WasmInstr.Mem.LOAD, 0));
             // ARRAY-1 (27/10): elem Int sai do slot de 4 bytes com SINAL
             // (o Int e' i64-wide na pilha — D-WASM-02); o caminho String
-            // (o args) fica byte-intocado
-            String ale = typeName(al.elementType());
+            // (o args) fica byte-intocado. FATIA WIDE: o long sai i64 CRU
+            // (o slot de 8 bytes), o double sai f64 (o rastro double)
             if ("int".equals(ale)) {
                 out.add(new WasmInstr.Simple(0xac, "i64.extend_i32_s"));
                 ctx.lastPushWide = true;
@@ -160,6 +185,8 @@ final class WasmArrayOps {
                 ctx.lastPushWide = true;
             } else if ("bool".equals(ale)) {
                 ctx.lastPushWide = false;
+            } else if (wideLoad) {
+                ctx.lastPushWide = "long".equals(ale);
             }
             ctx.lastPush = ale;
         return true;

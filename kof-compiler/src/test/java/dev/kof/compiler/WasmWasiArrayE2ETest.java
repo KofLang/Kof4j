@@ -147,4 +147,48 @@ class WasmWasiArrayE2ETest {
                 """);
         WasmWasiListE2ETest.assertListFaceMatchesJvm(dir);
     }
+
+    @Test
+    void wideArraysMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA WIDE (28/10, #776): new Long[n]/new Double[n] — os slots de
+        // 8 bytes no bump heap ([count i32][slots 8xN], o stride 8 no
+        // store/load, o MESMO bounds-trap D-WASM-03). O store: o long fica
+        // no scratch I64 (o dupWide), o double no F64 (o vf64 — alocado
+        // SEMPRE pela fatia: o alocar-condicional deixava vf64Idx = -1 em
+        // programas sem records e o modulo invalidava); o load: o long sai
+        // i64 cru, o double sai f64. Os zerados do bump = 0L/0.0 (o
+        // zero-init da JVM). A rodada MEDIU antes: o A1r expôs a recusa
+        // honesta (new long[n] FORA da fatia Int/String/Bool/Char); o
+        // A1s-MIXTO achou o crash do COMPUTE_FRAMES do próprio JVM com o
+        // índice Long aritmético no store (o defeito PRE-EXISTENTE do
+        // backend JVM — a classe do long-arg-first, registrada não tocada).
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var a = new Long[5]
+                    a[0] = 10L
+                    a[1] = -3L
+                    a[4] = 1L
+                    println(a[0])
+                    println(a[1])
+                    println(a[4])
+                    println(a.length)
+                    var z = new Long[2]
+                    println(z[0])
+                    println(z[1])
+                    var d = new Double[3]
+                    d[2] = 2.25
+                    println(d[0])
+                    println(d[2])
+                    println(d.length)
+                    var m = new Double[2]
+                    m[0] = 1.5
+                    m[1] = -0.25
+                    println(m[0] + m[1])
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
 }
