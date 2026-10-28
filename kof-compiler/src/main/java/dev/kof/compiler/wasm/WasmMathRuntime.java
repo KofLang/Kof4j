@@ -55,7 +55,11 @@ final class WasmMathRuntime {
             // MORTA — veredito registrado)
             "kof_math_sin",
             // MATH-TAN-1 (27/10, redo): o kernel_tan fdlibm na faixa pequena
-            "kof_math_tan");
+            "kof_math_tan",
+            // MATH-ATAN-1 (28/10): o __kernel_atan fdlibm — AUTOCONTIDO (sem
+            // rem_pio2); Math.atan == StrictMath 34/34 medido (asin/acos/
+            // atan2 também GO — as fatias seguintes)
+            "kof_math_atan");
 
     static boolean usesAny(List<IRMethod> methods) {
         for (IRMethod m : methods) {
@@ -529,6 +533,8 @@ final class WasmMathRuntime {
         fs.add(WasmSinKernel.cosFunc());
         // MATH-TAN-1 (27/10, redo): o kernel_tan fdlibm — WasmTanKernel
         fs.add(WasmTanKernel.tanFunc());
+        // MATH-ATAN-1 (28/10): o kernel_atan fdlibm — WasmAtanKernel
+        fs.add(WasmAtanKernel.atanFunc());
         fs.add(WasmRemPio2.smallTailFunc());
         fs.add(WasmRemPio2.mediumFunc());
         return fs;

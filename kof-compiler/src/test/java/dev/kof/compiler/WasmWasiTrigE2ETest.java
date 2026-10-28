@@ -14,8 +14,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Fase E (27-28/10, #776 — split test-hygiene): as faces TRIG do WASI
  * (MATH-LIBM), extraídas do {@code WasmWasiFlowE2ETest} (o ratchet do
- * check_test_hygiene). Responsabilidade única: math.sin + math.tan fdlibm
- * (o kernel pequeno + o caso especial n=±1 + o kernel_cos + o kernel_tan).
+ * check_test_hygiene). Responsabilidade única: math.sin + math.tan +
+ * math.atan fdlibm (o kernel pequeno + o caso especial n=±1 + o kernel_cos
+ * + o kernel_tan + o kernel_atan).
  */
 class WasmWasiTrigE2ETest {
 
@@ -153,5 +154,56 @@ class WasmWasiTrigE2ETest {
         proc.waitFor(60, java.util.concurrent.TimeUnit.SECONDS);
         assertTrue(proc.exitValue() != 0,
                 "tan além de π/4 TRAPA honestamente (rc=" + proc.exitValue() + ")");
+    }
+
+    @Test
+    void mathAtanFullRangeMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // MATH-ATAN-1 (28/10, #776): o __kernel_atan fdlibm (o FdLibm.Atan
+        // do JDK — atanhi/atanlo/aT verbatim do src.zip) AUTOCONTIDO: a
+        // redução = a árvore de 4 ramos (0.4375/0.6875/1.1875/2.4375 — as
+        // bordas de hi-word de mantissa 0, o compare double ⟺ o hi-word)
+        // e o domínio = TODO double (SEM trap: o pequeno devolve x cedo —
+        // o ±0.0 bit-exato — e o enorme id=3 converge pro π/2). A
+        // fundação MEDIDA: Math.atan == StrictMath.atan 34/34. Os defeitos
+        // que a rodada pagou no bissepto: o eq do id era f64.eq (0x61) e
+        // não i32.eq (0x46), o if do small consumia a cond SEM o get (o
+        // set só grava o local), o THEN do pequeno empilhava x UMA vez
+        // (a forma precisa x DUAS: minuendo E fator) e sobrou um END do
+        // block externo do tan (o atan não tem block).
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    println(math.atan(0.0))
+                    println(math.atan(-0.0))
+                    println(math.atan(1e-300))
+                    println(math.atan(1e-8))
+                    println(math.atan(0.001))
+                    println(math.atan(0.1))
+                    println(math.atan(-0.1))
+                    println(math.atan(0.4373))
+                    println(math.atan(0.4375))
+                    println(math.atan(-0.4375))
+                    println(math.atan(0.5))
+                    println(math.atan(0.6874))
+                    println(math.atan(0.6875))
+                    println(math.atan(1.0))
+                    println(math.atan(-1.0))
+                    println(math.atan(1.1874))
+                    println(math.atan(1.1875))
+                    println(math.atan(1.5))
+                    println(math.atan(2.0))
+                    println(math.atan(-2.0))
+                    println(math.atan(2.4374))
+                    println(math.atan(2.4375))
+                    println(math.atan(10.0))
+                    println(math.atan(-10.0))
+                    println(math.atan(1e15))
+                    println(math.atan(1e300))
+                    println(math.atan(-1e300))
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
     }
 }
