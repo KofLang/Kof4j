@@ -303,56 +303,17 @@ class WasmWasiListE2ETest {
     }
 
     @Test
-    void setBasicsMatchTheJvmOracle(@TempDir Path dir) throws Exception {
-        // Fase E (27/10, #776): SET fatia 1 — Set<Int> no WASI: o add
-        // DEDUPLICA (o scan de conteudo antes do anexa — o contrato
-        // HashSet) e DEVOLVE o booleano (anexou ou dedup — a forma void da
-        // cadeia setOf dropa no despacho, o add-declaracao deixa o KofPop
-        // consumir); o remove por valor devolve "removeu" (o KofPop idem).
-        // Pego rodando: a condicao do has INVERTIDA (lt_s em vez de ge_s —
-        // o shift rodava na NAO-remocao e corrompia o vizinho, S12 mediu).
+    void mapStringMembersMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // Fase E (27/10, #776): MAP fatia 2 — os membros de STRING:
+        // Map.containsKey/remove (o remove devolve a CAIXA do valor removido
+        // — 0=null, o KofPop da forma declaracao consome). A METADE SET
+        // deste teste original saiu para o WasmWasiSetE2ETest (o ratchet do
+        // test-hygiene ≤500 forcou o split da rodada 53).
         var wasmtime = host("wasmtime");
         var wasmTools = host("wasm-tools");
         assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
         Files.writeString(dir.resolve("Main.kf"), """
                 main(String[] args) {
-                    var s = setOf(5, 6, 7)
-                    s.add(6)
-                    println(s.size())
-                    s.remove(5)
-                    println(s.size())
-                    println(s.contains(7))
-                    println(s.contains(5))
-                    s.remove(99)
-                    println(s.size())
-                    var x = 42
-                    s.add(x)
-                    println(s.contains(42))
-                }
-                """);
-        assertListFaceMatchesJvm(dir);
-    }
-
-    @Test
-    void setAndMapStringMembersMatchTheJvmOracle(@TempDir Path dir) throws Exception {
-        // Fase E (27/10, #776): SET/MAP fatia 2 — os membros de STRING:
-        // Set<String> (o add deduplica por CONTEUDO via o kof.strEq
-        // existente — o mesmo do fold de `==`) e Map.containsKey/remove (o
-        // remove devolve a CAIXA do valor removido — 0=null, o KofPop da
-        // forma declaracao consome). Pego rodando: o phantom NAO existe no
-        // map-contains (o IR tem UM param — o drop copiado das consultas
-        // da lista consumia o handle da chave).
-        var wasmtime = host("wasmtime");
-        var wasmTools = host("wasm-tools");
-        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
-        Files.writeString(dir.resolve("Main.kf"), """
-                main(String[] args) {
-                    var s = setOf("a", "b")
-                    s.add("c")
-                    s.add("a")
-                    println(s.size())
-                    println(s.contains("b"))
-                    println(s.contains("z"))
                     var m = mapOf("a", 1)
                     println(m.containsKey("a"))
                     println(m.containsKey("zz"))
@@ -420,39 +381,6 @@ class WasmWasiListE2ETest {
                         println(ss.get(i))
                         i = i + 1
                     }
-                }
-                """);
-        assertListFaceMatchesJvm(dir);
-    }
-
-    @Test
-    void setScalarElemsMatchTheJvmOracle(@TempDir Path dir) throws Exception {
-        // Fase E (27/10, #776): SET fatia 3 — os ESCALARES restantes: o
-        // long entra DIRETO no slot i64 (3e9 > Int.MAX prova a largura), o
-        // double via BITS (i64.reinterpret_f64 — a igualdade binaria do
-        // HashSet; NaN == NaN aqui e' falso como no JVM), o bool estende o
-        // i32 (i64.extend_i32_u), o char e' o codel i64. O despacho converte
-        // ANTES do call; o runtime i64 e o mesmo do Set<Int>.
-        var wasmtime = host("wasmtime");
-        var wasmTools = host("wasm-tools");
-        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
-        Files.writeString(dir.resolve("Main.kf"), """
-                main(String[] args) {
-                    var ls = setOf(1L, 2L)
-                    ls.add(3000000000L)
-                    println(ls.size())
-                    println(ls.contains(3000000000L))
-                    var ds = setOf(1.5, 2.5)
-                    ds.add(3.5)
-                    println(ds.size())
-                    println(ds.contains(2.5))
-                    ds.remove(1.5)
-                    println(ds.contains(1.5))
-                    var bs = setOf(true, false)
-                    println(bs.size())
-                    println(bs.contains(true))
-                    var cs = setOf('a', 'b')
-                    println(cs.contains(97))
                 }
                 """);
         assertListFaceMatchesJvm(dir);

@@ -342,20 +342,28 @@ final class WasmCollCallCode {
                     ctx.lastPushWide = false;
                 }
                 case "kof_set_remove" -> {
+                    boolean strElem3 = "string".equals(elemSet(kc));
                     boolean scal3 = "int".equals(elemSet(kc)) || "long".equals(elemSet(kc))
                             || "char".equals(elemSet(kc)) || "bool".equals(elemSet(kc))
                             || "double".equals(elemSet(kc));
-                    if (!scal3) {
+                    if (!scal3 && !strElem3) {
                         throw new WasmUnsupportedException("Set.remove sobre Set<"
-                                + elemSet(kc) + "> fora da fatia Set<Int>/Set<Long>/"
-                                + "Set<Double> (WASM002) — docs/wasm-wasi-plan.md (#776)");
+                                + elemSet(kc) + "> fora da fatia Set<Int>/Set<String>/"
+                                + "Set<Long>/Set<Double> (WASM002) — docs/wasm-wasi-plan.md (#776)");
                     }
-                    if ("double".equals(elemSet(kc))) {
-                        out.add(new WasmInstr.Simple(0xbd, "i64.reinterpret_f64"));
-                    } else if ("bool".equals(elemSet(kc))) {
-                        out.add(new WasmInstr.Simple(0xad, "i64.extend_i32_u"));
+                    if (strElem3) {
+                        // SET-STR (28/10, rodada 53): o remove por CONTEUDO —
+                        // o handle anda CRU como arg (o setRemoveStr compara
+                        // pelo kof.strEq, o mesmo contrato do add/contains)
+                        out.add(new WasmInstr.Call("kof.setRemoveStr"));
+                    } else {
+                        if ("double".equals(elemSet(kc))) {
+                            out.add(new WasmInstr.Simple(0xbd, "i64.reinterpret_f64"));
+                        } else if ("bool".equals(elemSet(kc))) {
+                            out.add(new WasmInstr.Simple(0xad, "i64.extend_i32_u"));
+                        }
+                        out.add(new WasmInstr.Call("kof.setRemove"));
                     }
-                    out.add(new WasmInstr.Call("kof.setRemove"));
                     ctx.lastPush = null;
                     ctx.lastPushWide = false;
                 }
