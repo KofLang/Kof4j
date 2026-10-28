@@ -169,7 +169,17 @@ final class WasmCallCode {
                     // — o if-expression slice, o recorded seguinte): SEM o
                     // operando = a recusa honesta (o strChar sobre a pilha
                     // vazia = o modulo invalido, a classe Q7 — medido)
-                    if (WasmOperandShape.depthAt(ops, idx, ctx) == 0) {
+                    // FATIA JOIN (28/10, #776): o ternary do desugar produz
+                    // o operando ANTES do null-check — ele anda no scratch do
+                    // braco: o carrega + o UNBOX (LOAD64 16 do qword da
+                    // caixa — o rastro underPending diz a largura) antes do
+                    // strChar; SEM o under = a recusa honesta (a pilha vazia
+                    // = o modulo invalido, a classe Q7 — medido)
+                    if (ctx.underPending) {
+                        out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.armIdx, "av"));
+                        out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD64, 16));
+                        ctx.underPending = false;
+                    } else if (WasmOperandShape.depthAt(ops, idx, ctx) == 0) {
                         throw new WasmUnsupportedException("String.valueOf(char) sem o operando na pilha"
                                 + " — o ternary do desugar do Char? produz o valor antes do null-check"
                                 + " (o if-expression da maquina de estados = o slice seguinte) (WASM002)"

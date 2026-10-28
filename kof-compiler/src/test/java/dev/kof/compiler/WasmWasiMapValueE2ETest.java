@@ -193,6 +193,34 @@ class WasmWasiMapValueE2ETest {
     }
 
     @Test
+    void mapStringCharRenderMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA JOIN (28/10, #776): o RENDER do Char? (o print) — o ternary
+        // do desugar agora cruza os estados: o KofDup da caixa e' REAL no
+        // rastro de caixa (o tee+get — o null-check consome a copia, o braco
+        // THEN consome o original), a DANCA do salto guarda os dois operandos
+        // do cmp + o under nos scratches (a profundidade 3 = [under, lhs,
+        // rhs]) e o valueOf(char) self-serve (o carrega + o UNBOX LOAD64 16
+        // antes do strChar); o VALOR do braco cruza para o join pelo scratch
+        // join (o trace diz o que chegou). O CONCAT do Char? = [esq, V,
+        // copia, rhs] = a PROFUNDIDADE 4 = a recusa honesta nomeada (o
+        // if-expression slice seguinte).
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var m = mapOf("k", 'a', "j", 'z')
+                    println(m.get("k"))
+                    println(m.get("z"))
+                    var old = m.remove("j")
+                    println(old)
+                    println(m.size())
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
+
+    @Test
     void mapStringCharStorageMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
         // FATIA MAP-C (28/10, #776): Map<String, Char> — a FATIA DE
         // ARMAZENAGEM (o put = o mapPut CRU: o Char = o i64 RAW, o MESMO slot

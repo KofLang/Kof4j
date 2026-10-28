@@ -51,6 +51,40 @@ final class WasmOperandShape {
                 || "box".equals(shape);
     }
 
+    /** A pilha COMPLETA sob o op em idx (bottom-up; a mesma simulação). */
+    static java.util.List<String> stackAt(List<KofOperation> ops, int idx, WasmLowering.Ctx ctx) {
+        java.util.Deque<String> st = new java.util.ArrayDeque<>();
+        for (int i = 0; i < idx && i < ops.size(); i++) {
+            KofOperation op = ops.get(i);
+            String pushed = pushedShape(op, ops, i, ctx);
+            int pops = popsOf(op);
+            for (int k = 0; k < pops && !st.isEmpty(); k++) {
+                st.pop();
+            }
+            if (pushed != null) {
+                st.push(pushed);
+            }
+            if (op instanceof KofDup && !st.isEmpty()) {
+                st.push(st.peek());
+            }
+            if (op instanceof KofDup2 && st.size() >= 2) {
+                String a = st.pop();
+                String b2 = st.pop();
+                st.push(b2);
+                st.push(a);
+                st.push(b2);
+                st.push(a);
+            }
+            if ((op instanceof KofDupX1 || op instanceof KofDupX2) && !st.isEmpty()) {
+                st.push(st.peek());
+            }
+            if (op instanceof KofConditionalJump) {
+                break;
+            }
+        }
+        return new java.util.ArrayList<>(st);
+    }
+
     /** A profundidade da pilha sob o op em idx (a mesma simulação). */
     static int depthAt(List<KofOperation> ops, int idx, WasmLowering.Ctx ctx) {
         Deque<String> st = new ArrayDeque<>();
@@ -128,8 +162,8 @@ final class WasmOperandShape {
     }
 
     /** O que o op EMPURRA (null = nada / consumidor). */
-    private static String pushedShape(KofOperation op, List<KofOperation> ops, int i,
-                                      WasmLowering.Ctx ctx) {
+    static String pushedShape(KofOperation op, List<KofOperation> ops, int i,
+                              WasmLowering.Ctx ctx) {
         if (op instanceof KofLoadLocal ll) {
             String lt = ctx.localNullableTrace.get(ll.index());
             return lt != null ? lt : typeName(ll.type());
@@ -163,9 +197,10 @@ final class WasmOperandShape {
         }
         if (WasmMapRuntime.NAMES.contains(m)) {
             if ("kof_map_new".equals(m)) return "map";
+            if ("kof_map_put".equals(m)) return null;              // VOID (o res = o KofPop do statement)
             if ("kof_map_size".equals(m) || "kof_map_contains".equals(m)) return "int";
             if ("kof_map_keys".equals(m) || "kof_map_values".equals(m)) return "list";
-            // put/get/remove: o VALOR anda na pilha (a caixa ou o cru)
+            // get/remove: o VALOR anda na pilha (a caixa ou o cru)
             if ("kof_map_get".equals(m)) return "mapval";
             String vt = mapValueTypeName(kc);
             if ("string".equals(vt)) return "nullablestring";
@@ -200,13 +235,16 @@ final class WasmOperandShape {
     }
 
     /** Quantos valores o op CONSUME da pilha (0 = nada). */
-    private static int popsOf(KofOperation op) {
+    static int popsOf(KofOperation op) {
         if (op instanceof KofBinary) return 2;
         if (op instanceof KofStoreLocal) return 1;
         if (op instanceof KofPop) return 1;
         if (op instanceof KofUnary) return 1;
         if (op instanceof KofArrayStore) return 3;
         if (op instanceof KofCall kc) {
+            if ("println".equals(kc.methodName()) || "print".equals(kc.methodName())) {
+                return 1;                                            // o receptor (GetStatic) e' ELIDIDO
+            }
             int p = kc.parameterTypes().size();
             if (kc.kind() == KofCallKind.INSTANCE || kc.kind() == KofCallKind.INTERFACE
                     || kc.kind() == KofCallKind.SUPER) {

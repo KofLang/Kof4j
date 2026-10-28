@@ -92,6 +92,18 @@ final class WasmLowering {
         vf64Idx = nextWasm;
         locals.add(WasmFunc.TYPE_F64); // scratch vf64 (Double)
         nextWasm += 1;
+        // FATIA JOIN (28/10, #776): os scratches do ternary entram SEMPRE (o
+        // cond = o resultado do cmp i32; o arm = o handle do operando; o
+        // join = o handle do valor do braco)
+        int cmp1Idx = nextWasm;
+        locals.add(WasmFunc.TYPE_I32); // scratch cmp1 (o rhs do cmp do salto)
+        int cmp2Idx = nextWasm + 1;
+        locals.add(WasmFunc.TYPE_I32); // scratch cmp2 (o lhs do cmp do salto)
+        int armIdx = nextWasm + 2;
+        locals.add(WasmFunc.TYPE_I32); // scratch arm (o operando sob o cmp)
+        int joinIdx = nextWasm + 3;
+        locals.add(WasmFunc.TYPE_I32); // scratch join (o valor do braco)
+        nextWasm += 4;
         if (records != null && !records.isEmpty()) {
             objIdx = nextWasm;
             locals.add(WasmFunc.TYPE_I32); // scratch obj (handle)
@@ -164,6 +176,10 @@ final class WasmLowering {
 
         Ctx ctx = new Ctx(slotMap, pcIdx, labelToBlock, m.name(), stringPool, dataSegments,
                 records, dataCursor, localNullableTrace);
+        ctx.cmp1Idx = cmp1Idx;
+        ctx.cmp2Idx = cmp2Idx;
+        ctx.armIdx = armIdx;
+        ctx.joinIdx = joinIdx;
         ctx.wIdx = wIdx;
         ctx.sIdx = sIdx;
         ctx.dupIdx = dupIdx;
@@ -231,6 +247,14 @@ final class WasmLowering {
         // local.set validou i32). O mapa guarda o rastro REAL (o typeName do
         // lv.type()) para o emitPlain consultar no load.
         final Map<Integer, String> localNullableTrace;
+        // FATIA JOIN (28/10, #776): o ternary do desugar (o print do
+        // nullable) — o operando nasce ANTES do null-check (o UNDER: ele
+        // cruza para o braco THEN pelo scratch arm) e o VALOR do braco cruza
+        // para o join pelo scratch join (o trace diz o que chegou)
+        int cmp1Idx = -1, cmp2Idx = -1, armIdx = -1, joinIdx = -1;
+        boolean underPending;
+        String underTrace;
+        String joinTrace;
 
         Ctx(Map<Integer, Integer> slotMap, int pcIdx,
                 Map<Integer, Integer> labelToBlock, String funcName,
@@ -288,29 +312,6 @@ final class WasmLowering {
      * ("expected i32 but nothing on stack"). O subset nao cobre o shape —
      * recusa honesta com o diagnostico nomeado (Q7: nunca artefato invalido).
      */
-    private static boolean isValueProducer(KofOperation op) {
-        if (op instanceof KofCall kc) {
-            // println/print sao VOID (o WasmPrintCode consome o valor); so uma
-            // chamada com retorno deixa valor na pilha
-            if ("println".equals(kc.methodName()) || "print".equals(kc.methodName())) return false;
-            return kc.returnType() != null && !(kc.returnType() instanceof Type.PrimitiveType pt
-                    && "void".equalsIgnoreCase(pt.name()));
-        }
-        return op instanceof KofLoadLocal || op instanceof KofLoadLiteral
-                || op instanceof KofBinary || op instanceof KofUnary
-                || op instanceof KofLoadField || op instanceof KofArrayLoad
-                || op instanceof KofNewObject;
-    }
-
-    private static void refuseLiveStack(List<KofOperation> ops, int terminatorIdx) {
-        if (terminatorIdx > 0 && isValueProducer(ops.get(terminatorIdx - 1))) {
-            throw new WasmUnsupportedException("valor vivo na fronteira de bloco ("
-                    + ops.get(terminatorIdx - 1).getClass().getSimpleName()
-                    + ") — a maquina de estados do WASI nao carrega a pilha entre estados"
-                    + " (ex.: `a && b` sobre variaveis); WASM002 — docs/wasm-wasi-plan.md (#776)");
-        }
-    }
-
     private static void emitBlock(int blockIdx, List<KofOperation> ops, int nextBlock,
                                   Ctx ctx, List<WasmInstr> out) {
         // Fase E (24/10, #776): o rastreio de largura e POR BLOCO — um valor
@@ -328,32 +329,45 @@ final class WasmLowering {
         out.add(new WasmInstr.Simple(0x46, "i32.eq"));
         out.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, null, 0x40));
 
+        // FATIA JOIN (28/10, #776): o valor que cruzou a fronteira chega pelo
+        // scratch (o join do ternary e' a ENTRADA deste estado)
+        WasmJoinCode.emitJoinEntry(ctx, out);
+
         int i = 0;
         for (; i < ops.size(); i++) {
             KofOperation op = ops.get(i);
             if (op instanceof KofJump kj) {
-                refuseLiveStack(ops, i);
+                ctx.underPending = false;
+                WasmJoinCode.crossLiveValue(ops, i, ctx, out);
                 jumpTo(ctx.blockOf(kj.target()), 1, ctx, out);
-                terminateBlock(i + 1 == ops.size(), out);
+                WasmJoinCode.terminateBlock(i + 1 == ops.size(), out);
                 out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
                 return;
             }
             if (op instanceof KofConditionalJump cj) {
-                emitCondJump(cj, ctx, out);
-                terminateBlock(i + 1 == ops.size(), out);
+                // FATIA JOIN (28/10, #776): o ternary do desugar duplica o
+                // operando (o KofDup real no rastro de caixa) e o null-check
+                // compara a COPIA — a pilha no salto = [under, lhs, rhs] (a
+                // profundidade 3): a DANCA mora no WasmJoinCode (o split do
+                // gate 500)
+                WasmJoinCode.storeUnderForCondJump(ops, i, ctx, out);
+                WasmJoinCode.emitCondJump(cj, ctx, out);
+                WasmJoinCode.terminateBlock(i + 1 == ops.size(), out);
                 out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
                 return;
             }
             if (op instanceof KofReturn || op instanceof KofReturnVoid) {
+                ctx.underPending = false;
                 out.add(WasmInstr.Branch.ret());
-                terminateBlock(i + 1 == ops.size(), out);
+                WasmJoinCode.terminateBlock(i + 1 == ops.size(), out);
                 out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
                 return;
             }
             emitPlain(ops, i, ctx, out);
         }
         // bloco sem terminador: continua no proximo por ordem (fallthrough do IR linear)
-        refuseLiveStack(ops, ops.size());
+        ctx.underPending = false;
+        WasmJoinCode.crossLiveValue(ops, ops.size(), ctx, out);
         if (nextBlock >= 0) {
             jumpTo(nextBlock, 1, ctx, out);
         } else {
@@ -362,59 +376,6 @@ final class WasmLowering {
         out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
     }
 
-    private static void emitCondJump(KofConditionalJump cj, Ctx ctx, List<WasmInstr> out) {
-        if (cj.operandType() instanceof Type.ClassType ct && "java.lang".equals(ct.packageName())) {
-            boolean wide = ctx.lastPushWide; // null-check do desugar: i64 p/ bool, i32 p/ handle
-            switch (cj.comparison()) {
-                case EQ -> out.add(new WasmInstr.Simple(wide ? 0x51 : 0x46, wide ? "i64.eq" : "i32.eq"));
-                case NE -> out.add(new WasmInstr.Simple(wide ? 0x52 : 0x47, wide ? "i64.ne" : "i32.ne"));
-                default -> throw new WasmUnsupportedException("comparacao de handle '" + cj.comparison()
-                        + "' fora do subset (WASM002) — docs/wasm-wasi-plan.md (#776)");
-            }
-        } else if ("bool".equals(ctx.lastPush)) {
-            // Fase E (24/10, #776): a truthiness sobre um BOOL-VARIAVEL —
-            // [load b (slot i32 no WASI), literal 0] + este salto. O literal
-            // ja sai i32 (o caso especial do KofLoadLiteral mantem
-            // lastPush=="bool"), mas o operando do IR carrega o tipo PADRAO
-            // INT e o cmp emitia i64.ne sobre dois i32 -> MODULO INVALIDO
-            // ("type mismatch: expected i64, found i32" — o defeito medido:
-            // `var b = 1 > 2` + `if (b)`; os mesmos produtores de truthiness
-            // do if/while/do-while/for/&&). A largura REAL da pilha decide:
-            // bool -> i32; so eq/ne fazem sentido sobre um bool.
-            switch (cj.comparison()) {
-                case EQ -> out.add(new WasmInstr.Simple(0x46, "i32.eq"));
-                case NE -> out.add(new WasmInstr.Simple(0x47, "i32.ne"));
-                default -> throw new WasmUnsupportedException("comparacao '" + cj.comparison()
-                        + "' sobre Bool fora do subset (WASM002) — docs/wasm-wasi-plan.md (#776)");
-            }
-        } else {
-            switch (cj.comparison()) {
-                case EQ -> out.add(cmp(cj, "eq", 0x51, 0x61));
-                case NE -> out.add(cmp(cj, "ne", 0x52, 0x62));
-                case LT -> out.add(cmp(cj, "lt_s", 0x53, 0x63));
-                case GT -> out.add(cmp(cj, "gt_s", 0x55, 0x64));
-                case LE -> out.add(cmp(cj, "le_s", 0x57, 0x65));
-                case GE -> out.add(cmp(cj, "ge_s", 0x59, 0x66));
-            }
-        }
-        out.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, null, 0x40));
-        jumpTo(ctx.blockOf(cj.trueLabel()), 2, ctx, out);
-        out.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, null, 0x40));
-        jumpTo(ctx.blockOf(cj.falseLabel()), 2, ctx, out);
-        out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
-        // o salto consumiu os dois operandos: o rastro de largura nao vale mais
-        ctx.lastPush = null;
-        ctx.lastPushWide = false;
-    }
-
-    private static void terminateBlock(boolean cleanEnd, List<WasmInstr> out) {
-        // ops apos um terminador = CFG nao-linear desconhecido -> bloco so
-        // termina limpo se o terminador era a ultima op
-        if (!cleanEnd) {
-            throw new WasmUnsupportedException("operacoes apos salto/retorno no mesmo bloco"
-                    + " (WASM002) — docs/wasm-wasi-plan.md (#776)");
-        }
-    }
     private static void emitPlain(List<KofOperation> ops, int idx, Ctx ctx, List<WasmInstr> out) {
         KofOperation op = ops.get(idx);
         if (op instanceof KofLoadLocal ll) {
@@ -557,7 +518,12 @@ final class WasmLowering {
             // so' torna o dup real no rastro "list" — todo o resto fica
             // no-op como antes (blast radius zero nas shapes existentes).
             if ("list".equals(ctx.lastPush) || "map".equals(ctx.lastPush)
-                    || "set".equals(ctx.lastPush)) {
+                    || "set".equals(ctx.lastPush)
+                    // FATIA JOIN (28/10, #776): o ternary do desugar duplica o
+                    // OPERANDO-CAIXA (o null-check consome a copia, o braco
+                    // THEN consome o original — o no-op perdia o original e o
+                    // strChar despachava sobre a pilha vazia, medido)
+                    || WasmOperandShape.isBox(ctx.lastPush)) {
                 out.add(new WasmInstr.Local(WasmInstr.Local.TEE, ctx.dupIdx, "dup"));
                 out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.dupIdx, "dup"));
             }
@@ -586,7 +552,7 @@ final class WasmLowering {
         }
     }
 
-    private static void jumpTo(int block, int depth, Ctx ctx, List<WasmInstr> out) {
+    static void jumpTo(int block, int depth, Ctx ctx, List<WasmInstr> out) {
         out.add(new WasmInstr.Const(0, block));
         out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.pcIdx, "pc"));
         out.add(new WasmInstr.Branch("dispatch", depth));
