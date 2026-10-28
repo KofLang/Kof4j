@@ -179,18 +179,41 @@ public final class SemAssignmentAnalyzer {
                         "SEM054");
             }
             // ARRAY-1 (27/10, #776): o §368 para ELEMENTO de array real — a
-            // store `a[i] = v` passa pelo MESMO gate de atributibilidade do
-            // local e do campo. Sem isto, `a[0] = 3000000000L` (Long em
-            // Int[]) compila "clean" e morre em VerifyError na carga da
-            // classe (o launcher JVM disfarça de "JavaFX runtime missing" —
-            // o diagnóstico da mensagem nunca é benigno). MESMO código do
-            // gate da variável (o N2 mediu SEM021); compound (`+=`) tem o
-            // próprio caminho de conversão (emitCompoundRhsConv) e não
-            // passa aqui.
+            // store SIMPLES `a[i] = v` passa pelo MESMO gate de
+            // atributibilidade do local e do campo. Sem isto, `a[0] =
+            // 3000000000L` (Long em Int[]) compila "clean" e morre em
+            // VerifyError na carga da classe (o launcher JVM disfarça de
+            // "JavaFX runtime missing" — o diagnóstico da mensagem nunca é
+            // benigno). MESMO código do gate da variável (o N2 mediu SEM021).
+            // #976 (28/10, a suíte estampada 7560/2F): a store COMPOSTA
+            // (`+=`, `*=`) NÃO passa aqui — ela é leitura+op+loja com o
+            // PRÓPRIO caminho de conversão (emitCompoundRhsConv): o operando
+            // combina pela ARITMÉTICA/concat (o golden `ab9`: `names[0] += 9`
+            // → concat; `chars[i] += 1` → Char trunc), não pela loja direta —
+            // gatear o operando cru contra o tipo do ELEMENTO rejeitava o que
+            // TODOS os backends executam. O gate da variável/local já sabe
+            // disso (o `stringConcat`); aqui o gate INTEIRO fica na store
+            // simples.
             Type arrT = unwrapped instanceof Type.ArrayType aat ? aat.componentType() : null;
-            if (sa.diagnostics() != null && arrT != null) {
+            if (sa.diagnostics() != null && arrT != null && "=".equals(ae.operator())) {
                 Type vT = SemExpressionTyper.inferType(sa, ae.value(), scope);
+                // #976 face 2 (a suíte estampada 7560/2F): o §184/§187 da
+                // matriz de conformance PINA a store de estreitamento
+                // i32→i32 (`c[0] = 70000` em Char[], `b[0] = 130` em Byte[])
+                // como LEGAL — BASTORE/SASTORE/CASTORE truncam em TODOS os
+                // alvos (o expected `4464`). A única classe que NENHUM
+                // backend executa = o valor de 64 bits NO slot i32 (o
+                // lastore pede i64 e o lowering não emite l2i — o
+                // VerifyError que fundou o gate). O gate recusa SÓ ela.
+                boolean elemTruncNarrow = (Type.PrimitiveType.BYTE.equals(arrT)
+                        || Type.PrimitiveType.SHORT.equals(arrT)
+                        || Type.PrimitiveType.CHAR.equals(arrT))
+                        && (Type.PrimitiveType.INT.equals(vT)
+                        || Type.PrimitiveType.BYTE.equals(vT)
+                        || Type.PrimitiveType.SHORT.equals(vT)
+                        || Type.PrimitiveType.CHAR.equals(vT));
                 if (!Type.isUnknown(vT) && !Type.isUnknown(arrT)
+                        && !elemTruncNarrow
                         && !TypeChecker.isAssignable(sa, vT, arrT)) {
                     SourcePosition apos = aa.position();
                     sa.diagnostics().error(apos != null ? apos.file() : "",
