@@ -40,10 +40,6 @@ final class WasmPrintCode {
                     case "char" -> out.add(new WasmInstr.Call("kof.writeChar"));
                     case "double" -> out.add(new WasmInstr.Call("kof.writeDouble"));
                     case "string" -> out.add(new WasmInstr.Call("kof.writeStr"));
-                    // Fase E (27/10, #776): o join HETEROGENEO do if-expression
-                    // (`if (c) 1 else "x"`) unifica em Object — o valor chega
-                    // CRU ou ENCAIXOTADO (§284): kof.boxToStr despacha pela tag
-                    // e devolve handle de String (null -> "null"); writeStr imprime.
                     case "object", "box", "mapval" -> {
                         out.add(new WasmInstr.Call("kof.boxToStr"));
                         out.add(new WasmInstr.Call("kof.writeStr"));

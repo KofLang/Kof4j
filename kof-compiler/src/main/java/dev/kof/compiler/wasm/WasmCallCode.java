@@ -78,6 +78,13 @@ final class WasmCallCode {
             // outros tipos recusam honesto (WASM002) sem artefato (Q7).
             if ("string".equals(ctx.lastPush)) {
                 ctx.lastPush = "string";
+            } else if ("mapval".equals(ctx.lastPush)) {
+                // FATIA SNULL (28/10, #776): o valor do map.get na CADEIA
+                // valueOf do concat — o HANDLE DA CAIXA (o mapval) → o
+                // boxToStr renderiza (o null = `null`, o MESMO do print
+                // medido); RE-ARMA o mapval (a cadeia tem dois passes)
+                out.add(new WasmInstr.Call("kof.boxToStr"));
+                ctx.lastPush = "mapval";
             } else if ("Object".equalsIgnoreCase(ctx.lastPush)
                     && (kc.parameterTypes().isEmpty()
                         || !(kc.parameterTypes().get(0) instanceof Type.PrimitiveType))) {
