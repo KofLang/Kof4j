@@ -96,6 +96,44 @@ class WasmWasiMapValueE2ETest {
     }
 
     @Test
+    void mapIntStringMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA MAP-KI (28/10, #776): Map<Int, String> — a chave anda RAW no
+        // slot i64 (o Int = o i64; a busca = o i64.eq, nunca o strEq) e o
+        // valor String estende no MESMO slot do putStr (o mapPutKi/
+        // mapGetKi/mapRemoveKi/mapContainsKi — os clones nomeados, a lei do
+        // dedupe byName). Os rotros: o get/remove devolvem o valor CRU com o
+        // rastro nullablestring (o passthrough do boxToStr renderiza o
+        // String e o `null` no 0); a EXTRAÇÃO keys()/values() sobre a chave
+        // Int recusa HONESTA (o slot raw não é o handle — a fatia própria).
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var m = mapOf(1, "x", 2, "y", 3, "w")
+                    println(m.get(1))
+                    println(m.get(9))
+                    println("v=" + m.get(9))
+                    println("k=" + m.get(1))
+                    println(m.size())
+                    println(m.contains(2))
+                    println(m.contains(9))
+                    m.put(3, "z")
+                    println(m.get(3))
+                    println(m.size())
+                    var old = m.remove(2)
+                    println(old)
+                    println(m.size())
+                    m.remove(77)
+                    println(m.size())
+                    println("d=" + m.remove(9))
+                    println(m.contains(2))
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
+
+    @Test
     void mapStringDoubleMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
         // FATIA MAP-D (28/10, #776): Map<String, Double> — os valores Double
         // ANDAM como a CAIXA §284 (o boxDouble dos bits; o handle i32, o 0 =

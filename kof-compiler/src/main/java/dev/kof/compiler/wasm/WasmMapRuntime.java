@@ -560,6 +560,12 @@ final class WasmMapRuntime {
         // fica no CALL SITE)
         fs.add(WasmMapDblRuntime.mapGetDbl());
         fs.add(WasmMapDblRuntime.mapRemoveDbl());
+        // FATIA MAP-KI (28/10, #776): as chaves INT — a busca i64.eq (a
+        // chave raw no slot; o valor Str estende — o MESMO slot do putStr)
+        fs.add(WasmMapIntRuntime.mapPutKi());
+        fs.add(WasmMapIntRuntime.mapGetKi());
+        fs.add(WasmMapIntRuntime.mapRemoveKi());
+        fs.add(WasmMapIntRuntime.mapContainsKi());
         fs.add(WasmMapExtract.mapKeys());
         fs.add(WasmMapExtract.mapValues());
         return fs;

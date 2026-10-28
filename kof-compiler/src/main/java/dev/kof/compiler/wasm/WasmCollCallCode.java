@@ -91,11 +91,18 @@ final class WasmCollCallCode {
                     // e, desde a MV (28/10), <String, String>)
                     boolean strVal = "string".equalsIgnoreCase(mapValueType(kc));
                     boolean dblVal = "double".equalsIgnoreCase(mapValueType(kc));
-                    if (!"string".equalsIgnoreCase(mapKeyType(kc))
-                            || (!"int".equalsIgnoreCase(mapValueType(kc)) && !strVal && !dblVal)) {
+                    // FATIA MAP-KI (28/10, #776): a chave INT entra com o valor
+                    // STRING (o mapPutKi — a busca i64.eq); as demais formas
+                    // de chave continuam na fatia String
+                    boolean strKey = "string".equalsIgnoreCase(mapKeyType(kc));
+                    boolean intKey = "int".equalsIgnoreCase(mapKeyType(kc));
+                    if ((!strKey && !intKey)
+                            || (!"int".equalsIgnoreCase(mapValueType(kc)) && !strVal && !dblVal)
+                            || (intKey && !strVal)) {
                         throw new WasmUnsupportedException("Map<"
                                 + mapKeyType(kc) + ", " + mapValueType(kc)
-                                + "> fora da fatia Map<String, Int> (WASM002)"
+                                + "> fora das fatias Map<String, Int|String|Double> /"
+                                + " Map<Int, String> (WASM002)"
                                 + " — docs/wasm-wasi-plan.md (#776)");
                     }
                     // FATIA MV (28/10, #776): o valor String = o mapPutStr (o
@@ -114,7 +121,9 @@ final class WasmCollCallCode {
                             out.add(new WasmInstr.Simple(0x1a, "drop"));
                         }
                     } else if (strVal) {
-                        out.add(new WasmInstr.Call("kof.mapPutStr"));
+                        // FATIA MAP-KI: a chave Int = o mapPutKi (a chave raw
+                        // i64 no slot; o valor Str estende — o MESMO slot)
+                        out.add(new WasmInstr.Call(intKey ? "kof.mapPutKi" : "kof.mapPutStr"));
                         if (kc.returnType() instanceof Type.PrimitiveType pt
                                 && "void".equalsIgnoreCase(pt.name())) {
                             out.add(new WasmInstr.Simple(0x1a, "drop"));
@@ -134,30 +143,41 @@ final class WasmCollCallCode {
                     ctx.lastPushWide = false;
                 }
                 case "kof_map_contains" -> {
-                    if (!"string".equalsIgnoreCase(mapKeyType(kc))) {
+                    // FATIA MAP-KI: a chave Int = o mapContainsKi (o i64.eq)
+                    boolean cStrKey = "string".equalsIgnoreCase(mapKeyType(kc));
+                    boolean cIntKey = "int".equalsIgnoreCase(mapKeyType(kc));
+                    if (!cStrKey && !cIntKey) {
                         throw new WasmUnsupportedException("Map.contains com chave '"
                                 + mapKeyType(kc) + "' fora da fatia Map<String, Int> (WASM002)"
                                 + " — docs/wasm-wasi-plan.md (#776)");
                     }
                     // SEM phantom: o IR do contains tem UM param (a chave —
                     // medido; o drop aqui consumia o handle da chave)
-                    out.add(new WasmInstr.Call("kof.mapContains"));
+                    out.add(new WasmInstr.Call(cIntKey ? "kof.mapContainsKi" : "kof.mapContains"));
                     ctx.lastPush = "bool";
                     ctx.lastPushWide = false;
                 }
                 case "kof_map_remove" -> {
                     boolean strVal = "string".equalsIgnoreCase(mapValueType(kc));
                     boolean dblVal = "double".equalsIgnoreCase(mapValueType(kc));
-                    if (!"string".equalsIgnoreCase(mapKeyType(kc))
-                            || (!"int".equalsIgnoreCase(mapValueType(kc)) && !strVal && !dblVal)) {
+                    // FATIA MAP-KI (28/10, #776): a chave INT + o valor STRING
+                    // = o mapRemoveKi (a busca i64.eq; o rastro continua o
+                    // nullablestring do VALOR)
+                    boolean rStrKey = "string".equalsIgnoreCase(mapKeyType(kc));
+                    boolean rIntKey = "int".equalsIgnoreCase(mapKeyType(kc));
+                    if ((!rStrKey && !rIntKey)
+                            || (!"int".equalsIgnoreCase(mapValueType(kc)) && !strVal && !dblVal)
+                            || (rIntKey && !strVal)) {
                         throw new WasmUnsupportedException("Map<"
                                 + mapKeyType(kc) + ", " + mapValueType(kc)
-                                + "> fora da fatia Map<String, Int> (WASM002)"
+                                + "> fora das fatias Map<String, Int|String|Double> /"
+                                + " Map<Int, String> (WASM002)"
                                 + " — docs/wasm-wasi-plan.md (#776)");
                     }
                     // FATIA MV: o remove do valor String devolve o CRU; a
                     // FATIA MAP-D: o remove do Double BOXA (o boxDouble dos bits)
-                    out.add(new WasmInstr.Call(strVal ? "kof.mapRemoveStr"
+                    out.add(new WasmInstr.Call(strVal
+                            ? (rIntKey ? "kof.mapRemoveKi" : "kof.mapRemoveStr")
                             : (dblVal ? "kof.mapRemoveDbl" : "kof.mapRemove")));
                     // o remove devolve a CAIXA do valor removido (0=null): a
                     // forma declaracao tem o KofPop (consome); a forma VOID
@@ -170,7 +190,10 @@ final class WasmCollCallCode {
                     ctx.lastPushWide = false;
                 }
                 case "kof_map_get" -> {
-                    if (!"string".equalsIgnoreCase(mapKeyType(kc))) {
+                    // FATIA MAP-KI: a chave Int = o mapGetKi (o i64.eq)
+                    boolean gStrKey = "string".equalsIgnoreCase(mapKeyType(kc));
+                    boolean gIntKey = "int".equalsIgnoreCase(mapKeyType(kc));
+                    if (!gStrKey && !gIntKey) {
                         throw new WasmUnsupportedException("Map.get com chave '"
                                 + mapKeyType(kc) + "' fora da fatia Map<String, Int> (WASM002)"
                                 + " — docs/wasm-wasi-plan.md (#776)");
@@ -182,12 +205,22 @@ final class WasmCollCallCode {
                     // mapval rota)
                     boolean strVal = "string".equalsIgnoreCase(mapValueType(kc));
                     boolean dblVal = "double".equalsIgnoreCase(mapValueType(kc));
-                    out.add(new WasmInstr.Call(strVal ? "kof.mapGetStr"
+                    out.add(new WasmInstr.Call(strVal
+                            ? (gIntKey ? "kof.mapGetKi" : "kof.mapGetStr")
                             : (dblVal ? "kof.mapGetDbl" : "kof.mapGet")));
                     ctx.lastPush = "mapval";                     // o handle da caixa OU o cru (0 = null)
                     ctx.lastPushWide = false;
                 }
                 case "kof_map_keys", "kof_map_values" -> {
+                    // FATIA MAP-KI: a EXTRAÇÃO das chaves Int (o slot i64 RAW
+                    // não é o handle String) recusa HONESTA — a extração de
+                    // chaves inteiras = a própria fatia (o values() do valor
+                    // Str anda, mas o gate fica ÚNICO por escopo medido)
+                    if ("int".equalsIgnoreCase(mapKeyType(kc))) {
+                        throw new WasmUnsupportedException("Map.keys()/values() sobre chave '"
+                                + mapKeyType(kc) + "' fora da fatia das chaves String"
+                                + " (WASM002) — docs/wasm-wasi-plan.md (#776)");
+                    }
                     // FATIA 3 (27/10): a iteracao — keys/values devolvem a
                     // LISTA nova (o rastro "list" entrega à maquinaria da
                     // LISTA provada: size/get/contains/for-in). A ORDEM nao
