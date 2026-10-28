@@ -15,8 +15,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Fase E (27-28/10, #776 — split test-hygiene): as faces TRIG do WASI
  * (MATH-LIBM), extraídas do {@code WasmWasiFlowE2ETest} (o ratchet do
  * check_test_hygiene). Responsabilidade única: math.sin + math.tan +
- * math.atan + math.asin fdlibm (o kernel pequeno + o caso especial n=±1 +
- * o kernel_cos + o kernel_tan + o kernel_atan + o kernel_asin).
+ * math.atan + math.asin + math.acos fdlibm (o kernel pequeno + o caso
+ * especial n=±1 + o kernel_cos + o kernel_tan + o kernel_atan + o
+ * kernel_asin + o kernel_acos).
  */
 class WasmWasiTrigE2ETest {
 
@@ -249,6 +250,49 @@ class WasmWasiTrigE2ETest {
                     println(math.asin(1.0))
                     println(math.asin(-1.0))
                     println(math.asin(0.0/0.0))
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
+
+    @Test
+    void mathAcosFullRangeMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // MATH-ACOS-1 (28/10, #776): o __ieee754_acos fdlibm (o FdLibm.Acos
+        // — os MESMOS pS0..pS5/qS1..qS4 do asin + as correções df/c
+        // próprias; o wrapper π/2 − asin está MORTO, 8/18 por 1 ulp
+        // medido). TRÊS ramos com o sinal NELES (sem flag): o pequeno
+        // |x| < 0.5 (o x ASSINADO; |x| <= 2^-57 → a CONSTANTE
+        // pio2_hi+pio2_lo), o x < −0.5 (π − 2(s+w)) e o x > 0.5
+        // (2(df+w) com o __LO(df,0)). BYTE-IDENTICAL na PRIMEIRA run — a
+        // primeira fatia sem NENHUMA volta de bissepto (as leis 21-31
+        // pré-aplicadas: a decl dos locals com a contagem EXATA do mapa
+        // de slots — 8 f64, nenhum i32).
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    println(math.acos(0.0))
+                    println(math.acos(-0.0))
+                    println(math.acos(1e-300))
+                    println(math.acos(1e-8))
+                    println(math.acos(0.001))
+                    println(math.acos(-0.001))
+                    println(math.acos(0.1))
+                    println(math.acos(-0.1))
+                    println(math.acos(0.25))
+                    println(math.acos(0.4999))
+                    println(math.acos(0.5))
+                    println(math.acos(-0.5))
+                    println(math.acos(0.6))
+                    println(math.acos(0.7))
+                    println(math.acos(-0.7))
+                    println(math.acos(0.9))
+                    println(math.acos(0.999))
+                    println(math.acos(-0.999))
+                    println(math.acos(1.0))
+                    println(math.acos(-1.0))
+                    println(math.acos(0.0/0.0))
                 }
                 """);
         WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);

@@ -62,7 +62,10 @@ final class WasmMathRuntime {
             "kof_math_atan",
             // MATH-ASIN-1 (28/10): o __ieee754_asin fdlibm — WasmAsinKernel
             // (o wrapper acos = π/2 − asin MORTO: 8/18 por 1 ulp, medido)
-            "kof_math_asin");
+            "kof_math_asin",
+            // MATH-ACOS-1 (28/10): o __ieee754_acos fdlibm — WasmAcosKernel
+            // (as correções df/c do próprio fdlibm — nunca o wrapper morto)
+            "kof_math_acos");
 
     static boolean usesAny(List<IRMethod> methods) {
         for (IRMethod m : methods) {
@@ -540,6 +543,8 @@ final class WasmMathRuntime {
         fs.add(WasmAtanKernel.atanFunc());
         // MATH-ASIN-1 (28/10): o kernel_asin fdlibm — WasmAsinKernel
         fs.add(WasmAsinKernel.asinFunc());
+        // MATH-ACOS-1 (28/10): o kernel_acos fdlibm — WasmAcosKernel
+        fs.add(WasmAcosKernel.acosFunc());
         fs.add(WasmRemPio2.smallTailFunc());
         fs.add(WasmRemPio2.mediumFunc());
         return fs;
