@@ -74,6 +74,14 @@ final class WasmCallCode {
                 // (os DOIS passes chegam nullabledouble; o print renderiza via
                 // boxToStr — o null = `null`, o MESMO do valueOf)
                 ctx.lastPush = "nullabledouble";
+            } else if ("nullablebool".equals(ctx.lastPush)) {
+                // FATIA MAP-B (28/10, #776): o Bool? na cadeia do println — o
+                // Boolean.valueOf do desugar chega AQUI (o printlnFollows
+                // vence o ramo Boolean do valueOf) e o else apagava o rastro
+                // pelo param PRIMITIVO ("bool" — o writeBool despachava sobre
+                // o handle da caixa, medido). O re-arme: a caixa anda e o
+                // print renderiza via boxToStr
+                ctx.lastPush = "nullablebool";
             } else {
                 ctx.lastPush = v;   // o comportamento ORIGINAL (o char/records)
             }
@@ -108,6 +116,14 @@ final class WasmCallCode {
                 // medido); RE-ARMA o mapval (a cadeia tem dois passes)
                 out.add(new WasmInstr.Call("kof.boxToStr"));
                 ctx.lastPush = "mapval";
+            } else if ("nullablebool".equals(ctx.lastPush)) {
+                // FATIA MAP-B (28/10, #776): o Bool? na cadeia valueOf — a
+                // CAIXA (o boxBool): o boxToStr renderiza (a tag 3 = strBool;
+                // o null = `null`, o MESMO render do print). Sem re-arm: o
+                // valueOf e por OPERANDO (o passe ve "string" e a identidade
+                // nao emite)
+                out.add(new WasmInstr.Call("kof.boxToStr"));
+                ctx.lastPush = "string";
             } else if ("nullabledouble".equals(ctx.lastPush)) {
                 // FATIA MAP-D (28/10, #776): o Double? na cadeia valueOf — a
                 // CAIXA (o boxDouble): o boxToStr renderiza (o null = `null`,
@@ -169,10 +185,17 @@ final class WasmCallCode {
                 && "Boolean".equals(ownerSimpleName(kc.ownerType()))) {
             // Boolean.valueOf(bool) e identidade no backend WASI (bool i32); se o
             // merge do desugar deixou i64 na pilha (literal int 0/1), wrap p/ i32.
-            if (ctx.lastPushWide) {
-                out.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+            // FATIA MAP-B (28/10, #776): o Bool? (a CAIXA §284) NAO unboxa — o
+            // rastro RE-ARMA (o print renderiza via boxToStr; o clobber para
+            // "bool" despachava writeBool sobre o handle da caixa — medido)
+            if ("nullablebool".equals(ctx.lastPush)) {
+                ctx.lastPush = "nullablebool";
+            } else {
+                if (ctx.lastPushWide) {
+                    out.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+                }
+                ctx.lastPush = "bool";
             }
-            ctx.lastPush = "bool";
             ctx.lastPushWide = false;
         } else if (ctx.wasi && "toString".equals(kc.methodName())
                 && ctx.recordOf(kc.ownerType()) != null) {

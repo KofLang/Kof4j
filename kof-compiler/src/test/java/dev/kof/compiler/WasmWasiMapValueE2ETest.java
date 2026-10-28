@@ -193,6 +193,48 @@ class WasmWasiMapValueE2ETest {
     }
 
     @Test
+    void mapStringBoolMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA MAP-B (28/10, #776): Map<String, Bool> — os valores Bool
+        // ANDAM como a CAIXA §284 (o boxBool do qword zero-estendido; o
+        // handle i32, o 0 = null — o 0 = false NUNCA pode ser a sentinela).
+        // Os rotros: o put leva o extend_i32_u NO CALL SITE (o i32 do bool →
+        // o qword do slot; o mapPut CRU); o get/remove devolvem a CAIXA
+        // (kof.mapGetBool/kof.mapRemoveBool — os clones nomeados com o WRAP
+        // antes do boxBool: o qword do slot volta a i32); o rastro
+        // "nullablebool" (o trio + o mapa de rastro de LOCAL) + o RE-ARME no
+        // Boolean.valueOf do desugar do println (o printlnFollows vence o
+        // ramo Boolean do valueOf — o else apagava o rastro pelo param
+        // PRIMITIVO e o writeBool despachava sobre o handle da caixa, medido)
+        // e no valueOf do concat (o boxToStr renderiza pela tag 3 = strBool;
+        // o null = `null`).
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var m = mapOf("t", true, "f", false)
+                    println(m.get("t"))
+                    println(m.get("f"))
+                    println(m.get("z"))
+                    println("v=" + m.get("z"))
+                    println("w=" + m.get("t"))
+                    println(m.size())
+                    println(m.contains("f"))
+                    m.put("a", false)
+                    println(m.get("a"))
+                    var f = m.get("a")
+                    println(f)
+                    println("s=" + f)
+                    var old = m.remove("f")
+                    println(old)
+                    println(m.size())
+                    println("d=" + m.remove("z"))
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
+
+    @Test
     void mapStringDoubleMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
         // FATIA MAP-D (28/10, #776): Map<String, Double> — os valores Double
         // ANDAM como a CAIXA §284 (o boxDouble dos bits; o handle i32, o 0 =

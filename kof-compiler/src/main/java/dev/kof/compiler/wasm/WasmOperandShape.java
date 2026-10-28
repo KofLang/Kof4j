@@ -46,6 +46,7 @@ final class WasmOperandShape {
     /** As formas CAIXA (o handle §284 na pilha). */
     static boolean isBox(String shape) {
         return "mapval".equals(shape) || "nullabledouble".equals(shape)
+                || "nullablebool".equals(shape)
                 || "nullablestring".equals(shape) || "object".equals(shape)
                 || "box".equals(shape);
     }
@@ -135,6 +136,7 @@ final class WasmOperandShape {
             String vt = mapValueTypeName(kc);
             if ("string".equals(vt)) return "nullablestring";
             if ("double".equals(vt)) return "nullabledouble";
+            if ("bool".equals(vt)) return "nullablebool";
             return "object";
         }
         if (m.startsWith("kof_math_")) {

@@ -566,6 +566,10 @@ final class WasmMapRuntime {
         fs.add(WasmMapIntRuntime.mapGetKi());
         fs.add(WasmMapIntRuntime.mapRemoveKi());
         fs.add(WasmMapIntRuntime.mapContainsKi());
+        // FATIA MAP-B (28/10, #776): os valores BOOL — o get/remove BOXAM
+        // (o boxBool do qword — o 0 = false nunca e' a sentinela)
+        fs.add(WasmMapBoolRuntime.mapGetBool());
+        fs.add(WasmMapBoolRuntime.mapRemoveBool());
         fs.add(WasmMapExtract.mapKeys());
         fs.add(WasmMapExtract.mapValues());
         return fs;

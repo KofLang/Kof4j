@@ -39,7 +39,9 @@ final class WasmLowering {
         Map<Integer, String> localNullableTrace = new HashMap<>();
         for (IRLocalVariable lv : m.localVariables()) {
             String lvtn = typeName(lv.type());
-            if ("nullabledouble".equals(lvtn)) localNullableTrace.put(lv.index(), lvtn);
+            if ("nullabledouble".equals(lvtn) || "nullablebool".equals(lvtn)) {
+                localNullableTrace.put(lv.index(), lvtn);
+            }
         }
         for (int i = 0; i < m.parameterTypes().size(); i++) {
             Type t = m.parameterTypes().get(i);

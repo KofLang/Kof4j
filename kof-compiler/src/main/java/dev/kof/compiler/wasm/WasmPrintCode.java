@@ -68,6 +68,14 @@ final class WasmPrintCode {
                     // FATIA MAP-D (28/10, #776): o Double? (a caixa do
                     // boxDouble) = o MESMO render do mapval (o boxToStr +
                     // writeStr; o null = a literal)
+                    // FATIA MAP-B (28/10, #776): o Bool? (a caixa do
+                    // boxBool) = o MESMO render do mapval (o boxToStr
+                    // despacha pela tag 3 = strBool; o null = a literal)
+                    case "nullablebool" -> {
+                        out.add(new WasmInstr.Call("kof.boxToStr"));
+                        out.add(new WasmInstr.Call("kof.writeStr"));
+                        ctx.lastPush = "string";
+                    }
                     case "nullabledouble" -> {
                         out.add(new WasmInstr.Call("kof.boxToStr"));
                         out.add(new WasmInstr.Call("kof.writeStr"));
