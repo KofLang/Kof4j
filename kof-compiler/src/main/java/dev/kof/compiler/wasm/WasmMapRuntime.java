@@ -108,7 +108,13 @@ final class WasmMapRuntime {
 
     private static WasmFunc mapNew() {
         List<WasmInstr> b = new ArrayList<>();
-        i32c(b, 16);
+        // A LEI DA CELULA (o fix da rodada 54 — o MESMO bug que a rodada 53
+        // pegou no setNew): a celula = 24 BYTES ([0]=data i32, [8]=len i64,
+        // [16]=cap i64) — o heapAlloc(16) original fazia o store da cap em
+        // cell+16 CAIR NA CHAVE DO PRIMEIRO PAR (a proxima alocacao): a cap
+        // lida virava o valor da primeira chave, o grow NUNCA disparava e
+        // os appends > 8 estouravam no bloco vizinho do heap
+        i32c(b, 24);
         b.add(new WasmInstr.Call("kof.heapAlloc"));
         set(b, 0, "cell");
         i32c(b, 128);                                            // 8 pares × 16B
@@ -566,6 +572,18 @@ final class WasmMapRuntime {
         fs.add(WasmMapIntRuntime.mapGetKi());
         fs.add(WasmMapIntRuntime.mapRemoveKi());
         fs.add(WasmMapIntRuntime.mapContainsKi());
+        // FATIA MAP-KI-VAL (28/10, #776): as chaves INT com os valores
+        // ESCALARES — o put CRU (o mapPutKiRaw) + os get/remove BOXADOS por
+        // largura (o Int/Char = o boxInt, o Bool = o boxBool do qword, o
+        // Double = o boxDouble dos bits; o Char anda na fatia Int pela lei
+        // MAP-C — só o rastro nullablechar do despacho difere)
+        fs.add(WasmMapKiValRuntime.mapPutKiRaw());
+        fs.add(WasmMapKiValRuntime.mapGetKiInt());
+        fs.add(WasmMapKiValRuntime.mapGetKiBool());
+        fs.add(WasmMapKiValRuntime.mapGetKiDbl());
+        fs.add(WasmMapKiValRemove.mapRemoveKiInt());
+        fs.add(WasmMapKiValRemove.mapRemoveKiBool());
+        fs.add(WasmMapKiValRemove.mapRemoveKiDbl());
         // FATIA MAP-B (28/10, #776): os valores BOOL — o get/remove BOXAM
         // (o boxBool do qword — o 0 = false nunca e' a sentinela)
         fs.add(WasmMapBoolRuntime.mapGetBool());

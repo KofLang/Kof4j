@@ -370,4 +370,70 @@ class WasmWasiMapValueE2ETest {
                 """);
         WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
     }
+
+    @Test
+    void mapIntKeyScalarValuesMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA MAP-KI-VAL (28/10, #776): Map<Int, Int|Bool|Double|Char> —
+        // as chaves INT com os valores ESCALARES (o mapPutKiRaw CRU + os
+        // get/remove BOXADOS por largura: o boxInt/o boxBool do qword/o
+        // boxDouble dos bits; o Char anda na fatia Int pela lei MAP-C com
+        // o rastro nullablechar). A FATIA HABILITANTE nullableint (o
+        // Int? local nunca foi rastreado — o load erasado dizia "int" e o
+        // println consumia o handle da caixa com writeInt: módulo
+        // inválido, medido; o fix = as 6 pernas: o nome próprio, o slot
+        // i32, o printableScalar, o trace do local, o print via boxToStr
+        // e o re-arme nas DUAS cadeias valueOf). E O FIX DA CÉLULA DO MAP
+        // (o MESMO bug da rodada 53 no setNew): o mapNew alocava 16 bytes
+        // e a cap vivia em cell+16 — o store da cap caía na CHAVE DO
+        // PRIMEIRO PAR, o grow nunca disparava e os appends > 8 estouravam
+        // no bloco vizinho (o fix = 24 bytes). As faces: as quatro
+        // combinações (o get hit/miss, o contains, o put-overwrite, o
+        // remove com o print/concat do nullable, o Int? via variável), o
+        // GROW de 11 pares (a região que a cap quebrada corrompia) e o
+        // keys/values.
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var m = mapOf(1, 10, 2, 20)
+                    println(m.get(1))
+                    println(m.get(9))
+                    println(m.size())
+                    println(m.remove(1))
+                    println(m.size())
+                    var r = m.remove(2)
+                    println(r)
+                    println("v=" + m.remove(9))
+                    var d = mapOf(1, 1.5, 2, 2.5)
+                    println(d.get(1))
+                    println(d.get(9))
+                    println(d.remove(2))
+                    println(d.size())
+                    var b = mapOf(1, true, 2, false)
+                    println(b.get(1))
+                    println(b.remove(2))
+                    println(b.get(2))
+                    var c = mapOf(1, 'a', 2, 'b')
+                    println(c.get(1))
+                    println(c.remove(2))
+                    println(c.size())
+                    var g = mapOf(1, 10, 2, 20, 3, 30, 4, 40, 5, 50, 6, 60, 7, 70, 8, 80, 9, 90, 10, 100, 11, 110)
+                    println(g.size())
+                    println(g.get(9))
+                    println(g.get(12))
+                    g.put(4, 44)
+                    println(g.get(4))
+                    println(g.remove(2))
+                    println(g.get(3))
+                    var ks = g.keys()
+                    println(ks.size())
+                    println(ks.contains(9))
+                    var vs = g.values()
+                    println(vs.size())
+                    println(vs.contains(90))
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
 }

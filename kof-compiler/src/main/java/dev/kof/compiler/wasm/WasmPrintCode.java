@@ -81,6 +81,14 @@ final class WasmPrintCode {
                         out.add(new WasmInstr.Call("kof.writeStr"));
                         ctx.lastPush = "string";
                     }
+                    // FATIA MAP-KI-VAL (28/10, #776): o Int? (a caixa do
+                    // boxInt) = o MESMO render do mapval (o boxToStr
+                    // despacha pela tag 0 = intToStr; o null = a literal)
+                    case "nullableint" -> {
+                        out.add(new WasmInstr.Call("kof.boxToStr"));
+                        out.add(new WasmInstr.Call("kof.writeStr"));
+                        ctx.lastPush = "string";
+                    }
                     case "object", "box", "mapval" -> {
                         out.add(new WasmInstr.Call("kof.boxToStr"));
                         out.add(new WasmInstr.Call("kof.writeStr"));

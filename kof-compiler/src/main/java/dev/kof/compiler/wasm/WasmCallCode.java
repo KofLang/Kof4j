@@ -82,6 +82,13 @@ final class WasmCallCode {
                 // o handle da caixa, medido). O re-arme: a caixa anda e o
                 // print renderiza via boxToStr
                 ctx.lastPush = "nullablebool";
+            } else if ("nullableint".equals(ctx.lastPush)) {
+                // FATIA MAP-KI-VAL (28/10, #776): o Int? na cadeia do println
+                // — o Integer.valueOf do desugar chega AQUI (o param apagado
+                // dizia "int" e o writeInt consumia o handle da caixa: módulo
+                // inválido, medido). O re-arme: a caixa anda e o print
+                // renderiza via boxToStr (o MESMO padrão do nullabledouble)
+                ctx.lastPush = "nullableint";
             } else {
                 ctx.lastPush = v;   // o comportamento ORIGINAL (o char/records)
             }
@@ -129,6 +136,12 @@ final class WasmCallCode {
                 // CAIXA (o boxDouble): o boxToStr renderiza (o null = `null`,
                 // o MESMO render do print). Sem re-arm: o passe 2 ve "string"
                 // e a identidade nao emite
+                out.add(new WasmInstr.Call("kof.boxToStr"));
+                ctx.lastPush = "string";
+            } else if ("nullableint".equals(ctx.lastPush)) {
+                // FATIA MAP-KI-VAL (28/10, #776): o Int? na cadeia valueOf —
+                // a CAIXA (o boxInt): o boxToStr renderiza (a tag 0 =
+                // intToStr; o null = `null`, o MESMO render do print)
                 out.add(new WasmInstr.Call("kof.boxToStr"));
                 ctx.lastPush = "string";
             } else if ("Object".equalsIgnoreCase(ctx.lastPush)

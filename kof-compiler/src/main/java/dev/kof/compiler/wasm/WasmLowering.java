@@ -40,7 +40,7 @@ final class WasmLowering {
         for (IRLocalVariable lv : m.localVariables()) {
             String lvtn = typeName(lv.type());
             if ("nullabledouble".equals(lvtn) || "nullablebool".equals(lvtn)
-                    || "nullablechar".equals(lvtn)) {
+                    || "nullablechar".equals(lvtn) || "nullableint".equals(lvtn)) {
                 localNullableTrace.put(lv.index(), lvtn);
             }
         }

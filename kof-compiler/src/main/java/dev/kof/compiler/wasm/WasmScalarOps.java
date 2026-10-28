@@ -134,6 +134,16 @@ public final class WasmScalarOps {
                 && "String".equals(sct.name()) && "java.lang".equals(sct.packageName())) {
             return "nullableString";
         }
+        // FATIA MAP-KI-VAL (28/10, #776): o Int?/Long? (o valor do
+        // map.get/remove da família Ki) anda no MESMO handle i32 (a CAIXA
+        // §284 — o boxInt; o 0 = null) — o NOME PROPRI0 habilita o trace do
+        // local (o load erasado dizia "int" e o println consumia o handle
+        // com writeInt: módulo inválido, medido nas sondas M2/M3)
+        if (t instanceof Type.NullableType nt
+                && nt.inner() instanceof Type.PrimitiveType ipt
+                && ("int".equalsIgnoreCase(ipt.name()) || "long".equalsIgnoreCase(ipt.name()))) {
+            return "nullableint";
+        }
         // FATIA MAP-D (28/10, #776): o Double? (o valor do map.get/remove) =
         // a CAIXA (o boxDouble dos bits) — o local decl anda no handle i32
         if (t instanceof Type.NullableType nt
@@ -189,6 +199,9 @@ public final class WasmScalarOps {
             case "nullablebool" -> WasmFunc.TYPE_I32;
             // FATIA MAP-C (28/10, #776): o Char? = o handle da caixa i32
             case "nullablechar" -> WasmFunc.TYPE_I32;
+            // FATIA MAP-KI-VAL (28/10, #776): o Int? = o handle da caixa i32
+            // (o boxInt — o 0 = null; o MESMO slot do String?)
+            case "nullableint" -> WasmFunc.TYPE_I32;
             case "char" -> WasmFunc.TYPE_I64;
             case "object" -> WasmFunc.TYPE_I32; // handle/opaque i32 (15.3d record temp)
             default -> throw new WasmUnsupportedException(role + " '" + name + "' em '" + context
