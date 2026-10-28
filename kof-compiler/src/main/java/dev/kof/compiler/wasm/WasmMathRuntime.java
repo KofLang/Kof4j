@@ -53,7 +53,9 @@ final class WasmMathRuntime {
             // (split check_500). A fundação MEDIDA: Math.sin == StrictMath
             // em 29/29; cos DERIVA 5/29 por 1 ulp (a face cos paridade está
             // MORTA — veredito registrado)
-            "kof_math_sin");
+            "kof_math_sin",
+            // MATH-TAN-1 (27/10, redo): o kernel_tan fdlibm na faixa pequena
+            "kof_math_tan");
 
     static boolean usesAny(List<IRMethod> methods) {
         for (IRMethod m : methods) {
@@ -525,6 +527,8 @@ final class WasmMathRuntime {
         fs.add(WasmSinKernel.specialFunc());
         fs.add(WasmSinKernel.nearHalfFunc());
         fs.add(WasmSinKernel.cosFunc());
+        // MATH-TAN-1 (27/10, redo): o kernel_tan fdlibm — WasmTanKernel
+        fs.add(WasmTanKernel.tanFunc());
         fs.add(WasmRemPio2.smallTailFunc());
         fs.add(WasmRemPio2.mediumFunc());
         return fs;

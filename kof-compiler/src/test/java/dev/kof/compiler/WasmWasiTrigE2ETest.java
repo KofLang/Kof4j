@@ -12,10 +12,10 @@ import dev.kof.compiler.Target;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Fase E (27/10, #776 — split test-hygiene): as faces TRIG do WASI
+ * Fase E (27-28/10, #776 — split test-hygiene): as faces TRIG do WASI
  * (MATH-LIBM), extraídas do {@code WasmWasiFlowE2ETest} (o ratchet do
- * check_test_hygiene). Responsabilidade única: math.sin fdlibm (o kernel
- * pequeno + o caso especial n=±1 + o kernel_cos).
+ * check_test_hygiene). Responsabilidade única: math.sin + math.tan fdlibm
+ * (o kernel pequeno + o caso especial n=±1 + o kernel_cos + o kernel_tan).
  */
 class WasmWasiTrigE2ETest {
 
@@ -89,5 +89,69 @@ class WasmWasiTrigE2ETest {
         proc.waitFor(60, java.util.concurrent.TimeUnit.SECONDS);
         assertTrue(proc.exitValue() != 0,
                 "sin além de 2^19·π/2 TRAPA honestamente (rc=" + proc.exitValue() + ")");
+    }
+
+    @Test
+    void mathTanFullRangeMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // MATH-TAN-1 (28/10, #776): o __kernel_tan fdlibm (o JDK FdLibm.Tan
+        // — os T[0..12] + π/4/π/4lo verbatim do src.zip) com a reflexão
+        // (1−tan y)/(1+tan y) na forma iy=1 do fdlibm. Os DEFEITOS que a
+        // rodada 28 pagou: o Horner da v-chain emitido inside-out (o T12
+        // pendurado = "values remaining on stack"), o sub da reflexão com
+        // os operandos INVERTIDOS (xw−π/4 = o sinal trocado — o tan é ímpar),
+        // e o if do valor testando o xw REFLETIDO (o fdlibm testa o ix
+        // ORIGINAL — o flag sobrevive à reflexão). A borda EXATA
+        // 0x1.59428p-1 faceia o >= (o fdlibm reflete na borda). O trap
+        // além de π/4 = a face seguinte (o caminho grande via rem_pio2).
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    println(math.tan(0.001))
+                    println(math.tan(0.5))
+                    println(math.tan(-0.5))
+                    println(math.tan(0.0))
+                    println(math.tan(1e-8))
+                    println(math.tan(0.1))
+                    println(math.tan(-0.1))
+                    println(math.tan(0.7))
+                    println(math.tan(-0.7))
+                    println(math.tan(0.6743))
+                    println(math.tan(0.6743354797363281))
+                    println(math.tan(0.6744))
+                    println(math.tan(-0.6744))
+                    println(math.tan(0.75))
+                    println(math.tan(-0.75))
+                    println(math.tan(0.7853981633974483))
+                    println(math.tan(-0.7853981633974483))
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
+
+    @Test
+    void tanBeyondQuarterPiTrapsHonestly(@TempDir Path dir) throws Exception {
+        // MATH-TAN-1 scoping (28/10, #776): além de π/4 o guard TRAPA
+        // honestamente (a redução rem_pio2 grande = a fatia seguinte —
+        // nunca valor errado silencioso; o T5 mediu rc=134, o unreachable
+        // no func do tan). A face pina o trap via o EXIT CODE do wasmtime.
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null,
+                "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        var driver = new CompilerDriver();
+        Files.writeString(dir.resolve("Main.kf"),
+                "main(String[] args) {\n    println(math.tan(1.0))\n}\n");
+        var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
+        assertTrue(jvm.success(), "jvm compile: " + jvm.diagnostics().getDiagnostics());
+        var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
+        assertTrue(wasi.success(), "wasi compile (o guard da faixa valida): " + wasi.diagnostics().getDiagnostics());
+        var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
+                Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm").toString()))
+                .redirectErrorStream(true).start();
+        proc.waitFor(60, java.util.concurrent.TimeUnit.SECONDS);
+        assertTrue(proc.exitValue() != 0,
+                "tan além de π/4 TRAPA honestamente (rc=" + proc.exitValue() + ")");
     }
 }
