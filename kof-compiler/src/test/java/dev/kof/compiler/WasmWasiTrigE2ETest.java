@@ -15,9 +15,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Fase E (27-28/10, #776 — split test-hygiene): as faces TRIG do WASI
  * (MATH-LIBM), extraídas do {@code WasmWasiFlowE2ETest} (o ratchet do
  * check_test_hygiene). Responsabilidade única: math.sin + math.tan +
- * math.atan + math.asin + math.acos fdlibm (o kernel pequeno + o caso
- * especial n=±1 + o kernel_cos + o kernel_tan + o kernel_atan + o
- * kernel_asin + o kernel_acos).
+ * math.atan + math.asin + math.acos + math.atan2 fdlibm (o kernel
+ * pequeno + o caso especial n=±1 + o kernel_cos + o kernel_tan + o
+ * kernel_atan + o kernel_asin + o kernel_acos + o kernel_atan2).
  */
 class WasmWasiTrigE2ETest {
 
@@ -293,6 +293,58 @@ class WasmWasiTrigE2ETest {
                     println(math.acos(1.0))
                     println(math.acos(-1.0))
                     println(math.acos(0.0/0.0))
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
+
+    @Test
+    void mathAtan2FullRangeMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // MATH-ATAN2-1 (28/10, #776): o __ieee754_atan2 fdlibm reusa o
+        // func do atan via CALL (o x == 1.0 exato → atan(y); o principal
+        // → atan(|y/x|)). A ordem dos params = a do fdlibm compute(y, x)
+        // = a ordem do call do IR — a rodada 33 pagou o swap (o func
+        // nasceu (x, y) e TODA a saída veio espelhada). O m dos BITS (o
+        // −0.0 tem bit de sinal e NÃO compare — atan2(±0, −x) = ±π); a
+        // decl dos locals = SÓ os NÃO-param (o z f64 + o by/bx i64 + o
+        // m/k/iys/ixs i32 — a lei da 31 REFINADA: os params ocupam os
+        // índices baixos). Os casos especiais do fdlibm TODOS faceados:
+        // ±0/±INF/NaN/quadrantes/k-extremos.
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    println(math.atan2(0.0, 1.0))
+                    println(math.atan2(-0.0, 1.0))
+                    println(math.atan2(0.0, -1.0))
+                    println(math.atan2(-0.0, -1.0))
+                    println(math.atan2(1.0, 0.0))
+                    println(math.atan2(-1.0, 0.0))
+                    println(math.atan2(0.5, 1.0))
+                    println(math.atan2(-0.7, 1.0))
+                    println(math.atan2(1.0, 1.0))
+                    println(math.atan2(-1.0, 1.0))
+                    println(math.atan2(1.0, -1.0))
+                    println(math.atan2(-1.0, -1.0))
+                    println(math.atan2(3.0, 4.0))
+                    println(math.atan2(-3.0, 4.0))
+                    println(math.atan2(3.0, -4.0))
+                    println(math.atan2(-3.0, -4.0))
+                    println(math.atan2(1e300, 1e-8))
+                    println(math.atan2(-1e300, 1e-8))
+                    println(math.atan2(1e-300, 1e300))
+                    println(math.atan2(1e-300, -1e300))
+                    println(math.atan2(1e308*10.0, 1e308*10.0))
+                    println(math.atan2(-(1e308*10.0), 1e308*10.0))
+                    println(math.atan2(1.0, 1e308*10.0))
+                    println(math.atan2(-1.0, 1e308*10.0))
+                    println(math.atan2(1.0, -(1e308*10.0)))
+                    println(math.atan2(-1.0, -(1e308*10.0)))
+                    println(math.atan2(1e308*10.0, 1.0))
+                    println(math.atan2(-(1e308*10.0), 1.0))
+                    println(math.atan2(0.0/0.0, 1.0))
+                    println(math.atan2(1.0, 0.0/0.0))
                 }
                 """);
         WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
