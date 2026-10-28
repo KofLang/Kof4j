@@ -46,9 +46,43 @@ final class WasmOperandShape {
     /** As formas CAIXA (o handle §284 na pilha). */
     static boolean isBox(String shape) {
         return "mapval".equals(shape) || "nullabledouble".equals(shape)
-                || "nullablebool".equals(shape)
+                || "nullablebool".equals(shape) || "nullablechar".equals(shape)
                 || "nullablestring".equals(shape) || "object".equals(shape)
                 || "box".equals(shape);
+    }
+
+    /** A profundidade da pilha sob o op em idx (a mesma simulação). */
+    static int depthAt(List<KofOperation> ops, int idx, WasmLowering.Ctx ctx) {
+        Deque<String> st = new ArrayDeque<>();
+        for (int i = 0; i < idx && i < ops.size(); i++) {
+            KofOperation op = ops.get(i);
+            String pushed = pushedShape(op, ops, i, ctx);
+            int pops = popsOf(op);
+            for (int k = 0; k < pops && !st.isEmpty(); k++) {
+                st.pop();
+            }
+            if (pushed != null) {
+                st.push(pushed);
+            }
+            if (op instanceof KofDup && !st.isEmpty()) {
+                st.push(st.peek());
+            }
+            if (op instanceof KofDup2 && st.size() >= 2) {
+                String a = st.pop();
+                String b2 = st.pop();
+                st.push(b2);
+                st.push(a);
+                st.push(b2);
+                st.push(a);
+            }
+            if ((op instanceof KofDupX1 || op instanceof KofDupX2) && !st.isEmpty()) {
+                st.push(st.peek());
+            }
+            if (op instanceof KofConditionalJump) {
+                break;
+            }
+        }
+        return st.size();
     }
 
     /**
@@ -137,6 +171,7 @@ final class WasmOperandShape {
             if ("string".equals(vt)) return "nullablestring";
             if ("double".equals(vt)) return "nullabledouble";
             if ("bool".equals(vt)) return "nullablebool";
+            if ("char".equals(vt)) return "nullablechar";
             return "object";
         }
         if (m.startsWith("kof_math_")) {

@@ -193,6 +193,37 @@ class WasmWasiMapValueE2ETest {
     }
 
     @Test
+    void mapStringCharStorageMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA MAP-C (28/10, #776): Map<String, Char> — a FATIA DE
+        // ARMAZENAGEM (o put = o mapPut CRU: o Char = o i64 RAW, o MESMO slot
+        // do Int; o get/remove = o mapGet/mapRemove do Int — a MESMA caixa
+        // boxInt; o rastro nullablechar nas pernas do trio + o mapa de
+        // rastro de LOCAL). O RENDER (o print E o concat) RECUSA HONESTA: o
+        // desugar do Char? = o TERNARY cujo operando nasce ANTES do
+        // null-check (a maquina de estados nao o carrega entre os estados —
+        // o concat = [left, V, cond], a profundidade 3) — o if-expression da
+        // maquina de estados = o slice seguinte; o gate (a profundidade da
+        // sim) devolve o diagnostico nomeado SEM artefato (Q7 — o strChar
+        // sobre a pilha vazia era o modulo invalido, medido).
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var m = mapOf("k", 'a', "j", 'z')
+                    println(m.size())
+                    println(m.contains("j"))
+                    println(m.contains("w"))
+                    m.put("n", 'q')
+                    println(m.size())
+                    m.remove("j")
+                    println(m.size())
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
+
+    @Test
     void mapStringBoolMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
         // FATIA MAP-B (28/10, #776): Map<String, Bool> — os valores Bool
         // ANDAM como a CAIXA §284 (o boxBool do qword zero-estendido; o

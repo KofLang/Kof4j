@@ -163,6 +163,18 @@ final class WasmCallCode {
                     // MESMO kof.strChar dos campos Char de record (o runtime
                     // ja existia; o gancho e' que faltava). O Char na pilha
                     // e' i64 e o strChar recebe i64 (wrap interno).
+                    // FATIA MAP-C (28/10, #776): o operador tem de estar NA
+                    // PILHA — o ternary do desugar do Char? produz o operando
+                    // ANTES do null-check (a maquina de estados nao o carrega
+                    // — o if-expression slice, o recorded seguinte): SEM o
+                    // operando = a recusa honesta (o strChar sobre a pilha
+                    // vazia = o modulo invalido, a classe Q7 — medido)
+                    if (WasmOperandShape.depthAt(ops, idx, ctx) == 0) {
+                        throw new WasmUnsupportedException("String.valueOf(char) sem o operando na pilha"
+                                + " — o ternary do desugar do Char? produz o valor antes do null-check"
+                                + " (o if-expression da maquina de estados = o slice seguinte) (WASM002)"
+                                + " — docs/wasm-wasi-plan.md (#776)");
+                    }
                     out.add(new WasmInstr.Call("kof.strChar"));
                     ctx.lastPush = "string";
                 } else if ("double".equalsIgnoreCase(vt)) {

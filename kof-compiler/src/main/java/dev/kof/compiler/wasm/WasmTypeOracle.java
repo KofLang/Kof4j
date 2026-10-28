@@ -322,6 +322,7 @@ final class WasmTypeOracle {
         // FATIA MAP-D (28/10, #776): o Double? (a caixa) imprime pelo boxToStr
         if ("nullabledouble".equals(name.toLowerCase())) return true;
         if ("nullablebool".equals(name.toLowerCase())) return true;
+        if ("nullablechar".equals(name.toLowerCase())) return true;
         if ("box".equals(name.toLowerCase())) return true; // caixa §284 (27/10)
         return switch (name.toLowerCase()) {
             // double: so' o subconjunto INTEGRAL esta implementado (kof.writeDouble

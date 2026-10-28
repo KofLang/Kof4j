@@ -92,6 +92,10 @@ final class WasmCollCallCode {
                     boolean strVal = "string".equalsIgnoreCase(mapValueType(kc));
                     boolean dblVal = "double".equalsIgnoreCase(mapValueType(kc));
                     boolean boolVal = "bool".equalsIgnoreCase(mapValueType(kc));
+                    // FATIA MAP-C (28/10, #776): o valor CHAR = o mapPut CRU
+                    // (o Char = o i64 RAW — SEM conversao, o MESMO slot do
+                    // Int; o null vive na CAIXA do get, nao no slot)
+                    boolean charVal = "char".equalsIgnoreCase(mapValueType(kc));
                     // FATIA MAP-KI (28/10, #776): a chave INT entra com o valor
                     // STRING (o mapPutKi — a busca i64.eq); as demais formas
                     // de chave continuam na fatia String. FATIA MAP-B: o valor
@@ -99,11 +103,11 @@ final class WasmCollCallCode {
                     boolean strKey = "string".equalsIgnoreCase(mapKeyType(kc));
                     boolean intKey = "int".equalsIgnoreCase(mapKeyType(kc));
                     if ((!strKey && !intKey)
-                            || (!"int".equalsIgnoreCase(mapValueType(kc)) && !strVal && !dblVal && !boolVal)
+                            || (!"int".equalsIgnoreCase(mapValueType(kc)) && !strVal && !dblVal && !boolVal && !charVal)
                             || (intKey && !strVal)) {
                         throw new WasmUnsupportedException("Map<"
                                 + mapKeyType(kc) + ", " + mapValueType(kc)
-                                + "> fora das fatias Map<String, Int|String|Double|Bool> /"
+                                + "> fora das fatias Map<String, Int|String|Double|Bool|Char> /"
                                 + " Map<Int, String> (WASM002)"
                                 + " — docs/wasm-wasi-plan.md (#776)");
                     }
@@ -173,18 +177,22 @@ final class WasmCollCallCode {
                     boolean strVal = "string".equalsIgnoreCase(mapValueType(kc));
                     boolean dblVal = "double".equalsIgnoreCase(mapValueType(kc));
                     boolean boolVal = "bool".equalsIgnoreCase(mapValueType(kc));
+                    boolean charVal = "char".equalsIgnoreCase(mapValueType(kc));
                     // FATIA MAP-KI (28/10, #776): a chave INT + o valor STRING
                     // = o mapRemoveKi (a busca i64.eq; o rastro continua o
                     // nullablestring do VALOR). FATIA MAP-B: o valor BOOL BOXA
-                    // (o boxBool do qword — o rastro nullablebool)
+                    // (o boxBool do qword — o rastro nullablebool). FATIA
+                    // MAP-C: o valor CHAR BOXA no boxInt (a MESMA caixa do
+                    // Int — o rastro nullablechar: o render = o strChar,
+                    // NUNCA o boxToStr da tag 0)
                     boolean rStrKey = "string".equalsIgnoreCase(mapKeyType(kc));
                     boolean rIntKey = "int".equalsIgnoreCase(mapKeyType(kc));
                     if ((!rStrKey && !rIntKey)
-                            || (!"int".equalsIgnoreCase(mapValueType(kc)) && !strVal && !dblVal && !boolVal)
+                            || (!"int".equalsIgnoreCase(mapValueType(kc)) && !strVal && !dblVal && !boolVal && !charVal)
                             || (rIntKey && !strVal)) {
                         throw new WasmUnsupportedException("Map<"
                                 + mapKeyType(kc) + ", " + mapValueType(kc)
-                                + "> fora das fatias Map<String, Int|String|Double|Bool> /"
+                                + "> fora das fatias Map<String, Int|String|Double|Bool|Char> /"
                                 + " Map<Int, String> (WASM002)"
                                 + " — docs/wasm-wasi-plan.md (#776)");
                     }
@@ -202,7 +210,8 @@ final class WasmCollCallCode {
                     // e' o nullablestring
                     ctx.lastPush = strVal ? "nullablestring"
                             : (dblVal ? "nullabledouble"
-                                : (boolVal ? "nullablebool" : "object"));
+                                : (boolVal ? "nullablebool"
+                                    : (charVal ? "nullablechar" : "object")));
                     ctx.lastPushWide = false;
                 }
                 case "kof_map_get" -> {
@@ -222,17 +231,22 @@ final class WasmCollCallCode {
                     boolean strVal = "string".equalsIgnoreCase(mapValueType(kc));
                     boolean dblVal = "double".equalsIgnoreCase(mapValueType(kc));
                     boolean boolVal = "bool".equalsIgnoreCase(mapValueType(kc));
+                    boolean charVal = "char".equalsIgnoreCase(mapValueType(kc));
                     // FATIA MAP-B: o valor Bool = o mapGetBool (o boxBool)
-                    if (!"int".equalsIgnoreCase(mapValueType(kc)) && !strVal && !dblVal && !boolVal) {
+                    if (!"int".equalsIgnoreCase(mapValueType(kc)) && !strVal && !dblVal && !boolVal && !charVal) {
                         throw new WasmUnsupportedException("Map.get com valor '"
-                                + mapValueType(kc) + "' fora da fatia Map<String, Int|String|Double|Bool>"
+                                + mapValueType(kc) + "' fora da fatia Map<String, Int|String|Double|Bool|Char>"
                                 + " (WASM002) — docs/wasm-wasi-plan.md (#776)");
                     }
                     out.add(new WasmInstr.Call(strVal
                             ? (gIntKey ? "kof.mapGetKi" : "kof.mapGetStr")
                             : (dblVal ? "kof.mapGetDbl"
                                 : (boolVal ? "kof.mapGetBool" : "kof.mapGet"))));
-                    ctx.lastPush = "mapval";                     // o handle da caixa OU o cru (0 = null)
+                    // FATIA MAP-C: o valor CHAR anda no MESMO mapGet do Int (a
+                    // MESMA caixa boxInt) mas o rastro e' nullablechar — o
+                    // render = o strChar (o boxToStr da tag 0 = intToStr viria
+                    // "97" para o 'a')
+                    ctx.lastPush = charVal ? "nullablechar" : "mapval";
                     ctx.lastPushWide = false;
                 }
                 case "kof_map_keys", "kof_map_values" -> {
