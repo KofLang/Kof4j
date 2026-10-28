@@ -55,25 +55,33 @@ final class WasmJoinCode {
                                       WasmLowering.Ctx ctx, List<WasmInstr> out) {
         java.util.List<String> stk = WasmOperandShape.stackAt(ops, i, ctx);
         int depth = stk.size();
-        if (depth > 3) {
-            throw new WasmUnsupportedException("pilha com mais de 3 valores no salto"
-                    + " condicional (o ternary do concat = [esq, operando, copia, rhs])"
-                    + " (WASM002) — docs/wasm-wasi-plan.md (#776)");
+        if (depth > 4) {
+            throw new WasmUnsupportedException("pilha com mais de 4 valores no salto"
+                    + " condicional (WASM002) — docs/wasm-wasi-plan.md (#776)");
         }
-        // O under = a CAIXA do operando (as formas ternary medidas) — a
-        // lista = TOP-DOWN (o iterator do Deque = o push = addFirst): o
-        // fundo = get(2) = o V; os shapes com o fundo NAO-caixa (os
-        // receptores ELIDIDOS da sim, ex.: o args.length) ficam FORA da
-        // danca (o comportamento anterior)
+        // A lista = TOP-DOWN: o get(0) = o topo (o rhs), o FUNDO = get(depth-1)
         if (depth == 3 && WasmOperandShape.isBox(stk.get(2))
                 && !isWideShape(stk.get(0)) && !isWideShape(stk.get(1))) {
-            out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.cmp1Idx, "c1"));  // o rhs
-            out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.cmp2Idx, "c2"));  // o lhs
-            out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.armIdx, "av"));   // o under
+            out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.cmp1Idx, "c1"));
+            out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.cmp2Idx, "c2"));
+            out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.armIdx, "av"));
             out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.cmp2Idx, "c2"));
             out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.cmp1Idx, "c1"));
             ctx.underPending = true;
             ctx.underTrace = stk.get(0);
+        } else if (depth == 4 && WasmOperandShape.isBox(stk.get(2))
+                && "string".equals(stk.get(3))
+                && !isWideShape(stk.get(0)) && !isWideShape(stk.get(1))) {
+            out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.cmp1Idx, "c1"));
+            out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.cmp2Idx, "c2"));
+            out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.armIdx, "av"));
+            out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.leftIdx, "lv"));
+            out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.cmp2Idx, "c2"));
+            out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.cmp1Idx, "c1"));
+            ctx.underPending = true;
+            ctx.underTrace = stk.get(0);
+            ctx.leftPending = true;
+            ctx.leftTrace = stk.get(3);
         }
     }
 

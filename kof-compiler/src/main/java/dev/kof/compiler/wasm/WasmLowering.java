@@ -103,7 +103,9 @@ final class WasmLowering {
         locals.add(WasmFunc.TYPE_I32); // scratch arm (o operando sob o cmp)
         int joinIdx = nextWasm + 3;
         locals.add(WasmFunc.TYPE_I32); // scratch join (o valor do braco)
-        nextWasm += 4;
+        int leftIdx = nextWasm + 4;
+        locals.add(WasmFunc.TYPE_I32); // scratch left (a esquerda do concat)
+        nextWasm += 5;
         if (records != null && !records.isEmpty()) {
             objIdx = nextWasm;
             locals.add(WasmFunc.TYPE_I32); // scratch obj (handle)
@@ -180,6 +182,7 @@ final class WasmLowering {
         ctx.cmp2Idx = cmp2Idx;
         ctx.armIdx = armIdx;
         ctx.joinIdx = joinIdx;
+        ctx.leftIdx = leftIdx;
         ctx.wIdx = wIdx;
         ctx.sIdx = sIdx;
         ctx.dupIdx = dupIdx;
@@ -251,10 +254,13 @@ final class WasmLowering {
         // nullable) — o operando nasce ANTES do null-check (o UNDER: ele
         // cruza para o braco THEN pelo scratch arm) e o VALOR do braco cruza
         // para o join pelo scratch join (o trace diz o que chegou)
-        int cmp1Idx = -1, cmp2Idx = -1, armIdx = -1, joinIdx = -1;
+        int cmp1Idx = -1, cmp2Idx = -1, armIdx = -1, joinIdx = -1, leftIdx = -1;
         boolean underPending;
         String underTrace;
         String joinTrace;
+        // FATIA JOIN-4: a ESQUERDA do concat (o ternary de profundidade 4)
+        boolean leftPending;
+        String leftTrace;
 
         Ctx(Map<Integer, Integer> slotMap, int pcIdx,
                 Map<Integer, Integer> labelToBlock, String funcName,

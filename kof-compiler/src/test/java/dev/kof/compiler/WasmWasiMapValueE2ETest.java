@@ -193,6 +193,42 @@ class WasmWasiMapValueE2ETest {
     }
 
     @Test
+    void mapStringCharFullRenderMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // FATIA JOIN-4 (28/10, #776): o render COMPLETO do Char? (o print E o
+        // concat) — o ternary de PROFUNDIDADE 4 do concat agora cruza os
+        // estados: a DANCA-4 guarda [rhs, copia, V, ESQUERDA] nos scratches
+        // (a esquerda = o handle de String do strConcat do join), o
+        // valueOf(char) self-serves o carrega da caixa + o UNBOX, o VALOR do
+        // braco cruza para o join pelo scratch join (o fill em AMBOS os
+        // estados: o KofPop do ELSE = o descarte do slot), e o strConcat
+        // self-serves a ESQUERDA com o SWAP — O STRCAT = a PRIMEIRA op do
+        // join (medido: [strConcat, valueOf, println]) e a pilha da sim = 0
+        // (o load do join-entry = o +1 FORA da sim) — sem o swap todo concat
+        // imprimia REVERSO (a lei da ORDEM: o a do strConcat = o FUNDO).
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    var m = mapOf("k", 'a', "j", 'z')
+                    println(m.get("k"))
+                    println(m.get("z"))
+                    println("v=" + m.get("z"))
+                    println("w=" + m.get("k"))
+                    println(m.size())
+                    println(m.contains("j"))
+                    m.put("n", 'q')
+                    println(m.get("n"))
+                    var old = m.remove("j")
+                    println(old)
+                    println(m.size())
+                    println("d=" + m.remove("z"))
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
+
+    @Test
     void mapStringCharRenderMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
         // FATIA JOIN (28/10, #776): o RENDER do Char? (o print) — o ternary
         // do desugar agora cruza os estados: o KofDup da caixa e' REAL no

@@ -1,6 +1,7 @@
 package dev.kof.compiler.wasm;
 
 import dev.kof.compiler.KofCall;
+import dev.kof.compiler.KofOperation;
 
 import java.util.List;
 
@@ -24,11 +25,21 @@ final class WasmStrCalls {
     }
 
     /** {@code true} se a chamada foi tratada aqui. */
-    static boolean emit(KofCall kc, WasmLowering.Ctx ctx, List<WasmInstr> out) {
+    static boolean emit(KofCall kc, List<KofOperation> ops, int idx,
+                        WasmLowering.Ctx ctx, List<WasmInstr> out) {
         if (!ctx.wasi) return false;
         String m = kc.methodName();
         switch (m) {
             case "kof_string_concat" -> {
+                // o strConcat = a PRIMEIRA op do join (medido:
+                // [strConcat, valueOf, println]) — a pilha da sim = 0 (o
+                // load do join-entry = o +1 FORA da sim)
+                if (ctx.leftPending && WasmOperandShape.depthAt(ops, idx, ctx) == 0) {
+                    out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.cmp1Idx, "sw"));
+                    out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.leftIdx, "lv"));
+                    out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.cmp1Idx, "sw"));
+                    ctx.leftPending = false;
+                }
                 out.add(new WasmInstr.Call("kof.strConcat"));
                 ctx.lastPush = "string";
                 return true;

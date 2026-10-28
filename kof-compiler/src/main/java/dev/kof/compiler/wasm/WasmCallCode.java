@@ -38,7 +38,7 @@ final class WasmCallCode {
             WasmRecordCtor.lowerRecordEq(ctx, kc, out);
         } else if (WasmRecordCtor.isRecordInit(ctx, kc)) {
             WasmRecordCtor.lowerRecordInit(ctx, kc, out);
-        } else if (WasmStrCalls.emit(kc, ctx, out)) {
+        } else if (WasmStrCalls.emit(kc, ops, idx, ctx, out)) {
             // chamadas de String (==/!=, length, isEmpty, equals,
             // startsWith, endsWith, concat) — WasmStrCalls
         } else if (ctx.wasi && "valueOf".equals(kc.methodName())
