@@ -178,7 +178,7 @@ final class WasmClassCall {
                     + " docs/wasm-wasi-plan.md (#776)");
         }
         KofOperation prod = ops.get(prodIdx);
-        if (prod instanceof KofLoadLocal ll && ctx.classOf(ll.type()) != null) {
+        if (prod instanceof KofLoadLocal ll && ctx.classOf(unwrapNullable(ll.type())) != null) {
             out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.w(ll.index()), "recv"));
             out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
             out.add(new WasmInstr.Local(WasmInstr.Local.SET, dst, "tag"));
@@ -348,6 +348,15 @@ final class WasmClassCall {
             case "bool", "boolean", "char", "string" -> WasmFunc.TYPE_I32;
             default -> 0x40;
         };
+    }
+
+    /** CLASS-2h (29/10, #776): o local NULLABLE-CLASS (o valor do m.get
+     *  de Map<String, Dog>) = a MESMA rota do local (o walk devolvia o
+     *  produtor e a checagem classOf não via o NullableType = a recusa
+     *  honesta "produtor fora do subset", medido em P13). */
+    private static Type unwrapNullable(Type t) {
+        if (t instanceof Type.NullableType nt) return nt.inner();
+        return t;
     }
 
     private static String simpleName(Type t) {

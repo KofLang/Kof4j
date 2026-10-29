@@ -70,6 +70,12 @@ final class WasmLowering {
                 locals.add(WasmFunc.TYPE_I32); // record = handle no heap (15.3d)
             } else if (wasi && lv.type() instanceof Type.ClassType ct && classes != null && classes.containsKey(ct.name())) {
                 locals.add(WasmFunc.TYPE_I32); // a classe = o handle i32 (CLASS-1)
+            } else if (wasi && lv.type() instanceof Type.NullableType nt
+                    && nt.inner() instanceof Type.ClassType ct && classes != null && classes.containsKey(ct.name())) {
+                // CLASS-2h (29/10, #776): o local nullable-CLASS = o handle
+                // i32 (o null = o handle 0 — a MESMA lei do zero-fill dos
+                // campos; o valor do m.get("a") de Map<String, Dog>)
+                locals.add(WasmFunc.TYPE_I32);
             } else if (wasi && lv.type() instanceof Type.ClassType ct && "List".equals(ct.name())) {
                 locals.add(WasmFunc.TYPE_I32); // List = handle i32 (celula indireta, fatia coleções 1 — 27/10)
             } else if (wasi && lv.type() instanceof Type.ClassType ct && "Map".equals(ct.name())) {

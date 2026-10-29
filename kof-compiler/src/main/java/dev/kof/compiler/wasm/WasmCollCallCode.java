@@ -39,6 +39,13 @@ final class WasmCollCallCode {
         return "";
     }
 
+    /** CLASS-2h (29/10, #776): o valor do Map = uma CLASSE alcançada (o
+     *  handle i32 no slot — a MESMA disciplina do String). */
+    private static boolean isClassValue(KofCall kc, WasmLowering.Ctx ctx) {
+        String vt = mapValueType(kc);
+        return ctx.classes() != null && !vt.isEmpty() && ctx.classes().containsKey(vt);
+    }
+
 
     /** true = a chamada era de colecao e ja emitiu. */
     static boolean emitCollCall(KofCall kc, WasmLowering.Ctx ctx, List<WasmInstr> out) {
@@ -78,12 +85,16 @@ final class WasmCollCallCode {
                     boolean longKey = "long".equalsIgnoreCase(mapKeyType(kc));
                     boolean kiKey = intKey || longKey;
                     boolean longVal = "long".equalsIgnoreCase(mapValueType(kc));
+                    // CLASS-2h (29/10, #776): o VALOR DE CLASSE = a MESMA
+                    // disciplina do String (o handle i32 estendido no slot —
+                    // o mapPutStr cru, ZERO runtime novo)
+                    boolean classVal = isClassValue(kc, ctx);
                     // FATIA MAP-KI-VAL (28/10, #776): a chave INT admite as
                     // CINCO larguras de valor (o Int/Char/Long = o mapPutKiRaw
                     // CRU; o Double = os bits; o Bool = o estendido; só o
                     // String continua no mapPutKi)
                     if ((!strKey && !kiKey)
-                            || (!"int".equalsIgnoreCase(mapValueType(kc)) && !longVal && !strVal && !dblVal && !boolVal && !charVal)) {
+                            || (!"int".equalsIgnoreCase(mapValueType(kc)) && !longVal && !strVal && !dblVal && !boolVal && !charVal && !classVal)) {
                         throw new WasmUnsupportedException("Map<"
                                 + mapKeyType(kc) + ", " + mapValueType(kc)
                                 + "> fora das fatias Map<String, Int|String|Double|Bool|Char> /"
@@ -115,9 +126,11 @@ final class WasmCollCallCode {
                                 && "void".equalsIgnoreCase(pt.name())) {
                             out.add(new WasmInstr.Simple(0x1a, "drop"));
                         }
-                    } else if (strVal) {
+                    } else if (strVal || classVal) {
                         // FATIA MAP-KI: a chave Int = o mapPutKi (a chave raw
                         // i64 no slot; o valor Str estende — o MESMO slot)
+                        // CLASS-2h: o valor de classe = o MESMO mapPutStr
+                        // (o handle i32 no slot — o mesmo do String)
                         out.add(new WasmInstr.Call(kiKey ? "kof.mapPutKi" : "kof.mapPutStr"));
                         if (kc.returnType() instanceof Type.PrimitiveType pt
                                 && "void".equalsIgnoreCase(pt.name())) {
@@ -228,13 +241,17 @@ final class WasmCollCallCode {
                     boolean dblVal = "double".equalsIgnoreCase(mapValueType(kc));
                     boolean boolVal = "bool".equalsIgnoreCase(mapValueType(kc));
                     boolean charVal = "char".equalsIgnoreCase(mapValueType(kc));
+                    // CLASS-2h (29/10, #776): o VALOR DE CLASSE = a MESMA
+                    // disciplina do String (o handle i32 no slot — o CRU
+                    // mapGetStr, ZERO runtime novo)
+                    boolean classVal = isClassValue(kc, ctx);
                     // FATIA MAP-B: o valor Bool = o mapGetBool (o boxBool)
-                    if (!"int".equalsIgnoreCase(mapValueType(kc)) && !"long".equalsIgnoreCase(mapValueType(kc)) && !strVal && !dblVal && !boolVal && !charVal) {
+                    if (!"int".equalsIgnoreCase(mapValueType(kc)) && !"long".equalsIgnoreCase(mapValueType(kc)) && !strVal && !dblVal && !boolVal && !charVal && !classVal) {
                         throw new WasmUnsupportedException("Map.get com valor '"
-                                + mapValueType(kc) + "' fora da fatia Map<String, Int|String|Double|Bool|Char>"
+                                + mapValueType(kc) + "' fora da fatia Map<String, Int|String|Double|Bool|Char|Classe>"
                                 + " (WASM002) — docs/wasm-wasi-plan.md (#776)");
                     }
-                    out.add(new WasmInstr.Call(strVal
+                    out.add(new WasmInstr.Call(strVal || classVal
                             ? (gKiKey ? "kof.mapGetKi" : "kof.mapGetStr")
                             : (dblVal ? (gKiKey ? "kof.mapGetKiDbl" : "kof.mapGetDbl")
                                 : (boolVal ? (gKiKey ? "kof.mapGetKiBool" : "kof.mapGetBool")
@@ -243,7 +260,15 @@ final class WasmCollCallCode {
                     // MESMA caixa boxInt) mas o rastro e' nullablechar — o
                     // render = o strChar (o boxToStr da tag 0 = intToStr viria
                     // "97" para o 'a')
-                    ctx.lastPush = charVal ? "nullablechar" : "mapval";
+                    // CLASS-2h: o rastro do valor de classe = o NOME da
+                    // classe (o despacho narrowed anda na rota ARMADA; o
+                    // acesso de campo = o load de campo de classe; o PRINT
+                    // da classe = a recusa honesta)
+                    if (classVal) {
+                        ctx.lastPush = mapValueType(kc);
+                    } else {
+                        ctx.lastPush = charVal ? "nullablechar" : "mapval";
+                    }
                     ctx.lastPushWide = false;
                 }
                 case "kof_map_keys", "kof_map_values" -> {

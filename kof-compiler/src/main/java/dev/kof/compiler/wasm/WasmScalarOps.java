@@ -167,6 +167,17 @@ public final class WasmScalarOps {
             // rota e' o UNBOX + o strChar (a MESMA dos campos Char de record)
             return "nullablechar";
         }
+        // CLASS-2h (29/10, #776): o nullable de CLASSE (o valor do
+        // m.get("a") de Map<String, Dog>) anda no MESMO handle i32 (o null
+        // = o handle 0 — a MESMA lei do zero-fill dos campos); o rastro =
+        // o NOME da classe (o despacho narrowed = a rota ARMADA, o acesso
+        // de campo = o load de campo de classe; o PRINT da classe = a
+        // recusa honesta)
+        if (t instanceof Type.NullableType nt
+                && nt.inner() instanceof Type.ClassType ct
+                && !("String".equals(ct.name()) && "java.lang".equals(ct.packageName()))) {
+            return ct.name();
+        }
         if (t instanceof Type.PrimitiveType pt) return pt.name();
         if (t instanceof Type.ClassType ct) {
             if ("String".equals(ct.name()) && "java.lang".equals(ct.packageName())) {

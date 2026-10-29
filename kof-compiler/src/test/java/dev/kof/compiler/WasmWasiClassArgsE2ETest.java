@@ -387,4 +387,73 @@ class WasmWasiClassArgsE2ETest {
                 """);
         WasmWasiListE2ETest.assertListFaceMatchesJvm(dir);
     }
+
+    @Test
+    void mapClassValuesMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // CLASS-2h fatia A (29/10, #776): os VALORES de classe no Map — o
+        // get/put = os MESMOS runtimes CRU do String (o handle i32 no slot,
+        // ZERO runtime novo), o local nullable-CLASS = o handle i32 (o
+        // null = o handle 0, a lei do zero-fill), o rastro do get = o NOME
+        // da classe (a lei do typeName: o NullableType com o inner classe =
+        // o nome — o rastro do load = o lixo do toString, medido) e o walk
+        // do despacho = o unwrapNullable (o local route não via o
+        // NullableType = a recusa "produtor fora do subset", medido). A
+        // sonda usa Map<String, Dog> com a SUBCLASSE Puppy (os genéricos do
+        // Kof = INVARIANTES, SEM021: Map<String, Dog> ≠ Map<String,
+        // Animal>; o Cat no Map<String, Dog> = o SEM gap registrado).
+        var wasmtime = WasmWasiListE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiListE2ETest.host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                class Animal {
+                    String name
+
+                    constructor(nm: String) {
+                        this.name = nm
+                    }
+
+                    speak(): String {
+                        return "animal " + this.name
+                    }
+                }
+                class Dog extends Animal {
+                    constructor(nm: String) {
+                        super(nm)
+                    }
+
+                    speak(): String {
+                        return "dog " + this.name
+                    }
+                }
+                class Puppy extends Dog {
+                    constructor(nm: String) {
+                        super(nm)
+                    }
+
+                    speak(): String {
+                        return "puppy " + this.name
+                    }
+                }
+                main(String[] args) {
+                    var m = mapOf("a", Dog("Rex"), "b", Puppy("Bit"))
+                    println(m.size())
+                    var v = m.get("a")
+                    if (v != null) {
+                        println(v.speak())
+                        println(v.name)
+                    }
+                    var w = m.get("b")
+                    if (w != null) {
+                        println(w.speak())
+                    }
+                    m.put("c", Dog("Bob"))
+                    var y = m.get("c")
+                    if (y != null) {
+                        println(y.speak())
+                    }
+                    println(m.size())
+                }
+                """);
+        WasmWasiListE2ETest.assertListFaceMatchesJvm(dir);
+    }
 }
