@@ -150,7 +150,7 @@ public final class WasmBinary {
         sections.add(section(1, vec(typeBodies)));
         if (!importItems.isEmpty()) sections.add(section(2, vec(importItems)));
         sections.add(section(3, vec(funcTypeBytes)));
-        sections.add(section(5, vec(List.of(new byte[]{0x00, 0x01}))));
+        sections.add(section(5, vec(List.of(new byte[]{0x00, 0x01})))); // min 1 (sem max: o GC-4 — a dança de staging revertida — o cap exige as strings coletáveis)
         if (m.globals() != null && !m.globals().isEmpty()) {
             List<byte[]> globalItems = new ArrayList<>();
             for (int init : m.globals()) {

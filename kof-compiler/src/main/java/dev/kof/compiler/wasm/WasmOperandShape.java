@@ -24,6 +24,7 @@ import dev.kof.compiler.KofUnary;
 import dev.kof.compiler.Type;
 
 import java.util.ArrayDeque;
+import java.util.Map;
 import java.util.Deque;
 import java.util.List;
 
@@ -47,16 +48,39 @@ final class WasmOperandShape {
     static boolean isBox(String shape) {
         return "mapval".equals(shape) || "nullabledouble".equals(shape)
                 || "nullablebool".equals(shape) || "nullablechar".equals(shape)
-                || "nullablestring".equals(shape) || "object".equals(shape)
-                || "box".equals(shape);
+                || "nullablestring".equals(shape) || "object".equals(shape);
     }
 
-    /** A pilha COMPLETA sob o op em idx (bottom-up; a mesma simulação). */
-    static java.util.List<String> stackAt(List<KofOperation> ops, int idx, WasmLowering.Ctx ctx) {
-        java.util.Deque<String> st = new java.util.ArrayDeque<>();
+    /** GC-2 (29/10, #776): o NOME do alloc pela profundidade da pilha — o
+     *  site limpo (depth 0) usa o coletor (`kof.heapAlloc`); o site
+     *  ANINHADO (depth > 0) usa a variante SEM coleta (`kof.heapAllocNG`)
+     *  — os intermediários pendentes da pilha são invisíveis ao spill (o
+     *  nativo os cobre pelo scan de stack conservador; a WASM não pode),
+     *  então o alloc aninhado NUNCA coleta: cresce. */
+    static String allocName(List<KofOperation> ops, int idx, WasmLowering.Ctx ctx) {
+        return depthAt(ops, idx, ctx) == 0 ? "kof.heapAlloc" : "kof.heapAllocNG";
+    }
+
+    /** O pushedShape com o rastro direto (o staging do GC-4 roda ANTES do
+     *  Ctx — o sim consome só o localNullableTrace). */
+    static String pushedShapeWithTrace(KofOperation op, List<KofOperation> ops, int i,
+                                       Map<Integer, String> localNullableTrace) {
+        if (op instanceof KofLoadLocal ll) {
+            String lt = localNullableTrace.get(ll.index());
+            return lt != null ? lt : typeName(ll.type());
+        }
+        return pushedShape(op, ops, i, null);
+    }
+
+    /** GC-4 (29/10, #776): as FORMAS da pilha pendente em `idx` (bottom→top)
+     *  — a mesma simulação de depthAt, devolvendo os shapes (o staging da
+     *  pilha completa consome o depth e os tipos por slot). */
+    static java.util.List<String> stackAt(List<KofOperation> ops, int idx,
+            Map<Integer, String> localNullableTrace) {
+        Deque<String> st = new ArrayDeque<>();
         for (int i = 0; i < idx && i < ops.size(); i++) {
             KofOperation op = ops.get(i);
-            String pushed = pushedShape(op, ops, i, ctx);
+            String pushed = pushedShapeWithTrace(op, ops, i, localNullableTrace);
             int pops = popsOf(op);
             for (int k = 0; k < pops && !st.isEmpty(); k++) {
                 st.pop();
@@ -82,18 +106,23 @@ final class WasmOperandShape {
                 break;
             }
         }
+        // o ArrayDeque itera HEAD→TAIL = a ordem de inserção = BOTTOM→TOP
+        // (a MESMA semântica da versão Ctx que o JoinCode consumia — o
+        // Collections.reverse meu INVERTIA a pilha e o gate do Char? do
+        // JoinCode recusava: 4 faces vermelhas, medido)
         return new java.util.ArrayList<>(st);
     }
 
-    /** A profundidade da pilha sob o op em idx (a mesma simulação). */
-    /** GC-2 (29/10, #776): o NOME do alloc pela profundidade da pilha — o
-     *  site limpo (depth 0) usa o coletor (`kof.heapAlloc`); o site
-     *  ANINHADO (depth > 0) usa a variante SEM coleta (`kof.heapAllocNG`)
-     *  — os intermediários pendentes da pilha são invisíveis ao spill (o
-     *  nativo os cobre pelo scan de stack conservador; a WASM não pode),
-     *  então o alloc aninhado NUNCA coleta: cresce. */
-    static String allocName(List<KofOperation> ops, int idx, WasmLowering.Ctx ctx) {
-        return depthAt(ops, idx, ctx) == 0 ? "kof.heapAlloc" : "kof.heapAllocNG";
+    /** GC-4: o tipo wasm do shape (o pool do staging): int/long/char = i64;
+     *  double = f64; o resto (bool/string/handles) = i32. */
+    static int stageType(String shape) {
+        if ("int".equals(shape) || "long".equals(shape) || "char".equals(shape)) {
+            return WasmFunc.TYPE_I64;
+        }
+        if ("double".equals(shape)) {
+            return WasmFunc.TYPE_F64;
+        }
+        return WasmFunc.TYPE_I32;
     }
 
     static int depthAt(List<KofOperation> ops, int idx, WasmLowering.Ctx ctx) {

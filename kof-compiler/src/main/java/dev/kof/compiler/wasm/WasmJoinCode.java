@@ -53,7 +53,7 @@ final class WasmJoinCode {
      */
     static void storeUnderForCondJump(List<KofOperation> ops, int i,
                                       WasmLowering.Ctx ctx, List<WasmInstr> out) {
-        java.util.List<String> stk = WasmOperandShape.stackAt(ops, i, ctx);
+        java.util.List<String> stk = WasmOperandShape.stackAt(ops, i, ctx.localNullableTrace);
         int depth = stk.size();
         if (depth > 4) {
             throw new WasmUnsupportedException("pilha com mais de 4 valores no salto"

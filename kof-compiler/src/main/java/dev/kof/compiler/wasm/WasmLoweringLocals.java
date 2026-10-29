@@ -43,6 +43,7 @@ final class WasmLoweringLocals {
         final int cmp1Idx, cmp2Idx, armIdx, joinIdx, leftIdx;
         final int clsIdx, tagIdx, tagIdx2;
         final int pcIdx;
+        final Map<Integer, String> localNullableTrace;
         final List<Integer> results;
         final Map<Integer, Integer> labelToBlock;
         final List<List<KofOperation>> blocks;
@@ -53,6 +54,7 @@ final class WasmLoweringLocals {
                 int[] nestH, int[] nestA, int[] nestB, int[] nestR,
                 int cmp1Idx, int cmp2Idx, int armIdx, int joinIdx, int leftIdx,
                 int clsIdx, int tagIdx, int tagIdx2, int pcIdx,
+                Map<Integer, String> localNullableTrace,
                 List<Integer> results, Map<Integer, Integer> labelToBlock,
                 List<List<KofOperation>> blocks) {
             this.locals = locals;
@@ -83,6 +85,7 @@ final class WasmLoweringLocals {
             this.tagIdx = tagIdx;
             this.tagIdx2 = tagIdx2;
             this.pcIdx = pcIdx;
+            this.localNullableTrace = localNullableTrace;
             this.results = results;
             this.labelToBlock = labelToBlock;
             this.blocks = blocks;
@@ -94,6 +97,16 @@ final class WasmLoweringLocals {
             int recordDepth, List<Integer> params, Map<Integer, Integer> slotMap,
             boolean receiver) {
         int jvmSlot = WasmClassScan.buildParams(m, params, slotMap, receiver, classes, records);
+        // FATIA MAP-D (28/10, #776): o rastro REAL dos locals nullable — o
+        // staging do GC-4 (o maxDepth) também o consome (o rastro antes do Ctx)
+        Map<Integer, String> localNullableTrace = new HashMap<>();
+        for (IRLocalVariable lv : m.localVariables()) {
+            String lvtn = typeName(lv.type());
+            if ("nullabledouble".equals(lvtn) || "nullablebool".equals(lvtn)
+                    || "nullablechar".equals(lvtn) || "nullableint".equals(lvtn)) {
+                localNullableTrace.put(lv.index(), lvtn);
+            }
+        }
         List<Integer> locals = new ArrayList<>();
         int nextWasm = params.size();
         for (IRLocalVariable lv : m.localVariables()) {
@@ -250,7 +263,7 @@ final class WasmLoweringLocals {
         return new LocalPlan(locals, jvmSlot, wIdx, sIdx, dupIdx, dupWideIdx,
                 objIdx, vIdx, v32Idx, vf64Idx, eqAccIdx, eqEqIdx, eqCmpIdx, eqDblIdx,
                 eqAndIdx, nestH, nestA, nestB, nestR, cmp1Idx, cmp2Idx, armIdx,
-                joinIdx, leftIdx, clsIdx, tagIdx, tagIdx2, pcIdx, results,
-                labelToBlock, blocks);
+                joinIdx, leftIdx, clsIdx, tagIdx, tagIdx2, pcIdx,
+                localNullableTrace, results, labelToBlock, blocks);
     }
 }

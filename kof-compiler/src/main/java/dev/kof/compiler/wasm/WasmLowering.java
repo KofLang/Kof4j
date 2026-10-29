@@ -456,6 +456,16 @@ final class WasmLowering {
             // Fase E (27/10 — split check_500): o despacho de chamadas vive
             // em WasmCallCode (records, String intrinsics, valueOf, math,
             // caixa §284, println, fallback) — comportamento identico.
+            // GC-4 (29/10, #776) — A TENTATIVA REVERTIDA (o Q7): a dança de
+            // staging (o pop/push da pilha completa antes da chamada)
+            // estourou a pilha no site do G4a — o sim
+            // (WasmOperandShape.stackAt) SUPERCONTA a profundidade num
+            // site (o sets = 6 vs a pilha = 5: o validador pegou
+            // "expected i32 but nothing on stack"). O staging = SIM-
+            // DEPENDENTE e o sim = imperfeito — registrado como o
+            // bloqueio da paridade G-6(a) (o cap da memória); o re-trigger
+            // precisa do TRACKER de pilha no tempo de EMISSÃO (o contador
+            // de profundidade exato do emitPlain) antes do staging.
             WasmCallCode.emitCall(kc, ops, idx, ctx, out);
         } else if (op instanceof KofStatementIf || op instanceof KofContinueLabel) {
             // marcadores estruturais — no-op (mesma decisao medida no JvmOpEmitter)
