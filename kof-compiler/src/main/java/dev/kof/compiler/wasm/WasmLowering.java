@@ -30,6 +30,14 @@ final class WasmLowering {
     static WasmFunc lowerMethod(IRMethod m, boolean wasi, boolean printIntrinsic,
             boolean argsHandle, Map<String, Integer> stringPool, List<WasmData> dataSegments,
             Map<String, ClassLayout> records, int recordDepth, DataCursor dataCursor) {
+        return lowerMethod(m, wasi, printIntrinsic, argsHandle, stringPool, dataSegments,
+                records, Map.of(), recordDepth, dataCursor, false, m.name());
+    }
+
+    static WasmFunc lowerMethod(IRMethod m, boolean wasi, boolean printIntrinsic,
+            boolean argsHandle, Map<String, Integer> stringPool, List<WasmData> dataSegments,
+            Map<String, ClassLayout> records, Map<String, ClassLayout> classes, int recordDepth,
+            DataCursor dataCursor, boolean receiver, String fname) {
         List<Integer> params = new ArrayList<>();
         Map<Integer, Integer> slotMap = new LinkedHashMap<>();
         int jvmSlot = 0;
@@ -44,12 +52,7 @@ final class WasmLowering {
                 localNullableTrace.put(lv.index(), lvtn);
             }
         }
-        for (int i = 0; i < m.parameterTypes().size(); i++) {
-            Type t = m.parameterTypes().get(i);
-            params.add(mapType(typeName(t), m.name(), "parametro"));
-            slotMap.put(jvmSlot, i);
-            jvmSlot += isWide(t) ? 2 : 1;
-        }
+        jvmSlot = WasmClassScan.buildParams(m, params, slotMap, receiver);
         List<Integer> locals = new ArrayList<>();
         int nextWasm = params.size();
         for (IRLocalVariable lv : m.localVariables()) {
@@ -59,6 +62,8 @@ final class WasmLowering {
                 locals.add(WasmFunc.TYPE_I32); // args = handle de array no heap (15.3c-sliceB)
             } else if (lv.type() instanceof Type.ClassType ct && records != null && records.containsKey(ct.name())) {
                 locals.add(WasmFunc.TYPE_I32); // record = handle no heap (15.3d)
+            } else if (wasi && lv.type() instanceof Type.ClassType ct && classes != null && classes.containsKey(ct.name())) {
+                locals.add(WasmFunc.TYPE_I32); // a classe = o handle i32 (CLASS-1)
             } else if (wasi && lv.type() instanceof Type.ClassType ct && "List".equals(ct.name())) {
                 locals.add(WasmFunc.TYPE_I32); // List = handle i32 (celula indireta, fatia coleções 1 — 27/10)
             } else if (wasi && lv.type() instanceof Type.ClassType ct && "Map".equals(ct.name())) {
@@ -105,7 +110,9 @@ final class WasmLowering {
         locals.add(WasmFunc.TYPE_I32); // scratch join (o valor do braco)
         int leftIdx = nextWasm + 4;
         locals.add(WasmFunc.TYPE_I32); // scratch left (a esquerda do concat)
-        nextWasm += 5;
+        int clsIdx = nextWasm + 5;
+        locals.add(WasmFunc.TYPE_I32); // scratch cls (o receiver do store de campo)
+        nextWasm += 6;
         if (records != null && !records.isEmpty()) {
             objIdx = nextWasm;
             locals.add(WasmFunc.TYPE_I32); // scratch obj (handle)
@@ -157,6 +164,9 @@ final class WasmLowering {
         List<Integer> results = new ArrayList<>();
         if (m.returnType() instanceof Type.PrimitiveType pr && !"void".equalsIgnoreCase(pr.name())) {
             results.add(mapType(pr.name(), m.name(), "retorno"));
+        } else if (m.returnType() instanceof Type.ClassType rt && "String".equals(rt.name())
+                && "java.lang".equals(rt.packageName())) {
+            results.add(WasmFunc.TYPE_I32); // o retorno String = o handle (CLASS-1)
         }
 
         List<KofOperation> ops = new ArrayList<>();
@@ -177,12 +187,13 @@ final class WasmLowering {
         }
 
         Ctx ctx = new Ctx(slotMap, pcIdx, labelToBlock, m.name(), stringPool, dataSegments,
-                records, dataCursor, localNullableTrace);
+                records, classes, dataCursor, localNullableTrace);
         ctx.cmp1Idx = cmp1Idx;
         ctx.cmp2Idx = cmp2Idx;
         ctx.armIdx = armIdx;
         ctx.joinIdx = joinIdx;
         ctx.leftIdx = leftIdx;
+        ctx.clsIdx = clsIdx;
         ctx.wIdx = wIdx;
         ctx.sIdx = sIdx;
         ctx.dupIdx = dupIdx;
@@ -221,7 +232,7 @@ final class WasmLowering {
         // da funcao precisa ser polimorfico p/ o `end` com resultado i64
         body.add(new WasmInstr.Simple(0x00, "unreachable"));
 
-        return new WasmFunc(m.name(), params, results, locals, body);
+        return new WasmFunc(fname, params, results, locals, body);
     }
 
     static final class Ctx {
@@ -232,6 +243,7 @@ final class WasmLowering {
         final Map<String, Integer> stringPool;
         final List<WasmData> dataSegments;
         final Map<String, ClassLayout> records;
+        final Map<String, ClassLayout> classes;
         final DataCursor data;
         int wIdx = -1, sIdx = -1;
         int dupIdx = -1, dupWideIdx = -1;
@@ -255,6 +267,7 @@ final class WasmLowering {
         // cruza para o braco THEN pelo scratch arm) e o VALOR do braco cruza
         // para o join pelo scratch join (o trace diz o que chegou)
         int cmp1Idx = -1, cmp2Idx = -1, armIdx = -1, joinIdx = -1, leftIdx = -1;
+        int clsIdx;
         boolean underPending;
         String underTrace;
         String joinTrace;
@@ -267,6 +280,15 @@ final class WasmLowering {
                 Map<String, Integer> stringPool, List<WasmData> dataSegments,
                 Map<String, ClassLayout> records, DataCursor data,
                 Map<Integer, String> localNullableTrace) {
+            this(slotMap, pcIdx, labelToBlock, funcName, stringPool, dataSegments,
+                    records, Map.of(), data, localNullableTrace);
+        }
+
+        Ctx(Map<Integer, Integer> slotMap, int pcIdx,
+                Map<Integer, Integer> labelToBlock, String funcName,
+                Map<String, Integer> stringPool, List<WasmData> dataSegments,
+                Map<String, ClassLayout> records, Map<String, ClassLayout> classes, DataCursor data,
+                Map<Integer, String> localNullableTrace) {
             this.slotMap = slotMap;
             this.pcIdx = pcIdx;
             this.labelToBlock = labelToBlock;
@@ -274,6 +296,7 @@ final class WasmLowering {
             this.stringPool = stringPool;
             this.dataSegments = dataSegments;
             this.records = records;
+            this.classes = classes;
             this.data = data;
             this.localNullableTrace = localNullableTrace;
         }
@@ -282,6 +305,11 @@ final class WasmLowering {
         ClassLayout recordOf(Type t) {
             if (records == null || !(t instanceof Type.ClassType ct)) return null;
             return records.get(ct.name());
+        }
+        /** CLASS-1 (28/10, #776): a CLASSE mutável IR alcancada; null = fora. */
+        ClassLayout classOf(Type t) {
+            if (classes == null || !(t instanceof Type.ClassType ct)) return null;
+            return classes.get(ct.name());
         }
         int internString(String str) {
             return data.intern(str, stringPool, dataSegments);
@@ -513,6 +541,8 @@ final class WasmLowering {
             ctx.lastPush = typeName(un.operandType());
             ctx.lastPushWide = "int".equalsIgnoreCase(ctx.lastPush) || "long".equalsIgnoreCase(ctx.lastPush)
                     || "double".equalsIgnoreCase(ctx.lastPush);
+        } else if (op instanceof KofNewObject no && ctx.classOf(no.type()) != null) {
+            WasmClassCall.lowerClassAlloc(ctx, no, out); // o alloc + o zero-fill (CLASS-1)
         } else if (op instanceof KofNewObject no) {
             WasmRecordCtor.lowerNewObject(ctx, no, out);
         } else if (op instanceof KofDup) {
@@ -533,6 +563,10 @@ final class WasmLowering {
                 out.add(new WasmInstr.Local(WasmInstr.Local.TEE, ctx.dupIdx, "dup"));
                 out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.dupIdx, "dup"));
             }
+        } else if (op instanceof KofLoadField lf && WasmClassOps.isClassFieldOp(lf.ownerType(), ctx)) {
+            WasmClassOps.lowerClassLoadField(ctx, lf, out);
+        } else if (op instanceof KofStoreField sf) {
+            WasmClassOps.lowerStoreField(ctx, sf, out);
         } else if (op instanceof KofLoadField lf) {
             WasmRecordCtor.lowerLoadField(ctx, lf, out);
         } else if (op instanceof KofPop || op instanceof KofPop2) {

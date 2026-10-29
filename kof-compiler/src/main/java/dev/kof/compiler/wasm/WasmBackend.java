@@ -53,6 +53,9 @@ public class WasmBackend implements Backend {
         List<WasmData> dataSegments = new ArrayList<>();
         // #796: cursor do pool de dados UNICO por modulo (nao por funcao).
         WasmLowering.DataCursor dataCursor = new WasmLowering.DataCursor();
+        Map<String, ClassLayout> classes = WasmClassScan.buildClassLayouts(module);
+        boolean usesClasses = !classes.isEmpty();
+
         boolean usesHeap = false;
         List<IRMethod> entries = new ArrayList<>();
         java.util.Map<String, IRMethod> decls = new java.util.LinkedHashMap<>();
@@ -78,6 +81,7 @@ public class WasmBackend implements Backend {
                 }
             }
         }
+        WasmClassScan.declareClassMethods(module, classes, decls);
         // println e um builtin do compilador em TODOS os backends (JsCallEmitter/
         // ExpressionPrintLowerer); nunca sombreavel por declaracao de usuario
         boolean printIntrinsic = wasi;
@@ -206,6 +210,25 @@ public class WasmBackend implements Backend {
                         }
                         continue;
                     }
+                    // CLASS-1 (28/10, #776): as chamadas de classe (o ctor
+                    // <init> + os métodos de instância) resolvem pelo dono
+                    // QUALIFICADO e entram no fecho
+                    if (wasi && usesClasses
+                            && (kc.kind() == KofCallKind.CONSTRUCTOR
+                                || kc.kind() == KofCallKind.INSTANCE
+                                || kc.kind() == KofCallKind.INTERFACE)) {
+                        String own = ownerSimpleName(kc.ownerType());
+                        if (classes.containsKey(own)) {
+                            IRMethod cm = decls.get(own + "." + kc.methodName());
+                            if (cm == null) {
+                                throw new WasmUnsupportedException("método '" + kc.methodName()
+                                        + "' de '" + own + "' nao declarado (WASM002)"
+                                        + " — docs/wasm-wasi-plan.md (#776)");
+                            }
+                            work.add(cm);
+                            continue;
+                        }
+                    }
                     IRMethod t = decls.get(kc.methodName());
                     if (t == null) {
                         throw new WasmUnsupportedException("chamada '" + kc.methodName()
@@ -233,6 +256,14 @@ public class WasmBackend implements Backend {
         List<WasmFunc> funcs = new ArrayList<>();
         List<WasmFunc> lowered = new ArrayList<>();
         for (IRMethod m : entries) lowered.add(lowerMethod(m, wasi, printIntrinsic, false, stringPool, dataSegments, records, recDepth, dataCursor));
+        // CLASS-1 (28/10, #776): os métodos de instância/ctors ALCANÇADOS =
+        // as funcs com o receiver (o param 0 = o this); os não-alcançados
+        // não saem (a mesma regra de alcance dos statics)
+        for (IRMethod m : WasmClassScan.reachedClassMethods(module, classes, seen)) {
+            String simple = WasmClassScan.ownerSimpleNameOf(m, module);
+            lowered.add(lowerMethod(m, wasi, printIntrinsic, false, stringPool, dataSegments,
+                    records, classes, recDepth, dataCursor, true, simple + "." + m.name()));
+        }
         IRMethod startM = null;
         boolean usesArgs = false;
         if (wasi) {
@@ -479,9 +510,12 @@ public class WasmBackend implements Backend {
             if (usesRecords) {
                 usesHeap = true; // heap p/ blocos de record (15.3d)
             }
+            if (usesClasses) {
+                usesHeap = true; // heap p/ blocos de classe (CLASS-1, 28/10)
+            }
         }
         funcs.addAll(lowered);
-        if (startM != null) funcs.add(lowerMethod(startM, true, printIntrinsic, usesArgs, stringPool, dataSegments, records, recDepth, dataCursor));
+        if (startM != null) funcs.add(lowerMethod(startM, true, printIntrinsic, usesArgs, stringPool, dataSegments, records, classes, recDepth, dataCursor, false, startM.name()));
         // #796: o heap comeca DEPOIS do ultimo byte de dados (nunca em cima do
         // pool de literais). Com o cursor de modulo o pool pode passar de
         // HEAP_BASE; `DataCursor.intern` ja recusou um literal que nao caiba, aqui
@@ -546,4 +580,5 @@ public class WasmBackend implements Backend {
         stack.remove(name);
         return best;
     }
+
 }
