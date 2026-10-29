@@ -387,4 +387,42 @@ class WasmWasiRecordE2ETest {
                 """);
         WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
     }
+
+    @Test
+    void recordThroughClassFieldsAndMethodsMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // A VERIFICAÇÃO do fechamento da campanha de records (29/10,
+        // #776): o record nos PARAMS dos MÉTODOS de classe e os RETURNS —
+        // byte-idêntico SEM qualquer mudança de código (a maquinaria do
+        // CLASS-2b/ARG-REC já o cobria: o campo de classe de record = o
+        // slot de 4 bytes do handle, o ctor de classe aceita o param
+        // record, o método devolve o record). A campanha (rodadas 68-71:
+        // SET-REC/LIST-REC/MAP-REC/ARG-REC) fecha COMPLETA.
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                record Point(Int x, Int y)
+                class Box {
+                    Point held
+                    public constructor(Point p) {
+                        this.held = p
+                    }
+                    peek(): Point {
+                        return this.held
+                    }
+                    shifted(Int d): Point {
+                        return Point(this.held.x + d, this.held.y)
+                    }
+                }
+                main(String[] args) {
+                    var b = Box(Point(3, 4))
+                    var p: Point = b.peek()
+                    println(p.x)
+                    println(p.y)
+                    var q: Point = b.shifted(10)
+                    println(q.x)
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
 }
