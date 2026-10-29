@@ -306,4 +306,84 @@ class WasmWasiClassE2ETest {
                 """);
         WasmWasiListE2ETest.assertListFaceMatchesJvm(dir);
     }
+
+    @Test
+    void classArgsOnScratchReceiversMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // CLASS-2c fatia A (29/10, #776): os ARGS de classe LOCAIS nos
+        // receivers de scratch — o LoadLocal de classe NÃO faz mais tee no
+        // clsIdx (o save era peso morto e os tees dos args clobberavam o
+        // save do receiver entre o produtor e o call, medido em P6: o
+        // despacho sobre pick()/o campo/o alloc com o arg local recusava);
+        // o scan do intervalo aperta para os PRODUTORES-DE-TEE. A LEI DO
+        // SUPER (o Q0 pegado pela sonda): o call super(args) no corpo do
+        // ctor lia o receiver do scratch clsIdx — que só o tee do
+        // LoadLocal(this) inicializava; sem o tee, o super gravava os
+        // campos no handle NULL (os nomes vazios, medido). O site do super
+        // agora lê o THIS do ctor (o param do slot 0 — o Ctx carrega o
+        // fname QUALIFICADO, a checagem do site dispara).
+        var wasmtime = WasmWasiListE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiListE2ETest.host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                class Animal {
+                    String name
+
+                    constructor(nm: String) {
+                        this.name = nm
+                    }
+
+                    speak(): String {
+                        return "animal"
+                    }
+
+                    meet(other: Animal): String {
+                        return this.name + " meets " + other.name
+                    }
+                }
+                class Dog extends Animal {
+                    constructor(nm: String) {
+                        super(nm)
+                    }
+
+                    speak(): String {
+                        return "dog"
+                    }
+
+                    meet(other: Animal): String {
+                        return "dog " + this.name + " meets " + other.name
+                    }
+                }
+                class Cat extends Animal {
+                    constructor(nm: String) {
+                        super(nm)
+                    }
+
+                    speak(): String {
+                        return "cat"
+                    }
+
+                    meet(other: Animal): String {
+                        return "cat " + this.name + " meets " + other.name
+                    }
+                }
+                class Owner {
+                    Animal pet
+
+                    constructor() {
+                    }
+                }
+                pick(): Animal {
+                    return Cat("Mimi")
+                }
+                main(String[] args) {
+                    var b: Animal = Dog("Rex")
+                    println(pick().meet(b))
+                    println(Dog("Rex").meet(b))
+                    var o = Owner()
+                    o.pet = pick()
+                    println(o.pet.meet(b))
+                }
+                """);
+        WasmWasiListE2ETest.assertListFaceMatchesJvm(dir);
+    }
 }

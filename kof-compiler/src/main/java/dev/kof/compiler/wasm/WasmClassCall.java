@@ -74,11 +74,25 @@ final class WasmClassCall {
         ctx.lastPushWide = false;
     }
 
-    /** O `<init>` da classe (a chamada): o tee do handle (o call da func
-     *  CONSUME o receiver — o param 0 — e os args; o original volta pelo
-     *  get: a lei do tee do desugar). */
+    /** O `<init>` da classe (a chamada): DOIS SITES (CLASS-2c, 29/10):
+     *  o call NOVO (Dog("Rex") no corpo do main) = o receiver = o alloc
+     *  (o SET no scratch clsIdx; o get final devolve o handle); o call
+     *  SUPER (super(name) no CORPO do próprio ctor — o funcName =
+     *  X.<init>) = o receiver = o THIS do ctor (o param do slot 0 = o
+     *  ÚLTIMO param do wasm). O clsIdx do corpo do ctor = um local SEM
+     *  init (o tee do LoadLocal(this) era o save da rodada 56-58,
+     *  removido na CLASS-2c — a leitura do scratch achava 0 e o super
+     *  gravava o nome no handle NULL: os nomes vazios, medido em
+     *  P6/P5 29/10). */
     static void lowerClassInit(Ctx ctx, KofCall kc, List<WasmInstr> out) {
         String name = simpleName(kc.ownerType());
+        if (ctx.funcName.endsWith(".<init>")) {
+            out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.w(0), "this"));
+            out.add(new WasmInstr.Call(name + ".<init>"));
+            ctx.lastPush = "class:" + name;
+            ctx.lastPushWide = false;
+            return;
+        }
         // a pilha = [args...] (o receiver = o ÚLTIMO param da func): o get
         // do scratch empilha o receiver POR CIMA dos args; o call consome
         // tudo; o get final devolve o handle (o resultado)
@@ -221,10 +235,11 @@ final class WasmClassCall {
         return -1;
     }
 
-    /** O op produz valor de CLASSE alcançada (o tee dispara nele — o
-     *  scratch clsIdx é sobrescrito). */
+    /** O op CLOBBERA o scratch clsIdx (o tee dispara nele — CLASS-2c,
+     *  29/10: o LoadLocal de classe NÃO faz mais tee — os args de classe
+     *  LOCAIS não clobberam o save do receiver; os PRODUTORES-DE-TEE =
+     *  o alloc / o campo de classe / o retorno de chamada de classe). */
     private static boolean producesScannedClass(Ctx ctx, KofOperation op) {
-        if (op instanceof KofLoadLocal ll) return ctx.classOf(ll.type()) != null;
         if (op instanceof KofNewObject no) return ctx.classOf(no.type()) != null;
         if (op instanceof KofLoadField lf) return ctx.classOf(lf.fieldType()) != null;
         if (op instanceof KofCall c) return ctx.classOf(c.returnType()) != null;

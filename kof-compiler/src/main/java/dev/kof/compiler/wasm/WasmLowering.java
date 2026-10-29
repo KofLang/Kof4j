@@ -198,7 +198,7 @@ final class WasmLowering {
             }
         }
 
-        Ctx ctx = new Ctx(slotMap, pcIdx, labelToBlock, m.name(), stringPool, dataSegments,
+        Ctx ctx = new Ctx(slotMap, pcIdx, labelToBlock, fname, stringPool, dataSegments,
                 records, classes, dataCursor, localNullableTrace);
         ctx.cmp1Idx = cmp1Idx;
         ctx.cmp2Idx = cmp2Idx;
@@ -453,13 +453,10 @@ final class WasmLowering {
                     && "java.lang".equals(ct.packageName()))) ? ct.name() : typeName(ll.type());
             ctx.lastPushWide = "int".equalsIgnoreCase(ctx.lastPush) || "long".equalsIgnoreCase(ctx.lastPush)
                     || "double".equalsIgnoreCase(ctx.lastPush);
-            // CLASS-2 (28/10, #776): o LoadLocal de CLASSE = TEE'd (o mesmo
-            // valor na pilha + a cópia no clsIdx — o despacho virtual lê a
-            // tag pelo scratch; o tee = invisível nos outros contextos)
-            if (ctx.wasi && ll.type() instanceof Type.ClassType ct
-                    && ctx.classes() != null && ctx.classes().containsKey(ct.name())) {
-                out.add(new WasmInstr.Local(WasmInstr.Local.TEE, ctx.clsIdx, "cls"));
-            }
+            // CLASS-2 (28/10, #776): o LoadLocal de classe NÃO faz mais tee
+            // no clsIdx (CLASS-2c, 29/10 — o save era peso morto: a rota do
+            // despacho lê o LOCAL-FONTE e os tees dos args clobberavam o
+            // save do receiver entre o produtor e o call, medido em P6)
         } else if (op instanceof KofStoreLocal sl) {
             // Object/bool slot (i32 no WASI) recebe valor wide do desugar de ==
             // (literal int 0/1 p/ false/true) -> wrap; handle de record (i32) nao
