@@ -120,7 +120,9 @@ final class WasmLowering {
         locals.add(WasmFunc.TYPE_I32); // scratch cls (o receiver do store de campo)
         int tagIdx = nextWasm + 6;
         locals.add(WasmFunc.TYPE_I32); // scratch tag (o despacho virtual — CLASS-2)
-        nextWasm += 7;
+        int tagIdx2 = nextWasm + 7;
+        locals.add(WasmFunc.TYPE_I32); // scratch tag 2 (o despacho ANINHADO como arg — CLASS-2e)
+        nextWasm += 8;
         if (records != null && !records.isEmpty()) {
             objIdx = nextWasm;
             locals.add(WasmFunc.TYPE_I32); // scratch obj (handle)
@@ -207,6 +209,7 @@ final class WasmLowering {
         ctx.leftIdx = leftIdx;
         ctx.clsIdx = clsIdx;
         ctx.tagIdx = tagIdx;
+        ctx.tagIdx2 = tagIdx2;
         ctx.wIdx = wIdx;
         ctx.sIdx = sIdx;
         ctx.dupIdx = dupIdx;
@@ -285,6 +288,12 @@ final class WasmLowering {
         int cmp1Idx = -1, cmp2Idx = -1, armIdx = -1, joinIdx = -1, leftIdx = -1;
         int clsIdx;
         int tagIdx;
+        /** CLASS-2e (29/10, #776): o segundo scratch de tag — o despacho
+         *  ANINHADO como arg não sobrescreve a tag armada do externo. */
+        int tagIdx2;
+        /** A profundidade do aninhamento de despachos (o cap = 1 nível —
+         *  dois níveis = a recusa honesta CLASS-2f). */
+        int tagNest = 0;
         /** CLASS-2d (29/10, #776): o despacho cuja tag foi ARMADA no
          *  produtor (o índice do call no bloco; -1 = nenhuma) — a tag já
          *  está no tagIdx ANTES da avaliação dos args. */

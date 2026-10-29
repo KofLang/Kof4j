@@ -130,8 +130,9 @@ final class WasmClassCall {
             for (Type t : kc.parameterTypes()) ps.add(argWasmType(ctx, t, name));
             java.util.List<Integer> rs = rt == 0x40 ? java.util.List.of() : java.util.List.of(rt);
             int bt = ctx.blockTypes().register(ps, rs);
-            emitTagLoad(ctx, kc, ops, idx, out);
-            emitDispatchChain(ctx, kc, impls, 0, rt, bt, out);
+            int tagSrc = emitTagLoad(ctx, kc, ops, idx, out);
+            emitDispatchChain(ctx, kc, impls, 0, rt, bt, tagSrc, out);
+            if (ctx.tagNest > 0) ctx.tagNest--; // o aninhamento encerra com a cadeia
         }
         ctx.lastPush = typeName(kc.returnType());
         ctx.lastPushWide = isWide(kc.returnType()) || "double".equalsIgnoreCase(typeName(kc.returnType()));
@@ -155,8 +156,21 @@ final class WasmClassCall {
      *  intervalo: cada um tee'd POR CIMA do scratch). Fora disso = a
      *  recusa honesta (Q7: nunca tag errado silencioso — um tag errado
      *  despacha a implementação errada). */
-    private static void emitTagLoad(Ctx ctx, KofCall kc, List<KofOperation> ops, int idx,
+    /** O load da tag; DEVOLVE o scratch que a cadeia lê (o tagIdx = o
+     *  despacho de topo; o tagIdx2 = o despacho ANINHADO como arg — a
+     *  tag armada do externo no tagIdx sobrevive, CLASS-2e). */
+    private static int emitTagLoad(Ctx ctx, KofCall kc, List<KofOperation> ops, int idx,
             List<WasmInstr> out) {
+        boolean nested = ctx.tagArmedIdx != -1 && ctx.tagArmedIdx != idx;
+        if (nested) {
+            ctx.tagNest++;
+            if (ctx.tagNest > 1) {
+                throw new WasmUnsupportedException("despacho virtual aninhado dois níveis como arg (WASM002)"
+                        + " — os dois níveis compartilhariam o tagIdx2; fatia CLASS-2f;"
+                        + " docs/wasm-wasi-plan.md (#776)");
+            }
+        }
+        int dst = nested ? ctx.tagIdx2 : ctx.tagIdx;
         int prodIdx = receiverProducer(ops, idx, kc, ctx);
         if (prodIdx < 0) {
             throw new WasmUnsupportedException("despacho virtual com provenança de receiver fora do subset medido (WASM002)"
@@ -167,8 +181,8 @@ final class WasmClassCall {
         if (prod instanceof KofLoadLocal ll && ctx.classOf(ll.type()) != null) {
             out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.w(ll.index()), "recv"));
             out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
-            out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.tagIdx, "tag"));
-            return;
+            out.add(new WasmInstr.Local(WasmInstr.Local.SET, dst, "tag"));
+            return dst;
         }
         boolean scratchProducer = (prod instanceof KofNewObject no && ctx.classOf(no.type()) != null)
                 || (prod instanceof KofLoadField lf && ctx.classOf(lf.fieldType()) != null)
@@ -176,21 +190,14 @@ final class WasmClassCall {
         if (scratchProducer) {
             // O ÍNDICE VEM DA SIMULAÇÃO (o indexOf casa por equals — a lei
             // da rodada 58). CLASS-2d: a TAG ARMADA no produtor (antes da
-            // avaliação dos args) — o scan do intervalo = os CALLS DE
-            // DESPACHO apenas (o load de tag de um despacho aninhado
-            // sobrescreve o tagIdx — o compartilhamento do scratch: a
-            // recusa honesta; os tees dos args = GATED, não escrevem o
-            // clsIdx)
+            // avaliação dos args) — a tag JÁ ESTÁ no tagIdx: nenhum load.
+            // CLASS-2e: o scan do intervalo = REMOVIDO (os despachos
+            // aninhados usam o tagIdx2 — o tagIdx nunca é escrito entre o
+            // arming e o despacho; os tees dos args = GATED, não escrevem
+            // o clsIdx)
             if (ctx.tagArmedIdx == idx) {
                 ctx.tagArmedIdx = -1;
-                for (int i = prodIdx + 1; i < idx; i++) {
-                    if (isDispatchCall(ctx, ops.get(i))) {
-                        throw new WasmUnsupportedException("despacho virtual com despacho aninhado como arg (WASM002)"
-                                + " — o load de tag do despacho aninhado sobrescreve o tagIdx compartilhado;"
-                                + " fatia CLASS-2e; docs/wasm-wasi-plan.md (#776)");
-                    }
-                }
-                return;
+                return ctx.tagIdx;
             }
             // a rota defensiva (não armada): o clsIdx + o scan dos
             // produtores-de-tee (o comportamento da CLASS-2c)
@@ -203,8 +210,8 @@ final class WasmClassCall {
             }
             out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.clsIdx, "recv"));
             out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
-            out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.tagIdx, "tag"));
-            return;
+            out.add(new WasmInstr.Local(WasmInstr.Local.SET, dst, "tag"));
+            return dst;
         }
         throw new WasmUnsupportedException("despacho virtual com produtor de receiver fora do subset medido (WASM002)"
                 + " — receiver de dup/campo de classe não-alcançada: fatia CLASS-2d;"
@@ -234,25 +241,26 @@ final class WasmClassCall {
         boolean pushesClass = (op instanceof KofLoadField lf && ctx.classOf(lf.fieldType()) != null)
                 || (op instanceof KofCall c && ctx.classOf(c.returnType()) != null);
         if (!isAlloc && !pushesClass) return;
-        int callIdx = firstDispatchAfter(ctx, ops, idx);
-        if (callIdx < 0) return;
-        if (receiverProducer(ops, callIdx, (KofCall) ops.get(callIdx), ctx) != idx) return;
-        if (pushesClass) {
-            out.add(new WasmInstr.Local(WasmInstr.Local.TEE, ctx.clsIdx, "cls"));
-        }
-        out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.clsIdx, "recv"));
-        out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
-        out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.tagIdx, "tag"));
-        ctx.tagArmedIdx = callIdx;
-    }
-
-    /** O PRIMEIRO call de despacho virtual após idx na região (-1 = nenhum). */
-    private static int firstDispatchAfter(Ctx ctx, List<KofOperation> ops, int idx) {
+        // CLASS-2e (29/10, #776): A LEI DO ARMING — o hook arma o PRIMEIRO
+        // despacho após o produtor CUJO WALK BACKWARD RESOLVE PARA ESTE
+        // PRODUTOR (o rascunho checava só o PRIMEIRO despacho — que pode
+        // consumir o valor como ARG: `pick().meet(b.speak()` armava o
+        // speak e o meet caía na rota defensiva que lia o clsIdx OBSOLETO
+        // = o despacho errado = o trap de memória, medido em P9)
         for (int i = idx + 1; i < ops.size(); i++) {
-            if (isDispatchCall(ctx, ops.get(i))) return i;
-            if (ops.get(i) instanceof dev.kof.compiler.KofConditionalJump) return -1;
+            KofOperation cand = ops.get(i);
+            if (cand instanceof dev.kof.compiler.KofConditionalJump) return;
+            if (!isDispatchCall(ctx, cand)) continue;
+            if (receiverProducer(ops, i, (KofCall) cand, ctx) != idx) continue;
+            if (pushesClass) {
+                out.add(new WasmInstr.Local(WasmInstr.Local.TEE, ctx.clsIdx, "cls"));
+            }
+            out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.clsIdx, "recv"));
+            out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
+            out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.tagIdx, "tag"));
+            ctx.tagArmedIdx = i;
+            return;
         }
-        return -1;
     }
 
     /** O produtor do RECEIVER da chamada: a simulação BACKWARD dos
@@ -309,25 +317,30 @@ final class WasmClassCall {
      *  exaustiva: o if result-typed SEM else = o validador recusa —
      *  medido). */
     private static void emitDispatchChain(Ctx ctx, KofCall kc, java.util.List<String> impls,
-            int i, int rt, int bt, List<WasmInstr> out) {
+            int i, int rt, int bt, int tagSrc, List<WasmInstr> out) {
         String impl = impls.get(i);
         if (i == impls.size() - 1) {
             out.add(new WasmInstr.Call(impl + "." + kc.methodName()));
             return;
         }
-        out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.tagIdx, "tag"));
+        out.add(new WasmInstr.Local(WasmInstr.Local.GET, tagSrc, "tag"));
         out.add(new WasmInstr.Const(0, WasmClassScan.classTag(ctx, impl)));
         out.add(new WasmInstr.Simple(0x46, "i32.eq"));
         out.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, null, bt, true));
         out.add(new WasmInstr.Call(impl + "." + kc.methodName()));
         out.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, null, bt, true));
-        emitDispatchChain(ctx, kc, impls, i + 1, rt, bt, out);
+        emitDispatchChain(ctx, kc, impls, i + 1, rt, bt, tagSrc, out);
         out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, bt, true));
     }
 
     /** O tipo do resultado do if (o 0x40 void; o escalonar da largura). */
     private static int resultType(KofCall kc) {
         Type rt = kc.returnType();
+        // CLASS-2e (29/10, #776): o retorno de CLASSE do despacho = o
+        // handle i32 (a MESMA lei dos results da rodada 58 — o default
+        // 0x40 VOID fazia a cadeia do mate(): Animal sair void e os braços
+        // sobravam "values remaining on stack", medido em P9)
+        if (rt instanceof Type.ClassType) return WasmFunc.TYPE_I32;
         String tn = typeName(rt);
         return switch (tn) {
             case "int", "long" -> WasmFunc.TYPE_I64;
