@@ -234,12 +234,18 @@ final class WasmOperandShape {
         return "";
     }
 
-    /** Quantos valores o op CONSUME da pilha (0 = nada). */
+    /** Quantos valores o op CONSUME da pilha (0 = nada). CLASS-2e fix
+     *  (29/10, #776): o LOAD DE CAMPO e o ARRAY LOAD CONSUMEM o receiver
+     *  (a emissão = Const+add+load = o net-zero: o pop 1 + o push 1) — o
+     *  modelo pop-0 fazia o walk do despacho retornar o SUB-RECEIVER do
+     *  arg (a.meet(o.pet) despachava pela tag do OWNER, medido em P10). */
     static int popsOf(KofOperation op) {
         if (op instanceof KofBinary) return 2;
         if (op instanceof KofStoreLocal) return 1;
         if (op instanceof KofPop) return 1;
         if (op instanceof KofUnary) return 1;
+        if (op instanceof KofLoadField) return 1;
+        if (op instanceof KofArrayLoad) return 1;
         if (op instanceof KofArrayStore) return 3;
         if (op instanceof KofCall kc) {
             if ("println".equals(kc.methodName()) || "print".equals(kc.methodName())) {
