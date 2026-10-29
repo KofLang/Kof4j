@@ -119,12 +119,8 @@ final class WasmClassCall {
         int rt = resultType(kc);
         if (impls.size() <= 1) {
             out.add(new WasmInstr.Call(name + "." + kc.methodName()));
-            // CLASS-2b (29/10, #776): o retorno de CLASSE do call direto =
-            // TEE no scratch clsIdx (o MESMO save — o despacho sobre o
-            // resultado encadeado lê a provenância)
-            if (ctx.classOf(kc.returnType()) != null) {
-                out.add(new WasmInstr.Local(WasmInstr.Local.TEE, ctx.clsIdx, "cls"));
-            }
+            // CLASS-2d (29/10, #776): o tee do retorno de classe = GATED
+            // (o hook maybeArmReceiver no emitPlain)
         } else {
             // o block type multi-valor: os params = [i32 receiver, args...]
             // (a ordem do IR); o resultado = o retorno do call (o void =
@@ -164,7 +160,7 @@ final class WasmClassCall {
         int prodIdx = receiverProducer(ops, idx, kc, ctx);
         if (prodIdx < 0) {
             throw new WasmUnsupportedException("despacho virtual com provenança de receiver fora do subset medido (WASM002)"
-                    + " — receiver de dup/campo de classe não-alcançada: fatia CLASS-2c;"
+                    + " — receiver de dup/campo de classe não-alcançada: fatia CLASS-2d;"
                     + " docs/wasm-wasi-plan.md (#776)");
         }
         KofOperation prod = ops.get(prodIdx);
@@ -178,14 +174,30 @@ final class WasmClassCall {
                 || (prod instanceof KofLoadField lf && ctx.classOf(lf.fieldType()) != null)
                 || (prod instanceof KofCall c && ctx.classOf(c.returnType()) != null);
         if (scratchProducer) {
-            // O ÍNDICE VEM DA SIMULAÇÃO (o indexOf casa por equals: os dois
-            // loads do MESMO campo são records IGUAIS — o indexOf devolvia o
-            // primeiro e o intervalo errado recusava um despacho legal,
-            // medido em PB.kf 29/10)
+            // O ÍNDICE VEM DA SIMULAÇÃO (o indexOf casa por equals — a lei
+            // da rodada 58). CLASS-2d: a TAG ARMADA no produtor (antes da
+            // avaliação dos args) — o scan do intervalo = os CALLS DE
+            // DESPACHO apenas (o load de tag de um despacho aninhado
+            // sobrescreve o tagIdx — o compartilhamento do scratch: a
+            // recusa honesta; os tees dos args = GATED, não escrevem o
+            // clsIdx)
+            if (ctx.tagArmedIdx == idx) {
+                ctx.tagArmedIdx = -1;
+                for (int i = prodIdx + 1; i < idx; i++) {
+                    if (isDispatchCall(ctx, ops.get(i))) {
+                        throw new WasmUnsupportedException("despacho virtual com despacho aninhado como arg (WASM002)"
+                                + " — o load de tag do despacho aninhado sobrescreve o tagIdx compartilhado;"
+                                + " fatia CLASS-2e; docs/wasm-wasi-plan.md (#776)");
+                    }
+                }
+                return;
+            }
+            // a rota defensiva (não armada): o clsIdx + o scan dos
+            // produtores-de-tee (o comportamento da CLASS-2c)
             for (int i = prodIdx + 1; i < idx; i++) {
                 if (producesScannedClass(ctx, ops.get(i))) {
                     throw new WasmUnsupportedException("despacho virtual sobre receiver com valor de classe entre o produtor e o call (WASM002)"
-                            + " — o tee do arg sobrescreve o scratch do receiver; fatia CLASS-2c;"
+                            + " — o tee do arg sobrescreve o scratch do receiver; fatia CLASS-2d;"
                             + " docs/wasm-wasi-plan.md (#776)");
                 }
             }
@@ -195,8 +207,52 @@ final class WasmClassCall {
             return;
         }
         throw new WasmUnsupportedException("despacho virtual com produtor de receiver fora do subset medido (WASM002)"
-                + " — receiver de dup/campo de classe não-alcançada: fatia CLASS-2c;"
+                + " — receiver de dup/campo de classe não-alcançada: fatia CLASS-2d;"
                 + " docs/wasm-wasi-plan.md (#776)");
+    }
+
+    /** O call é DESPACHO virtual (o dono de classe com o fecho > 1 — o
+     *  ÚNICO writer do tagIdx entre o armamento e o despacho). */
+    private static boolean isDispatchCall(Ctx ctx, KofOperation op) {
+        if (!(op instanceof KofCall c)) return false;
+        if (c.kind() != KofCallKind.INSTANCE && c.kind() != KofCallKind.INTERFACE) return false;
+        String own = simpleName(c.ownerType());
+        return ctx.classOf(c.ownerType()) != null
+                && WasmClassScan.implsOf(ctx.module, ctx.classes(), own).size() > 1;
+    }
+
+    /** CLASS-2d (29/10, #776): o HOOK do fim do emitPlain — o produtor de
+     *  classe com o próximo despacho da região tendo ESTE produtor como o
+     *  receiver (o walk é a autoridade) faz o TEE no clsIdx (o ÚNICO
+     *  writer do scratch entre o produtor e o call — os args ficam sem
+     *  tee) e ARMA a tag no tagIdx ANTES da avaliação dos args (os
+     *  receivers de alloc/call não são re-legíveis). O alloc já SETa o
+     *  clsIdx (o <init> precisa) — só a tag é armada. */
+    static void maybeArmReceiver(Ctx ctx, List<KofOperation> ops, int idx, List<WasmInstr> out) {
+        KofOperation op = ops.get(idx);
+        boolean isAlloc = op instanceof KofNewObject no && ctx.classOf(no.type()) != null;
+        boolean pushesClass = (op instanceof KofLoadField lf && ctx.classOf(lf.fieldType()) != null)
+                || (op instanceof KofCall c && ctx.classOf(c.returnType()) != null);
+        if (!isAlloc && !pushesClass) return;
+        int callIdx = firstDispatchAfter(ctx, ops, idx);
+        if (callIdx < 0) return;
+        if (receiverProducer(ops, callIdx, (KofCall) ops.get(callIdx), ctx) != idx) return;
+        if (pushesClass) {
+            out.add(new WasmInstr.Local(WasmInstr.Local.TEE, ctx.clsIdx, "cls"));
+        }
+        out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.clsIdx, "recv"));
+        out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
+        out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.tagIdx, "tag"));
+        ctx.tagArmedIdx = callIdx;
+    }
+
+    /** O PRIMEIRO call de despacho virtual após idx na região (-1 = nenhum). */
+    private static int firstDispatchAfter(Ctx ctx, List<KofOperation> ops, int idx) {
+        for (int i = idx + 1; i < ops.size(); i++) {
+            if (isDispatchCall(ctx, ops.get(i))) return i;
+            if (ops.get(i) instanceof dev.kof.compiler.KofConditionalJump) return -1;
+        }
+        return -1;
     }
 
     /** O produtor do RECEIVER da chamada: a simulação BACKWARD dos
@@ -208,7 +264,7 @@ final class WasmClassCall {
     /** O ÍNDICE do produtor do receiver (identidade da posição — o
      *  indexOf casava por equals e pegava o PRIMEIRO igual: medido). -1 =
      *  a simulação não localizou (a recusa). */
-    private static int receiverProducer(List<KofOperation> ops, int callIdx, KofCall kc,
+    static int receiverProducer(List<KofOperation> ops, int callIdx, KofCall kc,
             Ctx ctx) {
         int need = 1 + kc.parameterTypes().size(); // o receiver + os args
         int skip = 0;

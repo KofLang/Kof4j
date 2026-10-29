@@ -285,6 +285,10 @@ final class WasmLowering {
         int cmp1Idx = -1, cmp2Idx = -1, armIdx = -1, joinIdx = -1, leftIdx = -1;
         int clsIdx;
         int tagIdx;
+        /** CLASS-2d (29/10, #776): o despacho cuja tag foi ARMADA no
+         *  produtor (o índice do call no bloco; -1 = nenhuma) — a tag já
+         *  está no tagIdx ANTES da avaliação dos args. */
+        int tagArmedIdx = -1;
         boolean underPending;
         String underTrace;
         String joinTrace;
@@ -568,6 +572,9 @@ final class WasmLowering {
             // Phase D: the DECLARATION is the contract — see WasmOpSupport.refusal.
             throw WasmOpSupport.refusal(op, ctx.funcName);
         }
+        // CLASS-2d (29/10, #776): o produtor de classe = o TEE GATED (só o
+        // receiver do próximo despacho) + a TAG ARMADA no produtor
+        WasmClassCall.maybeArmReceiver(ctx, ops, idx, out);
     }
 
     static void jumpTo(int block, int depth, Ctx ctx, List<WasmInstr> out) {

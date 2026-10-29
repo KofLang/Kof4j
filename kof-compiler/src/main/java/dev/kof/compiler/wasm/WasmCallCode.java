@@ -51,12 +51,7 @@ final class WasmCallCode {
             // dos métodos; o get duplicado trocava os operandos do call:
             // "Mimi meets Rex", medido em P7); os args seguem na pilha.
             out.add(new WasmInstr.Call(ownerSimpleName(kc.ownerType()) + "." + kc.methodName()));
-            // o resultado de CLASSE do call direto = TEE no clsIdx (o MESMO
-            // save da CLASS-2b — o despacho sobre o resultado lê a
-            // provenância)
-            if (ctx.classOf(kc.returnType()) != null) {
-                out.add(new WasmInstr.Local(WasmInstr.Local.TEE, ctx.clsIdx, "cls"));
-            }
+            // CLASS-2d: o tee do resultado de classe = GATED (o hook)
         } else if (WasmStrCalls.emit(kc, ops, idx, ctx, out)) {
             // chamadas de String (==/!=, length, isEmpty, equals,
             // startsWith, endsWith, concat) — WasmStrCalls
@@ -311,12 +306,8 @@ final class WasmCallCode {
             ctx.lastPushWide = false;
         } else if (kc.kind() == KofCallKind.FUNCTION || kc.kind() == KofCallKind.STATIC) {
             out.add(new WasmInstr.Call(kc.methodName()));
-            // CLASS-2b (29/10, #776): o resultado de CLASSE alcançada =
-            // TEE no scratch clsIdx (o MESMO save do LoadLocal/campo: a
-            // provenância da tag do despacho sobre o retorno de chamada)
-            if (ctx.classOf(kc.returnType()) != null) {
-                out.add(new WasmInstr.Local(WasmInstr.Local.TEE, ctx.clsIdx, "cls"));
-            }
+            // CLASS-2d (29/10, #776): o tee do resultado de classe = GATED
+            // (o hook maybeArmReceiver no emitPlain)
         } else {
             throw new WasmUnsupportedException("chamada '" + kc.methodName()
                     + "' fora do subset escalar 15.2 (WASM002) — docs/wasm-wasi-plan.md (#776)");

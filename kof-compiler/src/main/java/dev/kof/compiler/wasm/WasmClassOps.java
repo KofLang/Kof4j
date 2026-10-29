@@ -51,14 +51,9 @@ final class WasmClassOps {
         }
         ctx.lastPush = WasmRecordOps.isStringField(lf.fieldType()) ? "string" : WasmScalarOps.typeName(lf.fieldType());
         ctx.lastPushWide = WasmRecordOps.isI64Field(lf.fieldType());
-        // CLASS-2b (29/10, #776): o campo de CLASSE alcançada = o handle —
-        // o TEE no scratch clsIdx (o MESMO save do LoadLocal de classe: o
-        // valor na pilha para o consumidor + a cópia para a provenância da
-        // tag do despacho; o scan do intervalo no emitTagLoad detecta o
-        // clobber de um valor de classe posterior)
-        if (ctx.classOf(lf.fieldType()) != null) {
-            out.add(new WasmInstr.Local(WasmInstr.Local.TEE, ctx.clsIdx, "cls"));
-        }
+        // CLASS-2d (29/10, #776): o tee do campo de classe = GATED (o hook
+        // maybeArmReceiver no emitPlain — só o receiver do próximo despacho
+        // faz tee; os args não escrevem o scratch)
     }
 
     /** O store de campo da classe: a pilha = [receiver, valor]; o width =
