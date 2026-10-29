@@ -65,14 +65,18 @@ if (WasmListRuntime.NAMES.contains(kc.methodName())) {
                         // comparam bits = exatamente Double.equals)
                         out.add(new WasmInstr.Simple(0xbd, "i64.reinterpret_f64"));
                         out.add(new WasmInstr.Call("kof.listAdd"));
-                    } else if (isRefElem(elem)) {
+                    } else if (isRefElem(elem, ctx)) {
                         // String e a lista aninhada: o handle i32 vira o slot
                         // i64 (zero-extend; handle e' positivo) — o rastro do
                         // arg de uma lista aninhada e' "list" (o tee do desugar)
                         // o rastro do arg pode ser "list" (o tee do desugar)
                         // ou "List" (o load de um LOCAL tipado List — o
                         // typeName da classe, capitalizado)
-                        if (!"string".equals(ctx.lastPush) && !"list".equalsIgnoreCase(ctx.lastPush)) {
+                        // CLASS-2g (29/10, #776): o ELEMENTO DE CLASSE = o
+                        // MESMO slot do handle i32 — o rastro do arg = o
+                        // nome da classe ("Animal" do LoadLocal) ou
+                        // "class:X" (o tee do alloc)
+                        if (!isRefRastro(ctx, ctx.lastPush)) {
                             throw new WasmUnsupportedException("List.add('" + ctx.lastPush
                                     + "') em List<" + elem + "> (WASM002) — docs/wasm-wasi-plan.md (#776)");
                         }
@@ -95,13 +99,18 @@ if (WasmListRuntime.NAMES.contains(kc.methodName())) {
                     ctx.lastPushWide = true;
                 }
                 case "kof_list_get" -> {
-                    if (isRefElem(elem)) {
+                    if (isRefElem(elem, ctx)) {
                         // o slot i64 guarda o handle: volta i32; o rastro e'
                         // "string" ou "list" (a lista aninhada encadeia
                         // size/get — a maquinaria da LIST-1)
                         out.add(new WasmInstr.Call("kof.listGet"));
                         out.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
-                        ctx.lastPush = "list".equalsIgnoreCase(elem) ? "list" : "string";
+                        // CLASS-2g: o rastro do elemento de classe = o NOME da
+                        // classe (o despacho sobre o elemento anda na rota
+                        // ARMADA; o acesso de campo = o load de campo de
+                        // classe)
+                        ctx.lastPush = "list".equalsIgnoreCase(elem) ? "list"
+                                : "string".equals(elem) ? "string" : elem;
                         ctx.lastPushWide = false;
                     } else if (isDirectI64Elem(elem)) {
                         out.add(new WasmInstr.Call("kof.listGet"));
@@ -134,8 +143,8 @@ if (WasmListRuntime.NAMES.contains(kc.methodName())) {
                     // fantasma (o KofPop do desugar consome o elemento
                     // devolvido); o clear e' []→void.
                     if ("kof_list_set".equals(kc.methodName())) {
-                        if (isRefElem(elem)) {
-                            if (!"string".equals(ctx.lastPush) && !"list".equalsIgnoreCase(ctx.lastPush)) {
+                        if (isRefElem(elem, ctx)) {
+                            if (!isRefRastro(ctx, ctx.lastPush)) {
                                 throw new WasmUnsupportedException("List.set('" + ctx.lastPush
                                         + "') em List<" + elem + "> (WASM002) — docs/wasm-wasi-plan.md (#776)");
                             }
@@ -159,12 +168,36 @@ if (WasmListRuntime.NAMES.contains(kc.methodName())) {
                         }
                         out.add(new WasmInstr.Call("kof.listSet"));
                     } else if ("kof_list_remove".equals(kc.methodName())) {
+                        // CLASS-2g (29/10, #776): A LEI DA LARGURA DO
+                        // RESULTADO do remove — o slot devolve i64 e o
+                        // ELEMENTO anda por elem: o ref (o String/a lista/a
+                        // classe) = o wrap i32 + o rastro do elem (o local do
+                        // classe = i32: o i64 cru = o mismatch, medido em
+                        // P12); o bool = o wrap; o double = o reinterpret dos
+                        // bits; o Int/long/char cru = o i64
                         out.add(new WasmInstr.Call("kof.listRemove"));
+                        if (isRefElem(elem, ctx)) {
+                            out.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+                            ctx.lastPush = "list".equalsIgnoreCase(elem) ? "list"
+                                    : "string".equals(elem) ? "string" : elem;
+                            ctx.lastPushWide = false;
+                        } else if ("bool".equals(elem)) {
+                            out.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
+                            ctx.lastPush = "bool";
+                            ctx.lastPushWide = false;
+                        } else if ("double".equals(elem)) {
+                            out.add(new WasmInstr.Simple(0xbf, "f64.reinterpret_i64"));
+                            ctx.lastPush = "double";
+                            ctx.lastPushWide = true;
+                        } else {
+                            ctx.lastPush = "int";
+                            ctx.lastPushWide = true;
+                        }
                     } else {
                         out.add(new WasmInstr.Call("kof.listClear"));
+                        ctx.lastPush = null;
+                        ctx.lastPushWide = false;
                     }
-                    ctx.lastPush = null;
-                    ctx.lastPushWide = false;
                 }
                 case "kof_list_contains", "kof_list_index_of", "kof_list_last_index_of" -> {
                     // Fase E (27/10, #776): fatia 4 — sobre List<String> o
@@ -260,5 +293,21 @@ if (WasmListRuntime.NAMES.contains(kc.methodName())) {
      *  i64): String e a LISTA ANINHADA (fatia 7) — o mesmo extend/wrap. */
     private static boolean isRefElem(String elem) {
         return "string".equals(elem) || "list".equalsIgnoreCase(elem);
+    }
+
+    /** CLASS-2g (29/10, #776): o elemento REF = o String/a lista OU a
+     *  CLASSE alcançada (o handle i32 no slot — a MESMA disciplina do
+     *  String). */
+    private static boolean isRefElem(String elem, WasmLowering.Ctx ctx) {
+        if (isRefElem(elem)) return true;
+        return ctx.classes() != null && ctx.classes().containsKey(elem);
+    }
+
+    /** O rastro REF-aceitável no add/set: o String/a lista/um nome de
+     *  classe ("Animal" do LoadLocal) ou "class:X" (o tee do alloc). */
+    private static boolean isRefRastro(WasmLowering.Ctx ctx, String rastro) {
+        if ("string".equals(rastro) || "list".equalsIgnoreCase(rastro)) return true;
+        String n = rastro.startsWith("class:") ? rastro.substring(6) : rastro;
+        return ctx.classes() != null && ctx.classes().containsKey(n);
     }
 }

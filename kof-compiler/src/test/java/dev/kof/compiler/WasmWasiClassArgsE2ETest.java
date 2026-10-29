@@ -323,4 +323,68 @@ class WasmWasiClassArgsE2ETest {
                 """);
         WasmWasiListE2ETest.assertListFaceMatchesJvm(dir);
     }
+
+    @Test
+    void listOfClassesMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // CLASS-2g fatia A (29/10, #776): List<Animal> — os ELEMENTOS de
+        // classe nas fatias de lista (o MESMO slot do handle i32 do String,
+        // o extend no slot i64): o add/get/set/remove-statement/clear, o
+        // despacho sobre o elemento (a rota ARMADA — o hook vê o retorno
+        // ClassType do list get), o acesso de campo do elemento. A LEI DA
+        // LARGURA DO RESULTADO do remove (o slot devolve i64 — o ref = o
+        // wrap i32 + o rastro do elem; o bool = o wrap; o double = o
+        // reinterpret). O remove COM O RESULTADO USADO = o buraco do
+        // ORÁCULO JVM: o return Object (erasure) SEM o CHECKCAST = o
+        // VerifyError disfarçado da mensagem FX = a lacuna do compilador
+        // core (JVM backend), NÃO desta lane — registrada, a sonda usa as
+        // formas do diferencial válido.
+        var wasmtime = WasmWasiListE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiListE2ETest.host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                class Animal {
+                    String name
+
+                    constructor(nm: String) {
+                        this.name = nm
+                    }
+
+                    speak(): String {
+                        return "animal " + this.name
+                    }
+                }
+                class Dog extends Animal {
+                    constructor(nm: String) {
+                        super(nm)
+                    }
+
+                    speak(): String {
+                        return "dog " + this.name
+                    }
+                }
+                class Cat extends Animal {
+                    constructor(nm: String) {
+                        super(nm)
+                    }
+
+                    speak(): String {
+                        return "cat " + this.name
+                    }
+                }
+                main(String[] args) {
+                    var l = listOf(Dog("Rex"), Cat("Mimi"))
+                    println(l.size())
+                    println(l.get(0).speak())
+                    println(l.get(1).speak())
+                    l.set(1, Dog("Bob"))
+                    println(l.get(1).speak())
+                    println(l.get(0).name)
+                    l.remove(0)
+                    println(l.size())
+                    l.clear()
+                    println(l.size())
+                }
+                """);
+        WasmWasiListE2ETest.assertListFaceMatchesJvm(dir);
+    }
 }
