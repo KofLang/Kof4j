@@ -43,9 +43,17 @@ if (WasmSetRuntime.NAMES.contains(kc.methodName())) {
                     boolean valScal = "int".equals(ctx.lastPush) || "long".equals(ctx.lastPush)
                             || "char".equals(ctx.lastPush) || "bool".equals(ctx.lastPush)
                             || "double".equals(ctx.lastPush);
-                    if (!strElem && !valScal) {
+                    // CLASS-2i (29/10, #776): o ELEMENTO DE CLASSE = a rota
+                    // DIRECT-I64 (o handle i32 estendido no slot — a MESMA
+                    // disciplina das classes da lista/mapa; o contains/remove
+                    // = o i64.eq = a IDENTIDADE = a paridade do default
+                    // equals do JVM) — o rastro do arg = o nome da classe
+                    // ("Dog" do LoadLocal) ou "class:X" (o tee do alloc)
+                    boolean classElem = isClassElem(kc, ctx);
+                    boolean classRastro = isClassRastro(ctx, ctx.lastPush);
+                    if (!strElem && !valScal && !(classElem && classRastro)) {
                         throw new WasmUnsupportedException("Set.add('" + ctx.lastPush
-                                + "') fora da fatia Set<Int>/Set<Long>/Set<Double>"
+                                + "') fora da fatia Set<Int>/Set<Long>/Set<Double>/Set<Classe>"
                                 + " (WASM002) — docs/wasm-wasi-plan.md (#776)");
                     }
                     // o double: o valor chega f64 e vai como BITS; o bool
@@ -53,6 +61,8 @@ if (WasmSetRuntime.NAMES.contains(kc.methodName())) {
                     if (!strElem && "double".equals(ctx.lastPush)) {
                         out.add(new WasmInstr.Simple(0xbd, "i64.reinterpret_f64"));
                     } else if (!strElem && "bool".equals(ctx.lastPush)) {
+                        out.add(new WasmInstr.Simple(0xad, "i64.extend_i32_u"));
+                    } else if (classElem && !strElem) {
                         out.add(new WasmInstr.Simple(0xad, "i64.extend_i32_u"));
                     }
                     out.add(new WasmInstr.Call(strElem ? "kof.setAddStr" : "kof.setAdd"));
@@ -71,10 +81,11 @@ if (WasmSetRuntime.NAMES.contains(kc.methodName())) {
                     boolean scal = "int".equals(elemSet(kc)) || "long".equals(elemSet(kc))
                             || "char".equals(elemSet(kc)) || "bool".equals(elemSet(kc))
                             || "double".equals(elemSet(kc));
-                    if (!strElem2 && !scal) {
+                    boolean classElem2 = isClassElem(kc, ctx);
+                    if (!strElem2 && !scal && !classElem2) {
                         throw new WasmUnsupportedException("Set.contains sobre Set<"
                                 + elemSet(kc) + "> fora da fatia Set<Int>/Set<String>/"
-                                + "Set<Long>/Set<Double> (WASM002)"
+                                + "Set<Long>/Set<Double>/Set<Classe> (WASM002)"
                                 + " — docs/wasm-wasi-plan.md (#776)");
                     }
                     // o double: o valor chega f64 e vai como BITS; o bool
@@ -82,6 +93,8 @@ if (WasmSetRuntime.NAMES.contains(kc.methodName())) {
                     if ("double".equals(elemSet(kc))) {
                         out.add(new WasmInstr.Simple(0xbd, "i64.reinterpret_f64"));
                     } else if ("bool".equals(elemSet(kc))) {
+                        out.add(new WasmInstr.Simple(0xad, "i64.extend_i32_u"));
+                    } else if (classElem2) {
                         out.add(new WasmInstr.Simple(0xad, "i64.extend_i32_u"));
                     }
                     out.add(new WasmInstr.Call(strElem2 ? "kof.setContainsStr" : "kof.setContains"));
@@ -93,10 +106,11 @@ if (WasmSetRuntime.NAMES.contains(kc.methodName())) {
                     boolean scal3 = "int".equals(elemSet(kc)) || "long".equals(elemSet(kc))
                             || "char".equals(elemSet(kc)) || "bool".equals(elemSet(kc))
                             || "double".equals(elemSet(kc));
-                    if (!scal3 && !strElem3) {
+                    boolean classElem3 = isClassElem(kc, ctx);
+                    if (!scal3 && !strElem3 && !classElem3) {
                         throw new WasmUnsupportedException("Set.remove sobre Set<"
                                 + elemSet(kc) + "> fora da fatia Set<Int>/Set<String>/"
-                                + "Set<Long>/Set<Double> (WASM002) — docs/wasm-wasi-plan.md (#776)");
+                                + "Set<Long>/Set<Double>/Set<Classe> (WASM002) — docs/wasm-wasi-plan.md (#776)");
                     }
                     if (strElem3) {
                         // SET-STR (28/10, rodada 53): o remove por CONTEUDO —
@@ -107,6 +121,8 @@ if (WasmSetRuntime.NAMES.contains(kc.methodName())) {
                         if ("double".equals(elemSet(kc))) {
                             out.add(new WasmInstr.Simple(0xbd, "i64.reinterpret_f64"));
                         } else if ("bool".equals(elemSet(kc))) {
+                            out.add(new WasmInstr.Simple(0xad, "i64.extend_i32_u"));
+                        } else if (classElem3) {
                             out.add(new WasmInstr.Simple(0xad, "i64.extend_i32_u"));
                         }
                         out.add(new WasmInstr.Call("kof.setRemove"));
@@ -132,5 +148,19 @@ if (WasmSetRuntime.NAMES.contains(kc.methodName())) {
             return typeName(ct.typeArguments().get(0));
         }
         return "";
+    }
+
+    /** CLASS-2i (29/10, #776): o elemento do Set = uma CLASSE alcançada (a
+     *  rota DIRECT-I64 — a identidade = a paridade do default equals). */
+    private static boolean isClassElem(KofCall kc, WasmLowering.Ctx ctx) {
+        String e = elemSet(kc);
+        return ctx.classes() != null && !e.isEmpty() && ctx.classes().containsKey(e);
+    }
+
+    /** O rastro de classe aceitável no add ("Dog" do LoadLocal /
+     *  "class:X" do tee do alloc). */
+    private static boolean isClassRastro(WasmLowering.Ctx ctx, String rastro) {
+        String n = rastro.startsWith("class:") ? rastro.substring(6) : rastro;
+        return ctx.classes() != null && ctx.classes().containsKey(n);
     }
 }
