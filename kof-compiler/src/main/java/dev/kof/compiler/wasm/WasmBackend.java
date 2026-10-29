@@ -135,7 +135,7 @@ public class WasmBackend implements Backend {
             // — baixá-los como statics aqui duplicava inc/add sem
             // qualificação, medido em C2 29/10)
             if (classes.containsKey(WasmClassScan.ownerSimpleNameOf(m, module))) continue;
-            if (WasmClassScan.classScalarSignature(m, classes)) {
+            if (WasmClassScan.classScalarSignature(m, classes, records)) {
                 lowered.add(lowerMethod(m, wasi, printIntrinsic, false, stringPool, dataSegments,
                         records, classes, recDepth, dataCursor, false, m.name()));
             }

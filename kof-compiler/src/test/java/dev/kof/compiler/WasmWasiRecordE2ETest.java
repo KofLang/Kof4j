@@ -330,4 +330,61 @@ class WasmWasiRecordE2ETest {
                 """);
         WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
     }
+
+    @Test
+    void recordParamsAndReturnsMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // ARG-REC (29/10, #776): os PARAMS de RECORD para funções top-level
+        // e os RETURNS de record — a MESMA disciplina do handle i32 das
+        // classes (o CLASS-2b: o classScalarSignature admitia as classes,
+        // os records não — o gate `classScalarSignature(m, classes,
+        // records)` + o `paramWasmType` agora mapeiam o record ao handle;
+        // o record = ClassType no IR, a regra dos results já o cobria).
+        // ZERO runtime novo. As faces: o param + o return, a pass-through
+        // de identidade (o param devolvido direto), o swap construindo um
+        // record DENTRO do callee, os records ANINHADOS in/out (o
+        // Outer/Inner) e as cadeias de campo no retorno.
+        var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
+        org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                record Point(Int x, Int y)
+                record Inner(Int a)
+                record Outer(Inner in)
+                scale(Point p, Int f): Int {
+                    return p.x * f + p.y
+                }
+                origin(): Point {
+                    return Point(0, 0)
+                }
+                ident(Point p): Point {
+                    return p
+                }
+                swapped(Point p): Point {
+                    return Point(p.y, p.x)
+                }
+                wrap(Inner i): Outer {
+                    return Outer(i)
+                }
+                inner(Outer o): Inner {
+                    return o.in
+                }
+                main(String[] args) {
+                    println(scale(Point(3, 4), 2))
+                    var o: Point = origin()
+                    println(o.x)
+                    println(o.y)
+                    var p = Point(5, 7)
+                    var q: Point = ident(p)
+                    println(q.x)
+                    println(q.y)
+                    var r: Point = swapped(Point(1, 2))
+                    println(r)
+                    var w: Outer = wrap(Inner(9))
+                    println(w.in.a)
+                    var i: Inner = inner(Outer(Inner(3)))
+                    println(i.a)
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
+    }
 }

@@ -105,12 +105,13 @@ final class WasmClassScan {
      *  param de CLASSE alcançada = o handle i32 (o mesmo slot do
      *  record/local — o mapType escalar recusava). */
     static int buildParams(dev.kof.compiler.IRMethod m, java.util.List<Integer> params,
-            Map<Integer, Integer> slotMap, boolean receiver, Map<String, ClassLayout> classes) {
+            Map<Integer, Integer> slotMap, boolean receiver, Map<String, ClassLayout> classes,
+            Map<String, ClassLayout> records) {
         if (!receiver) {
             int jvmSlot = 0;
             for (int i = 0; i < m.parameterTypes().size(); i++) {
                 dev.kof.compiler.Type t = m.parameterTypes().get(i);
-                params.add(paramWasmType(t, m, classes));
+                params.add(paramWasmType(t, m, classes, records));
                 slotMap.put(jvmSlot, i);
                 jvmSlot += WasmScalarOps.isWide(t) ? 2 : 1;
             }
@@ -120,7 +121,7 @@ final class WasmClassScan {
             int jvmSlot = 1;
             for (int i = 0; i < m.parameterTypes().size(); i++) {
                 dev.kof.compiler.Type t = m.parameterTypes().get(i);
-                params.add(paramWasmType(t, m, classes));
+                params.add(paramWasmType(t, m, classes, records));
                 slotMap.put(jvmSlot, i);
                 jvmSlot += WasmScalarOps.isWide(t) ? 2 : 1;
             }
@@ -133,7 +134,7 @@ final class WasmClassScan {
         int jvmSlot = 1;
         for (int i = 0; i < m.parameterTypes().size(); i++) {
             dev.kof.compiler.Type t = m.parameterTypes().get(i);
-            params.add(paramWasmType(t, m, classes));
+            params.add(paramWasmType(t, m, classes, records));
             slotMap.put(jvmSlot, i + 1);                            // o receiver ocupa o wasm 0
             jvmSlot += WasmScalarOps.isWide(t) ? 2 : 1;
         }
@@ -141,12 +142,18 @@ final class WasmClassScan {
     }
 
     /** O tipo wasm do param (CLASS-2b, 29/10): a classe alcançada = o
-     *  handle i32; os escalares = o mapa. As coleções/records/arrays como
-     *  params continuam FORA (sem sonda — a recusa honesta fica). */
+     *  handle i32; os escalares = o mapa. ARG-REC (29/10, #776): o RECORD
+     *  alcançado = o MESMO handle i32 (o mesmo slot do local/param de
+     *  classe). As coleções/arrays como params continuam FORA (sem sonda —
+     *  a recusa honesta fica). */
     private static int paramWasmType(dev.kof.compiler.Type t, dev.kof.compiler.IRMethod m,
-            Map<String, ClassLayout> classes) {
+            Map<String, ClassLayout> classes, Map<String, ClassLayout> records) {
         if (t instanceof dev.kof.compiler.Type.ClassType ct
                 && classes != null && classes.containsKey(ct.name())) {
+            return WasmFunc.TYPE_I32;
+        }
+        if (t instanceof dev.kof.compiler.Type.ClassType ct
+                && records != null && records.containsKey(ct.name())) {
             return WasmFunc.TYPE_I32;
         }
         return WasmScalarOps.mapType(WasmScalarOps.typeName(t), m.name(), "parametro");
@@ -155,19 +162,26 @@ final class WasmClassScan {
     /** CLASS-2b (29/10, #776): a assinatura de função top-level com
      *  params/retorno de CLASSE alcançada = dentro do subset (o handle i32
      *  — o mesmo slot dos escalares; o corpo = a maquinaria das classes).
-     *  Os outros não-escalares (List/Map/Set/void/IO) continuam fora (a
-     *  recusa honesta — sem sonda, sem lei). */
+     *  ARG-REC (29/10, #776): o RECORD alcançado = o MESMO handle i32 (o
+     *  param/retorno de record entra no subset — o fold/toString das
+     *  rodadas anteriores já pousaram a maquinaria do record). Os outros
+     *  não-escalares (List/Map/Set/void/IO) continuam fora (a recusa
+     *  honesta — sem sonda, sem lei). */
     static boolean classScalarSignature(dev.kof.compiler.IRMethod m,
-            Map<String, ClassLayout> classes) {
-        if (classes == null || classes.isEmpty()) return false;
+            Map<String, ClassLayout> classes, Map<String, ClassLayout> records) {
         for (dev.kof.compiler.Type t : m.parameterTypes()) {
             if (t instanceof dev.kof.compiler.Type.ClassType ct
-                    && classes.containsKey(ct.name())) continue;
+                    && classes != null && classes.containsKey(ct.name())) continue;
+            if (t instanceof dev.kof.compiler.Type.ClassType ct
+                    && records != null && records.containsKey(ct.name())) continue;
             if (t instanceof dev.kof.compiler.Type.PrimitiveType pt && isScalarPrim(pt.name())) continue;
             return false;
         }
         dev.kof.compiler.Type r = m.returnType();
-        if (r instanceof dev.kof.compiler.Type.ClassType ct && classes.containsKey(ct.name())) return true;
+        if (r instanceof dev.kof.compiler.Type.ClassType ct && classes != null
+                && classes.containsKey(ct.name())) return true;
+        if (r instanceof dev.kof.compiler.Type.ClassType ct && records != null
+                && records.containsKey(ct.name())) return true;
         return r instanceof dev.kof.compiler.Type.PrimitiveType pt && isScalarPrim(pt.name());
     }
 

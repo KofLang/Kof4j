@@ -58,7 +58,7 @@ final class WasmLowering {
                 localNullableTrace.put(lv.index(), lvtn);
             }
         }
-        jvmSlot = WasmClassScan.buildParams(m, params, slotMap, receiver, classes);
+        jvmSlot = WasmClassScan.buildParams(m, params, slotMap, receiver, classes, records);
         List<Integer> locals = new ArrayList<>();
         int nextWasm = params.size();
         for (IRLocalVariable lv : m.localVariables()) {

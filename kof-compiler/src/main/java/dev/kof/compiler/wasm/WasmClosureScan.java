@@ -198,7 +198,7 @@ final class WasmClosureScan {
                                 + " IO/stdlib/intrinsics recebem host nas unidades 15.3+;"
                                 + " docs/wasm-wasi-plan.md (#776)");
                     }
-                    if (!isScalarSignature(t) && !WasmClassScan.classScalarSignature(t, classes)
+                    if (!isScalarSignature(t) && !WasmClassScan.classScalarSignature(t, classes, records)
                             && !(wasi && t == mainDecl)) {
                         throw new WasmUnsupportedException("chamada '" + kc.methodName()
                                 + "' fora do subset escalar da unidade 15.2 (WASM002) —"
