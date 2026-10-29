@@ -105,6 +105,12 @@ final class WasmClassCall {
         int rt = resultType(kc);
         if (impls.size() <= 1) {
             out.add(new WasmInstr.Call(name + "." + kc.methodName()));
+            // CLASS-2b (29/10, #776): o retorno de CLASSE do call direto =
+            // TEE no scratch clsIdx (o MESMO save — o despacho sobre o
+            // resultado encadeado lê a provenância)
+            if (ctx.classOf(kc.returnType()) != null) {
+                out.add(new WasmInstr.Local(WasmInstr.Local.TEE, ctx.clsIdx, "cls"));
+            }
         } else {
             // o block type multi-valor: os params = [i32 receiver, args...]
             // (a ordem do IR); o resultado = o retorno do call (o void =
@@ -132,25 +138,40 @@ final class WasmClassCall {
      *  (CLASS-2): a simulação BACKWARD localiza o PRODUTOR do receiver —
      *  o LoadLocal de classe (o `local.get` relê o valor VIVO do local: o
      *  IR é statement-framed, nenhum store cruza a avaliação de operandos)
-     *  OU o alloc/init (o clsIdx; válido só se NENHUM valor de classe foi
-     *  produzido entre o alloc e o call — o tee do arg sobrescreve o
-     *  scratch). Fora disso = a recusa honesta (Q7: nunca tag errado
-     *  silencioso — um tag errado despacha a implementação errada). */
+     *  OU os produtores que TEE'd o handle no scratch clsIdx (o alloc/init
+     *  — o SET do alloc; o campo de classe — o tee da CLASS-2b; o retorno
+     *  de chamada de classe — o tee da CLASS-2b): válido só se NENHUM
+     *  valor de classe foi produzido entre o save e o call (o scan do
+     *  intervalo: cada um tee'd POR CIMA do scratch). Fora disso = a
+     *  recusa honesta (Q7: nunca tag errado silencioso — um tag errado
+     *  despacha a implementação errada). */
     private static void emitTagLoad(Ctx ctx, KofCall kc, List<KofOperation> ops, int idx,
             List<WasmInstr> out) {
-        KofOperation prod = receiverProducer(ops, idx, kc, ctx);
+        int prodIdx = receiverProducer(ops, idx, kc, ctx);
+        if (prodIdx < 0) {
+            throw new WasmUnsupportedException("despacho virtual com provenança de receiver fora do subset medido (WASM002)"
+                    + " — receiver de dup/campo de classe não-alcançada: fatia CLASS-2c;"
+                    + " docs/wasm-wasi-plan.md (#776)");
+        }
+        KofOperation prod = ops.get(prodIdx);
         if (prod instanceof KofLoadLocal ll && ctx.classOf(ll.type()) != null) {
             out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.w(ll.index()), "recv"));
             out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
             out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.tagIdx, "tag"));
             return;
         }
-        if (prod instanceof KofNewObject no && ctx.classOf(no.type()) != null) {
-            int allocIdx = ops.indexOf(prod);
-            for (int i = allocIdx + 1; i < idx; i++) {
+        boolean scratchProducer = (prod instanceof KofNewObject no && ctx.classOf(no.type()) != null)
+                || (prod instanceof KofLoadField lf && ctx.classOf(lf.fieldType()) != null)
+                || (prod instanceof KofCall c && ctx.classOf(c.returnType()) != null);
+        if (scratchProducer) {
+            // O ÍNDICE VEM DA SIMULAÇÃO (o indexOf casa por equals: os dois
+            // loads do MESMO campo são records IGUAIS — o indexOf devolvia o
+            // primeiro e o intervalo errado recusava um despacho legal,
+            // medido em PB.kf 29/10)
+            for (int i = prodIdx + 1; i < idx; i++) {
                 if (producesScannedClass(ctx, ops.get(i))) {
-                    throw new WasmUnsupportedException("despacho virtual sobre receiver alocado com valor de classe entre o alloc e o call (WASM002)"
-                            + " — o tee do arg sobrescreve o scratch do receiver; fatia CLASS-2b;"
+                    throw new WasmUnsupportedException("despacho virtual sobre receiver com valor de classe entre o produtor e o call (WASM002)"
+                            + " — o tee do arg sobrescreve o scratch do receiver; fatia CLASS-2c;"
                             + " docs/wasm-wasi-plan.md (#776)");
                 }
             }
@@ -159,8 +180,8 @@ final class WasmClassCall {
             out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.tagIdx, "tag"));
             return;
         }
-        throw new WasmUnsupportedException("despacho virtual com provenança de receiver fora do subset medido (WASM002)"
-                + " — receiver de campo/retorno de chamada/dup: fatia CLASS-2b;"
+        throw new WasmUnsupportedException("despacho virtual com produtor de receiver fora do subset medido (WASM002)"
+                + " — receiver de dup/campo de classe não-alcançada: fatia CLASS-2c;"
                 + " docs/wasm-wasi-plan.md (#776)");
     }
 
@@ -170,13 +191,16 @@ final class WasmClassCall {
      *  produtor = o push que fecha a conta `need` (os operandos das
      *  chamadas aninhadas ficam ABAIXO da janela: o contador `skip` salta
      *  o intervalo deles). null = a simulação não localizou (a recusa). */
-    private static KofOperation receiverProducer(List<KofOperation> ops, int callIdx, KofCall kc,
+    /** O ÍNDICE do produtor do receiver (identidade da posição — o
+     *  indexOf casava por equals e pegava o PRIMEIRO igual: medido). -1 =
+     *  a simulação não localizou (a recusa). */
+    private static int receiverProducer(List<KofOperation> ops, int callIdx, KofCall kc,
             Ctx ctx) {
         int need = 1 + kc.parameterTypes().size(); // o receiver + os args
         int skip = 0;
         for (int i = callIdx - 1; i >= 0; i--) {
             KofOperation op = ops.get(i);
-            if (op instanceof KofConditionalJump) return null; // a fronteira da região
+            if (op instanceof KofConditionalJump) return -1; // a fronteira da região
             int pops = WasmOperandShape.popsOf(op);
             boolean pushes = WasmOperandShape.pushedShape(op, ops, i, ctx) != null
                     || op instanceof KofDup || op instanceof KofDup2
@@ -190,11 +214,11 @@ final class WasmClassCall {
                 skip += pops;
                 continue;
             }
-            if (need == 1) return op;
+            if (need == 1) return i;
             need--;
             skip += pops;
         }
-        return null;
+        return -1;
     }
 
     /** O op produz valor de CLASSE alcançada (o tee dispara nele — o

@@ -58,7 +58,7 @@ final class WasmLowering {
                 localNullableTrace.put(lv.index(), lvtn);
             }
         }
-        jvmSlot = WasmClassScan.buildParams(m, params, slotMap, receiver);
+        jvmSlot = WasmClassScan.buildParams(m, params, slotMap, receiver, classes);
         List<Integer> locals = new ArrayList<>();
         int nextWasm = params.size();
         for (IRLocalVariable lv : m.localVariables()) {
@@ -172,9 +172,13 @@ final class WasmLowering {
         List<Integer> results = new ArrayList<>();
         if (m.returnType() instanceof Type.PrimitiveType pr && !"void".equalsIgnoreCase(pr.name())) {
             results.add(mapType(pr.name(), m.name(), "retorno"));
-        } else if (m.returnType() instanceof Type.ClassType rt && "String".equals(rt.name())
-                && "java.lang".equals(rt.packageName())) {
-            results.add(WasmFunc.TYPE_I32); // o retorno String = o handle (CLASS-1)
+        } else if (m.returnType() instanceof Type.ClassType) {
+            // o retorno de CLASSE (String ou a alcançada — CLASS-2b) = o
+            // handle i32 (a func NÃO sai void: o call site espera o handle
+            // na pilha — o defeito da 56 corrigido só para o String, medido
+            // em P4: `pick(): Animal` saía type 6 void e o tee do call site
+            // estourava "expected i32 but nothing on stack")
+            results.add(WasmFunc.TYPE_I32);
         }
 
         List<KofOperation> ops = new ArrayList<>();

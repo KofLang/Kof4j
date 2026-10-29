@@ -296,6 +296,12 @@ final class WasmCallCode {
             ctx.lastPushWide = false;
         } else if (kc.kind() == KofCallKind.FUNCTION || kc.kind() == KofCallKind.STATIC) {
             out.add(new WasmInstr.Call(kc.methodName()));
+            // CLASS-2b (29/10, #776): o resultado de CLASSE alcançada =
+            // TEE no scratch clsIdx (o MESMO save do LoadLocal/campo: a
+            // provenância da tag do despacho sobre o retorno de chamada)
+            if (ctx.classOf(kc.returnType()) != null) {
+                out.add(new WasmInstr.Local(WasmInstr.Local.TEE, ctx.clsIdx, "cls"));
+            }
         } else {
             throw new WasmUnsupportedException("chamada '" + kc.methodName()
                     + "' fora do subset escalar 15.2 (WASM002) — docs/wasm-wasi-plan.md (#776)");

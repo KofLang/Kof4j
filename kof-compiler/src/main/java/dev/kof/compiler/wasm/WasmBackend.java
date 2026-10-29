@@ -112,151 +112,8 @@ public class WasmBackend implements Backend {
         // declaracao FORA do subset que seja de fato alcancada recusa honesto
         // (WASM002) — helper injetado pela stdlib que o programa nao usa nao
         // conta; nunca sucesso parcial silencioso (Q7)
-        java.util.Deque<IRMethod> work = new java.util.ArrayDeque<>(entries);
-        if (wasi && mainDecl != null) work.add(mainDecl); // corpo de main entra no fecho
-        java.util.Set<IRMethod> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
-        while (!work.isEmpty()) {
-            IRMethod cur = work.poll();
-            if (!seen.add(cur)) continue;
-            for (IRBasicBlock bb : cur.basicBlocks()) {
-                List<KofOperation> cops = bb.operations();
-                for (int ci = 0; ci < cops.size(); ci++) {
-                    var op = cops.get(ci);
-                    if (!(op instanceof KofCall kc)) continue;
-                    if (wasi && printIntrinsic && ("valueOf".equals(kc.methodName())
-                            || "kof_string_concat".equals(kc.methodName())
-                            || "kof_string_equals".equals(kc.methodName())
-                            || ("length".equals(kc.methodName())
-                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
-                            || ("isEmpty".equals(kc.methodName())
-                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
-                            || ("equals".equals(kc.methodName())
-                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
-                            || ("concat".equals(kc.methodName())
-                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
-                            || ("startsWith".equals(kc.methodName())
-                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
-                            || ("endsWith".equals(kc.methodName())
-                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
-                            || ("indexOf".equals(kc.methodName())
-                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
-                            || ("lastIndexOf".equals(kc.methodName())
-                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
-                            || ("charAt".equals(kc.methodName())
-                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
-                            || ("substring".equals(kc.methodName())
-                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
-                            || ("trim".equals(kc.methodName())
-                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
-                            || ("compareTo".equals(kc.methodName())
-                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
-                            || ("contains".equals(kc.methodName())
-                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
-                            || ("replace".equals(kc.methodName())
-                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
-                            // Fase E (26/10, #776): o case fold Unicode (a mesma
-                            // semantica D-STR-UNICODE do nativo)
-                            || ("toUpperCase".equals(kc.methodName())
-                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
-                            || ("toLowerCase".equals(kc.methodName())
-                                && "string".equalsIgnoreCase(typeName(kc.ownerType())))
-                            // Fase E (26/10, #776): a familia INT do math — o
-                            // runtime WASI implementa aritmetica i64 pura
-                            || (wasi && WasmMathRuntime.NAMES.contains(kc.methodName()))
-                            // Fase E (27/10, #776): a fatia LIST<Int> — os
-                            // quatro nomes de desugar do listOf tratados na
-                            // emissao (WasmCallCode/WasmListRuntime)
-                            || (wasi && WasmListRuntime.NAMES.contains(kc.methodName()))
-                            // Fase E (27/10, #776): a fatia MAP<String, Int>
-                            || (wasi && WasmMapRuntime.NAMES.contains(kc.methodName()))
-                            // Fase E (27/10, #776): a fatia SET<Int>
-                            || (wasi && WasmSetRuntime.NAMES.contains(kc.methodName()))
-                            // Fase E (27/10, #776): a caixa de erasure §284
-                            || (wasi && WasmBoxRuntime.NAMES.contains(kc.methodName())))) {
-                        continue; // wrapper intrinseco de String tratado na emissao
-                    }
-                    if (wasi && usesRecords && "kofRecordEq".equals(kc.methodName())) {
-                        continue; // igualdade de record: fold inline no call site (15.3d inc2 C2)
-                    }
-                    if (wasi && usesRecords && kc.kind() == KofCallKind.CONSTRUCTOR
-                            && "<init>".equals(kc.methodName())
-                            && records.containsKey(ownerSimpleName(kc.ownerType()))) {
-                        continue; // construtor de record inlinado (15.3d)
-                    }
-                    if (wasi && usesRecords && (kc.kind() == KofCallKind.INSTANCE
-                            || kc.kind() == KofCallKind.INTERFACE)
-                            && records.containsKey(ownerSimpleName(kc.ownerType()))
-                            && ("toString".equals(kc.methodName())
-                                || "equals".equals(kc.methodName()))) {
-                        continue; // toString/equals de record inlinados (15.3d inc2 fatia C)
-                    }
-                    boolean isPrintCall = wasi && printIntrinsic
-                            && "println".equals(kc.methodName());
-                    if (isPrintCall) {
-                        String t = null;
-                        java.util.List<KofOperation> flat = new java.util.ArrayList<>();
-                        for (IRBasicBlock scan : cur.basicBlocks()) {
-                            flat.addAll(scan.operations());
-                        }
-                        for (int si = 0; si < flat.size(); si++) {
-                            if (flat.get(si) == kc) {
-                                t = operandTypeBefore(flat, si);
-                                break;
-                            }
-                        }
-                        boolean recOk = usesRecords && t != null && records.containsKey(t);
-                        if (t == null || (!printableScalar(t) && !recOk)) {
-                            throw new WasmUnsupportedException("println '" + t
-                                    + "' fora da fatia 1 da unidade 15.3 (WASM002) — o host de "
-                                    + "strings de operacoes/records/colecoes/double chega com o runtime"
-                                    + " docs/wasm-wasi-plan.md (#776)");
-                        }
-                        continue;
-                    }
-                    // CLASS-1 (28/10, #776): as chamadas de classe (o ctor
-                    // <init> + os métodos de instância) resolvem pelo dono
-                    // QUALIFICADO e entram no fecho
-                    if (wasi && usesClasses
-                            && (kc.kind() == KofCallKind.CONSTRUCTOR
-                                || kc.kind() == KofCallKind.INSTANCE
-                                || kc.kind() == KofCallKind.INTERFACE)) {
-                        String own = ownerSimpleName(kc.ownerType());
-                        if (classes.containsKey(own)) {
-                            IRMethod cm = decls.get(own + "." + kc.methodName());
-                            if (cm == null) {
-                                throw new WasmUnsupportedException("método '" + kc.methodName()
-                                        + "' de '" + own + "' nao declarado (WASM002)"
-                                        + " — docs/wasm-wasi-plan.md (#776)");
-                            }
-                            work.add(cm);
-                            // CLASS-2 (28/10, #776): as chamadas da cadeia de
-                            // despacho = GERADAS em compile-time (o fonte nunca
-                            // chama Dog.speak!) — os overrides das
-                            // implementações entram no fecho
-                            for (String impl : WasmClassScan.implsOf(module, classes, own)) {
-                                IRMethod im = decls.get(impl + "." + kc.methodName());
-                                if (im != null) work.add(im);
-                            }
-                            continue;
-                        }
-                    }
-                    IRMethod t = decls.get(kc.methodName());
-                    if (t == null) {
-                        throw new WasmUnsupportedException("chamada '" + kc.methodName()
-                                + "' nao resolvida no subset escalar da unidade 15.2 (WASM002) —"
-                                + " IO/stdlib/intrinsics recebem host nas unidades 15.3+;"
-                                + " docs/wasm-wasi-plan.md (#776)");
-                    }
-                    if (!isScalarSignature(t) && !(wasi && t == mainDecl)) {
-                        throw new WasmUnsupportedException("chamada '" + kc.methodName()
-                                + "' fora do subset escalar da unidade 15.2 (WASM002) —"
-                                + " classes/colecoes/IO/void estao fora; main com host chega em 15.3;"
-                                + " docs/wasm-wasi-plan.md (#776)");
-                    }
-                    work.add(t);
-                }
-            }
-        }
+        java.util.Set<IRMethod> seen = WasmClosureScan.scan(module, records, usesRecords, classes,
+                usesClasses, decls, entries, mainDecl, wasi, printIntrinsic);
         if (entryClass == null) {
             throw new WasmUnsupportedException("nenhuma funcao top-level escalar para emitir (WASM002) —"
                     + " classes/colecoes/main com IO estao fora do subset da unidade 15.2 —"
@@ -267,6 +124,22 @@ public class WasmBackend implements Backend {
         List<WasmFunc> funcs = new ArrayList<>();
         List<WasmFunc> lowered = new ArrayList<>();
         for (IRMethod m : entries) lowered.add(lowerMethod(m, wasi, printIntrinsic, false, stringPool, dataSegments, records, recDepth, dataCursor));
+        // CLASS-2b (29/10, #776): as funções top-level de assinatura de
+        // CLASSE alcançadas pelo fecho (fora da semente escalar) = lowered
+        // — o handle i32; o IdentitySet evita o re-lower de uma entry
+        java.util.Set<IRMethod> entrySet = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        entrySet.addAll(entries);
+        for (IRMethod m : seen) {
+            if (entrySet.contains(m) || m == mainDecl) continue;
+            // os MÉTODOS de classe = a rota reachedClassMethods (o receiver
+            // — baixá-los como statics aqui duplicava inc/add sem
+            // qualificação, medido em C2 29/10)
+            if (classes.containsKey(WasmClassScan.ownerSimpleNameOf(m, module))) continue;
+            if (WasmClassScan.classScalarSignature(m, classes)) {
+                lowered.add(lowerMethod(m, wasi, printIntrinsic, false, stringPool, dataSegments,
+                        records, classes, recDepth, dataCursor, false, m.name()));
+            }
+        }
         // CLASS-1 (28/10, #776): os métodos de instância/ctors ALCANÇADOS =
         // as funcs com o receiver (o param 0 = o this); os não-alcançados
         // não saem (a mesma regra de alcance dos statics)

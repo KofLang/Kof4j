@@ -220,4 +220,90 @@ class WasmWasiClassE2ETest {
                 """);
         WasmWasiListE2ETest.assertListFaceMatchesJvm(dir);
     }
+
+    @Test
+    void classFieldAndCallResultReceiversMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // CLASS-2b (29/10, #776): os CAMPOS de classe (o handle i32 no slot
+        // de 8B — o zero-fill = 0 = null), o RECEIVER DE CAMPO no despacho
+        // (o tee da leitura no scratch clsIdx — a provenança) e o RECEIVER
+        // DE RETORNO DE CHAMADA (a função top-level de assinatura de
+        // classe entra no fecho; o tee do resultado no clsIdx; a func NÃO
+        // sai void — o defeito da 56 corrigido só para o String, medido).
+        // O arg de CLASSE na chamada de despacho = o handle i32 nos block
+        // params (a simulação de provenância lê o local-fonte VIVO — à
+        // prova do clobber dos tees dos args).
+        var wasmtime = WasmWasiListE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiListE2ETest.host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                class Animal {
+                    String name
+
+                    constructor(nm: String) {
+                        this.name = nm
+                    }
+
+                    speak(): String {
+                        return "animal"
+                    }
+
+                    meet(other: Animal): String {
+                        return this.name + " meets " + other.name
+                    }
+                }
+                class Dog extends Animal {
+                    constructor(nm: String) {
+                        super(nm)
+                    }
+
+                    speak(): String {
+                        return "dog"
+                    }
+
+                    meet(other: Animal): String {
+                        return "dog " + this.name + " meets " + other.name
+                    }
+                }
+                class Cat extends Animal {
+                    constructor(nm: String) {
+                        super(nm)
+                    }
+
+                    speak(): String {
+                        return "cat"
+                    }
+
+                    meet(other: Animal): String {
+                        return "cat " + this.name + " meets " + other.name
+                    }
+                }
+                class Owner {
+                    Animal pet
+
+                    constructor(a: Animal) {
+                        this.pet = a
+                    }
+
+                    voice(): String {
+                        return this.pet.speak()
+                    }
+                }
+                pick(): Animal {
+                    return Cat("Mimi")
+                }
+                main(String[] args) {
+                    var o = Owner(Dog("Rex"))
+                    println(o.pet.speak())
+                    o.pet = Cat("Mimi")
+                    println(o.pet.speak())
+                    println(o.voice())
+                    var b: Animal = pick()
+                    println(b.speak())
+                    println(pick().speak())
+                    var a: Animal = Dog("Rex")
+                    println(a.meet(b))
+                }
+                """);
+        WasmWasiListE2ETest.assertListFaceMatchesJvm(dir);
+    }
 }
