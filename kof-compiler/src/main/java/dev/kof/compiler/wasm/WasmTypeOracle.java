@@ -300,6 +300,37 @@ final class WasmTypeOracle {
         return out;
     }
 
+    /** LIST-REC (29/10, #776): os RECORDS usados como ELEMENTO de lista
+     *  (o owner `List<Point>` de qualquer kof_list_*) — o registro da
+     *  familia WasmListRecRuntime (o fold compartilhado + as três buscas
+     *  por conteudo) segue este gancho; a ordem e' a da primeira aparição
+     *  (determinística). */
+    static List<ClassLayout> listRecordElems(Iterable<IRMethod> ms,
+            Map<String, ClassLayout> records) {
+        List<ClassLayout> out = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (!(op instanceof KofCall kc)
+                            || !WasmListRuntime.NAMES.contains(kc.methodName())
+                            || !(kc.ownerType() instanceof Type.ClassType ct)
+                            || ct.typeArguments().isEmpty()) {
+                        continue;
+                    }
+                    Type e = ct.typeArguments().get(0);
+                    String en = typeName(e);
+                    if (!(e instanceof Type.ClassType) || !records.containsKey(en)
+                            || !seen.add(en)) {
+                        continue;
+                    }
+                    out.add(records.get(en));
+                }
+            }
+        }
+        return out;
+    }
+
     static boolean usesStringMethod(Iterable<IRMethod> ms, String method) {
         for (IRMethod m : ms) {
             for (IRBasicBlock bb : m.basicBlocks()) {

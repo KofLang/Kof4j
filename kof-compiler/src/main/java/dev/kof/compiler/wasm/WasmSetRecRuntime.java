@@ -39,7 +39,7 @@ final class WasmSetRecRuntime {
             Map<String, ClassLayout> records) {
         List<WasmFunc> fs = new ArrayList<>();
         for (ClassLayout rl : recs) {
-            fs.add(recEq(rl, recDepth, records));
+            fs.add(fold(rl, recDepth, records));
             fs.add(setAddRec(rl));
             fs.add(setContainsRec(rl));
             fs.add(setRemoveRec(rl));
@@ -51,8 +51,10 @@ final class WasmSetRecRuntime {
      *  como função autônoma: o corpo = o MESMO `emitEquals` do call site (a
      *  perna de null dupla = Objects.equals, o AND por accumulator, o strEq
      *  do String, os bits do Double = Double.equals, a recursão do
-     *  aninhado); os scratches viram LOCAIS da função. */
-    private static WasmFunc recEq(ClassLayout rl, int recDepth,
+     *  aninhado); os scratches viram LOCAIS da função. LIST-REC (29/10,
+     *  #776): package-visible — o scan da LISTA compartilha o MESMO fold
+     *  (o dedupe por nome antes da serialização cuida do dup). */
+    static WasmFunc fold(ClassLayout rl, int recDepth,
             Map<String, ClassLayout> records) {
         String name = "kof.recEq." + rl.className();
         // locals: 0=L, 1=R (params); 2=eqAcc, 3=eqEq, 4=eqCmp, 5=eqDbl(i64),

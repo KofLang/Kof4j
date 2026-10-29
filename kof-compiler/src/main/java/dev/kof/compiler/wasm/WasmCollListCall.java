@@ -218,6 +218,16 @@ if (WasmListRuntime.NAMES.contains(kc.methodName())) {
                             case "kof_list_index_of" -> "kof.listIndexOfStr";
                             default -> "kof.listLastIndexOfStr";
                         };
+                    } else if (ctx.records != null && ctx.records.containsKey(elem)) {
+                        // LIST-REC (29/10, #776): a busca do RECORD = a
+                        // IGUALDADE DE CONTEUDO (o fold compartilhado — o
+                        // MESMO contrato do List<String> por conteudo; o
+                        // probe anda HANDLE CRU i32 — SEM extend)
+                        rn = switch (kc.methodName()) {
+                            case "kof_list_contains" -> "kof.listContainsRec." + elem;
+                            case "kof_list_index_of" -> "kof.listIndexOfRec." + elem;
+                            default -> "kof.listLastIndexOfRec." + elem;
+                        };
                     } else if ("list".equalsIgnoreCase(elem)) {
                         // a JVM compara equals = igualdade PROFUNDA de lista —
                         // uma face propria (recusa nomeada, nunca handle-identidade)
@@ -297,17 +307,22 @@ if (WasmListRuntime.NAMES.contains(kc.methodName())) {
 
     /** CLASS-2g (29/10, #776): o elemento REF = o String/a lista OU a
      *  CLASSE alcançada (o handle i32 no slot — a MESMA disciplina do
-     *  String). */
+     *  String). LIST-REC (29/10, #776): OU o RECORD alcançado — o MESMO
+     *  slot do handle; as buscas roteiam ao fold por conteúdo. */
     private static boolean isRefElem(String elem, WasmLowering.Ctx ctx) {
         if (isRefElem(elem)) return true;
-        return ctx.classes() != null && ctx.classes().containsKey(elem);
+        if (ctx.classes() != null && ctx.classes().containsKey(elem)) return true;
+        return ctx.records != null && ctx.records.containsKey(elem);
     }
 
     /** O rastro REF-aceitável no add/set: o String/a lista/um nome de
-     *  classe ("Animal" do LoadLocal) ou "class:X" (o tee do alloc). */
+     *  classe ("Animal" do LoadLocal) ou "class:X" (o tee do alloc).
+     *  LIST-REC: OU o record ("record:Point" do ctor / "Point" do load). */
     private static boolean isRefRastro(WasmLowering.Ctx ctx, String rastro) {
         if ("string".equals(rastro) || "list".equalsIgnoreCase(rastro)) return true;
         String n = rastro.startsWith("class:") ? rastro.substring(6) : rastro;
-        return ctx.classes() != null && ctx.classes().containsKey(n);
+        if (ctx.classes() != null && ctx.classes().containsKey(n)) return true;
+        String rn = rastro.startsWith("record:") ? rastro.substring(7) : rastro;
+        return ctx.records != null && ctx.records.containsKey(rn);
     }
 }

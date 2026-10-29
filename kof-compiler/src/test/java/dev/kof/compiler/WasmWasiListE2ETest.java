@@ -196,6 +196,52 @@ class WasmWasiListE2ETest {
     }
 
     @Test
+    void listRecordElemsMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // LIST-REC (29/10, #776): os ELEMENTOS de RECORD nas fatias de
+        // LISTA — as rotas de handle (new/add/set/get/remove-índice: o
+        // MESMO slot do handle i32, o rastro "record:Point"/"Point") e as
+        // BUSCAS por CONTEÚDO (kof.listContainsRec/<Rec> etc. — o MESMO
+        // corpo das variantes Str com o compare = o fold COMPARTILHADO do
+        // SET-REC `kof.recEq.<Rec>`; o probe anda HANDLE CRU i32 — SEM
+        // extend). As faces: size/get/contains/indexOf/lastIndexOf, o add,
+        // o set + o println do ELEMENTO (o toString do record), o remove
+        // por índice (a LEI DA LARGURA do resultado via isRefElem), o fold
+        // de campo String/Double/Bool/Char e o record ANINHADO.
+        var wasmtime = host("wasmtime");
+        var wasmTools = host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                record Point(Int x, Int y)
+                record Book(String title, Double price, Bool inPrint, Char grade)
+                record Inner(Int a)
+                record Outer(Inner in)
+                main(String[] args) {
+                    var l = listOf(Point(1, 2), Point(3, 4))
+                    println(l.size())
+                    println(l.get(0).x)
+                    println(l.contains(Point(1, 2)))
+                    println(l.indexOf(Point(3, 4)))
+                    println(l.lastIndexOf(Point(1, 2)))
+                    l.add(Point(5, 6))
+                    println(l.size())
+                    l.set(0, Point(9, 9))
+                    println(l.get(0))
+                    println(l.remove(1))
+                    println(l.size())
+                    var b = listOf(Book("Dune", 9.9, true, 'A'), Book("Dune", 9.9, true, 'A'), Book("LotR", 12.5, false, 'B'))
+                    println(b.size())
+                    println(b.contains(Book("Dune", 9.9, true, 'A')))
+                    println(b.lastIndexOf(Book("Dune", 9.9, true, 'A')))
+                    var o = listOf(Outer(Inner(1)), Outer(Inner(2)))
+                    println(o.size())
+                    println(o.contains(Outer(Inner(2))))
+                    println(o.indexOf(Outer(Inner(1))))
+                }
+                """);
+        assertListFaceMatchesJvm(dir);
+    }
+
+    @Test
     void listScalarElemsMatchTheJvmOracle(@TempDir Path dir) throws Exception {
         // Fase E (27/10, #776): LIST fatia 6 — os elems escalares restantes:
         // Long (i64 nativo, slots diretos), Char (i64 nativo no WASI — o

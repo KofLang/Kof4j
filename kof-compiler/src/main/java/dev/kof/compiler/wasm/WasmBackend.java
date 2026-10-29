@@ -302,6 +302,13 @@ public class WasmBackend implements Backend {
                     if (wasi && WasmTypeOracle.usesList(scanAll)) {
                         funcs.addAll(WasmListRuntime.all());
                         funcs.add(kofStrEq());
+                        // LIST-REC (29/10, #776): os ELEMENTOS de RECORD — o
+                        // fold compartilhado (o MESMO kof.recEq.<Rec> do
+                        // SET-REC, o dedupe por nome cuida do dup) + as três
+                        // buscas por conteudo
+                        List<ClassLayout> listRecs =
+                                WasmTypeOracle.listRecordElems(scanAll, records);
+                        funcs.addAll(WasmListRecRuntime.all(listRecs, recDepth, records));
                     }
                     // Fase E (27/10, #776): a fatia MAP<String, Int> — o get
                     // nullable anda na CAIXA (boxInt no hit, 0=null na falta)

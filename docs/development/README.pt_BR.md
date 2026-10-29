@@ -146,8 +146,8 @@ Autoridade = `scripts/check_known_bugs_status.sh` (EN×PT consistentes, nunca um
 | `roadmap.md` | §§8–11 ❌ (frontend same-project, monólito→micro) | longo prazo |
 | ~~`roadmap-audit.md`~~ → `docs/audits/roadmap-audit.md` | matriz 06/09 + fila P0→P5 | re-audit a cada fechamento |
 | ~~`KOFUI-AUDIT.md`~~ → `docs/bugs-and-gaps/` | UI001-Native (no-op silencioso) ✅ CORRIGIDO 29/09 (#683, `Ui001NativeWarnTest` 5/5) — audit vivo | lane UI |
-| ~~`known-bugs.md`~~ → `docs/bugs-and-gaps/` | **14 vivos** (autoridade = `scripts/check_known_bugs_status.sh`: §715, §717, §719, §723, §727, §728, §733, §742, §745, §754, §755, §756, §757, §761) | |
-| ~~`known-bugs.md`~~ → `docs/bugs-and-gaps/` | **14 vivos** (autoridade = `scripts/check_known_bugs_status.sh`: §715, §717, §719, §723, §727, §728, §733, §742, §745, §754, §755, §756, §757, §761) | |
+| ~~`known-bugs.md`~~ → `docs/bugs-and-gaps/` | **15 vivos** (autoridade = `scripts/check_known_bugs_status.sh`: §715, §717, §719, §723, §727, §728, §733, §742, §745, §754, §755, §756, §757, §761, §764) | |
+| ~~`known-bugs.md`~~ → `docs/bugs-and-gaps/` | **15 vivos** (autoridade = `scripts/check_known_bugs_status.sh`: §715, §717, §719, §723, §727, §728, §733, §742, §745, §754, §755, §756, §757, §761, §764) | |
 | ~~`refactoring/PLAN-SOLID-500.md`~~ → `docs/architecture/PLAN-SOLID-500.md` | ✅ FEITO + MOVIDO 13/09 (F1–F9) | ratchet `check_500-baseline.txt` no CI |
 | `IMPLEMENTATION-UNIVERSAL-PLATFORM.md` (→ `docs/architecture/`, **EM DESENVOLVIMENTO** — autoridade = o próprio cabeçalho de status do doc: linhas dos Estágios 1–3 em sua maioria pousadas, Estágios 4–8 pendentes; linha 8 acima) | promovido 17/09 (`D-UNIVERSAL`, R12 sobreposto) | arquitetura dos Tiers 6–12 |
 | `docs/PROPOSAL-1.0-EXIT-GATE.md` (+PT; saiu de `development/` 24/09) | **KOF 1.0 EXIT GATE — RATIFICADO 20/09** (`DECISIONS.md` §D-RELEASE-1.0`) | ordem = o §23 do próprio PROPOSAL, rastreado no `roadmap.md` §24 (EG-1..EG-10); todas as arestas `[? MEL]` FECHADAS 20/09 (`D-1.0-EDGES`); resta só EG-8 (abertura do RC) |
