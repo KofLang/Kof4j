@@ -51,10 +51,18 @@ if (WasmSetRuntime.NAMES.contains(kc.methodName())) {
                     // ("Dog" do LoadLocal) ou "class:X" (o tee do alloc)
                     boolean classElem = isClassElem(kc, ctx);
                     boolean classRastro = isClassRastro(ctx, ctx.lastPush);
-                    if (!strElem && !valScal && !(classElem && classRastro)) {
+                    // SET-REC (29/10, #776): o ELEMENTO de RECORD = a rota do
+                    // FOLD (a igualdade de CONTEÚDO — o contrato do HashSet +
+                    // o equals de VALOR do record: `setOf(Point(1,2), Point(1,2))`
+                    // tem size 1); o rastro do valor = "record:Point" (o ctor)
+                    // ou "Point" (o load do local)
+                    boolean recElem = isRecordElem(kc, ctx);
+                    boolean recRastro = isRecordRastro(ctx, ctx.lastPush);
+                    if (!strElem && !valScal && !(classElem && classRastro)
+                            && !(recElem && recRastro)) {
                         throw new WasmUnsupportedException("Set.add('" + ctx.lastPush
                                 + "') fora da fatia Set<Int>/Set<Long>/Set<Double>/Set<Classe>"
-                                + " (WASM002) — docs/wasm-wasi-plan.md (#776)");
+                                + "/Set<Record> (WASM002) — docs/wasm-wasi-plan.md (#776)");
                     }
                     // o double: o valor chega f64 e vai como BITS; o bool
                     // estende o i32 para o slot i64
@@ -64,8 +72,11 @@ if (WasmSetRuntime.NAMES.contains(kc.methodName())) {
                         out.add(new WasmInstr.Simple(0xad, "i64.extend_i32_u"));
                     } else if (classElem && !strElem) {
                         out.add(new WasmInstr.Simple(0xad, "i64.extend_i32_u"));
+                    } else if (recElem) {
+                        out.add(new WasmInstr.Simple(0xad, "i64.extend_i32_u"));
                     }
-                    out.add(new WasmInstr.Call(strElem ? "kof.setAddStr" : "kof.setAdd"));
+                    out.add(new WasmInstr.Call(strElem ? "kof.setAddStr"
+                            : recElem ? "kof.setAddRec." + elemSet(kc) : "kof.setAdd"));
                     // o runtime DEVOLVE o booleano do HashSet.add (anexou ou
                     // dedup): a forma VOID da cadeia setOf dropa aqui (o
                     // add-declaracao deixa o KofPop consumir)
@@ -82,10 +93,11 @@ if (WasmSetRuntime.NAMES.contains(kc.methodName())) {
                             || "char".equals(elemSet(kc)) || "bool".equals(elemSet(kc))
                             || "double".equals(elemSet(kc));
                     boolean classElem2 = isClassElem(kc, ctx);
-                    if (!strElem2 && !scal && !classElem2) {
+                    boolean recElem2 = isRecordElem(kc, ctx);
+                    if (!strElem2 && !scal && !classElem2 && !recElem2) {
                         throw new WasmUnsupportedException("Set.contains sobre Set<"
                                 + elemSet(kc) + "> fora da fatia Set<Int>/Set<String>/"
-                                + "Set<Long>/Set<Double>/Set<Classe> (WASM002)"
+                                + "Set<Long>/Set<Double>/Set<Classe>/Set<Record> (WASM002)"
                                 + " — docs/wasm-wasi-plan.md (#776)");
                     }
                     // o double: o valor chega f64 e vai como BITS; o bool
@@ -96,8 +108,12 @@ if (WasmSetRuntime.NAMES.contains(kc.methodName())) {
                         out.add(new WasmInstr.Simple(0xad, "i64.extend_i32_u"));
                     } else if (classElem2) {
                         out.add(new WasmInstr.Simple(0xad, "i64.extend_i32_u"));
+                    } else if (recElem2) {
+                        out.add(new WasmInstr.Simple(0xad, "i64.extend_i32_u"));
                     }
-                    out.add(new WasmInstr.Call(strElem2 ? "kof.setContainsStr" : "kof.setContains"));
+                    out.add(new WasmInstr.Call(strElem2 ? "kof.setContainsStr"
+                            : recElem2 ? "kof.setContainsRec." + elemSet(kc)
+                            : "kof.setContains"));
                     ctx.lastPush = "bool";
                     ctx.lastPushWide = false;
                 }
@@ -107,16 +123,24 @@ if (WasmSetRuntime.NAMES.contains(kc.methodName())) {
                             || "char".equals(elemSet(kc)) || "bool".equals(elemSet(kc))
                             || "double".equals(elemSet(kc));
                     boolean classElem3 = isClassElem(kc, ctx);
-                    if (!scal3 && !strElem3 && !classElem3) {
+                    boolean recElem3 = isRecordElem(kc, ctx);
+                    if (!scal3 && !strElem3 && !classElem3 && !recElem3) {
                         throw new WasmUnsupportedException("Set.remove sobre Set<"
                                 + elemSet(kc) + "> fora da fatia Set<Int>/Set<String>/"
-                                + "Set<Long>/Set<Double>/Set<Classe> (WASM002) — docs/wasm-wasi-plan.md (#776)");
+                                + "Set<Long>/Set<Double>/Set<Classe>/Set<Record> (WASM002) —"
+                                + " docs/wasm-wasi-plan.md (#776)");
                     }
                     if (strElem3) {
                         // SET-STR (28/10, rodada 53): o remove por CONTEUDO —
                         // o handle anda CRU como arg (o setRemoveStr compara
                         // pelo kof.strEq, o mesmo contrato do add/contains)
                         out.add(new WasmInstr.Call("kof.setRemoveStr"));
+                    } else if (recElem3) {
+                        // SET-REC (29/10, #776): o remove por CONTEUDO do
+                        // record — o handle estendido no slot (o wrap de
+                        // volta no runtime), o fold compara campo a campo
+                        out.add(new WasmInstr.Simple(0xad, "i64.extend_i32_u"));
+                        out.add(new WasmInstr.Call("kof.setRemoveRec." + elemSet(kc)));
                     } else {
                         if ("double".equals(elemSet(kc))) {
                             out.add(new WasmInstr.Simple(0xbd, "i64.reinterpret_f64"));
@@ -162,5 +186,20 @@ if (WasmSetRuntime.NAMES.contains(kc.methodName())) {
     private static boolean isClassRastro(WasmLowering.Ctx ctx, String rastro) {
         String n = rastro.startsWith("class:") ? rastro.substring(6) : rastro;
         return ctx.classes() != null && ctx.classes().containsKey(n);
+    }
+
+    /** SET-REC (29/10, #776): o elemento do Set = um RECORD alcançado (a
+     *  rota do FOLD — a igualdade de CONTEÚDO, o equals de VALOR do
+     *  record). */
+    private static boolean isRecordElem(KofCall kc, WasmLowering.Ctx ctx) {
+        String e = elemSet(kc);
+        return ctx.records != null && !e.isEmpty() && ctx.records.containsKey(e);
+    }
+
+    /** O rastro de record aceitável no add ("record:Point" do ctor /
+     *  "Point" do load do local). */
+    private static boolean isRecordRastro(WasmLowering.Ctx ctx, String rastro) {
+        String n = rastro.startsWith("record:") ? rastro.substring(7) : rastro;
+        return ctx.records != null && ctx.records.containsKey(n);
     }
 }

@@ -66,8 +66,10 @@ final class WasmSetRuntime {
 
     /** O GROW comum: dobra o bloco, copia len slots, reescreve a celula.
      *  Os slots 5..8 (LIVRES — o 2=len, 3=cap, 4=data do chamador ficam
-     *  vivos; o 3 do mapPut nao conflita porque la' o grow usa 3..6). */
-    private static void growBody(List<WasmInstr> b, int hLocal, int lenLocal, int capLocal) {
+     *  vivos; o 3 do mapPut nao conflita porque la' o grow usa 3..6).
+     *  SET-REC (29/10, #776): os ops por-record do {@link WasmSetRecRuntime}
+     *  reusam o MESMO grow — package-private. */
+    static void growBody(List<WasmInstr> b, int hLocal, int lenLocal, int capLocal) {
         int od = 5, nc = 6, nd = 7, i = 8;
         get(b, hLocal, "h");
         b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));

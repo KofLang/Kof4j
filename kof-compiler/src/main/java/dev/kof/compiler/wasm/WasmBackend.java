@@ -317,6 +317,21 @@ public class WasmBackend implements Backend {
                     if (wasi && WasmTypeOracle.usesSet(scanAll)) {
                         funcs.add(WasmListRuntime.heapAlloc());
                         funcs.addAll(WasmSetRuntime.all());
+                        // SET-REC (29/10, #776): os ELEMENTOS de RECORD — o
+                        // fold por record (kof.recEq.<Rec>) + os ops de scan
+                        // por conteudo; o strEq entra quando o record tem
+                        // campo String (o fold chama kof.strEq)
+                        List<ClassLayout> setRecs =
+                                WasmTypeOracle.setRecordElems(scanAll, records);
+                        for (ClassLayout rl : setRecs) {
+                            for (FieldLayout fl : rl.fields()) {
+                                if (WasmRecordOps.isStringField(fl.type())) {
+                                    funcs.add(kofStrEq());
+                                    break;
+                                }
+                            }
+                        }
+                        funcs.addAll(WasmSetRecRuntime.all(setRecs, recDepth, records));
                     }
                     // Fase E (27/10, #776): a CAIXA DE ERASURE (§284, 3º
                     // backend) — boxToStr despacha por intToStr/strBool/

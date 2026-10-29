@@ -158,4 +158,51 @@ class WasmWasiSetE2ETest {
                 """);
         WasmWasiListE2ETest.assertListFaceMatchesJvm(dir);
     }
+
+    @Test
+    void setRecordElemsMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // SET-REC (29/10, #776): os ELEMENTOS de RECORD — a igualdade de
+        // CONTEUDO (o fold de record da 15.3d inc2 fatia C2 como FUNCAO
+        // autonoma `kof.recEq.<Rec>`; os ops por-record
+        // setAddRec/setContainsRec/setRemoveRec — o MESMO scan de set com o
+        // compare = o fold, zero chamada indireta). As faces: o dedup do
+        // setOf (o HashSet + o equals de VALOR do record), o contains (o
+        // probe = o alloc e o LOCAL), o remove por conteudo (presente/
+        // ausente/void), o GROW de 11 records (a regiao que o grow copia) e
+        // o record de campo String/Double/Bool/Char (o fold chama o
+        // kof.strEq; o Double pelos BITS). O NaN/±0.0 do campo Double fica
+        // FORA (a divergencia PRE-EXISTENTE do backend JVM — o fold de
+        // record Double usa o == cru; recorded em known-bugs.md §764 — o
+        // WASI anda nos bits = o javac).
+        var wasmtime = WasmWasiListE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiListE2ETest.host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                record Point(Int x, Int y)
+                record Book(String title, Double price, Bool inPrint, Char grade)
+                main(String[] args) {
+                    var s = setOf(Point(1, 2), Point(1, 2), Point(3, 4))
+                    println(s.size())
+                    var p = Point(3, 4)
+                    println(s.contains(p))
+                    println(s.contains(Point(1, 2)))
+                    println(s.contains(Point(9, 9)))
+                    println(s.remove(Point(1, 2)))
+                    println(s.size())
+                    println(s.remove(Point(5, 5)))
+                    s.remove(Point(3, 4))
+                    println(s.size())
+                    var g = setOf(Point(1, 1), Point(2, 2), Point(3, 3), Point(4, 4), Point(5, 5), Point(6, 6), Point(7, 7), Point(8, 8), Point(9, 9), Point(10, 10), Point(11, 11))
+                    println(g.size())
+                    println(g.contains(Point(4, 4)))
+                    println(g.remove(Point(11, 11)))
+                    println(g.size())
+                    var b = setOf(Book("Dune", 9.9, true, 'A'), Book("Dune", 9.9, true, 'A'))
+                    println(b.size())
+                    println(b.contains(Book("Dune", 9.9, true, 'A')))
+                    println(b.contains(Book("Dune", 9.9, true, 'B')))
+                }
+                """);
+        WasmWasiListE2ETest.assertListFaceMatchesJvm(dir);
+    }
 }

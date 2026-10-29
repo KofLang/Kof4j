@@ -17586,3 +17586,20 @@ movq %rbx, %rsp
 
 **PROVA (executada).** RED-first: com so o fix do passe em stash, as tres faces novas falham de uma vez (`anAlreadyAlignedFfiCallIsNotPadded`, `theFfiOddSpillPaddingIsAccounted`, `theRestoreKeepsModellingTheFollowingCalls`) na forma medida ganhando `subq $8` apos `andq $-16`; com o fix, `NativeX86StackAlignTest` **8/8** e `NativeX86StackAlignVtableTest` **5/5** (a face de vtable do #935 continua verde). As faces da propria issue: `FfiNativeE2ETest` **20/20, 0 falhas** — os especiais do libm imprimem `NaN / -Infinity / Infinity / -0.0` e a face mista imprime `MIX 10 1.5 32 64.25 / 42`, ambas byte-a-byte iguais ao oraculo JVM. Regressao: o lote native/AV1/FFI **278 run / 0 falhas / 6 skips de ambiente** (`NativeE2ETest` 68, `CoreRegressionE2ETest` 104, `Av1CoeffsE2ETest` 6, `Av1PaletteE2ETest` 6, `KofTimeE2ETest` 62, `NativeX86GcMarkScopeTest` 3, `BufferFfiE2ETest` 6 e as suites `FfiNative*`) e golden native **87/87** (90 dirs; os 3 fixtures `cobol-*` nao tem `Main.kf`).
 <!-- pt-switch --> **EN:** [§763 (en)](known-bugs.md#763--the-14-stack-alignment-pass-padded-an-already-aligned-ffi-downcall-so-sqrtmixed-args-segfaulted-exit-139-on-native-x86-64)
+
+## §764 — o fold de record do backend JVM para campos Double usa o `==` CRU, divergindo do contrato de record do javac nas DUAS bordas (NaN ≠ NaN; +0.0 == −0.0) — o fold do WASI (bits) macha o javac
+**Status:** ABERTO (medido 29/10, lane wasm-wasi `192.168.15.117:0`) — o fix pertence ao NÚCLEO do compilador (o lowerer de igualdade de record do JVM), não à lane WASI; não tocado aqui pela regra de colisão de lane.
+
+**MEDIDO 29/10** (o diferencial da fatia SET-REC). Um record com campo `Double` comparado por valor diverge entre o backend JVM do Kof e TANTO o oráculo javac puro QUANTO o backend WASI — em direções OPOSTAS:
+
+| face | backend JVM do Kof | WASI (fold de bits) | oráculo javac puro |
+|---|---|---|---|
+| `T(0.0/0.0) == T(0.0/0.0)` | `false` | `true` | **`true`** |
+| `T(0.0) == T(-0.0)` | `true` | `false` | **`false`** |
+
+Prova em Java puro (JDK 25, `record T(double v)` + `a.equals(b)`): NaN/NaN → `true`, +0.0/−0.0 → `false` — o javac gera a forma `Double.compare` (ordenação total: NaN igual a NaN, ±0.0 NÃO iguais), que é bit-eqüivalente ao compare de bits. O fold do WASI (`WasmRecordCode.emitEquals`, o compare de bits `i64.reinterpret_f64`) reproduz exatamente. O fold do backend JVM do Kof responde o `==` IEEE cru (`dcmpl/dcmpg`), então records NaN NÃO são iguais e +0.0/−0.0 SÃO — as duas bordas erradas contra o javac.
+
+**Propaga às coleções no backend JVM:** `setOf(T(0.0/0.0), T(0.0/0.0))` dá `size()==2` e `contains(T(0.0/0.0))==false` no backend JVM do Kof, enquanto o `HashSet` javac puro (medido, JDK 25) dá `1 / true` — e o scan SET-REC do WASI (o fold de bits) também dá `1 / true`, ou seja, o WASI é o javac-fiel aqui. Sondas: `/tmp/ksf/P19.kf` (a face de set), `/tmp/ksf/P20.kf` (a face de `==` direto). O corpus de conformidade NÃO fixa nenhuma face NaN/±0.0 de record (`RecordNullableEqContentE2ETest` cobre só as pernas de null sobre campos Int), então nada é contradito ainda — mas os dois backends não podem estar certos ao mesmo tempo; a forma javac (o contrato de record a montante) diz os bits.
+
+**REMEDIO PROIBIDO:** NÃO "corrigir" o fold do WASI para o `==` cru para machar o backend JVM — isso codificaria a divergência. O fix é do lado JVM: o lowerer de equals/hashCode de record deve usar a forma `Double.compare`/bits para campos `double`/`float` (e o mesmo para o `Double.hashCode` do hashCode do record).
+<!-- pt-switch --> **EN:** [§764 (en)](known-bugs.md#764--the-kof-jvm-backends-record-fold-for-double-fields-uses-the-raw--diverging-from-the-javac-record-contract-on-both-edges-nan--nan-00--00--the-wasi-fold-bits-matches-javac)
