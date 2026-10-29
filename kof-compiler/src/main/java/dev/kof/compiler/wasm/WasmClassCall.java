@@ -171,6 +171,15 @@ final class WasmClassCall {
             }
         }
         int dst = nested ? ctx.tagIdx2 : ctx.tagIdx;
+        // CLASS-2j (29/10, #776): A ROTA ARMADA = O TOPO DA FUNÇÃO (o flag
+        // é a autoridade — o arming do hook já carregou a tag no produtor;
+        // a checagem estava DENTRO do ramo scratchProducer e o produtor
+        // KofArrayLoad (a[i].speak()) nunca a alcançava = a recusa honesta
+        // errada, medido em P15)
+        if (!nested && ctx.tagArmedIdx == idx) {
+            ctx.tagArmedIdx = -1;
+            return ctx.tagIdx;
+        }
         int prodIdx = receiverProducer(ops, idx, kc, ctx);
         if (prodIdx < 0) {
             throw new WasmUnsupportedException("despacho virtual com provenança de receiver fora do subset medido (WASM002)"
@@ -239,7 +248,12 @@ final class WasmClassCall {
         KofOperation op = ops.get(idx);
         boolean isAlloc = op instanceof KofNewObject no && ctx.classOf(no.type()) != null;
         boolean pushesClass = (op instanceof KofLoadField lf && ctx.classOf(lf.fieldType()) != null)
-                || (op instanceof KofCall c && ctx.classOf(c.returnType()) != null);
+                || (op instanceof KofCall c && ctx.classOf(c.returnType()) != null)
+                // CLASS-2j (29/10, #776): o elemento de ARRAY de classe = o
+                // handle (o produtor do despacho sobre a[i] = o ArrayLoad —
+                // o modelo pops-1-push-1 da lei do popsOf)
+                || (op instanceof dev.kof.compiler.KofArrayLoad al
+                    && ctx.classOf(al.elementType()) != null);
         if (!isAlloc && !pushesClass) return;
         // CLASS-2e (29/10, #776): A LEI DO ARMING — o hook arma o PRIMEIRO
         // despacho após o produtor CUJO WALK BACKWARD RESOLVE PARA ESTE

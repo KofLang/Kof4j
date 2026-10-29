@@ -43,11 +43,15 @@ final class WasmArrayOps {
             // bytes ([count i32][slots 8xN]) e o MESMO bounds-trap; os
             // zerados do bump = 0L/0.0 (o zero-init da JVM)
             boolean wideElem = "long".equals(ane) || "double".equals(ane);
+            // CLASS-2j (29/10, #776): o ELEMENTO DE CLASSE = o MESMO slot de
+            // 4 bytes do String (o handle i32 CRU — os slots zerados do bump
+            // = os handles null)
+            boolean classElem = ctx.classes() != null && ctx.classes().containsKey(ane);
             if (!"int".equals(ane) && !"string".equals(ane)
                     && !"bool".equals(ane) && !"char".equals(ane)
-                    && !wideElem) {
+                    && !wideElem && !classElem) {
                 throw new WasmUnsupportedException("new " + ane
-                        + "[n] fora da fatia Int/String/Bool/Char do array-heap (WASM002) —"
+                        + "[n] fora da fatia Int/String/Bool/Char/Classe do array-heap (WASM002) —"
                         + " docs/wasm-wasi-plan.md (#776)");
             }
             if (ctx.wIdx < 0 || ctx.sIdx < 0) {
@@ -80,11 +84,14 @@ final class WasmArrayOps {
             // sao i32 (CRU — o wrap do i32 leria o vizinho). O scratch
             // acompanha a LARGURA: os i64 usam o dupWideIdx, os i32 o dupIdx
             boolean wideStore = "long".equals(ase) || "double".equals(ase);
+            // CLASS-2j (29/10, #776): o elemento de classe = o CRU (o handle
+            // i32 no slot de 4 bytes — o MESMO do String)
+            boolean classStore = ctx.classes() != null && ctx.classes().containsKey(ase);
             if (!"int".equals(ase) && !"string".equals(ase)
                     && !"bool".equals(ase) && !"char".equals(ase)
-                    && !wideStore) {
+                    && !wideStore && !classStore) {
                 throw new WasmUnsupportedException("store de " + ase
-                        + " em array fora da fatia Int/String/Bool/Char (WASM002) —"
+                        + " em array fora da fatia Int/String/Bool/Char/Classe (WASM002) —"
                         + " docs/wasm-wasi-plan.md (#776)");
             }
             boolean wrapStore = "int".equals(ase) || "char".equals(ase);
@@ -187,6 +194,11 @@ final class WasmArrayOps {
                 ctx.lastPushWide = false;
             } else if (wideLoad) {
                 ctx.lastPushWide = "long".equals(ale);
+            } else if (ctx.classes() != null && ctx.classes().containsKey(ale)) {
+                // CLASS-2j (29/10, #776): o elemento de classe = o handle
+                // i32 sem extensão; o rastro = o NOME da classe (o despacho
+                // sobre o elemento anda na rota ARMADA)
+                ctx.lastPushWide = false;
             }
             ctx.lastPush = ale;
         return true;

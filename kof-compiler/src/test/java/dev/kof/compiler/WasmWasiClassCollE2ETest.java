@@ -201,4 +201,51 @@ class WasmWasiClassCollE2ETest {
                 """);
         WasmWasiListE2ETest.assertListFaceMatchesJvm(dir);
     }
+
+    @Test
+    void arrayOfClassesMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // CLASS-2j (29/10, #776): os ELEMENTOS de classe nos ARRAYS — o
+        // MESMO slot de 4 bytes do String (o handle i32 CRU, os slots
+        // zerados do bump = os handles null): o new/store/load + o despacho
+        // sobre o elemento (A ROTA ARMADA = O TOPO DA FUNÇÃO — a checagem
+        // estava DENTRO do ramo scratchProducer e o produtor KofArrayLoad
+        // nunca a alcançava = a recusa honesta errada, medida) + o acesso
+        // de campo. O hook's producesClass ganha o KofArrayLoad com o
+        // elemento de classe (o modelo pops-1-push-1 da lei do popsOf).
+        var wasmtime = WasmWasiListE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiListE2ETest.host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                class Dog {
+                    String name
+
+                    constructor(nm: String) {
+                        this.name = nm
+                    }
+
+                    speak(): String {
+                        return "dog " + this.name
+                    }
+                }
+                class Puppy extends Dog {
+                    constructor(nm: String) {
+                        super(nm)
+                    }
+
+                    speak(): String {
+                        return "puppy " + this.name
+                    }
+                }
+                main(String[] args) {
+                    var a = new Dog[2]
+                    a[0] = Dog("Rex")
+                    a[1] = Puppy("Bit")
+                    println(a[0].speak())
+                    println(a[1].speak())
+                    println(a[0].name)
+                    println(a.length)
+                }
+                """);
+        WasmWasiListE2ETest.assertListFaceMatchesJvm(dir);
+    }
 }
