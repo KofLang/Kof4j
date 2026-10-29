@@ -26,7 +26,7 @@ final class WasmArrayOps {
     }
 
     /** true = o op era de array e já emitiu. */
-    static boolean emit(KofOperation op, WasmLowering.Ctx ctx, List<WasmInstr> out) {
+    static boolean emit(KofOperation op, String allocName, WasmLowering.Ctx ctx, List<WasmInstr> out) {
         if (op instanceof KofNewArray na) {
             // ARRAY-1 (27/10, #776): `new Int[n]` — o tamanho vem na pilha
             // (i64); aloca 4 + n*4 no bump heap e grava o count. O layout e'
@@ -66,7 +66,7 @@ final class WasmArrayOps {
             out.add(new WasmInstr.Simple(0x6c, "i32.mul"));           // [n*stride]
             out.add(new WasmInstr.Const(0, 4));
             out.add(new WasmInstr.Simple(0x6a, "i32.add"));           // [n*stride+4]
-            out.add(new WasmInstr.Call("kof.heapAlloc"));
+            out.add(new WasmInstr.Call(allocName));
             out.add(new WasmInstr.Local(WasmInstr.Local.TEE, ctx.wIdx, "arr")); // [arr]
             out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.wIdx, "arr")); // [arr, arr]
             out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.sIdx, "n"));   // [arr, arr, n]

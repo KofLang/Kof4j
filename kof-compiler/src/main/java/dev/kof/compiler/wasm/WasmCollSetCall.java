@@ -1,6 +1,7 @@
 package dev.kof.compiler.wasm;
 
 import dev.kof.compiler.KofCall;
+import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.Type;
 
 import java.util.List;
@@ -21,7 +22,8 @@ final class WasmCollSetCall {
     }
 
     /** true = a chamada era de colecao e ja emitiu. */
-    static boolean emit(KofCall kc, WasmLowering.Ctx ctx, List<WasmInstr> out) {
+    static boolean emit(KofCall kc, java.util.List<KofOperation> ops, int idx,
+            WasmLowering.Ctx ctx, List<WasmInstr> out) {
 if (WasmSetRuntime.NAMES.contains(kc.methodName())) {
             // Fase E (27/10, #776): SET fatia 1 — Set<Int> (o par medido):
             // new/add/contains/remove/size. O add DEDUPLICA (o scan de
@@ -30,6 +32,8 @@ if (WasmSetRuntime.NAMES.contains(kc.methodName())) {
             // "set".
             switch (kc.methodName()) {
                 case "kof_set_new" -> {
+                    // GC-2 (29/10, #776): o NEW da coleção = a CHAMADA de
+                    // runtime (o alloc é interno a setNew)
                     out.add(new WasmInstr.Call("kof.setNew"));
                     ctx.lastPush = "set";
                     ctx.lastPushWide = false;

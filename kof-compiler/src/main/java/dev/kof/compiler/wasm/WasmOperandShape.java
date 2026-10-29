@@ -86,6 +86,16 @@ final class WasmOperandShape {
     }
 
     /** A profundidade da pilha sob o op em idx (a mesma simulação). */
+    /** GC-2 (29/10, #776): o NOME do alloc pela profundidade da pilha — o
+     *  site limpo (depth 0) usa o coletor (`kof.heapAlloc`); o site
+     *  ANINHADO (depth > 0) usa a variante SEM coleta (`kof.heapAllocNG`)
+     *  — os intermediários pendentes da pilha são invisíveis ao spill (o
+     *  nativo os cobre pelo scan de stack conservador; a WASM não pode),
+     *  então o alloc aninhado NUNCA coleta: cresce. */
+    static String allocName(List<KofOperation> ops, int idx, WasmLowering.Ctx ctx) {
+        return depthAt(ops, idx, ctx) == 0 ? "kof.heapAlloc" : "kof.heapAllocNG";
+    }
+
     static int depthAt(List<KofOperation> ops, int idx, WasmLowering.Ctx ctx) {
         Deque<String> st = new ArrayDeque<>();
         for (int i = 0; i < idx && i < ops.size(); i++) {

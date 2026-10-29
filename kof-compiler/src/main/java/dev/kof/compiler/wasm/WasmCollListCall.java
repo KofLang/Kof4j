@@ -1,6 +1,7 @@
 package dev.kof.compiler.wasm;
 
 import dev.kof.compiler.KofCall;
+import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.Type;
 
 import java.util.List;
@@ -22,7 +23,8 @@ final class WasmCollListCall {
     }
 
     /** true = a chamada era de colecao e ja emitiu. */
-    static boolean emit(KofCall kc, WasmLowering.Ctx ctx, List<WasmInstr> out) {
+    static boolean emit(KofCall kc, java.util.List<KofOperation> ops, int idx,
+            WasmLowering.Ctx ctx, List<WasmInstr> out) {
 if (WasmListRuntime.NAMES.contains(kc.methodName())) {
             // Fase E (27/10, #776): LIST fatia 2 — o desugar do listOf:
             // `kof_list_new` + N× `kof_list_add` (INSTANCE, void) + size/get
@@ -33,6 +35,10 @@ if (WasmListRuntime.NAMES.contains(kc.methodName())) {
             String elem = listElemType(kc);
             switch (kc.methodName()) {
                 case "kof_list_new" -> {
+                    // GC-2 (29/10, #776): o NEW da coleção = a CHAMADA de
+                    // runtime (o alloc é INTERNO a listNew — a pilha interna
+                    // é limpa, o coletor dispara lá); o roteamento depthAt
+                    // fica só nos sites de alloc INLINE do programa
                     out.add(new WasmInstr.Call("kof.listNew"));
                     ctx.lastPush = "list";
                     ctx.lastPushWide = false;

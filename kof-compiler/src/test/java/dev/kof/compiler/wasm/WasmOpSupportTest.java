@@ -34,6 +34,10 @@ class WasmOpSupportTest {
      *  quando qualquer uma das classes de despacho o menciona. */
     private static final List<Path> DISPATCHES = List.of(
             LOWERING,
+            // Fase E (29/10, #776 — split check_500): a alocação de locals
+            // (o KofLabel → blocos) saiu do WasmLowering — o drift-scan segue
+            // o lowering inteiro
+            Path.of("src/main/java/dev/kof/compiler/wasm/WasmLoweringLocals.java"),
             Path.of("src/main/java/dev/kof/compiler/wasm/WasmCallCode.java"),
             Path.of("src/main/java/dev/kof/compiler/wasm/WasmCollCallCode.java"),
             Path.of("src/main/java/dev/kof/compiler/wasm/WasmArrayOps.java"));

@@ -1,6 +1,7 @@
 package dev.kof.compiler.wasm;
 
 import dev.kof.compiler.KofCall;
+import dev.kof.compiler.KofOperation;
 import dev.kof.compiler.Type;
 
 import static dev.kof.compiler.wasm.WasmScalarOps.typeName;
@@ -62,7 +63,8 @@ final class WasmCollCallCode {
 
 
     /** true = a chamada era de colecao e ja emitiu. */
-    static boolean emitCollCall(KofCall kc, WasmLowering.Ctx ctx, List<WasmInstr> out) {
+    static boolean emitCollCall(KofCall kc, List<KofOperation> ops, int idx,
+            WasmLowering.Ctx ctx, List<WasmInstr> out) {
         if (WasmMapRuntime.NAMES.contains(kc.methodName())) {
             // Fase E (27/10, #776): MAP fatia 1 — Map<String, Int> (o par
             // medido): put [h, key(handle), v(i64)] SEM fantasma; get [h,
@@ -71,6 +73,8 @@ final class WasmCollCallCode {
             // size -> i64. O rastro do tee do desugar e' "map".
             switch (kc.methodName()) {
                 case "kof_map_new" -> {
+                    // GC-2 (29/10, #776): o NEW da coleção = a CHAMADA de
+                    // runtime (o alloc é interno a mapNew)
                     out.add(new WasmInstr.Call("kof.mapNew"));
                     ctx.lastPush = "map";
                     ctx.lastPushWide = false;
@@ -385,10 +389,10 @@ final class WasmCollCallCode {
             // trim do split da rodada 54 o levou junto: sem ele a chamada
             // caía no fallback e recusava "fora do subset")
             return true;
-        } else if (ctx.wasi && WasmCollSetCall.emit(kc, ctx, out)) {
+        } else if (ctx.wasi && WasmCollSetCall.emit(kc, ops, idx, ctx, out)) {
             // o despacho do SET — WasmCollSetCall (split check_500 da rodada 54)
             return true;
-        } else if (ctx.wasi && WasmCollListCall.emit(kc, ctx, out)) {
+        } else if (ctx.wasi && WasmCollListCall.emit(kc, ops, idx, ctx, out)) {
             // o despacho do LIST — WasmCollListCall (split check_500 da rodada 54)
             return true;
         }

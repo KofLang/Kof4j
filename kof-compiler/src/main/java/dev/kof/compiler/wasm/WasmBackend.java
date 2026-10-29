@@ -468,12 +468,15 @@ public class WasmBackend implements Backend {
             WasmFunc gcFree = WasmGcRuntime.gcTryFree();
             WasmFunc gcBump = WasmGcRuntime.gcTryBump();
             WasmFunc gcHeap = WasmGcRuntime.heapAlloc();
+            WasmFunc gcHeapNG = WasmGcRuntime.heapAllocNG();
+            WasmGcSpill.rewriteRuntimeAllocs(funcs); // GC-2: os allocs internos de runtime = NG
             WasmGcSpill.Scan scan = WasmGcSpill.analyze(funcs);
             funcs.removeIf(f -> "kof.heapAlloc".equals(f.name()));
             funcs.add(gcCollect);
             funcs.add(gcFree);
             funcs.add(gcBump);
             funcs.add(gcHeap);
+            funcs.add(gcHeapNG);
             WasmGcSpill.inject(funcs, scan, rootBuf);
             globals = java.util.List.of(heapFirst, 0, 0);
         }

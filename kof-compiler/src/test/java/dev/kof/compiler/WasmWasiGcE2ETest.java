@@ -97,4 +97,45 @@ class WasmWasiGcE2ETest {
                 """);
         WasmWasiListE2ETest.assertListFaceMatchesJvm(dir);
     }
+
+    @Test
+    void gcSafePointRoutingSurvivesMixedSizesWithRetainedLiveness(@TempDir Path dir) throws Exception {
+        // GC-2 (29/10, #776): O ROTEAMENTO DE SAFE POINTS — a face que
+        // PEGOU o Q0 do GC-1: os tamanhos MISTOS (as strings crescentes +
+        // os records) com o liveness RETIDO (a lista `keep` cruza todo o
+        // churn). O RED medido (pre-GC-2): em 1000 o `acc` divergia em 10
+        // (um bloco VIVO liberado — o pendente da pilha durante o alloc
+        // aninhado); em 20000 a memória falhava (a gray-list intrusiva
+        // SOBRESCREVIA o campo gcnext — o sweep andava por links
+        // selvagens). O FIX: os allocs de runtime = heapAllocNG (nunca
+        // coletam — o pendente do caller é invisível ao spill), a coleta
+        // = só nos sites de nível de programa com a pilha limpa; o
+        // cabeçalho = 16 bytes [size|mark][gcnext][graynext][pad] (o
+        // gray com campo PRÓPRIO — a lição §637/§639: a gray intrusiva
+        // corrompia o link da gc-list).
+        var wasmtime = WasmWasiListE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiListE2ETest.host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                record Point(Int x, Int y)
+                main(String[] args) {
+                    var keep = listOf(Point(1, 2), Point(3, 4))
+                    var acc = 0
+                    var i = 0
+                    while (i < 20000) {
+                        var s = "tag" + i + "x"
+                        var p = Point(i, i + 1)
+                        acc = acc + s.length() + p.x
+                        i = i + 1
+                    }
+                    println(keep.size())
+                    var a: Point? = keep.get(0)
+                    println(a != null)
+                    var b: Point? = keep.get(1)
+                    println(b != null)
+                    println(acc)
+                }
+                """);
+        WasmWasiListE2ETest.assertListFaceMatchesJvm(dir);
+    }
 }

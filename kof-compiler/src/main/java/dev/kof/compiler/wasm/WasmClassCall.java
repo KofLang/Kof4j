@@ -47,7 +47,7 @@ final class WasmClassCall {
      *  += totalSize; o ZERO-FILL dos campos (o bump não é zerado — a
      *  paridade 0/null do JVM); o handle fica na pilha (o rastro "class:X")
      *  e o `<init>` o consome pelo tee. */
-    static void lowerClassAlloc(Ctx ctx, dev.kof.compiler.KofNewObject no, List<WasmInstr> out) {
+    static void lowerClassAlloc(Ctx ctx, dev.kof.compiler.KofNewObject no, List<WasmInstr> out, String allocName) {
         var layout = ctx.classOf(no.type());
         if (layout == null) {
             throw new WasmUnsupportedException("alocacao de '" + no.type()
@@ -59,7 +59,7 @@ final class WasmClassCall {
         // do <init> se empilham DEPOIS e o receiver entra POR CIMA deles
         // no call)
         out.add(new WasmInstr.Const(0, layout.totalSize()));
-        out.add(new WasmInstr.Call("kof.heapAlloc"));
+        out.add(new WasmInstr.Call(allocName));
         out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.clsIdx, "h"));
         // o zero-fill dos campos (a ordem reversa do layout)
         WasmClassOps.emitZeroFill(ctx, layout, out);

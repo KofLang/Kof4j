@@ -256,8 +256,9 @@ final class WasmCallCode {
             throw new WasmUnsupportedException("chamada explicita de 'equals' de record (WASM002)"
                     + " — o backend WASI ainda nao tem dispatch virtual; o `==` de conteudo ja e"
                     + " suportado (15.3d inc2 C2, kofRecordEq inline). docs/wasm-wasi-plan.md (#776)");
-        } else if (ctx.wasi && WasmCollCallCode.emitCollCall(kc, ctx, out)) {
-            // as COLECOES (Map/Set/List) — WasmCollCallCode (split check_500)
+        } else if (ctx.wasi && WasmCollCallCode.emitCollCall(kc, ops, idx, ctx, out)) {
+            // as COLECOES (Map/Set/List) — WasmCollCallCode (split check_500);
+            // o alloc NEW roteia pela profundidade (GC-2)
         } else if (ctx.wasi && WasmBoxRuntime.NAMES.contains(kc.methodName())) {
             // Fase E (27/10, #776): a CAIXA DE ERASURE — o MESMO contrato
             // da nativa §284 (24B [MAGIC][tag][valor]); o join HETEROGENEO

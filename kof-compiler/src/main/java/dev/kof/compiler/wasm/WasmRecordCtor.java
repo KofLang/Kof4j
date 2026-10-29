@@ -42,7 +42,7 @@ final class WasmRecordCtor {
                 && "equals".equals(kc.methodName()) && ctx.recordOf(kc.ownerType()) != null;
     }
 
-    static void lowerNewObject(Ctx ctx, KofNewObject no, List<WasmInstr> out) {
+    static void lowerNewObject(Ctx ctx, KofNewObject no, List<WasmInstr> out, String allocName) {
         ClassLayout layout = ctx.recordOf(no.type());
         if (layout == null || ctx.objIdx < 0) {
             throw new WasmUnsupportedException("alocacao de '" + no.type()
@@ -82,7 +82,7 @@ final class WasmRecordCtor {
         // a gc-list — o coletor recicla estes blocos); o contrato do handle
         // = o data pointer (inalterado) — [h][sz=total] empilha o h.
         out.add(new WasmInstr.Const(0, layout.totalSize()));
-        out.add(new WasmInstr.Call("kof.heapAlloc"));
+        out.add(new WasmInstr.Call(allocName));
         out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.objIdx, "obj"));
         out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.objIdx, "obj"));
         ctx.lastPush = "record";

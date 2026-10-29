@@ -51,6 +51,29 @@ final class WasmGcSpill {
         int maxSlots = 0;
     }
 
+    /** GC-2 (29/10, #776): os allocs INTERNOS das funcs de runtime (o nome
+     *  `kof.*`) viram `kof.heapAllocNG` — NUNCA coletam. A lei: o collect
+     *  dentro de uma func de runtime pode disparar enquanto a pilha do
+     *  CHAMADOR segura intermediários pendentes (`"tag" + i + "x"`: o
+     *  handle de "tag" está na pilha do caller enquanto o intToStr aloca)
+     *  — invisíveis a todo spill (o nativo os cobre pelo scan de stack
+     *  conservador; a WASM não pode). O NG cresce em vez de coletar; a
+     *  coleta fica nos sites de nível de programa com a pilha limpa
+     *  (depthAt == 0). O bloco continua na gc-list (o alloc colocou) — a
+     *  coleta seguinte o recupera. Deve rodar ANTES do analyze/inject. */
+    static void rewriteRuntimeAllocs(List<WasmFunc> funcs) {
+        for (WasmFunc f : funcs) {
+            if (!f.name().startsWith("kof.") || GC_SELF.contains(f.name())) continue;
+            List<WasmInstr> body = f.instrs();
+            for (int i = 0; i < body.size(); i++) {
+                WasmInstr in = body.get(i);
+                if (in instanceof WasmInstr.Call c && "kof.heapAlloc".equals(c.targetName)) {
+                    body.set(i, new WasmInstr.Call("kof.heapAllocNG"));
+                }
+            }
+        }
+    }
+
     /** Fase A: o fecho de alcançabilidade + o maxSlots (sem tocar corpos). */
     static Scan analyze(List<WasmFunc> funcs) {
         Scan s = new Scan();

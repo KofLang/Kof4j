@@ -107,6 +107,54 @@ final class WasmGcRuntime {
                         WasmFunc.TYPE_I32), b);
     }
 
+
+    /** `kof.heapAllocNG(size i32) -> i32` — a variante SEM COLETA (GC-2):
+     *  free-list → bump → memory.grow → trap. Usada nos allocs de nível de
+     *  programa com a pilha de expressão PENDENTE (depthAt > 0) — os
+     *  intermediários da pilha são invisíveis ao spill (o native os cobre
+     *  pelo scan de stack conservador; a WASM não pode), então NUNCA
+     *  coletam: crescem. */
+    public static WasmFunc heapAllocNG() {
+        List<WasmInstr> b = new ArrayList<>();
+        // 0=size(param), 1=h, 2=g
+        get(b, 0, "size");
+        b.add(new WasmInstr.Call("kof.gcTryFree"));
+        set(b, 1, "h");
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "h"));
+        i32c(b, 0);
+        b.add(new WasmInstr.Simple(0x4e, "i32.ge_s"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "h1", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "h"));
+        b.add(WasmInstr.Branch.ret());
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "h1", 0x40));
+        get(b, 0, "size");
+        b.add(new WasmInstr.Call("kof.gcTryBump"));
+        set(b, 1, "h");
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "h"));
+        i32c(b, 0);
+        b.add(new WasmInstr.Simple(0x4e, "i32.ge_s"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "h2", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "h"));
+        b.add(WasmInstr.Branch.ret());
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "h2", 0x40));
+        i32c(b, 1);
+        b.add(new WasmInstr.SimpleExt(0x40, 0, "memory.grow(1)"));
+        set(b, 2, "g");
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "g"));
+        i32c(b, -1);
+        b.add(new WasmInstr.Simple(0x46, "i32.eq"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "oom", 0x40));
+        b.add(new WasmInstr.Simple(0x00, "unreachable"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "oom", 0x40));
+        get(b, 0, "size");
+        b.add(new WasmInstr.Call("kof.gcTryBump"));
+        set(b, 1, "h");
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "h"));
+        return new WasmFunc("kof.heapAllocNG", List.of(WasmFunc.TYPE_I32),
+                List.of(WasmFunc.TYPE_I32), List.of(WasmFunc.TYPE_I32,
+                        WasmFunc.TYPE_I32), b);
+    }
+
     /** `kof.gcTryFree(size i32) -> i32` — o first-fit da free-list (SEM
      *  split — o bloco inteiro serve; o desperdício = v1 honesto). O bloco
      *  sai da free-list e ENTRA na gc-list. -1 = nada serve. */
@@ -157,11 +205,21 @@ final class WasmGcRuntime {
         i32c(b, 4);
         b.add(new WasmInstr.Simple(0x6a, "i32.add"));
         b.add(new WasmInstr.Global(WasmInstr.Global.GET, GC_HEAD));
-        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));       // next = gcHead
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));       // gcnext = gcHead
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "cur"));
         b.add(new WasmInstr.Global(WasmInstr.Global.SET, GC_HEAD));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "cur"));
         i32c(b, 8);
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        i32c(b, 0);
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));       // graynext = 0
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "cur"));
+        i32c(b, 12);
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        i32c(b, 0);
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));       // pad = 0
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "cur"));
+        i32c(b, 16);
         b.add(new WasmInstr.Simple(0x6a, "i32.add"));
         set(b, 4, "res");
         b.add(new WasmInstr.Branch("fx", 3));                   // 0=if,1=loop,2=inner,3=outer
@@ -203,7 +261,7 @@ final class WasmGcRuntime {
         b.add(new WasmInstr.Simple(0x74, "i32.shl"));           // pages × 65536
         set(b, 3, "lim");
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "base"));
-        i32c(b, 8);
+        i32c(b, 16);
         b.add(new WasmInstr.Simple(0x6a, "i32.add"));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "size"));
         b.add(new WasmInstr.Simple(0x6a, "i32.add"));
@@ -219,13 +277,23 @@ final class WasmGcRuntime {
         i32c(b, 4);
         b.add(new WasmInstr.Simple(0x6a, "i32.add"));
         b.add(new WasmInstr.Global(WasmInstr.Global.GET, GC_HEAD));
-        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));       // hdr.next = gcHead
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));       // gcnext = gcHead
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "base"));
         b.add(new WasmInstr.Global(WasmInstr.Global.SET, GC_HEAD));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "base"));
+        i32c(b, 8);
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        i32c(b, 0);
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));       // graynext = 0
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "base"));
+        i32c(b, 12);
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        i32c(b, 0);
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));       // pad = 0
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 2, "end"));
         b.add(new WasmInstr.Global(WasmInstr.Global.SET, 0));   // o bump
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "base"));
-        i32c(b, 8);
+        i32c(b, 16);
         b.add(new WasmInstr.Simple(0x6a, "i32.add"));
         set(b, 4, "res");
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, "room", 0x40));
@@ -265,9 +333,9 @@ final class WasmGcRuntime {
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "gray"));
         set(b, 1, "hdr");
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "hdr"));
-        i32c(b, 4);
+        i32c(b, 8);
         b.add(new WasmInstr.Simple(0x6a, "i32.add"));
-        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));        // o próximo da gray
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));        // o próximo da gray ([hdr+8])
         set(b, 0, "gray");
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "hdr"));
         b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
@@ -283,7 +351,7 @@ final class WasmGcRuntime {
         b.add(new WasmInstr.Simple(0x4f, "i32.ge_u"));
         b.add(new WasmInstr.Branch("cw", 1, true));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 1, "hdr"));
-        i32c(b, 8);
+        i32c(b, 16);
         b.add(new WasmInstr.Simple(0x6a, "i32.add"));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "i"));
         b.add(new WasmInstr.Simple(0x6a, "i32.add"));
@@ -380,7 +448,7 @@ final class WasmGcRuntime {
         b.add(new WasmInstr.Simple(0x71, "i32.and"));
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "tm", 0x40));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 10, "tW"));
-        i32c(b, 8);
+        i32c(b, 16);
         b.add(new WasmInstr.Simple(0x6b, "i32.sub"));
         set(b, 9, "tHdr");
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 9, "tHdr"));
@@ -398,8 +466,10 @@ final class WasmGcRuntime {
         b.add(new WasmInstr.Simple(0x72, "i32.or"));
         b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));       // o mark
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 9, "tHdr"));
+        i32c(b, 8);
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "gray"));
-        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 4));       // hdr.next = gray
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));       // hdr.graynext = gray
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 9, "tHdr"));
         b.add(new WasmInstr.Local(WasmInstr.Local.SET, 0, "gray"));
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "md", 0x40));
