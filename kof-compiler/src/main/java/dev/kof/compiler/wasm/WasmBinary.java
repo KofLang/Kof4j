@@ -71,9 +71,20 @@ public final class WasmBinary {
     }
 
     static byte[] module(WasmModule m) {
-        // 1) type section (dedup por assinatura; imports primeiro — o espaco
-        // de funcoes do wasm indexa imports ANTES das funcs definidas)
+        // 1) type section (dedup por assinatura; os BLOCK TYPES do despacho
+        // virtual PRIMEIRO — os indices sao atribuidos no lowering e precisam
+        // ser estaveis; imports depois — o espaco de funcoes do wasm indexa
+        // imports ANTES das funcs definidas)
         List<byte[]> typeBodies = new ArrayList<>();
+        if (m.blockTypes() != null) {
+            for (WasmBlockType bt : m.blockTypes().all.values()) {
+                List<byte[]> ps = new ArrayList<>();
+                for (int p : bt.params()) ps.add(new byte[]{(byte) p});
+                List<byte[]> rs = new ArrayList<>();
+                for (int r : bt.results()) rs.add(new byte[]{(byte) r});
+                typeBodies.add(bytes(new byte[]{0x60}, vec(ps), vec(rs)));
+            }
+        }
         Map<String, Integer> typeIdx = new LinkedHashMap<>();
         List<byte[]> funcTypeBytes = new ArrayList<>();
         Map<String, Integer> funcIdx = new LinkedHashMap<>();
@@ -204,20 +215,31 @@ record WasmFunc(String name, List<Integer> params, List<Integer> results,
 /** Segmento de dados ativo (pagina linear): endereco + bytes (strings 15.3b). */
 record WasmData(int addr, byte[] bytes) {}
 
+/** CLASS-2 (28/10, #776): block type MULTI-VALOR do despacho virtual —
+ *  os params = [receiver i32, args...] na pilha no if; os bracos os
+ *  consomem (a lei do if: os valores ABAIXO do label sobrevivem ao end —
+ *  o braco nao pode consumi-los sem declara-los como params). */
+record WasmBlockType(List<Integer> params, List<Integer> results) {}
+
 /** Modelo do modulo (lista ordenada de funcs). */
 record WasmModule(List<WasmImport> imports, List<WasmFunc> funcs, List<WasmData> data,
-                  List<Integer> globals) {
+                  List<Integer> globals, WasmBlockTypes blockTypes) {
 
     WasmModule(List<WasmFunc> funcs) {
-        this(List.of(), funcs, List.of(), List.of());
+        this(List.of(), funcs, List.of(), List.of(), null);
     }
 
     WasmModule(List<WasmImport> imports, List<WasmFunc> funcs) {
-        this(imports, funcs, List.of(), List.of());
+        this(imports, funcs, List.of(), List.of(), null);
     }
 
     WasmModule(List<WasmImport> imports, List<WasmFunc> funcs, List<WasmData> data) {
-        this(imports, funcs, data, List.of());
+        this(imports, funcs, data, List.of(), null);
+    }
+
+    WasmModule(List<WasmImport> imports, List<WasmFunc> funcs, List<WasmData> data,
+               List<Integer> globals) {
+        this(imports, funcs, data, globals, null);
     }
 
     byte[] serialize() {

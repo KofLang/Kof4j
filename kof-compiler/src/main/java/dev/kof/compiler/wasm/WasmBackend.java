@@ -53,6 +53,9 @@ public class WasmBackend implements Backend {
         List<WasmData> dataSegments = new ArrayList<>();
         // #796: cursor do pool de dados UNICO por modulo (nao por funcao).
         WasmLowering.DataCursor dataCursor = new WasmLowering.DataCursor();
+        WasmLowering.currentModule = module; // o fecho das subclasses anda nele (CLASS-2)
+        WasmBlockTypes blockTypes = new WasmBlockTypes(); // os block types do despacho (CLASS-2)
+        WasmLowering.currentBlockTypes = blockTypes;
         Map<String, ClassLayout> classes = WasmClassScan.buildClassLayouts(module);
         boolean usesClasses = !classes.isEmpty();
 
@@ -226,6 +229,14 @@ public class WasmBackend implements Backend {
                                         + " — docs/wasm-wasi-plan.md (#776)");
                             }
                             work.add(cm);
+                            // CLASS-2 (28/10, #776): as chamadas da cadeia de
+                            // despacho = GERADAS em compile-time (o fonte nunca
+                            // chama Dog.speak!) — os overrides das
+                            // implementações entram no fecho
+                            for (String impl : WasmClassScan.implsOf(module, classes, own)) {
+                                IRMethod im = decls.get(impl + "." + kc.methodName());
+                                if (im != null) work.add(im);
+                            }
                             continue;
                         }
                     }
@@ -544,7 +555,7 @@ public class WasmBackend implements Backend {
         java.util.LinkedHashMap<String, WasmFunc> byName = new java.util.LinkedHashMap<>();
         for (WasmFunc f : funcs) byName.putIfAbsent(f.name(), f);
         funcs = new ArrayList<>(byName.values());
-        byte[] bin = new WasmModule(imports, funcs, dataSegments, globals).serialize();
+        byte[] bin = new WasmModule(imports, funcs, dataSegments, globals, blockTypes).serialize();
         String rel = entryClass.replace('/', java.io.File.separatorChar);
         Path wasmPath = outputDir.resolve(rel + ".wasm");
         Files.createDirectories(wasmPath.getParent());

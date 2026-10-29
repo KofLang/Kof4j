@@ -192,23 +192,35 @@ public abstract sealed class WasmInstr permits WasmInstr.Const, WasmInstr.Local,
         }
     }
 
-    /** block / loop / if / else / end (blocktype VOID nos dispatchers) */
+    /** block / loop / if / else / end (blocktype VOID nos dispatchers;
+     *  CLASS-2: o if do despacho virtual usa TYPEIDX multi-valor — os
+     *  params = o receiver + os args na pilha, os bracos os consomem) */
     public static final class Blocking extends WasmInstr {
         public static final int BLOCK = 4, LOOP = 0, IF = 1, ELSE = 2, END = 3;
         public final int op;
         public final String label;
         public final int blockType; // 0x40 void
+        public final boolean typeIndex; // blockType = indice na type section (s33)
 
-        public Blocking(int op, String label, int blockType) { this.op = op; this.label = label; this.blockType = blockType; }
+        public Blocking(int op, String label, int blockType) { this(op, label, blockType, false); }
+
+        public Blocking(int op, String label, int blockType, boolean typeIndex) {
+            this.op = op; this.label = label; this.blockType = blockType; this.typeIndex = typeIndex;
+        }
 
         @Override public void encode(java.io.ByteArrayOutputStream out, java.util.Map<String, Integer> f) {
             switch (op) {
-                case BLOCK -> { out.write(0x02); out.write(blockType); }
-                case LOOP -> { out.write(0x03); out.write(blockType); }
-                case IF -> { out.write(0x04); out.write(blockType); }
+                case BLOCK -> { out.write(0x02); writeBt(out); }
+                case LOOP -> { out.write(0x03); writeBt(out); }
+                case IF -> { out.write(0x04); writeBt(out); }
                 case ELSE -> out.write(0x05);
                 default -> out.write(0x0b);
             }
+        }
+
+        private void writeBt(java.io.ByteArrayOutputStream out) {
+            if (typeIndex) WasmBinary.writeSleb(out, blockType); // s33: o typeidx
+            else out.write(blockType);                           // valtype (0x7f/0x7e/0x7c/0x40)
         }
 
         @Override public void wat(StringBuilder sb, int n) {

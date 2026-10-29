@@ -15,6 +15,12 @@ import static dev.kof.compiler.wasm.WasmTypeOracle.*;
  */
 final class WasmLowering {
 
+    /** O módulo em compilação (o fecho das subclasses anda nele — o CLASS-2;
+     *  um módulo por emit, single-threaded). */
+    static dev.kof.compiler.IRModule currentModule;
+    /** O registro de block types do despacho virtual (CLASS-2; por emit). */
+    static WasmBlockTypes currentBlockTypes;
+
     private WasmLowering() {
     }
 
@@ -112,7 +118,9 @@ final class WasmLowering {
         locals.add(WasmFunc.TYPE_I32); // scratch left (a esquerda do concat)
         int clsIdx = nextWasm + 5;
         locals.add(WasmFunc.TYPE_I32); // scratch cls (o receiver do store de campo)
-        nextWasm += 6;
+        int tagIdx = nextWasm + 6;
+        locals.add(WasmFunc.TYPE_I32); // scratch tag (o despacho virtual — CLASS-2)
+        nextWasm += 7;
         if (records != null && !records.isEmpty()) {
             objIdx = nextWasm;
             locals.add(WasmFunc.TYPE_I32); // scratch obj (handle)
@@ -194,6 +202,7 @@ final class WasmLowering {
         ctx.joinIdx = joinIdx;
         ctx.leftIdx = leftIdx;
         ctx.clsIdx = clsIdx;
+        ctx.tagIdx = tagIdx;
         ctx.wIdx = wIdx;
         ctx.sIdx = sIdx;
         ctx.dupIdx = dupIdx;
@@ -244,6 +253,9 @@ final class WasmLowering {
         final List<WasmData> dataSegments;
         final Map<String, ClassLayout> records;
         final Map<String, ClassLayout> classes;
+        final dev.kof.compiler.IRModule module;
+        /** CLASS-2: o registro dos block types do despacho virtual (por emit). */
+        final WasmBlockTypes blockTypes;
         final DataCursor data;
         int wIdx = -1, sIdx = -1;
         int dupIdx = -1, dupWideIdx = -1;
@@ -268,6 +280,7 @@ final class WasmLowering {
         // para o join pelo scratch join (o trace diz o que chegou)
         int cmp1Idx = -1, cmp2Idx = -1, armIdx = -1, joinIdx = -1, leftIdx = -1;
         int clsIdx;
+        int tagIdx;
         boolean underPending;
         String underTrace;
         String joinTrace;
@@ -299,6 +312,8 @@ final class WasmLowering {
             this.classes = classes;
             this.data = data;
             this.localNullableTrace = localNullableTrace;
+            this.module = currentModule;
+            this.blockTypes = currentBlockTypes;
         }
 
         /** record IR alcancado nesta fatia (15.3d); null = fora do subset. */
@@ -310,6 +325,18 @@ final class WasmLowering {
         ClassLayout classOf(Type t) {
             if (classes == null || !(t instanceof Type.ClassType ct)) return null;
             return classes.get(ct.name());
+        }
+        /** CLASS-2 (28/10, #776): as classes alcançadas (o fecho das impls). */
+        Map<String, ClassLayout> classes() {
+            return classes;
+        }
+        /** O módulo IR (o fecho das subclasses anda nele). */
+        dev.kof.compiler.IRModule module() {
+            return module;
+        }
+        /** CLASS-2: o registro dos block types do despacho virtual. */
+        WasmBlockTypes blockTypes() {
+            return blockTypes;
         }
         int internString(String str) {
             return data.intern(str, stringPool, dataSegments);
@@ -422,6 +449,13 @@ final class WasmLowering {
                     && "java.lang".equals(ct.packageName()))) ? ct.name() : typeName(ll.type());
             ctx.lastPushWide = "int".equalsIgnoreCase(ctx.lastPush) || "long".equalsIgnoreCase(ctx.lastPush)
                     || "double".equalsIgnoreCase(ctx.lastPush);
+            // CLASS-2 (28/10, #776): o LoadLocal de CLASSE = TEE'd (o mesmo
+            // valor na pilha + a cópia no clsIdx — o despacho virtual lê a
+            // tag pelo scratch; o tee = invisível nos outros contextos)
+            if (ctx.wasi && ll.type() instanceof Type.ClassType ct
+                    && ctx.classes() != null && ctx.classes().containsKey(ct.name())) {
+                out.add(new WasmInstr.Local(WasmInstr.Local.TEE, ctx.clsIdx, "cls"));
+            }
         } else if (op instanceof KofStoreLocal sl) {
             // Object/bool slot (i32 no WASI) recebe valor wide do desugar de ==
             // (literal int 0/1 p/ false/true) -> wrap; handle de record (i32) nao
@@ -471,67 +505,10 @@ final class WasmLowering {
         } else if (op instanceof KofCheckCast) {
             // no-op: o receiver ja esta na pilha como handle; nao ha dispatch virtual (WASM002)
         } else if (op instanceof KofBinary bin) {
-            if (ctx.wasi && bin.operandType() instanceof Type.ClassType) {
-                // comparacao de REFERENCIA contra o literal `null` (ramo proprio
-                // do desugar, nunca o kofRecordEq de conteudo): handle i32 vs 0
-                String ref = operandTypeBefore(ops, idx);
-                if ("null".equals(ref)) {
-                    out.add(new WasmInstr.Simple(bin.op() == KofBinaryOp.EQ ? 0x46 : 0x47,
-                            bin.op() == KofBinaryOp.EQ ? "i32.eq" : "i32.ne"));
-                    ctx.lastPush = "bool";
-                    ctx.lastPushWide = false;
-                    return;
-                }
-            }
-            if (bin.operandType() instanceof Type.ClassType) {
-                throw new WasmUnsupportedException("operador binario '" + bin.op()
-                        + "' com operando de classe '" + typeName(bin.operandType())
-                        + "' fora do subset WASI (WASM002) — igualdade de records chega como"
-                        + " kofRecordEq; identidade de Objetos nao esta no plano; docs/wasm-wasi-plan.md (#776)");
-            }
-            if (ctx.wasi && "bool".equals(ctx.lastPush)
-                    && (bin.op() == KofBinaryOp.EQ || bin.op() == KofBinaryOp.NE)
-                    && "int".equalsIgnoreCase(typeName(bin.operandType()))) {
-                // `!=` do desugar sobre o bool i32 do kofRecordEq: i32, nao o
-                // caminho i64 do escalar 15.2
-                out.add(new WasmInstr.Simple(bin.op() == KofBinaryOp.EQ ? 0x46 : 0x47,
-                        bin.op() == KofBinaryOp.EQ ? "i32.eq" : "i32.ne"));
-                ctx.lastPush = "bool";
-                ctx.lastPushWide = false;
-                return;
-            }
-            String binT = typeName(bin.operandType());
-            if (ctx.wasi && "double".equalsIgnoreCase(binT)) {
-                // FATIA MAP-MX (28/10, #776): as TRÊS danças pelas formas dos
-                // operandos (o rastro do topo diz op2; a simulação
-                // WasmOperandShape diz op1). O null (o handle 0) trapa no
-                // load = a paridade do NPE do unbox do JVM; a forma NÃO-coberta
-                // (ex.: op1 desconhecido + op2 caixa) recusa no validate
-                boolean op2Box = "mapval".equals(ctx.lastPush) || "nullabledouble".equals(ctx.lastPush);
-                String[] pair = WasmOperandShape.pairAt(ops, idx, ctx);
-                boolean op1Box = pair != null && WasmOperandShape.isBox(pair[0]);
-                if (op2Box && op1Box) {
-                    // caixa+caixa (o get+get — a lei MAP-D): [h2] load → v2 no
-                    // scratch vf64; [h1] load → v1; o op
-                    out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD_F64, 16));
-                    out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.vf64Idx, "vf64"));
-                    out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD_F64, 16));
-                    out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.vf64Idx, "vf64"));
-                } else if (op2Box) {
-                    // escalar+caixa: [v1, h2] — o load 16 do op2 basta
-                    out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD_F64, 16));
-                } else if (op1Box) {
-                    // caixa+escalar: [h1, v2] — o v2 no scratch vf64, o load
-                    // do h1, o v2 de volta
-                    out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.vf64Idx, "vf64"));
-                    out.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD_F64, 16));
-                    out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.vf64Idx, "vf64"));
-                }
-            }
-            emitBinaryOp(bin.op(), binT, out);
-            ctx.lastPush = binT;
-            ctx.lastPushWide = "int".equalsIgnoreCase(ctx.lastPush) || "long".equalsIgnoreCase(ctx.lastPush)
-                    || "double".equalsIgnoreCase(ctx.lastPush);
+            // CLASS-2 (28/10 — split check_500): a emissão dos binários vive
+            // em WasmBinaryEmit (o null de referência, o bool i32, as danças
+            // MAP-MX) — comportamento identico.
+            WasmBinaryEmit.emit(bin, ops, idx, ctx, out);
         } else if (op instanceof KofUnary un && ctx.wasi && "bool".equals(ctx.lastPush)) {
             out.add(new WasmInstr.Simple(0x45, "i32.eqz"));
             ctx.lastPush = "bool";

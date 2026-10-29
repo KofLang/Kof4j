@@ -34,9 +34,21 @@ final class WasmClassScan {
             // receiver no param 0 + o mapType do String[] recusando)
             if ("Default/Main".equals(clazz.name())) continue;
             String simple = clazz.name().substring(clazz.name().lastIndexOf('/') + 1);
-            classes.put(simple, ClassLayout.build(clazz));
+            // CLASS-2 (28/10, #776): o layout = buildWithSuper (os campos
+            // HERDADOS — o build = os próprios apenas: o bloco da subclasse
+            // subdimensionado e os stores da base estouravam no espaço
+            // livre do bump — o bug latente medido)
+            classes.put(simple, ClassLayout.buildWithSuper(clazz, k -> findClass(module, k)));
         }
         return classes;
+    }
+
+    /** A classe por nome interno (o resolver do buildWithSuper). */
+    private static IRClass findClass(IRModule module, String internal) {
+        for (IRClass c : module.classes()) {
+            if (c.name().equals(internal)) return c;
+        }
+        return null;
     }
 
     /** Os métodos de instância e os ctors das classes entram no decls com
@@ -124,5 +136,39 @@ final class WasmClassScan {
             jvmSlot += WasmScalarOps.isWide(t) ? 2 : 1;
         }
         return jvmSlot;
+    }
+
+    /** As IMPLEMENTAÇÕES do tipo estático: o próprio tipo + o fecho
+     *  TRANSITIVO das subclasses (as classes do mapa cuja cadeia de
+     *  superName passa pelo tipo) — a ordem = a do mapa (determinística =
+     *  a ordem das tags). */
+    static java.util.List<String> implsOf(IRModule module,
+            Map<String, ClassLayout> classes, String simple) {
+        java.util.List<String> impls = new java.util.ArrayList<>();
+        impls.add(simple);
+        for (String cand : classes.keySet()) {
+            String cur = cand;
+            boolean isSub = false;
+            while (cur != null) {
+                if (simple.equals(cur)) { isSub = !cand.equals(simple); break; }
+                dev.kof.compiler.IRClass c = findClass(module, cur);
+                if (c == null) break;
+                cur = c.superName();
+            }
+            if (isSub) impls.add(cand);
+        }
+        return impls;
+    }
+
+    /** O índice (tag) determinístico da classe = a posição no mapa (a
+     *  ordem de inserção = a ordem do IRModule). */
+    static int classTag(WasmLowering.Ctx ctx, String simple) {
+        int i = 0;
+        for (String k : ctx.classes().keySet()) {
+            if (k.equals(simple)) return i;
+            i++;
+        }
+        throw new WasmUnsupportedException("tag de '" + simple + "' fora do mapa de classes (WASM002)"
+                + " — docs/wasm-wasi-plan.md (#776)");
     }
 }

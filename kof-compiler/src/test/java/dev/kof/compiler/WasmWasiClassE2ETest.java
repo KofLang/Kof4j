@@ -152,4 +152,72 @@ class WasmWasiClassE2ETest {
                 """);
         WasmWasiListE2ETest.assertListFaceMatchesJvm(dir);
     }
+
+    @Test
+    void polymorphicDispatchMatchesTheJvmOracle(@TempDir Path dir) throws Exception {
+        // CLASS-2 (28/10, #776): o DESPACHO VIRTUAL — a TAG de classe no
+        // offset 0 (o primeiro 4B do header, os campos começam em 16) e a
+        // cadeia if MULTI-VALOR por typeidx (os params = [receiver, args...]
+        // — a lei do if: os valores ABAIXO do label sobrevivem ao end, o
+        // braço só os consome como params declarados). A provenança do
+        // receiver = o LoadLocal (o local.get relê o valor vivo) ou o
+        // alloc/init (o scratch clsIdx). A reatribuição troca a TAG — o
+        // JVM despacha Dog e Cat sobre o MESMO local tipado Animal.
+        var wasmtime = WasmWasiListE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiListE2ETest.host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                class Animal {
+                    String name
+
+                    constructor(nm: String) {
+                        this.name = nm
+                    }
+
+                    speak(): String {
+                        return "animal"
+                    }
+
+                    feed(times: Int): String {
+                        return "animal ate " + times
+                    }
+                }
+                class Dog extends Animal {
+                    constructor(nm: String) {
+                        super(nm)
+                    }
+
+                    speak(): String {
+                        return "dog"
+                    }
+
+                    feed(times: Int): String {
+                        return "dog ate " + times
+                    }
+                }
+                class Cat extends Animal {
+                    constructor(nm: String) {
+                        super(nm)
+                    }
+
+                    speak(): String {
+                        return "cat"
+                    }
+
+                    feed(times: Int): String {
+                        return "cat ate " + times
+                    }
+                }
+                main(String[] args) {
+                    var a: Animal = Dog("Rex")
+                    println(a.speak())
+                    println(a.feed(3))
+                    println(Dog("Bob").speak())
+                    a = Cat("Mimi")
+                    println(a.speak())
+                    println(a.feed(7))
+                }
+                """);
+        WasmWasiListE2ETest.assertListFaceMatchesJvm(dir);
+    }
 }

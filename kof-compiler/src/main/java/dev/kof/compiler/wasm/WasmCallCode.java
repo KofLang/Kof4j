@@ -41,7 +41,7 @@ final class WasmCallCode {
         } else if (WasmClassCall.isClassInit(ctx, kc)) {
             WasmClassCall.lowerClassInit(ctx, kc, out);
         } else if (WasmClassCall.isClassMethod(ctx, kc)) {
-            WasmClassCall.lowerClassMethod(ctx, kc, out);
+            WasmClassCall.lowerClassMethod(ctx, kc, ops, idx, out);
         } else if (WasmStrCalls.emit(kc, ops, idx, ctx, out)) {
             // chamadas de String (==/!=, length, isEmpty, equals,
             // startsWith, endsWith, concat) — WasmStrCalls

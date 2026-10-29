@@ -106,7 +106,7 @@ final class WasmClassOps {
             } else {
                 storeOp = WasmInstr.Mem.STORE;
             }
-            out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.objIdx, "obj"));
+            out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.clsIdx, "obj"));
             out.add(new WasmInstr.Const(0, f.offset()));
             out.add(new WasmInstr.Simple(0x6a, "i32.add"));
             if (WasmRecordOps.isF64Field(f.type())) {
