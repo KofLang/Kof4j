@@ -379,7 +379,14 @@ final class WasmGcRuntime {
         i32c(b, 0);
         b.add(new WasmInstr.Simple(0x46, "i32.eq"));
         b.add(new WasmInstr.Branch("sn", 1, true));
+        // nxt = [cur+4] (o link da gc-list) — GC-3 (29/10, #776): o set
+        // direto do CUR era o spin infinito (o nxt = o próprio cur); o
+        // G1..G4 passavam porque o rewrite NG impedia o coletor de
+        // disparar nos churns de runtime — o G5 foi o primeiro a rodá-lo
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "cur"));
+        i32c(b, 4);
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
         set(b, 6, "nxt");
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "cur"));
         b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
@@ -430,14 +437,18 @@ final class WasmGcRuntime {
                 List.of(), List.of(WasmFunc.TYPE_I32, WasmFunc.TYPE_I32,
                         WasmFunc.TYPE_I32, WasmFunc.TYPE_I32, WasmFunc.TYPE_I32,
                         WasmFunc.TYPE_I32, WasmFunc.TYPE_I32, WasmFunc.TYPE_I32,
-                        WasmFunc.TYPE_I32, WasmFunc.TYPE_I32, WasmFunc.TYPE_I32), b);
+                        WasmFunc.TYPE_I32, WasmFunc.TYPE_I32, WasmFunc.TYPE_I32,
+                        WasmFunc.TYPE_I32, WasmFunc.TYPE_I32), b);
     }
 
-    /** O tryMark INLINE (o valor na pilha): se [heapFirst, heapTop) e o
-     *  bloco não marcado: marca e empurra na gray-list. Os scratches 9/10
-     *  = DEDICADOS (nunca colidem com os locals do chamador). */
+    /** O tryMark INLINE (o valor na pilha): se [heapFirst, heapTop), o
+     *  TAMANHO é SANOS (tW + tSz ≤ heapTop — GC-3: o falso-positivo
+     *  conservador — o escalar i64 grande aliado como ponteiro leria o
+     *  "cabeçalho" lixo e o tamanho enorme andava OOB) e o bloco não
+     *  marcado: marca e empurra na gray-list. Os scratches 9/10/11/12 =
+     *  DEDICADOS (nunca colidem com os locals do chamador). */
     private static void tryMark(List<WasmInstr> b, int heapFirst) {
-        // [v]; 9=tHdr, 10=tW
+        // [v]; 9=tHdr, 10=tW, 11=tW0, 12=tSz
         set(b, 10, "tW");
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 10, "tW"));
         i32c(b, heapFirst);
@@ -453,15 +464,27 @@ final class WasmGcRuntime {
         set(b, 9, "tHdr");
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 9, "tHdr"));
         b.add(new WasmInstr.Mem(WasmInstr.Mem.LOAD, 0));
-        set(b, 10, "tW");
+        set(b, 11, "tW0");
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 11, "tW0"));
+        i32c(b, SIZE_MASK);
+        b.add(new WasmInstr.Simple(0x71, "i32.and"));
+        set(b, 12, "tSz");
+        // a sanidade: tW + tSz ≤ heapTop (o tamanho cabe na memória) — o
+        // falso-positivo com o tamanho lixo é rejeitado aqui (Q0)
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 10, "tW"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 12, "tSz"));
+        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
+        b.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
+        b.add(new WasmInstr.Simple(0x4e, "i32.le_u"));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "ok", 0x40));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 11, "tW0"));
         i32c(b, 0);
         b.add(new WasmInstr.Simple(0x48, "i32.lt_s"));
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, "md", 0x40));
         // já marcado: nada
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, "md", 0x40));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 9, "tHdr"));
-        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 10, "tW"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.GET, 11, "tW0"));
         i32c(b, MARK_BIT);
         b.add(new WasmInstr.Simple(0x72, "i32.or"));
         b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));       // o mark
@@ -473,6 +496,7 @@ final class WasmGcRuntime {
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 9, "tHdr"));
         b.add(new WasmInstr.Local(WasmInstr.Local.SET, 0, "gray"));
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "md", 0x40));
+        b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "ok", 0x40));
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "tm", 0x40));
     }
 }

@@ -138,4 +138,37 @@ class WasmWasiGcE2ETest {
                 """);
         WasmWasiListE2ETest.assertListFaceMatchesJvm(dir);
     }
+
+    @Test
+    void gcValidatesConservativeCandidatesUnderTwoRecordPressure(@TempDir Path dir) throws Exception {
+        // GC-3 (29/10, #776): A SANIDADE DO CANDIDATO CONSERVADOR — a face
+        // que PEGOU os DOIS Q0s do GC-2: (a) o SWEEP's next = o set do CUR
+        // (o spin infinito — o nxt devia ser LOAD(cur+4); o G1..G4
+        // passavam porque o rewrite NG impedia o coletor de disparar nos
+        // churns de runtime — o G5 foi o primeiro a rodá-lo); (b) o
+        // FALSO-POSITIVO CONSERVADOR — o escalar i64 grande (i*6 ≈ 120000
+        // = em [heapFirst, top)) virava "ponteiro" → o "cabeçalho" lixo →
+        // o tamanho enorme → a caminhada OOB. O FIX: o tryMark valida
+        // tW + tSz ≤ heapTop antes de marcar; os falsos-positivos
+        // restantes = o over-mark seguro.
+        var wasmtime = WasmWasiListE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiListE2ETest.host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                record Point(Int x, Int y)
+                main(String[] args) {
+                    var acc = 0
+                    var i = 0
+                    while (i < 20000) {
+                        var s = "tag" + i + "x"
+                        var p = Point(i, i + 1)
+                        var q = Point(i * 2, i * 3)
+                        acc = acc + s.length() + p.x + q.x
+                        i = i + 1
+                    }
+                    println(acc)
+                }
+                """);
+        WasmWasiListE2ETest.assertListFaceMatchesJvm(dir);
+    }
 }
