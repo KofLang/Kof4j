@@ -172,6 +172,25 @@ final class WasmClosureScan {
                             continue;
                         }
                     }
+                    // CLASS-2c fatia B (29/10, #776): o call de SUPER-MÉTODO
+                    // (super.speak() — o kind SUPER, o método != <init>)
+                    // resolve pelo dono QUALIFICADO (o SUPER's ownerType = o
+                    // tipo do SUPER; o lookup SEM qualificação não tem os
+                    // métodos de classe — "chamada 'speak' nao resolvida",
+                    // medido em P7). O <init> do SUPER = o kind CONSTRUCTOR
+                    // (o ramo da CLASS-1 acima).
+                    if (wasi && usesClasses && kc.kind() == KofCallKind.SUPER
+                            && !"<init>".equals(kc.methodName())) {
+                        String sup = ownerSimpleName(kc.ownerType());
+                        IRMethod sm = decls.get(sup + "." + kc.methodName());
+                        if (sm == null) {
+                            throw new WasmUnsupportedException("método '" + kc.methodName()
+                                    + "' do super '" + sup + "' nao declarado (WASM002)"
+                                    + " — docs/wasm-wasi-plan.md (#776)");
+                        }
+                        work.add(sm);
+                        continue;
+                    }
                     IRMethod t = decls.get(kc.methodName());
                     if (t == null) {
                         throw new WasmUnsupportedException("chamada '" + kc.methodName()

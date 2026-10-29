@@ -386,4 +386,71 @@ class WasmWasiClassE2ETest {
                 """);
         WasmWasiListE2ETest.assertListFaceMatchesJvm(dir);
     }
+
+    @Test
+    void superMethodCallsMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // CLASS-2c fatia B (29/10, #776): os CALLS de SUPER-MÉTODO
+        // (`super.speak()`, `super.meet(other)`) = o call DIRETO (a
+        // semântica do JVM: a implementação do super, NUNCA o despacho
+        // virtual). O receiver JÁ ESTÁ na pilha (o desugar empilha o
+        // LoadLocal(this) PRIMEIRO — a ordem padrão dos métodos; o get
+        // duplicado trocava os operandos do call, medido em P7). O fecho
+        // resolve o SUPER pelo dono QUALIFICADO (o lookup sem qualificação
+        // não tem os métodos de classe — "chamada 'speak' nao resolvida").
+        var wasmtime = WasmWasiListE2ETest.host("wasmtime");
+        var wasmTools = WasmWasiListE2ETest.host("wasm-tools");
+        assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");
+        Files.writeString(dir.resolve("Main.kf"), """
+                class Animal {
+                    String name
+
+                    constructor(nm: String) {
+                        this.name = nm
+                    }
+
+                    speak(): String {
+                        return "animal " + this.name
+                    }
+
+                    meet(other: Animal): String {
+                        return this.name + " meets " + other.name
+                    }
+                }
+                class Dog extends Animal {
+                    constructor(nm: String) {
+                        super(nm)
+                    }
+
+                    speak(): String {
+                        return "dog > " + super.speak()
+                    }
+
+                    meet(other: Animal): String {
+                        return super.meet(other) + " (woof)"
+                    }
+                }
+                class Cat extends Animal {
+                    constructor(nm: String) {
+                        super(nm)
+                    }
+
+                    speak(): String {
+                        return "cat > " + super.speak()
+                    }
+
+                    meet(other: Animal): String {
+                        return super.meet(other) + " (meow)"
+                    }
+                }
+                main(String[] args) {
+                    var a: Animal = Dog("Rex")
+                    println(a.speak())
+                    var b: Animal = Cat("Mimi")
+                    println(a.meet(b))
+                    println(b.speak())
+                    println(b.meet(a))
+                }
+                """);
+        WasmWasiListE2ETest.assertListFaceMatchesJvm(dir);
+    }
 }

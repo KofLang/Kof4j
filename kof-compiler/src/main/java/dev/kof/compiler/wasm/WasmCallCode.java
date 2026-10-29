@@ -42,6 +42,21 @@ final class WasmCallCode {
             WasmClassCall.lowerClassInit(ctx, kc, out);
         } else if (WasmClassCall.isClassMethod(ctx, kc)) {
             WasmClassCall.lowerClassMethod(ctx, kc, ops, idx, out);
+        } else if (ctx.wasi && kc.kind() == KofCallKind.SUPER
+                && !"<init>".equals(kc.methodName()) && ctx.classOf(kc.ownerType()) != null) {
+            // CLASS-2c fatia B (29/10, #776): o call de SUPER-MÉTODO = o
+            // call DIRETO (a semântica do JVM: a implementação do super,
+            // NUNCA o despacho virtual). O receiver JÁ ESTÁ na pilha (o
+            // desugar empilha o LoadLocal(this) PRIMEIRO — a ordem padrão
+            // dos métodos; o get duplicado trocava os operandos do call:
+            // "Mimi meets Rex", medido em P7); os args seguem na pilha.
+            out.add(new WasmInstr.Call(ownerSimpleName(kc.ownerType()) + "." + kc.methodName()));
+            // o resultado de CLASSE do call direto = TEE no clsIdx (o MESMO
+            // save da CLASS-2b — o despacho sobre o resultado lê a
+            // provenância)
+            if (ctx.classOf(kc.returnType()) != null) {
+                out.add(new WasmInstr.Local(WasmInstr.Local.TEE, ctx.clsIdx, "cls"));
+            }
         } else if (WasmStrCalls.emit(kc, ops, idx, ctx, out)) {
             // chamadas de String (==/!=, length, isEmpty, equals,
             // startsWith, endsWith, concat) — WasmStrCalls
