@@ -76,6 +76,12 @@ final class WasmLowering {
                 // i32 (o null = o handle 0 — a MESMA lei do zero-fill dos
                 // campos; o valor do m.get("a") de Map<String, Dog>)
                 locals.add(WasmFunc.TYPE_I32);
+            } else if (wasi && lv.type() instanceof Type.NullableType nt
+                    && nt.inner() instanceof Type.ClassType ct && records != null && records.containsKey(ct.name())) {
+                // MAP-REC (29/10, #776): o local nullable-RECORD = o handle
+                // i32 (o null = o 0 — a MESMA lei; o valor do m.get("a")
+                // de Map<String, Point>)
+                locals.add(WasmFunc.TYPE_I32);
             } else if (wasi && lv.type() instanceof Type.ClassType ct && "List".equals(ct.name())) {
                 locals.add(WasmFunc.TYPE_I32); // List = handle i32 (celula indireta, fatia coleções 1 — 27/10)
             } else if (wasi && lv.type() instanceof Type.ClassType ct && "Map".equals(ct.name())) {

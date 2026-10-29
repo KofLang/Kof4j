@@ -331,6 +331,37 @@ final class WasmTypeOracle {
         return out;
     }
 
+    /** MAP-REC (29/10, #776): os RECORDS usados como CHAVE de mapa (o
+     *  owner `Map<Point, X>` dos kof_map_put/get/contains/remove) — o
+     *  registro da familia WasmMapRecRuntime (o fold compartilhado + os
+     *  quatro ops) segue este gancho; a ordem e' a da primeira aparição
+     *  (determinística). */
+    static List<ClassLayout> mapRecordKeys(Iterable<IRMethod> ms,
+            Map<String, ClassLayout> records) {
+        List<ClassLayout> out = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (IRMethod m : ms) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (!(op instanceof KofCall kc)
+                            || !WasmMapRuntime.NAMES.contains(kc.methodName())
+                            || !(kc.ownerType() instanceof Type.ClassType ct)
+                            || ct.typeArguments().size() < 1) {
+                        continue;
+                    }
+                    Type e = ct.typeArguments().get(0);
+                    String en = typeName(e);
+                    if (!(e instanceof Type.ClassType) || !records.containsKey(en)
+                            || !seen.add(en)) {
+                        continue;
+                    }
+                    out.add(records.get(en));
+                }
+            }
+        }
+        return out;
+    }
+
     static boolean usesStringMethod(Iterable<IRMethod> ms, String method) {
         for (IRMethod m : ms) {
             for (IRBasicBlock bb : m.basicBlocks()) {

@@ -309,8 +309,7 @@ public class WasmBackend implements Backend {
                         List<ClassLayout> listRecs =
                                 WasmTypeOracle.listRecordElems(scanAll, records);
                         funcs.addAll(WasmListRecRuntime.all(listRecs, recDepth, records));
-                    }
-                    // Fase E (27/10, #776): a fatia MAP<String, Int> — o get
+                    }                    // Fase E (27/10, #776): a fatia MAP<String, Int> — o get
                     // nullable anda na CAIXA (boxInt no hit, 0=null na falta)
                     // e a chave compara pelo strEq: os dois entram junto
                     if (wasi && WasmTypeOracle.usesMap(scanAll)) {
@@ -339,6 +338,17 @@ public class WasmBackend implements Backend {
                             }
                         }
                         funcs.addAll(WasmSetRecRuntime.all(setRecs, recDepth, records));
+                    }
+                    // MAP-REC (29/10, #776): as CHAVES de RECORD — o fold
+                    // compartilhado + os quatro ops de busca por conteudo
+                    // (o fold entra junto, dedupe-safe; o keys()/values() do
+                    // mapa de chaves record extrai uma List<Rec> — a família
+                    // da LIST-REC também entra para o rastro "list")
+                    List<ClassLayout> mapRecs =
+                            WasmTypeOracle.mapRecordKeys(scanAll, records);
+                    if (!mapRecs.isEmpty()) {
+                        funcs.addAll(WasmMapRecRuntime.all(mapRecs));
+                        funcs.addAll(WasmListRecRuntime.all(mapRecs, recDepth, records));
                     }
                     // Fase E (27/10, #776): a CAIXA DE ERASURE (§284, 3º
                     // backend) — boxToStr despacha por intToStr/strBool/

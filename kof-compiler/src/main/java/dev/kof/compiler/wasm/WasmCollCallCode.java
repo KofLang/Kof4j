@@ -46,6 +46,20 @@ final class WasmCollCallCode {
         return ctx.classes() != null && !vt.isEmpty() && ctx.classes().containsKey(vt);
     }
 
+    /** MAP-REC (29/10, #776): o valor do Map = um RECORD alcançado (o
+     *  handle i32 no slot — a MESMA disciplina do String/classe). */
+    private static boolean isRecordValue(KofCall kc, WasmLowering.Ctx ctx) {
+        String vt = mapValueType(kc);
+        return ctx.records != null && !vt.isEmpty() && ctx.records.containsKey(vt);
+    }
+
+    /** MAP-REC (29/10, #776): a chave do Map = um RECORD alcançado (a
+     *  busca por CONTEÚDO = o fold por record). */
+    private static boolean isRecordKey(KofCall kc, WasmLowering.Ctx ctx) {
+        String kt = mapKeyType(kc);
+        return ctx.records != null && !kt.isEmpty() && ctx.records.containsKey(kt);
+    }
+
 
     /** true = a chamada era de colecao e ja emitiu. */
     static boolean emitCollCall(KofCall kc, WasmLowering.Ctx ctx, List<WasmInstr> out) {
@@ -89,16 +103,22 @@ final class WasmCollCallCode {
                     // disciplina do String (o handle i32 estendido no slot —
                     // o mapPutStr cru, ZERO runtime novo)
                     boolean classVal = isClassValue(kc, ctx);
+                    // MAP-REC (29/10, #776): o VALOR DE RECORD = a MESMA
+                    // disciplina do handle (o mapPutStr/mapPutKi cru); a
+                    // CHAVE DE RECORD = o fold por conteudo (o mapPutRec.<Rec>)
+                    boolean recVal = isRecordValue(kc, ctx);
+                    boolean recKey = isRecordKey(kc, ctx);
                     // FATIA MAP-KI-VAL (28/10, #776): a chave INT admite as
                     // CINCO larguras de valor (o Int/Char/Long = o mapPutKiRaw
                     // CRU; o Double = os bits; o Bool = o estendido; só o
                     // String continua no mapPutKi)
-                    if ((!strKey && !kiKey)
-                            || (!"int".equalsIgnoreCase(mapValueType(kc)) && !longVal && !strVal && !dblVal && !boolVal && !charVal && !classVal)) {
+                    if ((!strKey && !kiKey && !recKey)
+                            || (!"int".equalsIgnoreCase(mapValueType(kc)) && !longVal && !strVal && !dblVal && !boolVal && !charVal && !classVal && !recVal)) {
                         throw new WasmUnsupportedException("Map<"
                                 + mapKeyType(kc) + ", " + mapValueType(kc)
-                                + "> fora das fatias Map<String, Int|String|Double|Bool|Char> /"
-                                + " Map<Int, Int|String|Double|Bool|Char> (WASM002)"
+                                + "> fora das fatias Map<String, Int|String|Double|Bool|Char|Classe|Record> /"
+                                + " Map<Int, Int|String|Double|Bool|Char|Record> /"
+                                + " Map<Record, String|Record> (WASM002)"
                                 + " — docs/wasm-wasi-plan.md (#776)");
                     }
                     // FATIA MV (28/10, #776): o valor String = o mapPutStr (o
@@ -109,7 +129,24 @@ final class WasmCollCallCode {
                     // double = o f64 na pilha; o mapPut pede i64); o res CRU
                     // (o i64 dos bits) nunca consume — dropa na forma VOID da
                     // cadeia (a链 do mapOf) e na forma Nullable
-                    if (dblVal) {
+                    if (recKey) {
+                        // MAP-REC: a CHAVE record = o fold por conteudo (o
+                        // MESMO corpo do mapPutStr — a chave anda HANDLE CRU
+                        // i32, SEM extend no call site; o valor = o CRU i32
+                        // do String/record — os escalares recusam abaixo)
+                        if (!strVal && !recVal) {
+                            throw new WasmUnsupportedException("Map<"
+                                    + mapKeyType(kc) + ", " + mapValueType(kc)
+                                    + "> com a chave record fora da fatia"
+                                    + " (o valor = String|Record) (WASM002)"
+                                    + " — docs/wasm-wasi-plan.md (#776)");
+                        }
+                        out.add(new WasmInstr.Call("kof.mapPutRec." + mapKeyType(kc)));
+                        if (kc.returnType() instanceof Type.PrimitiveType pt
+                                && "void".equalsIgnoreCase(pt.name())) {
+                            out.add(new WasmInstr.Simple(0x1a, "drop"));
+                        }
+                    } else if (dblVal) {
                         out.add(new WasmInstr.Simple(0xbd, "i64.reinterpret_f64"));
                         out.add(new WasmInstr.Call(kiKey ? "kof.mapPutKiRaw" : "kof.mapPut"));
                         if (kc.returnType() instanceof Type.PrimitiveType pt
@@ -126,11 +163,12 @@ final class WasmCollCallCode {
                                 && "void".equalsIgnoreCase(pt.name())) {
                             out.add(new WasmInstr.Simple(0x1a, "drop"));
                         }
-                    } else if (strVal || classVal) {
+                    } else if (strVal || classVal || recVal) {
                         // FATIA MAP-KI: a chave Int = o mapPutKi (a chave raw
                         // i64 no slot; o valor Str estende — o MESMO slot)
                         // CLASS-2h: o valor de classe = o MESMO mapPutStr
                         // (o handle i32 no slot — o mesmo do String)
+                        // MAP-REC: o valor de record = o MESMO (o handle CRU)
                         out.add(new WasmInstr.Call(kiKey ? "kof.mapPutKi" : "kof.mapPutStr"));
                         if (kc.returnType() instanceof Type.PrimitiveType pt
                                 && "void".equalsIgnoreCase(pt.name())) {
@@ -157,14 +195,20 @@ final class WasmCollCallCode {
                     boolean cStrKey = "string".equalsIgnoreCase(mapKeyType(kc));
                     boolean cIntKey = "int".equalsIgnoreCase(mapKeyType(kc));
                     boolean cLongKey = "long".equalsIgnoreCase(mapKeyType(kc));
-                    if (!cStrKey && !cIntKey && !cLongKey) {
+                    // MAP-REC (29/10, #776): a chave record = o fold por
+                    // conteudo (o MESMO corpo do mapContains — a chave
+                    // HANDLE CRU i32, SEM extend)
+                    boolean cRecKey = isRecordKey(kc, ctx);
+                    if (!cStrKey && !cIntKey && !cLongKey && !cRecKey) {
                         throw new WasmUnsupportedException("Map.contains com chave '"
                                 + mapKeyType(kc) + "' fora da fatia Map<String, Int> (WASM002)"
                                 + " — docs/wasm-wasi-plan.md (#776)");
                     }
                     // SEM phantom: o IR do contains tem UM param (a chave —
                     // medido; o drop aqui consumia o handle da chave)
-                    out.add(new WasmInstr.Call((cIntKey || cLongKey) ? "kof.mapContainsKi" : "kof.mapContains"));
+                    out.add(new WasmInstr.Call(cRecKey
+                            ? "kof.mapContainsRec." + mapKeyType(kc)
+                            : (cIntKey || cLongKey) ? "kof.mapContainsKi" : "kof.mapContains"));
                     ctx.lastPush = "bool";
                     ctx.lastPushWide = false;
                 }
@@ -188,21 +232,36 @@ final class WasmCollCallCode {
                     // FATIA MAP-KI-VAL (28/10, #776): a chave INT/LONG admite
                     // as CINCO larguras (o remove = a caixa por largura; o
                     // String continua no mapRemoveKi)
-                    if ((!rStrKey && !rKiKey)
-                            || (!"int".equalsIgnoreCase(mapValueType(kc)) && !rLongVal && !strVal && !dblVal && !boolVal && !charVal)) {
+                    // MAP-REC (29/10, #776): a chave RECORD admite o valor
+                    // String/Record (o CRU mapRemoveRec.<Rec> — o fold)
+                    boolean rRecKey = isRecordKey(kc, ctx);
+                    boolean rRecVal = isRecordValue(kc, ctx);
+                    if ((!rStrKey && !rKiKey && !rRecKey)
+                            || (!"int".equalsIgnoreCase(mapValueType(kc)) && !rLongVal && !strVal && !dblVal && !boolVal && !charVal && !rRecVal)) {
                         throw new WasmUnsupportedException("Map<"
                                 + mapKeyType(kc) + ", " + mapValueType(kc)
-                                + "> fora das fatias Map<String, Int|String|Double|Bool|Char> /"
-                                + " Map<Int, Int|String|Double|Bool|Char> (WASM002)"
+                                + "> fora das fatias Map<String, Int|String|Double|Bool|Char|Classe|Record> /"
+                                + " Map<Int, Int|String|Double|Bool|Char|Record> /"
+                                + " Map<Record, String|Record> (WASM002)"
                                 + " — docs/wasm-wasi-plan.md (#776)");
                     }
                     // FATIA MV: o remove do valor String devolve o CRU; a
                     // FATIA MAP-D: o remove do Double BOXA (o boxDouble dos bits)
-                    out.add(new WasmInstr.Call(strVal
-                            ? (rKiKey ? "kof.mapRemoveKi" : "kof.mapRemoveStr")
-                            : (dblVal ? (rKiKey ? "kof.mapRemoveKiDbl" : "kof.mapRemoveDbl")
-                                : (boolVal ? (rKiKey ? "kof.mapRemoveKiBool" : "kof.mapRemoveBool")
-                                    : (rKiKey ? "kof.mapRemoveKiInt" : "kof.mapRemove")))));
+                    if (rRecKey) {
+                        if (!strVal && !rRecVal) {
+                            throw new WasmUnsupportedException("Map.remove com a chave record '"
+                                    + mapKeyType(kc) + "' fora da fatia"
+                                    + " (o valor = String|Record) (WASM002)"
+                                    + " — docs/wasm-wasi-plan.md (#776)");
+                        }
+                        out.add(new WasmInstr.Call("kof.mapRemoveRec." + mapKeyType(kc)));
+                    } else {
+                        out.add(new WasmInstr.Call(strVal
+                                ? (rKiKey ? "kof.mapRemoveKi" : "kof.mapRemoveStr")
+                                : (dblVal ? (rKiKey ? "kof.mapRemoveKiDbl" : "kof.mapRemoveDbl")
+                                    : (boolVal ? (rKiKey ? "kof.mapRemoveKiBool" : "kof.mapRemoveBool")
+                                        : (rKiKey ? "kof.mapRemoveKiInt" : "kof.mapRemove")))));
+                    }
                     // o remove devolve a CAIXA do valor removido (0=null): a
                     // forma declaracao tem o KofPop (consome); a forma VOID
                     // tem o KofPop DO STATEMENT (o hasReturnValue do Compiler
@@ -215,10 +274,14 @@ final class WasmCollCallCode {
                     // puro caia no else do valueOf e era ESMAGADO pelo param
                     // apagado "int" — o writeInt consumia o handle: módulo
                     // inválido, medido nas sondas M2/M3)
-                    ctx.lastPush = strVal ? "nullablestring"
-                            : (dblVal ? "nullabledouble"
-                                : (boolVal ? "nullablebool"
-                                    : (charVal ? "nullablechar" : "mapval")));
+                    // MAP-REC: o remove da chave record devolve o CRU (o
+                    // String = o nullablestring; o Record = o NOME do record)
+                    ctx.lastPush = rRecKey
+                            ? (strVal ? "nullablestring" : mapValueType(kc))
+                            : (strVal ? "nullablestring"
+                                : (dblVal ? "nullabledouble"
+                                    : (boolVal ? "nullablebool"
+                                        : (charVal ? "nullablechar" : "mapval"))));
                     ctx.lastPushWide = false;
                 }
                 case "kof_map_get" -> {
@@ -227,9 +290,11 @@ final class WasmCollCallCode {
                     boolean gIntKey = "int".equalsIgnoreCase(mapKeyType(kc));
                     boolean gLongKey = "long".equalsIgnoreCase(mapKeyType(kc));
                     boolean gKiKey = gIntKey || gLongKey;
-                    if (!gStrKey && !gIntKey && !gLongKey) {
+                    boolean gRecKey = isRecordKey(kc, ctx);
+                    if (!gStrKey && !gIntKey && !gLongKey && !gRecKey) {
                         throw new WasmUnsupportedException("Map.get com chave '"
-                                + mapKeyType(kc) + "' fora da fatia Map<String, Int> (WASM002)"
+                                + mapKeyType(kc) + "' fora da fatia Map<String, Int>"
+                                + " (WASM002)"
                                 + " — docs/wasm-wasi-plan.md (#776)");
                     }
                     // FATIA MV: o valor String = o mapGetStr (o CRU — o
@@ -245,17 +310,34 @@ final class WasmCollCallCode {
                     // disciplina do String (o handle i32 no slot — o CRU
                     // mapGetStr, ZERO runtime novo)
                     boolean classVal = isClassValue(kc, ctx);
+                    // MAP-REC (29/10, #776): o VALOR DE RECORD = a MESMA
+                    // disciplina (o CRU mapGetStr; o rastro = o NOME do
+                    // record)
+                    boolean recVal = isRecordValue(kc, ctx);
                     // FATIA MAP-B: o valor Bool = o mapGetBool (o boxBool)
-                    if (!"int".equalsIgnoreCase(mapValueType(kc)) && !"long".equalsIgnoreCase(mapValueType(kc)) && !strVal && !dblVal && !boolVal && !charVal && !classVal) {
+                    if (!"int".equalsIgnoreCase(mapValueType(kc)) && !"long".equalsIgnoreCase(mapValueType(kc)) && !strVal && !dblVal && !boolVal && !charVal && !classVal && !recVal) {
                         throw new WasmUnsupportedException("Map.get com valor '"
-                                + mapValueType(kc) + "' fora da fatia Map<String, Int|String|Double|Bool|Char|Classe>"
+                                + mapValueType(kc) + "' fora da fatia Map<String, Int|String|Double|Bool|Char|Classe|Record>"
                                 + " (WASM002) — docs/wasm-wasi-plan.md (#776)");
                     }
-                    out.add(new WasmInstr.Call(strVal || classVal
-                            ? (gKiKey ? "kof.mapGetKi" : "kof.mapGetStr")
-                            : (dblVal ? (gKiKey ? "kof.mapGetKiDbl" : "kof.mapGetDbl")
-                                : (boolVal ? (gKiKey ? "kof.mapGetKiBool" : "kof.mapGetBool")
-                                    : (gKiKey ? "kof.mapGetKiInt" : "kof.mapGet")))));
+                    if (gRecKey) {
+                        // MAP-REC: a chave record = o fold por conteudo (o
+                        // MESMO corpo do mapGetStr — a chave HANDLE CRU i32;
+                        // o valor = o CRU do String/record)
+                        if (!strVal && !recVal) {
+                            throw new WasmUnsupportedException("Map.get com a chave record '"
+                                    + mapKeyType(kc) + "' fora da fatia"
+                                    + " (o valor = String|Record) (WASM002)"
+                                    + " — docs/wasm-wasi-plan.md (#776)");
+                        }
+                        out.add(new WasmInstr.Call("kof.mapGetRec." + mapKeyType(kc)));
+                    } else {
+                        out.add(new WasmInstr.Call(strVal || classVal || recVal
+                                ? (gKiKey ? "kof.mapGetKi" : "kof.mapGetStr")
+                                : (dblVal ? (gKiKey ? "kof.mapGetKiDbl" : "kof.mapGetDbl")
+                                    : (boolVal ? (gKiKey ? "kof.mapGetKiBool" : "kof.mapGetBool")
+                                        : (gKiKey ? "kof.mapGetKiInt" : "kof.mapGet")))));
+                    }
                     // FATIA MAP-C: o valor CHAR anda no MESMO mapGet do Int (a
                     // MESMA caixa boxInt) mas o rastro e' nullablechar — o
                     // render = o strChar (o boxToStr da tag 0 = intToStr viria
@@ -264,7 +346,10 @@ final class WasmCollCallCode {
                     // classe (o despacho narrowed anda na rota ARMADA; o
                     // acesso de campo = o load de campo de classe; o PRINT
                     // da classe = a recusa honesta)
-                    if (classVal) {
+                    // MAP-REC: o rastro do valor de record = o NOME do record
+                    if (gRecKey) {
+                        ctx.lastPush = recVal ? mapValueType(kc) : "mapval";
+                    } else if (classVal || recVal) {
                         ctx.lastPush = mapValueType(kc);
                     } else {
                         ctx.lastPush = charVal ? "nullablechar" : "mapval";
