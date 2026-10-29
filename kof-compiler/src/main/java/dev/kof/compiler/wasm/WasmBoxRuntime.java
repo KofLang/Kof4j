@@ -81,12 +81,11 @@ public final class WasmBoxRuntime {
      */
     private static List<WasmInstr> boxBody(int tag, int valueIdx, int hIdx) {
         List<WasmInstr> b = new ArrayList<>();
-        b.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
-        set(b, hIdx, "h");                                           // h = global
-        b.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
+        // GC-1 (29/10, #776): a caixa anda no kof.heapAlloc (o cabeçalho +
+        // a gc-list; o contrato do handle = o data pointer inalterado)
         i32c(b, 24);
-        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
-        b.add(new WasmInstr.Global(WasmInstr.Global.SET, 0));        // global += 24
+        b.add(new WasmInstr.Call("kof.heapAlloc"));
+        set(b, hIdx, "h");
         get(b, hIdx, "h");
         i64c(b, MAGIC);
         b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE64, 0));          // [h] = MAGIC
@@ -216,12 +215,11 @@ public final class WasmBoxRuntime {
      * paridade do String.valueOf(null) da JVM. Alvo = local {@code dst}.
      */
     private static void nullStr(List<WasmInstr> b, int dst) {
-        b.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
-        set(b, dst, "dst");                                                 // dst = global
-        b.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
+        // GC-1 (29/10, #776): o bump direto → heapAlloc (o handle String =
+        // o data pointer, o [len] no handle — inalterado)
         i32c(b, 9);
-        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
-        b.add(new WasmInstr.Global(WasmInstr.Global.SET, 0));
+        b.add(new WasmInstr.Call("kof.heapAlloc"));
+        set(b, dst, "dst");
         get(b, dst, "dst");
         i32c(b, 4);
         b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));            // [dst] = 4

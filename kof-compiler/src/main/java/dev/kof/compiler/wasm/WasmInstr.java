@@ -8,7 +8,7 @@ import java.util.Locale;
  * mantem o lowering independente da ordem final do modulo.
  */
 public abstract sealed class WasmInstr permits WasmInstr.Const, WasmInstr.Local,
-        WasmInstr.Simple, WasmInstr.Blocking, WasmInstr.Branch, WasmInstr.Call, WasmInstr.NegTop, WasmInstr.Store8, WasmInstr.I32,
+        WasmInstr.Simple, WasmInstr.SimpleExt, WasmInstr.Blocking, WasmInstr.Branch, WasmInstr.Call, WasmInstr.NegTop, WasmInstr.Store8, WasmInstr.I32,
         WasmInstr.Mem, WasmInstr.Global {
 
     /** @param funcIdx mapa nome→indice para resolver `call` (null quando nao ha calls). */
@@ -79,6 +79,26 @@ public abstract sealed class WasmInstr permits WasmInstr.Const, WasmInstr.Local,
 
         @Override public void encode(java.io.ByteArrayOutputStream out, java.util.Map<String, Integer> f) {
             out.write(opcode);
+        }
+
+        @Override public void wat(StringBuilder sb, int n) {
+            pad(sb, n);
+            sb.append('(').append(watName).append(")\n");
+        }
+    }
+
+    /** opcode + o byte reservado (memory.size/grow = 0x3f/0x40 + 0x00) —
+     *  GC-1 (29/10, #776): o coletor consulta/cresce a memória linear. */
+    public static final class SimpleExt extends WasmInstr {
+        public final int opcode;
+        public final int imm;
+        public final String watName;
+
+        public SimpleExt(int opcode, int imm, String watName) { this.opcode = opcode; this.imm = imm; this.watName = watName; }
+
+        @Override public void encode(java.io.ByteArrayOutputStream out, java.util.Map<String, Integer> f) {
+            out.write(opcode);
+            out.write(imm);
         }
 
         @Override public void wat(StringBuilder sb, int n) {

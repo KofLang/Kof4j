@@ -71,6 +71,38 @@ final class WasmArrayOps {
             out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.wIdx, "arr")); // [arr, arr]
             out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.sIdx, "n"));   // [arr, arr, n]
             out.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));       // [arr] (count = n)
+            // GC-1 (29/10, #776): os slots SAO zerados EXPLICITAMENTE — o
+            // bloco pode vir da free-list (o dado reciclado nao e' zero) e
+            // os slots zerados = os handles null/a paridade 0 do JVM
+            out.add(new WasmInstr.Const(0, 0));
+            out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.sIdx, "j")); // j = 0 (reusa s)
+            out.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, "zf", 0x40));
+            out.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, "zl", 0x40));
+            out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.sIdx, "j"));
+            out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.sIdx, "n"));
+            out.add(new WasmInstr.Simple(0x4f, "i32.ge_u"));
+            out.add(new WasmInstr.Branch("zf", 1, true));
+            out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.wIdx, "arr"));
+            out.add(new WasmInstr.Const(0, 4));
+            out.add(new WasmInstr.Simple(0x6a, "i32.add"));
+            out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.sIdx, "j"));
+            out.add(new WasmInstr.Const(0, stride));
+            out.add(new WasmInstr.Simple(0x6c, "i32.mul"));
+            out.add(new WasmInstr.Simple(0x6a, "i32.add"));
+            if (wideElem) {
+                out.add(new WasmInstr.Const(1, 0));
+                out.add(new WasmInstr.Mem(WasmInstr.Mem.STORE64, 0)); // o slot 8B = 0
+            } else {
+                out.add(new WasmInstr.Const(0, 0));
+                out.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));   // o slot 4B = 0
+            }
+            out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.sIdx, "j"));
+            out.add(new WasmInstr.Const(0, 1));
+            out.add(new WasmInstr.Simple(0x6a, "i32.add"));
+            out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.sIdx, "j"));
+            out.add(new WasmInstr.Branch("zl", 0));
+            out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "zl", 0x40));
+            out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "zf", 0x40));
             ctx.lastPush = "array";
             ctx.lastPushWide = false;
         return true;

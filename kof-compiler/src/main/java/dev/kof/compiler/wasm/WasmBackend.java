@@ -298,10 +298,12 @@ public class WasmBackend implements Backend {
                     // sao memoria pura; so o alocador compartilhado entra
                     if (wasi && WasmTypeOracle.usesArray(scanAll)) {
                         funcs.add(WasmListRuntime.heapAlloc());
+                        usesHeap = true;
                     }
                     if (wasi && WasmTypeOracle.usesList(scanAll)) {
                         funcs.addAll(WasmListRuntime.all());
                         funcs.add(kofStrEq());
+                        usesHeap = true;
                         // LIST-REC (29/10, #776): os ELEMENTOS de RECORD — o
                         // fold compartilhado (o MESMO kof.recEq.<Rec> do
                         // SET-REC, o dedupe por nome cuida do dup) + as três
@@ -317,12 +319,14 @@ public class WasmBackend implements Backend {
                         funcs.addAll(WasmMapRuntime.all());
                         funcs.addAll(WasmBoxRuntime.all());
                         funcs.add(kofStrEq());
+                        usesHeap = true;
                     }
                     // Fase E (27/10, #776): a fatia SET<Int> — o mesmo
                     // alocador compartilhado
                     if (wasi && WasmTypeOracle.usesSet(scanAll)) {
                         funcs.add(WasmListRuntime.heapAlloc());
                         funcs.addAll(WasmSetRuntime.all());
+                        usesHeap = true;
                         // SET-REC (29/10, #776): os ELEMENTOS de RECORD — o
                         // fold por record (kof.recEq.<Rec>) + os ops de scan
                         // por conteudo; o strEq entra quando o record tem
@@ -438,6 +442,40 @@ public class WasmBackend implements Backend {
         // so deslocamos a base do heap para nao sobrepor o que coube.
         if (usesHeap) {
             globals = java.util.List.of(Math.max(HEAP_BASE, (dataCursor.next + 7) & ~7));
+        }
+        // GC-1 (29/10, #776): o coletor substitui o heapAlloc-core pelo loop
+        // (free-list → bump → collect → retry → grow). O body novo vem DEPOIS
+        // do dedupe por nome (o usado pelos blocos = `WasmListRuntime`):
+        // troca o heapAlloc CORE pelo loop do GC + registra os três runtimes
+        // de GC + aplica o POST-PASS de spill (o equivalente ao safe-point
+        // do design — as raízes são derramadas antes de cada chamada a um
+        // alvo alloc-alcançável) + desloca o heap para depois do root
+        // buffer. O `_start` com args + o ARGS buf pinado continuam na
+        // base do heap (o sweep nunca os visita — fora da gc-list).
+        if (usesHeap) {
+            int heapStart = Math.max(HEAP_BASE, (dataCursor.next + 7) & ~7);
+            int maxSlots = 0;
+            for (WasmFunc f : funcs) {
+                int n = 0;
+                for (int t : f.params()) if (t == WasmFunc.TYPE_I32) n++;
+                for (int t : f.locals()) if (t == WasmFunc.TYPE_I32) n++;
+                if (n > maxSlots) maxSlots = n;
+            }
+            if (maxSlots < 64) maxSlots = 64; // o piso cobre os programas grandes
+            int rootBuf = heapStart;
+            int heapFirst = (rootBuf + 4 * maxSlots + 7) & ~7;
+            WasmFunc gcCollect = WasmGcRuntime.gcCollect(rootBuf, maxSlots, heapFirst);
+            WasmFunc gcFree = WasmGcRuntime.gcTryFree();
+            WasmFunc gcBump = WasmGcRuntime.gcTryBump();
+            WasmFunc gcHeap = WasmGcRuntime.heapAlloc();
+            WasmGcSpill.Scan scan = WasmGcSpill.analyze(funcs);
+            funcs.removeIf(f -> "kof.heapAlloc".equals(f.name()));
+            funcs.add(gcCollect);
+            funcs.add(gcFree);
+            funcs.add(gcBump);
+            funcs.add(gcHeap);
+            WasmGcSpill.inject(funcs, scan, rootBuf);
+            globals = java.util.List.of(heapFirst, 0, 0);
         }
         List<WasmImport> imports;
         if (!wasi) {

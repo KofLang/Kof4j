@@ -137,15 +137,13 @@ final class WasmStrSlice {
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 3, "s"));
         b.add(new WasmInstr.Simple(0x6b, "i32.sub"));
         b.add(new WasmInstr.Local(WasmInstr.Local.SET, 5, "len"));
-        // p = global 0; global 0 += len + 5 (cabecalho 4 + newline)
-        b.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 6, "p"));
-        b.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
+        // GC-1 (29/10, #776): o bump direto → heapAlloc(len+5) (o handle
+        // String = o data pointer, o `[len]` no handle — inalterado)
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "len"));
-        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
         b.add(new WasmInstr.Const(0, 5));
         b.add(new WasmInstr.Simple(0x6a, "i32.add"));
-        b.add(new WasmInstr.Global(WasmInstr.Global.SET, 0));
+        b.add(new WasmInstr.Call("kof.heapAlloc"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 6, "p"));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 6, "p"));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 5, "len"));
         b.add(new WasmInstr.Mem(WasmInstr.Mem.STORE, 0));

@@ -497,17 +497,16 @@ final class WasmStrSearch {
                 List.of(0x7f, 0x7f), b);
     }
 
-    /** `kof.strAlloc(n) -> handle`: bump-aloca `[n][n bytes]` (sem copia). */
+    /** `kof.strAlloc(n) -> handle`: GC-1 (29/10, #776) — anda por
+     *  `kof.heapAlloc(n+5)` (o cabeçalho do coletor antes do dado, o
+     *  contrato do handle String = o `[len]` no handle — inalterado). */
     static WasmFunc kofStrAlloc() {
         List<WasmInstr> b = new ArrayList<>();
-        b.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
-        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 1, "h"));
-        b.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
         b.add(new WasmInstr.Local(WasmInstr.Local.GET, 0, "n"));
-        b.add(new WasmInstr.Simple(0x6a, "i32.add"));
         b.add(new WasmInstr.Const(0, 5));
         b.add(new WasmInstr.Simple(0x6a, "i32.add"));
-        b.add(new WasmInstr.Global(WasmInstr.Global.SET, 0));
+        b.add(new WasmInstr.Call("kof.heapAlloc"));
+        b.add(new WasmInstr.Local(WasmInstr.Local.SET, 1, "h"));
         // O cabecalho comeca em ZERO: o buffer nasce vazio e quem escreve
         // (`strAppend`/`strAppendByte`) e' que incrementa o comprimento. Po'
         // `n` aqui faria o primeiro append somar em cima do tamanho reservado

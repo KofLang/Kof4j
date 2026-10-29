@@ -54,15 +54,13 @@ final class WasmClassCall {
                     + "' fora do subset de classes da CLASS-1 (WASM002)"
                     + " — docs/wasm-wasi-plan.md (#776)");
         }
-        // h = o global 0; o global 0 += o tamanho (o MESMO bump do record);
-        // o handle VAI PRO SCRATCH (não fica na pilha: os args do <init> se
-        // empilham DEPOIS e o receiver entra POR CIMA deles no call)
-        out.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
-        out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.clsIdx, "h"));
-        out.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
+        // GC-1 (29/10, #776): o alloc anda no kof.heapAlloc (o cabeçalho +
+        // a gc-list); o handle VAI PRO SCRATCH (não fica na pilha: os args
+        // do <init> se empilham DEPOIS e o receiver entra POR CIMA deles
+        // no call)
         out.add(new WasmInstr.Const(0, layout.totalSize()));
-        out.add(new WasmInstr.Simple(0x6a, "i32.add"));
-        out.add(new WasmInstr.Global(WasmInstr.Global.SET, 0));
+        out.add(new WasmInstr.Call("kof.heapAlloc"));
+        out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.clsIdx, "h"));
         // o zero-fill dos campos (a ordem reversa do layout)
         WasmClassOps.emitZeroFill(ctx, layout, out);
         // a TAG de classe no offset 0 (os primeiros 4B do header — os

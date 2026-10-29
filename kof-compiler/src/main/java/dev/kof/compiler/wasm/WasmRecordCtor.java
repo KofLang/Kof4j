@@ -78,13 +78,12 @@ final class WasmRecordCtor {
             out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.nestR[ctx.allocDepth], "rv"));
         }
         ctx.allocDepth++;
-        // h = global 0; global 0 += totalSize; empilha h
-        out.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
-        out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.objIdx, "obj"));
-        out.add(new WasmInstr.Global(WasmInstr.Global.GET, 0));
+        // GC-1 (29/10, #776): o alloc anda no kof.heapAlloc (o cabeçalho +
+        // a gc-list — o coletor recicla estes blocos); o contrato do handle
+        // = o data pointer (inalterado) — [h][sz=total] empilha o h.
         out.add(new WasmInstr.Const(0, layout.totalSize()));
-        out.add(new WasmInstr.Simple(0x6a, "i32.add"));
-        out.add(new WasmInstr.Global(WasmInstr.Global.SET, 0));
+        out.add(new WasmInstr.Call("kof.heapAlloc"));
+        out.add(new WasmInstr.Local(WasmInstr.Local.SET, ctx.objIdx, "obj"));
         out.add(new WasmInstr.Local(WasmInstr.Local.GET, ctx.objIdx, "obj"));
         ctx.lastPush = "record";
     }
