@@ -202,6 +202,23 @@ final class SemFieldAccessTyper {
                             "SEM102");
                     return Type.UnknownType.UNKNOWN;
                 }
+                // QA probe #29 (30/10): membro inexistente sobre um PRIMITIVO
+                // (`bogus.day` com `bogus: Int`) compilava LIMPO e cada alvo
+                // errava à sua maneira: JVM `VerifyError` (getfield sobre int,
+                // escondido atrás da mensagem FALSA do launcher JavaFX), Script
+                // imprimia a string de debug `PrimitiveType[...].day` (valor
+                // ERRADO em silêncio), JS undefined, Native nada (e SIGSEGV na
+                // face do probe). Mesma família §491/§692 — diagnóstico honesto,
+                // nunca valor errado: primitivo NÃO expõe membros em Kof
+                // (operadores, casts e funções de stdlib são o idioma).
+                if (recvType instanceof Type.PrimitiveType && sa.diagnostics() != null) {
+                    sa.diagnostics().error(fa,
+                            "'" + Type.display(recvType) + "' has no field '" + fa.fieldName()
+                                    + "' (primitives expose no members; use operators, "
+                                    + "casts or stdlib functions)",
+                            "SEM102");
+                    return Type.UnknownType.UNKNOWN;
+                }
                 // #375/§355 (rio da erasure): receiver é type-variable COM bound
                 // (`item.name` com `item: T: Animal`) — o membro resolve no
                 // BOUND, como javac após a erasure. Sem isto o tipo caía em
