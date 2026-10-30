@@ -860,6 +860,11 @@
   ],
   "SEM014": [
     {
+      "arity": 3,
+      "en": "Argument {0} of '{1}': expected 'Int' but got '{2}'",
+      "pt": "argumento {0} de '{1}': esperado 'Int' mas obtido '{2}'"
+    },
+    {
       "arity": 4,
       "en": "Argument {0} of '{1}': expected '{2}' but got '{3}'",
       "pt": "argumento {0} de '{1}': esperado '{2}' mas obtido '{3}'"
@@ -904,6 +909,11 @@
     }
   ],
   "SEM021": [
+    {
+      "arity": 2,
+      "en": "type mismatch: cannot assign {0} to array element of {1}",
+      "pt": "incompatibilidade de tipo: não é possível atribuir {0} a elemento de array de {1}"
+    },
     {
       "arity": 3,
       "en": "type mismatch: cannot assign {0} to '{1}: {2}'",
