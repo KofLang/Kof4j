@@ -418,8 +418,13 @@ final class CmdDeploy {
         releaseFiles.add(Path.of("SHA256SUMS"));
         Path tgz = out.resolve("deploy").resolve(name + "-" + version + dirSuffix + ".tar.gz");
         writeTarGz(tgz, releaseDir, releaseFiles, tarMode);
+        // issue #978: o SHA impresso na linha "artifact → …tar.gz" e o do
+        // atestado de publicação precisam ser do ARQUIVO NOMEADO (o .tar.gz),
+        // não do jar interno — o TrustGate verifica o TARBALL baixado contra
+        // esse digest; o SHA do jar continua na 1a linha do SHA256SUMS.
+        String tgzSha256 = library ? null : sha256Hex(tgz);
         return new Release(TargetMatrix.name(target), "SUCCESS", releaseDir, tgz,
-                library ? null : artifact, sha256, null);
+                library ? null : artifact, tgzSha256, null);
     }
 
     /**
