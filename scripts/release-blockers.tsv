@@ -11,3 +11,4 @@ issue	category	reason	owner
 932	1.0-blocks	native: user fn shadowed by native fn (writeFile) never called — native lane.	native lane
 933	1.0-blocks	native: Map<String,Int> SIGSEGV ~3650 keys (JVM ok) — MEMORY SAFETY, native lane.	native lane
 934	1.0-blocks	native: multi-file extern passes wrong String to C depending on compile order — native lane.	native lane
+979	1.0-blocks	validation.matches on NATIVE is a LITERAL substring search (strstr asm, NativeRiscvAsmRtB3:174), not the JVM regex (find) contract — `matches("abc","[a-c]+"/".*"/"^abc$")` = false on native, true on JVM/Script; silent wrong values; backend-parity line 137 wrongly marks validation ✅✅✅. Fix belongs to the native/asm runtime lane (honest refusal on metacharacters or a real mini-regex port). Repro in the issue.	deploy-flow + QA gate lane 192.168.100.19:0 (front: native/asm runtime)
