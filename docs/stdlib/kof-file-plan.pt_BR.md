@@ -545,7 +545,7 @@ Considerar segurança contra path traversal dentro de arquivos compactados.
 > declarado mentiroso é RECUSADO em vez de truncado, que é a defesa contra bomba
 > de descompressão. ZIP64, entrada criptografada e método fora de {0, 8} são
 > recusados com diagnóstico explícito, nunca silêncio. **Segue aberto na #852:**
-> o streaming `open()`/`readChunk()` dirigido pelo chamador.
+> o streaming `open()`/`readChunk()` dirigido pelo chamador — pousado LOCALMENTE em 30/10 (ver a fatia de streaming abaixo), sem push até a mantenedora liberar o gate de desenho.
 > **A ESCRITA de ZIP está DENTRO:** `ZipWriter(path)` + `addFile`/`addText` + `close()` escreve
 > entradas STORED (método 0) — verbatim, SEM compressor — com o cabeçalho local gravado conforme
 > anda e o diretório central montado no `close()` a partir do que foi anotado (as cargas nunca
@@ -593,6 +593,8 @@ Considerar segurança contra path traversal dentro de arquivos compactados.
 > carrega compressão, então o que acrescenta é a ESTRUTURA — e a composição é o
 > ponto: `tarEntriesFrom(gzipRead(...))` (ou o wrapper `tarGzEntries`) lê um
 > `.tar.gz` sem máquina nova. Escrita não está aqui (só leitura).
+
+> **Fatia de streaming pousada localmente 30/10 (#852 — `ZipReader` + `ZipEntryStream` + `image.InflateStream`, Kof puro, aditiva; sem push — o gate de desenho aguarda a mantenedora):** `ZipReader(path[, maxEntries, maxTotalBytes])` lista um ZIP SEM carregá-lo — leitura da cauda para o EOCD (o candidato precisa explicar o fim do arquivo; dois que cabem ambos são recusados como AMBÍGUOS) e o diretório central em blocos de 64 KiB, registro a registro; `bytesRead()`/`readCalls()` contam o que se pediu ao arquivo. `open(entry, maxBytes[, chunkSize])` devolve um `ZipEntryStream` cujo `readChunk(): Int[]?` é dirigido por quem chama (null no fim, como o `FileStream`). Uma entrada DEFLATE passa pelo `image.InflateStream` RETOMÁVEL (puxa a entrada um bloco por vez, saída pausável, janela circular de 32 KiB, `Huff` compartilhado com o `Inflate`, que não foi tocado), então um consumidor que para, para o decodificador. O limite conta bytes REALMENTE PRODUZIDOS — nunca o tamanho declarado — e recusa antes do byte acima dele ser emitido (os bytes até ele saem primeiro); CRC-32 e tamanho real só são conferidos no fim: `verified()` é verdadeiro depois que `readChunk()` devolveu null e nunca depois de um `close()` antecipado. ZIP64 (localizador, EOCD, entrada), multi-disco, criptografia, métodos fora de {0, 8}, entradas acima de 2 GiB, um nome cortado no meio de uma sequência UTF-8 e um diretório central que não explica os próprios bytes são recusados com texto explícito; `validate()` é o gêmeo incremental (compara também a FLAG de descritor nos dois cabeçalhos). Limites honestos: `extractTo` e os escritores não estão no `ZipReader` (o `createNew` da #854 ainda condiciona a extração); o custo de CPU é o de produzir os bytes até o limite.
 
 ---
 

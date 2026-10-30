@@ -1,0 +1,425 @@
+package archive
+
+import archive.Zip
+import archive.ZipEntryStream
+
+// kof-archive — the INCREMENTAL ZIP reader. Issue #852, streaming slice.
+//
+// `Zip` (slice 1) reads the whole archive into memory: it is the simple reader
+// and it stays exactly as it is. `ZipReader` is the additive sibling for archives
+// that must not be loaded — it works on `kof.io.readRange` and holds only what
+// the current step needs:
+//
+//   * `ZipReader(path)` reads the TAIL of the file (at most 22 + 65535 bytes) to
+//     find the End Of Central Directory, then the central directory in 64 KiB
+//     blocks, record by record. Memory follows the number of entries, never the
+//     size of the archive; `bytesRead()` and `readCalls()` count every byte the
+//     reader asked the file for, so a test can PROVE the listing never read the
+//     whole file;
+//   * the EOCD candidate must account for the file end exactly (its comment
+//     length reaches the last byte). Two candidates that both fit are refused as
+//     AMBIGUOUS — that is the shape of a ZIP-confusion archive, never guessed at;
+//   * `open(entry, maxBytes[, chunkSize])` returns a `ZipEntryStream`
+//     (`ZipEntryStream.kf`): `readChunk(): Int[]?`, driven by the caller, with the
+//     limit counted in bytes actually produced and CRC-32/size verified only at
+//     the end;
+//
+// Refused with an explicit diagnostic: ZIP64 (EOCD locator, EOCD or entry
+// sentinel), multi-disk archives, an encrypted entry, a method outside {0, 8},
+// an entry past 2 GiB (the entry record carries Int fields), a central directory
+// that does not account for its own bytes, local headers or data that lie
+// outside the archive's data area, and more entries than the caller allows.
+//
+// Targets: where `kof.io.readRange` exists — JVM, Native and Script. JS has no
+// host binding (`IOJS001`); there is no whole-file fallback.
+//
+// NOT here: `extractTo` (it needs the exclusive-create primitive of #854) and
+// any writer.
+
+/** u32 as a Long: a 32-bit field must never be read as a signed Int when it is
+ *  compared against a file size. */
+Long zipU32Long(Int[] b, Int at) {
+    return (zipU32(b, at) as Long) & 4294967295L
+}
+
+/** True when a UTF-8 sequence that starts inside `[from, from + len)` needs bytes
+ *  past its end — the shape `zipUtf8` would answer with a platform index error,
+ *  so the reader refuses it with its own text before decoding. */
+Bool zipUtf8Cut(Int[] b, Int from, Int len) {
+    var i = 0
+    while (i < len) {
+        var c = b[from + i] & 255
+        var need = 1
+        if (c >= 240) {
+            need = 4
+        } else if (c >= 224) {
+            need = 3
+        } else if (c >= 128) {
+            need = 2
+        }
+        if (i + need > len) {
+            return true
+        }
+        i = i + need
+    }
+    return false
+}
+
+/** A ZIP archive read incrementally: the central directory is indexed, the
+ *  entries are streamed. */
+class ZipReader {
+    String path
+    Long size
+    Long cdOffset
+    Long cdSize
+    List<ZipEntry> entries
+    ZipBudget budget
+    Long pulled
+    Int calls
+    Int[] win
+    Long winAt
+
+    /** Opens `path`: at most 65535 entries and no archive-level byte budget. */
+    public constructor(String path) {
+        this.path = path
+        this.size = 0
+        this.cdOffset = 0
+        this.cdSize = 0
+        this.entries = listOf()
+        this.budget = ZipBudget(4611686018427387904L)
+        this.pulled = 0
+        this.calls = 0
+        this.win = new Int[0]
+        this.winAt = 0
+        this.load(65535)
+    }
+
+    /** Opens `path` refusing more than `maxEntries` entries; every stream this
+     *  reader opens draws from ONE budget of `maxTotalBytes` produced bytes. */
+    public constructor(String path, Int maxEntries, Long maxTotalBytes) {
+        this.path = path
+        this.size = 0
+        this.cdOffset = 0
+        this.cdSize = 0
+        this.entries = listOf()
+        this.budget = ZipBudget(maxTotalBytes)
+        this.pulled = 0
+        this.calls = 0
+        this.win = new Int[0]
+        this.winAt = 0
+        this.load(maxEntries)
+    }
+
+    /** Bytes this reader has asked the file for (listing, headers, validation). */
+    Long bytesRead() {
+        return this.pulled
+    }
+
+    /** How many `readRange` calls that took. */
+    Int readCalls() {
+        return this.calls
+    }
+
+    /** The first entry with this name, or null when the archive has none. */
+    ZipEntry? find(String name) {
+        for (var e in this.entries) {
+            if (e.name == name) {
+                return e
+            }
+        }
+        return null
+    }
+
+    /** Streams one entry in chunks of 8192 bytes. */
+    ZipEntryStream open(ZipEntry e, Int maxBytes) {
+        return this.open(e, maxBytes, 8192)
+    }
+
+    /** Streams one entry. `maxBytes` is the caller's ceiling on what the entry
+     *  may produce: a declared size above it is refused before anything is read,
+     *  and the stream itself can never produce more than the entry declared. */
+    ZipEntryStream open(ZipEntry e, Int maxBytes, Int chunkSize) {
+        if (chunkSize <= 0) {
+            throw "archive: the chunk size must be positive"
+        }
+        if (maxBytes < 0) {
+            throw "archive: the byte limit must not be negative"
+        }
+        if ((e.flags & 1) != 0) {
+            throw "archive: entry '" + e.name + "' is encrypted (flag bit 0) — not supported"
+        }
+        if (e.method != 0 && e.method != 8) {
+            throw "archive: entry '" + e.name + "' uses compression method " + e.method
+                + " (only 0 = stored and 8 = deflate are supported)"
+        }
+        if (e.method == 0) {
+            if (e.compressedSize != e.uncompressedSize) {
+                throw "archive: stored entry '" + e.name + "' declares " + e.compressedSize
+                    + " compressed and " + e.uncompressedSize + " uncompressed bytes — they must match"
+            }
+            if (e.compressedSize > maxBytes) {
+                throw "archive: entry '" + e.name + "' holds " + e.compressedSize
+                    + " bytes, over the limit of " + maxBytes
+            }
+        } else {
+            if (e.uncompressedSize > maxBytes) {
+                throw "archive: entry '" + e.name + "' declares " + e.uncompressedSize
+                    + " bytes, over the limit of " + maxBytes
+            }
+        }
+        var start = this.dataStartOf(e)
+        return ZipEntryStream(this.path, e, start, chunkSize, this.budget)
+    }
+
+    /** Validates the STRUCTURE and returns how many entries it checked: local vs
+     *  central consistency (method, name, sizes, CRC-32, the data-descriptor
+     *  flag — compared in BOTH headers) and OVERLAP between entry data. The
+     *  local headers are read one by one with `readRange`; nothing is loaded.
+     *  The data-descriptor exception is the spec's: with flag bit 3 the local
+     *  sizes and CRC are zero by definition, so the central directory decides. */
+    Int validate() {
+        var keys: List<Long> = listOf()
+        var ends: List<Long> = listOf()
+        var idx = 0
+        for (var e in this.entries) {
+            var at = e.localHeaderOffset as Long
+            if (at + 30 > this.cdOffset) {
+                throw "archive: entry '" + e.name + "' has no readable local header"
+            }
+            var lh = this.pull(at, 30)
+            if (zipU32(lh, 0) != 67324752) {
+                throw "archive: entry '" + e.name + "' has no readable local header"
+            }
+            var localFlags = zipU16(lh, 6)
+            var localMethod = zipU16(lh, 8)
+            var localNameLen = zipU16(lh, 26)
+            var localExtraLen = zipU16(lh, 28)
+            if (localMethod != e.method) {
+                throw "archive: entry '" + e.name + "' declares method " + localMethod
+                    + " in the local header and " + e.method + " in the central directory"
+            }
+            if (((localFlags ^ e.flags) & 8) != 0) {
+                throw "archive: entry '" + e.name + "' sets the data-descriptor flag (bit 3) in only one"
+                    + " of its headers — inconsistent"
+            }
+            if (at + 30 + localNameLen > this.cdOffset) {
+                throw "archive: entry '" + e.name + "' has no readable local header"
+            }
+            var nameBytes = this.pull(at + 30, localNameLen)
+            if ((e.flags & 2048) != 0 && zipUtf8Cut(nameBytes, 0, localNameLen)) {
+                throw "archive: entry '" + e.name + "' has a local name cut inside a UTF-8 sequence"
+            }
+            var localName = (if ((e.flags & 2048) != 0) zipUtf8(nameBytes, 0, localNameLen)
+                    else zipCp437(nameBytes, 0, localNameLen))
+            if (localName != e.name) {
+                throw "archive: entry '" + e.name + "' is named '" + localName
+                    + "' in the local header — inconsistent with the central directory"
+            }
+            if ((e.flags & 8) == 0) {
+                var localCrc = zipU32(lh, 14)
+                var localComp = zipU32(lh, 18)
+                var localUncomp = zipU32(lh, 22)
+                if (localComp != e.compressedSize || localUncomp != e.uncompressedSize) {
+                    throw "archive: entry '" + e.name + "' sizes differ between the local header ("
+                        + localComp + "/" + localUncomp + ") and the central directory ("
+                        + e.compressedSize + "/" + e.uncompressedSize + ")"
+                }
+                if (localCrc != e.crc32) {
+                    throw "archive: entry '" + e.name + "' CRC-32 differs between the local header ("
+                        + localCrc + ") and the central directory (" + e.crc32 + ")"
+                }
+            }
+            var dataAt = at + 30 + localNameLen + localExtraLen
+            if (dataAt + e.compressedSize > this.cdOffset) {
+                throw "archive: entry '" + e.name + "' data runs past the end of the archive's data area"
+            }
+            // One sort key per entry: the start offset in the high bits, the
+            // entry index in the low 16 (an archive holds at most 65535 entries),
+            // so the natural order of the keys IS the order of the data.
+            keys.add(dataAt * 65536 + idx)
+            ends.add(dataAt + e.compressedSize)
+            idx = idx + 1
+        }
+        keys.sort()
+        var maxEnd = 0L
+        var k = 0
+        while (k < keys.size()) {
+            var key = keys.get(k)
+            var start = key / 65536
+            if (k > 0 && start < maxEnd) {
+                throw "archive: entries overlap in the file — the data at " + start
+                    + " is inside another entry's range (refused)"
+            }
+            var end = ends.get((key % 65536) as Int)
+            if (end > maxEnd) {
+                maxEnd = end
+            }
+            k = k + 1
+        }
+        return idx
+    }
+
+    // --- internals -------------------------------------------------------------
+
+    /** The one door to the file: every byte the reader asks for is counted, and
+     *  a short read is a refusal (the archive is shorter than it says). */
+    Int[] pull(Long at, Int len) {
+        var b = File(this.path).readRange(at, len)
+        this.pulled = this.pulled + b.length
+        this.calls = this.calls + 1
+        if (b.length != len) {
+            throw "archive: the file ended while reading " + len + " bytes at " + at
+        }
+        return b
+    }
+
+    /** Offset of the entry's data after checking its local header against the
+     *  central directory record (signature, method) and the data area. */
+    Long dataStartOf(ZipEntry e) {
+        var at = e.localHeaderOffset as Long
+        if (at + 30 > this.cdOffset) {
+            throw "archive: entry '" + e.name + "' has no readable local header"
+        }
+        var lh = this.pull(at, 30)
+        if (zipU32(lh, 0) != 67324752) {
+            throw "archive: bad local header signature for '" + e.name + "'"
+        }
+        if (zipU16(lh, 8) != e.method) {
+            throw "archive: local header method " + zipU16(lh, 8)
+                + " disagrees with the central directory (" + e.method + ") for '" + e.name + "'"
+        }
+        var start = at + 30 + zipU16(lh, 26) + zipU16(lh, 28)
+        if (start + e.compressedSize > this.cdOffset) {
+            throw "archive: entry '" + e.name + "' data runs past the end of the archive's data area"
+        }
+        return start
+    }
+
+    load(Int maxEntries) {
+        this.size = File(this.path).size()
+        if (this.size < 22) {
+            throw "archive: end of central directory not found (not a ZIP archive?)"
+        }
+        var tailLen = 65557
+        if (this.size < tailLen) {
+            tailLen = this.size as Int
+        }
+        var tailAt = this.size - tailLen
+        var tail = this.pull(tailAt, tailLen)
+        var found = -1
+        var i = tail.length - 22
+        while (i >= 0) {
+            if (zipU32(tail, i) == 101010256 && i + 22 + zipU16(tail, i + 20) == tail.length) {
+                if (found >= 0) {
+                    throw "archive: ambiguous end of central directory (two candidates fit the end of the file)"
+                }
+                found = i
+            }
+            i = i - 1
+        }
+        if (found < 0) {
+            throw "archive: end of central directory not found (not a ZIP archive?)"
+        }
+        // The ZIP64 locator sits right before the EOCD: its presence alone means the
+        // sizes below are not the real ones.
+        if (found >= 20 && zipU32(tail, found - 20) == 117853008) {
+            throw "archive: ZIP64 end-of-central-directory locator found — ZIP64 is not supported"
+        }
+        var total = zipU16(tail, found + 10)
+        var cdSizeL = zipU32Long(tail, found + 12)
+        var cdOffsetL = zipU32Long(tail, found + 16)
+        if (total == 65535 || cdSizeL == 4294967295L || cdOffsetL == 4294967295L) {
+            throw "archive: ZIP64 sentinel in the end of central directory — ZIP64 is not supported"
+        }
+        if (zipU16(tail, found + 4) != 0 || zipU16(tail, found + 6) != 0
+                || zipU16(tail, found + 8) != total) {
+            throw "archive: multi-disk archives are not supported"
+        }
+        if (cdOffsetL + cdSizeL > tailAt + found) {
+            throw "archive: the central directory lies outside the file (truncated?)"
+        }
+        if (total > maxEntries) {
+            throw "archive: the archive declares " + total + " entries, over the limit of " + maxEntries
+        }
+        if (cdSizeL < total * 46) {
+            throw "archive: the central directory is too small for its " + total + " entries"
+        }
+        this.cdOffset = cdOffsetL
+        this.cdSize = cdSizeL
+        this.entries = this.readDirectory(total)
+    }
+
+    /** Walks the central directory in file order, one record at a time, through a
+     *  64 KiB window that follows the cursor. */
+    List<ZipEntry> readDirectory(Int total) {
+        var out: List<ZipEntry> = listOf()
+        var end = this.cdOffset + this.cdSize
+        var at = this.cdOffset
+        var n = 0
+        while (n < total) {
+            if (at + 46 > end) {
+                throw "archive: bad central directory entry signature at " + at
+            }
+            this.ensure(at, 46, end)
+            var o = (at - this.winAt) as Int
+            if (zipU32(this.win, o) != 33639248) {
+                throw "archive: bad central directory entry signature at " + at
+            }
+            var nameLen = zipU16(this.win, o + 28)
+            var extraLen = zipU16(this.win, o + 30)
+            var commentLen = zipU16(this.win, o + 32)
+            var rec = 46 + nameLen + extraLen + commentLen
+            if (at + rec > end) {
+                throw "archive: the central directory entry at " + at + " runs past the end of the directory"
+            }
+            this.ensure(at, rec, end)
+            o = (at - this.winAt) as Int
+            var flags = zipU16(this.win, o + 8)
+            var method = zipU16(this.win, o + 10)
+            var crc = zipU32(this.win, o + 16)
+            var comp = zipU32Long(this.win, o + 20)
+            var uncomp = zipU32Long(this.win, o + 24)
+            var externAttrs = zipU32(this.win, o + 38)
+            var localOffset = zipU32Long(this.win, o + 42)
+            if ((flags & 2048) != 0 && zipUtf8Cut(this.win, o + 46, nameLen)) {
+                throw "archive: the name of the central directory entry at " + at
+                    + " is cut inside a UTF-8 sequence"
+            }
+            // APPNOTE 6.3.x: bit 11 (EFS) set = the name is UTF-8; CLEAR = CP437.
+            var name = (if ((flags & 2048) != 0) zipUtf8(this.win, o + 46, nameLen)
+                    else zipCp437(this.win, o + 46, nameLen))
+            if (comp == 4294967295L || uncomp == 4294967295L || localOffset == 4294967295L) {
+                throw "archive: entry '" + name + "' carries a ZIP64 sentinel — ZIP64 is not supported"
+            }
+            if (comp >= 2147483648L || uncomp >= 2147483648L || localOffset >= 2147483648L) {
+                throw "archive: entry '" + name + "' reaches past 2 GiB — not supported"
+            }
+            out.add(ZipEntry(name, flags, method, crc, comp as Int, uncomp as Int,
+                    externAttrs, localOffset as Int, nameLen))
+            at = at + rec
+            n = n + 1
+        }
+        if (at != end) {
+            throw "archive: the central directory holds " + (end - at)
+                + " bytes its entries do not account for"
+        }
+        return out
+    }
+
+    /** Makes sure the window covers `[at, at + need)`, reading forward from `at`
+     *  and never past `end`. */
+    ensure(Long at, Int need, Long end) {
+        var covered = at >= this.winAt && at + need <= this.winAt + this.win.length
+        if (!covered) {
+            var want = 65536
+            if (want < need) {
+                want = need
+            }
+            if (at + want > end) {
+                want = (end - at) as Int
+            }
+            this.win = this.pull(at, want)
+            this.winAt = at
+        }
+    }
+}

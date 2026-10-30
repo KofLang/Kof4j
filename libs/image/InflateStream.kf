@@ -1,0 +1,476 @@
+package image
+
+import image.Inflate
+
+// kof.image — RESUMABLE DEFLATE (RFC 1951). Issue #852, streaming slice.
+//
+// `Inflate` runs a stream to the end into one caller-sized buffer: it cannot
+// stop, it cannot resume, and it keeps counting after its buffer is full — so a
+// byte ceiling there bounds MEMORY, never CPU. `InflateStream` is the engine
+// the streaming ZIP reader needs:
+//
+//   * PULL input: compressed bytes are read from a file range (`readRange`) one
+//     block at a time, only when the decoder needs the next byte — never the
+//     whole entry, never the whole file;
+//   * PAUSABLE output: `inflate(out, max)` fills at most `max` bytes and returns.
+//     The state (block mode, stored bytes left, pending match, Huffman tables,
+//     bit buffer) lives in the object, so the next call continues exactly where
+//     the last one stopped. A match that straddles two calls is copied from the
+//     32 KiB window, which is a ring buffer;
+//   * a LIMIT counted in bytes actually produced: the engine refuses BEFORE it
+//     writes the byte that would exceed it and stops pulling input right there —
+//     the remaining compressed blocks are never read;
+//   * every malformed shape is an explicit `deflate: …` refusal raised by this
+//     class (reserved block type, stored LEN/NLEN, HLIT/HDIST ranges, repeat
+//     code with no previous length, over/under-subscribed Huffman codes,
+//     invalid length/distance symbols, a distance reaching before the start of
+//     the output, truncated input). Nothing relies on a platform index error,
+//     so the text reads the same on every target.
+//
+// `Huff` and the fixed tables are SHARED with `Inflate` (one table builder, not
+// two); `Inflate` itself is untouched, so PNG and PDF keep their exact path.
+// Re-pointing `Inflate.run()` at this engine is a separate step that needs its
+// own parity proof.
+
+/** A list literal as an array — the hot paths index arrays, not lists. */
+Int[] inflateStreamTable(List<Int> values) {
+    var out = new Int[values.size()]
+    var i = 0
+    while (i < values.size()) {
+        out[i] = values.get(i)
+        i = i + 1
+    }
+    return out
+}
+
+/** "" when `lengths` form a usable prefix code, otherwise the reason. A code
+ *  that leaves room (INCOMPLETE) is accepted only when `lenient` and it is the
+ *  empty code or the single-code-of-length-1 shape (the zlib/puff rule, which
+ *  is what lets a stream with no matches ship an empty distance code). */
+String inflateCheckCode(Int[] lengths, Bool lenient) {
+    var count = new Int[16]
+    var used = 0
+    var i = 0
+    while (i < lengths.length) {
+        if (lengths[i] > 0) {
+            count[lengths[i]] = count[lengths[i]] + 1
+            used = used + 1
+        }
+        i = i + 1
+    }
+    var left = 1
+    var len = 1
+    while (len <= 15) {
+        left = (left << 1) - count[len]
+        if (left < 0) {
+            return "oversubscribed"
+        }
+        len = len + 1
+    }
+    if (left > 0) {
+        if (lenient && (used == 0 || (used == 1 && count[1] == 1))) {
+            return ""
+        }
+        return "incomplete"
+    }
+    return ""
+}
+
+class InflateStream {
+    String path
+    Int[] buf
+    Int bufPos
+    Int bufLen
+    Int blockSize
+    Long nextOffset
+    Long inputLeft
+    Long pulled
+    Int calls
+    Int bitBuf
+    Int bitCnt
+    Int[] window
+    Int wpos
+    Long total
+    Long limit
+    Int state
+    Bool lastBlock
+    Int storedLeft
+    Int matchLen
+    Int matchDist
+    Huff fixedLit
+    Huff fixedDist
+    Huff lit
+    Huff dist
+    Int[] lenBase
+    Int[] lenExtra
+    Int[] distBase
+    Int[] distExtra
+    Int[] order
+
+    /** Inflates the compressed bytes `[start, start + length)` of the file at
+     *  `path`, pulling `blockSize` bytes at a time; refuses to produce more than
+     *  `limit` bytes. */
+    public constructor(String path, Long start, Long length, Int blockSize, Long limit) {
+        if (blockSize <= 0) {
+            throw "deflate: the input block size must be positive"
+        }
+        this.path = path
+        this.buf = new Int[0]
+        this.bufPos = 0
+        this.bufLen = 0
+        this.blockSize = blockSize
+        this.nextOffset = start
+        this.inputLeft = length
+        this.pulled = 0
+        this.calls = 0
+        this.bitBuf = 0
+        this.bitCnt = 0
+        this.window = new Int[32768]
+        this.wpos = 0
+        this.total = 0
+        this.limit = limit
+        this.state = 0
+        this.lastBlock = false
+        this.storedLeft = 0
+        this.matchLen = 0
+        this.matchDist = 0
+        this.fixedLit = fixedLitTable()
+        this.fixedDist = fixedDistTable()
+        this.lit = this.fixedLit
+        this.dist = this.fixedDist
+        this.lenBase = inflateStreamTable(listOf(3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258))
+        this.lenExtra = inflateStreamTable(listOf(0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0))
+        this.distBase = inflateStreamTable(listOf(1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577))
+        this.distExtra = inflateStreamTable(listOf(0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13))
+        this.order = inflateStreamTable(listOf(16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15))
+    }
+
+    /** Lowers (or raises) the absolute byte ceiling — the caller owns the policy. */
+    void setLimit(Long limit) {
+        this.limit = limit
+    }
+
+    /** True once the final block has ended. */
+    Bool finished() {
+        return this.state == 4
+    }
+
+    /** Bytes produced so far. */
+    Long produced() {
+        return this.total
+    }
+
+    /** Compressed bytes pulled from the file so far (the block reads, not the
+     *  bytes the decoder has consumed). */
+    Long inputRead() {
+        return this.pulled
+    }
+
+    /** How many `readRange` calls the input has cost. */
+    Int readCalls() {
+        return this.calls
+    }
+
+    /** Fills `out` with at most `max` bytes and returns how many it wrote. With
+     *  `max > 0`, a return of 0 means the stream has ENDED; otherwise the call
+     *  stopped because `out` was full and the next call continues. Throws a
+     *  `deflate: …` refusal on a malformed stream and on truncated input. At the
+     *  limit, the bytes already produced are returned first; the call that needs
+     *  the FIRST byte beyond it is the one that throws. */
+    Int inflate(Int[] out, Int max) {
+        var n = 0
+        while (n < max && this.state != 4) {
+            if (this.state == 0) {
+                this.startBlock()
+            } else if (this.state == 1) {
+                if (this.storedLeft == 0) {
+                    this.endBlock()
+                } else {
+                    n = this.copyStored(out, n, max)
+                    if (this.storedLeft > 0 && n < max) {
+                        return n
+                    }
+                }
+            } else if (this.state == 2) {
+                // At the limit with bytes ready: hand them over now; the call that needs
+                // the FIRST byte beyond the limit is the one that refuses.
+                if (this.total >= this.limit && n > 0) {
+                    return n
+                }
+                var sym = this.decode(this.lit)
+                if (sym < 256) {
+                    n = this.emit(out, n, sym)
+                } else if (sym == 256) {
+                    this.endBlock()
+                } else {
+                    if (sym > 285) {
+                        throw "deflate: invalid length symbol " + sym
+                    }
+                    var li = sym - 257
+                    this.matchLen = this.lenBase[li] + this.bits(this.lenExtra[li])
+                    var dsym = this.decode(this.dist)
+                    if (dsym > 29) {
+                        throw "deflate: invalid distance symbol " + dsym
+                    }
+                    this.matchDist = this.distBase[dsym] + this.bits(this.distExtra[dsym])
+                    if (this.matchDist > this.total) {
+                        throw "deflate: a distance reaches before the start of the output"
+                    }
+                    this.state = 3
+                }
+            } else {
+                n = this.copyMatch(out, n, max)
+                if (this.state == 3 && n < max) {
+                    return n
+                }
+            }
+        }
+        return n
+    }
+
+    // --- output --------------------------------------------------------------
+
+    Int emit(Int[] out, Int n, Int b) {
+        if (this.total >= this.limit) {
+            throw "deflate: output limit reached"
+        }
+        this.window[this.wpos] = b
+        this.wpos = (this.wpos + 1) & 32767
+        this.total = this.total + 1
+        out[n] = b
+        return n + 1
+    }
+
+    /** Copies the pending match one byte at a time out of the ring window — the
+     *  source may overlap the destination (distance < length), which is exactly
+     *  what a run-length match needs. Stops when `out` is full; `matchLen` keeps
+     *  what is left for the next call. */
+    Int copyMatch(Int[] out, Int n, Int max) {
+        var wp = this.wpos
+        var t = this.total
+        var lim = this.limit
+        var len = this.matchLen
+        var d = this.matchDist
+        var stop = false
+        while (len > 0 && n < max && !stop) {
+            if (t >= lim) {
+                if (n == 0) {
+                    throw "deflate: output limit reached"
+                }
+                stop = true
+            } else {
+                var b = this.window[(wp - d) & 32767]
+                this.window[wp] = b
+                wp = (wp + 1) & 32767
+                out[n] = b
+                n = n + 1
+                t = t + 1
+                len = len - 1
+            }
+        }
+        this.wpos = wp
+        this.total = t
+        this.matchLen = len
+        if (len == 0) {
+            this.state = 2
+        }
+        return n
+    }
+
+    Int copyStored(Int[] out, Int n, Int max) {
+        while (this.storedLeft > 0 && n < max) {
+            if (this.total >= this.limit && n > 0) {
+                return n
+            }
+            var b = this.nextByte()
+            n = this.emit(out, n, b)
+            this.storedLeft = this.storedLeft - 1
+        }
+        return n
+    }
+
+    // --- blocks --------------------------------------------------------------
+
+    endBlock() {
+        if (this.lastBlock) {
+            this.state = 4
+        } else {
+            this.state = 0
+        }
+    }
+
+    startBlock() {
+        this.lastBlock = this.bits(1) == 1
+        var btype = this.bits(2)
+        if (btype == 0) {
+            // A stored block starts on a byte boundary. `bits` only ever pulls the
+            // bytes it needs, so what is left in the buffer is the padding of the
+            // current byte (< 8 bits) — dropping it is exactly the alignment.
+            this.bitBuf = 0
+            this.bitCnt = 0
+            var l0 = this.nextByte()
+            var l1 = this.nextByte()
+            var n0 = this.nextByte()
+            var n1 = this.nextByte()
+            var len = l0 | (l1 << 8)
+            var nlen = n0 | (n1 << 8)
+            if ((len ^ nlen) != 65535) {
+                throw "deflate: stored block length check failed (LEN/NLEN)"
+            }
+            this.storedLeft = len
+            this.state = 1
+        } else if (btype == 1) {
+            this.lit = this.fixedLit
+            this.dist = this.fixedDist
+            this.state = 2
+        } else if (btype == 2) {
+            this.readDynamic()
+            this.state = 2
+        } else {
+            throw "deflate: reserved block type 3"
+        }
+    }
+
+    readDynamic() {
+        var hlit = this.bits(5) + 257
+        var hdist = this.bits(5) + 1
+        var hclen = this.bits(4) + 4
+        if (hlit > 286) {
+            throw "deflate: too many length/literal codes (HLIT " + hlit + ")"
+        }
+        if (hdist > 30) {
+            throw "deflate: too many distance codes (HDIST " + hdist + ")"
+        }
+        var clLens = new Int[19]
+        var i = 0
+        while (i < hclen) {
+            clLens[this.order[i]] = this.bits(3)
+            i = i + 1
+        }
+        var clWhy = inflateCheckCode(clLens, false)
+        if (clWhy != "") {
+            throw "deflate: invalid code-length code (" + clWhy + ")"
+        }
+        var clHuff = Huff(clLens)
+        var wanted = hlit + hdist
+        var lens = new Int[wanted]
+        var n = 0
+        while (n < wanted) {
+            var sym = this.decode(clHuff)
+            if (sym < 16) {
+                lens[n] = sym
+                n = n + 1
+            } else {
+                var rep = 0
+                var fill = 0
+                if (sym == 16) {
+                    if (n == 0) {
+                        throw "deflate: a repeat code with no previous length"
+                    }
+                    rep = this.bits(2) + 3
+                    fill = lens[n - 1]
+                } else if (sym == 17) {
+                    rep = this.bits(3) + 3
+                } else {
+                    rep = this.bits(7) + 11
+                }
+                if (n + rep > wanted) {
+                    throw "deflate: the code lengths overflow the declared counts"
+                }
+                var k = 0
+                while (k < rep) {
+                    lens[n] = fill
+                    n = n + 1
+                    k = k + 1
+                }
+            }
+        }
+        if (lens[256] == 0) {
+            throw "deflate: the literal/length code has no end-of-block symbol"
+        }
+        var litLens = new Int[hlit]
+        var j = 0
+        while (j < hlit) {
+            litLens[j] = lens[j]
+            j = j + 1
+        }
+        var distLens = new Int[hdist]
+        j = 0
+        while (j < hdist) {
+            distLens[j] = lens[hlit + j]
+            j = j + 1
+        }
+        var litWhy = inflateCheckCode(litLens, true)
+        if (litWhy != "") {
+            throw "deflate: invalid literal/length code (" + litWhy + ")"
+        }
+        var distWhy = inflateCheckCode(distLens, true)
+        if (distWhy != "") {
+            throw "deflate: invalid distance code (" + distWhy + ")"
+        }
+        this.lit = Huff(litLens)
+        this.dist = Huff(distLens)
+    }
+
+    // --- input ---------------------------------------------------------------
+
+    refill() {
+        if (this.inputLeft <= 0) {
+            throw "deflate: truncated stream (the compressed data ended inside a block)"
+        }
+        var want = this.blockSize
+        if (want > this.inputLeft) {
+            want = this.inputLeft as Int
+        }
+        var chunk = File(this.path).readRange(this.nextOffset, want)
+        if (chunk.length == 0) {
+            throw "deflate: truncated stream (the file ended inside the compressed data)"
+        }
+        this.buf = chunk
+        this.bufPos = 0
+        this.bufLen = chunk.length
+        this.nextOffset = this.nextOffset + chunk.length
+        this.inputLeft = this.inputLeft - chunk.length
+        this.pulled = this.pulled + chunk.length
+        this.calls = this.calls + 1
+    }
+
+    Int nextByte() {
+        if (this.bufPos >= this.bufLen) {
+            this.refill()
+        }
+        var b = this.buf[this.bufPos] & 255
+        this.bufPos = this.bufPos + 1
+        return b
+    }
+
+    /** The next `n` (<= 16) bits, least significant first. */
+    Int bits(Int n) {
+        while (this.bitCnt < n) {
+            var b = this.nextByte()
+            this.bitBuf = this.bitBuf | (b << this.bitCnt)
+            this.bitCnt = this.bitCnt + 8
+        }
+        var v = this.bitBuf & ((1 << n) - 1)
+        this.bitBuf = this.bitBuf >> n
+        this.bitCnt = this.bitCnt - n
+        return v
+    }
+
+    /** Canonical Huffman decode, one bit at a time (the same walk as
+     *  `Huff.decode`, but over THIS engine's bit buffer). */
+    Int decode(Huff h) {
+        var code = 0
+        var len = 1
+        while (len <= 15) {
+            var bit = this.bits(1)
+            code = (code << 1) | bit
+            var c = h.count[len]
+            if (c > 0 && code - h.firstCode[len] < c) {
+                return h.symbols[h.firstSym[len] + (code - h.firstCode[len])]
+            }
+            len = len + 1
+        }
+        throw "deflate: invalid Huffman code"
+    }
+}

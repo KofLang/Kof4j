@@ -1,0 +1,257 @@
+package archive
+
+import archive.Zip
+import image.InflateStream
+
+// kof-archive — ONE ZIP entry as a stream of byte chunks. Issue #852, streaming
+// slice. Opened by `ZipReader.open(entry, maxBytes[, chunkSize])`.
+//
+//   * `readChunk(): Int[]?` is driven by the caller and returns null at the end,
+//     like `FileStream`. A STORED entry is read straight from the file with
+//     `readRange`; a DEFLATE entry goes through the resumable
+//     `image.InflateStream` (pull input one block at a time, pausable output), so
+//     a consumer that stops reading stops the decoder and the remaining
+//     compressed blocks are never pulled;
+//   * the limit counts bytes ACTUALLY PRODUCED, never the size the archive
+//     declares: an entry that inflates past its own declared size, past the
+//     caller's `maxBytes` or past the archive-level budget is refused before the
+//     offending byte is emitted — the bytes up to the limit are delivered first,
+//     and the call that needs the first byte beyond it is the one that refuses;
+//   * CRC-32 and the real size are checked only when the stream reaches its end.
+//     `verified()` is true after (and only after) `readChunk()` returned null; a
+//     consumer that stops earlier and calls `close()` has NOT validated the
+//     entry, and the stream says so;
+//   * a refusal is STICKY: every later `readChunk()` raises the same text, and
+//     the text is the library's own (`archive: …`), never a platform message.
+//
+// Honest limit: the cost in CPU is the cost of producing the bytes up to the
+// limit — the bytes beyond it are never produced.
+
+/** The archive-level byte budget, shared by every stream one reader opens. */
+class ZipBudget {
+    Long left
+
+    constructor(Long left) {
+        this.left = left
+    }
+}
+
+/** The DEFLATE engine of a method-8 entry; a STORED entry has none (null safety
+ *  works by narrowing, so the absence comes out of a `return null`). */
+InflateStream? zipEngineFor(String path, ZipEntry entry, Long dataStart) {
+    if (entry.method == 8) {
+        return InflateStream(path, dataStart, entry.compressedSize as Long, 8192,
+                entry.uncompressedSize as Long)
+    }
+    return null
+}
+
+/** One entry, read as a stream of byte chunks. */
+class ZipEntryStream {
+    String path
+    ZipEntry entry
+    Long dataStart
+    Int chunkSize
+    ZipBudget budget
+    InflateStream? engine
+    Int[] scratch
+    Int crc
+    Long made
+    Long storedPulled
+    Int storedCalls
+    Bool ended
+    Bool checked
+    Bool closed
+    String failure
+
+    constructor(String path, ZipEntry entry, Long dataStart, Int chunkSize, ZipBudget budget) {
+        this.path = path
+        this.entry = entry
+        this.dataStart = dataStart
+        // No chunk can outgrow the entry (the limit is its declared size), so a caller
+        // that asks for a huge chunk size does not buy a huge buffer.
+        var effective = chunkSize
+        if (effective > entry.uncompressedSize + 1) {
+            effective = entry.uncompressedSize + 1
+        }
+        this.chunkSize = effective
+        this.budget = budget
+        this.engine = zipEngineFor(path, entry, dataStart)
+        this.scratch = new Int[effective]
+        this.crc = -1
+        this.made = 0
+        this.storedPulled = 0
+        this.storedCalls = 0
+        this.ended = false
+        this.checked = false
+        this.closed = false
+        this.failure = ""
+    }
+
+    /** The next chunk of the entry (at most `chunkSize` bytes), or null once the
+     *  entry ended AND its CRC-32 and size were verified. A refusal is sticky:
+     *  every later call raises the same message. */
+    Int[]? readChunk() {
+        if (this.closed) {
+            throw "archive: the stream of '" + this.entry.name + "' was closed"
+        }
+        if (this.failure != "") {
+            throw this.failure
+        }
+        if (this.ended) {
+            return null
+        }
+        return this.guarded()
+    }
+
+    /** `step()` with every refusal remembered, so a later call raises the same text.
+     *  The result goes through a local before the `return`: the Script interpreter
+     *  does not catch a throw raised while a `return` OPERAND is evaluated inside a
+     *  `try` (JVM does) — a target divergence outside this library, avoided here. */
+    Int[]? guarded() {
+        try {
+            var chunk = this.step()
+            return chunk
+        } catch (String m) {
+            this.failure = this.describe(m)
+            throw this.failure
+        }
+    }
+
+    /** True after `readChunk()` returned null: size and CRC-32 matched. */
+    Bool verified() {
+        return this.checked
+    }
+
+    /** True once the entry ended (verified or refused is a separate question). */
+    Bool done() {
+        return this.ended
+    }
+
+    /** Stops the stream. Before the end this leaves `verified()` false and the
+     *  rest of the compressed data unread. */
+    void close() {
+        this.closed = true
+    }
+
+    /** Bytes handed out so far. */
+    Long produced() {
+        return this.made
+    }
+
+    /** Compressed bytes pulled from the file so far. */
+    Long bytesRead() {
+        var en = this.engine
+        if (en != null) {
+            return en.inputRead()
+        }
+        return this.storedPulled
+    }
+
+    /** How many `readRange` calls the entry has cost. */
+    Int readCalls() {
+        var en = this.engine
+        if (en != null) {
+            return en.readCalls()
+        }
+        return this.storedCalls
+    }
+
+    // --- internals -------------------------------------------------------------
+
+    Int[]? step() {
+        var declared = this.entry.uncompressedSize as Long
+        var en = this.engine
+        if (en == null) {
+            return this.stepStored(declared)
+        }
+        var cap = declared
+        if (this.made + this.budget.left < cap) {
+            cap = this.made + this.budget.left
+        }
+        en.setLimit(cap)
+        var n = en.inflate(this.scratch, this.chunkSize)
+        if (n == 0) {
+            return this.finish(declared)
+        }
+        return this.hand(this.scratch, n)
+    }
+
+    Int[]? stepStored(Long declared) {
+        var left = declared - this.made
+        if (left == 0) {
+            return this.finish(declared)
+        }
+        var want = this.chunkSize
+        if (want > left) {
+            want = left as Int
+        }
+        if (this.budget.left < want) {
+            want = this.budget.left as Int
+        }
+        if (want == 0) {
+            throw "archive: budget exhausted"
+        }
+        var chunk = File(this.path).readRange(this.dataStart + this.made, want)
+        this.storedCalls = this.storedCalls + 1
+        this.storedPulled = this.storedPulled + chunk.length
+        if (chunk.length != want) {
+            throw "archive: truncated data for '" + this.entry.name + "'"
+        }
+        return this.hand(chunk, want)
+    }
+
+    /** Accounts for `n` produced bytes (CRC-32, counters, budget) and returns
+     *  them as a fresh array. */
+    Int[] hand(Int[] source, Int n) {
+        this.crc = zipCrc32State(this.crc, source, n)
+        this.made = this.made + n
+        this.budget.left = this.budget.left - n
+        var out = new Int[n]
+        var i = 0
+        while (i < n) {
+            out[i] = source[i] & 255
+            i = i + 1
+        }
+        return out
+    }
+
+    Int[]? finish(Long declared) {
+        if (this.made != declared) {
+            throw "archive: entry '" + this.entry.name + "' did not inflate to its declared "
+                + declared + " bytes — refused"
+        }
+        var computed = this.crc ^ -1
+        if (computed != this.entry.crc32) {
+            throw "archive: CRC-32 mismatch for '" + this.entry.name + "' (archive "
+                + this.entry.crc32 + ", computed " + computed + ")"
+        }
+        this.ended = true
+        this.checked = true
+        return null
+    }
+
+    /** The library's own wording for what the engine or a step refused — the
+     *  text never carries a platform message. */
+    String describe(String m) {
+        var declared = this.entry.uncompressedSize as Long
+        if (m == "deflate: output limit reached") {
+            if (this.made + this.budget.left < declared) {
+                return "archive: the archive-level byte budget ran out while reading '"
+                    + this.entry.name + "' — refused"
+            }
+            return "archive: entry '" + this.entry.name + "' inflates past its declared size of "
+                + declared + " bytes — refused"
+        }
+        if (m == "archive: budget exhausted") {
+            return "archive: the archive-level byte budget ran out while reading '"
+                + this.entry.name + "' — refused"
+        }
+        if (m.indexOf("deflate: ") == 0) {
+            return "archive: entry '" + this.entry.name + "' holds invalid DEFLATE data — "
+                + m.substring(9, m.length)
+        }
+        return m
+    }
+}
+

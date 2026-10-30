@@ -76,4 +76,15 @@ final class ArchiveFixtureSupport {
         crc.update(data);
         return crc.getValue();
     }
+
+    /** The polynomial hash the streaming probes print: {@code h = (h * 31 + b) % 1000003}.
+     *  Small enough that no step overflows an Int, so the Kof side (Int) and this
+     *  oracle agree byte for byte — a whole entry reduces to one comparable number. */
+    static int hash(byte[] data) {
+        int h = 0;
+        for (byte b : data) {
+            h = (h * 31 + (b & 255)) % 1000003;
+        }
+        return h;
+    }
 }
