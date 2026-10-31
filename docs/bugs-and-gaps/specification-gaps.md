@@ -464,6 +464,36 @@ future recommendations (rule 14 of the task: do not change behavior).
   zero-iteration property PASSes vacuously). Documented in `training/idioms/stdlib.md`
   + `learn/23-testing.md`. No parser/typer/codegen touched.
 
+### SG-024 — ZIP entry-name decoding (`zipUtf8`/`zipCp437`) is O(n²); no bulk-decode primitive exists — REQUESTED, no decision
+
+- **Origin:** issue #852 (streaming ZIP reader), F2/F3 coordination round, 31/10.
+- **Code (verified):** `zipCp437` (`libs/archive/Zip.kf:155-168`) and `zipUtf8`
+  (`libs/archive/Zip.kf:172-197`) build the decoded name one character at a
+  time with `s = s + (c as Char)` inside a `while` loop — each concatenation
+  allocates a new `String`, so the cost of decoding one name is quadratic in
+  its byte length. Both functions are **shared** between the new `ZipReader`
+  (`libs/archive/ZipReader.kf`) and the legacy `Zip.kf` reader; neither has a
+  ceiling on central-directory size, entry count or name length.
+- **Measured (F3, 31/10):** doubling one entry name from 24 000 to 48 000
+  bytes cost 4.39×–4.95× the time per call (tends to 4× as the name grows —
+  the O(L²) signature). Listing cost does not depend on archive size: 1/2/4/8
+  MiB archives of the same entry-name shape all read `listBytes=65810` in
+  `listCalls=3` (`ZipReader` never loads the archive to list it). The legacy
+  `Zip(path)` — which loads the whole archive — runs out of memory under
+  `-Xmx20m` between 2 and 4 MiB, independent of this gap.
+- **Why it is not a lane edit:** Kof exposes no bulk string-builder or
+  bulk-decode primitive (`grep -rl StringBuilder libs/ docs/stdlib/` — none);
+  a fix needs either a new core primitive for bulk UTF-8/CP437 decode
+  (`D-KOF-FIRST`: smallest primitive, library implements the policy) or a
+  maintainer-set ceiling on name length / central-directory size, documented
+  as a limit rather than silently accepted. Both are design decisions, not a
+  bug fix (rule 6) — this is open item 3 of the 31/10 ADR proposal on #852
+  (`DECISIONS.md` has 0 entries for #852/ZipReader as of this writing).
+- **Until decided:** `ZipReader`/`Zip` keep decoding without a ceiling; a
+  crafted archive with few very long names is a real (if narrow) CPU-exhaustion
+  vector against anything that lists an untrusted ZIP — tracked here, not
+  silently treated as fixed.
+
 ---
 
 ## Category C — Divergences between targets (parity) — updated 10/09
@@ -530,11 +560,12 @@ Not duplicated here — see [known-bugs.md](known-bugs.md):
 
 ## Summary
 
-- **23 SG-00x gaps** (A: doc/code contradictions; B: unspecified
+- **24 SG-00x gaps** (A: doc/code contradictions; B: unspecified
   behavior; SG-021 json pretty-print and SG-022 value records = requests with no
   decision; **SG-023 property runner + fixtures ✅ DECIDED 21/09 — no new surface,
-  `D-PROPERTY`**). **Maintainer queue (2nd round, 10/09) COMPLETE:**
-  SG-008 ✅, SG-005 ✅, SG-009 ✅, SG-020 ✅ — see the history in each section.
+  `D-PROPERTY`**; **SG-024 ZIP name decoding O(n²), no bulk-decode primitive —
+  REQUESTED 31/10, no decision, issue #852**). **Maintainer queue (2nd round, 10/09)
+  COMPLETE:** SG-008 ✅, SG-005 ✅, SG-009 ✅, SG-020 ✅ — see the history in each section.
 - **8 target divergences** (C).
 - **3 outdated docs** (E) — **all ✅** (E1 residual 10/09, E2
   snapshot 10/09, E3 verified).

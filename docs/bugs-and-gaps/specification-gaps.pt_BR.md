@@ -469,6 +469,38 @@ recomendações futuras (regra 14 da tarefa: não alterar comportamento).
   vacuousamente). Documentado em `training/idioms/stdlib.md` + `learn/23-testing.md`.
   Nenhum parser/typer/codegen tocado.
 
+### SG-024 — decodificação de nome ZIP (`zipUtf8`/`zipCp437`) é O(n²); não existe primitiva de decode em massa — PEDIDO, sem decisão
+
+- **Origem:** issue #852 (leitor ZIP em fluxo), rodada de coordenação F2/F3, 31/10.
+- **Código (verificado):** `zipCp437` (`libs/archive/Zip.kf:155-168`) e `zipUtf8`
+  (`libs/archive/Zip.kf:172-197`) montam o nome decodificado um caractere por
+  vez com `s = s + (c as Char)` dentro de um `while` — cada concatenação aloca
+  uma `String` nova, então o custo de decodificar um nome é quadrático no seu
+  tamanho em bytes. As duas funções são **compartilhadas** entre o `ZipReader`
+  novo (`libs/archive/ZipReader.kf`) e o `Zip.kf` legado; nenhum dos dois tem
+  teto de tamanho do diretório central, de quantidade de entradas ou de
+  tamanho de nome.
+- **Medido (F3, 31/10):** dobrar um nome de entrada de 24 000 para 48 000 bytes
+  custou 4,39×–4,95× o tempo por chamada (tende a 4× conforme o nome cresce —
+  a assinatura O(L²)). O custo de listagem não depende do tamanho do arquivo:
+  arquivos de 1/2/4/8 MiB com a mesma forma de nomes leem todos
+  `listBytes=65810` em `listCalls=3` (`ZipReader` nunca carrega o arquivo pra
+  listar). O `Zip(path)` legado — que carrega o arquivo inteiro — estoura
+  memória sob `-Xmx20m` entre 2 e 4 MiB, independente deste gap.
+- **Por que não é edição de lane:** Kof não expõe nenhuma primitiva de
+  string-builder ou decode em massa (`grep -rl StringBuilder libs/ docs/stdlib/`
+  — nenhuma); uma correção exige ou uma primitiva de núcleo nova pra decode
+  UTF-8/CP437 em massa (`D-KOF-FIRST`: a menor primitiva, a biblioteca
+  implementa a política) ou um teto definido pela mantenedora no tamanho de
+  nome / do diretório central, documentado como limite em vez de aceito em
+  silêncio. As duas são decisões de desenho, não correção de bug (regra 6) —
+  é o item 3, ainda aberto, da PROPOSTA de 31/10 (ADR) na #852 (`DECISIONS.md`
+  tem 0 entradas para #852/ZipReader até o momento desta escrita).
+- **Até decidir:** `ZipReader`/`Zip` seguem decodificando sem teto; um arquivo
+  ZIP malicioso com poucos nomes muito longos é um vetor real (ainda que
+  estreito) de exaustão de CPU contra qualquer coisa que liste um ZIP não
+  confiável — registrado aqui, não tratado como corrigido em silêncio.
+
 ---
 
 ## Categoria C — Divergências entre targets (paridade) — atualizada 10/09
@@ -535,11 +567,13 @@ Não duplicados aqui — ver [known-bugs.md](known-bugs.md):
 
 ## Resumo
 
-- **23 gaps SG-00x** (A: contradições doc/código; B: comportamento não
+- **24 gaps SG-00x** (A: contradições doc/código; B: comportamento não
   especificado; SG-021 json pretty-print e SG-022 value records = pedidos sem
   decisão; **SG-023 property runner + fixtures ✅ DECIDIDO 21/09 — sem superfície
-  nova, `D-PROPERTY`**). **Fila da mantenedora (2ª rodada, 10/09) COMPLETA:**
-  SG-008 ✅, SG-005 ✅, SG-009 ✅, SG-020 ✅ — ver histórico em cada seção.
+  nova, `D-PROPERTY`**; **SG-024 decodificação de nome ZIP O(n²), sem primitiva de
+  decode em massa — PEDIDO 31/10, sem decisão, issue #852**). **Fila da
+  mantenedora (2ª rodada, 10/09) COMPLETA:** SG-008 ✅, SG-005 ✅, SG-009 ✅,
+  SG-020 ✅ — ver histórico em cada seção.
 - **8 divergências de target** (C).
 - **3 docs desatualizados** (E) — **todos ✅** (E1 residual 10/09, E2
   snapshot 10/09, E3 verificado).
