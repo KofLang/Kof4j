@@ -114,18 +114,35 @@ else
     GITHUB_REF_NAME=main
     export GITHUB_REF_NAME
 
-    # newrepo <dir>: git repo novo e vazio, pronto para commits.
+    # newrepo <dir>: git repo novo e vazio, pronto para commits. Leva tambem
+    # uma copia do check_version_consistency.sh real (#814) -- o script sob
+    # teste chama scripts/check_version_consistency.sh relativo ao SEU
+    # PROPRIO git-toplevel, que dentro do fixture e este diretorio, nao a
+    # arvore real.
     newrepo() {
-        rm -rf "$1"; mkdir -p "$1"
+        rm -rf "$1"; mkdir -p "$1/scripts"
         git -C "$1" init -q
         git -C "$1" config user.email test@example.com
         git -C "$1" config user.name test
+        cp "scripts/check_version_consistency.sh" "$1/scripts/check_version_consistency.sh"
     }
 
-    # commit_version <dir> <version> -> imprime o SHA do commit.
+    # commit_version <dir> <version> -> imprime o SHA do commit. Mantem
+    # pom.xml/version.properties SINCRONIZADOS com VERSION a cada chamada
+    # (#814) -- sem isso, check_version_consistency.sh sempre recusa o
+    # fixture por "dessincronizado" antes mesmo do cenario sob teste rodar.
     commit_version() {
         printf '%s' "$2" > "$1/VERSION"
-        git -C "$1" add VERSION >/dev/null
+        printf '<project><revision>%s</revision></project>\n' "$2" > "$1/pom.xml"
+        mkdir -p "$1/kof-compiler/src/main/resources/dev/kof"
+        PROPS="$1/kof-compiler/src/main/resources/dev/kof/version.properties"
+        {
+            printf 'kof.version=%s\n' "$2"
+            printf 'kof.compiler.version=%s\n' "$2"
+            printf 'kof.runtime.version=%s\n' "$2"
+            printf 'kof.stdlib.version=%s\n' "$2"
+        } > "$PROPS"
+        git -C "$1" add -A >/dev/null
         git -C "$1" commit -q -m "version $2" --allow-empty
         git -C "$1" rev-parse HEAD
     }
