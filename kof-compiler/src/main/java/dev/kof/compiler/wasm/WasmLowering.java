@@ -46,7 +46,6 @@ final class WasmLowering {
             DataCursor dataCursor, boolean receiver, String fname) {
         List<Integer> params = new ArrayList<>();
         Map<Integer, Integer> slotMap = new LinkedHashMap<>();
-        int jvmSlot = 0;
         Map<Integer, String> varNameBySlot = new HashMap<>();
         for (IRLocalVariable lv : m.localVariables()) varNameBySlot.putIfAbsent(lv.index(), lv.name());
         // FATIA MAP-D (28/10, #776): o rastro REAL dos locals nullable-double
@@ -295,7 +294,7 @@ final class WasmLowering {
                 ctx.underPending = false;
                 WasmJoinCode.crossLiveValue(ops, i, ctx, out);
                 jumpTo(ctx.blockOf(kj.target()), 1, ctx, out);
-                WasmJoinCode.terminateBlock(i + 1 == ops.size(), out);
+                WasmJoinCode.terminateBlock(i + 1 == ops.size());
                 out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
                 return;
             }
@@ -307,14 +306,14 @@ final class WasmLowering {
                 // gate 500)
                 WasmJoinCode.storeUnderForCondJump(ops, i, ctx, out);
                 WasmJoinCode.emitCondJump(cj, ctx, out);
-                WasmJoinCode.terminateBlock(i + 1 == ops.size(), out);
+                WasmJoinCode.terminateBlock(i + 1 == ops.size());
                 out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
                 return;
             }
             if (op instanceof KofReturn || op instanceof KofReturnVoid) {
                 ctx.underPending = false;
                 out.add(WasmInstr.Branch.ret());
-                WasmJoinCode.terminateBlock(i + 1 == ops.size(), out);
+                WasmJoinCode.terminateBlock(i + 1 == ops.size());
                 out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
                 return;
             }

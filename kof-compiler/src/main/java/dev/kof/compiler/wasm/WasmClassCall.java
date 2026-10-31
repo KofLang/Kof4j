@@ -125,7 +125,7 @@ final class WasmClassCall {
             // nenhum)
             java.util.List<Integer> ps = new java.util.ArrayList<>();
             ps.add(dev.kof.compiler.wasm.WasmFunc.TYPE_I32);
-            for (Type t : kc.parameterTypes()) ps.add(argWasmType(ctx, t, name));
+            for (Type t : kc.parameterTypes()) ps.add(argWasmType(t, name));
             java.util.List<Integer> rs = rt == 0x40 ? java.util.List.of() : java.util.List.of(rt);
             int bt = ctx.blockTypes().register(ps, rs);
             int tagSrc = emitTagLoad(ctx, kc, ops, idx, out);
@@ -138,7 +138,7 @@ final class WasmClassCall {
 
     /** O tipo wasm do arg no block type (os escalares = o mapa; as classes
      *  = o handle i32). */
-    private static int argWasmType(Ctx ctx, Type t, String name) {
+    private static int argWasmType(Type t, String name) {
         if (t instanceof Type.ClassType) return dev.kof.compiler.wasm.WasmFunc.TYPE_I32;
         return dev.kof.compiler.wasm.WasmScalarOps.mapType(typeName(t), name, "parametro");
     }
