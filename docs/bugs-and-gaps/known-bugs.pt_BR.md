@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §766 (OPEN)
 last: §765 (OPEN)
 last: §763 (FIXED)
 last: §744 (FIXED)
@@ -17629,3 +17630,32 @@ main() { println(f()) }
 
 **Correção proposta (não aplicada):** avaliar/coagir o operando do return ANTES de emitir os ops `KofExcUnlink` nos dois ramos, para que um throw durante a avaliação do operando ainda seja visto pelo handler ainda vinculado; reverificar contra os cenários do §551/§613 (return/break/continue vazando o handler, double-unlink no catch-então-return) para não reabrir nenhum dos dois.
 <!-- pt-switch --> **EN:** [§765 (en)](known-bugs.md#765--tryreturncatch-a-throw-raised-while-evaluating-the-return-operand-unlinks-the-wrong-handler-on-script-and-native-x86-64-jvmjs-correct)
+
+## §766 — `archive.Zip.extractTo` corrompe em silêncio entradas de diretório aninhado e superestima a contagem de extração
+
+**Status:** ABERTO (medido 31/10, triagem independente F4, issue [#982](https://github.com/KofLang/Kof4j/issues/982)) — achado de carona durante a triagem em torno da #852; pré-existente na classe `Zip` legada, sem relação com o gate de desenho da API `ZipReader`/`ZipEntryStream`/`InflateStream` da #852 (não toca superfície nova de API, então não bloqueia nem depende da decisão do F1).
+
+**MEDIDO** (commit `75522d033`, JDK Temurin 25.0.4.1, alvo JVM). Fixture escrito pelo JDK com `ZipOutputStream`, entradas na ordem: `d/` (dir), `d/e/` (dir), `d/e/f.txt` = `"hello"` (arquivo):
+```kof
+import archive.Zip
+main() {
+    var z = Zip("nested.zip")
+    println("WRITTEN=" + z.extractTo("out", 4096))
+}
+```
+Observado: `WRITTEN=2`. No disco: `out/d` é diretório (correto); `out/d/e` é um ARQUIVO comum vazio (deveria ser diretório); `out/d/e/f.txt` NÃO EXISTE — seu conteúdo `"hello"` se perde. Nenhuma exceção lançada, nenhum diagnóstico.
+
+Um fixture mais profundo de 3 níveis (`a/`, `a/b/`, `a/b/c/`, `a/b/c/z.txt`="deepcontent") é pior: `extractTo` devolve `WRITTEN=3`, mas só `a` (dir) e `a/b` (arquivo bogus vazio) existem no disco — `a/b/c` e `a/b/c/z.txt` se perdem os DOIS em silêncio, ou seja, 2 dos 3 arquivos "escritos" nunca existiram de verdade. O controle (plano, um nível: `d/`, `d/x.txt`) extrai correto (`WRITTEN=1`, os 11 bytes certos) — isolando o defeito ao aninhamento ≥2 níveis. `"d/e/".split("/")` confirmado no estilo Java (segmento vazio final descartado → `["d","e"]`), então `zipSafeRelative` NÃO é onde mora o defeito.
+
+**CAUSA RAIZ — duas causas compostas, ambas em `libs/archive/Zip.kf` (código de biblioteca, não núcleo/runtime):**
+1. `Zip.kf:528` — `var isDirEntry = e.name.indexOf("/") == e.name.length - 1` só reconhece um nome com EXATAMENTE uma `/` no final; `indexOf` acha a PRIMEIRA barra, então `"d/e/"` (primeira `/` no índice 1, não em `length-1`) é classificado errado como arquivo.
+2. `Zip.kf:534`, `:539`, `:547` — `Directory(...).createDirectories()` e `File(...).writeBytes(...)` são chamados como statements soltos. Os dois são tipados `Bool` (`KofIo.java:59,117`) e a implementação JVM (`kof_io_dir_create_dirs`/`kof_io_write_bytes`, `JvmRuntimeIo.java:103-112,241-248`) captura `IOException` de propósito e devolve `false` em vez de lançar — um contrato honesto de status. `extractTo` nunca checa esses booleanos e incrementa `written` incondicionalmente, então quando a causa (1) coloca um arquivo comum onde devia haver um diretório, toda escrita/mkdir embaixo dele falha e essa falha fica INVISÍVEL. Generaliza além do caso de diretório aninhado: QUALQUER falha de escrita/mkdir (disco cheio, permissão, limite de path) durante a extração ficaria igualmente invisível.
+
+A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que transforma essa corrupção num "sucesso" silencioso e mal contado. As duas precisam ser corrigidas juntas.
+
+**Classificação: BUG**, não é lacuna de especificação — diverge do próprio contrato do método ("quantos arquivos escreveu") e do contrato Bool-status das primitivas que ele chama.
+
+**Impacto de segurança/correção:** qualquer chamador que use o retorno de `extractTo` como sinal de completude/integridade pode estar silenciosamente errado — dados podem se perder parcial ou totalmente, sem nenhum sinal. Independente da TOCTOU de símlink já rastreada na #854 (uma lacuna diferente, já reconhecida, deferida à primitiva `createNew` da #854) e não depende nem bloqueia a decisão de desenho da API `ZipReader` da #852.
+
+**Correção proposta (não aplicada):** `isDirEntry = e.name.endsWith("/")` (método real registrado, `StringMethodRegistry.java:63`) em vez do teste `indexOf`/`length-1`; checar o Bool de retorno de `createDirectories()`/`writeBytes()` e lançar diagnóstico explícito em `false` em vez de descartar. As duas são aditivas, só na biblioteca Kof — sem mudança de núcleo/gramática/runtime.
+<!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
