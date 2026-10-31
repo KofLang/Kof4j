@@ -14,6 +14,12 @@ public final class BuiltinCallTyper {
     private BuiltinCallTyper() {}
 
     static Type infer(SemanticAnalyzer sa, MethodCallExpr mc, SymbolTable scope) {
+        // §243 função (#931/#932): o builtin de nome fixo não intercepta uma
+        // chamada que o programa declara (função top-level ou extern) — a
+        // resolução segue a cadeia até TopLevelCallTyper, que tipa e registra.
+        if (mc.receiver() == null && KofShadowing.userDeclares(sa, mc.methodName())) {
+            return null;
+        }
         if (mc.receiver() == null && "channel".equals(mc.methodName())
                 && mc.arguments().isEmpty()) {
             // channel<T>() -> Channel<T>; sem argumento é Channel<Unknown>
@@ -354,6 +360,20 @@ public final class BuiltinCallTyper {
     }
 
     static Type inferTail(SemanticAnalyzer sa, MethodCallExpr mc, SymbolTable scope) {
+        // §243 função (#931/#932): mesmo veredicto da entrada `infer` — os
+        // branches de builtin de nome fixo (poll/done/readFile/writeFile/…)
+        // não interceptam um nome que o programa declara; TopLevelCallTyper
+        // tipa e registra, void → Unknown como a cauda sempre devolveu.
+        // EXCEÇÃO (oráculo Java): DENTRO de uma classe, o método da própria
+        // classe (implicit this, resolução a jusante) vence top-level e
+        // builtin — `readBits(1)` de Inflate.kf não é o `readBits(Int[],Int,Int)`
+        // top-level de Qrcode.kf (#932 face 2).
+        if (mc.receiver() == null && KofShadowing.userDeclares(sa, mc.methodName())
+                && !(sa.currentClassName() != null && !sa.currentClassName().isEmpty()
+                        && MemberResolver.resolveInHierarchy(sa, sa.currentClassName(), mc.methodName()) != null)) {
+            Type declared = TopLevelCallTyper.infer(sa, mc, scope);
+            return declared != null ? declared : Type.UnknownType.UNKNOWN;
+        }
         if (mc.receiver() == null) {
             SymbolTable.Symbol localSym = scope != null ? scope.resolve(mc.methodName()) : null;
             if (localSym != null && localSym.type() instanceof Type.FunctionType lft) {

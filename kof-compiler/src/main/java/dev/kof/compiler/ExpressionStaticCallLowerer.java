@@ -13,6 +13,14 @@ public final class ExpressionStaticCallLowerer {
 
     static int lower(CompilerDriver driver, MethodCallExpr mc, List<KofOperation> ops,
                       String owner, int localIdx, List<IRLocalVariable> locals) {
+// §243 função (#931/#932): quando o programa declara uma função top-level ou
+// `extern` com este nome, NENHUM branch de builtin de nome fixo (writeFile,
+// readFile, poll, done, cancel, sleep, …) pode emitir no lugar — sai da
+// frente e deixa a cadeia chegar ao dispatch correto (extern lowering ou
+// bare call para a função do usuário). Um só guard cobre toda a cadeia.
+if (mc.receiver() == null && hasUserFunctionNamed(driver, mc.methodName())) {
+    return -1;
+}
 // with the same name: ClassName(args) is implicit construction.
 // #639 face 2 (D-DECISION-BATCH-2709B): `pkg.Type(args)` — construção
 // qualificada; o receiver é um PACOTE, resolvido pelo índice FQN ADITIVO
@@ -498,14 +506,10 @@ if ("setOf".equals(mc.methodName()) && mc.receiver() == null) {
     // idênticas) — NativeX86Calls é a referência de semântica.
 
     /** B-6.2b: `ring1` so vale como builtin se nenhuma funcao do usuario usa
-     *  o nome (nao sombreia — freeze regra 2). */
+     *  o nome (nao sombreia — freeze regra 2). Um oráculo só com
+     *  KofShadowing (§243 função, #931/#932). */
     private static boolean hasUserFunctionNamed(CompilerDriver driver, String name) {
-        if (driver.currentUnit == null) return false;
-        for (AstNode d : driver.currentUnit.declarations()) {
-            if (d instanceof FunctionDeclarationNode fn && fn.name().equals(name)) return true;
-            if (d instanceof ExternalFunctionNode ext && ext.name().equals(name)) return true;
-        }
-        return false;
+        return KofShadowing.userDeclares(driver, name);
     }
     /** local CHAMÁVEL (lambda) vence o nome de contexto web; handle não-chamável não (regressão 0.6.2). */
     private static boolean isCallableLocalVar(CompilerDriver driver, String name, List<IRLocalVariable> locals) {

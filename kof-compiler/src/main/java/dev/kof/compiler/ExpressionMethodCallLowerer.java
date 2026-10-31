@@ -292,7 +292,8 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     // `now()` sem receiver do ExpressionStaticCallLowerer. Guarda anti-
     // sombreamento igual à do typer (MethodCallNamespaces).
 } else if (mc.receiver() == null && "sleep".equals(mc.methodName())
-        && driver.findLocalVar("sleep", locals) == null) {
+        && driver.findLocalVar("sleep", locals) == null
+        && !KofShadowing.userDeclares(driver, "sleep")) {
     List<Type> sleepArgTypes = new ArrayList<>();
     for (ExpressionNode arg : mc.arguments()) sleepArgTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
     if (KofTime.staticCall("sleep", sleepArgTypes) != null) {

@@ -20,6 +20,14 @@ final class TopLevelCallTyper {
 
     /** Nomes que pertencem a builtins/namespaces e nunca são função top-level. */
     private static boolean isTopLevelCandidate(SemanticAnalyzer sa, MethodCallExpr mc) {
+        // §243 no nível de FUNÇÃO (#931/#932): nome declarado pelo programa
+        // (função top-level ou extern) é candidato — o builtin de mesmo nome
+        // nunca o rouba. O early-return tem de vir ANTES da lista de nomes
+        // reservados, que existia justamente para os builtins roubarem.
+        if (mc.receiver() == null && sa.unit() != null
+                && KofShadowing.userDeclares(sa, mc.methodName())) {
+            return true;
+        }
         return mc.receiver() == null && sa.unit() != null
                 && !"println".equals(mc.methodName()) && !"print".equals(mc.methodName())
                 && !"listOf".equals(mc.methodName()) && !"mapOf".equals(mc.methodName()) && !"setOf".equals(mc.methodName())
