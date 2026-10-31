@@ -36,16 +36,18 @@ import archive.ZipEntryStream
 // NOT here: `extractTo` (it needs the exclusive-create primitive of #854) and
 // any writer.
 
-/** u32 as a Long: a 32-bit field must never be read as a signed Int when it is
+/** INTERNAL — implementation detail of this file, not public API (#852 F6).
+ *  u32 as a Long: a 32-bit field must never be read as a signed Int when it is
  *  compared against a file size. */
-Long zipU32Long(Int[] b, Int at) {
+Long zipInternalU32Long(Int[] b, Int at) {
     return (zipU32(b, at) as Long) & 4294967295L
 }
 
-/** True when a UTF-8 sequence that starts inside `[from, from + len)` needs bytes
+/** INTERNAL — implementation detail of this file, not public API (#852 F6).
+ *  True when a UTF-8 sequence that starts inside `[from, from + len)` needs bytes
  *  past its end — the shape `zipUtf8` would answer with a platform index error,
  *  so the reader refuses it with its own text before decoding. */
-Bool zipUtf8Cut(Int[] b, Int from, Int len) {
+Bool zipInternalUtf8Cut(Int[] b, Int from, Int len) {
     var i = 0
     while (i < len) {
         var c = b[from + i] & 255
@@ -95,8 +97,16 @@ class ZipReader {
     }
 
     /** Opens `path` refusing more than `maxEntries` entries; every stream this
-     *  reader opens draws from ONE budget of `maxTotalBytes` produced bytes. */
+     *  reader opens draws from ONE budget of `maxTotalBytes` produced bytes.
+     *  Both limits are validated HERE (#852 F1) — before either is used — so an
+     *  impossible caller value never surfaces as a platform message downstream. */
     public constructor(String path, Int maxEntries, Long maxTotalBytes) {
+        if (maxEntries <= 0) {
+            throw "archive: the entry limit must be positive"
+        }
+        if (maxTotalBytes < 0) {
+            throw "archive: the byte budget must not be negative"
+        }
         this.path = path
         this.size = 0
         this.cdOffset = 0
@@ -206,7 +216,7 @@ class ZipReader {
                 throw "archive: entry '" + e.name + "' has no readable local header"
             }
             var nameBytes = this.pull(at + 30, localNameLen)
-            if ((e.flags & 2048) != 0 && zipUtf8Cut(nameBytes, 0, localNameLen)) {
+            if ((e.flags & 2048) != 0 && zipInternalUtf8Cut(nameBytes, 0, localNameLen)) {
                 throw "archive: entry '" + e.name + "' has a local name cut inside a UTF-8 sequence"
             }
             var localName = (if ((e.flags & 2048) != 0) zipUtf8(nameBytes, 0, localNameLen)
@@ -326,8 +336,8 @@ class ZipReader {
             throw "archive: ZIP64 end-of-central-directory locator found — ZIP64 is not supported"
         }
         var total = zipU16(tail, found + 10)
-        var cdSizeL = zipU32Long(tail, found + 12)
-        var cdOffsetL = zipU32Long(tail, found + 16)
+        var cdSizeL = zipInternalU32Long(tail, found + 12)
+        var cdOffsetL = zipInternalU32Long(tail, found + 16)
         if (total == 65535 || cdSizeL == 4294967295L || cdOffsetL == 4294967295L) {
             throw "archive: ZIP64 sentinel in the end of central directory — ZIP64 is not supported"
         }
@@ -377,11 +387,11 @@ class ZipReader {
             var flags = zipU16(this.win, o + 8)
             var method = zipU16(this.win, o + 10)
             var crc = zipU32(this.win, o + 16)
-            var comp = zipU32Long(this.win, o + 20)
-            var uncomp = zipU32Long(this.win, o + 24)
+            var comp = zipInternalU32Long(this.win, o + 20)
+            var uncomp = zipInternalU32Long(this.win, o + 24)
             var externAttrs = zipU32(this.win, o + 38)
-            var localOffset = zipU32Long(this.win, o + 42)
-            if ((flags & 2048) != 0 && zipUtf8Cut(this.win, o + 46, nameLen)) {
+            var localOffset = zipInternalU32Long(this.win, o + 42)
+            if ((flags & 2048) != 0 && zipInternalUtf8Cut(this.win, o + 46, nameLen)) {
                 throw "archive: the name of the central directory entry at " + at
                     + " is cut inside a UTF-8 sequence"
             }

@@ -284,4 +284,48 @@ class ZipReaderBoundsE2ETest {
                 "rawbudget chunks=65536,34464, produced=100000"), rest, "JVM: the limits");
         assertEquals(jvm, kof.script(root), "Script: the same numbers and the same text");
     }
+
+    // --- the bound ARGUMENTS themselves (#852 F1) -------------------------------
+
+    private static final String NEGATIVE_BOUNDS_PROBE = """
+            import archive.ZipReader
+
+            main() {
+                try {
+                    var z = ZipReader("/does/not/exist.zip", -1, 100L)
+                    println("no error (negative entries)")
+                } catch (String m) {
+                    println("entries: " + m)
+                }
+                try {
+                    var z2 = ZipReader("/does/not/exist.zip", 0, 100L)
+                    println("no error (zero entries)")
+                } catch (String m) {
+                    println("zero: " + m)
+                }
+                try {
+                    var z3 = ZipReader("/does/not/exist.zip", 10, -1L)
+                    println("no error (negative bytes)")
+                } catch (String m) {
+                    println("bytes: " + m)
+                }
+            }
+            """;
+
+    @Test
+    void negativeOrZeroConstructorBoundsRefuseWithTheLibrarysOwnTextBeforeTouchingTheFile() throws Exception {
+        // F1: before this fix, maxEntries<=0/maxTotalBytes<0 reached load()/the
+        // budget unvalidated and a negative byte budget surfaced as a platform
+        // message ("cannot read file") instead of the library's own text. Both
+        // limits are now checked before `this.path` is even read — proven here by
+        // a path that does not exist: if validation ran after any file access,
+        // these would fail with a platform error instead of the messages below.
+        Path root = probe("bounds", NEGATIVE_BOUNDS_PROBE);
+        String jvm = kof.jvm(root);
+        assertEquals(String.join("\n",
+                "entries: archive: the entry limit must be positive",
+                "zero: archive: the entry limit must be positive",
+                "bytes: archive: the byte budget must not be negative"), jvm, "JVM: the library's own text, not a platform message");
+        assertEquals(jvm, kof.script(root), "Script: the same text");
+    }
 }
