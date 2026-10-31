@@ -196,7 +196,6 @@ public class WasmBackend implements Backend {
             // DEPOIS, o global e' calculado no fim do emit — mesmo padrao do
             // strCase) e as 11 funcoes entram quando um double e' impresso ou
             // vai para a caixa (o kof.doubleToStr delega ao kof.schubFull).
-            boolean schub = false;
             if (printed.contains("double") || WasmTypeOracle.usesDoubleValueOf(scanAll)
                     || recordDoubles
                     || (wasi && WasmBoxRuntime.usesAny(scanAll))
@@ -226,7 +225,6 @@ public class WasmBackend implements Backend {
                 // vem JUNTO com a familia (o dedupe por nome torna o add
                 // redundante seguro nos outros blocos)
                 funcs.add(WasmCharOut.kofDoubleToStr());
-                schub = true;
             }
                 if (printed.contains("double")) {
                     // Um programa so' com double ainda escreve pelo writeStr, entao

@@ -77,8 +77,6 @@ final class WasmGcSpill {
     /** Fase A: o fecho de alcançabilidade + o maxSlots (sem tocar corpos). */
     static Scan analyze(List<WasmFunc> funcs) {
         Scan s = new Scan();
-        Map<String, WasmFunc> byName = new LinkedHashMap<>();
-        for (WasmFunc f : funcs) byName.putIfAbsent(f.name(), f);
         // os i32-índices por func + os calls por func (o grafo)
         Map<String, Set<String>> callees = new LinkedHashMap<>();
         for (WasmFunc f : funcs) {

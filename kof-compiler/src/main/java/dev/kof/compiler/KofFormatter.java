@@ -308,7 +308,13 @@ public final class KofFormatter {
                 // bloco vazio (sem `extern`) nao produz codigo util: o no e
                 // informativo e o arquivo segue igual (round-trip estavel).
             }
-            case null, default -> {  // null cai aqui (como no if-else: instanceof null == false)
+            // CodeQL #1167: null tinha sua propria rota aqui so para cair no
+            // decl.toString() abaixo (NPE garantido); separado do default
+            // real (instanceof null == false no if-else antigo so' significa
+            // "nenhum case bateu", nao "imprima null").
+            case null -> {
+            }
+            default -> {
                 out.append(pad).append(decl.toString()).append("\n");
             }
         }

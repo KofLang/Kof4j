@@ -189,7 +189,7 @@ final class WasmJoinCode {
         ctx.lastPushWide = false;
     }
 
-    static void terminateBlock(boolean cleanEnd, List<WasmInstr> out) {
+    static void terminateBlock(boolean cleanEnd) {
         // ops apos um terminador = CFG nao-linear desconhecido -> bloco so
         // termina limpo se o terminador era a ultima op
         if (!cleanEnd) {
