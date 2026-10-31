@@ -28,7 +28,9 @@ import image.InflateStream
 // the bytes produced up to the limit — the bytes beyond it are never produced, but
 // a stream that produces nothing (empty stored blocks) still costs its input.
 
-/** The archive-level byte budget, shared by every stream one reader opens. */
+/** INTERNAL — the archive-level byte budget, shared by every stream one reader
+ *  opens. Not part of this package's public API (#852 F6): built and owned by
+ *  `ZipReader`/`ZipEntryStream`, never meant to be constructed by a caller. */
 class ZipBudget {
     Long left
 
@@ -37,9 +39,10 @@ class ZipBudget {
     }
 }
 
-/** The DEFLATE engine of a method-8 entry; a STORED entry has none (null safety
+/** INTERNAL — implementation detail of this file, not public API (#852 F6).
+ *  The DEFLATE engine of a method-8 entry; a STORED entry has none (null safety
  *  works by narrowing, so the absence comes out of a `return null`). */
-InflateStream? zipEngineFor(String path, ZipEntry entry, Long dataStart) {
+InflateStream? zipInternalEngineFor(String path, ZipEntry entry, Long dataStart) {
     if (entry.method == 8) {
         return InflateStream(path, dataStart, entry.compressedSize as Long, 8192,
                 entry.uncompressedSize as Long)
@@ -77,7 +80,7 @@ class ZipEntryStream {
         }
         this.chunkSize = effective
         this.budget = budget
-        this.engine = zipEngineFor(path, entry, dataStart)
+        this.engine = zipInternalEngineFor(path, entry, dataStart)
         this.scratch = new Int[effective]
         this.crc = -1
         this.made = 0

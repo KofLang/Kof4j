@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -99,6 +100,19 @@ final class ArchiveKofRunner implements LibraryInstallSupport {
                     .replace("\r\n", "\n").strip();
             assertEquals(0, p.waitFor(), target + " output: " + o);
             return o;
+        });
+    }
+
+    /** Compiles the probe for target JS and asserts it REFUSES with the given gap
+     *  code (#852 Q5) — proves the gap is inherited from `File.readRange` by any
+     *  library code built on it, not just a direct call site. */
+    void jsGap(Path root, String code) throws Exception {
+        withLibrary(root, () -> {
+            CompilationResult r = driver.compileSources(List.of(root.resolve("Main.kf")), root.resolve("out"), Target.JS, root);
+            assertFalse(r.success(), "JS compile should refuse (" + code + "): " + root);
+            String diags = r.diagnostics().getDiagnostics().toString();
+            assertTrue(diags.contains(code), "expected " + code + ", got: " + diags);
+            return null;
         });
     }
 
