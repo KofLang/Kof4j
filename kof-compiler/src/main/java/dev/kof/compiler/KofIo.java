@@ -77,6 +77,12 @@ public final class KofIo {
             case "moveTo" -> argCount == 1 ? new IoCall("kof_io_file_move_to", BOOL, List.of(STR)) : null;
             case "modifiedTime" -> argCount == 0 ? new IoCall("kof_io_file_modified_time", LONG, List.of()) : null;
             case "isSymlink" -> argCount == 0 ? new IoCall("kof_io_file_is_symlink", BOOL, List.of()) : null;
+            // #854: criação EXCLUSIVA (equivalente a CREATE_NEW) — fecha a
+            // corrida TOCTOU de exists()+write(): falha se o caminho já
+            // existir OU for link (pendente ou não). Bool, nunca lança
+            // ("já existe" é resultado esperado e checável, não excepcional
+            // como readBytes/#848).
+            case "createNew" -> argCount == 0 ? new IoCall("kof_io_file_create_new", BOOL, List.of()) : null;
             case "resolve" -> argCount == 1 ? new IoCall("kof_io_path_resolve", PATH, List.of(STR)) : null;
             case "parent" -> argCount == 0 ? new IoCall("kof_io_path_parent", PATH, List.of()) : null;
             case "fileName" -> argCount == 0 ? new IoCall("kof_io_path_file_name", STR, List.of()) : null;
