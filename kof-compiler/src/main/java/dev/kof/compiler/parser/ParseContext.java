@@ -135,6 +135,32 @@ public class ParseContext {
                 && tokens.get(pos + 3).type() == TokenType.LBRACE;
     }
 
+    /**
+     * #981 — um modificador puro (`public`/`private`/`protected`/`static`/...)
+     * no nível de TOPO, quando o que vem depois de TODOS eles não é uma keyword
+     * de declaração de tipo (`class`/`interface`/`record`/`enum`/`entity`): é
+     * uma FUNÇÃO de módulo, não um tipo. {@code ClassMemberParser.parseClassMember}
+     * já consome modificadores ANTES de decidir o que segue (mesmo padrão de
+     * {@link #sealedModifierAhead()}); o dispatcher de topo ({@code Parser.parse()})
+     * decidia pelo token ANTES do modificador, então `private Int f(...)` e
+     * `private f(...): Int` caíam sempre no ramo de tipo
+     * ({@code TypeDeclarations.parseTypeDeclaration}, que exige um desses
+     * keywords) e morriam com `PARSE007` (em cascata, na forma sufixada).
+     */
+    public boolean modifierPrefixedFunctionAhead() {
+        if (!MODIFIER_TOKENS.contains(peek().type())) return false;
+        int i = pos;
+        while (i < tokens.size() && MODIFIER_TOKENS.contains(tokens.get(i).type())) i++;
+        if (i >= tokens.size()) return false;
+        TokenType t = tokens.get(i).type();
+        if (t == TokenType.CLASS || t == TokenType.INTERFACE || t == TokenType.RECORD
+                || t == TokenType.ENUM || t == TokenType.ENTITY) {
+            return false;
+        }
+        return t == TokenType.IDENTIFIER || t == TokenType.VOID || t == TokenType.LPAREN
+                || TypeParser.isPrimitiveTypeToken(t);
+    }
+
     boolean atEnd() {
         return pos >= tokens.size() || peek().type() == TokenType.EOF;
     }
