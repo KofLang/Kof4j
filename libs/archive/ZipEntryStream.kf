@@ -24,8 +24,9 @@ import image.InflateStream
 //   * a refusal is STICKY: every later `readChunk()` raises the same text, and
 //     the text is the library's own (`archive: …`), never a platform message.
 //
-// Honest limit: the cost in CPU is the cost of producing the bytes up to the
-// limit — the bytes beyond it are never produced.
+// Honest limit: the CPU cost is proportional to the compressed bytes consumed plus
+// the bytes produced up to the limit — the bytes beyond it are never produced, but
+// a stream that produces nothing (empty stored blocks) still costs its input.
 
 /** The archive-level byte budget, shared by every stream one reader opens. */
 class ZipBudget {
