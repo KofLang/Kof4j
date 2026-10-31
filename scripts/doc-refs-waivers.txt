@@ -42,3 +42,5 @@ path	docs/development/future/TRANSLATOR.pt_BR.md	promovido 14/10 — idem PT
 path	docs/development/future/LEGACY_MIGRATION.md	promovido 14/10 — refs em kof-connector-ecosystem-plan apontam p/ a antiga localização
 path	docs/development/future/LEGACY_MIGRATION.pt_BR.md	promovido 14/10 — idem PT
 sha	ffffffff	constante hexadecimal em prosa técnica sobre bytecode (DECOMPILER.md line 325), não é um SHA de commit
+
+path	docs/12-tls.md	ref a OUTRO repo (kof-cloud/docs/12-tls.md, plano TLS no future/, lane docs 30/10) — o regex do gate extrai `docs/12-tls.md` do caminho externo
