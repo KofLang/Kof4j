@@ -78,6 +78,44 @@ class ZipNativeFaceE2ETest implements LibraryInstallSupport {
         assertTrue(Files.isRegularFile(outDir.resolve("alfa.txt")), "as DUAS entradas extraídas");
     }
 
+    /** §766: aninhamento e colisão também no binário, onde o Bool vem do runtime asm. */
+    @ParameterizedTest
+    @EnumSource(value = Target.class, names = {"NATIVE", "NATIVE_RISCV64", "NATIVE_AARCH64"})
+    void nestedDirectoriesAndWriteFailureOnNative(Target target, @TempDir Path dir) throws Exception {
+        if (target != Target.NATIVE) {
+            Assumptions.assumeTrue(NativeRiscv64E2ETest.hasToolchain(target.nativeArch()),
+                    target.nativeArch() + " toolchain/QEMU required");
+        }
+        Path zip = dir.resolve("aninhado.zip");
+        try (OutputStream raw = Files.newOutputStream(zip); ZipOutputStream out = new ZipOutputStream(raw)) {
+            out.putNextEntry(new ZipEntry("d/")); out.closeEntry();
+            out.putNextEntry(new ZipEntry("d/e/")); out.closeEntry();
+            out.putNextEntry(new ZipEntry("d/e/f.txt"));
+            out.write(NESTED_TEXT.getBytes(StandardCharsets.UTF_8));
+            out.closeEntry();
+        }
+        Path good = dir.resolve("bom");
+        Path blocked = dir.resolve("bloqueado");
+        Files.createDirectories(blocked);
+        Files.writeString(blocked.resolve("d"), "arquivo");
+        Files.writeString(dir.resolve("Main.kf"), """
+                import archive.Zip
+
+                main() {
+                    var z = Zip("%s")
+                    println("escritos=" + z.extractTo("%s", 4096))
+                    try {
+                        println("escritos=" + z.extractTo("%s", 4096))
+                    } catch (String m) {
+                        println("recusado")
+                    }
+                }
+                """.formatted(zip.toAbsolutePath(), good.toAbsolutePath(), blocked.toAbsolutePath()));
+
+        assertEquals("escritos=1\nrecusado", runOnNative(target, dir), target + ": aninhamento e colisão");
+        assertEquals(NESTED_TEXT, Files.readString(good.resolve("d/e/f.txt")), target + ": arquivo mais fundo");
+    }
+
     private String runOnNative(Target target, Path dir) throws Exception {
         Path out = dir.resolve("out");
         return withLibrary(dir, () -> {
