@@ -54,6 +54,7 @@ BASE = {
         ("diffDays", ['diffDays(String isoA, String isoB) -> Int']),
         ("todayIso", ['todayIso() -> String']),
         ("formatDateIso", ['formatDateIso(Int y, Int m, Int d) -> String']),
+        ("formatInstantIso", ['formatInstantIso(Long millis) -> String']),
         ("parseDateIso", ['parseDateIso(String iso) -> Int']),
         ("tzOffsetSeconds", ['tzOffsetSeconds() -> Int']),
         ("hoursBetween", ['hoursBetween(Int y1, Int m1, Int d1, Int h1, Int y2, Int m2, Int d2, Int h2) -> Int']),
@@ -158,11 +159,14 @@ BASE = {
     ],
     # fatia 4
     "math": [
-        ("abs", ['abs(Int n) -> Int']),
-        ("sign", ['sign(Int n) -> Int']),
-        ("clamp", ['clamp(Int v, Int lo, Int hi) -> Int']),
-        ("min", ['min(Int a, Int b) -> Int']),
-        ("max", ['max(Int a, Int b) -> Int']),
+        ("abs", ['abs(Int n) -> Int', 'abs(Double x) -> Double']),
+        ("sign", ['sign(Int n) -> Int', 'sign(Double x) -> Int']),
+        ("floor", ['floor(Double x) -> Double']),
+        ("ceil", ['ceil(Double x) -> Double']),
+        ("clamp", ['clamp(Int v, Int lo, Int hi) -> Int',
+                   'clamp(Double v, Double lo, Double hi) -> Double']),
+        ("min", ['min(Int a, Int b) -> Int', 'min(Double a, Double b) -> Double']),
+        ("max", ['max(Int a, Int b) -> Int', 'max(Double a, Double b) -> Double']),
         ("isEven", ['isEven(Int n) -> Bool']),
         ("isOdd", ['isOdd(Int n) -> Bool']),
         ("isPositive", ['isPositive(Int n) -> Bool']),
@@ -205,6 +209,7 @@ BASE = {
 EXTRA_FATIAS = {
     "orm": [
         ("create", ["create(String entity) -> Bool"]),
+        ("createHistory", ["createHistory(String entity) -> Bool"]),
         ("save", ["save(String entity, Object row) -> Object"]),
         ("find", ["find(String entity, Object id) -> Object"]),
         ("all", ["all(String entity) -> List"]),
