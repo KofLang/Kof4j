@@ -207,6 +207,14 @@ public final class JsRuntimeIo {
                 return kof_platform.appendBytes(p, bytes);
             }
 
+            // #854: criacao EXCLUSIVA (equivalente a CREATE_NEW) — fecha a
+            // corrida TOCTOU de exists()+write(): falha se o caminho ja
+            // existir OU for link (pendente ou nao). Mesmo contrato Bool do
+            // JVM/Native (nunca lanca — "ja existe" e resultado esperado).
+            export function kofIoFileCreateNew(p) {
+                return kof_platform.createNew(p);
+            }
+
             export function kofIoDelete(p) {
                 return kof_platform.delete(p);
             }

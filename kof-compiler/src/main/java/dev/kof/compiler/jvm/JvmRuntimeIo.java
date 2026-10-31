@@ -123,6 +123,21 @@ public final class JvmRuntimeIo {
                     }
                 }
 
+                // #854: criação EXCLUSIVA — fecha a corrida TOCTOU de
+                // exists()+write(): Files.createFile falha se o caminho já
+                // existir OU for um link (pendente ou não) — open(O_CREAT|
+                // O_EXCL) nunca segue o último componente quando ele já
+                // existe como link, garantia POSIX do kernel, não um
+                // detalhe do JDK.
+                public static int kof_io_file_create_new(String path) {
+                    try {
+                        java.nio.file.Files.createFile(p(path));
+                        return 1;
+                    } catch (java.io.IOException e) {
+                        return 0;
+                    }
+                }
+
                 public static int kof_io_delete(String path) {
                     try {
                         if (!java.nio.file.Files.exists(p(path))) return 0;

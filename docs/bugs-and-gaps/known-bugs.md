@@ -20189,7 +20189,7 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Classification: BUG**, not a spec gap — diverges from the method's own "how many files it wrote" contract and from the Bool-status contract of the primitives it calls.
 
-**Security/correctness impact:** any caller using `extractTo`'s return value as a completeness/integrity signal can be silently wrong — data can be partially or fully lost, with zero signal. Independent of the already-tracked #854 TOCTOU symlink race (a different, already-acknowledged gap deferred to #854's `createNew` primitive) and does not depend on or block #852's `ZipReader` API design decision.
+**Security/correctness impact:** any caller using `extractTo`'s return value as a completeness/integrity signal can be silently wrong — data can be partially or fully lost, with zero signal. Independent of the #854 TOCTOU symlink race (a different gap, fixed separately — `File(p).createNew()` landed 31/10) and does not depend on or block #852's `ZipReader` API design decision.
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
