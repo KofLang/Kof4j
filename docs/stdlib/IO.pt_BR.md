@@ -49,6 +49,7 @@ aarch64); o alvo JS a recusa em compile time com `IOJS001`.
 | `moveTo(destino)` | Bool — JVM + Native. Primitiva de filesystem para mover/renomear, sem sobrescrita por padrão (mesmo contrato de `copyTo`). Não é uma transação segura: quem precisa de mover com verificação de hash continua fazendo copiar → validar → apagar, como já fazia antes deste método existir |
 | `modifiedTime()` | Long — JVM + Native. Data de modificação em milissegundos desde a época; lança exceção se o arquivo não existir (mesmo contrato de `size()`, sem sentinela) |
 | `isSymlink()` | Bool — JVM + Native. `true` quando o próprio caminho é um link simbólico (o link nunca é seguido implicitamente por essa checagem) |
+| `createNew()` | Bool — JVM, Native (x86-64/riscv64/aarch64) e JS. Criação exclusiva (POSIX `O_CREAT\|O_EXCL`): falha se o caminho já existir OU for um link, mesmo pendente — o último componente do caminho nunca é seguido quando já existe como link, garantia do kernel, não um detalhe do host. Fecha a corrida TOCTOU entre `exists()` e `write()`/`writeBytes()` (#854) |
 
 **Não existe forma estática** para nenhuma face do `kof.io`:
 `File.exists(p)`, `File.readText(p)`, `File.readRange(p, o, n)` são rejeitados
@@ -56,7 +57,7 @@ pelo typer com `SEM011 Undefined variable or type: 'File'` em **todos** os
 alvos (medido 28/09) — use a forma de instância `File(p).exists()`,
 `File(p).readRange(0, 4)`. (A tabela `KofIo.staticMethod` do compilador é
 inalcançável porque o typer nunca resolve o tipo como receptor estático;
-`copyTo`/`moveTo`/`modifiedTime`/`isSymlink` são só de instância.)
+`copyTo`/`moveTo`/`modifiedTime`/`isSymlink`/`createNew` são só de instância.)
 
 ## Directory
 

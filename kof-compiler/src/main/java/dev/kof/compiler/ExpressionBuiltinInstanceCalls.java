@@ -28,7 +28,10 @@ final class ExpressionBuiltinInstanceCalls {
             "kof_io_append_bytes", "kof_io_dir_list", "kof_io_read_range",
             "kof_io_read_range_path", "kof_io_file_name", "kof_io_path_file_name",
             "kof_io_path_parent", "kof_io_path_extension", "kof_io_path_is_absolute",
-            "kof_io_path_resolve", "kof_io_path_normalize", "kof_io_path_to_absolute", "kof_io_dir_delete", "kof_io_file_modified_time", "kof_io_file_is_symlink", "kof_io_file_move_to", "kof_io_file_copy_to", "kof_io_path_real_path");
+            "kof_io_path_resolve", "kof_io_path_normalize", "kof_io_path_to_absolute", "kof_io_dir_delete", "kof_io_file_modified_time", "kof_io_file_is_symlink", "kof_io_file_move_to", "kof_io_file_copy_to", "kof_io_path_real_path",
+            // #854: openat(O_CREAT|O_EXCL) — mesmo molde do kof_io_dir_create
+            // (mkdirat) já portado; ganha aarch64 pelo tradutor riscv->aarch64.
+            "kof_io_file_create_new");
 
     /**
      * Faces de kof.io sem binding no runtime JS ({@code kof-runtime-io.mjs}

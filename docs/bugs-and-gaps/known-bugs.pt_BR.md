@@ -17663,7 +17663,7 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Classificação: BUG**, não é lacuna de especificação — diverge do próprio contrato do método ("quantos arquivos escreveu") e do contrato Bool-status das primitivas que ele chama.
 
-**Impacto de segurança/correção:** qualquer chamador que use o retorno de `extractTo` como sinal de completude/integridade pode estar silenciosamente errado — dados podem se perder parcial ou totalmente, sem nenhum sinal. Independente da TOCTOU de símlink já rastreada na #854 (uma lacuna diferente, já reconhecida, deferida à primitiva `createNew` da #854) e não depende nem bloqueia a decisão de desenho da API `ZipReader` da #852.
+**Impacto de segurança/correção:** qualquer chamador que use o retorno de `extractTo` como sinal de completude/integridade pode estar silenciosamente errado — dados podem se perder parcial ou totalmente, sem nenhum sinal. Independente da TOCTOU de símlink da #854 (uma lacuna diferente, corrigida separadamente — `File(p).createNew()` pousou em 31/10) e não depende nem bloqueia a decisão de desenho da API `ZipReader` da #852.
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)

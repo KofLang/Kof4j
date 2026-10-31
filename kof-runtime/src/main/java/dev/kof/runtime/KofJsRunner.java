@@ -247,6 +247,7 @@ public final class KofJsRunner {
         platform.put("readBytes", (ProxyExecutable) args -> readBytes(args));
         platform.put("writeBytes", (ProxyExecutable) args -> writeBytes(args, false));
         platform.put("appendBytes", (ProxyExecutable) args -> writeBytes(args, true));
+        platform.put("createNew", (ProxyExecutable) args -> createNew(args));
         platform.put("delete", (ProxyExecutable) args -> {
             try {
                 return Files.deleteIfExists(Path.of(args[0].asString())); // §382: booleano REAL
@@ -522,6 +523,18 @@ public final class KofJsRunner {
                 Files.write(p, bytes);
             }
             return true; // §382: face BOOL do host (era 0 = falsy no guest)
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    // #854: criacao EXCLUSIVA (equivalente a CREATE_NEW) — Files.createFile
+    // falha se o caminho ja existir OU for link (pendente ou nao), fechando
+    // a corrida TOCTOU de exists()+write(). Mesmo contrato Bool do JVM/Native.
+    private static Object createNew(Value[] args) {
+        try {
+            Files.createFile(Path.of(args[0].asString()));
+            return true;
         } catch (IOException e) {
             return false;
         }

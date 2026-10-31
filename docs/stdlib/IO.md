@@ -49,6 +49,7 @@ refuses it at compile time with `IOJS001`.
 | `moveTo(destination)` | Bool — JVM + Native. Filesystem-primitive rename/move, no-overwrite by default (same contract as `copyTo`). Not a safe transaction: callers that need a hash-verified move should keep doing copy → verify → delete, same as before this method existed |
 | `modifiedTime()` | Long — JVM + Native. Last-modified time in epoch milliseconds; throws an exception if the file does not exist (same contract as `size()`, no sentinel) |
 | `isSymlink()` | Bool — JVM + Native. `true` when the path itself is a symbolic link (the link is never followed implicitly by this check) |
+| `createNew()` | Bool — JVM, Native (x86-64/riscv64/aarch64) and JS. Exclusive creation (POSIX `O_CREAT\|O_EXCL`): fails if the path already exists OR is a symlink, even a dangling one — the last path component is never followed when it already exists as a link, a kernel guarantee, not a host detail. Closes the TOCTOU race between `exists()` and `write()`/`writeBytes()` (#854) |
 
 There is **no static form** for any `kof.io` face: `File.exists(p)`,
 `File.readText(p)`, `File.readRange(p, o, n)` are rejected by the typer with
@@ -56,7 +57,7 @@ There is **no static form** for any `kof.io` face: `File.exists(p)`,
 28/09) — use the instance form `File(p).exists()`, `File(p).readRange(0, 4)`.
 (The compiler's `KofIo.staticMethod` table is unreachable because the typer
 never resolves the type as a static receiver; `copyTo`/`moveTo`/`modifiedTime`/
-`isSymlink` are instance-only.)
+`isSymlink`/`createNew` are instance-only.)
 
 ## Directory
 
