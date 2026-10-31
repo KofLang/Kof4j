@@ -96,7 +96,7 @@ public final class ClassShapeChecks {
     }
 
     /** Chamado nas 2 faces de construção (`new I()` em SemExpressionTyper,
-     *  `I()` implícita em BuiltinCallTyper) — #340. */
+     *  `I()` implícita em ImplicitCtorCallTyper) — #340. */
     static void checkInstantiable(SemanticAnalyzer sa, String typeName) {
         if (typeName != null && sa.interfaceNames().contains(typeName)) {
             report(sa, null,

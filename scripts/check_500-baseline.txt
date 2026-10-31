@@ -11,7 +11,6 @@
 579	kof-cli/src/main/java/dev/kof/cli/LspServer.java
 599	kof-cli/src/main/java/dev/kof/cli/TranslateEmitter.java
 593	kof-cli/src/main/java/dev/kof/cli/TranslateExpr.java
-596	kof-compiler/src/main/java/dev/kof/compiler/BuiltinCallTyper.java
 584	kof-compiler/src/main/java/dev/kof/compiler/CollectionCallLowerer.java
 568	kof-compiler/src/main/java/dev/kof/compiler/CompilerCaptureScanner.java
 561	kof-compiler/src/main/java/dev/kof/compiler/CompilerClassLowering.java

@@ -16,7 +16,7 @@ import org.junit.jupiter.api.io.TempDir;
  * compilava "clean" e morria em {@code NoSuchMethodError} no JVM; o Script
  * imprimia phantom ({@code P[x=null]}) e o JS nem emitia Main.js. O caminho
  * {@code new} ja dava SEM023; a face implicita caia em silencio (R6 violada).
- * Gate: {@code BuiltinCallTyper.reportNoCtorArity} — mesmo SEM023, mesmas
+ * Gate: {@code ImplicitCtorCallTyper.reportNoCtorArity} — mesmo SEM023, mesmas
  * excecoes (classe sem construtor declarado = default implicito legal).
  */
 public class ConstructorPhantomE2ETest {

@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>Fix: a unifier ({@code GenericTypeArgInference}) binds the class
  * type-parameters from the constructor's DECLARED parameter types against the
  * inferred argument types; wired into BOTH the semantic path
- * ({@code BuiltinCallTyper} bare ctor, {@code SemNewExprTyper} for {@code new})
+ * ({@code ImplicitCtorCallTyper} bare ctor, {@code SemNewExprTyper} for {@code new})
  * AND the emit's {@code ExpressionTyper} NewExpr arm.
  *
  * <p>Oracle is the JVM. RED-first: the JVM face threw {@code VerifyError}
