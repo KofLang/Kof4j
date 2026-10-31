@@ -67,7 +67,12 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                               BytecodeFrame frame, List<String> out,
                               Set<Integer> emitted, Set<Integer> declared, int header,
                               Set<Integer> stops) {
-        if (System.getenv("KOF_WALK") != null && b != null)
+        // CodeQL #1159/#1160: varios call sites passam byStart.get(label), que
+        // devolve null quando o label nao bate com nenhum bloco reconhecido
+        // (bytecode fora do subset coberto) — recusa honesta em vez de NPE
+        // (R6: nunca codigo errado/crash onde cabe um stub UNKNOWN).
+        if (b == null) { BytecodeStatements.refuse("struct-block-null"); return false; }
+        if (System.getenv("KOF_WALK") != null)
             System.out.println("WALK enter blk[" + b.start + ") succ=" + b.succ + " header=" + header);
     // Fase C: bloco do PÓS-IF (join de if-sem-else) que ainda NÃO foi
     // emitido = borda do braço: para AQUI sem emitir (a sequela cuida do
@@ -355,6 +360,11 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                             + " else " + eVal + ")");
                     emitted.add(thenStart);
                     emitted.add(exitStart);
+                    // CodeQL #1162: mesma defesa ja usada nas linhas 56-57/718
+                    // (campo estatico mutavel — nao depender de ordem entre
+                    // entry points para garantir nao-null aqui).
+                    if (BytecodeStatements.skipCount == null)
+                        BytecodeStatements.skipCount = new java.util.HashMap<>();
                     BytecodeStatements.skipCount.put(joinC2.start, 2);
                     return struct(joinC2, insns, byStart, cp, frame, out, emitted,
                             declared, header, stops);
@@ -469,8 +479,10 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                 }
             }
             if (System.getenv("KOF_CA") != null)
+                // CodeQL #1164: cond já não pode ser null aqui (guard anterior);
+                // concat `+` com null imprimiria "null" de qualquer forma.
                 System.out.println("OR-WALK orCond=" + orCond + " realFalse=" + realFalse
-                        + " cond=" + (cond == null ? "NULL" : cond));
+                        + " cond=" + cond);
             if (orCond != null && realFalse >= 0) {
                 // Fase E (16/10): o CONTINUE-JOIN COMPARTILHADO — o alvo do
                 // falso real é a CONTINUAÇÃO do loop (os preds = os testes
@@ -710,7 +722,11 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
                         // R6: o source não pode conter chamadas sem
                         // equivalente (medido: `entrySet()` — o Map do Kof
                         // itera keys/values, não há Entry) → stub honesto
-                        if (bindVar >= 0 && bindLen >= 2 && !src.contains(".entrySet()")
+                        // CodeQL #1153: bodyFirst==null já implica fblk vazio
+                        // (linha acima) e portanto bindVar<0 — a checagem
+                        // explicita só torna esse invariante visível pra
+                        // analise estatica, sem mudar nenhum caso real.
+                        if (bodyFirst != null && bindVar >= 0 && bindLen >= 2 && !src.contains(".entrySet()")
                                 && !src.contains(".keySet()") && !src.contains(".values()")) {
                             String bindName = BytecodeDecoderStack.slotName(bindVar, frame);
                             if (BytecodeStatements.skipCount == null)
@@ -990,7 +1006,11 @@ static boolean struct(BytecodeReader.Block b, List<BytecodeReader.Insn> insns,
         // testes puros) → RECURSA em struct(elseB) com o join como stop: o
         // MESMO pureElseIfThen trata o nível seguinte da cadeia. Sem stores
         // no bloco (senão é `else { stmt; if }` — outro shape).
-        if (!pureIfElse && !pureElseIfThen && elseIfElseInner < 0 && thenB != null
+        // CodeQL #1152: `elseIfElseInner < 0` é sempre verdade aqui — o bloco
+        // acima (pureElseIfThen || elseIfElseInner > 0) termina em `return`
+        // em todo ramo, então só se chega aqui com elseIfElseInner==-1 (o
+        // único outro valor possível é 1, tratado lá em cima).
+        if (!pureIfElse && !pureElseIfThen && thenB != null
                 && tail >= 0 && thenB.succ.equals(List.of(tail))
                 && elseB != null && elseB.succ.size() == 2
                 && !emitted.contains(elseB.start)

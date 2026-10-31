@@ -146,7 +146,7 @@ public final class KofJsFfiBridge {
                 return null;
             }
             if (ret == '@') {
-                return readStruct(retStruct, (MemorySegment) r, retChars);
+                return readStruct((MemorySegment) r, retChars);
             }
             if (ret == 'S') {
                 MemorySegment seg = (MemorySegment) r;
@@ -172,9 +172,12 @@ public final class KofJsFfiBridge {
      * Lê os campos do struct devolvido por valor (ordem de declaração) num
      * {@code Object[]} — o guest reconstrói o record via {@code __kof_ffi_from}
      * (paridade com o {@code kof_ffi_read_struct} reflexivo do JVM). Os offsets
-     * vêm do MESMO {@link #structLayout} que gerou o descriptor.
+     * vêm do MESMO {@link #structLayout} que gerou o descriptor (CodeQL #1165:
+     * `fieldOffset` reconstrói o mesmo padding a partir só de `chars`, entao o
+     * StructLayout em si nunca entra aqui — ficou no param por simetria com o
+     * `structLayout(retChars)` que o chamador já tinha à mão).
      */
-    private static Object[] readStruct(StructLayout sl, MemorySegment seg, String chars) {
+    private static Object[] readStruct(MemorySegment seg, String chars) {
         Object[] out = new Object[chars.length()];
         for (int k = 0; k < chars.length(); k++) {
             long off = fieldOffset(chars, k);   // §762

@@ -21,7 +21,10 @@ final class WasmCollSetCall {
     private WasmCollSetCall() {
     }
 
-    /** true = a chamada era de colecao e ja emitiu. */
+    /** true = a chamada era de colecao e ja emitiu. (CodeQL #1174/#1175:
+     *  `ops`/`idx` ficam na assinatura por paridade com o despacho uniforme
+     *  LIST/SET/MAP em {@link WasmCollCallCode} — SET não precisa deles hoje,
+     *  mas o call site e os irmãos LIST/MAP sim.) */
     static boolean emit(KofCall kc, java.util.List<KofOperation> ops, int idx,
             WasmLowering.Ctx ctx, List<WasmInstr> out) {
 if (WasmSetRuntime.NAMES.contains(kc.methodName())) {

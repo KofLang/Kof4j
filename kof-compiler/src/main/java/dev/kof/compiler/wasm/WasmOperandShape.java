@@ -204,7 +204,11 @@ final class WasmOperandShape {
     static String pushedShape(KofOperation op, List<KofOperation> ops, int i,
                               WasmLowering.Ctx ctx) {
         if (op instanceof KofLoadLocal ll) {
-            String lt = ctx.localNullableTrace.get(ll.index());
+            // CodeQL #1178: ctx chega null só via pushedShapeWithTrace, que já
+            // trata KofLoadLocal ANTES de cair aqui (ctx==null é inalcançável
+            // neste ramo) — guarda explícita fecha o alerta sem mudar o
+            // comportamento real.
+            String lt = ctx != null ? ctx.localNullableTrace.get(ll.index()) : null;
             return lt != null ? lt : typeName(ll.type());
         }
         if (op instanceof KofLoadLiteral lit) {
