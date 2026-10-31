@@ -3,7 +3,7 @@
 # Known Bugs — handoff para o próximo agente
 
 last: §766 (FIXED)
-last: §765 (OPEN)
+last: §765 (FIXED)
 last: §763 (FIXED)
 last: §744 (FIXED)
 last: §743 (FIXED)
@@ -17608,7 +17608,7 @@ Prova em Java puro (JDK 25, `record T(double v)` + `a.equals(b)`): NaN/NaN → `
 
 ## §765 — `try`/`return`/`catch`: um throw levantado enquanto o OPERANDO do `return` é avaliado desvincula o handler ERRADO no Script e no nativo x86-64 (JVM/JS corretos)
 
-**Status:** ABERTO (medido 31/10, triagem independente F4, issue [#980](https://github.com/KofLang/Kof4j/issues/980)) — achado de carona durante a triagem em torno da #852; pré-existente e sem relação com o escopo da #852, não bloqueia nem depende da decisão de desenho da API dela.
+**Status:** ✅ CORRIGIDO 31/10 (dono = 192.168.1.2:0; medido na triagem independente F4, issue [#980](https://github.com/KofLang/Kof4j/issues/980)) — achado de carona durante a triagem em torno da #852; pré-existente e sem relação com o escopo da #852, não bloqueia nem depende da decisão de desenho da API dela.
 
 **Contrato:** `docs/language-reference/statements.md` §8 — `catch (String e)` captura exceções Kof (strings); o `finally` sempre roda (inclusive num `return`/`throw` do try). Não há exceção para o momento de avaliação do operando do `return`.
 
@@ -17624,11 +17624,11 @@ main() { println(f()) }
 
 **Isolamento** (Script e nativo byte-idênticos entre si em todos os casos): `return boom()` (sem concat) — mesma divergência, então a concatenação não é o gatilho. Acrescentar `finally { println("fin") }` — Script/nativo imprimem só `boom` (exit 1): o corpo do `finally` nunca roda, uma violação de contrato DISTINTA da captura errada. O mesmo `try { return "v="+boom() } finally { println("fin") }` sem catch, envolto num `try { ... } catch (String m) { println("outer caught: "+m) }` externo em `main()` — Script/nativo imprimem `outer caught: boom` (exit 0) **mas nunca imprimem `fin`**: o throw é capturado em silêncio um nível de try acima do certo e o `finally` interno é pulado; a JVM imprime `fin` e depois `outer caught: boom`, corretamente. Controles que NÃO reproduzem (os quatro alvos capturam certo): `var x = boom(); return "v="+x` (variável temporária), `if (boomInt() == 1) { ... }` (condição), `x = boom(); return x` (atribuição simples) — isolando o defeito a uma expressão escrita diretamente como o próprio operando do statement `return`.
 
-**CAUSA RAIZ** (lida + confirmada por `git blame`, não corrigida): `StatementLowerer.java:34` (ramo com finally ativo) e `:50` (ramo simples) emitem o laço `KofExcUnlink` da profundidade de try ANTES de `ReturnValueLowerer.emitCoerced` (`:36`/`:52`) avaliar o operando do return, então a cadeia de handlers é desempilhada antes de o operando rodar — Script e nativo x86-64 são os dois alvos onde o `KofExcUnlink` de fato desempilha uma entrada viva da cadeia de handlers; a JVM (tabela de exceções) e o JS (`try` nativo) nunca precisaram do op e não são afetados. Introduzido pelo fix do §551 (`903335bc4`, 01/10, caminho simples) e pelo fix do §613 (`f376d4a41`, 06/10, caminho com finally) — os dois inseriram o laço de unlink ACIMA do código de avaliação do operando já existente (de `899e89a96b`, 18/09) em vez de abaixo. riscv64/aarch64 NÃO medidos (`kof run` não tem perna de execução cross).
+**CAUSA RAIZ** (lida + confirmada por `git blame`, não corrigida): `StatementLowerer.java:34` (ramo com finally ativo) e `:50` (ramo simples) emitem o laço `KofExcUnlink` da profundidade de try ANTES de `ReturnValueLowerer.emitCoerced` (`:36`/`:52`) avaliar o operando do return, então a cadeia de handlers é desempilhada antes de o operando rodar — Script e nativo x86-64 são os dois alvos onde o `KofExcUnlink` de fato desempilha uma entrada viva da cadeia de handlers; a JVM (tabela de exceções) e o JS (`try` nativo) nunca precisaram do op e não são afetados. Introduzido pelo fix do §551 (`903335bc4`, 01/10, caminho simples) e pelo fix do §613 (`f376d4a41`, 06/10, caminho com finally) — os dois inseriram o laço de unlink ACIMA do código de avaliação do operando já existente (de `899e89a96b`, 18/09) em vez de abaixo.
 
 **Classificação: DIVERGÊNCIA ENTRE ALVOS**, não é só crash — quando existe um `try`/`catch` externo, o throw é capturado em silêncio pelo handler ERRADO e o `finally` interno é pulado em silêncio (sem fallback silencioso, sem valor errado silencioso — regra 5).
 
-**Correção proposta (não aplicada):** avaliar/coagir o operando do return ANTES de emitir os ops `KofExcUnlink` nos dois ramos, para que um throw durante a avaliação do operando ainda seja visto pelo handler ainda vinculado; reverificar contra os cenários do §551/§613 (return/break/continue vazando o handler, double-unlink no catch-então-return) para não reabrir nenhum dos dois.
+**Correção:** o operando do return agora roda antes dos ops `KofExcUnlink` nos dois caminhos. O valor atravessa o unlink por um local (`#retTmp` no caminho simples, o `slotValor` do frame no caminho com finally) porque o unlink nativo reseta o ponteiro de pilha; só mover o unlink reabria o §551 no nativo e perdia o valor no JS. Returns sem operando mantêm o unlink primeiro. **Prova:** `ReturnOperandThrowE2ETest` 6/6 (saída exata em JVM, JS, Script, x86-64, riscv64 e aarch64 sob qemu) e as novas faces de `ExceptionsE2ETest`; no código antigo 8 desses testes falham. Classes de regressão de §551/§613/§617/§703 verdes (`NativeTryHandlerLeakE2ETest`, `CoreRegressionE2ETest`, `JsReturnTryFinallyLoopE2ETest`).
 <!-- pt-switch --> **EN:** [§765 (en)](known-bugs.md#765--tryreturncatch-a-throw-raised-while-evaluating-the-return-operand-unlinks-the-wrong-handler-on-script-and-native-x86-64-jvmjs-correct)
 
 ## §766 — `archive.Zip.extractTo` corrompe em silêncio entradas de diretório aninhado e superestima a contagem de extração
