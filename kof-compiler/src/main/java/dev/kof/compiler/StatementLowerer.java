@@ -31,7 +31,8 @@ public final class StatementLowerer {
                     // desempilhar o handler já consumido (double-pop corrompia a
                     // cadeia → SIGSEGV no próximo throw). O epílogo do finally
                     // não desvincula mais — o return site já o fez.
-                    for (int i = 0; i < driver.tryDepth; i++) ops.add(new KofExcUnlink());
+                    // §765: o unlink vem depois do store — o operando roda com
+                    // o handler vivo e o valor já está a salvo no slot do frame.
                     if (ret.value() != null) {
                         localIdx = ReturnValueLowerer.emitCoerced(driver, ret, returnType, ops, owner, localIdx, locals);
                         ops.add(new KofStoreLocal(returnType, f.slotValor()));
@@ -39,6 +40,7 @@ public final class StatementLowerer {
                         ops.add(CompilerTypes.defaultValueOp(returnType));
                         ops.add(new KofStoreLocal(returnType, f.slotValor()));
                     }
+                    for (int i = 0; i < driver.tryDepth; i++) ops.add(new KofExcUnlink());
                     ops.add(new KofJump(f.returnFinallyLabel()));
                     yield localIdx;
                 }
@@ -47,13 +49,25 @@ public final class StatementLowerer {
                 // função (sem isto o frame fica pendurado e o próximo throw
                 // da cadeia dá UAF). O caso com finally ativo é tratado no
                 // epílogo (frame empilhado), não aqui.
-                for (int i = 0; i < driver.tryDepth; i++) ops.add(new KofExcUnlink());
+                // §765: só o ramo com operando pode lançar; os outros dois
+                // mantêm o unlink antes do valor.
                 if (ret.value() != null) {
                     localIdx = ReturnValueLowerer.emitCoerced(driver, ret, returnType, ops, owner, localIdx, locals);
+                    if (driver.tryDepth > 0) {
+                        // O operando roda com o handler vivo; o valor passa por
+                        // um local porque o unlink nativo reseta o sp.
+                        int scratchSlot = localIdx++;
+                        locals.add(new IRLocalVariable(scratchSlot, "#retTmp", returnType));
+                        ops.add(new KofStoreLocal(returnType, scratchSlot));
+                        for (int i = 0; i < driver.tryDepth; i++) ops.add(new KofExcUnlink());
+                        ops.add(new KofLoadLocal(returnType, scratchSlot));
+                    }
                     ops.add(new KofReturn(returnType));
                 } else if (Type.isVoid(returnType)) {
+                    for (int i = 0; i < driver.tryDepth; i++) ops.add(new KofExcUnlink());
                     ops.add(new KofReturnVoid());
                 } else {
+                    for (int i = 0; i < driver.tryDepth; i++) ops.add(new KofExcUnlink());
                     ops.add(CompilerTypes.defaultValueOp(returnType));
                     ops.add(new KofReturn(returnType));
                 }
