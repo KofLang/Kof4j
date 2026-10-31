@@ -16,7 +16,7 @@ import org.junit.jupiter.api.io.TempDir;
  * compilava "clean" e morria em {@code NoSuchMethodError} no JVM; o Script
  * imprimia phantom ({@code P[x=null]}) e o JS nem emitia Main.js. O caminho
  * {@code new} ja dava SEM023; a face implicita caia em silencio (R6 violada).
- * Gate: {@code BuiltinCallTyper.reportNoCtorArity} — mesmo SEM023, mesmas
+ * Gate: {@code ImplicitCtorCallTyper.reportNoCtorArity} — mesmo SEM023, mesmas
  * excecoes (classe sem construtor declarado = default implicito legal).
  */
 public class ConstructorPhantomE2ETest {
@@ -117,5 +117,26 @@ public class ConstructorPhantomE2ETest {
         assertTrue(r.success(),
                 "controle: overload por aridade deve continuar resolvendo, got: "
                         + r.diagnostics().getDiagnostics());
+    }
+
+    // Segundo sítio (ImplicitCtorCallTyper.inferTail): uma chamada COM receptor
+    // cujo método casa o nome de uma classe chega à resolução de construtor.
+    private static final String FOO = "class Foo { Int x\n"
+            + "  public constructor(Int x) { this.x = x } }\n";
+
+    @Test
+    void receiverCallNamedLikeAClassKeepsTheArityDiagnostic() throws Exception {
+        CompilationResult r = compileJvm(FOO + "main() { var f = Foo.Foo(1, 2) }\n");
+        assertFalse(r.success(), "got: " + r.diagnostics().getDiagnostics());
+        assertTrue(message(r, "SEM023").contains("no constructor of 'Foo' with 2 argument(s) (expected 1)"),
+                "got: " + r.diagnostics().getDiagnostics());
+    }
+
+    @Test
+    void receiverCallNamedLikeAClassKeepsTheArgumentTypeDiagnostic() throws Exception {
+        CompilationResult r = compileJvm(FOO + "main() { var f = Foo.Foo(\"x\") }\n");
+        assertFalse(r.success(), "got: " + r.diagnostics().getDiagnostics());
+        assertTrue(message(r, "SEM014").contains("Argument 1 of 'Foo': expected Int but got String"),
+                "got: " + r.diagnostics().getDiagnostics());
     }
 }

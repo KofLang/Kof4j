@@ -52,7 +52,7 @@ class ClassShapeChecksTest {
 
     @Test
     void implicitConstructionOfInterfaceAlsoRejected(@TempDir Path tempDir) throws IOException {
-        // face BuiltinCallTyper — `Greeter()` sem `new` (construcao implicita)
+        // face ImplicitCtorCallTyper — `Greeter()` sem `new` (construcao implicita)
         Path source = tempDir.resolve("Main.kf");
         Files.writeString(source, """
                 interface Greeter { String greet() }
