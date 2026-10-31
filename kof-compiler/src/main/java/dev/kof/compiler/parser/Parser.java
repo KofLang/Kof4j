@@ -92,13 +92,6 @@ public class Parser {
                 // contextual; sem este ramo o IDENTIFIER `value` cairia no ramo
                 // de função (PARSE010). Fora desse contexto segue identificador.
                 declarations.add(TypeDeclarations.parseTypeDeclaration(ctx, annos));
-            } else if (ctx.modifierPrefixedFunctionAhead()) {
-                // #981: `public`/`private`/`protected`/`static`/... antes de uma
-                // função de TOPO — sem este ramo o modificador caía no `else`
-                // final (TypeDeclarations.parseTypeDeclaration, que exige
-                // class/interface/record/enum/entity) e morria com PARSE007.
-                List<String> mods = TypeDeclarations.parseModifiers(ctx);
-                declarations.add(parseFunctionDeclaration(ctx, mods, annos));
             } else if (ctx.check(TokenType.IDENTIFIER) || ctx.check(TokenType.VOID) || TypeParser.isPrimitiveType(ctx)
                     || ctx.check(TokenType.LPAREN)) {
                 declarations.add(parseFunctionDeclaration(ctx, List.of(), annos));
