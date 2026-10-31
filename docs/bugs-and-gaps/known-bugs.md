@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §765 (OPEN)
 last: §763 (FIXED)
 last: §744 (FIXED)
 last: §743 (FIXED)
@@ -20129,3 +20130,28 @@ Plain-Java proof (JDK 25, `record T(double v)` + `a.equals(b)`): NaN/NaN → `tr
 
 **FORBIDDEN REMEDY:** do NOT "fix" the WASI fold to the raw `==` to match the JVM backend — that would encode the divergence. The fix is JVM-side: the record equals/hashCode lowerer must use the `Double.compare`/bits shape for `double`/`float` fields (and the same for the record hashCode's `Double.hashCode`).
 <!-- pt-switch --> **PT:** [§764 (pt_BR)](known-bugs.pt_BR.md#764--o-fold-de-record-do-backend-jvm-para-campos-double-usa-o--cru-divergindo-do-contrato-de-record-do-javac-nas-duas-bordas-nan--nan-00--00--o-fold-do-wasi-bits-macha-o-javac)
+
+## §765 — `try`/`return`/`catch`: a throw raised while evaluating the `return` OPERAND unlinks the wrong handler on Script and native x86-64 (JVM/JS correct)
+
+**Status:** OPEN (measured 31/10, F4 independent triage, issue [#980](https://github.com/KofLang/Kof4j/issues/980)) — found incidentally while triaging around #852; pre-existing and unrelated to #852's scope, does not block or depend on its API design decision.
+
+**Contract:** `docs/language-reference/statements.md` §8 — `catch (String e)` catches Kof exceptions (strings); `finally` always executes (including on `return`/`throw` of the try). No exception is made for the return-operand-evaluation moment.
+
+**MEASURED** (`kof-cli-0.6.8.jar`, built from `lab` @ `75522d033`). Repro:
+```
+String boom() { throw "boom" }
+String f() {
+    try { return "v=" + boom() } catch (String m) { return "caught: " + m }
+}
+main() { println(f()) }
+```
+`kof run Main.kf --target jvm` → `caught: boom`, exit 0 (correct). `--target js` → `caught: boom`, exit 0 (correct). `--target script` → `boom`, exit 1 (**bug**). `--target native` (WSL, JDK 25 + GNU `as`/`ld`) → `boom`, exit 1 (**bug**).
+
+**Isolation** (Script and native byte-identical to each other in every case): `return boom()` (no concat) — same divergence, so concatenation is not the trigger. Adding `finally { println("fin") }` — Script/native print only `boom` (exit 1): the `finally` body never runs, a DISTINCT contract violation from the catch miss. The same `try { return "v="+boom() } finally { println("fin") }` with no catch, wrapped in an outer `try { ... } catch (String m) { println("outer caught: "+m) }` in `main()` — Script/native print `outer caught: boom` (exit 0) **but never print `fin`**: the throw is silently caught one try-level too high and the inner `finally` is skipped; JVM prints `fin` then `outer caught: boom`, correctly. Controls that do NOT reproduce (all four targets catch correctly): `var x = boom(); return "v="+x` (temp var), `if (boomInt() == 1) { ... }` (condition), `x = boom(); return x` (plain assignment) — isolating the defect to an expression written directly as the `return` statement's own operand.
+
+**ROOT CAUSE** (read + `git blame`-confirmed, not fixed): `StatementLowerer.java:34` (finally-active branch) and `:50` (plain branch) emit the try-depth's `KofExcUnlink` loop BEFORE `ReturnValueLowerer.emitCoerced` (`:36`/`:52`) evaluates the return operand, so the handler chain is popped before the operand runs — Script and native x86-64 are the two targets where `KofExcUnlink` actually pops a live handler-chain entry; JVM (exception table) and JS (native `try`) never needed the op and are unaffected. Introduced by the §551 fix (`903335bc4`, 01/10, plain path) and the §613 fix (`f376d4a41`, 06/10, finally path) — both inserted the unlink loop ABOVE pre-existing operand-evaluation code (from `899e89a96b`, 18/09) instead of below it. riscv64/aarch64 NOT measured (`kof run` has no cross-target execution leg).
+
+**Classification: TARGET DIVERGENCE**, not a crash-only bug — when an outer `try`/`catch` exists, the throw is silently caught by the WRONG handler and the inner `finally` is silently skipped (no silent fallback, no silent wrong value — rule 5).
+
+**Proposed fix (not applied):** evaluate/coerce the return operand BEFORE emitting the `KofExcUnlink` ops on both branches, so a throw during operand evaluation is still seen by the still-linked handler; re-verify against the §551/§613 scenarios (return/break/continue leaking the handler, catch-then-return double-unlink) to avoid reopening either.
+<!-- pt-switch --> **PT:** [§765 (pt_BR)](known-bugs.pt_BR.md#765--tryreturncatch-um-throw-levantado-enquanto-o-operando-do-return-e-avaliado-desvincula-o-handler-errado-no-script-e-no-nativo-x86-64-jvmjs-corretos)
