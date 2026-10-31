@@ -333,4 +333,138 @@ class ExceptionsE2ETest {
             """);
         runJs(source, tempDir.resolve("out"), "caught\nfinally");
     }
+
+    // ── §765/#980: um throw levantado enquanto o OPERANDO de um `return` é
+    // avaliado dentro de um `try` desvinculava o handler ANTES do operando
+    // rodar (`StatementLowerer` emitia `KofExcUnlink` antes de
+    // `ReturnValueLowerer.emitCoerced`) — Script e nativo x86-64 perdiam o
+    // catch certo (ou, pior, um try externo capturava em silêncio e o
+    // `finally` interno nunca rodava); JVM/JS sempre corretos. ──
+
+    private String runScript(Path source, String expected) throws IOException {
+        KofInterpreter.Result r = driver.interpret(java.util.List.of(source), source.getParent(), new String[0]);
+        assertEquals(0, r.exitCode(), "Script exit should be 0, stderr: " + r.stderr());
+        String output = r.stdout().replace("\r\n", "\n").trim();
+        assertEquals(expected, output, "Unexpected Script output");
+        return output;
+    }
+
+    private static final String RETURN_OPERAND_THROW_SOURCE = """
+            String boom() { throw "boom" }
+            String f() {
+                try {
+                    return "v=" + boom()
+                } catch (String m) {
+                    return "caught: " + m
+                }
+            }
+            main() { println(f()) }
+            """;
+
+    @Test
+    void returnOperandThrowInsideTryIsCaughtByTheRightHandlerJvm(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, RETURN_OPERAND_THROW_SOURCE);
+        runJvm(source, tempDir.resolve("out"), "caught: boom");
+    }
+
+    @Test
+    void returnOperandThrowInsideTryIsCaughtByTheRightHandlerNative(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, RETURN_OPERAND_THROW_SOURCE);
+        runNative(source, tempDir.resolve("out"), "caught: boom");
+    }
+
+    @Test
+    void returnOperandThrowInsideTryIsCaughtByTheRightHandlerJs(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, RETURN_OPERAND_THROW_SOURCE);
+        runJs(source, tempDir.resolve("out"), "caught: boom");
+    }
+
+    @Test
+    void returnOperandThrowInsideTryIsCaughtByTheRightHandlerScript(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("Main.kf");
+        Files.writeString(source, RETURN_OPERAND_THROW_SOURCE);
+        runScript(source, "caught: boom");
+    }
+
+    /** O operando sem concat também tinha o bug — não era a concatenação o gatilho. */
+    @Test
+    void returnOperandThrowWithoutConcatIsCaughtOnAllTargets(@TempDir Path tempDir) throws IOException {
+        String source = """
+                String boom() { throw "boom" }
+                String f() {
+                    try {
+                        return boom()
+                    } catch (String m) {
+                        return "caught: " + m
+                    }
+                }
+                main() { println(f()) }
+                """;
+        Path jvmSrc = tempDir.resolve("jvm/Main.kf");
+        Files.createDirectories(jvmSrc.getParent());
+        Files.writeString(jvmSrc, source);
+        runJvm(jvmSrc, tempDir.resolve("jvm/out"), "caught: boom");
+
+        Path natSrc = tempDir.resolve("nat/Main.kf");
+        Files.createDirectories(natSrc.getParent());
+        Files.writeString(natSrc, source);
+        runNative(natSrc, tempDir.resolve("nat/out"), "caught: boom");
+
+        Path jsSrc = tempDir.resolve("js/Main.kf");
+        Files.createDirectories(jsSrc.getParent());
+        Files.writeString(jsSrc, source);
+        runJs(jsSrc, tempDir.resolve("js/out"), "caught: boom");
+
+        Path scriptSrc = tempDir.resolve("script/Main.kf");
+        Files.createDirectories(scriptSrc.getParent());
+        Files.writeString(scriptSrc, source);
+        runScript(scriptSrc, "caught: boom");
+    }
+
+    /** O `finally` do try interno tem que rodar MESMO quando o throw do
+     *  operando do `return` escapa pro catch de um try EXTERNO (antes do fix:
+     *  o throw era capturado em silêncio pelo handler externo e o `fin`
+     *  interno nunca rodava — em nenhum dos quatro alvos). */
+    @Test
+    void returnOperandThrowStillRunsInnerFinallyWhenCaughtByOuterTry(@TempDir Path tempDir) throws IOException {
+        String source = """
+                String boom() { throw "boom" }
+                String f() {
+                    try {
+                        try {
+                            return "v=" + boom()
+                        } finally {
+                            println("fin")
+                        }
+                    } catch (String m) {
+                        return "outer caught: " + m
+                    }
+                }
+                main() { println(f()) }
+                """;
+        String expected = "fin\nouter caught: boom";
+
+        Path jvmSrc = tempDir.resolve("jvm/Main.kf");
+        Files.createDirectories(jvmSrc.getParent());
+        Files.writeString(jvmSrc, source);
+        runJvm(jvmSrc, tempDir.resolve("jvm/out"), expected);
+
+        Path natSrc = tempDir.resolve("nat/Main.kf");
+        Files.createDirectories(natSrc.getParent());
+        Files.writeString(natSrc, source);
+        runNative(natSrc, tempDir.resolve("nat/out"), expected);
+
+        Path jsSrc = tempDir.resolve("js/Main.kf");
+        Files.createDirectories(jsSrc.getParent());
+        Files.writeString(jsSrc, source);
+        runJs(jsSrc, tempDir.resolve("js/out"), expected);
+
+        Path scriptSrc = tempDir.resolve("script/Main.kf");
+        Files.createDirectories(scriptSrc.getParent());
+        Files.writeString(scriptSrc, source);
+        runScript(scriptSrc, expected);
+    }
 }
