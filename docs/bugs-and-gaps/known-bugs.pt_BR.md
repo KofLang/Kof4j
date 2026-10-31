@@ -2,7 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
-last: §766 (OPEN)
+last: §766 (FIXED)
 last: §765 (OPEN)
 last: §763 (FIXED)
 last: §744 (FIXED)
@@ -17633,7 +17633,7 @@ main() { println(f()) }
 
 ## §766 — `archive.Zip.extractTo` corrompe em silêncio entradas de diretório aninhado e superestima a contagem de extração
 
-**Status:** ABERTO (medido 31/10, triagem independente F4, issue [#982](https://github.com/KofLang/Kof4j/issues/982)) — achado de carona durante a triagem em torno da #852; pré-existente na classe `Zip` legada, sem relação com o gate de desenho da API `ZipReader`/`ZipEntryStream`/`InflateStream` da #852 (não toca superfície nova de API, então não bloqueia nem depende da decisão do F1).
+**Status:** ✅ CORRIGIDO 31/10 (dono = 192.168.1.2:0; medido na triagem independente F4, issue [#982](https://github.com/KofLang/Kof4j/issues/982)) — achado de carona durante a triagem em torno da #852; pré-existente na classe `Zip` legada, sem relação com o gate de desenho da API `ZipReader`/`ZipEntryStream`/`InflateStream` da #852 (não toca superfície nova de API, então não bloqueia nem depende da decisão do F1).
 
 **MEDIDO** (commit `75522d033`, JDK Temurin 25.0.4.1, alvo JVM). Fixture escrito pelo JDK com `ZipOutputStream`, entradas na ordem: `d/` (dir), `d/e/` (dir), `d/e/f.txt` = `"hello"` (arquivo):
 ```kof
@@ -17657,5 +17657,5 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Impacto de segurança/correção:** qualquer chamador que use o retorno de `extractTo` como sinal de completude/integridade pode estar silenciosamente errado — dados podem se perder parcial ou totalmente, sem nenhum sinal. Independente da TOCTOU de símlink já rastreada na #854 (uma lacuna diferente, já reconhecida, deferida à primitiva `createNew` da #854) e não depende nem bloqueia a decisão de desenho da API `ZipReader` da #852.
 
-**Correção proposta (não aplicada):** `isDirEntry = e.name.endsWith("/")` (método real registrado, `StringMethodRegistry.java:63`) em vez do teste `indexOf`/`length-1`; checar o Bool de retorno de `createDirectories()`/`writeBytes()` e lançar diagnóstico explícito em `false` em vez de descartar. As duas são aditivas, só na biblioteca Kof — sem mudança de núcleo/gramática/runtime.
+**Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)

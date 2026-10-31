@@ -518,25 +518,35 @@ String zipSafeRelative(String name) {
         // sobre a própria estrutura é o caso em que o confinamento por nome não
         // basta (o nome é o que ele quer, o conteúdo é o que ele forjou).
         this.validate()
-        Directory(destDir).createDirectories()
+        if (!Directory(destDir).createDirectories()) {
+            throw "archive: could not create destination directory '" + destDir + "'"
+        }
         var written = 0
         for (var e in this.entries) {
             var safe = zipSafeRelative(e.name)
             if (safe == "") {
                 throw "archive: refusing entry '" + e.name + "' — it escapes the destination"
             }
-            var isDirEntry = e.name.indexOf("/") == e.name.length - 1
+            // §766: `indexOf("/") == length - 1` só reconhecia diretório de UM
+            // nível (indexOf acha a PRIMEIRA barra) — "d/e/" (barra em 1, não
+            // em length-1=3) virava arquivo vazio e tudo embaixo se perdia em
+            // silêncio. `endsWith` vale pra qualquer profundidade de aninhamento.
+            var isDirEntry = e.name.endsWith("/")
             var parts = safe.split("/")
             var walked = destDir
             var k = 0
             while (k < parts.length - 1) {
                 walked = walked + "/" + parts[k]
-                Directory(walked).createDirectories()
+                if (!Directory(walked).createDirectories()) {
+                    throw "archive: could not create directory '" + walked + "' while extracting '" + e.name + "'"
+                }
                 k = k + 1
             }
             var full = destDir + "/" + safe
             if (isDirEntry) {
-                Directory(full).createDirectories()
+                if (!Directory(full).createDirectories()) {
+                    throw "archive: could not create directory '" + full + "' while extracting '" + e.name + "'"
+                }
             } else {
                 if (File(full).exists() || File(full).isSymlink()) {
                     throw "archive: refusing to overwrite '" + safe + "' — it already exists"
@@ -544,7 +554,11 @@ String zipSafeRelative(String name) {
                 // `writeBytes` toma Int[] (bytes como inteiros), a MESMA moeda que
                 // `readBytes` devolve — sem ponte aqui. (A face binária do crypto é
                 // que pede Byte[], e é a única conversão da família.)
-                File(full).writeBytes(this.readEntry(e, maxBytes))
+                // §766: o Bool de status era descartado — uma falha de escrita
+                // silenciosa contava como sucesso em `written`. Agora é honesto.
+                if (!File(full).writeBytes(this.readEntry(e, maxBytes))) {
+                    throw "archive: could not write '" + safe + "' while extracting '" + e.name + "'"
+                }
                 written = written + 1
             }
         }

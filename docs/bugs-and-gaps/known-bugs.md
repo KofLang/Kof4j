@@ -2,7 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
-last: §766 (OPEN)
+last: §766 (FIXED)
 last: §765 (OPEN)
 last: §763 (FIXED)
 last: §744 (FIXED)
@@ -20159,7 +20159,7 @@ main() { println(f()) }
 
 ## §766 — `archive.Zip.extractTo` silently corrupts nested directory entries and over-reports the extraction count
 
-**Status:** OPEN (measured 31/10, F4 independent triage, issue [#982](https://github.com/KofLang/Kof4j/issues/982)) — found incidentally while triaging around #852; pre-existing in the legacy `Zip` class, unrelated to #852's `ZipReader`/`ZipEntryStream`/`InflateStream` API design gate (it does not touch new API surface, so it does not block or depend on F1's decision).
+**Status:** ✅ FIXED 31/10 (owner = 192.168.1.2:0; measured in the F4 independent triage, issue [#982](https://github.com/KofLang/Kof4j/issues/982)) — found incidentally while triaging around #852; pre-existing in the legacy `Zip` class, unrelated to #852's `ZipReader`/`ZipEntryStream`/`InflateStream` API design gate (it does not touch new API surface, so it does not block or depend on F1's decision).
 
 **MEASURED** (commit `75522d033`, JDK Temurin 25.0.4.1, JVM target). A JDK-written `ZipOutputStream` fixture with entries, in order: `d/` (dir), `d/e/` (dir), `d/e/f.txt` = `"hello"` (file):
 ```kof
@@ -20183,5 +20183,5 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Security/correctness impact:** any caller using `extractTo`'s return value as a completeness/integrity signal can be silently wrong — data can be partially or fully lost, with zero signal. Independent of the already-tracked #854 TOCTOU symlink race (a different, already-acknowledged gap deferred to #854's `createNew` primitive) and does not depend on or block #852's `ZipReader` API design decision.
 
-**Proposed fix (not applied):** `isDirEntry = e.name.endsWith("/")` (real registered method, `StringMethodRegistry.java:63`) instead of the `indexOf`/`length-1` test; check the Bool `createDirectories()`/`writeBytes()` return and throw an explicit diagnostic on `false` instead of discarding it. Both additive, Kof-library-only — no core/grammar/runtime change.
+**Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
