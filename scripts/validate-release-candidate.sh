@@ -39,16 +39,10 @@ cd "$REPO_ROOT"
 
 VERSION="$(cat VERSION)"
 
-# (ordem da mantenedora 11/10, #814): a tag tem que corresponder à versão que o
-# COMPILADOR em si informa — recusa o candidato se as fontes da versão
-# (pom <revision> / version.properties) dessincronizaram da VERSION.
-if ! bash "$REPO_ROOT/scripts/check_version_consistency.sh" >/dev/null 2>&1; then
-    echo "::error::version sources out of sync with VERSION ($VERSION) — run scripts/bump-version.sh and re-commit" >&2
-    bash "$REPO_ROOT/scripts/check_version_consistency.sh" >&2 || true
-    exit 1
-fi
-SHA="$(git rev-parse HEAD)"
-
+# Forma básica PRIMEIRO (vazio/caracteres inválidos) — um VERSION mal-formado
+# é diagnosticado pelo seu próprio defeito, não pela checagem de consistência
+# entre arquivos (que exigiria um pom.xml/version.properties só pra decidir
+# que o VERSION em si já é inutilizável).
 case "$VERSION" in
     "")
         echo "::error::VERSION is empty" >&2
@@ -59,6 +53,16 @@ case "$VERSION" in
         exit 1
         ;;
 esac
+
+# (ordem da mantenedora 11/10, #814): a tag tem que corresponder à versão que o
+# COMPILADOR em si informa — recusa o candidato se as fontes da versão
+# (pom <revision> / version.properties) dessincronizaram da VERSION.
+if ! bash "$REPO_ROOT/scripts/check_version_consistency.sh" >/dev/null 2>&1; then
+    echo "::error::version sources out of sync with VERSION ($VERSION) — run scripts/bump-version.sh and re-commit" >&2
+    bash "$REPO_ROOT/scripts/check_version_consistency.sh" >&2 || true
+    exit 1
+fi
+SHA="$(git rev-parse HEAD)"
 
 if [ "$SHA" != "$EXPECTED_SHA" ]; then
     echo "::error::checkout HEAD $SHA differs from release candidate $EXPECTED_SHA" >&2
