@@ -64,20 +64,37 @@ public final class RuntimeMap {
                 movl 16(%rbx), %eax
                 cmpl 20(%rbx), %eax
                 jl .Lkmp_space
-                # crescimento 2x: aloca novo e copia oldCap*8 bytes
+                # #933 (as DUAS raízes): (1) o campo cap (off 20) é contagem de
+                # SLOTS — os usos (o limiar count>=cap e o índice do insert)
+                # leem slots; gravar o byte-count aqui fazia os inserts
+                # seguintes escreverem ALEM do array de chaves. (2) os DOIS
+                # arrays novos precisam de newCap*8 bytes (o original alocava
+                # o vals com oldCap*8 = METADE — todo insert além da cap
+                # antiga escrevia OOB no heap: corrupção silenciosa que o
+                # coletor conservador tropeça (SIGSEGV no mark, ~4k chaves).
+                # A cópia fica em oldCap*8 EXATA (sem overread do bloco antigo).
                 movl 20(%rbx), %ecx
-                shll $3, %ecx               # oldCap*8
+                shll $3, %ecx               # oldCap*8 (cópia exata)
                 movl %ecx, %r14d
-                addl %ecx, %ecx
-                movl %ecx, 20(%rbx)         # cap *= 2
-                movslq %ecx, %rcx
-                movq 24(%rbx), %rdi
-                movq %rcx, %rsi
+                movl 20(%rbx), %edx
+                addl %edx, %edx             # newCap (slots)
+                movl %edx, 20(%rbx)         # cap *= 2 (SLOTS — gêmeo riscv)
+                shll $3, %edx               # newCap*8 (alloc)
+                movslq %edx, %rcx
+                movq 24(%rbx), %rdi         # keys antigo
+                movq %rcx, %rsi             # alloc newCap*8
+                movq %r14, %rdx             # cópia oldCap*8
                 call kof_copy_alloc
                 movq %rax, 24(%rbx)
-                movq 32(%rbx), %rdi
-                movl %r14d, %esi            # copia só oldCap*8 (sem overread)
-                movslq %esi, %rsi
+                movq 32(%rbx), %rdi         # vals antigo
+                # o helper/kof_alloc consomem caller-saved (edx/rcx): re-ler o
+                # NEW cap do CAMPO do mapa (gravado, sobrevive às chamadas) —
+                # o mesmo recurso do gêmeo riscv
+                movl 20(%rbx), %edx
+                shll $3, %edx               # newCap*8
+                movslq %edx, %rcx
+                movq %rcx, %rsi             # alloc newCap*8 (gêmeo do keys)
+                movq %r14, %rdx             # cópia oldCap*8
                 call kof_copy_alloc
                 movq %rax, 32(%rbx)
             .Lkmp_space:
@@ -95,27 +112,30 @@ public final class RuntimeMap {
                 popq %rbx
                 ret
 
-            # auxiliar: kof_copy_alloc(rdi=src, rsi=nbytes) -> novo bloco com cópia
+            # auxiliar: kof_copy_alloc(rdi=src, rsi=alloc_bytes, rdx=copy_bytes)
+            # -> novo bloco com os primeiros copy_bytes de src (#933: o alloc
+            # e a cópia separados — o grow aloca newCap*8 e copia oldCap*8)
             kof_copy_alloc:
                 pushq %rbx
                 pushq %r12
                 pushq %r13
                 pushq %r14
-                movq %rdi, %rbx
-                movq %rsi, %r12
+                movq %rdi, %rbx             # src
+                movq %rsi, %r12             # alloc bytes
+                movq %rdx, %r13             # copy bytes
                 movq %r12, %rdi
                 call kof_alloc
-                movq %rax, %r13
-                xorq %r14, %r14
+                movq %rax, %r14             # novo bloco
+                xorl %ecx, %ecx
             .Lkca_loop:
-                cmpq %r12, %r14
+                cmpq %r13, %rcx
                 jge .Lkca_done
-                movzbl (%rbx,%r14), %eax
-                movb %al, (%r13,%r14)
-                incq %r14
+                movzbl (%rbx,%rcx), %eax
+                movb %al, (%r14,%rcx)
+                incq %rcx
                 jmp .Lkca_loop
             .Lkca_done:
-                movq %r13, %rax
+                movq %r14, %rax
                 popq %r14
                 popq %r13
                 popq %r12
