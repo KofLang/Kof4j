@@ -68,7 +68,11 @@ final class WasmMathRuntime {
             "kof_math_acos",
             // MATH-ATAN2-1 (28/10): o __ieee754_atan2 fdlibm — reusa o func
             // do atan via CALL (os quadrantes + os casos especiais)
-            "kof_math_atan2");
+            "kof_math_atan2",
+            // MATH-POW-1 (01/11): o __ieee754_pow fdlibm — WasmPowKernel
+            // (o driver) + WasmPowMain (o log2/a cauda/o scalb) — a ÚLTIMA
+            // fatia libm da família
+            "kof_math_pow");
 
     static boolean usesAny(List<IRMethod> methods) {
         for (IRMethod m : methods) {
@@ -550,6 +554,18 @@ final class WasmMathRuntime {
         fs.add(WasmAcosKernel.acosFunc());
         // MATH-ATAN2-1 (28/10): o kernel_atan2 fdlibm — reusa o atan
         fs.add(WasmAtan2Kernel.atan2Func());
+        // MATH-POW-1 (01/11): o pow fdlibm — o driver + o hugey
+        // (WasmPowKernel) e o main/tail/scalb + os 4 helpers de bits
+        // (WasmPowMain); o dedupe por nome torna o add idempotente
+        fs.add(WasmPowKernel.powFunc());
+        fs.add(WasmPowKernel.hugeyFunc());
+        fs.add(WasmPowMain.mainFunc());
+        fs.add(WasmPowMain.tailFunc());
+        fs.add(WasmPowMain.scalbFunc());
+        fs.add(WasmPowMain.hiFunc());
+        fs.add(WasmPowMain.loFunc());
+        fs.add(WasmPowMain.withHiFunc());
+        fs.add(WasmPowMain.lo0Func());
         fs.add(WasmRemPio2.smallTailFunc());
         fs.add(WasmRemPio2.mediumFunc());
         // MATH-LIBM-4 fatia B (28/10): o caminho GRANDE — o driver (a quebra

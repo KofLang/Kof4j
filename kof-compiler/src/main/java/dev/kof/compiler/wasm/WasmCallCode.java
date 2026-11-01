@@ -295,7 +295,8 @@ final class WasmCallCode {
                     || kc.methodName().equals("kof_math_atan")
                     || kc.methodName().equals("kof_math_asin")
                     || kc.methodName().equals("kof_math_acos")
-                    || kc.methodName().equals("kof_math_atan2");
+                    || kc.methodName().equals("kof_math_atan2")
+                    || kc.methodName().equals("kof_math_pow");
             ctx.lastPush = pred ? "bool" : (dbl ? "double" : "int");
             ctx.lastPushWide = !pred;
         } else if (ctx.wasi && "println".equals(kc.methodName())) {
