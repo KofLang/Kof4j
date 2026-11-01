@@ -4,8 +4,11 @@ import dev.kof.compiler.IRBasicBlock;
 import dev.kof.compiler.IRLocalVariable;
 import dev.kof.compiler.IRMethod;
 import dev.kof.compiler.ClassLayout;
+import dev.kof.compiler.KofCatchStart;
 import dev.kof.compiler.KofLabel;
 import dev.kof.compiler.KofOperation;
+import dev.kof.compiler.KofThrow;
+import dev.kof.compiler.KofTryStart;
 import dev.kof.compiler.Type;
 
 import java.util.ArrayList;
@@ -43,6 +46,8 @@ final class WasmLoweringLocals {
         final int cmp1Idx, cmp2Idx, armIdx, joinIdx, leftIdx;
         final int clsIdx, tagIdx, tagIdx2;
         final int pcIdx;
+        final boolean hasTry;
+        final int excEntryIdx;
         final Map<Integer, String> localNullableTrace;
         final List<Integer> results;
         final Map<Integer, Integer> labelToBlock;
@@ -54,6 +59,7 @@ final class WasmLoweringLocals {
                 int[] nestH, int[] nestA, int[] nestB, int[] nestR,
                 int cmp1Idx, int cmp2Idx, int armIdx, int joinIdx, int leftIdx,
                 int clsIdx, int tagIdx, int tagIdx2, int pcIdx,
+                boolean hasTry, int excEntryIdx,
                 Map<Integer, String> localNullableTrace,
                 List<Integer> results, Map<Integer, Integer> labelToBlock,
                 List<List<KofOperation>> blocks) {
@@ -85,6 +91,8 @@ final class WasmLoweringLocals {
             this.tagIdx = tagIdx;
             this.tagIdx2 = tagIdx2;
             this.pcIdx = pcIdx;
+            this.hasTry = hasTry;
+            this.excEntryIdx = excEntryIdx;
             this.localNullableTrace = localNullableTrace;
             this.results = results;
             this.labelToBlock = labelToBlock;
@@ -105,6 +113,19 @@ final class WasmLoweringLocals {
             if ("nullabledouble".equals(lvtn) || "nullablebool".equals(lvtn)
                     || "nullablechar".equals(lvtn) || "nullableint".equals(lvtn)) {
                 localNullableTrace.put(lv.index(), lvtn);
+            }
+        }
+        // TRY-1 (01/11, #776 — round 85): a função tem try? O wrapper do
+        // WasmTryCode (loop redrive + block + try_table) só entra quando sim,
+        // e o local excEntry (a contagem de handlers na ENTRADA) existe
+        // apenas naquelas
+        boolean hasTry = false;
+        for (IRBasicBlock bb : m.basicBlocks()) {
+            for (KofOperation op : bb.operations()) {
+                if (op instanceof KofTryStart || op instanceof KofCatchStart || op instanceof KofThrow) {
+                    hasTry = true;
+                    break;
+                }
             }
         }
         List<Integer> locals = new ArrayList<>();
@@ -231,6 +252,11 @@ final class WasmLoweringLocals {
         nextWasm += 2;
         final int pcIdx = nextWasm;
         locals.add(WasmFunc.TYPE_I32); // $pc
+        int excEntryIdx = -1;
+        if (hasTry) {
+            excEntryIdx = nextWasm + 1;
+            locals.add(WasmFunc.TYPE_I32); // excEntry = a contagem de handlers na entrada (TRY-1)
+        }
         List<Integer> results = new ArrayList<>();
         if (m.returnType() instanceof Type.PrimitiveType pr && !"void".equalsIgnoreCase(pr.name())) {
             results.add(mapType(pr.name(), m.name(), "retorno"));
@@ -255,6 +281,20 @@ final class WasmLoweringLocals {
                 if (labelToBlock.containsKey(kl.label().id())) continue; // label duplicado -> mesmo bloco
                 labelToBlock.put(kl.label().id(), blocks.size());
                 blocks.add(new ArrayList<>());
+            } else if (op instanceof KofCatchStart kc) {
+                // TRY-1 (01/11, #776 — round 85): o handler-label = FRONTEIRA
+                // de bloco (a label de handler nunca emite KofLabel; sem a
+                // fronteira o corte atualia descartando o catch 2, medido) —
+                // cada catch ganha o SEU estado (o WasmTryCode.despacho salta
+                // para ele pelo registro do handler). O CatchStart ABRE o
+                // estado: sem ele o load da msg estacionada some (medido:
+                // `caught: ` sem a msg — o local da exceção ficava com o
+                // lixo do slot 0)
+                if (labelToBlock.containsKey(kc.handlerLabel().id())) continue;
+                labelToBlock.put(kc.handlerLabel().id(), blocks.size());
+                List<KofOperation> handlerBlock = new ArrayList<>();
+                handlerBlock.add(kc);
+                blocks.add(handlerBlock);
             } else {
                 blocks.get(blocks.size() - 1).add(op);
             }
@@ -264,6 +304,6 @@ final class WasmLoweringLocals {
                 objIdx, vIdx, v32Idx, vf64Idx, eqAccIdx, eqEqIdx, eqCmpIdx, eqDblIdx,
                 eqAndIdx, nestH, nestA, nestB, nestR, cmp1Idx, cmp2Idx, armIdx,
                 joinIdx, leftIdx, clsIdx, tagIdx, tagIdx2, pcIdx,
-                localNullableTrace, results, labelToBlock, blocks);
+                hasTry, excEntryIdx, localNullableTrace, results, labelToBlock, blocks);
     }
 }

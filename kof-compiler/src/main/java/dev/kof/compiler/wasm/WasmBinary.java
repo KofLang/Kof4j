@@ -119,6 +119,21 @@ public final class WasmBinary {
             funcTypeBytes.add(uleb(t));
             funcIdx.put(f.name(), funcIdx.size());
         }
+        // TRY-1 (01/11, #776 — round 85): o tipo do tag [i32]->[] do wasm EH
+        // (a msg de String entra como parâmetro) — dedupe na MESMA assinatura
+        // com chave própria (as chaves reais são numéricas — sem colisão); o
+        // corpo entra no FIM da type section: os indices das funcs NÃO mudam
+        int tagTypeIdx = -1;
+        if (m.usesTry()) {
+            String tagKey = "tag:i32->";
+            Integer tt = typeIdx.get(tagKey);
+            if (tt == null) {
+                tt = typeBodies.size();
+                typeIdx.put(tagKey, tt);
+                typeBodies.add(bytes(new byte[]{0x60}, vec(List.of(new byte[]{0x7f})), vec(List.of())));
+            }
+            tagTypeIdx = tt;
+        }
         // 2) exports: todas as funcs do modulo + memory
         List<byte[]> exportItems = new ArrayList<>();
         for (WasmFunc f : m.funcs()) {
@@ -151,6 +166,12 @@ public final class WasmBinary {
         if (!importItems.isEmpty()) sections.add(section(2, vec(importItems)));
         sections.add(section(3, vec(funcTypeBytes)));
         sections.add(section(5, vec(List.of(new byte[]{0x00, 0x01})))); // min 1 (sem max: o GC-4 — a dança de staging revertida — o cap exige as strings coletáveis)
+        // TRY-1: a seção tag (id 13) — o lugar MEDIDO: entre memory (5) e
+        // global (6) (wasm-tools round-trip 01/11); um tag: attr 0x00 +
+        // typeidx
+        if (m.usesTry()) {
+            sections.add(section(13, vec(List.of(bytes(new byte[]{0x00}, uleb(tagTypeIdx))))));
+        }
         if (m.globals() != null && !m.globals().isEmpty()) {
             List<byte[]> globalItems = new ArrayList<>();
             for (int init : m.globals()) {
@@ -223,23 +244,23 @@ record WasmBlockType(List<Integer> params, List<Integer> results) {}
 
 /** Modelo do modulo (lista ordenada de funcs). */
 record WasmModule(List<WasmImport> imports, List<WasmFunc> funcs, List<WasmData> data,
-                  List<Integer> globals, WasmBlockTypes blockTypes) {
+                  List<Integer> globals, WasmBlockTypes blockTypes, boolean usesTry) {
 
     WasmModule(List<WasmFunc> funcs) {
-        this(List.of(), funcs, List.of(), List.of(), null);
+        this(List.of(), funcs, List.of(), List.of(), null, false);
     }
 
     WasmModule(List<WasmImport> imports, List<WasmFunc> funcs) {
-        this(imports, funcs, List.of(), List.of(), null);
+        this(imports, funcs, List.of(), List.of(), null, false);
     }
 
     WasmModule(List<WasmImport> imports, List<WasmFunc> funcs, List<WasmData> data) {
-        this(imports, funcs, data, List.of(), null);
+        this(imports, funcs, data, List.of(), null, false);
     }
 
     WasmModule(List<WasmImport> imports, List<WasmFunc> funcs, List<WasmData> data,
                List<Integer> globals) {
-        this(imports, funcs, data, globals, null);
+        this(imports, funcs, data, globals, null, false);
     }
 
     byte[] serialize() {

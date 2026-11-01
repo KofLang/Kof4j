@@ -99,6 +99,8 @@ final class WasmLowering {
         ctx.eqCmpIdx = eqCmpIdx;
         ctx.eqDblIdx = eqDblIdx;
         ctx.eqAndIdx = eqAndIdx;
+        ctx.hasTry = plan.hasTry;
+        ctx.excEntry = plan.excEntryIdx;
         ctx.nestH = nestH;
         ctx.nestA = nestA;
         ctx.nestB = nestB;
@@ -114,12 +116,17 @@ final class WasmLowering {
         }
         body.add(new WasmInstr.Const(0, 0));
         body.add(new WasmInstr.Local(WasmInstr.Local.SET, pcIdx, "pc"));
+        // TRY-1 (01/11, #776 — round 85): o wrapper do try/catch — só funções
+        // COM try ganham o try_table do wasm EH (o loop de despacho inteiro
+        // fica protegido; frames sem try são transparentes)
+        WasmTryCode.openFrame(ctx, body);
         body.add(new WasmInstr.Blocking(WasmInstr.Blocking.LOOP, "dispatch", 0x40));
         for (int b = 0; b < blocks.size(); b++) {
             WasmStateCode.emitBlock(b, blocks.get(b), b + 1 < blocks.size() ? b + 1 : -1, ctx, body);
         }
         body.add(new WasmInstr.Simple(0x00, "unreachable")); // pc invalido
         body.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, "dispatch", 0x40));
+        WasmTryCode.closeFrame(ctx, body);
         // o dispatcher nunca cai fora do loop (todo caminho br/return); o topo
         // da funcao precisa ser polimorfico p/ o `end` com resultado i64
         body.add(new WasmInstr.Simple(0x00, "unreachable"));
@@ -141,6 +148,12 @@ final class WasmLowering {
         final WasmBlockTypes blockTypes;
         final DataCursor data;
         int wIdx = -1, sIdx = -1;
+        // TRY-1 (01/11, #776 — round 85): a função tem try (o wrapper do
+        // WasmTryCode), o local excEntry (a contagem na entrada) e a base da
+        // escrivania de exceções na memória (reservada pelo cursor)
+        boolean hasTry;
+        int excEntry = -1;
+        int excBase = -1;
         int dupIdx = -1, dupWideIdx = -1;
         int objIdx = -1, vIdx = -1, v32Idx = -1, vf64Idx = -1;
         int eqAccIdx = -1, eqEqIdx = -1, eqCmpIdx = -1, eqDblIdx = -1, eqAndIdx = -1;
@@ -269,6 +282,21 @@ final class WasmLowering {
      */
     static final class DataCursor {
         int next = DATA_BASE;
+        // TRY-1 (01/11, #776 — round 85): o flag de módulo (o WasmBackend o
+        // leva ao WasmModule para a seção tag) e a base da escrivania de
+        // exceções — reservada LAZILY no primeiro try (módulos sem try NÃO
+        // se deslocam: os binários ficam byte-estáveis)
+        boolean usesTry;
+        int excBase = -1;
+
+        int reserveExc() {
+            if (excBase < 0) {
+                excBase = next;
+                next += 4096; // contagem + msg + 512 registros de handler de 8 bytes
+                next = (next + 3) & ~3;
+            }
+            return excBase;
+        }
 
         int intern(String str, Map<String, Integer> stringPool, List<WasmData> dataSegments) {
             Integer a = stringPool.get(str);

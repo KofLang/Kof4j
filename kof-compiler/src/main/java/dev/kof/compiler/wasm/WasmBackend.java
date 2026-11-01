@@ -499,7 +499,7 @@ public class WasmBackend implements Backend {
         java.util.LinkedHashMap<String, WasmFunc> byName = new java.util.LinkedHashMap<>();
         for (WasmFunc f : funcs) byName.putIfAbsent(f.name(), f);
         funcs = new ArrayList<>(byName.values());
-        byte[] bin = new WasmModule(imports, funcs, dataSegments, globals, blockTypes).serialize();
+        byte[] bin = new WasmModule(imports, funcs, dataSegments, globals, blockTypes, dataCursor.usesTry).serialize();
         String rel = entryClass.replace('/', java.io.File.separatorChar);
         Path wasmPath = outputDir.resolve(rel + ".wasm");
         Files.createDirectories(wasmPath.getParent());

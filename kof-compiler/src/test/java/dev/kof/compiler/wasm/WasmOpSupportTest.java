@@ -42,6 +42,9 @@ class WasmOpSupportTest {
             // WasmLowering (o split WasmStateCode) — o drift-scan segue o
             // lowering inteiro
             Path.of("src/main/java/dev/kof/compiler/wasm/WasmStateCode.java"),
+            // TRY-1 (01/11, #776 — round 85): os cinco ops try/catch/throw
+            // vivem no satélite WasmTryCode — o drift-scan segue o lowering
+            Path.of("src/main/java/dev/kof/compiler/wasm/WasmTryCode.java"),
             Path.of("src/main/java/dev/kof/compiler/wasm/WasmCallCode.java"),
             Path.of("src/main/java/dev/kof/compiler/wasm/WasmCollCallCode.java"),
             Path.of("src/main/java/dev/kof/compiler/wasm/WasmArrayOps.java"));

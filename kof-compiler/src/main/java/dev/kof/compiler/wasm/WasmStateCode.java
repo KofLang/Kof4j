@@ -60,7 +60,7 @@ final class WasmStateCode {
                 ctx.underPending = false;
                 WasmJoinCode.crossLiveValue(ops, i, ctx, out);
                 jumpTo(ctx.blockOf(kj.target()), 1, ctx, out);
-                WasmJoinCode.terminateBlock(i + 1 == ops.size());
+                WasmJoinCode.terminateBlock(cleanTail(ops, i + 1));
                 out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
                 return;
             }
@@ -72,14 +72,14 @@ final class WasmStateCode {
                 // gate 500)
                 WasmJoinCode.storeUnderForCondJump(ops, i, ctx, out);
                 WasmJoinCode.emitCondJump(cj, ctx, out);
-                WasmJoinCode.terminateBlock(i + 1 == ops.size());
+                WasmJoinCode.terminateBlock(cleanTail(ops, i + 1));
                 out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
                 return;
             }
             if (op instanceof KofReturn || op instanceof KofReturnVoid) {
                 ctx.underPending = false;
                 out.add(WasmInstr.Branch.ret());
-                WasmJoinCode.terminateBlock(i + 1 == ops.size());
+                WasmJoinCode.terminateBlock(cleanTail(ops, i + 1));
                 out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
                 return;
             }
@@ -94,6 +94,20 @@ final class WasmStateCode {
             out.add(WasmInstr.Branch.ret());
         }
         out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
+    }
+
+    /**
+     * TRY-1 (01/11, #776 — round 85): o fim do bloco = limpo quando depois do
+     * terminador só restam marcadores estruturais {@code KofTryEnd} (no-op —
+     * o fechamento do try do desugar cai depois do ÚLTIMO salto do catch; o
+     * registro já foi desempilhado). Qualquer op REAL depois de um salto
+     * continua a recusa (a lei do terminateBlock).
+     */
+    private static boolean cleanTail(List<KofOperation> ops, int fromIdx) {
+        for (int k = fromIdx; k < ops.size(); k++) {
+            if (!(ops.get(k) instanceof KofTryEnd)) return false;
+        }
+        return true;
     }
 
     static void emitPlain(List<KofOperation> ops, int idx, Ctx ctx, List<WasmInstr> out) {
@@ -234,6 +248,9 @@ final class WasmStateCode {
             WasmCallCode.emitCall(kc, ops, idx, ctx, out);
         } else if (op instanceof KofStatementIf || op instanceof KofContinueLabel) {
             // marcadores estruturais — no-op (mesma decisao medida no JvmOpEmitter)
+        } else if (WasmTryCode.emit(op, ctx, out)) {
+            // TRY-1 (01/11, #776 — round 85): os cinco ops try/catch/throw —
+            // WasmTryCode (o satélite; o despacho vive no wrapper do frame)
         } else {
             // Phase D: the DECLARATION is the contract — see WasmOpSupport.refusal.
             throw WasmOpSupport.refusal(op, ctx.funcName);

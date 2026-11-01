@@ -9,7 +9,7 @@ import java.util.Locale;
  */
 public abstract sealed class WasmInstr permits WasmInstr.Const, WasmInstr.Local,
         WasmInstr.Simple, WasmInstr.SimpleExt, WasmInstr.Blocking, WasmInstr.Branch, WasmInstr.Call, WasmInstr.NegTop, WasmInstr.Store8, WasmInstr.I32,
-        WasmInstr.Mem, WasmInstr.Global {
+        WasmInstr.Mem, WasmInstr.Global, WasmInstr.Throw, WasmInstr.TryTable {
 
     /** @param funcIdx mapa nome→indice para resolver `call` (null quando nao ha calls). */
     public abstract void encode(java.io.ByteArrayOutputStream out, java.util.Map<String, Integer> funcIdx);
@@ -161,6 +161,55 @@ public abstract sealed class WasmInstr permits WasmInstr.Const, WasmInstr.Local,
                 default -> "(i32.load8_u offset=";
             };
             sb.append(name).append(offset).append(")\n");
+        }
+    }
+
+    /** TRY-1 (01/11, #776 — round 85): `throw <tagidx>` — a exceção de
+     *  String do wasm EH: o handle da msg entra como parâmetro do tag. */
+    public static final class Throw extends WasmInstr {
+        public final int tagIdx;
+
+        public Throw(int tagIdx) { this.tagIdx = tagIdx; }
+
+        @Override public void encode(java.io.ByteArrayOutputStream out, java.util.Map<String, Integer> f) {
+            out.write(0x08);
+            WasmBinary.writeUleb(out, tagIdx);
+        }
+
+        @Override public void wat(StringBuilder sb, int n) {
+            pad(sb, n);
+            sb.append("(throw $kof.exc)\n");
+        }
+    }
+
+    /** TRY-1 (01/11, #776 — round 85): `try_table` do wasm EH — o bloco
+     *  protegido com as cláusulas de catch (kind 0 = `catch <tag>
+     *  <labeldepth>`; a profundidade resolve NO CONTEXTO DE FORA do
+     *  try_table — medido no round-trip do wasm-tools). */
+    public static final class TryTable extends WasmInstr {
+        /** {kind, tagIdx, labelDepth} por cláusula. */
+        public final int[][] clauses;
+        public final int blockType;
+
+        public TryTable(int blockType, int[][] clauses) {
+            this.blockType = blockType;
+            this.clauses = clauses;
+        }
+
+        @Override public void encode(java.io.ByteArrayOutputStream out, java.util.Map<String, Integer> f) {
+            out.write(0x1f);
+            out.write(blockType);
+            WasmBinary.writeUleb(out, clauses.length);
+            for (int[] c : clauses) {
+                out.write(c[0]);
+                WasmBinary.writeUleb(out, c[1]);
+                WasmBinary.writeUleb(out, c[2]);
+            }
+        }
+
+        @Override public void wat(StringBuilder sb, int n) {
+            pad(sb, n);
+            sb.append("(try_table (catch $kof.exc)  ;; abrir\n");
         }
     }
 

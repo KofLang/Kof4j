@@ -5,6 +5,11 @@ import dev.kof.compiler.KofNewArray;
 import dev.kof.compiler.KofArrayStore;
 import dev.kof.compiler.KofArrayLoad;
 import dev.kof.compiler.KofBinary;
+import dev.kof.compiler.KofCatchStart;
+import dev.kof.compiler.KofExcUnlink;
+import dev.kof.compiler.KofThrow;
+import dev.kof.compiler.KofTryEnd;
+import dev.kof.compiler.KofTryStart;
 import dev.kof.compiler.KofCall;
 import dev.kof.compiler.KofCheckCast;
 import dev.kof.compiler.KofConditionalJump;
@@ -70,7 +75,15 @@ final class WasmOpSupport {
             KofPop2.class,
             KofReturnVoid.class,
             KofStoreLocal.class,
-            KofUnary.class);
+            KofUnary.class,
+            // TRY-1 (01/11, #776 — round 85): o try/catch/throw de String —
+            // a maquinaria vive no WasmTryCode (o satélite); o
+            // finally/catchAll ("Throwable") recusa honestamente na emissão
+            KofTryStart.class,
+            KofTryEnd.class,
+            KofCatchStart.class,
+            KofThrow.class,
+            KofExcUnlink.class);
 
     /** True when this backend declares support for {@code opType}. */
     static boolean supports(Class<?> opType) {
