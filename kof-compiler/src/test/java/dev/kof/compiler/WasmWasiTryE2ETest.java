@@ -211,6 +211,125 @@ class WasmWasiTryE2ETest {
                 """);
     }
 
+    @Test
+    void finallyRunsAfterTheBodyOnTheFastPath(@TempDir Path dir) throws Exception {
+        // T-2/T10: o try SEM catch no caminho normal — o corpo, o finally,
+        // o código seguinte (o unlink normal + o jump para o finallyLabel).
+        assertTryFace(dir, """
+                main(String[] args) {
+                    try {
+                        println("in")
+                    } finally {
+                        println("fin")
+                    }
+                    println("after")
+                }
+                """);
+    }
+
+    @Test
+    void catchRunsBeforeTheFinallyOnThrow(@TempDir Path dir) throws Exception {
+        // T-2/T11: catch + finally com throw — o catch roda PRIMEIRO, o
+        // finally depois (a ordem Java), e a execução segue.
+        assertTryFace(dir, """
+                main(String[] args) {
+                    try {
+                        throw "boom"
+                    } catch (String e) {
+                        println("caught: " + e)
+                    } finally {
+                        println("fin")
+                    }
+                    println("after")
+                }
+                """);
+    }
+
+    @Test
+    void innerFinallyRunsDuringUnwindThenTheOuterCatches(@TempDir Path dir) throws Exception {
+        // T-2/T12: o try/finally SEM catch dentro de um catch externo — o
+        // catchAll do desugar despacha o throw, o finally roda no desenrolar
+        // e o epílogo rethrow (LoadLocal excTmp + Throw) escapa para o
+        // handler EXTERNO (o registro do externo ainda está na pilha).
+        assertTryFace(dir, """
+                main(String[] args) {
+                    try {
+                        try {
+                            throw "deep"
+                        } finally {
+                            println("f1")
+                        }
+                    } catch (String e) {
+                        println("caught: " + e)
+                    }
+                    println("end")
+                }
+                """);
+    }
+
+    @Test
+    void returnInsideTryRunsTheFinallyFirst(@TempDir Path dir) throws Exception {
+        // T-2/T14: o return DENTRO do try com finally — o frame DD-01 (o
+        // FinallyFrame empilhado antes do corpo) desvia o return para o
+        // returnFinallyLabel: o finally roda ANTES do retorno efetivo
+        // (§551; a sombra Java: return-dentro-do-finally vence).
+        assertTryFace(dir, """
+                main(String[] args) {
+                    try {
+                        println("in")
+                        return
+                    } finally {
+                        println("fin")
+                    }
+                }
+                """);
+    }
+
+    @Test
+    void breakThroughTryRunsTheFinally(@TempDir Path dir) throws Exception {
+        // T-2/T15: o break ATRAVESSANDO o try com finally dentro do laço —
+        // o FinallyFrame desvia o break pelo finally (fin0.0 no caminho
+        // normal, fin1.0 NO BREAK, depois out — a ordem Java).
+        assertTryFace(dir, """
+                main(String[] args) {
+                    for (var i = 0.0; i < 2.0; i = i + 1.0) {
+                        try {
+                            if (i == 1.0) {
+                                break
+                            }
+                            println("i=" + i)
+                        } finally {
+                            println("fin" + i)
+                        }
+                    }
+                    println("out")
+                }
+                """);
+    }
+
+    @Test
+    void throwInsideFinallyReplacesTheException(@TempDir Path dir) throws Exception {
+        // T-2/T16 (a caça Q4): o finally que dispara DURANTE o desenrolar
+        // SUBSTITUI a exceção (Java: a nova vence) — no wasm o throw do
+        // corpo do finally (já desvinculado, §551) despacha o registro do
+        // try EXTERNO; o "first" nunca chega ao catch.
+        assertTryFace(dir, """
+                main(String[] args) {
+                    try {
+                        try {
+                            throw "first"
+                        } finally {
+                            println("f1")
+                            throw "second"
+                        }
+                    } catch (String e) {
+                        println("caught: " + e)
+                    }
+                    println("end")
+                }
+                """);
+    }
+
     /** O contrato comum: o oráculo JVM da MESMA fonte, o validador oficial
      *  e o stdout do wasmtime idêntico (o padrão WasmWasiFlowE2ETest). */
     static void assertTryFace(Path dir, String source) throws Exception {

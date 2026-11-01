@@ -55,7 +55,14 @@ import dev.kof.compiler.wasm.WasmInstr.Mem;
  * <p>FATIA 1: exceções {@code String} ONLY, sem finally/catchAll — a
  * maquinaria {@code "Throwable"} (o catchAll do desugar de finally)
  * recusa honestamente no CatchStart (WASM002 nomeando a próxima fatia).
- * A msg estacionada nunca cruza um alloc: o despacho a lê no estado
+ * FATIA T-2 (01/11, round 86): o finally/catchAll ENTRA — o desugar do
+ * StatementLowererTry emite {@code KofCatchStart(catchAllLabel, "Throwable",
+ * excTmp)} + o epílogo rethrow ({@code LoadLocal(Throwable, excTmp)} +
+ * {@code KofThrow}); o catchAll é um catch SEM checagem de tipo (qualquer
+ * msg estacionada entra; o valor NÃO se liga ao usuário — o local excTmp
+ * é interno). A lei nova: o slot do local {@code #excTmp} = o handle i32
+ * (a MESMA disciplina do String — o handle da msg estacionada@4 anda
+ * nele). A msg estacionada nunca cruza um alloc: o despacho a lê no estado
  * seguinte (o handle sobrevive; o coletor nunca a alcança — GC-1 não
  * compacta e a leitura é imediata).
  */
@@ -203,9 +210,16 @@ final class WasmTryCode {
 
     private static void refuseNonString(String excType, String funcName, String where) {
         if ("String".equals(excType) || "java.lang.String".equals(excType)) return;
+        // T-2 (01/11, round 86): o catchAll do desugar de finally é um
+        // catchALL REAL — não é um catch TIPADO de Throwable: NÃO checa o
+        // tipo (qualquer msg estacionada entra) e NÃO liga o valor ao
+        // usuário (o epílogo rethrow o lê do local excTmp interno). A msg
+        // de Kof §243 segue String — um catch (Throwable e) TIPADO do
+        // usuário segue fora do subset (a fatia T-3).
+        if ("Throwable".equals(excType) || "java.lang.Throwable".equals(excType)) return;
         throw new WasmUnsupportedException("try/catch de exceção não-String ('" + excType
-                + "') fora do subset TRY-1 no " + where + " de '" + funcName
-                + "' (WASM002) — o catchAll 'Throwable' do desugar de finally é a próxima"
-                + " fatia; docs/wasm-wasi-plan.md (#776)");
+                + "') fora do subset TRY-1/T-2 no " + where + " de '" + funcName
+                + "' (WASM002) — a exceção de Kof é String (§243); o catch tipado "
+                + "não-String é a fatia T-3; docs/wasm-wasi-plan.md (#776)");
     }
 }

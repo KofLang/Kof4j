@@ -157,6 +157,13 @@ final class WasmLoweringLocals {
                 locals.add(WasmFunc.TYPE_I32); // Map = handle i32 (celula indireta, fatia coleções 8 — 27/10)
             } else if (wasi && lv.type() instanceof Type.ClassType ct && "Set".equals(ct.name())) {
                 locals.add(WasmFunc.TYPE_I32); // Set = handle i32 (celula indireta, fatia coleções 9 — 27/10)
+            } else if (wasi && lv.type() instanceof Type.ClassType ct
+                    && "java.lang".equals(ct.packageName()) && "Throwable".equals(ct.name())) {
+                // T-2 (01/11, round 86): o local do catchAll do desugar de
+                // finally (#excTmp) = o handle i32 da msg estacionada (a MESMA
+                // disciplina do String — o epílogo rethrow faz LoadLocal +
+                // Throw no MESMO handle; §243 a exceção de Kof é String)
+                locals.add(WasmFunc.TYPE_I32);
             } else if (wasi && lv.type() instanceof Type.ArrayType) {
                 // ARRAY-1 (27/10): o array = o PONTEIRO CRU i32 para
                 // [count i32][slots i32×N] no bump heap — o MESMO layout da
