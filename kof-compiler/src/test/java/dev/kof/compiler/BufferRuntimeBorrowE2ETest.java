@@ -286,6 +286,13 @@ class BufferRuntimeBorrowE2ETest {
             }
             TestServerFixture.awaitTrue(1, 5, () -> Files.exists(ready));
         }
+        // 0.6.10 CI (run 41342639917): GO era criado imediatamente após o
+        // READY, e numa runner lenta o 2º worker nem tinha tentado a
+        // aquisição quando o 1º já retornou (janela ~2ms do usleep do C) —
+        // 0 MEM020 no lugar de exatamente 1. Segurar o GO dá aos DOIS
+        // workers tempo de chegar à aquisição enquanto o 1º ainda detém o
+        // empréstimo; a asserção (exatamente um MEM020) fica intacta.
+        Thread.sleep(300);
         Files.writeString(go, "go");
         assertTrue(p.waitFor(60, TimeUnit.SECONDS), "native must finish after GO");
         reader.join(5000);
