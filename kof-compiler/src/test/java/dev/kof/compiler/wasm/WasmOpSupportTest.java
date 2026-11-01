@@ -38,6 +38,10 @@ class WasmOpSupportTest {
             // (o KofLabel → blocos) saiu do WasmLowering — o drift-scan segue
             // o lowering inteiro
             Path.of("src/main/java/dev/kof/compiler/wasm/WasmLoweringLocals.java"),
+            // Fase F (01/11, #776 — round 85): a emissao por estado saiu do
+            // WasmLowering (o split WasmStateCode) — o drift-scan segue o
+            // lowering inteiro
+            Path.of("src/main/java/dev/kof/compiler/wasm/WasmStateCode.java"),
             Path.of("src/main/java/dev/kof/compiler/wasm/WasmCallCode.java"),
             Path.of("src/main/java/dev/kof/compiler/wasm/WasmCollCallCode.java"),
             Path.of("src/main/java/dev/kof/compiler/wasm/WasmArrayOps.java"));

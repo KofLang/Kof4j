@@ -104,7 +104,6 @@
 539	kof-compiler/src/main/java/dev/kof/compiler/wasm/WasmBackend.java
 502	kof-compiler/src/main/java/dev/kof/compiler/wasm/WasmGcRuntime.java
 589	kof-compiler/src/main/java/dev/kof/compiler/wasm/WasmListRuntime.java
-511	kof-compiler/src/main/java/dev/kof/compiler/wasm/WasmLowering.java
 595	kof-compiler/src/main/java/dev/kof/compiler/wasm/WasmMapRuntime.java
 582	kof-compiler/src/main/java/dev/kof/compiler/wasm/WasmMathRuntime.java
 596	kof-compiler/src/main/java/dev/kof/compiler/wasm/WasmSchubfachFormat.java

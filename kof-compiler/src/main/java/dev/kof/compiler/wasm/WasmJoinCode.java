@@ -180,9 +180,9 @@ final class WasmJoinCode {
             }
         }
         out.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, null, 0x40));
-        WasmLowering.jumpTo(ctx.blockOf(cj.trueLabel()), 2, ctx, out);
+        WasmStateCode.jumpTo(ctx.blockOf(cj.trueLabel()), 2, ctx, out);
         out.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, null, 0x40));
-        WasmLowering.jumpTo(ctx.blockOf(cj.falseLabel()), 2, ctx, out);
+        WasmStateCode.jumpTo(ctx.blockOf(cj.falseLabel()), 2, ctx, out);
         out.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
         // o salto consumiu os dois operandos: o rastro de largura nao vale mais
         ctx.lastPush = null;
