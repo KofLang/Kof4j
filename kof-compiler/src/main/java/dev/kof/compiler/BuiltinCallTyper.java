@@ -460,7 +460,20 @@ public final class BuiltinCallTyper {
         Type topLevel = TopLevelCallTyper.infer(sa, mc, scope);
         if (topLevel != null) return topLevel;
         SymbolTable.ClassSymbol ctorClass = sa.allClasses().get(mc.methodName());
-        if (ctorClass != null) {
+        // issue #996: a chamada IMPLÍCITA DE CONSTRUTOR é a forma de TOPO
+        // `Foo(1)` ou a qualificada pelo NOME DO TIPO `Foo.Foo(1)` (a forma
+        // que os diag de aridade/tipo da #994 fixam). Com um receptor VALOR
+        // — `s.Foo(1)` sobre um String — o ramo devolvia o tipo da classe e
+        // TUDO passava limpo (os guards SEM025/SEM102 só falam com Unknown),
+        // e cada alvo errava à sua maneira (JVM VerifyError / JS TypeError /
+        // Native link-fail / Script exit 1 mudo). Receptor valor = resolução
+        // de instância: o guard do tipo diagnostica; `Foo(...)`/`Foo.Foo(...)`
+        // seguem sendo ctor.
+        boolean ctorForm = mc.receiver() == null
+                || (mc.receiver() instanceof IdentifierExpr rid
+                    && (sa.allClasses().containsKey(rid.name())
+                        || MemberResolver.isBuiltinTypeName(rid.name())));
+        if (ctorClass != null && ctorForm) {
             return ImplicitCtorCallTyper.inferTail(sa, mc, scope, ctorClass);
         }
 
