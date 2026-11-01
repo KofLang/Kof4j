@@ -560,12 +560,14 @@ final class WasmMathRuntime {
         fs.add(WasmPowKernel.powFunc());
         fs.add(WasmPowKernel.hugeyFunc());
         fs.add(WasmPowMain.mainFunc());
-        fs.add(WasmPowMain.tailFunc());
-        fs.add(WasmPowMain.scalbFunc());
-        fs.add(WasmPowMain.hiFunc());
-        fs.add(WasmPowMain.loFunc());
-        fs.add(WasmPowMain.withHiFunc());
-        fs.add(WasmPowMain.lo0Func());
+        // check_500: o split Main/Tail/Bits — os nomes das funcs NÃO mudam
+        // (o registro dedupe-safe e o scan-whitelist veem o mesmo conjunto).
+        fs.add(WasmPowTail.tailFunc());
+        fs.add(WasmPowBits.scalbFunc());
+        fs.add(WasmPowBits.hiFunc());
+        fs.add(WasmPowBits.loFunc());
+        fs.add(WasmPowBits.withHiFunc());
+        fs.add(WasmPowBits.lo0Func());
         fs.add(WasmRemPio2.smallTailFunc());
         fs.add(WasmRemPio2.mediumFunc());
         // MATH-LIBM-4 fatia B (28/10): o caminho GRANDE — o driver (a quebra

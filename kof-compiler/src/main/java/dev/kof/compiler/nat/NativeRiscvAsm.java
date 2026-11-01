@@ -351,6 +351,10 @@ public final class NativeRiscvAsm {
     private static String runtimeMapset() {
         return new StringBuilder()
                 .append(NativeRiscvAsmMapset0.RISCV_MAPSET_ASM_0)
+                // check_500: a fatia SET da Mapset0 (kof_set_* + o epilogo rodata
+                // §284) segue IMEDIATAMENTE o lado map — a ordem do concat
+                // preserva o RISCV_MAPSET_ASM byte-idêntico.
+                .append(NativeRiscvAsmSet0.RISCV_SET_ASM_0)
                 .append(NativeRiscvAsmMapset1.RISCV_MAPSET_ASM_1)
                 .append(NativeRiscvAsmMapset2.RISCV_MAPSET_ASM_2)
                 // §667: decode de string JSON (kof_json_decode_string +

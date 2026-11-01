@@ -4,7 +4,7 @@
 1228	kof-cli/src/main/java/dev/kof/cli/BytecodeStatementsRecover.java
 702	kof-cli/src/main/java/dev/kof/cli/BytecodeSwitch.java
 562	kof-cli/src/main/java/dev/kof/cli/CmdBuild.java
-536	kof-cli/src/main/java/dev/kof/cli/CmdDeploy.java
+541	kof-cli/src/main/java/dev/kof/cli/CmdDeploy.java
 572	kof-cli/src/main/java/dev/kof/cli/CmdTest.java
 592	kof-cli/src/main/java/dev/kof/cli/Decompile.java
 524	kof-cli/src/main/java/dev/kof/cli/KofDebugJvmSession.java
@@ -18,12 +18,11 @@
 517	kof-compiler/src/main/java/dev/kof/compiler/CompilerDesugar.java
 526	kof-compiler/src/main/java/dev/kof/compiler/CompilerDriver.java
 598	kof-compiler/src/main/java/dev/kof/compiler/CompilerDriverState.java
-583	kof-compiler/src/main/java/dev/kof/compiler/CompilerPipeline.java
 548	kof-compiler/src/main/java/dev/kof/compiler/CompilerRecordSupport.java
 573	kof-compiler/src/main/java/dev/kof/compiler/CompilerTypes.java
 540	kof-compiler/src/main/java/dev/kof/compiler/ExpressionBinaryLowerer.java
 595	kof-compiler/src/main/java/dev/kof/compiler/ExpressionInstanceCallLowerer.java
-515	kof-compiler/src/main/java/dev/kof/compiler/ExpressionStaticCallLowerer.java
+519	kof-compiler/src/main/java/dev/kof/compiler/ExpressionStaticCallLowerer.java
 558	kof-compiler/src/main/java/dev/kof/compiler/ExpressionTyper.java
 517	kof-compiler/src/main/java/dev/kof/compiler/FfiStructLayout.java
 580	kof-compiler/src/main/java/dev/kof/compiler/js/JsCallEmitter.java
@@ -50,6 +49,7 @@
 566	kof-compiler/src/main/java/dev/kof/compiler/jvm/JvmStringMiscRuntime.java
 509	kof-compiler/src/main/java/dev/kof/compiler/jvm/JvmStringSecurityRuntime.java
 572	kof-compiler/src/main/java/dev/kof/compiler/jvm/JvmWebCoreRuntime.java
+504	kof-compiler/src/main/java/dev/kof/compiler/KofFormatter.java
 591	kof-compiler/src/main/java/dev/kof/compiler/KofInterpreter.java
 543	kof-compiler/src/main/java/dev/kof/compiler/KofInterpreterRuntime.java
 574	kof-compiler/src/main/java/dev/kof/compiler/KofUi.java
@@ -62,7 +62,6 @@
 592	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeBackend.java
 606	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeMethodEmitter.java
 551	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeRiscvAsmLookups0.java
-595	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeRiscvAsmMapset0.java
 504	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeRiscvAsmMapset1.java
 513	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeRiscvAsmMedia.java
 588	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeRiscvAsmMediaWav.java
@@ -81,7 +80,7 @@
 566	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeRiscvCrossOps.java
 526	kof-compiler/src/main/java/dev/kof/compiler/parser/ClassFileParser.java
 577	kof-compiler/src/main/java/dev/kof/compiler/parser/ExpressionParser.java
-501	kof-compiler/src/main/java/dev/kof/compiler/parser/Parser.java
+508	kof-compiler/src/main/java/dev/kof/compiler/parser/Parser.java
 565	kof-compiler/src/main/java/dev/kof/compiler/parser/StatementParser.java
 565	kof-compiler/src/main/java/dev/kof/compiler/runtime/RuntimeConcurrency.java
 507	kof-compiler/src/main/java/dev/kof/compiler/runtime/RuntimeDb3.java
@@ -99,13 +98,15 @@
 540	kof-compiler/src/main/java/dev/kof/compiler/runtime/RuntimeTime.java
 579	kof-compiler/src/main/java/dev/kof/compiler/runtime/RuntimeUi.java
 569	kof-compiler/src/main/java/dev/kof/compiler/SemanticAnalyzer.java
+512	kof-compiler/src/main/java/dev/kof/compiler/StatementLowerer.java
 588	kof-compiler/src/main/java/dev/kof/compiler/TypeChecker.java
 529	kof-compiler/src/main/java/dev/kof/compiler/Type.java
-541	kof-compiler/src/main/java/dev/kof/compiler/wasm/WasmBackend.java
+539	kof-compiler/src/main/java/dev/kof/compiler/wasm/WasmBackend.java
+502	kof-compiler/src/main/java/dev/kof/compiler/wasm/WasmGcRuntime.java
 589	kof-compiler/src/main/java/dev/kof/compiler/wasm/WasmListRuntime.java
-502	kof-compiler/src/main/java/dev/kof/compiler/wasm/WasmLowering.java
+511	kof-compiler/src/main/java/dev/kof/compiler/wasm/WasmLowering.java
 595	kof-compiler/src/main/java/dev/kof/compiler/wasm/WasmMapRuntime.java
-564	kof-compiler/src/main/java/dev/kof/compiler/wasm/WasmMathRuntime.java
+582	kof-compiler/src/main/java/dev/kof/compiler/wasm/WasmMathRuntime.java
 596	kof-compiler/src/main/java/dev/kof/compiler/wasm/WasmSchubfachFormat.java
 557	kof-compiler/src/main/java/dev/kof/compiler/wasm/WasmSchubfachRuntime.java
 526	kof-compiler/src/main/java/dev/kof/compiler/wasm/WasmStdoutRuntime.java
