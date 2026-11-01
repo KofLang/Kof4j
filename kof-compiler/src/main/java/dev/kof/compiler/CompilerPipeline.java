@@ -250,6 +250,23 @@ public final class CompilerPipeline {
         List<IRMethod> topLevelFunctions = new ArrayList<>();
         String moduleName = unit.packageName().isEmpty() ? "Default" : unit.packageName().replace('.', '/');
         int nextTypeId = 10;
+        // #934: a tabela de assinaturas `extern` é propriedade do MÓDULO INTEIRO —
+        // um call-site num arquivo que mescla ANTES da declaração `extern` tem de
+        // baixar pelo MESMO caminho FFI (marshal `String`→`char*`) do que mescla
+        // depois. Preenchida DURANTE o laço (abaixo), a visibilidade virava ordem
+        // de compilação: o call-site antigo perdia o gate do dispatcher
+        // (`externSignatures.containsKey`), caía no bare-call e emitia um
+        // `invokestatic Default/Main.access` fantasma no JVM (VerifyError no load)
+        // ou o handle de String CRU no rdi do `call access` no Native (ENOENT
+        // silencioso). Coletar antes de baixar QUALQUER corpo torna a tabela
+        // independente da ordem (D-KOF-FIRST R6: nunca silencioso).
+        for (AstNode d : unit.declarations()) {
+            if (d instanceof ExternalFunctionNode ext) {
+                driver.externSignatures
+                        .computeIfAbsent(ext.name(), n -> new java.util.ArrayList<>())
+                        .add(ext);
+            }
+        }
         for (AstNode decl : unit.declarations()) {
             String declPkg = driver.declPackage(decl, unit.packageName());
             if (decl instanceof ClassDeclarationNode cls) classes.add(CompilerClassLowering.lowerClass(driver, cls, declPkg, nextTypeId++));
@@ -275,9 +292,9 @@ public final class CompilerPipeline {
                 case ExternalFunctionNode ext -> {
                     // #763 (`D-MAINT-BATCH-0610`/B): mesmo nome ≠ colisão — vira
                     // lista de candidatos; a seleção é por assinatura no typer.
-                    driver.externSignatures
-                            .computeIfAbsent(ext.name(), n -> new java.util.ArrayList<>())
-                            .add(ext);
+                    // #934: a POPULAÇÃO da tabela mudou para o pré-lasso acima —
+                    // aqui fica só o diagnóstico de binding (a lista já contém
+                    // TODAS as decls do módulo, em qualquer ordem de arquivo).
                     // FFI (TIER 2.1.3/2.1.7): binding suportado (JVM Int→Int,
                     // String→Int, Double→Double; Native Int→Int, String→Int) não é
                     // gap; o resto é gap honesto por target — FFI002 no JS (web/edge
