@@ -38,6 +38,15 @@ final class BuiltinUiCallTyper {
         }
         if (mc.receiver() == null && ("Column".equals(mc.methodName()) || "Row".equals(mc.methodName()))
                 && (mc.arguments().isEmpty() || mc.arguments().size() == 1)) {
+            // issue #991: o argumento PRECISA ser inferido — sem isto, um
+            // método da própria classe dentro de `Column(listOf(heading(...)))`
+            // nunca resolve contra os membros da classe dona (a chamada era
+            // emitida contra o dono ERRADO: NoSuchMethodError no JVM /
+            // ReferenceError no JS; o contorno é `this.heading(...)`). O #827
+            // trocou a inferência do argumento e o ramo deixou de chegar na
+            // resolução geral — todos os outros containers (View/Style/Button)
+            // sempre inferiram.
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
             return "Column".equals(mc.methodName()) ? KofUi.COLUMN : KofUi.ROW;
         }
         if (mc.receiver() == null && (mc.arguments().isEmpty() || mc.arguments().size() == 1)) {
