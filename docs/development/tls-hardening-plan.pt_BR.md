@@ -1,8 +1,8 @@
 [English](tls-hardening-plan.md) | [Português](tls-hardening-plan.pt_BR.md)
 
 last: 02/11/2026 — PROMOVIDO de `docs/development/future/` por ordem da mantenedora ("pega tls do future pra fazer, é urgente"); a fatia 0 (spike de inventário) foi MEDIDA no tip
-doing: fatia 0 FEITA (baseline medido re-confirmado); a fatia 1 (seleção de certificado por SNI, JVM) é a próxima
-next: fatia 1 — seleção de certificado por SNI na JVM: mapa hostname→(certPem,keyPem) a partir de argumentos explícitos da API, seleção pelo SNI do ClientHello, SNI desconhecido = recusa de handshake nomeada; prova RED-first no estilo `KofWebTlsTest`
+doing: fatia 0 FEITA (baseline medido re-confirmado); fatia 1 (seleção por SNI, JVM) EM ANDAMENTO — a superfície de frontend compila (`web.secureHost(...)` + `listenSecure(port, List<SecureHost>)`), o handshake TLS ainda NÃO fecha (timeout no cliente); WIP em `git stash tls-slice1-wip-sni`, nada meio-funcional commitado
+next: fatia 1 — terminar o I/O do handshake SNI (o SSLEngine/SSLSocket sobre o ClientHello replicado dá timeout no cliente); depois prova RED-first no estilo `KofWebTlsTest`
 location: docs/development
 state: under-development
 dona: 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a

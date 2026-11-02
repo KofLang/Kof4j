@@ -1,8 +1,8 @@
 [English](tls-hardening-plan.md) | [Português](tls-hardening-plan.pt_BR.md)
 
 last: 02/11/2026 — PROMOTED from `docs/development/future/` by maintainer order ("pega tls do future pra fazer, é urgente"); slice 0 (inventory spike) MEASURED at the tip
-doing: slice 0 DONE (measured baseline re-confirmed); slice 1 (SNI certificate selection, JVM) is the next slice
-next: slice 1 — SNI certificate selection on the JVM: hostname→(certPem,keyPem) map from explicit API args, select from ClientHello SNI, unknown SNI = named handshake refusal; RED-first proof in `KofWebTlsTest` style
+doing: slice 0 DONE (measured baseline re-confirmed); slice 1 (SNI certificate selection, JVM) IN PROGRESS — the frontend surface compiles (`web.secureHost(...)` + `listenSecure(port, List<SecureHost>)`), the TLS handshake does NOT close yet (client timeout); WIP in `git stash tls-slice1-wip-sni`, nothing half-working committed
+next: slice 1 — finish the SNI handshake I/O (the SSLEngine/SSLSocket over the replayed ClientHello times out on the client side); then RED-first proof in `KofWebTlsTest` style
 location: docs/development
 state: under-development
 owner: 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a
