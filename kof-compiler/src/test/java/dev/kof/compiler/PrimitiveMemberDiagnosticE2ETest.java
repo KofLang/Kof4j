@@ -46,7 +46,7 @@ class PrimitiveMemberDiagnosticE2ETest {
         return driver.compile(dir.resolve("Main.kf"), dir.resolve("out"), target);
     }
 
-    private void assertSem102(CompilationResult r, String member) {
+    private void assertPrimSem102(CompilationResult r, String member) {
         assertFalse(r.success(), "unknown member on a primitive must fail to compile");
         String diags = "" + r.diagnostics().getDiagnostics();
         assertTrue(diags.contains("SEM102"), "expected SEM102, got: " + diags);
@@ -55,17 +55,17 @@ class PrimitiveMemberDiagnosticE2ETest {
 
     @Test
     void unknownMemberOnIntIsDiagnosedOnJvm(@TempDir Path tempDir) throws IOException {
-        assertSem102(compile(SRC, tempDir.resolve("jvm"), Target.JVM), "day");
+        assertPrimSem102(compile(SRC, tempDir.resolve("jvm"), Target.JVM), "day");
     }
 
     @Test
     void unknownMemberOnIntIsDiagnosedOnJs(@TempDir Path tempDir) throws IOException {
-        assertSem102(compile(SRC, tempDir.resolve("js"), Target.JS), "day");
+        assertPrimSem102(compile(SRC, tempDir.resolve("js"), Target.JS), "day");
     }
 
     @Test
     void unknownMemberOnCharIsDiagnosed(@TempDir Path tempDir) throws IOException {
-        assertSem102(compile("""
+        assertPrimSem102(compile("""
             main() {
                 var c = 'a'
                 println(c.day)
@@ -75,7 +75,7 @@ class PrimitiveMemberDiagnosticE2ETest {
 
     @Test
     void unknownMemberOnBoolIsDiagnosed(@TempDir Path tempDir) throws IOException {
-        assertSem102(compile("""
+        assertPrimSem102(compile("""
             main() {
                 var b = true
                 println(b.day)

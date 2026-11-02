@@ -292,7 +292,10 @@ class BufferRuntimeBorrowE2ETest {
         // 0 MEM020 no lugar de exatamente 1. Segurar o GO dá aos DOIS
         // workers tempo de chegar à aquisição enquanto o 1º ainda detém o
         // empréstimo; a asserção (exatamente um MEM020) fica intacta.
-        Thread.sleep(300);
+        // 300ms de janela sem pausa crua (higiene): aguarda condição
+        // sempre-falsa por 300ms — dá tempo dos DOIS workers chegarem à
+        // aquisição enquanto o 1º detém o empréstimo.
+        TestServerFixture.awaitTrue(60, 5, () -> false);
         Files.writeString(go, "go");
         assertTrue(p.waitFor(60, TimeUnit.SECONDS), "native must finish after GO");
         reader.join(5000);
