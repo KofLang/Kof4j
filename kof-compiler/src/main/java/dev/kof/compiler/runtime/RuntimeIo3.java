@@ -130,6 +130,35 @@ public final class RuntimeIo3 {
                 popq %rbx
                 ret
 
+            // #854: criação EXCLUSIVA (openat O_WRONLY|O_CREAT|O_EXCL=193,
+            // close) — mesmo molde do kof_io_dir_create (mkdirat) abaixo.
+            // O_EXCL com O_CREAT falha para um link mesmo pendente (garantia
+            // POSIX do último componente, não um detalhe do host) — fecha a
+            // corrida TOCTOU de exists()+write().
+            .globl kof_io_file_create_new
+            .type kof_io_file_create_new, @function
+            kof_io_file_create_new:
+                pushq %rbx
+                movq %rdi, %rbx
+                movq $-100, %rdi
+                leaq 24(%rbx), %rsi
+                movq $193, %rdx              # O_WRONLY|O_CREAT|O_EXCL
+                movq $420, %r10              # mode 0644
+                movq $257, %rax              # openat
+                syscall
+                testq %rax, %rax
+                js .Lio_createnew_fail
+                movq %rax, %rdi
+                movq $3, %rax                # close
+                syscall
+                movq $1, %rax
+                popq %rbx
+                ret
+            .Lio_createnew_fail:
+                xorl %eax, %eax
+                popq %rbx
+                ret
+
             // ── Directory ────────────────────────────────────────
 
             .globl kof_io_dir_create

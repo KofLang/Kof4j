@@ -54,7 +54,8 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_io_read_bytes" -> "(Ljava/lang/String;)[I";
             case "kof_io_read_range", "kof_io_read_range_path" -> "(Ljava/lang/String;JJ)[I";
             case "kof_io_write_bytes", "kof_io_append_bytes" -> "(Ljava/lang/String;[I)I";
-            case "kof_io_delete", "kof_io_dir_create", "kof_io_dir_create_dirs", "kof_io_dir_delete"
+            case "kof_io_delete", "kof_io_dir_create", "kof_io_dir_create_dirs", "kof_io_dir_delete",
+                    "kof_io_file_create_new"
                     -> "(Ljava/lang/String;)I";
             case "kof_io_file_size" -> "(Ljava/lang/String;)J";
             case "kof_io_file_name", "kof_io_path_parent", "kof_io_path_file_name",

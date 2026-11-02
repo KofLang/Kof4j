@@ -152,7 +152,7 @@ SEED = {
     "isDirectory": "ehDiretorio", "isSymlink": "ehLinkSimbolico",
     "readText": "lerTexto", "writeText": "escreverTexto",
     "appendText": "anexarTexto", "readBytes": "lerBytes", "writeBytes": "escreverBytes",
-    "appendBytes": "anexarBytes", "delete": "excluir", "name": "nome",
+    "appendBytes": "anexarBytes", "createNew": "criarNovo", "delete": "excluir", "name": "nome",
     "copyTo": "copiarPara", "moveTo": "moverPara", "modifiedTime": "tempoModificado",
     "resolve": "resolver", "parent": "pai", "fileName": "nomeArquivo",
     "extension": "extensao", "path": "caminho", "bytes": "bytes",

@@ -73,5 +73,36 @@ public final class NativeRiscvAsmIoFs {
                 ld   ra, 24(sp)
                 addi sp, sp, 32
                 ret
+
+            # #854: kof_io_file_create_new(path@a0) -> 1|0 (openat O_WRONLY|
+            # O_CREAT|O_EXCL=193, close) — mesmo molde do mkdirat acima.
+            # O_EXCL com O_CREAT falha para um link mesmo pendente (garantia
+            # POSIX do ultimo componente), fechando a corrida TOCTOU de
+            # exists()+write(). aarch64 herda pelo tradutor.
+            .globl kof_io_file_create_new
+            .type kof_io_file_create_new, @function
+            kof_io_file_create_new:
+                addi sp, sp, -32
+                sd   ra, 24(sp)
+                sd   s0, 16(sp)
+                mv   s0, a0
+                addi a1, s0, 24             # path bytes
+                li   a0, -100               # AT_FDCWD
+                li   a2, 193                # O_WRONLY|O_CREAT|O_EXCL
+                li   a3, 420                # mode 0644
+                li   a7, 56                 # openat
+                ecall
+                bltz a0, .Lkof_io_createnew_fail
+                li   a7, 57                 # close
+                ecall
+                li   a0, 1
+                j    .Lkof_io_createnew_done
+            .Lkof_io_createnew_fail:
+                li   a0, 0
+            .Lkof_io_createnew_done:
+                ld   s0, 16(sp)
+                ld   ra, 24(sp)
+                addi sp, sp, 32
+                ret
             """;
 }

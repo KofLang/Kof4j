@@ -302,212 +302,45 @@ public final class BuiltinCallTyper {
         return sym != null && sym.type() instanceof Type.FunctionType;
     }
 
+    /** Cauda do dispatch — extraída para BuiltinCallTailTyper (REFACTOR-500,
+     *  check_500 crítico); mesma assinatura/semântica, zero mudança. */
     static Type inferTail(SemanticAnalyzer sa, MethodCallExpr mc, SymbolTable scope) {
-        // §243 função (#931/#932): mesmo veredicto da entrada `infer` — os
-        // branches de builtin de nome fixo (poll/done/readFile/writeFile/…)
-        // não interceptam um nome que o programa declara; TopLevelCallTyper
-        // tipa e registra, void → Unknown como a cauda sempre devolveu.
-        // EXCEÇÃO (oráculo Java): DENTRO de uma classe, o método da própria
-        // classe (implicit this, resolução a jusante) vence top-level e
-        // builtin — `readBits(1)` de Inflate.kf não é o `readBits(Int[],Int,Int)`
-        // top-level de Qrcode.kf (#932 face 2).
-        if (mc.receiver() == null && KofShadowing.userDeclares(sa, mc.methodName())
-                && !(sa.currentClassName() != null && !sa.currentClassName().isEmpty()
-                        && MemberResolver.resolveInHierarchy(sa, sa.currentClassName(), mc.methodName()) != null)) {
-            Type declared = TopLevelCallTyper.infer(sa, mc, scope);
-            return declared != null ? declared : Type.UnknownType.UNKNOWN;
-        }
-        if (mc.receiver() == null) {
-            SymbolTable.Symbol localSym = scope != null ? scope.resolve(mc.methodName()) : null;
-            if (localSym != null && localSym.type() instanceof Type.FunctionType lft) {
-                List<Type> argTypes = new ArrayList<>();
-                for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
-                TypeChecker.checkArgTypes(sa, sa.diagnostics(), mc.methodName(), argTypes, lft.parameterTypes(), mc.arguments());
-                return lft.returnType();
-            }
-            if (localSym instanceof SymbolTable.LocalVariableSymbol
-                    || localSym instanceof SymbolTable.ParameterSymbol) {
-                // variável DECLARADA sendo chamada como função, mas não é
-                // uma FunctionType. Distingue de "função inexistente"
-                // (SEM015) — ex.: `(s) -> s(1)` com param sem tipo.
-                if (sa.diagnostics() != null) {
-                    String extra = (localSym.type() instanceof Type.UnknownType)
-                            ? " (untyped — declare the type of the lambda parameter)"
-                            : "";
-                    sa.diagnostics().error(mc,
-                            "variable '" + mc.methodName() + "' is not a function"
-                                    + " and cannot be called" + extra,
-                            "SEM015");
-                }
-                for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
-                return Type.UnknownType.UNKNOWN;
-            }
-            if (sa.currentClassName() != null && !sa.currentClassName().isEmpty()) {
-                SymbolTable.Symbol m = MemberResolver.resolveInHierarchy(sa, sa.currentClassName(), mc.methodName());
-                if (m instanceof SymbolTable.MethodSymbol ms) {
-                    List<Type> argTypes = new ArrayList<>();
-                    for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
-                    TypeChecker.checkArgTypes(sa, sa.diagnostics(), mc.methodName(), argTypes, ms.parameterTypes(), mc.arguments());
-                    sa.putResolvedMethod(mc, ms);
-                    return ms.returnType();
-                }
-                // chamada implícita (this) herdada de SUPERCLASSE
-                // EXTERNA: setContentView(...) dentro da Activity Kof
-                SymbolTable.ClassSymbol self = sa.allClasses().get(sa.currentClassName());
-                String superName = self != null ? self.superClass() : null;
-                if (superName != null && sa.externalTypes() != null && !"Object".equals(superName)) {
-                    String superInternal = superName.contains(".")
-                            ? superName.replace('.', '/') : superName;
-                    ExternalClasspath.MethodSignature sig = sa.externalTypes().resolveMethod(
-                            superInternal, mc.methodName(), mc.arguments().size());
-                    if (sig != null) {
-                        List<Type> params = new ArrayList<>();
-                        for (String d : sig.parameterDescriptors()) {
-                            params.add(ExternalClasspath.typeFromDescriptor(d));
-                        }
-                        Type ret = ExternalClasspath.typeFromDescriptor(sig.returnDescriptor());
-                        sa.putResolvedMethod(mc, new SymbolTable.MethodSymbol(mc.methodName(),
-                                superInternal, ret, params, 1,
-                                SymbolTable.DispatchKind.INSTANCE));
-                        return ret;
-                    }
-                }
-            }
-        }
-        if (mc.receiver() == null
-                && ("super".equals(mc.methodName()) || "this".equals(mc.methodName()))) {
-            // super(args) / this(args): chamadas de construtor —
-            // válidas apenas dentro do corpo de um construtor
-            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
-            return Type.PrimitiveType.VOID;
-        }
-        if (mc.receiver() == null && "__kof_spawn_expr".equals(mc.methodName())) {
-            ExpressionNode body = mc.arguments().get(0);
-            Type t = SemExpressionTyper.inferType(sa, body, scope);
-            // bug 46: `spawn { return 42 }` — inferType(lambda) dá
-            // FunctionType([], Int), mas o Handle é do RETURN da lambda, não
-            // do FunctionType. Guardar Handle<FunctionType> fazia `await h`
-            // devolver FunctionType → `println` escolhia a sobrecarga String →
-            // kof_println_string(42) → deref de ponteiro inválido (SIGSEGV
-            // nativo). Espelha o lowerer (ExpressionStaticCallLowerer, bug 29).
-            if (t instanceof Type.FunctionType ft) t = ft.returnType();
-            // #141: corpo-bloco de UMA expressão ({@code spawn { "ok" }}) É o
-            // retorno — o caso LambdaExpr dá VOID sem `return` explícito (a
-            // emissão CompilerLambdaClass faz a conversão quando o tipo do
-            // SAM não é void; sem este espelho o Handle saía Handle<Void> e o
-            // `await` dava SEM033 falso-positivo (a triagem da mantenedora
-            // classificou a rejeição como gap do typer, 0.4.1).
-            if (Type.PrimitiveType.VOID.equals(t)
-                    && body instanceof LambdaExpr sle
-                    && sle.body().size() == 1
-                    && sle.body().get(0) instanceof ExpressionStmt es) {
-                Type et = SemExpressionTyper.inferType(sa, es.expression(), scope);
-                if (!Type.UnknownType.UNKNOWN.equals(et) && !Type.isVoid(et)) t = et;
-            }
-            return new Type.ClassType("kof.concurrent", "Handle", List.of(t));
-        }
-        if (mc.receiver() == null && "cancel".equals(mc.methodName())
-                && mc.arguments().size() == 1) {
-            SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
-            return Type.PrimitiveType.BOOL;
-        }
-        if (mc.receiver() == null && "cancelled".equals(mc.methodName())
-                && mc.arguments().isEmpty()) {
-            return Type.PrimitiveType.BOOL;
-        }
-        if (mc.receiver() == null && "selectAny".equals(mc.methodName())
-                && !mc.arguments().isEmpty()) {
-            Type t0 = Type.UnknownType.UNKNOWN;
-            for (ExpressionNode arg : mc.arguments()) t0 = SemExpressionTyper.inferType(sa, arg, scope);
-            if (t0 instanceof Type.ClassType ct
-                    && "kof.concurrent".equals(ct.packageName())
-                    && !ct.typeArguments().isEmpty()) {
-                return ct.typeArguments().get(0);
-            }
-            return Type.UnknownType.UNKNOWN;
-        }
-        if (mc.receiver() == null && "awaitTimeout".equals(mc.methodName())
-                && mc.arguments().size() == 2) {
-            Type t0 = SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
-            SemExpressionTyper.inferType(sa, mc.arguments().get(1), scope);
-            if (t0 instanceof Type.ClassType ct
-                    && "kof.concurrent".equals(ct.packageName())
-                    && !ct.typeArguments().isEmpty()) {
-                return ct.typeArguments().get(0);
-            }
-            return Type.UnknownType.UNKNOWN;
-        }
-        if (mc.receiver() == null && ("poll".equals(mc.methodName())
-                || "done".equals(mc.methodName()))) {
-            Type t0 = SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
-            if ("done".equals(mc.methodName())) return Type.PrimitiveType.BOOL;
-            if (t0 instanceof Type.ClassType ct
-                    && "kof.concurrent".equals(ct.packageName())
-                    && !ct.typeArguments().isEmpty()) {
-                return ct.typeArguments().get(0);
-            }
-            return Type.UnknownType.UNKNOWN;
-        }
-        if (mc.receiver() == null && "__kof_await".equals(mc.methodName())) {
-            Type t = SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
-            if (t instanceof Type.ClassType ct
-                    && "kof.concurrent".equals(ct.packageName())
-                    && !ct.typeArguments().isEmpty()) {
-                return ct.typeArguments().get(0);
-            }
-            return Type.UnknownType.UNKNOWN;
-        }
-        Type topLevel = TopLevelCallTyper.infer(sa, mc, scope);
-        if (topLevel != null) return topLevel;
-        SymbolTable.ClassSymbol ctorClass = sa.allClasses().get(mc.methodName());
-        // issue #996: a chamada IMPLÍCITA DE CONSTRUTOR é a forma de TOPO
-        // `Foo(1)` ou a qualificada pelo NOME DO TIPO `Foo.Foo(1)` (a forma
-        // que os diag de aridade/tipo da #994 fixam). Com um receptor VALOR
-        // — `s.Foo(1)` sobre um String — o ramo devolvia o tipo da classe e
-        // TUDO passava limpo (os guards SEM025/SEM102 só falam com Unknown),
-        // e cada alvo errava à sua maneira (JVM VerifyError / JS TypeError /
-        // Native link-fail / Script exit 1 mudo). Receptor valor = resolução
-        // de instância: o guard do tipo diagnostica; `Foo(...)`/`Foo.Foo(...)`
-        // seguem sendo ctor.
-        boolean ctorForm = mc.receiver() == null
-                || (mc.receiver() instanceof IdentifierExpr rid
-                    && (sa.allClasses().containsKey(rid.name())
-                        || MemberResolver.isBuiltinTypeName(rid.name())));
-        if (ctorClass != null && ctorForm) {
-            return ImplicitCtorCallTyper.inferTail(sa, mc, scope, ctorClass);
-        }
+        return BuiltinCallTailTyper.inferTail(sa, mc, scope);
+    }
 
-        for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
-        // String API: métodos que devolvem Int (indexOf, lastIndexOf,
-        // length, compareTo...) — sem isso o var local infere Unknown
-        // e o backend emite aload+if_icmp* (VerifyError)
-        if (mc.receiver() != null) {
-            Type recv = SemExpressionTyper.inferType(sa, mc.receiver(), scope);
-            if (Type.isString(recv) || recv instanceof Type.NullableType nt && Type.isString(nt.inner())) {
-                // Fonte ÚNICA do retorno dos métodos de String: o mesmo
-                // StringMethodRegistry que o emit usa para o descritor JVM.
-                // Antes este switch cobria só Int/Bool e o resto virava Unknown
-                // — `var arr = s.toCharArray()` tipava o local como Object e o
-                // emit gerava `getfield "?".length` / `Class.forName("?")`
-                // (issues #158/#146/#147).
-                List<Type> argTypes = new ArrayList<>();
-                for (ExpressionNode arg : mc.arguments()) {
-                    argTypes.add(sa.expressionTypes().get(arg));
-                }
-                StringMethodRegistry.Sig sig = StringMethodRegistry.stringMethodSignature(
-                        mc.methodName(), mc.arguments().size(), argTypes);
-                if (sig != null && !Type.isVoid(sig.returnType())) {
-                    return sig.returnType();
-                }
-                return switch (mc.methodName()) {
-                    case "indexOf", "lastIndexOf", "length", "size", "count",
-                         "compareTo", "compareToIgnoreCase", "hashCode" -> Type.PrimitiveType.INT;
-                    case "isEmpty" -> Type.PrimitiveType.BOOL;
-                    default -> Type.UnknownType.UNKNOWN;
-                };
-            }
+    // §362/#545: o call-site implicito `Class(args)` sem aridade casada —
+    // MESMO SEM023 (e MESMAS excecoes) do caminho `new` em SemExpressionTyper:
+    // so reclama quando EXISTE construtor declarado (a aridade chamada e que
+    // nao casa); `class Z {}` + `Z()` (default implicito) fica legal.
+    static void reportNoCtorArity(SemanticAnalyzer sa, SymbolTable.ClassSymbol ctorClass,
+            MethodCallExpr mc) {
+        if (sa.diagnostics() == null) return;
+        SymbolTable.Symbol anyInit = ctorClass.members().resolve("<init>");
+        if (anyInit instanceof SymbolTable.ConstructorSymbol c) {
+            sa.diagnostics().error(mc,
+                    "no constructor of '" + mc.methodName() + "' with "
+                            + mc.arguments().size() + " argument(s) (expected "
+                                    + SymbolTable.describeExpectedConstructorArity(c) + ")",
+                    "SEM023");
+        } else if (anyInit instanceof SymbolTable.ConstructorSet set
+                && !set.constructors().isEmpty()) {
+            sa.diagnostics().error(mc,
+                    "no constructor of '" + mc.methodName() + "' with "
+                            + mc.arguments().size() + " argument(s)",
+                    "SEM023");
         }
-        return Type.UnknownType.UNKNOWN;
+    }
+    /** #585: resolve os type-arguments explícitos do call-site de construção
+     *  implícita (`ClassName<T>(...)`); sem witness, raw (compat aditivo).
+     *  Package-private: também chamado por BuiltinCallTailTyper. */
+    static List<Type> resolveWitnessTypeArgs(SemanticAnalyzer sa, MethodCallExpr mc,
+            SymbolTable scope) {
+        if (mc.typeArguments().isEmpty()) return List.of();
+        List<Type> resolved = new ArrayList<>();
+        for (var ta : mc.typeArguments()) {
+            resolved.add(MemberResolver.resolveType(sa, ta, scope));
+        }
+        return resolved;
     }
 
 }
