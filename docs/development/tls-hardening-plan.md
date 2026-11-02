@@ -1,22 +1,22 @@
-[English](PLAN-TLS-HARDENING.md) | [Português](PLAN-TLS-HARDENING.pt_BR.md)
+[English](tls-hardening-plan.md) | [Português](tls-hardening-plan.pt_BR.md)
 
-last: none
-doing: none — plan only, zero code
-next: spike-0-inventory (SNI/hot-reload/ACME-state audit) — only if a maintainer orders promotion per `D-FUTURE-PROMOTION`
-location: docs/development/future
-state: planned
+last: 02/11/2026 — PROMOTED from `docs/development/future/` by maintainer order ("pega tls do future pra fazer, é urgente"); slice 0 (inventory spike) MEASURED at the tip
+doing: slice 0 DONE (measured baseline re-confirmed); slice 1 (SNI certificate selection, JVM) is the next slice
+next: slice 1 — SNI certificate selection on the JVM: hostname→(certPem,keyPem) map from explicit API args, select from ClientHello SNI, unknown SNI = named handshake refusal; RED-first proof in `KofWebTlsTest` style
+location: docs/development
+state: under-development
+owner: 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a
 
 intent: kof-tls-hardening-beyond-dev-self-signed
 
-**Rule 6 gate:** TLS touches a **frozen-semantics surface** (the `web.app()`
-contract + the `kof.http` trust behavior, both user-visible and
-security-critical). This document is **plan only, zero code** — no compiler,
-runtime, CLI or dependency change is made by it. Promotion requires a
-maintainer decision (`D-TLS-HARDEN` or an extension of `D-SEC.6`) and the
-future-promotion flow (`docs/development/future/README.md` §"When to move",
-`AGENTS.md` §"Future promotion"): rewrite with `UNDER DEVELOPMENT`, real state
-+ how-to-finish, queue in `roadmap.md` §23, point `docs/status.md` at it,
-claim in `DOING.md`.
+**Rule 6 gate — SATISFIED 02/11/2026.** TLS touches a **frozen-semantics
+surface** (the `web.app()` contract + the `kof.http` trust behavior, both
+user-visible and security-critical). The maintainer ordered the promotion
+directly ("pega tls do future pra fazer, é urgente"), which is the rule-6
+decision for this plan; the frozen contract it must respect is `D-SEC.6`
+(additive only — the 1-arg/3-arg `listenSecure` surface never changes). The
+future-promotion flow was executed: rewritten `UNDER DEVELOPMENT`, queued in
+`roadmap.md` §23, `docs/status.md` points at it, claimed in `DOING.md`.
 
 **Source:** external downstream need (the KofCloud edge serves multi-tenant
 HTTPS and today cannot terminate TLS inside the Kof process for raw sockets;
@@ -72,6 +72,24 @@ missing production faces in slices, each independently testable.
 and `docs/status.md:781` still claim `KofWebTlsTest` has 5 tests; the file
 has 7 `@Test` methods (the two own-cert faces landed later). Fixing the
 count belongs to the promotion slice (docs update, not this plan).
+
+### Slice 0 — MEASURED at promotion (02/11/2026, lane `192.168.100.14:0`)
+
+Re-measured at the tip before any code (the promotion entry gate):
+
+| Claim | Measured |
+|---|---|
+| `KofWebTlsTest` test count | **7** `@Test` (the plan's §2 table is right; the 5-vs-7 doc drift is real) |
+| SNI selection | **absent** — 0 files match `SNIServerName`/`SNIMatcher`/`setServerNames` |
+| Certificate hot-reload | **absent** — 0 files match `reloadTls`/`reloadTLS` |
+| ACME | **absent** — the single `acme` hit is `NativeBackend.java:493` (a JNI name-mangling comment, unrelated) |
+| `listenSecure` lowering | `KofWeb.java:163` (`case "listenSecure"`), gap at `:217` (`WEB002`) |
+| JVM server impl | `JvmRuntimeWebServer.java:43` (self-signed), `:78` (own PEM), `:130` PKCS12, `:135` `SunX509`, `:156` keytool |
+| Trust-all client | `JvmWebHttpRuntime.java:112` (`KOF_HTTP_CLIENT_INSECURE`), `:117` empty trust manager, `:123` `setEndpointIdentificationAlgorithm("")`, `:137` selection |
+| Doc drift | `docs/stdlib/http.md:325` and `docs/status.md:783` both say **5** tests; the file has **7** |
+
+Line numbers drifted slightly from the plan's §2 (e.g. the trust-all block is
+`:112-137`, not `:112-132`); the substance is unchanged. Slice 1 may start.
 
 ## 3. Design principles (frozen for all slices)
 

@@ -1,23 +1,24 @@
-[English](PLAN-TLS-HARDENING.md) | [Português](PLAN-TLS-HARDENING.pt_BR.md)
+[English](tls-hardening-plan.md) | [Português](tls-hardening-plan.pt_BR.md)
 
-last: none
-doing: none — só plano, zero código
-next: spike-0-inventário (auditoria SNI/hot-reload/ACME) — só se a mantenedora ordenar promoção por `D-FUTURE-PROMOTION`
-location: docs/development/future
-state: planned
+last: 02/11/2026 — PROMOVIDO de `docs/development/future/` por ordem da mantenedora ("pega tls do future pra fazer, é urgente"); a fatia 0 (spike de inventário) foi MEDIDA no tip
+doing: fatia 0 FEITA (baseline medido re-confirmado); a fatia 1 (seleção de certificado por SNI, JVM) é a próxima
+next: fatia 1 — seleção de certificado por SNI na JVM: mapa hostname→(certPem,keyPem) a partir de argumentos explícitos da API, seleção pelo SNI do ClientHello, SNI desconhecido = recusa de handshake nomeada; prova RED-first no estilo `KofWebTlsTest`
+location: docs/development
+state: under-development
+dona: 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a
 
 intent: kof-tls-hardening-beyond-dev-self-signed
 
-**Gate da regra 6:** TLS toca uma **superfície de semântica congelada** (o
-contrato do `web.app()` + o comportamento de confiança do `kof.http`,
-ambos visíveis ao usuário e críticos para segurança). Este documento é
-**só plano, zero código** — nenhuma mudança de compilador, runtime, CLI ou
-dependência é feita por ele. A promoção exige decisão da mantenedora
-(`D-TLS-HARDEN` ou extensão do `D-SEC.6`) e o fluxo de promoção
-(`docs/development/future/README.md` §"Quando mover",
-`AGENTS.md` §"Future promotion"): reescrever com `EM DESENVOLVIMENTO`,
-estado real + como-finalizar, enfileirar em `roadmap.md` §23, apontar
-`docs/status.md` para ele, reivindicar em `DOING.md`.
+**Gate da regra 6 — SATISFEITO 02/11/2026.** TLS toca uma **superfície de
+semântica congelada** (o contrato do `web.app()` + o comportamento de
+confiança do `kof.http`, ambos visíveis ao usuário e críticos para
+segurança). A mantenedora ordenou a promoção diretamente ("pega tls do
+future pra fazer, é urgente"), o que é a decisão da regra 6 para este
+plano; o contrato congelado que ele precisa respeitar é o `D-SEC.6`
+(apenas aditivo — a superfície `listenSecure` de 1/3 argumentos nunca
+muda). O fluxo de promoção foi executado: reescrito `EM DESENVOLVIMENTO`,
+enfileirado em `roadmap.md` §23, `docs/status.md` aponta para ele,
+reivindicado em `DOING.md`.
 
 **Origem:** necessidade externa downstream (o edge do KofCloud serve HTTPS
 multi-tenant e hoje não consegue terminar TLS dentro do processo Kof para
@@ -74,6 +75,24 @@ independentemente.
 `KofWebTlsTest` tem 5 testes; o arquivo tem 7 métodos `@Test` (as duas faces
 de cert-próprio pousaram depois). Corrigir a contagem pertence à fatia de
 promoção (atualização de docs, não este plano).
+
+### Fatia 0 — MEDIDA na promoção (02/11/2026, lane `192.168.100.14:0`)
+
+Re-medido no tip antes de qualquer código (o gate de entrada da promoção):
+
+| Alegação | Medido |
+|---|---|
+| Contagem de testes do `KofWebTlsTest` | **7** `@Test` (a tabela §2 do plano está certa; o drift 5-vs-7 nos docs é real) |
+| Seleção por SNI | **ausente** — 0 arquivos casam `SNIServerName`/`SNIMatcher`/`setServerNames` |
+| Hot-reload de certificado | **ausente** — 0 arquivos casam `reloadTls`/`reloadTLS` |
+| ACME | **ausente** — o único hit `acme` é `NativeBackend.java:493` (um comentário de mangling JNI, sem relação) |
+| Lowering do `listenSecure` | `KofWeb.java:163` (`case "listenSecure"`), gap em `:217` (`WEB002`) |
+| Impl do servidor JVM | `JvmRuntimeWebServer.java:43` (self-signed), `:78` (PEM próprio), `:130` PKCS12, `:135` `SunX509`, `:156` keytool |
+| Cliente trust-all | `JvmWebHttpRuntime.java:112` (`KOF_HTTP_CLIENT_INSECURE`), `:117` trust manager vazio, `:123` `setEndpointIdentificationAlgorithm("")`, `:137` seleção |
+| Drift de docs | `docs/stdlib/http.md:325` e `docs/status.md:783` dizem **5** testes; o arquivo tem **7** |
+
+Os números de linha derivaram um pouco da §2 do plano (ex.: o bloco trust-all é
+`:112-137`, não `:112-132`); a substância está inalterada. A fatia 1 pode começar.
 
 ## 3. Princípios de design (congelados para todas as fatias)
 
