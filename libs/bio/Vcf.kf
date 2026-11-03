@@ -1,0 +1,46 @@
+package bio
+
+// kof.bio.vcf — the VCF READER (universal platform Stage 7.1, the recorded
+// pure-Kof follow-up of the bio row): typed records out of the 8-column
+// data rows. Pure Kof over measured idioms — `split("\n")` for the lines,
+// and the TAB via the `"\t"` string escape (the Csv.kf `"\n"` framing
+// proves the escape machinery works in .kf string literals).
+//
+// VCF v4.2 shape handled: `##` meta lines and the `#CHROM POS ...` header
+// line are SKIPPED; a data row needs AT LEAST the 8 fixed columns
+// (CHROM POS ID REF ALT QUAL FILTER INFO — FORMAT/samples are ignored by
+// this reader). A shorter row refuses BIO003. A missing QUAL (the `.`) is
+// `Double?` null — never a fabricated 0; POS parses with `.toInt()` (VCF
+// POS is an integer, the SEM090 truncation note does not apply).
+
+record VcfRecord(String chrom, Int pos, String id, String ref, String alt, Double? qual)
+
+// readVcf — the data rows of a VCF document as typed records.
+List<VcfRecord> readVcf(String text) {
+    var tab = "\t"
+    var out = listOf<VcfRecord>()
+    var lines = text.split("\n")
+    var i = 0
+    while (i < lines.length) {
+        var line = lines[i]
+        if (line.length > 0 && !line.startsWith("#")) {
+            var cols = line.split(tab)
+            if (cols.length < 8) {
+                throw "BIO003: a VCF data row needs at least 8 columns: " + line
+            }
+            var qual = 0.0
+            var qualPresent = false
+            if (cols[5] != ".") {
+                qual = cols[5].toDouble()
+                qualPresent = true
+            }
+            if (qualPresent) {
+                out.add(VcfRecord(cols[0], cols[1].toInt(), cols[2], cols[3], cols[4], qual))
+            } else {
+                out.add(VcfRecord(cols[0], cols[1].toInt(), cols[2], cols[3], cols[4], null))
+            }
+        }
+        i = i + 1
+    }
+    return out
+}
