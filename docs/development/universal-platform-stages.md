@@ -1,7 +1,7 @@
 [English](universal-platform-stages.md) | [Português](universal-platform-stages.pt_BR.md)
 
 last: 03/11/2026 — PROMOTED from `docs/development/future/` by the maintainer's direct order ("pega o universal platform de future"); Stage 4.6 (light experiment tracking) LANDED the same cycle with executed proof (`ExperimentsE2ETest` 2/2)
-doing: Stages 4–7 are the CURRENT development plan — 4.6 DONE (`libs/experiments/`), 4.3's descriptive half DONE (`libs/stats/`), 4.5's writer half DONE (`libs/svg/`), 5.9's detection core DONE (`libs/sentinel/`), 5.10's audit chain DONE (`libs/audit/`), 7.1's text half DONE (`libs/bio/Bio.kf`: the FASTA/FASTQ readers + gcContent, `BioE2ETest` 2/2 JVM+Script); the remaining items are measured against their real dependencies below
+doing: Stages 4–7 are the CURRENT development plan — every PURE-KOF candidate is DONE (4.6 experiments, 4.3's descriptive half, 4.5's writer half, 5.9's detection core, 5.10's audit chain, 7.1's text readers, 7.3's QC pipeline — all with E2E proof); every remaining item is BLOCKED by its real dependency (R3 FFI, Arrow, a maintainer decision or the R12 stage order), recorded row-by-row below
 next: the next CANDIDATE — 5.10, 7.1 (text formats), 7.3; everything else stays blocked by R3 (FFI), Arrow or the R12 stage order
 location: docs/development
 state: under-development
@@ -46,7 +46,7 @@ Each row is the plan's own item checked against the tree, not against the plan's
 | 6.7 HPC profiling | 🔵 needs 6.1 | nothing | BLOCKED by 6.1 |
 | 7.1 `kof-bio` FASTA/FASTQ/VCF/BAM | 🔵 needs R3/R5 | **the FASTA/FASTQ readers are NOW in the tree** (`libs/bio/Bio.kf`, landed 04/11) | PARTIAL — the text half LANDED (`BioE2ETest` 2/2); VCF 🔵 follow-up, BAM 🔵 binary FFI |
 | 7.2 BLAST/htslib | 🔵 needs R3 | nothing | BLOCKED — FFI/CLI interop |
-| 7.3 genomic pipelines | 🔵 needs 2.1 | `kof.workflow` landed | CANDIDATE — pure-Kof pipeline over 7.1's parsers |
+| 7.3 genomic pipelines | 🔵 needs 2.1 | `kof.workflow` landed; **the QC pipeline is NOW in the tree** (`libs/bio/Pipeline.kf`, landed 04/11) | PARTIAL — the stats/filter/report pipeline LANDED (`PipelineE2ETest` 2/2); the workflow orchestration wiring stays 🔵 caller composition |
 | 7.4 HPC | 🔵 needs 6.1 | nothing | BLOCKED by 6.1 |
 | 7.5 lab automation | 🟡 pieces exist | `kof.http` exists; `kof.process` native face is `PROC001` | PARTIAL |
 
@@ -131,7 +131,7 @@ aligners/variant callers.
 |---|------|--------|-------|------------|
 | 7.1 | `kof-bio` (official package): FASTA/FASTQ/VCF/BAM as typed records | 🟡 | `192.168.100.14:0` | **the TEXT half LANDED 04/11** — `libs/bio/Bio.kf` (pure Kof): typed `FastaRecord(header, sequence)` / `FastqRecord(header, sequence, quality)` parsed from text, `gcContent` (the classic computing face), honest refusals (BIO001 an empty FASTA sequence, BIO002 a quality-length mismatch). Proof: `BioE2ETest` **2/2** (JVM + Script) RED-first (`libs/bio not found`), faces on two-FASTA-records/GC/one-FASTQ-record/both-refusals. VCF (tabular) stays 🔵 follow-up; BAM 🔵 (binary FFI) |
 | 7.2 | Alignment/variants via **FFI/CLI** (BLAST/htslib — do not reimplement) | 🔵 | — | 7.1, R3 |
-| 7.3 | Genomic pipelines (Stage 2 `workflow` model + checkpointing) | 🔵 | — | 2.1 (landed) — **CANDIDATE once 7.1's parsers exist** |
+| 7.3 | Genomic pipelines (Stage 2 `workflow` model + checkpointing) | 🟡 | `192.168.100.14:0` | **the QC PIPELINE LANDED 04/11** — `libs/bio/Pipeline.kf` (pure Kof): `sequenceStats(records)` (per-record header/length/gc), `qcFilter(stats, minLen, minGc)` (the AND-threshold step) and `qcReport(stats)` (count/meanLength/meanGc; empty refuses QC001) — the stats → filter → report shape over the 7.1 readers. Proof: `PipelineE2ETest` **2/2** (JVM + Script) RED-first (SEM015 undefined functions; a Kof lesson: the import is PER-FILE — `import bio.Pipeline`, not just `bio.Bio`). The `kof.workflow` orchestration wiring stays 🔵 as the caller's composition follow-up |
 | 7.4 | HPC (Stage 6) | 🔵 | — | 6.1 |
 | 7.5 | Lab automation (`kof.http` REST + `kof.process` via FFI) | 🟡 | — | pieces exist |
 

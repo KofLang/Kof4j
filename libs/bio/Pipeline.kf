@@ -1,0 +1,65 @@
+package bio
+
+// kof.bio.pipeline — the GENOMIC QC PIPELINE (universal platform Stage 7.3,
+// the pure-Kof half): the stats → filter → report pipeline shape composing
+// the Stage 7.1 readers (`readFasta`/`readFastq`). Pure Kof over the landed
+// primitives — the checkpointed `kof.workflow` orchestration stays the
+// caller's composition (the plan records it as the follow-up wiring).
+//
+// Honesty rules carried over: an empty stats list refuses QC001 (a report
+// over nothing would fabricate zeros); a record's length and gc come from
+// the SAME measured faces (`gcContent` refuses an empty sequence).
+
+record SequenceStat(String header, Int length, Double gc)
+
+// sequenceStats — one stat per record: the header, the sequence length and
+// the GC fraction (via the landed `gcContent` face).
+List<SequenceStat> sequenceStats(List<FastaRecord> records) {
+    var out = listOf<SequenceStat>()
+    var i = 0
+    while (i < records.size()) {
+        var r = records.get(i)
+        out.add(SequenceStat(r.header, r.sequence.length, gcContent(r.sequence)))
+        i = i + 1
+    }
+    return out
+}
+
+// qcFilter — keep the stats meeting BOTH thresholds (the AND filter): a
+// sequence length of at least `minLen` and a GC fraction of at least
+// `minGc`. The thresholds are the caller's policy; the library never
+// guesses one.
+List<SequenceStat> qcFilter(List<SequenceStat> stats, Int minLen, Double minGc) {
+    var out = listOf<SequenceStat>()
+    var i = 0
+    while (i < stats.size()) {
+        var s = stats.get(i)
+        if (s.length >= minLen && s.gc >= minGc) {
+            out.add(s)
+        }
+        i = i + 1
+    }
+    return out
+}
+
+record QcReport(Int count, Double meanLength, Double meanGc)
+
+// qcReport — the summary over a stats list: how many sequences passed and
+// their mean length / mean GC. An empty list refuses QC001 (zeros over
+// nothing would fabricate a passing run).
+QcReport qcReport(List<SequenceStat> stats) {
+    if (stats.size() == 0) {
+        throw "QC001: a QC report over an empty stats list is undefined"
+    }
+    var totalLen = 0
+    var totalGc = 0.0
+    var i = 0
+    while (i < stats.size()) {
+        var s = stats.get(i)
+        totalLen = totalLen + s.length
+        totalGc = totalGc + s.gc
+        i = i + 1
+    }
+    var n = stats.size().toDouble()
+    return QcReport(stats.size(), totalLen.toDouble() / n, totalGc / n)
+}
