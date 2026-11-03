@@ -1,8 +1,8 @@
 [English](universal-platform-stages.md) | [Português](universal-platform-stages.pt_BR.md)
 
 last: 03/11/2026 — PROMOTED from `docs/development/future/` by the maintainer's direct order ("pega o universal platform de future"); Stage 4.6 (light experiment tracking) LANDED the same cycle with executed proof (`ExperimentsE2ETest` 2/2)
-doing: Stages 4–7 are the CURRENT development plan — 4.6 DONE (`libs/experiments/`), 4.3's descriptive half DONE (`libs/stats/`), 4.5's writer half DONE (`libs/svg/Svg.kf`: document/rect/line/text + barChart, `SvgE2ETest` 2/2 JVM+Script); the remaining items are measured against their real dependencies below
-next: the next CANDIDATE — 5.9, 5.10, 7.1 (text formats), 7.3; everything else stays blocked by R3 (FFI), Arrow or the R12 stage order
+doing: Stages 4–7 are the CURRENT development plan — 4.6 DONE (`libs/experiments/`), 4.3's descriptive half DONE (`libs/stats/`), 4.5's writer half DONE (`libs/svg/`), 5.9's detection core DONE (`libs/sentinel/Sentinel.kf`: the event ring + burst rule + JSON alert, `SentinelE2ETest` 2/2 JVM+Script); the remaining items are measured against their real dependencies below
+next: the next CANDIDATE — 5.10, 7.1 (text formats), 7.3; everything else stays blocked by R3 (FFI), Arrow or the R12 stage order
 location: docs/development
 state: under-development
 owner: 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a
@@ -36,7 +36,7 @@ Each row is the plan's own item checked against the tree, not against the plan's
 | 5.4–5.6 PQC/hybrid/secure.channel | 🔵 needs R3 + `liboqs` | zero PQC code | BLOCKED — audited `liboqs` FFI (never homemade crypto) |
 | 5.7 `libpcap` FFI | 🔵 needs R3 | nothing | BLOCKED — FFI |
 | 5.8 forensics | 🔵 needs 5.7 | nothing | BLOCKED by 5.7 |
-| 5.9 security automation | 🔵 needs Stage 2 | `kof.http` + `spawn` + `kof.log` exist | CANDIDATE — a pure-Kof threat-intel/alert pipeline is expressible |
+| 5.9 security automation | 🔵 needs Stage 2 | `kof.http` + `spawn` + `kof.log` exist; **the detection core is NOW in the tree** (`libs/sentinel/Sentinel.kf`, landed 04/11) | PARTIAL — the burst/alert core LANDED (`SentinelE2ETest` 2/2); the http/log wiring faces stay 🔵 follow-ups |
 | 5.10 defensive monitoring | 🟡 pieces exist | observability + log + db all landed | CANDIDATE — a pure-Kof audit/detection slice is expressible |
 | 6.1 BLAS/LAPACK FFI | 🔵 needs R3 | nothing | BLOCKED — FFI |
 | 6.2 SIMD research | 🔵 native lane | native lane is a LIVE lane | NOT MINE |
@@ -95,7 +95,7 @@ legitimate/controlled context; defend *first*.
 | 5.6 | S7 — `secure.channel` (KEM+KDF+AEAD+auth+replay) | 🔵 | security lane | 5.5 |
 | 5.7 | `kof.net` / packet parsing (FFI to `libpcap`) | 🔵 | — | R3 |
 | 5.8 | Forensics (FFI to parse libs + Kof pipelines) | 🔵 | — | 5.7, Stage 2 |
-| 5.9 | Security automation / threat-intel (`kof.http` + `spawn`/`channel` + `kof.log`) | 🔵 | — | Stage 2 — **CANDIDATE: pure Kof over existing primitives** |
+| 5.9 | Security automation / threat-intel (`kof.http` + `spawn`/`channel` + `kof.log`) | 🟡 | `192.168.100.14:0` | **the DETECTION CORE LANDED 04/11** — `libs/sentinel/Sentinel.kf` (pure Kof, class + record + List): an event ring with window pruning (`addEvent`), per-(source,kind) counting (`count`), the burst rule (`bursting`, count >= limit) and a JSON alert emitter (`alert` returns `String?`; the caller narrows and appends with the existing `kof.io` writers). Defensive only (detect + report, never contact/block). Proof: `SentinelE2ETest` **2/2** (JVM + Script) RED-first (`libs/sentinel not found`), faces on burst/no-burst/other-source/prune/other-kind/alert-JSON. The WIRING faces (an `kof.http` middleware feeding `addEvent`, a log-ingestion pump) stay 🔵 as follow-ups |
 | 5.10 | Defensive (monitoring/detection/audit over `kof.observability` + `kof.log` + `kof.db`) | 🟡 | — | pieces exist (1.6) — **CANDIDATE** |
 
 ---

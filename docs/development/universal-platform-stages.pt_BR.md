@@ -36,7 +36,7 @@ Cada linha é o item do próprio plano verificado contra a árvore, não contra 
 | 5.4–5.6 PQC/híbrido/secure.channel | 🔵 precisa R3 + `liboqs` | zero código PQC | BLOQUEADO — FFI de `liboqs` auditado (nunca cripto caseira) |
 | 5.7 FFI `libpcap` | 🔵 precisa R3 | nada | BLOQUEADO — FFI |
 | 5.8 forense | 🔵 precisa 5.7 | nada | BLOQUEADO pela 5.7 |
-| 5.9 automação de segurança | 🔵 precisa Fase 2 | `kof.http` + `spawn` + `kof.log` existem | CANDIDATO — um pipeline de threat-intel/alerta em Kof puro é expressível |
+| 5.9 automação de segurança | 🔵 precisa Fase 2 | `kof.http` + `spawn` + `kof.log` existem; **o núcleo de detecção está AGORA na árvore** (`libs/sentinel/Sentinel.kf`, pousou 04/11) | PARCIAL — o núcleo de explosão/alerta POUSOU (`SentinelE2ETest` 2/2); as faces de fiação http/log seguem 🔵 follow-ups |
 | 5.10 monitoração defensiva | 🟡 peças existem | observabilidade + log + db pousados | CANDIDATO — uma fatia de auditoria/detecção em Kof puro é expressível |
 | 6.1 BLAS/LAPACK FFI | 🔵 precisa R3 | nada | BLOQUEADO — FFI |
 | 6.2 pesquisa SIMD | 🔵 lane nativa | a lane nativa é uma lane VIVA | NÃO É MINHA |
@@ -105,7 +105,7 @@ contexto legítimo/controlado; defender *primeiro*.
 | 5.6 | S7 — `secure.channel` (KEM+KDF+AEAD+auth+replay) | 🔵 | lane security | 5.5 |
 | 5.7 | `kof.net` / parsing de pacotes (FFI para `libpcap`) | 🔵 | — | R3 |
 | 5.8 | Forense (FFI para libs de parsing + pipelines Kof) | 🔵 | — | 5.7, Estágio 2 |
-| 5.9 | Automação de segurança / threat-intel (`kof.http` + `spawn`/`channel` + `kof.log`) | 🔵 | — | Estágio 2 |
+| 5.9 | Automação de segurança / threat-intel (`kof.http` + `spawn`/`channel` + `kof.log`) | 🟡 | `192.168.100.14:0` | **o NÚCLEO DE DETECÇÃO POUSOU 04/11** — `libs/sentinel/Sentinel.kf` (Kof puro, classe + record + List): um anel de eventos com poda por janela (`addEvent`), contagem por (fonte, tipo) (`count`), a regra de explosão (`bursting`, contagem >= limite) e um emissor de alerta JSON (`alert` devolve `String?`; o chamador estreita e anexa com os escritores `kof.io` existentes). Defensivo apenas (detectar + reportar, nunca contactar/bloquear). Prova: `SentinelE2ETest` **2/2** (JVM + Script) RED-first (`libs/sentinel not found`), faces de explosão/não-explosão/outra-fonte/poda/outro-tipo/alerta-JSON. As faces de FIAÇÃO (um middleware `kof.http` alimentando `addEvent`, uma bomba de ingestão de log) seguem 🔵 como follow-ups |
 | 5.10 | Defensiva (monitoramento/detecção/auditoria sobre `kof.observability` + `kof.log` + `kof.db`) | 🟡 | — | peças existem (1.6) |
 
 ---
