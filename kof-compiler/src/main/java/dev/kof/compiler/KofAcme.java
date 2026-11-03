@@ -41,6 +41,21 @@ public final class KofAcme {
                 && isStr(argTypes.get(0)) && isStr(argTypes.get(1)) && isStr(argTypes.get(2))) {
             return new AcmeCall("kof_acme_jws_es256", STR, List.of(STR, STR, STR));
         }
+        if ("newOrder".equals(name) && argTypes.size() == 4
+                && isStr(argTypes.get(0)) && isStr(argTypes.get(1))
+                && isStr(argTypes.get(2)) && isStr(argTypes.get(3))) {
+            return new AcmeCall("kof_acme_new_order", STR, List.of(STR, STR, STR, STR));
+        }
+        if ("dns01Txt".equals(name) && argTypes.size() == 4
+                && isStr(argTypes.get(0)) && isStr(argTypes.get(1))
+                && isStr(argTypes.get(2)) && isStr(argTypes.get(3))) {
+            return new AcmeCall("kof_acme_dns01_txt", STR, List.of(STR, STR, STR, STR));
+        }
+        if ("challenge".equals(name) && argTypes.size() == 4
+                && isStr(argTypes.get(0)) && isStr(argTypes.get(1))
+                && isStr(argTypes.get(2)) && isStr(argTypes.get(3))) {
+            return new AcmeCall("kof_acme_challenge", STR, List.of(STR, STR, STR, STR));
+        }
         // TLS hardening slice 4 increment 2: the ACCOUNT layer — directory +
         // newNonce + newAccount (JWK embedded + RFC 7638 thumbprint); returns
         // the account kid.
@@ -52,7 +67,9 @@ public final class KofAcme {
     }
 
     static boolean isAcmeMethod(String name) {
-        return "jwsEs256".equals(name) || "newAccount".equals(name);
+        return "jwsEs256".equals(name) || "newAccount".equals(name)
+                || "newOrder".equals(name) || "dns01Txt".equals(name)
+                || "challenge".equals(name);
     }
 
     /** Gap code for the not-yet-supported targets (recorded per target). */

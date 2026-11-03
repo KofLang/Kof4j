@@ -1,8 +1,8 @@
 [English](tls-hardening-plan.md) | [Português](tls-hardening-plan.pt_BR.md)
 
 last: 02/11/2026 — PROMOVIDO de `docs/development/future/` por ordem da mantenedora ("pega tls do future pra fazer, é urgente"); a fatia 0 (spike de inventário) foi MEDIDA no tip
-doing: fatias 0-3 POUSADAS + fatia 4 incrementos 1-2 (o núcleo JWS ES256 + a camada ACCOUNT do ACME, KofWebTlsVerifyTest 7/7 contra stub local-de-teste); a camada ORDER (newOrder/authz/TXT/challenge/finalize) é o incremento 3
-next: fatia 4 incremento 3 — a camada ORDER (newOrder → authz → valor TXT do keyauth → gatilho do desafio → poll → finalize(CSR) → download do cert); a E2E Pebble destrava quando o CI providenciar Pebble
+doing: fatias 0-3 POUSADAS + fatia 4 incrementos 1-3 (núcleo JWS + camada ACCOUNT + camada ORDER, provadas contra stub local-de-teste: KofAcmeClientTest 3/3 + KofWebTlsVerifyTest 5/5 + KofWebTlsTest 14/14); a camada FINALIZE (CSR + download do cert) é o incremento 4
+next: fatia 4 incremento 4 — finalize (geração do CSR de uma chave de cert nova, POST finalize, poll do order até valid, download da cadeia) + a E2E Pebble (destrava quando o CI providenciar Pebble)
 location: docs/development
 state: under-development
 dona: 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a
@@ -254,6 +254,33 @@ account precisa):
 - **Incrementos restantes:** newOrder + authz + o valor TXT do keyauth +
   gatilho do desafio + poll + finalize(CSR) + download do cert (incremento 3),
   depois a E2E Pebble (destrava quando o CI providenciar Pebble).
+
+### Fatia 4 '—' INCREMENTO 3 POUSADO 04/11/2026 (lane `192.168.100.14:0`, flatt CLI)
+
+A camada ORDER do ACME, provada contra o mesmo stub ACME local-de-teste
+estendido com /newOrder + /order + /authz + /challenge:
+
+- **Superfície Kof:** `acme.newOrder(kid, accountKeyPem, directoryUrl,
+  domain): String` (a URL do order), `acme.dns01Txt(kid, accountKeyPem,
+  directoryUrl, domain): String` (o TXT DNS-01:
+  base64url(SHA-256(token "." thumbprint))) e `acme.challenge(kid,
+  accountKeyPem, directoryUrl, domain): String` (a URL da autorização após
+  disparar o desafio). Os três fazem POST como JWS com o KID no header
+  protegido (sem JWK '—' a conta existe), cada um buscando um nonce FRESCO
+  no endpoint newNonce do directory.
+- **Prova (executada):** `KofAcmeClientTest` **3/3** (os testes ACME saíram
+  do `KofWebTlsVerifyTest` para os ratchets check_500/hygiene '—' 8/8 + 5/5 +
+  3/3 entre as três classes) '—' o teste calcula o TXT ESPERADO de forma
+  independente (double-and-add próprio + JSON canónico RFC 7638) e o valor
+  do runtime bate byte-a-byte; as URLs de order/authz são servidas pelo stub
+  e o POST do desafio é capturado; `KofWebTlsTest` 14/14; `KofHttpE2ETest`
+  8/8; `mvn -o -pl kof-compiler -am compile` rc=0.
+- **Split do template do runtime:** a camada ACME foi para um template
+  próprio `JvmAcmeRuntime` (montado após `JvmRuntimeTlsServer`; o runtime
+  http estava em 720 linhas após o incremento 2 '—' o check_500 forçou o
+  split).
+- **Incremento restante:** finalize(CSR) + download do cert + a E2E Pebble
+  (destrava quando o CI providenciar Pebble).
 
 ## 3. Princípios de design (congelados para todas as fatias)
 

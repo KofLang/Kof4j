@@ -1,8 +1,8 @@
 [English](tls-hardening-plan.md) | [Português](tls-hardening-plan.pt_BR.md)
 
 last: 02/11/2026 — PROMOTED from `docs/development/future/` by maintainer order ("pega tls do future pra fazer, é urgente"); slice 0 (inventory spike) MEASURED at the tip
-doing: slices 0-3 LANDED + slice 4 increments 1-2 (the JWS ES256 core + the ACME ACCOUNT layer, KofWebTlsVerifyTest 7/7 against a test-local ACME stub); the ORDER layer (newOrder/authz/TXT/challenge/finalize) is increment 3
-next: slice 4 increment 3 — the ORDER layer (newOrder → authz → keyauth TXT value → challenge trigger → poll → finalize(CSR) → cert download); the Pebble E2E unblocks when the CI provides Pebble
+doing: slices 0-3 LANDED + slice 4 increments 1-3 (JWS core + ACCOUNT layer + ORDER layer, proven against a test-local ACME stub: KofAcmeClientTest 3/3 + KofWebTlsVerifyTest 5/5 + KofWebTlsTest 14/14); the FINALIZE layer (CSR + cert download) is increment 4
+next: slice 4 increment 4 — finalize (CSR generation from a fresh cert key, POST finalize, poll the order until valid, download the cert chain) + the Pebble E2E (unblocks when the CI provides Pebble)
 location: docs/development
 state: under-development
 owner: 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a
@@ -243,6 +243,31 @@ this host — the stub implements the three endpoints the account layer needs):
 - **Remaining increments:** newOrder + authz + the keyauth TXT value +
   challenge trigger + poll + finalize(CSR) + cert download (increment 3),
   then the Pebble E2E (unblocks when the CI provides Pebble).
+
+### Slice 4 — INCREMENT 3 LANDED 04/11/2026 (lane `192.168.100.14:0`, flatt CLI)
+
+The ACME ORDER layer, proven against the same test-local ACME stub extended
+with /newOrder + /order + /authz + /challenge:
+
+- **Kof surface:** `acme.newOrder(kid, accountKeyPem, directoryUrl, domain):
+  String` (the order URL), `acme.dns01Txt(kid, accountKeyPem, directoryUrl,
+  domain): String` (the DNS-01 TXT: base64url(SHA-256(token "." thumbprint))),
+  and `acme.challenge(kid, accountKeyPem, directoryUrl, domain): String` (the
+  authorization URL after triggering the challenge). All three POST as JWS
+  with the KID in the protected header (no JWK — the account exists), each
+  fetching a FRESH nonce from the directory's newNonce endpoint.
+- **Proof (executed):** `KofAcmeClientTest` **3/3** (the ACME tests moved out
+  of `KofWebTlsVerifyTest` for the check_500/hygiene ratchets — 8/8 + 5/5 +
+  3/3 across the three classes) — the test computes the EXPECTED TXT
+  independently (its own double-and-add + RFC 7638 canonical JSON) and the
+  runtime's value matches byte-for-byte; the order/authz URLs are served by
+  the stub and the challenge POST is captured; `KofWebTlsTest` 14/14;
+  `KofHttpE2ETest` 8/8; `mvn -o -pl kof-compiler -am compile` rc=0.
+- **Runtime template split:** the ACME layer moved to its own
+  `JvmAcmeRuntime` template (assembled after `JvmRuntimeTlsServer`; the http
+  runtime was 720 lines after increment 2 — check_500 forced the split).
+- **Remaining increment:** finalize(CSR) + cert download + the Pebble E2E
+  (unblocks when the CI provides Pebble).
 
 ## 3. Design principles (frozen for all slices)
 
