@@ -27,7 +27,7 @@ Cada linha é o item do próprio plano verificado contra a árvore, não contra 
 | 4.2 Arrow/Parquet via FFI | 🔵 precisa R3 | zero código Arrow/Parquet | BLOQUEADO — dependência FFI (R3) |
 | 4.3 estatística via FFI | 🔵 precisa R3 | `libs/vision` só tem histograma/equalização | PARCIAL — uma fatia de estatística descritiva em Kof puro é expressável; a metade FFI (distribuições/álgebra linear) não |
 | 4.4 inferência `kof.ml` | 🔵 precisa R3 | nada | BLOQUEADO — FFI ONNX/libtorch |
-| 4.5 visualização leve | 🟡 "kof.ui existe" | `kof.ui` existe como superfície do COMPILADOR (`CompilerUiEmitter`); NÃO há escritor SVG nem `libs/ui` | PARCIAL — um escritor SVG sobre `Raster` é expressível em Kof puro; bindings de gráficos a um engine não |
+| 4.5 visualização leve | 🟡 "kof.ui existe" | `kof.ui` existe como superfície do COMPILADOR; **AGORA há escritor SVG** (`libs/svg/Svg.kf`, pousou 03/11) | PARCIAL — a metade escritora POUSOU (`SvgE2ETest` 2/2); bindings de gráficos a um engine seguem 🔵 (FFI/pacote oficial) |
 | **4.6 registro de experimentos** | 🔵 precisa 3.4 | `kof.db` + `kof.io` pousaram; o padrão `DbLedger` prova linhas-sobre-db | **✅ FEITO neste ciclo** |
 | 4.7 profiling de pipeline | 🔵 precisa 4.1 | depende do dataframe | BLOQUEADO pela 4.1 |
 | 5.1 Secret/KeyHandle | ✅ | pousou 21/09 (`D-SECRETS`) | FEITO |
@@ -77,7 +77,7 @@ o *wrapper tipado + pipeline*, o *motor* fica fora.
 | 4.2 | **Arrow/Parquet via FFI** (wrapper tipado) | 🔵 | — | R3 |
 | 4.3 | Estatística/probabilidade via FFI | 🟡 | `192.168.100.14:0` | **a metade descritiva POUSOU 03/11** — `libs/stats/Stats.kf` (Kof puro): `mean`/`median`/`minimum`/`maximum`/`pvariance` (populacional)/`stddev` (sobre `math.sqrt`, MATH001 honesto no cross nativo)/`percentile` (interpolação linear; STATS001 vazio, STATS002 fora de faixa). Prova: `StatsE2ETest` **2/2** (JVM + Script) RED-first (`libs/stats not found` capturado, depois duas faces reais do compilador: o crash de frame COMP002 na forma multi-return — consertado com saída única — e a nota de truncamento SEM090). A metade de distribuições de probabilidade segue 🔵 (FFI/R3) |
 | 4.4 | `kof.ml` — inferência via FFI (ONNX/libtorch); treino orquestrado | 🔵 | — | R3 |
-| 4.5 | Visualização leve (SVG/`kof.ui` + FFI) | 🟡 | — | `kof.ui` existe; bindings de data-viz pendentes |
+| 4.5 | Visualização leve (SVG/`kof.ui` + FFI) | 🟡 | `192.168.100.14:0` | **a metade ESCRITORA POUSOU 03/11** — `libs/svg/Svg.kf` (construção de String em Kof puro): `svgDocument`/`svgRect`/`svgLine`/`svgText` (escape XML de `& < >`, `&` primeiro) + `barChart` (escala pelo máximo, geometria QUANTIZADA em Int para o texto ser byte-idêntico por alvo; série vazia recusa SVG001). Prova: `SvgE2ETest` **2/2** (JVM + Script) RED-first (`libs/svg not found`). A metade de bindings de ENGINE segue 🔵 (um engine de gráficos é dependência de FFI/pacote oficial) |
 | 4.6 | Rastreamento de experimentos (leve, sobre `kof.db`/`kof.io`) | ✅ | `192.168.100.14:0` | **POUSOU 03/11** — `libs/experiments/Experiments.kf`: `initExperiments`, `startRun`/`finishRun`, `logMetric`/`logParam`, `metricAt`/`lastMetric`/`metricCount`, `exportRun` (JSON Lines sobre `kof.io`). Linhas sobre `kof.db`; o leitor decodifica a linha JSON crua com `json.decode<Row>` porque o `db.query<Rec>` tipado perde um record definido em LIB (`known-bugs` §727). Prova: `ExperimentsE2ETest` **2/2** (JVM + Script), RED-first com 4 diagnósticos reais (`null` não atribuível, `integer` não é tipo, receivers nuláveis, `readText` devolve `String?`) |
 | 4.7 | Tooling: profiling de pipeline | 🔵 | — | 4.1 |
 

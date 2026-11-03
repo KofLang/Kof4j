@@ -1,8 +1,8 @@
 [English](universal-platform-stages.md) | [Português](universal-platform-stages.pt_BR.md)
 
 last: 03/11/2026 — PROMOTED from `docs/development/future/` by the maintainer's direct order ("pega o universal platform de future"); Stage 4.6 (light experiment tracking) LANDED the same cycle with executed proof (`ExperimentsE2ETest` 2/2)
-doing: Stages 4–7 are the CURRENT development plan — 4.6 DONE (`libs/experiments/`), 4.3's descriptive half DONE (`libs/stats/Stats.kf`: mean/median/minimum/maximum/pvariance/stddev/percentile, `StatsE2ETest` 2/2 JVM+Script); the remaining items are measured against their real dependencies below
-next: the next CANDIDATE — 4.5 (SVG writer), 5.9, 5.10, 7.1 (text formats), 7.3; everything else stays blocked by R3 (FFI), Arrow or the R12 stage order
+doing: Stages 4–7 are the CURRENT development plan — 4.6 DONE (`libs/experiments/`), 4.3's descriptive half DONE (`libs/stats/`), 4.5's writer half DONE (`libs/svg/Svg.kf`: document/rect/line/text + barChart, `SvgE2ETest` 2/2 JVM+Script); the remaining items are measured against their real dependencies below
+next: the next CANDIDATE — 5.9, 5.10, 7.1 (text formats), 7.3; everything else stays blocked by R3 (FFI), Arrow or the R12 stage order
 location: docs/development
 state: under-development
 owner: 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a
@@ -27,7 +27,7 @@ Each row is the plan's own item checked against the tree, not against the plan's
 | 4.2 Arrow/Parquet via FFI | 🔵 needs R3 | zero Arrow/Parquet code | BLOCKED — FFI dependency (R3) |
 | 4.3 statistics via FFI | 🔵 needs R3 | `libs/vision` has histogram/equalization only | PARTIAL — a pure-Kof descriptive-statistics slice is expressible; the FFI distribution/linear-algebra half is not |
 | 4.4 `kof.ml` inference | 🔵 needs R3 | nothing | BLOCKED — ONNX/libtorch FFI |
-| 4.5 light visualization | 🟡 "kof.ui exists" | `kof.ui` exists as a COMPILER surface (`CompilerUiEmitter`); there is NO SVG writer and no `libs/ui` | PARTIAL — an SVG writer over `Raster` is expressible in pure Kof; data-viz bindings to a charting engine are not |
+| 4.5 light visualization | 🟡 "kof.ui exists" | `kof.ui` exists as a COMPILER surface; **there is NOW an SVG writer** (`libs/svg/Svg.kf`, landed 03/11) | PARTIAL — the writer half LANDED (`SvgE2ETest` 2/2); data-viz bindings to a charting engine stay 🔵 (FFI/official package) |
 | **4.6 experiment tracking** | 🔵 needs 3.4 | `kof.db` + `kof.io` both landed; the `DbLedger` pattern proves rows-over-db | **✅ DONE this cycle** |
 | 4.7 pipeline profiling | 🔵 needs 4.1 | depends on the dataframe | BLOCKED by 4.1 |
 | 5.1 Secret/KeyHandle | ✅ | landed 21/09 (`D-SECRETS`) | DONE |
@@ -67,7 +67,7 @@ Each row is the plan's own item checked against the tree, not against the plan's
 | 4.2 | **Arrow/Parquet via FFI** (typed wrapper) | 🔵 | — | R3 |
 | 4.3 | Statistics/probability (wrapper + FFI) | 🟡 | `192.168.100.14:0` | **the descriptive half LANDED 03/11** — `libs/stats/Stats.kf` (pure Kof): `mean`/`median`/`minimum`/`maximum`/`pvariance` (population)/`stddev` (over `math.sqrt`, MATH001 honest on native cross)/`percentile` (linear interpolation; STATS001 empty, STATS002 out-of-range). Proof: `StatsE2ETest` **2/2** (JVM + Script) RED-first (`libs/stats not found` captured, then two real compiler faces surfaced: the COMP002 frame-crash on the multi-return shape — fixed single-exit — and SEM090's toInt truncation note). The probability-distribution half stays 🔵 (FFI/R3) |
 | 4.4 | `kof.ml` — inference via FFI (ONNX/libtorch); orchestrated training | 🔵 | — | R3 |
-| 4.5 | Light visualization (SVG/`kof.ui` + FFI) | 🟡 | — | `kof.ui` exists; data-viz bindings pending |
+| 4.5 | Light visualization (SVG/`kof.ui` + FFI) | 🟡 | `192.168.100.14:0` | **the WRITER half LANDED 03/11** — `libs/svg/Svg.kf` (pure Kof string building): `svgDocument`/`svgRect`/`svgLine`/`svgText` (XML escaping of `& < >`, `&` first) + `barChart` (max-scaled, INT-quantized geometry so the output text is byte-identical per target; empty series refuses SVG001). Proof: `SvgE2ETest` **2/2** (JVM + Script) RED-first (`libs/svg not found`), contains-faces on tags/escaping/deterministic geometry. The ENGINE-bindings half stays 🔵 (a charting engine is an FFI/official-package dependency) |
 | 4.6 | Experiment tracking (light, over `kof.db`/`kof.io`) | ✅ | `192.168.100.14:0` | **LANDED 03/11** — `libs/experiments/Experiments.kf`: `initExperiments`, `startRun`/`finishRun`, `logMetric`/`logParam`, `metricAt`/`lastMetric`/`metricCount`, `exportRun` (JSON Lines over `kof.io`). Rows over `kof.db`; the reader decodes the raw JSON row with `json.decode<Row>` because the typed `db.query<Rec>` loses a LIB-defined record (`known-bugs` §727). Proof: `ExperimentsE2ETest` **2/2** (JVM + Script), RED-first with 4 real diagnostics (`null` not assignable, `integer` not a type, nullable receivers, `readText` returns `String?`) |
 | 4.7 | Tooling: pipeline profiling | 🔵 | — | 4.1 |
 
