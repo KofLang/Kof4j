@@ -28,6 +28,14 @@ public final class KofWeb {
     static final Type SSE_CONNECTION =
             new Type.ClassType("dev.kof.runtime", "KofRuntime$SseConnection", List.of());
 
+    /**
+     * TLS hardening slice 1: the value {@code web.secureHost(host, certPem,
+     * keyPem)} produces — a compile-time-only descriptor consumed by
+     * {@code app.listenSecure(port, hosts)}. It never reaches the runtime as a
+     * type: the lowering flattens the list into three parallel String arrays.
+     */
+    static final Type SECURE_HOST = new Type.ClassType("kof.web", "SecureHost", List.of());
+
     private static final Type STR = BuiltinTypes.STRING;
     private static final Type INT = Type.PrimitiveType.INT;
     private static final Type VOID = Type.PrimitiveType.VOID;
@@ -73,6 +81,23 @@ public final class KofWeb {
 
     static boolean isWebNamespace(String name) {
         return "web".equals(name);
+    }
+
+    /** {@code web.secureHost(host, certPem, keyPem)} — one SNI entry. */
+    static WebCall secureHostConstructor() {
+        return new WebCall("kof_web_secure_host", SECURE_HOST, List.of(STR, STR, STR));
+    }
+
+    static boolean isSecureHostType(Type t) {
+        return SECURE_HOST.equals(t);
+    }
+
+    /** {@code List<SecureHost>} — the SNI overload's second argument. */
+    static boolean isSecureHostList(Type t) {
+        return t instanceof Type.ClassType ct
+                && "kof".equals(ct.packageName()) && "List".equals(ct.name())
+                && ct.typeArguments().size() == 1
+                && isSecureHostType(ct.typeArguments().get(0));
     }
 
     static boolean isContextFunction(String name) {
@@ -172,6 +197,16 @@ public final class KofWeb {
                     yield new WebCall("kof_web_listen_secure_pem", VOID,
                             List.of(STR, INT, STR, STR));
                 }
+                // TLS hardening slice 1: SNI — one process, many hostnames.
+                // The list is flattened by the lowering into three parallel
+                // String arrays (hosts, certs, keys); the runtime selects the
+                // certificate from the ClientHello SNI and REFUSES an unknown
+                // hostname (never the default cert).
+                if (argTypes.size() == 2 && isInt(argTypes.get(0))
+                        && isSecureHostList(argTypes.get(1))) {
+                    yield new WebCall("kof_web_listen_secure_sni", VOID,
+                            List.of(STR, INT, STR, STR, STR));
+                }
                 yield null;
             }
             case "port" -> argTypes.isEmpty()
@@ -214,7 +249,8 @@ public final class KofWeb {
             case "kof_web_serve_dir" -> "WEB005";
             case "kof_web_security", "kof_web_security_opts", "kof_web_policy",
                  "kof_web_route_opts" -> "WEB006";
-            case "kof_web_listen_secure", "kof_web_listen_secure_pem" -> "WEB002";
+            case "kof_web_listen_secure", "kof_web_listen_secure_pem",
+                 "kof_web_listen_secure_sni" -> "WEB002";
             default -> "WEB001";
         };
     }

@@ -268,6 +268,9 @@ final class MemberCallNamespaces {
             if ("app".equals(mc.methodName()) && mc.arguments().isEmpty()) {
                 return KofWeb.APP;
             }
+            if ("secureHost".equals(mc.methodName()) && mc.arguments().size() == 3) {
+                return KofWeb.SECURE_HOST;
+            }
             return unknown(sa, "web", mc.methodName());
         }
         // D-KOF-NET (fatia 1): membros de handle `net` (Listener/Conn/Endpoint).
@@ -301,6 +304,14 @@ final class MemberCallNamespaces {
             }
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
+            // TLS hardening slice 1: the SNI overload's list literal — the
+            // element type follows from the listOf call itself.
+            if ("listenSecure".equals(mc.methodName()) && mc.arguments().size() == 2
+                    && mc.arguments().get(1) instanceof MethodCallExpr lc
+                    && "listOf".equals(lc.methodName()) && lc.receiver() == null) {
+                for (ExpressionNode e : lc.arguments()) SemExpressionTyper.inferType(sa, e, scope);
+                argTypes.set(1, new Type.ClassType("kof", "List", List.of(KofWeb.SECURE_HOST)));
+            }
             KofWeb.WebCall webCall = KofWeb.instanceMethod(mc.methodName(), argTypes);
             if (webCall != null) return webCall.returnType();
             return unknown(sa, "web.app", mc.methodName());

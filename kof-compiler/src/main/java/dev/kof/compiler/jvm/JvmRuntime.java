@@ -165,6 +165,7 @@ public static boolean hasRuntimeFn(String methodName) {
                 + JvmMediaRuntime.source()
                 + JvmImageRuntime.source()
                 + JvmRuntimeWebServer.source()
+                + JvmRuntimeTlsServer.source()
                 + JvmRuntimeSockets.source()
                 + JvmRuntimeWebDispatch.source()
                 + JvmConfigRuntime.source()

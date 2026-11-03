@@ -373,6 +373,12 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     return ExpressionNamespaceCallLowerer.lowerImage(driver, mc, rid, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
             && KofWeb.isWebNamespace(rid.name())) {
+    if ("secureHost".equals(mc.methodName()) && mc.arguments().size() == 3) {
+        // TLS hardening slice 1: compile-time-only descriptor — never
+        // materialized at runtime; listenSecure(port, hosts) reads the three
+        // String arguments straight off the AST and flattens them.
+        return localIdx;
+    }
     if ("app".equals(mc.methodName()) && mc.arguments().isEmpty()) {
         // AND002 (docs/targets/KOFANDROID.md): app móvel não escuta porta —
         // o servidor embutido (web.app) não tem realização no Android; o

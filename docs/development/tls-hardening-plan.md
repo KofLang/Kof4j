@@ -1,8 +1,8 @@
 [English](tls-hardening-plan.md) | [Português](tls-hardening-plan.pt_BR.md)
 
 last: 02/11/2026 — PROMOTED from `docs/development/future/` by maintainer order ("pega tls do future pra fazer, é urgente"); slice 0 (inventory spike) MEASURED at the tip
-doing: slice 0 DONE (measured baseline re-confirmed); slice 1 (SNI certificate selection, JVM) IN PROGRESS — the frontend surface compiles (`web.secureHost(...)` + `listenSecure(port, List<SecureHost>)`), the TLS handshake does NOT close yet (client timeout); WIP in `git stash tls-slice1-wip-sni`, nothing half-working committed
-next: slice 1 — finish the SNI handshake I/O (the SSLEngine/SSLSocket over the replayed ClientHello times out on the client side); then RED-first proof in `KofWebTlsTest` style
+doing: slice 0 (inventory) + slice 1 (SNI certificate selection, JVM) LANDED with executed proof (KofWebTlsTest 11/11); slice 2 (certificate hot-reload) is the next slice
+next: slice 2 — certificate hot-reload without restart (JVM): explicit app.reloadTls() and/or file-watch, atomic SSLContext swap, reload failure keeps serving the old cert
 location: docs/development
 state: under-development
 owner: 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a
@@ -90,6 +90,42 @@ Re-measured at the tip before any code (the promotion entry gate):
 
 Line numbers drifted slightly from the plan's §2 (e.g. the trust-all block is
 `:112-137`, not `:112-132`); the substance is unchanged. Slice 1 may start.
+
+### Slice 1 — LANDED 02/11/2026 (lane `192.168.100.14:0`, flatt CLI)
+
+SNI certificate selection on the JVM, additive over `D-SEC.6`:
+
+- **Kof surface:** `web.secureHost(host, certPem, keyPem)` builds a
+  compile-time-only descriptor; `app.listenSecure(port, listOf(secureHost(...), ...))`
+  (the 2-arg overload) serves the list. The 1-arg/3-arg surfaces are unchanged.
+- **Lowering:** the list literal is flattened into three parallel
+  `String[]` (hosts/certs/keys) and emitted as
+  `kof_web_listen_secure_sni(appId, port, hosts[], certs[], keys[])`;
+  a non-literal list is refused with `WEB007` (the certificate set must be
+  explicit at the call site). Native/JS keep the honest `WEB002`.
+- **Runtime:** a PLAIN `ServerSocket`; per connection the first TLS record is
+  read, the SNI hostname is parsed from the ClientHello, and the handshake
+  runs on an `SSLEngine` over that host's `SSLContext` (one PEM pair each).
+  Unknown SNI → `HTTP 421` + `WEB007` on stderr, NO certificate (never the
+  default). No SNI at all → the FIRST configured host (documented default).
+- **Why SSLEngine:** the JDK's server `SSLSocket` path does NOT expose the
+  ClientHello SNI to a KeyManager (`chooseServerAlias` has no SNI; only the
+  engine's `chooseEngineServerAlias` does), and `createSocket(Socket,...)`
+  ignores the passed Socket's streams — the handshake must be engine-based.
+- **Proof (executed):** `KofWebTlsTest` **11/11** (the 7 original + 4 new:
+  `sniSelectsTheCertificatePerHostname` (fingerprints differ per host),
+  `sniUnknownHostnameIsRefused` (loud refusal), `sniNoHostnameGetsTheDocumentedDefault`
+  (first cert), `sniGapOnNative` (WEB002)); `mvn -o -pl kof-compiler -am compile` rc=0;
+  the TLS template split (check_500: `JvmRuntimeWebServer` 744→257 + new
+  `JvmRuntimeTlsServer` 506, both below 600).
+
+Debug war stories kept OUT of the code but recorded here for the next slice:
+the emit bugs were a String-loaded int literal (`KofLoadLiteral.ofInt` fix) and
+`KofNewArray`+`KofArrayStore` (not `kof_array_*` calls); the runtime bug was a
+`PushbackInputStream.read(b,off,len)` that drains the pushback and then BLOCKS
+for the remainder — the replay must be a `SequenceInputStream(ByteArrayInputStream,
+rawStream)` so the first `fillNet` cannot deadlock (the peer only sends its next
+flight after our ServerHello).
 
 ## 3. Design principles (frozen for all slices)
 

@@ -31,6 +31,14 @@ final class BuiltinCallTailTyper {
             Type declared = TopLevelCallTyper.infer(sa, mc, scope);
             return declared != null ? declared : Type.UnknownType.UNKNOWN;
         }
+        // TLS hardening slice 1: inside a listOf(...) literal the parser
+        // delivers `secureHost(...)` WITHOUT its `web.` receiver — the
+        // compile-time descriptor is still recognized here so the call never
+        // falls to SEM015 "Undefined function".
+        if (mc.receiver() == null && "secureHost".equals(mc.methodName()) && mc.arguments().size() == 3) {
+            for (ExpressionNode a : mc.arguments()) SemExpressionTyper.inferType(sa, a, scope);
+            return KofWeb.SECURE_HOST;
+        }
         if (mc.receiver() == null) {
             SymbolTable.Symbol localSym = scope != null ? scope.resolve(mc.methodName()) : null;
             if (localSym != null && localSym.type() instanceof Type.FunctionType lft) {

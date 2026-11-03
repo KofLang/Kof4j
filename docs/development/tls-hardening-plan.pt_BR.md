@@ -1,8 +1,8 @@
 [English](tls-hardening-plan.md) | [Português](tls-hardening-plan.pt_BR.md)
 
 last: 02/11/2026 — PROMOVIDO de `docs/development/future/` por ordem da mantenedora ("pega tls do future pra fazer, é urgente"); a fatia 0 (spike de inventário) foi MEDIDA no tip
-doing: fatia 0 FEITA (baseline medido re-confirmado); fatia 1 (seleção por SNI, JVM) EM ANDAMENTO — a superfície de frontend compila (`web.secureHost(...)` + `listenSecure(port, List<SecureHost>)`), o handshake TLS ainda NÃO fecha (timeout no cliente); WIP em `git stash tls-slice1-wip-sni`, nada meio-funcional commitado
-next: fatia 1 — terminar o I/O do handshake SNI (o SSLEngine/SSLSocket sobre o ClientHello replicado dá timeout no cliente); depois prova RED-first no estilo `KofWebTlsTest`
+doing: fatia 0 (inventário) + fatia 1 (seleção por SNI, JVM) POUSADAS com prova executada (KofWebTlsTest 11/11); a fatia 2 (hot-reload de certificado) é a próxima
+next: fatia 2 — hot-reload de certificado sem reinício (JVM): app.reloadTls() explícito e/ou file-watch, troca atômica do SSLContext, falha de reload mantém o cert antigo
 location: docs/development
 state: under-development
 dona: 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a
@@ -93,6 +93,46 @@ Re-medido no tip antes de qualquer código (o gate de entrada da promoção):
 
 Os números de linha derivaram um pouco da §2 do plano (ex.: o bloco trust-all é
 `:112-137`, não `:112-132`); a substância está inalterada. A fatia 1 pode começar.
+
+### Fatia 1 — POUSADA 02/11/2026 (lane `192.168.100.14:0`, flatt CLI)
+
+Seleção de certificado por SNI na JVM, aditiva sobre o `D-SEC.6`:
+
+- **Superfície Kof:** `web.secureHost(host, certPem, keyPem)` monta um
+  descritor apenas-de-compilação; `app.listenSecure(port,
+  listOf(secureHost(...), ...))` (o overload de 2 argumentos) serve a lista.
+  As superfícies de 1 e 3 argumentos estão inalteradas.
+- **Lowering:** o literal de lista é achatado em três `String[]`
+  paralelos (hosts/certs/keys) e emitido como
+  `kof_web_listen_secure_sni(appId, port, hosts[], certs[], keys[])`; uma
+  lista não-literal é recusada com `WEB007` (o conjunto de certificados
+  deve ser explícito no ponto da chamada). Native/JS mantêm o `WEB002`
+  honesto.
+- **Runtime:** um `ServerSocket` PLANO; por conexão o primeiro record TLS
+  é lido, o hostname SNI é extraído do ClientHello, e o handshake roda
+  num `SSLEngine` sobre o `SSLContext` daquele host (um par PEM cada). SNI
+  desconhecido → `HTTP 421` + `WEB007` no stderr, SEM certificado (nunca o
+  default). Sem SNI → o PRIMEIRO host configurado (default documentado).
+- **Por que SSLEngine:** o caminho `SSLSocket` de servidor do JDK NÃO
+  expõe o SNI do ClientHello a um KeyManager (`chooseServerAlias` não
+  recebe SNI; só o `chooseEngineServerAlias` do engine recebe), e
+  `createSocket(Socket,...)` ignora os streams do Socket passado — o
+  handshake tem de ser baseado em engine.
+- **Prova (executada):** `KofWebTlsTest` **11/11** (os 7 originais + 4
+  novos: seleção por fingerprint por host, recusa alto-falante do
+  desconhecido, default sem-SNI = primeiro cert, gap WEB002 no NATIVE);
+  `mvn -o -pl kof-compiler -am compile` rc=0; o split do template TLS
+  (check_500: `JvmRuntimeWebServer` 744→257 + novo `JvmRuntimeTlsServer`
+  506, ambos abaixo de 600).
+
+Batalhas de debug ficam FORA do código mas registradas aqui para a próxima
+fatia: no emit, um literal int carregado como String (`KofLoadLiteral.ofInt`
+corrige) e `KofNewArray`+`KofArrayStore` (não chamadas `kof_array_*`); no
+runtime, um `PushbackInputStream.read(b,off,len)` que drena o pushback e
+depois BLOQUEIA esperando o resto — o replay tem de ser
+`SequenceInputStream(ByteArrayInputStream, rawStream)` para que o primeiro
+`fillNet` não deadlock (o par só envia o próximo vôo depois do nosso
+ServerHello).
 
 ## 3. Princípios de design (congelados para todas as fatias)
 
