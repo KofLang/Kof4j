@@ -277,7 +277,7 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
         && !shadowsFieldOfCurrentClass(driver, owner, rid.name())) {
     return ExpressionSshCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
-            && KofHttp.isHttpNamespace(rid.name())) {
+            && (KofHttp.isHttpNamespace(rid.name()) || KofAcme.isAcmeNamespace(rid.name()))) {
     return ExpressionHttpCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
             && KofTime.isTimeNamespace(rid.name())) {

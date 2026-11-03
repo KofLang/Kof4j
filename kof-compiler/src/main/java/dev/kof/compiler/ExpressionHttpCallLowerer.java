@@ -14,6 +14,40 @@ public final class ExpressionHttpCallLowerer {
                       String owner, int localIdx, List<IRLocalVariable> locals) {
     List<Type> argTypes = new ArrayList<>();
     for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
+    // TLS hardening slice 4: the ACME client core is a JVM face — the plan's
+    // slice-4 scope; other targets keep the honest WEB008 gap (no ACME face
+    // there, never a stub).
+    if (KofAcme.isAcmeNamespace(((IdentifierExpr) mc.receiver()).name())) {
+        KofAcme.AcmeCall acmeCall = KofAcme.staticCall(mc.methodName(), argTypes);
+        if (acmeCall != null) {
+            if (driver.target != Target.JVM && driver.target != Target.SCRIPT
+                    && driver.target != Target.ANDROID) {
+                if (driver.currentDiagnostics != null) {
+                    driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
+                            mc.position() != null ? mc.position().line() : 0,
+                            mc.position() != null ? mc.position().column() : 0, 0,
+                            "acme." + mc.methodName() + ": the ACME client core is a JVM face — the "
+                                    + driver.target + " target has no ACME surface yet (WEB008)",
+                            "WEB008");
+                }
+                return localIdx;
+            }
+            for (ExpressionNode arg : mc.arguments()) {
+                localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
+            }
+            ops.add(new KofCall(KofAcme.ACME, acmeCall.function(), acmeCall.parameterTypes(),
+                    acmeCall.returnType(), KofCallKind.FUNCTION));
+        } else {
+            if (driver.currentDiagnostics != null) {
+                driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
+                        mc.position() != null ? mc.position().line() : 0,
+                        mc.position() != null ? mc.position().column() : 0, 0,
+                        "Cannot resolve method '" + mc.methodName() + "' on namespace 'acme' (WEB008)",
+                        "WEB008");
+            }
+        }
+        return localIdx;
+    }
     KofHttp.HttpCall httpCall = KofHttp.staticCall(mc.methodName(), argTypes);
     if (httpCall != null) {
         // TLS hardening slice 3: the trust-all opt-in is a JVM face — the JS

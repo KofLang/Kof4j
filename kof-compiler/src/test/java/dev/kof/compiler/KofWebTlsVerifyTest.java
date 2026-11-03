@@ -28,6 +28,7 @@ class KofWebTlsVerifyTest extends ServerProcessSupport {
 
     private final CompilerDriver driver = new CompilerDriver();
 
+
     private int freePort() throws IOException {
         try (ServerSocket probe = new ServerSocket(0)) {
             return probe.getLocalPort();
@@ -166,6 +167,8 @@ class KofWebTlsVerifyTest extends ServerProcessSupport {
         cmd.add(JAVA_BIN);
         for (String prop : jvmProps) cmd.add(prop);
         cmd.add("-cp");
+        // The KofRuntime helper is generated INSIDE outDir (ensureCompiled);
+        // it only needs the outDir on the classpath.
         cmd.add(outDir.toString());
         cmd.add("Default.Main");
         Process p2 = new ProcessBuilder(cmd).redirectErrorStream(true).start();
@@ -322,5 +325,79 @@ class KofWebTlsVerifyTest extends ServerProcessSupport {
         assertTrue(result.diagnostics().getDiagnostics().stream()
                         .anyMatch(d -> d.code().equals("HTTP002")),
                 "esperava HTTP002, foi: " + result.diagnostics().getDiagnostics());
+    }
+
+    // ── TLS hardening slice 4 (increment 1): the ACME JWS ES256 core ───────
+    // acme.jwsEs256(accountKeyPem, headerJson, payloadJson) produces a
+    // RFC 7515 JWS: b64url(header).b64url(payload).ES256(r||s). The operator's
+    // PKCS#8 EC P-256 key signs; the test verifies with the public key.
+
+    @Test
+    void acmeJwsEs256SignsAndVerifiesRoundTrip(@TempDir Path tempDir) throws Exception {
+        // EC P-256 par (keytool), PKCS#8 + X.509 PEMs
+        Process p = new ProcessBuilder("keytool", "-genkeypair", "-alias", "acme",
+                "-keyalg", "EC", "-groupname", "secp256r1",
+                "-validity", "365", "-dname", "CN=acme-test",
+                "-keystore", tempDir.resolve("acme.p12").toString(),
+                "-storepass", "changeit", "-keypass", "changeit",
+                "-storetype", "PKCS12", "-noprompt")
+                .redirectErrorStream(true).start();
+        assertEquals(0, p.waitFor(), "EC genkeypair");
+        java.security.KeyStore store = java.security.KeyStore.getInstance("PKCS12");
+        try (var in = Files.newInputStream(tempDir.resolve("acme.p12"))) {
+            store.load(in, "changeit".toCharArray());
+        }
+        java.security.PrivateKey key = (java.security.PrivateKey)
+                store.getKey("acme", "changeit".toCharArray());
+        String keyPem = "-----BEGIN PRIVATE KEY-----\n" + mime(key.getEncoded())
+                + "-----END PRIVATE KEY-----\n";
+        java.security.PublicKey pub = store.getCertificate("acme").getPublicKey();
+
+        String out = runHttpClient(tempDir, "main() {\n"
+                + "    println(acme.jwsEs256(\"" + kofLiteral(keyPem) + "\", "
+                + "\"" + kofLiteral("{\"alg\":\"ES256\"}") + "\", "
+                + "\"" + kofLiteral("{\"iss\":\"test\"}") + "\"))\n"
+                + "}\n");
+        String[] parts = out.strip().split("\\.");
+        assertEquals(3, parts.length, "a JWS has three parts: " + out);
+        String signingInput = parts[0] + "." + parts[1];
+        byte[] jwsSig = java.util.Base64.getUrlDecoder().decode(parts[2]);
+        // JWS ES256 = r||s (64 bytes); converte para DER e verifica
+        assertTrue(jwsSig.length == 64, "ES256 JWS signature is r||s: " + jwsSig.length);
+        java.math.BigInteger r = new java.math.BigInteger(1,
+                java.util.Arrays.copyOfRange(jwsSig, 0, 32));
+        java.math.BigInteger sv = new java.math.BigInteger(1,
+                java.util.Arrays.copyOfRange(jwsSig, 32, 64));
+        String der = java.util.Base64.getEncoder().encodeToString(toDerSig(r, sv));
+        java.security.Signature sig = java.security.Signature.getInstance("SHA256withECDSA");
+        sig.initVerify(pub);
+        sig.update(signingInput.getBytes(StandardCharsets.UTF_8));
+        assertTrue(sig.verify(java.util.Base64.getDecoder().decode(der)),
+                "the JWS must verify against the operator key: " + out);
+    }
+
+    private static byte[] toDerSig(java.math.BigInteger r, java.math.BigInteger s) throws Exception {
+        var out = new java.io.ByteArrayOutputStream();
+        out.write(0x30);
+        var body = new java.io.ByteArrayOutputStream();
+        writeInt(out, body, r);
+        writeInt(out, body, s);
+        byte[] b = body.toByteArray();
+        if (b.length > 127) {
+            out.write(0x81);
+        }
+        out.write(b.length);
+        out.write(b);
+        return out.toByteArray();
+    }
+
+    private static void writeInt(java.io.ByteArrayOutputStream out,
+                                 java.io.ByteArrayOutputStream body,
+                                 java.math.BigInteger v) {
+        byte[] b = v.toByteArray();
+        if (b.length > 1 && b[0] == 0) b = java.util.Arrays.copyOfRange(b, 1, b.length);
+        body.write(0x02);
+        body.write(b.length);
+        body.write(b, 0, b.length);
     }
 }

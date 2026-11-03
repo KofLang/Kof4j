@@ -1,8 +1,8 @@
 [English](tls-hardening-plan.md) | [Português](tls-hardening-plan.pt_BR.md)
 
 last: 02/11/2026 — PROMOVIDO de `docs/development/future/` por ordem da mantenedora ("pega tls do future pra fazer, é urgente"); a fatia 0 (spike de inventário) foi MEDIDA no tip
-doing: fatias 0-3 POUSADAS com prova executada (KofWebTlsTest 19/19: inventário + SNI + hot-reload + cliente verificador); a fatia 4 (cliente ACME DNS-01) é a próxima
-next: fatia 4 — cliente ACME DNS-01 (JVM, CA externa): Pebble no CI, ES256 JWS reutilizado do runtime OAuth, chaves delegadas ao operador
+doing: fatias 0-3 POUSADAS (KofWebTlsTest 14/14 + KofWebTlsVerifyTest 5/5) + fatia 4 INCREMENTO 1 (o núcleo JWS ES256 do ACME, KofWebTlsVerifyTest 6/6 prova de round-trip); o fluxo DNS-01 (incremento 2) é o próximo
+next: fatia 4 incremento 2 — o fluxo DNS-01 (directory → newNonce → newAccount → newOrder → authz → TXT keyauth → gatilho do desafio → poll → finalize(CSR) → download do cert), provável contra um stub ACME local-de-teste; a E2E Pebble destrava quando o CI providenciar Pebble (sem Go/Pebble neste host hoje)
 location: docs/development
 state: under-development
 dona: 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a
@@ -192,6 +192,41 @@ passe sempre `-storepass`); `-ext bc=ca` é INVÁLIDO (a grafia válida é
 `-ext bc`); `-gencert -outfile` escreve DER sem `-rfc`; o PEM emitido está no
 charset do SISTEMA (decodifique com `Charset.defaultCharset()`, nunca
 `Files.readString`).
+
+### Fatia 4 — INCREMENTO 1 POUSADO 04/11/2026 (lane `192.168.100.14:0`, flatt CLI)
+
+O núcleo do cliente ACME, primeiro incremento (a primitiva JWS ES256 sobre a
+qual o fluxo DNS-01 completo se constrói):
+
+- **Superfície Kof:** `acme.jwsEs256(accountKeyPem, headerJson, payloadJson)`
+  assina UM JWS RFC 7515 com a chave EC P-256 do operador:
+  `b64url(header).b64url(payload).b64url(ES256(r||s))`. O armazenamento da
+  chave permanece DELEGADO ao operador (o PEM chega do secret store dele;
+  o Kof nunca o persiste '—' princípio 3.5 do plano). O namespace é
+  JVM-primeiro (JVM/Script/Android); JS/Native mantêm o gap honesto
+  `WEB008` em compile (sem face ACME lá, nunca um stub).
+- **Conversão ECDSA DER'→'JWS** (RFC 7518 §3.4): a assinatura JCA
+  `SHA256withECDSA` é DER; o runtime separa r/s para a forma JWS fixa de
+  64 bytes, conforme a RFC.
+- **Prova (executada):** `KofWebTlsVerifyTest` **6/6** '—' os 5 anteriores +
+  `acmeJwsEs256SignsAndVerifiesRoundTrip` (um par EC P-256 gerado pelo
+  keytool; o JWS é verificado contra a chave PÚBLICA do operador após
+  reconverter r||s para DER); `KofWebTlsTest` **14/14**; `KofHttpE2ETest`
+  8/8; `mvn -o -pl kof-compiler -am compile` rc=0.
+- **Encanamento do runtime descoberto no caminho:** uma função nova
+  `kof_acme_*` precisa do prefixo `kof_acme_` em `JvmRuntime.hasRuntimeFn`
+  (senão a call cai fora da whitelist do emitter e NADA é emitido '—' a
+  classe helper nunca é gerada e o processo filho morre
+  NoClassDefFoundError); um descriptor de call; um descriptor de return; e a
+  tabela de descriptors passou de 600 linhas '—' a família web/http/acme
+  foi para `JvmRuntimeCallDescriptorsWeb` (SRP: assinaturas de comunicação).
+- **Incrementos restantes (registrados honestamente):** o fluxo DNS-01
+  (directory '→' newNonce '→' newAccount '→' newOrder '→' authz '→' TXT
+  keyauth '→' gatilho do desafio '→' poll '→' finalize(CSR) '→' download do
+  cert) e a prova E2E dele contra Pebble. O host NÃO tem Go/Pebble hoje '—'
+  a E2E destrava quando o CI providenciar Pebble (condição ambiental, como
+  a toolchain riscv64); o fluxo do protocolo pode ser provado primeiro
+  contra um stub ACME local-de-teste.
 
 ## 3. Princípios de design (congelados para todas as fatias)
 

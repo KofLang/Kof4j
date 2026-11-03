@@ -63,6 +63,7 @@ public static boolean hasRuntimeFn(String methodName) {
                 || methodName.startsWith("kof_image_")
                 || methodName.startsWith("kof_tetris_")
                 || methodName.startsWith("kof_http_")
+                || methodName.startsWith("kof_acme_")
                 || methodName.startsWith("kof_mq_")
                 || methodName.startsWith("kof_time_")
                 || methodName.startsWith("kof_vk_")

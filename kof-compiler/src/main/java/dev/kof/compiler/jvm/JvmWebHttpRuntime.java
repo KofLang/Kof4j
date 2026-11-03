@@ -156,6 +156,81 @@ public final class JvmWebHttpRuntime {
                             : java.net.http.HttpClient.newHttpClient();
                 }
 
+                // ── TLS hardening slice 4 (increment 1): the ACME JWS core ──
+
+                private static byte[] kofAcmeB64url(byte[] src) {
+                    return java.util.Base64.getUrlEncoder().withoutPadding().encode(src);
+                }
+
+                private static byte[] kofAcmeB64urlDecode(String s) {
+                    return java.util.Base64.getUrlDecoder().decode(s);
+                }
+
+                private static java.security.PrivateKey kofAcmeKey(String pem) throws Exception {
+                    String body = pem.replace("-----BEGIN PRIVATE KEY-----", "")
+                            .replace("-----END PRIVATE KEY-----", "")
+                            .replaceAll("\\s", "");
+                    byte[] der = java.util.Base64.getMimeDecoder().decode(body);
+                    return java.security.KeyFactory.getInstance("EC")
+                            .generatePrivate(new java.security.spec.PKCS8EncodedKeySpec(der));
+                }
+
+                /** DER ECDSA signature -> JWS r||s (64 bytes, RFC 7518 §3.4). */
+                private static byte[] kofAcmeJwsSig(java.security.Signature sig) throws Exception {
+                    byte[] der = sig.sign();
+                    byte[] r = new byte[32];
+                    byte[] s2 = new byte[32];
+                    int i = 2; // 0x30 len
+                    int rlen = der[i + 1] & 0xff;
+                    byte[] rb = java.util.Arrays.copyOfRange(der, i + 2, i + 2 + rlen);
+                    System.arraycopy(rb, rb.length - Math.min(rb.length, 32), r, 32 - Math.min(rb.length, 32),
+                            Math.min(rb.length, 32));
+                    i = i + 2 + rlen + 1;
+                    int slen = der[i] & 0xff;
+                    byte[] sb = java.util.Arrays.copyOfRange(der, i + 1, i + 1 + slen);
+                    System.arraycopy(sb, sb.length - Math.min(sb.length, 32), s2, 32 - Math.min(sb.length, 32),
+                            Math.min(sb.length, 32));
+                    byte[] out = new byte[64];
+                    System.arraycopy(r, 0, out, 0, 32);
+                    System.arraycopy(s2, 0, out, 32, 32);
+                    return out;
+                }
+
+                /**
+                 * TLS hardening slice 4 (increment 1): signs ONE RFC 7515 JWS
+                 * with the operator's EC P-256 key:
+                 * b64url(header).b64url(payload).b64url(ES256(r||s)).
+                 * Key storage is DELEGATED to the operator (the PEM arrives from
+                 * their secret store; Kof never persists it).
+                 */
+                public static String kof_acme_jws_es256(String keyPem, String headerJson,
+                        String payloadJson) throws Exception {
+                    if (keyPem == null || headerJson == null || payloadJson == null) {
+                        throw new RuntimeException("WEB008: acme.jwsEs256(keyPem, header, payload) — "
+                                + "all three arguments are required");
+                    }
+                    try {
+                        java.security.PrivateKey key = kofAcmeKey(keyPem);
+                        String signingInput = new String(kofAcmeB64url(
+                                headerJson.getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                                java.nio.charset.StandardCharsets.US_ASCII)
+                                + "."
+                                + new String(kofAcmeB64url(
+                                        payloadJson.getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                                        java.nio.charset.StandardCharsets.US_ASCII);
+                        java.security.Signature sig =
+                                java.security.Signature.getInstance("SHA256withECDSA");
+                        sig.initSign(key);
+                        sig.update(signingInput.getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+                        String jwsSig = new String(kofAcmeB64url(kofAcmeJwsSig(sig)),
+                                java.nio.charset.StandardCharsets.US_ASCII);
+                        return signingInput + "." + jwsSig;
+                    } catch (java.security.InvalidKeyException e) {
+                        throw new RuntimeException("WEB008: the account key must be an EC P-256 "
+                                + "PKCS#8 PEM: " + e.getMessage(), e);
+                    }
+                }
+
                 public static int kof_http_status(String url) throws Exception {
                     try {
                         java.net.http.HttpClient client = kofHttpClientFor(url);

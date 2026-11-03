@@ -96,6 +96,13 @@ final class MethodCallNamespaces {
             }
             return Type.UnknownType.UNKNOWN;
         }
+        if (mc.receiver() instanceof IdentifierExpr rid && KofAcme.isAcmeNamespace(rid.name())) {
+            List<Type> acmeArgTypes = new ArrayList<>();
+            for (ExpressionNode arg : mc.arguments()) acmeArgTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
+            KofAcme.AcmeCall acmeCall = KofAcme.staticCall(mc.methodName(), acmeArgTypes);
+            if (acmeCall != null) return acmeCall.returnType();
+            return Type.UnknownType.UNKNOWN;
+        }
         if (mc.receiver() instanceof IdentifierExpr rid && KofHttp.isHttpNamespace(rid.name())) {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));

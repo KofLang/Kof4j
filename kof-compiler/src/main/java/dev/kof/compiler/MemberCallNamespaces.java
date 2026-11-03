@@ -160,6 +160,13 @@ final class MemberCallNamespaces {
             if (gpuCall != null) return gpuCall.returnType();
             return unknown(sa, "gpu", mc.methodName());
         }
+        if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofAcme.isAcmeNamespace(rid.name())) {
+            List<Type> acmeArgTypes = new ArrayList<>();
+            for (ExpressionNode arg : mc.arguments()) acmeArgTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
+            KofAcme.AcmeCall acmeCall = KofAcme.staticCall(mc.methodName(), acmeArgTypes);
+            if (acmeCall != null) return acmeCall.returnType();
+            return unknown(sa, "acme", mc.methodName());
+        }
         if (mc.receiver() instanceof IdentifierExpr rid && !SemExpressionTyper.isLocalName(scope, rid.name()) && KofHttp.isHttpNamespace(rid.name())) {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
