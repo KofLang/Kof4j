@@ -1,8 +1,8 @@
 [English](tls-hardening-plan.md) | [Português](tls-hardening-plan.pt_BR.md)
 
 last: 02/11/2026 — PROMOTED from `docs/development/future/` by maintainer order ("pega tls do future pra fazer, é urgente"); slice 0 (inventory spike) MEASURED at the tip
-doing: slices 0-3 LANDED + slice 4 increments 1-3 (JWS core + ACCOUNT layer + ORDER layer, proven against a test-local ACME stub: KofAcmeClientTest 3/3 + KofWebTlsVerifyTest 5/5 + KofWebTlsTest 14/14); the FINALIZE layer (CSR + cert download) is increment 4
-next: slice 4 increment 4 — finalize (CSR generation from a fresh cert key, POST finalize, poll the order until valid, download the cert chain) + the Pebble E2E (unblocks when the CI provides Pebble)
+doing: ALL plan-defined layers LANDED with executed proof (inventory + SNI + hot-reload + verifying client + the full ACME chain JWS/account/order/finalize: KofAcmeClientTest 4/4, KofWebTlsVerifyTest 5/5, KofWebTlsTest 14/14, KofHttpE2ETest 8/8); the ONLY open item is the Pebble E2E (CI unblock)
+next: the Pebble E2E proof (issuance against the standard ACME test server, then the issued pair serves via slice 2 listenSecure) — unblocks when the CI provides Pebble/Go; PROMOTION of the plan to docs/ becomes eligible once that proof lands
 location: docs/development
 state: under-development
 owner: 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a
@@ -268,6 +268,29 @@ with /newOrder + /order + /authz + /challenge:
   runtime was 720 lines after increment 2 — check_500 forced the split).
 - **Remaining increment:** finalize(CSR) + cert download + the Pebble E2E
   (unblocks when the CI provides Pebble).
+
+### Slice 4 — INCREMENT 4 LANDED 05/11/2026 (lane `192.168.100.14:0`, flatt CLI)
+
+The FINALIZE layer — the client issues the certificate pair end-to-end
+(against the stub extended with /order/9/finalize + the poll flip + /cert):
+
+- **Kof surface:** `acme.finalize(kid, accountKeyPem, directoryUrl, domain):
+  String` — generates a FRESH ephemeral cert key (EC P-256), builds the
+  PKCS#10 CSR (RFC 2986: subject CN=domain, the SPKI of the ephemeral pair,
+  signed SHA256withECDSA — DER built by the runtime'+'s own minimal DER
+  writers), POSTs finalize `{csr: b64url}`, polls the order until `valid`
+  (30 attempts x 200 ms), downloads the certificate and returns
+  `certPem\nkeyPem` — the pair slice 2'+'s `listenSecure` consumes.
+- **Proof (executed):** `KofAcmeClientTest` **4/4** — the returned pair has
+  the CERTIFICATE PEM first and the PRIVATE KEY PEM second, and the stub
+  captured exactly ONE finalize POST carrying the CSR; `KofWebTlsTest` 14/14;
+  `KofWebTlsVerifyTest` 5/5; `KofHttpE2ETest` 8/8; `mvn -o -pl kof-compiler
+  -am compile` rc=0.
+- **The TLS plan is now COMPLETE except the Pebble E2E** (unblocks when the
+  CI provides Pebble — no Go on this host; environmental, like the riscv64
+  toolchain). Every layer the plan defines has landed with executed proof:
+  inventory + SNI + hot-reload + verifying client + the ACME
+  JWS/account/order/finalize chain.
 
 ## 3. Design principles (frozen for all slices)
 

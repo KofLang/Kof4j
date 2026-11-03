@@ -1,8 +1,8 @@
 [English](tls-hardening-plan.md) | [Português](tls-hardening-plan.pt_BR.md)
 
 last: 02/11/2026 — PROMOVIDO de `docs/development/future/` por ordem da mantenedora ("pega tls do future pra fazer, é urgente"); a fatia 0 (spike de inventário) foi MEDIDA no tip
-doing: fatias 0-3 POUSADAS + fatia 4 incrementos 1-3 (núcleo JWS + camada ACCOUNT + camada ORDER, provadas contra stub local-de-teste: KofAcmeClientTest 3/3 + KofWebTlsVerifyTest 5/5 + KofWebTlsTest 14/14); a camada FINALIZE (CSR + download do cert) é o incremento 4
-next: fatia 4 incremento 4 — finalize (geração do CSR de uma chave de cert nova, POST finalize, poll do order até valid, download da cadeia) + a E2E Pebble (destrava quando o CI providenciar Pebble)
+doing: TODAS as camadas definidas pelo plano POUSADAS com prova executada (inventário + SNI + hot-reload + cliente verificador + a cadeia ACME completa JWS/account/order/finalize: KofAcmeClientTest 4/4, KofWebTlsVerifyTest 5/5, KofWebTlsTest 14/14, KofHttpE2ETest 8/8); o ÚNICO item aberto é a E2E Pebble (destrava no CI)
+next: a prova E2E Pebble (emissão contra o servidor ACME de teste padrão, depois o par emitido serve via listenSecure da fatia 2) — destrava quando o CI providenciar Pebble/Go; a PROMOÇÃO do plano para docs/ fica elegível quando essa prova pousar
 location: docs/development
 state: under-development
 dona: 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a
@@ -281,6 +281,29 @@ estendido com /newOrder + /order + /authz + /challenge:
   split).
 - **Incremento restante:** finalize(CSR) + download do cert + a E2E Pebble
   (destrava quando o CI providenciar Pebble).
+
+### Fatia 4 '—' INCREMENTO 4 POUSADO 05/11/2026 (lane `192.168.100.14:0`, flatt CLI)
+
+A camada FINALIZE '—' o cliente emite o par de certificado de ponta a ponta
+(contra o stub estendido com /order/9/finalize + o flip do poll + /cert):
+
+- **Superfície Kof:** `acme.finalize(kid, accountKeyPem, directoryUrl,
+  domain): String` '—' gera uma chave de cert NOVA e efêmera (EC P-256),
+  monta o CSR PKCS#10 (RFC 2986: subject CN=domain, o SPKI do par efêmera,
+  assinado SHA256withECDSA '—' DER montado pelos escritores DER mínimos do
+  próprio runtime), POST finalize `{csr: b64url}`, poll do order até
+  `valid` (30 tentativas x 200 ms), baixa o certificado e devolve
+  `certPem\nkeyPem` '—' o par que o `listenSecure` da fatia 2 consome.
+- **Prova (executada):** `KofAcmeClientTest` **4/4** '—' o par devolvido tem
+  o PEM de CERTIFICATE primeiro e o de PRIVATE KEY segundo, e o stub captura
+  EXATAMENTE UM POST de finalize carregando o CSR; `KofWebTlsTest` 14/14;
+  `KofWebTlsVerifyTest` 5/5; `KofHttpE2ETest` 8/8; `mvn -o -pl kof-compiler
+  -am compile` rc=0.
+- **O plano TLS agora está COMPLETO exceto a E2E Pebble** (destrava quando o
+  CI providenciar Pebble '—' sem Go neste host; ambiental, como a toolchain
+  riscv64). Toda camada que o plano define pousou com prova executada:
+  inventário + SNI + hot-reload + cliente verificador + a cadeia ACME
+  JWS/account/order/finalize.
 
 ## 3. Princípios de design (congelados para todas as fatias)
 

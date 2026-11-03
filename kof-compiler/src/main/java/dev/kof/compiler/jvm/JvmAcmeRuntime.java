@@ -429,6 +429,131 @@ public final class JvmAcmeRuntime {
                     }
                     return authzUrl;
                 }
+
+                // ── TLS hardening slice 4 (increment 4): the FINALIZE layer ──
+
+                /** DER wrapper (short/long form) para um corpo dado. */
+                private static byte[] kofAcmeDer(int tag, byte[] body) {
+                    int len = body.length;
+                    if (len < 128) {
+                        byte[] out = new byte[2 + len];
+                        out[0] = (byte) tag;
+                        out[1] = (byte) len;
+                        System.arraycopy(body, 0, out, 2, len);
+                        return out;
+                    }
+                    byte[] lenBytes = java.math.BigInteger.valueOf(len).toByteArray();
+                    byte[] out = new byte[2 + lenBytes.length + len];
+                    out[0] = (byte) tag;
+                    out[1] = (byte) (0x80 | lenBytes.length);
+                    System.arraycopy(lenBytes, 0, out, 2, lenBytes.length);
+                    System.arraycopy(body, 0, out, 2 + lenBytes.length, len);
+                    return out;
+                }
+
+                private static byte[] kofAcmeDerInt(java.math.BigInteger v) {
+                    return kofAcmeDer(0x02, v.toByteArray());
+                }
+
+                private static byte[] kofAcmeConcat(byte[] a, byte[] b) {
+                    byte[] out = new byte[a.length + b.length];
+                    System.arraycopy(a, 0, out, 0, a.length);
+                    System.arraycopy(b, 0, out, a.length, b.length);
+                    return out;
+                }
+
+                /** PKCS#10 CSR (RFC 2986) assinado com SHA256withECDSA: subject
+                 *  CN=domain; SPKI do par efêmero. */
+                private static byte[] kofAcmeCsr(java.security.KeyPair kp, String domain)
+                        throws Exception {
+                    byte[] cn = domain.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                    byte[] oidCn = new byte[]{0x06, 0x03, 0x55, 0x04, 0x03};
+                    byte[] rdnVal = kofAcmeDer(0x0c, cn);
+                    byte[] atv = kofAcmeDer(0x30,
+                            kofAcmeDer(0x31, kofAcmeDer(0x30,
+                                    kofAcmeConcat(oidCn, rdnVal))));
+                    byte[] spki = kp.getPublic().getEncoded();
+                    byte[] cri = kofAcmeDer(0x30, kofAcmeConcat(
+                            kofAcmeDerInt(java.math.BigInteger.ZERO),
+                            kofAcmeConcat(atv, kofAcmeConcat(spki,
+                                    kofAcmeDer(0xA0, new byte[0])))));
+                    java.security.Signature sig =
+                            java.security.Signature.getInstance("SHA256withECDSA");
+                    sig.initSign(kp.getPrivate());
+                    sig.update(cri);
+                    byte[] signature = sig.sign();
+                    byte[] algId = new byte[]{0x30, 0x0d, 0x06, 0x09, 0x2a, (byte) 0x86, 0x48,
+                            (byte) 0x86, (byte) 0xf7, 0x0d, 0x01, 0x01, 0x0b, 0x05, 0x00};
+                    byte[] bits = kofAcmeDer(0x03,
+                            kofAcmeConcat(new byte[]{0x00}, signature));
+                    return kofAcmeDer(0x30, kofAcmeConcat(cri, kofAcmeConcat(algId, bits)));
+                }
+
+                public static String kof_acme_finalize(String kid, String accountKeyPem,
+                        String directoryUrl, String domain) throws Exception {
+                    java.security.KeyPairGenerator kpg =
+                            java.security.KeyPairGenerator.getInstance("EC");
+                    kpg.initialize(new java.security.spec.ECGenParameterSpec("secp256r1"));
+                    java.security.KeyPair certKey = kpg.generateKeyPair();
+                    byte[] csr = kofAcmeCsr(certKey, domain);
+                    String csrB64 = new String(kofAcmeB64url(csr),
+                            java.nio.charset.StandardCharsets.US_ASCII);
+                    java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
+                    String dirJson = client.send(java.net.http.HttpRequest.newBuilder(
+                                    java.net.URI.create(directoryUrl)).GET().build(),
+                            java.net.http.HttpResponse.BodyHandlers.ofString()).body();
+                    String nonceUrl = kofAcmeJsonString(dirJson, "newNonce");
+                    String orderUrl = kofAcmeJsonString(dirJson, "newOrder");
+                    if (nonceUrl == null || orderUrl == null) {
+                        throw new RuntimeException("WEB008: the ACME directory lacks newNonce/newOrder");
+                    }
+                    AcmePost order = kofAcmePost(kid, accountKeyPem, nonceUrl, orderUrl,
+                            "{" + q() + "identifiers" + q() + ":[{" + q() + "type" + q() + ":"
+                            + q() + "dns" + q() + "," + q() + "value" + q() + ":" + q() + domain
+                            + q() + "}]}");
+                    if (order.status() != 201) {
+                        throw new RuntimeException("WEB008: the ACME newOrder returned HTTP "
+                                + order.status() + ": " + order.body());
+                    }
+                    String orderLoc = order.location();
+                    String finalizeUrl = orderLoc + "/finalize";
+                    AcmePost fin = kofAcmePost(kid, accountKeyPem, nonceUrl, finalizeUrl,
+                            "{" + q() + "csr" + q() + ":" + q() + csrB64 + q() + "}");
+                    if (fin.status() >= 400) {
+                        throw new RuntimeException("WEB008: the ACME finalize returned HTTP "
+                                + fin.status() + ": " + fin.body());
+                    }
+                    String certUrl = null;
+                    for (int i = 0; i < 30; i++) {
+                        String orderJson = client.send(java.net.http.HttpRequest.newBuilder(
+                                        java.net.URI.create(orderLoc)).GET().build(),
+                                java.net.http.HttpResponse.BodyHandlers.ofString()).body();
+                        String status = kofAcmeJsonString(orderJson, "status");
+                        if ("valid".equals(status)) {
+                            certUrl = kofAcmeJsonString(orderJson, "certificate");
+                            break;
+                        }
+                        Thread.sleep(200);
+                    }
+                    if (certUrl == null) {
+                        throw new RuntimeException("WEB008: the ACME order did not reach valid");
+                    }
+                    java.net.http.HttpResponse<byte[]> cert = client.send(
+                            java.net.http.HttpRequest.newBuilder(java.net.URI.create(certUrl))
+                                    .GET().build(),
+                            java.net.http.HttpResponse.BodyHandlers.ofByteArray());
+                    String certPem = "-----BEGIN CERTIFICATE-----\\n"
+                            + java.util.Base64.getMimeEncoder(64, "\\n".getBytes(
+                                    java.nio.charset.StandardCharsets.US_ASCII))
+                                    .encodeToString(cert.body()) + "\\n"
+                            + "-----END CERTIFICATE-----\\n";
+                    String keyPemOut = "-----BEGIN PRIVATE KEY-----\\n"
+                            + java.util.Base64.getMimeEncoder(64, "\\n".getBytes(
+                                    java.nio.charset.StandardCharsets.US_ASCII))
+                                    .encodeToString(certKey.getPrivate().getEncoded()) + "\\n"
+                            + "-----END PRIVATE KEY-----\\n";
+                    return certPem + "\\n" + keyPemOut;
+                }
         """;
     }
 }

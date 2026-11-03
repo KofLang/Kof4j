@@ -185,8 +185,27 @@ class KofAcmeClientTest extends ServerProcessSupport {
             ex.close();
         });
         server.createContext("/order/9", ex -> {
-            byte[] body = ("{\"status\":\"pending\",\"authorizations\":[\"" + base
-                    + "/authz/5\"]}").getBytes(StandardCharsets.UTF_8);
+            // o poll devolve `valid` DEPOIS do finalize (contador simples)
+            String poll = seen.stream().filter(x -> x.startsWith("finalize-poll:")).count() > 0
+                    ? "valid" : "pending";
+            byte[] body = ("{\"status\":\"" + poll + "\",\"authorizations\":[\"" + base
+                    + "/authz/5\"]" + (poll.equals("valid") ? ",\"certificate\":\"" + base
+                    + "/cert/1\"" : "") + "}").getBytes(StandardCharsets.UTF_8);
+            ex.sendResponseHeaders(200, body.length);
+            ex.getResponseBody().write(body);
+            ex.close();
+        });
+        server.createContext("/order/9/finalize", ex -> {
+            seen.add("finalize-poll:" + new String(ex.getRequestBody().readAllBytes(),
+                    StandardCharsets.UTF_8));
+            ex.sendResponseHeaders(200, -1);
+            ex.close();
+        });
+        server.createContext("/cert/1", ex -> {
+            byte[] body = ("-----BEGIN CERTIFICATE-----\n" + java.util.Base64.getMimeEncoder(64,
+                    "\n".getBytes(StandardCharsets.US_ASCII)).encodeToString(
+                    "stub-cert-bytes".getBytes(StandardCharsets.US_ASCII))
+                    + "-----END CERTIFICATE-----\n").getBytes(StandardCharsets.US_ASCII);
             ex.sendResponseHeaders(200, body.length);
             ex.getResponseBody().write(body);
             ex.close();
@@ -356,5 +375,42 @@ class KofAcmeClientTest extends ServerProcessSupport {
         if (v.length > 32) System.arraycopy(v, v.length - 32, out, 0, 32);
         else System.arraycopy(v, 0, out, 32 - v.length, v.length);
         return out;
+    }
+
+    @Test
+    void acmeFinalizeIssuesThePair(@TempDir Path tempDir) throws Exception {
+        Process p = new ProcessBuilder("keytool", "-genkeypair", "-alias", "acme",
+                "-keyalg", "EC", "-groupname", "secp256r1",
+                "-validity", "365", "-dname", "CN=acme-test",
+                "-keystore", tempDir.resolve("acme.p12").toString(),
+                "-storepass", "changeit", "-keypass", "changeit",
+                "-storetype", "PKCS12", "-noprompt")
+                .redirectErrorStream(true).start();
+        assertEquals(0, p.waitFor(), "EC genkeypair");
+        java.security.KeyStore store = java.security.KeyStore.getInstance("PKCS12");
+        try (var in = Files.newInputStream(tempDir.resolve("acme.p12"))) {
+            store.load(in, "changeit".toCharArray());
+        }
+        String keyPem = "-----BEGIN PRIVATE KEY-----\n" + mime(
+                ((java.security.PrivateKey) store.getKey("acme", "changeit".toCharArray())).getEncoded())
+                + "-----END PRIVATE KEY-----\n";
+
+        try (AcmeStub stub = startAcmeStub()) {
+            String dirUrl = "http://127.0.0.1:" + stub.port() + "/directory";
+            String out = runHttpClient(tempDir, "main() {\n"
+                    + "    println(acme.finalize(\"https://acme.example/acct/7\", \""
+                    + kofLiteral(keyPem) + "\", \"" + dirUrl + "\", \"edge.example.com\"))\n"
+                    + "}\n");
+            String[] parts = out.strip().split("\n\n");
+            assertEquals(2, parts.length, "finalize returns certPem + keyPem: " + out);
+            assertTrue(parts[0].startsWith("-----BEGIN CERTIFICATE-----"),
+                    "the cert PEM first: " + parts[0].substring(0, 30));
+            assertTrue(parts[1].startsWith("-----BEGIN PRIVATE KEY-----"),
+                    "the key PEM second: " + parts[1].substring(0, 30));
+            // o CSR foi carregado no POST finalize (a chave de cert é NOVA, não a de conta)
+            java.util.List<String> fin = stub.seenJws().stream()
+                    .filter(x -> x.startsWith("finalize-poll:")).toList();
+            assertEquals(1, fin.size(), "one finalize POST: " + stub.seenJws());
+        }
     }
 }

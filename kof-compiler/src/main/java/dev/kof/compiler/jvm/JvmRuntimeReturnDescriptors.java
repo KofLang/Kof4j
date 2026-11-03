@@ -77,7 +77,7 @@ public final class JvmRuntimeReturnDescriptors {
                     "kof_http_options", "kof_http_options_headers", "kof_http_post", "kof_http_post_headers",
                     "kof_http_put", "kof_http_put_headers", "kof_http_patch", "kof_http_patch_headers",
                     "kof_acme_jws_es256", "kof_acme_new_account", "kof_acme_new_order",
-                    "kof_acme_dns01_txt", "kof_acme_challenge"
+                    "kof_acme_dns01_txt", "kof_acme_challenge", "kof_acme_finalize"
                     -> "Ljava/lang/String;";
             case "kof_http_status", "kof_mq_queue_size" -> "I";
             case "kof_mq_queue" -> "Ljava/lang/String;";
