@@ -1,0 +1,98 @@
+package bio
+
+// kof.bio — the FASTA/FASTQ READERS (universal platform Stage 7.1, the
+// pure-Kof text half): typed records out of the two text formats plus the
+// classic `gcContent` computing face. Pure Kof over measured idioms
+// (`split("\n")` — KofmdScan; `charAt`; `startsWith`/`substring`) — no
+// engine, no FFI. VCF (tabular with meta headers) and BAM (binary) stay
+// recorded as follow-ups in the plan; aligners/variant callers are NEVER
+// reimplemented here (the plan's not-to-do).
+//
+// Refusals are honest and named: a FASTA header followed by no sequence
+// bases refuses BIO001; a FASTQ quality line shorter/longer than its
+// sequence refuses BIO002 — never a silent truncation or a guessed record.
+//
+// The reader consumes the WHOLE text in memory (the callers that stream
+// big files compose it with the existing `libs/file` streaming seam, the
+// same shape `JsonLinesReader` proves).
+
+record FastaRecord(String header, String sequence)
+
+record FastqRecord(String header, String sequence, String quality)
+
+// readFasta — '>' opens a record; the sequence lines accumulate until the
+// next header. Blank lines are skipped. Multi-line sequences concatenate.
+List<FastaRecord> readFasta(String text) {
+    var out = listOf<FastaRecord>()
+    var header = ""
+    var seq = ""
+    var open = false
+    var lines = text.split("\n")
+    var i = 0
+    while (i < lines.length) {
+        var line = lines[i]
+        if (line.startsWith(">")) {
+            if (open && seq.length == 0) {
+                throw "BIO001: a FASTA record with no sequence bases: " + header
+            }
+            if (open) {
+                out.add(FastaRecord(header, seq))
+            }
+            header = line.substring(1)
+            seq = ""
+            open = true
+        } else {
+            if (open && line.length > 0) {
+                seq = seq + line
+            }
+        }
+        i = i + 1
+    }
+    if (open && seq.length == 0) {
+        throw "BIO001: a FASTA record with no sequence bases: " + header
+    }
+    if (open) {
+        out.add(FastaRecord(header, seq))
+    }
+    return out
+}
+
+// readFastq — the 4-line record: '@' header, sequence, '+' line, quality.
+// The quality length MUST equal the sequence length (BIO002 otherwise).
+List<FastqRecord> readFastq(String text) {
+    var out = listOf<FastqRecord>()
+    var lines = text.split("\n")
+    var i = 0
+    while (i + 3 < lines.length) {
+        var header = lines[i]
+        var seq = lines[i + 1]
+        var plus = lines[i + 2]
+        var quality = lines[i + 3]
+        if (header.startsWith("@") && plus.startsWith("+")) {
+            if (quality.length != seq.length) {
+                throw "BIO002: a FASTQ quality line must match its sequence length: " + header
+            }
+            out.add(FastqRecord(header.substring(1), seq, quality))
+        }
+        i = i + 4
+    }
+    return out
+}
+
+// gcContent — the fraction of G/C bases in a sequence (0.0 for an empty
+// sequence is UNDEFINED, not zero: an empty sequence refuses BIO001).
+Double gcContent(String sequence) {
+    if (sequence.length == 0) {
+        throw "BIO001: gcContent of an empty sequence is undefined"
+    }
+    var gc = 0
+    var i = 0
+    while (i < sequence.length) {
+        var ch = sequence.charAt(i)
+        if (ch == 'G' || ch == 'C') {
+            gc = gc + 1
+        }
+        i = i + 1
+    }
+    return gc.toDouble() / sequence.length.toDouble()
+}

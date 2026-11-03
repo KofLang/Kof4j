@@ -44,7 +44,7 @@ Cada linha é o item do próprio plano verificado contra a árvore, não contra 
 | **6.5 recursos escopados** | 🟡 lane compilador | `using` pousou 28/09 (`D-SCOPED-RESOURCES-GO`), plano CONCLUÍDO | **FEITO (em outro lugar)** |
 | 6.6 MPI | 🔵 precisa R3 | nada | BLOQUEADO — FFI |
 | 6.7 profiling HPC | 🔵 precisa 6.1 | nada | BLOQUEADO pela 6.1 |
-| 7.1 `kof-bio` FASTA/FASTQ/VCF/BAM | 🔵 precisa R3/R5 | nada | CANDIDATO — FASTA/FASTQ/VCF são parsers TEXTUAIS tipados expressíveis em Kof puro; BAM precisa FFI binária |
+| 7.1 `kof-bio` FASTA/FASTQ/VCF/BAM | 🔵 precisa R3/R5 | **os leitores FASTA/FASTQ estão AGORA na árvore** (`libs/bio/Bio.kf`, pousou 04/11) | PARCIAL — a metade textual POUSOU (`BioE2ETest` 2/2); VCF 🔵 follow-up, BAM 🔵 FFI binária |
 | 7.2 BLAST/htslib | 🔵 precisa R3 | nada | BLOQUEADO — FFI/CLI |
 | 7.3 pipelines genômicos | 🔵 precisa 2.1 | `kof.workflow` pousou | CANDIDATO — pipeline em Kof puro sobre os parsers da 7.1 |
 | 7.4 HPC | 🔵 precisa 6.1 | nada | BLOQUEADO pela 6.1 |
@@ -139,7 +139,7 @@ reimplementar aligners/variant callers.
 
 | # | Item | Status | Dono | Depende de |
 |---|------|--------|------|------------|
-| 7.1 | `kof-bio` (pacote oficial): formatos FASTA/FASTQ/VCF/BAM como records tipados | 🔵 | — | R3, R5 |
+| 7.1 | `kof-bio` (pacote oficial): FASTA/FASTQ/VCF/BAM como records tipados | 🟡 | `192.168.100.14:0` | **a metade TEXTUAL POUSOU 04/11** — `libs/bio/Bio.kf` (Kof puro): `FastaRecord(header, sequence)` / `FastqRecord(header, sequence, quality)` tipados parseados de texto, `gcContent` (a face clássica de computação), recusas honestas (BIO001 sequência FASTA vazia, BIO002 comprimento de qualidade divergente). Prova: `BioE2ETest` **2/2** (JVM + Script) RED-first (`libs/bio not found`), faces de dois-registros-FASTA/GC/um-registro-FASTQ/ambas-as-recusas. VCF (tabular) segue 🔵 follow-up; BAM 🔵 (FFI binária) |
 | 7.2 | Alinhamento/variantes via **FFI/CLI** (BLAST/htslib — não reimplementar) | 🔵 | — | 7.1, R3 |
 | 7.3 | Pipelines genômicos (modelo `workflow` do Estágio 2 + checkpointing) | 🔵 | — | 2.1 |
 | 7.4 | HPC (Estágio 6) | 🔵 | — | 6.1 |
