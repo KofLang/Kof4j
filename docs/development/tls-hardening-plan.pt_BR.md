@@ -1,8 +1,8 @@
 [English](tls-hardening-plan.md) | [Português](tls-hardening-plan.pt_BR.md)
 
 last: 02/11/2026 — PROMOVIDO de `docs/development/future/` por ordem da mantenedora ("pega tls do future pra fazer, é urgente"); a fatia 0 (spike de inventário) foi MEDIDA no tip
-doing: fatias 0-2 POUSADAS com prova executada (KofWebTlsTest 14/14: inventário + seleção SNI + hot-reload); a fatia 3 (cliente HTTP verificador) é a próxima
-next: fatia 3 — um caminho estrito do kof.http que valida a cadeia contra o trust store da plataforma COM verificação de hostname, junto ao cliente trust-all existente (mantido para testes); trust-all vira opt-in com aviso
+doing: fatias 0-3 POUSADAS com prova executada (KofWebTlsTest 19/19: inventário + SNI + hot-reload + cliente verificador); a fatia 4 (cliente ACME DNS-01) é a próxima
+next: fatia 4 — cliente ACME DNS-01 (JVM, CA externa): Pebble no CI, ES256 JWS reutilizado do runtime OAuth, chaves delegadas ao operador
 location: docs/development
 state: under-development
 dona: 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a
@@ -159,6 +159,39 @@ Hot-reload de certificado sem reinício, aditivo sobre o `D-SEC.6`:
   pós-fatia-1 travado); `mvn -o -pl kof-compiler -am compile` rc=0; os
   aliases de métodos PortuKof regenerados para o braço novo do dispatcher
   (13 membros WEB_APP).
+
+### Fatia 3 — POUSADA 04/11/2026 (lane `192.168.100.14:0`, flatt CLI)
+
+O cliente HTTP verificador, JVM primeiro:
+
+- **Estrito por default:** as requisições https:// do `kof.http` agora
+  validam a cadeia contra o trust store da plataforma COM verificação de
+  hostname (`HttpClient.newHttpClient()` faz ambos). O cliente trust-all
+  fica, mas apenas atrás do opt-in (os testes existentes o usam
+  explicitamente).
+- **O opt-in:** `http.insecure()` (0 argumentos, face JVM) devolve o
+  https:// ao cliente trust-all e avisa uma vez no stderr
+  (`TLS-TRUST-ALL: ... test/dev only`). Em JS/Native o opt-in é uma recusa
+  honesta em compile (HTTP002): o stack fetch do JS verifica por default e a
+  face https do Native recusa '—' nenhum tem superfície de bypass.
+- **Diagnósticos nomeados:** uma rejeição estrita é catável como String
+  Kof: `TLS-VERIFY: certificate rejected for <url> '—' <causa> (use
+  http.insecure() to opt into trust-all for test/dev)`.
+- **Prova (executada):** `KofWebTlsTest` **19/19** '—' os 14 anteriores +
+  `strictClientRejectsSelfSigned` (TLS-VERIFY),
+  `strictClientAcceptsChainedCaCert` (uma CA de teste REAL via keytool:
+  genkeypair(bc) '→' certreq '→' gencert(-rfc) '→' import no keystore do
+  servidor como trust store do cliente, `-Djavax.net.ssl.trustStore=...`),
+  `strictClientRejectsHostnameMismatch`, `insecureOptInWarnsAndTrustsSelfSigned`,
+  `insecureGapOnNative` (HTTP002); `KofHttpE2ETest` 8/8 (a face http://
+  intocada); `mvn -o -pl kof-compiler -am compile` rc=0.
+
+Batalhas do keytool (para os docs da próxima fatia): o keytool pede a senha
+do keystore quando ela não é passada (um filho PENDURADO, não um erro '—'
+passe sempre `-storepass`); `-ext bc=ca` é INVÁLIDO (a grafia válida é
+`-ext bc`); `-gencert -outfile` escreve DER sem `-rfc`; o PEM emitido está no
+charset do SISTEMA (decodifique com `Charset.defaultCharset()`, nunca
+`Files.readString`).
 
 ## 3. Princípios de design (congelados para todas as fatias)
 

@@ -45,7 +45,7 @@ public final class KofHttp {
     static boolean isHttpMethod(String name) {
         return switch (name) {
             case "get", "post", "put", "delete", "patch", "options", "status", "timeout",
-                    "retry", "circuit" -> true;
+                    "retry", "circuit", "insecure" -> true;
             default -> false;
         };
     }
@@ -122,6 +122,11 @@ public final class KofHttp {
                     : null;
             case "circuit" -> argTypes.size() == 1 && isInt(argTypes.get(0))
                     ? new HttpCall("kof_http_circuit_set", VOID, List.of(INT))
+                    : null;
+            // TLS hardening slice 3: the trust-all opt-in — a JVM face; the
+            // emit refuses JS/Native honestly (HTTP002). No args, warns once.
+            case "insecure" -> argTypes.isEmpty()
+                    ? new HttpCall("kof_http_insecure_set", VOID, List.of())
                     : null;
             default -> null;
         };

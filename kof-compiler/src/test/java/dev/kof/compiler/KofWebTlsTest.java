@@ -45,7 +45,7 @@ class KofWebTlsTest extends ServerProcessSupport {
         pb.redirectErrorStream(true);
         serverProcess = pb.start();
         TestServerFixture.await(serverProcess, port, 60, 100, () -> {
-            javax.net.ssl.SSLSocketFactory factory = insecureFactory();
+            javax.net.ssl.SSLSocketFactory factory = TlsTrustAllSupport.insecureFactory();
             try (javax.net.ssl.SSLSocket probe = (javax.net.ssl.SSLSocket) factory.createSocket("localhost", port)) {
                 probe.setSoTimeout(200);
                 probe.startHandshake();
@@ -61,25 +61,9 @@ class KofWebTlsTest extends ServerProcessSupport {
         }
     }
 
-    private static javax.net.ssl.SSLSocketFactory insecureFactory() {
-        try {
-            javax.net.ssl.SSLContext sc = javax.net.ssl.SSLContext.getInstance("TLS");
-            sc.init(null, new javax.net.ssl.TrustManager[]{new javax.net.ssl.X509TrustManager() {
-                @Override
-                public java.security.cert.X509Certificate[] getAcceptedIssuers() { return new java.security.cert.X509Certificate[0]; }
-                @Override
-                public void checkClientTrusted(java.security.cert.X509Certificate[] c, String a) {}
-                @Override
-                public void checkServerTrusted(java.security.cert.X509Certificate[] c, String a) {}
-            }}, new java.security.SecureRandom());
-            return sc.getSocketFactory();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
 
     private String httpsRequest(int port, String raw) throws IOException {
-        javax.net.ssl.SSLSocketFactory factory = insecureFactory();
+        javax.net.ssl.SSLSocketFactory factory = TlsTrustAllSupport.insecureFactory();
         try (javax.net.ssl.SSLSocket socket = (javax.net.ssl.SSLSocket) factory.createSocket("localhost", port)) {
             socket.setSoTimeout(5000);
             socket.startHandshake();
@@ -122,8 +106,12 @@ class KofWebTlsTest extends ServerProcessSupport {
     void httpClientOverTls(@TempDir Path tempDir) throws Exception {
         int port = startTlsServer(tempDir);
         // Use kof.http client inside a Kof program to fetch from the TLS server
+        // TLS hardening slice 3: strict is now the DEFAULT — this test
+        // (self-signed dev server) opts into trust-all explicitly, which is
+        // exactly the documented opt-in path.
         String kofSource = """
                 main() {
+                    http.insecure()
                     // Give server a moment
                     val body = http.get("https://localhost:PORT/hello")
                     println(body)
@@ -175,9 +163,7 @@ class KofWebTlsTest extends ServerProcessSupport {
                 "Should have WEB001/002, got: " + result.diagnostics().getDiagnostics());
     }
 
-    // ── D-SEC: TLS com certificado PRÓPRIO (PKCS#8 PEM) ──────────────────
-    // app.listenSecure(port, certPem, keyPem) — produção; o self-signed de
-    // dev (1 arg) continua. Native/JS seguem WEB002 honesto.
+    // ── D-SEC: TLS com certificado PRÓPRIO (PKCS#8 PEM): produção; Native/JS = WEB002 ──
 
     private record PemPair(String certPem, String keyPem) {}
 
@@ -234,7 +220,7 @@ class KofWebTlsTest extends ServerProcessSupport {
         serverProcess = pb.start();
 
         TestServerFixture.await(serverProcess, port, 60, 100, () -> {
-            javax.net.ssl.SSLSocketFactory factory = insecureFactory();
+            javax.net.ssl.SSLSocketFactory factory = TlsTrustAllSupport.insecureFactory();
             try (javax.net.ssl.SSLSocket probe =
                          (javax.net.ssl.SSLSocket) factory.createSocket("localhost", port)) {
                 probe.setSoTimeout(300);
@@ -263,12 +249,7 @@ class KofWebTlsTest extends ServerProcessSupport {
                 "esperava WEB002, foi: " + result.diagnostics().getDiagnostics());
     }
 
-    // ── TLS hardening slice 1: SNI certificate selection (JVM) ─────────────
-    // app.listenSecure(port, hosts: List<SecureHost>) — one process, many
-    // hostnames: the certificate is selected from the ClientHello SNI. An
-    // unknown SNI hostname is REFUSED (named diagnostic on stderr), never
-    // served the default cert (no silent downgrade, plan principle 3.1). The
-    // 1-arg and 3-arg surfaces above are unchanged (D-SEC.6, additive only).
+    // ── TLS hardening slice 1: SNI — selected from the ClientHello; unknown SNI refused, never the default ──
 
     /** Gera um par self-signed com CN/SAN do hostname dado (fingerprint distinto). */
     private static PemPair generatePemFor(Path dir, String tag, String host) throws Exception {
@@ -296,7 +277,7 @@ class KofWebTlsTest extends ServerProcessSupport {
 
     /** Abre um handshake com o SNI dado e devolve o SHA-256 do cert servido. */
     private static String servedFingerprint(int port, String sniHost) throws Exception {
-        javax.net.ssl.SSLSocketFactory factory = insecureFactory();
+        javax.net.ssl.SSLSocketFactory factory = TlsTrustAllSupport.insecureFactory();
         try (java.net.Socket plain = new java.net.Socket("127.0.0.1", port);
              javax.net.ssl.SSLSocket socket =
                      (javax.net.ssl.SSLSocket) factory.createSocket(plain, "127.0.0.1", port, true)) {
@@ -395,13 +376,7 @@ class KofWebTlsTest extends ServerProcessSupport {
                 "esperava WEB002, foi: " + result.diagnostics().getDiagnostics());
     }
 
-    // ── TLS hardening slice 2: certificate hot-reload (JVM) ────────────────
-    // app.reloadTls(certPem, keyPem) on a single-cert server and
-    // app.reloadTls(listOf(secureHost(...), ...)) on the SNI server: an
-    // atomic context swap — in-flight connections keep the old engine, new
-    // handshakes use the new context. A reload FAILURE keeps serving the old
-    // certificate and reports WEB007 (catchable as a Kof String), never a
-    // half-loaded state (plan principle 3.1).
+    // ── TLS hardening slice 2: hot-reload — atomic swap; a failure keeps the old cert and reports WEB007 ──
 
     private int startPemServer(Path tempDir, PemPair pem, String extraRoutes) throws Exception {
         int port = freePort();
@@ -432,7 +407,7 @@ class KofWebTlsTest extends ServerProcessSupport {
 
     /** Abre conexão TLS, completa o handshake e devolve o socket aberto (in-flight). */
     private javax.net.ssl.SSLSocket openTlsConnection(int port) throws Exception {
-        javax.net.ssl.SSLSocketFactory factory = insecureFactory();
+        javax.net.ssl.SSLSocketFactory factory = TlsTrustAllSupport.insecureFactory();
         java.net.Socket plain = new java.net.Socket("127.0.0.1", port);
         javax.net.ssl.SSLSocket socket =
                 (javax.net.ssl.SSLSocket) factory.createSocket(plain, "127.0.0.1", port, true);

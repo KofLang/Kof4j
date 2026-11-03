@@ -1,8 +1,8 @@
 [English](tls-hardening-plan.md) | [Português](tls-hardening-plan.pt_BR.md)
 
 last: 02/11/2026 — PROMOTED from `docs/development/future/` by maintainer order ("pega tls do future pra fazer, é urgente"); slice 0 (inventory spike) MEASURED at the tip
-doing: slices 0-2 LANDED with executed proof (KofWebTlsTest 14/14: inventory + SNI selection + hot-reload); slice 3 (verifying HTTP client) is the next slice
-next: slice 3 — a strict kof.http path that validates the chain against the platform trust store WITH hostname verification, alongside the existing trust-all client (kept for tests); trust-all becomes opt-in-and-loud
+doing: slices 0-3 LANDED with executed proof (KofWebTlsTest 19/19: inventory + SNI + hot-reload + verifying client); slice 4 (ACME DNS-01 client) is the next slice
+next: slice 4 — ACME DNS-01 client (JVM, external CA): Pebble in CI, ES256 JWS reuse from the OAuth runtime, key storage delegated to the operator
 location: docs/development
 state: under-development
 owner: 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a
@@ -151,6 +151,37 @@ Certificate hot-reload without restart, additive over `D-SEC.6`:
   fingerprint stays A), `sniReloadSwapsTheWholeMap` (post-slice-1 map behavior
   pinned); `mvn -o -pl kof-compiler -am compile` rc=0; the PortuKof method
   aliases regenerated for the new dispatcher arm (13 WEB_APP members).
+
+### Slice 3 — LANDED 04/11/2026 (lane `192.168.100.14:0`, flatt CLI)
+
+The verifying HTTP client, JVM-first:
+
+- **Strict default:** `kof.http` https:// requests now validate the chain
+  against the platform trust store WITH hostname verification
+  (`HttpClient.newHttpClient()` does both). The trust-all client stays, but
+  only behind the opt-in (existing tests use it explicitly).
+- **The opt-in:** `http.insecure()` (0 args, JVM face) switches https:// back
+  to the trust-all client and warns once on stderr
+  (`TLS-TRUST-ALL: ... test/dev only`). On JS/Native the opt-in is an honest
+  compile-time refusal (HTTP002): the JS fetch stack verifies by default and
+  the Native https face refuses — neither has a bypass surface.
+- **Named diagnostics:** a strict rejection is catchable as a Kof String:
+  `TLS-VERIFY: certificate rejected for <url> — <cause> (use http.insecure()
+  to opt into trust-all for test/dev)`.
+- **Proof (executed):** `KofWebTlsTest` **19/19** — the 14 previous +
+  `strictClientRejectsSelfSigned` (TLS-VERIFY), `strictClientAcceptsChainedCaCert`
+  (a REAL test CA via keytool: genkeypair(bc) → certreq → gencert(-rfc) →
+  import into the server keystore as the client trust store, `-Djavax.net.ssl.trustStore=...`),
+  `strictClientRejectsHostnameMismatch`, `insecureOptInWarnsAndTrustsSelfSigned`,
+  `insecureGapOnNative` (HTTP002); `KofHttpE2ETest` 8/8 (the http:// face
+  untouched); `mvn -o -pl kof-compiler -am compile` rc=0.
+
+keytool war stories (for the next slice's docs): keytool prompts for the
+keystore password when it is not given (a hung child, not an error — always
+pass `-storepass`); `-ext bc=ca` is INVALID (the valid spelling is `-ext bc`);
+`-gencert -outfile` writes DER unless `-rfc`; the emitted PEM is in the
+SYSTEM charset (decode with `Charset.defaultCharset()`, never
+`Files.readString`).
 
 ## 3. Design principles (frozen for all slices)
 

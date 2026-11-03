@@ -282,6 +282,7 @@ public final class JvmRuntimeCallDescriptors {
                     -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;";
             case "kof_http_status" -> "(Ljava/lang/String;)I";
             case "kof_http_timeout_set", "kof_http_retry_set", "kof_http_circuit_set" -> "(I)V";
+            case "kof_http_insecure_set" -> "()V";
             case "kof_mq_publish", "kof_mq_push" -> "(Ljava/lang/String;Ljava/lang/Object;)V";
             case "kof_mq_subscribe", "kof_mq_unsubscribe" -> "(Ljava/lang/String;Ljava/lang/Object;)V";
             case "kof_mq_queue" -> "()Ljava/lang/String;";

@@ -81,7 +81,7 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_mq_queue" -> "Ljava/lang/String;";
             case "kof_mq_pop" -> "Ljava/lang/Object;";
             case "kof_web_sse_route", "kof_web_ws_route", "kof_http_timeout_set",
-                    "kof_http_retry_set", "kof_http_circuit_set",
+                    "kof_http_retry_set", "kof_http_circuit_set", "kof_http_insecure_set",
                     "kof_mq_publish", "kof_mq_subscribe", "kof_mq_unsubscribe",
                     "kof_mq_push", "kof_time_sleep", "kof_time_cancel", "kof_scheduler_cancel" -> "V";
             case "kof_time_now" -> "J";
