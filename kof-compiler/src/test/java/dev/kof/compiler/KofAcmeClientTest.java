@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * TLS hardening slice 4 ({@code docs/development/tls-hardening-plan.md}): the
@@ -57,7 +58,7 @@ class KofAcmeClientTest extends ServerProcessSupport {
         cmd.add("Default.Main");
         Process p2 = new ProcessBuilder(cmd).redirectErrorStream(true).start();
         String output = new String(p2.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
-        p2.waitFor(30, TimeUnit.SECONDS);
+        p2.waitFor(90, TimeUnit.SECONDS);
         return output;
     }
 
@@ -188,7 +189,8 @@ class KofAcmeClientTest extends ServerProcessSupport {
             // o poll devolve `valid` DEPOIS do finalize (contador simples)
             String poll = seen.stream().filter(x -> x.startsWith("finalize-poll:")).count() > 0
                     ? "valid" : "pending";
-            byte[] body = ("{\"status\":\"" + poll + "\",\"authorizations\":[\"" + base
+            byte[] body = ("{\"status\":\"" + poll + "\",\"finalize\":\"" + base
+                    + "/order/9/finalize\",\"authorizations\":[\"" + base
                     + "/authz/5\"]" + (poll.equals("valid") ? ",\"certificate\":\"" + base
                     + "/cert/1\"" : "") + "}").getBytes(StandardCharsets.UTF_8);
             ex.sendResponseHeaders(200, body.length);
@@ -211,8 +213,11 @@ class KofAcmeClientTest extends ServerProcessSupport {
             ex.close();
         });
         server.createContext("/authz/5", ex -> {
-            // DNS-01 challenge com token fixo (o teste calcula o keyauth esperado)
-            byte[] body = ("{\"status\":\"pending\",\"challenges\":[{\"type\":\"dns-01\","
+            // o desafio vira valid DEPOIS do gatilho (o ciclo ACME real:
+            // trigger → validação → valid; o finalize espera esse valid)
+            String status = seen.stream().anyMatch(x -> x.startsWith("challenge-post:"))
+                    ? "valid" : "pending";
+            byte[] body = ("{\"status\":\"" + status + "\",\"challenges\":[{\"type\":\"dns-01\","
                     + "\"url\":\"" + base + "/challenge/5\",\"token\":\"stub-token-9\"}]}")
                     .getBytes(StandardCharsets.UTF_8);
             ex.sendResponseHeaders(200, body.length);
@@ -220,7 +225,8 @@ class KofAcmeClientTest extends ServerProcessSupport {
             ex.close();
         });
         server.createContext("/challenge/5", ex -> {
-            seen.add(new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            seen.add("challenge-post:" + new String(ex.getRequestBody().readAllBytes(),
+                    StandardCharsets.UTF_8));
             ex.getResponseHeaders().add("Location", base + "/authz/5");
             ex.sendResponseHeaders(200, -1);
             ex.close();
@@ -256,14 +262,15 @@ class KofAcmeClientTest extends ServerProcessSupport {
                     "newAccount returns the account kid: " + out);
             assertEquals(1, stub.seenJws().size(), "one newAccount POST: " + stub.seenJws());
             String jws = stub.seenJws().get(0);
-            String[] parts = jws.split("\\.");
-            assertEquals(3, parts.length, "the newAccount body is a JWS: " + jws);
-            String headerJson = new String(java.util.Base64.getUrlDecoder().decode(parts[0]),
+            assertTrue(jws.contains("\"protected\""), "flattened JSON JWS body: " + jws);
+            String headerB64 = jws.split("\"protected\":\"")[1].split("\"")[0];
+            String headerJson = new String(java.util.Base64.getUrlDecoder().decode(headerB64),
                     StandardCharsets.UTF_8);
             assertTrue(headerJson.contains("\"jwk\""), "the newAccount JWS embeds the JWK: " + headerJson);
             assertTrue(headerJson.contains("\"nonce\":\"stub-nonce-1\""),
                     "the JWS carries the captured Replay-Nonce: " + headerJson);
-            String payloadJson = new String(java.util.Base64.getUrlDecoder().decode(parts[1]),
+            String payloadB64 = jws.split("\"payload\":\"")[1].split("\"")[0];
+            String payloadJson = new String(java.util.Base64.getUrlDecoder().decode(payloadB64),
                     StandardCharsets.UTF_8);
             assertTrue(payloadJson.contains("\"termsOfServiceAgreed\":true"),
                     "the payload agrees to the ToS: " + payloadJson);
@@ -413,4 +420,5 @@ class KofAcmeClientTest extends ServerProcessSupport {
             assertEquals(1, fin.size(), "one finalize POST: " + stub.seenJws());
         }
     }
+
 }

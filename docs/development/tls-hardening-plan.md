@@ -1,8 +1,8 @@
 [English](tls-hardening-plan.md) | [Português](tls-hardening-plan.pt_BR.md)
 
-last: 02/11/2026 — PROMOTED from `docs/development/future/` by maintainer order ("pega tls do future pra fazer, é urgente"); slice 0 (inventory spike) MEASURED at the tip
-doing: ALL plan-defined layers LANDED with executed proof (inventory + SNI + hot-reload + verifying client + the full ACME chain JWS/account/order/finalize: KofAcmeClientTest 4/4, KofWebTlsVerifyTest 5/5, KofWebTlsTest 14/14, KofHttpE2ETest 8/8); the ONLY open item is the Pebble E2E (CI unblock)
-next: the Pebble E2E proof (issuance against the standard ACME test server, then the issued pair serves via slice 2 listenSecure) — unblocks when the CI provides Pebble/Go; PROMOTION of the plan to docs/ becomes eligible once that proof lands
+last: 03/11/2026 — the Pebble E2E LANDED: real issuance against Pebble 1.0.1 (authz set VALID by the DNS-01 challenge, "Issued certificate serial 0dca413a13143cfa"), the issued pair serves via slice 2 listenSecure with the HTTP proof
+doing: ALL plan-defined layers LANDED with executed proof (inventory + SNI + hot-reload + verifying client + the full ACME chain + the Pebble E2E: KofAcmeClientTest 4/4 + KofAcmePebbleE2ETest 1/1, KofWebTlsVerifyTest 5/5, KofWebTlsTest 14/14, KofHttpE2ETest 8/8 — 32/32 family); the plan is COMPLETE
+next: PROMOTION of the plan to docs/ (every slice is landed with executed proof; the promotion is the next commit)
 location: docs/development
 state: under-development
 owner: 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a
@@ -291,6 +291,50 @@ The FINALIZE layer — the client issues the certificate pair end-to-end
   toolchain). Every layer the plan defines has landed with executed proof:
   inventory + SNI + hot-reload + verifying client + the ACME
   JWS/account/order/finalize chain.
+
+### Slice 4 — INCREMENT 5 LANDED 03/11/2026 (lane `192.168.100.14:0`, flatt CLI) — the PEBBLE E2E
+
+Real issuance against the standard ACME test server, built ON THIS HOST
+after all (the "no Go" baseline was wrong — Go 1.23.4 compiles Pebble 1.0.1
++ pebble-challtestsrv in /tmp): Pebble on `https://localhost:14000/dir`
+(the localhost leaf cert carries SAN DNS:localhost,pebble + IP:127.0.0.1;
+the trust anchor is the minica, `/tmp/pebble-trust.p12`), challtestsrv on
+:8053 (DNS, Pebble `-dnsserver`) + :8055 (management).
+
+- **The flow (`pebbleIssuesThePairAndItServes`):** face 1 `newAccount`
+  against Pebble (a REAL kid: `https://localhost:14000/my-account/...`);
+  then faces 2-6 run in ONE process — the order cache
+  (`KOF_ACME_ORDER_BY_DOMAIN`) is per-JVM, and SEPARATE processes created
+  different orders whose tokens never matched the published TXT (the
+  diagnosis of the earlier INVALID authz; the 12 stale TXT values in the
+  challtestsrv log were the evidence): `newOrder` → `dns01Txt` → the
+  OPERATOR publishes the TXT via plain `http.post` to
+  `http://127.0.0.1:8055/set-txt` (the DNS-provider API role; the acme
+  runtime stays DNS-free) → `challenge` → `finalize` → the downloaded pair;
+  face 7: the issued pair serves via `listenSecure` and answers
+  "Hello Pebble" over HTTPS.
+- **Fixes measured against the REAL server (each a real-contract lesson):**
+  the challenge trigger payload is `{}` (RFC 8555 §7.5.1 — the server
+  derives the keyAuthorization; Pebble rejects the legacy field in strict
+  mode); the finalize does NOT re-trigger a challenge that is no longer
+  pending (Pebble 400s "Cannot update challenge with status processing");
+  the finalize URL comes from the ORDER JSON (`/finalize-order/<id>` — not
+  `<order>/finalize`); the CSR carries the SAN extension via extensionRequest
+  (Pebble requires `parsedCSR.DNSNames` == the order names — CN-only is
+  rejected), in the Go/OpenSSL attribute shape
+  `SET{SEQUENCE(Extension)}` (the bare Extension in the SET breaks
+  `parseCSRExtensions`), with `ecdsa-with-SHA256` (RFC 5758, no NULL
+  params) and MINIMAL DER lengths (the signed `BigInteger.toByteArray`
+  emits a superfluous leading zero for lengths 128-255 — Go's ASN.1
+  parser refuses).
+- **Proof (executed):** `KofAcmePebbleE2ETest` **1/1** (with `KofAcmeClientTest` 4/4) — the Pebble log shows
+  `authz ... set VALID by completed challenge ...` and `Issued certificate
+  serial 0dca413a13143cfa`; `KofWebTlsTest` 14/14; `KofWebTlsVerifyTest`
+  5/5; `KofHttpE2ETest` 8/8 — the family is **32/32**; `mvn -o -pl
+  kof-compiler -am compile` rc=0. The harness lives in /tmp
+  (`/tmp/start-acme-servers.sh` + `/tmp/pebble-config.json` +
+  `/tmp/pebble-trust.p12`); the test skips HONESTLY (assumeTrue) when the
+  trust store is absent — CI that provides Pebble gets the E2E for free.
 
 ## 3. Design principles (frozen for all slices)
 

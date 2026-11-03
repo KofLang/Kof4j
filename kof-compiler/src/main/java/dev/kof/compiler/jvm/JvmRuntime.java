@@ -168,6 +168,8 @@ public static boolean hasRuntimeFn(String methodName) {
                 + JvmRuntimeWebServer.source()
                 + JvmRuntimeTlsServer.source()
                 + JvmAcmeRuntime.source()
+                + JvmAcmeOrderRuntime.source()
+                + JvmAcmeFinalizeRuntime.source()
                 + JvmRuntimeSockets.source()
                 + JvmRuntimeWebDispatch.source()
                 + JvmConfigRuntime.source()
