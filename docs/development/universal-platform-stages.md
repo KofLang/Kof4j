@@ -1,8 +1,8 @@
 [English](universal-platform-stages.md) | [Português](universal-platform-stages.pt_BR.md)
 
 last: 03/11/2026 — PROMOTED from `docs/development/future/` by the maintainer's direct order ("pega o universal platform de future"); Stage 4.6 (light experiment tracking) LANDED the same cycle with executed proof (`ExperimentsE2ETest` 2/2)
-doing: Stages 4–7 are the CURRENT development plan — Stage 4.6 is DONE (`libs/experiments/Experiments.kf`: runs/metrics/params as rows over `kof.db` + a JSON Lines export over `kof.io`, pure Kof, no FFI); the remaining items are measured against their real dependencies below
-next: the next implementable item WITHOUT a new core primitive or FFI dependency — measured candidates are listed in the Status section; everything else stays blocked by R3 (FFI), Arrow or the R12 stage order
+doing: Stages 4–7 are the CURRENT development plan — 4.6 DONE (`libs/experiments/`), 4.3's descriptive half DONE (`libs/stats/Stats.kf`: mean/median/minimum/maximum/pvariance/stddev/percentile, `StatsE2ETest` 2/2 JVM+Script); the remaining items are measured against their real dependencies below
+next: the next CANDIDATE — 4.5 (SVG writer), 5.9, 5.10, 7.1 (text formats), 7.3; everything else stays blocked by R3 (FFI), Arrow or the R12 stage order
 location: docs/development
 state: under-development
 owner: 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a
@@ -65,7 +65,7 @@ Each row is the plan's own item checked against the tree, not against the plan's
 |---|------|--------|-------|------------|
 | 4.1 | Typed `dataframe` (lazy, columnar) | 🔵 | — | R3 |
 | 4.2 | **Arrow/Parquet via FFI** (typed wrapper) | 🔵 | — | R3 |
-| 4.3 | Statistics/probability (wrapper + FFI) | 🔵 | — | R3 |
+| 4.3 | Statistics/probability (wrapper + FFI) | 🟡 | `192.168.100.14:0` | **the descriptive half LANDED 03/11** — `libs/stats/Stats.kf` (pure Kof): `mean`/`median`/`minimum`/`maximum`/`pvariance` (population)/`stddev` (over `math.sqrt`, MATH001 honest on native cross)/`percentile` (linear interpolation; STATS001 empty, STATS002 out-of-range). Proof: `StatsE2ETest` **2/2** (JVM + Script) RED-first (`libs/stats not found` captured, then two real compiler faces surfaced: the COMP002 frame-crash on the multi-return shape — fixed single-exit — and SEM090's toInt truncation note). The probability-distribution half stays 🔵 (FFI/R3) |
 | 4.4 | `kof.ml` — inference via FFI (ONNX/libtorch); orchestrated training | 🔵 | — | R3 |
 | 4.5 | Light visualization (SVG/`kof.ui` + FFI) | 🟡 | — | `kof.ui` exists; data-viz bindings pending |
 | 4.6 | Experiment tracking (light, over `kof.db`/`kof.io`) | ✅ | `192.168.100.14:0` | **LANDED 03/11** — `libs/experiments/Experiments.kf`: `initExperiments`, `startRun`/`finishRun`, `logMetric`/`logParam`, `metricAt`/`lastMetric`/`metricCount`, `exportRun` (JSON Lines over `kof.io`). Rows over `kof.db`; the reader decodes the raw JSON row with `json.decode<Row>` because the typed `db.query<Rec>` loses a LIB-defined record (`known-bugs` §727). Proof: `ExperimentsE2ETest` **2/2** (JVM + Script), RED-first with 4 real diagnostics (`null` not assignable, `integer` not a type, nullable receivers, `readText` returns `String?`) |

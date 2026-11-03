@@ -1,8 +1,8 @@
 [English](universal-platform-stages.md) | [Português](universal-platform-stages.pt_BR.md)
 
 last: 03/11/2026 — PROMOVIDO de `docs/development/future/` pela ordem direta da mantenedora ("pega o universal platform de future"); a Fase 4.6 (registro leve de experimentos) POUSOU no mesmo ciclo com prova executada (`ExperimentsE2ETest` 2/2)
-doing: as Fases 4–7 são o plano de desenvolvimento CORRENTE — a 4.6 está FEITA (`libs/experiments/Experiments.kf`: runs/métricas/parâmetros como linhas sobre `kof.db` + exportação JSON Lines sobre `kof.io`, Kof puro, sem FFI); os itens restantes estão medidos contra as suas dependências reais abaixo
-next: o próximo item implementável SEM primitivo novo nem dependência de FFI — os candidatos medidos estão na seção Status; todo o resto segue bloqueado pelo R3 (FFI), Arrow ou pela ordem de estágios do R12
+doing: as Fases 4–7 são o plano de desenvolvimento CORRENTE — 4.6 FEITA (`libs/experiments/`), a metade descritiva da 4.3 FEITA (`libs/stats/Stats.kf`: mean/median/minimum/maximum/pvariance/stddev/percentile, `StatsE2ETest` 2/2 JVM+Script); os itens restantes estão medidos contra as suas dependências reais abaixo
+next: o próximo CANDIDATO — 4.5 (escritor SVG), 5.9, 5.10, 7.1 (formatos textuais), 7.3; todo o resto segue bloqueado pelo R3 (FFI), Arrow ou pela ordem de estágios do R12
 location: docs/development
 state: under-development
 dona: 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a
@@ -75,7 +75,7 @@ o *wrapper tipado + pipeline*, o *motor* fica fora.
 |---|------|--------|------|------------|
 | 4.1 | `dataframe` tipado (lazy, colunar) | 🔵 | — | R3 |
 | 4.2 | **Arrow/Parquet via FFI** (wrapper tipado) | 🔵 | — | R3 |
-| 4.3 | Estatística/probabilidade (wrapper + FFI) | 🔵 | — | R3 |
+| 4.3 | Estatística/probabilidade via FFI | 🟡 | `192.168.100.14:0` | **a metade descritiva POUSOU 03/11** — `libs/stats/Stats.kf` (Kof puro): `mean`/`median`/`minimum`/`maximum`/`pvariance` (populacional)/`stddev` (sobre `math.sqrt`, MATH001 honesto no cross nativo)/`percentile` (interpolação linear; STATS001 vazio, STATS002 fora de faixa). Prova: `StatsE2ETest` **2/2** (JVM + Script) RED-first (`libs/stats not found` capturado, depois duas faces reais do compilador: o crash de frame COMP002 na forma multi-return — consertado com saída única — e a nota de truncamento SEM090). A metade de distribuições de probabilidade segue 🔵 (FFI/R3) |
 | 4.4 | `kof.ml` — inferência via FFI (ONNX/libtorch); treino orquestrado | 🔵 | — | R3 |
 | 4.5 | Visualização leve (SVG/`kof.ui` + FFI) | 🟡 | — | `kof.ui` existe; bindings de data-viz pendentes |
 | 4.6 | Rastreamento de experimentos (leve, sobre `kof.db`/`kof.io`) | ✅ | `192.168.100.14:0` | **POUSOU 03/11** — `libs/experiments/Experiments.kf`: `initExperiments`, `startRun`/`finishRun`, `logMetric`/`logParam`, `metricAt`/`lastMetric`/`metricCount`, `exportRun` (JSON Lines sobre `kof.io`). Linhas sobre `kof.db`; o leitor decodifica a linha JSON crua com `json.decode<Row>` porque o `db.query<Rec>` tipado perde um record definido em LIB (`known-bugs` §727). Prova: `ExperimentsE2ETest` **2/2** (JVM + Script), RED-first com 4 diagnósticos reais (`null` não atribuível, `integer` não é tipo, receivers nuláveis, `readText` devolve `String?`) |
