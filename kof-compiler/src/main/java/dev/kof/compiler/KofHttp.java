@@ -40,7 +40,7 @@ public final class KofHttp {
 
 /** X10 fatia 2: nomes aceitos pelo dispatch real (catálogo p/ LSP).
      *  GUARDA: StdCatalogTest exige == case-literals da fonte abaixo. */
-    static List<String> functions() { return List.of("get", "post", "put", "delete", "patch", "options", "status", "timeout", "retry", "circuit"); }
+    static List<String> functions() { return List.of("get", "post", "put", "delete", "patch", "options", "status", "timeout", "retry", "circuit", "insecure"); }
 
     static boolean isHttpMethod(String name) {
         return switch (name) {
