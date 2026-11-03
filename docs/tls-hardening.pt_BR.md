@@ -1,10 +1,10 @@
-[English](tls-hardening-plan.md) | [Português](tls-hardening-plan.pt_BR.md)
+[English](tls-hardening.md) | [Português](tls-hardening.pt_BR.md)
 
-last: 03/11/2026 — a E2E Pebble POUSOU: emissão real contra Pebble 1.0.1 (authz marcada VALID pelo desafio DNS-01, "Issued certificate serial 0dca413a13143cfa"), o par emitido serve via listenSecure da fatia 2 com a prova HTTP
+last: 03/11/2026 — PROMOVIDO para `docs/tls-hardening.pt_BR.md` (+EN) (o modelo de estado dos docs: implemented-validated-decided) — o gate da promoção foi a prova E2E Pebble abaixo
 doing: TODAS as camadas definidas pelo plano POUSADAS com prova executada (inventário + SNI + hot-reload + cliente verificador + a cadeia ACME completa + a E2E Pebble: KofAcmeClientTest 4/4 + KofAcmePebbleE2ETest 1/1, KofWebTlsVerifyTest 5/5, KofWebTlsTest 14/14, KofHttpE2ETest 8/8 — família 32/32); o plano está COMPLETO
-next: a PROMOÇÃO do plano para docs/ (toda fatia pousada com prova executada; a promoção é o próximo commit)
-location: docs/development
-state: under-development
+next: nenhuma — este documento é o CONTRATO da superfície TLS; mudanças seguem `D-SEC.6` (apenas aditivo) e uma decisão da mantenedora
+location: docs
+state: implemented
 dona: 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a
 
 intent: kof-tls-hardening-beyond-dev-self-signed
