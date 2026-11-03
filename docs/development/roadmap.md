@@ -886,6 +886,7 @@ Long-term vision — Kof as a universal platform (one language for
 applications **and** systems, infrastructure, automation, data, security and
 science) **without** destroying the language's simplicity.
 
+- **Stages 4–7 PROMOTED 03/11** (maintainer order "pega o universal platform de future") to [`universal-platform-stages.md`](universal-platform-stages.md) (+PT) — Stage 4.6 landed the same cycle; every remaining item measured against the tree (only 4.3/4.5/5.9/5.10/7.1/7.3 are implementable without a new primitive or FFI)
 - Central document: `docs/architecture/IMPLEMENTATION-UNIVERSAL-PLATFORM.md`
   (architecture — **UNDER DEVELOPMENT** since 17/09/2026; promoted from
   `future/` by maintainer decision, `DECISIONS.md` §D-UNIVERSAL)
