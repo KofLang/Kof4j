@@ -400,4 +400,88 @@ class KofWebTlsVerifyTest extends ServerProcessSupport {
         body.write(b.length);
         body.write(b, 0, b.length);
     }
+
+    // ── TLS hardening slice 4 (increment 2): acme.newAccount ───────────────
+    // acme.newAccount(directoryUrl, accountKeyPem, contact) walks the ACME
+    // account layer: GET directory → newNonce (Replay-Nonce capture) →
+    // newAccount JWS with the EMBEDDED JWK + the RFC 7638 thumbprint →
+    // returns the account kid (Location). Proven against a TEST-LOCAL ACME
+    // stub (Pebble is not on this host — the stub implements the three
+    // endpoints the account layer needs).
+
+    /** Stub ACME mínimo: directory + newNonce + newAccount (captura o JWS). */
+    private record AcmeStub(com.sun.net.httpserver.HttpServer server, int port,
+                            java.util.List<String> seenJws) implements AutoCloseable {
+        @Override public void close() { server.stop(0); }
+    }
+
+    private AcmeStub startAcmeStub() throws Exception {
+        java.util.List<String> seen = new java.util.ArrayList<>();
+        var server = com.sun.net.httpserver.HttpServer.create(
+                new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/directory", ex -> {
+            byte[] body = ("{\"newNonce\":\"http://127.0.0.1:" + server.getAddress().getPort()
+                    + "/nonce\",\"newAccount\":\"http://127.0.0.1:" + server.getAddress().getPort()
+                    + "/newAccount\"}").getBytes(StandardCharsets.UTF_8);
+            ex.getResponseHeaders().add("Content-Type", "application/json");
+            ex.sendResponseHeaders(200, body.length);
+            ex.getResponseBody().write(body);
+            ex.close();
+        });
+        server.createContext("/nonce", ex -> {
+            ex.getResponseHeaders().add("Replay-Nonce", "stub-nonce-1");
+            ex.sendResponseHeaders(204, -1);
+            ex.close();
+        });
+        server.createContext("/newAccount", ex -> {
+            seen.add(new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            ex.getResponseHeaders().add("Location", "https://acme.example/acct/7");
+            ex.sendResponseHeaders(201, -1);
+            ex.close();
+        });
+        server.start();
+        return new AcmeStub(server, server.getAddress().getPort(), seen);
+    }
+
+    @Test
+    void acmeNewAccountReturnsTheKid(@TempDir Path tempDir) throws Exception {
+        Process p = new ProcessBuilder("keytool", "-genkeypair", "-alias", "acme",
+                "-keyalg", "EC", "-groupname", "secp256r1",
+                "-validity", "365", "-dname", "CN=acme-test",
+                "-keystore", tempDir.resolve("acme.p12").toString(),
+                "-storepass", "changeit", "-keypass", "changeit",
+                "-storetype", "PKCS12", "-noprompt")
+                .redirectErrorStream(true).start();
+        assertEquals(0, p.waitFor(), "EC genkeypair");
+        java.security.KeyStore store = java.security.KeyStore.getInstance("PKCS12");
+        try (var in = Files.newInputStream(tempDir.resolve("acme.p12"))) {
+            store.load(in, "changeit".toCharArray());
+        }
+        String keyPem = "-----BEGIN PRIVATE KEY-----\n" + mime(
+                ((java.security.PrivateKey) store.getKey("acme", "changeit".toCharArray())).getEncoded())
+                + "-----END PRIVATE KEY-----\n";
+
+        try (AcmeStub stub = startAcmeStub()) {
+            String out = runHttpClient(tempDir, "main() {\n"
+                    + "    println(acme.newAccount(\"http://127.0.0.1:" + stub.port()
+                    + "/directory\", \"" + kofLiteral(keyPem) + "\", \"mailto:ops@example.com\"))\n"
+                    + "}\n");
+            assertEquals("https://acme.example/acct/7", out.strip(),
+                    "newAccount returns the account kid: " + out);
+            assertEquals(1, stub.seenJws().size(), "one newAccount POST: " + stub.seenJws());
+            String jws = stub.seenJws().get(0);
+            String[] parts = jws.split("\\.");
+            assertEquals(3, parts.length, "the newAccount body is a JWS: " + jws);
+            String headerJson = new String(java.util.Base64.getUrlDecoder().decode(parts[0]),
+                    StandardCharsets.UTF_8);
+            assertTrue(headerJson.contains("\"jwk\""), "the newAccount JWS embeds the JWK: " + headerJson);
+            assertTrue(headerJson.contains("\"nonce\":\"stub-nonce-1\""),
+                    "the JWS carries the captured Replay-Nonce: " + headerJson);
+            String payloadJson = new String(java.util.Base64.getUrlDecoder().decode(parts[1]),
+                    StandardCharsets.UTF_8);
+            assertTrue(payloadJson.contains("\"termsOfServiceAgreed\":true"),
+                    "the payload agrees to the ToS: " + payloadJson);
+            assertTrue(payloadJson.contains("mailto:ops@example.com"), payloadJson);
+        }
+    }
 }

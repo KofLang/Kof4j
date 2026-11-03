@@ -1,8 +1,8 @@
 [English](tls-hardening-plan.md) | [Português](tls-hardening-plan.pt_BR.md)
 
 last: 02/11/2026 — PROMOVIDO de `docs/development/future/` por ordem da mantenedora ("pega tls do future pra fazer, é urgente"); a fatia 0 (spike de inventário) foi MEDIDA no tip
-doing: fatias 0-3 POUSADAS (KofWebTlsTest 14/14 + KofWebTlsVerifyTest 5/5) + fatia 4 INCREMENTO 1 (o núcleo JWS ES256 do ACME, KofWebTlsVerifyTest 6/6 prova de round-trip); o fluxo DNS-01 (incremento 2) é o próximo
-next: fatia 4 incremento 2 — o fluxo DNS-01 (directory → newNonce → newAccount → newOrder → authz → TXT keyauth → gatilho do desafio → poll → finalize(CSR) → download do cert), provável contra um stub ACME local-de-teste; a E2E Pebble destrava quando o CI providenciar Pebble (sem Go/Pebble neste host hoje)
+doing: fatias 0-3 POUSADAS + fatia 4 incrementos 1-2 (o núcleo JWS ES256 + a camada ACCOUNT do ACME, KofWebTlsVerifyTest 7/7 contra stub local-de-teste); a camada ORDER (newOrder/authz/TXT/challenge/finalize) é o incremento 3
+next: fatia 4 incremento 3 — a camada ORDER (newOrder → authz → valor TXT do keyauth → gatilho do desafio → poll → finalize(CSR) → download do cert); a E2E Pebble destrava quando o CI providenciar Pebble
 location: docs/development
 state: under-development
 dona: 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a
@@ -227,6 +227,33 @@ qual o fluxo DNS-01 completo se constrói):
   a E2E destrava quando o CI providenciar Pebble (condição ambiental, como
   a toolchain riscv64); o fluxo do protocolo pode ser provado primeiro
   contra um stub ACME local-de-teste.
+
+### Fatia 4 '—' INCREMENTO 2 POUSADO 04/11/2026 (lane `192.168.100.14:0`, flatt CLI)
+
+A camada de ACCOUNT do ACME (`acme.newAccount(directoryUrl, accountKeyPem,
+contact): String`), provada contra um stub ACME LOCAL-DE-TESTE (Pebble não
+está neste host '—' o stub implementa os três endpoints que a camada de
+account precisa):
+
+- **Fluxo:** GET directory '→' parse de newNonce/newAccount (lookup JSON
+  plano por quote-como-char-code '—' o text block do template NÃO carrega
+  NENHUM backslash: os escapes de \" do template chegam QUEBRADOS ao helper
+  gerado) '→' newNonce GET captura o `Replay-Nonce` '→' newAccount POST (JWS:
+  header protegido `alg`/`jwk`/`nonce`/`url`; payload
+  `termsOfServiceAgreed` + `contact`) '→' 201 + `Location` = o kid da conta.
+- **A JWK:** a chave pública é DERIVADA da privada '—' o PKCS#8 EC do
+  keytool NÃO carrega o ponto embutido (67 bytes, o [1] da RFC 5915
+  ausente), então o runtime roda um double-and-add explícito na P-256 (o
+  JDK não expõe derivação pública); o `KeyFactory` do JDK então
+  VALIDA que o ponto derivado está na curva ao montar o `ECPublicKey`.
+- **Prova (executada):** `KofWebTlsVerifyTest` **7/7** '—'
+  `acmeNewAccountReturnsTheKid` assegura o kid, a forma do JWS capturado
+  (3 partes), a `jwk` embutida, o `stub-nonce-1` capturado no header
+  protegido, o acordo de ToS e o contact; `KofWebTlsTest` 14/14;
+  `KofHttpE2ETest` 8/8; `mvn -o -pl kof-compiler -am compile` rc=0.
+- **Incrementos restantes:** newOrder + authz + o valor TXT do keyauth +
+  gatilho do desafio + poll + finalize(CSR) + download do cert (incremento 3),
+  depois a E2E Pebble (destrava quando o CI providenciar Pebble).
 
 ## 3. Princípios de design (congelados para todas as fatias)
 

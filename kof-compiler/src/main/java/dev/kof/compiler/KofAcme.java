@@ -41,11 +41,18 @@ public final class KofAcme {
                 && isStr(argTypes.get(0)) && isStr(argTypes.get(1)) && isStr(argTypes.get(2))) {
             return new AcmeCall("kof_acme_jws_es256", STR, List.of(STR, STR, STR));
         }
+        // TLS hardening slice 4 increment 2: the ACCOUNT layer — directory +
+        // newNonce + newAccount (JWK embedded + RFC 7638 thumbprint); returns
+        // the account kid.
+        if ("newAccount".equals(name) && argTypes.size() == 3
+                && isStr(argTypes.get(0)) && isStr(argTypes.get(1)) && isStr(argTypes.get(2))) {
+            return new AcmeCall("kof_acme_new_account", STR, List.of(STR, STR, STR));
+        }
         return null;
     }
 
     static boolean isAcmeMethod(String name) {
-        return "jwsEs256".equals(name);
+        return "jwsEs256".equals(name) || "newAccount".equals(name);
     }
 
     /** Gap code for the not-yet-supported targets (recorded per target). */

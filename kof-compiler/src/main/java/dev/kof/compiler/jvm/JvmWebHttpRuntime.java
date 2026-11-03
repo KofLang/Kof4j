@@ -231,7 +231,167 @@ public final class JvmWebHttpRuntime {
                     }
                 }
 
-                public static int kof_http_status(String url) throws Exception {
+                // ── TLS hardening slice 4 (increment 2): the ACME ACCOUNT layer ──
+
+                /**
+                 * TLS hardening slice 4 (increment 2): the ACME ACCOUNT layer.
+                 * GET directory → newNonce (Replay-Nonce capture) → newAccount
+                 * JWS with the EMBEDDED JWK (P-256 crv/kty/x/y) + the RFC 7638
+                 * thumbprint → returns the account kid (Location header). The
+                 * account key stays DELEGATED to the operator (Kof never
+                 * persists it).
+                 */
+                public static String kof_acme_new_account(String directoryUrl, String accountKeyPem,
+                        String contact) throws Exception {
+                    if (directoryUrl == null || accountKeyPem == null) {
+                        throw new RuntimeException("WEB008: acme.newAccount(directoryUrl, accountKeyPem, "
+                                + "contact) — the directory and the key are required");
+                    }
+                    java.security.PrivateKey priv = kofAcmeKey(accountKeyPem);
+                    java.security.interfaces.ECPublicKey pub = kofAcmePublicFromPriv(priv);
+                    String x = new String(kofAcmeB64url(
+                            kofAcmeLeftTrim(pub.getW().getAffineX().toByteArray(), 32)),
+                            java.nio.charset.StandardCharsets.US_ASCII);
+                    String y = new String(kofAcmeB64url(
+                            kofAcmeLeftTrim(pub.getW().getAffineY().toByteArray(), 32)),
+                            java.nio.charset.StandardCharsets.US_ASCII);
+                    String q = q();
+                    String jwk = "{" + q + "crv" + q + ":" + q + "P-256" + q + "," + q + "kty" + q
+                            + ":" + q + "EC" + q + "," + q + "x" + q + ":" + q + x + q + ","
+                            + q + "y" + q + ":" + q + y + q + "}";
+                    // RFC 7638: SHA-256 of the canonical {"crv","kty","x","y"} JSON.
+                    String canonical = jwk; // RFC 7638: exatamente estes 4 membros, nesta ordem
+                    String thumbprint = new String(kofAcmeB64url(
+                            java.security.MessageDigest.getInstance("SHA-256")
+                                    .digest(canonical.getBytes(java.nio.charset.StandardCharsets.UTF_8))),
+                            java.nio.charset.StandardCharsets.US_ASCII);
+                    java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
+                    // 1) directory
+                    String dirJson = client.send(java.net.http.HttpRequest.newBuilder(
+                                    java.net.URI.create(directoryUrl)).GET().build(),
+                            java.net.http.HttpResponse.BodyHandlers.ofString()).body();
+                    String nonceUrl = kofAcmeJsonString(dirJson, "newNonce");
+                    String accountUrl = kofAcmeJsonString(dirJson, "newAccount");
+                    if (nonceUrl == null || accountUrl == null) {
+                        throw new RuntimeException("WEB008: the ACME directory lacks newNonce/newAccount: "
+                                + dirJson);
+                    }
+                    // 2) newNonce — capture the Replay-Nonce
+                    java.net.http.HttpResponse<Void> nonceResp = client.send(
+                            java.net.http.HttpRequest.newBuilder(java.net.URI.create(nonceUrl))
+                                    .header("User-Agent", "kof-acme")
+                                    .GET().build(),
+                            java.net.http.HttpResponse.BodyHandlers.discarding());
+                    String nonce = nonceResp.headers().firstValue("Replay-Nonce").orElse(null);
+                    if (nonce == null) {
+                        throw new RuntimeException("WEB008: the ACME newNonce response carries no "
+                                + "Replay-Nonce");
+                    }
+                    // 3) newAccount JWS (jwk embedded; ToS agreed; contact)
+                    String protectedJson = "{" + q + "alg" + q + ":" + q + "ES256" + q + ","
+                            + q + "jwk" + q + ":" + jwk + "," + q + "nonce" + q + ":" + q + nonce
+                            + q + "," + q + "url" + q + ":" + q + accountUrl + q + "}";
+                    String payloadJson = "{" + q + "termsOfServiceAgreed" + q + ":true,"
+                            + q + "contact" + q + ":[" + q + contact + q + "]}";
+                    String jws = kof_acme_jws_es256(accountKeyPem, protectedJson, payloadJson);
+                    java.net.http.HttpResponse<Void> created = client.send(
+                            java.net.http.HttpRequest.newBuilder(java.net.URI.create(accountUrl))
+                                    .header("Content-Type", "application/jose+json")
+                                    .POST(java.net.http.HttpRequest.BodyPublishers.ofString(jws))
+                                    .build(),
+                            java.net.http.HttpResponse.BodyHandlers.discarding());
+                    if (created.statusCode() != 201) {
+                        throw new RuntimeException("WEB008: the ACME newAccount returned HTTP "
+                                + created.statusCode() + " (expected 201)");
+                    }
+                    String kid = created.headers().firstValue("Location").orElse(null);
+                    if (kid == null) {
+                        throw new RuntimeException("WEB008: the ACME newAccount 201 carries no "
+                                + "Location (kid)");
+                    }
+                    return kid;
+                }
+
+                /**
+                 * A pública EC derivada da privada por double-and-add na curva
+                 * (o PKCS#8 do keytool NÃO carrega o ponto embutido; o JDK não
+                 * expõe derivação pública '—' a aritmética é curta e explícita).
+                 */
+                private static java.security.interfaces.ECPublicKey kofAcmePublicFromPriv(
+                        java.security.PrivateKey priv) throws Exception {
+                    java.security.interfaces.ECPrivateKey ec =
+                            (java.security.interfaces.ECPrivateKey) priv;
+                    java.security.spec.ECParameterSpec spec = ec.getParams();
+                    java.math.BigInteger p =
+                            ((java.security.spec.ECFieldFp) spec.getCurve().getField()).getP();
+                    java.math.BigInteger a = spec.getCurve().getA();
+                    java.security.spec.ECPoint g = spec.getGenerator();
+                    java.math.BigInteger gx = g.getAffineX();
+                    java.math.BigInteger gy = g.getAffineY();
+                    java.math.BigInteger px = null;
+                    java.math.BigInteger py = null;
+                    java.math.BigInteger s = ec.getS();
+                    for (int i = s.bitLength() - 1; i >= 0; i--) {
+                        if (px != null) {
+                            java.math.BigInteger lambda = px.pow(2).multiply(java.math.BigInteger.valueOf(3))
+                                    .add(a).multiply(py.shiftLeft(1).modInverse(p)).mod(p);
+                            java.math.BigInteger nx = lambda.pow(2).subtract(px.shiftLeft(1)).mod(p);
+                            java.math.BigInteger ny = lambda.multiply(px.subtract(nx)).subtract(py).mod(p);
+                            px = nx.mod(p);
+                            py = ny.mod(p);
+                        }
+                        if (s.testBit(i)) {
+                            if (px == null) {
+                                px = gx;
+                                py = gy;
+                            } else {
+                                java.math.BigInteger lambda = gy.subtract(py)
+                                        .multiply(gx.subtract(px).modInverse(p)).mod(p);
+                                java.math.BigInteger nx = lambda.pow(2).subtract(px).subtract(gx).mod(p);
+                                java.math.BigInteger ny = lambda.multiply(px.subtract(nx)).subtract(py).mod(p);
+                                px = nx.mod(p);
+                                py = ny.mod(p);
+                            }
+                        }
+                    }
+                    if (px == null) throw new RuntimeException("WEB008: zero scalar");
+                    java.security.PublicKey pk = java.security.KeyFactory.getInstance("EC")
+                            .generatePublic(new java.security.spec.ECPublicKeySpec(
+                                    new java.security.spec.ECPoint(px, py), spec));
+                    return (java.security.interfaces.ECPublicKey) pk;
+                }
+
+                private static byte[] kofAcmeLeftTrim(byte[] v, int size) {
+                    byte[] out = new byte[size];
+                    if (v.length > size) {
+                        System.arraycopy(v, v.length - size, out, 0, size);
+                    } else {
+                        System.arraycopy(v, 0, out, size - v.length, v.length);
+                    }
+                    return out;
+                }
+
+                /** O valor de uma chave String num JSON plano (sem parser — os
+                 *  shapes do directory são simples e conhecidos). */
+                /** Quote como char-code: o text block do template não carrega
+                 *  NENHUM backslash (os escapes de \" do template chegam
+                 *  quebrados ao helper gerado). */
+                private static String q() { return String.valueOf((char) 34); }
+
+                private static String kofAcmeJsonString(String json, String key) {
+                    // plain-JSON string lookup: quote as a char CODE (34) so the
+                    // text block carries NO backslashes at all.
+                    StringBuilder nb = new StringBuilder().append((char) 34).append(key)
+                            .append((char) 34).append(':').append((char) 34);
+                    String needle = nb.toString();
+                    int k = json.indexOf(needle);
+                    if (k < 0) return null;
+                    int from = k + needle.length();
+                    int to = json.indexOf(String.valueOf((char) 34), from);
+                    return to < 0 ? null : json.substring(from, to);
+                }
+
+public static int kof_http_status(String url) throws Exception {
                     try {
                         java.net.http.HttpClient client = kofHttpClientFor(url);
                         java.net.http.HttpRequest.Builder b = java.net.http.HttpRequest.newBuilder(

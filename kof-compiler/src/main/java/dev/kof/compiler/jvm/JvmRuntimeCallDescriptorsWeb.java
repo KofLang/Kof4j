@@ -72,6 +72,7 @@ public final class JvmRuntimeCallDescriptorsWeb {
             case "kof_http_timeout_set", "kof_http_retry_set", "kof_http_circuit_set" -> "(I)V";
             case "kof_http_insecure_set" -> "()V";
             case "kof_acme_jws_es256" -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;";
+            case "kof_acme_new_account" -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;";
             default -> "(Ljava/lang/String;)Ljava/lang/Object;";
         };
     }

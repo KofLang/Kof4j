@@ -1,8 +1,8 @@
 [English](tls-hardening-plan.md) | [Português](tls-hardening-plan.pt_BR.md)
 
 last: 02/11/2026 — PROMOTED from `docs/development/future/` by maintainer order ("pega tls do future pra fazer, é urgente"); slice 0 (inventory spike) MEASURED at the tip
-doing: slices 0-3 LANDED (KofWebTlsTest 14/14 + KofWebTlsVerifyTest 5/5) + slice 4 INCREMENT 1 (the ACME JWS ES256 core, KofWebTlsVerifyTest 6/6 round-trip proof); the DNS-01 protocol flow (increment 2) is next
-next: slice 4 increment 2 — the DNS-01 protocol flow (directory → newNonce → newAccount → newOrder → authz → keyauth TXT → challenge trigger → poll → finalize(CSR) → cert download), provable against a test-local ACME stub; the Pebble E2E unblocks when the CI provides Pebble (no Go/Pebble on this host today)
+doing: slices 0-3 LANDED + slice 4 increments 1-2 (the JWS ES256 core + the ACME ACCOUNT layer, KofWebTlsVerifyTest 7/7 against a test-local ACME stub); the ORDER layer (newOrder/authz/TXT/challenge/finalize) is increment 3
+next: slice 4 increment 3 — the ORDER layer (newOrder → authz → keyauth TXT value → challenge trigger → poll → finalize(CSR) → cert download); the Pebble E2E unblocks when the CI provides Pebble
 location: docs/development
 state: under-development
 owner: 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a
@@ -217,6 +217,32 @@ flow builds on):
   when the CI provides Pebble (environmental condition, like the riscv64
   toolchain); the protocol flow can be proven first against a test-local
   ACME stub.
+
+### Slice 4 — INCREMENT 2 LANDED 04/11/2026 (lane `192.168.100.14:0`, flatt CLI)
+
+The ACME ACCOUNT layer (`acme.newAccount(directoryUrl, accountKeyPem,
+contact): String`), proven against a TEST-LOCAL ACME stub (Pebble is not on
+this host — the stub implements the three endpoints the account layer needs):
+
+- **Flow:** GET directory → parse newNonce/newAccount (plain-JSON lookup via
+  quote-as-char-code — the template text block carries NO backslashes, the
+  `\"` escapes arrive broken to the generated helper) → newNonce GET captures
+  the `Replay-Nonce` → newAccount POST (JWS: `alg`/`jwk`/`nonce`/`url`
+  protected header; `termsOfServiceAgreed` + `contact` payload) → 201 +
+  `Location` = the account kid.
+- **The JWK:** the public key is DERIVED from the private one — the keytool
+  PKCS#8 EC key carries NO embedded public point (67 bytes, RFC 5915 [1]
+  absent), so the runtime runs an explicit double-and-add on P-256 (the JDK
+  exposes no public-key derivation); the JDK `KeyFactory` then VALIDATES the
+  derived point is on the curve when building the `ECPublicKey`.
+- **Proof (executed):** `KofWebTlsVerifyTest` **7/7** —
+  `acmeNewAccountReturnsTheKid` asserts the kid, the captured JWS shape
+  (3 parts), the embedded `jwk`, the captured `stub-nonce-1` in the protected
+  header, the ToS agreement and the contact; `KofWebTlsTest` 14/14;
+  `KofHttpE2ETest` 8/8; `mvn -o -pl kof-compiler -am compile` rc=0.
+- **Remaining increments:** newOrder + authz + the keyauth TXT value +
+  challenge trigger + poll + finalize(CSR) + cert download (increment 3),
+  then the Pebble E2E (unblocks when the CI provides Pebble).
 
 ## 3. Design principles (frozen for all slices)
 
