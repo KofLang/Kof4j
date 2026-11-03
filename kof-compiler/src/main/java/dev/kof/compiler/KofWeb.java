@@ -185,6 +185,20 @@ public final class KofWeb {
             case "health" -> argTypes.size() == 1
                     ? new WebCall("kof_web_health", VOID, List.of(STR, STR))
                     : null;
+            case "reloadTls" -> {
+                // TLS hardening slice 2: hot-reload — the atomic context swap.
+                // (certPem, keyPem): re-arms a single-cert server; (hosts):
+                // replaces the whole SNI map. A failure keeps the old state and
+                // reports WEB007 (catchable as a Kof String).
+                if (argTypes.size() == 2 && isString(argTypes.get(0)) && isString(argTypes.get(1))) {
+                    yield new WebCall("kof_web_reload_tls_pem", VOID, List.of(STR, STR, STR));
+                }
+                if (argTypes.size() == 1 && isSecureHostList(argTypes.get(0))) {
+                    yield new WebCall("kof_web_reload_tls_sni", VOID,
+                            List.of(STR, STR, STR, STR));
+                }
+                yield null;
+            }
             case "listenSecure" -> {
                 // 1 arg: TLS self-signed de dev (G12). 3 args: certificado
                 // próprio PKCS#8 PEM (D-SEC: `listenSecure(port, certPem,
@@ -250,7 +264,8 @@ public final class KofWeb {
             case "kof_web_security", "kof_web_security_opts", "kof_web_policy",
                  "kof_web_route_opts" -> "WEB006";
             case "kof_web_listen_secure", "kof_web_listen_secure_pem",
-                 "kof_web_listen_secure_sni" -> "WEB002";
+                 "kof_web_listen_secure_sni", "kof_web_reload_tls_pem",
+                 "kof_web_reload_tls_sni" -> "WEB002";
             default -> "WEB001";
         };
     }

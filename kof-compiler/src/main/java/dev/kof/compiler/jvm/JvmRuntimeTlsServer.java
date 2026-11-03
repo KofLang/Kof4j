@@ -16,6 +16,26 @@ public final class JvmRuntimeTlsServer {
     static String source() {
         return """
 
+                /**
+                 * TLS hardening slice 2: the per-app TLS state — the current
+                 * context map + the documented default host — held in an
+                 * AtomicReference so {@code reloadTls} swaps it ATOMICALLY:
+                 * in-flight connections keep the engine built at their handshake,
+                 * new handshakes read the new state.
+                 */
+                record TlsState(java.util.Map<String, javax.net.ssl.SSLContext> contexts,
+                                String defaultHost) {
+                }
+
+                private static final java.util.Map<String,
+                        java.util.concurrent.atomic.AtomicReference<TlsState>> TLS_HOLDERS =
+                        new java.util.concurrent.ConcurrentHashMap<>();
+
+                private static java.util.concurrent.atomic.AtomicReference<TlsState> tlsHolder(String appId) {
+                    return TLS_HOLDERS.computeIfAbsent(appId,
+                            k -> new java.util.concurrent.atomic.AtomicReference<>());
+                }
+
                 public static void kof_web_listen_secure(String appId, int port) {
                     WebApp app = kof_web_app(appId);
                     if (app.serverSocket != null) {
@@ -58,23 +78,28 @@ public final class JvmRuntimeTlsServer {
                         throw new IllegalStateException("app already listening: " + appId);
                     }
                     try {
-                        javax.net.ssl.SSLContext ctx = kof_web_ssl_context_pem(certPem, keyPem);
-                        javax.net.ssl.SSLServerSocketFactory ssf = ctx.getServerSocketFactory();
-                        javax.net.ssl.SSLServerSocket ss = (javax.net.ssl.SSLServerSocket) ssf.createServerSocket(port, 64,
+                        tlsHolder(appId).set(new TlsState(
+                                java.util.Map.of("", kof_web_ssl_context_pem(certPem, keyPem)), ""));
+                        // A PLAIN server socket: the TLS layer is applied per
+                        // connection, so reloadTls swaps the context atomically.
+                        app.serverSocket = new java.net.ServerSocket(port, 64,
                                 java.net.InetAddress.getByName("0.0.0.0"));
-                        ss.setNeedClientAuth(false);
-                        app.serverSocket = ss;
                     } catch (Exception e) {
                         throw new RuntimeException("cannot bind TLS port " + port + ": " + e.getMessage(), e);
                     }
                     app.running = true;
                     kof_web_warn_security_default(app);
                     Runtime.getRuntime().addShutdownHook(new Thread(() -> kof_web_close(appId)));
+                    final String aid = appId;
                     while (app.running) {
                         try {
                             java.net.Socket client = app.serverSocket.accept();
                             client.setSoTimeout(15000);
-                            Thread.startVirtualThread(() -> kof_web_handle(app, client));
+                            Thread.startVirtualThread(() -> {
+                                java.net.Socket tls = kof_web_tls_handshake(client,
+                                        tlsHolder(aid), false);
+                                if (tls != null) kof_web_handle(app, tls);
+                            });
                         } catch (java.io.IOException e) {
                             if (!app.running) break;
                         }
@@ -110,7 +135,6 @@ public final class JvmRuntimeTlsServer {
                                 "listenSecure(port, hosts): hosts/certs/keys lengths disagree (WEB007)");
                     }
                     java.util.Map<String, javax.net.ssl.SSLContext> contexts = new java.util.LinkedHashMap<>();
-                    String defaultHost;
                     try {
                         for (int i = 0; i < n; i++) {
                             String host = hosts[i] == null ? "" : hosts[i].trim().toLowerCase(java.util.Locale.ROOT);
@@ -124,7 +148,9 @@ public final class JvmRuntimeTlsServer {
                             }
                             contexts.put(host, kof_web_ssl_context_pem(certs[i], keys[i]));
                         }
-                        defaultHost = contexts.keySet().iterator().next();
+                        tlsHolder(appId).set(new TlsState(
+                                java.util.Collections.unmodifiableMap(contexts),
+                                contexts.keySet().iterator().next()));
                         // A PLAIN server socket: the TLS layer is applied per
                         // connection AFTER the ClientHello names the host.
                         app.serverSocket = new java.net.ServerSocket(port, 64,
@@ -135,13 +161,14 @@ public final class JvmRuntimeTlsServer {
                     app.running = true;
                     kof_web_warn_security_default(app);
                     Runtime.getRuntime().addShutdownHook(new Thread(() -> kof_web_close(appId)));
-                    final String defHost = defaultHost;
+                    final String aid = appId;
                     while (app.running) {
                         try {
                             java.net.Socket client = app.serverSocket.accept();
                             client.setSoTimeout(15000);
                             Thread.startVirtualThread(() -> {
-                                java.net.Socket tls = kof_web_sni_wrap(client, contexts, defHost);
+                                java.net.Socket tls = kof_web_tls_handshake(client,
+                                        tlsHolder(aid), true);
                                 if (tls != null) kof_web_handle(app, tls);
                             });
                         } catch (java.io.IOException e) {
@@ -151,13 +178,72 @@ public final class JvmRuntimeTlsServer {
                 }
 
                 /**
+                 * TLS hardening slice 2 — {@code app.reloadTls(certPem, keyPem)}:
+                 * re-arms a single-cert server with a NEW PEM pair. The swap is
+                 * ATOMIC (the holder reference); a failure throws WEB007 and the
+                 * old state keeps serving — never a half-loaded state.
+                 */
+                public static void kof_web_reload_tls_pem(String appId, String certPem, String keyPem) {
+                    java.util.concurrent.atomic.AtomicReference<TlsState> ref = TLS_HOLDERS.get(appId);
+                    if (ref == null || ref.get() == null) {
+                        throw new RuntimeException(
+                                "WEB007: reloadTls on a non-TLS app — listenSecure(certPem, keyPem) first");
+                    }
+                    try {
+                        ref.set(new TlsState(java.util.Map.of("", kof_web_ssl_context_pem(certPem, keyPem)), ""));
+                    } catch (Exception e) {
+                        throw new RuntimeException("WEB007: TLS reload failed — the old certificate keeps serving: "
+                                + e.getMessage(), e);
+                    }
+                }
+
+                /**
+                 * TLS hardening slice 2 — {@code app.reloadTls(listOf(secureHost(...), ...))}:
+                 * replaces the WHOLE SNI map atomically. A failure throws WEB007
+                 * and the old map keeps serving.
+                 */
+                public static void kof_web_reload_tls_sni(String appId,
+                        String[] hosts, String[] certs, String[] keys) {
+                    java.util.concurrent.atomic.AtomicReference<TlsState> ref = TLS_HOLDERS.get(appId);
+                    if (ref == null || ref.get() == null) {
+                        throw new RuntimeException(
+                                "WEB007: reloadTls on a non-TLS app — listenSecure(hosts) first");
+                    }
+                    int n = hosts == null ? 0 : hosts.length;
+                    if (n == 0 || certs == null || keys == null || certs.length != n || keys.length != n) {
+                        throw new RuntimeException(
+                                "WEB007: reloadTls(hosts): hosts/certs/keys lengths disagree");
+                    }
+                    java.util.Map<String, javax.net.ssl.SSLContext> contexts = new java.util.LinkedHashMap<>();
+                    try {
+                        for (int i = 0; i < n; i++) {
+                            String host = hosts[i] == null ? "" : hosts[i].trim().toLowerCase(java.util.Locale.ROOT);
+                            if (host.isEmpty()) {
+                                throw new IllegalArgumentException(
+                                        "reloadTls(hosts): host name is empty at index " + i + " (WEB007)");
+                            }
+                            if (contexts.containsKey(host)) {
+                                throw new IllegalArgumentException(
+                                        "reloadTls(hosts): duplicate host '" + host + "' (WEB007)");
+                            }
+                            contexts.put(host, kof_web_ssl_context_pem(certs[i], keys[i]));
+                        }
+                    } catch (Exception e) {
+                        throw new RuntimeException("WEB007: TLS reload failed — the old map keeps serving: "
+                                + e.getMessage(), e);
+                    }
+                    ref.set(new TlsState(java.util.Collections.unmodifiableMap(contexts),
+                            contexts.keySet().iterator().next()));
+                }
+
+                /**
                  * Picks the host's SSLContext from the ClientHello SNI and layers
                  * TLS over the accepted socket. An unknown SNI host is REFUSED
                  * (socket closed, no certificate) — plan principle 3.1: never the
                  * default cert. No SNI at all gets the documented default (first).
                  */
-                private static java.net.Socket kof_web_sni_wrap(java.net.Socket raw,
-                        java.util.Map<String, javax.net.ssl.SSLContext> contexts, String defaultHost) {
+                private static java.net.Socket kof_web_tls_handshake(java.net.Socket raw,
+                        java.util.concurrent.atomic.AtomicReference<TlsState> ref, boolean sni) {
                     try {
                         // Read EXACTLY the first TLS record (5-byte header + its
                         // length) — a plain read() would block until the buffer
@@ -180,20 +266,24 @@ public final class JvmRuntimeTlsServer {
                             got += r;
                         }
                         int n = head.length;
-                        String host = kof_web_sni_host(null, java.util.Arrays.copyOf(head, n));
-                        String pick = host == null ? defaultHost
-                                : (contexts.containsKey(host) ? host : null);
-                        if (pick == null) {
-                            raw.close();
-                            System.err.println("WEB007: unknown TLS SNI hostname '" + host
-                                    + "' — refused (no default certificate)");
-                            return null;
+                        TlsState st = ref.get();
+                        String pick = st.defaultHost;
+                        if (sni) {
+                            String host = kof_web_sni_host(null, java.util.Arrays.copyOf(head, n));
+                            pick = host == null ? st.defaultHost
+                                    : (st.contexts.containsKey(host) ? host : null);
+                            if (pick == null) {
+                                raw.close();
+                                System.err.println("WEB007: unknown TLS SNI hostname '" + host
+                                        + "' — refused (no default certificate)");
+                                return null;
+                            }
                         }
                         // The JDK's SSLSocket uses the SocketImpl, not the passed
                         // Socket's streams, so the replayed ClientHello would be
                         // lost. The handshake runs on an SSLEngine over the raw
                         // socket instead and the result is exposed as a Socket.
-                        return new KofTlsSocket(raw, head, contexts.get(pick));
+                        return new KofTlsSocket(raw, head, st.contexts.get(pick));
                     } catch (Throwable e) {
                         // Throwable (not Exception): an Error in the engine path
                         // must also be visible — an uncaught death leaves the
@@ -503,4 +593,5 @@ public final class JvmRuntimeTlsServer {
                     }
                 }
         """;
+    }
 }

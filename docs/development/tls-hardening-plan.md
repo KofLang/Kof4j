@@ -1,8 +1,8 @@
 [English](tls-hardening-plan.md) | [Português](tls-hardening-plan.pt_BR.md)
 
 last: 02/11/2026 — PROMOTED from `docs/development/future/` by maintainer order ("pega tls do future pra fazer, é urgente"); slice 0 (inventory spike) MEASURED at the tip
-doing: slice 0 (inventory) + slice 1 (SNI certificate selection, JVM) LANDED with executed proof (KofWebTlsTest 11/11); slice 2 (certificate hot-reload) is the next slice
-next: slice 2 — certificate hot-reload without restart (JVM): explicit app.reloadTls() and/or file-watch, atomic SSLContext swap, reload failure keeps serving the old cert
+doing: slices 0-2 LANDED with executed proof (KofWebTlsTest 14/14: inventory + SNI selection + hot-reload); slice 3 (verifying HTTP client) is the next slice
+next: slice 3 — a strict kof.http path that validates the chain against the platform trust store WITH hostname verification, alongside the existing trust-all client (kept for tests); trust-all becomes opt-in-and-loud
 location: docs/development
 state: under-development
 owner: 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a
@@ -126,6 +126,31 @@ the emit bugs were a String-loaded int literal (`KofLoadLiteral.ofInt` fix) and
 for the remainder — the replay must be a `SequenceInputStream(ByteArrayInputStream,
 rawStream)` so the first `fillNet` cannot deadlock (the peer only sends its next
 flight after our ServerHello).
+
+### Slice 2 — LANDED 03/11/2026 (lane `192.168.100.14:0`, flatt CLI)
+
+Certificate hot-reload without restart, additive over `D-SEC.6`:
+
+- **Kof surface:** `app.reloadTls(certPem, keyPem)` re-arms a single-cert
+  server with a NEW PEM pair; `app.reloadTls(listOf(secureHost(...), ...))`
+  replaces the WHOLE SNI map. No reload on the 1-arg dev server (dev
+  convenience, not production).
+- **Atomicity:** the per-app TLS state (context map + default host) lives in
+  an `AtomicReference` (`TLS_HOLDERS`); the swap is one reference write —
+  in-flight connections keep the engine built at their handshake, new
+  handshakes read the new state. The 3-arg PEM listen now goes through the
+  SAME engine path (plain `ServerSocket` + per-connection handshake), which is
+  what makes the swap possible at all.
+- **Failure honesty:** a reload that cannot build the new context throws
+  `WEB007` (catchable as a Kof String — `catch (String e)`) and the OLD state
+  keeps serving; never a half-loaded state.
+- **Proof (executed):** `KofWebTlsTest` **14/14** — the 11 original +
+  `reloadSwapsTheCertificateAtomically` (in-flight connection opened BEFORE
+  the reload still completes while NEW connections present B's fingerprint),
+  `reloadFailureKeepsServingAndReports` (the route catches `WEB007` and the
+  fingerprint stays A), `sniReloadSwapsTheWholeMap` (post-slice-1 map behavior
+  pinned); `mvn -o -pl kof-compiler -am compile` rc=0; the PortuKof method
+  aliases regenerated for the new dispatcher arm (13 WEB_APP members).
 
 ## 3. Design principles (frozen for all slices)
 

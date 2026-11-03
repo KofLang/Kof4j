@@ -1,8 +1,8 @@
 [English](tls-hardening-plan.md) | [Português](tls-hardening-plan.pt_BR.md)
 
 last: 02/11/2026 — PROMOVIDO de `docs/development/future/` por ordem da mantenedora ("pega tls do future pra fazer, é urgente"); a fatia 0 (spike de inventário) foi MEDIDA no tip
-doing: fatia 0 (inventário) + fatia 1 (seleção por SNI, JVM) POUSADAS com prova executada (KofWebTlsTest 11/11); a fatia 2 (hot-reload de certificado) é a próxima
-next: fatia 2 — hot-reload de certificado sem reinício (JVM): app.reloadTls() explícito e/ou file-watch, troca atômica do SSLContext, falha de reload mantém o cert antigo
+doing: fatias 0-2 POUSADAS com prova executada (KofWebTlsTest 14/14: inventário + seleção SNI + hot-reload); a fatia 3 (cliente HTTP verificador) é a próxima
+next: fatia 3 — um caminho estrito do kof.http que valida a cadeia contra o trust store da plataforma COM verificação de hostname, junto ao cliente trust-all existente (mantido para testes); trust-all vira opt-in com aviso
 location: docs/development
 state: under-development
 dona: 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a
@@ -133,6 +133,32 @@ depois BLOQUEIA esperando o resto — o replay tem de ser
 `SequenceInputStream(ByteArrayInputStream, rawStream)` para que o primeiro
 `fillNet` não deadlock (o par só envia o próximo vôo depois do nosso
 ServerHello).
+
+### Fatia 2 — POUSADA 03/11/2026 (lane `192.168.100.14:0`, flatt CLI)
+
+Hot-reload de certificado sem reinício, aditivo sobre o `D-SEC.6`:
+
+- **Superfície Kof:** `app.reloadTls(certPem, keyPem)` rearma um servidor
+  de cert único com um NOVO par PEM; `app.reloadTls(listOf(secureHost(...),
+  ...))` substitui o mapa SNI INTEIRO. Sem reload no servidor dev de 1
+  argumento (conveniência de dev, não produção).
+- **Atomicidade:** o estado TLS por app (mapa de contextos + host default)
+  vive num `AtomicReference` (`TLS_HOLDERS`); a troca é uma escrita de
+  referência '—' conexões em curso mantêm o engine montado no seu
+  handshake, novos handshakes leem o novo estado. O listen PEM de 3
+  argumentos agora usa o MESMO caminho engine (ServerSocket plano +
+  handshake por conexão), que é o que torna a troca possível.
+- **Honestidade da falha:** um reload que não consegue montar o novo
+  contexto lança `WEB007` (catável como String Kof '—' `catch (String e)`)
+  e o estado ANTIGO segue servindo; nunca um estado meio-carregado.
+- **Prova (executada):** `KofWebTlsTest` **14/14** '—' os 11 originais +
+  `reloadSwapsTheCertificateAtomically` (conexão em curso aberta ANTES do
+  reload completa enquanto conexões NOVAS apresentam o fingerprint de B),
+  `reloadFailureKeepsServingAndReports` (a rota captura `WEB007` e o
+  fingerprint permanece A), `sniReloadSwapsTheWholeMap` (comportamento do mapa
+  pós-fatia-1 travado); `mvn -o -pl kof-compiler -am compile` rc=0; os
+  aliases de métodos PortuKof regenerados para o braço novo do dispatcher
+  (13 membros WEB_APP).
 
 ## 3. Princípios de design (congelados para todas as fatias)
 

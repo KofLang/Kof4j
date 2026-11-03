@@ -171,6 +171,9 @@ final class ExpressionBuiltinInstanceCalls {
             if ("kof_web_listen_secure_sni".equals(webCall.function())) {
                 return emitSniListen(driver, mc, ops, owner, localIdx, locals);
             }
+            if ("kof_web_reload_tls_sni".equals(webCall.function())) {
+                return emitSniReload(driver, mc, ops, owner, localIdx, locals);
+            }
             List<Type> webParams = new ArrayList<>();
             webParams.add(BuiltinTypes.STRING);
             if (KofWeb.isRouteMethod(mc.methodName()) && !"ws".equals(mc.methodName())) {
@@ -248,6 +251,64 @@ final class ExpressionBuiltinInstanceCalls {
         ops.add(new KofCall(KofWeb.APP, "kof_web_listen_secure_sni",
                 List.of(BuiltinTypes.STRING, Type.PrimitiveType.INT,
                         strArray, strArray, strArray),
+                Type.PrimitiveType.VOID, KofCallKind.FUNCTION));
+        return localIdx;
+    }
+
+    /**
+     * TLS hardening slice 2 — {@code app.reloadTls(listOf(secureHost(...), ...))}:
+     * same flattening as the listen overload, no port argument. Emits
+     * {@code kof_web_reload_tls_sni(appId, hosts[], certs[], keys[])}.
+     */
+    private static int emitSniReload(CompilerDriver driver, MethodCallExpr mc, List<KofOperation> ops,
+                                     String owner, int localIdx, List<IRLocalVariable> locals) {
+        ExpressionNode listArg = mc.arguments().get(0);
+        List<ExpressionNode> entries = new ArrayList<>();
+        if (listArg instanceof MethodCallExpr lc && "listOf".equals(lc.methodName())
+                && lc.receiver() == null) {
+            entries.addAll(lc.arguments());
+        } else {
+            if (driver.currentDiagnostics != null) {
+                var pos = mc.position();
+                driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                        pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
+                        "reloadTls(hosts): the host list must be a literal "
+                                + "listOf(secureHost(host, certPem, keyPem), ...) at the call site "
+                                + "— the certificate set is explicit, never resolved at runtime (WEB007)",
+                        "WEB007");
+            }
+            return localIdx;
+        }
+        for (ExpressionNode e : entries) {
+            if (!(e instanceof MethodCallExpr hc) || !"secureHost".equals(hc.methodName())
+                    || hc.arguments().size() != 3) {
+                if (driver.currentDiagnostics != null) {
+                    var pos = mc.position();
+                    driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                            pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
+                            "reloadTls(hosts): every entry must be "
+                                    + "web.secureHost(host, certPem, keyPem) (WEB007)", "WEB007");
+                }
+                return localIdx;
+            }
+        }
+        // receiver (appId) already on the stack — emit the three arrays.
+        for (int field = 0; field < 3; field++) {
+            int n = entries.size();
+            ops.add(KofLoadLiteral.ofInt(n));
+            ops.add(new KofNewArray(BuiltinTypes.STRING));
+            for (int i = 0; i < n; i++) {
+                ops.add(new KofDup());
+                ops.add(KofLoadLiteral.ofInt(i));
+                MethodCallExpr hc = (MethodCallExpr) entries.get(i);
+                localIdx = ExpressionLowerer.emitExpression(driver, hc.arguments().get(field),
+                        ops, owner, localIdx, locals);
+                ops.add(new KofArrayStore(BuiltinTypes.STRING));
+            }
+        }
+        Type strArray = new Type.ArrayType(BuiltinTypes.STRING);
+        ops.add(new KofCall(KofWeb.APP, "kof_web_reload_tls_sni",
+                List.of(BuiltinTypes.STRING, strArray, strArray, strArray),
                 Type.PrimitiveType.VOID, KofCallKind.FUNCTION));
         return localIdx;
     }
