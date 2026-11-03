@@ -1,0 +1,91 @@
+package audit
+
+// kof.audit — the TAMPER-EVIDENT AUDIT TRAIL (universal platform Stage 5.10,
+// the pure-Kof half): an append-only chain where every entry's digest binds
+// it to its predecessor — `digest = crypto.sha256(prevDigest + "|" + event +
+// "|" + atMillis)`. The digest is the AUDITED stdlib primitive
+// (`crypto.sha256`, `KofSecurity`); the library is the CHAIN — no homemade
+// crypto, no engine, no FFI.
+//
+// Genesis: the first entry chains from the fixed constant "genesis".
+//
+// `verifyChain` is the defensive pass: it recomputes every digest and checks
+// every link (entry i's prevDigest MUST equal entry i-1's digest), so a
+// deleted, reordered, edited or spliced entry breaks verification. The
+// caller's clock drives the timestamps (the experiments/sentinel rule); the
+// chain makes retroactive edits LOUD, not impossible.
+//
+// The class is the writer; `verifyChain` is the pure reader pass (it takes
+// any entry list, so a caller can verify an exported or copied trail too).
+// Single-exit shapes throughout (the stats-slice COMP002 lesson).
+
+// auditGenesis — the fixed chain root (a Kof FUNCTION, never `const`: it is
+// a foreign form the language refuses).
+String auditGenesis() {
+    return "genesis"
+}
+
+record AuditEntry(Int seq, String event, Long atMillis, String prevDigest, String digest)
+
+// entryDigest — the canonical binding of one entry to its predecessor.
+String entryDigest(String prevDigest, String event, Long atMillis) {
+    return crypto.sha256(prevDigest + "|" + event + "|" + atMillis)
+}
+
+// verifyChain — recompute every digest and check every link. TRUE only when
+// the chain is intact: seqs ascend from 1, each prevDigest links to the
+// previous entry's digest (the first chains from AUDIT_GENESIS), and each
+// stored digest equals the recomputed binding.
+Bool verifyChain(List<AuditEntry> entries) {
+    var ok = true
+    var prevDigest = auditGenesis()
+    var i = 0
+    while (i < entries.size()) {
+        var e = entries.get(i)
+        if (e.seq != i + 1) {
+            ok = false
+        }
+        if (e.prevDigest != prevDigest) {
+            ok = false
+        }
+        if (e.digest != entryDigest(e.prevDigest, e.event, e.atMillis)) {
+            ok = false
+        }
+        prevDigest = e.digest
+        i = i + 1
+    }
+    return ok
+}
+
+class AuditTrail {
+    List<AuditEntry> entries
+    Int nextSeq
+    String lastDigest
+
+    constructor() {
+        this.entries = listOf<AuditEntry>()
+        this.nextSeq = 1
+        this.lastDigest = auditGenesis()
+    }
+
+    // append — one entry, bound to the current chain tip.
+    AuditEntry append(String event, Long atMillis) {
+        var entry = AuditEntry(this.nextSeq, event, atMillis,
+            this.lastDigest, entryDigest(this.lastDigest, event, atMillis))
+        this.entries.add(entry)
+        this.lastDigest = entry.digest
+        this.nextSeq = this.nextSeq + 1
+        return entry
+    }
+
+    // size — how many entries the trail holds.
+    Int size() {
+        return this.entries.size()
+    }
+
+    // all — the live entry list (verifyChain takes it directly; exporters
+    // iterate it with the existing `kof.io` writers).
+    List<AuditEntry> all() {
+        return this.entries
+    }
+}

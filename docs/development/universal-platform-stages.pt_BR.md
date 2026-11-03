@@ -37,7 +37,7 @@ Cada linha é o item do próprio plano verificado contra a árvore, não contra 
 | 5.7 FFI `libpcap` | 🔵 precisa R3 | nada | BLOQUEADO — FFI |
 | 5.8 forense | 🔵 precisa 5.7 | nada | BLOQUEADO pela 5.7 |
 | 5.9 automação de segurança | 🔵 precisa Fase 2 | `kof.http` + `spawn` + `kof.log` existem; **o núcleo de detecção está AGORA na árvore** (`libs/sentinel/Sentinel.kf`, pousou 04/11) | PARCIAL — o núcleo de explosão/alerta POUSOU (`SentinelE2ETest` 2/2); as faces de fiação http/log seguem 🔵 follow-ups |
-| 5.10 monitoração defensiva | 🟡 peças existem | observabilidade + log + db pousados | CANDIDATO — uma fatia de auditoria/detecção em Kof puro é expressível |
+| 5.10 monitoração defensiva | 🟡 peças existem | observabilidade + log + db pousados; **a cadeia de auditoria está AGORA na árvore** (`libs/audit/Audit.kf`, pousou 04/11) | PARCIAL — a cadeia à prova de adulteração SHA-256 POUSOU (`AuditE2ETest` 2/2); a fiação de export para observabilidade segue 🔵 follow-up |
 | 6.1 BLAS/LAPACK FFI | 🔵 precisa R3 | nada | BLOQUEADO — FFI |
 | 6.2 pesquisa SIMD | 🔵 lane nativa | a lane nativa é uma lane VIVA | NÃO É MINHA |
 | 6.3 GPU | 🟡 Vulkan existe | compute Vulkan pousou (`libs/game`); CUDA/OpenCL pendentes | PARCIAL — CUDA/OpenCL são trabalho de FFI |
@@ -106,7 +106,7 @@ contexto legítimo/controlado; defender *primeiro*.
 | 5.7 | `kof.net` / parsing de pacotes (FFI para `libpcap`) | 🔵 | — | R3 |
 | 5.8 | Forense (FFI para libs de parsing + pipelines Kof) | 🔵 | — | 5.7, Estágio 2 |
 | 5.9 | Automação de segurança / threat-intel (`kof.http` + `spawn`/`channel` + `kof.log`) | 🟡 | `192.168.100.14:0` | **o NÚCLEO DE DETECÇÃO POUSOU 04/11** — `libs/sentinel/Sentinel.kf` (Kof puro, classe + record + List): um anel de eventos com poda por janela (`addEvent`), contagem por (fonte, tipo) (`count`), a regra de explosão (`bursting`, contagem >= limite) e um emissor de alerta JSON (`alert` devolve `String?`; o chamador estreita e anexa com os escritores `kof.io` existentes). Defensivo apenas (detectar + reportar, nunca contactar/bloquear). Prova: `SentinelE2ETest` **2/2** (JVM + Script) RED-first (`libs/sentinel not found`), faces de explosão/não-explosão/outra-fonte/poda/outro-tipo/alerta-JSON. As faces de FIAÇÃO (um middleware `kof.http` alimentando `addEvent`, uma bomba de ingestão de log) seguem 🔵 como follow-ups |
-| 5.10 | Defensiva (monitoramento/detecção/auditoria sobre `kof.observability` + `kof.log` + `kof.db`) | 🟡 | — | peças existem (1.6) |
+| 5.10 | Defensiva (monitoramento/detecção/auditoria sobre `kof.observability` + `kof.log` + `kof.db`) | 🟡 | `192.168.100.14:0` | peças existem (1.6); **a CADEIA DE AUDITORIA POUSOU 04/11** — `libs/audit/Audit.kf` (Kof puro sobre o `crypto.sha256` auditado): uma cadeia append-only (`digest = sha256(prev|event|at)`, raiz genesis) + o `verifyChain(entries): Bool` puro (cada digest recomputado, cada elo checado — uma entrada deletada/reordenada/editada/emendada quebra a verificação). NÃO é cripto caseira: o digest é o primitivo da stdlib; a biblioteca É a CADEIA. Prova: `AuditE2ETest` **2/2** (JVM + Script) RED-first (`libs/audit not found`), faces de íntegra-true/elo-quebrado-false/digest-trocado-false. A fiação de export para `kof.observability` segue 🔵 como follow-up |
 
 ---
 

@@ -1,7 +1,7 @@
 [English](universal-platform-stages.md) | [Português](universal-platform-stages.pt_BR.md)
 
 last: 03/11/2026 — PROMOTED from `docs/development/future/` by the maintainer's direct order ("pega o universal platform de future"); Stage 4.6 (light experiment tracking) LANDED the same cycle with executed proof (`ExperimentsE2ETest` 2/2)
-doing: Stages 4–7 are the CURRENT development plan — 4.6 DONE (`libs/experiments/`), 4.3's descriptive half DONE (`libs/stats/`), 4.5's writer half DONE (`libs/svg/`), 5.9's detection core DONE (`libs/sentinel/Sentinel.kf`: the event ring + burst rule + JSON alert, `SentinelE2ETest` 2/2 JVM+Script); the remaining items are measured against their real dependencies below
+doing: Stages 4–7 are the CURRENT development plan — 4.6 DONE (`libs/experiments/`), 4.3's descriptive half DONE (`libs/stats/`), 4.5's writer half DONE (`libs/svg/`), 5.9's detection core DONE (`libs/sentinel/`), 5.10's audit chain DONE (`libs/audit/Audit.kf`: the SHA-256 tamper-evident chain + verifyChain, `AuditE2ETest` 2/2 JVM+Script); the remaining items are measured against their real dependencies below
 next: the next CANDIDATE — 5.10, 7.1 (text formats), 7.3; everything else stays blocked by R3 (FFI), Arrow or the R12 stage order
 location: docs/development
 state: under-development
@@ -37,7 +37,7 @@ Each row is the plan's own item checked against the tree, not against the plan's
 | 5.7 `libpcap` FFI | 🔵 needs R3 | nothing | BLOCKED — FFI |
 | 5.8 forensics | 🔵 needs 5.7 | nothing | BLOCKED by 5.7 |
 | 5.9 security automation | 🔵 needs Stage 2 | `kof.http` + `spawn` + `kof.log` exist; **the detection core is NOW in the tree** (`libs/sentinel/Sentinel.kf`, landed 04/11) | PARTIAL — the burst/alert core LANDED (`SentinelE2ETest` 2/2); the http/log wiring faces stay 🔵 follow-ups |
-| 5.10 defensive monitoring | 🟡 pieces exist | observability + log + db all landed | CANDIDATE — a pure-Kof audit/detection slice is expressible |
+| 5.10 defensive monitoring | 🟡 pieces exist | observability + log + db all landed; **the audit chain is NOW in the tree** (`libs/audit/Audit.kf`, landed 04/11) | PARTIAL — the SHA-256 tamper-evident chain LANDED (`AuditE2ETest` 2/2); the observability export wiring stays 🔵 follow-up |
 | 6.1 BLAS/LAPACK FFI | 🔵 needs R3 | nothing | BLOCKED — FFI |
 | 6.2 SIMD research | 🔵 native lane | native lane is a LIVE lane | NOT MINE |
 | 6.3 GPU | 🟡 Vulkan exists | Vulkan compute landed (`libs/game`); CUDA/OpenCL pending | PARTIAL — CUDA/OpenCL are FFI work |
@@ -96,7 +96,7 @@ legitimate/controlled context; defend *first*.
 | 5.7 | `kof.net` / packet parsing (FFI to `libpcap`) | 🔵 | — | R3 |
 | 5.8 | Forensics (FFI to parse libs + Kof pipelines) | 🔵 | — | 5.7, Stage 2 |
 | 5.9 | Security automation / threat-intel (`kof.http` + `spawn`/`channel` + `kof.log`) | 🟡 | `192.168.100.14:0` | **the DETECTION CORE LANDED 04/11** — `libs/sentinel/Sentinel.kf` (pure Kof, class + record + List): an event ring with window pruning (`addEvent`), per-(source,kind) counting (`count`), the burst rule (`bursting`, count >= limit) and a JSON alert emitter (`alert` returns `String?`; the caller narrows and appends with the existing `kof.io` writers). Defensive only (detect + report, never contact/block). Proof: `SentinelE2ETest` **2/2** (JVM + Script) RED-first (`libs/sentinel not found`), faces on burst/no-burst/other-source/prune/other-kind/alert-JSON. The WIRING faces (an `kof.http` middleware feeding `addEvent`, a log-ingestion pump) stay 🔵 as follow-ups |
-| 5.10 | Defensive (monitoring/detection/audit over `kof.observability` + `kof.log` + `kof.db`) | 🟡 | — | pieces exist (1.6) — **CANDIDATE** |
+| 5.10 | Defensive (monitoring/detection/audit over `kof.observability` + `kof.log` + `kof.db`) | 🟡 | `192.168.100.14:0` | pieces exist (1.6); **the AUDIT CHAIN LANDED 04/11** — `libs/audit/Audit.kf` (pure Kof over the audited `crypto.sha256`): an append-only chain (`digest = sha256(prev|event|at)`, genesis root) + the pure `verifyChain(entries): Bool` (every digest recomputed, every link checked — a deleted/reordered/edited/spliced entry breaks verification). NOT homemade crypto: the digest is the stdlib primitive; the library is the CHAIN. Proof: `AuditE2ETest` **2/2** (JVM + Script) RED-first (`libs/audit not found`), faces on intact-true/broken-link-false/swapped-digest-false. The kof.observability EXPORT wiring stays 🔵 as a follow-up |
 
 ---
 
