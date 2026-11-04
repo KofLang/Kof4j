@@ -1,6 +1,7 @@
 package dev.kof.compiler;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
@@ -100,6 +101,47 @@ final class TestServerFixture {
             sleepQuietly(intervalMillis);
         }
         return false;
+    }
+
+    /**
+     * Reads ONE HTTP/1.1 response the way a client of a persistent connection
+     * must (§773): the head up to the blank line, then exactly Content-Length
+     * body bytes; without Content-Length (SSE, close-delimited) it reads to EOF.
+     */
+    static String readResponse(InputStream in) throws IOException {
+        return new String(readResponseBytes(in), StandardCharsets.UTF_8);
+    }
+
+    /** {@link #readResponse} as raw bytes (head + body), for binary bodies. */
+    static byte[] readResponseBytes(InputStream in) throws IOException {
+        java.io.ByteArrayOutputStream raw = new java.io.ByteArrayOutputStream();
+        int matched = 0;
+        while (matched < 4) {
+            int b = in.read();
+            if (b == -1) {
+                return raw.toByteArray();
+            }
+            raw.write(b);
+            matched = b == (matched % 2 == 0 ? '\r' : '\n') ? matched + 1 : (b == '\r' ? 1 : 0);
+        }
+        int length = -1;
+        for (String line : raw.toString(StandardCharsets.ISO_8859_1).split("\r\n")) {
+            if (line.toLowerCase().startsWith("content-length:")) {
+                length = Integer.parseInt(line.substring(line.indexOf(':') + 1).trim());
+            }
+        }
+        raw.write(length >= 0 ? in.readNBytes(length) : in.readAllBytes());
+        return raw.toByteArray();
+    }
+
+    /** One request on a fresh connection, its response read with {@link #readResponse}. */
+    static String exchange(int port, String rawRequest, int timeoutMillis) throws IOException {
+        try (Socket socket = new Socket("127.0.0.1", port)) {
+            socket.setSoTimeout(timeoutMillis);
+            socket.getOutputStream().write(rawRequest.getBytes(StandardCharsets.UTF_8));
+            socket.getOutputStream().flush();
+            return readResponse(socket.getInputStream());
+        }
     }
 
     private static void sleepQuietly(long millis) {

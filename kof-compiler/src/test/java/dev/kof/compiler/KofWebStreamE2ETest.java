@@ -150,13 +150,7 @@ class KofWebStreamE2ETest extends ServerProcessSupport {
     }
 
     private static String readAll(InputStream in) throws IOException {
-        StringBuilder response = new StringBuilder();
-        byte[] buffer = new byte[4096];
-        int n;
-        while ((n = in.read(buffer)) != -1) {
-            response.append(new String(buffer, 0, n, StandardCharsets.UTF_8));
-        }
-        return response.toString();
+        return TestServerFixture.readResponse(in);
     }
 
     private static String readHeaders(InputStream in) throws IOException {

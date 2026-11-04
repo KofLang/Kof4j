@@ -112,7 +112,7 @@ class KofLogE2ETest extends LogLevelSupport {
                 socket.getOutputStream().write(("GET /log HTTP/1.1\r\nHost: x\r\n\r\n")
                         .getBytes(java.nio.charset.StandardCharsets.UTF_8));
                 socket.getOutputStream().flush();
-                socket.getInputStream().readAllBytes();
+                TestServerFixture.readResponse(socket.getInputStream());
             }
             TestServerFixture.awaitTrue(50, 100,
                     () -> serverOut.toString().contains("INFO handler called"));
@@ -199,7 +199,7 @@ class KofLogE2ETest extends LogLevelSupport {
                     socket.setSoTimeout(5000);
                     socket.getOutputStream().write(request.getBytes(java.nio.charset.StandardCharsets.UTF_8));
                     socket.getOutputStream().flush();
-                    socket.getInputStream().readAllBytes();
+                    TestServerFixture.readResponse(socket.getInputStream());
                 }
             }
             TestServerFixture.awaitTrue(50, 100, () -> {

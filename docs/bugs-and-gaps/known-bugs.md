@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §773 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,14 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §773 — The JVM web server closed the connection after every response (no HTTP/1.1 keep-alive)
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `3a2952641`).
+
+**MEASURED** (JVM target): any `app.get` route answers `Connection: close` and the server closes the socket after one request, even for an HTTP/1.1 client that did not ask for it. Every request pays a new TCP (and TLS) handshake, which matters for a backend behind a reverse proxy or under load.
+
+**ROOT CAUSE:** `kof_web_handle` read one request, wrote one response and closed the socket; every response builder in `JvmRuntimeWebDispatch` hard-coded `Connection: close`. `readRequest` read the socket in 8 KiB chunks, so it could also swallow the first bytes of a pipelined second request: one request per connection was the only safe framing it supported. `DECISIONS.md` already lists keep-alive as a `WEB001` residual of Native/JS, i.e. part of the JVM reference behavior.
+
+**Fix:** the connection loop serves requests until the client or the server closes (RFC 9112 §9.3): HTTP/1.1 is persistent unless `Connection: close`; HTTP/1.0 only with `Connection: keep-alive`; a request with `Transfer-Encoding` (not framed by the reader) closes; an idle persistent connection closes after 5 s; SSE and WebSocket keep taking the socket over. `readRequest` (moved to `JvmRuntimeWebServer`) reads exactly the head and `Content-Length` body bytes from a buffered stream, so pipelined requests are answered in order. The `Connection` header is written once, at the single write site, instead of in each response builder. Test clients that read a response until EOF now frame it by `Content-Length` (`TestServerFixture.readResponse`), as an HTTP/1.1 client must. **Proof:** `KofWebKeepAliveE2ETest` 4/4 (two requests on one socket, a pipelined POST with a UTF-8 body followed by a GET with `Connection: close`, HTTP/1.0, the idle close); the web suites (`KofWebE2ETest`, `KofWebHardeningTest`, `KofWebStreamE2ETest`, `KofWebSseE2ETest`, `KofWebWsE2ETest`, `KofWebTlsTest`, `KofWebTlsVerifyTest`, `KofMediaE2ETest`, `KofHttpPoliciesE2ETest`, `PaginationPageRequestE2ETest`, `KofOAuthResourceServerTest`, `KofBlogE2ETest`, `KofLogE2ETest`, `KofHttpServerTest`, ...) 141 tests, 1 failure that also fails on the base commit (`KofLogE2ETest.nativeAndJsSupported`, native toolchain absent on the measuring host). Native/JS keep one request per connection (`WEB001` residual, unchanged).
+<!-- pt-switch --> **PT:** [§773 (pt_BR)](known-bugs.pt_BR.md#773--o-servidor-web-jvm-fechava-a-conexao-depois-de-cada-resposta-sem-keep-alive-http11)
