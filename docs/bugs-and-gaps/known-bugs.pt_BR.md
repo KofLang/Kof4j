@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §769 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,23 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §769 — Ler um campo PRIMITIVO público de instância de um objeto Java externo emitia bytecode inválido (VerifyError na JVM)
+
+**Status:** ✅ CORRIGIDO 04/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/main` `3a2952641`).
+
+**MEDIDO** (alvo JVM, `org.flywaydb:flyway-core:11.14.1` via `kof deps`; `MigrateResult.migrationsExecuted` é um campo público `int`):
+```kof
+import org.flywaydb.core.Flyway
+main() {
+    val flyway = Flyway.configure().dataSource(url, user, pass).load()
+    Int n = flyway.migrate().migrationsExecuted
+    println("applied " + flyway.migrate().migrationsExecuted)
+}
+```
+Observado: compila sem diagnóstico e morre no load da classe com `VerifyError: Bad type on operand stack` (`integer is not assignable to Object`). O código emitido é `getfield Result.migrationsExecuted:I` seguido de `checkcast java/lang/Integer` + `intValue`.
+
+**CAUSA RAIZ:** o `ExpressionFieldAccessLowerer` resolve um campo de instância externo via `ExternalClasspath.resolveFieldType` e emite o descritor real, mas o typer do lowering (`ExpressionFieldAccessTyper`) não tinha o ramo de campo de instância externo e devolvia `UNKNOWN`. Todo consumidor (local tipado, concat, aritmética, `if`) tratava então o `int` da pilha como referência e fazia unbox.
+
+**Correção:** o `ExpressionFieldAccessTyper` resolve o descritor do campo exatamente como o lowerer (mesma guarda `knows` + `resolveFieldType`), então o tipo inferido casa com o `getfield` emitido. **Prova:** `ExternalInstanceFieldE2ETest` 2/2 (campos `int`/`long`/`boolean`/`double`/`String` em locais tipados, concat, aritmética e `if`); no código antigo os dois falham com `VerifyError`. A escrita de campo (`r.f = 5`, `r.f += 1`) já estava correta e não muda. JS/Nativo não são afetados: classe externa já é recusada lá com `INTEROP003` (#760).
+<!-- pt-switch --> **EN:** [§769 (en)](known-bugs.md#769--reading-a-public-primitive-instance-field-of-an-external-java-object-emitted-invalid-bytecode-jvm-verifyerror)
