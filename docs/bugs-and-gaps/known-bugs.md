@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §776 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,24 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §776 — `instanceof`/`as` on a record of the current package emitted the unqualified class name (NoClassDefFoundError)
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `3a2952641`).
+
+**MEASURED** (JVM target, `src/kernel/db/Main.kf`):
+```kof
+package kernel.db
+record DbNullBind(Int sqlType)
+String kind(Object v) {
+    if (v instanceof DbNullBind) { return "null-bind" }
+    return "value"
+}
+main() { println(kind(DbNullBind(4))) }
+```
+Observed: compiles, then `NoClassDefFoundError: DbNullBind` — the bytecode is `instanceof DbNullBind` while the class is `kernel/db/DbNullBind`. `v as DbNullBind` emits the same unqualified `checkcast`.
+
+**ROOT CAUSE:** `ExpressionBinaryInstanceOfLowerer` resolved the target with `CompilerTypes.toType(name, unit)`, which qualifies imports but not the classes the module itself declares in its package; the analyzer-aware overload (`toType(name, unit, sa)`, `qualifyDeep`) used for every other type reference was not used here.
+
+**Fix:** the `instanceof`/`as` target goes through the analyzer-aware `toType`. **Proof:** `PackageRecordInstanceOfE2ETest` 1/1 (`instanceof` and `as` on a record of `package kernel.db`); on the old code it fails with `NoClassDefFoundError`. The second face reported with this bug (a fully qualified Java type in a parameter, `ps: java.sql.PreparedStatement`, emitting an empty class name) does not reproduce on `upstream/main` in either parameter syntax, in a top-level function or a class method; it is not part of this fix.
+<!-- pt-switch --> **PT:** [§776 (pt_BR)](known-bugs.pt_BR.md#776--instanceofas-sobre-um-record-do-pacote-corrente-emitia-o-nome-de-classe-sem-pacote-noclassdeffounderror)
