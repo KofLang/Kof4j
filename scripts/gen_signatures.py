@@ -32,6 +32,7 @@ BASE = {
         ("timeout", ['timeout(Int ms) -> void']),
         ("retry", ['retry(Int count) -> void']),
         ("circuit", ['circuit(Int threshold) -> void']),
+        ("insecure", ['insecure() -> void']),
     ],
     "time": [
         ("sleep", ['sleep(Int ms) -> void']),
