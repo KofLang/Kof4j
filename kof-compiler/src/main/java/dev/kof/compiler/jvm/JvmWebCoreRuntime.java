@@ -44,7 +44,14 @@ public final class JvmWebCoreRuntime {
                 }
 
                 public static String kof_web_header_set(String name, String value) {
-                    KOF_WEB_HEADERS.get().put(name, value);
+                    // §784: CR/LF would split the response (header injection);
+                    // Set-Cookie may repeat (RFC 6265 §3): one line per cookie.
+                    String v = String.valueOf(value);
+                    if ((name + v).indexOf('\\r') >= 0 || (name + v).indexOf('\\n') >= 0) {
+                        throw new IllegalArgumentException("headerSet: CR/LF in header " + name);
+                    }
+                    KOF_WEB_HEADERS.get().merge(name, v,
+                            (old, add) -> name.equalsIgnoreCase("Set-Cookie") ? old + "\\n" + add : add);
                     return value;
                 }
 
