@@ -419,6 +419,11 @@
   "PARSE041": [
     {
       "arity": 1,
+      "en": "\"{0}\" requires an operand on the same line (spawn/await take an expression: spawn fn() / await handle)",
+      "pt": "\"{0}\" exige um operando na mesma linha (spawn/await tomam uma expressão: spawn fn() / await handle)"
+    },
+    {
+      "arity": 1,
       "en": "Unexpected token in expression: {0}",
       "pt": "token inesperado na expressão: {0}"
     }

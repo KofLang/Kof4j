@@ -155,7 +155,7 @@ public final class PortuKofDiagnostics {
         m.put("PARSE037", List.of(new Variant("Expected variable name", "esperado nome de variável")));
         m.put("PARSE039", List.of(new Variant("Expected field name", "esperado nome de campo")));
         m.put("PARSE040", List.of(new Variant("Expected '('", "esperado '('"), new Variant("Expected ')'", "esperado ')'")));
-        m.put("PARSE041", List.of(new Variant("Unexpected token in expression: {0}", "token inesperado na expressão: {0}")));
+        m.put("PARSE041", List.of(new Variant("\"{0}\" requires an operand on the same line (spawn/await take an expression: spawn fn() / await handle)", "\"{0}\" exige um operando na mesma linha (spawn/await tomam uma expressão: spawn fn() / await handle)"), new Variant("Unexpected token in expression: {0}", "token inesperado na expressão: {0}")));
         m.put("PARSE042", List.of(new Variant("Expected '('", "esperado '('"), new Variant("Expected '->'", "esperado '->'")));
         m.put("PARSE043", List.of(new Variant("Expected '(' after if", "esperado '(' depois de if"), new Variant("Expected ')'", "esperado ')'")));
         m.put("PARSE044", List.of(new Variant("Expected 'else'", "esperado 'else'"), new Variant("Expected type", "esperado tipo")));

@@ -103,15 +103,37 @@ public class ExpressionParser {
     static ExpressionNode parseUnary(ParseContext ctx) {
         // spawn <expr> / await <expr> em posição de expressão — baixados como
         // chamadas sintéticas __kof_spawn_expr / __kof_await (sem AST novo)
+        // #1002: o operando TEM de começar na MESMA linha do keyword — o
+        // statement é baseado em linha, e um operando na linha seguinte é
+        // sempre o statement SEGUINTE sendo roubado (o oráculo JVM morria
+        // com VerifyError silencioso; o JS estourava o COMP002 interno)
         if (ctx.check(TokenType.SPAWN)) {
             SourcePosition p = ctx.pos();
+            int kwLine = ctx.peek().line();
+            String kw = ctx.peek().value();
             ctx.advance();
+            if (ctx.check(TokenType.EOF) || ctx.peek().line() != kwLine) {
+                ctx.error("\"" + kw + "\" requires an operand on the same line"
+                        + " (spawn/await take an expression: spawn fn() / await handle)",
+                        "PARSE041", kw);
+                return new MethodCallExpr(p, null, "__kof_spawn_expr", List.of(),
+                        List.of(new LiteralExpr(p, ConcreteLiteralKind.BOOLEAN, "false")));
+            }
             ExpressionNode e = ExpressionParser.parseUnary(ctx);
             return new MethodCallExpr(p, null, "__kof_spawn_expr", List.of(), List.of(e));
         }
         if (ctx.check(TokenType.AWAIT)) {
             SourcePosition p = ctx.pos();
+            int kwLine = ctx.peek().line();
+            String kw = ctx.peek().value();
             ctx.advance();
+            if (ctx.check(TokenType.EOF) || ctx.peek().line() != kwLine) {
+                ctx.error("\"" + kw + "\" requires an operand on the same line"
+                        + " (spawn/await take an expression: spawn fn() / await handle)",
+                        "PARSE041", kw);
+                return new MethodCallExpr(p, null, "__kof_await", List.of(),
+                        List.of(new LiteralExpr(p, ConcreteLiteralKind.BOOLEAN, "false")));
+            }
             ExpressionNode e = ExpressionParser.parseUnary(ctx);
             return new MethodCallExpr(p, null, "__kof_await", List.of(), List.of(e));
         }

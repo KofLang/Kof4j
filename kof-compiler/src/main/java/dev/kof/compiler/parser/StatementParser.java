@@ -79,7 +79,18 @@ public class StatementParser {
         }
         if (ctx.check(TokenType.SPAWN)) {
             SourcePosition p = ctx.pos();
+            int kwLine = ctx.peek().line();
+            String kw = ctx.peek().value();
             ctx.advance();
+            // #1002: o operando do spawn TEM de começar na MESMA linha do
+            // keyword — um operando na linha seguinte é o statement seguinte
+            // sendo roubado (VerifyError silencioso no oráculo JVM)
+            if (ctx.check(TokenType.EOF) || ctx.peek().line() != kwLine) {
+                ctx.error("\"" + kw + "\" requires an operand on the same line"
+                        + " (spawn/await take an expression: spawn fn() / await handle)",
+                        "PARSE041", kw);
+                return new ExpressionStmt(p, new LiteralExpr(p, ConcreteLiteralKind.BOOLEAN, "false"));
+            }
             ExpressionNode expr = ExpressionParser.parseExpression(ctx);
             ctx.expectSemicolon();
             return new SpawnStmt(p, expr);
