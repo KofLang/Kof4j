@@ -34,13 +34,10 @@ class BuiltinUnknownMethodGuardTest {
         return driver.compile(src, tempDir.resolve("out"), Target.JVM);
     }
 
-    private void assertSem102(CompilationResult result, String method, String type) {
-        assertFalse(result.success(), type + "." + method + "() must fail to compile (SEM102)");
-        String diags = result.diagnostics().getDiagnostics().toString();
-        assertTrue(diags.contains("SEM102"), "Expected SEM102, was: " + diags);
-        assertTrue(diags.contains(method), "Diagnostic must name the method, was: " + diags);
-        assertFalse(diags.contains("ClassFormatError"),
-                "Must be a compile diagnostic, not a crash: " + diags);
+    private void assertSem102NoCrash(CompilationResult result, String method, String type) {
+        SemGuardSupport.expectSem102(result, method);
+        assertFalse(result.diagnostics().getDiagnostics().toString().contains("ClassFormatError"),
+                "Must be a compile diagnostic, not a crash: " + result.diagnostics().getDiagnostics());
     }
 
     private void assertSem025(CompilationResult result, String method, String ns) {
@@ -57,7 +54,7 @@ class BuiltinUnknownMethodGuardTest {
     @Test
     void unknownBufferMethodFailsWithSem102(@TempDir Path tempDir) throws IOException {
         // symptom A: `buffer.alloc(8).bogus()` printed `Buffer[8]` (receiver).
-        assertSem102(compile("""
+        assertSem102NoCrash(compile("""
             main() {
                 var b = buffer.alloc(8)
                 println(b.bogus())
@@ -68,7 +65,7 @@ class BuiltinUnknownMethodGuardTest {
     @Test
     void unknownSecretMethodFailsWithSem102(@TempDir Path tempDir) throws IOException {
         // symptom A: `secrets.of("x").bogus()` printed `Secret(*** )` (receiver).
-        assertSem102(compile("""
+        assertSem102NoCrash(compile("""
             main() {
                 var s = secrets.of("x")
                 println(s.bogus())
@@ -80,7 +77,7 @@ class BuiltinUnknownMethodGuardTest {
     void unknownSecretMethodToStringFailsWithSem102NotClassFormatError(@TempDir Path tempDir) throws IOException {
         // symptom B: `.bogus(1,2)` compiled and the JVM aborted at load with
         // `ClassFormatError: Illegal class name ""`.
-        assertSem102(compile("""
+        assertSem102NoCrash(compile("""
             main() {
                 var s = secrets.of("x")
                 println(s.bogus(1, 2))
@@ -90,7 +87,7 @@ class BuiltinUnknownMethodGuardTest {
 
     @Test
     void unknownKeyHandleMethodFailsWithSem102(@TempDir Path tempDir) throws IOException {
-        assertSem102(compile("""
+        assertSem102NoCrash(compile("""
             main() {
                 var k = secrets.keyFromHex("00")
                 println(k.bogus())
@@ -102,7 +99,7 @@ class BuiltinUnknownMethodGuardTest {
     void knownMethodWithWrongArityIsSem102(@TempDir Path tempDir) throws IOException {
         // `reveal()` takes zero args; `s.reveal(1)` was accepted silently and
         // returned the receiver. Wrong arity on a pseudo-type is now diagnosed.
-        assertSem102(compile("""
+        assertSem102NoCrash(compile("""
             main() {
                 var s = secrets.of("x")
                 println(s.reveal(1))

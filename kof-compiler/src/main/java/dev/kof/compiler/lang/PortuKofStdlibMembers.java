@@ -74,7 +74,7 @@ public final class PortuKofStdlibMembers {
         m.put("db", new String[][]{{"connect", "conectar"}, {"query", "consultar"}, {"execute", "executar"}, {"close", "fechar"}, {"transaction", "transaction"}});
         m.put("encoding", new String[][]{{"hexEncode", "hexCodificar"}, {"hexDecode", "hexDecodificar"}, {"base64Encode", "base64Codificar"}, {"base64Decode", "base64Decodificar"}, {"base64UrlEncode", "base64UrlCodificar"}, {"base64UrlDecode", "base64UrlDecodificar"}, {"urlEncode", "urlCodificar"}, {"urlDecode", "urlDecodificar"}});
         m.put("gpu", new String[][]{{"available", "disponivel"}, {"failReason", "failReason"}, {"dispatchMatmul", "dispatchMatmul"}, {"dispatchMatmul64", "dispatchMatmul64"}, {"mvSetShape", "mvDefinirShape"}, {"mvLoadW", "mvCarregarW"}, {"mvMatvec", "mvMatvec"}, {"mvPutW", "mvPutW"}, {"mvRun", "mvExecutar"}, {"mvPut32", "mvPut32"}, {"mvRun32", "mvRun32"}, {"mvPutSp", "mvPutSp"}, {"mvRunSp", "mvExecutarSp"}});
-        m.put("http", new String[][]{{"get", "obter"}, {"post", "post"}, {"put", "put"}, {"delete", "excluir"}, {"patch", "patch"}, {"options", "options"}, {"status", "status"}, {"timeout", "timeout"}, {"retry", "tentarNovamente"}, {"circuit", "circuit"}});
+        m.put("http", new String[][]{{"get", "obter"}, {"post", "post"}, {"put", "put"}, {"delete", "excluir"}, {"patch", "patch"}, {"options", "options"}, {"status", "status"}, {"timeout", "timeout"}, {"retry", "tentarNovamente"}, {"circuit", "circuit"}, {"insecure", "insecure"}});
         m.put("image", new String[][]{{"decode", "decodificar"}});
         m.put("json", new String[][]{{"encode", "codificar"}, {"decode", "decodificar"}});
         m.put("jwt", new String[][]{{"create", "criar"}, {"verify", "verificar"}, {"secret", "secret"}});

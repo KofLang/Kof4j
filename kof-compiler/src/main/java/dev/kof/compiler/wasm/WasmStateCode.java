@@ -179,7 +179,7 @@ final class WasmStateCode {
             // em WasmBinaryEmit (o null de referência, o bool i32, as danças
             // MAP-MX) — comportamento identico.
             WasmBinaryEmit.emit(bin, ops, idx, ctx, out);
-        } else if (op instanceof KofUnary un && ctx.wasi && "bool".equals(ctx.lastPush)) {
+        } else if (op instanceof KofUnary && ctx.wasi && "bool".equals(ctx.lastPush)) {
             out.add(new WasmInstr.Simple(0x45, "i32.eqz"));
             ctx.lastPush = "bool";
             ctx.lastPushWide = false;

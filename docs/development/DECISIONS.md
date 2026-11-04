@@ -4786,6 +4786,17 @@ first; never the most interesting, never frozen-semantics). Individual locks:
 
 ---
 
+## D-RELEASE-0.7.0 — the NEXT cut is `0.7.0` (minor), not another `0.6.x` patch (maintainer 02/11/2026, chat directive: "a proxima vai ser a 0.7.0")
+
+**State:** DECIDED (maintainer) — supersedes the patch cadence for the next cut only.
+
+- **The next release is `0.7.0`.** The 0.6.x patch line stops at `0.6.10` (10 patches published 11/10–01/11).
+- **Why:** the 0.6.x line accumulated 10 patches (rule B's 9-patch trigger) AND the WASI/libm lane completed a lane goal (fdlibm `pow`/`atan`/`asin`/`tan`, Schubfach `Double.toString`, SET/MAP/ARRAY/GC slices) while the native lane closed its `1.0-blocks` front (#933/#934) — a minor is due.
+- **Unchanged:** the cut still requires a STABLE `lab` (`D-LAB-STABILITY`), the one-way pipeline, `check_version_consistency` rc=0 with the bump IN-TREE before the `release.yml` dispatch, and the 1-release/day limit.
+- **Relationships:** `Depends on: D-RELEASE-CADENCE, D-LAB-STABILITY, D-QUALITY-PIPELINE-2609`; `Related: VERSION, scripts/bump-version.sh`.
+
+---
+
 ## D-LAB-STABILITY — a minor is only cut from a STABLE `lab`; otherwise the cut slips to the next weekend (maintainer 02/10/2026, chat directive)
 
 **State:** DECIDED (maintainer) — the stability rule that governs promoting `lab` into the pipeline.

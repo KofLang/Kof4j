@@ -886,6 +886,7 @@ Long-term vision — Kof as a universal platform (one language for
 applications **and** systems, infrastructure, automation, data, security and
 science) **without** destroying the language's simplicity.
 
+- **Stages 4–7 PROMOTED 03/11** (maintainer order "pega o universal platform de future") to [`universal-platform-stages.md`](universal-platform-stages.md) (+PT) — Stage 4.6 landed the same cycle; every remaining item measured against the tree (only 4.3/4.5/5.9/5.10/7.1/7.3 are implementable without a new primitive or FFI)
 - Central document: `docs/architecture/IMPLEMENTATION-UNIVERSAL-PLATFORM.md`
   (architecture — **UNDER DEVELOPMENT** since 17/09/2026; promoted from
   `future/` by maintainer decision, `DECISIONS.md` §D-UNIVERSAL)
@@ -937,6 +938,8 @@ science) **without** destroying the language's simplicity.
 > Arrow/BLAS/ML; no "Kali in Kof"; no own SQL engine.
 
 ### Promotion queue (`D-FUTURE-PROMOTION`, maintainer 28/09)
+
+> **RE-OPENED BY THE MAINTAINER 02/11 (order "pega tls do future pra fazer, é urgente"): `tls-hardening-plan`** — promoted from the `future/` TLS plan; the rule-6 decision is the maintainer’s own order, the frozen contract is `D-SEC.6` (additive only). **COMPLETE + PROMOTED 03/11 to [`docs/tls-hardening.md`](../tls-hardening.md) (+PT)** — ALL slices landed with executed proof; the final gate was the Pebble E2E (real issuance, serial 0dca413a13143cfa (a certificate serial, not a commit SHA)); `state: implemented`.
 
 > **CLOSED 24/10 (`D-FUTURE-CLOSE`):** the maintainer's sweep after all lanes died concluded the six open plans — `LEGACY_MIGRATION`, `DECOMPILER`, `TRANSLATOR` (autonomous scope complete, moved to `docs/`), `qrcode-wasm` (Phase 1 complete → `docs/`), `image-vision` (delivered surface → `docs/`, the AVIF 3bd divergence parked in `known-bugs` §757-family) and `kofscript-embedding` (zero code, returned to `future/`). The remainders are parked with their resume conditions in each plan; nothing in `development/` is open.
 

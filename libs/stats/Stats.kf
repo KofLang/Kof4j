@@ -1,0 +1,128 @@
+package stats
+
+// kof.stats — descriptive statistics (universal platform Stage 4.3, the
+// pure-Kof half). mean/median/minimum/maximum/pvariance/stddev/percentile
+// over `List<Double>` — arithmetic only, no FFI, no new primitive.
+//
+// Empty samples are UNDEFINED, not zero: every aggregate refuses with
+// STATS001 (a silent 0 would fabricate a result). percentile is the linear
+// interpolation method (rank = p/100 * (n-1), interpolating between the
+// floor and ceil neighbours); a p outside [0, 100] refuses with STATS002.
+//
+// The population variance divides by n (the sample variance would need an
+// honest n<2 story and a second surface — deferred until a caller needs it,
+// never a guessed default). stddev rides `math.sqrt` (JVM/Script; the native
+// cross keeps its honest MATH001 cell — measured, not assumed).
+//
+// minimum/maximum return Double? and the CALLER narrows (Kof null-safety:
+// the library never prints and never guesses). Nothing here is a stub: every
+// face computes real values from the sample it is given.
+
+// sumOf — one pass, the caller's list is untouched.
+Double sumOf(List<Double> xs) {
+    var total = 0.0
+    for (var v in xs) {
+        total = total + v
+    }
+    return total
+}
+
+// mean — the arithmetic mean; an empty sample refuses (STATS001).
+Double mean(List<Double> xs) {
+    if (xs.size() == 0) {
+        throw "STATS001: mean of an empty sample is undefined"
+    }
+    return sumOf(xs) / xs.size().toDouble()
+}
+
+// median — the middle of the SORTED sample; even n interpolates the two
+// middles. Never mutates the caller's list.
+Double median(List<Double> xs) {
+    if (xs.size() == 0) {
+        throw "STATS001: median of an empty sample is undefined"
+    }
+    var sorted = xs.sorted()
+    var n = sorted.size()
+    var mid = n / 2
+    if (n % 2 == 1) {
+        return sorted.get(mid)
+    }
+    return (sorted.get(mid - 1) + sorted.get(mid)) / 2.0
+}
+
+// minimum — the smallest value, or null for an empty sample (the caller
+// narrows; a library never invents a sentinel that could be real data).
+Double? minimum(List<Double> xs) {
+    if (xs.size() == 0) {
+        return null
+    }
+    var best = xs.get(0)
+    for (var v in xs) {
+        if (v < best) {
+            best = v
+        }
+    }
+    return best
+}
+
+// maximum — the largest value, or null for an empty sample.
+Double? maximum(List<Double> xs) {
+    if (xs.size() == 0) {
+        return null
+    }
+    var best = xs.get(0)
+    for (var v in xs) {
+        if (v > best) {
+            best = v
+        }
+    }
+    return best
+}
+
+// pvariance — the POPULATION variance (divide by n): the mean squared
+// deviation. Exact for binary fractions; an empty sample refuses.
+Double pvariance(List<Double> xs) {
+    if (xs.size() == 0) {
+        throw "STATS001: variance of an empty sample is undefined"
+    }
+    var m = mean(xs)
+    var total = 0.0
+    for (var v in xs) {
+        var d = v - m
+        total = total + d * d
+    }
+    return total / xs.size().toDouble()
+}
+
+// stddev — the population standard deviation over `math.sqrt`.
+Double stddev(List<Double> xs) {
+    return math.sqrt(pvariance(xs))
+}
+
+// percentile — the linear-interpolation percentile (the rank p/100*(n-1)
+// interpolates between the floor and ceil sorted neighbours). p ∈ [0, 100];
+// an empty sample refuses (STATS001) and an out-of-range p refuses (STATS002).
+// Single-exit shape: the rank truncation IS the floor (SEM090 notes it).
+Double percentile(List<Double> xs, Double p) {
+    if (xs.size() == 0) {
+        throw "STATS001: percentile of an empty sample is undefined"
+    }
+    if (p < 0.0 || p > 100.0) {
+        throw "STATS002: percentile p must be in [0, 100], got " + p
+    }
+    var sorted = xs.sorted()
+    var n = sorted.size()
+    var result = sorted.get(n - 1)
+    if (n > 1) {
+        var rank = (p / 100.0) * (n - 1).toDouble()
+        var lower = rank.toInt()
+        var frac = rank - lower.toDouble()
+        if (frac == 0.0) {
+            result = sorted.get(lower)
+        }
+        if (frac != 0.0 && lower < n - 1) {
+            result = sorted.get(lower) + frac * (sorted.get(lower + 1) - sorted.get(lower))
+        }
+    }
+    return result
+}

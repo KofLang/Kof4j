@@ -75,13 +75,15 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_mv64_wrunsp" -> "I";
             case "kof_http_get", "kof_http_get_headers", "kof_http_delete", "kof_http_delete_headers",
                     "kof_http_options", "kof_http_options_headers", "kof_http_post", "kof_http_post_headers",
-                    "kof_http_put", "kof_http_put_headers", "kof_http_patch", "kof_http_patch_headers"
+                    "kof_http_put", "kof_http_put_headers", "kof_http_patch", "kof_http_patch_headers",
+                    "kof_acme_jws_es256", "kof_acme_new_account", "kof_acme_new_order",
+                    "kof_acme_dns01_txt", "kof_acme_challenge", "kof_acme_finalize"
                     -> "Ljava/lang/String;";
             case "kof_http_status", "kof_mq_queue_size" -> "I";
             case "kof_mq_queue" -> "Ljava/lang/String;";
             case "kof_mq_pop" -> "Ljava/lang/Object;";
             case "kof_web_sse_route", "kof_web_ws_route", "kof_http_timeout_set",
-                    "kof_http_retry_set", "kof_http_circuit_set",
+                    "kof_http_retry_set", "kof_http_circuit_set", "kof_http_insecure_set",
                     "kof_mq_publish", "kof_mq_subscribe", "kof_mq_unsubscribe",
                     "kof_mq_push", "kof_time_sleep", "kof_time_cancel", "kof_scheduler_cancel" -> "V";
             case "kof_time_now" -> "J";

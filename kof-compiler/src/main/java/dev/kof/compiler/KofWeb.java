@@ -28,6 +28,14 @@ public final class KofWeb {
     static final Type SSE_CONNECTION =
             new Type.ClassType("dev.kof.runtime", "KofRuntime$SseConnection", List.of());
 
+    /**
+     * TLS hardening slice 1: the value {@code web.secureHost(host, certPem,
+     * keyPem)} produces — a compile-time-only descriptor consumed by
+     * {@code app.listenSecure(port, hosts)}. It never reaches the runtime as a
+     * type: the lowering flattens the list into three parallel String arrays.
+     */
+    static final Type SECURE_HOST = new Type.ClassType("kof.web", "SecureHost", List.of());
+
     private static final Type STR = BuiltinTypes.STRING;
     private static final Type INT = Type.PrimitiveType.INT;
     private static final Type VOID = Type.PrimitiveType.VOID;
@@ -73,6 +81,23 @@ public final class KofWeb {
 
     static boolean isWebNamespace(String name) {
         return "web".equals(name);
+    }
+
+    /** {@code web.secureHost(host, certPem, keyPem)} — one SNI entry. */
+    static WebCall secureHostConstructor() {
+        return new WebCall("kof_web_secure_host", SECURE_HOST, List.of(STR, STR, STR));
+    }
+
+    static boolean isSecureHostType(Type t) {
+        return SECURE_HOST.equals(t);
+    }
+
+    /** {@code List<SecureHost>} — the SNI overload's second argument. */
+    static boolean isSecureHostList(Type t) {
+        return t instanceof Type.ClassType ct
+                && "kof".equals(ct.packageName()) && "List".equals(ct.name())
+                && ct.typeArguments().size() == 1
+                && isSecureHostType(ct.typeArguments().get(0));
     }
 
     static boolean isContextFunction(String name) {
@@ -160,6 +185,20 @@ public final class KofWeb {
             case "health" -> argTypes.size() == 1
                     ? new WebCall("kof_web_health", VOID, List.of(STR, STR))
                     : null;
+            case "reloadTls" -> {
+                // TLS hardening slice 2: hot-reload — the atomic context swap.
+                // (certPem, keyPem): re-arms a single-cert server; (hosts):
+                // replaces the whole SNI map. A failure keeps the old state and
+                // reports WEB007 (catchable as a Kof String).
+                if (argTypes.size() == 2 && isString(argTypes.get(0)) && isString(argTypes.get(1))) {
+                    yield new WebCall("kof_web_reload_tls_pem", VOID, List.of(STR, STR, STR));
+                }
+                if (argTypes.size() == 1 && isSecureHostList(argTypes.get(0))) {
+                    yield new WebCall("kof_web_reload_tls_sni", VOID,
+                            List.of(STR, STR, STR, STR));
+                }
+                yield null;
+            }
             case "listenSecure" -> {
                 // 1 arg: TLS self-signed de dev (G12). 3 args: certificado
                 // próprio PKCS#8 PEM (D-SEC: `listenSecure(port, certPem,
@@ -171,6 +210,16 @@ public final class KofWeb {
                         && isString(argTypes.get(1)) && isString(argTypes.get(2))) {
                     yield new WebCall("kof_web_listen_secure_pem", VOID,
                             List.of(STR, INT, STR, STR));
+                }
+                // TLS hardening slice 1: SNI — one process, many hostnames.
+                // The list is flattened by the lowering into three parallel
+                // String arrays (hosts, certs, keys); the runtime selects the
+                // certificate from the ClientHello SNI and REFUSES an unknown
+                // hostname (never the default cert).
+                if (argTypes.size() == 2 && isInt(argTypes.get(0))
+                        && isSecureHostList(argTypes.get(1))) {
+                    yield new WebCall("kof_web_listen_secure_sni", VOID,
+                            List.of(STR, INT, STR, STR, STR));
                 }
                 yield null;
             }
@@ -214,7 +263,9 @@ public final class KofWeb {
             case "kof_web_serve_dir" -> "WEB005";
             case "kof_web_security", "kof_web_security_opts", "kof_web_policy",
                  "kof_web_route_opts" -> "WEB006";
-            case "kof_web_listen_secure", "kof_web_listen_secure_pem" -> "WEB002";
+            case "kof_web_listen_secure", "kof_web_listen_secure_pem",
+                 "kof_web_listen_secure_sni", "kof_web_reload_tls_pem",
+                 "kof_web_reload_tls_sni" -> "WEB002";
             default -> "WEB001";
         };
     }

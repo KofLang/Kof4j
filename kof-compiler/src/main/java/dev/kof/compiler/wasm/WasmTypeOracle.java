@@ -19,11 +19,35 @@ final class WasmTypeOracle {
     }
 
     static boolean isScalarSignature(IRMethod m) {
+        return isScalarSignature(m, false);
+    }
+
+    /** 15.2-STRSIG (02/11, #776 — round 87): o String entra na assinatura
+     *  das funções top-level do frontend WASI. A maquinaria do String
+     *  (handle i32 do bump heap + kof.strLit/kof.strConcat/kof.writeStr)
+     *  pousou nas fatias 15.3b/15.3c/15.3d — o valor JÁ anda no MESMO
+     *  handle i32 dos params/retornos de classe (CLASS-2b, 29/10), então o
+     *  gate era o único lugar que ainda recusava. O `allowString` é
+     *  WASI-only: o alvo WASM puro não registra o runtime de string
+     *  (printIntrinsic=false) e continua recusando honesto (WASM002). */
+    static boolean isScalarSignature(IRMethod m, boolean allowString) {
         for (Type t : m.parameterTypes()) {
-            if (!(t instanceof Type.PrimitiveType pt) || !scalar(pt.name())) return false;
+            if (t instanceof Type.PrimitiveType pt && scalar(pt.name())) continue;
+            if (allowString && isStringType(t)) continue;
+            return false;
         }
-        return m.returnType() instanceof Type.PrimitiveType pr
-                && (scalar(pr.name()) || "void".equalsIgnoreCase(pr.name()));
+        if (m.returnType() instanceof Type.PrimitiveType pr) {
+            return scalar(pr.name()) || "void".equalsIgnoreCase(pr.name());
+        }
+        return allowString && isStringType(m.returnType());
+    }
+
+    /** O `String` bare (java.lang.String) — o `String?` fica FORA (o handle
+     *  0 já imprime `null`, mas o retorno nullable de helper segue sem
+     *  sonda: a recusa honesta fica). */
+    static boolean isStringType(Type t) {
+        return t instanceof Type.ClassType ct
+                && "String".equals(ct.name()) && "java.lang".equals(ct.packageName());
     }
 
     private static boolean scalar(String name) {

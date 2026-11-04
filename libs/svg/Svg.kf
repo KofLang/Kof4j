@@ -1,0 +1,75 @@
+package svg
+
+// kof.svg — the SVG WRITER (universal platform Stage 4.5, the pure-Kof half):
+// document/frame/rect/line/text primitives with XML escaping, plus a
+// max-scaled `barChart`. Pure string building — NO charting engine, NO FFI;
+// the engine bindings (the plan's other 4.5 half) stay blocked and recorded.
+//
+// Geometry is INT-QUANTIZED on purpose: every emitted number is an Int, so
+// the output text is byte-identical on every target (no Double-formatting
+// divergence). Values drive only RATIOS; the truncation to Int pixels is the
+// documented rendering rule (a pixel grid cannot hold fractions anyway).
+//
+// `svgText` escapes `& < >` (in that order — `&` first, or the entities
+// double-escape). An empty barChart series refuses SVG001 (an axis-only
+// empty plot would silently fabricate a "result" for no data — the same
+// honesty rule `libs/stats` follows). Single-exit shapes throughout (the
+// COMP002 multi-return-after-throw lesson from the stats slice).
+
+// xmlEscape — & first, then the angle brackets.
+String xmlEscape(String s) {
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+}
+
+// svgDocument — the frame: an xmlns-carrying root with a viewBox covering
+// the whole canvas, the caller's body inside, closed.
+String svgDocument(Int width, Int height, String body) {
+    return "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"" + width
+        + "\" height=\"" + height + "\" viewBox=\"0 0 " + width + " " + height
+        + "\">" + body + "</svg>"
+}
+
+// svgRect — a filled rectangle (self-closing element).
+String svgRect(Int x, Int y, Int w, Int h, String fill) {
+    return "<rect x=\"" + x + "\" y=\"" + y + "\" width=\"" + w
+        + "\" height=\"" + h + "\" fill=\"" + xmlEscape(fill) + "\"/>"
+}
+
+// svgLine — a stroked segment (the axis and grid faces).
+String svgLine(Int x1, Int y1, Int x2, Int y2, String stroke) {
+    return "<line x1=\"" + x1 + "\" y1=\"" + y1 + "\" x2=\"" + x2
+        + "\" y2=\"" + y2 + "\" stroke=\"" + xmlEscape(stroke) + "\"/>"
+}
+
+// svgText — a text label at (x, y), XML-escaped.
+String svgText(Int x, Int y, String s) {
+    return "<text x=\"" + x + "\" y=\"" + y + "\">" + xmlEscape(s) + "</text>"
+}
+
+// barChart — vertical bars scaled to the MAXIMUM value over a 10px-margin
+// plot (a baseline axis at the bottom). Single-exit: the result accumulates
+// and returns once (the stats-slice COMP002 lesson).
+String barChart(List<Double> values, Int width, Int height) {
+    if (values.size() == 0) {
+        throw "SVG001: barChart of an empty series is undefined"
+    }
+    var max = values.get(0)
+    for (var v in values) {
+        if (v > max) {
+            max = v
+        }
+    }
+    var plotH = height - 20
+    var usable = width - 20
+    var slot = usable / values.size()
+    var barW = slot - 4
+    var body = svgLine(10, height - 10, width - 10, height - 10, "#333333")
+    var i = 0
+    while (i < values.size()) {
+        var h = (values.get(i) / max * plotH.toDouble()).toInt()
+        var x = 10 + i * slot + 2
+        body = body + svgRect(x, height - 10 - h, barW, h, "#4a90d9")
+        i = i + 1
+    }
+    return svgDocument(width, height, body)
+}
