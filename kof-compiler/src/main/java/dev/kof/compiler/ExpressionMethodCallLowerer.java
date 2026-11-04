@@ -164,8 +164,10 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
                         + extQ.internalName().replace('/', '.') + "'");
         return localIdx;
     }
-    ExternalClasspath.MethodSignature extSig = driver.externalClasspath.resolveMethod(
-            extQ.internalName(), mc.methodName(), mc.arguments().size());
+    List<Type> extArgTypes = new ArrayList<>();
+    for (ExpressionNode arg : mc.arguments()) extArgTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
+    ExternalClasspath.MethodSignature extSig = driver.externalClasspath.resolveMethodWithArgs(
+            extQ.internalName(), mc.methodName(), mc.arguments().size(), extArgTypes);
     List<Type> extFormal = VarargsArrayPacker.formalTypes(extSig);
     Type extRet = ExternalClasspath.typeFromDescriptor(extSig.returnDescriptor());
     localIdx = VarargsArrayPacker.lower(driver, mc.arguments(), extSig,
@@ -173,7 +175,8 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     KofCallKind extKind = extSig.isStatic() ? KofCallKind.STATIC
             : (extSig.ownerIsInterface() ? KofCallKind.INTERFACE
             : KofCallKind.INSTANCE);
-    ops.add(new KofCall(extQ, mc.methodName(), extFormal, extRet, extKind));
+    ops.add(new KofCall(extQ, mc.methodName(), extFormal, extRet, extKind,
+            extSig.isStatic() && extSig.ownerIsInterface()));
     return localIdx;
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
         && ("Double".equals(rid.name()) || "Float".equals(rid.name()) || "Long".equals(rid.name())
