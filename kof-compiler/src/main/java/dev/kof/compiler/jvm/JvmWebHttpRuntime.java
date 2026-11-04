@@ -131,10 +131,35 @@ public final class JvmWebHttpRuntime {
                     KOF_HTTP_CLIENT_INSECURE = tmp;
                 }
 
+                /**
+                 * TLS hardening slice 3 — the trust-all opt-in
+                 * ({@code http.insecure()}): switches {@code kof.http} https://
+                 * requests back to the TRUST-ALL client (test/dev only) and
+                 * warns on stderr. The DEFAULT is strict: chain against the
+                 * platform trust store WITH hostname verification
+                 * ({@code HttpClient.newHttpClient()} already does both).
+                 */
+                private static final java.util.concurrent.atomic.AtomicBoolean
+                        KOF_HTTP_INSECURE = new java.util.concurrent.atomic.AtomicBoolean(false);
+
+                public static void kof_http_insecure_set() {
+                    KOF_HTTP_INSECURE.set(true);
+                    System.err.println("TLS-TRUST-ALL: kof.http https:// requests will accept "
+                            + "self-signed and hostname-mismatched certificates "
+                            + "(test/dev only — never production)");
+                }
+
+                private static java.net.http.HttpClient kofHttpClientFor(String url) {
+                    boolean isHttps = url != null && url.toLowerCase().startsWith("https://");
+                    if (!isHttps) return java.net.http.HttpClient.newHttpClient();
+                    return KOF_HTTP_INSECURE.get() ? KOF_HTTP_CLIENT_INSECURE
+                            : java.net.http.HttpClient.newHttpClient();
+                }
+
+
                 public static int kof_http_status(String url) throws Exception {
                     try {
-                        boolean isHttps = url != null && url.toLowerCase().startsWith("https://");
-                        java.net.http.HttpClient client = isHttps ? KOF_HTTP_CLIENT_INSECURE : java.net.http.HttpClient.newHttpClient();
+                        java.net.http.HttpClient client = kofHttpClientFor(url);
                         java.net.http.HttpRequest.Builder b = java.net.http.HttpRequest.newBuilder(
                                 java.net.URI.create(url))
                                 .timeout(java.time.Duration.ofSeconds(KOF_HTTP_TIMEOUT.get()))
@@ -162,6 +187,14 @@ public final class JvmWebHttpRuntime {
                         msg = cause == null
                                 ? ("request failed: " + url)
                                 : (cause.getClass().getSimpleName() + " from " + url);
+                    }
+                    // TLS hardening slice 3: a STRICT https rejection is a NAMED
+                    // diagnostic (catchable as a Kof String, never silent).
+                    if (cause instanceof javax.net.ssl.SSLHandshakeException
+                            || cause instanceof javax.net.ssl.SSLPeerUnverifiedException) {
+                        return new RuntimeException("TLS-VERIFY: certificate rejected for " + url
+                                + " — " + msg
+                                + " (use http.insecure() to opt into trust-all for test/dev)", cause);
                     }
                     return new RuntimeException(msg, cause);
                 }
@@ -192,8 +225,7 @@ public final class JvmWebHttpRuntime {
                             } else {
                                 b.method(method, java.net.http.HttpRequest.BodyPublishers.noBody());
                             }
-                            boolean isHttps2 = url != null && url.toLowerCase().startsWith("https://");
-                            java.net.http.HttpClient client2 = isHttps2 ? KOF_HTTP_CLIENT_INSECURE : java.net.http.HttpClient.newHttpClient();
+                            java.net.http.HttpClient client2 = kofHttpClientFor(url);
                             java.net.http.HttpResponse<String> r = client2
                                     .send(b.build(), java.net.http.HttpResponse.BodyHandlers.ofString());
                             if (r.statusCode() >= 500) {

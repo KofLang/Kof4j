@@ -415,6 +415,6 @@ for the *why* behind every item above.
 
 ---
 
-# Fases futuras (plano apenas)
+# Stages 4–7 (promoted 03/11)
 
-As **Fases 4–7** (DATA, SECURITY expansion, SCIENTIFIC COMPUTING, BIOINFORMATICS) são **apenas plano, sem código** e estão documentadas em [`development/future/IMPLEMENTATION-UNIVERSAL-PLATFORM-future.md`](../future/IMPLEMENTATION-UNIVERSAL-PLATFORM-future.md). Per a regra dos três estados (AGENTS.md), elas pertencem a `development/future/` e não são trabalho de desenvolvimento atual.
+Stages 4–7 (DATA, SECURITY expansion, SCIENTIFIC COMPUTING, BIOINFORMATICS) were **promoted out of `future/` on 03/11** by the maintainer's direct order ("pega o universal platform de future") and are now CURRENT development work — [`docs/development/universal-platform-stages.md`](../development/universal-platform-stages.md) (+PT). Stage 4.6 (experiment tracking) landed the same cycle.

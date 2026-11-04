@@ -77,6 +77,9 @@ final class MethodCallNamespaces {
             if ("app".equals(mc.methodName()) && mc.arguments().isEmpty()) {
                 return KofWeb.APP;
             }
+            if ("secureHost".equals(mc.methodName()) && mc.arguments().size() == 3) {
+                return KofWeb.SECURE_HOST;
+            }
             return Type.UnknownType.UNKNOWN;
         }
         if (mc.receiver() instanceof IdentifierExpr rid && KofDb.isDbNamespace(rid.name())) {
@@ -91,6 +94,13 @@ final class MethodCallNamespaces {
                 }
                 return dbCall.returnType();
             }
+            return Type.UnknownType.UNKNOWN;
+        }
+        if (mc.receiver() instanceof IdentifierExpr rid && KofAcme.isAcmeNamespace(rid.name())) {
+            List<Type> acmeArgTypes = new ArrayList<>();
+            for (ExpressionNode arg : mc.arguments()) acmeArgTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
+            KofAcme.AcmeCall acmeCall = KofAcme.staticCall(mc.methodName(), acmeArgTypes);
+            if (acmeCall != null) return acmeCall.returnType();
             return Type.UnknownType.UNKNOWN;
         }
         if (mc.receiver() instanceof IdentifierExpr rid && KofHttp.isHttpNamespace(rid.name())) {

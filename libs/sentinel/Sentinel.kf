@@ -1,0 +1,83 @@
+package sentinel
+
+// kof.sentinel — the THREAT-DETECTION CORE (universal platform Stage 5.9,
+// the pure-Kof half): an event ring with window pruning, per-(source, kind)
+// counting, the burst rule, and a JSON alert emitter. Pure Kof over existing
+// primitives (class + record + List + Long) — NO engine, NO FFI; the wiring
+// faces (an `kof.http` middleware feeding addEvent, a log-ingestion pump,
+// `kof.observability` export) stay recorded as follow-ups in the plan.
+//
+// Defensive only: the library detects and reports; it never contacts,
+// blocks or counterattacks anything. The caller's clock drives the window
+// (`nowMillis` at every call — a library never invents a wall clock, the
+// same rule `libs/experiments` follows).
+//
+// The ring is pruned on EVERY read (events older than the window are
+// dropped by rebuilding the list — the proven while-loop idiom, no mutation
+// surprises). The burst rule is intentionally simple: N events of the same
+// (source, kind) inside the window. It is the honest first slice of
+// threat detection, not a pretend IDS.
+
+record SecurityEvent(String source, String kind, Long atMillis)
+
+class Sentinel {
+    List<SecurityEvent> events
+    Int windowMillis
+    Int burstLimit
+
+    constructor(Int windowMillis, Int burstLimit) {
+        this.windowMillis = windowMillis
+        this.burstLimit = burstLimit
+        this.events = listOf()
+    }
+
+    // addEvent — one observed event; the ring grows only as fast as the
+    // caller feeds it and is pruned on the next read.
+    Void addEvent(String source, String kind, Long atMillis) {
+        this.events.add(SecurityEvent(source, kind, atMillis))
+    }
+
+    // count — how many events of (source, kind) sit INSIDE the window
+    // ending at nowMillis; older events are dropped first (the prune).
+    Int count(String source, String kind, Long nowMillis) {
+        var cutoff = nowMillis - this.windowMillis
+        var kept = listOf<SecurityEvent>()
+        var i = 0
+        while (i < this.events.size()) {
+            var e = this.events.get(i)
+            if (e.atMillis >= cutoff) {
+                kept.add(e)
+            }
+            i = i + 1
+        }
+        this.events = kept
+        var total = 0
+        i = 0
+        while (i < kept.size()) {
+            var e = kept.get(i)
+            if (e.source == source && e.kind == kind) {
+                total = total + 1
+            }
+            i = i + 1
+        }
+        return total
+    }
+
+    // bursting — the burst rule: count >= limit.
+    Bool bursting(String source, String kind, Long nowMillis) {
+        return this.count(source, kind, nowMillis) >= this.burstLimit
+    }
+
+    // alert — a JSON alert document when the (source, kind) pair is
+    // bursting, else null (the caller narrows; the library never prints).
+    // The document is one JSON Lines-style line the caller can append to
+    // its alert log with the existing `kof.io` writers.
+    String? alert(String source, String kind, Long nowMillis) {
+        var total = this.count(source, kind, nowMillis)
+        if (total < this.burstLimit) {
+            return null
+        }
+        return "{\"rule\":\"auth-burst\",\"kind\":\"" + kind + "\",\"source\":\""
+            + source + "\",\"count\":" + total + ",\"at\":" + nowMillis + "}"
+    }
+}

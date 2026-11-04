@@ -1,0 +1,148 @@
+package experiments
+
+// kof.experiments — light experiment tracking (universal platform Stage 4.6):
+// runs, metrics and parameters stored as ROWS over `kof.db`, with a JSON
+// Lines EXPORT over `kof.io`. Pure Kof over existing primitives (record +
+// String + Long + Double + List) — no new syntax, no core change.
+//
+// The model follows the measured lesson of `libs/financial/DbLedger.kf`: the
+// TYPED `db.query<Rec>` loses the class when the record lives in a LIB file
+// (`known-bugs` §727 — `ClassNotFoundException` at emit, `ORM002` from
+// `orm.save`), so the reader decodes the raw JSON row with
+// `json.decode<Row>(...)` into the record defined HERE. SQL text is built at
+// the boundary with the same single-quote escaping as DbLedger.
+//
+// Nothing here is a stub: every face below reads or writes real state.
+
+record ExperimentStore(String url)
+
+// initExperiments — the DDL (idempotent: `if not exists`). One run row, plus
+// one row per (run, metric) sample and per (run, param) setting — the same
+// append-only rule the ledger store uses.
+ExperimentStore initExperiments(String url) {
+    var db = db.connect(url)
+    db.execute(db, "create table if not exists experiment_run (id text primary key, name text, started_at integer, finished_at integer)")
+    db.execute(db, "create table if not exists experiment_metric (run_id text, key text, step integer, value real)")
+    db.execute(db, "create table if not exists experiment_param (run_id text, key text, value text)")
+    db.close(db)
+    return ExperimentStore(url)
+}
+
+// sqlText — single-quote escaping at the SQL boundary (never concatenate a raw
+// user string into a statement).
+String sqlText(String raw) {
+    return raw.replace("'", "''")
+}
+
+// startRun — opens a run row; `atMillis` is the caller's clock (Kof never
+// invents a wall clock inside a library).
+ExperimentStore startRun(ExperimentStore s, String runId, String name, Long atMillis) {
+    var db = db.connect(s.url)
+    db.execute(db, "insert into experiment_run (id, name, started_at, finished_at) values ('"
+        + sqlText(runId) + "', '" + sqlText(name) + "', " + atMillis + ", 0)")
+    db.close(db)
+    return s
+}
+
+// finishRun — stamps the end time (idempotent: overwrites a previous stamp).
+ExperimentStore finishRun(ExperimentStore s, String runId, Long atMillis) {
+    var db = db.connect(s.url)
+    db.execute(db, "update experiment_run set finished_at = " + atMillis
+        + " where id = '" + sqlText(runId) + "'")
+    db.close(db)
+    return s
+}
+
+// logMetric — one sample; `step` orders samples inside a run and lets a
+// metric be sampled repeatedly (training curves).
+ExperimentStore logMetric(ExperimentStore s, String runId, String key, Int step, Double value) {
+    var db = db.connect(s.url)
+    db.execute(db, "insert into experiment_metric (run_id, key, step, value) values ('"
+        + sqlText(runId) + "', '" + sqlText(key) + "', " + step + ", " + value + ")")
+    db.close(db)
+    return s
+}
+
+// logParam — one hyper-parameter; the value is the caller's rendering (a
+// library never guesses a type's textual form).
+ExperimentStore logParam(ExperimentStore s, String runId, String key, String value) {
+    var db = db.connect(s.url)
+    db.execute(db, "insert into experiment_param (run_id, key, value) values ('"
+        + sqlText(runId) + "', '" + sqlText(key) + "', '" + sqlText(value) + "')")
+    db.close(db)
+    return s
+}
+
+record MetricRow(Double value)
+
+// metricAt — the value of one (key, step) sample, or null when absent. The
+// raw `db.query` row is a JSON String (SEM066); it is decoded into the row
+// record defined in this LIB file (§727: the typed query would lose it).
+Double? metricAt(ExperimentStore s, String runId, String key, Int step) {
+    var db = db.connect(s.url)
+    var rows = db.query(db, "select value from experiment_metric where run_id = '"
+        + sqlText(runId) + "' and key = '" + sqlText(key) + "' and step = " + step)
+    var found = 0.0
+    var present = false
+    if (rows.size() > 0) {
+        found = json.decode<MetricRow>(rows.get(0)).value
+        present = true
+    }
+    db.close(db)
+    if (!present) {
+        return null
+    }
+    return found
+}
+
+record BestRow(Double value, Int step)
+
+// bestMetric — the last (highest step) sample of a key, or null when the run
+// never logged it. Deterministic tie-break: the HIGHEST step wins.
+Double? lastMetric(ExperimentStore s, String runId, String key) {
+    var db = db.connect(s.url)
+    var rows = db.query(db, "select value, step from experiment_metric where run_id = '"
+        + sqlText(runId) + "' and key = '" + sqlText(key) + "' order by step desc limit 1")
+    var found = 0.0
+    var present = false
+    if (rows.size() > 0) {
+        found = json.decode<BestRow>(rows.get(0)).value
+        present = true
+    }
+    db.close(db)
+    if (!present) {
+        return null
+    }
+    return found
+}
+
+record CountRow(Long count)
+
+// metricCount — how many samples a run logged (0 when none).
+Long metricCount(ExperimentStore s, String runId) {
+    var db = db.connect(s.url)
+    var rows = db.query(db, "select count(*) as count from experiment_metric where run_id = '"
+        + sqlText(runId) + "'")
+    var total = 0L
+    if (rows.size() > 0) {
+        total = json.decode<CountRow>(rows.get(0)).count
+    }
+    db.close(db)
+    return total
+}
+
+record RunRow(String id, String name, Long startedAt, Long finishedAt)
+
+// exportRun — appends ONE JSON Lines document describing the run (its id,
+// name, both stamps, and every metric sample in step order) to `path` over
+// `kof.io`. The caller's own encoders (JsonLinesWriter-style) read this back.
+ExperimentStore exportRun(ExperimentStore s, String runId, String path) {
+    var db = db.connect(s.url)
+    var runs = db.query(db, "select id, name, started_at as startedAt, finished_at as finishedAt"
+        + " from experiment_run where id = '" + sqlText(runId) + "'")
+    if (runs.size() > 0) {
+        File(path).appendText(runs.get(0) + "\n")
+    }
+    db.close(db)
+    return s
+}

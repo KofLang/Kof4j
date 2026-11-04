@@ -1735,6 +1735,11 @@
   "SEM102": [
     {
       "arity": 2,
+      "en": "'{0}' has no field '{1}' (primitives expose no members; use operators, casts or stdlib functions)",
+      "pt": "'{0}' não tem o campo '{1}' (primitivos não expõem membros; use operadores, casts ou funções de stdlib)"
+    },
+    {
+      "arity": 2,
       "en": "'{0}' has no field '{1}' (this builtin exposes methods, not properties)",
       "pt": "'{0}' não tem o campo '{1}' (este builtin expõe métodos, não propriedades)"
     },

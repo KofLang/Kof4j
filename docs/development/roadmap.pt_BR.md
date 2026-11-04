@@ -889,7 +889,8 @@ Visão de longo prazo — Kof como plataforma universal (uma linguagem para
 aplicações **e** sistemas, infraestrutura, automação, dados, segurança e
 ciência) **sem** destruir a simplicidade da linguagem.
 
-- Documento central: `docs/architecture/IMPLEMENTATION-UNIVERSAL-PLATFORM.md`
+- - **Fases 4–7 PROMOVIDAS 03/11** (ordem da mantenedora "pega o universal platform de future") para [`universal-platform-stages.pt_BR.md`](universal-platform-stages.pt_BR.md) (+EN) — a Fase 4.6 pousou no mesmo ciclo; cada item restante foi medido contra a árvore (só 4.3/4.5/5.9/5.10/7.1/7.3 são implementáveis sem primitivo novo ou FFI)
+Documento central: `docs/architecture/IMPLEMENTATION-UNIVERSAL-PLATFORM.md`
   (arquitetura — **EM DESENVOLVIMENTO** desde 17/09/2026; promovido de
   `future/` por decisão da mantenedora, `DECISIONS.md` §D-UNIVERSAL)
 - Estágios por capacidade/maturidade: `FOUNDATION ✅` → `SYSTEMS` (em
@@ -942,6 +943,8 @@ ciência) **sem** destruir a simplicidade da linguagem.
 > Arrow/BLAS/ML; sem "Kali em Kof"; sem motor SQL próprio.
 
 ### Fila de promoção (`D-FUTURE-PROMOTION`, mantenedora 28/09)
+
+> **REABERTO PELA MANTENEDORA 02/11 (ordem "pega tls do future pra fazer, é urgente"): `tls-hardening-plan`** — promovido do plano TLS de `future/`; a decisão da regra 6 é a própria ordem da mantenedora, o contrato congelado é o `D-SEC.6` (apenas aditivo). **COMPLETO + PROMOVIDO 03/11 para [`docs/tls-hardening.pt_BR.md`](../tls-hardening.pt_BR.md) (+EN)** — TODAS as fatias pousadas com prova executada; o gate final foi a E2E Pebble (emissão real, serial 0dca413a13143cfa (serial de certificado, não um SHA de commit)); `state: implemented`.
 
 > **FECHADO 24/10 (`D-FUTURE-CLOSE`):** a varredura da mantenedora após a morte de todas as lanes concluiu os seis planos abertos — `LEGACY_MIGRATION`, `DECOMPILER`, `TRANSLATOR` (escopo autônomo completo, movidos para `docs/`), `qrcode-wasm` (Fase 1 completa → `docs/`), `image-vision` (superfície entregue → `docs/`, a divergência AVIF 3bd estacionada na família §757 do `known-bugs`) e `kofscript-embedding` (zero código, devolvido a `future/`). Os restos estão estacionados com suas condições de retomada em cada plano; nada em `development/` está aberto.
 

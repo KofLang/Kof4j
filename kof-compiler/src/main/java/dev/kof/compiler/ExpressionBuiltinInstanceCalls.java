@@ -164,6 +164,16 @@ final class ExpressionBuiltinInstanceCalls {
                 }
                 return localIdx;
             }
+            // TLS hardening slice 1: listenSecure(port, List<SecureHost>) —
+            // the list is a LITERAL of web.secureHost(host, cert, key) calls
+            // (the only shape the typer accepts). Flatten it into three
+            // parallel String arrays so the runtime never sees a Kof type.
+            if ("kof_web_listen_secure_sni".equals(webCall.function())) {
+                return emitSniListen(driver, mc, ops, owner, localIdx, locals);
+            }
+            if ("kof_web_reload_tls_sni".equals(webCall.function())) {
+                return emitSniReload(driver, mc, ops, owner, localIdx, locals);
+            }
             List<Type> webParams = new ArrayList<>();
             webParams.add(BuiltinTypes.STRING);
             if (KofWeb.isRouteMethod(mc.methodName()) && !"ws".equals(mc.methodName())) {
@@ -177,6 +187,129 @@ final class ExpressionBuiltinInstanceCalls {
             ops.add(new KofCall(KofWeb.APP, webCall.function(), webParams,
                     webCall.returnType(), KofCallKind.FUNCTION));
         }
+        return localIdx;
+    }
+
+    /**
+     * TLS hardening slice 1 — {@code app.listenSecure(port, listOf(secureHost(...), ...))}.
+     * Emits {@code kof_web_listen_secure_sni(appId, port, hosts[], certs[], keys[])}.
+     * A non-literal list (a variable) is refused with a named diagnostic: the
+     * certificate set must be explicit at the call site (plan principle 3.1 —
+     * never a silent default).
+     */
+    private static int emitSniListen(CompilerDriver driver, MethodCallExpr mc, List<KofOperation> ops,
+                                     String owner, int localIdx, List<IRLocalVariable> locals) {
+        ExpressionNode listArg = mc.arguments().get(1);
+        List<ExpressionNode> entries = new ArrayList<>();
+        if (listArg instanceof MethodCallExpr lc && "listOf".equals(lc.methodName())
+                && lc.receiver() == null) {
+            entries.addAll(lc.arguments());
+        } else {
+            if (driver.currentDiagnostics != null) {
+                var pos = mc.position();
+                driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                        pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
+                        "listenSecure(port, hosts): the host list must be a literal "
+                                + "listOf(secureHost(host, certPem, keyPem), ...) at the call site "
+                                + "— the certificate set is explicit, never resolved at runtime (WEB007)",
+                        "WEB007");
+            }
+            return localIdx;
+        }
+        List<String[]> triples = new ArrayList<>();
+        for (ExpressionNode e : entries) {
+            if (!(e instanceof MethodCallExpr hc) || !"secureHost".equals(hc.methodName())
+                    || hc.arguments().size() != 3) {
+                if (driver.currentDiagnostics != null) {
+                    var pos = mc.position();
+                    driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                            pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
+                            "listenSecure(port, hosts): every entry must be "
+                                    + "web.secureHost(host, certPem, keyPem) (WEB007)", "WEB007");
+                }
+                return localIdx;
+            }
+            triples.add(new String[3]);
+        }
+        // The receiver (appId) is ALREADY on the stack — lowerWeb is an
+        // instance call. Push the port, then the three arrays in call order.
+        localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(0), ops, owner, localIdx, locals);
+        for (int field = 0; field < 3; field++) {
+            int n = triples.size();
+            ops.add(KofLoadLiteral.ofInt(n));
+            ops.add(new KofNewArray(BuiltinTypes.STRING));
+            for (int i = 0; i < n; i++) {
+                ops.add(new KofDup());
+                ops.add(KofLoadLiteral.ofInt(i));
+                MethodCallExpr hc = (MethodCallExpr) entries.get(i);
+                localIdx = ExpressionLowerer.emitExpression(driver, hc.arguments().get(field),
+                        ops, owner, localIdx, locals);
+                ops.add(new KofArrayStore(BuiltinTypes.STRING));
+            }
+        }
+        Type strArray = new Type.ArrayType(BuiltinTypes.STRING);
+        ops.add(new KofCall(KofWeb.APP, "kof_web_listen_secure_sni",
+                List.of(BuiltinTypes.STRING, Type.PrimitiveType.INT,
+                        strArray, strArray, strArray),
+                Type.PrimitiveType.VOID, KofCallKind.FUNCTION));
+        return localIdx;
+    }
+
+    /**
+     * TLS hardening slice 2 — {@code app.reloadTls(listOf(secureHost(...), ...))}:
+     * same flattening as the listen overload, no port argument. Emits
+     * {@code kof_web_reload_tls_sni(appId, hosts[], certs[], keys[])}.
+     */
+    private static int emitSniReload(CompilerDriver driver, MethodCallExpr mc, List<KofOperation> ops,
+                                     String owner, int localIdx, List<IRLocalVariable> locals) {
+        ExpressionNode listArg = mc.arguments().get(0);
+        List<ExpressionNode> entries = new ArrayList<>();
+        if (listArg instanceof MethodCallExpr lc && "listOf".equals(lc.methodName())
+                && lc.receiver() == null) {
+            entries.addAll(lc.arguments());
+        } else {
+            if (driver.currentDiagnostics != null) {
+                var pos = mc.position();
+                driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                        pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
+                        "reloadTls(hosts): the host list must be a literal "
+                                + "listOf(secureHost(host, certPem, keyPem), ...) at the call site "
+                                + "— the certificate set is explicit, never resolved at runtime (WEB007)",
+                        "WEB007");
+            }
+            return localIdx;
+        }
+        for (ExpressionNode e : entries) {
+            if (!(e instanceof MethodCallExpr hc) || !"secureHost".equals(hc.methodName())
+                    || hc.arguments().size() != 3) {
+                if (driver.currentDiagnostics != null) {
+                    var pos = mc.position();
+                    driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                            pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
+                            "reloadTls(hosts): every entry must be "
+                                    + "web.secureHost(host, certPem, keyPem) (WEB007)", "WEB007");
+                }
+                return localIdx;
+            }
+        }
+        // receiver (appId) already on the stack — emit the three arrays.
+        for (int field = 0; field < 3; field++) {
+            int n = entries.size();
+            ops.add(KofLoadLiteral.ofInt(n));
+            ops.add(new KofNewArray(BuiltinTypes.STRING));
+            for (int i = 0; i < n; i++) {
+                ops.add(new KofDup());
+                ops.add(KofLoadLiteral.ofInt(i));
+                MethodCallExpr hc = (MethodCallExpr) entries.get(i);
+                localIdx = ExpressionLowerer.emitExpression(driver, hc.arguments().get(field),
+                        ops, owner, localIdx, locals);
+                ops.add(new KofArrayStore(BuiltinTypes.STRING));
+            }
+        }
+        Type strArray = new Type.ArrayType(BuiltinTypes.STRING);
+        ops.add(new KofCall(KofWeb.APP, "kof_web_reload_tls_sni",
+                List.of(BuiltinTypes.STRING, strArray, strArray, strArray),
+                Type.PrimitiveType.VOID, KofCallKind.FUNCTION));
         return localIdx;
     }
 

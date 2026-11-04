@@ -4776,6 +4776,17 @@ individuais:
 
 ---
 
+## D-RELEASE-0.7.0 — o PRÓXIMO corte é `0.7.0` (minor), não outro patch `0.6.x` (mantenedora 02/11/2026, diretiva de chat: "a proxima vai ser a 0.7.0")
+
+**State:** DECIDIDO (mantenedora) — substitui a cadência de patches apenas para o próximo corte.
+
+- **O próximo release é `0.7.0`.** A linhagem de patches 0.6.x para em `0.6.10` (10 patches publicados 11/10–01/11).
+- **Por quê:** a linhagem 0.6.x acumulou 10 patches (o gatilho de 9 patches da regra B) E a lane WASI/libm concluiu um goal (fdlibm `pow`/`atan`/`asin`/`tan`, Schubfach `Double.toString`, fatias SET/MAP/ARRAY/GC) enquanto a lane nativa fechou a sua frente `1.0-blocks` (#933/#934) — um minor é devido.
+- **Inalterado:** o corte continua exigindo um `lab` ESTÁVEL (`D-LAB-STABILITY`), o pipeline de mão única, `check_version_consistency` rc=0 com o bump EM ÁRVORE antes do dispatch do `release.yml`, e o limite de 1 release/dia.
+- **Relações:** `Depende de: D-RELEASE-CADENCE, D-LAB-STABILITY, D-QUALITY-PIPELINE-2609`; `Relacionado: VERSION, scripts/bump-version.sh`.
+
+---
+
 ## D-LAB-STABILITY — um minor só é cortado de um `lab` ESTÁVEL; senão o corte escorrega para o próximo fim de semana (mantenedora 02/10/2026, diretiva de chat)
 
 **State:** DECIDIDO (mantenedora) — a regra de estabilidade que governa a promoção do `lab`.

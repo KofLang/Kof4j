@@ -78,7 +78,7 @@ public class WasmBackend implements Backend {
                     continue;
                 }
                 decls.putIfAbsent(m.name(), m);
-                if (isScalarSignature(m)) {
+                if (isScalarSignature(m, wasi)) {
                     entries.add(m);
                     entryClass = clazz.name();
                 }
