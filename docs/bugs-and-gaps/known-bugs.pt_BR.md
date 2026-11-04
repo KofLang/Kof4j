@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §772 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,19 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §772 — `kof check` ignorava o classpath do `kofdeps`, então um import de terceiros que o `kof run --deps` resolve falhava com PKG006
+
+**Status:** ✅ CORRIGIDO 04/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/main` `3a2952641`).
+
+**MEDIDO** (um projeto com `kofdeps` = `com.zaxxer:HikariCP:7.0.2`, resolvido com `kof deps resolve`):
+```kof
+import com.zaxxer.hikari.HikariConfig
+main() { val c = HikariConfig() }
+```
+Observado: `kof run Main.kf --deps` compila e roda; `kof check Main.kf` reporta `PKG006` no import, e `kof check Main.kf --deps` era recusado com `check: unknown flag: --deps`. Não havia como checar tipos de um programa que usa suas dependências declaradas.
+
+**CAUSA RAIZ:** `CmdRun` e `CmdBuild` entregam `Deps.classpath()` (os jars do `kofdeps` em `~/.kof/deps`) e `DepsSources.roots()` (pacotes-fonte Kof instalados) ao `CompilerDriver` sob `--deps`; o `CmdCheck` nunca fazia isso e não tinha a flag `--deps`.
+
+**Correção:** `kof check` aceita `--deps` e configura o driver exatamente como `kof run --deps` (mesmo classpath de jars e mesmas raízes de fonte das dependências). O parsing do classpath que `CmdRun` (duas vezes) e `CmdBuild` repetiam inline virou `Deps.classpathEntries()`, usado pelos três comandos. **Prova:** `CmdCheckDepsTest` 1/1 (um jar num `~/.kof/deps` falso e uma linha no `kofdeps`: `check` sem `--deps` segue `PKG006`, `check --deps` passa, `run --deps` roda); no código antigo falha (`unknown flag: --deps`). `CmdCheckTest`, `DepsTest`, `DepsSourceModuleTest`, `DepsTransitiveTest`, `CmdBuild*Test`, `CmdRun*Test` verdes (77 testes).
+<!-- pt-switch --> **EN:** [§772 (en)](known-bugs.md#772--kof-check-ignored-the-kofdeps-classpath-so-a-third-party-import-that-kof-run---deps-resolves-failed-with-pkg006)

@@ -66,7 +66,7 @@ O baseline de API Java para todo o tooling é **Java 21**:
 |------------|--------|------------------|
 | Grammar oficial | ✅ | `editor/kof.tmLanguage.json` (scope `source.kof`) |
 | Language Server | ✅ | `kof lsp` (stdio, LSP 3.x: diagnostics, hover, completion, definition, references, rename) |
-| Type-check | ✅ | `kof check <file.kf\|dir>` |
+| Type-check | ✅ | `kof check <file.kf\|dir> [--deps]` (`--deps`: o classpath do `kofdeps`, como no `kof run --deps`) |
 | Test runner | ✅ | `kof test <file.kf\|dir>` (PASS/FAIL por exit code) |
 | Diagnóstico do ambiente | ✅ | `kof info [--json]` |
 | Formatter | ✅ | `kof fmt` |

@@ -165,15 +165,8 @@ final class CmdRun {
         if (useDeps) {
             try {
                 driver.setDependencySourceRoots(DepsSources.roots(Path.of(".")));   // #566 (b)
-                String depsCp = Deps.classpath();
-                if (!depsCp.isBlank()) {
-                    java.util.List<Path> entries = new ArrayList<>();
-                    for (String part : depsCp.split(java.util.regex.Pattern.quote(
-                            System.getProperty("os.name", "").toLowerCase().contains("win") ? ";" : ":"))) {
-                        if (!part.isBlank()) entries.add(Path.of(part));
-                    }
-                    driver.setExternalClasspath(entries);
-                }
+                List<Path> entries = Deps.classpathEntries();
+                if (!entries.isEmpty()) driver.setExternalClasspath(entries);
             } catch (IOException e) {
                 System.err.println("run: failed to read kofdeps: " + e.getMessage());
                 KofCliSupport.cleanup(tempDir);
@@ -193,13 +186,7 @@ final class CmdRun {
                 if (!autoDbCp.isBlank()) {
                     List<Path> merged = new ArrayList<>();
                     try {
-                        String dc = Deps.classpath();
-                        if (!dc.isBlank()) {
-                            for (String part : dc.split(java.util.regex.Pattern.quote(
-                                    System.getProperty("os.name", "").toLowerCase().contains("win") ? ";" : ":"))) {
-                                if (!part.isBlank()) merged.add(Path.of(part));
-                            }
-                        }
+                        merged.addAll(Deps.classpathEntries());
                     } catch (IOException ignored) {
                     }
                     for (String part : autoDbCp.split(java.util.regex.Pattern.quote(
