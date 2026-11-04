@@ -408,7 +408,7 @@ public final class MemberCallTyper {
             // receiver de classe EXTERNA (android.* etc.): assinatura
             // vem do classpath — sem isso o lowering emitiria
             // invokevirtual com owner vazio
-            if (sa.isExternal(ct)) {
+            if (sa.resolvesMembersOnClasspath(ct)) {
                 List<Type> argTypes = new ArrayList<>();
                 for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
                 ExternalClasspath.MethodSignature sig = sa.externalTypes().resolveMethodWithArgs(
@@ -438,7 +438,7 @@ public final class MemberCallTyper {
             if (sa.diagnostics() != null && !BuiltinTypes.isList(ct)
                     && !MemberResolver.isObjectMethod(mc.methodName(), mc.arguments().size())) {
                 boolean isKnownReceiver = sa.allClasses().containsKey(ct.name())
-                        || sa.isExternal(ct);
+                        || sa.resolvesMembersOnClasspath(ct);
                 if (isKnownReceiver) {
                     sa.diagnostics().error(mc,
                             "Cannot resolve method '" + mc.methodName()
