@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §785 (FIXED)
 last: §780 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
@@ -20232,3 +20233,26 @@ Observed: compiles, then `NoClassDefFoundError: TestResponse`. `javap`: the func
 
 **Fix:** the return type goes through `toType(name, unit, sa)`, like the parameters. **Proof:** `PackageLambdaReturnE2ETest` 1/1 (class and record of another package, and a lambda in the same package); on the old code it fails with `NoClassDefFoundError: TestResponse`.
 <!-- pt-switch --> **PT:** [§780 (pt_BR)](known-bugs.pt_BR.md#780--um-lambda-que-retorna-classe-ou-record-de-um-pacote-declarava-o-invoke-com-o-nome-sem-pacote-noclassdeffounderror)
+
+## §785 — a lambda with a nullable return (`() -> String?`) declared `Object invoke()`, so its functional interface was never implemented (AbstractMethodError)
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `edcc39114`). Same statement as §780.
+
+**MEASURED** (JVM target):
+```kof
+String? pass() { return null }
+class F {
+    () -> String? run
+    constructor(r: () -> String?) { run = r }
+}
+main() {
+    var f = F(() -> pass()).run
+    println(f() == null)
+}
+```
+Observed: compiles, then `AbstractMethodError: Receiver class Lambda0 does not define or inherit an implementation of the resolved method 'abstract java.lang.String invoke()' of interface kof.Function0_NCString`. `javap`: the interface declares `String invoke()`, the lambda `Object invoke()`.
+
+**ROOT CAUSE:** `CompilerLambdaClass.lambdaClass` rebuilds the invoke return type by a string round-trip, and `CompilerTypes.typeToString` has no nullable form: `String?` became `"Object"`, while the interface name and method came from the real `NullableType(String)`.
+
+**Fix:** `invokeReturnType` rebuilds a `NullableType` around its inner type (which takes the same round-trip as any other return, §780) and keeps the forms already preserved (function types, type variables, UI/media handles, `kof.process.Result`). **Proof:** `LambdaNullableReturnE2ETest` 1/1 (`String?` through a field, `String?` with a value, `Int?`); on the old code it fails with `AbstractMethodError`. **Not fixed here (separate):** a lambda whose body is only `null` (`val h: () -> String? = () -> null`) is typed by its body as `() -> void` and ignores the declared type (`IncompatibleClassChangeError`); that needs the expected type to reach the lambda typer.
+<!-- pt-switch --> **PT:** [§785 (pt_BR)](known-bugs.pt_BR.md#785--um-lambda-com-retorno-anulavel----string-declarava-object-invoke-entao-a-interface-funcional-nunca-era-implementada-abstractmethoderror)

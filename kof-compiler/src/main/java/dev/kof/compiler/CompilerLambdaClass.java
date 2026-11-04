@@ -44,6 +44,23 @@ public final class CompilerLambdaClass {
         return false;
     }
 
+    /**
+     * The declared return type of a lambda's {@code invoke}, which must erase
+     * like the functional interface it implements. §785: a nullable return
+     * ({@code () -> String?}) is rebuilt around its inner type: the string
+     * round-trip mapped it to {@code Object} ({@code typeToString} has no
+     * nullable form), so {@code Function0_NCString.invoke()Ljava/lang/String;}
+     * was never implemented ({@code AbstractMethodError}).
+     */
+    private static Type invokeReturnType(CompilerDriver driver, Type t) {
+        if (t instanceof Type.NullableType n) return new Type.NullableType(invokeReturnType(driver, n.inner()));
+        if (t instanceof Type.FunctionType || t instanceof Type.TypeVariable
+                || KofUi.isUiType(t) || KofMedia.isHandleType(t) || KofProcess.isResult(t)) {
+            return t;
+        }
+        return CompilerTypes.toType(CompilerTypes.typeToString(t), driver.currentUnit, driver.semanticAnalyzer);
+    }
+
     static String lambdaClass(CompilerDriver driver, LambdaExpr le, Type.FunctionType ft,
                            List<IRLocalVariable> captures) {
         return CompilerLambdaClass.lambdaClass(driver, le, ft, captures, false);
@@ -87,13 +104,7 @@ public final class CompilerLambdaClass {
         // module class (`kernel.t.TestResponse` -> `TestResponse`), so the
         // lambda's invoke was declared `()LTestResponse;` while its functional
         // interface said `()Lkernel/t/TestResponse;` (NoClassDefFoundError).
-        Type returnType = (ft.returnType() instanceof Type.FunctionType
-                || ft.returnType() instanceof Type.TypeVariable
-                || KofUi.isUiType(ft.returnType()) || KofMedia.isHandleType(ft.returnType())
-                || KofProcess.isResult(ft.returnType()))
-                ? ft.returnType()
-                : CompilerTypes.toType(CompilerTypes.typeToString(ft.returnType()), driver.currentUnit,
-                        driver.semanticAnalyzer);
+        Type returnType = invokeReturnType(driver, ft.returnType());
         List<FormalParameterNode> params = le.parameters();
         List<Type> paramTypes = new ArrayList<>();
         // #710: usar a sobrecarga ciente do SemanticAnalyzer (qualifyDeep, §179)
