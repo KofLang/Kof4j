@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §768 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,21 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §768 — A varargs INSTANCE method of an external Java class was called without packing the trailing arguments (JVM VerifyError)
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `3a2952641`).
+
+**MEASURED** (JVM target, `org.flywaydb:flyway-core:11.14.1` via `kof deps`):
+```kof
+import org.flywaydb.core.Flyway
+main() {
+    val f = Flyway.configure().locations("filesystem:db")
+}
+```
+Observed: compiles with no diagnostic, then dies at class load with `VerifyError: Type 'java/lang/String' (current frame, stack[1]) is not assignable to '[Ljava/lang/String;'`. Same with any jar or JDK instance varargs method (`FileSystems.getDefault().getPath("a", "b")`).
+
+**ROOT CAUSE:** §500 taught `ExternalClasspath`/`JdkReflectionResolver` to resolve varargs candidates and packed the trailing arguments, but only on the STATIC call path (`ExpressionMethodCallLowerer`). On the instance path the typer (`MemberCallTyper`) built the `MethodSymbol` from the resolved `MethodSignature` and dropped its `isVarargs` flag, so `ExpressionInstanceCallLowerer` emitted each argument one by one against the real `[Ljava/lang/String;` formal.
+
+**Fix:** the typer carries `ACC_VARARGS` (`AccessFlags.VARARGS`, `0x0080`) on the external `MethodSymbol`, and the instance lowering packs through the same `VarargsArrayPacker` as the static path. The packer now coerces each element through `emitArgumentsWithFormalTypes` against the component type (so an `int...` component is no longer boxed into an `int[]` store), and a call whose arity matches and whose last argument is already an array passes that array through unpacked (JLS 15.12.2.2 fixed-arity applicability). **Proof:** `ExternalVarargsInstanceE2ETest` 4/4 (1/2/0 trailing args, fixed args before the varargs, an explicit `String[]`, `int...` and `Object...` components, a JDK instance varargs call); on the old code 3 of the 4 fail with `VerifyError`. `ExternalVarargsStaticE2ETest` and `StringFormatVarargsE2ETest` stay green. JS/Native are unaffected: an external class method already refuses there with `INTEROP003` (#760).
+<!-- pt-switch --> **PT:** [§768 (pt_BR)](known-bugs.pt_BR.md#768--um-metodo-varargs-de-instancia-de-uma-classe-java-externa-era-chamado-sem-empacotar-os-argumentos-finais-verifyerror-na-jvm)

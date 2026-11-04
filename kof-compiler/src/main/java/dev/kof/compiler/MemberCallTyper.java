@@ -104,7 +104,7 @@ public final class MemberCallTyper {
                     }
                     Type ret = ExternalClasspath.typeFromDescriptor(sig.returnDescriptor());
                     sa.putResolvedMethod(mc, new SymbolTable.MethodSymbol(mc.methodName(),
-                            qt.internalName(), ret, params, 1,
+                            qt.internalName(), ret, params, VarargsArrayPacker.accessFlags(sig),
                             SymbolTable.DispatchKind.STATIC));
                     ExternalArgTighten.checkExternalCall(sa, mc, argTypes, params, sig.isVarargs());
                     return ret;
@@ -423,7 +423,7 @@ public final class MemberCallTyper {
                     // decide INVOKEINTERFACE vs INVOKEVIRTUAL — ver
                     // ExternalDispatchKind.of (InterfaceCalls).
                     sa.putResolvedMethod(mc, new SymbolTable.MethodSymbol(mc.methodName(),
-                            ct.internalName(), ret, params, 1,
+                            ct.internalName(), ret, params, VarargsArrayPacker.accessFlags(sig),
                             ExternalDispatchKind.of(sig.ownerIsInterface())));
                     ExternalArgTighten.checkExternalCall(sa, mc, argTypes, params, sig.isVarargs());
                     return ret;

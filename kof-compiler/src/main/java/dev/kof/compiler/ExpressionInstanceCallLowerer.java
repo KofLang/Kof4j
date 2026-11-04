@@ -429,7 +429,8 @@ public final class ExpressionInstanceCallLowerer {
             methodReturnType = inferred;
         }
     }
-    localIdx = driver.emitArgumentsWithFormalTypes(mc.arguments(), methodParamTypes, ops, owner, localIdx, locals);
+    boolean varargs = VarargsArrayPacker.isVarargs(resolvedMethod);
+    localIdx = VarargsArrayPacker.lower(driver, mc.arguments(), methodParamTypes, varargs, ops, owner, localIdx, locals);
     KofCallKind callKind = KofCallKind.INSTANCE;
     if (callKind == KofCallKind.INSTANCE && resolvedMethod != null && driver.semanticAnalyzer != null) {
         if ((resolvedMethod.accessFlags() & AccessFlags.STATIC) != 0) {
