@@ -2,7 +2,7 @@
 
 last: 03/11/2026 — PROMOTED from `docs/development/future/` by the maintainer's direct order ("pega o universal platform de future"); Stage 4.6 (light experiment tracking) LANDED the same cycle with executed proof (`ExperimentsE2ETest` 2/2)
 doing: Stages 4–7 are the CURRENT development plan — every PURE-KOF candidate is DONE (4.6 experiments, 4.3's descriptive half, 4.5's writer half, 5.9's detection core, 5.10's audit chain, 7.1's text readers + the VCF follow-up, 7.3's QC pipeline — all with E2E proof); every remaining item is BLOCKED by its real dependency (R3 FFI, Arrow, a maintainer decision or the R12 stage order), recorded row-by-row below
-next: the next CANDIDATE — 5.10, 7.1 (text formats), 7.3; everything else stays blocked by R3 (FFI), Arrow or the R12 stage order
+next: NONE reachable in pure Kof — the candidate queue is EXHAUSTED (every library face of Stages 4–7 has landed with proof); reopening any remaining row requires R3 (FFI), Arrow, a maintainer decision or the R12 stage order — the row-by-row table records which
 location: docs/development
 state: under-development
 owner: 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a

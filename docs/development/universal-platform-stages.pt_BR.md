@@ -2,7 +2,7 @@
 
 last: 03/11/2026 — PROMOVIDO de `docs/development/future/` pela ordem direta da mantenedora ("pega o universal platform de future"); a Fase 4.6 (registro leve de experimentos) POUSOU no mesmo ciclo com prova executada (`ExperimentsE2ETest` 2/2)
 doing: as Fases 4–7 são o plano de desenvolvimento CORRENTE — 4.6 FEITA (`libs/experiments/`), a metade descritiva da 4.3 FEITA (`libs/stats/Stats.kf`: mean/median/minimum/maximum/pvariance/stddev/percentile, `StatsE2ETest` 2/2 JVM+Script); os itens restantes estão medidos contra as suas dependências reais abaixo
-next: o próximo CANDIDATO — 4.5 (escritor SVG), 5.9, 5.10, 7.1 (formatos textuais), 7.3; todo o resto segue bloqueado pelo R3 (FFI), Arrow ou pela ordem de estágios do R12
+next: NENHUM alcançável em Kof puro — a fila de candidatos se ESGOTOU (toda face de biblioteca das Fases 4–7 pousou com prova); reabrir qualquer linha restante exige R3 (FFI), Arrow, uma decisão da mantenedora ou a ordem de estágios do R12 — a tabela linha a linha registra qual
 location: docs/development
 state: under-development
 dona: 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a
