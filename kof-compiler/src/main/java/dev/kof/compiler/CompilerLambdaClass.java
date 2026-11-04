@@ -82,12 +82,18 @@ public final class CompilerLambdaClass {
         // por string (`T` -> `toType("T")`) fabricaria `ClassType("","T")` e o
         // descriptor do invoke sairia `LT;` (NoClassDefFoundError/
         // NoSuchMethodError no load); a erasure central apaga TV p/ Object.
+        // §780: the round-trip goes through the analyzer-aware toType (like
+        // the parameters, #710): the 2-arg overload dropped the package of a
+        // module class (`kernel.t.TestResponse` -> `TestResponse`), so the
+        // lambda's invoke was declared `()LTestResponse;` while its functional
+        // interface said `()Lkernel/t/TestResponse;` (NoClassDefFoundError).
         Type returnType = (ft.returnType() instanceof Type.FunctionType
                 || ft.returnType() instanceof Type.TypeVariable
                 || KofUi.isUiType(ft.returnType()) || KofMedia.isHandleType(ft.returnType())
                 || KofProcess.isResult(ft.returnType()))
                 ? ft.returnType()
-                : CompilerTypes.toType(CompilerTypes.typeToString(ft.returnType()), driver.currentUnit);
+                : CompilerTypes.toType(CompilerTypes.typeToString(ft.returnType()), driver.currentUnit,
+                        driver.semanticAnalyzer);
         List<FormalParameterNode> params = le.parameters();
         List<Type> paramTypes = new ArrayList<>();
         // #710: usar a sobrecarga ciente do SemanticAnalyzer (qualifyDeep, §179)

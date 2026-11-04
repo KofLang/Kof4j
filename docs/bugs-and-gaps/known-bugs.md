@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §780 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,29 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §780 — a lambda returning a class or record of a package declared its `invoke` with the unqualified name (NoClassDefFoundError)
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `edcc39114`).
+
+**MEASURED** (JVM target, module root `src/`):
+```kof
+// src/kernel/t/T.kf
+package kernel.t
+class TestResponse { Int status = 200 }
+class Client { TestResponse send(Int n) { return TestResponse() } }
+// src/app/Main.kf
+package app
+import kernel.t.*
+main() {
+    val c = Client()
+    var send = (n: Int) -> c.send(n)
+    println(send(1).status)
+}
+```
+Observed: compiles, then `NoClassDefFoundError: TestResponse`. `javap`: the functional interface is `kernel.t.TestResponse invoke(int)` but the lambda class declares `TestResponse invoke(int)`. Same for a record (`() -> IdemResult(2, "y")`) and for a lambda inside the same package.
+
+**ROOT CAUSE:** `CompilerLambdaClass.lambdaClass` rebuilt the return type by a string round-trip through the two-argument `CompilerTypes.toType(name, unit)`, which qualifies imports but not the classes the module declares; the lambda parameters already used the analyzer-aware overload (#710).
+
+**Fix:** the return type goes through `toType(name, unit, sa)`, like the parameters. **Proof:** `PackageLambdaReturnE2ETest` 1/1 (class and record of another package, and a lambda in the same package); on the old code it fails with `NoClassDefFoundError: TestResponse`.
+<!-- pt-switch --> **PT:** [§780 (pt_BR)](known-bugs.pt_BR.md#780--um-lambda-que-retorna-classe-ou-record-de-um-pacote-declarava-o-invoke-com-o-nome-sem-pacote-noclassdeffounderror)
