@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §781 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,22 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §781 — o runtime web respondia 401 a QUALQUER request com `Authorization` mesmo quando o app nunca configurou `app.security()`
+
+**Status:** ✅ CORRIGIDO 04/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/main` `edcc39114`).
+
+**MEDIDO** (alvo JVM):
+```kof
+main() {
+    var app = web.app()
+    app.get("/health") { return "up" }
+    app.listen(8080)
+}
+```
+`curl -H "Authorization: Bearer x" localhost:8080/health` → `401 {"error":"unauthorized"}`, antes da rota. O app nunca chamou `app.security()`, `app.policy()` nem `auth.secret()`, então nenhum token poderia validar: todo cliente ou gateway que repassa um header `Authorization` (um app que faz a própria autenticação num middleware ou rota) ficava bloqueado, e um middleware não podia escapar porque a checagem roda depois dele.
+
+**CAUSA RAIZ:** o dispatch roda `kof_web_security_pipeline` com a `Policy` default em todo app, e o passo 6 aplicava o auth-if-present (`p.authHeader == null && Authorization presente` → checagem JWT) sem condição. A D-SEC.4 restringe essa regra a um app com `app.security()` configurado, e o `stdlib-web` a documenta sob `app.security()`.
+
+**Correção:** o auth-if-present também exige `app.securityConfigured` (ligado por `app.security()` e `app.policy()`); `auth: true`, `roles` e `sessionHeader` não mudam. Os headers de hardening da policy default não são tocados por esta correção. **Prova:** `KofWebE2ETest.authorizationHeaderIsIgnoredWithoutSecurityConfigured` (401 no código antigo, 200 agora); `securityRejectsInvalidTokenIfPresentEvenWithoutAuthRequired` (auth-if-present sob `app.security()`) e as suítes `KofWebE2ETest`/`KofHttpPoliciesE2ETest`/`KofOAuthResourceServerTest` seguem verdes.
+<!-- pt-switch --> **EN:** [§781 (en)](known-bugs.md#781--the-web-runtime-answered-401-to-any-request-carrying-authorization-even-when-the-app-never-configured-appsecurity)

@@ -321,6 +321,23 @@ class KofWebE2ETest extends KofWebPrograms {
     }
 
     @Test
+    void authorizationHeaderIsIgnoredWithoutSecurityConfigured(@TempDir Path tempDir)
+            throws IOException {
+        // §781: auth-if-present is part of app.security() (D-SEC.4); an app
+        // that never configured it answered 401 to ANY Authorization header.
+        int port = startServer(tempDir, """
+                main() {
+                    var app = web.app()
+                    app.get("/health") { return "up" }
+                    app.listen(PORT)
+                }
+                """);
+        String r = request(port, "GET /health HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer x\r\n\r\n");
+        assertTrue(r.startsWith("HTTP/1.1 200 OK"), r);
+        assertEquals("up", bodyOf(r));
+    }
+
+    @Test
     void securityEnforcesRoles(@TempDir Path tempDir) throws Exception {
         int port = startServer(tempDir, SRC_SECURITY_ENFORCES_ROLES);
         String noRole = hs256("{\"sub\":\"u1\",\"roles\":[\"user\"]}", "s3cret");
