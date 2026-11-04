@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §774 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,24 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §774 — A `throw` inside a `catch` skipped the `finally` of the same `try` (JVM, Script and JS)
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1, where it leaked pooled JDBC connections, and re-measured on `upstream/main` `3a2952641`).
+
+**MEASURED:**
+```kof
+void release() { println("release") }
+void run() {
+    try { throw "boom" } catch (String e) { throw "wrapped:" + e } finally { release() }
+}
+main() {
+    try { run() } catch (String e) { println("caught " + e) }
+}
+```
+Observed on JVM, Script and JS: `caught wrapped:boom` only; `release` never prints. javac prints `release` then `caught wrapped:boom` (JLS 14.20.2: the finally runs whatever way the catch completes).
+
+**ROOT CAUSE:** `StatementLowererTry` registered every handler of a `try`, the finally's catch-all included, over the try body only (`KofTryStart`..`tryEnd`). An exception raised inside a catch body was therefore outside every handler of its own `try` and propagated without running the finally. javac's catch-all covers the try body and the catch bodies.
+
+**Fix:** the lowering emits `try {T} catch {C} finally {F}` as `try { try {T} catch {C} } finally {F}` — the JLS equivalence — so the finally's handler guards the catch bodies through the existing nested-try machinery, on every target, with no backend change. **Proof:** `CatchThrowRunsFinallyE2ETest` (rethrow from a catch, return from a catch, a counted nested case, the normal path) passes on JVM, Script and JS; on the old code all three fail. The native x86-64/riscv64/aarch64 faces are in the same test and were not measured on the macOS host (no Linux ELF toolchain); the `finally`-bearing suites (310 classes, 904 tests) fail exactly the same 92 native/environmental tests as the base commit.
+<!-- pt-switch --> **PT:** [§774 (pt_BR)](known-bugs.pt_BR.md#774--um-throw-dentro-de-um-catch-pulava-o-finally-do-mesmo-try-jvm-script-e-js)

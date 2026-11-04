@@ -14,6 +14,14 @@ final class StatementLowererTry {
 
     static int emitTryStmt(CompilerDriver driver, TryStmt ts, List<KofOperation> ops, String owner,
                            int localIdx, List<IRLocalVariable> locals, Type returnType) {
+        // §774: `try {T} catch {C} finally {F}` is `try { try {T} catch {C} } finally {F}`
+        // (JLS 14.20.2): the finally also guards the catch bodies, so a throw
+        // inside a catch still runs F before propagating, on every target.
+        if (!ts.catchClauses().isEmpty() && !ts.finallyBody().isEmpty()) {
+            TryStmt inner = new TryStmt(ts.position(), ts.tryBody(), ts.catchClauses(), List.of());
+            return emitTryStmt(driver, new TryStmt(ts.position(), List.of(inner), List.of(), ts.finallyBody()),
+                    ops, owner, localIdx, locals, returnType);
+        }
                 LabelId tryStart = LabelId.create();
                 LabelId tryEnd = LabelId.create();
                 LabelId doneLabel = LabelId.create();
