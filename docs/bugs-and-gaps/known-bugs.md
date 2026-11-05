@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §778 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,26 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §778 — Inside a class, an unqualified call to the class's own method named like a stdlib builtin (`query`, `transaction`) called the builtin
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `3a2952641`).
+
+**MEASURED** (JVM and Script):
+```kof
+class Store {
+    String query(String sql) { return "own-query:" + sql }
+    String transaction(String t) { return "own-tx:" + t }
+    String run() {
+        var r = query("select 1")
+        var t = transaction("a")
+        return r + " " + t
+    }
+}
+```
+Observed: `transaction("a")` is `SEM033` ("received a void value": the db `transaction`), and once that line is written as `this.transaction("a")`, `query("select 1")` returns `null` (the web-context `query`). Writing `this.` everywhere was the only workaround.
+
+**ROOT CAUSE:** the #931/#932 shadowing law ("a declaration of the program wins over a builtin of the same name") covers top-level functions and `extern`s through `KofShadowing.userDeclares`, and `BuiltinCallTailTyper` already lets an enclosing-class method win in the TAIL of the chain. But the HEAD of the chain — `BuiltinCallTyper.infer` and the fixed-name branches of `ExpressionStaticCallLowerer` (web-context functions, `transaction`, ...) — checked only top-level declarations, so they took the call first.
+
+**Fix:** `KofShadowing.enclosingClassDeclares` (typer and lowering faces: the current class or its hierarchy declares the name) joins the same early exit in both places, so an unqualified call resolves as an implicit-`this` call, as in Java. **Proof:** `ClassMemberShadowsBuiltinE2ETest` 2/2 (`query`/`transaction` in the class and an inherited `query` in a subclass, JVM and Script); on the old code both fail. The second face reported with this bug (a local named `db` captured in a lambda resolving to the `db` namespace) did not reproduce on `upstream/main` in three shapes (expression lambda, block lambda passed to a function, lambda inside a class method); it is not part of this fix.
+<!-- pt-switch --> **PT:** [§778 (pt_BR)](known-bugs.pt_BR.md#778--dentro-de-uma-classe-uma-chamada-sem-qualificacao-ao-metodo-da-propria-classe-com-nome-de-builtin-da-stdlib-query-transaction-chamava-o-builtin)

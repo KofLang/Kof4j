@@ -28,6 +28,26 @@ final class KofShadowing {
         return driver != null && driver.currentUnit != null && declares(driver.currentUnit, name);
     }
 
+    /**
+     * §778: inside a class, a method of the class (or its hierarchy) called
+     * without {@code this.} wins over a builtin of the same name, as an
+     * implicit-this call does in Java — {@code query(sql)} inside
+     * {@code class Db} is {@code this.query(sql)}, never the web-context
+     * {@code query}.
+     */
+    static boolean enclosingClassDeclares(SemanticAnalyzer sa, String name) {
+        return sa != null && sa.currentClassName() != null && !sa.currentClassName().isEmpty()
+                && MemberResolver.resolveInHierarchy(sa, sa.currentClassName(), name) != null;
+    }
+
+    /** Same question on the lowering side; {@code owner} is the class being lowered. */
+    static boolean enclosingClassDeclares(CompilerDriver driver, String owner, String name) {
+        if (driver == null || driver.semanticAnalyzer == null || owner == null || owner.isEmpty()) return false;
+        String simple = owner.substring(owner.lastIndexOf('/') + 1);
+        return driver.semanticAnalyzer.getClass(simple) != null
+                && driver.semanticAnalyzer.resolveInHierarchy(simple, name) != null;
+    }
+
     private static boolean declares(CompilationUnitNode unit, String name) {
         for (AstNode d : unit.declarations()) {
             if (d instanceof FunctionDeclarationNode fn && fn.name().equals(name)) return true;
