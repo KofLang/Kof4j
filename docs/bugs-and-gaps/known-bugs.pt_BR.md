@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §778 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,26 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §778 — Dentro de uma classe, uma chamada sem qualificação ao método da própria classe com nome de builtin da stdlib (`query`, `transaction`) chamava o builtin
+
+**Status:** ✅ CORRIGIDO 04/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/main` `3a2952641`).
+
+**MEDIDO** (JVM e Script):
+```kof
+class Store {
+    String query(String sql) { return "own-query:" + sql }
+    String transaction(String t) { return "own-tx:" + t }
+    String run() {
+        var r = query("select 1")
+        var t = transaction("a")
+        return r + " " + t
+    }
+}
+```
+Observado: `transaction("a")` dá `SEM033` ("received a void value": o `transaction` de db), e, com essa linha escrita como `this.transaction("a")`, `query("select 1")` devolve `null` (o `query` de contexto web). Escrever `this.` em todo lugar era o único contorno.
+
+**CAUSA RAIZ:** a lei de sombreamento #931/#932 ("uma declaração do programa vence o builtin de mesmo nome") cobre funções top-level e `extern`s via `KofShadowing.userDeclares`, e o `BuiltinCallTailTyper` já deixa um método da classe envolvente vencer na CAUDA da cadeia. Mas a CABEÇA da cadeia — `BuiltinCallTyper.infer` e os ramos de nome fixo do `ExpressionStaticCallLowerer` (funções de contexto web, `transaction`, ...) — checava só declarações top-level e pegava a chamada antes.
+
+**Correção:** `KofShadowing.enclosingClassDeclares` (faces do typer e do lowering: a classe corrente ou sua hierarquia declara o nome) entra na mesma saída antecipada nos dois lugares, então uma chamada sem qualificação resolve como chamada com `this` implícito, como em Java. **Prova:** `ClassMemberShadowsBuiltinE2ETest` 2/2 (`query`/`transaction` na classe e um `query` herdado numa subclasse, JVM e Script); no código antigo os dois falham. A segunda face relatada junto (um local chamado `db` capturado numa lambda resolvendo para o namespace `db`) não reproduziu no `upstream/main` em três formas (lambda de expressão, lambda de bloco passada a função, lambda dentro de método de classe); não faz parte desta correção.
+<!-- pt-switch --> **EN:** [§778 (en)](known-bugs.md#778--inside-a-class-an-unqualified-call-to-the-classs-own-method-named-like-a-stdlib-builtin-query-transaction-called-the-builtin)
