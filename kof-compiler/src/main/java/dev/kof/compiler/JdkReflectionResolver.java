@@ -20,7 +20,37 @@ final class JdkReflectionResolver {
         if (internalName == null) return false;
         return internalName.startsWith("java/")
                 || internalName.startsWith("javax/")
-                || internalName.startsWith("jdk/");
+                || internalName.startsWith("jdk/")
+                || (internalName.startsWith("com/sun/") && exportedJdkApi(internalName));
+    }
+
+    private static final java.util.Map<String, Boolean> EXPORTED_COM_SUN = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * The supported {@code com.sun} APIs ({@code com.sun.management} in
+     * jdk.management, {@code com.sun.net.httpserver} in jdk.httpserver) are
+     * exported by a named {@code jdk.*} module; the internal {@code com.sun}
+     * packages are not, and stay out.
+     */
+    /** An import of an exported {@code com.sun} JDK API: a class, or a package for a wildcard. */
+    static boolean isExportedComSunImport(String dotted) {
+        if (dotted == null || !dotted.startsWith("com.sun.")) return false;
+        String name = dotted.endsWith(".*") ? dotted.substring(0, dotted.length() - 2) : dotted;
+        if (exportedJdkApi(name.replace('.', '/'))) return true;
+        return ModuleLayer.boot().modules().stream().anyMatch(m -> m.getName().startsWith("jdk.")
+                && m.getPackages().contains(name) && m.isExported(name));
+    }
+
+    private static boolean exportedJdkApi(String internalName) {
+        return EXPORTED_COM_SUN.computeIfAbsent(internalName, n -> {
+            try {
+                Class<?> c = Class.forName(n.replace('/', '.'), false, ClassLoader.getPlatformClassLoader());
+                Module m = c.getModule();
+                return m.isNamed() && m.getName().startsWith("jdk.") && m.isExported(c.getPackageName());
+            } catch (Throwable t) {
+                return false;
+            }
+        });
     }
 
     /**

@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §808 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,23 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §808 — as APIs `com.sun` suportadas do JDK (`com.sun.management.OperatingSystemMXBean`, `com.sun.net.httpserver.HttpServer`) não podiam ser importadas (PKG006)
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `4f7257933`).
+
+**MEDIDO** (alvo JVM):
+```kof
+import com.sun.management.OperatingSystemMXBean
+import java.lang.management.ManagementFactory
+main() {
+    val os = ManagementFactory.getOperatingSystemMXBean() as OperatingSystemMXBean
+    println(os.getAvailableProcessors() > 0)
+}
+```
+Observado: `PKG006 import 'com.sun.management.OperatingSystemMXBean' not found in the module`. O mesmo para `com.sun.net.httpserver.HttpServer`.
+
+**CAUSA RAIZ:** a checagem de import (`CompilerImports.isExternalImport`) e o predicado de classe JDK (`JdkReflectionResolver.isJdkClass`) só aceitam `java.*`, `javax.*` e `jdk.*`. Os pacotes `com.sun` que os módulos `jdk.management` e `jdk.httpserver` exportam são APIs suportadas do JDK, mas ficavam fora das duas listas.
+
+**Correção:** uma classe ou pacote `com.sun` conta como JDK quando um módulo nomeado `jdk.*` exporta o pacote (`isExportedComSunImport`, com cache por nome). Os pacotes `com.sun` internos (não exportados) seguem `PKG006`. **Prova:** `JdkComSunApiImportE2ETest` 2/2 (`OperatingSystemMXBean` e `HttpServer` compilam e rodam; `com.sun.org.apache.xerces.internal.util.XMLChar` segue `PKG006`).
+<!-- pt-switch --> **EN:** [§808 (en)](known-bugs.md#808--the-supported-comsun-jdk-apis-comsunmanagementoperatingsystemmxbean-comsunnethttpserverhttpserver-could-not-be-imported-pkg006)
