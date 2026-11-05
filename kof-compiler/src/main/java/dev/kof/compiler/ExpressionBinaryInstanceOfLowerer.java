@@ -15,8 +15,10 @@ final class ExpressionBinaryInstanceOfLowerer {
                      String owner, int localIdx, List<IRLocalVariable> locals) {
     Type targetType = Type.UnknownType.UNKNOWN;
     if (bin.right() instanceof IdentifierExpr ie) {
-        // toType resolve imports ("View" + import → android.view.View)
-        targetType = CompilerTypes.toType(ie.name(), driver.currentUnit);
+        // toType resolve imports ("View" + import → android.view.View); §776:
+        // the analyzer-aware overload also qualifies a class of the module's
+        // own package (`v instanceof DbNullBind` in `package kernel.db`).
+        targetType = CompilerTypes.toType(ie.name(), driver.currentUnit, driver.semanticAnalyzer);
     }
     // §356/#295 (família §355): `x as T[]` / `o instanceof T` baixavam o
     // leaf fantasma ClassType("","T") → `checkcast [LT;` (NoClassDefFoundError
