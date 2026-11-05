@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §813 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,23 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §813 — a Kof primitive passed to a Java parameter of its boxed type (`Boolean`, `Integer`, `Long`, `Double`, `Number`) was SEM014, and an `Int?` passed there was boxed twice
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1, where the AWS SDK builder `pathStyleAccessEnabled(Boolean)` refused a `Bool`, and re-measured on `upstream/lab` `2c920c4c1`).
+
+**MEASURED** (JVM target, a jar class `ext.B` with `static String flag(Boolean b)` and `static String num(Integer i)`):
+```kof
+import ext.B
+main() {
+    Bool t = true
+    println(B.flag(t))
+    println(B.num(3))
+}
+```
+Observed: `SEM014 Argument 1 of 'flag': expected 'Boolean' but got 'Bool'`, and the same for `Integer`/`Int`, `Long`/`Long`, `Double`/`Double`. With the check relaxed, `Int? maybe = 5; B.num(maybe)` died with `NoSuchMethodError: Integer.valueOf(Integer)`.
+
+**ROOT CAUSE:** the external argument check (`ExternalArgTighten`) compared the Kof primitive with the `java.lang` wrapper class read from the descriptor, without the boxing conversion JLS 5.3 allows in a method invocation. The call-site boxing gate in `CompilerEmission2` used `isPrimitiveType`, which also sees through `Int?`, so a value that is already the boxed reference (D-NULL-INTENT) was boxed again.
+
+**Fix:** a Java wrapper parameter accepts the matching Kof primitive, and `Number` accepts any numeric one (boxing, then reference widening); `Char` stays out because Kof boxes it as `Integer`. The call site boxes a bare primitive only, never an `Int?`. **Proof:** `ExternalBoxedParamE2ETest` 2/2 (Bool, Int, Int?, Long, Double and Number arguments run with the javac goldens; `Int` into `Boolean` and `Bool` into `Integer` stay SEM014).
+<!-- pt-switch --> **PT:** [§813 (pt_BR)](known-bugs.pt_BR.md#813--um-primitivo-kof-passado-a-um-parametro-java-do-seu-tipo-boxed-boolean-integer-long-double-number-era-sem014-e-um-int-passado-ali-era-boxed-duas-vezes)

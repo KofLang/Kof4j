@@ -1,5 +1,6 @@
 package dev.kof.compiler;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -23,7 +24,28 @@ final class ExternalArgTighten {
                                   List<Type> argTypes, List<Type> paramTypes,
                                   boolean varargs) {
         if (varargs) return;
+        List<Type> formals = new ArrayList<>(paramTypes.size());
+        for (int i = 0; i < paramTypes.size(); i++) {
+            Type arg = i < argTypes.size() ? argTypes.get(i) : null;
+            formals.add(boxes(arg, paramTypes.get(i)) ? arg : paramTypes.get(i));
+        }
         TypeChecker.checkArgTypes(sa, sa.diagnostics(), mc.methodName(),
-                argTypes, paramTypes, mc.arguments());
+                argTypes, formals, mc.arguments());
+    }
+
+    /**
+     * §813: method invocation conversion boxes (JLS 5.3): a Kof {@code Int}
+     * passed to a Java {@code Integer} (or {@code Bool} to {@code Boolean},
+     * any number to {@code Number}) is the boxed value the call site already
+     * emits for a reference formal. Char is boxed as Integer inside Kof, so it
+     * is not a Java {@code Character} here.
+     */
+    static boolean boxes(Type arg, Type formal) {
+        Type prim = arg instanceof Type.NullableType nt ? nt.inner() : arg;
+        if (!(prim instanceof Type.PrimitiveType pt) || TypeMetrics.isCharType(pt) || Type.isVoid(pt)) return false;
+        if (!(formal instanceof Type.ClassType ct) || !"java.lang".equals(ct.packageName())) return false;
+        Type boxed = TypeMetrics.boxedTypeFor(pt);
+        if ("Number".equals(ct.name())) return boxed instanceof Type.ClassType b && !"Boolean".equals(b.name());
+        return formal.equals(boxed);
     }
 }
