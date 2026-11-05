@@ -84,13 +84,28 @@ final class ExternalOverloads {
         Map<List<String>, ExternalClasspath.MethodSignature> found = new LinkedHashMap<>();
         ArrayDeque<String> queue = new ArrayDeque<>(List.of(owner));
         Set<String> seen = new HashSet<>();
+        // §814: the type arguments each supertype receives on the way up
+        // (`S3Builder extends Builder<S3Builder, S3>`), bound to its own
+        // type parameters when it is visited.
+        Map<String, List<String>> actuals = new java.util.HashMap<>();
         while (!queue.isEmpty()) {
             String cls = queue.poll();
             byte[] bytes = classBytes.get(cls);
             if (!seen.add(cls) || bytes == null) continue;
             ClassReader reader = new ClassReader(bytes);
             boolean iface = (reader.getAccess() & Opcodes.ACC_INTERFACE) != 0;
+            Map<String, String> bindings = new java.util.HashMap<>();
             reader.accept(new ClassVisitor(Opcodes.ASM9) {
+                @Override
+                public void visit(int version, int access, String n, String classSig, String sup, String[] ifs) {
+                    List<String> formals = GenericSignatures.formalNames(classSig);
+                    List<String> args = actuals.getOrDefault(cls, List.of());
+                    for (int i = 0; i < formals.size() && i < args.size(); i++) bindings.put(formals.get(i), args.get(i));
+                    for (Map.Entry<String, List<String>> st : GenericSignatures.supertypes(classSig, bindings)) {
+                        actuals.putIfAbsent(st.getKey(), st.getValue());
+                    }
+                }
+
                 @Override
                 public MethodVisitor visitMethod(int access, String n, String desc, String sig, String[] ex) {
                     if (n.equals(name) && (access & (Opcodes.ACC_PRIVATE | Opcodes.ACC_BRIDGE
@@ -98,6 +113,11 @@ final class ExternalOverloads {
                         ExternalClasspath.MethodSignature s = signature(desc,
                                 (access & Opcodes.ACC_STATIC) != 0, iface,
                                 (access & Opcodes.ACC_VARARGS) != 0);
+                        String generic = GenericSignatures.returnDescriptor(sig, bindings);
+                        if (generic != null && !generic.equals(s.returnDescriptor())) {
+                            s = new ExternalClasspath.MethodSignature(s.parameterDescriptors(), s.returnDescriptor(),
+                                    s.isStatic(), s.ownerIsInterface(), s.isVarargs(), generic);
+                        }
                         found.putIfAbsent(s.parameterDescriptors(), s);
                     }
                     return null;

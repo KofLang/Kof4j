@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §814 (FIXED)
 last: §770 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
@@ -20227,3 +20228,21 @@ Observed: compiles with no diagnostic, then dies with `IncompatibleClassChangeEr
 
 **Fix:** the new `ExternalOverloads` selects by JLS 15.12.2 for jar owners (ASM, over the class, its superclasses and superinterfaces, private/bridge/synthetic excluded) and JDK owners (reflection): phase 1 subtyping and primitive widening, phase 2 boxing/unboxing, phase 3 variable arity, then the most specific applicable method. A tie between maximally specific methods is `SEM057` (the existing "call to '{0}' is ambiguous between {1} overloads" diagnostic) when every argument type is known; an argument whose type the compiler cannot prove (UNKNOWN, a lambda, a class on no classpath) never turns into an error and keeps the previous arity-based pick, as does a call with no applicable overload (whose argument checks report the mismatch as before). The static-call lowering resolves with the argument types, and `KofCall` carries `interfaceOwner` so a static call on an external interface is emitted as `invokestatic` with an `InterfaceMethodref`. **Proof:** `ExternalOverloadResolutionE2ETest` 6/6 (JDK overloads: `Math.round(double)` concatenated as a `long`, `Timestamp.valueOf(LocalDateTime)`, `LocalDate.now(ZoneOffset)`, an `Int` literal widening into `plusSeconds(long)`; the Flyway shape with a `HashMap` and a Kof `mapOf`, a static overload, most specific `String` over `CharSequence`/`Object`, widening `long` over boxing `Integer`, an overload inherited from the superclass, `Path.of(String)` and `Path.of(String, String...)`, `SEM057` on a proven tie); on the old code all 6 fail. JS/Native are unaffected: an external class method already refuses there with `INTEROP003` (#760). Constructor overloads (`new Foo(x)`) still resolve by arity through `ExternalCtors` and are out of this fix. This is also the (a)-style exact-overload preference §554 left open: `update(Byte[])` on a scalar-first `update(byte)`/`update(byte[])` now binds `update(byte[])` and runs, so `InteropPrimitiveSlotE2ETest` pins that (`arrayArgumentBindsTheArrayOverload`) and keeps the §554 `SEM014` for a slot that only takes a primitive (`echo(long)` with a `Byte[]`).
 <!-- pt-switch --> **PT:** [§770 (pt_BR)](known-bugs.pt_BR.md#770--uma-chamada-a-um-metodo-java-externo-sobrecarregado-escolhia-a-primeira-sobrecarga-de-mesma-aridade-ignorando-os-tipos-dos-argumentos-incompatibleclasschangeerror)
+
+## §814 — a fluent builder that inherits its methods from a generic super-interface lost its type at the first inherited call (`build()` was `Object`; the AWS SDK v2 builders could not be chained)
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1, where `S3Client.builder().region(..)` was SEM025, and re-measured on top of the overload resolution of #1014).
+
+**MEASURED** (JVM target, a jar with `interface Builder<T extends Builder<T, C>, C> { T region(String r); C build(); }`, `interface S3Builder extends Builder<S3Builder, S3>` and `S3.builder()` returning `S3Builder`):
+```kof
+import ext.S3
+main() {
+    println(S3.builder().region("eu").build().desc)
+}
+```
+Observed: `SEM025 Cannot resolve field 'desc' on type 'Object'` (on `upstream/lab` without #1014 the inherited `region` itself was `Cannot resolve method 'region' on type 'S3Builder'`).
+
+**ROOT CAUSE:** the jar candidates of an external call were read from the erased descriptors only. `region` returns `T`, which erases to its bound `Builder`, and `build()` returns `C`, which erases to `Object`; the type arguments that `S3Builder` passes to `Builder` live in the class's generic `Signature` attribute, which nobody read.
+
+**Fix:** the walk over the receiver's supertypes carries the type arguments of each generic `Signature` (`GenericSignatures`), binds them to the supertype's own type parameters and substitutes them into an inherited return (`T` → `S3Builder`, `C` → `S3`). The invoke keeps the erased descriptor (the resolved symbol returns a type variable bounded by it) and `GenericReturnAdapter` casts the value to the substituted type, as javac does. Variables nothing binds (a method's own `<T>`) stay erased. **Proof:** `GenericSuperReturnE2ETest` 1/1 (a stored builder, an inherited chain and a chain mixing own and inherited methods print the built values).
+<!-- pt-switch --> **PT:** [§814 (pt_BR)](known-bugs.pt_BR.md#814--um-builder-fluente-que-herda-os-metodos-de-uma-super-interface-generica-perdia-o-tipo-na-primeira-chamada-herdada-build-era-object-os-builders-do-aws-sdk-v2-nao-encadeavam)

@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §814 (FIXED)
 last: §770 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
@@ -17701,3 +17702,21 @@ Observado: compila sem diagnóstico e morre com `IncompatibleClassChangeError`: 
 
 **Correção:** o novo `ExternalOverloads` seleciona pela JLS 15.12.2 para donos de jar (ASM, sobre a classe, suas superclasses e superinterfaces, sem private/bridge/synthetic) e do JDK (reflexão): fase 1 subtipagem e alargamento primitivo, fase 2 boxing/unboxing, fase 3 aridade variável, e então o método aplicável mais específico. Empate entre métodos maximamente específicos é `SEM057` (o diagnóstico existente "call to '{0}' is ambiguous between {1} overloads") quando todos os tipos de argumento são conhecidos; um argumento cujo tipo o compilador não consegue provar (UNKNOWN, lambda, classe fora de qualquer classpath) nunca vira erro e mantém a escolha anterior por aridade, assim como uma chamada sem sobrecarga aplicável (cujas checagens de argumento reportam o descasamento como antes). O lowering estático resolve com os tipos dos argumentos, e o `KofCall` carrega `interfaceOwner` para que uma chamada estática a uma interface externa saia como `invokestatic` com `InterfaceMethodref`. **Prova:** `ExternalOverloadResolutionE2ETest` 6/6 (sobrecargas do JDK: `Math.round(double)` concatenado como `long`, `Timestamp.valueOf(LocalDateTime)`, `LocalDate.now(ZoneOffset)`, um literal `Int` alargado para `plusSeconds(long)`; a forma do Flyway com `HashMap` e com `mapOf` do Kof, uma sobrecarga estática, o mais específico `String` sobre `CharSequence`/`Object`, alargamento `long` antes do boxing `Integer`, uma sobrecarga herdada da superclasse, `Path.of(String)` e `Path.of(String, String...)`, `SEM057` num empate provado); no código antigo os 6 falham. JS/Nativo não são afetados: método de classe externa já é recusado lá com `INTEROP003` (#760). Sobrecargas de construtor (`new Foo(x)`) seguem resolvidas por aridade no `ExternalCtors` e ficam fora desta correção. Esta é também a preferência pelo overload exato, estilo (a), que a §554 deixou em aberto: `update(Byte[])` sobre `update(byte)`/`update(byte[])` (escalar primeiro) agora liga `update(byte[])` e roda, então o `InteropPrimitiveSlotE2ETest` fixa isso (`arrayArgumentBindsTheArrayOverload`) e mantém o `SEM014` da §554 para um slot que só aceita primitivo (`echo(long)` com `Byte[]`).
 <!-- pt-switch --> **EN:** [§770 (en)](known-bugs.md#770--a-call-into-an-overloaded-external-java-method-picked-the-first-overload-of-the-same-arity-ignoring-the-argument-types-incompatibleclasschangeerror)
+
+## §814 — um builder fluente que herda os métodos de uma super-interface genérica perdia o tipo na primeira chamada herdada (`build()` era `Object`; os builders do AWS SDK v2 não encadeavam)
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada, onde `S3Client.builder().region(..)` era SEM025, e medido de novo sobre a resolução de overload do #1014).
+
+**MEDIDO** (alvo JVM, um jar com `interface Builder<T extends Builder<T, C>, C> { T region(String r); C build(); }`, `interface S3Builder extends Builder<S3Builder, S3>` e `S3.builder()` devolvendo `S3Builder`):
+```kof
+import ext.S3
+main() {
+    println(S3.builder().region("eu").build().desc)
+}
+```
+Observado: `SEM025 Cannot resolve field 'desc' on type 'Object'` (no `upstream/lab` sem o #1014 o próprio `region` herdado era `Cannot resolve method 'region' on type 'S3Builder'`).
+
+**CAUSA RAIZ:** os candidatos de jar de uma chamada externa eram lidos só dos descritores apagados. `region` devolve `T`, que apaga para o bound `Builder`, e `build()` devolve `C`, que apaga para `Object`; os type-args que `S3Builder` passa para `Builder` vivem no atributo `Signature` genérico da classe, que ninguém lia.
+
+**Correção:** o percurso pelos supertipos do receiver carrega os type-args de cada `Signature` genérica (`GenericSignatures`), liga-os aos parâmetros de tipo do supertipo e os substitui num retorno herdado (`T` → `S3Builder`, `C` → `S3`). O invoke mantém o descritor apagado (o símbolo resolvido devolve uma variável de tipo limitada por ele) e o `GenericReturnAdapter` faz o cast do valor para o tipo substituído, como o javac. Variáveis que nada liga (o `<T>` próprio de um método) seguem apagadas. **Prova:** `GenericSuperReturnE2ETest` 1/1 (um builder guardado, uma cadeia herdada e uma cadeia que mistura métodos próprios e herdados imprimem os valores construídos).
+<!-- pt-switch --> **EN:** [§814 (en)](known-bugs.md#814--a-fluent-builder-that-inherits-its-methods-from-a-generic-super-interface-lost-its-type-at-the-first-inherited-call-build-was-object-the-aws-sdk-v2-builders-could-not-be-chained)

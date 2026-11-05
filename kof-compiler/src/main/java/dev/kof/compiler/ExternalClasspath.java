@@ -36,7 +36,27 @@ public final class ExternalClasspath {
      *  respositor casava só aridade fixa e `Arrays.asList(1,2)` caía no
      *  emit de owner vazio. */
     record MethodSignature(List<String> parameterDescriptors, String returnDescriptor,
-                           boolean isStatic, boolean ownerIsInterface, boolean isVarargs) {
+                           boolean isStatic, boolean ownerIsInterface, boolean isVarargs,
+                           String genericReturnDescriptor) {
+        MethodSignature(List<String> parameterDescriptors, String returnDescriptor,
+                        boolean isStatic, boolean ownerIsInterface, boolean isVarargs) {
+            this(parameterDescriptors, returnDescriptor, isStatic, ownerIsInterface, isVarargs, null);
+        }
+
+        /** §814: the type the call has in Kof: the return with the receiver's
+         *  type arguments substituted (`T` → `S3Builder`), else the erased one.
+         *  The invoke keeps {@link #returnDescriptor}; a CHECKCAST bridges them. */
+        Type staticReturnType() {
+            return typeFromDescriptor(genericReturnDescriptor != null ? genericReturnDescriptor : returnDescriptor);
+        }
+
+        /** The return a resolved symbol carries: a type variable bounded by the
+         *  erased return when the static type differs, so the invoke erases to
+         *  the bound and {@link GenericReturnAdapter} casts to the static type. */
+        Type symbolReturnType() {
+            Type erased = typeFromDescriptor(returnDescriptor);
+            return genericReturnDescriptor == null ? erased : new Type.TypeVariable("R", erased);
+        }
     }
 
     private final Map<String, byte[]> classBytes = new HashMap<>();

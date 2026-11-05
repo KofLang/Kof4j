@@ -420,12 +420,14 @@ public final class MemberCallTyper {
                     for (String d : sig.parameterDescriptors()) {
                         params.add(ExternalClasspath.typeFromDescriptor(d));
                     }
-                    Type ret = ExternalClasspath.typeFromDescriptor(sig.returnDescriptor());
+                    // §814: the static type substitutes the receiver's type
+                    // arguments into an inherited generic return.
+                    Type ret = sig.staticReturnType();
                     // §557: a flag ownerIsInterface() do MethodSignature é o que
                     // decide INVOKEINTERFACE vs INVOKEVIRTUAL — ver
                     // ExternalDispatchKind.of (InterfaceCalls).
                     sa.putResolvedMethod(mc, new SymbolTable.MethodSymbol(mc.methodName(),
-                            ct.internalName(), ret, params, 1,
+                            ct.internalName(), sig.symbolReturnType(), params, 1,
                             ExternalDispatchKind.of(sig.ownerIsInterface())));
                     ExternalArgTighten.checkExternalCall(sa, mc, argTypes, params, sig.isVarargs());
                     return ret;
