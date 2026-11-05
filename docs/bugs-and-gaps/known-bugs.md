@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §817 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,29 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §817 — `this.y = y` (or `a.z = v`) on a class that declares no such field compiled clean (`NoSuchFieldError` on the JVM, a phantom field on Script/JS); now SEM025 like the read
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `2c920c4c1`).
+
+**MEASURED:**
+```kof
+class A {
+    String x
+    constructor(String x, String y) {
+        this.x = x
+        this.y = y
+    }
+}
+main() {
+    val a = A("p", "q")
+    a.z = "w"
+    println(a.x)
+}
+```
+Observed: no diagnostic; the JVM threw `NoSuchFieldError: Class A does not have member field 'java.lang.Object y'` at the first construction, and Script and JS printed `p`, storing phantom fields. In the port a `kof fmt` run had removed the line a script anchored on to insert the declaration, so the class lost its field and only a boot test noticed.
+
+**ROOT CAUSE:** `SemAssignmentAnalyzer` checks a written field only when `MemberResolver.resolveFieldInHierarchy` finds it (access, `final`, type); a field it does not find fell through silently. The read of the same field (`SemFieldAccessTyper`) already reported SEM025.
+
+**Fix:** the write reports the read's SEM025, "Cannot resolve field 'y' on type 'A'", for a Kof class whose whole superclass chain is Kof, and for an external class whose field the classpath cannot resolve. A Kof class with a Java superclass stays out, since it may write an inherited Java field the Kof hierarchy walk does not see (`this.modCount` in a subclass of `ArrayList`). **Proof:** `UndeclaredFieldWriteTest` 2/2 (both writes report SEM025 on their lines, RED on the base; inherited Kof and Java fields still compile).
+<!-- pt-switch --> **PT:** [§817 (pt_BR)](known-bugs.pt_BR.md#817--thisy--y-ou-az--v-numa-classe-que-nao-declara-esse-campo-compilava-limpo-nosuchfielderror-no-jvm-campo-fantasma-no-scriptjs-agora-sem025-como-a-leitura)
