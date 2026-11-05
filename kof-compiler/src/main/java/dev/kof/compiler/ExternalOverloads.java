@@ -90,7 +90,7 @@ final class ExternalOverloads {
         Map<String, List<String>> actuals = new java.util.HashMap<>();
         while (!queue.isEmpty()) {
             String cls = queue.poll();
-            byte[] bytes = classBytes.get(cls);
+            byte[] bytes = classBytes.containsKey(cls) ? classBytes.get(cls) : jdkClassFile(cls);
             if (!seen.add(cls) || bytes == null) continue;
             ClassReader reader = new ClassReader(bytes);
             boolean iface = (reader.getAccess() & Opcodes.ACC_INTERFACE) != 0;
@@ -127,6 +127,24 @@ final class ExternalOverloads {
             queue.addAll(List.of(reader.getInterfaces()));
         }
         return new ArrayList<>(found.values());
+    }
+
+    private static final Map<String, byte[]> JDK_CLASS_FILES = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** §814: a jar class's supertype that lives in the JDK ({@code Names extends
+     *  ArrayList<String>}) is read from the platform's own class file, so the
+     *  walk keeps its members and carries the type arguments up; null when the
+     *  class is not a JDK class or cannot be read. */
+    private static byte[] jdkClassFile(String internalName) {
+        if (!JdkReflectionResolver.isJdkClass(internalName)) return null;
+        byte[] cached = JDK_CLASS_FILES.computeIfAbsent(internalName, n -> {
+            try (java.io.InputStream in = ClassLoader.getSystemResourceAsStream(n + ".class")) {
+                return in == null ? new byte[0] : in.readAllBytes();
+            } catch (java.io.IOException e) {
+                return new byte[0];
+            }
+        });
+        return cached.length == 0 ? null : cached;
     }
 
     private static List<ExternalClasspath.MethodSignature> jdkCandidates(String owner, String name) {

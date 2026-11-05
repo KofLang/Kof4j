@@ -113,4 +113,63 @@ class GenericSuperReturnE2ETest {
         }
         assertEquals("us-east-1||\neu|http://x|\nsa||ab\n", buf.toString());
     }
+
+    /** §814, JDK face: a jar class whose generic supertype is a JDK class
+     *  ({@code Names extends ArrayList<String>}) inherits {@code E get(int)}
+     *  from a class the jar does not contain; the walk now reads the JDK's
+     *  own class file, so {@code get} returns {@code String}, not Object. */
+    @Test
+    void aJdkSupertypeCarriesItsTypeArgumentsToo() throws Exception {
+        Path src = tmp.resolve("jdk/ext");
+        Files.createDirectories(src);
+        Files.writeString(src.resolve("Names.java"), """
+            package ext;
+            public class Names extends java.util.ArrayList<String> {
+                public Names add2(String a, String b) { add(a); add(b); return this; }
+            }
+            """);
+        Files.writeString(src.resolve("Slot.java"), """
+            package ext;
+            public class Slot extends java.util.concurrent.atomic.AtomicReference<String> {
+                public Slot(String v) { super(v); }
+            }
+            """);
+        Path cls = tmp.resolve("jdkcls");
+        Files.createDirectories(cls);
+        assertEquals(0, ToolProvider.getSystemJavaCompiler().run(null, null, null, "--release", "21",
+                "-d", cls.toString(), src.resolve("Names.java").toString(), src.resolve("Slot.java").toString()));
+        Path jar = tmp.resolve("names.jar");
+        try (ZipOutputStream z = new ZipOutputStream(Files.newOutputStream(jar))) {
+            for (String n : List.of("Names", "Slot")) {
+                z.putNextEntry(new ZipEntry("ext/" + n + ".class"));
+                z.write(Files.readAllBytes(cls.resolve("ext/" + n + ".class")));
+            }
+        }
+        Path main = tmp.resolve("Jdk.kf");
+        Files.writeString(main, """
+            import ext.Names
+            import ext.Slot
+            main() {
+                val n = Names().add2("kof", "lang")
+                println(n.get(1).length())
+                println(n.get(0).toUpperCase())
+                println(Slot("value").get().length())
+            }
+            """);
+        CompilerDriver d = new CompilerDriver();
+        d.setExternalClasspath(List.of(jar));
+        CompilationResult r = d.compile(main, tmp.resolve("jdkout"), Target.JVM);
+        assertTrue(r.success(), "must compile: " + r.diagnostics().getDiagnostics());
+        PrintStream old = System.out;
+        ByteArrayOutputStream buf = new ByteArrayOutputStream();
+        System.setOut(new PrintStream(buf, true));
+        try (URLClassLoader cl = new URLClassLoader(new URL[]{tmp.resolve("jdkout").toUri().toURL(),
+                jar.toUri().toURL()}, getClass().getClassLoader())) {
+            Class.forName("Default.Main", true, cl)
+                    .getMethod("main", String[].class).invoke(null, (Object) new String[0]);
+        } finally {
+            System.setOut(old);
+        }
+        assertEquals("4\nKOF\n5\n", buf.toString());
+    }
 }
