@@ -1008,7 +1008,7 @@
     {
       "arity": 1,
       "en": "List.join takes a String separator; {0} is not a String",
-      "pt": ""
+      "pt": "List.join exige um separador String; {0} não é String"
     },
     {
       "arity": 1,
