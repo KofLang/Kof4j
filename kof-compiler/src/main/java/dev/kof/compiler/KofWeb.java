@@ -176,8 +176,11 @@ public final class KofWeb {
             // VerifyError em runtime. Com o gate aqui, `listen("8100")`
             // retorna null → o typer emite SEM025 em compile-time
             // (kof check) em vez de bytecode inválido.
+            // §825: listen(host, port) binds one interface (listen(port) is 0.0.0.0).
             case "listen" -> argTypes.size() == 1 && isInt(argTypes.get(0))
                     ? new WebCall("kof_web_listen", VOID, List.of(STR, INT))
+                    : argTypes.size() == 2 && isString(argTypes.get(0)) && isInt(argTypes.get(1))
+                    ? new WebCall("kof_web_listen_host", VOID, List.of(STR, STR, INT))
                     : null;
             case "serveDir" -> argTypes.size() == 2
                     ? new WebCall("kof_web_serve_dir", VOID, List.of(STR, STR, STR))

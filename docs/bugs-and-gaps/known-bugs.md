@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §825 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,22 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §825 — `app.listen(port)` always bound `0.0.0.0`, so a local-only server was reachable from the network and, on macOS, a client of 127.0.0.1 could reach another process on the same port; now `app.listen(host, port)`
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `2c920c4c1`). New overload approved with the web APIs by maintainer decision (05/11).
+
+**MEASURED** (JVM and JS):
+```kof
+main() {
+    var app = web.app()
+    app.get("/x") { return "ok" }
+    app.listen("127.0.0.1", 8080)
+}
+```
+Observed: `SEM025`, `listen` takes only the port. In the port (its measurement, macOS), `app.listen(0)` on the JVM bound `0.0.0.0` on an OS-chosen port; on macOS that port was also held on 127.0.0.1 by another process (an SSH forward), so the test client connecting to `127.0.0.1:<port>` read that process's banner (`For input string: "Ubuntu-3ubuntu13.16"`).
+
+**ROOT CAUSE:** the bind address was fixed: `kof_web_listen` opened `new ServerSocket(port, 64, 0.0.0.0)` and the JS host `new InetSocketAddress(port)`, with no way to name an interface. macOS lets a wildcard bind coexist with a specific bind on the same port, and the specific one wins for 127.0.0.1.
+
+**Fix:** `app.listen(host, port)` binds the named interface: `kof_web_listen_host` on the JVM (Script uses the same runtime; `listen(port)` delegates with `"0.0.0.0"`, unchanged) and `kofWebListen(appId, port, host)` on the JS host. Native refuses the host form with WEB001 like the other web calls it does not emit; `listen(Int, Int)` stays SEM025. A failed bind names `host:port`. `docs/stdlib/stdlib-web` (EN + pt_BR) lists the form and when to use it. **Proof:** `WebListenHostE2ETest` 3/3 (a server on `listen("127.0.0.1", port)` answers on 127.0.0.1 and refuses every non-loopback IPv4 address of the machine, on JVM and JS; Native WEB001; `listen(8080, 8081)` SEM025; RED before with SEM025).
+<!-- pt-switch --> **PT:** [§825 (pt_BR)](known-bugs.pt_BR.md#825--applistenport-sempre-vinculava-0000-entao-um-servidor-so-local-ficava-alcancavel-pela-rede-e-no-macos-um-cliente-de-127001-podia-chegar-em-outro-processo-na-mesma-porta-agora-applistenhost-port)

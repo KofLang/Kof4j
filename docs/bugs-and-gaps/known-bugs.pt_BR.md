@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §825 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,22 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §825 — `app.listen(port)` sempre vinculava `0.0.0.0`, então um servidor só local ficava alcançável pela rede e, no macOS, um cliente de 127.0.0.1 podia chegar em outro processo na mesma porta; agora `app.listen(host, port)`
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `2c920c4c1`). Overload novo aprovado junto com as APIs web por decisão de mantenedor (05/11).
+
+**MEDIDO** (JVM e JS):
+```kof
+main() {
+    var app = web.app()
+    app.get("/x") { return "ok" }
+    app.listen("127.0.0.1", 8080)
+}
+```
+Observado: `SEM025`, `listen` só recebe a porta. No port (medição dele, macOS), `app.listen(0)` no JVM vinculava `0.0.0.0` numa porta escolhida pelo SO; no macOS essa porta também estava presa em 127.0.0.1 por outro processo (um forward SSH), então o cliente de teste que conectava em `127.0.0.1:<porta>` lia o banner desse processo (`For input string: "Ubuntu-3ubuntu13.16"`).
+
+**CAUSA RAIZ:** o endereço de bind era fixo: `kof_web_listen` abria `new ServerSocket(port, 64, 0.0.0.0)` e o host JS `new InetSocketAddress(port)`, sem como nomear uma interface. O macOS deixa um bind curinga coexistir com um bind específico na mesma porta, e o específico vence para 127.0.0.1.
+
+**Correção:** `app.listen(host, port)` vincula a interface nomeada: `kof_web_listen_host` no JVM (o Script usa o mesmo runtime; `listen(port)` delega com `"0.0.0.0"`, sem mudança) e `kofWebListen(appId, port, host)` no host JS. O Native recusa a forma com host com WEB001, como as outras chamadas web que não emite; `listen(Int, Int)` continua SEM025. Um bind que falha nomeia `host:porta`. `docs/stdlib/stdlib-web` (EN + pt_BR) lista a forma e quando usá-la. **Prova:** `WebListenHostE2ETest` 3/3 (um servidor em `listen("127.0.0.1", port)` responde em 127.0.0.1 e recusa todo endereço IPv4 não loopback da máquina, em JVM e JS; Native WEB001; `listen(8080, 8081)` SEM025; RED antes com SEM025).
+<!-- pt-switch --> **EN:** [§825 (en)](known-bugs.md#825--applistenport-always-bound-0000-so-a-local-only-server-was-reachable-from-the-network-and-on-macos-a-client-of-127001-could-reach-another-process-on-the-same-port-now-applistenhost-port)

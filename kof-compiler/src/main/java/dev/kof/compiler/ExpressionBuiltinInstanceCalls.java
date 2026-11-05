@@ -136,6 +136,7 @@ final class ExpressionBuiltinInstanceCalls {
             // o pump JS é single-thread).
             boolean jsWebT1 = driver.target == Target.JS
                     && (webCall.function().equals("kof_web_listen")
+                        || webCall.function().equals("kof_web_listen_host")
                         || webCall.function().equals("kof_web_route")
                         || webCall.function().equals("kof_web_sse_route")
                         || webCall.function().equals("kof_web_app_new"));

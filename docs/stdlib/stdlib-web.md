@@ -205,12 +205,17 @@ app.get("/api/hide") { return "hide" }                          // inherits off
 | Call | Description |
 |---------|-----------|
 | `app.listen(port)` | Starts the server (blocking) on `0.0.0.0` |
+| `app.listen(host, port)` | Same, bound to one interface only, e.g. `"127.0.0.1"` (JVM, JS; Native `WEB001`) |
 | `app.listenSecure(port)` | Same, with dev self-signed TLS (JVM; `keytool` + `SSLServerSocket`) |
 | `app.listenSecure(port, certPem, keyPem)` | TLS with a **user-supplied certificate** (PKCS#8 PEM) — production (JVM) |
 | `app.port()` | Port actually bound (useful with `listen(0)`) |
 | `app.close()` | Shuts down the server (graceful shutdown) |
 
 `app.listen(0)` binds an ephemeral port; `app.port()` reveals the real port.
+A service meant for the local machine (a test server, a sidecar) binds
+`app.listen("127.0.0.1", port)`: the wildcard is reachable from the network, and
+on macOS a wildcard bind can share a port that another process holds on
+127.0.0.1, so a client of 127.0.0.1 would reach that process (§825).
 `app.listenSecure` is available on the JVM (Native/JS `WEB002`). The 3-arg
 variant uses the user's cert/key pair (`-----BEGIN CERTIFICATE-----` /
 `-----BEGIN PRIVATE KEY-----`, PKCS#8 RSA/EC/DSA key); the 1-arg self-signed
