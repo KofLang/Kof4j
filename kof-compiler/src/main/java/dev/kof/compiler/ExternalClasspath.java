@@ -191,7 +191,15 @@ public final class ExternalClasspath {
             }
             return false;
         }
-        return classBytes.containsKey(internal);
+        if (classBytes.containsKey(internal)) return true;
+        // §791: `import jakarta.mail.Message.RecipientType` names the NESTED
+        // class `Message$RecipientType` of a jar (the JDK face resolves by
+        // reflection in JdkReflectionResolver.nestedImport).
+        for (int i = internal.lastIndexOf('/'); i > 0; i = internal.lastIndexOf('/', i - 1)) {
+            String nested = internal.substring(0, i) + "$" + internal.substring(i + 1).replace('/', '$');
+            if (classBytes.containsKey(nested)) return true;
+        }
+        return false;
     }
 
     /** A classe externa é enum? */
