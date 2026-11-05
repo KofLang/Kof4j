@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §790 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,21 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §790 — os métodos builtin de Map/Set não tinham gate de aridade: `m.remove(k, v)` compilava para bytecode inválido (VerifyError)
+
+**Status:** ✅ CORRIGIDO 04/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/main` `edcc39114`).
+
+**MEDIDO** (alvo JVM):
+```kof
+main() {
+    Map<String, String> m = mapOf("k", "v")
+    println(m.remove("k", "v"))
+}
+```
+Observado: compila e então `VerifyError: Bad type on operand stack` no load (dentro de um laço era um frame crash na compilação). O mesmo vale para qualquer aridade errada na superfície builtin de Map/Set (`m.get(k, x)`, `s.add(a, b)`).
+
+**CAUSA RAIZ:** as chamadas builtin de coleção são baixadas para funções fixas do runtime (`kof_map_remove(map, key)`), e só os métodos de List e mais `containsValue`/`putIfAbsent` passavam pelo gate de aridade do `CollectionMethodGates` (#386). Todo outro método de Map e todo método de Set empilhava os argumentos escritos.
+
+**Correção:** todo builtin de Map e Set tem sua aridade no `CollectionMethodGates.expectedArgs`, e List, Map e Set a reportam por um helper (`refuseArity`, que também substitui as duas cópias do código do diagnóstico). Aridade errada é `SEM025` (`Map.remove takes exactly 1 argument(s)`) em todo alvo. Um `Map.remove(key, value)` de dois argumentos não é adicionado à superfície de Map do Kof aqui (mudança de stdlib em todo backend). **Prova:** `CollectionArityGateTest` 2/2 (SEM025 para aridade errada em Map e Set; as formas válidas seguem compilando); no código antigo a perna da recusa falha.
+<!-- pt-switch --> **EN:** [§790 (en)](known-bugs.md#790--mapset-builtin-methods-had-no-arity-gate-mremovek-v-compiled-into-invalid-bytecode-verifyerror)

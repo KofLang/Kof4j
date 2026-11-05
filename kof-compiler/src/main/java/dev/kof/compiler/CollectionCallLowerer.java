@@ -92,15 +92,7 @@ public final class CollectionCallLowerer {
             // um gate na semântica compartilhada, os 4 alvos reportam igual
             // (sem ele, `l.indexOf()` empilhava 0 args e quebrava de um
             // jeito diferente em cada backend — R6).
-            String arityMsg = CollectionMethodGates.arityError(
-                    listFn, "List", mc.methodName(), mc.arguments().size());
-            if (arityMsg != null && driver.currentDiagnostics != null) {
-                var pos = mc.position();
-                driver.currentDiagnostics.error(pos != null ? pos.file() : "",
-                        pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
-                        arityMsg, "SEM025");
-                return localIdx;
-            }
+            if (CollectionMethodGates.refuseArity(driver, mc, listFn, "List")) return localIdx;
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
             Type elemType = driver.listElementType(recvType);
@@ -342,15 +334,7 @@ public final class CollectionCallLowerer {
         }
         if (mapFn != null) {
             // #386 — aridade (CollectionMethodGates, mesmo gate dos List).
-            String mapArityMsg = CollectionMethodGates.arityError(
-                    mapFn, "Map", mc.methodName(), mc.arguments().size());
-            if (mapArityMsg != null && driver.currentDiagnostics != null) {
-                var pos = mc.position();
-                driver.currentDiagnostics.error(pos != null ? pos.file() : "",
-                        pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
-                        mapArityMsg, "SEM025");
-                return localIdx;
-            }
+            if (CollectionMethodGates.refuseArity(driver, mc, mapFn, "Map")) return localIdx;
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
             Type keyType = Type.UnknownType.UNKNOWN;
@@ -503,6 +487,7 @@ public final class CollectionCallLowerer {
             return localIdx;
         }
         if (setFn != null) {
+            if (CollectionMethodGates.refuseArity(driver, mc, setFn, "Set")) return localIdx;
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
             Type elemType = Type.UnknownType.UNKNOWN;
