@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §800 (FIXED)
 last: §770 (FIXED)
 last: §799 (FIXED)
 last: §766 (FIXED)
@@ -20248,3 +20249,25 @@ Observed: `NoSuchMethodError: 'void java.io.File.<init>(java.lang.Object)'` (and
 
 **Fix:** the arguments of an external constructor are typed like any call's (a lambda argument stays on the target-typed path that already handles it). **Proof:** `ExternalCtorArgTypingE2ETest` 2/2 (both constructors run, printing `true` and `2`; `new File(nowhere)` is `SEM011`). Selecting among same-arity JDK constructor overloads by argument type is a separate gap (G311) on top of the external overload resolution (§770).
 <!-- pt-switch --> **PT:** [§799 (pt_BR)](known-bugs.pt_BR.md#799--os-argumentos-de-um-construtor-externo-nunca-eram-tipados-new-filesystemgetpropertyk-e-new-bytearrayinputstreamsgetbytes-eram-emitidos-como-initobject-nosuchmethoderror)
+
+## §800 — a JDK constructor was emitted with the exact static types of its arguments: `new InputStreamReader(byteStream, "UTF-8")` looked for `<init>(ByteArrayInputStream, String)` (NoSuchMethodError)
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`). Builds on the external overload resolution of §770 and on §799.
+
+**MEASURED** (JVM target):
+```kof
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.io.ByteArrayInputStream
+main() {
+    val in0 = new ByteArrayInputStream("hi".getBytes())
+    val r = new BufferedReader(new InputStreamReader(in0, "UTF-8"))
+    println(r.readLine())
+}
+```
+Observed: `NoSuchMethodError: 'void java.io.InputStreamReader.<init>(java.io.ByteArrayInputStream, java.lang.String)'`; inside a `spawn` the task died without a trace.
+
+**ROOT CAUSE:** constructor resolution went by arity only (`resolveConstructor`), which finds nothing for a JDK class, so the lowering emitted the descriptor built from the arguments' own static types; for a jar class the first constructor of that arity won.
+
+**Fix:** the §770 selection (`ExternalOverloads`, JLS 15.12.2 phases, most specific wins) also covers `<init>`: JDK candidates come from `getConstructors()`, jar candidates from the class itself (constructors are not inherited). The analyzer and the lowering both resolve the constructor with the argument types, so the emitted descriptor is the selected constructor's. **Proof:** `ExternalCtorOverloadE2ETest` (`InputStreamReader(InputStream, String)`, `BufferedReader(Reader, int)`, `File(File, String)` run); `ExternalOverloadResolutionE2ETest`, `ExternalCtorArgTypingE2ETest` and `InteropPrimitiveSlotE2ETest` unchanged.
+<!-- pt-switch --> **PT:** [§800 (pt_BR)](known-bugs.pt_BR.md#800--um-construtor-jdk-era-emitido-com-os-tipos-estaticos-exatos-dos-argumentos-new-inputstreamreaderbytestream-utf-8-procurava-initbytearrayinputstream-string-nosuchmethoderror)

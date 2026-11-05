@@ -249,7 +249,8 @@ public final class ExpressionLowerer {
                         && driver.externalClasspath.knows(ct.internalName())) {
                     // construtor de classe externa: descritor exato do classpath
                     ExternalClasspath.MethodSignature extCtor =
-                            driver.externalClasspath.resolveConstructor(ct.internalName(), ne.arguments().size());
+                            driver.externalClasspath.resolveMethodWithArgs(ct.internalName(), "<init>",
+                                    ne.arguments().size(), argTypes);
                     if (extCtor != null) {
                         List<Type> formal = new ArrayList<>();
                         for (String d : extCtor.parameterDescriptors()) {

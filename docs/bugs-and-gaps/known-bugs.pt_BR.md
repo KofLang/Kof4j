@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §800 (FIXED)
 last: §770 (FIXED)
 last: §799 (FIXED)
 last: §766 (FIXED)
@@ -17722,3 +17723,25 @@ Observado: `NoSuchMethodError: 'void java.io.File.<init>(java.lang.Object)'` (e 
 
 **Correção:** os argumentos de um construtor externo são tipados como os de qualquer chamada (um argumento lambda segue no caminho com tipo-alvo que já o trata). **Prova:** `ExternalCtorArgTypingE2ETest` 2/2 (os dois construtores rodam, imprimindo `true` e `2`; `new File(nowhere)` é `SEM011`). Escolher entre sobrecargas de construtor JDK de mesma aridade pelo tipo dos argumentos é um gap separado (G311) sobre a resolução de sobrecarga externa (§770).
 <!-- pt-switch --> **EN:** [§799 (en)](known-bugs.md#799--the-arguments-of-an-external-constructor-were-never-typed-new-filesystemgetpropertyk-and-new-bytearrayinputstreamsgetbytes-were-emitted-as-initobject-nosuchmethoderror)
+
+## §800 — um construtor JDK era emitido com os tipos estáticos exatos dos argumentos: `new InputStreamReader(byteStream, "UTF-8")` procurava `<init>(ByteArrayInputStream, String)` (NoSuchMethodError)
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `4f7257933`). Construído sobre a resolução de sobrecarga externa da §770 e sobre a §799.
+
+**MEDIDO** (alvo JVM):
+```kof
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.io.ByteArrayInputStream
+main() {
+    val in0 = new ByteArrayInputStream("hi".getBytes())
+    val r = new BufferedReader(new InputStreamReader(in0, "UTF-8"))
+    println(r.readLine())
+}
+```
+Observado: `NoSuchMethodError: 'void java.io.InputStreamReader.<init>(java.io.ByteArrayInputStream, java.lang.String)'`; dentro de um `spawn` a task morria sem rastro.
+
+**CAUSA RAIZ:** a resolução de construtor ia só pela aridade (`resolveConstructor`), que não acha nada para uma classe JDK, então o lowering emitia o descritor montado com os tipos estáticos dos próprios argumentos; numa classe de jar vencia o primeiro construtor daquela aridade.
+
+**Correção:** a seleção da §770 (`ExternalOverloads`, fases do JLS 15.12.2, a mais específica vence) cobre também `<init>`: os candidatos JDK vêm de `getConstructors()`, os de jar da própria classe (construtores não são herdados). O analyzer e o lowering resolvem o construtor com os tipos dos argumentos, então o descritor emitido é o do construtor escolhido. **Prova:** `ExternalCtorOverloadE2ETest` (`InputStreamReader(InputStream, String)`, `BufferedReader(Reader, int)`, `File(File, String)` rodam); `ExternalOverloadResolutionE2ETest`, `ExternalCtorArgTypingE2ETest` e `InteropPrimitiveSlotE2ETest` inalterados.
+<!-- pt-switch --> **EN:** [§800 (en)](known-bugs.md#800--a-jdk-constructor-was-emitted-with-the-exact-static-types-of-its-arguments-new-inputstreamreaderbytestream-utf-8-looked-for-initbytearrayinputstream-string-nosuchmethoderror)

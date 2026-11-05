@@ -104,8 +104,10 @@ final class SemNewExprTyper {
         // untyped, a call argument (`new File(System.getProperty(k))`) reached
         // the lowering as Object and the descriptor became `<init>(Object)`.
         // A lambda is left to the target-typed path that already handles it.
+        List<Type> extArgTypes = new ArrayList<>();
         for (ExpressionNode arg : ne.arguments()) {
-            if (!(arg instanceof LambdaExpr)) SemExpressionTyper.inferType(sa, arg, scope);
+            extArgTypes.add(arg instanceof LambdaExpr ? Type.UnknownType.UNKNOWN
+                    : SemExpressionTyper.inferType(sa, arg, scope));
         }
         // classe EXTERNA (android.webkit.WebView etc.): qualifica pelo
         // import e registra o construtor do classpath — sem isso a
@@ -122,7 +124,7 @@ final class SemNewExprTyper {
             String internal = qname.replace('.', '/');
             if (sa.externalTypes().knows(internal)) {
                 ExternalClasspath.MethodSignature sig =
-                        sa.externalTypes().resolveConstructor(internal, ne.arguments().size());
+                        sa.externalTypes().resolveMethodWithArgs(internal, "<init>", ne.arguments().size(), extArgTypes);
                 if (sig != null) {
                     List<Type> params = new ArrayList<>();
                     for (String d : sig.parameterDescriptors()) {

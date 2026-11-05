@@ -103,6 +103,7 @@ final class ExternalOverloads {
                     return null;
                 }
             }, ClassReader.SKIP_CODE | ClassReader.SKIP_FRAMES);
+            if ("<init>".equals(name)) break; // constructors are not inherited
             if (reader.getSuperName() != null) queue.add(reader.getSuperName());
             queue.addAll(List.of(reader.getInterfaces()));
         }
@@ -113,6 +114,14 @@ final class ExternalOverloads {
         Map<List<String>, ExternalClasspath.MethodSignature> found = new LinkedHashMap<>();
         Class<?> cls = jdkClass(owner);
         if (cls == null) return List.of();
+        if ("<init>".equals(name)) {
+            for (java.lang.reflect.Constructor<?> c : cls.getConstructors()) {
+                ExternalClasspath.MethodSignature s = signature(org.objectweb.asm.Type.getConstructorDescriptor(c),
+                        false, false, c.isVarArgs());
+                found.putIfAbsent(s.parameterDescriptors(), s);
+            }
+            return new ArrayList<>(found.values());
+        }
         for (Method m : cls.getMethods()) {
             if (!m.getName().equals(name) || m.isBridge() || m.isSynthetic()) continue;
             ExternalClasspath.MethodSignature s = signature(org.objectweb.asm.Type.getMethodDescriptor(m),
