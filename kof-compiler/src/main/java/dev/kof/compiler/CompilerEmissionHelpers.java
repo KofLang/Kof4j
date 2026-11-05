@@ -243,7 +243,9 @@ public final class CompilerEmissionHelpers {
     }
 
     static void emitErasureBox(CompilerDriver driver, List<KofOperation> ops, Type primitive) {
-        if (!driver.needsErasureBoxing()) return;
+        // §816: a `T?` number is already its wrapper (D-NULL-INTENT), narrowed or
+        // not; boxing it again asked the JVM for `Integer.valueOf(Integer)`
+        if (!driver.needsErasureBoxing() || TypeMetrics.isNullablePrimitive(primitive)) return;
         Type boxed = TypeMetrics.boxedTypeFor(primitive);
         Type boxParam = primitive instanceof Type.PrimitiveType pt
                 && ("char".equals(pt.name()) || "Char".equals(pt.name())) ? Type.PrimitiveType.INT : primitive;

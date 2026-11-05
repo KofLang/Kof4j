@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §816 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,31 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §816 — `v as Object` num `Int?`/`Long?` encaixotava o wrapper de novo (`Integer.valueOf(Integer)`, `NoSuchMethodError` no JVM, só quando o valor existia)
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `2c920c4c1`).
+
+**MEDIDO** (alvo JVM):
+```kof
+class Params {
+    List<Object> vals = listOf()
+    void add(Object o) { vals.add(o) }
+    void bindIntOrNull(Int? v) {
+        if (v == null) { return }
+        add(v as Object)
+    }
+}
+Int? score() { return 7 }
+main() {
+    val p = Params()
+    p.bindIntOrNull(score())
+    println(p.vals)
+}
+```
+Observado: `NoSuchMethodError: 'java.lang.Integer java.lang.Integer.valueOf(java.lang.Integer)'`. O mesmo para `Long?` (`Long.valueOf(Long)`) e para um `Double?` não estreitado. O caminho do null funciona, então um teste que só passa `null` nunca vê. Script e JS já imprimiam `[7]`.
+
+**CAUSA RAIZ:** `TypeMetrics.isPrimitiveType` enxerga através de `Nullable`, então o lowering de `as` tratava uma origem `Int?` como `int` cru e chamava `kof_box` nela. Desde o D-NULL-INTENT um número `T?` já é o seu wrapper, então a chamada de box ficava tipada `Integer -> Integer`, um método que a JVM não tem.
+
+**Correção:** `CompilerEmissionHelpers.emitErasureBox` não faz nada para um primitivo nulável, o único ponto por onde todo box passa, então nenhum chamador encaixota um wrapper de novo. **Prova:** `NullableNumberAsObjectE2ETest` 3/3 (JVM, Script e JS imprimem `[7, 9]`, `5`, `1.5`; RED na base com o `NoSuchMethodError`).
+<!-- pt-switch --> **EN:** [§816 (en)](known-bugs.md#816--v-as-object-on-an-intlong-boxed-the-wrapper-again-integervalueofinteger-nosuchmethoderror-on-the-jvm-only-when-the-value-was-present)
