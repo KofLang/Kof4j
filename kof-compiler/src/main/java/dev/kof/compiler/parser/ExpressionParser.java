@@ -75,18 +75,7 @@ public class ExpressionParser {
     }
 
     static int precedence(ParseContext ctx, String op) {
-        return switch (op) {
-            case "||" -> 1;
-            case "&&" -> 2;
-            case "|", "^" -> 3;
-            case "&" -> 4;
-            case "==", "!=", "<", "<=", ">", ">=", "instanceof" -> 5;
-            case "<<", ">>", ">>>" -> 6;
-            case "+", "-" -> 7;
-            case "*", "/", "%" -> 8;
-            case "as" -> 9; // §815: tighter than arithmetic, as in Kotlin
-            default -> -1;
-        };
+        return OperatorPrecedence.of(op);
     }
 
     static boolean isBinaryOp(ParseContext ctx) {

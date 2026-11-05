@@ -26,7 +26,7 @@ final class KofFormatterExpr {
      * binário só é re-parseado sem parênteses quando sua precedência
      * respeita o contexto (left: prec >= prec do pai; right: prec > prec
      * do pai). Operadores unary/calls/if-expr/lambda são atômicos no
-     * nível de parseUnary/parsePostfix (precedência 9) — o parser os
+     * nível de parseUnary/parsePostfix (acima de todo binário) — o parser os
      * consome inteiros nesse nível, então nunca precisam de parênteses
      * em si, mas seus operandos/branches são expressões completas.
      */
@@ -41,21 +41,11 @@ final class KofFormatterExpr {
             }
             return le.value();
         }
-        if (expr instanceof BinaryExpr be) {
-            int pr = precOf(be.operator());
-            if (pr < minPrec) return "(" + formatExpr(be, p, 0) + ")";
-            // left-associativo (parser: left = parseUnary antes do op):
-            // filho esquerdo com precedência igual não precisa de parênteses
-            // (a - (b - c) != (a - b) - c; a - b - c = (a - b) - c).
-            String l = formatExpr(be.left(), p, pr);
-            // parser: right = parseBinary(prec + 1) → filho direito com
-            // precedência igual PRECISA de parênteses.
-            String r = formatExpr(be.right(), p, pr + 1);
-            return l + " " + KofFormatter.kw(p, be.operator()) + " " + r;
-        }
+        if (expr instanceof BinaryExpr be) return formatBinary(be, p, minPrec, minPrec);
         if (expr instanceof UnaryExpr ue) {
-            if (ue.prefix()) return ue.operator() + formatExpr(ue.operand(), p, 9);
-            else return formatExpr(ue.operand(), p, 9) + ue.operator();
+            // an operand of a unary operator binds tighter than every binary one
+            if (ue.prefix()) return ue.operator() + formatExpr(ue.operand(), p, UNARY);
+            else return formatExpr(ue.operand(), p, UNARY) + ue.operator();
         }
         if (expr instanceof AssignmentExpr ae) {
             // parseAssignment: right = parseAssignment (right-associativo,
@@ -191,22 +181,34 @@ final class KofFormatterExpr {
      * binário só é re-parseado sem parênteses quando sua precedência
      * respeita o contexto (left: prec >= prec do pai; right: prec > prec
      * do pai). Operadores unary/calls/if-expr/lambda são atômicos no
-     * nível de parseUnary/parsePostfix (precedência 9) — o parser os
+     * nível de parseUnary/parsePostfix (acima de todo binário) — o parser os
      * consome inteiros nesse nível, então nunca precisam de parênteses
      * em si, mas seus operandos/branches são expressões completas.
      */
-    /** Espelho de ExpressionParser.precedence (fonte: o parser, não a memória). */
+    /** The parser's table ({@link dev.kof.compiler.parser.OperatorPrecedence}); 0 for a non-binary token. */
+    /** {@code climb} is the {@code minPrec} of the parser call that consumes this
+     *  node: the same for the left spine, {@code prec + 1} for a right operand. */
+    private static String formatBinary(BinaryExpr be, LanguageProfile p, int minPrec, int climb) {
+        int pr = precOf(be.operator());
+        if (pr < minPrec) return "(" + formatBinary(be, p, 0, 0) + ")";
+        // §815: a cast the parser would take in a climb above the old `as` level
+        // (PARSE100) keeps its parentheses, so fmt never emits a warning shape
+        if ("as".equals(be.operator()) && climb > dev.kof.compiler.parser.OperatorPrecedence.LEGACY_AS) {
+            return "(" + formatBinary(be, p, 0, 0) + ")";
+        }
+        // left-associativo (parser: left = parseUnary antes do op):
+        // filho esquerdo com precedência igual não precisa de parênteses
+        // (a - (b - c) != (a - b) - c; a - b - c = (a - b) - c).
+        String l = be.left() instanceof BinaryExpr lb ? formatBinary(lb, p, pr, climb) : formatExpr(be.left(), p, pr);
+        // parser: right = parseBinary(prec + 1) → filho direito com
+        // precedência igual PRECISA de parênteses.
+        String r = formatExpr(be.right(), p, pr + 1);
+        return l + " " + KofFormatter.kw(p, be.operator()) + " " + r;
+    }
+
+    private static final int UNARY = Integer.MAX_VALUE;
+
     static int precOf(String op) {
-        return switch (op) {
-            case "||" -> 1;
-            case "&&" -> 2;
-            case "|", "^" -> 3;
-            case "&" -> 4;
-            case "==", "!=", "<", "<=", ">", ">=", "instanceof", "as" -> 5;
-            case "<<", ">>", ">>>" -> 6;
-            case "+", "-" -> 7;
-            case "*", "/", "%" -> 8;
-            default -> 0;
-        };
+        return Math.max(0, dev.kof.compiler.parser.OperatorPrecedence.of(op));
     }
 }
