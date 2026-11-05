@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §801 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,30 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §801 — um campo de classe com nome de namespace da stdlib (`cache`, `buffer`, `config`) era baixado como o namespace: `cache.get(k)` num campo `TtlCache cache` chamava o cache da stdlib
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `4f7257933`).
+
+**MEDIDO** (alvo JVM):
+```kof
+class TtlCache {
+    Map<String, String> m = mapOf("k", "v")
+    String? get(k: String) = m.get(k)
+}
+class C {
+    TtlCache cache = TtlCache()
+    String f(k: String) {
+        var v = cache.get(k)
+        if (v == null) { return "none" }
+        return v
+    }
+}
+main() { println(C().f("k")) }
+```
+Observado: imprime `none` (o `cache.get` da stdlib respondeu, em silêncio). Com um argumento lambda (`cache.getOrLoad(k, () -> ...)`) é `VerifyError: Operand stack underflow`; um campo `buffer` dá `no lowering for 'buffer.get()'`; `!config.ok(x)` num campo `config` montava uma condição quebrada (G107/G170/G220/G304).
+
+**CAUSA RAIZ:** o analyzer resolve o nome nu pelo escopo, onde o campo da classe sombreia o namespace, mas o lowering decide "namespace ou valor" com `isLocalVarName`, que olhava só os locals do IR. Um campo lido pelo `this` implícito não é local, então toda chamada `cache.`/`buffer.`/`config.` nele ia para o braço do namespace.
+
+**Correção:** `isLocalVarName` também responde verdadeiro para um campo da classe sendo baixada (`OwnFieldNames`, a mesma busca campo-primeiro da §797), então um campo sombreia um namespace da stdlib exatamente como um local ou um parâmetro. Onde não existe valor com aquele nome, a chamada do namespace não muda. **Prova:** `FieldShadowsStdNamespaceE2ETest` (campos `cache` com argumento lambda, `buffer` e `config` sob `!` respondem os métodos do campo; o `cache.set/get` da stdlib no `main` segue funcionando).
+<!-- pt-switch --> **EN:** [§801 (en)](known-bugs.md#801--a-class-field-named-like-a-stdlib-namespace-cache-buffer-config-was-lowered-as-the-namespace-cachegetk-on-a-ttlcache-cache-field-called-the-stdlib-cache)

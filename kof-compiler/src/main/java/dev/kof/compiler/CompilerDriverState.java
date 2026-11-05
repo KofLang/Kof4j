@@ -527,7 +527,7 @@ IRModule currentModule;
      * "var web = ..." torna "web.foo()" chamada de instância, não de namespace.
      */
     boolean isLocalVarName(String name, List<IRLocalVariable> locals) {
-        return findLocalVar(name, locals) != null;
+        return findLocalVar(name, locals) != null || OwnFieldNames.isOwnField((CompilerDriver) this, name);
     }
 
     /** Nome de tipo builtin usado como receiver estático (String.valueOf etc.) */
