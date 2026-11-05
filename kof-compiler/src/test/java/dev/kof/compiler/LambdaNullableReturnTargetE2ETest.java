@@ -24,8 +24,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * implemented another functional interface than the one the callee invokes:
  * {@code IncompatibleClassChangeError: Lambda0 does not implement
  * Function0_NCString}. A web middleware that only ever returns {@code null}
- * failed every request the same way ({@code handler error}). The argument is
- * now lowered against the expected function type.
+ * failed every request the same way ({@code handler error}). The lambda is
+ * now lowered against the expected function type wherever one is written: an
+ * argument, a declared local, a field assignment and a {@code return}.
  */
 class LambdaNullableReturnTargetE2ETest extends ServerProcessSupport {
 
@@ -62,6 +63,49 @@ class LambdaNullableReturnTargetE2ETest extends ServerProcessSupport {
             System.setOut(old);
         }
         assertEquals("side\nnull\na\nnull\n", buf.toString());
+    }
+
+    @Test
+    void declaredLocalsFieldsAndReturnsTypeTheLambdaToo() throws Exception {
+        Path src = tmp.resolve("Main.kf");
+        Files.writeString(src, """
+            String? call(() -> String? f) { return f() }
+            () -> String? mk() {
+                return () -> "r"
+            }
+            class H {
+                () -> String? f
+                H(() -> String? g) { this.f = g }
+                void clear() { this.f = () -> null }
+                String? run() {
+                    val g = this.f
+                    return g()
+                }
+            }
+            main() {
+                val h: () -> String? = () -> "y"
+                println(call(h))
+                println(mk()())
+                val k = H(() -> "init")
+                println(k.run())
+                k.clear()
+                println(k.run() == null)
+            }
+            """);
+        Path out = tmp.resolve("out2");
+        CompilationResult r = new CompilerDriver().compile(src, out, Target.JVM);
+        assertTrue(r.success(), "must compile: " + r.diagnostics().getDiagnostics());
+        PrintStream old = System.out;
+        ByteArrayOutputStream buf = new ByteArrayOutputStream();
+        System.setOut(new PrintStream(buf, true));
+        try (URLClassLoader cl = new URLClassLoader(new URL[]{out.toUri().toURL()},
+                getClass().getClassLoader())) {
+            Class.forName("Default.Main", true, cl)
+                    .getMethod("main", String[].class).invoke(null, (Object) new String[0]);
+        } finally {
+            System.setOut(old);
+        }
+        assertEquals("y\nr\ninit\ntrue\n", buf.toString());
     }
 
     @Test
