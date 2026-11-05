@@ -78,6 +78,7 @@ public final class JvmRuntimeWebServer {
                                         + "Cache-Control: no-cache\\r\\n"
                                         + "Connection: keep-alive\\r\\n"
                                         + "X-Accel-Buffering: no\\r\\n"
+                                        + (result.response != null ? result.response : "")
                                         + "\\r\\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
                                 out.flush();
                                 SseConnection sse = new SseConnection(out);

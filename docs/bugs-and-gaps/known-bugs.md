@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §803 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,30 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §803 — an SSE response dropped every header middleware and `app.security()` had set (request id, CORS, cookies): the JVM dispatcher cleared them before the stream head was written
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED** (JVM target):
+```kof
+main() {
+    var app = web.app()
+    app.use {
+        headerSet("X-Request-Id", "r-1")
+        if (header("x-block") != null) { return "blocked" }
+        return null
+    }
+    app.sse("/events") {
+        sse.send("one")
+        sse.close()
+    }
+    app.listen(8080)
+}
+```
+Observed: the `/events` head carries only `Content-Type`, `Cache-Control`, `Connection` and `X-Accel-Buffering`; `X-Request-Id` (and any CORS or `Set-Cookie` header from `app.security()`) is missing.
+
+**ROOT CAUSE:** `kof_web_dispatch` clears `KOF_WEB_HEADERS` before it returns a non-HTTP route to the server, and the server wrote a fixed SSE head without any of them.
+
+**Fix:** for an SSE route the dispatcher renders the headers set so far (middleware and `app.security()`) as head lines before clearing (`kof_web_extra_head`), and the server appends them to the fixed head. The four fixed stream headers (and `Content-Length`/`Transfer-Encoding`) keep their values: a middleware `Content-Type` does not replace `text/event-stream`. JS has no middleware pipeline, so nothing changes there. **Proof:** `SseMiddlewareHeadersE2ETest` (the head has `X-Request-Id: r-1`, keeps `Content-Type: text/event-stream`, then `data: one`); `KofWebSseE2ETest` 7/7 unchanged.
+<!-- pt-switch --> **PT:** [§803 (pt_BR)](known-bugs.pt_BR.md#803--uma-resposta-sse-descartava-todo-header-que-middleware-e-appsecurity-tinham-definido-request-id-cors-cookies-o-dispatcher-jvm-os-limpava-antes-de-escrever-o-head-do-stream)

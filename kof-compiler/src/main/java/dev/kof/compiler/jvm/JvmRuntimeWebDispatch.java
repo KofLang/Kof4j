@@ -276,9 +276,12 @@ public final class JvmRuntimeWebDispatch {
                             if (!match) continue;
                             req.params.putAll(params);
                             if (route.kind != RouteKind.HTTP) {
+                                // SSE: the headers middleware and app.security() set
+                                // (CORS, cookies, request id) go out with the stream head
+                                String head = route.kind == RouteKind.SSE ? kof_web_extra_head() : null;
                                 KOF_WEB_STATUS.remove();
                                 KOF_WEB_HEADERS.get().clear();
-                                 return new WebDispatchResult(route.kind, null, route);
+                                return new WebDispatchResult(route.kind, head, route);
                             }
                             Object result = kof_web_invoke(route.handler, req);
                             if (result == null) {
