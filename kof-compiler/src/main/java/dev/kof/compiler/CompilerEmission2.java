@@ -72,7 +72,10 @@ public final class CompilerEmission2 {
                     && !BuiltinTypes.isString(formal)) {
                 driver.emitWideningIfNeeded(ops, argType, formal);
             }
+            // §813: an `Int?` argument is already the boxed reference (D-NULL-INTENT);
+            // boxing it again called Integer.valueOf(Integer) (NoSuchMethodError).
             if (formal != null && CompilerTypeSupport.erasesToReference(formal) && TypeMetrics.isPrimitiveType(argType)
+                    && !TypeMetrics.isNullablePrimitive(argType)
                     && !BuiltinTypes.isString(formal)
                     && !ExpressionTyper.boxesOwnBranches(driver, args.get(i), locals)) {
                 driver.emitErasureBox(ops, argType);
