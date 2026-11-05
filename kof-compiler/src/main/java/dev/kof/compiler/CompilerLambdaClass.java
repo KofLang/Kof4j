@@ -61,6 +61,27 @@ public final class CompilerLambdaClass {
         return CompilerTypes.toType(CompilerTypes.typeToString(t), driver.currentUnit, driver.semanticAnalyzer);
     }
 
+    /** The lambda object for {@code le} typed as {@code ft}: the synthetic class, then its construction with the captures. */
+    static int emitLambdaObject(CompilerDriver driver, LambdaExpr le, Type.FunctionType ft,
+                                List<KofOperation> ops, int localIdx, List<IRLocalVariable> locals) {
+        List<IRLocalVariable> captures = driver.collectCaptures(le, locals);
+        String lambdaClass = driver.lambdaClass(le, ft, captures);
+        CompilerLambdaClass.propagateCapturePins(driver, lambdaClass, captures, locals);
+        List<IRLocalVariable> effective = driver.lambdaEffectiveCaptures.get(le);
+        if (effective != null) captures = effective;
+        Type lambdaType = new Type.ClassType("", lambdaClass, List.of());
+        List<Type> captureTypes = new ArrayList<>();
+        for (IRLocalVariable cap : captures) captureTypes.add(cap.type());
+        ops.add(new KofNewObject(lambdaType, captureTypes));
+        ops.add(new KofDup());
+        for (IRLocalVariable cap : captures) {
+            CompilerCaptures.pushCapture(driver, ops, cap);
+        }
+        ops.add(new KofCall(lambdaType, "<init>", captureTypes,
+                Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));
+        return localIdx;
+    }
+
     static String lambdaClass(CompilerDriver driver, LambdaExpr le, Type.FunctionType ft,
                            List<IRLocalVariable> captures) {
         return CompilerLambdaClass.lambdaClass(driver, le, ft, captures, false);

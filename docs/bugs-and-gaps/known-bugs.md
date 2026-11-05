@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §804 (FIXED)
 last: §785 (FIXED)
 last: §780 (FIXED)
 last: §766 (FIXED)
@@ -20256,3 +20257,25 @@ Observed: compiles, then `AbstractMethodError: Receiver class Lambda0 does not d
 
 **Fix:** `invokeReturnType` rebuilds a `NullableType` around its inner type (which takes the same round-trip as any other return, §780) and keeps the forms already preserved (function types, type variables, UI/media handles, `kof.process.Result`). **Proof:** `LambdaNullableReturnE2ETest` 1/1 (`String?` through a field, `String?` with a value, `Int?`); on the old code it fails with `AbstractMethodError`. **Not fixed here (separate):** a lambda whose body is only `null` (`val h: () -> String? = () -> null`) is typed by its body as `() -> void` and ignores the declared type (`IncompatibleClassChangeError`); that needs the expected type to reach the lambda typer.
 <!-- pt-switch --> **PT:** [§785 (pt_BR)](known-bugs.pt_BR.md#785--um-lambda-com-retorno-anulavel----string-declarava-object-invoke-entao-a-interface-funcional-nunca-era-implementada-abstractmethoderror)
+
+## §804 — a lambda passed where `() -> String?` is expected implemented another functional interface (IncompatibleClassChangeError), and a body whose only return is `return null` was typed void (a web middleware that only lets requests through failed every one)
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`). Builds on §785 (the nullable `invoke` return of a lambda).
+
+**MEASURED** (JVM target):
+```kof
+String? run(f: () -> String?) = f()
+main() {
+    println(run(() -> { return "a" }))
+    println(run(() -> {
+        println("side")
+        return null
+    }))
+}
+```
+Observed: `IncompatibleClassChangeError: Class Lambda0 does not implement the requested interface kof.Function0_NCString`, for both calls. A web middleware whose body only ever returns `null` (`app.use { headerSet("X-Request-Id", id) return null }`) answered every request `500 handler error: 'void java.lang.Object.intValue()'`.
+
+**ROOT CAUSE:** (a) a lambda argument was lowered from its own body type (`() -> String`), so its synthetic class implemented `Function0_String` while the callee's `() -> String?` invokes `Function0_NCString`; (b) the lowering typer took a lambda whose returns are all `return null` (type unknown) for a body without a return and typed it `void`.
+
+**Fix:** (a) a lambda passed to a function-typed parameter with a nullable return is lowered against that function type (`CompilerLambdaClass.emitLambdaObject`, shared with the plain lambda lowering); (b) a body that returns a value anywhere (`LambdaReturns.hasValueReturn`, `return null` included) types its lambda as returning `Object?`, never `void`. **Proof:** `LambdaNullableReturnTargetE2ETest` 2/2 (the three lambda shapes print `side`, `null`, `a`, `null`; a null-only middleware lets the route answer `200 hello` with its header).
+<!-- pt-switch --> **PT:** [§804 (pt_BR)](known-bugs.pt_BR.md#804--uma-lambda-passada-onde-se-espera----string-implementava-outra-interface-funcional-incompatibleclasschangeerror-e-um-corpo-cujo-unico-return-e-return-null-era-tipado-void-um-middleware-web-que-so-deixa-passar-falhava-toda-requisicao)

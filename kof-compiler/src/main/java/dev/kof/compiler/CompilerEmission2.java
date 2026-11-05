@@ -59,6 +59,18 @@ public final class CompilerEmission2 {
                     continue;
                 }
             }
+            // A lambda passed where `(..) -> T?` is expected implements that
+            // interface (Function0_NCString): typed by its own body (`String`,
+            // or void for `return null`) it implemented another one and the
+            // call died with IncompatibleClassChangeError.
+            if (args.get(i) instanceof LambdaExpr le && formal instanceof Type.FunctionType fft
+                    && fft.returnType() instanceof Type.NullableType
+                    && ExpressionTyper.inferExprType(driver, le, locals) instanceof Type.FunctionType own
+                    && own.parameterTypes().equals(fft.parameterTypes())) {
+                localIdx = CompilerLambdaClass.emitLambdaObject(driver, le,
+                        new Type.FunctionType(own.parameterTypes(), fft.returnType(), null), ops, localIdx, locals);
+                continue;
+            }
             localIdx = ExpressionLowerer.emitExpression(driver, args.get(i), ops, owner, localIdx, locals);
             Type argType = ExpressionTyper.inferExprType(driver, args.get(i), locals);
             // #770/#845: formal CRU recebendo arg Nullable(primitivo) estreitado
