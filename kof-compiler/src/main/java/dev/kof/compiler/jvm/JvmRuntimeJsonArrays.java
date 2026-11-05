@@ -41,6 +41,16 @@ public final class JvmRuntimeJsonArrays {
                     return out;
                 }
 
+                // #132: Bool[] no JVM é boolean[] real (BALOAD/BASTORE batem em
+                // `new Bool[n]` E em `json.decode<Bool[]>`).
+                public static boolean[] kof_json_decode_bool_array(String json) {
+                    Object parsed = kof_json_parse(json);
+                    if (!(parsed instanceof List<?> l)) throw jsonShapeError("an array", parsed);
+                    boolean[] out = new boolean[l.size()];
+                    for (int i = 0; i < l.size(); i++) out[i] = (Boolean) l.get(i);
+                    return out;
+                }
+
                 public static double[] kof_json_decode_double_array(String json) {
                     Object parsed = kof_json_parse(json);
                     if (!(parsed instanceof List<?> l)) throw jsonShapeError("an array", parsed);
