@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §795 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,29 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §795 — `throw e` of a narrowed `String?` emitted a raw `athrow` of the String (JVM VerifyError)
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED** (JVM target):
+```kof
+String? why(k: Int) {
+    if (k == 1) { return "boom" }
+    return null
+}
+main() {
+    try {
+        val e = why(1)
+        if (e != null) { throw e }
+    } catch (String s) {
+        println("caught " + s)
+    }
+}
+```
+Observed: compiles, then `VerifyError: Bad type on operand stack` (`String` is not assignable to `Throwable`) when the class loads. A plain `String` local or a literal is thrown correctly.
+
+**ROOT CAUSE:** the JVM/Android lowering of `throw` wraps a String into the Kof exception (`RuntimeException(String)`) only when the lowering type is exactly `String`; a narrowed `String?` local still has the type `String?` at lowering time, so it skipped the wrap and emitted `athrow` on the String.
+
+**Fix:** `StatementLowerer` unwraps a nullable type before the String check, so a narrowed `String?` is wrapped like a `String`. **Proof:** `ThrowNarrowedStringE2ETest` (prints `caught boom`); on the old code it is the `VerifyError`.
+<!-- pt-switch --> **PT:** [§795 (pt_BR)](known-bugs.pt_BR.md#795--throw-e-de-um-string-estreitado-emitia-um-athrow-cru-da-string-verifyerror-na-jvm)
