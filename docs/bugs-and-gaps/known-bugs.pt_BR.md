@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §796 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,25 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §796 — `n.toDouble()` / `n.toLong()` num `Long?` ou `Int?` estreitado convertia a referência boxed como número cru (frame crash ou VerifyError na JVM)
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `4f7257933`).
+
+**MEDIDO** (alvo JVM):
+```kof
+Int? count(k: Int) {
+    if (k > 0) { return 7 }
+    return null
+}
+main() {
+    val c = count(1)
+    if (c != null) { println(c.toLong()) }
+}
+```
+Observado: `VerifyError: Bad type on operand stack` (`i2l` sobre a referência `Integer`); dentro de um método maior a mesma forma é um frame crash na compilação (`COMP002`, `NegativeArraySizeException`). O mesmo para `toDouble`/`toFloat`/`toInt` num `Long?`/`Int?` estreitado.
+
+**CAUSA RAIZ:** a conversão numérica (§89, o alias do `as`) é baixada no `ExpressionInstanceCallLowerer` a partir do tipo do receiver com a anulabilidade já removida para o dispatch, então um local `Int?` estreitado (cujo slot segue o wrapper boxed, D-NULL-INTENT) era alargado com `i2l`/`l2d` como se fosse cru. Todo outro consumidor primitivo de um nullable estreitado abre a caixa antes (#845, `emitNarrowedNullableUnbox`).
+
+**Correção:** o ramo da conversão olha o tipo do receiver sem a remoção e, para um primitivo nullable, abre a caixa com `emitNarrowedNullableUnbox` antes de alargar ou estreitar. **Prova:** `NullableNumberConversionE2ETest` (`Long?.toDouble`, `Int?.toLong` numa expressão, `Int?.toDouble` imprimem `5.0`, `8`, `7.0`); no código antigo é o VerifyError/frame crash.
+<!-- pt-switch --> **EN:** [§796 (en)](known-bugs.md#796--ntodouble--ntolong-on-a-narrowed-long-or-int-converted-the-boxed-reference-as-a-raw-number-jvm-frame-crash-or-verifyerror)

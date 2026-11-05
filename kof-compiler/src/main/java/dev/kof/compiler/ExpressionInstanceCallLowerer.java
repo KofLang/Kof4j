@@ -343,6 +343,8 @@ public final class ExpressionInstanceCallLowerer {
             case "toFloat" -> Type.PrimitiveType.FLOAT;
             default -> Type.PrimitiveType.DOUBLE;
         };
+        Type rawRecv = recvType0(driver, mc, locals); // a narrowed `Long?` is still the boxed reference
+        if (TypeMetrics.isNullablePrimitive(rawRecv)) recvType = CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops, rawRecv, target);
         String fn0 = TypeMetrics.primitiveName(recvType);
         boolean mayTruncate = ("toInt".equals(mc.methodName()) || "toLong".equals(mc.methodName()))
                 && (fn0.isEmpty() || "double".equals(fn0) || "Double".equals(fn0)
