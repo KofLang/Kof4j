@@ -296,6 +296,14 @@ public final class JsRuntimeUiLayout {
                 return kofSetHas(set, value) ? 1 : 0;
             }
 
+            // §830: other is a Kof Set (JS Set) or List (array).
+            export function kofSetContainsAll(set, other) {
+                for (const v of other) {
+                    if (!kofSetHas(set, v)) return 0;
+                }
+                return 1;
+            }
+
             export function kofSetRemove(set, value) {
                 for (const e of set) {
                     if (kofValEq(e, value)) {

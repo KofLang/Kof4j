@@ -966,6 +966,11 @@
       "pt": "Set não suporta indexação [i]; use contains(x) para pertinência ou keys() para iterar"
     },
     {
+      "arity": 0,
+      "en": "Set.containsAll takes one Set or List argument",
+      "pt": "Set.containsAll exige um argumento Set ou List"
+    },
+    {
       "arity": 1,
       "en": "Cannot resolve function '{0}' on the web request context (arity mismatch)",
       "pt": "não é possível resolver a função '{0}' no contexto de requisição web (aridade incompatível)"
@@ -992,8 +997,8 @@
     },
     {
       "arity": 1,
-      "en": "Cannot resolve method '{0}' on type 'Set' (valid: add/contains/remove/size/length/count/clear/isEmpty)",
-      "pt": "Método '{0}' não resolvido no tipo 'Set' (válidos: add/contains/remove/size/length/count/clear/isEmpty)"
+      "en": "Cannot resolve method '{0}' on type 'Set' (valid: add/contains/containsAll/remove/size/length/count/clear/isEmpty)",
+      "pt": "Método '{0}' não resolvido no tipo 'Set' (válidos: add/contains/containsAll/remove/size/length/count/clear/isEmpty)"
     },
     {
       "arity": 1,

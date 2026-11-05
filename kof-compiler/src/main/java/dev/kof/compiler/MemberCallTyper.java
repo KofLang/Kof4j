@@ -342,11 +342,11 @@ public final class MemberCallTyper {
                 return Type.PrimitiveType.INT;
             if ("contains".equals(mn) || "isEmpty".equals(mn))
                 return Type.PrimitiveType.BOOL;
-            if ("add".equals(mn) || "remove".equals(mn)) return Type.PrimitiveType.BOOL;
+            if ("add".equals(mn) || "remove".equals(mn) || "containsAll".equals(mn)) return Type.PrimitiveType.BOOL;
             if ("clear".equals(mn)) return Type.PrimitiveType.VOID;
             if (sa.diagnostics() != null && !"toArray".equals(mn) && !"subSet".equals(mn) && !"sublist".equals(mn)) {
                 sa.diagnostics().error(mc,
-                        "Cannot resolve method '" + mn + "' on type 'Set' (valid: add/contains/remove/size/length/count/clear/isEmpty)",
+                        "Cannot resolve method '" + mn + "' on type 'Set' (valid: add/contains/containsAll/remove/size/length/count/clear/isEmpty)",
                         "SEM025");
             }
         }

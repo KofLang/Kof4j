@@ -1,4 +1,5 @@
 [English](CHANGELOG.md) | [Português](CHANGELOG.pt_BR.md)
+- **feat(collections)+test+docs: §830 ✅ CORRIGIDO — `Set.containsAll(other)` com argumento Set ou List em JVM, Script e JS (Native NAT009).** Prova: `SetContainsAllE2ETest` 2/2.
 - **feat(collections)+test+docs: §829 ✅ CORRIGIDO — `List.add(index, value)` insere numa posição em JVM, Script e JS (Native NAT009); `push`/`append` com dois argumentos continuam SEM072.** Prova: `ListInsertAtE2ETest` 2/2.
 - **feat(collections)+test+docs: §828 ✅ CORRIGIDO — `List.join(sep)` e `strings.join(xs, sep)` em JVM, Script e JS (Native NAT009).** Prova: `ListJoinE2ETest` 2/2.
 - **feat(strings)+test+docs: §827 ✅ CORRIGIDO — `String.getBytes(charset)` e `String.codePointAt(i)` (JVM, Script; `codePointAt` também no JS; Native STR003).** Prova: `StringCharsetCodePointE2ETest` 3/3.

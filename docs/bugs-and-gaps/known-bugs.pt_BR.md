@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §830 (FIXED)
 last: §829 (FIXED)
 last: §828 (FIXED)
 last: §827 (FIXED)
@@ -17737,3 +17738,20 @@ Observado: `SEM072` "List.add appends exactly one element; there is no positiona
 
 **Correção:** `add(index, value)` baixa para `kof_list_insert`, tratado como `set` (índice Int, SEM055; elemento do tipo pinado, SEM056; alargamento numérico do valor): `ArrayList.add(int, Object)` no JVM e no Script, `splice` no JS com os mesmos limites (`0..size`). `push`/`append` com dois argumentos e `add` com três continuam SEM072, cujo texto agora aponta para `add(index, value)` (pt no catálogo PortuKof). O Native recusa a inserção com NAT009 (ainda sem face nativa). `learn/12-collections` e a linha SEM072 do `type-system` (EN + pt_BR) foram atualizados; `ListAddArityTest` e `DiagnosticSourceLocationTest` agora fixam as formas SEM072 que restam. **Prova:** `ListInsertAtE2ETest` 2/2 (inserção no início, no meio e no fim, String, Long com valor Int, record; idêntico em JVM, Script e JS; SEM055, SEM056 e Native NAT009; RED antes com SEM072).
 <!-- pt-switch --> **EN:** [§829 (en)](known-bugs.md#829--a-list-had-no-positional-insert-addindex-value-was-sem072-there-is-no-positional-insert-so-a-port-inserted-through-set-and-a-manual-shift-now-addindex-value-inserts)
+
+## §830 — um Set não tinha `containsAll` (SEM025), então um port fazia laço com `contains`; agora `s.containsAll(other)` com Set ou List
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `2c920c4c1`). Lote de stdlib aprovado por decisão de mantenedor (05/11).
+
+**MEDIDO** (JVM):
+```kof
+main() {
+    println(setOf(1, 2, 3).containsAll(listOf(1, 3)))
+}
+```
+Observado: `SEM025` "Cannot resolve method 'containsAll' on type 'Set'".
+
+**CAUSA RAIZ:** faltava o membro na superfície de Set.
+
+**Correção:** `s.containsAll(other)` devolve `Bool`; `other` é um Set ou List do Kof e cada elemento é checado com a mesma igualdade por conteúdo do `contains` (`HashSet.containsAll` no JVM e no Script, `kofSetHas` por elemento no JS). Outro argumento é SEM025, e o Native o recusa com NAT009 (ainda sem face nativa). O alias PortuKof é `contemTodos`; a lista SEM025 de métodos válidos de Set o cita. `learn/12-collections` (EN + pt_BR) o mostra. **Prova:** `SetContainsAllE2ETest` 2/2 (argumentos Set e List, lista vazia, elementos String e record, uma condição; idêntico em JVM, Script e JS; `containsAll(1)` SEM025; Native NAT009; RED antes com SEM025).
+<!-- pt-switch --> **EN:** [§830 (en)](known-bugs.md#830--a-set-had-no-containsall-sem025-so-a-port-looped-over-contains-now-scontainsallother-with-a-set-or-a-list)

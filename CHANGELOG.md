@@ -1,4 +1,5 @@
 [English](CHANGELOG.md) | [Português](CHANGELOG.pt_BR.md)
+- **feat(collections)+test+docs: §830 ✅ FIXED — `Set.containsAll(other)` with a Set or List argument on JVM, Script and JS (Native NAT009).** Proof: `SetContainsAllE2ETest` 2/2.
 - **feat(collections)+test+docs: §829 ✅ FIXED — `List.add(index, value)` inserts at a position on JVM, Script and JS (Native NAT009); `push`/`append` with two arguments stay SEM072.** Proof: `ListInsertAtE2ETest` 2/2.
 - **feat(collections)+test+docs: §828 ✅ FIXED — `List.join(sep)` and `strings.join(xs, sep)` on JVM, Script and JS (Native NAT009).** Proof: `ListJoinE2ETest` 2/2.
 - **feat(strings)+test+docs: §827 ✅ FIXED — `String.getBytes(charset)` and `String.codePointAt(i)` (JVM, Script; `codePointAt` also JS; Native STR003).** Proof: `StringCharsetCodePointE2ETest` 3/3.

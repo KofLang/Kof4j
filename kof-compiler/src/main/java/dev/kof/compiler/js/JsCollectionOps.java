@@ -281,6 +281,7 @@ void handleSetOp(MethodCtx ctx, List<Object> stack,
             case "kof_set_new" -> "kofSetNew";
             case "kof_set_add" -> "kofSetAdd";
             case "kof_set_contains" -> "kofSetContains";
+            case "kof_set_contains_all" -> "kofSetContainsAll";
             case "kof_set_remove" -> "kofSetRemove";
             case "kof_set_size" -> "kofSetSize";
             case "kof_set_clear" -> "kofSetClear";

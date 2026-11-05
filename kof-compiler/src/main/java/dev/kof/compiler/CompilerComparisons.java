@@ -542,7 +542,7 @@ public final class CompilerComparisons {
             if (mc.receiver() != null && BuiltinTypes.isSet(ExpressionTyper.inferExprType(driver, mc.receiver(), locals))) {
                 return switch (mc.methodName()) {
                     case "contains", "isEmpty", "size", "length", "count",
-                            "add", "remove" -> true;
+                            "add", "remove", "containsAll" -> true;
                     default -> false;
                 };
             }

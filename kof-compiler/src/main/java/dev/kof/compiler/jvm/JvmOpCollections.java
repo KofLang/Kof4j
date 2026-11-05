@@ -300,6 +300,9 @@ public final class JvmOpCollections {
                 emitBoxIfPrimitive(mv, elemType);
                 mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/HashSet", "remove", "(Ljava/lang/Object;)Z", false);
             }
+            // §830: the argument is a Kof List (ArrayList) or Set (HashSet).
+            case "kof_set_contains_all" -> mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/HashSet", "containsAll",
+                    "(Ljava/util/Collection;)Z", false);
             case "kof_set_size" -> mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/HashSet", "size", "()I", false);
             case "kof_set_is_empty" -> mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/HashSet", "isEmpty", "()Z", false);
             case "kof_set_clear" -> mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/HashSet", "clear", "()V", false);

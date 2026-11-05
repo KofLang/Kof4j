@@ -279,6 +279,7 @@ public final class KofInterpreterCollections {
                 yield Type.isVoid(kc.returnType()) ? null : (added ? 1 : 0);
             }
             case "kof_set_contains" -> s.contains(box(eT, args[0])) ? 1 : 0;
+            case "kof_set_contains_all" -> s.containsAll((java.util.Collection<?>) args[0]) ? 1 : 0; // §830
             case "kof_set_remove" -> s.remove(box(eT, args[0])) ? 1 : 0;
             case "kof_set_size" -> s.size();
             case "kof_set_is_empty" -> s.isEmpty() ? 1 : 0;

@@ -497,6 +497,7 @@ public final class CollectionCallLowerer {
             case "size", "length", "count" -> "kof_set_size";
             case "clear" -> "kof_set_clear";
             case "isEmpty" -> "kof_set_is_empty";
+            case "containsAll" -> "kof_set_contains_all"; // §830
             default -> null;
         };
         if (setFn == null && driver.currentDiagnostics != null
@@ -504,7 +505,7 @@ public final class CollectionCallLowerer {
             driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
                     mc.position() != null ? mc.position().line() : 0,
                     mc.position() != null ? mc.position().column() : 0, 0,
-                    "Cannot resolve method '" + mc.methodName() + "' on type 'Set' (valid: add/contains/remove/size/length/count/clear/isEmpty)",
+                    "Cannot resolve method '" + mc.methodName() + "' on type 'Set' (valid: add/contains/containsAll/remove/size/length/count/clear/isEmpty)",
                     "SEM025");
             return localIdx;
         }
@@ -513,6 +514,7 @@ public final class CollectionCallLowerer {
             for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
             Type elemType = Type.UnknownType.UNKNOWN;
             if (recvType instanceof Type.ClassType ct && !ct.typeArguments().isEmpty()) elemType = ct.typeArguments().get(0);
+            if ("kof_set_contains_all".equals(setFn) && SetContainsAll.refuse(driver, mc, argTypes)) return localIdx;
             // §126 (ii): Set.add com tipo ≠ elemType pinada = heap poluído
             // (o scan tag=1 chama kof_string_equals sobre Int cru → SIGSEGV
             // no Native — ST1/H3). JVM tolera; a linguagem NÃO (homogênea).
@@ -531,7 +533,7 @@ public final class CollectionCallLowerer {
             }
             Type retType = switch (setFn) {
                 case "kof_set_add", "kof_set_remove" -> Type.PrimitiveType.BOOL;
-                case "kof_set_contains", "kof_set_is_empty" -> Type.PrimitiveType.BOOL;
+                case "kof_set_contains", "kof_set_is_empty", "kof_set_contains_all" -> Type.PrimitiveType.BOOL;
                 case "kof_set_size" -> Type.PrimitiveType.INT;
                 case "kof_set_clear" -> Type.PrimitiveType.VOID;
                 default -> Type.UnknownType.UNKNOWN;

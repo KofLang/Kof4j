@@ -128,6 +128,7 @@ public final class CollectionMethodTyper {
         String mn = mc.methodName();
         if ("size".equals(mn) || "length".equals(mn) || "count".equals(mn)) return Type.PrimitiveType.INT;
         if ("contains".equals(mn) || "isEmpty".equals(mn)) return Type.PrimitiveType.BOOL;
+        if ("containsAll".equals(mn)) return Type.PrimitiveType.BOOL; // §830
         if ("add".equals(mn) || "remove".equals(mn)) return Type.PrimitiveType.BOOL;
         if ("clear".equals(mn)) return Type.PrimitiveType.VOID;
     }

@@ -149,6 +149,7 @@ var vistos = setOf(1, 2, 2, 3)
 vistos.size()          // 3 — the second 2 was ignored
 
 vistos.contains(2)     // true
+vistos.containsAll(listOf(2, 3))  // true — every element of a Set or List (Native NAT009)
 vistos.add(2)          // false (already exists)
 vistos.remove(1)       // true
 vistos.clear()
