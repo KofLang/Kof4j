@@ -277,7 +277,7 @@ public final class JvmOpEmitter {
                 c.mv().visitLabel(ctx.resolveLabel(kcs.handlerLabel()));
                 ctx.registerTryCatch(kcs);
                 if ("String".equals(kcs.exceptionType())) {
-                    c.mv().visitMethodInsn(INVOKEVIRTUAL, "java/lang/RuntimeException", "getMessage",
+                    c.mv().visitMethodInsn(INVOKEVIRTUAL, "java/lang/Throwable", "getMessage",
                             "()Ljava/lang/String;", false);
                 }
                 c.mv().visitVarInsn(ASTORE, kcs.localIndex());
