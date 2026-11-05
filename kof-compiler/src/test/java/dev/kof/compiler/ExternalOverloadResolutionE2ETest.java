@@ -170,9 +170,10 @@ class ExternalOverloadResolutionE2ETest {
         assertEquals("x\n2\n", out);
     }
 
-    /** JDK overloads that the arity pick got wrong: valueOf(String) over
-     *  valueOf(LocalDateTime), now(Clock) over now(ZoneId), and an Int literal
-     *  that must widen into plusSeconds(long). */
+    /** JDK overloads that the arity pick got wrong: round(float) over
+     *  round(double) (an int where a long was concatenated: VerifyError),
+     *  valueOf(String) over valueOf(LocalDateTime), now(Clock) over now(ZoneId),
+     *  and an Int literal that must widen into plusSeconds(long). */
     @Test
     void jdkTimeOverloadsSelectByArgumentType() throws Exception {
         String out = compileAndRun("""
@@ -181,14 +182,16 @@ class ExternalOverloadResolutionE2ETest {
             import java.time.LocalDate
             import java.time.ZoneOffset
             import java.time.ZonedDateTime
+            import java.lang.Math
             main() {
+                println("r=" + Math.round(2.6))
                 val ldt = LocalDateTime.of(2026, 1, 2, 3, 4)
                 println(Timestamp.valueOf(ldt).toString())
                 println(LocalDate.now(ZoneOffset.UTC).getYear() > 2000)
                 println(ZonedDateTime.of(ldt, ZoneOffset.UTC).plusSeconds(1).getSecond())
             }
             """);
-        assertEquals("2026-01-02 03:04:00.0\ntrue\n1\n", out);
+        assertEquals("r=3\n2026-01-02 03:04:00.0\ntrue\n1\n", out);
     }
 
     @Test
