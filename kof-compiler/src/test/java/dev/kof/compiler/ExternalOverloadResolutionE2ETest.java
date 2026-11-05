@@ -49,6 +49,9 @@ class ExternalOverloadResolutionE2ETest {
                     public String num(long x) { return "long"; }
                     public String amb(Object a, String b) { return "os"; }
                     public String amb(String a, Object b) { return "so"; }
+                    public String save(String path) { return "path"; }
+                    public String save(java.io.File file) { return "file"; }
+                    public String save(java.io.OutputStream out) { return "stream"; }
                     public static String stat(Cfg c) { return "static-cfg"; }
                     public static String stat(java.util.Map<String, String> m) { return "static-map"; }
                 }
@@ -129,6 +132,24 @@ class ExternalOverloadResolutionE2ETest {
             }
             """);
         assertEquals("map1\nmap1\nstatic-map\n", out);
+    }
+
+    /** The PDFBox shape (enois G400): save(String), save(File) and
+     *  save(OutputStream); a stream argument was SEM014 "expected 'String'"
+     *  because only the first declared overload was considered. */
+    @Test
+    void streamArgumentSelectsTheOutputStreamOverload() throws Exception {
+        String out = compileAndRun("""
+            import ext.Conf
+            import java.io.ByteArrayOutputStream
+            import java.io.OutputStream
+            main() {
+                println(Conf().save(new ByteArrayOutputStream()))
+                var sink: OutputStream = new ByteArrayOutputStream()
+                println(Conf().save(sink) + " " + Conf().save("a.pdf"))
+            }
+            """);
+        assertEquals("stream\nstream path\n", out);
     }
 
     @Test
