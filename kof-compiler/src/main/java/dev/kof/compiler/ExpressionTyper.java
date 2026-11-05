@@ -66,8 +66,8 @@ public final class ExpressionTyper {
                     // unrelated class — e.g. Config.entries vs MemoryLayer.entries.
                     if (!locals.isEmpty() && locals.get(0).type() instanceof Type.ClassType thisType
                             && !thisType.name().equals("Object")) {
-                        SymbolTable.Symbol thisField = driver.semanticAnalyzer.resolveInHierarchy(
-                                thisType.name(), ie.name());
+                        SymbolTable.Symbol thisField = MemberResolver.resolveFieldInHierarchy(
+                                driver.semanticAnalyzer, thisType.name(), ie.name());
                         if (thisField != null) {
                             if (thisField instanceof SymbolTable.FieldSymbol fs) yield fs.type();
                             if (thisField instanceof SymbolTable.MethodSymbol ms

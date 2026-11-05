@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §797 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,27 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §797 — a bare field read inside a class resolved to a method of the same name: `viewing.get(k)` on a Map field `viewing` was typed `String` (SEM066)
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED** (JVM target):
+```kof
+class V {
+    Map<String, String> viewing = mapOf("k", "v")
+    String viewing(k: String) = "m"
+    String read(k: String) {
+        val x = viewing.get(k)
+        if (x == null) { return "null" }
+        return x
+    }
+}
+main() { println(V().read("k")) }
+```
+Observed: `String has no "get" method` (SEM066) at `viewing.get(k)`: the field read was typed as the method's return type.
+
+**ROOT CAUSE:** a class's `SymbolTable` keeps one entry per name in `symbols` (a method defined after the field replaces it there; the fields also live in their own `fields` map). The bare-identifier arms of both typers (`SemExpressionTyper` and the lowering `ExpressionTyper`) looked the name up through `resolve`/`resolveInHierarchy`, which answer the method.
+
+**Fix:** a bare name is a value, so both arms take the field first: the semantic arm swaps a method hit for `resolveField`, and both class-member lookups use `MemberResolver.resolveFieldInHierarchy` (fields first, then the old lookup, so a zero-argument method read keeps working). The call form `viewing(k)` still reaches the method. **Proof:** `FieldMethodSameNameE2ETest` 2/2 (field after and before the method; the field, the method call and `this.viewing` all answer the right member).
+<!-- pt-switch --> **PT:** [§797 (pt_BR)](known-bugs.pt_BR.md#797--a-leitura-nua-de-um-campo-dentro-da-classe-resolvia-para-um-metodo-de-mesmo-nome-viewinggetk-num-campo-map-viewing-era-tipado-string-sem066)

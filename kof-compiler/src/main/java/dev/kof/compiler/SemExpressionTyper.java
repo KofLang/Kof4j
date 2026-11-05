@@ -63,6 +63,11 @@ public final class SemExpressionTyper {
             case LiteralExpr lit -> TypeChecker.inferLiteralType(lit);
             case IdentifierExpr ie -> {
                 SymbolTable.Symbol sym = scope.resolve(ie.name());
+                // A bare name is a value: a field wins over a method of the same name.
+                if (sym instanceof SymbolTable.MethodSymbol || sym instanceof SymbolTable.MethodSet) {
+                    SymbolTable.FieldSymbol field = scope.resolveField(ie.name());
+                    if (field != null) sym = field;
+                }
                 if (sym != null) {
                     // #345 (R6): campo de instância referido NU dentro de
                     // método `static` = `this` implícito que não existe — o
@@ -107,7 +112,7 @@ public final class SemExpressionTyper {
                     }
                 }
                 if (sa.currentClassName() != null && !sa.currentClassName().isEmpty()) {
-                    SymbolTable.Symbol fieldSym = MemberResolver.resolveInHierarchy(sa, sa.currentClassName(), ie.name());
+                    SymbolTable.Symbol fieldSym = MemberResolver.resolveFieldInHierarchy(sa, sa.currentClassName(), ie.name());
                     if (fieldSym != null) {
                         sa.putExpressionType(ie, fieldSym.type());
                         yield fieldSym.type();
