@@ -369,6 +369,7 @@ if (mc.receiver() != null) {
     Type recvType = ExpressionTyper.inferExprType(driver, mc.receiver(), locals);
     // narrowing de null-safety: `if (x != null) { x.metodo() }`
     if (recvType instanceof Type.NullableType nt) recvType = nt.inner();
+    if (HttpResponseCalls.isResponse(recvType)) return HttpResponseCalls.infer(null, mc, mc.arguments().stream().map(a -> ExpressionTyper.inferExprType(driver, a, locals)).toList());
     if (KofProcess.isHandle(recvType)) {
         List<Type> hArgs = new ArrayList<>();
         for (ExpressionNode arg : mc.arguments()) hArgs.add(ExpressionTyper.inferExprType(driver, arg, locals));

@@ -79,7 +79,10 @@ public final class JvmRuntimeReturnDescriptors {
                     "kof_acme_jws_es256", "kof_acme_new_account", "kof_acme_new_order",
                     "kof_acme_dns01_txt", "kof_acme_challenge", "kof_acme_finalize"
                     -> "Ljava/lang/String;";
-            case "kof_http_status", "kof_mq_queue_size" -> "I";
+            case "kof_http_status", "kof_mq_queue_size", "kof_http_response_status" -> "I";
+            case "kof_http_send" -> "Ldev/kof/runtime/KofRuntime$HttpResponse;";
+            case "kof_http_response_body", "kof_http_response_header" -> "Ljava/lang/String;";
+            case "kof_http_response_headers" -> "Ljava/util/Map;";
             case "kof_mq_queue" -> "Ljava/lang/String;";
             case "kof_mq_pop" -> "Ljava/lang/Object;";
             case "kof_web_sse_route", "kof_web_ws_route", "kof_http_timeout_set",

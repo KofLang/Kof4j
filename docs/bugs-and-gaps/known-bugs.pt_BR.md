@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §832 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,14 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §832 — o cliente HTTP devolvia só o corpo e lançava em todo 5xx, então quem chamava não lia status nem header de resposta; agora `http.send(method, url[, body][, headers...])` devolve um `Response`
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; gaps G15/G172/G178 de um porte de backend Spring para Kof na 0.7.1 publicada, medido no `upstream/lab` `2c920c4c1`). API por decisão de mantenedor (05/11).
+
+**MEDIDO** (JVM, Script, JS): `http.get`/`post`/`put`/`delete`/`patch`/`options` devolvem o corpo como `String` e lançam `HTTP 5xx from <url>` num 5xx; um 4xx devolve o corpo sem como distingui-lo de um 200. `http.status(url)` manda um GET separado (um HEAD no JS) e devolve só o código. Nenhuma chamada expõe header de resposta. O porte precisava chamar cada endpoint duas vezes (`status`, depois `get`) e não conseguia ler `Location`, `ETag` nem `Retry-After`.
+
+**CAUSA RAIZ:** uma API ausente: a superfície do cliente devolve corpo ou status, nunca os dois, e não existe valor de resposta.
+
+**Correção:** `http.send(method, url[, body][, headers...])` devolve um `kof.http.Response` com `status()` (`Int`), `body()` (`String`), `header(name)` (`String?`, sem diferenciar maiúsculas) e `headers()` (`Map<String, String>`, nomes em minúsculas). Um 4xx ou 5xx é devolvido, não lançado; uma falha de transporte continua lançando uma `String` capturável. O corpo pode ser omitido ou `null`; os headers são os mesmos varargs `"Nome: valor"` dos outros verbos. `Response` é um nome de tipo declarável. `send` segue `timeout`, `insecure` e `circuit` (um 5xx conta contra o circuito mas é devolvido) e não faz `retry`. O valor de runtime no JVM é `KofRuntime$HttpResponse` (o Script o alcança por reflexão); o JS devolve os mesmos acessores a partir do Java HttpClient ou do `fetch`. Native e Wasm recusam `send` com `HTTP002`. Alias PortuKof `http.enviar`; um acessor desconhecido é SEM025 com seu texto pt. `learn/stdlib/http` (EN + pt_BR) documenta `send`, e a linha do `timeout` agora diz segundos: ela dizia `timeout(Int ms)` com `http.timeout(5000)`, enquanto os runtimes JVM e JS leem segundos (o catálogo de assinaturas do LSP também dizia `timeout(Int ms)`, agora `timeout(Int seconds)`). **Prova:** `HttpSendResponseE2ETest` 2/2 (um PUT com corpo e headers, um 404, um 503 de um `delete` em minúsculas com corpo `null` e uma conexão recusada imprimem as mesmas doze linhas em JVM, Script e JS; um acessor desconhecido é SEM025; o Native recusa com HTTP002; RED antes com SEM025 em `http.send`).
+<!-- pt-switch --> **EN:** [§832 (en)](known-bugs.md#832--the-http-client-returned-only-a-body-and-threw-on-every-5xx-so-a-caller-could-not-read-a-status-or-a-response-header-now-httpsendmethod-url-body-headers-returns-a-response)

@@ -309,7 +309,7 @@ public final class CompilerTypes {
         if (sec != null) return sec;
         Type ioe = KofInteropError.typeByName(name);
         if (ioe != null) return ioe;
-        Type proc = KofProcess.typeByName(name);
+        Type proc = KofProcess.typeByName(name) != null ? KofProcess.typeByName(name) : HttpResponseCalls.typeByName(name);
         if (proc != null) return proc;
         return BuiltinTypes.declaredCollectionType(name);
     }

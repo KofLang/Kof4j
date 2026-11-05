@@ -159,6 +159,11 @@ public final class SemMethodCallTyper {
                                 + "top-level functions, e.g. math.abs(x))",
                         "SEM074");
             }
+            if (HttpResponseCalls.isResponse(recv)) {
+                List<Type> argTypes = new ArrayList<>();
+                for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
+                return HttpResponseCalls.infer(sa, mc, argTypes);
+            }
             if (KofProcess.isHandle(recv)) {
                 List<Type> argTypes = new ArrayList<>();
                 for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));

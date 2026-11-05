@@ -40,12 +40,12 @@ public final class KofHttp {
 
 /** X10 fatia 2: nomes aceitos pelo dispatch real (catálogo p/ LSP).
      *  GUARDA: StdCatalogTest exige == case-literals da fonte abaixo. */
-    static List<String> functions() { return List.of("get", "post", "put", "delete", "patch", "options", "status", "timeout", "retry", "circuit", "insecure"); }
+    static List<String> functions() { return List.of("get", "post", "put", "delete", "patch", "options", "status", "timeout", "retry", "circuit", "insecure", "send"); }
 
     static boolean isHttpMethod(String name) {
         return switch (name) {
             case "get", "post", "put", "delete", "patch", "options", "status", "timeout",
-                    "retry", "circuit", "insecure" -> true;
+                    "retry", "circuit", "insecure", "send" -> true;
             default -> false;
         };
     }
@@ -54,6 +54,11 @@ public final class KofHttp {
 
     private static boolean isStr(Type t) {
         return STR.equals(t) || "String".equals(t.toString());
+    }
+
+    /** §832: the body of {@code http.send} may be absent: a String, a {@code String?} or {@code null}. */
+    private static boolean isBody(Type t) {
+        return isStr(t) || Type.isUnknown(t) || t instanceof Type.NullableType nt && isStr(nt.inner());
     }
 
     private static boolean isInt(Type t) {
@@ -111,6 +116,12 @@ public final class KofHttp {
                         ? new HttpCall("kof_http_" + name + "_headers", STR, List.of(STR, STR, STR))
                         : null;
             };
+            // §832: send(method, url[, body][, headers...]) -> Response, no throw on 4xx/5xx
+            case "send" -> argTypes.size() >= 2 && isStr(argTypes.get(0)) && isStr(argTypes.get(1))
+                    && (argTypes.size() < 3 || isBody(argTypes.get(2)))
+                    && argTypes.stream().skip(3).allMatch(KofHttp::isStr)
+                    ? new HttpCall(HttpResponseCalls.SEND, HttpResponseCalls.RESPONSE, List.of(STR, STR, STR, STR))
+                    : null;
             case "status" -> argTypes.size() == 1 && isStr(argTypes.get(0))
                     ? new HttpCall("kof_http_status", INT, List.of(STR))
                     : null;

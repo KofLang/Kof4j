@@ -98,6 +98,10 @@ public final class JvmTypeMapper {
         if ("kof.process".equals(c.packageName()) && "Result".equals(c.name())) {
             return "Ldev/kof/runtime/KofRuntime$ProcessResult;";
         }
+        // §832: http.Response erases to KofRuntime$HttpResponse (what kof_http_send returns)
+        if ("kof.http".equals(c.packageName()) && "Response".equals(c.name())) {
+            return "Ldev/kof/runtime/KofRuntime$HttpResponse;";
+        }
         // D-R3-BUFFER: Buffer(U8) apaga para KofRuntime$Buffer (o runtime real do
         // out-buffer) — sem isto, `Buffer` virava a classe inexistente `kof/Buffer`
         // → ClassNotFoundException/NoClassDefFoundError (mesma forma do #31).
@@ -159,7 +163,8 @@ public final class JvmTypeMapper {
             case "dev/kof/runtime/KofRuntime$Buffer",
                  "dev/kof/runtime/KofRuntime$Secret",
                  "dev/kof/runtime/KofRuntime$KeyHandle",
-                 "dev/kof/runtime/KofRuntime$ProcessResult" -> "java/lang/Object";
+                 "dev/kof/runtime/KofRuntime$ProcessResult",
+                 "dev/kof/runtime/KofRuntime$HttpResponse" -> "java/lang/Object";
             // JvmInteropErrorRuntime: `class InteropError extends RuntimeException`
             case "dev/kof/runtime/KofRuntime$InteropError" -> "java/lang/RuntimeException";
             default -> null;
@@ -256,6 +261,7 @@ public final class JvmTypeMapper {
         if ("kof.concurrent".equals(packageName) && "Channel".equals(simpleName)) return "java/util/concurrent/LinkedBlockingQueue";
         if ("kof.concurrent".equals(packageName) && "Handle".equals(simpleName)) return "java/util/concurrent/CompletableFuture";
         if ("kof.process".equals(packageName) && "Result".equals(simpleName)) return "dev/kof/runtime/KofRuntime$ProcessResult";
+        if ("kof.http".equals(packageName) && "Response".equals(simpleName)) return "dev/kof/runtime/KofRuntime$HttpResponse";
         // Same erasure family as `classDescriptor`: these nominal runtime types
         // must map in OWNER position (checkcast/anewarray/getfield) too, or a
         // value crossing a generic container emits the non-existent class

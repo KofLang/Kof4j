@@ -992,6 +992,11 @@
     },
     {
       "arity": 1,
+      "en": "Cannot resolve method '{0}' on type 'Response' (valid: status/body/header/headers)",
+      "pt": "Método '{0}' não resolvido no tipo 'Response' (válidos: status/body/header/headers)"
+    },
+    {
+      "arity": 1,
       "en": "Cannot resolve method '{0}' on type 'Set' (valid: add/contains/remove/size/length/count/clear/isEmpty)",
       "pt": "Método '{0}' não resolvido no tipo 'Set' (válidos: add/contains/remove/size/length/count/clear/isEmpty)"
     },

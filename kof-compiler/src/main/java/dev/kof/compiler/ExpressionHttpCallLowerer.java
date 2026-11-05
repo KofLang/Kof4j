@@ -68,6 +68,18 @@ public final class ExpressionHttpCallLowerer {
             }
             return localIdx;
         }
+        // §832: the Response value has a JVM/Script/JS runtime only; Native and Wasm refuse by name
+        if ("send".equals(mc.methodName()) && driver.target != Target.JVM && driver.target != Target.SCRIPT
+                && driver.target != Target.ANDROID && driver.target != Target.JS) {
+            if (driver.currentDiagnostics != null) {
+                driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
+                        mc.position() != null ? mc.position().line() : 0,
+                        mc.position() != null ? mc.position().column() : 0, 0,
+                        "http.send: the Response value is not available on the " + driver.target
+                                + " target yet (HTTP002)", "HTTP002");
+            }
+            return localIdx;
+        }
         if (!KofHttp.supportedOn(driver.target)) {
             if (driver.currentDiagnostics != null) {
                 driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
@@ -84,30 +96,42 @@ public final class ExpressionHttpCallLowerer {
         // headers variádicos (GitHub #32): o runtime recebe headers como uma
         // única String `\n`-separada. args fixos = url (+body p/ post/put/patch);
         // os demais são headers, colapsados em um só slot.
-        int fixed = ("post".equals(mc.methodName()) || "put".equals(mc.methodName())
+        boolean send = "send".equals(mc.methodName());
+        int fixed = send ? 3 : ("post".equals(mc.methodName()) || "put".equals(mc.methodName())
                 || "patch".equals(mc.methodName())) ? 2 : ("insecure".equals(mc.methodName()) ? 0 : 1);
         int n = mc.arguments().size();
         for (int i = 0; i < Math.min(n, fixed); i++) {
             localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(i), ops, owner, localIdx, locals);
         }
+        // §832: send always takes (method, url, body, headers); an absent body or headers is null
+        for (int i = n; send && i < fixed; i++) ops.add(KofLoadLiteral.ofNull());
         if (n > fixed) {
-            localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(fixed), ops, owner, localIdx, locals);
-            for (int i = fixed + 1; i < n; i++) {
-                // pilha: [..., acc]; queremos acc + "\n" + h_i
-                ops.add(new KofLoadLiteral(BuiltinTypes.STRING, "\n"));
-                localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(i), ops, owner, localIdx, locals);
-                ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_concat",
-                        List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
-                        BuiltinTypes.STRING, KofCallKind.FUNCTION));
-                ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_concat",
-                        List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
-                        BuiltinTypes.STRING, KofCallKind.FUNCTION));
-            }
+            localIdx = emitHeaders(driver, mc, fixed, ops, owner, localIdx, locals);
+        } else if (send) {
+            ops.add(KofLoadLiteral.ofNull());
         }
         ops.add(new KofCall(KofHttp.HTTP, httpCall.function(), httpCall.parameterTypes(),
                 httpCall.returnType(), KofCallKind.FUNCTION));
         return localIdx;
     }
     return localIdx;
+    }
+
+    /** The header arguments from {@code from} on, joined into one `\n`-separated String (GitHub #32). */
+    private static int emitHeaders(CompilerDriver driver, MethodCallExpr mc, int from, List<KofOperation> ops,
+                                   String owner, int localIdx, List<IRLocalVariable> locals) {
+        localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(from), ops, owner, localIdx, locals);
+        for (int i = from + 1; i < mc.arguments().size(); i++) {
+            // pilha: [..., acc]; queremos acc + "\n" + h_i
+            ops.add(new KofLoadLiteral(BuiltinTypes.STRING, "\n"));
+            localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(i), ops, owner, localIdx, locals);
+            ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_concat",
+                    List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
+                    BuiltinTypes.STRING, KofCallKind.FUNCTION));
+            ops.add(new KofCall(BuiltinTypes.STRING, "kof_string_concat",
+                    List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
+                    BuiltinTypes.STRING, KofCallKind.FUNCTION));
+        }
+        return localIdx;
     }
 }

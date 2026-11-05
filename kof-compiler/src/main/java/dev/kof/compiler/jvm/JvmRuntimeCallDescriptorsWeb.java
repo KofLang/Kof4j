@@ -69,6 +69,14 @@ public final class JvmRuntimeCallDescriptorsWeb {
             case "kof_http_post_headers", "kof_http_put_headers", "kof_http_patch_headers"
                     -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;";
             case "kof_http_status" -> "(Ljava/lang/String;)I";
+            // §832: http.send and the Response accessors
+            case "kof_http_send" -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)"
+                    + "Ldev/kof/runtime/KofRuntime$HttpResponse;";
+            case "kof_http_response_status" -> "(Ldev/kof/runtime/KofRuntime$HttpResponse;)I";
+            case "kof_http_response_body" -> "(Ldev/kof/runtime/KofRuntime$HttpResponse;)Ljava/lang/String;";
+            case "kof_http_response_header"
+                    -> "(Ldev/kof/runtime/KofRuntime$HttpResponse;Ljava/lang/String;)Ljava/lang/String;";
+            case "kof_http_response_headers" -> "(Ldev/kof/runtime/KofRuntime$HttpResponse;)Ljava/util/Map;";
             case "kof_http_timeout_set", "kof_http_retry_set", "kof_http_circuit_set" -> "(I)V";
             case "kof_http_insecure_set" -> "()V";
             case "kof_acme_jws_es256" -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;";

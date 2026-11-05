@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §832 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,14 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §832 — the HTTP client returned only a body and threw on every 5xx, so a caller could not read a status or a response header; now `http.send(method, url[, body][, headers...])` returns a `Response`
+
+**Status:** ✅ FIXED 05/11 (external contributor; gaps G15/G172/G178 of a Spring backend port to Kof on the released 0.7.1, measured on `upstream/lab` `2c920c4c1`). API by maintainer decision (05/11).
+
+**MEASURED** (JVM, Script, JS): `http.get`/`post`/`put`/`delete`/`patch`/`options` return the body as a `String` and throw `HTTP 5xx from <url>` on a 5xx; a 4xx returns its body with no way to tell it from a 200. `http.status(url)` sends a separate GET (a HEAD on JS) and returns only the code. No call exposes a response header. The port had to call each endpoint twice (`status`, then `get`) and could not read `Location`, `ETag` or `Retry-After`.
+
+**ROOT CAUSE:** a missing API: the client surface returns a body or a status, never both, and no response value exists.
+
+**Fix:** `http.send(method, url[, body][, headers...])` returns a `kof.http.Response` with `status()` (`Int`), `body()` (`String`), `header(name)` (`String?`, case-insensitive) and `headers()` (`Map<String, String>`, lower-case names). A 4xx or 5xx is returned, not thrown; a transport failure still throws a catchable `String`. The body may be omitted or `null`; headers are the same `"Name: value"` varargs as the other verbs. `Response` is a declarable type name. `send` follows `timeout`, `insecure` and `circuit` (a 5xx counts against the circuit but is returned) and does not `retry`. The JVM runtime value is `KofRuntime$HttpResponse` (Script reaches it by reflection); JS returns the same accessors from the Java HttpClient or `fetch`. Native and Wasm refuse `send` with `HTTP002`. PortuKof alias `http.enviar`; an unknown accessor is SEM025 with its pt text. `learn/stdlib/http` (EN + pt_BR) documents `send`, and its `timeout` row now says seconds: it read `timeout(Int ms)` with `http.timeout(5000)`, while the JVM and JS runtimes read seconds (the LSP signature catalog said `timeout(Int ms)` too, now `timeout(Int seconds)`). **Proof:** `HttpSendResponseE2ETest` 2/2 (a PUT with body and headers, a 404, a 503 to a lower-case `delete` with a `null` body and a refused connection print the same twelve lines on JVM, Script and JS; an unknown accessor is SEM025; Native refuses with HTTP002; RED before with SEM025 on `http.send`).
+<!-- pt-switch --> **PT:** [§832 (pt_BR)](known-bugs.pt_BR.md#832--o-cliente-http-devolvia-so-o-corpo-e-lancava-em-todo-5xx-entao-quem-chamava-nao-lia-status-nem-header-de-resposta-agora-httpsendmethod-url-body-headers-devolve-um-response)

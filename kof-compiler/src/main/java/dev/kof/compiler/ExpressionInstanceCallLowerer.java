@@ -248,6 +248,7 @@ public final class ExpressionInstanceCallLowerer {
         ops.add(new KofCall(invokeOwner, "invoke", ft.parameterTypes(), ft.returnType(), KofCallKind.INSTANCE));
         return localIdx;
     }
+    if (HttpResponseCalls.isResponse(recvType)) return HttpResponseCalls.lower(driver, mc, ops, owner, localIdx, locals);
     if (BuiltinTypes.isList(recvType) || BuiltinTypes.isChannel(recvType)
             || BuiltinTypes.isMap(recvType) || BuiltinTypes.isSet(recvType)
             || KofProcess.isHandle(recvType)) {

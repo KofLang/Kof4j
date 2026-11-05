@@ -244,6 +244,70 @@ public final class JvmWebHttpRuntime {
                     throw kofHttpFailure(url, last);
                 }
 
+                // ── §832 http.send -> Response (no throw on 4xx/5xx) ─────
+                public static final class HttpResponse {
+                    public final int status;
+                    public final String body;
+                    public final java.util.Map<String, String> headers;
+
+                    public HttpResponse(int status, String body, java.util.Map<String, String> headers) {
+                        this.status = status;
+                        this.body = body;
+                        this.headers = headers;
+                    }
+
+                    @Override public String toString() {
+                        return "Response[status=" + status + "]";
+                    }
+                }
+
+                public static HttpResponse kof_http_send(String method, String url, String body, String headers)
+                        throws Exception {
+                    if (kof_http_circuit_open()) {
+                        throw kofHttpFailure(url,
+                                new java.io.IOException("kof.http circuit open (fail fast): " + url));
+                    }
+                    try {
+                        java.net.http.HttpRequest.Builder b = java.net.http.HttpRequest.newBuilder(
+                                java.net.URI.create(url))
+                                .timeout(java.time.Duration.ofSeconds(KOF_HTTP_TIMEOUT.get()));
+                        if (headers != null && !headers.isBlank()) {
+                            for (String line : headers.split("\\n")) {
+                                int c = line.indexOf(':');
+                                if (c > 0) b.header(line.substring(0, c).trim(), line.substring(c + 1).trim());
+                            }
+                        }
+                        b.method(method.toUpperCase(java.util.Locale.ROOT), body != null
+                                ? java.net.http.HttpRequest.BodyPublishers.ofString(body)
+                                : java.net.http.HttpRequest.BodyPublishers.noBody());
+                        java.net.http.HttpResponse<String> r = kofHttpClientFor(url)
+                                .send(b.build(), java.net.http.HttpResponse.BodyHandlers.ofString());
+                        java.util.Map<String, String> h = new java.util.LinkedHashMap<>();
+                        r.headers().map().forEach((k, v) -> {
+                            if (!k.startsWith(":")) h.put(k.toLowerCase(java.util.Locale.ROOT), String.join(", ", v));
+                        });
+                        // a 5xx still counts against http.circuit(n), as for get/post, but is returned
+                        if (r.statusCode() >= 500) kof_http_circuit_record_failure();
+                        else kof_http_circuit_record_success();
+                        return new HttpResponse(r.statusCode(), r.body() != null ? r.body() : "", h);
+                    } catch (Exception e) {
+                        kof_http_circuit_record_failure();
+                        throw kofHttpFailure(url, e);
+                    }
+                }
+
+                public static int kof_http_response_status(HttpResponse r) { return r.status; }
+
+                public static String kof_http_response_body(HttpResponse r) { return r.body; }
+
+                public static String kof_http_response_header(HttpResponse r, String name) {
+                    return name == null ? null : r.headers.get(name.toLowerCase(java.util.Locale.ROOT));
+                }
+
+                public static java.util.Map<String, String> kof_http_response_headers(HttpResponse r) {
+                    return new java.util.LinkedHashMap<>(r.headers);
+                }
+
                 // ── kof.mq — messageria em memória (pub/sub + filas) ─────
                 private static final java.util.concurrent.ConcurrentHashMap<String,
                         java.util.concurrent.CopyOnWriteArrayList<Object>> KOF_MQ_SUBS =

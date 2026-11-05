@@ -231,6 +231,11 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
                 case "kof_http_patch" -> "kofHttpPatch";
                 case "kof_http_patch_headers" -> "kofHttpPatchHeaders";
                 case "kof_http_status" -> "kofHttpStatus";
+                case "kof_http_send" -> "kofHttpSend";
+                case "kof_http_response_status" -> "kofHttpResponseStatus";
+                case "kof_http_response_body" -> "kofHttpResponseBody";
+                case "kof_http_response_header" -> "kofHttpResponseHeader";
+                case "kof_http_response_headers" -> "kofHttpResponseHeaders";
                 case "kof_http_timeout_set" -> "kofHttpTimeoutSet";
                 case "kof_http_retry_set" -> "kofHttpRetrySet";
                 case "kof_http_circuit_set" -> "kofHttpCircuitSet";
