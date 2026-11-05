@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §815 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,22 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §815 — `now - h as Long * 3600000L` casts `now - h`, not `h` (grammar §5.1: `as` binds at the relational level), and computed a wrong number with no diagnostic; now the warning PARSE100
+
+**Status:** ✅ FIXED 05/11, diagnostic face (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `2c920c4c1`). The precedence itself is frozen (`AGENTS.md`, behavior freeze) and unchanged.
+
+**MEASURED** (JVM, Script and JS agree):
+```kof
+main() {
+    val now = 10000000L
+    val h = 2
+    println(now - h as Long * 3600000L)
+}
+```
+Observed: `35999992800000` on all three targets, with no diagnostic; the intended `now - (h as Long) * 3600000L` is `2800000`. A moderation pre-triage time window built this way never matched, so a signal silently never fired.
+
+**ROOT CAUSE:** this is the specified parse, not a parser fault: grammar §5.1 puts `as` at precedence 5, below `+ -` (7) and `* /` (8), so `now - h` is complete before `as` takes it, and the `*` then applies to the cast result. Readers coming from Java (a unary cast) or Kotlin (`as` above multiplication) read the opposite, and nothing told them.
+
+**Fix:** without touching the frozen precedence, the parser warns when the left operand of `as` is an unparenthesized expression with a tighter operator (`+ - * / % << >> >>>`) built by the same precedence climb: **PARSE100**, "'as' binds looser than arithmetic and shifts, so it casts the whole expression on its left; parenthesize the operand you mean". A parenthesized operand returns from `parseUnary`, so `(a - b) as T`, `a - (b as T)`, `h as Long * k`, `x as Long == 2L` and `a as B as C` stay silent. The check lives in `parser/CastPrecedenceLint` (`ExpressionParser` is at the 600-line gate), the PortuKof catalog carries the pt-BR text, and grammar §5.1 (EN + pt_BR) documents it. Whether `as` should move above arithmetic is a maintainer decision. **Proof:** `CastBareArithmeticWarningTest` 2/2 (the verbatim shape warns on its line; each of the eight operators warns; six parenthesized or unambiguous forms stay silent; the build still succeeds); `AsCastPrecedenceE2ETest` 6/6 unchanged; `gen_portukof_diags.py --check` OK.
+<!-- pt-switch --> **PT:** [§815 (pt_BR)](known-bugs.pt_BR.md#815--now---h-as-long--3600000l-converte-now---h-nao-h-gramatica-51-as-liga-no-nivel-relacional-e-calculava-um-numero-errado-sem-diagnostico-agora-o-aviso-parse100)

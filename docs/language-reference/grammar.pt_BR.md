@@ -285,6 +285,12 @@ Maior precedência no topo. **Todos os binários são left-associativos**
 > `ExpressionLowerer.java:174-176`): `(x as Int) + 1` não é `x as (Int + 1)`.
 > O comportamento de encadeamento puro (`a as B as C`) é **Unspecified**.
 
+> Como `as` liga mais fraco que aritmética e deslocamentos, `now - h as Long * k`
+> é `((now - h) as Long) * k`, não `now - ((h as Long) * k)`. Quando o operando
+> de `as` é uma expressão sem parênteses com um operador mais forte
+> (`+ - * / % << >> >>>`), o parser emite o aviso **PARSE100** (§815) e
+> mantém esse parse; coloque parênteses no operando desejado.
+
 ### 5.2 Short-circuit
 
 `&&` e `||` são avaliados com short-circuit em **todos os targets** — JVM/Native

@@ -57,16 +57,16 @@ public class ExpressionParser {
 
     static ExpressionNode parseBinary(ParseContext ctx, int minPrec) {
         ExpressionNode left = ExpressionParser.parseUnary(ctx);
-        while (isBinaryOp(ctx) && precedence(ctx, ctx.peek().value()) >= minPrec) {
-            String op = ctx.advance().value();
-            int prec = precedence(ctx, op);
+        for (boolean bare = false; isBinaryOp(ctx) && precedence(ctx, ctx.peek().value()) >= minPrec; bare = true) {
+            Token opToken = ctx.advance();
+            String op = opToken.value();
+            int prec = CastPrecedenceLint.check(ctx, opToken, left, bare); // §815
             // `as`/`instanceof` recebem um TIPO à direita, e o type-ref PARA
             // no fim do tipo (#459): antes, o RHS caía em parseBinary e o
             // climbing do tipo engolia o operador+RHS seguintes
             // (`a as Double / 2.0` virava type-ref "?" e sumia com o ddiv —
-            // NoClassDefFoundError em runtime). Agora o loop de precedência
-            // recebe o operador de volta. O tipo-função (`() -> Int`) já é
-            // coberto por parseTypeRef→parseFunctionTypeRef (bug 127).
+            // NoClassDefFoundError em runtime); o loop recebe o operador de volta.
+            // Tipo-função (`() -> Int`): parseTypeRef→parseFunctionTypeRef (bug 127).
             ExpressionNode right = ("as".equals(op) || "instanceof".equals(op))
                     ? new IdentifierExpr(ctx.pos(), TypeParser.parseTypeRef(ctx))
                     : ExpressionParser.parseBinary(ctx, prec + 1);

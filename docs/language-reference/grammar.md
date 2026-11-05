@@ -282,6 +282,12 @@ Higher precedence at the top. **All binaries are left-associative**
 > `ExpressionLowerer.java:174-176`): `(x as Int) + 1` is not `x as (Int + 1)`.
 > The behavior of pure chaining (`a as B as C`) is **Unspecified**.
 
+> Because `as` binds looser than arithmetic and shifts, `now - h as Long * k`
+> is `((now - h) as Long) * k`, not `now - ((h as Long) * k)`. When the operand
+> of `as` is an unparenthesized expression with a tighter operator
+> (`+ - * / % << >> >>>`), the parser emits the warning **PARSE100** (§815) and
+> keeps this parse; parenthesize the operand you mean.
+
 ### 5.2 Short-circuit
 
 `&&` and `||` are evaluated with short-circuit on **all targets** — via labels
