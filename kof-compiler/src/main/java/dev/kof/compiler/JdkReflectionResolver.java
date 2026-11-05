@@ -16,6 +16,35 @@ final class JdkReflectionResolver {
     private JdkReflectionResolver() {}
 
     /** Verifica se o nome interno pertence a um pacote padrão do JDK. */
+    /**
+     * §791: {@code import a.b.C.D} names the NESTED class {@code a/b/C$D} when no
+     * top-level {@code a/b/C/D} exists (JDK by reflection, jars by
+     * {@code external}); the bare split gave a class that does not exist and
+     * every member was SEM025. Null when nothing nested matches.
+     */
+    static Type.ClassType nestedImport(String pkg, String name, ExternalClasspath external) {
+        String[] parts = (pkg + "." + name).split("\\.");
+        if (exists(pkg.replace('.', '/') + "/" + name, external)) return null;
+        for (int k = parts.length - 2; k >= 1; k--) {
+            String p = String.join(".", java.util.Arrays.copyOfRange(parts, 0, k));
+            String n = String.join("$", java.util.Arrays.copyOfRange(parts, k, parts.length));
+            if (exists(p.replace('.', '/') + "/" + n, external)) return new Type.ClassType(p, n, java.util.List.of());
+        }
+        return null;
+    }
+
+    private static boolean exists(String internal, ExternalClasspath external) {
+        if (isJdkClass(internal)) {
+            try {
+                Class.forName(internal.replace('/', '.'), false, JdkReflectionResolver.class.getClassLoader());
+                return true;
+            } catch (Throwable t) {
+                return false;
+            }
+        }
+        return external != null && external.knows(internal);
+    }
+
     static boolean isJdkClass(String internalName) {
         if (internalName == null) return false;
         return internalName.startsWith("java/")
