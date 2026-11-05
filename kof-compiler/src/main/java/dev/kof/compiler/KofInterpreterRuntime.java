@@ -258,6 +258,10 @@ public final class KofInterpreterRuntime {
      * só existem como KofObj no interpretador.
      */
     private Object decodeKofValue(IRClass c, Object parsed) throws Throwable {
+        // §833: a record/class takes a JSON object; any other non-null value is JSN006
+        if (parsed != null && !(parsed instanceof java.util.Map<?, ?>))
+            throw new RuntimeException("JSN006: json.decode expected an object but the payload is "
+                    + shapeOf(parsed));
         KofInterpreter.KofObj obj = new KofInterpreter.KofObj(c, interp);
         if (parsed instanceof java.util.Map<?, ?> m) {
             for (IRField f : c.fields()) {
@@ -290,7 +294,7 @@ public final class KofInterpreterRuntime {
     private Object bindKof(Type type, Object raw) throws Throwable {
         if (raw == null) return null;
         IRClass nested = interp.kofClassOrNull(type);
-        if (nested != null && raw instanceof java.util.Map) return decodeKofValue(nested, raw);
+        if (nested != null) return decodeKofValue(nested, raw); // §833: JSN006 unless an object
         // #1103 (JSN006): shape errada para o container pedido = erro nomeado,
         // nunca container vazio silencioso (mesma lei do runtime gerado).
         if (BuiltinTypes.isList(type) && !(raw instanceof List<?>))

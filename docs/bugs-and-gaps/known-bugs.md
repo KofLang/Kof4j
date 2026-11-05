@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §833 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20218,3 +20219,23 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Owner:** compiler core (the `.30:9092` territory — the docs/lab lane measured it to the root and stopped per the lane contract); class: compiler emission / functional types.
 <!-- pt-switch --> **PT:** [§935 (pt_BR)](known-bugs.pt_BR.md#935--tipo-funcao-com-retorno-nulavel-compila-mas-a-classe-do-lambda-emitida-nao-implementa-a-interface-funcional--incompatibleclasschangeerror-na-primeira-chamada-jvm)
+
+## §833 — a wrong-shaped record FIELD in `json.decode` was still silent or a host error after #1103 (a `List` field given `{}` was an empty list on the JVM, `undefined` on JS)
+
+**Status:** ✅ FIXED 05/11 (external contributor; issue #1128, measured on `upstream/lab` `db3f608f8` (the #1103 fix)).
+
+**MEASURED** (JVM, Script, JS):
+```kof
+record Item(String name)
+record Box(List<Item> items)
+main() {
+    val b = json.decode<Box>("{\"items\": {}}")
+    println(b.items.size())
+}
+```
+Observed: the JVM prints `0` (the object became an empty list); JS throws `p.items.map is not a function`; Script reports JSN006. The neighbours diverge too: a `List<String>` field given `{}` or `"x"` is `undefined` or `1` on JS; a `Map` field given `[1]`, a nested record field given `[1]` and `json.decode<Item>("[1]")` fail on the JVM with `argument type mismatch` or a `ClassCastException`, read `undefined` on JS, and the nested record crashes the interpreter.
+
+**ROOT CAUSE:** #1103 checks the shape of the top-level container only. One level down, each binder still trusted the value: the JVM `kof_json_bind` built a `List` field from a JSON object through its generic class branch (an empty `ArrayList`) and passed other mismatches raw to the record constructor; the JS class decoder read fields off whatever value it got and mapped a `List` field without checking it; the interpreter's `decodeKofValue` accepted a non-object.
+
+**Fix:** the same JSN006 at every level, from the helpers #1103 added: the JVM binder throws `jsonShapeError` when a `List` field is not an array and when a `Map` field, a record or a Kof class is not an object; the JS class decoder requires an object (`kofJsonRequireObject`) and a `List` field requires an array (`kofJsonRequireArray`); the interpreter's `decodeKofValue` requires an object. A JSON `null` field stays `null`. **Proof:** `JsonFieldShapeMismatchE2ETest` 1/1 (six field and top-level record mismatches print the same JSN006 lines on JVM, Script and JS; a `null` field and a valid list field are unchanged; RED before); `JsonShapeMismatchE2ETest` (#1103) 5/5.
+<!-- pt-switch --> **PT:** [§833 (pt_BR)](known-bugs.pt_BR.md#833--um-campo-de-record-com-formato-errado-no-jsondecode-continuava-silencioso-ou-com-erro-do-host-depois-da-1103-um-campo-list-recebendo--virava-lista-vazia-no-jvm-undefined-no-js)
