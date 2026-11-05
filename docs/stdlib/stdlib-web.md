@@ -145,7 +145,8 @@ paths (`return null` and unknown route).
 
 **Auth-if-present:** even without `auth: true`, a request that **carries**
 `Authorization` with an invalid token never passes (401) — avoids "bad token
-becomes anonymous".
+becomes anonymous". It is part of `app.security()` / `app.policy()`: an app
+that configures neither ignores the header (the route reads it), §781.
 
 ```kof
 main() {
