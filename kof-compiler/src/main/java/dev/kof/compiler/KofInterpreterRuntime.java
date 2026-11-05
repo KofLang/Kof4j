@@ -277,10 +277,28 @@ public final class KofInterpreterRuntime {
         return obj;
     }
 
+
+    private static String shapeOf(Object raw) {
+        if (raw instanceof java.util.Map<?, ?>) return "an object";
+        if (raw instanceof List<?>) return "an array";
+        if (raw instanceof String) return "a string";
+        if (raw instanceof Boolean) return "a bool";
+        if (raw instanceof Number) return "a number";
+        return raw == null ? "null" : raw.getClass().getSimpleName();
+    }
+
     private Object bindKof(Type type, Object raw) throws Throwable {
         if (raw == null) return null;
         IRClass nested = interp.kofClassOrNull(type);
         if (nested != null && raw instanceof java.util.Map) return decodeKofValue(nested, raw);
+        // #1103 (JSN006): shape errada para o container pedido = erro nomeado,
+        // nunca container vazio silencioso (mesma lei do runtime gerado).
+        if (BuiltinTypes.isList(type) && !(raw instanceof List<?>))
+            throw new RuntimeException("JSN006: json.decode expected an array but the payload is "
+                    + shapeOf(raw));
+        if (BuiltinTypes.isMap(type) && !(raw instanceof java.util.Map<?, ?>))
+            throw new RuntimeException("JSN006: json.decode expected an object but the payload is "
+                    + shapeOf(raw));
         if (raw instanceof List<?> l && BuiltinTypes.isList(type)) {
             Type elem = ((Type.ClassType) type).typeArguments().isEmpty()
                     ? Type.UnknownType.UNKNOWN : ((Type.ClassType) type).typeArguments().get(0);
