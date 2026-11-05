@@ -113,7 +113,7 @@ final class SemNewExprTyper {
         }
         if (qname.contains(".") && sa.externalTypes() != null) {
             String internal = qname.replace('.', '/');
-            if (sa.externalTypes().knows(internal)) {
+            if (sa.externalTypes().knowsMembers(internal)) {
                 ExternalClasspath.MethodSignature sig =
                         sa.externalTypes().resolveConstructor(internal, ne.arguments().size());
                 if (sig != null) {

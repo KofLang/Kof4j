@@ -46,6 +46,10 @@ public class SemanticAnalyzer {
                 && externalTypes.knows(ct.internalName());
     }
 
+    boolean resolvesMembersOnClasspath(Type.ClassType ct) {
+        return isExternal(ct) || (externalTypes != null && externalTypes.knowsMembers(ct.internalName()));
+    }
+
 
 
     // REFACTOR-500 (higiene de gate check_500): os índices de classes/nomes e o

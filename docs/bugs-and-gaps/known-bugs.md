@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §775 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,23 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §775 — A member of a JDK exception class that Kof does not list (`SQLException.getSQLState()`) was typed `Object` (NoSuchMethodError / ClassFormatError)
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `3a2952641`).
+
+**MEASURED** (JVM target):
+```kof
+import java.sql.SQLException
+main() {
+    val ex = new SQLException("dup", "23505", 7)
+    var s = ex.getSQLState()
+    println(s.startsWith("23"))
+}
+```
+Observed: compiles with no diagnostic, then dies at load with `ClassFormatError: Illegal class name "" in class file Default/Main`. The bytecode is `invokevirtual SQLException.getSQLState:()Ljava/lang/Object;` (a `NoSuchMethodError` once reached) followed by `invokevirtual "".startsWith`. `String s = ex.getSQLState()` dies with `NoSuchMethodError`; `ex.getErrorCode() + 1` is typed `Object` too. `o as SQLException` failed with `SEM011 Undefined variable or type`.
+
+**ROOT CAUSE:** every JDK `Throwable` is a Kof builtin for `throw`/`catch` (`CompilerTypes.isKofBuiltinJavaLang`), so `ExternalClasspath.knows()` excludes it on purpose (making them external broke 39 tests when it was tried). As a side effect the typer never resolved their members on the classpath: only members the builtin registry lists (`getMessage`) got a type; `new SQLException(...)` and an `as SQLException` target were UNKNOWN; and an unknown member compiled into an empty-owner call instead of `SEM025`.
+
+**Fix:** `ExternalClasspath.knowsMembers()` (= `knows()` plus the JDK throwables, never `java.lang.String`) is used where a type's MEMBERS or its name are resolved — the member typer's classpath branch and its `SEM025` check, `new` of an imported class, the imported-type guard of `as`, and import qualification — while `isExternal()`, which decides throw/catch semantics, is unchanged. Because `new` of a JDK throwable is now typed (it was `UNKNOWN`), the `throw` check (SEM026) accepts that set explicitly (`String` and JDK throwables), the same values that passed before; `KofBuiltinJdkSeparationE2ETest.typedExceptionThrowAndCatchStillCompile` covers it. **Proof:** `JdkThrowableMembersE2ETest` 4/4 (`getSQLState`/`getErrorCode`/`getMessage`, a cast to `SQLException`, `SEM025` on an unknown member, Kof `throw "x"`/`catch (String e)` unchanged); on the old code 3 of the 4 fail.
+<!-- pt-switch --> **PT:** [§775 (pt_BR)](known-bugs.pt_BR.md#775--um-membro-de-classe-de-excecao-do-jdk-que-o-kof-nao-lista-sqlexceptiongetsqlstate-era-tipado-como-object-nosuchmethoderror--classformaterror)

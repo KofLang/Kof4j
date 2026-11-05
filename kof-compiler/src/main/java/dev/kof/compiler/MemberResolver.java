@@ -153,7 +153,7 @@ public final class MemberResolver {
             for (String imp : unit.imports()) {
                 if (imp.endsWith(".*")) {
                     String pkg = imp.substring(0, imp.length() - 2);
-                    if (external.knows(pkg.replace('.', '/') + "/" + name)) {
+                    if (external.knowsMembers(pkg.replace('.', '/') + "/" + name)) {
                         return new Type.ClassType(pkg, name, List.of());
                     }
                 }

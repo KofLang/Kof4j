@@ -165,6 +165,12 @@ public final class ExternalClasspath {
         return null;
     }
 
+    /** §775: a JDK throwable is a Kof builtin for throw/catch, yet its other members resolve here. */
+    public synchronized boolean knowsMembers(String internalName) {
+        return knows(internalName) || (!"java/lang/String".equals(internalName)
+                && CompilerTypes.isKofBuiltinJavaLang(internalName));
+    }
+
     /** Classe externa presente nos entries (por nome interno)? */
     public synchronized boolean knows(String internalName) {
         return (loaded && internalName != null && classBytes.containsKey(internalName))
