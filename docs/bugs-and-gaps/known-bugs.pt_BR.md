@@ -3,6 +3,7 @@
 # Known Bugs — handoff para o próximo agente
 
 last: §770 (FIXED)
+last: §799 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17701,3 +17702,23 @@ Observado: compila sem diagnóstico e morre com `IncompatibleClassChangeError`: 
 
 **Correção:** o novo `ExternalOverloads` seleciona pela JLS 15.12.2 para donos de jar (ASM, sobre a classe, suas superclasses e superinterfaces, sem private/bridge/synthetic) e do JDK (reflexão): fase 1 subtipagem e alargamento primitivo, fase 2 boxing/unboxing, fase 3 aridade variável, e então o método aplicável mais específico. Empate entre métodos maximamente específicos é `SEM057` (o diagnóstico existente "call to '{0}' is ambiguous between {1} overloads") quando todos os tipos de argumento são conhecidos; um argumento cujo tipo o compilador não consegue provar (UNKNOWN, lambda, classe fora de qualquer classpath) nunca vira erro e mantém a escolha anterior por aridade, assim como uma chamada sem sobrecarga aplicável (cujas checagens de argumento reportam o descasamento como antes). O lowering estático resolve com os tipos dos argumentos, e o `KofCall` carrega `interfaceOwner` para que uma chamada estática a uma interface externa saia como `invokestatic` com `InterfaceMethodref`. **Prova:** `ExternalOverloadResolutionE2ETest` 6/6 (sobrecargas do JDK: `Math.round(double)` concatenado como `long`, `Timestamp.valueOf(LocalDateTime)`, `LocalDate.now(ZoneOffset)`, um literal `Int` alargado para `plusSeconds(long)`; a forma do Flyway com `HashMap` e com `mapOf` do Kof, uma sobrecarga estática, o mais específico `String` sobre `CharSequence`/`Object`, alargamento `long` antes do boxing `Integer`, uma sobrecarga herdada da superclasse, `Path.of(String)` e `Path.of(String, String...)`, `SEM057` num empate provado); no código antigo os 6 falham. JS/Nativo não são afetados: método de classe externa já é recusado lá com `INTEROP003` (#760). Sobrecargas de construtor (`new Foo(x)`) seguem resolvidas por aridade no `ExternalCtors` e ficam fora desta correção. Esta é também a preferência pelo overload exato, estilo (a), que a §554 deixou em aberto: `update(Byte[])` sobre `update(byte)`/`update(byte[])` (escalar primeiro) agora liga `update(byte[])` e roda, então o `InteropPrimitiveSlotE2ETest` fixa isso (`arrayArgumentBindsTheArrayOverload`) e mantém o `SEM014` da §554 para um slot que só aceita primitivo (`echo(long)` com `Byte[]`).
 <!-- pt-switch --> **EN:** [§770 (en)](known-bugs.md#770--a-call-into-an-overloaded-external-java-method-picked-the-first-overload-of-the-same-arity-ignoring-the-argument-types-incompatibleclasschangeerror)
+## §799 — os argumentos de um construtor externo nunca eram tipados: `new File(System.getProperty(k))` e `new ByteArrayInputStream(s.getBytes())` eram emitidos como `<init>(Object)` (NoSuchMethodError)
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `4f7257933`).
+
+**MEDIDO** (alvo JVM):
+```kof
+import java.lang.System
+import java.io.File
+import java.io.ByteArrayInputStream
+main() {
+    println(new File(System.getProperty("java.io.tmpdir")).exists())
+    println(new ByteArrayInputStream("hi".getBytes()).available())
+}
+```
+Observado: `NoSuchMethodError: 'void java.io.File.<init>(java.lang.Object)'` (e o mesmo para `ByteArrayInputStream`); sem o import de `java.lang.System` a primeira linha era um frame crash na compilação em vez de `SEM011`. Por um local (`val p = System.getProperty(k)`, depois `new File(p)`) funciona.
+
+**CAUSA RAIZ:** o `SemNewExprTyper` tipa os argumentos de um construtor Kof, mas retornava cedo para uma classe externa (JDK ou jar) sem visitá-los. O lowering pede ao analyzer o tipo de um argumento chamada; sem nada gravado caía em `Object`, e o descritor do construtor era montado com isso. Um nome indefinido dentro de um argumento assim nunca era diagnosticado.
+
+**Correção:** os argumentos de um construtor externo são tipados como os de qualquer chamada (um argumento lambda segue no caminho com tipo-alvo que já o trata). **Prova:** `ExternalCtorArgTypingE2ETest` 2/2 (os dois construtores rodam, imprimindo `true` e `2`; `new File(nowhere)` é `SEM011`). Escolher entre sobrecargas de construtor JDK de mesma aridade pelo tipo dos argumentos é um gap separado (G311) sobre a resolução de sobrecarga externa (§770).
+<!-- pt-switch --> **EN:** [§799 (en)](known-bugs.md#799--the-arguments-of-an-external-constructor-were-never-typed-new-filesystemgetpropertyk-and-new-bytearrayinputstreamsgetbytes-were-emitted-as-initobject-nosuchmethoderror)

@@ -3,6 +3,7 @@
 # Known Bugs — handoff to the next agent
 
 last: §770 (FIXED)
+last: §799 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20227,3 +20228,23 @@ Observed: compiles with no diagnostic, then dies with `IncompatibleClassChangeEr
 
 **Fix:** the new `ExternalOverloads` selects by JLS 15.12.2 for jar owners (ASM, over the class, its superclasses and superinterfaces, private/bridge/synthetic excluded) and JDK owners (reflection): phase 1 subtyping and primitive widening, phase 2 boxing/unboxing, phase 3 variable arity, then the most specific applicable method. A tie between maximally specific methods is `SEM057` (the existing "call to '{0}' is ambiguous between {1} overloads" diagnostic) when every argument type is known; an argument whose type the compiler cannot prove (UNKNOWN, a lambda, a class on no classpath) never turns into an error and keeps the previous arity-based pick, as does a call with no applicable overload (whose argument checks report the mismatch as before). The static-call lowering resolves with the argument types, and `KofCall` carries `interfaceOwner` so a static call on an external interface is emitted as `invokestatic` with an `InterfaceMethodref`. **Proof:** `ExternalOverloadResolutionE2ETest` 6/6 (JDK overloads: `Math.round(double)` concatenated as a `long`, `Timestamp.valueOf(LocalDateTime)`, `LocalDate.now(ZoneOffset)`, an `Int` literal widening into `plusSeconds(long)`; the Flyway shape with a `HashMap` and a Kof `mapOf`, a static overload, most specific `String` over `CharSequence`/`Object`, widening `long` over boxing `Integer`, an overload inherited from the superclass, `Path.of(String)` and `Path.of(String, String...)`, `SEM057` on a proven tie); on the old code all 6 fail. JS/Native are unaffected: an external class method already refuses there with `INTEROP003` (#760). Constructor overloads (`new Foo(x)`) still resolve by arity through `ExternalCtors` and are out of this fix. This is also the (a)-style exact-overload preference §554 left open: `update(Byte[])` on a scalar-first `update(byte)`/`update(byte[])` now binds `update(byte[])` and runs, so `InteropPrimitiveSlotE2ETest` pins that (`arrayArgumentBindsTheArrayOverload`) and keeps the §554 `SEM014` for a slot that only takes a primitive (`echo(long)` with a `Byte[]`).
 <!-- pt-switch --> **PT:** [§770 (pt_BR)](known-bugs.pt_BR.md#770--uma-chamada-a-um-metodo-java-externo-sobrecarregado-escolhia-a-primeira-sobrecarga-de-mesma-aridade-ignorando-os-tipos-dos-argumentos-incompatibleclasschangeerror)
+## §799 — the arguments of an external constructor were never typed: `new File(System.getProperty(k))` and `new ByteArrayInputStream(s.getBytes())` were emitted as `<init>(Object)` (NoSuchMethodError)
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED** (JVM target):
+```kof
+import java.lang.System
+import java.io.File
+import java.io.ByteArrayInputStream
+main() {
+    println(new File(System.getProperty("java.io.tmpdir")).exists())
+    println(new ByteArrayInputStream("hi".getBytes()).available())
+}
+```
+Observed: `NoSuchMethodError: 'void java.io.File.<init>(java.lang.Object)'` (and the same for `ByteArrayInputStream`); without the `java.lang.System` import the first line was a frame crash at compile time instead of `SEM011`. Through a local (`val p = System.getProperty(k)`, then `new File(p)`) it works.
+
+**ROOT CAUSE:** `SemNewExprTyper` types the arguments of a Kof constructor but returned early for an external (JDK or jar) class without visiting them. The lowering asks the analyzer for the type of a call argument; with none recorded it fell back to `Object`, and the constructor descriptor was built from that. An undefined name inside such an argument was never diagnosed.
+
+**Fix:** the arguments of an external constructor are typed like any call's (a lambda argument stays on the target-typed path that already handles it). **Proof:** `ExternalCtorArgTypingE2ETest` 2/2 (both constructors run, printing `true` and `2`; `new File(nowhere)` is `SEM011`). Selecting among same-arity JDK constructor overloads by argument type is a separate gap (G311) on top of the external overload resolution (§770).
+<!-- pt-switch --> **PT:** [§799 (pt_BR)](known-bugs.pt_BR.md#799--os-argumentos-de-um-construtor-externo-nunca-eram-tipados-new-filesystemgetpropertyk-e-new-bytearrayinputstreamsgetbytes-eram-emitidos-como-initobject-nosuchmethoderror)
