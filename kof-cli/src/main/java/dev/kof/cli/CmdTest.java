@@ -138,11 +138,18 @@ final class CmdTest {
         CompilerDriver driver = new CompilerDriver();
         // #708: a raiz de app entra como source path — `import exemplo.Calculo`
         // resolve de src/main/kof sem cópia nem arquivo de entrada gerado.
-        if (appRoot != null && Files.isDirectory(appRoot)) {
-            driver.setDependencySourceRoots(java.util.List.of(appRoot));
-        } else if (moduleRoot != null && Files.isDirectory(moduleRoot)) {
-            // #856: sem raiz de app declarada, o MODULO e a raiz de fontes.
-            driver.setDependencySourceRoots(java.util.List.of(moduleRoot));
+        // #856: sem raiz de app declarada, o MODULO e a raiz de fontes.
+        List<Path> roots = appRoot != null && Files.isDirectory(appRoot) ? List.of(appRoot)
+                : moduleRoot != null && Files.isDirectory(moduleRoot) ? List.of(moduleRoot) : List.of();
+        if (!roots.isEmpty()) driver.setDependencySourceRoots(roots);
+        // §783: `--deps` compiles AND runs the tests with the kofdeps jars, like `kof run --deps`.
+        String depsCp;
+        try {
+            depsCp = fl.deps() ? Deps.applyTo(driver, roots) : "";
+        } catch (IOException e) {
+            System.err.println("test: failed to read kofdeps: " + e.getMessage());
+            System.exit(1);
+            return;
         }
         int passed = 0;
         int failed = 0;
@@ -270,7 +277,7 @@ final class CmdTest {
                             cmd.addAll(KofStdio.capturedJvmFlags());
                             // §556: sem o wrapper de diagnóstico, uma falha de
                             // load/link do runner vira a mensagem falsa do launcher.
-                            KofCliSupport.appendJvmLaunch(cmd, tmp.toString(), className);
+                            KofCliSupport.appendJvmLaunch(cmd, tmp + depsCp, className);
                             ProcessBuilder pb = new ProcessBuilder(cmd);
                             pb.redirectErrorStream(true);
                             Integer ec = boundedRun(pb, timeoutSec, output);

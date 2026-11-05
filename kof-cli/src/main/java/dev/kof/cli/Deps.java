@@ -426,6 +426,23 @@ final class Deps {
         return entries;
     }
 
+    /**
+     * The project's kofdeps applied to a compile that does not go through
+     * {@code kof run} ({@code kof check --deps} §772, {@code kof test --deps} §783):
+     * the dependency source roots are appended to {@code roots} and the jars
+     * become the external classpath. Returns the jars as a suffix for a child
+     * JVM classpath ({@code ""} when there are none).
+     */
+    static String applyTo(dev.kof.compiler.CompilerDriver driver, List<Path> roots) throws IOException {
+        List<Path> all = new ArrayList<>(roots);
+        all.addAll(DepsSources.roots(Path.of(".")));
+        driver.setDependencySourceRoots(all);
+        List<Path> entries = classpathEntries();
+        if (!entries.isEmpty()) driver.setExternalClasspath(entries);
+        String cp = classpath();
+        return cp.isBlank() ? "" : java.io.File.pathSeparator + cp;
+    }
+
     /** Classpath resolvido (jars no cache), separado por ':' (ou ';' no Windows). */
     static String classpath() throws IOException {
         return classpath(Path.of("."));

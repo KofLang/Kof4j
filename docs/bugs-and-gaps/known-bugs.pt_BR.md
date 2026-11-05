@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §783 (FIXED)
 last: §772 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
@@ -17696,3 +17697,14 @@ Observado: `kof run Main.kf --deps` compila e roda; `kof check Main.kf` reporta 
 
 **Correção:** `kof check` aceita `--deps` e configura o driver exatamente como `kof run --deps` (mesmo classpath de jars e mesmas raízes de fonte das dependências). O parsing do classpath que `CmdRun` (duas vezes) e `CmdBuild` repetiam inline virou `Deps.classpathEntries()`, usado pelos três comandos. **Prova:** `CmdCheckDepsTest` 1/1 (um jar num `~/.kof/deps` falso e uma linha no `kofdeps`: `check` sem `--deps` segue `PKG006`, `check --deps` passa, `run --deps` roda); no código antigo falha (`unknown flag: --deps`). `CmdCheckTest`, `DepsTest`, `DepsSourceModuleTest`, `DepsTransitiveTest`, `CmdBuild*Test`, `CmdRun*Test` verdes (77 testes).
 <!-- pt-switch --> **EN:** [§772 (en)](known-bugs.md#772--kof-check-ignored-the-kofdeps-classpath-so-a-third-party-import-that-kof-run---deps-resolves-failed-with-pkg006)
+
+## §783 — o `kof test` nunca configurava o classpath do `kofdeps`, então um teste que alcança um jar de terceiros falhava com PKG006
+
+**Status:** ✅ CORRIGIDO 04/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/main` `3a2952641`). Construído sobre a §772.
+
+**MEDIDO:** um projeto com `kofdeps` (`com.example:greeter:1.0`) e `tests/GreeterTest.kf` importando `ext.Greeter`: `kof run Main.kf --deps` funciona, `kof test tests` falha com `PKG006` no import, e `kof test tests --deps` era recusado como flag desconhecida. Uma suíte que alcança um kernel sobre HikariCP/H2/Flyway só rodava com um runner escrito à mão chamando a API do compilador.
+
+**CAUSA RAIZ:** o `CmdTest` montava o `CompilerDriver` só com as raízes de fonte do app/módulo, nunca com os jars do `kofdeps` nem as raízes de fonte das dependências, e lançava a JVM filha só com `-cp <out>`, então nem um teste compilado conseguiria carregar o jar.
+
+**Correção:** `kof test --deps` aplica o `kofdeps` do projeto como o `kof run --deps`: raízes de fonte das dependências somadas à raiz do app/módulo, os jars como classpath externo, e os mesmos jars no classpath da JVM filha. A configuração vive num helper, `Deps.applyTo`, que o `kof check --deps` (§772) passa a usar também. O texto de ajuda e o `docs/tooling/README` (EN + pt_BR) listam a flag. **Prova:** `CmdTestDepsTest` (PKG006 sem `--deps`, exit 0 com ele); no código antigo o `--deps` é rejeitado.
+<!-- pt-switch --> **EN:** [§783 (en)](known-bugs.md#783--kof-test-never-set-the-kofdeps-classpath-so-a-test-reaching-a-third-party-jar-failed-with-pkg006)

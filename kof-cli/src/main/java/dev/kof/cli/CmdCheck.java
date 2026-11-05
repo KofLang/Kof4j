@@ -100,9 +100,7 @@ final class CmdCheck {
             // §772: the same kofdeps classpath and source roots as `kof run --deps`,
             // so a third-party import type-checks instead of failing PKG006.
             try {
-                driver.setDependencySourceRoots(DepsSources.roots(Path.of(".")));
-                List<Path> entries = Deps.classpathEntries();
-                if (!entries.isEmpty()) driver.setExternalClasspath(entries);
+                Deps.applyTo(driver, List.of());
             } catch (IOException e) {
                 err.println("check: failed to read kofdeps: " + e.getMessage());
                 return 1;
