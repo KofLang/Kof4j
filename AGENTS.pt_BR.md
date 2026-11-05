@@ -50,6 +50,7 @@ decision:
 * D-RELEASE-CADENCE: cadência semanal de minors até `0.9.0`; se a `0.9.0` for atingida sem o exit gate completo, a linha continua como `1.0.0-RC-1`, `1.0.0-RC-2`, … (cada RC um minor), até estabilizar, então a `1.0.0` de verdade; o número da versão no corte é chamada da mantenedora (mantenedora 02/10)
 * D-LAB-STABILITY: um minor só é cortado de um `lab` ESTÁVEL (suíte completa verde, gates rc=0, 0 bloqueantes, nenhum `1.0-blocks` aberto); senão o corte escorrega para o próximo fim de semana (mantenedora 02/10)
 * D-AS-PRECEDENCE: `as` liga na precedência 9, acima de `* / %` (como no Kotlin), a partir da 0.8; PARSE100 avisa onde o parse antigo no nível 5 era diferente (§815, mantenedor 05/11)
+* D-ELVIS: `a ?: b` existe (precedência 6: acima das comparações, abaixo dos deslocamentos), a partir da 0.8; substitui o exemplo `?:` da D-NOT-JAVA (§821, mantenedor 05/11)
 
 ---
 

@@ -270,10 +270,11 @@ Maior precedência no topo. **Todos os binários são left-associativos**
 
 | Prec | Operadores | Assoc |
 |---|---|---|
-| 9 | `as` | left |
-| 8 | `* / %` | left |
-| 7 | `+ -` | left |
-| 6 | `<< >> >>>` | left |
+| 10 | `as` | left |
+| 9 | `* / %` | left |
+| 8 | `+ -` | left |
+| 7 | `<< >> >>>` | left |
+| 6 | `?:` | left |
 | 5 | `== != < <= > >= instanceof` | left |
 | 4 | `&` | left |
 | 3 | `\| ^` | left |
@@ -281,7 +282,7 @@ Maior precedência no topo. **Todos os binários são left-associativos**
 | 1 | `\|\|` | left (short-circuit) |
 | 0 | `= +=` … | **right** |
 
-> `as` liga mais forte que todos os operadores binários (9, como no Kotlin;
+> `as` liga mais forte que todos os operadores binários (10, como no Kotlin;
 > §815, `D-AS-PRECEDENCE`), e o lado direito é um tipo, nunca uma expressão:
 > `now - h as Long * k` é `now - ((h as Long) * k)`, `a as Double / 2.0` é
 > `(a as Double) / 2.0`, e `a as B as C` é `(a as B) as C`. `instanceof`
@@ -295,6 +296,14 @@ Maior precedência no topo. **Todos os binários são left-associativos**
 > intenção explícita, `(a - b) as T` para o significado antigo ou
 > `a - (b as T)` para o novo.
 
+> `a ?: b` (elvis, §821, `D-ELVIS`) é `a` quando não é null, senão `b`; `a`
+> é avaliado uma vez e `b` só quando `a` é null. Fica acima das comparações e
+> abaixo de deslocamentos e aritmética, como no Kotlin: `x ?: "y" == "y"` é
+> `(x ?: "y") == "y"` e `x ?: a + b` é `x ?: (a + b)`. Com `a: T?` o
+> resultado é `T` quando `b` é um `T` e `T?` quando `b` é nulável; um `b` de
+> outro tipo é `SEM014`. Um cast à direita de `?:` não é posição de PARSE100
+> (o operador é novo na 0.8).
+
 ### 5.2 Short-circuit
 
 `&&` e `||` são avaliados com short-circuit em **todos os targets** — JVM/Native
@@ -302,7 +311,7 @@ por labels, JS pelos operadores nativos (SG-006 ✅ CORRIGIDO 09/09).
 
 ### 5.3 Operadores que NÃO existem (SG-002, verificado por probe)
 
-`~` (bitwise NOT), `?:` (elvis), `??` (null-coalesce), `..` (range), `in`
+`~` (bitwise NOT), `??` (null-coalesce), `..` (range), `in`
 (membership em expressão), `=>`, `::`, `|>`, `...`. Todos produzem erro de
 parse. Para membership use `setOf(…).contains(x)` (idiom da linguagem).
 

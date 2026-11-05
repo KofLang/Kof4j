@@ -23,7 +23,7 @@ final class CastPrecedenceLint {
     /** Warns on {@code a OP b as T} whose parse changed with §815;
      *  returns the precedence of {@code op} for the caller's climb. */
     static int check(ParseContext ctx, Token op, int minPrec) {
-        if ("as".equals(op.value()) && minPrec > OperatorPrecedence.LEGACY_AS) {
+        if ("as".equals(op.value()) && minPrec > OperatorPrecedence.LEGACY_AS && minPrec != OperatorPrecedence.ELVIS_OPERAND) {
             ctx.diagnostics.warning(ctx.file, op.line(), op.column(), op.length(),
                     "'as' now binds tighter than arithmetic, shifts and comparisons, so it casts"
                             + " only the operand on its left (before 0.8 it cast the whole expression);"

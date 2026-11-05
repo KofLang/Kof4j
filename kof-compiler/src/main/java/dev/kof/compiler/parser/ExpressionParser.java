@@ -84,7 +84,7 @@ public class ExpressionParser {
                  EQUAL_EQUAL, BANG_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL,
                  AMP_AMP, PIPE_PIPE, AMP, PIPE, CARET,
                  LESS_LESS, GREATER_GREATER, GREATER_GREATER_GREATER,
-                 INSTANCEOF, AS -> true;
+                 INSTANCEOF, AS, QUESTION_COLON -> true;
             default -> false;
         };
     }

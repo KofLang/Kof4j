@@ -219,8 +219,8 @@ nullable). Consequências observáveis:
 
 - `~5` → `PARSE041` (*probe*) — **não existe** complemento bit a bit.
 - `a => b` → `PARSE041` — só `->` existe.
-- `x ?? y`, `x ?: y` → `PARSE041` (*probe*) — **não existe** null-coalescing
-  nem elvis.
+- `x ?? y` → `PARSE041` (*probe*) — **não existe** `??`; o elvis `x ?: y` é o
+  token `?:` (§821).
 - `1..3` → `PARSE039` (*probe*) — **não existe** operador de range.
 - `1 in s` → `PARSE029` (*probe*) — **não existe** operador `in` em expressão
   (`in` só é palavra contextual dentro de `for (var x in coll)`).

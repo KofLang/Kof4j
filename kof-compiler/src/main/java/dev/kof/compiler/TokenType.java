@@ -127,5 +127,6 @@ public enum TokenType {
     DOT,
     COLON,
     QUESTION,
+    QUESTION_COLON,
     AT,
 }

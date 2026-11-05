@@ -13,6 +13,10 @@ public final class OperatorPrecedence {
      *  above this level reads differently than it did before 0.8 (PARSE100). */
     public static final int LEGACY_AS = 5;
 
+    /** The climb level of the right operand of {@code ?:} (§821, new in 0.8):
+     *  a cast there has no older reading, so it is not a PARSE100 position. */
+    public static final int ELVIS_OPERAND = 7;
+
     private OperatorPrecedence() {}
 
     /** Higher binds tighter; -1 for a token that is not a binary operator. */
@@ -23,10 +27,11 @@ public final class OperatorPrecedence {
             case "|", "^" -> 3;
             case "&" -> 4;
             case "==", "!=", "<", "<=", ">", ">=", "instanceof" -> 5;
-            case "<<", ">>", ">>>" -> 6;
-            case "+", "-" -> 7;
-            case "*", "/", "%" -> 8;
-            case "as" -> 9; // §815: tighter than arithmetic, as in Kotlin
+            case "?:" -> 6; // §821: above comparisons, below shifts, as in Kotlin
+            case "<<", ">>", ">>>" -> 7;
+            case "+", "-" -> 8;
+            case "*", "/", "%" -> 9;
+            case "as" -> 10; // §815: tighter than arithmetic, as in Kotlin
             default -> -1;
         };
     }

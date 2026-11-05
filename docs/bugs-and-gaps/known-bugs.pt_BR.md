@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §821 (FIXED)
 last: §815 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
@@ -17699,3 +17700,26 @@ Observado: `35999992800000` nos três alvos, sem diagnóstico; o pretendido `now
 
 **Correção:** `as` sobe para a precedência 9, acima de `* / %` (como no Kotlin); `instanceof` continua em 5. O lado direito continua sendo um type-ref que para no fim do tipo (#459), então `a as Double / 2.0` segue lendo `(a as Double) / 2.0`. Migração: o **PARSE100** agora avisa onde a tabela antiga lia o mesmo texto de outro jeito, ou seja, onde `as` é pego por um climb de operando acima do antigo nível 5 (o operando sem parênteses de um operador aritmético, de deslocamento ou de comparação); um cast entre parênteses reinicia o climb e fica em silêncio. A checagem fica em `parser/CastPrecedenceLint`, o catálogo PortuKof traz o texto pt-BR e a gramática §5.1 (EN + pt_BR) traz a tabela nova e a nota de migração. Um parse de todos os `.kf` do repositório achou um lugar que mudou de significado, `supervisor-host.kf` (`agora / 1000 as Int`), agora `(agora / 1000) as Int`. O formatter tinha uma cópia própria da tabela (com `as` em 5), então o `kof fmt` imprimiria `(a - b) as T` como `a - b as T`, que agora significa `a - (b as T)`: a tabela vai para `parser/OperatorPrecedence`, lida pelo parser e pelo `KofFormatterExpr`, o formatter mantém os parênteses de um cast numa posição de PARSE100 (acompanha o nível do climb do parser) e um operando unário liga acima de todo operador binário. **Prova:** `FormatterCastPrecedenceTest` 2/2 (os parênteses que carregam significado sobrevivem, a saída é idempotente e não tem PARSE100); `AsCastPrecedenceE2ETest` 7/7 (a forma literal imprime `2800000` e `7 / 2 as Double` imprime `3.5` em JVM, Script e JS; as faces do #459 inalteradas); `CastBareArithmeticWarningTest` 2/2 (dez operadores avisam; sete formas com parênteses ou inalteradas ficam em silêncio); `gen_portukof_diags.py --check` OK.
 <!-- pt-switch --> **EN:** [§815 (en)](known-bugs.md#815--now---h-as-long--3600000l-casts-now---h-not-h-grammar-51-as-binds-at-the-relational-level-and-computed-a-wrong-number-with-no-diagnostic-now-the-warning-parse100)
+
+## §821 — não havia operador elvis: `name ?: "anonymous"` dava PARSE041, então todo valor padrão de um opcional precisava de um `if` num local ou de um helper; agora `a ?: b` (D-ELVIS)
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `2c920c4c1`). Sintaxe nova por decisão de mantenedor `D-ELVIS` (05/11), que substitui o exemplo `?:` da `D-NOT-JAVA`.
+
+**MEDIDO** (JVM, Script e JS concordam):
+```kof
+class User {
+    String? nick
+    User(String? n) { this.nick = n }
+    String label() { return nick ?: "anonymous" }
+}
+
+main() {
+    println(User(null).label())
+}
+```
+Observado: `PARSE041` no `?:`; o idioma documentado era um `if (x != null)` num local, ou um helper por tipo (`orEmpty(String?)`, `str(...)`).
+
+**CAUSA RAIZ:** não é defeito: o operador não existia por design (gramática §5.3, `D-NOT-JAVA`). O mantenedor decidiu adicioná-lo.
+
+**Correção:** o lexer emite `?:` como um token; a tabela de precedência compartilhada (`parser/OperatorPrecedence`) o põe em 6, acima das comparações e abaixo de deslocamentos e aritmética, associativo à esquerda, então o formatter o imprime com o agrupamento certo. `Elvis` o tipa (`T?` com padrão `T` é `T`; um padrão nulável mantém `T?`; outro tipo é SEM014) e o baixa só com ops existentes: o valor da esquerda vai para um local temporário, a comparação de referência com `null` usada por `x != null` escolhe o ramo, `kof_unbox` produz um resultado primitivo, e o lado direito só é emitido no ramo null. Os percorredores de cadeia binária dos dois typers e do lowerer param no `?:`. Um cast à direita de `?:` não é posição de PARSE100. Docs: gramática §5.1/§5.3, expressions §16, lexical structure, learn 13, fake-idioms (EN + pt_BR). **Prova:** `ElvisOperatorE2ETest` 3/3 (String, Int, Long, Double, uma cadeia, um padrão nulável, um campo dentro de um método, um lambda, uma condição de `if`, concatenação de string, o lado direito não avaliado quando o esquerdo existe, precedência contra `==`; iguais em JVM, Script e JS; SEM014 para um padrão errado; o formatter mantém o agrupamento e é idempotente).
+<!-- pt-switch --> **EN:** [§821 (en)](known-bugs.md#821--there-was-no-elvis-operator-name--anonymous-was-parse041-so-every-default-of-an-optional-needed-an-if-statement-into-a-local-or-a-helper-now-a--b-d-elvis)

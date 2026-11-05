@@ -219,8 +219,8 @@ nullable types). Observable consequences:
 
 - `~5` → `PARSE041` (*probe*) — there **is no** bitwise complement.
 - `a => b` → `PARSE041` — only `->` exists.
-- `x ?? y`, `x ?: y` → `PARSE041` (*probe*) — there **is no** null-coalescing
-  nor elvis.
+- `x ?? y` → `PARSE041` (*probe*) — there **is no** `??`; the elvis `x ?: y`
+  is the token `?:` (§821).
 - `1..3` → `PARSE039` (*probe*) — there **is no** range operator.
 - `1 in s` → `PARSE029` (*probe*) — there **is no** `in` operator in an expression
   (`in` is only a contextual word inside `for (var x in coll)`).

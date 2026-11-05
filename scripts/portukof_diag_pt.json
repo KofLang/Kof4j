@@ -877,6 +877,11 @@
       "pt": "argumento {0} de '{1}': esperado 'Int' mas obtido '{2}'"
     },
     {
+      "arity": 3,
+      "en": "The default of '?:' must be a '{0}' (the left side is '{1}') but got '{2}'",
+      "pt": "O padrão de '?:' precisa ser um '{0}' (o lado esquerdo é '{1}') mas veio '{2}'"
+    },
+    {
       "arity": 4,
       "en": "Argument {0} of '{1}': expected '{2}' but got '{3}'",
       "pt": "argumento {0} de '{1}': esperado '{2}' mas obtido '{3}'"

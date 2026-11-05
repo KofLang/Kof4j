@@ -206,4 +206,4 @@ User.query(db) { where age > 18; orderBy name desc; limit 10 }
 - `throw` is a statement (it does not produce a value).
 - `return`, `break`, `continue` are statements.
 - Assignment is not a value-expression (SEM027).
-- There is no `?:`, `??`, `..`, `in`, `=>`, `~` (SG-002).
+- There is no `??`, `..`, `in`, `=>`, `~` (SG-002). The elvis `a ?: b` exists since §821 (grammar §5.1).

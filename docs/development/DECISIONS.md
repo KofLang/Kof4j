@@ -83,6 +83,7 @@ A navigation aid, not a decision by itself. Ordered as in this file.
 - **D-RELEASE-CADENCE** — weekly minor cadence to `0.9.0`; `1.0.0-RC-n` fallback line; `1.0.0` only on the full exit gate (maintainer 02/10)
 - **D-LAB-STABILITY** — a minor is only cut from a STABLE `lab` (all required checks PASS, 0 blocking issues); otherwise the cut slips (maintainer 02/10)
 - **D-AS-PRECEDENCE** — `as` binds at precedence 9, above `* / %` (as in Kotlin), from 0.8; PARSE100 is the migration warning (§815, maintainer 05/11)
+- **D-ELVIS** — the elvis operator `a ?: b` exists from 0.8, Kotlin precedence; supersedes the `?:` example of D-NOT-JAVA (§821, maintainer 05/11)
 - **D-MAINT-BATCH-1110** — maintainer batch 11/10: `db` local shadow (#786), return-inference fixpoint (#785), `kof.ui` accessibility (#789)
 - **D-UI-A11Y** — `kof.ui` accessibility is intent-based (`setAccessibleName`/`setAnnounce` + automatic defaults); real on KofJS, JVM/Native no-ops (maintainer 11/10)
 - **D-UI-FOCUS** — `kof.ui` focus management (pillar 5): `focus()` on widgets + `setAutoFocus(Bool)` on containers + focus restoration across rebuild+prune; real on KofJS, JVM/Native no-ops (maintainer 11/10)
@@ -1311,7 +1312,7 @@ ignoradas e fechadas. adiciona isso como regra absoluta."
    correct behavior. Examples measured in the sweep: `StringBuilder`,
    top-level `val`/`var`, `fun`/`val` keywords, `v is Car`, `"""triple
    quotes"""`, `Pair`, `it` implicit lambda parameter, `mutableListOf`, Elvis
-   `?:`, `?.`, `0..n` ranges, `!!`, named arguments, Kotlin-style primary
+   `?:` (superseded by `D-ELVIS`, 05/11), `?.`, `0..n` ranges, `!!`, named arguments, Kotlin-style primary
    constructor with body, `catch (e: Type)`, `object`, `open`/`override`.
 2. Handling: **answer once with the Kof idiom that replaces it** (the idiom
    table of `AGENTS.md` §"Idiom table") and **close the issue** as
@@ -5163,3 +5164,16 @@ each still requiring its own decision when picked up.
 - **Migration:** the warning PARSE100 fires where the old table parsed the same text differently (the unparenthesized operand of an arithmetic, shift or comparison operator); `(a - b) as T` keeps the old meaning. A parse of every `.kf` in the repository found one changed site (`supervisor-host.kf`), fixed in the same change.
 - **Documentation:** grammar §5.1 (EN + pt_BR), known-bugs §815, CHANGELOG.
 - **Relationships:** `Related: D-RELEASE-CADENCE (the version that carries it), D-KOF-FIRST`.
+
+---
+
+## D-ELVIS — the elvis operator `a ?: b` (maintainer 05/11)
+
+**Date:** 2026-11-05 · **State:** `DECIDED` (maintainer) — new syntax (rule 6); supersedes the `?:` example of `D-NOT-JAVA` (the other examples there stand).
+
+- **Decision:** `a ?: b` is `a` when it is not null, otherwise `b`; `a` is evaluated once, `b` only when `a` is null. Precedence 6, above the comparisons and below shifts and arithmetic (Kotlin's placement); left-associative (the value of a chain is the first non-null operand either way). Effective from 0.8.
+- **Typing:** with `a: T?`, the result is `T` when `b` is a `T` and `T?` when `b` is nullable or `null`; another type is SEM014. A non-nullable `a` is the result.
+- **Why:** every default of an optional needed an `if` statement into a local or a helper (KOF_GAPS G176/G246, found while porting a Spring backend).
+- **Not decided here:** `??` and the safe call `?.` stay absent.
+- **Documentation:** grammar §5.1/§5.3, expressions §16, lexical structure, learn 13, fake-idioms, known-bugs §821, CHANGELOG (EN + pt_BR).
+- **Relationships:** `Supersedes (in part): D-NOT-JAVA`; `Related: D-AS-PRECEDENCE (same table), D-NULL-INTENT`.

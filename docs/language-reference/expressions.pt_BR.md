@@ -205,4 +205,4 @@ User.query(db) { where age > 18; orderBy name desc; limit 10 }
 - `throw` é statement (não produz valor).
 - `return`, `break`, `continue` são statements.
 - Atribuição não é expressão-valor (SEM027).
-- Não há `?:`, `??`, `..`, `in`, `=>`, `~` (SG-002).
+- Não há `??`, `..`, `in`, `=>`, `~` (SG-002). O elvis `a ?: b` existe desde o §821 (gramática §5.1).

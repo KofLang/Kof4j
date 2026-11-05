@@ -101,8 +101,9 @@ class LanguageCoreSurfaceTest {
             "MINUS_EQUAL", "STAR_EQUAL", "SLASH_EQUAL", "PERCENT_EQUAL", "AMP_EQUAL", "PIPE_EQUAL",
             "CARET_EQUAL", "LESS_LESS_EQUAL", "GREATER_GREATER_EQUAL", "GREATER_GREATER_GREATER_EQUAL",
             "ARROW", "LPAREN", "RPAREN", "LBRACE", "RBRACE", "LBRACKET", "RBRACKET", "SEMICOLON", "COMMA",
-            "DOT", "COLON", "QUESTION", "AT"), enumNames(TokenType.class),
-                "TokenType mudou (ordem incluida): token novo = sintaxe nova = rule 6");
+            "DOT", "COLON", "QUESTION", "QUESTION_COLON", "AT"), enumNames(TokenType.class),
+                "TokenType mudou (ordem incluida): token novo = sintaxe nova = rule 6"
+                        + " (QUESTION_COLON = elvis, D-ELVIS 05/11)");
     }
 
     @Test

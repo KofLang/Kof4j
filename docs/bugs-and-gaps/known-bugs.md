@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §821 (FIXED)
 last: §815 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
@@ -20225,3 +20226,26 @@ Observed: `35999992800000` on all three targets, with no diagnostic; the intende
 
 **Fix:** `as` moves to precedence 9, above `* / %` (as in Kotlin); `instanceof` stays at 5. The right side is still a type-ref that stops at the end of the type (#459), so `a as Double / 2.0` keeps reading `(a as Double) / 2.0`. Migration: **PARSE100** now warns where the old table parsed the same text differently, that is, where `as` is taken by an operand climb above the old level 5 (the unparenthesized operand of an arithmetic, shift or comparison operator); a parenthesized cast restarts the climb and stays silent. The check lives in `parser/CastPrecedenceLint`, the PortuKof catalog carries the pt-BR text, and grammar §5.1 (EN + pt_BR) carries the new table and the migration note. A parse of every `.kf` in the repository found one site whose meaning changed, `supervisor-host.kf` (`agora / 1000 as Int`), now `(agora / 1000) as Int`. The formatter kept its own copy of the table (with `as` at 5), so `kof fmt` would have printed `(a - b) as T` as `a - b as T`, which now means `a - (b as T)`: the table moves to `parser/OperatorPrecedence`, read by the parser and by `KofFormatterExpr`, the formatter keeps the parentheses of a cast in a PARSE100 position (it tracks the parser's climb level) and a unary operand binds above every binary operator. **Proof:** `FormatterCastPrecedenceTest` 2/2 (the parentheses that carry meaning survive, the output is idempotent and has no PARSE100); `AsCastPrecedenceE2ETest` 7/7 (the verbatim shape prints `2800000` and `7 / 2 as Double` prints `3.5` on JVM, Script and JS; the #459 faces unchanged); `CastBareArithmeticWarningTest` 2/2 (ten operators warn; seven parenthesized or unchanged shapes stay silent); `gen_portukof_diags.py --check` OK.
 <!-- pt-switch --> **PT:** [§815 (pt_BR)](known-bugs.pt_BR.md#815--now---h-as-long--3600000l-converte-now---h-nao-h-gramatica-51-as-liga-no-nivel-relacional-e-calculava-um-numero-errado-sem-diagnostico-agora-o-aviso-parse100)
+
+## §821 — there was no elvis operator: `name ?: "anonymous"` was PARSE041, so every default of an optional needed an `if` statement into a local or a helper; now `a ?: b` (D-ELVIS)
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `2c920c4c1`). New syntax by maintainer decision `D-ELVIS` (05/11), which supersedes the `?:` example of `D-NOT-JAVA`.
+
+**MEASURED** (JVM, Script and JS agree):
+```kof
+class User {
+    String? nick
+    User(String? n) { this.nick = n }
+    String label() { return nick ?: "anonymous" }
+}
+
+main() {
+    println(User(null).label())
+}
+```
+Observed: `PARSE041` on `?:`; the documented idiom was an `if (x != null)` into a local, or a helper per type (`orEmpty(String?)`, `str(...)`).
+
+**ROOT CAUSE:** not a defect: the operator was absent by design (grammar §5.3, `D-NOT-JAVA`). The maintainer decided to add it.
+
+**Fix:** the lexer emits `?:` as one token; the shared precedence table (`parser/OperatorPrecedence`) puts it at 6, above the comparisons and below shifts and arithmetic, left-associative, so the formatter prints it with the right grouping. `Elvis` types it (`T?` with a `T` default is `T`; a nullable default keeps `T?`; another type is SEM014) and lowers it with existing ops only: the left value goes to a temporary local, the reference comparison against `null` used by `x != null` picks the branch, `kof_unbox` produces a primitive result, and the right side is emitted only on the null branch. The binary-chain walkers of both typers and of the lowerer stop at `?:`. A cast on the right of `?:` is not a PARSE100 position. Docs: grammar §5.1/§5.3, expressions §16, lexical structure, learn 13, fake-idioms (EN + pt_BR). **Proof:** `ElvisOperatorE2ETest` 3/3 (String, Int, Long, Double, a chain, a nullable default, a field inside a method, a lambda, an `if` condition, string concatenation, the right side not evaluated when the left is present, precedence against `==`; identical on JVM, Script and JS; SEM014 for a wrong default; the formatter keeps the grouping and is idempotent).
+<!-- pt-switch --> **PT:** [§821 (pt_BR)](known-bugs.pt_BR.md#821--nao-havia-operador-elvis-name--anonymous-dava-parse041-entao-todo-valor-padrao-de-um-opcional-precisava-de-um-if-num-local-ou-de-um-helper-agora-a--b-d-elvis)

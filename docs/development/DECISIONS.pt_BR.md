@@ -81,6 +81,7 @@ Auxílio de navegação, não é uma decisão por si só. Ordenado como neste ar
 - **D-RELEASE-CADENCE** — cadência semanal de minors até `0.9.0`; linha de contingência `1.0.0-RC-n`; `1.0.0` só no exit gate completo (mantenedora 02/10)
 - **D-LAB-STABILITY** — um minor só é cortado de um `lab` ESTÁVEL (todos os checks obrigatórios PASS, 0 bloqueantes); senão o corte escorrega (mantenedora 02/10)
 - **D-AS-PRECEDENCE** — `as` liga na precedência 9, acima de `* / %` (como no Kotlin), a partir da 0.8; PARSE100 é o aviso de migração (§815, mantenedor 05/11)
+- **D-ELVIS** — o operador elvis `a ?: b` existe a partir da 0.8, precedência do Kotlin; substitui o exemplo `?:` da D-NOT-JAVA (§821, mantenedor 05/11)
 - **D-MAINT-BATCH-1110** — lote da mantenedora 11/10: sombra do local `db` (#786), fixpoint da inferência de retorno (#785), acessibilidade do `kof.ui` (#789)
 - **D-UI-A11Y** — a acessibilidade do `kof.ui` é intent-based (`setAccessibleName`/`setAnnounce` + defaults automáticos); real no KofJS, no-ops em JVM/Native (mantenedora 11/10)
 - **D-UI-FOCUS** — gestão de foco do `kof.ui` (pilar 5): `focus()` nos widgets + `setAutoFocus(Bool)` nos containers + restauração de foco no rebuild+prune; real no KofJS, no-ops em JVM/Native (mantenedora 11/10)
@@ -1269,7 +1270,7 @@ errado devem ser ignoradas e fechadas. adiciona isso como regra absoluta."
    traduzido** NÃO é bug: o compilador rejeitar é comportamento correto.
    Exemplos medidos na varredura: `StringBuilder`, `val`/`var` top-level,
    keywords `fun`/`val`, `v is Car`, `"""três aspas"""`, `Pair`, `it` implícito
-   de lambda, `mutableListOf`, Elvis `?:`, `?.`, intervalo `0..n`, `!!`,
+   de lambda, `mutableListOf`, Elvis `?:` (substituído pela `D-ELVIS`, 05/11), `?.`, intervalo `0..n`, `!!`,
    argumento nomeado, construtor primário estilo Kotlin COM corpo,
    `catch (e: Type)`, `object`, `open`/`override`.
 2. Tratamento: **responder uma vez com o idiom do Kof que substitui** (a
@@ -5153,3 +5154,16 @@ trabalho pós-1.0, cada uma ainda exigindo sua própria decisão quando pegas.
 - **Migração:** o aviso PARSE100 dispara onde a tabela antiga lia o mesmo texto de outro jeito (o operando sem parênteses de um operador aritmético, de deslocamento ou de comparação); `(a - b) as T` mantém o significado antigo. Um parse de todos os `.kf` do repositório achou um lugar que mudou (`supervisor-host.kf`), corrigido na mesma mudança.
 - **Documentação:** gramática §5.1 (EN + pt_BR), known-bugs §815, CHANGELOG.
 - **Relacionamentos:** `Relacionados: D-RELEASE-CADENCE (a versão que leva a mudança), D-KOF-FIRST`.
+
+---
+
+## D-ELVIS — o operador elvis `a ?: b` (mantenedor 05/11)
+
+**Data:** 2026-11-05 · **Estado:** `DECIDIDO` (mantenedor) — sintaxe nova (regra 6); substitui o exemplo `?:` da `D-NOT-JAVA` (os outros exemplos dela continuam valendo).
+
+- **Decisão:** `a ?: b` é `a` quando não é null, senão `b`; `a` é avaliado uma vez, `b` só quando `a` é null. Precedência 6, acima das comparações e abaixo de deslocamentos e aritmética (posição do Kotlin); associativo à esquerda (o valor de uma cadeia é o primeiro operando não-null de qualquer jeito). Vale a partir da 0.8.
+- **Tipagem:** com `a: T?`, o resultado é `T` quando `b` é um `T` e `T?` quando `b` é nulável ou `null`; outro tipo é SEM014. Um `a` não-nulável é o resultado.
+- **Por quê:** todo valor padrão de um opcional precisava de um `if` num local ou de um helper (KOF_GAPS G176/G246, achado ao portar um backend Spring).
+- **Não decidido aqui:** `??` e o safe call `?.` continuam ausentes.
+- **Documentação:** gramática §5.1/§5.3, expressions §16, lexical structure, learn 13, fake-idioms, known-bugs §821, CHANGELOG (EN + pt_BR).
+- **Relacionamentos:** `Substitui (em parte): D-NOT-JAVA`; `Relacionados: D-AS-PRECEDENCE (mesma tabela), D-NULL-INTENT`.

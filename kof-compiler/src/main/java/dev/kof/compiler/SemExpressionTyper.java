@@ -200,6 +200,9 @@ public final class SemExpressionTyper {
                 yield targetType;
             }
             case BinaryExpr bin -> {
+                if (Elvis.OP.equals(bin.operator())) { // §821
+                    yield Elvis.check(sa, bin, inferType(sa, bin.left(), scope), inferType(sa, bin.right(), scope));
+                }
                 // SG-005: narrowing intra-expressão de `&&` — em
                 // `s != null && s.length > 0`, o lado direito vê `s` narrowed
                 // (o lado só é avaliado se o esquerdo passou; short-circuit).
@@ -214,7 +217,7 @@ public final class SemExpressionTyper {
                 // deep chains would overflow the compiler's own stack.
                 java.util.List<BinaryExpr> chain = new ArrayList<>();
                 ExpressionNode cursor = bin;
-                while (cursor instanceof BinaryExpr be) {
+                while (cursor instanceof BinaryExpr be && !Elvis.OP.equals(be.operator())) { // §821
                     chain.add(be);
                     cursor = be.left();
                 }

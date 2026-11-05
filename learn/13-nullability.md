@@ -112,7 +112,8 @@ String findOrThrow(Int id) {
   (previously `s.length`/`s.substring(...)` with narrowing emitted
   `getfield "?".length`/`"".substring` → launcher error/`ClassFormatError`).
 - ✅ `Map.get` → `V?`, `readFile`/`readText`/`readLine` → `String?`.
-- 🚧 Deeper flow analysis and the `?.` / `?:` operators still planned.
+- ✅ Elvis `a ?: b` (§821): `val name = user.nick ?: "anonymous"`.
+- 🚧 Deeper flow analysis and the `?.` operator still planned.
 
 ## Exercises
 

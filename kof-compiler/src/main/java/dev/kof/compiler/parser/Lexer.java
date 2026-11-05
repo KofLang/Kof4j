@@ -436,7 +436,10 @@ public class Lexer {
             case ',' -> TokenType.COMMA;
             case '.' -> TokenType.DOT;
             case ':' -> TokenType.COLON;
-            case '?' -> TokenType.QUESTION;
+            case '?' -> switch (peek()) {
+                case ':' -> { advance(); yield TokenType.QUESTION_COLON; } // §821 elvis
+                default -> TokenType.QUESTION;
+            };
             case '@' -> TokenType.AT;
             default -> {
                 diagnostics.error(file, startLine, startCol, 1,

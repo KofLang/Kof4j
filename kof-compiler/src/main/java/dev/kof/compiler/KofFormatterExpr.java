@@ -193,7 +193,8 @@ final class KofFormatterExpr {
         if (pr < minPrec) return "(" + formatBinary(be, p, 0, 0) + ")";
         // §815: a cast the parser would take in a climb above the old `as` level
         // (PARSE100) keeps its parentheses, so fmt never emits a warning shape
-        if ("as".equals(be.operator()) && climb > dev.kof.compiler.parser.OperatorPrecedence.LEGACY_AS) {
+        if ("as".equals(be.operator()) && climb > dev.kof.compiler.parser.OperatorPrecedence.LEGACY_AS
+                && climb != dev.kof.compiler.parser.OperatorPrecedence.ELVIS_OPERAND) {
             return "(" + formatBinary(be, p, 0, 0) + ")";
         }
         // left-associativo (parser: left = parseUnary antes do op):

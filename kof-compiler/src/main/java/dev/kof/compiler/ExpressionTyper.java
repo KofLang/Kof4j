@@ -83,12 +83,16 @@ public final class ExpressionTyper {
             }
             case UnaryExpr ue -> inferExprType(driver, ue.operand(), locals);
             case BinaryExpr bin -> {
+                if (Elvis.OP.equals(bin.operator())) { // §821
+                    yield Elvis.resultType(inferExprType(driver, bin.left(), locals),
+                            inferExprType(driver, bin.right(), locals), bin.right());
+                }
                 // Left-associative chains (huge string concatenations in
                 // generated UIs, editors) are iterated instead of recursed:
                 // deep chains would overflow the compiler's own stack.
                 java.util.List<BinaryExpr> chain = new ArrayList<>();
                 ExpressionNode cursor = bin;
-                while (cursor instanceof BinaryExpr be) {
+                while (cursor instanceof BinaryExpr be && !Elvis.OP.equals(be.operator())) { // §821
                     chain.add(be);
                     cursor = be.left();
                 }

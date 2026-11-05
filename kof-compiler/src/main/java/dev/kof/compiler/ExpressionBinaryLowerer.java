@@ -161,6 +161,7 @@ java.util.List<BinaryExpr> chain = new ArrayList<>();
 ExpressionNode cursor = bin;
 while (cursor instanceof BinaryExpr be
         && !"as".equals(be.operator())
+        && !Elvis.OP.equals(be.operator()) // §821: lowered by Elvis, never flattened
         && !"instanceof".equals(be.operator())
         // D-TROOL: `&&`/`||` NAO achatam como filho-esquerdo — re-despachados
         // via emitExpression caem no gancho Kleene (ou no #487 p/ Bool puro);

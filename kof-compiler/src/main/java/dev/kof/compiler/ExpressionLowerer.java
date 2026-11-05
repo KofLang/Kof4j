@@ -150,6 +150,7 @@ public final class ExpressionLowerer {
                 yield localIdx;
             }
             case BinaryExpr bin -> {
+                if (Elvis.OP.equals(bin.operator())) yield Elvis.lower(driver, bin, ops, owner, localIdx, locals); // §821
                 yield ExpressionBinaryLowerer.lower(driver, bin, ops, owner, localIdx, locals);
             }
             case UnaryExpr ue -> {
