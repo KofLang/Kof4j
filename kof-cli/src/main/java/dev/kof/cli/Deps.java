@@ -419,6 +419,13 @@ final class Deps {
         System.out.println("baixado " + group + ":" + artifact + ":" + version);
     }
 
+    /** The resolved classpath as entries, the form {@code CompilerDriver.setExternalClasspath} takes. */
+    static List<Path> classpathEntries() throws IOException {
+        List<Path> entries = new ArrayList<>();
+        for (String part : CmdBuild.splitClasspathEntries(classpath())) entries.add(Path.of(part));
+        return entries;
+    }
+
     /** Classpath resolvido (jars no cache), separado por ':' (ou ';' no Windows). */
     static String classpath() throws IOException {
         return classpath(Path.of("."));
