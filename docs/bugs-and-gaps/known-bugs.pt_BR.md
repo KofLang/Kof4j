@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §811 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,27 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §811 — `json.encode` de um record com componente `Byte[]` morria com `InaccessibleObjectException` no JVM e no Script, e `json.decode<R>` não remontava o array
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `2c920c4c1`).
+
+**MEDIDO:**
+```kof
+record R(Byte[] data, String t)
+main() {
+    val b = new Byte[2]
+    b[0] = 7 as Byte
+    b[1] = -1 as Byte
+    val s = json.encode(R(b, "t"))
+    println(s)
+    val back = json.decode<R>(s)
+    println(back.data()[1])
+}
+```
+Observado: JVM e Script morriam com `InaccessibleObjectException: Unable to make field private final byte java.lang.Byte.value accessible`; com o encode corrigido, o decode morria com `argument type mismatch` (JVM) e `Argument is not an array` (Script). O JS imprimia `{"data":[7,-1],"t":"t"}` e `-1`.
+
+**CAUSA RAIZ:** `kof_json_encode` tinha casos para Int/Long/Float/Double/Bool mas nenhum para `Byte`/`Short`, então um byte boxed caía no encoder reflexivo de objeto, que entrava em `java.lang.Byte`. Na volta, `kof_json_bind` (JVM) e `bindKof` (Script) não tinham alvo array, então a lista JSON parseada chegava ao slot do array como `List`.
+
+**Correção:** `Byte` e `Short` viram números JSON; uma lista JSON ligada a um slot array é montada elemento a elemento no tipo do componente (`kof_json_bind_array` no JVM, o próprio `newArray` do interpretador no Script). **Prova:** `JsonByteArrayRecordE2ETest` 3/3 (JVM, Script e o oráculo JS imprimem as mesmas quatro linhas).
+<!-- pt-switch --> **EN:** [§811 (en)](known-bugs.md#811--jsonencode-of-a-record-with-a-byte-component-died-with-inaccessibleobjectexception-on-the-jvm-and-script-and-jsondecoder-could-not-rebuild-the-array)
