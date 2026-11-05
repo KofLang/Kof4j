@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §787 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,23 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §787 — um statement de expressão terminando em chamada descartava pelo tipo INFERIDO: `out.writeBytes(b)` (`([B)V`) ganhava um POP e derrubava o cálculo de frames
+
+**Status:** ✅ CORRIGIDO 04/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/main` `edcc39114`).
+
+**MEDIDO** (JVM e Script):
+```kof
+import java.io.ByteArrayOutputStream
+main() {
+    val out = new ByteArrayOutputStream()
+    out.writeBytes("hi".getBytes())
+    println(out.size())
+}
+```
+Observado: `Internal compiler error: frame crash in Default/Main.main ... ASM error: NegativeArraySizeException: -1` no `writeBytes`, e o alvo Script falha no mesmo programa. A chamada emitida é `INVOKEVIRTUAL ByteArrayOutputStream.writeBytes ([B)V`, seguida de um `POP` com a pilha vazia.
+
+**CAUSA RAIZ:** o `StatementLowerer` decide se um statement de expressão deixa valor a descartar pelo tipo inferido do statement (`hasReturnValue` + `inferExprType`), um cálculo separado da chamada que o lowering de fato emite. Quando divergem, a pilha desbalanceia: uma chamada externa `void` tipada com valor ganha um `POP` (este caso), e o inverso deixa um valor para trás (o statement `StringBuilder.append` num laço, relatado junto).
+
+**Correção:** quando a última operação emitida pelo statement é um `KofCall`, o descarte segue o tipo de retorno dessa chamada: nada para `void`, `POP2` para `long`/`double`, `POP` nos demais. As outras formas de statement mantêm a lógica anterior. **Prova:** `StatementCallDiscardE2ETest` 2/2 (JVM e Script: `writeBytes`, `append` num laço, uma chamada `Long` descartada); no código antigo os dois falham.
+<!-- pt-switch --> **EN:** [§787 (en)](known-bugs.md#787--an-expression-statement-ending-in-a-call-discarded-by-the-inferred-type-outwritebytesb-bv-got-a-pop-and-crashed-the-frame-computation)

@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §787 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,23 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §787 — an expression statement ending in a call discarded by the INFERRED type: `out.writeBytes(b)` (`([B)V`) got a POP and crashed the frame computation
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `edcc39114`).
+
+**MEASURED** (JVM and Script):
+```kof
+import java.io.ByteArrayOutputStream
+main() {
+    val out = new ByteArrayOutputStream()
+    out.writeBytes("hi".getBytes())
+    println(out.size())
+}
+```
+Observed: `Internal compiler error: frame crash in Default/Main.main ... ASM error: NegativeArraySizeException: -1` at `writeBytes`, and the Script target fails the same program. The emitted call is `INVOKEVIRTUAL ByteArrayOutputStream.writeBytes ([B)V`, followed by a `POP` with nothing on the stack.
+
+**ROOT CAUSE:** `StatementLowerer` decides whether an expression statement leaves a value to discard from the statement's inferred type (`hasReturnValue` + `inferExprType`), a separate computation from the call the lowering actually emits. When they disagree, the stack is unbalanced: a `void` external call typed with a value gets a `POP` (this case), and the reverse leaves a value behind (the `StringBuilder.append` statement in a loop reported with it).
+
+**Fix:** when the statement's last emitted operation is a `KofCall`, the discard follows that call's return type: nothing for `void`, `POP2` for `long`/`double`, `POP` otherwise. Other statement shapes keep the previous logic. **Proof:** `StatementCallDiscardE2ETest` 2/2 (JVM and Script: `writeBytes`, `append` in a loop, a discarded `Long` call); on the old code both fail.
+<!-- pt-switch --> **PT:** [§787 (pt_BR)](known-bugs.pt_BR.md#787--um-statement-de-expressao-terminando-em-chamada-descartava-pelo-tipo-inferido-outwritebytesb-bv-ganhava-um-pop-e-derrubava-o-calculo-de-frames)
