@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §824 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,22 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §824 — uma List não tinha remoção por valor (`remove(i)` recebe índice), então tirar um elemento exigia `indexOf` mais `remove(i)` à mão; agora `removeValue(v)`
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `2c920c4c1`). Método novo por decisão de mantenedor (05/11): `remove(i)` continua por índice.
+
+**MEDIDO** (JVM, Script e JS):
+```kof
+main() {
+    var xs = listOf(3, 1, 3, 2)
+    println(xs.removeValue(3))
+    println(xs)
+}
+```
+Observado: `SEM025` "Cannot resolve method 'removeValue' on type 'List'". O port escrevia `val i = xs.indexOf(v); if (i >= 0) { xs.remove(i) }` em cada chamada.
+
+**CAUSA RAIZ:** faltava o método: a superfície de List tinha `remove(i)` (índice, devolve o elemento) e `indexOf(v)`, e nada que removesse por valor.
+
+**Correção:** `xs.removeValue(v)` remove o primeiro elemento igual a `v` e devolve `Bool` (se achou um). Ele é remontado no lowering compartilhado a partir de `indexOf` (mesma igualdade por conteúdo e mesmo tag de string do `contains`) e `remove(i)` sobre temporários, então todo alvo o executa sem entrada nova de runtime; o receiver e o argumento são avaliados uma vez. Aridade errada é SEM025 (texto pt no catálogo PortuKof); o alias PortuKof é `removerValor`. O backend JS descartava uma if-expressão descartada cujo ramo chama algo (`xs.removeValue(v)` como statement não removia nada): a checagem de efeito colateral por trás de um valor descartado agora é um predicado recursivo único que olha dentro do condicional. `learn/12-collections` (EN + pt_BR) lista o método. **Prova:** `ListRemoveValueE2ETest` 2/2 (elementos Int, String, Long, Double e record, posição de statement e de expressão, condições de `while` e `&&`, receiver avaliado uma vez; idêntico em JVM, Script e JS, RED antes com SEM025).
+<!-- pt-switch --> **EN:** [§824 (en)](known-bugs.md#824--a-list-had-no-remove-by-value-removei-takes-an-index-so-dropping-an-element-needed-indexof-plus-removei-by-hand-now-removevaluev)

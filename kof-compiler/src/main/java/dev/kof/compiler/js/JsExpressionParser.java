@@ -393,17 +393,28 @@ void consumeExpressionOp(MethodCtx ctx, int[] pos, List<Object> stack,
                 // short-circuit) → preserva no preamble, como o handler de
                 // statement faz.
                 JsIr.JsExpression dropped = pop(stack);
-                if (dropped instanceof JsIr.JsCall || dropped instanceof JsIr.JsNew
-                        || dropped instanceof JsIr.JsSequence
-                        || dropped instanceof JsIr.JsAwait
-                        || (dropped instanceof JsIr.JsBinary jb
-                                && (jb.left() instanceof JsIr.JsCall
-                                        || jb.right() instanceof JsIr.JsCall))) {
+                if (sideEffecting(dropped)) {
                     preambleExprs.add(dropped);
                 }
             }
             case null, default -> throw new IllegalStateException("KofJS: unhandled IR op " + op);
         }
+    }
+
+    /**
+     * Whether a discarded value must still be evaluated: a call (always
+     * side-effecting in Kof), a sequence, an await, a binary over a call, or
+     * an if-expression with such a part (§824: a conditional whose branch
+     * runs {@code remove(i)} was dropped as pure when its value was unused).
+     */
+    static boolean sideEffecting(JsIr.JsExpression e) {
+        return e instanceof JsIr.JsCall || e instanceof JsIr.JsNew
+                || e instanceof JsIr.JsSequence || e instanceof JsIr.JsAwait
+                || (e instanceof JsIr.JsBinary jb
+                        && (jb.left() instanceof JsIr.JsCall || jb.right() instanceof JsIr.JsCall))
+                || (e instanceof JsIr.JsConditional c
+                        && (sideEffecting(c.condition()) || sideEffecting(c.thenExpr())
+                                || sideEffecting(c.elseExpr())));
     }
 
     /**

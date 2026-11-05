@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §824 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,22 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §824 — a List had no remove-by-value (`remove(i)` takes an index), so dropping an element needed `indexOf` plus `remove(i)` by hand; now `removeValue(v)`
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `2c920c4c1`). New method by maintainer decision (05/11): `remove(i)` stays index-based.
+
+**MEASURED** (JVM, Script and JS):
+```kof
+main() {
+    var xs = listOf(3, 1, 3, 2)
+    println(xs.removeValue(3))
+    println(xs)
+}
+```
+Observed: `SEM025` "Cannot resolve method 'removeValue' on type 'List'". The port wrote `val i = xs.indexOf(v); if (i >= 0) { xs.remove(i) }` at every call site.
+
+**ROOT CAUSE:** a missing method: the List surface had `remove(i)` (index, returns the element) and `indexOf(v)`, and nothing that removes by value.
+
+**Fix:** `xs.removeValue(v)` removes the first element equal to `v` and returns `Bool` (whether one was found). It is rebuilt in the shared lowering from `indexOf` (same content equality and string tag as `contains`) and `remove(i)` over temporaries, so every target runs it with no new runtime entry; the receiver and the argument are evaluated once. A wrong arity is SEM025 (pt text in the PortuKof catalog); the PortuKof alias is `removerValor`. The JS backend dropped a discarded if-expression whose branch calls something (`xs.removeValue(v)` as a statement removed nothing): the side-effect check behind a discarded value is now one recursive predicate that looks inside a conditional. `learn/12-collections` (EN + pt_BR) lists the method. **Proof:** `ListRemoveValueE2ETest` 2/2 (Int, String, Long, Double and record elements, statement and expression positions, `while` and `&&` conditions, a receiver evaluated once; identical on JVM, Script and JS, RED before with SEM025).
+<!-- pt-switch --> **PT:** [§824 (pt_BR)](known-bugs.pt_BR.md#824--uma-list-nao-tinha-remocao-por-valor-removei-recebe-indice-entao-tirar-um-elemento-exigia-indexof-mais-removei-a-mao-agora-removevaluev)

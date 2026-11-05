@@ -138,7 +138,7 @@ SEED = {
     "compareTo": "compararA", "compareToIgnoreCase": "compararAIgnorarCaixa",
     "toInt": "paraInt", "toLong": "paraLong", "toDouble": "paraDouble",
     "toFloat": "paraFloat", "toString": "paraTexto", "getBytes": "paraBytes",
-    "add": "adicionar", "remove": "remover", "clear": "limpar", "set": "definir",
+    "add": "adicionar", "remove": "remover", "removeValue": "removerValor", "clear": "limpar", "set": "definir",
     "get": "obter", "put": "colocar", "keys": "chaves", "values": "valores",
     "containsKey": "contemChave", "containsValue": "contemValor",
     "getOrDefault": "obterOuPadrao", "putIfAbsent": "colocarSeAusente",

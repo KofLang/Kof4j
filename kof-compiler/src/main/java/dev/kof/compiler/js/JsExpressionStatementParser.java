@@ -96,13 +96,7 @@ final class JsExpressionStatementParser {
                 if (!stack.isEmpty()) {
                     dropped = parser.pop(stack);
                 }
-                boolean sideEffecting = dropped instanceof JsIr.JsCall
-                        || dropped instanceof JsIr.JsNew
-                        || dropped instanceof JsIr.JsSequence
-                        || dropped instanceof JsIr.JsAwait
-                        || (dropped instanceof JsIr.JsBinary jb
-                                && (jb.left() instanceof JsIr.JsCall
-                                        || jb.right() instanceof JsIr.JsCall));
+                boolean sideEffecting = JsExpressionParser.sideEffecting(dropped);
                 if (!stack.isEmpty()) {
                     // §139: POP no MEIO de uma expressão (o fold `f() == null`
                     // emite call;POP;false com o receiver $kofOut embaixo na

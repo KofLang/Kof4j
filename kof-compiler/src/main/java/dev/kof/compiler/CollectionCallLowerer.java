@@ -48,6 +48,9 @@ public final class CollectionCallLowerer {
         if ("zip".equals(mc.methodName())) {
             return CollectionZipLowerer.lower(driver, recvType, mc, ops, owner, localIdx, locals);
         }
+        if (ListRemoveValueLowerer.METHOD.equals(mc.methodName())) { // §824
+            return ListRemoveValueLowerer.lower(driver, recvType, mc, ops, owner, localIdx, locals);
+        }
         String listFn = switch (mc.methodName()) {
             case "add", "push", "append" -> "kof_list_add";
             case "get" -> "kof_list_get";
@@ -82,7 +85,7 @@ public final class CollectionCallLowerer {
             driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
                     mc.position() != null ? mc.position().line() : 0,
                     mc.position() != null ? mc.position().column() : 0, 0,
-                    "Cannot resolve method '" + m + "' on type 'List' (valid: add/push/append/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/zip)",
+                    "Cannot resolve method '" + m + "' on type 'List' (valid: add/push/append/get/set/remove/removeValue/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/zip)",
                     "SEM025");
             return localIdx;
         }

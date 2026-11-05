@@ -230,6 +230,13 @@ public final class MemberCallTyper {
                 return Type.PrimitiveType.INT;
             if ("contains".equals(mn) || "isEmpty".equals(mn))
                 return Type.PrimitiveType.BOOL;
+            if (ListRemoveValueLowerer.METHOD.equals(mn)) { // §824
+                if (mc.arguments().size() != 1 && sa.diagnostics() != null) {
+                    sa.diagnostics().error(mc, "List.removeValue takes exactly one argument (the value to remove)",
+                            "SEM025");
+                }
+                return Type.PrimitiveType.BOOL;
+            }
             // #382 — indexOf/lastIndexOf: Int (posição, -1 ausente); addAll:
             // Bool (mudou?); subList: List<E> do mesmo tipo; sort: void
             // (in-place, ordem natural — SEM097 gateia o domínio).
@@ -290,7 +297,7 @@ public final class MemberCallTyper {
             if (!"toArray".equals(mn) && !"sublist".equals(mn) && !"subSet".equals(mn)) {
                 if (sa.diagnostics() != null) {
                     sa.diagnostics().error(mc,
-                            "Cannot resolve method '" + mn + "' on type 'List' (valid: add/push/append/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/zip)",
+                            "Cannot resolve method '" + mn + "' on type 'List' (valid: add/push/append/get/set/remove/removeValue/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/zip)",
                             "SEM025");
                 }
             }

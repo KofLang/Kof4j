@@ -63,6 +63,7 @@ public final class CollectionMethodTyper {
         if ("get".equals(mn) || "remove".equals(mn)) return driver.listElementType(recvType);
         if ("size".equals(mn) || "length".equals(mn) || "count".equals(mn)) return Type.PrimitiveType.INT;
         if ("contains".equals(mn) || "isEmpty".equals(mn)) return Type.PrimitiveType.BOOL;
+        if ("removeValue".equals(mn)) return Type.PrimitiveType.BOOL; // §824
         // #382 — indexOf/lastIndexOf são Int (posição; -1 quando ausente,
         // mesmo oracle java.util.List); addAll é Bool (mudou?); subList
         // devolve List do MESMO tipo de elemento; sort é void (in-place).

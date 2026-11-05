@@ -48,6 +48,7 @@ l.get(0)          // 1
 l.contains(3)     // true
 l.isEmpty()       // false
 l.remove(0)       // remove por índice, devolve o elemento
+l.removeValue(3)  // remove o primeiro 3, true se achou um
 l.set(0, 9)       // substitui no lugar
 l.clear()         // esvazia
 
