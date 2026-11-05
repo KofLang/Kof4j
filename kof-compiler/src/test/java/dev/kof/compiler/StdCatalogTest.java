@@ -103,7 +103,9 @@ class StdCatalogTest {
         List<Type> prim = List.of();
         List<List<Type>> shapes = new ArrayList<>();
         Type[] ts = {Type.PrimitiveType.INT, BuiltinTypes.STRING, Type.PrimitiveType.BOOL,
-                Type.PrimitiveType.DOUBLE, Type.PrimitiveType.LONG, Type.PrimitiveType.CHAR};
+                Type.PrimitiveType.DOUBLE, Type.PrimitiveType.LONG, Type.PrimitiveType.CHAR,
+                // §828: strings.join takes a List
+                new Type.ClassType("kof", "List", List.of(BuiltinTypes.STRING))};
         shapes.add(prim);
         for (Type a : ts) {
             shapes.add(List.of(a));
