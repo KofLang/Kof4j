@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §812 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,21 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §812 — a Long/Float/Double cast to `Byte`, `Short` or `Char` (`300L as Byte`) emitted `i2b`/`i2s`/`i2c` over the wide value (`VerifyError: Bad type on operand stack`)
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `2c920c4c1`).
+
+**MEASURED** (JVM target):
+```kof
+main() {
+    Long v = 300L
+    println(v as Byte)
+}
+```
+Observed: `VerifyError: Bad type on operand stack` at load. The same for `Long as Short`, `Double as Byte`, `Float as Byte`, `Double as Char` and `Long as Char`, and for `x.toChar()` on a wide receiver. Script and JS already printed `44`.
+
+**ROOT CAUSE:** `CompilerEmissionHelpers.emitPrimNarrow` mapped a Byte/Short target to `I2B`/`I2S` whatever the source, and the two cast sites (`as`, `toX()`) added `I2C` for Char on their own; all three take an Int, so a long or floating value reached them raw. The store into a Byte/Short slot (§696) already converted to Int first, in its own copy of the rule.
+
+**Fix:** `emitPrimNarrow` narrows to Byte/Short/Char through Int (`L2I`/`F2I`/`D2I`, then `I2B`/`I2S`/`I2C`), as JLS 5.1.3 does; the cast sites and the §696 store share it instead of their own copies. **Proof:** `WideCastToByteShortCharE2ETest` 3/3 (JVM, Script and JS print the javac goldens `44`, `45`, `4464`, `A`, `65`, `127`, `-56`, `B`).
+<!-- pt-switch --> **PT:** [§812 (pt_BR)](known-bugs.pt_BR.md#812--um-cast-de-longfloatdouble-para-byte-short-ou-char-300l-as-byte-emitia-i2bi2si2c-sobre-o-valor-largo-verifyerror-bad-type-on-operand-stack)

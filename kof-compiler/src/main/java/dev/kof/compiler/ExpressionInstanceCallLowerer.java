@@ -354,10 +354,6 @@ public final class ExpressionInstanceCallLowerer {
                         + TypeMetrics.primitiveName(target), "SEM090");
         }
         driver.emitWideningIfNeeded(ops, recvType, target);
-        if (target instanceof Type.PrimitiveType tp
-                && ("char".equals(tp.name()) || "Char".equals(tp.name()))) {
-            ops.add(new KofUnary(KofUnaryOp.I2C, recvType));
-        }
         driver.emitPrimNarrow(ops, recvType, target);
         return localIdx;
     } else if (TypeMetrics.isPrimitiveType(recvType) && "toString".equals(mc.methodName())

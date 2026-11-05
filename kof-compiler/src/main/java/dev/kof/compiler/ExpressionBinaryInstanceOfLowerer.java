@@ -55,11 +55,7 @@ final class ExpressionBinaryInstanceOfLowerer {
         // NÃO checkcast (que exigiria um objeto na pilha)
         Type fromT = fromCastType;
         driver.emitWideningIfNeeded(ops, fromT, targetType);
-        if (targetType instanceof Type.PrimitiveType tp2
-                && ("char".equals(tp2.name()) || "Char".equals(tp2.name()))) {
-            ops.add(new KofUnary(KofUnaryOp.I2C, fromT));
-        }
-        // narrowing numérico (cast explícito): L2I, F2I, D2I,
+        // narrowing numérico (I2C/I2B/I2S included, §812) (cast explícito): L2I, F2I, D2I,
         // F2L, D2L — sem isso FP→Int gerava bytecode inválido
         // (bug 5) e Long→Int via wid().não cobria
         driver.emitPrimNarrow(ops, fromT, targetType);

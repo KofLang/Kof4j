@@ -195,9 +195,22 @@ public final class CompilerEmissionHelpers {
             // so the value is truncated to the correct range before boxing
             case "byte", "Byte" -> KofUnaryOp.I2B;
             case "short", "Short" -> KofUnaryOp.I2S;
+            case "char", "Char" -> KofUnaryOp.I2C;
             default -> null;
         };
-        if (conv != null) {
+        if (conv == KofUnaryOp.I2B || conv == KofUnaryOp.I2S || conv == KofUnaryOp.I2C) {
+            // §812: i2b/i2s/i2c take an INT; a Long/Float/Double source
+            // (`300L as Byte`) went straight into i2b (VerifyError: Bad type
+            // on operand stack). Convert it to Int first, like the JLS cast.
+            KofUnaryOp toInt = switch (fn) {
+                case "long", "Long" -> KofUnaryOp.L2I;
+                case "float", "Float" -> KofUnaryOp.F2I;
+                case "double", "Double" -> KofUnaryOp.D2I;
+                default -> null;
+            };
+            if (toInt != null) ops.add(new KofUnary(toInt, from));
+            ops.add(new KofUnary(conv, toInt != null ? Type.PrimitiveType.INT : from));
+        } else if (conv != null) {
             ops.add(new KofUnary(conv, from));
         }
     }
@@ -218,16 +231,8 @@ public final class CompilerEmissionHelpers {
                 && !"short".equals(tn) && !"Short".equals(tn)) {
             return;
         }
-        if (from.equals(to)) return;
-        // uma fonte mais LARGA (Long/Float/Double) converte primeiro para Int,
-        // espelhando o caminho do cast (que parte de um Int na pilha).
-        switch (TypeMetrics.primitiveName(from)) {
-            case "long", "Long" -> ops.add(new KofUnary(KofUnaryOp.L2I, from));
-            case "float", "Float" -> ops.add(new KofUnary(KofUnaryOp.F2I, from));
-            case "double", "Double" -> ops.add(new KofUnary(KofUnaryOp.D2I, from));
-            default -> { }
-        }
-        driver.emitPrimNarrow(ops, Type.PrimitiveType.INT, to);
+        // the same narrowing as the cast (a wider source goes through Int, §812)
+        driver.emitPrimNarrow(ops, from, to);
     }
 
     static boolean isZeroLiteral(LiteralExpr lit) {
