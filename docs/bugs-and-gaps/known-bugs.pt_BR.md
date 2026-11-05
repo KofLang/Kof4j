@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §806 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,27 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §806 — `m.get(k) as Long` num `Map<String, Long>` derrubava o cálculo de frames (COMP002): o cast tratava o `Long?` boxed como `long` cru
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `4f7257933`).
+
+**MEDIDO** (alvo JVM):
+```kof
+class C {
+    static Long sum(m: Map<String, Long>) {
+        var t = 0L
+        for (var k in m.keys()) {
+            t = t + (m.get(k) as Long)
+        }
+        return t
+    }
+}
+main() { println(C.sum(mapOf("a", 2L))) }
+```
+Observado: `Internal compiler error: frame crash in C.sum` (`COMP002`, `ArrayIndexOutOfBoundsException` no `COMPUTE_FRAMES`). O bytecode é `checkcast java/lang/Long` e depois `lstore`: o valor boxed nunca é aberto. O mesmo para `m.get(k) as Int`/`as Double`.
+
+**CAUSA RAIZ:** o `ExpressionBinaryInstanceOfLowerer` toma o ramo de conversão numérica do `as` quando a origem "é primitiva", e `TypeMetrics.isPrimitiveType` também responde verdadeiro para um primitivo nullable (`Long?`). Esse ramo só alarga ou estreita, então o wrapper `Long` chegava num consumidor `long`.
+
+**Correção:** o ramo numérico abre antes uma origem nullable com `emitNarrowedNullableUnbox` (o helper que todo outro consumidor primitivo usa, #845), e depois alarga ou estreita a partir do tipo interno. **Prova:** `CastNullableNumberE2ETest` (`as Long` num laço de método estático, `as Int` e depois `+ 1`, `as Double` alargando imprimem `2`, `5`, `3.0`).
+<!-- pt-switch --> **EN:** [§806 (en)](known-bugs.md#806--mgetk-as-long-on-a-mapstring-long-crashed-frame-computation-comp002-the-cast-treated-the-boxed-long-as-a-raw-long)

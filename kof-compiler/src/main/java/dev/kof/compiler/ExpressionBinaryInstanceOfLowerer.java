@@ -53,7 +53,8 @@ final class ExpressionBinaryInstanceOfLowerer {
             && (TypeMetrics.isPrimitiveType(fromCastType) || handleAsInt)) {
         // cast primitivo (x as Char/Int/…): conversão numérica,
         // NÃO checkcast (que exigiria um objeto na pilha)
-        Type fromT = fromCastType;
+        // a `Long?` source (`m.get(k) as Long`) is the boxed wrapper: open it first
+        Type fromT = CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops, fromCastType, targetType);
         driver.emitWideningIfNeeded(ops, fromT, targetType);
         if (targetType instanceof Type.PrimitiveType tp2
                 && ("char".equals(tp2.name()) || "Char".equals(tp2.name()))) {

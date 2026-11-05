@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §806 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,27 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §806 — `m.get(k) as Long` on a `Map<String, Long>` crashed frame computation (COMP002): the cast treated the boxed `Long?` as a raw `long`
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED** (JVM target):
+```kof
+class C {
+    static Long sum(m: Map<String, Long>) {
+        var t = 0L
+        for (var k in m.keys()) {
+            t = t + (m.get(k) as Long)
+        }
+        return t
+    }
+}
+main() { println(C.sum(mapOf("a", 2L))) }
+```
+Observed: `Internal compiler error: frame crash in C.sum` (`COMP002`, `ArrayIndexOutOfBoundsException` in `COMPUTE_FRAMES`). The bytecode is `checkcast java/lang/Long` then `lstore`: the boxed value is never opened. The same for `m.get(k) as Int`/`as Double`.
+
+**ROOT CAUSE:** `ExpressionBinaryInstanceOfLowerer` takes the numeric-conversion branch of `as` when the source "is primitive", and `TypeMetrics.isPrimitiveType` also answers true for a nullable primitive (`Long?`). That branch only widens or narrows, so the `Long` wrapper reached a `long` consumer.
+
+**Fix:** the numeric branch opens a nullable source first with `emitNarrowedNullableUnbox` (the helper every other primitive consumer uses, #845), then widens or narrows from the inner type. **Proof:** `CastNullableNumberE2ETest` (`as Long` in a loop of a static method, `as Int` then `+ 1`, `as Double` widening print `2`, `5`, `3.0`).
+<!-- pt-switch --> **PT:** [§806 (pt_BR)](known-bugs.pt_BR.md#806--mgetk-as-long-num-mapstring-long-derrubava-o-calculo-de-frames-comp002-o-cast-tratava-o-long-boxed-como-long-cru)
