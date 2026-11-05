@@ -109,6 +109,39 @@ class LambdaNullableReturnTargetE2ETest extends ServerProcessSupport {
     }
 
     @Test
+    void aReturnedBlockLambdaWhoseOnlyReturnIsNullImplementsTheDeclaredType() throws Exception {
+        // #1080 verbatim: the lambda is returned by a function declared `() -> String?`.
+        Path src = tmp.resolve("Main.kf");
+        Files.writeString(src, """
+            main() {
+                var f = makeFn()
+                var r = f()
+                println(r == null)
+            }
+
+            () -> String? makeFn() {
+                return () -> {
+                    return null
+                }
+            }
+            """);
+        Path out = tmp.resolve("out3");
+        CompilationResult r = new CompilerDriver().compile(src, out, Target.JVM);
+        assertTrue(r.success(), "must compile: " + r.diagnostics().getDiagnostics());
+        PrintStream old = System.out;
+        ByteArrayOutputStream buf = new ByteArrayOutputStream();
+        System.setOut(new PrintStream(buf, true));
+        try (URLClassLoader cl = new URLClassLoader(new URL[]{out.toUri().toURL()},
+                getClass().getClassLoader())) {
+            Class.forName("Default.Main", true, cl)
+                    .getMethod("main", String[].class).invoke(null, (Object) new String[0]);
+        } finally {
+            System.setOut(old);
+        }
+        assertEquals("true\n", buf.toString());
+    }
+
+    @Test
     void aMiddlewareThatOnlyReturnsNullLetsTheRouteAnswer() throws Exception {
         int port;
         try (ServerSocket probe = new ServerSocket(0)) {
