@@ -72,7 +72,9 @@ final class ExpressionBinaryInstanceOfLowerer {
         if (targetType instanceof Type.FunctionType ft) {
             castTarget = CompilerLambdaClass.lambdaInterfaceType(driver, ft);
         }
-        if (TypeMetrics.isPrimitiveType(fromCastType)
+        // §777: a `T?` primitive is already a boxed reference — re-boxing it
+        // emitted `Long.valueOf(Ljava/lang/Long;)` (NoSuchMethodError).
+        if (TypeMetrics.isPrimitiveType(fromCastType) && !TypeMetrics.isNullablePrimitive(fromCastType)
                 && !TypeMetrics.isPrimitiveType(targetType)) {
             // §213: cast de PRIMITIVO → REFERÊNCIA (`i as Object`, `7 as Object`)
             // emitia o primitivo cru seguido de checkcast → VerifyError

@@ -73,7 +73,7 @@ public final class CompilerEmission2 {
                 driver.emitWideningIfNeeded(ops, argType, formal);
             }
             if (formal != null && CompilerTypeSupport.erasesToReference(formal) && TypeMetrics.isPrimitiveType(argType)
-                    && !BuiltinTypes.isString(formal)
+                    && !TypeMetrics.isNullablePrimitive(argType) && !BuiltinTypes.isString(formal)
                     && !ExpressionTyper.boxesOwnBranches(driver, args.get(i), locals)) {
                 driver.emitErasureBox(ops, argType);
             }
