@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §807 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,20 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §807 — a nullable type written with its package (`profile.ProfileNameStyle?`) became a class named `ProfileNameStyle?`: a record with such a component died with NoSuchMethodError at its first construction
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED** (JVM target, three packages):
+```kof
+package network
+
+record NetworkUserView(String id, profile.ProfileNameStyle? nameStyle)
+```
+with `NetworkUserView("a", ProfileNameStyle.FANCY)` in another package. Observed: `NoSuchMethodError: 'void network.NetworkUserView.<init>(java.lang.String, profile.ProfileNameStyle)'`; `javap` shows the record declared with a component of type `profile.ProfileNameStyle?`.
+
+**ROOT CAUSE:** `CompilerTypes.toType` splits a dotted name at its last dot before anything handles the nullable marker, so `profile.ProfileNameStyle?` became `ClassType("profile", "ProfileNameStyle?")`. Simple names go through `Type.of`, which knows `?`; the qualified path did not.
+
+**Fix:** on the dotted path a trailing `?` is nullability: the type is the `NullableType` of the qualified name without it. **Proof:** `QualifiedNullableTypeE2ETest` (a record component and a parameter typed `profile.ProfileNameStyle?` construct, read and accept `null` across packages).
+<!-- pt-switch --> **PT:** [§807 (pt_BR)](known-bugs.pt_BR.md#807--um-tipo-nullable-escrito-com-o-pacote-profileprofilenamestyle-virava-uma-classe-chamada-profilenamestyle-um-record-com-esse-componente-morria-com-nosuchmethoderror-na-primeira-construcao)

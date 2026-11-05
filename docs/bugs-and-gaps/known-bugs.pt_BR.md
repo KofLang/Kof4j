@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §807 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,20 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §807 — um tipo nullable escrito com o pacote (`profile.ProfileNameStyle?`) virava uma classe chamada `ProfileNameStyle?`: um record com esse componente morria com NoSuchMethodError na primeira construção
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `4f7257933`).
+
+**MEDIDO** (alvo JVM, três pacotes):
+```kof
+package network
+
+record NetworkUserView(String id, profile.ProfileNameStyle? nameStyle)
+```
+com `NetworkUserView("a", ProfileNameStyle.FANCY)` em outro pacote. Observado: `NoSuchMethodError: 'void network.NetworkUserView.<init>(java.lang.String, profile.ProfileNameStyle)'`; o `javap` mostra o record declarado com um componente do tipo `profile.ProfileNameStyle?`.
+
+**CAUSA RAIZ:** o `CompilerTypes.toType` corta um nome pontuado no último ponto antes de qualquer tratamento do marcador nullable, então `profile.ProfileNameStyle?` virava `ClassType("profile", "ProfileNameStyle?")`. Nomes simples passam pelo `Type.of`, que conhece o `?`; o caminho qualificado não.
+
+**Correção:** no caminho pontuado um `?` final é anulabilidade: o tipo é o `NullableType` do nome qualificado sem ele. **Prova:** `QualifiedNullableTypeE2ETest` (um componente de record e um parâmetro tipados `profile.ProfileNameStyle?` constroem, leem e aceitam `null` entre pacotes).
+<!-- pt-switch --> **EN:** [§807 (en)](known-bugs.md#807--a-nullable-type-written-with-its-package-profileprofilenamestyle-became-a-class-named-profilenamestyle-a-record-with-such-a-component-died-with-nosuchmethoderror-at-its-first-construction)

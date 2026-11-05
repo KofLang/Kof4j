@@ -77,6 +77,11 @@ public final class CompilerTypes {
         }
         int lastDot = typeName.lastIndexOf('.');
         if (lastDot > 0 && !typeName.contains("<") && !typeName.contains("/")) {
+             // `profile.Style?`: the `?` is nullability, not part of the class name
+             if (typeName.endsWith("?")) {
+                 return new Type.NullableType(toType(typeName.substring(0, typeName.length() - 1),
+                         currentUnit, external, allowBuiltinPins));
+             }
              return new Type.ClassType(typeName.substring(0, lastDot),
                      typeName.substring(lastDot + 1), List.of());
          }
