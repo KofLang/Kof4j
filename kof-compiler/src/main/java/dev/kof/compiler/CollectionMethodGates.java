@@ -27,6 +27,7 @@ public final class CollectionMethodGates {
                     "kof_list_flatmap" -> 1;
             // Slice 1e — distinct takes no arguments.
             case "kof_list_distinct" -> 0;
+            case ListJoin.FN -> 1; // §828
             case "kof_list_sort" -> 0;
             // D-MULTIPARADIGMA-PHASE1A slice 1g — sorted: natural takes no
             // arguments; with comparator it takes exactly one lambda

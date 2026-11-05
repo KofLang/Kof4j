@@ -100,6 +100,7 @@ strings.repeat("ab", 2)        // "abab"
 strings.truncate("abcdef", 3)  // "abc"
 strings.padLeft("7", 3, "0")   // "007"   — pad é String; usa a 1ª char
 strings.padRight("7", 3, "0")  // "700"
+strings.join(listOf("a", "b"), ",")  // "a,b" — o mesmo que listOf("a", "b").join(",")
 ```
 
 Codificação e code points são membros de `String`:

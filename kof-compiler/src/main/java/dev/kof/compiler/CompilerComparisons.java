@@ -526,7 +526,7 @@ public final class CompilerComparisons {
                     case "get", "remove", "size", "length", "count",
                             "contains", "isEmpty",
                             // #382 — devolvem valor (sort é void, fica fora)
-                            "indexOf", "lastIndexOf", "addAll", "subList" -> true;
+                            "indexOf", "lastIndexOf", "addAll", "subList", "join" -> true;
                     default -> false;
                 };
             }

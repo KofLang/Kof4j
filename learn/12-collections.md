@@ -55,6 +55,7 @@ l.add(5)          // append (void)
 l.addAll(listOf(6, 7))  // append all (Bool — changed?)
 l.indexOf(3)      // first index or -1
 l.lastIndexOf(3)  // last index or -1
+l.join(", ")      // "1, 2, 3, 4" — elements as println shows them (Native NAT009)
 l.subList(1, 3)   // new List — same element type (range [1, 3))
 l.sort()          // void, in-place natural order (Comparable elements)
 ```

@@ -55,6 +55,7 @@ l.add(5)          // append (void)
 l.addAll(listOf(6, 7))  // append de tudo (Bool — mudou?)
 l.indexOf(3)      // primeiro índice ou -1
 l.lastIndexOf(3)  // último índice ou -1
+l.join(", ")      // "1, 2, 3, 4" — elementos como o println os mostra (Native NAT009)
 l.subList(1, 3)   // nova List — mesmo tipo de elemento (faixa [1, 3))
 l.sort()          // void, ordem natural no lugar (elementos Comparable)
 ```

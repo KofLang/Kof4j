@@ -235,6 +235,7 @@ public final class MemberCallTyper {
             // (in-place, ordem natural — SEM097 gateia o domínio).
             if ("indexOf".equals(mn) || "lastIndexOf".equals(mn))
                 return Type.PrimitiveType.INT;
+            if ("join".equals(mn)) return BuiltinTypes.STRING; // §828
             if ("addAll".equals(mn)) return Type.PrimitiveType.BOOL;
             if ("subList".equals(mn)) return recvType;
             // pagination P1 — take/drop/slice devolvem List<E> do mesmo tipo
@@ -290,7 +291,7 @@ public final class MemberCallTyper {
             if (!"toArray".equals(mn) && !"sublist".equals(mn) && !"subSet".equals(mn)) {
                 if (sa.diagnostics() != null) {
                     sa.diagnostics().error(mc,
-                            "Cannot resolve method '" + mn + "' on type 'List' (valid: add/push/append/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/zip)",
+                            "Cannot resolve method '" + mn + "' on type 'List' (valid: add/push/append/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/zip/join)",
                             "SEM025");
                 }
             }

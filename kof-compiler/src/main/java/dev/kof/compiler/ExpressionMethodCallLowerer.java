@@ -319,6 +319,10 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
             && KofValidation.isValidationNamespace(rid.name())) {
     return ExpressionNamespaceCallLowerer.lowerValidation(driver, mc, rid, ops, owner, localIdx, locals);
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
+        && ListJoin.asMethodCall(rid.name(), mc) != null) {
+    // §828: strings.join(xs, sep) is xs.join(sep) — one runtime entry.
+    return ExpressionLowerer.emitExpression(driver, ListJoin.asMethodCall(rid.name(), mc), ops, owner, localIdx, locals);
+} else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
         && KofStd.isStdNamespace(rid.name())) {
     List<Type> argTypes = new ArrayList<>();
     for (ExpressionNode arg : mc.arguments()) {

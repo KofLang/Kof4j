@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §828 (FIXED)
 last: §827 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
@@ -17698,3 +17699,21 @@ Observado: `SEM025` "Cannot resolve method" nas duas chamadas; só `getBytes()` 
 
 **Correção:** `getBytes(charsetName)` devolve `Byte[]` e `codePointAt(index)` devolve `Int` (o code point num índice UTF-16, o par inteiro num surrogate alto). JVM e Script chamam os membros de `java.lang.String`; o JS roda o `codePointAt` nativo (mesmo contrato de índice); `getBytes` mantém o gap STR003 que já tinha em JS/Native, e o Native recusa `codePointAt` com STR003. O alias PortuKof é `pontoDeCodigoEm`, e a lista SEM025 de métodos válidos de String cita `codePointAt`. `learn/39-stdlib` (EN + pt_BR) mostra os dois. **Prova:** `StringCharsetCodePointE2ETest` 3/3 (tamanhos UTF-8 e ISO-8859-1 e code points incluindo um caractere suplementar em JVM e Script, `codePointAt` no JS, Native STR003; RED antes com SEM025).
 <!-- pt-switch --> **EN:** [§827 (en)](known-bugs.md#827--stringgetbytescharset-and-stringcodepointati-were-sem025-so-a-port-fell-back-to-getbytes-and-a-manual-surrogate-decode-now-both-are-string-members)
+
+## §828 — uma List não tinha `join` nem o namespace `strings` tinha `join` (os dois SEM025), então um port montava strings com laço de `+` ou `String.join` do Java; agora `xs.join(sep)` e `strings.join(xs, sep)`
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `2c920c4c1`). Lote de stdlib aprovado por decisão de mantenedor (05/11).
+
+**MEDIDO** (JVM):
+```kof
+main() {
+    println(listOf("a", "b").join(","))
+    println(strings.join(listOf("a", "b"), ","))
+}
+```
+Observado: `SEM025` "Cannot resolve method 'join' on type 'List'" e "Cannot resolve method 'join' on namespace 'strings'".
+
+**CAUSA RAIZ:** faltavam os membros: nem a superfície de List nem o `KofStrings` tinham join.
+
+**Correção:** uma entrada de runtime, `kof_list_join(list, sep, tag)`, formata cada elemento como o display de lista faz (`String.valueOf` no JVM e no Script, `kofElem` no JS) e junta com `sep`; `strings.join(xs, sep)` é remontado como `xs.join(sep)` antes do lowering. O tag carrega o que um slot boxeado perde: um elemento `Char` (um `Integer` no JVM, §104b-ii) sai como o caractere, e um elemento `Double`/`Float` mantém o `.0` no JS. Separador que não é String é SEM025; o Native recusa `join` com NAT009 (ainda sem face nativa) em vez de uma referência indefinida no `ld`. Aliases PortuKof: `juntar` para o método e para a função do namespace. `learn/12-collections` e `learn/39-stdlib` (EN + pt_BR) os listam. **Prova:** `ListJoinE2ETest` 2/2 (elementos String, Int, vazio, Double, Long, record, Char e Bool e as duas grafias, idênticos em JVM, Script e JS; `join(3)` SEM025; Native NAT009; RED antes com SEM025).
+<!-- pt-switch --> **EN:** [§828 (en)](known-bugs.md#828--a-list-had-no-join-and-the-strings-namespace-no-join-both-sem025-so-a-port-built-strings-with-a--loop-or-java-stringjoin-now-xsjoinsep-and-stringsjoinxs-sep)

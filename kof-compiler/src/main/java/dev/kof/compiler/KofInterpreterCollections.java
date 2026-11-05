@@ -156,6 +156,15 @@ public final class KofInterpreterCollections {
             // D-MULTIPARADIGMA-PHASE1A slice 1e — distinct dedups by Java
             // equals (same rule as contains on this target); the tag arg is
             // Native-only and ignored here.
+            // §828: same element formatting as the JVM runtime (String.valueOf).
+            case "kof_list_join" -> {
+                java.util.StringJoiner out = new java.util.StringJoiner(String.valueOf(args[0]));
+                boolean chars = KofInterpreter.unboxInt(args[1]) == 1;
+                for (Object o : l) {
+                    out.add(chars && o instanceof Integer c ? String.valueOf((char) c.intValue()) : String.valueOf(o));
+                }
+                yield out.toString();
+            }
             case "kof_list_distinct" -> {
                 ArrayList<Object> out = new ArrayList<>();
                 for (Object o : l) {

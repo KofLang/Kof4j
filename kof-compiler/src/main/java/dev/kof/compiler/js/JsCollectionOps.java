@@ -164,6 +164,7 @@ void handleListOp(MethodCtx ctx, List<Object> stack,
             // D-MULTIPARADIGMA-PHASE1A slice 1e — distinct (tag ignored here;
             // the prelude mirrors contains: kofValEq per element).
             case "kof_list_distinct" -> "kofListDistinct";
+            case "kof_list_join" -> "kofListJoin";
             case "kof_list_sort" -> "kofListSort";
             // D-MULTIPARADIGMA-PHASE1A slice 1g — sorted returns a fresh
             // copy (natural via kofNaturalCmp, comparator via the lambda);

@@ -71,6 +71,7 @@ public final class CollectionCallLowerer {
             // D-MULTIPARADIGMA-PHASE1A slice 1e — distinct (dedup copy).
             case "distinct" -> "kof_list_distinct";
             case "groupBy" -> "kof_list_groupby";
+            case "join" -> ListJoin.FN; // §828
             default -> null;
         };
         // R6: método desconhecido em List não pode ser silencioso (bug Set.first)
@@ -82,7 +83,7 @@ public final class CollectionCallLowerer {
             driver.currentDiagnostics.error(mc.position() != null ? mc.position().file() : "",
                     mc.position() != null ? mc.position().line() : 0,
                     mc.position() != null ? mc.position().column() : 0, 0,
-                    "Cannot resolve method '" + m + "' on type 'List' (valid: add/push/append/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/zip)",
+                    "Cannot resolve method '" + m + "' on type 'List' (valid: add/push/append/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/zip/join)",
                     "SEM025");
             return localIdx;
         }
@@ -103,6 +104,7 @@ public final class CollectionCallLowerer {
             }
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
+            if (ListJoin.FN.equals(listFn) && ListJoin.refuse(driver, mc, argTypes)) return localIdx;
             Type elemType = driver.listElementType(recvType);
             // SEM097 (domínio natural do sort/sorted) — nunca ordem silenciosa
             // errada. Float×native era NAT001; FECHADO 21/09 (§352): o runtime
@@ -269,6 +271,7 @@ public final class CollectionCallLowerer {
                 case "kof_list_distinct", "kof_list_sorted", "kof_list_sorted_cmp" -> recvType;
                 case "kof_list_groupby" -> CollectionMultiparadigmaLowerer.groupReturnType(elemType, argTypes);
                 case "kof_list_remove" -> elemType;
+                case ListJoin.FN -> BuiltinTypes.STRING;
                 default -> elemType;
             };
             if ("kof_list_contains".equals(listFn) || "kof_list_index_of".equals(listFn)
@@ -286,6 +289,7 @@ public final class CollectionCallLowerer {
             // elemType (sem arg), mesma taxonomia do contains (0=raw, 1=String
             // content, 2=object via kof_obj_equals); Unknown herda o default 1
             // da família (listas vazias nunca comparam — tag sem uso).
+            if (ListJoin.FN.equals(listFn)) argTypes = ListJoin.pushTag(ops, elemType, argTypes);
             if ("kof_list_distinct".equals(listFn)) {
                 ops.add(new KofLoadLiteral(Type.PrimitiveType.INT,
                         CollectionWrites.stringTag(elemType, List.of(), 0)));

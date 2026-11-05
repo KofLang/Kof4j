@@ -54,6 +54,7 @@ public static boolean hasRuntimeFn(String methodName) {
                 || methodName.equals("kof_list_find") || methodName.equals("kof_list_count_pred")
                 || methodName.equals("kof_list_foreach") || methodName.equals("kof_list_flatmap")
                 || methodName.equals("kof_list_distinct") || methodName.equals("kof_list_flatmap")
+                || methodName.equals("kof_list_join")
                 || methodName.equals("kof_list_sorted") || methodName.equals("kof_list_sorted_cmp")
                 || methodName.equals("kof_list_sort_cmp")
                 || methodName.equals("kof_list_groupby")

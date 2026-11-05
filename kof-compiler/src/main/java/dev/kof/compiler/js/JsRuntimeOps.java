@@ -55,7 +55,7 @@ boolean isRuntimeOp(KofCall kc) {
                 || name.equals("kof_list_none")
                 || name.equals("kof_list_find") || name.equals("kof_list_count_pred")
                 || name.equals("kof_list_foreach") || name.equals("kof_list_flatmap")
-                || name.equals("kof_list_distinct")
+                || name.equals("kof_list_distinct") || name.equals("kof_list_join")
                 || name.equals("kof_list_sorted") || name.equals("kof_list_sorted_cmp")
                 || name.equals("kof_list_sort_cmp")
                 || name.equals("kof_list_groupby")
