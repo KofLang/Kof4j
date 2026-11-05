@@ -56,7 +56,8 @@ public final class MemberCallTyper {
         // receiver para metodo ESTATICO: Desconto.aplicar(c)
         if (mc.receiver() instanceof IdentifierExpr krid
                 && !SemExpressionTyper.isLocalName(scope, krid.name())
-                && sa.allClasses().containsKey(krid.name())) {
+                && sa.allClasses().containsKey(krid.name())
+                && !sa.importShadowsProjectClass(krid.name())) {
             SymbolTable.Symbol km = MemberResolver.resolveInHierarchy(sa, krid.name(), mc.methodName());
             if (km instanceof SymbolTable.MethodSet set) {
                 List<Type> argTypes0 = new ArrayList<>();
@@ -92,7 +93,10 @@ public final class MemberCallTyper {
             if (q == null && rid.name().contains(".")) {
                 q = MemberResolver.qualifiedType(Type.of(rid.name()));
             }
-            if (q instanceof Type.ClassType qt && sa.isExternal(qt)) {
+            // §809: the merged module carries every file's imports; a project
+            // class keeps its name unless THIS file imported the external one.
+            if (q instanceof Type.ClassType qt && sa.isExternal(qt)
+                    && (sa.getClass(rid.name()) == null || sa.importShadowsProjectClass(rid.name()))) {
                 List<Type> argTypes = new ArrayList<>();
                 for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
                 ExternalClasspath.MethodSignature sig = sa.externalTypes().resolveMethodWithArgs(

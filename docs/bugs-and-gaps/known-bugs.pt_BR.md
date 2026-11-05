@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §809 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,30 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §809 — uma classe do projeto com o mesmo nome simples sequestrava uma classe Java importada explicitamente (`Security.getProvider` virava `VerifyError`), e o import de um arquivo vazava para os outros arquivos do módulo
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `2c920c4c1`).
+
+**MEDIDO** (alvo JVM, um módulo com dois arquivos):
+```kof
+// kernel/security/Security.kf
+package kernel.security
+class Security {
+    static String name() { return "kernel" }
+}
+String kernelName() { return Security.name() }
+
+// app/Main.kf
+package app
+import java.security.Security
+main() {
+    println(Security.getProvider("SUN") != null)
+}
+```
+Observado: `SEM025 Cannot resolve static method 'name' on imported class 'Security'` em `Security.kf`, um arquivo que nunca importou `java.security.Security`. Sem a função `kernelName` o módulo compilava e `Security.getProvider("SUN")` morria no load com `VerifyError: Operand stack underflow` (era baixado como chamada estática na classe do projeto).
+
+**CAUSA RAIZ:** um módulo é compilado como uma unidade fundida cuja lista de imports é a união de todos os arquivos. A resolução de receiver estático (`MemberCallTyper`, `ExpressionMethodCallLowerer`) via `import java.security.Security` em todo arquivo, e a classe do projeto `Security` vencia o lowering pelo nome simples mesmo no arquivo que importou a classe do JDK.
+
+**Correção:** o pipeline registra os imports que o próprio arquivo de cada declaração escreveu (`FileImports`, também para os arquivos de biblioteca que um import traz); o analisador e o lowering entram em cada declaração de topo. Um import de tipo único de classe externa sombreia a classe do projeto com o mesmo nome simples naquele arquivo (JLS 6.4.1); nos outros arquivos a classe do projeto mantém o nome. **Prova:** `ExplicitImportWinsE2ETest` 2/2 (import explícito sozinho, e ao lado de um wildcard do pacote do projeto; o arquivo do kernel segue chamando o próprio `Security.name()`).
+<!-- pt-switch --> **EN:** [§809 (en)](known-bugs.md#809--a-project-class-with-the-same-simple-name-hijacked-an-explicitly-imported-java-class-securitygetprovider-became-a-verifyerror-and-one-files-import-leaked-into-the-other-files-of-the-module)
