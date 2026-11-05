@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §802 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,23 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §802 — um `Error` da JVM (NoSuchMethodError, VerifyError, StackOverflowError) numa expressão spawned que ninguém aguardava sumia sem rastro
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `4f7257933`).
+
+**MEDIDO** (alvo JVM):
+```kof
+Int deep(n: Int) = deep(n + 1) + 1
+main() {
+    val h = spawn deep(0)
+    time.sleep(500)
+    println("main done")
+}
+```
+Observado: imprime só `main done`. Num servidor cuja task spawned servia um socket (e morria num `NoSuchMethodError` de um descritor de interop errado) a conexão simplesmente travava, sem log.
+
+**CAUSA RAIZ:** o `kof_spawn_result` (a expressão spawn que devolve um `Handle`) coloca qualquer falha no handle (`completeExceptionally`) e nada mais; a falha só aparece no `await`. A forma de statement `spawn { ... }` imprime `spawn task failed`, a forma de expressão nunca imprimia.
+
+**Correção:** um `java.lang.Error` numa expressão spawned é reportado no stderr quando acontece (`spawn task failed: <erro>`): é um programa quebrado, não um valor que um `await` deve tratar. O handle continua falhando no `await`, e uma exceção comum do Kof continua indo só para quem aguarda. **Prova:** `SpawnHandleErrorE2ETest` (o `StackOverflowError` de uma task não aguardada está no stderr e o `main` ainda termina); `SpawnAwaitBlockE2ETest` e os casos JVM do `SpawnE2ETest` inalterados.
+<!-- pt-switch --> **EN:** [§802 (en)](known-bugs.md#802--a-jvm-error-nosuchmethoderror-verifyerror-stackoverflowerror-in-a-spawned-expression-nobody-awaited-vanished-without-a-trace)
