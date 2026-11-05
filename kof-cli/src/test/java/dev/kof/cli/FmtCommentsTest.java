@@ -10,10 +10,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * código com 1 comentário perdia-o; com 3 preservava — heurística de 50%
  * do KofFormatter decidindo por acidente qual caminho roda).
  *
- * Caminhos cobertos aqui (Fmt.format = AST + fallback token-based):
- * comentário de linha curto, comentário de bloco (verbatim pelo fallback
- * endurecido), "//" dentro de string (falso-positivo não pode desviar do
- * AST) e determinismo razão-de-comentário.
+ * Paths covered here (Fmt.format = the AST formatter; a source that does not
+ * parse has no formatted text, §818): short line comment, block comment,
+ * "//" inside a string and determinism regardless of the comment ratio.
  */
 class FmtCommentsTest {
 
@@ -52,16 +51,10 @@ class FmtCommentsTest {
     }
 
     @Test
-    void fallbackPathKeepsBlockCommentVerbatim() {
-        // fonte NAO-parseavel (sintaxe quebrada) cai no fallback token-based;
-        // medido (26/09): bloco em linha propria sai VERBATIM la tambem.
-        // Guard de regressao — o teste da issue original cobria so o caminho
-        // parseavel (KofFormatter), que e' onde a perda silenciosa acontecia.
-        String src = "main( {\n    /* nota */\n    println(1)\n}\n";
-        String out = Fmt.format(src);
-        assertTrue(out.contains("/* nota */"),
-                "fallback corrompeu o bloco:\n" + out);
-        assertFalse(out.contains("/ *"), "bloco virou operadores soltos:\n" + out);
+    void unparseableSourceHasNoFormattedText() {
+        // §818: the token-based fallback is gone; a source that does not parse
+        // has no canonical text, and the caller leaves the file untouched
+        assertNull(Fmt.format("main( {\n    /* nota */\n    println(1)\n}\n"));
     }
 
     @Test
@@ -82,7 +75,7 @@ class FmtCommentsTest {
                 + "    val c = a + b\n    println(c)\n}\n";
         assertTrue(Fmt.format(REPRO).contains("// soma os valores"));
         assertTrue(Fmt.format(dense).contains("// soma os valores das duas variaveis"),
-                "fallback denso regrediu");
+                "dense comments lost");
     }
 
     @Test

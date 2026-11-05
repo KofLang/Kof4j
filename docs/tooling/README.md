@@ -111,8 +111,8 @@ output in source order; the old 50%-size heuristic that picked the path
 BY ACCIDENT is gone (null now means parse failure only). A file that
 does not parse is never rewritten (§818): `kof fmt` names it on stderr,
 leaves it byte for byte, still formats the files that parse and exits 1.
-The token-based fallback was lossy on valid syntax (`String? name` became
-`String?name`) and is no longer written to disk. The LSP
+The token-based fallback, which was lossy on valid syntax (`String? name`
+became `String?name`), is removed: the AST formatter is the only engine. The LSP
 (`textDocument/formatting`) runs the same engine and answers "no edit"
 instead of crashing on unformattable buffers: editor and CLI never lose a
 comment.
