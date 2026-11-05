@@ -49,6 +49,27 @@ class SpawnExitE2ETest {
         assertEquals("bye", new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim());
     }
 
+    /** The kof test harness ends a failing file with System.exit while the
+     *  app it booted still runs tasks (enois G376: the file never exited). */
+    @Test
+    void systemExitDoesNotWaitForARunningTask(@TempDir Path tmp) throws Exception {
+        Process p = run(tmp, """
+                import java.lang.System
+                main() {
+                    spawn {
+                        while (true) { time.sleep(50) }
+                    }
+                    println("fail")
+                    System.exit(1)
+                }
+                """);
+        boolean ended = p.waitFor(20, TimeUnit.SECONDS);
+        if (!ended) p.destroyForcibly();
+        assertTrue(ended, "System.exit must not wait for a task that never ends");
+        assertEquals(1, p.exitValue());
+        assertEquals("fail", new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim());
+    }
+
     @Test
     void theEndOfMainStillWaitsForSpawnedTasks(@TempDir Path tmp) throws Exception {
         Process p = run(tmp, """
