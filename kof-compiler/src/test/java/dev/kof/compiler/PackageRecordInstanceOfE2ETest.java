@@ -64,4 +64,50 @@ class PackageRecordInstanceOfE2ETest {
         }
         assertEquals("null-bind 4\nvalue\n", buf.toString());
     }
+
+    @Test
+    void aDefaultPackageFileCastsToAClassImportedByWildcard() throws Exception {
+        // enois G379: a test file (default package) with `import moderation.*`
+        // cast to a moderation class and died with NoClassDefFoundError.
+        Path src = tmp.resolve("src");
+        Path pkg = src.resolve("moderation");
+        Files.createDirectories(pkg);
+        Files.writeString(pkg.resolve("Images.kf"), """
+            package moderation
+
+            class ModerationImages {
+                String kind() { return "base" }
+            }
+            class ModerationMediaImages extends ModerationImages {
+                String extra() { return "extra" }
+            }
+            """);
+        Files.writeString(src.resolve("Main.kf"), """
+            import moderation.*
+
+            ModerationImages pick() { return ModerationMediaImages() }
+
+            main() {
+                val b = pick()
+                val m = b as ModerationMediaImages
+                println(m.extra())
+                println(b instanceof ModerationMediaImages)
+            }
+            """);
+        Path out = tmp.resolve("out2");
+        CompilationResult r = new CompilerDriver().compileSources(
+                List.of(pkg.resolve("Images.kf"), src.resolve("Main.kf")), out, Target.JVM, src);
+        assertTrue(r.success(), "must compile: " + r.diagnostics().getDiagnostics());
+        PrintStream old = System.out;
+        ByteArrayOutputStream buf = new ByteArrayOutputStream();
+        System.setOut(new PrintStream(buf, true));
+        try (URLClassLoader cl = new URLClassLoader(new URL[]{out.toUri().toURL()},
+                getClass().getClassLoader())) {
+            Class.forName("Default.Main", true, cl)
+                    .getMethod("main", String[].class).invoke(null, (Object) new String[0]);
+        } finally {
+            System.setOut(old);
+        }
+        assertEquals("extra\ntrue\n", buf.toString());
+    }
 }
