@@ -80,6 +80,7 @@ Auxílio de navegação, não é uma decisão por si só. Ordenado como neste ar
 - **D-COBOL-TRANSLATOR-GO** — `kof-cobol-translator` (fonte COBOL → fonte Kof) PROMOVIDO `future/` → `docs/development/`; Fase 1 (o scanner de projeto) pousou como `libs/cobol/Scanner.kf` em Kof puro (ordem da mantenedora 15/10, chat)
 - **D-RELEASE-CADENCE** — cadência semanal de minors até `0.9.0`; linha de contingência `1.0.0-RC-n`; `1.0.0` só no exit gate completo (mantenedora 02/10)
 - **D-LAB-STABILITY** — um minor só é cortado de um `lab` ESTÁVEL (todos os checks obrigatórios PASS, 0 bloqueantes); senão o corte escorrega (mantenedora 02/10)
+- **D-AS-PRECEDENCE** — `as` liga na precedência 9, acima de `* / %` (como no Kotlin), a partir da 0.8; PARSE100 é o aviso de migração (§815, mantenedor 05/11)
 - **D-MAINT-BATCH-1110** — lote da mantenedora 11/10: sombra do local `db` (#786), fixpoint da inferência de retorno (#785), acessibilidade do `kof.ui` (#789)
 - **D-UI-A11Y** — a acessibilidade do `kof.ui` é intent-based (`setAccessibleName`/`setAnnounce` + defaults automáticos); real no KofJS, no-ops em JVM/Native (mantenedora 11/10)
 - **D-UI-FOCUS** — gestão de foco do `kof.ui` (pilar 5): `focus()` nos widgets + `setAutoFocus(Bool)` nos containers + restauração de foco no rebuild+prune; real no KofJS, no-ops em JVM/Native (mantenedora 11/10)
@@ -5140,3 +5141,15 @@ trabalho pós-1.0, cada uma ainda exigindo sua própria decisão quando pegas.
 - **Prova:** `CobolScannerE2ETest` 2/2 (JVM + Script) — a ordem determinística, o inventário, a detecção de formato e as três faces de recusa.
 - **Não autorizado por esta decisão:** sintaxe nova de Kof, superfície de CLI, mudança no mapeamento do KofBOL, stub.
 - **Relacionamentos:** `Relacionados: D-FUTURE-PROMOTION, D-FUTURE-UNFREEZE, D-KOFBOL (o mapeamento que este plano reutiliza), D-KOF-FIRST (regra 12), regra 6, regra 11`.
+
+---
+
+## D-AS-PRECEDENCE — `as` liga mais forte que aritmética, deslocamentos e comparações (mantenedor 05/11)
+
+**Data:** 2026-11-05 · **Estado:** `DECIDIDO` (mantenedor) — mudança de contrato sob o behavior freeze (a precedência é congelada; `AGENTS.md`).
+
+- **Decisão:** `as` sai da precedência 5 (junto com as comparações e `instanceof`) para 9, acima de `* / %`, como no Kotlin. `instanceof` continua em 5. Vale a partir da 0.8.
+- **Por quê:** com `as` em 5, `now - h as Long * 3600000L` convertia `now - h` e multiplicava a diferença, um número errado sem diagnóstico (§815, achado ao portar um backend Spring). Quem lê Java ou Kotlin entende o cast aplicado só ao operando à esquerda.
+- **Migração:** o aviso PARSE100 dispara onde a tabela antiga lia o mesmo texto de outro jeito (o operando sem parênteses de um operador aritmético, de deslocamento ou de comparação); `(a - b) as T` mantém o significado antigo. Um parse de todos os `.kf` do repositório achou um lugar que mudou (`supervisor-host.kf`), corrigido na mesma mudança.
+- **Documentação:** gramática §5.1 (EN + pt_BR), known-bugs §815, CHANGELOG.
+- **Relacionamentos:** `Relacionados: D-RELEASE-CADENCE (a versão que leva a mudança), D-KOF-FIRST`.

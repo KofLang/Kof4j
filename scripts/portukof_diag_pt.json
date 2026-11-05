@@ -804,8 +804,8 @@
   "PARSE100": [
     {
       "arity": 0,
-      "en": "'as' binds looser than arithmetic and shifts, so it casts the whole expression on its left; parenthesize the operand you mean: (a - b) as T or a - (b as T)",
-      "pt": "'as' liga mais fraco que aritmética e deslocamentos, então converte toda a expressão à esquerda; coloque parênteses no operando desejado: (a - b) as T ou a - (b as T)"
+      "en": "'as' now binds tighter than arithmetic, shifts and comparisons, so it casts only the operand on its left (before 0.8 it cast the whole expression); parenthesize to state the intent: a - (b as T) or (a - b) as T",
+      "pt": "'as' agora liga mais forte que aritmética, deslocamentos e comparações, então converte só o operando à sua esquerda (antes da 0.8 convertia a expressão inteira); coloque parênteses para deixar a intenção explícita: a - (b as T) ou (a - b) as T"
     }
   ],
   "SEM001": [

@@ -270,26 +270,30 @@ Maior precedência no topo. **Todos os binários são left-associativos**
 
 | Prec | Operadores | Assoc |
 |---|---|---|
+| 9 | `as` | left |
 | 8 | `* / %` | left |
 | 7 | `+ -` | left |
 | 6 | `<< >> >>>` | left |
-| 5 | `== != < <= > >= instanceof as` | left |
+| 5 | `== != < <= > >= instanceof` | left |
 | 4 | `&` | left |
 | 3 | `\| ^` | left |
 | 2 | `&&` | left (short-circuit) |
 | 1 | `\|\|` | left (short-circuit) |
 | 0 | `= +=` … | **right** |
 
-> `instanceof` e `as` têm a **mesma** precedência (5) e são left-assoc no
-> parser, mas o lowering **interrompe o encadeamento** neles (bug 13,
-> `ExpressionLowerer.java:174-176`): `(x as Int) + 1` não é `x as (Int + 1)`.
-> O comportamento de encadeamento puro (`a as B as C`) é **Unspecified**.
+> `as` liga mais forte que todos os operadores binários (9, como no Kotlin;
+> §815, `D-AS-PRECEDENCE`), e o lado direito é um tipo, nunca uma expressão:
+> `now - h as Long * k` é `now - ((h as Long) * k)`, `a as Double / 2.0` é
+> `(a as Double) / 2.0`, e `a as B as C` é `(a as B) as C`. `instanceof`
+> continua em 5.
 
-> Como `as` liga mais fraco que aritmética e deslocamentos, `now - h as Long * k`
-> é `((now - h) as Long) * k`, não `now - ((h as Long) * k)`. Quando o operando
-> de `as` é uma expressão sem parênteses com um operador mais forte
-> (`+ - * / % << >> >>>`), o parser emite o aviso **PARSE100** (§815) e
-> mantém esse parse; coloque parênteses no operando desejado.
+> **Migração (antes da 0.8, `as` ficava em 5):** o mesmo texto convertia a
+> expressão inteira à esquerda (`now - h as Long * k` era
+> `((now - h) as Long) * k`). O parser emite o aviso **PARSE100** onde o parse
+> mudou, ou seja, onde `as` é o operando sem parênteses de um operador
+> aritmético, de deslocamento ou de comparação; use parênteses para deixar a
+> intenção explícita, `(a - b) as T` para o significado antigo ou
+> `a - (b as T)` para o novo.
 
 ### 5.2 Short-circuit
 

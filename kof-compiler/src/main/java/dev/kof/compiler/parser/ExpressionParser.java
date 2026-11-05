@@ -57,15 +57,14 @@ public class ExpressionParser {
 
     static ExpressionNode parseBinary(ParseContext ctx, int minPrec) {
         ExpressionNode left = ExpressionParser.parseUnary(ctx);
-        for (boolean bare = false; isBinaryOp(ctx) && precedence(ctx, ctx.peek().value()) >= minPrec; bare = true) {
+        while (isBinaryOp(ctx) && precedence(ctx, ctx.peek().value()) >= minPrec) {
             Token opToken = ctx.advance();
             String op = opToken.value();
-            int prec = CastPrecedenceLint.check(ctx, opToken, left, bare); // §815
+            int prec = CastPrecedenceLint.check(ctx, opToken, minPrec); // §815
             // `as`/`instanceof` recebem um TIPO à direita, e o type-ref PARA
             // no fim do tipo (#459): antes, o RHS caía em parseBinary e o
             // climbing do tipo engolia o operador+RHS seguintes
-            // (`a as Double / 2.0` virava type-ref "?" e sumia com o ddiv —
-            // NoClassDefFoundError em runtime); o loop recebe o operador de volta.
+            // (`a as Double / 2.0` virava type-ref "?"); o loop recebe o operador de volta.
             // Tipo-função (`() -> Int`): parseTypeRef→parseFunctionTypeRef (bug 127).
             ExpressionNode right = ("as".equals(op) || "instanceof".equals(op))
                     ? new IdentifierExpr(ctx.pos(), TypeParser.parseTypeRef(ctx))
@@ -81,10 +80,11 @@ public class ExpressionParser {
             case "&&" -> 2;
             case "|", "^" -> 3;
             case "&" -> 4;
-            case "==", "!=", "<", "<=", ">", ">=", "instanceof", "as" -> 5;
+            case "==", "!=", "<", "<=", ">", ">=", "instanceof" -> 5;
             case "<<", ">>", ">>>" -> 6;
             case "+", "-" -> 7;
             case "*", "/", "%" -> 8;
+            case "as" -> 9; // §815: tighter than arithmetic, as in Kotlin
             default -> -1;
         };
     }

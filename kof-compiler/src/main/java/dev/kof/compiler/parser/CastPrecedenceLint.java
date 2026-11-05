@@ -1,35 +1,38 @@
 package dev.kof.compiler.parser;
 
-import dev.kof.compiler.BinaryExpr;
-import dev.kof.compiler.ExpressionNode;
 import dev.kof.compiler.Token;
 
 /**
- * §815 — {@code as} sits at the relational level (grammar §5.1, a frozen
- * precedence), so in {@code now - h as Long * 3600000L} the cast takes
- * {@code now - h}, not {@code h}, and the product silently runs on the
- * difference: a wrong number, no diagnostic. The left operand of {@code as}
- * that the same precedence loop has just built from a tighter operator is
- * never parenthesized (a parenthesized operand comes back from
- * {@code parseUnary}), so {@code PARSE100} warns on exactly that shape and
- * asks for the parentheses that state the intent. The parse itself is
- * unchanged.
+ * §815 — {@code as} used to sit at the relational level (precedence 5), so
+ * {@code now - h as Long * 3600000L} cast {@code now - h} and multiplied the
+ * difference: a wrong number with no diagnostic. {@code as} now binds tighter
+ * than arithmetic, shifts and comparisons (precedence 9, as in Kotlin), and
+ * the same text means {@code now - ((h as Long) * 3600000L)}.
+ *
+ * <p>Migration: code written for the old table changes meaning silently
+ * exactly when {@code as} is taken by an operand climb at a level the old
+ * {@code as} could not reach ({@code minPrec} above 5), i.e. it is the
+ * unparenthesized operand of an arithmetic, shift or comparison operator.
+ * {@code PARSE100} warns on that shape; a parenthesized cast restarts the
+ * climb at 0 and stays silent.
  */
 final class CastPrecedenceLint {
 
+    /** Where {@code as} sat before §815. */
+    private static final int LEGACY_AS_PRECEDENCE = 5;
+
     private CastPrecedenceLint() {}
 
-    /** Warns on {@code a OP b as T} with OP tighter than {@code as};
+    /** Warns on {@code a OP b as T} whose parse changed with §815;
      *  returns the precedence of {@code op} for the caller's climb. */
-    static int check(ParseContext ctx, Token op, ExpressionNode left, boolean leftIsBareBinary) {
-        int prec = ExpressionParser.precedence(ctx, op.value());
-        if ("as".equals(op.value()) && leftIsBareBinary && left instanceof BinaryExpr bin
-                && ExpressionParser.precedence(ctx, bin.operator()) > prec) {
+    static int check(ParseContext ctx, Token op, int minPrec) {
+        if ("as".equals(op.value()) && minPrec > LEGACY_AS_PRECEDENCE) {
             ctx.diagnostics.warning(ctx.file, op.line(), op.column(), op.length(),
-                    "'as' binds looser than arithmetic and shifts, so it casts the whole expression"
-                            + " on its left; parenthesize the operand you mean: (a - b) as T or a - (b as T)",
+                    "'as' now binds tighter than arithmetic, shifts and comparisons, so it casts"
+                            + " only the operand on its left (before 0.8 it cast the whole expression);"
+                            + " parenthesize to state the intent: a - (b as T) or (a - b) as T",
                     "PARSE100");
         }
-        return prec;
+        return ExpressionParser.precedence(ctx, op.value());
     }
 }

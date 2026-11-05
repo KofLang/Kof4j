@@ -267,26 +267,29 @@ Higher precedence at the top. **All binaries are left-associative**
 
 | Prec | Operators | Assoc |
 |---|---|---|
+| 9 | `as` | left |
 | 8 | `* / %` | left |
 | 7 | `+ -` | left |
 | 6 | `<< >> >>>` | left |
-| 5 | `== != < <= > >= instanceof as` | left |
+| 5 | `== != < <= > >= instanceof` | left |
 | 4 | `&` | left |
 | 3 | `\| ^` | left |
 | 2 | `&&` | left (short-circuit) |
 | 1 | `\|\|` | left (short-circuit) |
 | 0 | `= +=` … | **right** |
 
-> `instanceof` and `as` have the **same** precedence (5) and are left-assoc in
-> the parser, but the lowering **breaks the chaining** on them (bug 13,
-> `ExpressionLowerer.java:174-176`): `(x as Int) + 1` is not `x as (Int + 1)`.
-> The behavior of pure chaining (`a as B as C`) is **Unspecified**.
+> `as` binds tighter than every binary operator (9, as in Kotlin; §815,
+> `D-AS-PRECEDENCE`), and its right side is a type, never an expression:
+> `now - h as Long * k` is `now - ((h as Long) * k)`, `a as Double / 2.0` is
+> `(a as Double) / 2.0`, and `a as B as C` is `(a as B) as C`. `instanceof`
+> stays at 5.
 
-> Because `as` binds looser than arithmetic and shifts, `now - h as Long * k`
-> is `((now - h) as Long) * k`, not `now - ((h as Long) * k)`. When the operand
-> of `as` is an unparenthesized expression with a tighter operator
-> (`+ - * / % << >> >>>`), the parser emits the warning **PARSE100** (§815) and
-> keeps this parse; parenthesize the operand you mean.
+> **Migration (before 0.8, `as` was at 5):** the same text used to cast the
+> whole expression on its left (`now - h as Long * k` was
+> `((now - h) as Long) * k`). The parser emits the warning **PARSE100** where
+> the parse changed, that is, where `as` is the unparenthesized operand of an
+> arithmetic, shift or comparison operator; parenthesize to state the intent,
+> `(a - b) as T` for the old meaning or `a - (b as T)` for the new one.
 
 ### 5.2 Short-circuit
 

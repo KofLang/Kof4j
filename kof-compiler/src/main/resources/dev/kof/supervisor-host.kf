@@ -38,7 +38,7 @@ class KofSupWindow {
 
     Void falha(Long agora) {
         var idx = (head + size) % stamp.length
-        var t: Int = agora / 1000 as Int
+        var t: Int = (agora / 1000) as Int
         stamp[idx] = t
         if (size < stamp.length) { size = size + 1 } else { head = (head + 1) % stamp.length }
     }

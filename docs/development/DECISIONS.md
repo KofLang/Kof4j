@@ -82,6 +82,7 @@ A navigation aid, not a decision by itself. Ordered as in this file.
 - **D-COBOL-TRANSLATOR-GO** — `kof-cobol-translator` (COBOL source → Kof source) PROMOTED `future/` → `docs/development/`; Phase 1 (the project scanner) landed as pure-Kof `libs/cobol/Scanner.kf` (maintainer order 15/10, chat)
 - **D-RELEASE-CADENCE** — weekly minor cadence to `0.9.0`; `1.0.0-RC-n` fallback line; `1.0.0` only on the full exit gate (maintainer 02/10)
 - **D-LAB-STABILITY** — a minor is only cut from a STABLE `lab` (all required checks PASS, 0 blocking issues); otherwise the cut slips (maintainer 02/10)
+- **D-AS-PRECEDENCE** — `as` binds at precedence 9, above `* / %` (as in Kotlin), from 0.8; PARSE100 is the migration warning (§815, maintainer 05/11)
 - **D-MAINT-BATCH-1110** — maintainer batch 11/10: `db` local shadow (#786), return-inference fixpoint (#785), `kof.ui` accessibility (#789)
 - **D-UI-A11Y** — `kof.ui` accessibility is intent-based (`setAccessibleName`/`setAnnounce` + automatic defaults); real on KofJS, JVM/Native no-ops (maintainer 11/10)
 - **D-UI-FOCUS** — `kof.ui` focus management (pillar 5): `focus()` on widgets + `setAutoFocus(Bool)` on containers + focus restoration across rebuild+prune; real on KofJS, JVM/Native no-ops (maintainer 11/10)
@@ -5150,3 +5151,15 @@ each still requiring its own decision when picked up.
 - **Proof:** `CobolScannerE2ETest` 2/2 (JVM + Script) — the deterministic order, the inventory, the format detection and the three refusal faces.
 - **Not authorized by this decision:** any new Kof syntax, any CLI surface, any change to the KofBOL mapping, any stub.
 - **Relationships:** `Related: D-FUTURE-PROMOTION, D-FUTURE-UNFREEZE, D-KOFBOL (the mapping this plan reuses), D-KOF-FIRST (rule 12), rule 6, rule 11`.
+
+---
+
+## D-AS-PRECEDENCE — `as` binds tighter than arithmetic, shifts and comparisons (maintainer 05/11)
+
+**Date:** 2026-11-05 · **State:** `DECIDED` (maintainer) — a contract change under the behavior freeze (precedence is frozen; `AGENTS.md`).
+
+- **Decision:** `as` moves from precedence 5 (with the comparisons and `instanceof`) to 9, above `* / %`, as in Kotlin. `instanceof` stays at 5. Effective from 0.8.
+- **Why:** with `as` at 5, `now - h as Long * 3600000L` cast `now - h` and multiplied the difference, a wrong number with no diagnostic (§815, found while porting a Spring backend). Java and Kotlin readers both read the cast as applying to the single operand on its left.
+- **Migration:** the warning PARSE100 fires where the old table parsed the same text differently (the unparenthesized operand of an arithmetic, shift or comparison operator); `(a - b) as T` keeps the old meaning. A parse of every `.kf` in the repository found one changed site (`supervisor-host.kf`), fixed in the same change.
+- **Documentation:** grammar §5.1 (EN + pt_BR), known-bugs §815, CHANGELOG.
+- **Relationships:** `Related: D-RELEASE-CADENCE (the version that carries it), D-KOF-FIRST`.

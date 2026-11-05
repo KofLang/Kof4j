@@ -156,4 +156,20 @@ class AsCastPrecedenceE2ETest {
                 d.message().contains("boolean") || "SEM002".equals(d.code())),
                 "diagnostico honesto do Bool + Int: " + r.diagnostics().getDiagnostics());
     }
+
+    /** §815 — {@code as} binds tighter than arithmetic: the cast takes the
+     *  single operand on its left, as in Kotlin. Before, the gap shape cast
+     *  {@code now - h} and printed 35999992800000. */
+    @Test
+    void castBindsTighterThanArithmetic(@TempDir Path tempDir) throws Exception {
+        runAllThree(tempDir, "as815", """
+                main() {
+                    val now = 10000000L
+                    val h = 2
+                    println(now - h as Long * 3600000L)
+                    println(7 / 2 as Double)
+                    println((7 / 2) as Double)
+                }
+                """, "2800000\n3.5\n3.0");
+    }
 }

@@ -45,6 +45,7 @@ decision:
 * D-FUTURE-UNFREEZE: the `docs/development/future/` freeze is LIFTED — agents may promote + implement future plans again, one at a time (EASIEST first), active lanes finishing first; `D-FUTURE-FREEZE` is superseded (maintainer 11/10)
 * D-RELEASE-CADENCE: weekly minor cadence to `0.9.0`; if `0.9.0` is reached without the full exit gate, the line continues as `1.0.0-RC-1`, `1.0.0-RC-2`, … (each RC a minor), until stable, then the real `1.0.0`; the version number at a cut is the maintainer's call (maintainer 02/10)
 * D-LAB-STABILITY: a minor is only cut from a STABLE `lab` (full suite green, gates rc=0, 0 blocking entries, no `1.0-blocks` open); otherwise the cut slips to the next weekend (maintainer 02/10)
+* D-AS-PRECEDENCE: `as` binds at precedence 9, above `* / %` (as in Kotlin), effective 0.8; PARSE100 warns where the old level-5 parse differed (§815, maintainer 05/11)
 
 ---
 
