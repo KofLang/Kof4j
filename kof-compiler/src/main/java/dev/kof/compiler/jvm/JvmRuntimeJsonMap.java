@@ -33,6 +33,19 @@ public final class JvmRuntimeJsonMap {
                     return result;
                 }
 
+                // §811: a JSON list bound to an ARRAY slot (a `Byte[]` record
+                // component) is built element by element at the component type;
+                // the raw List reached the record constructor ("argument type
+                // mismatch").
+                private static Object kof_json_bind_array(Class<?> type, Object value) throws Exception {
+                    if (!(value instanceof List<?> l)) return value;
+                    Class<?> ct = type.getComponentType();
+                    Object out = java.lang.reflect.Array.newInstance(ct, l.size());
+                    for (int i = 0; i < l.size(); i++)
+                        java.lang.reflect.Array.set(out, i, kof_json_bind(ct, ct, l.get(i)));
+                    return out;
+                }
+
         """;
     }
 }

@@ -290,6 +290,15 @@ public final class KofInterpreterRuntime {
                     : KofInterpreterValues.coerceFor(elem, e));
             return out;
         }
+        // §811: an ARRAY slot (`Byte[]` record component) gets the same
+        // array `new T[n]` makes, element by element (mirror of the JVM
+        // kof_json_bind_array); the raw List reached `.length`/`[i]`.
+        if (raw instanceof List<?> la && type instanceof Type.ArrayType at) {
+            Object arr = interp.builtins.newArray(at.componentType(), la.size());
+            for (int i = 0; i < la.size(); i++)
+                java.lang.reflect.Array.set(arr, i, bindKof(at.componentType(), la.get(i)));
+            return arr;
+        }
         // #633: `Map<K,V>` com V composto (record/Map/List) — recursa nos
         // valores pelo type-arg (espelho do kof_json_bind JVM). Sem isto um
         // campo `Map<String,E>` ficava como mapa cru (valores LinkedHashMap).

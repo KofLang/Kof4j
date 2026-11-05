@@ -112,6 +112,10 @@ public final class JvmRuntimeJson {
                     if (value instanceof String s) return kof_json_encode_string(s);
                     if (value instanceof Integer i) return kof_json_encode_int(i);
                     if (value instanceof Long l) return kof_json_encode_long(l);
+                    // §811: Kof Byte/Short (a Byte[] record field) are numbers; the
+                    // object fallback reflected into java.lang.Byte and died with
+                    // InaccessibleObjectException (JS already printed the numbers).
+                    if (value instanceof Byte || value instanceof Short) return kof_json_encode_int(((Number) value).intValue());
                     if (value instanceof Boolean b) return kof_json_encode_bool(b ? 1 : 0);
                     if (value instanceof Float f) return kof_json_encode_float(f);
                     if (value instanceof Double d) return kof_json_encode_double(d);
@@ -347,6 +351,7 @@ public final class JvmRuntimeJson {
                     if (type == double.class || type == Double.class)
                         return value instanceof Number n ? n.doubleValue() : Double.parseDouble(String.valueOf(value));
                     if (type == Number.class) return value;
+                    if (type.isArray()) return kof_json_bind_array(type, value);
                     if (type == boolean.class || type == Boolean.class) {
                         if (value instanceof Boolean b) return b;
                         // §397: drivers SQL devolvem Integer p/ Bool no
