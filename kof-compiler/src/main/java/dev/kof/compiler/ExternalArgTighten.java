@@ -37,15 +37,24 @@ final class ExternalArgTighten {
      * §813: method invocation conversion boxes (JLS 5.3): a Kof {@code Int}
      * passed to a Java {@code Integer} (or {@code Bool} to {@code Boolean},
      * any number to {@code Number}) is the boxed value the call site already
-     * emits for a reference formal. Char is boxed as Integer inside Kof, so it
-     * is not a Java {@code Character} here.
+     * emits for a reference formal. Char is boxed as Integer inside Kof, so a
+     * {@code Char} reaches a Java {@code Character} only through
+     * {@link #isCharacterFormal} ({@code Character.valueOf}); a {@code Char?}
+     * holds an Integer and stays SEM014.
      */
     static boolean boxes(Type arg, Type formal) {
+        if (TypeMetrics.isCharType(arg) && !(arg instanceof Type.NullableType)) return isCharacterFormal(formal);
         Type prim = arg instanceof Type.NullableType nt ? nt.inner() : arg;
         if (!(prim instanceof Type.PrimitiveType pt) || TypeMetrics.isCharType(pt) || Type.isVoid(pt)) return false;
         if (!(formal instanceof Type.ClassType ct) || !"java.lang".equals(ct.packageName())) return false;
         Type boxed = TypeMetrics.boxedTypeFor(pt);
         if ("Number".equals(ct.name())) return boxed instanceof Type.ClassType b && !"Boolean".equals(b.name());
         return formal.equals(boxed);
+    }
+
+    /** A Java {@code java.lang.Character} formal (§813 follow-up). */
+    static boolean isCharacterFormal(Type formal) {
+        return formal instanceof Type.ClassType ct && "java.lang".equals(ct.packageName())
+                && "Character".equals(ct.name());
     }
 }

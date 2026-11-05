@@ -25,7 +25,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@code pathStyleAccessEnabled(Boolean)} could not be written. Method
  * invocation conversion boxes (JLS 5.3), and so does the call site the
  * lowering already emits for a reference formal; the argument check now
- * accepts it, including boxing followed by widening to {@code Number}.
+ * accepts it, including boxing followed by widening to {@code Number}. A Kof
+ * {@code Char} reaches a {@code Character} formal through
+ * {@code Character.valueOf} (Kof boxes a Char as an Integer elsewhere).
  */
 class ExternalBoxedParamE2ETest {
 
@@ -44,6 +46,7 @@ class ExternalBoxedParamE2ETest {
                 public static String lng(Long l) { return "lng=" + l; }
                 public static String dbl(Double d) { return "dbl=" + d; }
                 public static String any(Number n) { return "any=" + n; }
+                public static String chr(Character c) { return "chr=" + c + ":" + c.getClass().getSimpleName(); }
             }
             """);
         Path cls = tmp.resolve("cls");
@@ -83,6 +86,9 @@ class ExternalBoxedParamE2ETest {
                 println(B.any(7))
                 println(B.any(2.5))
                 println(B().path(true).last)
+                println(B.chr('x'))
+                Char c = 'y'
+                println(B.chr(c))
             }
             """);
         assertTrue(r.success(), "must compile: " + r.diagnostics().getDiagnostics());
@@ -96,7 +102,8 @@ class ExternalBoxedParamE2ETest {
         } finally {
             System.setOut(old);
         }
-        assertEquals("flag=true\nflag=false\nnum=3\nnum=5\nlng=4\ndbl=1.5\nany=7\nany=2.5\ntrue\n",
+        assertEquals("flag=true\nflag=false\nnum=3\nnum=5\nlng=4\ndbl=1.5\nany=7\nany=2.5\ntrue\n"
+                        + "chr=x:Character\nchr=y:Character\n",
                 buf.toString());
     }
 

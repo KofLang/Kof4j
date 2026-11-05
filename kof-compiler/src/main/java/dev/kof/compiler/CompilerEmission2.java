@@ -72,6 +72,15 @@ public final class CompilerEmission2 {
                     && !BuiltinTypes.isString(formal)) {
                 driver.emitWideningIfNeeded(ops, argType, formal);
             }
+            // §813: a Kof Char is boxed as Integer elsewhere; a Java Character
+            // formal needs the real wrapper (Character.valueOf(char)).
+            if (ExternalArgTighten.isCharacterFormal(formal) && TypeMetrics.isCharType(argType)
+                    && !(argType instanceof Type.NullableType)) {
+                Type character = new Type.ClassType("java.lang", "Character", List.of());
+                ops.add(new KofCall(character, "valueOf", List.of(Type.PrimitiveType.CHAR), character,
+                        KofCallKind.STATIC));
+                continue;
+            }
             // §813: an `Int?` argument is already the boxed reference (D-NULL-INTENT);
             // boxing it again called Integer.valueOf(Integer) (NoSuchMethodError).
             if (formal != null && CompilerTypeSupport.erasesToReference(formal) && TypeMetrics.isPrimitiveType(argType)
