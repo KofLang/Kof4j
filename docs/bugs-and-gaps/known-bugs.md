@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §831 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,21 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §831 — an extra argument to a callee with no parameters (`one(7)` for `Int one()`, `f(7)` for `var f = () -> 1`) compiled with no diagnostic and failed at run time on every target
+
+**Status:** ✅ FIXED 05/11 (external contributor; issue #1122, measured on `upstream/lab` `2c920c4c1`).
+
+**MEASURED** (JVM, Script, JS):
+```kof
+Int one() { return 1 }
+main() {
+    println(one(7))
+}
+```
+Observed: compiles, then JVM `VerifyError: Bad type on operand stack` (an `int` where `PrintStream` is expected), Script `java.lang.Integer.println/1`, JS `ReferenceError: $kofOut is not defined`. With `var f = () -> 1` and `f(7)`: JVM `VerifyError` (`int` is not a `kof/Function0_int`), Script `java.lang.Integer.valueOf/1`, JS `SyntaxError` (`7.invoke()` emitted). The extra argument stays on the stack and the next call takes it as its receiver.
+
+**ROOT CAUSE:** the shared argument check `TypeChecker.checkArgTypes` returned early when the callee had no parameters and the call had arguments, so a zero-parameter top-level function, method or function value was never checked. A callee with one or more parameters already got SEM013.
+
+**Fix:** the early return is gone; a zero-parameter callee gets the same SEM013 "Wrong number of arguments for 'one': expected 0 but got 1" as any other arity, from the one shared check (every target). **Proof:** `ZeroParamCallArityTest` 4/4 (`one(7)` is SEM013 on JVM and JS, `f(7)` is SEM013 naming `f`, a `println("...")` inside a user `println()` is SEM013, zero-argument calls still compile; RED before). The same gap hid a recursion: a user `println()` shadows the builtin (§931), so a `println("...")` in its body called the user function with an extra argument and recursed to `StackOverflowError` (JVM, Script; `RangeError` on JS). `PrintNoArgsE2ETest.userZeroArgPrintlnFunctionStillWins` only checked that this compiled; its body now prints with `print`, and its #495 intent (a user zero-parameter `println()` is not SEM096) is unchanged.
+<!-- pt-switch --> **PT:** [§831 (pt_BR)](known-bugs.pt_BR.md#831--um-argumento-a-mais-para-um-alvo-sem-parametros-one7-para-int-one-f7-para-var-f-----1-compilava-sem-diagnostico-e-falhava-em-runtime-em-todos-os-alvos)

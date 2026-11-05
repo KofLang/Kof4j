@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §831 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,21 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §831 — um argumento a mais para um alvo sem parâmetros (`one(7)` para `Int one()`, `f(7)` para `var f = () -> 1`) compilava sem diagnóstico e falhava em runtime em todos os alvos
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; issue #1122, medido no `upstream/lab` `2c920c4c1`).
+
+**MEDIDO** (JVM, Script, JS):
+```kof
+Int one() { return 1 }
+main() {
+    println(one(7))
+}
+```
+Observado: compila, depois JVM `VerifyError: Bad type on operand stack` (um `int` onde se espera `PrintStream`), Script `java.lang.Integer.println/1`, JS `ReferenceError: $kofOut is not defined`. Com `var f = () -> 1` e `f(7)`: JVM `VerifyError` (`int` não é um `kof/Function0_int`), Script `java.lang.Integer.valueOf/1`, JS `SyntaxError` (emite `7.invoke()`). O argumento a mais fica na pilha e a chamada seguinte o toma como receptor.
+
+**CAUSA RAIZ:** a checagem compartilhada de argumentos `TypeChecker.checkArgTypes` retornava cedo quando o alvo não tinha parâmetros e a chamada tinha argumentos, então uma função de topo, método ou valor-função sem parâmetros nunca era checado. Um alvo com um ou mais parâmetros já recebia SEM013.
+
+**Correção:** o retorno antecipado saiu; um alvo sem parâmetros recebe o mesmo SEM013 "Wrong number of arguments for 'one': expected 0 but got 1" de qualquer outra aridade, pela única checagem compartilhada (todos os alvos). **Prova:** `ZeroParamCallArityTest` 4/4 (`one(7)` é SEM013 em JVM e JS, `f(7)` é SEM013 nomeando `f`, um `println("...")` dentro de um `println()` do usuário é SEM013, chamadas sem argumento continuam compilando; RED antes). A mesma lacuna escondia uma recursão: um `println()` do usuário sombreia o builtin (§931), então um `println("...")` no corpo dele chamava a função do usuário com um argumento a mais e recursava até `StackOverflowError` (JVM, Script; `RangeError` no JS). `PrintNoArgsE2ETest.userZeroArgPrintlnFunctionStillWins` só checava que isso compilava; o corpo agora imprime com `print`, e a intenção do #495 (um `println()` sem parâmetros do usuário não é SEM096) não muda.
+<!-- pt-switch --> **EN:** [§831 (en)](known-bugs.md#831--an-extra-argument-to-a-callee-with-no-parameters-one7-for-int-one-f7-for-var-f-----1-compiled-with-no-diagnostic-and-failed-at-run-time-on-every-target)

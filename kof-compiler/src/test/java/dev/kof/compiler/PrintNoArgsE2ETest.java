@@ -103,11 +103,14 @@ class PrintNoArgsE2ETest {
                 + r.diagnostics().getDiagnostics());
     }
 
+    // #1122: the body prints with `print`. A `println("...")` inside a user `println()`
+    // is the user function (it shadows the builtin, §931) with an extra argument:
+    // SEM013 now; before it compiled and recursed until StackOverflowError.
     @Test
     void userZeroArgPrintlnFunctionStillWins(@TempDir Path tmp) throws IOException {
         CompilationResult r = compile(tmp, "p6", """
                 void println() {
-                    println("user-println-called")
+                    print("user-println-called")
                 }
                 main() {
                     println()

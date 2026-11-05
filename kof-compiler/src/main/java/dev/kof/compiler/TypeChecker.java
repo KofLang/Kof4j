@@ -66,7 +66,7 @@ public final class TypeChecker {
     static void checkArgTypes(SemanticAnalyzer sa, DiagnosticCollector diagnostics, String methodName,
                               List<Type> argTypes, List<Type> paramTypes,
                               List<ExpressionNode> argNodes) {
-        if (diagnostics == null || paramTypes.isEmpty() && !argTypes.isEmpty()) return;
+        if (diagnostics == null) return;
         if (argTypes.size() != paramTypes.size()) {
             diagnostics.error(argNodeAt(argNodes, 0),
                     "Wrong number of arguments for '" + methodName + "': expected "
