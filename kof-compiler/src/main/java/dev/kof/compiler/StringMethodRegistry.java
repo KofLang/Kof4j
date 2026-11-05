@@ -87,7 +87,10 @@ public final class StringMethodRegistry {
             // emitter built `()Ljava/lang/Object;` (NoSuchMethodError) or, when
             // the value was stored, an empty internal name (ClassFormatError).
             // Registering the real signature makes JvmTypeMapper emit `()[B`.
-            case "getBytes" -> argCount == 0 ? sig(new Type.ArrayType(Type.PrimitiveType.BYTE), List.of()) : null;
+            // §827: getBytes(charsetName) and codePointAt(index) (stdlib batch, 05/11).
+            case "getBytes" -> argCount == 0 ? sig(new Type.ArrayType(Type.PrimitiveType.BYTE), List.of())
+                    : argCount == 1 ? sig(new Type.ArrayType(Type.PrimitiveType.BYTE), List.of(str)) : null;
+            case "codePointAt" -> argCount == 1 ? sig(INT, List.of(INT)) : null;
             case "compareTo" -> argCount == 1 ? sig(INT, List.of(str)) : null;
             case "compareToIgnoreCase" -> argCount == 1 ? sig(INT, List.of(str)) : null;
             case "split" -> argCount == 1 ? sig(strArray, List.of(str))

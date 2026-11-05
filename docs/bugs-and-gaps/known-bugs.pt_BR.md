@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §827 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,21 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §827 — `String.getBytes(charset)` e `String.codePointAt(i)` eram SEM025, então um port caía em `getBytes()` e numa decodificação manual de surrogates; agora os dois são membros de String
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `2c920c4c1`). Lote de stdlib aprovado por decisão de mantenedor (05/11).
+
+**MEDIDO** (JVM):
+```kof
+main() {
+    println("aé".getBytes("ISO-8859-1").length)
+    println("x𝄞".codePointAt(1))
+}
+```
+Observado: `SEM025` "Cannot resolve method" nas duas chamadas; só `getBytes()` (UTF-8) estava registrado.
+
+**CAUSA RAIZ:** faltavam as assinaturas: o `StringMethodRegistry` tinha `getBytes()` e não tinha `getBytes(String)` nem `codePointAt(int)`, embora os dois sejam membros reais de `java.lang.String`, então a guarda os recusava.
+
+**Correção:** `getBytes(charsetName)` devolve `Byte[]` e `codePointAt(index)` devolve `Int` (o code point num índice UTF-16, o par inteiro num surrogate alto). JVM e Script chamam os membros de `java.lang.String`; o JS roda o `codePointAt` nativo (mesmo contrato de índice); `getBytes` mantém o gap STR003 que já tinha em JS/Native, e o Native recusa `codePointAt` com STR003. O alias PortuKof é `pontoDeCodigoEm`, e a lista SEM025 de métodos válidos de String cita `codePointAt`. `learn/39-stdlib` (EN + pt_BR) mostra os dois. **Prova:** `StringCharsetCodePointE2ETest` 3/3 (tamanhos UTF-8 e ISO-8859-1 e code points incluindo um caractere suplementar em JVM e Script, `codePointAt` no JS, Native STR003; RED antes com SEM025).
+<!-- pt-switch --> **EN:** [§827 (en)](known-bugs.md#827--stringgetbytescharset-and-stringcodepointati-were-sem025-so-a-port-fell-back-to-getbytes-and-a-manual-surrogate-decode-now-both-are-string-members)
