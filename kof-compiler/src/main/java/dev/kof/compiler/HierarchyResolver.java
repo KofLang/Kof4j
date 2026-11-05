@@ -56,6 +56,22 @@ public final class HierarchyResolver {
     }
 
     /**
+     * §779: internal name of a declared {@code implements} entry (also an
+     * interface's own {@code extends}), registry-first like the super (§308):
+     * a module interface declared in a package resolves to its qualified
+     * internal name ({@code kernel/p/PIface}); emitting the bare simple name
+     * gave {@code NoClassDefFoundError: PIface} at load. Anything the module
+     * does not declare keeps the import / {@code java.lang} resolution.
+     */
+    static String canonicalInterfaceInternal(CompilerDriver driver, String declared) {
+        SemanticAnalyzer sa = driver.semanticAnalyzer;
+        SymbolTable.ClassSymbol cs = sa == null ? null : sa.getClass(simpleOfStored(declared));
+        if (cs != null) return cs.internalName();
+        return CompilerAnnotations.externalOrLocalInternalName(driver, HeritageQualifier.qualify(
+                driver.currentUnit, sa, CompilerClassLowering.eraseTypeArgs(declared)));
+    }
+
+    /**
      * Internal name canônico de um nome de super/interface armazenado:
      * registro local primeiro (módulo mesclado é a verdade — §308), senão a
      * forma pontuada→barras do próprio nome. Null para null/`Object`.
