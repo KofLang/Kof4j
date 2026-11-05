@@ -120,6 +120,21 @@ public final class JvmWebCoreRuntime {
                         this.handler = handler;
                         this.policy = policy;
                     }
+
+                    /** Spring's rule: at the first segment where two routes of the same
+                     *  length differ, a literal beats a :param, whatever the
+                     *  registration order (`/posts/seals` before `/posts/:id`). */
+                    static void addTo(java.util.List<WebRoute> routes, WebRoute r) {
+                        int at = routes.size();
+                        for (int i = 0; i < routes.size() && at == routes.size(); i++) {
+                            boolean[] o = routes.get(i).params;
+                            if (o.length != r.params.length) continue;
+                            for (int k = 0; k < o.length; k++) {
+                                if (o[k] != r.params[k]) { if (o[k]) at = i; break; }
+                            }
+                        }
+                        routes.add(at, r);
+                    }
                 }
 
                 public static final class WebRequest {
@@ -516,7 +531,7 @@ public final class JvmWebCoreRuntime {
                         throw new IllegalArgumentException(
                                 "route method " + m + " requires kof_web_sse_route/kof_web_ws_route");
                     }
-                    kof_web_app(appId).routes.add(new WebRoute(RouteKind.HTTP, m, path, handler));
+                    WebRoute.addTo(kof_web_app(appId).routes, new WebRoute(RouteKind.HTTP, m, path, handler));
                 }
 
                 /** D-HTTP-POLICIES (F3): {@code app.get(path, opts) { }} — rota
@@ -530,20 +545,18 @@ public final class JvmWebCoreRuntime {
                         throw new IllegalArgumentException(
                                 "route method " + m + " requires kof_web_sse_route/kof_web_ws_route");
                     }
-                    kof_web_app(appId).routes.add(new WebRoute(RouteKind.HTTP, m, path, handler,
+                    WebRoute.addTo(kof_web_app(appId).routes, new WebRoute(RouteKind.HTTP, m, path, handler,
                             Policy.parse(opts, false)));
                 }
 
                 public static void kof_web_sse_route(String appId, String method, String path, Object handler) {
                     if (handler == null) throw new IllegalArgumentException("route handler is null");
-                    kof_web_app(appId).routes.add(
-                            new WebRoute(RouteKind.SSE, method.toUpperCase(), path, handler));
+                    WebRoute.addTo(kof_web_app(appId).routes, new WebRoute(RouteKind.SSE, method.toUpperCase(), path, handler));
                 }
 
                 public static void kof_web_ws_route(String appId, String path, Object handler) {
                     if (handler == null) throw new IllegalArgumentException("route handler is null");
-                    kof_web_app(appId).routes.add(
-                            new WebRoute(RouteKind.WS, "WS", path, handler));
+                    WebRoute.addTo(kof_web_app(appId).routes, new WebRoute(RouteKind.WS, "WS", path, handler));
                 }
 
                 public static void kof_web_use(String appId, Object handler) {

@@ -92,6 +92,7 @@ O corpo `{ ... }` é um lambda trailing — o handler da rota. Um handler pode
 também ser passado explicitamente: `app.get("/x", handler)`.
 
 - `path` suporta segmentos com parâmetro: `/users/:id` (prefixo `:`).
+- Quando várias rotas casam, a literal vence: no primeiro segmento em que duas rotas diferem, um segmento literal ganha de um `:param` (`/posts/seals` antes de `/posts/:id`), seja qual for a ordem de registro (JVM e JS).
 - O handler retorna `String` (corpo da resposta, 200) ou `null` (404).
 - A resposta detecta JSON automaticamente quando o corpo começa com `{` ou `[`
   (`Content-Type: application/json`).

@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §798 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,23 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §798 — the JVM router answered by registration order: `GET /posts/:id` registered first swallowed `GET /posts/seals`; on JS two :param routes with the same static prefix killed `listen`
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED:**
+```kof
+main() {
+    var app = web.app()
+    app.get("/posts/:id") { return "param " + param("id") }
+    app.get("/posts/seals") { return "literal" }
+    app.listen(8080)
+}
+```
+Observed on the JVM: `GET /posts/seals` answers `param seals`. JS answered `literal` (an exact-path lookup runs first) but picked the first registered of two `:param` routes, and `/:a/b/:c` next to `/:a/:b/c` made `listen` throw (`createContext` twice on `/`), so the server never answered.
+
+**ROOT CAUSE:** the JVM keeps `WebApp.routes` in registration order and both matchers return the first route that fits. The JS listener derives one `HttpServer` context per route from its static prefix and created duplicates.
+
+**Fix:** `WebRoute.addTo` inserts each route before the first route of the same length that is less specific (at the first segment where they differ, a literal beats a `:param`, Spring's rule; equal shapes keep registration order), for HTTP, SSE and WS routes alike. The JS matcher keeps the most specific of the matching `:param` routes by the same rule, and creates each context prefix once. The Native router matches exact paths only (path params are its documented `WEB001` residual), so the order question does not arise there. **Proof:** `WebRoutePrecedenceE2ETest` 2/2 (JVM and JS: `/posts/seals` is the literal route, `/posts/7` the param one, and the first-differing-segment rule on three-segment routes); `KofWebJsE2ETest` unchanged.
+<!-- pt-switch --> **PT:** [§798 (pt_BR)](known-bugs.pt_BR.md#798--o-roteador-jvm-respondia-pela-ordem-de-registro-get-postsid-registrado-antes-engolia-get-postsseals-no-js-duas-rotas-param-com-o-mesmo-prefixo-estatico-matavam-o-listen)
