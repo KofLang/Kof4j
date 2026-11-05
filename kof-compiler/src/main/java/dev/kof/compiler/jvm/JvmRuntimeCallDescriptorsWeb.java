@@ -54,7 +54,7 @@ public final class JvmRuntimeCallDescriptorsWeb {
             case "kof_web_close" -> "(Ljava/lang/String;)V";
             case "kof_web_param", "kof_web_query", "kof_web_header"
                     -> "(Ljava/lang/String;)Ljava/lang/String;";
-            case "kof_web_body", "kof_web_method", "kof_web_path" -> "()Ljava/lang/String;";
+            case "kof_web_body", "kof_web_method", "kof_web_path", "kof_web_remote_addr" -> "()Ljava/lang/String;";
             case "kof_web_ws_message" -> "()Ljava/lang/String;";
             case "kof_web_ws_send" -> "(Ljava/lang/String;)V";
             case "kof_web_sse_send" -> "(Ljava/lang/String;)Ljava/lang/String;";

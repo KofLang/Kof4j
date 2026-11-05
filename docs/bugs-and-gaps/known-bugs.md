@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §822 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,24 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §822 — a route handler could not read the TCP peer address (no context function; `req.remoteAddr` is internal), so a client IP needed reflection; now `remoteAddr()`
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `2c920c4c1`). New context function by maintainer decision (05/11).
+
+**MEASURED** (JVM and JS):
+```kof
+main() {
+    var app = web.app()
+    app.get("/ip") {
+        return "ip=" + remoteAddr()
+    }
+    app.listen(8080)
+}
+```
+Observed: `SEM015 Undefined function: 'remoteAddr'` on JVM and JS. The runtime keeps the address (`WebRequest.remoteAddr`, the rate limiter's key) but nothing exposes it, so the port read `KofRuntime.KOF_WEB_REQUEST.remoteAddr` by reflection.
+
+**ROOT CAUSE:** a missing context function: `KofWeb.contextCall` had `body`/`method`/`path` and no accessor for the peer address, and the JS host did not record it.
+
+**Fix:** `remoteAddr()` is a request-context function returning `String` (`""` when unknown): `kof_web_remote_addr` reads `WebRequest.remoteAddr` on the JVM (Script uses the same runtime), and the JS host records `exchange.getRemoteAddress()` on the request object. Native refuses it at compile time with WEB001, like the other context functions it does not emit. `docs/stdlib/stdlib-web` (EN + pt_BR) lists it and notes that a proxy's client address is the `x-forwarded-for` header. **Proof:** `WebRemoteAddrE2ETest` 3/3 (a real request from 127.0.0.1 answers `ip=127.0.0.1` on JVM and JS; Native reports the named WEB001).
+<!-- pt-switch --> **PT:** [§822 (pt_BR)](known-bugs.pt_BR.md#822--um-handler-de-rota-nao-conseguia-ler-o-endereco-tcp-do-par-nao-havia-funcao-de-contexto-reqremoteaddr-e-interno-entao-o-ip-do-cliente-exigia-reflexao-agora-remoteaddr)

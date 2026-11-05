@@ -307,6 +307,11 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
                 stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofWebMethod"), List.of()));
                 return;
             }
+            if (name.equals("kof_web_remote_addr") && args.isEmpty()) {
+                p.lc.registerRuntime("kofWebRemoteAddr");
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofWebRemoteAddr"), List.of()));
+                return;
+            }
             if (name.equals("kof_web_path") && args.isEmpty()) {
                 p.lc.registerRuntime("kofWebPath");
                 stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofWebPath"), List.of()));

@@ -103,7 +103,7 @@ public final class KofWeb {
     static boolean isContextFunction(String name) {
         return switch (name) {
             case "param", "query", "header" -> true;
-            case "body", "method", "path" -> true;
+            case "body", "method", "path", "remoteAddr" -> true;
             case "status", "headerSet", "setHeader" -> true;
             case "sse", "wsSend", "wsMessage", "stats" -> true;
             default -> false;
@@ -291,7 +291,7 @@ public final class KofWeb {
     static boolean contextJsSupported(String function) {
         return switch (function) {
             case "kof_web_param", "kof_web_query", "kof_web_header",
-                 "kof_web_body", "kof_web_method", "kof_web_path",
+                 "kof_web_body", "kof_web_method", "kof_web_path", "kof_web_remote_addr",
                  "kof_web_status", "kof_web_header_set",
                  // WEB001 SSE (16/09): sse(text) handler-scoped no host JS.
                  "kof_web_sse_send" -> true;
@@ -326,6 +326,11 @@ public final class KofWeb {
                     : null;
             case "body", "method", "path" -> argCount == 0
                     ? new WebCall("kof_web_" + name, STR, List.of())
+                    : null;
+            // G14: the TCP peer address of the request ("" when unknown). A
+            // proxy's client address is a header (`header("x-forwarded-for")`).
+            case "remoteAddr" -> argCount == 0
+                    ? new WebCall("kof_web_remote_addr", STR, List.of())
                     : null;
             case "status" -> argCount == 2 && argTypes.get(0) == INT
                     && isString(argTypes.get(1))
