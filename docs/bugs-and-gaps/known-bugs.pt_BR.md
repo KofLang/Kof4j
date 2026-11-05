@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §823 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,22 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §823 — um app que nunca chamou `app.security()` mandava os headers de hardening (CSP, nosniff, X-Frame-Options, Referrer-Policy) em toda resposta, embora o stdlib-web os documente como o que o `app.security()` liga; agora opt-in
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `2c920c4c1`). Opt-in confirmado por decisão de mantenedor (05/11). **Mudança de comportamento:** ver a nota de migração abaixo.
+
+**MEDIDO** (JVM):
+```kof
+main() {
+    var app = web.app()
+    app.get("/x") { return "ok" }
+    app.listen(8080)
+}
+```
+Observado: a resposta de `GET /x` traz `Content-Security-Policy`, `X-Content-Type-Options`, `X-Frame-Options` e `Referrer-Policy`, sem nenhuma chamada a `app.security()`. O port precisou decidir rota a rota o que manter, porque os padrões sobrescreviam os headers que ele definia.
+
+**CAUSA RAIZ:** a policy global do app era `new Policy()`, cujo campo `headers` vale `true` por padrão (o padrão certo para o `app.security()`), então o pipeline de segurança adicionava os headers também num app cru, contra o stdlib-web §3 ("`app.security()` ... liga os headers de hardening").
+
+**Correção:** um app cru começa de `Policy.bare()` (sem headers); o `app.security()` continua parseando as opções com `headers` ligado por padrão, e um escopo `app.policy(prefix, opts)` só os liga com `headers: true`. **Migração:** um app que dependia do padrão não documentado adiciona `app.security()` (ou `app.security(mapOf("csrf", false))` para manter o CSRF desligado). `docs/stdlib/stdlib-web` (EN + pt_BR) registra. **Prova:** `WebSecurityHeadersOptInE2ETest` 3/3 (um app cru não manda nenhum dos quatro headers, RED antes; o `app.security()` continua mandando; um escopo de policy só manda com `headers: true`); `KofWebE2ETest` 28/28 e `KofHttpPoliciesE2ETest` 10/10 inalterados.
+<!-- pt-switch --> **EN:** [§823 (en)](known-bugs.md#823--an-app-that-never-called-appsecurity-still-sent-the-hardening-headers-csp-nosniff-x-frame-options-referrer-policy-on-every-response-though-stdlib-web-documents-them-as-what-appsecurity-enables-now-opt-in)

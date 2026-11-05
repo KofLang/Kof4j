@@ -121,6 +121,8 @@ para métodos que mudam estado:
 - `Referrer-Policy: no-referrer`
 - `Strict-Transport-Security` — só sob TLS (`listenSecure`)
 
+Um app que nunca chama `app.security()` não manda nenhum desses headers (§823). Antes da 0.8 o runtime os mandava em toda resposta mesmo assim; um app que dependia disso adiciona `app.security()` (ou `app.security(mapOf("csrf", false))` para manter o CSRF desligado). Um escopo `app.policy(prefix, opts)` só os liga com `headers: true`.
+
 Opts documentados (chaves do `Map`; qualquer outra é ignorada):
 
 | Chave | Tipo | Default | Efeito |
