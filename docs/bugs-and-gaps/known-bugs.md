@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §777 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,28 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §777 — `if (v == null) { f() } else { g(v) }` with a nullable primitive parameter emitted invalid bytecode (VerifyError / NoSuchMethodError)
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `3a2952641`).
+
+**MEASURED** (JVM and Script):
+```kof
+class DbParams {
+    Int n = 0
+    DbParams addNull() { n += 100
+        return this }
+    DbParams addValue(Object o) { n += 1
+        return this }
+    DbParams bindLongOrNull(v: Long?) {
+        if (v == null) { addNull() } else { addValue(v as Object) }
+        return this
+    }
+}
+```
+Observed: `VerifyError: Instruction type does not match stack map` on the JVM (wrong output on Script); with `Double?` the same. Two independent faces: (1) the THEN branch emits `invokestatic Default/Main.addNull:()Ljava/lang/Object;` — a top-level function that does not exist — and never pops its value; (2) the ELSE branch emits `Long.valueOf:(Ljava/lang/Long;)` (`NoSuchMethodError`), with or without `as Object`.
+
+**ROOT CAUSE:** (1) `StatementAnalyzer` analyzed only the ELSE branch of an `if` whenever the condition narrowed the ELSE (`v == null`), so the THEN branch never reached the typer: no `resolvedMethods` entry for the unqualified member call, which the lowering then treated as a top-level function. Any error in such a THEN branch was also silently unchecked. (2) The box gates of the argument path (`CompilerEmission2`) and of the `as` cast (`ExpressionBinaryInstanceOfLowerer`) used `TypeMetrics.isPrimitiveType`, which also answers true for `Long?` — already a boxed reference — so the value was boxed again (the §294-2a trap `isNullablePrimitive` documents).
+
+**Fix:** (1) both branches are always analyzed, each in its own narrowed scope; (2) the two box gates skip a nullable primitive. **Proof:** `NullableParamBranchE2ETest` 3/3 (the reported `Long?`/`Double?` shape on JVM and Script, and an undefined call in the THEN branch is now `SEM015`); on the old code all 3 fail.
+<!-- pt-switch --> **PT:** [§777 (pt_BR)](known-bugs.pt_BR.md#777--if-v--null--f--else--gv--com-parametro-primitivo-anulavel-emitia-bytecode-invalido-verifyerror--nosuchmethoderror)
