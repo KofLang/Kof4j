@@ -204,8 +204,8 @@ public final class JvmOpEmitter {
                         owner = tvOwner;
                     }
                     String desc = JvmTypeMapper.toMethodDescriptor(kc.returnType(), kc.parameterTypes());
-                    boolean isInterfaceOwner = false;
-                    if (c.module() != null) {
+                    boolean isInterfaceOwner = kc.interfaceOwner();
+                    if (!isInterfaceOwner && c.module() != null) {
                         for (IRClass irc : c.module().classes()) {
                             if (irc.name().equals(owner)) {
                                 isInterfaceOwner = (irc.accessFlags() & org.objectweb.asm.Opcodes.ACC_INTERFACE) != 0;

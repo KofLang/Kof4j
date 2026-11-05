@@ -95,6 +95,7 @@ public final class MemberCallTyper {
             if (q instanceof Type.ClassType qt && sa.isExternal(qt)) {
                 List<Type> argTypes = new ArrayList<>();
                 for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
+                if (ExternalOverloads.reportAmbiguity(sa, mc, qt.internalName(), argTypes)) return Type.UnknownType.UNKNOWN;
                 ExternalClasspath.MethodSignature sig = sa.externalTypes().resolveMethodWithArgs(
                         qt.internalName(), mc.methodName(), mc.arguments().size(), argTypes);
                 if (sig != null) {
@@ -411,6 +412,7 @@ public final class MemberCallTyper {
             if (sa.isExternal(ct)) {
                 List<Type> argTypes = new ArrayList<>();
                 for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
+                if (ExternalOverloads.reportAmbiguity(sa, mc, ct.internalName(), argTypes)) return Type.UnknownType.UNKNOWN;
                 ExternalClasspath.MethodSignature sig = sa.externalTypes().resolveMethodWithArgs(
                         ct.internalName(), mc.methodName(), mc.arguments().size(), argTypes);
                 if (sig != null) {

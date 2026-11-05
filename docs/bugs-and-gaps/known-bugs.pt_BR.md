@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §770 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,24 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §770 — Uma chamada a um método Java externo sobrecarregado escolhia a primeira sobrecarga de mesma aridade, ignorando os tipos dos argumentos (IncompatibleClassChangeError)
+
+**Status:** ✅ CORRIGIDO 04/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/main` `3a2952641`).
+
+**MEDIDO** (alvo JVM, `org.flywaydb:flyway-core:11.14.1` via `kof deps`; `FluentConfiguration` declara `configuration(Configuration)` antes de `configuration(Map<String, String>)`):
+```kof
+import org.flywaydb.core.Flyway
+import java.util.HashMap
+main() {
+    val props = HashMap<String, String>()
+    props.put("flyway.locations", "filesystem:db")
+    val f = Flyway.configure().configuration(props)
+}
+```
+Observado: compila sem diagnóstico e morre com `IncompatibleClassChangeError`: a chamada foi emitida contra `configuration(Lorg/flywaydb/core/api/configuration/Configuration;)`. Duas faces irmãs medidas no mesmo tip: um método herdado da superclasse nunca era candidato quando a subclasse declarava qualquer método de mesmo nome e aridade, e `Path.of("x")` resolvia para `Path.of(URI)` e morria no load com `VerifyError`.
+
+**CAUSA RAIZ:** o `ExternalClasspath.findDeclared` devolvia o primeiro método do dono (depois de cada superclasse, parando na primeira classe com algum casamento) com nome e aridade iguais, sem olhar os tipos dos argumentos. O caminho do JDK (`JdkReflectionResolver`) usava uma pontuação heurística que preferia o método de aridade exata ao varargs mesmo quando o argumento não cabia. O lowering de chamada estática (`ExpressionMethodCallLowerer`) também resolvia de novo sem os tipos dos argumentos, então podia discordar do typer. Uma chamada ESTÁTICA a um dono INTERFACE externo saía como `Methodref`, que a JVM recusa (exige `InterfaceMethodref`).
+
+**Correção:** o novo `ExternalOverloads` seleciona pela JLS 15.12.2 para donos de jar (ASM, sobre a classe, suas superclasses e superinterfaces, sem private/bridge/synthetic) e do JDK (reflexão): fase 1 subtipagem e alargamento primitivo, fase 2 boxing/unboxing, fase 3 aridade variável, e então o método aplicável mais específico. Empate entre métodos maximamente específicos é `SEM057` (o diagnóstico existente "call to '{0}' is ambiguous between {1} overloads") quando todos os tipos de argumento são conhecidos; um argumento cujo tipo o compilador não consegue provar (UNKNOWN, lambda, classe fora de qualquer classpath) nunca vira erro e mantém a escolha anterior por aridade, assim como uma chamada sem sobrecarga aplicável (cujas checagens de argumento reportam o descasamento como antes). O lowering estático resolve com os tipos dos argumentos, e o `KofCall` carrega `interfaceOwner` para que uma chamada estática a uma interface externa saia como `invokestatic` com `InterfaceMethodref`. **Prova:** `ExternalOverloadResolutionE2ETest` 6/6 (sobrecargas do JDK: `Math.round(double)` concatenado como `long`, `Timestamp.valueOf(LocalDateTime)`, `LocalDate.now(ZoneOffset)`, um literal `Int` alargado para `plusSeconds(long)`; a forma do Flyway com `HashMap` e com `mapOf` do Kof, uma sobrecarga estática, o mais específico `String` sobre `CharSequence`/`Object`, alargamento `long` antes do boxing `Integer`, uma sobrecarga herdada da superclasse, `Path.of(String)` e `Path.of(String, String...)`, `SEM057` num empate provado); no código antigo os 6 falham. JS/Nativo não são afetados: método de classe externa já é recusado lá com `INTEROP003` (#760). Sobrecargas de construtor (`new Foo(x)`) seguem resolvidas por aridade no `ExternalCtors` e ficam fora desta correção. Esta é também a preferência pelo overload exato, estilo (a), que a §554 deixou em aberto: `update(Byte[])` sobre `update(byte)`/`update(byte[])` (escalar primeiro) agora liga `update(byte[])` e roda, então o `InteropPrimitiveSlotE2ETest` fixa isso (`arrayArgumentBindsTheArrayOverload`) e mantém o `SEM014` da §554 para um slot que só aceita primitivo (`echo(long)` com `Byte[]`).
+<!-- pt-switch --> **EN:** [§770 (en)](known-bugs.md#770--a-call-into-an-overloaded-external-java-method-picked-the-first-overload-of-the-same-arity-ignoring-the-argument-types-incompatibleclasschangeerror)

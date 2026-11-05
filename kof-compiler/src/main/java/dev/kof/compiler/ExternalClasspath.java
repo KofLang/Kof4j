@@ -138,6 +138,10 @@ public final class ExternalClasspath {
                                                               int argumentCount,
                                                               List<Type> argumentTypes) {
         if (ownerInternalName == null) return null;
+        if (argumentTypes != null && argumentTypes.size() == argumentCount) {
+            ExternalOverloads.Result r = resolveOverload(ownerInternalName, methodName, argumentTypes);
+            if (r.selected() != null || r.ambiguous() > 1) return r.selected();
+        }
         if (loaded) {
             MethodSignature direct = findDeclared(ownerInternalName, methodName, argumentCount, 0);
             if (direct != null) return direct;
@@ -163,6 +167,11 @@ public final class ExternalClasspath {
             return JdkReflectionResolver.resolveJdkMethodWithArgs(ownerInternalName, methodName, argumentCount, argumentTypes);
         }
         return null;
+    }
+
+    /** §770: JLS 15.12.2 selection by argument types (see {@link ExternalOverloads}). */
+    public synchronized ExternalOverloads.Result resolveOverload(String owner, String name, List<Type> args) {
+        return ExternalOverloads.select(loaded ? classBytes : Map.of(), owner, name, args);
     }
 
     /** Classe externa presente nos entries (por nome interno)? */
