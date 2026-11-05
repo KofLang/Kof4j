@@ -77,6 +77,17 @@ public class SemanticAnalyzer {
         this.declarationPackageLookup = lookup;
     }
 
+    private FileImports fileImports;
+
+    void setFileImports(FileImports fileImports) { this.fileImports = fileImports; }
+
+    /** §809: the current file's single-type import of an external {@code name}
+     *  shadows the project class with the same simple name (JLS 6.4.1). */
+    boolean importShadowsProjectClass(String name) {
+        return fileImports != null && getClass(name) != null
+                && fileImports.explicitlyImportsExternal(name, q -> findQualifiedClass(q) != null);
+    }
+
     String packageOf(AstNode decl) {
         if (declarationPackageLookup != null) {
             String pkg = declarationPackageLookup.apply(decl);
@@ -233,9 +244,11 @@ public class SemanticAnalyzer {
         if (diagnostics != null && decl != null && decl.position() != null) {
             diagnostics.setFallbackPosition(decl.position());
         }
+        AstNode prevDecl = fileImports == null ? null : fileImports.enter(decl);
         try {
             analyzeDeclarationAt(decl);
         } finally {
+            if (fileImports != null) fileImports.restore(prevDecl);
             if (diagnostics != null) diagnostics.setFallbackPosition(prev);
         }
     }

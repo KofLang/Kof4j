@@ -190,8 +190,9 @@ IRModule currentModule;
     Path moduleRoot;
 
     /** Pacote declarado de cada declaração (multi-pacote num só módulo). */
-    final java.util.Map<AstNode, String> declarationPackages =
-            new java.util.IdentityHashMap<>();
+    final java.util.Map<AstNode, String> declarationPackages = new java.util.IdentityHashMap<>();
+    /** §809: the imports each declaration's own file wrote ({@link FileImports}). */
+    final FileImports fileImports = new FileImports();
 
     /** #773: nomes dos records injetados FLAT em todo programa (hoje só o
      *  `Pair` do zip, `CompilerPairs`). O `toString` sintético de um record
@@ -573,7 +574,7 @@ IRModule currentModule;
         entitySchemas.clear();
         externSignatures.clear();
         pendingSuperBridges.clear();
-        declarationPackages.clear();
+        declarationPackages.clear(); fileImports.clear();
         flatInjectedRecordTypes.clear();
         lambdaEnclosingOwner.clear();
         mutatedCapturedNames.clear();
