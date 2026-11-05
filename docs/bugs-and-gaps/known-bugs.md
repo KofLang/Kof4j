@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §779 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,25 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §779 — `implements I` for a Kof interface declared in a package emitted the unqualified interface name (NoClassDefFoundError)
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `edcc39114`).
+
+**MEASURED** (JVM target, module root `src/`):
+```kof
+// src/kernel/p/P.kf
+package kernel.p
+interface PIface { String f() }
+class SameImpl implements PIface { String f() { return "same" } }
+// src/app/Main.kf
+package app
+import kernel.p.*
+class OtherImpl implements PIface { String f() { return "other" } }
+```
+Observed: compiles, then `NoClassDefFoundError: PIface` at first use. `javap` shows `class kernel.p.SameImpl implements PIface` and `class app.OtherImpl implements PIface` while the interface is `kernel/p/PIface`; the same holds from the same package and from another one, for a `record ... implements` and for an `interface J extends PIface`. `extends` of a packaged class was already correct.
+
+**ROOT CAUSE:** the superclass resolves registry-first (`HierarchyResolver.canonicalSuperInternal`, §308), but the three sites that lower the interface list (`CompilerClassLowering.lowerClass`, `CompilerIfaceRecordLowering.lowerInterface` and `lowerRecord`) only consulted explicit imports and `java.lang`; a module interface reached through a wildcard import or the same package fell through to the bare simple name.
+
+**Fix:** one helper, `HierarchyResolver.canonicalInterfaceInternal`, resolves each declared interface registry-first (the module's own declaration wins, like the super) and keeps the import / `java.lang` resolution for everything else; the three sites use it. **Proof:** `PackageInterfaceImplementsE2ETest` 1/1 (class from the same package, record, and a class of another package implementing a packaged sub-interface); on the old code it fails with `NoClassDefFoundError: PIface`.
+<!-- pt-switch --> **PT:** [§779 (pt_BR)](known-bugs.pt_BR.md#779--implements-i-para-uma-interface-kof-declarada-em-pacote-emitia-o-nome-da-interface-sem-pacote-noclassdeffounderror)
