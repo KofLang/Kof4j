@@ -76,7 +76,38 @@ public class Lexer {
             }
         }
         tokens.add(new Token(TokenType.EOF, "", file, line, column, pos, 0));
+        retypeEntityFieldModifiers(tokens);
         return tokens;
+    }
+
+    /**
+     * §826: {@code generated} and {@code unique} are contextual keywords
+     * (maintainer decision 05/11): modifiers only after the type of an
+     * {@code entity} field, ordinary names anywhere else
+     * ({@code var unique = ...}, a field {@code unique: Bool}), like
+     * {@code sealed} and {@code audited}.
+     */
+    private static void retypeEntityFieldModifiers(List<Token> tokens) {
+        int depth = 0;
+        int entityDepth = -1;
+        for (int i = 0; i < tokens.size(); i++) {
+            Token t = tokens.get(i);
+            TokenType type = t.type();
+            if (type == TokenType.LBRACE) {
+                depth++;
+                if (entityDepth < 0 && i >= 2 && tokens.get(i - 2).type() == TokenType.ENTITY) entityDepth = depth;
+            } else if (type == TokenType.RBRACE) {
+                if (depth == entityDepth) entityDepth = -1;
+                depth--;
+            } else if (type == TokenType.GENERATED || type == TokenType.UNIQUE) {
+                boolean modifier = depth == entityDepth && i + 1 < tokens.size()
+                        && tokens.get(i + 1).type() != TokenType.COLON;
+                if (!modifier) {
+                    tokens.set(i, new Token(TokenType.IDENTIFIER, t.value(), t.file(), t.line(), t.column(),
+                            t.offset(), t.length()));
+                }
+            }
+        }
     }
 
     private void advance() {

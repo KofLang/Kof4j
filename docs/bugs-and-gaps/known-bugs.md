@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §826 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,22 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §826 — `unique` and `generated` were reserved everywhere, so `var unique = listOf<String>()` was PARSE037 plus a PARSE041 cascade; now contextual entity-field modifiers
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `2c920c4c1`). Contextual by maintainer decision (05/11).
+
+**MEASURED** (JVM):
+```kof
+main() {
+    var unique = listOf<String>()
+    unique.add("a")
+    println(unique)
+}
+```
+Observed: `PARSE037` "Expected variable name" at `unique`, then `PARSE041` "Unexpected token in expression: unique" on every later use. Nothing says the name is a reserved word.
+
+**ROOT CAUSE:** the lexer table reserved `generated` and `unique` in every position, though the parser reads them only as modifiers after the type of an `entity` field.
+
+**Fix:** the lexer keeps them as keywords only inside an `entity` body when they do not name a field (not followed by `:`), and retypes them as identifiers anywhere else, like the contextual `sealed`. The `TokenType` set is unchanged. `docs/language-reference/lexical-structure` (EN + pt_BR) moves them out of the reserved list. **Proof:** `UniqueGeneratedAsNameE2ETest` 2/2 (a local, a field and a method named `unique`/`generated` compile and run; an entity keeps `generated`, `unique` and both, and may have fields named `unique` and `generated`; RED before).
+<!-- pt-switch --> **PT:** [§826 (pt_BR)](known-bugs.pt_BR.md#826--unique-e-generated-eram-reservadas-em-todo-lugar-entao-var-unique--listofstring-era-parse037-mais-uma-cascata-de-parse041-agora-sao-modificadores-contextuais-de-campo-de-entity)

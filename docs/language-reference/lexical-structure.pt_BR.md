@@ -32,7 +32,7 @@ erros com código `LEX00x`.
 ### 1.1 Keywords (lista exaustiva — `Lexer.java:13-74`)
 
 `text
-class  interface  record  enum  entity  generated  unique
+class  interface  record  enum  entity
 extends  implements
 package  import
 public  private  protected  static  final  abstract
@@ -50,6 +50,11 @@ true  false  null
 `trait`, `macro`, `where`, `query`, `test`, `application`, `onStart`,
 `onShutdown`, `desc`, `asc`. Têm significado contextual no parser (ver
 [grammar.md](grammar.md)) ou nenhum.
+
+`generated` e `unique` são **contextuais** (§826): são modificadores só depois
+do tipo de um campo de `entity` (`id: Long generated`,
+`email: String unique`) e nomes comuns em qualquer outro lugar
+(`var unique = listOf<String>()`, um campo `unique: Bool`).
 
 > **§263 CORRIGIDO (17/09, lane compiler/nat):** a forma anotada
 > `nome: Type = ...` só é válida depois de `var`/`val`. No caminho type-first
