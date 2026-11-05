@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §786 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,20 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §786 — `kof fmt` dropped the parentheses of a call/field/index receiver: `("" + x).trim()` became `"" + x.trim()`, a different program
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `edcc39114`).
+
+**MEASURED:** `kof fmt -w` on
+```kof
+var t = ("" + city).trim()
+for (var x in (a + "," + b).split(",")) { println(x) }
+println((o as Box).v)
+```
+rewrote them as `"" + city.trim()`, `a + "," + b.split(",")` and `o as Box.v`. The first still compiles when `city` is a `String` and silently changes the value (the trim no longer applies to the concatenation); with a nullable `city` it becomes SEM049. Formatting a tree could change behavior with no diagnostic.
+
+**ROOT CAUSE:** `KofFormatterExpr` rebuilds grouping from precedence (#52), but printed the receiver of `MethodCallExpr`, `FieldAccessExpr` and `ArrayAccessExpr` at the lowest precedence, so a binary, cast, unary, assignment, `if`, `switch` or lambda receiver lost the parentheses that `parsePostfix` needs.
+
+**Fix:** one helper prints a postfix receiver above every binary precedence and wraps the unary/assignment/`if`/`switch`/lambda forms. **Proof:** `KofFormatterReceiverParensTest` (concatenation, `split` in a `for`, cast, arithmetic, unary and cast-of-concatenation receivers; idempotent; the formatted program prints the same as the original); on the old code it fails. The other face reported with it (`void noop() { }` printed as `noop();`) compiles and runs the same, so it is cosmetic and not part of this fix.
+<!-- pt-switch --> **PT:** [§786 (pt_BR)](known-bugs.pt_BR.md#786--o-kof-fmt-removia-os-parenteses-do-receptor-de-chamadacampoindice---xtrim-virava---xtrim-outro-programa)
