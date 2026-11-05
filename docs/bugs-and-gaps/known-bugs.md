@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §784 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,22 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §784 — a second `headerSet("Set-Cookie", ...)` overwrote the first (JVM and JS), and a CR/LF in a header value split the response
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `edcc39114`).
+
+**MEASURED** (JVM and JS targets):
+```kof
+app.get("/login") {
+    headerSet("Set-Cookie", "a=1")
+    headerSet("Set-Cookie", "b=2")
+    return "ok"
+}
+```
+Observed: the response carries only `Set-Cookie: b=2`; a login that sets a session cookie and a CSRF cookie loses one of them. Also, `headerSet("X", "v\r\nInjected: 1")` wrote `Injected: 1` as a separate header line (response splitting) on the JVM.
+
+**ROOT CAUSE:** the JVM keeps the deferred headers in a `Map<String, String>` (`KOF_WEB_HEADERS`) and `kof_web_header_set` did `put`, so the last value won; the JS pump applied its queue with `Headers.set`, same effect. Set-Cookie is the header that must repeat instead of being combined (RFC 6265 §3). The JVM writer copied the value verbatim, with no CR/LF check.
+
+**Fix:** JVM: `kof_web_header_set` refuses a CR/LF in the name or value (`IllegalArgumentException`, so the route answers 500 instead of writing an injected line) and appends a repeated Set-Cookie (any case) instead of replacing it; `kof_web_build` writes one line per value. JS: the pump `add`s Set-Cookie instead of `set`. Every other header keeps last-wins. Native has no `headerSet` runtime and is unaffected. **Proof:** `WebSetCookieE2ETest` (both cookies, last-wins for another header, no injected line) and `KofWebJsE2ETest.jsRepeatedSetCookieSendsEveryCookie`; both fail on the old code. `KofWebE2ETest`/`KofWebJsE2ETest` stay green.
+<!-- pt-switch --> **PT:** [§784 (pt_BR)](known-bugs.pt_BR.md#784--um-segundo-headersetset-cookie--sobrescrevia-o-primeiro-jvm-e-js-e-crlf-num-valor-de-header-partia-a-resposta)

@@ -211,6 +211,39 @@ class KofWebJsE2ETest {
         assertEquals("ok", bodyOf(plain).trim(), "body default: " + plain);
     }
 
+    // §784: a second headerSet("Set-Cookie", ...) replaced the first one.
+    @Test
+    void jsRepeatedSetCookieSendsEveryCookie(@TempDir Path tempDir) throws Exception {
+        int port = freePort();
+        Path source = tempDir.resolve("CookieApp.kf");
+        Files.writeString(source, """
+                main() {
+                    var app = web.app()
+                    app.get("/login") {
+                        headerSet("Set-Cookie", "a=1")
+                        headerSet("Set-Cookie", "b=2")
+                        return "ok"
+                    }
+                    app.listen(PORT)
+                }
+                """.replace("PORT", String.valueOf(port)));
+        Path outDir = tempDir.resolve("out");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), "JS web must compile: " + result.diagnostics().getDiagnostics());
+        Thread serverThread = new Thread(() -> {
+            try {
+                dev.kof.runtime.KofJsRunner.run(findJsEntry(outDir), java.io.OutputStream.nullOutputStream(),
+                        java.io.InputStream.nullInputStream(), java.io.OutputStream.nullOutputStream());
+            } catch (Exception ignored) {
+            }
+        }, "kof-web-js-cookie");
+        serverThread.setDaemon(true);
+        serverThread.start();
+        assertTrue(TestServerFixture.awaitPort(port, 50, 100), "JS server did not open port " + port);
+        String r = request(port, "GET /login HTTP/1.0\r\nHost: x\r\n\r\n").toLowerCase();
+        assertTrue(r.contains("set-cookie: a=1") && r.contains("set-cookie: b=2"), "both cookies: " + r);
+    }
+
     // ── 16/09 (WEB001 fatia honestidade): context-fns web sem runtime no JS
     //    baixavam para kofWebStub e retornavam 0 em silêncio (R6). SSE ganhou
     //    runtime handler-scoped no host JS (16/09) e saiu da lista; restam
