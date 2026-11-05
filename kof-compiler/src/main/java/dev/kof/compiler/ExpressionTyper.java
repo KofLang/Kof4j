@@ -12,6 +12,10 @@ public final class ExpressionTyper {
     private ExpressionTyper() {}
 
     static Type inferExprType(CompilerDriver driver, ExpressionNode expr, List<IRLocalVariable> locals) {
+        return ExprTypeMemo.infer(driver, expr, locals);
+    }
+
+    static Type inferUncached(CompilerDriver driver, ExpressionNode expr, List<IRLocalVariable> locals) {
         return qualifyBareModuleType(driver, switch (expr) {
             case LiteralExpr lit -> switch (lit.kind()) {
                 case ConcreteLiteralKind.INT -> Type.PrimitiveType.INT;

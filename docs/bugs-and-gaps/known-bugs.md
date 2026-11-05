@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §793 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,18 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §793 — the lowering typer was exponential in the length of a method-call chain: a 36-call fluent builder kept the compiler busy for over an hour
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED** (JVM target, a package class with fluent `bind*` methods, a record `g`):
+```kof
+return store.execute("insert", Params().bindStr(g.id()).bindStrOrNull(g.note()).bindInt(g.plays()) /* ... */)
+```
+Observed: compile time roughly doubles every two links (20 links 0.5 s, 22 links 1.1 s); 36 links ran for more than an hour at 100% CPU inside `MethodCallTyper.inferType` -> `ExpressionTyper.inferExprType`.
+
+**ROOT CAUSE:** `MethodCallTyper.inferType` asks for the receiver's type in several independent arms (array check, semantic substitution, numeric conversion, `toString`, collection fallback), and each request re-walks the whole receiver chain with no memo, so the work is a product over the chain length.
+
+**Fix:** `ExpressionTyper.inferExprType` goes through `ExprTypeMemo`, an identity memo that lives for one outermost inference (the locals and the driver state do not change inside it) and is checked against the locals list it was computed with. Each node of the chain is typed once. **Proof:** `CallChainInferenceE2ETest` (a 60-link chain across packages compiles in under a second and runs, answering 60); on the old code it hits the 60 s timeout.
+<!-- pt-switch --> **PT:** [§793 (pt_BR)](known-bugs.pt_BR.md#793--o-typer-do-lowering-era-exponencial-no-tamanho-de-uma-cadeia-de-chamadas-um-builder-fluente-de-36-chamadas-prendia-o-compilador-por-mais-de-uma-hora)
