@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §799 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,24 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §799 — the arguments of an external constructor were never typed: `new File(System.getProperty(k))` and `new ByteArrayInputStream(s.getBytes())` were emitted as `<init>(Object)` (NoSuchMethodError)
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED** (JVM target):
+```kof
+import java.lang.System
+import java.io.File
+import java.io.ByteArrayInputStream
+main() {
+    println(new File(System.getProperty("java.io.tmpdir")).exists())
+    println(new ByteArrayInputStream("hi".getBytes()).available())
+}
+```
+Observed: `NoSuchMethodError: 'void java.io.File.<init>(java.lang.Object)'` (and the same for `ByteArrayInputStream`); without the `java.lang.System` import the first line was a frame crash at compile time instead of `SEM011`. Through a local (`val p = System.getProperty(k)`, then `new File(p)`) it works.
+
+**ROOT CAUSE:** `SemNewExprTyper` types the arguments of a Kof constructor but returned early for an external (JDK or jar) class without visiting them. The lowering asks the analyzer for the type of a call argument; with none recorded it fell back to `Object`, and the constructor descriptor was built from that. An undefined name inside such an argument was never diagnosed.
+
+**Fix:** the arguments of an external constructor are typed like any call's (a lambda argument stays on the target-typed path that already handles it). **Proof:** `ExternalCtorArgTypingE2ETest` 2/2 (both constructors run, printing `true` and `2`; `new File(nowhere)` is `SEM011`). Selecting among same-arity JDK constructor overloads by argument type is a separate gap (G311) on top of the external overload resolution (§770).
+<!-- pt-switch --> **PT:** [§799 (pt_BR)](known-bugs.pt_BR.md#799--os-argumentos-de-um-construtor-externo-nunca-eram-tipados-new-filesystemgetpropertyk-e-new-bytearrayinputstreamsgetbytes-eram-emitidos-como-initobject-nosuchmethoderror)
