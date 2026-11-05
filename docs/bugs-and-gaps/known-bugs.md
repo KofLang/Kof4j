@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §788 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,21 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §788 — null narrowing ignored `||` (`if (t == null || t.isEmpty())` was SEM049) and narrowed the else of `&&` unsoundly
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `edcc39114`).
+
+**MEASURED** (all targets share the analyzer):
+```kof
+String f(t: String?) {
+    if (t == null || t.length() == 0) { throw "empty" }
+    return t.trim()
+}
+```
+Observed: SEM049 twice, on `t.length()` (the right operand of `||` only runs when `t != null`) and on `t.trim()` (after an exiting then-branch, the condition is false, so `t != null`). The idiomatic guard had to be split into nested ifs. Measured with it: `if (x == null && y) { ... } else { x.length() }` compiled, although `x` can be null in that else (`x == null` true, `y` false).
+
+**ROOT CAUSE:** `StatementAnalyzer.collectNarrowing` and `SemNarrowing.collectCondNarrowing` (two copies of the same table) recursed `&&` into BOTH branches and never looked inside `||`. By De Morgan, `A && B` only proves its operands on the true side, and `A || B` only on the false side. The expression typer narrowed the right operand of `&&` but not of `||`.
+
+**Fix:** one table in `SemNarrowing`: `&&` collects both operands on the true side only, `||` on the false side only; `StatementAnalyzer` uses it for both branches (its copy is removed), and the right operand of `||` is typed in the scope where the left is false. `docs/language-reference/type-system` (EN + pt_BR) describes the rule (the previous text, "no narrowing by `&&`", was already outdated). **Proof:** `NullNarrowingOrE2ETest` 3/3 (JVM and Script for `String?`/`Int?` guards with `||`; the else of `x == null && y` is SEM049); on the old code all 3 fail.
+<!-- pt-switch --> **PT:** [§788 (pt_BR)](known-bugs.pt_BR.md#788--o-narrowing-de-null-ignorava--if-t--null--tisempty-dava-sem049-e-estreitava-o-else-de--sem-garantia)
