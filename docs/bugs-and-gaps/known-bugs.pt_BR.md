@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §812 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,21 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §812 — um cast de Long/Float/Double para `Byte`, `Short` ou `Char` (`300L as Byte`) emitia `i2b`/`i2s`/`i2c` sobre o valor largo (`VerifyError: Bad type on operand stack`)
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `2c920c4c1`).
+
+**MEDIDO** (alvo JVM):
+```kof
+main() {
+    Long v = 300L
+    println(v as Byte)
+}
+```
+Observado: `VerifyError: Bad type on operand stack` no load. O mesmo para `Long as Short`, `Double as Byte`, `Float as Byte`, `Double as Char` e `Long as Char`, e para `x.toChar()` num receiver largo. Script e JS já imprimiam `44`.
+
+**CAUSA RAIZ:** `CompilerEmissionHelpers.emitPrimNarrow` mapeava um alvo Byte/Short para `I2B`/`I2S` qualquer que fosse a origem, e os dois pontos de cast (`as`, `toX()`) acrescentavam `I2C` para Char por conta própria; os três recebem um Int, então um valor long ou de ponto flutuante chegava cru. O store num slot Byte/Short (§696) já convertia para Int antes, na sua própria cópia da regra.
+
+**Correção:** `emitPrimNarrow` estreita para Byte/Short/Char passando por Int (`L2I`/`F2I`/`D2I`, depois `I2B`/`I2S`/`I2C`), como o JLS 5.1.3; os pontos de cast e o store do §696 compartilham essa regra em vez das cópias. **Prova:** `WideCastToByteShortCharE2ETest` 3/3 (JVM, Script e JS imprimem os goldens do javac `44`, `45`, `4464`, `A`, `65`, `127`, `-56`, `B`).
+<!-- pt-switch --> **EN:** [§812 (en)](known-bugs.md#812--a-longfloatdouble-cast-to-byte-short-or-char-300l-as-byte-emitted-i2bi2si2c-over-the-wide-value-verifyerror-bad-type-on-operand-stack)
