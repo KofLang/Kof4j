@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §810 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,25 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §810 — `catch (String e)` let CHECKED Java exceptions escape on the JVM and Script (`URISyntaxException`, `UnknownHostException`, `SQLException`)
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `2c920c4c1`).
+
+**MEASURED** (JVM target):
+```kof
+import java.net.URI
+main() {
+    try {
+        URI("a b")
+    } catch (String e) {
+        println("caught")
+    }
+}
+```
+Observed: the program died with `java.net.URISyntaxException: Illegal character in path at index 1: a b`; `caught` never printed. The same for `Class.forName`, `InetAddress.getByName` (`UnknownHostException`), JDBC (`SQLException`) and `Cipher.doFinal` (`AEADBadTagException`). The Script interpreter behaved the same way.
+
+**ROOT CAUSE:** the JVM backend mapped the String catch to a `java/lang/RuntimeException` handler (`JvmBackend.exceptionJvmType`, then `RuntimeException.getMessage`), and the interpreter matched `instanceof RuntimeException`. Kof has no checked exceptions (EXCEPTIONS_MODEL §6), so Kof code had no catch that could stop a checked one except naming its Java type.
+
+**Fix:** the String catch is an `Exception` handler on the JVM (`Throwable.getMessage` for `e`) and in the interpreter; a typed catch written before it still wins, a Kof `throw "msg"` keeps its message, and a `java.lang.Error` still propagates. **Proof:** `CatchStringCheckedExceptionE2ETest` 2/2 (JVM and Script: `URISyntaxException`, `ClassNotFoundException` and a Kof throw).
+<!-- pt-switch --> **PT:** [§810 (pt_BR)](known-bugs.pt_BR.md#810--catch-string-e-deixava-excecoes-java-checked-escaparem-no-jvm-e-no-script-urisyntaxexception-unknownhostexception-sqlexception)
