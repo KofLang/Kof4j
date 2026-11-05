@@ -12,6 +12,22 @@ public final class JvmRuntimeWebServer {
 
     static String source() {
         return """
+                /** Head lines of the headers set so far, minus the ones the SSE head fixes. */
+                private static String kof_web_extra_head() {
+                    java.util.Set<String> fixed = java.util.Set.of("content-type", "cache-control",
+                            "connection", "x-accel-buffering", "content-length", "transfer-encoding");
+                    StringBuilder hdr = new StringBuilder();
+                    for (java.util.Map<String, String> m : java.util.Arrays.asList(
+                            KOF_WEB_HEADERS.get(), KOF_SEC_RESPONSE_HEADERS.get())) {
+                        if (m == null) continue;
+                        for (java.util.Map.Entry<String, String> e : m.entrySet()) {
+                            if (fixed.contains(e.getKey().toLowerCase(java.util.Locale.ROOT))) continue;
+                            hdr.append(e.getKey()).append(": ").append(e.getValue()).append("\\r\\n");
+                        }
+                    }
+                    return hdr.toString();
+                }
+
                 public static void kof_web_listen(String appId, int port) {
                     WebApp app = kof_web_app(appId);
                     if (app.serverSocket != null) {
