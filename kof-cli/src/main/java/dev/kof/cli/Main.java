@@ -92,7 +92,7 @@ public final class Main {
         System.out.println("  version");
         System.out.println("  init [dir]                   scaffold a new Kof project (main.kf) in dir (default: .)");
         System.out.println("  new <dir> [--type mono|backend|frontend|full-stack]   project from a template");
-        System.out.println("  fmt <file.kf|dir> [-w]       canonical source formatting (-w writes in place)");
+        System.out.println("  fmt <file.kf|dir>... [-w]    canonical source formatting (-w writes in place)");
         System.out.println("  debug [--dap] [--attach <port|pid>] [--target jvm|native] [--break <line>]... [--output <dir>] <file.kf>   debugger");
         System.out.println("  legacy <copybook> [varName]  COBOL copybook -> Kof source");
         System.out.println("  makealive <plan|apply|destroy> <file.kf> [--state PATH] [--json] [--target jvm|js]");

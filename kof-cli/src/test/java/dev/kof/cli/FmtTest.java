@@ -57,4 +57,22 @@ class FmtTest {
         String out = Files.readString(f);
         assertTrue(out.contains("main()"), "deve formatar com -w: " + out);
     }
+
+    /** §794: `-w` before the path was read as the path ("not found: -w"),
+     *  and only the first path of a shell glob was formatted. */
+    @Test
+    void writeFlagFirstAndSeveralPaths(@TempDir Path dir) throws Exception {
+        Path a = dir.resolve("A.kf");
+        Path b = dir.resolve("B.kf");
+        Files.writeString(a, "main(){println(\"a\")}\n");
+        Files.writeString(b, "main(){println(\"b\")}\n");
+        assertEquals(0, run("fmt", "-w", a.toString(), b.toString()));
+        assertTrue(Files.readString(a).contains("main() {"), Files.readString(a));
+        assertTrue(Files.readString(b).contains("main() {"), Files.readString(b));
+    }
+
+    @Test
+    void writeFlagWithoutAPathIsUsage() {
+        assertEquals(1, run("fmt", "-w"));
+    }
 }

@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §794 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,14 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §794 — `kof fmt -w <file>` answered `not found: -w`, and `kof fmt` formatted only the first of several paths
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED:** `kof fmt -w src/A.kf` prints `not found: -w` and exits 1; `kof fmt src/*.kf -w` (the shell expands the glob) formats `src/A.kf` only and ignores the other files without a word.
+
+**ROOT CAUSE:** `Fmt.run` read the path from the fixed position `args[1]` and only looked for `-w` elsewhere, so a flag in that position was taken as the path and every argument after the first path was dropped.
+
+**Fix:** every argument is either `-w` (any position), an unknown flag (refused as before, R6) or a path; `kof fmt <file.kf|dir>... [-w]` formats every path given, and no path at all is the usage error. **Proof:** `FmtTest` 4/4 (`-w` first with two files formats both; `fmt -w` alone is usage; the unknown-flag refusal and the old order keep working).
+<!-- pt-switch --> **PT:** [§794 (pt_BR)](known-bugs.pt_BR.md#794--kof-fmt--w-arquivo-respondia-not-found--w-e-kof-fmt-formatava-so-o-primeiro-de-varios-caminhos)

@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §794 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,14 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §794 — `kof fmt -w <arquivo>` respondia `not found: -w`, e `kof fmt` formatava só o primeiro de vários caminhos
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `4f7257933`).
+
+**MEDIDO:** `kof fmt -w src/A.kf` imprime `not found: -w` e sai com 1; `kof fmt src/*.kf -w` (o shell expande o glob) formata só `src/A.kf` e ignora os outros arquivos sem aviso.
+
+**CAUSA RAIZ:** `Fmt.run` lia o caminho da posição fixa `args[1]` e só procurava `-w` no resto, então uma flag nessa posição virava o caminho e todo argumento depois do primeiro caminho era descartado.
+
+**Correção:** todo argumento é `-w` (qualquer posição), uma flag desconhecida (recusada como antes, R6) ou um caminho; `kof fmt <file.kf|dir>... [-w]` formata todo caminho dado, e nenhum caminho é o erro de uso. **Prova:** `FmtTest` 4/4 (`-w` primeiro com dois arquivos formata os dois; `fmt -w` sozinho é uso; a recusa de flag desconhecida e a ordem antiga seguem funcionando).
+<!-- pt-switch --> **EN:** [§794 (en)](known-bugs.md#794--kof-fmt--w-file-answered-not-found--w-and-kof-fmt-formatted-only-the-first-of-several-paths)
