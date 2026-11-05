@@ -172,7 +172,10 @@ public final class ExpressionLowerer {
                 yield localIdx;
             }
             case MethodCallExpr mc -> {
-                yield ExpressionMethodCallLowerer.lower(driver, mc, ops, owner, localIdx, locals);
+                MethodCallExpr fieldCall = driver.semanticAnalyzer == null ? null
+                        : driver.semanticAnalyzer.functionFieldCall(mc); // §820
+                yield ExpressionMethodCallLowerer.lower(driver, fieldCall != null ? fieldCall : mc,
+                        ops, owner, localIdx, locals);
             }
             case AssignmentExpr ae -> {
                 yield ExpressionAssignmentLowerer.lower(driver, ae, ops, owner, localIdx, locals);

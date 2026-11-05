@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §820 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,31 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §820 — um campo de tipo-função não podia ser chamado como método (`h.run()` dava SEM025), e um segundo campo de tipo-função na linha de baixo era lido como lista de parâmetros do primeiro (PARSE023)
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `2c920c4c1`). Chamar o campo como método é decisão de mantenedor (05/11).
+
+**MEDIDO** (JVM, Script e JS concordam):
+```kof
+class H {
+    () -> Int run
+    (Int) -> String show
+    H(() -> Int f, (Int) -> String s) {
+        this.run = f
+        this.show = s
+    }
+}
+
+main() {
+    val h = H(() -> 21, (n: Int) -> "n=" + n)
+    println(h.run())
+    println(h.show(5))
+}
+```
+Observado: `PARSE023 Expected parameter name` e `PARSE016` na linha 3; sem esse campo, `SEM025 Cannot resolve method 'run' on type 'H'` em `h.run()`. O contorno era copiar o valor para um local antes (`var f = h.run; f()`).
+
+**CAUSA RAIZ:** duas faces. (a) `ClassMemberParser`, no ramo de membro cujo tipo começa com `(` (um tipo-função), lia um `(` depois do nome do membro como lista de parâmetros mesmo na linha seguinte, então `() -> Int run` engolia o `(Int)` do próximo campo; o ramo de tipos nomeados já tinha a guarda de mesma linha. (b) `MemberCallTyper` resolvia `h.run()` só contra métodos, e a invocação de um valor-função só existia para um receptor que já tinha tipo função (`f()`, `(h.run).invoke()`).
+
+**Correção:** (a) o ramo de tipo-função usa a mesma guarda de linha. (b) quando a classe do receptor não tem método com esse nome na hierarquia e tem um campo de tipo-função com esse nome, `FunctionFieldCalls` reescreve a chamada para `(h.run).invoke(args)`; o analisador registra a reescrita pelo nó da AST e tanto o typer do lowering quanto o lowerer a usam, então JVM, Script e JS compartilham o caminho de valor-função que já existia. Um método com o mesmo nome ganha. O número de argumentos é checado contra o tipo do campo (`SEM013`). `docs/language-reference/closures` §3 (EN + pt_BR) documenta. **Prova:** `FunctionFieldCallE2ETest` 3/3 (campos de zero, um e dois argumentos, um campo `Void`, um campo herdado, as formas sem receptor e com `this.` dentro da classe e um receptor vindo de `List.get`, iguais em JVM, Script e JS; um método de mesmo nome ganha em JVM e Script; SEM025 para um membro que não é nenhum dos dois, um argumento a mais recusado).
+<!-- pt-switch --> **EN:** [§820 (en)](known-bugs.md#820--a-function-typed-field-could-not-be-called-as-a-method-hrun-was-sem025-and-a-second-function-typed-field-on-the-next-line-was-read-as-the-first-ones-parameter-list-parse023)

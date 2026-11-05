@@ -204,6 +204,11 @@ public class SemanticAnalyzer {
         return resolvedMethods.get(mc);
     }
 
+    /** §820: {@code h.run()} on a function-typed field, as {@code (h.run).invoke()}. */
+    private final Map<MethodCallExpr, MethodCallExpr> functionFieldCalls = new IdentityHashMap<>();
+    void recordFunctionFieldCall(MethodCallExpr mc, MethodCallExpr invoke) { functionFieldCalls.put(mc, invoke); }
+    MethodCallExpr functionFieldCall(MethodCallExpr mc) { return functionFieldCalls.get(mc); }
+
     /** #763: candidato `extern` resolvido por call-site (seleção por assinatura). */
     void recordExternChoice(MethodCallExpr mc, ExternalFunctionNode ext) { ExternOverload.record(mc, ext); }
     ExternalFunctionNode getExternChoice(MethodCallExpr mc) { return ExternOverload.get(mc); }
