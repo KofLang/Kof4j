@@ -20206,7 +20206,7 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
 
-## §767 — a nullable-RETURN function type compiles but the emitted lambda class does not implement the functional interface — `IncompatibleClassChangeError` at the first call (JVM)
+## §935 — a nullable-RETURN function type compiles but the emitted lambda class does not implement the functional interface — `IncompatibleClassChangeError` at the first call (JVM)
 
 **Symptom:** a `() -> String?` lambda (or any nullable-return function type) compiles clean on JVM, but the FIRST call of the closure value dies with `java.lang.IncompatibleClassChangeError: Class Lambda0 does not implement the requested interface kof.Function0_NCString`. With the NON-nullable declaration `() -> String` (and a `return null` body — also accepted), the same error names `kof.Function0_CString`: the interface the call site demands EXISTS, and the emitted class does not implement it. Measured end-to-end consequence: the web middleware chain (`app.use(fn)`) is UNREACHABLE — `JvmRuntimeWebDispatch.kof_web_invoke` calls the middleware reflectively, the error surfaces inside the dispatch, and the server answers **HTTP 500** to every request when ANY middleware is registered; the inline route handlers work (same bridge, body inferred `() -> String`).
 
@@ -20217,4 +20217,4 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 **Status:** 🔴 OPEN — filed as **#1080** (labels bug/jvm; measured 05/11, tip `76464df44`+`2c920c4c1`, JVM target, Java 25). Script face not exercised (the interpreter emits no classes).
 
 **Owner:** compiler core (the `.30:9092` territory — the docs/lab lane measured it to the root and stopped per the lane contract); class: compiler emission / functional types.
-<!-- pt-switch --> **PT:** [§767 (pt_BR)](known-bugs.pt_BR.md#767--tipo-função-com-retorno-nulável-compila-mas-a-classe-do-lambda-emitida-não-implementa-a-interface-funcional--incompatibleclasschangeerror-na-primeira-chamada-jvm)
+<!-- pt-switch --> **PT:** [§935 (pt_BR)](known-bugs.pt_BR.md#935--tipo-funcao-com-retorno-nulavel-compila-mas-a-classe-do-lambda-emitida-nao-implementa-a-interface-funcional--incompatibleclasschangeerror-na-primeira-chamada-jvm)
