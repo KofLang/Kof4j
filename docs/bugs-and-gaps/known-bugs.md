@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §805 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,21 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §805 — `audited` was reserved everywhere: a function, variable or field named `audited` failed to parse (`PARSE010`), although it is only the `audited entity` modifier
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED:**
+```kof
+Int audited(action: String) {
+    return action.length()
+}
+main() { println(audited("x")) }
+```
+Observed: `PARSE010 Expected function name` at `audited`, then a cascade. The same for a local, a parameter or a field named `audited`.
+
+**ROOT CAUSE:** entity-history slice 2a added `audited` to the lexer's keyword table (`TokenType.AUDITED`), so it became a reserved word in every position, while the parser only accepts it before `entity` and the documented keyword list (lexical-structure.md §1.1) does not include it.
+
+**Fix:** the lexer retypes an `AUDITED` token as an `IDENTIFIER` unless the next token is `entity`, so `audited` is a modifier exactly where the parser takes it and an ordinary name everywhere else, like the contextual `sealed`. The PortuKof `auditado entidade` form is unchanged. **Proof:** `AuditedAsNameE2ETest` (a function, a local and a field named `audited` compile and run); `AuditedEntityParseE2ETest` (including `audited class` staying a parse error), the `EntityHistory*` and `PortuKof*` classes unchanged (83 tests).
+<!-- pt-switch --> **PT:** [§805 (pt_BR)](known-bugs.pt_BR.md#805--audited-era-reservado-em-todo-lugar-uma-funcao-variavel-ou-campo-chamado-audited-nao-parseava-parse010-embora-seja-so-o-modificador-de-audited-entity)

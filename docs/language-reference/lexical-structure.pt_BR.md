@@ -77,6 +77,11 @@ true  false  null
 > identificador válido. Travado por `SealedTypeE2ETest` + `CompilerDriverTest`.
 > Ver [specification-gaps.md](../bugs-and-gaps/specification-gaps.md).
 
+> **`audited` é contextual (§805):** é o modificador de entity-history só
+> logo antes de `entity` (`audited entity Order { ... }`); em qualquer outro lugar
+> é um `IDENTIFIER` comum (uma função, variável, parâmetro ou campo pode se
+> chamar `audited`). O lexer o retipa pelo token seguinte.
+
 > **SG-001 RESOLVIDO (06/09):** `fun`/`fn`/`func` são **palavras reservadas**
 > (tokens `FUN`/`FN`/`FUNC` no lexer) — **não existem** no Kof, nem como
 > keyword de declaração nem como identificador em nenhuma posição (nome de

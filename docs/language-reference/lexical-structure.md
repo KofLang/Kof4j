@@ -77,6 +77,11 @@ true  false  null
 > identifier. Locked by `SealedTypeE2ETest` + `CompilerDriverTest`.
 > See [specification-gaps.md](../bugs-and-gaps/specification-gaps.md).
 
+> **`audited` is contextual (§805):** it is the entity-history modifier only
+> right before `entity` (`audited entity Order { ... }`); anywhere else it is an
+> ordinary `IDENTIFIER` (a function, variable, parameter or field may be called
+> `audited`). The lexer retypes it from the next token.
+
 > **SG-001 RESOLVED (06/09):** `fun`/`fn`/`func` are **reserved words**
 > (`FUN`/`FN`/`FUNC` tokens in the lexer) — they **do not exist** in Kof, neither
 > as a declaration keyword nor as an identifier in any position (function

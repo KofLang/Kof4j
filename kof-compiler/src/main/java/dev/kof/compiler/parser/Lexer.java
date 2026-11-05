@@ -76,6 +76,15 @@ public class Lexer {
             }
         }
         tokens.add(new Token(TokenType.EOF, "", file, line, column, pos, 0));
+        // `audited` is a modifier only right before `entity` (D-ENTITY-HISTORY);
+        // anywhere else it is an ordinary name (`Int audited(...)`), like `sealed`.
+        for (int i = 0; i + 1 < tokens.size(); i++) {
+            Token t = tokens.get(i);
+            if (t.type() == TokenType.AUDITED && tokens.get(i + 1).type() != TokenType.ENTITY) {
+                tokens.set(i, new Token(TokenType.IDENTIFIER, t.value(), t.file(), t.line(), t.column(),
+                        t.offset(), t.length()));
+            }
+        }
         return tokens;
     }
 
