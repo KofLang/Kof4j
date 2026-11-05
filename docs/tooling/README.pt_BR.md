@@ -109,8 +109,10 @@ contrato, então o formatter AST costura de volta cada comentário
 escaneado (ciente de string/char — `"http://x"` não é comentário) na
 saída, em ordem de origem; a heurística de 50% que escolhia o caminho
 por ACIDENTE morreu (null agora significa apenas falha de parse).
-Quando o parse falha, o fallback token-based ainda preserva comentários
-de linha e de bloco de linha inteira verbatim. O LSP
+Um arquivo que não parseia nunca é reescrito (§818): `kof fmt` o nomeia
+no stderr, deixa-o byte a byte, ainda formata os arquivos que parseiam e
+sai com 1. O fallback token-based perdia sintaxe válida (`String? name`
+virava `String?name`) e não é mais gravado em disco. O LSP
 (`textDocument/formatting`) roda o MESMO motor e responde "sem edição"
 em vez de crashar num buffer não-formatável: editor e CLI nunca perdem
 um comentário.

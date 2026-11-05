@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §818 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,24 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §818 — `kof fmt src -w` gravava a saída com perda do fallback token-based sobre um arquivo que não parseava (`String? name` -> `String?name`, `json.decode<T>(x)` -> `json.decode < T > (x)`), exit 0
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `2c920c4c1`).
+
+**MEDIDO** (`kof fmt src -w` num diretório em que um arquivo tem um deslize de sintaxe):
+```kof
+class Repo {
+    String? name
+    Map<String, Object> load(String raw) {
+        return json.decode<Map<String, Object>>(raw)
+    }
+    void oops( {
+}
+```
+Observado: exit 0, "1 file(s) reformatted", e o arquivo quebrado reescrito com `String?name`, `Map < String, Object > load(String raw)` e `json.decode < Map < String, Object >> (raw)`: um deslize de uma linha virou um arquivo cheio de erros novos que precisou ser restaurado do git.
+
+**CAUSA RAIZ:** `Fmt.run` chamava `Fmt.format`, que cai num formatador token-based quando `KofFormatter` devolve null (erro de lexer ou parser). O fallback só conhece chaves, parênteses e um conjunto fixo de operadores, então reescreve sintaxe válida que não modela (tipos `?`, chamadas genéricas, `>>` em argumentos de tipo), e o `-w` gravava isso sobre o fonte.
+
+**Correção:** `kof fmt` formata cada arquivo só pelo `KofFormatter`. Um arquivo que não parseia é nomeado no stderr ("not formatted, the file does not parse"), fica byte a byte e faz a execução sair com 1; os arquivos que parseiam continuam sendo formatados, como o `gofmt -w` faz. O LSP já respondia "sem edição" para um buffer assim. `docs/tooling/README` §6 (EN + pt_BR) registra. **Prova:** `FmtUnparseableFileTest` 1/1 (o arquivo quebrado fica igual, o outro é formatado, exit 1; RED na base com exit 0); `FmtTest`, `FmtCommentsTest` e `PortuKofToolingE2ETest` inalterados.
+<!-- pt-switch --> **EN:** [§818 (en)](known-bugs.md#818--kof-fmt-src--w-wrote-the-lossy-token-fallback-output-over-a-file-that-did-not-parse-string-name---stringname-jsondecodetx---jsondecode--t--x-exit-0)

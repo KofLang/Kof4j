@@ -108,11 +108,14 @@ Comments are preserved ALWAYS (§509/#625): the lexer drops them by
 contract, so the AST formatter now re-sews every scanned comment
 (string/char-aware — `"http://x"` is not a comment) back into the
 output in source order; the old 50%-size heuristic that picked the path
-BY ACCIDENT is gone (null now means parse failure only). When parsing
-fails the token-based fallback still preserves line and full-line block
-comments verbatim. The LSP (`textDocument/formatting`) runs the same
-engine and answers "no edit" instead of crashing on unformattable
-buffers: editor and CLI never lose a comment.
+BY ACCIDENT is gone (null now means parse failure only). A file that
+does not parse is never rewritten (§818): `kof fmt` names it on stderr,
+leaves it byte for byte, still formats the files that parse and exits 1.
+The token-based fallback was lossy on valid syntax (`String? name` became
+`String?name`) and is no longer written to disk. The LSP
+(`textDocument/formatting`) runs the same engine and answers "no edit"
+instead of crashing on unformattable buffers: editor and CLI never lose a
+comment.
 
 ---
 

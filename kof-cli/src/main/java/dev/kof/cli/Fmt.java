@@ -49,10 +49,20 @@ final class Fmt {
         } catch (Exception e) { System.err.println("fmt: " + e.getMessage()); return 1; }
 
         int changed = 0;
+        int unparseable = 0;
         for (Path f : files) {
             try {
                 String in = Files.readString(f);
-                String out = format(in, f.getFileName().toString());
+                // §818: the token fallback is lossy (`String? name` -> `String?name`,
+                // `json.decode<T>(x)` -> `json.decode < T > (x)`); a file that does not
+                // parse is reported and left as it is, the others are still formatted
+                String out = KofFormatter.format(in, f.getFileName().toString());
+                if (out == null) {
+                    System.err.println("fmt " + f + ": not formatted, the file does not parse"
+                            + " (run `kof check " + f + "` for the error)");
+                    unparseable++;
+                    continue;
+                }
                 if (!out.equals(in)) changed++;
                 if (write) {
                     if (!out.equals(in)) Files.writeString(f, out);
@@ -64,7 +74,7 @@ final class Fmt {
             }
         }
         if (write) System.out.println("fmt: " + changed + " file(s) reformatted");
-        return 0;
+        return unparseable == 0 ? 0 : 1;
     }
 
     /** Formata via parser real (KofFormatter); fallback token-based se falhar. */
