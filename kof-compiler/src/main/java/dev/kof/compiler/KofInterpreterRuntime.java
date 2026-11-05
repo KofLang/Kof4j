@@ -93,10 +93,9 @@ public final class KofInterpreterRuntime {
             }
             if (kc == null) throw new NoSuchMethodError("KofRuntime." + name + " (class '" + cn + "' not found)");
             Object parsed = runtimeFn("kof_json_parse", new Object[]{json});
+            if (!(parsed instanceof List<?> l)) throw shapeError("an array", parsed);
             List<Object> out = new ArrayList<>();
-            if (parsed instanceof List<?> l) {
-                for (Object e : l) out.add(decodeKofValue(kc, e));
-            }
+            for (Object e : l) out.add(decodeKofValue(kc, e));
             return out;
         }
         // §103.1 (#103): decode<Map<String,Classe>> — mesma limitação do
@@ -110,12 +109,10 @@ public final class KofInterpreterRuntime {
             }
             if (kc == null) throw new NoSuchMethodError("KofRuntime." + name + " (class '" + cn + "' not found)");
             Object parsed = runtimeFn("kof_json_parse", new Object[]{json});
+            if (!(parsed instanceof java.util.Map<?, ?> m))
+                throw shapeError("an object", parsed);
             java.util.Map<Object, Object> out = new java.util.LinkedHashMap<>();
-            if (parsed instanceof java.util.Map<?, ?> m) {
-                for (java.util.Map.Entry<?, ?> e : m.entrySet()) {
-                    out.put(e.getKey(), decodeKofValue(kc, e.getValue()));
-                }
-            }
+            for (java.util.Map.Entry<?, ?> e : m.entrySet()) out.put(e.getKey(), decodeKofValue(kc, e.getValue()));
             return out;
         }
         // #633: decode<Map<K, coleção>> (valor aninhado) — o runtime gerado
@@ -277,10 +274,22 @@ public final class KofInterpreterRuntime {
         return obj;
     }
 
+    /** §819: the generated runtime's {@code kof_json_shape}, as a Kof String exception. */
+    private static Throwable shapeError(String want, Object v) {
+        String found = v == null ? "null" : v instanceof List ? "an array"
+                : v instanceof java.util.Map ? "an object" : v instanceof String ? "a string"
+                : v instanceof Boolean ? "a boolean" : "a number";
+        return KofInterpreterFrame.asThrowable("JSN006: json.decode expected " + want + ", found " + found);
+    }
+
     private Object bindKof(Type type, Object raw) throws Throwable {
         if (raw == null) return null;
         IRClass nested = interp.kofClassOrNull(type);
         if (nested != null && raw instanceof java.util.Map) return decodeKofValue(nested, raw);
+        // §819: a JSON value of the wrong shape is JSN006, never a raw container
+        if (nested != null && raw instanceof List) throw shapeError("an object", raw);
+        if (BuiltinTypes.isList(type) && !(raw instanceof List)) throw shapeError("an array", raw);
+        if (BuiltinTypes.isMap(type) && !(raw instanceof java.util.Map)) throw shapeError("an object", raw);
         if (raw instanceof List<?> l && BuiltinTypes.isList(type)) {
             Type elem = ((Type.ClassType) type).typeArguments().isEmpty()
                     ? Type.UnknownType.UNKNOWN : ((Type.ClassType) type).typeArguments().get(0);

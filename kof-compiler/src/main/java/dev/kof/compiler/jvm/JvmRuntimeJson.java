@@ -220,25 +220,19 @@ public final class JvmRuntimeJson {
                 }
 
                 public static int[] kof_json_decode_int_array(String json) {
-                    Object parsed = kof_json_parse(json);
-                    if (parsed instanceof List<?> l) {
-                        int n = l.size();
-                        int[] out = new int[n];
-                        for (int i = 0; i < n; i++) out[i] = ((Number) l.get(i)).intValue();
-                        return out;
-                    }
-                    return new int[0];
+                    List<?> l = kof_json_array(json);
+                    int n = l.size();
+                    int[] out = new int[n];
+                    for (int i = 0; i < n; i++) out[i] = ((Number) l.get(i)).intValue();
+                    return out;
                 }
 
                 public static long[] kof_json_decode_long_array(String json) {
-                    Object parsed = kof_json_parse(json);
-                    if (parsed instanceof List<?> l) {
-                        int n = l.size();
-                        long[] out = new long[n];
-                        for (int i = 0; i < n; i++) out[i] = ((Number) l.get(i)).longValue();
-                        return out;
-                    }
-                    return new long[0];
+                    List<?> l = kof_json_array(json);
+                    int n = l.size();
+                    long[] out = new long[n];
+                    for (int i = 0; i < n; i++) out[i] = ((Number) l.get(i)).longValue();
+                    return out;
                 }
 
                 // #132: Bool[] no JVM é boolean[] (JvmTypeMapper `Z`, new-array
@@ -247,68 +241,52 @@ public final class JvmRuntimeJson {
                 // boolean[] real). Representação única: BALOAD/BASTORE agora
                 // batem em `new Bool[n]` E em `json.decode<Bool[]>`.
                 public static boolean[] kof_json_decode_bool_array(String json) {
-                    Object parsed = kof_json_parse(json);
-                    if (parsed instanceof List<?> l) {
-                        int n = l.size();
-                        boolean[] out = new boolean[n];
-                        for (int i = 0; i < n; i++) out[i] = (Boolean) l.get(i);
-                        return out;
-                    }
-                    return new boolean[0];
+                    List<?> l = kof_json_array(json);
+                    int n = l.size();
+                    boolean[] out = new boolean[n];
+                    for (int i = 0; i < n; i++) out[i] = (Boolean) l.get(i);
+                    return out;
                 }
 
                 public static double[] kof_json_decode_double_array(String json) {
-                    Object parsed = kof_json_parse(json);
-                    if (parsed instanceof List<?> l) {
-                        int n = l.size();
-                        double[] out = new double[n];
-                        for (int i = 0; i < n; i++) out[i] = ((Number) l.get(i)).doubleValue();
-                        return out;
-                    }
-                    return new double[0];
+                    List<?> l = kof_json_array(json);
+                    int n = l.size();
+                    double[] out = new double[n];
+                    for (int i = 0; i < n; i++) out[i] = ((Number) l.get(i)).doubleValue();
+                    return out;
                 }
 
                 public static String[] kof_json_decode_string_array(String json) {
-                    Object parsed = kof_json_parse(json);
-                    if (parsed instanceof List<?> l) {
-                        int n = l.size();
-                        String[] out = new String[n];
-                        for (int i = 0; i < n; i++) out[i] = String.valueOf(l.get(i));
-                        return out;
-                    }
-                    return new String[0];
+                    List<?> l = kof_json_array(json);
+                    int n = l.size();
+                    String[] out = new String[n];
+                    for (int i = 0; i < n; i++) out[i] = String.valueOf(l.get(i));
+                    return out;
                 }
 
                 public static ArrayList<Integer> kof_json_decode_int_list(String json) {
-                    Object parsed = kof_json_parse(json);
                     ArrayList<Integer> result = new ArrayList<>();
-                    if (parsed instanceof List<?> l)
-                        for (Object e : l) result.add(((Number) e).intValue());
+                    for (Object e : kof_json_array(json)) result.add(((Number) e).intValue());
                     return result;
                 }
 
                 public static ArrayList<String> kof_json_decode_string_list(String json) {
-                    Object parsed = kof_json_parse(json);
                     ArrayList<String> result = new ArrayList<>();
-                    if (parsed instanceof List<?> l)
-                        for (Object e : l) result.add(e == null ? null : String.valueOf(e));
+                    for (Object e : kof_json_array(json))
+                        result.add(e == null ? null : String.valueOf(e));
                     return result;
                 }
 
                 public static ArrayList<Object> kof_json_decode_list(String json) {
-                    Object parsed = kof_json_parse(json);
-                    if (parsed instanceof ArrayList<?> l) return new ArrayList<Object>(l);
-                    return new ArrayList<Object>();
+                    return new ArrayList<Object>(kof_json_array(json));
                 }
 
                 public static ArrayList<Object> kof_json_decode_object_list(String json, String cn)
                         throws Exception {
-                    Object parsed = kof_json_parse(json);
+                    List<?> l = kof_json_array(json);
                     ArrayList<Object> result = new ArrayList<>();
-                    if (parsed instanceof List<?> l) {
-                        Class<?> type = Class.forName(cn);
-                        for (Object e : l) result.add(kof_json_bind(type, e));
-                    }
+                    Class<?> type = Class.forName(cn);
+                    for (Object e : l) result.add(kof_json_bind(type, e));
                     return result;
                 }
 
@@ -369,7 +347,10 @@ public final class JvmRuntimeJson {
                             for (Object e : l) out.add(bindByType(elem, e));
                             return out;
                         }
+                        throw kof_json_shape("an array", value); // §819
                     }
+                    if (java.util.Map.class.isAssignableFrom(type) && !(value instanceof Map<?, ?>))
+                        throw kof_json_shape("an object", value); // §819
                     // #633: alvo `Map<K,V>` (interface desde #634) — decodifica
                     // os VALORES pelo type-arg refletido (genérico completo),
                     // recursivamente. Sem isto, um campo de record
@@ -423,6 +404,9 @@ public final class JvmRuntimeJson {
                         }
                         return obj;
                     }
+                    // §819: an array where a class is expected is a shape error, not a raw List
+                    if (value instanceof List<?> && type != Object.class && !type.isInstance(value))
+                        throw kof_json_shape("an object", value);
                     return value;
                 }
 

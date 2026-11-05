@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §819 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,21 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §819 — `json.decode<Map<String, Object>>` of a JSON array returned an empty map (and an object decoded as `List<T>` an empty list), with no diagnostic; now JSN006
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `2c920c4c1`). The error code is a maintainer decision (05/11).
+
+**MEASURED** (JVM and Script print `0` and `0`; JS prints `2`, a map keyed `"0"` and `"1"`, and `undefined`):
+```kof
+main() {
+    println(json.decode<Map<String, Object>>("[1, 2]").size())
+    println(json.decode<List<Object>>("{\"a\": 1}").size())
+}
+```
+No error on any target. A client that sent an array where the API expected an object was handled as "no fields", and the request went on with defaults.
+
+**ROOT CAUSE:** every container decoder was written as `if (parsed instanceof Map) { ... }` (or `List`) and returned a fresh empty container otherwise: `kof_json_decode_map`/`object_map`, the five array decoders, `int_list`/`string_list`/`list`/`object_list` in the generated JVM runtime (Script calls the same methods, plus its own `object_list`/`object_map`/`bindKof`), and `kofJsonDecodeMap`/`kofJsonDecodeObjectMap` on JS. The reflective binder returned a mismatched value raw, which failed later with a `ClassCastException`.
+
+**Fix:** the shape is checked once, in `kof_json_array`/`kof_json_object` (JVM runtime, `JvmRuntimeJsonMap`), `shapeError` (Script) and `kofJsonArray`/`kofJsonObject`/`kofJsonNoArray` (JS runtime); every container decoder goes through them, and the binder applies the same rule to nested `List`/`Map` fields and to an array where a class is expected. A mismatch throws **JSN006** "json.decode expected an array, found an object" (or `an object`, found `an array`/`null`/`a string`/`a number`/`a boolean`), a Kof String exception with the same text on the three targets. The Native target already refuses `Map` decodes at compile time (JSN004); its list decoders are a follow-up. `docs/stdlib/README` (EN + pt_BR) states the contract. **Proof:** `JsonDecodeShapeMismatchE2ETest` 1/1 (seven wrong-shape faces and three controls, byte-identical on JVM, Script and JS; RED on the base: all seven printed `ok 0`).
+<!-- pt-switch --> **PT:** [§819 (pt_BR)](known-bugs.pt_BR.md#819--jsondecodemapstring-object-de-um-array-json-devolvia-um-mapa-vazio-e-um-objeto-decodificado-como-listt-uma-lista-vazia-sem-diagnostico-agora-jsn006)

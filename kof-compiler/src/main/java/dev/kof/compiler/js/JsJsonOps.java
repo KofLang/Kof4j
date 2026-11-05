@@ -77,16 +77,20 @@ public final class JsJsonOps {
             p.lc.registerRuntime("kofJsonEncode");
             stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofJsonEncode"), List.of(value)));
         } else if (name.startsWith("kof_json_decode_")
-                && BuiltinTypes.isList(kc.ownerType())) {
-            // decode<List<T>> — bind each element to the Kof class
-            Type elem = kc.ownerType() instanceof Type.ClassType lct
+                && (BuiltinTypes.isList(kc.ownerType()) || kc.ownerType() instanceof Type.ArrayType)) {
+            // decode<List<T>> / decode<T[]> — bind each element to the Kof class;
+            // §819: anything but a JSON array is JSN006 (kofJsonArray)
+            p.lc.registerRuntime("kofJsonArray");
+            value = new JsIr.JsCall(new JsIr.JsIdentifier("kofJsonArray"),
+                    List.of(new JsIr.JsCall(new JsIr.JsIdentifier("JSON.parse"), List.of(value))));
+            Type elem = kc.ownerType() instanceof Type.ArrayType at ? at.componentType()
+                    : kc.ownerType() instanceof Type.ClassType lct
                     && !lct.typeArguments().isEmpty() ? lct.typeArguments().get(0) : Type.UnknownType.UNKNOWN;
             if (elem instanceof Type.ClassType ect
                     && p.lc.classMethodNames.containsKey(ect.internalName())) {
                 String jsName = JsTypeMapper.jsClassName(ect.internalName());
                 p.lc.decodeHelpers.add(jsName);
-                JsIr.JsExpression parsed = new JsIr.JsCall(
-                        new JsIr.JsIdentifier("JSON.parse"), List.of(value));
+                JsIr.JsExpression parsed = value;
                 JsIr.JsExpression mapper = new JsIr.JsCall(
                         new JsIr.JsIdentifier("__kof_decode_" + jsName),
                         List.of(new JsIr.JsIdentifier("o")));
@@ -94,7 +98,7 @@ public final class JsJsonOps {
                         new JsIr.JsMember(parsed, "map"),
                         List.of(new JsIr.JsArrow(List.of("o"), mapper))));
             } else {
-                JsIr.JsExpression raw = new JsIr.JsCall(new JsIr.JsIdentifier("JSON.parse"), List.of(value));
+                JsIr.JsExpression raw = value;
                 if (BuiltinTypes.isObject(elem) || BuiltinTypes.isMap(elem) || BuiltinTypes.isList(elem)) {
                     p.lc.registerRuntime("kofJsonDeep");
                     raw = new JsIr.JsCall(new JsIr.JsIdentifier("kofJsonDeep"), List.of(raw));

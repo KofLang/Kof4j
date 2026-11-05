@@ -21,16 +21,36 @@ public final class JsRuntimeUiJsonMap {
 
             export function kofJsonDecodeMap(obj) {
                 const m = new Map();
-                if (obj && typeof obj === 'object')
-                    for (const [k, v] of Object.entries(obj)) m.set(k, kofJsonDeep(v));
+                for (const [k, v] of Object.entries(kofJsonObject(obj))) m.set(k, kofJsonDeep(v));
                 return m;
             }
 
             export function kofJsonDecodeObjectMap(obj, decoder) {
                 const m = new Map();
-                if (obj && typeof obj === 'object')
-                    for (const [k, v] of Object.entries(obj)) m.set(k, decoder(v));
+                for (const [k, v] of Object.entries(kofJsonObject(obj))) m.set(k, decoder(v));
                 return m;
+            }
+
+            // §819: a JSON value of the wrong shape for the requested container
+            // (an array for a Map, an object for a List) decoded as an EMPTY
+            // container; it is JSN006 now, the same text as the JVM and Script.
+            function kofJsonShape(want, v) {
+                const found = v === null || v === undefined ? 'null' : Array.isArray(v) ? 'an array'
+                        : typeof v === 'object' ? 'an object' : typeof v === 'string' ? 'a string'
+                        : typeof v === 'boolean' ? 'a boolean' : 'a number';
+                return new Error('JSN006: json.decode expected ' + want + ', found ' + found);
+            }
+            export function kofJsonArray(v) {
+                if (Array.isArray(v)) return v;
+                throw kofJsonShape('an array', v);
+            }
+            export function kofJsonObject(v) {
+                if (v !== null && typeof v === 'object' && !Array.isArray(v)) return v;
+                throw kofJsonShape('an object', v);
+            }
+            export function kofJsonNoArray(v) {
+                if (Array.isArray(v)) throw kofJsonShape('an object', v);
+                return v;
             }
 
             // §106 residual (13/09): encode<Map<String,T>> no JS. JSON.stringify

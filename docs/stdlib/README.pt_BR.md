@@ -83,6 +83,12 @@ json.encode(obj)
 json.decode(str, Type)
 ```
 
+`json.decode<T>` falha com **JSN006** ("json.decode expected an object, found an
+array") quando o valor JSON tem o formato errado para `T`: um array ou escalar
+para um `Map`, um objeto ou `null` para uma `List` ou um tipo array, um array
+para um record ou classe. Nunca devolve um container vazio para essa entrada
+(§819); o erro é uma exceção String do Kof com o mesmo texto em JVM, Script e JS.
+
 ### kof.sql
 
 Acesso a banco de dados (futuro).
