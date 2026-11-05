@@ -157,10 +157,16 @@ Para `+ - * / %` com dois numéricos: `double` domina, senão `float`, senão
   A fronteira `T → T?` é a chamada compartilhada `kof_box` (`emitErasureBox`),
   nunca `Wrapper.valueOf` direto — ver
   [RUNTIME_ABI.md §3.9](../runtime/RUNTIME_ABI.md).
-- **Narrowing**: a **única** forma reconhecida é `if (x != null)` (ou `null !=
-  x`) com `x` identificador de tipo `T?` → no **then-branch**, `x` passa a ter
-  tipo `T` (`StatementAnalyzer`, narrowing de `IfStmt`). **Não há** narrowing por `&&`,
-  `||`, ternário, ou `if (x == null)` no else.
+- **Narrowing** (`SemNarrowing`): `x != null` estreita `x` (um local ou um
+  caminho de campo de tipo `T?`) para `T` onde a condição é **verdadeira**, e
+  `x == null` onde ela é **falsa**: o ramo else, e o código depois de um `if`
+  cujo then sempre sai (`return`/`throw`). Condições se combinam por De Morgan
+  (§788): `A && B` estreita o que qualquer lado estreita onde é verdadeira
+  (inclusive o operando direito do `&&`); `A || B` estreita o que qualquer lado
+  estreita onde é falsa (o else, o código depois de um then que sai, e o
+  operando direito do `||`): `if (t == null || t.isEmpty()) { throw "x" }`
+  deixa `t: T`. O else de `A && B` e o then de `A || B` não estreitam nada.
+  Vale para `if`, corpo de `while` e if-expressões; não há narrowing por ternário.
 - **Deref de `T?` sem narrowing É erro** (SG-005 corrigido 10/09, `9436da12`):
   `var s: String? = "x"; s.length` → `error: receiver is nullable (T?);
   narrow first` [**SEM049**] (*medido 16/09, jar do tip `803eeef4*`).

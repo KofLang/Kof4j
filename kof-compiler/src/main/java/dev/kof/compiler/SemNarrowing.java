@@ -42,16 +42,31 @@ final class SemNarrowing {
         return child;
     }
 
+    /** The narrowings that hold where {@code cond} is true ({@code negated=false}) or false. */
+    static java.util.List<SymbolTable.LocalVariableSymbol> collect(SemanticAnalyzer sa, ExpressionNode cond,
+            SymbolTable scope, boolean negated) {
+        java.util.List<SymbolTable.LocalVariableSymbol> out = new java.util.ArrayList<>();
+        collectCondNarrowing(sa, cond, scope, out, negated);
+        return out;
+    }
+
+    /**
+     * §788 (De Morgan): {@code A && B} true means both are true, so it narrows
+     * only the TRUE side; {@code A || B} false means both are false, so it
+     * narrows only the FALSE side. The old table recursed {@code &&} on both
+     * sides (unsound: the else of {@code x == null && y} narrowed {@code x})
+     * and never narrowed {@code ||} ({@code if (t == null || t.isEmpty())}).
+     */
     private static void collectCondNarrowing(SemanticAnalyzer sa, ExpressionNode cond, SymbolTable scope,
             java.util.List<SymbolTable.LocalVariableSymbol> out, boolean negated) {
         if (!(cond instanceof BinaryExpr be)) return;
         String op = be.operator();
-        if ("&&".equals(op)) {
+        if ("&&".equals(op) || "||".equals(op)) {
+            if ("&&".equals(op) == negated) return;
             collectCondNarrowing(sa, be.left(), scope, out, negated);
             collectCondNarrowing(sa, be.right(), scope, out, negated);
             return;
         }
-        if ("||".equals(op)) return;
         if (!(be.right() instanceof LiteralExpr rl && rl.kind() == ConcreteLiteralKind.NULL)) return;
         boolean thenNarrow = "!=".equals(op);
         boolean elseNarrow = "==".equals(op);

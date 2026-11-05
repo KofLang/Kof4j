@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §788 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,21 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §788 — o narrowing de null ignorava `||` (`if (t == null || t.isEmpty())` dava SEM049) e estreitava o else de `&&` sem garantia
+
+**Status:** ✅ CORRIGIDO 04/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/main` `edcc39114`).
+
+**MEDIDO** (todos os alvos compartilham o analisador):
+```kof
+String f(t: String?) {
+    if (t == null || t.length() == 0) { throw "empty" }
+    return t.trim()
+}
+```
+Observado: SEM049 duas vezes, em `t.length()` (o operando direito do `||` só roda com `t != null`) e em `t.trim()` (depois de um then que sai, a condição é falsa, então `t != null`). O guard idiomático precisava virar ifs aninhados. Medido junto: `if (x == null && y) { ... } else { x.length() }` compilava, embora `x` possa ser null nesse else (`x == null` verdadeiro, `y` falso).
+
+**CAUSA RAIZ:** `StatementAnalyzer.collectNarrowing` e `SemNarrowing.collectCondNarrowing` (duas cópias da mesma tabela) desciam no `&&` para OS DOIS ramos e nunca olhavam dentro do `||`. Por De Morgan, `A && B` só prova seus operandos no lado verdadeiro, e `A || B` só no lado falso. O typer de expressões estreitava o operando direito do `&&` mas não o do `||`.
+
+**Correção:** uma tabela só, no `SemNarrowing`: `&&` coleta os dois operandos só no lado verdadeiro, `||` só no lado falso; o `StatementAnalyzer` a usa para os dois ramos (a cópia dele sai), e o operando direito do `||` é tipado no escopo onde o esquerdo é falso. O `docs/language-reference/type-system` (EN + pt_BR) descreve a regra (o texto anterior, "sem narrowing por `&&`", já estava desatualizado). **Prova:** `NullNarrowingOrE2ETest` 3/3 (JVM e Script para guards `String?`/`Int?` com `||`; o else de `x == null && y` é SEM049); no código antigo os 3 falham.
+<!-- pt-switch --> **EN:** [§788 (en)](known-bugs.md#788--null-narrowing-ignored--if-t--null--tisempty-was-sem049-and-narrowed-the-else-of--unsoundly)

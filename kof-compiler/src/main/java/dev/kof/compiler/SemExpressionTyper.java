@@ -203,11 +203,13 @@ public final class SemExpressionTyper {
                 // SG-005: narrowing intra-expressão de `&&` — em
                 // `s != null && s.length > 0`, o lado direito vê `s` narrowed
                 // (o lado só é avaliado se o esquerdo passou; short-circuit).
-                if ("&&".equals(bin.operator())) {
+                // §788: the right side of `||` runs only when the left is false.
+                if ("&&".equals(bin.operator()) || "||".equals(bin.operator())) {
                     Type leftT = inferType(sa, bin.left(), scope);
-                    SymbolTable rightScope = SemNarrowing.narrowedScope(sa, bin.left(), scope);
+                    SymbolTable rightScope = SemNarrowing.narrowedScope(sa, bin.left(), scope,
+                            "||".equals(bin.operator()));
                     Type rightT = inferType(sa, bin.right(), rightScope);
-                    yield SemBinaryResultTyper.inferBinaryResultType(sa.diagnostics(), "&&", leftT, rightT);
+                    yield SemBinaryResultTyper.inferBinaryResultType(sa.diagnostics(), bin.operator(), leftT, rightT);
                 }
                 // Left-associative chains (huge string concatenations in
                 // generated UIs, editors) are iterated instead of recursed:
