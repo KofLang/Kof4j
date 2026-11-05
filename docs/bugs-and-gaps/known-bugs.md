@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §789 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,14 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §789 — `kof run` of a file under `[sources] app` resolved imports from the project root (PKG006)
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `edcc39114`).
+
+**MEASURED:** a project with `kof.toml` declaring `[sources] app = "src/main/kof"`, `src/main/kof/exemplo/Calculo.kf` (`package exemplo`) and `src/main/kof/Main.kf` importing `exemplo.Calculo`: `kof build` and `kof test` work (D-CLI-SOURCE-ROOTS), but `kof run src/main/kof/Main.kf` fails with `import 'exemplo.Calculo' not found in the module [PKG006]`: the import was looked up under the project root, where `exemplo/` does not exist.
+
+**ROOT CAUSE:** `CompilerPipeline.rootFor` (used by `kof run` through `CompilerDriver.resolveModuleRoot`) returned the directory of `kof.toml` and never read `[sources]`; only `build`/`test` consulted the declared roots.
+
+**Fix:** when the project declares `[sources] app` and the source lives under it, that root is the module root; anything else keeps the project root (behavior without `[sources]` is unchanged). **Proof:** `TwoRootsCliE2ETest.runFromTheDeclaredAppRootResolvesItsPackages`; on the old code it fails with PKG006.
+<!-- pt-switch --> **PT:** [§789 (pt_BR)](known-bugs.pt_BR.md#789--o-kof-run-de-um-arquivo-sob-sources-app-resolvia-imports-a-partir-da-raiz-do-projeto-pkg006)
