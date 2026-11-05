@@ -52,15 +52,29 @@ public final class JvmRuntimeCore {
 
                 // ── kof.concurrent ─────────────────────────────────
 
-                private static final java.util.concurrent.atomic.AtomicInteger KOF_ACTIVE_TASKS =
-                        new java.util.concurrent.atomic.AtomicInteger();
+                // The end of main waits for spawned tasks through a NON-daemon
+                // keeper thread (the JVM joins it before exiting), never a
+                // shutdown hook: process.exit, System.exit and SIGTERM exit at once.
+                private static final Object KOF_TASKS_LOCK = new Object();
+                private static int KOF_ACTIVE_TASKS = 0;
 
-                static {
-                    Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                        while (KOF_ACTIVE_TASKS.get() > 0) {
-                            Thread.onSpinWait();
+                static void kofTaskBegin() {
+                    synchronized (KOF_TASKS_LOCK) {
+                        if (KOF_ACTIVE_TASKS++ > 0) return;
+                    }
+                    new Thread(() -> {
+                        synchronized (KOF_TASKS_LOCK) {
+                            while (KOF_ACTIVE_TASKS > 0) {
+                                try { KOF_TASKS_LOCK.wait(); } catch (InterruptedException e) { return; }
+                            }
                         }
-                    }, "kof-wait-tasks"));
+                    }, "kof-wait-tasks").start();
+                }
+
+                static void kofTaskEnd() {
+                    synchronized (KOF_TASKS_LOCK) {
+                        if (--KOF_ACTIVE_TASKS == 0) KOF_TASKS_LOCK.notifyAll();
+                    }
                 }
 
                 private static final ThreadLocal<Object> KOF_CURRENT_HANDLE = new ThreadLocal<>();
@@ -95,7 +109,7 @@ public final class JvmRuntimeCore {
                 public static Object kof_spawn_result(Object task) {
                     java.util.concurrent.CompletableFuture<Object> future =
                             new java.util.concurrent.CompletableFuture<>();
-                    KOF_ACTIVE_TASKS.incrementAndGet();
+                    kofTaskBegin();
                     kofStartTask(() -> {
                         KOF_CURRENT_HANDLE.set(future);
                         try {
@@ -105,7 +119,7 @@ public final class JvmRuntimeCore {
                             future.completeExceptionally(cause);
                         } finally {
                             KOF_CURRENT_HANDLE.remove();
-                            KOF_ACTIVE_TASKS.decrementAndGet();
+                            kofTaskEnd();
                         }
                     });
                     return future;
@@ -204,7 +218,7 @@ public final class JvmRuntimeCore {
                 }
 
                 public static void kof_spawn(Object task) {
-                    KOF_ACTIVE_TASKS.incrementAndGet();
+                    kofTaskBegin();
                     kofStartTask(() -> {
                         try {
                             task.getClass().getMethod("invoke").invoke(task);
@@ -212,7 +226,7 @@ public final class JvmRuntimeCore {
                             Throwable cause = e.getCause() != null ? e.getCause() : e;
                             System.err.println("spawn task failed: " + cause.getMessage());
                         } finally {
-                            KOF_ACTIVE_TASKS.decrementAndGet();
+                            kofTaskEnd();
                         }
                     });
                 }

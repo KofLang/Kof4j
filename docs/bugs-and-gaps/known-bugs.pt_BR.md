@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §792 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,3 +17680,24 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §792 — `process.exit` nunca encerrava um programa JVM enquanto uma task spawned ainda rodava: o join implícito era um shutdown hook em spin
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `4f7257933`).
+
+**MEDIDO** (alvo JVM):
+```kof
+main() {
+    spawn {
+        while (true) { time.sleep(50) }
+    }
+    println("bye")
+    process.exit(3)
+}
+```
+Observado: imprime `bye` e nunca termina, gastando um núcleo. O mesmo com um `System.exit` Java ou um SIGTERM: um runner de testes cuja suíte sobe um laço de job (`spawn` + `while`) precisava ser morto pelo timeout.
+
+**CAUSA RAIZ:** o join implícito do `spawn` ("o programa espera toda task spawned antes de sair") era um shutdown hook no `KofRuntime` gerado que girava (`Thread.onSpinWait`) até `KOF_ACTIVE_TASKS` chegar a zero. A JVM roda shutdown hooks em todo caminho de saída, `System.exit` e sinais inclusive, então uma saída explícita esperava tasks que nunca terminam, contra o contrato do `process.exit` ("termina na hora").
+
+**Correção:** o join é uma thread keeper não-daemon (`kofTaskBegin`/`kofTaskEnd`): ela começa quando a contagem de tasks sai de zero e bloqueia num monitor até voltar a zero. A JVM espera as threads não-daemon quando o `main` retorna, então o fim do `main` continua esperando as tasks; `System.exit` e sinais não esperam, então uma saída explícita é imediata. Não sobra espera ativa. **Prova:** `SpawnExitE2ETest` 2/2 (`process.exit(3)` com uma task sem fim sai com 3; uma task ainda rodando quando o `main` retorna ainda imprime antes do processo terminar); casos JVM do `SpawnE2ETest` inalterados.
+<!-- pt-switch --> **EN:** [§792 (en)](known-bugs.md#792--processexit-never-ended-a-jvm-program-while-a-spawned-task-was-still-running-the-implicit-join-was-a-spinning-shutdown-hook)

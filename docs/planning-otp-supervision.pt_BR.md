@@ -74,7 +74,7 @@ para que a decisão caiba numa leitura.
 | Afirmação da issue | Verificação 10/09 |
 |---|---|
 | `spawn`/`await` desaçucaram p/ `__kof_spawn_expr`/`__kof_await` (sem nó AST) | `parser/ExpressionParser.java:96-107` ✅ |
-| join implícito (shutdown hook espera tasks) | `jvm/JvmRuntimeCore.java` `KOF_ACTIVE_TASKS` + `addShutdownHook` ✅ |
+| join implícito (uma thread keeper não-daemon espera as tasks; `process.exit` não espera) | `jvm/JvmRuntimeCore.java` `KOF_ACTIVE_TASKS` + `kofTaskBegin`/`kofTaskEnd` ✅ |
 | `cancelled()` native = flag por TID, 256 slots colisão | `runtime/RuntimeConcurrency.java:18` (`.space 256`) ✅ |
 | `awaitTimeout`/`selectAny` no native = polling 1ms | `usleep(1000)` em `:212,:341` ✅ |
 | `CONC003-JS-01`: handler-lambda (mq/timer/UI) não pode `await` | `CompilerPipeline.java:78` + `docs/language-reference/concurrency.md:139` ✅ — MAS **lambda de `spawn` PODE** (é task-lambda; `spawn { await ... }` é o uso coberto por teste) |
