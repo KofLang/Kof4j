@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §829 (FIXED)
 last: §828 (FIXED)
 last: §827 (FIXED)
 last: §766 (FIXED)
@@ -20243,3 +20244,22 @@ Observed: `SEM025` "Cannot resolve method 'join' on type 'List'" and "Cannot res
 
 **Fix:** one runtime entry, `kof_list_join(list, sep, tag)`, formats each element as the list display does (`String.valueOf` on the JVM and Script, `kofElem` on JS) and joins with `sep`; `strings.join(xs, sep)` is rebuilt as `xs.join(sep)` before lowering. The tag carries what a boxed slot loses: a `Char` element (an `Integer` on the JVM, §104b-ii) prints as the character, and a `Double`/`Float` element keeps its `.0` on JS. A non-String separator is SEM025; Native refuses `join` with NAT009 (no native face yet) instead of an `ld` undefined reference. PortuKof aliases: `juntar` for the method and the namespace function. `learn/12-collections` and `learn/39-stdlib` (EN + pt_BR) list them. **Proof:** `ListJoinE2ETest` 2/2 (String, Int, empty, Double, Long, record, Char and Bool elements and both spellings, identical on JVM, Script and JS; `join(3)` SEM025; Native NAT009; RED before with SEM025).
 <!-- pt-switch --> **PT:** [§828 (pt_BR)](known-bugs.pt_BR.md#828--uma-list-nao-tinha-join-nem-o-namespace-strings-tinha-join-os-dois-sem025-entao-um-port-montava-strings-com-laco-de--ou-stringjoin-do-java-agora-xsjoinsep-e-stringsjoinxs-sep)
+
+## §829 — a List had no positional insert (`add(index, value)` was SEM072, "there is no positional insert"), so a port inserted through `set` and a manual shift; now `add(index, value)` inserts
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `2c920c4c1`). Stdlib batch approved by maintainer decision (05/11); this lifts the #336 rule that a List has no positional insert.
+
+**MEASURED** (JVM):
+```kof
+main() {
+    var xs = listOf(1, 3)
+    xs.add(1, 2)
+    println(xs)
+}
+```
+Observed: `SEM072` "List.add appends exactly one element; there is no positional insert — use set(index, value) to replace at an index".
+
+**ROOT CAUSE:** a closed surface: #336 made every non-one-argument `add`/`push`/`append` SEM072, because the two-argument form had no lowering and broke differently on each target.
+
+**Fix:** `add(index, value)` lowers to `kof_list_insert`, handled like `set` (Int index, SEM055; element of the pinned type, SEM056; numeric widening of the value): `ArrayList.add(int, Object)` on the JVM and in Script, `splice` on JS with the same bounds (`0..size`). `push`/`append` with two arguments and `add` with three stay SEM072, whose text now points at `add(index, value)` (pt in the PortuKof catalog). Native refuses the insert with NAT009 (no native face yet). `learn/12-collections` and the SEM072 row of `type-system` (EN + pt_BR) are updated; `ListAddArityTest` and `DiagnosticSourceLocationTest` now pin the remaining SEM072 shapes. **Proof:** `ListInsertAtE2ETest` 2/2 (insert at the front, the middle and the end, String, Long with an Int value, record; identical on JVM, Script and JS; SEM055, SEM056 and Native NAT009; RED before with SEM072).
+<!-- pt-switch --> **PT:** [§829 (pt_BR)](known-bugs.pt_BR.md#829--uma-list-nao-tinha-insercao-posicional-addindex-value-era-sem072-there-is-no-positional-insert-entao-um-port-inseria-via-set-e-um-deslocamento-manual-agora-addindex-value-insere)

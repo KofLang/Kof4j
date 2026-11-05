@@ -9,13 +9,11 @@ import java.util.List;
  * {@code kof_list_join(list, sep)}, serves both spellings: the namespace form
  * is rebuilt as the method call before lowering.
  *
- * <p>The native runtimes have no join yet, so a native target refuses it at
- * compile time with NAT009 instead of an {@code ld} undefined reference (R6).
+ * <p>The native runtimes have no join yet: {@link CollectionNativeGap} (NAT009).
  */
 final class ListJoin {
 
     static final String FN = "kof_list_join";
-    static final String CODE = "NAT009";
 
     private ListJoin() {}
 
@@ -50,21 +48,16 @@ final class ListJoin {
     /** SEM025 for a separator that is not a String, NAT009 on a native target. */
     static boolean refuse(CompilerDriver driver, MethodCallExpr mc, List<Type> argTypes) {
         if (driver.currentDiagnostics == null) return false;
-        String msg = null;
-        String code = null;
         Type sep = argTypes.isEmpty() ? Type.UnknownType.UNKNOWN : argTypes.get(0);
         if (!Type.isUnknown(sep) && !BuiltinTypes.isString(sep instanceof Type.NullableType nt ? nt.inner() : sep)) {
-            msg = "List.join takes a String separator; " + CollectionWrites.typeNameFor(sep) + " is not a String";
-            code = "SEM025";
-        } else if (driver.target.isNative()) {
-            msg = "List.join: not available on the " + driver.target + " target yet (" + CODE
-                    + ") — the native runtime has no join; use the JVM/Script/JS targets";
-            code = CODE;
+            SourcePosition pos = mc.position();
+            driver.currentDiagnostics.error(pos != null ? pos.file() : "", pos != null ? pos.line() : 0,
+                    pos != null ? pos.column() : 0, 0,
+                    "List.join takes a String separator; " + CollectionWrites.typeNameFor(sep) + " is not a String",
+                    "SEM025");
+            return true;
+        } else {
+            return CollectionNativeGap.refuse(driver, mc, "List.join");
         }
-        if (msg == null) return false;
-        SourcePosition pos = mc.position();
-        driver.currentDiagnostics.error(pos != null ? pos.file() : "", pos != null ? pos.line() : 0,
-                pos != null ? pos.column() : 0, 0, msg, code);
-        return true;
     }
 }

@@ -99,6 +99,10 @@ public final class KofInterpreterCollections {
                 l.set(KofInterpreter.unboxInt(args[0]), box(elemType, args[1]));
                 yield null;
             }
+            case "kof_list_insert" -> { // §829
+                l.add(KofInterpreter.unboxInt(args[0]), box(elemType, args[1]));
+                yield null;
+            }
             case "kof_list_size" -> l.size();
             case "kof_list_contains" -> {
                 // bug 35 (JVM: box pelo tipo do ARGUMENTO — elemType de

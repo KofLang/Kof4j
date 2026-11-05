@@ -1007,6 +1007,11 @@
     },
     {
       "arity": 1,
+      "en": "List.join takes a String separator; {0} is not a String",
+      "pt": ""
+    },
+    {
+      "arity": 1,
       "en": "List.zip takes a List argument; '{0}' is not a List",
       "pt": "List.zip exige um argumento List; '{0}' não é uma List"
     },
@@ -1500,8 +1505,8 @@
   "SEM072": [
     {
       "arity": 1,
-      "en": "List.{0} appends exactly one element; there is no positional insert — use set(index, value) to replace at an index",
-      "pt": "List.{0} acrescenta exatamente um elemento; não há inserção posicional — use set(index, value) para substituir em um índice"
+      "en": "List.{0} takes one element to append; insert at a position with add(index, value)",
+      "pt": "List.{0} recebe um elemento para acrescentar; insira numa posição com add(index, value)"
     }
   ],
   "SEM073": [

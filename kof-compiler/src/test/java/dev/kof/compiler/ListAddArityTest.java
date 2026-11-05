@@ -29,18 +29,20 @@ class ListAddArityTest {
     }
 
     @Test
-    void addWithIndexIsRejectedSem072(@TempDir Path tempDir) throws Exception {
+    void addWithThreeArgumentsIsRejectedSem072(@TempDir Path tempDir) throws Exception {
+        // §829: add(index, value) is the positional insert now; any other
+        // arity stays SEM072 (#336 — old code compiled and VerifyErrored on load).
         CompilationResult r = compile(tempDir, """
                 main() {
                     var list = listOf(1, 3, 5)
-                    list.add(1, 2)
+                    list.add(1, 2, 3)
                     println(list.get(1))
                 }
                 """, Target.JVM);
-        assertFalse(r.success(), "2-arg List.add must be rejected (#336 — old code compiled and VerifyErrored on load)");
+        assertFalse(r.success(), "3-arg List.add must be rejected");
         String d = r.diagnostics().getDiagnostics().toString();
         assertTrue(d.contains("SEM072"), "must carry SEM072: " + d);
-        assertTrue(d.contains("set(index, value)"), "must point at the real API: " + d);
+        assertTrue(d.contains("add(index, value)"), "must point at the real API: " + d);
     }
 
     @Test
@@ -53,10 +55,10 @@ class ListAddArityTest {
             CompilationResult r = compile(tempDir, """
                     main() {
                         var l = listOf(1, 2)
-                        l.add(0, 9)
+                        l.push(0, 9)
                     }
                     """, t);
-            assertFalse(r.success(), t + ": 2-arg add must be rejected");
+            assertFalse(r.success(), t + ": 2-arg push must be rejected");
             assertTrue(r.diagnostics().getDiagnostics().toString().contains("SEM072"),
                     t + ": must be SEM072 (universal gate): " + r.diagnostics().getDiagnostics());
         }

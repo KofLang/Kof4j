@@ -203,11 +203,14 @@ public final class MemberCallTyper {
             // insert posicional na linguagem; `set(i, v)` (replace) sim.
             // Rejeição universal na semântica compartilhada (mesma face do
             // CatchTypeCheck #332 — um gate, os 4 alvos reportam).
+            // §829: add(index, value) inserts (maintainer decision 05/11);
+            // push/append stay one-element appends.
             if (("add".equals(mn) || "push".equals(mn) || "append".equals(mn))
-                    && mc.arguments().size() != 1 && sa.diagnostics() != null) {
+                    && mc.arguments().size() != 1 && !("add".equals(mn) && mc.arguments().size() == 2)
+                    && sa.diagnostics() != null) {
                 sa.diagnostics().error(mc,
-                        "List." + mn + " appends exactly one element; there is no positional insert — "
-                                + "use set(index, value) to replace at an index",
+                        "List." + mn + " takes one element to append; insert at a position with "
+                                + "add(index, value)",
                         "SEM072");
             }
             // #361 (§269(b)) — `reduce` SEMPRE takes TWO arguments: the lambda

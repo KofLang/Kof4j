@@ -157,6 +157,13 @@ public final class JvmOpCollections {
                 mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/ArrayList", "set", "(ILjava/lang/Object;)Ljava/lang/Object;", false);
                 mv.visitInsn(POP);
             }
+            case "kof_list_insert" -> {
+                // §829: add(index, value) — box the value like set does.
+                Type insT = elemType instanceof Type.UnknownType && kc.parameterTypes().size() > 1
+                        ? kc.parameterTypes().get(1) : elemType;
+                emitBoxIfPrimitive(mv, insT);
+                mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/ArrayList", "add", "(ILjava/lang/Object;)V", false);
+            }
             case "kof_list_size" -> mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/ArrayList", "size", "()I", false);
             case "kof_list_contains" -> {
                 if (kc.parameterTypes().size() > 1) {

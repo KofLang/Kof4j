@@ -449,7 +449,7 @@ retorno do lambda (*probe*: map/filter/reduce corretos).
 | `SEM069` | `final abstract class X` (modificadores contraditórios — sem instância nem subclasse possível) | `ClassShapeChecks.checkClassDeclaration` (#341) |
 | `SEM070` | `class D extends F` onde `F` é declarada `final` | `ClassShapeChecks.checkClassDeclaration` (#339) |
 | `SEM071` | instanciação de `interface` (`new I()` e `I()`) | `ClassShapeChecks.checkInstantiable` (#340) |
-| `SEM072` | `add`/`push`/`append` de List com aridade errada — ex. `l.add(i, v)` (não existe inserção posicional; use `set(i, v)`) | `MemberCallTyper` (#336, 4 alvos) |
+| `SEM072` | `add`/`push`/`append` de List com aridade errada — ex. `l.push(i, v)` ou `l.add(a, b, c)` (`push`/`append` recebem um elemento; `add(index, value)` é a inserção posicional, §829) | `MemberCallTyper` (#336, 4 alvos) |
 | `SEM073` | `reduce` de List com aridade errada — `reduce((a,b)->…)` sem seed (o reduce do Kof sempre recebe a lambda E uma seed, em qualquer ordem; a forma sem seed morria no `Frame.merge` da ASM) | `MemberCallTyper` (#361, 4 alvos) |
 | `SEM074` | método de instância em primitivo — ex. `n.abs()`, `n.equals(o)`, `n.toChar()` (primitivos só têm `toString()` e as conversões `toInt()`/`toLong()`/`toFloat()`/`toDouble()`; comparação é `a == b`, matemática é função top-level como `math.abs(x)`; a chamada fora da lista compilava e morria no load da classe) | `SemMethodCallTyper` (#362, 4 alvos) |
 | `SEM075` | campo de instância referido nu dentro de método `static` (não existe `this` implícito; o backend JVM emitia `aload_0` → `VerifyError` no load) — use uma instância, ou declare o campo `static` | `SemExpressionTyper` (#345, 4 alvos) |

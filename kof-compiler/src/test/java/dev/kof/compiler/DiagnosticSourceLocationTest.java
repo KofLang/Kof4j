@@ -108,11 +108,11 @@ class DiagnosticSourceLocationTest {
         CompilationResult r = compile(tmp, "E072.kf", """
                 main() {
                     var dsq72 = listOf(1)
-                    dsq72.add(9, 8)
+                    dsq72.push(9, 8)
                     println(dsq72.size())
                 }
                 """);
-        assertCodeAtSource(r, "SEM072", "add com dois argumentos");
+        assertCodeAtSource(r, "SEM072", "push com dois argumentos");
 
         CompilationResult r2 = compile(tmp, "E025.kf", """
                 class Pdsq25 {

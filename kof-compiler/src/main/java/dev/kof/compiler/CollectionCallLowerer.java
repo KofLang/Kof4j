@@ -49,7 +49,7 @@ public final class CollectionCallLowerer {
             return CollectionZipLowerer.lower(driver, recvType, mc, ops, owner, localIdx, locals);
         }
         String listFn = switch (mc.methodName()) {
-            case "add", "push", "append" -> "kof_list_add";
+            case "add", "push", "append" -> mc.arguments().size() == 2 ? CollectionMethodGates.INSERT : "kof_list_add";
             case "get" -> "kof_list_get";
             case "set" -> "kof_list_set";
             case "size", "length", "count" -> "kof_list_size";
@@ -105,6 +105,8 @@ public final class CollectionCallLowerer {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
             if (ListJoin.FN.equals(listFn) && ListJoin.refuse(driver, mc, argTypes)) return localIdx;
+            if (CollectionMethodGates.INSERT.equals(listFn)
+                    && CollectionNativeGap.refuse(driver, mc, "List.add(index, value)")) return localIdx;
             Type elemType = driver.listElementType(recvType);
             // SEM097 (domínio natural do sort/sorted) — nunca ordem silenciosa
             // errada. Float×native era NAT001; FECHADO 21/09 (§352): o runtime
@@ -153,7 +155,7 @@ public final class CollectionCallLowerer {
             // bounds — RM/RM5/IX/IX2 probes 11/09). Unknown/Nullable NÃO
             // flagados (SG-008: pode chegar Int em runtime); numéricos passam
             // (Int é o contrato; o verifier cuida do resto).
-            if (("kof_list_get".equals(listFn) || "kof_list_set".equals(listFn)
+            if (("kof_list_get".equals(listFn) || CollectionMethodGates.indexedStore(listFn)
                     || "kof_list_remove".equals(listFn) || "kof_list_sub_list".equals(listFn))
                     && !argTypes.isEmpty() && driver.currentDiagnostics != null) {
                 Type idxT = argTypes.get(0);
@@ -191,14 +193,14 @@ public final class CollectionCallLowerer {
             // List<Unknown>; the first add() pins the element
             // type on the local so later get() calls are
             // typed (records, classes) instead of Object.
-            if ("kof_list_add".equals(listFn) || "kof_list_set".equals(listFn)) {
+            if ("kof_list_add".equals(listFn) || CollectionMethodGates.indexedStore(listFn)) {
                 // §126 (ii): add/set de tipo ≠ elemType PINADA polui o heap —
                 // o JVM já VerifyError no get/unbox, o Native SIGSEGV no
                 // scan com tag String. Rejeitar em compile-time (SEM056).
                 // Só quando elemType já é concreto (o add que PINA um
                 // List<Unknown> não é poluição — é a definição do tipo).
                 // set: o VALOR é o arg 1 (o índice já foi checado em SEM055).
-                int valIdx = "kof_list_set".equals(listFn) ? 1 : 0;
+                int valIdx = CollectionMethodGates.indexedStore(listFn) ? 1 : 0;
                 if (argTypes.size() > valIdx
                         && (CollectionWrites.pollutesPinned(elemType, argTypes.get(valIdx))
                             // §383/#561: escrita de primitivo em slot de
@@ -250,15 +252,15 @@ public final class CollectionCallLowerer {
             // set arg1) precisa da conversão IR antes do store — sem ela o
             // JVM boxeia pelo tipo PINADO sobre arg cru (VerifyError/CCE).
             // Índice (set arg0) e buscas ficam raw (família §126 miss).
-            int storeValIdx = "kof_list_set".equals(listFn) ? 1 : 0;
+            int storeValIdx = CollectionMethodGates.indexedStore(listFn) ? 1 : 0;
             localIdx = CompilerEmissionHelpers.emitArgsCoercingValue(driver, mc, ops, owner,
                     localIdx, locals, argTypes, elemType, listFn,
-                    ("kof_list_add".equals(listFn) || "kof_list_set".equals(listFn)) ? storeValIdx : -1,
+                    ("kof_list_add".equals(listFn) || CollectionMethodGates.indexedStore(listFn)) ? storeValIdx : -1,
                     // §383: bool→long e conversao de store SO no site de List
                     // (Map/Set toleram heterogeneidade pelo consenso 3/4).
-                    "kof_list_add".equals(listFn) || "kof_list_set".equals(listFn));
+                    "kof_list_add".equals(listFn) || CollectionMethodGates.indexedStore(listFn));
             Type retType = switch (listFn) {
-                case "kof_list_add", "kof_list_set", "kof_list_clear", "kof_list_sort",
+                case "kof_list_add", "kof_list_set", CollectionMethodGates.INSERT, "kof_list_clear", "kof_list_sort",
                         "kof_list_sort_cmp" -> Type.PrimitiveType.VOID;
                 case "kof_list_contains", "kof_list_is_empty", "kof_list_add_all" -> Type.PrimitiveType.BOOL;
                 // #382 — indexOf/lastIndexOf: Int (-1 ausente, oracle java.util);

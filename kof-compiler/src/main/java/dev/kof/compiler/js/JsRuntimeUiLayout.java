@@ -170,6 +170,14 @@ public final class JsRuntimeUiLayout {
                 list[index] = value;
             }
 
+            // §829: add(index, value) — index may equal the size (append).
+            export function kofListInsert(list, index, value) {
+                if (index < 0 || index > list.length) {
+                    throw new Error("Index out of bounds: " + index + " (size " + list.length + ")");
+                }
+                list.splice(index, 0, value);
+            }
+
             export function kofListSize(list) {
                 return list.length;
             }
