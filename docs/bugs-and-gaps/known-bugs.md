@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §782 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,26 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §782 — a static field read in a static method was typed by a same-named field of ANOTHER class (SEM055 in an unrelated file)
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `edcc39114`).
+
+**MEASURED** (JVM target, one compilation):
+```kof
+// src/kernel/http/ResponseHeaders.kf
+package kernel.http
+import java.lang.ThreadLocal
+class ResponseHeaders {
+    static ThreadLocal seen = new ThreadLocal()
+    static mark(v: String) { seen.set(v) }
+}
+// src/app/Main.kf: a few classes, each with
+class Spy { List<String> seen = listOf<String>() }
+```
+Observed: `ResponseHeaders.kf: List.set takes an Int INDEX; String is not an index [SEM055]`. Whether it fails depends on which other classes exist (with one extra class it usually compiles, with about ten it fails): renaming a field in an unrelated file breaks or fixes the kernel file.
+
+**ROOT CAUSE:** `ExpressionTyper` types a bare identifier through `this` (slot 0) first, then through `HierarchyResolver.resolveFromSemantic`, a scan of EVERY module class in HashMap order that returns the first member with that name. A static method has no `this`, so its own static field lost to whichever class the scan met first. The emitter (`ExpressionLowerer`) already resolved the name in the class being lowered, so only the type was wrong.
+
+**Fix:** `HierarchyResolver.resolveInOwnerOrModule` looks the name up in the class being lowered (`currentLoweringOwner`, the same lookup as the emitter) before the module-wide scan. **Proof:** `StaticFieldTypeScopeE2ETest` 1/1; on the old code it fails with SEM055.
+<!-- pt-switch --> **PT:** [§782 (pt_BR)](known-bugs.pt_BR.md#782--um-campo-estatico-lido-num-metodo-estatico-era-tipado-por-um-campo-homonimo-de-outra-classe-sem055-num-arquivo-nao-relacionado)
