@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §833 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17691,3 +17692,23 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 **Estado:** 🔴 ABERTA �� arquivada como **#1080** (labels bug/jvm; medida 05/11, tip `76464df44`+`2c920c4c1`, alvo JVM, Java 25). A face Script não foi exercida (o interpretador não emite classes).
 
 **Dona:** o core do compilador (território `.30:9092` — a lane docs/lab mediu até a raiz e parou pelo contrato de lane); classe: emissão do compilador / tipos funcionais.
+
+## §833 — um CAMPO de record com formato errado no `json.decode` continuava silencioso ou com erro do host depois da #1103 (um campo `List` recebendo `{}` virava lista vazia no JVM, `undefined` no JS)
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; issue #1128, medido no `upstream/lab` `db3f608f8` (o fix da #1103)).
+
+**MEDIDO** (JVM, Script, JS):
+```kof
+record Item(String name)
+record Box(List<Item> items)
+main() {
+    val b = json.decode<Box>("{\"items\": {}}")
+    println(b.items.size())
+}
+```
+Observado: o JVM imprime `0` (o objeto virou lista vazia); o JS lança `p.items.map is not a function`; o Script reporta JSN006. Os vizinhos também divergem: um campo `List<String>` recebendo `{}` ou `"x"` vira `undefined` ou `1` no JS; um campo `Map` recebendo `[1]`, um campo record aninhado recebendo `[1]` e `json.decode<Item>("[1]")` falham no JVM com `argument type mismatch` ou `ClassCastException`, leem `undefined` no JS, e o record aninhado derruba o interpretador.
+
+**CAUSA RAIZ:** a #1103 checa só o formato do container de topo. Um nível abaixo, cada binder ainda confiava no valor: o `kof_json_bind` do JVM montava um campo `List` a partir de um objeto JSON pelo ramo genérico de classe (um `ArrayList` vazio) e passava os outros desencontros crus ao construtor do record; o decoder de classe do JS lia campos de qualquer valor e mapeava um campo `List` sem checá-lo; o `decodeKofValue` do interpretador aceitava um não-objeto.
+
+**Correção:** o mesmo JSN006 em todo nível, com os helpers que a #1103 criou: o binder do JVM lança `jsonShapeError` quando um campo `List` não é array e quando um campo `Map`, um record ou uma classe Kof não é objeto; o decoder de classe do JS exige objeto (`kofJsonRequireObject`) e um campo `List` exige array (`kofJsonRequireArray`); o `decodeKofValue` do interpretador exige objeto. Um campo JSON `null` continua `null`. **Prova:** `JsonFieldShapeMismatchE2ETest` 1/1 (seis desencontros de campo e de record no topo imprimem as mesmas linhas JSN006 em JVM, Script e JS; um campo `null` e um campo de lista válido não mudam; RED antes); `JsonShapeMismatchE2ETest` (#1103) 5/5.
+<!-- pt-switch --> **EN:** [§833 (en)](known-bugs.md#833--a-wrong-shaped-record-field-in-jsondecode-was-still-silent-or-a-host-error-after-1103-a-list-field-given--was-an-empty-list-on-the-jvm-undefined-on-js)
