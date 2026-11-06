@@ -20214,7 +20214,7 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Minimal repro + the designed-and-parked slice** (the sentinel HTTP wiring, `libs/sentinel/Http.kf` + `SentinelHttpE2ETest`, the first real E2E coverage of the middleware chain — 0 existing tests exercised `app.use`): filed as **#1080** with both artifacts in the issue comments. No honest Kof-level workaround (a phantom `if (false) { return "x" }` to force the inference violates the no-generated-looking-code philosophy) — the fix belongs to the emitter.
 
-**Status:** 🔴 OPEN — filed as **#1080** (labels bug/jvm; measured 05/11, tip `76464df44`+`2c920c4c1`, JVM target, Java 25). Script face not exercised (the interpreter emits no classes).
+**Status:** ✅ FIXED 05/11 (`2958f3f4d`) — the emitter fix from PR #1092 (declared-type lambda typing everywhere) applied and validated (the PR's three E2Es 6/6 incl. this repro); the parked slice now passes `SentinelHttpE2ETest` 2/2 JVM+Script after ALSO extending the interpreter §574 bridge to `kof_web_use` (route/sse/ws were covered, `use` was not — the middleware stayed a raw KofObj and the dispatch 500d under Script). Issue #1080 CLOSED with executed proof.
 
 **Owner:** compiler core (the `.30:9092` territory — the docs/lab lane measured it to the root and stopped per the lane contract); class: compiler emission / functional types.
 <!-- pt-switch --> **PT:** [§935 (pt_BR)](known-bugs.pt_BR.md#935--tipo-funcao-com-retorno-nulavel-compila-mas-a-classe-do-lambda-emitida-nao-implementa-a-interface-funcional--incompatibleclasschangeerror-na-primeira-chamada-jvm)

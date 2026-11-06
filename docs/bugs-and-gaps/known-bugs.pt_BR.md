@@ -17688,6 +17688,6 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Repro mínimo + a fatia desenhada e estacionada** (a fiação HTTP do sentinel, `libs/sentinel/Http.kf` + `SentinelHttpE2ETest`, a primeira cobertura E2E real da cadeia de middleware — 0 testes existentes exercitavam `app.use`): arquivada como **#1080** com os dois artefatos nos comentários da issue. Sem workaround honesto em nível Kof (um `if (falso) { return "x" }` fantasma para forçar a inferência viola a filosofia de no-generated-looking-code) — o conserto pertence ao emissor.
 
-**Estado:** 🔴 ABERTA �� arquivada como **#1080** (labels bug/jvm; medida 05/11, tip `76464df44`+`2c920c4c1`, alvo JVM, Java 25). A face Script não foi exercida (o interpretador não emite classes).
+**Estado:** ✅ CORRIGIDA 05/11 (`2958f3f4d`) — o conserto de emissor do PR #1092 (tipagem do lambda pelo tipo declarado em todo lugar) aplicado e validado (as três E2Es do PR 6/6 incl. este repro); a fatia estacionada agora passa `SentinelHttpE2ETest` 2/2 JVM+Script depois de TAMBÉM estender a ponte §574 do interpretador a `kof_web_use` (route/sse/ws estavam cobertos, `use` não — o middleware ficava um KofObj cru e o dispatch dava 500 no Script). Issue #1080 FECHADA com prova executada.
 
 **Dona:** o core do compilador (território `.30:9092` — a lane docs/lab mediu até a raiz e parou pelo contrato de lane); classe: emissão do compilador / tipos funcionais.
