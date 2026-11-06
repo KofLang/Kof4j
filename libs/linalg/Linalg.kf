@@ -35,3 +35,45 @@ Double ddot(Double[] x, Double[] y) {
     inc[0] = 1
     return ddot_(n, x, inc, y, inc)
 }
+
+// ── level-1, scalar-return faces (all copy-in + scalar return — the same
+// ABI fit as ddot): dnrm2_ (the Euclidean norm), dasum_ (the sum of
+// absolute values) and idamax_ (the 1-BASED index of the max-abs
+// element — the FORTRAN convention keeps it 1-based).
+
+foreign module openblas_l1 {
+    library "libopenblas.so.0"
+    abi c
+    ownership borrowed
+    extern dnrm2_(Int[] n, Double[] x, Int[] incx): Double
+    extern dasum_(Int[] n, Double[] x, Int[] incx): Double
+    extern idamax_(Int[] n, Double[] x, Int[] incx): Int
+}
+
+// dnrm2 — the Euclidean norm of a contiguous Double vector.
+Double dnrm2(Double[] x) {
+    var n = new Int[1]
+    n[0] = x.length
+    var inc = new Int[1]
+    inc[0] = 1
+    return dnrm2_(n, x, inc)
+}
+
+// dasum — the sum of the absolute values of a contiguous Double vector.
+Double dasum(Double[] x) {
+    var n = new Int[1]
+    n[0] = x.length
+    var inc = new Int[1]
+    inc[0] = 1
+    return dasum_(n, x, inc)
+}
+
+// idamax — the 1-BASED index of the element with the largest absolute
+// value (the FORTRAN convention; subtract 1 to index a Kof array).
+Int idamax(Double[] x) {
+    var n = new Int[1]
+    n[0] = x.length
+    var inc = new Int[1]
+    inc[0] = 1
+    return idamax_(n, x, inc)
+}
