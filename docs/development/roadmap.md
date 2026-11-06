@@ -886,7 +886,8 @@ Long-term vision — Kof as a universal platform (one language for
 applications **and** systems, infrastructure, automation, data, security and
 science) **without** destroying the language's simplicity.
 
-- **Stages 4–7 PROMOTED 03/11** (maintainer order "pega o universal platform de future") to [`universal-platform-stages.md`](universal-platform-stages.md) (+PT) — Stage 4.6 landed the same cycle; every remaining item measured against the tree (only 4.3/4.5/5.9/5.10/7.1/7.3 are implementable without a new primitive or FFI)
+- **Stages 4–7 PROMOTED 03/11** (maintainer order "pega o universal platform de future") to [`../universal-platform.md`](../universal-platform.md) (+PT) — Stage 4.6 landed the same cycle; every remaining item measured against the tree (only 4.3/4.5/5.9/5.10/7.1/7.3 are implementable without a new primitive or FFI)
+- **universal-platform Stages 4–7 PROMOTED to `docs/` 05/11** (maintainer authorization "eu autorizo a concluir tudo que ta aberto. finaliza todos os planos e gaps"): every pure-Kof face landed with E2E — the LAST one was 5.9's HTTP middleware (`libs/sentinel/Http.kf`, 2/2) after the #1080 emitter fix (PR #1092's declared-type lambda typing) and the interpreter `kof_web_use` bridge; the remaining rows are recorded follow-ups (R3/Arrow/decisions/stage order). See [`universal-platform.md`](../../universal-platform.md)
 - Central document: `docs/architecture/IMPLEMENTATION-UNIVERSAL-PLATFORM.md`
   (architecture — **UNDER DEVELOPMENT** since 17/09/2026; promoted from
   `future/` by maintainer decision, `DECISIONS.md` §D-UNIVERSAL)
