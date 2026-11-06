@@ -77,3 +77,56 @@ Int idamax(Double[] x) {
     inc[0] = 1
     return idamax_(n, x, inc)
 }
+
+// ── SINGLE-PRECISION level-1 faces: the Float siblings of the double
+// trio (snrm2_, sasum_, isamax_) plus sdot_ (the single-precision dot
+// product). `Float` is in the FFI set (the `f` slot — fmaxf proves the
+// slot), all four are copy-in + scalar-return, the same fit as the
+// double faces. NO copy-out.
+
+foreign module openblas_s {
+    library "libopenblas.so.0"
+    abi c
+    ownership borrowed
+    extern snrm2_(Int[] n, Float[] x, Int[] incx): Float
+    extern sasum_(Int[] n, Float[] x, Int[] incx): Float
+    extern isamax_(Int[] n, Float[] x, Int[] incx): Int
+    extern sdot_(Int[] n, Float[] x, Int[] incx, Float[] y, Int[] incy): Float
+}
+
+// snrm2f — the single-precision Euclidean norm.
+Float snrm2f(Float[] x) {
+    var n = new Int[1]
+    n[0] = x.length
+    var inc = new Int[1]
+    inc[0] = 1
+    return snrm2_(n, x, inc)
+}
+
+// dasumf — the single-precision sum of absolute values.
+Float dasumf(Float[] x) {
+    var n = new Int[1]
+    n[0] = x.length
+    var inc = new Int[1]
+    inc[0] = 1
+    return sasum_(n, x, inc)
+}
+
+// idamaxf — the 1-BASED index of the max-abs element (single precision).
+Int idamaxf(Float[] x) {
+    var n = new Int[1]
+    n[0] = x.length
+    var inc = new Int[1]
+    inc[0] = 1
+    return isamax_(n, x, inc)
+}
+
+// sdotf — the single-precision dot product of two contiguous Float
+// vectors of equal length (the caller's contract, as in ddot).
+Float sdotf(Float[] x, Float[] y) {
+    var n = new Int[1]
+    n[0] = x.length
+    var inc = new Int[1]
+    inc[0] = 1
+    return sdot_(n, x, inc, y, inc)
+}
