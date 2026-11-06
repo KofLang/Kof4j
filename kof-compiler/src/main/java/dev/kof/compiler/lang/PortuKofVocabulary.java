@@ -113,6 +113,7 @@ public final class PortuKofVocabulary {
             {"application", "aplicacao"},
             {"infra", "infra"},
             {"using", "usando"},
+            {"lock", "trava"},
             {"sealed", "selado"},
             {"value", "valor"},
             {"foreign", "modulo"},

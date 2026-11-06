@@ -167,6 +167,43 @@ spawn produtor(c)
 var v = c.receive()
 ```
 
+## lock — exclusão mútua sobre um objeto compartilhado
+
+Quando várias tasks atualizam o mesmo objeto, `lock (alvo) { ... }` deixa só
+uma delas rodar o bloco por vez para aquele alvo:
+
+```kf
+class Counter {
+    Int n = 0
+
+    add() {
+        lock (this) {
+            n = n + 1          // ler-modificar-escrever, nunca intercalado
+        }
+    }
+}
+```
+
+- O alvo é avaliado **uma vez** e precisa ser um objeto não nulo (instância de
+  classe, record, coleção). Um primitivo, uma `String` ou um valor nulável é
+  recusado em tempo de compilação (`CONC004`): trave o objeto dono do estado
+  compartilhado, normalmente `this`.
+- O lock é liberado em **toda** saída do bloco: fim normal, `return`,
+  `break`/`continue` e um `throw`.
+- É **reentrante**: a task que segura o lock pode entrar nele de novo
+  (`lock (c) { lock (c) { ... } }`, ou um método travado chamando outro).
+- Sair de um `lock` em `x` acontece-antes da próxima entrada num `lock` em `x`
+  (modelo de memória §2, regra 7): o que foi escrito dentro é visível para o
+  próximo dono.
+- Por alvo: JVM e Script usam um lock reentrante por objeto (por identidade),
+  o Native um lock futex reentrante (x86-64, riscv64, aarch64), JS e Wasm rodam
+  uma thread só, então não há o que excluir. No JS uma função que usa `lock`
+  **e** suspende (`await`, `sleep`, `channel.receive()` ou uma chamada a uma
+  função que suspende) é recusada com `CONC005`: outra task rodaria com o lock
+  segurado. Tire a chamada que suspende dessa função.
+- Prefira um `Channel` quando as tasks passam dados entre si; o `lock` é para
+  uma seção crítica pequena sobre estado compartilhado.
+
 ## Semântica
 
 - JVM: cada `spawn` roda numa **virtual thread** (JDK 21+) — barato para
@@ -191,6 +228,7 @@ trava esta tabela contra o código — ver nota ao final da seção.
 | `cancel` / `cancelled` | ✅ `KofConcurrency2Test.cancelCooperativeJvm` | ✅ `KofConcurrency2Test.cancelCooperativeNative` (bug 101 → §117 FIXED 13/09, tabela por TID real `3734f2aa`) | ✅ `kof_cancel` TID real (CONC001 fechado 15/09) — `KofConcurrency2Test.crossNativeCancelDuringRunningWorker` | ✅ no-op (`cancelled()` = `0`) — `KofConcurrency2Test.cancelJsSequential` |
 | `selectAny` | ✅ `KofConcurrency2Test.selectAnyJvm` | ✅ polling 1 ms — `KofConcurrency2Test.selectAnyNative` | ✅ `kof_select_any` (CONC001 fechado 15/09) — `KofConcurrency2Test.crossNativeConcurrencyHelpersRun` | ✅ `Promise.race` — `KofConcurrency2Test.selectAnyJs` |
 | `awaitTimeout` | ✅ `KofConcurrency2Test.awaitTimeoutJvm` | ✅ polling 1 ms — `KofConcurrency2Test.awaitTimeoutNative` | ✅ `kof_await_timeout` (CONC001 fechado 15/09) — `KofConcurrency2Test.crossNativeConcurrencyHelpersRun` | ✅ `KofConcurrency2Test.awaitTimeoutJs` |
+| `lock (x) { }` | ✅ `ReentrantLock` por objeto — `LockBlockE2ETest.lockExcludesAndReleasesOnEveryExitOnJvmScriptAndJs` | ✅ tabela de locks futex reentrantes — `LockBlockE2ETest.lockExcludesOnNativeX86` | ✅ `kof_lock_enter`/`kof_lock_exit` (G240, 06/11) — `LockBlockE2ETest.lockExcludesOnNativeCross` | ✅ no-op (uma thread; CONC005 recusa lock + suspensão) — `LockBlockE2ETest.lockExcludesAndReleasesOnEveryExitOnJvmScriptAndJs` |
 
 `spawn`/`await` fecharam o `CONC001` no Native em 31/08 (pthread_create +
 trampoline + `pthread_join` + allocator thread-safe via futex), e os

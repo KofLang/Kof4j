@@ -35,6 +35,7 @@ public final class CompilerLambdaClass {
                 || lambdaUsesSuper(is.thenBranch())
                 || (is.elseBranch() != null && lambdaUsesSuper(is.elseBranch()));
         if (node instanceof WhileStmt ws) return lambdaUsesSuper(ws.condition()) || lambdaUsesSuper(ws.body());
+        if (node instanceof LockStmt ls) return lambdaUsesSuper(ls.target()) || lambdaUsesSuper(ls.body());
         if (node instanceof ForStmt fs) return lambdaUsesSuper(fs.init()) || lambdaUsesSuper(fs.condition())
                 || lambdaUsesSuper(fs.update()) || lambdaUsesSuper(fs.body());
         if (node instanceof BlockStmt bs) {

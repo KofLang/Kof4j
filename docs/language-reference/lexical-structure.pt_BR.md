@@ -48,7 +48,7 @@ true  false  null
 
 **Palavras que NÃO são keywords** (são `IDENTIFIER`): `let`, `in`, `type`,
 `trait`, `macro`, `where`, `query`, `test`, `application`, `onStart`,
-`onShutdown`, `desc`, `asc`. Têm significado contextual no parser (ver
+`onShutdown`, `desc`, `asc`, `lock`. Têm significado contextual no parser (ver
 [grammar.md](grammar.md)) ou nenhum.
 
 > **§263 CORRIGIDO (17/09, lane compiler/nat):** a forma anotada

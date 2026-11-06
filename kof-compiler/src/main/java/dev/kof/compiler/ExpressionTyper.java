@@ -543,6 +543,7 @@ public final class ExpressionTyper {
             return firstReturnValueType(driver, ts.finallyBody(), locals);
         }
         if (s instanceof WhileStmt ws) return returnValueType(driver, ws.body(), locals);
+        if (s instanceof LockStmt ls) return returnValueType(driver, ls.body(), locals);
         if (s instanceof DoWhileStmt dws) return returnValueType(driver, dws.body(), locals);
         if (s instanceof ForStmt fs) return returnValueType(driver, fs.body(), locals);
         if (s instanceof ForInStmt fis) return returnValueType(driver, fis.body(), locals);

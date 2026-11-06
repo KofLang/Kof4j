@@ -471,6 +471,7 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_list_slice" -> "(Ljava/util/ArrayList;II)Ljava/util/ArrayList;";
             case "kof_list_reduce" -> "(Ljava/util/ArrayList;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;";
             case "kof_spawn_result", "kof_await" -> "(Ljava/lang/Object;)Ljava/lang/Object;";
+            case "kof_lock_enter", "kof_lock_exit" -> "(Ljava/lang/Object;)V"; // G240
             case "kof_poll" -> "(Ljava/lang/Object;)Ljava/lang/Object;";
             case "kof_done", "kof_cancel" -> "(Ljava/lang/Object;)Z";
             case "kof_cancelled" -> "()Z";

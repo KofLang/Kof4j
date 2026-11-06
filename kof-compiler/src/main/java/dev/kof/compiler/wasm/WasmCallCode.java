@@ -34,6 +34,12 @@ final class WasmCallCode {
 
     static void emitCall(KofCall kc, List<KofOperation> ops, int idx,
                          WasmLowering.Ctx ctx, List<WasmInstr> out) {
+        if (kc.methodName().startsWith("kof_lock_")) {
+            // G240: WASI runs one thread and has no spawn, so lock is a no-op;
+            // the target (already on the stack) is dropped.
+            out.add(new WasmInstr.Simple(0x1a, "drop"));
+            return;
+        }
         if (WasmRecordCtor.isRecordEq(ctx, kc) || WasmRecordCtor.isRecordEqualsCall(ctx, kc)) {
             WasmRecordCtor.lowerRecordEq(ctx, kc, out);
         } else if (WasmRecordCtor.isRecordInit(ctx, kc)) {

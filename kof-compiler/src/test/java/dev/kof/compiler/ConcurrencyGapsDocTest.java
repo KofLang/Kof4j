@@ -55,7 +55,8 @@ class ConcurrencyGapsDocTest {
             "poll / done", List.of("kof_poll", "kof_done"),
             "cancel / cancelled", List.of("kof_cancel"),
             "selectAny", List.of("kof_select_any"),
-            "awaitTimeout", List.of("kof_await_timeout"));
+            "awaitTimeout", List.of("kof_await_timeout"),
+            "lock (x) { }", List.of("kof_lock_enter"));
 
     /** Índice da coluna riscv64/aarch64 nas células de dados (0 = JVM). */
     private static final int COL_CROSS = 2;

@@ -48,7 +48,7 @@ true  false  null
 
 **Words that are NOT keywords** (they are `IDENTIFIER`): `let`, `in`, `type`,
 `trait`, `macro`, `where`, `query`, `test`, `application`, `onStart`,
-`onShutdown`, `desc`, `asc`. They have contextual meaning in the parser (see
+`onShutdown`, `desc`, `asc`, `lock`. They have contextual meaning in the parser (see
 [grammar.md](grammar.md)) or none.
 
 > **§263 FIXED (17/09, compiler/nat lane):** the annotated form

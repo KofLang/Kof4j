@@ -299,7 +299,7 @@ error. For membership use `setOf(…).contains(x)` (the language idiom).
 
 `ebnf
 statement = block | return-stmt | if-stmt | while-stmt | do-while-stmt
-          | for-stmt | throw-stmt | spawn-stmt | assert-stmt | try-stmt
+          | for-stmt | throw-stmt | spawn-stmt | lock-stmt | assert-stmt | try-stmt
           | switch-stmt | break-stmt | continue-stmt | var-decl | expr-stmt ;
 
 block       = "{" , { statement } , "}" ;                           (* `StatementParser.parseBlock` *)
@@ -312,6 +312,7 @@ for-in      = ( "var" | "val" ) , identifier , "in" , expression ;  (* "in" is c
 for-init    = [ statement ] , [ expression ] , ";" , [ expression ] ;
 throw-stmt  = "throw" , expression , [ ";" ] ;
 spawn-stmt  = "spawn" , expression , [ ";" ] ;
+lock-stmt   = "lock" , "(" , expression , ")" , block ;     (* "lock" is contextual: `LockParser`, G240 *)
 assert-stmt = "assert" , "(" , expression , [ "," , string-literal ] , ")" , [ ";" ] ;
 try-stmt    = "try" , block , { catch-clause } , [ "finally" , block ] ;
 catch-clause = "catch" , "(" , type-ref , identifier , ")" , block ;

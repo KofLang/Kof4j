@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §835 (FIXED)
 last: §834 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
@@ -20232,3 +20233,28 @@ Observed: `Internal compiler error: null` (COMP002), `java.util.NoSuchElementExc
 
 **Fix:** the frames are saved as a copy (`new ArrayDeque<>(driver.finallyFrames)`) and `tryDepth` is saved and restored, in the three places. **Proof:** `FinallyAcrossLambdaE2ETest` 2/2: a `spawn` and a lambda in a `try` body with `finally` print the same 6 lines on JVM, Script and JS, and the IR of the lambda case has the same `KofExcUnlink` count as the same function without the lambda (RED before: COMP002; with only the frame copy and without the `tryDepth` restore, 0 unlinks instead of 1).
 <!-- pt-switch --> **PT:** [§834 (pt_BR)](known-bugs.pt_BR.md#834--uma-lambda-ou-um-spawn-dentro-do-corpo-de-um-try-com-finally-derrubava-o-compilador-comp002-e-deixava-a-profundidade-de-handlers-errada)
+
+## §835 — no way to make a read-modify-write on shared state atomic across tasks: the `lock (target) { }` block (G240)
+
+**Status:** ✅ FIXED 06/11 (external contributor; issue #1131, maintainer decision on gap G240, measured on `upstream/lab` `2c920c4c1`). Stacked on §834 (#1130), which this needs: a `spawn` or lambda inside the generated `try/finally` crashed the compiler.
+
+**MEASURED** (JVM, Script):
+```kof
+class Counter {
+    Int n = 0
+    add(Int times) {
+        for (var i = 0; i < times; i = i + 1) {
+            val v = n
+            n = v + 1
+        }
+    }
+}
+```
+Four tasks calling `add(20000)` on one `Counter`: the counter ends at 55803 to 68627 on the JVM and about 30700 in Script (3 runs each), not 80000: lost updates, with no diagnostic. The only tools were `Channel` (message passing) and the `synchronized`/`volatile` modifiers, which are a ratified non-goal that only warn (SEM091, §171).
+
+**DECISION:** the modifiers stay a non-goal; a scoped statement `lock (target) { body }` joins the language (`concurrency-memory-model.md` §1, §2 rule 7, §5 revised): mutual exclusion on one non-null object, released on every exit of the block, reentrant, with the HB edge "leaving a lock on `x` happens-before the next entry into a lock on `x`".
+
+**Implementation:** `lock` is contextual (`LockParser`: only `lock (...)` followed by `{` on the same line; `lock(x)` alone is still a call). `LockStmt` is typed by `StatementAnalyzer` (CONC004 for a primitive, `String` or nullable target) and lowered by `StatementLowererLock`: the target is evaluated once into a hidden local, `kof_lock_enter` runs, and the body becomes the try body of a `try/finally` whose finally is `kof_lock_exit`, so the existing finally machinery releases it on every exit. Runtimes: JVM and Script, one `ReentrantLock` per object by identity, removed when its last user leaves (`JvmLockRuntime`); Native x86-64, a reentrant table of held locks under a futex guard with a generation counter for waiters (`RuntimeLock`); riscv64/aarch64, the same table (`NativeRiscvAsmRtB85`, aarch64 through the translator); JS and Wasm, a no-op (one thread), and on JS a function that locks and also suspends is refused with CONC005 (`JsLockCheck`), since another task would run while the lock is held. The capture, ownership, desugar, return-path, narrowing, formatter and PortuKof passes walk the body like a block (PortuKof word `trava`).
+
+**Proof:** `LockBlockE2ETest` 5 tests: the same program (4 tasks × 20000 under `lock (this)`, reentrancy, throw, `break` and `return` inside the lock) prints the same 6 lines on JVM, Script and JS; CONC004 for an `Int` target, CONC005 for lock + `await` on JS (the same program compiles on the JVM); the formatter keeps `lock (this) {` and a user function named `lock` is still callable. RED before (3/3: SEM015 `Undefined function: 'lock'`). The Native faces (`lockExcludesOnNativeX86`, `lockExcludesOnNativeCross`) run on Linux/qemu and skip on macOS; the x86-64 asm and the aarch64 translation of the riscv64 piece were assembled with clang (Linux targets) without errors.
+<!-- pt-switch --> **PT:** [§835 (pt_BR)](known-bugs.pt_BR.md#835--nao-havia-como-tornar-atomico-um-ler-modificar-escrever-sobre-estado-compartilhado-entre-tasks-o-bloco-lock-alvo---g240)

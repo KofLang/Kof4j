@@ -107,8 +107,18 @@
   "PARSE010": [
     {
       "arity": 0,
+      "en": "Expected '(' after 'lock'",
+      "pt": "esperado '(' depois de 'lock'"
+    },
+    {
+      "arity": 0,
       "en": "Expected '(' after 'using'",
       "pt": "esperado '(' depois de 'using'"
+    },
+    {
+      "arity": 0,
+      "en": "Expected ')' to close lock (target)",
+      "pt": "esperado ')' para fechar lock (alvo)"
     },
     {
       "arity": 0,

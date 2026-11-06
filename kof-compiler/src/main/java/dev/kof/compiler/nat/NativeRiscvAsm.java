@@ -370,6 +370,8 @@ public final class NativeRiscvAsm {
                 // dos primitivos ja provados — paridade byte-a-byte).
                 .append(NativeRiscvAsmRtB83.RISCV_RUNTIME_ASM_B_83)
                 .append(NativeRiscvAsmRtB84.RISCV_RUNTIME_ASM_B_84)
+                // G240: lock (target) { } no cross (port RuntimeLock x86).
+                .append(NativeRiscvAsmRtB85.RISCV_RUNTIME_ASM_B_85)
                 .toString();
     }
 }

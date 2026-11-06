@@ -137,6 +137,7 @@ public final class CompilerDesugar {
             if (s instanceof IfStmt is && (containsUsing(List.of(is.thenBranch()))
                     || (is.elseBranch() != null && containsUsing(List.of(is.elseBranch()))))) return true;
             if (s instanceof WhileStmt ws && containsUsing(List.of(ws.body()))) return true;
+            if (s instanceof LockStmt ls && containsUsing(List.of(ls.body()))) return true;
             if (s instanceof DoWhileStmt ds && containsUsing(List.of(ds.body()))) return true;
             if (s instanceof ForStmt fs && (containsUsing(List.of(fs.init()))
                     || containsUsing(List.of(fs.body())))) return true;
@@ -187,6 +188,9 @@ public final class CompilerDesugar {
         }
         if (s instanceof WhileStmt ws) {
             return new WhileStmt(ws.position(), ws.condition(), rewriteUsingOne(ws.body()));
+        }
+        if (s instanceof LockStmt ls) {
+            return new LockStmt(ls.position(), ls.target(), rewriteUsingOne(ls.body()));
         }
         if (s instanceof DoWhileStmt ds) {
             return new DoWhileStmt(ds.position(), ds.condition(), rewriteUsingOne(ds.body()));
@@ -273,6 +277,7 @@ public final class CompilerDesugar {
             if (s instanceof IfStmt is && (hasNestedFunction(List.of(is.thenBranch()))
                     || (is.elseBranch() != null && hasNestedFunction(List.of(is.elseBranch()))))) return true;
             if (s instanceof WhileStmt ws && hasNestedFunction(List.of(ws.body()))) return true;
+            if (s instanceof LockStmt ls && hasNestedFunction(List.of(ls.body()))) return true;
             if (s instanceof ForStmt fs && hasNestedFunction(List.of(fs.body()))) return true;
             if (s instanceof ForInStmt fis && hasNestedFunction(List.of(fis.body()))) return true;
             if (s instanceof TryStmt ts) {
@@ -315,6 +320,10 @@ public final class CompilerDesugar {
             if (s instanceof WhileStmt ws) {
                 out.add(new WhileStmt(ws.position(), ws.condition(),
                         hoistOne(ws.body(), outerName, inners)));
+                continue;
+            }
+            if (s instanceof LockStmt ls) {
+                out.add(new LockStmt(ls.position(), ls.target(), hoistOne(ls.body(), outerName, inners)));
                 continue;
             }
             if (s instanceof ForStmt fs) {
@@ -386,6 +395,9 @@ public final class CompilerDesugar {
         if (s instanceof WhileStmt ws) {
             return new WhileStmt(ws.position(), rewriteExpr(ws.condition(), renames),
                     rewriteStmt(ws.body(), renames));
+        }
+        if (s instanceof LockStmt ls) {
+            return new LockStmt(ls.position(), rewriteExpr(ls.target(), renames), rewriteStmt(ls.body(), renames));
         }
         if (s instanceof BlockStmt b) {
             List<StatementNode> inner = new ArrayList<>();

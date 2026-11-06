@@ -179,9 +179,7 @@ public final class OwnershipPass {
         }
 
         void walkBody(List<StatementNode> body) {
-            if (body == null) {
-                return;
-            }
+            if (body == null) return;
             for (StatementNode s : body) {
                 step(s);
             }
@@ -231,6 +229,7 @@ public final class OwnershipPass {
                     readExpr(w.condition());
                     branch(w.body());
                 }
+                case dev.kof.compiler.LockStmt l -> { readExpr(l.target()); step(l.body()); } // G240: runs once, a block
                 case DoWhileStmt dw -> {
                     branch(dw.body());
                     readExpr(dw.condition());
