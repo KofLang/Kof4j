@@ -1,0 +1,37 @@
+package linalg
+
+// kof.linalg — the BLAS face over libopenblas (universal platform Stage
+// 6.1, the FIRST slice): `ddot` computes the dot product of two Double
+// vectors through openblas's FORTRAN symbol `ddot_`.
+//
+// THE ABI FIT (measured, not guessed): the FORTRAN calling convention
+// passes EVERY argument by POINTER, and the landed scalar-array copy-in
+// fatia provides exactly that for the in-only args (`Int[]`/`Double[]`
+// copy to the call arena and hand the pointer), while the RESULT comes
+// back as a SCALAR Double return. So `ddot_` fits the landed FFI set
+// with NO new fatia: there is no pointer-to-struct and no copy-out.
+// The level-2/3 faces (axpy_ writes y, gemm_ writes C) need the
+// copy-out fatia (compiler territory) and stay the measured follow-up.
+//
+// The wrapper builds the FORTRAN scalar arguments as one-element Int
+// arrays (n, incx, incy) — copy-in supplies the pointers — and hands
+// the caller's vectors straight through. incx/incy = 1 (contiguous
+// vectors; strided access stays out of this slice).
+
+foreign module openblas {
+    library "libopenblas.so.0"
+    abi c
+    ownership borrowed
+    extern ddot_(Int[] n, Double[] x, Int[] incx, Double[] y, Int[] incy): Double
+}
+
+// ddot — the dot product of two contiguous Double vectors of EQUAL
+// length (the caller's contract: shorter than n would read past; this
+// wrapper passes n = x.length and trusts the caller's equality).
+Double ddot(Double[] x, Double[] y) {
+    var n = new Int[1]
+    n[0] = x.length
+    var inc = new Int[1]
+    inc[0] = 1
+    return ddot_(n, x, inc, y, inc)
+}

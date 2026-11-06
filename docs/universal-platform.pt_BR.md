@@ -120,7 +120,7 @@ numérica via FFI.
 
 | # | Item | Status | Dono | Depende de |
 |---|------|--------|------|------------|
-| 6.1 | Álgebra linear via **FFI para BLAS/LAPACK** (wrapper) | 🔵 | — | R3 |
+| 6.1 | Álgebra linear via **FFI para BLAS/LAPACK** (wrapper) | 🟡 | `192.168.100.14:0` | **`libopenblas.so.0` está NESTE HOST (262 símbolos BLAS medidos) e a PRIMEIRA face POUSOU 06/11** — `libs/linalg/Linalg.kf`: `foreign module openblas` + `extern ddot_(Int[] n, Double[] x, Int[] incx, Double[] y, Int[] incy): Double` + o wrapper `ddot(x, y): Double`; **o ABI FORTRAN casa exatamente com as fatias POUSADAS** (todo argumento é in-pointer = o copy-in de array escalar; o resultado é retorno escalar Double) — sem fatia nova. Prova: `LinalgDdotE2ETest` **2/2** (JVM FFM + nativo x86_64) RED-first (PKG006); faces `ddot([3,4],[1,1])==7.0` e `ddot([1,2,3],[1,1,1])==6.0` (binário-exatas). A PAREDE MEDIDA: `axpy_`/`gemm_` ESCREVEM nos seus argumentos de matriz — a fatia copy-out (território do compilador `.30:9092`) é o follow-up honesto; `dnrm2_`/`dasum_` (faces nível-1 com retorno escalar) são expressíveis AGORA e são as próximas fatias |
 | 6.2 | SIMD/vectorização (Native — pesquisa) | 🔵 | lane native | 1.2 |
 | 6.3 | GPU — Vulkan via FFI (existe); CUDA/OpenCL via FFI | 🟡 | — | Vulkan compute existe; CUDA/OpenCL pendentes |
 | 6.4 | Data-parallel (pesquisa) | 🔵 | — | 6.2 |

@@ -110,7 +110,7 @@ zone via FFI.
 
 | # | Item | Status | Owner | Depends on |
 |---|------|--------|-------|------------|
-| 6.1 | Linear algebra via **FFI to BLAS/LAPACK** (wrapper) | 🔵 | — | R3 |
+| 6.1 | Linear algebra via **FFI to BLAS/LAPACK** (wrapper) | 🟡 | `192.168.100.14:0` | **`libopenblas.so.0` is ON THIS HOST (262 BLAS symbols measured) and the FIRST face LANDED 06/11** — `libs/linalg/Linalg.kf`: `foreign module openblas` + `extern ddot_(Int[] n, Double[] x, Int[] incx, Double[] y, Int[] incy): Double` + the wrapper `ddot(x, y): Double`; **the FORTRAN ABI fits the LANDED fatias exactly** (every arg is an in-pointer = the scalar-array copy-in; the result is a scalar Double return) — no new fatia needed. Proof: `LinalgDdotE2ETest` **2/2** (JVM FFM + native x86_64) RED-first (PKG006); faces `ddot([3,4],[1,1])==7.0` and `ddot([1,2,3],[1,1,1])==6.0` (binary-exact). THE MEASURED WALL: `axpy_`/`gemm_` WRITE their matrix args — the copy-out fatia (compiler territory `.30:9092`) is the honest follow-up; `dnrm2_`/`dasum_` (scalar-returning level-1 faces) are expressible NOW and are the next slices |
 | 6.2 | SIMD/vectorization (Native — research) | 🔵 | native lane | 1.2 — **live lane, not this plan's** |
 | 6.3 | GPU — Vulkan via FFI (exists); CUDA/OpenCL via FFI | 🟡 | — | Vulkan compute exists; CUDA/OpenCL pending |
 | 6.4 | Data-parallel (research) | 🔵 | — | 6.2 |
