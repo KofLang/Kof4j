@@ -137,7 +137,10 @@ public final class CompilerLambdaClass {
         }
         java.util.Set<String> savedMutated = driver.mutatedCapturedNames;
         driver.mutatedCapturedNames = new java.util.HashSet<>();
-        java.util.Deque<CompilerDriverState.FinallyFrame> savedFrames = driver.finallyFrames;
+        // §834: a COPY — the saved frames were the same deque cleared on the next
+        // line, so a lambda/spawn inside a try body wiped the enclosing finally.
+        java.util.Deque<CompilerDriverState.FinallyFrame> savedFrames = new java.util.ArrayDeque<>(driver.finallyFrames);
+        int savedTryDepth = driver.tryDepth;
         driver.finallyFrames.clear(); // DD-01: frame do finally externo não vaza p/ dentro
         driver.tryDepth = 0; // §551: profundidade de try é por função
         // lambda não-void com corpo de expressão única: a expressão É o retorno
@@ -153,6 +156,7 @@ public final class CompilerLambdaClass {
         }
         driver.mutatedCapturedNames = savedMutated;
         driver.finallyFrames.addAll(savedFrames); // DD-01: restaura
+        driver.tryDepth = savedTryDepth; // §834: per function, restored for the enclosing one
         // bug 19: lambda que RETORNA outra lambda — o lambda interno é
         // sintetizado durante a emissão do corpo acima; o className dele só
         // agora está disponível. Atualiza o returnType para o descriptor do

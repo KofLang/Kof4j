@@ -104,7 +104,10 @@ Type vt = vds.type() != null && !"var".equals(vds.type())
         }
         java.util.Set<String> savedMutated = driver.mutatedCapturedNames;
         driver.mutatedCapturedNames = new java.util.HashSet<>();
-        java.util.Deque<CompilerDriverState.FinallyFrame> savedFrames = driver.finallyFrames;
+        // §834: a COPY — the saved frames were the same deque cleared on the next
+        // line, so a lambda/spawn inside a try body wiped the enclosing finally.
+        java.util.Deque<CompilerDriverState.FinallyFrame> savedFrames = new java.util.ArrayDeque<>(driver.finallyFrames);
+        int savedTryDepth = driver.tryDepth;
         driver.finallyFrames.clear(); // DD-01: frame do finally externo não vaza p/ dentro
         driver.tryDepth = 0; // §551: profundidade de try é por função
         // §538: o escopo de type-params da FUNÇÃO genérica passa a valer no
@@ -124,6 +127,7 @@ Type vt = vds.type() != null && !"var".equals(vds.type())
         }
         driver.mutatedCapturedNames = savedMutated;
         driver.finallyFrames.addAll(savedFrames); // DD-01: restaura
+        driver.tryDepth = savedTryDepth; // §834: per function, restored for the enclosing one
         // #837: critério = ÚLTIMA STATEMENT (não o último op): um corpo
         // terminando em switch/while/try tem KofReturn nos braços (o último op
         // É KofReturn) mas o CONSTRUTO pode CAIR FORA e chegar ao fim com a

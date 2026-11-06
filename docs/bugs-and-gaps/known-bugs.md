@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §834 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,3 +20206,29 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §834 — a lambda or a `spawn` inside a `try` body with `finally` crashed the compiler (COMP002) and left the handler depth wrong
+
+**Status:** ✅ FIXED 06/11 (external contributor; issue #1130, measured on `upstream/lab` `2c920c4c1`, still present on the `lab` tip).
+
+**MEASURED** (JVM, Script, JS):
+```kof
+Int one() { return 1 }
+Int viaSpawn() {
+    try {
+        val h = spawn one()
+        return await h
+    } finally {
+        println("finally spawn")
+    }
+}
+main() {
+    println(viaSpawn())
+}
+```
+Observed: `Internal compiler error: null` (COMP002), `java.util.NoSuchElementException` at `ArrayDeque.pop` in `StatementLowererTry.emitTryStmt`. A plain lambda (`val inc = (x: Int) -> x + 1`) in the `try` body does the same.
+
+**ROOT CAUSE:** `CompilerLambdaClass`, `CompilerFunctionLowering` and `CompilerClassLowering` "saved" the finally frames with `savedFrames = driver.finallyFrames` and then called `driver.finallyFrames.clear()`. Both names were the same deque, so the clear emptied the saved frames and the restore (`addAll(savedFrames)`) added nothing: the enclosing `try` found no frame to pop. The same blocks set `driver.tryDepth = 0` and never restored it, so after a lambda the enclosing function lowered a `return` inside the `try` with the wrong number of `KofExcUnlink` (0 instead of 1, a live handler left linked on Native).
+
+**Fix:** the frames are saved as a copy (`new ArrayDeque<>(driver.finallyFrames)`) and `tryDepth` is saved and restored, in the three places. **Proof:** `FinallyAcrossLambdaE2ETest` 2/2: a `spawn` and a lambda in a `try` body with `finally` print the same 6 lines on JVM, Script and JS, and the IR of the lambda case has the same `KofExcUnlink` count as the same function without the lambda (RED before: COMP002; with only the frame copy and without the `tryDepth` restore, 0 unlinks instead of 1).
+<!-- pt-switch --> **PT:** [§834 (pt_BR)](known-bugs.pt_BR.md#834--uma-lambda-ou-um-spawn-dentro-do-corpo-de-um-try-com-finally-derrubava-o-compilador-comp002-e-deixava-a-profundidade-de-handlers-errada)
