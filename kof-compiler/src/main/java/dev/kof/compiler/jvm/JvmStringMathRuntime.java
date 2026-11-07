@@ -110,6 +110,18 @@ public final class JvmStringMathRuntime {
                     return Math.pow(base, exp);
                 }
 
+                // MATH-LOG-EXP (07/11): log = ln NATURAL, exp = e^x (o
+                // mesmo contrato IEEE de Math.log/Math.exp — log(0)=-Inf,
+                // log(-1)=NaN, exp(-Inf)=0). O cross usa o shim log@PLT, o
+                // WASM o fdlibm — a paridade viaja com o teste.
+                public static double kof_math_log(double v) {
+                    return Math.log(v);
+                }
+
+                public static double kof_math_exp(double v) {
+                    return Math.exp(v);
+                }
+
                 public static boolean kof_math_isInteger(double v) {
                     return v == Math.floor(v) && !Double.isInfinite(v);
                 }
