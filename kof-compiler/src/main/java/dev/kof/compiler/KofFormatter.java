@@ -308,6 +308,11 @@ public final class KofFormatter {
                 // bloco vazio (sem `extern`) nao produz codigo util: o no e
                 // informativo e o arquivo segue igual (round-trip estavel).
             }
+            // Kof.expr spike-0 (D-KOF-EXPR): sem este caso o pattern cairia no
+            // `default` e com `-w` o arquivo seria reescrito com o
+            // `toString()` do record — perda silenciosa de código, a mesma
+            // classe de #719. Delegate mantém este arquivo fora do ratchet.
+            case ExprDeclarationNode ex -> KofFormatterExpr.formatExprDecl(ex, out, indent, p);
             // CodeQL #1167: null tinha sua propria rota aqui so para cair no
             // decl.toString() abaixo (NPE garantido); separado do default
             // real (instanceof null == false no if-else antigo so' significa
