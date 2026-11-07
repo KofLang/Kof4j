@@ -67,7 +67,11 @@ public final class CollectionMethodTyper {
         // mesmo oracle java.util.List); addAll é Bool (mudou?); subList
         // devolve List do MESMO tipo de elemento; sort é void (in-place).
         if ("indexOf".equals(mn) || "lastIndexOf".equals(mn)) return Type.PrimitiveType.INT;
+        // #1116: removeValue(v) removes by VALUE and reports whether it found one.
+        if ("removeValue".equals(mn)) return Type.PrimitiveType.BOOL;
         if ("addAll".equals(mn)) return Type.PrimitiveType.BOOL;
+        // #1120: join(sep) -> String
+        if ("join".equals(mn)) return BuiltinTypes.STRING;
         if ("subList".equals(mn)) return recvType;
         // pagination P1 — take/drop/slice: List<E> do mesmo tipo.
         if ("take".equals(mn) || "drop".equals(mn) || "slice".equals(mn)) return recvType;
@@ -127,6 +131,8 @@ public final class CollectionMethodTyper {
         String mn = mc.methodName();
         if ("size".equals(mn) || "length".equals(mn) || "count".equals(mn)) return Type.PrimitiveType.INT;
         if ("contains".equals(mn) || "isEmpty".equals(mn)) return Type.PrimitiveType.BOOL;
+        // #1120: containsAll(other) — every element of other is in the set.
+        if ("containsAll".equals(mn)) return Type.PrimitiveType.BOOL;
         if ("add".equals(mn) || "remove".equals(mn)) return Type.PrimitiveType.BOOL;
         if ("clear".equals(mn)) return Type.PrimitiveType.VOID;
     }
