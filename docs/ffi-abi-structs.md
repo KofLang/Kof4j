@@ -383,3 +383,36 @@ complete vertical (no half-bound path, R6):
       (`D-MEM-FFI-CROSS-FULL` face 2, 30/09; JS stays `FFI002`).
 
   4. **✅ DONE (30/09) — scalar `T[]`→`ptr` on the CROSS (riscv64/aarch64), `D-MEM-FFI-CROSS-FULL` face 1.** The x86-64 pack path is ported: `CompilerFfiBinding` no longer restricts scalar arrays to x86-64, `FfiStructLayout.crossBindable` counts an array-ptr as one INTEGER ordinal, and `NativeFfiCallRiscv` packs using the new `kof_ffi_pack_array` riscv helper (per-program, `NativeArchEmitter`, aarch64 via the line-by-line translator). `String[]` later landed the same day as face 2. Proof: `FfiNativeArrayE2ETest#scalarArrayCrossBindsAndMatchesJvm` — a cross-compiled `.so` shim, golden JVM == riscv64 == aarch64 byte-identical for all 5 element widths; gate pinned by `FfiNativeCrossE2ETest#riscv64ScalarArrayAndStringArrayBind`. Remaining `D-MEM-FFI-CROSS-FULL` faces: float/HFA and the `String`-return callback (callbacks themselves landed 11/10, M1 unidade-4 — x86-64 + cross).
+
+## 8. Library naming — the portability contract (measured 06/11, lane `192.168.100.14:0`)
+
+**The `library "…"` field is the RAW SONAME, and it is Linux-idiomatic today.**
+Measured on this host (`SymbolLookup.libraryLookup` on JVM, `-l:` on native):
+
+- `library "libpcap.so.1"` — **LOADS** on Linux (JVM FFM + the native ld input `-l:libpcap.so.1`).
+- `library "libpcap"` and `library "libpcap.so"` — **both FAIL**: dlopen does NOT
+  append the `.so` extension for bare names, and the `.so` devel symlink does not
+  exist on runtime hosts (only the versioned soname).
+
+**Consequence:** every extern that names a platform library is today written
+Linux-first. On macOS the same soname fails (the file is `libpcap.dylib`), on
+Windows `pcap.dll`. `libs/net/Pcap.kf` (`libpcap.so.1`) and
+`libs/linalg/Linalg.kf` (`libopenblas.so.0` ×3) carry this — measured, recorded
+honestly, NOT hidden.
+
+**The portable mechanism does NOT exist yet and is compiler territory**
+(`.30:9092` — recorded follow-up): the resolution must move to a per-target
+candidate list (the repo already HAS the convention —
+`libs/interop/InteropLibrary.fileName(kind)` produces
+`lib<name>.so` / `lib<name>.dylib` / `<name>.dll` — but nothing in the FFI
+consumes it). Until that fatia lands, a FFI lib bound to a platform library is
+**Linux-target first**: the honest states are "works where the soname exists"
+or FFI001/FFI002-style refusals — never a silent wrong target.
+
+**The SQLite precedent is equally Linux-hardcoded** (`-l:libsqlite3.so.0`,
+DB001) — this is a PRE-EXISTING pattern this lane's libs followed, not one
+invented here. Replacing external engines with Kof rewrites is NOT the remedy:
+`AGENTS.md:585` ("do not reimplement external engines"), the non-goal "own
+SQL/Arrow/ML engine", and the plan's own "NOT to do: reimplement
+BLAS/LAPACK/NumPy" forbid it. The remedy is the portable-name resolution
+fatia — a `D-*` decision if the per-target shape needs ruling.
