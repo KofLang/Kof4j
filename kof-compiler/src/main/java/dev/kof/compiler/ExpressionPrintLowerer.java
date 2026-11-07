@@ -155,6 +155,9 @@ if (("print".equals(mc.methodName()) || "println".equals(mc.methodName())) && mc
         if (driver.target.isNative()) {
             valueOfArg = argType;
         } else if (driver.target == Target.JS && !Type.isString(argType)) {
+            // #1123: the JS valueOf needs the REAL List<Double>/Set<Float> type
+            // so the emitter can pass the element kind to kofFormatTyped (a JS
+            // number has no Int/Double distinction).
             valueOfArg = argType;
         } else {
             valueOfArg = Type.UnknownType.UNKNOWN;
