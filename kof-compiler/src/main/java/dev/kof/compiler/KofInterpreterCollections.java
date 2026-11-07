@@ -108,6 +108,20 @@ public final class KofInterpreterCollections {
             }
             case "kof_list_is_empty" -> l.isEmpty() ? 1 : 0;
             case "kof_list_remove" -> unbox(elemType, l.remove(KofInterpreter.unboxInt(args[0])));
+            // #1120: insert(index, value) — the positional insert (shifts).
+            case "kof_list_insert" -> {
+                l.add(KofInterpreter.unboxInt(args[0]), box(elemType, args[1]));
+                yield null;
+            }
+            // #1120: join(sep) — the elements stringified and joined.
+            case "kof_list_join" -> {
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < l.size(); i++) {
+                    if (i > 0) sb.append(args[0]);
+                    sb.append(String.valueOf(l.get(i)));
+                }
+                yield sb.toString();
+            }
             case "kof_list_clear" -> {
                 l.clear();
                 yield null;
@@ -266,6 +280,15 @@ public final class KofInterpreterCollections {
                 yield Type.isVoid(kc.returnType()) ? null : (added ? 1 : 0);
             }
             case "kof_set_contains" -> s.contains(box(eT, args[0])) ? 1 : 0;
+            // #1120: containsAll(other) — every element of other is present.
+            case "kof_set_contains_all" -> {
+                java.util.Collection<?> other = (java.util.Collection<?>) args[0];
+                boolean all = true;
+                for (Object o : other) {
+                    if (!s.contains(o)) { all = false; break; }
+                }
+                yield all ? 1 : 0;
+            }
             case "kof_set_remove" -> s.remove(box(eT, args[0])) ? 1 : 0;
             case "kof_set_size" -> s.size();
             case "kof_set_is_empty" -> s.isEmpty() ? 1 : 0;
