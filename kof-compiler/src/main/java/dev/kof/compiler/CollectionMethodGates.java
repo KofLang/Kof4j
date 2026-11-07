@@ -42,14 +42,14 @@ public final class CollectionMethodGates {
             // `m.remove(k, v)` pushed 2 args to the 1-arg runtime (VerifyError).
             case "kof_map_put", "kof_map_get_or_default" -> 2;
             case "kof_map_get", "kof_map_remove", "kof_map_contains",
-                    "kof_set_add", "kof_set_contains", "kof_set_remove" -> 1;
+                    "kof_set_add", "kof_set_contains", "kof_set_contains_all",
+                    "kof_set_remove" -> 1;
             case "kof_map_size", "kof_map_clear", "kof_map_is_empty", "kof_map_keys",
                     "kof_map_values", "kof_set_size", "kof_set_clear", "kof_set_is_empty" -> 0;
             default -> -1;
         };
     }
 
-    /** SEM025 de aridade para os métodos novos; null = aridade correta. */
     /** Reports {@link #arityError} as SEM025 at the call; true when the call is refused. */
     static boolean refuseArity(CompilerDriver driver, MethodCallExpr mc, String opFn, String kind) {
         String msg = arityError(opFn, kind, mc.methodName(), mc.arguments().size());
@@ -60,6 +60,7 @@ public final class CollectionMethodGates {
         return true;
     }
 
+    /** SEM025 de aridade para os métodos novos; null = aridade correta. */
     static String arityError(String opFn, String kind, String mn, int got) {
         int want = expectedArgs(opFn);
         if (want < 0 || got == want) return null;
@@ -155,6 +156,7 @@ public final class CollectionMethodGates {
      */
     static int indexArgCount(String listFn) {
         return switch (listFn) {
+            case "kof_list_insert" -> 2;
             case "kof_list_get", "kof_list_set", "kof_list_remove", "kof_list_take", "kof_list_drop" -> 1;
             case "kof_list_sub_list", "kof_list_slice" -> 2;
             default -> 0;

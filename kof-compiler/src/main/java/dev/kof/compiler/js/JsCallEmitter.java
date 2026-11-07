@@ -72,22 +72,16 @@ void handleCall(MethodCtx ctx, List<Object> stack,
                 // `Array.prototype.toString`/`[object Set]` do host. Usa os
                 // predicados canônicos (não a comparação de pacote/nome, que
                 // não casava a forma inferida de um `listOf` direto).
-                p.lc.registerRuntime("kofFormat");
-                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofFormat"), List.of(args.get(0))));
+                emitContainerFormat(stack, args.get(0), p0);
             } else if (BuiltinTypes.isString(kc.ownerType()) && p0 != null && isDoubleOrFloatUnwrapped(p0)) {
                 p.lc.registerRuntime("kofNumFmt");
                 stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofNumFmt"),
                         List.of(args.get(0), new JsIr.JsNumber(isFloatUnwrapped(p0) ? "1" : "0"))));
-            } else if (BuiltinTypes.isString(kc.ownerType()) && (isErasedType(p0) || BuiltinTypes.isObject(p0))) {                // §682: no JS o `valueOf` chega com o tipo do argumento APAGADO
-                // (`Type.UnknownType` — o `+`/`String.valueOf` desugars passam
-                // UNKNOWN fora do native, então os ramos de List/Map/Set/Array
-                // acima NUNCA casavam). O `String(x)` cru então usava o
-                // `Array.prototype.toString`/`[object Set]` do host, divergindo
-                // do JVM (`[1, 2, 3]`/`{k=1}`). `kofFormat` é o formatador de
-                // container do Kof e é IDÊNTICO ao `String(x)` para escalar,
-                // String e record (só difere em List/Set/Map/Array).
-                p.lc.registerRuntime("kofFormat");
-                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofFormat"), List.of(args.get(0))));
+            } else if (BuiltinTypes.isString(kc.ownerType()) && (isErasedType(p0) || BuiltinTypes.isObject(p0))) {
+                // §682: the erased-Object valueOf (the `+`/String.valueOf
+                // desugars pass UNKNOWN outside native) — kofFormat is the Kof
+                // container formatter, identical to String(x) for scalars.
+                emitContainerFormat(stack, args.get(0), p0);
             } else if (BuiltinTypes.isString(kc.ownerType())) {
                 stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("String"), List.of(args.get(0))));
             } else if (p0 instanceof Type.PrimitiveType pt && "bool".equals(Type.canonicalPrimitiveName(pt.name()))) {
@@ -360,6 +354,27 @@ boolean isPrintCall(KofCall kc) {
                 && ("println".equals(kc.methodName()) || "print".equals(kc.methodName()));
     }
 
+    /**
+     * #1123: format a container for the JS target. A typed
+     * {@code List<Double>}/{@code Set<Float>}/{@code List<Long>} keeps its
+     * element formatting (a JS number has no Int/Double distinction, so the
+     * kind must come from the compiler); everything else uses the generic
+     * {@code kofFormat}.
+     */
+    private void emitContainerFormat(List<Object> stack, JsIr.JsExpression value, Type t) {
+        String elemKind = t == null ? null : JsCollectionElementKind.of(t);
+        if (elemKind != null) {
+            p.lc.registerRuntime("kofFormatTyped");
+            p.lc.registerRuntime("kofFormat");
+            p.lc.registerRuntime("kofNumFmt");
+            stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofFormatTyped"),
+                    List.of(value, new JsIr.JsString(elemKind))));
+        } else {
+            p.lc.registerRuntime("kofFormat");
+            stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofFormat"), List.of(value)));
+        }
+    }
+
     boolean isStringOp(KofCall kc) {
         return BuiltinTypes.isString(kc.ownerType());
     }
@@ -451,8 +466,7 @@ void handleStringOp(MethodCtx ctx, List<Object> stack,
                 // formatador de container e é idêntico ao String(x) fora deles.
                 Type vt = kc.parameterTypes().isEmpty() ? null : kc.parameterTypes().get(0);
                 if (vt == null || isCollectionValue(vt) || isErasedType(vt) || BuiltinTypes.isObject(vt)) {
-                    p.lc.registerRuntime("kofFormat");
-                    stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofFormat"), List.of(args.get(0))));
+                    emitContainerFormat(stack, args.get(0), vt);
                 } else {
                     stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("String"), List.of(args.get(0))));
                 }

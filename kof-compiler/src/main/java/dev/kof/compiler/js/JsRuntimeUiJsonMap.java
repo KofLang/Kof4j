@@ -19,17 +19,38 @@ public final class JsRuntimeUiJsonMap {
                 return v;
             }
 
+            // #1103 (JSN006, decisao da mantenedora 05/11): shape errada no
+            // decode e ERRO NOMEADO, nunca map vazio/manglado ("0","1").
+            function kofJsonShapeError(expected, v) {
+                const got = Array.isArray(v) ? 'an array'
+                        : v === null || v === undefined ? 'null'
+                        : typeof v === 'string' ? 'a string'
+                        : typeof v === 'boolean' ? 'a bool'
+                        : typeof v === 'number' ? 'a number'
+                        : typeof v === 'object' ? 'an object' : String(typeof v);
+                return new Error('JSN006: json.decode expected ' + expected
+                        + ' but the payload is ' + got);
+            }
+            export function kofJsonRequireObject(v) {
+                if (v === null || typeof v !== 'object' || Array.isArray(v)) throw kofJsonShapeError('an object', v);
+                return v;
+            }
+            export function kofJsonRequireArray(v) {
+                if (!Array.isArray(v)) throw kofJsonShapeError('an array', v);
+                return v;
+            }
+
             export function kofJsonDecodeMap(obj) {
+                const o = kofJsonRequireObject(obj);
                 const m = new Map();
-                if (obj && typeof obj === 'object')
-                    for (const [k, v] of Object.entries(obj)) m.set(k, kofJsonDeep(v));
+                for (const [k, v] of Object.entries(o)) m.set(k, kofJsonDeep(v));
                 return m;
             }
 
             export function kofJsonDecodeObjectMap(obj, decoder) {
+                const o = kofJsonRequireObject(obj);
                 const m = new Map();
-                if (obj && typeof obj === 'object')
-                    for (const [k, v] of Object.entries(obj)) m.set(k, decoder(v));
+                for (const [k, v] of Object.entries(o)) m.set(k, decoder(v));
                 return m;
             }
 

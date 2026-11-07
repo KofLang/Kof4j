@@ -48,6 +48,7 @@ class CollectionArityGateTest {
         assertRefused("m4", "m.size(1)", "Map.size takes exactly 0 argument");
         assertRefused("s1", "s.add(\"b\", \"c\")", "Set.add takes exactly 1 argument");
         assertRefused("s2", "s.contains()", "Set.contains takes exactly 1 argument");
+        assertRefused("s3", "s.containsAll()", "Set.containsAll takes exactly 1 argument");
     }
 
     @Test
@@ -64,6 +65,7 @@ class CollectionArityGateTest {
                 val s = setOf("a")
                 s.add("b")
                 println(s.contains("b"))
+                println(s.containsAll(setOf("b")))
                 println(s.remove("a"))
                 println(s.size())
             }

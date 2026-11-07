@@ -82,6 +82,12 @@ public class Parser {
                 // `foreign module` block is sugar over the FFI binding — it
                 // desugars to plain `extern` declarations sharing one library.
                 declarations.addAll(parseForeignModule(ctx));
+            } else if (ctx.exprDeclarationAhead()) {
+                // Kof.expr spike-0 (`D-KOF-EXPR`): `expr name { ... }` — keyword
+                // CONTEXTUAL (IDENTIFIER+IDENTIFIER+`{`); sem este ramo o
+                // IDENTIFIER `expr` cairia no ramo de função (PARSE010). Fora
+                // dessa forma segue um identificador comum (R2 aditivo).
+                declarations.add(ExprDeclarations.parse(ctx, List.of(), annos));
             } else if (ctx.sealedModifierAhead()) {
                 // X5.1 (D-X5-SURFACE): `sealed class/record/interface` — keyword
                 // contextual; sem este ramo o IDENTIFIER `sealed` cairia no ramo
