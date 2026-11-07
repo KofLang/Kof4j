@@ -192,6 +192,8 @@ BASE = {
         ("isDecimal", ['isDecimal(Double x) -> Bool']),
         ("roundTo", ['roundTo(Double v, Int decimals) -> Double']),
         ("pow", ['pow(Double base, Double exp) -> Double']),
+        ("log", ['log(Double x) -> Double']),
+        ("exp", ['exp(Double x) -> Double']),
         ("parseInt", ['parseInt(String s) -> Int']),
         ("parseLong", ['parseLong(String s) -> Long']),
         ("parseDouble", ['parseDouble(String s) -> Double']),

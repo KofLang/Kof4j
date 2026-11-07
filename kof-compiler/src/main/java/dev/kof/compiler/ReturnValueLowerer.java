@@ -33,7 +33,10 @@ final class ReturnValueLowerer {
         // D-NULL-INTENT: o join heterogêneo preserva null e boxa somente
         // o ramo presente, inclusive nos três backends Native (#259/N2).
         ExpressionNode rv = ret.value();
-        localIdx = ExpressionLowerer.emitExpression(driver, rv, ops, owner, localIdx, locals);
+        int lambdaIdx = CompilerLambdaClass.emitAgainstNullableReturn(driver, rv, returnType,
+                ops, localIdx, locals);
+        localIdx = lambdaIdx >= 0 ? lambdaIdx
+                : ExpressionLowerer.emitExpression(driver, rv, ops, owner, localIdx, locals);
         Type rvType = ExpressionTyper.inferExprType(driver, rv, locals);
         // #845: `return i` (i: Int? estreitado) num retorno primitivo
         rvType = CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops, rvType, returnType);

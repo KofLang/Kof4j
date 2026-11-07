@@ -1,18 +1,26 @@
-last: none
-doing: none-planned
-next: spike-0-inventory
-location: docs/development/future
-state: planned
+last: 03/11/2026 — spike-0 LANDED (grammar + AST locked and proven; no lowering): `ExprDeclarationParseE2ETest` 6/6, `ExprDeclarationSemanticsE2ETest` 9/9, catalog PT 321/321
+doing: spike-0 (the grammar/AST foundation) DONE; slices 1-9 stay open, each promoted explicitly
+next: slice-1 — atoms + sequence + literal + `match`/`matches` on JVM + Script (Strategy P), byte-identical oracle
+location: docs/development
+state: under-development
+owner: 192.168.15.117:0, scheduled flatt CLI round, no opencode server on this host; port n/a
 
 intent: kof-expr-native-text-pattern-dsl
 
-**Rule 6 gate:** `Kof.expr` is a NEW syntax + NEW semantics (a frozen-semantics
-surface). This document is **plan only, zero code**. Promotion requires a
-maintainer decision (`D-KOF-EXPR` or an extension of `D-STR-UNICODE`) and the
-future-promotion flow (`docs/development/future/README.md` §"When to move",
-`AGENTS.md` §"Future promotion"): rewrite with `UNDER DEVELOPMENT`, real state +
-how-to-finish, queue in `roadmap.md` §23, point `docs/status.md` at it, claim in
-`DOING.md`.
+**Rule 6 gate — SATISFIED 03/11/2026.** `Kof.expr` is a NEW syntax + NEW
+semantics (a frozen-semantics surface); the rule-6 decision is the maintainer's
+own order **"pega kof-expr como proximo"**, recorded as `D-KOF-EXPR`
+(`DECISIONS.md`), following the TLS precedent of 02/11. The promotion flow is
+done: the plan lives in `docs/development/`, is queued in `roadmap.md` §23, and
+`docs/status.md` points at it.
+
+**Spike-0 (LANDED 03/11):** the grammar and the AST are locked and proven, with
+**no lowering** — exactly the plan's §17 Slice 0. The two shaping questions are
+resolved in the plan's recommended direction: **Q1** = blocks `{ … }`
+(quantifier/capture targets; a BARE atom is also accepted, per the mandatory
+§3.4 examples `between(2, 63) letter`), **Q2** = the `expr NAME { … }`
+declaration (Shape A). Q3–Q10 stay open for slices 1–9 and are NOT decided
+here.
 
 **Source:** maintainer request (30/09/2026). Related decisions:
 `DECISIONS.md` §D-STR-UNICODE (27/09/2026) — the regex engine is deferred to 1.0
