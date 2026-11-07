@@ -47,9 +47,7 @@ public final class PortuKofVocabulary {
             new String[]{"enum", "enumeracao", "ENUM"},
             new String[]{"entity", "entidade", "ENTITY"},
             new String[]{"extern", "externo", "EXTERN"},
-            new String[]{"generated", "gerado", "GENERATED"},
-            new String[]{"audited", "auditado", "AUDITED"},
-            new String[]{"unique", "unico", "UNIQUE"},
+
             new String[]{"extends", "estende", "EXTENDS"},
             new String[]{"implements", "implementa", "IMPLEMENTS"},
             new String[]{"fun", "funcao", "FUN"},
@@ -115,6 +113,11 @@ public final class PortuKofVocabulary {
             {"using", "usando"},
             {"sealed", "selado"},
             {"value", "valor"},
+            // #1118: contextual like sealed/value — the entity-field parser
+            // reads them by word, so `var unique = ...` stays a plain local.
+            {"generated", "gerado"},
+            {"unique", "unico"},
+            {"audited", "auditado"},
             {"foreign", "modulo"},
             {"constructor", "construtor"},
             {"in", "em"},
