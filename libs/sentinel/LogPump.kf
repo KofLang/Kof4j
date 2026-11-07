@@ -1,0 +1,68 @@
+package sentinel
+
+// kof.sentinel.logpump — the LOG-INGESTION PUMP (universal platform Stage
+// 5.9, the last pure-Kof face): feed a sentinel from the app's own log.
+//
+// The measured constraint that shapes this face: `kof.log` has WRITERS
+// ONLY (`debug/info/warn/error` → `kof_log_*`; no reading surface, no
+// log file of its own — it writes stderr, honouring KOF_LOG_LEVEL and
+// KOF_LOG_JSON). The OPERATOR contract therefore does the wiring: the
+// operator redirects stderr into a file (`2> app.log`), and this pump
+// READS that operator-supplied file with the measured io primitives
+// (`File.readText` + `split`). No new primitive, no engine, no FFI.
+//
+// The parsed shape is the measured TEXT format of `kof_log`:
+// `yyyy-MM-dd HH:mm:ss.SSS LEVEL message` — the LEVEL is the THIRD
+// token. The JSON format (`KOF_LOG_JSON=1`) is NOT parsed: its lines
+// have no third token and the contract here is the TEXT format (recorded
+// honestly, never guessed).
+//
+// The pump is STATELESS: `fromLine` is the count the caller already
+// consumed (its own cursor, persisted wherever the caller wants). An
+// absent file refuses LOGP001 (an ingestion over nothing would fabricate
+// a silent success); a line WITHOUT a recognizable level refuses LOGP002
+// (a malformed line is never skipped silently nor misclassified).
+// Defensive only: the pump records events; the burst decision stays the
+// caller's (`Sentinel.bursting`/`count`).
+
+// ingestLog — read the operator's log file, record one event per line
+// from `fromLine` on (kind = `log:<level>`, source = the log path) and
+// return how many NEW lines were consumed (the caller's next fromLine).
+Int ingestLog(Sentinel sent, String path, Int fromLine, Long nowMillis) {
+    var rawOpt = File(path).readText()
+    var raw = ""
+    if (rawOpt != null) {
+        raw = rawOpt
+    } else {
+        throw "LOGP001: the log file is missing: " + path
+    }
+    var lines = raw.split("\n")
+    var n = 0
+    var i = 0
+    while (i < lines.length) {
+        var line = lines[i]
+        if (i >= fromLine && line.length > 0) {
+            var f = line.split(" ")
+            if (f.length < 3) {
+                throw "LOGP002: a log line without a level token: " + line
+            }
+            var level = f[2]
+            var kind = ""
+            if (level == "ERROR") {
+                kind = "log:error"
+            } else if (level == "WARN") {
+                kind = "log:warn"
+            } else if (level == "INFO") {
+                kind = "log:info"
+            } else if (level == "DEBUG") {
+                kind = "log:debug"
+            } else {
+                throw "LOGP002: a log line with an unrecognized level '" + level + "': " + line
+            }
+            sent.addEvent(path, kind, nowMillis)
+            n = n + 1
+        }
+        i = i + 1
+    }
+    return n
+}
