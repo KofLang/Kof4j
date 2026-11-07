@@ -13,7 +13,7 @@
 animations and custom visualizations are impossible — the most one does
 are colored rectangles (`View`+`Style`).
 
-The universal-platform Stages 4–7 (`docs/development/universal-platform-stages.md`, promoted 03/11) foresee "basic plot via kof.ui"
+The universal-platform Stages 4–7 (`docs/universal-platform.md`, promoted 03/11) foresee "basic plot via kof.ui"
 as lightweight visualization (SVG/`kof.ui` + FFI). The `Canvas` widget is the
 concrete implementation of that need.
 

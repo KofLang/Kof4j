@@ -5,6 +5,7 @@
 last: §800 (FIXED)
 last: §770 (FIXED)
 last: §799 (FIXED)
+last: §770 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20209,26 +20210,6 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
 
-## §770 — A call into an overloaded external Java method picked the first overload of the same arity, ignoring the argument types (IncompatibleClassChangeError)
-
-**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `3a2952641`).
-
-**MEASURED** (JVM target, `org.flywaydb:flyway-core:11.14.1` via `kof deps`; `FluentConfiguration` declares `configuration(Configuration)` before `configuration(Map<String, String>)`):
-```kof
-import org.flywaydb.core.Flyway
-import java.util.HashMap
-main() {
-    val props = HashMap<String, String>()
-    props.put("flyway.locations", "filesystem:db")
-    val f = Flyway.configure().configuration(props)
-}
-```
-Observed: compiles with no diagnostic, then dies with `IncompatibleClassChangeError`: the call was emitted against `configuration(Lorg/flywaydb/core/api/configuration/Configuration;)`. Two sibling faces measured on the same tip: a method inherited from a superclass was never a candidate once the subclass declared any method of that name and arity, and `Path.of("x")` resolved to `Path.of(URI)` and died at load with `VerifyError`.
-
-**ROOT CAUSE:** `ExternalClasspath.findDeclared` returned the first method of the owner (then of each superclass, stopping at the first class with a match) whose name and arity matched, without looking at the argument types. The JDK path (`JdkReflectionResolver`) used a heuristic score that preferred an exact-arity method over a varargs one even when the argument did not fit. The static-call lowering (`ExpressionMethodCallLowerer`) also re-resolved with no argument types, so it could disagree with the typer. A STATIC call on an external INTERFACE owner was emitted as a `Methodref`, which the JVM rejects (it needs an `InterfaceMethodref`).
-
-**Fix:** the new `ExternalOverloads` selects by JLS 15.12.2 for jar owners (ASM, over the class, its superclasses and superinterfaces, private/bridge/synthetic excluded) and JDK owners (reflection): phase 1 subtyping and primitive widening, phase 2 boxing/unboxing, phase 3 variable arity, then the most specific applicable method. A tie between maximally specific methods is `SEM057` (the existing "call to '{0}' is ambiguous between {1} overloads" diagnostic) when every argument type is known; an argument whose type the compiler cannot prove (UNKNOWN, a lambda, a class on no classpath) never turns into an error and keeps the previous arity-based pick, as does a call with no applicable overload (whose argument checks report the mismatch as before). The static-call lowering resolves with the argument types, and `KofCall` carries `interfaceOwner` so a static call on an external interface is emitted as `invokestatic` with an `InterfaceMethodref`. **Proof:** `ExternalOverloadResolutionE2ETest` 6/6 (JDK overloads: `Math.round(double)` concatenated as a `long`, `Timestamp.valueOf(LocalDateTime)`, `LocalDate.now(ZoneOffset)`, an `Int` literal widening into `plusSeconds(long)`; the Flyway shape with a `HashMap` and a Kof `mapOf`, a static overload, most specific `String` over `CharSequence`/`Object`, widening `long` over boxing `Integer`, an overload inherited from the superclass, `Path.of(String)` and `Path.of(String, String...)`, `SEM057` on a proven tie); on the old code all 6 fail. JS/Native are unaffected: an external class method already refuses there with `INTEROP003` (#760). Constructor overloads (`new Foo(x)`) still resolve by arity through `ExternalCtors` and are out of this fix. This is also the (a)-style exact-overload preference §554 left open: `update(Byte[])` on a scalar-first `update(byte)`/`update(byte[])` now binds `update(byte[])` and runs, so `InteropPrimitiveSlotE2ETest` pins that (`arrayArgumentBindsTheArrayOverload`) and keeps the §554 `SEM014` for a slot that only takes a primitive (`echo(long)` with a `Byte[]`).
-<!-- pt-switch --> **PT:** [§770 (pt_BR)](known-bugs.pt_BR.md#770--uma-chamada-a-um-metodo-java-externo-sobrecarregado-escolhia-a-primeira-sobrecarga-de-mesma-aridade-ignorando-os-tipos-dos-argumentos-incompatibleclasschangeerror)
 ## §799 — the arguments of an external constructor were never typed: `new File(System.getProperty(k))` and `new ByteArrayInputStream(s.getBytes())` were emitted as `<init>(Object)` (NoSuchMethodError)
 
 **Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
@@ -20271,3 +20252,37 @@ Observed: `NoSuchMethodError: 'void java.io.InputStreamReader.<init>(java.io.Byt
 
 **Fix:** the §770 selection (`ExternalOverloads`, JLS 15.12.2 phases, most specific wins) also covers `<init>`: JDK candidates come from `getConstructors()`, jar candidates from the class itself (constructors are not inherited). The analyzer and the lowering both resolve the constructor with the argument types, so the emitted descriptor is the selected constructor's. **Proof:** `ExternalCtorOverloadE2ETest` (`InputStreamReader(InputStream, String)`, `BufferedReader(Reader, int)`, `File(File, String)` run, and `new URI("https", null, "a.com", -1, "/x", null, null)` binds the all-String constructor: a `null` literal is applicable to any reference parameter); `ExternalOverloadResolutionE2ETest`, `ExternalCtorArgTypingE2ETest` and `InteropPrimitiveSlotE2ETest` unchanged.
 <!-- pt-switch --> **PT:** [§800 (pt_BR)](known-bugs.pt_BR.md#800--um-construtor-jdk-era-emitido-com-os-tipos-estaticos-exatos-dos-argumentos-new-inputstreamreaderbytestream-utf-8-procurava-initbytearrayinputstream-string-nosuchmethoderror)
+
+## §770 — A call into an overloaded external Java method picked the first overload of the same arity, ignoring the argument types (IncompatibleClassChangeError)
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `3a2952641`).
+
+**MEASURED** (JVM target, `org.flywaydb:flyway-core:11.14.1` via `kof deps`; `FluentConfiguration` declares `configuration(Configuration)` before `configuration(Map<String, String>)`):
+```kof
+import org.flywaydb.core.Flyway
+import java.util.HashMap
+main() {
+    val props = HashMap<String, String>()
+    props.put("flyway.locations", "filesystem:db")
+    val f = Flyway.configure().configuration(props)
+}
+```
+Observed: compiles with no diagnostic, then dies with `IncompatibleClassChangeError`: the call was emitted against `configuration(Lorg/flywaydb/core/api/configuration/Configuration;)`. Two sibling faces measured on the same tip: a method inherited from a superclass was never a candidate once the subclass declared any method of that name and arity, and `Path.of("x")` resolved to `Path.of(URI)` and died at load with `VerifyError`.
+
+**ROOT CAUSE:** `ExternalClasspath.findDeclared` returned the first method of the owner (then of each superclass, stopping at the first class with a match) whose name and arity matched, without looking at the argument types. The JDK path (`JdkReflectionResolver`) used a heuristic score that preferred an exact-arity method over a varargs one even when the argument did not fit. The static-call lowering (`ExpressionMethodCallLowerer`) also re-resolved with no argument types, so it could disagree with the typer. A STATIC call on an external INTERFACE owner was emitted as a `Methodref`, which the JVM rejects (it needs an `InterfaceMethodref`).
+
+**Fix:** the new `ExternalOverloads` selects by JLS 15.12.2 for jar owners (ASM, over the class, its superclasses and superinterfaces, private/bridge/synthetic excluded) and JDK owners (reflection): phase 1 subtyping and primitive widening, phase 2 boxing/unboxing, phase 3 variable arity, then the most specific applicable method. A tie between maximally specific methods is `SEM057` (the existing "call to '{0}' is ambiguous between {1} overloads" diagnostic) when every argument type is known; an argument whose type the compiler cannot prove (UNKNOWN, a lambda, a class on no classpath) never turns into an error and keeps the previous arity-based pick, as does a call with no applicable overload (whose argument checks report the mismatch as before). The static-call lowering resolves with the argument types, and `KofCall` carries `interfaceOwner` so a static call on an external interface is emitted as `invokestatic` with an `InterfaceMethodref`. **Proof:** `ExternalOverloadResolutionE2ETest` 8/8 (a jar `save(String)`/`save(File)`/`save(OutputStream)` called with a stream, the PDFBox shape that was SEM014; JDK overloads: `Math.min`/`Math.max` on Int operands stored into an Int field, and a long `Math.min` cast to Int in a method with many branches, a VerifyError and a frame crash before; `Math.round(double)` concatenated as a `long`, `Timestamp.valueOf(LocalDateTime)`, `LocalDate.now(ZoneOffset)`, an `Int` literal widening into `plusSeconds(long)`; the Flyway shape with a `HashMap` and a Kof `mapOf`, a static overload, most specific `String` over `CharSequence`/`Object`, widening `long` over boxing `Integer`, an overload inherited from the superclass, `Path.of(String)` and `Path.of(String, String...)`, `SEM057` on a proven tie); on the old code all 6 fail. JS/Native are unaffected: an external class method already refuses there with `INTEROP003` (#760). Constructor overloads (`new Foo(x)`) still resolve by arity through `ExternalCtors` and are out of this fix. This is also the (a)-style exact-overload preference §554 left open: `update(Byte[])` on a scalar-first `update(byte)`/`update(byte[])` now binds `update(byte[])` and runs, so `InteropPrimitiveSlotE2ETest` pins that (`arrayArgumentBindsTheArrayOverload`) and keeps the §554 `SEM014` for a slot that only takes a primitive (`echo(long)` with a `Byte[]`).
+<!-- pt-switch --> **PT:** [§770 (pt_BR)](known-bugs.pt_BR.md#770--uma-chamada-a-um-metodo-java-externo-sobrecarregado-escolhia-a-primeira-sobrecarga-de-mesma-aridade-ignorando-os-tipos-dos-argumentos-incompatibleclasschangeerror)
+
+## §935 — a nullable-RETURN function type compiles but the emitted lambda class does not implement the functional interface — `IncompatibleClassChangeError` at the first call (JVM)
+
+**Symptom:** a `() -> String?` lambda (or any nullable-return function type) compiles clean on JVM, but the FIRST call of the closure value dies with `java.lang.IncompatibleClassChangeError: Class Lambda0 does not implement the requested interface kof.Function0_NCString`. With the NON-nullable declaration `() -> String` (and a `return null` body — also accepted), the same error names `kof.Function0_CString`: the interface the call site demands EXISTS, and the emitted class does not implement it. Measured end-to-end consequence: the web middleware chain (`app.use(fn)`) is UNREACHABLE — `JvmRuntimeWebDispatch.kof_web_invoke` calls the middleware reflectively, the error surfaces inside the dispatch, and the server answers **HTTP 500** to every request when ANY middleware is registered; the inline route handlers work (same bridge, body inferred `() -> String`).
+
+**The A/B that pins the trigger** (same returned-lambda position): when the body has a second path returning a `String` (e.g. `try { ... } catch (String e) { return "MWERR: " + e }`), the INFERENCE collapses to the non-nullable `() -> String`, the emitted class implements `Function0_CString`, and everything works (3/3 runs — even with the runtime null); with a straight-line body ending in `return null`, the inference stays nullable and the emitted class implements NOTHING the declared context casts to. **The functional-interface choice follows the body's INFERRED type while the call site demands the DECLARED type's interface — the emission does not guarantee both sides.** (The try/catch variant therefore works by accident of inference, not by design.)
+
+**Minimal repro + the designed-and-parked slice** (the sentinel HTTP wiring, `libs/sentinel/Http.kf` + `SentinelHttpE2ETest`, the first real E2E coverage of the middleware chain — 0 existing tests exercised `app.use`): filed as **#1080** with both artifacts in the issue comments. No honest Kof-level workaround (a phantom `if (false) { return "x" }` to force the inference violates the no-generated-looking-code philosophy) — the fix belongs to the emitter.
+
+**Status:** ✅ FIXED 05/11 (`2958f3f4d`) — the emitter fix from PR #1092 (declared-type lambda typing everywhere) applied and validated (the PR's three E2Es 6/6 incl. this repro); the parked slice now passes `SentinelHttpE2ETest` 2/2 JVM+Script after ALSO extending the interpreter §574 bridge to `kof_web_use` (route/sse/ws were covered, `use` was not — the middleware stayed a raw KofObj and the dispatch 500d under Script). Issue #1080 CLOSED with executed proof.
+
+**Owner:** compiler core (the `.30:9092` territory — the docs/lab lane measured it to the root and stopped per the lane contract); class: compiler emission / functional types.
+<!-- pt-switch --> **PT:** [§935 (pt_BR)](known-bugs.pt_BR.md#935--tipo-funcao-com-retorno-nulavel-compila-mas-a-classe-do-lambda-emitida-nao-implementa-a-interface-funcional--incompatibleclasschangeerror-na-primeira-chamada-jvm)
