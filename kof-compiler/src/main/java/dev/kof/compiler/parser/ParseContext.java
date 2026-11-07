@@ -161,6 +161,37 @@ public class ParseContext {
                 || TypeParser.isPrimitiveTypeToken(t);
     }
 
+    /**
+     * Kof.expr spike-0 (`D-KOF-EXPR`) — {@code expr} é keyword CONTEXTUAL
+     * (IDENTIFIER no lexer), como {@code sealed}: só é o início de uma
+     * declaração de padrão quando vem IDENTIFIER(expr) + IDENTIFIER(nome) + `{`.
+     * Em qualquer outro lugar `expr` segue um identificador comum, então código
+     * existente que nomeia algo `expr` continua compilando (R2 aditivo).
+     */
+    public boolean exprDeclarationAhead() {
+        if (!wordIs("expr")) return false;
+        if (pos + 2 >= tokens.size()) return false;
+        if (tokens.get(pos + 1).type() == TokenType.IDENTIFIER) {
+            return tokens.get(pos + 2).type() == TokenType.LBRACE;
+        }
+        // O nome do padrão é um NOME, não um slot estrutural: não passa pelo
+        // vocabulário do perfil. Uma palavra PT que coincide com keyword da
+        // superfície (`digito`, `letra`) segue sendo nome válido — traduzir um
+        // identificador é a violação da regra-ouro PARTE 5.
+        return isPatternNameToken(pos + 1) && tokens.get(pos + 2).type() == TokenType.LBRACE;
+    }
+
+    /** O token em {@code i} pode nomear um padrão: qualquer palavra, inclusive uma keyword léxica (`digito`, `letra` em PT). */
+    private boolean isPatternNameToken(int i) {
+        if (i < 0 || i >= tokens.size()) return false;
+        String old = tokens.get(i).type().name();
+        return old.endsWith("_TYPE");
+    }
+
+    private boolean isPatternNameToken() {
+        return isPatternNameToken(pos);
+    }
+
     boolean atEnd() {
         return pos >= tokens.size() || peek().type() == TokenType.EOF;
     }
@@ -193,7 +224,10 @@ public class ParseContext {
     }
 
     public String expectId(String message, String code) {
-        if (check(TokenType.IDENTIFIER)) return advance().value();
+        // Nome de padrão (`expr NOME {`): o valor TIPADO da palavra é aceito
+        // como nome — a superfície PT usa `digito`/`letra`, que são keywords
+        // léxicas daquele perfil. O vocabulário não dita nomes de usuário.
+        if (check(TokenType.IDENTIFIER) || isPatternNameToken()) return advance().value();
         // #330: `fn`/`fun`/`func` são RESERVADAS (SG-001) — em posição de nome
         // o diagnóstico certo é PARSE085 com a forma correta, não o genérico
         // do chamador. Lexer + Parser (topo de arquivo) já fazem o mesmo.

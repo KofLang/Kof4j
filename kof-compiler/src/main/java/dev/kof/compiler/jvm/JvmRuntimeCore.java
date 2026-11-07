@@ -519,6 +519,22 @@ public final class JvmRuntimeCore {
                     return kof_array_join(a);
                 }
 
+                // #1120: List.join(separator) — the elements stringified with
+                // the Kof rules (String as-is, primitives via valueOf, nested
+                // containers recursed) and joined by the separator. The empty
+                // list yields "" (the java.util.String.join contract).
+                public static String kof_list_join(java.util.List<?> list, String sep) {
+                    if (list == null) return "null";
+                    StringBuilder sb = new StringBuilder();
+                    for (int i = 0; i < list.size(); i++) {
+                        if (i > 0) sb.append(sep);
+                        Object e = list.get(i);
+                        sb.append(e instanceof java.util.Collection<?> || (e != null && e.getClass().isArray())
+                                ? kof_array_join(e) : String.valueOf(e));
+                    }
+                    return sb.toString();
+                }
+
                 private static String kof_array_join(Object a) {
                     if (a == null) return "null";
                     if (!a.getClass().isArray()) return String.valueOf(a);

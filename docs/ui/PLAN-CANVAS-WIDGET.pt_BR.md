@@ -13,7 +13,7 @@
 animações e visualizações customizadas são impossíveis — o máximo que se faz
 são retangulos coloridos (`View`+`Style`).
 
-As Fases 4–7 da plataforma universal (`docs/development/universal-platform-stages.pt_BR.md`, promovidas 03/11) preveem "plot básico via kof.ui"
+As Fases 4–7 da plataforma universal (`docs/universal-platform.pt_BR.md`, promovidas 03/11) preveem "plot básico via kof.ui"
 como visualização leve (SVG/`kof.ui` + FFI). O widget `Canvas` é a
 implementação concreta dessa necessidade.
 
