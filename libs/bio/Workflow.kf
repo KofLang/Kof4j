@@ -1,0 +1,111 @@
+package bio
+
+import kof.workflow
+
+// kof.bio.workflow — the CHECKPOINTABLE orchestration of the QC pipeline
+// (universal platform Stage 7.3, the workflow half): the stats → filter →
+// report shape of Pipeline.kf expressed as a REAL `kof.workflow` DAG whose
+// stages carry their data through durable TSV artifacts in the caller's
+// work directory. The carrier uses only the measured primitives
+// (`File.writeText`/`readText`, `split`, `String.toInt/toDouble`) — no
+// JSON round-trip of a library record, which the typed decoders lose
+// (known-bugs §727). The workflow gives the pipeline what a plain function
+// call cannot: dependency ordering, per-stage artifacts a failed run leaves
+// behind for inspection, retry/dead-letter hooks the caller can add, and a
+// Report with succeeded/failed/skipped per stage.
+//
+// Honesty rules carried over and extended: an EMPTY record list refuses
+// QC001 at build time (a DAG destined to fabricate nothing is a caller
+// bug); an EMPTY-FILTERED outcome is a legitimate RESULT here — the report
+// stage records `count=0` and the workflow stays ok (the pipeline layer's
+// qcReport keeps refusing to fabricate means over nothing; the
+// orchestration layer records the outcome instead). A stage throw (e.g.
+// BIO001 on an empty sequence) is recorded by the workflow as failed with
+// its dependents skipped — never propagated as a crash.
+//
+// The TSV carrier contract: one line per stat, `header<TAB>length<TAB>gc`,
+// a trailing newline per row; the FASTA header is carried verbatim, so a
+// tab inside a header would shift the fields (the callers' FASTA headers
+// are identifiers, not prose — the tests use tab-free ones).
+
+// kofBioParseStats — the carrier's read side: parse the TSV text back into
+// the pipeline's SequenceStat list (blank lines skipped).
+List<SequenceStat> kofBioParseStats(String text) {
+    var out = listOf<SequenceStat>()
+    var lines = text.split("\n")
+    var i = 0
+    while (i < lines.length) {
+        var line = lines[i]
+        if (line.length > 0) {
+            var f = line.split("\t")
+            out.add(SequenceStat(f[0], f[1].toInt(), f[2].toDouble()))
+        }
+        i = i + 1
+    }
+    return out
+}
+
+// qcWorkflow — build the QC pipeline DAG: the stats stage writes
+// `qc-stats.tsv`, the filter stage (after stats) reads it, applies the
+// AND-threshold `qcFilter` and writes `qc-filtered.tsv`, and the report
+// stage (after filter) writes `qc-report.txt` with `count=<passed>` — or
+// `count=0` when the filter legitimately empties the set. The work
+// directory is created by the builder; the caller runs the returned DAG
+// (`flow.run()`) and reads the Report.
+KofWfDag qcWorkflow(String workDir, List<FastaRecord> records, Int minLen, Double minGc) {
+    if (records.size() == 0) {
+        throw "QC001: a QC workflow over an empty record list is undefined"
+    }
+    Directory(workDir).createDirectories()
+    var statsJob = job("stats", () -> {
+        var stats = sequenceStats(records)
+        var text = ""
+        var i = 0
+        while (i < stats.size()) {
+            var s = stats.get(i)
+            text = text + s.header + "\t" + s.length + "\t" + s.gc + "\n"
+            i = i + 1
+        }
+        File(workDir + "/qc-stats.tsv").writeText(text)
+        return true
+    })
+    var filterJob = job("filter", () -> {
+        var rawOpt = File(workDir + "/qc-stats.tsv").readText()
+        var raw = ""
+        if (rawOpt != null) {
+            raw = rawOpt
+        } else {
+            throw "workflow 'filter': the stats artifact is missing"
+        }
+        var filtered = qcFilter(kofBioParseStats(raw), minLen, minGc)
+        var text = ""
+        var i = 0
+        while (i < filtered.size()) {
+            var s = filtered.get(i)
+            text = text + s.header + "\t" + s.length + "\t" + s.gc + "\n"
+            i = i + 1
+        }
+        File(workDir + "/qc-filtered.tsv").writeText(text)
+        return true
+    })
+    filterJob.after(statsJob)
+    var reportJob = job("report", () -> {
+        var rawOpt = File(workDir + "/qc-filtered.tsv").readText()
+        var raw = ""
+        if (rawOpt != null) {
+            raw = rawOpt
+        } else {
+            throw "workflow 'report': the filtered artifact is missing"
+        }
+        var filtered = kofBioParseStats(raw)
+        var line = "count=0"
+        if (filtered.size() > 0) {
+            var rep = qcReport(filtered)
+            line = "count=" + rep.count
+        }
+        File(workDir + "/qc-report.txt").writeText(line + "\n")
+        return true
+    })
+    reportJob.after(filterJob)
+    return dag(listOf(statsJob, filterJob, reportJob))
+}

@@ -70,11 +70,21 @@ public final class ExpressionBinaryLowerer {
         boolean nativeRawPrimitive = (driver.target.isNative()
                 || driver.target == Target.WASI) && stringified;
         if (stringified && !nativeRawPrimitive) TypeEmitter.boxPrimitive(ops, type);
+        // #1123: on JS a typed List<Double>/Set<Float> must reach the emitter
+        // with its REAL type so the element kind travels to kofFormatTyped (a
+        // JS number has no Int/Double distinction). Everything else keeps the
+        // erased Unknown the JVM contract needs.
+        Type valueOfArg = (driver.target.isNative() || driver.target == Target.WASI)
+                && (nativeRawPrimitive || (!stringified && !Type.isString(type)
+                        && !(type instanceof Type.PrimitiveType)))
+                ? type : Type.UnknownType.UNKNOWN;
+        if (driver.target == Target.JS && !Type.isString(type)
+                && type instanceof Type.ClassType ct
+                && ("List".equals(ct.name()) || "Set".equals(ct.name()))) {
+            valueOfArg = type;
+        }
         ops.add(new KofCall(BuiltinTypes.STRING, "valueOf",
-                List.of((driver.target.isNative() || driver.target == Target.WASI)
-                        && (nativeRawPrimitive || (!stringified && !Type.isString(type)
-                                && !(type instanceof Type.PrimitiveType)))
-                        ? type : Type.UnknownType.UNKNOWN),
+                List.of(valueOfArg),
                 BuiltinTypes.STRING, KofCallKind.STATIC));
     }
 
