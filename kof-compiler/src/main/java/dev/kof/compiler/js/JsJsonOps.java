@@ -87,15 +87,20 @@ public final class JsJsonOps {
                 p.lc.decodeHelpers.add(jsName);
                 JsIr.JsExpression parsed = new JsIr.JsCall(
                         new JsIr.JsIdentifier("JSON.parse"), List.of(value));
+                p.lc.registerRuntime("kofJsonRequireArray");
+                JsIr.JsExpression arr = new JsIr.JsCall(
+                        new JsIr.JsIdentifier("kofJsonRequireArray"), List.of(parsed));
                 JsIr.JsExpression mapper = new JsIr.JsCall(
                         new JsIr.JsIdentifier("__kof_decode_" + jsName),
                         List.of(new JsIr.JsIdentifier("o")));
                 stack.add(new JsIr.JsCall(
-                        new JsIr.JsMember(parsed, "map"),
+                        new JsIr.JsMember(arr, "map"),
                         List.of(new JsIr.JsArrow(List.of("o"), mapper))));
             } else {
                 JsIr.JsExpression raw = new JsIr.JsCall(new JsIr.JsIdentifier("JSON.parse"), List.of(value));
                 if (BuiltinTypes.isObject(elem) || BuiltinTypes.isMap(elem) || BuiltinTypes.isList(elem)) {
+                    p.lc.registerRuntime("kofJsonRequireArray");
+                    raw = new JsIr.JsCall(new JsIr.JsIdentifier("kofJsonRequireArray"), List.of(raw));
                     p.lc.registerRuntime("kofJsonDeep");
                     raw = new JsIr.JsCall(new JsIr.JsIdentifier("kofJsonDeep"), List.of(raw));
                 }

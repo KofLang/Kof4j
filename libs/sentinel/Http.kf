@@ -1,0 +1,31 @@
+package sentinel
+
+// kof.sentinel.http — the HTTP WIRING of the sentinel (universal platform
+// Stage 5.9, the wiring half): `sentinelHttp` turns a Sentinel into a web
+// middleware for `app.use(...)` — an OBSERVER in the defensive-only law of
+// this library: it records one event per request (source = the request
+// path, so the visibility is per endpoint; kind = "request") and ALWAYS
+// passes through (returns null), never blocking, never mutating the
+// response. The burst rule stays the caller's decision (`bursting` /
+// `count` over the recorded (source, kind) pairs) — a middleware that
+// decided by itself would be policy where the library supplies mechanism.
+//
+// The event timestamp is the REAL clock (`time.now()`, a Long, matching
+// `addEvent`'s atMillis) — inside a live request the middleware is the
+// only honest clock holder; a caller needing a synthetic clock drives
+// `addEvent` directly instead. The middleware chain runs BEFORE the
+// security pipeline and the routes (measured in JvmRuntimeWebDispatch),
+// so the observation sees every request the app sees, including ones the
+// security pipeline later rejects.
+//
+// Uses only the measured web ambient accessors (`path()`), the measured
+// `time.now()` (Long) and the landed Sentinel — no engine, no FFI, no new
+// primitive; the log-ingestion pump face lives in LogPump.kf.
+
+// sentinelHttp — wrap a Sentinel as a pass-through web middleware.
+() -> String? sentinelHttp(Sentinel sent) {
+    return () -> {
+        sent.addEvent(path(), "request", time.now())
+        return null
+    }
+}
