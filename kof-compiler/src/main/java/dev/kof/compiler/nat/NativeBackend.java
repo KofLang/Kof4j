@@ -328,8 +328,14 @@ public class NativeBackend implements Backend {
                                     || kc.methodName().equals("kof_shell_pipeline"))) {
                             usesProcess = true;
                         }
-                        if (op instanceof KofCall kc && kc.methodName().equals("kof_math_pow")) {
-                            usesPow = true; // R2: unico caminho ao shim (KofMath.pow; recusado no cross)
+                        if (op instanceof KofCall kc && (kc.methodName().equals("kof_math_pow")
+                                    || kc.methodName().equals("kof_math_log")
+                                    || kc.methodName().equals("kof_math_exp"))) {
+                            // R2: unico caminho ao shim libm. MATH-LOG-EXP
+                            // (07/11): log/exp entram pelo MESMO flag — o
+                            // shim chama log@PLT/exp@PLT e o `-lm` por uso
+                            // (NativeCrossLink.LIBM_SYMBOLS ja os lista).
+                            usesPow = true;
                         }
                         if (op instanceof KofCall kc && kc.methodName().startsWith("kof_db_")) {
                             usesDb = true;

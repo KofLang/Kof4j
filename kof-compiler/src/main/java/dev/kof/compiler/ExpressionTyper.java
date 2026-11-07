@@ -265,7 +265,10 @@ public final class ExpressionTyper {
                     // (closures.md §1: corpo-bloco exige return EXPLÍCITO — o
                     // implícito só vale no caminho do spawn, ver
                     // inferLambdaBodyType, GitHub #141.)
-                    returnType = Type.PrimitiveType.VOID;
+                    // A body whose only returns are `return null` still returns a value.
+                    returnType = LambdaReturns.hasValueReturn(le.body())
+                            ? new Type.NullableType(new Type.ClassType("java.lang", "Object", List.of()))
+                            : Type.PrimitiveType.VOID;
                 }
                 yield new Type.FunctionType(paramTypes, returnType, driver.lambdaClassNames.get(le));
             }
