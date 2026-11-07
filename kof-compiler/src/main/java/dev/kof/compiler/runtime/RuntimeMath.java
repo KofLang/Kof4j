@@ -171,6 +171,36 @@ public final class RuntimeMath {
                 movq %xmm0, %rax
                 ret
 
+            # MATH-LOG-EXP (07/11): log = ln NATURAL, exp = e^x — o MESMO
+            # caminho libm do pow (shim -> log@PLT/exp@PLT, `-lm` por uso via
+            # NativeCrossLink.LIBM_SYMBOLS, que ja lista log/exp). Arg chega
+            # como 8 bits crus em rdi (pilha 1-slot do generic path); SysV
+            # quer o double em xmm0. Alinha a pilha por rbx como o pow.
+            # Retorno = bits crus em rax (pushq do generic path).
+            .weak log
+            .globl kof_math_log
+            .type kof_math_log, @function
+            kof_math_log:
+                movq %rdi, %xmm0
+                movq %rsp, %rbx
+                andq $-16, %rsp
+                call log
+                movq %rbx, %rsp
+                movq %xmm0, %rax
+                ret
+
+            .weak exp
+            .globl kof_math_exp
+            .type kof_math_exp, @function
+            kof_math_exp:
+                movq %rdi, %xmm0
+                movq %rsp, %rbx
+                andq $-16, %rsp
+                call exp
+                movq %rbx, %rsp
+                movq %xmm0, %rax
+                ret
+
             # S1b.1: escalares Double puros (SSE2 — sem libm). Args chegam
             # como 8 bits crus em rdi/rsi/rdx (pilha 1-slot do generic path);
             # retorno = bits crus em rax (o generic path faz pushq %rax).
