@@ -70,9 +70,11 @@ final class WasmMathRuntime {
             // do atan via CALL (os quadrantes + os casos especiais)
             "kof_math_atan2",
             // MATH-POW-1 (01/11): o __ieee754_pow fdlibm — WasmPowKernel
-            // (o driver) + WasmPowMain (o log2/a cauda/o scalb) — a ÚLTIMA
-            // fatia libm da família
-            "kof_math_pow");
+            // (o driver) + WasmPowMain (o log2/a cauda/o scalb)
+            "kof_math_pow",
+            // MATH-LOG-EXP (07/11): o __ieee754_log e o __ieee754_exp fdlibm
+            // — WasmLogKernel/WasmExpKernel; fecham o primitivo no ÚLTIMO alvo
+            "kof_math_log", "kof_math_exp");
 
     static boolean usesAny(List<IRMethod> methods) {
         for (IRMethod m : methods) {
@@ -559,6 +561,9 @@ final class WasmMathRuntime {
         // (WasmPowMain); o dedupe por nome torna o add idempotente
         fs.add(WasmPowKernel.powFunc());
         fs.add(WasmPowKernel.hugeyFunc());
+        // MATH-LOG-EXP (07/11): os kernels fdlibm do log/exp
+        fs.add(WasmLogKernel.logFunc());
+        fs.add(WasmExpKernel.expFunc());
         fs.add(WasmPowMain.mainFunc());
         // check_500: o split Main/Tail/Bits — os nomes das funcs NÃO mudam
         // (o registro dedupe-safe e o scan-whitelist veem o mesmo conjunto).

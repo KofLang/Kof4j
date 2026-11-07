@@ -378,3 +378,36 @@ vertical completo (nenhum caminho meio-ligado, R6):
      `FfiNativeCrossE2ETest#riscv64ScalarArrayAndStringArrayBind`. Faces restantes
      de `D-MEM-FFI-CROSS-FULL`: float/HFA e callbacks (ambas exigem direção da
      mantenedora; nenhum `D-*` registrado).
+
+## 8. Nomenclatura de library — o contrato de portabilidade (medido 06/11, lane `192.168.100.14:0`)
+
+**O campo `library "…"` é o SONAME CRU, e é idiomático-Linux hoje.**
+Medido neste host (`SymbolLookup.libraryLookup` no JVM, `-l:` no nativo):
+
+- `library "libpcap.so.1"` — **CARREGA** no Linux (JVM FFM + o input do ld nativo `-l:libpcap.so.1`).
+- `library "libpcap"` e `library "libpcap.so"` — **ambos FALHAM**: o dlopen NÃO
+  anexa a extensão `.so` para nomes sem sufixo, e o symlink `.so` do devel não
+  existe em hosts de runtime (só o soname versionado).
+
+**Consequência:** todo extern que nomeia uma biblioteca de plataforma está hoje
+escrito Linux-first. No macOS o mesmo soname falha (o arquivo é `libpcap.dylib`),
+no Windows `pcap.dll`. `libs/net/Pcap.kf` (`libpcap.so.1`) e
+`libs/linalg/Linalg.kf` (`libopenblas.so.0` ×3) carregam isto — medido, registrado
+com honestidade, NÃO escondido.
+
+**O mecanismo portátil NÃO existe ainda e é território do compilador**
+(`.30:9092` — follow-up registrado): a resolução deve migrar para uma lista de
+candidatos por alvo (o repo JÁ TEM a convenção —
+`libs/interop/InteropLibrary.fileName(kind)` produz
+`lib<nome>.so` / `lib<nome>.dylib` / `<nome>.dll` — mas nada no FFI a consome). Até
+essa fatia pousar, uma lib FFI ligada a uma biblioteca de plataforma é
+**Linux-first**: os estados honestos são "funciona onde o soname existe" ou
+recusas estilo FFI001/FFI002 — nunca um alvo errado em silêncio.
+
+**O precedente SQLite é igualmente cravado-Linux** (`-l:libsqlite3.so.0`,
+DB001) — um PADRÃO PRÉ-EXISTENTE que as libs desta lane seguiram, não um
+inventado aqui. Reescrever engines externos em Kof NÃO é o remédio:
+`AGENTS.md:585` ("do not reimplement external engines"), o non-goal "own
+SQL/Arrow/ML engine" e o próprio plano "NOT to do: reimplement
+BLAS/LAPACK/NumPy" proíbem. O remédio é a fatia de resolução portátil de
+nomes — uma decisão `D-*` se a forma por-alvo precisar de julgamento.
