@@ -384,6 +384,66 @@ public final class StatementAnalyzer {
      * D-NARROW-WHILE (#159), também CAMPOS de receiver (`b.data != null`)
      * via um símbolo sintético (Narrowing.fieldNarrow) consultado por path.
      */
+    /**
+     * #1034 — narrowings válidos no ramo THEN de um condicional.
+     * `&&` recursa os dois lados (A∧B: ambos valem); `||` nada (¬A∨¬B);
+     * `x != null` narrowa; `x == null` não diz nada sobre o then.
+     */
+    private static void collectThenOnly(SemanticAnalyzer sa, ExpressionNode cond,
+            SymbolTable scope, java.util.List<SymbolTable.LocalVariableSymbol> thenNarrow,
+            boolean underOr) {
+        if (!(cond instanceof BinaryExpr be)) return;
+        String op = be.operator();
+        if ("&&".equals(op) && !underOr) {
+            collectThenOnly(sa, be.left(), scope, thenNarrow, false);
+            collectThenOnly(sa, be.right(), scope, thenNarrow, false);
+            return;
+        }
+        if (be.right() instanceof LiteralExpr rl && rl.kind() == ConcreteLiteralKind.NULL
+                && "!=".equals(op)) {
+            addNullNarrowing(sa, be.left(), scope, thenNarrow);
+        }
+    }
+
+    /**
+     * #1034 — narrowings válidos no ramo ELSE de um condicional.
+     * `||` recursa os dois lados (¬(A∨B): ambos falsos); `&&` nada (¬A∨¬B);
+     * `x == null` narrowa (o else tem x != null); `x != null` diria
+     * "x é null" — não expressável neste esquema, segue sem narrow.
+     */
+    private static void collectElseOnly(SemanticAnalyzer sa, ExpressionNode cond,
+            SymbolTable scope, java.util.List<SymbolTable.LocalVariableSymbol> elseNarrow,
+            boolean underOr) {
+        if (!(cond instanceof BinaryExpr be)) return;
+        String op = be.operator();
+        if ("||".equals(op)) {
+            collectElseOnly(sa, be.left(), scope, elseNarrow, true);
+            collectElseOnly(sa, be.right(), scope, elseNarrow, true);
+            return;
+        }
+        if (be.right() instanceof LiteralExpr rl && rl.kind() == ConcreteLiteralKind.NULL
+                && "==".equals(op)) {
+            addNullNarrowing(sa, be.left(), scope, elseNarrow);
+        }
+    }
+
+    /** O narrow em si (local ou campo — o espelho #159 do D-NARROW-WHILE). */
+    private static void addNullNarrowing(SemanticAnalyzer sa, ExpressionNode left,
+            SymbolTable scope, java.util.List<SymbolTable.LocalVariableSymbol> out) {
+        if (left instanceof IdentifierExpr id) {
+            SymbolTable.Symbol sym = scope.resolve(id.name());
+            if (!(sym != null && sym.type() instanceof Type.NullableType nt)) return;
+            out.add(new SymbolTable.LocalVariableSymbol(id.name(), nt.inner(), 0));
+            return;
+        }
+        if (left instanceof FieldAccessExpr) {
+            String path = Narrowing.pathOf(left);
+            Type fieldType = SemExpressionTyper.inferType(sa, left, scope);
+            if (!(fieldType instanceof Type.NullableType nt) || path == null) return;
+            out.add(Narrowing.fieldNarrow(path, nt.inner()));
+        }
+    }
+
     private static void collectNarrowing(SemanticAnalyzer sa, ExpressionNode cond,
             SymbolTable scope,
             java.util.List<SymbolTable.LocalVariableSymbol> thenNarrow,
@@ -392,12 +452,22 @@ public final class StatementAnalyzer {
         if (!(cond instanceof BinaryExpr be)) return;
         String op = be.operator();
         if ("&&".equals(op) && !underOr) {
-            collectNarrowing(sa, be.left(), scope, thenNarrow, elseNarrow, false);
-            collectNarrowing(sa, be.right(), scope, thenNarrow, elseNarrow, false);
+            // #1034: THEN — both operands hold, same-polarity recursion
+            // (sound). ELSE — ¬(A∧B)=¬A∨¬B narrows NOTHING: the old
+            // same-polarity fill of elseNarrow was UNSOUND
+            // (`if (x == null && y) {} else { x.length() }` compiled while
+            // x can be null there). elseNarrow stays empty for `&&`.
+            collectThenOnly(sa, be.left(), scope, thenNarrow, false);
+            collectThenOnly(sa, be.right(), scope, thenNarrow, false);
             return;
         }
         if ("||".equals(op)) {
-            // disjunção não narrow nenhum ramo — mas não desce (nada a coletar)
+            // #1034: ELSE — both operands FALSE, so an `==` null-test
+            // operand narrows the else (the guard clause
+            // `if (t == null || t.isEmpty()) { throw }` leaves t: T).
+            // THEN — ¬A∨¬B narrows nothing (current, kept).
+            collectElseOnly(sa, be.left(), scope, elseNarrow, true);
+            collectElseOnly(sa, be.right(), scope, elseNarrow, true);
             return;
         }
         boolean isNullTest = be.right() instanceof LiteralExpr rl && rl.kind() == ConcreteLiteralKind.NULL;

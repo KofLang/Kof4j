@@ -209,6 +209,16 @@ public final class SemExpressionTyper {
                     Type rightT = inferType(sa, bin.right(), rightScope);
                     yield SemBinaryResultTyper.inferBinaryResultType(sa.diagnostics(), "&&", leftT, rightT);
                 }
+                // #1034: narrowing intra-expressão de `||` — em
+                // `t == null || t.length() == 0`, o lado direito só roda
+                // quando o esquerdo FALHOU (`t != null`), então ele vê `t`
+                // narrowed pela polaridade NEGADA do esquerdo (short-circuit).
+                if ("||".equals(bin.operator())) {
+                    Type leftT = inferType(sa, bin.left(), scope);
+                    SymbolTable rightScope = SemNarrowing.narrowedScope(sa, bin.left(), scope, true);
+                    Type rightT = inferType(sa, bin.right(), rightScope);
+                    yield SemBinaryResultTyper.inferBinaryResultType(sa.diagnostics(), "||", leftT, rightT);
+                }
                 // Left-associative chains (huge string concatenations in
                 // generated UIs, editors) are iterated instead of recursed:
                 // deep chains would overflow the compiler's own stack.

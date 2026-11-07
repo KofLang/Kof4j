@@ -47,11 +47,26 @@ final class SemNarrowing {
         if (!(cond instanceof BinaryExpr be)) return;
         String op = be.operator();
         if ("&&".equals(op)) {
+            // #1034: the THEN branch has both operands true (same-polarity
+            // recursion is sound); the ELSE branch has ¬(A∧B)=¬A∨¬B — a
+            // disjunction, which narrows NOTHING. The old same-polarity
+            // recursion on the else was UNSOUND (`x == null && y`'s else
+            // narrowed x to non-null while x can be null).
+            if (negated) return;
             collectCondNarrowing(sa, be.left(), scope, out, negated);
             collectCondNarrowing(sa, be.right(), scope, out, negated);
             return;
         }
-        if ("||".equals(op)) return;
+        if ("||".equals(op)) {
+            // #1034: the ELSE branch has both operands FALSE — so an `==`
+            // null-test operand narrows the else (the guard clause
+            // `if (t == null || t.isEmpty()) { throw }` leaves t: T). The
+            // THEN branch has ¬A∨¬B — still nothing.
+            if (!negated) return;
+            collectCondNarrowing(sa, be.left(), scope, out, negated);
+            collectCondNarrowing(sa, be.right(), scope, out, negated);
+            return;
+        }
         if (!(be.right() instanceof LiteralExpr rl && rl.kind() == ConcreteLiteralKind.NULL)) return;
         boolean thenNarrow = "!=".equals(op);
         boolean elseNarrow = "==".equals(op);
