@@ -433,4 +433,4 @@ para o *porquê* por trás de cada item acima.
 
 # Fases 4–7 (promovidas 03/11)
 
-As Fases 4–7 (DATA, SECURITY expansão, SCIENTIFIC COMPUTING, BIOINFORMATICS) foram **promovidas de `future/` em 03/11** pela ordem direta da mantenedora ("pega o universal platform de future") e agora são trabalho de desenvolvimento CORRENTE — [`docs/development/universal-platform-stages.pt_BR.md`](../development/universal-platform-stages.pt_BR.md) (+EN). A Fase 4.6 (registro de experimentos) pousou no mesmo ciclo.
+As Fases 4–7 (DATA, SECURITY expansão, SCIENTIFIC COMPUTING, BIOINFORMATICS) foram **promovidas de `future/` em 03/11** pela ordem direta da mantenedora ("pega o universal platform de future") e agora são trabalho de desenvolvimento CORRENTE — [`docs/universal-platform.pt_BR.md`](../universal-platform.pt_BR.md) (+EN). A Fase 4.6 (registro de experimentos) pousou no mesmo ciclo.
