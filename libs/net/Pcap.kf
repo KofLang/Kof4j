@@ -1,0 +1,29 @@
+package net
+
+// kof.net.pcap — the libpcap LINK PROBE (universal platform Stage 5.7, the
+// first slice): the smallest honest surface that proves the WHOLE chain —
+// a `foreign module` with `library`, the extern binding to a REAL system
+// library, the `char*`↔`String` return marshaling, the ld input, and the
+// runtime load — on JVM (FFM) and native x86_64 (the linker input).
+//
+// The capture face (pcap_open_live/pcap_next_ex/pcap_close) is the NEXT
+// slice and stays out of this probe deliberately: its API is pointer-heavy
+// (pcap_t* handles, pcap_pkthdr** out-params), and the honest way to land
+// it is after THIS probe settles the link on both runnable targets.
+//
+// Defensive-only law carried from the sentinel: this binding READS the
+// version string; it opens no device and sends nothing. The capture slice
+// will carry the same discipline (the caller decides what to capture).
+
+// pcapVersion — the libpcap runtime version string (e.g.
+// "libpcap version 1.10.1, with TPACKET_V3") — the link + load smoke face.
+foreign module pcap {
+    library "libpcap.so.1"
+    abi c
+    ownership borrowed
+    extern pcap_lib_version(): String
+}
+
+String pcapVersion() {
+    return pcap_lib_version()
+}

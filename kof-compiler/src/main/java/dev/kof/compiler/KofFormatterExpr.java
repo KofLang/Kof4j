@@ -2,6 +2,8 @@ package dev.kof.compiler;
 
 import dev.kof.compiler.lang.LanguageProfile;
 
+import java.util.List;
+
 /**
  * Impressor de EXPRESSÕES do `KofFormatter` (split por responsabilidade,
  * §Small-parts): cada slot estrutural (keyword/tipo/operador/literal) sai na
@@ -210,5 +212,79 @@ final class KofFormatterExpr {
 
     static int precOf(String op) {
         return Math.max(0, dev.kof.compiler.parser.OperatorPrecedence.of(op));
+    }
+
+    // ---- Kof.expr spike-0 (D-KOF-EXPR) — impressão do padrão ----------------
+    // Um `expr` é código-fonte como qualquer outro: o round-trip com `-w`
+    // devolve a MESMA gramática que o parser lê (unidades separadas por
+    // espaço, quantificador com blocos, `either` com `or`).
+
+    static void formatExprDecl(ExprDeclarationNode ex, StringBuilder out, int indent, LanguageProfile p) {
+        String pad = "    ".repeat(indent);
+        for (AnnotationNode ann : ex.annotations()) {
+            out.append(pad).append(KofFormatter.formatAnnotation(ann, p)).append("\n");
+        }
+        if (!ex.modifiers().isEmpty()) out.append(pad).append(KofFormatter.joinKw(p, ex.modifiers())).append(" ");
+        else out.append(pad);
+        out.append(KofFormatter.kw(p, "expr")).append(' ').append(ex.name()).append(" {\n");
+        formatPattern(ex.body(), out, indent + 1, p);
+        out.append(pad).append("}\n");
+    }
+
+    /** Sequência como linhas do bloco; uma unidade por linha, indentada. */
+    static void formatPattern(ExprNode node, StringBuilder out, int indent, LanguageProfile p) {
+        String pad = "    ".repeat(indent);
+        if (node instanceof ExprSequenceNode seq) {
+            for (ExprNode u : seq.units()) formatPattern(u, out, indent, p);
+            return;
+        }
+        out.append(pad).append(unitText(node, p)).append("\n");
+    }
+
+    /** Forma inline de uma unidade — re-parseável: `one_or_more { a b }`. */
+    static String unitText(ExprNode node, LanguageProfile p) {
+        if (node instanceof ExprAtomNode a) return atomText(a, p);
+        if (node instanceof ExprReferenceNode r) return r.alias();
+        if (node instanceof ExprSequenceNode s) return sequenceText(s, p);
+        if (node instanceof ExprQuantifierNode q) {
+            String head = KofFormatter.kw(p, q.kind());
+            if (q.kind().equals("exactly")) head += "(" + q.min() + ")";
+            else if (q.kind().equals("between")) head += "(" + q.min() + ", " + q.max() + ")";
+            return head + " { " + sequenceText(asSequence(q.target()), p) + " }";
+        }
+        if (node instanceof ExprCaptureNode c) {
+            return KofFormatter.kw(p, "capture") + "(\"" + escapeLiteral(c.name()) + "\")"
+                    + " { " + sequenceText(asSequence(c.body()), p) + " }";
+        }
+        if (node instanceof ExprAlternationNode alt) {
+            List<String> branches = new java.util.ArrayList<>();
+            for (ExprNode b : alt.alternatives()) branches.add(sequenceText(asSequence(b), p));
+            return KofFormatter.kw(p, "either") + " { "
+                    + String.join(" " + KofFormatter.kw(p, "or") + " ", branches) + " }";
+        }
+        return "";
+    }
+
+    private static ExprSequenceNode asSequence(ExprNode node) {
+        if (node instanceof ExprSequenceNode s) return s;
+        return new ExprSequenceNode(node.position(), List.of(node));
+    }
+
+    private static String sequenceText(ExprSequenceNode seq, LanguageProfile p) {
+        List<String> parts = new java.util.ArrayList<>();
+        for (ExprNode u : seq.units()) parts.add(unitText(u, p));
+        return String.join(" ", parts);
+    }
+
+    private static String atomText(ExprAtomNode a, LanguageProfile p) {
+        if (a.kind().equals("literal") && a.values().size() == 1) {
+            return "\"" + escapeLiteral(a.values().get(0)) + "\"";
+        }
+        if (a.kind().equals("one_of") || a.kind().equals("none_of") || a.kind().equals("literal")) {
+            List<String> vals = new java.util.ArrayList<>();
+            for (String v : a.values()) vals.add("\"" + escapeLiteral(v) + "\"");
+            return KofFormatter.kw(p, a.kind()) + "(" + String.join(", ", vals) + ")";
+        }
+        return KofFormatter.kw(p, a.kind());
     }
 }

@@ -886,7 +886,8 @@ Long-term vision — Kof as a universal platform (one language for
 applications **and** systems, infrastructure, automation, data, security and
 science) **without** destroying the language's simplicity.
 
-- **Stages 4–7 PROMOTED 03/11** (maintainer order "pega o universal platform de future") to [`universal-platform-stages.md`](universal-platform-stages.md) (+PT) — Stage 4.6 landed the same cycle; every remaining item measured against the tree (only 4.3/4.5/5.9/5.10/7.1/7.3 are implementable without a new primitive or FFI)
+- **Stages 4–7 PROMOTED 03/11** (maintainer order "pega o universal platform de future") to [`../universal-platform.md`](../universal-platform.md) (+PT) — Stage 4.6 landed the same cycle; every remaining item measured against the tree (only 4.3/4.5/5.9/5.10/7.1/7.3 are implementable without a new primitive or FFI)
+- **universal-platform Stages 4–7 PROMOTED to `docs/` 05/11** (maintainer authorization "eu autorizo a concluir tudo que ta aberto. finaliza todos os planos e gaps"): every pure-Kof face landed with E2E — the LAST one was 5.9's HTTP middleware (`libs/sentinel/Http.kf`, 2/2) after the #1080 emitter fix (PR #1092's declared-type lambda typing) and the interpreter `kof_web_use` bridge; the remaining rows are recorded follow-ups (R3/Arrow/decisions/stage order). See [`universal-platform.md`](../../universal-platform.md)
 - Central document: `docs/architecture/IMPLEMENTATION-UNIVERSAL-PLATFORM.md`
   (architecture — **UNDER DEVELOPMENT** since 17/09/2026; promoted from
   `future/` by maintainer decision, `DECISIONS.md` §D-UNIVERSAL)
@@ -938,6 +939,12 @@ science) **without** destroying the language's simplicity.
 > Arrow/BLAS/ML; no "Kali in Kof"; no own SQL engine.
 
 ### Promotion queue (`D-FUTURE-PROMOTION`, maintainer 28/09)
+
+> **PROMOTED 03/11 (maintainer order "pega kof-expr como proximo"): `kof-expr-plan`** — moved from `future/` to
+> [`kof-expr-plan.md`](kof-expr-plan.md) (+PT), `UNDER DEVELOPMENT`, decision `D-KOF-EXPR`. The rule-6 gate (a new
+> language surface) is satisfied by the maintainer's own order, following the TLS precedent of 02/11. **Spike-0 LANDED**:
+> the grammar and the AST are locked and proven (`ExprDeclarationParseE2ETest` 6/6, `ExprDeclarationSemanticsE2ETest` 9/9),
+> with NO lowering — slices 1–9 (§17) stay open and each is promoted explicitly.
 
 > **RE-OPENED BY THE MAINTAINER 02/11 (order "pega tls do future pra fazer, é urgente"): `tls-hardening-plan`** — promoted from the `future/` TLS plan; the rule-6 decision is the maintainer’s own order, the frozen contract is `D-SEC.6` (additive only). **COMPLETE + PROMOTED 03/11 to [`docs/tls-hardening.md`](../tls-hardening.md) (+PT)** — ALL slices landed with executed proof; the final gate was the Pebble E2E (real issuance, serial 0dca413a13143cfa (a certificate serial, not a commit SHA)); `state: implemented`.
 

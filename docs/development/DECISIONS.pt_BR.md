@@ -5144,6 +5144,27 @@ trabalho pós-1.0, cada uma ainda exigindo sua própria decisão quando pegas.
 
 ---
 
+## D-KOF-EXPR — `Kof.expr` é PROMOVIDO a trabalho corrente: uma DSL nativa e declarativa de padrões de texto, spike-0 pousado (ordem da mantenedora 03/11/2026, diretiva de chat "pega kof-expr como proximo")
+
+**Data:** 03/11/2026 · **Estado:** `DECIDED` (mantenedora) — o plano sai de `docs/development/future/` para `docs/development/` conforme `D-FUTURE-PROMOTION` (a ordem da mantenedora ativa o gate de regra 6 do próprio plano).
+
+- **Diretiva (verbatim, chat):** *"pega kof-expr como proximo"* — a mantenedora nomeou o plano; o gate de regra 6 que o plano declara (`Kof.expr` é SINTAXE nova + SEMÂNTICA nova) fica satisfeito por essa ordem, seguindo o precedente TLS de 02/11.
+- **Respostas de desenho registradas aqui (Q1/Q2, as duas que moldam a gramática):**
+  - **Q1 = blocos `{ … }`.** Alvos de quantificador e de captura são blocos `{ … }`. Um **átomo solto** TAMBÉM é alvo válido, porque os exemplos obrigatórios do §3.4 do plano são escritos `between(2, 63) letter` / `exactly(8) hex` — exigir chaves tornaria a documentação do próprio plano não-parseável.
+  - **Q2 = a declaração `expr NOME { … }`** (Forma A), um kind de declaração de topo modelado em `EnumDeclarationNode`; `expr` é **keyword contextual** (IDENTIFIER+IDENTIFIER+`{`), então identificadores existentes chamados `expr` continuam compilando (aditivo, R2).
+  - **Q3–Q10 seguem abertas** (`between` sem teto, tipagem das capturas T/U, replace com captura, expansão numérica, normalização, o destino de `validation.matches`/`String.split`/`replace`, o motor, o nome). Pertencem às fatias 1–9 e **não** são decididas aqui.
+- **Escopo do spike-0 (POUSADO, sem lowering — §17 do plano):** a gramática + a AST, provadas RED-first.
+  - AST: `ExprNode` (sealed) → `ExprAtomNode` / `ExprSequenceNode` / `ExprQuantifierNode` / `ExprAlternationNode` / `ExprCaptureNode` / `ExprReferenceNode`; `ExprDeclarationNode` para a declaração.
+  - Parser: `parser/ExprDeclarations.java` + `ParseContext.exprDeclarationAhead()` + o dispatch de topo em `Parser.parse()`.
+  - Semântica: `SemExprAnalyzer.java` sobre a UNIDADE inteira (resolução de referência independente da ordem de declaração) com `SEM108` (elemento/referência desconhecida), `SEM109` (padrão recursivo), `SEM110` (nome de padrão ou de captura duplicado), `SEM111` (`exactly(0)`), `SEM112` (`between` invertido, lista/either vazios), `SEM113` (âncora fora de posição), `SEM114` (nome de padrão colide com tipo). Códigos de parser `PARSE090`–`PARSE099`.
+  - Formatador: `KofFormatterExpr.formatExprDecl` para que `-w` faça round-trip do padrão em vez de imprimir o `toString()` do record (a classe de perda silenciosa de código de #719).
+  - PortuKof: o vocabulário contextual (`expr`→`molde`, `either`→`qualquer`, `or`→`ou`, os átomos e quantificadores) e catálogo de diagnósticos 100% PT (321/321 variantes) — PortuKof produz a MESMA AST (uma semântica, N superfícies).
+- **O que NÃO está autorizado:** qualquer lowering, qualquer runtime, qualquer superfície `match`/`matches`/`find`/`replace`, qualquer backend por alvo, qualquer mudança em `STR003` ou `validation.matches`, qualquer stub. Uma declaração `expr` é um DESCRITOR que não emite símbolo executável no spike-0 — essa é a semântica do spike, não um ramo inacabado.
+- **Prova (executada):** `ExprDeclarationParseE2ETest` 6/6, `ExprDeclarationSemanticsE2ETest` 9/9 (os sete códigos), `scripts/gen_portukof_diags.py --check` rc=0.
+- **Relacionamentos:** `Relacionados: D-FUTURE-PROMOTION, D-FUTURE-UNFREEZE, D-STR-UNICODE (o adiamento de regex que isto responde), D-KOF-FIRST (regra 12), D-PORTUKOF (regra absoluta de paridade), regra 6, regra 11, regra 12`.
+
+---
+
 ## D-AS-PRECEDENCE — `as` liga mais forte que aritmética, deslocamentos e comparações (mantenedor 05/11)
 
 **Data:** 2026-11-05 · **Estado:** `DECIDIDO` (mantenedor) — mudança de contrato sob o behavior freeze (a precedência é congelada; `AGENTS.md`).
