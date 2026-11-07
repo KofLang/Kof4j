@@ -280,6 +280,9 @@ public final class MemberCallTyper {
                             ? ct.typeArguments().get(0) : Type.UnknownType.UNKNOWN);
             // D-MULTIPARADIGMA-PHASE1A slice 1c — forEach always returns Void.
             if ("forEach".equals(mn)) return Type.PrimitiveType.VOID;
+            // #1116: removeValue(v) removes by VALUE and reports whether it
+            // found one (composed from indexOf + remove in the lowerer).
+            if ("removeValue".equals(mn)) return Type.PrimitiveType.BOOL;
             if ("add".equals(mn) || "push".equals(mn) || "append".equals(mn)
                     || "set".equals(mn) || "clear".equals(mn) || "sort".equals(mn))
                 return Type.PrimitiveType.VOID;
@@ -290,7 +293,7 @@ public final class MemberCallTyper {
             if (!"toArray".equals(mn) && !"sublist".equals(mn) && !"subSet".equals(mn)) {
                 if (sa.diagnostics() != null) {
                     sa.diagnostics().error(mc,
-                            "Cannot resolve method '" + mn + "' on type 'List' (valid: add/push/append/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/zip)",
+                            "Cannot resolve method '" + mn + "' on type 'List' (valid: add/push/append/get/set/remove/removeValue/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/zip)",
                             "SEM025");
                 }
             }

@@ -67,6 +67,8 @@ public final class CollectionMethodTyper {
         // mesmo oracle java.util.List); addAll é Bool (mudou?); subList
         // devolve List do MESMO tipo de elemento; sort é void (in-place).
         if ("indexOf".equals(mn) || "lastIndexOf".equals(mn)) return Type.PrimitiveType.INT;
+        // #1116: removeValue(v) removes by VALUE and reports whether it found one.
+        if ("removeValue".equals(mn)) return Type.PrimitiveType.BOOL;
         if ("addAll".equals(mn)) return Type.PrimitiveType.BOOL;
         if ("subList".equals(mn)) return recvType;
         // pagination P1 — take/drop/slice: List<E> do mesmo tipo.

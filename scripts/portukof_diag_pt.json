@@ -1062,8 +1062,8 @@
     },
     {
       "arity": 1,
-      "en": "Cannot resolve method '{0}' on type 'List' (valid: add/push/append/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/zip)",
-      "pt": "Método '{0}' não resolvido no tipo 'List' (válidos: add/push/append/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/zip)"
+      "en": "Cannot resolve method '{0}' on type 'List' (valid: add/push/append/get/set/remove/removeValue/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/zip)",
+      "pt": "Método '{0}' não resolvido no tipo 'List' (válidos: add/push/append/get/set/remove/removeValue/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/zip)"
     },
     {
       "arity": 1,
@@ -1084,6 +1084,11 @@
       "arity": 1,
       "en": "Handle<T> has no method '{0}()'; use `await h` to get the value",
       "pt": "Handle<T> não tem o método '{0}()'; use `await h` para obter o valor"
+    },
+    {
+      "arity": 1,
+      "en": "List.removeValue takes exactly one argument (the value to remove); got {0}",
+      "pt": "List.removeValue exige exatamente um argumento (o valor a remover); recebeu {0}"
     },
     {
       "arity": 1,
