@@ -288,6 +288,14 @@ public final class JsRuntimeUiLayout {
                 return kofSetHas(set, value) ? 1 : 0;
             }
 
+            // #1120: containsAll(other) — every element of other is present.
+            export function kofSetContainsAll(set, other) {
+                for (const e of other) {
+                    if (!kofSetHas(set, e)) return 0;
+                }
+                return 1;
+            }
+
             export function kofSetRemove(set, value) {
                 for (const e of set) {
                     if (kofValEq(e, value)) {
