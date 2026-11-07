@@ -425,28 +425,8 @@ public final class ExpressionLowerer {
                 localIdx = SwitchExprLowerer.emitSwitchExpr(driver, se, ops, owner, localIdx, locals);
                 yield localIdx;
             }
-            case LambdaExpr le -> {
-                Type.FunctionType ft = (Type.FunctionType) ExpressionTyper.inferExprType(driver, le, locals);
-                List<IRLocalVariable> captures = driver.collectCaptures(le, locals);
-                String lambdaClass = driver.lambdaClass(le, ft, captures);
-                CompilerLambdaClass.propagateCapturePins(driver, lambdaClass, captures, locals);
-                List<IRLocalVariable> effective = driver.lambdaEffectiveCaptures.get(le);
-                if (effective != null) captures = effective;
-                if (ft.className() == null) {
-                    ft = new Type.FunctionType(ft.parameterTypes(), ft.returnType(), lambdaClass);
-                }
-                Type lambdaType = new Type.ClassType("", lambdaClass, List.of());
-                List<Type> captureTypes = new ArrayList<>();
-                for (IRLocalVariable cap : captures) captureTypes.add(cap.type());
-                ops.add(new KofNewObject(lambdaType, captureTypes));
-                ops.add(new KofDup());
-                for (IRLocalVariable cap : captures) {
-                    CompilerCaptures.pushCapture(driver, ops, cap);
-                }
-                ops.add(new KofCall(lambdaType, "<init>", captureTypes,
-                        Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));
-                yield localIdx;
-            }
+            case LambdaExpr le -> CompilerLambdaClass.emitLambdaObject(driver, le,
+                    (Type.FunctionType) ExpressionTyper.inferExprType(driver, le, locals), ops, localIdx, locals);
             case QueryDslExpr q -> {
                 yield driver.lowerQueryDsl(q, ops, owner, localIdx, locals);
             }

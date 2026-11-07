@@ -59,6 +59,12 @@ final class CompilerUnitLowering {
             else if (decl instanceof InterfaceDeclarationNode iface) classes.add(CompilerIfaceRecordLowering.lowerInterface(driver, iface, declPkg, nextTypeId++));
             else if (decl instanceof RecordDeclarationNode rec) classes.add(CompilerIfaceRecordLowering.lowerRecord(driver, rec, declPkg, nextTypeId++));
             else if (decl instanceof EnumDeclarationNode en) classes.add(CompilerEnumLowering.lowerEnum(driver, en, declPkg, nextTypeId++)); // #445
+            // Kof.expr spike-0 (D-KOF-EXPR): o padrão fica só na AST por enquanto —
+            // a gramática é TRAVADA antes de qualquer IR (§17 do plano). Um `expr`
+            // declara um DESCRITOR e nenhum símbolo executável, então não baixar
+            // nada aqui é a semântica do spike-0, não um stub: o valor/API do
+            // padrão (`match`/`matches`) entra na fatia 1, com o lowering junto.
+            else if (decl instanceof ExprDeclarationNode) { }
             else switch (decl) {
                 case EntityDeclarationNode ent -> {
                     driver.entitySchemas.put(ent.name(), ent.fields());
@@ -103,8 +109,7 @@ final class CompilerUnitLowering {
                 }
                 case null, default -> { }  // no-op p/ null ou tipo nao-casado (paridade com o if-else original)
             }
-        }
-        if (!topLevelFunctions.isEmpty()) {
+        }        if (!topLevelFunctions.isEmpty()) {
             String mainClassName = moduleName.isEmpty() ? "Main" : moduleName + "/Main";
             classes.add(0, new IRClass(mainClassName, "java/lang/Object", List.of(),
                     AccessFlags.PUBLIC | AccessFlags.SUPER, List.of(), topLevelFunctions, List.of(), null, 0));
