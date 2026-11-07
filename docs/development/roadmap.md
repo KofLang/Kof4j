@@ -940,6 +940,12 @@ science) **without** destroying the language's simplicity.
 
 ### Promotion queue (`D-FUTURE-PROMOTION`, maintainer 28/09)
 
+> **PROMOTED 03/11 (maintainer order "pega kof-expr como proximo"): `kof-expr-plan`** — moved from `future/` to
+> [`kof-expr-plan.md`](kof-expr-plan.md) (+PT), `UNDER DEVELOPMENT`, decision `D-KOF-EXPR`. The rule-6 gate (a new
+> language surface) is satisfied by the maintainer's own order, following the TLS precedent of 02/11. **Spike-0 LANDED**:
+> the grammar and the AST are locked and proven (`ExprDeclarationParseE2ETest` 6/6, `ExprDeclarationSemanticsE2ETest` 9/9),
+> with NO lowering — slices 1–9 (§17) stay open and each is promoted explicitly.
+
 > **RE-OPENED BY THE MAINTAINER 02/11 (order "pega tls do future pra fazer, é urgente"): `tls-hardening-plan`** — promoted from the `future/` TLS plan; the rule-6 decision is the maintainer’s own order, the frozen contract is `D-SEC.6` (additive only). **COMPLETE + PROMOTED 03/11 to [`docs/tls-hardening.md`](../tls-hardening.md) (+PT)** — ALL slices landed with executed proof; the final gate was the Pebble E2E (real issuance, serial 0dca413a13143cfa (a certificate serial, not a commit SHA)); `state: implemented`.
 
 > **CLOSED 24/10 (`D-FUTURE-CLOSE`):** the maintainer's sweep after all lanes died concluded the six open plans — `LEGACY_MIGRATION`, `DECOMPILER`, `TRANSLATOR` (autonomous scope complete, moved to `docs/`), `qrcode-wasm` (Phase 1 complete → `docs/`), `image-vision` (delivered surface → `docs/`, the AVIF 3bd divergence parked in `known-bugs` §757-family) and `kofscript-embedding` (zero code, returned to `future/`). The remainders are parked with their resume conditions in each plan; nothing in `development/` is open.
