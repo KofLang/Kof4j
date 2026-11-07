@@ -59,6 +59,12 @@ public final class CompilerEmission2 {
                     continue;
                 }
             }
+            int lambdaIdx = CompilerLambdaClass.emitAgainstNullableReturn(driver, args.get(i), formal,
+                    ops, localIdx, locals);
+            if (lambdaIdx >= 0) {
+                localIdx = lambdaIdx;
+                continue;
+            }
             localIdx = ExpressionLowerer.emitExpression(driver, args.get(i), ops, owner, localIdx, locals);
             Type argType = ExpressionTyper.inferExprType(driver, args.get(i), locals);
             // #770/#845: formal CRU recebendo arg Nullable(primitivo) estreitado
