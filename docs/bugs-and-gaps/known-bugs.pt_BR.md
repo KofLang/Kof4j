@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §827 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,6 +17680,23 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §827 — `String.codePointAt(i)` era SEM025, então um port caía numa decodificação manual de surrogates; agora é membro de String
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `190681ffa`). Lote de stdlib aprovado por decisão de mantenedor (05/11); o #1120 entregou o resto do lote e deixou `codePointAt` em aberto.
+
+**MEDIDO** (JVM):
+```kof
+main() {
+    println("x𝄞".codePointAt(1))
+}
+```
+Observado: `SEM025` "Cannot resolve method".
+
+**CAUSA RAIZ:** faltava a assinatura: o `StringMethodRegistry` não tinha `codePointAt(int)`, embora seja membro real de `java.lang.String`, então a guarda o recusava.
+
+**Correção:** `codePointAt(index)` devolve `Int` (o code point num índice UTF-16, o par inteiro num surrogate alto). JVM e Script chamam o membro de `java.lang.String`; o JS roda o `codePointAt` nativo (mesmo contrato de índice); o Native recusa com o STR003 nomeado até ter a decodificação de code point UTF-8. O alias PortuKof é `pontoDeCodigoEm`, e a lista SEM025 de métodos válidos de String cita `codePointAt`. `learn/39-stdlib` (EN + pt_BR) mostra o membro. **Prova:** `StringCodePointAtE2ETest` 3/3 (code points BMP e suplementar em JVM e Script, JS, Native STR003; RED antes com SEM025).
+<!-- pt-switch --> **EN:** [§827 (en)](known-bugs.md#827--stringcodepointati-was-sem025-so-a-port-fell-back-to-a-manual-surrogate-decode-now-it-is-a-string-member)
 
 ## §935 — tipo-função com retorno nulável compila mas a classe do lambda emitida não implementa a interface funcional — `IncompatibleClassChangeError` na primeira chamada (JVM)
 

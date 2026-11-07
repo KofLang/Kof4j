@@ -1077,8 +1077,8 @@
     },
     {
       "arity": 1,
-      "en": "Cannot resolve method '{0}' on type 'String' (valid: length/isEmpty/charAt/substring/contains/startsWith/endsWith/indexOf/lastIndexOf/equals/equalsIgnoreCase/compareTo/compareToIgnoreCase/toUpperCase/toLowerCase/trim/concat/replace/replaceAll/replaceFirst/matches/split/toCharArray/getBytes/toInt/toLong/toFloat/toDouble)",
-      "pt": "Método não resolvido '{0}' no tipo 'String' (válidos: length/isEmpty/charAt/substring/contains/startsWith/endsWith/indexOf/lastIndexOf/equals/equalsIgnoreCase/compareTo/compareToIgnoreCase/toUpperCase/toLowerCase/trim/concat/replace/replaceAll/replaceFirst/matches/split/toCharArray/getBytes/toInt/toLong/toFloat/toDouble)"
+      "en": "Cannot resolve method '{0}' on type 'String' (valid: length/isEmpty/charAt/substring/contains/startsWith/endsWith/indexOf/lastIndexOf/equals/equalsIgnoreCase/compareTo/compareToIgnoreCase/toUpperCase/toLowerCase/trim/concat/replace/replaceAll/replaceFirst/matches/split/toCharArray/getBytes/codePointAt/toInt/toLong/toFloat/toDouble)",
+      "pt": "Método não resolvido '{0}' no tipo 'String' (válidos: length/isEmpty/charAt/substring/contains/startsWith/endsWith/indexOf/lastIndexOf/equals/equalsIgnoreCase/compareTo/compareToIgnoreCase/toUpperCase/toLowerCase/trim/concat/replace/replaceAll/replaceFirst/matches/split/toCharArray/getBytes/codePointAt/toInt/toLong/toFloat/toDouble)"
     },
     {
       "arity": 1,

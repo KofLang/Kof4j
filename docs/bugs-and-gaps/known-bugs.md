@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §827 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,6 +20206,23 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §827 — `String.codePointAt(i)` was SEM025, so a port fell back to a manual surrogate decode; now it is a String member
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `190681ffa`). Stdlib batch approved by maintainer decision (05/11); #1120 landed the rest of the batch and left `codePointAt` open.
+
+**MEASURED** (JVM):
+```kof
+main() {
+    println("x𝄞".codePointAt(1))
+}
+```
+Observed: `SEM025` "Cannot resolve method".
+
+**ROOT CAUSE:** a missing signature: `StringMethodRegistry` had no `codePointAt(int)`, though it is a real `java.lang.String` member, so the guard refused it.
+
+**Fix:** `codePointAt(index)` returns `Int` (the code point at a UTF-16 index, the whole pair at a high surrogate). JVM and Script call the `java.lang.String` member; JS runs its native `codePointAt` (same index contract); Native refuses it with the named STR003 until it has a UTF-8 code point decode. The PortuKof alias is `pontoDeCodigoEm`, and the SEM025 list of valid String methods names `codePointAt`. `learn/39-stdlib` (EN + pt_BR) shows it. **Proof:** `StringCodePointAtE2ETest` 3/3 (BMP and supplementary code points on JVM and Script, JS, Native STR003; RED before with SEM025).
+<!-- pt-switch --> **PT:** [§827 (pt_BR)](known-bugs.pt_BR.md#827--stringcodepointati-era-sem025-então-um-port-caía-numa-decodificação-manual-de-surrogates-agora-é-membro-de-string)
 
 ## §935 — a nullable-RETURN function type compiles but the emitted lambda class does not implement the functional interface — `IncompatibleClassChangeError` at the first call (JVM)
 

@@ -33,7 +33,9 @@ class StringMethodTargetCoverageTest {
     /** Métodos cujo membro de {@code String.prototype} casa com a semântica Kof. */
     private static final Set<String> JS_NATIVE_MEMBER = Set.of(
             "substring", "contains", "startsWith", "endsWith", "indexOf",
-            "lastIndexOf", "concat", "trim", "toUpperCase", "toLowerCase");
+            "lastIndexOf", "concat", "trim", "toUpperCase", "toLowerCase",
+            // §827: String.prototype.codePointAt has the Java UTF-16 index contract.
+            "codePointAt");
 
     /** Conversões numéricas: o registry mapeia p/ {@code kof_string_to_*} (caso JS explícito). */
     private static final Set<String> RUNTIME_SUFFIX = Set.of(
@@ -44,6 +46,9 @@ class StringMethodTargetCoverageTest {
     // no gate STR003 (StringTargetGaps.INCOMPLETE) — gap documentado, nao crescimento.
     private static final Set<String> JS_KNOWN_GAP = Set.of(
             "matches", "replaceAll", "replaceFirst", "getBytes");
+
+    /** §827: lowered on JS, refused with STR003 on Native ({@code StringTargetGaps}). */
+    private static final Set<String> NATIVE_ONLY_GAP = Set.of("codePointAt");
 
     private static Set<String> registryMethods() throws Exception {
         String src = Files.readString(
@@ -148,6 +153,7 @@ class StringMethodTargetCoverageTest {
 
         Set<String> classified = new TreeSet<>(handled);
         classified.addAll(JS_KNOWN_GAP);
+        classified.addAll(NATIVE_ONLY_GAP);
 
         assertEquals(new TreeSet<>(registry), classified, () -> {
             var missing = new TreeSet<>(registry);
