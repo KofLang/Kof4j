@@ -128,11 +128,22 @@ public final class JsRuntimeCollections {
             // D-MULTIPARADIGMA-PHASE1A slice 1e — distinct dedups by kofValEq
             // (same rule as contains on this target); the tag arg is
             // Native-only and ignored here.
-            // §828: each element formatted as println formats it inside a list.
-            export function kofListJoin(list, sep, tag) {
-                return list.map(x => x === null || x === undefined ? "null"
-                        : tag === 1 && typeof x === "number" ? String.fromCharCode(x)
-                        : tag >= 2 ? kofFpToString(Number(x), tag === 3) : kofElem(x)).join(sep);
+            // #1120: List.join(sep) / strings.join(xs, sep) — the elements
+            // stringified with the Kof rules (container shapes recursed) and
+            // joined by the separator; the empty list yields "".
+            // #1120: insert(index, value) — splice shifts the tail.
+            export function kofListInsert(list, index, value) {
+                list.splice(index, 0, value);
+            }
+
+            export function kofListJoin(list, sep) {
+                let out = "";
+                for (let i = 0; i < list.length; i++) {
+                    if (i > 0) out += sep;
+                    const e = list[i];
+                    out += (Array.isArray(e) || e instanceof Map || e instanceof Set) ? kofFormat(e) : String(e);
+                }
+                return out;
             }
 
             export function kofListDistinct(list, tag) {

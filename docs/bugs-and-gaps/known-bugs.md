@@ -2,10 +2,6 @@
 
 # Known Bugs — handoff to the next agent
 
-last: §830 (FIXED)
-last: §829 (FIXED)
-last: §828 (FIXED)
-last: §827 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20210,74 +20206,15 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
 
-## §827 — `String.getBytes(charset)` and `String.codePointAt(i)` were SEM025, so a port fell back to `getBytes()` and a manual surrogate decode; now both are String members
+## §935 — a nullable-RETURN function type compiles but the emitted lambda class does not implement the functional interface — `IncompatibleClassChangeError` at the first call (JVM)
 
-**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `2c920c4c1`). Stdlib batch approved by maintainer decision (05/11).
+**Symptom:** a `() -> String?` lambda (or any nullable-return function type) compiles clean on JVM, but the FIRST call of the closure value dies with `java.lang.IncompatibleClassChangeError: Class Lambda0 does not implement the requested interface kof.Function0_NCString`. With the NON-nullable declaration `() -> String` (and a `return null` body — also accepted), the same error names `kof.Function0_CString`: the interface the call site demands EXISTS, and the emitted class does not implement it. Measured end-to-end consequence: the web middleware chain (`app.use(fn)`) is UNREACHABLE — `JvmRuntimeWebDispatch.kof_web_invoke` calls the middleware reflectively, the error surfaces inside the dispatch, and the server answers **HTTP 500** to every request when ANY middleware is registered; the inline route handlers work (same bridge, body inferred `() -> String`).
 
-**MEASURED** (JVM):
-```kof
-main() {
-    println("aé".getBytes("ISO-8859-1").length)
-    println("x𝄞".codePointAt(1))
-}
-```
-Observed: `SEM025` "Cannot resolve method" for both calls; only `getBytes()` (UTF-8) was registered.
+**The A/B that pins the trigger** (same returned-lambda position): when the body has a second path returning a `String` (e.g. `try { ... } catch (String e) { return "MWERR: " + e }`), the INFERENCE collapses to the non-nullable `() -> String`, the emitted class implements `Function0_CString`, and everything works (3/3 runs — even with the runtime null); with a straight-line body ending in `return null`, the inference stays nullable and the emitted class implements NOTHING the declared context casts to. **The functional-interface choice follows the body's INFERRED type while the call site demands the DECLARED type's interface — the emission does not guarantee both sides.** (The try/catch variant therefore works by accident of inference, not by design.)
 
-**ROOT CAUSE:** missing signatures: `StringMethodRegistry` had `getBytes()` and no `getBytes(String)` or `codePointAt(int)`, though both are real `java.lang.String` members, so the guard refused them.
+**Minimal repro + the designed-and-parked slice** (the sentinel HTTP wiring, `libs/sentinel/Http.kf` + `SentinelHttpE2ETest`, the first real E2E coverage of the middleware chain — 0 existing tests exercised `app.use`): filed as **#1080** with both artifacts in the issue comments. No honest Kof-level workaround (a phantom `if (false) { return "x" }` to force the inference violates the no-generated-looking-code philosophy) — the fix belongs to the emitter.
 
-**Fix:** `getBytes(charsetName)` returns `Byte[]` and `codePointAt(index)` returns `Int` (the code point at a UTF-16 index, the whole pair at a high surrogate). JVM and Script call the `java.lang.String` members; JS runs its native `codePointAt` (same index contract); `getBytes` keeps its existing JS/Native STR003 gap, and Native refuses `codePointAt` with STR003. The PortuKof alias is `pontoDeCodigoEm`, and the SEM025 list of valid String methods names `codePointAt`. `learn/39-stdlib` (EN + pt_BR) shows both. **Proof:** `StringCharsetCodePointE2ETest` 3/3 (UTF-8 and ISO-8859-1 lengths and code points incl. a supplementary character on JVM and Script, `codePointAt` on JS, Native STR003; RED before with SEM025).
-<!-- pt-switch --> **PT:** [§827 (pt_BR)](known-bugs.pt_BR.md#827--stringgetbytescharset-e-stringcodepointati-eram-sem025-entao-um-port-caia-em-getbytes-e-numa-decodificacao-manual-de-surrogates-agora-os-dois-sao-membros-de-string)
+**Status:** ✅ FIXED 05/11 (`2958f3f4d`) — the emitter fix from PR #1092 (declared-type lambda typing everywhere) applied and validated (the PR's three E2Es 6/6 incl. this repro); the parked slice now passes `SentinelHttpE2ETest` 2/2 JVM+Script after ALSO extending the interpreter §574 bridge to `kof_web_use` (route/sse/ws were covered, `use` was not — the middleware stayed a raw KofObj and the dispatch 500d under Script). Issue #1080 CLOSED with executed proof.
 
-## §828 — a List had no `join` and the `strings` namespace no `join` (both SEM025), so a port built strings with a `+` loop or Java `String.join`; now `xs.join(sep)` and `strings.join(xs, sep)`
-
-**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `2c920c4c1`). Stdlib batch approved by maintainer decision (05/11).
-
-**MEASURED** (JVM):
-```kof
-main() {
-    println(listOf("a", "b").join(","))
-    println(strings.join(listOf("a", "b"), ","))
-}
-```
-Observed: `SEM025` "Cannot resolve method 'join' on type 'List'" and "Cannot resolve method 'join' on namespace 'strings'".
-
-**ROOT CAUSE:** missing members: neither the List surface nor `KofStrings` had a join.
-
-**Fix:** one runtime entry, `kof_list_join(list, sep, tag)`, formats each element as the list display does (`String.valueOf` on the JVM and Script, `kofElem` on JS) and joins with `sep`; `strings.join(xs, sep)` is rebuilt as `xs.join(sep)` before lowering. The tag carries what a boxed slot loses: a `Char` element (an `Integer` on the JVM, §104b-ii) prints as the character, and a `Double`/`Float` element keeps its `.0` on JS. A non-String separator is SEM025; Native refuses `join` with NAT009 (no native face yet) instead of an `ld` undefined reference. PortuKof aliases: `juntar` for the method and the namespace function. `learn/12-collections` and `learn/39-stdlib` (EN + pt_BR) list them. **Proof:** `ListJoinE2ETest` 2/2 (String, Int, empty, Double, Long, record, Char and Bool elements and both spellings, identical on JVM, Script and JS; `join(3)` SEM025; Native NAT009; RED before with SEM025).
-<!-- pt-switch --> **PT:** [§828 (pt_BR)](known-bugs.pt_BR.md#828--uma-list-nao-tinha-join-nem-o-namespace-strings-tinha-join-os-dois-sem025-entao-um-port-montava-strings-com-laco-de--ou-stringjoin-do-java-agora-xsjoinsep-e-stringsjoinxs-sep)
-
-## §829 — a List had no positional insert (`add(index, value)` was SEM072, "there is no positional insert"), so a port inserted through `set` and a manual shift; now `add(index, value)` inserts
-
-**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `2c920c4c1`). Stdlib batch approved by maintainer decision (05/11); this lifts the #336 rule that a List has no positional insert.
-
-**MEASURED** (JVM):
-```kof
-main() {
-    var xs = listOf(1, 3)
-    xs.add(1, 2)
-    println(xs)
-}
-```
-Observed: `SEM072` "List.add appends exactly one element; there is no positional insert — use set(index, value) to replace at an index".
-
-**ROOT CAUSE:** a closed surface: #336 made every non-one-argument `add`/`push`/`append` SEM072, because the two-argument form had no lowering and broke differently on each target.
-
-**Fix:** `add(index, value)` lowers to `kof_list_insert`, handled like `set` (Int index, SEM055; element of the pinned type, SEM056; numeric widening of the value): `ArrayList.add(int, Object)` on the JVM and in Script, `splice` on JS with the same bounds (`0..size`). `push`/`append` with two arguments and `add` with three stay SEM072, whose text now points at `add(index, value)` (pt in the PortuKof catalog). Native refuses the insert with NAT009 (no native face yet). `learn/12-collections` and the SEM072 row of `type-system` (EN + pt_BR) are updated; `ListAddArityTest` and `DiagnosticSourceLocationTest` now pin the remaining SEM072 shapes. **Proof:** `ListInsertAtE2ETest` 2/2 (insert at the front, the middle and the end, String, Long with an Int value, record; identical on JVM, Script and JS; SEM055, SEM056 and Native NAT009; RED before with SEM072).
-<!-- pt-switch --> **PT:** [§829 (pt_BR)](known-bugs.pt_BR.md#829--uma-list-nao-tinha-insercao-posicional-addindex-value-era-sem072-there-is-no-positional-insert-entao-um-port-inseria-via-set-e-um-deslocamento-manual-agora-addindex-value-insere)
-
-## §830 — a Set had no `containsAll` (SEM025), so a port looped over `contains`; now `s.containsAll(other)` with a Set or a List
-
-**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `2c920c4c1`). Stdlib batch approved by maintainer decision (05/11).
-
-**MEASURED** (JVM):
-```kof
-main() {
-    println(setOf(1, 2, 3).containsAll(listOf(1, 3)))
-}
-```
-Observed: `SEM025` "Cannot resolve method 'containsAll' on type 'Set'".
-
-**ROOT CAUSE:** a missing member of the Set surface.
-
-**Fix:** `s.containsAll(other)` returns `Bool`; `other` is a Kof Set or List and each element is checked with the same content equality as `contains` (`HashSet.containsAll` on the JVM and in Script, `kofSetHas` per element on JS). Another argument is SEM025, and Native refuses it with NAT009 (no native face yet). The PortuKof alias is `contemTodos`; the SEM025 list of valid Set methods names it. `learn/12-collections` (EN + pt_BR) shows it. **Proof:** `SetContainsAllE2ETest` 2/2 (Set and List arguments, an empty list, String and record elements, a condition; identical on JVM, Script and JS; `containsAll(1)` SEM025; Native NAT009; RED before with SEM025).
-<!-- pt-switch --> **PT:** [§830 (pt_BR)](known-bugs.pt_BR.md#830--um-set-nao-tinha-containsall-sem025-entao-um-port-fazia-laco-com-contains-agora-scontainsallother-com-set-ou-list)
+**Owner:** compiler core (the `.30:9092` territory — the docs/lab lane measured it to the root and stopped per the lane contract); class: compiler emission / functional types.
+<!-- pt-switch --> **PT:** [§935 (pt_BR)](known-bugs.pt_BR.md#935--tipo-funcao-com-retorno-nulavel-compila-mas-a-classe-do-lambda-emitida-nao-implementa-a-interface-funcional--incompatibleclasschangeerror-na-primeira-chamada-jvm)

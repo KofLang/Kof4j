@@ -10,14 +10,6 @@ public final class CollectionMethodGates {
 
     private CollectionMethodGates() {}
 
-    /** §829: {@code add(index, value)} — the positional insert. */
-    static final String INSERT = "kof_list_insert";
-
-    /** §829: set and insert both take (index, value). */
-    static boolean indexedStore(String listFn) {
-        return "kof_list_set".equals(listFn) || INSERT.equals(listFn);
-    }
-
     /** Aridade esperada dos métodos novos; -1 = sem checagem (legados). */
     static int expectedArgs(String opFn) {
         return switch (opFn) {
@@ -35,7 +27,6 @@ public final class CollectionMethodGates {
                     "kof_list_flatmap" -> 1;
             // Slice 1e — distinct takes no arguments.
             case "kof_list_distinct" -> 0;
-            case ListJoin.FN -> 1; // §828
             case "kof_list_sort" -> 0;
             // D-MULTIPARADIGMA-PHASE1A slice 1g — sorted: natural takes no
             // arguments; with comparator it takes exactly one lambda
@@ -147,7 +138,8 @@ public final class CollectionMethodGates {
      */
     static int indexArgCount(String listFn) {
         return switch (listFn) {
-            case "kof_list_get", "kof_list_set", INSERT, "kof_list_remove", "kof_list_take", "kof_list_drop" -> 1;
+            case "kof_list_insert" -> 2;
+            case "kof_list_get", "kof_list_set", "kof_list_remove", "kof_list_take", "kof_list_drop" -> 1;
             case "kof_list_sub_list", "kof_list_slice" -> 2;
             default -> 0;
         };
@@ -161,7 +153,7 @@ public final class CollectionMethodGates {
     static int elementValueArg(String listFn) {
         return switch (listFn) {
             case "kof_list_add" -> 0;
-            case "kof_list_set", INSERT -> 1;
+            case "kof_list_set" -> 1;
             default -> -1;
         };
     }
@@ -177,7 +169,7 @@ public final class CollectionMethodGates {
         String fn = switch (mc.methodName()) {
             case "get" -> "kof_list_get";
             case "set" -> "kof_list_set";
-            case "add" -> mc.arguments().size() == 2 ? INSERT : "kof_list_add";
+            case "add" -> "kof_list_add";
             case "remove" -> "kof_list_remove";
             case "take" -> "kof_list_take";
             case "drop" -> "kof_list_drop";

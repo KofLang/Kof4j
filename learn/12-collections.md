@@ -52,11 +52,9 @@ l.set(0, 9)       // replaces in-place
 l.clear()         // empties
 
 l.add(5)          // append (void)
-l.add(0, 9)       // insert at index 0, shifting the rest (void; Native NAT009)
 l.addAll(listOf(6, 7))  // append all (Bool — changed?)
 l.indexOf(3)      // first index or -1
 l.lastIndexOf(3)  // last index or -1
-l.join(", ")      // "1, 2, 3, 4" — elements as println shows them (Native NAT009)
 l.subList(1, 3)   // new List — same element type (range [1, 3))
 l.sort()          // void, in-place natural order (Comparable elements)
 ```
@@ -149,7 +147,6 @@ var vistos = setOf(1, 2, 2, 3)
 vistos.size()          // 3 — the second 2 was ignored
 
 vistos.contains(2)     // true
-vistos.containsAll(listOf(2, 3))  // true — every element of a Set or List (Native NAT009)
 vistos.add(2)          // false (already exists)
 vistos.remove(1)       // true
 vistos.clear()

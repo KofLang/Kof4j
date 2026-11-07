@@ -139,7 +139,8 @@ public final class KofInterpreterRuntime {
             // do runtime gerado o chama por reflexão host ("invoke") — sem a
             // ponte o lookup falha e a rota morre em HTTP 500 no interpretador.
             if (name.equals("kof_web_route") || name.equals("kof_web_route_opts")
-                    || name.equals("kof_web_sse_route") || name.equals("kof_web_ws_route")) {
+                    || name.equals("kof_web_sse_route") || name.equals("kof_web_ws_route")
+                    || name.equals("kof_web_use")) {
                 args = args.clone();
                 for (int i = 0; i < args.length; i++) {
                     if (args[i] instanceof KofInterpreter.KofObj ko) args[i] = new InterpretedCallable(interp, ko);

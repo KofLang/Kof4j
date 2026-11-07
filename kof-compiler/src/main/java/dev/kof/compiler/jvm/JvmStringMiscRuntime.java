@@ -166,18 +166,6 @@ public final class JvmStringMiscRuntime {
                 // Java equals (String content, numbers by value — the same
                 // rule as kof_list_contains on the JVM); the tag is Native-only.
 
-                // §828: join formats each element as the list display does
-                // (ArrayList.toString = String.valueOf per element); tag 1 =
-                // Char elements, stored as Integer (§104b-ii).
-                public static String kof_list_join(java.util.ArrayList<?> list, String sep, int tag) {
-                    var out = new java.util.StringJoiner(sep);
-                    for (Object o : list) {
-                        out.add(tag == 1 && o instanceof Integer c ? String.valueOf((char) c.intValue())
-                                : String.valueOf(o));
-                    }
-                    return out.toString();
-                }
-
                 public static java.util.ArrayList<Object> kof_list_distinct(
                         java.util.ArrayList<?> list, int tag) {
                     var out = new java.util.ArrayList<Object>();

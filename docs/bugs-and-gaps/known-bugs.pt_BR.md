@@ -2,10 +2,6 @@
 
 # Known Bugs — handoff para o próximo agente
 
-last: §830 (FIXED)
-last: §829 (FIXED)
-last: §828 (FIXED)
-last: §827 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17684,74 +17680,14 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
 
-## §827 — `String.getBytes(charset)` e `String.codePointAt(i)` eram SEM025, então um port caía em `getBytes()` e numa decodificação manual de surrogates; agora os dois são membros de String
+## §935 — tipo-função com retorno nulável compila mas a classe do lambda emitida não implementa a interface funcional — `IncompatibleClassChangeError` na primeira chamada (JVM)
 
-**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `2c920c4c1`). Lote de stdlib aprovado por decisão de mantenedor (05/11).
+**Sintoma:** um lambda `() -> String?` (ou qualquer tipo-função de retorno nulável) compila limpo no JVM, mas a PRIMEIRA chamada da closure morre com `java.lang.IncompatibleClassChangeError: Class Lambda0 does not implement the requested interface kof.Function0_NCString`. Com a declaração NÃO-nulável `() -> String` (e `return null` no corpo — também aceito), o mesmo erro aponta `kof.Function0_CString`: a interface que o call-site exige EXISTE, e a classe emitida não a implementa. Consequência medida de ponta a ponta: a cadeia de middleware web (`app.use(fn)`) está INALCANÇÁVEL — o `JvmRuntimeWebDispatch.kof_web_invoke` invoca o middleware reflectivamente, o erro estoura dentro do dispatch e o servidor responde **HTTP 500** para toda requisição quando QUALQUER middleware está registrado; os handlers de rota inline funcionam (a mesma ponte, corpo inferido `() -> String`).
 
-**MEDIDO** (JVM):
-```kof
-main() {
-    println("aé".getBytes("ISO-8859-1").length)
-    println("x𝄞".codePointAt(1))
-}
-```
-Observado: `SEM025` "Cannot resolve method" nas duas chamadas; só `getBytes()` (UTF-8) estava registrado.
+**O A/B que fixa o gatilho** (mesma posição de lambda devolvido): quando o corpo tem uma segunda via que devolve `String` (ex.: `try { ... } catch (String e) { return "MWERR: " + e }`), a INFERÊNCIA colapsa para o `() -> String` não-nulável, a classe emitida implementa `Function0_CString` e tudo funciona (3/3 rodadas — mesmo com `null` devolvido em runtime); com o corpo em linha reta terminando em `return null`, a inferência fica nulável e a classe emitida não implementa nada que o contexto declarado exija. **A escolha da interface funcional segue o tipo INFERIDO do corpo enquanto o call-site exige a interface do tipo DECLARADO — a emissão não garante os dois lados.** (A variante com try/catch funciona por acidente da inferência, não por design.)
 
-**CAUSA RAIZ:** faltavam as assinaturas: o `StringMethodRegistry` tinha `getBytes()` e não tinha `getBytes(String)` nem `codePointAt(int)`, embora os dois sejam membros reais de `java.lang.String`, então a guarda os recusava.
+**Repro mínimo + a fatia desenhada e estacionada** (a fiação HTTP do sentinel, `libs/sentinel/Http.kf` + `SentinelHttpE2ETest`, a primeira cobertura E2E real da cadeia de middleware — 0 testes existentes exercitavam `app.use`): arquivada como **#1080** com os dois artefatos nos comentários da issue. Sem workaround honesto em nível Kof (um `if (falso) { return "x" }` fantasma para forçar a inferência viola a filosofia de no-generated-looking-code) — o conserto pertence ao emissor.
 
-**Correção:** `getBytes(charsetName)` devolve `Byte[]` e `codePointAt(index)` devolve `Int` (o code point num índice UTF-16, o par inteiro num surrogate alto). JVM e Script chamam os membros de `java.lang.String`; o JS roda o `codePointAt` nativo (mesmo contrato de índice); `getBytes` mantém o gap STR003 que já tinha em JS/Native, e o Native recusa `codePointAt` com STR003. O alias PortuKof é `pontoDeCodigoEm`, e a lista SEM025 de métodos válidos de String cita `codePointAt`. `learn/39-stdlib` (EN + pt_BR) mostra os dois. **Prova:** `StringCharsetCodePointE2ETest` 3/3 (tamanhos UTF-8 e ISO-8859-1 e code points incluindo um caractere suplementar em JVM e Script, `codePointAt` no JS, Native STR003; RED antes com SEM025).
-<!-- pt-switch --> **EN:** [§827 (en)](known-bugs.md#827--stringgetbytescharset-and-stringcodepointati-were-sem025-so-a-port-fell-back-to-getbytes-and-a-manual-surrogate-decode-now-both-are-string-members)
+**Estado:** ✅ CORRIGIDA 05/11 (`2958f3f4d`) — o conserto de emissor do PR #1092 (tipagem do lambda pelo tipo declarado em todo lugar) aplicado e validado (as três E2Es do PR 6/6 incl. este repro); a fatia estacionada agora passa `SentinelHttpE2ETest` 2/2 JVM+Script depois de TAMBÉM estender a ponte §574 do interpretador a `kof_web_use` (route/sse/ws estavam cobertos, `use` não — o middleware ficava um KofObj cru e o dispatch dava 500 no Script). Issue #1080 FECHADA com prova executada.
 
-## §828 — uma List não tinha `join` nem o namespace `strings` tinha `join` (os dois SEM025), então um port montava strings com laço de `+` ou `String.join` do Java; agora `xs.join(sep)` e `strings.join(xs, sep)`
-
-**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `2c920c4c1`). Lote de stdlib aprovado por decisão de mantenedor (05/11).
-
-**MEDIDO** (JVM):
-```kof
-main() {
-    println(listOf("a", "b").join(","))
-    println(strings.join(listOf("a", "b"), ","))
-}
-```
-Observado: `SEM025` "Cannot resolve method 'join' on type 'List'" e "Cannot resolve method 'join' on namespace 'strings'".
-
-**CAUSA RAIZ:** faltavam os membros: nem a superfície de List nem o `KofStrings` tinham join.
-
-**Correção:** uma entrada de runtime, `kof_list_join(list, sep, tag)`, formata cada elemento como o display de lista faz (`String.valueOf` no JVM e no Script, `kofElem` no JS) e junta com `sep`; `strings.join(xs, sep)` é remontado como `xs.join(sep)` antes do lowering. O tag carrega o que um slot boxeado perde: um elemento `Char` (um `Integer` no JVM, §104b-ii) sai como o caractere, e um elemento `Double`/`Float` mantém o `.0` no JS. Separador que não é String é SEM025; o Native recusa `join` com NAT009 (ainda sem face nativa) em vez de uma referência indefinida no `ld`. Aliases PortuKof: `juntar` para o método e para a função do namespace. `learn/12-collections` e `learn/39-stdlib` (EN + pt_BR) os listam. **Prova:** `ListJoinE2ETest` 2/2 (elementos String, Int, vazio, Double, Long, record, Char e Bool e as duas grafias, idênticos em JVM, Script e JS; `join(3)` SEM025; Native NAT009; RED antes com SEM025).
-<!-- pt-switch --> **EN:** [§828 (en)](known-bugs.md#828--a-list-had-no-join-and-the-strings-namespace-no-join-both-sem025-so-a-port-built-strings-with-a--loop-or-java-stringjoin-now-xsjoinsep-and-stringsjoinxs-sep)
-
-## §829 — uma List não tinha inserção posicional (`add(index, value)` era SEM072, "there is no positional insert"), então um port inseria via `set` e um deslocamento manual; agora `add(index, value)` insere
-
-**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `2c920c4c1`). Lote de stdlib aprovado por decisão de mantenedor (05/11); isto derruba a regra do #336 de que List não tem inserção posicional.
-
-**MEDIDO** (JVM):
-```kof
-main() {
-    var xs = listOf(1, 3)
-    xs.add(1, 2)
-    println(xs)
-}
-```
-Observado: `SEM072` "List.add appends exactly one element; there is no positional insert — use set(index, value) to replace at an index".
-
-**CAUSA RAIZ:** uma superfície fechada: o #336 tornou SEM072 todo `add`/`push`/`append` com aridade diferente de um, porque a forma de dois argumentos não tinha lowering e quebrava diferente em cada alvo.
-
-**Correção:** `add(index, value)` baixa para `kof_list_insert`, tratado como `set` (índice Int, SEM055; elemento do tipo pinado, SEM056; alargamento numérico do valor): `ArrayList.add(int, Object)` no JVM e no Script, `splice` no JS com os mesmos limites (`0..size`). `push`/`append` com dois argumentos e `add` com três continuam SEM072, cujo texto agora aponta para `add(index, value)` (pt no catálogo PortuKof). O Native recusa a inserção com NAT009 (ainda sem face nativa). `learn/12-collections` e a linha SEM072 do `type-system` (EN + pt_BR) foram atualizados; `ListAddArityTest` e `DiagnosticSourceLocationTest` agora fixam as formas SEM072 que restam. **Prova:** `ListInsertAtE2ETest` 2/2 (inserção no início, no meio e no fim, String, Long com valor Int, record; idêntico em JVM, Script e JS; SEM055, SEM056 e Native NAT009; RED antes com SEM072).
-<!-- pt-switch --> **EN:** [§829 (en)](known-bugs.md#829--a-list-had-no-positional-insert-addindex-value-was-sem072-there-is-no-positional-insert-so-a-port-inserted-through-set-and-a-manual-shift-now-addindex-value-inserts)
-
-## §830 — um Set não tinha `containsAll` (SEM025), então um port fazia laço com `contains`; agora `s.containsAll(other)` com Set ou List
-
-**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `2c920c4c1`). Lote de stdlib aprovado por decisão de mantenedor (05/11).
-
-**MEDIDO** (JVM):
-```kof
-main() {
-    println(setOf(1, 2, 3).containsAll(listOf(1, 3)))
-}
-```
-Observado: `SEM025` "Cannot resolve method 'containsAll' on type 'Set'".
-
-**CAUSA RAIZ:** faltava o membro na superfície de Set.
-
-**Correção:** `s.containsAll(other)` devolve `Bool`; `other` é um Set ou List do Kof e cada elemento é checado com a mesma igualdade por conteúdo do `contains` (`HashSet.containsAll` no JVM e no Script, `kofSetHas` por elemento no JS). Outro argumento é SEM025, e o Native o recusa com NAT009 (ainda sem face nativa). O alias PortuKof é `contemTodos`; a lista SEM025 de métodos válidos de Set o cita. `learn/12-collections` (EN + pt_BR) o mostra. **Prova:** `SetContainsAllE2ETest` 2/2 (argumentos Set e List, lista vazia, elementos String e record, uma condição; idêntico em JVM, Script e JS; `containsAll(1)` SEM025; Native NAT009; RED antes com SEM025).
-<!-- pt-switch --> **EN:** [§830 (en)](known-bugs.md#830--a-set-had-no-containsall-sem025-so-a-port-looped-over-contains-now-scontainsallother-with-a-set-or-a-list)
+**Dona:** o core do compilador (território `.30:9092` — a lane docs/lab mediu até a raiz e parou pelo contrato de lane); classe: emissão do compilador / tipos funcionais.

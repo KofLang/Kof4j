@@ -526,7 +526,7 @@ public final class CompilerComparisons {
                     case "get", "remove", "size", "length", "count",
                             "contains", "isEmpty",
                             // #382 — devolvem valor (sort é void, fica fora)
-                            "indexOf", "lastIndexOf", "addAll", "subList", "join" -> true;
+                            "indexOf", "lastIndexOf", "addAll", "subList" -> true;
                     default -> false;
                 };
             }
@@ -542,7 +542,7 @@ public final class CompilerComparisons {
             if (mc.receiver() != null && BuiltinTypes.isSet(ExpressionTyper.inferExprType(driver, mc.receiver(), locals))) {
                 return switch (mc.methodName()) {
                     case "contains", "isEmpty", "size", "length", "count",
-                            "add", "remove", "containsAll" -> true;
+                            "add", "remove" -> true;
                     default -> false;
                 };
             }

@@ -140,8 +140,8 @@ class WasmWasiListE2ETest {
         // guarda o HANDLE (i64 zero-extendido): volta i32 (wrap) antes do
         // strEq; o phantom das consultas (o receiver tipado como param 0 —
         // para strings o desugar materializa `int 1`, medido no IR) continua
-        // sendo dropado. (A insercao posicional `add(index, value)` entrou
-        // com a §829; o Wasm ainda nao a emite.)
+        // sendo dropado. A face tambem sela o achado da rodada: a insercao
+        // posicional NAO existe na linguagem (SEM072 nos dois backends).
         var wasmtime = host("wasmtime");
         var wasmTools = host("wasm-tools");
         assumeTrue(wasmtime != null && wasmTools != null, "wasm hosts absent — run scripts/provision-wasmtime.sh");

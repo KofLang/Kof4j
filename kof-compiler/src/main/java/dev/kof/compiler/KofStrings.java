@@ -55,7 +55,7 @@ public final class KofStrings {
                 "reverse", "toCamelCase", "toPascalCase", "toSnakeCase", "toKebabCase",
                 "slugify", "escapeHtml", "unescapeHtml", "escapeJson", "removeWhitespace",
                 "normalizeWhitespace", "dedent", "repeat", "truncate", "indent",
-                "padLeft", "padRight", "join");
+                "padLeft", "padRight");
     }
     static StringsCall staticMethod(String namespace, String name, List<Type> argTypes) {
         if (!"strings".equals(namespace)) return null;
@@ -92,6 +92,11 @@ public final class KofStrings {
                     ? new StringsCall("kof_strings_" + name, STR, List.of(STR)) : null;
             case "repeat", "truncate" -> argc == 2 && isStr(argTypes.get(0)) && isInt(argTypes.get(1))
                     ? new StringsCall("kof_strings_" + name, STR, List.of(STR, INT)) : null;
+            // #1120: strings.join(xs, sep) — the SAME runtime helper List.join
+            // uses (kof_list_join(List, sep)); the arg must be a List.
+            case "join" -> argc == 2 && argTypes.get(0) instanceof Type.ClassType ct
+                    && "List".equals(ct.name())
+                    ? new StringsCall("kof_list_join", STR, List.of(argTypes.get(0), STR)) : null;
             case "indent" -> argc == 2 && isStr(argTypes.get(0)) && isInt(argTypes.get(1))
                     ? new StringsCall("kof_strings_indent", STR, List.of(STR, INT)) : null;
             // S2b.3: pad(String,Int,String) — pad é a 1ª char do 3º arg (idiom
@@ -104,9 +109,6 @@ public final class KofStrings {
                     // arg — idiom pré-guard; regressão achada pela validação da
                     // release 0.6.2 no CI)
                     ? new StringsCall("kof_strings_" + name, STR, List.of(STR, INT, STR)) : null;
-            // §828: the lowering rebuilds it as xs.join(sep) (kof_list_join).
-            case "join" -> argc == 2 && BuiltinTypes.isList(argTypes.get(0)) && isStr(argTypes.get(1))
-                    ? new StringsCall(ListJoin.FN, STR, List.of(argTypes.get(0), STR)) : null;
             default -> null;
         };
     }

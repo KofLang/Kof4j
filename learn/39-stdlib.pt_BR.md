@@ -100,14 +100,6 @@ strings.repeat("ab", 2)        // "abab"
 strings.truncate("abcdef", 3)  // "abc"
 strings.padLeft("7", 3, "0")   // "007"   — pad é String; usa a 1ª char
 strings.padRight("7", 3, "0")  // "700"
-strings.join(listOf("a", "b"), ",")  // "a,b" — o mesmo que listOf("a", "b").join(",")
-```
-
-Codificação e code points são membros de `String`:
-
-```kof
-"aé".getBytes("ISO-8859-1")    // 2 bytes; getBytes() é UTF-8
-"x𝄞".codePointAt(1)            // 119070 — o par de surrogates inteiro (JVM, JS; Native STR003)
 ```
 
 Conversores de **palavra** — boundary é o do parser HTTP/XML do próprio

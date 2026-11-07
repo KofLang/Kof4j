@@ -34,19 +34,12 @@ final class StringTargetGaps {
     private static final Set<String> INCOMPLETE = Set.of(
             "matches", "replaceAll", "replaceFirst", "getBytes");
 
-    /** §827: JS has these natively (same UTF-16 index contract); Native does not. */
-    private static final Set<String> NATIVE_ONLY_GAP = Set.of("codePointAt");
-
     static boolean isIncompleteMethod(String method) {
-        return INCOMPLETE.contains(method) || NATIVE_ONLY_GAP.contains(method);
+        return INCOMPLETE.contains(method);
     }
 
     static boolean refuses(Target target) {
         return target == Target.JS || target.isNative();
-    }
-
-    private static boolean refuses(String method, Target target) {
-        return NATIVE_ONLY_GAP.contains(method) ? target.isNative() : refuses(target);
     }
 
     /**
@@ -56,7 +49,7 @@ final class StringTargetGaps {
      * for the aborted compilation (same pattern as the NAT005/NAT006 gates).
      */
     static boolean refuse(CompilerDriver driver, MethodCallExpr mc) {
-        if (!isIncompleteMethod(mc.methodName()) || !refuses(mc.methodName(), driver.target)) {
+        if (!isIncompleteMethod(mc.methodName()) || !refuses(driver.target)) {
             return false;
         }
         if (driver.currentDiagnostics != null) {

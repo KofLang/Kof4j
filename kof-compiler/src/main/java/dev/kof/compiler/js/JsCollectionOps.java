@@ -121,7 +121,7 @@ void handleListOp(MethodCtx ctx, List<Object> stack,
         // caso long+bool abaixo e defensivo. Unknown (bare) e categoria String
         // nao alcancam este gancho (pin ausente / SEM056 na frente).
         int storeValIdx = "kof_list_add".equals(kc.methodName()) ? 0
-                : "kof_list_set".equals(kc.methodName()) || "kof_list_insert".equals(kc.methodName()) ? 1 : -1;
+                : "kof_list_set".equals(kc.methodName()) ? 1 : -1;
         if (storeValIdx >= 0 && storeValIdx < args.size()) {
             args = new ArrayList<>(args);
             args.set(storeValIdx, slotStoreCoerce(kc, storeValIdx, args.get(storeValIdx)));
@@ -131,7 +131,6 @@ void handleListOp(MethodCtx ctx, List<Object> stack,
             case "kof_list_add" -> "kofListAdd";
             case "kof_list_get" -> "kofListGet";
             case "kof_list_set" -> "kofListSet";
-            case "kof_list_insert" -> "kofListInsert";
             case "kof_list_size" -> "kofListSize";
             case "kof_list_contains" -> "kofListContains";
             case "kof_list_is_empty" -> "kofListIsEmpty";
@@ -166,6 +165,7 @@ void handleListOp(MethodCtx ctx, List<Object> stack,
             // the prelude mirrors contains: kofValEq per element).
             case "kof_list_distinct" -> "kofListDistinct";
             case "kof_list_join" -> "kofListJoin";
+            case "kof_list_insert" -> "kofListInsert";
             case "kof_list_sort" -> "kofListSort";
             // D-MULTIPARADIGMA-PHASE1A slice 1g — sorted returns a fresh
             // copy (natural via kofNaturalCmp, comparator via the lambda);

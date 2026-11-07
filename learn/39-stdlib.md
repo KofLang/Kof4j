@@ -100,14 +100,6 @@ strings.repeat("ab", 2)        // "abab"
 strings.truncate("abcdef", 3)  // "abc"
 strings.padLeft("7", 3, "0")   // "007"   — pad is String; uses the 1st char
 strings.padRight("7", 3, "0")  // "700"
-strings.join(listOf("a", "b"), ",")  // "a,b" — the same as listOf("a", "b").join(",")
-```
-
-Encoding and code points are `String` members:
-
-```kof
-"aé".getBytes("ISO-8859-1")    // 2 bytes; getBytes() is UTF-8
-"x𝄞".codePointAt(1)            // 119070 — the whole surrogate pair (JVM, JS; Native STR003)
 ```
 
 **Word** converters — the boundary is the one from the project's own

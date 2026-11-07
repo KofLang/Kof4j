@@ -170,14 +170,6 @@ public final class JsRuntimeUiLayout {
                 list[index] = value;
             }
 
-            // §829: add(index, value) — index may equal the size (append).
-            export function kofListInsert(list, index, value) {
-                if (index < 0 || index > list.length) {
-                    throw new Error("Index out of bounds: " + index + " (size " + list.length + ")");
-                }
-                list.splice(index, 0, value);
-            }
-
             export function kofListSize(list) {
                 return list.length;
             }
@@ -296,10 +288,10 @@ public final class JsRuntimeUiLayout {
                 return kofSetHas(set, value) ? 1 : 0;
             }
 
-            // §830: other is a Kof Set (JS Set) or List (array).
+            // #1120: containsAll(other) — every element of other is present.
             export function kofSetContainsAll(set, other) {
-                for (const v of other) {
-                    if (!kofSetHas(set, v)) return 0;
+                for (const e of other) {
+                    if (!kofSetHas(set, e)) return 0;
                 }
                 return 1;
             }

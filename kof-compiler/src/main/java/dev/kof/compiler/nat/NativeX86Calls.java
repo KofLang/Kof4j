@@ -267,6 +267,16 @@ public final class NativeX86Calls {
                 // #386: contains_value NÃO é keyed lookup — carrega a tag do
                 // VALOR como arg explícito (espelho kof_list_contains); escrever
                 // no slot 40 corromperia a tag de chave do mapa (find seguinte).
+                // #1120/#1116: the stdlib-batch members are JVM/Script/JS
+                // faces for now — the native runtime has no handler for them,
+                // so REFUSE with a named diagnostic (never a silent link-fail).
+                if ("kof_list_insert".equals(collFn) || "kof_list_join".equals(collFn)
+                        || "kof_set_contains_all".equals(collFn)) {
+                    throw new IllegalStateException(
+                            collFn + " is not implemented on the native target yet "
+                                    + "(named gap; the JVM/Script/JS faces landed with #1120/#1116 — "
+                                    + "the native asm slice is recorded in known-bugs)");
+                }
                 if (collFn.startsWith("kof_map_") && !"kof_map_contains_value".equals(collFn)) {
                     // §104b-ii: tag 2 = objeto Kof (conteudo via kof_obj_equals),
                     // 1 = String, 0 = raw; -1 = nenhum lado conhecido (nao

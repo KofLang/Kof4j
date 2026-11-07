@@ -147,6 +147,15 @@ public final class JvmOpCollections {
                 }
                 emitUnboxIfPrimitive(mv, elemType);
             }
+            // #1120: insert(index, value) — the positional insert the 05/11
+            // batch approved (ArrayList.add(int,E) shifts the tail). Box by
+            // ARG type; void return (nothing to pop — the emitter knows).
+            case "kof_list_insert" -> {
+                Type valT = kc.parameterTypes().size() > 1 ? kc.parameterTypes().get(1) : elemType;
+                emitBoxIfPrimitive(mv, valT);
+                mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/ArrayList", "add",
+                        "(ILjava/lang/Object;)V", false);
+            }
             case "kof_list_set" -> {
                 // §374/#553 — box-by-arg no VALOR (ultimo parametro; o
                 // indice e sempre int). Guardado em Unknown: colecao tipada
@@ -156,13 +165,6 @@ public final class JvmOpCollections {
                 emitBoxIfPrimitive(mv, setT);
                 mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/ArrayList", "set", "(ILjava/lang/Object;)Ljava/lang/Object;", false);
                 mv.visitInsn(POP);
-            }
-            case "kof_list_insert" -> {
-                // §829: add(index, value) — box the value like set does.
-                Type insT = elemType instanceof Type.UnknownType && kc.parameterTypes().size() > 1
-                        ? kc.parameterTypes().get(1) : elemType;
-                emitBoxIfPrimitive(mv, insT);
-                mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/ArrayList", "add", "(ILjava/lang/Object;)V", false);
             }
             case "kof_list_size" -> mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/ArrayList", "size", "()I", false);
             case "kof_list_contains" -> {
@@ -293,16 +295,26 @@ public final class JvmOpCollections {
                 }
             }
             case "kof_set_contains" -> {
-                emitBoxIfPrimitive(mv, elemType);
+                // #1120: the call site may carry the Native type tag as a
+                // second parameter (the same convention kof_list_contains
+                // uses) — the JVM's HashSet.equals needs no tag, so pop it.
+                if (kc.parameterTypes().size() > 1) {
+                    mv.visitInsn(POP);
+                }
+                Type argT = kc.parameterTypes().isEmpty() ? elemType
+                        : kc.parameterTypes().get(0);
+                emitBoxIfPrimitive(mv, argT);
                 mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/HashSet", "contains", "(Ljava/lang/Object;)Z", false);
             }
             case "kof_set_remove" -> {
                 emitBoxIfPrimitive(mv, elemType);
                 mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/HashSet", "remove", "(Ljava/lang/Object;)Z", false);
             }
-            // §830: the argument is a Kof List (ArrayList) or Set (HashSet).
-            case "kof_set_contains_all" -> mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/HashSet", "containsAll",
-                    "(Ljava/util/Collection;)Z", false);
+            // #1120: containsAll(other) — HashSet.containsAll(Collection) is
+            // exactly the contract (every element of other is present).
+            case "kof_set_contains_all" ->
+                    mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/HashSet", "containsAll",
+                            "(Ljava/util/Collection;)Z", false);
             case "kof_set_size" -> mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/HashSet", "size", "()I", false);
             case "kof_set_is_empty" -> mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/HashSet", "isEmpty", "()Z", false);
             case "kof_set_clear" -> mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/HashSet", "clear", "()V", false);
