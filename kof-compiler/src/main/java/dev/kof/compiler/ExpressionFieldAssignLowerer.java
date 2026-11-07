@@ -262,7 +262,10 @@ static int lowerField(CompilerDriver driver, AssignmentExpr ae, FieldAccessExpr 
         faCurSlot = localIdx;
         localIdx = localIdx + (TypeMetrics.isDoubleWidth(fieldType) ? 2 : 1);
     }
-    localIdx = ExpressionLowerer.emitExpression(driver, ae.value(), ops, owner, localIdx, locals);
+    int faLambdaIdx = CompilerLambdaClass.emitAgainstNullableReturn(driver, ae.value(), fieldType,
+            ops, localIdx, locals);
+    localIdx = faLambdaIdx >= 0 ? faLambdaIdx
+            : ExpressionLowerer.emitExpression(driver, ae.value(), ops, owner, localIdx, locals);
     boolean faCompound = ExpressionAssignmentLowerer.isCompoundOp(faOp);
     Type faValType = ExpressionTyper.inferExprType(driver, ae.value(), locals);
     if (faCompound && "+=".equals(faOp) && Type.isString(fieldType)) {

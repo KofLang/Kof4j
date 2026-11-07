@@ -38,8 +38,9 @@ final class TypeDeclarations {
         // `audited` só é modificador de DECLARAÇÃO DE ENTITY (`auditado` no
         // perfil portukof). Antes de qualquer outro tipo de declaração o
         // token NÃO é consumido — o erro honesto de declaração permanece.
-        if (ctx.check(TokenType.AUDITED)
-                && ctx.peekOffset(1).type() == TokenType.ENTITY) {
+        // #1068: `audited` is CONTEXTUAL — read by word, so the same spelling
+        // stays a plain identifier everywhere else.
+        if (ctx.wordIs("audited") && ctx.peekOffset(1).type() == TokenType.ENTITY) {
             ctx.advance();
             mods = new ArrayList<>(mods);
             mods.add("audited");
@@ -227,9 +228,11 @@ final class TypeDeclarations {
             String fieldType = TypeParser.parseTypeRef(ctx);
             boolean generated = false;
             boolean unique = false;
-            while (ctx.check(TokenType.GENERATED, TokenType.UNIQUE)) {
-                if (ctx.check(TokenType.GENERATED)) generated = true;
-                if (ctx.check(TokenType.UNIQUE)) unique = true;
+            // `generated`/`unique` are CONTEXTUAL (#1118): read by word, so the
+            // same spelling stays a plain identifier everywhere else.
+            while (ctx.wordIs("generated") || ctx.wordIs("unique")) {
+                if (ctx.wordIs("generated")) generated = true;
+                if (ctx.wordIs("unique")) unique = true;
                 ctx.advance();
             }
             fields.add(new EntityFieldNode(fieldPos, fieldType, fieldName, generated, unique));
