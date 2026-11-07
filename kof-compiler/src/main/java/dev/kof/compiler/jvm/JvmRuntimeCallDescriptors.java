@@ -385,6 +385,7 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_math_lerp" -> "(DDD)D";
             case "kof_math_percentage" -> "(DD)D";
             case "kof_math_pow" -> "(DD)D";
+            case "kof_math_log", "kof_math_exp" -> "(D)D";
             case "kof_math_isInteger", "kof_math_isDecimal" -> "(D)Z";
             case "kof_math_roundTo" -> "(DI)D";
             // ── kof.strings (STDLIB S2a) ────────────────────────────────────

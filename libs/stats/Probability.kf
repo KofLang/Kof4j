@@ -5,12 +5,15 @@ package stats
 // S10 OS-entropy primitive (getrandom / SecureRandom / the JS host), in
 // [0, 1) by contract, never seedable. Pure Kof: no FFI, no new primitive.
 //
-// What is deliberately NOT here: the continuous faces (normal/exponential/
-// Poisson/geometric) need `math.log`/`math.exp`, which do NOT exist as
-// primitives (measured against the compiler 07/11 — the `log` namespace is
-// logging, not the natural logarithm). A hand-rolled series would be a
-// platform fake wearing a library's name; those faces stay recorded-blocked
-// on the missing math primitive, never on FFI.
+// The CONTINUOUS faces (normal/exponential) ride `math.log`/`math.exp` —
+// the primitives that did NOT exist until MATH-LOG-EXP landed them on every
+// target (07/11). They are the reason the primitive was added: a hand-rolled
+// series would have been a platform fake wearing a library's name.
+//
+// normal() is the Box-Muller transform (two uniforms -> two independent
+// normals; the second is discarded — the caller who needs both calls it
+// twice, which is honest and costs one extra draw). exponential() is the
+// inverse-CDF transform -ln(1-u)/rate.
 //
 // Refusals (honest diagnostics, never a silent 0):
 //   STATS003 — uniform requires min < max
@@ -52,4 +55,36 @@ Int binomial(Int n, Double p) {
         i = i + 1
     }
     return hits
+}
+
+// normal — one draw from N(mean, stddev^2) via the Box-Muller transform.
+// stddev must be > 0 (STATS006): a zero or negative spread is not a
+// distribution. The transform is exact in the sense that it maps two
+// independent uniforms to two independent normals; the second is discarded
+// here (a caller needing both calls normal twice — one extra draw, honest).
+Double normal(Double mean, Double stddev) {
+    if (stddev <= 0.0) {
+        throw "STATS006: normal requires stddev > 0"
+    }
+    var u1 = random.double()
+    var u2 = random.double()
+    // u1 can be 0.0 (random.double is [0,1)); log(0) is -Inf, so clamp the
+    // argument to the smallest positive double the transform can use.
+    if (u1 <= 0.0) {
+        u1 = 1.0e-300
+    }
+    var r = math.sqrt(-2.0 * math.log(u1))
+    var theta = 2.0 * math.pi() * u2
+    return mean + stddev * r * math.cos(theta)
+}
+
+// exponential — one draw from Exp(rate) via the inverse-CDF transform
+// -ln(1-u)/rate. rate must be > 0 (STATS007): a zero rate has no mean.
+Double exponential(Double rate) {
+    if (rate <= 0.0) {
+        throw "STATS007: exponential requires rate > 0"
+    }
+    var u = random.double()
+    // 1-u is in (0,1]; log(1) = 0 is fine, log(0) cannot happen since u < 1.
+    return -math.log(1.0 - u) / rate
 }

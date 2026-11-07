@@ -37,7 +37,24 @@ real=$(git log -n "$N" --format='%H' | while read -r c; do
 done)
 
 if [ -n "$real" ]; then
+    # A mudanca real conta como EVOLUCAO DA LINGUAGEM quando toca o nucleo:
+    # o dispatch de stdlib, o emissor de qualquer alvo, o runtime, o parser,
+    # o typer ou o catalogo. Uma lib em Kof puro sobre primitivos existentes
+    # e trabalho legitimo, mas NAO e evolucao da linguagem (ordem 07/11).
+    lang=$(git log -n "$N" --format='%H' | while read -r c; do
+        files=$(git show --name-only --format='' "$c")
+        if printf '%s\n' "$files" | grep -qE '^(kof-compiler/src/main/java/dev/kof/compiler/(Kof[A-Z][A-Za-z]*|nat/|wasm/|jvm/|js/|runtime/|backend/|lang/)|kof-compiler/src/main/antlr|kof-compiler/src/main/resources/dev/kof/)'; then
+            echo "$c"; break
+        fi
+    done)
+    if [ -n "$lang" ]; then
+        echo "LANGUAGE-EVOLUTION: the language core changed in $(git log -1 --format='%h %s' "$lang" | cut -c1-100)"
+        exit 0
+    fi
     echo "EVOLUTION: real change in $(git log -1 --format='%h %s' "$real" | cut -c1-100)"
+    echo "  NOTE: this cycle did NOT touch the language core (dispatch/emitter/runtime/parser/typer)."
+    echo "  A library over existing primitives is legitimate work, but the NEXT cycle MUST attack the"
+    echo "  missing primitive it exposed (maintainer order 07/11: every cycle must advance the language)."
     exit 0
 fi
 

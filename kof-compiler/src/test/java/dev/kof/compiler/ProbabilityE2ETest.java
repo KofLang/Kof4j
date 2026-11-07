@@ -19,9 +19,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * false, bernoulli(1) always true, binomial(0) = 0); the statistical faces
  * are asserted by WIDE intervals (~11 sigma or more, since the entropy
  * primitive is unseedable by contract). Out-of-range arguments refuse by
- * name (STATS003/004/005). The continuous faces (normal/exponential) are
- * NOT here: {@code math.log}/{@code math.exp} do not exist as primitives —
- * measured against the compiler, recorded in the plan.
+ * name (STATS003/004/005). The CONTINUOUS faces (normal/exponential) ride
+ * {@code math.log}/{@code math.exp} — the primitives MATH-LOG-EXP landed on
+ * every target (07/11); they are asserted by wide moments (a mean within a
+ * generous band, every draw finite) since the entropy is unseedable.
  */
 class ProbabilityE2ETest implements LibraryInstallSupport {
 
@@ -97,13 +98,47 @@ class ProbabilityE2ETest implements LibraryInstallSupport {
                 } catch (String e) {
                     println(e.contains("STATS005"))
                 }
+                var sum = 0.0
+                var k = 0
+                while (k < 2000) {
+                    sum = sum + normal(100.0, 15.0)
+                    k = k + 1
+                }
+                var nmean = sum / 2000.0
+                if (nmean > 95.0 && nmean < 105.0) {
+                    println("normal-ok")
+                } else {
+                    println("normal-bad")
+                }
+                var esum = 0.0
+                var m = 0
+                while (m < 2000) {
+                    esum = esum + exponential(2.0)
+                    m = m + 1
+                }
+                var emean = esum / 2000.0
+                if (emean > 0.45 && emean < 0.55) {
+                    println("exp-ok")
+                } else {
+                    println("exp-bad")
+                }
+                try {
+                    normal(0.0, 0.0)
+                } catch (String e) {
+                    println(e.contains("STATS006"))
+                }
+                try {
+                    exponential(0.0)
+                } catch (String e) {
+                    println(e.contains("STATS007"))
+                }
             }
             """;
 
     // The two deterministic bernoulli edges print exactly; every statistical
     // face answers through a wide interval token; the three refusals print
     // their own STATS code match. 15 tokens, all deterministic.
-    private static final String EXPECTED = "bound-ok\nmean-ok\nfalse\ntrue\nfreq-ok\nbinom-ok\nedge0-ok\ntrue\ntrue\ntrue";
+    private static final String EXPECTED = "bound-ok\nmean-ok\nfalse\ntrue\nfreq-ok\nbinom-ok\nedge0-ok\ntrue\ntrue\ntrue\nnormal-ok\nexp-ok\ntrue\ntrue";
 
     private <T> T withLibrary(Path root, CheckedSupplier<T> action) throws Exception {
         copyLibrary(root.resolve("kof-install/lib/kof-libs"));
