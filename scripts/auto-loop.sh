@@ -60,7 +60,7 @@ if [ -z "$OPENCODE" ]; then
     [ -n "$OPENCODE" ] || OPENCODE="$HOME/.opencode/bin/opencode"
 fi
 
-DEFAULT_PROMPT="analize os documentos, verifique os gaps, identifique o que falta em nossos planos em docs/development, trace um todo de implementação e continue o desenvolvimento"
+DEFAULT_PROMPT="analize os documentos, verifique os gaps, identifique o que falta em nossos planos em docs/development, trace um todo de implementação e continue o desenvolvimento. REGRA DE EVOLUCAO VERDADEIRA (ordem da mantenedora 07/11): cada ciclo PRECISA produzir mudanca real e medida — codigo, teste, doc normativo ou correcao — NUNCA apenas um tick TRIAGE repetindo 'verificado-sem-mudanca'. Antes de encerrar, rode scripts/check_cycle_evolution.sh: se ele disser NO-EVOLUTION, o ciclo NAO pode ser fechado com um tick — escolha uma frente real (uma linha do plano que o host sustenta, um gap medivel, um bug de outra lane que voce possa reportar com prova) ou registre honestamente que esta BLOQUEADO por decisao da mantenedora, nomeando a decisao. Tick vazio e mentira operacional."
 
 last_session() {
     "$OPENCODE" session list -n 1 --format json \
