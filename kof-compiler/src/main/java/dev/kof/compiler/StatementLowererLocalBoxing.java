@@ -50,7 +50,10 @@ final class StatementLowererLocalBoxing {
                 }
                 return localIdx;
             }
-            localIdx = ExpressionLowerer.emitExpression(driver, vdInit, ops, owner, localIdx, locals);
+            int lambdaIdx = CompilerLambdaClass.emitAgainstNullableReturn(driver, vdInit, varType,
+                    ops, localIdx, locals);
+            localIdx = lambdaIdx >= 0 ? lambdaIdx
+                    : ExpressionLowerer.emitExpression(driver, vdInit, ops, owner, localIdx, locals);
             if ("var".equals(vds.type()) || "val".equals(vds.type())) {
                 varType = ExpressionTyper.inferExprType(driver, vdInit, locals);
                 // JVM-01 (audit 0.6.0, §671): an INFERRED lambda-typed local must

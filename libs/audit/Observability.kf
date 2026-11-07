@@ -1,0 +1,74 @@
+package audit
+
+// kof.audit.observability — the OBSERVABILITY EXPORT (universal platform
+// Stage 5.10, the wiring half): an `observability.metrics()` snapshot
+// becomes audit-chain entries, so the metric state joins the
+// tamper-evident history — an operator can later prove WHAT the metrics
+// said at time T by running `verifyChain` over the exported trail.
+//
+// The parser consumes the measured Prometheus shape only: the runtime
+// emits sorted `# TYPE <name> counter|gauge` marker lines and `<name>
+// <value>` sample lines (histogram pairs are samples like any other).
+// `#`-lines and blanks are skipped; every sample line becomes ONE entry
+// whose event carries `obs:<name>=<value>` VERBATIM — no numeric parsing
+// anywhere, so the export can never truncate or reformat a value (the
+// measured primitives only: `split`, `startsWith`, string concat).
+// A malformed sample (no `name value` pair) refuses OBS001 — an export
+// over garbage would fabricate an entry with an empty event.
+//
+// The library never writes the metrics itself (the observability runtime
+// stays the single writer) and never invents crypto (the binding is the
+// landed `entryDigest` over the audited `crypto.sha256`). The caller's
+// clock drives the timestamps (the experiments/sentinel rule).
+
+// metricsToEntries — the pure parse+bind face: parse a metrics snapshot
+// into entries chained from `prevDigest` (pass `auditGenesis()` for a
+// fresh chain), seqs ascending from `startSeq`, all stamped `atMillis`.
+List<AuditEntry> metricsToEntries(String metricsText, Int startSeq, String prevDigest, Long atMillis) {
+    var out = listOf<AuditEntry>()
+    var lines = metricsText.split("\n")
+    var seq = startSeq
+    var prev = prevDigest
+    var i = 0
+    while (i < lines.length) {
+        var line = lines[i]
+        if (line.length > 0 && !line.startsWith("#")) {
+            var f = line.split(" ")
+            if (f.length < 2) {
+                throw "OBS001: an observability export over a malformed sample line: " + line
+            }
+            var event = "obs:" + f[0] + "=" + f[1]
+            var digest = entryDigest(prev, event, atMillis)
+            out.add(AuditEntry(seq, event, atMillis, prev, digest))
+            prev = digest
+            seq = seq + 1
+        }
+        i = i + 1
+    }
+    return out
+}
+
+// exportMetrics — the writer face: append the current metrics snapshot to
+// a live trail (one entry per sample line) and return how many entries
+// were added. `verifyChain(trail.all())` must hold afterwards; an edited
+// entry (same digest, different event) breaks it — the tamper-evidence is
+// the point.
+Int exportMetrics(AuditTrail trail, Long atMillis) {
+    var text = observability.metrics()
+    var lines = text.split("\n")
+    var n = 0
+    var i = 0
+    while (i < lines.length) {
+        var line = lines[i]
+        if (line.length > 0 && !line.startsWith("#")) {
+            var f = line.split(" ")
+            if (f.length < 2) {
+                throw "OBS001: an observability export over a malformed sample line: " + line
+            }
+            trail.append("obs:" + f[0] + "=" + f[1], atMillis)
+            n = n + 1
+        }
+        i = i + 1
+    }
+    return n
+}
