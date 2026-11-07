@@ -417,4 +417,4 @@ for the *why* behind every item above.
 
 # Stages 4–7 (promoted 03/11)
 
-Stages 4–7 (DATA, SECURITY expansion, SCIENTIFIC COMPUTING, BIOINFORMATICS) were **promoted out of `future/` on 03/11** by the maintainer's direct order ("pega o universal platform de future") and are now CURRENT development work — [`docs/development/universal-platform-stages.md`](../development/universal-platform-stages.md) (+PT). Stage 4.6 (experiment tracking) landed the same cycle.
+Stages 4–7 (DATA, SECURITY expansion, SCIENTIFIC COMPUTING, BIOINFORMATICS) were **promoted out of `future/` on 03/11** by the maintainer's direct order ("pega o universal platform de future") and are now CURRENT development work — [`docs/universal-platform.md`](../universal-platform.md) (+PT). Stage 4.6 (experiment tracking) landed the same cycle.

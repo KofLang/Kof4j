@@ -144,6 +144,9 @@ public class SemanticAnalyzer {
         for (AstNode decl : unit.declarations()) {
             analyzeDeclaration(decl);
         }
+        // Kof.expr spike-0 (D-KOF-EXPR): a validação do padrão é da UNIDADE —
+        // referências entre `expr` resolvem independente da ordem de declaração.
+        SemExprAnalyzer.analyze(this);
         resolveMethodCalls(unit);
         checkNullLiteralArguments();
         // §251: tipos DECLARADOS (retorno/param/campo/componente) que não
@@ -250,6 +253,7 @@ public class SemanticAnalyzer {
             case EntityDeclarationNode ent -> SemDeclarationAnalyzer.analyzeEntity(this, ent);
             case InterfaceDeclarationNode iface -> SemDeclarationAnalyzer.analyzeInterface(this, iface);
             case FunctionDeclarationNode func -> SemDeclarationAnalyzer.analyzeFunction(this, func);
+            case ExprDeclarationNode _ -> { } // Kof.expr: validado de UMA vez sobre a unidade (SemExprAnalyzer.analyze)
             default -> {}
         }
     }
