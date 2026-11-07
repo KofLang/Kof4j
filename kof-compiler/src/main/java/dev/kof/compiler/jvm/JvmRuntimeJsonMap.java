@@ -14,8 +14,10 @@ public final class JvmRuntimeJsonMap {
                 // devolve LinkedHashMap; o lowerer espera java.util.Map
                 // (HashMap quebra o checkcast quando a IR guarda Lkof/Map;).
                 public static java.util.Map<Object, Object> kof_json_decode_map(String json) {
+                    Object parsed = kof_json_parse(json);
+                    if (!(parsed instanceof Map<?, ?> m)) throw jsonShapeError("an object", parsed);
                     java.util.Map<Object, Object> result = new LinkedHashMap<>();
-                    if (kof_json_parse(json) instanceof Map<?, ?> m) result.putAll(m);
+                    result.putAll(m);
                     return result;
                 }
 
@@ -24,12 +26,12 @@ public final class JvmRuntimeJsonMap {
                 // lista; só muda o container.
                 public static java.util.Map<Object, Object> kof_json_decode_object_map(String json, String cn)
                         throws Exception {
+                    Object parsed = kof_json_parse(json);
+                    if (!(parsed instanceof Map<?, ?> m)) throw jsonShapeError("an object", parsed);
+                    Class<?> type = Class.forName(cn);
                     java.util.Map<Object, Object> result = new LinkedHashMap<>();
-                    if (kof_json_parse(json) instanceof Map<?, ?> m) {
-                        Class<?> type = Class.forName(cn);
-                        for (Map.Entry<?, ?> e : m.entrySet())
-                            result.put(e.getKey(), kof_json_bind(type, e.getValue()));
-                    }
+                    for (Map.Entry<?, ?> e : m.entrySet())
+                        result.put(e.getKey(), kof_json_bind(type, e.getValue()));
                     return result;
                 }
 

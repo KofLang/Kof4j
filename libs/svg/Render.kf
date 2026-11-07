@@ -1,0 +1,72 @@
+package svg
+
+// kof.svg.render — the ENGINE half of light visualization (universal
+// platform Stage 4.5): static SVG text rendered to a PNG through librsvg
+// + cairo. NO new primitive: the opaque handles (RsvgHandle*, cairo_t*,
+// cairo_surface_t*) are carried as `Long` — an extern may RETURN a Long
+// (the pointer as an integer, the `j` slot) — and the raw buffer
+// `poke64/peek64(addr)` reads/writes memory by address. That is the
+// create→use→destroy pattern over the LANDED FFI fatias.
+//
+// The two libraries are PLATFORM bindings (rsvg + cairo), so the portability
+// contract of `docs/ffi-abi-structs.md` §8 applies: the sonames are
+// Linux-idiomatic today (the per-target resolution fatia is `.30:9092`'s).
+// The rendering itself is the engine's — this library is the typed wiring
+// (`D-KOF-FIRST` rule 12: the engine stays outside; Kof supplies the API).
+//
+// cairo's CAIRO_FORMAT_ARGB32 is enum value 0 (2.62.4 headers, measured);
+// the surface's dimensions are validated by cairo itself (w/h <= 0 refuses).
+
+foreign module rsvg {
+    library "librsvg-2.so.2"
+    abi c
+    ownership borrowed
+    extern rsvg_handle_new_from_file(String path, Long err): Long
+    extern rsvg_handle_render_cairo(Long handle, Long cr): Int
+    extern rsvg_handle_free(Long handle): Void
+}
+
+foreign module cairo {
+    library "libcairo.so.2"
+    abi c
+    ownership borrowed
+    extern cairo_image_surface_create(Int format, Int w, Int h): Long
+    extern cairo_create(Long surface): Long
+    extern cairo_destroy(Long cr): Void
+    extern cairo_surface_destroy(Long surface): Void
+    extern cairo_surface_write_to_png(Long surface, String path): Int
+}
+
+// renderSvgToPng — render an SVG document to a PNG file of w x h pixels.
+// Returns true when the file was written (the write call's CAIRO_STATUS_SUCCESS
+// is 0). The handles are freed on every path — a failure after a handle
+// exists still destroys it (the leak discipline the FFI owns: nothing is
+// malloc'd by the caller).
+Bool renderSvgToPng(String svgText, String outPath, Int w, Int h) {
+    // The SVG goes through a FILE (rsvg_handle_new_from_file) — the measured
+    // path that needs no Char->byte conversion (Kof's charAt returns Char and
+    // the Java cast is refused, PARSE041). The temp file sits beside the PNG.
+    var svgPath = outPath + ".svg"
+    File(svgPath).writeText(svgText)
+    var handle = rsvg_handle_new_from_file(svgPath, 0L)
+    if (handle == 0L) {
+        return false
+    }
+    var surface = cairo_image_surface_create(0, w, h)
+    if (surface == 0L) {
+        rsvg_handle_free(handle)
+        return false
+    }
+    var cr = cairo_create(surface)
+    if (cr == 0L) {
+        cairo_surface_destroy(surface)
+        rsvg_handle_free(handle)
+        return false
+    }
+    rsvg_handle_render_cairo(handle, cr)
+    var status = cairo_surface_write_to_png(surface, outPath)
+    cairo_destroy(cr)
+    cairo_surface_destroy(surface)
+    rsvg_handle_free(handle)
+    return status == 0
+}

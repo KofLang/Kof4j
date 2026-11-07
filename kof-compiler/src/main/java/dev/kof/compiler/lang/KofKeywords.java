@@ -29,9 +29,10 @@ public final class KofKeywords {
         k.put("enum", TokenType.ENUM);
         k.put("entity", TokenType.ENTITY);
         k.put("extern", TokenType.EXTERN);
-        k.put("generated", TokenType.GENERATED);
-        k.put("audited", TokenType.AUDITED);
-        k.put("unique", TokenType.UNIQUE);
+        // `unique`/`generated`/`audited` are CONTEXTUAL (maintainer decision
+        // 05/11, #1118 + #1068): they lex as IDENTIFIER and the parser reads
+        // them by word, exactly like `sealed`/`value`. `var unique = ...` and
+        // `var audited = ...` are plain locals.
         k.put("extends", TokenType.EXTENDS);
         k.put("implements", TokenType.IMPLEMENTS);
         k.put("fun", TokenType.FUN);
