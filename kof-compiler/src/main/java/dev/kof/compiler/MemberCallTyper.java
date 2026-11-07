@@ -203,11 +203,14 @@ public final class MemberCallTyper {
             // insert posicional na linguagem; `set(i, v)` (replace) sim.
             // Rejeição universal na semântica compartilhada (mesma face do
             // CatchTypeCheck #332 — um gate, os 4 alvos reportam).
+            // #1120 (maintainer decision 05/11): add(index, value) is the
+            // POSITIONAL INSERT now — kof_list_insert. Still exactly one OR
+            // two arguments; anything else is the same honest gate.
             if (("add".equals(mn) || "push".equals(mn) || "append".equals(mn))
-                    && mc.arguments().size() != 1 && sa.diagnostics() != null) {
+                    && mc.arguments().size() > 2 && sa.diagnostics() != null) {
                 sa.diagnostics().error(mc,
-                        "List." + mn + " appends exactly one element; there is no positional insert — "
-                                + "use set(index, value) to replace at an index",
+                        "List." + mn + " takes one element (append) or (index, value) (insert); got "
+                                + mc.arguments().size() + " arguments",
                         "SEM072");
             }
             // #361 (§269(b)) — `reduce` SEMPRE takes TWO arguments: the lambda
@@ -280,6 +283,11 @@ public final class MemberCallTyper {
                             ? ct.typeArguments().get(0) : Type.UnknownType.UNKNOWN);
             // D-MULTIPARADIGMA-PHASE1A slice 1c — forEach always returns Void.
             if ("forEach".equals(mn)) return Type.PrimitiveType.VOID;
+            // #1116: removeValue(v) removes by VALUE and reports whether it
+            // found one (composed from indexOf + remove in the lowerer).
+            if ("removeValue".equals(mn)) return Type.PrimitiveType.BOOL;
+            // #1120: join(sep) -> String
+            if ("join".equals(mn)) return BuiltinTypes.STRING;
             if ("add".equals(mn) || "push".equals(mn) || "append".equals(mn)
                     || "set".equals(mn) || "clear".equals(mn) || "sort".equals(mn))
                 return Type.PrimitiveType.VOID;
@@ -290,7 +298,7 @@ public final class MemberCallTyper {
             if (!"toArray".equals(mn) && !"sublist".equals(mn) && !"subSet".equals(mn)) {
                 if (sa.diagnostics() != null) {
                     sa.diagnostics().error(mc,
-                            "Cannot resolve method '" + mn + "' on type 'List' (valid: add/push/append/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/zip)",
+                            "Cannot resolve method '" + mn + "' on type 'List' (valid: add/push/append/get/set/remove/removeValue/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/join/zip)",
                             "SEM025");
                 }
             }
@@ -338,11 +346,13 @@ public final class MemberCallTyper {
                 return Type.PrimitiveType.INT;
             if ("contains".equals(mn) || "isEmpty".equals(mn))
                 return Type.PrimitiveType.BOOL;
+            // #1120: containsAll(other) — every element of other is in the set.
+            if ("containsAll".equals(mn)) return Type.PrimitiveType.BOOL;
             if ("add".equals(mn) || "remove".equals(mn)) return Type.PrimitiveType.BOOL;
             if ("clear".equals(mn)) return Type.PrimitiveType.VOID;
             if (sa.diagnostics() != null && !"toArray".equals(mn) && !"subSet".equals(mn) && !"sublist".equals(mn)) {
                 sa.diagnostics().error(mc,
-                        "Cannot resolve method '" + mn + "' on type 'Set' (valid: add/contains/remove/size/length/count/clear/isEmpty)",
+                        "Cannot resolve method '" + mn + "' on type 'Set' (valid: add/contains/containsAll/remove/size/length/count/clear/isEmpty)",
                         "SEM025");
             }
         }
