@@ -35,6 +35,11 @@ final class JsRuntimeUiMathDouble {
             export function kofMathLerp(a, b, t) { return a + (b - a) * t; }
             export function kofMathPercentage(p, tot) { return p / tot * 100.0; }
             export function kofMathPow(base, exp) { return Math.pow(base, exp); }
+            // MATH-LOG-EXP (07/11): log = ln NATURAL, exp = e^x — o Math.*
+            // do JS casa o contrato IEEE da JVM (log(0)=-Inf, log(-1)=NaN,
+            // exp(-Inf)=0).
+            export function kofMathLog(v) { return Math.log(v); }
+            export function kofMathExp(v) { return Math.exp(v); }
             export function kofMathIsInteger(v) {
                 return (v === Math.floor(v) && v !== Infinity && v !== -Infinity) ? 1 : 0;
             }

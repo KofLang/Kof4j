@@ -79,6 +79,9 @@ public final class NativeRiscvAsm {
                 // D-FULL-PARITY-050 row 10 (27/09): pow no cross — peca PROPRIA
                 // (libm) p/ a poda manter libm-free quem nao usa pow.
                 .append(NativeRiscvAsmMathPow.RISCV_ASM_MATH_POW)
+                // MATH-LOG-EXP (07/11): log/exp no cross — peca PROPRIA (libm)
+                // pelo mesmo motivo do pow: a poda mantem libm-free quem nao usa.
+                .append(NativeRiscvAsmMathLogExp.RISCV_ASM_MATH_LOG_EXP)
                 .append(NativeRiscvAsmRtB33.RISCV_RUNTIME_ASM_B_33)
                 .append(NativeRiscvAsmRtB34.RISCV_RUNTIME_ASM_B_34)
                 .append(NativeRiscvAsmRtB35.RISCV_RUNTIME_ASM_B_35)
