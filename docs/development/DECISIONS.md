@@ -5150,3 +5150,24 @@ each still requiring its own decision when picked up.
 - **Proof:** `CobolScannerE2ETest` 2/2 (JVM + Script) — the deterministic order, the inventory, the format detection and the three refusal faces.
 - **Not authorized by this decision:** any new Kof syntax, any CLI surface, any change to the KofBOL mapping, any stub.
 - **Relationships:** `Related: D-FUTURE-PROMOTION, D-FUTURE-UNFREEZE, D-KOFBOL (the mapping this plan reuses), D-KOF-FIRST (rule 12), rule 6, rule 11`.
+
+---
+
+## D-KOF-EXPR — `Kof.expr` is PROMOTED to current work: a native declarative text-pattern DSL, spike-0 landed (maintainer order 03/11/2026, chat directive "pega kof-expr como proximo")
+
+**Date:** 2026-11-03 · **State:** `DECIDED` (maintainer) — the plan moves `docs/development/future/` → `docs/development/` per `D-FUTURE-PROMOTION` (the maintainer's own order activates the plan's rule-6 gate).
+
+- **Directive (verbatim, chat):** *"pega kof-expr como proximo"* — the maintainer named the plan; the rule-6 gate the plan itself states (`Kof.expr` is a NEW syntax + NEW semantics) is satisfied by that order, following the TLS precedent of 02/11 (`D-FUTURE-PROMOTION` + the maintainer's direct instruction).
+- **Design answers recorded here (Q1/Q2, the two that shape the grammar):**
+  - **Q1 = blocks `{ … }`.** Quantifier and capture targets are `{ … }` blocks. A **bare atom** is ALSO a valid target, because the plan's own mandatory §3.4 examples are written `between(2, 63) letter` / `exactly(8) hex` — requiring braces would make the plan's own documentation unparseable.
+  - **Q2 = the `expr NAME { … }` declaration** (Shape A). It is a top-level declaration kind, modelled on `EnumDeclarationNode`; `expr` is a **contextual keyword** (IDENTIFIER+IDENTIFIER+`{`), so existing identifiers named `expr` keep compiling (additive, R2).
+  - **Q3–Q10 stay open** (open-ended `between`, capture typing Option T/U, capture-aware replace, numeric expansion, normalization, the fate of `validation.matches`/`String.split`/`replace`, the engine, naming). They belong to slices 1–9 and are **not** decided by this record.
+- **Spike-0 scope (LANDED, no lowering — plan §17):** the grammar + the AST, proven RED-first.
+  - AST: `ExprNode` (sealed) → `ExprAtomNode` / `ExprSequenceNode` / `ExprQuantifierNode` / `ExprAlternationNode` / `ExprCaptureNode` / `ExprReferenceNode`; `ExprDeclarationNode` for the declaration.
+  - Parser: `parser/ExprDeclarations.java` + `ParseContext.exprDeclarationAhead()` + the top-level dispatch in `Parser.parse()`.
+  - Semantics: `SemExprAnalyzer.java` over the WHOLE unit (reference resolution independent of declaration order) with `SEM108` (unknown element / unknown reference), `SEM109` (recursive pattern), `SEM110` (duplicate pattern or capture name), `SEM111` (`exactly(0)`), `SEM112` (inverted `between`, empty list/either), `SEM113` (misplaced anchor), `SEM114` (pattern name collides with a type). Parser codes `PARSE090`–`PARSE099`.
+  - Formatter: `KofFormatterExpr.formatExprDecl` so `-w` round-trips the pattern instead of printing a record `toString()` (the #719 class of silent code loss).
+  - PortuKof: the contextual vocabulary (`expr`→`molde`, `either`→`qualquer`, `or`→`ou`, the atoms and quantifiers) and a 100% PT diagnostic catalog (321/321 variants) — PortuKof produces the SAME AST (one semantics, N surfaces).
+- **What is NOT authorized:** any lowering, any runtime, any `match`/`matches`/`find`/`replace` surface, any per-target backend, any Change to `STR003` or `validation.matches`, any stub. A `expr` declaration is a DESCRIPTOR that emits no executable symbol in spike-0 — that is the spike's semantics, not an unfinished branch.
+- **Proof (executed):** `ExprDeclarationParseE2ETest` 6/6 (atoms/sequence/quantifiers/captures/`either`/composition by name/`expr` as an ordinary identifier/PortuKof AST identity), `ExprDeclarationSemanticsE2ETest` 9/9 (all seven diagnostic codes), `scripts/gen_portukof_diags.py --check` rc=0.
+- **Relationships:** `Related: D-FUTURE-PROMOTION, D-FUTURE-UNFREEZE, D-STR-UNICODE (the regex deferral this answers), D-KOF-FIRST (rule 12), D-PORTUKOF (absolute parity rule), rule 6, rule 11, rule 12`.
