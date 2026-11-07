@@ -1,0 +1,55 @@
+package stats
+
+// kof.stats — probability faces (universal platform Stage 4.3, the exact
+// discrete half). uniform/bernoulli/binomial over `random.double()` — the
+// S10 OS-entropy primitive (getrandom / SecureRandom / the JS host), in
+// [0, 1) by contract, never seedable. Pure Kof: no FFI, no new primitive.
+//
+// What is deliberately NOT here: the continuous faces (normal/exponential/
+// Poisson/geometric) need `math.log`/`math.exp`, which do NOT exist as
+// primitives (measured against the compiler 07/11 — the `log` namespace is
+// logging, not the natural logarithm). A hand-rolled series would be a
+// platform fake wearing a library's name; those faces stay recorded-blocked
+// on the missing math primitive, never on FFI.
+//
+// Refusals (honest diagnostics, never a silent 0):
+//   STATS003 — uniform requires min < max
+//   STATS004 — bernoulli requires 0 <= p <= 1
+//   STATS005 — binomial requires n >= 0
+//
+// uniform returns [min, max) (the half-open interval inherits random.double's
+// contract). bernoulli's edges are exact: p = 0 is always false, p = 1 is
+// always true (a draw in [0,1) is never >= 1). binomial sums n exact trials.
+
+// uniform — one draw from [min, max); a degenerate interval refuses (STATS003).
+Double uniform(Double min, Double max) {
+    if (min >= max) {
+        throw "STATS003: uniform requires min < max"
+    }
+    return min + (max - min) * random.double()
+}
+
+// bernoulli — a single yes/no trial with probability p.
+Bool bernoulli(Double p) {
+    if (p < 0.0 || p > 1.0) {
+        throw "STATS004: bernoulli requires 0 <= p <= 1"
+    }
+    return random.double() < p
+}
+
+// binomial — the count of hits over n independent bernoulli(p) trials;
+// n = 0 is the empty sum and returns 0.
+Int binomial(Int n, Double p) {
+    if (n < 0) {
+        throw "STATS005: binomial requires n >= 0"
+    }
+    var hits = 0
+    var i = 0
+    while (i < n) {
+        if (bernoulli(p)) {
+            hits = hits + 1
+        }
+        i = i + 1
+    }
+    return hits
+}
