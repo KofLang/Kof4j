@@ -43,6 +43,7 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_shell_argv" -> "Ljava/util/ArrayList;";
             // §388-B: display de array primitivo no formato de container.
             case "kof_array_to_string" -> "Ljava/lang/String;";
+            case "kof_list_join" -> "Ljava/lang/String;";
             case "kof_shell_pipeline" -> "Ldev/kof/runtime/KofRuntime$ProcessResult;";
             case "kof_shell_runwith" -> "Ldev/kof/runtime/KofRuntime$ProcessResult;";
             case "kof_ssh_argv" -> "Ljava/util/ArrayList;";

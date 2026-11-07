@@ -1062,8 +1062,8 @@
     },
     {
       "arity": 1,
-      "en": "Cannot resolve method '{0}' on type 'List' (valid: add/push/append/get/set/remove/removeValue/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/zip)",
-      "pt": "Método '{0}' não resolvido no tipo 'List' (válidos: add/push/append/get/set/remove/removeValue/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/zip)"
+      "en": "Cannot resolve method '{0}' on type 'List' (valid: add/push/append/get/set/remove/removeValue/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/join/zip)",
+      "pt": "Método '{0}' não resolvido no tipo 'List' (válidos: add/push/append/get/set/remove/removeValue/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/join/zip)"
     },
     {
       "arity": 1,
@@ -1072,8 +1072,8 @@
     },
     {
       "arity": 1,
-      "en": "Cannot resolve method '{0}' on type 'Set' (valid: add/contains/remove/size/length/count/clear/isEmpty)",
-      "pt": "Método '{0}' não resolvido no tipo 'Set' (válidos: add/contains/remove/size/length/count/clear/isEmpty)"
+      "en": "Cannot resolve method '{0}' on type 'Set' (valid: add/contains/containsAll/remove/size/length/count/clear/isEmpty)",
+      "pt": "Método '{0}' não resolvido no tipo 'Set' (válidos: add/contains/containsAll/remove/size/length/count/clear/isEmpty)"
     },
     {
       "arity": 1,
@@ -1584,9 +1584,9 @@
   ],
   "SEM072": [
     {
-      "arity": 1,
-      "en": "List.{0} appends exactly one element; there is no positional insert — use set(index, value) to replace at an index",
-      "pt": "List.{0} acrescenta exatamente um elemento; não há inserção posicional — use set(index, value) para substituir em um índice"
+      "arity": 2,
+      "en": "List.{0} takes one element (append) or (index, value) (insert); got {1} arguments",
+      "pt": "List.{0} recebe um elemento (append) ou (índice, valor) (insert); recebeu {1} argumentos"
     }
   ],
   "SEM073": [
