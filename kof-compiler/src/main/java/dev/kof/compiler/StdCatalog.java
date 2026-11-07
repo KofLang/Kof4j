@@ -239,6 +239,8 @@ public final class StdCatalog {
                     Map.entry("isDecimal", List.of("isDecimal(Double x) -> Bool")),
                     Map.entry("roundTo", List.of("roundTo(Double v, Int decimals) -> Double")),
                     Map.entry("pow", List.of("pow(Double base, Double exp) -> Double")),
+                    Map.entry("log", List.of("log(Double x) -> Double")),
+                    Map.entry("exp", List.of("exp(Double x) -> Double")),
                     Map.entry("parseInt", List.of("parseInt(String s) -> Int")),
                     Map.entry("parseLong", List.of("parseLong(String s) -> Long")),
                     Map.entry("parseDouble", List.of("parseDouble(String s) -> Double")),

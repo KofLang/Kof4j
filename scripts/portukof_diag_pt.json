@@ -716,9 +716,19 @@
       "arity": 0,
       "en": "Expected 'where', 'orderBy' or 'limit' in query block",
       "pt": "esperado 'where', 'orderBy' ou 'limit' no bloco de consulta"
+    },
+    {
+      "arity": 0,
+      "en": "Expected pattern name after 'expr'",
+      "pt": "esperado o nome do padrão depois de 'expr'"
     }
   ],
   "PARSE091": [
+    {
+      "arity": 0,
+      "en": "Expected '{' after pattern name",
+      "pt": "esperado '{' depois do nome do padrão"
+    },
     {
       "arity": 0,
       "en": "Expected a library string literal after 'library'",
@@ -745,6 +755,11 @@
       "arity": 0,
       "en": "Expected '{' after foreign module name",
       "pt": "esperado '{' depois do nome do módulo estrangeiro"
+    },
+    {
+      "arity": 0,
+      "en": "Expected '}' after pattern body",
+      "pt": "esperado '}' para fechar o corpo do padrão"
     }
   ],
   "PARSE093": [
@@ -757,9 +772,19 @@
       "arity": 0,
       "en": "Expected '}' to close foreign module",
       "pt": "esperado '}' para fechar o módulo estrangeiro"
+    },
+    {
+      "arity": 0,
+      "en": "Expected a whole number (quantifier count)",
+      "pt": "esperado um número inteiro (contagem do quantificador)"
     }
   ],
   "PARSE094": [
+    {
+      "arity": 0,
+      "en": "Quantifier count is too large",
+      "pt": "a contagem do quantificador é grande demais"
+    },
     {
       "arity": 0,
       "en": "switch expression: each case body is a SINGLE expression (no block scope); use the switch-statement (`case ...:`) for multiple statements",
@@ -767,6 +792,16 @@
     }
   ],
   "PARSE095": [
+    {
+      "arity": 0,
+      "en": "Expected ')' after quantifier counts",
+      "pt": "esperado ')' depois das contagens do quantificador"
+    },
+    {
+      "arity": 0,
+      "en": "Expected ',' in 'between(min, max)'",
+      "pt": "esperado ',' em 'between(min, max)'"
+    },
     {
       "arity": 7,
       "en": "invalid variable declaration: the ':' annotation is only allowed after 'var'/'val' — the type '{0}' before '{1}' does not match '{2}' and would be silently discarded; write 'var {3}: {4} = ...' or '{5} {6} = ...'",
@@ -782,6 +817,21 @@
   ],
   "PARSE097": [
     {
+      "arity": 0,
+      "en": "Expected '(' after 'capture'",
+      "pt": "esperado '(' depois de 'capture'"
+    },
+    {
+      "arity": 0,
+      "en": "Expected ')' after capture name",
+      "pt": "esperado ')' depois do nome da captura"
+    },
+    {
+      "arity": 0,
+      "en": "Expected a capture name as a text literal",
+      "pt": "esperado o nome da captura como um literal de texto"
+    },
+    {
       "arity": 1,
       "en": "foreign module '{0}' must declare a `library \"...\"`",
       "pt": "módulo estrangeiro '{0}' deve declarar um `library \"...\"`"
@@ -792,9 +842,39 @@
       "arity": 0,
       "en": "Expected 'extern', 'library', 'abi', 'ownership' or '}' in foreign module",
       "pt": "esperado 'extern', 'library', 'abi', 'ownership' ou '}' no módulo estrangeiro"
+    },
+    {
+      "arity": 0,
+      "en": "Expected 'or' or '}' in 'either'",
+      "pt": "esperado 'or' ou '}' no 'either'"
+    },
+    {
+      "arity": 0,
+      "en": "Expected '{' after 'either'",
+      "pt": "esperado '{' depois de 'either'"
+    },
+    {
+      "arity": 0,
+      "en": "Expected '}' after 'either' block",
+      "pt": "esperado '}' para fechar o bloco do 'either'"
     }
   ],
   "PARSE099": [
+    {
+      "arity": 1,
+      "en": "Expected '(' after '{0}'",
+      "pt": "esperado '(' depois de '{0}'"
+    },
+    {
+      "arity": 1,
+      "en": "Expected ')' after '{0}' values",
+      "pt": "esperado ')' depois dos valores de '{0}'"
+    },
+    {
+      "arity": 1,
+      "en": "Expected a text literal inside '{0}'",
+      "pt": "esperado um literal de texto dentro de '{0}'"
+    },
     {
       "arity": 3,
       "en": "foreign module '{0}': unknown ownership '{1}' (expected one of {2})",
@@ -982,8 +1062,8 @@
     },
     {
       "arity": 1,
-      "en": "Cannot resolve method '{0}' on type 'List' (valid: add/push/append/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/zip)",
-      "pt": "Método '{0}' não resolvido no tipo 'List' (válidos: add/push/append/get/set/remove/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/zip)"
+      "en": "Cannot resolve method '{0}' on type 'List' (valid: add/push/append/get/set/remove/removeValue/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/join/zip)",
+      "pt": "Método '{0}' não resolvido no tipo 'List' (válidos: add/push/append/get/set/remove/removeValue/contains/size/isEmpty/clear/map/filter/reduce/indexOf/lastIndexOf/addAll/subList/take/drop/slice/sort/any/all/none/count/find/forEach/flatMap/distinct/sorted/groupBy/join/zip)"
     },
     {
       "arity": 1,
@@ -997,8 +1077,8 @@
     },
     {
       "arity": 1,
-      "en": "Cannot resolve method '{0}' on type 'Set' (valid: add/contains/remove/size/length/count/clear/isEmpty)",
-      "pt": "Método '{0}' não resolvido no tipo 'Set' (válidos: add/contains/remove/size/length/count/clear/isEmpty)"
+      "en": "Cannot resolve method '{0}' on type 'Set' (valid: add/contains/containsAll/remove/size/length/count/clear/isEmpty)",
+      "pt": "Método '{0}' não resolvido no tipo 'Set' (válidos: add/contains/containsAll/remove/size/length/count/clear/isEmpty)"
     },
     {
       "arity": 1,
@@ -1009,6 +1089,11 @@
       "arity": 1,
       "en": "Handle<T> has no method '{0}()'; use `await h` to get the value",
       "pt": "Handle<T> não tem o método '{0}()'; use `await h` para obter o valor"
+    },
+    {
+      "arity": 1,
+      "en": "List.removeValue takes exactly one argument (the value to remove); got {0}",
+      "pt": "List.removeValue exige exatamente um argumento (o valor a remover); recebeu {0}"
     },
     {
       "arity": 1,
@@ -1504,9 +1589,9 @@
   ],
   "SEM072": [
     {
-      "arity": 1,
-      "en": "List.{0} appends exactly one element; there is no positional insert — use set(index, value) to replace at an index",
-      "pt": "List.{0} acrescenta exatamente um elemento; não há inserção posicional — use set(index, value) para substituir em um índice"
+      "arity": 2,
+      "en": "List.{0} takes one element (append) or (index, value) (insert); got {1} arguments",
+      "pt": "List.{0} recebe um elemento (append) ou (índice, valor) (insert); recebeu {1} argumentos"
     }
   ],
   "SEM073": [
@@ -1812,6 +1897,80 @@
       "arity": 1,
       "en": "circular inheritance detected: '{0}' extends (directly or transitively) itself — break the cycle in the hierarchy",
       "pt": "herança circular detectada: '{0}' estende (direta ou transitivamente) a si mesma — quebre o ciclo na hierarquia"
+    }
+  ],
+  "SEM108": [
+    {
+      "arity": 1,
+      "en": "unknown pattern element '{0}'",
+      "pt": "elemento de padrão desconhecido '{0}'"
+    },
+    {
+      "arity": 2,
+      "en": "pattern '{0}' references '{1}', which is not an 'expr'",
+      "pt": "o padrão '{0}' referencia '{1}', que não é um 'expr'"
+    }
+  ],
+  "SEM109": [
+    {
+      "arity": 1,
+      "en": "recursive pattern: {0} would expand forever",
+      "pt": "padrão recursivo: {0} se expandiria para sempre"
+    }
+  ],
+  "SEM110": [
+    {
+      "arity": 1,
+      "en": "duplicate pattern name '{0}'",
+      "pt": "nome de padrão duplicado '{0}'"
+    },
+    {
+      "arity": 2,
+      "en": "capture name '{0}' is used more than once in pattern '{1}'",
+      "pt": "o nome de captura '{0}' é usado mais de uma vez no padrão '{1}'"
+    }
+  ],
+  "SEM111": [
+    {
+      "arity": 0,
+      "en": "'exactly' needs a count of at least 1 (a pattern element that may repeat zero times is 'optional')",
+      "pt": "'exactly' precisa de uma contagem de pelo menos 1 (um elemento que pode repetir zero vezes é 'optional')"
+    }
+  ],
+  "SEM112": [
+    {
+      "arity": 0,
+      "en": "'either' needs at least one alternative",
+      "pt": "'either' precisa de pelo menos uma alternativa"
+    },
+    {
+      "arity": 1,
+      "en": "'{0}' needs at least one text literal",
+      "pt": "'{0}' precisa de pelo menos um literal de texto"
+    },
+    {
+      "arity": 2,
+      "en": "'between({0}, {1})' has no possible count: the minimum is larger than the maximum",
+      "pt": "'between({0}, {1})' não tem contagem possível: o mínimo é maior que o máximo"
+    }
+  ],
+  "SEM113": [
+    {
+      "arity": 0,
+      "en": "'end' anchors the whole subject: it can only appear at the end of a pattern",
+      "pt": "'end' ancora o texto inteiro: só pode aparecer no fim de um padrão"
+    },
+    {
+      "arity": 0,
+      "en": "'start' anchors the whole subject: it can only appear at the beginning of a pattern",
+      "pt": "'start' ancora o texto inteiro: só pode aparecer no início de um padrão"
+    }
+  ],
+  "SEM114": [
+    {
+      "arity": 1,
+      "en": "pattern '{0}' collides with an existing type name",
+      "pt": "o padrão '{0}' colide com um nome de tipo já existente"
     }
   ]
 }

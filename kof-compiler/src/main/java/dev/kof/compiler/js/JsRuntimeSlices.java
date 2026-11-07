@@ -44,6 +44,8 @@ final class JsRuntimeSlices {
             new Block("rng", JsRuntimeUiRng.RNG_RUNTIME, false),
             new Block("math-double", JsRuntimeUiMathDouble.MATH_DOUBLE_RUNTIME, false),
             new Block("num-fmt", JsRuntimeUiNumFmt.NUM_FMT_RUNTIME, false),
+            // #1123: the typed container formatter (element kind from the compiler)
+            new Block("format-typed", JsRuntimeFormatTyped.FORMAT_TYPED_RUNTIME, false),
             new Block("buffer", JsRuntimeBuffer.BUFFER_RUNTIME, false),
             new Block("net", JsRuntimeUiNet.NET_RUNTIME, false),
             new Block("uuid", JsRuntimeUiUuid.UUID_RUNTIME, false),
