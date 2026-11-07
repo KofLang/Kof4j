@@ -49,6 +49,9 @@ class ExternalOverloadResolutionE2ETest {
                     public String num(long x) { return "long"; }
                     public String amb(Object a, String b) { return "os"; }
                     public String amb(String a, Object b) { return "so"; }
+                    public String save(String path) { return "path"; }
+                    public String save(java.io.File file) { return "file"; }
+                    public String save(java.io.OutputStream out) { return "stream"; }
                     public static String stat(Cfg c) { return "static-cfg"; }
                     public static String stat(java.util.Map<String, String> m) { return "static-map"; }
                 }
@@ -131,6 +134,24 @@ class ExternalOverloadResolutionE2ETest {
         assertEquals("map1\nmap1\nstatic-map\n", out);
     }
 
+    /** The PDFBox shape (enois G400): save(String), save(File) and
+     *  save(OutputStream); a stream argument was SEM014 "expected 'String'"
+     *  because only the first declared overload was considered. */
+    @Test
+    void streamArgumentSelectsTheOutputStreamOverload() throws Exception {
+        String out = compileAndRun("""
+            import ext.Conf
+            import java.io.ByteArrayOutputStream
+            import java.io.OutputStream
+            main() {
+                println(Conf().save(new ByteArrayOutputStream()))
+                var sink: OutputStream = new ByteArrayOutputStream()
+                println(Conf().save(sink) + " " + Conf().save("a.pdf"))
+            }
+            """);
+        assertEquals("stream\nstream path\n", out);
+    }
+
     @Test
     void mostSpecificApplicableOverloadWinsByPhase() throws Exception {
         String out = compileAndRun("""
@@ -192,6 +213,37 @@ class ExternalOverloadResolutionE2ETest {
             }
             """);
         assertEquals("r=3\n2026-01-02 03:04:00.0\ntrue\n1\n", out);
+    }
+
+    /** Math.min/max on Int operands bind (int, int), not the first overload in
+     *  declaration order: the result was stored into an Int field or local
+     *  (VerifyError at class load, enois G374), and a long min cast to Int in
+     *  a method with many branches crashed COMPUTE_FRAMES (COMP002, G377). */
+    @Test
+    void mathMinMaxSelectTheOverloadOfTheOperands() throws Exception {
+        String out = compileAndRun("""
+            import java.lang.Math
+            class Window {
+                Int days = 0
+                Window(Int d) { this.days = Math.max(1, Math.min(d, 365)) }
+            }
+            Int score(Int a, Long x, Bool f1, Bool f2, Bool f3) {
+                var risk = 0
+                if (a > 3) { risk = risk + 10 }
+                if (f1) { risk = risk + 7 }
+                if (f2) { risk = risk + 3 }
+                if (f3) { risk = risk + 11 }
+                if (x > 0L) { risk = risk + (Math.min(45L, x * 15L) as Int) }
+                return risk
+            }
+            main() {
+                println(Window(500).days + " " + Window(-3).days)
+                val a: Int = Math.min(4, 9)
+                println(a + 1)
+                println(score(4, 2L, true, false, true) + " " + score(0, 9L, false, false, false))
+            }
+            """);
+        assertEquals("365 1\n5\n58 45\n", out);
     }
 
     @Test
