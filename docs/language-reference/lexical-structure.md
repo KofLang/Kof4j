@@ -32,7 +32,7 @@ errors with code `LEX00x`.
 ### 1.1 Keywords (exhaustive list — `Lexer.java:13-74`)
 
 `text
-class  interface  record  enum  entity  generated  unique
+class  interface  record  enum  entity
 extends  implements
 package  import
 public  private  protected  static  final  abstract
@@ -48,8 +48,18 @@ true  false  null
 
 **Words that are NOT keywords** (they are `IDENTIFIER`): `let`, `in`, `type`,
 `trait`, `macro`, `where`, `query`, `test`, `application`, `onStart`,
-`onShutdown`, `desc`, `asc`, `lock`. They have contextual meaning in the parser (see
+`onShutdown`, `desc`, `asc`, `sealed`, `value`, `unique`, `generated`,
+`audited`, `lock`. They have contextual meaning in the parser (see
 [grammar.md](grammar.md)) or none.
+
+> **#1118 + #1068 (07/11):** `unique`, `generated` and `audited` are
+> **contextual**, exactly like `sealed`/`value`. They are modifiers only in
+> their own position — `unique`/`generated` after an entity field's type,
+> `audited` before `entity` — and ordinary identifiers everywhere else, so
+> `var unique = listOf<String>()` and `var audited = 1` are plain locals.
+> Before the fix the lexer reserved them and the declaration died with
+> `PARSE037` plus a `PARSE041` cascade on every later use. Locked by
+> `ContextualModifierNamesE2ETest` (3/3, JVM + Script).
 
 > **§263 FIXED (17/09, compiler/nat lane):** the annotated form
 > `name: Type = ...` is only valid after `var`/`val`. On the type-first path

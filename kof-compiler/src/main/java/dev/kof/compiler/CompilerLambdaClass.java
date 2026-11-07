@@ -45,6 +45,64 @@ public final class CompilerLambdaClass {
         return false;
     }
 
+    /**
+     * The declared return type of a lambda's {@code invoke}, which must erase
+     * like the functional interface it implements. §785: a nullable return
+     * ({@code () -> String?}) is rebuilt around its inner type: the string
+     * round-trip mapped it to {@code Object} ({@code typeToString} has no
+     * nullable form), so {@code Function0_NCString.invoke()Ljava/lang/String;}
+     * was never implemented ({@code AbstractMethodError}).
+     */
+    private static Type invokeReturnType(CompilerDriver driver, Type t) {
+        if (t instanceof Type.NullableType n) return new Type.NullableType(invokeReturnType(driver, n.inner()));
+        if (t instanceof Type.FunctionType || t instanceof Type.TypeVariable
+                || KofUi.isUiType(t) || KofMedia.isHandleType(t) || KofProcess.isResult(t)) {
+            return t;
+        }
+        return CompilerTypes.toType(CompilerTypes.typeToString(t), driver.currentUnit, driver.semanticAnalyzer);
+    }
+
+    /**
+     * A lambda written where {@code (..) -> T?} is expected (an argument, a
+     * declared local) implements THAT interface ({@code Function0_NCString}):
+     * typed by its own body ({@code String}, or void for {@code return null})
+     * it implemented another one and the call died with
+     * {@code IncompatibleClassChangeError}/{@code AbstractMethodError}.
+     * Returns the next local index, or -1 when {@code value} is not such a lambda.
+     */
+    static int emitAgainstNullableReturn(CompilerDriver driver, ExpressionNode value, Type expected,
+                                         List<KofOperation> ops, int localIdx, List<IRLocalVariable> locals) {
+        if (value instanceof LambdaExpr le && expected instanceof Type.FunctionType fft
+                && fft.returnType() instanceof Type.NullableType
+                && ExpressionTyper.inferExprType(driver, le, locals) instanceof Type.FunctionType own
+                && own.parameterTypes().equals(fft.parameterTypes())) {
+            return emitLambdaObject(driver, le,
+                    new Type.FunctionType(own.parameterTypes(), fft.returnType(), null), ops, localIdx, locals);
+        }
+        return -1;
+    }
+
+    /** The lambda object for {@code le} typed as {@code ft}: the synthetic class, then its construction with the captures. */
+    static int emitLambdaObject(CompilerDriver driver, LambdaExpr le, Type.FunctionType ft,
+                                List<KofOperation> ops, int localIdx, List<IRLocalVariable> locals) {
+        List<IRLocalVariable> captures = driver.collectCaptures(le, locals);
+        String lambdaClass = driver.lambdaClass(le, ft, captures);
+        CompilerLambdaClass.propagateCapturePins(driver, lambdaClass, captures, locals);
+        List<IRLocalVariable> effective = driver.lambdaEffectiveCaptures.get(le);
+        if (effective != null) captures = effective;
+        Type lambdaType = new Type.ClassType("", lambdaClass, List.of());
+        List<Type> captureTypes = new ArrayList<>();
+        for (IRLocalVariable cap : captures) captureTypes.add(cap.type());
+        ops.add(new KofNewObject(lambdaType, captureTypes));
+        ops.add(new KofDup());
+        for (IRLocalVariable cap : captures) {
+            CompilerCaptures.pushCapture(driver, ops, cap);
+        }
+        ops.add(new KofCall(lambdaType, "<init>", captureTypes,
+                Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));
+        return localIdx;
+    }
+
     static String lambdaClass(CompilerDriver driver, LambdaExpr le, Type.FunctionType ft,
                            List<IRLocalVariable> captures) {
         return CompilerLambdaClass.lambdaClass(driver, le, ft, captures, false);
@@ -83,12 +141,12 @@ public final class CompilerLambdaClass {
         // por string (`T` -> `toType("T")`) fabricaria `ClassType("","T")` e o
         // descriptor do invoke sairia `LT;` (NoClassDefFoundError/
         // NoSuchMethodError no load); a erasure central apaga TV p/ Object.
-        Type returnType = (ft.returnType() instanceof Type.FunctionType
-                || ft.returnType() instanceof Type.TypeVariable
-                || KofUi.isUiType(ft.returnType()) || KofMedia.isHandleType(ft.returnType())
-                || KofProcess.isResult(ft.returnType()))
-                ? ft.returnType()
-                : CompilerTypes.toType(CompilerTypes.typeToString(ft.returnType()), driver.currentUnit);
+        // §780: the round-trip goes through the analyzer-aware toType (like
+        // the parameters, #710): the 2-arg overload dropped the package of a
+        // module class (`kernel.t.TestResponse` -> `TestResponse`), so the
+        // lambda's invoke was declared `()LTestResponse;` while its functional
+        // interface said `()Lkernel/t/TestResponse;` (NoClassDefFoundError).
+        Type returnType = invokeReturnType(driver, ft.returnType());
         List<FormalParameterNode> params = le.parameters();
         List<Type> paramTypes = new ArrayList<>();
         // #710: usar a sobrecarga ciente do SemanticAnalyzer (qualifyDeep, §179)
