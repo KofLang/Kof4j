@@ -22,6 +22,8 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_json_encode_map" -> "(Ljava/util/Map;I)Ljava/lang/String;";
             // §388-B: display de array primitivo no formato de container.
             case "kof_array_to_string" -> "(Ljava/lang/Object;)Ljava/lang/String;";
+            // #1120: List.join(sep)
+            case "kof_list_join" -> "(Ljava/util/List;Ljava/lang/String;)Ljava/lang/String;";
             case "kof_json_decode_int", "kof_json_decode_bool" -> "(Ljava/lang/String;)I";
             case "kof_json_decode_long" -> "(Ljava/lang/String;)J";
             case "kof_json_decode_float" -> "(Ljava/lang/String;)F";
@@ -385,6 +387,7 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_math_lerp" -> "(DDD)D";
             case "kof_math_percentage" -> "(DD)D";
             case "kof_math_pow" -> "(DD)D";
+            case "kof_math_log", "kof_math_exp" -> "(D)D";
             case "kof_math_isInteger", "kof_math_isDecimal" -> "(D)Z";
             case "kof_math_roundTo" -> "(DI)D";
             // ── kof.strings (STDLIB S2a) ────────────────────────────────────
