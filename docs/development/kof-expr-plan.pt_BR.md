@@ -1,18 +1,24 @@
-last: none
-doing: none-planned
-next: spike-0-inventory
-location: docs/development/future
-state: planned
+last: 03/11/2026 — spike-0 POUSADO (gramática + AST travadas e provadas; sem lowering): `ExprDeclarationParseE2ETest` 6/6, `ExprDeclarationSemanticsE2ETest` 9/9, catálogo PT 321/321
+doing: spike-0 (a base gramática/AST) FEITO; fatias 1-9 seguem abertas, cada uma promovida explicitamente
+next: fatia-1 — átomos + sequência + literal + `match`/`matches` em JVM + Script (Estratégia P), oráculo byte-idêntico
+location: docs/development
+state: under-development
+dono: 192.168.15.117:0, rodada agendada da flatt CLI, sem servidor opencode neste host; porta n/a
 
 intent: kof-expr-native-text-pattern-dsl
 
-**Gate regra 6:** `Kof.expr` é uma SINTAXE nova + SEMÂNTICA nova (superfície de
-semântica congelada). Este documento é **apenas plano, zero código**. A promoção
-exige decisão da mantenedora (`D-KOF-EXPR` ou extensão de `D-STR-UNICODE`) e o
-fluxo de promoção de futuro (`docs/development/future/README.md` §"When to move",
-`AGENTS.md` §"Future promotion"): reescrever com `UNDER DEVELOPMENT`, estado real
-+ how-to-finish, enfileirar em `roadmap.md` §23, apontar `docs/status.md` para
-ele, reivindicar em `DOING.md`.
+**Gate regra 6 — SATISFEITO 03/11/2026.** `Kof.expr` é uma SINTAXE nova +
+SEMÂNTICA nova (superfície de semântica congelada); a decisão da regra 6 é a
+ordem da própria mantenedora **"pega kof-expr como proximo"**, registrada como
+`D-KOF-EXPR` (`DECISIONS.md`), seguindo o precedente TLS de 02/11. O fluxo de
+promoção foi cumprido: este documento foi reescrito com `UNDER DEVELOPMENT` +
+estado real + how-to-finish, enfileirado em `roadmap.md` §23, apontado em
+`docs/status.md` e reivindicado em `DOING.md`.
+
+**Escopo do spike-0 (o que está AUTORIZADO e pousado):** as respostas Q1/Q2 do
+§17 e a gramática/AST por baixo delas. **Q3–Q10 seguem ABERTAS** — não são
+decididas por este spike e exigem a decisão da mantenedora antes de virarem
+código.
 
 **Fonte:** pedido da mantenedora (30/09/2026). Decisões relacionadas:
 `DECISIONS.md` §D-STR-UNICODE (27/09/2026) — o engine de regex é adiado para 1.0
