@@ -889,7 +889,8 @@ Visão de longo prazo — Kof como plataforma universal (uma linguagem para
 aplicações **e** sistemas, infraestrutura, automação, dados, segurança e
 ciência) **sem** destruir a simplicidade da linguagem.
 
-- - **Fases 4–7 PROMOVIDAS 03/11** (ordem da mantenedora "pega o universal platform de future") para [`universal-platform-stages.pt_BR.md`](universal-platform-stages.pt_BR.md) (+EN) — a Fase 4.6 pousou no mesmo ciclo; cada item restante foi medido contra a árvore (só 4.3/4.5/5.9/5.10/7.1/7.3 são implementáveis sem primitivo novo ou FFI)
+- - **Fases 4–7 PROMOVIDAS 03/11** (ordem da mantenedora "pega o universal platform de future") para [`universal-platform.pt_BR.md`](universal-platform.pt_BR.md) (+EN) — a Fase 4.6 pousou no mesmo ciclo; cada item restante foi medido contra a árvore (só 4.3/4.5/5.9/5.10/7.1/7.3 são implementáveis sem primitivo novo ou FFI)
+- **universal-platform Fases 4–7 PROMOVIDAS para `docs/` 05/11** (autorização da mantenedora "eu autorizo a concluir tudo que ta aberto. finaliza todos os planos e gaps"): toda face pure-Kof pousou com E2E — a ÚLTIMA foi o middleware HTTP da 5.9 (`libs/sentinel/Http.kf`, 2/2) depois do conserto de emissor da #1080 (a tipagem do lambda pelo tipo declarado, do PR #1092) e da ponte `kof_web_use` do interpretador; as linhas restantes são follow-ups registrados (R3/Arrow/decisões/ordem de estágios). Ver [`universal-platform.pt_BR.md`](../../universal-platform.pt_BR.md)
 Documento central: `docs/architecture/IMPLEMENTATION-UNIVERSAL-PLATFORM.md`
   (arquitetura — **EM DESENVOLVIMENTO** desde 17/09/2026; promovido de
   `future/` por decisão da mantenedora, `DECISIONS.md` §D-UNIVERSAL)
