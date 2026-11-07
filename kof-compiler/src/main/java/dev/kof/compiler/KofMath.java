@@ -40,7 +40,7 @@ public final class KofMath {
     static List<String> functions() { return List.of("abs", "sign", "clamp", "min", "max", "floor", "ceil",
             "isEven", "isOdd", "isPositive", "isNegative", "isZero", "sqrt", "lerp", "percentage", "isInteger", "isDecimal",
       "sin", "cos", "tan", "asin", "acos", "atan", "atan2",
-      "toRadians", "toDegrees", "pi", "e", "tau", "roundTo", "pow", "parseInt", "parseLong", "parseDouble", "parseIntOrDefault", "parseLongOrDefault", "parseDoubleOrDefault"); }
+      "toRadians", "toDegrees", "pi", "e", "tau", "roundTo", "pow", "log", "exp", "parseInt", "parseLong", "parseDouble", "parseIntOrDefault", "parseLongOrDefault", "parseDoubleOrDefault"); }
     static MathCall staticMethod(String namespace, String name, List<Type> argTypes) {
         if (!"math".equals(namespace)) return null;
         int argc = argTypes.size();
@@ -127,6 +127,16 @@ public final class KofMath {
             // quebrado silencioso).
             case "pow" -> argc == 2 && isDouble(argTypes.get(0)) && isDouble(argTypes.get(1))
                     ? new MathCall("kof_math_pow", DOUBLE, List.of(DOUBLE, DOUBLE)) : null;
+            // MATH-LOG-EXP (07/11, lane 192.168.100.14:0): log = logaritmo
+            // NATURAL (ln, nunca o log10) e exp = e^x. MESMO contrato do pow
+            // (decisão 7a): x86/riscv/aarch shim -> log@PLT/exp@PLT + `-lm`
+            // por uso; JVM/Script Math.log/Math.exp; WASM fdlibm (sem libm).
+            // NaN/±Inf/0/-0 seguem IEEE (log(0)=-Inf, log(-1)=NaN,
+            // exp(-Inf)=0) — o mesmo de Math.log/Math.exp, travado em teste.
+            case "log" -> argc == 1 && isDouble(argTypes.get(0))
+                    ? new MathCall("kof_math_log", DOUBLE, List.of(DOUBLE)) : null;
+            case "exp" -> argc == 1 && isDouble(argTypes.get(0))
+                    ? new MathCall("kof_math_exp", DOUBLE, List.of(DOUBLE)) : null;
             // S13a (plan-stdlib-expansion §2, P0): parse numérico como fachada
             // de namespace sobre as runtime fns EXISTENTES kof_string_to_*
             // (regra 2 — zero runtime novo nos 4 alvos). Contrato = JDK
