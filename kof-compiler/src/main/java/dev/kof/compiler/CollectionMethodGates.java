@@ -138,6 +138,7 @@ public final class CollectionMethodGates {
      */
     static int indexArgCount(String listFn) {
         return switch (listFn) {
+            case "kof_list_insert" -> 2;
             case "kof_list_get", "kof_list_set", "kof_list_remove", "kof_list_take", "kof_list_drop" -> 1;
             case "kof_list_sub_list", "kof_list_slice" -> 2;
             default -> 0;
