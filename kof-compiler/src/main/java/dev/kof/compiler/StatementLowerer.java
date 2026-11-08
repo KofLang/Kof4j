@@ -148,7 +148,7 @@ public final class StatementLowerer {
                     localIdx = driver.emitComparisonShortcut(bin, ops, owner, localIdx, locals);
                     ops.add(new KofConditionalJump(driver.mapComparison(bin.operator()), driver.comparisonOperandType(bin, locals), thenLabel, elseLabel));
                 } else {
-                    localIdx = CompilerComparisons.emitTruthinessJump(driver, ifStmt.condition(),
+                    localIdx = CompilerTroolean.emitTruthinessJump(driver, ifStmt.condition(),
                             ops, owner, localIdx, locals, thenLabel, elseLabel);
                 }
                 ops.add(new KofLabel(thenLabel));
@@ -170,7 +170,7 @@ public final class StatementLowerer {
                     localIdx = driver.emitComparisonShortcut(bin, ops, owner, localIdx, locals);
                     ops.add(new KofConditionalJump(driver.mapComparison(bin.operator()), driver.comparisonOperandType(bin, locals), bodyLabel, endLabel));
                 } else {
-                    localIdx = CompilerComparisons.emitTruthinessJump(driver, ws.condition(),
+                    localIdx = CompilerTroolean.emitTruthinessJump(driver, ws.condition(),
                             ops, owner, localIdx, locals, bodyLabel, endLabel);
                 }
                 ops.add(new KofLabel(bodyLabel));
@@ -206,7 +206,7 @@ public final class StatementLowerer {
                 } else {
                     // Fase E (24/10, #776): roteado pelo helper central — o
                     // zero leva o TIPO da condicao (BOOL do WASI = i32).
-                    localIdx = CompilerComparisons.emitTruthinessJump(driver, dws.condition(),
+                    localIdx = CompilerTroolean.emitTruthinessJump(driver, dws.condition(),
                             ops, owner, localIdx, locals, startLabel, endLabel);
                 }
                 ops.add(new KofLabel(endLabel));
@@ -227,7 +227,7 @@ public final class StatementLowerer {
                         ops.add(new KofConditionalJump(driver.mapComparison(bin.operator()), driver.comparisonOperandType(bin, locals), bodyLabel, endLabel));
                     } else {
                         // Fase E (24/10, #776): helper central — zero tipado.
-                        localIdx = CompilerComparisons.emitTruthinessJump(driver, fs.condition(),
+                        localIdx = CompilerTroolean.emitTruthinessJump(driver, fs.condition(),
                                 ops, owner, localIdx, locals, bodyLabel, endLabel);
                     }
                 }

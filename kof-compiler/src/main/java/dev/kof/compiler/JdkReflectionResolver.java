@@ -158,6 +158,36 @@ final class JdkReflectionResolver {
      * builtin precisa — `resolveJdkMethod` exige `getParameterCount() == argc`
      * e por isso não vê varargs.
      */
+    /**
+     * #1032 — o tipo de retorno REAL de um método JDK, para a decisão de
+     * statement-level POP. TRUE = devolve valor (um POP); FALSE = void (nenhum
+     * POP); null = não resolve (o chamador cai no fallback semântico). Por
+     * ARIDADE apenas — os conversores de ArrayType/Unknown perdiam matches.
+     */
+    static Boolean statementReturn(String ownerInternalName, String methodName, int argumentCount) {
+        ExternalClasspath.MethodSignature sig =
+                resolveJdkMethod(ownerInternalName, methodName, argumentCount);
+        if (sig == null) return null;
+        return !sig.returnDescriptor().startsWith("V");
+    }
+
+    /**
+     * #1032 — a variante usada pelo gate de statement: lê o tipo do receiver
+     * DIRETO do slot IR (o tipo semântico é Unknown para um `new` externo não
+     * resolvido) e devolve o retorno real do JDK, ou null quando o receiver
+     * não é java.* ou o método não resolve.
+     */
+    static Boolean statementReturnFor(IdentifierExpr rid, CompilerDriver driver,
+                                      List<IRLocalVariable> locals, MethodCallExpr mc) {
+        IRLocalVariable lv = driver.findLocalVar(rid.name(), locals);
+        if (lv == null || !(lv.type() instanceof Type.ClassType rct)
+                || !rct.packageName().startsWith("java.")) {
+            return null;
+        }
+        return statementReturn(rct.packageName().replace('.', '/') + "/" + rct.name(),
+                mc.methodName(), mc.arguments().size());
+    }
+
     static boolean hasJdkMethod(String ownerInternalName, String methodName, int argumentCount) {
         if (!isJdkClass(ownerInternalName)) return false;
         try {

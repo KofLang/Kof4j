@@ -294,7 +294,7 @@ public final class SemExpressionTyper {
                 }
                 // D-TROOL (19/09): `!Troolean` = tres estados (Kleene `!U = U`)
                 // — o tipo semantico tem de casar com a caixa do lowering.
-                if ("!".equals(ue.operator())) yield CompilerComparisons.isNullableBool(operandType)
+                if ("!".equals(ue.operator())) yield CompilerTroolean.isNullableBool(operandType)
                         ? new Type.NullableType(Type.PrimitiveType.BOOL)
                         : Type.PrimitiveType.BOOL;
                 yield operandType;

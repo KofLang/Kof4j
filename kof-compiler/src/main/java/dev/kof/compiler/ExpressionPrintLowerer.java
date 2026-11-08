@@ -207,7 +207,7 @@ if (("print".equals(mc.methodName()) || "println".equals(mc.methodName())) && mc
                     ops.add(new KofConditionalJump(driver.mapComparison(bin.operator()),
                             driver.comparisonOperandType(bin, locals), thenLabel, elseLabel));
                 } else {
-                    localIdx = CompilerComparisons.emitTruthinessJump(driver, ie.condition(),
+                    localIdx = CompilerTroolean.emitTruthinessJump(driver, ie.condition(),
                             ops, owner, localIdx, locals, thenLabel, elseLabel);
                 }
                 ops.add(new KofLabel(thenLabel));

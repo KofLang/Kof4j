@@ -95,7 +95,7 @@ public final class ExpressionBinaryLowerer {
         // §295/§306) nos 4 alvos, incluindo o JS (a exclusao de alvo aqui nao
         // se aplica ao desugar; ela protege o IF_ICMP cru do caminho antigo).
         if ("&&".equals(bin.operator()) || "||".equals(bin.operator())) {
-            int kl = CompilerComparisons.lowerTrooleanAndOr(driver, bin, ops, owner, localIdx, locals);
+            int kl = CompilerTroolean.lowerTrooleanAndOr(driver, bin, ops, owner, localIdx, locals);
             if (kl >= 0) return kl;
         }
         if ("instanceof".equals(bin.operator()) || "as".equals(bin.operator())) {
@@ -115,9 +115,9 @@ public final class ExpressionBinaryLowerer {
             // VerifyError. #462: o RHS avaliado usa o MESMO rewrite — um RHS
             // `Bool?` chegava ao join como referência enquanto o outro arco
             // deixava int (VerifyError; `true && fb()`).
-            ExpressionNode leftC = CompilerComparisons.nullableBoolTruthinessRewrite(
+            ExpressionNode leftC = CompilerTroolean.nullableBoolTruthinessRewrite(
                     driver, bin.left(), locals);
-            ExpressionNode rightC = CompilerComparisons.nullableBoolTruthinessRewrite(
+            ExpressionNode rightC = CompilerTroolean.nullableBoolTruthinessRewrite(
                     driver, bin.right(), locals);
             // Fase E (24/10, #776): os literais sinteticos da cadeia logica
             // levam o TIPO da expressao — um `b1 && b2` de BOOLs no WASI
@@ -142,7 +142,7 @@ public final class ExpressionBinaryLowerer {
                     && "bool".equalsIgnoreCase(ctp.name());
             int tmpIdx = -1;
             if (chainTemp) {
-                tmpIdx = Math.max(localIdx, CompilerComparisons.nextFreeLocalIndex(locals));
+                tmpIdx = Math.max(localIdx, CompilerTroolean.nextFreeLocalIndex(locals));
                 locals.add(new IRLocalVariable(tmpIdx, "$klogic" + tmpIdx, logicType));
                 localIdx = tmpIdx + 1;
             }

@@ -124,8 +124,8 @@ public final class ExpressionTyper {
                     // acreditar no tipo certo (a regra antiga forçava `Bool` e
                     // o join de arcs boxed virava VerifyError invertido).
                     if ("&&".equals(be.operator()) || "||".equals(be.operator())) {
-                        boolean anyBool = CompilerComparisons.isNullableBool(leftType)
-                                || CompilerComparisons.isNullableBool(
+                        boolean anyBool = CompilerTroolean.isNullableBool(leftType)
+                                || CompilerTroolean.isNullableBool(
                                         ExpressionTyper.inferExprType(driver, be.right(), locals));
                         leftType = anyBool ? new Type.NullableType(Type.PrimitiveType.BOOL)
                                 : Type.PrimitiveType.BOOL;
