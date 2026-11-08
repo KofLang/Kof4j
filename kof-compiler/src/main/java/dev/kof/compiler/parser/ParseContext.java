@@ -113,6 +113,22 @@ public class ParseContext {
      * aditivo/retro-compatível). `D-VALUE-RECORDS-GO` resolveu: `value` aplica
      * SÓ a `record` (nunca `class`).
      */
+    /**
+     * #1068/#1138 — {@code audited} é keyword CONTEXTUAL (IDENTIFIER no
+     * lexer): só é modificador de declaração quando precede um
+     * {@code entity}. Sem este despacho o IDENTIFIER {@code audited} caía no
+     * ramo de FUNÇÃO do topo (parseFunctionDeclaration o engolia como tipo de
+     * retorno e o expectId morria na coluna de {@code entity} — PARSE010).
+     * Espelha {@code sealedModifierAhead}/{@code valueModifierAhead}.
+     */
+    public boolean auditedModifierAhead() {
+        if (!wordIs("audited")) return false;
+        int i = pos + 1;
+        while (i < tokens.size() && MODIFIER_TOKENS.contains(tokens.get(i).type())) i++;
+        if (i >= tokens.size()) return false;
+        return tokens.get(i).type() == TokenType.ENTITY;
+    }
+
     public boolean valueModifierAhead() {
         if (!wordIs("value")) return false;
         int i = pos + 1;

@@ -98,6 +98,12 @@ public class Parser {
                 // contextual; sem este ramo o IDENTIFIER `value` cairia no ramo
                 // de função (PARSE010). Fora desse contexto segue identificador.
                 declarations.add(TypeDeclarations.parseTypeDeclaration(ctx, annos));
+            } else if (ctx.auditedModifierAhead()) {
+                // #1068/#1138: `audited entity` — keyword CONTEXTUAL; sem este
+                // ramo o IDENTIFIER `audited` caía no ramo de função (PARSE010
+                // em cascata na coluna de `entity`). Fora dessa forma segue um
+                // identificador comum (`var audited = ...`).
+                declarations.add(TypeDeclarations.parseTypeDeclaration(ctx, annos));
             } else if (ctx.modifierPrefixedFunctionAhead()) {
                 // #981: `public`/`private`/`protected`/`static`/... antes de uma
                 // função de TOPO — sem este ramo o modificador caía no `else`
