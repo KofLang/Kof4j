@@ -1,5 +1,8 @@
 package dev.kof.compiler.jvm;
 import dev.kof.compiler.BuiltinTypes;
+import dev.kof.compiler.ExternalClasspath;
+import dev.kof.compiler.JdkReflectionResolver;
+import dev.kof.compiler.KofCallKind;
 import dev.kof.compiler.TypeMetrics;
 import dev.kof.compiler.IRClass;
 import dev.kof.compiler.IRModule;
@@ -204,6 +207,30 @@ public final class JvmOpEmitter {
                         owner = tvOwner;
                     }
                     String desc = JvmTypeMapper.toMethodDescriptor(kc.returnType(), kc.parameterTypes());
+                    // #1124: chamada de instância sobre dono JDK com retorno
+                    // SUBSTITUÍDO (Optional<String>.get() → String): o descritor
+                    // emitido tem de ser o APAGADO da classe JDK (get() possui
+                    // ()Ljava/lang/Object; — espelho do §706 das classes Kof),
+                    // senão o resolution do invokevirtual não encontra o método
+                    // e a chamada morre em runtime. A referência volta com
+                    // CHECKCAST ao tipo substituído — que é o que o CONSUMIDOR
+                    // semântico (store, chamada em cadeia, boxing do println)
+                    // já espera na pilha.
+                    String castAfter = null;
+                    if ((kc.kind() == KofCallKind.INSTANCE || kc.kind() == KofCallKind.INTERFACE)
+                            && owner.contains("/") && JdkReflectionResolver.isJdkClass(owner)) {
+                        var erasedSig = JdkReflectionResolver.resolveJdkMethod(
+                                owner, kc.methodName(), kc.parameterTypes().size());
+                        if (erasedSig != null && !erasedSig.returnDescriptor().equals(
+                                JvmTypeMapper.toDescriptor(kc.returnType()))
+                                && kc.returnType() instanceof Type.ClassType subCt
+                                && subCt.typeArguments().isEmpty()) {
+                            Type erasedRet = ExternalClasspath.typeFromDescriptor(
+                                    erasedSig.returnDescriptor());
+                            desc = JvmTypeMapper.toMethodDescriptor(erasedRet, kc.parameterTypes());
+                            castAfter = JvmTypeMapper.toInternalName(subCt.packageName(), subCt.name());
+                        }
+                    }
                     boolean isInterfaceOwner = false;
                     if (c.module() != null) {
                         for (IRClass irc : c.module().classes()) {
@@ -220,6 +247,9 @@ public final class JvmOpEmitter {
                         case FUNCTION -> c.mv().visitMethodInsn(INVOKESTATIC, owner, kc.methodName(), desc, false);
                         case INTERFACE -> c.mv().visitMethodInsn(INVOKEINTERFACE, owner, kc.methodName(), desc, true);
                         case SUPER -> c.mv().visitMethodInsn(INVOKESPECIAL, owner, kc.methodName(), desc, false);
+                    }
+                    if (castAfter != null) {
+                        c.mv().visitTypeInsn(CHECKCAST, castAfter);
                     }
                 }
             }

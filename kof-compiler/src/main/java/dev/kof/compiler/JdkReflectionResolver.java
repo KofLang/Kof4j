@@ -1,6 +1,7 @@
 package dev.kof.compiler;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.TypeVariable;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.List;
@@ -11,12 +12,12 @@ import java.util.List;
  * <p>Resolve issues #237 (§234: String.join com interface/concreto), #231 (§224:
  * StringBuilder.append com retorno da classe concreta), etc.
  */
-final class JdkReflectionResolver {
+public final class JdkReflectionResolver {
 
     private JdkReflectionResolver() {}
 
     /** Verifica se o nome interno pertence a um pacote padrão do JDK. */
-    static boolean isJdkClass(String internalName) {
+    public static boolean isJdkClass(String internalName) {
         if (internalName == null) return false;
         return internalName.startsWith("java/")
                 || internalName.startsWith("javax/")
@@ -43,7 +44,7 @@ final class JdkReflectionResolver {
     /**
      * Resolve a assinatura real do método no JDK usando reflexão.
      */
-    static ExternalClasspath.MethodSignature resolveJdkMethod(String ownerInternalName,
+    public static ExternalClasspath.MethodSignature resolveJdkMethod(String ownerInternalName,
                                                               String methodName,
                                                               int argumentCount) {
         return resolveJdkMethodWithArgs(ownerInternalName, methodName, argumentCount, null);
@@ -186,6 +187,53 @@ final class JdkReflectionResolver {
         }
         return statementReturn(rct.packageName().replace('.', '/') + "/" + rct.name(),
                 mc.methodName(), mc.arguments().size());
+    }
+
+    /**
+     * #1124 — o retorno GENÉRICO de um método JDK, substituído pelos type
+     * arguments do receiver. {@code get()} em {@code Optional<String>} é
+     * {@code String} (o argumento), não {@code Object} (a erasure).
+     *
+     * <p>Pareamento POSICIONAL: a TypeVariable do retorno é procurada pelos
+     * parâmetros de tipo da classe DECLARANTE; o índice casa com o type
+     * argument do receiver {@code ClassType} no mesmo índice. Devolve null
+     * quando o retorno não é uma TypeVariable de nível topo, o receiver não
+     * carrega type arguments, ou a aridade de tipo não casa — o chamador
+     * mantém o tipo apagado (mudança zero para faces não genéricas). Fadiga
+     * de escopo: ParameterizedType aninhado (ex. {@code Stream<T>}) e
+     * substituição dirigida por argumento (fábricas {@code of(T)}) ficam
+     * para as fatias seguintes — nunca inventar tipo sem pareamento provado.
+     */
+    public static Type genericReturnFor(String ownerInternalName, String methodName,
+                                 int argumentCount, List<Type> receiverTypeArgs) {
+        if (!isJdkClass(ownerInternalName) || receiverTypeArgs == null
+                || receiverTypeArgs.isEmpty()) {
+            return null;
+        }
+        try {
+            Class<?> cls = Class.forName(ownerInternalName.replace('/', '.'));
+            TypeVariable<?>[] ownerParams = cls.getTypeParameters();
+            if (ownerParams.length != receiverTypeArgs.size()) return null;
+            for (Method m : cls.getMethods()) {
+                if (!m.getName().equals(methodName)) continue;
+                if (m.getParameterCount() != argumentCount) continue;
+                if (m.isBridge()) continue;
+                java.lang.reflect.Type ret = m.getGenericReturnType();
+                if (!(ret instanceof TypeVariable<?> tv)) return null;
+                Class<?> decl = m.getDeclaringClass();
+                TypeVariable<?>[] declParams = decl.getTypeParameters();
+                for (int i = 0; i < declParams.length; i++) {
+                    if (declParams[i].getName().equals(tv.getName())
+                            && i < receiverTypeArgs.size()) {
+                        return receiverTypeArgs.get(i);
+                    }
+                }
+                return null;
+            }
+        } catch (Throwable t) {
+            return null;
+        }
+        return null;
     }
 
     static boolean hasJdkMethod(String ownerInternalName, String methodName, int argumentCount) {

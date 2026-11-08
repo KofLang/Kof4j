@@ -429,6 +429,16 @@ public final class MemberCallTyper {
                         params.add(ExternalClasspath.typeFromDescriptor(d));
                     }
                     Type ret = ExternalClasspath.typeFromDescriptor(sig.returnDescriptor());
+                    // #1124: retorno GENÉRICO JDK — o type argument do receiver
+                    // substitui a TypeVariable do retorno (Optional<String>.get()
+                    // é String, não Object). Sem pareamento provado, mantém a
+                    // erasure (mudança zero para faces não genéricas).
+                    if (ct instanceof Type.ClassType gct && !gct.typeArguments().isEmpty()) {
+                        Type gen = JdkReflectionResolver.genericReturnFor(
+                                gct.internalName(), mc.methodName(),
+                                mc.arguments().size(), gct.typeArguments());
+                        if (gen != null) ret = gen;
+                    }
                     // §557: a flag ownerIsInterface() do MethodSignature é o que
                     // decide INVOKEINTERFACE vs INVOKEVIRTUAL — ver
                     // ExternalDispatchKind.of (InterfaceCalls).

@@ -35,7 +35,7 @@ public final class ExternalClasspath {
      *  packing dos args extras no componente do último param — sem a flag o
      *  respositor casava só aridade fixa e `Arrays.asList(1,2)` caía no
      *  emit de owner vazio. */
-    record MethodSignature(List<String> parameterDescriptors, String returnDescriptor,
+    public record MethodSignature(List<String> parameterDescriptors, String returnDescriptor,
                            boolean isStatic, boolean ownerIsInterface, boolean isVarargs) {
     }
 
@@ -460,7 +460,7 @@ public final class ExternalClasspath {
      * Converte um descritor de campo/retorno JVM num Type do Kof.
      * Primitivos preservam identidade; classes viram ClassType com pacote.
      */
-    static Type typeFromDescriptor(String descriptor) {
+    public static Type typeFromDescriptor(String descriptor) {
         return switch (descriptor) {
             case "V" -> Type.PrimitiveType.VOID;
             case "Z" -> Type.PrimitiveType.BOOL;
