@@ -47,6 +47,20 @@ final class ExpressionBinaryInstanceOfLowerer {
     // ("Bad type on operand stack") em qualquer função que monta UI.
     boolean handleAsInt = ExpressionBinaryPredicates.isIntPrimitive(targetType)
             && (KofUi.isUiType(fromCastType) || KofMedia.isHandleType(fromCastType));
+    // #1054: the narrowed nullable-primitive left's SLOT is the D-NULL-INTENT
+    // boxed reference while its SEMANTIC type is the primitive — both cast
+    // paths below must open the box before treating the stack as raw.
+    boolean slotBoxedNullablePrim = false;
+    if (bin.left() instanceof IdentifierExpr lie0) {
+        IRLocalVariable lv0 = driver.findLocalVar(lie0.name(), locals);
+        if (lv0 != null && lv0.type() instanceof Type.NullableType nt0
+                && TypeMetrics.isPrimitiveType(nt0.inner())) {
+            slotBoxedNullablePrim = true;
+            CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops, lv0.type(),
+                    nt0.inner());
+            fromCastType = nt0.inner();
+        }
+    }
     if ("instanceof".equals(bin.operator())) {
         ops.add(new KofInstanceOf(targetType));
     } else if (TypeMetrics.isPrimitiveType(targetType)
@@ -126,7 +140,8 @@ final class ExpressionBinaryInstanceOfLowerer {
         // identidade no interpretador (Script) e JS (stack já boxed) — o
         // CHECKCAST de cima fica redundante (mesmo alvo, inofensivo).
         if (TypeMetrics.isPrimitiveType(targetType)
-                && !TypeMetrics.isPrimitiveType(fromCastType) && !handleAsInt) {
+                && (!TypeMetrics.isPrimitiveType(fromCastType) || slotBoxedNullablePrim)
+                && !handleAsInt) {
             // kof_unbox: JVM faz CHECKCAST(boxed)+INVOKEVIRTUAL unboxMethod
             // com descriptor "()" + toDescriptor(returnType). Char é guardado
             // BOXED como Integer (§104b-ii): o return tem que ser INT (senão
