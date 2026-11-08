@@ -1,0 +1,92 @@
+package archive
+
+// kof.archive — DEFLATE writer, literals-only FIXED blocks (BTYPE=01),
+// universal-platform #993 fatia 1a. Pure Kof over the same composition the
+// #852 reader used (`libs/image/Inflate.kf`): no new core primitive, no
+// per-target code (D-KOF-FIRST / D-KOF-FILE-GO).
+//
+// The stream is a single final block: BFINAL=1, BTYPE=01, every input byte
+// emitted as its FIXED literal code (RFC 1951 3.2.6), end-of-block 256. No
+// LZ77 yet — the output is slightly LARGER than the input (up to 9 bits per
+// byte + the 3-bit header); compression comes with the matcher in fatia 1b.
+// The bytes are valid DEFLATE: `java.util.zip.Inflater` and the library's own
+// `image.Inflate` both read them (the two oracles of the E2E).
+//
+// Bit discipline (mirrors Inflate.readBits exactly): raw bits are consumed
+// LSB-first, so writeBits emits LSB-first; Huffman codes are consumed
+// MSB-first (Inflate.decode shifts left), so writeCode emits MSB-first.
+
+class DeflateOut {
+    Int[] bytes
+    Int len
+    Int bitBuf
+    Int bitCnt
+
+    constructor(Int outCap) {
+        this.bytes = new Int[outCap]
+        this.len = 0
+        this.bitBuf = 0
+        this.bitCnt = 0
+    }
+
+    writeBit(Int b) {
+        this.bitBuf = this.bitBuf | ((b & 1) << this.bitCnt)
+        this.bitCnt = this.bitCnt + 1
+        if (this.bitCnt == 8) {
+            this.bytes[this.len] = this.bitBuf
+            this.len = this.len + 1
+            this.bitBuf = 0
+            this.bitCnt = 0
+        }
+    }
+
+    // raw header/extra bits: LSB-first (the mirror of Inflate.readBits)
+    writeBits(Int value, Int n) {
+        var i = 0
+        while (i < n) {
+            this.writeBit((value >> i) & 1)
+            i = i + 1
+        }
+    }
+
+    // Huffman codes: MSB-first (the mirror of Inflate.decode's left shifts)
+    writeCode(Int code, Int n) {
+        var i = n - 1
+        while (i >= 0) {
+            this.writeBit((code >> i) & 1)
+            i = i - 1
+        }
+    }
+
+    // the FIXED literal code for one byte (RFC 1951 3.2.6)
+    writeLiteral(Int sym) {
+        if (sym < 144) {
+            this.writeCode(sym + 48, 8)
+        } else if (sym < 256) {
+            this.writeCode(sym + 400, 9)
+        } else if (sym < 280) {
+            this.writeCode(sym - 256, 7)
+        } else {
+            this.writeCode(sym - 280 + 192, 8)
+        }
+    }
+
+    // the whole stream for `data`: one final literals-only block
+    Int finish(Int[] data) {
+        this.writeBits(1, 1)
+        this.writeBits(1, 2)
+        var i = 0
+        while (i < data.length) {
+            this.writeLiteral(data[i] & 255)
+            i = i + 1
+        }
+        this.writeCode(0, 7)
+        if (this.bitCnt > 0) {
+            this.bytes[this.len] = this.bitBuf
+            this.len = this.len + 1
+            this.bitBuf = 0
+            this.bitCnt = 0
+        }
+        return this.len
+    }
+}
