@@ -103,6 +103,14 @@ public final class MemberCallTyper {
                         params.add(ExternalClasspath.typeFromDescriptor(d));
                     }
                     Type ret = ExternalClasspath.typeFromDescriptor(sig.returnDescriptor());
+                    // #1124 fatia 2: fábrica estática genérica — o retorno
+                    // Optional<T> é Optional<arg> quando o argumento é uma
+                    // referência provável (forma restrita do oráculo; sem
+                    // pareamento provado mantém a erasure).
+                    Type genRet = JdkReflectionResolver.genericReturnFromArgs(
+                            qt.internalName(), mc.methodName(),
+                            mc.arguments().size(), argTypes, qt);
+                    if (genRet != null) ret = genRet;
                     sa.putResolvedMethod(mc, new SymbolTable.MethodSymbol(mc.methodName(),
                             qt.internalName(), ret, params, 1,
                             SymbolTable.DispatchKind.STATIC));

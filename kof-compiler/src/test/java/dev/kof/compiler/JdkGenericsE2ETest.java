@@ -135,4 +135,62 @@ class JdkGenericsE2ETest {
                 }
                 """, "hi");
     }
+
+    @Test
+    void optionalFactoryInfersWithoutAnnotationJvm(@TempDir Path tmp) throws Exception {
+        // #1124 slice 2: NO annotation — `var o = Optional.of("hi")` types the
+        // local Optional<String> by substituting the factory return's
+        // TypeVariable from the argument. get() then carries the receiver's
+        // type argument (slice 1 machinery) and length() resolves.
+        compileAndRun(tmp, """
+                import java.util.Optional
+                main() {
+                    var o = Optional.of("hi")
+                    var s = o.get()
+                    println(s.length())
+                }
+                """, "2");
+    }
+
+    @Test
+    void optionalFactoryChainedWithoutAnnotationJvm(@TempDir Path tmp) throws Exception {
+        // The #167 face driven straight from the un-annotated factory: the
+        // inferred receiver type must reach the chained member call.
+        compileAndRun(tmp, """
+                import java.util.Optional
+                main() {
+                    var o = Optional.of("hi")
+                    println(o.get().length())
+                }
+                """, "2");
+    }
+
+    @Test
+    void optionalPrimitiveFactoryStaysRawJvm(@TempDir Path tmp) throws Exception {
+        // Boundary (honest): a PRIMITIVE argument is NOT substituted by this
+        // slice (the box/unbox face is its own slice) — the factory still
+        // resolves (the erased Object param accepts the boxed int) and the
+        // raw-path get() prints the value through the Object dispatch. This
+        // probe also pins the owner-"" ClassFormatError the cycle measured:
+        // the erased-typed local must emit a REAL owner for get().
+        compileAndRun(tmp, """
+                import java.util.Optional
+                main() {
+                    var o = Optional.of(42)
+                    println(o.get())
+                }
+                """, "42");
+    }
+
+    @Test
+    void optionalOfNullableFactoryInfersJvm(@TempDir Path tmp) throws Exception {
+        // Same single-TypeVariable shape, different factory: ofNullable(T).
+        compileAndRun(tmp, """
+                import java.util.Optional
+                main() {
+                    var o = Optional.ofNullable("x")
+                    println(o.get())
+                }
+                """, "x");
+    }
 }

@@ -96,6 +96,16 @@ public final class JdkReflectionResolver {
                                 score += 10;
                             } else if (isCompatiblePrimitiveBox(p, a)) {
                                 score += 8;
+                            } else if (p == Object.class) {
+                                // #1124 fatia 2: o param apagado de `of(T)` é
+                                // Object — primitivo NUNCA passava
+                                // (Object.isAssignableFrom(int.class) é false,
+                                // primitivo não é Class) e a fábrica nem
+                                // resolvia. Object aceita qualquer argumento
+                                // (referência direta, primitivo via boxing
+                                // JLS) com o MENOR score: uma sobrecarga
+                                // específica continua vencendo.
+                                score += 2;
                             } else {
                                 compatible = false;
                                 break;
@@ -229,6 +239,73 @@ public final class JdkReflectionResolver {
                     }
                 }
                 return null;
+            }
+        } catch (Throwable t) {
+            return null;
+        }
+        return null;
+    }
+
+    /**
+     * #1124 fatia 2 — retorno de FÁBRICA estática genérica substituído pelo
+     * ARGUMENTO: {@code Optional.of("hi")} é {@code Optional<String>}.
+     *
+     * <p>Forma reconhecida (tudo ou nada — nunca inventar tipo): o retorno
+     * genérico é um ParameterizedType cujo raw é a própria classe dona, com
+     * EXATAMENTE UMA TypeVariable entre os argumentos de tipo; essa
+     * TypeVariable aparece como tipo de nível topo de EXATAMENTE UM parâmetro;
+     * e o argumento nessa posição é um ClassType de REFERÊNCIA com type
+     * arguments VAZIOS (String, classes simples — primitivo, Nullable, array e
+     * genérico profundo mantêm o retorno CRU: o box/desbox e o cast aninhado
+     * são faces próprias, não desta fatia). Qualquer outra forma devolve
+     * null — o chamador fica com a erasure (mudança zero).
+     */
+    public static Type genericReturnFromArgs(String ownerInternalName, String methodName,
+                                             int argumentCount, List<Type> argumentTypes,
+                                             Type receiverType) {
+        if (!isJdkClass(ownerInternalName) || argumentTypes == null
+                || argumentTypes.size() != argumentCount
+                || !(receiverType instanceof Type.ClassType rc)) {
+            return null;
+        }
+        try {
+            Class<?> cls = Class.forName(ownerInternalName.replace('/', '.'));
+            for (Method m : cls.getMethods()) {
+                if (!m.getName().equals(methodName)) continue;
+                if (m.getParameterCount() != argumentCount) continue;
+                if (m.isBridge()) continue;
+                java.lang.reflect.Type ret = m.getGenericReturnType();
+                if (!(ret instanceof java.lang.reflect.ParameterizedType pt)
+                        || pt.getRawType() != cls) {
+                    return null;
+                }
+                java.lang.reflect.Type[] typeArgs = pt.getActualTypeArguments();
+                int tvPos = -1;
+                for (int i = 0; i < typeArgs.length; i++) {
+                    if (typeArgs[i] instanceof TypeVariable<?> tv) {
+                        if (tvPos >= 0) return null;
+                        tvPos = i;
+                    } else if (!(typeArgs[i] instanceof Class<?>)) {
+                        return null;
+                    }
+                }
+                if (tvPos < 0) return null;
+                String tvName = ((TypeVariable<?>) typeArgs[tvPos]).getName();
+                int paramPos = -1;
+                java.lang.reflect.Type[] genParams = m.getGenericParameterTypes();
+                for (int i = 0; i < genParams.length; i++) {
+                    if (genParams[i] instanceof TypeVariable<?> tv
+                            && tv.getName().equals(tvName)) {
+                        if (paramPos >= 0) return null;
+                        paramPos = i;
+                    }
+                }
+                if (paramPos < 0) return null;
+                Type arg = argumentTypes.get(paramPos);
+                if (!(arg instanceof Type.ClassType act) || !act.typeArguments().isEmpty()) {
+                    return null;
+                }
+                return new Type.ClassType(rc.packageName(), rc.name(), List.of(arg));
             }
         } catch (Throwable t) {
             return null;

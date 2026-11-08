@@ -3,6 +3,10 @@ package dev.kof.compiler;
 import java.util.ArrayList;
 import java.util.List;
 
+import dev.kof.compiler.ExternalClasspath;
+import dev.kof.compiler.JdkReflectionResolver;
+import dev.kof.compiler.MemberResolver;
+
 /**
  * Inferência de tipo de MethodCallExpr (parte do inferExprType).
  */
@@ -150,6 +154,10 @@ if (mc.receiver() instanceof IdentifierExpr srid && mc.arguments().size() == 1
         }) {
     return BuiltinTypes.STRING;
 }
+// #1124 fatia 2: a face estática externa vive em ExternalStaticCallTyper
+// (gate ≤500 — família autocontida extraída; ver o javadoc lá).
+Type extStatic = ExternalStaticCallTyper.inferType(driver, mc, locals);
+if (extStatic != null) return extStatic;
 if (mc.receiver() == null && ("println".equals(mc.methodName()) || "print".equals(mc.methodName()))) return Type.PrimitiveType.VOID;
 if ("now".equals(mc.methodName()) && mc.receiver() == null && mc.arguments().isEmpty()) {
     return Type.PrimitiveType.LONG;
