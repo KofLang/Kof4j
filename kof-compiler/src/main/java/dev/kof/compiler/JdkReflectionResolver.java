@@ -4,7 +4,9 @@ import java.lang.reflect.Method;
 import java.lang.reflect.TypeVariable;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Resolução de assinaturas de métodos do JDK via reflexão em tempo de compilação.
@@ -53,13 +55,36 @@ public final class JdkReflectionResolver {
     /**
      * Resolve o método no JDK considerando aridade e, quando fornecidos, os tipos dos argumentos.
      */
-    static ExternalClasspath.MethodSignature resolveJdkMethodWithArgs(String ownerInternalName,
-                                                                      String methodName,
-                                                                      int argumentCount,
-                                                                      List<Type> argumentTypes) {
+    public static ExternalClasspath.MethodSignature resolveJdkMethodWithArgs(String ownerInternalName,
+                                                                              String methodName,
+                                                                              int argumentCount,
+                                                                              List<Type> argumentTypes) {
         if (!isJdkClass(ownerInternalName)) return null;
         try {
             Class<?> cls = Class.forName(ownerInternalName.replace('/', '.'));
+            return reflectResolve(cls, methodName, argumentCount, argumentTypes);
+        } catch (Throwable t) {
+            // Se a classe não puder ser carregada, retorna null
+        }
+        return null;
+    }
+
+    /**
+     * #1093 fatia 2 — resolução POR REFLEXÃO sobre uma classe QUALQUER
+     * (JDK ou do classpath externo carregado sem init). getMethods() caminha
+     * a hierarquia INTEIRA (superclasses E interfaces) e os descritores vêm
+     * da classe carregada — o método herdado de interface genérica
+     * (`S3Builder.region` declarado como default em `Builder<B, T>`)
+     * aparece aqui com o descritor APAGADO real, que o byte-parse de
+     * findDeclared não vê (ele só caminha superclasses de CLASSE). O score
+     * é o mesmo do caminho JDK (exato > atribuível > prim-box > Object;
+     * bridge prefere não-bridge; varargs com penalidade).
+     */
+    public static ExternalClasspath.MethodSignature reflectResolve(Class<?> cls,
+                                                                   String methodName,
+                                                                   int argumentCount,
+                                                                   List<Type> argumentTypes) {
+        try {
             Method best = null;
             int bestScore = -1;
 
@@ -130,12 +155,12 @@ public final class JdkReflectionResolver {
                 }
                 String retDesc = org.objectweb.asm.Type.getDescriptor(best.getReturnType());
                 boolean isStatic = Modifier.isStatic(best.getModifiers());
-                boolean isInterface = cls.isInterface();
+                boolean isInterface = best.getDeclaringClass().isInterface();
                 return new ExternalClasspath.MethodSignature(paramDescs, retDesc, isStatic,
                         isInterface, best.isVarArgs());
             }
         } catch (Throwable t) {
-            // Se a classe não puder ser carregada, retorna null
+            // reflexão indisponível para esta classe — o caller cai no parse de bytes
         }
         return null;
     }
@@ -214,11 +239,71 @@ public final class JdkReflectionResolver {
      * substituição dirigida por argumento (fábricas {@code of(T)}) ficam
      * para as fatias seguintes — nunca inventar tipo sem pareamento provado.
      */
+    /** A CLASSE do owner: JDK primeiro, depois o classpath externo
+     *  carregável (#1093 fatia 2, sem inicialização). */
+    private static Class<?> classFor(String ownerInternalName, ExternalClasspath cp) {
+        if (isJdkClass(ownerInternalName)) {
+            try {
+                return Class.forName(ownerInternalName.replace('/', '.'), false,
+                        JdkReflectionResolver.class.getClassLoader());
+            } catch (Throwable ignored) {
+            }
+        }
+        return cp != null ? cp.loadClass(ownerInternalName) : null;
+    }
+
+    /**
+     * #1093 fatia 2 — a parameterização da classe-alvo NA hierarquia do
+     * receiver: `S3Builder implements Builder<S3Builder, S3>` → alvo
+     * Builder → `[S3Builder, S3]`. Caminha superclasses + interfaces
+     * genéricas substituindo as TypeVariables de cada nível pelos bindings
+     * acumulados (um receiver genérico próprio resolve primeiro). Null
+     * quando a parameterização é irresolvível.
+     */
+    private static List<Type> hierarchyArgsFor(Class<?> start, Class<?> target) {
+        record Frame(Class<?> cls, Map<String, Type> bindings) {}
+        java.util.ArrayDeque<Frame> work = new java.util.ArrayDeque<>();
+        work.add(new Frame(start, Map.of()));
+        int hops = 0;
+        while (!work.isEmpty() && hops++ < 32) {
+            Frame f = work.poll();
+            java.util.List<java.lang.reflect.Type> supers = new ArrayList<>();
+            if (f.cls.getGenericSuperclass() != null) supers.add(f.cls.getGenericSuperclass());
+            supers.addAll(java.util.Arrays.asList(f.cls.getGenericInterfaces()));
+            for (java.lang.reflect.Type st : supers) {
+                if (!(st instanceof java.lang.reflect.ParameterizedType pt)) continue;
+                if (!(pt.getRawType() instanceof Class<?> raw)) continue;
+                Map<String, Type> nb = new HashMap<>(f.bindings);
+                TypeVariable<?>[] rps = raw.getTypeParameters();
+                java.lang.reflect.Type[] act = pt.getActualTypeArguments();
+                boolean resolvable = true;
+                List<Type> resolved = new ArrayList<>();
+                for (int i = 0; i < rps.length && i < act.length; i++) {
+                    Type t = null;
+                    if (act[i] instanceof Class<?> c) {
+                        t = ExternalClasspath.typeFromDescriptor(
+                                org.objectweb.asm.Type.getDescriptor(c));
+                    } else if (act[i] instanceof TypeVariable<?> tv) {
+                        t = f.bindings.get(tv.getName());
+                    }
+                    if (t == null) { resolvable = false; break; }
+                    nb.put(rps[i].getName(), t);
+                    resolved.add(t);
+                }
+                if (!resolvable) continue;
+                if (raw == target) return resolved;
+                work.add(new Frame(raw, nb));
+            }
+        }
+        return null;
+    }
+
     public static Type genericReturnFor(String ownerInternalName, String methodName,
-                                 int argumentCount, List<Type> receiverTypeArgs) {
-        if (!isJdkClass(ownerInternalName)) return null;
+                                 int argumentCount, List<Type> receiverTypeArgs,
+                                 ExternalClasspath cp) {
         try {
-            Class<?> cls = Class.forName(ownerInternalName.replace('/', '.'));
+            Class<?> cls = classFor(ownerInternalName, cp);
+            if (cls == null) return null;
             for (Method m : cls.getMethods()) {
                 if (!m.getName().equals(methodName)) continue;
                 if (m.getParameterCount() != argumentCount) continue;
@@ -226,16 +311,23 @@ public final class JdkReflectionResolver {
                 java.lang.reflect.Type ret = m.getGenericReturnType();
                 if (ret instanceof TypeVariable<?> tv) {
                     // fatia 1: retorno = a TypeVariable do dono — pareia com o
-                    // type argument do receiver NO MESMO índice (a aridade de
-                    // tipo do receiver tem de casar com a da classe dona).
-                    if (receiverTypeArgs == null || receiverTypeArgs.isEmpty()) return null;
-                    if (cls.getTypeParameters().length != receiverTypeArgs.size()) return null;
+                    // type argument do receiver NO MESMO índice. #1093 fatia 2:
+                    // o receiver SEM type args próprios (o builder concreto)
+                    // resolve pela parameterização da classe DECLARANTE NA
+                    // HIERARQUIA dele (`S3Builder implements Builder<S3Builder,
+                    // S3>` → B:=S3Builder, T:=S3).
+                    List<Type> effective = receiverTypeArgs;
+                    if (effective == null || effective.isEmpty()
+                            || cls.getTypeParameters().length != effective.size()) {
+                        effective = hierarchyArgsFor(cls, m.getDeclaringClass());
+                    }
+                    if (effective == null || effective.isEmpty()) return null;
                     Class<?> decl = m.getDeclaringClass();
                     TypeVariable<?>[] declParams = decl.getTypeParameters();
                     for (int i = 0; i < declParams.length; i++) {
                         if (declParams[i].getName().equals(tv.getName())
-                                && i < receiverTypeArgs.size()) {
-                            return receiverTypeArgs.get(i);
+                                && i < effective.size()) {
+                            return effective.get(i);
                         }
                     }
                     return null;
@@ -303,14 +395,15 @@ public final class JdkReflectionResolver {
      */
     public static Type genericReturnFromArgs(String ownerInternalName, String methodName,
                                              int argumentCount, List<Type> argumentTypes,
-                                             Type receiverType) {
-        if (!isJdkClass(ownerInternalName) || argumentTypes == null
+                                             Type receiverType, ExternalClasspath cp) {
+        if (argumentTypes == null
                 || argumentTypes.size() != argumentCount
                 || !(receiverType instanceof Type.ClassType rc)) {
             return null;
         }
         try {
-            Class<?> cls = Class.forName(ownerInternalName.replace('/', '.'));
+            Class<?> cls = classFor(ownerInternalName, cp);
+            if (cls == null) return null;
             for (Method m : cls.getMethods()) {
                 if (!m.getName().equals(methodName)) continue;
                 if (m.getParameterCount() != argumentCount) continue;

@@ -50,6 +50,11 @@ public class JvmBackend implements Backend {
     /** Classpath externo para computar ancestrais comuns de frames (android.*). */
     private ExternalClasspath externalTypes;
 
+    /** Acesso da família de emissão (JvmCallEmission, mesmo pacote). */
+    ExternalClasspath externalTypes() {
+        return externalTypes;
+    }
+
     public void setExternalTypes(ExternalClasspath externalTypes) {
         this.externalTypes = externalTypes;
     }

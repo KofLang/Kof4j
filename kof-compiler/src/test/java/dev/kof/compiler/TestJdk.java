@@ -26,6 +26,11 @@ final class TestJdk {
         return Path.of(System.getProperty("java.home"), "bin", "javac").toString();
     }
 
+    /** #1093 fatia 2: o `jar` do próprio JDK (empacotar fixtures de classpath). */
+    static String jarBin() {
+        return Path.of(System.getProperty("java.home"), "bin", "jar").toString();
+    }
+
     /** Resolve um executável do PATH de forma absoluta (ex.: "sh", "node"). */
     static String onPath(String name) throws IOException {
         String path = System.getenv("PATH");

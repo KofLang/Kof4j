@@ -407,8 +407,16 @@ public final class ExpressionInstanceCallLowerer {
     if (callKind == KofCallKind.INSTANCE && resolvedMethod != null && driver.semanticAnalyzer != null) {
         if ((resolvedMethod.accessFlags() & AccessFlags.STATIC) != 0) {
             callKind = KofCallKind.STATIC;
-        } else if (resolvedMethod.dispatchKind() == SymbolTable.DispatchKind.INTERFACE) {
+        } else if (resolvedMethod.dispatchKind() == SymbolTable.DispatchKind.INTERFACE
+                && !receiverIsConcreteExternalClass(driver, recvType)) {
             // §557: o typer já carimbou INTERFACE (interface externa/JDK).
+            // #1093 fatia 2: MAS o dono do constant pool do INVOKEINTERFACE
+            // tem de SER a interface — quando o RECEIVER é a classe CONCRETA
+            // (`S3Builder` herdando o default `region()` de `Builder`), o
+            // invokevirtual sobre o receiver resolve pela hierarquia e é o
+            // emit correto (invokeinterface com dono concreto =
+            // IncompatibleClassChangeError "Found class, but interface was
+            // expected").
             callKind = KofCallKind.INTERFACE;
         } else {
             String ownerName = resolvedMethod.ownerClass();
@@ -565,5 +573,17 @@ public final class ExpressionInstanceCallLowerer {
         private static Type recvType0(CompilerDriver driver, MethodCallExpr mc, List<IRLocalVariable> locals) {
         if (mc.receiver() == null) return Type.UnknownType.UNKNOWN;
         return ExpressionTyper.inferExprType(driver, mc.receiver(), locals);
+    }
+
+    /**
+     * #1093 fatia 2 — o receiver é uma classe externa CONCRETA (não
+     * interface)? O INVOKEINTERFACE exige dono-interface no constant pool;
+     * para o builder concreto que herda o default da interface genérica, o
+     * dispatch correto é o invokevirtual sobre o próprio receiver.
+     */
+    private static boolean receiverIsConcreteExternalClass(CompilerDriver driver, Type recvType) {
+        if (!(recvType instanceof Type.ClassType ct) || ct.packageName().isEmpty()) return false;
+        return driver.externalClasspath.knows(ct.internalName())
+                && !driver.externalClasspath.isInterface(ct.internalName());
     }
 }

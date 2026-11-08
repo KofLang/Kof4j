@@ -109,7 +109,7 @@ public final class MemberCallTyper {
                     // pareamento provado mantém a erasure).
                     Type genRet = JdkReflectionResolver.genericReturnFromArgs(
                             qt.internalName(), mc.methodName(),
-                            mc.arguments().size(), argTypes, qt);
+                            mc.arguments().size(), argTypes, qt, sa.externalTypes());
                     if (genRet != null) ret = genRet;
                     sa.putResolvedMethod(mc, new SymbolTable.MethodSymbol(mc.methodName(),
                             qt.internalName(), ret, params, 1,
@@ -448,7 +448,7 @@ public final class MemberCallTyper {
                     if (ct instanceof Type.ClassType gct) {
                         Type gen = JdkReflectionResolver.genericReturnFor(
                                 gct.internalName(), mc.methodName(),
-                                mc.arguments().size(), gct.typeArguments());
+                                mc.arguments().size(), gct.typeArguments(), sa.externalTypes());
                         if (gen != null) ret = gen;
                     }
                     // §557: a flag ownerIsInterface() do MethodSignature é o que

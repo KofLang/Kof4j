@@ -58,7 +58,7 @@ final class ExternalStaticCallTyper {
         Type xret = ExternalClasspath.typeFromDescriptor(xsig.returnDescriptor());
         Type xgen = JdkReflectionResolver.genericReturnFromArgs(
                 xqt.internalName(), mc.methodName(),
-                mc.arguments().size(), xargs, xqt);
+                mc.arguments().size(), xargs, xqt, driver.externalClasspath);
         if (xgen != null) {
             xret = xgen;
         }

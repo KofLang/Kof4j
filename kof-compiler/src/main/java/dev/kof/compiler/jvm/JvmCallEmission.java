@@ -86,10 +86,20 @@ final class JvmCallEmission {
                 // já espera na pilha.
                 String castAfter = null;
                 String unboxAfter = null;
+                var extCp = ctx.externalTypes();
+                boolean jdkOrExternalOwner = owner.contains("/")
+                        && (JdkReflectionResolver.isJdkClass(owner)
+                                || (extCp != null && extCp.knows(owner)));
                 if ((kc.kind() == KofCallKind.INSTANCE || kc.kind() == KofCallKind.INTERFACE)
-                        && owner.contains("/") && JdkReflectionResolver.isJdkClass(owner)) {
+                        && jdkOrExternalOwner) {
                     var erasedSig = JdkReflectionResolver.resolveJdkMethod(
                             owner, kc.methodName(), kc.parameterTypes().size());
+                    if (erasedSig == null && extCp != null) {
+                        // #1093 fatia 2: dono do CLASSPATH EXTERNO — o descritor
+                        // apagado vem do parse de bytes/reflexão do classpath.
+                        erasedSig = extCp.resolveMethod(
+                                owner, kc.methodName(), kc.parameterTypes().size());
+                    }
                     if (erasedSig != null && !erasedSig.returnDescriptor().equals(
                             JvmTypeMapper.toDescriptor(kc.returnType()))
                             && kc.returnType() instanceof Type.ClassType subCt
@@ -136,6 +146,11 @@ final class JvmCallEmission {
                 // "must be InterfaceMethodref"). O scan acima só enxerga
                 // classes Kof-locais; o dono JDK interface completa.
                 if (!isInterfaceOwner && JdkReflectionResolver.isJdkInterface(owner)) {
+                    isInterfaceOwner = true;
+                }
+                // #1093 fatia 2: interface do CLASSPATH EXTERNO (S3Builder
+                // implements Builder) — a flag itf vale igual.
+                if (!isInterfaceOwner && extCp != null && extCp.isInterface(owner)) {
                     isInterfaceOwner = true;
                 }
                 switch (kc.kind()) {
