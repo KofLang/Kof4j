@@ -164,8 +164,26 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
                         + extQ.internalName().replace('/', '.') + "'");
         return localIdx;
     }
-    ExternalClasspath.MethodSignature extSig = driver.externalClasspath.resolveMethod(
-            extQ.internalName(), mc.methodName(), mc.arguments().size());
+    // Família #1093/#1124: a re-resolução lower-time leva os TIPOS DOS
+    // ARGUMENTOS — com args=null a penalidade varargs (-5) fazia um overload
+    // exato de outra forma ganhar (`Path.of("a")` casava `of(URI)` em vez de
+    // `of(String, String...)` → descritor (URI) emitido → VerifyError). O
+    // ramo irmão dos wrappers (logo abaixo) já resolvia com args.
+    List<Type> extActualArgs = new ArrayList<>();
+    for (ExpressionNode extArg : mc.arguments()) {
+        extActualArgs.add(ExpressionTyper.inferExprType(driver, extArg, locals));
+    }
+    ExternalClasspath.MethodSignature extSig = driver.externalClasspath.resolveMethodWithArgs(
+            extQ.internalName(), mc.methodName(), mc.arguments().size(), extActualArgs);
+    if (extSig == null) {
+        // §500 (face método inexistente): sem candidata nem por nome+aridade —
+        // diagnóstico honesto em vez de emit de descritor fabricado.
+        gapError(driver, mc,
+                "Cannot resolve static method '" + mc.methodName() + "' on imported class '"
+                        + extQ.packageName() + "." + extQ.name() + "'",
+                "SEM025");
+        return localIdx;
+    }
     List<Type> extFormal = VarargsArrayPacker.formalTypes(extSig);
     Type extRet = ExternalClasspath.typeFromDescriptor(extSig.returnDescriptor());
     localIdx = VarargsArrayPacker.lower(driver, mc.arguments(), extSig,

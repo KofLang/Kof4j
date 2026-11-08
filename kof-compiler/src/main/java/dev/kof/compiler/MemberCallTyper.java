@@ -441,7 +441,11 @@ public final class MemberCallTyper {
                     // substitui a TypeVariable do retorno (Optional<String>.get()
                     // é String, não Object). Sem pareamento provado, mantém a
                     // erasure (mudança zero para faces não genéricas).
-                    if (ct instanceof Type.ClassType gct && !gct.typeArguments().isEmpty()) {
+                    // #1093 fatia 1: o gate de receiver-args caiu — a face
+                    // TypeVariable mantém o SEU gate interno (aridade), e a
+                    // face de retorno genérico CONCRETO (Iterator<Path>) não
+                    // precisa de args do receiver.
+                    if (ct instanceof Type.ClassType gct) {
                         Type gen = JdkReflectionResolver.genericReturnFor(
                                 gct.internalName(), mc.methodName(),
                                 mc.arguments().size(), gct.typeArguments());

@@ -32,7 +32,7 @@ public final class JdkReflectionResolver {
      * expected}. Espelha {@link #isJdkClass}: só nome interno de pacote JDK
      * entra; classe não carregável devolve false (nunca inventa interface).
      */
-    static boolean isJdkInterface(String internalName) {
+    public static boolean isJdkInterface(String internalName) {
         if (!isJdkClass(internalName)) return false;
         try {
             return Class.forName(internalName.replace('/', '.')).isInterface();
@@ -216,27 +216,68 @@ public final class JdkReflectionResolver {
      */
     public static Type genericReturnFor(String ownerInternalName, String methodName,
                                  int argumentCount, List<Type> receiverTypeArgs) {
-        if (!isJdkClass(ownerInternalName) || receiverTypeArgs == null
-                || receiverTypeArgs.isEmpty()) {
-            return null;
-        }
+        if (!isJdkClass(ownerInternalName)) return null;
         try {
             Class<?> cls = Class.forName(ownerInternalName.replace('/', '.'));
-            TypeVariable<?>[] ownerParams = cls.getTypeParameters();
-            if (ownerParams.length != receiverTypeArgs.size()) return null;
             for (Method m : cls.getMethods()) {
                 if (!m.getName().equals(methodName)) continue;
                 if (m.getParameterCount() != argumentCount) continue;
                 if (m.isBridge()) continue;
                 java.lang.reflect.Type ret = m.getGenericReturnType();
-                if (!(ret instanceof TypeVariable<?> tv)) return null;
-                Class<?> decl = m.getDeclaringClass();
-                TypeVariable<?>[] declParams = decl.getTypeParameters();
-                for (int i = 0; i < declParams.length; i++) {
-                    if (declParams[i].getName().equals(tv.getName())
-                            && i < receiverTypeArgs.size()) {
-                        return receiverTypeArgs.get(i);
+                if (ret instanceof TypeVariable<?> tv) {
+                    // fatia 1: retorno = a TypeVariable do dono — pareia com o
+                    // type argument do receiver NO MESMO índice (a aridade de
+                    // tipo do receiver tem de casar com a da classe dona).
+                    if (receiverTypeArgs == null || receiverTypeArgs.isEmpty()) return null;
+                    if (cls.getTypeParameters().length != receiverTypeArgs.size()) return null;
+                    Class<?> decl = m.getDeclaringClass();
+                    TypeVariable<?>[] declParams = decl.getTypeParameters();
+                    for (int i = 0; i < declParams.length; i++) {
+                        if (declParams[i].getName().equals(tv.getName())
+                                && i < receiverTypeArgs.size()) {
+                            return receiverTypeArgs.get(i);
+                        }
                     }
+                    return null;
+                }
+                if (ret instanceof java.lang.reflect.ParameterizedType pt) {
+                    // #1093 fatia 1: retorno genérico CONCRETO do receiver
+                    // (`Path.iterator()` declara `Iterator<Path>`) — a erasure
+                    // cru devolvia Iterator sem args e o `next()` herdado
+                    // (Iterator<E>.next → E) perdia o par. Args: Class faces
+                    // viram tipos via descritor; TypeVariables são
+                    // substituídas posicionalmente pelos type args do
+                    // PRÓPRIO receiver (pareando com a classe DECLARANTE do
+                    // método). QUALQUER arg irresolvível (wildcard, array
+                    // genérico, type-var sem par no receiver) → null: o
+                    // retorno fica CRU (mudança zero, nunca tipo inventado).
+                    if (!(pt.getRawType() instanceof Class<?> raw)) return null;
+                    List<Type> args = new ArrayList<>();
+                    Class<?> decl = m.getDeclaringClass();
+                    TypeVariable<?>[] declParams = decl.getTypeParameters();
+                    for (java.lang.reflect.Type ta : pt.getActualTypeArguments()) {
+                        if (ta instanceof Class<?> c) {
+                            args.add(ExternalClasspath.typeFromDescriptor(
+                                    org.objectweb.asm.Type.getDescriptor(c)));
+                        } else if (ta instanceof TypeVariable<?> tv) {
+                            Integer pos = null;
+                            for (int i = 0; i < declParams.length; i++) {
+                                if (declParams[i].getName().equals(tv.getName())) { pos = i; break; }
+                            }
+                            if (pos == null || receiverTypeArgs == null
+                                    || pos >= receiverTypeArgs.size()) {
+                                return null;
+                            }
+                            args.add(receiverTypeArgs.get(pos));
+                        } else {
+                            return null;
+                        }
+                    }
+                    Type rawT = ExternalClasspath.typeFromDescriptor(
+                            "L" + org.objectweb.asm.Type.getInternalName(raw) + ";");
+                    if (args.isEmpty()) return rawT;
+                    if (!(rawT instanceof Type.ClassType rct)) return null;
+                    return new Type.ClassType(rct.packageName(), rct.name(), args);
                 }
                 return null;
             }

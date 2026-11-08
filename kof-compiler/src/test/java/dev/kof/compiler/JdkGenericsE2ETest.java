@@ -193,4 +193,36 @@ class JdkGenericsE2ETest {
                 }
                 """, "x");
     }
+
+    @Test
+    void inheritedGenericInterfaceMethodReturnsReceiverTypeArgJvm(@TempDir Path tmp) throws Exception {
+        // #1093 slice 1 (the AWS fluent-builder shape, JDK-native): Path
+        // declares a CONCRETE `Iterator<Path> iterator()` and the INHERITED
+        // `Iterator<E>.next()` returns E — paired against the RECEIVER's type
+        // argument. Without the hierarchy-parameterization face, next() was
+        // erased Object and getFileName() died SEM025.
+        compileAndRun(tmp, """
+                import java.nio.file.Path
+                main() {
+                    var p = Path.of("a")
+                    var it = p.iterator()
+                    var f = it.next()
+                    println(f.getFileName())
+                }
+                """, "a");
+    }
+
+    @Test
+    void interfaceStaticOverloadPicksTheArgumentShapeJvm(@TempDir Path tmp) throws Exception {
+        // The faces the slice measured on the way: `Path.of("a")` must pick
+        // of(String, String...) (NOT of(URI) — the null-args lower-time
+        // resolution lost to the varargs penalty) and the emit needs the
+        // invokestatic itf flag (Path is an INTERFACE).
+        compileAndRun(tmp, """
+                import java.nio.file.Path
+                main() {
+                    println(Path.of("b").getFileName().toString())
+                }
+                """, "b");
+    }
 }
