@@ -1,5 +1,6 @@
 package archive
 
+import archive.Deflate
 import image.Inflate
 
 // kof-archive — reading the CENTRAL DIRECTORY of a classic ZIP archive
@@ -590,6 +591,8 @@ class ZipWriter {
     List<String> names
     List<Int> crcs
     List<Int> sizes
+    List<Int> compSizes
+    List<Int> methods
     List<Int> offsets
     Int total
     Bool started
@@ -599,6 +602,8 @@ class ZipWriter {
         this.names = listOf()
         this.crcs = listOf()
         this.sizes = listOf()
+        this.compSizes = listOf()
+        this.methods = listOf()
         this.offsets = listOf()
         this.total = 0
         this.started = false
@@ -641,8 +646,62 @@ class ZipWriter {
         this.names.add(name)
         this.crcs.add(crc)
         this.sizes.add(data.length)
+        this.compSizes.add(data.length)
+        this.methods.add(0)
         this.push(header)
         this.push(data)
+    }
+
+    /** Acrescenta uma entrada DEFLATE (método 8) — #993: o conteúdo passa
+     *  pelo DeflateOut da própria biblioteca (blocos FIXED + LZ77) e o CRC-32
+     *  é sobre os bytes NÃO comprimidos (o que o leitor verifica ao inflar).
+     *  Nome repetido é recusado como no addFile. */
+    void addDeflated(String name, Int[] data) {
+        var nameBytes = zipUtf8Bytes(name)
+        if (nameBytes.length == 0) {
+            throw "archive: empty zip entry name"
+        }
+        if (nameBytes.length > 65535) {
+            throw "archive: zip entry name over 65535 bytes (the length field is 16-bit)"
+        }
+        var i = 0
+        while (i < this.names.size()) {
+            if (this.names.get(i) == name) {
+                throw "archive: entry '" + name + "' was already added — duplicate names are refused"
+            }
+            i = i + 1
+        }
+        var crc = zipCrc32(data)
+        var enc = DeflateOut(data.length * 2 + 64)
+        var n = enc.finish(data)
+        var compressed = new Int[n]
+        var b = 0
+        while (b < n) {
+            compressed[b] = enc.bytes[b] & 255
+            b = b + 1
+        }
+        var header = new Int[30 + nameBytes.length]
+        zipU32Put(header, 0, 67324752)                 // PK\x03\x04
+        zipU16Put(header, 4, 20)                       // version needed
+        zipU16Put(header, 6, 2048)                     // bit 11 = nome em UTF-8
+        zipU16Put(header, 8, 8)                        // método 8 = DEFLATE
+        zipU32Put(header, 14, crc)
+        zipU32Put(header, 18, n)                       // compressed
+        zipU32Put(header, 22, data.length)             // uncompressed
+        zipU16Put(header, 26, nameBytes.length)
+        var k = 0
+        while (k < nameBytes.length) {
+            header[30 + k] = nameBytes[k]
+            k = k + 1
+        }
+        this.offsets.add(this.total)
+        this.names.add(name)
+        this.crcs.add(crc)
+        this.sizes.add(data.length)
+        this.compSizes.add(n)
+        this.methods.add(8)
+        this.push(header)
+        this.push(compressed)
     }
 
     /** Acrescenta uma entrada a partir de TEXTO (UTF-8). */
@@ -661,9 +720,9 @@ class ZipWriter {
             zipU16Put(rec, 4, 20)                      // version made by
             zipU16Put(rec, 6, 20)                      // version needed
             zipU16Put(rec, 8, 2048)                    // bit 11 = UTF-8
-            zipU16Put(rec, 10, 0)                      // método 0
+            zipU16Put(rec, 10, this.methods.get(i))    // #993: método POR ENTRADA
             zipU32Put(rec, 16, this.crcs.get(i))
-            zipU32Put(rec, 20, this.sizes.get(i))
+            zipU32Put(rec, 20, this.compSizes.get(i))
             zipU32Put(rec, 24, this.sizes.get(i))
             zipU16Put(rec, 28, nameBytes.length)
             zipU32Put(rec, 42, this.offsets.get(i))
