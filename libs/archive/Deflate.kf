@@ -71,14 +71,68 @@ class DeflateOut {
         }
     }
 
-    // the whole stream for `data`: one final literals-only block
+    // the whole stream for `data`: one final block with LZ77 matches +
+    // literals (#993 fatia 1b — compression becomes real)
     Int finish(Int[] data) {
         this.writeBits(1, 1)
         this.writeBits(1, 2)
+        var head = new Int[32768]
+        var prev = new Int[data.length]
+        var w = 0
+        while (w < 32768) {
+            head[w] = -1
+            w = w + 1
+        }
         var i = 0
         while (i < data.length) {
-            this.writeLiteral(data[i] & 255)
-            i = i + 1
+            var best = 0
+            var bestDist = 0
+            if (i + 2 < data.length) {
+                var h = this.hash3(data, i)
+                var cand = head[h]
+                var chain = 0
+                while (cand >= 0 && chain < 64) {
+                    var dist = i - cand
+                    if (dist <= 0 || dist > 32768) { cand = -1 } else {
+                        var m = 0
+                        var cap = data.length - i
+                        if (cap > 258) { cap = 258 }
+                        while (m < cap && data[cand + m] == data[i + m]) {
+                            m = m + 1
+                        }
+                        if (m > best) {
+                            best = m
+                            bestDist = dist
+                            if (m >= cap) { cand = -1 }
+                        }
+                    }
+                    if (cand >= 0) {
+                        cand = prev[cand]
+                        chain = chain + 1
+                    }
+                }
+            }
+            if (i + 2 < data.length) {
+                var h2 = this.hash3(data, i)
+                prev[i] = head[h2]
+                head[h2] = i
+            }
+            if (best >= 3) {
+                this.writePair(best, bestDist)
+                var skip = 1
+                while (skip < best) {
+                    if (i + skip + 2 < data.length) {
+                        var h3 = this.hash3(data, i + skip)
+                        prev[i + skip] = head[h3]
+                        head[h3] = i + skip
+                    }
+                    skip = skip + 1
+                }
+                i = i + best
+            } else {
+                this.writeLiteral(data[i] & 255)
+                i = i + 1
+            }
         }
         this.writeCode(0, 7)
         if (this.bitCnt > 0) {
@@ -88,5 +142,51 @@ class DeflateOut {
             this.bitCnt = 0
         }
         return this.len
+    }
+
+    Int hash3(Int[] data, Int i) {
+        return ((data[i] & 255) * 65536 + (data[i + 1] & 255) * 256 + (data[i + 2] & 255)) & 32767
+    }
+
+    // the FIXED length code (sym 257-285) for a match length, with extra bits
+    writePair(Int length, Int dist) {
+        var li = 0
+        var bases = listOf(3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258)
+        var extras = listOf(0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0)
+        while (li < 28 && bases.get(li + 1) <= length) {
+            li = li + 1
+        }
+        var base = bases.get(li)
+        var extraBits = extras.get(li)
+        var extra = length - base
+        var sym = 257 + li
+        // FIXED: symbols 256-279 are 7 bits; 280-287 are 8 bits with codes
+        // 192-199 (sym - 280 + 192) — the SAME transform writeLiteral applies.
+        // Emitting the raw symbol here was the -2 residual (#993 fatia 1b).
+        if (sym < 280) {
+            this.writeCode(sym, 7)
+        } else {
+            this.writeCode(sym - 280 + 192, 8)
+        }
+        if (extraBits > 0) {
+            this.writeBits(extra, extraBits)
+        }
+        this.writeDist(dist)
+    }
+
+    // the FIXED distance code (5 bits, dsym 0-29) + extra bits
+    writeDist(Int dist) {
+        var dsym = 0
+        var bases = listOf(1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577)
+        var extras = listOf(0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13)
+        while (dsym < 29 && bases.get(dsym + 1) <= dist) {
+            dsym = dsym + 1
+        }
+        var extraBits = extras.get(dsym)
+        var extra = dist - bases.get(dsym)
+        this.writeCode(dsym, 5)
+        if (extraBits > 0) {
+            this.writeBits(extra, extraBits)
+        }
     }
 }
