@@ -43,14 +43,18 @@ class LanguageCoreSurfaceTest {
 
     @Test
     void reservedKeywordsAreExactlyTheFrozenSet() throws Exception {
+        // #1068/#1138: `audited`/`generated`/`unique` are CONTEXTUAL now
+        // (maintainer decision 05/11, #1118) — they lex as IDENTIFIER and the
+        // parser reads them by word (unique/generated after an entity field's
+        // type, audited before entity). OFF the reserved list by decision.
         Set<String> golden = new TreeSet<>(List.of(
-            "abstract", "as", "assert", "audited", "await", "bool", "break", "byte", "case", "catch", "char", "class",
+            "abstract", "as", "assert", "await", "bool", "break", "byte", "case", "catch", "char", "class",
             "continue", "default", "do", "double", "else", "entity", "enum", "extends", "extern", "false",
-            "final", "finally", "float", "fn", "for", "fun", "func", "generated", "if", "implements",
+            "final", "finally", "float", "fn", "for", "fun", "func", "if", "implements",
             "import", "instanceof", "int", "interface", "long", "native", "new", "null", "override",
             "package", "private", "protected", "public", "record", "return", "short", "spawn", "static",
             "string", "super", "switch", "synchronized", "this", "throw", "transient", "true", "try",
-            "unique", "val", "var", "void", "volatile", "while"));
+            "val", "var", "void", "volatile", "while"));
         Set<String> actual = lexerKeywords();
         Set<String> extra = new TreeSet<>(actual);
         extra.removeAll(golden);

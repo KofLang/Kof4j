@@ -29,18 +29,27 @@ class ListAddArityTest {
     }
 
     @Test
-    void addWithIndexIsRejectedSem072(@TempDir Path tempDir) throws Exception {
+    void addWithIndexInsertsAndShifts(@TempDir Path tempDir) throws Exception {
+        // #1120 (maintainer batch decision 05/11): add(index, value) is the
+        // POSITIONAL INSERT — the old SEM072 rejection (#336) existed because
+        // the insert broke differently per target; the honest per-target
+        // handlers landed (ArrayList.add(int,E) / splice / interpreter shift).
         CompilationResult r = compile(tempDir, """
                 main() {
                     var list = listOf(1, 3, 5)
                     list.add(1, 2)
                     println(list.get(1))
+                    println(list)
                 }
                 """, Target.JVM);
-        assertFalse(r.success(), "2-arg List.add must be rejected (#336 — old code compiled and VerifyErrored on load)");
-        String d = r.diagnostics().getDiagnostics().toString();
-        assertTrue(d.contains("SEM072"), "must carry SEM072: " + d);
-        assertTrue(d.contains("set(index, value)"), "must point at the real API: " + d);
+        assertTrue(r.success(), "2-arg List.add must compile as the positional insert: "
+                + r.diagnostics().getDiagnostics());
+        String javaCmd = System.getProperty("java.home") + "/bin/java";
+        Process p = new ProcessBuilder(javaCmd, "-cp", tempDir.resolve("out-JVM").toString(), "Default.Main")
+                .redirectErrorStream(true).start();
+        String out = new String(p.getInputStream().readAllBytes()).replace("\r\n", "\n").trim();
+        assertEquals(0, p.waitFor());
+        assertEquals("2\n[1, 2, 3, 5]", out, "insert shifts the tail");
     }
 
     @Test
@@ -48,30 +57,39 @@ class ListAddArityTest {
         // rule 5: the SAME diagnostic on every backend (JVM/Native/JS emit
         // artifacts; SCRIPT was measured via `kof run --target script` on the
         // reproducer — the semantic pass fires SEM072 before the interpret
-        // stage, so it is the same shared gate).
+        // stage, so it is the same shared gate). #1120: the 2-arg form is the
+        // insert now; the gate holds for 3+ arguments.
         for (Target t : new Target[]{Target.JVM, Target.NATIVE, Target.JS}) {
             CompilationResult r = compile(tempDir, """
                     main() {
                         var l = listOf(1, 2)
-                        l.add(0, 9)
+                        l.add(0, 9, 9)
                     }
                     """, t);
-            assertFalse(r.success(), t + ": 2-arg add must be rejected");
+            assertFalse(r.success(), t + ": 3-arg add must be rejected");
             assertTrue(r.diagnostics().getDiagnostics().toString().contains("SEM072"),
                     t + ": must be SEM072 (universal gate): " + r.diagnostics().getDiagnostics());
         }
     }
 
     @Test
-    void pushAndAppendShareTheGuard(@TempDir Path tempDir) throws Exception {
+    void pushAndAppendShareTheInsert(@TempDir Path tempDir) throws Exception {
+        // #1120: push/append share the insert face (2 args = positional
+        // insert through the same kof_list_insert).
         CompilationResult r = compile(tempDir, """
                 main() {
                     var l = listOf(1, 2)
                     l.push(0, 3)
+                    println(l)
                 }
                 """, Target.JVM);
-        assertFalse(r.success(), "push(i,v) is the same non-existent insert (#336 family)");
-        assertTrue(r.diagnostics().getDiagnostics().toString().contains("SEM072"));
+        assertTrue(r.success(), "2-arg push compiles as the insert: " + r.diagnostics().getDiagnostics());
+        String javaCmd = System.getProperty("java.home") + "/bin/java";
+        Process p = new ProcessBuilder(javaCmd, "-cp", tempDir.resolve("out-JVM").toString(), "Default.Main")
+                .redirectErrorStream(true).start();
+        String out = new String(p.getInputStream().readAllBytes()).replace("\r\n", "\n").trim();
+        assertEquals(0, p.waitFor());
+        assertEquals("[3, 1, 2]", out, "push(i,v) inserts at the front");
     }
 
     @Test

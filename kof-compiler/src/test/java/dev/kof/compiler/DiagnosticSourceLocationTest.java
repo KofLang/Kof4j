@@ -101,18 +101,19 @@ class DiagnosticSourceLocationTest {
     }
 
     // (e) sites de chamada de membro (MemberCallTyper): SEM072 (aridade do
-    // `List.add`) e SEM025 (método inexistente em classe do módulo) — ambos com
-    // a posição do call-site.
+    // `List.add` — #1120: o insert posicional de 2 args agora É válido, então
+    // a face de rejeição é a aridade 3) e SEM025 (método inexistente em
+    // classe do módulo) — ambos com a posição do call-site.
     @Test
     void memberCallTypeErrorSitesReportSourceLocation(@TempDir Path tmp) throws IOException {
         CompilationResult r = compile(tmp, "E072.kf", """
                 main() {
                     var dsq72 = listOf(1)
-                    dsq72.add(9, 8)
+                    dsq72.add(9, 8, 7)
                     println(dsq72.size())
                 }
                 """);
-        assertCodeAtSource(r, "SEM072", "add com dois argumentos");
+        assertCodeAtSource(r, "SEM072", "add com três argumentos");
 
         CompilationResult r2 = compile(tmp, "E025.kf", """
                 class Pdsq25 {

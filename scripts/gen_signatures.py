@@ -154,6 +154,7 @@ BASE = {
         ("dedent", ['dedent(String s) -> String']),
         ("repeat", ['repeat(String s, Int n) -> String']),
         ("truncate", ['truncate(String s, Int n) -> String']),
+        ("join", ['join(List<String> xs, String sep) -> String']),
         ("indent", ['indent(String s, Int n) -> String']),
         ("padLeft", ['padLeft(String s, Int n, String pad) -> String']),
         ("padRight", ['padRight(String s, Int n, String pad) -> String']),

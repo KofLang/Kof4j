@@ -202,6 +202,7 @@ public final class StdCatalog {
                     Map.entry("dedent", List.of("dedent(String s) -> String")),
                     Map.entry("repeat", List.of("repeat(String s, Int n) -> String")),
                     Map.entry("truncate", List.of("truncate(String s, Int n) -> String")),
+                    Map.entry("join", List.of("join(List<String> xs, String sep) -> String")),
                     Map.entry("indent", List.of("indent(String s, Int n) -> String")),
                     Map.entry("padLeft", List.of("padLeft(String s, Int n, String pad) -> String")),
                     Map.entry("padRight", List.of("padRight(String s, Int n, String pad) -> String")))),

@@ -16,7 +16,10 @@ final class JsRuntimeFormatTyped {
 
     private JsRuntimeFormatTyped() {}
 
-    static final String FORMAT_TYPED_RUNTIME = """
+    // sem `final` literal: o guard §257 (RuntimeConstantInliningGuardTest)
+    // pega campo final com ConstantValue inlined nos consumidores cross-class
+    // (o build incremental não recompila quem já copiou o literal)
+    static String FORMAT_TYPED_RUNTIME = """
             export function kofFormatTyped(x, kind) {
                 if (kind !== "D" && kind !== "F" && kind !== "L") return kofFormat(x);
                 const fmt = v => {

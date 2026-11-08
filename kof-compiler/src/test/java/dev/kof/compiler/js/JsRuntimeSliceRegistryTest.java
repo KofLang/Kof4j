@@ -40,6 +40,7 @@ class JsRuntimeSliceRegistryTest {
                 .append(JsRuntimeUiRng.RNG_RUNTIME)
                 .append(JsRuntimeUiMathDouble.MATH_DOUBLE_RUNTIME)
                 .append(JsRuntimeUiNumFmt.NUM_FMT_RUNTIME)
+                .append(JsRuntimeFormatTyped.FORMAT_TYPED_RUNTIME)  // #1120: bloco "format-typed"
                 .append(JsRuntimeBuffer.BUFFER_RUNTIME)
                 .append(JsRuntimeUiNet.NET_RUNTIME)
                 .append(JsRuntimeUiUuid.UUID_RUNTIME)
