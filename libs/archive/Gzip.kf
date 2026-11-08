@@ -1,5 +1,6 @@
 package archive
 
+import archive.Deflate
 import archive.Zip
 import image.Inflate
 
@@ -183,19 +184,49 @@ class GzipWriter {
     Int crcState
     Int total
     Bool started
+    Int method
+    List<Int> deflatedData
 
+    /** STORED (método 0) — o comportamento histórico, byte a byte. */
     public constructor(String path) {
         this.path = path
         this.crcState = -1
         this.total = 0
         this.started = false
+        this.method = 0
+        this.deflatedData = listOf<Int>()
     }
 
-    /** Acrescenta bytes ao membro. Cada pedaço vira blocos STORED de até
-     *  65535 bytes; `data` vazio só garante o cabeçalho. */
+    /** #993: método 8 = o membro sai COMPRESSIDO pelo DeflateOut da própria
+     *  biblioteca (blocos FIXED + LZ77); método 0 = STORED como antes. O CRC
+     *  e o ISIZE são sobre os bytes NÃO comprimidos nos dois casos. Outro
+     *  valor recusa honesto na primeira escrita. */
+    public constructor(String path, Int method) {
+        this.path = path
+        this.crcState = -1
+        this.total = 0
+        this.started = false
+        this.method = method
+        this.deflatedData = listOf<Int>()
+    }
+
+    /** Acrescenta bytes ao membro. STORED: cada pedaço vira blocos de até
+     *  65535 bytes; `data` vazio só garante o cabeçalho. Método 8: o membro é
+     *  retido e comprimido uma única vez no `close()` (o DeflateOut emite um
+     *  bloco final único). O CRC é acumulado nos dois casos. */
     void addBytes(Int[] data) {
         if (!this.started) {
             this.writeHeader()
+        }
+        this.crcState = zipCrc32State(this.crcState, data, data.length)
+        this.total = this.total + data.length
+        if (this.method == 8) {
+            var i = 0
+            while (i < data.length) {
+                this.deflatedData.add(data[i] & 255)
+                i = i + 1
+            }
+            return
         }
         var i = 0
         while (i < data.length) {
@@ -218,8 +249,6 @@ class GzipWriter {
             File(this.path).appendBytes(block)
             i = i + n
         }
-        this.crcState = zipCrc32State(this.crcState, data, data.length)
-        this.total = this.total + data.length
     }
 
     /** Acrescenta TEXTO (UTF-8) ao membro. */
@@ -233,11 +262,30 @@ class GzipWriter {
         if (!this.started) {
             this.writeHeader()
         }
-        var finalBlock = new Int[5]
-        finalBlock[0] = 1                           // BFINAL=1, BTYPE=00 (+ padding)
-        finalBlock[3] = 255                         // NLEN = 0xFFFF (LEN = 0)
-        finalBlock[4] = 255
-        File(this.path).appendBytes(finalBlock)
+        if (this.method == 8) {
+            // #993: um único bloco final comprimido (BFINAL=1 pelo finish)
+            var arr = new Int[this.deflatedData.size()]
+            var idx = 0
+            while (idx < this.deflatedData.size()) {
+                arr[idx] = this.deflatedData.get(idx)
+                idx = idx + 1
+            }
+            var enc = DeflateOut(this.total * 2 + 64)
+            var n = enc.finish(arr)
+            var out = new Int[n]
+            var b = 0
+            while (b < n) {
+                out[b] = enc.bytes[b] & 255
+                b = b + 1
+            }
+            File(this.path).appendBytes(out)
+        } else {
+            var finalBlock = new Int[5]
+            finalBlock[0] = 1                       // BFINAL=1, BTYPE=00 (+ padding)
+            finalBlock[3] = 255                     // NLEN = 0xFFFF (LEN = 0)
+            finalBlock[4] = 255
+            File(this.path).appendBytes(finalBlock)
+        }
         var trailer = new Int[8]
         var crc = this.crcState ^ -1
         trailer[0] = crc & 255
