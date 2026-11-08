@@ -51,10 +51,8 @@ final class PrimitiveConversionLowerer {
                         + TypeMetrics.primitiveName(target), "SEM090");
         }
         driver.emitWideningIfNeeded(ops, recvType, target);
-        if (target instanceof Type.PrimitiveType tp
-                && ("char".equals(tp.name()) || "Char".equals(tp.name()))) {
-            ops.add(new KofUnary(KofUnaryOp.I2C, recvType));
-        }
+        // #1087: the byte/short/char narrow ops (incl. the wide→Int step)
+        // live in emitPrimNarrow now.
         driver.emitPrimNarrow(ops, recvType, target);
         return localIdx;
     }

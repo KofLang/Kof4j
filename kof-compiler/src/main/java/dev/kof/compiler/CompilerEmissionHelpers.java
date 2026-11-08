@@ -179,13 +179,22 @@ public final class CompilerEmissionHelpers {
         if (from.equals(to)) return;
         String fn = TypeMetrics.primitiveName(from);
         String tn = TypeMetrics.primitiveName(to);
+        // #1087: i2b/i2s/i2c are INT-WIDTH ops — a WIDE source (Long/Float/
+        // Double) must reach Int first (L2I/F2I/D2I) or the narrow op runs
+        // over the 2-slot value (VerifyError: bad operand stack). The store
+        // path already did this (emitStoreNarrow); the CAST path didn't.
+        KofUnaryOp wideStep = switch (fn) {
+            case "long", "Long" -> KofUnaryOp.L2I;
+            case "float", "Float" -> KofUnaryOp.F2I;
+            case "double", "Double" -> KofUnaryOp.D2I;
+            default -> null;
+        };
+        boolean narrowTarget = switch (tn) {
+            case "byte", "Byte", "short", "Short", "char", "Char" -> true;
+            default -> false;
+        };
         KofUnaryOp conv = switch (tn) {
-            case "int", "Int" -> switch (fn) {
-                case "long", "Long" -> KofUnaryOp.L2I;
-                case "float", "Float" -> KofUnaryOp.F2I;
-                case "double", "Double" -> KofUnaryOp.D2I;
-                default -> null;
-            };
+            case "int", "Int" -> wideStep;
             case "long", "Long" -> switch (fn) {
                 case "float", "Float" -> KofUnaryOp.F2L;
                 case "double", "Double" -> KofUnaryOp.D2L;
@@ -195,11 +204,17 @@ public final class CompilerEmissionHelpers {
             // so the value is truncated to the correct range before boxing
             case "byte", "Byte" -> KofUnaryOp.I2B;
             case "short", "Short" -> KofUnaryOp.I2S;
+            // #1087: as Char truncates like the JVM (char) cast — via Int
+            case "char", "Char" -> KofUnaryOp.I2C;
             default -> null;
         };
-        if (conv != null) {
-            ops.add(new KofUnary(conv, from));
+        if (conv == null) return;
+        if (narrowTarget && wideStep != null) {
+            ops.add(new KofUnary(wideStep, from));
+            ops.add(new KofUnary(conv, Type.PrimitiveType.INT));
+            return;
         }
+        ops.add(new KofUnary(conv, from));
     }
 
     /**

@@ -69,13 +69,10 @@ final class ExpressionBinaryInstanceOfLowerer {
         // NÃO checkcast (que exigiria um objeto na pilha)
         Type fromT = fromCastType;
         driver.emitWideningIfNeeded(ops, fromT, targetType);
-        if (targetType instanceof Type.PrimitiveType tp2
-                && ("char".equals(tp2.name()) || "Char".equals(tp2.name()))) {
-            ops.add(new KofUnary(KofUnaryOp.I2C, fromT));
-        }
         // narrowing numérico (cast explícito): L2I, F2I, D2I,
-        // F2L, D2L — sem isso FP→Int gerava bytecode inválido
-        // (bug 5) e Long→Int via wid().não cobria
+        // F2L, D2L + os estreitos byte/short/char (#1087: o passo
+        // largo→Int vem ANTES do i2b/i2s/i2c) — sem isso FP→Int gerava
+        // bytecode inválido (bug 5) e Long→Byte VerifyError
         driver.emitPrimNarrow(ops, fromT, targetType);
     } else {
         // bug 127: cast para TIPO-FUNÇÃO (`x as () -> Int`) — o alvo não é
