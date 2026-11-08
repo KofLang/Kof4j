@@ -178,6 +178,12 @@ public final class JsRuntimeIo {
                 return kof_platform.fileIsDir(p);
             }
 
+            // #995: a face REAL de symlink no JS (host: Files.isSymbolicLink) —
+            // o mesmo contrato Bool do JVM/Native; false para caminho ausente.
+            export function kofIoFileIsSymlink(p) {
+                return kof_platform.fileIsSymlink(p);
+            }
+
             export function kofIoReadText(p) {
                 return kof_platform.readText(p);
             }

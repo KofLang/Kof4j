@@ -87,6 +87,19 @@ public final class JsIfThrowElse {
                 // Deixa o dono (parseStatements do então envolvente) registrar
                 // o exit no seu `exits`.
                 if (out.isEmpty()) return out;
+                // Família #995: o Jump após o conteúdo do else é a saída DESTE
+                // if só quando o label seguinte NÃO é um false-label ENVOLVENTE
+                // ativo. No caso aninhado (if-com-throw dentro do then de outro
+                // if), o Jump(endAncestral) seguido de Label(falseAncestral)
+                // pertence ao ancestral: consumi-lo esvazia o thenExits do
+                // ancestral e um neto rouba o Label(end) — o epílogo caía
+                // dentro do else (Zip.readEntry devolvia undefined no caminho
+                // stored no JS; JVM/Script corretos). Deixa o dono consumir.
+                int nxt = pos[0] + 1;
+                if (nxt < ctx.ops.size() && ctx.ops.get(nxt) instanceof KofLabel nl
+                        && ctx.isEnclosingIfFalse(nl.label())) {
+                    return out;
+                }
                 pos[0]++;
                 return out;
             }

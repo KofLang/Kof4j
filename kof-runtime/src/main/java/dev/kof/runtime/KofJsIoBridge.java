@@ -39,6 +39,11 @@ final class KofJsIoBridge {
         platform.put("fileExists", (ProxyExecutable) args -> Files.exists(Path.of(args[0].asString())));
         platform.put("fileIsFile", (ProxyExecutable) args -> Files.isRegularFile(Path.of(args[0].asString())));
         platform.put("fileIsDir", (ProxyExecutable) args -> Files.isDirectory(Path.of(args[0].asString())));
+        // #995: a face REAL de link simbólico no JS — mesmo contrato Bool do
+        // JVM/Native (Files.isSymbolicLink devolve false para caminho ausente,
+        // nunca lança). O overwrite-guard do Zip.extractTo deixa de matar o
+        // import inteiro da biblioteca no alvo JS.
+        platform.put("fileIsSymlink", (ProxyExecutable) args -> Files.isSymbolicLink(Path.of(args[0].asString())));
         platform.put("readText", (ProxyExecutable) args -> readFileText(args));
         platform.put("writeText", (ProxyExecutable) args -> writeFileText(args, false));
         platform.put("appendText", (ProxyExecutable) args -> writeFileText(args, true));

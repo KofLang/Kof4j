@@ -43,7 +43,10 @@ final class ExpressionBuiltinInstanceCalls {
     private static final Set<String> JS_MISSING_IO = Set.of(
             "kof_io_read_range", "kof_io_read_range_path",
             "kof_io_file_copy_to", "kof_io_file_move_to",
-            "kof_io_file_modified_time", "kof_io_file_is_symlink",
+            "kof_io_file_modified_time",
+            // #995: kof_io_file_is_symlink SAIU — o host JS ganhou a ligação
+            // real (kof_platform.fileIsSymlink → Files.isSymbolicLink), então a
+            // face deixa de ser recusada e `import archive.Zip` compila inteiro.
             "kof_io_path_real_path");
 
     /** Diagnóstico de gap honesto (R6) numa chamada kof.web. */
