@@ -166,13 +166,14 @@ class JdkGenericsE2ETest {
     }
 
     @Test
-    void optionalPrimitiveFactoryStaysRawJvm(@TempDir Path tmp) throws Exception {
-        // Boundary (honest): a PRIMITIVE argument is NOT substituted by this
-        // slice (the box/unbox face is its own slice) — the factory still
-        // resolves (the erased Object param accepts the boxed int) and the
-        // raw-path get() prints the value through the Object dispatch. This
-        // probe also pins the owner-"" ClassFormatError the cycle measured:
-        // the erased-typed local must emit a REAL owner for get().
+    void optionalPrimitiveFactoryTypedAndUnboxedJvm(@TempDir Path tmp) throws Exception {
+        // #1124 slice 3: a PRIMITIVE argument IS the type argument (the Kof
+        // semantic view is Optional<Int>; descriptors erase anyway) and get()
+        // OPENS THE BOX at the call site (CHECKCAST Integer + intValue) — the
+        // stack leaves raw int, so arithmetic/comparison/store/println are the
+        // standard Int faces. This probe originally pinned the raw-path
+        // ClassFormatError ("stays raw"); the OUTPUT is unchanged (42) while
+        // the mechanism became typed+unboxed.
         compileAndRun(tmp, """
                 import java.util.Optional
                 main() {
@@ -180,6 +181,30 @@ class JdkGenericsE2ETest {
                     println(o.get())
                 }
                 """, "42");
+    }
+
+    @Test
+    void optionalPrimitiveUnboxFeedsEveryConsumerJvm(@TempDir Path tmp) throws Exception {
+        // The #166 lesson made instrument-first the rule: the unbox AT THE
+        // CALL SITE normalizes the stack, so every downstream consumer sees
+        // the primitive faces. Arithmetic, comparison, typed store, Double,
+        // Bool and Long — one probe each, all against the JVM oracle.
+        compileAndRun(tmp, """
+                import java.util.Optional
+                main() {
+                    var o = Optional.of(42)
+                    println(o.get() + 1)
+                    if (o.get() > 40) { println("gt-ok") }
+                    var n: Int = o.get()
+                    println(n * 2)
+                    var d = Optional.of(1.5)
+                    println(d.get() + 0.5)
+                    var b = Optional.of(true)
+                    if (b.get()) { println("bool-ok") }
+                    var l = Optional.of(7L)
+                    println(l.get() + 1L)
+                }
+                """, "43\ngt-ok\n84\n2.0\nbool-ok\n8");
     }
 
     @Test

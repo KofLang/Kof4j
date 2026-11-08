@@ -6,6 +6,7 @@ import dev.kof.compiler.JdkReflectionResolver;
 import dev.kof.compiler.KofCall;
 import dev.kof.compiler.KofCallKind;
 import dev.kof.compiler.BuiltinTypes;
+import dev.kof.compiler.TypeMetrics;
 import dev.kof.compiler.Type;
 import static org.objectweb.asm.Opcodes.*;
 
@@ -84,6 +85,7 @@ final class JvmCallEmission {
                 // semântico (store, chamada em cadeia, boxing do println)
                 // já espera na pilha.
                 String castAfter = null;
+                String unboxAfter = null;
                 if ((kc.kind() == KofCallKind.INSTANCE || kc.kind() == KofCallKind.INTERFACE)
                         && owner.contains("/") && JdkReflectionResolver.isJdkClass(owner)) {
                     var erasedSig = JdkReflectionResolver.resolveJdkMethod(
@@ -96,6 +98,27 @@ final class JvmCallEmission {
                                 erasedSig.returnDescriptor());
                         desc = JvmTypeMapper.toMethodDescriptor(erasedRet, kc.parameterTypes());
                         castAfter = JvmTypeMapper.toInternalName(subCt.packageName(), subCt.name());
+                    }
+                    // #1124 fatia 3: retorno substituído PRIMITIVO sobre um sig
+                    // apagado de REFERÊNCIA (Optional<Int>.get() → Int; o
+                    // runtime devolve o box Integer) — o descritor é o APAGADO
+                    // e o box é aberto NO PONTO DE CHAMADA (CHECKCAST boxed +
+                    // unbox): a pilha sai int CRU, o tipo semântico e o da
+                    // pilha CONCORDAM em todo consumidor
+                    // (aritmética/comparação/store/println — as faces padrão
+                    // de Int).
+                    if (erasedSig != null && !erasedSig.returnDescriptor().equals(
+                            JvmTypeMapper.toDescriptor(kc.returnType()))
+                            && kc.returnType() instanceof Type.PrimitiveType unPt
+                            && (erasedSig.returnDescriptor().startsWith("L")
+                                    || erasedSig.returnDescriptor().startsWith("["))) {
+                        Type erasedRet = ExternalClasspath.typeFromDescriptor(
+                                erasedSig.returnDescriptor());
+                        desc = JvmTypeMapper.toMethodDescriptor(erasedRet, kc.parameterTypes());
+                        Type boxedT = TypeMetrics.boxedTypeFor(unPt);
+                        castAfter = boxedT instanceof Type.ClassType bc
+                                ? JvmTypeMapper.toInternalName(bc.packageName(), bc.name()) : null;
+                        unboxAfter = JvmOpCollections.unboxMethodName(unPt);
                     }
                 }
                 boolean isInterfaceOwner = false;
@@ -125,6 +148,10 @@ final class JvmCallEmission {
                 }
                 if (castAfter != null) {
                     c.mv().visitTypeInsn(CHECKCAST, castAfter);
+                    if (unboxAfter != null) {
+                        c.mv().visitMethodInsn(INVOKEVIRTUAL, castAfter, unboxAfter,
+                                "()" + JvmTypeMapper.toDescriptor(kc.returnType()), false);
+                    }
                 }
             }
 

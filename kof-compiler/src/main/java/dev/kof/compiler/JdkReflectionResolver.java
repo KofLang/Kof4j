@@ -343,6 +343,15 @@ public final class JdkReflectionResolver {
                 }
                 if (paramPos < 0) return null;
                 Type arg = argumentTypes.get(paramPos);
+                // #1124 fatia 3: um PRIMITIVO é aceito como type argument — a
+                // visão semântica Kof é Optional<Int> (os descritores apagam
+                // de qualquer forma; o box/unbox é emitido no ponto de
+                // chamada). Nullable, array e genérico profundo seguem
+                // rejeitados (as faces box-cast e cast-aninhado são fatias
+                // próprias).
+                if (arg instanceof Type.PrimitiveType) {
+                    return new Type.ClassType(rc.packageName(), rc.name(), List.of(arg));
+                }
                 if (!(arg instanceof Type.ClassType act) || !act.typeArguments().isEmpty()) {
                     return null;
                 }
