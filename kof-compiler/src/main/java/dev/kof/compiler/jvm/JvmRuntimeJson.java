@@ -115,6 +115,11 @@ public final class JvmRuntimeJson {
                     if (value instanceof Boolean b) return kof_json_encode_bool(b ? 1 : 0);
                     if (value instanceof Float f) return kof_json_encode_float(f);
                     if (value instanceof Double d) return kof_json_encode_double(d);
+                    // #1085: Byte/Short codificam como números JSON — sem isto o
+                    // box caía no encoder reflexivo, que alcançava
+                    // Byte.value (InaccessibleObjectException no JVM).
+                    if (value instanceof Byte b) return Integer.toString(b);
+                    if (value instanceof Short sh) return Integer.toString(sh);
                     if (value instanceof List<?> l) {
                         StringBuilder sb = new StringBuilder("[");
                         for (int i = 0; i < l.size(); i++) {
@@ -268,6 +273,19 @@ public final class JvmRuntimeJson {
                     }
                     if (type == char.class || type == Character.class) {
                         return value.toString().charAt(0);
+                    }
+                    // #1085: alvo ARRAY (record com componente Byte[] etc.) —
+                    // a lista JSON é construída elemento a elemento pelo tipo
+                    // do componente (a coerção escalar de cima já cobre
+                    // Byte/Short via Number). Sem isto a lista chegava ao slot
+                    // como List (`argument type mismatch` na reflexão).
+                    if (type.isArray() && value instanceof List<?> al) {
+                        Class<?> comp = type.getComponentType();
+                        Object out = java.lang.reflect.Array.newInstance(comp, al.size());
+                        for (int i = 0; i < al.size(); i++) {
+                            java.lang.reflect.Array.set(out, i, bindByType(comp, al.get(i)));
+                        }
+                        return out;
                     }
                     if (type.isAssignableFrom(ArrayList.class) || type == List.class || type == java.util.Collection.class) {
                         if (value instanceof List<?> l) {

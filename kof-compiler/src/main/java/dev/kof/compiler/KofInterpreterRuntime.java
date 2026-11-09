@@ -291,6 +291,34 @@ public final class KofInterpreterRuntime {
                     : KofInterpreterValues.coerceFor(elem, e));
             return out;
         }
+        // #1085: alvo ARRAY (`Byte[]` etc.) — a lista JSON é construída
+        // elemento a elemento pelo tipo do componente (o mirror do
+        // kof_json_bind JVM). Sem isto a lista chegava ao slot como List
+        // ("Argument is not an array" no interpretador).
+        if (raw instanceof List<?> al && type instanceof Type.ArrayType at) {
+            Type comp = at.componentType();
+            Object out = interp.builtins.newArray(comp, al.size());
+            for (int i = 0; i < al.size(); i++) {
+                Object e = al.get(i);
+                Object cv = KofInterpreterValues.coerceFor(comp, e);
+                // componente BOXADO (Byte[] é ClassType, não primitivo — o
+                // coerceFor só cobre primitivos): o número JSON chega Integer
+                // e o slot pede o wrapper.
+                if (cv instanceof Integer iv && comp instanceof Type.ClassType ctc
+                        && "java.lang".equals(ctc.packageName())) {
+                    cv = switch (ctc.name()) {
+                        case "Byte" -> iv.byteValue();
+                        case "Short" -> iv.shortValue();
+                        case "Long" -> (long) iv;
+                        case "Double" -> (double) iv;
+                        case "Float" -> (float) iv;
+                        default -> cv;
+                    };
+                }
+                java.lang.reflect.Array.set(out, i, cv);
+            }
+            return out;
+        }
         // #633: `Map<K,V>` com V composto (record/Map/List) — recursa nos
         // valores pelo type-arg (espelho do kof_json_bind JVM). Sem isto um
         // campo `Map<String,E>` ficava como mapa cru (valores LinkedHashMap).
