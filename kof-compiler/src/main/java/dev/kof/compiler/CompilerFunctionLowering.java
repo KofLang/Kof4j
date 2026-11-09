@@ -104,8 +104,12 @@ Type vt = vds.type() != null && !"var".equals(vds.type())
         }
         java.util.Set<String> savedMutated = driver.mutatedCapturedNames;
         driver.mutatedCapturedNames = new java.util.HashSet<>();
-        java.util.Deque<CompilerDriverState.FinallyFrame> savedFrames = driver.finallyFrames;
+        java.util.Deque<CompilerDriverState.FinallyFrame> savedFrames = new java.util.ArrayDeque<>(driver.finallyFrames);
+        // #1130: savedFrames era a MESMA referência de driver.finallyFrames —
+        // clear() esvaziava as duas e o restore addAll não adicionava nada (o try
+        // envolvente não achava o frame para deslinkar → COMP002). CÓPIA agora.
         driver.finallyFrames.clear(); // DD-01: frame do finally externo não vaza p/ dentro
+        int savedTryDepth = driver.tryDepth;
         driver.tryDepth = 0; // §551: profundidade de try é por função
         // §538: o escopo de type-params da FUNÇÃO genérica passa a valer no
         // corpo (o method lowering de classe já o fazia) — sem isto
@@ -123,7 +127,8 @@ Type vt = vds.type() != null && !"var".equals(vds.type())
             driver.currentTypeParams = prevTypeParams;
         }
         driver.mutatedCapturedNames = savedMutated;
-        driver.finallyFrames.addAll(savedFrames); // DD-01: restaura
+        driver.tryDepth = savedTryDepth; // #1130: restaura a profundidade do envolvente
+        driver.finallyFrames.addAll(savedFrames); // DD-01: restaura (a CÓPIA)
         // #837: critério = ÚLTIMA STATEMENT (não o último op): um corpo
         // terminando em switch/while/try tem KofReturn nos braços (o último op
         // É KofReturn) mas o CONSTRUTO pode CAIR FORA e chegar ao fim com a

@@ -195,8 +195,12 @@ public final class CompilerLambdaClass {
         }
         java.util.Set<String> savedMutated = driver.mutatedCapturedNames;
         driver.mutatedCapturedNames = new java.util.HashSet<>();
-        java.util.Deque<CompilerDriverState.FinallyFrame> savedFrames = driver.finallyFrames;
+        java.util.Deque<CompilerDriverState.FinallyFrame> savedFrames = new java.util.ArrayDeque<>(driver.finallyFrames);
+        // #1130: savedFrames era a MESMA referência de driver.finallyFrames —
+        // clear() esvaziava as duas e o restore addAll não adicionava nada (o try
+        // envolvente não achava o frame para deslinkar → COMP002). CÓPIA agora.
         driver.finallyFrames.clear(); // DD-01: frame do finally externo não vaza p/ dentro
+        int savedTryDepth = driver.tryDepth;
         driver.tryDepth = 0; // §551: profundidade de try é por função
         // lambda não-void com corpo de expressão única: a expressão É o retorno
         // (ExpressionStmt emitiria POP e mataria o valor antes do areturn)
@@ -210,7 +214,8 @@ public final class CompilerLambdaClass {
             localIdx = driver.emitStatement(stmt, ops, name, localIdx, locals, returnType);
         }
         driver.mutatedCapturedNames = savedMutated;
-        driver.finallyFrames.addAll(savedFrames); // DD-01: restaura
+        driver.tryDepth = savedTryDepth; // #1130: restaura a profundidade do envolvente
+        driver.finallyFrames.addAll(savedFrames); // DD-01: restaura (a CÓPIA)
         // bug 19: lambda que RETORNA outra lambda — o lambda interno é
         // sintetizado durante a emissão do corpo acima; o className dele só
         // agora está disponível. Atualiza o returnType para o descriptor do
