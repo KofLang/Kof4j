@@ -46,9 +46,14 @@ final class JsExpressionStatementParser {
                 pos[0]++;
                 JsIr.JsExpression value = parser.pop(stack);
                 JsIr.JsExpression receiver = parser.pop(stack);
+                // #1107: a escrita usa o MESMO nome renomeado do emit da
+                // classe (o campo colidente carrega `$fld`; ver JsMemberNames).
                 JsIr.JsStatement stmt = new JsIr.JsExprStmt(new JsIr.JsBinary(
                         new JsIr.JsMember(receiver,
-                                ctx.recordClass ? "_" + JsTypeMapper.sanitizeName(sf.name()) : JsTypeMapper.sanitizeName(sf.name())), "=", value));
+                                ctx.recordClass ? "_" + JsTypeMapper.sanitizeName(sf.name())
+                                        : JsMemberNames.fieldJsName(parser.p.lc,
+                                                sf.ownerType() instanceof Type.ClassType sfc ? sfc.internalName() : null,
+                                                sf.name())), "=", value));
                 if (stack.isEmpty()) {
                     return parser.finishExpressionStatement(preamble, preambleExprs, stmt);
                 }

@@ -173,7 +173,13 @@ void consumeExpressionOp(MethodCtx ctx, int[] pos, List<Object> stack,
                         isRecordField = true;
                     }
                 }
-                stack.add(new JsIr.JsMember(receiver, isRecordField ? "_" + JsTypeMapper.sanitizeName(lf.name()) : JsTypeMapper.sanitizeName(lf.name())));
+                // #1107: a leitura usa o MESMO nome renomeado do emit da
+                // classe (o campo colidente carrega `$fld`; ver JsMemberNames).
+                stack.add(new JsIr.JsMember(receiver, isRecordField
+                        ? "_" + JsTypeMapper.sanitizeName(lf.name())
+                        : JsMemberNames.fieldJsName(p.lc,
+                                lf.ownerType() instanceof Type.ClassType lfc ? lfc.internalName() : null,
+                                lf.name())));
             }
             case KofGetStatic gs -> {
                 if ("java.lang".equals(JsTypeMapper.classPackage(gs.ownerType())) && "System".equals(JsTypeMapper.className(gs.ownerType()))

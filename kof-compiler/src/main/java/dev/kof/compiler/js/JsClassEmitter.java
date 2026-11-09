@@ -41,7 +41,12 @@ public final class JsClassEmitter {
         List<JsIr.JsField> fields = new ArrayList<>();
         for (IRField field : clazz.fields()) {
             boolean isStatic = (field.accessFlags() & AccessFlags.STATIC) != 0;
-            String fieldName = isRecord ? "_" + JsTypeMapper.sanitizeName(field.name()) : JsTypeMapper.sanitizeName(field.name());
+            // #1107: campo que colide com método ganha `$fld` no JS (a
+            // propriedade crua sombreava o prototype — `w.label()` virava
+            // TypeError); records mantêm a convenção `_name` deles.
+            String fieldName = isRecord
+                    ? "_" + JsTypeMapper.sanitizeName(field.name())
+                    : JsMemberNames.fieldJsName(p.lc, clazz.name(), field.name());
             fields.add(new JsIr.JsField(fieldName,
                     field.initialValue() != null ? JsTypeMapper.literalText(field.initialValue()) : null, isStatic));
         }
@@ -273,7 +278,10 @@ public final class JsClassEmitter {
                 || p.lc.recordClassNames.contains(clazz.name())) {
             return "_" + JsTypeMapper.sanitizeName(name);
         }
-        return JsTypeMapper.sanitizeName(name);
+        // #1107: a MESMA regra de colisão campo/método dos demais sites — o
+        // default-init do construtor (`this.label = null`) usava o nome cru
+        // e recriava a propriedade que sombreava o método do prototype.
+        return JsMemberNames.fieldJsName(p.lc, clazz.name(), name);
     }
 
     JsIr.JsFunction lowerConstructor(IRClass clazz, IRMethod method) {
