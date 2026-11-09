@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §936 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -20205,6 +20206,25 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
+
+## §936 — a source under a directory whose name is not a valid identifier (`.agent/`, `.hidden-x/`) derives an invalid package, so the JVM target fails with a mislabeled `COMP001` or a silent `ClassFormatError` (GitHub #999)
+
+**Status:** ✅ FIXED 09/11 (owner = 192.168.15.21:9092; issue [#999](https://github.com/KofLang/Kof4j/issues/999), open `1.0-blocks`).
+
+**MEASURED** (JVM target, `kof.toml` at the project root so the module root is the project, not the file's directory). A `class Box {}` + `main()` in `.agent/Main.kf`:
+- `.agent/Main.kf` with `kof.toml` → `COMP001 Error reading source file: /agent` (exit 1); the JVM tried `mkdir("/agent")` at the filesystem root (`strace`).
+- `sub/.agent/Main.kf` with `kof.toml` → `kof check` says "no errors" then `kof run` dies with `ClassFormatError: Illegal class name "sub//agent/Box"` — a FALSE GREEN.
+- `.hidden-x/` → the same, message `/hidden-x`.
+- The JS target was unaffected (a target divergence); without `kof.toml` the JVM was fine (the module root is the file's own directory, so the derived package is already `""`).
+
+**ROOT CAUSE:** `ModuleRoots.derivedPackageOf` returned the parent path verbatim (`rel.getParent().toString().replace(sep,'.')`), so a dot-prefixed directory yielded the package `.agent`. `JvmTypeMapper.toInternalName` then emitted `/agent/Box` (absolute → `outputDir.resolve` discards the output dir → EACCES, mislabeled `COMP001` by the `catch (IOException)` in `CompilerPipeline`) or `sub//agent/Box` (double slash → illegal class name at load). The contract (`docs/language-reference/modules.md` §1/§2) says `package` is optional and absent → package `""`; a directory name that is not a valid identifier cannot be a package.
+
+**Fix (two layers):**
+1. `ModuleRoots.derivedPackageOf` now rejects any path segment that is not a Kof identifier (`ModuleRoots.isPackageSegment`: letter/`_`/`$` first, then letter/digit/`_`/`$`) and falls back to the default package `""` — the contract's own rule.
+2. Defensive: `CompilerPipeline.lowerAndEmit` refuses an invalid JVM internal name before the emit (`firstInvalidInternalName`/`isValidInternalName`), with an honest `COMP004` diagnostic naming the class — so no future path can turn an invalid name into an EACCES or a silent `ClassFormatError`.
+
+**Proof:** `DotDirectoryPackageE2ETest` **5/5** (RED-first: 4/5 failed with the exact `COMP001: /agent` before the fix; the `.agent`, `sub/.agent`, `.hidden-x`, valid-directory control and no-`kof.toml` control faces) + `InternalNameValidationTest` **4/4** (the identifier rule and the defensive gate). Non-regression: `EnumPackagePlacementE2ETest` 7/7, `PackagesE2ETest` 12/12, `CompileForTestsSourcesModuleRootTest` 1/1, `OrmEntityPackageE2ETest` 2/2, `JsonDecodePackagedRecordE2ETest` 2/2.
+<!-- pt-switch --> **PT:** [§936 (pt_BR)](known-bugs.pt_BR.md#936--uma-fonte-sob-um-diretorio-cujo-nome-nao-e-um-identificador-valido-agent-hidden-x-deriva-um-pacote-invalido-entao-o-alvo-jvm-falha-com-um-comp001-mal-rotulado-ou-um-classformaterror-silencioso-github-999)
 
 ## §935 — a nullable-RETURN function type compiles but the emitted lambda class does not implement the functional interface — `IncompatibleClassChangeError` at the first call (JVM)
 

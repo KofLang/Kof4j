@@ -211,6 +211,19 @@ public final class CompilerPipeline {
         if (irModule == null) {
             return;
         }
+        // GitHub #999 (defensivo): um nome interno JVM inválido (iniciado por
+        // `/`, barra dupla, segmento vazio) nunca deve chegar ao emit — antes
+        // disso virava `outputDir.resolve("/agent/Box")` (absoluto, descarta o
+        // dir de saída → EACCES mascarado de COMP001) ou um ClassFormatError
+        // silencioso no load. Recusa honesta na ORIGEM (R6), com o nome.
+        String badInternal = firstInvalidInternalName(irModule);
+        if (badInternal != null) {
+            diagnostics.error(driver.currentSourceName, 0, 0, 0,
+                    "invalid class name '" + badInternal
+                            + "' — the source directory is not a valid package (COMP004)",
+                    "COMP004");
+            return;
+        }
         // UI001 (R6): kof.ui é no-op no Native — avisa UMA vez (aditivo, §KOFUI-AUDIT).
         UiTargetDiagnostics.warnIfNative(driver, irModule, diagnostics);
         Files.createDirectories(outputDir);
@@ -444,6 +457,29 @@ public final class CompilerPipeline {
         return merged;
     }
 
+
+    /**
+     * GitHub #999 — o primeiro nome interno JVM INVÁLIDO do módulo, ou null.
+     * Um nome interno válido é `a/b/C` com todo segmento não-vazio e formado
+     * por letras/dígitos/`_`/`$` (não começa por dígito). `/agent/Box`
+     * (absoluto), `sub//agent/Box` (barra dupla) e `"?.."` são inválidos.
+     */
+    static String firstInvalidInternalName(IRModule module) {
+        for (IRClass c : module.classes()) {
+            if (c.name() == null) continue;
+            if (!isValidInternalName(c.name())) return c.name();
+        }
+        return null;
+    }
+
+    static boolean isValidInternalName(String name) {
+        if (name == null || name.isEmpty()) return false;
+        if (name.startsWith("/") || name.endsWith("/") || name.contains("//")) return false;
+        for (String seg : name.split("/", -1)) {
+            if (!ModuleRoots.isPackageSegment(seg)) return false;
+        }
+        return true;
+    }
 
     static boolean isIntType(String t) {
         return "int".equals(t) || "Int".equals(t);

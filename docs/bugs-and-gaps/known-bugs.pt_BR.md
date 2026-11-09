@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §936 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
 last: §763 (FIXED)
@@ -17679,6 +17680,25 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Correção:** `isDirEntry` agora usa `e.name.endsWith("/")`, e `extractTo` lança um diagnóstico explícito quando `createDirectories()` ou `writeBytes()` devolve `false`, então uma escrita que falhou nunca é contada. Só biblioteca — sem mudança de núcleo, gramática ou runtime. **Prova:** `ZipExtractNestedE2ETest` 2/2 (JVM e Script) e `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 e aarch64 sob qemu); no código antigo os 5 falham. O alvo JS não foi medido.
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
+
+## §936 — uma fonte sob um diretório cujo nome não é um identificador válido (`.agent/`, `.hidden-x/`) deriva um pacote inválido, então o alvo JVM falha com um `COMP001` mal-rotulado ou um `ClassFormatError` silencioso (GitHub #999)
+
+**Status:** ✅ CORRIGIDO 09/11 (dono = 192.168.15.21:9092; issue [#999](https://github.com/KofLang/Kof4j/issues/999), `1.0-blocks` aberta).
+
+**MEDIDO** (alvo JVM, `kof.toml` na raiz do projeto para que a raiz do módulo seja o projeto, não o diretório do arquivo). Um `class Box {}` + `main()` em `.agent/Main.kf`:
+- `.agent/Main.kf` com `kof.toml` → `COMP001 Error reading source file: /agent` (saída 1); a JVM tentou `mkdir("/agent")` na raiz do sistema de arquivos (`strace`).
+- `sub/.agent/Main.kf` com `kof.toml` → `kof check` diz "no errors" e então `kof run` morre com `ClassFormatError: Illegal class name "sub//agent/Box"` — um FALSO-VERDE.
+- `.hidden-x/` → o mesmo, mensagem `/hidden-x`.
+- O alvo JS não era afetado (uma divergência de alvo); sem `kof.toml` a JVM estava bem (a raiz do módulo é o próprio diretório do arquivo, então o pacote derivado já é `""`).
+
+**CAUSA RAIZ:** `ModuleRoots.derivedPackageOf` devolvia o caminho do pai verbatim (`rel.getParent().toString().replace(sep,'.')`), então um diretório iniciado por ponto gerava o pacote `.agent`. `JvmTypeMapper.toInternalName` então emitia `/agent/Box` (absoluto → `outputDir.resolve` descarta o diretório de saída → EACCES, mal-rotulado `COMP001` pelo `catch (IOException)` em `CompilerPipeline`) ou `sub//agent/Box` (barra dupla → nome de classe ilegal no load). O contrato (`docs/language-reference/modules.md` §1/§2) diz que `package` é opcional e ausente → pacote `""`; um nome de diretório que não é um identificador válido não pode ser um pacote.
+
+**Correção (duas camadas):**
+1. `ModuleRoots.derivedPackageOf` agora rejeita qualquer segmento de caminho que não seja um identificador Kof (`ModuleRoots.isPackageSegment`: letra/`_`/`$` no início, depois letra/dígito/`_`/`$`) e cai no pacote default `""` — a própria regra do contrato.
+2. Defensivo: `CompilerPipeline.lowerAndEmit` recusa um nome interno JVM inválido antes do emit (`firstInvalidInternalName`/`isValidInternalName`), com um diagnóstico honesto `COMP004` nomeando a classe — para que nenhum caminho futuro transforme um nome inválido em EACCES ou num `ClassFormatError` silencioso.
+
+**Prova:** `DotDirectoryPackageE2ETest` **5/5** (RED-first: 4/5 falhavam com o exato `COMP001: /agent` antes da correção; as faces `.agent`, `sub/.agent`, `.hidden-x`, controle de diretório válido e controle sem `kof.toml`) + `InternalNameValidationTest` **4/4** (a regra de identificador e o gate defensivo). Não-regressão: `EnumPackagePlacementE2ETest` 7/7, `PackagesE2ETest` 12/12, `CompileForTestsSourcesModuleRootTest` 1/1, `OrmEntityPackageE2ETest` 2/2, `JsonDecodePackagedRecordE2ETest` 2/2.
+<!-- pt-switch --> **EN:** [§936 (en)](known-bugs.md#936--a-source-under-a-directory-whose-name-is-not-a-valid-identifier-agent-hidden-x-derives-an-invalid-package-so-the-jvm-target-fails-with-a-mislabeled-comp001-or-a-silent-classformaterror-github-999)
 
 ## §935 — tipo-função com retorno nulável compila mas a classe do lambda emitida não implementa a interface funcional — `IncompatibleClassChangeError` na primeira chamada (JVM)
 

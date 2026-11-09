@@ -42,6 +42,34 @@ public final class ModuleRoots {
         if (rel.getNameCount() <= 1) return "";
         Path parent = rel.getParent();
         if (parent == null || parent.toString().isEmpty()) return "";
+        // GitHub #999: um diretório cujo nome NÃO é um identificador Kof
+        // (`.agent`, `.hidden-x`) não pode ser um pacote. Sem esta guarda o
+        // pacote derivado vira `.agent` e o nome interno JVM `/agent/Box`
+        // (absoluto → outputDir.resolve descarta o diretório de saída →
+        // EACCES mascarado de COMP001) ou `sub//agent/Box` (barra dupla →
+        // ClassFormatError no load, um falso-verde do `kof check`). O
+        // contrato (modules.md §1/§2) manda: sem pacote válido → pacote
+        // default "". Qualquer segmento inválido torna o caminho inteiro
+        // não-representável como pacote, então o arquivo cai no default.
+        for (Path seg : parent) {
+            if (!isPackageSegment(seg.toString())) return "";
+        }
         return parent.toString().replace(java.io.File.separatorChar, '.');
+    }
+
+    /**
+     * Um segmento de diretório é um pacote válido quando é um identificador
+     * Kof (mesma regra do lexer: letra/`_`/`$` no início, depois
+     * letra/dígito/`_`/`$`). Vazio, iniciado por ponto ou com hífen não é.
+     */
+    static boolean isPackageSegment(String seg) {
+        if (seg == null || seg.isEmpty()) return false;
+        char first = seg.charAt(0);
+        if (!(Character.isLetter(first) || first == '_' || first == '$')) return false;
+        for (int i = 1; i < seg.length(); i++) {
+            char c = seg.charAt(i);
+            if (!(Character.isLetterOrDigit(c) || c == '_' || c == '$')) return false;
+        }
+        return true;
     }
 }
