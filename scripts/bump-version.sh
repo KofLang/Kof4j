@@ -7,8 +7,8 @@
 #   scripts/bump-version.sh [new-version]
 #
 # With no argument, it reads VERSION and rewrites the pom.xml <revision>
-# property and kof-compiler's version.properties. With an argument, it first
-# writes that value to VERSION and then syncs the derived files.
+# property, kof-compiler's version.properties and README.pt_BR/README.md current development section.
+# With an argument, it first writes that value to VERSION and then syncs the derived files.
 #
 # The pipeline (release.yml) calls this with the next version before packaging.
 set -euo pipefail
@@ -17,6 +17,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION_FILE="$ROOT/VERSION"
 POM="$ROOT/pom.xml"
 PROPS="$ROOT/kof-compiler/src/main/resources/dev/kof/version.properties"
+README="$ROOT/README.md"
+README_PTBR="$ROOT/README.pt_BR.md"
 
 if [ $# -ge 1 ]; then
     printf '%s\n' "$1" > "$VERSION_FILE"
@@ -50,6 +52,12 @@ kof.runtime.version=$COMPONENT_VERSION
 kof.stdlib.version=$COMPONENT_VERSION
 kof.tooling.api=21
 EOF
+
+# 3. README.md and README.pt_BR.md
+for file in README.md README.pt_BR.md; do
+    sed -i.bak -E "s|<!-- version -->**.***<!-- end_version -->|<!-- version -->**${VERSION}**<!-- end_version -->|" "$file"
+    rm -f "${file}.bak"
+done
 
 echo "synced pom.xml and $PROPS"
 echo "next release: $VERSION"
