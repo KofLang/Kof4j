@@ -578,6 +578,11 @@ public final class JvmRuntimeWebDispatch {
                     return req == null ? null : req.path;
                 }
 
+                public static String kof_web_remote_addr() {
+                    WebRequest req = KOF_WEB_REQUEST.get();
+                    return req == null || req.remoteAddr == null ? "" : req.remoteAddr;
+                }
+
 """;
     }
 }

@@ -346,6 +346,7 @@ global per JVM and returned as `String`.
 | `body()` | Raw request body |
 | `method()` | HTTP method ("GET", "POST", ...) |
 | `path()` | Request path |
+| `remoteAddr()` | TCP peer address of the request (`""` when unknown) — behind a proxy the client is the `x-forwarded-for` header (#1110) |
 | `status(code, body)` | Sets the response status and returns the body — use as a return (e.g.: `return status(201, "{\"ok\":true}")`) |
 | `headerSet(name, value)` | Adds a response header (e.g.: `headerSet("X-Total", "42")`) |
 

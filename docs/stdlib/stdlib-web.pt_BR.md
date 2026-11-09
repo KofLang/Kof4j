@@ -341,6 +341,7 @@ globais por JVM e devolvidas como `String`.
 | `body()` | Corpo cru da request |
 | `method()` | Método HTTP ("GET", "POST", ...) |
 | `path()` | Caminho da request |
+| `remoteAddr()` | Endereço TCP do peer da request (`""` quando desconhecido) — atrás de um proxy o cliente é o header `x-forwarded-for` (#1110) |
 | `status(code, body)` | Define o status da resposta e retorna o corpo — use como retorno (ex.: `return status(201, "{\"ok\":true}")`) |
 | `headerSet(name, value)` | Adiciona um header de resposta (ex.: `headerSet("X-Total", "42")`) |
 

@@ -54,7 +54,7 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_io_file_size", "kof_io_file_modified_time" -> "J";
             case "kof_io_dir_list" -> "Ljava/util/ArrayList;";
             case "kof_web_app_new", "kof_web_param", "kof_web_query", "kof_web_header",
-                    "kof_web_body", "kof_web_method", "kof_web_path",
+                    "kof_web_body", "kof_web_method", "kof_web_path", "kof_web_remote_addr",
                     "kof_web_status", "kof_web_header_set",
                     "kof_scheduler_every", "kof_scheduler_at" -> "Ljava/lang/String;";
             case "kof_config_get", "kof_config_env", "kof_config_str", "kof_config_required" -> "Ljava/lang/String;";

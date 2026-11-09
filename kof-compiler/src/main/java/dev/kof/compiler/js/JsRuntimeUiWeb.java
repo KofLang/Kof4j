@@ -130,6 +130,9 @@ public final class JsRuntimeUiWeb {
                         query: exchange.getRequestURI().getQuery(),
                         headers: exchange.getRequestHeaders(),
                         body: body,
+                        // #1110: o endereço TCP do peer (o mesmo dado que o
+                        // rate limiter do JVM usa como chave).
+                        remoteAddr: exchange.getRemoteAddress().getAddress().getHostAddress(),
                         paramsMap: matched || new Map(),
                         // §265 (JS): status/headerSet DEFERIDOS idem JVM
                         // (KOF_WEB_STATUS/KOF_WEB_HEADERS thread-local) — o
@@ -257,6 +260,10 @@ public final class JsRuntimeUiWeb {
             }
             export function kofWebPath() {
                 return kofWebRequest ? kofWebRequest.path : "";
+            }
+            export function kofWebRemoteAddr() {
+                return kofWebRequest && kofWebRequest.remoteAddr != null
+                        ? String(kofWebRequest.remoteAddr) : "";
             }
             export function kofWebStatus(code, text) {
                 // §265 (JS): defere — o pump aplica no envio (idem JVM:

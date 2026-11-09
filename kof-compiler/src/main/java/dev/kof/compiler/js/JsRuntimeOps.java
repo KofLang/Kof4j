@@ -320,6 +320,12 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
                 stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofWebPath"), List.of()));
                 return;
             }
+            // #1110: o endereço TCP do peer da requisição.
+            if (name.equals("kof_web_remote_addr") && args.isEmpty()) {
+                p.lc.registerRuntime("kofWebRemoteAddr");
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofWebRemoteAddr"), List.of()));
+                return;
+            }
             if (name.equals("kof_web_status") && args.size() == 2) {
                 // response.status(code, text) — o 2º arg (texto) é o corpo;
                 // mantém o valor de String no topo (contrato JVM).

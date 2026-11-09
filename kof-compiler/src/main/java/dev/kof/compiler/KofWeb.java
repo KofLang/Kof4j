@@ -104,6 +104,8 @@ public final class KofWeb {
         return switch (name) {
             case "param", "query", "header" -> true;
             case "body", "method", "path" -> true;
+            // #1110: o endereço TCP do peer (a decisão da mantenedora 05/11).
+            case "remoteAddr" -> true;
             case "status", "headerSet", "setHeader" -> true;
             case "sse", "wsSend", "wsMessage", "stats" -> true;
             default -> false;
@@ -326,6 +328,12 @@ public final class KofWeb {
                     : null;
             case "body", "method", "path" -> argCount == 0
                     ? new WebCall("kof_web_" + name, STR, List.of())
+                    : null;
+            // #1110: o endereço TCP do peer da requisição (a decisão da
+            // mantenedora 05/11) — "" quando desconhecido; atrás de proxy o
+            // cliente é o header x-forwarded-for (nota da stdlib-web).
+            case "remoteAddr" -> argCount == 0
+                    ? new WebCall("kof_web_remote_addr", STR, List.of())
                     : null;
             case "status" -> argCount == 2 && argTypes.get(0) == INT
                     && isString(argTypes.get(1))
