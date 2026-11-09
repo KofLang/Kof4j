@@ -295,6 +295,11 @@ public final class JsRuntimeUiWeb {
                 return 0;
             }
             export function kofWebListen(appId, port) {
+                return kofWebListenHost(appId, "0.0.0.0", port);
+            }
+            // #1114: liga UMA interface (`app.listen("127.0.0.1", p)`); o
+            // wildcard delega com 0.0.0.0 (o comportamento de sempre).
+            export function kofWebListenHost(appId, host, port) {
                 const app = kofWebApps.get(appId);
                 if (!app) throw new Error("Invalid app handle: " + appId);
                 if (kofWebPending === null) {
@@ -303,7 +308,7 @@ public final class JsRuntimeUiWeb {
                 kofWebPort = port | 0 || 8080;
                 const HttpServer = Java.type('com.sun.net.httpserver.HttpServer');
                 const InetSocketAddress = Java.type('java.net.InetSocketAddress');
-                kofWebServer = HttpServer.create(new InetSocketAddress(kofWebPort), 0);
+                kofWebServer = HttpServer.create(new InetSocketAddress(host, kofWebPort), 0);
                 for (const [key, handler] of app.handlers) {
                     const [method, path] = key.split(":");
                     // WEB001-T1 (13/09): Context GraalJS é thread-confined — o callback do

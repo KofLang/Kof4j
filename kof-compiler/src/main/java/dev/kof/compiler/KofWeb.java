@@ -180,6 +180,9 @@ public final class KofWeb {
             // (kof check) em vez de bytecode inválido.
             case "listen" -> argTypes.size() == 1 && isInt(argTypes.get(0))
                     ? new WebCall("kof_web_listen", VOID, List.of(STR, INT))
+                    : argTypes.size() == 2 && isString(argTypes.get(0)) && isInt(argTypes.get(1))
+                    ? // #1114: liga UMA interface (`app.listen("127.0.0.1", p)`)
+                    new WebCall("kof_web_listen_host", VOID, List.of(STR, STR, INT))
                     : null;
             case "serveDir" -> argTypes.size() == 2
                     ? new WebCall("kof_web_serve_dir", VOID, List.of(STR, STR, STR))

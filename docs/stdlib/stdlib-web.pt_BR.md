@@ -206,6 +206,7 @@ app.get("/api/hide") { return "hide" }                          // herda desliga
 | Chamada | Descrição |
 |---------|-----------|
 | `app.listen(port)` | Inicia o servidor (bloqueante) em `0.0.0.0` |
+| `app.listen("127.0.0.1", port)` | Liga UMA interface (serviços somente-locais) — \`app.listen(port)\` mantém o wildcard (#1114) |
 | `app.listenSecure(port)` | Idem, com TLS (JVM; self-signed `keytool` + `SSLServerSocket`) |
 | `app.port()` | Porta efetivamente vinculada (útil com `listen(0)`) |
 | `app.close()` | Encerra o servidor (graceful shutdown) |

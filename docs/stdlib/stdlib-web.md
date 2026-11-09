@@ -205,6 +205,7 @@ app.get("/api/hide") { return "hide" }                          // inherits off
 | Call | Description |
 |---------|-----------|
 | `app.listen(port)` | Starts the server (blocking) on `0.0.0.0` |
+| `app.listen("127.0.0.1", port)` | Binds ONE interface (local-only services) — `app.listen(port)` keeps the wildcard (#1114) |
 | `app.listenSecure(port)` | Same, with dev self-signed TLS (JVM; `keytool` + `SSLServerSocket`) |
 | `app.listenSecure(port, certPem, keyPem)` | TLS with a **user-supplied certificate** (PKCS#8 PEM) — production (JVM) |
 | `app.port()` | Port actually bound (useful with `listen(0)`) |

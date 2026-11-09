@@ -278,9 +278,13 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
                 JsIr.JsExpression call = new JsIr.JsCall(new JsIr.JsIdentifier("kofWebSseRoute"), args);
                 throw new StatementEnd(call);
             }
-            if (name.equals("kof_web_listen")) {
-                p.lc.registerRuntime("kofWebListen");
-                JsIr.JsExpression call = new JsIr.JsCall(new JsIr.JsIdentifier("kofWebListen"), args);
+            if (name.equals("kof_web_listen") || name.equals("kof_web_listen_host")) {
+                // #1114: o overload com host (`app.listen("127.0.0.1", p)`)
+                // roteia para o kofWebListenHost; o 1-arg mantém o wildcard.
+                String jsFn = name.equals("kof_web_listen_host")
+                        ? "kofWebListenHost" : "kofWebListen";
+                p.lc.registerRuntime(jsFn);
+                JsIr.JsExpression call = new JsIr.JsCall(new JsIr.JsIdentifier(jsFn), args);
                 if (Type.isVoid(kc.returnType())) {
                     throw new StatementEnd(call);
                 }

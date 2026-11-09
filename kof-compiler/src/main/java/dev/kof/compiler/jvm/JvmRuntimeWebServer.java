@@ -13,13 +13,20 @@ public final class JvmRuntimeWebServer {
     static String source() {
         return """
                 public static void kof_web_listen(String appId, int port) {
+                    kof_web_listen_host(appId, "0.0.0.0", port);
+                }
+
+                // #1114: liga UMA interface (`app.listen("127.0.0.1", p)`) — o
+                // wildcard (`app.listen(p)`) delega aqui com 0.0.0.0 (o
+                // comportamento de sempre, intocável).
+                public static void kof_web_listen_host(String appId, String host, int port) {
                     WebApp app = kof_web_app(appId);
                     if (app.serverSocket != null) {
                         throw new IllegalStateException("app already listening: " + appId);
                     }
                     try {
                         app.serverSocket = new java.net.ServerSocket(port, 64,
-                                java.net.InetAddress.getByName("0.0.0.0"));
+                                java.net.InetAddress.getByName(host));
                     } catch (java.io.IOException e) {
                         throw new RuntimeException("cannot bind port " + port + ": " + e.getMessage(), e);
                     }
