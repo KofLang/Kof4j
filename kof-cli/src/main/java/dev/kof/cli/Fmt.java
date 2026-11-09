@@ -49,10 +49,22 @@ final class Fmt {
         } catch (Exception e) { System.err.println("fmt: " + e.getMessage()); return 1; }
 
         int changed = 0;
+        int failed = 0;
         for (Path f : files) {
             try {
                 String in = Files.readString(f);
-                String out = format(in, f.getFileName().toString());
+                Fmt.Checked res = formatChecked(in, f.getFileName().toString());
+                // #1101: um arquivo que NÃO PARSEIA é reportado, deixado
+                // INTACTO e FAILA a execução — o fallback lossy de tokens
+                // reescrevia o quebrado (`json.decode < T > (x)`) com exit 0
+                // e um deslize de uma linha virava um arquivo de erros novos.
+                if (!res.parsed()) {
+                    failed++;
+                    System.err.println("fmt " + f
+                            + ": does not parse — left untouched (fix the syntax and retry)");
+                    continue;
+                }
+                String out = res.text();
                 if (!out.equals(in)) changed++;
                 if (write) {
                     if (!out.equals(in)) Files.writeString(f, out);
@@ -61,15 +73,31 @@ final class Fmt {
                 }
             } catch (Exception e) {
                 System.err.println("fmt " + f + ": " + e.getMessage());
+                failed++;
             }
         }
-        if (write) System.out.println("fmt: " + changed + " file(s) reformatted");
-        return 0;
+        if (write) {
+            System.out.println("fmt: " + changed + " file(s) reformatted"
+                    + (failed > 0 ? ", " + failed + " file(s) with parse errors (left untouched)" : ""));
+        }
+        return failed > 0 ? 1 : 0;
     }
 
     /** Formata via parser real (KofFormatter); fallback token-based se falhar. */
     static String format(String src) {
         return format(src, "Main.kf");
+    }
+
+    /** O resultado PARSE-CIENTE (#1101): parsed=false = o AST formatter
+     *  recusou o arquivo (o texto token-based NÃO deve ser escrito — fmt
+     *  nunca muda a semântica do programa). */
+    record Checked(String text, boolean parsed) {}
+
+    /** O mesmo `format(src, fileName)` com o veredito de parse explícito. */
+    static Checked formatChecked(String src, String fileName) {
+        String viaAst = dev.kof.compiler.KofFormatter.format(src, fileName);
+        if (viaAst != null) return new Checked(viaAst, true);
+        return new Checked(format(src, fileName), false);
     }
 
     /** fileName é a autoridade do perfil (`.ptkf` → PortuKof); passado real do CLI. */
