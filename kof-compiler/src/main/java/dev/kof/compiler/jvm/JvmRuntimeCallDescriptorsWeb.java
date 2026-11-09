@@ -62,6 +62,15 @@ public final class JvmRuntimeCallDescriptorsWeb {
             case "kof_web_header_set" -> "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;";
             case "kof_config_get", "kof_config_env", "kof_config_required" -> "(Ljava/lang/String;)Ljava/lang/String;";
             case "kof_http_get", "kof_http_delete", "kof_http_options" -> "(Ljava/lang/String;)Ljava/lang/String;";
+            // #1126: o send devolve o builtin Response; os acessores levam o
+            // receiver (e o header leva o nome).
+            case "kof_http_send_response"
+                    -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ldev/kof/runtime/KofRuntime$HttpResponse;";
+            case "kof_http_response_status" -> "(Ldev/kof/runtime/KofRuntime$HttpResponse;)I";
+            case "kof_http_response_header"
+                    -> "(Ldev/kof/runtime/KofRuntime$HttpResponse;Ljava/lang/String;)Ljava/lang/String;";
+            case "kof_http_response_headers", "kof_http_response_body"
+                    -> "(Ldev/kof/runtime/KofRuntime$HttpResponse;)Ljava/lang/String;";
             case "kof_http_get_headers", "kof_http_delete_headers", "kof_http_options_headers"
                     -> "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;";
             case "kof_http_post", "kof_http_put", "kof_http_patch"

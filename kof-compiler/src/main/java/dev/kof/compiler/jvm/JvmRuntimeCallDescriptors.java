@@ -538,6 +538,12 @@ public final class JvmRuntimeCallDescriptors {
                     -> "(Ldev/kof/runtime/KofRuntime$Secret;)Ljava/lang/String;";
             case "kof_interop_error_message", "kof_interop_error_code"
                     -> "(Ldev/kof/runtime/KofRuntime$InteropError;)Ljava/lang/String;";
+            // #1126: os acessores do Response (o send está na tabela Web).
+            case "kof_http_response_status" -> "(Ldev/kof/runtime/KofRuntime$HttpResponse;)I";
+            case "kof_http_response_header"
+                    -> "(Ldev/kof/runtime/KofRuntime$HttpResponse;Ljava/lang/String;)Ljava/lang/String;";
+            case "kof_http_response_headers", "kof_http_response_body"
+                    -> "(Ldev/kof/runtime/KofRuntime$HttpResponse;)Ljava/lang/String;";
         };
     }
 }

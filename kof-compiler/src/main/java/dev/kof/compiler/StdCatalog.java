@@ -91,7 +91,8 @@ public final class StdCatalog {
                     Map.entry("timeout", List.of("timeout(Int ms) -> void")),
                     Map.entry("retry", List.of("retry(Int count) -> void")),
                     Map.entry("circuit", List.of("circuit(Int threshold) -> void")),
-                    Map.entry("insecure", List.of("insecure() -> void")))),
+                    Map.entry("insecure", List.of("insecure() -> void")),
+                    Map.entry("send", List.of("send(String method, String url, String body, String headers) -> Response")))),
             Map.entry("time", java.util.Map.ofEntries(
                     Map.entry("sleep", List.of("sleep(Int ms) -> void")),
                     Map.entry("now", List.of("now() -> Long")),

@@ -275,6 +275,12 @@ public final class SemMethodCallTyper {
                     KofInteropError.instanceMethod(recv, mc.methodName(), mc.arguments().size());
             if (ioeCall != null) return ioeCall.returnType();
         }
+        if (KofHttpResponse.isResponseType(recv)) {
+            for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+            KofHttpResponse.ResponseCall rc =
+                    KofHttpResponse.instanceMethod(recv, mc.methodName(), mc.arguments().size());
+            if (rc != null) return rc.returnType();
+        }
         // D-SECRETS face 1: espelha o ramo do emit para o tipo Secret.
         if (KofSecurity.isSecretType(recv) || KofSecurity.isKeyHandleType(recv)) {
             java.util.List<Type> secArgs = new java.util.ArrayList<>();

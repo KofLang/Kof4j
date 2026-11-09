@@ -445,6 +445,24 @@ final class ExpressionBuiltinInstanceCalls {
         return localIdx;
     }
 
+    /** #1126: acessores do builtin kof.http.Response (status/header/headers/body). */
+    static int lowerHttpResponse(CompilerDriver driver, MethodCallExpr mc, List<KofOperation> ops,
+                                 String owner, int localIdx, List<IRLocalVariable> locals, Type recvType) {
+        KofHttpResponse.ResponseCall call = KofHttpResponse.instanceMethod(
+                recvType, mc.methodName(), mc.arguments().size());
+        if (call != null) {
+            List<Type> params = new ArrayList<>();
+            params.add(recvType);
+            for (ExpressionNode arg : mc.arguments()) {
+                params.add(ExpressionTyper.inferExprType(driver, arg, locals));
+                localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
+            }
+            ops.add(new KofCall(new Type.ClassType("dev.kof.runtime", "KofRuntime", List.of()),
+                    call.function(), params, call.returnType(), KofCallKind.FUNCTION));
+        }
+        return localIdx;
+    }
+
     static int lowerIo(CompilerDriver driver, MethodCallExpr mc, List<KofOperation> ops,
                        String owner, int localIdx, List<IRLocalVariable> locals, Type recvType) {
         if (KofIo.isIdentityMethod(mc.methodName())) {

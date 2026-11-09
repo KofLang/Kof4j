@@ -179,6 +179,7 @@ public static boolean hasRuntimeFn(String methodName) {
                 + JvmBufferRuntime.source(target != Target.ANDROID)
                 + JvmSecretRuntime.source()
                 + JvmInteropErrorRuntime.source()
+                + JvmHttpResponseRuntime.source()
                 + JvmOrmRuntime.source()
                 + JvmOrmHistoryRuntime.source()
                 + JvmTimeRuntime.source()

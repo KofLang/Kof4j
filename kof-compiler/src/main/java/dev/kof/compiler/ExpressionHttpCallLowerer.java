@@ -84,8 +84,13 @@ public final class ExpressionHttpCallLowerer {
         // headers variádicos (GitHub #32): o runtime recebe headers como uma
         // única String `\n`-separada. args fixos = url (+body p/ post/put/patch);
         // os demais são headers, colapsados em um só slot.
+        // #1126: o send tem QUATRO args fixos (method, url, body, headers) —
+        // sem isto o colapso variádico dos headers o tratava como a família
+        // get (fixed=1) e concatava url+body+headers num slot.
         int fixed = ("post".equals(mc.methodName()) || "put".equals(mc.methodName())
-                || "patch".equals(mc.methodName())) ? 2 : ("insecure".equals(mc.methodName()) ? 0 : 1);
+                || "patch".equals(mc.methodName())) ? 2
+                : ("send".equals(mc.methodName()) ? 4
+                : ("insecure".equals(mc.methodName()) ? 0 : 1));
         int n = mc.arguments().size();
         for (int i = 0; i < Math.min(n, fixed); i++) {
             localIdx = ExpressionLowerer.emitExpression(driver, mc.arguments().get(i), ops, owner, localIdx, locals);

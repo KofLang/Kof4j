@@ -366,6 +366,9 @@ final class MemberCallNamespaces {
     }
 
     private static Type unknown(SemanticAnalyzer sa, String ns, String method) {
+        if (System.getenv("KOF_DUMP_1126") != null) {
+            new Exception("[1126-NS-UNKNOWN] " + ns + "." + method).printStackTrace();
+        }
         if (sa.diagnostics() != null) {
             sa.diagnostics().error("", 0, 0, 0,
                     "Cannot resolve method '" + method + "' on namespace '" + ns + "'",

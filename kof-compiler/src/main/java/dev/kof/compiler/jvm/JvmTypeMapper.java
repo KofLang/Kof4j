@@ -115,6 +115,11 @@ public final class JvmTypeMapper {
         if ("kof".equals(c.packageName()) && "InteropError".equals(c.name())) {
             return "Ldev/kof/runtime/KofRuntime$InteropError;";
         }
+        // #1126: `kof.http.Response` apaga para KofRuntime$HttpResponse
+        // (mesmo padrão nested do InteropError/Secret).
+        if ("kof.http".equals(c.packageName()) && "Response".equals(c.name())) {
+            return "Ldev/kof/runtime/KofRuntime$HttpResponse;";
+        }
         if ("kof".equals(c.packageName()) && "KeyHandle".equals(c.name())) {
             return "Ldev/kof/runtime/KofRuntime$KeyHandle;";
         }
@@ -162,6 +167,8 @@ public final class JvmTypeMapper {
                  "dev/kof/runtime/KofRuntime$ProcessResult" -> "java/lang/Object";
             // JvmInteropErrorRuntime: `class InteropError extends RuntimeException`
             case "dev/kof/runtime/KofRuntime$InteropError" -> "java/lang/RuntimeException";
+            // #1126: a Response é um valor plano (Object) — sem hierarquia.
+            case "dev/kof/runtime/KofRuntime$HttpResponse" -> "java/lang/Object";
             default -> null;
         };
     }
@@ -264,6 +271,10 @@ public final class JvmTypeMapper {
         if ("kof".equals(packageName) && "Secret".equals(simpleName)) return "dev/kof/runtime/KofRuntime$Secret";
         if ("kof".equals(packageName) && "KeyHandle".equals(simpleName)) return "dev/kof/runtime/KofRuntime$KeyHandle";
         if ("kof".equals(packageName) && "InteropError".equals(simpleName)) return "dev/kof/runtime/KofRuntime$InteropError";
+        // #1126: o builtin kof.http.Response nos positions OWNER/CHECKCAST
+        // também (o castTargetName usa esta função; sem isto o cast emitia
+        // a classe inexistente `kof/http/Response` → frame crash).
+        if ("kof.http".equals(packageName) && "Response".equals(simpleName)) return "dev/kof/runtime/KofRuntime$HttpResponse";
         // §575 — phantom handle in OWNER position (getfield/putfield/checkcast/
         // invoke): the app handle is a String at runtime, so a captured-app
         // lambda field reads/writes `java/lang/String`, never `kof/web/App`.

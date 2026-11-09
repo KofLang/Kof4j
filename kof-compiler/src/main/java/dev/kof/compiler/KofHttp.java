@@ -40,11 +40,11 @@ public final class KofHttp {
 
 /** X10 fatia 2: nomes aceitos pelo dispatch real (catálogo p/ LSP).
      *  GUARDA: StdCatalogTest exige == case-literals da fonte abaixo. */
-    static List<String> functions() { return List.of("get", "post", "put", "delete", "patch", "options", "status", "timeout", "retry", "circuit", "insecure"); }
+    static List<String> functions() { return List.of("get", "post", "put", "delete", "patch", "options", "send", "status", "timeout", "retry", "circuit", "insecure"); }
 
     static boolean isHttpMethod(String name) {
         return switch (name) {
-            case "get", "post", "put", "delete", "patch", "options", "status", "timeout",
+            case "get", "post", "put", "delete", "patch", "options", "send", "status", "timeout",
                     "retry", "circuit", "insecure" -> true;
             default -> false;
         };
@@ -54,6 +54,13 @@ public final class KofHttp {
 
     private static boolean isStr(Type t) {
         return STR.equals(t) || "String".equals(t.toString());
+    }
+
+    /** #1126: body/headers do send aceitam `null` (Unknown no re-typing). */
+    private static boolean isStrOrUnknown(Type t) {
+        return isStr(t) || t instanceof Type.UnknownType
+                || (t instanceof Type.NullableType nt && nt.inner() instanceof Type.PrimitiveType pt
+                        && "void".equals(pt.name()));
     }
 
     private static boolean isInt(Type t) {
@@ -89,6 +96,9 @@ public final class KofHttp {
      *  pelo lowering (o runtime já splita por linha). Aridade mínima: 1 (verb
      *  sem body) ou 2 (com body). */
     static HttpCall staticCall(String name, List<Type> argTypes) {
+        if (System.getenv("KOF_DUMP_1126") != null) {
+            System.err.println("[1126] staticCall " + name + "/" + argTypes.size() + " args=" + argTypes);
+        }
         if (!isHttpMethod(name)) return null;
         // audit 0.6.0 HTTP-01 (ledger §665): a ligação era SÓ POR ARIDADE —
         // http.status(401) ligava kof_http_status(String) com um Int e o JVM
@@ -111,6 +121,18 @@ public final class KofHttp {
                         ? new HttpCall("kof_http_" + name + "_headers", STR, List.of(STR, STR, STR))
                         : null;
             };
+            // #1126: http.send(method, url, body, headers) → kof.http.Response
+            // (decisão da mantenedora 05/11) — status/headers/body lidos pelo
+            // caller, SEM throw em 4xx/5xx; get/post ficam intactos. body e
+            // headers são OPCIONAIS: o literal `null` tipa Unknown no
+            // re-typing do lowering (medido pelo instrumento — a 1ª passada
+            // vê String, as seguintes Unknown), então os dois últimos
+            // aceitam String OU Unknown (o runtime trata null).
+            case "send" -> argTypes.size() == 4 && isStr(argTypes.get(0)) && isStr(argTypes.get(1))
+                    && isStrOrUnknown(argTypes.get(2)) && isStrOrUnknown(argTypes.get(3))
+                    ? new HttpCall("kof_http_send_response", KofHttpResponse.RESPONSE,
+                            List.of(STR, STR, STR, STR))
+                    : null;
             case "status" -> argTypes.size() == 1 && isStr(argTypes.get(0))
                     ? new HttpCall("kof_http_status", INT, List.of(STR))
                     : null;
