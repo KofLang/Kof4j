@@ -21,6 +21,7 @@
     </modules>
 
     <properties>
+        <surefire.argLine></surefire.argLine>
         <!--
           Single source of truth for the build version is the VERSION file at the
           repository root. The release pipeline reads it and updates this property
@@ -99,7 +100,11 @@
                         <!-- -Xshare:off: o CDS do fork quebra o class loading
                              com NoClassDefFoundError intermitente de classes
                              que existem no classpath -->
-                        <argLine>-Xshare:off -Xmx1g</argLine>
+                        <!-- #1101-family: o tmpdir do fork é sobreponível por
+                             propriedade (ex.: -Dsurefire.argLine=-Djava.io.tmpdir=…
+                             quando o /tmp tmpfs do host está apertado); unset =
+                             o comportamento de sempre. -->
+                        <argLine>${surefire.argLine} -Xshare:off -Xmx1g</argLine>
                         <!-- D-BASELINE (release 25): os testes E2E spawnam
                              `java` do PATH para rodar o binário compilado —
                              sem isto um host com JDK 21 no PATH carrega

@@ -26,6 +26,7 @@ public final class JsRuntimeOps {
 boolean isRuntimeOp(KofCall kc) {
         String name = kc.methodName();
         return name.startsWith("kof_json_") || name.startsWith("kof_io_")
+                || name.startsWith("kof_http_")
                 || name.startsWith("kof_buffer_")
                 || name.startsWith("kof_ui_")
                 || name.startsWith("kof_sec_")
@@ -234,6 +235,13 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
                 case "kof_http_timeout_set" -> "kofHttpTimeoutSet";
                 case "kof_http_retry_set" -> "kofHttpRetrySet";
                 case "kof_http_circuit_set" -> "kofHttpCircuitSet";
+                // #1126 fatia 2: o send devolve o builtin Response; os
+                // acessores lêem o objeto {status, headers, body} do guest.
+                case "kof_http_send_response" -> "kofHttpSend";
+                case "kof_http_response_status" -> "kofHttpResponseStatus";
+                case "kof_http_response_header" -> "kofHttpResponseHeader";
+                case "kof_http_response_headers" -> "kofHttpResponseHeaders";
+                case "kof_http_response_body" -> "kofHttpResponseBody";
                 default -> "kofWebStub";
             };
             p.lc.registerRuntime(jsFn);

@@ -46,6 +46,7 @@ class JsRuntimeSliceRegistryTest {
                 .append(JsRuntimeUiUuid.UUID_RUNTIME)
                 .append(JsRuntimeUiWs.WS_RUNTIME)
                 .append(JsRuntimeUiEvents.UI_EVENT_RUNTIME)
+                .append(JsRuntimeHttpClient.HTTP_CLIENT_RUNTIME)  // #1126: o bloco "http-client" é o ÚLTIMO core (a ordem da lista define o emit)
                 .toString();
     }
 

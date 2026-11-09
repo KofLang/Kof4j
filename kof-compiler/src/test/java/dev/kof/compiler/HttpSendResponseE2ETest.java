@@ -69,6 +69,59 @@ class HttpSendResponseE2ETest {
     }
 
     @Test
+    void sendOnScriptMatchesTheJvmOracle() throws Exception {
+        // #1126 slice 2: the Script face rides the GENERATED runtime (the
+        // interpreter compiles it per-program via javax.tools) — the same
+        // probe, the same server, byte-identical to the JVM oracle.
+        int port;
+        try (var probeSocket = new java.net.ServerSocket(0)) {
+            port = probeSocket.getLocalPort();
+        }
+        HttpServer server = startServer(port);
+        try {
+            Path dir = tmp.resolve("send-script");
+            Files.createDirectories(dir);
+            Files.writeString(dir.resolve("Main.kf"), probe(port));
+            KofInterpreter.Result r = driver.interpret(
+                    java.util.List.of(dir.resolve("Main.kf")), dir, new String[0]);
+            assertEquals(0, r.exitCode(), () -> "script stderr: " + r.stderr());
+            assertEquals("201\nhttp://127.0.0.1/tasks/9\nW/\"v1\"\ncreated-payload\n500\nboom-payload",
+                    r.stdout().strip());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void sendOnJsMatchesTheJvmOracle() throws Exception {
+        // #1126 slice 2: the JS face — the guest wrappers call the host
+        // bridge (kof_platform.httpSend → java.net.http under GraalJS); the
+        // same probe, the same server, byte-identical to the JVM oracle.
+        int port;
+        try (var probeSocket = new java.net.ServerSocket(0)) {
+            port = probeSocket.getLocalPort();
+        }
+        HttpServer server = startServer(port);
+        try {
+            Path dir = tmp.resolve("send-js");
+            Files.createDirectories(dir);
+            Files.writeString(dir.resolve("Main.kf"), probe(port));
+            Path out = dir.resolve("out");
+            CompilationResult r = driver.compile(dir.resolve("Main.kf"), out, Target.JS);
+            assertTrue(r.success(), () -> "JS compile: " + r.diagnostics().getDiagnostics());
+            var stdout = new ByteArrayOutputStream();
+            var stderr = new ByteArrayOutputStream();
+            int exit = dev.kof.runtime.KofJsRunner.run(out.resolve("Default.mjs"), stdout,
+                    new java.io.ByteArrayInputStream(new byte[0]), stderr);
+            assertEquals(0, exit, () -> "JS exit: " + stderr);
+            assertEquals("201\nhttp://127.0.0.1/tasks/9\nW/\"v1\"\ncreated-payload\n500\nboom-payload",
+                    stdout.toString(StandardCharsets.UTF_8).replace("\r\n", "\n").strip());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void sendReturnsStatusHeadersBodyWithoutThrowingOn5xxJvm() throws Exception {
         int port;
         try (var probeSocket = new java.net.ServerSocket(0)) {
