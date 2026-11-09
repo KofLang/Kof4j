@@ -123,6 +123,24 @@ public final class SemAssignmentAnalyzer {
                     : (recvType instanceof Type.ClassType rct ? rct.name() : null);
             if (ownerName != null) {
                 SymbolTable.Symbol wf = MemberResolver.resolveFieldInHierarchy(sa, ownerName, fa.fieldName());
+                // #1099: a ESCRITA de campo não-declarado caía em silêncio aqui
+                // (o resolve devolve null e o analyzer seguia) — o JVM morria
+                // NoSuchFieldError na primeira construção e Script/JS
+                // armazenavam campos FANTASMAS. A LEITURA do mesmo campo já
+                // reporta SEM025 (SemFieldAccessTyper); a escrita reporta o
+                // MESMO diagnóstico quando a hierarquia é toda-Kof (a cadeia
+                // não alcança java.*: uma subclasse de ArrayList pode escrever
+                // campo Java herdado que a caminhada Kof não vê) e a classe é
+                // nossa; dono externo (classpath) fica fora do alcance da
+                // caminhada e segue solto.
+                if (wf == null && sa.diagnostics() != null
+                        && hierarchyIsAllKof(sa, ownerName)) {
+                    sa.diagnostics().error(fa,
+                            "Cannot resolve field '" + fa.fieldName() + "' on type '"
+                                    + (onThis ? sa.currentClassName() : ownerName) + "'",
+                            "SEM025");
+                    return Type.UnknownType.UNKNOWN;
+                }
                 if (wf instanceof SymbolTable.FieldSymbol wfs) {
                     MemberAccessChecks.checkFieldAccess(sa, wfs);
                     MemberAccessChecks.checkFinalFieldWrite(sa, wfs);
@@ -228,5 +246,34 @@ public final class SemAssignmentAnalyzer {
             targetType = SemExpressionTyper.inferType(sa, ae.target(), scope);
         }
         return targetType;
+    }
+
+    /**
+     * #1099 — a cadeia de superclasses de `className` é toda-Kof (cada
+     * superclass resolve para uma classe no analyzer)? Uma classe com
+     * ancestral java.* fica DE FORA: pode escrever um campo Java herdado
+     * que a caminhada Kof não enxerga (`this.modCount` numa subclasse de
+     * ArrayList).
+     */
+    private static boolean hierarchyIsAllKof(SemanticAnalyzer sa, String className) {
+        String cur = className;
+        int hops = 0;
+        while (cur != null && hops++ < 32) {
+            SymbolTable.ClassSymbol cs = sa.getClass(cur);
+            if (cs == null) return false;
+            String sup = cs.superClass();
+            if (sup == null || sup.isEmpty()) return true;
+            // a RAIZ do Kof (`Object` sem pacote) fecha a cadeia como toda-Kof;
+            // um ancestral java.*/dev.kof/kof. (ex.: ArrayList) abre o carve-out.
+            if ("Object".equals(sup)) return true;
+            if (sup.startsWith("java.") || sup.startsWith("java/")
+                    || sup.startsWith("dev.kof") || sup.startsWith("dev/kof")
+                    || sup.startsWith("kof.")) {
+                return false;
+            }
+            cur = sup.contains(".") && !sup.contains("/")
+                    ? sup.substring(sup.lastIndexOf('.') + 1) : sup;
+        }
+        return false;
     }
 }
