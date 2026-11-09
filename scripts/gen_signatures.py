@@ -33,6 +33,9 @@ BASE = {
         ("retry", ['retry(Int count) -> void']),
         ("circuit", ['circuit(Int threshold) -> void']),
         ("insecure", ['insecure() -> void']),
+        # #1126 (decisão da mantenedora 05/11): o send devolve o builtin
+        # kof.http.Response (status/header/headers/body lidos pelo caller).
+        ("send", ['send(String method, String url, String body, String headers) -> Response']),
     ],
     "time": [
         ("sleep", ['sleep(Int ms) -> void']),
