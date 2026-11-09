@@ -13,10 +13,7 @@ public final class JsRuntimeHttpClient {
 
     private JsRuntimeHttpClient() {}
 
-    // §257: NÃO `final` — um literal `static final String` vira ConstantValue
-    // e o javac INLINE o valor nos consumidores cross-class (build incremental
-    // executa o consumidor velho = falso-vermelho no guard §257).
-    public static String HTTP_CLIENT_RUNTIME = """
+    public static String HTTP_CLIENT_RUNTIME() { return """
             let kofHttpTimeoutSec = 10;
             let kofHttpRetries = 0;
             let kofHttpCircuitTrips = 0;
@@ -230,4 +227,5 @@ public final class JsRuntimeHttpClient {
             export function kofSchedulerCancel(id) { kofTimeCancel(id); }
 
             """;
+    }
 }
