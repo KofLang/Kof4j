@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §937 (FIXED)
 last: §936 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
@@ -17699,6 +17700,19 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Prova:** `DotDirectoryPackageE2ETest` **5/5** (RED-first: 4/5 falhavam com o exato `COMP001: /agent` antes da correção; as faces `.agent`, `sub/.agent`, `.hidden-x`, controle de diretório válido e controle sem `kof.toml`) + `InternalNameValidationTest` **4/4** (a regra de identificador e o gate defensivo). Não-regressão: `EnumPackagePlacementE2ETest` 7/7, `PackagesE2ETest` 12/12, `CompileForTestsSourcesModuleRootTest` 1/1, `OrmEntityPackageE2ETest` 2/2, `JsonDecodePackagedRecordE2ETest` 2/2.
 <!-- pt-switch --> **EN:** [§936 (en)](known-bugs.md#936--a-source-under-a-directory-whose-name-is-not-a-valid-identifier-agent-hidden-x-derives-an-invalid-package-so-the-jvm-target-fails-with-a-mislabeled-comp001-or-a-silent-classformaterror-github-999)
+
+## §937 — `BufferRuntimeBorrowE2ETest.concurrentBufferBorrowRaisesMem020NativeX86` é flaky (~1/6): a barreira marcava TENTATIVAS antes do acquire, então o harness podia liberar o GO sem nenhum MEM020 (GitHub #1000)
+
+**Status:** ✅ FIXED 09/11 (owner = 192.168.15.21:9092; issue [#1000](https://github.com/KofLang/Kof4j/issues/1000), `1.0-blocks` aberto).
+
+**Sintoma:** em x86-64 o teste de harness falhava intermitentemente (~1/6 medido pela lane deploy-flow; a run de CI 0.6.10 `41342639917` falhou do mesmo jeito): `exactly one concurrent writer must hit MEM020` via `0` e o golden do buffer `[9, 0]`. A face JVM e o controle de escritor único eram independentes de ordem e sempre verdes — era uma corrida do HARNESS, não um defeito da linguagem.
+
+**CAUSA RAIZ:** a barreira (`51b386a1b`) fazia os dois workers anexarem uma marca de TENTATIVA via `barrier_mark` ANTES da chamada FFI, e o harness liberava o GO assim que `countMarks >= 2`. Mas o `kof_buffer_borrow_acquire` roda no call-site FFI (`NativeFfiCall.java:234-241`), enquanto o `barriered_write` bloqueia no GO só DEPOIS de escrever `buf[0]` dentro do C cercado. Duas marcas, portanto, NÃO provavam que o worker 2 chegara ao acquire enquanto o worker 1 detinha o empréstimo: se o worker 1 retornasse e liberasse primeiro, o worker 2 adquiria limpo → zero MEM020. O comentário de cabeçalho que afirmava que as marcas garantiam a ordenação era a parte incorreta.
+
+**Correção (só no teste, sem mudança de linguagem/runtime):** o PERDEDOR da corrida agora emite uma TERCEIRA marca (`barrier_mark(3)`) no seu `catch` — lançado pelo acquire falho, antes de conseguir entrar no C cercado — e o harness segura o GO até existirem READY + marcas 1, 2 e 3. Como o vencedor não pode liberar antes do GO (está bloqueado no C), o perdedor sempre tenta o acquire enquanto o vencedor ainda detém o empréstimo: exatamente um MEM020, deterministicamente, sem espera por tempo. Aplicado uniformemente aos harnesses JVM, nativo x86-64 e cross (riscv64/aarch64).
+
+**Prova:** `BufferRuntimeBorrowE2ETest` **8/8** (corrida JVM, controle escritor único JVM/JS, corrida + controle nativo x86, corrida + controle + sequencial cross); o outrora-flaky `concurrentBufferBorrowRaisesMem020NativeX86` rodou **12/12** verde consecutivas (era ~1/6 flaky). Não-regressão: nenhum código de produção tocado.
+<!-- pt-switch --> **EN:** [§937 (en)](known-bugs.md#937--bufferruntimeborrowe2etestconcurrentbufferborrowraisesmem020nativex86-is-flaky-16-the-barrier-marked-attempts-before-the-acquire-so-the-harness-could-release-go-with-zero-mem020-github-1000)
 
 ## §935 — tipo-função com retorno nulável compila mas a classe do lambda emitida não implementa a interface funcional — `IncompatibleClassChangeError` na primeira chamada (JVM)
 

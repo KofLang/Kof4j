@@ -21,11 +21,14 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  *
  * The C fixture fences the first writer inside the call so the race is
  * deterministic: {@code barriered_write} writes the buffer, drops a READY file,
- * then blocks until the harness creates the GO file. Every worker drops an
- * ATTEMPT mark ({@code barrier_mark}, appended to KOF_BUF_ATTEMPT) BEFORE the
- * call, and the harness holds GO until every expected mark is present — so the
- * second acquire always happens while the first borrow is still held, with no
- * time-based wait (the 0.6.10 CI 300ms sleep became these marks).
+ * then blocks until the harness creates the GO file. The borrow acquire runs at
+ * the FFI call site, so a worker's PRE-call mark does not prove it reached the
+ * acquire. Instead each worker marks BEFORE the call (1/2) and the LOSER of the
+ * race marks a THIRD time (3) from its catch — thrown by the failed acquire,
+ * before it can enter the fenced C. The harness holds GO until READY + marks 1,
+ * 2 and 3 exist, so exactly one MEM020 always fires while the winner still
+ * holds the borrow, with no time-based wait (the 0.6.10 CI 300ms sleep became
+ * these marks).
  */
 class BufferRuntimeBorrowE2ETest {
 
@@ -64,24 +67,28 @@ class BufferRuntimeBorrowE2ETest {
                 var box = listOf(b)
                 var h1 = spawn {
                     barrier_mark(1)
-                    return barriered_write(box.get(0), 2, 9)
+                    var v = -1
+                    try {
+                        v = barriered_write(box.get(0), 2, 9)
+                    } catch (String e) {
+                        barrier_mark(3)
+                        println(e)
+                    }
+                    return v
                 }
                 var h2 = spawn {
                     barrier_mark(2)
-                    return barriered_write(box.get(0), 2, 9)
+                    var v = -1
+                    try {
+                        v = barriered_write(box.get(0), 2, 9)
+                    } catch (String e) {
+                        barrier_mark(3)
+                        println(e)
+                    }
+                    return v
                 }
-                var r1 = 0
-                var r2 = 0
-                try {
-                    r1 = await h1
-                } catch (String e) {
-                    println(e)
-                }
-                try {
-                    r2 = await h2
-                } catch (String e) {
-                    println(e)
-                }
+                var r1 = await h1
+                var r2 = await h2
                 println(b.bytes())
             }
             """;
@@ -107,7 +114,7 @@ class BufferRuntimeBorrowE2ETest {
         CompilationResult r = driver.compile(src, out, Target.JVM);
         assertTrue(r.success(), "JVM compile: " + r.diagnostics().getDiagnostics());
 
-        String output = runJvmWithBarrier(dir, out, "ready-a", "go-a", "att-a", 2);
+        String output = runJvmWithBarrier(dir, out, "ready-a", "go-a", "att-a", 3);
         long mem020 = output.lines().filter(l -> l.contains("MEM020")).count();
         assertEquals(1L, mem020, "exactly one concurrent writer must hit MEM020; got:\n" + output);
     }
@@ -152,7 +159,7 @@ class BufferRuntimeBorrowE2ETest {
         CompilationResult r = driver.compile(src, out, Target.NATIVE);
         assertTrue(r.success(), "NATIVE compile: " + r.diagnostics().getDiagnostics());
 
-        String output = runBinaryWithBarrier(dir, out.resolve("Default/Main"), "ready-na", "go-na", "att-na", 2);
+        String output = runBinaryWithBarrier(dir, out.resolve("Default/Main"), "ready-na", "go-na", "att-na", 3);
         long mem020 = output.lines().filter(l -> l.contains("MEM020")).count();
         assertEquals(1L, mem020, "exactly one concurrent writer must hit MEM020 on x86-64; got:\n" + output);
     }
@@ -188,7 +195,7 @@ class BufferRuntimeBorrowE2ETest {
             CompilationResult r = driver.compile(src, out, t);
             assertTrue(r.success(), arch + " compile: " + r.diagnostics().getDiagnostics());
             String output = runQemuWithBarrier(dir, arch, out.resolve("Default/Main"),
-                    "ready-" + arch, "go-" + arch, "att-" + arch, 2);
+                    "ready-" + arch, "go-" + arch, "att-" + arch, 3);
             long mem020 = output.lines().filter(l -> l.contains("MEM020")).count();
             assertEquals(1L, mem020, arch + ": exactly one concurrent writer must hit MEM020; got:\n" + output);
         }
@@ -314,10 +321,12 @@ class BufferRuntimeBorrowE2ETest {
             }
             TestServerFixture.awaitTrue(1, 5, () -> Files.exists(ready));
         }
-        // Determinismo sem espera por tempo: o GO só sai depois que as
-        // marcas de tentativa de CADA worker existem (a tentativa de aquisição
-        // do 2º já aconteceu enquanto o 1º ainda detém o empréstimo dentro
-        // do barriered_write) — exatamente um MEM020, sempre.
+        // Determinismo sem espera por tempo: o GO só sai depois que READY e as
+        // marcas 1, 2 e 3 existem. A marca 3 vem do PERDEDOR da corrida, no seu
+        // catch — o acquire falhou (MEM020) antes de entrar no C cercado. Como o
+        // vencedor só solta o empréstimo depois do GO (bloqueado no C), o
+        // perdedor sempre tenta adquirir enquanto o vencedor o detém: exatamente
+        // um MEM020, sempre.
         long marksDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
         while (countMarks(attempt) < expectMarks) {
             if (!p.isAlive()) {

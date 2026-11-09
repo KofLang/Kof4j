@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §937 (FIXED)
 last: §936 (FIXED)
 last: §766 (FIXED)
 last: §765 (FIXED)
@@ -20225,6 +20226,19 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Proof:** `DotDirectoryPackageE2ETest` **5/5** (RED-first: 4/5 failed with the exact `COMP001: /agent` before the fix; the `.agent`, `sub/.agent`, `.hidden-x`, valid-directory control and no-`kof.toml` control faces) + `InternalNameValidationTest` **4/4** (the identifier rule and the defensive gate). Non-regression: `EnumPackagePlacementE2ETest` 7/7, `PackagesE2ETest` 12/12, `CompileForTestsSourcesModuleRootTest` 1/1, `OrmEntityPackageE2ETest` 2/2, `JsonDecodePackagedRecordE2ETest` 2/2.
 <!-- pt-switch --> **PT:** [§936 (pt_BR)](known-bugs.pt_BR.md#936--uma-fonte-sob-um-diretorio-cujo-nome-nao-e-um-identificador-valido-agent-hidden-x-deriva-um-pacote-invalido-entao-o-alvo-jvm-falha-com-um-comp001-mal-rotulado-ou-um-classformaterror-silencioso-github-999)
+
+## §937 — `BufferRuntimeBorrowE2ETest.concurrentBufferBorrowRaisesMem020NativeX86` is flaky (~1/6): the barrier marked ATTEMPTS before the acquire, so the harness could release GO with zero MEM020 (GitHub #1000)
+
+**Status:** ✅ FIXED 09/11 (owner = 192.168.15.21:9092; issue [#1000](https://github.com/KofLang/Kof4j/issues/1000), open `1.0-blocks`).
+
+**Symptom:** on x86-64 the harness test failed intermittently (~1/6 measured by the deploy-flow lane; the 0.6.10 CI run `41342639917` failed the same way): `exactly one concurrent writer must hit MEM020` saw `0` and the buffer golden `[9, 0]`. The JVM face and the single-writer control were order-independent and always green — this was a HARNESS race, not a language defect.
+
+**ROOT CAUSE:** the barrier (`51b386a1b`) had both workers append an ATTEMPT mark via `barrier_mark` BEFORE the FFI call, and the harness released GO once `countMarks >= 2`. But the borrow `kof_buffer_borrow_acquire` runs at the FFI call site (`NativeFfiCall.java:234-241`), while `barriered_write` blocks on GO only AFTER it writes `buf[0]` inside the fenced C. Two marks therefore did NOT prove worker 2 had reached the acquire while worker 1 held the borrow: if worker 1 returned and released first, worker 2 acquired cleanly → zero MEM020. The header comment claiming the marks guaranteed the ordering was the incorrect part.
+
+**Fix (test-only, no language/runtime change):** the LOSER of the race now emits a THIRD mark (`barrier_mark(3)`) from its `catch` — thrown by the failed acquire, before it can enter the fenced C — and the harness holds GO until READY + marks 1, 2 and 3 all exist. Since the winner cannot release until GO (it is blocked in the C), the loser always attempts the acquire while the winner still holds the borrow: exactly one MEM020, deterministically, no time-based wait. Applied uniformly to the JVM, native x86-64 and cross (riscv64/aarch64) harnesses.
+
+**Proof:** `BufferRuntimeBorrowE2ETest` **8/8** (JVM race, single-writer JVM/JS, native x86 race + control, cross race + control + sequential); the previously-flaky `concurrentBufferBorrowRaisesMem020NativeX86` ran **12/12** green consecutively (was ~1/6 flaky). Non-regression: no production code touched.
+<!-- pt-switch --> **PT:** [§937 (pt_BR)](known-bugs.pt_BR.md#937--bufferruntimeborrowe2etestconcurrentbufferborrowraisesmem020nativex86-e-flaky-16-a-barreira-marcava-tentativas-antes-do-acquire-entao-o-harness-podia-liberar-o-go-sem-nenhum-mem020-github-1000)
 
 ## §935 — a nullable-RETURN function type compiles but the emitted lambda class does not implement the functional interface — `IncompatibleClassChangeError` at the first call (JVM)
 
