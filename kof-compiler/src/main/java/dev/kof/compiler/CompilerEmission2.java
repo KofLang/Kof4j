@@ -80,7 +80,14 @@ public final class CompilerEmission2 {
             }
             if (formal != null && CompilerTypeSupport.erasesToReference(formal) && TypeMetrics.isPrimitiveType(argType)
                     && !BuiltinTypes.isString(formal)
+                    && !(argType instanceof Type.NullableType)
                     && !ExpressionTyper.boxesOwnBranches(driver, args.get(i), locals)) {
+                // #1089: o gate NÃO desembrulha Nullable — um arg Nullable
+                // (primitivo) já chega como a referência boxada
+                // (D-NULL-INTENT; o slot do local carrega o descritor do
+                // wrapper) e re-boxar emitia `Integer.valueOf(Integer)`
+                // (NoSuchMethodError, a segunda face da issue). O box é só
+                // para o primitivo CRU.
                 driver.emitErasureBox(ops, argType);
             }
             // D-NULL-INTENT (#278): formal Nullable(primitivo) — o
