@@ -106,4 +106,68 @@ class WideNarrowCastE2ETest {
         assertEquals(0, result.exitCode(), "script: " + result.stdout() + result.stderr());
         assertEquals(EXPECTED_LONG, result.stdout().strip());
     }
+    @Test
+    void nullablePrimitiveAsCastOnDirectCallJvm() throws Exception {
+        // #1097: `score() as Object` with score(): Int? — the method's
+        // descriptor is the WRAPPER, so the stack already holds the boxed
+        // reference; re-boxing emitted Integer.valueOf(Integer)
+        // (NoSuchMethodError). The reference-target face skips the box.
+        Path root = tmp.resolve("wn-1097obj");
+        Files.createDirectories(root);
+        Files.writeString(root.resolve("Main.kf"), """
+                Int? score() { return 7 }
+                main() {
+                    println(score() as Object)
+                }
+                """);
+        Path out = root.resolve("out");
+        CompilationResult r = driver.compile(root.resolve("Main.kf"), out, Target.JVM);
+        assertTrue(r.success(), () -> "compile: " + r.diagnostics().getDiagnostics());
+        var stdout = new ByteArrayOutputStream();
+        var previousOut = System.out;
+        try {
+            System.setOut(new java.io.PrintStream(stdout, true, StandardCharsets.UTF_8));
+            try (var loader = new java.net.URLClassLoader(
+                    new java.net.URL[]{out.toUri().toURL()}, getClass().getClassLoader())) {
+                Class.forName("Default.Main", true, loader)
+                        .getMethod("main", String[].class)
+                        .invoke(null, (Object) new String[0]);
+            }
+        } finally {
+            System.setOut(previousOut);
+        }
+        assertEquals("7", stdout.toString(StandardCharsets.UTF_8).strip());
+    }
+
+    @Test
+    void nullablePrimitiveAsIntNumericCastUnboxesJvm() throws Exception {
+        // #1097: `(score() as Int) + 1` — the direct-call source is
+        // Nullable(Int): the stack holds the BOX; the numeric cast face opens
+        // it before the widening (the #1054 rule, now for non-var sources).
+        Path root = tmp.resolve("wn-1097num");
+        Files.createDirectories(root);
+        Files.writeString(root.resolve("Main.kf"), """
+                Int? score() { return 7 }
+                main() {
+                    println((score() as Int) + 1)
+                }
+                """);
+        Path out = root.resolve("out");
+        CompilationResult r = driver.compile(root.resolve("Main.kf"), out, Target.JVM);
+        assertTrue(r.success(), () -> "compile: " + r.diagnostics().getDiagnostics());
+        var stdout = new ByteArrayOutputStream();
+        var previousOut = System.out;
+        try {
+            System.setOut(new java.io.PrintStream(stdout, true, StandardCharsets.UTF_8));
+            try (var loader = new java.net.URLClassLoader(
+                    new java.net.URL[]{out.toUri().toURL()}, getClass().getClassLoader())) {
+                Class.forName("Default.Main", true, loader)
+                        .getMethod("main", String[].class)
+                        .invoke(null, (Object) new String[0]);
+            }
+        } finally {
+            System.setOut(previousOut);
+        }
+        assertEquals("8", stdout.toString(StandardCharsets.UTF_8).strip());
+    }
 }

@@ -67,6 +67,16 @@ final class ExpressionBinaryInstanceOfLowerer {
             && (TypeMetrics.isPrimitiveType(fromCastType) || handleAsInt)) {
         // cast primitivo (x as Char/Int/…): conversão numérica,
         // NÃO checkcast (que exigiria um objeto na pilha)
+        // #1097: o fonte do cast direto é Nullable(primitivo) (`score() as
+        // Int` com score(): Int?) — a pilha carrega o BOX (o descritor do
+        // método é o wrapper); abre antes do widening cru (a mesma regra do
+        // #1054 para o var estreitado — cuja face já reescreveu fromCastType
+        // para o inner, então este guard não dispara em dobro para vars).
+        if (fromCastType instanceof Type.NullableType ntCast
+                && TypeMetrics.isPrimitiveType(ntCast.inner())) {
+            CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops, fromCastType, ntCast.inner());
+            fromCastType = ntCast.inner();
+        }
         Type fromT = fromCastType;
         driver.emitWideningIfNeeded(ops, fromT, targetType);
         // narrowing numérico (cast explícito): L2I, F2I, D2I,
@@ -84,13 +94,20 @@ final class ExpressionBinaryInstanceOfLowerer {
             castTarget = CompilerLambdaClass.lambdaInterfaceType(driver, ft);
         }
         if (TypeMetrics.isPrimitiveType(fromCastType)
-                && !TypeMetrics.isPrimitiveType(targetType)) {
+                && !TypeMetrics.isPrimitiveType(targetType)
+                && !(fromCastType instanceof Type.NullableType)) {
             // §213: cast de PRIMITIVO → REFERÊNCIA (`i as Object`, `7 as Object`)
             // emitia o primitivo cru seguido de checkcast → VerifyError
             // ("Bad type on operand stack" — um int não é assignable a
             // referência). Boxa primeiro (mirror `var o: Object = 7` que já
             // faz kof_box via StatementLowerer). JS/Native são untyped — o
             // kof_box é identidade lá.
+            // #1097: MAS um fromType Nullable(primitivo) (`score() as Object`
+            // com score(): Int?) já deixou a REFERÊNCIA boxada na pilha
+            // (D-NULL-INTENT — o descritor do método é o wrapper) — re-boxar
+            // emitia `Integer.valueOf(Integer)` (NoSuchMethodError, a face
+            // exata da issue). O checkcast Object aceita a referência como
+            // está; o box é só para o primitivo CRU.
             driver.emitErasureBox(ops, fromCastType);
         }
         // §678 (D-SEM-REJECTS-1210): `x as T?` é o cast SUAVE SEMPRE-NULL — em
