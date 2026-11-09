@@ -295,6 +295,10 @@ public final class JvmRuntimeJson {
                             for (Object e : l) out.add(bindByType(elem, e));
                             return out;
                         }
+                        // #1128: alvo lista recebendo não-lista (um objeto, um
+                        // escalar) = JSN006 na profundidade — nunca container
+                        // vazio silencioso (o JVM imprimia 0).
+                        throw jsonShapeError("an array", value);
                     }
                     // #633: alvo `Map<K,V>` (interface desde #634) — decodifica
                     // os VALORES pelo type-arg refletido (genérico completo),
@@ -307,6 +311,13 @@ public final class JvmRuntimeJson {
                         for (Map.Entry<?, ?> e : mv.entrySet())
                             out.put(e.getKey(), vt == null ? e.getValue() : bindByType(vt, e.getValue()));
                         return out;
+                    }
+                    // #1128: alvo objeto/record recebendo não-objeto (uma
+                    // lista, um escalar) = JSN006 na profundidade — o espelho
+                    // do check de lista acima (o JS já recusava; a paridade
+                    // atravessa os três alvos).
+                    if (!(value instanceof Map<?, ?>)) {
+                        throw jsonShapeError("an object", value);
                     }
                     if (value instanceof Map<?, ?> m) {
                         if (type.isRecord()) {

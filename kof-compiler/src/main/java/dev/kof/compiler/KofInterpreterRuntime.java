@@ -282,6 +282,14 @@ public final class KofInterpreterRuntime {
         if (raw == null) return null;
         IRClass nested = interp.kofClassOrNull(type);
         if (nested != null && raw instanceof java.util.Map) return decodeKofValue(nested, raw);
+        // #1128: alvo lista recebendo não-lista = JSN006 na profundidade
+        // (o espelho do kof_json_bind JVM — a paridade atravessa os alvos).
+        if (raw != null && !(raw instanceof List<?>)
+                && (BuiltinTypes.isList(type) || BuiltinTypes.isSet(type))) {
+            throw new RuntimeException("JSN006: json.decode expected an array but the payload is "
+                    + (raw instanceof String ? "a string" : raw instanceof Boolean ? "a bool"
+                    : raw instanceof Number ? "a number" : "a scalar"));
+        }
         if (raw instanceof List<?> l && BuiltinTypes.isList(type)) {
             Type elem = ((Type.ClassType) type).typeArguments().isEmpty()
                     ? Type.UnknownType.UNKNOWN : ((Type.ClassType) type).typeArguments().get(0);
@@ -322,6 +330,14 @@ public final class KofInterpreterRuntime {
         // #633: `Map<K,V>` com V composto (record/Map/List) — recursa nos
         // valores pelo type-arg (espelho do kof_json_bind JVM). Sem isto um
         // campo `Map<String,E>` ficava como mapa cru (valores LinkedHashMap).
+        // #1128: alvo mapa/record recebendo não-objeto = JSN006 na
+        // profundidade (o espelho do kof_json_bind JVM).
+        if (!(raw instanceof List<?>) && !(raw instanceof java.util.Map<?, ?>)
+                && (BuiltinTypes.isMap(type) || interp.kofClassOrNull(type) != null)) {
+            throw new RuntimeException("JSN006: json.decode expected an object but the payload is "
+                    + (raw instanceof String ? "a string" : raw instanceof Boolean ? "a bool"
+                    : raw instanceof Number ? "a number" : "a scalar"));
+        }
         if (raw instanceof java.util.Map<?, ?> m && BuiltinTypes.isMap(type)) {
             Type vt = ((Type.ClassType) type).typeArguments().size() >= 2
                     ? ((Type.ClassType) type).typeArguments().get(1) : Type.UnknownType.UNKNOWN;
