@@ -370,11 +370,16 @@ public final class StatementLowerer {
             case ThrowStmt ts -> {
                 localIdx = ExpressionLowerer.emitExpression(driver, ts.expression(), ops, owner, localIdx, locals);
                 Type excType = ExpressionTyper.inferExprType(driver, ts.expression(), locals);
+                // #1052: um `String?` narrowed tipa NullableType[String] no
+                // lowering — DESEMBRULHAR antes da checagem (a exceção Kof é a
+                // mensagem String qualquer que seja a escrita; o slot já carrega
+                // a referência — D-NULL-INTENT só embrulha PRIMITIVOS).
+                Type unwrappedExc = excType instanceof Type.NullableType nt ? nt.inner() : excType;
                 // ANDROID reusa o JvmBackend e o mesmo contrato de excecao
                 // String->RuntimeException do JVM (issue #777 hunt): sem isto o
                 // `athrow` recebia a String crua -> VerifyError em toda app
                 // Android com `throw`/`assert`.
-                if (BuiltinTypes.isString(excType)
+                if (BuiltinTypes.isString(unwrappedExc)
                         && (driver.target == Target.JVM || driver.target == Target.ANDROID)) {
                     int tmp = localIdx++;
                     locals.add(new IRLocalVariable(tmp, "#exc", BuiltinTypes.STRING));
