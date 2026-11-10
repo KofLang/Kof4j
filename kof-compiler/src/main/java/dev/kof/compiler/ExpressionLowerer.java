@@ -15,12 +15,12 @@ public final class ExpressionLowerer {
         return switch (expr) {
             case LiteralExpr lit -> {
                 switch (lit.kind()) {
-                    case ConcreteLiteralKind.INT -> ops.add(KofLoadLiteral.ofInt(driver.parseIntLiteral(lit.value())));
-                    case ConcreteLiteralKind.LONG -> ops.add(KofLoadLiteral.ofLong(driver.parseLongLiteral(lit.value())));
+                    case ConcreteLiteralKind.INT -> ops.add(KofLoadLiteral.ofInt(CompilerTypeSupport.parseIntLiteral(lit.value())));
+                    case ConcreteLiteralKind.LONG -> ops.add(KofLoadLiteral.ofLong(CompilerTypeSupport.parseLongLiteral(lit.value())));
                     case ConcreteLiteralKind.FLOAT ->
-                        ops.add(KofLoadLiteral.ofFloat(driver.parseFloatLiteral(lit.value())));
+                        ops.add(KofLoadLiteral.ofFloat(CompilerTypeSupport.parseFloatLiteral(lit.value())));
                     case ConcreteLiteralKind.DOUBLE ->
-                        ops.add(KofLoadLiteral.ofDouble(driver.parseDoubleLiteral(lit.value())));
+                        ops.add(KofLoadLiteral.ofDouble(CompilerTypeSupport.parseDoubleLiteral(lit.value())));
                     case ConcreteLiteralKind.STRING -> ops.add(KofLoadLiteral.ofString(lit.value()));
                     case ConcreteLiteralKind.BOOLEAN -> ops.add(KofLoadLiteral.ofBool(Boolean.parseBoolean(lit.value())));
                     case ConcreteLiteralKind.CHAR -> ops.add(KofLoadLiteral.ofInt(lit.value().charAt(0)));

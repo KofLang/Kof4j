@@ -322,7 +322,10 @@ single-thread, so post-return push and multiple concurrent clients are the
 `WEB003` residual there. On the JVM each SSE connection is independent
 (ThreadLocal per connection). In both, the headers
 `Content-Type: text/event-stream`, `Cache-Control: no-cache`,
-`Connection: keep-alive` and `X-Accel-Buffering: no` are emitted.
+`Connection: keep-alive` and `X-Accel-Buffering: no` are emitted; the
+headers middleware and `app.security()` set (request id, CORS, cookies) are
+appended after the fixed ones — the fixed stream headers keep their values (a
+middleware `Content-Type` never replaces `text/event-stream`, #1066).
 
 ```kof
 app.sse("/events") {

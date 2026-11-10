@@ -103,11 +103,17 @@ public final class JvmRuntimeWebServer {
                     WebDispatchResult result = kof_web_dispatch(app, req);
                     if (result.kind == RouteKind.SSE) {
                         java.io.OutputStream out = client.getOutputStream();
+                        // #1066: the deferred dispatch headers (middleware +
+                        // app.security()) go between the fixed stream head and the
+                        // blank line; the fixed names are already skipped in the
+                        // rendering (kof_web_extra_head).
+                        String extraHead = kof_web_extra_head();
                         out.write(("HTTP/1.1 200 OK\\r\\n"
                                 + "Content-Type: text/event-stream\\r\\n"
                                 + "Cache-Control: no-cache\\r\\n"
                                 + "Connection: keep-alive\\r\\n"
                                 + "X-Accel-Buffering: no\\r\\n"
+                                + (extraHead == null ? "" : extraHead)
                                 + (result.response != null ? result.response : "")
                                 + "\\r\\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
                         out.flush();

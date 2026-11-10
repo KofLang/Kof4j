@@ -295,21 +295,30 @@ public dev.kof.compiler.nat.NativeProfile nativeProfile() {
     int emitStatement(StatementNode stmt, List<KofOperation> ops, String owner, int localIdx,
                               List<IRLocalVariable> locals, Type returnType) {
         int before = ops.size();
-        int result = StatementLowerer.emitStatementInner(this, stmt, ops, owner, localIdx, locals, returnType);
-        if (stmt.position() != null) {
-            for (int i = before; i < ops.size(); i++) {
-                currentDebugPositions.put(ops.get(i), stmt.position());
+        // #1062: o owner corrente alimenta isLocalVarName (um campo da própria
+        // classe sombreia um namespace da stdlib). Save/restore: o lowering
+        // aninhado de lambda/classe troca o owner e volta ao sair.
+        String prevLoweringOwner = loweringOwnerInternal;
+        loweringOwnerInternal = owner;
+        try {
+            int result = StatementLowerer.emitStatementInner(this, stmt, ops, owner, localIdx, locals, returnType);
+            if (stmt.position() != null) {
+                for (int i = before; i < ops.size(); i++) {
+                    currentDebugPositions.put(ops.get(i), stmt.position());
+                }
             }
-        }
-        if (Boolean.getBoolean("kof.trace.debug")) {
-            System.err.println("emitStatement @" + (stmt.position() != null ? stmt.position().line() : "null")
-                    + " range=[" + before + ".." + ops.size() + ") " + stmt.getClass().getSimpleName());
-            for (int i = before; i < ops.size(); i++) {
-                System.err.println("  put[" + i + "] " + System.identityHashCode(ops.get(i))
-                        + " " + ops.get(i).getClass().getSimpleName());
+            if (Boolean.getBoolean("kof.trace.debug")) {
+                System.err.println("emitStatement @" + (stmt.position() != null ? stmt.position().line() : "null")
+                        + " range=[" + before + ".." + ops.size() + ") " + stmt.getClass().getSimpleName());
+                for (int i = before; i < ops.size(); i++) {
+                    System.err.println("  put[" + i + "] " + System.identityHashCode(ops.get(i))
+                            + " " + ops.get(i).getClass().getSimpleName());
+                }
             }
+            return result;
+        } finally {
+            loweringOwnerInternal = prevLoweringOwner;
         }
-        return result;
     }
 
 

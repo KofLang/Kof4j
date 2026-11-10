@@ -219,6 +219,37 @@ public final class JvmRuntimeWebDispatch {
                     return null;
                 }
 
+                /** #1066: os headers deferidos ATÉ o momento (o map do
+                 *  middleware + a lista Set-Cookie da #1012 + os headers de
+                 *  security da C18) como linhas de head para o stream SSE — o
+                 *  dispatcher limpa tudo antes de devolver a rota não-HTTP e o
+                 *  server escrevia o head FIXO sem eles. Os nomes fixos do
+                 *  stream (e Content-Length/Transfer-Encoding) são pulados:
+                 *  um Content-Type de middleware nunca substitui
+                 *  text/event-stream. */
+                private static String kof_web_extra_head() {
+                    java.util.Set<String> fixed = java.util.Set.of(
+                            "content-type", "cache-control", "connection",
+                            "x-accel-buffering", "content-length",
+                            "transfer-encoding");
+                    StringBuilder hdr = new StringBuilder();
+                    for (java.util.Map.Entry<String, String> e
+                            : KOF_WEB_HEADERS.get().entrySet()) {
+                        if (fixed.contains(e.getKey().toLowerCase())) continue;
+                        hdr.append(e.getKey()).append(": ").append(e.getValue()).append("\\r\\n");
+                    }
+                    for (String[] sc : KOF_WEB_SET_COOKIES.get()) {
+                        if (fixed.contains(sc[0].toLowerCase())) continue;
+                        hdr.append(sc[0]).append(": ").append(sc[1]).append("\\r\\n");
+                    }
+                    for (java.util.Map.Entry<String, String> e
+                            : KOF_SEC_RESPONSE_HEADERS.get().entrySet()) {
+                        if (fixed.contains(e.getKey().toLowerCase())) continue;
+                        hdr.append(e.getKey()).append(": ").append(e.getValue()).append("\\r\\n");
+                    }
+                    return hdr.toString();
+                }
+
                 /** #1012: todo reset de headers por request limpa TAMBÉM a
                  *  lista de Set-Cookie (sem isto um cookie vazaria para a
                  *  resposta seguinte na mesma thread). */
@@ -292,12 +323,16 @@ public final class JvmRuntimeWebDispatch {
                             if (!match) continue;
                             req.params.putAll(params);
                             if (route.kind != RouteKind.HTTP) {
-                                // SSE: the headers middleware and app.security() set
-                                // (CORS, cookies, request id) go out with the stream head
-                                String head = route.kind == RouteKind.SSE ? kof_web_extra_head() : null;
+                                // #1066: o head do stream SSE leva TAMBÉM os
+                                // headers deferidos até aqui (middleware +
+                                // app.security()) — sem isto o limpar abaixo
+                                // os descartava e o server escrevia só o head
+                                // fixo. WS não tem head HTTP: null.
+                                String extraHead = route.kind == RouteKind.SSE
+                                        ? kof_web_extra_head() : null;
                                 KOF_WEB_STATUS.remove();
                                 kof_web_clear_response_headers();
-                                 return new WebDispatchResult(route.kind, null, route);
+                                 return new WebDispatchResult(route.kind, extraHead, route);
                             }
                             Object result = kof_web_invoke(route.handler, req);
                             if (result == null) {
