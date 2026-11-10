@@ -146,7 +146,11 @@ public final class JvmRecordEmitter {
                     mv.visitLabel(ok);
                 }
                 case "float", "Float" -> {
-                    mv.visitInsn(FCMPL);
+                    // §764: o contrato de record do javac usa Float.compare
+                    // (ordem total: NaN == NaN, +0.0 != -0.0), não o `==` IEEE
+                    // cru (`FCMPL`). O fold WASI (bits) já seguia o javac.
+                    // Pilha já é [a, b] (ambos F) — compare(a,b) é a ordem.
+                    mv.visitMethodInsn(INVOKESTATIC, "java/lang/Float", "compare", "(FF)I", false);
                     Label ok = new Label();
                     mv.visitJumpInsn(IFEQ, ok);
                     mv.visitInsn(ICONST_0);
@@ -154,7 +158,10 @@ public final class JvmRecordEmitter {
                     mv.visitLabel(ok);
                 }
                 case "double", "Double" -> {
-                    mv.visitInsn(DCMPL);
+                    // §764: Double.compare (a mesma forma que o javac gera
+                    // para o equals de record) — bits-equivalente. Pilha já é
+                    // [a, b] (ambos D) — compare(a,b) é a ordem.
+                    mv.visitMethodInsn(INVOKESTATIC, "java/lang/Double", "compare", "(DD)I", false);
                     Label ok = new Label();
                     mv.visitJumpInsn(IFEQ, ok);
                     mv.visitInsn(ICONST_0);
