@@ -202,7 +202,11 @@ public final class JsRuntimeUiWeb {
                     // deferido; sem status() o default é 200 (ou 404 se o
                     // handler retornou null).
                     for (const hv of kofWebRequest._headerQueue) {
-                        exchange.getResponseHeaders().set(hv[0], hv[1]);
+                        // #1012: Set-Cookie REPETE (RFC 6265 §3, qualquer
+                        // caixa); todo outro header fica last-wins (set).
+                        if (hv[0].toLowerCase() === "set-cookie")
+                            exchange.getResponseHeaders().add(hv[0], hv[1]);
+                        else exchange.getResponseHeaders().set(hv[0], hv[1]);
                     }
                     if (result === null || result === undefined) {
                         const code404 = kofWebRequest._status != null ? kofWebRequest._status : 404;
@@ -274,8 +278,21 @@ public final class JsRuntimeUiWeb {
             export function kofWebHeaderSet(name, value) {
                 // §265 (JS): defere p/ antes do sendResponseHeaders (o JDK
                 // HttpServer exige headers ANTES do envio; idem JVM).
-                if (kofWebRequest) kofWebRequest._headerQueue.push([String(name), String(value)]);
-                return value == null ? "" : String(value);
+                // #1012: CR/LF no nome ou valor nunca chega ao fio (RFC 9112
+                // §5) — recusar AQUI (o catch do pump responde 500) em vez de
+                // escrever linha injetada. CR=13/LF=10 via fromCharCode: os
+                // escapes de newline num text block Java chegam ao JS como
+                // newline REAL e quebrariam o string literal.
+                const n = String(name), v = value == null ? "" : String(value);
+                const CR = String.fromCharCode(13), LF = String.fromCharCode(10);
+                // A mensagem NÃO ecoa o nome/valor: um payload CRLF num
+                // diagnóstico é log-injection.
+                if (n.indexOf(CR) >= 0 || n.indexOf(LF) >= 0)
+                    throw new Error("header name must not contain CR/LF");
+                if (v.indexOf(CR) >= 0 || v.indexOf(LF) >= 0)
+                    throw new Error("header value must not contain CR/LF");
+                if (kofWebRequest) kofWebRequest._headerQueue.push([n, v]);
+                return v;
             }
             export function kofWebAppNew() {
                 const app = {

@@ -20,6 +20,11 @@ public final class JvmWebCoreRuntime {
                 private static final ThreadLocal<Integer> KOF_WEB_STATUS = new ThreadLocal<>();
                 private static final ThreadLocal<java.util.Map<String, String>> KOF_WEB_HEADERS =
                         ThreadLocal.withInitial(java.util.HashMap::new);
+                // #1012: Set-Cookie REPETE em vez de substituir (RFC 6265 §3,
+                // qualquer caixa) — os valores múltiplos ficam FORA do map
+                // last-wins; o build escreve uma linha por valor.
+                private static final ThreadLocal<java.util.List<String[]>> KOF_WEB_SET_COOKIES =
+                        ThreadLocal.withInitial(java.util.ArrayList::new);
                 // D-SEC C18: headers de resposta do middleware de security
                 // (CSP/HSTS/CORS/Set-Cookie) — separados de KOF_WEB_HEADERS
                 // porque o dispatch limpa estes ANTES de invocar a rota; estes
@@ -44,6 +49,25 @@ public final class JvmWebCoreRuntime {
                 }
 
                 public static String kof_web_header_set(String name, String value) {
+                    // #1012: CR/LF num nome ou valor nunca chega ao fio (RFC
+                    // 9112 §5) — recusar AQUI (o catch do dispatch responde
+                    // 500) em vez de escrever uma linha injetada. A mensagem
+                    // NÃO ecoa o valor: um payload CRLF num diagnóstico é
+                    // log-injection.
+                    if (name != null && (name.indexOf('\\r') >= 0 || name.indexOf('\\n') >= 0)) {
+                        throw new IllegalArgumentException(
+                                "header name must not contain CR/LF");
+                    }
+                    if (value != null && (value.indexOf('\\r') >= 0 || value.indexOf('\\n') >= 0)) {
+                        throw new IllegalArgumentException(
+                                "header value must not contain CR/LF");
+                    }
+                    // #1012: Set-Cookie REPETE em vez de substituir (qualquer
+                    // caixa, RFC 6265 §3); todo outro header fica last-wins.
+                    if (name != null && name.equalsIgnoreCase("Set-Cookie")) {
+                        KOF_WEB_SET_COOKIES.get().add(new String[]{name, value});
+                        return value;
+                    }
                     KOF_WEB_HEADERS.get().put(name, value);
                     return value;
                 }
