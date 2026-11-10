@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §799 (FIXED)
 last: §798 (FIXED)
 last: §797 (FIXED)
 last: §795 (FIXED)
@@ -477,6 +478,27 @@ Observado na JVM: `GET /posts/seals` responde `param seals`. O JS respondia `lit
 
 **Correção:** `WebRoute.addTo` insere cada rota antes da primeira rota de mesmo tamanho que seja menos específica (no primeiro segmento em que diferem, um literal ganha de um `:param`, a regra do Spring; formas iguais mantêm a ordem de registro), para rotas HTTP, SSE e WS. O matcher JS fica com a mais específica das rotas `:param` que casam pela mesma regra, e cria cada prefixo de contexto uma vez. O roteador Native casa só caminhos exatos (path params são o resíduo documentado `WEB001` dele), então a questão da ordem não aparece lá. **Prova:** `WebRoutePrecedenceE2ETest` 2/2 (JVM e JS: `/posts/seals` é a rota literal, `/posts/7` a de parâmetro, e a regra do primeiro segmento diferente em rotas de três segmentos); `KofWebJsE2ETest` inalterado.
 <!-- pt-switch --> **EN:** [§798 (en)](known-bugs.md#798--the-jvm-router-answered-by-registration-order-get-postsid-registered-first-swallowed-get-postsseals-on-js-two-param-routes-with-the-same-static-prefix-killed-listen)
+
+## §799 — os argumentos de um construtor externo nunca eram tipados: `new File(System.getProperty(k))` e `new ByteArrayInputStream(s.getBytes())` eram emitidos como `<init>(Object)` (NoSuchMethodError)
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `4f7257933`).
+
+**MEDIDO** (alvo JVM):
+```kof
+import java.lang.System
+import java.io.File
+import java.io.ByteArrayInputStream
+main() {
+    println(new File(System.getProperty("java.io.tmpdir")).exists())
+    println(new ByteArrayInputStream("hi".getBytes()).available())
+}
+```
+Observado: `NoSuchMethodError: 'void java.io.File.<init>(java.lang.Object)'` (e o mesmo para `ByteArrayInputStream`); sem o import de `java.lang.System` a primeira linha era um frame crash na compilação em vez de `SEM011`. Por um local (`val p = System.getProperty(k)`, depois `new File(p)`) funciona.
+
+**CAUSA RAIZ:** o `SemNewExprTyper` tipa os argumentos de um construtor Kof, mas retornava cedo para uma classe externa (JDK ou jar) sem visitá-los. O lowering pede ao analyzer o tipo de um argumento chamada; sem nada gravado caía em `Object`, e o descritor do construtor era montado com isso. Um nome indefinido dentro de um argumento assim nunca era diagnosticado.
+
+**Correção:** os argumentos de um construtor externo são tipados como os de qualquer chamada (um argumento lambda segue no caminho com tipo-alvo que já o trata). **Prova:** `ExternalCtorArgTypingE2ETest` 2/2 (os dois construtores rodam, imprimindo `true` e `2`; `new File(nowhere)` é `SEM011`). Escolher entre sobrecargas de construtor JDK de mesma aridade pelo tipo dos argumentos é um gap separado (G311) sobre a resolução de sobrecarga externa (§770).
+<!-- pt-switch --> **EN:** [§799 (en)](known-bugs.md#799--the-arguments-of-an-external-constructor-were-never-typed-new-filesystemgetpropertyk-and-new-bytearrayinputstreamsgetbytes-were-emitted-as-initobject-nosuchmethoderror)
 
 ## §168 — SEM025 ausente para método desconhecido em namespace `json` — ✅ CORRIGIDO 13/09 (lane development/translator, dono = 192.168.100.22)
 

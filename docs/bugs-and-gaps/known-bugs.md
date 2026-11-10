@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §799 (FIXED)
 last: §798 (FIXED)
 last: §797 (FIXED)
 last: §795 (FIXED)
@@ -478,6 +479,27 @@ Observed on the JVM: `GET /posts/seals` answers `param seals`. JS answered `lite
 
 **Fix:** `WebRoute.addTo` inserts each route before the first route of the same length that is less specific (at the first segment where they differ, a literal beats a `:param`, Spring's rule; equal shapes keep registration order), for HTTP, SSE and WS routes alike. The JS matcher keeps the most specific of the matching `:param` routes by the same rule, and creates each context prefix once. The Native router matches exact paths only (path params are its documented `WEB001` residual), so the order question does not arise there. **Proof:** `WebRoutePrecedenceE2ETest` 2/2 (JVM and JS: `/posts/seals` is the literal route, `/posts/7` the param one, and the first-differing-segment rule on three-segment routes); `KofWebJsE2ETest` unchanged.
 <!-- pt-switch --> **PT:** [§798 (pt_BR)](known-bugs.pt_BR.md#798--o-roteador-jvm-respondia-pela-ordem-de-registro-get-postsid-registrado-antes-engolia-get-postsseals-no-js-duas-rotas-param-com-o-mesmo-prefixo-estatico-matavam-o-listen)
+
+## §799 — the arguments of an external constructor were never typed: `new File(System.getProperty(k))` and `new ByteArrayInputStream(s.getBytes())` were emitted as `<init>(Object)` (NoSuchMethodError)
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED** (JVM target):
+```kof
+import java.lang.System
+import java.io.File
+import java.io.ByteArrayInputStream
+main() {
+    println(new File(System.getProperty("java.io.tmpdir")).exists())
+    println(new ByteArrayInputStream("hi".getBytes()).available())
+}
+```
+Observed: `NoSuchMethodError: 'void java.io.File.<init>(java.lang.Object)'` (and the same for `ByteArrayInputStream`); without the `java.lang.System` import the first line was a frame crash at compile time instead of `SEM011`. Through a local (`val p = System.getProperty(k)`, then `new File(p)`) it works.
+
+**ROOT CAUSE:** `SemNewExprTyper` types the arguments of a Kof constructor but returned early for an external (JDK or jar) class without visiting them. The lowering asks the analyzer for the type of a call argument; with none recorded it fell back to `Object`, and the constructor descriptor was built from that. An undefined name inside such an argument was never diagnosed.
+
+**Fix:** the arguments of an external constructor are typed like any call's (a lambda argument stays on the target-typed path that already handles it). **Proof:** `ExternalCtorArgTypingE2ETest` 2/2 (both constructors run, printing `true` and `2`; `new File(nowhere)` is `SEM011`). Selecting among same-arity JDK constructor overloads by argument type is a separate gap (G311) on top of the external overload resolution (§770).
+<!-- pt-switch --> **PT:** [§799 (pt_BR)](known-bugs.pt_BR.md#799--os-argumentos-de-um-construtor-externo-nunca-eram-tipados-new-filesystemgetpropertyk-e-new-bytearrayinputstreamsgetbytes-eram-emitidos-como-initobject-nosuchmethoderror)
 
 ## §168 — SEM025 missing for unknown method in namespace `json` — ✅ FIXED 13/09 (lane development/translator, owner = 192.168.100.22)
 

@@ -100,6 +100,13 @@ final class SemNewExprTyper {
             }
             return new Type.ClassType(cs.packageName(), cs.name(), newArgs);
         }
+        // The arguments of an external constructor are typed like any call's:
+        // untyped, a call argument (`new File(System.getProperty(k))`) reached
+        // the lowering as Object and the descriptor became `<init>(Object)`.
+        // A lambda is left to the target-typed path that already handles it.
+        for (ExpressionNode arg : ne.arguments()) {
+            if (!(arg instanceof LambdaExpr)) SemExpressionTyper.inferType(sa, arg, scope);
+        }
         // classe EXTERNA (android.webkit.WebView etc.): qualifica pelo
         // import e registra o construtor do classpath — sem isso a
         // variável fica Unknown e toda a cadeia de chamadas seguinte
