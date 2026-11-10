@@ -350,6 +350,7 @@ globais por JVM e devolvidas como `String`.
 | `body()` | Corpo cru da request |
 | `method()` | Método HTTP ("GET", "POST", ...) |
 | `path()` | Caminho da request |
+| `remoteAddr()` | Endereço TCP do par da request (`"127.0.0.1"`, `""` quando desconhecido). Atrás de um proxy o endereço do cliente é um header: `header("x-forwarded-for")`. JVM e JS; no Native é WEB001 |
 | `status(code, body)` | Define o status da resposta e retorna o corpo — use como retorno (ex.: `return status(201, "{\"ok\":true}")`) |
 | `headerSet(name, value)` | Adiciona um header de resposta (ex.: `headerSet("X-Total", "42")`). Um nome repetido substitui o valor, exceto `Set-Cookie`, que envia uma linha por chamada; CR/LF no nome ou no valor é recusado (§784) |
 

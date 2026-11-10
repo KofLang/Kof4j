@@ -140,6 +140,11 @@ public final class JsRuntimeUiWeb {
                         headers: exchange.getRequestHeaders(),
                         body: body,
                         paramsMap: matched || new Map(),
+                        // G14: the TCP peer address, as the JVM's req.remoteAddr
+                        remoteAddr: (() => {
+                            const a = exchange.getRemoteAddress();
+                            return a && a.getAddress() ? String(a.getAddress().getHostAddress()) : "";
+                        })(),
                         // §265 (JS): status/headerSet DEFERIDOS idem JVM
                         // (KOF_WEB_STATUS/KOF_WEB_HEADERS thread-local) — o
                         // handler faz `return status(201, body)`; o pump aplica
@@ -265,6 +270,9 @@ public final class JsRuntimeUiWeb {
             }
             export function kofWebMethod() {
                 return kofWebRequest ? kofWebRequest.method : "";
+            }
+            export function kofWebRemoteAddr() {
+                return kofWebRequest && kofWebRequest.remoteAddr ? kofWebRequest.remoteAddr : "";
             }
             export function kofWebPath() {
                 return kofWebRequest ? kofWebRequest.path : "";

@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §822 (FIXED)
 last: §820 (FIXED)
 last: §817 (FIXED)
 last: §810 (FIXED)
@@ -679,6 +680,27 @@ Observed: `PARSE023 Expected parameter name` and `PARSE016` on line 3; with that
 
 **Fix:** (a) the function-type branch uses the same-line guard. (b) when the receiver's class has no method of that name in its hierarchy and has a function-typed field of that name, `FunctionFieldCalls` rewrites the call to `(h.run).invoke(args)`; the analyzer records the rewrite by AST node and both the lowering typer and the lowerer use it, so JVM, Script and JS share the existing function-value path. A method with the same name wins. The argument count is checked against the field's type (`SEM013`). `docs/language-reference/closures` §3 (EN + pt_BR) documents it. **Proof:** `FunctionFieldCallE2ETest` 3/3 (zero, one and two-argument fields, a `Void` field, an inherited field, the bare and `this.` forms inside the class and a receiver from `List.get`, identical on JVM, Script and JS; a same-named method wins on JVM and Script; SEM025 for a member that is neither, an extra argument refused).
 <!-- pt-switch --> **PT:** [§820 (pt_BR)](known-bugs.pt_BR.md#820--um-campo-de-tipo-funcao-nao-podia-ser-chamado-como-metodo-hrun-dava-sem025-e-um-segundo-campo-de-tipo-funcao-na-linha-de-baixo-era-lido-como-lista-de-parametros-do-primeiro-parse023)
+
+## §822 — a route handler could not read the TCP peer address (no context function; `req.remoteAddr` is internal), so a client IP needed reflection; now `remoteAddr()`
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `2c920c4c1`). New context function by maintainer decision (05/11).
+
+**MEASURED** (JVM and JS):
+```kof
+main() {
+    var app = web.app()
+    app.get("/ip") {
+        return "ip=" + remoteAddr()
+    }
+    app.listen(8080)
+}
+```
+Observed: `SEM015 Undefined function: 'remoteAddr'` on JVM and JS. The runtime keeps the address (`WebRequest.remoteAddr`, the rate limiter's key) but nothing exposes it, so the port read `KofRuntime.KOF_WEB_REQUEST.remoteAddr` by reflection.
+
+**ROOT CAUSE:** a missing context function: `KofWeb.contextCall` had `body`/`method`/`path` and no accessor for the peer address, and the JS host did not record it.
+
+**Fix:** `remoteAddr()` is a request-context function returning `String` (`""` when unknown): `kof_web_remote_addr` reads `WebRequest.remoteAddr` on the JVM (Script uses the same runtime), and the JS host records `exchange.getRemoteAddress()` on the request object. Native refuses it at compile time with WEB001, like the other context functions it does not emit. `docs/stdlib/stdlib-web` (EN + pt_BR) lists it and notes that a proxy's client address is the `x-forwarded-for` header. **Proof:** `WebRemoteAddrE2ETest` 3/3 (a real request from 127.0.0.1 answers `ip=127.0.0.1` on JVM and JS; Native reports the named WEB001).
+<!-- pt-switch --> **PT:** [§822 (pt_BR)](known-bugs.pt_BR.md#822--um-handler-de-rota-nao-conseguia-ler-o-endereco-tcp-do-par-nao-havia-funcao-de-contexto-reqremoteaddr-e-interno-entao-o-ip-do-cliente-exigia-reflexao-agora-remoteaddr)
 
 ## §168 — SEM025 missing for unknown method in namespace `json` — ✅ FIXED 13/09 (lane development/translator, owner = 192.168.100.22)
 

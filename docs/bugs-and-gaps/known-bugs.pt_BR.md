@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §822 (FIXED)
 last: §820 (FIXED)
 last: §817 (FIXED)
 last: §810 (FIXED)
@@ -678,6 +679,27 @@ Observado: `PARSE023 Expected parameter name` e `PARSE016` na linha 3; sem esse 
 
 **Correção:** (a) o ramo de tipo-função usa a mesma guarda de linha. (b) quando a classe do receptor não tem método com esse nome na hierarquia e tem um campo de tipo-função com esse nome, `FunctionFieldCalls` reescreve a chamada para `(h.run).invoke(args)`; o analisador registra a reescrita pelo nó da AST e tanto o typer do lowering quanto o lowerer a usam, então JVM, Script e JS compartilham o caminho de valor-função que já existia. Um método com o mesmo nome ganha. O número de argumentos é checado contra o tipo do campo (`SEM013`). `docs/language-reference/closures` §3 (EN + pt_BR) documenta. **Prova:** `FunctionFieldCallE2ETest` 3/3 (campos de zero, um e dois argumentos, um campo `Void`, um campo herdado, as formas sem receptor e com `this.` dentro da classe e um receptor vindo de `List.get`, iguais em JVM, Script e JS; um método de mesmo nome ganha em JVM e Script; SEM025 para um membro que não é nenhum dos dois, um argumento a mais recusado).
 <!-- pt-switch --> **EN:** [§820 (en)](known-bugs.md#820--a-function-typed-field-could-not-be-called-as-a-method-hrun-was-sem025-and-a-second-function-typed-field-on-the-next-line-was-read-as-the-first-ones-parameter-list-parse023)
+
+## §822 — um handler de rota não conseguia ler o endereço TCP do par (não havia função de contexto; `req.remoteAddr` é interno), então o IP do cliente exigia reflexão; agora `remoteAddr()`
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `2c920c4c1`). Função de contexto nova por decisão de mantenedor (05/11).
+
+**MEDIDO** (JVM e JS):
+```kof
+main() {
+    var app = web.app()
+    app.get("/ip") {
+        return "ip=" + remoteAddr()
+    }
+    app.listen(8080)
+}
+```
+Observado: `SEM015 Undefined function: 'remoteAddr'` em JVM e JS. O runtime guarda o endereço (`WebRequest.remoteAddr`, a chave do rate limiter) mas nada o expõe, então o port lia `KofRuntime.KOF_WEB_REQUEST.remoteAddr` por reflexão.
+
+**CAUSA RAIZ:** faltava a função de contexto: `KofWeb.contextCall` tinha `body`/`method`/`path` e nenhum acessor para o endereço do par, e o host JS não o registrava.
+
+**Correção:** `remoteAddr()` é uma função de contexto da request que devolve `String` (`""` quando desconhecido): `kof_web_remote_addr` lê `WebRequest.remoteAddr` no JVM (o Script usa o mesmo runtime), e o host JS registra `exchange.getRemoteAddress()` no objeto da request. O Native a recusa em compilação com WEB001, como as outras funções de contexto que não emite. `docs/stdlib/stdlib-web` (EN + pt_BR) a lista e avisa que o endereço do cliente atrás de um proxy é o header `x-forwarded-for`. **Prova:** `WebRemoteAddrE2ETest` 3/3 (uma request real de 127.0.0.1 responde `ip=127.0.0.1` em JVM e JS; o Native reporta o WEB001 nomeado).
+<!-- pt-switch --> **EN:** [§822 (en)](known-bugs.md#822--a-route-handler-could-not-read-the-tcp-peer-address-no-context-function-reqremoteaddr-is-internal-so-a-client-ip-needed-reflection-now-remoteaddr)
 
 ## §168 — SEM025 ausente para método desconhecido em namespace `json` — ✅ CORRIGIDO 13/09 (lane development/translator, dono = 192.168.100.22)
 
