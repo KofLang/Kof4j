@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §802 (FIXED)
 last: §801 (FIXED)
 last: §799 (FIXED)
 last: §798 (FIXED)
@@ -528,6 +529,26 @@ Observed: prints `none` (the stdlib `cache.get` answered, silently). With a lamb
 
 **Fix:** `isLocalVarName` also answers true for a field of the class being lowered (`OwnFieldNames`, the same field-first hierarchy lookup as §797), so a field shadows a stdlib namespace exactly like a local or a parameter. Where no value of that name exists, the namespace call is unchanged. **Proof:** `FieldShadowsStdNamespaceE2ETest` (fields `cache` with a lambda argument, `buffer` and `config` under `!` answer the field's methods; the stdlib `cache.set/get` in `main` still works).
 <!-- pt-switch --> **PT:** [§801 (pt_BR)](known-bugs.pt_BR.md#801--um-campo-de-classe-com-nome-de-namespace-da-stdlib-cache-buffer-config-era-baixado-como-o-namespace-cachegetk-num-campo-ttlcache-cache-chamava-o-cache-da-stdlib)
+
+## §802 — a JVM `Error` (NoSuchMethodError, VerifyError, StackOverflowError) in a spawned expression nobody awaited vanished without a trace
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED** (JVM target):
+```kof
+Int deep(n: Int) = deep(n + 1) + 1
+main() {
+    val h = spawn deep(0)
+    time.sleep(500)
+    println("main done")
+}
+```
+Observed: prints only `main done`. In a server whose spawned task served a socket (and died on a `NoSuchMethodError` from a wrong interop descriptor) the connection simply hung, with no log.
+
+**ROOT CAUSE:** `kof_spawn_result` (the spawn expression that yields a `Handle`) puts any failure into the handle (`completeExceptionally`) and nothing else; the failure surfaces only on `await`. The statement form `spawn { ... }` prints `spawn task failed`, the expression form never did.
+
+**Fix:** a `java.lang.Error` in a spawned expression is reported on stderr when it happens (`spawn task failed: <error>`): it is a broken program, not a value an `await` is meant to handle. The handle still fails for `await`, and an ordinary Kof exception keeps going only to the awaiter. **Proof:** `SpawnHandleErrorE2ETest` (the `StackOverflowError` of an unawaited task is on stderr and `main` still ends); `SpawnAwaitBlockE2ETest` and the JVM cases of `SpawnE2ETest` unchanged.
+<!-- pt-switch --> **PT:** [§802 (pt_BR)](known-bugs.pt_BR.md#802--um-error-da-jvm-nosuchmethoderror-verifyerror-stackoverflowerror-numa-expressao-spawned-que-ninguem-aguardava-sumia-sem-rastro)
 
 ## §168 — SEM025 missing for unknown method in namespace `json` — ✅ FIXED 13/09 (lane development/translator, owner = 192.168.100.22)
 

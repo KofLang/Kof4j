@@ -116,6 +116,10 @@ public final class JvmRuntimeCore {
                             future.complete(task.getClass().getMethod("invoke").invoke(task));
                         } catch (Throwable e) {
                             Throwable cause = e.getCause() != null ? e.getCause() : e;
+                            // a JVM Error (NoSuchMethodError, VerifyError...) is a broken
+                            // program, not a value for await: report it now, a handle
+                            // nobody awaits would otherwise hide it for ever
+                            if (cause instanceof Error) System.err.println("spawn task failed: " + cause);
                             future.completeExceptionally(cause);
                         } finally {
                             KOF_CURRENT_HANDLE.remove();

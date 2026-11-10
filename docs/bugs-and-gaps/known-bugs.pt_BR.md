@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §802 (FIXED)
 last: §801 (FIXED)
 last: §799 (FIXED)
 last: §798 (FIXED)
@@ -527,6 +528,26 @@ Observado: imprime `none` (o `cache.get` da stdlib respondeu, em silêncio). Com
 
 **Correção:** `isLocalVarName` também responde verdadeiro para um campo da classe sendo baixada (`OwnFieldNames`, a mesma busca campo-primeiro da §797), então um campo sombreia um namespace da stdlib exatamente como um local ou um parâmetro. Onde não existe valor com aquele nome, a chamada do namespace não muda. **Prova:** `FieldShadowsStdNamespaceE2ETest` (campos `cache` com argumento lambda, `buffer` e `config` sob `!` respondem os métodos do campo; o `cache.set/get` da stdlib no `main` segue funcionando).
 <!-- pt-switch --> **EN:** [§801 (en)](known-bugs.md#801--a-class-field-named-like-a-stdlib-namespace-cache-buffer-config-was-lowered-as-the-namespace-cachegetk-on-a-ttlcache-cache-field-called-the-stdlib-cache)
+
+## §802 — um `Error` da JVM (NoSuchMethodError, VerifyError, StackOverflowError) numa expressão spawned que ninguém aguardava sumia sem rastro
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `4f7257933`).
+
+**MEDIDO** (alvo JVM):
+```kof
+Int deep(n: Int) = deep(n + 1) + 1
+main() {
+    val h = spawn deep(0)
+    time.sleep(500)
+    println("main done")
+}
+```
+Observado: imprime só `main done`. Num servidor cuja task spawned servia um socket (e morria num `NoSuchMethodError` de um descritor de interop errado) a conexão simplesmente travava, sem log.
+
+**CAUSA RAIZ:** o `kof_spawn_result` (a expressão spawn que devolve um `Handle`) coloca qualquer falha no handle (`completeExceptionally`) e nada mais; a falha só aparece no `await`. A forma de statement `spawn { ... }` imprime `spawn task failed`, a forma de expressão nunca imprimia.
+
+**Correção:** um `java.lang.Error` numa expressão spawned é reportado no stderr quando acontece (`spawn task failed: <erro>`): é um programa quebrado, não um valor que um `await` deve tratar. O handle continua falhando no `await`, e uma exceção comum do Kof continua indo só para quem aguarda. **Prova:** `SpawnHandleErrorE2ETest` (o `StackOverflowError` de uma task não aguardada está no stderr e o `main` ainda termina); `SpawnAwaitBlockE2ETest` e os casos JVM do `SpawnE2ETest` inalterados.
+<!-- pt-switch --> **EN:** [§802 (en)](known-bugs.md#802--a-jvm-error-nosuchmethoderror-verifyerror-stackoverflowerror-in-a-spawned-expression-nobody-awaited-vanished-without-a-trace)
 
 ## §168 — SEM025 ausente para método desconhecido em namespace `json` — ✅ CORRIGIDO 13/09 (lane development/translator, dono = 192.168.100.22)
 
