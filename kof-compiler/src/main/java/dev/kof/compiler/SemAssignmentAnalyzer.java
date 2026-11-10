@@ -159,6 +159,8 @@ public final class SemAssignmentAnalyzer {
                                 "Type mismatch: cannot assign " + Type.display(valueType) + " to " + Type.display(fieldType),
                                 "SEM012");
                     }
+                } else if (wf == null) {
+                    reportUnknownWrittenField(sa, fa, ownerName, onThis ? null : recvType);
                 }
             }
         } else if (ae.target() instanceof ArrayAccessExpr aa) {
@@ -228,5 +230,37 @@ public final class SemAssignmentAnalyzer {
             targetType = SemExpressionTyper.inferType(sa, ae.target(), scope);
         }
         return targetType;
+    }
+
+    /**
+     * §817 — the WRITE face of the SEM025 the READ already reports
+     * ({@code SemFieldAccessTyper}): {@code this.y = y} or {@code a.z = v} on a
+     * class that declares no such field compiled clean, the JVM died with
+     * {@code NoSuchFieldError} and Script/JS stored a phantom field. Same rule
+     * as the read: a known Kof class, or an external class whose field the
+     * classpath cannot resolve. A Kof class with a Java superclass may write an
+     * inherited Java field the Kof hierarchy walk does not see, so it stays out.
+     */
+    private static void reportUnknownWrittenField(SemanticAnalyzer sa, FieldAccessExpr fa, String owner,
+                                                  Type recvType) {
+        if (sa.diagnostics() == null) return;
+        boolean external = recvType instanceof Type.ClassType ct && sa.isExternal(ct);
+        if (external && sa.externalTypes().resolveFieldType(
+                ((Type.ClassType) recvType).internalName(), fa.fieldName()) != null) {
+            return;
+        }
+        if (!external && !superChainIsKof(sa, owner)) return;
+        sa.diagnostics().error(fa, "Cannot resolve field '" + fa.fieldName() + "' on type '" + owner + "'",
+                "SEM025");
+    }
+
+    private static boolean superChainIsKof(SemanticAnalyzer sa, String owner) {
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (String c = owner; c != null && !c.isEmpty() && !"Object".equals(c); ) {
+            SymbolTable.ClassSymbol cs = sa.getClass(c);
+            if (cs == null || !seen.add(c)) return false;
+            c = HierarchyResolver.simpleOfStored(cs.superClass());
+        }
+        return owner != null;
     }
 }

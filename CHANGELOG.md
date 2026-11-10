@@ -1,4 +1,5 @@
 [English](CHANGELOG.md) | [Português](CHANGELOG.pt_BR.md)
+- **fix(compiler)+test: §817 ✅ FIXED — writing a field the class does not declare (`this.y = y`, `a.z = v`) is SEM025 at compile time, like the read, instead of a JVM NoSuchFieldError or a Script/JS phantom field.** Proof: `UndeclaredFieldWriteTest` 2/2.
 - **fix(compiler)+test: §810 ✅ FIXED — `catch (String e)` catches every Java `Exception`, checked ones included, on the JVM and Script; an `Error` still propagates.** Proof: `CatchStringCheckedExceptionE2ETest` 2/2.
 - **fix(compiler)+test: §789 ✅ FIXED — `kof run` of a file under the declared `[sources] app` root resolves imports from that root, like `kof build`/`kof test` (PKG006 before).** Proof: `TwoRootsCliE2ETest.runFromTheDeclaredAppRootResolvesItsPackages`.
 - **fix(compiler)+test: §808 ✅ FIXED — the `com.sun` APIs a `jdk.*` module exports (`com.sun.management`, `com.sun.net.httpserver`) can be imported; internal `com.sun` packages stay PKG006.** Proof: `JdkComSunApiImportE2ETest` 2/2.

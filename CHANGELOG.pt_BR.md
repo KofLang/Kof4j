@@ -1,4 +1,5 @@
 [English](CHANGELOG.md) | [Português](CHANGELOG.pt_BR.md)
+- **fix(compiler)+test: §817 ✅ CORRIGIDO — escrever um campo que a classe não declara (`this.y = y`, `a.z = v`) é SEM025 em compilação, como a leitura, em vez de NoSuchFieldError no JVM ou campo fantasma no Script/JS.** Prova: `UndeclaredFieldWriteTest` 2/2.
 - **fix(compiler)+test: §810 ✅ CORRIGIDO — `catch (String e)` captura toda `Exception` Java, inclusive as checked, no JVM e no Script; um `Error` segue propagando.** Prova: `CatchStringCheckedExceptionE2ETest` 2/2.
 - **fix(compiler)+test: §789 ✅ CORRIGIDO — o `kof run` de um arquivo sob a raiz declarada `[sources] app` resolve imports a partir dela, como `kof build`/`kof test` (antes PKG006).** Prova: `TwoRootsCliE2ETest.runFromTheDeclaredAppRootResolvesItsPackages`.
 - **fix(compiler)+test: §808 ✅ CORRIGIDO — as APIs `com.sun` que um módulo `jdk.*` exporta (`com.sun.management`, `com.sun.net.httpserver`) podem ser importadas; pacotes `com.sun` internos seguem PKG006.** Prova: `JdkComSunApiImportE2ETest` 2/2.

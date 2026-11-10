@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §817 (FIXED)
 last: §810 (FIXED)
 last: §789 (FIXED)
 last: §808 (FIXED)
@@ -622,6 +623,32 @@ Observado: o programa morria com `java.net.URISyntaxException: Illegal character
 
 **Correção:** o catch de String é um handler de `Exception` no JVM (`Throwable.getMessage` para `e`) e no interpretador; um catch tipado escrito antes continua vencendo, um `throw "msg"` do Kof mantém a mensagem, e um `java.lang.Error` segue propagando. **Prova:** `CatchStringCheckedExceptionE2ETest` 2/2 (JVM e Script: `URISyntaxException`, `ClassNotFoundException` e um throw do Kof).
 <!-- pt-switch --> **EN:** [§810 (en)](known-bugs.md#810--catch-string-e-let-checked-java-exceptions-escape-on-the-jvm-and-script-urisyntaxexception-unknownhostexception-sqlexception)
+
+## §817 — `this.y = y` (ou `a.z = v`) numa classe que não declara esse campo compilava limpo (`NoSuchFieldError` no JVM, campo fantasma no Script/JS); agora SEM025 como a leitura
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `2c920c4c1`).
+
+**MEDIDO:**
+```kof
+class A {
+    String x
+    constructor(String x, String y) {
+        this.x = x
+        this.y = y
+    }
+}
+main() {
+    val a = A("p", "q")
+    a.z = "w"
+    println(a.x)
+}
+```
+Observado: nenhum diagnóstico; o JVM lançava `NoSuchFieldError: Class A does not have member field 'java.lang.Object y'` na primeira construção, e Script e JS imprimiam `p`, guardando campos fantasmas. No port, uma execução do `kof fmt` tinha removido a linha em que um script se ancorava para inserir a declaração, então a classe perdeu o campo e só um teste de boot percebeu.
+
+**CAUSA RAIZ:** `SemAssignmentAnalyzer` só checa um campo escrito quando `MemberResolver.resolveFieldInHierarchy` o encontra (acesso, `final`, tipo); um campo não encontrado passava em silêncio. A leitura do mesmo campo (`SemFieldAccessTyper`) já reportava SEM025.
+
+**Correção:** a escrita reporta o mesmo SEM025 da leitura, "Cannot resolve field 'y' on type 'A'", para uma classe Kof cuja cadeia de superclasses é toda Kof, e para uma classe externa cujo campo o classpath não resolve. Uma classe Kof com superclasse Java fica de fora, porque pode escrever um campo Java herdado que a busca na hierarquia Kof não enxerga (`this.modCount` numa subclasse de `ArrayList`). **Prova:** `UndeclaredFieldWriteTest` 2/2 (as duas escritas reportam SEM025 nas suas linhas, RED na base; campos herdados de Kof e de Java continuam compilando).
+<!-- pt-switch --> **EN:** [§817 (en)](known-bugs.md#817--thisy--y-or-az--v-on-a-class-that-declares-no-such-field-compiled-clean-nosuchfielderror-on-the-jvm-a-phantom-field-on-scriptjs-now-sem025-like-the-read)
 
 ## §168 — SEM025 ausente para método desconhecido em namespace `json` — ✅ CORRIGIDO 13/09 (lane development/translator, dono = 192.168.100.22)
 

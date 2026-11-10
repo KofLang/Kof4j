@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §817 (FIXED)
 last: §810 (FIXED)
 last: §789 (FIXED)
 last: §808 (FIXED)
@@ -623,6 +624,32 @@ Observed: the program died with `java.net.URISyntaxException: Illegal character 
 
 **Fix:** the String catch is an `Exception` handler on the JVM (`Throwable.getMessage` for `e`) and in the interpreter; a typed catch written before it still wins, a Kof `throw "msg"` keeps its message, and a `java.lang.Error` still propagates. **Proof:** `CatchStringCheckedExceptionE2ETest` 2/2 (JVM and Script: `URISyntaxException`, `ClassNotFoundException` and a Kof throw).
 <!-- pt-switch --> **PT:** [§810 (pt_BR)](known-bugs.pt_BR.md#810--catch-string-e-deixava-excecoes-java-checked-escaparem-no-jvm-e-no-script-urisyntaxexception-unknownhostexception-sqlexception)
+
+## §817 — `this.y = y` (or `a.z = v`) on a class that declares no such field compiled clean (`NoSuchFieldError` on the JVM, a phantom field on Script/JS); now SEM025 like the read
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `2c920c4c1`).
+
+**MEASURED:**
+```kof
+class A {
+    String x
+    constructor(String x, String y) {
+        this.x = x
+        this.y = y
+    }
+}
+main() {
+    val a = A("p", "q")
+    a.z = "w"
+    println(a.x)
+}
+```
+Observed: no diagnostic; the JVM threw `NoSuchFieldError: Class A does not have member field 'java.lang.Object y'` at the first construction, and Script and JS printed `p`, storing phantom fields. In the port a `kof fmt` run had removed the line a script anchored on to insert the declaration, so the class lost its field and only a boot test noticed.
+
+**ROOT CAUSE:** `SemAssignmentAnalyzer` checks a written field only when `MemberResolver.resolveFieldInHierarchy` finds it (access, `final`, type); a field it does not find fell through silently. The read of the same field (`SemFieldAccessTyper`) already reported SEM025.
+
+**Fix:** the write reports the read's SEM025, "Cannot resolve field 'y' on type 'A'", for a Kof class whose whole superclass chain is Kof, and for an external class whose field the classpath cannot resolve. A Kof class with a Java superclass stays out, since it may write an inherited Java field the Kof hierarchy walk does not see (`this.modCount` in a subclass of `ArrayList`). **Proof:** `UndeclaredFieldWriteTest` 2/2 (both writes report SEM025 on their lines, RED on the base; inherited Kof and Java fields still compile).
+<!-- pt-switch --> **PT:** [§817 (pt_BR)](known-bugs.pt_BR.md#817--thisy--y-ou-az--v-numa-classe-que-nao-declara-esse-campo-compilava-limpo-nosuchfielderror-no-jvm-campo-fantasma-no-scriptjs-agora-sem025-como-a-leitura)
 
 ## §168 — SEM025 missing for unknown method in namespace `json` — ✅ FIXED 13/09 (lane development/translator, owner = 192.168.100.22)
 
