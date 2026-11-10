@@ -67,17 +67,10 @@ final class ExpressionBinaryInstanceOfLowerer {
             && (TypeMetrics.isPrimitiveType(fromCastType) || handleAsInt)) {
         // cast primitivo (x as Char/Int/…): conversão numérica,
         // NÃO checkcast (que exigiria um objeto na pilha)
-        // #1097: o fonte do cast direto é Nullable(primitivo) (`score() as
-        // Int` com score(): Int?) — a pilha carrega o BOX (o descritor do
-        // método é o wrapper); abre antes do widening cru (a mesma regra do
-        // #1054 para o var estreitado — cuja face já reescreveu fromCastType
-        // para o inner, então este guard não dispara em dobro para vars).
-        if (fromCastType instanceof Type.NullableType ntCast
-                && TypeMetrics.isPrimitiveType(ntCast.inner())) {
-            CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops, fromCastType, ntCast.inner());
-            fromCastType = ntCast.inner();
-        }
-        Type fromT = fromCastType;
+        // a `Long?` SOURCE is the boxed wrapper (the PR #1071 face): open it
+        // before the arithmetic paths; the narrowed VAR #1097 face below already
+        // rewrote fromCastType to the inner, so this guard is inert there.
+        Type fromT = CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops, fromCastType, targetType);
         driver.emitWideningIfNeeded(ops, fromT, targetType);
         // narrowing numérico (cast explícito): L2I, F2I, D2I,
         // F2L, D2L + os estreitos byte/short/char (#1087: o passo
