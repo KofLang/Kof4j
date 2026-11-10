@@ -143,12 +143,19 @@ public final class JvmRuntimeWebDispatch {
                         }
                     }
                     // 6. auth: Bearer JWT obrigatório se `auth`; se Authorization
-                    //    estiver presente, um token inválido NUNCA passa. Quando
-                    //    há sessionHeader (modo sessão da lane .22), o passo 4
+                    //    estiver presente, um token inválido NUNCA passa — mas
+                    //    SÓ em app configurada (#1011, escopo D-SEC.4: a regra
+                    //    é documentada sob app.security(); na DEFAULT de uma app
+                    //    NUNCA configurada o 401 trancava gateways e apps com
+                    //    auth própria, e nenhum middleware podia desligar — a
+                    //    checagem corre depois dele). securityConfigured é
+                    //    setada por app.security() E app.policy(). Quando há
+                    //    sessionHeader (modo sessão da lane .22), o passo 4
                     //    já validou o token de sessão — não reinterpretar como
                     //    JWT (senão sessão válida viraria 401).
                     if (p.requireAuth
-                            || (p.authHeader == null
+                            || (app.securityConfigured
+                                    && p.authHeader == null
                                     && req.headers.get("authorization") != null)) {
                         boolean authenticated = kof_sec_auth_authenticated();
                         if (!authenticated) {
