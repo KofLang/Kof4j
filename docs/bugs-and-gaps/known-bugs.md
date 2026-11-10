@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §801 (FIXED)
 last: §799 (FIXED)
 last: §798 (FIXED)
 last: §797 (FIXED)
@@ -500,6 +501,33 @@ Observed: `NoSuchMethodError: 'void java.io.File.<init>(java.lang.Object)'` (and
 
 **Fix:** the arguments of an external constructor are typed like any call's (a lambda argument stays on the target-typed path that already handles it). **Proof:** `ExternalCtorArgTypingE2ETest` 2/2 (both constructors run, printing `true` and `2`; `new File(nowhere)` is `SEM011`). Selecting among same-arity JDK constructor overloads by argument type is a separate gap (G311) on top of the external overload resolution (§770).
 <!-- pt-switch --> **PT:** [§799 (pt_BR)](known-bugs.pt_BR.md#799--os-argumentos-de-um-construtor-externo-nunca-eram-tipados-new-filesystemgetpropertyk-e-new-bytearrayinputstreamsgetbytes-eram-emitidos-como-initobject-nosuchmethoderror)
+
+## §801 — a class field named like a stdlib namespace (`cache`, `buffer`, `config`) was lowered as the namespace: `cache.get(k)` on a `TtlCache cache` field called the stdlib cache
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED** (JVM target):
+```kof
+class TtlCache {
+    Map<String, String> m = mapOf("k", "v")
+    String? get(k: String) = m.get(k)
+}
+class C {
+    TtlCache cache = TtlCache()
+    String f(k: String) {
+        var v = cache.get(k)
+        if (v == null) { return "none" }
+        return v
+    }
+}
+main() { println(C().f("k")) }
+```
+Observed: prints `none` (the stdlib `cache.get` answered, silently). With a lambda argument (`cache.getOrLoad(k, () -> ...)`) it is `VerifyError: Operand stack underflow`; a field `buffer` is `no lowering for 'buffer.get()'`; `!config.ok(x)` on a field `config` built a broken condition (G107/G170/G220/G304).
+
+**ROOT CAUSE:** the analyzer resolves the bare name through its scope, where the class field shadows the namespace, but the lowering decides "namespace or value" with `isLocalVarName`, which looked at the IR locals only. A field read through the implicit `this` is not a local, so every `cache.`/`buffer.`/`config.` call on it took the namespace arm.
+
+**Fix:** `isLocalVarName` also answers true for a field of the class being lowered (`OwnFieldNames`, the same field-first hierarchy lookup as §797), so a field shadows a stdlib namespace exactly like a local or a parameter. Where no value of that name exists, the namespace call is unchanged. **Proof:** `FieldShadowsStdNamespaceE2ETest` (fields `cache` with a lambda argument, `buffer` and `config` under `!` answer the field's methods; the stdlib `cache.set/get` in `main` still works).
+<!-- pt-switch --> **PT:** [§801 (pt_BR)](known-bugs.pt_BR.md#801--um-campo-de-classe-com-nome-de-namespace-da-stdlib-cache-buffer-config-era-baixado-como-o-namespace-cachegetk-num-campo-ttlcache-cache-chamava-o-cache-da-stdlib)
 
 ## §168 — SEM025 missing for unknown method in namespace `json` — ✅ FIXED 13/09 (lane development/translator, owner = 192.168.100.22)
 

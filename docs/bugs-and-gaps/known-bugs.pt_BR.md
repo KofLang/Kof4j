@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §801 (FIXED)
 last: §799 (FIXED)
 last: §798 (FIXED)
 last: §797 (FIXED)
@@ -499,6 +500,33 @@ Observado: `NoSuchMethodError: 'void java.io.File.<init>(java.lang.Object)'` (e 
 
 **Correção:** os argumentos de um construtor externo são tipados como os de qualquer chamada (um argumento lambda segue no caminho com tipo-alvo que já o trata). **Prova:** `ExternalCtorArgTypingE2ETest` 2/2 (os dois construtores rodam, imprimindo `true` e `2`; `new File(nowhere)` é `SEM011`). Escolher entre sobrecargas de construtor JDK de mesma aridade pelo tipo dos argumentos é um gap separado (G311) sobre a resolução de sobrecarga externa (§770).
 <!-- pt-switch --> **EN:** [§799 (en)](known-bugs.md#799--the-arguments-of-an-external-constructor-were-never-typed-new-filesystemgetpropertyk-and-new-bytearrayinputstreamsgetbytes-were-emitted-as-initobject-nosuchmethoderror)
+
+## §801 — um campo de classe com nome de namespace da stdlib (`cache`, `buffer`, `config`) era baixado como o namespace: `cache.get(k)` num campo `TtlCache cache` chamava o cache da stdlib
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `4f7257933`).
+
+**MEDIDO** (alvo JVM):
+```kof
+class TtlCache {
+    Map<String, String> m = mapOf("k", "v")
+    String? get(k: String) = m.get(k)
+}
+class C {
+    TtlCache cache = TtlCache()
+    String f(k: String) {
+        var v = cache.get(k)
+        if (v == null) { return "none" }
+        return v
+    }
+}
+main() { println(C().f("k")) }
+```
+Observado: imprime `none` (o `cache.get` da stdlib respondeu, em silêncio). Com um argumento lambda (`cache.getOrLoad(k, () -> ...)`) é `VerifyError: Operand stack underflow`; um campo `buffer` dá `no lowering for 'buffer.get()'`; `!config.ok(x)` num campo `config` montava uma condição quebrada (G107/G170/G220/G304).
+
+**CAUSA RAIZ:** o analyzer resolve o nome nu pelo escopo, onde o campo da classe sombreia o namespace, mas o lowering decide "namespace ou valor" com `isLocalVarName`, que olhava só os locals do IR. Um campo lido pelo `this` implícito não é local, então toda chamada `cache.`/`buffer.`/`config.` nele ia para o braço do namespace.
+
+**Correção:** `isLocalVarName` também responde verdadeiro para um campo da classe sendo baixada (`OwnFieldNames`, a mesma busca campo-primeiro da §797), então um campo sombreia um namespace da stdlib exatamente como um local ou um parâmetro. Onde não existe valor com aquele nome, a chamada do namespace não muda. **Prova:** `FieldShadowsStdNamespaceE2ETest` (campos `cache` com argumento lambda, `buffer` e `config` sob `!` respondem os métodos do campo; o `cache.set/get` da stdlib no `main` segue funcionando).
+<!-- pt-switch --> **EN:** [§801 (en)](known-bugs.md#801--a-class-field-named-like-a-stdlib-namespace-cache-buffer-config-was-lowered-as-the-namespace-cachegetk-on-a-ttlcache-cache-field-called-the-stdlib-cache)
 
 ## §168 — SEM025 ausente para método desconhecido em namespace `json` — ✅ CORRIGIDO 13/09 (lane development/translator, dono = 192.168.100.22)
 
