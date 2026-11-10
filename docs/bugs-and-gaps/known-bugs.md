@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §794 (FIXED)
 last: §793 (FIXED)
 last: §792 (FIXED)
 last: §769 (FIXED)
@@ -393,6 +394,17 @@ Observed: compile time roughly doubles every two links (20 links 0.5 s, 22 links
 
 **Fix:** `ExpressionTyper.inferExprType` goes through `ExprTypeMemo`, an identity memo that lives for one outermost inference (the locals and the driver state do not change inside it) and is checked against the locals list it was computed with. Each node of the chain is typed once. **Proof:** `CallChainInferenceE2ETest` (a 60-link chain across packages compiles in under a second and runs, answering 60); on the old code it hits the 60 s timeout.
 <!-- pt-switch --> **PT:** [§793 (pt_BR)](known-bugs.pt_BR.md#793--o-typer-do-lowering-era-exponencial-no-tamanho-de-uma-cadeia-de-chamadas-um-builder-fluente-de-36-chamadas-prendia-o-compilador-por-mais-de-uma-hora)
+
+## §794 — `kof fmt -w <file>` answered `not found: -w`, and `kof fmt` formatted only the first of several paths
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED:** `kof fmt -w src/A.kf` prints `not found: -w` and exits 1; `kof fmt src/*.kf -w` (the shell expands the glob) formats `src/A.kf` only and ignores the other files without a word.
+
+**ROOT CAUSE:** `Fmt.run` read the path from the fixed position `args[1]` and only looked for `-w` elsewhere, so a flag in that position was taken as the path and every argument after the first path was dropped.
+
+**Fix:** every argument is either `-w` (any position), an unknown flag (refused as before, R6) or a path; `kof fmt <file.kf|dir>... [-w]` formats every path given, and no path at all is the usage error. **Proof:** `FmtTest` 4/4 (`-w` first with two files formats both; `fmt -w` alone is usage; the unknown-flag refusal and the old order keep working).
+<!-- pt-switch --> **PT:** [§794 (pt_BR)](known-bugs.pt_BR.md#794--kof-fmt--w-arquivo-respondia-not-found--w-e-kof-fmt-formatava-so-o-primeiro-de-varios-caminhos)
 
 ## §168 — SEM025 missing for unknown method in namespace `json` — ✅ FIXED 13/09 (lane development/translator, owner = 192.168.100.22)
 

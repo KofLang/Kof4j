@@ -7,7 +7,6 @@ import dev.kof.compiler.Target;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -20,33 +19,37 @@ final class Fmt {
     private Fmt() {}
 
     static int run(String[] args) {
-        if (args.length < 2) {
-            System.err.println("usage: kof fmt <file.kf|dir> [-w]");
-            return 1;
-        }
         // R6: fmt não repassa args ao programa (diferente de run/serve) — uma
         // flag desconhecida seria ignorada em silêncio (o usuário acharia que
-        // teve efeito). Aceita só -w.
+        // teve efeito). Aceita só -w, em qualquer posição; todo outro argumento
+        // é um caminho (vários arquivos/diretórios numa chamada, como o shell
+        // expande `*.kf`).
+        boolean write = false;
+        List<Path> roots = new ArrayList<>();
         for (int i = 1; i < args.length; i++) {
-            if (args[i].startsWith("-") && !"-w".equals(args[i])) {
+            if ("-w".equals(args[i])) write = true;
+            else if (args[i].startsWith("-")) {
                 System.err.println("fmt: unknown flag: " + args[i] + " (accepts: -w)");
                 return 1;
-            }
+            } else roots.add(Path.of(args[i]));
         }
-        boolean write = Arrays.asList(args).contains("-w");
-        Path src = Path.of(args[1]);
-        if (!Files.exists(src)) { System.err.println("not found: " + src); return 1; }
-        String extErr = KofCliSupport.unsupportedSourceExtension("fmt", src);
-        if (extErr != null) { System.err.println(extErr); return 1; }
-
+        if (roots.isEmpty()) {
+            System.err.println("usage: kof fmt <file.kf|dir>... [-w]");
+            return 1;
+        }
         List<Path> files = new ArrayList<>();
-        try {
-            if (Files.isDirectory(src)) {
-                try (var s = Files.walk(src)) {
-                    s.filter(KofCliSupport::isKofSource).forEach(files::add);
-                }
-            } else files.add(src);
-        } catch (Exception e) { System.err.println("fmt: " + e.getMessage()); return 1; }
+        for (Path src : roots) {
+            if (!Files.exists(src)) { System.err.println("not found: " + src); return 1; }
+            String extErr = KofCliSupport.unsupportedSourceExtension("fmt", src);
+            if (extErr != null) { System.err.println(extErr); return 1; }
+            try {
+                if (Files.isDirectory(src)) {
+                    try (var s = Files.walk(src)) {
+                        s.filter(KofCliSupport::isKofSource).forEach(files::add);
+                    }
+                } else files.add(src);
+            } catch (Exception e) { System.err.println("fmt: " + e.getMessage()); return 1; }
+        }
 
         int changed = 0;
         int failed = 0;

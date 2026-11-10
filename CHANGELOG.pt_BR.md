@@ -1,4 +1,5 @@
 [English](CHANGELOG.md) | [Português](CHANGELOG.pt_BR.md)
+- **fix(cli)+test: §794 ✅ CORRIGIDO — `kof fmt` aceita `-w` em qualquer posição e formata todo caminho dado (`kof fmt -w src/*.kf`), em vez de `not found: -w` ou só o primeiro caminho.** Prova: `FmtTest` 4/4.
 - **fix(compiler)+test: §793 ✅ CORRIGIDO — o typer do lowering memoiza o tipo do receiver de uma chamada dentro de uma inferência, então uma cadeia fluente longa compila em tempo linear em vez de exponencial (36 elos levavam mais de uma hora).** Prova: `CallChainInferenceE2ETest`.
 - **fix(runtime)+test: §792 ✅ CORRIGIDO — `process.exit`, `System.exit` e SIGTERM encerram um programa JVM na hora mesmo com uma task spawned rodando; o join implícito do `spawn` é uma thread keeper não-daemon em vez de um shutdown hook em spin.** Prova: `SpawnExitE2ETest` 3/3.
 - **fix(runtime)+test: §792 ✅ CORRIGIDO — `process.exit`, `System.exit` e SIGTERM encerram um programa JVM na hora mesmo com uma task spawned rodando; o join implícito do `spawn` é uma thread keeper não-daemon em vez de um shutdown hook em spin.** Prova: `SpawnExitE2ETest` 2/2.

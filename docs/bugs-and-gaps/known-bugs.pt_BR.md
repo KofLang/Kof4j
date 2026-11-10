@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §794 (FIXED)
 last: §793 (FIXED)
 last: §792 (FIXED)
 last: §769 (FIXED)
@@ -392,6 +393,17 @@ Observado: o tempo de compilação mais ou menos dobra a cada dois elos (20 elos
 
 **Correção:** `ExpressionTyper.inferExprType` passa pelo `ExprTypeMemo`, um memo por identidade que vive durante uma inferência mais externa (os locals e o estado do driver não mudam dentro dela) e é conferido contra a lista de locals com que foi calculado. Cada nó da cadeia é tipado uma vez. **Prova:** `CallChainInferenceE2ETest` (uma cadeia de 60 elos entre pacotes compila em menos de um segundo e roda, respondendo 60); no código antigo bate o timeout de 60 s.
 <!-- pt-switch --> **EN:** [§793 (en)](known-bugs.md#793--the-lowering-typer-was-exponential-in-the-length-of-a-method-call-chain-a-36-call-fluent-builder-kept-the-compiler-busy-for-over-an-hour)
+
+## §794 — `kof fmt -w <arquivo>` respondia `not found: -w`, e `kof fmt` formatava só o primeiro de vários caminhos
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `4f7257933`).
+
+**MEDIDO:** `kof fmt -w src/A.kf` imprime `not found: -w` e sai com 1; `kof fmt src/*.kf -w` (o shell expande o glob) formata só `src/A.kf` e ignora os outros arquivos sem aviso.
+
+**CAUSA RAIZ:** `Fmt.run` lia o caminho da posição fixa `args[1]` e só procurava `-w` no resto, então uma flag nessa posição virava o caminho e todo argumento depois do primeiro caminho era descartado.
+
+**Correção:** todo argumento é `-w` (qualquer posição), uma flag desconhecida (recusada como antes, R6) ou um caminho; `kof fmt <file.kf|dir>... [-w]` formata todo caminho dado, e nenhum caminho é o erro de uso. **Prova:** `FmtTest` 4/4 (`-w` primeiro com dois arquivos formata os dois; `fmt -w` sozinho é uso; a recusa de flag desconhecida e a ordem antiga seguem funcionando).
+<!-- pt-switch --> **EN:** [§794 (en)](known-bugs.md#794--kof-fmt--w-file-answered-not-found--w-and-kof-fmt-formatted-only-the-first-of-several-paths)
 
 ## §168 — SEM025 ausente para método desconhecido em namespace `json` — ✅ CORRIGIDO 13/09 (lane development/translator, dono = 192.168.100.22)
 
