@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §793 (FIXED)
 last: §792 (FIXED)
 last: §769 (FIXED)
 last: §768 (FIXED)
@@ -377,6 +378,21 @@ Observed: prints `bye` and never exits, burning one core. The same with a Java `
 
 **Fix:** the join is a non-daemon keeper thread (`kofTaskBegin`/`kofTaskEnd`): it starts when the task count leaves zero and blocks on a monitor until it is zero again. The JVM joins non-daemon threads when `main` returns, so the end of `main` still waits for the tasks; `System.exit` and signals do not join them, so an explicit exit is immediate. No busy wait remains. **Proof:** `SpawnExitE2ETest` 3/3 (a Java `System.exit(1)`, the path of a test harness that ends a failing file, exits with 1 while a task loops; `process.exit(3)` with an endless task exits with 3; a task still running when `main` returns still prints before the process ends); `SpawnE2ETest` JVM cases unchanged.
 <!-- pt-switch --> **PT:** [§792 (pt_BR)](known-bugs.pt_BR.md#792--processexit-nunca-encerrava-um-programa-jvm-enquanto-uma-task-spawned-ainda-rodava-o-join-implicito-era-um-shutdown-hook-em-spin)
+
+## §793 — the lowering typer was exponential in the length of a method-call chain: a 36-call fluent builder kept the compiler busy for over an hour
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED** (JVM target, a package class with fluent `bind*` methods, a record `g`):
+```kof
+return store.execute("insert", Params().bindStr(g.id()).bindStrOrNull(g.note()).bindInt(g.plays()) /* ... */)
+```
+Observed: compile time roughly doubles every two links (20 links 0.5 s, 22 links 1.1 s); 36 links ran for more than an hour at 100% CPU inside `MethodCallTyper.inferType` -> `ExpressionTyper.inferExprType`.
+
+**ROOT CAUSE:** `MethodCallTyper.inferType` asks for the receiver's type in several independent arms (array check, semantic substitution, numeric conversion, `toString`, collection fallback), and each request re-walks the whole receiver chain with no memo, so the work is a product over the chain length.
+
+**Fix:** `ExpressionTyper.inferExprType` goes through `ExprTypeMemo`, an identity memo that lives for one outermost inference (the locals and the driver state do not change inside it) and is checked against the locals list it was computed with. Each node of the chain is typed once. **Proof:** `CallChainInferenceE2ETest` (a 60-link chain across packages compiles in under a second and runs, answering 60); on the old code it hits the 60 s timeout.
+<!-- pt-switch --> **PT:** [§793 (pt_BR)](known-bugs.pt_BR.md#793--o-typer-do-lowering-era-exponencial-no-tamanho-de-uma-cadeia-de-chamadas-um-builder-fluente-de-36-chamadas-prendia-o-compilador-por-mais-de-uma-hora)
 
 ## §168 — SEM025 missing for unknown method in namespace `json` — ✅ FIXED 13/09 (lane development/translator, owner = 192.168.100.22)
 

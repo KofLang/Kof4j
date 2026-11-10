@@ -1,4 +1,5 @@
 [English](CHANGELOG.md) | [Português](CHANGELOG.pt_BR.md)
+- **fix(compiler)+test: §793 ✅ FIXED — the lowering typer memoizes a call receiver's type within one inference, so a long fluent chain compiles in linear time instead of exponential (36 links took over an hour).** Proof: `CallChainInferenceE2ETest`.
 - **fix(runtime)+test: §792 ✅ FIXED — `process.exit`, `System.exit` and SIGTERM end a JVM program at once even while a spawned task runs; the implicit join of `spawn` is a non-daemon keeper thread instead of a spinning shutdown hook.** Proof: `SpawnExitE2ETest` 3/3.
 - **fix(runtime)+test: §792 ✅ FIXED — `process.exit`, `System.exit` and SIGTERM end a JVM program at once even while a spawned task runs; the implicit join of `spawn` is a non-daemon keeper thread instead of a spinning shutdown hook.** Proof: `SpawnExitE2ETest` 2/2.
 - **fix(compiler)+test: §769 ✅ FIXED — reading a public primitive instance field of an external Java object (`flyway.migrate().migrationsExecuted`) no longer emits an unbox over the raw `int` (`VerifyError`); the lowering typer resolves the field descriptor like the lowerer.** Proof: `ExternalInstanceFieldE2ETest` 2/2 on the JVM.
