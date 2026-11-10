@@ -44,11 +44,18 @@ class WebSetCookieE2ETest {
         return port;
     }
 
+    /**
+     * One request on its own connection. The JVM server keeps the connection
+     * alive (#1005), so the response is read frame-by-frame by
+     * {@link TestServerFixture#readResponse} — `readAllBytes` would wait for an
+     * EOF that a persistent connection never sends.
+     */
     private static String request(int port, String raw) throws Exception {
         try (java.net.Socket socket = new java.net.Socket("127.0.0.1", port)) {
             socket.setSoTimeout(5000);
             socket.getOutputStream().write(raw.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            return new String(socket.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            socket.getOutputStream().flush();
+            return TestServerFixture.readResponse(socket.getInputStream());
         }
     }
 
