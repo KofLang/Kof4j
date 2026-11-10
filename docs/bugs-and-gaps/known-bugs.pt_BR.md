@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §782 (FIXED)
 last: §779 (FIXED)
 last: §786 (FIXED)
 last: §784 (FIXED)
@@ -261,6 +262,29 @@ Observado: compila e então `NoClassDefFoundError: PIface` no primeiro uso. O `j
 
 **Correção:** um helper, `HierarchyResolver.canonicalInterfaceInternal`, resolve cada interface declarada pelo registro primeiro (a declaração do módulo vence, como no super) e mantém a resolução por import / `java.lang` para o resto; os três pontos o usam. **Prova:** `PackageInterfaceImplementsE2ETest` 1/1 (classe do mesmo pacote, record, e classe de outro pacote implementando uma subinterface em pacote); no código antigo falha com `NoClassDefFoundError: PIface`.
 <!-- pt-switch --> **EN:** [§779 (en)](known-bugs.md#779--implements-i-for-a-kof-interface-declared-in-a-package-emitted-the-unqualified-interface-name-noclassdeffounderror)
+
+## §782 — um campo estático lido num método estático era tipado por um campo homônimo de OUTRA classe (SEM055 num arquivo não relacionado)
+
+**Status:** ✅ CORRIGIDO 04/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/main` `edcc39114`).
+
+**MEDIDO** (alvo JVM, uma compilação):
+```kof
+// src/kernel/http/ResponseHeaders.kf
+package kernel.http
+import java.lang.ThreadLocal
+class ResponseHeaders {
+    static ThreadLocal seen = new ThreadLocal()
+    static mark(v: String) { seen.set(v) }
+}
+// src/app/Main.kf: algumas classes, cada uma com
+class Spy { List<String> seen = listOf<String>() }
+```
+Observado: `ResponseHeaders.kf: List.set takes an Int INDEX; String is not an index [SEM055]`. Falhar ou não depende de quais outras classes existem (com uma classe extra em geral compila, com umas dez falha): renomear um campo num arquivo não relacionado quebra ou conserta o arquivo do kernel.
+
+**CAUSA RAIZ:** o `ExpressionTyper` tipa um identificador simples primeiro via `this` (slot 0) e depois via `HierarchyResolver.resolveFromSemantic`, uma varredura de TODAS as classes do módulo em ordem de HashMap que devolve o primeiro membro com esse nome. Método estático não tem `this`, então o próprio campo estático perdia para a classe que a varredura encontrasse primeiro. O emissor (`ExpressionLowerer`) já resolvia o nome na classe sendo baixada; só o tipo saía errado.
+
+**Correção:** o `HierarchyResolver.resolveInOwnerOrModule` procura o nome na classe sendo baixada (`currentLoweringOwner`, a mesma busca do emissor) antes da varredura do módulo. **Prova:** `StaticFieldTypeScopeE2ETest` 1/1; no código antigo falha com SEM055.
+<!-- pt-switch --> **EN:** [§782 (en)](known-bugs.md#782--a-static-field-read-in-a-static-method-was-typed-by-a-same-named-field-of-another-class-sem055-in-an-unrelated-file)
 
 ## §168 — SEM025 ausente para método desconhecido em namespace `json` — ✅ CORRIGIDO 13/09 (lane development/translator, dono = 192.168.100.22)
 

@@ -74,7 +74,7 @@ public final class ExpressionTyper {
                                     && ms.parameterTypes().isEmpty()) yield ms.returnType();
                         }
                     }
-                    SymbolTable.Symbol sym = HierarchyResolver.resolveFromSemantic(ie.name(), driver.semanticAnalyzer);
+                    SymbolTable.Symbol sym = HierarchyResolver.resolveInOwnerOrModule(ie.name(), driver.currentLoweringOwner, driver.semanticAnalyzer);
                     if (sym != null) yield sym.type();
                     SymbolTable.ClassSymbol cls = driver.semanticAnalyzer.getClass(ie.name());
                     if (cls != null) yield cls.type();

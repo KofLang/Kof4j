@@ -18,6 +18,29 @@ public final class HierarchyResolver {
         return null;
     }
 
+    /**
+     * §782: a simple name read where there is no {@code this} (a STATIC
+     * method) is looked up in the class being lowered first, like the
+     * emitter does ({@code ExpressionLowerer}); only then the module-wide
+     * scan. Without it {@code seen.set(x)} in a static method of
+     * {@code ResponseHeaders} could be typed by an unrelated
+     * {@code List<String> seen} field of another class (HashMap order),
+     * failing compilation with SEM055.
+     */
+    static SymbolTable.Symbol resolveInOwnerOrModule(String name, String owner,
+                                                     SemanticAnalyzer sa) {
+        if (sa == null) return null;
+        if (owner != null && !owner.isEmpty()) {
+            SymbolTable.ClassSymbol cs = sa.findQualifiedClass(owner.replace('/', '.'));
+            if (cs == null) cs = sa.getClass(owner.substring(owner.lastIndexOf('/') + 1));
+            if (cs != null) {
+                SymbolTable.Symbol f = MemberResolver.resolveFieldInHierarchy(sa, cs.name(), name);
+                if (f != null) return f;
+            }
+        }
+        return resolveFromSemantic(name, sa);
+    }
+
     static SymbolTable.Symbol resolveFieldInHierarchy(String className, String fieldName,
                                                       SemanticAnalyzer semanticAnalyzer) {
         if (semanticAnalyzer == null) return null;
