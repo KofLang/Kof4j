@@ -60,6 +60,12 @@ var g = listOf(1,2).map((x: Int) -> x + 1)   // passada como argumento
 - Chamar uma variável com `FunctionType` → `ft.returnType()` + checagem de
   args (`SemExpressionTyper`, caso `FunctionType`).
 - Chamar variável **sem** FunctionType → `SEM015`.
+- Um **campo** de tipo-função é chamado como um método (§820): `h.run()`
+  invoca o valor de `() -> Int run` quando a classe não tem método `run` na
+  hierarquia; um método com o mesmo nome ganha. O número de argumentos é
+  checado (`SEM013`). Cada declaração de campo termina na sua linha, então
+  `() -> Int run` seguido de `(Int) -> String show` na linha de baixo
+  declara dois campos.
 - **Não há** `fun`-type com nome, nem type alias de função.
 
 ---

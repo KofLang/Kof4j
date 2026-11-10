@@ -1,4 +1,5 @@
 [English](CHANGELOG.md) | [Português](CHANGELOG.pt_BR.md)
+- **feat(compiler)+test+docs: §820 ✅ CORRIGIDO — um campo de tipo-função é chamado como método (`h.run()` invoca `() -> Int run` quando a classe não tem método `run`; um método de mesmo nome ganha), e um segundo campo de tipo-função na linha de baixo não vira mais a lista de parâmetros do primeiro.** Prova: `FunctionFieldCallE2ETest` 3/3.
 - **fix(compiler)+test: §817 ✅ CORRIGIDO — escrever um campo que a classe não declara (`this.y = y`, `a.z = v`) é SEM025 em compilação, como a leitura, em vez de NoSuchFieldError no JVM ou campo fantasma no Script/JS.** Prova: `UndeclaredFieldWriteTest` 2/2.
 - **fix(compiler)+test: §810 ✅ CORRIGIDO — `catch (String e)` captura toda `Exception` Java, inclusive as checked, no JVM e no Script; um `Error` segue propagando.** Prova: `CatchStringCheckedExceptionE2ETest` 2/2.
 - **fix(compiler)+test: §789 ✅ CORRIGIDO — o `kof run` de um arquivo sob a raiz declarada `[sources] app` resolve imports a partir dela, como `kof build`/`kof test` (antes PKG006).** Prova: `TwoRootsCliE2ETest.runFromTheDeclaredAppRootResolvesItsPackages`.

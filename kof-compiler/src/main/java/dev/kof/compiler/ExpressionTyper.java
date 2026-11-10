@@ -173,7 +173,9 @@ public final class ExpressionTyper {
                 yield leftType;
             }
             case MethodCallExpr mc -> {
-                yield MethodCallTyper.inferType(driver, mc, locals);
+                MethodCallExpr fieldCall = driver.semanticAnalyzer == null ? null
+                        : driver.semanticAnalyzer.functionFieldCall(mc); // §820
+                yield MethodCallTyper.inferType(driver, fieldCall != null ? fieldCall : mc, locals);
             }
             case NewArrayExpr na -> {
                 Type elemType = CompilerTypes.toType(na.elementType(), driver.currentUnit);

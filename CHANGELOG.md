@@ -1,4 +1,5 @@
 [English](CHANGELOG.md) | [Português](CHANGELOG.pt_BR.md)
+- **feat(compiler)+test+docs: §820 ✅ FIXED — a function-typed field is called like a method (`h.run()` invokes `() -> Int run` when the class has no method `run`; a same-named method wins), and a second function-typed field on the next line no longer becomes the first one's parameter list.** Proof: `FunctionFieldCallE2ETest` 3/3.
 - **fix(compiler)+test: §817 ✅ FIXED — writing a field the class does not declare (`this.y = y`, `a.z = v`) is SEM025 at compile time, like the read, instead of a JVM NoSuchFieldError or a Script/JS phantom field.** Proof: `UndeclaredFieldWriteTest` 2/2.
 - **fix(compiler)+test: §810 ✅ FIXED — `catch (String e)` catches every Java `Exception`, checked ones included, on the JVM and Script; an `Error` still propagates.** Proof: `CatchStringCheckedExceptionE2ETest` 2/2.
 - **fix(compiler)+test: §789 ✅ FIXED — `kof run` of a file under the declared `[sources] app` root resolves imports from that root, like `kof build`/`kof test` (PKG006 before).** Proof: `TwoRootsCliE2ETest.runFromTheDeclaredAppRootResolvesItsPackages`.

@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §820 (FIXED)
 last: §817 (FIXED)
 last: §810 (FIXED)
 last: §789 (FIXED)
@@ -650,6 +651,34 @@ Observed: no diagnostic; the JVM threw `NoSuchFieldError: Class A does not have 
 
 **Fix:** the write reports the read's SEM025, "Cannot resolve field 'y' on type 'A'", for a Kof class whose whole superclass chain is Kof, and for an external class whose field the classpath cannot resolve. A Kof class with a Java superclass stays out, since it may write an inherited Java field the Kof hierarchy walk does not see (`this.modCount` in a subclass of `ArrayList`). **Proof:** `UndeclaredFieldWriteTest` 2/2 (both writes report SEM025 on their lines, RED on the base; inherited Kof and Java fields still compile).
 <!-- pt-switch --> **PT:** [§817 (pt_BR)](known-bugs.pt_BR.md#817--thisy--y-ou-az--v-numa-classe-que-nao-declara-esse-campo-compilava-limpo-nosuchfielderror-no-jvm-campo-fantasma-no-scriptjs-agora-sem025-como-a-leitura)
+
+## §820 — a function-typed field could not be called as a method (`h.run()` was SEM025), and a second function-typed field on the next line was read as the first one's parameter list (PARSE023)
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `2c920c4c1`). Calling the field as a method is a maintainer decision (05/11).
+
+**MEASURED** (JVM, Script and JS agree):
+```kof
+class H {
+    () -> Int run
+    (Int) -> String show
+    H(() -> Int f, (Int) -> String s) {
+        this.run = f
+        this.show = s
+    }
+}
+
+main() {
+    val h = H(() -> 21, (n: Int) -> "n=" + n)
+    println(h.run())
+    println(h.show(5))
+}
+```
+Observed: `PARSE023 Expected parameter name` and `PARSE016` on line 3; with that field removed, `SEM025 Cannot resolve method 'run' on type 'H'` on `h.run()`. The workaround was copying the value to a local first (`var f = h.run; f()`).
+
+**ROOT CAUSE:** two faces. (a) `ClassMemberParser`, in the branch for a member whose type starts with `(` (a function type), took a `(` after the member name as a parameter list even when it was on the next line, so `() -> Int run` swallowed the next field's `(Int)`; the branch for named types already had the same-line guard. (b) `MemberCallTyper` resolved `h.run()` only against methods, and the invocation of a function value existed only for a receiver that already had a function type (`f()`, `(h.run).invoke()`).
+
+**Fix:** (a) the function-type branch uses the same-line guard. (b) when the receiver's class has no method of that name in its hierarchy and has a function-typed field of that name, `FunctionFieldCalls` rewrites the call to `(h.run).invoke(args)`; the analyzer records the rewrite by AST node and both the lowering typer and the lowerer use it, so JVM, Script and JS share the existing function-value path. A method with the same name wins. The argument count is checked against the field's type (`SEM013`). `docs/language-reference/closures` §3 (EN + pt_BR) documents it. **Proof:** `FunctionFieldCallE2ETest` 3/3 (zero, one and two-argument fields, a `Void` field, an inherited field, the bare and `this.` forms inside the class and a receiver from `List.get`, identical on JVM, Script and JS; a same-named method wins on JVM and Script; SEM025 for a member that is neither, an extra argument refused).
+<!-- pt-switch --> **PT:** [§820 (pt_BR)](known-bugs.pt_BR.md#820--um-campo-de-tipo-funcao-nao-podia-ser-chamado-como-metodo-hrun-dava-sem025-e-um-segundo-campo-de-tipo-funcao-na-linha-de-baixo-era-lido-como-lista-de-parametros-do-primeiro-parse023)
 
 ## §168 — SEM025 missing for unknown method in namespace `json` — ✅ FIXED 13/09 (lane development/translator, owner = 192.168.100.22)
 

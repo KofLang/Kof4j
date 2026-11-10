@@ -13,6 +13,7 @@ public final class MemberCallTyper {
     private MemberCallTyper() {}
 
     static Type infer(SemanticAnalyzer sa, MethodCallExpr mc, SymbolTable scope) {
+        MethodCallExpr original = mc; // §820: the lowerer looks the rewrite up by the AST node
         if (mc.receiver() == null) return null;
         // #639 face 2 (D-DECISION-BATCH-2709B): `pkg.Type(...)` — construção
         // qualificada. O receiver é um NOME DE PACOTE, não um valor: resolve
@@ -464,6 +465,19 @@ public final class MemberCallTyper {
                     ExternalArgTighten.checkExternalCall(sa, mc, argTypes, params, sig.isVarargs());
                     return ret;
                 }
+            }
+            // §820: `h.run()` on a function-typed FIELD with no method `run`
+            MethodCallExpr fieldCall = FunctionFieldCalls.rewrite(sa, startCt, mc);
+            if (fieldCall != null) {
+                sa.recordFunctionFieldCall(original, fieldCall);
+                // checkArgTypes skips a () -> T callee given arguments (legacy
+                // unknown-params case); the field's type is exact, so check here
+                if (SemExpressionTyper.inferType(sa, fieldCall.receiver(), scope) instanceof Type.FunctionType fft
+                        && fft.parameterTypes().size() != mc.arguments().size() && sa.diagnostics() != null) {
+                    sa.diagnostics().error(mc, "Wrong number of arguments for '" + mc.methodName() + "': expected "
+                            + fft.parameterTypes().size() + " but got " + mc.arguments().size(), "SEM013");
+                }
+                return SemExpressionTyper.inferType(sa, fieldCall, scope);
             }
             // Nenhum símbolo encontrado — método inexistente (SC3)
             // Nota: String/Int/Long/Bool são tipos JDK — métodos como

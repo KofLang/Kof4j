@@ -58,7 +58,9 @@ public class ClassMemberParser {
             SourcePosition start = ctx.pos();
             String type = TypeParser.parseTypeRef(ctx);
             String name = ctx.expectId("Expected member name", "PARSE018");
-            if (ctx.check(TokenType.LPAREN)) {
+            // §820: a `(` on the NEXT line starts the next member (a second
+            // function-typed field), not this member's parameter list
+            if (ctx.check(TokenType.LPAREN) && paramsOnSameLine(ctx)) {
                 ctx.advance();
                 List<FormalParameterNode> params = new ArrayList<>();
                 if (!ctx.check(TokenType.RPAREN)) {
