@@ -111,9 +111,7 @@ public final class JvmWebCoreRuntime {
                     WebRoute(RouteKind kind, String method, String path, Object handler) {
                         this(kind, method, path, handler, null);
                     }
-
-                    WebRoute(RouteKind kind, String method, String path, Object handler,
-                            Policy policy) {
+                    WebRoute(RouteKind kind, String method, String path, Object handler, Policy policy) {
                         this.kind = kind;
                         this.method = method;
                         this.path = path;
@@ -128,9 +126,7 @@ public final class JvmWebCoreRuntime {
                         this.policy = policy;
                     }
 
-                    /** Spring's rule: at the first segment where two routes of the same
-                     *  length differ, a literal beats a :param, whatever the
-                     *  registration order (`/posts/seals` before `/posts/:id`). */
+                    /** §798: at the first differing segment, a literal beats a :param. */
                     static void addTo(java.util.List<WebRoute> routes, WebRoute r) {
                         int at = routes.size();
                         for (int i = 0; i < routes.size() && at == routes.size(); i++) {
@@ -529,22 +525,6 @@ public final class JvmWebCoreRuntime {
                         case "WS_MESSAGES_SENT" -> String.valueOf(WS_MESSAGES_SENT.get());
                         default -> throw new IllegalArgumentException("unknown web counter: " + name);
                     };
-                }
-
-                /** Head lines of the headers set so far, minus the ones the SSE head fixes. */
-                private static String kof_web_extra_head() {
-                    java.util.Set<String> fixed = java.util.Set.of("content-type", "cache-control",
-                            "connection", "x-accel-buffering", "content-length", "transfer-encoding");
-                    StringBuilder hdr = new StringBuilder();
-                    for (java.util.Map<String, String> m : java.util.Arrays.asList(
-                            KOF_WEB_HEADERS.get(), KOF_SEC_RESPONSE_HEADERS.get())) {
-                        if (m == null) continue;
-                        for (java.util.Map.Entry<String, String> e : m.entrySet()) {
-                            if (fixed.contains(e.getKey().toLowerCase(java.util.Locale.ROOT))) continue;
-                            hdr.append(e.getKey()).append(": ").append(e.getValue()).append("\\r\\n");
-                        }
-                    }
-                    return hdr.toString();
                 }
 
                 public static void kof_web_route(String appId, String method, String path, Object handler) {

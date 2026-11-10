@@ -301,6 +301,23 @@ public final class JvmWebHttpRuntime {
                     return queue == null ? 0 : queue.size();
                 }
 
+                /** §784/#1066 (REFACTOR-500 Fase 8): head lines of the headers set so far,
+                 *  minus the ones the SSE head fixes. Concatenation order is preserved. */
+                private static String kof_web_extra_head() {
+                    java.util.Set<String> fixed = java.util.Set.of("content-type", "cache-control",
+                            "connection", "x-accel-buffering", "content-length", "transfer-encoding");
+                    StringBuilder hdr = new StringBuilder();
+                    for (java.util.Map<String, String> m : java.util.Arrays.asList(
+                            KOF_WEB_HEADERS.get(), KOF_SEC_RESPONSE_HEADERS.get())) {
+                        if (m == null) continue;
+                        for (java.util.Map.Entry<String, String> e : m.entrySet()) {
+                            if (fixed.contains(e.getKey().toLowerCase(java.util.Locale.ROOT))) continue;
+                            hdr.append(e.getKey()).append(": ").append(e.getValue()).append("\\r\\n");
+                        }
+                    }
+                    return hdr.toString();
+                }
+
 """;
     }
 }
