@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §810 (FIXED)
 last: §789 (FIXED)
 last: §808 (FIXED)
 last: §807 (FIXED)
@@ -600,6 +601,28 @@ Observed: `PKG006 import 'com.sun.management.OperatingSystemMXBean' not found in
 
 **Fix:** when the project declares `[sources] app` and the source lives under it, that root is the module root; anything else keeps the project root (behavior without `[sources]` is unchanged). **Proof:** `TwoRootsCliE2ETest.runFromTheDeclaredAppRootResolvesItsPackages`; on the old code it fails with PKG006.
 <!-- pt-switch --> **PT:** [§789 (pt_BR)](known-bugs.pt_BR.md#789--o-kof-run-de-um-arquivo-sob-sources-app-resolvia-imports-a-partir-da-raiz-do-projeto-pkg006)
+
+## §810 — `catch (String e)` let CHECKED Java exceptions escape on the JVM and Script (`URISyntaxException`, `UnknownHostException`, `SQLException`)
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `2c920c4c1`).
+
+**MEASURED** (JVM target):
+```kof
+import java.net.URI
+main() {
+    try {
+        URI("a b")
+    } catch (String e) {
+        println("caught")
+    }
+}
+```
+Observed: the program died with `java.net.URISyntaxException: Illegal character in path at index 1: a b`; `caught` never printed. The same for `Class.forName`, `InetAddress.getByName` (`UnknownHostException`), JDBC (`SQLException`) and `Cipher.doFinal` (`AEADBadTagException`). The Script interpreter behaved the same way.
+
+**ROOT CAUSE:** the JVM backend mapped the String catch to a `java/lang/RuntimeException` handler (`JvmBackend.exceptionJvmType`, then `RuntimeException.getMessage`), and the interpreter matched `instanceof RuntimeException`. Kof has no checked exceptions (EXCEPTIONS_MODEL §6), so Kof code had no catch that could stop a checked one except naming its Java type.
+
+**Fix:** the String catch is an `Exception` handler on the JVM (`Throwable.getMessage` for `e`) and in the interpreter; a typed catch written before it still wins, a Kof `throw "msg"` keeps its message, and a `java.lang.Error` still propagates. **Proof:** `CatchStringCheckedExceptionE2ETest` 2/2 (JVM and Script: `URISyntaxException`, `ClassNotFoundException` and a Kof throw).
+<!-- pt-switch --> **PT:** [§810 (pt_BR)](known-bugs.pt_BR.md#810--catch-string-e-deixava-excecoes-java-checked-escaparem-no-jvm-e-no-script-urisyntaxexception-unknownhostexception-sqlexception)
 
 ## §168 — SEM025 missing for unknown method in namespace `json` — ✅ FIXED 13/09 (lane development/translator, owner = 192.168.100.22)
 

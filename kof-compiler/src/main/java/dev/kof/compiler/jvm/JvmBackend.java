@@ -474,7 +474,9 @@ public class JvmBackend implements Backend {
     }
 
     private String exceptionJvmType(String kofType) {
-        if ("String".equals(kofType)) return "java/lang/RuntimeException";
+        // §810: Kof has no checked exceptions, so `catch (String e)` catches
+        // every Exception a Java call raises (an Error still propagates).
+        if ("String".equals(kofType)) return "java/lang/Exception";
         // D-INTEROP-ERR-TYPE: o builtin apaga para a classe-throwable do runtime.
         if ("InteropError".equals(kofType)) return "dev/kof/runtime/KofRuntime$InteropError";
         // #241: nome QUALIFICADO no catch (java.lang.RuntimeException) era

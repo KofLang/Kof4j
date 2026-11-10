@@ -147,5 +147,5 @@ Runtime errors are fatal in both backends:
 1. On Native, the first catch of a try captures (multiple catches do not dispatch by type)
 2. No complete exception object model (exception = String/message)
 3. No DWARF-based unwinding (own frame chain)
-4. No checked exceptions
+4. No checked exceptions: on the JVM and Script targets `catch (String e)` catches every Java `Exception` a call raises, checked or not, with its message in `e`; a `java.lang.Error` still propagates (§810)
 5. No stack traces
