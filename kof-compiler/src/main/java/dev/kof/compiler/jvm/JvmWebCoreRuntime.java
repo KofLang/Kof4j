@@ -457,7 +457,10 @@ public final class JvmWebCoreRuntime {
                     volatile boolean securityConfigured;
                     // D-HTTP-POLICIES (F1): politica global parseada de
                     // app.security(opts) — substitui os campos security* flat.
-                    volatile Policy globalPolicy = Policy.bare();
+                    // #1112: o global inicial é SEM hardening (opt-in pela
+                    // app.security() — a decisão 05/11); app.security() substitui
+                    // o policy inteiro (headers ON por default lá).
+                    volatile Policy globalPolicy = Policy.noHardening();
                     // D-HTTP-POLICIES (F2): policies de recurso de
                     // app.policy(prefix, opts); resolvidas por longest-prefix
                     // sobre o global a cada request (kof_web_effective_policy).

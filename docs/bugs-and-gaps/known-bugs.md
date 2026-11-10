@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §938 (FIXED)
 last: §827 (FIXED)
 last: §823 (FIXED)
 last: §822 (FIXED)
@@ -20781,7 +20782,7 @@ movq %rbx, %rsp
 <!-- pt-switch --> **PT:** [§763 (pt_BR)](known-bugs.pt_BR.md#763--o-passe-de-alinhamento-14-preencheu-uma-chamada-ffi-ja-alinhada-por-isso-o-sqrt-e-os-args-mistos-fizeram-segv-exit-139-no-native-x86-64)
 
 ## §764 — the Kof JVM backend's record fold for Double fields uses the RAW `==`, diverging from the javac record contract on BOTH edges (NaN ≠ NaN; +0.0 == −0.0) — the WASI fold (bits) matches javac
-**Status:** OPEN (measured 29/10, lane wasm-wasi `192.168.15.117:0`) — the fix belongs to the COMPILER CORE (the JVM record-equality lowerer), not to the WASI lane; not touched here per the lane-collision rule.
+**Status:** ✅ FIXED 09/11 — see §938 (owner = 192.168.15.21:9092; the compiler-core fix the row asked for: `JvmRecordEmitter` now emits `Float.compare`/`Double.compare`; `RecordDoubleEqContentE2ETest` 3/3 RED-first + the record/equality family 0F).
 
 **MEASURED 29/10** (the SET-REC slice's differential). A record with a `Double` field compared by value diverges between the Kof JVM backend and BOTH the plain-javac oracle and the WASI backend — in OPPOSITE directions:
 
@@ -20869,6 +20870,21 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 
 **Proof:** `DotDirectoryPackageE2ETest` **5/5** (RED-first: 4/5 failed with the exact `COMP001: /agent` before the fix; the `.agent`, `sub/.agent`, `.hidden-x`, valid-directory control and no-`kof.toml` control faces) + `InternalNameValidationTest` **4/4** (the identifier rule and the defensive gate). Non-regression: `EnumPackagePlacementE2ETest` 7/7, `PackagesE2ETest` 12/12, `CompileForTestsSourcesModuleRootTest` 1/1, `OrmEntityPackageE2ETest` 2/2, `JsonDecodePackagedRecordE2ETest` 2/2.
 <!-- pt-switch --> **PT:** [§936 (pt_BR)](known-bugs.pt_BR.md#936--uma-fonte-sob-um-diretorio-cujo-nome-nao-e-um-identificador-valido-agent-hidden-x-deriva-um-pacote-invalido-entao-o-alvo-jvm-falha-com-um-comp001-mal-rotulado-ou-um-classformaterror-silencioso-github-999)
+
+## §938 — the JVM record `equals` fold for `Double`/`Float` fields used the RAW IEEE `==` (`DCMPL`/`FCMPL`), diverging from the javac record contract on BOTH edges (NaN ≠ NaN; +0.0 == −0.0) while the WASI bits fold was already javac-faithful (§764)
+
+**Status:** ✅ FIXED 09/11 (owner = 192.168.15.21:9092; closes the OPEN §764 row, measured 29/10 by the wasm-wasi lane which correctly left it to the compiler core).
+
+**Contract:** the javac record contract (`record T(double v)` + `equals`) generates the `Double.compare` shape — total ordering: NaN equal to NaN, +0.0 NOT equal to −0.0 — which is bitwise-equivalent to the WASI bits fold (`WasmRecordCode.emitEquals`, `i64.reinterpret_f64`). Plain-Java proof (JDK 25): NaN/NaN → `true`, +0.0/−0.0 → `false`.
+
+**ROOT CAUSE:** `JvmRecordEmitter.emitEqualsComparison` answered `float`/`double` fields with `FCMPL`/`DCMPL` (the raw IEEE `==`: NaN ≠ NaN, +0.0 == −0.0) — both edges wrong against javac. `hashCode` was already correct (`floatToIntBits`/`doubleToLongBits`, NaN canonical, ±0.0 differ), so the JVM backend's equals/hashCode were mutually inconsistent too.
+
+**Propagates to collections:** `setOf(T(0.0/0.0), T(0.0/0.0))` was `size()==2` + `contains==false` on the JVM backend while javac's `HashSet` gives `1 / true` (measured, §764's differential) — the WASI scan already gave `1 / true`.
+
+**Fix:** the `float`/`double` cases in `emitEqualsComparison` now emit `Float.compare`/`Double.compare` (the exact shape javac generates) before the `IFEQ` gate; the other primitives and the reference leg are untouched. The FORBIDDEN remedy (weakening WASI to the raw `==` to match the old JVM) is explicitly not taken.
+
+**Proof:** `RecordDoubleEqContentE2ETest` NEW **3/3** RED-first (all 3 failed on the old code: NaN face `true/false/true/false` was `false/true/true/false`; the set dedup `1/true` was `2/false`; the Float edges inverted) — the two §764 edges, the set-dedup propagation and the Float twin; the whole record/equality family regression **27 suites / 0F** (`RecordNullableEqContent` 10, `RecordNullableNullEq` 11, `KofSetEquality` 21, `GenericEquality` 16, `CharBoxedCanonEquality` 6, `NativeRecordCollectionEquality` 3, `NativeRecordHashCode` 3, `RecordExplicitAccessor` 6, `RecordImplements` 4, `ValueRecordFrontEnd` 7, `WasmWasiRecord` 10 (9 env skips), `JsRecordToString*` 8, the JSON/native record decodes, …).
+<!-- pt-switch --> **PT:** [§938 (pt_BR)](known-bugs.pt_BR.md#938--o-fold-de-equals-de-record-do-jvm-para-campos-doublefloat-usava-o--cru-do-ieee-dcmplfcmpl-divergindo-do-contrato-de-record-do-javac-nas-duas-bordas-nan--nan-00--00-enquanto-o-fold-de-bits-do-wasi-ja-era-javac-fiel-764)
 
 ## §937 — `BufferRuntimeBorrowE2ETest.concurrentBufferBorrowRaisesMem020NativeX86` is flaky (~1/6): the barrier marked ATTEMPTS before the acquire, so the harness could release GO with zero MEM020 (GitHub #1000)
 

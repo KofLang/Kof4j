@@ -66,7 +66,11 @@ final class KofFormatterExpr {
         }
         if (expr instanceof MethodCallExpr mce) {
             StringBuilder sb = new StringBuilder();
-            if (mce.receiver() != null) sb.append(receiver(mce.receiver(), p)).append(mce.methodName().isEmpty() ? "" : ".");
+            // #1013: o receiver é sufixo POSTFIX (precedência 9 — o parser
+            // consome `.m`/`(...)`/`[i]` em parsePostfix, acima de qualquer
+            // binário) — um receiver binário (`("" + x).trim()`) PRECISA dos
+            // parênteses de volta; sem isto o fmt reescreve outro programa.
+            if (mce.receiver() != null) sb.append(formatExpr(mce.receiver(), p, 9)).append(mce.methodName().isEmpty() ? "" : ".");
             sb.append(mce.methodName());
             if (!mce.typeArguments().isEmpty()) sb.append("<").append(KofFormatter.typeList(p, mce.typeArguments())).append(">");
             sb.append("(");
@@ -94,8 +98,8 @@ final class KofFormatterExpr {
             for (ExpressionNode dim : nae.moreDims()) sb2.append("[").append(formatExpr(dim, p)).append("]");
             return sb2.toString();
         }
-        if (expr instanceof ArrayAccessExpr aae) return receiver(aae.receiver(), p) + "[" + formatExpr(aae.index(), p) + "]";
-        if (expr instanceof FieldAccessExpr fae) return receiver(fae.receiver(), p) + "." + fae.fieldName();
+        if (expr instanceof ArrayAccessExpr aae) return formatExpr(aae.receiver(), p, 9) + "[" + formatExpr(aae.index(), p, 9) + "]";
+        if (expr instanceof FieldAccessExpr fae) return formatExpr(fae.receiver(), p, 9) + "." + fae.fieldName();
         if (expr instanceof IfExpr ie) return KofFormatter.kw(p, "if") + " (" + formatExpr(ie.condition(), p) + ") "
                 + formatExpr(ie.thenExpr(), p) + " " + KofFormatter.kw(p, "else") + " " + formatExpr(ie.elseExpr(), p);
         if (expr instanceof SwitchExpr se) {

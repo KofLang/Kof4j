@@ -209,7 +209,7 @@ app.get("/api/hide") { return "hide" }                          // inherits off
 | Call | Description |
 |---------|-----------|
 | `app.listen(port)` | Starts the server (blocking) on `0.0.0.0` |
-| `app.listen(host, port)` | Same, bound to one interface only, e.g. `"127.0.0.1"` (JVM, JS; Native `WEB001`) |
+| `app.listen("127.0.0.1", port)` | Binds ONE interface (local-only services) — `app.listen(port)` keeps the wildcard (#1114) |
 | `app.listenSecure(port)` | Same, with dev self-signed TLS (JVM; `keytool` + `SSLServerSocket`) |
 | `app.listenSecure(port, certPem, keyPem)` | TLS with a **user-supplied certificate** (PKCS#8 PEM) — production (JVM) |
 | `app.port()` | Port actually bound (useful with `listen(0)`) |
@@ -362,7 +362,7 @@ global per JVM and returned as `String`.
 | `body()` | Raw request body |
 | `method()` | HTTP method ("GET", "POST", ...) |
 | `path()` | Request path |
-| `remoteAddr()` | TCP peer address of the request (`"127.0.0.1"`, `""` when unknown). Behind a proxy the client address is a header: `header("x-forwarded-for")`. JVM and JS; Native is WEB001 |
+| `remoteAddr()` | TCP peer address of the request (`"127.0.0.1"`, `""` when unknown) — behind a proxy the client is the `x-forwarded-for` header (#1110). JVM and JS; Native is `WEB001` |
 | `status(code, body)` | Sets the response status and returns the body — use as a return (e.g.: `return status(201, "{\"ok\":true}")`) |
 | `headerSet(name, value)` | Adds a response header (e.g.: `headerSet("X-Total", "42")`). A repeated name replaces the value, except `Set-Cookie`, which sends one line per call; a CR/LF in the name or value is refused (§784) |
 

@@ -242,7 +242,7 @@ class KofWebE2ETest extends KofWebPrograms {
 
     // ── D-SEC C18: app.security() — middleware composto ──────────────
 
-    private String headerLine(String rawResponse, String name) {
+    static String headerLine(String rawResponse, String name) {
         for (String line : rawResponse.split("\r\n")) {
             int colon = line.indexOf(':');
             if (colon > 0 && line.substring(0, colon).equalsIgnoreCase(name)) {

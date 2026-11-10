@@ -17,58 +17,85 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * §825 — {@code app.listen(host, port)} binds the given interface. Before,
- * {@code listen(port)} was the only form and always bound {@code 0.0.0.0}:
- * a local-only service was reachable from the network, and on macOS a
- * wildcard bind can share a port another process holds on 127.0.0.1, so a
- * client of 127.0.0.1 reached that process instead.
+ * #1114 — `app.listen(host, port)` binds ONE interface (the maintainer
+ * decision 05/11 recorded in the issue): `app.listen("127.0.0.1", port)`
+ * serves a local-only service; `app.listen(port)` KEEPS the wildcard binding
+ * (the existing face untouched — the freeze rule).
+ *
+ * <p>The JVM faces use this repo's `KofWebPrograms` harness; the JS face and
+ * the named Native/SEM025 refusals come from the contributing PR (#1115),
+ * which measured both.
  */
-class WebListenHostE2ETest {
+class WebListenHostE2ETest extends KofWebPrograms {
 
-    private static final String APP = """
+    @TempDir
+    Path tempDir;
+
+    private static final String HOST_APP = """
             main() {
                 var app = web.app()
-                app.get("/x") { return "ok" }
+                app.get("/x") {
+                    return "ok"
+                }
                 app.listen("127.0.0.1", PORT)
             }
             """;
 
-    @TempDir Path tmp;
+    private static final String WILDCARD_APP = """
+            main() {
+                var app = web.app()
+                app.get("/x") {
+                    return "ok"
+                }
+                app.listen(PORT)
+            }
+            """;
 
     @Test
-    void listenBindsOnlyTheGivenHostOnJvm() throws Exception {
-        int port = freePort();
-        Path src = write("Jvm.kf", APP.replace("PORT", String.valueOf(port)));
-        CompilationResult r = new CompilerDriver().compile(src, tmp.resolve("jvm"), Target.JVM);
-        assertTrue(r.success(), "JVM compile: " + r.diagnostics().getDiagnostics());
-        Process server = new ProcessBuilder(System.getProperty("java.home") + "/bin/java", "-cp",
-                tmp.resolve("jvm").toString(), "Default.Main").redirectErrorStream(true).start();
-        try {
-            assertTrue(TestServerFixture.awaitPort(port, 100, 100), "JVM server did not open " + port);
-            assertEquals("ok", body("127.0.0.1", port));
-            assertNotReachableFromOtherInterfaces(port);
-        } finally {
-            server.destroyForcibly();
-        }
+    void listenHostBindsOneInterfaceJvm() throws Exception {
+        KofWebE2ETest harness = new KofWebE2ETest();
+        var start = KofWebE2ETest.class.getDeclaredMethod("startServer", Path.class, String.class);
+        start.setAccessible(true);
+        int port = (int) start.invoke(harness, tempDir, HOST_APP);
+        var req = KofWebE2ETest.class.getDeclaredMethod("request", int.class, String.class);
+        req.setAccessible(true);
+        var body = KofWebE2ETest.class.getDeclaredMethod("bodyOf", String.class);
+        body.setAccessible(true);
+        String raw = (String) req.invoke(harness, port, "GET /x HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n");
+        String bodyText = (String) body.invoke(harness, raw);
+        assertTrue(raw.startsWith("HTTP/1.1 200 OK"), "the host-bound server answers: " + raw);
+        assertEquals("ok", bodyText, "the chained face");
+        assertNotReachableFromOtherInterfaces(port);
+    }
+
+    @Test
+    void listenPortKeepsTheWildcardJvm() throws Exception {
+        KofWebE2ETest harness = new KofWebE2ETest();
+        var start = KofWebE2ETest.class.getDeclaredMethod("startServer", Path.class, String.class);
+        start.setAccessible(true);
+        int port = (int) start.invoke(harness, tempDir, WILDCARD_APP);
+        var req = KofWebE2ETest.class.getDeclaredMethod("request", int.class, String.class);
+        req.setAccessible(true);
+        var body = KofWebE2ETest.class.getDeclaredMethod("bodyOf", String.class);
+        body.setAccessible(true);
+        String raw = (String) req.invoke(harness, port, "GET /x HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n");
+        assertEquals("ok", body.invoke(harness, raw), "the wildcard face is untouched");
     }
 
     @Test
     void listenBindsOnlyTheGivenHostOnJs() throws Exception {
         int port = freePort();
-        Path src = write("Js.kf", APP.replace("PORT", String.valueOf(port)));
-        Path out = tmp.resolve("js");
+        Path src = write("Js.kf", HOST_APP.replace("PORT", String.valueOf(port)));
+        Path out = tempDir.resolve("js");
         CompilationResult r = new CompilerDriver().compile(src, out, Target.JS);
         assertTrue(r.success(), "JS compile: " + r.diagnostics().getDiagnostics());
         ByteArrayOutputStream err = new ByteArrayOutputStream();
         Thread t = new Thread(() -> {
             try {
-                dev.kof.runtime.KofJsRunner.run(out.resolve("Default.mjs"), java.io.OutputStream.nullOutputStream(),
+                dev.kof.runtime.KofJsRunner.run(findJsEntry(out), java.io.OutputStream.nullOutputStream(),
                         InputStream.nullInputStream(), err);
             } catch (Exception ignored) {
                 // the test ends with the server still listening
@@ -76,7 +103,7 @@ class WebListenHostE2ETest {
         }, "listen-host-js");
         t.setDaemon(true);
         t.start();
-        assertTrue(TestServerFixture.awaitPort(port, 50, 100),
+        assertTrue(TestServerFixture.awaitPort(port, 200, 100),
                 "JS server did not open " + port + ": " + err.toString(StandardCharsets.UTF_8));
         assertEquals("ok", body("127.0.0.1", port));
         assertNotReachableFromOtherInterfaces(port);
@@ -84,13 +111,13 @@ class WebListenHostE2ETest {
 
     @Test
     void nativeRefusesTheHostFormAndAWrongTypeIsSem025() throws Exception {
-        Path nat = write("Nat.kf", APP.replace("PORT", "8080"));
-        CompilationResult n = new CompilerDriver().compile(nat, tmp.resolve("nat"), Target.NATIVE);
+        Path nat = write("Nat.kf", HOST_APP.replace("PORT", "8080"));
+        CompilationResult n = new CompilerDriver().compile(nat, tempDir.resolve("nat"), Target.NATIVE);
         assertFalse(n.success(), "Native has no host bind; it must be refused, not linked broken");
         assertTrue(n.diagnostics().getDiagnostics().stream().anyMatch(d -> "WEB001".equals(d.code())),
                 "the named WEB001 gap: " + n.diagnostics().getDiagnostics());
-        Path bad = write("Bad.kf", APP.replace("\"127.0.0.1\", PORT", "8080, 8081"));
-        CompilationResult b = new CompilerDriver().compile(bad, tmp.resolve("bad"), Target.JVM);
+        Path bad = write("Bad.kf", HOST_APP.replace("\"127.0.0.1\", PORT", "8080, 8081"));
+        CompilationResult b = new CompilerDriver().compile(bad, tempDir.resolve("bad"), Target.JVM);
         assertFalse(b.success(), "listen(Int, Int) must not compile");
         assertTrue(b.diagnostics().getDiagnostics().stream().anyMatch(d -> "SEM025".equals(d.code())),
                 "expected SEM025: " + b.diagnostics().getDiagnostics());
@@ -112,7 +139,7 @@ class WebListenHostE2ETest {
     }
 
     private Path write(String name, String code) throws IOException {
-        Path p = tmp.resolve(name);
+        Path p = tempDir.resolve(name);
         Files.writeString(p, code);
         return p;
     }
@@ -127,9 +154,21 @@ class WebListenHostE2ETest {
         try (Socket s = new Socket(host, port)) {
             s.setSoTimeout(10000);
             s.getOutputStream().write("GET /x HTTP/1.0\r\nHost: x\r\n\r\n".getBytes(StandardCharsets.UTF_8));
-            String raw = new String(s.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            String raw = TestServerFixture.readResponse(s.getInputStream());
             int i = raw.indexOf("\r\n\r\n");
             return (i >= 0 ? raw.substring(i + 4) : raw).trim();
+        }
+    }
+
+    /** The compiled JS entry (the same lookup `KofWebJsE2ETest` uses). */
+    private static Path findJsEntry(Path dir) throws IOException {
+        try (var s = Files.walk(dir)) {
+            var opt = s.filter(p -> p.getFileName().toString().equals("Default.mjs")).findFirst();
+            if (opt.isPresent()) return opt.get();
+        }
+        try (var s = Files.walk(dir)) {
+            return s.filter(p -> p.toString().endsWith(".mjs"))
+                    .findFirst().orElseThrow(() -> new IOException("no .mjs in " + dir));
         }
     }
 }

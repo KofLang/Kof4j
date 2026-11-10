@@ -19,26 +19,31 @@ final class Fmt {
     private Fmt() {}
 
     static int run(String[] args) {
-        // R6: fmt não repassa args ao programa (diferente de run/serve) — uma
-        // flag desconhecida seria ignorada em silêncio (o usuário acharia que
-        // teve efeito). Aceita só -w, em qualquer posição; todo outro argumento
-        // é um caminho (vários arquivos/diretórios numa chamada, como o shell
-        // expande `*.kf`).
+        // #1050: o caminho era lido da posição FIXA args[1] — `kof fmt -w a.kf`
+        // respondia "not found: -w" e só o PRIMEIRO de vários caminhos era
+        // formatado (o resto descartado em silêncio). Agora cada argumento é
+        // OU -w (qualquer posição), OU flag desconhecida (recusada como antes,
+        // R6 — fmt não repassa args ao programa), OU um caminho; todos os
+        // caminhos são validados (existência + extensão) ANTES da primeira
+        // reescrita, para um caminho errado nunca deixar reescrita parcial.
         boolean write = false;
-        List<Path> roots = new ArrayList<>();
+        List<Path> paths = new ArrayList<>();
         for (int i = 1; i < args.length; i++) {
-            if ("-w".equals(args[i])) write = true;
-            else if (args[i].startsWith("-")) {
-                System.err.println("fmt: unknown flag: " + args[i] + " (accepts: -w)");
+            String a = args[i];
+            if (a.equals("-w")) { write = true; continue; }
+            if (a.startsWith("-")) {
+                System.err.println("fmt: unknown flag: " + a + " (accepts: -w)");
                 return 1;
-            } else roots.add(Path.of(args[i]));
+            }
+            paths.add(Path.of(a));
         }
-        if (roots.isEmpty()) {
+        if (paths.isEmpty()) {
             System.err.println("usage: kof fmt <file.kf|dir>... [-w]");
             return 1;
         }
+
         List<Path> files = new ArrayList<>();
-        for (Path src : roots) {
+        for (Path src : paths) {
             if (!Files.exists(src)) { System.err.println("not found: " + src); return 1; }
             String extErr = KofCliSupport.unsupportedSourceExtension("fmt", src);
             if (extErr != null) { System.err.println(extErr); return 1; }

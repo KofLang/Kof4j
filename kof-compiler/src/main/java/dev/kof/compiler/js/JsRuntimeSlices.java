@@ -53,7 +53,7 @@ final class JsRuntimeSlices {
             new Block("ui-events", JsRuntimeUiEvents.UI_EVENT_RUNTIME, false),
             // #1126 fatia 2: a família do cliente HTTP em bloco próprio
             // (extraída do ui-layout no gate ≤500; seeded per-use pelos wrappers).
-            new Block("http-client", JsRuntimeHttpClient.HTTP_CLIENT_RUNTIME, false),
+            new Block("http-client", JsRuntimeHttpClient.HTTP_CLIENT_RUNTIME(), false),
             new Block("io", JsRuntimeIo.IO_RUNTIME, true));
 
     private static final Pattern DECL = Pattern.compile(

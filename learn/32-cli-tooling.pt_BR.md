@@ -32,7 +32,7 @@ A CLI é a ferramenta central da plataforma Kof.
 | `kof compare <legacy.class\|jar> <file.kf> [--json]` | Teste diferencial legacy vs Kof |
 | `kof migrate <file.class\|java> [--output <file.kf>] [--json]` | Migração + relatório rastreável |
 | `kof config gen <file.kf\|dir> [--output <arquivo>]` | Gera template `kof.config` a partir das chaves `config.*` do código |
-| `kof fmt <file.kf\|dir>... [-w]` | Formatador real via parser (`KofFormatter`), idempotente; vários caminhos por chamada, `-w` em qualquer posição — implementado em 31/08 |
+| `kof fmt <file.kf\|dir>... [-w]` | Formatador real via parser (`KofFormatter`), idempotente — implementado em 31/08; `-w` e vários caminhos em qualquer ordem (#1050) |
 | `kof debug [--dap] <file.kf> [--target jvm|native] [--attach <pid>]` | DAP no JVM (breakpoints por linha Kof, stack trace, locals reais — JDWP cru reconstruído contra o JDK 25, §376); no `native`: sem flag delega ao **gdb** sobre o DWARF Kof (X7-3 `cfa67238`), com `--dap` atende editores pela ponte DAP↔gdb/MI (X7-4 `bda631a7`); `--attach <pid>` REAL nas duas faces (X7-5 `81401629`: no JVM o disconnect NÃO mata o debuggee — `KofDebugAttachTest`); `js` recusa honesto (engine embutido sem inspector) |
 | `kof new <name>` | Esqueletos de projeto por tipo |
 | `kof init` | Inicializa um projeto no diretório atual |
@@ -98,6 +98,7 @@ kof c hello.c --output ./bin
 ```bash
 kof fmt src/                  # formata e imprime (dry-run)
 kof fmt src/ -w               # reescreve os arquivos in-place
+kof fmt -w src/A.kf src/B.kf  # -w em qualquer posição; todo caminho dado é formatado (#1050)
 kof config gen src/           # gera template kof.config a partir das chaves config.*
 ```
 

@@ -258,22 +258,11 @@ public final class KofInterpreterRuntime {
      * espelha o `kof_json_bind` do runtime gerado, mas para classes Kof que
      * só existem como KofObj no interpretador.
      */
-    /** JSN006: the payload's JSON shape, named in the diagnostic. */
-    private static String shapeOf(Object raw) {
-        if (raw == null) return "null";
-        if (raw instanceof java.util.Map<?, ?>) return "an object";
-        if (raw instanceof java.util.List<?>) return "an array";
-        if (raw instanceof String) return "a string";
-        if (raw instanceof Number) return "a number";
-        if (raw instanceof Boolean) return "a boolean";
-        return raw.getClass().getSimpleName();
-    }
-
     private Object decodeKofValue(IRClass c, Object parsed) throws Throwable {
         // §833: a record/class takes a JSON object; any other non-null value is JSN006
         if (parsed != null && !(parsed instanceof java.util.Map<?, ?>))
             throw new RuntimeException("JSN006: json.decode expected an object but the payload is "
-                    + shapeOf(parsed));
+                    + KofInterpreterJson.shapeOf(parsed));
         KofInterpreter.KofObj obj = new KofInterpreter.KofObj(c, interp);
         if (parsed instanceof java.util.Map<?, ?> m) {
             for (IRField f : c.fields()) {
@@ -296,15 +285,14 @@ public final class KofInterpreterRuntime {
     private Object bindKof(Type type, Object raw) throws Throwable {
         if (raw == null) return null;
         IRClass nested = interp.kofClassOrNull(type);
-        if (nested != null) return decodeKofValue(nested, raw); // §833: JSN006 unless an object
-        // #1103 (JSN006): shape errada para o container pedido = erro nomeado,
-        // nunca container vazio silencioso (mesma lei do runtime gerado).
-        if (BuiltinTypes.isList(type) && !(raw instanceof List<?>))
+        if (nested != null && raw instanceof java.util.Map) return decodeKofValue(nested, raw);
+        // #1128: alvo lista recebendo não-lista = JSN006 na profundidade
+        // (o espelho do kof_json_bind JVM — a paridade atravessa os alvos).
+        if (raw != null && !(raw instanceof List<?>)
+                && (BuiltinTypes.isList(type) || BuiltinTypes.isSet(type))) {
             throw new RuntimeException("JSN006: json.decode expected an array but the payload is "
-                    + shapeOf(raw));
-        if (BuiltinTypes.isMap(type) && !(raw instanceof java.util.Map<?, ?>))
-            throw new RuntimeException("JSN006: json.decode expected an object but the payload is "
-                    + shapeOf(raw));
+                    + KofInterpreterJson.shapeOf(raw));
+        }
         if (raw instanceof List<?> l && BuiltinTypes.isList(type)) {
             Type elem = ((Type.ClassType) type).typeArguments().isEmpty()
                     ? Type.UnknownType.UNKNOWN : ((Type.ClassType) type).typeArguments().get(0);
@@ -345,6 +333,13 @@ public final class KofInterpreterRuntime {
         // #633: `Map<K,V>` com V composto (record/Map/List) — recursa nos
         // valores pelo type-arg (espelho do kof_json_bind JVM). Sem isto um
         // campo `Map<String,E>` ficava como mapa cru (valores LinkedHashMap).
+        // #1128: alvo mapa/record recebendo não-objeto = JSN006 na
+        // profundidade (o espelho do kof_json_bind JVM).
+        if (!(raw instanceof List<?>) && !(raw instanceof java.util.Map<?, ?>)
+                && (BuiltinTypes.isMap(type) || interp.kofClassOrNull(type) != null)) {
+            throw new RuntimeException("JSN006: json.decode expected an object but the payload is "
+                    + KofInterpreterJson.shapeOf(raw));
+        }
         if (raw instanceof java.util.Map<?, ?> m && BuiltinTypes.isMap(type)) {
             Type vt = ((Type.ClassType) type).typeArguments().size() >= 2
                     ? ((Type.ClassType) type).typeArguments().get(1) : Type.UnknownType.UNKNOWN;

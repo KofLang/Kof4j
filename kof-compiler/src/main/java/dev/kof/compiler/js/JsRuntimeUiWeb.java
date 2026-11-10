@@ -139,12 +139,10 @@ public final class JsRuntimeUiWeb {
                         query: exchange.getRequestURI().getQuery(),
                         headers: exchange.getRequestHeaders(),
                         body: body,
+                        // #1110: o endereço TCP do peer (o mesmo dado que o
+                        // rate limiter do JVM usa como chave).
+                        remoteAddr: exchange.getRemoteAddress().getAddress().getHostAddress(),
                         paramsMap: matched || new Map(),
-                        // G14: the TCP peer address, as the JVM's req.remoteAddr
-                        remoteAddr: (() => {
-                            const a = exchange.getRemoteAddress();
-                            return a && a.getAddress() ? String(a.getAddress().getHostAddress()) : "";
-                        })(),
                         // §265 (JS): status/headerSet DEFERIDOS idem JVM
                         // (KOF_WEB_STATUS/KOF_WEB_HEADERS thread-local) — o
                         // handler faz `return status(201, body)`; o pump aplica
@@ -271,11 +269,12 @@ public final class JsRuntimeUiWeb {
             export function kofWebMethod() {
                 return kofWebRequest ? kofWebRequest.method : "";
             }
-            export function kofWebRemoteAddr() {
-                return kofWebRequest && kofWebRequest.remoteAddr ? kofWebRequest.remoteAddr : "";
-            }
             export function kofWebPath() {
                 return kofWebRequest ? kofWebRequest.path : "";
+            }
+            export function kofWebRemoteAddr() {
+                return kofWebRequest && kofWebRequest.remoteAddr != null
+                        ? String(kofWebRequest.remoteAddr) : "";
             }
             export function kofWebStatus(code, text) {
                 // §265 (JS): defere — o pump aplica no envio (idem JVM:
@@ -306,7 +305,12 @@ public final class JsRuntimeUiWeb {
                 app._register(method, path, handler);
                 return 0;
             }
-            export function kofWebListen(appId, port, host) {
+            export function kofWebListen(appId, port) {
+                return kofWebListenHost(appId, "0.0.0.0", port);
+            }
+            // #1114: liga UMA interface (`app.listen("127.0.0.1", p)`); o
+            // wildcard delega com 0.0.0.0 (o comportamento de sempre).
+            export function kofWebListenHost(appId, host, port) {
                 const app = kofWebApps.get(appId);
                 if (!app) throw new Error("Invalid app handle: " + appId);
                 if (kofWebPending === null) {
@@ -315,9 +319,9 @@ public final class JsRuntimeUiWeb {
                 kofWebPort = port | 0 || 8080;
                 const HttpServer = Java.type('com.sun.net.httpserver.HttpServer');
                 const InetSocketAddress = Java.type('java.net.InetSocketAddress');
-                // §825: listen(host, port) binds one interface; listen(port) is the wildcard.
-                kofWebServer = HttpServer.create(host === undefined
-                        ? new InetSocketAddress(kofWebPort) : new InetSocketAddress(host, kofWebPort), 0);
+                kofWebServer = HttpServer.create(new InetSocketAddress(host, kofWebPort), 0);
+                // one context per static prefix: two :param routes can share one
+                // (`/:a/b/:c` and `/:a/:b/c`) and a second createContext throws.
                 const ctxPaths = new Set();
                 for (const [key, handler] of app.handlers) {
                     const path = key.slice(key.indexOf(":") + 1);

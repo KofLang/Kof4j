@@ -16,7 +16,9 @@ public final class JvmRuntimeWebServer {
                     kof_web_listen_host(appId, "0.0.0.0", port);
                 }
 
-                /** §825: listen(host, port) binds one interface; listen(port) is 0.0.0.0. */
+                // #1114: liga UMA interface (`app.listen("127.0.0.1", p)`) — o
+                // wildcard (`app.listen(p)`) delega aqui com 0.0.0.0 (o
+                // comportamento de sempre, intocável).
                 public static void kof_web_listen_host(String appId, String host, int port) {
                     WebApp app = kof_web_app(appId);
                     if (app.serverSocket != null) {

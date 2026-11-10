@@ -13,7 +13,7 @@ public final class JsRuntimeHttpClient {
 
     private JsRuntimeHttpClient() {}
 
-    public static final String HTTP_CLIENT_RUNTIME = """
+    public static String HTTP_CLIENT_RUNTIME() { return """
             let kofHttpTimeoutSec = 10;
             let kofHttpRetries = 0;
             let kofHttpCircuitTrips = 0;
@@ -227,4 +227,5 @@ public final class JsRuntimeHttpClient {
             export function kofSchedulerCancel(id) { kofTimeCancel(id); }
 
             """;
+    }
 }

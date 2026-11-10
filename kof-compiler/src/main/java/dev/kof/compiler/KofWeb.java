@@ -103,7 +103,9 @@ public final class KofWeb {
     static boolean isContextFunction(String name) {
         return switch (name) {
             case "param", "query", "header" -> true;
-            case "body", "method", "path", "remoteAddr" -> true;
+            case "body", "method", "path" -> true;
+            // #1110: o endereço TCP do peer (a decisão da mantenedora 05/11).
+            case "remoteAddr" -> true;
             case "status", "headerSet", "setHeader" -> true;
             case "sse", "wsSend", "wsMessage", "stats" -> true;
             default -> false;
@@ -180,7 +182,8 @@ public final class KofWeb {
             case "listen" -> argTypes.size() == 1 && isInt(argTypes.get(0))
                     ? new WebCall("kof_web_listen", VOID, List.of(STR, INT))
                     : argTypes.size() == 2 && isString(argTypes.get(0)) && isInt(argTypes.get(1))
-                    ? new WebCall("kof_web_listen_host", VOID, List.of(STR, STR, INT))
+                    ? // #1114: liga UMA interface (`app.listen("127.0.0.1", p)`)
+                    new WebCall("kof_web_listen_host", VOID, List.of(STR, STR, INT))
                     : null;
             case "serveDir" -> argTypes.size() == 2
                     ? new WebCall("kof_web_serve_dir", VOID, List.of(STR, STR, STR))
@@ -330,8 +333,9 @@ public final class KofWeb {
             case "body", "method", "path" -> argCount == 0
                     ? new WebCall("kof_web_" + name, STR, List.of())
                     : null;
-            // G14: the TCP peer address of the request ("" when unknown). A
-            // proxy's client address is a header (`header("x-forwarded-for")`).
+            // #1110: o endereço TCP do peer da requisição (a decisão da
+            // mantenedora 05/11) — "" quando desconhecido; atrás de proxy o
+            // cliente é o header x-forwarded-for (nota da stdlib-web).
             case "remoteAddr" -> argCount == 0
                     ? new WebCall("kof_web_remote_addr", STR, List.of())
                     : null;

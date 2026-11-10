@@ -54,19 +54,20 @@ public final class JvmWebSecurityRuntime {
                     boolean hasAuthHeader;
                     boolean hasRequireAuth;
 
-                    /** G27: the policy of an app that never called app.security():
-                     *  no hardening headers. They are what app.security() enables
-                     *  (stdlib-web §3); before, the bare app sent them on every
-                     *  response because the field defaults to true. */
-                    static Policy bare() {
+                    /** F1 (D-HTTP-POLICIES): parser unico dos opts — mesmas
+                     *  chaves/defaults de hoje. {@code csrfDefault} = true so no
+                     *  escopo global (app.security() liga CSRF por padrao). */
+                    /** #1112: o global INICIAL de um `web.app()` SEM
+                     *  `app.security()` — o hardening é OPT-IN (stdlib-web §3;
+                     *  a decisão da mantenedora 05/11): sem os headers de
+                     *  hardening, sem CSRF, sem auth. `app.security()` substitui
+                     *  este policy pelo parse (headers ON por default lá). */
+                    static Policy noHardening() {
                         Policy p = new Policy();
                         p.headers = false;
                         return p;
                     }
 
-                    /** F1 (D-HTTP-POLICIES): parser unico dos opts — mesmas
-                     *  chaves/defaults de hoje. {@code csrfDefault} = true so no
-                     *  escopo global (app.security() liga CSRF por padrao). */
                     static Policy parse(java.util.Map<?, ?> opts, boolean csrfDefault) {
                         Policy p = new Policy();
                         p.csrf = csrfDefault;

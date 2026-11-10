@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §938 (FIXED)
 last: §827 (FIXED)
 last: §823 (FIXED)
 last: §822 (FIXED)
@@ -18255,7 +18256,7 @@ movq %rbx, %rsp
 <!-- pt-switch --> **EN:** [§763 (en)](known-bugs.md#763--the-14-stack-alignment-pass-padded-an-already-aligned-ffi-downcall-so-sqrtmixed-args-segfaulted-exit-139-on-native-x86-64)
 
 ## §764 — o fold de record do backend JVM para campos Double usa o `==` CRU, divergindo do contrato de record do javac nas DUAS bordas (NaN ≠ NaN; +0.0 == −0.0) — o fold do WASI (bits) macha o javac
-**Status:** ABERTO (medido 29/10, lane wasm-wasi `192.168.15.117:0`) — o fix pertence ao NÚCLEO do compilador (o lowerer de igualdade de record do JVM), não à lane WASI; não tocado aqui pela regra de colisão de lane.
+**Status:** ✅ CORRIGIDO 09/11 — ver §938 (dona = 192.168.15.21:9092; o fix de núcleo de compilador que a linha pedia: `JvmRecordEmitter` agora emite `Float.compare`/`Double.compare`; `RecordDoubleEqContentE2ETest` 3/3 RED-first + a família record/igualdade 0F).
 
 **MEDIDO 29/10** (o diferencial da fatia SET-REC). Um record com campo `Double` comparado por valor diverge entre o backend JVM do Kof e TANTO o oráculo javac puro QUANTO o backend WASI — em direções OPOSTAS:
 
@@ -18343,6 +18344,21 @@ A causa (1) fabrica a cadeia corrompida no caso comum; a causa (2) é o que tran
 
 **Prova:** `DotDirectoryPackageE2ETest` **5/5** (RED-first: 4/5 falhavam com o exato `COMP001: /agent` antes da correção; as faces `.agent`, `sub/.agent`, `.hidden-x`, controle de diretório válido e controle sem `kof.toml`) + `InternalNameValidationTest` **4/4** (a regra de identificador e o gate defensivo). Não-regressão: `EnumPackagePlacementE2ETest` 7/7, `PackagesE2ETest` 12/12, `CompileForTestsSourcesModuleRootTest` 1/1, `OrmEntityPackageE2ETest` 2/2, `JsonDecodePackagedRecordE2ETest` 2/2.
 <!-- pt-switch --> **EN:** [§936 (en)](known-bugs.md#936--a-source-under-a-directory-whose-name-is-not-a-valid-identifier-agent-hidden-x-derives-an-invalid-package-so-the-jvm-target-fails-with-a-mislabeled-comp001-or-a-silent-classformaterror-github-999)
+
+## §938 — o fold de `equals` de record do JVM para campos `Double`/`Float` usava o `==` CRU do IEEE (`DCMPL`/`FCMPL`), divergindo do contrato de record do javac nas DUAS bordas (NaN ≠ NaN; +0.0 == −0.0) enquanto o fold de bits do WASI já era javac-fiel (§764)
+
+**Status:** ✅ CORRIGIDO 09/11 (dona = 192.168.15.21:9092; fecha a linha ABERTA do §764, medida 29/10 pela lane wasm-wasi que corretamente a deixou para o núcleo do compilador).
+
+**Contrato:** o contrato de record do javac (`record T(double v)` + `equals`) gera a forma de `Double.compare` — ordem total: NaN igual a NaN, +0.0 NÃO igual a −0.0 — que é bits-equivalente ao fold de bits do WASI (`WasmRecordCode.emitEquals`, `i64.reinterpret_f64`). Prova Java pura (JDK 25): NaN/NaN → `true`, +0.0/−0.0 → `false`.
+
+**CAUSA RAIZ:** `JvmRecordEmitter.emitEqualsComparison` respondia campos `float`/`double` com `FCMPL`/`DCMPL` (o `==` IEEE cru: NaN ≠ NaN, +0.0 == −0.0) — as duas bordas erradas contra o javac. O `hashCode` já estava correto (`floatToIntBits`/`doubleToLongBits`, NaN canônico, ±0.0 diferem), então o equals/hashCode do backend JVM eram mutuamente inconsistentes também.
+
+**Propaga para coleções:** `setOf(T(0.0/0.0), T(0.0/0.0))` era `size()==2` + `contains==false` no backend JVM enquanto o `HashSet` do javac dá `1 / true` (medido, o diferencial do §764) — o scan WASI já dava `1 / true`.
+
+**Correção:** os casos `float`/`double` em `emitEqualsComparison` agora emitem `Float.compare`/`Double.compare` (a forma exata que o javac gera) antes do gate `IFEQ`; os outros primitivos e a perna de referência intocados. O remédio PROIBIDO (enfraquecer o WASI para o `==` cru para casar com o JVM velho) explicitamente não tomado.
+
+**Prova:** `RecordDoubleEqContentE2ETest` NOVO **3/3** RED-first (as 3 falhavam no código velho: a face NaN `true/false/true/false` era `false/true/true/false`; o dedup do set `1/true` era `2/false`; as bordas Float invertidas) — as duas bordas do §764, a propagação do dedup de set e o gêmeo Float; a família record/igualdade inteira **27 suítes / 0F** (`RecordNullableEqContent` 10, `RecordNullableNullEq` 11, `KofSetEquality` 21, `GenericEquality` 16, `CharBoxedCanonEquality` 6, `NativeRecordCollectionEquality` 3, `NativeRecordHashCode` 3, `RecordExplicitAccessor` 6, `RecordImplements` 4, `ValueRecordFrontEnd` 7, `WasmWasiRecord` 10 (9 skips ambientais), `JsRecordToString*` 8, os decodes record JSON/nativos, …).
+<!-- pt-switch --> **EN:** [§938 (en)](known-bugs.md#938--the-jvm-record-equals-fold-for-doublefloat-fields-used-the-raw-ieee--dcmplfcmpl-diverging-from-the-javac-record-contract-on-both-edges-nan--nan-00--00-while-the-wasi-bits-fold-was-already-javac-faithful-764)
 
 ## §937 — `BufferRuntimeBorrowE2ETest.concurrentBufferBorrowRaisesMem020NativeX86` é flaky (~1/6): a barreira marcava TENTATIVAS antes do acquire, então o harness podia liberar o GO sem nenhum MEM020 (GitHub #1000)
 
