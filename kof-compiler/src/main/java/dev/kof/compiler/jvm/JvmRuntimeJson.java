@@ -305,6 +305,11 @@ public final class JvmRuntimeJson {
                     // recursivamente. Sem isto, um campo de record
                     // `Map<String,E>` caía no ramo reflexivo abaixo e virava
                     // mapa VAZIO (ou NoSuchMethod após #634); ver JvmRuntimeJsonMap.
+                    // §833: a Map field or a record/class takes a JSON object (JSN006 otherwise)
+                    if (!(value instanceof Map<?, ?>) && (java.util.Map.class.isAssignableFrom(type)
+                            || type.isRecord() || kofJsonIsUserClass(type))) {
+                        throw jsonShapeError("an object", value);
+                    }
                     if (value instanceof Map<?, ?> mv && java.util.Map.class.isAssignableFrom(type)) {
                         java.lang.reflect.Type vt = mapValueType(generic);
                         java.util.Map<Object, Object> out = new LinkedHashMap<>();
@@ -361,6 +366,12 @@ public final class JvmRuntimeJson {
                         return obj;
                     }
                     return value;
+                }
+
+                // §833: a class compiled from Kof (not the JDK, an array, an enum or Object)
+                private static boolean kofJsonIsUserClass(Class<?> type) {
+                    return !type.isPrimitive() && !type.isArray() && !type.isEnum() && !type.isInterface()
+                            && type != Object.class && !type.getName().startsWith("java.");
                 }
 
                 // element type de um List<T>/Collection<T> refletido; null se não

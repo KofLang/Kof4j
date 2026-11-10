@@ -82,6 +82,9 @@ public final class JsRuntimeUiWeb {
                     if (handler) break;
                     handler = app.handlers.get(method + ":" + path);
                     if (handler) break;
+                    // Same rule as the JVM: at the first segment where two matching
+                    // routes differ, the literal one wins over the :param one.
+                    let bestSegs = null;
                     for (const [key, h] of app.handlers) {
                         const sep = key.indexOf(":");
                         const m = key.slice(0, sep);
@@ -95,7 +98,13 @@ public final class JsRuntimeUiWeb {
                             if (rSegs[i].startsWith(":")) params.set(rSegs[i].slice(1), decodeURIComponent(pSegs[i]));
                             else if (rSegs[i] !== pSegs[i]) { ok = false; break; }
                         }
-                        if (ok) { handler = h; matched = params; break; }
+                        if (!ok) continue;
+                        let better = bestSegs === null;
+                        for (let i = 0; !better && i < rSegs.length; i++) {
+                            const bp = bestSegs[i].startsWith(":"), rp = rSegs[i].startsWith(":");
+                            if (bp !== rp) { better = bp; break; }
+                        }
+                        if (better) { handler = h; matched = params; bestSegs = rSegs; }
                     }
                 }
                 if (!handler) {
@@ -326,8 +335,11 @@ public final class JsRuntimeUiWeb {
                 const HttpServer = Java.type('com.sun.net.httpserver.HttpServer');
                 const InetSocketAddress = Java.type('java.net.InetSocketAddress');
                 kofWebServer = HttpServer.create(new InetSocketAddress(host, kofWebPort), 0);
+                // one context per static prefix: two :param routes can share one
+                // (`/:a/b/:c` and `/:a/:b/c`) and a second createContext throws.
+                const ctxPaths = new Set();
                 for (const [key, handler] of app.handlers) {
-                    const [method, path] = key.split(":");
+                    const path = key.slice(key.indexOf(":") + 1);
                     // WEB001-T1 (13/09): Context GraalJS é thread-confined — o callback do
             // HttpServer roda na thread do dispatcher e NÃO pode executar JS.
             // O dispatcher só ENFILEIRA o exchange (Java host-side); kofWebListen
@@ -342,7 +354,10 @@ public final class JsRuntimeUiWeb {
                     ctxPath = ctxPath.slice(0, ctxPath.indexOf(":"));
                     if (!ctxPath.endsWith("/")) ctxPath = ctxPath + "/";
                 }
-                kofWebServer.createContext(ctxPath, new QueueHandler(kofWebPending));
+                // two :param routes share a static prefix (`/:a/b/:c`, `/:a/:b/c`):
+                // one context per prefix, a second createContext would throw
+                if (!ctxPaths.has(ctxPath)) kofWebServer.createContext(ctxPath, new QueueHandler(kofWebPending));
+                ctxPaths.add(ctxPath);
                 }
                 kofWebServer.setExecutor(null);
                 kofWebServer.start();

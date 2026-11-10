@@ -22,21 +22,24 @@ final class CmdCheck {
 
     static int run(String[] args, PrintStream out, PrintStream err) {
         if (args.length < 2) {
-            err.println("usage: kof check <file.kf|dir> [--target <t>] [--json]");
+            err.println("usage: kof check <file.kf|dir> [--target <t>] [--deps] [--json]");
             return 1;
         }
 
         boolean json = false;
+        boolean deps = false;
         String pathArg = null;
         Target target = Target.JVM;
 
         for (int i = 1; i < args.length; i++) {
             String arg = args[i];
             if ("--help".equals(arg) || "-h".equals(arg) || "--version".equals(arg)) {
-                out.println("usage: kof check <file.kf|dir> [--target <t>] [--json]");
+                out.println("usage: kof check <file.kf|dir> [--target <t>] [--deps] [--json]");
                 return 0;
             } else if ("--json".equals(arg)) {
                 json = true;
+            } else if ("--deps".equals(arg)) {
+                deps = true;
             } else if ("--target".equals(arg) && i + 1 < args.length) {
                 target = KofCliSupport.parseTarget(args[++i]);
             } else if (arg.startsWith("--target=")) {
@@ -45,15 +48,15 @@ final class CmdCheck {
                 pathArg = arg;
             } else {
                 // R6: nunca ignorar uma flag desconhecida em silêncio (o usuario
-                // acharia que ela teve efeito). `check` so aceita --target/--json.
+                // acharia que ela teve efeito). `check` so aceita --target/--deps/--json.
                 err.println("check: unknown flag: " + arg
-                        + " (accepts: --target <t> --json)");
+                        + " (accepts: --target <t> --deps --json)");
                 return 1;
             }
         }
 
         if (pathArg == null) {
-            err.println("usage: kof check <file.kf|dir> [--target <t>] [--json]");
+            err.println("usage: kof check <file.kf|dir> [--target <t>] [--deps] [--json]");
             return 1;
         }
 
@@ -93,6 +96,16 @@ final class CmdCheck {
         }
 
         CompilerDriver driver = new CompilerDriver();
+        if (deps) {
+            // §772: the same kofdeps classpath and source roots as `kof run --deps`,
+            // so a third-party import type-checks instead of failing PKG006.
+            try {
+                Deps.applyTo(driver, List.of());
+            } catch (IOException e) {
+                err.println("check: failed to read kofdeps: " + e.getMessage());
+                return 1;
+            }
+        }
         int count = files.size();
         Path tmp;
         try {

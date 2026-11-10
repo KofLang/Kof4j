@@ -92,6 +92,7 @@ The body `{ ... }` is a trailing lambda — the route handler. A handler can
 also be passed explicitly: `app.get("/x", handler)`.
 
 - `path` supports segments with a parameter: `/users/:id` (`:` prefix).
+- When several routes match, the literal one wins: at the first segment where two routes differ, a literal segment beats a `:param` (`/posts/seals` before `/posts/:id`), whatever the registration order (JVM and JS).
 - The handler returns `String` (response body, 200) or `null` (404).
 - The response detects JSON automatically when the body starts with `{` or `[`
   (`Content-Type: application/json`).
@@ -121,6 +122,8 @@ for state-changing methods:
 - `Referrer-Policy: no-referrer`
 - `Strict-Transport-Security` — only under TLS (`listenSecure`)
 
+An app that never calls `app.security()` sends none of these headers (§823). Before 0.8 the runtime sent them on every response anyway; an app that relied on that adds `app.security()` (or `app.security(mapOf("csrf", false))` to keep CSRF off). An `app.policy(prefix, opts)` scope enables them only with `headers: true`.
+
 Documented opts (`Map` keys; any other is ignored):
 
 | Key | Type | Default | Effect |
@@ -145,7 +148,8 @@ paths (`return null` and unknown route).
 
 **Auth-if-present:** even without `auth: true`, a request that **carries**
 `Authorization` with an invalid token never passes (401) — avoids "bad token
-becomes anonymous".
+becomes anonymous". It is part of `app.security()` / `app.policy()`: an app
+that configures neither ignores the header (the route reads it), §781.
 
 ```kof
 main() {
@@ -212,10 +216,21 @@ app.get("/api/hide") { return "hide" }                          // inherits off
 | `app.close()` | Shuts down the server (graceful shutdown) |
 
 `app.listen(0)` binds an ephemeral port; `app.port()` reveals the real port.
+A service meant for the local machine (a test server, a sidecar) binds
+`app.listen("127.0.0.1", port)`: the wildcard is reachable from the network, and
+on macOS a wildcard bind can share a port that another process holds on
+127.0.0.1, so a client of 127.0.0.1 would reach that process (§825).
 `app.listenSecure` is available on the JVM (Native/JS `WEB002`). The 3-arg
 variant uses the user's cert/key pair (`-----BEGIN CERTIFICATE-----` /
 `-----BEGIN PRIVATE KEY-----`, PKCS#8 RSA/EC/DSA key); the 1-arg self-signed
 stays a dev convenience, not for production (D-SEC).
+
+**Persistent connections (JVM):** HTTP/1.1 connections stay open between
+requests (RFC 9112 §9.3) — `Connection: keep-alive` on each response, pipelined
+requests answered in order, an idle connection closed after 5 s. A request with
+`Connection: close`, HTTP/1.0 without `Connection: keep-alive`, or a
+`Transfer-Encoding` body gets `Connection: close` and the socket closes after the
+response. Native/JS keep one request per connection (`WEB001` residual).
 
 ### Static files (`app.serveDir`) (31/08)
 
@@ -350,7 +365,7 @@ global per JVM and returned as `String`.
 | `body()` | Raw request body |
 | `method()` | HTTP method ("GET", "POST", ...) |
 | `path()` | Request path |
-| `remoteAddr()` | TCP peer address of the request (`""` when unknown) — behind a proxy the client is the `x-forwarded-for` header (#1110) |
+| `remoteAddr()` | TCP peer address of the request (`"127.0.0.1"`, `""` when unknown) — behind a proxy the client is the `x-forwarded-for` header (#1110). JVM and JS; Native is `WEB001` |
 | `status(code, body)` | Sets the response status and returns the body — use as a return (e.g.: `return status(201, "{\"ok\":true}")`) |
 | `headerSet(name, value)` | Adds a response header (e.g.: `headerSet("X-Total", "42")`); a repeated `Set-Cookie` (any case) REPEATS instead of replacing (RFC 6265 §3), every other header keeps last-wins, and a CR/LF in the name or value is refused (the route answers 500 — RFC 9112 §5, #1012) |
 

@@ -46,6 +46,10 @@ public class SemanticAnalyzer {
                 && externalTypes.knows(ct.internalName());
     }
 
+    boolean resolvesMembersOnClasspath(Type.ClassType ct) {
+        return isExternal(ct) || (externalTypes != null && externalTypes.knowsMembers(ct.internalName()));
+    }
+
 
 
     // REFACTOR-500 (higiene de gate check_500): os índices de classes/nomes e o
@@ -75,6 +79,17 @@ public class SemanticAnalyzer {
 
     void setDeclarationPackageLookup(java.util.function.Function<AstNode, String> lookup) {
         this.declarationPackageLookup = lookup;
+    }
+
+    private FileImports fileImports;
+
+    void setFileImports(FileImports fileImports) { this.fileImports = fileImports; }
+
+    /** §809: the current file's single-type import of an external {@code name}
+     *  shadows the project class with the same simple name (JLS 6.4.1). */
+    boolean importShadowsProjectClass(String name) {
+        return fileImports != null && getClass(name) != null
+                && fileImports.explicitlyImportsExternal(name, q -> findQualifiedClass(q) != null);
     }
 
     String packageOf(AstNode decl) {
@@ -207,6 +222,11 @@ public class SemanticAnalyzer {
         return resolvedMethods.get(mc);
     }
 
+    /** §820: {@code h.run()} on a function-typed field, as {@code (h.run).invoke()}. */
+    private final Map<MethodCallExpr, MethodCallExpr> functionFieldCalls = new IdentityHashMap<>();
+    void recordFunctionFieldCall(MethodCallExpr mc, MethodCallExpr invoke) { functionFieldCalls.put(mc, invoke); }
+    MethodCallExpr functionFieldCall(MethodCallExpr mc) { return functionFieldCalls.get(mc); }
+
     /** #763: candidato `extern` resolvido por call-site (seleção por assinatura). */
     void recordExternChoice(MethodCallExpr mc, ExternalFunctionNode ext) { ExternOverload.record(mc, ext); }
     ExternalFunctionNode getExternChoice(MethodCallExpr mc) { return ExternOverload.get(mc); }
@@ -236,9 +256,11 @@ public class SemanticAnalyzer {
         if (diagnostics != null && decl != null && decl.position() != null) {
             diagnostics.setFallbackPosition(decl.position());
         }
+        AstNode prevDecl = fileImports == null ? null : fileImports.enter(decl);
         try {
             analyzeDeclarationAt(decl);
         } finally {
+            if (fileImports != null) fileImports.restore(prevDecl);
             if (diagnostics != null) diagnostics.setFallbackPosition(prev);
         }
     }

@@ -224,6 +224,23 @@ spawn-stmt = "spawn" , expression
 - `spawn { … }` (block) and `spawn f()` (call) are valid.
 - See [../concurrency.md](concurrency.md).
 
+### 10.1 `lock` (statement)
+
+`ebnf
+lock-stmt = "lock" , "(" , expression , ")" , block
+`
+
+- Runs the block while holding the lock of the target object: two tasks never
+  run blocks locked on the same object at the same time (G240, 06/11).
+- The target is evaluated once and must be a non-null object (`CONC004` for a
+  primitive, a `String` or a nullable value).
+- Released on every exit of the block (end, `return`, `break`/`continue`,
+  throw); reentrant for the task that holds it.
+- `lock` is contextual: only `lock (...)` followed by `{` on the same line is
+  this statement; `lock(x)` alone is still an ordinary call.
+- See [concurrency-memory-model.md](concurrency-memory-model.md) §2 rule 7 and
+  `learn/18-concurrency.md`.
+
 ---
 
 ## 11. Expression statement

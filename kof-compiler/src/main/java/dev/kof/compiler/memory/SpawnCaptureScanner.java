@@ -20,6 +20,7 @@ import dev.kof.compiler.SpawnStmt;
 import dev.kof.compiler.StatementNode;
 import dev.kof.compiler.UnaryExpr;
 import dev.kof.compiler.VarDeclStmt;
+import dev.kof.compiler.LockStmt;
 import dev.kof.compiler.WhileStmt;
 
 import java.util.LinkedHashSet;
@@ -187,6 +188,10 @@ final class SpawnCaptureScanner {
             }
             case WhileStmt w -> {
                 expr(w.condition(), out, ffi, ffiWriteArgs, shadowed);
+                stmt(w.body(), out, ffi, ffiWriteArgs, new LinkedHashSet<>(shadowed));
+            }
+            case LockStmt w -> {
+                expr(w.target(), out, ffi, ffiWriteArgs, shadowed);
                 stmt(w.body(), out, ffi, ffiWriteArgs, new LinkedHashSet<>(shadowed));
             }
             case DoWhileStmt dw -> {

@@ -18,6 +18,29 @@ public final class HierarchyResolver {
         return null;
     }
 
+    /**
+     * §782: a simple name read where there is no {@code this} (a STATIC
+     * method) is looked up in the class being lowered first, like the
+     * emitter does ({@code ExpressionLowerer}); only then the module-wide
+     * scan. Without it {@code seen.set(x)} in a static method of
+     * {@code ResponseHeaders} could be typed by an unrelated
+     * {@code List<String> seen} field of another class (HashMap order),
+     * failing compilation with SEM055.
+     */
+    static SymbolTable.Symbol resolveInOwnerOrModule(String name, String owner,
+                                                     SemanticAnalyzer sa) {
+        if (sa == null) return null;
+        if (owner != null && !owner.isEmpty()) {
+            SymbolTable.ClassSymbol cs = sa.findQualifiedClass(owner.replace('/', '.'));
+            if (cs == null) cs = sa.getClass(owner.substring(owner.lastIndexOf('/') + 1));
+            if (cs != null) {
+                SymbolTable.Symbol f = MemberResolver.resolveFieldInHierarchy(sa, cs.name(), name);
+                if (f != null) return f;
+            }
+        }
+        return resolveFromSemantic(name, sa);
+    }
+
     static SymbolTable.Symbol resolveFieldInHierarchy(String className, String fieldName,
                                                       SemanticAnalyzer semanticAnalyzer) {
         if (semanticAnalyzer == null) return null;
@@ -53,6 +76,22 @@ public final class HierarchyResolver {
         String bare = stripGenerics(stored);
         int cut = Math.max(bare.lastIndexOf('.'), bare.lastIndexOf('/'));
         return cut >= 0 ? bare.substring(cut + 1) : bare;
+    }
+
+    /**
+     * §779: internal name of a declared {@code implements} entry (also an
+     * interface's own {@code extends}), registry-first like the super (§308):
+     * a module interface declared in a package resolves to its qualified
+     * internal name ({@code kernel/p/PIface}); emitting the bare simple name
+     * gave {@code NoClassDefFoundError: PIface} at load. Anything the module
+     * does not declare keeps the import / {@code java.lang} resolution.
+     */
+    static String canonicalInterfaceInternal(CompilerDriver driver, String declared) {
+        SemanticAnalyzer sa = driver.semanticAnalyzer;
+        SymbolTable.ClassSymbol cs = sa == null ? null : sa.getClass(simpleOfStored(declared));
+        if (cs != null) return cs.internalName();
+        return CompilerAnnotations.externalOrLocalInternalName(driver, HeritageQualifier.qualify(
+                driver.currentUnit, sa, CompilerClassLowering.eraseTypeArgs(declared)));
     }
 
     /**

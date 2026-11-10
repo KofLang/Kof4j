@@ -162,6 +162,7 @@ public final class NativeRuntime {
         RuntimeGc.emitGc(sb);
         RuntimeConcurrency.emitConcurrency(sb);
         RuntimeChannel.emitChannel(sb);
+        dev.kof.compiler.runtime.RuntimeLock.emit(sb); // G240
         RuntimeProcess.emit(sb);
         RuntimeProcessResult.emit(sb);
         RuntimeProcessSpawn.emit(sb);

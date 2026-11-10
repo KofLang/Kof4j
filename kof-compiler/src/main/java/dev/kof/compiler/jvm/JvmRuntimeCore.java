@@ -52,15 +52,65 @@ public final class JvmRuntimeCore {
 
                 // ── kof.concurrent ─────────────────────────────────
 
-                private static final java.util.concurrent.atomic.AtomicInteger KOF_ACTIVE_TASKS =
-                        new java.util.concurrent.atomic.AtomicInteger();
+                // The end of main waits for spawned tasks in a shutdown hook — the
+                // JVM runs it only after main returns, and that is exactly what a
+                // task like `spawn { app.listen(p) }` needs: its blocking accept()
+                // wakes when the listen hook closes the socket. A NON-daemon keeper
+                // thread (the first form of #1046) waited for the tasks while main
+                // was still ending, so the JVM never STARTED shutting down, the
+                // listen hook never closed the socket, the accept() never returned
+                // and the program hung for ever (measured: the keep-alive server
+                // face `ObservabilityCorrelationIdRequestBoundE2ETest`).
+                //
+                // The #1046 requirement — an explicit exit must not wait for a task
+                // that never ends — is kept by REMOVING this hook when the program
+                // calls `process.exit` (kof_process_exit/KofProcess); a direct
+                // `System.exit` from the source keeps lab's behaviour.
+                private static final Object KOF_TASKS_LOCK = new Object();
+                private static int KOF_ACTIVE_TASKS = 0;
+                private static Thread KOF_TASKS_HOOK;
 
-                static {
-                    Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                        while (KOF_ACTIVE_TASKS.get() > 0) {
-                            Thread.onSpinWait();
+                private static Thread kofTasksHook() {
+                    synchronized (KOF_TASKS_LOCK) {
+                        if (KOF_TASKS_HOOK == null) {
+                            KOF_TASKS_HOOK = new Thread(() -> {
+                                synchronized (KOF_TASKS_LOCK) {
+                                    while (KOF_ACTIVE_TASKS > 0) {
+                                        try { KOF_TASKS_LOCK.wait(); } catch (InterruptedException e) { return; }
+                                    }
+                                }
+                            }, "kof-wait-tasks");
+                            Runtime.getRuntime().addShutdownHook(KOF_TASKS_HOOK);
                         }
-                    }, "kof-wait-tasks"));
+                        return KOF_TASKS_HOOK;
+                    }
+                }
+
+                static void kofTaskBegin() {
+                    synchronized (KOF_TASKS_LOCK) {
+                        KOF_ACTIVE_TASKS++;
+                    }
+                    kofTasksHook();
+                }
+
+                static void kofTaskEnd() {
+                    synchronized (KOF_TASKS_LOCK) {
+                        if (--KOF_ACTIVE_TASKS == 0) KOF_TASKS_LOCK.notifyAll();
+                    }
+                }
+
+                /** §792/#1046: an explicit exit never waits for a task. */
+                private static void kofDropTasksHook() {
+                    Thread hook;
+                    synchronized (KOF_TASKS_LOCK) {
+                        hook = KOF_TASKS_HOOK;
+                    }
+                    if (hook == null) return;
+                    try {
+                        Runtime.getRuntime().removeShutdownHook(hook);
+                    } catch (IllegalStateException ignored) {
+                        // already shutting down: nothing to remove
+                    }
                 }
 
                 private static final ThreadLocal<Object> KOF_CURRENT_HANDLE = new ThreadLocal<>();
@@ -95,17 +145,21 @@ public final class JvmRuntimeCore {
                 public static Object kof_spawn_result(Object task) {
                     java.util.concurrent.CompletableFuture<Object> future =
                             new java.util.concurrent.CompletableFuture<>();
-                    KOF_ACTIVE_TASKS.incrementAndGet();
+                    kofTaskBegin();
                     kofStartTask(() -> {
                         KOF_CURRENT_HANDLE.set(future);
                         try {
                             future.complete(task.getClass().getMethod("invoke").invoke(task));
                         } catch (Throwable e) {
                             Throwable cause = e.getCause() != null ? e.getCause() : e;
+                            // a JVM Error (NoSuchMethodError, VerifyError...) is a broken
+                            // program, not a value for await: report it now, a handle
+                            // nobody awaits would otherwise hide it for ever
+                            if (cause instanceof Error) System.err.println("spawn task failed: " + cause);
                             future.completeExceptionally(cause);
                         } finally {
                             KOF_CURRENT_HANDLE.remove();
-                            KOF_ACTIVE_TASKS.decrementAndGet();
+                            kofTaskEnd();
                         }
                     });
                     return future;
@@ -204,7 +258,7 @@ public final class JvmRuntimeCore {
                 }
 
                 public static void kof_spawn(Object task) {
-                    KOF_ACTIVE_TASKS.incrementAndGet();
+                    kofTaskBegin();
                     kofStartTask(() -> {
                         try {
                             task.getClass().getMethod("invoke").invoke(task);
@@ -212,7 +266,7 @@ public final class JvmRuntimeCore {
                             Throwable cause = e.getCause() != null ? e.getCause() : e;
                             System.err.println("spawn task failed: " + cause.getMessage());
                         } finally {
-                            KOF_ACTIVE_TASKS.decrementAndGet();
+                            kofTaskEnd();
                         }
                     });
                 }
@@ -256,7 +310,10 @@ public final class JvmRuntimeCore {
                 }
 
                 public static void kof_process_exit(int code) {
-                    // process.exit(code): termina na hora, sem stack trace
+                    // process.exit(code): termina na hora, sem stack trace e SEM
+                    // esperar tarefa spawnada que nunca acaba (§792/#1046): o hook
+                    // que faz o join implícito (ver kofTaskBegin) é removido aqui.
+                    kofDropTasksHook();
                     System.exit(code);
                 }
 

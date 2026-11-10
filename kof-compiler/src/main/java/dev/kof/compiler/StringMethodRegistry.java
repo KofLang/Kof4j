@@ -90,6 +90,8 @@ public final class StringMethodRegistry {
             case "getBytes" -> argCount == 0 ? sig(new Type.ArrayType(Type.PrimitiveType.BYTE), List.of())
                     // #1120: getBytes(charset) — the everyday Java member.
                     : argCount == 1 ? sig(new Type.ArrayType(Type.PrimitiveType.BYTE), List.of(str)) : null;
+            // §827: codePointAt(index), the java.lang.String member (UTF-16 index).
+            case "codePointAt" -> argCount == 1 ? sig(INT, List.of(INT)) : null;
             case "compareTo" -> argCount == 1 ? sig(INT, List.of(str)) : null;
             case "compareToIgnoreCase" -> argCount == 1 ? sig(INT, List.of(str)) : null;
             case "split" -> argCount == 1 ? sig(strArray, List.of(str))

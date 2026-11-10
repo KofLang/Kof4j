@@ -46,6 +46,7 @@ public final class ReturnPathAnalyzer {
                     || (reachesEnd(i.thenBranch()) && reachesEnd(i.elseBranch()));
             // loops podem ser infinitos com return dentro (while(true){return}
             // funciona hoje); try/switch têm muitos caminhos — conservador.
+            case LockStmt l -> reachesEnd(l.body()); // G240: the body runs exactly once
             case WhileStmt _ -> false;
             case DoWhileStmt _ -> false;
             case ForStmt _ -> false;

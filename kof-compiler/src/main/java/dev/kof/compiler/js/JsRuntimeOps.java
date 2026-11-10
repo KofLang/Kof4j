@@ -78,7 +78,8 @@ boolean isRuntimeOp(KofCall kc) {
                 || name.equals("kof_ssh_argv") || name.equals("kof_ssh_run")
                 || name.equals("kof_args")
                 || name.equals("kof_ffi") || name.equals("kof_ffi_void")
-                || name.equals("kof_box") || name.equals("kof_unbox");
+                || name.equals("kof_box") || name.equals("kof_unbox")
+                || JsLockCheck.isLockOp(name);
     }
 
 void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
@@ -319,15 +320,14 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
                 stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofWebMethod"), List.of()));
                 return;
             }
-            if (name.equals("kof_web_path") && args.isEmpty()) {
-                p.lc.registerRuntime("kofWebPath");
-                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofWebPath"), List.of()));
-                return;
-            }
-            // #1110: o endereço TCP do peer da requisição.
             if (name.equals("kof_web_remote_addr") && args.isEmpty()) {
                 p.lc.registerRuntime("kofWebRemoteAddr");
                 stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofWebRemoteAddr"), List.of()));
+                return;
+            }
+            if (name.equals("kof_web_path") && args.isEmpty()) {
+                p.lc.registerRuntime("kofWebPath");
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofWebPath"), List.of()));
                 return;
             }
             if (name.equals("kof_web_status") && args.size() == 2) {

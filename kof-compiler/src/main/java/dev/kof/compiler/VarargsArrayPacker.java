@@ -28,37 +28,60 @@ final class VarargsArrayPacker {
         return formal;
     }
 
+    /** Access flags of the {@code MethodSymbol} built for an external signature. */
+    static int accessFlags(ExternalClasspath.MethodSignature sig) {
+        return AccessFlags.PUBLIC | (sig.isVarargs() ? AccessFlags.VARARGS : 0);
+    }
+
+    static boolean isVarargs(SymbolTable.MethodSymbol m) {
+        return m != null && (m.accessFlags() & AccessFlags.VARARGS) != 0;
+    }
+
     /** Empilha os argumentos na ordem de chamada; retorna o localIdx. */
     static int lower(CompilerDriver driver, List<ExpressionNode> args,
                      ExternalClasspath.MethodSignature sig, List<KofOperation> ops,
                      String owner, int localIdx, List<IRLocalVariable> locals) {
-        List<Type> formal = formalTypes(sig);
-        if (!sig.isVarargs()) {
+        return lower(driver, args, formalTypes(sig), sig.isVarargs(), ops, owner, localIdx, locals);
+    }
+
+    /**
+     * Same lowering keyed by the formal types and the ACC_VARARGS flag, so the
+     * INSTANCE call path (whose signature reaches the lowerer as a
+     * {@code MethodSymbol}) packs exactly like the static one. A call whose
+     * arity matches and whose last argument is already an array is
+     * fixed-arity applicable (JLS 15.12.2.2) and passes the array through.
+     */
+    static int lower(CompilerDriver driver, List<ExpressionNode> args, List<Type> formal,
+                     boolean varargs, List<KofOperation> ops,
+                     String owner, int localIdx, List<IRLocalVariable> locals) {
+        if (!varargs || passesArrayDirectly(driver, args, formal, locals)) {
             return driver.emitArgumentsWithFormalTypes(args, formal, ops, owner, localIdx, locals);
         }
-        int fixed = sig.parameterDescriptors().size() - 1;
+        int fixed = formal.size() - 1;
         if (fixed > 0) {
             localIdx = driver.emitArgumentsWithFormalTypes(
                     args.subList(0, fixed), formal.subList(0, fixed),
                     ops, owner, localIdx, locals);
         }
-        Type component = ExternalClasspath.typeFromDescriptor(
-                sig.parameterDescriptors().get(sig.parameterDescriptors().size() - 1)
-                        .substring(1));
+        Type component = ((Type.ArrayType) formal.get(fixed)).componentType();
         int extra = args.size() - fixed;
         ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, extra));
         ops.add(new KofNewArray(component));
         for (int i = 0; i < extra; i++) {
             ops.add(new KofDup());
             ops.add(new KofLoadLiteral(Type.PrimitiveType.INT, i));
-            ExpressionNode arg = args.get(fixed + i);
-            localIdx = ExpressionLowerer.emitExpression(driver, arg, ops, owner, localIdx, locals);
-            Type argType = ExpressionTyper.inferExprType(driver, arg, locals);
-            if (argType instanceof Type.PrimitiveType) {
-                TypeEmitter.boxPrimitive(ops, argType);
-            }
+            localIdx = driver.emitArgumentsWithFormalTypes(List.of(args.get(fixed + i)),
+                    List.of(component), ops, owner, localIdx, locals);
             ops.add(new KofArrayStore(component));
         }
         return localIdx;
+    }
+
+    private static boolean passesArrayDirectly(CompilerDriver driver, List<ExpressionNode> args,
+                                               List<Type> formal, List<IRLocalVariable> locals) {
+        if (args.size() != formal.size()) return false;
+        Type last = ExpressionTyper.inferExprType(driver, args.get(args.size() - 1), locals);
+        if (last instanceof Type.NullableType nt) last = nt.inner();
+        return last instanceof Type.ArrayType;
     }
 }

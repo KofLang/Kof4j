@@ -11,6 +11,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -87,5 +88,30 @@ class KofVersionParityTest {
         assertEquals(component, KofVersion.compiler(), "KofVersion.compiler() diverges from VERSION");
         assertEquals(component, KofVersion.runtime(), "KofVersion.runtime() diverges from VERSION");
         assertEquals(component, KofVersion.stdlib(), "KofVersion.stdlib() diverges from VERSION");
+    }
+
+    /**
+     * #1142 (#1143): the README "Current State" version must equal VERSION. The
+     * first PR face put a `<!-- version -->` marker in the README but no `sed`
+     * pattern that ever matched it (the README stayed at 0.6.1 while VERSION was
+     * 0.7.2), so the sync script was silent about a broken step. This pins the
+     * marker AND its value in both languages, and pins the script step itself.
+     */
+    @Test
+    void readmeCurrentStateAgreesWithTheRepoVersion() throws IOException {
+        Path root = findRepoRoot();
+        String version = Files.readString(root.resolve("VERSION")).trim();
+        for (String readme : new String[] {"README.md", "README.pt_BR.md"}) {
+            String text = Files.readString(root.resolve(readme));
+            Matcher m = Pattern.compile("<!-- version -->(.*?)<!-- end_version -->").matcher(text);
+            assertTrue(m.find(), readme + " must mark the current version with <!-- version -->…<!-- end_version -->");
+            assertEquals("**" + version + "**", m.group(1).trim(),
+                    readme + " Current State version diverges from VERSION — run scripts/bump-version.sh");
+        }
+        String script = Files.readString(root.resolve("scripts/bump-version.sh"));
+        assertTrue(script.contains("readme") || script.contains("README.md"),
+                "scripts/bump-version.sh must keep both READMEs in sync");
+        assertFalse(script.contains("s|<!-- version -->**.***"),
+                "the README step must not use the pre-#1143 pattern that never matched");
     }
 }

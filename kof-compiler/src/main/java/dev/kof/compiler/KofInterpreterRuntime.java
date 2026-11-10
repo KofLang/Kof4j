@@ -259,6 +259,10 @@ public final class KofInterpreterRuntime {
      * só existem como KofObj no interpretador.
      */
     private Object decodeKofValue(IRClass c, Object parsed) throws Throwable {
+        // §833: a record/class takes a JSON object; any other non-null value is JSN006
+        if (parsed != null && !(parsed instanceof java.util.Map<?, ?>))
+            throw new RuntimeException("JSN006: json.decode expected an object but the payload is "
+                    + KofInterpreterJson.shapeOf(parsed));
         KofInterpreter.KofObj obj = new KofInterpreter.KofObj(c, interp);
         if (parsed instanceof java.util.Map<?, ?> m) {
             for (IRField f : c.fields()) {
@@ -287,8 +291,7 @@ public final class KofInterpreterRuntime {
         if (raw != null && !(raw instanceof List<?>)
                 && (BuiltinTypes.isList(type) || BuiltinTypes.isSet(type))) {
             throw new RuntimeException("JSN006: json.decode expected an array but the payload is "
-                    + (raw instanceof String ? "a string" : raw instanceof Boolean ? "a bool"
-                    : raw instanceof Number ? "a number" : "a scalar"));
+                    + KofInterpreterJson.shapeOf(raw));
         }
         if (raw instanceof List<?> l && BuiltinTypes.isList(type)) {
             Type elem = ((Type.ClassType) type).typeArguments().isEmpty()
@@ -335,8 +338,7 @@ public final class KofInterpreterRuntime {
         if (!(raw instanceof List<?>) && !(raw instanceof java.util.Map<?, ?>)
                 && (BuiltinTypes.isMap(type) || interp.kofClassOrNull(type) != null)) {
             throw new RuntimeException("JSN006: json.decode expected an object but the payload is "
-                    + (raw instanceof String ? "a string" : raw instanceof Boolean ? "a bool"
-                    : raw instanceof Number ? "a number" : "a scalar"));
+                    + KofInterpreterJson.shapeOf(raw));
         }
         if (raw instanceof java.util.Map<?, ?> m && BuiltinTypes.isMap(type)) {
             Type vt = ((Type.ClassType) type).typeArguments().size() >= 2

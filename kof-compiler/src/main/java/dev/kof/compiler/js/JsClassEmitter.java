@@ -127,7 +127,10 @@ public final class JsClassEmitter {
                         List.of(new JsIr.JsIdentifier("json"))),
                 new JsIr.JsIdentifier("json"));
         List<JsIr.JsStatement> body = new ArrayList<>();
-        body.add(new JsIr.JsVarDecl("p", parsed, true));
+        // §833: a record/class takes a JSON object (JSN006 otherwise), as on the JVM
+        p.lc.registerRuntime("kofJsonRequireObject");
+        body.add(new JsIr.JsVarDecl("p", new JsIr.JsCall(new JsIr.JsIdentifier("kofJsonRequireObject"),
+                List.of(parsed)), true));
         // §565 contract on JS (audit JSN-01, ledger §670): a missing/JSON-null
         // NON-nullable PRIMITIVE component is the named JSN004 failure, never a
         // silent undefined (D-JSON-MISSING-PRIMITIVE). Nullable/reference
@@ -197,10 +200,10 @@ public final class JsClassEmitter {
                         new JsIr.JsIdentifier("__kof_decode_" + nested),
                         List.of(new JsIr.JsIdentifier("o")));
                 JsIr.JsExpression mapped = new JsIr.JsCall(
-                        new JsIr.JsMember(raw, "map"), List.of(new JsIr.JsArrow(List.of("o"), mapper)));
+                        new JsIr.JsMember(requireArray(raw), "map"), List.of(new JsIr.JsArrow(List.of("o"), mapper)));
                 return nullGuard(raw, mapped);
             }
-            return raw;
+            return nullGuard(raw, requireArray(raw));
         }
         if (BuiltinTypes.isMap(t)) {
             Type mv = BuiltinTypes.mapValue(t);
@@ -229,6 +232,12 @@ public final class JsClassEmitter {
                     new JsIr.JsIdentifier("__kof_decode_" + nested), List.of(raw)));
         }
         return raw;
+    }
+
+    /** §833: a List field holds a JSON array, else JSN006 (it read {} as undefined). */
+    private JsIr.JsExpression requireArray(JsIr.JsExpression raw) {
+        p.lc.registerRuntime("kofJsonRequireArray");
+        return new JsIr.JsCall(new JsIr.JsIdentifier("kofJsonRequireArray"), List.of(raw));
     }
 
     /**

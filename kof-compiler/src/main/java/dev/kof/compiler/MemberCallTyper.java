@@ -13,6 +13,7 @@ public final class MemberCallTyper {
     private MemberCallTyper() {}
 
     static Type infer(SemanticAnalyzer sa, MethodCallExpr mc, SymbolTable scope) {
+        MethodCallExpr original = mc; // §820: the lowerer looks the rewrite up by the AST node
         if (mc.receiver() == null) return null;
         // #639 face 2 (D-DECISION-BATCH-2709B): `pkg.Type(...)` — construção
         // qualificada. O receiver é um NOME DE PACOTE, não um valor: resolve
@@ -56,7 +57,8 @@ public final class MemberCallTyper {
         // receiver para metodo ESTATICO: Desconto.aplicar(c)
         if (mc.receiver() instanceof IdentifierExpr krid
                 && !SemExpressionTyper.isLocalName(scope, krid.name())
-                && sa.allClasses().containsKey(krid.name())) {
+                && sa.allClasses().containsKey(krid.name())
+                && !sa.importShadowsProjectClass(krid.name())) {
             SymbolTable.Symbol km = MemberResolver.resolveInHierarchy(sa, krid.name(), mc.methodName());
             if (km instanceof SymbolTable.MethodSet set) {
                 List<Type> argTypes0 = new ArrayList<>();
@@ -92,9 +94,13 @@ public final class MemberCallTyper {
             if (q == null && rid.name().contains(".")) {
                 q = MemberResolver.qualifiedType(Type.of(rid.name()));
             }
-            if (q instanceof Type.ClassType qt && sa.isExternal(qt)) {
+            // §809: the merged module carries every file's imports; a project
+            // class keeps its name unless THIS file imported the external one.
+            if (q instanceof Type.ClassType qt && sa.isExternal(qt)
+                    && (sa.getClass(rid.name()) == null || sa.importShadowsProjectClass(rid.name()))) {
                 List<Type> argTypes = new ArrayList<>();
                 for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
+                if (ExternalOverloads.reportAmbiguity(sa, mc, qt.internalName(), argTypes)) return Type.UnknownType.UNKNOWN;
                 ExternalClasspath.MethodSignature sig = sa.externalTypes().resolveMethodWithArgs(
                         qt.internalName(), mc.methodName(), mc.arguments().size(), argTypes);
                 if (sig != null) {
@@ -112,7 +118,7 @@ public final class MemberCallTyper {
                             mc.arguments().size(), argTypes, qt, sa.externalTypes());
                     if (genRet != null) ret = genRet;
                     sa.putResolvedMethod(mc, new SymbolTable.MethodSymbol(mc.methodName(),
-                            qt.internalName(), ret, params, 1,
+                            qt.internalName(), ret, params, VarargsArrayPacker.accessFlags(sig),
                             SymbolTable.DispatchKind.STATIC));
                     ExternalArgTighten.checkExternalCall(sa, mc, argTypes, params, sig.isVarargs());
                     return ret;
@@ -426,9 +432,10 @@ public final class MemberCallTyper {
             // receiver de classe EXTERNA (android.* etc.): assinatura
             // vem do classpath — sem isso o lowering emitiria
             // invokevirtual com owner vazio
-            if (sa.isExternal(ct)) {
+            if (sa.resolvesMembersOnClasspath(ct)) {
                 List<Type> argTypes = new ArrayList<>();
                 for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
+                if (ExternalOverloads.reportAmbiguity(sa, mc, ct.internalName(), argTypes)) return Type.UnknownType.UNKNOWN;
                 ExternalClasspath.MethodSignature sig = sa.externalTypes().resolveMethodWithArgs(
                         ct.internalName(), mc.methodName(), mc.arguments().size(), argTypes);
                 if (sig != null) {
@@ -455,11 +462,24 @@ public final class MemberCallTyper {
                     // decide INVOKEINTERFACE vs INVOKEVIRTUAL — ver
                     // ExternalDispatchKind.of (InterfaceCalls).
                     sa.putResolvedMethod(mc, new SymbolTable.MethodSymbol(mc.methodName(),
-                            ct.internalName(), ret, params, 1,
+                            ct.internalName(), ret, params, VarargsArrayPacker.accessFlags(sig),
                             ExternalDispatchKind.of(sig.ownerIsInterface())));
                     ExternalArgTighten.checkExternalCall(sa, mc, argTypes, params, sig.isVarargs());
                     return ret;
                 }
+            }
+            // §820: `h.run()` on a function-typed FIELD with no method `run`
+            MethodCallExpr fieldCall = FunctionFieldCalls.rewrite(sa, startCt, mc);
+            if (fieldCall != null) {
+                sa.recordFunctionFieldCall(original, fieldCall);
+                // checkArgTypes skips a () -> T callee given arguments (legacy
+                // unknown-params case); the field's type is exact, so check here
+                if (SemExpressionTyper.inferType(sa, fieldCall.receiver(), scope) instanceof Type.FunctionType fft
+                        && fft.parameterTypes().size() != mc.arguments().size() && sa.diagnostics() != null) {
+                    sa.diagnostics().error(mc, "Wrong number of arguments for '" + mc.methodName() + "': expected "
+                            + fft.parameterTypes().size() + " but got " + mc.arguments().size(), "SEM013");
+                }
+                return SemExpressionTyper.inferType(sa, fieldCall, scope);
             }
             // Nenhum símbolo encontrado — método inexistente (SC3)
             // Nota: String/Int/Long/Bool são tipos JDK — métodos como
@@ -470,7 +490,7 @@ public final class MemberCallTyper {
             if (sa.diagnostics() != null && !BuiltinTypes.isList(ct)
                     && !MemberResolver.isObjectMethod(mc.methodName(), mc.arguments().size())) {
                 boolean isKnownReceiver = sa.allClasses().containsKey(ct.name())
-                        || sa.isExternal(ct);
+                        || sa.resolvesMembersOnClasspath(ct);
                 if (isKnownReceiver) {
                     sa.diagnostics().error(mc,
                             "Cannot resolve method '" + mc.methodName()

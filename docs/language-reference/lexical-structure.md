@@ -49,7 +49,7 @@ true  false  null
 **Words that are NOT keywords** (they are `IDENTIFIER`): `let`, `in`, `type`,
 `trait`, `macro`, `where`, `query`, `test`, `application`, `onStart`,
 `onShutdown`, `desc`, `asc`, `sealed`, `value`, `unique`, `generated`,
-`audited`. They have contextual meaning in the parser (see
+`audited`, `lock`. They have contextual meaning in the parser (see
 [grammar.md](grammar.md)) or none.
 
 > **#1118 + #1068 (07/11):** `unique`, `generated` and `audited` are

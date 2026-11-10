@@ -85,6 +85,7 @@ final class Narrowing {
             return !b.statements().isEmpty()
                     && thenBranchExits(b.statements().get(b.statements().size() - 1));
         }
+        if (s instanceof LockStmt l) return thenBranchExits(l.body()); // G240
         if (s instanceof IfStmt i) {
             return i.elseBranch() != null && thenBranchExits(i.thenBranch())
                     && thenBranchExits(i.elseBranch());

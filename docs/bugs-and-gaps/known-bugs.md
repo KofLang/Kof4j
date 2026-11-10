@@ -2,7 +2,40 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §800 (FIXED)
+last: §770 (FIXED)
 last: §938 (FIXED)
+last: §827 (FIXED)
+last: §823 (FIXED)
+last: §822 (FIXED)
+last: §820 (FIXED)
+last: §817 (FIXED)
+last: §810 (FIXED)
+last: §789 (FIXED)
+last: §808 (FIXED)
+last: §807 (FIXED)
+last: §802 (FIXED)
+last: §801 (FIXED)
+last: §799 (FIXED)
+last: §798 (FIXED)
+last: §797 (FIXED)
+last: §795 (FIXED)
+last: §794 (FIXED)
+last: §793 (FIXED)
+last: §792 (FIXED)
+last: §769 (FIXED)
+last: §768 (FIXED)
+last: §783 (FIXED)
+last: §782 (FIXED)
+last: §779 (FIXED)
+last: §786 (FIXED)
+last: §784 (FIXED)
+last: §781 (FIXED)
+last: §778 (FIXED)
+last: §775 (FIXED)
+last: §774 (FIXED)
+last: §773 (FIXED)
+last: §772 (FIXED)
 last: §937 (FIXED)
 last: §936 (FIXED)
 last: §766 (FIXED)
@@ -86,6 +119,618 @@ state: active
 > corpus.
 
 ---
+
+## §772 — `kof check` ignored the `kofdeps` classpath, so a third-party import that `kof run --deps` resolves failed with PKG006
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `3a2952641`).
+
+**MEASURED** (a project with `kofdeps` = `com.zaxxer:HikariCP:7.0.2`, resolved with `kof deps resolve`):
+```kof
+import com.zaxxer.hikari.HikariConfig
+main() { val c = HikariConfig() }
+```
+Observed: `kof run Main.kf --deps` compiles and runs; `kof check Main.kf` reports `PKG006` on the import, and `kof check Main.kf --deps` was refused with `check: unknown flag: --deps`. There was no way to type-check a program that uses its declared dependencies.
+
+**ROOT CAUSE:** `CmdRun` and `CmdBuild` hand `Deps.classpath()` (the `kofdeps` jars in `~/.kof/deps`) and `DepsSources.roots()` (installed Kof source packages) to the `CompilerDriver` under `--deps`; `CmdCheck` never did and had no `--deps` flag.
+
+**Fix:** `kof check` accepts `--deps` and configures the driver exactly like `kof run --deps` (same jar classpath and dependency source roots). The classpath parsing that `CmdRun` (twice) and `CmdBuild` repeated inline is now `Deps.classpathEntries()`, used by all three commands. **Proof:** `CmdCheckDepsTest` 1/1 (a jar in a fake `~/.kof/deps` and a `kofdeps` line: `check` without `--deps` stays `PKG006`, `check --deps` passes, `run --deps` runs); on the old code it fails (`unknown flag: --deps`). `CmdCheckTest`, `DepsTest`, `DepsSourceModuleTest`, `DepsTransitiveTest`, `CmdBuild*Test`, `CmdRun*Test` green (77 tests).
+<!-- pt-switch --> **PT:** [§772 (pt_BR)](known-bugs.pt_BR.md#772--kof-check-ignorava-o-classpath-do-kofdeps-entao-um-import-de-terceiros-que-o-kof-run---deps-resolve-falhava-com-pkg006)
+
+## §773 — The JVM web server closed the connection after every response (no HTTP/1.1 keep-alive)
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `3a2952641`).
+
+**MEASURED** (JVM target): any `app.get` route answers `Connection: close` and the server closes the socket after one request, even for an HTTP/1.1 client that did not ask for it. Every request pays a new TCP (and TLS) handshake, which matters for a backend behind a reverse proxy or under load.
+
+**ROOT CAUSE:** `kof_web_handle` read one request, wrote one response and closed the socket; every response builder in `JvmRuntimeWebDispatch` hard-coded `Connection: close`. `readRequest` read the socket in 8 KiB chunks, so it could also swallow the first bytes of a pipelined second request: one request per connection was the only safe framing it supported. `DECISIONS.md` already lists keep-alive as a `WEB001` residual of Native/JS, i.e. part of the JVM reference behavior.
+
+**Fix:** the connection loop serves requests until the client or the server closes (RFC 9112 §9.3): HTTP/1.1 is persistent unless `Connection: close`; HTTP/1.0 only with `Connection: keep-alive`; a request with `Transfer-Encoding` (not framed by the reader) closes; an idle persistent connection closes after 5 s; SSE and WebSocket keep taking the socket over. `readRequest` (moved to `JvmRuntimeWebServer`) reads exactly the head and `Content-Length` body bytes from a buffered stream, so pipelined requests are answered in order. The `Connection` header is written once, at the single write site, instead of in each response builder. Test clients that read a response until EOF now frame it by `Content-Length` (`TestServerFixture.readResponse`), as an HTTP/1.1 client must. **Proof:** `KofWebKeepAliveE2ETest` 4/4 (two requests on one socket, a pipelined POST with a UTF-8 body followed by a GET with `Connection: close`, HTTP/1.0, the idle close); the web suites (`KofWebE2ETest`, `KofWebHardeningTest`, `KofWebStreamE2ETest`, `KofWebSseE2ETest`, `KofWebWsE2ETest`, `KofWebTlsTest`, `KofWebTlsVerifyTest`, `KofMediaE2ETest`, `KofHttpPoliciesE2ETest`, `PaginationPageRequestE2ETest`, `KofOAuthResourceServerTest`, `KofBlogE2ETest`, `KofLogE2ETest`, `KofHttpServerTest`, ...) 141 tests, 1 failure that also fails on the base commit (`KofLogE2ETest.nativeAndJsSupported`, native toolchain absent on the measuring host). Native/JS keep one request per connection (`WEB001` residual, unchanged).
+<!-- pt-switch --> **PT:** [§773 (pt_BR)](known-bugs.pt_BR.md#773--o-servidor-web-jvm-fechava-a-conexao-depois-de-cada-resposta-sem-keep-alive-http11)
+
+## §774 — A `throw` inside a `catch` skipped the `finally` of the same `try` (JVM, Script and JS)
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1, where it leaked pooled JDBC connections, and re-measured on `upstream/main` `3a2952641`).
+
+**MEASURED:**
+```kof
+void release() { println("release") }
+void run() {
+    try { throw "boom" } catch (String e) { throw "wrapped:" + e } finally { release() }
+}
+main() {
+    try { run() } catch (String e) { println("caught " + e) }
+}
+```
+Observed on JVM, Script and JS: `caught wrapped:boom` only; `release` never prints. javac prints `release` then `caught wrapped:boom` (JLS 14.20.2: the finally runs whatever way the catch completes).
+
+**ROOT CAUSE:** `StatementLowererTry` registered every handler of a `try`, the finally's catch-all included, over the try body only (`KofTryStart`..`tryEnd`). An exception raised inside a catch body was therefore outside every handler of its own `try` and propagated without running the finally. javac's catch-all covers the try body and the catch bodies.
+
+**Fix:** the lowering emits `try {T} catch {C} finally {F}` as `try { try {T} catch {C} } finally {F}` — the JLS equivalence — so the finally's handler guards the catch bodies through the existing nested-try machinery, on every target, with no backend change. **Proof:** `CatchThrowRunsFinallyE2ETest` (rethrow from a catch, return from a catch, a counted nested case, the normal path) passes on JVM, Script and JS; on the old code all three fail. The native x86-64/riscv64/aarch64 faces are in the same test and were not measured on the macOS host (no Linux ELF toolchain); the `finally`-bearing suites (310 classes, 904 tests) fail exactly the same 92 native/environmental tests as the base commit.
+<!-- pt-switch --> **PT:** [§774 (pt_BR)](known-bugs.pt_BR.md#774--um-throw-dentro-de-um-catch-pulava-o-finally-do-mesmo-try-jvm-script-e-js)
+
+## §775 — A member of a JDK exception class that Kof does not list (`SQLException.getSQLState()`) was typed `Object` (NoSuchMethodError / ClassFormatError)
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `3a2952641`).
+
+**MEASURED** (JVM target):
+```kof
+import java.sql.SQLException
+main() {
+    val ex = new SQLException("dup", "23505", 7)
+    var s = ex.getSQLState()
+    println(s.startsWith("23"))
+}
+```
+Observed: compiles with no diagnostic, then dies at load with `ClassFormatError: Illegal class name "" in class file Default/Main`. The bytecode is `invokevirtual SQLException.getSQLState:()Ljava/lang/Object;` (a `NoSuchMethodError` once reached) followed by `invokevirtual "".startsWith`. `String s = ex.getSQLState()` dies with `NoSuchMethodError`; `ex.getErrorCode() + 1` is typed `Object` too. `o as SQLException` failed with `SEM011 Undefined variable or type`.
+
+**ROOT CAUSE:** every JDK `Throwable` is a Kof builtin for `throw`/`catch` (`CompilerTypes.isKofBuiltinJavaLang`), so `ExternalClasspath.knows()` excludes it on purpose (making them external broke 39 tests when it was tried). As a side effect the typer never resolved their members on the classpath: only members the builtin registry lists (`getMessage`) got a type; `new SQLException(...)` and an `as SQLException` target were UNKNOWN; and an unknown member compiled into an empty-owner call instead of `SEM025`.
+
+**Fix:** `ExternalClasspath.knowsMembers()` (= `knows()` plus the JDK throwables, never `java.lang.String`) is used where a type's MEMBERS or its name are resolved — the member typer's classpath branch and its `SEM025` check, `new` of an imported class, the imported-type guard of `as`, and import qualification — while `isExternal()`, which decides throw/catch semantics, is unchanged. Because `new` of a JDK throwable is now typed (it was `UNKNOWN`), the `throw` check (SEM026) accepts that set explicitly (`String` and JDK throwables), the same values that passed before; `KofBuiltinJdkSeparationE2ETest.typedExceptionThrowAndCatchStillCompile` covers it. **Proof:** `JdkThrowableMembersE2ETest` 4/4 (`getSQLState`/`getErrorCode`/`getMessage`, a cast to `SQLException`, `SEM025` on an unknown member, Kof `throw "x"`/`catch (String e)` unchanged); on the old code 3 of the 4 fail.
+<!-- pt-switch --> **PT:** [§775 (pt_BR)](known-bugs.pt_BR.md#775--um-membro-de-classe-de-excecao-do-jdk-que-o-kof-nao-lista-sqlexceptiongetsqlstate-era-tipado-como-object-nosuchmethoderror--classformaterror)
+
+## §778 — Inside a class, an unqualified call to the class's own method named like a stdlib builtin (`query`, `transaction`) called the builtin
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `3a2952641`).
+
+**MEASURED** (JVM and Script):
+```kof
+class Store {
+    String query(String sql) { return "own-query:" + sql }
+    String transaction(String t) { return "own-tx:" + t }
+    String run() {
+        var r = query("select 1")
+        var t = transaction("a")
+        return r + " " + t
+    }
+}
+```
+Observed: `transaction("a")` is `SEM033` ("received a void value": the db `transaction`), and once that line is written as `this.transaction("a")`, `query("select 1")` returns `null` (the web-context `query`). Writing `this.` everywhere was the only workaround.
+
+**ROOT CAUSE:** the #931/#932 shadowing law ("a declaration of the program wins over a builtin of the same name") covers top-level functions and `extern`s through `KofShadowing.userDeclares`, and `BuiltinCallTailTyper` already lets an enclosing-class method win in the TAIL of the chain. But the HEAD of the chain — `BuiltinCallTyper.infer` and the fixed-name branches of `ExpressionStaticCallLowerer` (web-context functions, `transaction`, ...) — checked only top-level declarations, so they took the call first.
+
+**Fix:** `KofShadowing.enclosingClassDeclares` (typer and lowering faces: the current class or its hierarchy declares the name) joins the same early exit in both places, so an unqualified call resolves as an implicit-`this` call, as in Java. **Proof:** `ClassMemberShadowsBuiltinE2ETest` 2/2 (`query`/`transaction` in the class and an inherited `query` in a subclass, JVM and Script); on the old code both fail. The second face reported with this bug (a local named `db` captured in a lambda resolving to the `db` namespace) did not reproduce on `upstream/main` in three shapes (expression lambda, block lambda passed to a function, lambda inside a class method); it is not part of this fix.
+
+**REFINED 09/11 (integration of #1021):** the class face is APPLICABILITY-gated. A name-only test sent `println("[LOG] " + msg)` (a `String`) to a user `println(Int)` and broke `CoreRegressionE2ETest#instanceMethodNamedPrintOrPrintlnJvm` with SEM014 (`lab` before the PR: green). `KofShadowing.enclosingClassDeclares` now asks `MethodSymbolFits.fits` — the class shadows the builtin only when one of its hierarchy's methods is applicable to the typed arguments (numeric literals narrow to any numeric parameter; a boxed/primitive pair is interchangeable; `null`/`unknown` never blocks). Proof: the CoreRegression face 1/1 GREEN again, `ClassMemberShadowsBuiltinE2ETest` 2/2, `FieldShadowsStdNamespaceE2ETest` 1/1 — and `RingPrivilegeE2ETest` 5/5 (the first form typed the arguments EAGERLY and turned the builtin `ring1(task)`, whose argument is deliberately never inferred, into SEM011; the semantic face reuses an already-inferred type and stands down for `ring1`).
+
+<!-- pt-switch --> **PT:** [§778 (pt_BR)](known-bugs.pt_BR.md#778--dentro-de-uma-classe-uma-chamada-sem-qualificacao-ao-metodo-da-propria-classe-com-nome-de-builtin-da-stdlib-query-transaction-chamava-o-builtin)
+
+## §781 — the web runtime answered 401 to ANY request carrying `Authorization` even when the app never configured `app.security()`
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `edcc39114`).
+
+**MEASURED** (JVM target):
+```kof
+main() {
+    var app = web.app()
+    app.get("/health") { return "up" }
+    app.listen(8080)
+}
+```
+`curl -H "Authorization: Bearer x" localhost:8080/health` → `401 {"error":"unauthorized"}`, before the route. The app never called `app.security()`, `app.policy()` or `auth.secret()`, so no token could ever validate: every client or gateway that forwards an `Authorization` header (an app doing its own auth in a middleware or a route) was locked out, and a middleware could not opt out because the check runs after it.
+
+**ROOT CAUSE:** the dispatch runs `kof_web_security_pipeline` with the default `Policy` for every app, and step 6 applied auth-if-present (`p.authHeader == null && Authorization present` → JWT check) unconditionally. D-SEC.4 scopes that rule to an app where `app.security()` is configured, and `stdlib-web` documents it under `app.security()`.
+
+**Fix:** auth-if-present also requires `app.securityConfigured` (set by `app.security()` and `app.policy()`); `auth: true`, `roles` and `sessionHeader` are unchanged. The hardening headers of the default policy are not touched by this fix. **Proof:** `KofWebE2ETest.authorizationHeaderIsIgnoredWithoutSecurityConfigured` (401 on the old code, 200 now); `securityRejectsInvalidTokenIfPresentEvenWithoutAuthRequired` (auth-if-present under `app.security()`) and the `KofWebE2ETest`/`KofHttpPoliciesE2ETest`/`KofOAuthResourceServerTest` suites stay green.
+<!-- pt-switch --> **PT:** [§781 (pt_BR)](known-bugs.pt_BR.md#781--o-runtime-web-respondia-401-a-qualquer-request-com-authorization-mesmo-quando-o-app-nunca-configurou-appsecurity)
+
+## §784 — a second `headerSet("Set-Cookie", ...)` overwrote the first (JVM and JS), and a CR/LF in a header value split the response
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `edcc39114`).
+
+**MEASURED** (JVM and JS targets):
+```kof
+app.get("/login") {
+    headerSet("Set-Cookie", "a=1")
+    headerSet("Set-Cookie", "b=2")
+    return "ok"
+}
+```
+Observed: the response carries only `Set-Cookie: b=2`; a login that sets a session cookie and a CSRF cookie loses one of them. Also, `headerSet("X", "v\r\nInjected: 1")` wrote `Injected: 1` as a separate header line (response splitting) on the JVM.
+
+**ROOT CAUSE:** the JVM keeps the deferred headers in a `Map<String, String>` (`KOF_WEB_HEADERS`) and `kof_web_header_set` did `put`, so the last value won; the JS pump applied its queue with `Headers.set`, same effect. Set-Cookie is the header that must repeat instead of being combined (RFC 6265 §3). The JVM writer copied the value verbatim, with no CR/LF check.
+
+**Fix:** JVM: `kof_web_header_set` refuses a CR/LF in the name or value (`IllegalArgumentException`, so the route answers 500 instead of writing an injected line) and appends a repeated Set-Cookie (any case) instead of replacing it; `kof_web_build` writes one line per value. JS: the pump `add`s Set-Cookie instead of `set`. Every other header keeps last-wins. Native has no `headerSet` runtime and is unaffected. **Proof:** `WebSetCookieE2ETest` (both cookies, last-wins for another header, no injected line) and `KofWebJsE2ETest.jsRepeatedSetCookieSendsEveryCookie`; both fail on the old code. `KofWebE2ETest`/`KofWebJsE2ETest` stay green.
+<!-- pt-switch --> **PT:** [§784 (pt_BR)](known-bugs.pt_BR.md#784--um-segundo-headersetset-cookie--sobrescrevia-o-primeiro-jvm-e-js-e-crlf-num-valor-de-header-partia-a-resposta)
+
+## §786 — `kof fmt` dropped the parentheses of a call/field/index receiver: `("" + x).trim()` became `"" + x.trim()`, a different program
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `edcc39114`).
+
+**MEASURED:** `kof fmt -w` on
+```kof
+var t = ("" + city).trim()
+for (var x in (a + "," + b).split(",")) { println(x) }
+println((o as Box).v)
+```
+rewrote them as `"" + city.trim()`, `a + "," + b.split(",")` and `o as Box.v`. The first still compiles when `city` is a `String` and silently changes the value (the trim no longer applies to the concatenation); with a nullable `city` it becomes SEM049. Formatting a tree could change behavior with no diagnostic.
+
+**ROOT CAUSE:** `KofFormatterExpr` rebuilds grouping from precedence (#52), but printed the receiver of `MethodCallExpr`, `FieldAccessExpr` and `ArrayAccessExpr` at the lowest precedence, so a binary, cast, unary, assignment, `if`, `switch` or lambda receiver lost the parentheses that `parsePostfix` needs.
+
+**Fix:** one helper prints a postfix receiver above every binary precedence and wraps the unary/assignment/`if`/`switch`/lambda forms. **Proof:** `KofFormatterReceiverParensTest` (concatenation, `split` in a `for`, cast, arithmetic, unary and cast-of-concatenation receivers; idempotent; the formatted program prints the same as the original); on the old code it fails. The other face reported with it (`void noop() { }` printed as `noop();`) compiles and runs the same, so it is cosmetic and not part of this fix.
+<!-- pt-switch --> **PT:** [§786 (pt_BR)](known-bugs.pt_BR.md#786--o-kof-fmt-removia-os-parenteses-do-receptor-de-chamadacampoindice---xtrim-virava---xtrim-outro-programa)
+
+## §779 — `implements I` for a Kof interface declared in a package emitted the unqualified interface name (NoClassDefFoundError)
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `edcc39114`).
+
+**MEASURED** (JVM target, module root `src/`):
+```kof
+// src/kernel/p/P.kf
+package kernel.p
+interface PIface { String f() }
+class SameImpl implements PIface { String f() { return "same" } }
+// src/app/Main.kf
+package app
+import kernel.p.*
+class OtherImpl implements PIface { String f() { return "other" } }
+```
+Observed: compiles, then `NoClassDefFoundError: PIface` at first use. `javap` shows `class kernel.p.SameImpl implements PIface` and `class app.OtherImpl implements PIface` while the interface is `kernel/p/PIface`; the same holds from the same package and from another one, for a `record ... implements` and for an `interface J extends PIface`. `extends` of a packaged class was already correct.
+
+**ROOT CAUSE:** the superclass resolves registry-first (`HierarchyResolver.canonicalSuperInternal`, §308), but the three sites that lower the interface list (`CompilerClassLowering.lowerClass`, `CompilerIfaceRecordLowering.lowerInterface` and `lowerRecord`) only consulted explicit imports and `java.lang`; a module interface reached through a wildcard import or the same package fell through to the bare simple name.
+
+**Fix:** one helper, `HierarchyResolver.canonicalInterfaceInternal`, resolves each declared interface registry-first (the module's own declaration wins, like the super) and keeps the import / `java.lang` resolution for everything else; the three sites use it. **Proof:** `PackageInterfaceImplementsE2ETest` 1/1 (class from the same package, record, and a class of another package implementing a packaged sub-interface); on the old code it fails with `NoClassDefFoundError: PIface`.
+<!-- pt-switch --> **PT:** [§779 (pt_BR)](known-bugs.pt_BR.md#779--implements-i-para-uma-interface-kof-declarada-em-pacote-emitia-o-nome-da-interface-sem-pacote-noclassdeffounderror)
+
+## §782 — a static field read in a static method was typed by a same-named field of ANOTHER class (SEM055 in an unrelated file)
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `edcc39114`).
+
+**MEASURED** (JVM target, one compilation):
+```kof
+// src/kernel/http/ResponseHeaders.kf
+package kernel.http
+import java.lang.ThreadLocal
+class ResponseHeaders {
+    static ThreadLocal seen = new ThreadLocal()
+    static mark(v: String) { seen.set(v) }
+}
+// src/app/Main.kf: a few classes, each with
+class Spy { List<String> seen = listOf<String>() }
+```
+Observed: `ResponseHeaders.kf: List.set takes an Int INDEX; String is not an index [SEM055]`. Whether it fails depends on which other classes exist (with one extra class it usually compiles, with about ten it fails): renaming a field in an unrelated file breaks or fixes the kernel file.
+
+**ROOT CAUSE:** `ExpressionTyper` types a bare identifier through `this` (slot 0) first, then through `HierarchyResolver.resolveFromSemantic`, a scan of EVERY module class in HashMap order that returns the first member with that name. A static method has no `this`, so its own static field lost to whichever class the scan met first. The emitter (`ExpressionLowerer`) already resolved the name in the class being lowered, so only the type was wrong.
+
+**Fix:** `HierarchyResolver.resolveInOwnerOrModule` looks the name up in the class being lowered (`currentLoweringOwner`, the same lookup as the emitter) before the module-wide scan. **Proof:** `StaticFieldTypeScopeE2ETest` 1/1; on the old code it fails with SEM055.
+<!-- pt-switch --> **PT:** [§782 (pt_BR)](known-bugs.pt_BR.md#782--um-campo-estatico-lido-num-metodo-estatico-era-tipado-por-um-campo-homonimo-de-outra-classe-sem055-num-arquivo-nao-relacionado)
+
+## §783 — `kof test` never set the `kofdeps` classpath, so a test reaching a third-party jar failed with PKG006
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `3a2952641`). Builds on §772.
+
+**MEASURED:** a project with `kofdeps` (`com.example:greeter:1.0`) and `tests/GreeterTest.kf` importing `ext.Greeter`: `kof run Main.kf --deps` works, `kof test tests` fails with `PKG006` on the import, and `kof test tests --deps` was refused as an unknown flag. A suite that reaches a kernel built on HikariCP/H2/Flyway could only be run by a hand-written runner calling the compiler API.
+
+**ROOT CAUSE:** `CmdTest` built its `CompilerDriver` with the app/module source roots only, never the `kofdeps` jars or dependency source roots, and launched the child JVM with `-cp <out>` alone, so even a compiled test could not load the jar.
+
+**Fix:** `kof test --deps` applies the project's `kofdeps` like `kof run --deps`: dependency source roots appended to the app/module root, the jars as the external classpath, and the same jars on the child JVM classpath. The setup lives in one helper, `Deps.applyTo`, that `kof check --deps` (§772) now uses too. Help text and `docs/tooling/README` (EN + pt_BR) list the flag. **Proof:** `CmdTestDepsTest` (PKG006 without `--deps`, exit 0 with it); on the old code `--deps` is rejected.
+<!-- pt-switch --> **PT:** [§783 (pt_BR)](known-bugs.pt_BR.md#783--o-kof-test-nunca-configurava-o-classpath-do-kofdeps-entao-um-teste-que-alcanca-um-jar-de-terceiros-falhava-com-pkg006)
+
+## §768 — A varargs INSTANCE method of an external Java class was called without packing the trailing arguments (JVM VerifyError)
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `3a2952641`).
+
+**MEASURED** (JVM target, `org.flywaydb:flyway-core:11.14.1` via `kof deps`):
+```kof
+import org.flywaydb.core.Flyway
+main() {
+    val f = Flyway.configure().locations("filesystem:db")
+}
+```
+Observed: compiles with no diagnostic, then dies at class load with `VerifyError: Type 'java/lang/String' (current frame, stack[1]) is not assignable to '[Ljava/lang/String;'`. Same with any jar or JDK instance varargs method (`FileSystems.getDefault().getPath("a", "b")`).
+
+**ROOT CAUSE:** §500 taught `ExternalClasspath`/`JdkReflectionResolver` to resolve varargs candidates and packed the trailing arguments, but only on the STATIC call path (`ExpressionMethodCallLowerer`). On the instance path the typer (`MemberCallTyper`) built the `MethodSymbol` from the resolved `MethodSignature` and dropped its `isVarargs` flag, so `ExpressionInstanceCallLowerer` emitted each argument one by one against the real `[Ljava/lang/String;` formal.
+
+**Fix:** the typer carries `ACC_VARARGS` (`AccessFlags.VARARGS`, `0x0080`) on the external `MethodSymbol`, and the instance lowering packs through the same `VarargsArrayPacker` as the static path. The packer now coerces each element through `emitArgumentsWithFormalTypes` against the component type (so an `int...` component is no longer boxed into an `int[]` store), and a call whose arity matches and whose last argument is already an array passes that array through unpacked (JLS 15.12.2.2 fixed-arity applicability). **Proof:** `ExternalVarargsInstanceE2ETest` 4/4 (1/2/0 trailing args, fixed args before the varargs, an explicit `String[]`, `int...` and `Object...` components, a JDK instance varargs call); on the old code 3 of the 4 fail with `VerifyError`. `ExternalVarargsStaticE2ETest` and `StringFormatVarargsE2ETest` stay green. JS/Native are unaffected: an external class method already refuses there with `INTEROP003` (#760).
+<!-- pt-switch --> **PT:** [§768 (pt_BR)](known-bugs.pt_BR.md#768--um-metodo-varargs-de-instancia-de-uma-classe-java-externa-era-chamado-sem-empacotar-os-argumentos-finais-verifyerror-na-jvm)
+
+## §769 — Reading a public PRIMITIVE instance field of an external Java object emitted invalid bytecode (JVM VerifyError)
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `3a2952641`).
+
+**MEASURED** (JVM target, `org.flywaydb:flyway-core:11.14.1` via `kof deps`; `MigrateResult.migrationsExecuted` is a public `int` field):
+```kof
+import org.flywaydb.core.Flyway
+main() {
+    val flyway = Flyway.configure().dataSource(url, user, pass).load()
+    Int n = flyway.migrate().migrationsExecuted
+    println("applied " + flyway.migrate().migrationsExecuted)
+}
+```
+Observed: compiles with no diagnostic, then dies at class load with `VerifyError: Bad type on operand stack` (`integer is not assignable to Object`). The emitted code is `getfield Result.migrationsExecuted:I` followed by `checkcast java/lang/Integer` + `intValue`.
+
+**ROOT CAUSE:** `ExpressionFieldAccessLowerer` resolves an external instance field through `ExternalClasspath.resolveFieldType` and emits the real descriptor, but the lowering typer (`ExpressionFieldAccessTyper`) had no external-instance-field branch and returned `UNKNOWN`. Every consumer (typed local, concat, arithmetic, `if`) then treated the `int` on the stack as a reference and unboxed it.
+
+**Fix:** `ExpressionFieldAccessTyper` resolves the field descriptor exactly like the lowerer (same `knows` + `resolveFieldType` guard), so the inferred type matches the emitted `getfield`. **Proof:** `ExternalInstanceFieldE2ETest` 2/2 (`int`/`long`/`boolean`/`double`/`String` fields into typed locals, concat, arithmetic and an `if`); on the old code both fail with `VerifyError`. Field writes (`r.f = 5`, `r.f += 1`) were already correct and are unchanged. JS/Native are unaffected: an external class already refuses there with `INTEROP003` (#760).
+<!-- pt-switch --> **PT:** [§769 (pt_BR)](known-bugs.pt_BR.md#769--ler-um-campo-primitivo-publico-de-instancia-de-um-objeto-java-externo-emitia-bytecode-invalido-verifyerror-na-jvm)
+
+## §792 — `process.exit` never ended a JVM program while a spawned task was still running: the implicit join was a spinning shutdown hook
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED** (JVM target):
+```kof
+main() {
+    spawn {
+        while (true) { time.sleep(50) }
+    }
+    println("bye")
+    process.exit(3)
+}
+```
+Observed: prints `bye` and never exits, burning one core. The same with a Java `System.exit` or a SIGTERM: a test runner whose suite boots a job loop (`spawn` + `while`) had to be killed after its timeout.
+
+**ROOT CAUSE:** the implicit join of `spawn` ("the program waits for every spawned task before exiting") was a shutdown hook in the generated `KofRuntime` that spun (`Thread.onSpinWait`) until `KOF_ACTIVE_TASKS` reached zero. The JVM runs shutdown hooks on every exit path, `System.exit` and signals included, so an explicit exit waited for tasks that never end, against the `process.exit` contract ("ends at once").
+
+**Fix:** the join is a non-daemon keeper thread (`kofTaskBegin`/`kofTaskEnd`): it starts when the task count leaves zero and blocks on a monitor until it is zero again. The JVM joins non-daemon threads when `main` returns, so the end of `main` still waits for the tasks; `System.exit` and signals do not join them, so an explicit exit is immediate. No busy wait remains. **Proof:** `SpawnExitE2ETest` 3/3 (a Java `System.exit(1)`, the path of a test harness that ends a failing file, exits with 1 while a task loops; `process.exit(3)` with an endless task exits with 3; a task still running when `main` returns still prints before the process ends); `SpawnE2ETest` JVM cases unchanged.
+
+**REFINED 10/11 (integration of #1047):** the non-daemon keeper DEADLOCKS on a spawned server. `spawn { app.listen(p) }` blocks in `accept()`, and the only thing that wakes it is the listen shutdown hook closing the socket — a hook the JVM runs only once it STARTS to exit. The keeper held the JVM before that point, so the program never ended (measured: `ObservabilityCorrelationIdRequestBoundE2ETest` hung for ever on this tree, 6 s on `lab`; `AndroidInteropE2ETest` hung too). The join is a shutdown hook again (the only place a task blocked in `accept()` can be released) and `kof_process_exit` REMOVES that hook before `System.exit`, which keeps #1046's requirement. A direct `java.lang.System.exit` in user source keeps lab's behaviour. Proof: `SpawnExitE2ETest` 4/4 (process.exit with a never-ending task, the end of main still waiting, a spawned server stopping when main returns) — the server face is RED-first against the keeper, 20 s timeout, GREEN after; `ObservabilityCorrelationIdRequestBoundE2ETest` 1/1 again.
+
+<!-- pt-switch --> **PT:** [§792 (pt_BR)](known-bugs.pt_BR.md#792--processexit-nunca-encerrava-um-programa-jvm-enquanto-uma-task-spawned-ainda-rodava-o-join-implicito-era-um-shutdown-hook-em-spin)
+
+## §793 — the lowering typer was exponential in the length of a method-call chain: a 36-call fluent builder kept the compiler busy for over an hour
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED** (JVM target, a package class with fluent `bind*` methods, a record `g`):
+```kof
+return store.execute("insert", Params().bindStr(g.id()).bindStrOrNull(g.note()).bindInt(g.plays()) /* ... */)
+```
+Observed: compile time roughly doubles every two links (20 links 0.5 s, 22 links 1.1 s); 36 links ran for more than an hour at 100% CPU inside `MethodCallTyper.inferType` -> `ExpressionTyper.inferExprType`.
+
+**ROOT CAUSE:** `MethodCallTyper.inferType` asks for the receiver's type in several independent arms (array check, semantic substitution, numeric conversion, `toString`, collection fallback), and each request re-walks the whole receiver chain with no memo, so the work is a product over the chain length.
+
+**Fix:** `ExpressionTyper.inferExprType` goes through `ExprTypeMemo`, an identity memo that lives for one outermost inference (the locals and the driver state do not change inside it) and is checked against the locals list it was computed with. Each node of the chain is typed once. **Proof:** `CallChainInferenceE2ETest` (a 60-link chain across packages compiles in under a second and runs, answering 60); on the old code it hits the 60 s timeout.
+<!-- pt-switch --> **PT:** [§793 (pt_BR)](known-bugs.pt_BR.md#793--o-typer-do-lowering-era-exponencial-no-tamanho-de-uma-cadeia-de-chamadas-um-builder-fluente-de-36-chamadas-prendia-o-compilador-por-mais-de-uma-hora)
+
+## §794 — `kof fmt -w <file>` answered `not found: -w`, and `kof fmt` formatted only the first of several paths
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED:** `kof fmt -w src/A.kf` prints `not found: -w` and exits 1; `kof fmt src/*.kf -w` (the shell expands the glob) formats `src/A.kf` only and ignores the other files without a word.
+
+**ROOT CAUSE:** `Fmt.run` read the path from the fixed position `args[1]` and only looked for `-w` elsewhere, so a flag in that position was taken as the path and every argument after the first path was dropped.
+
+**Fix:** every argument is either `-w` (any position), an unknown flag (refused as before, R6) or a path; `kof fmt <file.kf|dir>... [-w]` formats every path given, and no path at all is the usage error. **Proof:** `FmtTest` 4/4 (`-w` first with two files formats both; `fmt -w` alone is usage; the unknown-flag refusal and the old order keep working).
+<!-- pt-switch --> **PT:** [§794 (pt_BR)](known-bugs.pt_BR.md#794--kof-fmt--w-arquivo-respondia-not-found--w-e-kof-fmt-formatava-so-o-primeiro-de-varios-caminhos)
+
+## §795 — `throw e` of a narrowed `String?` emitted a raw `athrow` of the String (JVM VerifyError)
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED** (JVM target):
+```kof
+String? why(k: Int) {
+    if (k == 1) { return "boom" }
+    return null
+}
+main() {
+    try {
+        val e = why(1)
+        if (e != null) { throw e }
+    } catch (String s) {
+        println("caught " + s)
+    }
+}
+```
+Observed: compiles, then `VerifyError: Bad type on operand stack` (`String` is not assignable to `Throwable`) when the class loads. A plain `String` local or a literal is thrown correctly.
+
+**ROOT CAUSE:** the JVM/Android lowering of `throw` wraps a String into the Kof exception (`RuntimeException(String)`) only when the lowering type is exactly `String`; a narrowed `String?` local still has the type `String?` at lowering time, so it skipped the wrap and emitted `athrow` on the String.
+
+**Fix:** `StatementLowerer` unwraps a nullable type before the String check, so a narrowed `String?` is wrapped like a `String`. **Proof:** `ThrowNarrowedStringE2ETest` (prints `caught boom`); on the old code it is the `VerifyError`.
+<!-- pt-switch --> **PT:** [§795 (pt_BR)](known-bugs.pt_BR.md#795--throw-e-de-um-string-estreitado-emitia-um-athrow-cru-da-string-verifyerror-na-jvm)
+
+## §797 — a bare field read inside a class resolved to a method of the same name: `viewing.get(k)` on a Map field `viewing` was typed `String` (SEM066)
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED** (JVM target):
+```kof
+class V {
+    Map<String, String> viewing = mapOf("k", "v")
+    String viewing(k: String) = "m"
+    String read(k: String) {
+        val x = viewing.get(k)
+        if (x == null) { return "null" }
+        return x
+    }
+}
+main() { println(V().read("k")) }
+```
+Observed: `String has no "get" method` (SEM066) at `viewing.get(k)`: the field read was typed as the method's return type.
+
+**ROOT CAUSE:** a class's `SymbolTable` keeps one entry per name in `symbols` (a method defined after the field replaces it there; the fields also live in their own `fields` map). The bare-identifier arms of both typers (`SemExpressionTyper` and the lowering `ExpressionTyper`) looked the name up through `resolve`/`resolveInHierarchy`, which answer the method.
+
+**Fix:** a bare name is a value, so both arms take the field first: the semantic arm swaps a method hit for `resolveField`, and both class-member lookups use `MemberResolver.resolveFieldInHierarchy` (fields first, then the old lookup, so a zero-argument method read keeps working). The call form `viewing(k)` still reaches the method. **Proof:** `FieldMethodSameNameE2ETest` 2/2 (field after and before the method; the field, the method call and `this.viewing` all answer the right member).
+<!-- pt-switch --> **PT:** [§797 (pt_BR)](known-bugs.pt_BR.md#797--a-leitura-nua-de-um-campo-dentro-da-classe-resolvia-para-um-metodo-de-mesmo-nome-viewinggetk-num-campo-map-viewing-era-tipado-string-sem066)
+
+## §798 — the JVM router answered by registration order: `GET /posts/:id` registered first swallowed `GET /posts/seals`; on JS two :param routes with the same static prefix killed `listen`
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED:**
+```kof
+main() {
+    var app = web.app()
+    app.get("/posts/:id") { return "param " + param("id") }
+    app.get("/posts/seals") { return "literal" }
+    app.listen(8080)
+}
+```
+Observed on the JVM: `GET /posts/seals` answers `param seals`. JS answered `literal` (an exact-path lookup runs first) but picked the first registered of two `:param` routes, and `/:a/b/:c` next to `/:a/:b/c` made `listen` throw (`createContext` twice on `/`), so the server never answered.
+
+**ROOT CAUSE:** the JVM keeps `WebApp.routes` in registration order and both matchers return the first route that fits. The JS listener derives one `HttpServer` context per route from its static prefix and created duplicates.
+
+**Fix:** `WebRoute.addTo` inserts each route before the first route of the same length that is less specific (at the first segment where they differ, a literal beats a `:param`, Spring's rule; equal shapes keep registration order), for HTTP, SSE and WS routes alike. The JS matcher keeps the most specific of the matching `:param` routes by the same rule, and creates each context prefix once. The Native router matches exact paths only (path params are its documented `WEB001` residual), so the order question does not arise there. **Proof:** `WebRoutePrecedenceE2ETest` 2/2 (JVM and JS: `/posts/seals` is the literal route, `/posts/7` the param one, and the first-differing-segment rule on three-segment routes); `KofWebJsE2ETest` unchanged.
+<!-- pt-switch --> **PT:** [§798 (pt_BR)](known-bugs.pt_BR.md#798--o-roteador-jvm-respondia-pela-ordem-de-registro-get-postsid-registrado-antes-engolia-get-postsseals-no-js-duas-rotas-param-com-o-mesmo-prefixo-estatico-matavam-o-listen)
+
+## §799 — the arguments of an external constructor were never typed: `new File(System.getProperty(k))` and `new ByteArrayInputStream(s.getBytes())` were emitted as `<init>(Object)` (NoSuchMethodError)
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED** (JVM target):
+```kof
+import java.lang.System
+import java.io.File
+import java.io.ByteArrayInputStream
+main() {
+    println(new File(System.getProperty("java.io.tmpdir")).exists())
+    println(new ByteArrayInputStream("hi".getBytes()).available())
+}
+```
+Observed: `NoSuchMethodError: 'void java.io.File.<init>(java.lang.Object)'` (and the same for `ByteArrayInputStream`); without the `java.lang.System` import the first line was a frame crash at compile time instead of `SEM011`. Through a local (`val p = System.getProperty(k)`, then `new File(p)`) it works.
+
+**ROOT CAUSE:** `SemNewExprTyper` types the arguments of a Kof constructor but returned early for an external (JDK or jar) class without visiting them. The lowering asks the analyzer for the type of a call argument; with none recorded it fell back to `Object`, and the constructor descriptor was built from that. An undefined name inside such an argument was never diagnosed.
+
+**Fix:** the arguments of an external constructor are typed like any call's (a lambda argument stays on the target-typed path that already handles it). **Proof:** `ExternalCtorArgTypingE2ETest` 2/2 (both constructors run, printing `true` and `2`; `new File(nowhere)` is `SEM011`). Selecting among same-arity JDK constructor overloads by argument type is a separate gap (G311) on top of the external overload resolution (§770).
+<!-- pt-switch --> **PT:** [§799 (pt_BR)](known-bugs.pt_BR.md#799--os-argumentos-de-um-construtor-externo-nunca-eram-tipados-new-filesystemgetpropertyk-e-new-bytearrayinputstreamsgetbytes-eram-emitidos-como-initobject-nosuchmethoderror)
+
+## §801 — a class field named like a stdlib namespace (`cache`, `buffer`, `config`) was lowered as the namespace: `cache.get(k)` on a `TtlCache cache` field called the stdlib cache
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED** (JVM target):
+```kof
+class TtlCache {
+    Map<String, String> m = mapOf("k", "v")
+    String? get(k: String) = m.get(k)
+}
+class C {
+    TtlCache cache = TtlCache()
+    String f(k: String) {
+        var v = cache.get(k)
+        if (v == null) { return "none" }
+        return v
+    }
+}
+main() { println(C().f("k")) }
+```
+Observed: prints `none` (the stdlib `cache.get` answered, silently). With a lambda argument (`cache.getOrLoad(k, () -> ...)`) it is `VerifyError: Operand stack underflow`; a field `buffer` is `no lowering for 'buffer.get()'`; `!config.ok(x)` on a field `config` built a broken condition (G107/G170/G220/G304).
+
+**ROOT CAUSE:** the analyzer resolves the bare name through its scope, where the class field shadows the namespace, but the lowering decides "namespace or value" with `isLocalVarName`, which looked at the IR locals only. A field read through the implicit `this` is not a local, so every `cache.`/`buffer.`/`config.` call on it took the namespace arm.
+
+**Fix:** `isLocalVarName` also answers true for a field of the class being lowered (`OwnFieldNames`, the same field-first hierarchy lookup as §797), so a field shadows a stdlib namespace exactly like a local or a parameter. Where no value of that name exists, the namespace call is unchanged. **Proof:** `FieldShadowsStdNamespaceE2ETest` (fields `cache` with a lambda argument, `buffer` and `config` under `!` answer the field's methods; the stdlib `cache.set/get` in `main` still works).
+<!-- pt-switch --> **PT:** [§801 (pt_BR)](known-bugs.pt_BR.md#801--um-campo-de-classe-com-nome-de-namespace-da-stdlib-cache-buffer-config-era-baixado-como-o-namespace-cachegetk-num-campo-ttlcache-cache-chamava-o-cache-da-stdlib)
+
+## §802 — a JVM `Error` (NoSuchMethodError, VerifyError, StackOverflowError) in a spawned expression nobody awaited vanished without a trace
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED** (JVM target):
+```kof
+Int deep(n: Int) = deep(n + 1) + 1
+main() {
+    val h = spawn deep(0)
+    time.sleep(500)
+    println("main done")
+}
+```
+Observed: prints only `main done`. In a server whose spawned task served a socket (and died on a `NoSuchMethodError` from a wrong interop descriptor) the connection simply hung, with no log.
+
+**ROOT CAUSE:** `kof_spawn_result` (the spawn expression that yields a `Handle`) puts any failure into the handle (`completeExceptionally`) and nothing else; the failure surfaces only on `await`. The statement form `spawn { ... }` prints `spawn task failed`, the expression form never did.
+
+**Fix:** a `java.lang.Error` in a spawned expression is reported on stderr when it happens (`spawn task failed: <error>`): it is a broken program, not a value an `await` is meant to handle. The handle still fails for `await`, and an ordinary Kof exception keeps going only to the awaiter. **Proof:** `SpawnHandleErrorE2ETest` (the `StackOverflowError` of an unawaited task is on stderr and `main` still ends); `SpawnAwaitBlockE2ETest` and the JVM cases of `SpawnE2ETest` unchanged.
+<!-- pt-switch --> **PT:** [§802 (pt_BR)](known-bugs.pt_BR.md#802--um-error-da-jvm-nosuchmethoderror-verifyerror-stackoverflowerror-numa-expressao-spawned-que-ninguem-aguardava-sumia-sem-rastro)
+
+## §807 — a nullable type written with its package (`profile.ProfileNameStyle?`) became a class named `ProfileNameStyle?`: a record with such a component died with NoSuchMethodError at its first construction
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED** (JVM target, three packages):
+```kof
+package network
+
+record NetworkUserView(String id, profile.ProfileNameStyle? nameStyle)
+```
+with `NetworkUserView("a", ProfileNameStyle.FANCY)` in another package. Observed: `NoSuchMethodError: 'void network.NetworkUserView.<init>(java.lang.String, profile.ProfileNameStyle)'`; `javap` shows the record declared with a component of type `profile.ProfileNameStyle?`.
+
+**ROOT CAUSE:** `CompilerTypes.toType` splits a dotted name at its last dot before anything handles the nullable marker, so `profile.ProfileNameStyle?` became `ClassType("profile", "ProfileNameStyle?")`. Simple names go through `Type.of`, which knows `?`; the qualified path did not.
+
+**Fix:** on the dotted path a trailing `?` is nullability: the type is the `NullableType` of the qualified name without it. **Proof:** `QualifiedNullableTypeE2ETest` (a record component and a parameter typed `profile.ProfileNameStyle?` construct, read and accept `null` across packages).
+<!-- pt-switch --> **PT:** [§807 (pt_BR)](known-bugs.pt_BR.md#807--um-tipo-nullable-escrito-com-o-pacote-profileprofilenamestyle-virava-uma-classe-chamada-profilenamestyle-um-record-com-esse-componente-morria-com-nosuchmethoderror-na-primeira-construcao)
+
+## §808 — the supported `com.sun` JDK APIs (`com.sun.management.OperatingSystemMXBean`, `com.sun.net.httpserver.HttpServer`) could not be imported (PKG006)
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED** (JVM target):
+```kof
+import com.sun.management.OperatingSystemMXBean
+import java.lang.management.ManagementFactory
+main() {
+    val os = ManagementFactory.getOperatingSystemMXBean() as OperatingSystemMXBean
+    println(os.getAvailableProcessors() > 0)
+}
+```
+Observed: `PKG006 import 'com.sun.management.OperatingSystemMXBean' not found in the module`. The same for `com.sun.net.httpserver.HttpServer`.
+
+**ROOT CAUSE:** the import check (`CompilerImports.isExternalImport`) and the JDK class predicate (`JdkReflectionResolver.isJdkClass`) only accept `java.*`, `javax.*` and `jdk.*`. The `com.sun` packages that the `jdk.management` and `jdk.httpserver` modules export are supported JDK APIs, but fell outside both lists.
+
+**Fix:** a `com.sun` class or package counts as JDK when a named `jdk.*` module exports its package (`isExportedComSunImport`, cached per name). The internal `com.sun` packages (not exported) stay `PKG006`. **Proof:** `JdkComSunApiImportE2ETest` 2/2 (`OperatingSystemMXBean` and `HttpServer` compile and run; `com.sun.org.apache.xerces.internal.util.XMLChar` is still `PKG006`).
+<!-- pt-switch --> **PT:** [§808 (pt_BR)](known-bugs.pt_BR.md#808--as-apis-comsun-suportadas-do-jdk-comsunmanagementoperatingsystemmxbean-comsunnethttpserverhttpserver-nao-podiam-ser-importadas-pkg006)
+
+## §789 — `kof run` of a file under `[sources] app` resolved imports from the project root (PKG006)
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `edcc39114`).
+
+**MEASURED:** a project with `kof.toml` declaring `[sources] app = "src/main/kof"`, `src/main/kof/exemplo/Calculo.kf` (`package exemplo`) and `src/main/kof/Main.kf` importing `exemplo.Calculo`: `kof build` and `kof test` work (D-CLI-SOURCE-ROOTS), but `kof run src/main/kof/Main.kf` fails with `import 'exemplo.Calculo' not found in the module [PKG006]`: the import was looked up under the project root, where `exemplo/` does not exist.
+
+**ROOT CAUSE:** `CompilerPipeline.rootFor` (used by `kof run` through `CompilerDriver.resolveModuleRoot`) returned the directory of `kof.toml` and never read `[sources]`; only `build`/`test` consulted the declared roots.
+
+**Fix:** when the project declares `[sources] app` and the source lives under it, that root is the module root; anything else keeps the project root (behavior without `[sources]` is unchanged). **Proof:** `TwoRootsCliE2ETest.runFromTheDeclaredAppRootResolvesItsPackages`; on the old code it fails with PKG006.
+<!-- pt-switch --> **PT:** [§789 (pt_BR)](known-bugs.pt_BR.md#789--o-kof-run-de-um-arquivo-sob-sources-app-resolvia-imports-a-partir-da-raiz-do-projeto-pkg006)
+
+## §810 — `catch (String e)` let CHECKED Java exceptions escape on the JVM and Script (`URISyntaxException`, `UnknownHostException`, `SQLException`)
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `2c920c4c1`).
+
+**MEASURED** (JVM target):
+```kof
+import java.net.URI
+main() {
+    try {
+        URI("a b")
+    } catch (String e) {
+        println("caught")
+    }
+}
+```
+Observed: the program died with `java.net.URISyntaxException: Illegal character in path at index 1: a b`; `caught` never printed. The same for `Class.forName`, `InetAddress.getByName` (`UnknownHostException`), JDBC (`SQLException`) and `Cipher.doFinal` (`AEADBadTagException`). The Script interpreter behaved the same way.
+
+**ROOT CAUSE:** the JVM backend mapped the String catch to a `java/lang/RuntimeException` handler (`JvmBackend.exceptionJvmType`, then `RuntimeException.getMessage`), and the interpreter matched `instanceof RuntimeException`. Kof has no checked exceptions (EXCEPTIONS_MODEL §6), so Kof code had no catch that could stop a checked one except naming its Java type.
+
+**Fix:** the String catch is an `Exception` handler on the JVM (`Throwable.getMessage` for `e`) and in the interpreter; a typed catch written before it still wins, a Kof `throw "msg"` keeps its message, and a `java.lang.Error` still propagates. **Proof:** `CatchStringCheckedExceptionE2ETest` 2/2 (JVM and Script: `URISyntaxException`, `ClassNotFoundException` and a Kof throw).
+<!-- pt-switch --> **PT:** [§810 (pt_BR)](known-bugs.pt_BR.md#810--catch-string-e-deixava-excecoes-java-checked-escaparem-no-jvm-e-no-script-urisyntaxexception-unknownhostexception-sqlexception)
+
+## §817 — `this.y = y` (or `a.z = v`) on a class that declares no such field compiled clean (`NoSuchFieldError` on the JVM, a phantom field on Script/JS); now SEM025 like the read
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `2c920c4c1`).
+
+**MEASURED:**
+```kof
+class A {
+    String x
+    constructor(String x, String y) {
+        this.x = x
+        this.y = y
+    }
+}
+main() {
+    val a = A("p", "q")
+    a.z = "w"
+    println(a.x)
+}
+```
+Observed: no diagnostic; the JVM threw `NoSuchFieldError: Class A does not have member field 'java.lang.Object y'` at the first construction, and Script and JS printed `p`, storing phantom fields. In the port a `kof fmt` run had removed the line a script anchored on to insert the declaration, so the class lost its field and only a boot test noticed.
+
+**ROOT CAUSE:** `SemAssignmentAnalyzer` checks a written field only when `MemberResolver.resolveFieldInHierarchy` finds it (access, `final`, type); a field it does not find fell through silently. The read of the same field (`SemFieldAccessTyper`) already reported SEM025.
+
+**Fix:** the write reports the read's SEM025, "Cannot resolve field 'y' on type 'A'", for a Kof class whose whole superclass chain is Kof, and for an external class whose field the classpath cannot resolve. A Kof class with a Java superclass stays out, since it may write an inherited Java field the Kof hierarchy walk does not see (`this.modCount` in a subclass of `ArrayList`). **Proof:** `UndeclaredFieldWriteTest` 2/2 (both writes report SEM025 on their lines, RED on the base; inherited Kof and Java fields still compile).
+<!-- pt-switch --> **PT:** [§817 (pt_BR)](known-bugs.pt_BR.md#817--thisy--y-ou-az--v-numa-classe-que-nao-declara-esse-campo-compilava-limpo-nosuchfielderror-no-jvm-campo-fantasma-no-scriptjs-agora-sem025-como-a-leitura)
+
+## §820 — a function-typed field could not be called as a method (`h.run()` was SEM025), and a second function-typed field on the next line was read as the first one's parameter list (PARSE023)
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `2c920c4c1`). Calling the field as a method is a maintainer decision (05/11).
+
+**MEASURED** (JVM, Script and JS agree):
+```kof
+class H {
+    () -> Int run
+    (Int) -> String show
+    H(() -> Int f, (Int) -> String s) {
+        this.run = f
+        this.show = s
+    }
+}
+
+main() {
+    val h = H(() -> 21, (n: Int) -> "n=" + n)
+    println(h.run())
+    println(h.show(5))
+}
+```
+Observed: `PARSE023 Expected parameter name` and `PARSE016` on line 3; with that field removed, `SEM025 Cannot resolve method 'run' on type 'H'` on `h.run()`. The workaround was copying the value to a local first (`var f = h.run; f()`).
+
+**ROOT CAUSE:** two faces. (a) `ClassMemberParser`, in the branch for a member whose type starts with `(` (a function type), took a `(` after the member name as a parameter list even when it was on the next line, so `() -> Int run` swallowed the next field's `(Int)`; the branch for named types already had the same-line guard. (b) `MemberCallTyper` resolved `h.run()` only against methods, and the invocation of a function value existed only for a receiver that already had a function type (`f()`, `(h.run).invoke()`).
+
+**Fix:** (a) the function-type branch uses the same-line guard. (b) when the receiver's class has no method of that name in its hierarchy and has a function-typed field of that name, `FunctionFieldCalls` rewrites the call to `(h.run).invoke(args)`; the analyzer records the rewrite by AST node and both the lowering typer and the lowerer use it, so JVM, Script and JS share the existing function-value path. A method with the same name wins. The argument count is checked against the field's type (`SEM013`). `docs/language-reference/closures` §3 (EN + pt_BR) documents it. **Proof:** `FunctionFieldCallE2ETest` 3/3 (zero, one and two-argument fields, a `Void` field, an inherited field, the bare and `this.` forms inside the class and a receiver from `List.get`, identical on JVM, Script and JS; a same-named method wins on JVM and Script; SEM025 for a member that is neither, an extra argument refused).
+<!-- pt-switch --> **PT:** [§820 (pt_BR)](known-bugs.pt_BR.md#820--um-campo-de-tipo-funcao-nao-podia-ser-chamado-como-metodo-hrun-dava-sem025-e-um-segundo-campo-de-tipo-funcao-na-linha-de-baixo-era-lido-como-lista-de-parametros-do-primeiro-parse023)
+
+## §822 — a route handler could not read the TCP peer address (no context function; `req.remoteAddr` is internal), so a client IP needed reflection; now `remoteAddr()`
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `2c920c4c1`). New context function by maintainer decision (05/11).
+
+**MEASURED** (JVM and JS):
+```kof
+main() {
+    var app = web.app()
+    app.get("/ip") {
+        return "ip=" + remoteAddr()
+    }
+    app.listen(8080)
+}
+```
+Observed: `SEM015 Undefined function: 'remoteAddr'` on JVM and JS. The runtime keeps the address (`WebRequest.remoteAddr`, the rate limiter's key) but nothing exposes it, so the port read `KofRuntime.KOF_WEB_REQUEST.remoteAddr` by reflection.
+
+**ROOT CAUSE:** a missing context function: `KofWeb.contextCall` had `body`/`method`/`path` and no accessor for the peer address, and the JS host did not record it.
+
+**Fix:** `remoteAddr()` is a request-context function returning `String` (`""` when unknown): `kof_web_remote_addr` reads `WebRequest.remoteAddr` on the JVM (Script uses the same runtime), and the JS host records `exchange.getRemoteAddress()` on the request object. Native refuses it at compile time with WEB001, like the other context functions it does not emit. `docs/stdlib/stdlib-web` (EN + pt_BR) lists it and notes that a proxy's client address is the `x-forwarded-for` header. **Proof:** `WebRemoteAddrE2ETest` 3/3 (a real request from 127.0.0.1 answers `ip=127.0.0.1` on JVM and JS; Native reports the named WEB001).
+<!-- pt-switch --> **PT:** [§822 (pt_BR)](known-bugs.pt_BR.md#822--um-handler-de-rota-nao-conseguia-ler-o-endereco-tcp-do-par-nao-havia-funcao-de-contexto-reqremoteaddr-e-interno-entao-o-ip-do-cliente-exigia-reflexao-agora-remoteaddr)
+
+## §823 — an app that never called `app.security()` still sent the hardening headers (CSP, nosniff, X-Frame-Options, Referrer-Policy) on every response, though stdlib-web documents them as what `app.security()` enables; now opt-in
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `2c920c4c1`). Opt-in confirmed by maintainer decision (05/11). **Behavior change:** see the migration note below.
+
+**MEASURED** (JVM):
+```kof
+main() {
+    var app = web.app()
+    app.get("/x") { return "ok" }
+    app.listen(8080)
+}
+```
+Observed: the `GET /x` response carries `Content-Security-Policy`, `X-Content-Type-Options`, `X-Frame-Options` and `Referrer-Policy`, with no `app.security()` call. The port had to decide per route what to keep, because the defaults overrode the headers it set.
+
+**ROOT CAUSE:** the app's global policy was `new Policy()`, whose `headers` field defaults to `true` (the right default for `app.security()`), so the security pipeline added the headers for a bare app too, against stdlib-web §3 ("`app.security()` ... enables the hardening headers").
+
+**Fix:** a bare app starts from `Policy.bare()` (no headers); `app.security()` still parses its options with `headers` on by default, and an `app.policy(prefix, opts)` scope turns them on only with `headers: true`. **Migration:** an app that relied on the undocumented default adds `app.security()` (or `app.security(mapOf("csrf", false))` to keep CSRF off). `docs/stdlib/stdlib-web` (EN + pt_BR) states it. **Proof:** `WebSecurityHeadersOptInE2ETest` 3/3 (a bare app sends none of the four headers, RED before; `app.security()` still sends them; a policy scope sends them only with `headers: true`); `KofWebE2ETest` 28/28 and `KofHttpPoliciesE2ETest` 10/10 unchanged.
+<!-- pt-switch --> **PT:** [§823 (pt_BR)](known-bugs.pt_BR.md#823--um-app-que-nunca-chamou-appsecurity-mandava-os-headers-de-hardening-csp-nosniff-x-frame-options-referrer-policy-em-toda-resposta-embora-o-stdlib-web-os-documente-como-o-que-o-appsecurity-liga-agora-opt-in)
+
+## §827 — `String.codePointAt(i)` was SEM025, so a port fell back to a manual surrogate decode; now it is a String member
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `190681ffa`). Stdlib batch approved by maintainer decision (05/11); #1120 landed the rest of the batch and left `codePointAt` open.
+
+**MEASURED** (JVM):
+```kof
+main() {
+    println("x𝄞".codePointAt(1))
+}
+```
+Observed: `SEM025` "Cannot resolve method".
+
+**ROOT CAUSE:** a missing signature: `StringMethodRegistry` had no `codePointAt(int)`, though it is a real `java.lang.String` member, so the guard refused it.
+
+**Fix:** `codePointAt(index)` returns `Int` (the code point at a UTF-16 index, the whole pair at a high surrogate). JVM and Script call the `java.lang.String` member; JS runs its native `codePointAt` (same index contract); Native refuses it with the named STR003 until it has a UTF-8 code point decode. The PortuKof alias is `pontoDeCodigoEm`, and the SEM025 list of valid String methods names `codePointAt`. `learn/39-stdlib` (EN + pt_BR) shows it. **Proof:** `StringCodePointAtE2ETest` 3/3 (BMP and supplementary code points on JVM and Script, JS, Native STR003; RED before with SEM025).
+<!-- pt-switch --> **PT:** [§827 (pt_BR)](known-bugs.pt_BR.md#827--stringcodepointati-era-sem025-entao-um-port-caia-numa-decodificacao-manual-de-surrogates-agora-e-membro-de-string)
 
 ## §168 — SEM025 missing for unknown method in namespace `json` — ✅ FIXED 13/09 (lane development/translator, owner = 192.168.100.22)
 
@@ -20207,6 +20852,50 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 **Security/correctness impact:** any caller using `extractTo`'s return value as a completeness/integrity signal can be silently wrong — data can be partially or fully lost, with zero signal. Independent of the #854 TOCTOU symlink race (a different gap, fixed separately — `File(p).createNew()` landed 31/10) and does not depend on or block #852's `ZipReader` API design decision.
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
+
+## §770 — A call into an overloaded external Java method picked the first overload of the same arity, ignoring the argument types (IncompatibleClassChangeError)
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `3a2952641`).
+
+**MEASURED** (JVM target, `org.flywaydb:flyway-core:11.14.1` via `kof deps`; `FluentConfiguration` declares `configuration(Configuration)` before `configuration(Map<String, String>)`):
+```kof
+import org.flywaydb.core.Flyway
+import java.util.HashMap
+main() {
+    val props = HashMap<String, String>()
+    props.put("flyway.locations", "filesystem:db")
+    val f = Flyway.configure().configuration(props)
+}
+```
+Observed: compiles with no diagnostic, then dies with `IncompatibleClassChangeError`: the call was emitted against `configuration(Lorg/flywaydb/core/api/configuration/Configuration;)`. Two sibling faces measured on the same tip: a method inherited from a superclass was never a candidate once the subclass declared any method of that name and arity, and `Path.of("x")` resolved to `Path.of(URI)` and died at load with `VerifyError`.
+
+**ROOT CAUSE:** `ExternalClasspath.findDeclared` returned the first method of the owner (then of each superclass, stopping at the first class with a match) whose name and arity matched, without looking at the argument types. The JDK path (`JdkReflectionResolver`) used a heuristic score that preferred an exact-arity method over a varargs one even when the argument did not fit. The static-call lowering (`ExpressionMethodCallLowerer`) also re-resolved with no argument types, so it could disagree with the typer. A STATIC call on an external INTERFACE owner was emitted as a `Methodref`, which the JVM rejects (it needs an `InterfaceMethodref`).
+
+**Fix:** the new `ExternalOverloads` selects by JLS 15.12.2 for jar owners (ASM, over the class, its superclasses and superinterfaces, private/bridge/synthetic excluded) and JDK owners (reflection): phase 1 subtyping and primitive widening, phase 2 boxing/unboxing, phase 3 variable arity, then the most specific applicable method. A tie between maximally specific methods is `SEM057` (the existing "call to '{0}' is ambiguous between {1} overloads" diagnostic) when every argument type is known; an argument whose type the compiler cannot prove (UNKNOWN, a lambda, a class on no classpath) never turns into an error and keeps the previous arity-based pick, as does a call with no applicable overload (whose argument checks report the mismatch as before). The static-call lowering resolves with the argument types, and `KofCall` carries `interfaceOwner` so a static call on an external interface is emitted as `invokestatic` with an `InterfaceMethodref`. **Proof:** `ExternalOverloadResolutionE2ETest` 5/5 (the Flyway shape with a `HashMap` and a Kof `mapOf`, a static overload, most specific `String` over `CharSequence`/`Object`, widening `long` over boxing `Integer`, an overload inherited from the superclass, `Path.of(String)` and `Path.of(String, String...)`, `SEM057` on a proven tie); on the old code all 5 fail. JS/Native are unaffected: an external class method already refuses there with `INTEROP003` (#760). Constructor overloads (`new Foo(x)`) resolve by the same selection — see §800. This is also the (a)-style exact-overload preference §554 left open: `update(Byte[])` on a scalar-first `update(byte)`/`update(byte[])` now binds `update(byte[])` and runs, so `InteropPrimitiveSlotE2ETest` pins that (`arrayArgumentBindsTheArrayOverload`) and keeps the §554 `SEM014` for a slot that only takes a primitive (`echo(long)` with a `Byte[]`).
+<!-- pt-switch --> **PT:** [§770 (pt_BR)](known-bugs.pt_BR.md#770--uma-chamada-a-um-metodo-java-externo-sobrecarregado-escolhia-a-primeira-sobrecarga-de-mesma-aridade-ignorando-os-tipos-dos-argumentos-incompatibleclasschangeerror)
+
+## §800 — a JDK constructor was emitted with the exact static types of its arguments: `new InputStreamReader(byteStream, "UTF-8")` looked for `<init>(ByteArrayInputStream, String)` (NoSuchMethodError)
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`). Builds on the external overload resolution of §770 and on §799.
+
+**MEASURED** (JVM target):
+```kof
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.io.ByteArrayInputStream
+main() {
+    val in0 = new ByteArrayInputStream("hi".getBytes())
+    val r = new BufferedReader(new InputStreamReader(in0, "UTF-8"))
+    println(r.readLine())
+}
+```
+Observed: `NoSuchMethodError: 'void java.io.InputStreamReader.<init>(java.io.ByteArrayInputStream, java.lang.String)'`; inside a `spawn` the task died without a trace.
+
+**ROOT CAUSE:** constructor resolution went by arity only (`resolveConstructor`), which finds nothing for a JDK class, so the lowering emitted the descriptor built from the arguments' own static types; for a jar class the first constructor of that arity won.
+
+**Fix:** the §770 selection (`ExternalOverloads`, JLS 15.12.2 phases, most specific wins) also covers `<init>`: JDK candidates come from `getConstructors()`, jar candidates from the class itself (constructors are not inherited). The analyzer and the lowering both resolve the constructor with the argument types, so the emitted descriptor is the selected constructor's. **Proof:** `ExternalCtorOverloadE2ETest` (`InputStreamReader(InputStream, String)`, `BufferedReader(Reader, int)`, `File(File, String)` run); `ExternalOverloadResolutionE2ETest`, `ExternalCtorArgTypingE2ETest` and `InteropPrimitiveSlotE2ETest` unchanged.
+<!-- pt-switch --> **PT:** [§800 (pt_BR)](known-bugs.pt_BR.md#800--um-construtor-jdk-era-emitido-com-os-tipos-estaticos-exatos-dos-argumentos-new-inputstreamreaderbytestream-utf-8-procurava-initbytearrayinputstream-string-nosuchmethoderror)
+
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
 
 ## §936 — a source under a directory whose name is not a valid identifier (`.agent/`, `.hidden-x/`) derives an invalid package, so the JVM target fails with a mislabeled `COMP001` or a silent `ClassFormatError` (GitHub #999)

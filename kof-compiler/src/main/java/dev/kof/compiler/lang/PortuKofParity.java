@@ -129,6 +129,8 @@ public final class PortuKofParity {
                     i.elseBranch() != null ? stmt(p, al, i.elseBranch()) : null);
             case dev.kof.compiler.WhileStmt w -> new dev.kof.compiler.WhileStmt(w.position(),
                     expr(p, al, w.condition()), stmt(p, al, w.body()));
+            case dev.kof.compiler.LockStmt l -> new dev.kof.compiler.LockStmt(l.position(),
+                    expr(p, al, l.target()), stmt(p, al, l.body()));
             case dev.kof.compiler.DoWhileStmt d -> new dev.kof.compiler.DoWhileStmt(d.position(),
                     expr(p, al, d.condition()), stmt(p, al, d.body()));
             case dev.kof.compiler.ForStmt f -> new dev.kof.compiler.ForStmt(f.position(),

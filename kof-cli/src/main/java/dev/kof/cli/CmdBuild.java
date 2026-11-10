@@ -280,13 +280,9 @@ final class CmdBuild {
         if (useDeps) {
             try {
                 driver.setDependencySourceRoots(DepsSources.roots(Path.of(".")));   // #566 (b)
-                String depsCp = Deps.classpath();
-                if (!depsCp.isBlank()) {
-                    externalEntries = new ArrayList<>();
-                    for (String part : depsCp.split(java.util.regex.Pattern.quote(
-                            System.getProperty("os.name", "").toLowerCase().contains("win") ? ";" : ":"))) {
-                        if (!part.isBlank()) externalEntries.add(Path.of(part));
-                    }
+                List<Path> depsEntries = Deps.classpathEntries();
+                if (!depsEntries.isEmpty()) {
+                    externalEntries = new ArrayList<>(depsEntries);
                     driver.setExternalClasspath(externalEntries);
                 }
             } catch (IOException e) {

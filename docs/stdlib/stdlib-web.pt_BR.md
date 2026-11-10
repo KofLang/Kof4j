@@ -92,6 +92,7 @@ O corpo `{ ... }` é um lambda trailing — o handler da rota. Um handler pode
 também ser passado explicitamente: `app.get("/x", handler)`.
 
 - `path` suporta segmentos com parâmetro: `/users/:id` (prefixo `:`).
+- Quando várias rotas casam, a literal vence: no primeiro segmento em que duas rotas diferem, um segmento literal ganha de um `:param` (`/posts/seals` antes de `/posts/:id`), seja qual for a ordem de registro (JVM e JS).
 - O handler retorna `String` (corpo da resposta, 200) ou `null` (404).
 - A resposta detecta JSON automaticamente quando o corpo começa com `{` ou `[`
   (`Content-Type: application/json`).
@@ -121,6 +122,8 @@ para métodos que mudam estado:
 - `Referrer-Policy: no-referrer`
 - `Strict-Transport-Security` — só sob TLS (`listenSecure`)
 
+Um app que nunca chama `app.security()` não manda nenhum desses headers (§823). Antes da 0.8 o runtime os mandava em toda resposta mesmo assim; um app que dependia disso adiciona `app.security()` (ou `app.security(mapOf("csrf", false))` para manter o CSRF desligado). Um escopo `app.policy(prefix, opts)` só os liga com `headers: true`.
+
 Opts documentados (chaves do `Map`; qualquer outra é ignorada):
 
 | Chave | Tipo | Default | Efeito |
@@ -145,7 +148,8 @@ caminhos de 404 (`return null` e rota desconhecida).
 
 **Auth-if-present:** mesmo sem `auth: true`, uma request que **traz**
 `Authorization` com token inválido nunca passa (401) — evita "token ruim vira
-anônimo".
+anônimo". Faz parte do `app.security()` / `app.policy()`: um app que não
+configura nenhum dos dois ignora o header (a rota o lê), §781.
 
 ```kof
 main() {
@@ -212,7 +216,18 @@ app.get("/api/hide") { return "hide" }                          // herda desliga
 | `app.close()` | Encerra o servidor (graceful shutdown) |
 
 `app.listen(0)` vincula uma porta efêmera; `app.port()` revela a porta real.
+Um serviço para a máquina local (servidor de teste, sidecar) usa
+`app.listen("127.0.0.1", port)`: o curinga é alcançável pela rede, e no macOS
+um bind curinga pode dividir uma porta que outro processo segura em 127.0.0.1,
+então um cliente de 127.0.0.1 chegaria nesse processo (§825).
 `app.listenSecure` está disponível no JVM (Native/JS `WEB002`).
+
+**Conexões persistentes (JVM):** conexões HTTP/1.1 ficam abertas entre
+requisições (RFC 9112 §9.3) — `Connection: keep-alive` em cada resposta,
+requisições em pipeline respondidas em ordem, conexão ociosa fechada após 5 s.
+Uma requisição com `Connection: close`, HTTP/1.0 sem `Connection: keep-alive`, ou
+um corpo com `Transfer-Encoding` recebe `Connection: close` e o socket fecha após
+a resposta. Native/JS seguem com uma requisição por conexão (residual `WEB001`).
 
 ### Arquivos estáticos (`app.serveDir`) (31/08)
 
@@ -342,7 +357,7 @@ globais por JVM e devolvidas como `String`.
 | `body()` | Corpo cru da request |
 | `method()` | Método HTTP ("GET", "POST", ...) |
 | `path()` | Caminho da request |
-| `remoteAddr()` | Endereço TCP do peer da request (`""` quando desconhecido) — atrás de um proxy o cliente é o header `x-forwarded-for` (#1110) |
+| `remoteAddr()` | Endereço TCP do peer da request (`"127.0.0.1"`, `""` quando desconhecido) — atrás de um proxy o cliente é o header `x-forwarded-for` (#1110). JVM e JS; no Native é `WEB001` |
 | `status(code, body)` | Define o status da resposta e retorna o corpo — use como retorno (ex.: `return status(201, "{\"ok\":true}")`) |
 | `headerSet(name, value)` | Adiciona um header de resposta (ex.: `headerSet("X-Total", "42")`); um `Set-Cookie` repetido (qualquer caixa) REPETE em vez de substituir (RFC 6265 §3), todo outro header mantém last-wins, e CR/LF no nome ou valor é recusado (a rota responde 500 — RFC 9112 §5, #1012) |
 

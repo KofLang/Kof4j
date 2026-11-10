@@ -12,6 +12,10 @@ public final class ExpressionTyper {
     private ExpressionTyper() {}
 
     static Type inferExprType(CompilerDriver driver, ExpressionNode expr, List<IRLocalVariable> locals) {
+        return ExprTypeMemo.infer(driver, expr, locals);
+    }
+
+    static Type inferUncached(CompilerDriver driver, ExpressionNode expr, List<IRLocalVariable> locals) {
         return qualifyBareModuleType(driver, switch (expr) {
             case LiteralExpr lit -> switch (lit.kind()) {
                 case ConcreteLiteralKind.INT -> Type.PrimitiveType.INT;
@@ -66,15 +70,15 @@ public final class ExpressionTyper {
                     // unrelated class — e.g. Config.entries vs MemoryLayer.entries.
                     if (!locals.isEmpty() && locals.get(0).type() instanceof Type.ClassType thisType
                             && !thisType.name().equals("Object")) {
-                        SymbolTable.Symbol thisField = driver.semanticAnalyzer.resolveInHierarchy(
-                                thisType.name(), ie.name());
+                        SymbolTable.Symbol thisField = MemberResolver.resolveFieldInHierarchy(
+                                driver.semanticAnalyzer, thisType.name(), ie.name());
                         if (thisField != null) {
                             if (thisField instanceof SymbolTable.FieldSymbol fs) yield fs.type();
                             if (thisField instanceof SymbolTable.MethodSymbol ms
                                     && ms.parameterTypes().isEmpty()) yield ms.returnType();
                         }
                     }
-                    SymbolTable.Symbol sym = HierarchyResolver.resolveFromSemantic(ie.name(), driver.semanticAnalyzer);
+                    SymbolTable.Symbol sym = HierarchyResolver.resolveInOwnerOrModule(ie.name(), driver.currentLoweringOwner, driver.semanticAnalyzer);
                     if (sym != null) yield sym.type();
                     SymbolTable.ClassSymbol cls = driver.semanticAnalyzer.getClass(ie.name());
                     if (cls != null) yield cls.type();
@@ -169,7 +173,9 @@ public final class ExpressionTyper {
                 yield leftType;
             }
             case MethodCallExpr mc -> {
-                yield MethodCallTyper.inferType(driver, mc, locals);
+                MethodCallExpr fieldCall = driver.semanticAnalyzer == null ? null
+                        : driver.semanticAnalyzer.functionFieldCall(mc); // §820
+                yield MethodCallTyper.inferType(driver, fieldCall != null ? fieldCall : mc, locals);
             }
             case NewArrayExpr na -> {
                 Type elemType = CompilerTypes.toType(na.elementType(), driver.currentUnit);
@@ -546,6 +552,7 @@ public final class ExpressionTyper {
             return firstReturnValueType(driver, ts.finallyBody(), locals);
         }
         if (s instanceof WhileStmt ws) return returnValueType(driver, ws.body(), locals);
+        if (s instanceof LockStmt ls) return returnValueType(driver, ls.body(), locals);
         if (s instanceof DoWhileStmt dws) return returnValueType(driver, dws.body(), locals);
         if (s instanceof ForStmt fs) return returnValueType(driver, fs.body(), locals);
         if (s instanceof ForInStmt fis) return returnValueType(driver, fis.body(), locals);

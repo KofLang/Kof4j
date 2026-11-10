@@ -435,6 +435,11 @@ public final class JsRuntimeCore {
             export function kofLogWarn(msg)  { if (kofLogLevel <= 2) (console.warn || console.log)(String(msg)); }
             export function kofLogError(msg) { if (kofLogLevel <= 3) (console.error || console.log)(String(msg)); }
 
+            // G240: lock (target) { } — one JS thread, so nothing to exclude;
+            // JsLockCheck refuses a locking function that suspends (CONC005).
+            export function kofLockEnter(target) {}
+            export function kofLockExit(target) {}
+
             export function kofUiWindowNew(title) {
                 if (typeof document === "undefined") {
                     return -1;

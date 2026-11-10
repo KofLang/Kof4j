@@ -25,7 +25,7 @@ public final class CompilerClassLowering {
             superName = rawSuper != null ? driver.toInternalName("", rawSuper)
                     : "java/lang/Object";
         }
-        var sup = ClassSuperResolution.resolve(driver, superName, cls.interfaces().stream().map(n -> CompilerAnnotations.externalOrLocalInternalName(driver, HeritageQualifier.qualify(driver.currentUnit, driver.semanticAnalyzer, eraseTypeArgs(n)))).toList()); superName = sup.superName(); List<String> ifaces = sup.interfaces();
+        var sup = ClassSuperResolution.resolve(driver, superName, cls.interfaces().stream().map(n -> HierarchyResolver.canonicalInterfaceInternal(driver, n)).toList()); superName = sup.superName(); List<String> ifaces = sup.interfaces();
         int access = driver.computeAccess(cls.modifiers());
         List<IRField> fields = new ArrayList<>();
         List<IRMethod> methods = new ArrayList<>();

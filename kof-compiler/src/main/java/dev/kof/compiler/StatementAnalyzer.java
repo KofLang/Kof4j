@@ -219,19 +219,16 @@ public final class StatementAnalyzer {
                 SemExpressionTyper.inferType(sa, ifStmt.condition(), scope);
                 collectNarrowing(sa, ifStmt.condition(), scope, thenNarrow, elseNarrow, false);
                 for (SymbolTable.LocalVariableSymbol s : thenNarrow) ifScope.define(s);
-                if (!elseNarrow.isEmpty() && ifStmt.elseBranch() != null) {
+                // §777: BOTH branches are analyzed, each in its own narrowed
+                // scope. The THEN of `if (x == null) {...} else {...}` used to be
+                // skipped, so its calls never reached resolvedMethods and an
+                // unqualified member call was lowered as a top-level function.
+                // Analyzing the ELSE also matters (frames; see a892b3c5).
+                analyzeStatement(sa, ifStmt.thenBranch(), ifScope, returnType);
+                if (ifStmt.elseBranch() != null) {
                     SymbolTable elseScope = scope.enterScope();
                     for (SymbolTable.LocalVariableSymbol s : elseNarrow) elseScope.define(s);
                     analyzeStatement(sa, ifStmt.elseBranch(), elseScope, returnType);
-                } else {
-                    analyzeStatement(sa, ifStmt.thenBranch(), ifScope, returnType);
-                    // a892b3c5 (lane CodeQL) removeu esta linha junto com a var
-                    // `condType` marcada como unread — mas ela NÃO era unread:
-                    // sem analisar o ELSE, os tipos das expressões do ramo else
-                    // não entram em sa.expressionTypes() e o lowering JVM gera
-                    // frames inválidos (Supervisor.lacoUnico: AIOOBE em
-                    // COMPUTE_FRAMES). Restaurado (fix-forward, regra 8).
-                    if (ifStmt.elseBranch() != null) analyzeStatement(sa, ifStmt.elseBranch(), scope, returnType);
                 }
                 // §353 revealed (makealive fsRead): `if (t == null) { return }`
                 // seguido de `t.foo()` e o MESMO narrowing de SG-005 em forma
@@ -254,6 +251,10 @@ public final class StatementAnalyzer {
                         new java.util.ArrayList<>(), false);
                 for (SymbolTable.LocalVariableSymbol s : bodyNarrow) whileScope.define(s);
                 analyzeStatement(sa, ws.body(), whileScope, returnType);
+            }
+            case LockStmt ls -> {
+                LockTargets.check(sa, ls, SemExpressionTyper.inferType(sa, ls.target(), scope));
+                analyzeStatement(sa, ls.body(), scope, returnType);
             }
             case DoWhileStmt dws -> {
                 SymbolTable doScope = scope.enterScope();
@@ -355,8 +356,11 @@ public final class StatementAnalyzer {
                     // bug 1: `throw <não-String>` gerava bytecode inválido no
                     // JVM (wrap em RuntimeException assumindo String). Exceções
                     // são Strings em Kof — rejeita com diagnóstico limpo.
+                    // §775: a JDK throwable (`new java.lang.RuntimeException(..)`) is
+                    // now typed instead of UNKNOWN; it stays a legal throw value.
                     if (sa.diagnostics() != null && t != null && !Type.isUnknown(t)
-                            && !BuiltinTypes.isString(t)) {
+                            && !BuiltinTypes.isString(t) && !(t instanceof Type.ClassType ct
+                                    && CompilerTypes.isKofBuiltinJavaLang(ct.internalName()))) {
                         sa.diagnostics().error(ts,
                                 "throw requires a String (exceptions are Strings in Kof),"
                                         + " got " + Type.canonicalPrimitiveName(

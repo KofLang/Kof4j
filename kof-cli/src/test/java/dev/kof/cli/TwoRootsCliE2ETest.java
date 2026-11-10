@@ -97,6 +97,15 @@ class TwoRootsCliE2ETest {
         }
     }
 
+    /** §789: `kof run` of a file under `[sources] app` resolves imports from that root. */
+    @Test
+    void runFromTheDeclaredAppRootResolvesItsPackages(@TempDir Path dir) throws Exception {
+        writeProject(dir);
+        Cli r = cli(dir, "run", "src/main/kof/Main.kf");
+        assertEquals(0, r.exit(), r.out());
+        assertTrue(r.out().contains("5"), r.out());
+    }
+
     @Test
     void buildWithoutSourcesOrDeclaredRootFailsExplicitly(@TempDir Path dir) throws Exception {
         // R6: sem posicional e sem [sources] — nunca compilar "nada" em silêncio.

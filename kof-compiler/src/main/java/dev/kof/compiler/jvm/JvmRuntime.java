@@ -28,6 +28,7 @@ public static boolean hasRuntimeFn(String methodName) {
                 || methodName.startsWith("kof_cache_")
                 || methodName.startsWith("kof_buffer_")
                 || methodName.startsWith("kof_log_")
+                || methodName.startsWith("kof_lock_")
                 || methodName.startsWith("kof_db_")
                 || methodName.startsWith("kof_orm_")
                 || methodName.startsWith("kof_string_to_")
@@ -168,6 +169,7 @@ public static boolean hasRuntimeFn(String methodName) {
                 + JvmMediaRuntime.source()
                 + JvmImageRuntime.source()
                 + JvmRuntimeWebServer.source()
+                + JvmWebWsRuntime.source()
                 + JvmRuntimeTlsServer.source()
                 + JvmAcmeRuntime.source()
                 + JvmAcmeOrderRuntime.source()
@@ -199,6 +201,7 @@ public static boolean hasRuntimeFn(String methodName) {
                 + JvmRuntimeUi.source()
                 + JvmRuntimeUiForms.source()
                 + JvmRuntimeCore.source()
+                + JvmLockRuntime.source()
                 + JvmRuntimeIo.source();
     }
 }

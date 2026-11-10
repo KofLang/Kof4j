@@ -89,6 +89,11 @@ public final class CompilerCaptures {
                     collectCapturesStmts(driver,w.body(), outerLocals, captures, captured,
                             new java.util.HashSet<>(shadowed));
                 }
+                case LockStmt w -> {
+                    collectCapturesExpr(driver,w.target(), outerLocals, captures, captured, shadowed);
+                    collectCapturesStmts(driver,w.body(), outerLocals, captures, captured,
+                            new java.util.HashSet<>(shadowed));
+                }
                 case DoWhileStmt dw -> {
                     collectCapturesStmts(driver,dw.body(), outerLocals, captures, captured,
                             new java.util.HashSet<>(shadowed));

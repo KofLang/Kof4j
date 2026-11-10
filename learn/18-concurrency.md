@@ -166,6 +166,42 @@ spawn produtor(c)
 var v = c.receive()
 ```
 
+## lock — mutual exclusion on a shared object
+
+When several tasks update the same object, `lock (target) { ... }` lets only
+one of them run the block at a time for that target:
+
+```kf
+class Counter {
+    Int n = 0
+
+    add() {
+        lock (this) {
+            n = n + 1          // read-modify-write, never interleaved
+        }
+    }
+}
+```
+
+- The target is evaluated **once** and must be a non-null object (a class
+  instance, a record, a collection). A primitive, a `String` or a nullable
+  value is refused at compile time (`CONC004`): lock on the object that owns
+  the shared state, usually `this`.
+- The lock is released on **every** exit of the block: normal end, `return`,
+  `break`/`continue`, and a `throw`.
+- It is **reentrant**: the task that holds the lock may enter it again
+  (`lock (c) { lock (c) { ... } }`, or a locked method calling another one).
+- Exiting a `lock` on `x` happens-before the next entry into a `lock` on `x`
+  (memory model §2, rule 7): writes made inside are visible to the next holder.
+- Per target: JVM and Script use a reentrant lock per object (by identity),
+  Native a reentrant futex lock (x86-64, riscv64, aarch64), JS and Wasm run a
+  single thread, so there is nothing to exclude. On JS a function that uses
+  `lock` **and** suspends (`await`, `sleep`, `channel.receive()`, or a call to
+  a function that does) is refused with `CONC005`: another task would run
+  while the lock is held. Move the suspending call out of that function.
+- Prefer a `Channel` when tasks hand data to each other; `lock` is for a small
+  critical section over shared state.
+
 ## Semantics
 
 - JVM: each `spawn` runs on a **virtual thread** (JDK 21+) — cheap for
@@ -190,6 +226,7 @@ locks this table against the code — see the note at the end of the section.
 | `cancel` / `cancelled` | ✅ `KofConcurrency2Test.cancelCooperativeJvm` | ✅ `KofConcurrency2Test.cancelCooperativeNative` (bug 101 → §117 FIXED 13/09, real-TID table `3734f2aa`) | ✅ `kof_cancel` real TID (CONC001 closed 15/09) — `KofConcurrency2Test.crossNativeCancelDuringRunningWorker` | ✅ no-op (`cancelled()` = `0`) — `KofConcurrency2Test.cancelJsSequential` |
 | `selectAny` | ✅ `KofConcurrency2Test.selectAnyJvm` | ✅ 1 ms polling — `KofConcurrency2Test.selectAnyNative` | ✅ `kof_select_any` (CONC001 closed 15/09) — `KofConcurrency2Test.crossNativeConcurrencyHelpersRun` | ✅ `Promise.race` — `KofConcurrency2Test.selectAnyJs` |
 | `awaitTimeout` | ✅ `KofConcurrency2Test.awaitTimeoutJvm` | ✅ 1 ms polling — `KofConcurrency2Test.awaitTimeoutNative` | ✅ `kof_await_timeout` (CONC001 closed 15/09) — `KofConcurrency2Test.crossNativeConcurrencyHelpersRun` | ✅ `KofConcurrency2Test.awaitTimeoutJs` |
+| `lock (x) { }` | ✅ per-object `ReentrantLock` — `LockBlockE2ETest.lockExcludesAndReleasesOnEveryExitOnJvmScriptAndJs` | ✅ reentrant futex lock table — `LockBlockE2ETest.lockExcludesOnNativeX86` | ✅ `kof_lock_enter`/`kof_lock_exit` (G240, 06/11) — `LockBlockE2ETest.lockExcludesOnNativeCross` | ✅ no-op (one thread; CONC005 refuses lock + suspension) — `LockBlockE2ETest.lockExcludesAndReleasesOnEveryExitOnJvmScriptAndJs` |
 
 `spawn`/`await` closed `CONC001` on Native on 31/08 (pthread_create +
 trampoline + `pthread_join` + thread-safe allocator via futex), and the

@@ -189,7 +189,7 @@ class KofBlogE2ETest {
             OutputStream out = s.getOutputStream();
             out.write(request.getBytes(StandardCharsets.UTF_8));
             out.flush();
-            return new String(s.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            return TestServerFixture.readResponse(s.getInputStream());
         }
     }
 

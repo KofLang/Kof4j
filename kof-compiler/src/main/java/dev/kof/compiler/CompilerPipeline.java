@@ -46,7 +46,14 @@ public final class CompilerPipeline {
         // `import shared.Validation` só resolvem a partir de tmp/.
         for (Path s : sources) {
             Path project = ProjectLocator.locate(s);
-            if (project != null) return project;
+            if (project != null) {
+                // §789 (D-CLI-SOURCE-ROOTS): a source under the declared
+                // `[sources] app` root resolves imports from that root, as
+                // `kof build`/`kof test` already do; otherwise the project root.
+                Path app = KofProjectConfig.resolveSourceRoot(project,
+                        KofProjectConfig.load(project).sourceApp(), null);
+                return app != null && s.toAbsolutePath().normalize().startsWith(app) ? app : project;
+            }
         }
         return ModuleRoots.moduleRootFor(sources);
     }
@@ -81,6 +88,10 @@ public final class CompilerPipeline {
                 // wrapper genérico de COMP002.
                 diagnostics.error(sources.get(0).toString(), 0, 0, 0,
                         e.getMessage(), "CONC003-JS-01");
+                return new CompilationResult(false, diagnostics, outputDir);
+            }
+            if (e.getMessage() != null && e.getMessage().startsWith("CONC005")) { // G240, JS lock + suspension
+                diagnostics.error(sources.get(0).toString(), 0, 0, 0, e.getMessage(), "CONC005");
                 return new CompilationResult(false, diagnostics, outputDir);
             }
             if (e.getMessage() != null && e.getMessage().startsWith("FLT001")) {
@@ -275,6 +286,7 @@ public final class CompilerPipeline {
         driver.semanticAnalyzer.setInterpreting(driver.interpreting);
         driver.semanticAnalyzer.setExternalTypes(driver.externalClasspath);
         driver.semanticAnalyzer.setDeclarationPackageLookup(d -> driver.declarationPackages.get(d));
+        driver.semanticAnalyzer.setFileImports(driver.fileImports);
         driver.semanticAnalyzer.analyze(unit, diagnostics);
         if (diagnostics.hasErrors()) {
             return null;
@@ -406,6 +418,7 @@ public final class CompilerPipeline {
         int mainCount = 0;
         for (int i = 0; i < parsedUnits.size(); i++) {
             CompilationUnitNode u = parsedUnits.get(i);
+            driver.fileImports.record(u);
             for (String imp : u.imports()) {
                 if (!mergedImports.contains(imp)) mergedImports.add(imp);
             }
@@ -452,7 +465,7 @@ public final class CompilerPipeline {
         ExternalClasspath extCp = (driver.target == Target.JVM || driver.target == Target.ANDROID)
                 ? driver.externalClasspath : null;
         merged = CompilerImports.expandKofImports(merged, driver.moduleRoot, diagnostics, driver.declarationPackages, extCp,
-                driver.dependencySourceRoots, sources);
+                driver.dependencySourceRoots, sources, driver.fileImports);
         if (diagnostics.hasErrors()) return null;
         return merged;
     }

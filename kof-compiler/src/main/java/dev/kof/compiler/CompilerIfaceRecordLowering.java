@@ -17,7 +17,7 @@ public final class CompilerIfaceRecordLowering {
     static IRClass lowerInterface(CompilerDriver driver, InterfaceDeclarationNode iface,
                             String packageName, int typeId) {
         String internalName = driver.toInternalName(packageName, iface.name());
-        List<String> ifaces = iface.interfaces().stream().map(n -> CompilerAnnotations.externalOrLocalInternalName(driver, CompilerClassLowering.eraseTypeArgs(n))).toList();
+        List<String> ifaces = iface.interfaces().stream().map(n -> HierarchyResolver.canonicalInterfaceInternal(driver, n)).toList();
         int access = driver.computeAccess(iface.modifiers()) | AccessFlags.ABSTRACT | AccessFlags.INTERFACE;
         List<IRMethod> methods = new ArrayList<>();
         List<IRField> fields = new ArrayList<>();
@@ -46,7 +46,7 @@ public final class CompilerIfaceRecordLowering {
                        String packageName, int typeId) {
         String internalName = driver.toInternalName(packageName, rec.name());
         String superName = rec.superClass() != null ? driver.toInternalName("", CompilerClassLowering.eraseTypeArgs(rec.superClass())) : "java/lang/Record";
-        List<String> ifaces = rec.interfaces().stream().map(n -> CompilerAnnotations.externalOrLocalInternalName(driver, CompilerClassLowering.eraseTypeArgs(n))).toList();
+        List<String> ifaces = rec.interfaces().stream().map(n -> HierarchyResolver.canonicalInterfaceInternal(driver, n)).toList();
         int access = driver.computeAccess(rec.modifiers()) | AccessFlags.FINAL | AccessFlags.PUBLIC;
         List<IRField> fields = new ArrayList<>();
         List<IRMethod> methods = new ArrayList<>();

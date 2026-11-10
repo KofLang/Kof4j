@@ -81,7 +81,8 @@ if (mc.receiver() == null && driver.externSignatures.containsKey(mc.methodName()
     }
 if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
         && driver.semanticAnalyzer != null
-        && driver.semanticAnalyzer.getClass(rid.name()) != null) {
+        && driver.semanticAnalyzer.getClass(rid.name()) != null
+        && !driver.semanticAnalyzer.importShadowsProjectClass(rid.name())) {
     // Metodo ESTATICO de classe KOF de outro pacote:
     // Desconto.aplicar(c) -> invokestatic vendas/regras/Desconto.aplicar
     SymbolTable.MethodSymbol ksm = null;
@@ -191,7 +192,8 @@ if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.na
     KofCallKind extKind = extSig.isStatic() ? KofCallKind.STATIC
             : (extSig.ownerIsInterface() ? KofCallKind.INTERFACE
             : KofCallKind.INSTANCE);
-    ops.add(new KofCall(extQ, mc.methodName(), extFormal, extRet, extKind));
+    ops.add(new KofCall(extQ, mc.methodName(), extFormal, extRet, extKind,
+            extSig.isStatic() && extSig.ownerIsInterface()));
     return localIdx;
 } else if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
         && ("Double".equals(rid.name()) || "Float".equals(rid.name()) || "Long".equals(rid.name())

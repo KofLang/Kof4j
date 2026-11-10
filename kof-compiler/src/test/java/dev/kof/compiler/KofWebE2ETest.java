@@ -61,14 +61,7 @@ class KofWebE2ETest extends KofWebPrograms {
             OutputStream out = socket.getOutputStream();
             out.write(raw.getBytes(StandardCharsets.UTF_8));
             out.flush();
-            InputStream in = socket.getInputStream();
-            StringBuilder response = new StringBuilder();
-            byte[] buffer = new byte[4096];
-            int n;
-            while ((n = in.read(buffer)) != -1) {
-                response.append(new String(buffer, 0, n, StandardCharsets.UTF_8));
-            }
-            return response.toString();
+            return TestServerFixture.readResponse(socket.getInputStream());
         }
     }
 
@@ -318,6 +311,23 @@ class KofWebE2ETest extends KofWebPrograms {
         assertTrue(anonymous.startsWith("HTTP/1.1 200 OK"), anonymous);
         String bad = request(port, "GET /open HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer nope\r\n\r\n");
         assertTrue(bad.startsWith("HTTP/1.1 401 Unauthorized"), bad);
+    }
+
+    @Test
+    void authorizationHeaderIsIgnoredWithoutSecurityConfigured(@TempDir Path tempDir)
+            throws IOException {
+        // §781: auth-if-present is part of app.security() (D-SEC.4); an app
+        // that never configured it answered 401 to ANY Authorization header.
+        int port = startServer(tempDir, """
+                main() {
+                    var app = web.app()
+                    app.get("/health") { return "up" }
+                    app.listen(PORT)
+                }
+                """);
+        String r = request(port, "GET /health HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer x\r\n\r\n");
+        assertTrue(r.startsWith("HTTP/1.1 200 OK"), r);
+        assertEquals("up", bodyOf(r));
     }
 
     @Test

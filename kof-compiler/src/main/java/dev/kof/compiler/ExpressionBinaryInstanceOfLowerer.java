@@ -15,8 +15,10 @@ final class ExpressionBinaryInstanceOfLowerer {
                      String owner, int localIdx, List<IRLocalVariable> locals) {
     Type targetType = Type.UnknownType.UNKNOWN;
     if (bin.right() instanceof IdentifierExpr ie) {
-        // toType resolve imports ("View" + import → android.view.View)
-        targetType = CompilerTypes.toType(ie.name(), driver.currentUnit);
+        // toType resolve imports ("View" + import → android.view.View); §776:
+        // the analyzer-aware overload also qualifies a class of the module's
+        // own package (`v instanceof DbNullBind` in `package kernel.db`).
+        targetType = CompilerTypes.toType(ie.name(), driver.currentUnit, driver.semanticAnalyzer);
     }
     // §356/#295 (família §355): `x as T[]` / `o instanceof T` baixavam o
     // leaf fantasma ClassType("","T") → `checkcast [LT;` (NoClassDefFoundError
@@ -67,17 +69,10 @@ final class ExpressionBinaryInstanceOfLowerer {
             && (TypeMetrics.isPrimitiveType(fromCastType) || handleAsInt)) {
         // cast primitivo (x as Char/Int/…): conversão numérica,
         // NÃO checkcast (que exigiria um objeto na pilha)
-        // #1097: o fonte do cast direto é Nullable(primitivo) (`score() as
-        // Int` com score(): Int?) — a pilha carrega o BOX (o descritor do
-        // método é o wrapper); abre antes do widening cru (a mesma regra do
-        // #1054 para o var estreitado — cuja face já reescreveu fromCastType
-        // para o inner, então este guard não dispara em dobro para vars).
-        if (fromCastType instanceof Type.NullableType ntCast
-                && TypeMetrics.isPrimitiveType(ntCast.inner())) {
-            CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops, fromCastType, ntCast.inner());
-            fromCastType = ntCast.inner();
-        }
-        Type fromT = fromCastType;
+        // a `Long?` SOURCE is the boxed wrapper (the PR #1071 face): open it
+        // before the arithmetic paths; the narrowed VAR #1097 face below already
+        // rewrote fromCastType to the inner, so this guard is inert there.
+        Type fromT = CompilerEmissionHelpers.emitNarrowedNullableUnbox(driver, ops, fromCastType, targetType);
         driver.emitWideningIfNeeded(ops, fromT, targetType);
         // narrowing numérico (cast explícito): L2I, F2I, D2I,
         // F2L, D2L + os estreitos byte/short/char (#1087: o passo
@@ -93,9 +88,10 @@ final class ExpressionBinaryInstanceOfLowerer {
         if (targetType instanceof Type.FunctionType ft) {
             castTarget = CompilerLambdaClass.lambdaInterfaceType(driver, ft);
         }
-        if (TypeMetrics.isPrimitiveType(fromCastType)
-                && !TypeMetrics.isPrimitiveType(targetType)
-                && !(fromCastType instanceof Type.NullableType)) {
+        // §777: a `T?` primitive is already a boxed reference — re-boxing it
+        // emitted `Long.valueOf(Ljava/lang/Long;)` (NoSuchMethodError).
+        if (TypeMetrics.isPrimitiveType(fromCastType) && !TypeMetrics.isNullablePrimitive(fromCastType)
+                && !TypeMetrics.isPrimitiveType(targetType)) {
             // §213: cast de PRIMITIVO → REFERÊNCIA (`i as Object`, `7 as Object`)
             // emitia o primitivo cru seguido de checkcast → VerifyError
             // ("Bad type on operand stack" — um int não é assignable a

@@ -148,6 +148,18 @@ final class KofFormatterExpr {
     }
 
     /**
+     * §786: the receiver of a call, field access or index binds tighter than
+     * any operator (parsePostfix), so a binary/unary/assignment/if/switch/
+     * lambda receiver keeps its parentheses: `("" + x).trim()` printed as
+     * `"" + x.trim()` was a different program (and `(o as T).f()` lost its cast).
+     */
+    private static String receiver(ExpressionNode r, LanguageProfile p) {
+        String s = formatExpr(r, p, 10);
+        return r instanceof UnaryExpr || r instanceof AssignmentExpr || r instanceof IfExpr
+                || r instanceof SwitchExpr || r instanceof LambdaExpr ? "(" + s + ")" : s;
+    }
+
+    /**
      * Slot de nome-identificador: `this`/`super` chegam canonicos do lexer
      * (medido: `este` → IdentifierExpr "this") e saem na grafia do perfil;
      * QUALQUER outro nome passa VERBATIM — o canônico de um identificador é a

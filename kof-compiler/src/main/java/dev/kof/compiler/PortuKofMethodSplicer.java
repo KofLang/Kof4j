@@ -175,6 +175,11 @@ public final class PortuKofMethodSplicer {
                 yield c == w.condition() && b == w.body() ? w
                         : new WhileStmt(w.position(), c, b);
             }
+            case LockStmt l -> {
+                ExpressionNode c = expr(l.target());
+                StatementNode b = stmt(l.body());
+                yield c == l.target() && b == l.body() ? l : new LockStmt(l.position(), c, b);
+            }
             case DoWhileStmt d -> {
                 ExpressionNode c = expr(d.condition());
                 StatementNode b = stmt(d.body());

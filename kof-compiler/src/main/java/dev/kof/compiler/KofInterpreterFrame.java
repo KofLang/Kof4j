@@ -71,7 +71,7 @@ public final class KofInterpreterFrame {
             while (f.stack.size() > r.stackDepth()) f.stack.pop();
             while (!f.tryStack.isEmpty() && f.tryStack.peek() != r) f.tryStack.pop();
             if (!f.tryStack.isEmpty()) f.tryStack.pop();
-            if ("String".equals(r.exceptionType()) && exc instanceof RuntimeException re) {
+            if ("String".equals(r.exceptionType()) && exc instanceof Exception re) {
                 exc = re.getMessage();
             }
             f.stack.push(exc);
@@ -86,7 +86,7 @@ public final class KofInterpreterFrame {
                 || "Exception".equals(kofType) || "RuntimeException".equals(kofType)) {
             return exc instanceof Throwable;
         }
-        if ("String".equals(kofType)) return exc instanceof RuntimeException;
+        if ("String".equals(kofType)) return exc instanceof Exception; // §810
         if (exc instanceof KofInterpreter.KofObj ko) {
             IRClass c = interp.classByInternal(ko.internalName());
             while (c != null) {

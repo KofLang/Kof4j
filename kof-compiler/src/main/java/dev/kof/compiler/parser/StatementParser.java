@@ -56,6 +56,7 @@ public class StatementParser {
                 && ctx.checkNext(TokenType.LPAREN)) {
             return UsingParser.parseUsingStatement(ctx);
         }
+        if (LockParser.atLockStatement(ctx)) return LockParser.parseLockStatement(ctx); // G240
         if (ctx.check(TokenType.LBRACE)) {
             return new BlockStmt(ctx.pos(), StatementParser.parseBlock(ctx));
         }

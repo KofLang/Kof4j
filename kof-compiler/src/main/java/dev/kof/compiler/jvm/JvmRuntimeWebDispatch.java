@@ -2,7 +2,7 @@ package dev.kof.compiler.jvm;
 import dev.kof.compiler.Type;
 
 /**
- * Web JVM: dispatch de rotas, invoke de handlers, build de resposta, readRequest e acessores de contexto.
+ * Web JVM: dispatch de rotas, invoke de handlers, build de resposta e acessores de contexto.
  * Extraído de JvmRuntime.source (REFACTOR-500 Fase 5) — fragmento de source
  * do KofRuntime gerado; concatenação preserva ordem e conteúdo byte-a-byte.
  */
@@ -153,6 +153,7 @@ public final class JvmRuntimeWebDispatch {
                     //    sessionHeader (modo sessão da lane .22), o passo 4
                     //    já validou o token de sessão — não reinterpretar como
                     //    JWT (senão sessão válida viraria 401).
+                    //    §781: auth-if-present only under app.security()/policy (D-SEC.4).
                     if (p.requireAuth
                             || (app.securityConfigured
                                     && p.authHeader == null
@@ -381,7 +382,7 @@ public final class JvmRuntimeWebDispatch {
                                 if (ranged && (start > end || start >= total)) {
                                     String h416 = "HTTP/1.1 416 Range Not Satisfiable\\r\\n"
                                             + "Content-Range: bytes */" + total + "\\r\\n"
-                                            + "Content-Length: 0\\r\\nConnection: close\\r\\n\\r\\n";
+                                            + "Content-Length: 0\\r\\n\\r\\n";
                                     return new WebDispatchResult(RouteKind.HTTP, h416, null);
                                 }
                                 byte[] staticBody = kof_web_static_read(start, end);
@@ -395,8 +396,7 @@ public final class JvmRuntimeWebDispatch {
                                             ? "Content-Range: bytes " + start + "-"
                                                     + (start + staticBody.length - 1) + "/" + total + "\\r\\n"
                                             : "")
-                                            + "Content-Length: " + staticBody.length + "\\r\\n"
-                                            + "Connection: close\\r\\n\\r\\n";
+                                            + "Content-Length: " + staticBody.length + "\\r\\n\\r\\n";
                                     return new WebDispatchResult(
                                             RouteKind.HTTP, head, null, staticBody);
                                 }
@@ -506,7 +506,9 @@ public final class JvmRuntimeWebDispatch {
                     if (extra != null) {
                         for (java.util.Map.Entry<String, String> e : extra.entrySet()) {
                             if (e.getKey().equalsIgnoreCase("Content-Type")) hasContentType = true;
-                            hdr.append(e.getKey()).append(": ").append(e.getValue()).append("\\r\\n");
+                            for (String v : e.getValue().split("\\n")) {   // §784: repeated Set-Cookie
+                                hdr.append(e.getKey()).append(": ").append(v).append("\\r\\n");
+                            }
                         }
                     }
                     // #1012: UMA linha por Set-Cookie (RFC 6265 §3), na ordem
@@ -528,7 +530,6 @@ public final class JvmRuntimeWebDispatch {
                             + ctHeader
                             + hdr.toString()
                             + "Content-Length: " + bodyBytes.length + "\\r\\n"
-                            + "Connection: close\\r\\n"
                             + "\\r\\n"
                             + body;
                 }
