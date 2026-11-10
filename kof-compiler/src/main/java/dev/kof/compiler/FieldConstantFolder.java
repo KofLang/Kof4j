@@ -22,10 +22,10 @@ final class FieldConstantFolder {
         if (expr == null) return null;
         if (expr instanceof LiteralExpr lit) {
             return switch (lit.kind()) {
-                case ConcreteLiteralKind.INT -> driver.parseIntLiteral(lit.value());
-                case ConcreteLiteralKind.LONG -> driver.parseLongLiteral(lit.value());
-                case ConcreteLiteralKind.FLOAT -> Float.parseFloat(driver.stripSuffix(lit.value()));
-                case ConcreteLiteralKind.DOUBLE -> Double.parseDouble(driver.stripSuffix(lit.value()));
+                case ConcreteLiteralKind.INT -> CompilerTypeSupport.parseIntLiteral(lit.value());
+                case ConcreteLiteralKind.LONG -> CompilerTypeSupport.parseLongLiteral(lit.value());
+                case ConcreteLiteralKind.FLOAT -> Float.parseFloat(CompilerTypeSupport.stripSuffix(lit.value()));
+                case ConcreteLiteralKind.DOUBLE -> Double.parseDouble(CompilerTypeSupport.stripSuffix(lit.value()));
                 case ConcreteLiteralKind.STRING -> lit.value();
                 case ConcreteLiteralKind.BOOLEAN -> Boolean.parseBoolean(lit.value()) ? 1 : 0;
                 default -> null;
