@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §789 (FIXED)
 last: §808 (FIXED)
 last: §807 (FIXED)
 last: §802 (FIXED)
@@ -588,6 +589,17 @@ Observed: `PKG006 import 'com.sun.management.OperatingSystemMXBean' not found in
 
 **Fix:** a `com.sun` class or package counts as JDK when a named `jdk.*` module exports its package (`isExportedComSunImport`, cached per name). The internal `com.sun` packages (not exported) stay `PKG006`. **Proof:** `JdkComSunApiImportE2ETest` 2/2 (`OperatingSystemMXBean` and `HttpServer` compile and run; `com.sun.org.apache.xerces.internal.util.XMLChar` is still `PKG006`).
 <!-- pt-switch --> **PT:** [§808 (pt_BR)](known-bugs.pt_BR.md#808--as-apis-comsun-suportadas-do-jdk-comsunmanagementoperatingsystemmxbean-comsunnethttpserverhttpserver-nao-podiam-ser-importadas-pkg006)
+
+## §789 — `kof run` of a file under `[sources] app` resolved imports from the project root (PKG006)
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `edcc39114`).
+
+**MEASURED:** a project with `kof.toml` declaring `[sources] app = "src/main/kof"`, `src/main/kof/exemplo/Calculo.kf` (`package exemplo`) and `src/main/kof/Main.kf` importing `exemplo.Calculo`: `kof build` and `kof test` work (D-CLI-SOURCE-ROOTS), but `kof run src/main/kof/Main.kf` fails with `import 'exemplo.Calculo' not found in the module [PKG006]`: the import was looked up under the project root, where `exemplo/` does not exist.
+
+**ROOT CAUSE:** `CompilerPipeline.rootFor` (used by `kof run` through `CompilerDriver.resolveModuleRoot`) returned the directory of `kof.toml` and never read `[sources]`; only `build`/`test` consulted the declared roots.
+
+**Fix:** when the project declares `[sources] app` and the source lives under it, that root is the module root; anything else keeps the project root (behavior without `[sources]` is unchanged). **Proof:** `TwoRootsCliE2ETest.runFromTheDeclaredAppRootResolvesItsPackages`; on the old code it fails with PKG006.
+<!-- pt-switch --> **PT:** [§789 (pt_BR)](known-bugs.pt_BR.md#789--o-kof-run-de-um-arquivo-sob-sources-app-resolvia-imports-a-partir-da-raiz-do-projeto-pkg006)
 
 ## §168 — SEM025 missing for unknown method in namespace `json` — ✅ FIXED 13/09 (lane development/translator, owner = 192.168.100.22)
 

@@ -46,7 +46,14 @@ public final class CompilerPipeline {
         // `import shared.Validation` só resolvem a partir de tmp/.
         for (Path s : sources) {
             Path project = ProjectLocator.locate(s);
-            if (project != null) return project;
+            if (project != null) {
+                // §789 (D-CLI-SOURCE-ROOTS): a source under the declared
+                // `[sources] app` root resolves imports from that root, as
+                // `kof build`/`kof test` already do; otherwise the project root.
+                Path app = KofProjectConfig.resolveSourceRoot(project,
+                        KofProjectConfig.load(project).sourceApp(), null);
+                return app != null && s.toAbsolutePath().normalize().startsWith(app) ? app : project;
+            }
         }
         return ModuleRoots.moduleRootFor(sources);
     }
