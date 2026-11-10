@@ -1,4 +1,5 @@
 [English](CHANGELOG.md) | [Português](CHANGELOG.pt_BR.md)
+- **fix(web)+test: §798 ✅ CORRIGIDO — um segmento literal de rota ganha de um `:param` no primeiro segmento em que duas rotas diferem (`/posts/seals` antes de `/posts/:id`), seja qual for a ordem de registro, na JVM e no JS; o `listen` JS não lança mais com duas rotas :param de mesmo prefixo estático.** Prova: `WebRoutePrecedenceE2ETest` 2/2.
 - **fix(compiler)+test: §797 ✅ CORRIGIDO — dentro de uma classe, um nome nu lido com um campo e um método de mesmo nome é o campo (`viewing.get(k)` num campo Map), não o retorno do método (SEM066); a forma de chamada segue chegando no método.** Prova: `FieldMethodSameNameE2ETest` 2/2.
 - **fix(compiler)+test: §795 ✅ CORRIGIDO — `throw e` de um `String?` estreitado é embrulhado na exceção do Kof na JVM como um `String`, em vez de um `athrow` cru (VerifyError).** Prova: `ThrowNarrowedStringE2ETest`.
 - **fix(cli)+test: §794 ✅ CORRIGIDO — `kof fmt` aceita `-w` em qualquer posição e formata todo caminho dado (`kof fmt -w src/*.kf`), em vez de `not found: -w` ou só o primeiro caminho.** Prova: `FmtTest` 4/4.

@@ -92,6 +92,7 @@ The body `{ ... }` is a trailing lambda — the route handler. A handler can
 also be passed explicitly: `app.get("/x", handler)`.
 
 - `path` supports segments with a parameter: `/users/:id` (`:` prefix).
+- When several routes match, the literal one wins: at the first segment where two routes differ, a literal segment beats a `:param` (`/posts/seals` before `/posts/:id`), whatever the registration order (JVM and JS).
 - The handler returns `String` (response body, 200) or `null` (404).
 - The response detects JSON automatically when the body starts with `{` or `[`
   (`Content-Type: application/json`).

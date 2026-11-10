@@ -1,4 +1,5 @@
 [English](CHANGELOG.md) | [Português](CHANGELOG.pt_BR.md)
+- **fix(web)+test: §798 ✅ FIXED — a literal route segment wins over a `:param` at the first segment where two routes differ (`/posts/seals` before `/posts/:id`), whatever the registration order, on the JVM and JS; JS `listen` no longer throws on two :param routes with the same static prefix.** Proof: `WebRoutePrecedenceE2ETest` 2/2.
 - **fix(compiler)+test: §797 ✅ FIXED — inside a class, a bare name read with a field and a method of the same name is the field (`viewing.get(k)` on a Map field), not the method's return type (SEM066); the call form still reaches the method.** Proof: `FieldMethodSameNameE2ETest` 2/2.
 - **fix(compiler)+test: §795 ✅ FIXED — `throw e` of a narrowed `String?` is wrapped into the Kof exception on the JVM like a `String`, instead of a raw `athrow` (VerifyError).** Proof: `ThrowNarrowedStringE2ETest`.
 - **fix(cli)+test: §794 ✅ FIXED — `kof fmt` takes `-w` in any position and formats every path given (`kof fmt -w src/*.kf`), instead of `not found: -w` or only the first path.** Proof: `FmtTest` 4/4.

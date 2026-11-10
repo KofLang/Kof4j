@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §798 (FIXED)
 last: §797 (FIXED)
 last: §795 (FIXED)
 last: §794 (FIXED)
@@ -457,6 +458,26 @@ Observed: `String has no "get" method` (SEM066) at `viewing.get(k)`: the field r
 
 **Fix:** a bare name is a value, so both arms take the field first: the semantic arm swaps a method hit for `resolveField`, and both class-member lookups use `MemberResolver.resolveFieldInHierarchy` (fields first, then the old lookup, so a zero-argument method read keeps working). The call form `viewing(k)` still reaches the method. **Proof:** `FieldMethodSameNameE2ETest` 2/2 (field after and before the method; the field, the method call and `this.viewing` all answer the right member).
 <!-- pt-switch --> **PT:** [§797 (pt_BR)](known-bugs.pt_BR.md#797--a-leitura-nua-de-um-campo-dentro-da-classe-resolvia-para-um-metodo-de-mesmo-nome-viewinggetk-num-campo-map-viewing-era-tipado-string-sem066)
+
+## §798 — the JVM router answered by registration order: `GET /posts/:id` registered first swallowed `GET /posts/seals`; on JS two :param routes with the same static prefix killed `listen`
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED:**
+```kof
+main() {
+    var app = web.app()
+    app.get("/posts/:id") { return "param " + param("id") }
+    app.get("/posts/seals") { return "literal" }
+    app.listen(8080)
+}
+```
+Observed on the JVM: `GET /posts/seals` answers `param seals`. JS answered `literal` (an exact-path lookup runs first) but picked the first registered of two `:param` routes, and `/:a/b/:c` next to `/:a/:b/c` made `listen` throw (`createContext` twice on `/`), so the server never answered.
+
+**ROOT CAUSE:** the JVM keeps `WebApp.routes` in registration order and both matchers return the first route that fits. The JS listener derives one `HttpServer` context per route from its static prefix and created duplicates.
+
+**Fix:** `WebRoute.addTo` inserts each route before the first route of the same length that is less specific (at the first segment where they differ, a literal beats a `:param`, Spring's rule; equal shapes keep registration order), for HTTP, SSE and WS routes alike. The JS matcher keeps the most specific of the matching `:param` routes by the same rule, and creates each context prefix once. The Native router matches exact paths only (path params are its documented `WEB001` residual), so the order question does not arise there. **Proof:** `WebRoutePrecedenceE2ETest` 2/2 (JVM and JS: `/posts/seals` is the literal route, `/posts/7` the param one, and the first-differing-segment rule on three-segment routes); `KofWebJsE2ETest` unchanged.
+<!-- pt-switch --> **PT:** [§798 (pt_BR)](known-bugs.pt_BR.md#798--o-roteador-jvm-respondia-pela-ordem-de-registro-get-postsid-registrado-antes-engolia-get-postsseals-no-js-duas-rotas-param-com-o-mesmo-prefixo-estatico-matavam-o-listen)
 
 ## §168 — SEM025 missing for unknown method in namespace `json` — ✅ FIXED 13/09 (lane development/translator, owner = 192.168.100.22)
 

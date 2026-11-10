@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §798 (FIXED)
 last: §797 (FIXED)
 last: §795 (FIXED)
 last: §794 (FIXED)
@@ -456,6 +457,26 @@ Observado: `String has no "get" method` (SEM066) em `viewing.get(k)`: a leitura 
 
 **Correção:** um nome nu é um valor, então os dois braços pegam o campo primeiro: o braço semântico troca um acerto de método pelo `resolveField`, e as duas buscas de membro de classe usam `MemberResolver.resolveFieldInHierarchy` (campos primeiro, depois a busca antiga, então a leitura de um método sem argumentos segue funcionando). A forma de chamada `viewing(k)` continua chegando no método. **Prova:** `FieldMethodSameNameE2ETest` 2/2 (campo depois e antes do método; o campo, a chamada do método e `this.viewing` respondem o membro certo).
 <!-- pt-switch --> **EN:** [§797 (en)](known-bugs.md#797--a-bare-field-read-inside-a-class-resolved-to-a-method-of-the-same-name-viewinggetk-on-a-map-field-viewing-was-typed-string-sem066)
+
+## §798 — o roteador JVM respondia pela ordem de registro: `GET /posts/:id` registrado antes engolia `GET /posts/seals`; no JS duas rotas :param com o mesmo prefixo estático matavam o `listen`
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `4f7257933`).
+
+**MEDIDO:**
+```kof
+main() {
+    var app = web.app()
+    app.get("/posts/:id") { return "param " + param("id") }
+    app.get("/posts/seals") { return "literal" }
+    app.listen(8080)
+}
+```
+Observado na JVM: `GET /posts/seals` responde `param seals`. O JS respondia `literal` (uma busca por caminho exato roda antes) mas escolhia a primeira registrada de duas rotas `:param`, e `/:a/b/:c` ao lado de `/:a/:b/c` fazia o `listen` lançar (`createContext` duas vezes em `/`), então o servidor nunca respondia.
+
+**CAUSA RAIZ:** a JVM guarda `WebApp.routes` na ordem de registro e os dois matchers devolvem a primeira rota que serve. O listener JS deriva um contexto do `HttpServer` por rota a partir do prefixo estático e criava duplicados.
+
+**Correção:** `WebRoute.addTo` insere cada rota antes da primeira rota de mesmo tamanho que seja menos específica (no primeiro segmento em que diferem, um literal ganha de um `:param`, a regra do Spring; formas iguais mantêm a ordem de registro), para rotas HTTP, SSE e WS. O matcher JS fica com a mais específica das rotas `:param` que casam pela mesma regra, e cria cada prefixo de contexto uma vez. O roteador Native casa só caminhos exatos (path params são o resíduo documentado `WEB001` dele), então a questão da ordem não aparece lá. **Prova:** `WebRoutePrecedenceE2ETest` 2/2 (JVM e JS: `/posts/seals` é a rota literal, `/posts/7` a de parâmetro, e a regra do primeiro segmento diferente em rotas de três segmentos); `KofWebJsE2ETest` inalterado.
+<!-- pt-switch --> **EN:** [§798 (en)](known-bugs.md#798--the-jvm-router-answered-by-registration-order-get-postsid-registered-first-swallowed-get-postsseals-on-js-two-param-routes-with-the-same-static-prefix-killed-listen)
 
 ## §168 — SEM025 ausente para método desconhecido em namespace `json` — ✅ CORRIGIDO 13/09 (lane development/translator, dono = 192.168.100.22)
 
