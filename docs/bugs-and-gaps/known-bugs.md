@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §774 (FIXED)
 last: §773 (FIXED)
 last: §772 (FIXED)
 last: §937 (FIXED)
@@ -114,6 +115,27 @@ Observed: `kof run Main.kf --deps` compiles and runs; `kof check Main.kf` report
 
 **Fix:** the connection loop serves requests until the client or the server closes (RFC 9112 §9.3): HTTP/1.1 is persistent unless `Connection: close`; HTTP/1.0 only with `Connection: keep-alive`; a request with `Transfer-Encoding` (not framed by the reader) closes; an idle persistent connection closes after 5 s; SSE and WebSocket keep taking the socket over. `readRequest` (moved to `JvmRuntimeWebServer`) reads exactly the head and `Content-Length` body bytes from a buffered stream, so pipelined requests are answered in order. The `Connection` header is written once, at the single write site, instead of in each response builder. Test clients that read a response until EOF now frame it by `Content-Length` (`TestServerFixture.readResponse`), as an HTTP/1.1 client must. **Proof:** `KofWebKeepAliveE2ETest` 4/4 (two requests on one socket, a pipelined POST with a UTF-8 body followed by a GET with `Connection: close`, HTTP/1.0, the idle close); the web suites (`KofWebE2ETest`, `KofWebHardeningTest`, `KofWebStreamE2ETest`, `KofWebSseE2ETest`, `KofWebWsE2ETest`, `KofWebTlsTest`, `KofWebTlsVerifyTest`, `KofMediaE2ETest`, `KofHttpPoliciesE2ETest`, `PaginationPageRequestE2ETest`, `KofOAuthResourceServerTest`, `KofBlogE2ETest`, `KofLogE2ETest`, `KofHttpServerTest`, ...) 141 tests, 1 failure that also fails on the base commit (`KofLogE2ETest.nativeAndJsSupported`, native toolchain absent on the measuring host). Native/JS keep one request per connection (`WEB001` residual, unchanged).
 <!-- pt-switch --> **PT:** [§773 (pt_BR)](known-bugs.pt_BR.md#773--o-servidor-web-jvm-fechava-a-conexao-depois-de-cada-resposta-sem-keep-alive-http11)
+
+## §774 — A `throw` inside a `catch` skipped the `finally` of the same `try` (JVM, Script and JS)
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1, where it leaked pooled JDBC connections, and re-measured on `upstream/main` `3a2952641`).
+
+**MEASURED:**
+```kof
+void release() { println("release") }
+void run() {
+    try { throw "boom" } catch (String e) { throw "wrapped:" + e } finally { release() }
+}
+main() {
+    try { run() } catch (String e) { println("caught " + e) }
+}
+```
+Observed on JVM, Script and JS: `caught wrapped:boom` only; `release` never prints. javac prints `release` then `caught wrapped:boom` (JLS 14.20.2: the finally runs whatever way the catch completes).
+
+**ROOT CAUSE:** `StatementLowererTry` registered every handler of a `try`, the finally's catch-all included, over the try body only (`KofTryStart`..`tryEnd`). An exception raised inside a catch body was therefore outside every handler of its own `try` and propagated without running the finally. javac's catch-all covers the try body and the catch bodies.
+
+**Fix:** the lowering emits `try {T} catch {C} finally {F}` as `try { try {T} catch {C} } finally {F}` — the JLS equivalence — so the finally's handler guards the catch bodies through the existing nested-try machinery, on every target, with no backend change. **Proof:** `CatchThrowRunsFinallyE2ETest` (rethrow from a catch, return from a catch, a counted nested case, the normal path) passes on JVM, Script and JS; on the old code all three fail. The native x86-64/riscv64/aarch64 faces are in the same test and were not measured on the macOS host (no Linux ELF toolchain); the `finally`-bearing suites (310 classes, 904 tests) fail exactly the same 92 native/environmental tests as the base commit.
+<!-- pt-switch --> **PT:** [§774 (pt_BR)](known-bugs.pt_BR.md#774--um-throw-dentro-de-um-catch-pulava-o-finally-do-mesmo-try-jvm-script-e-js)
 
 ## §168 — SEM025 missing for unknown method in namespace `json` — ✅ FIXED 13/09 (lane development/translator, owner = 192.168.100.22)
 

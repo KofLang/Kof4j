@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §774 (FIXED)
 last: §773 (FIXED)
 last: §772 (FIXED)
 last: §937 (FIXED)
@@ -113,6 +114,27 @@ Observado: `kof run Main.kf --deps` compila e roda; `kof check Main.kf` reporta 
 
 **Correção:** o laço da conexão atende requisições até o cliente ou o servidor fechar (RFC 9112 §9.3): HTTP/1.1 é persistente salvo `Connection: close`; HTTP/1.0 só com `Connection: keep-alive`; uma requisição com `Transfer-Encoding` (não enquadrada pelo leitor) fecha; uma conexão persistente ociosa fecha após 5 s; SSE e WebSocket continuam assumindo o socket. O `readRequest` (movido para o `JvmRuntimeWebServer`) lê exatamente o cabeçalho e os bytes de `Content-Length` de um stream bufferizado, então requisições em pipeline são respondidas em ordem. O header `Connection` é escrito uma vez, no único ponto de escrita, em vez de em cada construtor de resposta. Clientes de teste que liam a resposta até EOF agora enquadram pela `Content-Length` (`TestServerFixture.readResponse`), como um cliente HTTP/1.1 deve. **Prova:** `KofWebKeepAliveE2ETest` 4/4 (duas requisições num socket, um POST em pipeline com corpo UTF-8 seguido de um GET com `Connection: close`, HTTP/1.0, o fechamento por ociosidade); as suítes web (`KofWebE2ETest`, `KofWebHardeningTest`, `KofWebStreamE2ETest`, `KofWebSseE2ETest`, `KofWebWsE2ETest`, `KofWebTlsTest`, `KofWebTlsVerifyTest`, `KofMediaE2ETest`, `KofHttpPoliciesE2ETest`, `PaginationPageRequestE2ETest`, `KofOAuthResourceServerTest`, `KofBlogE2ETest`, `KofLogE2ETest`, `KofHttpServerTest`, ...) 141 testes, 1 falha que também falha no commit base (`KofLogE2ETest.nativeAndJsSupported`, toolchain nativa ausente no host de medição). Native/JS seguem com uma requisição por conexão (residual `WEB001`, inalterado).
 <!-- pt-switch --> **EN:** [§773 (en)](known-bugs.md#773--the-jvm-web-server-closed-the-connection-after-every-response-no-http11-keep-alive)
+
+## §774 — Um `throw` dentro de um `catch` pulava o `finally` do mesmo `try` (JVM, Script e JS)
+
+**Status:** ✅ CORRIGIDO 04/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada, onde vazava conexões JDBC do pool, e medido de novo no `upstream/main` `3a2952641`).
+
+**MEDIDO:**
+```kof
+void release() { println("release") }
+void run() {
+    try { throw "boom" } catch (String e) { throw "wrapped:" + e } finally { release() }
+}
+main() {
+    try { run() } catch (String e) { println("caught " + e) }
+}
+```
+Observado em JVM, Script e JS: só `caught wrapped:boom`; `release` nunca imprime. O javac imprime `release` e depois `caught wrapped:boom` (JLS 14.20.2: o finally roda qualquer que seja a forma como o catch termina).
+
+**CAUSA RAIZ:** o `StatementLowererTry` registrava todo handler de um `try`, inclusive o catch-all do finally, só sobre o corpo do try (`KofTryStart`..`tryEnd`). Uma exceção levantada dentro de um corpo de catch ficava fora de todos os handlers do próprio `try` e propagava sem rodar o finally. O catch-all do javac cobre o corpo do try e os corpos dos catch.
+
+**Correção:** o lowering emite `try {T} catch {C} finally {F}` como `try { try {T} catch {C} } finally {F}` — a equivalência da JLS — então o handler do finally protege os corpos de catch pela maquinaria de try aninhado já existente, em todos os alvos, sem mudança de backend. **Prova:** `CatchThrowRunsFinallyE2ETest` (rethrow de um catch, return de um catch, um caso aninhado contado, o caminho normal) passa em JVM, Script e JS; no código antigo os três falham. As faces nativas x86-64/riscv64/aarch64 estão no mesmo teste e não foram medidas no host macOS (sem toolchain ELF Linux); as suítes com `finally` (310 classes, 904 testes) falham exatamente os mesmos 92 testes nativos/ambientais do commit base.
+<!-- pt-switch --> **EN:** [§774 (en)](known-bugs.md#774--a-throw-inside-a-catch-skipped-the-finally-of-the-same-try-jvm-script-and-js)
 
 ## §168 — SEM025 ausente para método desconhecido em namespace `json` — ✅ CORRIGIDO 13/09 (lane development/translator, dono = 192.168.100.22)
 
