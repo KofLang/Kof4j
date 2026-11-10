@@ -210,11 +210,16 @@ app.get("/api/hide") { return "hide" }                          // herda desliga
 | Chamada | Descrição |
 |---------|-----------|
 | `app.listen(port)` | Inicia o servidor (bloqueante) em `0.0.0.0` |
+| `app.listen(host, port)` | Idem, vinculado a uma interface só, ex. `"127.0.0.1"` (JVM, JS; Native `WEB001`) |
 | `app.listenSecure(port)` | Idem, com TLS (JVM; self-signed `keytool` + `SSLServerSocket`) |
 | `app.port()` | Porta efetivamente vinculada (útil com `listen(0)`) |
 | `app.close()` | Encerra o servidor (graceful shutdown) |
 
 `app.listen(0)` vincula uma porta efêmera; `app.port()` revela a porta real.
+Um serviço para a máquina local (servidor de teste, sidecar) usa
+`app.listen("127.0.0.1", port)`: o curinga é alcançável pela rede, e no macOS
+um bind curinga pode dividir uma porta que outro processo segura em 127.0.0.1,
+então um cliente de 127.0.0.1 chegaria nesse processo (§825).
 `app.listenSecure` está disponível no JVM (Native/JS `WEB002`).
 
 **Conexões persistentes (JVM):** conexões HTTP/1.1 ficam abertas entre

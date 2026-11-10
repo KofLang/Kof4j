@@ -278,9 +278,12 @@ void handleRuntimeOp(MethodCtx ctx, List<Object> stack,
                 JsIr.JsExpression call = new JsIr.JsCall(new JsIr.JsIdentifier("kofWebSseRoute"), args);
                 throw new StatementEnd(call);
             }
-            if (name.equals("kof_web_listen")) {
+            if (name.equals("kof_web_listen") || name.equals("kof_web_listen_host")) {
                 p.lc.registerRuntime("kofWebListen");
-                JsIr.JsExpression call = new JsIr.JsCall(new JsIr.JsIdentifier("kofWebListen"), args);
+                // §825: the host form passes (appId, host, port); the runtime takes (appId, port, host?).
+                List<JsIr.JsExpression> listenArgs = args.size() == 3
+                        ? List.of(args.get(0), args.get(2), args.get(1)) : args;
+                JsIr.JsExpression call = new JsIr.JsCall(new JsIr.JsIdentifier("kofWebListen"), listenArgs);
                 if (Type.isVoid(kc.returnType())) {
                     throw new StatementEnd(call);
                 }

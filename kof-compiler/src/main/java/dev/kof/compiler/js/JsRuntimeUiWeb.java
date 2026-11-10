@@ -306,7 +306,7 @@ public final class JsRuntimeUiWeb {
                 app._register(method, path, handler);
                 return 0;
             }
-            export function kofWebListen(appId, port) {
+            export function kofWebListen(appId, port, host) {
                 const app = kofWebApps.get(appId);
                 if (!app) throw new Error("Invalid app handle: " + appId);
                 if (kofWebPending === null) {
@@ -315,7 +315,9 @@ public final class JsRuntimeUiWeb {
                 kofWebPort = port | 0 || 8080;
                 const HttpServer = Java.type('com.sun.net.httpserver.HttpServer');
                 const InetSocketAddress = Java.type('java.net.InetSocketAddress');
-                kofWebServer = HttpServer.create(new InetSocketAddress(kofWebPort), 0);
+                // §825: listen(host, port) binds one interface; listen(port) is the wildcard.
+                kofWebServer = HttpServer.create(host === undefined
+                        ? new InetSocketAddress(kofWebPort) : new InetSocketAddress(host, kofWebPort), 0);
                 const ctxPaths = new Set();
                 for (const [key, handler] of app.handlers) {
                     const path = key.slice(key.indexOf(":") + 1);

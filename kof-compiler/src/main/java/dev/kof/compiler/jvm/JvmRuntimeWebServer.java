@@ -13,15 +13,20 @@ public final class JvmRuntimeWebServer {
     static String source() {
         return """
                 public static void kof_web_listen(String appId, int port) {
+                    kof_web_listen_host(appId, "0.0.0.0", port);
+                }
+
+                /** §825: listen(host, port) binds one interface; listen(port) is 0.0.0.0. */
+                public static void kof_web_listen_host(String appId, String host, int port) {
                     WebApp app = kof_web_app(appId);
                     if (app.serverSocket != null) {
                         throw new IllegalStateException("app already listening: " + appId);
                     }
                     try {
                         app.serverSocket = new java.net.ServerSocket(port, 64,
-                                java.net.InetAddress.getByName("0.0.0.0"));
+                                java.net.InetAddress.getByName(host));
                     } catch (java.io.IOException e) {
-                        throw new RuntimeException("cannot bind port " + port + ": " + e.getMessage(), e);
+                        throw new RuntimeException("cannot bind " + host + ":" + port + ": " + e.getMessage(), e);
                     }
                     app.running = true;
                     kof_web_warn_security_default(app);
