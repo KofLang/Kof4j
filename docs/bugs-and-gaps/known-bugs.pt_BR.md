@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §779 (FIXED)
 last: §786 (FIXED)
 last: §784 (FIXED)
 last: §781 (FIXED)
@@ -238,6 +239,28 @@ reescrevia como `"" + city.trim()`, `a + "," + b.split(",")` e `o as Box.v`. O p
 
 **Correção:** um helper imprime o receptor pós-fixo acima de toda precedência binária e envolve as formas unária/atribuição/`if`/`switch`/lambda. **Prova:** `KofFormatterReceiverParensTest` (receptores de concatenação, `split` num `for`, cast, aritmética, unário e cast de concatenação; idempotente; o programa formatado imprime o mesmo que o original); no código antigo falha. A outra face relatada junto (`void noop() { }` impresso como `noop();`) compila e roda igual, então é estética e não faz parte desta correção.
 <!-- pt-switch --> **EN:** [§786 (en)](known-bugs.md#786--kof-fmt-dropped-the-parentheses-of-a-callfieldindex-receiver---xtrim-became---xtrim-a-different-program)
+
+## §779 — `implements I` para uma interface Kof declarada em pacote emitia o nome da interface sem pacote (NoClassDefFoundError)
+
+**Status:** ✅ CORRIGIDO 04/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/main` `edcc39114`).
+
+**MEDIDO** (alvo JVM, raiz de módulo `src/`):
+```kof
+// src/kernel/p/P.kf
+package kernel.p
+interface PIface { String f() }
+class SameImpl implements PIface { String f() { return "same" } }
+// src/app/Main.kf
+package app
+import kernel.p.*
+class OtherImpl implements PIface { String f() { return "other" } }
+```
+Observado: compila e então `NoClassDefFoundError: PIface` no primeiro uso. O `javap` mostra `class kernel.p.SameImpl implements PIface` e `class app.OtherImpl implements PIface` enquanto a interface é `kernel/p/PIface`; vale do mesmo pacote e de outro, para `record ... implements` e para `interface J extends PIface`. O `extends` de classe em pacote já estava correto.
+
+**CAUSA RAIZ:** a superclasse resolve pelo registro primeiro (`HierarchyResolver.canonicalSuperInternal`, §308), mas os três pontos que baixam a lista de interfaces (`CompilerClassLowering.lowerClass`, `CompilerIfaceRecordLowering.lowerInterface` e `lowerRecord`) só consultavam imports explícitos e `java.lang`; uma interface do módulo alcançada por import curinga ou pelo mesmo pacote caía no nome simples cru.
+
+**Correção:** um helper, `HierarchyResolver.canonicalInterfaceInternal`, resolve cada interface declarada pelo registro primeiro (a declaração do módulo vence, como no super) e mantém a resolução por import / `java.lang` para o resto; os três pontos o usam. **Prova:** `PackageInterfaceImplementsE2ETest` 1/1 (classe do mesmo pacote, record, e classe de outro pacote implementando uma subinterface em pacote); no código antigo falha com `NoClassDefFoundError: PIface`.
+<!-- pt-switch --> **EN:** [§779 (en)](known-bugs.md#779--implements-i-for-a-kof-interface-declared-in-a-package-emitted-the-unqualified-interface-name-noclassdeffounderror)
 
 ## §168 — SEM025 ausente para método desconhecido em namespace `json` — ✅ CORRIGIDO 13/09 (lane development/translator, dono = 192.168.100.22)
 
