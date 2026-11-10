@@ -122,15 +122,33 @@ class InteropPrimitiveSlotE2ETest {
                 main() {
                     var o = Overloads()
                     var msg = new Byte[2]
-                    o.update(msg)
-                    println("called")
+                    println(o.echo(msg))
                 }
                 """);
         assertTrue(r.diagnostics().getDiagnostics().stream().anyMatch(d ->
                         d.toString().contains("SEM014")
                                 && d.toString().contains("Byte[]")),
-                "a Byte[] into a byte slot must refuse at the call site, diagnostics: "
+                "a Byte[] into a long slot must refuse at the call site, diagnostics: "
                         + r.diagnostics().getDiagnostics());
+    }
+
+    /** §770: the (a)-style exact-overload preference §554 left open — the
+     *  scalar-first {@code update(byte)} no longer shadows {@code update(byte[])}. */
+    @Test
+    void arrayArgumentBindsTheArrayOverload(@TempDir Path dir) throws Exception {
+        Path jar = fixtureJar(dir);
+        CompilationResult r = compileWith(dir, jar, "Main2.kf", """
+                import ext.Overloads
+
+                main() {
+                    var o = Overloads()
+                    var msg = new Byte[2]
+                    o.update(msg)
+                    println("called")
+                }
+                """);
+        assertTrue(r.success(), "must compile: " + r.diagnostics().getDiagnostics());
+        assertEquals("called", runJvm(dir.resolve("out-Main2-kf"), jar));
     }
 
     @Test

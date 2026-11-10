@@ -2,6 +2,8 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §800 (FIXED)
+last: §770 (FIXED)
 last: §938 (FIXED)
 last: §827 (FIXED)
 last: §823 (FIXED)
@@ -20850,6 +20852,50 @@ Defect (1) manufactures the corrupted chain in the common case; defect (2) is wh
 **Security/correctness impact:** any caller using `extractTo`'s return value as a completeness/integrity signal can be silently wrong — data can be partially or fully lost, with zero signal. Independent of the #854 TOCTOU symlink race (a different gap, fixed separately — `File(p).createNew()` landed 31/10) and does not depend on or block #852's `ZipReader` API design decision.
 
 **Fix:** `isDirEntry` now uses `e.name.endsWith("/")`, and `extractTo` throws an explicit diagnostic when `createDirectories()` or `writeBytes()` returns `false`, so a failed write is never counted. Library only — no core, grammar or runtime change. **Proof:** `ZipExtractNestedE2ETest` 2/2 (JVM and Script) and `nestedDirectoriesAndWriteFailureOnNative` 3/3 (x86-64, riscv64 and aarch64 under qemu); on the old code all 5 fail. The JS target was not measured.
+
+## §770 — A call into an overloaded external Java method picked the first overload of the same arity, ignoring the argument types (IncompatibleClassChangeError)
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `3a2952641`).
+
+**MEASURED** (JVM target, `org.flywaydb:flyway-core:11.14.1` via `kof deps`; `FluentConfiguration` declares `configuration(Configuration)` before `configuration(Map<String, String>)`):
+```kof
+import org.flywaydb.core.Flyway
+import java.util.HashMap
+main() {
+    val props = HashMap<String, String>()
+    props.put("flyway.locations", "filesystem:db")
+    val f = Flyway.configure().configuration(props)
+}
+```
+Observed: compiles with no diagnostic, then dies with `IncompatibleClassChangeError`: the call was emitted against `configuration(Lorg/flywaydb/core/api/configuration/Configuration;)`. Two sibling faces measured on the same tip: a method inherited from a superclass was never a candidate once the subclass declared any method of that name and arity, and `Path.of("x")` resolved to `Path.of(URI)` and died at load with `VerifyError`.
+
+**ROOT CAUSE:** `ExternalClasspath.findDeclared` returned the first method of the owner (then of each superclass, stopping at the first class with a match) whose name and arity matched, without looking at the argument types. The JDK path (`JdkReflectionResolver`) used a heuristic score that preferred an exact-arity method over a varargs one even when the argument did not fit. The static-call lowering (`ExpressionMethodCallLowerer`) also re-resolved with no argument types, so it could disagree with the typer. A STATIC call on an external INTERFACE owner was emitted as a `Methodref`, which the JVM rejects (it needs an `InterfaceMethodref`).
+
+**Fix:** the new `ExternalOverloads` selects by JLS 15.12.2 for jar owners (ASM, over the class, its superclasses and superinterfaces, private/bridge/synthetic excluded) and JDK owners (reflection): phase 1 subtyping and primitive widening, phase 2 boxing/unboxing, phase 3 variable arity, then the most specific applicable method. A tie between maximally specific methods is `SEM057` (the existing "call to '{0}' is ambiguous between {1} overloads" diagnostic) when every argument type is known; an argument whose type the compiler cannot prove (UNKNOWN, a lambda, a class on no classpath) never turns into an error and keeps the previous arity-based pick, as does a call with no applicable overload (whose argument checks report the mismatch as before). The static-call lowering resolves with the argument types, and `KofCall` carries `interfaceOwner` so a static call on an external interface is emitted as `invokestatic` with an `InterfaceMethodref`. **Proof:** `ExternalOverloadResolutionE2ETest` 5/5 (the Flyway shape with a `HashMap` and a Kof `mapOf`, a static overload, most specific `String` over `CharSequence`/`Object`, widening `long` over boxing `Integer`, an overload inherited from the superclass, `Path.of(String)` and `Path.of(String, String...)`, `SEM057` on a proven tie); on the old code all 5 fail. JS/Native are unaffected: an external class method already refuses there with `INTEROP003` (#760). Constructor overloads (`new Foo(x)`) resolve by the same selection — see §800. This is also the (a)-style exact-overload preference §554 left open: `update(Byte[])` on a scalar-first `update(byte)`/`update(byte[])` now binds `update(byte[])` and runs, so `InteropPrimitiveSlotE2ETest` pins that (`arrayArgumentBindsTheArrayOverload`) and keeps the §554 `SEM014` for a slot that only takes a primitive (`echo(long)` with a `Byte[]`).
+<!-- pt-switch --> **PT:** [§770 (pt_BR)](known-bugs.pt_BR.md#770--uma-chamada-a-um-metodo-java-externo-sobrecarregado-escolhia-a-primeira-sobrecarga-de-mesma-aridade-ignorando-os-tipos-dos-argumentos-incompatibleclasschangeerror)
+
+## §800 — a JDK constructor was emitted with the exact static types of its arguments: `new InputStreamReader(byteStream, "UTF-8")` looked for `<init>(ByteArrayInputStream, String)` (NoSuchMethodError)
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`). Builds on the external overload resolution of §770 and on §799.
+
+**MEASURED** (JVM target):
+```kof
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.io.ByteArrayInputStream
+main() {
+    val in0 = new ByteArrayInputStream("hi".getBytes())
+    val r = new BufferedReader(new InputStreamReader(in0, "UTF-8"))
+    println(r.readLine())
+}
+```
+Observed: `NoSuchMethodError: 'void java.io.InputStreamReader.<init>(java.io.ByteArrayInputStream, java.lang.String)'`; inside a `spawn` the task died without a trace.
+
+**ROOT CAUSE:** constructor resolution went by arity only (`resolveConstructor`), which finds nothing for a JDK class, so the lowering emitted the descriptor built from the arguments' own static types; for a jar class the first constructor of that arity won.
+
+**Fix:** the §770 selection (`ExternalOverloads`, JLS 15.12.2 phases, most specific wins) also covers `<init>`: JDK candidates come from `getConstructors()`, jar candidates from the class itself (constructors are not inherited). The analyzer and the lowering both resolve the constructor with the argument types, so the emitted descriptor is the selected constructor's. **Proof:** `ExternalCtorOverloadE2ETest` (`InputStreamReader(InputStream, String)`, `BufferedReader(Reader, int)`, `File(File, String)` run); `ExternalOverloadResolutionE2ETest`, `ExternalCtorArgTypingE2ETest` and `InteropPrimitiveSlotE2ETest` unchanged.
+<!-- pt-switch --> **PT:** [§800 (pt_BR)](known-bugs.pt_BR.md#800--um-construtor-jdk-era-emitido-com-os-tipos-estaticos-exatos-dos-argumentos-new-inputstreamreaderbytestream-utf-8-procurava-initbytearrayinputstream-string-nosuchmethoderror)
+
 <!-- pt-switch --> **PT:** [§766 (pt_BR)](known-bugs.pt_BR.md#766--archivezipextractto-corrompe-em-silencio-entradas-de-diretorio-aninhado-e-superestima-a-contagem-de-extracao)
 
 ## §936 — a source under a directory whose name is not a valid identifier (`.agent/`, `.hidden-x/`) derives an invalid package, so the JVM target fails with a mislabeled `COMP001` or a silent `ClassFormatError` (GitHub #999)
