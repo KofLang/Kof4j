@@ -23,7 +23,6 @@ last: §792 (FIXED)
 last: §769 (FIXED)
 last: §768 (FIXED)
 last: §783 (FIXED)
-last: §772 (FIXED)
 last: §782 (FIXED)
 last: §779 (FIXED)
 last: §786 (FIXED)
@@ -308,22 +307,6 @@ Observed: `ResponseHeaders.kf: List.set takes an Int INDEX; String is not an ind
 
 **Fix:** `HierarchyResolver.resolveInOwnerOrModule` looks the name up in the class being lowered (`currentLoweringOwner`, the same lookup as the emitter) before the module-wide scan. **Proof:** `StaticFieldTypeScopeE2ETest` 1/1; on the old code it fails with SEM055.
 <!-- pt-switch --> **PT:** [§782 (pt_BR)](known-bugs.pt_BR.md#782--um-campo-estatico-lido-num-metodo-estatico-era-tipado-por-um-campo-homonimo-de-outra-classe-sem055-num-arquivo-nao-relacionado)
-
-## §772 — `kof check` ignored the `kofdeps` classpath, so a third-party import that `kof run --deps` resolves failed with PKG006
-
-**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `3a2952641`).
-
-**MEASURED** (a project with `kofdeps` = `com.zaxxer:HikariCP:7.0.2`, resolved with `kof deps resolve`):
-```kof
-import com.zaxxer.hikari.HikariConfig
-main() { val c = HikariConfig() }
-```
-Observed: `kof run Main.kf --deps` compiles and runs; `kof check Main.kf` reports `PKG006` on the import, and `kof check Main.kf --deps` was refused with `check: unknown flag: --deps`. There was no way to type-check a program that uses its declared dependencies.
-
-**ROOT CAUSE:** `CmdRun` and `CmdBuild` hand `Deps.classpath()` (the `kofdeps` jars in `~/.kof/deps`) and `DepsSources.roots()` (installed Kof source packages) to the `CompilerDriver` under `--deps`; `CmdCheck` never did and had no `--deps` flag.
-
-**Fix:** `kof check` accepts `--deps` and configures the driver exactly like `kof run --deps` (same jar classpath and dependency source roots). The classpath parsing that `CmdRun` (twice) and `CmdBuild` repeated inline is now `Deps.classpathEntries()`, used by all three commands. **Proof:** `CmdCheckDepsTest` 1/1 (a jar in a fake `~/.kof/deps` and a `kofdeps` line: `check` without `--deps` stays `PKG006`, `check --deps` passes, `run --deps` runs); on the old code it fails (`unknown flag: --deps`). `CmdCheckTest`, `DepsTest`, `DepsSourceModuleTest`, `DepsTransitiveTest`, `CmdBuild*Test`, `CmdRun*Test` green (77 tests).
-<!-- pt-switch --> **PT:** [§772 (pt_BR)](known-bugs.pt_BR.md#772--kof-check-ignorava-o-classpath-do-kofdeps-entao-um-import-de-terceiros-que-o-kof-run---deps-resolve-falhava-com-pkg006)
 
 ## §783 — `kof test` never set the `kofdeps` classpath, so a test reaching a third-party jar failed with PKG006
 
