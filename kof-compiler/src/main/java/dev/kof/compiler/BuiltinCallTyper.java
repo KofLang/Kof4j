@@ -18,7 +18,8 @@ public final class BuiltinCallTyper {
         // chamada que o programa declara (função top-level ou extern) — a
         // resolução segue a cadeia até TopLevelCallTyper, que tipa e registra.
         if (mc.receiver() == null && (KofShadowing.userDeclares(sa, mc.methodName())
-                || KofShadowing.enclosingClassDeclares(sa, mc.methodName()))) {
+                || KofShadowing.enclosingClassDeclares(sa, mc.methodName(),
+                        KofShadowing.shapes(sa, mc.arguments(), scope)))) {
             return null;
         }
         if (mc.receiver() == null && "channel".equals(mc.methodName())

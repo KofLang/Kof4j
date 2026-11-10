@@ -19,7 +19,8 @@ public final class ExpressionStaticCallLowerer {
 // frente e deixa a cadeia chegar ao dispatch correto (extern lowering ou
 // bare call para a função do usuário). Um só guard cobre toda a cadeia.
 if (mc.receiver() == null && (hasUserFunctionNamed(driver, mc.methodName())
-        || KofShadowing.enclosingClassDeclares(driver, owner, mc.methodName()))) {
+        || KofShadowing.enclosingClassDeclares(driver, owner, mc.methodName(),
+                KofShadowing.shapes(driver, mc.arguments(), locals)))) {
     return -1;
 }
 // with the same name: ClassName(args) is implicit construction.
