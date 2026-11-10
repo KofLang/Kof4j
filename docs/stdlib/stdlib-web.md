@@ -122,6 +122,8 @@ for state-changing methods:
 - `Referrer-Policy: no-referrer`
 - `Strict-Transport-Security` — only under TLS (`listenSecure`)
 
+An app that never calls `app.security()` sends none of these headers (§823). Before 0.8 the runtime sent them on every response anyway; an app that relied on that adds `app.security()` (or `app.security(mapOf("csrf", false))` to keep CSRF off). An `app.policy(prefix, opts)` scope enables them only with `headers: true`.
+
 Documented opts (`Map` keys; any other is ignored):
 
 | Key | Type | Default | Effect |

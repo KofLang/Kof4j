@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §823 (FIXED)
 last: §822 (FIXED)
 last: §820 (FIXED)
 last: §817 (FIXED)
@@ -701,6 +702,25 @@ Observed: `SEM015 Undefined function: 'remoteAddr'` on JVM and JS. The runtime k
 
 **Fix:** `remoteAddr()` is a request-context function returning `String` (`""` when unknown): `kof_web_remote_addr` reads `WebRequest.remoteAddr` on the JVM (Script uses the same runtime), and the JS host records `exchange.getRemoteAddress()` on the request object. Native refuses it at compile time with WEB001, like the other context functions it does not emit. `docs/stdlib/stdlib-web` (EN + pt_BR) lists it and notes that a proxy's client address is the `x-forwarded-for` header. **Proof:** `WebRemoteAddrE2ETest` 3/3 (a real request from 127.0.0.1 answers `ip=127.0.0.1` on JVM and JS; Native reports the named WEB001).
 <!-- pt-switch --> **PT:** [§822 (pt_BR)](known-bugs.pt_BR.md#822--um-handler-de-rota-nao-conseguia-ler-o-endereco-tcp-do-par-nao-havia-funcao-de-contexto-reqremoteaddr-e-interno-entao-o-ip-do-cliente-exigia-reflexao-agora-remoteaddr)
+
+## §823 — an app that never called `app.security()` still sent the hardening headers (CSP, nosniff, X-Frame-Options, Referrer-Policy) on every response, though stdlib-web documents them as what `app.security()` enables; now opt-in
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `2c920c4c1`). Opt-in confirmed by maintainer decision (05/11). **Behavior change:** see the migration note below.
+
+**MEASURED** (JVM):
+```kof
+main() {
+    var app = web.app()
+    app.get("/x") { return "ok" }
+    app.listen(8080)
+}
+```
+Observed: the `GET /x` response carries `Content-Security-Policy`, `X-Content-Type-Options`, `X-Frame-Options` and `Referrer-Policy`, with no `app.security()` call. The port had to decide per route what to keep, because the defaults overrode the headers it set.
+
+**ROOT CAUSE:** the app's global policy was `new Policy()`, whose `headers` field defaults to `true` (the right default for `app.security()`), so the security pipeline added the headers for a bare app too, against stdlib-web §3 ("`app.security()` ... enables the hardening headers").
+
+**Fix:** a bare app starts from `Policy.bare()` (no headers); `app.security()` still parses its options with `headers` on by default, and an `app.policy(prefix, opts)` scope turns them on only with `headers: true`. **Migration:** an app that relied on the undocumented default adds `app.security()` (or `app.security(mapOf("csrf", false))` to keep CSRF off). `docs/stdlib/stdlib-web` (EN + pt_BR) states it. **Proof:** `WebSecurityHeadersOptInE2ETest` 3/3 (a bare app sends none of the four headers, RED before; `app.security()` still sends them; a policy scope sends them only with `headers: true`); `KofWebE2ETest` 28/28 and `KofHttpPoliciesE2ETest` 10/10 unchanged.
+<!-- pt-switch --> **PT:** [§823 (pt_BR)](known-bugs.pt_BR.md#823--um-app-que-nunca-chamou-appsecurity-mandava-os-headers-de-hardening-csp-nosniff-x-frame-options-referrer-policy-em-toda-resposta-embora-o-stdlib-web-os-documente-como-o-que-o-appsecurity-liga-agora-opt-in)
 
 ## §168 — SEM025 missing for unknown method in namespace `json` — ✅ FIXED 13/09 (lane development/translator, owner = 192.168.100.22)
 
