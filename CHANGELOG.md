@@ -1,4 +1,5 @@
 [English](CHANGELOG.md) | [Português](CHANGELOG.pt_BR.md)
+- **fix(compiler)+test: §808 ✅ FIXED — the `com.sun` APIs a `jdk.*` module exports (`com.sun.management`, `com.sun.net.httpserver`) can be imported; internal `com.sun` packages stay PKG006.** Proof: `JdkComSunApiImportE2ETest` 2/2.
 - **fix(compiler)+test: §807 ✅ FIXED — a nullable type written with its package (`profile.Style?`) is the nullable of that class, not a class named `Style?` (a record with such a component died with NoSuchMethodError).** Proof: `QualifiedNullableTypeE2ETest`.
 - **fix(runtime)+test: §802 ✅ FIXED — a JVM `Error` in a spawned expression (`val h = spawn work()`) is reported on stderr when it happens instead of vanishing until an `await` that may never come; the handle still fails for `await`.** Proof: `SpawnHandleErrorE2ETest`.
 - **fix(compiler)+test: §801 ✅ FIXED — a class field named like a stdlib namespace (`cache`, `buffer`, `config`) shadows it like a local does, instead of the call silently reaching the stdlib (wrong value, VerifyError or "no lowering").** Proof: `FieldShadowsStdNamespaceE2ETest`.

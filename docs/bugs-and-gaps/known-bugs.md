@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §808 (FIXED)
 last: §807 (FIXED)
 last: §802 (FIXED)
 last: §801 (FIXED)
@@ -567,6 +568,26 @@ with `NetworkUserView("a", ProfileNameStyle.FANCY)` in another package. Observed
 
 **Fix:** on the dotted path a trailing `?` is nullability: the type is the `NullableType` of the qualified name without it. **Proof:** `QualifiedNullableTypeE2ETest` (a record component and a parameter typed `profile.ProfileNameStyle?` construct, read and accept `null` across packages).
 <!-- pt-switch --> **PT:** [§807 (pt_BR)](known-bugs.pt_BR.md#807--um-tipo-nullable-escrito-com-o-pacote-profileprofilenamestyle-virava-uma-classe-chamada-profilenamestyle-um-record-com-esse-componente-morria-com-nosuchmethoderror-na-primeira-construcao)
+
+## §808 — the supported `com.sun` JDK APIs (`com.sun.management.OperatingSystemMXBean`, `com.sun.net.httpserver.HttpServer`) could not be imported (PKG006)
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED** (JVM target):
+```kof
+import com.sun.management.OperatingSystemMXBean
+import java.lang.management.ManagementFactory
+main() {
+    val os = ManagementFactory.getOperatingSystemMXBean() as OperatingSystemMXBean
+    println(os.getAvailableProcessors() > 0)
+}
+```
+Observed: `PKG006 import 'com.sun.management.OperatingSystemMXBean' not found in the module`. The same for `com.sun.net.httpserver.HttpServer`.
+
+**ROOT CAUSE:** the import check (`CompilerImports.isExternalImport`) and the JDK class predicate (`JdkReflectionResolver.isJdkClass`) only accept `java.*`, `javax.*` and `jdk.*`. The `com.sun` packages that the `jdk.management` and `jdk.httpserver` modules export are supported JDK APIs, but fell outside both lists.
+
+**Fix:** a `com.sun` class or package counts as JDK when a named `jdk.*` module exports its package (`isExportedComSunImport`, cached per name). The internal `com.sun` packages (not exported) stay `PKG006`. **Proof:** `JdkComSunApiImportE2ETest` 2/2 (`OperatingSystemMXBean` and `HttpServer` compile and run; `com.sun.org.apache.xerces.internal.util.XMLChar` is still `PKG006`).
+<!-- pt-switch --> **PT:** [§808 (pt_BR)](known-bugs.pt_BR.md#808--as-apis-comsun-suportadas-do-jdk-comsunmanagementoperatingsystemmxbean-comsunnethttpserverhttpserver-nao-podiam-ser-importadas-pkg006)
 
 ## §168 — SEM025 missing for unknown method in namespace `json` — ✅ FIXED 13/09 (lane development/translator, owner = 192.168.100.22)
 

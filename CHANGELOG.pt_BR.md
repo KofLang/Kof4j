@@ -1,4 +1,5 @@
 [English](CHANGELOG.md) | [Português](CHANGELOG.pt_BR.md)
+- **fix(compiler)+test: §808 ✅ CORRIGIDO — as APIs `com.sun` que um módulo `jdk.*` exporta (`com.sun.management`, `com.sun.net.httpserver`) podem ser importadas; pacotes `com.sun` internos seguem PKG006.** Prova: `JdkComSunApiImportE2ETest` 2/2.
 - **fix(compiler)+test: §807 ✅ CORRIGIDO — um tipo nullable escrito com o pacote (`profile.Style?`) é o nullable dessa classe, não uma classe chamada `Style?` (um record com esse componente morria com NoSuchMethodError).** Prova: `QualifiedNullableTypeE2ETest`.
 - **fix(runtime)+test: §802 ✅ CORRIGIDO — um `Error` da JVM numa expressão spawned (`val h = spawn work()`) é reportado no stderr quando acontece em vez de sumir até um `await` que pode nunca vir; o handle continua falhando no `await`.** Prova: `SpawnHandleErrorE2ETest`.
 - **fix(compiler)+test: §801 ✅ CORRIGIDO — um campo de classe com nome de namespace da stdlib (`cache`, `buffer`, `config`) o sombreia como um local, em vez de a chamada chegar em silêncio na stdlib (valor errado, VerifyError ou "no lowering").** Prova: `FieldShadowsStdNamespaceE2ETest`.

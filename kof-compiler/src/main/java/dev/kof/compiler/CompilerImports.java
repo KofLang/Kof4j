@@ -340,7 +340,8 @@ public final class CompilerImports {
         return imp.startsWith("android.") || imp.startsWith("androidx.")
                 || imp.startsWith("java.") || imp.startsWith("jakarta.")
                 || imp.startsWith("javax.") || imp.startsWith("kotlin.")
-                || imp.startsWith("scala.");
+                || imp.startsWith("scala.")
+                || JdkReflectionResolver.isExportedComSunImport(imp);
     }
 
     /**
