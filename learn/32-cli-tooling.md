@@ -32,7 +32,7 @@ The CLI is the central tool of the Kof platform.
 | `kof compare <legacy.class\|jar> <file.kf> [--json]` | Differential test legacy vs Kof |
 | `kof migrate <file.class\|java> [--output <file.kf>] [--json]` | Migration + traceable report |
 | `kof config gen <file.kf\|dir> [--output <arquivo>]` | Generates a `kof.config` template from the `config.*` keys in the code |
-| `kof fmt <file.kf\|dir> [-w]` | Real formatter via parser (`KofFormatter`), idempotent — implemented on 31/08 |
+| `kof fmt <file.kf\|dir>... [-w]` | Real formatter via parser (`KofFormatter`), idempotent — implemented on 31/08; `-w` and several paths in any order (#1050) |
 | `kof debug [--dap] <file.kf> [--target jvm\|native] [--attach <pid>]` | DAP on the JVM (breakpoints by Kof line, stack trace, real locals — raw JDWP rebuilt against JDK 25, §376); on `native` without the flag delegates to **gdb** over the Kof DWARF (X7-3 `cfa67238`), with `--dap` the editor-facing DAP↔gdb/MI bridge (X7-4 `bda631a7`); `--attach <pid>` REAL on both faces (X7-5 `81401629`: JVM disconnect does NOT kill the debuggee — `KofDebugAttachTest`); `js` refuses honestly (embedded engine has no inspector) |
 | `kof new <name>` | Project skeletons by type |
 | `kof init` | Initialize a project in the current directory |
@@ -99,6 +99,7 @@ kof c hello.c --output ./bin
 ```bash
 kof fmt src/                  # formats and prints (dry-run)
 kof fmt src/ -w               # rewrites the files in-place
+kof fmt -w src/A.kf src/B.kf  # -w anywhere; every path given is formatted (#1050)
 kof config gen src/           # generates a kof.config template from the config.* keys
 ```
 
