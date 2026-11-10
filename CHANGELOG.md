@@ -1,4 +1,5 @@
 [English](CHANGELOG.md) | [Português](CHANGELOG.pt_BR.md)
+- **fix(compiler)+test: §797 ✅ FIXED — inside a class, a bare name read with a field and a method of the same name is the field (`viewing.get(k)` on a Map field), not the method's return type (SEM066); the call form still reaches the method.** Proof: `FieldMethodSameNameE2ETest` 2/2.
 - **fix(compiler)+test: §795 ✅ FIXED — `throw e` of a narrowed `String?` is wrapped into the Kof exception on the JVM like a `String`, instead of a raw `athrow` (VerifyError).** Proof: `ThrowNarrowedStringE2ETest`.
 - **fix(cli)+test: §794 ✅ FIXED — `kof fmt` takes `-w` in any position and formats every path given (`kof fmt -w src/*.kf`), instead of `not found: -w` or only the first path.** Proof: `FmtTest` 4/4.
 - **fix(compiler)+test: §793 ✅ FIXED — the lowering typer memoizes a call receiver's type within one inference, so a long fluent chain compiles in linear time instead of exponential (36 links took over an hour).** Proof: `CallChainInferenceE2ETest`.

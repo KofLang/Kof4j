@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §797 (FIXED)
 last: §795 (FIXED)
 last: §794 (FIXED)
 last: §793 (FIXED)
@@ -431,6 +432,30 @@ Observado: compila e então `VerifyError: Bad type on operand stack` (`String` n
 
 **Correção:** o `StatementLowerer` desembrulha um tipo nullable antes da checagem de String, então um `String?` estreitado é embrulhado como um `String`. **Prova:** `ThrowNarrowedStringE2ETest` (imprime `caught boom`); no código antigo é o `VerifyError`.
 <!-- pt-switch --> **EN:** [§795 (en)](known-bugs.md#795--throw-e-of-a-narrowed-string-emitted-a-raw-athrow-of-the-string-jvm-verifyerror)
+
+## §797 — a leitura nua de um campo dentro da classe resolvia para um método de mesmo nome: `viewing.get(k)` num campo Map `viewing` era tipado `String` (SEM066)
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `4f7257933`).
+
+**MEDIDO** (alvo JVM):
+```kof
+class V {
+    Map<String, String> viewing = mapOf("k", "v")
+    String viewing(k: String) = "m"
+    String read(k: String) {
+        val x = viewing.get(k)
+        if (x == null) { return "null" }
+        return x
+    }
+}
+main() { println(V().read("k")) }
+```
+Observado: `String has no "get" method` (SEM066) em `viewing.get(k)`: a leitura do campo era tipada como o retorno do método.
+
+**CAUSA RAIZ:** a `SymbolTable` de uma classe guarda uma entrada por nome em `symbols` (um método definido depois do campo o substitui ali; os campos também vivem no próprio mapa `fields`). Os braços de identificador nu dos dois typers (`SemExpressionTyper` e o `ExpressionTyper` do lowering) buscavam o nome por `resolve`/`resolveInHierarchy`, que respondem o método.
+
+**Correção:** um nome nu é um valor, então os dois braços pegam o campo primeiro: o braço semântico troca um acerto de método pelo `resolveField`, e as duas buscas de membro de classe usam `MemberResolver.resolveFieldInHierarchy` (campos primeiro, depois a busca antiga, então a leitura de um método sem argumentos segue funcionando). A forma de chamada `viewing(k)` continua chegando no método. **Prova:** `FieldMethodSameNameE2ETest` 2/2 (campo depois e antes do método; o campo, a chamada do método e `this.viewing` respondem o membro certo).
+<!-- pt-switch --> **EN:** [§797 (en)](known-bugs.md#797--a-bare-field-read-inside-a-class-resolved-to-a-method-of-the-same-name-viewinggetk-on-a-map-field-viewing-was-typed-string-sem066)
 
 ## §168 — SEM025 ausente para método desconhecido em namespace `json` — ✅ CORRIGIDO 13/09 (lane development/translator, dono = 192.168.100.22)
 

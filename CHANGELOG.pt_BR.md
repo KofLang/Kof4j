@@ -1,4 +1,5 @@
 [English](CHANGELOG.md) | [Português](CHANGELOG.pt_BR.md)
+- **fix(compiler)+test: §797 ✅ CORRIGIDO — dentro de uma classe, um nome nu lido com um campo e um método de mesmo nome é o campo (`viewing.get(k)` num campo Map), não o retorno do método (SEM066); a forma de chamada segue chegando no método.** Prova: `FieldMethodSameNameE2ETest` 2/2.
 - **fix(compiler)+test: §795 ✅ CORRIGIDO — `throw e` de um `String?` estreitado é embrulhado na exceção do Kof na JVM como um `String`, em vez de um `athrow` cru (VerifyError).** Prova: `ThrowNarrowedStringE2ETest`.
 - **fix(cli)+test: §794 ✅ CORRIGIDO — `kof fmt` aceita `-w` em qualquer posição e formata todo caminho dado (`kof fmt -w src/*.kf`), em vez de `not found: -w` ou só o primeiro caminho.** Prova: `FmtTest` 4/4.
 - **fix(compiler)+test: §793 ✅ CORRIGIDO — o typer do lowering memoiza o tipo do receiver de uma chamada dentro de uma inferência, então uma cadeia fluente longa compila em tempo linear em vez de exponencial (36 elos levavam mais de uma hora).** Prova: `CallChainInferenceE2ETest`.

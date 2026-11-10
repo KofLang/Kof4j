@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §797 (FIXED)
 last: §795 (FIXED)
 last: §794 (FIXED)
 last: §793 (FIXED)
@@ -432,6 +433,30 @@ Observed: compiles, then `VerifyError: Bad type on operand stack` (`String` is n
 
 **Fix:** `StatementLowerer` unwraps a nullable type before the String check, so a narrowed `String?` is wrapped like a `String`. **Proof:** `ThrowNarrowedStringE2ETest` (prints `caught boom`); on the old code it is the `VerifyError`.
 <!-- pt-switch --> **PT:** [§795 (pt_BR)](known-bugs.pt_BR.md#795--throw-e-de-um-string-estreitado-emitia-um-athrow-cru-da-string-verifyerror-na-jvm)
+
+## §797 — a bare field read inside a class resolved to a method of the same name: `viewing.get(k)` on a Map field `viewing` was typed `String` (SEM066)
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED** (JVM target):
+```kof
+class V {
+    Map<String, String> viewing = mapOf("k", "v")
+    String viewing(k: String) = "m"
+    String read(k: String) {
+        val x = viewing.get(k)
+        if (x == null) { return "null" }
+        return x
+    }
+}
+main() { println(V().read("k")) }
+```
+Observed: `String has no "get" method` (SEM066) at `viewing.get(k)`: the field read was typed as the method's return type.
+
+**ROOT CAUSE:** a class's `SymbolTable` keeps one entry per name in `symbols` (a method defined after the field replaces it there; the fields also live in their own `fields` map). The bare-identifier arms of both typers (`SemExpressionTyper` and the lowering `ExpressionTyper`) looked the name up through `resolve`/`resolveInHierarchy`, which answer the method.
+
+**Fix:** a bare name is a value, so both arms take the field first: the semantic arm swaps a method hit for `resolveField`, and both class-member lookups use `MemberResolver.resolveFieldInHierarchy` (fields first, then the old lookup, so a zero-argument method read keeps working). The call form `viewing(k)` still reaches the method. **Proof:** `FieldMethodSameNameE2ETest` 2/2 (field after and before the method; the field, the method call and `this.viewing` all answer the right member).
+<!-- pt-switch --> **PT:** [§797 (pt_BR)](known-bugs.pt_BR.md#797--a-leitura-nua-de-um-campo-dentro-da-classe-resolvia-para-um-metodo-de-mesmo-nome-viewinggetk-num-campo-map-viewing-era-tipado-string-sem066)
 
 ## §168 — SEM025 missing for unknown method in namespace `json` — ✅ FIXED 13/09 (lane development/translator, owner = 192.168.100.22)
 
