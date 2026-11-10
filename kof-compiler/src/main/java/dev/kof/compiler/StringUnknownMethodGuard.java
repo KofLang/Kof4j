@@ -30,7 +30,7 @@ final class StringUnknownMethodGuard {
                     + "' on type 'String' (valid: length/isEmpty/charAt/substring/contains/startsWith/"
                     + "endsWith/indexOf/lastIndexOf/equals/equalsIgnoreCase/compareTo/compareToIgnoreCase/"
                     + "toUpperCase/toLowerCase/trim/concat/replace/replaceAll/replaceFirst/matches/"
-                    + "split/toCharArray/getBytes/toInt/toLong/toFloat/toDouble)",
+                    + "split/toCharArray/getBytes/codePointAt/toInt/toLong/toFloat/toDouble)",
                 "SEM025");
         return true;
     }

@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §827 (FIXED)
 last: §823 (FIXED)
 last: §822 (FIXED)
 last: §820 (FIXED)
@@ -721,6 +722,23 @@ Observed: the `GET /x` response carries `Content-Security-Policy`, `X-Content-Ty
 
 **Fix:** a bare app starts from `Policy.bare()` (no headers); `app.security()` still parses its options with `headers` on by default, and an `app.policy(prefix, opts)` scope turns them on only with `headers: true`. **Migration:** an app that relied on the undocumented default adds `app.security()` (or `app.security(mapOf("csrf", false))` to keep CSRF off). `docs/stdlib/stdlib-web` (EN + pt_BR) states it. **Proof:** `WebSecurityHeadersOptInE2ETest` 3/3 (a bare app sends none of the four headers, RED before; `app.security()` still sends them; a policy scope sends them only with `headers: true`); `KofWebE2ETest` 28/28 and `KofHttpPoliciesE2ETest` 10/10 unchanged.
 <!-- pt-switch --> **PT:** [§823 (pt_BR)](known-bugs.pt_BR.md#823--um-app-que-nunca-chamou-appsecurity-mandava-os-headers-de-hardening-csp-nosniff-x-frame-options-referrer-policy-em-toda-resposta-embora-o-stdlib-web-os-documente-como-o-que-o-appsecurity-liga-agora-opt-in)
+
+## §827 — `String.codePointAt(i)` was SEM025, so a port fell back to a manual surrogate decode; now it is a String member
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `190681ffa`). Stdlib batch approved by maintainer decision (05/11); #1120 landed the rest of the batch and left `codePointAt` open.
+
+**MEASURED** (JVM):
+```kof
+main() {
+    println("x𝄞".codePointAt(1))
+}
+```
+Observed: `SEM025` "Cannot resolve method".
+
+**ROOT CAUSE:** a missing signature: `StringMethodRegistry` had no `codePointAt(int)`, though it is a real `java.lang.String` member, so the guard refused it.
+
+**Fix:** `codePointAt(index)` returns `Int` (the code point at a UTF-16 index, the whole pair at a high surrogate). JVM and Script call the `java.lang.String` member; JS runs its native `codePointAt` (same index contract); Native refuses it with the named STR003 until it has a UTF-8 code point decode. The PortuKof alias is `pontoDeCodigoEm`, and the SEM025 list of valid String methods names `codePointAt`. `learn/39-stdlib` (EN + pt_BR) shows it. **Proof:** `StringCodePointAtE2ETest` 3/3 (BMP and supplementary code points on JVM and Script, JS, Native STR003; RED before with SEM025).
+<!-- pt-switch --> **PT:** [§827 (pt_BR)](known-bugs.pt_BR.md#827--stringcodepointati-era-sem025-então-um-port-caía-numa-decodificação-manual-de-surrogates-agora-é-membro-de-string)
 
 ## §168 — SEM025 missing for unknown method in namespace `json` — ✅ FIXED 13/09 (lane development/translator, owner = 192.168.100.22)
 

@@ -1,4 +1,5 @@
 [English](CHANGELOG.md) | [Português](CHANGELOG.pt_BR.md)
+- **feat(strings)+test+docs: §827 ✅ FIXED — `String.codePointAt(i)` (JVM, Script, JS; Native STR003), the face #1120 left open.** Proof: `StringCodePointAtE2ETest` 3/3.
 - **fix(web)+test+docs: §823 ✅ FIXED — the hardening headers are opt-in, as documented: a bare app (no `app.security()`) no longer sends CSP/nosniff/X-Frame-Options/Referrer-Policy.** Migration: add `app.security()` to keep them. Proof: `WebSecurityHeadersOptInE2ETest` 3/3.
 - **feat(web)+test+docs: §822 ✅ FIXED — `remoteAddr()` returns the TCP peer address of the request on the JVM and JS web runtimes (Native: WEB001).** Proof: `WebRemoteAddrE2ETest` 3/3.
 - **feat(compiler)+test+docs: §820 ✅ FIXED — a function-typed field is called like a method (`h.run()` invokes `() -> Int run` when the class has no method `run`; a same-named method wins), and a second function-typed field on the next line no longer becomes the first one's parameter list.** Proof: `FunctionFieldCallE2ETest` 3/3.

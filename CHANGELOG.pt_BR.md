@@ -1,4 +1,5 @@
 [English](CHANGELOG.md) | [Português](CHANGELOG.pt_BR.md)
+- **feat(strings)+test+docs: §827 ✅ CORRIGIDO — `String.codePointAt(i)` (JVM, Script, JS; Native STR003), a face que o #1120 deixou em aberto.** Prova: `StringCodePointAtE2ETest` 3/3.
 - **fix(web)+test+docs: §823 ✅ CORRIGIDO — os headers de hardening são opt-in, como documentado: um app cru (sem `app.security()`) não manda mais CSP/nosniff/X-Frame-Options/Referrer-Policy.** Migração: adicione `app.security()` para mantê-los. Prova: `WebSecurityHeadersOptInE2ETest` 3/3.
 - **feat(web)+test+docs: §822 ✅ CORRIGIDO — `remoteAddr()` devolve o endereço TCP do par da request nos runtimes web JVM e JS (Native: WEB001).** Prova: `WebRemoteAddrE2ETest` 3/3.
 - **feat(compiler)+test+docs: §820 ✅ CORRIGIDO — um campo de tipo-função é chamado como método (`h.run()` invoca `() -> Int run` quando a classe não tem método `run`; um método de mesmo nome ganha), e um segundo campo de tipo-função na linha de baixo não vira mais a lista de parâmetros do primeiro.** Prova: `FunctionFieldCallE2ETest` 3/3.
