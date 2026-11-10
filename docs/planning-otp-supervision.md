@@ -74,7 +74,7 @@ so that the decision fits in one reading.
 | Issue claim | 10/09 verification |
 |---|---|
 | `spawn`/`await` desugar to `__kof_spawn_expr`/`__kof_await` (no AST node) | `parser/ExpressionParser.java:96-107` ✅ |
-| implicit join (shutdown hook waits for tasks) | `jvm/JvmRuntimeCore.java` `KOF_ACTIVE_TASKS` + `addShutdownHook` ✅ |
+| implicit join (a non-daemon keeper thread waits for tasks; `process.exit` does not) | `jvm/JvmRuntimeCore.java` `KOF_ACTIVE_TASKS` + `kofTaskBegin`/`kofTaskEnd` ✅ |
 | `cancelled()` native = flag per TID, 256 slots collision | `runtime/RuntimeConcurrency.java:18` (`.space 256`) ✅ |
 | `awaitTimeout`/`selectAny` in native = 1ms polling | `usleep(1000)` at `:212,:341` ✅ |
 | `CONC003-JS-01`: handler-lambda (mq/timer/UI) cannot `await` | `CompilerPipeline.java:78` + `docs/language-reference/concurrency.md:139` ✅ — BUT a `spawn` lambda CAN (it is a task-lambda; `spawn { await ... }` is the use covered by test) |

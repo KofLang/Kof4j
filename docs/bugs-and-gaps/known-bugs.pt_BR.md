@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §792 (FIXED)
 last: §769 (FIXED)
 last: §768 (FIXED)
 last: §783 (FIXED)
@@ -354,6 +355,27 @@ Observado: compila sem diagnóstico e morre no load da classe com `VerifyError: 
 
 **Correção:** o `ExpressionFieldAccessTyper` resolve o descritor do campo exatamente como o lowerer (mesma guarda `knows` + `resolveFieldType`), então o tipo inferido casa com o `getfield` emitido. **Prova:** `ExternalInstanceFieldE2ETest` 2/2 (campos `int`/`long`/`boolean`/`double`/`String` em locais tipados, concat, aritmética e `if`); no código antigo os dois falham com `VerifyError`. A escrita de campo (`r.f = 5`, `r.f += 1`) já estava correta e não muda. JS/Nativo não são afetados: classe externa já é recusada lá com `INTEROP003` (#760).
 <!-- pt-switch --> **EN:** [§769 (en)](known-bugs.md#769--reading-a-public-primitive-instance-field-of-an-external-java-object-emitted-invalid-bytecode-jvm-verifyerror)
+
+## §792 — `process.exit` nunca encerrava um programa JVM enquanto uma task spawned ainda rodava: o join implícito era um shutdown hook em spin
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `4f7257933`).
+
+**MEDIDO** (alvo JVM):
+```kof
+main() {
+    spawn {
+        while (true) { time.sleep(50) }
+    }
+    println("bye")
+    process.exit(3)
+}
+```
+Observado: imprime `bye` e nunca termina, gastando um núcleo. O mesmo com um `System.exit` Java ou um SIGTERM: um runner de testes cuja suíte sobe um laço de job (`spawn` + `while`) precisava ser morto pelo timeout.
+
+**CAUSA RAIZ:** o join implícito do `spawn` ("o programa espera toda task spawned antes de sair") era um shutdown hook no `KofRuntime` gerado que girava (`Thread.onSpinWait`) até `KOF_ACTIVE_TASKS` chegar a zero. A JVM roda shutdown hooks em todo caminho de saída, `System.exit` e sinais inclusive, então uma saída explícita esperava tasks que nunca terminam, contra o contrato do `process.exit` ("termina na hora").
+
+**Correção:** o join é uma thread keeper não-daemon (`kofTaskBegin`/`kofTaskEnd`): ela começa quando a contagem de tasks sai de zero e bloqueia num monitor até voltar a zero. A JVM espera as threads não-daemon quando o `main` retorna, então o fim do `main` continua esperando as tasks; `System.exit` e sinais não esperam, então uma saída explícita é imediata. Não sobra espera ativa. **Prova:** `SpawnExitE2ETest` 3/3 (um `System.exit(1)` do Java, o caminho de um harness de teste que encerra um arquivo que falhou, sai com 1 enquanto uma tarefa roda em loop; `process.exit(3)` com uma task sem fim sai com 3; uma task ainda rodando quando o `main` retorna ainda imprime antes do processo terminar); casos JVM do `SpawnE2ETest` inalterados.
+<!-- pt-switch --> **EN:** [§792 (en)](known-bugs.md#792--processexit-never-ended-a-jvm-program-while-a-spawned-task-was-still-running-the-implicit-join-was-a-spinning-shutdown-hook)
 
 ## §168 — SEM025 ausente para método desconhecido em namespace `json` — ✅ CORRIGIDO 13/09 (lane development/translator, dono = 192.168.100.22)
 
