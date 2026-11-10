@@ -370,6 +370,7 @@ public class JsBackend implements Backend {
             if (!e.getValue()) continue;
             finalAsyncNames.add(JsLoweringContext.methodNameFromAsyncKey(e.getKey()));
         }
+        JsLockCheck.rejectSuspendingLocks(effClasses, async); // G240
         this.lc.asyncMethods = async;
         this.lc.asyncMethodNamesAnywhere = finalAsyncNames;
     }

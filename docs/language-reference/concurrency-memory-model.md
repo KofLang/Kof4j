@@ -25,6 +25,7 @@ Primitives (all from the language, never mechanism):
 | `val h = spawn f()` → `await h` | Handle<T>; `await` **blocks** the caller until the return and establishes HB |
 | `time.interval(ms, fn)` / `scheduler.every(ms) { }` | recurring job; cancellation by id |
 | `Channel<T>` | FIFO; `send` blocks if full, `receive` blocks if empty; each value delivered to exactly 1 receiver |
+| `lock (target) { ... }` | mutual exclusion on `target` (a non-null object) for the block; released on every exit (end, `return`, `break`/`continue`, throw); reentrant (G240, 06/11) |
 
 ## 2. Happens-before (normative rules)
 
@@ -44,13 +45,17 @@ Primitives (all from the language, never mechanism):
    order** (SC) — never a "torn" value for one-word types
    (Int/Bool/Char/refs). `Long`/`Double` on 32-bit native targets do not
    exist (targets are 64-bit) — no word-tearing on any target.
+7. **lock:** leaving a `lock (x) { }` block HB the next entry into a
+   `lock (x) { }` block on the same object `x`, by any flow (HB = lock
+   edge). Two flows never run blocks locked on the same `x` at the same time;
+   the flow that holds the lock may enter it again (reentrant).
 
 ## 3. Per-target mapping (how the spec is honored)
 
 | Target | Flow (green thread) | Synchronization primitive | HB guaranteed by |
 |---|---|---|---|
-| **JVM** | virtual thread (`Thread.startVirtualThread`, 21+; platform on ART) | JMM | `CompletableFuture` (spawn/await), `LinkedBlockingQueue` (Channel) — both guarantee HB per JMM §17.4 |
-| **Native x86_64** | `clone(220)` with shared heap | x86-TSO (strong hardware) | futex (`SYS_futex` 202) WAIT/WAKE on spawn/await/channel; lock `lock cmpxchg` |
+| **JVM** | virtual thread (`Thread.startVirtualThread`, 21+; platform on ART) | JMM | `CompletableFuture` (spawn/await), `LinkedBlockingQueue` (Channel), `ReentrantLock` per object (`lock`) — all guarantee HB per JMM §17.4 |
+| **Native x86_64** | `clone(220)` with shared heap | x86-TSO (strong hardware) | futex (`SYS_futex` 202) WAIT/WAKE on spawn/await/channel; lock `lock cmpxchg`; `lock (x)`: a reentrant table of held locks under a futex guard (`RuntimeLock`) |
 | **Native riscv64/aarch64** | inherits x86 via translator | weak — needs an **explicit fence** | futex + `fence rw,rw` / `dmb ish` at the HB points (already emitted by the runtime: `amoswap` acq/rel, `fence`→`dmb ish` in the translator) |
 | **Interp/Script** | virtual thread (same JVM runtime) | same as JVM | same as JVM |
 
@@ -109,9 +114,13 @@ of §2 with the E2Es of §4 before leaving `experimental`.
 
 ## 5. What is NOT specified (non-goals)
 
-- Explicit `volatile`/`synchronized` on the language surface — Kof does not
-  expose mechanism (rule 1: intention, not mechanism). If a program needs
-  fine control, the correct abstraction is Channel (messages, not memory).
+- Explicit `volatile`/`synchronized` **modifiers** on the language surface —
+  Kof does not expose mechanism (rule 1: intention, not mechanism); they stay
+  a warning (SEM091). The correct abstractions are Channel (messages, not
+  memory) and, since 06/11, the `lock (target) { }` block (maintainer decision,
+  G240): a scoped critical section over one object, with the HB edge of §2
+  rule 7, released on every exit. Unlike a method modifier it names the
+  object it excludes on and cannot leak the lock past the block.
 - Preemption with a quantum — green threads are cooperative at scheduling
   points (await/channel/time), with no guaranteed time slice.
 - Relaxed/acquire-release model exposed to the user — SC-only is the spec;

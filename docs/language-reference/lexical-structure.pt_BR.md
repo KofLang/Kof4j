@@ -49,7 +49,7 @@ true  false  null
 **Palavras que NÃO são keywords** (são `IDENTIFIER`): `let`, `in`, `type`,
 `trait`, `macro`, `where`, `query`, `test`, `application`, `onStart`,
 `onShutdown`, `desc`, `asc`, `sealed`, `value`, `unique`, `generated`,
-`audited`. Têm significado contextual no parser (ver
+`audited`, `lock`. Têm significado contextual no parser (ver
 [grammar.md](grammar.md)) ou nenhum.
 
 > **#1118 + #1068 (07/11):** `unique`, `generated` e `audited` são

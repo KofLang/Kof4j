@@ -111,6 +111,7 @@ public final class PortuKofVocabulary {
             {"application", "aplicacao"},
             {"infra", "infra"},
             {"using", "usando"},
+            {"lock", "trava"},
             {"sealed", "selado"},
             {"value", "valor"},
             // #1118: contextual like sealed/value — the entity-field parser

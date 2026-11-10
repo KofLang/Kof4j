@@ -402,6 +402,10 @@ public final class KofFormatter {
                 out.append(pad).append(kw(p, "while")).append(" (").append(KofFormatterExpr.formatExpr(ws.condition(), p)).append(") ");
                 formatBody(ws.body(), out, indent, pending, p);
             }
+            case LockStmt ws -> {
+                out.append(pad).append(kw(p, "lock")).append(" (").append(KofFormatterExpr.formatExpr(ws.target(), p)).append(") ");
+                formatBody(ws.body(), out, indent, pending, p);
+            }
             case ForStmt fs -> {
                 out.append(pad).append(kw(p, "for")).append(" (");
                 if (fs.init() != null) {

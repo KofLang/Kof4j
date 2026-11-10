@@ -224,6 +224,23 @@ spawn-stmt = "spawn" , expression
 - `spawn { … }` (bloco) e `spawn f()` (chamada) são válidos.
 - Ver [../concurrency.md](concurrency.md).
 
+### 10.1 `lock` (statement)
+
+`ebnf
+lock-stmt = "lock" , "(" , expression , ")" , block
+`
+
+- Roda o bloco segurando o lock do objeto alvo: duas tasks nunca rodam ao
+  mesmo tempo blocos travados no mesmo objeto (G240, 06/11).
+- O alvo é avaliado uma vez e precisa ser um objeto não nulo (`CONC004` para
+  primitivo, `String` ou valor nulável).
+- Liberado em toda saída do bloco (fim, `return`, `break`/`continue`, throw);
+  reentrante para a task que o segura.
+- `lock` é contextual: só `lock (...)` seguido de `{` na mesma linha é este
+  statement; `lock(x)` sozinho continua uma chamada comum.
+- Ver [concurrency-memory-model.pt_BR.md](concurrency-memory-model.pt_BR.md) §2
+  regra 7 e `learn/18-concurrency.pt_BR.md`.
+
 ---
 
 ## 11. Expression statement

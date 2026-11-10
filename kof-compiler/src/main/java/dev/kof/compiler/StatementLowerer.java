@@ -473,6 +473,8 @@ public final class StatementLowerer {
             }
             case TryStmt ts ->
                     StatementLowererTry.emitTryStmt(driver, ts, ops, owner, localIdx, locals, returnType);
+            case LockStmt ls -> StatementLowererLock.emitLock(driver, ls, ops, owner, localIdx, locals, returnType);
+            case LockExitStmt le -> StatementLowererLock.emitExit(le, ops, localIdx);
             case SwitchStmt ss -> {
                 localIdx = SwitchStmtLowerer.lowerSwitchStmt(driver, ss, ops, owner, localIdx, locals, returnType);
                 yield localIdx;

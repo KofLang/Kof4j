@@ -252,6 +252,10 @@ public final class StatementAnalyzer {
                 for (SymbolTable.LocalVariableSymbol s : bodyNarrow) whileScope.define(s);
                 analyzeStatement(sa, ws.body(), whileScope, returnType);
             }
+            case LockStmt ls -> {
+                LockTargets.check(sa, ls, SemExpressionTyper.inferType(sa, ls.target(), scope));
+                analyzeStatement(sa, ls.body(), scope, returnType);
+            }
             case DoWhileStmt dws -> {
                 SymbolTable doScope = scope.enterScope();
                 analyzeStatement(sa, dws.body(), doScope, returnType);

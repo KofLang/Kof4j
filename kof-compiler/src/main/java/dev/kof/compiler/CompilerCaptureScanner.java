@@ -61,6 +61,10 @@ public final class CompilerCaptureScanner {
                 collectDeclaredVarNamesExpr(w.condition());
                 collectDeclaredVarNamesStmt(w.body(), out);
             }
+            case LockStmt w -> {
+                collectDeclaredVarNamesExpr(w.target());
+                collectDeclaredVarNamesStmt(w.body(), out);
+            }
             case DoWhileStmt dw -> {
                 collectDeclaredVarNamesStmt(dw.body(), out);
                 collectDeclaredVarNamesExpr(dw.condition());
@@ -208,6 +212,10 @@ public final class CompilerCaptureScanner {
                 if (exprReadsNameFree(w.condition(), name, new java.util.HashSet<>(shadowed))) return true;
                 return stmtReadsNameFree(w.body(), name, new java.util.HashSet<>(shadowed));
             }
+            case LockStmt w -> {
+                if (exprReadsNameFree(w.target(), name, new java.util.HashSet<>(shadowed))) return true;
+                return stmtReadsNameFree(w.body(), name, new java.util.HashSet<>(shadowed));
+            }
             case VarDeclStmt vds -> {
                 // decl shadowe o nome → não é mais livre dentro deste bloco.
                 if (vds.initializer() != null
@@ -305,6 +313,10 @@ public final class CompilerCaptureScanner {
             }
             case WhileStmt w -> {
                 collectLambdasExpr(w.condition(), out);
+                collectLambdasStmt(w.body(), out);
+            }
+            case LockStmt w -> {
+                collectLambdasExpr(w.target(), out);
                 collectLambdasStmt(w.body(), out);
             }
             case DoWhileStmt dw -> {
@@ -429,6 +441,10 @@ public final class CompilerCaptureScanner {
             }
             case WhileStmt w -> {
                 collectMutatedCapturesExpr(driver, w.condition(), shadowed, inLambda);
+                collectMutatedCapturesStmt(driver, w.body(), new java.util.HashSet<>(shadowed), inLambda);
+            }
+            case LockStmt w -> {
+                collectMutatedCapturesExpr(driver, w.target(), shadowed, inLambda);
                 collectMutatedCapturesStmt(driver, w.body(), new java.util.HashSet<>(shadowed), inLambda);
             }
             case DoWhileStmt dw -> {

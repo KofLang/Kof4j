@@ -498,6 +498,7 @@ public final class SemExpressionTyper {
             return lambdaReturnValueType(sa, ts.finallyBody(), scope);
         }
         if (s instanceof WhileStmt ws) return lambdaReturnOfStatement(sa, ws.body(), scope);
+        if (s instanceof LockStmt ls) return lambdaReturnOfStatement(sa, ls.body(), scope);
         if (s instanceof DoWhileStmt dws) return lambdaReturnOfStatement(sa, dws.body(), scope);
         if (s instanceof ForStmt fs) return lambdaReturnOfStatement(sa, fs.body(), scope);
         if (s instanceof ForInStmt fis) return lambdaReturnOfStatement(sa, fis.body(), scope);

@@ -90,6 +90,10 @@ public final class CompilerPipeline {
                         e.getMessage(), "CONC003-JS-01");
                 return new CompilationResult(false, diagnostics, outputDir);
             }
+            if (e.getMessage() != null && e.getMessage().startsWith("CONC005")) { // G240, JS lock + suspension
+                diagnostics.error(sources.get(0).toString(), 0, 0, 0, e.getMessage(), "CONC005");
+                return new CompilationResult(false, diagnostics, outputDir);
+            }
             if (e.getMessage() != null && e.getMessage().startsWith("FLT001")) {
                 // FLT001: print/println de float/double no runtime riscv64/
                 // aarch64 (asm puro, sem libc) — diagnóstico honesto, nunca
