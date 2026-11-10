@@ -334,8 +334,12 @@ public final class KofInterpreterRuntime {
         // valores pelo type-arg (espelho do kof_json_bind JVM). Sem isto um
         // campo `Map<String,E>` ficava como mapa cru (valores LinkedHashMap).
         // #1128: alvo mapa/record recebendo não-objeto = JSN006 na
-        // profundidade (o espelho do kof_json_bind JVM).
-        if (!(raw instanceof List<?>) && !(raw instanceof java.util.Map<?, ?>)
+        // profundidade (o espelho do kof_json_bind JVM). A PARIDADE Script
+        // (o teste do PR #1129) mediu o buraco: a condição antiga ISENTAVA
+        // `raw instanceof List`, então mapa<-array caía no coerceFor e
+        // explodia num ClassCastException cru (ArrayList→HashMap) que escapa
+        // do contrato de String capturável — o JVM responde o JSN006.
+        if (!(raw instanceof java.util.Map<?, ?>)
                 && (BuiltinTypes.isMap(type) || interp.kofClassOrNull(type) != null)) {
             throw new RuntimeException("JSN006: json.decode expected an object but the payload is "
                     + KofInterpreterJson.shapeOf(raw));
