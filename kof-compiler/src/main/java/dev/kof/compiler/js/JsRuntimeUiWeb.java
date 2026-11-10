@@ -199,7 +199,9 @@ public final class JsRuntimeUiWeb {
                     // deferido; sem status() o default é 200 (ou 404 se o
                     // handler retornou null).
                     for (const hv of kofWebRequest._headerQueue) {
-                        exchange.getResponseHeaders().set(hv[0], hv[1]);
+                        // §784: Set-Cookie may repeat (RFC 6265 §3) — add, never replace.
+                        if (/^set-cookie$/i.test(hv[0])) exchange.getResponseHeaders().add(hv[0], hv[1]);
+                        else exchange.getResponseHeaders().set(hv[0], hv[1]);
                     }
                     if (result === null || result === undefined) {
                         const code404 = kofWebRequest._status != null ? kofWebRequest._status : 404;

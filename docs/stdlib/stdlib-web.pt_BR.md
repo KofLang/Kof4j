@@ -350,7 +350,7 @@ globais por JVM e devolvidas como `String`.
 | `method()` | Método HTTP ("GET", "POST", ...) |
 | `path()` | Caminho da request |
 | `status(code, body)` | Define o status da resposta e retorna o corpo — use como retorno (ex.: `return status(201, "{\"ok\":true}")`) |
-| `headerSet(name, value)` | Adiciona um header de resposta (ex.: `headerSet("X-Total", "42")`) |
+| `headerSet(name, value)` | Adiciona um header de resposta (ex.: `headerSet("X-Total", "42")`). Um nome repetido substitui o valor, exceto `Set-Cookie`, que envia uma linha por chamada; CR/LF no nome ou no valor é recusado (§784) |
 
 O contexto é por-request (ThreadLocal em runtime) — handlers podem ser
 concorrentes sem estado compartilhado. `status(code, body)` e

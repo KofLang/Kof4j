@@ -452,7 +452,9 @@ public final class JvmRuntimeWebDispatch {
                     if (extra != null) {
                         for (java.util.Map.Entry<String, String> e : extra.entrySet()) {
                             if (e.getKey().equalsIgnoreCase("Content-Type")) hasContentType = true;
-                            hdr.append(e.getKey()).append(": ").append(e.getValue()).append("\\r\\n");
+                            for (String v : e.getValue().split("\\n")) {   // §784: repeated Set-Cookie
+                                hdr.append(e.getKey()).append(": ").append(v).append("\\r\\n");
+                            }
                         }
                     }
                     // D-SEC C18: headers do middleware de security sobrevivem

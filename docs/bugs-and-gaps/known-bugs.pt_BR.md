@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §784 (FIXED)
 last: §781 (FIXED)
 last: §778 (FIXED)
 last: §775 (FIXED)
@@ -200,6 +201,25 @@ main() {
 
 **Correção:** o auth-if-present também exige `app.securityConfigured` (ligado por `app.security()` e `app.policy()`); `auth: true`, `roles` e `sessionHeader` não mudam. Os headers de hardening da policy default não são tocados por esta correção. **Prova:** `KofWebE2ETest.authorizationHeaderIsIgnoredWithoutSecurityConfigured` (401 no código antigo, 200 agora); `securityRejectsInvalidTokenIfPresentEvenWithoutAuthRequired` (auth-if-present sob `app.security()`) e as suítes `KofWebE2ETest`/`KofHttpPoliciesE2ETest`/`KofOAuthResourceServerTest` seguem verdes.
 <!-- pt-switch --> **EN:** [§781 (en)](known-bugs.md#781--the-web-runtime-answered-401-to-any-request-carrying-authorization-even-when-the-app-never-configured-appsecurity)
+
+## §784 — um segundo `headerSet("Set-Cookie", ...)` sobrescrevia o primeiro (JVM e JS), e CR/LF num valor de header partia a resposta
+
+**Status:** ✅ CORRIGIDO 04/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/main` `edcc39114`).
+
+**MEDIDO** (alvos JVM e JS):
+```kof
+app.get("/login") {
+    headerSet("Set-Cookie", "a=1")
+    headerSet("Set-Cookie", "b=2")
+    return "ok"
+}
+```
+Observado: a resposta leva só `Set-Cookie: b=2`; um login que define cookie de sessão e cookie de CSRF perde um deles. Além disso, `headerSet("X", "v\r\nInjected: 1")` escrevia `Injected: 1` como linha de header separada (response splitting) na JVM.
+
+**CAUSA RAIZ:** a JVM guarda os headers deferidos num `Map<String, String>` (`KOF_WEB_HEADERS`) e o `kof_web_header_set` fazia `put`, então o último valor vencia; o pump do JS aplicava a fila com `Headers.set`, mesmo efeito. Set-Cookie é o header que deve se repetir em vez de ser combinado (RFC 6265 §3). O escritor da JVM copiava o valor como veio, sem checar CR/LF.
+
+**Correção:** JVM: o `kof_web_header_set` recusa CR/LF no nome ou no valor (`IllegalArgumentException`, então a rota responde 500 em vez de escrever uma linha injetada) e acumula um Set-Cookie repetido (qualquer caixa) em vez de substituir; o `kof_web_build` escreve uma linha por valor. JS: o pump faz `add` do Set-Cookie em vez de `set`. Todo outro header segue com o último vencendo. O nativo não tem runtime de `headerSet` e não é afetado. **Prova:** `WebSetCookieE2ETest` (os dois cookies, último vence para outro header, nenhuma linha injetada) e `KofWebJsE2ETest.jsRepeatedSetCookieSendsEveryCookie`; ambos falham no código antigo. `KofWebE2ETest`/`KofWebJsE2ETest` seguem verdes.
+<!-- pt-switch --> **EN:** [§784 (en)](known-bugs.md#784--a-second-headersetset-cookie--overwrote-the-first-jvm-and-js-and-a-crlf-in-a-header-value-split-the-response)
 
 ## §168 — SEM025 ausente para método desconhecido em namespace `json` — ✅ CORRIGIDO 13/09 (lane development/translator, dono = 192.168.100.22)
 
