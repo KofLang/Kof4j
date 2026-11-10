@@ -80,11 +80,16 @@ public final class JvmRuntimeWebServer {
                             WebDispatchResult result = kof_web_dispatch(app, req);
                             if (result.kind == RouteKind.SSE) {
                                 java.io.OutputStream out = client.getOutputStream();
+                                // #1066: os headers deferidos do dispatch
+                                // (middleware + app.security()) entram entre o
+                                // head fixo e a linha em branco — os nomes fixos
+                                // já foram pulados na renderização.
                                 out.write(("HTTP/1.1 200 OK\\r\\n"
                                         + "Content-Type: text/event-stream\\r\\n"
                                         + "Cache-Control: no-cache\\r\\n"
                                         + "Connection: keep-alive\\r\\n"
                                         + "X-Accel-Buffering: no\\r\\n"
+                                        + (result.response == null ? "" : result.response)
                                         + "\\r\\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
                                 out.flush();
                                 SseConnection sse = new SseConnection(out);

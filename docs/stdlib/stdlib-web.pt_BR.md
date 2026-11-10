@@ -302,7 +302,7 @@ o corpo do handler e o stream fecha quando ele retorna — o pump é single-thre
 então push pós-return e múltiplos clientes simultâneos são o residual `WEB003`
 ali. No JVM cada conexão SSE é independente (ThreadLocal por conexão). Nos dois, os headers
 `Content-Type: text/event-stream`, `Cache-Control: no-cache`,
-`Connection: keep-alive` e `X-Accel-Buffering: no` são emitidos.
+`Connection: keep-alive` e `X-Accel-Buffering: no` são emitidos; os headers que o middleware e o `app.security()` definem (request id, CORS, cookies) entram depois dos fixos — os headers fixos do stream mantêm seus valores (um `Content-Type` de middleware nunca substitui `text/event-stream`, #1066).
 
 ```kof
 app.sse("/events") {
