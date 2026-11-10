@@ -219,19 +219,16 @@ public final class StatementAnalyzer {
                 SemExpressionTyper.inferType(sa, ifStmt.condition(), scope);
                 collectNarrowing(sa, ifStmt.condition(), scope, thenNarrow, elseNarrow, false);
                 for (SymbolTable.LocalVariableSymbol s : thenNarrow) ifScope.define(s);
-                if (!elseNarrow.isEmpty() && ifStmt.elseBranch() != null) {
+                // §777: BOTH branches are analyzed, each in its own narrowed
+                // scope. The THEN of `if (x == null) {...} else {...}` used to be
+                // skipped, so its calls never reached resolvedMethods and an
+                // unqualified member call was lowered as a top-level function.
+                // Analyzing the ELSE also matters (frames; see a892b3c5).
+                analyzeStatement(sa, ifStmt.thenBranch(), ifScope, returnType);
+                if (ifStmt.elseBranch() != null) {
                     SymbolTable elseScope = scope.enterScope();
                     for (SymbolTable.LocalVariableSymbol s : elseNarrow) elseScope.define(s);
                     analyzeStatement(sa, ifStmt.elseBranch(), elseScope, returnType);
-                } else {
-                    analyzeStatement(sa, ifStmt.thenBranch(), ifScope, returnType);
-                    // a892b3c5 (lane CodeQL) removeu esta linha junto com a var
-                    // `condType` marcada como unread — mas ela NÃO era unread:
-                    // sem analisar o ELSE, os tipos das expressões do ramo else
-                    // não entram em sa.expressionTypes() e o lowering JVM gera
-                    // frames inválidos (Supervisor.lacoUnico: AIOOBE em
-                    // COMPUTE_FRAMES). Restaurado (fix-forward, regra 8).
-                    if (ifStmt.elseBranch() != null) analyzeStatement(sa, ifStmt.elseBranch(), scope, returnType);
                 }
                 // §353 revealed (makealive fsRead): `if (t == null) { return }`
                 // seguido de `t.foo()` e o MESMO narrowing de SG-005 em forma

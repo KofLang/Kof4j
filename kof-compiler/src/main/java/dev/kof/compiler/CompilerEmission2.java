@@ -80,7 +80,7 @@ public final class CompilerEmission2 {
             }
             if (formal != null && CompilerTypeSupport.erasesToReference(formal) && TypeMetrics.isPrimitiveType(argType)
                     && !BuiltinTypes.isString(formal)
-                    && !(argType instanceof Type.NullableType)
+                    && !TypeMetrics.isNullablePrimitive(argType)
                     && !ExpressionTyper.boxesOwnBranches(driver, args.get(i), locals)) {
                 // #1089: o gate NÃO desembrulha Nullable — um arg Nullable
                 // (primitivo) já chega como a referência boxada
