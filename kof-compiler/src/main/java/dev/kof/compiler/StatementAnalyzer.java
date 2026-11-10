@@ -355,8 +355,11 @@ public final class StatementAnalyzer {
                     // bug 1: `throw <não-String>` gerava bytecode inválido no
                     // JVM (wrap em RuntimeException assumindo String). Exceções
                     // são Strings em Kof — rejeita com diagnóstico limpo.
+                    // §775: a JDK throwable (`new java.lang.RuntimeException(..)`) is
+                    // now typed instead of UNKNOWN; it stays a legal throw value.
                     if (sa.diagnostics() != null && t != null && !Type.isUnknown(t)
-                            && !BuiltinTypes.isString(t)) {
+                            && !BuiltinTypes.isString(t) && !(t instanceof Type.ClassType ct
+                                    && CompilerTypes.isKofBuiltinJavaLang(ct.internalName()))) {
                         sa.diagnostics().error(ts,
                                 "throw requires a String (exceptions are Strings in Kof),"
                                         + " got " + Type.canonicalPrimitiveName(

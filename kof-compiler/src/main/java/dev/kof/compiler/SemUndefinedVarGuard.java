@@ -115,7 +115,7 @@ final class SemUndefinedVarGuard {
         if (sa.externalTypes() == null || sa.unit() == null) return false;
         Type t = MemberResolver.qualifyViaImports(sa.unit(), name, sa.externalTypes());
         return t instanceof Type.ClassType ct && !ct.packageName().isEmpty()
-                && sa.externalTypes().knows(ct.internalName());
+                && sa.externalTypes().knowsMembers(ct.internalName());
     }
 
     /**

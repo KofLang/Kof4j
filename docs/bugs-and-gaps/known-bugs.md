@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §775 (FIXED)
 last: §774 (FIXED)
 last: §773 (FIXED)
 last: §772 (FIXED)
@@ -136,6 +137,26 @@ Observed on JVM, Script and JS: `caught wrapped:boom` only; `release` never prin
 
 **Fix:** the lowering emits `try {T} catch {C} finally {F}` as `try { try {T} catch {C} } finally {F}` — the JLS equivalence — so the finally's handler guards the catch bodies through the existing nested-try machinery, on every target, with no backend change. **Proof:** `CatchThrowRunsFinallyE2ETest` (rethrow from a catch, return from a catch, a counted nested case, the normal path) passes on JVM, Script and JS; on the old code all three fail. The native x86-64/riscv64/aarch64 faces are in the same test and were not measured on the macOS host (no Linux ELF toolchain); the `finally`-bearing suites (310 classes, 904 tests) fail exactly the same 92 native/environmental tests as the base commit.
 <!-- pt-switch --> **PT:** [§774 (pt_BR)](known-bugs.pt_BR.md#774--um-throw-dentro-de-um-catch-pulava-o-finally-do-mesmo-try-jvm-script-e-js)
+
+## §775 — A member of a JDK exception class that Kof does not list (`SQLException.getSQLState()`) was typed `Object` (NoSuchMethodError / ClassFormatError)
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `3a2952641`).
+
+**MEASURED** (JVM target):
+```kof
+import java.sql.SQLException
+main() {
+    val ex = new SQLException("dup", "23505", 7)
+    var s = ex.getSQLState()
+    println(s.startsWith("23"))
+}
+```
+Observed: compiles with no diagnostic, then dies at load with `ClassFormatError: Illegal class name "" in class file Default/Main`. The bytecode is `invokevirtual SQLException.getSQLState:()Ljava/lang/Object;` (a `NoSuchMethodError` once reached) followed by `invokevirtual "".startsWith`. `String s = ex.getSQLState()` dies with `NoSuchMethodError`; `ex.getErrorCode() + 1` is typed `Object` too. `o as SQLException` failed with `SEM011 Undefined variable or type`.
+
+**ROOT CAUSE:** every JDK `Throwable` is a Kof builtin for `throw`/`catch` (`CompilerTypes.isKofBuiltinJavaLang`), so `ExternalClasspath.knows()` excludes it on purpose (making them external broke 39 tests when it was tried). As a side effect the typer never resolved their members on the classpath: only members the builtin registry lists (`getMessage`) got a type; `new SQLException(...)` and an `as SQLException` target were UNKNOWN; and an unknown member compiled into an empty-owner call instead of `SEM025`.
+
+**Fix:** `ExternalClasspath.knowsMembers()` (= `knows()` plus the JDK throwables, never `java.lang.String`) is used where a type's MEMBERS or its name are resolved — the member typer's classpath branch and its `SEM025` check, `new` of an imported class, the imported-type guard of `as`, and import qualification — while `isExternal()`, which decides throw/catch semantics, is unchanged. Because `new` of a JDK throwable is now typed (it was `UNKNOWN`), the `throw` check (SEM026) accepts that set explicitly (`String` and JDK throwables), the same values that passed before; `KofBuiltinJdkSeparationE2ETest.typedExceptionThrowAndCatchStillCompile` covers it. **Proof:** `JdkThrowableMembersE2ETest` 4/4 (`getSQLState`/`getErrorCode`/`getMessage`, a cast to `SQLException`, `SEM025` on an unknown member, Kof `throw "x"`/`catch (String e)` unchanged); on the old code 3 of the 4 fail.
+<!-- pt-switch --> **PT:** [§775 (pt_BR)](known-bugs.pt_BR.md#775--um-membro-de-classe-de-excecao-do-jdk-que-o-kof-nao-lista-sqlexceptiongetsqlstate-era-tipado-como-object-nosuchmethoderror--classformaterror)
 
 ## §168 — SEM025 missing for unknown method in namespace `json` — ✅ FIXED 13/09 (lane development/translator, owner = 192.168.100.22)
 
