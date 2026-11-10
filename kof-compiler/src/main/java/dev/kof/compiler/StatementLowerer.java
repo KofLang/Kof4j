@@ -370,6 +370,9 @@ public final class StatementLowerer {
             case ThrowStmt ts -> {
                 localIdx = ExpressionLowerer.emitExpression(driver, ts.expression(), ops, owner, localIdx, locals);
                 Type excType = ExpressionTyper.inferExprType(driver, ts.expression(), locals);
+                // A `String?` the analyzer narrowed (`if (e != null) { throw e }`)
+                // is still a String to wrap: a raw athrow of it is a VerifyError.
+                if (excType instanceof Type.NullableType nt) excType = nt.inner();
                 // ANDROID reusa o JvmBackend e o mesmo contrato de excecao
                 // String->RuntimeException do JVM (issue #777 hunt): sem isto o
                 // `athrow` recebia a String crua -> VerifyError em toda app

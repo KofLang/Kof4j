@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §795 (FIXED)
 last: §794 (FIXED)
 last: §793 (FIXED)
 last: §792 (FIXED)
@@ -405,6 +406,32 @@ Observed: compile time roughly doubles every two links (20 links 0.5 s, 22 links
 
 **Fix:** every argument is either `-w` (any position), an unknown flag (refused as before, R6) or a path; `kof fmt <file.kf|dir>... [-w]` formats every path given, and no path at all is the usage error. **Proof:** `FmtTest` 4/4 (`-w` first with two files formats both; `fmt -w` alone is usage; the unknown-flag refusal and the old order keep working).
 <!-- pt-switch --> **PT:** [§794 (pt_BR)](known-bugs.pt_BR.md#794--kof-fmt--w-arquivo-respondia-not-found--w-e-kof-fmt-formatava-so-o-primeiro-de-varios-caminhos)
+
+## §795 — `throw e` of a narrowed `String?` emitted a raw `athrow` of the String (JVM VerifyError)
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED** (JVM target):
+```kof
+String? why(k: Int) {
+    if (k == 1) { return "boom" }
+    return null
+}
+main() {
+    try {
+        val e = why(1)
+        if (e != null) { throw e }
+    } catch (String s) {
+        println("caught " + s)
+    }
+}
+```
+Observed: compiles, then `VerifyError: Bad type on operand stack` (`String` is not assignable to `Throwable`) when the class loads. A plain `String` local or a literal is thrown correctly.
+
+**ROOT CAUSE:** the JVM/Android lowering of `throw` wraps a String into the Kof exception (`RuntimeException(String)`) only when the lowering type is exactly `String`; a narrowed `String?` local still has the type `String?` at lowering time, so it skipped the wrap and emitted `athrow` on the String.
+
+**Fix:** `StatementLowerer` unwraps a nullable type before the String check, so a narrowed `String?` is wrapped like a `String`. **Proof:** `ThrowNarrowedStringE2ETest` (prints `caught boom`); on the old code it is the `VerifyError`.
+<!-- pt-switch --> **PT:** [§795 (pt_BR)](known-bugs.pt_BR.md#795--throw-e-de-um-string-estreitado-emitia-um-athrow-cru-da-string-verifyerror-na-jvm)
 
 ## §168 — SEM025 missing for unknown method in namespace `json` — ✅ FIXED 13/09 (lane development/translator, owner = 192.168.100.22)
 
