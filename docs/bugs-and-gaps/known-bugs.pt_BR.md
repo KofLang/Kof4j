@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §807 (FIXED)
 last: §802 (FIXED)
 last: §801 (FIXED)
 last: §799 (FIXED)
@@ -548,6 +549,23 @@ Observado: imprime só `main done`. Num servidor cuja task spawned servia um soc
 
 **Correção:** um `java.lang.Error` numa expressão spawned é reportado no stderr quando acontece (`spawn task failed: <erro>`): é um programa quebrado, não um valor que um `await` deve tratar. O handle continua falhando no `await`, e uma exceção comum do Kof continua indo só para quem aguarda. **Prova:** `SpawnHandleErrorE2ETest` (o `StackOverflowError` de uma task não aguardada está no stderr e o `main` ainda termina); `SpawnAwaitBlockE2ETest` e os casos JVM do `SpawnE2ETest` inalterados.
 <!-- pt-switch --> **EN:** [§802 (en)](known-bugs.md#802--a-jvm-error-nosuchmethoderror-verifyerror-stackoverflowerror-in-a-spawned-expression-nobody-awaited-vanished-without-a-trace)
+
+## §807 — um tipo nullable escrito com o pacote (`profile.ProfileNameStyle?`) virava uma classe chamada `ProfileNameStyle?`: um record com esse componente morria com NoSuchMethodError na primeira construção
+
+**Status:** ✅ CORRIGIDO 05/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/lab` `4f7257933`).
+
+**MEDIDO** (alvo JVM, três pacotes):
+```kof
+package network
+
+record NetworkUserView(String id, profile.ProfileNameStyle? nameStyle)
+```
+com `NetworkUserView("a", ProfileNameStyle.FANCY)` em outro pacote. Observado: `NoSuchMethodError: 'void network.NetworkUserView.<init>(java.lang.String, profile.ProfileNameStyle)'`; o `javap` mostra o record declarado com um componente do tipo `profile.ProfileNameStyle?`.
+
+**CAUSA RAIZ:** o `CompilerTypes.toType` corta um nome pontuado no último ponto antes de qualquer tratamento do marcador nullable, então `profile.ProfileNameStyle?` virava `ClassType("profile", "ProfileNameStyle?")`. Nomes simples passam pelo `Type.of`, que conhece o `?`; o caminho qualificado não.
+
+**Correção:** no caminho pontuado um `?` final é anulabilidade: o tipo é o `NullableType` do nome qualificado sem ele. **Prova:** `QualifiedNullableTypeE2ETest` (um componente de record e um parâmetro tipados `profile.ProfileNameStyle?` constroem, leem e aceitam `null` entre pacotes).
+<!-- pt-switch --> **EN:** [§807 (en)](known-bugs.md#807--a-nullable-type-written-with-its-package-profileprofilenamestyle-became-a-class-named-profilenamestyle-a-record-with-such-a-component-died-with-nosuchmethoderror-at-its-first-construction)
 
 ## §168 — SEM025 ausente para método desconhecido em namespace `json` — ✅ CORRIGIDO 13/09 (lane development/translator, dono = 192.168.100.22)
 

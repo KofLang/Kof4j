@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §807 (FIXED)
 last: §802 (FIXED)
 last: §801 (FIXED)
 last: §799 (FIXED)
@@ -549,6 +550,23 @@ Observed: prints only `main done`. In a server whose spawned task served a socke
 
 **Fix:** a `java.lang.Error` in a spawned expression is reported on stderr when it happens (`spawn task failed: <error>`): it is a broken program, not a value an `await` is meant to handle. The handle still fails for `await`, and an ordinary Kof exception keeps going only to the awaiter. **Proof:** `SpawnHandleErrorE2ETest` (the `StackOverflowError` of an unawaited task is on stderr and `main` still ends); `SpawnAwaitBlockE2ETest` and the JVM cases of `SpawnE2ETest` unchanged.
 <!-- pt-switch --> **PT:** [§802 (pt_BR)](known-bugs.pt_BR.md#802--um-error-da-jvm-nosuchmethoderror-verifyerror-stackoverflowerror-numa-expressao-spawned-que-ninguem-aguardava-sumia-sem-rastro)
+
+## §807 — a nullable type written with its package (`profile.ProfileNameStyle?`) became a class named `ProfileNameStyle?`: a record with such a component died with NoSuchMethodError at its first construction
+
+**Status:** ✅ FIXED 05/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/lab` `4f7257933`).
+
+**MEASURED** (JVM target, three packages):
+```kof
+package network
+
+record NetworkUserView(String id, profile.ProfileNameStyle? nameStyle)
+```
+with `NetworkUserView("a", ProfileNameStyle.FANCY)` in another package. Observed: `NoSuchMethodError: 'void network.NetworkUserView.<init>(java.lang.String, profile.ProfileNameStyle)'`; `javap` shows the record declared with a component of type `profile.ProfileNameStyle?`.
+
+**ROOT CAUSE:** `CompilerTypes.toType` splits a dotted name at its last dot before anything handles the nullable marker, so `profile.ProfileNameStyle?` became `ClassType("profile", "ProfileNameStyle?")`. Simple names go through `Type.of`, which knows `?`; the qualified path did not.
+
+**Fix:** on the dotted path a trailing `?` is nullability: the type is the `NullableType` of the qualified name without it. **Proof:** `QualifiedNullableTypeE2ETest` (a record component and a parameter typed `profile.ProfileNameStyle?` construct, read and accept `null` across packages).
+<!-- pt-switch --> **PT:** [§807 (pt_BR)](known-bugs.pt_BR.md#807--um-tipo-nullable-escrito-com-o-pacote-profileprofilenamestyle-virava-uma-classe-chamada-profilenamestyle-um-record-com-esse-componente-morria-com-nosuchmethoderror-na-primeira-construcao)
 
 ## §168 — SEM025 missing for unknown method in namespace `json` — ✅ FIXED 13/09 (lane development/translator, owner = 192.168.100.22)
 
