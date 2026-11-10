@@ -82,11 +82,24 @@ final class KofShadowing {
      */
     record ArgShape(Type type, boolean literal) {}
 
-    /** The shapes of {@code mc}'s arguments, typed in the semantic scope. */
-    static List<ArgShape> shapes(SemanticAnalyzer sa, List<? extends AstNode> arguments, SymbolTable scope) {
+    /**
+     * The shapes of the call's arguments for the SEMANTIC face. An already
+     * inferred type is reused; otherwise the argument is typed in {@code scope}.
+     *
+     * <p>{@code inferArguments == false} is for the builtin branches whose
+     * argument is deliberately NOT inferred (the builtin {@code ring1(fn)} takes
+     * a bare top-level function on purpose): there the shapes stay
+     * {@code unknown}, which never blocks the class face — a proactive
+     * inference turned `ring1(task)` into SEM011 and broke
+     * {@code RingPrivilegeE2ETest}.
+     */
+    static List<ArgShape> shapes(SemanticAnalyzer sa, List<? extends AstNode> arguments,
+            SymbolTable scope, boolean inferArguments) {
         List<ArgShape> out = new ArrayList<>();
         for (AstNode a : arguments) {
-            Type t = a instanceof ExpressionNode e ? SemExpressionTyper.inferType(sa, e, scope) : null;
+            Type t = a instanceof ExpressionNode e
+                    ? (inferArguments ? SemExpressionTyper.inferType(sa, e, scope) : sa.getExpressionType(e))
+                    : null;
             out.add(new ArgShape(t, isNumericLiteral(a)));
         }
         return out;

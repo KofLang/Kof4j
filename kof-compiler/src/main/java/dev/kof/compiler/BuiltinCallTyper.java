@@ -19,7 +19,8 @@ public final class BuiltinCallTyper {
         // resolução segue a cadeia até TopLevelCallTyper, que tipa e registra.
         if (mc.receiver() == null && (KofShadowing.userDeclares(sa, mc.methodName())
                 || KofShadowing.enclosingClassDeclares(sa, mc.methodName(),
-                        KofShadowing.shapes(sa, mc.arguments(), scope)))) {
+                        KofShadowing.shapes(sa, mc.arguments(), scope,
+                        !"ring1".equals(mc.methodName()))))) {
             return null;
         }
         if (mc.receiver() == null && "channel".equals(mc.methodName())
