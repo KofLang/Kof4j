@@ -216,6 +216,13 @@ variant uses the user's cert/key pair (`-----BEGIN CERTIFICATE-----` /
 `-----BEGIN PRIVATE KEY-----`, PKCS#8 RSA/EC/DSA key); the 1-arg self-signed
 stays a dev convenience, not for production (D-SEC).
 
+**Persistent connections (JVM):** HTTP/1.1 connections stay open between
+requests (RFC 9112 §9.3) — `Connection: keep-alive` on each response, pipelined
+requests answered in order, an idle connection closed after 5 s. A request with
+`Connection: close`, HTTP/1.0 without `Connection: keep-alive`, or a
+`Transfer-Encoding` body gets `Connection: close` and the socket closes after the
+response. Native/JS keep one request per connection (`WEB001` residual).
+
 ### Static files (`app.serveDir`) (31/08)
 
 | Call | Description |

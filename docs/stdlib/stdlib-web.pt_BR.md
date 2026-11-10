@@ -213,6 +213,13 @@ app.get("/api/hide") { return "hide" }                          // herda desliga
 `app.listen(0)` vincula uma porta efêmera; `app.port()` revela a porta real.
 `app.listenSecure` está disponível no JVM (Native/JS `WEB002`).
 
+**Conexões persistentes (JVM):** conexões HTTP/1.1 ficam abertas entre
+requisições (RFC 9112 §9.3) — `Connection: keep-alive` em cada resposta,
+requisições em pipeline respondidas em ordem, conexão ociosa fechada após 5 s.
+Uma requisição com `Connection: close`, HTTP/1.0 sem `Connection: keep-alive`, ou
+um corpo com `Transfer-Encoding` recebe `Connection: close` e o socket fecha após
+a resposta. Native/JS seguem com uma requisição por conexão (residual `WEB001`).
+
 ### Arquivos estáticos (`app.serveDir`) (31/08)
 
 | Chamada | Descrição |

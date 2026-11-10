@@ -2,7 +2,7 @@ package dev.kof.compiler.jvm;
 import dev.kof.compiler.Type;
 
 /**
- * Web JVM: dispatch de rotas, invoke de handlers, build de resposta, readRequest e acessores de contexto.
+ * Web JVM: dispatch de rotas, invoke de handlers, build de resposta e acessores de contexto.
  * Extraído de JvmRuntime.source (REFACTOR-500 Fase 5) — fragmento de source
  * do KofRuntime gerado; concatenação preserva ordem e conteúdo byte-a-byte.
  */
@@ -328,7 +328,7 @@ public final class JvmRuntimeWebDispatch {
                                 if (ranged && (start > end || start >= total)) {
                                     String h416 = "HTTP/1.1 416 Range Not Satisfiable\\r\\n"
                                             + "Content-Range: bytes */" + total + "\\r\\n"
-                                            + "Content-Length: 0\\r\\nConnection: close\\r\\n\\r\\n";
+                                            + "Content-Length: 0\\r\\n\\r\\n";
                                     return new WebDispatchResult(RouteKind.HTTP, h416, null);
                                 }
                                 byte[] staticBody = kof_web_static_read(start, end);
@@ -342,8 +342,7 @@ public final class JvmRuntimeWebDispatch {
                                             ? "Content-Range: bytes " + start + "-"
                                                     + (start + staticBody.length - 1) + "/" + total + "\\r\\n"
                                             : "")
-                                            + "Content-Length: " + staticBody.length + "\\r\\n"
-                                            + "Connection: close\\r\\n\\r\\n";
+                                            + "Content-Length: " + staticBody.length + "\\r\\n\\r\\n";
                                     return new WebDispatchResult(
                                             RouteKind.HTTP, head, null, staticBody);
                                 }
@@ -469,83 +468,8 @@ public final class JvmRuntimeWebDispatch {
                             + ctHeader
                             + hdr.toString()
                             + "Content-Length: " + bodyBytes.length + "\\r\\n"
-                            + "Connection: close\\r\\n"
                             + "\\r\\n"
                             + body;
-                }
-
-                private static WebRequest readRequest(java.io.InputStream in) throws java.io.IOException {
-                    return readRequest(in, null, false);
-                }
-
-                private static WebRequest readRequest(java.io.InputStream in, String remoteAddr,
-                        boolean secure) throws java.io.IOException {
-                    byte[] buffer = new byte[8192];
-                    java.io.ByteArrayOutputStream raw = new java.io.ByteArrayOutputStream();
-                    int headerEnd = -1;
-                    while (true) {
-                        int n = in.read(buffer);
-                        if (n == -1) throw new java.io.IOException("connection closed before headers");
-                        raw.write(buffer, 0, n);
-                        byte[] seen = raw.toByteArray();
-                        headerEnd = indexOfHeaderEnd(seen);
-                        if (headerEnd >= 0) break;
-                        if (raw.size() > 65536) throw new java.io.IOException("headers too large");
-                    }
-
-                    byte[] seen = raw.toByteArray();
-                    String headerBlock = new String(seen, 0, headerEnd,
-                            java.nio.charset.StandardCharsets.UTF_8);
-                    int bodyStart = headerEnd + 4;
-
-                    int contentLength = 0;
-                    for (String line : headerBlock.split("\\r\\n")) {
-                        if (line.toLowerCase().startsWith("content-length:")) {
-                            try {
-                                contentLength = Integer.parseInt(line.substring(line.indexOf(':') + 1).trim());
-                            } catch (NumberFormatException ignored) {
-                            }
-                        }
-                    }
-                    // O corpo é contado em BYTES (Content-Length), não em chars:
-                    // um corpo UTF-8 multibyte ("Olá") tem menos chars que bytes
-                    // e o loop antigo (body.length() < contentLength) lia além do
-                    // fim e travava a conexão até o timeout (blog E2E F12).
-                    java.io.ByteArrayOutputStream bodyBuf = new java.io.ByteArrayOutputStream();
-                    int already = seen.length - bodyStart;
-                    if (already > 0) bodyBuf.write(seen, bodyStart, already);
-                    while (bodyBuf.size() < contentLength) {
-                        int n = in.read(buffer);
-                        if (n == -1) break;
-                        bodyBuf.write(buffer, 0, n);
-                    }
-                    byte[] bodyBytes = bodyBuf.toByteArray();
-                    int keep = Math.min(bodyBytes.length, contentLength);
-                    String body = new String(bodyBytes, 0, keep,
-                            java.nio.charset.StandardCharsets.UTF_8);
-
-                    String[] lines = headerBlock.split("\\r\\n");
-                    String[] parts = lines.length > 0 ? lines[0].split(" ") : new String[0];
-                    String method = parts.length > 0 ? parts[0] : "GET";
-                    String fullPath = parts.length > 1 ? parts[1] : "/";
-                    String path = fullPath;
-                    String query = "";
-                    int q = fullPath.indexOf('?');
-                    if (q >= 0) {
-                        path = fullPath.substring(0, q);
-                        query = fullPath.substring(q + 1);
-                    }
-                    return new WebRequest(method, path, query, headerBlock, body, remoteAddr, secure);
-                }
-
-                private static int indexOfHeaderEnd(byte[] bytes) {
-                    for (int i = 0; i + 3 < bytes.length; i++) {
-                        if (bytes[i] == '\\r' && bytes[i + 1] == '\\n'
-                                && bytes[i + 2] == '\\r' && bytes[i + 3] == '\\n') {
-                            return i;
-                        }
-                    }
-                    return -1;
                 }
 
                 public static String kof_web_param(String name) {

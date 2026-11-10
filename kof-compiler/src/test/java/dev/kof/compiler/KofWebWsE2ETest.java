@@ -71,13 +71,7 @@ class KofWebWsE2ETest extends WsFrameSupport {
             OutputStream out = socket.getOutputStream();
             out.write(raw.getBytes(StandardCharsets.UTF_8));
             out.flush();
-            StringBuilder response = new StringBuilder();
-            byte[] buffer = new byte[4096];
-            int n;
-            while ((n = socket.getInputStream().read(buffer)) != -1) {
-                response.append(new String(buffer, 0, n, StandardCharsets.UTF_8));
-            }
-            return response.toString();
+            return TestServerFixture.readResponse(socket.getInputStream());
         }
     }
 

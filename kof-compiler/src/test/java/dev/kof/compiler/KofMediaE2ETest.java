@@ -86,14 +86,7 @@ class KofMediaE2ETest extends KofMediaSupport {
             OutputStream out = socket.getOutputStream();
             out.write(raw.getBytes(StandardCharsets.UTF_8));
             out.flush();
-            InputStream in = socket.getInputStream();
-            StringBuilder response = new StringBuilder();
-            byte[] buffer = new byte[8192];
-            int n;
-            while ((n = in.read(buffer)) != -1) {
-                response.append(new String(buffer, 0, n, StandardCharsets.UTF_8));
-            }
-            return response.toString();
+            return TestServerFixture.readResponse(socket.getInputStream());
         }
     }
 
@@ -108,30 +101,10 @@ class KofMediaE2ETest extends KofMediaSupport {
             OutputStream out = socket.getOutputStream();
             out.write(raw.getBytes(StandardCharsets.UTF_8));
             out.flush();
-            InputStream in = socket.getInputStream();
-            StringBuilder head = new StringBuilder();
-            byte[] buf = new byte[8192];
-            int n;
-            int sep = -1;
-            while ((n = in.read(buf)) != -1) {
-                if (sep < 0) {
-                    String chunk = new String(buf, 0, n, StandardCharsets.ISO_8859_1);
-                    int at = chunk.indexOf("\r\n\r\n");
-                    if (at >= 0) {
-                        sep = head.length() + at;
-                        head.append(chunk, 0, at + 4);
-                        byte[] rest = new byte[n - (at + 4)];
-                        System.arraycopy(buf, at + 4, rest, 0, rest.length);
-                        java.io.ByteArrayOutputStream body = new java.io.ByteArrayOutputStream();
-                        body.write(rest);
-                        byte[] more;
-                        while ((n = in.read(buf)) != -1) body.write(buf, 0, n);
-                        return body.toByteArray();
-                    }
-                    head.append(chunk);
-                }
-            }
-            return head.toString().getBytes(StandardCharsets.ISO_8859_1);
+            byte[] all = TestServerFixture.readResponseBytes(socket.getInputStream());
+            String text = new String(all, StandardCharsets.ISO_8859_1);
+            int at = text.indexOf("\r\n\r\n");
+            return at < 0 ? all : java.util.Arrays.copyOfRange(all, at + 4, all.length);
         }
     }
 
