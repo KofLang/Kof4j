@@ -170,7 +170,7 @@ Kof não depende de Java como linguagem intermediária.
 
 # Estado Atual
 
-Kof está em desenvolvimento ativo — **0.6.1**.
+Kof está em desenvolvimento ativo — <!-- version -->**0.7.2**<!-- end_version -->.
 
 O compilador possui frontend próprio, type system, Kof IR e **três backends
 sobre a IR**, que produzem **seis targets**: JVM (V21 via ASM), Native x86_64
