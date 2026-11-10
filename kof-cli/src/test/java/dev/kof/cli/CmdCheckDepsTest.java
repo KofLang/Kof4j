@@ -33,7 +33,7 @@ class CmdCheckDepsTest {
         main() { println(Greeter.hello()) }
         """;
 
-    private static Path cachedJar(Path home) throws Exception {
+    static Path cachedJar(Path home) throws Exception {
         Path src = home.resolve("src/ext");
         Files.createDirectories(src);
         Files.writeString(src.resolve("Greeter.java"), GREETER);

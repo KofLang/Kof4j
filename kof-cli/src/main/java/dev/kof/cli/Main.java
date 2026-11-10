@@ -68,7 +68,7 @@ public final class Main {
         System.out.println("  md check|format <file.md>     Kofmd validate (non-zero exit on MDxxx) / canonical rewrite (JVM-first)");
         System.out.println("  script <file.ks|kf> [--target jvm|native|js]   direct KofScript execution (JVM/Native/JS, diagnostics with file:line)");
         System.out.println("  repl                         REPL incremental KofScript (type 'exit' to quit)");
-        System.out.println("  test <file.kf|dir> [--target jvm|native|js]   run programs, PASS/FAIL by exit code");
+        System.out.println("  test <file.kf|dir> [--target jvm|native|js] [--deps]   run programs, PASS/FAIL by exit code");
         System.out.println("  bench [paths...] [--target jvm|native|js] [--iterations N] [--warmup N] [--baseline <file>]");
         System.out.println("                          [--update-baseline <file>] [--threshold <ratio>] [--json] [--quick]");
         System.out.println("                          [--fail-on-regression]");
