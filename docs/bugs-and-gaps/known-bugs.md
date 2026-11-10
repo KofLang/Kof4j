@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §772 (FIXED)
 last: §937 (FIXED)
 last: §936 (FIXED)
 last: §766 (FIXED)
@@ -85,6 +86,22 @@ state: active
 > corpus.
 
 ---
+
+## §772 — `kof check` ignored the `kofdeps` classpath, so a third-party import that `kof run --deps` resolves failed with PKG006
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `3a2952641`).
+
+**MEASURED** (a project with `kofdeps` = `com.zaxxer:HikariCP:7.0.2`, resolved with `kof deps resolve`):
+```kof
+import com.zaxxer.hikari.HikariConfig
+main() { val c = HikariConfig() }
+```
+Observed: `kof run Main.kf --deps` compiles and runs; `kof check Main.kf` reports `PKG006` on the import, and `kof check Main.kf --deps` was refused with `check: unknown flag: --deps`. There was no way to type-check a program that uses its declared dependencies.
+
+**ROOT CAUSE:** `CmdRun` and `CmdBuild` hand `Deps.classpath()` (the `kofdeps` jars in `~/.kof/deps`) and `DepsSources.roots()` (installed Kof source packages) to the `CompilerDriver` under `--deps`; `CmdCheck` never did and had no `--deps` flag.
+
+**Fix:** `kof check` accepts `--deps` and configures the driver exactly like `kof run --deps` (same jar classpath and dependency source roots). The classpath parsing that `CmdRun` (twice) and `CmdBuild` repeated inline is now `Deps.classpathEntries()`, used by all three commands. **Proof:** `CmdCheckDepsTest` 1/1 (a jar in a fake `~/.kof/deps` and a `kofdeps` line: `check` without `--deps` stays `PKG006`, `check --deps` passes, `run --deps` runs); on the old code it fails (`unknown flag: --deps`). `CmdCheckTest`, `DepsTest`, `DepsSourceModuleTest`, `DepsTransitiveTest`, `CmdBuild*Test`, `CmdRun*Test` green (77 tests).
+<!-- pt-switch --> **PT:** [§772 (pt_BR)](known-bugs.pt_BR.md#772--kof-check-ignorava-o-classpath-do-kofdeps-entao-um-import-de-terceiros-que-o-kof-run---deps-resolve-falhava-com-pkg006)
 
 ## §168 — SEM025 missing for unknown method in namespace `json` — ✅ FIXED 13/09 (lane development/translator, owner = 192.168.100.22)
 
