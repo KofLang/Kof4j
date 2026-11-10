@@ -721,7 +721,7 @@ Observed: `SEM025` "Cannot resolve method".
 **ROOT CAUSE:** a missing signature: `StringMethodRegistry` had no `codePointAt(int)`, though it is a real `java.lang.String` member, so the guard refused it.
 
 **Fix:** `codePointAt(index)` returns `Int` (the code point at a UTF-16 index, the whole pair at a high surrogate). JVM and Script call the `java.lang.String` member; JS runs its native `codePointAt` (same index contract); Native refuses it with the named STR003 until it has a UTF-8 code point decode. The PortuKof alias is `pontoDeCodigoEm`, and the SEM025 list of valid String methods names `codePointAt`. `learn/39-stdlib` (EN + pt_BR) shows it. **Proof:** `StringCodePointAtE2ETest` 3/3 (BMP and supplementary code points on JVM and Script, JS, Native STR003; RED before with SEM025).
-<!-- pt-switch --> **PT:** [§827 (pt_BR)](known-bugs.pt_BR.md#827--stringcodepointati-era-sem025-então-um-port-caía-numa-decodificação-manual-de-surrogates-agora-é-membro-de-string)
+<!-- pt-switch --> **PT:** [§827 (pt_BR)](known-bugs.pt_BR.md#827--stringcodepointati-era-sem025-entao-um-port-caia-numa-decodificacao-manual-de-surrogates-agora-e-membro-de-string)
 
 ## §168 — SEM025 missing for unknown method in namespace `json` — ✅ FIXED 13/09 (lane development/translator, owner = 192.168.100.22)
 
