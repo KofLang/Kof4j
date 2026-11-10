@@ -147,8 +147,9 @@ public final class JvmRuntimeWebDispatch {
                     //    há sessionHeader (modo sessão da lane .22), o passo 4
                     //    já validou o token de sessão — não reinterpretar como
                     //    JWT (senão sessão válida viraria 401).
+                    //    §781: auth-if-present only under app.security()/policy (D-SEC.4).
                     if (p.requireAuth
-                            || (p.authHeader == null
+                            || (app.securityConfigured && p.authHeader == null
                                     && req.headers.get("authorization") != null)) {
                         boolean authenticated = kof_sec_auth_authenticated();
                         if (!authenticated) {

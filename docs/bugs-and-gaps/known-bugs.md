@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §781 (FIXED)
 last: §778 (FIXED)
 last: §775 (FIXED)
 last: §774 (FIXED)
@@ -181,6 +182,25 @@ Observed: `transaction("a")` is `SEM033` ("received a void value": the db `trans
 
 **Fix:** `KofShadowing.enclosingClassDeclares` (typer and lowering faces: the current class or its hierarchy declares the name) joins the same early exit in both places, so an unqualified call resolves as an implicit-`this` call, as in Java. **Proof:** `ClassMemberShadowsBuiltinE2ETest` 2/2 (`query`/`transaction` in the class and an inherited `query` in a subclass, JVM and Script); on the old code both fail. The second face reported with this bug (a local named `db` captured in a lambda resolving to the `db` namespace) did not reproduce on `upstream/main` in three shapes (expression lambda, block lambda passed to a function, lambda inside a class method); it is not part of this fix.
 <!-- pt-switch --> **PT:** [§778 (pt_BR)](known-bugs.pt_BR.md#778--dentro-de-uma-classe-uma-chamada-sem-qualificacao-ao-metodo-da-propria-classe-com-nome-de-builtin-da-stdlib-query-transaction-chamava-o-builtin)
+
+## §781 — the web runtime answered 401 to ANY request carrying `Authorization` even when the app never configured `app.security()`
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `edcc39114`).
+
+**MEASURED** (JVM target):
+```kof
+main() {
+    var app = web.app()
+    app.get("/health") { return "up" }
+    app.listen(8080)
+}
+```
+`curl -H "Authorization: Bearer x" localhost:8080/health` → `401 {"error":"unauthorized"}`, before the route. The app never called `app.security()`, `app.policy()` or `auth.secret()`, so no token could ever validate: every client or gateway that forwards an `Authorization` header (an app doing its own auth in a middleware or a route) was locked out, and a middleware could not opt out because the check runs after it.
+
+**ROOT CAUSE:** the dispatch runs `kof_web_security_pipeline` with the default `Policy` for every app, and step 6 applied auth-if-present (`p.authHeader == null && Authorization present` → JWT check) unconditionally. D-SEC.4 scopes that rule to an app where `app.security()` is configured, and `stdlib-web` documents it under `app.security()`.
+
+**Fix:** auth-if-present also requires `app.securityConfigured` (set by `app.security()` and `app.policy()`); `auth: true`, `roles` and `sessionHeader` are unchanged. The hardening headers of the default policy are not touched by this fix. **Proof:** `KofWebE2ETest.authorizationHeaderIsIgnoredWithoutSecurityConfigured` (401 on the old code, 200 now); `securityRejectsInvalidTokenIfPresentEvenWithoutAuthRequired` (auth-if-present under `app.security()`) and the `KofWebE2ETest`/`KofHttpPoliciesE2ETest`/`KofOAuthResourceServerTest` suites stay green.
+<!-- pt-switch --> **PT:** [§781 (pt_BR)](known-bugs.pt_BR.md#781--o-runtime-web-respondia-401-a-qualquer-request-com-authorization-mesmo-quando-o-app-nunca-configurou-appsecurity)
 
 ## §168 — SEM025 missing for unknown method in namespace `json` — ✅ FIXED 13/09 (lane development/translator, owner = 192.168.100.22)
 

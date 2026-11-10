@@ -145,7 +145,8 @@ caminhos de 404 (`return null` e rota desconhecida).
 
 **Auth-if-present:** mesmo sem `auth: true`, uma request que **traz**
 `Authorization` com token inválido nunca passa (401) — evita "token ruim vira
-anônimo".
+anônimo". Faz parte do `app.security()` / `app.policy()`: um app que não
+configura nenhum dos dois ignora o header (a rota o lê), §781.
 
 ```kof
 main() {
