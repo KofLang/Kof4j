@@ -357,32 +357,11 @@ public final class CompilerTypes {
         return qualifyViaImports(name, currentUnit, null);
     }
 
-    /** §134 residual: wildcard `import a.b.*` qualifica pelo ExternalClasspath
-     *  quando a classe existe num entry. Sem cp, comportamento antigo. */
+    /** §134 residual / §791: one import resolution for the analyzer and the
+     *  lowering ({@link MemberResolver#qualifyViaImports}). */
     static Type qualifyViaImports(String name, CompilationUnitNode currentUnit,
                                   ExternalClasspath external) {
-        if (name.contains(".") || name.contains("<") || name.endsWith("[]")) return null;
-        if (currentUnit == null) return null;
-        if (System.getProperty("kof.trace") != null && name.equals("WebView")) {
-            System.err.println("QVI WebView imports=" + currentUnit.imports());
-        }
-        for (String imp : currentUnit.imports()) {
-            if (!imp.endsWith("*") && imp.endsWith("." + name)) {
-                String pkg = imp.substring(0, imp.lastIndexOf('.'));
-                return new Type.ClassType(pkg, name, List.of());
-            }
-        }
-        if (external != null) {
-            for (String imp : currentUnit.imports()) {
-                if (imp.endsWith(".*")) {
-                    String pkg = imp.substring(0, imp.length() - 2);
-                    if (external.knowsMembers(pkg.replace('.', '/') + "/" + name)) {
-                        return new Type.ClassType(pkg, name, List.of());
-                    }
-                }
-            }
-        }
-        return null;
+        return MemberResolver.qualifyViaImports(currentUnit, name, external);
     }
 
     static Type ownerTypeFromInternal(String internalName, SemanticAnalyzer semanticAnalyzer) {
