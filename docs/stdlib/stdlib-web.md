@@ -364,7 +364,7 @@ global per JVM and returned as `String`.
 | `path()` | Request path |
 | `remoteAddr()` | TCP peer address of the request (`"127.0.0.1"`, `""` when unknown) — behind a proxy the client is the `x-forwarded-for` header (#1110). JVM and JS; Native is `WEB001` |
 | `status(code, body)` | Sets the response status and returns the body — use as a return (e.g.: `return status(201, "{\"ok\":true}")`) |
-| `headerSet(name, value)` | Adds a response header (e.g.: `headerSet("X-Total", "42")`). A repeated name replaces the value, except `Set-Cookie`, which sends one line per call; a CR/LF in the name or value is refused (§784) |
+| `headerSet(name, value)` | Adds a response header (e.g.: `headerSet("X-Total", "42")`); a repeated `Set-Cookie` (any case) REPEATS instead of replacing (RFC 6265 §3), every other header keeps last-wins, and a CR/LF in the name or value is refused (the route answers 500 — RFC 9112 §5, #1012) |
 
 The context is per-request (ThreadLocal at runtime) — handlers can be
 concurrent without shared state. `status(code, body)` and

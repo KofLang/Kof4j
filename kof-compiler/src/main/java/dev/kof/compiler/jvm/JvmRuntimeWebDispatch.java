@@ -143,13 +143,20 @@ public final class JvmRuntimeWebDispatch {
                         }
                     }
                     // 6. auth: Bearer JWT obrigatório se `auth`; se Authorization
-                    //    estiver presente, um token inválido NUNCA passa. Quando
-                    //    há sessionHeader (modo sessão da lane .22), o passo 4
+                    //    estiver presente, um token inválido NUNCA passa — mas
+                    //    SÓ em app configurada (#1011, escopo D-SEC.4: a regra
+                    //    é documentada sob app.security(); na DEFAULT de uma app
+                    //    NUNCA configurada o 401 trancava gateways e apps com
+                    //    auth própria, e nenhum middleware podia desligar — a
+                    //    checagem corre depois dele). securityConfigured é
+                    //    setada por app.security() E app.policy(). Quando há
+                    //    sessionHeader (modo sessão da lane .22), o passo 4
                     //    já validou o token de sessão — não reinterpretar como
                     //    JWT (senão sessão válida viraria 401).
                     //    §781: auth-if-present only under app.security()/policy (D-SEC.4).
                     if (p.requireAuth
-                            || (app.securityConfigured && p.authHeader == null
+                            || (app.securityConfigured
+                                    && p.authHeader == null
                                     && req.headers.get("authorization") != null)) {
                         boolean authenticated = kof_sec_auth_authenticated();
                         if (!authenticated) {
@@ -212,10 +219,18 @@ public final class JvmRuntimeWebDispatch {
                     return null;
                 }
 
+                /** #1012: todo reset de headers por request limpa TAMBÉM a
+                 *  lista de Set-Cookie (sem isto um cookie vazaria para a
+                 *  resposta seguinte na mesma thread). */
+                private static void kof_web_clear_response_headers() {
+                    KOF_WEB_HEADERS.get().clear();
+                    KOF_WEB_SET_COOKIES.get().clear();
+                }
+
                 private static WebDispatchResult kof_web_dispatch(WebApp app, WebRequest req) {
                     KOF_WEB_REQUEST.set(req);
                     KOF_WEB_STATUS.remove();
-                    KOF_WEB_HEADERS.get().clear();
+                    kof_web_clear_response_headers();
                     KOF_SEC_RESPONSE_HEADERS.get().clear();
                     KOF_LOG_REQUEST_ID.set(kof_sec_random_hex(16));
                     try {
@@ -240,7 +255,7 @@ public final class JvmRuntimeWebDispatch {
                                 String text = kof_web_status_text(code);
                                 String resp = kof_web_build(code, text, String.valueOf(result));
                                 KOF_WEB_STATUS.remove();
-                                KOF_WEB_HEADERS.get().clear();
+                                kof_web_clear_response_headers();
                                 return new WebDispatchResult(RouteKind.HTTP, resp, null);
                             }
                         }
@@ -257,7 +272,7 @@ public final class JvmRuntimeWebDispatch {
                                 matched != null ? matched.path : "");
                         if (securityReject != null) {
                             KOF_WEB_STATUS.remove();
-                            KOF_WEB_HEADERS.get().clear();
+                            kof_web_clear_response_headers();
                             return new WebDispatchResult(RouteKind.HTTP, securityReject, null);
                         }
                         for (WebRoute route : app.routes) {
@@ -281,13 +296,13 @@ public final class JvmRuntimeWebDispatch {
                                 // (CORS, cookies, request id) go out with the stream head
                                 String head = route.kind == RouteKind.SSE ? kof_web_extra_head() : null;
                                 KOF_WEB_STATUS.remove();
-                                KOF_WEB_HEADERS.get().clear();
-                                return new WebDispatchResult(route.kind, head, route);
+                                kof_web_clear_response_headers();
+                                 return new WebDispatchResult(route.kind, null, route);
                             }
                             Object result = kof_web_invoke(route.handler, req);
                             if (result == null) {
                                 KOF_WEB_STATUS.remove();
-                                KOF_WEB_HEADERS.get().clear();
+                                kof_web_clear_response_headers();
                                 return new WebDispatchResult(RouteKind.HTTP,
                                         kof_web_build(404, "Not Found",
                                                 kof_web_sec_response(effective, "notFound",
@@ -298,7 +313,7 @@ public final class JvmRuntimeWebDispatch {
                             String text2 = kof_web_status_text(code2);
                             String resp2 = kof_web_build(code2, text2, String.valueOf(result));
                             KOF_WEB_STATUS.remove();
-                            KOF_WEB_HEADERS.get().clear();
+                            kof_web_clear_response_headers();
                             return new WebDispatchResult(RouteKind.HTTP, resp2, null);
                         }
                         // Arquivos estáticos (app.serveDir): fallback quando
@@ -369,7 +384,7 @@ public final class JvmRuntimeWebDispatch {
                         }
                         String msg = root.getMessage() == null ? root.getClass().getSimpleName() : root.getMessage();
                         KOF_WEB_STATUS.remove();
-                        KOF_WEB_HEADERS.get().clear();
+                        kof_web_clear_response_headers();
                         return new WebDispatchResult(RouteKind.HTTP,
                                 kof_web_build(500, "Internal Server Error",
                                         "{\\"error\\": \\"handler error: " + msg + "\\"}"), null);
@@ -378,6 +393,7 @@ public final class JvmRuntimeWebDispatch {
                         KOF_LOG_REQUEST_ID.remove();
                         KOF_WEB_STATUS.remove();
                         KOF_WEB_HEADERS.remove();
+                        KOF_WEB_SET_COOKIES.remove();
                     }
                 }
 
@@ -460,6 +476,11 @@ public final class JvmRuntimeWebDispatch {
                             }
                         }
                     }
+                    // #1012: UMA linha por Set-Cookie (RFC 6265 §3), na ordem
+                    // das chamadas.
+                    for (String[] sc : KOF_WEB_SET_COOKIES.get()) {
+                        hdr.append(sc[0]).append(": ").append(sc[1]).append("\\r\\n");
+                    }
                     // D-SEC C18: headers do middleware de security sobrevivem
                     // ao clear do dispatch antes da rota.
                     java.util.Map<String, String> secHeaders = KOF_SEC_RESPONSE_HEADERS.get();
@@ -477,6 +498,7 @@ public final class JvmRuntimeWebDispatch {
                             + "\\r\\n"
                             + body;
                 }
+
 
                 public static String kof_web_param(String name) {
                     WebRequest req = KOF_WEB_REQUEST.get();
