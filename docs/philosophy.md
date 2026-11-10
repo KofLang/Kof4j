@@ -309,6 +309,34 @@ corpus so that models produce idiomatic Kof.
 
 ---
 
+## The Compatibility Laws (the 20 Mandamentos)
+
+> Authored in [issue #761](https://github.com/KofLang/Kof4j/issues/761) — the
+> compatibility contract of the language, normative for every backend and
+> release. These laws mirror the project's standing orders: evolution is
+> incremental, the frontend never breaks, working code never breaks.
+
+1. **Kof does not break the user's code to make the compiler's life easier.** If the compiler changed, it is the compiler's responsibility to keep understanding the code it already understood.
+2. **Valid Kof code remains valid Kof code in the following versions.**
+3. **If something worked in the previous version and stopped working, it is a compiler bug — never the user's.** Regressions are treated as compiler defects.
+4. **Every syntax change is incremental and never destructive.** New ways of writing code coexist with the existing forms.
+5. **Compatibility is a feature of the language.** Keeping existing code working is part of the compiler's contract.
+6. **Internal compiler changes must not require changes to the user's code.** Parser, AST, IR, optimization or backend refactors are the compiler's responsibility.
+7. **The compiler absorbs complexity; it never transfers it to the user.** If an internal change requires widespread Kof-code adaptations, the solution is sought inside the compiler first.
+8. **Valid Kof code must not depend on the compiler version to remain valid.** Compiler evolution is transparent to existing programs.
+9. **New features coexist with existing features.** Adding a capability never justifies removing or invalidating a previous one.
+10. **Deprecations are explicit, gradual and documented.** No feature disappears without a clear deprecation process.
+11. **Deprecation is not immediate breakage.** A deprecated feature keeps working through the compatibility period the project defines.
+12. **A version change is never justification to break users.** No version — majors included — may introduce breakage the compiler could have avoided.
+13. **Backend changes cannot break the language frontend.** JVM, Native, JS, WASM or any other target preserve the same language contract.
+14. **The same Kof code keeps the same semantics across targets whenever the language contract allows.** Platform-specific differences are the backend's responsibility.
+15. **A new version that rejects previously valid code has a regression until proven otherwise.** The change is investigated as a bug before being accepted as a legitimate language change.
+16. **Every fixed regression receives a non-regression test.** What broke once carries an automated proof that it keeps working.
+17. **The compiler preserves the semantics of existing code.** Parser, AST, IR, optimization or code-generation changes cannot alter the meaning of valid programs.
+18. **When a new interpretation conflicts with the legacy behavior, the legacy behavior wins.** Compatibility takes precedence over implementation convenience.
+19. **Optimizations never change the observable behavior of a valid program.** Performance is the compiler's responsibility and must not require changes to the user's code.
+20. **The compiler is more compatible with the user than with its own implementation.** If preserving compatibility requires extra complexity, that complexity belongs to the compiler — and the user never needs to follow the compiler's implementation to keep their code working.
+
 ## Future Vision
 
 Kof should evolve into a platform where:
