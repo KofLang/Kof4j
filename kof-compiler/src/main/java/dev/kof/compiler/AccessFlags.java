@@ -12,6 +12,10 @@ public final class AccessFlags {
     // 0x0040 no espaço de FIELD flags (JVM spec §4.7) — mesmo bit de BRIDGE,
     // que só existe no espaço de METHOD flags (§4.6). (SG-020 regra 5)
     public static final int VOLATILE   = 0x0040;
+    // ACC_VARARGS in the METHOD flag space (JVMS §4.6); same bit as
+    // TRANSIENT in the FIELD space. Carried on external MethodSymbols so the
+    // instance-call lowering packs trailing arguments (VarargsArrayPacker).
+    public static final int VARARGS    = 0x0080;
     public static final int ABSTRACT   = 0x0400;
     public static final int INTERFACE  = 0x0200;
     public static final int SYNTHETIC  = 0x1000;
