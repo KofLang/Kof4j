@@ -24,8 +24,8 @@ final class FieldConstantFolder {
             return switch (lit.kind()) {
                 case ConcreteLiteralKind.INT -> CompilerTypeSupport.parseIntLiteral(lit.value());
                 case ConcreteLiteralKind.LONG -> CompilerTypeSupport.parseLongLiteral(lit.value());
-                case ConcreteLiteralKind.FLOAT -> Float.parseFloat(CompilerTypeSupport.stripSuffix(lit.value()));
-                case ConcreteLiteralKind.DOUBLE -> Double.parseDouble(CompilerTypeSupport.stripSuffix(lit.value()));
+                case ConcreteLiteralKind.FLOAT -> CompilerTypeSupport.parseFloatLiteral(lit.value());
+                case ConcreteLiteralKind.DOUBLE -> CompilerTypeSupport.parseDoubleLiteral(lit.value());
                 case ConcreteLiteralKind.STRING -> lit.value();
                 case ConcreteLiteralKind.BOOLEAN -> Boolean.parseBoolean(lit.value()) ? 1 : 0;
                 default -> null;
