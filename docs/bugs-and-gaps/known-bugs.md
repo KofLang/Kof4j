@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §778 (FIXED)
 last: §775 (FIXED)
 last: §774 (FIXED)
 last: §773 (FIXED)
@@ -157,6 +158,29 @@ Observed: compiles with no diagnostic, then dies at load with `ClassFormatError:
 
 **Fix:** `ExternalClasspath.knowsMembers()` (= `knows()` plus the JDK throwables, never `java.lang.String`) is used where a type's MEMBERS or its name are resolved — the member typer's classpath branch and its `SEM025` check, `new` of an imported class, the imported-type guard of `as`, and import qualification — while `isExternal()`, which decides throw/catch semantics, is unchanged. Because `new` of a JDK throwable is now typed (it was `UNKNOWN`), the `throw` check (SEM026) accepts that set explicitly (`String` and JDK throwables), the same values that passed before; `KofBuiltinJdkSeparationE2ETest.typedExceptionThrowAndCatchStillCompile` covers it. **Proof:** `JdkThrowableMembersE2ETest` 4/4 (`getSQLState`/`getErrorCode`/`getMessage`, a cast to `SQLException`, `SEM025` on an unknown member, Kof `throw "x"`/`catch (String e)` unchanged); on the old code 3 of the 4 fail.
 <!-- pt-switch --> **PT:** [§775 (pt_BR)](known-bugs.pt_BR.md#775--um-membro-de-classe-de-excecao-do-jdk-que-o-kof-nao-lista-sqlexceptiongetsqlstate-era-tipado-como-object-nosuchmethoderror--classformaterror)
+
+## §778 — Inside a class, an unqualified call to the class's own method named like a stdlib builtin (`query`, `transaction`) called the builtin
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `3a2952641`).
+
+**MEASURED** (JVM and Script):
+```kof
+class Store {
+    String query(String sql) { return "own-query:" + sql }
+    String transaction(String t) { return "own-tx:" + t }
+    String run() {
+        var r = query("select 1")
+        var t = transaction("a")
+        return r + " " + t
+    }
+}
+```
+Observed: `transaction("a")` is `SEM033` ("received a void value": the db `transaction`), and once that line is written as `this.transaction("a")`, `query("select 1")` returns `null` (the web-context `query`). Writing `this.` everywhere was the only workaround.
+
+**ROOT CAUSE:** the #931/#932 shadowing law ("a declaration of the program wins over a builtin of the same name") covers top-level functions and `extern`s through `KofShadowing.userDeclares`, and `BuiltinCallTailTyper` already lets an enclosing-class method win in the TAIL of the chain. But the HEAD of the chain — `BuiltinCallTyper.infer` and the fixed-name branches of `ExpressionStaticCallLowerer` (web-context functions, `transaction`, ...) — checked only top-level declarations, so they took the call first.
+
+**Fix:** `KofShadowing.enclosingClassDeclares` (typer and lowering faces: the current class or its hierarchy declares the name) joins the same early exit in both places, so an unqualified call resolves as an implicit-`this` call, as in Java. **Proof:** `ClassMemberShadowsBuiltinE2ETest` 2/2 (`query`/`transaction` in the class and an inherited `query` in a subclass, JVM and Script); on the old code both fail. The second face reported with this bug (a local named `db` captured in a lambda resolving to the `db` namespace) did not reproduce on `upstream/main` in three shapes (expression lambda, block lambda passed to a function, lambda inside a class method); it is not part of this fix.
+<!-- pt-switch --> **PT:** [§778 (pt_BR)](known-bugs.pt_BR.md#778--dentro-de-uma-classe-uma-chamada-sem-qualificacao-ao-metodo-da-propria-classe-com-nome-de-builtin-da-stdlib-query-transaction-chamava-o-builtin)
 
 ## §168 — SEM025 missing for unknown method in namespace `json` — ✅ FIXED 13/09 (lane development/translator, owner = 192.168.100.22)
 

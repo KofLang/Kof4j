@@ -17,7 +17,8 @@ public final class BuiltinCallTyper {
         // §243 função (#931/#932): o builtin de nome fixo não intercepta uma
         // chamada que o programa declara (função top-level ou extern) — a
         // resolução segue a cadeia até TopLevelCallTyper, que tipa e registra.
-        if (mc.receiver() == null && KofShadowing.userDeclares(sa, mc.methodName())) {
+        if (mc.receiver() == null && (KofShadowing.userDeclares(sa, mc.methodName())
+                || KofShadowing.enclosingClassDeclares(sa, mc.methodName()))) {
             return null;
         }
         if (mc.receiver() == null && "channel".equals(mc.methodName())
