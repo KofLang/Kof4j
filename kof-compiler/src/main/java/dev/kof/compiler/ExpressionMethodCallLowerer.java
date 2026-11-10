@@ -81,7 +81,8 @@ if (mc.receiver() == null && driver.externSignatures.containsKey(mc.methodName()
     }
 if (mc.receiver() instanceof IdentifierExpr rid && !driver.isLocalVarName(rid.name(), locals)
         && driver.semanticAnalyzer != null
-        && driver.semanticAnalyzer.getClass(rid.name()) != null) {
+        && driver.semanticAnalyzer.getClass(rid.name()) != null
+        && !driver.semanticAnalyzer.importShadowsProjectClass(rid.name())) {
     // Metodo ESTATICO de classe KOF de outro pacote:
     // Desconto.aplicar(c) -> invokestatic vendas/regras/Desconto.aplicar
     SymbolTable.MethodSymbol ksm = null;

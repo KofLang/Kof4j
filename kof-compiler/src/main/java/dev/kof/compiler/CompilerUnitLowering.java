@@ -54,6 +54,7 @@ final class CompilerUnitLowering {
             }
         }
         for (AstNode decl : unit.declarations()) {
+            driver.fileImports.enter(decl);
             String declPkg = driver.declPackage(decl, unit.packageName());
             if (decl instanceof ClassDeclarationNode cls) classes.add(CompilerClassLowering.lowerClass(driver, cls, declPkg, nextTypeId++));
             else if (decl instanceof InterfaceDeclarationNode iface) classes.add(CompilerIfaceRecordLowering.lowerInterface(driver, iface, declPkg, nextTypeId++));
@@ -109,7 +110,9 @@ final class CompilerUnitLowering {
                 }
                 case null, default -> { }  // no-op p/ null ou tipo nao-casado (paridade com o if-else original)
             }
-        }        if (!topLevelFunctions.isEmpty()) {
+        }
+        driver.fileImports.enter(null);
+        if (!topLevelFunctions.isEmpty()) {
             String mainClassName = moduleName.isEmpty() ? "Main" : moduleName + "/Main";
             classes.add(0, new IRClass(mainClassName, "java/lang/Object", List.of(),
                     AccessFlags.PUBLIC | AccessFlags.SUPER, List.of(), topLevelFunctions, List.of(), null, 0));

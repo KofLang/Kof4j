@@ -50,6 +50,19 @@ public final class CompilerImports {
                                             ExternalClasspath externalClasspath,
                                             List<Path> dependencySourceRoots,
                                             List<Path> compiledSources) {
+        return expandKofImports(unit, moduleRoot, currentDiagnostics, declarationPackages,
+                externalClasspath, dependencySourceRoots, compiledSources, null);
+    }
+
+    /** §809: {@code fileImports} (nullable) records each library file's own imports. */
+    static CompilationUnitNode expandKofImports(CompilationUnitNode unit,
+                                            Path moduleRoot,
+                                            DiagnosticCollector currentDiagnostics,
+                                            java.util.Map<AstNode, String> declarationPackages,
+                                            ExternalClasspath externalClasspath,
+                                            List<Path> dependencySourceRoots,
+                                            List<Path> compiledSources,
+                                            FileImports fileImports) {
         java.util.Set<String> visitedDirs = new java.util.HashSet<>();
         // #628 (root cause): a file already compiled in `sources` must NEVER be
         // re-parsed through an import — the import copy loses the package
@@ -152,6 +165,7 @@ public final class CompilerImports {
                             graph.computeIfAbsent(imp, k -> new java.util.HashSet<>()).add(impKey);
                             if (!imports.contains(libImp)) { imports.add(libImp); queue.add(libImp); }
                         }
+                        if (fileImports != null) fileImports.record(libUnit);
                         for (AstNode d : libUnit.declarations()) {
                             declarationPackages.put(d, libUnit.packageName());
                             decls.add(d);
@@ -214,6 +228,7 @@ public final class CompilerImports {
                             graph.computeIfAbsent(imp, k -> new java.util.HashSet<>()).add(impKey);
                             if (!imports.contains(libImp)) { imports.add(libImp); queue.add(libImp); }
                         }
+                        if (fileImports != null) fileImports.record(libUnit);
                         for (AstNode d : libUnit.declarations()) {
                             declarationPackages.put(d, libUnit.packageName());
                             decls.add(d);

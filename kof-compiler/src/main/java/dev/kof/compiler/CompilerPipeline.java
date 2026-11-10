@@ -282,6 +282,7 @@ public final class CompilerPipeline {
         driver.semanticAnalyzer.setInterpreting(driver.interpreting);
         driver.semanticAnalyzer.setExternalTypes(driver.externalClasspath);
         driver.semanticAnalyzer.setDeclarationPackageLookup(d -> driver.declarationPackages.get(d));
+        driver.semanticAnalyzer.setFileImports(driver.fileImports);
         driver.semanticAnalyzer.analyze(unit, diagnostics);
         if (diagnostics.hasErrors()) {
             return null;
@@ -413,6 +414,7 @@ public final class CompilerPipeline {
         int mainCount = 0;
         for (int i = 0; i < parsedUnits.size(); i++) {
             CompilationUnitNode u = parsedUnits.get(i);
+            driver.fileImports.record(u);
             for (String imp : u.imports()) {
                 if (!mergedImports.contains(imp)) mergedImports.add(imp);
             }
@@ -459,7 +461,7 @@ public final class CompilerPipeline {
         ExternalClasspath extCp = (driver.target == Target.JVM || driver.target == Target.ANDROID)
                 ? driver.externalClasspath : null;
         merged = CompilerImports.expandKofImports(merged, driver.moduleRoot, diagnostics, driver.declarationPackages, extCp,
-                driver.dependencySourceRoots, sources);
+                driver.dependencySourceRoots, sources, driver.fileImports);
         if (diagnostics.hasErrors()) return null;
         return merged;
     }
