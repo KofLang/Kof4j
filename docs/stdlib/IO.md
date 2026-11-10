@@ -129,6 +129,22 @@ main() {
 | `position()` | `Long` bytes consumed |
 | `copyStream(source, destination, chunkSize)` | `Long` bytes copied, constant memory |
 
+**Block writer (#854 library route)** — `libs/file/FileWriter.kf` amortizes the
+runtime open+write+close of `appendBytes` over a buffer: blocks accumulate and
+each flush appends ONCE (`FileWriterE2ETest` 5/5 on JVM/Script/JS/native
+x86-64). The constructor does NOT create the file — the exclusive-creation
+contract is `File(p).createNew()`; a write after `close()` throws honestly.
+
+```kof
+import file.FileWriter
+
+main() {
+    var w = FileWriter("out.bin", 8192)   // buffer size
+    w.write(bytes, n)                     // accumulates; auto-flush at the buffer size
+    w.close()                             // flush + seal (a later write throws)
+}
+```
+
 Targets: JVM, Native (x86-64/riscv64/aarch64) and Script run the real
 `readRange` (all measured against the same golden). JS has no host binding
 for `readRange` (nor `copyTo`/`moveTo`/`modifiedTime`/`isSymlink`): calling
@@ -405,4 +421,4 @@ scalars. Targets match `TextStream` (JVM, Native x86-64/riscv64, Script; JS
 
 - [learn/34-file-system.md](../../learn/34-file-system.md)
 - Tests: `kof-compiler/src/test/java/dev/kof/compiler/IoE2ETest.java`
-- Streaming: `libs/file/FileStream.kf`, `libs/file/TextStream.kf`, `libs/file/Csv.kf`, `libs/file/JsonLines.kf`, `libs/file/Xml.kf`, `libs/file/Ini.kf`, `libs/file/Toml.kf`, `libs/file/Yaml.kf`, `FileLibraryE2ETest.java`, `CsvReaderE2ETest.java`, `JsonLinesE2ETest.java`, `XmlReaderE2ETest.java`, `IniReaderE2ETest.java`, `TomlReaderE2ETest.java`, `YamlReaderE2ETest.java`
+- Streaming: `libs/file/FileWriter.kf` (the #854 block writer), `libs/file/FileStream.kf`, `libs/file/TextStream.kf`, `libs/file/Csv.kf`, `libs/file/JsonLines.kf`, `libs/file/Xml.kf`, `libs/file/Ini.kf`, `libs/file/Toml.kf`, `libs/file/Yaml.kf`, `FileLibraryE2ETest.java`, `CsvReaderE2ETest.java`, `JsonLinesE2ETest.java`, `XmlReaderE2ETest.java`, `IniReaderE2ETest.java`, `TomlReaderE2ETest.java`, `YamlReaderE2ETest.java`

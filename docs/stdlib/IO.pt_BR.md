@@ -130,6 +130,24 @@ main() {
 | `position()` | `Long` bytes consumidos |
 | `copyStream(source, destination, chunkSize)` | `Long` bytes copiados, memória constante |
 
+
+**Gravador em blocos (#854 rota biblioteca)** — `libs/file/FileWriter.kf`
+amortiza o open+write+close do runtime do `appendBytes` sobre um buffer: os
+blocos acumulam e cada flush anexa UMA vez (`FileWriterE2ETest` 5/5 no
+JVM/Script/JS/nativo x86-64). O construtor NÃO cria o arquivo — o contrato de
+criação exclusiva é `File(p).createNew()`; escrita após `close()` lança
+honestamente.
+
+```kof
+import file.FileWriter
+
+main() {
+    var w = FileWriter("out.bin", 8192)   // tamanho do buffer
+    w.write(bytes, n)                     // acumula; auto-flush no tamanho do buffer
+    w.close()                             // flush + sela (escrita depois lança)
+}
+```
+
 Alvos: JVM, Native (x86-64/riscv64/aarch64) e Script rodam o `readRange`
 real (todos medidos contra o mesmo golden). O JS não tem binding de host
 para `readRange` (nem `copyTo`/`moveTo`/`modifiedTime`/`isSymlink`): a
@@ -410,4 +428,4 @@ x86-64/riscv64, Script; JS `IOJS001`).
 
 - [learn/34-file-system.md](../../learn/34-file-system.md)
 - Testes: `kof-compiler/src/test/java/dev/kof/compiler/IoE2ETest.java`
-- Streaming: `libs/file/FileStream.kf`, `libs/file/TextStream.kf`, `libs/file/Csv.kf`, `libs/file/JsonLines.kf`, `libs/file/Xml.kf`, `libs/file/Ini.kf`, `libs/file/Toml.kf`, `libs/file/Yaml.kf`, `FileLibraryE2ETest.java`, `CsvReaderE2ETest.java`, `JsonLinesE2ETest.java`, `XmlReaderE2ETest.java`, `IniReaderE2ETest.java`, `TomlReaderE2ETest.java`, `YamlReaderE2ETest.java`
+- Streaming: `libs/file/FileWriter.kf` (o gravador em blocos da #854), `libs/file/FileStream.kf`, `libs/file/TextStream.kf`, `libs/file/Csv.kf`, `libs/file/JsonLines.kf`, `libs/file/Xml.kf`, `libs/file/Ini.kf`, `libs/file/Toml.kf`, `libs/file/Yaml.kf`, `FileLibraryE2ETest.java`, `CsvReaderE2ETest.java`, `JsonLinesE2ETest.java`, `XmlReaderE2ETest.java`, `IniReaderE2ETest.java`, `TomlReaderE2ETest.java`, `YamlReaderE2ETest.java`

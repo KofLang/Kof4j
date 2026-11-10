@@ -1,0 +1,75 @@
+package file
+
+// kof.file — block writer (the #854 library route).
+//
+// The issue's motivation: writing many blocks (a ZIP extraction, a stream
+// copy) re-opens the file for EVERY call of the io primitives (each
+// appendBytes is a runtime open+write+close). This writer AMORTIZES that:
+// blocks accumulate in a buffer and each flush appends ONCE — blockSize
+// bytes per runtime open instead of one per block. No new runtime API, no
+// new syntax (D-KOF-FIRST): Kof expresses the writer over the existing
+// `File(path).appendBytes` primitive, so it runs on EVERY target that has
+// the primitive (JVM, Script, Native, JS — unlike readRange, appendBytes
+// has a JS face).
+//
+// Semantics: the constructor does NOT create the file — the exclusive
+// creation contract is `File(p).createNew()` (io, landed with 5/5 proof);
+// the first flush creates-or-appends. close() flushes and seals the writer;
+// a write after close throws honestly (never a silent no-op).
+
+class FileWriter {
+    String path
+    Int blockSize
+    List<Int> pending
+    Bool sealed
+
+    constructor(String path) {
+        this.path = path
+        this.blockSize = 8192
+        this.pending = listOf()
+        this.sealed = false
+    }
+
+    constructor(String path, Int blockSize) {
+        this.path = path
+        this.blockSize = blockSize
+        this.pending = listOf()
+        this.sealed = false
+    }
+
+    void write(Int[] bytes, Int n) {
+        if (this.sealed) {
+            throw "file: the writer is closed (a write after close is refused)"
+        }
+        var i = 0
+        while (i < n) {
+            this.pending.add(bytes[i])
+            i += 1
+            if (this.pending.size() >= this.blockSize) {
+                this.flush()
+            }
+        }
+    }
+
+    void flush() {
+        if (this.sealed) {
+            throw "file: the writer is closed (a flush after close is refused)"
+        }
+        var n = this.pending.size()
+        if (n == 0) { return }
+        var out = new Int[n]
+        var i = 0
+        while (i < n) {
+            out[i] = this.pending[i]
+            i += 1
+        }
+        File(this.path).appendBytes(out)
+        this.pending = listOf()
+    }
+
+    void close() {
+        if (this.sealed) { return }
+        this.flush()
+        this.sealed = true
+    }
+}
