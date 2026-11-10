@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §769 (FIXED)
 last: §768 (FIXED)
 last: §783 (FIXED)
 last: §772 (FIXED)
@@ -333,6 +334,26 @@ Observado: compila sem diagnóstico e morre no load da classe com `VerifyError: 
 
 **Correção:** o typer carrega `ACC_VARARGS` (`AccessFlags.VARARGS`, `0x0080`) no `MethodSymbol` externo e o lowering de instância empacota pelo mesmo `VarargsArrayPacker` do caminho estático. O packer agora converte cada elemento via `emitArgumentsWithFormalTypes` contra o tipo componente (um componente `int...` não é mais boxado num store de `int[]`), e uma chamada com a aridade exata cujo último argumento já é um array repassa esse array sem empacotar (aplicabilidade de aridade fixa, JLS 15.12.2.2). **Prova:** `ExternalVarargsInstanceE2ETest` 4/4 (0/1/2 args finais, args fixos antes do varargs, um `String[]` explícito, componentes `int...` e `Object...`, uma chamada varargs de instância do JDK); no código antigo 3 dos 4 falham com `VerifyError`. `ExternalVarargsStaticE2ETest` e `StringFormatVarargsE2ETest` seguem verdes. JS/Nativo não são afetados: método de classe externa já é recusado lá com `INTEROP003` (#760).
 <!-- pt-switch --> **EN:** [§768 (en)](known-bugs.md#768--a-varargs-instance-method-of-an-external-java-class-was-called-without-packing-the-trailing-arguments-jvm-verifyerror)
+
+## §769 — Ler um campo PRIMITIVO público de instância de um objeto Java externo emitia bytecode inválido (VerifyError na JVM)
+
+**Status:** ✅ CORRIGIDO 04/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/main` `3a2952641`).
+
+**MEDIDO** (alvo JVM, `org.flywaydb:flyway-core:11.14.1` via `kof deps`; `MigrateResult.migrationsExecuted` é um campo público `int`):
+```kof
+import org.flywaydb.core.Flyway
+main() {
+    val flyway = Flyway.configure().dataSource(url, user, pass).load()
+    Int n = flyway.migrate().migrationsExecuted
+    println("applied " + flyway.migrate().migrationsExecuted)
+}
+```
+Observado: compila sem diagnóstico e morre no load da classe com `VerifyError: Bad type on operand stack` (`integer is not assignable to Object`). O código emitido é `getfield Result.migrationsExecuted:I` seguido de `checkcast java/lang/Integer` + `intValue`.
+
+**CAUSA RAIZ:** o `ExpressionFieldAccessLowerer` resolve um campo de instância externo via `ExternalClasspath.resolveFieldType` e emite o descritor real, mas o typer do lowering (`ExpressionFieldAccessTyper`) não tinha o ramo de campo de instância externo e devolvia `UNKNOWN`. Todo consumidor (local tipado, concat, aritmética, `if`) tratava então o `int` da pilha como referência e fazia unbox.
+
+**Correção:** o `ExpressionFieldAccessTyper` resolve o descritor do campo exatamente como o lowerer (mesma guarda `knows` + `resolveFieldType`), então o tipo inferido casa com o `getfield` emitido. **Prova:** `ExternalInstanceFieldE2ETest` 2/2 (campos `int`/`long`/`boolean`/`double`/`String` em locais tipados, concat, aritmética e `if`); no código antigo os dois falham com `VerifyError`. A escrita de campo (`r.f = 5`, `r.f += 1`) já estava correta e não muda. JS/Nativo não são afetados: classe externa já é recusada lá com `INTEROP003` (#760).
+<!-- pt-switch --> **EN:** [§769 (en)](known-bugs.md#769--reading-a-public-primitive-instance-field-of-an-external-java-object-emitted-invalid-bytecode-jvm-verifyerror)
 
 ## §168 — SEM025 ausente para método desconhecido em namespace `json` — ✅ CORRIGIDO 13/09 (lane development/translator, dono = 192.168.100.22)
 

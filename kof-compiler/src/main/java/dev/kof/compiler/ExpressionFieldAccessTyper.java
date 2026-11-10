@@ -80,6 +80,14 @@ final class ExpressionFieldAccessTyper {
             }
             return recvType;
         }
+        // Same resolution as ExpressionFieldAccessLowerer: the real descriptor
+        // of an external instance field, so a primitive getfield is not
+        // unboxed as a reference by the consumer (VerifyError).
+        if (recvType instanceof Type.ClassType ect && !ect.packageName().isEmpty()
+                && driver.externalClasspath.knows(ect.internalName())) {
+            String desc = driver.externalClasspath.resolveFieldType(ect.internalName(), fa.fieldName());
+            if (desc != null) return ExternalClasspath.typeFromDescriptor(desc);
+        }
         if (recvType instanceof Type.ClassType ct && driver.semanticAnalyzer != null) {
             SymbolTable.Symbol s = HierarchyResolver.resolveFieldInHierarchy(ct.name(), fa.fieldName(), driver.semanticAnalyzer);
             if (s instanceof SymbolTable.FieldSymbol fs) {
