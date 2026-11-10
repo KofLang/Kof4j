@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §786 (FIXED)
 last: §784 (FIXED)
 last: §781 (FIXED)
 last: §778 (FIXED)
@@ -220,6 +221,23 @@ Observado: a resposta leva só `Set-Cookie: b=2`; um login que define cookie de 
 
 **Correção:** JVM: o `kof_web_header_set` recusa CR/LF no nome ou no valor (`IllegalArgumentException`, então a rota responde 500 em vez de escrever uma linha injetada) e acumula um Set-Cookie repetido (qualquer caixa) em vez de substituir; o `kof_web_build` escreve uma linha por valor. JS: o pump faz `add` do Set-Cookie em vez de `set`. Todo outro header segue com o último vencendo. O nativo não tem runtime de `headerSet` e não é afetado. **Prova:** `WebSetCookieE2ETest` (os dois cookies, último vence para outro header, nenhuma linha injetada) e `KofWebJsE2ETest.jsRepeatedSetCookieSendsEveryCookie`; ambos falham no código antigo. `KofWebE2ETest`/`KofWebJsE2ETest` seguem verdes.
 <!-- pt-switch --> **EN:** [§784 (en)](known-bugs.md#784--a-second-headersetset-cookie--overwrote-the-first-jvm-and-js-and-a-crlf-in-a-header-value-split-the-response)
+
+## §786 — o `kof fmt` removia os parênteses do receptor de chamada/campo/índice: `("" + x).trim()` virava `"" + x.trim()`, outro programa
+
+**Status:** ✅ CORRIGIDO 04/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/main` `edcc39114`).
+
+**MEDIDO:** `kof fmt -w` sobre
+```kof
+var t = ("" + city).trim()
+for (var x in (a + "," + b).split(",")) { println(x) }
+println((o as Box).v)
+```
+reescrevia como `"" + city.trim()`, `a + "," + b.split(",")` e `o as Box.v`. O primeiro ainda compila quando `city` é `String` e muda o valor em silêncio (o trim deixa de valer para a concatenação); com `city` anulável vira SEM049. Formatar uma árvore podia mudar o comportamento sem diagnóstico.
+
+**CAUSA RAIZ:** o `KofFormatterExpr` reconstrói o agrupamento pela precedência (#52), mas imprimia o receptor de `MethodCallExpr`, `FieldAccessExpr` e `ArrayAccessExpr` na precedência mais baixa, então um receptor binário, cast, unário, atribuição, `if`, `switch` ou lambda perdia os parênteses de que o `parsePostfix` precisa.
+
+**Correção:** um helper imprime o receptor pós-fixo acima de toda precedência binária e envolve as formas unária/atribuição/`if`/`switch`/lambda. **Prova:** `KofFormatterReceiverParensTest` (receptores de concatenação, `split` num `for`, cast, aritmética, unário e cast de concatenação; idempotente; o programa formatado imprime o mesmo que o original); no código antigo falha. A outra face relatada junto (`void noop() { }` impresso como `noop();`) compila e roda igual, então é estética e não faz parte desta correção.
+<!-- pt-switch --> **EN:** [§786 (en)](known-bugs.md#786--kof-fmt-dropped-the-parentheses-of-a-callfieldindex-receiver---xtrim-became---xtrim-a-different-program)
 
 ## §168 — SEM025 ausente para método desconhecido em namespace `json` — ✅ CORRIGIDO 13/09 (lane development/translator, dono = 192.168.100.22)
 

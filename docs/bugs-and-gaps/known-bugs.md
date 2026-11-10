@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §786 (FIXED)
 last: §784 (FIXED)
 last: §781 (FIXED)
 last: §778 (FIXED)
@@ -221,6 +222,23 @@ Observed: the response carries only `Set-Cookie: b=2`; a login that sets a sessi
 
 **Fix:** JVM: `kof_web_header_set` refuses a CR/LF in the name or value (`IllegalArgumentException`, so the route answers 500 instead of writing an injected line) and appends a repeated Set-Cookie (any case) instead of replacing it; `kof_web_build` writes one line per value. JS: the pump `add`s Set-Cookie instead of `set`. Every other header keeps last-wins. Native has no `headerSet` runtime and is unaffected. **Proof:** `WebSetCookieE2ETest` (both cookies, last-wins for another header, no injected line) and `KofWebJsE2ETest.jsRepeatedSetCookieSendsEveryCookie`; both fail on the old code. `KofWebE2ETest`/`KofWebJsE2ETest` stay green.
 <!-- pt-switch --> **PT:** [§784 (pt_BR)](known-bugs.pt_BR.md#784--um-segundo-headersetset-cookie--sobrescrevia-o-primeiro-jvm-e-js-e-crlf-num-valor-de-header-partia-a-resposta)
+
+## §786 — `kof fmt` dropped the parentheses of a call/field/index receiver: `("" + x).trim()` became `"" + x.trim()`, a different program
+
+**Status:** ✅ FIXED 04/11 (external contributor; found while porting a Spring backend to Kof on the released 0.7.1 and re-measured on `upstream/main` `edcc39114`).
+
+**MEASURED:** `kof fmt -w` on
+```kof
+var t = ("" + city).trim()
+for (var x in (a + "," + b).split(",")) { println(x) }
+println((o as Box).v)
+```
+rewrote them as `"" + city.trim()`, `a + "," + b.split(",")` and `o as Box.v`. The first still compiles when `city` is a `String` and silently changes the value (the trim no longer applies to the concatenation); with a nullable `city` it becomes SEM049. Formatting a tree could change behavior with no diagnostic.
+
+**ROOT CAUSE:** `KofFormatterExpr` rebuilds grouping from precedence (#52), but printed the receiver of `MethodCallExpr`, `FieldAccessExpr` and `ArrayAccessExpr` at the lowest precedence, so a binary, cast, unary, assignment, `if`, `switch` or lambda receiver lost the parentheses that `parsePostfix` needs.
+
+**Fix:** one helper prints a postfix receiver above every binary precedence and wraps the unary/assignment/`if`/`switch`/lambda forms. **Proof:** `KofFormatterReceiverParensTest` (concatenation, `split` in a `for`, cast, arithmetic, unary and cast-of-concatenation receivers; idempotent; the formatted program prints the same as the original); on the old code it fails. The other face reported with it (`void noop() { }` printed as `noop();`) compiles and runs the same, so it is cosmetic and not part of this fix.
+<!-- pt-switch --> **PT:** [§786 (pt_BR)](known-bugs.pt_BR.md#786--o-kof-fmt-removia-os-parenteses-do-receptor-de-chamadacampoindice---xtrim-virava---xtrim-outro-programa)
 
 ## §168 — SEM025 missing for unknown method in namespace `json` — ✅ FIXED 13/09 (lane development/translator, owner = 192.168.100.22)
 
