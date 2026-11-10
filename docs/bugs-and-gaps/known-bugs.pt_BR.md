@@ -3,6 +3,7 @@
 # Known Bugs — handoff para o próximo agente
 
 last: §800 (FIXED)
+last: §791 (FIXED)
 last: §770 (FIXED)
 last: §938 (FIXED)
 last: §827 (FIXED)
@@ -18368,6 +18369,25 @@ Observado: `NoSuchMethodError: 'void java.io.InputStreamReader.<init>(java.io.By
 **CAUSA RAIZ:** a resolução de construtor ia só pela aridade (`resolveConstructor`), que não acha nada para uma classe JDK, então o lowering emitia o descritor montado com os tipos estáticos dos próprios argumentos; numa classe de jar vencia o primeiro construtor daquela aridade.
 
 **Correção:** a seleção da §770 (`ExternalOverloads`, fases do JLS 15.12.2, a mais específica vence) cobre também `<init>`: os candidatos JDK vêm de `getConstructors()`, os de jar da própria classe (construtores não são herdados). O analyzer e o lowering resolvem o construtor com os tipos dos argumentos, então o descritor emitido é o do construtor escolhido. **Prova:** `ExternalCtorOverloadE2ETest` (`InputStreamReader(InputStream, String)`, `BufferedReader(Reader, int)`, `File(File, String)` rodam); `ExternalOverloadResolutionE2ETest`, `ExternalCtorArgTypingE2ETest` e `InteropPrimitiveSlotE2ETest` inalterados.
+## §791 — um import de classe Java aninhada (`import java.net.http.HttpRequest.BodyPublishers`) apontava para uma classe que não existe (SEM025 em todo membro)
+
+**Status:** ✅ CORRIGIDO 04/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/main` `64856d694`).
+
+**MEDIDO** (alvo JVM):
+```kof
+import java.net.http.HttpRequest.BodyPublishers
+import java.lang.Thread.State
+main() {
+    println(BodyPublishers.ofString("abc").contentLength())
+    println(State.NEW.name())
+}
+```
+Observado: `Cannot resolve static method 'ofString' on imported class 'BodyPublishers' [SEM025]` e o mesmo para `State.NEW`. Tipos aninhados do JDK/jars (`HttpResponse.BodyHandlers`, `Map.Entry`, `Thread.State`) ficavam inalcançáveis.
+
+**CAUSA RAIZ:** o `MemberResolver.qualifyViaImports` sempre partia um import explícito no último ponto (pacote `java.net.http.HttpRequest`, classe `BodyPublishers`), dando `java/net/http/HttpRequest/BodyPublishers`; o class file é `java/net/http/HttpRequest$BodyPublishers`. O `ExternalClasspath.knows` só confere o prefixo `java/` no JDK, então nada acusava a classe inexistente. O `CompilerTypes.qualifyViaImports` era uma segunda cópia do mesmo código, usada pelo lowering.
+
+**Correção:** quando a divisão de topo não existe (reflexão para o JDK, os entries carregados para jars), o `JdkReflectionResolver.nestedImport` tenta as formas aninhadas a partir da direita (`a.b.C$D`, depois `a.b$C$D`...) e usa a primeira que existe. O `CompilerTypes.qualifyViaImports` passa a delegar ao `MemberResolver`, então analisador e lowering compartilham uma resolução. **Prova:** `NestedJavaClassImportE2ETest` 1/1 (`BodyPublishers.ofString`, constante e `valueOf` do enum `Thread.State`); no código antigo falha com SEM025. **Fora do escopo:** um tipo aninhado alcançado pela classe externa numa expressão (`Normalizer.Form.NFD` sem importar `Form`) segue SEM025, e `Form` colide com um nome de tipo do `kof.ui` (SEM079).
+<!-- pt-switch --> **EN:** [§791 (en)](known-bugs.md#791--an-import-of-a-nested-java-class-import-javanethttphttprequestbodypublishers-named-a-class-that-does-not-exist-sem025-on-every-member)
 <!-- pt-switch --> **EN:** [§800 (en)](known-bugs.md#800--a-jdk-constructor-was-emitted-with-the-exact-static-types-of-its-arguments-new-inputstreamreaderbytestream-utf-8-looked-for-initbytearrayinputstream-string-nosuchmethoderror)
 
 <!-- pt-switch --> **EN:** [§766 (en)](known-bugs.md#766--archivezipextractto-silently-corrupts-nested-directory-entries-and-over-reports-the-extraction-count)
