@@ -891,6 +891,13 @@
       "pt": "módulo estrangeiro '{0}': ownership desconhecido '{1}' (esperado um de {2})"
     }
   ],
+  "PARSE100": [
+    {
+      "arity": 0,
+      "en": "'as' binds looser than arithmetic and shifts, so it casts the whole expression on its left; parenthesize the operand you mean",
+      "pt": "'as' liga mais frouxo que aritmética e shifts, então ele converte a expressão inteira à esquerda; parentetize o operando que você quer"
+    }
+  ],
   "SEM001": [
     {
       "arity": 2,
