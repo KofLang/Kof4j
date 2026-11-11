@@ -20937,6 +20937,18 @@ Observed: `Cannot resolve static method 'ofString' on imported class 'BodyPublis
 **Proof:** `DotDirectoryPackageE2ETest` **5/5** (RED-first: 4/5 failed with the exact `COMP001: /agent` before the fix; the `.agent`, `sub/.agent`, `.hidden-x`, valid-directory control and no-`kof.toml` control faces) + `InternalNameValidationTest` **4/4** (the identifier rule and the defensive gate). Non-regression: `EnumPackagePlacementE2ETest` 7/7, `PackagesE2ETest` 12/12, `CompileForTestsSourcesModuleRootTest` 1/1, `OrmEntityPackageE2ETest` 2/2, `JsonDecodePackagedRecordE2ETest` 2/2.
 <!-- pt-switch --> **PT:** [§936 (pt_BR)](known-bugs.pt_BR.md#936--uma-fonte-sob-um-diretorio-cujo-nome-nao-e-um-identificador-valido-agent-hidden-x-deriva-um-pacote-invalido-entao-o-alvo-jvm-falha-com-um-comp001-mal-rotulado-ou-um-classformaterror-silencioso-github-999)
 
+## §1149 — `kof.log` on JS printed ONLY the message: the level filtered but was never printed, while the parity matrix documented "console.* + level" and the cross note requires "level+message present" (GitHub #1149)
+
+**Status:** ✅ FIXED 11/11 (owner = 192.168.100.19:0; issue [#1149](https://github.com/KofLang/Kof4j/issues/1149), measured REAL on the tip).
+
+**Contract:** `docs/backend-parity.md:148` documents the JS face as "console.* + level" and the cross note states the minimum non-silent shape is "level+message present". The JVM oracle prints `yyyy-MM-dd HH:mm:ss.SSS LEVEL msg`; native x86 prints `UTC LEVEL msg`; the cross targets print `[LEVEL] msg`.
+
+**ROOT CAUSE:** `JsRuntimeCore` emitted `console.log(String(msg))` for every level — `kofLogLevel` only FILTERED (`if (kofLogLevel <= N)`), it was never part of the output. `KofLogE2ETest#jsLogsToConsole` asserted only `out.contains("hello from js log")`, so the missing label was never caught.
+
+**Fix:** the JS face prefixes the label like the cross targets — `[DEBUG] `/`[INFO] `/`[WARN] `/`[ERROR] ` — so a consumer parsing the documented minimum finds the level on every target. The level FILTER is unchanged (debug stays suppressed at the default `info`).
+
+**Proof:** `KofLogE2ETest` **12/12** RED-first (2F measured before the fix: `jsLogsToConsole` and the new `jsPrintsTheLevelForEveryLevel`); the log family `NativeLogE2ETest` 7/7, `NativeLogCrossTest` 7 skipped (no cross toolchain — environmental), `LogPumpE2ETest` 2/2; the catalog guards `StdCatalogTest` 11/11 + `StdCatalogSignaturesTest` 13/13; the parity matrix row corrected EN+PT.
+
 ## §979 — `validation.matches` on NATIVE was a LITERAL substring search, not the JVM regex (`find`) contract — a silent wrong value while the parity matrix said ✅ (GitHub #979)
 
 **Status:** ✅ FIXED 11/11 (owner = 192.168.100.19:0; issue [#979](https://github.com/KofLang/Kof4j/issues/979), `1.0-blocks`, measured REAL on the tip).

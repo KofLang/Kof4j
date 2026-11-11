@@ -430,10 +430,13 @@ public final class JsRuntimeCore {
                 else if (lv === "off") kofLogLevel = 4;
             } catch (e) { /* non-node env: keep default */ }
 
-            export function kofLogDebug(msg) { if (kofLogLevel <= 0) console.log(String(msg)); }
-            export function kofLogInfo(msg)  { if (kofLogLevel <= 1) console.log(String(msg)); }
-            export function kofLogWarn(msg)  { if (kofLogLevel <= 2) (console.warn || console.log)(String(msg)); }
-            export function kofLogError(msg) { if (kofLogLevel <= 3) (console.error || console.log)(String(msg)); }
+            // §1149: the parity matrix documents "console.* + level" and the
+            // cross note requires "level+message present" — the level used to
+            // only FILTER, never print. Prefix it like the cross targets.
+            export function kofLogDebug(msg) { if (kofLogLevel <= 0) console.log("[DEBUG] " + String(msg)); }
+            export function kofLogInfo(msg)  { if (kofLogLevel <= 1) console.log("[INFO] " + String(msg)); }
+            export function kofLogWarn(msg)  { if (kofLogLevel <= 2) (console.warn || console.log)("[WARN] " + String(msg)); }
+            export function kofLogError(msg) { if (kofLogLevel <= 3) (console.error || console.log)("[ERROR] " + String(msg)); }
 
             // G240: lock (target) { } — one JS thread, so nothing to exclude;
             // JsLockCheck refuses a locking function that suspends (CONC005).

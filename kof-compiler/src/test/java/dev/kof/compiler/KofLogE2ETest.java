@@ -259,5 +259,38 @@ class KofLogE2ETest extends LogLevelSupport {
                 new java.io.ByteArrayInputStream(new byte[0]), out);
         assertEquals(0, exitCode, "Exit code should be 0, output: '" + out + "'");
         assertTrue(out.toString().contains("hello from js log"), out.toString());
+        // §1149: the parity matrix documents "console.* + level" and the cross
+        // note requires "level+message present" — the JS face printed ONLY the
+        // message (the level merely filtered), so a consumer parsing the
+        // documented minimum found no level. The JS face now prefixes it.
+        assertTrue(out.toString().contains("[INFO] hello from js log"),
+                "JS must print the LEVEL with the message (parity matrix contract): " + out);
+    }
+
+    @Test
+    void jsPrintsTheLevelForEveryLevel(@TempDir Path tempDir) throws IOException {
+        Path source = tempDir.resolve("LogAll.kf");
+        Files.writeString(source, """
+                main() {
+                    log.debug("d")
+                    log.info("i")
+                    log.warn("w")
+                    log.error("e")
+                }
+                """);
+        Path outDir = tempDir.resolve("js-all");
+        CompilationResult result = driver.compile(source, outDir, Target.JS);
+        assertTrue(result.success(), result.diagnostics().getDiagnostics().toString());
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        int exitCode = dev.kof.runtime.KofJsRunner.run(outDir.resolve("Default.mjs"), out,
+                new java.io.ByteArrayInputStream(new byte[0]), out);
+        assertEquals(0, exitCode, "exit, output: " + out);
+        String o = out.toString();
+        // debug is BELOW the default "info" level, so it is correctly
+        // suppressed — the point here is that every level that IS printed
+        // carries its label (the §1149 contract), not that debug escapes the level.
+        assertTrue(o.contains("[INFO] i"), o);
+        assertTrue(o.contains("[WARN] w"), o);
+        assertTrue(o.contains("[ERROR] e"), o);
     }
 }
