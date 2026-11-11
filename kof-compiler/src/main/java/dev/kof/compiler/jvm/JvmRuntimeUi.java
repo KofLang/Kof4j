@@ -136,6 +136,11 @@ public final class JvmRuntimeUi {
                 public static void kof_ui_widget_focus(int widget) {
                 }
 
+                // D-UI-FOCUS (#811 fatia 2): auto-focus — no-op JVM como o focus
+                // (kof.ui é KofJS; mesmo racional do bloco D-UI-A11Y).
+                public static void kof_ui_widget_set_auto_focus(int widget, boolean on) {
+                }
+
                 // D-UI-A11Y (#789): acessibilidade intent-based — real só no
                 // KofJS (no-op JVM, como setId/setDisabled — kof.ui é KofJS).
                 public static void kof_ui_widget_set_accessible_name(int widget, String name) {

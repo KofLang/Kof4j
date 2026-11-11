@@ -288,6 +288,9 @@ public final class KofUi {
                 // D-UI-FOCUS (#811): foco explícito. Real só no KofJS; no-op
                 // JVM/Native como setId (mesmo racional do D-UI-A11Y/#789).
                 case "focus" -> argCount == 0 ? new UiCall("kof_ui_widget_focus", Type.PrimitiveType.VOID, List.of()) : null;
+                // D-UI-FOCUS (#811 fatia 2): auto-focus na montagem — o
+                // primeiro descendente focável do contêiner recebe o foco.
+                case "setAutoFocus" -> argCount == 1 ? new UiCall("kof_ui_widget_set_auto_focus", Type.PrimitiveType.VOID, List.of(Type.PrimitiveType.BOOL)) : null;
                 case "on" -> argCount == 2 ? new UiCall("kof_ui_widget_on", Type.PrimitiveType.VOID, List.of(STR, Type.UnknownType.UNKNOWN)) : null;
                 // issue #78: primitivas visuais aditivas (real só no JS; no-op JVM/Native como setId).
                 case "setBorder" -> argCount == 2 ? new UiCall("kof_ui_widget_set_border", Type.PrimitiveType.VOID, List.of(COLOR, INT)) : null;

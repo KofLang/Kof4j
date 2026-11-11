@@ -28,6 +28,7 @@ final class JsRuntimeSlices {
             new Block("ui-components", JsRuntimeUiComponents.UI_COMPONENT_RUNTIME, false),
             new Block("ui-link-image-icon", JsRuntimeUiLinkImageIcon.UI_LINK_IMAGE_ICON_RUNTIME, false),
             new Block("ui-widgets", JsRuntimeUiWidgets.UI_WIDGET_RUNTIME, false),
+            new Block("ui-focus", JsRuntimeUiFocus.UI_FOCUS_RUNTIME, false),
             new Block("ui-forms", JsRuntimeUiForms.UI_FORMS_RUNTIME, false),
             new Block("ui-layout", JsRuntimeUiLayout.UI_LAYOUT_RUNTIME, false),
             new Block("collections", JsRuntimeCollections.COLLECTIONS_RUNTIME, false),

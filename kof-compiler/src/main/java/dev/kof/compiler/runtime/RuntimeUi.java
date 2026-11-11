@@ -341,6 +341,9 @@ public final class RuntimeUi {
             kof_ui_widget_set_disabled:
             // D-UI-FOCUS (#811): foco — no-op Native (real só no KofJS).
             kof_ui_widget_focus:
+            // D-UI-FOCUS (#811 fatia 2): auto-focus — no-op Native (real só
+            // no KofJS), mesma família de setId/setDisabled.
+            kof_ui_widget_set_auto_focus:
                 ret
             // D-UI-A11Y (#789): acessibilidade intent-based — no-op Native (real
             // só no KofJS), mesma família de setId/setDisabled.

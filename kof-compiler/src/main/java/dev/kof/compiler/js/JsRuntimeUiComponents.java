@@ -417,6 +417,8 @@ public final class JsRuntimeUiComponents {
                 // D-UI-FOCUS (#811): a montagem é o ponto em que o foco pedido
                 // antes do nó existir (ou antes de ele conectar) é aplicado.
                 kofUiFocusFlush();
+                // fatia 2: o setAutoFocus dos widgets recém-renderizados.
+                if (n.el) kofUiAutoFocusApply(n.el);
             }
 
             export function kofUiComponentUnmount(c) {
@@ -463,6 +465,7 @@ public final class JsRuntimeUiComponents {
                 const childEl = window.__kofNodes && window.__kofNodes[child];
                 if (childEl) n.el.appendChild(childEl);
                 kofUiFocusFlush();
+                if (childEl) kofUiAutoFocusApply(childEl);
             }
 
             export function kofUiComponentRemove(c) {

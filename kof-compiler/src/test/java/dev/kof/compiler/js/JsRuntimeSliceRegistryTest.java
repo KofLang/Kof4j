@@ -22,6 +22,7 @@ class JsRuntimeSliceRegistryTest {
                 .append(JsRuntimeUiComponents.UI_COMPONENT_RUNTIME)
                 .append(JsRuntimeUiLinkImageIcon.UI_LINK_IMAGE_ICON_RUNTIME)
                 .append(JsRuntimeUiWidgets.UI_WIDGET_RUNTIME)
+                .append(JsRuntimeUiFocus.UI_FOCUS_RUNTIME)  // #811 fatia 2: o bloco "ui-focus" (a família de foco extraída)
                 .append(JsRuntimeUiForms.UI_FORMS_RUNTIME)
                 .append(JsRuntimeUiLayout.UI_LAYOUT_RUNTIME)
                 .append(JsRuntimeCollections.COLLECTIONS_RUNTIME)

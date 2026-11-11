@@ -113,7 +113,14 @@ class ArtifactSizeTest implements NativeToolchainAssumptions {
     // kofJsonHasRecord/kofJsonFpBody entraram no fecho de alcançabilidade do
     // kofPrintln (o formatador é o MESMO kofNumFmt do display — a aresta é
     // estrutural, não inchação). Medido no tip 3177e985a.
-    private static final long HELLO_JS_BYTES = 20_000L;
+    // 10/11 (re-baseline COM CAUSA — §260 precedente): o hello JS passou
+    // 19.999B → 21.495B com os lotes de PR dos peers (a família de foco da
+    // #811, keep-alive/rotas no runtime JS — features legítimas do runtime).
+    // A família de foco EXTRAÍDA (JsRuntimeUiFocus) está PROVADA ausente do
+    // hello (0 ocorrências de kofUi*Focus* no artefato — a poda por
+    // alcançabilidade segue ativa); o crescimento é o runtime JS real novo.
+    // Medido no tip e4cb52ff1+ (pós-split JsRuntimeUiFocus).
+    private static final long HELLO_JS_BYTES = 21_500L;
     // Hello riscv64 (cross — só medido onde há toolchain). Pós-S-5 (T1b,
     // 12/09): seções .text.<fn> por função do runtime + `ld --gc-sections`
     // derrubaram os irmãos mortos DENTRO das peças mantidas pela S-4:

@@ -37,6 +37,16 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class UiFocusE2ETest {
 
+    private static final String AUTO_PROGRAM = """
+            main() {
+                var janela = Window("auto")
+                var form = Column(listOf(Input("primeiro"), Input("segundo")))
+                form.setAutoFocus(true)
+                janela.bind(form)
+                println("ok")
+            }
+            """;
+
     private static final String PROGRAM = """
             main() {
                 var janela = Window("foco")
@@ -58,8 +68,6 @@ class UiFocusE2ETest {
         assertTrue(js.success(), "JS compile: " + js.diagnostics().getDiagnostics());
         String emitted = Files.readString(tmp.resolve("js/Default.mjs"));
         assertTrue(emitted.contains("kofUiWidgetFocus"), "focus() deve baixar para kofUiWidgetFocus");
-        assertFalse(emitted.contains("setAutoFocus"),
-                "setAutoFocus NÃO é desta fatia (a superfície é decisão da mantenedora)");
     }
 
     /** Nos alvos onde kof.ui é no-op (JVM) o programa continua compilando e rodando. */
@@ -93,6 +101,7 @@ class UiFocusE2ETest {
                             JsRuntimeCore.CORE_RUNTIME
                                     + JsRuntimeUiComponents.UI_COMPONENT_RUNTIME
                                     + JsRuntimeUiWidgets.UI_WIDGET_RUNTIME
+                                    + JsRuntimeUiFocus.UI_FOCUS_RUNTIME
                                     + "\nglobalThis.__kofTest = (function () {" + body + "})();\n",
                             "runtime.mjs")
                     .mimeType("application/javascript+module")
@@ -145,4 +154,36 @@ class UiFocusE2ETest {
     }
 
 
+
+    /** #811 fatia 2: `setAutoFocus(Bool)` baixa para `kofUiWidgetSetAutoFocus`. */
+    @Test
+    void setAutoFocusLowersToTheRuntimeCall(@TempDir Path tmp) throws Exception {
+        Path src = tmp.resolve("auto.kf");
+        Files.writeString(src, AUTO_PROGRAM);
+        CompilationResult js = new CompilerDriver().compile(src, tmp.resolve("js"), Target.JS);
+        assertTrue(js.success(), "JS compile: " + js.diagnostics().getDiagnostics());
+        String emitted = Files.readString(tmp.resolve("js/Default.mjs"));
+        assertTrue(emitted.contains("kofUiWidgetSetAutoFocus"),
+                "setAutoFocus(true) deve baixar para kofUiWidgetSetAutoFocus: " + emitted);
+    }
+
+    /**
+     * #811 fatia 2, MEDIDO no shim do DOM: o setAutoFocus(true) num contêiner
+     * com um filho focável (um Button) faz o PRIMEIRO descendente focável
+     * receber o foco quando o contêiner conecta — document.activeElement vira
+     * o botão (o caso do formulário da issue).
+     */
+    @Test
+    void autoFocusPutsTheFocusOnTheFirstFocusableChild() throws IOException {
+        java.util.Map<String, Boolean> r = runInShim("""
+                const b = kofUiButtonNew("Salvar");
+                const form = kofUiColumnNew([b]);
+                kofUiWidgetSetAutoFocus(form, true);
+                document.getElementById("kof-root").appendChild(window.__kofNodes[form]);
+                kofUiAutoFocusApply(window.__kofNodes[form]);
+                const focused = document.activeElement === window.__kofNodes[b];
+                return { focused: focused };
+                """);
+        assertTrue(r.get("focused"), "o primeiro descendente focável recebe o foco");
+    }
 }

@@ -187,6 +187,7 @@ public final class JvmRuntimeCallDescriptors {
              case "kof_ui_widget_set_id", "kof_ui_widget_set_class" -> "(ILjava/lang/String;)V";
              case "kof_ui_widget_set_disabled" -> "(II)V";
              case "kof_ui_widget_focus" -> "(I)V";
+             case "kof_ui_widget_set_auto_focus" -> "(IZ)V";
              // D-UI-A11Y (#789): setAccessibleName(String) / setAnnounce(Bool).
              case "kof_ui_widget_set_accessible_name" -> "(ILjava/lang/String;)V";
              case "kof_ui_widget_set_announce" -> "(II)V";
