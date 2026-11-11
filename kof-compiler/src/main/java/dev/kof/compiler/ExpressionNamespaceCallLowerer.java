@@ -22,6 +22,18 @@ final class ExpressionNamespaceCallLowerer {
                 p != null ? p.line() : 0, p != null ? p.column() : 0, 0, msg, code);
     }
 
+    /**
+     * §979: the pattern argument when it is provably a string literal (then the
+     * native literal search either IS the contract or is refused by the caller),
+     * {@code null} when the compiler cannot prove it — a dynamic pattern must not
+     * be answered by a literal search.
+     */
+    private static String literalPattern(MethodCallExpr mc) {
+        if (mc.arguments().size() < 2) return "";
+        return mc.arguments().get(1) instanceof LiteralExpr lit
+                && lit.kind() == ConcreteLiteralKind.STRING ? lit.value() : null;
+    }
+
     /** Emite todos os argumentos da chamada, devolvendo o localIdx atualizado. */
     private static int emitArgs(CompilerDriver driver, MethodCallExpr mc, List<KofOperation> ops,
             String owner, int localIdx, List<IRLocalVariable> locals) {
@@ -119,7 +131,7 @@ final class ExpressionNamespaceCallLowerer {
     for (ExpressionNode arg : mc.arguments()) argTypes.add(ExpressionTyper.inferExprType(driver, arg, locals));
     KofValidation.ValidationCall vCall = KofValidation.staticMethod(rid.name(), mc.methodName(), argTypes);
     if (vCall != null) {
-        if (!KofValidation.supportedOn(vCall.function(), driver.target)) {
+        if (!KofValidation.supportedOn(vCall.function(), driver.target, literalPattern(mc))) {
             gapError(driver, mc, rid.name() + "." + mc.methodName()
                     + ": not available on the " + driver.target
                     + " driver.target yet (" + KofValidation.gapCode(vCall.function()) + ")",

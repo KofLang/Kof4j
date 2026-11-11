@@ -103,9 +103,36 @@ public final class KofValidation {
         };
     }
 
-    static boolean supportedOn(@SuppressWarnings("unused") String function,
-            @SuppressWarnings("unused") Target target) {
-        return true; // all validation predicates on JVM/Native/JS
+    /**
+     * §979: {@code validation.matches} on NATIVE is a LITERAL substring search
+     * (the asm compares the whole pattern byte by byte), while the contract on
+     * JVM/Script/JS is a REGEX with {@code find} semantics — a silent wrong
+     * value, the worst kind (rule 5). A regex engine on native is a separate
+     * maintainer decision (the same one {@link StringTargetGaps} defers for
+     * {@code String.matches}), so the native target refuses with {@code VAL001}.
+     *
+     * <p>The call site narrows it: a pattern that is provably a string literal
+     * with NO regex metacharacter still passes — there the literal search IS
+     * the {@code find} contract, so an existing capability is not taken away.
+     *
+     * @param pattern the pattern argument when the caller could prove it is a
+     *                literal ({@code null} when it could not)
+     */
+    static boolean supportedOn(String function, Target target, String pattern) {
+        if (!"kof_validation_matches".equals(function) || !target.isNative()) return true;
+        return pattern != null && isPlainLiteral(pattern);
+    }
+
+    /** No regex metacharacter → the native literal search matches `find` exactly. */
+    static boolean isPlainLiteral(String pattern) {
+        for (int i = 0; i < pattern.length(); i++) {
+            if (".[{()\\*+?^$|".indexOf(pattern.charAt(i)) >= 0) return false;
+        }
+        return true;
+    }
+
+    static boolean supportedOn(String function, Target target) {
+        return supportedOn(function, target, "");
     }
 
     static String gapCode(String function) {

@@ -20937,6 +20937,18 @@ Observed: `Cannot resolve static method 'ofString' on imported class 'BodyPublis
 **Proof:** `DotDirectoryPackageE2ETest` **5/5** (RED-first: 4/5 failed with the exact `COMP001: /agent` before the fix; the `.agent`, `sub/.agent`, `.hidden-x`, valid-directory control and no-`kof.toml` control faces) + `InternalNameValidationTest` **4/4** (the identifier rule and the defensive gate). Non-regression: `EnumPackagePlacementE2ETest` 7/7, `PackagesE2ETest` 12/12, `CompileForTestsSourcesModuleRootTest` 1/1, `OrmEntityPackageE2ETest` 2/2, `JsonDecodePackagedRecordE2ETest` 2/2.
 <!-- pt-switch --> **PT:** [§936 (pt_BR)](known-bugs.pt_BR.md#936--uma-fonte-sob-um-diretorio-cujo-nome-nao-e-um-identificador-valido-agent-hidden-x-deriva-um-pacote-invalido-entao-o-alvo-jvm-falha-com-um-comp001-mal-rotulado-ou-um-classformaterror-silencioso-github-999)
 
+## §979 — `validation.matches` on NATIVE was a LITERAL substring search, not the JVM regex (`find`) contract — a silent wrong value while the parity matrix said ✅ (GitHub #979)
+
+**Status:** ✅ FIXED 11/11 (owner = 192.168.100.19:0; issue [#979](https://github.com/KofLang/Kof4j/issues/979), `1.0-blocks`, measured REAL on the tip).
+
+**Contract:** `KofValidation` on the JVM is `Pattern` with `find` semantics — `"abc".matches("[a-c]+")` → true, `"b"` → true, `".*"` → true, `"^abc$"` → true; Script and JS agree. The native asm `kof_validation_matches` (`RuntimeValidation.java`, inherited by riscv64/aarch64) compared the whole pattern byte by byte (a `strstr`), so it answered `false true false false` — a silent wrong value (rule 5, worse than a refusal), and `docs/backend-parity.md` line 137 marked `kof.validation` ✅ on every target.
+
+**ROOT CAUSE:** no regex engine exists on the native targets — the same gap `StringTargetGaps` already refuses with `STR003` for `String.matches`/`replaceAll`/`replaceFirst`. `validation.matches` had no such gate, so the literal search answered as if it were the contract.
+
+**Fix:** the native target now REFUSES `validation.matches` with **`VAL001`** (the honest minimal fix the issue itself proposed; a regex engine on native is a separate maintainer decision). The call site narrows it: a pattern that is provably a string literal with NO regex metacharacter (`.[{()\*+?^$|`) still compiles — there the literal search IS the `find` contract, so the existing capability is kept. A dynamic pattern (the compiler cannot prove it literal) is refused, never answered by a literal search. JVM/Script/JS keep the regex contract unchanged.
+
+**Proof:** `ValidationMatchesNativeGapE2ETest` NEW **5/5** RED-first (3F measured before the fix: the regex pattern and the dynamic pattern both compiled silently on native, and the Script face taught the harness that `compile` is COMP003 by design — the interpreter is its face); the JVM oracle answers `true` for `[a-c]+`; a metacharacter-free literal still runs on native (`true`/`false`); `StdParityGapAuditTest` 17/17 unchanged; the parity matrix row corrected EN+PT.
+
 ## §940 — `now - h as Long * 3600000L` silently casts the WHOLE left expression (`as` at precedence 5, below arithmetic/shift) and computes a wrong number with no diagnostic (GitHub #1095)
 
 **Status:** ✅ FIXED 11/11 (owner = 192.168.15.21:9092; issue [#1095](https://github.com/KofLang/Kof4j/issues/1095), measured REAL on the tip).
