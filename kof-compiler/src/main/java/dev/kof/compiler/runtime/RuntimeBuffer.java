@@ -94,12 +94,18 @@ public final class RuntimeBuffer {
             kof_buffer_borrow_acquire:
                 testq %rdi, %rdi
                 je .Lbfk_ba_done
-                cmpq $0, 8(%rdi)
-                je .Lbfk_ba_free
+                # §1147: o acquire é check-AND-set ATÔMICO — o par cmpq/je/
+                # movq original deixava as duas threads verem o flag 0 e
+                # concederem o borrow DUAS VEZES (MEM020 nunca disparava; a
+                # exclusão mútua B-03 falhava em silêncio).
+                xorl %eax, %eax
+                movl $1, %ecx
+                lock cmpxchgq %rcx, 8(%rdi)
+                jne .Lbfk_ba_taken
+                ret
+            .Lbfk_ba_taken:
                 leaq .Lbfk_mem020(%rip), %rdi
                 jmp kof_throw_string
-            .Lbfk_ba_free:
-                movq $1, 8(%rdi)
             .Lbfk_ba_done:
                 ret
 

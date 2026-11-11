@@ -31,19 +31,26 @@ public final class NativeRiscvAsmBuffer {
             # kof_buffer_borrow_acquire(a0=Buffer?) — B-03 (D-MEM030-BORROW-RUNTIME).
             # Flag no header offset 8 (spare); segunda aquisição concorrente lança
             # MEM020 via kof_throw_string (capturável em try/catch; panic sem handler).
+            # §1147: o acquire é check-AND-set ATÔMICO (lr/sc com retry) — o par
+            # ld/beqz/sd original deixava as duas threads verem o flag 0 e
+            # concederem o borrow DUAS VEZES (MEM020 nunca disparava).
             .globl kof_buffer_borrow_acquire
             .type kof_buffer_borrow_acquire, @function
             kof_buffer_borrow_acquire:
                 beqz a0, .Lkof_bfk_ba_done
-                ld   t0, 8(a0)
-                beqz t0, .Lkof_bfk_ba_free
+                addi t1, a0, 8
+            .Lkof_bfk_ba_retry:
+                lr.d t0, (t1)
+                bnez t0, .Lkof_bfk_ba_taken
+                li   t2, 1
+                sc.d t2, t2, (t1)
+                bnez t2, .Lkof_bfk_ba_retry
+                j .Lkof_bfk_ba_done
+            .Lkof_bfk_ba_taken:
                 la   a0, .Lkof_buf_mem020
                 li   a1, 63
                 call kof_string_from_literal
                 call kof_throw_string
-            .Lkof_bfk_ba_free:
-                li   t0, 1
-                sd   t0, 8(a0)
             .Lkof_bfk_ba_done:
                 ret
 
