@@ -58,8 +58,10 @@ public class ExpressionParser {
     static ExpressionNode parseBinary(ParseContext ctx, int minPrec) {
         ExpressionNode left = ExpressionParser.parseUnary(ctx);
         while (isBinaryOp(ctx) && precedence(ctx, ctx.peek().value()) >= minPrec) {
-            String op = ctx.advance().value();
+            Token opTok = ctx.advance();
+            String op = opTok.value();
             int prec = precedence(ctx, op);
+            if ("as".equals(op)) CastPrecedenceLint.lint(ctx, left, opTok);
             // `as`/`instanceof` recebem um TIPO à direita, e o type-ref PARA
             // no fim do tipo (#459): antes, o RHS caía em parseBinary e o
             // climbing do tipo engolia o operador+RHS seguintes
@@ -375,6 +377,7 @@ public class ExpressionParser {
             ctx.advance();
             ExpressionNode expr = ExpressionParser.parseExpression(ctx);
             ctx.expect(TokenType.RPAREN, "Expected ')'", "PARSE040");
+            ctx.parenthesized.add(expr); // #1095: grupo explícito, o lint do `as` cala
             return expr;
         }
         if (ctx.check(TokenType.IF)) {
@@ -401,9 +404,6 @@ public class ExpressionParser {
         ctx.advance();
         return new IdentifierExpr(ctx.pos(), "error");
     }
-
-
-
 
     static boolean looksLikeGenericCall(ParseContext ctx) {
         if (!ctx.check(TokenType.LESS)) return false;
@@ -461,7 +461,6 @@ public class ExpressionParser {
         ctx.expect(TokenType.GREATER, "Expected '>'", "PARSE079");
         return typeArgs;
     }
-
 
     /**
      * Switch como expressão (SYN001): {@code switch (e) { case A -> b; case T v -> c;

@@ -59,7 +59,7 @@ public class DiagnosticCollector {
         }
     }
 
-    void warning(String file, int line, int column, int length, String message, String code) {
+    public void warning(String file, int line, int column, int length, String message, String code) {
         report(Diagnostic.warning(file, line, column, length, message, code));
     }
 

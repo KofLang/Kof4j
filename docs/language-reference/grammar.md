@@ -282,6 +282,17 @@ Higher precedence at the top. **All binaries are left-associative**
 > `ExpressionLowerer.java:174-176`): `(x as Int) + 1` is not `x as (Int + 1)`.
 > The behavior of pure chaining (`a as B as C`) is **Unspecified**.
 
+> **#1095 — `as` vs. arithmetic/shift (PARSE100 warning).** Because `as` is at
+> precedence 5, *below* `+ -` (7), `* / %` (8) and `<< >> >>>` (6),
+> `now - h as Long * 3600000L` parses as `((now - h) as Long) * 3600000L` — the
+> cast takes the **whole** expression on its left. Readers coming from Java (a
+> unary cast) or Kotlin (`as` above multiplication) read the opposite, so the
+> parser emits a non-fatal **`PARSE100`** warning when the left operand of `as`
+> is an unparenthesized expression with a tighter operator, telling the author
+> to parenthesize the operand they mean: `(now - h) as Long * …` or
+> `now - (h as Long) * …`. The precedence itself is frozen; the warning exists
+> so a wrong number is never silent.
+
 ### 5.2 Short-circuit
 
 `&&` and `||` are evaluated with short-circuit on **all targets** — via labels

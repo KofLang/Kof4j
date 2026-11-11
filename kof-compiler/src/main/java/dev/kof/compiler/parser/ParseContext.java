@@ -6,6 +6,7 @@ import dev.kof.compiler.TokenType;
 import dev.kof.compiler.lang.LanguageProfile;
 
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
 
@@ -28,6 +29,9 @@ public class ParseContext {
     final String file;
     final LanguageProfile profile;
     final Set<String> entityNames = new HashSet<>();
+    /** #1095: expressões que vieram de um grupo `( … )` — o AST não tem nó de
+     *  parênteses, então a identidade do nó marca "o autor já agrupou". */
+    final Set<Object> parenthesized = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
     String currentClassName;
     int pos;
 
@@ -289,5 +293,11 @@ public class ParseContext {
     public void error(String message, String code, Object... args) {
         diagnostics.error(file, peek().line(), peek().column(), peek().length(),
                 message, code, args);
+    }
+
+    /** #1095: aviso NÃO-fatal na posição do token corrente (a precedência
+     *  congelada não muda; o leitor é avisado do que o parser realmente faz). */
+    public void warning(String message, String code) {
+        diagnostics.warning(file, peek().line(), peek().column(), peek().length(), message, code);
     }
 }

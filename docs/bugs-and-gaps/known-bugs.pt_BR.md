@@ -18411,6 +18411,19 @@ Observado: `Cannot resolve static method 'ofString' on imported class 'BodyPubli
 **Prova:** `DotDirectoryPackageE2ETest` **5/5** (RED-first: 4/5 falhavam com o exato `COMP001: /agent` antes da correção; as faces `.agent`, `sub/.agent`, `.hidden-x`, controle de diretório válido e controle sem `kof.toml`) + `InternalNameValidationTest` **4/4** (a regra de identificador e o gate defensivo). Não-regressão: `EnumPackagePlacementE2ETest` 7/7, `PackagesE2ETest` 12/12, `CompileForTestsSourcesModuleRootTest` 1/1, `OrmEntityPackageE2ETest` 2/2, `JsonDecodePackagedRecordE2ETest` 2/2.
 <!-- pt-switch --> **EN:** [§936 (en)](known-bugs.md#936--a-source-under-a-directory-whose-name-is-not-a-valid-identifier-agent-hidden-x-derives-an-invalid-package-so-the-jvm-target-fails-with-a-mislabeled-comp001-or-a-silent-classformaterror-github-999)
 
+## §940 — `now - h as Long * 3600000L` converte a expressão inteira à esquerda em silêncio (`as` na precedência 5, abaixo de aritmética/shift) e calcula um número errado sem diagnóstico (GitHub #1095)
+
+**Status:** ✅ CORRIGIDO 11/11 (dono = 192.168.15.21:9092; issue [#1095](https://github.com/KofLang/Kof4j/issues/1095), medida REAL no tip).
+
+**Contrato:** o grammar §5.1 põe `as` na precedência 5, *abaixo* de `+ -` (7), `* / %` (8) e `<< >> >>>` (6), então `now - h as Long * 3600000L` parseia como `((now - h) as Long) * 3600000L` — o cast pega a expressão inteira à esquerda. Quem vem de Java (cast unário) ou Kotlin (`as` acima da multiplicação) lê o oposto, e nada avisava: o programa calculava `35999992800000` onde o autor queria `2800000`, em silêncio.
+
+**CAUSA RAIZ:** o parse especificado, não uma falha do parser — mas o contrato de erro do Kof proíbe um resultado errado silencioso. A precedência em si é congelada (decisão da mantenedora), então o fix NÃO a move.
+
+**Correção:** o parser emite um aviso **`PARSE100`** não-fatal quando o operando esquerdo do `as` é uma expressão não parentetizada com um operador mais forte (`+ - * / % << >> >>>`) construída pela mesma escada de precedência, pedindo para parentetizar o operando pretendido. Um operando parentetizado volta de `parsePrimary` e é marcado em `ParseContext.parenthesized` (o AST não tem nó de parênteses, então a identidade do nó carrega "o autor já agrupou"), então `(a - b) as T`, `a - (b as T)`, `h as Long * k`, `x as Long == 2L` e `a as B as C` ficam silenciosos. A checagem vive em `parser/CastPrecedenceLint` (`ExpressionParser` está no gate de 600 linhas); o catálogo PortuKof carrega o texto pt-BR; o grammar §5.1 (EN + pt_BR) documenta.
+
+**Prova:** `CastPrecedenceLintE2ETest` NOVO **8/8** RED-first (2F medidos com o lint desligado: o repro exato da issue + a matriz de cada operador mais forte) — a face da issue, a matriz de 8 operadores, e os 5 controles silenciosos (esquerda parentetizada, cast no operando direito, cast-depois-multiplicação, cast-depois-comparação, casts encadeados, cast simples); a família parser/expressão **121 run / 0F**; `check_500` rc=0 (o lint extraído para classe própria, `ExpressionParser` 598 < 600).
+<!-- pt-switch --> **EN:** [§940 (EN)](known-bugs.md#940--now---h-as-long--3600000l-silently-casts-the-whole-left-expression-as-at-precedence-5-below-arithmeticshift-and-computes-a-wrong-number-with-no-diagnostic-github-1095)
+
 ## §938 — o fold de `equals` de record do JVM para campos `Double`/`Float` usava o `==` CRU do IEEE (`DCMPL`/`FCMPL`), divergindo do contrato de record do javac nas DUAS bordas (NaN ≠ NaN; +0.0 == −0.0) enquanto o fold de bits do WASI já era javac-fiel (§764)
 
 **Status:** ✅ CORRIGIDO 09/11 (dona = 192.168.15.21:9092; fecha a linha ABERTA do §764, medida 29/10 pela lane wasm-wasi que corretamente a deixou para o núcleo do compilador).

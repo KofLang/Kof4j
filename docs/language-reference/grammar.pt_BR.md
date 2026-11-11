@@ -285,6 +285,16 @@ Maior precedência no topo. **Todos os binários são left-associativos**
 > `ExpressionLowerer.java:174-176`): `(x as Int) + 1` não é `x as (Int + 1)`.
 > O comportamento de encadeamento puro (`a as B as C`) é **Unspecified**.
 
+> **#1095 — `as` vs. aritmética/shift (aviso PARSE100).** Como `as` está na
+> precedência 5, *abaixo* de `+ -` (7), `* / %` (8) e `<< >> >>>` (6),
+> `now - h as Long * 3600000L` parseia como `((now - h) as Long) * 3600000L` — o
+> cast pega a **expressão inteira** à esquerda. Quem vem de Java (cast unário) ou
+> Kotlin (`as` acima da multiplicação) lê o oposto, então o parser emite um aviso
+> **`PARSE100`** não-fatal quando o operando esquerdo do `as` é uma expressão não
+> parentetizada com um operador mais forte, pedindo para parentetizar o operando
+> pretendido: `(now - h) as Long * …` ou `now - (h as Long) * …`. A precedência em
+> si é congelada; o aviso existe para que um número errado nunca seja silencioso.
+
 ### 5.2 Short-circuit
 
 `&&` e `||` são avaliados com short-circuit em **todos os targets** — JVM/Native
