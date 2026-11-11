@@ -88,5 +88,66 @@ public final class JsRuntimeUiFocus {
                 const t = kofUiFirstFocusable(root);
                 if (t && typeof t.focus === "function") t.focus();
             }
+
+            // D-UI-FOCUS (#811 fatia 3): a RESTAURAÇÃO — quando o rebuild+prune
+            // substitui o nó focado, a identidade (o caminho de índices+tags da
+            // raiz antiga, a regra D-UI-DIFF) é capturada ANTES da poda e o nó
+            // na mesma posição/tipo da nova subárvore é refocalizado. O foco
+            // nunca cai silenciosamente no <body>.
+            function kofUiInSubtree(root, node) {
+                let p = node;
+                while (p) {
+                    if (p === root) return true;
+                    p = p.parentNode;
+                }
+                return false;
+            }
+            function kofUiFocusPath(root, node) {
+                const steps = [];
+                let p = node;
+                while (p && p !== root) {
+                    const parent = p.parentNode;
+                    if (!parent) return null;
+                    const kids = parent.children || [];
+                    let idx = -1;
+                    for (let i = 0; i < kids.length; i++) {
+                        if (kids[i] === p) { idx = i; break; }
+                    }
+                    if (idx < 0) return null;
+                    steps.unshift({ tag: String(p.tagName || "").toUpperCase(), index: idx });
+                    p = parent;
+                }
+                return p === root ? steps : null;
+            }
+            // A CAPTURA roda ANTES da poda: o kofUiRemoveSubtree destrói os
+            // parent links da subárvore antiga — o caminho de identidade tem de
+            // ser computado antes. Null = o foco estava fora da subárvore (nada
+            // a restaurar) ou era a raiz antiga em si (o fallback do componente).
+            export function kofUiCaptureFocus(oldRoot) {
+                const active = globalThis.document ? globalThis.document.activeElement : null;
+                if (!active || !kofUiInSubtree(oldRoot, active)) return null;
+                return kofUiFocusPath(oldRoot, active);
+            }
+            export function kofUiRestoreFocus(steps, newRoot, fallback) {
+                if (!steps || steps.length === 0) {
+                    if (fallback && typeof fallback.focus === "function") fallback.focus();
+                    return false;
+                }
+                let el = newRoot;
+                for (const st of steps) {
+                    const kids = el.children || [];
+                    const next = kids[st.index];
+                    // a posição existe mas o TIPO mudou (a estrutura mudou): o
+                    // fallback do componente — nunca <body>.
+                    if (!next || String(next.tagName || "").toUpperCase() !== st.tag) {
+                        if (fallback && typeof fallback.focus === "function") fallback.focus();
+                        return false;
+                    }
+                    el = next;
+                }
+                if (el && typeof el.focus === "function") { el.focus(); return true; }
+                if (fallback && typeof fallback.focus === "function") fallback.focus();
+                return false;
+            }
             """;
 }
