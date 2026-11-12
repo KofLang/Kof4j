@@ -174,13 +174,33 @@ class KofExprMatchE2ETest {
     }
 
     @Test
-    void quantifierRefusesNamingSlice2() throws Exception {
-        String d = diagnostics("""
+    void quantifiersEnterWithSlice2AndMatch() throws Exception {
+        // Fatia 2 (D-KOF-EXPR): o quantificador da fatia 2 agora casa de verdade
+        // (a face de contrato do spike-0 evoluiu duas vezes: sem lowering ->
+        // EXPR001 fatia 2 -> o quantificador real).
+        String src = """
                 expr many { one_or_more { "a" } }
-                main() { println(many.matches("a")) }
-                """);
-        assertTrue(d.contains("EXPR001"), () -> d);
-        assertTrue(d.contains("slice 2"), () -> d);
+
+                main() {
+                    println(many.matches("aaa"))
+                    println(many.matches("baa"))
+                }
+                """;
+        Path file = tmp.resolve("q2").resolve("Main.kf");
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, src);
+        Path out = tmp.resolve("q2-out");
+        CompilationResult r = new CompilerDriver().compile(file, out, Target.JVM);
+        assertTrue(r.success(), r.diagnostics().getDiagnostics().toString());
+        PrintStream oldOut = System.out;
+        ByteArrayOutputStream buf = new ByteArrayOutputStream();
+        System.setOut(new PrintStream(buf, true, StandardCharsets.UTF_8));
+        try (URLClassLoader cl = new URLClassLoader(new URL[]{out.toUri().toURL()}, getClass().getClassLoader())) {
+            Class.forName("Default.Main", true, cl).getMethod("main", String[].class).invoke(null, (Object) new String[0]);
+        } finally {
+            System.setOut(oldOut);
+        }
+        assertEquals("true\nfalse\n", buf.toString(StandardCharsets.UTF_8));
     }
 
     @Test

@@ -898,6 +898,18 @@
       "pt": "'as' liga mais frouxo que aritmética e shifts, então ele converte a expressão inteira à esquerda; parentetize o operando que você quer"
     }
   ],
+  "PARSE101": [
+    {
+      "arity": 0,
+      "en": "Expected ')' after the quantifier literal",
+      "pt": "esperado ')' depois do literal do quantificador"
+    },
+    {
+      "arity": 0,
+      "en": "Expected a text literal inside the quantifier",
+      "pt": "esperado um literal de texto dentro do quantificador"
+    }
+  ],
   "SEM001": [
     {
       "arity": 2,
