@@ -177,12 +177,22 @@ final class CompilerExprLowering {
         Target t = driver.target;
         if (driver.interpreting || t == Target.JVM || t == Target.ANDROID) return true;
         if (t == Target.JS) {
-            return refuse("EXPR004", atom.position(), "the Kof.expr character classes are not on the JS target "
-                    + "yet ('" + atom.kind() + "'): the JS runtime predicates enter with slice 7");
+            // Fatia 7 MEDIDA: os predicados existem no runtime JS (o bloco
+            // "expr", tabelas pinadas como dado) MAS o matcher em si não
+            // baixa — a cadeia de estados usa saltos/labels/retornos em
+            // formas que o reconstrutor estruturado do JsMethodParser não
+            // reconhece (medido: KofJump solto vira break/continue; o if só
+            // dobra na forma exata CJump+Label(true)+GOTO). Baixar a cadeia
+            // para essas formas é um front do tamanho do próprio parser —
+            // por isso o gate segue, nomeando o bloqueio REAL.
+            return refuse("EXPR004", atom.position(), "the Kof.expr matcher is not on the JS target yet "
+                    + "('" + atom.kind() + "'): the state chain lowers to raw jumps/labels the JS "
+                    + "structured-flow parser does not reconstruct yet — a JsMethodParser-sized front");
         }
         if (t == Target.NATIVE) {
             return refuse("EXPR004", atom.position(), "the Kof.expr character classes are not on the Native "
-                    + "target yet ('" + atom.kind() + "'): the native runtime predicates enter with slice 6");
+                    + "target yet ('" + atom.kind() + "'): the native runtime predicates enter with slice 6 "
+                    + "(the live native lane's front)");
         }
         return refuse("EXPR004", atom.position(), "the Kof.expr character classes are not on the " + t
                 + " target yet ('" + atom.kind() + "')");
@@ -330,103 +340,11 @@ final class CompilerExprLowering {
         return name;
     }
 
-    /** Um átomo literal/âncora: casa e continua, ou falha com -1. */
+    /** Um átomo literal/âncora/classe: casa e continua, ou falha com -1. */
     private String atomState(ExprAtomNode atom, String tail) {
-        String name = newName();
-        LabelId fail = LabelId.create();
-        LabelId ok = LabelId.create();
-        LabelId doneJoin = LabelId.create();
-        List<KofOperation> ops = new ArrayList<>();
-        switch (atom.kind()) {
-            case "literal" -> {
-                String lit = atom.values().isEmpty() ? "" : atom.values().get(0);
-                ops.add(new KofLoadLocal(STR, SLOT_S));
-                ops.add(KofLoadLiteral.ofString(lit));
-                ops.add(new KofLoadLocal(INT, SLOT_POS));
-                ops.add(new KofCall(STR, "startsWith", List.of(STR, INT), BOOL, KofCallKind.INSTANCE));
-                ops.add(KofLoadLiteral.ofBool(true));
-                ops.add(new KofConditionalJump(KofComparison.EQ, BOOL, ok, fail));
-                ops.add(new KofLabel(ok));
-                ops.add(new KofLoadLocal(INT, SLOT_POS));
-                ops.add(KofLoadLiteral.ofInt(lit.length()));
-                ops.add(new KofBinary(KofBinaryOp.ADD, INT));
-                ops.add(new KofStoreLocal(INT, SLOT_POS));
-            }
-            case "start" -> {
-                ops.add(new KofLoadLocal(INT, SLOT_POS));
-                ops.add(KofLoadLiteral.ofInt(0));
-                ops.add(new KofConditionalJump(KofComparison.EQ, INT, ok, fail));
-                ops.add(new KofLabel(ok));
-            }
-            case "one_of", "none_of" -> {
-                // membership por PONTO DE CÓDIGO: lê o escalar em pos, guarda e
-                // compara contra o ponto único de cada literal. `one_of` casa
-                // quando ALGUM bate; `none_of` quando NENHUM bate.
-                KofExprCodePoint.emitRead(ops, tempSlot());
-                ops.add(new KofStoreLocal(INT, tempSlot()));
-                LabelId hit = LabelId.create();
-                for (String v : atom.values()) {
-                    LabelId next = LabelId.create();
-                    ops.add(new KofLoadLocal(INT, tempSlot()));
-                    ops.add(KofLoadLiteral.ofInt(v.codePointAt(0)));
-                    ops.add(new KofConditionalJump(KofComparison.EQ, INT, hit, next));
-                    ops.add(new KofLabel(next));
-                }
-                // nenhum bateu
-                if (atom.kind().equals("one_of")) {
-                    ops.add(new KofJump(fail));
-                } else {
-                    KofExprCodePoint.emitAdvance(ops, tempSlot());
-                    ops.add(new KofJump(doneJoin));
-                }
-                ops.add(new KofLabel(hit));
-                if (atom.kind().equals("one_of")) {
-                    KofExprCodePoint.emitAdvance(ops, tempSlot());
-                    ops.add(new KofJump(doneJoin));
-                } else {
-                    ops.add(new KofJump(fail));
-                }
-                ops.add(new KofLabel(doneJoin));
-            }
-            case "any" -> {
-                // o escalar em pos, seja ele qual for — mas TEM de existir
-                KofExprCodePoint.emitRead(ops, tempSlot());
-                ops.add(new KofStoreLocal(INT, tempSlot()));
-                LabelId present = LabelId.create();
-                ops.add(new KofLoadLocal(INT, tempSlot()));
-                ops.add(KofLoadLiteral.ofInt(-1));
-                ops.add(new KofConditionalJump(KofComparison.NE, INT, present, fail));
-                ops.add(new KofLabel(present));
-                KofExprCodePoint.emitAdvance(ops, tempSlot());
-            }
-            case "end" -> {
-                ops.add(new KofLoadLocal(INT, SLOT_POS));
-                ops.add(new KofLoadLocal(STR, SLOT_S));
-                ops.add(new KofCall(STR, "length", List.of(), INT, KofCallKind.INSTANCE));
-                ops.add(new KofConditionalJump(KofComparison.EQ, INT, ok, fail));
-                ops.add(new KofLabel(ok));
-            }
-            default -> {
-                // as classes com tabela: lê o ponto, guarda (o avanço precisa
-                // dele) e pergunta ao runtime
-                String predicate = KofExprUnicode.predicateOf(atom.kind());
-                KofExprCodePoint.emitRead(ops, tempSlot());
-                ops.add(new KofStoreLocal(INT, tempSlot()));
-                ops.add(new KofLoadLocal(INT, tempSlot()));
-                ops.add(new KofCall(STR, predicate, List.of(INT), BOOL, KofCallKind.FUNCTION));
-                ops.add(KofLoadLiteral.ofBool(true));
-                ops.add(new KofConditionalJump(KofComparison.EQ, BOOL, ok, fail));
-                ops.add(new KofLabel(ok));
-                KofExprCodePoint.emitAdvance(ops, tempSlot());
-            }
-        }
-        emitContinue(ops, tail);
-        ops.add(new KofLabel(fail));
-        ops.add(KofLoadLiteral.ofInt(-1));
-        ops.add(new KofReturn(INT));
-        states.add(stateMethod(name, ops));
-        return name;
+        return KofExprAtomStates.atomState(this, atom, tail);
     }
+
 
     /**
      * Os três estados de um quantificador: {@code loop} decide se cabe mais uma
@@ -516,7 +434,7 @@ final class CompilerExprLowering {
     }
 
     /** Empilha (s, pos, contadores, chaves, inícios) e chama o estado. */
-    private void opsCall(List<KofOperation> ops, String state) {
+    void opsCall(List<KofOperation> ops, String state) {
         ops.add(new KofLoadLocal(STR, SLOT_S));
         ops.add(new KofLoadLocal(INT, SLOT_POS));
         List<Type> params = new ArrayList<>(List.of(STR, INT));
@@ -544,11 +462,11 @@ final class CompilerExprLowering {
         return keyBaseOf(slots);
     }
 
-    private int startSlot(int i) {
+    int startSlot(int i) {
         return keyArraySlot() + 1 + i;
     }
 
-    private int tempSlot() {
+    int tempSlot() {
         return keyArraySlot() + 1 + captures.size();
     }
 
@@ -556,7 +474,7 @@ final class CompilerExprLowering {
 
     // ---------------------------------------------------------------- apoio
 
-    private IRMethod stateMethod(String name, List<KofOperation> ops) {
+    IRMethod stateMethod(String name, List<KofOperation> ops) {
         List<Type> params = new ArrayList<>(List.of(STR, INT));
         List<IRLocalVariable> locals = new ArrayList<>();
         locals.add(new IRLocalVariable(SLOT_S, "s", STR));
@@ -583,7 +501,7 @@ final class CompilerExprLowering {
         return "kx" + (uid++);
     }
 
-    private boolean refuse(String code, SourcePosition p, String message) {
+    boolean refuse(String code, SourcePosition p, String message) {
         if (driver.currentDiagnostics != null) {
             driver.currentDiagnostics.error(p != null ? p.file() : "",
                     p != null ? p.line() : 0, p != null ? p.column() : 0,

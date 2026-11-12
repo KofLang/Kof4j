@@ -132,7 +132,12 @@ void handleCall(MethodCtx ctx, List<Object> stack,
             return;
         }
         if (kc.kind() == KofCallKind.FUNCTION) {
-            // top-level function call (arity routes default-parameter wrappers)
+            // top-level function call; fatia 7 (D-KOF-EXPR): os predicados são funções de runtime JS seeded pelo próprio nome
+            if (kc.methodName().startsWith("kof_expr_is_")) {
+                p.lc.registerRuntime(kc.methodName());
+                stack.add(new JsIr.JsCall(new JsIr.JsIdentifier(kc.methodName()), args));
+                return;
+            }
             finishCall(stack, kc, new JsIr.JsCall(
                     new JsIr.JsIdentifier(JsTypeMapper.sanitizeName(
                             p.lc.jsFunctionName(kc.methodName(), kc.parameterTypes(), kc.parameterTypes().size()))),

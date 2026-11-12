@@ -189,17 +189,44 @@ class KofExprClassesE2ETest {
     }
 
     @Test
-    void jsAndNativeRefuseWithExpr004NamingTheirSlices() throws Exception {
-        String src = """
+    void jsAndNativeRefuseWithTheMeasuredBlockers() throws Exception {
+        // Fatia 7 MEDIDA (12/11): os predicados existem no runtime JS (o bloco
+        // "expr" com as tabelas pinadas como dado) mas o MATCHER não baixa —
+        // a cadeia de estados usa saltos/labels em formas que o reconstrutor
+        // estruturado do JS não reconhece (KofJump solto vira break/continue;
+        // o if só dobra na forma exata CJump+Label(true)+GOTO). O gate nomeia
+        // o bloqueio REAL dos dois lados: o front do parser JS e a fatia 6
+        // nativa (a frente da lane nativa viva).
+        String js = diagnostics("""
                 expr name { one_or_more { letter } }
                 main() { println(name.matches("a")) }
-                """;
-        String js = diagnostics(src, Target.JS);
+                """, Target.JS);
         assertTrue(js.contains("EXPR004") && js.contains("JS"), () -> js);
-        assertTrue(js.contains("slice 7"), () -> js);
-        String nat = diagnostics(src, Target.NATIVE);
+        assertTrue(js.contains("structured-flow"), () -> js);
+        String nat = diagnostics("""
+                expr name { one_or_more { letter } }
+                main() { println(name.matches("a")) }
+                """, Target.NATIVE);
         assertTrue(nat.contains("EXPR004") && nat.contains("Native"), () -> nat);
         assertTrue(nat.contains("slice 6"), () -> nat);
+    }
+
+    @Test
+    void thePinnedTableDataCarriesTheUnicode16Letter() throws Exception {
+        // A TABELA como dado é a face JS da pin (GraalJS não tem isLetter): os
+        // intervalos commitados têm de carregar U+1C89 (letra só desde o
+        // Unicode 16.0) como LETRA e como NÃO-hex — o mesmo valor que a face
+        // JVM assegura pelo Character medido.
+        assertTrue(KofExprUnicode.containsRange(KofExprUnicode.RANGES_LETTER, 0x1C89),
+                "U+1C89 (letra desde o Unicode 16.0) está nos intervalos de letra");
+        assertFalse(KofExprUnicode.containsRange(KofExprUnicode.RANGES_HEX, 0x1C89),
+                "U+1C89 não é hex");
+        assertFalse(KofExprUnicode.containsRange(KofExprUnicode.RANGES_LETTER, 0x1FAE8),
+                "U+1FAE8 (símbolo do 15.0) não é letra");
+        assertTrue(KofExprUnicode.containsRange(KofExprUnicode.RANGES_DIGIT, 0x10D40),
+                "U+10D40 (dígito desde o Unicode 16.0) está nos intervalos de dígito");
+        assertTrue(KofExprUnicode.containsRange(KofExprUnicode.RANGES_SPACE, 0x2028),
+                "U+2028 (separador de linha) está nos intervalos de espaço");
     }
 
     private String runJvm(String tag, String src) throws Exception {

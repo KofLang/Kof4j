@@ -48,6 +48,7 @@ class JsRuntimeSliceRegistryTest {
                 .append(JsRuntimeUiWs.WS_RUNTIME)
                 .append(JsRuntimeUiEvents.UI_EVENT_RUNTIME)
                 .append(JsRuntimeHttpClient.HTTP_CLIENT_RUNTIME())  // #1126: o bloco "http-client" é o ÚLTIMO core (a ordem da lista define o emit)
+                .append(JsRuntimeExpr.EXPR_RUNTIME)  // D-KOF-EXPR fatia 7: o bloco "expr" (o novo último core)
                 .toString();
     }
 
