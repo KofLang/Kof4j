@@ -116,19 +116,23 @@ final class CompilerExprLowering {
             return validate(q.target());
         }
         if (node instanceof ExprAlternationNode a) {
-            return refuse("EXPR001", a.position(), "'either' (alternation) is not part of Kof.expr slice 2 "
-                    + "(literals + anchors + quantifiers): it enters with slice 4");
+            // Fatia 4: a alternação é do conjunto — o §12 desce em cada ramo.
+            if (a.alternatives().isEmpty()) {
+                return refuse("EXPR005", a.position(), "'either' needs at least one branch");
+            }
+            for (ExprNode branch : a.alternatives()) if (!validate(branch)) return false;
+            return true;
         }
         if (node instanceof ExprCaptureNode c) {
             return refuse("EXPR001", c.position(), "capture('" + c.name() + "') is not part of Kof.expr "
-                    + "slice 2 (literals + anchors + quantifiers): captures enter with slice 5");
+                    + "slice 4 (… + groups + either): captures enter with slice 5");
         }
         if (node instanceof ExprReferenceNode r) {
             return refuse("EXPR001", r.position(), "pattern reference '" + r.alias() + "' is not part of "
-                    + "Kof.expr slice 2 (literals + anchors + quantifiers): composition enters with a later slice");
+                    + "Kof.expr slice 4 (… + groups + either): composition enters with a later slice");
         }
-        return refuse("EXPR001", node.position(), "this pattern element is not part of Kof.expr slice 2 "
-                + "(literals + anchors + quantifiers): it enters with a later slice");
+        return refuse("EXPR001", node.position(), "this pattern element is not part of Kof.expr slice 4 "
+                + "(… + groups + either): it enters with a later slice");
     }
 
     private boolean validateAtom(ExprAtomNode atom) {
@@ -210,14 +214,76 @@ final class CompilerExprLowering {
         if (unit instanceof ExprSequenceNode seq) return compileUnits(seq.units(), tail);
         if (unit instanceof ExprAtomNode atom) return atomState(atom, tail);
         if (unit instanceof ExprQuantifierNode q) return quantifierStates(q, tail);
+        if (unit instanceof ExprAlternationNode alt) return alternationStates(alt, tail);
         return tail; // validate() recusou: inalcançável
     }
 
-    /** Aceite de um casamento de sujeito inteiro: a posição corrente É o resultado. */
+    /**
+     * A ALTERNATIVA (fatia 4, §3.3): escolha ORDENADA. Cada ramo é compilado
+     * como um caminho que continua na MESMA cauda; o estado de escolha tenta o
+     * ramo 1 e, se ele devolver -1 (o próprio ramo recusou OU a cauda recusou
+     * depois dele), tenta o ramo 2 — o desfazer é automático porque cada
+     * tentativa reentra com a posição ORIGINAL (o estado é uma função pura de
+     * (s, pos, c*)). O último ramo devolve o que ele devolver.
+     */
+    private String alternationStates(ExprAlternationNode alt, String tail) {
+        String entry = newName();
+        LabelId doneAlt = LabelId.create();
+        List<String> branches = new ArrayList<>();
+        for (ExprNode b : alt.alternatives()) branches.add(compileUnit(b, tail));
+
+        List<KofOperation> ops = new ArrayList<>();
+        LabelId entryLabel = LabelId.create();
+        ops.add(new KofLabel(entryLabel));
+        ops.add(KofLoadLiteral.ofInt(-1));
+        ops.add(new KofStoreLocal(INT, tempSlot()));
+        List<LabelId> labels = new ArrayList<>();
+        for (int i = 0; i < branches.size(); i++) labels.add(LabelId.create());
+        ops.add(new KofJump(labels.get(0)));
+        for (int i = 0; i < branches.size(); i++) {
+            boolean last = i == branches.size() - 1;
+            ops.add(new KofLabel(labels.get(i)));
+            opsCall(ops, branches.get(i));
+            if (last) {
+                ops.add(new KofReturn(INT));
+            } else {
+                // o ramo (e a cauda depois dele) devolveu -1: desfaz e tenta o próximo
+                ops.add(new KofStoreLocal(INT, tempSlot()));
+                LabelId next = labels.get(i + 1);
+                ops.add(new KofLoadLocal(INT, tempSlot()));
+                ops.add(KofLoadLiteral.ofInt(-1));
+                ops.add(new KofConditionalJump(KofComparison.NE, INT, doneAlt, next));
+                ops.add(new KofLabel(next));
+            }
+        }
+        ops.add(new KofLabel(doneAlt));
+        ops.add(new KofLoadLocal(INT, tempSlot()));
+        ops.add(new KofReturn(INT));
+        states.add(stateMethod(entry, ops));
+        return entry;
+    }
+
+    /**
+     * Aceite de um casamento de SUJEITO INTEIRO: só devolve a posição quando
+     * ela É o fim do texto, e -1 caso contrário. A imposição vive AQUI (e não
+     * no {@code matches}) porque a alternação decide pelo resultado do ramo:
+     * um ramo que casa pela metade tem de devolver -1 para o próximo ramo ser
+     * tentado — o caso `either { "cat" or "catalog" }` sobre "catalog".
+     */
     private String acceptState() {
         String name = newName();
+        LabelId full = LabelId.create();
+        LabelId shortFall = LabelId.create();
         List<KofOperation> ops = new ArrayList<>();
         ops.add(new KofLoadLocal(INT, SLOT_POS));
+        ops.add(new KofLoadLocal(STR, SLOT_S));
+        ops.add(new KofCall(STR, "length", List.of(), INT, KofCallKind.INSTANCE));
+        ops.add(new KofConditionalJump(KofComparison.EQ, INT, full, shortFall));
+        ops.add(new KofLabel(full));
+        ops.add(new KofLoadLocal(INT, SLOT_POS));
+        ops.add(new KofReturn(INT));
+        ops.add(new KofLabel(shortFall));
+        ops.add(KofLoadLiteral.ofInt(-1));
         ops.add(new KofReturn(INT));
         states.add(stateMethod(name, ops));
         return name;
@@ -445,9 +511,8 @@ final class CompilerExprLowering {
         ops.add(new KofCall(self, entry, params, INT, KofCallKind.STATIC));
         ops.add(new KofStoreLocal(INT, 1));
         ops.add(new KofLoadLocal(INT, 1));
-        ops.add(new KofLoadLocal(STR, SLOT_S));
-        ops.add(new KofCall(STR, "length", List.of(), INT, KofCallKind.INSTANCE));
-        ops.add(new KofConditionalJump(KofComparison.EQ, INT, pass, fail));
+        ops.add(KofLoadLiteral.ofInt(-1));
+        ops.add(new KofConditionalJump(KofComparison.NE, INT, pass, fail));
         ops.add(new KofLabel(pass));
         ops.add(KofLoadLiteral.ofBool(true));
         ops.add(new KofReturn(BOOL));

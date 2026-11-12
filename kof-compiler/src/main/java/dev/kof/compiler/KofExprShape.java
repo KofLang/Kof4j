@@ -49,6 +49,12 @@ final class KofExprShape {
             else min = 0;
             return min == 0 || nullable(q.target());
         }
+        if (node instanceof ExprAlternationNode alt) {
+            // fatia 4: a alternação é anulável quando QUALQUER ramo é — e um
+            // ramo anulável dentro de um laço sem teto é o laço infinito do §12
+            for (ExprNode branch : alt.alternatives()) if (nullable(branch)) return true;
+            return false;
+        }
         return false;
     }
 
@@ -63,6 +69,12 @@ final class KofExprShape {
                     || (q.kind().equals("between") && q.max() < 0);
             return unbounded || containsUnbounded(q.target());
         }
+        if (node instanceof ExprAlternationNode alt) {
+            // fatia 4: o guarda segue a ÁRVORE — um sem teto em QUALQUER ramo
+            // mantém a forma exponencial
+            for (ExprNode branch : alt.alternatives()) if (containsUnbounded(branch)) return true;
+            return false;
+        }
         return false;
     }
 
@@ -74,6 +86,12 @@ final class KofExprShape {
             return total;
         }
         if (node instanceof ExprQuantifierNode q) return 1 + quantifierCount(q.target());
+        if (node instanceof ExprAlternationNode alt) {
+            // fatia 4: os contadores dos ramos também são slots
+            int total = 0;
+            for (ExprNode branch : alt.alternatives()) total += quantifierCount(branch);
+            return total;
+        }
         return 0;
     }
 

@@ -120,6 +120,13 @@ final class ExprDeclarations {
         if (ctx.check(TokenType.IDENTIFIER)) {
             return parseWordUnit(ctx, code);
         }
+        // Fatia 4 (D-KOF-EXPR): um GRUPO `{ … }` nu é uma unidade — a
+        // sequência agrupada que o quantificador carrega inteira
+        // (`exactly(2) { "a" "b" }`). Antes as chaves só abriam como alvo de
+        // quantificador/captura; a forma é aditiva sobre a gramática Q1.
+        if (ctx.check(TokenType.LBRACE)) {
+            return parseBlock(ctx, code);
+        }
         return null;
     }
 

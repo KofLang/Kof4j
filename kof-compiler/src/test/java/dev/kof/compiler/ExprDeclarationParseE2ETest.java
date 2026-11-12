@@ -168,15 +168,21 @@ class ExprDeclarationParseE2ETest {
             """, Target.JVM);
         assertTrue(classes.success(), () -> "as classes da fatia 3 compilam: "
                 + diagnosticsOf(classes));
-        CompilationResult outOfSlice = parse("clean4", """
+        CompilationResult alt = parse("clean4", """
             expr alt { either { "a" or "b" } }
+            main() { println("ok") }
+            """, Target.JVM);
+        assertTrue(alt.success(), () -> "o either da fatia 4 compila: "
+                + diagnosticsOf(alt));
+        CompilationResult outOfSlice = parse("clean5", """
+            expr cap { capture("v") { "a" } }
             main() { println("ok") }
             """, Target.JVM);
         assertFalse(outOfSlice.success(), () -> "fora do conjunto da fatia recusa: "
                 + diagnosticsOf(outOfSlice));
         assertTrue(diagnosticsOf(outOfSlice).contains("EXPR001")
-                        && diagnosticsOf(outOfSlice).contains("slice 4"),
-                () -> "o either nomeia a própria fatia: " + diagnosticsOf(outOfSlice));
+                        && diagnosticsOf(outOfSlice).contains("slice 5"),
+                () -> "a captura nomeia a própria fatia: " + diagnosticsOf(outOfSlice));
     }
 
     @Test

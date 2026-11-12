@@ -233,12 +233,33 @@ class KofExprMatchE2ETest {
     }
 
     @Test
-    void alternationRefusesNamingSlice4() throws Exception {
-        String d = diagnostics("""
+    void alternationEntersWithSlice4AndMatches() throws Exception {
+        // Fatia 4 (D-KOF-EXPR): a alternação agora CASA (a fronteira EXPR001
+        // restante é capturas, fatia 5 — coberta pelo próprio teste dela).
+        String src = """
                 expr either2 { either { "a" or "b" } }
-                main() { println(either2.matches("a")) }
-                """);
-        assertTrue(d.contains("EXPR001") && d.contains("slice 4"), () -> d);
+
+                main() {
+                    println(either2.matches("a"))
+                    println(either2.matches("b"))
+                    println(either2.matches("c"))
+                }
+                """;
+        Path file = tmp.resolve("a4").resolve("Main.kf");
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, src);
+        Path out = tmp.resolve("a4-out");
+        CompilationResult r = new CompilerDriver().compile(file, out, Target.JVM);
+        assertTrue(r.success(), r.diagnostics().getDiagnostics().toString());
+        PrintStream oldOut = System.out;
+        ByteArrayOutputStream buf = new ByteArrayOutputStream();
+        System.setOut(new PrintStream(buf, true, StandardCharsets.UTF_8));
+        try (URLClassLoader cl = new URLClassLoader(new URL[]{out.toUri().toURL()}, getClass().getClassLoader())) {
+            Class.forName("Default.Main", true, cl).getMethod("main", String[].class).invoke(null, (Object) new String[0]);
+        } finally {
+            System.setOut(oldOut);
+        }
+        assertEquals("true\ntrue\nfalse\n", buf.toString(StandardCharsets.UTF_8));
     }
 
     @Test
