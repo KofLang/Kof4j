@@ -115,6 +115,8 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_db_execute", "kof_db_execute1", "kof_db_execute2", "kof_db_execute3", "kof_db_execute4" -> "I";
             case "kof_db_query0", "kof_db_query1", "kof_db_query2", "kof_db_query3", "kof_db_query4",
                     "kof_orm_all", "kof_orm_where" -> "Ljava/util/ArrayList;";
+            case "kof_expr_is_letter", "kof_expr_is_digit", "kof_expr_is_space",
+                    "kof_expr_is_word", "kof_expr_is_hex" -> "Z";
             case "kof_string_to_int" -> "I";
             case "kof_string_to_long" -> "J";
             case "kof_string_to_double" -> "D";

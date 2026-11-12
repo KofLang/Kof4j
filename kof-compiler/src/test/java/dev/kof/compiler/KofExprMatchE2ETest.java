@@ -204,12 +204,32 @@ class KofExprMatchE2ETest {
     }
 
     @Test
-    void classAtomRefusesNamingSlice3() throws Exception {
-        String d = diagnostics("""
-                expr wordy { letter }
-                main() { println(wordy.matches("a")) }
-                """);
-        assertTrue(d.contains("EXPR001") && d.contains("slice 3"), () -> d);
+    void classesEnterWithSlice3AndMatch() throws Exception {
+        // Fatia 3 (D-KOF-EXPR): a classe de caractere agora CASA (a fronteira
+        // EXPR001 moveu para o `either`, fatia 4 — coberto no teste de classes).
+        String src = """
+                expr wordy { one_or_more { letter } }
+
+                main() {
+                    println(wordy.matches("kof"))
+                    println(wordy.matches("kof!"))
+                }
+                """;
+        Path file = tmp.resolve("c3").resolve("Main.kf");
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, src);
+        Path out = tmp.resolve("c3-out");
+        CompilationResult r = new CompilerDriver().compile(file, out, Target.JVM);
+        assertTrue(r.success(), r.diagnostics().getDiagnostics().toString());
+        PrintStream oldOut = System.out;
+        ByteArrayOutputStream buf = new ByteArrayOutputStream();
+        System.setOut(new PrintStream(buf, true, StandardCharsets.UTF_8));
+        try (URLClassLoader cl = new URLClassLoader(new URL[]{out.toUri().toURL()}, getClass().getClassLoader())) {
+            Class.forName("Default.Main", true, cl).getMethod("main", String[].class).invoke(null, (Object) new String[0]);
+        } finally {
+            System.setOut(oldOut);
+        }
+        assertEquals("true\nfalse\n", buf.toString(StandardCharsets.UTF_8));
     }
 
     @Test

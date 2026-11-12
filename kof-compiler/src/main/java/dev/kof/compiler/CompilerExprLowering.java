@@ -53,12 +53,6 @@ final class CompilerExprLowering {
     private static final int SLOT_POS = 1;
     private static final int SLOT_FIRST_COUNT = 2;
 
-    /** Quantificadores nomeados da fatia 2 e o intervalo (min, max) que impõem; max < 0 = sem teto. */
-    private static final java.util.Map<String, int[]> NAMED = java.util.Map.of(
-            "optional", new int[]{0, 1},
-            "zero_or_more", new int[]{0, -1},
-            "one_or_more", new int[]{1, -1});
-
     private final CompilerDriver driver;
     private final Type self;
     /** Número TOTAL de ocorrências de quantificador = número de slots de contador. */
@@ -77,11 +71,11 @@ final class CompilerExprLowering {
     static IRClass lower(CompilerDriver driver, ExprDeclarationNode ex, String packageName, int typeId) {
         String internalName = driver.toInternalName(packageName, ex.name());
         Type self = new Type.ClassType(packageName, ex.name(), List.of());
-        int slots = quantifierCount(ex.body());
+        int slots = KofExprShape.quantifierCount(ex.body());
         CompilerExprLowering lowering = new CompilerExprLowering(driver, self, slots);
         if (!lowering.validate(ex.body())) return null;
         String accept = lowering.acceptState();
-        String entry = lowering.compileUnits(unitsOf(ex.body()), accept);
+        String entry = lowering.compileUnits(KofExprShape.unitsOf(ex.body()), accept);
         List<IRMethod> methods = new ArrayList<>();
         methods.add(lowering.publicMatches(entry));
         methods.add(lowering.publicMatch());
@@ -109,12 +103,12 @@ final class CompilerExprLowering {
             int[] bound = boundsOf(q);
             if (bound == null) return false;
             if (bound[1] < 0) {
-                if (containsUnbounded(q.target())) {
+                if (KofExprShape.containsUnbounded(q.target())) {
                     return refuse("EXPR002", q.position(), "'" + q.kind() + "' contains another quantifier "
                             + "with no limit, which can backtrack exponentially (ReDoS): bound the inner "
                             + "loop with exactly/between, or split the pattern");
                 }
-                if (nullable(q.target())) {
+                if (KofExprShape.nullable(q.target())) {
                     return refuse("EXPR003", q.position(), "'" + q.kind() + "' over a body that can match "
                             + "empty text would never advance: the body must require at least one character");
                 }
@@ -138,73 +132,67 @@ final class CompilerExprLowering {
     }
 
     private boolean validateAtom(ExprAtomNode atom) {
-        if (atom.kind().equals("literal") || atom.kind().equals("start") || atom.kind().equals("end")) {
-            return true;
+        switch (atom.kind()) {
+            case "literal", "start", "end" -> { return true; }
+            case "one_of", "none_of" -> {
+                // §3.1: membership over one-character literals — anything longer
+                // is not a membership atom and says so.
+                for (String v : atom.values()) {
+                    if (KofExprShape.codePointCount(v) != 1) {
+                        return refuse("EXPR005", atom.position(), "'" + atom.kind() + "' takes text literals of "
+                                + "exactly one character, and \"" + v + "\" is not one: use a sequence of "
+                                + "literals for a multi-character match");
+                    }
+                }
+                if (atom.values().isEmpty()) {
+                    return refuse("EXPR005", atom.position(), "'" + atom.kind() + "' needs at least one "
+                            + "one-character literal");
+                }
+                return true;
+            }
+            default -> { }
         }
-        return refuse("EXPR001", atom.position(), "'" + atom.kind() + "' (a character class) is not part of "
-                + "Kof.expr slice 2 (literals + anchors + quantifiers): the character classes enter with slice 3");
+        if (KofExprUnicode.CLASSES.contains(atom.kind())) {
+            return targetSupportsClasses(atom);
+        }
+        return refuse("EXPR001", atom.position(), "'" + atom.kind() + "' is not a Kof.expr pattern element");
+    }
+
+    /**
+     * O gate honesto de alvo da fatia 3: o runtime {@code kof_expr_is_*} existe
+     * em JVM e Script; JS e Native ainda não o têm, então recusam com EXPR004
+     * nomeando a fatia que os traz (7 e 6) — nunca um casamento silencioso que
+     * responde a classe errada.
+     */
+    private boolean targetSupportsClasses(ExprAtomNode atom) {
+        if (atom.kind().equals("any")) return true; // não precisa de tabela: lê o ponto de código
+        Target t = driver.target;
+        if (driver.interpreting || t == Target.JVM || t == Target.ANDROID) return true;
+        if (t == Target.JS) {
+            return refuse("EXPR004", atom.position(), "the Kof.expr character classes are not on the JS target "
+                    + "yet ('" + atom.kind() + "'): the JS runtime predicates enter with slice 7");
+        }
+        if (t == Target.NATIVE) {
+            return refuse("EXPR004", atom.position(), "the Kof.expr character classes are not on the Native "
+                    + "target yet ('" + atom.kind() + "'): the native runtime predicates enter with slice 6");
+        }
+        return refuse("EXPR004", atom.position(), "the Kof.expr character classes are not on the " + t
+                + " target yet ('" + atom.kind() + "')");
+    }
+
+    /** Quantos VALORES ESCALARES Unicode (não unidades UTF-16) o texto tem. */
+    private static int codePointCount(String text) {
+        return text.codePointCount(0, text.length());
     }
 
     /** O intervalo de um quantificador: os três nomeados, ou exactly/between com as contagens. */
     private int[] boundsOf(ExprQuantifierNode q) {
-        int[] named = NAMED.get(q.kind());
+        int[] named = KofExprShape.namedBound(q.kind());
         if (named != null) return named;
         if (q.kind().equals("exactly")) return new int[]{q.min(), q.min()};
         if (q.kind().equals("between")) return new int[]{q.min(), q.max()};
         refuse("EXPR001", q.position(), "'" + q.kind() + "' is not a Kof.expr slice-2 quantifier");
         return null;
-    }
-
-    /** Pode a unidade casar texto VAZIO? (decide a terminação de um laço sem teto) */
-    private static boolean nullable(ExprNode node) {
-        if (node instanceof ExprSequenceNode seq) {
-            for (ExprNode unit : seq.units()) if (!nullable(unit)) return false;
-            return true;
-        }
-        if (node instanceof ExprAtomNode atom) {
-            if (atom.kind().equals("start") || atom.kind().equals("end")) return true;
-            if (atom.kind().equals("literal")) {
-                return atom.values().isEmpty() || atom.values().get(0).isEmpty();
-            }
-            return false;
-        }
-        if (node instanceof ExprQuantifierNode q) {
-            int min;
-            if (q.kind().equals("exactly") || q.kind().equals("between")) min = q.min();
-            else if (q.kind().equals("one_or_more")) min = 1;
-            else min = 0;
-            return min == 0 || nullable(q.target());
-        }
-        return false;
-    }
-
-    /** Algum descendente é um quantificador SEM TETO? (a forma exponencial do §12) */
-    private static boolean containsUnbounded(ExprNode node) {
-        if (node instanceof ExprSequenceNode seq) {
-            for (ExprNode unit : seq.units()) if (containsUnbounded(unit)) return true;
-            return false;
-        }
-        if (node instanceof ExprQuantifierNode q) {
-            boolean unbounded = q.kind().equals("zero_or_more") || q.kind().equals("one_or_more")
-                    || (q.kind().equals("between") && q.max() < 0);
-            return unbounded || containsUnbounded(q.target());
-        }
-        return false;
-    }
-
-    /** Quantas OCORRÊNCIAS de quantificador há na árvore = número de slots de contador. */
-    private static int quantifierCount(ExprNode node) {
-        if (node instanceof ExprSequenceNode seq) {
-            int total = 0;
-            for (ExprNode unit : seq.units()) total += quantifierCount(unit);
-            return total;
-        }
-        if (node instanceof ExprQuantifierNode q) return 1 + quantifierCount(q.target());
-        return 0;
-    }
-
-    private static List<ExprNode> unitsOf(ExprNode node) {
-        return node instanceof ExprSequenceNode seq ? seq.units() : List.of(node);
     }
 
     // ---------------------------------------------------------------- geração
@@ -240,6 +228,7 @@ final class CompilerExprLowering {
         String name = newName();
         LabelId fail = LabelId.create();
         LabelId ok = LabelId.create();
+        LabelId doneJoin = LabelId.create();
         List<KofOperation> ops = new ArrayList<>();
         switch (atom.kind()) {
             case "literal" -> {
@@ -262,12 +251,66 @@ final class CompilerExprLowering {
                 ops.add(new KofConditionalJump(KofComparison.EQ, INT, ok, fail));
                 ops.add(new KofLabel(ok));
             }
-            default -> { // "end" — validate recusou as demais classes
+            case "one_of", "none_of" -> {
+                // membership por PONTO DE CÓDIGO: lê o escalar em pos, guarda e
+                // compara contra o ponto único de cada literal. `one_of` casa
+                // quando ALGUM bate; `none_of` quando NENHUM bate.
+                KofExprCodePoint.emitRead(ops, tempSlot());
+                ops.add(new KofStoreLocal(INT, tempSlot()));
+                LabelId hit = LabelId.create();
+                for (String v : atom.values()) {
+                    LabelId next = LabelId.create();
+                    ops.add(new KofLoadLocal(INT, tempSlot()));
+                    ops.add(KofLoadLiteral.ofInt(v.codePointAt(0)));
+                    ops.add(new KofConditionalJump(KofComparison.EQ, INT, hit, next));
+                    ops.add(new KofLabel(next));
+                }
+                // nenhum bateu
+                if (atom.kind().equals("one_of")) {
+                    ops.add(new KofJump(fail));
+                } else {
+                    KofExprCodePoint.emitAdvance(ops, tempSlot());
+                    ops.add(new KofJump(doneJoin));
+                }
+                ops.add(new KofLabel(hit));
+                if (atom.kind().equals("one_of")) {
+                    KofExprCodePoint.emitAdvance(ops, tempSlot());
+                    ops.add(new KofJump(doneJoin));
+                } else {
+                    ops.add(new KofJump(fail));
+                }
+                ops.add(new KofLabel(doneJoin));
+            }
+            case "any" -> {
+                // o escalar em pos, seja ele qual for — mas TEM de existir
+                KofExprCodePoint.emitRead(ops, tempSlot());
+                ops.add(new KofStoreLocal(INT, tempSlot()));
+                LabelId present = LabelId.create();
+                ops.add(new KofLoadLocal(INT, tempSlot()));
+                ops.add(KofLoadLiteral.ofInt(-1));
+                ops.add(new KofConditionalJump(KofComparison.NE, INT, present, fail));
+                ops.add(new KofLabel(present));
+                KofExprCodePoint.emitAdvance(ops, tempSlot());
+            }
+            case "end" -> {
                 ops.add(new KofLoadLocal(INT, SLOT_POS));
                 ops.add(new KofLoadLocal(STR, SLOT_S));
                 ops.add(new KofCall(STR, "length", List.of(), INT, KofCallKind.INSTANCE));
                 ops.add(new KofConditionalJump(KofComparison.EQ, INT, ok, fail));
                 ops.add(new KofLabel(ok));
+            }
+            default -> {
+                // as classes com tabela: lê o ponto, guarda (o avanço precisa
+                // dele) e pergunta ao runtime
+                String predicate = KofExprUnicode.predicateOf(atom.kind());
+                KofExprCodePoint.emitRead(ops, tempSlot());
+                ops.add(new KofStoreLocal(INT, tempSlot()));
+                ops.add(new KofLoadLocal(INT, tempSlot()));
+                ops.add(new KofCall(STR, predicate, List.of(INT), BOOL, KofCallKind.FUNCTION));
+                ops.add(KofLoadLiteral.ofBool(true));
+                ops.add(new KofConditionalJump(KofComparison.EQ, BOOL, ok, fail));
+                ops.add(new KofLabel(ok));
+                KofExprCodePoint.emitAdvance(ops, tempSlot());
             }
         }
         emitContinue(ops, tail);
@@ -299,7 +342,7 @@ final class CompilerExprLowering {
         int max = bound[1];
         int slot = counterSlot();
         int innerFrom = slot + 1;
-        int innerTo = innerFrom + quantifierCount(q.target());
+        int innerTo = innerFrom + KofExprShape.quantifierCount(q.target());
         String loop = newName();
         String after = newName();
         String body = compileUnit(q.target(), after);

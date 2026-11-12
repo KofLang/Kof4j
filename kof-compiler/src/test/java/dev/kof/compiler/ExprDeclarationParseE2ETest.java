@@ -162,15 +162,21 @@ class ExprDeclarationParseE2ETest {
             """, Target.JVM);
         assertTrue(quantified.success(), () -> "o quantificador da fatia 2 compila: "
                 + diagnosticsOf(quantified));
-        CompilationResult outOfSlice = parse("clean3", """
+        CompilationResult classes = parse("clean3", """
             expr digitRun { one_or_more { digit } }
+            main() { println("ok") }
+            """, Target.JVM);
+        assertTrue(classes.success(), () -> "as classes da fatia 3 compilam: "
+                + diagnosticsOf(classes));
+        CompilationResult outOfSlice = parse("clean4", """
+            expr alt { either { "a" or "b" } }
             main() { println("ok") }
             """, Target.JVM);
         assertFalse(outOfSlice.success(), () -> "fora do conjunto da fatia recusa: "
                 + diagnosticsOf(outOfSlice));
         assertTrue(diagnosticsOf(outOfSlice).contains("EXPR001")
-                        && diagnosticsOf(outOfSlice).contains("slice 3"),
-                () -> "a classe de caractere nomeia a própria fatia: " + diagnosticsOf(outOfSlice));
+                        && diagnosticsOf(outOfSlice).contains("slice 4"),
+                () -> "o either nomeia a própria fatia: " + diagnosticsOf(outOfSlice));
     }
 
     @Test

@@ -299,6 +299,8 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_db_query3" -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/String;)Ljava/util/ArrayList;";
             case "kof_db_query4" -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/String;)Ljava/util/ArrayList;";
             case "kof_db_transaction" -> "(Ljava/lang/Object;)V";
+            case "kof_expr_is_letter", "kof_expr_is_digit", "kof_expr_is_space",
+                    "kof_expr_is_word", "kof_expr_is_hex" -> "(I)Z";
             case "kof_string_to_int" -> "(Ljava/lang/String;)I";
             case "kof_string_to_long" -> "(Ljava/lang/String;)J";
             case "kof_string_to_double" -> "(Ljava/lang/String;)D";
