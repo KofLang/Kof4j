@@ -79,6 +79,22 @@ public final class SymbolTableBuilder {
                         new Type.NullableType(new Type.ClassType("kof", "List", List.of(BuiltinTypes.STRING))),
                         List.of(BuiltinTypes.STRING),
                         AccessFlags.STATIC, SymbolTable.DispatchKind.STATIC));
+                // Fatia 8: as BUSCAS (§6/§7 do plano) — find devolve o índice
+                // da primeira ocorrência; findAll a lista dos TRECHOS (sem
+                // captura) ou dos records tipados (com captura); replace a
+                // substituição literal.
+                members.define(new SymbolTable.MethodSymbol("find", ex.name(),
+                        Type.PrimitiveType.INT, List.of(BuiltinTypes.STRING),
+                        AccessFlags.STATIC, SymbolTable.DispatchKind.STATIC));
+                Type findElem = caps.isEmpty() ? BuiltinTypes.STRING
+                        : new Type.ClassType(sa.packageOf(ex), ex.name() + "Match", List.of());
+                members.define(new SymbolTable.MethodSymbol("findAll", ex.name(),
+                        new Type.NullableType(new Type.ClassType("kof", "List", List.of(findElem))),
+                        List.of(BuiltinTypes.STRING),
+                        AccessFlags.STATIC, SymbolTable.DispatchKind.STATIC));
+                members.define(new SymbolTable.MethodSymbol("replace", ex.name(),
+                        BuiltinTypes.STRING, List.of(BuiltinTypes.STRING, BuiltinTypes.STRING),
+                        AccessFlags.STATIC, SymbolTable.DispatchKind.STATIC));
                 SymbolTable.ClassSymbol sym = new SymbolTable.ClassSymbol(ex.name(), sa.packageOf(ex),
                         "Object", List.of(), members);
                 sa.putClass(ex.name(), sym);

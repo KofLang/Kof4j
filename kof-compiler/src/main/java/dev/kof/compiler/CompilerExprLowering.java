@@ -315,6 +315,22 @@ final class CompilerExprLowering {
     }
 
     /**
+     * Aceite LIVRE (fatia 8, §6): devolve a posição em QUALQUER lugar — o
+     * terminal das BUSCAS ({@code find}/{@code findAll}/{@code replace}),
+     * que definem a ocorrência pelo [start, end) e não pelo fim do texto.
+     * O aceite de sujeito inteiro continua sendo o terminal de
+     * {@code matches}/{@code match}/{@code captures}.
+     */
+    String freeAcceptState() {
+        String name = newName();
+        List<KofOperation> ops = new ArrayList<>();
+        ops.add(new KofLoadLocal(INT, SLOT_POS));
+        ops.add(new KofReturn(INT));
+        states.add(stateMethod(name, ops));
+        return name;
+    }
+
+    /**
      * Aceite de um casamento de SUJEITO INTEIRO: só devolve a posição quando
      * ela É o fim do texto, e -1 caso contrário. A imposição vive AQUI (e não
      * no {@code matches}) porque a alternação decide pelo resultado do ramo:
@@ -455,6 +471,16 @@ final class CompilerExprLowering {
 
     private int counterSlot() {
         return SLOT_FIRST_COUNT + (nextSlot++);
+    }
+
+    /**
+     * Zera o alocador de slots de contador: a SEGUNDA cadeia (o terminal
+     * livre das buscas, fatia 8) percorre a MESMA árvore e tem de mapear os
+     * mesmos quantificadores para os MESMOS slots — sem o reset o segundo
+     * passe alocaria slots novos fora dos locais declarados.
+     */
+    void resetSlots() {
+        nextSlot = 0;
     }
 
     /** O slot do ARRAY de chaves compartilhado (as capturas moram NELE, não em locais). */
