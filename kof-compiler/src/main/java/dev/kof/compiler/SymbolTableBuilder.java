@@ -49,6 +49,30 @@ public final class SymbolTableBuilder {
             sa.putClass(ent.name(), sym);
             sa.registerSymbol(decl, sym);
             sa.currentScope().define(sym);
+        } else if (decl instanceof ExprDeclarationNode ex) {
+            // Kof.expr fatia 1 (D-KOF-EXPR): o padrão é uma CLASSE real — o
+            // mesmo modelo do enum: os membros são definidos AQUI (as duas
+            // operações estáticas da fatia) e o corpo é emitido pelo
+            // CompilerExprLowering. `match` devolve String? (capturas viram o
+            // resultado tipado na fatia 5 — Option T).
+            // Nunca SOBRESCREVE um tipo de mesmo nome: `class Point` + `expr
+            // Point` segue colidindo no SEM114 (o símbolo da classe fica; o
+            // próprio SemExprAnalyzer compara registered != own).
+            if (!sa.allClasses().containsKey(ex.name())) {
+                SymbolTable members = new SymbolTable();
+                Type self = new Type.ClassType(sa.packageOf(ex), ex.name(), List.of());
+                members.define(new SymbolTable.MethodSymbol("matches", ex.name(),
+                        Type.PrimitiveType.BOOL, List.of(BuiltinTypes.STRING),
+                        AccessFlags.STATIC, SymbolTable.DispatchKind.STATIC));
+                members.define(new SymbolTable.MethodSymbol("match", ex.name(),
+                        new Type.NullableType(BuiltinTypes.STRING), List.of(BuiltinTypes.STRING),
+                        AccessFlags.STATIC, SymbolTable.DispatchKind.STATIC));
+                SymbolTable.ClassSymbol sym = new SymbolTable.ClassSymbol(ex.name(), sa.packageOf(ex),
+                        "Object", List.of(), members);
+                sa.putClass(ex.name(), sym);
+                sa.registerSymbol(decl, sym);
+                sa.currentScope().define(sym);
+            }
         } else if (decl instanceof EnumDeclarationNode en) {
             SymbolTable members = new SymbolTable();
             Type self = new Type.ClassType(sa.packageOf(en), en.name(), List.of()); // #445: pkg real (era "" raiz — quebrava arquivo importado)
@@ -121,6 +145,7 @@ public final class SymbolTableBuilder {
             case EntityDeclarationNode ent -> defineEntityMembers(sa, ent);
             case InterfaceDeclarationNode iface -> defineInterfaceMembers(sa, iface);
             case EnumDeclarationNode _ -> { }
+            case ExprDeclarationNode _ -> { } // membros definidos no pre-declare (o modelo do enum)
             default -> {}
         }
     }

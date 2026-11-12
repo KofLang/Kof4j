@@ -1,9 +1,9 @@
-last: 03/11/2026 — spike-0 LANDED (grammar + AST locked and proven; no lowering): `ExprDeclarationParseE2ETest` 6/6, `ExprDeclarationSemanticsE2ETest` 9/9, catalog PT 321/321
-doing: spike-0 (the grammar/AST foundation) DONE; slices 1-9 stay open, each promoted explicitly
-next: slice-1 — atoms + sequence + literal + `match`/`matches` on JVM + Script (Strategy P), byte-identical oracle
+last: 11/11/2026 — slice 1 CLAIMED as an orphan front (`D-PLAN-ONE-OWNER`: the 03/11 owner silent 8 days, code-verified — the only commit touching the expr surfaces since the spike-0 is the spike-0 itself; no fresh claim in DOING)
+doing: slice-1 (atoms + literal + sequence + `match`/`matches`, Strategy P) IN PROGRESS — owner 192.168.100.14:0, flatt CLI; the lowering emits the SAME IR user String calls emit (`length`/`substring` INSTANCE + `kof_string_equals` FUNCTION — zero new backend op), unsupported elements refuse with EXPR001 naming their slice
+next: slice-2 — quantifiers (`optional`/`zero_or_more`/`one_or_more`/`exactly`/`between`) on the position-tracking matcher
 location: docs/development
 state: under-development
-owner: 192.168.15.117:0, scheduled flatt CLI round, no opencode server on this host; port n/a
+owner: 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a
 
 intent: kof-expr-native-text-pattern-dsl
 

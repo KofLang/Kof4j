@@ -57,8 +57,16 @@ final class SemExprAnalyzer {
                             + "'", "SEM110");
                 }
                 if (sa.allClasses().containsKey(ex.name())) {
-                    report(sa, ex.position(), "pattern '" + ex.name()
-                            + "' collides with an existing type name", "SEM114");
+                    // Fatia 1 (D-KOF-EXPR): o pre-declare agora registra o
+                    // `expr` como CLASSE real — o símbolo sob o próprio nome É
+                    // o deleite, não uma colisão. Colide só quando a classe
+                    // registrada veio de OUTRA declaração (o caso SEM114).
+                    SymbolTable.ClassSymbol registered = sa.allClasses().get(ex.name());
+                    SymbolTable.ClassSymbol own = sa.symbolForDecl(ex);
+                    if (registered == null || registered != own) {
+                        report(sa, ex.position(), "pattern '" + ex.name()
+                                + "' collides with an existing type name", "SEM114");
+                    }
                 }
             }
         }

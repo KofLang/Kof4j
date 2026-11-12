@@ -1,9 +1,9 @@
-last: 03/11/2026 — spike-0 POUSADO (gramática + AST travadas e provadas; sem lowering): `ExprDeclarationParseE2ETest` 6/6, `ExprDeclarationSemanticsE2ETest` 9/9, catálogo PT 321/321
-doing: spike-0 (a base gramática/AST) FEITO; fatias 1-9 seguem abertas, cada uma promovida explicitamente
-next: fatia-1 — átomos + sequência + literal + `match`/`matches` em JVM + Script (Estratégia P), oráculo byte-idêntico
-location: docs/development
+last: 11/11/2026 — fatia 1 REIVINDICADA como frente órfã (`D-PLAN-ONE-OWNER`: o dono de 03/11 silencioso há 8 dias, verificado no código — o único commit tocando as superfícies expr desde o spike-0 é o próprio spike-0; nenhum claim fresco no DOING)
+doing: fatia-1 (átomos + literal + sequência + `match`/`matches`, Estratégia P) EM ANDAMENTO — dona 192.168.100.14:0, flatt CLI; o lowering emite o MESMO IR que as chamadas String de usuário emitem (`length`/`substring` INSTANCE + `kof_string_equals` FUNCTION — zero op de backend novo), elementos não suportados recusam com EXPR001 nomeando a sua fatia
+next: fatia-2 — quantificadores (`opcional`/`zero_ou_mais`/`um_ou_mais`/`exatamente`/`entre`) no matcher de rastreamento de posição
+local: docs/development
 state: under-development
-dono: 192.168.15.117:0, rodada agendada da flatt CLI, sem servidor opencode neste host; porta n/a
+dona: 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a
 
 intent: kof-expr-native-text-pattern-dsl
 

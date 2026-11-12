@@ -146,12 +146,25 @@ class ExprDeclarationParseE2ETest {
 
     @Test
     void aPatternDeclarationCompilesCleanlyAndChangesNoRuntimeBehaviour() throws Exception {
+        // Fatia 1 (D-KOF-EXPR): um padrão DENTRO do conjunto da fatia compila
+        // limpo (o spike-0 aceitava qualquer corpo sem emitir código — esse
+        // contrato exato é o que a fatia 1 substitui; fora do conjunto é
+        // EXPR001 nomeando a fatia do plano, nunca silêncio).
         CompilationResult r = parse("clean", """
+            expr greeting { "hello" " " "world" }
+            main() { println("ok") }
+            """, Target.JVM);
+        assertTrue(r.success(), () -> "a fatia 1 aceita o padrão dentro do conjunto: "
+                + diagnosticsOf(r));
+        CompilationResult outOfSlice = parse("clean2", """
             expr digitRun { one_or_more { digit } }
             main() { println("ok") }
             """, Target.JVM);
-        assertTrue(r.success(), () -> "o spike-0 aceita o padrão sem emitir código: "
-                + diagnosticsOf(r));
+        assertFalse(outOfSlice.success(), () -> "fora do conjunto da fatia recusa: "
+                + diagnosticsOf(outOfSlice));
+        assertTrue(diagnosticsOf(outOfSlice).contains("EXPR001")
+                        && diagnosticsOf(outOfSlice).contains("slice 2"),
+                () -> "o quantificador nomeia a própria fatia: " + diagnosticsOf(outOfSlice));
     }
 
     @Test
