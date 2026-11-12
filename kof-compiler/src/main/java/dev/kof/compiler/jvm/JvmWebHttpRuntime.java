@@ -259,7 +259,20 @@ public final class JvmWebHttpRuntime {
                     if (subs != null) {
                         for (Object fn : subs) {
                             try {
-                                fn.getClass().getMethod("invoke", Object.class).invoke(fn, msg);
+                                // §1150: a TYPED lambda parameter makes the lambda
+                                // class carry invoke(String)/invoke(Order) — the
+                                // fixed getMethod("invoke", Object.class) missed it
+                                // and publish crashed. Prefer the invoke/1 whose
+                                // parameter accepts the payload; fall back to the
+                                // first non-bridge invoke/1.
+                                java.lang.reflect.Method target = null;
+                                for (java.lang.reflect.Method m : fn.getClass().getMethods()) {
+                                    if (!m.getName().equals("invoke") || m.getParameterCount() != 1) continue;
+                                    if (target == null && !m.isBridge()) target = m;
+                                    if (m.getParameterTypes()[0].isInstance(msg)) { target = m; break; }
+                                }
+                                if (target == null) target = fn.getClass().getMethod("invoke", Object.class);
+                                target.invoke(fn, msg);
                             } catch (java.lang.reflect.InvocationTargetException e) {
                                 if (e.getCause() instanceof RuntimeException re) throw re;
                                 throw new RuntimeException(e.getCause());

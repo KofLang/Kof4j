@@ -18411,6 +18411,18 @@ Observado: `Cannot resolve static method 'ofString' on imported class 'BodyPubli
 **Prova:** `DotDirectoryPackageE2ETest` **5/5** (RED-first: 4/5 falhavam com o exato `COMP001: /agent` antes da correção; as faces `.agent`, `sub/.agent`, `.hidden-x`, controle de diretório válido e controle sem `kof.toml`) + `InternalNameValidationTest` **4/4** (a regra de identificador e o gate defensivo). Não-regressão: `EnumPackagePlacementE2ETest` 7/7, `PackagesE2ETest` 12/12, `CompileForTestsSourcesModuleRootTest` 1/1, `OrmEntityPackageE2ETest` 2/2, `JsonDecodePackagedRecordE2ETest` 2/2.
 <!-- pt-switch --> **EN:** [§936 (en)](known-bugs.md#936--a-source-under-a-directory-whose-name-is-not-a-valid-identifier-agent-hidden-x-derives-an-invalid-package-so-the-jvm-target-fails-with-a-mislabeled-comp001-or-a-silent-classformaterror-github-999)
 
+## §1150 — handler `mq.subscribe` com lambda TIPADO explodia no `publish` com `NoSuchMethodException` no JVM e no Script (JS/Native entregavam) — divergência cross-target num idiom documentado (GitHub #1150)
+
+**Status:** ✅ CORRIGIDO 12/11 (dona = 192.168.100.19:0; issue [#1150](https://github.com/KofLang/Kof4j/issues/1150), medido REAL no tip pelo lote 3 do probe E2 ativo).
+
+**Contrato:** `learn/stdlib/mq.md` documenta `mq.subscribe(topic, handler)` + `mq.publish` entregando o payload ao handler; o mesmo programa deve comportar-se igual em todo alvo (oráculo JVM). Handler com parâmetro SEM tipo funcionava em todo lugar; um TIPADO (`(s: String) ->`, `(o: Order) ->`) compilava limpo e explodia no publish no JVM e no Script.
+
+**CAUSA-RAIZ:** o runtime JVM resolvia o handler refletivamente com `getMethod("invoke", Object.class)` fixo; parâmetro tipado emite `invoke(String)`/`invoke(Order)` e o lookup falhava. No Script o handler KofObj ia cru para o mesmo dispatch reflexivo e nunca respondia `invoke(Object)`. `KofMqE2ETest` só exercitava a forma SEM tipo.
+
+**Fix:** o publish varre a classe do handler (prefere o `invoke/1` não-bridge que aceita o payload; depois o primeiro não-bridge `invoke/1`; o lookup antigo fica como último recurso); mq subscribe/unsubscribe entram na ponte §574 do interpretador (`KofObj` → `InterpretedCallable`); o wrapper delega `equals`/`hashCode` ao handler para o unsubscribe por identidade continuar casando.
+
+**Prova:** `KofMqE2ETest` **9/9** RED-first (2F antes do fix); família web 29+7+11+6+3 verde; `check_500` rc=0.
+
 ## §1149 — `kof.log` no JS imprimia SÓ a mensagem: o nível filtrava mas nunca era impresso, enquanto a matriz de paridade documentava "console.* + nível" e a nota cross exige "nível+mensagem presentes" (GitHub #1149)
 
 **Status:** ✅ CORRIGIDO 11/11 (dona = 192.168.100.19:0; issue [#1149](https://github.com/KofLang/Kof4j/issues/1149), medido REAL no tip).

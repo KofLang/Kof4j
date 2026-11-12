@@ -113,6 +113,58 @@ class KofMqE2ETest {
     }
 
     @Test
+    void typedLambdaSubscriberDeliversOnJvm(@TempDir Path tempDir) throws IOException {
+        // §1150: a TYPED lambda parameter compiles clean but the publish used
+        // to miss the reflective lookup (getMethod("invoke", Object.class)),
+        // crashing with NoSuchMethodException — while JS and Native delivered.
+        String src = """
+                main() {
+                    mq.subscribe("t", (s: String) -> {
+                        println("got " + s)
+                    })
+                    mq.publish("t", "hello")
+                }
+                """;
+        runJvm(tempDir, src, "got hello");
+        runNative(tempDir, src, "got hello");
+    }
+
+    @Test
+    void typedLambdaUnsubscribeStillWorks(@TempDir Path tempDir) throws IOException {
+        // the identity contract: unsubscribe must remove the handler even when
+        // the dispatch wraps it (the interpreter arm) or the scan resolves a
+        // differently-typed invoke (the JVM arm).
+        String src = """
+                main() {
+                    var h = (msg) -> {
+                        println("got:" + msg)
+                    }
+                    mq.subscribe("topic", h)
+                    mq.publish("topic", "one")
+                    mq.unsubscribe("topic", h)
+                    mq.publish("topic", "two")
+                }
+                """;
+        runJvm(tempDir, src, "got:one");
+        runNative(tempDir, src, "got:one");
+    }
+
+    @Test
+    void typedLambdaRecordPayloadOnJvm(@TempDir Path tempDir) throws IOException {
+        String src = """
+                record Order(Int id)
+                main() {
+                    mq.subscribe("orders", (o: Order) -> {
+                        println("order " + o.id)
+                    })
+                    mq.publish("orders", Order(7))
+                }
+                """;
+        runJvm(tempDir, src, "order 7");
+        runNative(tempDir, src, "order 7");
+    }
+
+    @Test
     void jsAndNativeSupportMq(@TempDir Path tempDir) throws IOException {
         Path source = tempDir.resolve("Main.kf");
         Files.writeString(source, """

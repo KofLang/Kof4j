@@ -35,4 +35,14 @@ public final class InterpretedCallable {
             throws Throwable {
         return interp.invokeLambda(handler, new Object[]{method, path, body, query, headers});
     }
+
+    // §1150: mq handlers reach kof_mq_publish reflectively and
+    // kof_mq_unsubscribe removes by IDENTITY (List.remove). Delegating
+    // equals/hashCode to the wrapped handler keeps both true: the publish
+    // finds invoke(Object) on the wrapper, and an unsubscribe with the
+    // ORIGINAL handler matches the wrapped entry.
+    @Override public boolean equals(Object o) {
+        return o instanceof InterpretedCallable c && c.handler == handler;
+    }
+    @Override public int hashCode() { return handler.hashCode(); }
 }

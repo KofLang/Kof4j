@@ -140,7 +140,12 @@ public final class KofInterpreterRuntime {
             // ponte o lookup falha e a rota morre em HTTP 500 no interpretador.
             if (name.equals("kof_web_route") || name.equals("kof_web_route_opts")
                     || name.equals("kof_web_sse_route") || name.equals("kof_web_ws_route")
-                    || name.equals("kof_web_use")) {
+                    || name.equals("kof_web_use")
+                    // §1150: mq handlers reach the runtime's reflective
+                    // invoke dispatch exactly like route handlers — wrap so
+                    // the KofObj answers invoke/1 (equality delegates to the
+                    // handler, so unsubscribe by identity still matches).
+                    || name.equals("kof_mq_subscribe") || name.equals("kof_mq_unsubscribe")) {
                 args = args.clone();
                 for (int i = 0; i < args.length; i++) {
                     if (args[i] instanceof KofInterpreter.KofObj ko) args[i] = new InterpretedCallable(interp, ko);
