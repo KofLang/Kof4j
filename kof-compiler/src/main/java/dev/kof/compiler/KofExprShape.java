@@ -49,6 +49,10 @@ final class KofExprShape {
             else min = 0;
             return min == 0 || nullable(q.target());
         }
+        if (node instanceof ExprCaptureNode cap) {
+            // fatia 5: a captura é tão anulável quanto o seu corpo
+            return nullable(cap.body());
+        }
         if (node instanceof ExprAlternationNode alt) {
             // fatia 4: a alternação é anulável quando QUALQUER ramo é — e um
             // ramo anulável dentro de um laço sem teto é o laço infinito do §12
@@ -86,6 +90,11 @@ final class KofExprShape {
             return total;
         }
         if (node instanceof ExprQuantifierNode q) return 1 + quantifierCount(q.target());
+        if (node instanceof ExprCaptureNode cap) {
+            // fatia 5: os quantificadores DENTRO do corpo da captura contam —
+            // sem isso o slot do contador colide com o slot do array de chaves
+            return quantifierCount(cap.body());
+        }
         if (node instanceof ExprAlternationNode alt) {
             // fatia 4: os contadores dos ramos também são slots
             int total = 0;
@@ -93,6 +102,26 @@ final class KofExprShape {
             return total;
         }
         return 0;
+    }
+
+    /** Os nomes de captura na ordem de declaração (o record gerado os carrega). */
+    static java.util.List<String> captureNames(ExprNode node) {
+        java.util.List<String> names = new java.util.ArrayList<>();
+        collectCaptures(node, names);
+        return names;
+    }
+
+    private static void collectCaptures(ExprNode node, java.util.List<String> names) {
+        if (node instanceof ExprSequenceNode seq) {
+            for (ExprNode unit : seq.units()) collectCaptures(unit, names);
+        } else if (node instanceof ExprCaptureNode cap) {
+            names.add(cap.name());
+            collectCaptures(cap.body(), names);
+        } else if (node instanceof ExprQuantifierNode q) {
+            collectCaptures(q.target(), names);
+        } else if (node instanceof ExprAlternationNode alt) {
+            for (ExprNode branch : alt.alternatives()) collectCaptures(branch, names);
+        }
     }
 
     /** As unidades de uma sequência, ou o próprio nó como unidade única. */

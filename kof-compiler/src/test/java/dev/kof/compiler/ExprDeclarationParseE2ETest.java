@@ -174,15 +174,21 @@ class ExprDeclarationParseE2ETest {
             """, Target.JVM);
         assertTrue(alt.success(), () -> "o either da fatia 4 compila: "
                 + diagnosticsOf(alt));
-        CompilationResult outOfSlice = parse("clean5", """
+        CompilationResult cap = parse("clean5", """
             expr cap { capture("v") { "a" } }
+            main() { println("ok") }
+            """, Target.JVM);
+        assertTrue(cap.success(), () -> "a captura da fatia 5 compila: "
+                + diagnosticsOf(cap));
+        CompilationResult outOfSlice = parse("clean6", """
+            expr ref { inner "." }
+            expr inner { "x" }
             main() { println("ok") }
             """, Target.JVM);
         assertFalse(outOfSlice.success(), () -> "fora do conjunto da fatia recusa: "
                 + diagnosticsOf(outOfSlice));
-        assertTrue(diagnosticsOf(outOfSlice).contains("EXPR001")
-                        && diagnosticsOf(outOfSlice).contains("slice 5"),
-                () -> "a captura nomeia a própria fatia: " + diagnosticsOf(outOfSlice));
+        assertTrue(diagnosticsOf(outOfSlice).contains("EXPR001"),
+                () -> "a referência de composição nomeia a fatia: " + diagnosticsOf(outOfSlice));
     }
 
     @Test

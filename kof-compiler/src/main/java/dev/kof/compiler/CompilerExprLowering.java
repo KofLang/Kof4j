@@ -57,33 +57,32 @@ final class CompilerExprLowering {
     private final Type self;
     /** Número TOTAL de ocorrências de quantificador = número de slots de contador. */
     private final int slots;
-    private final List<IRMethod> states = new ArrayList<>();
+    /** Os nomes de captura na ordem de declaração (fatia 5, Opção T). */
+    private final List<String> captures;
+    final List<IRMethod> states = new ArrayList<>();
     private int uid;
     private int nextSlot;
 
-    private CompilerExprLowering(CompilerDriver driver, Type self, int slots) {
+    CompilerExprLowering(CompilerDriver driver, Type self, int slots, List<String> captures) {
         this.driver = driver;
         this.self = self;
         this.slots = slots;
+        this.captures = captures;
     }
 
-    /** @return a classe do padrão, ou null quando o corpo recusou (diagnóstico já emitido). */
-    static IRClass lower(CompilerDriver driver, ExprDeclarationNode ex, String packageName, int typeId) {
-        String internalName = driver.toInternalName(packageName, ex.name());
-        Type self = new Type.ClassType(packageName, ex.name(), List.of());
-        int slots = KofExprShape.quantifierCount(ex.body());
-        CompilerExprLowering lowering = new CompilerExprLowering(driver, self, slots);
-        if (!lowering.validate(ex.body())) return null;
-        String accept = lowering.acceptState();
-        String entry = lowering.compileUnits(KofExprShape.unitsOf(ex.body()), accept);
-        List<IRMethod> methods = new ArrayList<>();
-        methods.add(lowering.publicMatches(entry));
-        methods.add(lowering.publicMatch());
-        methods.addAll(lowering.states);
-        int access = driver.computeAccess(ex.modifiers()) | AccessFlags.FINAL;
-        return new IRClass(internalName, "java/lang/Object", List.of(), access,
-                List.of(), methods, List.of(), null, typeId,
-                CompilerAnnotations.lowerAnnotations(driver, ex.annotations()));
+    /** O primeiro slot de CHAVE (o valor capturado, String) — após os contadores. */
+    static int keyBaseOf(int slots) {
+        return SLOT_FIRST_COUNT + slots;
+    }
+
+    /**
+     * @return as CLASSES do padrão — o matcher e, se houver capturas, o record
+     * gerado da Opção T — ou vazia quando o corpo recusou (diagnóstico já
+     * emitido). A montagem da superfície pública vive em
+     * {@link KofExprMatchResult}.
+     */
+    static List<IRClass> lower(CompilerDriver driver, ExprDeclarationNode ex, String packageName, int typeId) {
+        return KofExprMatchResult.lower(driver, ex, packageName, typeId);
     }
 
     // ---------------------------------------------------------------- validação
@@ -93,7 +92,7 @@ final class CompilerExprLowering {
      * das fatias), EXPR002 (sem teto dentro de sem teto) e EXPR003 (corpo
      * anulável num laço sem teto). @return true quando o corpo é baixável.
      */
-    private boolean validate(ExprNode node) {
+    boolean validate(ExprNode node) {
         if (node instanceof ExprSequenceNode seq) {
             for (ExprNode unit : seq.units()) if (!validate(unit)) return false;
             return true;
@@ -124,8 +123,13 @@ final class CompilerExprLowering {
             return true;
         }
         if (node instanceof ExprCaptureNode c) {
-            return refuse("EXPR001", c.position(), "capture('" + c.name() + "') is not part of Kof.expr "
-                    + "slice 4 (… + groups + either): captures enter with slice 5");
+            // Fatia 5 (Opção T): o nome vira CAMPO do record gerado — precisa
+            // ser identificador Kof válido.
+            if (!c.name().matches("[A-Za-z_][A-Za-z0-9_]*")) {
+                return refuse("EXPR005", c.position(), "capture('" + c.name() + "') needs a name that is a "
+                        + "valid Kof identifier: it becomes a field of the generated match record");
+            }
+            return validate(c.body());
         }
         if (node instanceof ExprReferenceNode r) {
             return refuse("EXPR001", r.position(), "pattern reference '" + r.alias() + "' is not part of "
@@ -202,7 +206,7 @@ final class CompilerExprLowering {
     // ---------------------------------------------------------------- geração
 
     /** A cadeia das unidades, da última para a primeira: cada uma continua na seguinte. */
-    private String compileUnits(List<ExprNode> units, String tail) {
+    String compileUnits(List<ExprNode> units, String tail) {
         String next = tail;
         for (int i = units.size() - 1; i >= 0; i--) {
             next = compileUnit(units.get(i), next);
@@ -215,7 +219,44 @@ final class CompilerExprLowering {
         if (unit instanceof ExprAtomNode atom) return atomState(atom, tail);
         if (unit instanceof ExprQuantifierNode q) return quantifierStates(q, tail);
         if (unit instanceof ExprAlternationNode alt) return alternationStates(alt, tail);
+        if (unit instanceof ExprCaptureNode cap) return captureStates(cap, tail);
         return tail; // validate() recusou: inalcançável
+    }
+
+    /**
+     * Os dois estados de uma CAPTURA (fatia 5, Opção T): o estado de entrada
+     * grava a posição de início e compila o corpo continuando no
+     * {@code after}; o retorno do corpo guarda {@code substring(start, end)}
+     * na CHAVE da captura e segue para a cauda. O backtracking do corpo
+     * reescreve a chave (a última escrita do caminho bem-sucedido vence — o
+     * aceite congela os valores).
+     */
+    private String captureStates(ExprCaptureNode cap, String tail) {
+        int i = captures.indexOf(cap.name());
+        String entry = newName();
+        String after = newName();
+        String body = compileUnit(cap.body(), after);
+
+        List<KofOperation> entryOps = new ArrayList<>();
+        entryOps.add(new KofLoadLocal(INT, SLOT_POS));
+        entryOps.add(new KofStoreLocal(INT, startSlot(i)));
+        opsCall(entryOps, body);
+        entryOps.add(new KofReturn(INT));
+        states.add(stateMethod(entry, entryOps));
+
+        List<KofOperation> afterOps = new ArrayList<>();
+        // keys[i] = s.substring(p_i, pos) — o array compartilhado é o canal
+        afterOps.add(new KofLoadLocal(new Type.ArrayType(STR), keyArraySlot()));
+        afterOps.add(KofLoadLiteral.ofInt(i));
+        afterOps.add(new KofLoadLocal(STR, SLOT_S));
+        afterOps.add(new KofLoadLocal(INT, startSlot(i)));
+        afterOps.add(new KofLoadLocal(INT, SLOT_POS));
+        afterOps.add(new KofCall(STR, "substring", List.of(INT, INT), STR, KofCallKind.INSTANCE));
+        afterOps.add(new KofArrayStore(STR));
+        opsCall(afterOps, tail);
+        afterOps.add(new KofReturn(INT));
+        states.add(stateMethod(after, afterOps));
+        return entry;
     }
 
     /**
@@ -270,7 +311,7 @@ final class CompilerExprLowering {
      * um ramo que casa pela metade tem de devolver -1 para o próximo ramo ser
      * tentado — o caso `either { "cat" or "catalog" }` sobre "catalog".
      */
-    private String acceptState() {
+    String acceptState() {
         String name = newName();
         LabelId full = LabelId.create();
         LabelId shortFall = LabelId.create();
@@ -474,13 +515,21 @@ final class CompilerExprLowering {
         ops.add(new KofReturn(INT));
     }
 
-    /** Empilha (s, pos, c0..cN) e chama o estado. */
+    /** Empilha (s, pos, contadores, chaves, inícios) e chama o estado. */
     private void opsCall(List<KofOperation> ops, String state) {
         ops.add(new KofLoadLocal(STR, SLOT_S));
         ops.add(new KofLoadLocal(INT, SLOT_POS));
         List<Type> params = new ArrayList<>(List.of(STR, INT));
         for (int i = 0; i < slots; i++) {
             ops.add(new KofLoadLocal(INT, SLOT_FIRST_COUNT + i));
+            params.add(INT);
+        }
+        if (!captures.isEmpty()) {
+            ops.add(new KofLoadLocal(new Type.ArrayType(STR), keyArraySlot()));
+            params.add(new Type.ArrayType(STR));
+        }
+        for (int i = 0; i < captures.size(); i++) {
+            ops.add(new KofLoadLocal(INT, startSlot(i)));
             params.add(INT);
         }
         ops.add(new KofCall(self, state, params, INT, KofCallKind.STATIC));
@@ -490,62 +539,20 @@ final class CompilerExprLowering {
         return SLOT_FIRST_COUNT + (nextSlot++);
     }
 
+    /** O slot do ARRAY de chaves compartilhado (as capturas moram NELE, não em locais). */
+    private int keyArraySlot() {
+        return keyBaseOf(slots);
+    }
+
+    private int startSlot(int i) {
+        return keyArraySlot() + 1 + i;
+    }
+
     private int tempSlot() {
-        return SLOT_FIRST_COUNT + slots;
+        return keyArraySlot() + 1 + captures.size();
     }
 
     // ---------------------------------------------------------------- operações públicas
-
-    /** {@code matches(String): Bool} — sujeito inteiro: o estado final tem de ser o fim do texto. */
-    private IRMethod publicMatches(String entry) {
-        LabelId pass = LabelId.create();
-        LabelId fail = LabelId.create();
-        List<KofOperation> ops = new ArrayList<>();
-        ops.add(new KofLoadLocal(STR, SLOT_S));
-        ops.add(KofLoadLiteral.ofInt(0));
-        List<Type> params = new ArrayList<>(List.of(STR, INT));
-        for (int i = 0; i < slots; i++) {
-            ops.add(KofLoadLiteral.ofInt(0));
-            params.add(INT);
-        }
-        ops.add(new KofCall(self, entry, params, INT, KofCallKind.STATIC));
-        ops.add(new KofStoreLocal(INT, 1));
-        ops.add(new KofLoadLocal(INT, 1));
-        ops.add(KofLoadLiteral.ofInt(-1));
-        ops.add(new KofConditionalJump(KofComparison.NE, INT, pass, fail));
-        ops.add(new KofLabel(pass));
-        ops.add(KofLoadLiteral.ofBool(true));
-        ops.add(new KofReturn(BOOL));
-        ops.add(new KofLabel(fail));
-        ops.add(KofLoadLiteral.ofBool(false));
-        ops.add(new KofReturn(BOOL));
-        return new IRMethod("matches", BOOL, List.of(STR),
-                AccessFlags.PUBLIC | AccessFlags.STATIC, List.of(),
-                List.of(new IRBasicBlock(0, ops)),
-                List.of(new IRLocalVariable(SLOT_S, "s", STR),
-                        new IRLocalVariable(1, "end", INT)));
-    }
-
-    /** {@code match(String): String?} — o sujeito quando casa, null quando não. */
-    private IRMethod publicMatch() {
-        LabelId absent = LabelId.create();
-        LabelId present = LabelId.create();
-        List<KofOperation> ops = new ArrayList<>();
-        ops.add(new KofLoadLocal(STR, SLOT_S));
-        ops.add(new KofCall(self, "matches", List.of(STR), BOOL, KofCallKind.STATIC));
-        ops.add(KofLoadLiteral.ofBool(false));
-        ops.add(new KofConditionalJump(KofComparison.EQ, BOOL, absent, present));
-        ops.add(new KofLabel(present));
-        ops.add(new KofLoadLocal(STR, SLOT_S));
-        ops.add(new KofReturn(STR));
-        ops.add(new KofLabel(absent));
-        ops.add(KofLoadLiteral.ofNull());
-        ops.add(new KofReturn(STR));
-        return new IRMethod("match", new Type.NullableType(STR), List.of(STR),
-                AccessFlags.PUBLIC | AccessFlags.STATIC, List.of(),
-                List.of(new IRBasicBlock(0, ops)),
-                List.of(new IRLocalVariable(SLOT_S, "s", STR)));
-    }
 
     // ---------------------------------------------------------------- apoio
 
@@ -558,12 +565,21 @@ final class CompilerExprLowering {
             params.add(INT);
             locals.add(new IRLocalVariable(SLOT_FIRST_COUNT + i, "c" + i, INT));
         }
+        if (!captures.isEmpty()) {
+            Type keys = new Type.ArrayType(STR);
+            params.add(keys);
+            locals.add(new IRLocalVariable(keyArraySlot(), "keys", keys));
+        }
+        for (int i = 0; i < captures.size(); i++) {
+            params.add(INT);
+            locals.add(new IRLocalVariable(startSlot(i), "p" + i, INT));
+        }
         locals.add(new IRLocalVariable(tempSlot(), "end", INT));
         return new IRMethod(name, INT, params, AccessFlags.PRIVATE | AccessFlags.STATIC, List.of(),
                 List.of(new IRBasicBlock(0, ops)), locals);
     }
 
-    private String newName() {
+    String newName() {
         return "kx" + (uid++);
     }
 

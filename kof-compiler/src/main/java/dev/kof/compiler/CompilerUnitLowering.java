@@ -60,13 +60,12 @@ final class CompilerUnitLowering {
             else if (decl instanceof InterfaceDeclarationNode iface) classes.add(CompilerIfaceRecordLowering.lowerInterface(driver, iface, declPkg, nextTypeId++));
             else if (decl instanceof RecordDeclarationNode rec) classes.add(CompilerIfaceRecordLowering.lowerRecord(driver, rec, declPkg, nextTypeId++));
             else if (decl instanceof EnumDeclarationNode en) classes.add(CompilerEnumLowering.lowerEnum(driver, en, declPkg, nextTypeId++)); // #445
-            // Kof.expr fatia 1 (D-KOF-EXPR): o lowering REAL substitui o ramo
-            // vazio do spike-0 — a classe do padrão com `matches`/`match`
-            // estáticos (CompilerExprLowering; null = o corpo recusou EXPR001
-            // e o compile já falha).
+            // Kof.expr fatias 1+5 (D-KOF-EXPR): o lowering devolve as CLASSES
+            // do padrão — o matcher e, com capturas, o record gerado da Opção T
+            // (lista vazia = o corpo recusou e o compile já falha).
             else if (decl instanceof ExprDeclarationNode ex) {
-                IRClass exprClass = CompilerExprLowering.lower(driver, ex, declPkg, nextTypeId++);
-                if (exprClass != null) classes.add(exprClass);
+                classes.addAll(CompilerExprLowering.lower(driver, ex, declPkg, nextTypeId));
+                nextTypeId += 2;
             }
             else switch (decl) {
                 case EntityDeclarationNode ent -> {

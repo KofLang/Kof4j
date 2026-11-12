@@ -263,12 +263,32 @@ class KofExprMatchE2ETest {
     }
 
     @Test
-    void captureRefusesNamingSlice5() throws Exception {
-        String d = diagnostics("""
+    void capturesEnterWithSlice5AndMatch() throws Exception {
+        // Fatia 5 (D-KOF-EXPR, Option T): a captura agora CASA e o match
+        // devolve o record gerado (o rosto completo está no KofExprCaptureE2E).
+        String src = """
                 expr dated { capture("v") { "a" } }
-                main() { println(dated.matches("a")) }
-                """);
-        assertTrue(d.contains("EXPR001") && d.contains("slice 5"), () -> d);
+
+                main() {
+                    println(dated.matches("a"))
+                    println(dated.matches("b"))
+                }
+                """;
+        Path file = tmp.resolve("c5").resolve("Main.kf");
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, src);
+        Path out = tmp.resolve("c5-out");
+        CompilationResult r = new CompilerDriver().compile(file, out, Target.JVM);
+        assertTrue(r.success(), r.diagnostics().getDiagnostics().toString());
+        PrintStream oldOut = System.out;
+        ByteArrayOutputStream buf = new ByteArrayOutputStream();
+        System.setOut(new PrintStream(buf, true, StandardCharsets.UTF_8));
+        try (URLClassLoader cl = new URLClassLoader(new URL[]{out.toUri().toURL()}, getClass().getClassLoader())) {
+            Class.forName("Default.Main", true, cl).getMethod("main", String[].class).invoke(null, (Object) new String[0]);
+        } finally {
+            System.setOut(oldOut);
+        }
+        assertEquals("true\nfalse\n", buf.toString(StandardCharsets.UTF_8));
     }
 
     @Test
