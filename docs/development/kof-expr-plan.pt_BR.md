@@ -175,14 +175,14 @@ promovido viram corpus `E2E` e devem rodar byte-idênticos em todos os alvos.
 
 ```kof
 expr identifier {
-    one_or_more { letter digit "_" }
+    one_or_more { either { letter or digit or "_" } }
 }
 
 expr email {
     start
-    one_or_more { letter digit "." "_" "%" "+" "-" }
+    one_or_more { either { letter or digit or "." or "_" or "%" or "+" or "-" } }
     "@"
-    one_or_more { letter digit "." "-" }
+    one_or_more { either { letter or digit or "." or "-" } }
     "."
     between(2, 63) letter
     end
@@ -242,6 +242,17 @@ expr logLine {
     capture("msg")   { zero_or_more any }
 }
 ```
+
+**Reconciliação de notação (fatia 9, medido):** as corridas de classe de
+caractere escrevem-se com `either` DENTRO do quantificador —
+`one_or_more { either { letter or digit or "_" } }` — porque a gramática
+travada lê um bloco nu como UMA unidade repetida (uma sequência: letter,
+depois digit, depois "_", por instância — um padrão diferente). A soletração
+do rascunho anterior (`one_or_more { letter digit "_" }`) é a leitura de
+sequência; a forma either é canônica e é a que `KofExprCorpusE2ETest` roda.
+O `one_of` recebe alternativas literais multi-caractere
+(`one_of("INFO", "WARN", "ERROR")` — primeira-que-casa vence), pelo exemplo
+do logLine.
 
 Observe `octet` demonstrando **composição por nome**: `ipv4` reusa um `expr`
 definido antes. (`octet` como escrito casa 1–3 dígitos, não um octeto real

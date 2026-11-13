@@ -176,14 +176,14 @@ promoted they become `E2E` corpus and must run byte-identically on all targets.
 
 ```kof
 expr identifier {
-    one_or_more { letter digit "_" }
+    one_or_more { either { letter or digit or "_" } }
 }
 
 expr email {
     start
-    one_or_more { letter digit "." "_" "%" "+" "-" }
+    one_or_more { either { letter or digit or "." or "_" or "%" or "+" or "-" } }
     "@"
-    one_or_more { letter digit "." "-" }
+    one_or_more { either { letter or digit or "." or "-" } }
     "."
     between(2, 63) letter
     end
@@ -244,10 +244,21 @@ expr logLine {
 }
 ```
 
+**Notation reconciliation (slice 9, measured):** the character-class runs are
+written with `either` INSIDE the quantifier — `one_or_more { either { letter
+or digit or "_" } }` — because the locked grammar reads a bare block as ONE
+repeated unit (a sequence: letter, then digit, then "_", per instance — a
+different pattern). The earlier draft spelling (`one_or_more { letter digit
+"_" }`) is the sequence reading; the either-form is canonical and is what
+`KofExprCorpusE2ETest` runs. `one_of` takes multi-character literal
+alternatives (`one_of("INFO", "WARN", "ERROR")` — first-match-wins), per the
+logLine example.
+
 Note `octet` demonstrates **composition by name**: `ipv4` reuses an `expr`
 defined earlier. (`octet` as written matches 1–3 digits, not a true 0–255
 octet; a correct octet is an example of *composition + explicit alternatives*
-and is left to the promotion slice, §16 Q6.)
+and is left to the promotion slice, §16 Q6. Composition references are not
+lowered yet — the corpus face asserts the honest refusal.)
 
 ## 4. Where `Kof.expr` enters the architecture
 
