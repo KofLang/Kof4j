@@ -1995,6 +1995,11 @@
       "arity": 1,
       "en": "pattern '{0}' collides with an existing type name",
       "pt": "o padrão '{0}' colide com um nome de tipo já existente"
+    },
+    {
+      "arity": 2,
+      "en": "pattern '{0}' collides with a character class name: bare '{1}' in a pattern body means the class, never this pattern — rename the pattern",
+      "pt": "o padrão '{0}' colide com um nome de classe de caractere: o '{1}' solto num corpo de padrão significa a classe, nunca este padrão — renomeie o padrão"
     }
   ]
 }

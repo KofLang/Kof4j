@@ -115,12 +115,12 @@ class KofExprNativeE2ETest {
     @Test
     void theSearchOperationsAnswerIdenticallyOnNative() throws Exception {
         String src = """
-                expr word { one_or_more { either { letter or digit } } }
+                expr wrd { one_or_more { either { letter or digit } } }
 
                 main() {
-                    println(word.find("abc 123"))
-                    println(word.findAll("a1 b2 c3"))
-                    println(word.replace("a1 b2", "X"))
+                    println(wrd.find("abc 123"))
+                    println(wrd.findAll("a1 b2 c3"))
+                    println(wrd.replace("a1 b2", "X"))
                 }
                 """;
         String expected = runJvm("search", src);
@@ -134,10 +134,10 @@ class KofExprNativeE2ETest {
         // orçamento tem de chegar ao programa, não um link-fail mudo.
         StringBuilder subject = new StringBuilder();
         for (int i = 0; i < 2100; i++) subject.append('a');
-        String src = "expr word { one_or_more { letter } }\n"
+        String src = "expr wrd { one_or_more { letter } }\n"
                 + "\n"
                 + "main() {\n"
-                + "    println(word.find(\"" + subject + "\"))\n"
+                + "    println(wrd.find(\"" + subject + "\"))\n"
                 + "}\n";
         Path file = tmp.resolve("budget").resolve("Main.kf");
         Files.createDirectories(file.getParent());

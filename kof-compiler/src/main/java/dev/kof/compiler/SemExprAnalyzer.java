@@ -68,6 +68,18 @@ final class SemExprAnalyzer {
                                 + "' collides with an existing type name", "SEM114");
                     }
                 }
+                if (KofExprUnicode.CLASSES.contains(ex.name())) {
+                    // Fatia §5 (D-KOF-EXPR): um `expr` não pode se chamar
+                    // letter/digit/whitespace/word/hex/any — o nome é um
+                    // ÁTOMO de classe na gramática, e o parser o leria como a
+                    // classe, nunca como a referência (medido: `expr word`
+                    // produzia kof_expr_is_word no lugar do corpo do
+                    // usuário). A ambiguidade é recusada no compile.
+                    report(sa, ex.position(), "pattern '" + ex.name()
+                            + "' collides with a character class name: bare '"
+                            + ex.name() + "' in a pattern body means the class, "
+                            + "never this pattern — rename the pattern", "SEM114");
+                }
             }
         }
         if (all.isEmpty()) return;

@@ -104,4 +104,17 @@ class ExprDeclarationSemanticsE2ETest {
             """);
         assertTrue(d.contains("SEM114"), () -> d);
     }
+
+    @Test
+    void patternNameCollidingWithAClassAtomIsRefused() throws Exception {
+        // Fatia §5 (D-KOF-EXPR): `word`/`letter`/`digit`/… são ÁTOMOS de
+        // classe na gramática — um `expr` com esse nome é ambíguo (o parser
+        // leria o bare `word` como a classe, nunca como a referência:
+        // medido — kof_expr_is_word no lugar do corpo do usuário).
+        String d = compile("clash", """
+            expr word { one_or_more { letter } }
+            main() { println(word.matches("abc")) }
+            """);
+        assertTrue(d.contains("SEM114") && d.contains("character class"), () -> d);
+    }
 }

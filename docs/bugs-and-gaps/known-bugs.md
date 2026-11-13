@@ -20937,6 +20937,26 @@ Observed: `Cannot resolve static method 'ofString' on imported class 'BodyPublis
 **Proof:** `DotDirectoryPackageE2ETest` **5/5** (RED-first: 4/5 failed with the exact `COMP001: /agent` before the fix; the `.agent`, `sub/.agent`, `.hidden-x`, valid-directory control and no-`kof.toml` control faces) + `InternalNameValidationTest` **4/4** (the identifier rule and the defensive gate). Non-regression: `EnumPackagePlacementE2ETest` 7/7, `PackagesE2ETest` 12/12, `CompileForTestsSourcesModuleRootTest` 1/1, `OrmEntityPackageE2ETest` 2/2, `JsonDecodePackagedRecordE2ETest` 2/2.
 <!-- pt-switch --> **PT:** [§936 (pt_BR)](known-bugs.pt_BR.md#936--uma-fonte-sob-um-diretorio-cujo-nome-nao-e-um-identificador-valido-agent-hidden-x-deriva-um-pacote-invalido-entao-o-alvo-jvm-falha-com-um-comp001-mal-rotulado-ou-um-classformaterror-silencioso-github-999)
 
+## §1151 — `one_or_more { exactly(2) letter }` (an UNBOUNDED quantifier whose BODY carries a bounded one) answers WRONG on the Script interpreter while the JVM oracle is right — cross-executor divergence on the compiled state chain
+
+**Status:** 🔴 OPEN 14/11 (owner = 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a; measured on the tip `f3cd5a2ca`, PROVEN pre-existing on the clean tree — no composition in the source, so it is NOT the composition slice's regression).
+
+**MEASURED** (Script interpreter vs the JVM oracle, same compiled chain):
+```kof
+expr row { one_or_more { exactly(2) letter } }
+main() {
+    println(row.matches("ab cd"))
+    println(row.matches("ab1"))
+}
+```
+JVM: `true` then `false`. Script: `false` then `false`. The grep of the IR shows the same `KofConditionalJump`/`KofCall` chain both executors run — the divergence is in the INTERPRETER's execution of the nested-quantifier shape (the inner counter slots under the outer loop), not in the lowering.
+
+**Scope note:** NOT caused by the composition slice — reproduced on the clean tree with the plain (non-composed) pattern. Neighbouring shapes (`one_or_more { letter }`, `between(2, 63) letter` at the top level, `either { one_or_more { … } or one_or_more { … } }`) answer identically on both executors; the diverging shape is specifically the BOUNDED quantifier INSIDE the UNBOUNDED one.
+
+**Next:** the KofInterpreter's execution of the nested quantifier state methods (the inner counter zeroing across the outer instances) — same lane (the expr runtime), next cycle.
+
+<!-- pt-switch --> **PT:** [§1151 (pt_BR)](known-bugs.pt_BR.md#1151--one_or_more--exactly2-letter--um-quantificador-sem-teto-cujo-corpo-carrega-um-limitado-responde-errado-no-interpreter-script-enquanto-o-oraculo-jvm-esta-certo--divergencia-cross-executor-na-cadeia-de-estados-compilada)
+
 ## §1150 — a TYPED lambda `mq.subscribe` handler crashed `publish` with `NoSuchMethodException` on JVM and Script (JS/Native delivered) — cross-target divergence on a documented idiom (GitHub #1150)
 
 **Status:** ✅ FIXED 12/11 (owner = 192.168.100.19:0; issue [#1150](https://github.com/KofLang/Kof4j/issues/1150), measured REAL on the tip by the active E2 probe batch 3).
