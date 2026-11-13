@@ -34,7 +34,13 @@ final class StringTargetGaps {
     private static final Set<String> INCOMPLETE = Set.of(
             "matches", "replaceAll", "replaceFirst", "getBytes");
 
-    /** §827: JS has these natively (same UTF-16 index contract); Native does not. */
+    /**
+     * §827: JS tem {@code codePointAt} nativamente (mesmo contrato de índice
+     * UTF-16). O NATIVO ganhou a face com a fatia 6 do Kof.expr
+     * ({@code RuntimeExpr.kof_string_code_point_at} no x86-64 e
+     * {@code NativeRiscvAsmExpr} no cross riscv64/aarch64) — o mesmo valor
+     * escalar na unidade UTF-16.
+     */
     private static final Set<String> NATIVE_ONLY_GAP = Set.of("codePointAt");
 
     static boolean isIncompleteMethod(String method) {
@@ -46,7 +52,14 @@ final class StringTargetGaps {
     }
 
     private static boolean refuses(String method, Target target) {
-        return NATIVE_ONLY_GAP.contains(method) ? target.isNative() : refuses(target);
+        if (NATIVE_ONLY_GAP.contains(method)) {
+            // §827: o JS tem a face (mesmo contrato de índice UTF-16) e o
+            // nativo ganhou a face com a fatia 6 do Kof.expr
+            // (RuntimeExpr.kof_string_code_point_at no x86-64 e
+            // NativeRiscvAsmExpr no cross riscv64/aarch64).
+            return false;
+        }
+        return refuses(target);
     }
 
     /**

@@ -50,6 +50,22 @@ public final class NativeX86StringCalls {
             return true;
         }
         if (kc.kind() == KofCallKind.INSTANCE && BuiltinTypes.isString(kc.ownerType())
+                && "codePointAt".equals(kc.methodName())) {
+            // Kof.expr fatia 6 (D-KOF-EXPR): o escalar na unidade UTF-16 — o
+            // mesmo contrato §827 da JVM/JS (o modelo nativo é UTF-8 em bytes,
+            // o runtime caminha byte↔unidade).
+            int argCount = kc.parameterTypes().size();
+            String[] intRegs = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
+            for (int i = argCount - 1; i >= 0; i--) {
+                sb.append("    popq ").append(intRegs[i + 1]).append("\n");
+            }
+            sb.append("    popq %rax\n");
+            sb.append("    movq %rax, %rdi\n");
+            sb.append("    call kof_string_code_point_at\n");
+            sb.append("    pushq %rax\n");
+            return true;
+        }
+        if (kc.kind() == KofCallKind.INSTANCE && BuiltinTypes.isString(kc.ownerType())
                 && "substring".equals(kc.methodName())) {
             int argCount = kc.parameterTypes().size();
             if (argCount == 1) {

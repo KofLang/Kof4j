@@ -196,26 +196,24 @@ class KofExprClassesE2ETest {
     }
 
     @Test
-    void jsAndNativeRefuseWithTheMeasuredBlockers() throws Exception {
+    void jsRefusesWithTheMeasuredBlockerAndNativeCarriesTheFace() throws Exception {
         // Fatia 7 MEDIDA (12/11): os predicados existem no runtime JS (o bloco
         // "expr" com as tabelas pinadas como dado) mas o MATCHER não baixa —
         // a cadeia de estados usa saltos/labels em formas que o reconstrutor
         // estruturado do JS não reconhece (KofJump solto vira break/continue;
         // o if só dobra na forma exata CJump+Label(true)+GOTO). O gate nomeia
-        // o bloqueio REAL dos dois lados: o front do parser JS e a fatia 6
-        // nativa (a frente da lane nativa viva).
+        // o bloqueio REAL do JS.
         String js = diagnostics("""
                 expr name { one_or_more { letter } }
                 main() { println(name.matches("a")) }
                 """, Target.JS);
         assertTrue(js.contains("EXPR004") && js.contains("JS"), () -> js);
         assertTrue(js.contains("structured-flow"), () -> js);
-        String nat = diagnostics("""
-                expr name { one_or_more { letter } }
-                main() { println(name.matches("a")) }
-                """, Target.NATIVE);
-        assertTrue(nat.contains("EXPR004") && nat.contains("Native"), () -> nat);
-        assertTrue(nat.contains("slice 6"), () -> nat);
+        // Fatia 6 (13/11): o NATIVO (x86-64 E cross riscv64/aarch64) NÃO
+        // recusa mais — o backend nativo é um emissor 1:1 op→instrução e a
+        // cadeia de estados é a MESMA compilada (a prova é a execução no
+        // binário: KofExprNativeE2ETest e KofExprCrossE2ETest).
+        // O que ainda recusa é o JS (o reconstrutor de fluxo estruturado).
     }
 
     @Test

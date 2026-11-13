@@ -160,14 +160,16 @@ final class CompilerExprLowering {
 
     /**
      * O gate honesto de alvo da fatia 3: o runtime {@code kof_expr_is_*} existe
-     * em JVM e Script; JS e Native ainda não o têm, então recusam com EXPR004
-     * nomeando a fatia que os traz (7 e 6) — nunca um casamento silencioso que
-     * responde a classe errada.
+     * em JVM, Script e (desde a fatia 6) no nativo x86-64; o JS ainda não tem
+     * o matcher, então recusa com EXPR004 nomeando a fatia que o traz (7) —
+     * nunca um casamento silencioso que responde a classe errada.
      */
     private boolean targetSupportsClasses(ExprAtomNode atom) {
         if (atom.kind().equals("any")) return true; // não precisa de tabela: lê o ponto de código
         Target t = driver.target;
         if (driver.interpreting || t == Target.JVM || t == Target.ANDROID) return true;
+        if (t == Target.NATIVE) return true; // fatia 6: o runtime nativo tem os predicados
+        if (t == Target.NATIVE_RISCV64 || t == Target.NATIVE_AARCH64) return true; // fatia 6: o cross tambem
         if (t == Target.JS) {
             // Fatia 7 MEDIDA: os predicados existem no runtime JS (o bloco
             // "expr", tabelas pinadas como dado) MAS o matcher em si não
@@ -181,10 +183,11 @@ final class CompilerExprLowering {
                     + "('" + atom.kind() + "'): the state chain lowers to raw jumps/labels the JS "
                     + "structured-flow parser does not reconstruct yet — a JsMethodParser-sized front");
         }
-        if (t == Target.NATIVE) {
-            return refuse("EXPR004", atom.position(), "the Kof.expr character classes are not on the Native "
-                    + "target yet ('" + atom.kind() + "'): the native runtime predicates enter with slice 6 "
-                    + "(the live native lane's front)");
+        if (t.isNative()) {
+            return refuse("EXPR004", atom.position(), "the Kof.expr character classes are not on the "
+                    + t + " target yet ('" + atom.kind() + "'): the Kof.expr runtime predicates are on "
+                    + "the native x86-64 and on the riscv64/aarch64 cross (slice 6); the bare-metal "
+                    + "targets have their own minimal runtime");
         }
         return refuse("EXPR004", atom.position(), "the Kof.expr character classes are not on the " + t
                 + " target yet ('" + atom.kind() + "')");

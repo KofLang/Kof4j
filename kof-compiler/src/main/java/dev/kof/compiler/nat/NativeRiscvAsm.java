@@ -375,6 +375,9 @@ public final class NativeRiscvAsm {
                 .append(NativeRiscvAsmRtB84.RISCV_RUNTIME_ASM_B_84)
                 // G240: lock (target) { } no cross (port RuntimeLock x86).
                 .append(NativeRiscvAsmRtB85.RISCV_RUNTIME_ASM_B_85)
+                // Kof.expr (D-KOF-EXPR fatia 6): classes de caractere + leitura
+                // de ponto de código no cross (o aarch64 herda pela tradução).
+                .append(NativeRiscvAsmExpr.RISCV_EXPR_ASM)
                 .toString();
     }
 }

@@ -72,21 +72,25 @@ final class KofExprMatchResult {
         // Fatia 7 MEDIDA: o gate é da DECLARAÇÃO (não só dos atoms de classe) —
         // o MATCHER inteiro baixa em formas que o reconstrutor JS não aceita
         // (um KofJump solto lê como break/continue; KofExprEither estoura
-        // COMP002 num padrão só-de-literal). O NATIVO entra com a fatia 6, a
-        // frente da lane nativa viva.
+        // COMP002 num padrão só-de-literal).
+        //
+        // Fatia 6 (D-KOF-EXPR): o NATIVO x86-64 ENTROU — o backend nativo é um
+        // emissor 1:1 op→instrução e TODOS os ops que a cadeia de estados emite
+        // estão declarados em NativeOpSupport (labels/jumps/cjumps/calls/
+        // arrays/records), então a MESMA cadeia compilada roda no nativo sem
+        // nenhum trabalho de parser (a diferença do JS). O runtime traz os
+        // predicados de classe (RuntimeExpr) e a leitura de ponto de código.
         Target t = driver.target;
-        if (!driver.interpreting && (t == Target.JS || t == Target.NATIVE)) {
+        if (!driver.interpreting && t == Target.JS) {
             SourcePosition p = ex.position();
-            String where = t == Target.JS ? "JS" : "Native";
-            String why = t == Target.JS
-                    ? "the state chain lowers to raw jumps/labels the JS structured-flow parser does not reconstruct yet"
-                    : "the native runtime predicates enter with slice 6";
             if (driver.currentDiagnostics != null) {
                 driver.currentDiagnostics.error(p != null ? p.file() : "",
                         p != null ? p.line() : 0, p != null ? p.column() : 0,
                         p != null ? p.length() : 0,
-                        "the Kof.expr matcher is not on the " + where + " target yet: " + why
-                                + " (EXPR004)", "EXPR004");
+                        "the Kof.expr matcher is not on the JS target yet: "
+                                + "the state chain lowers to raw jumps/labels the JS "
+                                + "structured-flow parser does not reconstruct yet "
+                                + "(EXPR004)", "EXPR004");
             }
             return List.of();
         }
@@ -275,16 +279,25 @@ final class KofExprMatchResult {
         ops.add(KofLoadLiteral.ofInt(driver.interpreting ? SCRIPT_BUDGET : JVM_BUDGET));
         ops.add(new KofConditionalJump(KofComparison.LE, INT, ok, bad));
         ops.add(new KofLabel(bad));
-        Type rte = new Type.ClassType("java.lang", "RuntimeException", List.of());
-        ops.add(new KofNewObject(rte, List.of(STR)));
-        ops.add(new KofDup());
         String bound = driver.interpreting
                 ? "200 characters on the Script interpreter (frame-bound tighter than the JVM)"
                 : "2,000 characters on the JVM";
-        ops.add(KofLoadLiteral.ofString("EXPR-E2: the Kof.expr subject is above the documented "
-                + "budget of " + bound + " (the recursive v1 matcher is stack-bound)"));
-        ops.add(new KofCall(rte, "<init>", List.of(STR), Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));
-        ops.add(new KofThrow());
+        String message = "EXPR-E2: the Kof.expr subject is above the documented "
+                + "budget of " + bound + " (the recursive v1 matcher is stack-bound)";
+        if (driver.target.isNative()) {
+            // O nativo não tem java.lang.RuntimeException: o `throw` de Kof é
+            // uma String (o runtime nativo lança a mensagem direto — o mesmo
+            // caminho de `throw "msg"`). O texto do orçamento viaja na pilha.
+            ops.add(KofLoadLiteral.ofString(message));
+            ops.add(new KofThrow());
+        } else {
+            Type rte = new Type.ClassType("java.lang", "RuntimeException", List.of());
+            ops.add(new KofNewObject(rte, List.of(STR)));
+            ops.add(new KofDup());
+            ops.add(KofLoadLiteral.ofString(message));
+            ops.add(new KofCall(rte, "<init>", List.of(STR), Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));
+            ops.add(new KofThrow());
+        }
         ops.add(new KofLabel(ok));
     }
 

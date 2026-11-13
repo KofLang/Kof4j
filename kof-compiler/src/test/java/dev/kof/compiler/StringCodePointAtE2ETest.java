@@ -9,7 +9,6 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -58,12 +57,24 @@ class StringCodePointAtE2ETest {
     }
 
     @Test
-    void nativeRefusesCodePointAtWithStr003() throws Exception {
-        Path src = write("Nat.kf", "main() { println(\"a\".codePointAt(0)) }\n");
-        CompilationResult r = new CompilerDriver().compile(src, tmp.resolve("nat"), Target.NATIVE);
-        assertFalse(r.success(), "Native has no codePointAt; it must be refused, not linked broken");
-        assertTrue(r.diagnostics().getDiagnostics().stream().anyMatch(d -> "STR003".equals(d.code())),
-                "the named STR003 gap: " + r.diagnostics().getDiagnostics());
+    void codePointAtRunsOnNativeX86() throws Exception {
+        // Kof.expr fatia 6 (D-KOF-EXPR): o nativo x86-64 ganhou a face
+        // (RuntimeExpr.kof_string_code_point_at) — o mesmo escalar na unidade
+        // UTF-16 que a JVM e o JS devolvem.
+        Path src = write("Nat.kf", """
+                main() {
+                    val s = "aé"
+                    println(s.codePointAt(0) + " " + s.codePointAt(1))
+                    val clef = "x𝄞"
+                    println(clef.codePointAt(1) + " " + clef.codePointAt(2))
+                }
+                """);
+        CompilationResult nat = new CompilerDriver().compile(src, tmp.resolve("nat"), Target.NATIVE);
+        assertTrue(nat.success(), "Native compile: " + nat.diagnostics().getDiagnostics());
+        Path bin = tmp.resolve("nat/Default/Main");
+        assertTrue(Files.exists(bin), "the native binary must exist");
+        assertEquals("97 233\n119070 56606\n",
+                run(bin.toString()).replace("\r\n", "\n"), "native");
     }
 
     private Path write(String name, String code) throws Exception {

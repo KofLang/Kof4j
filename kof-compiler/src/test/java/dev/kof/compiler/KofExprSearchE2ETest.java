@@ -194,10 +194,15 @@ class KofExprSearchE2ETest {
     }
 
     @Test
-    void aLiteralOnlyPatternStillRefusesOnJsAndNativeWithExpr004() throws Exception {
+    void aLiteralOnlyPatternStillRefusesOnJsWithExpr004() throws Exception {
         // slice 7's finding: the MATCHER (not just the classes) does not lower
-        // on JS/Native — the gate moves to the DECLARATION, so a literal-only
-        // pattern gets the honest EXPR004 instead of the internal COMP002.
+        // on JS — the gate is at the DECLARATION, so a literal-only pattern gets
+        // the honest EXPR004 instead of the internal COMP002.
+        //
+        // slice 6 (13/11): on the native (x86-64 AND the cross riscv64/
+        // aarch64) the SAME compiled chain runs — the backend is a 1:1
+        // op→instruction emitter; the proof is the native execution in
+        // KofExprNativeE2ETest and KofExprCrossE2ETest.
         String src = """
                 expr pick { either { "cat" or "dog" } }
                 main() { println(pick.matches("cat")) }
@@ -205,8 +210,6 @@ class KofExprSearchE2ETest {
         String js = diagnostics(src, Target.JS);
         assertTrue(js.contains("EXPR004") && js.contains("JS"), () -> js);
         assertTrue(js.contains("structured-flow"), () -> js);
-        String nat = diagnostics(src, Target.NATIVE);
-        assertTrue(nat.contains("EXPR004") && nat.contains("Native"), () -> nat);
     }
 
     @Test

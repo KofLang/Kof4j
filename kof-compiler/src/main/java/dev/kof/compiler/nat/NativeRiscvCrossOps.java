@@ -296,6 +296,10 @@ public final class NativeRiscvCrossOps {
                 // units UTF-16, paridade JVM). Sem entry caía no fallback
                 // genérico → java_lang_String_toCharArray (link-fail).
                 case "toCharArray" -> "kof_string_to_char_array";
+                // Kof.expr (D-KOF-EXPR fatia 6): o escalar na unidade UTF-16 —
+                // o mesmo contrato §827 da JVM/JS (o modelo cross é UTF-8 em
+                // bytes, o runtime caminha byte↔unidade).
+                case "codePointAt" -> "kof_string_code_point_at";
                 // §97 cross (B36): métodos declarados no reference (equals/
                 // compareTo/hashCode). Sem entry aqui caíam no fallback
                 // genérico (pop só de a0 → receiver fica na pilha, link-fail
@@ -401,6 +405,16 @@ public final class NativeRiscvCrossOps {
 
         // kof_string_equals / concat como FUNCTION (frontend emite assim)
         if (kc.kind() == KofCallKind.FUNCTION && ("kof_string_equals".equals(mn) || "kof_string_concat".equals(mn))) {
+            emitCrossArgLoads(sb, kc.parameterTypes().size());
+            sb.append("    call ").append(mn).append("\n");
+            emitCrossStackCleanup(sb, kc.parameterTypes().size());
+            if (!Type.isVoid(kc.returnType())) other.pushRiscv(sb, "a0");
+            return;
+        }
+
+        // Kof.expr (D-KOF-EXPR fatia 6): os predicados de classe de caractere
+        // chegam como FUNCTION com o PONTO DE CÓDIGO em a0 → 1/0 em a0.
+        if (kc.kind() == KofCallKind.FUNCTION && mn.startsWith("kof_expr_is_")) {
             emitCrossArgLoads(sb, kc.parameterTypes().size());
             sb.append("    call ").append(mn).append("\n");
             emitCrossStackCleanup(sb, kc.parameterTypes().size());

@@ -67,6 +67,7 @@ import dev.kof.compiler.runtime.RuntimeObservability2;
 import dev.kof.compiler.runtime.RuntimeObservabilitySpans;
 import dev.kof.compiler.runtime.RuntimeObservability3;
 import dev.kof.compiler.runtime.RuntimeErasureBox;
+import dev.kof.compiler.runtime.RuntimeExpr;
 import dev.kof.compiler.runtime.RuntimePrint;
 import dev.kof.compiler.runtime.RuntimePlat;
 import dev.kof.compiler.runtime.RuntimePrintNum;
@@ -280,6 +281,8 @@ public final class NativeRuntime {
         RuntimeUri.emit(sb);
         RuntimeMath.emit(sb);
         RuntimeStrings.emit(sb);
+        RuntimeExpr.emit(sb);      // Kof.expr (D-KOF-EXPR fatia 6): as classes
+                                  // de caractere + a leitura de ponto de código
         RuntimeEncoding.emit(sb);
         RuntimeUuid.emit(sb);
         RuntimeRandom.emit(sb);
