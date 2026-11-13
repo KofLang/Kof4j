@@ -33,6 +33,17 @@ final class KofExprMatchResult {
     private static final int SLOT_POS = 1;
     private static final int SLOT_KEYS = 2;
     private static final int SLOT_END = 1;
+    /**
+     * O orçamento do §12 (v1 documentado, MEDIDO POR EXECUTOR). O matcher v1
+     * é CPS recursivo — a profundidade é O(sujeito), ~3 frames por caractere
+     * — e a pilha segura DIFERE: JVM 2,000 (4,000 estoura); o interpretador
+     * Script ~200 (400 estoura o frame dele, medido). O driver.interpreting é
+     * conhecido no tempo de lower, então o valor e a mensagem são CONSTANTES
+     * da compilação. O motor iterativo (profundidade O(1)) é o item restante
+     * da fatia 8.
+     */
+    private static final int JVM_BUDGET = 2_000;
+    private static final int SCRIPT_BUDGET = 200;
     /** Locais dos métodos públicos de busca (find/findAll/replace). */
     private static final int SLOT_SEARCH_A = 3;
     private static final int SLOT_SEARCH_B = 4;
@@ -261,14 +272,17 @@ final class KofExprMatchResult {
         LabelId bad = LabelId.create();
         ops.add(new KofLoadLocal(STR, SLOT_S));
         ops.add(new KofCall(STR, "length", List.of(), INT, KofCallKind.INSTANCE));
-        ops.add(KofLoadLiteral.ofInt(SUBJECT_BUDGET));
+        ops.add(KofLoadLiteral.ofInt(driver.interpreting ? SCRIPT_BUDGET : JVM_BUDGET));
         ops.add(new KofConditionalJump(KofComparison.LE, INT, ok, bad));
         ops.add(new KofLabel(bad));
         Type rte = new Type.ClassType("java.lang", "RuntimeException", List.of());
         ops.add(new KofNewObject(rte, List.of(STR)));
         ops.add(new KofDup());
+        String bound = driver.interpreting
+                ? "200 characters on the Script interpreter (frame-bound tighter than the JVM)"
+                : "2,000 characters on the JVM";
         ops.add(KofLoadLiteral.ofString("EXPR-E2: the Kof.expr subject is above the documented "
-                + "budget of 2,000 characters (the recursive v1 matcher is stack-bound)"));
+                + "budget of " + bound + " (the recursive v1 matcher is stack-bound)"));
         ops.add(new KofCall(rte, "<init>", List.of(STR), Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));
         ops.add(new KofThrow());
         ops.add(new KofLabel(ok));

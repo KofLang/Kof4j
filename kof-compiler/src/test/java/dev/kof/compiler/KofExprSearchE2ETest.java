@@ -169,6 +169,31 @@ class KofExprSearchE2ETest {
     }
 
     @Test
+    void theScriptBudgetIsTighterAndIsProvenOnTheInterpreter() throws Exception {
+        // MEDIDO: o interpretador Script estoura o frame dele em ~400 chars —
+        // o orçamento por executor pina 200 no Script. Um sujeito de 300
+        // passa na JVM e recusa EXPR-E2 no interpretador.
+        String src = WORD + """
+                main() {
+                    var big = ""
+                    var i = 0
+                    while (i < 60) {
+                        big = big + "aaaaa"
+                        i = i + 1
+                    }
+                    println(w.find(big))
+                }
+                """;
+        Path file = tmp.resolve("script-budget").resolve("Main.kf");
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, src);
+        KofInterpreter.Result r = new CompilerDriver().interpret(List.of(file), file.getParent(), new String[0]);
+        assertTrue(r.exitCode() != 0, "the Script run must refuse: exit=" + r.exitCode());
+        assertTrue((r.stdout() + r.stderr()).contains("EXPR-E2"), () -> r.stdout() + r.stderr());
+        assertTrue((r.stdout() + r.stderr()).contains("200"), () -> r.stdout() + r.stderr());
+    }
+
+    @Test
     void aLiteralOnlyPatternStillRefusesOnJsAndNativeWithExpr004() throws Exception {
         // slice 7's finding: the MATCHER (not just the classes) does not lower
         // on JS/Native — the gate moves to the DECLARATION, so a literal-only
