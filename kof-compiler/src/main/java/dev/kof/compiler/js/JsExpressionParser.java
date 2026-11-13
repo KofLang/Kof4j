@@ -127,7 +127,8 @@ JsIr.JsStatement storeLocalStatement(MethodCtx ctx, KofStoreLocal sl, JsIr.JsExp
 String localName(MethodCtx ctx, int index) {
         String name = ctx.localNames.get(index);
         if (name == null) {
-            throw new IllegalStateException("KofJS: unknown local slot " + index);
+            throw new IllegalStateException("KofJS: unknown local slot " + index + " in "
+                    + ctx.kofClassName + "." + ctx.methodName);
         }
         return name;
     }

@@ -73,7 +73,7 @@ final class KofExprAtomStates {
                         ops.add(new KofLoadLocal(INT, SLOT_POS));
                         ops.add(new KofCall(STR, "startsWith", List.of(STR, INT), BOOL, KofCallKind.INSTANCE));
                         ops.add(KofLoadLiteral.ofBool(true));
-                        ops.add(new KofConditionalJump(KofComparison.EQ, BOOL, hits.get(i), next));
+                        ops.add(new KofConditionalJump(KofComparison.NE, BOOL, next, hits.get(i)));
                         ops.add(new KofLabel(next));
                     }
                     ops.add(new KofJump(fail));
@@ -93,7 +93,7 @@ final class KofExprAtomStates {
                         ops.add(new KofLoadLocal(INT, SLOT_POS));
                         ops.add(new KofCall(STR, "startsWith", List.of(STR, INT), BOOL, KofCallKind.INSTANCE));
                         ops.add(KofLoadLiteral.ofBool(true));
-                        ops.add(new KofConditionalJump(KofComparison.EQ, BOOL, fail, next));
+                        ops.add(new KofConditionalJump(KofComparison.NE, BOOL, next, fail));
                         ops.add(new KofLabel(next));
                     }
                     // nenhum bateu: avança UM caractere

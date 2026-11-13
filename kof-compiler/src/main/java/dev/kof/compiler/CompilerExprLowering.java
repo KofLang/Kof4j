@@ -171,17 +171,13 @@ final class CompilerExprLowering {
         if (t == Target.NATIVE) return true; // fatia 6: o runtime nativo tem os predicados
         if (t == Target.NATIVE_RISCV64 || t == Target.NATIVE_AARCH64) return true; // fatia 6: o cross tambem
         if (t == Target.JS) {
-            // Fatia 7 MEDIDA: os predicados existem no runtime JS (o bloco
-            // "expr", tabelas pinadas como dado) MAS o matcher em si não
-            // baixa — a cadeia de estados usa saltos/labels/retornos em
-            // formas que o reconstrutor estruturado do JsMethodParser não
-            // reconhece (medido: KofJump solto vira break/continue; o if só
-            // dobra na forma exata CJump+Label(true)+GOTO). Baixar a cadeia
-            // para essas formas é um front do tamanho do próprio parser —
-            // por isso o gate segue, nomeando o bloqueio REAL.
+            // Fatia 7 RE-MEDIDA: os predicados JS existem e roteam (o gate do
+            // CALL SITE foi corrigido — antes caíam no isStringOp e viravam
+            // JsMember(null)), mas o ESTADO DE LAÇO do quantificador não
+            // reconstrói: respostas erradas em silêncio (medido no artefato).
             return refuse("EXPR004", atom.position(), "the Kof.expr matcher is not on the JS target yet "
-                    + "('" + atom.kind() + "'): the state chain lowers to raw jumps/labels the JS "
-                    + "structured-flow parser does not reconstruct yet — a JsMethodParser-sized front");
+                    + "('" + atom.kind() + "'): the quantifier loop-state does not reconstruct on the JS "
+                    + "structured-flow parser yet");
         }
         if (t.isNative()) {
             return refuse("EXPR004", atom.position(), "the Kof.expr character classes are not on the "
@@ -279,13 +275,15 @@ final class CompilerExprLowering {
         for (ExprNode b : alt.alternatives()) branches.add(compileUnit(b, tail));
 
         List<KofOperation> ops = new ArrayList<>();
-        LabelId entryLabel = LabelId.create();
-        ops.add(new KofLabel(entryLabel));
+        // fatia JS: SEM o label de entrada no op 0 (a entrada do método é
+        // implícita — nada ramifica para ele, e um label líder em statement
+        // level não é reconstrutível pelo fluxo estruturado do JS) e SEM o
+        // par sem efeito `Jump(labels[0]); Label(labels[0])` (a queda é o
+        // mesmo fluxo). O IR fica mais limpo para TODO backend.
         ops.add(KofLoadLiteral.ofInt(-1));
         ops.add(new KofStoreLocal(INT, tempSlot()));
         List<LabelId> labels = new ArrayList<>();
         for (int i = 0; i < branches.size(); i++) labels.add(LabelId.create());
-        ops.add(new KofJump(labels.get(0)));
         for (int i = 0; i < branches.size(); i++) {
             boolean last = i == branches.size() - 1;
             ops.add(new KofLabel(labels.get(i)));
@@ -298,8 +296,12 @@ final class CompilerExprLowering {
                 LabelId next = labels.get(i + 1);
                 ops.add(new KofLoadLocal(INT, tempSlot()));
                 ops.add(KofLoadLiteral.ofInt(-1));
-                ops.add(new KofConditionalJump(KofComparison.NE, INT, doneAlt, next));
-                ops.add(new KofLabel(next));
+                ops.add(new KofConditionalJump(KofComparison.EQ, INT, next, doneAlt));
+                // fatia JS: SEM `Label(next)` aqui — o label É o início do
+                // próximo ramo (emitido na iteração seguinte); emitir o mesmo
+                // LabelId DUAS vezes confunde o reconstrutor estruturado do JS
+                // (o segundo label cai em statement level e o resto do método
+                // vira ops não consumidos).
             }
         }
         ops.add(new KofLabel(doneAlt));
@@ -403,9 +405,11 @@ final class CompilerExprLowering {
             loopOps.add(new KofLoadLocal(INT, slot));
             loopOps.add(KofLoadLiteral.ofInt(max));
             loopOps.add(new KofConditionalJump(KofComparison.LT, INT, tryBody, tryTail));
-        } else {
-            loopOps.add(new KofJump(tryBody));
         }
+        // fatia JS: o caso sem teto NÃO emite `Jump(tryBody)` — o label segue
+        // IMEDIATAMENTE, então o salto é uma queda sem efeito (e um salto para
+        // um label em statement level não é reconstrutível pelo fluxo
+        // estruturado do JS). A entrada do laço é a queda.
         loopOps.add(new KofLabel(tryBody));
         // zera os contadores internos: cada instância do corpo começa do zero
         for (int s = innerFrom; s < innerTo; s++) {
@@ -416,7 +420,7 @@ final class CompilerExprLowering {
         loopOps.add(new KofStoreLocal(INT, tempSlot()));
         loopOps.add(new KofLoadLocal(INT, tempSlot()));
         loopOps.add(KofLoadLiteral.ofInt(-1));
-        loopOps.add(new KofConditionalJump(KofComparison.NE, INT, done, tryTail));
+        loopOps.add(new KofConditionalJump(KofComparison.EQ, INT, tryTail, done));
         loopOps.add(new KofLabel(tryTail));
         if (min > 0) {
             // count >= min: segue para a cauda (o false-branch é o fall-through)

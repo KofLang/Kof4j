@@ -26,13 +26,13 @@ import java.util.List;
  */
 final class KofExprMatchResult {
 
-    private static final Type STR = BuiltinTypes.STRING;
-    private static final Type INT = Type.PrimitiveType.INT;
-    private static final Type BOOL = Type.PrimitiveType.BOOL;
-    private static final int SLOT_S = 0;
-    private static final int SLOT_POS = 1;
-    private static final int SLOT_KEYS = 2;
-    private static final int SLOT_END = 1;
+    static final Type STR = BuiltinTypes.STRING;
+    static final Type INT = Type.PrimitiveType.INT;
+    static final Type BOOL = Type.PrimitiveType.BOOL;
+    static final int SLOT_S = 0;
+    static final int SLOT_POS = 1;
+    static final int SLOT_KEYS = 2;
+    static final int SLOT_END = 1;
     /**
      * O orçamento do §12 (v1 documentado, MEDIDO POR EXECUTOR). O matcher v1
      * é CPS recursivo — a profundidade é O(sujeito), ~3 frames por caractere
@@ -42,19 +42,19 @@ final class KofExprMatchResult {
      * da compilação. O motor iterativo (profundidade O(1)) é o item restante
      * da fatia 8.
      */
-    private static final int JVM_BUDGET = 2_000;
-    private static final int SCRIPT_BUDGET = 200;
+    static final int JVM_BUDGET = 2_000;
+    static final int SCRIPT_BUDGET = 200;
     /** Locais dos métodos públicos de busca (find/findAll/replace). */
-    private static final int SLOT_SEARCH_A = 3;
-    private static final int SLOT_SEARCH_B = 4;
+    static final int SLOT_SEARCH_A = 3;
+    static final int SLOT_SEARCH_B = 4;
 
-    private final CompilerDriver driver;
-    private final Type self;
-    private final String entry;
-    private final String entryFree;
-    private final List<String> captures;
-    private final int slots;
-    private final Type recordType;
+    final CompilerDriver driver;
+    final Type self;
+    final String entry;
+    final String entryFree;
+    final List<String> captures;
+    final int slots;
+    final Type recordType;
 
     private KofExprMatchResult(CompilerDriver driver, Type self, String entry, String entryFree,
                                List<String> captures, int slots, Type recordType) {
@@ -82,15 +82,24 @@ final class KofExprMatchResult {
         // predicados de classe (RuntimeExpr) e a leitura de ponto de código.
         Target t = driver.target;
         if (!driver.interpreting && t == Target.JS) {
+            // Fatia 7 RE-MEDIDA (13/11): o front NÃO é do tamanho do
+            // JsMethodParser — é o ESTADO DE LAÇO do quantificador. Medido no
+            // artefato gerado: a reconstrução estruturada do JS produz o
+            // laço com constantes roubadas de loads vizinhos (`c0 < 4` onde o
+            // max de `optional` é 1), a queda do laço vira `return -1` (deve
+            // seguir a cauda) e o ramo absent se perde — respostas ERRADAS em
+            // silêncio. As formas sem laço (literal, either) rodam
+            // byte-idênticas ao oráculo JVM sob node (medido no probe). O
+            // gate fica até o estado de laço reconstruir CERTO.
             SourcePosition p = ex.position();
             if (driver.currentDiagnostics != null) {
                 driver.currentDiagnostics.error(p != null ? p.file() : "",
                         p != null ? p.line() : 0, p != null ? p.column() : 0,
                         p != null ? p.length() : 0,
                         "the Kof.expr matcher is not on the JS target yet: "
-                                + "the state chain lowers to raw jumps/labels the JS "
-                                + "structured-flow parser does not reconstruct yet "
-                                + "(EXPR004)", "EXPR004");
+                                + "the quantifier loop-state does not reconstruct on the JS "
+                                + "structured-flow parser yet (the literals and the alternation "
+                                + "now lower and answer identically to the JVM) (EXPR004)", "EXPR004");
             }
             return List.of();
         }
@@ -114,6 +123,7 @@ final class KofExprMatchResult {
                 ? new Type.ClassType(packageName, ex.name() + "Match", List.of()) : null;
         KofExprMatchResult surface = new KofExprMatchResult(driver, self, entry, entryFree,
                 captures, slots, recordType);
+        KofExprSearch search = new KofExprSearch(surface);
 
         List<IRClass> classes = new ArrayList<>();
         List<IRMethod> methods = new ArrayList<>();
@@ -121,9 +131,9 @@ final class KofExprMatchResult {
         methods.add(surface.matches());
         methods.add(surface.match());
         methods.add(surface.captures());
-        methods.add(surface.find());
-        methods.add(surface.findAll());
-        methods.add(surface.replace());
+        methods.add(search.find());
+        methods.add(search.findAll());
+        methods.add(search.replace());
         int access = driver.computeAccess(ex.modifiers()) | AccessFlags.FINAL;
         classes.add(new IRClass(internalName, "java/lang/Object", List.of(), access,
                 List.of(), methods, List.of(), null, typeId,
@@ -187,7 +197,7 @@ final class KofExprMatchResult {
         ops.add(new KofStoreLocal(INT, SLOT_END));
         ops.add(new KofLoadLocal(INT, SLOT_END));
         ops.add(KofLoadLiteral.ofInt(-1));
-        ops.add(new KofConditionalJump(KofComparison.EQ, INT, absent, present));
+        ops.add(new KofConditionalJump(KofComparison.NE, INT, present, absent));
         ops.add(new KofLabel(present));
         if (recordType != null) {
             // o record da Opção T: um campo String? por captura, lido do canal
@@ -212,8 +222,11 @@ final class KofExprMatchResult {
         } else {
             ops.add(new KofReturn(STR));
         }
+        // fatia JS: o slot END (1) é gravado/lido aqui — o backend JS exige a
+        // declaração do local (a JVM tolera: a tabela de locals é debug-info).
         List<IRLocalVariable> locals = new ArrayList<>(List.of(
-                new IRLocalVariable(SLOT_S, "s", STR)));
+                new IRLocalVariable(SLOT_S, "s", STR),
+                new IRLocalVariable(SLOT_END, "end", INT)));
         if (!captures.isEmpty()) locals.add(keysLocal());
         return new IRMethod("match", recordType != null ? new Type.NullableType(recordType)
                         : new Type.NullableType(STR),
@@ -234,7 +247,7 @@ final class KofExprMatchResult {
         ops.add(new KofStoreLocal(INT, SLOT_END));
         ops.add(new KofLoadLocal(INT, SLOT_END));
         ops.add(KofLoadLiteral.ofInt(-1));
-        ops.add(new KofConditionalJump(KofComparison.EQ, INT, absent, present));
+        ops.add(new KofConditionalJump(KofComparison.NE, INT, present, absent));
         ops.add(new KofLabel(present));
         ops.add(new KofCall(listType, "kof_list_new", List.of(), listType, KofCallKind.FUNCTION));
         ops.add(new KofStoreLocal(listType, SLOT_END));
@@ -271,13 +284,13 @@ final class KofExprMatchResult {
      */
     private static final int SUBJECT_BUDGET = 2_000;
 
-    private void emitBudget(List<KofOperation> ops) {
+    void emitBudget(List<KofOperation> ops) {
         LabelId ok = LabelId.create();
         LabelId bad = LabelId.create();
         ops.add(new KofLoadLocal(STR, SLOT_S));
         ops.add(new KofCall(STR, "length", List.of(), INT, KofCallKind.INSTANCE));
         ops.add(KofLoadLiteral.ofInt(driver.interpreting ? SCRIPT_BUDGET : JVM_BUDGET));
-        ops.add(new KofConditionalJump(KofComparison.LE, INT, ok, bad));
+        ops.add(new KofConditionalJump(KofComparison.GT, INT, bad, ok));
         ops.add(new KofLabel(bad));
         String bound = driver.interpreting
                 ? "200 characters on the Script interpreter (frame-bound tighter than the JVM)"
@@ -306,7 +319,7 @@ final class KofExprMatchResult {
      * começando em {@code startPosLocal} (0 para os casamentos de sujeito
      * inteiro; o índice corrente para as buscas).
      */
-    private List<Type> pushChainArgs(List<KofOperation> ops, int keysSlot, int startPosLocal) {
+    List<Type> pushChainArgs(List<KofOperation> ops, int keysSlot, int startPosLocal) {
         ops.add(new KofLoadLocal(STR, SLOT_S));
         if (startPosLocal >= 0) {
             ops.add(new KofLoadLocal(INT, startPosLocal));
@@ -329,7 +342,7 @@ final class KofExprMatchResult {
         return params;
     }
 
-    private void emitKeysArray(List<KofOperation> ops, int keysSlot) {
+    void emitKeysArray(List<KofOperation> ops, int keysSlot) {
         if (captures.isEmpty()) return;
         ops.add(KofLoadLiteral.ofInt(captures.size()));
         ops.add(new KofNewArray(STR));
@@ -337,7 +350,7 @@ final class KofExprMatchResult {
     }
 
     /** O elemento de uma ocorrência: o trecho casado (sem captura) ou o record tipado (com captura). */
-    private void emitOccurrence(List<KofOperation> ops, Type elemType, int keysSlot, int startSlot, int endSlot) {
+    void emitOccurrence(List<KofOperation> ops, Type elemType, int keysSlot, int startSlot, int endSlot) {
         if (!captures.isEmpty()) {
             ops.add(new KofNewObject(elemType, ctorParams()));
             ops.add(new KofDup());
@@ -356,225 +369,12 @@ final class KofExprMatchResult {
         ops.add(new KofCall(STR, "substring", List.of(INT, INT), STR, KofCallKind.INSTANCE));
     }
 
-    /** {@code find(String): Int} — o primeiro índice de início de ocorrência, -1 quando ausente. */
-    private IRMethod find() {
-        LabelId loop = LabelId.create();
-        LabelId tryOne = LabelId.create();
-        LabelId hit = LabelId.create();
-        LabelId miss = LabelId.create();
-        LabelId fail = LabelId.create();
-        List<KofOperation> ops = new ArrayList<>();
-        emitBudget(ops);
-        emitKeysArray(ops, SLOT_KEYS);
-        ops.add(KofLoadLiteral.ofInt(0));
-        ops.add(new KofStoreLocal(INT, SLOT_SEARCH_A));
-        ops.add(new KofLabel(loop));
-        // start > len(s)? → fail
-        ops.add(new KofLoadLocal(INT, SLOT_SEARCH_A));
-        ops.add(new KofLoadLocal(STR, SLOT_S));
-        ops.add(new KofCall(STR, "length", List.of(), INT, KofCallKind.INSTANCE));
-        ops.add(new KofConditionalJump(KofComparison.GT, INT, fail, tryOne));
-        ops.add(new KofLabel(tryOne));
-        List<Type> params = pushChainArgs(ops, SLOT_KEYS, SLOT_SEARCH_A);
-        ops.add(new KofCall(self, entryFree, params, INT, KofCallKind.STATIC));
-        ops.add(new KofStoreLocal(INT, SLOT_SEARCH_B));
-        ops.add(new KofLoadLocal(INT, SLOT_SEARCH_B));
-        ops.add(KofLoadLiteral.ofInt(-1));
-        ops.add(new KofConditionalJump(KofComparison.NE, INT, hit, miss));
-        ops.add(new KofLabel(hit));
-        ops.add(new KofLoadLocal(INT, SLOT_SEARCH_A));
-        ops.add(new KofReturn(INT));
-        ops.add(new KofLabel(miss));
-        ops.add(new KofLoadLocal(INT, SLOT_SEARCH_A));
-        ops.add(KofLoadLiteral.ofInt(1));
-        ops.add(new KofBinary(KofBinaryOp.ADD, INT));
-        ops.add(new KofStoreLocal(INT, SLOT_SEARCH_A));
-        ops.add(new KofJump(loop));
-        ops.add(new KofLabel(fail));
-        ops.add(KofLoadLiteral.ofInt(-1));
-        ops.add(new KofReturn(INT));
-        List<IRLocalVariable> locals = localsFor(
-                new IRLocalVariable(SLOT_SEARCH_A, "start", INT),
-                new IRLocalVariable(SLOT_SEARCH_B, "end", INT));
-        return new IRMethod("find", INT, List.of(STR),
-                AccessFlags.PUBLIC | AccessFlags.STATIC, List.of(),
-                List.of(new IRBasicBlock(0, ops)), locals);
-    }
-
-    /**
-     * {@code findAll(String)} — as ocorrências em ordem: os TRECHOS casados
-     * (List<String>) num padrão sem captura, o record tipado
-     * (List<nameMatch>) num padrão com captura; null quando nenhuma. Um
-     * casamento vazio avança 1 (sem laço infinito).
-     */
-    private IRMethod findAll() {
-        Type elemType = captures.isEmpty() ? STR : recordType;
-        Type listType = new Type.ClassType("kof", "List", List.of(elemType));
-        LabelId loop = LabelId.create();
-        LabelId tryOne = LabelId.create();
-        LabelId hit = LabelId.create();
-        LabelId miss = LabelId.create();
-        LabelId emptyAdv = LabelId.create();
-        LabelId nonEmpty = LabelId.create();
-        LabelId done = LabelId.create();
-        List<KofOperation> ops = new ArrayList<>();
-        emitBudget(ops);
-        emitKeysArray(ops, SLOT_KEYS);
-        ops.add(new KofCall(listType, "kof_list_new", List.of(), listType, KofCallKind.FUNCTION));
-        ops.add(new KofStoreLocal(listType, 1));
-        ops.add(KofLoadLiteral.ofInt(0));
-        ops.add(new KofStoreLocal(INT, SLOT_SEARCH_A));
-        ops.add(new KofLabel(loop));
-        ops.add(new KofLoadLocal(INT, SLOT_SEARCH_A));
-        ops.add(new KofLoadLocal(STR, SLOT_S));
-        ops.add(new KofCall(STR, "length", List.of(), INT, KofCallKind.INSTANCE));
-        ops.add(new KofConditionalJump(KofComparison.GT, INT, done, tryOne));
-        ops.add(new KofLabel(tryOne));
-        List<Type> params = pushChainArgs(ops, SLOT_KEYS, SLOT_SEARCH_A);
-        ops.add(new KofCall(self, entryFree, params, INT, KofCallKind.STATIC));
-        ops.add(new KofStoreLocal(INT, SLOT_SEARCH_B));
-        ops.add(new KofLoadLocal(INT, SLOT_SEARCH_B));
-        ops.add(KofLoadLiteral.ofInt(-1));
-        ops.add(new KofConditionalJump(KofComparison.EQ, INT, miss, hit));
-        ops.add(new KofLabel(hit));
-        ops.add(new KofLoadLocal(listType, 1));
-        emitOccurrence(ops, elemType, SLOT_KEYS, SLOT_SEARCH_A, SLOT_SEARCH_B);
-        ops.add(new KofCall(listType, "kof_list_add", List.of(elemType),
-                Type.PrimitiveType.VOID, KofCallKind.INSTANCE));
-        // avanço: casamento vazio anda 1; casamento normal salta além de si
-        ops.add(new KofLoadLocal(INT, SLOT_SEARCH_B));
-        ops.add(new KofLoadLocal(INT, SLOT_SEARCH_A));
-        ops.add(new KofConditionalJump(KofComparison.GT, INT, nonEmpty, emptyAdv));
-        ops.add(new KofLabel(emptyAdv));
-        ops.add(new KofLoadLocal(INT, SLOT_SEARCH_A));
-        ops.add(KofLoadLiteral.ofInt(1));
-        ops.add(new KofBinary(KofBinaryOp.ADD, INT));
-        ops.add(new KofStoreLocal(INT, SLOT_SEARCH_A));
-        ops.add(new KofJump(loop));
-        ops.add(new KofLabel(nonEmpty));
-        ops.add(new KofLoadLocal(INT, SLOT_SEARCH_B));
-        ops.add(KofLoadLiteral.ofInt(1));
-        ops.add(new KofBinary(KofBinaryOp.ADD, INT));
-        ops.add(new KofStoreLocal(INT, SLOT_SEARCH_A));
-        ops.add(new KofJump(loop));
-        ops.add(new KofLabel(miss));
-        ops.add(new KofLoadLocal(INT, SLOT_SEARCH_A));
-        ops.add(KofLoadLiteral.ofInt(1));
-        ops.add(new KofBinary(KofBinaryOp.ADD, INT));
-        ops.add(new KofStoreLocal(INT, SLOT_SEARCH_A));
-        ops.add(new KofJump(loop));
-        ops.add(new KofLabel(done));
-        ops.add(new KofLoadLocal(listType, 1));
-        ops.add(new KofReturn(listType));
-        List<IRLocalVariable> locals = localsFor(
-                new IRLocalVariable(1, "list", listType),
-                new IRLocalVariable(SLOT_SEARCH_A, "start", INT),
-                new IRLocalVariable(SLOT_SEARCH_B, "end", INT));
-        return new IRMethod("findAll", new Type.NullableType(listType), List.of(STR),
-                AccessFlags.PUBLIC | AccessFlags.STATIC, List.of(),
-                List.of(new IRBasicBlock(0, ops)), locals);
-    }
-
-    /**
-     * {@code replace(String, String): String} — substituição LITERAL (§7):
-     * cada ocorrência vira o texto de reposição; o sujeito sem casamento
-     * volta inalterado. Locais: 1 = resultado, 2 = reposição, A = início,
-     * B = fim, 5 = copyFrom, 6 = resultado não — 1 e 6 são o MESMO resultado:
-     * layout final: 1 = reposição, A = início, B = fim/copyFrom, 5 = resultado.
-     */
-    private IRMethod replace() {
-        LabelId loop = LabelId.create();
-        LabelId tryOne = LabelId.create();
-        LabelId hit = LabelId.create();
-        LabelId miss = LabelId.create();
-        LabelId emptyAdv = LabelId.create();
-        LabelId nonEmpty = LabelId.create();
-        LabelId tail = LabelId.create();
-        List<KofOperation> ops = new ArrayList<>();
-        emitBudget(ops);
-        emitKeysArray(ops, SLOT_KEYS);
-        ops.add(KofLoadLiteral.ofString(""));
-        ops.add(new KofStoreLocal(STR, 5));
-        ops.add(KofLoadLiteral.ofInt(0));
-        ops.add(new KofStoreLocal(INT, SLOT_SEARCH_A));
-        ops.add(KofLoadLiteral.ofInt(0));
-        ops.add(new KofStoreLocal(INT, SLOT_SEARCH_B));
-        ops.add(KofLoadLiteral.ofInt(0));
-        ops.add(new KofStoreLocal(INT, 6));
-        ops.add(new KofLabel(loop));
-        ops.add(new KofLoadLocal(INT, SLOT_SEARCH_A));
-        ops.add(new KofLoadLocal(STR, SLOT_S));
-        ops.add(new KofCall(STR, "length", List.of(), INT, KofCallKind.INSTANCE));
-        ops.add(new KofConditionalJump(KofComparison.GT, INT, tail, tryOne));
-        ops.add(new KofLabel(tryOne));
-        List<Type> params = pushChainArgs(ops, SLOT_KEYS, SLOT_SEARCH_A);
-        ops.add(new KofCall(self, entryFree, params, INT, KofCallKind.STATIC));
-        ops.add(new KofStoreLocal(INT, SLOT_SEARCH_B));
-        ops.add(new KofLoadLocal(INT, SLOT_SEARCH_B));
-        ops.add(KofLoadLiteral.ofInt(-1));
-        ops.add(new KofConditionalJump(KofComparison.EQ, INT, miss, hit));
-        ops.add(new KofLabel(hit));
-        // result(5) = result(5) + s.substring(copyFrom(B), start(A)) + replacement(2)
-        ops.add(new KofLoadLocal(STR, 5));
-        ops.add(new KofLoadLocal(STR, SLOT_S));
-        ops.add(new KofLoadLocal(INT, 6));
-        ops.add(new KofLoadLocal(INT, SLOT_SEARCH_A));
-        ops.add(new KofCall(STR, "substring", List.of(INT, INT), STR, KofCallKind.INSTANCE));
-        ops.add(new KofCall(STR, "kof_string_concat", List.of(STR, STR), STR, KofCallKind.FUNCTION));
-        ops.add(new KofLoadLocal(STR, 1));
-        ops.add(new KofCall(STR, "kof_string_concat", List.of(STR, STR), STR, KofCallKind.FUNCTION));
-        ops.add(new KofStoreLocal(STR, 5));
-        // copyFrom(6) = end da ocorrência
-        ops.add(new KofLoadLocal(INT, SLOT_SEARCH_B));
-        ops.add(new KofStoreLocal(INT, 6));
-        ops.add(new KofLoadLocal(INT, SLOT_SEARCH_B));
-        ops.add(new KofLoadLocal(INT, SLOT_SEARCH_A));
-        ops.add(new KofConditionalJump(KofComparison.GT, INT, nonEmpty, emptyAdv));
-        ops.add(new KofLabel(emptyAdv));
-        ops.add(new KofLoadLocal(INT, SLOT_SEARCH_A));
-        ops.add(KofLoadLiteral.ofInt(1));
-        ops.add(new KofBinary(KofBinaryOp.ADD, INT));
-        ops.add(new KofStoreLocal(INT, SLOT_SEARCH_A));
-        ops.add(new KofJump(loop));
-        ops.add(new KofLabel(nonEmpty));
-        ops.add(new KofLoadLocal(INT, SLOT_SEARCH_B));
-        ops.add(KofLoadLiteral.ofInt(1));
-        ops.add(new KofBinary(KofBinaryOp.ADD, INT));
-        ops.add(new KofStoreLocal(INT, SLOT_SEARCH_A));
-        ops.add(new KofJump(loop));
-        ops.add(new KofLabel(miss));
-        ops.add(new KofLoadLocal(INT, SLOT_SEARCH_A));
-        ops.add(KofLoadLiteral.ofInt(1));
-        ops.add(new KofBinary(KofBinaryOp.ADD, INT));
-        ops.add(new KofStoreLocal(INT, SLOT_SEARCH_A));
-        ops.add(new KofJump(loop));
-        ops.add(new KofLabel(tail));
-        // result(5) = result(5) + s.substring(copyFrom(6), len)
-        ops.add(new KofLoadLocal(STR, 5));
-        ops.add(new KofLoadLocal(STR, SLOT_S));
-        ops.add(new KofLoadLocal(INT, 6));
-        ops.add(new KofLoadLocal(STR, SLOT_S));
-        ops.add(new KofCall(STR, "length", List.of(), INT, KofCallKind.INSTANCE));
-        ops.add(new KofCall(STR, "substring", List.of(INT, INT), STR, KofCallKind.INSTANCE));
-        ops.add(new KofCall(STR, "kof_string_concat", List.of(STR, STR), STR, KofCallKind.FUNCTION));
-        ops.add(new KofReturn(STR));
-        List<IRLocalVariable> locals = localsFor(
-                new IRLocalVariable(1, "replacement", STR),
-                new IRLocalVariable(SLOT_SEARCH_A, "start", INT),
-                new IRLocalVariable(SLOT_SEARCH_B, "end", INT),
-                new IRLocalVariable(5, "result", STR),
-                new IRLocalVariable(6, "copyFrom", INT));
-        return new IRMethod("replace", STR, List.of(STR, STR),
-                AccessFlags.PUBLIC | AccessFlags.STATIC, List.of(),
-                List.of(new IRBasicBlock(0, ops)), locals);
-    }
-
     private static IRLocalVariable keysLocal() {
         return new IRLocalVariable(SLOT_KEYS, "keys", new Type.ArrayType(STR));
     }
 
     /** Os locais comuns (s + extras) + o canal de chaves quando há capturas. */
-    private List<IRLocalVariable> localsFor(IRLocalVariable... extra) {
+    List<IRLocalVariable> localsFor(IRLocalVariable... extra) {
         List<IRLocalVariable> locals = new ArrayList<>(List.of(
                 new IRLocalVariable(SLOT_S, "s", STR)));
         if (!captures.isEmpty()) locals.add(keysLocal());

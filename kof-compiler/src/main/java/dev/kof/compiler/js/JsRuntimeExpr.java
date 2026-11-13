@@ -61,27 +61,27 @@ final class JsRuntimeExpr {
                     }
                     """)
             + fn("""
-                    function kofExprIsLetter(cp) {
+                    export function kofExprIsLetter(cp) {
                         return kofExprInRange(KOF_EXPR_LETTER, cp);
                     }
                     """)
             + fn("""
-                    function kofExprIsDigit(cp) {
+                    export function kofExprIsDigit(cp) {
                         return kofExprInRange(KOF_EXPR_DIGIT, cp);
                     }
                     """)
             + fn("""
-                    function kofExprIsSpace(cp) {
+                    export function kofExprIsSpace(cp) {
                         return kofExprInRange(KOF_EXPR_SPACE, cp);
                     }
                     """)
             + fn("""
-                    function kofExprIsWord(cp) {
+                    export function kofExprIsWord(cp) {
                         return kofExprIsLetter(cp) || kofExprIsDigit(cp) || cp === 0x5f;
                     }
                     """)
             + fn("""
-                    function kofExprIsHex(cp) {
+                    export function kofExprIsHex(cp) {
                         return (cp >= 0x30 && cp <= 0x39) || (cp >= 0x41 && cp <= 0x46)
                                 || (cp >= 0x61 && cp <= 0x66);
                     }
