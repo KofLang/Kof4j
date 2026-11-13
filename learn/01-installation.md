@@ -161,7 +161,7 @@ The chain `intention → Kof → IR → backend → runtime` is the same for all
 | Command | Description |
 |---------|-----------|
 | `kof run <f.kf> [--target ...] [args]` | compiles and executes |
-| `kof build <dir|file.kf> [--target ...]` | compiles to the target |
+| `kof build <dir\|file.kf> [--target ...]` | compiles to the target |
 | `kof serve <f.kf>` | starts a web app (`web.app()`) |
 | `kof test <f.kf\|dir>` | runs tests |
 | `kof check <f.kf\|dir> [--target <t>]` | type-check without emitting (target-aware gaps) |
