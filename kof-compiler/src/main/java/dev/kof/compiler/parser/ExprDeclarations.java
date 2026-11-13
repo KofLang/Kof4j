@@ -171,6 +171,12 @@ final class ExprDeclarations {
             if (next == TokenType.LBRACE || next == TokenType.LPAREN) {
                 return ContextualPosition.QUANTIFIER;
             }
+            // Fatia 9 (§3.2 do plano: "um único átomo OU um bloco"): o
+            // quantificador sobre o ÁTOMO NU seguinte — `zero_or_more any` no
+            // logLine obrigatório. O parseBlock consome o átomo seguinte.
+            if (next == TokenType.IDENTIFIER) {
+                return ContextualPosition.QUANTIFIER;
+            }
             return ContextualPosition.OTHER_WORD;
         }
         if (c.equals("exactly") || c.equals("between")) {

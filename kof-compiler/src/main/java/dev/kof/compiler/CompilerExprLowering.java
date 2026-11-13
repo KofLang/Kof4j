@@ -143,18 +143,10 @@ final class CompilerExprLowering {
         switch (atom.kind()) {
             case "literal", "start", "end" -> { return true; }
             case "one_of", "none_of" -> {
-                // §3.1: membership over one-character literals — anything longer
-                // is not a membership atom and says so.
-                for (String v : atom.values()) {
-                    if (KofExprShape.codePointCount(v) != 1) {
-                        return refuse("EXPR005", atom.position(), "'" + atom.kind() + "' takes text literals of "
-                                + "exactly one character, and \"" + v + "\" is not one: use a sequence of "
-                                + "literals for a multi-character match");
-                    }
-                }
+                // §3.4 (o logLine obrigatório): as alternativas são literais de
+                // QUALQUER tamanho — a primeira que casa no ponto vence.
                 if (atom.values().isEmpty()) {
-                    return refuse("EXPR005", atom.position(), "'" + atom.kind() + "' needs at least one "
-                            + "one-character literal");
+                    return refuse("EXPR005", atom.position(), "'" + atom.kind() + "' needs at least one literal");
                 }
                 return true;
             }

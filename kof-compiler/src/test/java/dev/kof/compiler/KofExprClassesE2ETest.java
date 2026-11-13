@@ -180,12 +180,19 @@ class KofExprClassesE2ETest {
     }
 
     @Test
-    void oneOfWithAMultiCharacterLiteralIsRefused() throws Exception {
-        String d = diagnostics("""
-                expr bad { one_of("ab", "c") }
-                main() { println(bad.matches("a")) }
-                """);
-        assertTrue(d.contains("EXPR005") && d.contains("exactly one character"), () -> d);
+    void oneOfTakesMultiCharacterAlternatives() throws Exception {
+        // §3.4 (o logLine obrigatório): as alternativas do one_of são literais
+        // de qualquer tamanho — a primeira que casa vence (determinístico)
+        String src = """
+                expr tag { one_of("ab", "c") }
+
+                main() {
+                    println(tag.matches("ab"))
+                    println(tag.matches("c"))
+                    println(tag.matches("a"))
+                }
+                """;
+        assertEquals("true\ntrue\nfalse\n", runJvm("multi", src));
     }
 
     @Test

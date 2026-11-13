@@ -53,32 +53,55 @@ final class KofExprAtomStates {
                 ops.add(new KofLabel(ok));
             }
             case "one_of", "none_of" -> {
-                // membership por PONTO DE CÓDIGO: lê o escalar em pos, guarda e
-                // compara contra o ponto único de cada literal. `one_of` casa
-                // quando ALGUM bate; `none_of` quando NENHUM bate.
-                KofExprCodePoint.emitRead(ops, L.tempSlot());
-                ops.add(new KofStoreLocal(INT, L.tempSlot()));
-                LabelId hit = LabelId.create();
-                for (String v : atom.values()) {
-                    LabelId next = LabelId.create();
-                    ops.add(new KofLoadLocal(INT, L.tempSlot()));
-                    ops.add(KofLoadLiteral.ofInt(v.codePointAt(0)));
-                    ops.add(new KofConditionalJump(KofComparison.EQ, INT, hit, next));
-                    ops.add(new KofLabel(next));
-                }
-                // nenhum bateu
+                // §3.4 (o logLine obrigatório): as alternativas são LITERAIS de
+                // qualquer tamanho — primeira-que-casa vence (determinístico:
+                // valores em ordem, cada uma avançando o PRÓPRIO comprimento).
+                // `none_of` falha se QUALQUER valor casa no ponto; senão avança
+                // UM caractere (§3.1: a complementar é de um caractere).
                 if (atom.kind().equals("one_of")) {
+                    List<LabelId> hits = new ArrayList<>();
+                    List<Integer> lens = new ArrayList<>();
+                    for (String v : atom.values()) {
+                        hits.add(LabelId.create());
+                        lens.add(v.length());
+                    }
+                    for (int i = 0; i < atom.values().size(); i++) {
+                        LabelId next = LabelId.create();
+                        String v = atom.values().get(i);
+                        ops.add(new KofLoadLocal(STR, SLOT_S));
+                        ops.add(KofLoadLiteral.ofString(v));
+                        ops.add(new KofLoadLocal(INT, SLOT_POS));
+                        ops.add(new KofCall(STR, "startsWith", List.of(STR, INT), BOOL, KofCallKind.INSTANCE));
+                        ops.add(KofLoadLiteral.ofBool(true));
+                        ops.add(new KofConditionalJump(KofComparison.EQ, BOOL, hits.get(i), next));
+                        ops.add(new KofLabel(next));
+                    }
                     ops.add(new KofJump(fail));
+                    for (int i = 0; i < atom.values().size(); i++) {
+                        ops.add(new KofLabel(hits.get(i)));
+                        ops.add(new KofLoadLocal(INT, SLOT_POS));
+                        ops.add(KofLoadLiteral.ofInt(lens.get(i)));
+                        ops.add(new KofBinary(KofBinaryOp.ADD, INT));
+                        ops.add(new KofStoreLocal(INT, SLOT_POS));
+                        ops.add(new KofJump(doneJoin));
+                    }
                 } else {
-                    KofExprCodePoint.emitAdvance(ops, L.tempSlot());
+                    for (String v : atom.values()) {
+                        LabelId next = LabelId.create();
+                        ops.add(new KofLoadLocal(STR, SLOT_S));
+                        ops.add(KofLoadLiteral.ofString(v));
+                        ops.add(new KofLoadLocal(INT, SLOT_POS));
+                        ops.add(new KofCall(STR, "startsWith", List.of(STR, INT), BOOL, KofCallKind.INSTANCE));
+                        ops.add(KofLoadLiteral.ofBool(true));
+                        ops.add(new KofConditionalJump(KofComparison.EQ, BOOL, fail, next));
+                        ops.add(new KofLabel(next));
+                    }
+                    // nenhum bateu: avança UM caractere
+                    ops.add(new KofLoadLocal(INT, SLOT_POS));
+                    ops.add(KofLoadLiteral.ofInt(1));
+                    ops.add(new KofBinary(KofBinaryOp.ADD, INT));
+                    ops.add(new KofStoreLocal(INT, SLOT_POS));
                     ops.add(new KofJump(doneJoin));
-                }
-                ops.add(new KofLabel(hit));
-                if (atom.kind().equals("one_of")) {
-                    KofExprCodePoint.emitAdvance(ops, L.tempSlot());
-                    ops.add(new KofJump(doneJoin));
-                } else {
-                    ops.add(new KofJump(fail));
                 }
                 ops.add(new KofLabel(doneJoin));
             }
