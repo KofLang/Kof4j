@@ -194,22 +194,60 @@ class KofExprSearchE2ETest {
     }
 
     @Test
-    void aLiteralOnlyPatternStillRefusesOnJsWithExpr004() throws Exception {
-        // slice 7's finding: the MATCHER (not just the classes) does not lower
-        // on JS — the gate is at the DECLARATION, so a literal-only pattern gets
-        // the honest EXPR004 instead of the internal COMP002.
-        //
-        // slice 6 (13/11): on the native (x86-64 AND the cross riscv64/
-        // aarch64) the SAME compiled chain runs — the backend is a 1:1
-        // op→instruction emitter; the proof is the native execution in
-        // KofExprNativeE2ETest and KofExprCrossE2ETest.
-        String src = """
-                expr pick { either { "cat" or "dog" } }
-                main() { println(pick.matches("cat")) }
+    void searchFacesAnswerIdenticallyOnJsWithTheJvmOracle() throws Exception {
+        // slice 7 CLOSED (14/11): the JS artifact answers the search faces
+        // byte-identically to the JVM oracle — the loop-state restructure
+        // (three single-if states) + the class-predicate fix + the predicate
+        // routing made every shape reconstruct. The gate is GONE.
+        String src = WORD + """
+                main() {
+                    println(w.find("42 kof"))
+                    var xs = w.findAll("um dois")
+                    if (xs != null) {
+                        var a = xs[0]
+                        if (a != null) { println(a) }
+                    }
+                    println(w.replace("um dois", "voce"))
+                }
                 """;
-        String js = diagnostics(src, Target.JS);
-        assertTrue(js.contains("EXPR004") && js.contains("JS"), () -> js);
-        assertTrue(js.contains("structured-flow"), () -> js);
+        String expected = runJvm(src);
+        assertEquals(expected, runNode(src),
+                "the search faces on the JS artifact vs the JVM oracle");
+    }
+
+    private String runJvm(String src) throws Exception {
+        Path file = tmp.resolve("search-js-jvm").resolve("Main.kf");
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, src);
+        Path out = tmp.resolve("search-js-jvm-out");
+        CompilationResult r = new CompilerDriver().compile(file, out, Target.JVM);
+        assertTrue(r.success(), "jvm: " + r.diagnostics().getDiagnostics());
+        PrintStream old = System.out;
+        ByteArrayOutputStream buf = new ByteArrayOutputStream();
+        System.setOut(new PrintStream(buf, true, StandardCharsets.UTF_8));
+        try (URLClassLoader cl = new URLClassLoader(new URL[]{out.toUri().toURL()}, getClass().getClassLoader())) {
+            Class.forName("Default.Main", true, cl).getMethod("main", String[].class).invoke(null, (Object) new String[0]);
+        } finally {
+            System.setOut(old);
+        }
+        return buf.toString(StandardCharsets.UTF_8);
+    }
+
+    private String runNode(String src) throws Exception {
+        Path file = tmp.resolve("search-js").resolve("Main.kf");
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, src);
+        Path out = tmp.resolve("search-js-out");
+        CompilationResult r = new CompilerDriver().compile(file, out, Target.JS);
+        assertTrue(r.success(), "js: " + r.diagnostics().getDiagnostics());
+        var pb = new ProcessBuilder("node", out.resolve("Default.mjs").toString());
+        pb.redirectErrorStream(true);
+        var p = pb.start();
+        String outText = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                .replace("\r\n", "\n").stripTrailing();
+        p.waitFor();
+        assertEquals(0, p.exitValue(), "the JS run must exit clean: " + outText);
+        return outText + "\n";
     }
 
     @Test

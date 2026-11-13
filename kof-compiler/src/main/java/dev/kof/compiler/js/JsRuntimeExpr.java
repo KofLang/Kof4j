@@ -47,12 +47,31 @@ final class JsRuntimeExpr {
             + "// binary search over the hex pairs, the same table the JVM face's\n"
             + "// Character asserts (KofExprClassesE2ETest pins both on U+1C89).\n"
             + fn("""
+                    const kofExprRangeCache = new Map();
+                    function kofExprParsed(ranges) {
+                        let t = kofExprRangeCache.get(ranges);
+                        if (!t) {
+                            t = [];
+                            for (const part of ranges.split(',')) {
+                                const se = part.split('-');
+                                t.push(parseInt(se[0], 16),
+                                    parseInt(se.length === 2 ? se[1] : se[0], 16));
+                            }
+                            kofExprRangeCache.set(ranges, t);
+                        }
+                        return t;
+                    }
                     function kofExprInRange(ranges, cp) {
-                        let lo = 0, hi = (ranges.length / 2) | 0;
+                        // a codificação é "lo-hi,lo-hi,…" (a MESMA tabela pinada
+                        // que o containsRange da JVM procura) — o indexar-o-como-
+                        // array-de-chars lia UM dígito e o parseInt sobre '-'/','
+                        // dava NaN → true aleatório para qualquer cp.
+                        const t = kofExprParsed(ranges);
+                        let lo = 0, hi = t.length / 2;
                         while (lo < hi) {
                             const mid = (lo + hi) >> 1;
-                            const start = parseInt(ranges[mid * 2], 16);
-                            const end = parseInt(ranges[mid * 2 + 1], 16);
+                            const start = t[mid * 2];
+                            const end = t[mid * 2 + 1];
                             if (cp < start) hi = mid;
                             else if (cp > end) lo = mid + 1;
                             else return true;

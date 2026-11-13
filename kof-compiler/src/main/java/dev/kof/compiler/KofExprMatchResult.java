@@ -81,29 +81,11 @@ final class KofExprMatchResult {
         // arrays/records), então a MESMA cadeia compilada roda no nativo sem
         // nenhum trabalho de parser (a diferença do JS). O runtime traz os
         // predicados de classe (RuntimeExpr) e a leitura de ponto de código.
-        Target t = driver.target;
-        if (!driver.interpreting && t == Target.JS) {
-            // Fatia 7 RE-MEDIDA (13/11): o front NÃO é do tamanho do
-            // JsMethodParser — é o ESTADO DE LAÇO do quantificador. Medido no
-            // artefato gerado: a reconstrução estruturada do JS produz o
-            // laço com constantes roubadas de loads vizinhos (`c0 < 4` onde o
-            // max de `optional` é 1), a queda do laço vira `return -1` (deve
-            // seguir a cauda) e o ramo absent se perde — respostas ERRADAS em
-            // silêncio. As formas sem laço (literal, either) rodam
-            // byte-idênticas ao oráculo JVM sob node (medido no probe). O
-            // gate fica até o estado de laço reconstruir CERTO.
-            SourcePosition p = ex.position();
-            if (driver.currentDiagnostics != null) {
-                driver.currentDiagnostics.error(p != null ? p.file() : "",
-                        p != null ? p.line() : 0, p != null ? p.column() : 0,
-                        p != null ? p.length() : 0,
-                        "the Kof.expr matcher is not on the JS target yet: "
-                                + "the quantifier loop-state does not reconstruct on the JS "
-                                + "structured-flow parser yet (the literals and the alternation "
-                                + "now lower and answer identically to the JVM) (EXPR004)", "EXPR004");
-            }
-            return List.of();
-        }
+        // Fatia 7 (14/11): o gate JS FECHOU — o estado de laço reestruturado
+        // em três estados de if único + o predicado de classe reparado
+        // (kofExprInRange lia a tabela como array-de-chars) fizeram o corpus
+        // §3.4 inteiro responder byte-idêntico ao oráculo JVM no artefato
+        // node (as 7 faces obrigatórias + os quantificadores/capturas/busca).
         String internalName = driver.toInternalName(packageName, ex.name());
         Type self = new Type.ClassType(packageName, ex.name(), List.of());
         CompilerExprLowering lowering = new CompilerExprLowering(driver, self, 0, List.of());

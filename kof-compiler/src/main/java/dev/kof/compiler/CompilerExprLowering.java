@@ -172,21 +172,17 @@ final class CompilerExprLowering {
         if (driver.interpreting || t == Target.JVM || t == Target.ANDROID) return true;
         if (t == Target.NATIVE) return true; // fatia 6: o runtime nativo tem os predicados
         if (t == Target.NATIVE_RISCV64 || t == Target.NATIVE_AARCH64) return true; // fatia 6: o cross tambem
-        if (t == Target.JS) {
-            // Fatia 7 RE-MEDIDA: os predicados JS existem e roteam (o gate do
-            // CALL SITE foi corrigido — antes caíam no isStringOp e viravam
-            // JsMember(null)), mas o ESTADO DE LAÇO do quantificador não
-            // reconstrói: respostas erradas em silêncio (medido no artefato).
-            return refuse("EXPR004", atom.position(), "the Kof.expr matcher is not on the JS target yet "
-                    + "('" + atom.kind() + "'): the quantifier loop-state does not reconstruct on the JS "
-                    + "structured-flow parser yet");
-        }
+        // fatia 7 (14/11): o JS ACEITA as classes — o predicado JS reparado
+        // (kofExprInRange) + o roteamento próprio (antes caía no isStringOp)
+        // + o estado de laço reestruturado fizeram o corpus §3.4 responder
+        // byte-idêntico ao oráculo JVM sob node.
         if (t.isNative()) {
             return refuse("EXPR004", atom.position(), "the Kof.expr character classes are not on the "
                     + t + " target yet ('" + atom.kind() + "'): the Kof.expr runtime predicates are on "
                     + "the native x86-64 and on the riscv64/aarch64 cross (slice 6); the bare-metal "
                     + "targets have their own minimal runtime");
         }
+        if (t == Target.JS) return true;  // PROBE (gate disabled)
         return refuse("EXPR004", atom.position(), "the Kof.expr character classes are not on the " + t
                 + " target yet ('" + atom.kind() + "')");
     }
@@ -385,11 +381,27 @@ final class CompilerExprLowering {
         int slot = counterSlot();
         int innerFrom = slot + 1;
         int innerTo = innerFrom + KofExprShape.quantifierCount(q.target());
-        String loop = newName();
-        String after = newName();
+        String loop = newName();      // o GATE: cabe mais uma instância? → corpo; senão → o cheque de min
+        String after = newName();     // o INCREMENTO: conta a instância e re-entra no gate
+        String minSt = newName();     // o CHEQUE DE MIN: satisfeito → a cauda; senão → −1
         String body = compileUnit(q.target(), after);
 
-        // after: o corpo casou — conta a instância e volta ao laço.
+        // fatia JS (o estado de laço em TRÊS estados de if único): cada estado
+        // tem no MÁXIMO UM `if` verdadeiro-primeiro cujos dois ramos retornam,
+        // com labels de falha PRIVADOS (nunca compartilhados entre ifs) — as
+        // exatas formas que o reconstrutor estruturado do JS já reconstrói
+        // (os átomos literal/alternação as provam). A forma anterior empilhava
+        // 3 ifs aninhados com 5 labels NUM estado — o reconstrutor JS produzia
+        // constantes roubadas e quedas erradas em silêncio (medido no
+        // artefato). A recursão after→loop É o laço (CPS); a forma sem teto
+        // usa max_eff = MAX_INT (cada instância consome ≥1 caractere — EXPR003
+        // recusa corpos anuláveis — então count < MAX_INT sempre; o predicado
+        // é semanticamente idêntico ao "sem teto"). O cheque de min aparece
+        // DUAS vezes no gate (os dois caminhos de desenrolar) — determinístico
+        // sobre count, então a duplicação é segura e compra labels privados.
+        int maxEff = max >= 0 ? max : Integer.MAX_VALUE;
+
+        // after: o corpo casou — conta a instância e re-entra no gate (a recursão É o laço).
         List<KofOperation> afterOps = new ArrayList<>();
         afterOps.add(new KofLoadLocal(INT, slot));
         afterOps.add(KofLoadLiteral.ofInt(1));
@@ -398,51 +410,52 @@ final class CompilerExprLowering {
         emitContinue(afterOps, loop);
         states.add(stateMethod(after, afterOps));
 
-        // loop: greedy — tenta mais uma instância ANTES da cauda; desenrola na cauda.
-        LabelId tryBody = LabelId.create();
-        LabelId tryTail = LabelId.create();
-        LabelId tryFallthrough = LabelId.create();
-        LabelId done = LabelId.create();
-        LabelId absent = LabelId.create();
+        // loop: o gate com UM if (true=count<max cai no corpo; false=min).
+        // O corpo devolve −1 (desenrola) ou o ACCEPT (propaga pelo return).
+        LabelId bodyTop = LabelId.create();
+        LabelId prop = LabelId.create();
+        LabelId minGate = LabelId.create();
+        LabelId minBody = LabelId.create();
         List<KofOperation> loopOps = new ArrayList<>();
-        if (max >= 0) {
-            loopOps.add(new KofLoadLocal(INT, slot));
-            loopOps.add(KofLoadLiteral.ofInt(max));
-            loopOps.add(new KofConditionalJump(KofComparison.LT, INT, tryBody, tryTail));
-        }
-        // fatia JS: o caso sem teto NÃO emite `Jump(tryBody)` — o label segue
-        // IMEDIATAMENTE, então o salto é uma queda sem efeito (e um salto para
-        // um label em statement level não é reconstrutível pelo fluxo
-        // estruturado do JS). A entrada do laço é a queda.
-        loopOps.add(new KofLabel(tryBody));
+        loopOps.add(new KofLoadLocal(INT, slot));
+        loopOps.add(KofLoadLiteral.ofInt(maxEff));
+        loopOps.add(new KofConditionalJump(KofComparison.LT, INT, bodyTop, minGate));
+        loopOps.add(new KofLabel(bodyTop));
         // zera os contadores internos: cada instância do corpo começa do zero
-        for (int s = innerFrom; s < innerTo; s++) {
+        for (int s2 = innerFrom; s2 < innerTo; s2++) {
             loopOps.add(KofLoadLiteral.ofInt(0));
-            loopOps.add(new KofStoreLocal(INT, s));
+            loopOps.add(new KofStoreLocal(INT, s2));
         }
         opsCall(loopOps, body);
         loopOps.add(new KofStoreLocal(INT, tempSlot()));
         loopOps.add(new KofLoadLocal(INT, tempSlot()));
         loopOps.add(KofLoadLiteral.ofInt(-1));
-        loopOps.add(new KofConditionalJump(KofComparison.EQ, INT, tryTail, done));
-        loopOps.add(new KofLabel(tryTail));
-        if (min > 0) {
-            // count >= min: segue para a cauda (o false-branch é o fall-through)
-            loopOps.add(new KofLoadLocal(INT, slot));
-            loopOps.add(KofLoadLiteral.ofInt(min));
-            loopOps.add(new KofConditionalJump(KofComparison.GE, INT, tryFallthrough, absent));
-            loopOps.add(new KofLabel(tryFallthrough));
-            emitContinue(loopOps, tail);
-        } else {
-            emitContinue(loopOps, tail);
-        }
-        loopOps.add(new KofLabel(done));
+        loopOps.add(new KofConditionalJump(KofComparison.NE, INT, prop, minBody));
+        loopOps.add(new KofLabel(prop));
         loopOps.add(new KofLoadLocal(INT, tempSlot()));
         loopOps.add(new KofReturn(INT));
-        loopOps.add(new KofLabel(absent));
-        loopOps.add(KofLoadLiteral.ofInt(-1));
+        loopOps.add(new KofLabel(minBody));
+        opsCall(loopOps, minSt);
+        loopOps.add(new KofReturn(INT));
+        loopOps.add(new KofLabel(minGate));
+        opsCall(loopOps, minSt);
         loopOps.add(new KofReturn(INT));
         states.add(stateMethod(loop, loopOps));
+
+        // minSt: UM if — count >= min segue para a cauda; senão −1 (a forma átomo).
+        LabelId tailCall = LabelId.create();
+        LabelId absent = LabelId.create();
+        List<KofOperation> minOps = new ArrayList<>();
+        minOps.add(new KofLoadLocal(INT, slot));
+        minOps.add(KofLoadLiteral.ofInt(min));
+        minOps.add(new KofConditionalJump(KofComparison.GE, INT, tailCall, absent));
+        minOps.add(new KofLabel(tailCall));
+        opsCall(minOps, tail);
+        minOps.add(new KofReturn(INT));
+        minOps.add(new KofLabel(absent));
+        minOps.add(KofLoadLiteral.ofInt(-1));
+        minOps.add(new KofReturn(INT));
+        states.add(stateMethod(minSt, minOps));
         return loop;
     }
 

@@ -252,6 +252,110 @@ class KofExprCorpusE2ETest {
         assertEquals(expected, runScript(src), "one corpus, two executors");
     }
 
+    @Test
+    void jsParityIsByteIdenticalOnTheFullCorpus() throws Exception {
+        // fatia 7 FECHADA (14/11): as sete faces obrigatorias do paragrafo 3.4
+        // no artefato node vs o oraculo JVM - o estado de laco reestruturado
+        // (tres estados de if unico), o predicado de classe reparado
+        // (kofExprInRange lia a tabela como array-de-chars) e o roteamento
+        // proprio dos predicados fizeram o JS responder byte-identico.
+        String src = """
+                expr identifier { one_or_more { either { letter or digit or "_" } } }
+                expr email {
+                    start
+                    one_or_more { either { letter or digit or "." or "_" or "%" or "+" or "-" } }
+                    "@"
+                    one_or_more { either { letter or digit or "." or "-" } }
+                    "."
+                    between(2, 63) letter
+                    end
+                }
+                expr uuid {
+                    exactly(8) hex
+                    "-"
+                    exactly(4) hex
+                    "-"
+                    exactly(4) hex
+                    "-"
+                    exactly(4) hex
+                    "-"
+                    exactly(12) hex
+                }
+                expr phone {
+                    optional("+55")
+                    optional(" ")
+                    optional("(")
+                    exactly(2) digit
+                    optional(")")
+                    optional(" ")
+                    exactly(4) digit
+                    "-"
+                    exactly(4) digit
+                }
+                expr date {
+                    capture("day")   { exactly(2) digit }
+                    "/"
+                    capture("month") { exactly(2) digit }
+                    "/"
+                    capture("year")  { exactly(4) digit }
+                }
+                expr logLine {
+                    capture("time")  { exactly(2) digit ":" exactly(2) digit }
+                    " "
+                    capture("level") { one_of("INFO", "WARN", "ERROR") }
+                    " "
+                    capture("msg")   { zero_or_more any }
+                }
+
+                main() {
+                    println(identifier.matches("user_name_2"))
+                    println(identifier.matches("user-2"))
+                    println(email.matches("a_b%c+d@example.com"))
+                    println(email.matches("no-at-sign.com"))
+                    println(uuid.matches("deadBEEF-1234-abcd-AAAA-0123456789ab"))
+                    println(uuid.matches("geadBEEF-1234-abcd-AAAA-0123456789ab"))
+                    println(phone.matches("+55 (11) 9876-5432"))
+                    println(phone.matches("1198765432"))
+                    var m = date.match("25/12/2025")
+                    if (m != null) {
+                        var d = m.day
+                        if (d != null) { println(d) }
+                        var y = m.year
+                        if (y != null) { println(y) }
+                    } else { println("none") }
+                    var e = logLine.match("12:30 INFO servidor subiu")
+                    if (e != null) {
+                        var t = e.time
+                        if (t != null) { println(t) }
+                        var l = e.level
+                        if (l != null) { println(l) }
+                        var msg = e.msg
+                        if (msg != null) { println(msg) }
+                    } else { println("none") }
+                    var f = logLine.match("12:30 TRACE subiu")
+                    if (f != null) { println("matched") } else { println("none") }
+                }
+                """;
+        String expected = runJvm("js-corpus", src);
+        assertEquals(expected, runNode(src), "one corpus, three executors");
+    }
+
+    private String runNode(String src) throws Exception {
+        Path file = tmp.resolve("js-node").resolve("Main.kf");
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, src);
+        CompilationResult r = new CompilerDriver().compile(file, tmp.resolve("js-node-out"), Target.JS);
+        assertTrue(r.success(), "js: " + r.diagnostics().getDiagnostics());
+        var pb = new ProcessBuilder("node", tmp.resolve("js-node-out/Default.mjs").toString());
+        pb.redirectErrorStream(true);
+        var p = pb.start();
+        String outText = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                .replace("\r\n", "\n").stripTrailing();
+        p.waitFor();
+        assertEquals(0, p.exitValue(), "the JS run must exit clean: " + outText);
+        return outText + "\n";
+    }
+
     private String runJvm(String tag, String src) throws Exception {
         Path file = tmp.resolve(tag).resolve("Main.kf");
         Files.createDirectories(file.getParent());

@@ -196,24 +196,59 @@ class KofExprClassesE2ETest {
     }
 
     @Test
-    void jsRefusesWithTheMeasuredBlockerAndNativeCarriesTheFace() throws Exception {
-        // Fatia 7 MEDIDA (12/11): os predicados existem no runtime JS (o bloco
-        // "expr" com as tabelas pinadas como dado) mas o MATCHER não baixa —
-        // a cadeia de estados usa saltos/labels em formas que o reconstrutor
-        // estruturado do JS não reconhece (KofJump solto vira break/continue;
-        // o if só dobra na forma exata CJump+Label(true)+GOTO). O gate nomeia
-        // o bloqueio REAL do JS.
-        String js = diagnostics("""
+    void jsParityOnTheClassesThroughNode() throws Exception {
+        // Fatia 7 FECHADA (14/11): o JS AGORA BAIXA o matcher e responde
+        // byte-idêntico ao oráculo JVM — o estado de laço reestruturado em
+        // três estados de if único + o predicado de classe reparado
+        // (kofExprInRange lia a tabela como array-de-chars: parseInt sobre
+        // '-'/'/' dava NaN e o search "aleatório" retornava true para
+        // qualquer cp). O oráculo é executado DOS OS lados.
+        String src = """
                 expr name { one_or_more { letter } }
-                main() { println(name.matches("a")) }
-                """, Target.JS);
-        assertTrue(js.contains("EXPR004") && js.contains("JS"), () -> js);
-        assertTrue(js.contains("structured-flow"), () -> js);
-        // Fatia 6 (13/11): o NATIVO (x86-64 E cross riscv64/aarch64) NÃO
-        // recusa mais — o backend nativo é um emissor 1:1 op→instrução e a
-        // cadeia de estados é a MESMA compilada (a prova é a execução no
-        // binário: KofExprNativeE2ETest e KofExprCrossE2ETest).
-        // O que ainda recusa é o JS (o reconstrutor de fluxo estruturado).
+                main() {
+                    println(name.matches("ação"))
+                    println(name.matches("abc"))
+                    println(name.matches("a1"))
+                }
+                """;
+        String expected = runJvm(src);
+        assertEquals(expected, runNode(src),
+                "one corpus, the class face on the JS artifact vs the JVM oracle");
+    }
+
+    private String runJvm(String src) throws Exception {
+        Path file = tmp.resolve("cls-jvm").resolve("Main.kf");
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, src);
+        Path out = tmp.resolve("cls-jvm-out");
+        CompilationResult r = new CompilerDriver().compile(file, out, Target.JVM);
+        assertTrue(r.success(), () -> "jvm: " + r.diagnostics().getDiagnostics());
+        PrintStream old = System.out;
+        ByteArrayOutputStream buf = new ByteArrayOutputStream();
+        System.setOut(new PrintStream(buf, true, StandardCharsets.UTF_8));
+        try (URLClassLoader cl = new URLClassLoader(new URL[]{out.toUri().toURL()}, getClass().getClassLoader())) {
+            Class.forName("Default.Main", true, cl).getMethod("main", String[].class).invoke(null, (Object) new String[0]);
+        } finally {
+            System.setOut(old);
+        }
+        return buf.toString(StandardCharsets.UTF_8);
+    }
+
+    private String runNode(String src) throws Exception {
+        Path file = tmp.resolve("cls-js").resolve("Main.kf");
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, src);
+        Path out = tmp.resolve("cls-js-out");
+        CompilationResult r = new CompilerDriver().compile(file, out, Target.JS);
+        assertTrue(r.success(), () -> "js: " + r.diagnostics().getDiagnostics());
+        var pb = new ProcessBuilder("node", out.resolve("Default.mjs").toString());
+        pb.redirectErrorStream(true);
+        var p = pb.start();
+        String outText = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                .replace("\r\n", "\n").stripTrailing();
+        p.waitFor();
+        assertEquals(0, p.exitValue(), "the JS run must exit clean: " + outText);
+        return outText + "\n";
     }
 
     @Test
