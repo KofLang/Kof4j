@@ -292,13 +292,45 @@ class KofExprMatchE2ETest {
     }
 
     @Test
-    void referenceRefusesWithExpr001() throws Exception {
-        String d = diagnostics("""
+    void referenceComposesInlineAndTheBoundariesRefuse() throws Exception {
+        // a composição por referência (o §3.4 ipv4): o corpo do referido é
+        // IN LÍNEA no ponto da referência — outer casa "x.x". As fronteiras
+        // honestas: capturas (pertencem ao record do referido) e âncoras
+        // (SEM113 as liga ao sujeito inteiro) recusam nomeando a fronteira.
+        String src = """
                 expr outer { inner "." inner }
                 expr inner { "x" }
                 main() { println(outer.matches("x.x")) }
+                """;
+        Path file = tmp.resolve("ref").resolve("Main.kf");
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, src);
+        CompilationResult r = new CompilerDriver().compile(file, tmp.resolve("ref-out"), Target.JVM);
+        assertTrue(r.success(), "a referência compõe: " + r.diagnostics().getDiagnostics());
+        PrintStream oldOut = System.out;
+        ByteArrayOutputStream buf = new ByteArrayOutputStream();
+        System.setOut(new PrintStream(buf, true, StandardCharsets.UTF_8));
+        try (URLClassLoader cl = new URLClassLoader(new URL[]{tmp.resolve("ref-out").toUri().toURL()},
+                getClass().getClassLoader())) {
+            Class.forName("Default.Main", true, cl).getMethod("main", String[].class)
+                    .invoke(null, (Object) new String[0]);
+        } finally {
+            System.setOut(oldOut);
+        }
+        assertEquals("true\n", buf.toString(StandardCharsets.UTF_8));
+
+        String capturing = diagnostics("""
+                expr outer { cap "." }
+                expr cap { capture("v") { "x" } }
+                main() { println(outer.matches("x.")) }
                 """);
-        assertTrue(d.contains("EXPR001"), () -> d);
+        assertTrue(capturing.contains("EXPR005") && capturing.contains("captures"), () -> capturing);
+        String anchored = diagnostics("""
+                expr outer { head "." }
+                expr head { start "x" }
+                main() { println(outer.matches("x.")) }
+                """);
+        assertTrue(anchored.contains("EXPR005") && anchored.contains("anchor"), () -> anchored);
     }
 
     private String runJvm(String tag, String src) throws Exception {

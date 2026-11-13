@@ -183,8 +183,12 @@ class KofExprCorpusE2ETest {
     }
 
     @Test
-    void ipv4CompositionIsStillHonestlyRefused() throws Exception {
-        String d = diagnostics("""
+    void ipv4CompositionByReferenceMatchesAndRefusesTheWrongText() throws Exception {
+        // §3.4 (o exemplo ipv4): a composição por NOME — `octet` declarado
+        // uma vez e referenciado quatro vezes. O lowering inlínea o corpo do
+        // referido no ponto da referência (o analisador já garante SEM108
+        // desconhecido / SEM109 ciclo); a paridade é o oráculo JVM × Script.
+        String src = """
                 expr ipv4 {
                     octet
                     "."
@@ -199,9 +203,17 @@ class KofExprCorpusE2ETest {
                     between(1, 3) digit
                 }
 
-                main() { println(ipv4.matches("1.2.3.4")) }
-                """);
-        assertTrue(d.contains("EXPR001"), () -> d);
+                main() {
+                    println(ipv4.matches("1.2.3.4"))
+                    println(ipv4.matches("192.168.0.255"))
+                    println(ipv4.matches("1.2.3"))
+                    println(ipv4.matches("1.2.3.4.5"))
+                    println(ipv4.matches("a.b.c.d"))
+                }
+                """;
+        String expected = "true\ntrue\nfalse\nfalse\nfalse\n";
+        assertEquals(expected, runJvm("ipv4", src));
+        assertEquals(expected, runScript(src), "one corpus, two executors");
     }
 
     @Test

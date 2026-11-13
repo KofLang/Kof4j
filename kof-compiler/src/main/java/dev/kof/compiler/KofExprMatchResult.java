@@ -1,5 +1,6 @@
 package dev.kof.compiler;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -105,19 +106,29 @@ final class KofExprMatchResult {
         }
         String internalName = driver.toInternalName(packageName, ex.name());
         Type self = new Type.ClassType(packageName, ex.name(), List.of());
-        List<String> captures = KofExprShape.captureNames(ex.body());
-        int slots = KofExprShape.quantifierCount(ex.body());
-        CompilerExprLowering lowering = new CompilerExprLowering(driver, self, slots, captures);
-        if (!lowering.validate(ex.body())) return List.of();
+        CompilerExprLowering lowering = new CompilerExprLowering(driver, self, 0, List.of());
+        // a composição por referência (o §3.4 ipv4): a árvore é RESOLVIDA
+        // primeiro — as referências viram os corpos dos referidos IN LÍNEA —
+        // e TUDO depois (capturas, contagem de quantificadores, validação,
+        // emissão) opera sobre a árvore expandida. Sem isso o contador do
+        // quantificador inlinado cai num slot não declarado (medido:
+        // VerifyError Bad local variable type em ipv4.kx3).
+        ExprNode body = KofExprReferences.resolveReferences(driver, lowering, ex.body(),
+                new ArrayDeque<>(List.of(ex.name())));
+        if (body == null) return List.of();
+        List<String> captures = KofExprShape.captureNames(body);
+        int slots = KofExprShape.quantifierCount(body);
+        lowering.resetSlotsTo(slots, captures);
+        if (!lowering.validate(body)) return List.of();
         String accept = lowering.acceptState();
         String freeAccept = lowering.freeAcceptState();
-        String entry = lowering.compileUnits(KofExprShape.unitsOf(ex.body()), accept);
+        String entry = lowering.compileUnits(KofExprShape.unitsOf(body), accept);
         // fatia 8: a SEGUNDA cadeia — as mesmas unidades terminando no aceite
         // livre (as buscas definem a ocorrência pelo [start, end)). O
         // alocador de slots RESETA: a mesma árvore tem de mapear os mesmos
         // quantificadores para os MESMOS slots nas duas cadeias.
         lowering.resetSlots();
-        String entryFree = lowering.compileUnits(KofExprShape.unitsOf(ex.body()), freeAccept);
+        String entryFree = lowering.compileUnits(KofExprShape.unitsOf(body), freeAccept);
         boolean capturing = !captures.isEmpty();
         Type recordType = capturing
                 ? new Type.ClassType(packageName, ex.name() + "Match", List.of()) : null;

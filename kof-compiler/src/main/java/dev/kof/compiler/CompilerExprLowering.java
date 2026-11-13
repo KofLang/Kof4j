@@ -56,9 +56,9 @@ final class CompilerExprLowering {
     private final CompilerDriver driver;
     private final Type self;
     /** Número TOTAL de ocorrências de quantificador = número de slots de contador. */
-    private final int slots;
+    private int slots;
     /** Os nomes de captura na ordem de declaração (fatia 5, Opção T). */
-    private final List<String> captures;
+    private List<String> captures;
     final List<IRMethod> states = new ArrayList<>();
     private int uid;
     private int nextSlot;
@@ -131,9 +131,11 @@ final class CompilerExprLowering {
             }
             return validate(c.body());
         }
-        if (node instanceof ExprReferenceNode r) {
-            return refuse("EXPR001", r.position(), "pattern reference '" + r.alias() + "' is not part of "
-                    + "Kof.expr slice 4 (… + groups + either): composition enters with a later slice");
+        if (node instanceof ExprReferenceNode) {
+            // inalcançável: resolveReferences expandiu as referências antes da
+            // validação (R6 defensivo — o lowered nunca vê um referido aqui)
+            return refuse("EXPR001", node.position(),
+                    "unresolved pattern reference reached validation");
         }
         return refuse("EXPR001", node.position(), "this pattern element is not part of Kof.expr slice 4 "
                 + "(… + groups + either): it enters with a later slice");
@@ -223,6 +225,8 @@ final class CompilerExprLowering {
         if (unit instanceof ExprCaptureNode cap) return captureStates(cap, tail);
         return tail; // validate() recusou: inalcançável
     }
+
+
 
     /**
      * Os dois estados de uma CAPTURA (fatia 5, Opção T): o estado de entrada
@@ -480,6 +484,17 @@ final class CompilerExprLowering {
      */
     void resetSlots() {
         nextSlot = 0;
+    }
+
+    /**
+     * A pós-resolução: a contagem de quantificadores (slots de contador) e a
+     * lista de capturas só são conhecidas DEPOIS de expandir as referências —
+     * o construtor rodou com 0/vazio. Os LOCAIS dos métodos ainda não foram
+     * emitidos (o stateMethod lê estes campos), então realocar aqui é seguro.
+     */
+    void resetSlotsTo(int slots, List<String> captures) {
+        this.slots = slots;
+        this.captures = List.copyOf(captures);
     }
 
     /** O slot do ARRAY de chaves compartilhado (as capturas moram NELE, não em locais). */

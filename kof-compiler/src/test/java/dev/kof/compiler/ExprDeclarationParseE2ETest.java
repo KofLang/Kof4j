@@ -180,15 +180,24 @@ class ExprDeclarationParseE2ETest {
             """, Target.JVM);
         assertTrue(cap.success(), () -> "a captura da fatia 5 compila: "
                 + diagnosticsOf(cap));
-        CompilationResult outOfSlice = parse("clean6", """
+        // a composição por referência (o §3.4 ipv4) agora compila — a face
+        // passa a travar os limites honestos: capturas recusam (EXPR005).
+        CompilationResult composedRef = parse("clean6", """
             expr ref { inner "." }
             expr inner { "x" }
             main() { println("ok") }
             """, Target.JVM);
-        assertFalse(outOfSlice.success(), () -> "fora do conjunto da fatia recusa: "
-                + diagnosticsOf(outOfSlice));
-        assertTrue(diagnosticsOf(outOfSlice).contains("EXPR001"),
-                () -> "a referência de composição nomeia a fatia: " + diagnosticsOf(outOfSlice));
+        assertTrue(composedRef.success(), () -> "a referência compõe: "
+                + diagnosticsOf(composedRef));
+        CompilationResult capturingRef = parse("clean7", """
+            expr ref { inner "." }
+            expr inner { capture("v") { "x" } }
+            main() { println("ok") }
+            """, Target.JVM);
+        assertFalse(capturingRef.success(), () -> "a referência com capturas recusa: "
+                + diagnosticsOf(capturingRef));
+        assertTrue(diagnosticsOf(capturingRef).contains("EXPR005"),
+                () -> "a fronteira de capturas nomeia o código: " + diagnosticsOf(capturingRef));
     }
 
     @Test
