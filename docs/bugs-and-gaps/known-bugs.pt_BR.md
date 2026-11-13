@@ -18411,23 +18411,13 @@ Observado: `Cannot resolve static method 'ofString' on imported class 'BodyPubli
 **Prova:** `DotDirectoryPackageE2ETest` **5/5** (RED-first: 4/5 falhavam com o exato `COMP001: /agent` antes da correção; as faces `.agent`, `sub/.agent`, `.hidden-x`, controle de diretório válido e controle sem `kof.toml`) + `InternalNameValidationTest` **4/4** (a regra de identificador e o gate defensivo). Não-regressão: `EnumPackagePlacementE2ETest` 7/7, `PackagesE2ETest` 12/12, `CompileForTestsSourcesModuleRootTest` 1/1, `OrmEntityPackageE2ETest` 2/2, `JsonDecodePackagedRecordE2ETest` 2/2.
 <!-- pt-switch --> **EN:** [§936 (en)](known-bugs.md#936--a-source-under-a-directory-whose-name-is-not-a-valid-identifier-agent-hidden-x-derives-an-invalid-package-so-the-jvm-target-fails-with-a-mislabeled-comp001-or-a-silent-classformaterror-github-999)
 
-## §1151 — `one_or_more { exactly(2) letter }` (um quantificador SEM TETO cujo corpo carrega um LIMITADO) responde ERRADO no interpreter Script enquanto o oráculo JVM está certo — divergência cross-executor na cadeia de estados compilada
+## §1151 — RETIRADA (14/11, mesmo dia): o registro de "o Script responde errado para `one_or_more { exactly(2) letter }`" era um FALSO POSITIVO do processo de arquivamento — o oráculo JVM nunca foi EXECUTADO
 
-**Status:** 🔴 ABERTO 14/11 (dona = 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a; medido no tip `f3cd5a2ca`, PROVADO pré-existente na árvore limpa — sem composição na fonte, então NÃO é a regressão da fatia de composição).
+**Status:** ✅ RETIRADA 14/11 — falso positivo, o oráculo executado responde byte-idêntico (dona = 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a). A linha arquivada em 14/11 afirmava que o oráculo JVM respondia `true`/`false` enquanto o Script respondia `false`/`false` — mas o lado da JVM tinha sido só COMPILADO, nunca executado. Executando o oráculo (as mesmas fontes, o artefato JVM), a resposta é **`false|false|true|true` — byte-idêntica ao Script**. A semântica está correta: `one_or_more { exactly(2) letter }` não pode casar o sujeito inteiro `ab cd` (o espaço quebra), e os dois executores dizem isso. O `true` falso no registro veio de uma expectativa não executada, não do motor.
 
-**MEDIDO** (interpreter Script vs o oráculo JVM, a mesma cadeia compilada):
-```kof
-expr row { one_or_more { exactly(2) letter } }
-main() {
-    println(row.matches("ab cd"))
-    println(row.matches("ab1"))
-}
-```
-JVM: `true` depois `false`. Script: `false` depois `false`. O grep da IR mostra a mesma cadeia de `KofConditionalJump`/`KofCall` que os dois executores rodam — a divergência está na EXECUÇÃO do interpretador para a forma de quantificador aninhado (os slots de contador internos sob as instâncias do laço externo), não no lowering.
+**Lição (processo):** uma linha de divergência cross-executor exige as DUAS saídas EXECUTADAS na mesma sessão — compile-only não é oráculo.
 
-**Nota de escopo:** NÃO causada pela fatia de composição — reproduzido na árvore limpa com o padrão puro (sem composição). Formas vizinhas (`one_or_more { letter }`, `between(2, 63) letter` no topo, `either { one_or_more { … } or one_or_more { … } }`) respondem idênticas nos dois executores; a forma que diverge é especificamente o quantificador LIMITADO DENTRO do SEM TETO.
-
-**Próximo:** a execução dos métodos de estado do quantificador aninhado no KofInterpreter (a zerada dos contadores internos através das instâncias do laço externo) — mesma lane (o runtime expr), próximo ciclo.
+**Prova da retirada:** a sonda de quatro sujeitos (`ab cd`/`ab1`/`abcd`/`ab`) responde idêntica no artefato JVM e no interpreter Script (`false|false|true|true`).
 
 ## §1150 — handler `mq.subscribe` com lambda TIPADO explodia no `publish` com `NoSuchMethodException` no JVM e no Script (JS/Native entregavam) — divergência cross-target num idiom documentado (GitHub #1150)
 
