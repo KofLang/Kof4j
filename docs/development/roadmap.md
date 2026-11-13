@@ -945,6 +945,11 @@ science) **without** destroying the language's simplicity.
 > language surface) is satisfied by the maintainer's own order, following the TLS precedent of 02/11. **Spike-0 LANDED**:
 > the grammar and the AST are locked and proven (`ExprDeclarationParseE2ETest` 6/6, `ExprDeclarationSemanticsE2ETest` 9/9),
 > with NO lowering — slices 1–9 (§17) stay open and each is promoted explicitly.
+> **SLICE 6 LANDED 13/11 (the NATIVE face):** the matcher runs on the native x86-64 AND the riscv64/aarch64 cross, answering
+> byte-identically to the JVM (`KofExprNativeE2ETest` 5/5 — incl. the point-by-point agreement of the native pinned table with
+> the JVM's `Character` across ~1,400 code points; `KofExprCrossE2ETest` 2/2 under qemu). The election was measured: the
+> native backend is a 1:1 op→instruction emitter (every matcher op declared in `NativeOpSupport`), the JS IR has no goto/label
+> at all. The JS matcher lowering (the CFG→structured front) and slice-8 part 2 (the iterative loop engine) stay open.
 
 > **RE-OPENED BY THE MAINTAINER 02/11 (order "pega tls do future pra fazer, é urgente"): `tls-hardening-plan`** — promoted from the `future/` TLS plan; the rule-6 decision is the maintainer’s own order, the frozen contract is `D-SEC.6` (additive only). **COMPLETE + PROMOTED 03/11 to [`docs/tls-hardening.md`](../tls-hardening.md) (+PT)** — ALL slices landed with executed proof; the final gate was the Pebble E2E (real issuance, serial 0dca413a13143cfa (a certificate serial, not a commit SHA)); `state: implemented`.
 
