@@ -106,7 +106,7 @@ Encoding and code points are `String` members:
 
 ```kof
 "aé".getBytes("ISO-8859-1")    // 2 bytes; getBytes() is UTF-8
-"x𝄞".codePointAt(1)            // 119070 — the whole surrogate pair (JVM, JS; Native STR003)
+"x𝄞".codePointAt(1)            // 119070 — the whole surrogate pair (JVM, JS, Native)
 ```
 
 **Word** converters — the boundary is the one from the project's own

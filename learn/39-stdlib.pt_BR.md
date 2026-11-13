@@ -106,7 +106,7 @@ Codificação e code points são membros de `String`:
 
 ```kof
 "aé".getBytes("ISO-8859-1")    // 2 bytes; getBytes() é UTF-8
-"x𝄞".codePointAt(1)            // 119070 — o par de surrogates inteiro (JVM, JS; Native STR003)
+"x𝄞".codePointAt(1)            // 119070 — o par de surrogates inteiro (JVM, JS, Native)
 ```
 
 Conversores de **palavra** — boundary é o do parser HTTP/XML do próprio
