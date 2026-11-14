@@ -161,7 +161,7 @@ A cadeia `intenção → Kof → IR → backend → runtime` é a mesma para tod
 | Comando | Descrição |
 |---------|-----------|
 | `kof run <f.kf> [--target ...] [args]` | compila e executa |
-| `kof build <dir|file.kf> [--target ...]` | compila para o target |
+| `kof build <dir\|file.kf> [--target ...]` | compila para o target |
 | `kof serve <f.kf>` | sobe app web (`web.app()`) |
 | `kof test <f.kf\|dir>` | roda testes |
 | `kof check <f.kf\|dir> [--target <t>]` | type-check sem emitir (gaps por alvo) |
