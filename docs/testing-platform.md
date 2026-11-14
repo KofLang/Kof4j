@@ -810,6 +810,18 @@ capability (`baseline → new screenshot → pixel comparison → difference rep
 layouts, dashboards and critical pages. It must be deterministic; visual regression is **not**
 mandatory for all tests.
 
+> **LANDED 14/11 (phase-8 slice, lane `192.168.100.14:0`, flatt CLI): the comparison half of
+> this §8.2 is IN** — `VisualRegression` (`dev.kof.browser`, kof-cli): the deterministic pure
+> pixel comparator (per-pixel RGB, tolerance per channel, 0 = bit-exact), the per-pixel diff
+> mask PNG written only on mismatch, the report carrying the count + ratio + the extent box +
+> a named reason (dimension mismatch never silently crops — honest Q7). The REAL loop proven
+> on this host's chromium (`VisualRegressionTest` 7/7): the SAME page screenshots bit-identical
+> across runs (tolerance 0), the mutated page mismatches with ratio > 0.5 and the mask marks
+> the divergent center; the engine faces are pure and deterministic by construction (no browser).
+> The family is green (42 tests, 0F, the 2 named webkit environmental skips). The phase-8 row
+> keeps: accessibility, network mocking, WebSocket, upload/download, mobile emulation, traces,
+> videos, advanced diagnostics.
+
 ## 8.3 Accessibility (evaluate)
 
 Integration with accessibility tooling for roles, labels, keyboard navigation, contrast when
@@ -900,7 +912,7 @@ tests — especially `test passes`, `test fails`, `test throws`, `test timeout`,
 | 5 · Cypress | second provider only after the abstraction is stable; map capabilities |
 | 6 · KofJS / KofWasm | E2E for both, same suite when possible |
 | 7 · Cross-browser | Chromium, Firefox, WebKit |
-| 8 · Advanced | visual regression, accessibility, network mocking, WebSocket, upload/download, mobile emulation, traces, videos, advanced diagnostics |
+| 8 · Advanced | visual regression (**comparison LANDED 14/11** — `VisualRegression`), accessibility, network mocking, WebSocket, upload/download, mobile emulation, traces, videos, advanced diagnostics |
 
 Landed (11/10, the phase-4 acceptance with a REAL app): `KofJsAppSemanticE2ETest` (kof-cli)
 compiles a real interactive kof.ui program to the JS target, serves it over local HTTP (the

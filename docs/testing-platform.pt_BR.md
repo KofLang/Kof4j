@@ -807,6 +807,18 @@ Permitir screenshot de página/elemento/falha. Avaliar comparação de screensho
 componentes, layouts, dashboards e páginas críticas. Deve ser determinístico; regressão visual
 **não** é obrigatória para todos os testes.
 
+> **POUSADA 14/11 (fatia da fase 8, lane `192.168.100.14:0`, flatt CLI): a metade de COMPARAÇÃO
+> deste §8.2 está DENTRO** — `VisualRegression` (`dev.kof.browser`, kof-cli): o comparador pixel
+> puro e determinístico (RGB por pixel, tolerância por canal, 0 = bit a bit), a máscara PNG da
+> diferença por pixel escrita só no mismatch, o relatório carregando contagem + razão + a caixa
+> de extensão + motivo nomeado (dimensão divergente nunca recorta em silêncio — Q7 honesto). O
+> laço REAL provado no chromium deste host (`VisualRegressionTest` 7/7): a MESMA página tira
+> screenshots bit-idênticos entre execuções (tolerância 0), a página mutada dá mismatch com
+> razão > 0,5 e a máscara marca o centro divergente; as faces do motor são puras e
+> determinísticas por construção (sem browser). A família está verde (42 testes, 0F, os 2 skips
+> ambientais nomeados do webkit). A linha da fase 8 mantém: acessibilidade, mocking de rede,
+> WebSocket, upload/download, emulação mobile, traces, vídeos, diagnósticos avançados.
+
 ## 8.3 Acessibilidade (avaliar)
 
 Integração com ferramentas de acessibilidade para roles, labels, navegação por teclado, contraste
@@ -899,7 +911,7 @@ paralelo/artefato — especialmente `test passes`, `test fails`, `test throws`, 
 | 5 · Cypress | segundo provider só depois da abstração estável; mapear capacidades |
 | 6 · KofJS / KofWasm | E2E para os dois, mesma suíte quando possível |
 | 7 · Cross-browser | Chromium, Firefox, WebKit |
-| 8 · Avançado | regressão visual, acessibilidade, mocking de rede, WebSocket, upload/download, emulação mobile, traces, vídeos, diagnósticos avançados |
+| 8 · Avançado | regressão visual (**comparação POUSADA 14/11** — `VisualRegression`), acessibilidade, mocking de rede, WebSocket, upload/download, emulação mobile, traces, vídeos, diagnósticos avançados |
 
 Pousado (11/10, a aceitação da fase 4 com um app REAL): a `KofJsAppSemanticE2ETest` (kof-cli)
 compila um programa kof.ui interativo DE VERDADE para o alvo JS, serve por HTTP local (o
