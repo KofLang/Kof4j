@@ -329,6 +329,13 @@ public final class NativeEsp8266 {
                     continue;
                 }
 
+                // KofPop: a discarded top (the print lowering emits it after a
+                // consumed value) — the stack slot is popped by the lowering
+                // itself, the IR op is a no-op here.
+                if (op instanceof dev.kof.compiler.KofPop) {
+                    continue;
+                }
+
                 if (op instanceof KofReturnVoid || op instanceof KofReturn) {
                     continue;
                 }
@@ -469,6 +476,55 @@ public final class NativeEsp8266 {
         sb.append("    s8i a6, a5, 0\n");
         sb.append(".Lesp_hang:\n");
         sb.append("    j .Lesp_hang\n\n");
+
+        // ── gate 3 (H1+H2): the GPIO + delay HAL (the ESP8266 register map) ──
+        sb.append("    .align 4\n");
+        sb.append("kof_gpio_enable:\n");
+        sb.append("    .literal_position\n");
+        sb.append("    movi a4, 1\n");
+        sb.append("    sll a4, a4, a3\n");
+        sb.append("    movi a5, 0x6000030C\n");
+        sb.append("    l32i a6, a5, 0\n");
+        sb.append("    or a6, a6, a4\n");
+        sb.append("    s32i a6, a5, 0\n");
+        sb.append("    movi a2, 0\n");
+        sb.append("    ret\n\n");
+        sb.append("    .align 4\n");
+        sb.append("kof_gpio_write:\n");
+        sb.append("    .literal_position\n");
+        sb.append("    movi a5, 1\n");
+        sb.append("    sll a5, a5, a3\n");
+        sb.append("    beqz a4, .Lesp_gpio_low\n");
+        sb.append("    movi a6, 0x60000304\n");
+        sb.append("    s32i a5, a6, 0\n");
+        sb.append("    movi a2, 0\n");
+        sb.append("    ret\n");
+        sb.append(".Lesp_gpio_low:\n");
+        sb.append("    movi a6, 0x60000308\n");
+        sb.append("    s32i a5, a6, 0\n");
+        sb.append("    movi a2, 0\n");
+        sb.append("    ret\n\n");
+        sb.append("    .align 4\n");
+        sb.append("kof_gpio_read:\n");
+        sb.append("    .literal_position\n");
+        sb.append("    movi a5, 0x60000318\n");
+        sb.append("    l32i a6, a5, 0\n");
+        sb.append("    ssr a3\n");
+        sb.append("    srl a2, a6\n");
+        sb.append("    andi a2, a2, 1\n");
+        sb.append("    ret\n\n");
+        sb.append("    .align 4\n");
+        sb.append("kof_delay_ms:\n");
+        sb.append("    .literal_position\n");
+        sb.append("    movi a4, 80000\n");
+        sb.append("    mul a4, a4, a3\n");
+        sb.append("    rsr a5, 234\n");
+        sb.append("    add a6, a5, a4\n");
+        sb.append(".Lesp_delay:\n");
+        sb.append("    rsr a5, 234\n");
+        sb.append("    bltu a5, a6, .Lesp_delay\n");
+        sb.append("    movi a2, 0\n");
+        sb.append("    ret\n\n");
 
         // the eval stack + locals in .bss (the dram window)
         sb.append("    .section .bss\n");
