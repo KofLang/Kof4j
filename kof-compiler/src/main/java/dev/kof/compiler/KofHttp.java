@@ -80,8 +80,12 @@ public final class KofHttp {
     // refuses any http use with its own honest WASM002, never a silent path.
     static boolean supportedOn(Target target) {
         return switch (target) {
+            // kof-esp8266 gate 1 (14/11): the ESP8266 enters like the MCU faces —
+            // the http surface itself is refused AT THE EMITTER by name
+            // (NATIVE002; the firmware has no network stack yet), so this guard
+            // stays true and the emitter is the named refusal point.
             case JVM, NATIVE, NATIVE_RISCV64, NATIVE_AARCH64, NATIVE_RISCV32, NATIVE_MCU_ARM,
-                    JS, ANDROID, SCRIPT, WASM, WASI -> true;
+                    NATIVE_ESP8266, JS, ANDROID, SCRIPT, WASM, WASI -> true;
         };
     }
 

@@ -93,9 +93,37 @@ public final class NativeEsp8266 {
                     crt, objFile.toString()}, "esp8266-ld");
             binFile.toFile().setExecutable(true);
             System.err.println("NativeEsp8266: generated xtensa " + binFile + " (heap=" + heapBytes + ")");
+            firmwareImage(binFile);
         } catch (IOException e) {
             System.err.println("NativeEsp8266: esp8266 toolchain missing (NATIVE002),"
                     + " keeping asm: " + e.getMessage());
+        }
+    }
+
+    /** The FIRMWARE IMAGE (the gate-1 exit artifact): esptool produces the real
+     *  flash images. The tool is probed (`KOF_ESPTOOL` or the PATH python);
+     *  absent -> a NAMED skip (the ELF remains the deliverable) — never a
+     *  silent nothing. esptool 5.x: `--chip` comes BEFORE the subcommand; the
+     *  split images land at <elf>.img<offset>.bin (0x00000 = the boot section,
+     *  0x00010 = the app — the REAL ESP8266 flash layout, measured). */
+    private static void firmwareImage(Path elf) {
+        String esp = System.getenv().getOrDefault("KOF_ESPTOOL", "python3 -m esptool");
+        String[] cmd = esp.split("\\s+");
+        String[] full = new String[cmd.length + 6];
+        System.arraycopy(cmd, 0, full, 0, cmd.length);
+        full[cmd.length] = "--chip";
+        full[cmd.length + 1] = "esp8266";
+        full[cmd.length + 2] = "elf2image";
+        full[cmd.length + 3] = "--output";
+        full[cmd.length + 4] = elf + ".img";
+        full[cmd.length + 5] = elf.toString();
+        try {
+            run(full, "esp8266-esptool");
+            System.err.println("NativeEsp8266: firmware image " + elf + ".img*.bin"
+                    + " (the boot section + the app section)");
+        } catch (IOException | IllegalStateException e) {
+            System.err.println("NativeEsp8266: esptool absent - the firmware image"
+                    + " step is SKIPPED (named; the ELF is the deliverable): " + e.getMessage());
         }
     }
 
