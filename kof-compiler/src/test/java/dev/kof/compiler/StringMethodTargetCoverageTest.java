@@ -60,9 +60,15 @@ class StringMethodTargetCoverageTest {
     }
 
     private static Set<String> jsExplicitCases() throws Exception {
-        String src = Files.readString(
-                Path.of("src/main/java/dev/kof/compiler/js/JsCallEmitter.java"));
-        return caseNames(src);
+        // the Kof.expr slice-7 split moved the String-op cases to
+        // JsStringOpEmitter — the ratchet reads BOTH files so a future split
+        // cannot blind it again.
+        var names = new LinkedHashSet<String>();
+        for (String f : List.of("JsCallEmitter.java", "JsStringOpEmitter.java")) {
+            names.addAll(caseNames(Files.readString(
+                    Path.of("src/main/java/dev/kof/compiler/js/" + f))));
+        }
+        return names;
     }
 
     /** Nomes de método de String tratados no x86 ({@code "x".equals(kc.methodName())}). */
