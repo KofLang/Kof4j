@@ -1,0 +1,270 @@
+package grpc
+
+// kof.grpc — a MINIMAL HPACK ENCODER in pure Kof (RFC 7541), the subset a gRPC
+// client needs: literal header fields WITHOUT indexing and WITHOUT Huffman,
+// plus the static-table indexes for the names the protocol always sends.
+//
+// Why not Huffman: Huffman costs a 257-symbol code table and a bit-writer; the
+// reference peer ACCEPTS the no-Huffman encoding (proven against grpcio 1.85.1
+// — `GrpcInteropE2ETest`), so the simple, reviewable encoder is the honest
+// choice. Dynamic-table indexing is likewise not emitted (a client that never
+// indexes is always decodable).
+//
+// Bug this file records: the FIRST attempt concatenated independent HPACK
+// encodes, each evolving its own dynamic table — the gRPC stack answered
+// `CANCEL:UNKNOWN:Missing :method header`. The whole block must be ONE encode
+// (this file is that single pass).
+
+// RFC 7541 Appendix A — the static table indexes that EXIST for our names.
+// (Note: `te` is NOT in the static table; encoding it as 22 broke, decoded to
+// `allow` — measured, so this table carries only the real entries.)
+Int staticIndex(String name, String value) {
+    if (name == ":authority") { return 1 }
+    if (name == ":method") {
+        if (value == "GET") { return 2 }
+        if (value == "POST") { return 3 }
+        return 0
+    }
+    if (name == ":path") {
+        if (value == "/") { return 4 }
+        if (value == "/index.html") { return 5 }
+        return 0
+    }
+    if (name == ":scheme") {
+        if (value == "http") { return 6 }
+        if (value == "https") { return 7 }
+        return 0
+    }
+    if (name == ":status") { return staticStatus(value) }
+    return 0
+}
+
+Int staticStatus(String v) {
+    return switch (v) {
+        case "200" -> 8
+        case "204" -> 9
+        case "206" -> 10
+        case "304" -> 11
+        case "400" -> 12
+        case "404" -> 13
+        case "500" -> 14
+        default -> 0
+    }
+}
+
+/** The name-only static index (RFC 7541 Appendix A — names that exist). */
+Int nameIndex(String name) {
+    return switch (name) {
+        case ":authority" -> 1
+        case ":method" -> 2
+        case ":path" -> 4
+        case ":scheme" -> 6
+        case ":status" -> 8
+        case "content-type" -> 31
+        case "user-agent" -> 58
+        default -> 0
+    }
+}
+
+/** An HPACK integer (RFC 7541 §5.1): the prefix bits carry the low values, the
+ *  rest is a continuation varint. `prefixBits` 4/6/7, `mask` the pattern bits. */
+Byte[] hpackInt(Int v, Int prefixBits, Int mask) {
+    var max = (1 << prefixBits) - 1
+    var buf = new Int[8]
+    var n = 0
+    if (v < max) {
+        buf[0] = mask | v
+        n = 1
+    } else {
+        buf[0] = mask | max
+        n = 1
+        var rest = v - max
+        while (rest >= 128) {
+            buf[n] = (rest & 0x7F) | 0x80
+            n = n + 1
+            rest = rest >> 7
+        }
+        buf[n] = rest
+        n = n + 1
+    }
+    var out = new Byte[n]
+    for (var i = 0; i < n; i = i + 1) { out[i] = buf[i] as Byte }
+    return out
+}
+
+/** An HPACK string WITHOUT Huffman (H=0): the length then the UTF-8 bytes. */
+Byte[] hpackString(String s) {
+    var raw = s.getBytes()
+    var len = hpackInt(raw.size, 7, 0x00)
+    var out = new Byte[len.size + raw.size]
+    for (var i = 0; i < len.size; i = i + 1) { out[i] = len[i] }
+    for (var i = 0; i < raw.size; i = i + 1) { out[len.size + i] = raw[i] }
+    return out
+}
+
+/** One header field: indexed when the (name, value) pair is a static entry,
+ *  otherwise a literal WITHOUT indexing (indexed name when it exists, else the
+ *  literal name then the value). */
+Byte[] hpackField(String name, String value) {
+    var pair = staticIndex(name, value)
+    if (pair != 0) {
+        return hpackInt(pair, 7, 0x80)          // 1xxxxxxx — indexed
+    }
+    var idx = nameIndex(name)
+    var head = hpackInt(idx, 4, 0x00)           // 0000xxxx — literal, no indexing
+    if (idx != 0) {
+        return concat(head, hpackString(value))
+    }
+    return concat(concat(head, hpackString(name)), hpackString(value))
+}
+
+/** The WHOLE header block in ONE pass (never concatenate independent encodes —
+ *  the recorded bug). */
+Byte[] hpackEncode(List<String> names, List<String> values) {
+    var out = new Byte[0]
+    for (var i = 0; i < names.size; i = i + 1) {
+        out = concat(out, hpackField(names.get(i), values.get(i)))
+    }
+    return out
+}
+
+Byte[] concat(Byte[] a, Byte[] b) {
+    var out = new Byte[a.size + b.size]
+    for (var i = 0; i < a.size; i = i + 1) { out[i] = a[i] }
+    for (var i = 0; i < b.size; i = i + 1) { out[a.size + i] = b[i] }
+    return out
+}
+
+/** Decodes the HPACK RESPONSE headers a server sends — the subset a gRPC
+ *  client must read: static-table indexes, literal-without-indexing (indexed
+ *  and new names), and literal-with-incremental-indexing (the servers DO
+ *  index). Huffman-coded strings are decoded too (the reference peer sends
+ *  them). The output is a flat name/value list. */
+record HpackField(String name, String value)
+
+// ── the DECODER (the literal subset the reference peer emits) ──────
+// MEASURED: grpcio 1.85.1's core sends its response headers WITHOUT Huffman
+// (`0b`/`0c`/`10` are plain length bytes), so a literal decoder reads them
+// exactly. A Huffman-coded string (the H bit) is refused by name: decoding it
+// needs the 257-entry RFC table, which this slice does not carry (GRPC004).
+
+record Decoded(List<String> names, List<String> values, Int pos)
+
+/** Decodes one HPACK string at `pos`: returns the text and the position past
+ *  it. The H bit (Huffman) refuses with GRPC004 — never a silent mis-read. */
+record StrAt(String value, Int pos)
+
+StrAt decodeString(Byte[] raw, Int pos) {
+    var h = ((raw[pos] as Int) & 0x80) != 0
+    if (h) {
+        throw "GRPC004: HPACK Huffman-coded strings are not supported by kof.grpc"
+    }
+    var r = decodeInt(raw, pos, 7)
+    var len = r.value
+    var start = r.pos
+    var s = ""
+    for (var i = 0; i < len; i = i + 1) {
+        s = s + String.valueOf(((raw[start + i] as Int) & 0xFF) as Char)
+    }
+    return StrAt(s, start + len)
+}
+
+record IntAt(Int value, Int pos)
+
+/** An HPACK integer at `pos` with `prefixBits` (RFC 7541 §5.1). */
+IntAt decodeInt(Byte[] raw, Int pos, Int prefixBits) {
+    var max = (1 << prefixBits) - 1
+    var v = (raw[pos] as Int) & max
+    var p = pos + 1
+    if (v < max) { return IntAt(v, p) }
+    var shift = 0
+    while (true) {
+        var b = raw[p] as Int
+        p = p + 1
+        v = v + ((b & 0x7F) << shift)
+        shift = shift + 7
+        if ((b & 0x80) == 0) { break }
+    }
+    return IntAt(v, p)
+}
+
+/** Decodes a whole header block into flat name/value lists. Handles the three
+ *  representations the reference peer emits: indexed (1xxxxxxx), literal with
+ *  incremental indexing (01xxxxxx) and literal without indexing (0000xxxx). */
+Decoded decodeBlock(Byte[] raw) {
+    var names = listOf<String>()
+    var values = listOf<String>()
+    var pos = 0
+    while (pos < raw.size) {
+        var b = (raw[pos] as Int) & 0xFF
+        if ((b & 0x80) != 0) {
+            // indexed header field
+            var r = decodeInt(raw, pos, 7)
+            var idx = r.value
+            names.add(staticName(idx))
+            values.add(staticValue(idx))
+            pos = r.pos
+        } else if ((b & 0xC0) == 0x40 || (b & 0xF0) == 0x00) {
+            // literal with incremental indexing (01) or without (0000)
+            var bits = 6
+            if ((b & 0xC0) != 0x40) { bits = 4 }
+            var r = decodeInt(raw, pos, bits)
+            var idx = r.value
+            pos = r.pos
+            var name = ""
+            if (idx == 0) {
+                var n = decodeString(raw, pos)
+                name = n.value
+                pos = n.pos
+            } else {
+                name = staticName(idx)
+            }
+            var v = decodeString(raw, pos)
+            values.add(v.value)
+            names.add(name)
+            pos = v.pos
+        } else {
+            throw "GRPC004: unsupported HPACK representation 0x" + b + " at " + pos
+        }
+    }
+    return Decoded(names, values, pos)
+}
+
+/** The static table NAME for an index (RFC 7541 Appendix A). */
+String staticName(Int idx) {
+    if (idx == 1) { return ":authority" }
+    if (idx == 2 || idx == 3) { return ":method" }
+    if (idx == 4 || idx == 5) { return ":path" }
+    if (idx == 6 || idx == 7) { return ":scheme" }
+    if (idx >= 8 && idx <= 14) { return ":status" }
+    if (idx == 31) { return "content-type" }
+    if (idx == 58) { return "user-agent" }
+    return ":unknown-" + idx
+}
+
+/** The static table VALUE for an index. */
+String staticValue(Int idx) {
+    if (idx == 1) { return "" }
+    if (idx == 2) { return "GET" }
+    if (idx == 3) { return "POST" }
+    if (idx == 4) { return "/" }
+    if (idx == 5) { return "/index.html" }
+    if (idx == 6) { return "http" }
+    if (idx == 7) { return "https" }
+    if (idx == 8) { return "200" }
+    if (idx == 9) { return "204" }
+    if (idx == 10) { return "206" }
+    if (idx == 11) { return "304" }
+    if (idx == 12) { return "400" }
+    if (idx == 13) { return "404" }
+    if (idx == 14) { return "500" }
+    return ""
+}
+
+/** The value of a header by name, or "" when absent. */
+String headerValue(Decoded d, String name) {
+    for (var i = 0; i < d.names.size; i = i + 1) {
+        if (d.names.get(i) == name) { return d.values.get(i) }
+    }
+    return ""
+}

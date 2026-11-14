@@ -1,0 +1,116 @@
+package grpc
+
+// kof.grpc — the UNARY client face: one request, one response, over the
+// existing `kof.net` sockets and the minimal HTTP/2 in `kf`.
+//
+// The contract (the part of gRPC this library implements, PROVEN against the
+// real gRPC stack — `GrpcInteropE2ETest`):
+//   call(host, port, path, requestMessage) -> CallResult
+//   - opening: the HTTP/2 client preface + an empty SETTINGS + the SETTINGS ACK
+//   - the request: ONE HEADERS frame (+END_HEADERS) with the gRPC pseudo-headers,
+//     then ONE DATA frame with the 5-byte message frame (+END_STREAM)
+//   - the response: the HEADERS (`:status`), the DATA (the framed message) and
+//     the TRAILERS (`grpc-status`, `grpc-message`)
+//
+// NOT implemented, refused by name (never a silent fallback): compression
+// (GRPC002), a Huffman-coded header (GRPC004), multiplexing / flow-control
+// beyond the initial window (the unary request fits the default window — when
+// a message would exceed it, GRPC005), server streaming (GRPC006).
+
+import grpc.Frame
+import grpc.H2
+import grpc.Hpack
+import grpc.Proto
+
+/** The outcome of a unary call: the status code, the message and the payload
+ *  bytes (empty unless the status is OK). */
+record CallResult(Int status, String message, Byte[] payload)
+
+/** The raw bytes of one unary call, threaded through the socket step by step.
+ *  `send` and `receive` are the kof.net verbs supplied by the caller, so this
+ *  file stays pure (testable without a socket, and the socket face is one thin
+ *  wrapper). */
+record Transport(Conn conn)
+
+/** One unary call over an open connection. */
+CallResult call(Transport t, String authority, String path, Byte[] message) {
+    // 1. the connection preface + SETTINGS
+    t.conn.send(preface().getBytes())
+    t.conn.send(frameBytes(FRAME_SETTINGS(), 0, 0, settingsPayload()))
+
+    // 2. read the server's SETTINGS, ACK it
+    var serverSettings = t.conn.receive(65535)
+    t.conn.send(frameBytes(FRAME_SETTINGS(), FLAG_ACK(), 0, new Byte[0]))
+
+    // 3. the request: HEADERS (END_HEADERS) then DATA (END_STREAM)
+    var heads = requestHeaders(authority, path)
+    t.conn.send(frameBytes(FRAME_HEADERS(), FLAG_END_HEADERS(), 1, heads))
+    var framed = frame(message)
+    t.conn.send(frameBytes(FRAME_DATA(), FLAG_END_STREAM(), 1, framed))
+
+    // 4. read the response: accumulate frames until the trailers (END_STREAM)
+    return collect(t.conn, 1)
+}
+
+/** Collects the response frames on `stream`: the body message and the status. */
+CallResult collect(Conn conn, Int stream) {
+    var status = -1
+    var message = ""
+    var payload = new Byte[0]
+    var done = false
+    var guard = 0
+    while (!done && guard < 64) {
+        guard = guard + 1
+        var raw = conn.receive(65535)
+        if (raw.size == 0) { break }
+        var pos = 0
+        var f = readFrame(raw, pos)
+        while (f != null) {
+            if (f.type == FRAME_HEADERS() && f.stream == stream) {
+                var d = decodeBlock(f.payload)
+                var st = headerValue(d, "grpc-status")
+                if (!st.isEmpty()) { status = st.toInt() }
+                var msg = headerValue(d, "grpc-message")
+                if (!msg.isEmpty()) { message = msg }
+                if ((f.flags & FLAG_END_STREAM()) != 0) { done = true }
+            } else if (f.type == FRAME_DATA() && f.stream == stream) {
+                var uf = unframe(f.payload, 0)
+                payload = uf.message
+                if ((f.flags & FLAG_END_STREAM()) != 0) { done = true }
+            } else if (f.type == FRAME_RST_STREAM() && f.stream == stream) {
+                throw "GRPC007: the server RESET the stream (code " + rstCode(f.payload) + ")"
+            } else if (f.type == FRAME_GOAWAY()) {
+                done = true
+            }
+            pos = pos + 9 + f.payload.size
+            f = readFrame(raw, pos)
+        }
+        if (status < 0 && !done && guard >= 63) {
+            throw "GRPC005: no grpc-status after 64 reads (flow-control window? not supported)"
+        }
+    }
+    if (status < 0) {
+        throw "GRPC008: the response carried no grpc-status trailer"
+    }
+    return CallResult(status, message, payload)
+}
+
+Int rstCode(Byte[] payload) {
+    if (payload.size < 4) { return -1 }
+    return (((payload[0] as Int) & 0xFF) << 24) | (((payload[1] as Int) & 0xFF) << 16)
+         | (((payload[2] as Int) & 0xFF) << 8) | ((payload[3] as Int) & 0xFF)
+}
+
+/** The oracle service's answer is a BARE varint (value+1, no field tag — the
+ *  raw-bytes contract of the reference peer). */
+Int probeValue(Byte[] message) {
+    var v = readVarint(Reader(message, 0))
+    return v.value
+}
+
+/** Builds `Probe { i = value }`. */
+Byte[] probeMessage(Int value) {
+    var w = newWriter()
+    w = writeVarintField(w, 1, value as Long)
+    return bytes(w)
+}

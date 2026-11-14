@@ -1,0 +1,87 @@
+package grpc
+
+// kof.grpc — the MINIMAL HTTP/2 framing a gRPC UNARY call needs, in pure Kof.
+//
+// Not a general HTTP/2 implementation: this is the exact subset the wire
+// requires for one unary request/response, PROVEN against the real gRPC stack
+// (grpcio 1.85.1). The general HTTP/2 machinery (HPACK dynamic table, flow
+// control, multiplexing, priority, PUSH_PROMISE) is deliberately OUT and
+// refused by name when a peer would need it (GRPC004).
+//
+// The 9-byte frame header: length(24 bits) | type(8) | flags(8) | stream(31).
+// Frame types used: SETTINGS(0x4), HEADERS(0x1), DATA(0x0), GOAWAY(0x7),
+// WINDOW_UPDATE(0x8), RST_STREAM(0x3).
+
+import grpc.Hpack
+import grpc.Proto
+
+// The frame type numbers and flags are FUNCTIONS: Kof has no top-level
+// constants (the compiler refuses a top-level `Int X = ...`, PARSE011 — measured).
+
+Int FRAME_DATA() { return 0x0 }
+Int FRAME_HEADERS() { return 0x1 }
+Int FRAME_RST_STREAM() { return 0x3 }
+Int FRAME_SETTINGS() { return 0x4 }
+Int FRAME_PING() { return 0x6 }
+Int FRAME_GOAWAY() { return 0x7 }
+Int FRAME_WINDOW_UPDATE() { return 0x8 }
+
+Int FLAG_END_STREAM() { return 0x1 }
+Int FLAG_ACK() { return 0x1 }
+Int FLAG_END_HEADERS() { return 0x4 }
+
+/** The client connection preface (the exact 24 bytes the spec mandates). */
+String preface() {
+    return "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
+}
+
+/** One HTTP/2 frame as its 9-byte header + payload. */
+Byte[] frameBytes(Int type, Int flags, Int stream, Byte[] payload) {
+    var out = new Byte[9 + payload.size]
+    out[0] = ((payload.size >> 16) & 0xFF) as Byte
+    out[1] = ((payload.size >> 8) & 0xFF) as Byte
+    out[2] = (payload.size & 0xFF) as Byte
+    out[3] = type as Byte
+    out[4] = flags as Byte
+    out[5] = ((stream >> 24) & 0xFF) as Byte
+    out[6] = ((stream >> 16) & 0xFF) as Byte
+    out[7] = ((stream >> 8) & 0xFF) as Byte
+    out[8] = (stream & 0xFF) as Byte
+    for (var i = 0; i < payload.size; i = i + 1) { out[9 + i] = payload[i] }
+    return out
+}
+
+/** A received frame: its type, flags, stream and payload. */
+record H2Frame(Int type, Int flags, Int stream, Byte[] payload)
+
+/** Parses the FIRST frame in `raw` starting at `pos`; returns null when there
+ *  are not yet 9 header bytes (the stream carries more). */
+H2Frame readFrame(Byte[] raw, Int pos) {
+    if (raw.size - pos < 9) { return null }
+    var len = (((raw[pos] as Int) & 0xFF) << 16)
+            | (((raw[pos + 1] as Int) & 0xFF) << 8)
+            | ((raw[pos + 2] as Int) & 0xFF)
+    if (raw.size - pos - 9 < len) { return null }
+    var flags = (raw[pos + 4] as Int) & 0xFF
+    var stream = (((raw[pos + 5] as Int) & 0xFF) << 24)
+               | (((raw[pos + 6] as Int) & 0xFF) << 16)
+               | (((raw[pos + 7] as Int) & 0xFF) << 8)
+               | ((raw[pos + 8] as Int) & 0xFF)
+    var payload = new Byte[len]
+    for (var i = 0; i < len; i = i + 1) { payload[i] = raw[pos + 9 + i] }
+    return H2Frame((raw[pos + 3] as Int) & 0xFF, flags, stream & 0x7FFFFFFF, payload)
+}
+
+/** The SETTINGS payload the client sends (empty = all defaults, which the
+ *  reference peer accepts — measured). */
+Byte[] settingsPayload() {
+    return new Byte[0]
+}
+
+/** The request HEADERS for a unary gRPC call: the whole block in ONE HPACK
+ *  encode (never concatenated — the recorded bug). */
+Byte[] requestHeaders(String authority, String path) {
+    return hpackEncode(
+        listOf(":method", ":scheme", ":path", ":authority", "content-type", "te", "user-agent"),
+        listOf("POST", "http", path, authority, "application/grpc", "trailers", "kof-grpc/1"))
+}

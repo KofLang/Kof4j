@@ -1,0 +1,154 @@
+package grpc
+
+// kof.grpc — the gRPC MESSAGE FRAME and the STATUS contract, in pure Kof.
+//
+// Two things make a payload a gRPC message (the spec, verified against the
+// reference peer in `GrpcFrameE2ETest`):
+//
+//   1. the MESSAGE frame — a 5-byte prefix before every message:
+//        byte 0     = compressed-flag (0 = not compressed)
+//        bytes 1..4 = the message length, BIG-ENDIAN uint32
+//        bytes 5..  = the serialized protobuf message (`Proto.kf`)
+//
+//   2. the STATUS — carried in the HTTP/2 trailers as `grpc-status` (an Int in
+//      the spec's code space) plus an optional `grpc-message` (percent-encoded
+//      UTF-8). OK is 0; every other value is a failure.
+//
+// This file is the framing/status half — no sockets, no HTTP: the byte-level
+// contract a transport (kof.net) carries.
+
+import grpc.Proto
+
+// ── the status code space (the spec's canonical numbers) ───────────
+
+enum Status {
+    OK, CANCELLED, UNKNOWN, INVALID_ARGUMENT, DEADLINE_EXCEEDED, NOT_FOUND,
+    ALREADY_EXISTS, PERMISSION_DENIED, RESOURCE_EXHAUSTED,
+    FAILED_PRECONDITION, ABORTED, OUT_OF_RANGE, UNIMPLEMENTED, INTERNAL,
+    UNAVAILABLE, DATA_LOSS, UNAUTHENTICATED
+}
+
+/** The spec number of a status (OK=0 ... UNAUTHENTICATED=16). */
+Int code(Status s) {
+    return switch (s) {
+        case OK -> 0
+        case CANCELLED -> 1
+        case UNKNOWN -> 2
+        case INVALID_ARGUMENT -> 3
+        case DEADLINE_EXCEEDED -> 4
+        case NOT_FOUND -> 5
+        case ALREADY_EXISTS -> 6
+        case PERMISSION_DENIED -> 7
+        case RESOURCE_EXHAUSTED -> 8
+        case FAILED_PRECONDITION -> 9
+        case ABORTED -> 10
+        case OUT_OF_RANGE -> 11
+        case UNIMPLEMENTED -> 12
+        case INTERNAL -> 13
+        case UNAVAILABLE -> 14
+        case DATA_LOSS -> 15
+        case UNAUTHENTICATED -> 16
+    }
+}
+
+/** The status for a spec number; an unknown number is UNKNOWN (the spec's own
+ *  behavior for a code outside the enum) — never a silent OK. */
+Status statusOf(Int n) {
+    return switch (n) {
+        case 0 -> Status.OK
+        case 1 -> Status.CANCELLED
+        case 3 -> Status.INVALID_ARGUMENT
+        case 4 -> Status.DEADLINE_EXCEEDED
+        case 5 -> Status.NOT_FOUND
+        case 6 -> Status.ALREADY_EXISTS
+        case 7 -> Status.PERMISSION_DENIED
+        case 8 -> Status.RESOURCE_EXHAUSTED
+        case 9 -> Status.FAILED_PRECONDITION
+        case 10 -> Status.ABORTED
+        case 11 -> Status.OUT_OF_RANGE
+        case 12 -> Status.UNIMPLEMENTED
+        case 13 -> Status.INTERNAL
+        case 14 -> Status.UNAVAILABLE
+        case 15 -> Status.DATA_LOSS
+        case 16 -> Status.UNAUTHENTICATED
+        default -> Status.UNKNOWN
+    }
+}
+
+// ── the 5-byte message frame ────────────────────────────────────────
+
+/** Wraps a protobuf payload in the gRPC message frame (uncompressed). */
+Byte[] frame(Byte[] message) {
+    var out = new Byte[5 + message.size]
+    out[0] = 0 as Byte                                  // compressed-flag
+    out[1] = ((message.size >> 24) & 0xFF) as Byte      // big-endian uint32
+    out[2] = ((message.size >> 16) & 0xFF) as Byte
+    out[3] = ((message.size >> 8) & 0xFF) as Byte
+    out[4] = (message.size & 0xFF) as Byte
+    for (var i = 0; i < message.size; i = i + 1) { out[5 + i] = message[i] }
+    return out
+}
+
+/** One framed message read off a buffer: the payload plus the next position. */
+record Framed(Int nextPos, Byte[] message)
+
+/** Reads ONE framed message from `buf` starting at `pos`. A non-zero
+ *  compressed-flag is refused by name: this library does not implement
+ *  compression (decompressing would need the algorithm — GRPC002, never a
+ *  silent mis-read). */
+Framed unframe(Byte[] buf, Int pos) {
+    if (buf.size - pos < 5) {
+        throw "GRPC003: truncated gRPC frame (fewer than the 5 prefix bytes)"
+    }
+    var flag = (buf[pos] as Int) & 0xFF
+    if (flag != 0) {
+        throw "GRPC002: compressed gRPC messages are not supported by kof.grpc"
+    }
+    var len = (((buf[pos + 1] as Int) & 0xFF) << 24)
+            | (((buf[pos + 2] as Int) & 0xFF) << 16)
+            | (((buf[pos + 3] as Int) & 0xFF) << 8)
+            | ((buf[pos + 4] as Int) & 0xFF)
+    if (buf.size - pos - 5 < len) {
+        throw "GRPC003: truncated gRPC frame (declared " + len + " bytes, have " + (buf.size - pos - 5) + ")"
+    }
+    var msg = new Byte[len]
+    for (var i = 0; i < len; i = i + 1) { msg[i] = buf[pos + 5 + i] }
+    return Framed(pos + 5 + len, msg)
+}
+
+/** The `grpc-message` percent-encoding (the spec: percent-encode the bytes
+ *  outside the printable ASCII range — the trailer carries it that way). */
+String encodeMessage(String m) {
+    var out = ""
+    var raw = m.getBytes()
+    var digits = "0123456789ABCDEF"
+    for (var i = 0; i < raw.size; i = i + 1) {
+        var b = (raw[i] as Int) & 0xFF
+        if (b >= 0x20 && b <= 0x7E && b != 0x25) {
+            out = out + String.valueOf(b as Char)
+        } else {
+            out = out + "%"
+            out = out + digits.substring(b >> 4, (b >> 4) + 1)
+            out = out + digits.substring(b & 0xF, (b & 0xF) + 1)
+        }
+    }
+    return out
+}
+
+/** The trailers that carry a status (the HTTP/2 trailer block, as a Kof value
+ *  — the transport writes them; `grpc-status` always, `grpc-message` only
+ *  when there is text, matching the reference peer). */
+record Trailers(Int status, String message)
+
+Trailers trailers(Status s, String message) {
+    return Trailers(code(s), message)
+}
+
+/** The trailer lines in wire order (`grpc-status: N` then, when non-empty,
+ *  the encoded `grpc-message:`). */
+List<String> trailerLines(Trailers t) {
+    if (t.message.isEmpty()) {
+        return listOf("grpc-status: " + t.status)
+    }
+    return listOf("grpc-status: " + t.status, "grpc-message: " + encodeMessage(t.message))
+}

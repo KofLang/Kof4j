@@ -1,0 +1,218 @@
+package grpc
+
+// kof.grpc — the protobuf WIRE FORMAT in pure Kof (the maintainer's order
+// "kof tem grpc? se nao tiver implementa").
+//
+// The codec half of gRPC: values become the exact bytes the reference protobuf
+// implementation produces, and back. No codegen toolchain, no external
+// library: the schema is a Kof value, the encoding is the protobuf wire format.
+//
+// Wire format (proto3 semantics):
+//   field = tag varint + payload;  tag = (field_number << 3) | wire_type
+//     wire_type 0 = varint         (int32/int64/uint*/bool/enum)
+//     wire_type 1 = 64-bit         (fixed64/sfixed64/double)
+//     wire_type 2 = length-delim   (string/bytes/embedded message)
+//     wire_type 5 = 32-bit         (fixed32/sfixed32/float)
+//   varint = 7 bits per byte, low group first, high bit 0x80 = "more".
+//   proto3 drops DEFAULT values (0 / false / "") — never written.
+//
+// The codec is verified BYTE-FOR-BYTE against the real protobuf implementation
+// (`GrpcProtoE2ETest`; the reference vectors came from grpcio 1.85.1).
+
+// ── the growable byte buffer ────────────────────────────────────────
+// `buf` holds the bytes, `len` how many are live. Bytes are Int values
+// 0..255 in the buffer (Byte[] would force the signed range at every step);
+// the live slice converts to Byte[] only when it leaves the codec.
+
+record Writer(Int[] buf, Int len)
+
+Writer newWriter() {
+    return Writer(new Int[64], 0)
+}
+
+Writer ensure(Writer w, Int extra) {
+    if (w.len + extra <= w.buf.size) { return w }
+    var cap = w.buf.size
+    while (cap < w.len + extra) { cap = cap * 2 }
+    var nb = new Int[cap]
+    for (var i = 0; i < w.len; i = i + 1) { nb[i] = w.buf[i] }
+    return Writer(nb, w.len)
+}
+
+Writer put(Writer w, Int b) {
+    var e = ensure(w, 1)
+    e.buf[e.len] = b & 0xFF
+    return Writer(e.buf, e.len + 1)
+}
+
+/** varint: 7 bits per byte, continuation bit 0x80. A negative int32 is
+ *  sign-extended to 64 bits (ten bytes) — the reference proto3 behavior. */
+Writer varint(Writer w, Long v) {
+    var cur = w
+    var u = v
+    while ((u & 0xFFFFFFFFFFFFFF80L) != 0L) {
+        cur = put(cur, ((u & 0x7FL) | 0x80L) as Int)
+        u = (u >> 7) & 0x01FFFFFFFFFFFFFFL
+    }
+    cur = put(cur, (u & 0x7FL) as Int)
+    return cur
+}
+
+Writer tag(Writer w, Int fieldNumber, Int wireType) {
+    return varint(w, (((fieldNumber << 3) | wireType)) as Long)
+}
+
+Writer writeVarintField(Writer w, Int fieldNumber, Long value) {
+    // proto3: the default (0) writes NOTHING
+    if (value == 0L) { return w }
+    var t = tag(w, fieldNumber, 0)
+    return varint(t, value)
+}
+
+Writer writeStringField(Writer w, Int fieldNumber, String s) {
+    // proto3: the default ("") writes NOTHING
+    if (s.isEmpty()) { return w }
+    var raw = s.getBytes()
+    var t = tag(w, fieldNumber, 2)
+    var l = varint(t, raw.size as Long)
+    return append(l, raw)
+}
+
+Writer append(Writer w, Byte[] raw) {
+    var e = ensure(w, raw.size)
+    var out = e.buf
+    for (var i = 0; i < raw.size; i = i + 1) { out[e.len + i] = (raw[i] as Int) & 0xFF }
+    return Writer(out, e.len + raw.size)
+}
+
+/** The live bytes as a Byte[]. */
+Byte[] bytes(Writer w) {
+    var out = new Byte[w.len]
+    for (var i = 0; i < w.len; i = i + 1) { out[i] = w.buf[i] as Byte }
+    return out
+}
+
+// ── the reader ─────────────────────────────────────────────────────
+// The reader is a POSITION CARRIER: every verb returns the advanced reader,
+// so a walk is `r = verb(r, ...)` — no hidden mutation, the same discipline the
+// Writer uses. A record field of `Int pos` would be copied by value, so the
+// position travels in the returned record.
+
+record Reader(Byte[] buf, Int pos)
+
+/** A varint: returns the value and the reader past it. */
+record Varint(Reader reader, Int value)
+
+Varint readVarint(Reader r) {
+    var shift = 0
+    var result = 0
+    var p = r.pos
+    while (true) {
+        var b = (r.buf[p] as Int) & 0xFF
+        p = p + 1
+        result = result | ((b & 0x7F) << shift)
+        shift = shift + 7
+        if ((b & 0x80) == 0) { break }
+    }
+    return Varint(Reader(r.buf, p), result)
+}
+
+/** A tag: the field number + the wire type, and the reader past the tag. */
+record Tagged(Reader reader, Int number, Int wireType)
+
+Tagged readTag(Reader r) {
+    var v = readVarint(r)
+    return Tagged(v.reader, v.value >> 3, v.value & 7)
+}
+
+/** A length-delimited UTF-8 string; returns the value and the reader past it. */
+record Str(Reader reader, String value)
+
+Str readString(Reader r) {
+    var len = readVarint(r)
+    var start = len.reader.pos
+    var raw = new Byte[len.value]
+    for (var i = 0; i < len.value; i = i + 1) { raw[i] = r.buf[start + i] }
+    return Str(Reader(r.buf, start + len.value), utf8String(raw))
+}
+
+/** Skips one field payload (any wire type); returns the advanced reader. */
+Reader skip(Reader r, Int wireType) {
+    if (wireType == 0) { return readVarint(r).reader }
+    if (wireType == 2) {
+        var len = readVarint(r)
+        return Reader(r.buf, len.reader.pos + len.value)
+    }
+    if (wireType == 5) { return Reader(r.buf, r.pos + 4) }
+    if (wireType == 1) { return Reader(r.buf, r.pos + 8) }
+    throw "GRPC001: unsupported protobuf wire type " + wireType
+}
+
+/** A Byte[] as lowercase hex (the test oracle's comparison form). */
+String hex(Byte[] raw) {
+    var out = ""
+    var digits = "0123456789abcdef"
+    for (var i = 0; i < raw.size; i = i + 1) {
+        var b = (raw[i] as Int) & 0xFF
+        out = out + digits.substring(b >> 4, (b >> 4) + 1)
+        out = out + digits.substring(b & 0xF, (b & 0xF) + 1)
+    }
+    return out
+}
+
+/** Hex text -> Byte[] (the test oracle's input form). */
+Byte[] parseHex(String s) {
+    var out = new Byte[s.length / 2]
+    for (var i = 0; i < s.length; i = i + 2) {
+        var hi = hexDigit(s.substring(i, i + 1))
+        var lo = hexDigit(s.substring(i + 1, i + 2))
+        out[i / 2] = ((hi << 4) | lo) as Byte
+    }
+    return out
+}
+
+Int hexDigit(String c) {
+    var d = "0123456789abcdef".indexOf(c)
+    if (d < 0) { throw "GRPC001: not a hex digit: " + c }
+    return d
+}
+
+/** The UTF-8 bytes -> String decoder (manual: `String.valueOf(byte as Char)` is
+ *  latin-1, the documented anti-pattern). */
+String utf8String(Byte[] raw) {
+    var out = ""
+    var i = 0
+    while (i < raw.size) {
+        var b = (raw[i] as Int) & 0xFF
+        var cp = 0
+        if (b < 0x80) {
+            cp = b
+            i = i + 1
+        } else if (b < 0xE0) {
+            cp = ((b & 0x1F) << 6) | ((raw[i + 1] as Int) & 0x3F)
+            i = i + 2
+        } else if (b < 0xF0) {
+            cp = ((b & 0x0F) << 12) | (((raw[i + 1] as Int) & 0x3F) << 6)
+               | ((raw[i + 2] as Int) & 0x3F)
+            i = i + 3
+        } else {
+            cp = ((b & 0x07) << 18) | (((raw[i + 1] as Int) & 0x3F) << 12)
+               | (((raw[i + 2] as Int) & 0x3F) << 6) | ((raw[i + 3] as Int) & 0x3F)
+            i = i + 4
+        }
+        out = out + codepointString(cp)
+    }
+    return out
+}
+
+/** One Unicode scalar as a String (a BMP scalar is one Char; an astral one is
+ *  a surrogate pair). */
+String codepointString(Int cp) {
+    if (cp < 0x10000) {
+        return String.valueOf(cp as Char)
+    }
+    var v = cp - 0x10000
+    var hi = 0xD800 | (v >> 10)
+    var lo = 0xDC00 | (v & 0x3FF)
+    return String.valueOf(hi as Char) + String.valueOf(lo as Char)
+}
