@@ -61,7 +61,7 @@ class NativeEsp8266GpioE2ETest implements LibraryInstallSupport {
                 .compileSources(List.of(dir2.resolve("Main.kf")), dir2, Target.NATIVE_ESP8266);
         assertTrue(r.success(), "compile: " + r.diagnostics().getDiagnostics());
         Path asm = null;
-        try (var s2 = Files.walk(dir2.resolve("out"))) {
+        try (var s2 = Files.walk(dir2)) {
             for (Path f : s2.filter(x -> x.toString().endsWith(".s")).toList()) {
                 asm = f; break;
             }
@@ -78,7 +78,7 @@ class NativeEsp8266GpioE2ETest implements LibraryInstallSupport {
         Assumptions.assumeTrue(hasToolchain(),
                 "o toolchain xtensa não está provisionado — o asm é mantido");
         Path elf = null;
-        try (var s2 = Files.walk(dir2.resolve("out"))) {
+        try (var s2 = Files.walk(dir2)) {
             for (Path f : s2.filter(x -> x.toString().equals(dir2.resolve("out").toString())
                     || x.getFileName().toString().equals("Main")).toList()) {
                 if (Files.isRegularFile(f) && !f.toString().endsWith(".s")
