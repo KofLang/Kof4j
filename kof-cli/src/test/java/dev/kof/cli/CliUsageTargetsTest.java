@@ -1,5 +1,7 @@
 package dev.kof.cli;
 
+import dev.kof.compiler.Target;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -143,5 +145,19 @@ class CliUsageTargetsTest {
         String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         p.waitFor();
         assertTrue(out.contains("unknown target"), "a bogus name should still say unknown:\n" + out);
+    }
+
+    /** kof-esp8266 gate 4 (14/11): the THIRD MCU face gains the CLI — the usage
+     *  line announces it AND parseTarget accepts it (the workflow gate). */
+    @Test
+    void buildAnnouncesAndAcceptsEsp8266() {
+        String usage = mainUsage();
+        String line = lineOf(usage, "build");
+        assertTrue(line.contains("native.esp8266"),
+                "build deve anunciar native.esp8266 (o gate 4 do plano): " + line);
+        assertEquals(Target.NATIVE_ESP8266, KofCliSupport.parseTarget("native.esp8266"));
+        assertEquals(Target.NATIVE_ESP8266, KofCliSupport.parseTarget("esp8266"));
+        assertTrue(KofCliSupport.unknownTargetMessages("native.esp8266").isEmpty(),
+                "a flag legado também aceita: " + KofCliSupport.unknownTargetMessages("native.esp8266"));
     }
 }
