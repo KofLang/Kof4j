@@ -72,6 +72,7 @@ public final class JsEmitter {
         line("}");
     }
 
+
     private void emitFunction(JsIr.JsFunction fn) {
         if (fn.kofLine() != null && fn.kofLine() > 0) {
             functionLines.add(new JsIr.JsFunctionLine(

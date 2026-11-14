@@ -301,6 +301,8 @@ final class KofExprMatchResult {
             // a mensagem EXPR-E2 se perdia). O `throw` de Kof é uma STRING em
             // ambos (o mesmo caminho de `throw "msg"`): o texto do orçamento
             // viaja na pilha e chega ao programa.
+            ops.add(KofLoadLiteral.ofString(message));
+            ops.add(new KofThrow());
         } else {
             Type rte = new Type.ClassType("java.lang", "RuntimeException", List.of());
             ops.add(new KofNewObject(rte, List.of(STR)));

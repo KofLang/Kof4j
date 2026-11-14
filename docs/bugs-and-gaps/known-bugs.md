@@ -20939,7 +20939,7 @@ Observed: `Cannot resolve static method 'ofString' on imported class 'BodyPublis
 
 ## §1152 — the Kof.expr budget throw VANISHES on JS: `find` over an above-budget subject returns `undefined` silently (the EXPR-E2 message never reaches the program) — the JS if-fold drops the throw-only then-branch
 
-**Status:** 🔴 OPEN 14/11 (owner = 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a; measured on the tip, the composition + slice-7 tree).
+**Status:** ✅ FIXED 14/11 SAME-DAY (owner = 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a). ROOT CAUSE: my own §267-marker edit earlier that cycle — the text replacement DROPPED the `load msg; KofThrow` ops from the raw-string throw branch, leaving the bad block EMPTY (the JS if-fold was never the culprit — the JsIr dump proved the fold correct and the block empty at the source).
 
 **MEASURED** (node v24 artifact vs the Script/JVM oracles, same source):
 ```kof
@@ -20952,7 +20952,7 @@ JVM oracle: `EXPR-E2: …budget of 2,000…` thrown. Script: the same EXPR-E2 th
 
 **Already landed toward the fix:** the budget message now throws the RAW STRING on JS (the `java_lang_RuntimeException` constructor does not exist there — measured ReferenceError before this change) and the §267 `KofStatementIf` marker is emitted (correct declaration; alone insufficient).
 
-**Next:** the JS if-fold for throw-only then-branches inside the Kof.expr budget shape (JsIfThrowElse/parseIfBody ownership) — same lane, next cycle. Within-budget subjects are unaffected and fully proven byte-identical (the corpus faces).
+**Fix:** the throw ops restored in the raw-string branch. **Proof:** the three-executor budget probe — JVM throws RuntimeException(EXPR-E2), the node artifact throws EXPR-E2 (the message reaches the program), Script throws EXPR-E2 (exit=1); `KofExprSearchE2ETest` 10/10 with the committed JS budget face. (The neighbouring §1151 was WITHDRAWN same-day — its oracle was never executed.)
 
 <!-- pt-switch --> **PT:** [§1152 (pt_BR)](known-bugs.pt_BR.md#1152--o-arremesso-de-orcamento-do-kofexpr-some-no-js-find-sobre-um-sujeito-acima-do-orcamento-devolve-undefined-em-silencio-a-mensagem-expr-e2-nunca-chega-ao-programa--o-if-fold-do-js-descarta-o-ramo-then-so-de-throw)
 

@@ -39,6 +39,12 @@ static JsIr.JsStatement parseIfBody(JsControlFlowParser flow, MethodCtx ctx, int
         ctx.enclosingIfFalses.push(cj.falseLabel());
         List<LabelId> thenExits = new ArrayList<>();
         List<JsIr.JsStatement> thenBranch = flow.parseStatements(ctx, pos, Set.of(cj.falseLabel()), thenExits);
+        if (System.getenv("KOF_JS_PARSE_PROBE") != null) {  // PROBE
+            System.out.println("PARSE-IF cond=" + (condition == null ? "null" : condition.getClass().getSimpleName())
+                    + " then=" + thenBranch.size() + " opsLeft=" + (ctx.ops.size() - pos[0])
+                    + " firstOp=" + (pos[0] < ctx.ops.size() ? ctx.ops.get(pos[0]).getClass().getSimpleName() : "eof")
+                    + " exits=" + thenExits.size());
+        }
         if (pos[0] < ctx.ops.size() && ctx.ops.get(pos[0]) instanceof KofLabel kl2
                 && kl2.label().equals(cj.falseLabel())) {
             pos[0]++;

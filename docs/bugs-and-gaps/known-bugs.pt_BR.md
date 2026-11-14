@@ -18413,7 +18413,7 @@ Observado: `Cannot resolve static method 'ofString' on imported class 'BodyPubli
 
 ## §1152 — o arremesso de orçamento do `Kof.expr` SOME no JS: `find` sobre um sujeito acima do orçamento devolve `undefined` em silêncio (a mensagem EXPR-E2 nunca chega ao programa) — o if-fold do JS descarta o ramo then-só-de-throw
 
-**Status:** 🔴 ABERTO 14/11 (dona = 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a; medido no tip, a árvore da composição + fatia 7).
+**Status:** ✅ CORRIGIDA 14/11 NO MESMO DIA (dona = 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a). CAUSA RAIZ: a MINHA própria edição do marcador §267 naquele ciclo — a substituição de texto DERRUBOU os ops `load msg; KofThrow` do ramo de arremesso raw-string, deixando o bloco bad VAZIO (o if-fold do JS nunca foi o culpado — o dump do JsIr provou o fold correto e o bloco vazio na fonte).
 
 **MEDIDO** (artefato node v24 vs os oráculos Script/JVM, a mesma fonte):
 ```kof
@@ -18426,7 +18426,7 @@ Oráculo JVM: `EXPR-E2: …orçamento de 2,000…` arremessado. Script: o mesmo 
 
 **Já pousado a caminho da correção:** a mensagem do orçamento agora arremessa a STRING CRU no JS (o construtor `java_lang_RuntimeException` não existe lá — ReferenceError medido antes desta mudança) e o marcador `KofStatementIf` do §267 é emitido (declaração correta; sozinho insuficiente).
 
-**Próximo:** o if-fold do JS para ramos then-só-de-throw dentro da forma de orçamento do Kof.expr (dono de labels no JsIfThrowElse/parseIfBody) — mesma lane, próximo ciclo. Sujeitos dentro do orçamento não são afetados e estão totalmente provados byte-idênticos (as faces do corpus).
+**Correção:** os ops do throw restaurados no ramo raw-string. **Prova:** o probe de orçamento em três executores — JVM arremessa RuntimeException(EXPR-E2), o artefato node arremessa EXPR-E2 (a mensagem chega ao programa), Script arremessa EXPR-E2 (exit=1); `KofExprSearchE2ETest` 10/10 com a face de orçamento JS commitada. (A vizinha §1151 foi RETIRADA no mesmo dia — o oráculo dela nunca foi executado.)
 
 ## §1151 — RETIRADA (14/11, mesmo dia): o registro de "o Script responde errado para `one_or_more { exactly(2) letter }`" era um FALSO POSITIVO do processo de arquivamento — o oráculo JVM nunca foi EXECUTADO
 

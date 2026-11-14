@@ -215,6 +215,34 @@ class KofExprSearchE2ETest {
                 "the search faces on the JS artifact vs the JVM oracle");
     }
 
+    @Test
+    void theSubjectBudgetRefusesOnJsToo() throws Exception {
+        // §1152 FECHADA (14/11): o orçamento do §12 no JS — a mensagem
+        // EXPR-E2 chega ao programa (o `throw` de Kof é uma String no JS,
+        // o mesmo caminho de `throw "msg"`). RED provado: o ramo do throw
+        // ficou VAZIO numa edição (o marcador §267 derrubou os ops) e o
+        // find devolvia `undefined` em silêncio num sujeito de 2100.
+        StringBuilder subject = new StringBuilder();
+        for (int i = 0; i < 2100; i++) subject.append('a');
+        String src = WORD + "main() {\n"
+                + "    println(w.find(\"" + subject + "\"))\n"
+                + "}\n";
+        Path file = tmp.resolve("budget-js").resolve("Main.kf");
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, src);
+        Path out = tmp.resolve("budget-js-out");
+        CompilationResult r = new CompilerDriver().compile(file, out, Target.JS);
+        assertTrue(r.success(), "js compile: " + r.diagnostics().getDiagnostics());
+        var pb = new ProcessBuilder("node", out.resolve("Default.mjs").toString());
+        pb.redirectErrorStream(true);
+        var p = pb.start();
+        String outText = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                .replace("\r\n", "\n");
+        p.waitFor();
+        assertTrue(outText.contains("EXPR-E2"),
+                "the EXPR-E2 message must reach the JS program: " + outText);
+    }
+
     private String runJvm(String src) throws Exception {
         Path file = tmp.resolve("search-js-jvm").resolve("Main.kf");
         Files.createDirectories(file.getParent());
