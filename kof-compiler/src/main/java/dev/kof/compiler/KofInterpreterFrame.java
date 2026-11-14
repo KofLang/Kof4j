@@ -72,7 +72,21 @@ public final class KofInterpreterFrame {
             while (!f.tryStack.isEmpty() && f.tryStack.peek() != r) f.tryStack.pop();
             if (!f.tryStack.isEmpty()) f.tryStack.pop();
             if ("String".equals(r.exceptionType()) && exc instanceof Exception re) {
-                exc = re.getMessage();
+                // O JDK constrói a mensagem dos faults de faixa LAZILY (desde o
+                // 9: uma `ArrayIndexOutOfBoundsException` chega com
+                // getMessage() == null quando o fast-throw/alocação sob carga
+                // pula o texto — medido no ciclo 15/11: sob a suíte completa o
+                // `xs.get(99)` interpretado chegava aqui com mensagem nula e o
+                // `e.length()` do catch virava NoSuchMethodError
+                // "java.lang.String.length/0" (recv null → o caminho reflexivo
+                // não acha length estático). O contrato `catch (String e)` é
+                // ligar uma String USÁVEL e não-vazia (o oráculo JVM garante a
+                // mensagem no seu fault; §810). Bindar null viola — espelho do
+                // fix nativo (o guard constrói a KofString real antes do
+                // throw): sem mensagem, o texto do PRÓPRIO tipo do fault é o
+                // honesto (nunca um null silencioso).
+                String msg = re.getMessage();
+                exc = msg != null ? msg : re.getClass().getSimpleName();
             }
             f.stack.push(exc);
             f.pc = r.handlerPc();
