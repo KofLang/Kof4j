@@ -130,14 +130,9 @@ public final class KofInterpreter {
         return kofErrorMessage(t);
     }
 
-    /** Embedding: installs the cooperative work budget (host-facing). */
-    public void setStepBudget(KofStepBudget b) {
-        embedding.setStepBudget(b);
-    }
-
-    /** Embedding: installs the capability grants; NULL restores unconfined. */
-    public void setCapabilityGrants(Set<KofCapability> granted) {
-        embedding.setCapabilityGrants(granted);
+    /** Embedding: the host-facing surface (budget, grants, host APIs). */
+    public KofInterpreterEmbedding embedding() {
+        return embedding;
     }
 
     /** UI002 (R6): kof.ui não renderiza no interpretador — warning único. */
@@ -458,6 +453,12 @@ public final class KofInterpreter {
 
     Object dispatch(KofCall kc, Object recv, Object[] args) throws Throwable {
         String name = kc.methodName();
+        // Embedding slice 4: a HOST BINDING registrada pela sessão — o script
+        // chama a API do host pelo nome (o mecanismo vive na família de
+        // embedding; um nome NÃO registrado é uma recusa NOMEADA — EMBED003).
+        if (name.startsWith("hostcall_")) {
+            return embedding.callHostApi(name.substring("hostcall_".length()), args);
+        }
         // box/unbox: identidade — a pilha do interpretador já é boxed (JVM)
         // — EXCETO bool (Kof): o literal chega Integer 0/1 (ofBool/§108) mas o
         // slot Nullable(Bool) e o caminho de valor do == comparam o wrapper

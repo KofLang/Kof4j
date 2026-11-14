@@ -940,6 +940,8 @@ science) **without** destroying the language's simplicity.
 
 ### Promotion queue (`D-FUTURE-PROMOTION`, maintainer 28/09)
 
+> **CONCLUDED & PROMOTED 14/11: `kofscript-embedding-plan` → [`docs/kofscript-embedding-plan.md`](../kofscript-embedding-plan.md) (+PT)** — the COMPLETE run: the maintainer's order ("pega os dois ultimos de future antes do bootstrap") promoted it AND the runtime contract landed the same day (`KofEmbedSession`, kof-script): bounded execution (`KofStepBudget` at every IR op boundary + the parking worker), capability confinement (`KofCapability` + `EMBED001` by name), per-session bindings, and the host-API face (`bindApi` → `hostcall_<name>(...)`, `EMBED003` for an unregistered name — a RUNTIME surface, no new Kof syntax, per `D-KOF-EMBED`). Proofs `KofEmbedSessionTest` 8/8 (RED-first: the infinite-loop face hangs without the stepping) + the script/interpreter battery 72/0F; the guide `docs/kofscript-embedding-guide.md` (+PT). The 500 gate forced the split (`KofInterpreterEmbedding`; `KofInterpreter` 594 lines).
+
 > **RE-PROMOTED 14/11 (maintainer order "pega os dois ultimos de future antes do bootstrap"): `kofscript-embedding-plan`** —
 > moved from `future/` to [`kofscript-embedding-plan.md`](kofscript-embedding-plan.md) (+PT), `UNDER DEVELOPMENT`, and the runtime
 > CONTRACT LANDED the same day (`KofEmbedSession`, kof-script): bounded execution (`KofStepBudget` at every IR op boundary +

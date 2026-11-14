@@ -3,7 +3,7 @@
 # Embedding Kof in a Java host
 
 **Status:** `AVAILABLE` — `KofEmbedSession` (`kof-script`), the host-facing
-contract of issue #842. Plan: [`docs/development/kofscript-embedding-plan.md`](development/kofscript-embedding-plan.md).
+contract of issue #842. Plan: [`docs/kofscript-embedding-plan.md`](kofscript-embedding-plan.md).
 
 Use this when a Java application needs to run **player/user-authored Kof**
 inside its own process: a game mod scripting surface, a plugin host, a rules
@@ -43,6 +43,33 @@ try (KofEmbedSession session = KofEmbedSession.builder()
     }
 }
 ```
+
+## Exposing your API to the script
+
+The script calls a host API by the reserved runtime name `hostcall_<name>(...)`
+— a RUNTIME surface, not new Kof syntax (per `D-KOF-EMBED`). Register the
+implementation with the session:
+
+```java
+KofEmbedSession session = KofEmbedSession.builder()
+        .bindApi("print",  "String", args -> { System.out.println(args[0]); return ""; })
+        .bindApi("robotForward", "String", args -> { myRobot.forward(); return ""; })
+        .start(playerScript);
+```
+
+Inside the script:
+
+```kof
+main() {
+    hostcall_print("hello from the script")
+    hostcall_robotForward()
+}
+```
+
+The crossing is **text** (the default return type is `String`) — deliberate:
+the host API stays a host API, with no arbitrary Java object crossing into the
+script. A name the session never registered is refused by name (`EMBED003`),
+never a silent no-op.
 
 ## Limits and non-goals
 

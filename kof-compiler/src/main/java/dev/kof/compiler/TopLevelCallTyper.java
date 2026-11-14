@@ -51,6 +51,20 @@ final class TopLevelCallTyper {
      * não aplicável ou função inexistente já diagnosticada).
      */
     static Type infer(SemanticAnalyzer sa, MethodCallExpr mc, SymbolTable scope) {
+        // Embedding slice 4 (issue #842): a chamada a uma API do HOST —
+        // `hostcall_<nome>(...)` — é uma superfície de RUNTIME (não uma função
+        // top-level do programa): o host registra a implementação por sessão.
+        // O tipo de retorno é o registrado pelo host (default String); um nome
+        // não registrado é recusado em RUNTIME pelo interpretador (EMBED003),
+        // nunca um no-op silencioso.
+        if (mc.receiver() == null && mc.methodName().startsWith("hostcall_")) {
+            Type ret = KofHostBindingTypes.returnTypeOf(sa, mc.methodName());
+            if (!Type.isVoid(ret)) {
+                sa.putExpressionType(mc, ret);
+                return ret;
+            }
+            return ret;
+        }
         if (isTopLevelCandidate(sa, mc)) {
             List<Type> argTypes = new ArrayList<>();
             for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));

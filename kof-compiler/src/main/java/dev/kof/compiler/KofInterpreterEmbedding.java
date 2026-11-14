@@ -28,6 +28,13 @@ import java.util.Set;
 public final class KofInterpreterEmbedding {
 
     private final KofInterpreter interp;
+    // Embedding slice 4: the HOST BINDINGS — the functions the host registers
+    // for THIS session (visible only to this session's scripts). The script
+    // calls them by name (`host.fn(...)` lowers to a top-level call the
+    // interpreter resolves here); a name that is not registered is a NAMED
+    // refusal (EMBED003), never a silent no-op and never a fallback to the
+    // global map.
+    private final java.util.Map<String, HostBinding> bindings = new java.util.LinkedHashMap<>();
 
     /** The classic batch entry (moved here to keep KofInterpreter under 600). */
     public static KofInterpreter.Result runBatch(IRModule module, String[] args,
@@ -81,6 +88,49 @@ public final class KofInterpreterEmbedding {
     /** Installs the capability grants (NULL restores the unconfined behavior). */
     public void setCapabilityGrants(Set<KofCapability> granted) {
         this.grants = granted;
+    }
+
+    /** A host-registered binding: a name plus the implementation the host
+     *  supplies (the arguments are the Kof values, already boxed). */
+    public record HostBinding(java.util.function.Function<Object[], Object> fn) {
+    }
+
+    /** Embedding slice 4: registers a host binding for THIS session. */
+    public void bind(String name, HostBinding fn) {
+        bindings.put(name, fn);
+    }
+
+    /** The bindings visible to this session (read-only view). */
+    public java.util.Map<String, HostBinding> bindings() {
+        return java.util.Map.copyOf(bindings);
+    }
+
+    /** Embedding slice 4: the host-API call. A name the session never
+     *  registered is a NAMED refusal (EMBED003), never a silent no-op. */
+    Object callHostApi(String name, Object[] args) {
+        if (!bindings.containsKey(name)) {
+            throw new KofHostBindingMissingException(name);
+        }
+        return bindings.get(name).fn().apply(args);
+    }
+
+    /** Whether a binding is registered under this name. */
+    boolean hasBinding(String name) {
+        return bindings.containsKey(name);
+    }
+
+    /** Resolves a host binding call; null when the name is not registered (the
+     *  caller turns that into the named refusal). */
+    Object callHostBinding(String name, Object[] args) {
+        HostBinding b = bindings.get(name);
+        if (b == null) return null;
+        return b.fn().apply(args);
+    }
+
+    /** The names of the registered host bindings (the session injects one
+     *  top-level declaration per name into the script source). */
+    public java.util.Set<String> bindingNames() {
+        return bindings.keySet();
     }
 
     /** The per-op hook the interpreter's loop calls. */

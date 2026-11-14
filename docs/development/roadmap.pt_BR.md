@@ -945,6 +945,8 @@ Documento central: `docs/architecture/IMPLEMENTATION-UNIVERSAL-PLATFORM.md`
 
 ### Fila de promoção (`D-FUTURE-PROMOTION`, mantenedora 28/09)
 
+> **CONCLUÍDO & PROMOVIDO 14/11: `kofscript-embedding-plan` → [`docs/kofscript-embedding-plan.pt_BR.md`](../kofscript-embedding-plan.pt_BR.md) (+EN)** — a corrida COMPLETA: a ordem da mantenedora ("pega os dois ultimos de future antes do bootstrap") promovou E o contrato de runtime pousou no mesmo dia (`KofEmbedSession`, kof-script): execução limitada (`KofStepBudget` a cada limite de op de IR + o worker que estaciona), confinamento de capacidade (`KofCapability` + `EMBED001` pelo nome), bindings por sessão, e a face das APIs do host (`bindApi` → `hostcall_<nome>(...)`, `EMBED003` para um nome não registrado — uma superfície de RUNTIME, sem sintaxe Kof nova, por `D-KOF-EMBED`). Provas `KofEmbedSessionTest` 8/8 (RED-first: a face do laço infinito pendura sem o stepping) + a bateria script/interpreter 72/0F; o guia `docs/kofscript-embedding-guide.pt_BR.md` (+EN). O gate 500 forçou o split (`KofInterpreterEmbedding`; `KofInterpreter` 594 linhas).
+
 > **RE-PROMOVIDO 14/11 (ordem da mantenedora "pega os dois ultimos de future antes do bootstrap"): `kofscript-embedding-plan`** —
 > movido de `future/` para [`kofscript-embedding-plan.pt_BR.md`](kofscript-embedding-plan.pt_BR.md) (+EN), `UNDER DEVELOPMENT`, e o
 > CONTRATO de runtime POUSADO no mesmo dia (`KofEmbedSession`, kof-script): execução limitada (`KofStepBudget` a cada limite de op

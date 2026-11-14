@@ -99,6 +99,38 @@ class KofEmbedSessionTest {
 
     @Test
     @Timeout(value = 60, unit = TimeUnit.SECONDS)
+    void theScriptSeesTheHostApi() throws Exception {
+        try (KofEmbedSession s = KofEmbedSession.builder()
+                .bindApi("greet", "String", args -> "ola " + args[0])
+                .start("""
+                        main() {
+                            println(hostcall_greet("kof"))
+                        }
+                        """)) {
+            assertEquals(KofEmbedSession.Status.DONE, s.runToCompletion(),
+                    "o script chama a API do host: " + s.failure());
+            assertTrue(s.stdout().contains("ola kof"),
+                    "o retorno do host chega ao script: " + s.stdout());
+        }
+    }
+
+    @Test
+    @Timeout(value = 60, unit = TimeUnit.SECONDS)
+    void anUnregisteredHostApiIsRefusedByName() throws Exception {
+        try (KofEmbedSession s = KofEmbedSession.builder().start("""
+                main() {
+                    println(hostcall_greet("kof"))
+                }
+                """)) {
+            assertEquals(KofEmbedSession.Status.FAILED, s.runToCompletion());
+            assertNotNull(s.failure());
+            assertTrue(s.failure().contains("EMBED003"),
+                    "a recusa é NOMEADA: " + s.failure());
+        }
+    }
+
+    @Test
+    @Timeout(value = 60, unit = TimeUnit.SECONDS)
     void aScriptFailureIsReportedNotThrown() throws Exception {
         try (KofEmbedSession s = KofEmbedSession.builder().start("""
                 main() {

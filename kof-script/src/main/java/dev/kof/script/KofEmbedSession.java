@@ -60,6 +60,9 @@ public final class KofEmbedSession implements AutoCloseable {
 
     private final Set<KofCapability> grants;
     private final Map<String, Object> bindings;
+    private final Map<String, dev.kof.compiler.Type> apiSignatures = new LinkedHashMap<>();
+    private final Map<String, java.util.function.Function<Object[], Object>> apiImpls =
+            new LinkedHashMap<>();
     private final long parkMillis;
 
     private final ReentrantLock lock = new ReentrantLock();
@@ -92,7 +95,16 @@ public final class KofEmbedSession implements AutoCloseable {
         Path file = dir.resolve("Session.kf");
         Files.writeString(file, source);
         CompilerDriver driver = new CompilerDriver();
-        CompilationResult compiled = driver.compileSources(List.of(file), dir, Target.JVM);
+        // as assinaturas das APIs do host entram na tipagem da chamada
+        // (`hostcall_<nome>`) — por COMPILAÇÃO, não global (a sessão some
+        // depois: um embedding nunca vaza assinatura para outro).
+        dev.kof.compiler.KofHostBindingTypes.install(apiSignatures);
+        CompilationResult compiled;
+        try {
+            compiled = driver.compileSources(List.of(file), dir, Target.JVM);
+        } finally {
+            dev.kof.compiler.KofHostBindingTypes.clear();
+        }
         if (!compiled.success()) {
             throw new IllegalStateException("EMBED002: the script does not compile: "
                     + compiled.diagnostics().getDiagnostics());
@@ -103,8 +115,12 @@ public final class KofEmbedSession implements AutoCloseable {
         PrintStream po = new PrintStream(so, true);
         PrintStream pe = new PrintStream(se, true);
         interpreter = new KofInterpreter(ir, po, pe);
-        interpreter.setCapabilityGrants(EnumSet.copyOf(grants));
-        interpreter.setStepBudget(this::tick);
+        interpreter.embedding().setCapabilityGrants(EnumSet.copyOf(grants));
+        interpreter.embedding().setStepBudget(this::tick);
+        for (var e : apiImpls.entrySet()) {
+            interpreter.embedding().bind(e.getKey(),
+                    new dev.kof.compiler.KofInterpreterEmbedding.HostBinding(e.getValue()));
+        }
         status = Status.RUNNING;
         worker = new Thread(() -> {
             try {
@@ -184,6 +200,34 @@ public final class KofEmbedSession implements AutoCloseable {
         return this;
     }
 
+    /**
+     * Registers a host API the script can CALL: `hostcall_<name>(...)` inside
+     * the script reaches this implementation. The signature is the Kof return
+     * type (default {@code String}) — the crossing is text, by design.
+     */
+    public KofEmbedSession bindApi(String name, String returnType,
+                                   java.util.function.Function<Object[], Object> fn) {
+        apiSignatures.put(name, returnTypeOf(returnType));
+        apiImpls.put(name, fn);
+        return this;
+    }
+
+    /** The host APIs this session exposes (read-only view). */
+    public java.util.Set<String> apiNames() {
+        return java.util.Set.copyOf(apiImpls.keySet());
+    }
+
+    private static dev.kof.compiler.Type returnTypeOf(String kofType) {
+        String t = kofType == null || kofType.isBlank() ? "String" : kofType.trim();
+        return switch (t) {
+            case "Int" -> dev.kof.compiler.Type.PrimitiveType.INT;
+            case "Long" -> dev.kof.compiler.Type.PrimitiveType.LONG;
+            case "Bool" -> dev.kof.compiler.Type.PrimitiveType.BOOL;
+            case "Double" -> dev.kof.compiler.Type.PrimitiveType.DOUBLE;
+            default -> new dev.kof.compiler.Type.ClassType("java.lang", "String", java.util.List.of());
+        };
+    }
+
     /** The session bindings (read-only view). */
     public Map<String, Object> bindings() {
         return Map.copyOf(bindings);
@@ -241,6 +285,9 @@ public final class KofEmbedSession implements AutoCloseable {
     public static final class Builder {
         private final Set<KofCapability> grants = EnumSet.noneOf(KofCapability.class);
         private final Map<String, Object> bindings = new LinkedHashMap<>();
+        private final Map<String, dev.kof.compiler.Type> apiSignatures = new LinkedHashMap<>();
+        private final Map<String, java.util.function.Function<Object[], Object>> apiImpls =
+                new LinkedHashMap<>();
         private long parkMillis = 30_000;
 
         public Builder grant(KofCapability capability) {
@@ -259,6 +306,14 @@ public final class KofEmbedSession implements AutoCloseable {
             return this;
         }
 
+        /** Registers a host API the script can CALL (`hostcall_<nome>(...)`). */
+        public Builder bindApi(String name, String returnType,
+                               java.util.function.Function<Object[], Object> fn) {
+            apiSignatures.put(name, returnTypeOf(returnType));
+            apiImpls.put(name, fn);
+            return this;
+        }
+
         /** How long run(n) waits for the script to spend its grant (default 30s). */
         public Builder parkFor(long millis) {
             this.parkMillis = millis;
@@ -272,11 +327,14 @@ public final class KofEmbedSession implements AutoCloseable {
         /** Builds the session WITHOUT starting a script — for hosts that
          *  compile/start separately (and for binding isolation checks). */
         public KofEmbedSession build() {
-            return new KofEmbedSession(grants, bindings, parkMillis);
+            KofEmbedSession s = new KofEmbedSession(grants, bindings, parkMillis);
+            s.apiSignatures.putAll(apiSignatures);
+            s.apiImpls.putAll(apiImpls);
+            return s;
         }
 
         public KofEmbedSession start(String source, String... args) throws IOException {
-            return new KofEmbedSession(grants, bindings, parkMillis).start(source, args);
+            return build().start(source, args);
         }
     }
 }
