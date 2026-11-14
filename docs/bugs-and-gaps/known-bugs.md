@@ -20995,6 +20995,25 @@ JVM oracle: `EXPR-E2: …budget of 2,000…` thrown. Script: the same EXPR-E2 th
 
 <!-- pt-switch --> **PT:** [§1151 (pt_BR)](known-bugs.pt_BR.md#1151--retirada-1411-mesmo-dia-o-registro-de-o-script-responde-errado-para-one_or_more--exactly2-letter--era-um-falso-positivo-do-processo-de-arquivamento--o-oraculo-jvm-nunca-foi-executado)
 
+## §1134 — Native aarch64 SIGBUS on REAL hardware from a misaligned sp (qemu-user hides it) — DOCUMENTED LIMITATION, reclassified out of the 0.7.x patch surface (GitHub #1134)
+
+**Status:** 🔴 OPEN — RECLASSIFIED `1.0-blocks` → `1.0-outside` 14/11 by maintainer order ("fecha o que precisar pra 0.7.3"), route (b) of the three recorded on the issue. **The defect is real and NOT fixed.**
+
+**What happens:** a Native aarch64 binary that constructs a class instance dies with `SIGBUS` on REAL aarch64 hardware. Under `qemu-aarch64` the same binary prints the right output — which is why the cross E2E suite stays green and never caught it.
+
+**Measured (this host, x86_64, no arm64 hardware — static measurement):** building the issue's exact repro with `--target native.arm` and reading the kept `Main.s` shows **31 misaligned SP sites** in a ~200-line program — the riscv64 push shape translated 1:1:
+```
+    sub sp, sp, #8
+    str x0, [sp]        <-- SP is 8 mod 16 here: AArch64 faults on an SP-relative access
+```
+This matches the issue's gdb frame exactly (`main+76`, `str x0, [sp]`). The riscv64 output has the same 31 `addi sp, sp, -8` sites, which are LEGAL there (riscv has no SP-alignment fault) — that pins the translator's 1:1 mapping as the root cause.
+
+**Why the fix is not in the 0.7.x patch surface (the honest reason, not a waiver):** the correct fix is a push/pop redesign — the same file also has **615 `[sp, #N]` accesses**, so a blanket rounding of the `#8` adjustments would shift every one of those offsets. And it **cannot be proven on this host**: qemu-user does not enforce SP-alignment checking (that is precisely why the bug is invisible to the cross suite) and no arm64 hardware is reachable. Shipping an unproven fix of the fixed face would violate Q0/Q5.
+
+**Scope of the limitation:** aarch64 on REAL hardware only. JVM, Script, JS, Native x86-64, Native riscv64 and aarch64-under-qemu all stay green.
+
+**Resume (route (a), open to the native/codegen lane):** track SP displacement symbolically in `NativeAarch64Translator` and rewrite the push/pop pairs to 16-byte slots with the intermediate offsets remapped; proof requires arm64 hardware or an SP-alignment-checking emulator.
+
 ## §1150 — a TYPED lambda `mq.subscribe` handler crashed `publish` with `NoSuchMethodException` on JVM and Script (JS/Native delivered) — cross-target divergence on a documented idiom (GitHub #1150)
 
 **Status:** ✅ FIXED 12/11 (owner = 192.168.100.19:0; issue [#1150](https://github.com/KofLang/Kof4j/issues/1150), measured REAL on the tip by the active E2 probe batch 3).

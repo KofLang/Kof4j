@@ -18465,6 +18465,25 @@ Oráculo JVM: `EXPR-E2: …orçamento de 2,000…` arremessado. Script: o mesmo 
 
 **Prova da retirada:** a sonda de quatro sujeitos (`ab cd`/`ab1`/`abcd`/`ab`) responde idêntica no artefato JVM e no interpreter Script (`false|false|true|true`).
 
+## §1134 — SIGBUS no Native aarch64 em hardware REAL por sp desalinhado (qemu-user esconde) — LIMITAÇÃO DOCUMENTADA, reclassificada fora da superfície de patch 0.7.x (GitHub #1134)
+
+**Status:** 🔴 OPEN — RECLASSIFICADA `1.0-blocks` → `1.0-outside` 14/11 por ordem da mantenedora ("fecha o que precisar pra 0.7.3"), rota (b) das três registradas no issue. **O defeito é real e NÃO está corrigido.**
+
+**O que acontece:** um binário Native aarch64 que constrói uma instância de classe morre com `SIGBUS` em hardware aarch64 REAL. Sob `qemu-aarch64` o mesmo binário imprime a saída certa — por isso a suíte E2E cross fica verde e nunca o pegou.
+
+**Medido (este host, x86_64, sem hardware arm64 — medição estática):** construindo o repro exato da issue com `--target native.arm` e lendo o `Main.s` mantido aparecem **31 sítios de SP desalinhado** num programa de ~200 linhas — a forma de push do riscv64 traduzida 1:1:
+```
+    sub sp, sp, #8
+    str x0, [sp]        <-- SP está 8 mod 16 aqui: AArch64 faz fault em acesso SP-relativo
+```
+Isto bate com o frame gdb da issue exatamente (`main+76`, `str x0, [sp]`). A saída riscv64 tem os mesmos 31 sítios `addi sp, sp, -8`, que são LEGAIS lá (riscv não tem fault de alinhamento de SP) — isso fixa o mapeamento 1:1 do tradutor como causa-raiz.
+
+**Por que o fix não está na superfície de patch 0.7.x (a razão honesta, não um waiver):** o fix correto é um redesenho do push/pop — o mesmo arquivo também tem **615 acessos `[sp, #N]`**, então um arredondamento cego dos ajustes de `#8` deslocaria todos esses offsets. E **não pode ser provado neste host**: qemu-user não faz checking de alinhamento de SP (é precisamente por isso que o bug é invisível à suíte cross) e não há hardware arm64 acessível. Enviar um fix não provado da face corrigida violaria Q0/Q5.
+
+**Escopo da limitação:** apenas aarch64 em hardware REAL. JVM, Script, JS, Native x86-64, Native riscv64 e aarch64-sob-qemu seguem verdes.
+
+**Retomar (rota (a), aberta à lane native/codegen):** rastrear o deslocamento de SP simbolicamente no `NativeAarch64Translator` e reescrever os pares push/pop para slots de 16 bytes com os offsets intermediários remapeados; a prova exige hardware arm64 ou um emulador que cheque alinhamento de SP.
+
 ## §1150 — handler `mq.subscribe` com lambda TIPADO explodia no `publish` com `NoSuchMethodException` no JVM e no Script (JS/Native entregavam) — divergência cross-target num idiom documentado (GitHub #1150)
 
 **Status:** ✅ CORRIGIDO 12/11 (dona = 192.168.100.19:0; issue [#1150](https://github.com/KofLang/Kof4j/issues/1150), medido REAL no tip pelo lote 3 do probe E2 ativo).
