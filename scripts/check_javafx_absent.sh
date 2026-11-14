@@ -24,7 +24,16 @@ scan() {
     # apenas USO real: import/ref qualificada (`javafx.`) ou coordenada Maven
     # (`org.openjfx`). Prosa que cita "JavaFX launcher" (regra AGENTS: a
     # mensagem do launcher mascara um VerifyError) NAO e uso e fica de fora.
-    grep -rinsE 'javafx[.]|org[.]openjfx' \
+    #
+    # #1139: a ancora e `javafx.` (ponto LITERAL) — com `-i` (case-insensitive)
+    # o `javafx[.]` casava PROSA que termina a frase em "JavaFX." (medido: um
+    # comentario em ThrowNarrowedStringE2ETest.java:36 dizia "JavaFX. O" e o
+    # gate ficou VERMELHO na ponta, derrubando o job `Structural quality gates`
+    # de todo PR). O uso real de JavaFX e sempre `javafx.` (import/ref
+    # qualificada) ou `org.openjfx` (coordenada Maven); a prosa "JavaFX." sem
+    # identificador depois NAO e uso. A ancora agora exige um identificador
+    # Java valido depois do ponto, que e a forma real do uso.
+    grep -rinsE 'javafx[.]([A-Za-z_]|\*)|org[.]openjfx' \
         --include='*.java' --include='*.kt' --include='*.kf' \
         --include='pom.xml' --include='*.gradle' \
         "$ROOT" 2>/dev/null | grep -v '/target/'
@@ -50,7 +59,20 @@ if [ "${1:-}" = "--selftest" ]; then
         > "$T/pom.xml"
     if JAVAFX_SCAN_ROOT="$T" bash "$0" >/dev/null 2>&1; then
         echo "SELFTEST FALHOU: dependencia javafx no pom passou (furo)"; exit 1; fi
-    echo "SELFTEST OK: limpo passa; import javafx e dep javafx no pom falham"
+    rm -f "$T/pom.xml"
+    # caso RUIM 3: import javafx.* (wildcard) -> gate deve FALHAR (o uso real
+    # tambem vem na forma `javafx.*`, que a ancora por identificador pegaria)
+    printf 'package dev.kof;\nimport javafx.*;\nclass Foo {}\n' \
+        > "$T/kof-compiler/src/main/java/dev/kof/Foo.java"
+    if JAVAFX_SCAN_ROOT="$T" bash "$0" >/dev/null 2>&1; then
+        echo "SELFTEST FALHOU: 'import javafx.*' plantado passou (furo)"; exit 1; fi
+    # caso BOM 2: PROSA que cita JavaFX (o caso RED do #1139 — um comentario
+    # que termina a frase em "JavaFX." NAO e uso e nao pode reprovar o gate)
+    printf 'package dev.kof;\n// a mensagem enganosa de JavaFX. O resto e prosa.\nclass Foo {}\n' \
+        > "$T/kof-compiler/src/main/java/dev/kof/Foo.java"
+    if ! JAVAFX_SCAN_ROOT="$T" bash "$0" >/dev/null 2>&1; then
+        echo "SELFTEST FALHOU: prosa que cita 'JavaFX.' reprovou o gate (falso-vermelho)"; exit 1; fi
+    echo "SELFTEST OK: limpo e prosa passam; import javafx, import javafx.* e dep javafx no pom falham"
     exit 0
 fi
 

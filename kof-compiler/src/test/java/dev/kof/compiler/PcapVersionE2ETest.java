@@ -59,6 +59,7 @@ class PcapVersionE2ETest implements LibraryInstallSupport {
 
     @Test
     void pcapVersionOnJvm() throws Exception {
+        NativeLibraryAvailability.assumePresent("PcapVersionE2ETest", "libpcap.so.1");
         Path root = tmp.resolve("pcap-jvm");
         Files.createDirectories(root);
         Files.writeString(root.resolve("Main.kf"), PROBE);
@@ -81,6 +82,7 @@ class PcapVersionE2ETest implements LibraryInstallSupport {
 
     @Test
     void pcapVersionOnNativeX86() throws Exception {
+        NativeLibraryAvailability.assumePresent("PcapVersionE2ETest", "libpcap.so.1");
         Path root = tmp.resolve("pcap-native");
         Files.createDirectories(root);
         Files.writeString(root.resolve("Main.kf"), PROBE);

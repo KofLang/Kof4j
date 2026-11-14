@@ -81,6 +81,7 @@ class LinalgBlasFloatE2ETest implements LibraryInstallSupport {
 
     @Test
     void blasFloatOnJvm() throws Exception {
+        NativeLibraryAvailability.assumePresent("LinalgBlasFloatE2ETest", "libopenblas.so.0");
         Path root = tmp.resolve("lf-jvm");
         Files.createDirectories(root);
         Files.writeString(root.resolve("Main.kf"), PROBE);
@@ -103,6 +104,7 @@ class LinalgBlasFloatE2ETest implements LibraryInstallSupport {
 
     @Test
     void blasFloatOnNativeX86() throws Exception {
+        NativeLibraryAvailability.assumePresent("LinalgBlasFloatE2ETest", "libopenblas.so.0");
         Path root = tmp.resolve("lf-native");
         Files.createDirectories(root);
         Files.writeString(root.resolve("Main.kf"), PROBE);

@@ -68,6 +68,7 @@ class SvgRenderE2ETest implements LibraryInstallSupport {
 
     @Test
     void renderOnJvm() throws Exception {
+        NativeLibraryAvailability.assumePresent("SvgRenderE2ETest", "librsvg-2.so.2", "libcairo.so.2");
         Path root = tmp.resolve("svg-jvm");
         Files.createDirectories(root);
         Path png = writeProbe(root);
@@ -91,6 +92,7 @@ class SvgRenderE2ETest implements LibraryInstallSupport {
 
     @Test
     void renderOnNativeX86() throws Exception {
+        NativeLibraryAvailability.assumePresent("SvgRenderE2ETest", "librsvg-2.so.2", "libcairo.so.2");
         Path root = tmp.resolve("svg-native");
         Files.createDirectories(root);
         Path png = writeProbe(root);

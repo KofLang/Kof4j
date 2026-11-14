@@ -71,6 +71,7 @@ class LinalgBlasLevel1E2ETest implements LibraryInstallSupport {
 
     @Test
     void blasLevel1OnJvm() throws Exception {
+        NativeLibraryAvailability.assumePresent("LinalgBlasLevel1E2ETest", "libopenblas.so.0");
         Path root = tmp.resolve("l1-jvm");
         Files.createDirectories(root);
         Files.writeString(root.resolve("Main.kf"), PROBE);
@@ -93,6 +94,7 @@ class LinalgBlasLevel1E2ETest implements LibraryInstallSupport {
 
     @Test
     void blasLevel1OnNativeX86() throws Exception {
+        NativeLibraryAvailability.assumePresent("LinalgBlasLevel1E2ETest", "libopenblas.so.0");
         Path root = tmp.resolve("l1-native");
         Files.createDirectories(root);
         Files.writeString(root.resolve("Main.kf"), PROBE);

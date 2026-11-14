@@ -100,7 +100,14 @@ public final class NativeAssembler {
                             // pega as seções por função (medição B-2).
                             "-j", ".text*", "-j", ".rodata*", "-j", ".data*",
                             "-j", ".bss*", "-j", ".reloc",
-                            "--target", "pei-x86-64", "--subsystem", "10",
+                            // #1139: `--output-target` (e nao `--target`) — o
+                            // `--target`/`-F` define entrada E saida, entao o
+                            // objcopy tenta LER o ELF como se fosse PE e falha
+                            // com "file format not recognized" (medido: o
+                            // objcopy puro no ELF passa; so o `--target`
+                            // quebra). `--output-target`/`-O` diz so o
+                            // formato de SAIDA: o ELF entra, o PE32+ sai.
+                            "--output-target", "pei-x86-64", "--subsystem", "10",
                             elfFile.toString(), binFile.toString()}, "objcopy");
                 } finally {
                     Files.deleteIfExists(elfFile);

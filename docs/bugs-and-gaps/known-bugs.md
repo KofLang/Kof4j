@@ -20941,6 +20941,29 @@ Observed: `Cannot resolve static method 'ofString' on imported class 'BodyPublis
 **Proof:** `DotDirectoryPackageE2ETest` **5/5** (RED-first: 4/5 failed with the exact `COMP001: /agent` before the fix; the `.agent`, `sub/.agent`, `.hidden-x`, valid-directory control and no-`kof.toml` control faces) + `InternalNameValidationTest` **4/4** (the identifier rule and the defensive gate). Non-regression: `EnumPackagePlacementE2ETest` 7/7, `PackagesE2ETest` 12/12, `CompileForTestsSourcesModuleRootTest` 1/1, `OrmEntityPackageE2ETest` 2/2, `JsonDecodePackagedRecordE2ETest` 2/2.
 <!-- pt-switch --> **PT:** [§936 (pt_BR)](known-bugs.pt_BR.md#936--uma-fonte-sob-um-diretorio-cujo-nome-nao-e-um-identificador-valido-agent-hidden-x-deriva-um-pacote-invalido-entao-o-alvo-jvm-falha-com-um-comp001-mal-rotulado-ou-um-classformaterror-silencioso-github-999)
 
+## §1153 — the UEFI/PE32+ artifact build was BROKEN BY CONSTRUCTION: `objcopy --target` sets input AND output format, so the ELF was read as a PE and the build died with "file format not recognized" (GitHub #1139)
+
+**Status:** ✅ FIXED 14/11 (owner = 192.168.15.15:0, flatt CLI, no opencode server on this host; port n/a). This is the CI harness defect #1139 tracked: it took down 7 `NativeUefiE2ETest` faces + 4 `RingPrivilegeE2ETest` faces on EVERY pull request, so no PR could look green — the issue recorded it as "environmental", and the measurement says it was a real defect in the code.
+
+**ROOT CAUSE (measured by hand, on the tip `b4ad2a79c`):** the UEFI profile links an ELF with `ld` and converts it with `objcopy`. The conversion used `--target pei-x86-64`. `--target` (alias `-F`) sets BOTH the input and the output format, so objcopy tried to READ the ELF as if it were a PE and aborted:
+
+```
+$ objcopy -j ".text*" --target pei-x86-64 --subsystem 10 Main.elf Main
+objcopy: Main.elf: file format not recognized
+$ objcopy -j ".text*" --output-target pei-x86-64 --subsystem 10 Main.elf Main
+$ file Main
+Main: PE32+ executable for EFI (application), x86-64 (stripped to external PDB), 5 sections
+```
+
+The bare `objcopy` on the same ELF succeeds and `--output-target` produces the valid PE32+ — so the defect is the flag, not the toolchain and not the linker.
+
+**Impact measured:** `NativeUefiE2ETest` 7 faces and `RingPrivilegeE2ETest` 4 faces failed at build time (`compile UEFI inesperado: … objcopy failed (exit 1): objcopy: …/Main.elf: file format not recognized`), on this host AND on the CI runner — the same error, the same 11 faces.
+
+**Fix:** `--output-target` (alias `-O`) names only the OUTPUT format — the ELF is read, the PE32+ is written. The BIOS profile already used `--output-target binary` and was never affected.
+
+**Proof (executed):** RED-first on the old code — `Issue1139ObjcopyOutputTargetTest` 1/2 red naming the exact offending line (`103: "--target", "pei-x86-64"`), 2/2 green after the change. `NativeUefiE2ETest` 8 run / 0F (the 7 faces that used to fail now pass; the 6 skips are the named OVMF/qemu environmentals), `RingPrivilegeE2ETest` 5 run / 0F. The flag is pinned by the test so a future edit cannot reintroduce the input+output spelling.
+
+<!-- pt-switch --> **PT:** [§1153 (pt_BR)](known-bugs.pt_BR.md#1153--o-build-do-artefato-uefipe32-era-quebrado-por-construcao-o-objcopy---target-define-entrada-e-saida-entao-o-elf-era-lido-como-pe-e-o-build-morria-com-file-format-not-recognized-github-1139)
 ## §1152 — the Kof.expr budget throw VANISHES on JS: `find` over an above-budget subject returns `undefined` silently (the EXPR-E2 message never reaches the program) — the JS if-fold drops the throw-only then-branch
 
 **Status:** ✅ FIXED 14/11 SAME-DAY (owner = 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a). ROOT CAUSE: my own §267-marker edit earlier that cycle — the text replacement DROPPED the `load msg; KofThrow` ops from the raw-string throw branch, leaving the bad block EMPTY (the JS if-fold was never the culprit — the JsIr dump proved the fold correct and the block empty at the source).

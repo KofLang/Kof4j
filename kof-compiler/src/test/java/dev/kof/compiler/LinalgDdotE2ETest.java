@@ -83,6 +83,7 @@ class LinalgDdotE2ETest implements LibraryInstallSupport {
 
     @Test
     void ddotOnJvm() throws Exception {
+        NativeLibraryAvailability.assumePresent("LinalgDdotE2ETest", "libopenblas.so.0");
         Path root = tmp.resolve("ddot-jvm");
         Files.createDirectories(root);
         Files.writeString(root.resolve("Main.kf"), PROBE);
@@ -105,6 +106,7 @@ class LinalgDdotE2ETest implements LibraryInstallSupport {
 
     @Test
     void ddotOnNativeX86() throws Exception {
+        NativeLibraryAvailability.assumePresent("LinalgDdotE2ETest", "libopenblas.so.0");
         Path root = tmp.resolve("ddot-native");
         Files.createDirectories(root);
         Files.writeString(root.resolve("Main.kf"), PROBE);
