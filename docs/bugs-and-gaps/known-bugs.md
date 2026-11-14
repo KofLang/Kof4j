@@ -10035,6 +10035,8 @@ behavior-preserving (`RawRowCollectionAccessE2ETest` + `SemanticResolutionTest`
   (`Skipped: 1`, was a red); on a host with the multiarch package it runs as before.
 
 ### §256 — CONC001 closure (lane .18) left 2 reds on clean tip: cross gaps table desynced + riscv64 `poll(b)` returns 0 after `selectAny`
+**✅ FIXED — BOTH faces verified closed on the tip 15/11 (lane docs/lab, owner = 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a).** Face (a): the learn/18-concurrency gaps table IS synced (the `poll`/`done`/`cancel`/`selectAny` cells carry the ✅ riscv64/aarch64 CONC001 proofs). Face (b): the ROOT CAUSE was fenced at the source in `ff87a09c6` (18/09) — `fence r, rw` acquire now pairs the trampoline's release in `kof_done`/`kof_poll`/`selectAny` (NativeRiscvAsmRtB48, 3 fences) AND the golden was rebuilt with a REAL happens-before (`await b` before `poll` closes the window by construction). Executed proof on today's tip: `KofConcurrency2Test#crossNativeConcurrencyHelpersRun` GREEN (riscv64 + aarch64, the toolchain present). The original suspicion (the missing acquire) was CORRECT and is now in the code.
+
 
 - **Measured 16/09 ~02:10, worktree tip `4af4356f` (NO local changes — the §257
   patch is NOT applied there), so these are PRE-EXISTING, not §257 collateral:**
@@ -11821,6 +11823,8 @@ paths untouched (no `jsDeps` entries for them).
 
 **Status:** ✅ CLOSED 19/09 (faces (a)+(b), owner `.22`). Supersedes the §295(b) note "the one `Bool?`-slot direct-println face is pinned JVM-only" — Script/JS now agree with JVM, proven by the new test. Related: §295, §294, #278, #438, §108.
 ## §307 — CRITICAL `check_500` gate broken: `StatementLowerer.java` at 605 lines (baseline 585 grew +20 via §295(b) cluster of `7e35f177`)
+**✅ FIXED — verified on the tip 15/11 (lane docs/lab, owner = 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a).** The split landed in `98141a634` ("refactor(compiler): split StatementLowerer 605→490 — gate ≤500 verde (§307)"): the local-declaration/initialization + erasure-boxing + Nullable(primitive) block moved to `StatementLowererLocalBoxing.java` (named for what it contains, rule 7 — today also `StatementLowererLock`/`StatementLowererTry` exist). Today: StatementLowerer.java = 519 lines, the ratchet baseline pins it at 512, `check_500.sh` rc=0 — the CI gate is GREEN and the file is under the 600 critical line.
+
 
 **Found:** 18/09 ~23:40 UTC (lane tooling/cli `.15`) — CI on tips `7e35f177`/`82a09c35`
 fails the "Gate ≤500 linhas/classe" step: `check_500.sh` points at
@@ -14833,7 +14837,7 @@ p
 - **Symptom (measured 21/09, re-runs of the debug family):** a `timeout`-killed round leaves the binary in the temp dir and the run dies with the generic "Nenhum ELF gerado"-style failure — the SIGKILL of `timeout` takes the whole process group including `qemu-riscv64 -g`.
 - **Verified holes in the current file (grep 21/09):** `NativeRiscv64E2ETest` lines ~62/112/1081 call `p.waitFor()` with **zero** `destroy()` and **zero** `finally` in the file — a timed-out qemu survives; the ready-line race between `start` and the first `continue` intermittently eats the first event (flake, observed on a re-run round); a single `continue` after `break main` stops at entry, not at the breakpoint (the 5th shape needs a second event step).
 - **Fix (for the harness owner):** `destroy()` in a finally (kill qemu BEFORE the `rm -rf`), wait for the ready line only after the initial resume, and `kill()` after every bounded `waitFor`.
-- **Status:** 🟡 OPEN — rota = lane native-debug (dono do harness). Not introduced by the §406-family fix — the holes predate it.
+- **✅ FIXED 21/09 (the title is the truth — this body status stayed 🟡 by drift, reconciled 15/11, lane docs/lab, owner = 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a):** verified on the tip — `destroyForcibly` + the bounded wait close every process path in `NativeRiscv64E2ETest` (lines ~120–140) and the named proof `hangingChildIsKilledByTheBoundedWait` exists and runs GREEN (executed today).
 - **Related:** §406 (harness ELF-dir leak, fixed in the lost block — the owning lane is re-landing; number may shift).
 
 - **✅ FIXED 21/09 (lane nat/native-debug, sessão 9093 — handoff D-CLOSEALL-BATCH):** new `runBounded(Process, what[, timeout, unit])` in `NativeRiscv64E2ETest`: bounded wait (default 180s), `destroyForcibly()` + bounded reap on timeout, `destroyForcibly()` on `InterruptedException` and in the `finally` — a hung qemu can no longer outlive the round, so the temp dir is safe to remove after the helper returns. Applied to `runQemu`, `runRiscv64` and the heap-exhaustion site (the three `waitFor()` holes). **Proof (Q0/Q1):** `hangingChildIsKilledByTheBoundedWait` (hanging `sleep 60` dies at the 1s bound; process asserted dead) + `NativeRiscv64E2ETest` **54/0F** (1 honest skip) + the 9 neighbor classes calling `runQemu` **178/0F/0E**. Live count 12→11.
