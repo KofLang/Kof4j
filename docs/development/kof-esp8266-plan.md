@@ -4,7 +4,7 @@ last: 14/11/2026 — GATE 0 EXECUTED (the audit's findings are MEASURED, not est
 GATE 4 LANDED 14/11 — the CLI WORKFLOW (the plan's own gate: "a documented end-to-end workflow that does not make physical hardware mandatory for ordinary Kof builds"): `kof build <dir> --target native.esp8266` parses (the `parseTarget` + the known-spellings list + the usage line), compiles through `NativeEsp8266`, links through the overlay's crt0 and generates the FIRMWARE IMAGES via esptool (`KOF_ESPTOOL` or the PATH python; absent → a NAMED skip — the ELF remains the deliverable). MEASURED end to end on this host: the valid `ELF 32-bit LSB executable, Tensilica Xtensa` + the two flash images (`Main.img0x00000.bin` the boot section, `Main.img0x00010.bin` the app — the REAL flash layout). `CliUsageTargetsTest` 7/7 (the gate-4 face: the usage announces + the parse accepts). The esptool 5.x lesson recorded: `--chip` comes BEFORE the subcommand.
 the REMAINDER: gate 2 (the memory/stack reporting + the runtime constraints measured), gate 3 (the HAL breadth — GPIO/timers beyond the UART0 write), gate 5 (physical execution — HARDWARE or Espressif's qemu fork, the maintainer's provisioning decision, named).
 location: docs/development
-state: under-development (gates 0/1/2/4 landed 14/11; 3 and 5 remain)
+state: under-development (gates 0/1/2/3/4 landed 14/11; 5 remains — the provisioning decision)
 
 intent: kof-esp8266-embedded-target
 
