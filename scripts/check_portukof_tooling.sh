@@ -44,7 +44,7 @@ must_have "$CLI/LspProject.java" 'endsWith\("\.ptkf"\)|n\.endsWith\("\.ptkf"\)' 
 #    perfil pela ponte única; NUNCA tabela PT própria, NUNCA o guard de recusa.
 must_have "$COMP/KofFormatter.java" 'LanguageProfile\.forFileName\(fileName\)' \
     "KofFormatter deve escolher o perfil pelo nome do arquivo (autoridade da extensão)"
-must_have "$CLI/Fmt.java" 'format\(in, f\.getFileName\(\)\.toString\(\)\)' \
+must_have "$CLI/Fmt.java" 'format(Checked)?\(in, f\.getFileName\(\)\.toString\(\)\)' \
     "Fmt deve passar o nome real do arquivo ao formatter (não Main.kf fixo)"
 
 # 3b) F7.3 — o AST-printer é profile-aware: renderiza slots estruturais pela

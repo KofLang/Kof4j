@@ -31,7 +31,7 @@ REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 STRUCTURAL_GATES="check_changelog_ledger check_known_bugs_status check_ledger_anchors \
 check_live_records check_owner_identity check_plan_owners check_test_hygiene \
 check_stdlib_boundary check_workflow_pins check_doc_refs check_doc_impact check_500 \
-check_version_consistency"
+check_version_consistency check_portukof_tooling"
 
 # verdict_from <rc_gate> <gates_ok> <suite_state> -> prints CUT:GREEN|CUT:SLIPS + reason, rc 0/1
 #   suite_state: GREEN | SLIPS | NAO-AVALIADO
