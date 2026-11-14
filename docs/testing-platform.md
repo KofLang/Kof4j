@@ -851,6 +851,16 @@ supported, accessible names and semantic structure. Never replaces manual access
 > real 404 — proving the interception happens BEFORE the network. The other providers keep the
 > honest capability refusal. RED-first proven (`cannot find symbol: mock`).
 >
+> **UPLOAD/DOWNLOAD — LANDED 14/11 (phase-8 slice, lane `192.168.100.14:0`, flatt CLI):** `uploadAssert(kind, url,
+> inputLocator, filePath, locator, assertion)` — `setInputFiles` fires the change event and the fixture
+> reads `file.name`/`file.size` SYNCHRONOUSLY (the FileReader face stays OUT — async without a
+> deterministic settle contract, named); `downloadTo(kind, url, linkLocator, targetPath)` — click →
+> `waitForDownload` → `saveAs`, the test comparing the REAL bytes (the fixture generates a blob with the
+> `download` attribute). The proof (`PlaywrightTransferE2ETest` 2/2, local HTTP — downloads from file://
+> are blocked by chromium, the mock slice's lesson applied): the uploaded file's name+size measured in the
+> DOM; the downloaded bytes array-equal the payload (UTF-8 accented content included). The other providers
+> keep the honest capability refusal. RED-first proven (both calls unknown before the faces).
+>
 ## 8.4 Test data and server lifecycle
 
 Mechanisms to seed DB, create users/fixtures and reset state; avoid permanent global fixtures —
@@ -936,7 +946,7 @@ tests — especially `test passes`, `test fails`, `test throws`, `test timeout`,
 | 5 · Cypress | second provider only after the abstraction is stable; map capabilities |
 | 6 · KofJS / KofWasm | E2E for both, same suite when possible |
 | 7 · Cross-browser | Chromium, Firefox, WebKit |
-| 8 · Advanced | visual regression (**comparison LANDED 14/11** — `VisualRegression`), accessibility (**faces LANDED 14/11** — roles/labels/keyboard + the `focus` assertion), network mocking (**LANDED 14/11** — `mockAssert`/`settleAssert` + `Stub`), WebSocket, upload/download, mobile emulation, traces, videos, advanced diagnostics |
+| 8 · Advanced | visual regression (**comparison LANDED 14/11** — `VisualRegression`), accessibility (**faces LANDED 14/11** — roles/labels/keyboard + the `focus` assertion), network mocking (**LANDED 14/11** — `mockAssert`/`settleAssert` + `Stub`), WebSocket, upload/download (**LANDED 14/11** — `uploadAssert`/`downloadTo`), mobile emulation, traces, videos, advanced diagnostics |
 
 Landed (11/10, the phase-4 acceptance with a REAL app): `KofJsAppSemanticE2ETest` (kof-cli)
 compiles a real interactive kof.ui program to the JS target, serves it over local HTTP (the

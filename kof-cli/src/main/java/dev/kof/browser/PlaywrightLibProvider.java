@@ -6,6 +6,7 @@ import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.TimeoutError;
+import com.microsoft.playwright.Download;
 import com.microsoft.playwright.Route;
 import com.microsoft.playwright.options.AriaRole;
 
@@ -180,6 +181,41 @@ public final class PlaywrightLibProvider implements BrowserProvider {
                     "element not found within " + ASSERT_TIMEOUT_MS + "ms: "
                             + locator, e);
         }
+    }
+
+    /** Fase 8: UPLOAD — `setInputFiles` (o evento change dispara no fixture)
+     *  e a medida do efeito no DOM. */
+    public String uploadAssert(String kind, String url, String inputLocator,
+                               java.nio.file.Path filePath, String locator,
+                               String assertion) throws Exception {
+        KofLocator.Parsed input = KofLocator.parseLocator(inputLocator);
+        KofLocator.Parsed parsed = KofLocator.parseLocator(locator);
+        KofLocator.Assert want = KofLocator.parseAssertion(assertion);
+        return withPage(kind, url, page -> {
+            page.setDefaultTimeout(ASSERT_TIMEOUT_MS);
+            resolve(page, input).setInputFiles(filePath);
+            return measure(resolve(page, parsed), want);
+        });
+    }
+
+    /** Fase 8: DOWNLOAD — o clique espera o download e o `saveAs` grava os
+     *  bytes reais em `targetPath`. */
+    public java.nio.file.Path downloadTo(String kind, String url,
+                                         String linkLocator,
+                                         java.nio.file.Path targetPath)
+            throws Exception {
+        KofLocator.Parsed link = KofLocator.parseLocator(linkLocator);
+        return withPage(kind, url, page -> {
+            page.setDefaultTimeout(ASSERT_TIMEOUT_MS);
+            Download download = page.waitForDownload(
+                    () -> resolve(page, link).click());
+            try {
+                download.saveAs(targetPath);
+            } finally {
+                download.delete();
+            }
+            return targetPath;
+        });
     }
 
     /** Fase 8: o stub servido por uma rota de mock (status + content-type + body). */

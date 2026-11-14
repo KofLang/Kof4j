@@ -849,6 +849,16 @@ acessibilidade.
 > real 404 — proving the interception happens BEFORE the network. The other providers keep the
 > honest capability refusal. RED-first proven (`cannot find symbol: mock`).
 >
+> **UPLOAD/DOWNLOAD — POUSADO 14/11 (fatia da fase 8, lane `192.168.100.14:0`, flatt CLI):** `uploadAssert(kind, url,
+> inputLocator, filePath, locator, assertion)` — `setInputFiles` dispara o evento change e o fixture lê
+> `file.name`/`file.size` SINCRONAMENTE (a face FileReader fica FORA — assíncrona sem contrato de settle
+> determinístico, nomeado); `downloadTo(kind, url, linkLocator, targetPath)` — click → `waitForDownload` →
+> `saveAs`, o teste comparando os bytes REAIS (o fixture gera um blob com o atributo `download`). A prova
+> (`PlaywrightTransferE2ETest` 2/2, HTTP local — downloads de file:// são bloqueados pelo chromium, a
+> lição da fatia de mock aplicada): o nome+tamanho do arquivo enviado medidos no DOM; os bytes baixados
+> iguais ao payload array-equal (conteúdo UTF-8 acento incluído). Os outros providers mantêm a recusa
+> honesta de capacidade. RED-first provado (as duas chamadas desconhecidas antes das faces).
+>
 ## 8.4 Dados de teste e lifecycle do servidor
 
 Mecanismos para seed de banco, criar usuários/fixtures e resetar estado; evitar fixtures globais
@@ -935,7 +945,7 @@ paralelo/artefato — especialmente `test passes`, `test fails`, `test throws`, 
 | 5 · Cypress | segundo provider só depois da abstração estável; mapear capacidades |
 | 6 · KofJS / KofWasm | E2E para os dois, mesma suíte quando possível |
 | 7 · Cross-browser | Chromium, Firefox, WebKit |
-| 8 · Avançado | regressão visual (**comparação POUSADA 14/11** — `VisualRegression`), acessibilidade (**faces POUSADAS 14/11** — roles/labels/teclado + a asserção `focus`), mocking de rede (**POUSADO 14/11** — `mockAssert`/`settleAssert` + `Stub`), WebSocket, upload/download, emulação mobile, traces, vídeos, diagnósticos avançados |
+| 8 · Avançado | regressão visual (**comparação POUSADA 14/11** — `VisualRegression`), acessibilidade (**faces POUSADAS 14/11** — roles/labels/teclado + a asserção `focus`), mocking de rede (**POUSADO 14/11** — `mockAssert`/`settleAssert` + `Stub`), WebSocket, upload/download (**POUSADO 14/11** — `uploadAssert`/`downloadTo`), emulação mobile, traces, vídeos, diagnósticos avançados |
 
 Pousado (11/10, a aceitação da fase 4 com um app REAL): a `KofJsAppSemanticE2ETest` (kof-cli)
 compila um programa kof.ui interativo DE VERDADE para o alvo JS, serve por HTTP local (o

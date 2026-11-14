@@ -65,6 +65,26 @@ public interface BrowserProvider {
                 "capability unsupported: settle-assert on " + name());
     }
 
+    /** Fase 8: UPLOAD — `setInputFiles` em `inputLocator` com `filePath` e a
+     *  medida de `locator`/`assertion` sobre o efeito no DOM. O default é a
+     *  recusa honesta da capacidade. */
+    default String uploadAssert(String kind, String url, String inputLocator,
+                                java.nio.file.Path filePath, String locator,
+                                String assertion) throws Exception {
+        throw new UnsupportedOperationException(
+                "capability unsupported: file upload on " + name());
+    }
+
+    /** Fase 8: DOWNLOAD — clica `linkLocator`, espera o download e salva em
+     *  `targetPath` (devolvendo o path salvo). O default é a recusa honesta. */
+    default java.nio.file.Path downloadTo(String kind, String url,
+                                          String linkLocator,
+                                          java.nio.file.Path targetPath)
+            throws Exception {
+        throw new UnsupportedOperationException(
+                "capability unsupported: file download on " + name());
+    }
+
     /** §6.5/§6.2: resolve um locator semântico sobre a página renderizada e
      *  EXECUTA uma interação (`click`, `fill=<texto>`, `press=<tecla>`) — o
      *  retorno vazio é o contrato: a chamada auto-espera o elemento e só
