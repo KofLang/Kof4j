@@ -280,6 +280,11 @@ final class KofExprMatchResult {
     void emitBudget(List<KofOperation> ops) {
         LabelId ok = LabelId.create();
         LabelId bad = LabelId.create();
+        // §267: o marcador de if de STATEMENT (antes da condição) — sem ele o
+        // dispatcher JS tenta a dobra em ternário e o ramo do throw se perde
+        // (medido: `if (len > 2000) { } else { … }` com o throw sumido e o
+        // find devolvendo undefined num sujeito de 2100 caracteres).
+        ops.add(new KofStatementIf(bad));
         ops.add(new KofLoadLocal(STR, SLOT_S));
         ops.add(new KofCall(STR, "length", List.of(), INT, KofCallKind.INSTANCE));
         ops.add(KofLoadLiteral.ofInt(driver.interpreting ? SCRIPT_BUDGET : JVM_BUDGET));
@@ -290,12 +295,12 @@ final class KofExprMatchResult {
                 : "2,000 characters on the JVM";
         String message = "EXPR-E2: the Kof.expr subject is above the documented "
                 + "budget of " + bound + " (the recursive v1 matcher is stack-bound)";
-        if (driver.target.isNative()) {
-            // O nativo não tem java.lang.RuntimeException: o `throw` de Kof é
-            // uma String (o runtime nativo lança a mensagem direto — o mesmo
-            // caminho de `throw "msg"`). O texto do orçamento viaja na pilha.
-            ops.add(KofLoadLiteral.ofString(message));
-            ops.add(new KofThrow());
+        if (driver.target.isNative() || driver.target == Target.JS) {
+            // O nativo não tem java.lang.RuntimeException, e no JS o construtor
+            // java_lang_RuntimeException não existe (medido: ReferenceError —
+            // a mensagem EXPR-E2 se perdia). O `throw` de Kof é uma STRING em
+            // ambos (o mesmo caminho de `throw "msg"`): o texto do orçamento
+            // viaja na pilha e chega ao programa.
         } else {
             Type rte = new Type.ClassType("java.lang", "RuntimeException", List.of());
             ops.add(new KofNewObject(rte, List.of(STR)));

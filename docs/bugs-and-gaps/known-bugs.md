@@ -20937,6 +20937,25 @@ Observed: `Cannot resolve static method 'ofString' on imported class 'BodyPublis
 **Proof:** `DotDirectoryPackageE2ETest` **5/5** (RED-first: 4/5 failed with the exact `COMP001: /agent` before the fix; the `.agent`, `sub/.agent`, `.hidden-x`, valid-directory control and no-`kof.toml` control faces) + `InternalNameValidationTest` **4/4** (the identifier rule and the defensive gate). Non-regression: `EnumPackagePlacementE2ETest` 7/7, `PackagesE2ETest` 12/12, `CompileForTestsSourcesModuleRootTest` 1/1, `OrmEntityPackageE2ETest` 2/2, `JsonDecodePackagedRecordE2ETest` 2/2.
 <!-- pt-switch --> **PT:** [§936 (pt_BR)](known-bugs.pt_BR.md#936--uma-fonte-sob-um-diretorio-cujo-nome-nao-e-um-identificador-valido-agent-hidden-x-deriva-um-pacote-invalido-entao-o-alvo-jvm-falha-com-um-comp001-mal-rotulado-ou-um-classformaterror-silencioso-github-999)
 
+## §1152 — the Kof.expr budget throw VANISHES on JS: `find` over an above-budget subject returns `undefined` silently (the EXPR-E2 message never reaches the program) — the JS if-fold drops the throw-only then-branch
+
+**Status:** 🔴 OPEN 14/11 (owner = 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a; measured on the tip, the composition + slice-7 tree).
+
+**MEASURED** (node v24 artifact vs the Script/JVM oracles, same source):
+```kof
+expr wrd { one_or_more { letter } }
+main() { println(wrd.find("<2100 chars>")) }
+```
+JVM oracle: `EXPR-E2: …budget of 2,000…` thrown. Script: the same EXPR-E2 thrown (exit=1). **JS: `find` returns `undefined`, exit=0** — the generated JS is literally `if ((s.length > 2000)) { } else { …the whole search… }` — the THROW-ONLY then-branch is EMPTY in the emitted artifact: the JS if-fold drops it.
+
+**ROOT CAUSE (measured at the artifact):** the budget emission is a 3-decision shape (check → throw-branch → ok-label → search) without the §267 statement-if semantics surviving the JS fold; the emitted `if` has an EMPTY then and the search absorbed into the else, so over-budget subjects silently produce `undefined` instead of the documented EXPR-E2 runtime error (a silent wrong, never a crash).
+
+**Already landed toward the fix:** the budget message now throws the RAW STRING on JS (the `java_lang_RuntimeException` constructor does not exist there — measured ReferenceError before this change) and the §267 `KofStatementIf` marker is emitted (correct declaration; alone insufficient).
+
+**Next:** the JS if-fold for throw-only then-branches inside the Kof.expr budget shape (JsIfThrowElse/parseIfBody ownership) — same lane, next cycle. Within-budget subjects are unaffected and fully proven byte-identical (the corpus faces).
+
+<!-- pt-switch --> **PT:** [§1152 (pt_BR)](known-bugs.pt_BR.md#1152--o-arremesso-de-orcamento-do-kofexpr-some-no-js-find-sobre-um-sujeito-acima-do-orcamento-devolve-undefined-em-silencio-a-mensagem-expr-e2-nunca-chega-ao-programa--o-if-fold-do-js-descarta-o-ramo-then-so-de-throw)
+
 ## §1151 — WITHDRAWN (14/11, same day): the "Script answers wrong on `one_or_more { exactly(2) letter }`" record was a FALSE POSITIVE of the filing process — the JVM oracle was never EXECUTED
 
 **Status:** ✅ WITHDRAWN 14/11 — false positive, the oracle executed answers byte-identical (owner = 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a). The row filed on 14/11 claimed the JVM oracle answered `true`/`false` while Script answered `false`/`false` — but the JVM side had only been COMPILED, never run. Executing the oracle (the same sources, the JVM artifact) answers **`false|false|true|true` — byte-identical to Script**. The semantics are correct: `one_or_more { exactly(2) letter }` cannot match the whole subject `ab cd` (the space breaks it), and both executors say so. The false `true` in the record came from an unexecuted expectation, not from the engine.

@@ -18411,6 +18411,23 @@ Observado: `Cannot resolve static method 'ofString' on imported class 'BodyPubli
 **Prova:** `DotDirectoryPackageE2ETest` **5/5** (RED-first: 4/5 falhavam com o exato `COMP001: /agent` antes da correção; as faces `.agent`, `sub/.agent`, `.hidden-x`, controle de diretório válido e controle sem `kof.toml`) + `InternalNameValidationTest` **4/4** (a regra de identificador e o gate defensivo). Não-regressão: `EnumPackagePlacementE2ETest` 7/7, `PackagesE2ETest` 12/12, `CompileForTestsSourcesModuleRootTest` 1/1, `OrmEntityPackageE2ETest` 2/2, `JsonDecodePackagedRecordE2ETest` 2/2.
 <!-- pt-switch --> **EN:** [§936 (en)](known-bugs.md#936--a-source-under-a-directory-whose-name-is-not-a-valid-identifier-agent-hidden-x-derives-an-invalid-package-so-the-jvm-target-fails-with-a-mislabeled-comp001-or-a-silent-classformaterror-github-999)
 
+## §1152 — o arremesso de orçamento do `Kof.expr` SOME no JS: `find` sobre um sujeito acima do orçamento devolve `undefined` em silêncio (a mensagem EXPR-E2 nunca chega ao programa) — o if-fold do JS descarta o ramo then-só-de-throw
+
+**Status:** 🔴 ABERTO 14/11 (dona = 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a; medido no tip, a árvore da composição + fatia 7).
+
+**MEDIDO** (artefato node v24 vs os oráculos Script/JVM, a mesma fonte):
+```kof
+expr wrd { one_or_more { letter } }
+main() { println(wrd.find("<2100 caracteres>")) }
+```
+Oráculo JVM: `EXPR-E2: …orçamento de 2,000…` arremessado. Script: o mesmo EXPR-E2 arremessado (exit=1). **JS: `find` devolve `undefined`, exit=0** — o JS gerado é literalmente `if ((s.length > 2000)) { } else { …toda a busca… }` — o ramo then-SÓ-DE-THROW está VAZIO no artefato emitido: o if-fold do JS o descarta.
+
+**CAUSA RAIZ (medida no artefato):** a emissão do orçamento é uma forma de 3 decisões (cheque → ramo de throw → label ok → busca) sem a semântica do if-de-statement do §267 sobrevivendo ao fold do JS; o `if` emitido tem o then VAZIO e a busca absorvida no else, então sujeitos acima do orçamento produzem `undefined` em silêncio em vez do erro de runtime EXPR-E2 documentado (um errado silencioso, nunca um crash).
+
+**Já pousado a caminho da correção:** a mensagem do orçamento agora arremessa a STRING CRU no JS (o construtor `java_lang_RuntimeException` não existe lá — ReferenceError medido antes desta mudança) e o marcador `KofStatementIf` do §267 é emitido (declaração correta; sozinho insuficiente).
+
+**Próximo:** o if-fold do JS para ramos then-só-de-throw dentro da forma de orçamento do Kof.expr (dono de labels no JsIfThrowElse/parseIfBody) — mesma lane, próximo ciclo. Sujeitos dentro do orçamento não são afetados e estão totalmente provados byte-idênticos (as faces do corpus).
+
 ## §1151 — RETIRADA (14/11, mesmo dia): o registro de "o Script responde errado para `one_or_more { exactly(2) letter }`" era um FALSO POSITIVO do processo de arquivamento — o oráculo JVM nunca foi EXECUTADO
 
 **Status:** ✅ RETIRADA 14/11 — falso positivo, o oráculo executado responde byte-idêntico (dona = 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a). A linha arquivada em 14/11 afirmava que o oráculo JVM respondia `true`/`false` enquanto o Script respondia `false`/`false` — mas o lado da JVM tinha sido só COMPILADO, nunca executado. Executando o oráculo (as mesmas fontes, o artefato JVM), a resposta é **`false|false|true|true` — byte-idêntica ao Script**. A semântica está correta: `one_or_more { exactly(2) letter }` não pode casar o sujeito inteiro `ab cd` (o espaço quebra), e os dois executores dizem isso. O `true` falso no registro veio de uma expectativa não executada, não do motor.
