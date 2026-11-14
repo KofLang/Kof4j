@@ -32,7 +32,8 @@ class StdParityGapAuditTest {
             // with a clean NATIVE002 diagnostic (never a silent gate). They are
             // not among the six stdlib-parity targets, so they are excluded here
             // rather than pretending a stdlib surface they do not have.
-            if (t == Target.NATIVE_RISCV32 || t == Target.NATIVE_MCU_ARM) continue;
+            if (t == Target.NATIVE_RISCV32 || t == Target.NATIVE_MCU_ARM
+                    || t == Target.NATIVE_ESP8266) continue;
             // WASI (15.1, #776) is topology-only: no emitting backend yet,
             // refused at compile with the clean WASM001 diagnostic. WASM (15.2)
             // emits the SCALAR subset only — no stdlib surface, no IO, no main

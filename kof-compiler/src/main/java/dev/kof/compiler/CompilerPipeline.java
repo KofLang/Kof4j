@@ -183,6 +183,10 @@ public final class CompilerPipeline {
             case NATIVE_AARCH64 -> new NativeBackend(Target.NATIVE_AARCH64).profile(driver.nativeProfile);
             case NATIVE_RISCV32 -> new NativeBackend(Target.NATIVE_RISCV32).profile(driver.nativeProfile);
             case NATIVE_MCU_ARM -> new NativeBackend(Target.NATIVE_MCU_ARM).profile(driver.nativeProfile);
+            // kof-esp8266 gate 1: o emitter Xtensa REAL (o subset medido no
+            // gate 0; ops fora do subset recusam NATIVE002 pelo nome — o
+            // contrato MCU, nunca um stub).
+            case NATIVE_ESP8266 -> new dev.kof.compiler.nat.mcu.NativeEsp8266Backend();
             case JS -> new JsBackend();
             // Android: ART executa bytecode dex'd — a emissão é a mesma do
             // backend JVM; o alvo vive nas validações AND* e no empacotamento

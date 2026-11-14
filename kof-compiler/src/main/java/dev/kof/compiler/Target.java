@@ -23,6 +23,18 @@ public enum Target {
      * stub silencioso). Sem superfície CLI ainda (machinery programática).
      */
     NATIVE_MCU_ARM,
+    /**
+     * kof-esp8266 gate 1 (14/11): o alvo ESP8266 (Xtensa L106) — a TERCEIRA
+     * face MCU do bare-metal plan. O emitter (`NativeEsp8266`, o padrão
+     * `NativeMcuRiscv32`) suporta o subset medido no gate 0 (println de
+     * literais String via o HAL UART0, locais/literais/aritmética Int); ops
+     * fora do subset → NATIVE002 pelo nome (nunca um stub, R6). O toolchain
+     * Xtensa + o dynconfig esp8266 são provisionados por
+     * `scripts/provision-esp8266.sh` (o precedente provision-mcu-qemu.sh);
+     * RODAR a imagem precisa de hardware real ou do fork qemu da Espressif
+     * (`qemu-system-xtensa` não é upstream) — decisão de provisionamento.
+     */
+    NATIVE_ESP8266,
     JS,
     ANDROID,
     /**
@@ -53,7 +65,8 @@ public enum Target {
 
     public boolean isNative() {
         return this == NATIVE || this == NATIVE_RISCV64 || this == NATIVE_AARCH64
-                || this == NATIVE_RISCV32 || this == NATIVE_MCU_ARM;
+                || this == NATIVE_RISCV32 || this == NATIVE_MCU_ARM
+                || this == NATIVE_ESP8266;
     }
 
     public boolean isScript() {
@@ -67,6 +80,7 @@ public enum Target {
             case NATIVE_AARCH64 -> "aarch64";
             case NATIVE_RISCV32 -> "riscv32";
             case NATIVE_MCU_ARM -> "cortex-m";
+            case NATIVE_ESP8266 -> "esp8266";
             default -> "unknown";
         };
     }

@@ -78,6 +78,7 @@ public final class TargetMatrix {
             case NATIVE_AARCH64 -> "native.aarch64";
             case NATIVE_RISCV32 -> "native.riscv32";
             case NATIVE_MCU_ARM -> "native.cortex-m";
+            case NATIVE_ESP8266 -> "native.esp8266";
             case JS -> "kofjs";
             case ANDROID -> "android";
             case SCRIPT -> "script";
@@ -134,6 +135,7 @@ public final class TargetMatrix {
             case "js", "kofjs" -> Target.JS;
             case "android" -> Target.ANDROID;
             case "script", "kofscript" -> Target.SCRIPT;
+            case "native.esp8266", "esp8266", "native.esp" -> Target.NATIVE_ESP8266;
             case "wasm" -> Target.WASM;
             case "wasi" -> Target.WASI;
             default -> {
