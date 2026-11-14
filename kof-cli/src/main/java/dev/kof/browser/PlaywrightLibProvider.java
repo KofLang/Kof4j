@@ -6,6 +6,7 @@ import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.TimeoutError;
+import com.microsoft.playwright.Route;
 import com.microsoft.playwright.options.AriaRole;
 
 import java.nio.file.Files;
@@ -179,6 +180,49 @@ public final class PlaywrightLibProvider implements BrowserProvider {
                     "element not found within " + ASSERT_TIMEOUT_MS + "ms: "
                             + locator, e);
         }
+    }
+
+    /** Fase 8: o stub servido por uma rota de mock (status + content-type + body). */
+    public record Stub(int status, String contentType, String body) {
+    }
+
+    /** Fase 8: MOCKING DE REDE — `page.route(pattern)` + `Route.fulfill(stub)`
+     *  ANTES da navegação; a medida espera a rede assentar (o fetch da página
+     *  é assíncrono) e lê UMA vez. A rede real nunca é tocada. */
+    public String mockAssert(String kind, String url, String pattern, Stub stub,
+                             String locator, String assertion) throws Exception {
+        KofLocator.Parsed parsed = KofLocator.parseLocator(locator);
+        KofLocator.Assert want = KofLocator.parseAssertion(assertion);
+        requireSupported(kind);
+        try (Playwright pw = Playwright.create()) {
+            Browser browser = browserType(pw, kind).launch(
+                    new BrowserType.LaunchOptions().setHeadless(true));
+            Page page = browser.newPage();
+            try {
+                page.setDefaultTimeout(ASSERT_TIMEOUT_MS);
+                page.route(pattern, route -> route.fulfill(new Route.FulfillOptions()
+                        .setStatus(stub.status())
+                        .setContentType(stub.contentType())
+                        .setBody(stub.body())));
+                page.navigate(url);
+                page.waitForLoadState(com.microsoft.playwright.options.LoadState.NETWORKIDLE);
+                return measure(resolve(page, parsed), want);
+            } finally {
+                browser.close();
+            }
+        }
+    }
+
+    /** Fase 8: a medida pós-rede (sem rota) — o portador da face negativa. */
+    public String settleAssert(String kind, String url, String locator,
+                               String assertion) throws Exception {
+        KofLocator.Parsed parsed = KofLocator.parseLocator(locator);
+        KofLocator.Assert want = KofLocator.parseAssertion(assertion);
+        return withPage(kind, url, page -> {
+            page.setDefaultTimeout(ASSERT_TIMEOUT_MS);
+            page.waitForLoadState(com.microsoft.playwright.options.LoadState.NETWORKIDLE);
+            return measure(resolve(page, parsed), want);
+        });
     }
 
     /** §6.5: o locator semântico → o engine equivalente do Playwright

@@ -46,6 +46,25 @@ public interface BrowserProvider {
                 "capability unsupported: locator/assert on " + name());
     }
 
+    /** Fase 8: MOCKING DE REDE — registra `pattern` → o stub `fulfill` e mede
+     *  `locator`/`assertion` sobre a página renderizada COM a rota (a rede
+     *  real nunca é tocada). O default é a recusa honesta da capacidade. */
+    default String mockAssert(String kind, String url, String pattern,
+                              PlaywrightLibProvider.Stub stub, String locator,
+                              String assertion) throws Exception {
+        throw new UnsupportedOperationException(
+                "capability unsupported: network mock on " + name());
+    }
+
+    /** Fase 8: mede `locator`/`assertion` depois de a rede assentar
+     *  (NETWORKIDLE) — o portador das faces cujo desfecho é assíncrono
+     *  (fetch/promessa). O default é a recusa honesta da capacidade. */
+    default String settleAssert(String kind, String url, String locator,
+                                String assertion) throws Exception {
+        throw new UnsupportedOperationException(
+                "capability unsupported: settle-assert on " + name());
+    }
+
     /** §6.5/§6.2: resolve um locator semântico sobre a página renderizada e
      *  EXECUTA uma interação (`click`, `fill=<texto>`, `press=<tecla>`) — o
      *  retorno vazio é o contrato: a chamada auto-espera o elemento e só

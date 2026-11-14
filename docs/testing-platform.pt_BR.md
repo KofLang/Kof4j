@@ -839,6 +839,16 @@ acessibilidade.
 > sem ele — medido). **FORA, nomeado:** contraste/scan wcag automatizado fica com ferramentas
 > dedicadas e teste manual (a própria fronteira do §8.3).
 
+> **NETWORK MOCKING — LANDED 14/11 (phase-8 slice, lane `192.168.100.14:0`, flatt CLI):** `page.route(pattern)`
+> + `Route.fulfill` through two honest SPI faces on the Playwright provider — `mockAssert(kind, url,
+> pattern, Stub, locator, assertion)` (the route registered BEFORE the navigation, the measure after
+> NETWORKIDLE — the fetch outcome is async) and `settleAssert` (the no-route carrier for the negative
+> face). `Stub(status, contentType, body)`. The proof (PlaywrightNetworkMockE2ETest 3/3, local HTTP
+> fixture with NO `/api/*` — a 404 would fire): the stub 200 JSON renders the mocked fields in the
+> real DOM, the stub 500 drives the page's own error branch, the negative face (no route) shows the
+> real 404 — proving the interception happens BEFORE the network. The other providers keep the
+> honest capability refusal. RED-first proven (`cannot find symbol: mock`).
+>
 ## 8.4 Dados de teste e lifecycle do servidor
 
 Mecanismos para seed de banco, criar usuários/fixtures e resetar estado; evitar fixtures globais
@@ -925,7 +935,7 @@ paralelo/artefato — especialmente `test passes`, `test fails`, `test throws`, 
 | 5 · Cypress | segundo provider só depois da abstração estável; mapear capacidades |
 | 6 · KofJS / KofWasm | E2E para os dois, mesma suíte quando possível |
 | 7 · Cross-browser | Chromium, Firefox, WebKit |
-| 8 · Avançado | regressão visual (**comparação POUSADA 14/11** — `VisualRegression`), acessibilidade (**faces POUSADAS 14/11** — roles/labels/teclado + a asserção `focus`), mocking de rede, WebSocket, upload/download, emulação mobile, traces, vídeos, diagnósticos avançados |
+| 8 · Avançado | regressão visual (**comparação POUSADA 14/11** — `VisualRegression`), acessibilidade (**faces POUSADAS 14/11** — roles/labels/teclado + a asserção `focus`), mocking de rede (**POUSADO 14/11** — `mockAssert`/`settleAssert` + `Stub`), WebSocket, upload/download, emulação mobile, traces, vídeos, diagnósticos avançados |
 
 Pousado (11/10, a aceitação da fase 4 com um app REAL): a `KofJsAppSemanticE2ETest` (kof-cli)
 compila um programa kof.ui interativo DE VERDADE para o alvo JS, serve por HTTP local (o
