@@ -940,6 +940,14 @@ science) **without** destroying the language's simplicity.
 
 ### Promotion queue (`D-FUTURE-PROMOTION`, maintainer 28/09)
 
+> **RE-PROMOTED 14/11 (maintainer order "pega os dois ultimos de future antes do bootstrap"): `kofscript-embedding-plan`** —
+> moved from `future/` to [`kofscript-embedding-plan.md`](kofscript-embedding-plan.md) (+PT), `UNDER DEVELOPMENT`, and the runtime
+> CONTRACT LANDED the same day (`KofEmbedSession`, kof-script): bounded execution (`KofStepBudget` at every IR op boundary +
+> the parking worker), capability confinement (`KofCapability` + `EMBED001` by name) and per-session bindings — proofs
+> `KofEmbedSessionTest` 6/6 (an infinite loop returns RUNNING, never blocks the host); the script+interpreter battery 70/0F;
+> the embedding guide `docs/kofscript-embedding-guide.md` (+PT). The rule-6 gate (the embedding contract) is authorized by the
+> maintainer's order itself (the TLS/KofBOL/Kof.expr precedent).
+
 > **CONCLUDED & PROMOTED 15/11: `kof-expr-plan` → [`docs/kof-expr.md`](../kof-expr.md) (+PT)** — the COMPLETE run:
 > spike-0 + slices 1–8 landed with executed proof on ALL FOUR backends (JVM, Script, Native x86-64 +
 > riscv64/aarch64 cross, JS through the node artifact vs the executed JVM oracle — the §3.4 corpus

@@ -945,6 +945,14 @@ Documento central: `docs/architecture/IMPLEMENTATION-UNIVERSAL-PLATFORM.md`
 
 ### Fila de promoção (`D-FUTURE-PROMOTION`, mantenedora 28/09)
 
+> **RE-PROMOVIDO 14/11 (ordem da mantenedora "pega os dois ultimos de future antes do bootstrap"): `kofscript-embedding-plan`** —
+> movido de `future/` para [`kofscript-embedding-plan.pt_BR.md`](kofscript-embedding-plan.pt_BR.md) (+EN), `UNDER DEVELOPMENT`, e o
+> CONTRATO de runtime POUSADO no mesmo dia (`KofEmbedSession`, kof-script): execução limitada (`KofStepBudget` a cada limite de op
+> de IR + o worker que estaciona), confinamento de capacidade (`KofCapability` + `EMBED001` pelo nome) e bindings por sessão —
+> provas `KofEmbedSessionTest` 6/6 (um laço infinito devolve RUNNING, nunca bloqueia o host); a bateria script+interpreter 70/0F;
+> o guia de embedding `docs/kofscript-embedding-guide.pt_BR.md` (+EN). O gate da regra 6 (o contrato de embedding) é autorizado
+> pela própria ordem da mantenedora (o precedente TLS/KofBOL/Kof.expr).
+
 > **CONCLUÍDO & PROMOVIDO 15/11: `kof-expr-plan` → [`docs/kof-expr.pt_BR.md`](../../docs/kof-expr.pt_BR.md) (+EN)** — a corrida COMPLETA:
 > spike-0 + fatias 1–8 pousadas com prova executada nos QUATRO backends (JVM, Script, Native x86-64 + cross riscv64/aarch64,
 > JS através do artefato node vs o oráculo JVM executado — o corpus §3.4 byte-idêntico em todo lugar; o gate JS caiu 14/11
