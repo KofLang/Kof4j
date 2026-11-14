@@ -38,9 +38,9 @@ class WasmTargetGateE2ETest {
 
     @Test
     void enumCarriesWasmAndWasi() {
-        assertEquals(2, Target.values().length - 9,
+        assertEquals(2, Target.values().length - 10,
                 "topologia: JVM, NATIVE, NATIVE_RISCV64, NATIVE_AARCH64, NATIVE_RISCV32, "
-                        + "NATIVE_MCU_ARM, JS, ANDROID, SCRIPT + WASM + WASI");
+                        + "NATIVE_MCU_ARM, NATIVE_ESP8266, JS, ANDROID, SCRIPT + WASM + WASI");
         assertFalse(Target.WASM.isNative(), "WASM não é nativo");
         assertFalse(Target.WASI.isScript(), "WASI não é script");
     }
