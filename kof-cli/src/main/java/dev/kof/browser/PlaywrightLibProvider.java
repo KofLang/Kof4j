@@ -183,6 +183,36 @@ public final class PlaywrightLibProvider implements BrowserProvider {
         }
     }
 
+    /** Fase 8: EMULAÇÃO MOBILE — o contexto com viewport/touch emulados e a
+     *  medida pelo MESMO contexto. O `isMobile` é chromium-only na API Java
+     *  do Playwright — honrado onde suportado (o toque é medido pelo
+     *  `hasTouch`, que é universal). */
+    public String deviceAssert(String kind, String url, int viewportWidth,
+                               int viewportHeight, boolean hasTouch,
+                               String locator, String assertion) throws Exception {
+        KofLocator.Parsed parsed = KofLocator.parseLocator(locator);
+        KofLocator.Assert want = KofLocator.parseAssertion(assertion);
+        requireSupported(kind);
+        try (Playwright pw = Playwright.create()) {
+            BrowserType type = browserType(pw, kind);
+            Browser.NewContextOptions options = new Browser.NewContextOptions()
+                    .setViewportSize(viewportWidth, viewportHeight)
+                    .setHasTouch(hasTouch);
+            if (kind.equals("chromium")) {
+                options.setIsMobile(hasTouch);
+            }
+            try (Browser browser = type.launch(
+                    new BrowserType.LaunchOptions().setHeadless(true));
+                 com.microsoft.playwright.BrowserContext context =
+                         browser.newContext(options)) {
+                Page page = context.newPage();
+                page.setDefaultTimeout(ASSERT_TIMEOUT_MS);
+                page.navigate(url);
+                return measure(resolve(page, parsed), want);
+            }
+        }
+    }
+
     /** Fase 8: UPLOAD — `setInputFiles` (o evento change dispara no fixture)
      *  e a medida do efeito no DOM. */
     public String uploadAssert(String kind, String url, String inputLocator,

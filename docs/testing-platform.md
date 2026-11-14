@@ -861,6 +861,16 @@ supported, accessible names and semantic structure. Never replaces manual access
 > DOM; the downloaded bytes array-equal the payload (UTF-8 accented content included). The other providers
 > keep the honest capability refusal. RED-first proven (both calls unknown before the faces).
 >
+> **MOBILE EMULATION — LANDED 14/11 (phase-8 slice, lane `192.168.100.14:0`, flatt CLI):**
+> `deviceAssert(kind, url, viewportWidth, viewportHeight, hasTouch, locator, assertion)` — a context
+> launched with `setViewportSize` + `setHasTouch` (the `isMobile` flag is chromium-only in Playwright's
+> Java API — honored where supported), the measure through the SAME context. The proof
+> (`PlaywrightDeviceE2ETest` 4/4, RED-first; local HTTP): the emulated viewport is what the WINDOW sees
+> (390x844 measured from `window.innerWidth/innerHeight` — the DOM proves the emulation), the DEFAULT
+> context measures 1280x800 (the negative), touch is what the window reports (`ontouchstart`), and a
+> narrow CSS media query flips the desktop/mobile blocks (the responsive face). The other providers keep
+> the honest capability refusal.
+>
 ## 8.4 Test data and server lifecycle
 
 Mechanisms to seed DB, create users/fixtures and reset state; avoid permanent global fixtures —
@@ -946,7 +956,7 @@ tests — especially `test passes`, `test fails`, `test throws`, `test timeout`,
 | 5 · Cypress | second provider only after the abstraction is stable; map capabilities |
 | 6 · KofJS / KofWasm | E2E for both, same suite when possible |
 | 7 · Cross-browser | Chromium, Firefox, WebKit |
-| 8 · Advanced | visual regression (**comparison LANDED 14/11** — `VisualRegression`), accessibility (**faces LANDED 14/11** — roles/labels/keyboard + the `focus` assertion), network mocking (**LANDED 14/11** — `mockAssert`/`settleAssert` + `Stub`), WebSocket, upload/download (**LANDED 14/11** — `uploadAssert`/`downloadTo`), mobile emulation, traces, videos, advanced diagnostics |
+| 8 · Advanced | visual regression (**comparison LANDED 14/11** — `VisualRegression`), accessibility (**faces LANDED 14/11** — roles/labels/keyboard + the `focus` assertion), network mocking (**LANDED 14/11** — `mockAssert`/`settleAssert` + `Stub`), WebSocket, upload/download (**LANDED 14/11** — `uploadAssert`/`downloadTo`), mobile emulation (**LANDED 14/11** — `deviceAssert`), traces, videos, advanced diagnostics |
 
 Landed (11/10, the phase-4 acceptance with a REAL app): `KofJsAppSemanticE2ETest` (kof-cli)
 compiles a real interactive kof.ui program to the JS target, serves it over local HTTP (the

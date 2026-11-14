@@ -859,6 +859,14 @@ acessibilidade.
 > iguais ao payload array-equal (conteúdo UTF-8 acento incluído). Os outros providers mantêm a recusa
 > honesta de capacidade. RED-first provado (as duas chamadas desconhecidas antes das faces).
 >
+> **EMULAÇÃO MOBILE — POUSADA 14/11 (fatia da fase 8, lane `192.168.100.14:0`, flatt CLI):** `deviceAssert(kind, url,
+> viewportWidth, viewportHeight, hasTouch, locator, assertion)` — o contexto lançado com `setViewportSize`
+> + `setHasTouch` (a flag isMobile é só-do-chromium na API Java do Playwright — honrada onde suportada), a
+> medida pelo MESMO contexto. A prova (RED-first: a chamada desconhecida antes da face): o viewport
+> EMULADO é o que o window vê (390x844 medido do window), o contexto DEFAULT mede 1280x800 (a face
+> negativa), o touch é o que o window reporta (`ontouchstart`), e a media query estreita vira a
+> visibilidade — o CSS reagindo à emulação (`PlaywrightDeviceE2ETest` 4/4, HTTP local).
+>
 ## 8.4 Dados de teste e lifecycle do servidor
 
 Mecanismos para seed de banco, criar usuários/fixtures e resetar estado; evitar fixtures globais
@@ -945,7 +953,7 @@ paralelo/artefato — especialmente `test passes`, `test fails`, `test throws`, 
 | 5 · Cypress | segundo provider só depois da abstração estável; mapear capacidades |
 | 6 · KofJS / KofWasm | E2E para os dois, mesma suíte quando possível |
 | 7 · Cross-browser | Chromium, Firefox, WebKit |
-| 8 · Avançado | regressão visual (**comparação POUSADA 14/11** — `VisualRegression`), acessibilidade (**faces POUSADAS 14/11** — roles/labels/teclado + a asserção `focus`), mocking de rede (**POUSADO 14/11** — `mockAssert`/`settleAssert` + `Stub`), WebSocket, upload/download (**POUSADO 14/11** — `uploadAssert`/`downloadTo`), emulação mobile, traces, vídeos, diagnósticos avançados |
+| 8 · Avançado | regressão visual (**comparação POUSADA 14/11** — `VisualRegression`), acessibilidade (**faces POUSADAS 14/11** — roles/labels/teclado + a asserção `focus`), mocking de rede (**POUSADO 14/11** — `mockAssert`/`settleAssert` + `Stub`), WebSocket, upload/download (**POUSADO 14/11** — `uploadAssert`/`downloadTo`), emulação mobile (**POUSADA 14/11** — `deviceAssert`), traces, vídeos, diagnósticos avançados |
 
 Pousado (11/10, a aceitação da fase 4 com um app REAL): a `KofJsAppSemanticE2ETest` (kof-cli)
 compila um programa kof.ui interativo DE VERDADE para o alvo JS, serve por HTTP local (o

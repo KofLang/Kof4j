@@ -85,6 +85,17 @@ public interface BrowserProvider {
                 "capability unsupported: file download on " + name());
     }
 
+    /** Fase 8: EMULAÇÃO MOBILE — um contexto com `viewportWidth`×
+     *  `viewportHeight` + `hasTouch`, a medida pelo MESMO contexto (o DOM
+     *  prova o que o window vê). O default é a recusa honesta. */
+    default String deviceAssert(String kind, String url, int viewportWidth,
+                                int viewportHeight, boolean hasTouch,
+                                String locator, String assertion)
+            throws Exception {
+        throw new UnsupportedOperationException(
+                "capability unsupported: device emulation on " + name());
+    }
+
     /** §6.5/§6.2: resolve um locator semântico sobre a página renderizada e
      *  EXECUTA uma interação (`click`, `fill=<texto>`, `press=<tecla>`) — o
      *  retorno vazio é o contrato: a chamada auto-espera o elemento e só
