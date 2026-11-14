@@ -875,6 +875,15 @@ acessibilidade.
 > screenshot. Os outros providers mantêm a recusa honesta de capacidade. As faces restantes da
 > fase 8: WebSocket, vídeos, diagnósticos avançados (+ a face §6.10 KofWasm, escopo da lane WASI).
 >
+> **VÍDEOS — POUSADO 15/11 (fatia da fase 8, lane `192.168.100.14:0`, flatt CLI):**
+> `videoRecord(kind, url, locator, videoPath)` — o contexto criado com
+> `setRecordVideoDir`, a navegação + o clique REAL, o close do contexto FAZ O FLUSH
+> do vídeo (o contrato do Playwright: o arquivo só existe depois do close) e o
+> `page.video().saveAs(videoPath)` o persiste. A prova (`PlaywrightVideoE2ETest`
+> 1/1, RED-first): o vídeo é um WEBM não-trivial (o magic EBML `1A 45 DF A3`
+> verificado byte a byte). As faces restantes da fase 8: WebSocket, diagnósticos
+> avançados (+ a face §6.10 KofWasm, escopo da lane WASI).
+>
 ## 8.4 Dados de teste e lifecycle do servidor
 
 Mecanismos para seed de banco, criar usuários/fixtures e resetar estado; evitar fixtures globais
@@ -961,7 +970,7 @@ paralelo/artefato — especialmente `test passes`, `test fails`, `test throws`, 
 | 5 · Cypress | segundo provider só depois da abstração estável; mapear capacidades |
 | 6 · KofJS / KofWasm | E2E para os dois, mesma suíte quando possível |
 | 7 · Cross-browser | Chromium, Firefox, WebKit |
-| 8 · Avançado | regressão visual (**comparação POUSADA 14/11** — `VisualRegression`), acessibilidade (**faces POUSADAS 14/11** — roles/labels/teclado + a asserção `focus`), mocking de rede (**POUSADO 14/11** — `mockAssert`/`settleAssert` + `Stub`), WebSocket, upload/download (**POUSADO 14/11** — `uploadAssert`/`downloadTo`), emulação mobile (**POUSADA 14/11** — `deviceAssert`), traces (**POUSADO 15/11** — `traceRun`), vídeos, diagnósticos avançados |
+| 8 · Avançado | regressão visual (**comparação POUSADA 14/11** — `VisualRegression`), acessibilidade (**faces POUSADAS 14/11** — roles/labels/teclado + a asserção `focus`), mocking de rede (**POUSADO 14/11** — `mockAssert`/`settleAssert` + `Stub`), WebSocket, upload/download (**POUSADO 14/11** — `uploadAssert`/`downloadTo`), emulação mobile (**POUSADA 14/11** — `deviceAssert`), traces (**POUSADO 15/11** — `traceRun`), vídeos (**POUSADO 15/11** — `videoRecord`), diagnósticos avançados |
 
 Pousado (11/10, a aceitação da fase 4 com um app REAL): a `KofJsAppSemanticE2ETest` (kof-cli)
 compila um programa kof.ui interativo DE VERDADE para o alvo JS, serve por HTTP local (o

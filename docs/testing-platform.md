@@ -880,6 +880,15 @@ supported, accessible names and semantic structure. Never replaces manual access
 > honest capability refusal. The remaining phase-8 faces: WebSocket, videos, advanced
 > diagnostics (+ the §6.10 KofWasm face, the WASI lane's scope).
 >
+> **VIDEOS — LANDED 15/11 (phase-8 slice, lane `192.168.100.14:0`, flatt CLI):**
+> `videoRecord(kind, url, locator, videoPath)` — the context created with
+> `setRecordVideoDir`, the navigation + the REAL click, the context close FLUSHES
+> the video (the Playwright contract: the file only exists after the close) and
+> `page.video().saveAs(videoPath)` persists it. The proof (`PlaywrightVideoE2ETest`
+> 1/1, RED-first): the video is a non-trivial WEBM (the EBML magic `1A 45 DF A3`
+> verified byte-level). The remaining phase-8 faces: WebSocket, advanced diagnostics
+> (+ the §6.10 KofWasm face, the WASI lane's scope).
+>
 ## 8.4 Test data and server lifecycle
 
 Mechanisms to seed DB, create users/fixtures and reset state; avoid permanent global fixtures —
@@ -965,7 +974,7 @@ tests — especially `test passes`, `test fails`, `test throws`, `test timeout`,
 | 5 · Cypress | second provider only after the abstraction is stable; map capabilities |
 | 6 · KofJS / KofWasm | E2E for both, same suite when possible |
 | 7 · Cross-browser | Chromium, Firefox, WebKit |
-| 8 · Advanced | visual regression (**comparison LANDED 14/11** — `VisualRegression`), accessibility (**faces LANDED 14/11** — roles/labels/keyboard + the `focus` assertion), network mocking (**LANDED 14/11** — `mockAssert`/`settleAssert` + `Stub`), WebSocket, upload/download (**LANDED 14/11** — `uploadAssert`/`downloadTo`), mobile emulation (**LANDED 14/11** — `deviceAssert`), traces (**LANDED 15/11** — `traceRun`), videos, advanced diagnostics |
+| 8 · Advanced | visual regression (**comparison LANDED 14/11** — `VisualRegression`), accessibility (**faces LANDED 14/11** — roles/labels/keyboard + the `focus` assertion), network mocking (**LANDED 14/11** — `mockAssert`/`settleAssert` + `Stub`), WebSocket, upload/download (**LANDED 14/11** — `uploadAssert`/`downloadTo`), mobile emulation (**LANDED 14/11** — `deviceAssert`), traces (**LANDED 15/11** — `traceRun`), videos (**LANDED 15/11** — `videoRecord`), advanced diagnostics |
 
 Landed (11/10, the phase-4 acceptance with a REAL app): `KofJsAppSemanticE2ETest` (kof-cli)
 compiles a real interactive kof.ui program to the JS target, serves it over local HTTP (the

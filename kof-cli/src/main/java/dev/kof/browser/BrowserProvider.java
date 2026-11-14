@@ -106,6 +106,15 @@ public interface BrowserProvider {
                 "capability unsupported: trace recording on " + name());
     }
 
+    /** Fase 8: VÍDEO — o contexto grava a sessão (`setRecordVideoDir`), a
+     *  navegação + o clique REAL acontecem, o close faz o flush e o vídeo é
+     *  salvo em `videoPath`. O default é a recusa honesta da capacidade. */
+    default void videoRecord(String kind, String url, String locator,
+                             java.nio.file.Path videoPath) throws Exception {
+        throw new UnsupportedOperationException(
+                "capability unsupported: video recording on " + name());
+    }
+
     /** §6.5/§6.2: resolve um locator semântico sobre a página renderizada e
      *  EXECUTA uma interação (`click`, `fill=<texto>`, `press=<tecla>`) — o
      *  retorno vazio é o contrato: a chamada auto-espera o elemento e só

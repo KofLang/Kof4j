@@ -248,6 +248,30 @@ public final class PlaywrightLibProvider implements BrowserProvider {
         });
     }
 
+    /** Fase 8: VÍDEO — o contexto grava a sessão (setRecordVideoDir), a
+     *  navegação + o clique REAL acontecem, o close faz o FLUSH (o contrato
+     *  do Playwright: o vídeo só existe depois do close) e o saveAs o salva. */
+    public void videoRecord(String kind, String url, String locator,
+                            java.nio.file.Path videoPath) throws Exception {
+        KofLocator.Parsed parsed = KofLocator.parseLocator(locator);
+        requireSupported(kind);
+        try (Playwright pw = Playwright.create()) {
+            Browser browser = browserType(pw, kind).launch(
+                    new BrowserType.LaunchOptions().setHeadless(true));
+            try (com.microsoft.playwright.BrowserContext context =
+                         browser.newContext(new Browser.NewContextOptions()
+                                 .setRecordVideoDir(java.nio.file.Files.createTempDirectory("kof-vid")))) {
+                Page page = context.newPage();
+                page.setDefaultTimeout(ASSERT_TIMEOUT_MS);
+                page.navigate(url);
+                resolve(page, parsed).click();
+                com.microsoft.playwright.Video video = page.video();
+                context.close();   // the FLUSH point (the Playwright contract)
+                video.saveAs(videoPath);
+            }
+        }
+    }
+
     /** Fase 8: TRACES — o contexto gravado (screenshots + snapshots), a
      *  navegação + o clique, o `tracing().stop(path)` salvando o archive. */
     public void traceRun(String kind, String url, String locator,
