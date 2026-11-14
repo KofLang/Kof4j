@@ -99,6 +99,54 @@ class NativeEsp8266E2ETest {
         assertTrue(asm.contains("kof_str_of_int"), "o printer decimal");
     }
 
+    /** kof-esp8266 gate 2: the MEMORY/STACK REPORT — the budget line is printed
+     *  against the ESP8266 windows and the verdict names the fit. The minimum
+     *  program must report WITHIN. */
+    @Test
+    void theMemoryReportPrintsTheBudgetAndTheVerdict(@TempDir Path dir) throws Exception {
+        Assumptions.assumeTrue(hasToolchain(),
+                "o toolchain xtensa não está provisionado — o relato de memória pula com o motivo");
+        CompilationResult r = compile(dir, """
+                main() {
+                    println("KO ESP8266")
+                }
+                """);
+        assertTrue(r.success(), "compile: " + r.diagnostics().getDiagnostics());
+        // the report goes to stderr; capture it
+        var oldErr = System.err;
+        var captured = new java.io.ByteArrayOutputStream();
+        System.setErr(new java.io.PrintStream(captured));
+        try {
+            // rebuild through the emitter directly so the stderr is caught
+            dev.kof.compiler.IRModule ir = new CompilerDriver()
+                    .prepareRepl(java.util.List.of(dir.resolve("Main.kf")), dir.resolve("Main.kf").getParent());
+            dev.kof.compiler.nat.mcu.NativeEsp8266.emit(ir, dir.resolve("out2"));
+        } finally {
+            System.setErr(oldErr);
+        }
+        String report = captured.toString();
+        assertTrue(report.contains("memory — dram "), "a linha de orçamento: " + report);
+        assertTrue(report.contains("iram/text"), "o text vs a janela IRAM: " + report);
+        assertTrue(report.contains("WITHIN the target constraints"),
+                "o veredito do gate 2: " + report);
+    }
+
+    @Test
+    void theConcurrencyRefusalNamesConc003(@TempDir Path dir) throws Exception {
+        Path f = dir.resolve("Conc.kf");
+        Files.createDirectories(dir);
+        Files.writeString(f, """
+                main() {
+                    val t = spawn { println("worker") }
+                    await t
+                }
+                """);
+        CompilationResult r = new CompilerDriver().compile(f, dir.resolve("out"), Target.NATIVE_ESP8266);
+        assertFalse(r.success(), "concorrência fora do subset recusa");
+        assertTrue(r.diagnostics().getDiagnostics().toString().contains("CONC003"),
+                "a recusa nomeia CONC003: " + r.diagnostics().getDiagnostics());
+    }
+
     @Test
     void anUnsupportedOpRefusesByName(@TempDir Path dir) throws Exception {
         Path f = dir.resolve("Bad.kf");

@@ -93,6 +93,7 @@ public final class NativeEsp8266 {
                     crt, objFile.toString()}, "esp8266-ld");
             binFile.toFile().setExecutable(true);
             System.err.println("NativeEsp8266: generated xtensa " + binFile + " (heap=" + heapBytes + ")");
+            NativeEsp8266MemoryReport.print(binFile, heapBytes);
             firmwareImage(binFile);
         } catch (IOException e) {
             System.err.println("NativeEsp8266: esp8266 toolchain missing (NATIVE002),"
@@ -170,7 +171,30 @@ public final class NativeEsp8266 {
         final List<String> labels = new ArrayList<>();
     }
 
+    /** Gate 2: the actionable-diagnostic pre-scan — concurrency (spawn/await/
+     *  channel) refuses CONC003 by name BEFORE the lowering trips on the
+     *  closure machinery (the riscv32 precedent). */
+    private static void prescanConcurrency(IRMethod main) {
+        for (IRBasicBlock bb : main.basicBlocks()) {
+            for (KofOperation op : bb.operations()) {
+                if (op instanceof KofCall call && isConcurrency(call.methodName())) {
+                    throw new IllegalStateException("CONC003: '" + call.methodName()
+                            + "' is absent on the single-core ESP8266 (no threads/"
+                            + "scheduler), never stubbed on the esp8266 target");
+                }
+            }
+        }
+    }
+
+    private static boolean isConcurrency(String name) {
+        if (name == null) return false;
+        return name.startsWith("kof_spawn") || name.startsWith("kof_await")
+                || name.startsWith("kof_channel") || name.startsWith("kof_scheduler")
+                || name.startsWith("kof_thread");
+    }
+
     private static EmitResult lowerMain(IRMethod main) {
+        prescanConcurrency(main);
         EmitResult r = new EmitResult();
         List<StackSlot> stack = new ArrayList<>();
         Map<Integer, StackType> localTypes = new java.util.HashMap<>();
