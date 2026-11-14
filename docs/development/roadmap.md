@@ -1026,7 +1026,8 @@ All remaining `future/` plans are authorized with their
 > one-at-a-time (`D-FUTURE-PROMOTION`).
 >
 > **NEW PLAN-ONLY (`future/`, 14/10 — maintainer request "Kof Future — ESP8266 Embedded Target"):**
-> [`kof-esp8266-plan.md`](future/kof-esp8266-plan.md) (+PT) — the ESP8266 (Xtensa L106, 32-bit
+> **RE-PROMOTED 14/11 (the maintainer's order "pega os dois ultimos de future antes do bootstrap"; the `D-ESP8266-DEFERRED` pointer IS this lane, which concluded kofscript-embedding; the plan untouched for a MONTH) and GATE 0 EXECUTED — the audit's findings are MEASURED: the Espressif crosstool-NG 16.2.0 + the esp8266 multilib overlay are REACHABLE today; `XTENSA_GNU_CONFIG=<lib>/xtensa_esp8266.so` flips the toolchain to elf32-xtensa-le (the real byte order); a hand-written freestanding stub + the overlay's REAL crt0 linked through a hand-written .ld (esp8266 ships NONE — the emitter writes its own, the `NativeMcuRiscv32` precedent) produced a valid `ELF 32-bit LSB executable, Tensilica Xtensa` and `esptool elf2image --chip esp8266` produced the REAL firmware images (`e9` header + the payload in the flash section). The verification substrate (running the image) needs real hardware or Espressif's qemu fork — a provisioning decision, named. Gate 1 (the emitter + the provisioning script) is the next slice.
+> [`kof-esp8266-plan.md`](kof-esp8266-plan.md) (+PT) — the ESP8266 (Xtensa L106, 32-bit
 > single-core Wi-Fi SoC) as a **planned** Kof target. **NOT promoted and NOT authorized**: it needs a
 > rule-6 maintainer decision (no `D-*` id is invented) and an **R12 override** (the same pattern as
 > `D-BAREMETAL-BOOT`) because it opens a new front. It deliberately does **not** re-invent the MCU
