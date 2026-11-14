@@ -40,7 +40,8 @@ class CryptoSignE2ETest extends TargetGapRefusalSupport {
                     var tampered = abc()
                     tampered[0] = 98
                     println("tamper=" + !crypto.verify(secrets.of(pub), tampered, sig))
-                    var badsig = "ff" + sig.substring(2)
+                    var flip = if (sig.substring(0, 2) == "ff") { "fe" } else { "ff" }
+                    var badsig = flip + sig.substring(2)
                     println("badsig=" + !crypto.verify(secrets.of(pub), abc(), badsig))
                     var k2 = keyExchange.privateKey("Ed25519")
                     println("distinct=" + (crypto.sign(k2, abc()) != sig))

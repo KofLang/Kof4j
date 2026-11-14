@@ -38,6 +38,11 @@ class WasmTargetGateE2ETest {
 
     @Test
     void enumCarriesWasmAndWasi() {
+<<<<<<< Updated upstream
+=======
+        // kof-esp8266 gate 1 (14/11): NATIVE_ESP8266 joins the topology —
+        // 10 core targets + WASM + WASI = 12 values; the 2 extras stay WASM/WASI.
+>>>>>>> Stashed changes
         assertEquals(2, Target.values().length - 10,
                 "topologia: JVM, NATIVE, NATIVE_RISCV64, NATIVE_AARCH64, NATIVE_RISCV32, "
                         + "NATIVE_MCU_ARM, NATIVE_ESP8266, JS, ANDROID, SCRIPT + WASM + WASI");
