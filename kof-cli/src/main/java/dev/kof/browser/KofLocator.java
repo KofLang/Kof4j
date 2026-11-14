@@ -31,7 +31,7 @@ public final class KofLocator {
 
     /** Asserções suportadas. */
     public static final String ASSERTIONS =
-            "visible, enabled, text, value, attr=<name>";
+            "visible, enabled, text, value, attr=<name>, focus";
 
     private static final Pattern ROLE_NAMED =
             Pattern.compile("^(.+?)\\[name=\"(.*)\"]$", Pattern.DOTALL);
@@ -51,7 +51,7 @@ public final class KofLocator {
     public static final String STEP_SEP = " :: ";
 
     private static final java.util.List<String> ASSERTION_KINDS =
-            java.util.List.of("visible", "enabled", "text", "value");
+            java.util.List.of("visible", "enabled", "text", "value", "focus");
 
     private KofLocator() {}
 
@@ -109,7 +109,7 @@ public final class KofLocator {
             return new Assert("attr", attrName);
         }
         if (switch (assertion) {
-            case "visible", "enabled", "text", "value" -> true;
+            case "visible", "enabled", "text", "value", "focus" -> true;
             default -> false;
         }) {
             return new Assert(assertion, null);

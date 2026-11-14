@@ -825,6 +825,20 @@ Integração com ferramentas de acessibilidade para roles, labels, navegação p
 quando suportado, nomes acessíveis e estrutura semântica. Nunca substitui o teste manual de
 acessibilidade.
 
+> **POUSADA 14/11 (fatia da fase 8, lane `192.168.100.14:0`, flatt CLI): as faces medidas deste
+> §8.3 estão DENTRO** — `PlaywrightA11yE2ETest` (4/4 no chromium deste host, gate de probe): (1)
+> nomes acessíveis resolvem pelo `getByRole` com `name=` — A computação de nome acessível (um
+> `aria-label` vence o conteúdo, e a resolução mede a ÁRVORE DE ACESSIBILIDADE, não o DOM cru);
+> (2) a associação `<label for>` dirige e mede o input por label (fill+medida num ÚNICO fluxo —
+> interações não atravessam chamadas, a semântica documentada do provider); (3) atributos
+> `role`/`aria-label` explícitos medidos via `attr=`; (4) o controle desabilitado mede
+> `enabled=false` PELO NOME; (5) navegação por teclado: Tab move o foco com desfecho MEDIDO — a
+> nova asserção `focus` (`el === document.activeElement`) em `KofLocator.ASSERTIONS` + o
+> `measure()` do provider, com a face negativa (o foco NÃO está no segundo input após um único
+> Tab). O fixture carrega `<meta charset="utf-8">` (nomes acessíveis acentuados viram mojibake
+> sem ele — medido). **FORA, nomeado:** contraste/scan wcag automatizado fica com ferramentas
+> dedicadas e teste manual (a própria fronteira do §8.3).
+
 ## 8.4 Dados de teste e lifecycle do servidor
 
 Mecanismos para seed de banco, criar usuários/fixtures e resetar estado; evitar fixtures globais
@@ -911,7 +925,7 @@ paralelo/artefato — especialmente `test passes`, `test fails`, `test throws`, 
 | 5 · Cypress | segundo provider só depois da abstração estável; mapear capacidades |
 | 6 · KofJS / KofWasm | E2E para os dois, mesma suíte quando possível |
 | 7 · Cross-browser | Chromium, Firefox, WebKit |
-| 8 · Avançado | regressão visual (**comparação POUSADA 14/11** — `VisualRegression`), acessibilidade, mocking de rede, WebSocket, upload/download, emulação mobile, traces, vídeos, diagnósticos avançados |
+| 8 · Avançado | regressão visual (**comparação POUSADA 14/11** — `VisualRegression`), acessibilidade (**faces POUSADAS 14/11** — roles/labels/teclado + a asserção `focus`), mocking de rede, WebSocket, upload/download, emulação mobile, traces, vídeos, diagnósticos avançados |
 
 Pousado (11/10, a aceitação da fase 4 com um app REAL): a `KofJsAppSemanticE2ETest` (kof-cli)
 compila um programa kof.ui interativo DE VERDADE para o alvo JS, serve por HTTP local (o

@@ -221,6 +221,8 @@ public final class PlaywrightLibProvider implements BrowserProvider {
             case "text" -> String.valueOf(l.textContent());
             case "value" -> String.valueOf(l.inputValue());
             case "attr" -> String.valueOf(l.getAttribute(want.attrName()));
+            case "focus" -> String.valueOf(l.evaluate(
+                    "el => el === document.activeElement"));
             default -> throw new IllegalArgumentException(
                     "unknown assertion kind '" + want.kind()
                             + "' (assertions: " + KofLocator.ASSERTIONS + ")");

@@ -827,6 +827,20 @@ mandatory for all tests.
 Integration with accessibility tooling for roles, labels, keyboard navigation, contrast when
 supported, accessible names and semantic structure. Never replaces manual accessibility testing.
 
+> **LANDED 14/11 (phase-8 slice, lane `192.168.100.14:0`, flatt CLI): the measured faces of this
+> §8.3 are IN** — `PlaywrightA11yE2ETest` (4/4 on this host's chromium, probe-gated): (1)
+> accessible names resolve through `getByRole` with `name=` — THE accessible-name computation
+> (an `aria-label` overrides the content, and the resolution measures the ACCESSIBILITY TREE,
+> not the raw DOM); (2) the `<label for>` association drives and measures the input by label
+> (fill+measure in ONE flow — interactions do not cross calls, the documented provider
+> semantics); (3) explicit `role`/`aria-label` attributes measured via `attr=`; (4) the disabled
+> control measures `enabled=false` BY NAME; (5) keyboard navigation: Tab moves focus with a
+> MEASURED outcome — the new `focus` assertion (`el === document.activeElement`) in
+> `KofLocator.ASSERTIONS` + the provider's `measure()`, with the negative face (focus is NOT on
+> the second input after a single Tab). The fixture carries `<meta charset="utf-8">` (accented
+> accessible names mojibake without it — measured). **OUT, named:** contrast/automated-wcag
+> scanning stays with dedicated tooling and manual testing (§8.3's own boundary).
+
 ## 8.4 Test data and server lifecycle
 
 Mechanisms to seed DB, create users/fixtures and reset state; avoid permanent global fixtures —
@@ -912,7 +926,7 @@ tests — especially `test passes`, `test fails`, `test throws`, `test timeout`,
 | 5 · Cypress | second provider only after the abstraction is stable; map capabilities |
 | 6 · KofJS / KofWasm | E2E for both, same suite when possible |
 | 7 · Cross-browser | Chromium, Firefox, WebKit |
-| 8 · Advanced | visual regression (**comparison LANDED 14/11** — `VisualRegression`), accessibility, network mocking, WebSocket, upload/download, mobile emulation, traces, videos, advanced diagnostics |
+| 8 · Advanced | visual regression (**comparison LANDED 14/11** — `VisualRegression`), accessibility (**faces LANDED 14/11** — roles/labels/keyboard + the `focus` assertion), network mocking, WebSocket, upload/download, mobile emulation, traces, videos, advanced diagnostics |
 
 Landed (11/10, the phase-4 acceptance with a REAL app): `KofJsAppSemanticE2ETest` (kof-cli)
 compiles a real interactive kof.ui program to the JS target, serves it over local HTTP (the
