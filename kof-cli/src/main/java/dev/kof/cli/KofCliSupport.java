@@ -91,7 +91,8 @@ final class KofCliSupport {
         Target t = switch (value) {
             case "jvm", "native", "native.risc", "native.riscv64", "native.riscv",
                  "native.arm", "native.aarch64", "native.aarch", "js", "kofjs",
-                 "android", "script", "kofscript", "wasm", "wasi" -> Target.JVM;
+                 "android", "script", "kofscript", "wasm", "wasi",
+                 "native.esp8266", "esp8266", "native.esp" -> Target.JVM;
             default -> null;
         };
         if (t != null) return List.of();
