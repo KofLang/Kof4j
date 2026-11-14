@@ -124,6 +124,15 @@ public interface BrowserProvider {
                 "capability unsupported: text-becomes wait on " + name());
     }
 
+    /** Fase 8: DIAGNÓSTICOS AVANÇADOS — a saída do console e os erros JS não
+     *  capturados da página, coletados durante o load (o "por que falhou").
+     *  O default é a recusa honesta da capacidade. */
+    default dev.kof.browser.PageDiagnostics diagnostics(String kind, String url)
+            throws Exception {
+        throw new UnsupportedOperationException(
+                "capability unsupported: page diagnostics on " + name());
+    }
+
     /** §6.5/§6.2: resolve um locator semântico sobre a página renderizada e
      *  EXECUTA uma interação (`click`, `fill=<texto>`, `press=<tecla>`) — o
      *  retorno vazio é o contrato: a chamada auto-espera o elemento e só

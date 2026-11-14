@@ -886,6 +886,15 @@ acessibilidade.
 >
 > **WEBSOCKET — POUSADO 15/11 (fatia da fase 8, lane `192.168.100.14:0`, flatt CLI):** a CADEIA COMPLETA com um servidor ws Kof REAL nos dois extremos — um programa Kof servindo `app.ws("/chat")` com o handler de echo (a face RFC 6455 que o engine gerado entrega: o handshake + o codec de frames + o masking), a página do browser REAL discando `ws://127.0.0.1:PORTA/chat` (um laço retry-dial no JS da página — o browser é o esperador, sem sleep no teste, o ratchet de higiene), o echo do servidor escrito no DOM, medido pela NOVA face SPI `assertTextBecomes(kind, url, locator, notValue, timeoutMs)` (espera a chegada assíncrona via `waitForFunction` — a face settle-de-uma-vez não cobre um echo WS tardio, medido). `PlaywrightWsE2ETest` 1/1: `echo:kof-ws` devolvido pelo servidor Kof, byte-exato. A face restante da fase 8: diagnósticos avançados (+ a face §6.10 KofWasm, escopo da lane WASI).
 >
+> **DIAGNÓSTICOS AVANÇADOS — POUSADOS 15/11 (fatia da fase 8, lane `192.168.100.14:0`, flatt CLI):**
+> `diagnostics(kind, url)` → `PageDiagnostics(console, errors)` — `page.on("console")` +
+> `page.on("pageerror")` coletados durante o load: a resposta acionável ao "por que este
+> teste falhou". A prova (`PlaywrightDiagnosticsE2ETest` 2/2, RED-first): uma página que
+> loga E arremessa captura AMBOS (o marcador de console + o `kof-diag-boom` não capturado);
+> uma página limpa reporta nenhum erro. A LINHA DA FASE 8 AGORA ESTÁ TOTALMENTE POUSADA
+> (todas as faces exceto a §6.10 KofWasm — escopo da lane WASI; PWM/I2C/SPI/Wi-Fi são os
+> H4-H7 do plano ESP8266, rastreados lá).
+>
 ## 8.4 Dados de teste e lifecycle do servidor
 
 Mecanismos para seed de banco, criar usuários/fixtures e resetar estado; evitar fixtures globais
@@ -972,7 +981,7 @@ paralelo/artefato — especialmente `test passes`, `test fails`, `test throws`, 
 | 5 · Cypress | segundo provider só depois da abstração estável; mapear capacidades |
 | 6 · KofJS / KofWasm | E2E para os dois, mesma suíte quando possível |
 | 7 · Cross-browser | Chromium, Firefox, WebKit |
-| 8 · Avançado | regressão visual (**comparação POUSADA 14/11** — `VisualRegression`), acessibilidade (**faces POUSADAS 14/11** — roles/labels/teclado + a asserção `focus`), mocking de rede (**POUSADO 14/11** — `mockAssert`/`settleAssert` + `Stub`), WebSocket (**POUSADO 15/11** — o echo browser↔servidor Kof + `assertTextBecomes`), upload/download (**POUSADO 14/11** — `uploadAssert`/`downloadTo`), emulação mobile (**POUSADA 14/11** — `deviceAssert`), traces (**POUSADO 15/11** — `traceRun`), vídeos (**POUSADO 15/11** — `videoRecord`), diagnósticos avançados |
+| 8 · Avançado | regressão visual (**comparação POUSADA 14/11** — `VisualRegression`), acessibilidade (**faces POUSADAS 14/11** — roles/labels/teclado + a asserção `focus`), mocking de rede (**POUSADO 14/11** — `mockAssert`/`settleAssert` + `Stub`), WebSocket (**POUSADO 15/11** — o echo browser↔servidor Kof + `assertTextBecomes`), upload/download (**POUSADO 14/11** — `uploadAssert`/`downloadTo`), emulação mobile (**POUSADA 14/11** — `deviceAssert`), traces (**POUSADO 15/11** — `traceRun`), vídeos (**POUSADO 15/11** — `videoRecord`), diagnósticos avançados (**POUSADOS 15/11** — `diagnostics`: o console + os erros JS) |
 
 Pousado (11/10, a aceitação da fase 4 com um app REAL): a `KofJsAppSemanticE2ETest` (kof-cli)
 compila um programa kof.ui interativo DE VERDADE para o alvo JS, serve por HTTP local (o

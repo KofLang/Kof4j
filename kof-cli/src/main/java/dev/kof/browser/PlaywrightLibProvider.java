@@ -263,6 +263,27 @@ public final class PlaywrightLibProvider implements BrowserProvider {
         });
     }
 
+    /** Fase 8: DIAGNÓSTICOS AVANÇADOS — o console e os erros JS da página,
+     *  coletados durante o load (page.on console/pageerror). */
+    public PageDiagnostics diagnostics(String kind, String url) throws Exception {
+        requireSupported(kind);
+        try (Playwright pw = Playwright.create()) {
+            Browser browser = browserType(pw, kind).launch(
+                    new BrowserType.LaunchOptions().setHeadless(true));
+            try (com.microsoft.playwright.BrowserContext context = browser.newContext()) {
+                Page page = context.newPage();
+                var console = new java.util.ArrayList<String>();
+                var errors = new java.util.ArrayList<String>();
+                page.onConsoleMessage(msg ->
+                        console.add(msg.type() + ": " + msg.text()));
+                page.onPageError(err -> errors.add(String.valueOf(err)));
+                page.navigate(url);
+                page.waitForLoadState(com.microsoft.playwright.options.LoadState.NETWORKIDLE);
+                return new dev.kof.browser.PageDiagnostics(java.util.List.copyOf(console), java.util.List.copyOf(errors));
+            }
+        }
+    }
+
     /** Fase 8: VÍDEO — o contexto grava a sessão (setRecordVideoDir), a
      *  navegação + o clique REAL acontecem, o close faz o FLUSH (o contrato
      *  do Playwright: o vídeo só existe depois do close) e o saveAs o salva. */
