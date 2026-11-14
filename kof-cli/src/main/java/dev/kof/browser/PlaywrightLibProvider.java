@@ -248,6 +248,30 @@ public final class PlaywrightLibProvider implements BrowserProvider {
         });
     }
 
+    /** Fase 8: TRACES — o contexto gravado (screenshots + snapshots), a
+     *  navegação + o clique, o `tracing().stop(path)` salvando o archive. */
+    public void traceRun(String kind, String url, String locator,
+                         java.nio.file.Path tracePath) throws Exception {
+        KofLocator.Parsed parsed = KofLocator.parseLocator(locator);
+        requireSupported(kind);
+        try (Playwright pw = Playwright.create()) {
+            Browser browser = browserType(pw, kind).launch(
+                    new BrowserType.LaunchOptions().setHeadless(true));
+            try (com.microsoft.playwright.BrowserContext context =
+                         browser.newContext()) {
+                context.tracing().start(new com.microsoft.playwright.Tracing.StartOptions()
+                        .setScreenshots(true)
+                        .setSnapshots(true));
+                Page page = context.newPage();
+                page.setDefaultTimeout(ASSERT_TIMEOUT_MS);
+                page.navigate(url);
+                resolve(page, parsed).click();
+                context.tracing().stop(new com.microsoft.playwright.Tracing.StopOptions()
+                        .setPath(tracePath));
+            }
+        }
+    }
+
     /** Fase 8: o stub servido por uma rota de mock (status + content-type + body). */
     public record Stub(int status, String contentType, String body) {
     }

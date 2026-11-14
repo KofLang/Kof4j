@@ -96,6 +96,16 @@ public interface BrowserProvider {
                 "capability unsupported: device emulation on " + name());
     }
 
+    /** Fase 8: TRACES — grava a interação (navegar + clicar `locator`) no
+     *  archive de trace do Playwright e salva em `tracePath` (o pós-mortem que
+     *  o desenvolvedor abre depois de uma falha). O default é a recusa honesta
+     *  da capacidade. */
+    default void traceRun(String kind, String url, String locator,
+                          java.nio.file.Path tracePath) throws Exception {
+        throw new UnsupportedOperationException(
+                "capability unsupported: trace recording on " + name());
+    }
+
     /** §6.5/§6.2: resolve um locator semântico sobre a página renderizada e
      *  EXECUTA uma interação (`click`, `fill=<texto>`, `press=<tecla>`) — o
      *  retorno vazio é o contrato: a chamada auto-espera o elemento e só
