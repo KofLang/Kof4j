@@ -1,0 +1,21 @@
+package esp
+
+// kof.esp8266 — the GPIO + delay HAL (gate 3, stages H1+H2), declared extern:
+// the ESP8266 emitter binds these names to its runtime asm (kof_gpio_enable /
+// kof_gpio_write / kof_gpio_read / kof_delay_ms — the register map
+// GPIO_OUT/W1TS/W1TC/ENABLE/IN at 0x60000300..0x60000318, the delay on the
+// 80 MHz cycle counter). The JVM/Native extern dlopen would fail — the honest
+// boundary: this face is FOR the esp8266 target (the emitter intercepts the
+// esp_* calls before any extern resolution).
+
+/** Enables `pin` as an output (GPIO_ENABLE |= 1 << pin). Returns 0. */
+extern "libkof_esp8266_gpio" gpioEnable(Int pin): Int
+
+/** Writes `value` to `pin` (GPIO_OUT_W1TS set / GPIO_OUT_W1TC clear). Returns 0. */
+extern "libkof_esp8266_gpio" gpioWrite(Int pin, Int value): Int
+
+/** Reads `pin` (GPIO_IN bit `pin`). Returns 0 or 1. */
+extern "libkof_esp8266_gpio" gpioRead(Int pin): Int
+
+/** Blocks ~`ms` milliseconds on the 80 MHz cycle counter. Returns 0. */
+extern "libkof_esp8266_gpio" delay(Int ms): Int
