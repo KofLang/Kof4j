@@ -115,6 +115,15 @@ public interface BrowserProvider {
                 "capability unsupported: video recording on " + name());
     }
 
+    /** Fase 8: espera o TEXTO de `locator` DIFERIR de `notValue` (a chegada
+     *  assíncrona — WebSocket/fetch/promessa) e o devolve. O default é a
+     *  recusa honesta da capacidade. */
+    default String assertTextBecomes(String kind, String url, String locator,
+                                     String notValue, long timeoutMs) throws Exception {
+        throw new UnsupportedOperationException(
+                "capability unsupported: text-becomes wait on " + name());
+    }
+
     /** §6.5/§6.2: resolve um locator semântico sobre a página renderizada e
      *  EXECUTA uma interação (`click`, `fill=<texto>`, `press=<tecla>`) — o
      *  retorno vazio é o contrato: a chamada auto-espera o elemento e só

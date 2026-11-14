@@ -889,6 +889,8 @@ supported, accessible names and semantic structure. Never replaces manual access
 > verified byte-level). The remaining phase-8 faces: WebSocket, advanced diagnostics
 > (+ the §6.10 KofWasm face, the WASI lane's scope).
 >
+> **WEBSOCKET — LANDED 15/11 (phase-8 slice, lane `192.168.100.14:0`, flatt CLI):** the FULL chain with a REAL Kof ws server on BOTH ends — a Kof program serving `app.ws("/chat")` with the echo handler (the RFC 6455 face the generated engine ships: the handshake + the frame codec + the masking), the REAL browser page dialing `ws://127.0.0.1:PORT/chat` (a retry-dial loop in the page JS — the browser is the waiter, no test sleep, the hygiene ratchet), the server's echo written into the DOM, measured by the NEW `assertTextBecomes(kind, url, locator, notValue, timeoutMs)` SPI face (waits for the async arrival via `waitForFunction` — the settle-once face cannot cover a late WS echo, measured). `PlaywrightWsE2ETest` 1/1: `echo:kof-ws` returned by the Kof server, byte-exact. The remaining phase-8 face: advanced diagnostics (+ the §6.10 KofWasm face, the WASI lane's scope).
+>
 ## 8.4 Test data and server lifecycle
 
 Mechanisms to seed DB, create users/fixtures and reset state; avoid permanent global fixtures —
@@ -974,7 +976,7 @@ tests — especially `test passes`, `test fails`, `test throws`, `test timeout`,
 | 5 · Cypress | second provider only after the abstraction is stable; map capabilities |
 | 6 · KofJS / KofWasm | E2E for both, same suite when possible |
 | 7 · Cross-browser | Chromium, Firefox, WebKit |
-| 8 · Advanced | visual regression (**comparison LANDED 14/11** — `VisualRegression`), accessibility (**faces LANDED 14/11** — roles/labels/keyboard + the `focus` assertion), network mocking (**LANDED 14/11** — `mockAssert`/`settleAssert` + `Stub`), WebSocket, upload/download (**LANDED 14/11** — `uploadAssert`/`downloadTo`), mobile emulation (**LANDED 14/11** — `deviceAssert`), traces (**LANDED 15/11** — `traceRun`), videos (**LANDED 15/11** — `videoRecord`), advanced diagnostics |
+| 8 · Advanced | visual regression (**comparison LANDED 14/11** — `VisualRegression`), accessibility (**faces LANDED 14/11** — roles/labels/keyboard + the `focus` assertion), network mocking (**LANDED 14/11** — `mockAssert`/`settleAssert` + `Stub`), WebSocket (**LANDED 15/11** — the browser↔Kof-server echo + `assertTextBecomes`), upload/download (**LANDED 14/11** — `uploadAssert`/`downloadTo`), mobile emulation (**LANDED 14/11** — `deviceAssert`), traces (**LANDED 15/11** — `traceRun`), videos (**LANDED 15/11** — `videoRecord`), advanced diagnostics |
 
 Landed (11/10, the phase-4 acceptance with a REAL app): `KofJsAppSemanticE2ETest` (kof-cli)
 compiles a real interactive kof.ui program to the JS target, serves it over local HTTP (the

@@ -248,6 +248,21 @@ public final class PlaywrightLibProvider implements BrowserProvider {
         });
     }
 
+    /** Fase 8: espera o TEXTO DIFERIR de `notValue` (a chegada assíncrona —
+     *  WebSocket/fetch/promessa) via waitForFunction, e o devolve. */
+    public String assertTextBecomes(String kind, String url, String locator,
+                                    String notValue, long timeoutMs) throws Exception {
+        KofLocator.Parsed parsed = KofLocator.parseLocator(locator);
+        return withPage(kind, url, page -> {
+            page.setDefaultTimeout(ASSERT_TIMEOUT_MS);
+            page.waitForFunction(
+                    "([el, notV]) => el.textContent !== notV",
+                    java.util.List.of(resolve(page, parsed).elementHandle(), notValue),
+                    new Page.WaitForFunctionOptions().setTimeout(timeoutMs));
+            return measure(resolve(page, parsed), KofLocator.parseAssertion("text"));
+        });
+    }
+
     /** Fase 8: VÍDEO — o contexto grava a sessão (setRecordVideoDir), a
      *  navegação + o clique REAL acontecem, o close faz o FLUSH (o contrato
      *  do Playwright: o vídeo só existe depois do close) e o saveAs o salva. */
