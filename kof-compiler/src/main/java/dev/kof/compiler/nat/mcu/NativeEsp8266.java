@@ -250,7 +250,40 @@ public final class NativeEsp8266 {
                         continue;
                     }
 
-                    throw unsupported("call " + name + " " + kind);
+                    // gate 3 (H1+H2): the HAL verbs — the pure-Kof `libs/esp/`
+                    // surface declares them extern; the extern form arrives
+                    // qualified as `libkof_esp8266_gpio::<name>` — strip the lib
+                    // prefix and bind by the bare name (the runtime asm below
+                    // carries the register constants, the datasheet map).
+                    if (name.startsWith("libkof_esp8266_gpio::")) {
+                        name = name.substring("libkof_esp8266_gpio::".length());
+                    }
+                    switch (name) {
+                        case "gpioEnable" -> {
+                            espPopTo(r, "a3");
+                            r.body.append("    call0 kof_gpio_enable\n");
+                            stack.add(new StackSlot(StackType.INT_VAL, 0));
+                        }
+                        case "gpioWrite" -> {
+                            espPopTo(r, "a4");
+                            espPopTo(r, "a3");
+                            r.body.append("    call0 kof_gpio_write\n");
+                            stack.add(new StackSlot(StackType.INT_VAL, 0));
+                        }
+                        case "gpioRead" -> {
+                            espPopTo(r, "a3");
+                            r.body.append("    call0 kof_gpio_read\n");
+                            espPush(r);
+                            stack.add(new StackSlot(StackType.INT_VAL, null));
+                        }
+                        case "delay" -> {
+                            espPopTo(r, "a3");
+                            r.body.append("    call0 kof_delay_ms\n");
+                            stack.add(new StackSlot(StackType.INT_VAL, 0));
+                        }
+                        default -> throw unsupported("call " + name + " " + kind);
+                    }
+                    continue;
                 }
 
                 if (op instanceof KofLoadLocal ll) {
