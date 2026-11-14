@@ -1193,7 +1193,7 @@ the https byte4 test to `.Lv_url_false`), guarded RED-first by the new
 `KofValidationUrlParityTest` (RED pre-fix → GREEN 35/35 across both validation classes).
 **Scope note (measured, honest):** `validation.matches` is deliberately EXCLUDED — its
 JVM/JS/Script regex vs Native literal-substring divergence is a known, documented issue
-frozen in `development/kof-expr-plan.md` Q8 awaiting the `D-KOF-EXPR` maintainer decision
+frozen in `docs/kof-expr.md (promoted)` Q8 awaiting the `D-KOF-EXPR` maintainer decision
 (`future/` is now UNFROZEN, `D-FUTURE-UNFREEZE` 11/10, but the `D-KOF-EXPR` decision is still pending). Proof (executed): every value measured on the Script target first,
 cross-checked byte-for-byte on jvm/native/js, then frozen; `tests/run-golden.sh`
 **200/200** (50 cases × 4 targets), exit 0; `mvn -o -pl kof-compiler -am compile` rc=0;
@@ -1353,7 +1353,7 @@ toLowerCase/charAt/equals/split(1-arg)/toCharArray/equalsIgnoreCase/valueOf. The
 faces agree byte-for-byte on all four targets. **Scope note (measured, honest):** `getBytes()`
 is EXCLUDED — a JVM-only `STR003` gap (refused on native AND js at compile time);
 `matches`/`replaceAll`/`replaceFirst` are EXCLUDED (the regex JVM/JS/Script vs Native-literal
-divergence frozen in `development/kof-expr-plan.md` Q8). **BUG FOUND + CATALOGUED (Q4):** the
+divergence frozen in `docs/kof-expr.md (promoted)` Q8). **BUG FOUND + CATALOGUED (Q4):** the
 2-arg `String.split(String, Int)` — accepted by `StringMethodRegistry`, correct on JVM/Script
 — is BROKEN on two targets: **JS ignores the limit** (`"a,b,c".split(",", 2)` → 3 parts
 instead of 2) and **native x86-64 SIGSEGVs** (exit 139; `NativeX86StringCalls` pops only one

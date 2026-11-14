@@ -1,9 +1,9 @@
-last: 14/11/2026 — FATIA 7 FECHADA: o gate JS SUMIU — o corpus completo do §3.4 (os sete exemplos obrigatórios: âncoras, capturas, one_of, zero_or_more any, between, busca) responde byte-idêntico no artefato node v24 vs o oráculo JVM EXECUTADO. TRÊS correções reais o fizeram: (1) o laço do quantificador REESTRUTURADO em três estados de if único (gate/after/cheque de min, cada um com no máximo um if verdadeiro-primeiro cujos ramos retornam, labels de falha privados, sem labels cruzando estados; a forma sem teto usa max_eff = MAX_INT — cada instância consome ≥1 caractere então count < MAX_INT sempre) substituindo a sopa de 3 ifs aninhados que o parser JS reconstruía ERRADO em silêncio; (2) o predicado de classe kofExprInRange CORRIGIDO — lia a tabela pinada como ARRAY DE CHARS (parseInt sobre '-'/' ,' dava NaN → o search binário devolvia TRUE para qualquer cp — as classes JS eram aleatórias desde a fatia 3, nunca executadas porque o gate recusava tudo); (3) as cadeias one_of/none_of reestruturadas VERDADEIRO-PRIMEIRO por valor (o label hit imediatamente após o CJump, a chamada da cauda no ramo do hit). MEDIDO: o probe do corpus completo + os quatro casos de isolamento idênticos no node vs o oráculo JVM executado; a bateria 104/104 (JVM + Script + Native + cross + o registro de slices JS) com as duas faces de paridade JS commitadas (a face de classes e as faces de busca através do node). Restante para a promoção: a face de orçamento JS (o orçamento do §12 no JS — não testado, o caminho de emissão existe), o motor de laço iterativo (a otimização pós-v1 que o §11 aceita com o orçamento explícito), os docs de promoção.
-doing: fatia-7 FECHADA (o gate JS SUMIU — o corpus completo do §3.4 byte-idêntico no node vs o oráculo JVM); restante: a face de orçamento JS (não testada), o motor de laço iterativo (otimização pós-v1), a promoção em si (docs + PT + todas as refs vivas)
-próximo: a face de orçamento JS (o `new RuntimeException` + a mensagem EXPR-E2 chegam num programa JS? — medir antes de afirmar), então a fatia de promoção (o plano para docs/ + PT + todas as refs vivas), com o motor iterativo estacionado como a otimização pós-v1
-local: docs/development
-state: under-development
-dona: 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a
+last: 15/11/2026 — PROMOVIDA para `docs/kof-expr.pt_BR.md`: o plano está COMPLETO — spike-0 + fatias 1–8 pousadas com prova executada (JVM + Script + Native x86-64 + cross riscv64/aarch64 + JS através do node; o corpus §3.4 byte-idêntico vs o oráculo JVM executado nos três executores; o contrato explicitly-step-bounded do §11 satisfeito pelas recusas EXPR002/003 + o orçamento EXPR-E2 documentado nos três executores — bateria 105/105). O susto da face de orçamento §1152 foi a MINHA própria edição do marcador §267 derrubando os ops do throw — corrigida no mesmo dia com a face de orçamento JS commitada. A fatia 8 parte 2 (o motor iterativo) fica ESTACIONADA como a otimização pós-v1 que o §11 explicitamente aceita; nenhuma decisão em aberto bloqueia a promoção (Q1–Q2 decididas no spike-0, Q3–Q10 resolvidas pelas fatias pousadas).
+doing: PROMOÇÃO POUSADA (esta fatia): o doc moveu `docs/development/` → `docs/`, os entregáveis do §15 incorporados (o resumo voltado ao usuário + a seção obrigatória "Kof.expr vs Regex"), as linhas do §14 pousadas (a linha da matriz de paridade atualizada — o JS agora baixa; training/idioms/kof-expr.md + a nota de fake-idioms; as refs vivas: status EN/PT, roadmap §23)
+próximo: pós-v1 (estacionado, nenhuma decisão bloqueando): o motor de laço iterativo (§8 arquitetura B) como pura otimização — o contrato já é cumprido pelo orçamento explícito; superfícies de adoção (um açúcar `String.matches`, pacotes stdlib) são seguimentos library-first por `D-KOF-FIRST`
+local: docs
+state: implemented-validated-decided
+dona: mantenedora (promoção); a lane de implementação fechou 15/11
 
 intent: kof-expr-native-text-pattern-dsl
 
@@ -28,7 +28,65 @@ a esse adiamento, mas **não** é um engine de regex com nomes bonitos.
 
 ---
 
-# Kof.expr — plano (DSL nativa e declarativa de padrões de texto)
+# Kof.expr — DSL declarativa de padrões de texto (promovida)
+
+**Status:** `IMPLEMENTADA & VALIDADA` — promovida de `docs/development/` em 15/11/2026
+(`D-KOF-EXPR`, a ordem da mantenedora "pega kof-expr como proximo"); a lane de
+implementação fechou 15/11 com cada exemplo obrigatório do §3.4 provado
+byte-idêntico em JVM, Script, Native (x86-64, riscv64, aarch64) e JS (o artefato
+node v24 vs o oráculo JVM executado).
+
+**A superfície em uma tela:**
+
+```kof
+expr date {
+    capture("day")   { exactly(2) digit }
+    "/"
+    capture("month") { exactly(2) digit }
+    "/"
+    capture("year")  { exactly(4) digit }
+}
+
+main() {
+    var m = date.match("25/12/2025")
+    if (m != null) {
+        println(m.day + "/" + m.month + "/" + m.year)   // campos tipados no record
+    }
+}
+```
+
+Os verbos de construção (o §3 é a superfície completa): literais casam consigo;
+`letter` `digit` `whitespace` `word` `hex` são classes semânticas (Unicode 16.0.0
+pinado — §10); `one_or_more` / `zero_or_more` / `optional` / `exactly(n)` /
+`between(min, max)` quantificam; `one_of { … }` / `none_of { … }` alternam;
+`capture("name") { … }` produz um campo tipado no record do match; `^`/`$`
+ancoram; sujeitos compõem por referência (`expr row { date "-" word }`). O objeto
+resultado oferece `matches` / `match` / `captures` / `find` / `findAll` /
+`replace`. Recusas são explícitas (EXPR001–EXPR004) — nunca um fallback silencioso;
+sujeitos acima do orçamento documentado (2.000 caracteres JVM/JS, 200 Script — §12)
+arremessam EXPR-E2 antes de casar.
+
+## Kof.expr vs Regex
+
+*Regex descreve COMO caracteres são reconhecidos, através de notação compacta;
+Kof.expr descreve a INTENÇÃO do padrão, através de construções explícitas.* Esta
+não é uma diferença superficial de sintaxe — as duas divergem no que o programador
+precisa segurar na cabeça:
+
+| Preocupação | Regex | Kof.expr |
+|---|---|---|
+| A notação em si | Uma microlinguagem densa (`(?<=\d{2}/)\d{4}`) que o leitor decodifica caractere a caractere | Construções nomeadas (`capture("year") { exactly(4) digit }`) que se leem como a intenção |
+| Classes semânticas | `\p{L}`/`[[:alpha:]]` — dependentes do engine e das flags | `letter` — um significado, pinado ao Unicode 16.0.0 no compilador, idêntico em todo alvo |
+| O resultado | Extensões de posição; o chamador re-fatiça e re-parseia | Um record tipado: `capture("year")` É um campo `String year` no match |
+| Composição | Concatenação inline; sem reuso entre padrões | Padrões são valores top-level nomeados que compõem por referência |
+| Modo de falha | Não-casamento silencioso (frequentemente indistinguível de um bug) | Diagnósticos explícitos EXPR001–EXPR004 + o arremesso de orçamento EXPR-E2 |
+| Backtracking catastrófico | A armadilha clássica `(a+)+$` — o engine pende | Impossível na v1: o matcher recusa construções que não consegue limitar (EXPR002/003) e cumpre o orçamento do sujeito |
+
+O engine de regex em si continua sendo domínio pesado adiado para um pacote
+oficial (`DECISIONS.md` §D-STR-UNICODE); `Kof.expr` é a resposta nativa da
+linguagem para os padrões que os programas realmente precisam.
+
+---
 
 ## 0. O propósito em uma frase
 

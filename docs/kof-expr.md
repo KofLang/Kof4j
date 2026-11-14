@@ -1,9 +1,9 @@
-last: 14/11/2026 — SLICE 7 CLOSED: the JS gate is GONE — the full §3.4 corpus (all seven mandatory examples: anchors, captures, one_of, zero_or_more any, between, search) answers byte-identically on the node v24 artifact vs the executed JVM oracle. THREE real fixes made it: (1) the quantifier loop RESTRUCTURED into three single-if states (gate/after/min-check, each with at most one true-first if whose branches return, private fail labels, no cross-state labels; the unbounded form uses max_eff = MAX_INT — each instance consumes ≥1 char so count < MAX_INT always) replacing the 3-nested-if label soup the JS parser reconstructed WRONG in silence; (2) the class predicate kofExprInRange FIXED — it read the pinned table as an ARRAY OF CHARS (parseInt over '-'/' ,' gave NaN → the binary search returned TRUE for any cp — the JS classes were random since slice 3, never executed because the gate refused everything); (3) the one_of/none_of chains restructured TRUE-FIRST per value (the hit label immediately after the CJump, the tail call in the hit arm). MEASURED: the full-corpus probe + the four isolation cases identical on node vs the executed JVM oracle; the battery 104/104 (JVM + Script + Native + cross + the JS slice registry) with the two JS-parity faces committed (the classes face and the search faces through node). Remaining for the promotion: the JS budget face (the §12 budget on JS — untested, the emission path exists), the iterative loop engine (the post-v1 optimization §11 accepts the explicit budget), the promotion docs.
-doing: slice-7 CLOSED (the JS gate GONE — full §3.4 corpus byte-identical on node vs the JVM oracle); remaining: the JS budget face (untested), the iterative loop engine (post-v1 optimization), the promotion itself (docs + PT + all live refs)
-next: the JS budget face (does `new RuntimeException` + the EXPR-E2 message reach a JS program? — measure before claiming), then the promotion slice (the plan to docs/ + PT + all live refs), with the iterative engine parked as the post-v1 optimization
-location: docs/development
-state: under-development
-owner: 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a
+last: 15/11/2026 — PROMOTED to `docs/kof-expr.md` (+PT): the plan is COMPLETE — spike-0 + slices 1–8 landed with executed proof (JVM + Script + Native x86-64 + cross riscv64/aarch64 + JS through node; the §3.4 corpus byte-identical vs the executed JVM oracle on all three executors; §11's explicitly-step-bounded contract satisfied by the EXPR002/003 refusals + the documented EXPR-E2 budget on all three executors — 105/105 battery). The §1152 budget-face scare was MY OWN §267-marker edit dropping the throw ops — fixed same-day with the committed JS budget face. Slice 8 part 2 (the iterative engine) is PARKED as the post-v1 optimization §11 explicitly accepts; no open decision blocks the promotion (Q1–Q2 decided at spike-0, Q3–Q10 resolved by the landed slices).
+doing: PROMOTION LANDED (this slice): the doc moved `docs/development/` → `docs/`, the §15 deliverables folded in (the user-facing summary + the mandatory "Kof.expr vs Regex" section), the §14 checklist rows landed (the parity-matrix row updated — the JS now lowers; training/idioms/kof-expr.md + the fake-idioms note; the live refs: status EN/PT, roadmap §23)
+next: post-v1 (parked, no decision blocking): the iterative loop engine (§8 architecture B) as a pure optimization — the contract is already met by the explicit budget; adoption surfaces (a `String.matches` sugar, `stdlib` packages) are library-first follow-ups per `D-KOF-FIRST`
+location: docs
+state: implemented-validated-decided
+owner: maintainer (promotion); implementation lane closed 15/11
 
 intent: kof-expr-native-text-pattern-dsl
 
@@ -30,7 +30,65 @@ answer to that deferral, but it is **not** a regex engine with pretty names.
 
 ---
 
-# Kof.expr — plan (native, declarative text-pattern DSL)
+# Kof.expr — declarative text-pattern DSL (promoted)
+
+**Status:** `IMPLEMENTED & VALIDATED` — promoted from `docs/development/` 15/11/2026
+(`D-KOF-EXPR`, the maintainer's order "pega kof-expr como proximo"); the
+implementation lane closed 15/11 with every §3.4 mandatory example proven
+byte-identically across JVM, Script, Native (x86-64, riscv64, aarch64) and JS
+(the node v24 artifact vs the executed JVM oracle).
+
+**The surface in one screen:**
+
+```kof
+expr date {
+    capture("day")   { exactly(2) digit }
+    "/"
+    capture("month") { exactly(2) digit }
+    "/"
+    capture("year")  { exactly(4) digit }
+}
+
+main() {
+    var m = date.match("25/12/2025")
+    if (m != null) {
+        println(m.day + "/" + m.month + "/" + m.year)   // typed record fields
+    }
+}
+```
+
+The construction verbs (§3 is the full surface): literals match themselves;
+`letter` `digit` `whitespace` `word` `hex` are semantic classes (Unicode 16.0.0
+pinned — §10); `one_or_more` / `zero_or_more` / `optional` / `exactly(n)` /
+`between(min, max)` quantify; `one_of { … }` / `none_of { … }` alternate;
+`capture("name") { … }` produces a typed field on the match record; `^`/`$`
+anchor; subjects compose by reference (`expr row { date "-" word }`). The
+result object offers `matches` / `match` / `captures` / `find` / `findAll` /
+`replace`. Refusals are explicit (EXPR001–EXPR004) — never a silent fallback;
+subjects above the documented budget (2,000 chars JVM/JS, 200 Script — §12)
+throw EXPR-E2 before matching.
+
+## Kof.expr vs Regex
+
+*Regex describes HOW characters are recognized, through compact notation;
+Kof.expr describes the INTENTION of the pattern, through explicit
+constructions.* This is not a superficial syntax diff — the two differ in what
+the programmer must hold in their head:
+
+| Concern | Regex | Kof.expr |
+|---|---|---|
+| The notation itself | A dense micro-language (`(?<=\d{2}/)\d{4}`) the reader must decode character by character | Named constructions (`capture("year") { exactly(4) digit }`) that read as the intent |
+| Semantic classes | `\p{L}`/`[[:alpha:]]` — engine- and flag-dependent | `letter` — one meaning, pinned to Unicode 16.0.0 in the compiler, identical on every target |
+| The result | Position spans; the caller re-slices and re-parses | A typed record: `capture("year")` IS a `String year` field on the match |
+| Composition | Inline concatenation; no reuse across patterns | Patterns are named top-level values composing by reference |
+| Failure mode | Silent non-match (often indistinguishable from a bug) | Explicit diagnostics EXPR001–EXPR004 + the EXPR-E2 budget throw |
+| Catastrophic backtracking | The classic `(a+)+$` trap — the engine hangs | Impossible in v1: the matcher refuses constructs it cannot bound (EXPR002/003) and enforces the subject budget |
+
+The regex engine itself remains a heavy domain deferred to an official package
+(`DECISIONS.md` §D-STR-UNICODE); `Kof.expr` is the language-native answer for
+the patterns programs actually need.
+
+---
 
 ## 0. The one-sentence purpose
 

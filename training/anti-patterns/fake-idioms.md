@@ -189,3 +189,25 @@ this corpus/docs and the compiler *disagrees with its own docs*.
 > *translated*, it is this rule — reject it. The bug family is only about code
 > that **is** valid Kof and the compiler mishandles (e.g. #403 `log` field
 > hijack, #313 unqualified `throw Exception`, #336 `l.add(i,v)`).
+
+## Kof.expr is not regex
+
+```kof
+// WRONG — regex notation does not exist in Kof.expr
+expr bad { r"\d{2}/\d{4}" }
+expr bad2 { /[a-z]+/ }
+
+// WRONG — inline regex members on String (STR003 deferral stands)
+if (s.matches("[A-Z]+")) { ... }      // no regex member exists on String
+var x = s.replaceAll("a", "b")        // no regex member exists on String
+
+// RIGHT — the declarative constructions (D-KOF-EXPR)
+expr wrd { one_or_more { letter } }
+if (wrd.matches(s)) { ... }
+var x = wrd.replace(s, "b")
+```
+
+`Kof.expr` has no regex notation, no inline patterns, and no String regex
+members (`matches`/`replaceAll`/`replaceFirst` refuse with STR003 — the regex
+engine stays deferred to an official package, `DECISIONS.md` §D-STR-UNICODE).
+The pattern is a named top-level value; the constructions are semantic words.
