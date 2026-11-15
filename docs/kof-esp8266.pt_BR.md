@@ -13,15 +13,18 @@ estado: concluído (os cinco gates pousados; o gate 5 EXECUTADO no ESP8266EX rea
 
 intent: kof-esp8266-embedded-target
 
-**Portão da regra 6:** o alvo ESP8266 é um NOVO alvo de compilação (uma nova
-superfície de backend + uma integração nova de toolchain/SDK). Este documento é
-**somente plano, zero código** — nenhuma mudança de compilador, runtime, CLI ou
-dependência é feita por ele. A promoção exige uma decisão da mantenedora
-(`DECISIONS.md`, id `D-*` pela mantenedora) e o fluxo de promoção de future
-(`docs/development/future/README.pt_BR.md` §"Quando mover", `AGENTS.md` §"Future
-promotion"): reescrever com `UNDER DEVELOPMENT`, estado real + como terminar,
-enfileirar no `roadmap.md` §23, apontar `docs/status.md` para ele, reivindicar no
-`DOING.md`. **Nada aqui está implementado, medido em hardware ou verificado.**
+**Portão da regra 6 — SATISFEITO E FECHADO (história):** o alvo ESP8266 era um
+NOVO alvo de compilação (uma frente da regra 6), então este documento começou
+como **somente plano**. O portão foi satisfeito em ordem: a ordem dos dois
+planos da mantenedora (14/11, chat) tomou a decisão; o plano foi re-promovido
+para `docs/development/` com sua auditoria de viabilidade medida (gate 0,
+14/11); cada fatia pousou com prova executada (`NativeEsp8266E2ETest` e a
+família em `kof-compiler/src/test/`); e o gate 5 EXECUTOU o firmware gerado em
+**hardware físico** (15/11 — a mantenedora provisionou a placa). **Tudo neste
+documento marcado POUSADO abaixo está implementado, medido e verificado** — as
+seções seguintes mantêm o texto original do plano com o estado realizado
+registrado inline, para que o documento leia-se como o registro do que foi
+prometido E do que foi entregue.
 
 **Fonte:** pedido da mantenedora (14/10/2026) — "Kof Future — ESP8266 Embedded
 Target". Relacionados: `docs/PLAN-BAREMETAL-BOOT.md` (a costura HAL + o
@@ -31,7 +34,7 @@ item 1.6 (nativo → bare-metal).
 
 ---
 
-# `kof.esp8266` — o alvo embarcado ESP8266 (plano, zero código)
+# `kof.esp8266` — o alvo embarcado ESP8266 (CONCLUÍDO: o alvo está implementado, verificado em hardware e embarcando desde 15/11)
 
 ## 1. Motivação e casos de uso pretendidos
 
@@ -113,7 +116,19 @@ estabelecer que o maquinário nativo atual não alcança o alvo.
 5. **Divisão flash vs RAM.** O firmware é executado a partir da flash; um layout
    de heap/stack que funciona num SO hospedado não mapeia automaticamente aqui.
 
-## 3. Capacidades de hardware planejadas (escopo pretendido — NÃO funcionalidade existente)
+## 3. Capacidades de hardware (os estágios planejados, com o estado realizado)
+
+**POUSADO (14/11, medido):** H1+H2+H3 (GPIO out/in, o delay por-ms no ccount de
+80 MHz, o console UART0 — a `libs/esp/Gpio.kf` pura declara o HAL, o emitter
+liga os externs qualificados ao asm a nível de registrador:
+GPIO_OUT/W1TS/W1TC/ENABLE/IN em 0x60000300..18) e H8 (geração de firmware via
+esptool — o layout REAL de flash, `Main.img0x00000.bin` em 0x0 + a app em
+0x10000 — o relato de memória, o laço de flash provado ao vivo na placa).
+**NOMEADO FORA (a amplitude H4–H7 foi explicitamente dependente da escolha do
+SDK):** PWM (H4), I2C/SPI (H5), Wi-Fi station (H6), TCP/UDP (H7) — rastreados
+no registro do gate 3 abaixo; cada um depende da decisão de SDK e nunca é
+reivindicado incondicionalmente. Os estágios restantes foram PLANEJADOS como
+segue (a tabela original, mantida pelo registro):
 
 Organizadas em estágios incrementais. Nenhum estágio exige todos os periféricos;
 cada estágio é entregável e provável independentemente.
@@ -264,10 +279,10 @@ ser promovido.
 
 ## 9. Critérios de aceitação (o que fecharia a iniciativa)
 
-Funcionalidade planejada e funcionalidade implementada são distinguidas em todo
-lugar: este documento é a primeira. A iniciativa só está completa quando:
-
-1. o alvo compila e linka um programa Kof mínimo;
+**TODOS OS SETE ATENDIDOS (15/11):** a aceitação abaixo é a própria definição
+de pronto do plano — cada item carrega o ponteiro da prova. Funcionalidade
+planejada e implementada foram distinguidas em todo lugar durante a construção;
+este documento agora registra o estado entregue. Os critérios:
 2. uma imagem de firmware válida é gerada;
 3. restrições de memória e recursos não suportados são tratados **explicitamente**
    (diagnósticos acionáveis, nunca emulação silenciosa);

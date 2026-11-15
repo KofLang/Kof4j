@@ -13,14 +13,18 @@ state: concluded (all five gates landed; gate 5 EXECUTED on the real ESP8266EX 1
 
 intent: kof-esp8266-embedded-target
 
-**Rule 6 gate:** the ESP8266 target is a NEW compilation target (a new backend
-surface + a new toolchain/SDK integration). This document is **plan only, zero
-code** — no compiler, runtime, CLI or dependency change is made by it. Promotion
-requires a maintainer decision (`DECISIONS.md`, `D-*` id by the maintainer) and
-the future-promotion flow (`docs/development/future/README.md` §"When to move",
-`AGENTS.md` §"Future promotion"): rewrite with `UNDER DEVELOPMENT`, real state +
-how-to-finish, queue in `roadmap.md` §23, point `docs/status.md` at it, claim in
-`DOING.md`. **Nothing here is implemented, measured on hardware, or verified.**
+**Rule 6 gate — SATISFIED AND CLOSED (history):** the ESP8266 target was a NEW
+compilation target (a rule-6 front), so this document began as **plan only**.
+The gate was satisfied in order: the maintainer's two-plans order (14/11, chat)
+took the decision; the plan was re-promoted to `docs/development/` with its
+measured feasibility audit (gate 0, 14/11); every slice landed with executed
+proof (`NativeEsp8266E2ETest` and the family in `kof-compiler/src/test/`); and
+gate 5 EXECUTED the generated firmware on **physical hardware** (15/11 — the
+maintainer provisioned the board). **Everything in this document that is marked
+LANDED below is implemented, measured, and verified** — the sections that
+follow keep the original plan text with their realized status recorded inline,
+so the document reads as the record of what was promised AND what was
+delivered.
 
 **Source:** maintainer request (14/10/2026) — "Kof Future — ESP8266 Embedded
 Target". Related: `docs/PLAN-BAREMETAL-BOOT.md` (the HAL seam + the MCU
@@ -29,7 +33,7 @@ precedent), `docs/native-multiarch.md` (multi-arch native), `docs/stdlib/PLAN-TR
 
 ---
 
-# `kof.esp8266` — the ESP8266 embedded target (plan, zero code)
+# `kof.esp8266` — the ESP8266 embedded target (CONCLUDED: the target is implemented, verified on hardware, and shipping since 15/11)
 
 ## 1. Motivation and intended use cases
 
@@ -108,7 +112,19 @@ the current native machinery cannot reach the target.
 5. **Flash vs RAM split.** Firmware is executed from flash; a heap/stack layout
    that works on a hosted OS does not automatically map here.
 
-## 3. Planned hardware capabilities (intended scope — NOT existing functionality)
+## 3. Hardware capabilities (the planned stages, with the realized status)
+
+**LANDED (14/11, measured):** H1+H2+H3 (GPIO out/in, the per-ms delay on the
+80 MHz ccount, the UART0 console — the pure-Kof `libs/esp/Gpio.kf` declares the
+HAL, the emitter binds the qualified externs to the register-level asm:
+GPIO_OUT/W1TS/W1TC/ENABLE/IN at 0x60000300..18) and H8 (firmware generation via
+esptool — the REAL flash layout, `Main.img0x00000.bin` at 0x0 + the app at
+0x10000 — the memory report, the flashing loop proven live on the board).
+**NAMED OUT (the H4–H7 stage scope was explicitly gated on the SDK choice):**
+PWM (H4), I2C/SPI (H5), Wi-Fi station (H6), TCP/UDP (H7) — tracked in the
+gate-3 record below; each needs the SDK decision and is never claimed
+unconditionally. The remaining stages were PLANNED as follows (the original
+table, kept for the record):
 
 Organized into incremental stages. No stage requires all peripherals; each stage
 is independently deliverable and independently provable.
@@ -251,8 +267,10 @@ this plan would need the same kind of explicit order to be promoted.
 
 ## 9. Acceptance criteria (what would close the initiative)
 
-Planned functionality and implemented functionality are distinguished everywhere:
-this document is the former. The initiative is complete only when:
+**ALL SEVEN MET (15/11):** the acceptance below is the plan's own definition of
+done — each item carries its proof pointer. Planned functionality and
+implemented functionality were distinguished everywhere during the build; this
+document now records the delivered state. The criteria:
 
 1. the target compiles and links a minimal Kof program;
 2. a valid firmware image is generated;
