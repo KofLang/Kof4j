@@ -307,7 +307,7 @@ public class Parser {
         List<AstNode> externs = new ArrayList<>();
         while (!ctx.check(TokenType.RBRACE) && !ctx.atEnd()) {
             if (ctx.check(TokenType.EXTERN)) {
-                externs.add(withLibrary(parseExternDeclaration(ctx), library));
+                externs.add(withOwnership(withLibrary(parseExternDeclaration(ctx), library), ownership));
                 continue;
             }
             if (ctx.check(TokenType.IDENTIFIER)) {
@@ -351,7 +351,17 @@ public class Parser {
      */
     private static ExternalFunctionNode withLibrary(ExternalFunctionNode ext, String library) {
         if (ext.library() != null || library == null) return ext;
-        return new ExternalFunctionNode(ext.position(), library, ext.returnType(), ext.name(), ext.parameters());
+        return new ExternalFunctionNode(ext.position(), library, ext.returnType(), ext.name(), ext.parameters(),
+                ext.ownership());
+    }
+
+    /** O `extern` do bloco do módulo herda a `ownership` declarada — o marker
+     *  OPT-IN do copy-out de arrays (`borrowed` = a C pode escrever o array
+     *  emprestado durante a chamada; o write volta — o #1156 face). */
+    private static ExternalFunctionNode withOwnership(ExternalFunctionNode ext, String ownership) {
+        if (ownership == null || ext.ownership() != null) return ext;
+        return new ExternalFunctionNode(ext.position(), ext.library(), ext.returnType(), ext.name(),
+                ext.parameters(), ownership);
     }
 
     /**
@@ -381,7 +391,7 @@ public class Parser {
             returnType = TypeParser.parseTypeRef(ctx);
         }
         ctx.expectSemicolon();
-        return new ExternalFunctionNode(p, library, returnType, name, params);
+        return new ExternalFunctionNode(p, library, returnType, name, params, null);
     }
 
     /**

@@ -135,7 +135,16 @@ final class CompilerFfiBinding {
             // segue FFI001 (R6).
             Character ae = FfiSignature.arrayElemChar(param.type());
             if (ae != null) {
-                paramTypes.add(FfiStructLayout.arrayPtrType(ae));
+                // A fatia COPY-OUT: o módulo `ownership borrowed` = o array
+                // cruza como o payload direto (obj+24, o write da C volta).
+                // x86-64 SOMENTE (o heap não move objetos); o cross segue
+                // FFI001 honesto (o espelho riscv do pack é o follow-up).
+                if ("borrowed".equals(ext.ownership())) {
+                    if (!x86) return false;
+                    paramTypes.add(FfiStructLayout.arrayOutPtrType(ae));
+                } else {
+                    paramTypes.add(FfiStructLayout.arrayPtrType(ae));
+                }
                 continue;
             }
             // D-MEM-FFI-CROSS-FULL face 2 (30/09): `String[]`→`char**` — um

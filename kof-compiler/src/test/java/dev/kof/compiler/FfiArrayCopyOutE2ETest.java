@@ -41,8 +41,13 @@ class FfiArrayCopyOutE2ETest {
             """;
 
     private static final String KOF_SRC = """
-            extern "%s" fill_double(Double[] arr, Int n): Void
-            extern "%s" fill_int(Int[] arr, Int n): Void
+            foreign module fixtures {
+                library "%s"
+                abi c
+                ownership borrowed
+                extern fill_double(Double[] arr, Int n): Void
+                extern fill_int(Int[] arr, Int n): Void
+            }
 
             main() {
                 var d = new Double[3]

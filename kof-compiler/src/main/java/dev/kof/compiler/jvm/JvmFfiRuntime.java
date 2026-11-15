@@ -15,7 +15,7 @@ final class JvmFfiRuntime {
         // condição. JDK 21 (FFM preview): Arena.allocateUtf8String(String);
         // JDK 22+ (FFM final, JEP 454): Arena.allocateFrom(String).
         String alloc = Runtime.version().feature() < 22 ? "allocateUtf8String" : "allocateFrom";
-        return FORMATTED.formatted(alloc);
+        return FORMATTED.formatted(alloc) + JvmFfiCopyRuntime.CHUNK;
     }
 
     private static final String FORMATTED = """
@@ -116,7 +116,11 @@ final class JvmFfiRuntime {
                                 java.lang.foreign.MemorySegment sseg = arena.allocate(sl);
                                 kof_ffi_write_struct(sl, sseg, args[i]);
                                 real[i] = sseg;
-                            } else if (c == 'p') {
+                            } else if (c == 'p' || c == 'P') {
+                                // 'p' = BY-VALUE copy-in (o default D6-2 — o C não
+                                // altera o array do chamador); 'P' = a fatia
+                                // COPY-OUT (o módulo declarou `ownership borrowed` —
+                                // o write da C volta pós-retorno, o #1156 face).
                                 char e = sig.charAt(cur + 1);
                                 cur += 2;
                                 pl[i] = java.lang.foreign.ValueLayout.ADDRESS;
@@ -127,17 +131,17 @@ final class JvmFfiRuntime {
                                 if (e == 'S') {
                                     real[i] = kof_ffi_copy_in_strings(arena, args[i]);
                                 } else {
-                                    // D6-2 (3.8b fatia 3) + a fatia COPY-OUT (15/11,
-                                    // o #1156 face): o array Kof é copiado para a
-                                    // arena da chamada (sem pinning — o ponteiro
-                                    // nunca escapa: a C escreve só DURANTE a
-                                    // chamada) e o conteúdo VOLTA para o array Java
-                                    // depois do retorno (o mesmo padrão do Buffer
-                                    // INOUT: `axpy_`/`gemm_` escrevem os args).
+                                    // D6-2 (3.8b fatia 3): o copy-in para a arena
+                                    // (sem pinning). O copy-back SÓ para 'P' (o
+                                    // módulo borrowed — o write da C volta); o
+                                    // 'p' by-value NUNCA copia de volta (o
+                                    // contrato D6-2: o C não altera o array).
                                     java.lang.foreign.MemorySegment aseg =
                                             kof_ffi_copy_in(arena, args[i], e);
                                     real[i] = aseg;
-                                    copybacks.add(new Object[] { args[i], aseg, e });
+                                    if (c == 'P') {
+                                        copybacks.add(new Object[] { args[i], aseg, e });
+                                    }
                                 }
                             } else if (c == 'B') {
                                 // D6-3 / D-R3-BUFFER: Buffer(U8) INOUT — copy-in
@@ -380,6 +384,26 @@ final class JvmFfiRuntime {
                     }
                 }
 
+                // D-MEM-FFI-CROSS-FULL face 2: `String[]` -> `char**`. Cada String
+                // vira um cstr NUL-terminado na arena da chamada (mesma forma do
+                // escalar 'S') e um array de ADDRESS recebe os ponteiros; null -> 0.
+                static java.lang.foreign.MemorySegment kof_ffi_copy_in_strings(
+                        java.lang.foreign.Arena arena, Object arr) {
+                    int n = java.lang.reflect.Array.getLength(arr);
+                    java.lang.foreign.MemorySegment seg = arena.allocate(
+                            java.lang.foreign.ValueLayout.ADDRESS, n == 0 ? 1 : n);
+                    for (int i = 0; i < n; i++) {
+                        String s = (String) java.lang.reflect.Array.get(arr, i);
+                        if (s != null) {
+                            seg.setAtIndex(java.lang.foreign.ValueLayout.ADDRESS, i,
+                                    arena.%1$s(s));
+                        }
+                    }
+                    return seg;
+                }
+
+
+
                 // D6-2 (3.8b fatia 3): copia um array Kof (array Java primitivo)
                 // para um segmento nativo da arena da chamada e devolve o ponteiro.
                 static java.lang.foreign.MemorySegment kof_ffi_copy_in(
@@ -402,76 +426,6 @@ final class JvmFfiRuntime {
                     java.lang.foreign.MemorySegment seg = arena.allocate(vl, n);
                     java.lang.foreign.MemorySegment.copy(arr, 0, seg, vl, 0, n);
                     return seg;
-                }
-
-                // D-MEM-FFI-CROSS-FULL face 2: `String[]` -> `char**`. Cada String
-                // vira um cstr NUL-terminado na arena da chamada (mesma forma do
-                // escalar 'S') e um array de ADDRESS recebe os ponteiros; null -> 0.
-                static java.lang.foreign.MemorySegment kof_ffi_copy_in_strings(
-                        java.lang.foreign.Arena arena, Object arr) {
-                    int n = java.lang.reflect.Array.getLength(arr);
-                    java.lang.foreign.MemorySegment seg = arena.allocate(
-                            java.lang.foreign.ValueLayout.ADDRESS, n == 0 ? 1 : n);
-                    for (int i = 0; i < n; i++) {
-                        String s = (String) java.lang.reflect.Array.get(arr, i);
-                        if (s != null) {
-                            seg.setAtIndex(java.lang.foreign.ValueLayout.ADDRESS, i,
-                                    arena.%1$s(s));
-                        }
-                    }
-                    return seg;
-                }
-
-                // A fatia COPY-OUT (15/11, o #1156 face): apos o retorno, o
-                // conteudo do segmento da arena volta para o array Java
-                // (element-typed; o espelho exato de kof_ffi_copy_in). `boolean[]`
-                // volta por byte 0/1 (o espelho do copy_in; paridade _Bool).
-                static void kof_ffi_copy_out(
-                        Object arr, java.lang.foreign.MemorySegment seg, char e) {
-                    int n = java.lang.reflect.Array.getLength(arr);
-                    if (e == 'b') {
-                        // `boolean[]` não tem MemorySegment.copy direto (o mesmo
-                        // corte do copy_in): volta por byte 0/1 (paridade _Bool).
-                        boolean[] dst = (boolean[]) arr;
-                        for (int i = 0; i < n; i++) {
-                            dst[i] = seg.get(java.lang.foreign.ValueLayout.JAVA_BYTE, i) != 0;
-                        }
-                        return;
-                    }
-                    // element-typed copy com o MESMO ValueLayout do copy_in
-                    // (JAVA_INT p/ 'i', JAVA_LONG p/ 'j' — o mapa do paramChar
-                    // NÃO tem 'l'). O ofArray precisa do array TIPADO (o
-                    // MemorySegment.ofArray(Object) não existe — o copy_in usa
-                    // o overload reflectivo MemorySegment.copy(Object,int,seg,...)
-                    // na direção inversa).
-                    // O overload JDK 25: copy(srcSeg, srcLayout, srcOffset,
-                    // dstArray, dstIndex, count) — o dstOffset é INT e NÃO leva
-                    // dstLayout (o layout do array primitivo é implícito).
-                    java.lang.foreign.MemorySegment.copy(seg, kof_ffi_layout(e), 0L,
-                            arr, 0, n);
-                }
-
-                // D6-3 / D-R3-BUFFER: Buffer(U8) como param INOUT de um extern.
-                // copy-in: os bytes do buffer viram memoria nativa na arena da
-                // chamada; copy-back: apos o retorno, a memoria volta para o
-                // byte[] do buffer (a vida e gerenciada pela linguagem).
-                static java.lang.foreign.MemorySegment kof_ffi_buffer_in(
-                        java.lang.foreign.Arena arena, Object buf) {
-                    byte[] data = ((Buffer) buf).data;
-                    java.lang.foreign.MemorySegment seg = arena.allocate(
-                            java.lang.foreign.ValueLayout.JAVA_BYTE, data.length);
-                    java.lang.foreign.MemorySegment src =
-                            java.lang.foreign.MemorySegment.ofArray(data);
-                    java.lang.foreign.MemorySegment.copy(src, 0L, seg, 0L, data.length);
-                    return seg;
-                }
-
-                static void kof_ffi_buffer_out(
-                        Object buf, java.lang.foreign.MemorySegment seg) {
-                    byte[] data = ((Buffer) buf).data;
-                    java.lang.foreign.MemorySegment dst =
-                            java.lang.foreign.MemorySegment.ofArray(data);
-                    java.lang.foreign.MemorySegment.copy(seg, 0L, dst, 0L, data.length);
                 }
 
                 // Callback/upcall (R3, 3.4): um valor de função Kof (objeto que

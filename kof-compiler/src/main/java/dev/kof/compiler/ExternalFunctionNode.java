@@ -10,5 +10,14 @@ import java.util.List;
  * quebrado.
  */
 public record ExternalFunctionNode(SourcePosition position, String library, String returnType,
-                                   String name, List<FormalParameterNode> parameters) implements AstNode {
+                                   String name, List<FormalParameterNode> parameters,
+                                   String ownership) implements AstNode {
+    /** null = the inline extern form (no foreign module block) — the array
+     *  params are BY-VALUE copy-in (the D6-2/3.8b contract, the C cannot
+     *  mutate the caller's array). {@code "borrowed"} = the module declared
+     *  the borrow: the callee MAY write the array during the call and the
+     *  write flows back (the copy-out fatia, the #1156 face). */
+    public ExternalFunctionNode {
+        if (ownership != null && ownership.isBlank()) ownership = null;
+    }
 }

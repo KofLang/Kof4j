@@ -132,6 +132,7 @@ final class NativeFfiCall {
         boolean[] isStruct = new boolean[n];
         Type[] structTypes = new Type[n];
         boolean[] isArray = new boolean[n];
+        boolean[] isArrayOut = new boolean[n];
         char[] arrayElem = new char[n];
         boolean[] isBufPtr = new boolean[n];
         boolean[] isCbPtr = new boolean[n];
@@ -141,6 +142,11 @@ final class NativeFfiCall {
             if (FfiStructLayout.isArrayPtr(pt)) {
                 isArray[i] = true;
                 arrayElem[i] = FfiStructLayout.arrayPtrElem(pt);
+            } else if (FfiStructLayout.isArrayOutPtr(pt)) {
+                // A fatia COPY-OUT: o payload direto (sem pack, sem cópia).
+                isArray[i] = true;
+                isArrayOut[i] = true;
+                arrayElem[i] = FfiStructLayout.arrayOutElem(pt);
             } else if (FfiStructLayout.isBufferPtr(pt)) {
                 isBufPtr[i] = true;
             } else if (FfiStructLayout.isCbPtr(pt)) {
@@ -215,16 +221,19 @@ final class NativeFfiCall {
         //    helper clobberaria os args já carregados; o buffer fica no slot
         //    temporário e é lido no passo 1 (ou empilhado como derramado).
         for (int i = 0; i < n; i++) {
-            if (!isArray[i] || arrayElem[i] != 'S') continue;
-            // A fatia COPY-OUT (15/11, o #1156 face — o espelho nativo da fatia
-            // JVM): os arrays escalares NÃO são mais empacotados em cópia de
-            // arena — o ponteiro do PAYLOAD direto (obj+24) cruza a chamada
-            // (o padrão Buffer A2: o heap Kof é free-list+bump, os objetos não
-            // se movem, o ponteiro é estável durante a chamada; a C escreve no
-            // payload e o array Kof ENXERGA). Só `String[]` continua no
-            // pack_str_array (o cstr NUL-terminado precisa de construção).
+            // A fatia COPY-OUT: os markers "arrayout" (borrowed) NÃO empacotam
+            // — o ponteiro do PAYLOAD direto (obj+24) cruza a chamada (o heap
+            // não move objetos; a C escreve no array do chamador). O by-value
+            // ("array", o D6-2 default) e `String[]` EMPACOTAM (a cópia
+            // protege o array do chamador; o cstr precisa de construção).
+            if (!isArray[i] || isArrayOut[i]) continue;
             sb.append("    movq ").append(8 * (n - 1 - i)).append("(%rsp), %rdi\n");
-            sb.append("    call kof_ffi_pack_str_array\n");
+            if (arrayElem[i] == 'S') {
+                sb.append("    call kof_ffi_pack_str_array\n");
+            } else {
+                sb.append("    movq $").append(arrayElemSize(arrayElem[i])).append(", %rsi\n");
+                sb.append("    call kof_ffi_pack_array\n");
+            }
             sb.append("    movq %rax, -").append(nb.scratchOffset(i)).append("(%rbp)\n");
         }
         // D-MEM030-BORROW-RUNTIME (B-03): cada `Buffer(U8)` INOUT adquire um
@@ -240,26 +249,27 @@ final class NativeFfiCall {
         }
         for (int i = n - 1; i >= 0; i--) {
             if (isArray[i]) {
-                // A fatia COPY-OUT: o objeto da pilha → ponteiro do PAYLOAD
-                // (obj+24, o guard de null idêntico ao Buffer A2; ord>=6:
-                // o payload derivado vai ao rascunho e o spill empilha).
                 sb.append("    popq %r10\n");
-                if (arrayElem[i] == 'S') {
+                if (isArrayOut[i]) {
+                    // A fatia COPY-OUT: o objeto da pilha → ponteiro do PAYLOAD
+                    // (obj+24, o guard de null idêntico ao Buffer A2; ord>=6:
+                    // o payload derivado vai ao rascunho e o spill empilha).
+                    String lblA = ".Lffi_a" + seq + "_" + i;
+                    sb.append("    testq %r10, %r10\n");
+                    sb.append("    je ").append(lblA).append("\n");
+                    sb.append("    leaq 24(%r10), %r10\n");
+                    sb.append(lblA).append(":\n");
+                    if (ord[i] < 6) {
+                        sb.append("    movq %r10, ").append(intRegs[ord[i]]).append("\n");
+                    } else {
+                        sb.append("    movq %r10, -").append(nb.scratchOffset(i)).append("(%rbp)\n");
+                    }
+                } else {
+                    // by-value: o buffer empacotado está no rascunho
                     if (ord[i] < 6) {
                         sb.append("    movq -").append(nb.scratchOffset(i)).append("(%rbp), ")
                           .append(intRegs[ord[i]]).append("\n");
                     }
-                    continue;
-                }
-                String lblA = ".Lffi_a" + seq + "_" + i;
-                sb.append("    testq %r10, %r10\n");
-                sb.append("    je ").append(lblA).append("\n");
-                sb.append("    leaq 24(%r10), %r10\n");
-                sb.append(lblA).append(":\n");
-                if (ord[i] < 6) {
-                    sb.append("    movq %r10, ").append(intRegs[ord[i]]).append("\n");
-                } else {
-                    sb.append("    movq %r10, -").append(nb.scratchOffset(i)).append("(%rbp)\n");
                 }
                 continue;
             }

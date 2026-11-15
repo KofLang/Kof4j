@@ -38,8 +38,13 @@ class FfiArrayCopyOutNativeE2ETest {
             """;
 
     private static final String KOF_SRC = """
-            extern "%s" nfill_double(Double[] arr, Int n): Void
-            extern "%s" nfill_int(Int[] arr, Int n): Void
+            foreign module fixtures {
+                library "%s"
+                abi c
+                ownership borrowed
+                extern nfill_double(Double[] arr, Int n): Void
+                extern nfill_int(Int[] arr, Int n): Void
+            }
 
             main() {
                 var d = new Double[3]

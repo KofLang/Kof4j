@@ -72,9 +72,13 @@ public final class FfiSignature {
                     sb.append('@');
                 }
             } else if (arrayElemChar(p.type()) != null) {
-                // D6-2 / 3.8b fatia 3: `T[]` primitivo vira `ptr` C — token `p` +
-                // o char do ELEMENTO (o runtime faz copy-in por chamada).
-                sb.append('p').append(arrayElemChar(p.type()).charValue());
+                // D6-2 / 3.8b fatia 3: `T[]` primitivo vira `ptr` C. O token é
+                // `p`+elem (BY-VALUE copy-in — o default, o C não altera o array
+                // do chamador) OU `P`+elem (a fatia COPY-OUT, o #1156 face: o
+                // módulo declarou `ownership borrowed` = a C PODE escrever o
+                // array emprestado durante a chamada e o write VOLTA).
+                boolean borrowed = "borrowed".equals(ext.ownership());
+                sb.append(borrowed ? 'P' : 'p').append(arrayElemChar(p.type()).charValue());
             } else if (isStringArray(p.type())) {
                 // D-MEM-FFI-CROSS-FULL face 2: `String[]` vira `char**` (token
                 // `pS`; o runtime empacota o payload de cada String).

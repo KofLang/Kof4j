@@ -61,7 +61,13 @@ final class ExpressionExternCallLowerer {
                         // D6-2/3.7: array escalar `T[]`→`ptr` (marker kof.ffi/array).
                         Character ae = FfiSignature.arrayElemChar(p.type());
                         if (ae != null) {
-                            ffiParams.add(FfiStructLayout.arrayPtrType(ae));
+                            // A fatia COPY-OUT: borrowed = o marker "arrayout"
+                            // (o payload direto); o default = "array" (by-value).
+                            if ("borrowed".equals(ext.ownership())) {
+                                ffiParams.add(FfiStructLayout.arrayOutPtrType(ae));
+                            } else {
+                                ffiParams.add(FfiStructLayout.arrayPtrType(ae));
+                            }
                         } else if (FfiSignature.isStringArray(p.type())) {
                             // D-MEM-FFI-CROSS-FULL face 2: `String[]`→`char**`
                             // (marker arrayPtrType('S')).
