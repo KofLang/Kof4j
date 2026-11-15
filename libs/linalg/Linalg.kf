@@ -131,6 +131,41 @@ Float sdotf(Float[] x, Float[] y) {
     return sdot_(n, x, inc, y, inc)
 }
 
+// ── THE LEVEL-3 FACE (15/11): gemm through the CBLAS interface — the
+// scalars BY VALUE (the landed scalar face; the FORTRAN symbols would need
+// every scalar as a one-element array) and the CBLAS enums (CblasRowMajor=
+// 102, CblasNoTrans=111 — the standard openblas convention) as Int. Kof
+// arrays are ROW-MAJOR and the CBLAS layout parameter carries that
+// explicitly — no transpose dance. C is WRITTEN by the C (the copy-out
+// opt-in; the module declares `ownership borrowed`).
+
+foreign module openblas_l3 {
+    library "libopenblas.so.0"
+    abi c
+    ownership borrowed
+    extern cblas_dgemm(Int layout, Int transa, Int transb, Int m, Int n, Int k,
+                       Double alpha, Double[] a, Int lda, Double[] b, Int ldb,
+                       Double beta, Double[] c, Int ldc): Void
+}
+
+// The CBLAS enum values — MEASURED against this libopenblas (15/11):
+// CblasRowMajor = 101 (102 is ColMajor — the swapped pair measured in C:
+// layout 102 rejected LDB=2 and computed the column-major garbage;
+// layout 101 returned the exact row-major oracle 58/64/139/154),
+// CblasNoTrans = 111.
+Int cblasRowMajor() { return 101 }
+
+Int cblasNoTrans() { return 111 }
+
+// gemm — the row-major matrix multiply: c = alpha * a(m×k) * b(k×n) + beta * c.
+// The caller's contract: a is m*k row-major, b is k*n row-major, c is m*n
+// row-major (lda = k, ldb = n, ldc = n for the packed row-major faces);
+// beta = 0.0 initializes c fresh (the C never reads the incoming c).
+Void gemm(Int m, Int n, Int k, Double[] a, Double[] b, Double[] c) {
+    cblas_dgemm(cblasRowMajor(), cblasNoTrans(), cblasNoTrans(),
+                m, n, k, 1.0, a, k, b, n, 0.0, c, n)
+}
+
 // ── THE COPY-OUT FACES (15/11, the #1156 face): the FORTRAN scal_/axpy_
 // WRITE their vector argument — the array copy-out fatia makes the write
 // visible in the caller's Kof array (the JVM `kof_ffi_copy_out` + the

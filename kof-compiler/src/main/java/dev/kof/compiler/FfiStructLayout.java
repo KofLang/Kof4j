@@ -399,8 +399,10 @@ public final class FfiStructLayout {
             if (isArrayPtr(t) || isArrayOutPtr(t)) {
                 // 3.7 D6-2: array→ptr é um ponteiro INTEGER (um ordinal). O
                 // marker "arrayout" (a fatia copy-out) é o MESMO ordinal — o
-                // payload direto cruza como um ponteiro inteiro igual.
-                if (nInt >= 6) return false;
+                // payload direto cruza como um ponteiro inteiro igual. PASSADO
+                // 6 ordinais INTEGER o arg DERRAMA para a pilha (o emitter
+                // NativeFfiCall tem o scratch + o push por-arg — o gemm de 9
+                // ints é o caso real); o Buffer idêntico (A2) nunca recusou.
                 nInt++;
                 continue;
             }
