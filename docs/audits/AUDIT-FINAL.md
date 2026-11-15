@@ -16,6 +16,23 @@ state — the honest form; the mandate forbids declaring success early).**
 - The copy-out regression (the one open defect this week) fixed at the root
   with the opt-in design + the RED-first proof.
 
+## The P0 cycle (15/11): EXECUTED (the audit part; the fix part blocked)
+
+- The #1134 coherence evaluation EXECUTED (AUDIT-BUGS): the technical facts
+  re-verified in the asm at this tip (the `sub sp, sp, #8; str x0, [sp]`
+  sites; the Arm ARM alignment rule; qemu-user does not enforce it), the
+  x86 MIRROR AUDIT executed (the emitter is NOT exposed — the _start shim
+  and the FFI call site both carry `andq $-16` guards, the 19/09 lesson;
+  the exposure is aarch64-specific; riscv has no alignment requirement),
+  and the THREE coherent options documented for the maintainer ((a) fix —
+  blocked on arm64 hw, (b) demote aarch64-real — her decision, (c) keep
+  documented — coherent TODAY as long as no doc promises real-hardware
+  class construction). The docs' current state measured: coherent (the
+  limitation named everywhere the target is promised).
+- The FIX itself: BLOCKED (the arm64 hardware; the qemu harness lacks the
+  SP-alignment enforcement that hides the defect — a qemu-harness alignment
+  assertion is a possible validation vehicle, named for the fix cycle).
+
 ## The pending work (the honest list, the P0→P3 order)
 
 - P0: the #1134 support-contract coherence evaluation (the maintainer
