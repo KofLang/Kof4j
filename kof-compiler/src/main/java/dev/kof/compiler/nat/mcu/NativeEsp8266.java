@@ -27,7 +27,7 @@ import java.util.Map;
  * gate-0 audit named).
  *
  * <p>Supports (the gate-0 measured subset):
- * - print/println of String literals (the UART0 HAL at 0x60000074)
+ * - print/println of String literals (the UART0 HAL, the FIFO at 0x60000000)
  * - Int locals (load/store) and Int literals
  * - String.valueOf(Int) via the decimal printer in the runtime asm
  * - arithmetic on Int literals (+ - *)
@@ -48,9 +48,9 @@ import java.util.Map;
  */
 public final class NativeEsp8266 {
 
-    private static final String UART0 = "0x60000074";
-    private static final String UART0_STATUS = "0x60000078";
-    private static final String UART0_CONF = "0x60000092";
+    private static final String UART0 = "0x60000000"; // the UART0 FIFO = the base (the GATE-5 HARDWARE LAW, measured 15/11: the gate-0 qemu address 0x60000074 does NOT exist in the real F1 map — the stub with 0x60000000 PRINTED 'A\n' on the ESP8266EX; 0x60000074 printed nothing)
+    private static final String UART0_STATUS = "0x6000001C"; // UART_STATUS (the F1 register map: base+0x1C)
+    private static final String UART0_CONF = "0x60000020"; // UART_CONF0 (base+0x20)
     private static final long DEFAULT_HEAP_BYTES = 16384L; // 16 KB (the plan's §3: ~80 KB SRAM total)
 
     private NativeEsp8266() {}
@@ -78,7 +78,7 @@ public final class NativeEsp8266 {
                 System.getenv().getOrDefault("KOF_MCU_HEAP", String.valueOf(DEFAULT_HEAP_BYTES)));
 
         Files.writeString(asmFile, renderAsm(result), StandardCharsets.UTF_8);
-        Files.writeString(ldFile, linkerScript(heapBytes), StandardCharsets.UTF_8);
+        Files.writeString(ldFile, NativeEsp8266Image.linkerScript(), StandardCharsets.UTF_8);
 
         String home = System.getenv().getOrDefault("KOF_ESP_HOME", discoverHome());
         String as = System.getenv().getOrDefault("KOF_ESP_AS",
@@ -94,37 +94,10 @@ public final class NativeEsp8266 {
             binFile.toFile().setExecutable(true);
             System.err.println("NativeEsp8266: generated xtensa " + binFile + " (heap=" + heapBytes + ")");
             NativeEsp8266MemoryReport.print(binFile, heapBytes);
-            firmwareImage(binFile);
+            NativeEsp8266Image.firmwareImage(binFile);
         } catch (IOException e) {
             System.err.println("NativeEsp8266: esp8266 toolchain missing (NATIVE002),"
                     + " keeping asm: " + e.getMessage());
-        }
-    }
-
-    /** The FIRMWARE IMAGE (the gate-1 exit artifact): esptool produces the real
-     *  flash images. The tool is probed (`KOF_ESPTOOL` or the PATH python);
-     *  absent -> a NAMED skip (the ELF remains the deliverable) — never a
-     *  silent nothing. esptool 5.x: `--chip` comes BEFORE the subcommand; the
-     *  split images land at <elf>.img<offset>.bin (0x00000 = the boot section,
-     *  0x00010 = the app — the REAL ESP8266 flash layout, measured). */
-    private static void firmwareImage(Path elf) {
-        String esp = System.getenv().getOrDefault("KOF_ESPTOOL", "python3 -m esptool");
-        String[] cmd = esp.split("\\s+");
-        String[] full = new String[cmd.length + 6];
-        System.arraycopy(cmd, 0, full, 0, cmd.length);
-        full[cmd.length] = "--chip";
-        full[cmd.length + 1] = "esp8266";
-        full[cmd.length + 2] = "elf2image";
-        full[cmd.length + 3] = "--output";
-        full[cmd.length + 4] = elf + ".img";
-        full[cmd.length + 5] = elf.toString();
-        try {
-            run(full, "esp8266-esptool");
-            System.err.println("NativeEsp8266: firmware image " + elf + ".img*.bin"
-                    + " (the boot section + the app section)");
-        } catch (IOException | IllegalStateException e) {
-            System.err.println("NativeEsp8266: esptool absent - the firmware image"
-                    + " step is SKIPPED (named; the ELF is the deliverable): " + e.getMessage());
         }
     }
 
@@ -234,8 +207,7 @@ public final class NativeEsp8266 {
                         } else if (top.type == StackType.INT_VAL) {
                             espPopTo(r, "a2");
                             r.body.append("    call0 kof_str_of_int\n");
-                            espPush(r);
-                            stack.add(new StackSlot(StackType.LIT_STR, null));
+                            stack.add(DYNAMIC_STR);
                         } else {
                             throw unsupported("valueOf of " + top.type);
                         }
@@ -351,11 +323,28 @@ public final class NativeEsp8266 {
         return stack.remove(stack.size() - 1);
     }
 
+    /** A string whose bytes live at runtime in a2 with its length in a3 (the
+     *  kof_str_of_int contract) — the print face writes the PAIR, never a
+     *  compile-time literal (the gate-5 fix: the old LIT_STR-with-null slot
+     *  printed the Java literal "null" on the console). */
+    private static final StackSlot DYNAMIC_STR = new StackSlot(StackType.LIT_STR, new Object());
+
+    private static boolean isDynamic(StackSlot s) {
+        return s.type == StackType.LIT_STR && s.value != null && !(s.value instanceof String);
+    }
+
     private static void emitPrint(EmitResult r, StackSlot slot, boolean newline) {
+        if (isDynamic(slot)) {
+            // a2 = the bytes, a3 = the length (both from the converter)
+            r.body.append("    call0 kof_plat_write\n");
+            if (newline) r.body.append("    call0 kof_println_string\n");
+            return;
+        }
         if (slot.type == StackType.INT_VAL && slot.value == null) {
             if (!newline) throw unsupported("print without newline of a dynamic value");
             espPopTo(r, "a2");
             r.body.append("    call0 kof_str_of_int\n");
+            r.body.append("    call0 kof_plat_write\n");
             r.body.append("    call0 kof_println_string\n");
             return;
         }
@@ -440,6 +429,11 @@ public final class NativeEsp8266 {
         sb.append("    j .Lesp_divloop\n");
         sb.append(".Lesp_divdone:\n");
         sb.append("    mov a2, a3\n");
+        sb.append("    movi a3, .Lesp_decbuf_end\n");
+        // the length EXCLUDES the NUL terminator (the gate-5 console measured the
+        // terminator byte trailing '42' before the -1)
+        sb.append("    sub a3, a3, a2\n");
+        sb.append("    addi a3, a3, -1\n");
         sb.append("    ret\n\n");
 
         // the HAL: UART0 out (the gate-0 measured addresses)
@@ -471,9 +465,6 @@ public final class NativeEsp8266 {
         sb.append("    .align 4\n");
         sb.append("kof_plat_exit:\n");
         sb.append("    .literal_position\n");
-        sb.append("    movi a5, ").append(UART0_CONF).append('\n');
-        sb.append("    movi a6, 5\n");
-        sb.append("    s8i a6, a5, 0\n");
         sb.append(".Lesp_hang:\n");
         sb.append("    j .Lesp_hang\n\n");
 
@@ -488,27 +479,6 @@ public final class NativeEsp8266 {
         sb.append("    .section .rodata\n");
         sb.append(r.rodata);
         return sb.toString();
-    }
-
-    /** The linker script: esp8266 ships NONE (measured, gate 0) — the emitter
-     *  writes its own with the REAL memory map (the `NativeMcuRiscv32` pattern). */
-    private static String linkerScript(long heapBytes) {
-        return """
-                /* kof.esp8266 — generated by NativeEsp8266 (gate 1) */
-                MEMORY
-                {
-                  iram0_0_seg : org = 0x40100000, len = 0x8000
-                  irom0_0_seg : org = 0x40200010, len = 0xf0000
-                  dram0_0_seg : org = 0x3FFE8000, len = 0x14000
-                }
-                PHDRS { dram0_0_phdr PT_LOAD; irom0_0_phdr PT_LOAD; }
-                SECTIONS
-                {
-                  .data : { *(.data) *(.rodata) *(.rodata.*) } > dram0_0_seg :dram0_0_phdr
-                  .text : { *(.literal) *(.text) *(.text.*) } > irom0_0_seg :irom0_0_phdr
-                  .bss  : { *(.bss) *(.bss.*) *(COMMON) } > dram0_0_seg :dram0_0_phdr
-                }
-                """;
     }
 
     private static String asmBytes(String s) {
@@ -528,7 +498,7 @@ public final class NativeEsp8266 {
         return b.append('"').toString();
     }
 
-    private static void run(String[] cmd, String what) throws IOException {
+    static void run(String[] cmd, String what) throws IOException {
         ProcessBuilder pb = new ProcessBuilder(cmd).redirectErrorStream(true);
         // THE GATE-0 MEASURED LAW: without the esp8266 dynconfig the objects come
         // out BIG-endian and the esp8266 crt0 refuses to link. The .so ships in
