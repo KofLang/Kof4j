@@ -103,6 +103,7 @@ public final class KofJsRunner {
                     err.write((message + "\n").getBytes(StandardCharsets.UTF_8));
                     err.flush();
                 }
+
             } catch (IOException ignored) {
             }
             return 1;

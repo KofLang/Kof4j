@@ -32,7 +32,7 @@ final class KofJsFfiMarshal {
 
     /** Buffer INOUT: liga o `Uint8Array` do guest ao segmento da chamada. `obj`
      *  é o próprio `KofBufferBox` (dono do estado de borrow — B-03). */
-    private record OutBuf(Value obj, Value data, MemorySegment seg, int len) {}
+    private record OutBuf(Value obj, Value data, MemorySegment seg, int len, char elem) {}
 
     /** Downcall com retorno: abre a arena confined dos stubs e chama o bridge. */
     static Object ffi(String lib, String name, String sig, Value jsArgs) {
@@ -73,14 +73,21 @@ final class KofJsFfiMarshal {
      * e liberado depois do downcall (o guest lança `MEM020` se já houver um).
      */
     private static void acquireBorrows(java.util.List<OutBuf> outs) {
-        for (int i = 0; i < outs.size(); i++) {
-            outs.get(i).obj().invokeMember("__kofBorrowAcquire");
+        for (OutBuf ob : outs) {
+            // SÓ o Buffer(U8) INOUT tem o protocolo MEM020 (o membro existe no
+            // buffer); os arrays copy-out ('P') cruzam como o payload direto
+            // SEM borrow (nenhum membro — o invokeMember em um array Kof
+            // lança, medido 15/11).
+            if (ob.elem() != 0) continue;
+            ob.obj().invokeMember("__kofBorrowAcquire");
         }
     }
 
     private static void releaseBorrows(java.util.List<OutBuf> outs) {
         for (int i = outs.size() - 1; i >= 0; i--) {
-            outs.get(i).obj().invokeMember("__kofBorrowRelease");
+            OutBuf ob = outs.get(i);
+            if (ob.elem() != 0) continue;
+            ob.obj().invokeMember("__kofBorrowRelease");
         }
     }
 
@@ -102,13 +109,19 @@ final class KofJsFfiMarshal {
                 String chars = KofJsFfiBridge.structCharsAt(sig, curRef);
                 cur = curRef[0];
                 real[i] = packStruct(chars, v, stubArena);
-            } else if (c == 'p') {
-                // D6-2/3.8b fatia 3 (bridge JS): `T[]` escalar -> `ptr` C, com
-                // copy-in por chamada (o array JS não é pinado nem visto pelo C;
-                // espelha `kof_ffi_copy_in` do JVM).
+            } else if (c == 'p' || c == 'P') {
+                // 'p' = D6-2/3.8b fatia 3 (bridge JS): `T[]` escalar -> `ptr` C,
+                // copy-in por chamada (o array JS não é pinado nem visto pelo C).
+                // 'P' = a fatia COPY-OUT (o #1156 face; o módulo declarou
+                // `ownership borrowed`): copy-in + o copy-back pós-downcall
+                // devolve ao array JS (o espelho do buffer INOUT).
                 char elem = sig.charAt(cur + 1);
                 cur += 2;
-                real[i] = packArray(elem, v, stubArena);
+                if (c == 'P') {
+                    real[i] = packArrayOut(elem, v, stubArena, outs);
+                } else {
+                    real[i] = packArray(elem, v, stubArena);
+                }
             } else if (c == 'B') {
                 // D6-3/D-R3-BUFFER (bridge JS 21/09): `Buffer(U8)` INOUT — copia os
                 // bytes do `Uint8Array` do guest para a arena da chamada e registra
@@ -234,18 +247,51 @@ final class KofJsFfiMarshal {
         for (int k = 0; k < n; k++) {
             seg.setAtIndex(ValueLayout.JAVA_BYTE, k, (byte) data.getArrayElement(k).asInt());
         }
-        outs.add(new OutBuf(v, data, seg, n));
+        outs.add(new OutBuf(v, data, seg, n, (char) 0));
         return seg;
     }
 
-    /** Copy-back do out-buffer: o C escreveu no segmento; devolve ao guest. */
+    /** Copy-back do out-buffer: o C escreveu no segmento; devolve ao guest.
+     *  elem == 0 = Buffer(U8) (byte a byte, o legado); elem != 0 = o array
+     *  copy-out ('P'): o valor element-typed volta ao array JS. */
     private static void copyBack(java.util.List<OutBuf> outs) {
         for (OutBuf ob : outs) {
+            if (ob.elem() == 0) {
+                for (int k = 0; k < ob.len(); k++) {
+                    ob.data().setArrayElement(k,
+                            (int) (ob.seg().getAtIndex(ValueLayout.JAVA_BYTE, k) & 0xFF));
+                }
+                continue;
+            }
+            char e = ob.elem();
+            try {
             for (int k = 0; k < ob.len(); k++) {
-                ob.data().setArrayElement(k,
-                        (int) (ob.seg().getAtIndex(ValueLayout.JAVA_BYTE, k) & 0xFF));
+                switch (e) {
+                    case 'i' -> ob.data().setArrayElement(k, (int) ob.seg().getAtIndex(ValueLayout.JAVA_INT, k));
+                    case 'j' -> ob.data().setArrayElement(k, ob.seg().getAtIndex(ValueLayout.JAVA_LONG, k));
+                    case 'f' -> ob.data().setArrayElement(k, ob.seg().getAtIndex(ValueLayout.JAVA_FLOAT, k));
+                    case 'd' -> ob.data().setArrayElement(k, ob.seg().getAtIndex(ValueLayout.JAVA_DOUBLE, k));
+                    case 'b' -> ob.data().setArrayElement(k, ob.seg().getAtIndex(ValueLayout.JAVA_BYTE, k) != 0);
+                    default -> throw new IllegalArgumentException("ffi copy-out: bad elem " + e);
+                }
+            }
+            } catch (java.lang.IndexOutOfBoundsException ioobe) {
+                throw new IllegalStateException("ffi copy-out AIOOBE: len=" + ob.len()
+                        + " elem=" + e + " dataSize=" + ob.data().getArraySize()
+                        + " hasArray=" + ob.data().hasArrayElements(), ioobe);
             }
         }
+    }
+
+    /** A fatia COPY-OUT ('P'): pack como o 'p' + registra o par
+     *  (array JS, segmento) com o char do elemento para o copy-back
+     *  element-typed pós-downcall. */
+    private static MemorySegment packArrayOut(char elem, Value v, Arena arena,
+            java.util.List<OutBuf> outs) {
+        MemorySegment seg = packArray(elem, v, arena);
+        int n = (int) v.getArraySize();
+        outs.add(new OutBuf(v, v, seg, n, elem));
+        return seg;
     }
 
     /** Índice do 1º token de parâmetro: 1, ou depois do token de retorno
@@ -269,8 +315,9 @@ final class KofJsFfiMarshal {
                 // não é parâmetro — fim da lista.
                 break;
             }
-            if (c == 'p') {
-                // array escalar: `p` + char do elemento (conta 1).
+            if (c == 'p' || c == 'P') {
+                // array escalar: 'p'/'P' + char do elemento (conta 1). O 'P' é a
+                // fatia COPY-OUT (o módulo borrowed) — o MESMO formato de 2 chars.
                 n++;
                 cur += 2;
             } else if (c == '@') {

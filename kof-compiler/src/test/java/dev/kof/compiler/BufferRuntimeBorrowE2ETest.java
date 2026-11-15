@@ -357,6 +357,9 @@ class BufferRuntimeBorrowE2ETest {
         Files.deleteIfExists(attempt);
         ProcessBuilder pb = NativeRiscv64E2ETest.qemu(arch, bin);
         pb.redirectErrorStream(true);
+        // O sysroot glibc do cross (o qemu precisa do ld.so + libc da arch).
+        String sysroot = "/usr/" + arch + "-suse-linux/sys-root";
+        if (java.nio.file.Files.isDirectory(java.nio.file.Path.of(sysroot))) pb.environment().put("QEMU_LD_PREFIX", sysroot);
         pb.environment().put("LD_LIBRARY_PATH", dir.toString());
         pb.environment().put("KOF_BUF_READY", ready.toString());
         pb.environment().put("KOF_BUF_GO", go.toString());

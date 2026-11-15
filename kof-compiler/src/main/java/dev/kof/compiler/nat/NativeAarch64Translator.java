@@ -423,6 +423,55 @@ public final class NativeAarch64Translator {
                 return out;
             }
         }
+        if (mn.equals("lr.d") || mn.equals("lr.w")) {
+            // The RISC-V load-reserved → the AArch64 exclusive load (LDXR).
+            // lr.d rd, (rs): rd = R(rd), rs = R(rs); the D variant is 64-bit.
+            String[] args = rest.split(",");
+            String rd = R.apply(args[0].trim());
+            String mem = args[1].trim();
+            java.util.regex.Matcher m = java.util.regex.Pattern
+                    .compile("^\\((\\w+)\\)$").matcher(mem);
+            if (!m.matches()) return List.of(line);
+            String rs = R.apply(m.group(1));
+            String xreg = mn.equals("lr.d") ? rd : rd.replace("x", "w");
+            return List.of(indent + "ldxr " + xreg + ", [" + rs + "]");
+        }
+        if (mn.equals("sc.d") || mn.equals("sc.w")) {
+            // The RISC-V store-conditional → the AArch64 exclusive store (STXR).
+            // sc.d rd, rt, (rs): the status → a W temp (w16), the value → rt.
+            // The riscv convention: rd = 0 on success — the caller branches on
+            // rd != 0 (bnez rd, retry); the AArch64 STXR status is 1 on FAILURE:
+            // invert via `cmp w16, #1` isn't needed — the caller uses `bnez rd`:
+            // we materialize rd = (status XOR 1) via cmp/cset... simplest honest
+            // mapping: mov the status into rd as-is is WRONG (the polarity
+            // flips). Use: stxr w16, rt, [rs]; cset rd, eq (rd=1 success → the
+            // riscv rd=0 success... the riscv rd==0 means success — cset eq
+            // gives 1 on eq(success) — INVERT: rd must be 0 on success.
+            // cmp w16,#0; cset rd, eq → rd=1 when status==0(success) — wrong
+            // direction again. The honest mapping: `stxr w16, rt, [rs]`;
+            // `eor rd, w16, #1`-style isn't one instruction for 64-bit rd.
+            // The caller-visible contract here is the retry loop only: the
+            // B42 borrow loops `bnez rd` → rd MUST be nonzero on failure. The
+            // STXR gives w16=1 on failure: `sbfm rd, w16, 0, 0` copies it —
+            // nonzero on failure ✓ zero on success ✓ (the same polarity!).
+            String[] args = rest.split(",");
+            String rd = R.apply(args[0].trim());
+            String rt = R.apply(args[1].trim());
+            String mem = args[2].trim();
+            java.util.regex.Matcher m = java.util.regex.Pattern
+                    .compile("^\\((\\w+)\\)$").matcher(mem);
+            if (!m.matches()) return List.of(line);
+            String rs = R.apply(m.group(1));
+            String rtReg = mn.equals("sc.d") ? rt : rt.replace("x", "w");
+            // A polaridade do sc.d (rd=0 sucesso, ≠0 falha p/ o `bnez` do retry)
+            // casa com o STXR (w16=1 falha): o zero-extend `mov Xd, w16` dá
+            // exatamente esse valor em Xd (0 sucesso / 1 falha).
+            // `mov Wd, w16`: o write de W zero-extend para Xd (o upper limpa) —
+            // o gas rejeita o `mov Xd, w16` de widths mistos (medido 15/11).
+            String rdW = rd.startsWith("x") ? "w" + rd.substring(1) : rd;
+            return List.of(indent + "stxr w16, " + rtReg + ", [" + rs + "]",
+                    indent + "mov " + rdW + ", w16");
+        }
         if (mn.equals("sd") || mn.equals("sw") || mn.equals("sb") || mn.equals("sh")) {
             String[] args = rest.split(",");
             String rsRaw = args[0].trim();

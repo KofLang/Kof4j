@@ -99,9 +99,12 @@ public final class KofJsFfiBridge {
                     cur = j;
                     pl[i] = ValueLayout.ADDRESS;
                     real[i] = args[i];
-                } else if (c == 'p') {
-                    // D6-2/3.8b fatia 3 (bridge JS): array escalar -> `ptr` C; o
-                    // Marshal já copiou os elementos para a arena da chamada.
+                } else if (c == 'p' || c == 'P') {
+                    // 'p' = D6-2/3.8b fatia 3 (bridge JS): array escalar -> `ptr`
+                    // C; o Marshal já copiou os elementos para a arena da chamada.
+                    // 'P' = a fatia COPY-OUT (o #1156 face, o módulo borrowed): o
+                    // Marshal registra o copy-back element-typed — o downcall é o
+                    // MESMO `ptr` C.
                     cur += 2;
                     pl[i] = ValueLayout.ADDRESS;
                     real[i] = args[i];

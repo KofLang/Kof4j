@@ -113,6 +113,12 @@ class NativeRiscv64E2ETest implements NativeToolchainAssumptions {
                 return root.equals("/") ? p.toString() : root + "/usr/" + arch + "-linux-gnu";
             }
         }
+        // O layout SUSE (o zypper cross-*-gcc15: /usr/<arch>-suse-linux/sys-root
+        // com lib/ld-* — o host desta lane; medido 15/11).
+        Path suse = Path.of("/usr", arch + "-suse-linux", "sys-root");
+        if (Files.exists(suse.resolve("lib").resolve(loader))) {
+            return suse.toString();
+        }
         return null;
     }
 

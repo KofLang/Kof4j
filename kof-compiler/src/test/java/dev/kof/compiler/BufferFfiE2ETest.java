@@ -177,6 +177,11 @@ class BufferFfiE2ETest {
                     + rc.diagnostics().getDiagnostics());
             Path bin = out.resolve("Default/Main");
             ProcessBuilder pb = NativeRiscv64E2ETest.qemu(arch, bin);
+            // O sysroot glibc do cross (o qemu precisa do ld.so + libc da arch).
+            String sysroot = "/usr/" + arch + "-suse-linux/sys-root";
+            if (java.nio.file.Files.isDirectory(java.nio.file.Path.of(sysroot))) {
+                pb.environment().put("QEMU_LD_PREFIX", sysroot);
+            }
             pb.redirectErrorStream(true);
             try {
                 Process p = pb.start();

@@ -43,6 +43,7 @@ final class NativeFfiCallRiscv {
         boolean[] isCb = new boolean[n];
         String[] cbDescs = new String[n];
         boolean[] isArray = new boolean[n];
+        boolean[] isArrayOut = new boolean[n];
         char[] arrayElem = new char[n];
         Type[] structTypes = new Type[n];
         for (int i = 0; i < n; i++) {
@@ -63,6 +64,14 @@ final class NativeFfiCallRiscv {
                 // chamada, pack em `kof_ffi_pack_array` riscv).
                 isArray[i] = true;
                 arrayElem[i] = FfiStructLayout.arrayPtrElem(pt);
+            } else if (FfiStructLayout.isArrayOutPtr(pt)) {
+                // A fatia COPY-OUT (o #1156 face — o espelho cross da fatia
+                // x86 15/11): `ownership borrowed` = o ponteiro do PAYLOAD
+                // direto (obj+24; o heap Kof cross não move objetos) — a C
+                // escreve no array do chamador. SEM pack (nenhuma cópia).
+                isArray[i] = true;
+                isArrayOut[i] = true;
+                arrayElem[i] = FfiStructLayout.arrayOutElem(pt);
             } else if (FfiStructLayout.isBufferPtr(pt)) {
                 // #651 fatia B: Buffer(U8) → ponteiro do payload (obj+24), NULL→NULL
                 // (mesma forma do String/'S' abaixo; o buffer cross é memória
@@ -146,7 +155,9 @@ final class NativeFfiCallRiscv {
         //     slot é relido no passo 1). O call do helper clobbera a0-a7, por
         //     isso corre ANTES de carregar os registradores de argumento.
         for (int i = 0; i < n; i++) {
-            if (!isArray[i]) continue;
+            // A fatia COPY-OUT: os markers "arrayout" (borrowed) NÃO empacotam
+            // — o payload direto cruza (sem cópia, sem leak de arena).
+            if (!isArray[i] || isArrayOut[i]) continue;
             sb.append("    ld a0, ").append(8 * (n - 1 - i)).append("(sp)\n");
             if (arrayElem[i] == 'S') {
                 // D-MEM-FFI-CROSS-FULL face 2: `String[]`→`char**` (payload de
@@ -231,9 +242,11 @@ final class NativeFfiCallRiscv {
             if (floatC ? ord[i] >= 8 : ord[i] >= 8) continue; // derramado: passo 3
             String dst = floatC ? "t2" : intRegs[ord[i]];
             sb.append("    ld ").append(dst).append(", ").append(8 * (n - 1 - i)).append("(t0)\n");
-            if (c == 'S' || isBuf[i]) {
+            if (c == 'S' || isBuf[i] || isArrayOut[i]) {
                 // String→payload/char* e Buffer(U8)→ponteiro do payload: offset 24
-                // do objeto Kof; NULL→NULL (a C recebe o cstr/ptr cru).
+                // do objeto Kof; NULL→NULL (a C recebe o cstr/ptr cru). A fatia
+                // COPY-OUT (o "arrayout" marker borrowed): o MESMO payload direto
+                // (obj+24) — a C escreve no array do chamador e o write volta.
                 String lbl = ".Lffis" + seq + "_" + i;
                 sb.append("    beqz ").append(dst).append(", ").append(lbl).append("\n");
                 sb.append("    addi ").append(dst).append(", ").append(dst).append(", 24\n");
