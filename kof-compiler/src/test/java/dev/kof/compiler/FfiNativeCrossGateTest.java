@@ -37,11 +37,11 @@ class FfiNativeCrossGateTest {
     private static ExternalFunctionNode scalarExtern() {
         List<FormalParameterNode> ps = new ArrayList<>();
         ps.add(new FormalParameterNode(null, List.of(), "Int", "x"));
-        return new ExternalFunctionNode(null, "libc.so.6", "Int", "abs", ps);
+        return new ExternalFunctionNode(null, "libc.so.6", "Int", "abs", ps, null);
     }
 
     private static ExternalFunctionNode structReturnExtern() {
-        return new ExternalFunctionNode(null, "libc.so.6", "Point", "make", List.of());
+        return new ExternalFunctionNode(null, "libc.so.6", "Point", "make", List.of(), null);
     }
 
     @Test
@@ -55,7 +55,7 @@ class FfiNativeCrossGateTest {
 
     @Test
     void scalarExternWithoutLibraryStaysGap() {
-        ExternalFunctionNode noLib = new ExternalFunctionNode(null, null, "Int", "abs", List.of());
+        ExternalFunctionNode noLib = new ExternalFunctionNode(null, null, "Int", "abs", List.of(), null);
         assertFalse(CompilerFfiBinding.isExternBound(driver(Target.NATIVE_RISCV64), noLib),
                 "extern sem library() não tem o que linkar → FFI001 (R6)");
     }
