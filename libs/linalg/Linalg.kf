@@ -130,3 +130,42 @@ Float sdotf(Float[] x, Float[] y) {
     inc[0] = 1
     return sdot_(n, x, inc, y, inc)
 }
+
+// ── THE COPY-OUT FACES (15/11, the #1156 face): the FORTRAN scal_/axpy_
+// WRITE their vector argument — the array copy-out fatia makes the write
+// visible in the caller's Kof array (the JVM `kof_ffi_copy_out` + the
+// native direct payload, both RED-first proven 15/11).
+
+foreign module openblas_l2 {
+    library "libopenblas.so.0"
+    abi c
+    ownership borrowed
+    // THE PRECISION-PREFIX LAW (measured: libopenblas exports dscal_/daxpy_;
+    // the unsuffixed scal_/axpy_ do NOT exist — the FORTRAN names carry the
+    // precision letter, exactly like ddot_).
+    extern dscal_(Int[] n, Double[] alpha, Double[] x, Int[] incx): Void
+    extern daxpy_(Int[] n, Double[] alpha, Double[] x, Int[] incx, Double[] y, Int[] incy): Void
+}
+
+// dscal — IN-PLACE: x := a*x (the C writes the caller's vector; the Kof
+// array sees the new values after the call — the copy-out contract).
+Void dscal(Double[] x, Double a) {
+    var n = new Int[1]
+    n[0] = x.length
+    var alpha = new Double[1]
+    alpha[0] = a
+    var inc = new Int[1]
+    inc[0] = 1
+    dscal_(n, alpha, x, inc)
+}
+
+// axpy — IN-PLACE: y := a*x + y (y is WRITTEN by the C; x is copy-in).
+Void axpy(Double a, Double[] x, Double[] y) {
+    var n = new Int[1]
+    n[0] = x.length
+    var alpha = new Double[1]
+    alpha[0] = a
+    var inc = new Int[1]
+    inc[0] = 1
+    daxpy_(n, alpha, x, inc, y, inc)
+}
