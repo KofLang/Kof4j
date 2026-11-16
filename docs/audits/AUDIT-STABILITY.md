@@ -78,12 +78,12 @@ forgotten"):
 
 | Limit | Where measured | The 1.0 issue | The closure criterion |
 |---|---|---|---|
-| ASan cannot initialize on the raw-_start binaries (the crt-ctor gap) | the sweep's first pass (4 no-crt forms measured, all SEGV) | **#1166** (labeled) | the KOF_ASAN mode landed 16/11: the sweep GREEN with teeth — the issue closes with the sweep in the stability gate |
+| ASan cannot initialize on the raw-_start binaries (the crt-ctor gap) | the sweep's first pass (4 no-crt forms measured, all SEGV) | **#1166 — CLOSED 16/11, criterion MET** | LANDED: the KOF_ASAN emit mode (the entry rename + the main bridge + the exit@PLT alignment discipline); the sweep GREEN with the control CAUGHT; the gate = asan-ffi-sweep-test.sh in the CI structural-quality job |
 | The Kof arena invisible to ASan's allocator tracking | RuntimeMemory §542 (the mmap design) | the limits ledger (the GC instrumentation face) | the arena tracked by ASan (the allocator hooks) or the equivalent proof |
 | Kof asm uninstrumented (no UAF-in-Kof-objects view) | this sweep | the same ledger | the pc-to-shadow mapping or the equivalent proof |
 | Valgrind absent on the host | `valgrind --version` fails | the same ledger | the Valgrind pass on the native FFI faces |
-| aarch64 real-hardware SIGBUS (#1134) | the qemu-harness gap (the SP-alignment not enforced) | #1134 (already labeled by the maintainer's 14/11 route; RE-EXAMINED under this order) | the push/pop redesign provable on arm64 hw or the qemu alignment assertion |
-| macOS target absent (#1135) | no Apple hardware on this host | #1135 (same re-examination) | the Mach-O backend + the gates on Apple hw |
+| aarch64 real-hardware SIGBUS (#1134) | the qemu-harness gap (the SP-alignment not enforced) | **#1134** (`1.0-blocks`, the 16/11 order) | the push/pop redesign provable on arm64 hw or the qemu alignment assertion |
+| macOS target absent (#1135) | no Apple hardware on this host | **#1135** (`1.0-blocks`, the 16/11 order) | the Mach-O backend + the gates on Apple hw (the `D-NATIVE-MACOS` decision stays the first step) |
 
 The re-examination rule (the 16/11 order supersedes the 14/11 demotion
 route where they conflict): a limit on a SUPPORTED target's real hardware
