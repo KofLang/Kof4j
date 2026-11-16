@@ -243,8 +243,12 @@ public final class JvmOpEmitter {
             }
             case KofNewArray na -> {
                 if (na.elementType() instanceof Type.ClassType ct) {
-                    // array de referência: ANEWARRAY (NEWARRAY é só primitivo)
-                    c.mv().visitTypeInsn(ANEWARRAY, JvmTypeMapper.toInternalName(ct.packageName(), ct.name()));
+                    // array de referência: ANEWARRAY (NEWARRAY é só primitivo).
+                    // A erasure passa pelo MESMO mapa do toInternalName (o Handle
+                    // nu apaga para Object — o FFI face; o toInternalName cru
+                    // emitia a classe inexistente `kof/concurrent/Handle`).
+                    String owner = JvmTypeMapper.toInternalName(ct.packageName(), ct.name());
+                    c.mv().visitTypeInsn(ANEWARRAY, owner);
                 } else if (na.elementType() instanceof Type.TypeVariable
                         || na.elementType() instanceof Type.WildcardType) {
                     // §355: `new T[n]` — componente é variável de tipo; o ramo

@@ -136,6 +136,8 @@ final class JvmFfiRuntime {
                                     // módulo borrowed — o write da C volta); o
                                     // 'p' by-value NUNCA copia de volta (o
                                     // contrato D6-2: o C não altera o array).
+                                    // O 'H' (a fatia OUT-PARAM) despacha dentro
+                                    // de kof_ffi_copy_in (o split do gate-500).
                                     java.lang.foreign.MemorySegment aseg =
                                             kof_ffi_copy_in(arena, args[i], e);
                                     real[i] = aseg;
@@ -423,29 +425,11 @@ final class JvmFfiRuntime {
 
 
 
-                // D6-2 (3.8b fatia 3): copia um array Kof (array Java primitivo)
-                // para um segmento nativo da arena da chamada e devolve o ponteiro.
-                static java.lang.foreign.MemorySegment kof_ffi_copy_in(
-                        java.lang.foreign.Arena arena, Object arr, char e) {
-                    int n = java.lang.reflect.Array.getLength(arr);
-                    if (e == 'b') {
-                        // `boolean[]` não é suportado por MemorySegment.copy (só
-                        // byte[]/char[]/short[]/int[]/float[]/long[]/double[]) —
-                        // converte para byte[] 0/1 antes de copiar (paridade _Bool).
-                        byte[] tmp = new byte[n];
-                        boolean[] src = (boolean[]) arr;
-                        for (int i = 0; i < n; i++) tmp[i] = (byte) (src[i] ? 1 : 0);
-                        java.lang.foreign.MemorySegment seg = arena.allocate(
-                                java.lang.foreign.ValueLayout.JAVA_BYTE, n);
-                        java.lang.foreign.MemorySegment.copy(tmp, 0, seg,
-                                java.lang.foreign.ValueLayout.JAVA_BYTE, 0, n);
-                        return seg;
-                    }
-                    java.lang.foreign.ValueLayout vl = kof_ffi_layout(e);
-                    java.lang.foreign.MemorySegment seg = arena.allocate(vl, n);
-                    java.lang.foreign.MemorySegment.copy(arr, 0, seg, vl, 0, n);
-                    return seg;
-                }
+                // D6-2 (3.8b fatia 3): o copy-in (e os demais helpers de cópia)
+                // vive em JvmFfiCopyRuntime.CHUNK (o split do gate-500; o 'H' da
+                // fatia OUT-PARAM despacha lá dentro).
+
+
 
                 // Callback/upcall (R3, 3.4): um valor de função Kof (objeto que
                 // implementa a interface sintética `invoke(...)`) vira ponteiro de

@@ -22,9 +22,7 @@ package net
 // handle round-trip through the FFI as an opaque non-arithmetic carrier:
 // pcap_snapshot(h) returns the snaplen the handle was opened with, and
 // pcap_datalink(h) returns DLT_EN10MB (1) for the ethernet default. The
-// pcap_close releases it. The real capture face (pcap_next_ex with the
-// pkthdr** out-param) stays the follow-up — it needs the pointer-to-pointer
-// out-param face, not the Handle.
+// pcap_close releases it.
 
 foreign module pcap_lifecycle {
     library "libpcap.so.1"
@@ -34,6 +32,23 @@ foreign module pcap_lifecycle {
     extern pcap_snapshot(Handle h): Int
     extern pcap_datalink(Handle h): Int
     extern pcap_close(Handle h): Void
+}
+
+// ── THE CAPTURE FACE (15/11, the `pkthdr**` out-param — the #1160
+// follow-up): the pointer-to-pointer out-param expressed as the borrowed
+// `Handle[]` copy-out array ('P'+'H') — the C writes the two pointers into
+// the array slots and the Kof caller reads them back. The offline
+// discipline is MEASURED on the real libpcap: pcap_next_ex on a
+// pcap_open_dead handle returns -1 (the error rc) with the out slots
+// untouched — no device is opened, nothing is captured, the rc proves the
+// call went through the whole FFI chain. The real device capture stays the
+// caller's decision (the defensive-only law).
+
+foreign module pcap_capture {
+    library "libpcap.so.1"
+    abi c
+    ownership borrowed
+    extern pcap_next_ex(Handle h, Handle[] pkthdr, Handle[] data): Int
 }
 
 // DLT_EN10MB — the ethernet linktype (1) and its constant the getters
@@ -49,6 +64,20 @@ Bool openDeadProbe() {
     var dlOk = pcap_datalink(h) == dltEn10Mb()
     pcap_close(h)
     return snapOk && dlOk
+}
+
+// nextExDeadProbe — the capture-face OFFLINE probe: allocates the dead
+// handle, calls pcap_next_ex through the pointer-to-pointer face (the two
+// borrowed Handle[] slots), expects the error rc (-1: a dead handle has no
+// packets and no device behind it), and closes. The rc proves the whole
+// chain (the downcall + the out-param marshaling) without opening anything.
+Bool nextExDeadProbe() {
+    var h = pcap_open_dead(dltEn10Mb(), 65535)
+    var hdr = new Handle[1]
+    var data = new Handle[1]
+    var rc = pcap_next_ex(h, hdr, data)
+    pcap_close(h)
+    return rc == -1
 }
 
 // pcapVersion — the libpcap runtime version string (e.g.

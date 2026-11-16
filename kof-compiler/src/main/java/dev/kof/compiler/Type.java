@@ -145,6 +145,12 @@ public sealed interface Type {
             case "void", "Void" -> PrimitiveType.VOID;
             case "string", "String" -> BuiltinTypes.STRING;
             case "Object" -> new ClassType("java.lang", "Object", List.of());
+            // D-R3-3.3 opção A: o Handle NU (sem type-args) também resolve para
+            // o builtin nominal (o kof.concurrent.Handle pinado). Sem este case,
+            // `new Handle[1]`/campos/caixas emitiam a classe inexistente
+            // `Handle` → NoClassDefFoundError (medido na face out-param 15/11;
+            // a forma `Handle<T>` já resolvia no ramo `<` acima).
+            case "Handle" -> new ClassType("kof.concurrent", "Handle", List.of());
             default -> new ClassType("", name, List.of());
         };
     }

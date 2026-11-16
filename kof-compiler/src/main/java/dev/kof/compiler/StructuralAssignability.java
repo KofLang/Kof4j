@@ -132,6 +132,18 @@ final class StructuralAssignability {
                 // carregam e não há relação; qualquer lado sintético
                 // (kof.ui.*, kof.io.*, ...) ou externo não-carregável
                 // permanece conservador (nunca quebrar interop legítima, R6).
+                // REGRESSÃO #1160-face (15/11, b7cfdc66e): o Handle NU passou a
+                // apagar para Object (a face FFI — o segmento cru do FFM), e
+                // `Long → Object` é true — o spawn handle voltou a atribuir
+                // ao Handle declarado (o VerifyError escondido de novo). O
+                // Handle nu carrega DOIS contratos: o endereço FFI cru no
+                // slot e o NOMINAL na linguagem — um handle de PROCESSO
+                // (Long/Integer/Short/Byte boxed) não é um Handle kof em
+                // NENHUMA face; recusa ANTES da comparação por erasure (a
+                // face spawn{} Handle<T> → Handle continua: CF → Object = true).
+                if (FfiSignature.isHandleType(to) && isBoxedNumberClass(fc)) {
+                    return false;
+                }
                 Boolean runtime = runtimeClassRelation(fc, tc);
                 if (runtime != null) return runtime;
             }
@@ -179,6 +191,17 @@ final class StructuralAssignability {
         if (fromSuper == null) return null;
         if (t != null) return t.isAssignableFrom(fromSuper);
         return null;
+    }
+
+    /** O handle de processo boxed (KofProcess.HANDLE = java.lang.Long e os
+     *  vizinhos boxed-integer) — a família do `process.spawn`, DISTINTA do
+     *  Handle kof (#753; a recusa sobrevive ao erasure Object do #1160). */
+    private static boolean isBoxedNumberClass(Type.ClassType ct) {
+        if (!"java.lang".equals(ct.packageName())) return false;
+        return switch (ct.name()) {
+            case "Long", "Integer", "Short", "Byte" -> true;
+            default -> false;
+        };
     }
 
     /** Erasure internal name (`a/b/C`) de um ClassType, ou null. */

@@ -21,6 +21,54 @@ final class JvmFfiCopyRuntime {
     private JvmFfiCopyRuntime() {}
 
     static final String CHUNK = """
+                // A fatia OUT-PARAM (o `pkthdr**` do pcap, #1160): um
+                // `Handle[]` emprestado -> `void**`. Cada slot ADDRESS é
+                // iniciado com o segmento do Handle (null -> NULL). O
+                // MemorySegment.copy genérico rejeita arrays de endereço — o
+                // loop por slot é o caminho. O copy-out espelha (abaixo).
+                static java.lang.foreign.MemorySegment kof_ffi_copy_in_handles(
+                        java.lang.foreign.Arena arena, Object arr) {
+                    int n = java.lang.reflect.Array.getLength(arr);
+                    java.lang.foreign.MemorySegment seg = arena.allocate(
+                            java.lang.foreign.ValueLayout.ADDRESS, n == 0 ? 1 : n);
+                    for (int i = 0; i < n; i++) {
+                        Object h = java.lang.reflect.Array.get(arr, i);
+                        if (h != null) {
+                            seg.setAtIndex(java.lang.foreign.ValueLayout.ADDRESS, i,
+                                    (java.lang.foreign.MemorySegment) h);
+                        }
+                    }
+                    return seg;
+                }
+
+                // D6-2 (3.8b fatia 3): copia um array Kof (array Java primitivo)
+                // para um segmento nativo da arena da chamada e devolve o ponteiro.
+                // D-R3-3.3 + a fatia OUT-PARAM: `Handle[]` emprestado ->
+                // `void**` (o `pkthdr**` do pcap, #1160) — o despacho fica AQUI
+                // (o helper vive nesta classe; o gate-500).
+                static java.lang.foreign.MemorySegment kof_ffi_copy_in(
+                        java.lang.foreign.Arena arena, Object arr, char e) {
+                    if (e == 'H') return kof_ffi_copy_in_handles(arena, arr);
+                    int n = java.lang.reflect.Array.getLength(arr);
+                    if (e == 'b') {
+                        // `boolean[]` não é suportado por MemorySegment.copy (só
+                        // byte[]/char[]/short[]/int[]/float[]/long[]/double[]) —
+                        // converte para byte[] 0/1 antes de copiar (paridade _Bool).
+                        byte[] tmp = new byte[n];
+                        boolean[] src = (boolean[]) arr;
+                        for (int i = 0; i < n; i++) tmp[i] = (byte) (src[i] ? 1 : 0);
+                        java.lang.foreign.MemorySegment seg = arena.allocate(
+                                java.lang.foreign.ValueLayout.JAVA_BYTE, n);
+                        java.lang.foreign.MemorySegment.copy(tmp, 0, seg,
+                                java.lang.foreign.ValueLayout.JAVA_BYTE, 0, n);
+                        return seg;
+                    }
+                    java.lang.foreign.ValueLayout vl = kof_ffi_layout(e);
+                    java.lang.foreign.MemorySegment seg = arena.allocate(vl, n);
+                    java.lang.foreign.MemorySegment.copy(arr, 0, seg, vl, 0, n);
+                    return seg;
+                }
+
                 // A fatia COPY-OUT (15/11, o #1156 face): apos o retorno, o
                 // conteudo do segmento da arena volta para o array Java
                 // (element-typed; o espelho exato de kof_ffi_copy_in). `boolean[]`
@@ -28,6 +76,18 @@ final class JvmFfiCopyRuntime {
                 static void kof_ffi_copy_out(
                         Object arr, java.lang.foreign.MemorySegment seg, char e) {
                     int n = java.lang.reflect.Array.getLength(arr);
+                    if (e == 'H') {
+                        // A fatia OUT-PARAM (o `pkthdr**` do pcap, #1160): cada
+                        // slot ADDRESS volta como um Handle Kof (o espelho do
+                        // copy_in_handles e da face de retorno 'H'); NULL -> null.
+                        Object[] hs = (Object[]) arr;
+                        for (int i = 0; i < n; i++) {
+                            java.lang.foreign.MemorySegment s =
+                                    seg.getAtIndex(java.lang.foreign.ValueLayout.ADDRESS, i);
+                            hs[i] = s.equals(java.lang.foreign.MemorySegment.NULL) ? null : s;
+                        }
+                        return;
+                    }
                     if (e == 'b') {
                         // `boolean[]` não tem MemorySegment.copy direto (o mesmo
                         // corte do copy_in): volta por byte 0/1 (paridade _Bool).
