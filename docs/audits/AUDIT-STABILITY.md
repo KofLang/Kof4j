@@ -30,10 +30,57 @@ STABILITY: GREEN + CUT: GREEN (the extract: suite-verdict-0.8.0-e38619713.md).
 
 ## The static analysis / CodeQL
 
-- `scripts/codeql-gate.sh --fast`: the GitHub API was rate-limited at the
-  last probe (NAO-AVALIADO per branch; the CI `codeql.yml` remains the real
-  gate). The CI has been GREEN through the 0.7.3 release. Re-probe: the P2
-  cycle (the API window permitting).
+- **The re-probe (16/11, the P2 cycle): `scripts/codeql-gate.sh --fast` executed.**
+  The verdict per branch: **lab GREEN** (0 new, analysis == tip `230b9bb`);
+  testing/prerelease/stable GREEN (0 new); **main RED: 173 open alerts without
+  a baseline** (the maintainer's merge surface — main merges are
+  maintainer-gated, outside this lane's write authority). THE TRIAGE
+  INVENTORY of the 173 (measured via the code-scanning API, grouped by rule):
+  the REAL-defect-class ones (10 — handed to the maintainer for the triage
+  baseline): 7 `dereferenced-value-may-be-null` (BytecodeStatementsRecover ×4,
+  WasmPrintCode, KofFormatter, SealedTypeChecks), 3 `uncaught-number-format-
+  exception` (PortuKofDiagnostics ×2, ImplementationChecker), 1 `relative-path-
+  command` (CmdTest:523 — the test runner's command construction). The
+  style-level bulk (163): `local-variable-is-never-read` 33, `unused-parameter`
+  25, `missing-override-annotation` 9, `constant-comparison` 5,
+  `chained-type-tests` 4, the remainder single-digit. THE HONEST STATE: lab
+  (my write surface) has ZERO untriaged findings; main's 173 need the
+  maintainer's baseline decision (the gate names the path:
+  `scripts/codeql-baseline.txt`). The CI `codeql.yml` remains the real gate.
+
+## The per-gate behavioral-anchor audit (the mandate §10: "um gate estrutural não pode substituir um teste comportamental")
+
+The 15 STRUCTURAL_GATES in `check_lab_stability`, each with: what it
+verifies mechanically, its planted-fault selftest (the teeth), and the
+BEHAVIORAL anchor (what would catch a semantic drift the grep cannot):
+
+| Gate | Mechanical check | Selftest | Behavioral anchor |
+|---|---|---|---|
+| check_changelog_ledger | CHANGELOG ↔ known-bugs ledger parity (the ✅/FIXED claims cross-checked) | via changelog-ledger-test.sh | the ledger's own locking tests + the suite |
+| check_known_bugs_status | the known-bugs section statuses are machine-parseable and consistent | via the anchors gate | the ledger tests + the issues |
+| check_ledger_anchors | EN↔PT anchor parity in the ledger | ledger-anchors-test.sh | the doc-refs resolution |
+| check_live_records | the live records' integrity (the claims' owners/ports) | live-records-test.sh | the identity gate |
+| check_owner_identity | every claim carries `IP:PORT` (the absolute identity rule) | 9 planted cases ✓ | the plan_owners gate |
+| check_plan_owners | every plan has a named unique owner | 4 planted cases ✓ | the live-records cross |
+| check_test_hygiene | the test-hygiene ratchet (the counts vs the baseline) | test-test-hygiene-test.sh | the suite itself |
+| check_stdlib_boundary | the core→stdlib→platform import boundary | 2 planted cases ✓ | the stdlib ledger tests |
+| check_workflow_pins | every third-party `uses:` pinned by SHA | workflow-pins-test.sh | the CI itself |
+| check_doc_refs | the docs' references resolve (files/anchors/ids) | doc-refs-test.sh | the doc-impact gate |
+| check_doc_impact | a normative §NNN flip forces the docs' sync | doc-impact-test.sh | the ledger + the suite |
+| check_500 | the ≤500-lines/class target (500–599 tolerated, ≥600 critical) | 1 planted case ✓ | the suite's compile |
+| check_version_consistency | VERSION/pom/version.properties one-source + the packaged jar reports it | **ADDED 16/11** (the planted divergent RED; the consistent GREEN) — version-consistency-test.sh | the gate RUNS the packaged compiler (behavioral by construction) |
+| check_portukof_tooling | `.ptkf` is a first-class tooling citizen (F7) | via the PortuKof parity gate | the PortuKof diagnostic catalog tests (321/321) |
+| check_conformance_1_0 | the 1.0 surface rows cross-checked against the LOCKING tests | 15 planted cases ✓ | the conformance matrix tests themselves (the structural/behavioral bridge) |
+| check_skip_inventory | every skip carries a named justification | skip-inventory-test.sh ✓ | the suite's skip count per host |
+
+**The audit verdict:** every gate has a planted-fault selftest (the teeth);
+the ONE gap found — check_version_consistency had NO selftest — was CLOSED
+this cycle (the planted-divergent RED + the consistent GREEN + the harness
+wiring). The behavioral anchors: the conformance gate is the
+structural/behavioral BRIDGE (it crosses each matrix row against its locking
+test); the version gate is behavioral by construction (it runs the packaged
+compiler); the remaining gates are conventions/counts whose semantic drift
+surface is the suite itself. No gate greps-only without an anchor.
 
 ## The sanitizers / Valgrind / fuzzing — MEASURED (the §7 cycle, 16/11)
 

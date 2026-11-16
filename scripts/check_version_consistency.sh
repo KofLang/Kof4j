@@ -21,14 +21,45 @@ FAIL=0
 say() { echo "check_version_consistency: $*"; }
 die() { say "RED: $*"; FAIL=1; }
 
-[ -f "$ROOT/VERSION" ] || { die "VERSION ausente na raiz"; say "rc=1"; exit 1; }
-VERSION="$(cat "$ROOT/VERSION")"
+# --selftest (o teste estrutural): prova que o veredito RED tem DENTES — a
+# planta DIVERGENTE (VERSION != pom) falha; a CONSISTENTE passa a face
+# estática. Lê uma árvore temporária via os env ROOT/VERSION/POM/PROPS (o
+# default é o repo). A árvore REAL não precisa estar GREEN aqui.
+if [ "${1:-}" = "--selftest" ]; then
+    ST="$(mktemp -d)"; trap 'rm -rf "$ST"' EXIT
+    mkdir -p "$ST/kof-compiler/src/main/resources/dev/kof"
+    sed 's|<revision>[^<]*</revision>|<revision>0.9.9</revision>|' "$ROOT/pom.xml" > "$ST/pom.xml"
+    printf 'kof.version=0.9.9\nkof.compiler.version=0.9.9\nkof.runtime.version=0.9.9\nkof.stdlib.version=0.9.9\n' > "$ST/kof-compiler/src/main/resources/dev/kof/version.properties"
+    printf '0.9.9\n' > "$ST/VERSION"
+    if VERSION="$ST/VERSION" POM="$ST/pom.xml" PROPS="$ST/kof-compiler/src/main/resources/dev/kof/version.properties" ROOT="$ST" bash "$0" --planted >/dev/null 2>&1; then
+        echo "SELFTEST: ok — a planta CONSISTENTE passa a face estática"
+    else
+        echo "SELFTEST FAIL: a planta consistente foi reprovada (falso vermelho)"; exit 2
+    fi
+    sed -i 's|<revision>0.9.9</revision>|<revision>0.9.8</revision>|' "$ST/pom.xml"
+    if VERSION="$ST/VERSION" POM="$ST/pom.xml" PROPS="$ST/kof-compiler/src/main/resources/dev/kof/version.properties" ROOT="$ST" bash "$0" --planted >/dev/null 2>&1; then
+        echo "SELFTEST FAIL: a DIVERGÊNCIA plantada não foi pega (falso verde)"; exit 2
+    fi
+    echo "SELFTEST: ok — a divergente RED; a consistente GREEN"
+    exit 0
+fi
+
+# --planted: as fontes vêm do env (a árvore do selftest), não do repo
+if [ "${1:-}" != "--planted" ]; then
+    ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+fi
+SRC_VERSION="${VERSION:-$ROOT/VERSION}"
+SRC_POM="${POM:-$ROOT/pom.xml}"
+SRC_PROPS="${PROPS:-$ROOT/kof-compiler/src/main/resources/dev/kof/version.properties}"
+
+[ -f "$SRC_VERSION" ] || { die "VERSION ausente na raiz"; say "rc=1"; exit 1; }
+VERSION="$(cat "$SRC_VERSION")"
 [ -n "$VERSION" ] || { die "VERSION vazio"; say "rc=1"; exit 1; }
 
-POM_REV="$(sed -n 's:.*<revision>\(.*\)</revision>.*:\1:p' "$ROOT/pom.xml" | head -1)"
+POM_REV="$(sed -n 's:.*<revision>\(.*\)</revision>.*:\1:p' "$SRC_POM" | head -1)"
 [ "$POM_REV" = "$VERSION" ] || die "pom.xml <revision>='$POM_REV' != VERSION='$VERSION'"
 
-PROPS="$ROOT/kof-compiler/src/main/resources/dev/kof/version.properties"
+PROPS="$SRC_PROPS"
 [ -f "$PROPS" ] || { die "version.properties ausente"; say "rc=1"; exit 1; }
 for KEY in kof.version kof.compiler.version kof.runtime.version kof.stdlib.version; do
     VAL="$(sed -n "s:^$KEY=::p" "$PROPS" | head -1 | tr -d '[:space:]')"
@@ -43,7 +74,7 @@ if [ -z "$JAR" ]; then
     # release anterior não certifica a árvore — lição do bump 0.6.2)
     JAR="$(ls -t "$ROOT"/kof-cli/target/kof-cli-*.jar 2>/dev/null | head -1 || true)"
 fi
-if [ -n "$JAR" ]; then
+if [ -n "$JAR" ] && [ "${1:-}" != "--planted" ]; then
     # java resolution with CANDIDATES and a real usability check: the first
     # java that actually runs the jar wins. The old form always used sdkman
     # as JAVA_BIN (the "${JAVA_BIN:-java}" fallback never fired) and died
@@ -95,6 +126,7 @@ if [ -n "$JAR" ]; then
     fi
     [ "$REPORTED" = "kof $VERSION" ] || die "o compilador empacotado informa '$REPORTED' != 'kof $VERSION' (recompile antes de empacotar)"
 else
+    [ "${1:-}" = "--planted" ] && say "PULO nomeado (--planted): a face do jar fica para o empacote real"
     say "PULO nomeado: sem jar empacotado em kof-cli/target — face de runtime fica para o empacote (a face estática acima certifica as fontes)"
 fi
 
