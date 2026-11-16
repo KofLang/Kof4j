@@ -351,6 +351,13 @@ final class NativeFfiCallRiscv {
             case 'S':
                 sb.append("    call kof_ffi_from_cstr\n");
                 break;
+            case 'H':
+                // D-R3-3.3: o Handle nominal opaco — o ponteiro cru em a0 vai ao
+                // bloco de operandos COMO ESTÁ (sem derive, sem cstr). O espelho
+                // do case 'H' do x86 (b7cfdc66e): sem este case o default retorna
+                // SEM o `sd a0, 0(sp)` e o handle chega NULL no Kof (medido:
+                // hread(h) → -1 no riscv64 sob qemu).
+                break;
             default:
                 emitRiscvBufferReleases(nb, sb, n, isBuf, bufBase);
                 return;

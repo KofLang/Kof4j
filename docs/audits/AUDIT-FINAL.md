@@ -38,9 +38,12 @@ state — the honest form; the mandate forbids declaring success early).**
 - P0: the #1134 support-contract coherence evaluation (the maintainer
   decision required for the reclassification; the fix itself blocked on
   arm64 hw); the #1134-adjacent native-stability sweep.
-- P1: the cross copy-out mirror slice; the pcap capture Handle slice; the
-  WEB002 residuals (the large WEB slices); the linalg gemm_ FORTRAN-interface
+- P1: the pcap capture `pkthdr**` out-param slice; the WEB002 residuals
+  (the large WEB slices); the linalg gemm_ FORTRAN-interface
   face (the row-major layout dance — now optional since cblas exists).
+  DONE from this list: the cross copy-out mirror (b57ea33b9, the sibling
+  cycle) and the cross Handle faces (this cycle — the 4-way parity proven,
+  the ret-switch mirror bug found + fixed RED-first).
 - P2: the per-skip inventory deepening; the ASan/Valgrind evaluation on the
   native FFI faces; the CodeQL API re-probe; the per-gate behavioral-anchor
   audit; the README/examples doc-truth spot audit.

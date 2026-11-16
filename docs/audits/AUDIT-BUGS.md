@@ -4,7 +4,22 @@
 
 ## Found + fixed THIS operation (so far: the pre-operation week is history in DOING/CHANGELOG)
 
-(none yet — the operation starts with the P0 survey)
+- **The cross Handle return drop (15/11 P1 cycle, found + fixed):** the
+  riscv/aarch64 ret switch in `NativeFfiCallRiscv.emitRiscv` had NO
+  `case 'H'` — a `Handle` return fell to `default:` which returns WITHOUT
+  the `sd a0, 0(sp)` operand push, so the cross face delivered NULL (the
+  mirror of the x86 SIGSEGV bug the JVM/pcap cycle fixed in b7cfdc66e —
+  the x86 got its `case 'H': break;` then; the shared cross text was left
+  behind). REPRODUCED RED-first: `FfiCrossHandleE2ETest` measured
+  `hread(h) → -1` (the null handle) on riscv64 under qemu BEFORE the fix,
+  with the JVM + native x86-64 goldens already green. FIXED at the emitter
+  root: `case 'H': break;` (the raw pointer in a0 goes to the operand block
+  as-is; the aarch64 needs nothing — the same text serves it via the
+  translator, no new mnemonic). PROVEN: the 4-way parity
+  (JVM / x86-64 / riscv64 / aarch64 under qemu) byte-exact on a
+  malloc/free lifecycle fixture. The lesson: every ret-switch `case` on the
+  x86 emitter has to be mirrored in the shared cross emitter the same
+  cycle — the two switches are one contract.
 
 ## Reproduced + FIXED earlier (the record for the P0 pattern)
 
@@ -30,7 +45,7 @@
 | THE MIRROR AUDIT (executed): the x86-64 emitter is NOT exposed the same way — the SysV contract only requires 16-alignment AT CALL SITES, and the emitter carries the guards: the _start shim `movq %rsp,%rbx; andq $-16,%rsp; call fflush; movq %rbx,%rsp` (the measured 19/09 lesson, NativeMethodEmitter:495) and the FFI call site `movq %rsp,%rbx; andq $-16,%rsp` before the PLT call (NativeFfiCall:329). The riscv64 has NO SP-alignment requirement (the ISA) — the same 31 sites are legal there (the issue's own record). The exposure is AARCH64-SPECIFIC. | | |
 | THE COHERENT OPTIONS (for the maintainer — (b) reclassification needs her per the no-reclassification rule; the mandate §9 asks the coherence, not the decision): (a) FIX — track the SP displacement symbolically in `NativeAarch64Translator`, rewrite the push/pop pairs to 16-byte slots with the insertion padding (the recorded resume route; provable only on arm64 hardware or with the SP-alignment check added to the qemu harness); (b) DEMOTE aarch64-real-hardware from the supported surface to qemu-only (the backend stays; the contract line changes — HER decision); (c) KEEP documented as the limitation (the current state: §1134 + the site/backend-parity rows name it) — coherent while aarch64-real is not promised as runnable-for-classes; the divergence appears the moment any doc promises real-hardware class construction. THE CURRENT DOCS' STATE (measured): backend-parity/roadmap name aarch64 as supported WITH qemu as the validation vehicle; the SIGBUS face is named in known-bugs §1134 + the issue + the site's backend rows — the contract as documented is coherent TODAY (the limitation is named everywhere the target is promised), and INCOHERENT the moment the docs promise real-hardware execution. | | |
 | The cross copy-out (riscv64/aarch64) | FFI001 honest (the mirror pack exists in the riscv asm) | the mirror-slice work (the P1 cycle) |
-| The pcap capture pointer-heavy | FFI001 honest | the Handle/`pcap_t*` binding slice (the P1 cycle) |
+| The pcap capture pointer-heavy | FFI001 honest | the `pkthdr**` out-param face (the Handle lifecycle LANDED — the JVM/x86 slice + the cross faces both proven) |
 | ws/sse/TLS/path (JS + native) | the honest refusals named | the WEB002/WEB008 slices (the P1 cycles, large) |
 
 ## NOT reproducible on this host (the named environment limits)
