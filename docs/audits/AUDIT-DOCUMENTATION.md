@@ -31,6 +31,13 @@
   the fix is on lab, untagged), and the lab-tracking entries record the
   #1169 closure by implementation. The build validated upstream (node v24 on
   the clone host); the deploy happens on the maintainer's merge.
+- **The site sync FOLLOW-UP (16/11, the same PR branch): FOUR more stale
+  mentions synced** — the 0.8.0 entry (the #1134 prototype note → the
+  LANDED redesign with the checker numbers), the release-ladder entry (the
+  4-blocks list → THREE closed by implementation, ONE remains #1135
+  decision-gated), the FFI entry (#1167 → FIXED on lab), and the ledger
+  entry (three open → ONE, the rc-gate count). The PR accumulates the full
+  sync for the maintainer's review-and-merge.
 
 ## The doc-truth spot audit EXECUTED (16/11, the P2 cycle — the mandate §2/§11)
 
