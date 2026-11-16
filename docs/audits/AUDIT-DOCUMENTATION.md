@@ -23,6 +23,14 @@
 - The site's routes beyond roadmap (the web.tsx, the standard-library.tsx):
   the spot-check of the availability badges against the 0.7.3 published
   surface (the lab features must not appear as stable-available).
+- **The site badge sync EXECUTED (16/11): the three stale MATH-D mentions in
+  kof-roadmap.ts** (the stdlib card, the emDesenvolvimento entry, the
+  1.0-blocks ledger) **synced via koflang.github.io#2** (the branch
+  sync/lab-16-11-mathd, NOT merged — the publish is the maintainer's): the
+  published-state descriptions stay honest (0.7.3 still refuses MATH001 —
+  the fix is on lab, untagged), and the lab-tracking entries record the
+  #1169 closure by implementation. The build validated upstream (node v24 on
+  the clone host); the deploy happens on the maintainer's merge.
 
 ## The doc-truth spot audit EXECUTED (16/11, the P2 cycle — the mandate §2/§11)
 
