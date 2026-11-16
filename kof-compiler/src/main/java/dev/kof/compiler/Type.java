@@ -145,12 +145,16 @@ public sealed interface Type {
             case "void", "Void" -> PrimitiveType.VOID;
             case "string", "String" -> BuiltinTypes.STRING;
             case "Object" -> new ClassType("java.lang", "Object", List.of());
-            // D-R3-3.3 opção A: o Handle NU (sem type-args) também resolve para
-            // o builtin nominal (o kof.concurrent.Handle pinado). Sem este case,
-            // `new Handle[1]`/campos/caixas emitiam a classe inexistente
-            // `Handle` → NoClassDefFoundError (medido na face out-param 15/11;
-            // a forma `Handle<T>` já resolvia no ramo `<` acima).
-            case "Handle" -> new ClassType("kof.concurrent", "Handle", List.of());
+            // #1167: o `Handle` NU **não** é mapeado aqui. `Type.of` não tem
+            // contexto de unidade, então um mapa global deste nome sobrescrevia
+            // uma `class Handle` DECLARADA pelo usuário (o idiom natural de
+            // ownership) — o retorno de uma função que a devolve saía como o
+            // handle CONCORRENTE e o `x.field` morria num falso SEM102
+            // ("use `await h`"). O pin legítimo (D-R3-3.3 opção A, para os
+            // programas que NÃO declaram `Handle`) vive nos caminhos
+            // UNIT-AWARE com gate de shadowing: `CompilerTypes.qualifyDeep` →
+            // `builtinDeclaredType` (a classe do usuário vence, §179/§243), e a
+            // forma parametrizada `Handle<...>` segue no ramo `<` acima.
             default -> new ClassType("", name, List.of());
         };
     }

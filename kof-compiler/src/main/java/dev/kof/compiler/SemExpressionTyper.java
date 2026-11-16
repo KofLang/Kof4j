@@ -308,7 +308,11 @@ public final class SemExpressionTyper {
             case NewExpr ne -> SemNewExprTyper.infer(sa, ne, scope);
             case FieldAccessExpr fa -> SemFieldAccessTyper.infer(sa, fa, scope);
             case NewArrayExpr na -> {
-                Type elemType = Type.of(na.elementType());
+                // #1167: o elemento do array resolve UNIT-AWARE — uma `class
+                // Handle` do usuário vence o builtin (o pin legítimo do
+                // `new Handle[1]`/`pcap` vive no qualifyDeep, sob o gate de
+                // shadowing); `Type.of` puro mapeava o nome nu globalmente.
+                Type elemType = CompilerTypes.toType(na.elementType(), sa.unit(), sa);
                 inferType(sa, na.size(), scope);
                 for (ExpressionNode dim : na.moreDims()) inferType(sa, dim, scope);
                 for (int i = 0; i < na.moreDims().size(); i++) {

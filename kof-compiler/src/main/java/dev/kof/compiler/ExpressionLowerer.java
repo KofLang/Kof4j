@@ -271,7 +271,13 @@ public final class ExpressionLowerer {
                 yield localIdx;
             }
             case NewArrayExpr na -> {
-                Type elemType = CompilerTypes.toType(na.elementType(), driver.currentUnit);
+                // #1167: com o `Type.of` sem o mapa global do `Handle`, o
+                // elemento do array precisa do MESMO gate de shadowing da
+                // resolução de tipo declarado — passar o analyzer é o que faz a
+                // `class Handle` do usuário vencer o builtin (§179/§243) e o
+                // `new Handle[1]` do pcap continuar pinando kof.concurrent.
+                Type elemType = CompilerTypes.toType(na.elementType(), driver.currentUnit,
+                        driver.semanticAnalyzer);
                 localIdx = ExpressionLowerer.emitExpression(driver, na.size(), ops, owner, localIdx, locals);
                 if (na.moreDims().isEmpty()) {
                     ops.add(new KofNewArray(elemType));
