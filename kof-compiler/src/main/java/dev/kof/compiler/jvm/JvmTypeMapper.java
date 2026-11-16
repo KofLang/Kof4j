@@ -88,6 +88,13 @@ public final class JvmTypeMapper {
         // exatamente um) — sem isto, `Handle<Int>` como parâmetro de método
         // gerava descriptor LHandle; (classe inexistente) → ClassNotFoundException
         // / VerifyError (GitHub #31).
+        // O Handle NURO (bare, sem type-args — o FFI copy-out opt-in, o
+        // #1160 face 15/11): apaga para Object (o segmento cru do FFM; o
+        // CompletableFuture quebrava o verificador — o mesmo caminho do #31).
+        if ("kof.concurrent".equals(c.packageName()) && "Handle".equals(c.name())
+                && (c.typeArguments() == null || c.typeArguments().isEmpty())) {
+            return "Ljava/lang/Object;";
+        }
         if ("kof.concurrent".equals(c.packageName()) && "Handle".equals(c.name())) {
             return "Ljava/util/concurrent/CompletableFuture;";
         }
@@ -261,7 +268,11 @@ public final class JvmTypeMapper {
         if ("kof".equals(packageName) && "Set".equals(simpleName)) return "java/util/HashSet";
         if ("kof".equals(packageName) && "Map".equals(simpleName)) return "java/util/Map";
         if ("kof.concurrent".equals(packageName) && "Channel".equals(simpleName)) return "java/util/concurrent/LinkedBlockingQueue";
-        if ("kof.concurrent".equals(packageName) && "Handle".equals(simpleName)) return "java/util/concurrent/CompletableFuture";
+        // O Handle NURO (o FFI copy-out opt-in — o #1160 face): o checkcast do
+        // payload cru do FFM JAMÁS pode apontar para o CompletableFuture (o
+        // segmento do FFI não é um — ClassCastException, medido 15/11). O nu
+        // apaga para Object (o mesmo caminho do descriptor acima).
+        if ("kof.concurrent".equals(packageName) && "Handle".equals(simpleName)) return "java/lang/Object";
         if ("kof.process".equals(packageName) && "Result".equals(simpleName)) return "dev/kof/runtime/KofRuntime$ProcessResult";
         // Same erasure family as `classDescriptor`: these nominal runtime types
         // must map in OWNER position (checkcast/anewarray/getfield) too, or a

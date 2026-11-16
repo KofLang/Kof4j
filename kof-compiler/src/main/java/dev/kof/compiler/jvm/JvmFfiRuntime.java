@@ -158,6 +158,17 @@ final class JvmFfiRuntime {
                                 // the duration of the FFI call.
                                 kof_buffer_borrow_acquire((Buffer) args[i]);
                                 borrowHolds.add((Buffer) args[i]);
+                            } else if (c == 'H') {
+                                // D-R3-3.3: o Handle nominal opaco — o slot JVM
+                                // carrega o MemorySegment do downcall anterior
+                                // (o mesmo Object volta; o cast é seguro pela
+                                // própria cadeia de chamadas). NULL → 0.
+                                cur++;
+                                pl[i] = java.lang.foreign.ValueLayout.ADDRESS;
+                                Object hv = args[i];
+                                real[i] = (hv == null)
+                                        ? java.lang.foreign.MemorySegment.NULL
+                                        : (java.lang.foreign.MemorySegment) hv;
                             } else {
                                 cur++;
                                 pl[i] = kof_ffi_layout(c);
@@ -213,6 +224,14 @@ final class JvmFfiRuntime {
                             }
                             return seg.reinterpret(Long.MAX_VALUE).getString(0L);
                         }
+                        if (ret == 'H') {
+                            // D-R3-3.3: o Handle nominal opaco — o segmento cru
+                            // volta NO SLOT (o Object opaco); reinterpret para o
+                            // reuso como param 'H' em chamadas seguintes.
+                            java.lang.foreign.MemorySegment seg = (java.lang.foreign.MemorySegment) r;
+                            if (seg == null || seg.address() == 0L) return null;
+                            return seg.reinterpret(Long.MAX_VALUE);
+                        }
                         return r;
                     } catch (Throwable t) {
                         throw new InteropError("kof_ffi: " + lib + "::" + name + " (" + sig + ") failed: "
@@ -251,7 +270,7 @@ final class JvmFfiRuntime {
                         case 'f' -> java.lang.foreign.ValueLayout.JAVA_FLOAT;
                         case 'd' -> java.lang.foreign.ValueLayout.JAVA_DOUBLE;
                         case 'b' -> java.lang.foreign.ValueLayout.JAVA_BOOLEAN;
-                        case 'S' -> java.lang.foreign.ValueLayout.ADDRESS;
+                        case 'S', 'H' -> java.lang.foreign.ValueLayout.ADDRESS;
                         default -> throw new IllegalArgumentException("bad ffi layout char: " + c);
                     };
                 }

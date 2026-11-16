@@ -411,6 +411,10 @@ final class NativeFfiCall {
                 sb.append("    movq %rax, %rdi\n");
                 sb.append("    call kof_ffi_from_cstr\n");
                 break;
+            case 'H':
+                // D-R3-3.3: o Handle nominal opaco — o ponteiro cru em %rax
+                // vai ao bloco de operandos COMO ESTÁ (sem derive, sem cstr).
+                break;
             default: return;
         }
         sb.append("    pushq %rax\n");

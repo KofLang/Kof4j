@@ -18,6 +18,7 @@ public final class FfiSignature {
         if (isLongFFI(t)) return 'j';
         if (isFloatFFI(t)) return 'f';
         if (isBoolFFI(t)) return 'b';
+        if (isHandleName(t)) return 'H';
         return null;
     }
 
@@ -214,6 +215,11 @@ public final class FfiSignature {
         if (isFloatFFI(r)) return Type.PrimitiveType.FLOAT;
         if (isBoolFFI(r)) return Type.PrimitiveType.BOOL;
         if (CompilerPipeline.isStringType(r)) return BuiltinTypes.STRING;
+        // D-R3-3.3 (opção A): o Handle nominal opaco — o retorno do kof_ffi
+        // devolve o endereço cru; o slot é uma REFERÊNCIA (o fall-through
+        // para INT emitia checkcast Integer + intValue + um slot int →
+        // VerifyError, medido 15/11 no pcap_open_dead).
+        if (isHandleName(r)) return BuiltinTypes.HANDLE;
         return Type.PrimitiveType.INT;
     }
 
@@ -236,6 +242,7 @@ public final class FfiSignature {
         }
         if (t instanceof Type.NullableType nt) return charOfType(nt.inner());
         if (BuiltinTypes.isString(t)) return 'S';
+        if (BuiltinTypes.HANDLE.equals(t)) return 'H';
         return null;
     }
 
@@ -248,7 +255,21 @@ public final class FfiSignature {
         if (isBoolFFI(t)) return Type.PrimitiveType.BOOL;
         if (CompilerPipeline.isStringType(t)) return BuiltinTypes.STRING;
         if (CompilerPipeline.isDoubleType(t)) return Type.PrimitiveType.DOUBLE;
+        if (isHandleName(t)) return BuiltinTypes.HANDLE;
         return null;
+    }
+
+    /** D-R3-3.3 (opção A, 21/09): o {@code Handle} nominal opaco — o portador
+     *  de ponteiro NÃO aritmético para os faces pointer-heavy (pcap_t*, ...).
+     *  O FFI o carrega como um endereço cru (o token 'H'): o mesmo objeto
+     *  devolvido por um extern volta e passa adiante — nunca um Int/Long no
+     *  nível da linguagem (R6). */
+    public static boolean isHandleName(String t) {
+        return "Handle".equals(t);
+    }
+
+    public static boolean isHandleType(Type t) {
+        return BuiltinTypes.HANDLE.equals(t);
     }
 
     static boolean isLongFFI(String t) { return "long".equals(t) || "Long".equals(t); }

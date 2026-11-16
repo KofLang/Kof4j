@@ -15,6 +15,42 @@ package net
 // version string; it opens no device and sends nothing. The capture slice
 // will carry the same discipline (the caller decides what to capture).
 
+// ── THE HANDLE LIFECYCLE PROBE (15/11, the #1160 face — the D-R3-3.3
+// nominal Handle, option A): pcap_open_dead ALLOCATES a pcap_t for an
+// OFFLINE capture (no device is opened, nothing is captured — the same
+// defensive-only law of the version probe), and the two getters prove the
+// handle round-trip through the FFI as an opaque non-arithmetic carrier:
+// pcap_snapshot(h) returns the snaplen the handle was opened with, and
+// pcap_datalink(h) returns DLT_EN10MB (1) for the ethernet default. The
+// pcap_close releases it. The real capture face (pcap_next_ex with the
+// pkthdr** out-param) stays the follow-up — it needs the pointer-to-pointer
+// out-param face, not the Handle.
+
+foreign module pcap_lifecycle {
+    library "libpcap.so.1"
+    abi c
+    ownership borrowed
+    extern pcap_open_dead(Int linktype, Int snaplen): Handle
+    extern pcap_snapshot(Handle h): Int
+    extern pcap_datalink(Handle h): Int
+    extern pcap_close(Handle h): Void
+}
+
+// DLT_EN10MB — the ethernet linktype (1) and its constant the getters
+// return (the oracle for the probe).
+Int dltEn10Mb() { return 1 }
+
+// openDeadProbe — the handle lifecycle probe: allocates the offline pcap_t
+// (linktype ethernet, snaplen 65535), proves snapshot == 65535 and
+// datalink == DLT_EN10MB (1), closes it, and reports both verifications.
+Bool openDeadProbe() {
+    var h = pcap_open_dead(dltEn10Mb(), 65535)
+    var snapOk = pcap_snapshot(h) == 65535
+    var dlOk = pcap_datalink(h) == dltEn10Mb()
+    pcap_close(h)
+    return snapOk && dlOk
+}
+
 // pcapVersion — the libpcap runtime version string (e.g.
 // "libpcap version 1.10.1, with TPACKET_V3") — the link + load smoke face.
 foreign module pcap {
