@@ -20,8 +20,31 @@
 
 ## The remaining audit (the P2 cycle)
 
-- The README (the root), the language-reference, the install/build docs, the
-  examples: the spot audit against the current surface (the P2 cycle).
 - The site's routes beyond roadmap (the web.tsx, the standard-library.tsx):
   the spot-check of the availability badges against the 0.7.3 published
   surface (the lab features must not appear as stable-available).
+
+## The doc-truth spot audit EXECUTED (16/11, the P2 cycle — the mandate §2/§11)
+
+- **The README's kof blocks COMPILED** (all four extracted and compiled JVM):
+  the UI block, the web block, and the TWO `Path`/`Directory` blocks — the
+  latter two were TOP-LEVEL STATEMENTS (`var path = ...` bare) which Kof's
+  grammar refuses (top-level = functions/classes only). **FIXED EN+PT**: both
+  wrapped in `main() { }` — all four blocks now compile green.
+- **The install/build docs VERIFIED**: the README's install wildcard
+  (`kof-*-linux-x86_64.tar.gz`) matches the REAL published assets — the four
+  per-platform 0.7.3 releases exist (linux-x86_64, macos-arm64, macos-x86_64,
+  windows-x86_64), and INSTALL.md's platform table ("where it is on the
+  page") is accurate. The workflow `release.yml` matrix = the doc's platform
+  list. NO divergence.
+- **backend-parity.md + .pt_BR.md: the MATH-D row was STALE** (claimed
+  "x86-64 only; the cross answers MATH001; the issue stays open") — FIXED
+  EN+PT the same cycle: the row now records the landed cross (the B32 riscv
+  asm + the translator), the edge proofs, and the #1169 closure.
+- **The language-reference's kof fences**: FRAGMENTS by convention (the prose
+  snippets — the concurrency/type-system docs) — not compilable-program
+  claims; the audit records the convention, no fix needed.
+- The MATH-D freshness: the conformance-matrix rows EN+PT were flipped in the
+  landing cycle; no stale math claim remains in README/lang-ref. The
+  status.md `last:` ledger is historical (the landed-state entries) — the
+  MATH-D entry rides the landing commit's DOING (the convention).

@@ -328,18 +328,22 @@ embutido no runtime do programa. Ver: [docs/stdlib/stdlib-web.md](docs/stdlib/st
 Arquivos, diretórios e caminhos com uma API única em todos os targets:
 
 ```kof
-var path = Path("data/users.txt")
-path.parent().createDirectories()
-path.writeText("Mel\nKof\n")
-println(path.readText())
-println(path.size())
+main() {
+    var path = Path("data/users.txt")
+    path.parent().createDirectories()
+    path.writeText("Mel\nKof\n")
+    println(path.readText())
+    println(path.size())
+}
 ```
 
 ```kof
-var dir = Directory("data")
-dir.createDirectories()
-for (var entry in dir.list()) {
-    println(entry.name)
+main() {
+    var dir = Directory("data")
+    dir.createDirectories()
+    for (var entry in dir.list()) {
+        println(entry.name)
+    }
 }
 ```
 
