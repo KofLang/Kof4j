@@ -53,6 +53,7 @@ import dev.kof.compiler.runtime.RuntimeLog2;
 import dev.kof.compiler.runtime.RuntimeMap;
 import dev.kof.compiler.runtime.RuntimeMemory;
 import dev.kof.compiler.runtime.RuntimeMath;
+import dev.kof.compiler.runtime.RuntimeMathD;
 import dev.kof.compiler.runtime.RuntimeStrings;
 import dev.kof.compiler.runtime.RuntimeMisc;
 import dev.kof.compiler.runtime.RuntimeMq;
@@ -280,6 +281,8 @@ public final class NativeRuntime {
         RuntimeValidationCard.emit(sb);
         RuntimeUri.emit(sb);
         RuntimeMath.emit(sb);
+        RuntimeMathD.emit(sb);   // MATH-D #1169: SSE/x86-64 only — the cross
+                                 // refuses these seven with MATH001 (KofMath.supportedOn)
         RuntimeStrings.emit(sb);
         RuntimeExpr.emit(sb);      // Kof.expr (D-KOF-EXPR fatia 6): as classes
                                   // de caractere + a leitura de ponto de código

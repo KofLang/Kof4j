@@ -181,12 +181,15 @@ public final class KofMath {
     private static final java.util.Set<String> NATIVE_MISSING = java.util.Set.of(
             "kof_math_sin", "kof_math_cos", "kof_math_tan",
             "kof_math_asin", "kof_math_acos", "kof_math_atan", "kof_math_atan2",
-            "kof_math_toRadians", "kof_math_toDegrees",
-            // MATH-D (27/10): as cinco double esperam o asm da lane nat
-            // (absd/minsd/maxsd/roundsd — SSE/SSE4.1); MATH001 honesto até lá
-            "kof_math_dabs", "kof_math_floor", "kof_math_ceil",
-            "kof_math_dmin", "kof_math_dmax",
-            "kof_math_dclamp", "kof_math_dsign");
+            "kof_math_toRadians", "kof_math_toDegrees");
+    // MATH-D (16/11, #1169): as sete double estão implementadas no asm
+    // **x86-64 apenas** (`RuntimeMathD`: andpd/roundsd/minsd/maxsd, a cadeia
+    // branchy exata do JDK no clamp/sign; o `dclamp` teve um branch INVERTIDO
+    // medido e corrigido pelo probe de paridade desta lane). O cross NÃO tem
+    // emissão — e `NativeRuntime` emite o bloco SSE SEMPRE, então no cross ele
+    // morre no `as` (`bad register name '%xmm0'`, medido); antes disso o
+    // comentário aqui afirmava "riscv/aarch LANDARAM", que era falso. A recusa
+    // é POR TARGET em `supportedOn` (MATH001 nomeado, R6).
 
     /** S1 (Int) + S1b/S1b.1 (Double) em TODOS os targets (MATH001 fechado
      * 11/09 — fatia riscv B32 + tradutor aarch fsqrt.d/fcvtzs; prova qemu).
@@ -202,6 +205,21 @@ public final class KofMath {
         // row 10 (27/09, D-DECISION-BATCH-2709B #3): pow roda tambem no cross
         // (shim kof_math_pow -> pow@PLT; -lm por uso). MATH001 fica reservado.
         if (target.isNative() && NATIVE_MISSING.contains(function)) return false;
+        // #1169 (medido 16/11, o probe de paridade desta lane): as sete MATH-D
+        // estão implementadas SÓ no x86-64 (`RuntimeMathD`, asm SSE) e o
+        // `NativeRuntime` emite o bloco em TODOS os nativos — no cross o `as`
+        // recusa (`bad register name '%xmm0'`). A recusa volta POR TARGET: o
+        // x86-64 segue suportado; o cross responde MATH001 nomeado (R6) até a
+        // fatia do asm cross.
+        if ((target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64)
+                && switch (function) {
+                    case "kof_math_dabs", "kof_math_floor", "kof_math_ceil",
+                         "kof_math_dmin", "kof_math_dmax", "kof_math_dclamp",
+                         "kof_math_dsign" -> true;
+                    default -> false;
+                }) {
+            return false;
+        }
         return true;
     }
 
