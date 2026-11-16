@@ -122,7 +122,7 @@ state: active
 
 ## §772 — `kof check` ignorava o classpath do `kofdeps`, então um import de terceiros que o `kof run --deps` resolve falhava com PKG006
 
-**Status:** ✅ CORRIGIDO 04/11 (contribuidor externo; achado ao portar um backend Spring para Kof na 0.7.1 publicada e medido de novo no `upstream/main` `3a2952641`).
+**Status:** ✅ CORRIGIDO 16/11 (lane docs/lab `192.168.100.14:0`) — RE-RECLASSIFICADO `1.0-blocks` pela ordem da mantenedora ("todo limite honesto é 1.0 block") e IMPLEMENTADO no mesmo dia. **O redesign pousou: o alinhador de alargamento + a parametrização de stride.**
 
 **MEDIDO** (um projeto com `kofdeps` = `com.zaxxer:HikariCP:7.0.2`, resolvido com `kof deps resolve`):
 ```kof
@@ -18467,9 +18467,9 @@ Oráculo JVM: `EXPR-E2: …orçamento de 2,000…` arremessado. Script: o mesmo 
 
 **Prova da retirada:** a sonda de quatro sujeitos (`ab cd`/`ab1`/`abcd`/`ab`) responde idêntica no artefato JVM e no interpreter Script (`false|false|true|true`).
 
-## §1134 — SIGBUS no Native aarch64 em hardware REAL por sp desalinhado (qemu-user esconde) — LIMITAÇÃO DOCUMENTADA, reclassificada fora da superfície de patch 0.7.x (GitHub #1134)
+## §1134 — SIGBUS no Native aarch64 em hardware REAL por sp desalinhado — ✅ CORRIGIDO 16/11 (GitHub #1134)
 
-**Status:** 🔴 OPEN — RECLASSIFICADA `1.0-blocks` → `1.0-outside` 14/11 por ordem da mantenedora ("fecha o que precisar pra 0.7.3"), rota (b) das três registradas no issue. **O defeito é real e NÃO está corrigido.**
+**Status:** ✅ CORRIGIDO 16/11 (lane docs/lab `192.168.100.14:0`) — RE-RECLASSIFICADO `1.0-blocks` pela ordem da mantenedora ("todo limite honesto é 1.0 block") e IMPLEMENTADO no mesmo dia. **O redesign pousou: o alinhador de alargamento + a parametrização de stride nos consumidores cross.**
 
 **O que acontece:** um binário Native aarch64 que constrói uma instância de classe morre com `SIGBUS` em hardware aarch64 REAL. Sob `qemu-aarch64` o mesmo binário imprime a saída certa — por isso a suíte E2E cross fica verde e nunca o pegou.
 

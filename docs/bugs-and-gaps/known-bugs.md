@@ -20997,9 +20997,9 @@ JVM oracle: `EXPR-E2: …budget of 2,000…` thrown. Script: the same EXPR-E2 th
 
 <!-- pt-switch --> **PT:** [§1151 (pt_BR)](known-bugs.pt_BR.md#1151--retirada-1411-mesmo-dia-o-registro-de-o-script-responde-errado-para-one_or_more--exactly2-letter--era-um-falso-positivo-do-processo-de-arquivamento--o-oraculo-jvm-nunca-foi-executado)
 
-## §1134 — Native aarch64 SIGBUS on REAL hardware from a misaligned sp (qemu-user hides it) — DOCUMENTED LIMITATION, reclassified out of the 0.7.x patch surface (GitHub #1134)
+## §1134 — Native aarch64 SIGBUS on REAL hardware from a misaligned sp (qemu-user hides it) — ✅ FIXED 16/11 (GitHub #1134)
 
-**Status:** 🔴 OPEN — RECLASSIFIED `1.0-blocks` → `1.0-outside` 14/11 by maintainer order ("fecha o que precisar pra 0.7.3"), route (b) of the three recorded on the issue. **The defect is real and NOT fixed.**
+**Status:** ✅ FIXED 16/11 (lane docs/lab `192.168.100.14:0`) — RE-RECLASSIFIED `1.0-blocks` 16/11 BY THE MAINTAINER'S OWN ORDER ("todo limite honesto é 1.0 block", superseding the 14/11 route-(b) move), then IMPLEMENTED the same day per that order. **The redesign landed: the widening aligner + the stride parameterization.**
 
 **What happens:** a Native aarch64 binary that constructs a class instance dies with `SIGBUS` on REAL aarch64 hardware. Under `qemu-aarch64` the same binary prints the right output — which is why the cross E2E suite stays green and never caught it.
 
@@ -21014,7 +21014,7 @@ This matches the issue's gdb frame exactly (`main+76`, `str x0, [sp]`). The risc
 
 **Scope of the limitation:** aarch64 on REAL hardware only. JVM, Script, JS, Native x86-64, Native riscv64 and aarch64-under-qemu all stay green.
 
-**Resume (route (a), open to the native/codegen lane):** track SP displacement symbolically in `NativeAarch64Translator` and rewrite the push/pop pairs to 16-byte slots with the intermediate offsets remapped; proof requires arm64 hardware or an SP-alignment-checking emulator.
+**FIXED (route (a), the staged plan `docs/development/aarch64-sp-alignment-plan.md`):** the widening aligner (`NativeAarch64SpAligner` — every sub/add sp → the next multiple of 16, the pop macro inlined, running unconditionally after the peephole) + the stride parameterization in the cross-call consumers (`NativeFfiCallRiscv.emitRiscv`'s block arithmetic, `emitCrossArgLoads`, `emitCrossStackCleanup`: the stride 8 for riscv64 — the text byte-identical, zero riscv risk — and 16 for aarch64). **The proof (this host, no arm64 hw — the static assertion IS the criterion's named alternative):** the SP-invariant checker measured RED with 60 violations on the pre-fix output and GREEN post-fix (`NativeAarch64SpAlignmentE2ETest` 2/2 — the repro + the cross faces asserted); the issue's repro prints `42` under qemu; the aarch64 suite back at the 3F baseline (the spawn env-fails); the FFI cross battery recovered after the stride parameterization (8F→0F in the battery); `MathDNativeE2ETest`/`MathDParityE2ETest` byte-exact (no regression in the fresh faces). The real-hardware run stays the CI's named edge (the assertion is the emulator form the criterion accepts).
 
 ## §1150 — a TYPED lambda `mq.subscribe` handler crashed `publish` with `NoSuchMethodException` on JVM and Script (JS/Native delivered) — cross-target divergence on a documented idiom (GitHub #1150)
 
