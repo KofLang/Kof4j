@@ -82,7 +82,7 @@ forgotten"):
 | The Kof arena invisible to ASan's allocator tracking | RuntimeMemory §542 (the mmap design) | the limits ledger (the GC instrumentation face) | the arena tracked by ASan (the allocator hooks) or the equivalent proof |
 | Kof asm uninstrumented (no UAF-in-Kof-objects view) | this sweep | the same ledger | the pc-to-shadow mapping or the equivalent proof |
 | Valgrind absent on the host | `valgrind --version` fails | the same ledger | the Valgrind pass on the native FFI faces |
-| aarch64 real-hardware SIGBUS (#1134) | the qemu-harness gap (the SP-alignment not enforced) | **#1134** (`1.0-blocks`, the 16/11 order) | the push/pop redesign provable on arm64 hw or the qemu alignment assertion |
+| aarch64 real-hardware SIGBUS (#1134) | the qemu-harness gap (the SP-alignment not enforced) | **#1134** (`1.0-blocks`, the 16/11 order) | the coherent redesign (MEASURED 16/11): the alignment assertion exists (the static analyzer, 60 violations RED pre-fix); the widening prototype is proven on the simple faces (repro prints 42; 52/55 aarch64 E2E) BUT the FFI call-site couples the operand-slot stride — `NativeFfiCallRiscv` reads args at `8·(n−1−i)` and sizes the region `8n−8ns−16` — so any widening desynchronizes the ABI (copy-out face crashed; battery 22F→35F). The fix = the translator tracks the stride and the FFI site derives from it, OR the push/pop lowering goes to 16-byte slots natively. Emitter-level, not a text peephole. |
 | macOS target absent (#1135) | no Apple hardware on this host | **#1135** (`1.0-blocks`, the 16/11 order) | the Mach-O backend + the gates on Apple hw (the `D-NATIVE-MACOS` decision stays the first step) |
 
 The re-examination rule (the 16/11 order supersedes the 14/11 demotion
