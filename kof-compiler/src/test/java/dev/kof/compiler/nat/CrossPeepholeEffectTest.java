@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -59,15 +60,36 @@ class CrossPeepholeEffectTest {
 
     @Test
     void bothCrossTargetsGainTheSameAmount(@TempDir Path dir) throws Exception {
-        // AArch64 is produced by translating the riscv text, so a differing delta
-        // would mean the two passes disagree about which shapes are foldable.
+        // #1134: the aarch64 text = the riscv text translated + the peephole
+        // folded + the SP-aligner restructured (by design) — the DELTAS
+        // legitimately diverge now. The preserved intent: both peepholes
+        // still gain (the foldable shapes are seen on both archs), and the
+        // #1134 invariant holds in BOTH arms (every sub/add sp a multiple of
+        // 16 — the SIGBUS can never return through this fixture).
         int riscvGain = gain(dir.resolve("rv"), Target.NATIVE_RISCV64);
         int aarch64Gain = gain(dir.resolve("a64"), Target.NATIVE_AARCH64);
         assertTrue(riscvGain > 0 && aarch64Gain > 0,
                 "both must gain: riscv=" + riscvGain + " aarch64=" + aarch64Gain);
-        assertEquals(riscvGain, aarch64Gain,
-                "the cross peepholes must remove the same number of instructions "
-                        + "(aarch64 is translated from the riscv text)");
+        assertSpAligned(dir.resolve("a64/on/out/Default/Main.s"));
+        assertSpAligned(dir.resolve("a64/off/out/Default/Main.s"));
+    }
+
+    /** #1134: every sub/add sp, sp, #N in the aarch64 asm is a multiple of
+     *  16 (outside the dead .macro body). */
+    private static void assertSpAligned(Path asm) throws Exception {
+        boolean inMacro = false;
+        for (String raw : Files.readAllLines(asm)) {
+            String s = raw.strip();
+            if (s.startsWith(".macro")) { inMacro = true; continue; }
+            if (s.startsWith(".endm")) { inMacro = false; continue; }
+            if (inMacro) continue;
+            var m = java.util.regex.Pattern
+                    .compile("^(sub|add)\\s+sp,\\s*sp,\\s*#(\\d+)$").matcher(s);
+            if (m.matches() && Long.parseLong(m.group(2)) % 16 != 0) {
+                fail("#1134: " + asm + " has a sp adjustment that is not a multiple"
+                        + " of 16 (the SIGBUS on real hardware): " + s);
+            }
+        }
     }
 
     private int gain(Path root, Target target) throws Exception {

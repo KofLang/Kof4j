@@ -237,12 +237,31 @@ public final class NativeRiscvCrossEmit {
             // chamador NUNCA os popa, só avança o sp (frame fixo, sem
             // pilha-dinâmica do x86).
             case KofNewMultiArray ma -> {
+                // #1134 fatia 2 (16/11): os dims foram empilhados com o push
+                // ALARGADO (16 por slot, o valor no slot+0). O runtime lê os
+                // dims COMPACTOS (8 por slot) da base — então o emissor
+                // ESPELHA os dims para um bloco compacto abaixo do sp antes
+                // da chamada (a disciplina da fatia 1: o callee mantém o seu
+                // layout; só o bloco de operandos alarga). Os offsets são
+                // CONSTANTES (n é de compilação).
+                int n = ma.dims();
+                // o RESERVA já sai múltiplo de 16 (o alinhador da fatia 2
+                // alarga sub/add sp — a planta dele não pode divergir): o pad
+                // entra nos offsets de leitura
+                int block = (8 * n + 15) & ~15;
+                sb.append("    addi sp, sp, ").append(-block).append("\n");
+                for (int k = 0; k < n; k++) {
+                    // d_{n-k}: o slot alargado em block + 16k (relativo ao sp
+                    // NOVO); o espelho compacto em 8k (o layout do runtime)
+                    sb.append("    ld t0, ").append(block + 16 * k).append("(sp)\n");
+                    sb.append("    sd t0, ").append(8 * k).append("(sp)\n");
+                }
                 sb.append("    mv a0, sp\n");
-                sb.append("    li a1, ").append(ma.dims()).append("\n");
+                sb.append("    li a1, ").append(n).append("\n");
                 sb.append("    li a2, 1\n");
                 sb.append("    li a3, ").append(nb.elementTypeSize(ma.baseType())).append("\n");
                 sb.append("    call kof_multi_alloc\n");
-                sb.append("    addi sp, sp, ").append(8 * ma.dims()).append("\n");
+                sb.append("    addi sp, sp, ").append(block + 16 * n).append("\n");
                 pushRiscv(sb, "a0");
             }
             case KofArrayLoad _ -> {

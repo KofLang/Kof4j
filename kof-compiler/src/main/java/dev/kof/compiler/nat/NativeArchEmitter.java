@@ -436,6 +436,16 @@ final class NativeArchEmitter {
             NativeAarch64Peephole.collapsePushPopPairs(a64Lines);
             NativeAarch64Peephole.dropSelfMoves(a64Lines);
         }
+        // #1134 fatia 2 (16/11): o alinhador de SP — o push/pop riscv de 8
+        // bytes desalinha o sp no aarch64 real (o SIGBUS medido; o qemu não
+        // enforcementa). Roda DEPOIS do peephole (os pares colapsados não
+        // desalinham) e DEPOIS da aritmética dos call-sites (a fatia 1 do
+        // plano já emitiu o stride 16 ali). FORA do gate do peephole: a
+        // conformidade de SP é CORREÇÃO (o SIGBUS em hw real) — desligar o
+        // peephole não pode reabilitá-la (e o delta do teste de paridade
+        // §17 isola o peephole, não o alinhador).
+        int spAligned = NativeAarch64SpAligner.align(a64Lines);
+        System.err.println("NativeBackend: KOF_SP_ALIGN sites rewritten: " + spAligned);
         StringBuilder sb = new StringBuilder();
         for (String t : a64Lines) sb.append(t).append("\n");
         String className = module.classes().isEmpty() ? "Default/Main" : module.classes().getFirst().name();

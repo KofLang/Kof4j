@@ -34,6 +34,11 @@ final class NativeFfiCallRiscv {
     // recebe e lê só [0(sp), 8·ns(sp)) — a slot salva em 8·ns+8 fica intacta.
     static void emitRiscv(NativeBackend nb, StringBuilder sb, KofCall kc) {
         String[] intRegs = {"a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"};
+        // #1134 fatia 3 (16/11): o STRIDE do slot de operando — 8 no riscv64
+        // (o texto byte-idêntico), 16 no aarch64 (o push/pop alargado pela
+        // fatia 2). TODA a aritmética do bloco de operandos deriva dele: os
+        // arg reads, a região de spill, o slot de restore.
+        int st = nb.target == dev.kof.compiler.Target.NATIVE_AARCH64 ? 16 : 8;
         int n = kc.parameterTypes().size();
         char[] cls = new char[n];
         boolean[] isStruct = new boolean[n];
@@ -158,7 +163,7 @@ final class NativeFfiCallRiscv {
             // A fatia COPY-OUT: os markers "arrayout" (borrowed) NÃO empacotam
             // — o payload direto cruza (sem cópia, sem leak de arena).
             if (!isArray[i] || isArrayOut[i]) continue;
-            sb.append("    ld a0, ").append(8 * (n - 1 - i)).append("(sp)\n");
+            sb.append("    ld a0, ").append(st * (n - 1 - i)).append("(sp)\n");
             if (arrayElem[i] == 'S') {
                 // D-MEM-FFI-CROSS-FULL face 2: `String[]`→`char**` (payload de
                 // cada String; sem tamanho de elemento).
@@ -167,7 +172,7 @@ final class NativeFfiCallRiscv {
                 sb.append("    li a1, ").append(NativeFfiCall.arrayElemSize(arrayElem[i])).append("\n");
                 sb.append("    call kof_ffi_pack_array\n");
             }
-            sb.append("    sd a0, ").append(8 * (n - 1 - i)).append("(sp)\n");
+            sb.append("    sd a0, ").append(st * (n - 1 - i)).append("(sp)\n");
         }
         // 0) D-MEM030-BORROW-RUNTIME (B-03): cada `Buffer(U8)` INOUT adquire um
         //    borrow gravável exclusivo ANTES de consumir o bloco. O OBJ é
@@ -178,7 +183,7 @@ final class NativeFfiCallRiscv {
         int bufSlot = 0;
         for (int i = 0; i < n; i++) {
             if (!isBuf[i]) continue;
-            sb.append("    ld a0, ").append(8 * (n - 1 - i)).append("(sp)\n");
+            sb.append("    ld a0, ").append(st * (n - 1 - i)).append("(sp)\n");
             sb.append("    sd a0, ").append(nb.crossScratchOff(bufSlot)).append("(s11)\n");
             sb.append("    call kof_buffer_borrow_acquire\n");
             bufSlot++;
@@ -195,7 +200,7 @@ final class NativeFfiCallRiscv {
                 if (ord[i] >= 8) continue;   // derramado: passo 3
                 String dst = intRegs[ord[i]];
                 String lbl = ".Lffim" + seq + "_" + i;
-                sb.append("    ld ").append(dst).append(", ").append(8 * (n - 1 - i)).append("(t0)\n");
+                sb.append("    ld ").append(dst).append(", ").append(st * (n - 1 - i)).append("(t0)\n");
                 sb.append("    beqz ").append(dst).append(", ").append(lbl).append("\n");
                 sb.append("    addi ").append(dst).append(", ").append(dst).append(", 16\n");
                 sb.append(lbl).append(":\n");
@@ -205,7 +210,7 @@ final class NativeFfiCallRiscv {
                 // M1 unidade-1: leitura INTEGER do slot cru do objeto (soft-
                 // float-safe) + fmv para o ordinal FP do campo; o texto fa{n}
                 // traduz para v* no aarch64 (precedente dos escalares exp/ldexp).
-                sb.append("    ld t4, ").append(8 * (n - 1 - i)).append("(t0)\n");
+                sb.append("    ld t4, ").append(st * (n - 1 - i)).append("(t0)\n");
                 for (int fi = 0; fi < sOrd[i].length; fi++) {
                     if (sOrd[i][fi] >= 8) continue;   // gate: HFA nunca derrama
                     FfiStructLayout.emitRiscvHfaFieldLoad(sb, structTypes[i], fi, "t4", "t2");
@@ -218,7 +223,7 @@ final class NativeFfiCallRiscv {
             if (isStruct[i]) {
                 // struct INTEGER por valor: ponteiro do objeto Kof → monta cada
                 // eightbyte no registrador de destino da sua classe (fatia 4).
-                sb.append("    ld t4, ").append(8 * (n - 1 - i)).append("(t0)\n");
+                sb.append("    ld t4, ").append(st * (n - 1 - i)).append("(t0)\n");
                 for (int e = 0; e < sOrd[i].length; e++) {
                     if (sOrd[i][e] >= 8) continue;   // derramado: passo 3
                     FfiStructLayout.emitRiscvIntEightbyte(sb, structTypes[i], e,
@@ -231,7 +236,7 @@ final class NativeFfiCallRiscv {
                 // o ENDEREÇO do trampolim à C (o trampolim lê a closure e roda
                 // vtable[0]=invoke).
                 if (ord[i] >= 8) continue;   // gate limita arity ≤ 7
-                sb.append("    ld t4, ").append(8 * (n - 1 - i)).append("(t0)\n");
+                sb.append("    ld t4, ").append(st * (n - 1 - i)).append("(t0)\n");
                 sb.append("    la t5, kof_cb_closure_").append(cbDescs[i]).append("\n");
                 sb.append("    sd t4, 0(t5)\n");
                 sb.append("    la ").append(intRegs[ord[i]]).append(", kof_cb_tramp_").append(cbDescs[i]).append("\n");
@@ -241,7 +246,7 @@ final class NativeFfiCallRiscv {
             boolean floatC = isFloatClass(c);
             if (floatC ? ord[i] >= 8 : ord[i] >= 8) continue; // derramado: passo 3
             String dst = floatC ? "t2" : intRegs[ord[i]];
-            sb.append("    ld ").append(dst).append(", ").append(8 * (n - 1 - i)).append("(t0)\n");
+            sb.append("    ld ").append(dst).append(", ").append(st * (n - 1 - i)).append("(t0)\n");
             if (c == 'S' || isBuf[i] || isArrayOut[i]) {
                 // String→payload/char* e Buffer(U8)→ponteiro do payload: offset 24
                 // do objeto Kof; NULL→NULL (a C recebe o cstr/ptr cru). A fatia
@@ -266,7 +271,7 @@ final class NativeFfiCallRiscv {
         //    Immediato = 8n − 8ns − 16 ≥ 48 p/ n ≥ 1 (ns ≤ n−8 por classe).
         // Alinhamento via t3 (nunca `and sp,sp,..` direto: no aarch64 `and`
         // rejeita sp como Rn — o tradutor receberia instrução inválida).
-        sb.append("    addi t3, t0, ").append(8 * n - 8 * ns - 16).append("\n");
+        sb.append("    addi t3, t0, ").append(st * n - st * ns - 16).append("\n");
         sb.append("    li t1, -16\n");
         sb.append("    and t3, t3, t1\n");
         sb.append("    mv sp, t3\n");
@@ -276,7 +281,7 @@ final class NativeFfiCallRiscv {
         for (int i = 0; i < n; i++) {
             if (isMemStruct[i]) {
                 if (ord[i] < 8) continue;
-                sb.append("    ld t2, ").append(8 * (n - 1 - i)).append("(t0)\n");
+                sb.append("    ld t2, ").append(st * (n - 1 - i)).append("(t0)\n");
                 String lbl = ".Lffim" + seq + "_" + i;
                 sb.append("    beqz t2, ").append(lbl).append("\n");
                 sb.append("    addi t2, t2, 16\n");
@@ -288,7 +293,7 @@ final class NativeFfiCallRiscv {
                 continue;   // gate crossBindable limita nFlt <= 8: nunca derrama
             }
             if (isStruct[i]) {
-                sb.append("    ld t4, ").append(8 * (n - 1 - i)).append("(t0)\n");
+                sb.append("    ld t4, ").append(st * (n - 1 - i)).append("(t0)\n");
                 for (int e = 0; e < sOrd[i].length; e++) {
                     if (sOrd[i][e] < 8) continue;
                     FfiStructLayout.emitRiscvIntEightbyte(sb, structTypes[i], e, "t4", "t5", "t6");
@@ -299,7 +304,7 @@ final class NativeFfiCallRiscv {
             char c = cls[i];
             boolean floatC = isFloatClass(c);
             if (!(floatC ? ord[i] >= 8 : ord[i] >= 8)) continue;
-            sb.append("    ld t2, ").append(8 * (n - 1 - i)).append("(t0)\n");
+            sb.append("    ld t2, ").append(st * (n - 1 - i)).append("(t0)\n");
             if (c == 'S' || isBuf[i]) {
                 String lbl = ".Lffis" + seq + "_" + i;
                 sb.append("    beqz t2, ").append(lbl).append("\n");
@@ -319,11 +324,11 @@ final class NativeFfiCallRiscv {
         // 4b) ponto de restauração (E+8n) salvo ACIMA dos args da C: a callee
         //    toca só [< sp, +8ns); a chamada devolve sp = A (ABI) — o slot é
         //    lido com sp ainda em A.
-        sb.append("    addi t2, t0, ").append(8 * n).append("\n");
-        sb.append("    sd t2, ").append(8 * ns + 8).append("(sp)\n");
+        sb.append("    addi t2, t0, ").append(st * n).append("\n");
+        sb.append("    sd t2, ").append(st * ns + 8).append("(sp)\n");
         // 5) call direto (PLT gerado pelo ld; §61: resolve no exec sem dlopen)
         sb.append("    call ").append(NativeFfiCall.symbolOf(kc)).append("\n");
-        sb.append("    ld sp, ").append(8 * ns + 8).append("(sp)\n");
+        sb.append("    ld sp, ").append(st * ns + 8).append("(sp)\n");
         // B-03: o release usa a0 (registrador de retorno!), então ele corre
         // DEPOIS de o retorno já estar preservado na pilha. Após o push do
         // resultado, o bloco [E, E+8n) fica em sp+8; em void, em sp.
