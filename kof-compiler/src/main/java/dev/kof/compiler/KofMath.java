@@ -207,19 +207,10 @@ public final class KofMath {
         if (target.isNative() && NATIVE_MISSING.contains(function)) return false;
         // #1169 (medido 16/11, o probe de paridade desta lane): as sete MATH-D
         // estão implementadas SÓ no x86-64 (`RuntimeMathD`, asm SSE) e o
-        // `NativeRuntime` emite o bloco em TODOS os nativos — no cross o `as`
-        // recusa (`bad register name '%xmm0'`). A recusa volta POR TARGET: o
-        // x86-64 segue suportado; o cross responde MATH001 nomeado (R6) até a
-        // fatia do asm cross.
-        if ((target == Target.NATIVE_RISCV64 || target == Target.NATIVE_AARCH64)
-                && switch (function) {
-                    case "kof_math_dabs", "kof_math_floor", "kof_math_ceil",
-                         "kof_math_dmin", "kof_math_dmax", "kof_math_dclamp",
-                         "kof_math_dsign" -> true;
-                    default -> false;
-                }) {
-            return false;
-        }
+        // #1169 (16/11): as sete MATH-D agora TÊM o asm cross (a fatia B32
+        // do riscv64 — feq/fle/fgt/fcvtd, a cadeia branchy exata do JDK — e
+        // o aarch64 herda via o tradutor, os mnemônicos todos cobertos). A
+        // recusa POR TARGET fica reservada à trig (§621).
         return true;
     }
 

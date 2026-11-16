@@ -189,6 +189,215 @@ public final class NativeRiscvAsmRtB32 {
                 .quad 0x3fe0000000000000
             .Lmth_nhalf:
                 .quad 0xbfe0000000000000
+            # ── MATH-D (16/11, #1169): as sete double ────────────────────
+            # Cadeias branchy EXATAS do JDK (Math.min/max fontes: NaN → a;
+            # o caso ±0 por bits crus; o comparador final ≤/≥) — byte-idêntico.
+            # .Lmth_dn1 = -1.0 (o floor do subnormal negativo); .Lmth_dzero =
+            # -0.0 (o ceil do negativo não-inteiro).
+
+            # kof_math_dabs(a0=bits) -> a0=|v| (limpa o bit de sinal; a máscara
+            # carregada de .rodata — o and do tradutor é reg-reg)
+            .globl kof_math_dabs
+            kof_math_dabs:
+                la   t0, .Lmth_dabsmask
+                ld   t1, 0(t0)
+                and  a0, a0, t1
+                ret
+
+            # kof_math_floor(a0=bits) -> a0=floor(v)
+            # dispatch: exp=0x7ff → v (NaN/Inf); v=±0 → v; |v|>=2^52 → v (já
+            # integral); -subnormal → -1; senão t=trunc(v); v<0 && v!=t → t-1
+            .globl kof_math_floor
+            kof_math_floor:
+                srli t1, a0, 52
+                andi t1, t1, 0x7ff
+                li   t2, 0x7ff
+                beq  t1, t2, .Lmth_fl_id    # NaN/Inf → v
+                li   t2, 0x433
+                bgeu t1, t2, .Lmth_fl_id    # |v|>=2^52 → v (já integral)
+                slli t2, a0, 1
+                beqz t2, .Lmth_fl_id        # ±0 exato → v
+                # FRACIONÁRIO (os subnormais inclusos — |v|<1 não-integral):
+                fmv.d.x f0, a0
+                fcvt.l.d t2, f0, rtz        # t2 = trunc(v)
+                fcvt.d.l f1, t2
+                feq.d t3, f0, f1            # v == trunc?
+                beqz t3, .Lmth_fl_frac
+                fmv.x.d a0, f1              # não deveria ocorrer aqui (o
+                ret                         # dispatch já garante |v|<1... o
+                                            # frac cai no braço abaixo)
+            .Lmth_fl_frac:
+                la   t0, .Lmth_dzero
+                fld  f2, 0(t0)
+                flt.d t3, f0, f2            # v < 0? (f0 = v INTACTO)
+                beqz t3, .Lmth_fl_trunc     # v >= 0 → floor = trunc
+                addi t2, t2, -1             # v < 0 fracionário → trunc - 1
+                fcvt.d.l f1, t2
+                fmv.x.d a0, f1
+                ret
+            .Lmth_fl_trunc:
+                fmv.x.d a0, f1
+                ret
+            .Lmth_fl_id:
+                ret
+
+            # kof_math_ceil(a0=bits) -> a0=ceil(v) (o negativo fracionário
+            # pequeno → -0.0; o mesmo dispatch do floor com t+1)
+            .globl kof_math_ceil
+            kof_math_ceil:
+                srli t1, a0, 52
+                andi t1, t1, 0x7ff
+                li   t2, 0x7ff
+                beq  t1, t2, .Lmth_ce_id    # NaN/Inf → v
+                li   t2, 0x433
+                bgeu t1, t2, .Lmth_ce_id    # |v|>=2^52 → v
+                slli t2, a0, 1
+                beqz t2, .Lmth_ce_id        # ±0 exato → v
+                fmv.d.x f0, a0
+                fcvt.l.d t2, f0, rtz        # t2 = trunc(v)
+                fcvt.d.l f1, t2
+                feq.d t3, f0, f1
+                beqz t3, .Lmth_ce_frac
+                fmv.x.d a0, f1              # integral (não deveria ocorrer)
+                ret
+            .Lmth_ce_frac:
+                # v negativo não-integral: -1 < v < 0 → -0.0; v <= -1 → trunc
+                # (ceil(-2.1) = -2.0 = trunc; ceil(-0.3) = -0.0)
+                srli t3, a0, 63             # o sinal de v decide o braço
+                beqz t3, .Lmth_ce_pos       # v >= 0 → trunc + 1
+                li   t3, 0x3ff              # |v| < 1 ⟺ exp < 0x3ff
+                bgeu t1, t3, .Lmth_ce_trunc
+                la   t0, .Lmth_dzero
+                fld  f2, 0(t0)
+                fmv.x.d a0, f2              # -0.0 (|v|<1)
+                ret
+            .Lmth_ce_pos:
+                j    .Lmth_ce_up
+            .Lmth_ce_trunc:
+                fmv.x.d a0, f1              # trunc(v)
+                ret
+            .Lmth_ce_up:
+                addi t2, t2, 1              # trunc + 1 (INTEIRO)
+                fcvt.d.l f1, t2
+                fmv.x.d a0, f1
+                ret
+            .Lmth_ce_id:
+                ret
+
+            # kof_math_dmin(a0=a, a1=b) -> a0=Math.min(a,b) EXATO (JDK):
+            # a NaN → a; a±0 && b±0 && b==-0 → a; a<=b ? a : b
+            .globl kof_math_dmin
+            kof_math_dmin:
+                # a NaN? feq.d(v,v)==0
+                fmv.d.x f0, a0
+                feq.d t0, f0, f0
+                beqz t0, .Lmth_dmin_a
+                # b NaN? → a (o min devolve a? NÃO: JDK min devolve a quando
+                # a NaN; b NaN segue para o comparador: a<=b → a ✓)
+                fmv.d.x f1, a1
+                feq.d t0, f1, f1
+                beqz t0, .Lmth_dmin_cmp
+                # ambos ±0?
+                slli t1, a0, 1
+                bnez t1, .Lmth_dmin_cmp
+                slli t1, a1, 1
+                bnez t1, .Lmth_dmin_cmp
+                # b == -0? (o bit de sinal de a1)
+                srli t1, a1, 63
+                beqz t1, .Lmth_dmin_cmp
+                mv   a0, a0                 # b -0 → devolve a (o JDK)
+                ret
+            .Lmth_dmin_a:
+                mv   a0, a0
+                ret
+            .Lmth_dmin_cmp:
+                fle.d t0, f0, f1            # a <= b → a
+                bnez t0, .Lmth_dmin_a
+                mv   a0, a1
+                ret
+
+            # kof_math_dmax(a0=a, a1=b) -> a0=Math.max(a,b) EXATO (JDK):
+            # a NaN → a; a±0 && b±0 && a==-0 → b; a>=b ? a : b
+            .globl kof_math_dmax
+            kof_math_dmax:
+                fmv.d.x f0, a0
+                feq.d t0, f0, f0
+                beqz t0, .Lmth_dmax_a
+                fmv.d.x f1, a1
+                feq.d t0, f1, f1
+                beqz t0, .Lmth_dmax_cmp
+                slli t1, a0, 1
+                bnez t1, .Lmth_dmax_cmp
+                slli t1, a1, 1
+                bnez t1, .Lmth_dmax_cmp
+                srli t1, a0, 63
+                beqz t1, .Lmth_dmax_cmp
+                mv   a0, a1                 # a -0 → devolve b (o JDK)
+                ret
+            .Lmth_dmax_a:
+                mv   a0, a0
+                ret
+            .Lmth_dmax_cmp:
+                fge.d t0, f0, f1            # a >= b → a
+                bnez t0, .Lmth_dmax_a
+                mv   a0, a1
+                ret
+
+            # kof_math_dclamp(a0=v, a1=lo, a2=hi) -> a0 = v<lo ? lo : (v>hi ? hi : v)
+            # (NaN em v: as duas comparações false → v propaga; NaN em lo/hi:
+            # a comparação unordered é false → a cadeia segue — o JDK igual)
+            .globl kof_math_dclamp
+            kof_math_dclamp:
+                fmv.d.x f0, a0
+                fmv.d.x f1, a1
+                fmv.d.x f2, a2
+                feq.d t0, f0, f0
+                beqz t0, .Lmth_dc_v         # v NaN → v
+                flt.d t0, f0, f1            # v < lo?
+                bnez t0, .Lmth_dc_lo
+                fgt.d t0, f0, f2            # v > hi?
+                bnez t0, .Lmth_dc_hi
+            .Lmth_dc_v:
+                mv   a0, a0
+                ret
+            .Lmth_dc_lo:
+                mv   a0, a1
+                ret
+            .Lmth_dc_hi:
+                mv   a0, a2
+                ret
+
+            # kof_math_dsign(a0=bits) -> a0 = Int (NaN→0; v<0→-1; v>0→1; ±0→0)
+            .globl kof_math_dsign
+            kof_math_dsign:
+                fmv.d.x f0, a0
+                feq.d t0, f0, f0
+                beqz t0, .Lmth_dsg_z        # NaN → 0
+                la   t1, .Lmth_dzero
+                fld  f1, 0(t1)
+                flt.d t0, f1, f0            # 0 < v → 1
+                bnez t0, .Lmth_dsg_p
+                flt.d t0, f0, f1            # v < 0 → -1
+                bnez t0, .Lmth_dsg_n
+            .Lmth_dsg_z:
+                li   a0, 0
+                ret
+            .Lmth_dsg_p:
+                li   a0, 1
+                ret
+            .Lmth_dsg_n:
+                li   a0, -1
+                ret
+
+            .section .rodata
+            .Lmth_dabsmask:
+                .quad 0x7fffffffffffffff
+            .Lmth_dn1:
+                .quad 0xbff0000000000000
+            .Lmth_dzero:
+                .quad 0x8000000000000000
+            .Lmth_done1:
+                .quad 0x3ff0000000000000
             .section .text
         """;
 }

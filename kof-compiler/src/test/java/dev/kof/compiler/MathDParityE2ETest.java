@@ -77,7 +77,7 @@ class MathDParityE2ETest extends NativeCrossSupport {
     }
 
     @Test
-    void jvmOracle(@TempDir Path tempDir) throws IOException {
+    void mathDJvmOracle(@TempDir Path tempDir) throws IOException {
         assertEquals(EXPECTED, runJvm(writeProgram(tempDir, "jvm"), tempDir.resolve("out-jvm")),
                 "o oráculo JVM mudou — revise o caso antes de culpar o native");
     }
@@ -90,38 +90,22 @@ class MathDParityE2ETest extends NativeCrossSupport {
     }
 
     /**
-     * #1169 — the CROSS face is the HONEST REFUSAL, not a crash: the seven
-     * MATH-D functions are implemented on x86-64 only ({@code RuntimeMathD}),
-     * so riscv64/aarch64 must answer {@code MATH001} at the declaration line.
-     * {@code NativeRuntime} emits the SSE block for EVERY native, so on the
-     * cross the assembler rejects it ({@code bad register name '%xmm0'}) —
-     * and before that the block was extracted out of {@code RuntimeMath}
-     * while the comment here claimed the cross had "landed" (measured,
-     * 16/11); either way the named diagnostic (R6) is the honest answer.
+     * #1169 — the CROSS face LANDED (16/11): the B32 riscv asm (the JDK-exact
+     * branchy chains — feq/fle/fgt + the bit tests, the fcvt rtz trunc for
+     * floor/ceil) and aarch64 inherits via the translator (every mnemonic
+     * covered). The SAME probe runs under qemu byte-identical to the JVM
+     * oracle — the closing criterion of the issue, executed.
      */
     @Test
-    void theCrossRefusesMATHDHonestly() {
+    void theCrossMatchesTheJvmOracle(@TempDir Path tempDir) throws IOException {
         var d = new CompilerDriver();
-        Path dir;
-        try {
-            dir = Files.createTempDirectory("1169-cross");
-        } catch (IOException e) {
-            throw new AssertionError(e);
-        }
-        try {
-            Path src = dir.resolve("cross.kf");
-            Files.writeString(src, PROGRAM);
-            for (Target t : java.util.List.of(Target.NATIVE_RISCV64, Target.NATIVE_AARCH64)) {
-                CompilationResult r = d.compile(src, dir.resolve("out-" + t), t);
-                boolean refused = r.diagnostics().getDiagnostics().stream()
-                        .anyMatch(diag -> "MATH001".equals(String.valueOf(diag.code())));
-                assertTrue(refused,
-                        t + " deve recusar MATH-D com MATH001 (o asm de RuntimeMathD é"
-                                + " SSE/x86-64 e o `as` cross recusa o bloco): "
-                                + r.diagnostics().getDiagnostics());
-            }
-        } catch (IOException e) {
-            throw new AssertionError(e);
+        Path src = writeProgram(tempDir, "cross");
+        for (String[] t : java.util.List.of(
+                new String[]{"riscv64", "NATIVE_RISCV64"},
+                new String[]{"aarch64", "NATIVE_AARCH64"})) {
+            String out = runCross(d, src, tempDir.resolve("out-" + t[1]), "qemu-" + t[0],
+                    Target.valueOf(t[1]));
+            assertEquals(EXPECTED, out, t[1] + " != JVM oracle (MATH-D #1169)");
         }
     }
 }
