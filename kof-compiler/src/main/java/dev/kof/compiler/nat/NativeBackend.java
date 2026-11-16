@@ -431,6 +431,11 @@ public class NativeBackend implements Backend {
                 }
             }
             emitStart(sb, mainClass);
+            if (NativeAssembler.asanMode()) {
+                // §7 KOF_ASAN (#1166): o crt exige um `main` — a ponte para o
+                // kof_program_entry (emitStart o emite no modo ASAN).
+                nativeMethods.emitAsanMainBridge(sb);
+            }
         }
         NativeFfiCall.emitHelpers(this, sb);
         if (debugInfo && target == Target.NATIVE) {
@@ -528,21 +533,6 @@ public class NativeBackend implements Backend {
         NativeRiscvHttpSupport.emit(sb);
         NativeRiscvHttpCore.emit(sb);
         NativeRiscvHttpVerbs.emit(sb);
-    }
-
-
-    // ---- NATIVE002-stdlib: spawn/await riscv64 (clone+futex, asm puro) ----
-    // qemu-riscv64 8.2.2 NÃO implementa clone3 (ENOSYS) — usa clone(220) com o
-    // flag-set da glibc (0x3D0F00 = VM|FS|FILES|SIGHAND|THREAD|SYSVSEM|SETTLS|
-    // PARENT_SETTID|CHILD_CLEARTID), que é aceito. O filho herda os registradores
-    // do pai no ecall (a0=0, s0=handle) e roda o trampoline; await espera via
-    // futex em handle->done (sem pthread_join). exit(93) mata só a thread.
-    static boolean usesSpawn(IRModule module) {
-        return NativeRiscvSpawn.usesSpawn(module);
-    }
-
-    static void emitRiscvSpawn(StringBuilder sb) {
-        NativeRiscvSpawn.emitRiscvSpawn(sb);
     }
 
 

@@ -449,11 +449,11 @@ final class NativeMethodEmitter {
 
     void emitStart(StringBuilder sb, IRClass clazz) {
         if (nb.bios) {
-            emitStartBios(sb, clazz);
+            NativeBaremetalStartEmitter.emitStartBios(nb, sb, clazz);
             return;
         }
         if (nb.uefi) {
-            emitStartUefi(sb, clazz);
+            NativeBaremetalStartEmitter.emitStartUefi(nb, sb, clazz);
             return;
         }
         boolean hasMain = clazz.methods().stream().anyMatch(m -> "main".equals(m.name()));
@@ -461,8 +461,20 @@ final class NativeMethodEmitter {
         boolean mainHasArgs = clazz.methods().stream()
                 .filter(m -> "main".equals(m.name()))
                 .anyMatch(m -> !m.parameterTypes().isEmpty());
-        sb.append("\n.globl _start\n");
-        sb.append("_start:\n");
+        boolean asan = NativeAssembler.asanMode();
+        if (asan) {
+            // §7 KOF_ASAN (16/11, a face do #1166): o binário SANITIZADO linka
+            // pelo driver gcc COM o crt completo (o .init_array do ASan roda,
+            // o atexit roda) — então o entry do Kof NÃO pode se chamar _start
+            // (o crt já tem um) e termina via exit@PLT (o LSan reporta). O
+            // `main` do crt é a ponte: a stack que ele dá é limpa (o mesmo
+            // contrato do entry cru), o layout do emitter fica intacto.
+            sb.append("\n.globl kof_program_entry\n");
+            sb.append("kof_program_entry:\n");
+        } else {
+            sb.append("\n.globl _start\n");
+            sb.append("_start:\n");
+        }
         if (nb.freestanding) {
             // B-1: pilha vinda do linker script, nao a que o carregador deu.
             sb.append("    leaq __kof_stack_top(%rip), %rsp\n");
@@ -484,7 +496,7 @@ final class NativeMethodEmitter {
         }
         // #133 (§186): chama cada <clinit> antes do main (ordem de classes no
         // módulo — link-ordem estática; não há dependência dinâmica declarada).
-        emitClinitCalls(sb);
+        emitClinitCalls(nb, sb);
         sb.append("    call ").append(nb.sanitizeName(clazz.name())).append("_main\n");
         // #431: com externs bindados a libc flusha o stdio DA C antes do
         // exit_group cru — puts/printf da lib ficam no buffer do processo e
@@ -504,11 +516,37 @@ final class NativeMethodEmitter {
         // M32.3: SYS_exit_group (231) — SYS_exit (60) só mata a thread
         // chamadora; com threads do driver Vulkan o processo fica pendurado.
         // B-0 (D-BAREMETAL-BOOT): a saída cruza a costura kof_plat_exit_group.
+        // §7 KOF_ASAN: a saída vai pela exit@PLT do libc — o atexit do ASan
+        // roda e o LSan reporta (o syscall cru pula o hook; medido no #1166).
+        if (asan) {
+            // A DISCIPLINA do shim fflush (a mesma do 19/09, a lição §1134 no
+            // x86): o glibc usa SSE no caminho do exit/atexit (o __cxa_finalize
+            // → o LSan check faz movaps) — o %rsp TEM que estar 16-aligned NO
+            // CALL. O entry cru não garante (medido: rsp%16=8 no crash). Não
+            // restaura — o processo termina dentro do exit.
+            sb.append("    movq %rsp, %rbx\n");
+            sb.append("    andq $-16, %rsp\n");
+            sb.append("    xorl %edi, %edi\n");
+            sb.append("    call exit@PLT\n");
+            return;
+        }
         sb.append("    xorl %edi, %edi\n");
         sb.append("    call kof_plat_exit_group\n");
     }
 
-    private void emitClinitCalls(StringBuilder sb) {
+    /**
+     * §7 KOF_ASAN (16/11, #1166): o stub \\`main\\` que o crt chama — só no
+     * modo ASAN. O \\`kof_program_entry\\` nunca retorna (termina em
+     * exit@PLT), mas o crt exige um \\`main\\` definido e a ABI de 2 args
+     * (argc/argv) fica no lugar certo (rdi/rsi são descartados pelo entry).
+     */
+    void emitAsanMainBridge(StringBuilder sb) {
+        sb.append("\n.globl main\n");
+        sb.append("main:\n");
+        sb.append("    jmp kof_program_entry\n");
+    }
+
+    static void emitClinitCalls(NativeBackend nb, StringBuilder sb) {
         for (IRClass c : nb.allClassesMap.values()) {
             for (IRMethod m : c.methods()) {
                 if ("<clinit>".equals(m.name())) {
@@ -519,89 +557,5 @@ final class NativeMethodEmitter {
         }
     }
 
-    /**
-     * B-2 (PLAN-BAREMETAL-BOOT): entry UEFI x86_64 — PE32+ com
-     * {@code objcopy --target=pei-x86-64} (NativeAssembler). UEFI x86_64 é
-     * MS x64: {@code RCX=ImageHandle, RDX=SystemTable} (medição B-2: chamar
-     * OutputString com This/String em RCX/RDX + rsp%16==0 na chamada). O
-     * fim é {@code BootServices->Exit} via a costura ({@code RuntimeUefi}) —
-     * nunca retorna, análogo ao {@code exit_group} do perfil host.
-     */
-    private void emitStartUefi(StringBuilder sb, IRClass clazz) {
-        boolean hasMain = clazz.methods().stream().anyMatch(m -> "main".equals(m.name()));
-        if (!hasMain) return;
-        boolean mainHasArgs = clazz.methods().stream()
-                .filter(m -> "main".equals(m.name()))
-                .anyMatch(m -> !m.parameterTypes().isEmpty());
-        sb.append("\n.globl _start\n");
-        sb.append("_start:\n");
-        // MS x64: RCX=ImageHandle, RDX=SystemTable -> globals (RuntimeUefi).
-        sb.append("    call kof_efi_save_args\n");
-        // G-6b: fundo da pilha do main ANTES do alinhamento (mesmo contrato do host).
-        sb.append("    movq %rsp, kof_main_stack_bottom(%rip)\n");
-        sb.append("    andq $-16, %rsp\n");       // o firmware entra MS: rsp%16==8
-        sb.append("    call kof_plat_thread_id\n");
-        sb.append("    movq %rax, kof_main_tid(%rip)\n");
-        if (nb.rings) sb.append("    call kof_rings_init\n    call kof_rings_selftest\n    call kof_ring1_selftest\n    call kof_ring1_gp_selftest\n    call kof_ring1_sabotage_selftest\n    call kof_rings_restore\n"); // B-6.1/B-6.2a/B-6.3
-        if (mainHasArgs) {
-            // N3: array vazio — mesmo contrato do _start host.
-            sb.append("    xorl %edi, %edi\n");
-            sb.append("    movl $8, %esi\n");
-            sb.append("    call kof_array_alloc\n");
-            sb.append("    movq %rax, %rdi\n");
-        }
-        emitClinitCalls(sb);
-        sb.append("    call ").append(nb.sanitizeName(clazz.name())).append("_main\n");
-        // Saída pela costura: no UEFI o corpo DEVOLVE o status em RAX
-        // (retorno ao StartImage) — o _start termina com ret, nunca cai fora.
-        sb.append("    xorl %edi, %edi\n");
-        sb.append("    call kof_plat_exit_group\n");
-        sb.append("    ret\n");
-    }
-
-    /**
-     * B-3 (PLAN-BAREMETAL-BOOT): entry LEGACY BIOS. A emissão do setor de
-     * boot (modo real 16-bit, carga do payload e long mode) vive em
-     * {@link NativeBiosBootEmitter} (gate <=500 linhas); aqui só delegamos.
-     * B-3b-3: o entry do PROGRAMA Kof é emitido como {@code kof_payload_entry}
-     * (mesmo corpo do _start freestanding; rótulo distinto evita colisão com
-     * o {@code _start} do setor de boot) — o boot salta para ele após copiar
-     * o staging para a base 0x100000, tornando o programa REACHABLE (o
-     * --gc-sections não poda mais o runtime).
-     */
-    private void emitStartBios(StringBuilder sb, IRClass clazz) {
-        NativeBiosBootEmitter.emit(sb, clazz);
-        emitPayloadEntry(sb, clazz);
-    }
-
-    private void emitPayloadEntry(StringBuilder sb, IRClass clazz) {
-        boolean hasMain = clazz.methods().stream().anyMatch(m -> "main".equals(m.name()));
-        if (!hasMain) return;
-        boolean mainHasArgs = clazz.methods().stream()
-                .filter(m -> "main".equals(m.name()))
-                .anyMatch(m -> !m.parameterTypes().isEmpty());
-        sb.append("\n.section .text\n");
-        sb.append(".globl kof_payload_entry\n");
-        sb.append("kof_payload_entry:\n");
-        // B-1: pilha vinda do linker script (arena de heap+pilha do payload).
-        sb.append("    leaq __kof_stack_top(%rip), %rsp\n");
-        // G-6b: fundo da pilha da thread main — contrato idêntico ao _start.
-        sb.append("    movq %rsp, kof_main_stack_bottom(%rip)\n");
-        sb.append("    call kof_plat_thread_id\n");
-        sb.append("    movq %rax, kof_main_tid(%rip)\n");
-        if (mainHasArgs) {
-            // N3: array vazio — mesmo contrato do _start host.
-            sb.append("    xorl %edi, %edi\n");
-            sb.append("    movl $8, %esi\n");
-            sb.append("    call kof_array_alloc\n");
-            sb.append("    movq %rax, %rdi\n");
-        }
-        emitClinitCalls(sb);
-        sb.append("    call ").append(nb.sanitizeName(clazz.name())).append("_main\n");
-        // B-3b-3: a saída cruza a costura kof_plat_exit_group (corpo BIOS:
-        // cli;hlt — nunca retorna ao boot).
-        sb.append("    xorl %edi, %edi\n");
-        sb.append("    call kof_plat_exit_group\n");
-    }
 
 }

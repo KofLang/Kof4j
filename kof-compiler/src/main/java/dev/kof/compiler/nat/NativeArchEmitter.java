@@ -133,7 +133,7 @@ final class NativeArchEmitter {
         sb.append("    ld \\r, 0(sp)\n");
         sb.append("    addi sp, sp, 8\n");
         sb.append(".endm\n");
-        boolean usesSpawn = nb.usesSpawn(module);
+        boolean usesSpawn = NativeRiscvSpawn.usesSpawn(module);
         for (IRClass c : module.classes()) {
             nb.currentClass = c;
             for (IRMethod m : c.methods()) {
@@ -198,9 +198,9 @@ final class NativeArchEmitter {
             }
             if (nb.usesHttp) break;
         }
-        if (nb.usesHttp) nb.emitRiscvHttp(sb);
+        if (nb.usesHttp) NativeBackend.emitRiscvHttp(sb);
         if (NativeRiscvNetEmit.usesNet(module)) NativeRiscvNetEmit.emit(sb);
-        if (usesSpawn) nb.emitRiscvSpawn(sb);
+        if (usesSpawn) NativeRiscvSpawn.emitRiscvSpawn(sb);
 
         String className = module.classes().isEmpty() ? "Default/Main" : module.classes().getFirst().name();
         Path asmFile = outputDir.resolve(className + ".s");
@@ -354,7 +354,7 @@ final class NativeArchEmitter {
         riscvSb.append("    ld \\r, 0(sp)\n");
         riscvSb.append("    addi sp, sp, 8\n");
         riscvSb.append(".endm\n");
-        boolean usesSpawnA = nb.usesSpawn(module);
+        boolean usesSpawnA = NativeRiscvSpawn.usesSpawn(module);
         for (IRClass c : module.classes()) {
             nb.currentClass = c;
             for (IRMethod m : c.methods()) {
@@ -418,9 +418,9 @@ final class NativeArchEmitter {
             }
             if (usesHttpA) break;
         }
-        if (usesHttpA) nb.emitRiscvHttp(riscvSb);
+        if (usesHttpA) NativeBackend.emitRiscvHttp(riscvSb);
         if (NativeRiscvNetEmit.usesNet(module)) NativeRiscvNetEmit.emit(riscvSb);
-        if (usesSpawnA) nb.emitRiscvSpawn(riscvSb);
+        if (usesSpawnA) NativeRiscvSpawn.emitRiscvSpawn(riscvSb);
 
         // traduz linha-a-linha (runtime já podado — a poda no riscv vale p/ os 2)
         if (nb.debugInfo) nb.kofDwarf.emit(riscvSb, nb.sourceFile);

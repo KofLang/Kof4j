@@ -5174,3 +5174,49 @@ each still requiring its own decision when picked up.
 - **What is NOT authorized:** any lowering, any runtime, any `match`/`matches`/`find`/`replace` surface, any per-target backend, any Change to `STR003` or `validation.matches`, any stub. A `expr` declaration is a DESCRIPTOR that emits no executable symbol in spike-0 — that is the spike's semantics, not an unfinished branch.
 - **Proof (executed):** `ExprDeclarationParseE2ETest` 6/6 (atoms/sequence/quantifiers/captures/`either`/composition by name/`expr` as an ordinary identifier/PortuKof AST identity), `ExprDeclarationSemanticsE2ETest` 9/9 (all seven diagnostic codes), `scripts/gen_portukof_diags.py --check` rc=0.
 - **Relationships:** `Related: D-FUTURE-PROMOTION, D-FUTURE-UNFREEZE, D-STR-UNICODE (the regex deferral this answers), D-KOF-FIRST (rule 12), D-PORTUKOF (absolute parity rule), rule 6, rule 11, rule 12`.
+
+
+## D-1.0-BLOCKS-NO-HONEST-LIMITS — every honest limit is a tracked 1.0 edge: labeled, ledgered, with a closure criterion (maintainer order 16/11/2026, chat directive mid-sweep)
+
+**Date:** 2026-11-16 · **State:** `DECIDED` (maintainer directive during the
+flatt lane's ASan sweep, docs/lab 192.168.100.14:0).
+
+- **Directive (verbatim, chat):** *"não quero apenas limite honesto. todo
+  limite honesto é 1.0 block. registre isso. quero todos corrigidos e o
+  comportamento esperado CORRETAMENTE DESENVOLVIDO"* — the stabilization
+  operation's honest limits are not waivers: each one becomes a tracked
+  `1.0-blocks` issue with the measured facts, the ledger row, and the
+  closure criterion that names the CORRECT behavior to be developed.
+- **Mechanics:** (1) the limit is measured (never inferred); (2) a GitHub
+  issue carries the facts + the closure criterion and the `1.0-blocks`
+  label; (3) `scripts/release-blockers.tsv` gets the row; (4) the
+  sanitizer/tests ledger records the measurement trail. A limit "documented
+  and forgotten" is the forbidden state.
+- **Applied same-day (executed evidence):**
+  - **#1166** (NEW, `1.0-blocks`): ASan/LSan could not initialize on the
+    raw-_start native binaries (the crt-ctor gap; 4 no-crt link forms
+    measured, all SEGV inside libasan). The DEVELOPMENT the directive
+    demands landed the same cycle: the `KOF_ASAN` emit mode (the emitter
+    renames the entry + emits the `main` bridge + exits via `exit@PLT` with
+    the alignment discipline — the glibc exit path does `movaps`, the raw
+    entry leaves rsp 8-mod-16, the same §1134-class face measured and fixed
+    at the emitter root); `scripts/asan-ffi-sweep.sh` GREEN with the
+    deliberate-leak control CAUGHT (the LSan report works on the native
+    binaries; the 4 pointer-heavy FFI faces CLEAN).
+  - **#1134** `1.0-outside` → `1.0-blocks` (the aarch64 real-hardware
+    SIGBUS; supersedes the 14/11 demotion route where they conflict; the
+    closure criterion is the push/pop redesign provable on arm64 hw or the
+    qemu SP-alignment assertion).
+  - **#1135** `1.0-outside` → `1.0-blocks` (the Native-on-macOS absence;
+    the `D-NATIVE-MACOS` decision stays the FIRST step — rule 6, new
+    target; the label does not open it, it records that the absence blocks
+    the RC until decided+developed or the maintainer demotes the target).
+- **What this decision does NOT do:** it does not reclassify issues whose
+  subjects are genuinely OUTSIDE the 1.0 surface by the maintainer's own
+  earlier surface decisions (those `1.0-outside` rows stay); it applies to
+  limits INSIDE supported-surface behavior.
+- **Relationships:** `Related: D-RELEASE-1.0 (the no-open-edge law this
+  mechanizes), D-1.0-EDGES (the surface), D-RELEASE-ROADMAP-1114 (the
+  ladder: 1.0.0 = every gap corrected), rule 10 (no conclusions without
+  verifiable evidence), rule 14 (record precisely what was not executed —
+  now each such record carries a closure criterion)`.

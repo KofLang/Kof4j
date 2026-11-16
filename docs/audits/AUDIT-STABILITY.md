@@ -35,14 +35,60 @@ STABILITY: GREEN + CUT: GREEN (the extract: suite-verdict-0.8.0-e38619713.md).
   gate). The CI has been GREEN through the 0.7.3 release. Re-probe: the P2
   cycle (the API window permitting).
 
-## The sanitizers / Valgrind / fuzzing
+## The sanitizers / Valgrind / fuzzing — MEASURED (the §7 cycle, 16/11)
 
-NOT in the mandate's sense yet: the native faces run under the harness
-assertions (the MEM020 borrow races, the payload-untouched goldens), but no
-ASan/Valgrind pass exists for the native binaries. The P2 cycle: evaluate
-`-fsanitize=address` on the native test binaries (the toolchain cc supports
-it; the runtime is the Kof heap + the arena, so the FFI arena faces are the
-valuable target).
+**The ASan sweep LANDED (16/11): `scripts/asan-ffi-sweep.sh` + the
+`KOF_ASAN` emit mode (the #1166 face).** The native emitter gained the
+sanitized link mode: `KOF_ASAN=1` makes `NativeAssembler` link through the
+gcc driver WITH the full crt (the ASan `.init_array` runs; the atexit
+runs), the emitter renames the entry `_start` → `kof_program_entry` + emits
+the `main` bridge, and the exit goes through `exit@PLT` with the
+fflush-shim alignment discipline (the glibc exit path does `movaps` — the
+raw entry leaves rsp 8-mod-16 and the LSan check SEGV'd; measured and
+fixed at the emitter root). The LSan leak report now WORKS on the native
+binaries.
+
+**The measured verdict:** the 4 pointer-heavy FFI faces (handle lifecycle,
+Handle[] out-param, copy-out, pcap lifecycle on the real libpcap) run
+CLEAN under ASan (no crash, no leak report); the deliberate-leak control
+(the `hleak` face — an unfreed malloc whose pointer dies inside the C
+function) is CAUGHT: `LeakSanitizer: 4 byte(s) leaked` — the sweep has
+teeth. Structural test: `scripts/tests/asan-ffi-sweep-test.sh` (skip
+named when gcc/ASan absent, per §10); wired into the agent test harness.
+
+**The honest limits (each is a tracked edge, per the maintainer's 16/11
+order "todo limite honesto é 1.0 block"):**
+- The Kof heap is an mmap ARENA (RuntimeMemory §542) — invisible to ASan's
+  allocator bookkeeping BY DESIGN; the sweep's target is the C side of the
+  FFI boundary (the fixture/libpcap mallocs ARE intercepted and tracked).
+  Widening the tracking to the arena itself = the GC/allocator
+  instrumentation work, tracked in the limits ledger.
+- The Kof asm is not instrumented (no pc-to-shadow mapping) — UAF inside
+  Kof-managed objects stays the GC's contract, not ASan's. Tracked.
+- Valgrind: NOT installed on this host (no package); the ASan lane covers
+  the leak/UAF faces the mandate names; a Valgrind pass stays an edge in
+  the same ledger.
+
+## The sanitizer limits ledger (the 16/11 maintainer order: "não quero apenas limite honesto. todo limite honesto é 1.0 block")
+
+Every honest limit recorded anywhere in this operation is a tracked 1.0
+edge — labeled `1.0-blocks` on a GitHub issue with the measured facts and
+the closure criterion (never a silent waiver, never "documented and
+forgotten"):
+
+| Limit | Where measured | The 1.0 issue | The closure criterion |
+|---|---|---|---|
+| ASan cannot initialize on the raw-_start binaries (the crt-ctor gap) | the sweep's first pass (4 no-crt forms measured, all SEGV) | **#1166** (labeled) | the KOF_ASAN mode landed 16/11: the sweep GREEN with teeth — the issue closes with the sweep in the stability gate |
+| The Kof arena invisible to ASan's allocator tracking | RuntimeMemory §542 (the mmap design) | the limits ledger (the GC instrumentation face) | the arena tracked by ASan (the allocator hooks) or the equivalent proof |
+| Kof asm uninstrumented (no UAF-in-Kof-objects view) | this sweep | the same ledger | the pc-to-shadow mapping or the equivalent proof |
+| Valgrind absent on the host | `valgrind --version` fails | the same ledger | the Valgrind pass on the native FFI faces |
+| aarch64 real-hardware SIGBUS (#1134) | the qemu-harness gap (the SP-alignment not enforced) | #1134 (already labeled by the maintainer's 14/11 route; RE-EXAMINED under this order) | the push/pop redesign provable on arm64 hw or the qemu alignment assertion |
+| macOS target absent (#1135) | no Apple hardware on this host | #1135 (same re-examination) | the Mach-O backend + the gates on Apple hw |
+
+The re-examination rule (the 16/11 order supersedes the 14/11 demotion
+route where they conflict): a limit on a SUPPORTED target's real hardware
+is a 1.0 edge; the label follows the issue, the ledger row records both
+the measurement and the closure criterion.
 
 ## The skips (the §10 per-skip inventory — MEASURED, not asserted)
 

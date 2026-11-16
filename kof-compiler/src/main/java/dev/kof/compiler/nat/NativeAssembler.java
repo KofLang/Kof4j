@@ -19,6 +19,17 @@ public final class NativeAssembler {
         ToolchainMissing(String m) { super(m); }
     }
 
+    /**
+     * §7 KOF_ASAN (16/11, #1166): o modo sanitizado — env `KOF_ASAN=1`.
+     * O binário linka pelo gcc com o crt completo e o emitter troca o
+     * entry/exit (o LSan reporta). NUNCA no freestanding/bare (a recusa é
+     * nomeada: o sanitizador é uma face do perfil host).
+     */
+    static boolean asanMode() {
+        return "1".equals(System.getenv("KOF_ASAN"))
+                && System.getProperty("os.name", "").toLowerCase().contains("linux");
+    }
+
     /** #431: `ffiLibs` = as `library()` dos `extern` bound (link-by-use). Um
      *  caminho (contém '/') entra como input posicional do ld; um soname vira
      *  `-l:<nome>` — exatamente o padrão do SQLite (DB001), sem dlopen. */
@@ -27,7 +38,39 @@ public final class NativeAssembler {
                    boolean usesPow, boolean freestanding) throws IOException {
         Path objFile = asmFile.resolveSibling(asmFile.getFileName() + ".o");
         boolean bare = freestanding && System.getProperty("os.name", "").toLowerCase().contains("linux");
+        // §7 KOF_ASAN (#1166): o modo sanitizado — o binário linka pelo driver
+        // gcc COM o crt (o .init_array do ASan roda; o atexit roda; o LSan
+        // reporta). O emitter troca _start→kof_program_entry + emite o main
+        // ponte (a teoria medida: crt completo = tracking funcional).
+        boolean asan = asanMode();
         Path asmToAssemble = asmFile;
+        if (asan) {
+            // o gcc compila o .s direto (o `as` cru não conhece a seção .LASANUI
+            // nem carrega o cc1) — nenhum .o intermediário.
+            System.err.println("NativeBackend: KOF_ASAN link (gcc -fsanitize=address, crt completo)");
+            java.util.List<String> cmd = new java.util.ArrayList<>(java.util.Arrays.asList(
+                    "gcc", "-fsanitize=address", "-o", binFile.toString(), asmFile.toString()));
+            if (usesDb) cmd.add("-l:libsqlite3.so.0");
+            if (usesConcurrency) cmd.add("-l:libpthread.so.0");
+            if (usesPow) cmd.add("-lm");
+            for (String lib : ffiLibs) {
+                if (lib.indexOf('/') >= 0) {
+                    // -Wl,-rpath: o binário acha a fixture .so no run (o caminho
+                    // absoluto; o ld-style -rpath-link é inválido no driver gcc)
+                    cmd.add("-Wl,-rpath," + Path.of(lib).getParent().toString());
+                    cmd.add(lib);
+                } else {
+                    cmd.add("-l:" + lib);
+                }
+            }
+            runCommand(cmd.toArray(new String[0]), "gcc");
+            if (System.getenv("KOF_KEEP_ASM") == null
+                    && System.getProperty("KOF_KEEP_ASM") == null) {
+                Files.deleteIfExists(asmFile);
+            }
+            binFile.toFile().setExecutable(true);
+            return;
+        }
         if (bare) {
             // B-1b: seção por FUNÇÃO no .text (reusa NativeCrossSections, o
             // mesmo passe do cross, lição §445) → o ld com --gc-sections
