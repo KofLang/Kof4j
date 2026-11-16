@@ -48,9 +48,13 @@ state — the honest form; the mandate forbids declaring success early).**
   expressed as the borrowed `Handle[]` copy-out, the 4-way fixture parity +
   the real-libpcap offline probe 2/2; the bare-`Handle` `Type.of`
   resolution gap found + fixed on the way).
-- P2: the per-skip inventory deepening; the ASan/Valgrind evaluation on the
+- P2: the ASan/Valgrind evaluation on the
   native FFI faces; the CodeQL API re-probe; the per-gate behavioral-anchor
   audit; the README/examples doc-truth spot audit.
+  DONE from this list: the per-skip inventory (the §10 mechanical gate
+  `check_skip_inventory.sh` — 722 sites / 722 named / 0 silent / 124
+  families measured; the planted-fault selftest; wired into the stability
+  gate; AUDIT-STABILITY's six-field family table).
 - P3: #1155/#1157/#1162/#1163 (the planned scopes).
 
 ## The impediments (the real ones, named)

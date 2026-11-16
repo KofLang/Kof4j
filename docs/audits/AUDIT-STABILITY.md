@@ -44,15 +44,43 @@ ASan/Valgrind pass exists for the native binaries. The P2 cycle: evaluate
 it; the runtime is the Kof heap + the arena, so the FFI arena faces are the
 valuable target).
 
-## The skips (the families; the per-skip inventory the P2 cycle deepens)
+## The skips (the §10 per-skip inventory — MEASURED, not asserted)
 
-| Family | The reason named | The condition to run | The owner/plan |
-|---|---|---|---|
-| webkit browser faces | the environment cannot launch webkit (the system libs) | the host with the webkit deps | environmental (documented) |
-| cross riscv64/aarch64 faces | no cross-gcc here | the CI `cross-native` job runs them for real | the CI owns |
-| ESP8266 faces without the toolchain | the named skip when absent | `scripts/provision-esp8266.sh` (provisioned HERE) | done here |
-| the cypress/Cypress binary | the version-pinned binary absent | `cypress install` (restored 15/11) | done here |
-| the JVM-only FFM faces | the FFM is JVM-only | — | the contract |
+**The mechanical gate (16/11): `scripts/check_skip_inventory.sh`** — scans
+ALL the test sources of the 5 modules for the skip sites
+(`assumeTrue`/`assumeFalse`/`abort`/`@Disabled`), requires a NAMED
+justification on every site (the literal, the concatenation, the in-file
+`static final String` constant, or the dynamic message-builder call —
+listed by family), fails rc=1 on any SILENT skip with the file:line
+identification, and emits the family table. Planted-fault selftest
+(the 1-arg assumeTrue + the bare @Disabled go RED; the named ones pass).
+Structural test: `scripts/tests/skip-inventory-test.sh`; wired into
+`check_lab_stability` STRUCTURAL_GATES + the agent test harness.
+
+**The measured verdict at this tip: 722 sites / 722 named / 0 silent /
+124 families.** The execution-side count (the skips that FIRE on a given
+host) is the `TOTAL: ... skipped=N` line of the stamped suite log — a
+different number per host by design (a site is named once; it fires only
+where its condition holds).
+
+The six §10 fields per family (the mandate's exact questions):
+
+| Family (the sites) | Identification | Justification | Environment required | Target affected | Execution condition | Owner/plan |
+|---|---|---|---|---|---|---|
+| native toolchain absent (141) | `has("as","ld")` guards, the x86 test bases | the native backend needs the Linux assembler/linker | the binutils (as/ld) | NATIVE x86-64 | the tools absent on the host | the CI's native job runs them for real; the JVM face proves the semantics elsewhere |
+| cross riscv64 + qemu absent (~160 across the message variants) | `hasToolchain("riscv64")` guards (NATIVE002) | the cross faces need the riscv64 assembler/ld + qemu | cross-riscv64-gcc + qemu-riscv64 | NATIVE_RISCV64 | absent on the host | SATISFIED HERE 15/11 (the toolchains installed — the faces now RUN under qemu); the sites stay for hosts without; the CI owns the canonical run |
+| cross aarch64 + qemu absent (~130) | `hasToolchain("aarch64")` guards | the same, aarch64 side | cross-aarch64-gcc + qemu-aarch64 | NATIVE_AARCH64 | the same | the same (running HERE since 15/11; #1134's real-hardware caveat stays documented) |
+| wasm hosts absent (37) | wasmtime guard | the WASI emission faces need the runtime | `scripts/provision-wasmtime.sh` | WASM/WASI | wasmtime absent | the provision script (named in the message) |
+| MySQL/MariaDB not reachable (23) | the DB probe | the db faces need a live server on 127.0.0.1 | MySQL/MariaDB service | JVM (db) | the DB down | environmental; the faces keep the honest refusal diagnostics |
+| known-bugs §602 GC guards (10) | `BLOCKED_BY_602` + `CROSS_BLOCKED_REASON` | the conservative-GC reclaim of live caller arrays (the tile/plane buffers) | the §602 fix | NATIVE (the av1 faces) | the GC defect open | the native/GC lane owns §602; the sites unblock with it |
+| node absent (4) | the node probe | the JS tooling faces need node | node | JS tooling | absent (this host has no node/npm — the documented environmental limit) | the CI |
+| the JVM-only FFM faces | the target checks | the FFM downcall is JVM-only | — | JVM | non-JVM target | the contract (never a silent skip) |
+| @DisabledOnOs(WINDOWS) | the annotation arg | the OS-conditional guards | — | per-face | the OS matches | the contract |
+| the browser system absent (1, `PlaywrightLibProviderTest:128`) | the Playwright deps probe | the browser SPI needs the system libs (`install-deps` requires sudo) | the playwright deps | the webkit/chromium faces | the deps absent (webkit does NOT launch on THIS host — the named environmental limit) | environmental; the CI's browser job |
+| [dynamic] skipMessage(face, missing) (1) | `NativeLibraryAvailability.assumePresent` | the missing-soname list built at runtime | the named sonames | per-face | a lib missing | the message NAMES the face + the missing libs |
+
+The gate's teeth (proven): a NEW skip without a justification fails the
+stability gate at the next run — silent skips can never accumulate again.
 
 ## The gates (structural vs behavioral — the mandate's question)
 
