@@ -519,19 +519,31 @@ public final class NativeRiscvCrossOps {
         //     ordem reversa (arg8 no menor endereço, como o callee lê 0(s11));
         // (c) o cleanup pós-call só devolve 8*stackArgs a sp.
         int stackArgs = count - regs.length;
+        // #1134 fatia 1 (16/11): o STRIDE do slot de operando — 8 no riscv64
+        // (o texto fica byte-idêntico), 16 no aarch64 (o alargamento do
+        // push/pop faz cada slot ocupar 16; o slot continua no OFFSET 0 do
+        // seu próprio sub, então as leituras relativas ao sp usam o stride).
+        int st = slotStride();
         for (int r = regs.length - 1; r >= 0; r--) {
             sb.append("    ld ").append(regs[r]).append(", ")
-              .append(8 * (count - 1 - r)).append("(sp)\n");
+              .append(st * (count - 1 - r)).append("(sp)\n");
         }
         if (stackArgs > 0) {
-            sb.append("    addi sp, sp, ").append(-8 * stackArgs).append("\n");
-            // arg(8+k) estava em 8*(count-1-(8+k)) = 8*(2*stackArgs-1-k) do
-            // novo sp; vai para o slot k (arg8 no menor endereço).
+            sb.append("    addi sp, sp, ").append(-st * stackArgs).append("\n");
+            // arg(8+k) estava em st*(count-1-(8+k)) = st*(2*stackArgs-1-k) do
+            // novo sp; vai para o slot k (arg8 no menor endereço, stride 8 —
+            // a convenção SysV do CALLEE não muda).
             for (int k = 0; k < stackArgs; k++) {
-                sb.append("    ld t0, ").append(8 * (2 * stackArgs - 1 - k)).append("(sp)\n");
+                sb.append("    ld t0, ").append(st * (2 * stackArgs - 1 - k)).append("(sp)\n");
                 sb.append("    sd t0, ").append(8 * k).append("(sp)\n");
             }
         }
+    }
+
+    /** #1134 fatia 1: o stride do slot de operando — 8 no riscv64, 16 no
+     *  aarch64 (o push/pop alargado pela fatia 2). */
+    int slotStride() {
+        return nb.target == dev.kof.compiler.Target.NATIVE_AARCH64 ? 16 : 8;
     }
 
     /**
@@ -544,7 +556,7 @@ public final class NativeRiscvCrossOps {
     void emitCrossStackCleanup(StringBuilder sb, int count) {
         int stackArgs = Math.max(0, count - 8);
         if (stackArgs == 0) return;
-        sb.append("    addi sp, sp, ").append(8 * (count + stackArgs)).append("\n");
+        sb.append("    addi sp, sp, ").append(slotStride() * (count + stackArgs)).append("\n");
     }
 
     String resolveCalleeNameRiscv(KofCall kc) {
