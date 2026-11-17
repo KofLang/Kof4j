@@ -21105,3 +21105,13 @@ This matches the issue's gdb frame exactly (`main+76`, `str x0, [sp]`). The risc
 
 **Owner:** compiler core (the `.30:9092` territory — the docs/lab lane measured it to the root and stopped per the lane contract); class: compiler emission / functional types.
 <!-- pt-switch --> **PT:** [§935 (pt_BR)](known-bugs.pt_BR.md#935--tipo-funcao-com-retorno-nulavel-compila-mas-a-classe-do-lambda-emitida-nao-implementa-a-interface-funcional--incompatibleclasschangeerror-na-primeira-chamada-jvm)
+
+### §1172 🐞 OPEN 17/11 (`docs/lab` 192.168.100.14:0) — spawn×extern: the second worker futex-deadlocks on a glibc internal lock when the first worker parks INSIDE an extern C call
+
+**Symptom:** `BufferRuntimeBorrowE2ETest#concurrentBufferBorrowRaisesMem020Cross` flakes (~1/6 quiet, **4/6 under load**, tip c63793fc1): the harness times out "waiting for 3 attempt marks".
+
+**Measured (QEMU_STRACE, GO withheld):** w1 parks in the extern's GO-poll alive forever; w2 lands mark 2, attempts the borrow acquire, then `futex(0x…, FUTEX_WAIT_PRIVATE, 2)` — glibc `__lll_lock_wait` (the three-state pthread mutex) — and no WAKE ever arrives. The Kof riscv runtime has NO val=2 futex (the await waits val=0; the B61 channel val=1; the borrow acquire is LR/SC lock-free) — the mutex is glibc-internal (the loader-TLS/lazy-PLT family; the word sits in the high mmap region near the ld.so data).
+
+**The lock-order inversion:** the spawn path calls `_dl_allocate_tls` per clone; a worker parked INSIDE an extern while the sibling first-touches a TLS-dynamic/lazy-PLT path deadlocks by lock order. Filed as **#1172** (the full trace recipe + the mitigation candidates: BIND_NOW, pre-resolve the externs before the first clone, static TLS).
+
+**Status:** OPEN — the native/GC-spawn lane's front (§602 family). The test stays (it honestly detects the bug; `D-1.0-BLOCKS-NO-HONEST-LIMITS` forbids the skip).
