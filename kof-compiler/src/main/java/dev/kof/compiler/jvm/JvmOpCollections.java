@@ -36,7 +36,21 @@ public final class JvmOpCollections {
                 // handle de spawn: o runtime devolve Object (o objeto real é
                 // CompletableFuture) — com Handle<T> mapeado p/ CompletableFuture
                 // (GitHub #31), o checkcast é necessário e válido.
-                mv.visitTypeInsn(CHECKCAST, JvmTypeMapper.toInternalName(ct.packageName(), ct.name()));
+                // #1171 (17/11): o alvo do checkcast é TYPE-ARGS-AWARE — o
+                // toInternalName (só nome) mapeava TODO Handle para Object (o
+                // mundo FFI copy-out), então Handle<Object> do supervisor
+                // checava Object e o putfield no campo CompletableFuture
+                // falhava o verificador (Object não atribuível). O descritor
+                // (type-aware) decide: com args → CompletableFuture; o NU →
+                // Object (o mundo FFI).
+                String castTarget;
+                if ("kof.concurrent".equals(ct.packageName()) && "Handle".equals(ct.name())) {
+                    String d = JvmTypeMapper.classDescriptor(ct);
+                    castTarget = d.substring(1, d.length() - 1);
+                } else {
+                    castTarget = JvmTypeMapper.toInternalName(ct.packageName(), ct.name());
+                }
+                mv.visitTypeInsn(CHECKCAST, castTarget);
             } else if ("kof_poll".equals(kc.methodName()) && isPrimitiveType(kc.returnType())) {
                 // poll pode devolver null (não pronto): unbox com guard
                 String boxed = boxedClassNameFor(kc.returnType());
