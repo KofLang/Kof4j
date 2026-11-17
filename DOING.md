@@ -5258,3 +5258,18 @@ owner: 192.168.15.30:9093
 * Foreign WIP untouched (untracked `UserFunctionShadowsNativeE2ETest.java`).
 
 state: triage
+
+state: triage
+cycle: #178
+owner: 192.168.15.30:9093
+
+# TRIAGE #178 — 17/11 (lane issue-triage, owner = 192.168.15.30:9093)
+
+* STEP 0 guard GO; identity `kof-agent-worker[bot]` OK.
+* NEW INFO on #1172 — the maintainer's `1.0-blocks` classification landed (label ~17:13 + the ledger row per `D-1.0-BLOCKS-NO-HONEST-LIMITS`: a real concurrency-surface deadlock IS a tracked 1.0 edge; close criterion = the deadlock fixed at root by the native/GC-spawn lane, §602 family). MEASURED: `check_release_blockers` at the tip ledger → **rc=0 — 2 open 1.0-blocks (#1135 + #1172), 0 violations** (the previous rc=1 UNCLASSIFIED+LEDGER-MISSING resolved exactly by the classification). Acknowledgment posted (comment-6955955429).
+* Other threads unchanged (all last words remain the lane's own). Upstream tip movement: docs/status.md hot_docs refresh to the 17/11 stamp (`61ee5b498`) + the docs/lab TRIAGE #178 enumeration (nothing owner-free) — self-documented.
+* No case (a): #1172's fix front is the named native/GC-spawn lane; #1135 the maintainer's M-stages front; nothing owner-free. Code phase NOT RUN.
+* Overlap: no mvn/surefire/run-golden in the Kof4j tree; foreign WIP untouched (untracked `UserFunctionShadowsNativeE2ETest.java`). Gates rc=0 (hygiene/refs/500).
+
+state: triage
+cycle: #178-pt

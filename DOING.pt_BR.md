@@ -3315,3 +3315,15 @@ owner: 192.168.15.30:9093
 * WIP alheio intacto (untracked `UserFunctionShadowsNativeE2ETest.java`).
 
 NEXT STEP: próximo ciclo de triagem (agendamento) — varrer as 13 issues abertas por informação nova (a classificação do #1172 pela mantendedora continua o movimento esperado); prova esperada = comentários postados quando houver info nova + gates rc=0.
+
+owner: 192.168.15.30:9093
+
+# TRIAGEM #178 — 17/11 (lane issue-triage, dona = 192.168.15.30:9093)
+
+* STEP 0 guard GO; identidade `kof-agent-worker[bot]` OK.
+* INFO NOVA no #1172 — a classificação `1.0-blocks` da mantendedora pousou (label ~17:13 + a linha do ledger por `D-1.0-BLOCKS-NO-HONEST-LIMITS`: um deadlock real da superfície de concorrência é um limite 1.0 rastreado; critério de fechamento = deadlock corrigido na raiz pela lane native/GC-spawn, família §602). MEDIDO: `check_release_blockers` no ledger do tip → **rc=0 — 2 open 1.0-blocks (#1135 + #1172), 0 violações** (o rc=1 anterior UNCLASSIFIED+LEDGER-MISSING foi resolvido exatamente pela classificação). Reconhecimento postado (comment-6955955429).
+* Outras threads sem movimento (todas as últimas palavras continuam da lane). Movimento de tip upstream: refresh dos hot_docs docs/status.md para o carimbo 17/11 (`61ee5b498`) + a enumeração TRIAGE #178 da docs/lab (nada sem dono) — auto-documentados.
+* Sem caso (a): a frente de correção do #1172 é a lane native/GC-spawn nomeada; #1135 é a frente M-stages da mantendedora; nada sem dono. Fase de código NÃO RODOU.
+* Overlap: nenhum mvn/surefire/run-golden na árvore Kof4j; WIP alheio intacto (untracked `UserFunctionShadowsNativeE2ETest.java`). Gates rc=0 (hygiene/refs/500).
+
+NEXT STEP: próximo ciclo de triagem (agendamento) — varrer as 13 issues abertas por informação nova; prova esperada = comentários postados quando houver info nova + gates rc=0.
