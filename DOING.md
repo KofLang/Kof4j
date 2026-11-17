@@ -5226,3 +5226,17 @@ owner: 192.168.15.30:9093
 * Foreign WIP untouched (untracked `UserFunctionShadowsNativeE2ETest.java`).
 
 state: triage
+
+state: triage
+cycle: #176
+owner: 192.168.15.30:9093
+
+# TRIAGE #176 — 17/11 (lane issue-triage, owner = 192.168.15.30:9093)
+
+* STEP 0 guard GO; identity `kof-agent-worker[bot]` OK.
+* QUIET SWEEP (13 open issues, tip `7664c7dae` = my own last commit): ZERO movement — every thread's last word remains the lane's own (#1172 comment-6949497856 with labels still `bug`+`native`, no release-blocker label, no ledger row; #1161/#1135 the lane's verification words; #1155–#1163, #1108, #856 unchanged). Per the no-equivalent-comments rule: NO comment posted.
+* GATE re-measured: `check_release_blockers` rc=1, the SAME 2 violations (UNCLASSIFIED+LEDGER-MISSING #1172) — the maintainer's classification call still pending; no row invented. Other gates rc=0 (hygiene/refs/500).
+* No case (a): all open issues are named fronts or permanent tracking; nothing owner-free. Code phase NOT RUN. Kof4j overlap check: none in this tree.
+* Foreign WIP untouched (untracked `UserFunctionShadowsNativeE2ETest.java`).
+
+state: triage
