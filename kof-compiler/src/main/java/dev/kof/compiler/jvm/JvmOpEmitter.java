@@ -235,7 +235,11 @@ public final class JvmOpEmitter {
                     c.mv().visitInsn(ACONST_NULL);
                     c.mv().visitLabel(end);
                 } else {
-                    c.mv().visitTypeInsn(CHECKCAST, castTargetName(cc.type()));
+                    String tgt = castTargetName(cc.type());
+                    if (System.getenv("KOF_CAST_DEBUG") != null) {
+                        System.err.println("CC2-DBG checkcast → " + tgt + " type=" + cc.type());
+                    }
+                    c.mv().visitTypeInsn(CHECKCAST, tgt);
                 }
             }
             case KofInstanceOf io -> {
@@ -294,6 +298,19 @@ public final class JvmOpEmitter {
         Type x = t instanceof Type.NullableType nt ? nt.inner() : t;
         if (x instanceof Type.PrimitiveType pt) x = TypeMetrics.boxedTypeFor(pt);
         if (x instanceof Type.ClassType ct) {
+            // #1171 (17/11): o Handle é TYPE-ARGS-AWARE no checkcast — o
+            // toInternalName (só nome) mapeava TODO Handle para Object (o
+            // mundo FFI), então o checkcast do spawn virava no-op e o
+            // putfield num campo CompletableFuture falhava o verificador
+            // (Object não atribuível). O descriptor (type-aware) decide:
+            // Handle<T> com args → CompletableFuture (o runtime de spawn);
+            // o Handle NU → Object (o FFI copy-out).
+            if ("kof.concurrent".equals(ct.packageName()) && "Handle".equals(ct.name())) {
+                // #1171: type-args-aware — Handle<T> com args → CompletableFuture
+                // (o runtime de spawn); o Handle NU → Object (o mundo FFI)
+                String d = JvmTypeMapper.classDescriptor(ct);
+                return d.substring(1, d.length() - 1);
+            }
             return JvmTypeMapper.toInternalName(ct.packageName(), ct.name());
         }
         if (x instanceof Type.ArrayType) {
