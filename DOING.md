@@ -5142,3 +5142,21 @@ owner: 192.168.15.30:9093
 * Gates rc=0 (release-blockers: 1 open 1.0-blocks #1135 / 0 violações; ledger re-sincronizado do tip, sincronização não commitada).
 
 NEXT STEP: próximo ciclo de triagem (agendamento) — varrer as 12 issues abertas por informação nova; prova esperada = comentários postados quando houver info nova + gates rc=0.
+
+state: triage
+cycle: #171
+owner: 192.168.15.30:9093
+
+# TRIAGE #171 — 17/11 (lane issue-triage, owner = 192.168.15.30:9093)
+
+* STEP 0 guard GO; identity `kof-agent-worker[bot]` OK.
+* SWEEP (12 open issues, tip `c63793fc1`): NEW INFO on #1161 — the maintainer's 17/11 comment records the formal conformance gate (`scripts/check_conformance_1_0.sh`, `5045289c3`, 105 surface cases, wired into check_lab_stability). INDEPENDENTLY VERIFIED by this lane on an isolated tip copy (gate + matrix via `git show`, REPO_DIR redirected; shared worktree untouched): **rc=0 — 105 named cases test-locked / 0 dangling, 261 PARTIAL/UNSUPPORTED rows with 0 unref'd, 160 table rows, golden parity via run-golden (90 cases × 4 targets)**. Execution note recorded honestly on the thread: the first attempt failed on the STALE worktree copy (matrix absent — worktree behind tip); the tip copy passes (correct behavior). Comment posted (comment-6948735568). #1135's last word is this lane's comment-6942991970; other threads unchanged.
+* Tip movement upstream since my last cycle: CodeQL 44-alert hygiene unit (`ea372d35b`) + the aarch64 QEMU sys-root spawn fix (`c63793fc1`, stamped suite's honest limit 4F→1F known flake) — both by docs/lab, self-documented, no open issue tracks them.
+* No case (a): all open issues are named fronts or permanent tracking; nothing owner-free. Code phase NOT RUN.
+* Overlap guard: no mvn/surefire/run-golden live; foreign WIP untouched (untracked `UserFunctionShadowsNativeE2ETest.java`).
+* Gates rc=0 (release-blockers: 1 open 1.0-blocks #1135 / 0 violations; ledger re-synced from tip, sync not committed).
+
+state: triage
+cycle: #171-pt
+owner: 192.168.15.30:9093
+

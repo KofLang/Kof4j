@@ -3219,3 +3219,14 @@ NEXT STEP: próximo ciclo de triagem (agendamento) — varrer as 12 issues abert
 * Gates rc=0 (release-blockers: 1 open 1.0-blocks #1135 / 0 violações; ledger re-sincronizado do tip, sincronização não commitada).
 
 NEXT STEP: próximo ciclo de triagem (agendamento) — varrer as 12 issues abertas por informação nova; prova esperada = comentários postados quando houver info nova + gates rc=0.
+
+# TRIAGEM #171 — 17/11 (lane issue-triage, dona = 192.168.15.30:9093)
+
+* STEP 0 guard GO; identidade `kof-agent-worker[bot]` OK.
+* VARREDURA (12 issues abertas, tip `c63793fc1`): INFO NOVA no #1161 — o comentário da mantendedora de 17/11 registra o gate de conformidade formal (`scripts/check_conformance_1_0.sh`, `5045289c3`, 105 casos da superfície, wired no check_lab_stability). VERIFICADO INDEPENDENTEMENTE por esta lane em cópia isolada do tip (gate + matriz via `git show`, REPO_DIR redirecionado; worktree compartilhado intocado): **rc=0 — 105 casos nomeados presos por teste / 0 dangling, 261 linhas PARTIAL/UNSUPPORTED com 0 sem ref, 160 linhas de tabela, paridade golden via run-golden (90 casos × 4 alvos)**. Nota de execução registrada honestamente no thread: a primeira tentativa falhou na CÓPIA STALE do worktree (matriz ausente — worktree atrás do tip); na cópia do tip o gate passa (comportamento correto). Comentário postado (comment-6948735568). A última palavra do #1135 é o comment-6942991970 desta lane; outras threads sem movimento.
+* Movimento de tip upstream desde meu último ciclo: unidade de higiene CodeQL 44 alertas (`ea372d35b`) + fix de spawn QEMU sys-root aarch64 (`c63793fc1`, limite honesto da suíte carimbada 4F→1F flake conhecido) — ambos da lane docs/lab, auto-documentados, nenhuma issue aberta os rastreia.
+* Sem caso (a): todas as abertas são frentes nomeadas ou rastreamento permanente; nada sem dono. Fase de código NÃO RODOU.
+* Overlap guard: nenhum mvn/surefire/run-golden vivo; WIP alheio intacto (untracked `UserFunctionShadowsNativeE2ETest.java`).
+* Gates rc=0 (release-blockers: 1 open 1.0-blocks #1135 / 0 violações; ledger re-sincronizado do tip, sincronização não commitada).
+
+NEXT STEP: próximo ciclo de triagem (agendamento) — varrer as 12 issues abertas por informação nova; prova esperada = comentários postados quando houver info nova + gates rc=0.
