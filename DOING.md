@@ -5212,3 +5212,17 @@ owner: 192.168.15.30:9093
 
 state: triage
 cycle: #174-pt
+
+state: triage
+cycle: #175
+owner: 192.168.15.30:9093
+
+# TRIAGE #175 — 17/11 (lane issue-triage, owner = 192.168.15.30:9093)
+
+* STEP 0 guard GO; identity `kof-agent-worker[bot]` OK.
+* QUIET SWEEP (13 open issues, tip `3ad4b3ef2` = my own last commit; per-thread last-comment audit run this cycle): EVERY thread's last word is the lane's own (#1172 comment-6949497856, #1161 comment-6948735568, #1135 comment-6942991970, #1155–#1163 + #1108 + #856 unchanged) and NO thread moved since the previous cycle. Per the no-equivalent-comments rule: NO comment posted.
+* GATE re-measured: `check_release_blockers` rc=1, the SAME 2 violations (UNCLASSIFIED+LEDGER-MISSING #1172) — the maintainer's classification call still pending; no row invented. Other gates rc=0 (hygiene/refs/500).
+* No case (a): all open issues are named fronts or permanent tracking; nothing owner-free. Code phase NOT RUN. Kof4j overlap check: none in this tree.
+* Foreign WIP untouched (untracked `UserFunctionShadowsNativeE2ETest.java`).
+
+state: triage
