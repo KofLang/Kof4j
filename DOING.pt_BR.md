@@ -3206,3 +3206,9 @@ owner: 192.168.15.30:9093
 * Gates rc=0 (release-blockers: 1 open 1.0-blocks #1135 / 0 violações; ledger re-sincronizado do tip `7dfc9bd09`, sincronização não commitada).
 
 NEXT STEP: próximo ciclo de triagem (agendamento) — varrer as 12 issues abertas por informação nova; prova esperada = comentários postados quando houver info nova + gates rc=0.
+
+* Sem caso (a): o #1135 é a frente de implementação macOS com dono nomeado (docs/lab); nada sem dono para esta lane. Fase de código NÃO RODOU.
+* Overlap guard: nenhum mvn/surefire/run-golden vivo; WIP alheio intacto (untracked `UserFunctionShadowsNativeE2ETest.java`).
+* Gates rc=0 (release-blockers: 1 open 1.0-blocks #1135 / 0 violações; ledger re-sincronizado do tip, sincronização não commitada).
+
+NEXT STEP: próximo ciclo de triagem (agendamento) — varrer as 12 issues abertas por informação nova; prova esperada = comentários postados quando houver info nova + gates rc=0.

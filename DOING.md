@@ -5109,3 +5109,29 @@ owner: 192.168.15.30:9093
 * Gates rc=0 (release-blockers: 1 open 1.0-blocks #1135 / 0 violações; ledger re-sincronizado do tip `7dfc9bd09`, sincronização não commitada).
 
 NEXT STEP: próximo ciclo de triagem (agendamento) — varrer as 12 issues abertas por informação nova; prova esperada = comentários postados quando houver info nova + gates rc=0.
+
+state: triage
+cycle: #170
+owner: 192.168.15.30:9093
+
+# TRIAGE #170 — 17/11 (lane issue-triage, owner = 192.168.15.30:9093)
+
+* STEP 0 guard GO; identity `kof-agent-worker[bot]` OK.
+* SWEEP (12 open issues, tip `2de700d38`): NEW INFO on #1135 — the GATE-2 seam inventory landed upstream (`28b62ecf5` gate script + `2de700d38` structural test wired into the harness, both by docs/lab `.100.14:0`). MEASURED by this lane (tip copy run from /tmp, worktree untouched): `scripts/check_macos_seam.sh` rc=0 — x86-64 203 direct syscall sites vs 23 in the `RuntimePlat` seam (180 out-of-seam), riscv64 368 ecalls vs 16 in `NativeRiscvAsmRt0`, TLS `%fs:/@tpoff` 24 sites, futex 15 sites, 21 `kof_plat_*` functions named. Acknowledgment posted (comment-6942991970). All other threads unchanged (#1155–#1163 since 15/11; #1108/#856; #1156/#1160 last words are the lane's).
+* No case (a): #1135 is the named macOS implementation front (docs/lab); nothing owner-free for this lane. Code phase NOT RUN.
+* Overlap guard: no mvn/surefire/run-golden live; foreign WIP untouched (untracked `UserFunctionShadowsNativeE2ETest.java`).
+* Gates rc=0 (release-blockers: 1 open 1.0-blocks #1135 / 0 violations; ledger re-synced from tip, sync not committed).
+
+state: triage
+cycle: #170-pt
+owner: 192.168.15.30:9093
+
+# TRIAGEM #170 — 17/11 (lane issue-triage, dona = 192.168.15.30:9093)
+
+* STEP 0 guard GO; identidade `kof-agent-worker[bot]` OK.
+* VARREDURA (12 issues abertas, tip `2de700d38`): INFO NOVA no #1135 — o inventário GATE-2 da costura pousou upstream (`28b62ecf5` script do gate + `2de700d38` teste estrutural wired no harness, ambos da lane docs/lab `.100.14:0`). MEDIDO por esta lane (cópia do tip rodada de /tmp, worktree intocado): `scripts/check_macos_seam.sh` rc=0 — x86-64 203 sítios syscall diretos vs 23 na costura `RuntimePlat` (180 fora), riscv64 368 ecalls vs 16 em `NativeRiscvAsmRt0`, TLS `%fs:/@tpoff` 24 sítios, futex 15 sítios, 21 funções `kof_plat_*` nomeadas. Reconhecimento postado (comment-6942991970). Todas as outras threads sem movimento (#1155–#1163 desde 15/11; #1108/#856; #1156/#1160 última palavra é da lane).
+* Sem caso (a): o #1135 é a frente de implementação macOS com dono nomeado (docs/lab); nada sem dono para esta lane. Fase de código NÃO RODOU.
+* Overlap guard: nenhum mvn/surefire/run-golden vivo; WIP alheio intacto (untracked `UserFunctionShadowsNativeE2ETest.java`).
+* Gates rc=0 (release-blockers: 1 open 1.0-blocks #1135 / 0 violações; ledger re-sincronizado do tip, sincronização não commitada).
+
+NEXT STEP: próximo ciclo de triagem (agendamento) — varrer as 12 issues abertas por informação nova; prova esperada = comentários postados quando houver info nova + gates rc=0.
