@@ -335,7 +335,7 @@ public final class ExpressionInstanceCallLowerer {
         // #1054/#89 (split do gate 500): conversões numéricas em receiver
         // primitivo — PrimitiveConversionLowerer (a ponte #845 abre a caixa
         // do receiver estreitado antes do alargamento cru).
-        return PrimitiveConversionLowerer.lower(driver, mc, recvType, ops, owner, localIdx, locals);
+        return PrimitiveConversionLowerer.lower(driver, mc, recvType, ops, localIdx, locals);
     } else if (TypeMetrics.isPrimitiveType(recvType) && "toString".equals(mc.methodName())
             && mc.arguments().isEmpty()) {
         // primitivo.toString(): o primitivo não tem classe —

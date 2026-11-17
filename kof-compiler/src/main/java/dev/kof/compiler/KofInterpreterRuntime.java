@@ -293,7 +293,7 @@ public final class KofInterpreterRuntime {
         if (nested != null && raw instanceof java.util.Map) return decodeKofValue(nested, raw);
         // #1128: alvo lista recebendo não-lista = JSN006 na profundidade
         // (o espelho do kof_json_bind JVM — a paridade atravessa os alvos).
-        if (raw != null && !(raw instanceof List<?>)
+        if (!(raw instanceof List<?>)
                 && (BuiltinTypes.isList(type) || BuiltinTypes.isSet(type))) {
             throw new RuntimeException("JSN006: json.decode expected an array but the payload is "
                     + KofInterpreterJson.shapeOf(raw));

@@ -34,7 +34,7 @@ final class KofExprCodePoint {
      * Empilha o PONTO DE CÓDIGO em {@code pos}. {@code s.codePointAt(pos)}
      * (§827) devolve exatamente o escalar na JVM e no interpretador.
      */
-    static void emitRead(List<KofOperation> ops, int tempSlot) {
+    static void emitRead(List<KofOperation> ops) {
         LabelId inRange = LabelId.create();
         LabelId outOfRange = LabelId.create();
         LabelId join = LabelId.create();

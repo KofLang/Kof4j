@@ -58,7 +58,7 @@ final class TopLevelCallTyper {
         // não registrado é recusado em RUNTIME pelo interpretador (EMBED003),
         // nunca um no-op silencioso.
         if (mc.receiver() == null && mc.methodName().startsWith("hostcall_")) {
-            Type ret = KofHostBindingTypes.returnTypeOf(sa, mc.methodName());
+            Type ret = KofHostBindingTypes.returnTypeOf(mc.methodName());
             if (!Type.isVoid(ret)) {
                 sa.putExpressionType(mc, ret);
                 return ret;

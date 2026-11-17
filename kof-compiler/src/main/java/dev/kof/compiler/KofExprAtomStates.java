@@ -36,7 +36,6 @@ final class KofExprAtomStates {
         String name = L.newName();
         LabelId fail = LabelId.create();
         LabelId ok = LabelId.create();
-        LabelId doneJoin = LabelId.create();
         List<KofOperation> ops = new ArrayList<>();
         switch (atom.kind()) {
             case "literal" -> {
@@ -124,7 +123,7 @@ final class KofExprAtomStates {
             }
             case "any" -> {
                 // o escalar em pos, seja ele qual for — mas TEM de existir
-                KofExprCodePoint.emitRead(ops, L.tempSlot());
+                KofExprCodePoint.emitRead(ops);
                 ops.add(new KofStoreLocal(INT, L.tempSlot()));
                 LabelId present = LabelId.create();
                 ops.add(new KofLoadLocal(INT, L.tempSlot()));
@@ -144,7 +143,7 @@ final class KofExprAtomStates {
                 // as classes com tabela: lê o ponto, guarda (o avanço precisa
                 // dele) e pergunta ao runtime
                 String predicate = KofExprUnicode.predicateOf(atom.kind());
-                KofExprCodePoint.emitRead(ops, L.tempSlot());
+                KofExprCodePoint.emitRead(ops);
                 ops.add(new KofStoreLocal(INT, L.tempSlot()));
                 ops.add(new KofLoadLocal(INT, L.tempSlot()));
                 ops.add(new KofCall(STR, predicate, List.of(INT), BOOL, KofCallKind.FUNCTION));

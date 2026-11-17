@@ -134,7 +134,7 @@ public final class KofBuffer {
         return supportedOn(target);
     }
 
-    static String gapCode(Target target) {
+    static String gapCode() {
         // The Buffer namespace binds on JVM, JS and Native (x86-64 + cross
         // riscv64/aarch64). Android, Script, riscv32 and MCU still report FFI001;
         // the FFI `B` parameter binds wherever the buffer surface does.

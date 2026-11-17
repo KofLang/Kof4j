@@ -416,13 +416,12 @@ public final class StatementAnalyzer {
      * "x é null" — não expressável neste esquema, segue sem narrow.
      */
     private static void collectElseOnly(SemanticAnalyzer sa, ExpressionNode cond,
-            SymbolTable scope, java.util.List<SymbolTable.LocalVariableSymbol> elseNarrow,
-            boolean underOr) {
+            SymbolTable scope, java.util.List<SymbolTable.LocalVariableSymbol> elseNarrow) {
         if (!(cond instanceof BinaryExpr be)) return;
         String op = be.operator();
         if ("||".equals(op)) {
-            collectElseOnly(sa, be.left(), scope, elseNarrow, true);
-            collectElseOnly(sa, be.right(), scope, elseNarrow, true);
+            collectElseOnly(sa, be.left(), scope, elseNarrow);
+            collectElseOnly(sa, be.right(), scope, elseNarrow);
             return;
         }
         if (be.right() instanceof LiteralExpr rl && rl.kind() == ConcreteLiteralKind.NULL
@@ -470,8 +469,8 @@ public final class StatementAnalyzer {
             // operand narrows the else (the guard clause
             // `if (t == null || t.isEmpty()) { throw }` leaves t: T).
             // THEN — ¬A∨¬B narrows nothing (current, kept).
-            collectElseOnly(sa, be.left(), scope, elseNarrow, true);
-            collectElseOnly(sa, be.right(), scope, elseNarrow, true);
+            collectElseOnly(sa, be.left(), scope, elseNarrow);
+            collectElseOnly(sa, be.right(), scope, elseNarrow);
             return;
         }
         boolean isNullTest = be.right() instanceof LiteralExpr rl && rl.kind() == ConcreteLiteralKind.NULL;

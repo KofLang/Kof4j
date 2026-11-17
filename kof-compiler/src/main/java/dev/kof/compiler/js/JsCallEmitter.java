@@ -140,7 +140,7 @@ void handleCall(MethodCtx ctx, List<Object> stack,
             return;
         }
         if (isStringOp(kc)) {
-            JsStringOpEmitter.handleStringOp(this, p, ctx, stack, preambleExprs, kc, receiver, args);
+            JsStringOpEmitter.handleStringOp(this, p, ctx, stack, kc, receiver, args);
             return;
         }
         if (kc.kind() == KofCallKind.FUNCTION) {

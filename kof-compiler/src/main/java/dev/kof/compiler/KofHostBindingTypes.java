@@ -34,7 +34,7 @@ public final class KofHostBindingTypes {
 
     /** The registered return type, or the default (String) when the host did
      *  not declare one. */
-    static Type returnTypeOf(SemanticAnalyzer sa, String callName) {
+    static Type returnTypeOf(String callName) {
         Map<String, Type> table = CURRENT.get();
         if (table != null) {
             Type t = table.get(callName.substring("hostcall_".length()));

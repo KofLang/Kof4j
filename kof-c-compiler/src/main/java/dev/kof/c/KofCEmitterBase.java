@@ -134,7 +134,7 @@ abstract class KofCEmitterBase implements KofCEmitter {
         funcEndLabel = label("ret");
         for (var st : fn.body()) emitStmt(st);
         sb.append(funcEndLabel).append(":\n");
-        emitFuncEpilogue(nextSlot);
+        emitFuncEpilogue();
     }
 
     /** Pré-varre o corpo para dimensionar o frame (declarações em blocos contam). */
@@ -300,7 +300,7 @@ abstract class KofCEmitterBase implements KofCEmitter {
 
     protected abstract void emitFuncPrologue(int frameSlots);
 
-    protected abstract void emitFuncEpilogue(int frameSlots);
+    protected abstract void emitFuncEpilogue();
 
     protected abstract void emitLoadImm(int v);
 

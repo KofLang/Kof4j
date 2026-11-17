@@ -187,6 +187,7 @@ public final class PlaywrightLibProvider implements BrowserProvider {
      *  medida pelo MESMO contexto. O `isMobile` é chromium-only na API Java
      *  do Playwright — honrado onde suportado (o toque é medido pelo
      *  `hasTouch`, que é universal). */
+    @Override
     public String deviceAssert(String kind, String url, int viewportWidth,
                                int viewportHeight, boolean hasTouch,
                                String locator, String assertion) throws Exception {

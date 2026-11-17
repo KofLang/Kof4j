@@ -446,7 +446,7 @@ public final class JdkReflectionResolver {
                 java.lang.reflect.Type[] typeArgs = pt.getActualTypeArguments();
                 int tvPos = -1;
                 for (int i = 0; i < typeArgs.length; i++) {
-                    if (typeArgs[i] instanceof TypeVariable<?> tv) {
+                    if (typeArgs[i] instanceof TypeVariable<?>) {
                         if (tvPos >= 0) return null;
                         tvPos = i;
                     } else if (!(typeArgs[i] instanceof Class<?>)) {

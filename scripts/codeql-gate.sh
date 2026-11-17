@@ -172,7 +172,14 @@ done
 
 if [ "${1:-}" != "--fast" ]; then
   echo "== GATE 2: build sem stubs ECJ (security/quality) =="
-  if timeout 900 mvn -o -q -pl kof-compiler,kof-cli,kof-script,kof-c-compiler -am compile > /tmp/codeql-gate-build.log 2>&1; then
+  # O java do sistema é só JRE (sem javac 25) — o gate AUTO-PROVISIONA o
+  # JAVA_HOME quando o ambiente não o traz (a armadilha documentada do host).
+  if [ -z "${JAVA_HOME:-}" ]; then
+    for jdk in "$HOME"/.local/jdks/jdk-*; do
+      [ -x "$jdk/bin/javac" ] && export JAVA_HOME="$jdk" && break
+    done
+  fi
+  if timeout 900 env JAVA_HOME="${JAVA_HOME:-}" mvn -o -q -pl kof-compiler,kof-cli,kof-script,kof-c-compiler -am compile > /tmp/codeql-gate-build.log 2>&1; then
     stubs=$(for c in $(git diff --name-only HEAD~1 HEAD 2>/dev/null | grep 'src/main.*\.java$' | sed 's|src/main/java/||; s|\.java$||'); do
       find . -path "*/target/classes/${c}.class" 2>/dev/null
     done | head -50)

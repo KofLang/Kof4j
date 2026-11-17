@@ -135,9 +135,9 @@ final class ExprDeclarations {
         ContextualPosition where = contextualPosition(ctx);
         return switch (where) {
             case QUANTIFIER -> parseQuantifier(ctx, code);
-            case CAPTURE -> parseCapture(ctx, code);
-            case ALTERNATION -> parseAlternation(ctx, code);
-            case LIST_ATOM -> parseListAtom(ctx, code);
+            case CAPTURE -> parseCapture(ctx);
+            case ALTERNATION -> parseAlternation(ctx);
+            case LIST_ATOM -> parseListAtom(ctx);
             case BARE_ATOM -> {
                 SourcePosition p = ctx.pos();
                 yield new ExprAtomNode(p, ctx.canonicalValue(ctx.advance().value()), List.of());
@@ -207,7 +207,7 @@ final class ExprDeclarations {
             if (SIMPLE_QUANTIFIERS.contains(kind)) {
                 // `optional("x")` / `zero_or_more("x")` / `one_or_more("x")` —
                 // o açúcar §3.4: UM literal de texto como alvo único.
-                ExprNode target = literalSugar(ctx, code);
+                ExprNode target = literalSugar(ctx);
                 return new ExprQuantifierNode(p, kind, min, max, target);
             }
             if (kind.equals("exactly")) {
@@ -225,7 +225,7 @@ final class ExprDeclarations {
     }
 
     /** O literal único do açúcar `optional("x")`: um átomo literal embrulhado em sequência. */
-    private static ExprNode literalSugar(ParseContext ctx, String code) {
+    private static ExprNode literalSugar(ParseContext ctx) {
         SourcePosition p = ctx.pos();
         if (!ctx.check(TokenType.STRING_LITERAL)) {
             ctx.error("Expected a text literal inside the quantifier", "PARSE101");
@@ -252,7 +252,7 @@ final class ExprDeclarations {
         return 0;
     }
 
-    private static ExprNode parseCapture(ParseContext ctx, String code) {
+    private static ExprNode parseCapture(ParseContext ctx) {
         SourcePosition p = ctx.pos();
         ctx.advance(); // 'capture'
         ctx.expect(TokenType.LPAREN, "Expected '(' after 'capture'", "PARSE097");
@@ -267,7 +267,7 @@ final class ExprDeclarations {
         return new ExprCaptureNode(p, name == null ? "error" : name, body);
     }
 
-    private static ExprNode parseAlternation(ParseContext ctx, String code) {
+    private static ExprNode parseAlternation(ParseContext ctx) {
         SourcePosition p = ctx.pos();
         ctx.advance(); // 'either'
         List<ExprNode> alternatives = new ArrayList<>();
@@ -290,7 +290,7 @@ final class ExprDeclarations {
         return new ExprAlternationNode(p, List.copyOf(alternatives));
     }
 
-    private static ExprNode parseListAtom(ParseContext ctx, String code) {
+    private static ExprNode parseListAtom(ParseContext ctx) {
         SourcePosition p = ctx.pos();
         String kind = ctx.canonicalValue(ctx.advance().value());
         List<String> values = new ArrayList<>();

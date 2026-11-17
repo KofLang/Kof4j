@@ -17,6 +17,20 @@ final class NativeAarch64SpAligner {
 
     private NativeAarch64SpAligner() {}
 
+    /** O imediato do {@code #N} da linha, ou null se não parseia (o contrato
+     *  do passe: linha não-parseável fica byte-idêntica). O {@code matches}
+     *  do chamador já garante dígitos — o catch existe para a PROVA estática
+     *  (o CodeQL não enxerga o guard), não para engolir um erro real. */
+    private static Long parseImm(String s) {
+        int h = s.lastIndexOf('#');
+        if (h < 0) return null;
+        try {
+            return Long.parseLong(s.substring(h + 1));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
     /** Aplica o alargamento; retorna a contagem de sítios reescritos. */
     static int align(List<String> lines) {
         int rewritten = 0;
@@ -35,7 +49,8 @@ final class NativeAarch64SpAligner {
             if (inMacro) continue;   // o corpo do macro pop não é reescrito
             // sub sp, sp, #N  → o próximo múltiplo de 16 (o push/frame alarga)
             if (s.matches("^sub\\s+sp,\\s*sp,\\s*#\\d+$")) {
-                long n = Long.parseLong(s.replaceAll(".*#", ""));
+                Long n = parseImm(s);
+                if (n == null) continue;
                 long up = (n + 15) & ~15L;
                 if (up != n) {
                     lines.set(i, line.replaceFirst("#\\d+", "#" + up));
@@ -45,7 +60,8 @@ final class NativeAarch64SpAligner {
             }
             // add sp, sp, #N  → o próximo múltiplo de 16 (o pop/restore alarga)
             if (s.matches("^add\\s+sp,\\s*sp,\\s*#\\d+$")) {
-                long n = Long.parseLong(s.replaceAll(".*#", ""));
+                Long n = parseImm(s);
+                if (n == null) continue;
                 long up = (n + 15) & ~15L;
                 if (up != n) {
                     lines.set(i, line.replaceFirst("#\\d+", "#" + up));

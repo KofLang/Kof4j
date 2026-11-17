@@ -214,7 +214,7 @@ public final class KofMath {
         return true;
     }
 
-    static String gapCode(String function) {
+    static String gapCode() {
         return "MATH001";
     }
 

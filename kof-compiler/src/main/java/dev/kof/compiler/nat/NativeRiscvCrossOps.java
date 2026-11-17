@@ -528,15 +528,15 @@ public final class NativeRiscvCrossOps {
             sb.append("    ld ").append(regs[r]).append(", ")
               .append(st * (count - 1 - r)).append("(sp)\n");
         }
-        if (stackArgs > 0) {
-            sb.append("    addi sp, sp, ").append(-st * stackArgs).append("\n");
-            // arg(8+k) estava em st*(count-1-(8+k)) = st*(2*stackArgs-1-k) do
-            // novo sp; vai para o slot k (arg8 no menor endereço, stride 8 —
-            // a convenção SysV do CALLEE não muda).
-            for (int k = 0; k < stackArgs; k++) {
-                sb.append("    ld t0, ").append(st * (2 * stackArgs - 1 - k)).append("(sp)\n");
-                sb.append("    sd t0, ").append(8 * k).append("(sp)\n");
-            }
+        // stackArgs > 0 é garantido pelo early-return acima (count > 8
+        // registros); o bloco do espelho é o único caminho daqui.
+        sb.append("    addi sp, sp, ").append(-st * stackArgs).append("\n");
+        // arg(8+k) estava em st*(count-1-(8+k)) = st*(2*stackArgs-1-k) do
+        // novo sp; vai para o slot k (arg8 no menor endereço, stride 8 —
+        // a convenção SysV do CALLEE não muda).
+        for (int k = 0; k < stackArgs; k++) {
+            sb.append("    ld t0, ").append(st * (2 * stackArgs - 1 - k)).append("(sp)\n");
+            sb.append("    sd t0, ").append(8 * k).append("(sp)\n");
         }
     }
 

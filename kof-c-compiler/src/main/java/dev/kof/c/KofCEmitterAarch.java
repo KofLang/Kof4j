@@ -95,7 +95,7 @@ final class KofCEmitterAarch extends KofCEmitterBase {
     }
 
     @Override
-    protected void emitFuncEpilogue(int frameSlots) {
+    protected void emitFuncEpilogue() {
         sb.append("    mov sp, x29\n");
         sb.append("    ldp x29, x30, [sp], #16\n");
         sb.append("    ret\n");

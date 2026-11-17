@@ -89,14 +89,14 @@ public final class KofStd {
     }
 
     static String gapCode(StdCall call, Target target) {
-        if ("kof.math".equals(call.ownerPackage())) return KofMath.gapCode(call.function());
+        if ("kof.math".equals(call.ownerPackage())) return KofMath.gapCode();
         if ("kof.strings".equals(call.ownerPackage())) return KofStrings.gapCode(call.function());
         if ("kof.encoding".equals(call.ownerPackage())) return KofEncoding.gapCode(call.function());
         if ("kof.uuid".equals(call.ownerPackage())) return KofUuid.gapCode(call.function());
         if ("kof.net".equals(call.ownerPackage())) return KofNet.gapCode(call.function());
         if ("kof.random".equals(call.ownerPackage())) return KofRandom.gapCode(call.function());
         if ("kof.rng".equals(call.ownerPackage())) return KofRng.gapCode(call.function());
-        if ("kof".equals(call.ownerPackage())) return KofBuffer.gapCode(target);
+        if ("kof".equals(call.ownerPackage())) return KofBuffer.gapCode();
         return "STD001";
     }
 }

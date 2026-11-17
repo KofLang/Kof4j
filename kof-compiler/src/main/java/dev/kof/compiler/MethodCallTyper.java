@@ -452,7 +452,7 @@ if (mc.receiver() != null) {
     // #1126 (gate ≤500): a família Response/InteropError dos acessores de
     // builtin vive em BuiltinMemberTypes — oMethodCallTyper cruzou 591→604
     // com o roteamento do Response.
-    Type builtinMember = BuiltinMemberTypes.memberReturnType(recvType, mc, driver, locals);
+    Type builtinMember = BuiltinMemberTypes.memberReturnType(recvType, mc);
     if (builtinMember != null) return builtinMember;
     if (KofIo.isStringIdentityCall(recvType, mc.methodName())) return BuiltinTypes.STRING;
     if (KofIo.isIoType(recvType)) {

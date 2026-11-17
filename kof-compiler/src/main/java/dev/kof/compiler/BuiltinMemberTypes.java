@@ -14,8 +14,7 @@ final class BuiltinMemberTypes {
 
     private BuiltinMemberTypes() {}
 
-    static Type memberReturnType(Type recvType, MethodCallExpr mc, CompilerDriver driver,
-                                 List<IRLocalVariable> locals) {
+    static Type memberReturnType(Type recvType, MethodCallExpr mc) {
         if (KofInteropError.isInteropErrorType(recvType)) {
             KofInteropError.InteropCall ioeCall =
                     KofInteropError.instanceMethod(recvType, mc.methodName(), mc.arguments().size());

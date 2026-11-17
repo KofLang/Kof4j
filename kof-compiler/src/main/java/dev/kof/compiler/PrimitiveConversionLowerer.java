@@ -21,7 +21,7 @@ final class PrimitiveConversionLowerer {
     }
 
     static int lower(CompilerDriver driver, MethodCallExpr mc, Type recvType,
-                     List<KofOperation> ops, String owner, int localIdx, List<IRLocalVariable> locals) {
+                     List<KofOperation> ops, int localIdx, List<IRLocalVariable> locals) {
         Type target = switch (mc.methodName()) {
             case "toInt" -> Type.PrimitiveType.INT;
             case "toLong" -> Type.PrimitiveType.LONG;

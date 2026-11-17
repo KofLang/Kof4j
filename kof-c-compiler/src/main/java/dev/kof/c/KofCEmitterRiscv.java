@@ -103,7 +103,7 @@ final class KofCEmitterRiscv extends KofCEmitterBase {
     }
 
     @Override
-    protected void emitFuncEpilogue(int frameSlots) {
+    protected void emitFuncEpilogue() {
         sb.append("    mv sp, s0\n");
         sb.append("    ld ra, 8(sp)\n");
         sb.append("    ld s0, 0(sp)\n");

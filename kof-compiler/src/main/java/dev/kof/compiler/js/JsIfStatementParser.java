@@ -80,7 +80,7 @@ static JsIr.JsStatement parseIfBody(JsControlFlowParser flow, MethodCtx ctx, int
             // o Jump+Label próprios ficavam na stream e o Label(end) vazio
             // estourava como label órfão no statement level.
             int q = pos[0];
-            if (q < ctx.ops.size() && ctx.ops.get(q) instanceof KofJump kj
+            if (q < ctx.ops.size() && ctx.ops.get(q) instanceof KofJump
                     && q + 1 < ctx.ops.size() && ctx.ops.get(q + 1) instanceof KofLabel nl
                     && !ctx.isEnclosingIfFalse(nl.label())
                     && !ctx.isEnclosingIfEnd(nl.label())

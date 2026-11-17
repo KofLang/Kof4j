@@ -95,7 +95,7 @@ final class KofCEmitterX86 extends KofCEmitterBase {
     }
 
     @Override
-    protected void emitFuncEpilogue(int frameSlots) {
+    protected void emitFuncEpilogue() {
         sb.append("    leave\n");
         sb.append("    ret\n");
     }

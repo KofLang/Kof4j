@@ -31,7 +31,7 @@ final class JsStringOpEmitter {
 
 
     static void handleStringOp(JsCallEmitter call, JsMethodParser p, MethodCtx ctx, List<Object> stack,
-                                List<JsIr.JsExpression> preambleExprs, KofCall kc,
+                                KofCall kc,
                                 JsIr.JsExpression receiver, List<JsIr.JsExpression> args) {
         // §102 (paridade absoluta): com 2 args (needle + from), o
         // String.prototype do JS diverge do JDK no clamp do `from`
