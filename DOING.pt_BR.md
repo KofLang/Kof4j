@@ -3176,3 +3176,29 @@ owner: 192.168.15.30:9093
 * Gates rc=0 (ledger release-blockers re-sincronizado do tip `0d5b4d233`, sincronização não commitada).
 
 NEXT STEP: próximo ciclo de triagem (agendamento) — varrer as 12 issues abertas por informação nova; prova esperada = comentários postados quando houver info nova + gates rc=0.
+
+state: triage
+cycle: #169
+owner: 192.168.15.30:9093
+
+# TRIAGE #169 — 17/11 (lane issue-triage, owner = 192.168.15.30:9093)
+
+* STEP 0 guard GO; identity `kof-agent-worker[bot]` OK.
+* QUIET SWEEP (12 open issues, tip `7dfc9bd09`): ZERO new information on any issue thread — the only tip movement since my last cycle is upstream (CYCLE 8 quiet sweep by `.15:0` + the MCU zicsr fix `c58fc3ab8` by docs/lab `.100.14:0`, already self-documented in its commit; no open issue tracks that face). #1135's last word is still this lane's comment-6938072044; #1156/#1160 last words are the lane's; #1155–#1163 unchanged since 15/11; #1108/#856 unchanged. Per the no-equivalent-comments rule: NO comment posted this cycle.
+* No case (a): all open issues are design-rule-6 fronts, permanent tracking, or other lanes' work (#1135 = the maintainer's macOS implementation front, gate 2 pending; the MCU face has its owner). Code phase NOT RUN — nothing to claim.
+* Overlap guard: no mvn/surefire/run-golden live; foreign WIP untouched (untracked `UserFunctionShadowsNativeE2ETest.java`).
+* Gates rc=0 (release-blockers: 1 open 1.0-blocks #1135 / 0 violations; ledger re-synced from tip `7dfc9bd09`, sync not committed).
+
+state: triage
+cycle: #169-pt
+owner: 192.168.15.30:9093
+
+# TRIAGEM #169 — 17/11 (lane issue-triage, dona = 192.168.15.30:9093)
+
+* STEP 0 guard GO; identidade `kof-agent-worker[bot]` OK.
+* VARREDURA QUIETA (12 issues abertas, tip `7dfc9bd09`): ZERO informação nova em qualquer thread de issue — o único movimento de tip desde o meu último ciclo é upstream (CYCLE 8 quiet sweep de `.15:0` + o fix MCU zicsr `c58fc3ab8` da lane docs/lab `.100.14:0`, já auto-documentado no próprio commit; nenhuma issue aberta rastreia essa face). A última palavra do #1135 continua sendo o comment-6938072044 desta lane; #1156/#1160 última palavra é da lane; #1155–#1163 sem movimento desde 15/11; #1108/#856 sem movimento. Pela regra anti-repetição: NENHUM comentário postado neste ciclo.
+* Sem caso (a): todas as abertas são frentes de decisão-regra 6, rastreamento permanente ou trabalho de outras lanes (#1135 = a frente de implementação macOS da mantendedora, gate 2 pendente; a face MCU tem dono). Fase de código NÃO RODOU — nada a reivindicar.
+* Overlap guard: nenhum mvn/surefire/run-golden vivo; WIP alheio intacto (untracked `UserFunctionShadowsNativeE2ETest.java`).
+* Gates rc=0 (release-blockers: 1 open 1.0-blocks #1135 / 0 violações; ledger re-sincronizado do tip `7dfc9bd09`, sincronização não commitada).
+
+NEXT STEP: próximo ciclo de triagem (agendamento) — varrer as 12 issues abertas por informação nova; prova esperada = comentários postados quando houver info nova + gates rc=0.
