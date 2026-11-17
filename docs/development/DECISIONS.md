@@ -5220,3 +5220,36 @@ flatt lane's ASan sweep, docs/lab 192.168.100.14:0).
   ladder: 1.0.0 = every gap corrected), rule 10 (no conclusions without
   verifiable evidence), rule 14 (record precisely what was not executed —
   now each such record carries a closure criterion)`.
+
+## D-NATIVE-MACOS — the Native target opens on macOS: arm64 AND x86-64 (both architectures in the target matrix); the #1135 issue becomes the implementation front with its staged plan (M-1..M-8) and @FabioRocha231 as the named front owner (maintainer 17/11/2026, chat decision via the issues/tooling lane)
+
+**Date:** 2026-11-17 · **State:** `DECIDED` (maintainer, rule-6 poll via the
+flatt issues/tooling lane 192.168.15.15:0).
+
+- **Decision:** the Native target OPENS on macOS (Mach-O). First
+  architectures: **arm64 (Apple silicon) AND x86-64 (Intel)** — both in the
+  target matrix; the issue's M-8 (`MACOS_X64`, reusing the x86-64 emitter
+  with the Mach-O directives) is IN scope, not optional. The CI cost is
+  accepted (macOS runners for the Native E2E corpus, gate M-7).
+- **What it unlocks:** issue **#1135** leaves the decision-gated state and
+  becomes the IMPLEMENTATION front per its own measured plan — gate 0 (this
+  decision) is now MET; gates 1–2 (the #1134 SP-alignment redesign — CLOSED
+  16/11 — and the `kof_plat_*` seam completeness) precede the stages M-1
+  (`NativeProfile.MACOS_ARM64` + the Mach-O directive emitter + `_main`) →
+  M-8. Nothing is coded before the gates 1–2 verifications named there.
+- **What stays honest until each stage lands:** capabilities without a
+  macOS face are refused at compile time with a named diagnostic (R6), and
+  the #1135 `1.0-blocks` ledger row STAYS until the issue's own criterion
+  (a macOS face running the Native E2E corpus, or the named stages' gate
+  progress the maintainer accepts) is met — the decision opens the front,
+  it does not close the block. Proving macOS faces requires a macOS host
+  (Xcode CLT); on this Linux fleet the emitter+link-line faces are proven
+  by golden/structural tests until a runner exists (M-7).
+- **Decisions inside the plan already carried by this vote:** rule 6
+  questions 1 (open the target: YES, before 1.0) and 2 (arm64 AND x86-64:
+  BOTH) are answered; questions 3–6 (emitter route, `__ulock` vs
+  `os_unfair_lock`, codesign, the release matrix) stay the implementation
+  front's measured calls recorded on the #1135 thread, per its plan.
+- **Relationships:** `Related: D-1.0-BLOCKS-NO-HONEST-LIMITS (the row
+  stays until developed), #1135 (the front), D-RELEASE-ROADMAP-1114, rule
+  6 (new target = maintainer decision, now given)`.

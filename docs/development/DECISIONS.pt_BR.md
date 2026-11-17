@@ -5208,3 +5208,38 @@ durante a varredura ASan da lane docs/lab (192.168.100.14:0).
   escada: 1.0.0 = todo gap corrigido), regra 10 (nada concluído sem evidência
   verificável), regra 14 (registrar com precisão o que não foi executado —
   agora cada registro desse carrega um critério de fechamento)`.
+
+## D-NATIVE-MACOS — o alvo Native ABRE no macOS: arm64 E x86-64 (as duas arquiteturas na matriz de alvos); a issue #1135 vira a frente de implementação com o plano em fatias dela (M-1..M-8) e @FabioRocha231 como o dono nomeado da frente (mantenedora 17/11/2026, decisão no chat via a lane issues/tooling)
+
+**Data:** 2026-11-17 · **Estado:** `DECIDIDO` (mantenedora, enquete rule-6
+via a lane issues/tooling do flatt 192.168.15.15:0).
+
+- **Decisão:** o alvo Native ABRE no macOS (Mach-O). Primeiras arquiteturas:
+  **arm64 (Apple silicon) E x86-64 (Intel)** — ambas na matriz de alvos; o
+  M-8 da issue (`MACOS_X64`, reusando o emitter x86-64 com as diretivas
+  Mach-O) está NO escopo, não é opcional. O custo de CI é aceito (runners
+  macOS para o corpus E2E Native, gate M-7).
+- **O que destrava:** a issue **#1135** sai do estado gated-por-decisão e
+  vira a frente de IMPLEMENTAÇÃO pelo próprio plano medido dela — o gate 0
+  (esta decisão) está AGORA ATENDIDO; os gates 1–2 (o redesign de
+  alinhamento de SP do #1134 — FECHADO 16/11 — e a completude da costura
+  `kof_plat_*`) precedem as fases M-1 (`NativeProfile.MACOS_ARM64` + o
+  emitter de diretivas Mach-O + `_main`) → M-8. Nada é codificado antes das
+  verificações dos gates 1–2 nomeadas lá.
+- **O que segue honesto até cada fase pousar:** capacidades sem face macOS
+  são recusadas em compile-time com diagnóstico nomeado (R6), e a linha
+  `1.0-blocks` do #1135 no ledger SEGUE até o critério da própria issue
+  (uma face macOS rodando o corpus E2E Native, ou o progresso de gates das
+  fases nomeadas que a mantenedora aceitar) ser atendido — a decisão ABRE a
+  frente, não fecha o block. Provar as faces macOS exige um host macOS
+  (Xcode CLT); nesta frota Linux as faces de emitter+linha-de-link são
+  provadas por testes golden/estruturais até existir um runner (M-7).
+- **Decisões internas do plano já carregadas por esta votação:** as perguntas
+  rule-6 1 (abrir o alvo: SIM, antes do 1.0) e 2 (arm64 E x86-64: AS DUAS)
+  estão respondidas; as perguntas 3–6 (rota do emitter, `__ulock` vs
+  `os_unfair_lock`, codesign, a matriz de release) seguem sendo as chamadas
+  medidas da frente de implementação registradas no thread do #1135, pelo
+  plano dela.
+- **Relações:** `Relaciona: D-1.0-BLOCKS-NO-HONEST-LIMITS (a linha segue até
+  desenvolvido), #1135 (a frente), D-RELEASE-ROADMAP-1114, regra 6 (alvo
+  novo = decisão da mantenedora, agora dada)`.
