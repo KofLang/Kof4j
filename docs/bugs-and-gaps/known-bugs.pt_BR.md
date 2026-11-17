@@ -18574,3 +18574,19 @@ Isto bate com o frame gdb da issue exatamente (`main+76`, `str x0, [sp]`). A sa�
 **Estado:** ✅ CORRIGIDA 05/11 (`2958f3f4d`) — o conserto de emissor do PR #1092 (tipagem do lambda pelo tipo declarado em todo lugar) aplicado e validado (as três E2Es do PR 6/6 incl. este repro); a fatia estacionada agora passa `SentinelHttpE2ETest` 2/2 JVM+Script depois de TAMBÉM estender a ponte §574 do interpretador a `kof_web_use` (route/sse/ws estavam cobertos, `use` não — o middleware ficava um KofObj cru e o dispatch dava 500 no Script). Issue #1080 FECHADA com prova executada.
 
 **Dona:** o core do compilador (território `.30:9092` — a lane docs/lab mediu até a raiz e parou pelo contrato de lane); classe: emissão do compilador / tipos funcionais.
+
+### §1172 🐞 ABERTO 17/11 (`docs/lab` 192.168.100.14:0) — spawn×extern: o segundo worker entra em futex-deadlock num lock interno do glibc quando o primeiro worker estaciona DENTRO de uma chamada extern
+
+**Sintoma:** `BufferRuntimeBorrowE2ETest#concurrentBufferBorrowRaisesMem020Cross` flaca (~1/6 em máquina quieta, **4/6 sob carga**, tip c63793fc1): o harness estoura o timeout "waiting for 3 attempt marks".
+
+**Medido (QEMU_STRACE, GO retido):** w1 estaciona no GO-poll do extern vivo para sempre; w2 marca 2, tenta o acquire do borrow, então `futex(0x…, FUTEX_WAIT_PRIVATE, 2)` — o `__lll_lock_wait` do glibc (o mutex pthread tri-estado) — e NENHUM WAKE chega. O runtime riscv do Kof NÃO TEM sítio futex val=2 (o await espera val=0; o canal B61 val=1; o acquire do borrow é LR/SC lock-free) — o mutex é interno do glibc (a família loader-TLS/lazy-PLT; a palavra mora na região alta do mmap perto dos dados do ld.so).
+
+**A inversão de ordem de lock:** um worker estaciona DENTRO de uma chamada extern C (o GO-poll da barreira) enquanto o irmão precisa do mesmo lock no caminho do acquire — dorme sem WAKE futuro. O GO só sai após 3 marcas → a 3ª nunca cai → o timeout honesto do harness.
+
+**Por que o harness não pode corrigir:** o desenho da barreira (READY + marcas 1,2,3 antes do GO) é são; o flake É o bug. Por `D-1.0-BLOCKS-NO-HONEST-LIMITS` o teste fica (sem skip, sem enfraquecimento).
+
+**Direção sugerida (lane nativa/GC-spawn — a frente §602):** reproduzir com a receita do strace (4/6 sob carga); suspeitar da ordem do segundo `_dl_allocate_tls` (spawn #2) vs o primeiro acesso TLS-dinâmico dos workers e a resolução lazy-PLT dos externs; mitigação candidata: BIND_NOW (`-z now`) nos binários de spawn, pré-resolver os símbolos extern antes do primeiro clone, ou TLS estático para os blocos do worker.
+
+**Status:** ABERTO — a frente da lane nativa/GC-spawn (a família §602; o teste fica por `D-1.0-BLOCKS-NO-HONEST-LIMITS`).
+
+Arquivado como **#1172**; registrado no lane docs/lab `192.168.100.14:0`, 17/11, tip `c63793fc1`.
