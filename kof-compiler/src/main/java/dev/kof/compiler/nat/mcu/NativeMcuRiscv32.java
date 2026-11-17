@@ -71,7 +71,12 @@ public final class NativeMcuRiscv32 {
         String as = System.getenv().getOrDefault("KOF_MCU_AS", "riscv64-linux-gnu-as");
         String ld = System.getenv().getOrDefault("KOF_MCU_LD", "riscv64-linux-gnu-ld");
         try {
-            run(new String[]{as, "-march=rv32i", "-mabi=ilp32", "-o", objFile.toString(),
+            // #1171 follow-up (17/11): binutils 2.42+ move os opcodes CSR (csrr/csrw)
+                // para a extensão _zicsr — o march=rv32i cru os rejeita (o
+                // upgrade do cross binutils 2.47 neste host expôs a face; as
+                // 8F da suíte carimbada). O _zicsr é o contrato que o runtime
+                // MCU sempre emissão (mtvec/mhartid/cycle/time).
+                run(new String[]{as, "-march=rv32i_zicsr", "-mabi=ilp32", "-o", objFile.toString(),
                     asmFile.toString()}, "riscv32-as");
             run(new String[]{ld, "-m", "elf32lriscv", "-T", ldFile.toString(),
                     "-o", binFile.toString(), objFile.toString()}, "riscv32-ld");

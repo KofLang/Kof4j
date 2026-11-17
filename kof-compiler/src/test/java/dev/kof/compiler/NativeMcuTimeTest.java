@@ -107,7 +107,7 @@ class NativeMcuTimeTest implements NativeToolchainAssumptions {
         Path bin = tempDir.resolve(name);
         Files.writeString(asm, program + "\n" + NativeMcuTimeRiscv32.runtimeAsm());
         Files.writeString(ld, dev.kof.compiler.nat.mcu.NativeMcuGcRiscv32.linkerScript(heapBytes));
-        capture("riscv64-linux-gnu-as", "-march=rv32i", "-mabi=ilp32", "-o", obj.toString(),
+        capture("riscv64-linux-gnu-as", "-march=rv32i_zicsr", "-mabi=ilp32", "-o", obj.toString(),
                 asm.toString());
         capture("riscv64-linux-gnu-ld", "-m", "elf32lriscv", "-T", ld.toString(), "-o",
                 bin.toString(), obj.toString());
