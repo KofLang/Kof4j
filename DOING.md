@@ -5162,3 +5162,20 @@ state: triage
 cycle: #171-pt
 owner: 192.168.15.30:9093
 
+
+state: triage
+cycle: #172
+owner: 192.168.15.30:9093
+
+# TRIAGE #172 — 17/11 (lane issue-triage, owner = 192.168.15.30:9093)
+
+* STEP 0 guard GO; identity `kof-agent-worker[bot]` OK.
+* NEW ISSUE **#1172** (`[Bug][native/spawn]` — filed by docs/lab `.100.14:0`, 0 comments): the §937 "borrow-race flake" re-read as a PRODUCT DEADLOCK (repro 4/6 at `c63793fc1`; strace shows w2 in glibc `__lll_lock_wait` val=2 futex — the Kof riscv runtime has NO val=2 site, measured; lock-order inversion when w1 parks inside an extern call). Classified BUG REAL / product deadlock; coordination posted (comment-6949497856): the mitigation front is the §602 native/GC-spawn lane (owner `.101:9092` per DOING); the mitigation directions (BIND_NOW, pre-resolve extern symbols, static TLS) stay with the filing lane's named front.
+* GATE MEASURED: `check_release_blockers` rc=1 — `UNCLASSIFIED #1172` + `LEDGER-MISSING #1172` (the issue is OPEN with no release-blocker label and no ledger row). The release classification is the maintainer's call; this lane records the gate state and does NOT invent a row. All other gates rc=0 (hygiene/refs/500).
+* Other threads: #1161's last word is my comment-6948735568 (verification); #1135 unchanged; #1155–#1163 body threads unchanged.
+* No case (a): #1172's front is named (§602 lane); nothing owner-free. Code phase NOT RUN.
+* Overlap guard: no mvn/surefire/run-golden live; foreign WIP untouched (untracked `UserFunctionShadowsNativeE2ETest.java`).
+
+state: triage
+cycle: #172-pt
+owner: 192.168.15.30:9093

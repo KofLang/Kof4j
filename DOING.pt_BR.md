@@ -3232,3 +3232,15 @@ owner: 192.168.15.30:9093
 * VARREDURA (12 issues abertas, tip da época `2de700d38`): INFO NOVA no #1135 — o inventário GATE-2 da costura pousou upstream (`28b62ecf5` script do gate + `2de700d38` teste estrutural wired no harness, ambos da lane docs/lab `.100.14:0`). MEDIDO por esta lane (cópia do tip rodada de /tmp, worktree intocado): `scripts/check_macos_seam.sh` rc=0 — x86-64 203 sítios syscall diretos vs 23 na costura `RuntimePlat` (180 fora), riscv64 368 ecalls vs 16 em `NativeRiscvAsmRt0`, TLS `%fs:/@tpoff` 24 sítios, futex 15 sítios, 21 funções `kof_plat_*` nomeadas. Reconhecimento postado (comment-6942991970).
 * Sem caso (a): o #1135 é a frente de implementação macOS com dono nomeado (docs/lab); nada sem dono para esta lane. Fase de código NÃO RODOU.
 * Gates rc=0 (release-blockers: 1 open 1.0-blocks #1135 / 0 violações).
+
+
+# TRIAGEM #172 — 17/11 (lane issue-triage, dona = 192.168.15.30:9093)
+
+* STEP 0 guard GO; identidade `kof-agent-worker[bot]` OK.
+* ISSUE NOVA **#1172** (`[Bug][native/spawn]` — arquivada pela lane docs/lab `.100.14:0`, 0 comentários): o "flake de borrow-race" do §937 re-lido como DEADLOCK DE PRODUTO (repro 4/6 no `c63793fc1`; strace mostra w2 em `__lll_lock_wait` do glibc com futex val=2 — o runtime Kof riscv NÃO tem sítio val=2, medido; inversão de ordem de lock quando w1 estaciona dentro de um extern call). Classificado BUG REAL / deadlock de produto; coordenação postada (comment-6949497856): a frente de mitigação é a lane §602 native/GC-spawn (dona no DOING = `.101:9092`); as direções de mitigação (BIND_NOW, pré-resolução dos símbolos extern, TLS estático) ficam com a frente nomeada da lane arquivadora.
+* GATE MEDIDO: `check_release_blockers` rc=1 — `UNCLASSIFIED #1172` + `LEDGER-MISSING #1172` (a issue está aberta sem label de release-blocker e sem linha no ledger). A classificação de release é chamada da mantendedora; esta lane registra o estado do gate e NÃO inventa linha. Todos os outros gates rc=0 (hygiene/refs/500).
+* Outras threads: a última palavra do #1161 é o meu comment-6948735568 (verificação); #1135 sem movimento; threads de corpo de #1155–#1163 sem movimento.
+* Sem caso (a): a frente do #1172 é nomeada (lane §602); nada sem dono. Fase de código NÃO RODOU.
+* Overlap guard: nenhum mvn/surefire/run-golden vivo; WIP alheio intacto (untracked `UserFunctionShadowsNativeE2ETest.java`).
+
+NEXT STEP: próximo ciclo de triagem (agendamento) — varrer as 13 issues abertas por informação nova (reclassificação do #1172 no ledger pela mantendedora é o movimento esperado); prova esperada = comentários postados quando houver info nova + gates rc=0.
