@@ -79,6 +79,14 @@ own fork/clone is not research — it is abuse.
   secret scanning with Gitleaks
   (`.github/workflows/secret-scan.yml`) and Dependabot
   (`.github/dependabot.yml`).
+- **kof4shell mitigation (CVE-2026-114938, 17/11/2026):** the HotSpot
+  AVX-512 Base64 decode intrinsic (Intel Ice Lake+/AMD Zen 4+, JDK
+  17.0.6+/21/25) overflows the heap on padded inputs — unauthenticated RCE.
+  Every JVM process Kof launches (the `bin/kof`(+`.bat`) launcher and all
+  child JVMs: run/serve/test/workflow/makealive/bench/profile/compare, the
+  JS-driver re-exec, the debug session) carries `-XX:-UseBASE64Intrinsics`
+  by default; `KOF_B64_INTRINSICS=1` opts out for a JDK carrying the fix
+  (11.0.33.1/17.0.21.1/21.0.13.1/25.0.5.1/27.0.1.1). Tracking: #1173.
 
 ---
 

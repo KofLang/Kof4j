@@ -20,5 +20,11 @@ if exist "%KOF_HOME%\jdk\bin\java.exe" (
     set "EMBEDDED=true"
 )
 
-"%JAVA%" -Dkof.install.dir="%KOF_HOME%" -Dkof.embedded.jdk="%EMBEDDED%" -jar "%KOF_HOME%\lib\kof.jar" %*
+rem kof4shell (CVE-2026-114938): disable the HotSpot Base64 intrinsic (the
+rem AVX-512 decode overflow, unauthenticated RCE); KOF_B64_INTRINSICS=1 opts
+rem out for a JDK carrying the fix.
+set "B64_FLAG=-XX:-UseBASE64Intrinsics"
+if "%KOF_B64_INTRINSICS%"=="1" set "B64_FLAG="
+
+"%JAVA%" %B64_FLAG% -Dkof.install.dir="%KOF_HOME%" -Dkof.embedded.jdk="%EMBEDDED%" -jar "%KOF_HOME%\lib\kof.jar" %*
 exit /b %ERRORLEVEL%

@@ -390,6 +390,9 @@ final class KofDebugJvmSession {
         cmd.add("-Dfile.encoding=UTF-8");
         cmd.add("-Dstdout.encoding=UTF-8");
         cmd.add("-Dstderr.encoding=UTF-8");
+        if (KofStdio.base64IntrinsicDisabledByDefault()) {
+            cmd.add(KofStdio.BASE64_INTRINSIC_FLAG);  // kof4shell (CVE-2026-114938)
+        }
         cmd.add("-cp");
         cmd.add(classesDir.toString());
         cmd.add("Default.Main");

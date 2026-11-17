@@ -55,13 +55,38 @@ final class KofStdio {
                 System.getProperty("native.encoding"), false);
     }
 
+    /**
+     * kof4shell (CVE-2026-114938, 17/11): o intrínseco Base64 do HotSpot
+     * transborda o heap no decodificador AVX-512 (Intel Ice Lake+/AMD Zen 4+,
+     * JDK 17.0.6+/21/25 — entradas com padding) e vira RCE sem autenticação.
+     * TODO processo JVM que o CLI lança (run/serve/test/workflow/makealive/
+     * bench/profile/compare/debug e o driver JS) recebe
+     * {@code -XX:-UseBASE64Intrinsics} — o runtime gerado usa
+     * {@code java.util.Base64} em 87 sítios (crypto/web/tls/acme/config), e
+     * vários deles decodificam entrada de rede. Saída de emergência para quem
+     * já roda um JDK corrigido: {@code KOF_B64_INTRINSICS=1} religa (o default
+     * segue DESLIGADO até o requisito de JDK mínimo carregar o fix).
+     */
+    static final String BASE64_INTRINSIC_FLAG = "-XX:-UseBASE64Intrinsics";
+
+    static boolean base64IntrinsicDisabledByDefault() {
+        return !"1".equals(System.getenv("KOF_B64_INTRINSICS"));
+    }
+
     /** JVM filha que herda o stdout/stderr do CLI (kof run, kof serve). */
     static List<String> inheritedJvmFlags() {
-        return List.of("-Dstdout.encoding=" + stdout().name(), "-Dstderr.encoding=" + stderr().name());
+        var flags = new java.util.ArrayList<String>();
+        flags.add("-Dstdout.encoding=" + stdout().name());
+        flags.add("-Dstderr.encoding=" + stderr().name());
+        if (base64IntrinsicDisabledByDefault()) flags.add(BASE64_INTRINSIC_FLAG);
+        return List.copyOf(flags);
     }
 
     /** JVM filha cuja saída o CLI captura e lê como UTF-8 (kof test, compare, bench...). */
     static List<String> capturedJvmFlags() {
+        if (base64IntrinsicDisabledByDefault()) {
+            return List.of("-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8", BASE64_INTRINSIC_FLAG);
+        }
         return List.of("-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8");
     }
 

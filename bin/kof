@@ -52,6 +52,17 @@ JAVA_MAJOR="$("$JAVA" -version 2>&1 | sed -n 's/.*version "\([0-9]*\).*/\1/p' | 
 if [ -n "$JAVA_MAJOR" ] && [ "$JAVA_MAJOR" -ge 24 ] 2>/dev/null; then
     UNSAFE_FLAG="--sun-misc-unsafe-memory-access=allow"
 fi
-exec "$JAVA" --enable-native-access=ALL-UNNAMED $UNSAFE_FLAG \
+# kof4shell (CVE-2026-114938): the HotSpot AVX-512 Base64 decode intrinsic
+# overflows the heap on padded inputs (Intel Ice Lake+/AMD Zen 4+, JDK
+# 17.0.6+/21/25) — unauthenticated RCE. The CLI's child JVMs carry
+# -XX:-UseBASE64Intrinsics (KofStdio) and so does THIS launcher process: the
+# CLI itself runs java.util.Base64 (deps/config/acme). KOF_B64_INTRINSICS=1
+# opts out for a JDK carrying the fix (11.0.33.1/17.0.21.1/21.0.13.1/
+# 25.0.5.1/27.0.1.1).
+B64_FLAG="-XX:-UseBASE64Intrinsics"
+if [ "${KOF_B64_INTRINSICS:-0}" = "1" ]; then
+    B64_FLAG=""
+fi
+exec "$JAVA" --enable-native-access=ALL-UNNAMED $UNSAFE_FLAG $B64_FLAG \
     -Dkof.install.dir="$KOF_HOME" -Dkof.embedded.jdk="$EMBEDDED" \
     -jar "$JAR" "$@"

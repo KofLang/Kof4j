@@ -78,6 +78,14 @@ próprio fork/clone não são pesquisa — são abuso.
   varredura de segredos com Gitleaks
   (`.github/workflows/secret-scan.yml`) e Dependabot
   (`.github/dependabot.yml`).
+- **Mitigação kof4shell (CVE-2026-114938, 17/11/2026):** o intrínseco
+  Base64 AVX-512 do HotSpot (Intel Ice Lake+/AMD Zen 4+, JDK 17.0.6+/21/25)
+  transborda o heap em entradas com padding — RCE sem autenticação. Toda
+  JVM que o Kof lança (o launcher `bin/kof`(+`.bat`) e as filhas:
+  run/serve/test/workflow/makealive/bench/profile/compare, o re-exec do
+  driver JS, a sessão de debug) carrega `-XX:-UseBASE64Intrinsics` por
+  default; `KOF_B64_INTRINSICS=1` desliga para um JDK com o fix
+  (11.0.33.1/17.0.21.1/21.0.13.1/25.0.5.1/27.0.1.1). Rastreamento: #1173.
 
 ---
 

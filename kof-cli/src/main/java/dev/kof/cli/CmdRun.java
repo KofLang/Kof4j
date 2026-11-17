@@ -296,6 +296,11 @@ final class CmdRun {
                 String driverCp = joinPaths(driverJars);
                 List<String> cmd = new ArrayList<>();
                 cmd.add(KofCliSupport.javaExecutable());
+                // kof4shell (CVE-2026-114938): o driver JS re-executa o CLI
+                // fora do caminho do KofStdio — o flag vai aqui também.
+                if (KofStdio.base64IntrinsicDisabledByDefault()) {
+                    cmd.add(KofStdio.BASE64_INTRINSIC_FLAG);
+                }
                 cmd.addAll(jvmOptions);   // #855: o driver JS tambem e uma JVM
                 for (String key : new java.util.TreeSet<>(System.getProperties().stringPropertyNames())) {
                     if (key.startsWith("kof.") && !"kof.js.driver.cp".equals(key)) {
