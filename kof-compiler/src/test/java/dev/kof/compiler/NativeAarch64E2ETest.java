@@ -67,6 +67,13 @@ class NativeAarch64E2ETest implements NativeToolchainAssumptions {
                 return root.equals("/") ? p.toString() : root + "/usr/" + arch + "-linux-gnu";
             }
         }
+        // O layout SUSE (o zypper cross-*: /usr/<arch>-suse-linux/sys-root
+        // com lib/ld-* — o mesmo fallback do helper riscv, medido 15/11; a
+        // cópia do aarch64 nunca o ganhou → os 3 spawn-fails ambientais).
+        Path suse = Path.of("/usr", arch + "-suse-linux", "sys-root");
+        if (Files.exists(suse.resolve("lib").resolve(loader))) {
+            return suse.toString();
+        }
         return null;
     }
 
