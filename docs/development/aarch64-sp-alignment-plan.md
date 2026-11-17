@@ -81,6 +81,15 @@ adjustment (the slice-1 parameterization carries the arithmetic).
 sub/add sp a multiple of 16 — the mechanical form measured RED with 60
 violations pre-fix); the aarch64 suite at the 3F baseline.
 
+**The bisect finding (17/11):** the dims mirror was initially UNCONDITIONAL —
+it broke the riscv64 multi-dim (the 16-stride reads over the 8-wide riscv
+slots; measured 0/OOB). FIXED: the mirror is GATED BY TARGET (aarch64 only;
+the riscv64 keeps the original emission — byte-identical to the pre-plan
+output, proven 2/3/0/7 green). The coverage gap this exposed: NO riscv64
+multi-dim E2E existed — the face added
+(`MathDNativeE2ETest.multiDimParityOnBothCrosses`, both cross targets
+byte-exact).
+
 ### Slice 3 — the proof (the issue's criterion)
 
 - The SP-invariant assertion: the static checker as the JUnit gate
