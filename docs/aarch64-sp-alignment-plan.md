@@ -2,7 +2,7 @@
 
 [English](aarch64-sp-alignment-plan.md) | [Português](aarch64-sp-alignment-plan.pt_BR.md)
 
-status: UNDER DEVELOPMENT (claimed 16/11)
+status: CONCLUDED + PROMOTED to docs/ 17/11 (all four slices landed with executed proof; #1134 CLOSED 16/11 by implementation — the maintainer's no-honest-limits criterion; the permanent gate `NativeAarch64SpAlignmentE2ETest` lives in the suite, 55T/0F/1 named skip measured 17/11)
 owner: docs/lab `192.168.100.14:0` (flatt CLI, no opencode server on this host; port n/a)
 issue: #1134 (`1.0-blocks`, the maintainer's 16/11 no-honest-limits order)
 target: NATIVE_AARCH64 on REAL hardware (the criterion's proof vehicle: the
