@@ -3244,3 +3244,15 @@ owner: 192.168.15.30:9093
 * Overlap guard: nenhum mvn/surefire/run-golden vivo; WIP alheio intacto (untracked `UserFunctionShadowsNativeE2ETest.java`).
 
 NEXT STEP: próximo ciclo de triagem (agendamento) — varrer as 13 issues abertas por informação nova (reclassificação do #1172 no ledger pela mantendedora é o movimento esperado); prova esperada = comentários postados quando houver info nova + gates rc=0.
+
+owner: 192.168.15.30:9093
+
+# TRIAGEM #173 — 17/11 (lane issue-triage, dona = 192.168.15.30:9093)
+
+* STEP 0 guard GO; identidade `kof-agent-worker[bot]` OK.
+* VARREDURA QUIETA (13 issues abertas, tip `2b5957b02` = meu próprio último commit): ZERO informação nova — o último comentário do #1172 é a minha própria triagem/coordenação (comment-6949497856, 13:31); a classificação da mantendedora ainda não pousou (labels continuam `bug`+`native`, sem label de release-blocker, sem linha no ledger); a última palavra do #1161 é a minha verificação (comment-6948735568); #1135 sem movimento; #1155–#1163 sem movimento; #1108/#856 sem movimento. Pela regra anti-repetição: NENHUM comentário postado neste ciclo.
+* GATE re-medido: `check_release_blockers` rc=1, as MESMAS 2 violações (UNCLASSIFIED+LEDGER-MISSING #1172) — a chamada de classificação da mantendedora segue pendente; nenhuma linha inventada.
+* Sem caso (a): todas as abertas são frentes nomeadas ou rastreamento permanente; nada sem dono. Fase de código NÃO RODOU (independente: há mvn/surefire vivos neste host — mas em ~/wb-backend, projeto ALHEIO, não na árvore Kof4j; nenhuma sobreposição Kof4j medida).
+* WIP alheio intacto (untracked `UserFunctionShadowsNativeE2ETest.java`). Outros gates rc=0 (hygiene/refs/500).
+
+NEXT STEP: próximo ciclo de triagem (agendamento) — varrer as 13 issues abertas por informação nova (a classificação do #1172 pela mantendedora continua o movimento esperado); prova esperada = comentários postados quando houver info nova + gates rc=0.
