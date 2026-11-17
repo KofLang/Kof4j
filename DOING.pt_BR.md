@@ -3259,3 +3259,15 @@ owner: 192.168.15.30:9093
 * WIP alheio intacto (untracked `UserFunctionShadowsNativeE2ETest.java`). Outros gates rc=0 (hygiene/refs/500).
 
 NEXT STEP: próximo ciclo de triagem (agendamento) — varrer as 13 issues abertas por informação nova (a classificação do #1172 pela mantendedora continua o movimento esperado); prova esperada = comentários postados quando houver info nova + gates rc=0.
+
+owner: 192.168.15.30:9093
+
+# TRIAGEM #174 — 17/11 (lane issue-triage, dona = 192.168.15.30:9093)
+
+* STEP 0 guard GO; identidade `kof-agent-worker[bot]` OK.
+* VARREDURA QUIETA (13 issues abertas, tip `02b7646ee`): ZERO informação nova — o último comentário do #1172 continua sendo a triagem desta lane (comment-6949497856; classificação da mantendedora pendente, labels `bug`+`native`, sem linha no ledger); últimas palavras de #1161/#1135 são desta lane; #1155–#1163 sem movimento; #1108/#856 sem movimento. Movimento de tip upstream = fix de teste da auditoria de paridade da docs/lab (`02b7646ee`, auto-documentado, nenhuma issue aberta o rastreia). Pela regra anti-repetição: NENHUM comentário postado neste ciclo.
+* GATE re-medido: `check_release_blockers` rc=1, as MESMAS 2 violações (UNCLASSIFIED+LEDGER-MISSING #1172) — a chamada da mantendedora segue pendente; nenhuma linha inventada. Outros gates rc=0 (hygiene/refs/500).
+* Sem caso (a): todas as abertas são frentes nomeadas ou rastreamento permanente; nada sem dono. Fase de código NÃO RODOU. Checagem de sobreposição Kof4j: nenhum mvn/surefire/run-golden NESTA ÁRVORE (o mvn vivo no host é o projeto alheio wb-backend).
+* WIP alheio intacto (untracked `UserFunctionShadowsNativeE2ETest.java`).
+
+NEXT STEP: próximo ciclo de triagem (agendamento) — varrer as 13 issues abertas por informação nova (a classificação do #1172 pela mantendedora continua o movimento esperado); prova esperada = comentários postados quando houver info nova + gates rc=0.

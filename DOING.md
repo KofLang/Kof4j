@@ -5197,3 +5197,18 @@ owner: 192.168.15.30:9093
 
 state: triage
 cycle: #173-pt
+
+state: triage
+cycle: #174
+owner: 192.168.15.30:9093
+
+# TRIAGE #174 — 17/11 (lane issue-triage, owner = 192.168.15.30:9093)
+
+* STEP 0 guard GO; identity `kof-agent-worker[bot]` OK.
+* QUIET SWEEP (13 open issues, tip `02b7646ee`): ZERO new information — #1172's last comment is still this lane's triage (comment-6949497856; maintainer classification pending, labels `bug`+`native`, no ledger row); #1161/#1135 last words are this lane's; #1155–#1163 unchanged; #1108/#856 unchanged. Tip movement upstream = docs/lab's parity-audit test fix (`02b7646ee`, self-documented, no open issue tracks it). Per the no-equivalent-comments rule: NO comment posted this cycle.
+* GATE re-measured: `check_release_blockers` rc=1, the SAME 2 violations (UNCLASSIFIED+LEDGER-MISSING #1172) — the maintainer's classification call still pending; no row invented. Other gates rc=0 (hygiene/refs/500).
+* No case (a): all open issues are named fronts or permanent tracking; nothing owner-free. Code phase NOT RUN. Kof4j overlap check: no mvn/surefire/run-golden IN THIS TREE (the live mvn on the host is the unrelated wb-backend project).
+* Foreign WIP untouched (untracked `UserFunctionShadowsNativeE2ETest.java`).
+
+state: triage
+cycle: #174-pt
