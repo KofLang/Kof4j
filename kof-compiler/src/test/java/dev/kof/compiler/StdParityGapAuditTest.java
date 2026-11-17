@@ -60,7 +60,7 @@ class StdParityGapAuditTest {
         assertTrue(KofBuffer.supportedOn(Target.NATIVE));
         assertTrue(KofBuffer.supportedOn(Target.NATIVE_RISCV64));
         assertTrue(KofBuffer.supportedOn(Target.NATIVE_AARCH64));
-        assertEquals("FFI001", KofBuffer.gapCode(Target.ANDROID));
+        assertEquals("FFI001", KofBuffer.gapCode()); // o código é constante (a face anda com a superfície, não com o alvo)
     }
 
     @Test
@@ -143,7 +143,7 @@ class StdParityGapAuditTest {
         // o shim kof_math_pow chama pow@PLT e o cross liga `-lm` POR USO.
         assertEquals(Set.of(), unsupported(t -> KofMath.supportedOn("kof_math_pow", t)),
                 "pow não é mais gated no cross (libm por uso)");
-        assertEquals("MATH001", KofMath.gapCode("kof_math_pow")); // código reservado
+        assertEquals("MATH001", KofMath.gapCode()); // código reservado
     }
 
     @Test
