@@ -2,10 +2,24 @@
 
 # AUDIT-STABILITY — tests / sanitizers / static analysis / skips / gates (living)
 
-## The current suite verdict (executed at `e38619713`; see AUDIT-BASELINE)
+## The current suite verdict (executed at `02b7646e` 17/11; see AUDIT-BASELINE)
 
-8216 tests / 0 failures / 0 errors / 1015 named skips / BUILD SUCCESS —
-STABILITY: GREEN + CUT: GREEN (the extract: suite-verdict-0.8.0-e38619713.md).
+**8234 tests / 0 failures / 0 errors / 297 named skips / BUILD SUCCESS — the
+FIRST fully-green full-suite measurement of the honest-limits campaign** (the
+stamped log `SUITE-SHA: 02b7646e…`, `SUITE-DIRTY: 0`). The campaign's
+recovered fronts, all verified across the whole suite: the MCU zicsr 8F
+(the binutils-2.47 `_zicsr` march), the 3 aarch64 spawn env-fails (the SUSE
+sys-root fallback in the helper), the MATH-D + #1134 + #1171 fix faces (the
+fresh batteries), the 28 hygiene fixes (the 44-alert CodeQL close — the
+`gapCode` no-arg callers included, caught by the full compile). The
+§1172 borrow deadlock did NOT fire this run — it stays tracked as the
+1.0-block (the native/GC lane's front; it fires ~1/2 under load — measured).
+The cut verdict per `D-LAB-STABILITY`: the suite is GREEN at its certified
+SHA; the 2 open 1.0-blocks (#1135 macOS — the maintainer's D-NATIVE-MACOS
+front; #1172 the deadlock fix) hold the cut, and the stamp at the EXACT cut
+tip is the maintainer's call.
+
+(prior verdict: 8216/0F/1015 at `e38619713` — see AUDIT-BASELINE).
 
 ## The P0/P1 cycle results (15/11)
 
