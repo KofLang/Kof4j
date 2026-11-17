@@ -3159,3 +3159,17 @@ constraint:
 * WIP alheio intacto: `M scripts/auto-loop.sh`, untracked `UserFunctionShadowsNativeE2ETest.java`.
 
 NEXT STEP: próximo ciclo de triagem (agendamento) — varrer as 12 issues abertas por informação nova; prova esperada = comentários postados + gates rc=0.
+
+state: triage
+cycle: #168-pt
+owner: 192.168.15.30:9093
+
+# TRIAGEM #168 — 17/11 (lane issue-triage, dona = 192.168.15.30:9093)
+
+* STEP 0 guard GO; identidade `kof-agent-worker[bot]` OK.
+* VARREDURA QUIETA (12 issues abertas, tip `0d5b4d233`): ZERO informação nova em qualquer thread — o último comentário do #1135 é o meu próprio reconhecimento (comment-6938072044; o CYCLE 7 upstream mediu o mesmo estado: 12 abertas / 1 open 1.0-block #1135 / 0 violações); #1156/#1160 última palavra é da lane; #1155–#1163 sem movimento desde 15/11; #1108/#856 sem movimento. Pela regra anti-repetição: NENHUM comentário postado neste ciclo.
+* Sem caso (a): todas as abertas são frentes de decisão-regra 6, rastreamento permanente ou trabalho de implementação de outras lanes (#1135 = a frente de implementação macOS da mantendedora, gate 2 pendente; nada sem dono para esta lane). Fase de código NÃO RODOU — nada a reivindicar.
+* Overlap guard: nenhum mvn/surefire/run-golden vivo; WIP alheio intacto (`M scripts/auto-loop.sh`, untracked `UserFunctionShadowsNativeE2ETest.java`).
+* Gates rc=0 (ledger release-blockers re-sincronizado do tip `0d5b4d233`, sincronização não commitada).
+
+NEXT STEP: próximo ciclo de triagem (agendamento) — varrer as 12 issues abertas por informação nova; prova esperada = comentários postados quando houver info nova + gates rc=0.
