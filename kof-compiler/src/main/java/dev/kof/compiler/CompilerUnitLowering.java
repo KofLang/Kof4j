@@ -53,6 +53,21 @@ final class CompilerUnitLowering {
                         .add(ext);
             }
         }
+        // §727 (18/11, D-ORM-ENTITY-PREPASS): o mesmo argumento de ordem do
+        // bloco `extern` acima, para as ENTIDADES. O `orm.create/save/all`
+        // num arquivo que mescla ANTES da declaração `entity` (ex.: o main
+        // primeiro, a entity da lib depois) disparava ORM002 "unknown
+        // entity" no IR-build, porque o `entitySchemas.put` só acontecia
+        // quando o lowering CHEGAVA na declaração. Registrar TODAS as
+        // entidades num pré-pass torna o registro independente da ordem
+        // (o `put` do laço principal vira idempotente — mesma chave, mesmo
+        // valor). O `entity User` num arquivo de LIB (o §727 do ledger)
+        // é exatamente esta ordem: main primeiro, lib depois.
+        for (AstNode d : unit.declarations()) {
+            if (d instanceof EntityDeclarationNode ent0) {
+                driver.entitySchemas.put(ent0.name(), ent0.fields());
+            }
+        }
         for (AstNode decl : unit.declarations()) {
             driver.fileImports.enter(decl);
             String declPkg = driver.declPackage(decl, unit.packageName());
