@@ -101,11 +101,13 @@ public final class NativeRiscvAsmMapset0 {
             # kof_map_put(map, key, val) -> anterior | 0
             .globl kof_map_put
             kof_map_put:
-                addi sp, sp, -48
-                sd   ra, 40(sp)
-                sd   s0, 32(sp)          # map
-                sd   s1, 24(sp)          # key
-                sd   s2, 16(sp)          # val
+                addi sp, sp, -64
+                sd   ra, 56(sp)
+                sd   s0, 48(sp)          # map
+                sd   s1, 40(sp)          # key
+                sd   s2, 32(sp)          # val
+                sd   s3, 24(sp)          # §767: newCap*8 (alloc) — callee-saved
+                sd   s4, 16(sp)          # §767: oldCap*8 (copy)  — callee-saved
                 sd   s3, 8(sp)           # idx
                 mv   s0, a0
                 mv   s1, a1
@@ -131,22 +133,30 @@ public final class NativeRiscvAsmMapset0 {
                 # escreviam OOB no heap .bss — corrupção silenciosa). A cópia
                 # fica em oldCap*8 exata (sem overread do bloco antigo). O
                 # cap *= 2 (SLOTS) vem primeiro para o t3 derivar o newCap.
-                slli t2, t0, 3           # oldCap*8 (cópia; size==cap aqui)
-                slli t1, t1, 1
-                sw   t1, 20(s0)          # cap *= 2 (slots)
-                slli t3, t1, 3           # newCap*8 (alloc)
+                slli s4, t0, 3           # oldCap*8 (cópia; size==cap aqui)
+                slli t1, t1, 1           # newCap (slots)
+                # §767 (18/11): os valores do grow (newCap*8 / oldCap*8)
+                # atravessam os DOIS kof_copy_alloc em registradores
+                # CALLEE-saved (s3/s4) e a cap só entra no objeto DEPOIS dos
+                # arrays: t2/t3 são CALLER-saved e o kof_alloc os clobbera, e
+                # um `cap` gravado antes da alocação faz a coleta de ENTRADA
+                # observar um mapa inconsistente (cap nova + arrays antigos)
+                # → o sweep libera blocos que o copy ainda usa.
+                slli s3, t1, 3           # newCap*8 (alloc)
                 addi a0, s0, 24
                 ld   a0, 0(a0)           # keys
-                mv   a1, t3
-                mv   a2, t2
+                mv   a1, s3
+                mv   a2, s4
                 call kof_copy_alloc
                 sd   a0, 24(s0)
                 addi a0, s0, 32
-                ld   a0, 0(a0)           # vals (t2/t3 sobrevivem ao helper)
-                mv   a1, t3
-                mv   a2, t2
+                ld   a0, 0(a0)           # vals
+                mv   a1, s3
+                mv   a2, s4
                 call kof_copy_alloc
                 sd   a0, 32(s0)
+                srli t1, s3, 3           # newCap (slots) = newCap*8 / 8
+                sw   t1, 20(s0)          # cap = newCap (slots), DEPOIS dos arrays
             .Lkmp_space:
                 lw   t0, 16(s0)
                 ld   t1, 24(s0)
@@ -160,12 +170,13 @@ public final class NativeRiscvAsmMapset0 {
                 sw   t0, 16(s0)          # size++
                 li   a0, 0
             .Lkmp_ret:
-                ld   s3, 8(sp)
-                ld   s2, 16(sp)
-                ld   s1, 24(sp)
-                ld   s0, 32(sp)
-                ld   ra, 40(sp)
-                addi sp, sp, 48
+                ld   s4, 16(sp)
+                ld   s3, 24(sp)
+                ld   s2, 32(sp)
+                ld   s1, 40(sp)
+                ld   s0, 48(sp)
+                ld   ra, 56(sp)
+                addi sp, sp, 64
                 ret
 
             # kof_copy_alloc(src, alloc_bytes, copy_bytes) -> novo bloco com os
