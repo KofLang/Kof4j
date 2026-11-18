@@ -153,12 +153,20 @@ jobs:
       - name: Install cross toolchains + qemu + cross libc
         # libc6-<arch>-cross: link dinâmico sob demanda (link-by-use) —
         # NativeCrossLink detecta /usr/<arch>-linux-gnu e liga sem --sysroot.
+        # qemu: nas séries novas do ubuntu-latest (resolute+) qemu-user-static
+        # virou pacote virtual (medido 19/11, run 44409455263: "Package
+        # 'qemu-user-static' has no installation candidate") — o fallback
+        # usa os nomes novos.
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             binutils-riscv64-linux-gnu binutils-aarch64-linux-gnu \
             libc6-riscv64-cross libc6-arm64-cross \
-            qemu-user-static
+            qemu-user-static \
+            || sudo apt-get install -y \
+            binutils-riscv64-linux-gnu binutils-aarch64-linux-gnu \
+            libc6-riscv64-cross libc6-arm64-cross \
+            qemu-user qemu-user-binfmt
       - name: riscv64 + aarch64 E2E (executam sob qemu; falha se o codegen regredir)
         run: >
           mvn -B test -pl kof-compiler -am

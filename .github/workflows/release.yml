@@ -36,6 +36,23 @@ jobs:
           distribution: temurin
           java-version: '25'
 
+      - name: Provision the faces the suite executes for real (nunca waiver)
+        # As faces Linalg (libopenblas), Pcap (libpcap), FfiCross + MathD
+        # (gcc/binutils/libc cross + qemu) executam de verdade no gate — no
+        # runner elas não vêm de fábrica e `mvn clean package` é 0-falhas
+        # (a 0.8.0 foi a primeira release a conter essas faces, pousadas
+        # 15-16/11 DEPOIS do corte 0.7.3 — run 44409747243 mediu 12F).
+        # qemu: nas séries novas (resolute+) qemu-user-static virou pacote
+        # virtual — o fallback usa os nomes novos (o mesmo drift que quebrou
+        # o job cross-native do ci.yml).
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc-riscv64-linux-gnu gcc-aarch64-linux-gnu \
+            libpcap-dev libopenblas-dev
+          sudo apt-get install -y qemu-user-static \
+            || sudo apt-get install -y qemu-user qemu-user-binfmt
+
       - name: Test + package (gate; golden/integration scripts need the CLI jar)
         if: github.ref_name == 'main'
         run: mvn clean package
