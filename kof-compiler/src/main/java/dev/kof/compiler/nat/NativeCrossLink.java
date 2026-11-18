@@ -232,6 +232,15 @@ public final class NativeCrossLink {
         // `--allow-shlib-undefined`: a libc.so do sysroot referencia símbolos
         // GLIBC_PRIVATE do loader; sem isto o ld aborta (o runtime resolve-os).
         a.add("--allow-shlib-undefined");
+        // kof4shell-adjacente / #1172 (17/11): BIND_NOW no cross — o spawn chama
+        // `_dl_allocate_tls` por clone e um worker estacionado DENTRO de um
+        // extern pode segurar o mutex interno do loader enquanto o irmão
+        // primeiro-toca um caminho lazy-PLT/TLS-dynamic → deadlock (a inversão
+        // de ordem de locks medida por strace). Resolvendo TODAS as relocs no
+        // load (sem resolução lazy) tira o primeiro-touch do caminho do lock.
+        // Semântica idêntica em runtime; custo = o load resolve tudo de uma vez.
+        a.add("-z");
+        a.add("now");
         if (sysroot != null && !sysroot.isEmpty()) a.add("--sysroot=" + sysroot);
         a.add("-dynamic-linker");
         a.add(ldPathFor(arch));

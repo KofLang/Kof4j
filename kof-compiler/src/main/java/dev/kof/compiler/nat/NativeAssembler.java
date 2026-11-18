@@ -184,7 +184,12 @@ public final class NativeAssembler {
         if (needsDynamic && os.contains("linux")) {
             java.util.List<String> cmdL = new java.util.ArrayList<>(java.util.Arrays.asList(
                     "ld", "-o", binFile.toString(), objFile.toString(),
-                    "-dynamic-linker", "/lib64/ld-linux-x86-64.so.2", "-lc"));
+                    "-dynamic-linker", "/lib64/ld-linux-x86-64.so.2", "-lc",
+                    // #1172 (kof4shell-family, 17/11): BIND_NOW também no x86-64 —
+                    // o spawn chama `_dl_allocate_tls` por clone; a resolução lazy
+                    // do PLT é a primeira-touch que disputa o mutex interno do
+                    // loader com um worker estacionado dentro de um extern.
+                    "-z", "now"));
             if (usesDb) {
                 cmdL.add("-l:libsqlite3.so.0");
                 // §523 (27/09): sem `-l:libmariadb.so.3` — o wire mysql e
