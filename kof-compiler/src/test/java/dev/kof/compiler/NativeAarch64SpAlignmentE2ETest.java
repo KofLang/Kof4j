@@ -73,13 +73,23 @@ class NativeAarch64SpAlignmentE2ETest {
     }
 
     private Path compile(String source, String tag) throws Exception {
+        // a property é VISÍVEL para o fork inteiro do surefire: sem o restore
+        // ela vaza para os testes seguintes (medido 18/11: o CompilerDriverTest
+        // .phaseF via o .s retido e disparou assertions pré-podador — o padrão
+        // try/finally é o dos irmãos NativeAbiInvariantsTest/NativePeepholeEffectTest)
+        String priorKeep = System.getProperty("KOF_KEEP_ASM");
         System.setProperty("KOF_KEEP_ASM", "1");   // o .s é apagado após o link
-        Files.writeString(tmp.resolve(tag + ".kf"), source);
-        Path out = tmp.resolve("out-" + tag);
-        CompilerDriver driver = new CompilerDriver();
-        CompilationResult r = driver.compile(tmp.resolve(tag + ".kf"), out, Target.NATIVE_AARCH64);
-        assertTrue(r.success(), "aarch64 compile (" + tag + "): " + r.diagnostics().getDiagnostics());
-        return out.resolve("Default/Main.s");
+        try {
+            Files.writeString(tmp.resolve(tag + ".kf"), source);
+            Path out = tmp.resolve("out-" + tag);
+            CompilerDriver driver = new CompilerDriver();
+            CompilationResult r = driver.compile(tmp.resolve(tag + ".kf"), out, Target.NATIVE_AARCH64);
+            assertTrue(r.success(), "aarch64 compile (" + tag + "): " + r.diagnostics().getDiagnostics());
+            return out.resolve("Default/Main.s");
+        } finally {
+            if (priorKeep == null) System.clearProperty("KOF_KEEP_ASM");
+            else System.setProperty("KOF_KEEP_ASM", priorKeep);
+        }
     }
 
     @Test
