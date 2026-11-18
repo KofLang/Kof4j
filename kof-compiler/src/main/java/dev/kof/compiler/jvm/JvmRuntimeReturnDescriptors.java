@@ -121,6 +121,8 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_string_to_long" -> "J";
             case "kof_string_to_double" -> "D";
             case "kof_string_to_float" -> "F";
+            // §742 / D-SPLIT-LITERAL: split literal (String[] de retorno)
+            case "kof_string_split_literal", "kof_string_split_literal_limit" -> "[Ljava/lang/String;";
             // S13b (plan-stdlib-expansion): parse com default — briefing §43
             case "kof_string_to_int_or_default" -> "I";
             case "kof_string_to_long_or_default" -> "J";

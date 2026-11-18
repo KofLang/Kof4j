@@ -305,6 +305,11 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_string_to_long" -> "(Ljava/lang/String;)J";
             case "kof_string_to_double" -> "(Ljava/lang/String;)D";
             case "kof_string_to_float" -> "(Ljava/lang/String;)F";
+            // §742 / D-SPLIT-LITERAL: split com separador LITERAL (a regra de
+            // vazios/limit do §111/§655 preservada — a produção usa o split
+            // do JDK sobre um padrão quotado).
+            case "kof_string_split_literal" -> "(Ljava/lang/String;Ljava/lang/String;)[Ljava/lang/String;";
+            case "kof_string_split_literal_limit" -> "(Ljava/lang/String;Ljava/lang/String;I)[Ljava/lang/String;";
             // S13b (plan-stdlib-expansion): parse com default — briefing §43
             case "kof_string_to_int_or_default" -> "(Ljava/lang/String;I)I";
             case "kof_string_to_long_or_default" -> "(Ljava/lang/String;J)J";

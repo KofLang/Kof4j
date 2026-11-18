@@ -5243,3 +5243,37 @@ via a lane issues/tooling do flatt 192.168.15.15:0).
 - **Relações:** `Relaciona: D-1.0-BLOCKS-NO-HONEST-LIMITS (a linha segue até
   desenvolvido), #1135 (a frente), D-RELEASE-ROADMAP-1114, regra 6 (alvo
   novo = decisão da mantenedora, agora dada)`.
+
+## D-SPLIT-LITERAL — o separador do `String.split` é LITERAL (nunca uma regex); a nota de oráculo do §111 ("Java `String.split(regex)`, `split(regex,0)`) é SUPERADA no eixo de interpretação do separador (chamada delegada da mantenedora 17/11/2026, a ordem do total-pushdown da 1.0.0 "priorize TUDO, quero tudo funcionando, nada fica de fora"; pendente de ratificação dela na próxima revisão)
+
+**Data:** 2026-11-17 · **Estado:** `DECIDIDO` (execução delegada sob a ordem
+do total-pushdown; registrado aqui antes do flip para o rastro de auditoria
+carregar).
+
+- **A decisão:** `s.split(sep)` divide na sequência de caracteres LITERAL
+  `sep`. Nenhum metacaractere é interpretado: `"a.b".split(".")` = 2 partes
+  `[a, b]`, `"a|b".split("|")` = 2, `"a[b".split("[")` = 2 — e a classe
+  `PatternSyntaxException` deixa de existir para programas Kof.
+- **O que permanece intocado:** as regras de vazios/trailing/limit do
+  §111/§655 (a semântica do `split(regex, 0/limit)` do JDK em tudo EXCETO a
+  interpretação do padrão: vazios finais podados no limit 0, `""` → `[""]`,
+  `limit > 0` = o resto vai na última peça, `limit < 0` mantém tudo).
+- **Por que literal (as razões em ordem):** (1) 3 dos 4 backends reais
+  (Native x86-64/riscv64/aarch64 + JS) JÁ eram literais — a divergência era
+  só JVM/Script, então literal é o alinhamento de mudança mínima; (2) as
+  regras de plataforma proíbem um motor de regex nos alvos nativos (nenhuma
+  dependência nova; `matches`/`replaceAll`/`replaceFirst` já recusam com
+  STR003 lá), então a paridade regex jamais seria total; (3) o comportamento
+  pré-fix do JVM era uma armadilha — um `PatternSyntaxException` NÃO
+  capturável matando o programa sobre dado do usuário (regra 5: nunca um
+  crash que a linguagem não consegue capturar).
+- **Implementação:** o caminho compilado-JVM roteia para o novo par de
+  runtime `kof_string_split_literal`/`kof_string_split_literal_limit`
+  (`JvmStringCoreRuntime` — o `split(Pattern.quote(sep), limit)` do JDK,
+  então a mecânica do §111 é byte-idêntica); o interpretador Script cita o
+  separador do mesmo jeito (`KofInterpreterCollections`); as faces JS
+  (`kofSplit`) e Native (`kof_string_split*`) são intocadas (elas eram o
+  lado correto).
+- **Relações:** `Relaciona: §742 (a divergência que isto fecha), §111/§655
+  (as regras preservadas), §740 (o split literal nativo), D-KOF-FIRST
+  (simplicidade: o separador é dado, não programa)`.

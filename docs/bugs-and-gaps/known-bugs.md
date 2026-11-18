@@ -20317,9 +20317,9 @@ pair                          JVM/Script   NATIVE (x86/riscv/arm)   JS
 **PINNED BY GOLDEN 18/10:** `strings-methods` now pins the FOLD — `"CAFÉ".equalsIgnoreCase("café")` → true, `"straße".equalsIgnoreCase("STRASSE")` → false (simple 1:1, no expansion), `"Σ".equalsIgnoreCase("σ")` → true and `"Σ".equalsIgnoreCase("ς")` → true (final sigma folds to the same uppercase) — measured on Script first and **4/4 PASS** (jvm/native/js/script).
 <!-- pt-switch --> **PT:** [§741 (pt_BR)](known-bugs.pt_BR.md#741--stringequalsignorecase-diverge-em-silencio-nos-backends-nativos-fold-so-ascii-e-no-js-fold-completo-do-host)
 
-## §742 — String.split diverges on separators with REGEX metacharacters (the JVM/Script oracle is regex, JS/native are literal)
+## §742 — String.split diverges on separators with REGEX metacharacters (the JVM/Script oracle was regex, JS/native literal) — ✅ FIXED 17/11 by DECISION `D-SPLIT-LITERAL` (the separator is LITERAL on every target; the JVM/Script side now quotes it — pending the maintainer's formal ratification, recorded in DECISIONS)
 
-**Status:** 🟡 OPEN — **needs a maintainer decision** (the semantics of the split separator). Catalogued with the measured evidence; NOT fixed.
+**Status:** ✅ FIXED 17/11 (lane issues/tooling `192.168.15.15:0`, the maintainer's total-pushdown order "priorize TUDO, nada fica de fora"). The decision `D-SPLIT-LITERAL` (DECISIONS.md, pending ratification): the separator is a LITERAL character sequence on every target — the JVM/Script stop interpreting metacharacters instead of the natives growing a regex engine.
 
 **CATALOGUED (measured) 15/10 — lane compiler/JVM/native `192.168.15.30:9092`.** Found by the cross-target probe of the split separator surface (the vein of §738/§739/§740/§741). A separator containing REGEX metacharacters makes the targets disagree on BOTH the value AND whether the program survives (rule 5 + an UNCATCHABLE crash on the JVM):
 
@@ -20338,7 +20338,7 @@ pair                          JVM/Script   NATIVE (x86/riscv/arm)   JS
 - **(c) keep the refusal policy** and diagnose `split` on JS/native when a literal separator is known to be regex-y (a partial, compile-time-only guard).
 
 **Interaction with §740 (honest note):** the §740 fix made the native split LITERAL (composing `index_of2` + `substring`). For a metacharacter-free separator — the overwhelmingly common case — literal and regex agree, so §740 is oracle-correct there (its 19-shape proof passes against the JVM). The residual class is exactly THIS entry's: a separator with metacharacters (and a regex-ESCAPED literal like `"\\."`, where the oracle splits on `.` and the native splits on the two characters `\.`).
-<!-- pt-switch --> **PT:** [§742 (pt_BR)](known-bugs.pt_BR.md#742--stringsplit-diverge-com-separadores-com-metacaracteres-de-regex-o-oraculo-jvmscript-e-regex-jsnativo-sao-literais)
+<!-- pt-switch --> **PT:** [§742 (pt_BR)](known-bugs.pt_BR.md#742--stringsplit-divergia-com-separadores-com-metacaracteres-de-regex-o-oraculo-jvmscript-era-regex-jsnativo-literais---corrigido-1711-por-decisao-d-split-literal-o-separador-e-literal-em-todo-alvo-o-lado-jvmscript-agora-o-cita--pendente-a-ratificacao-formal-da-mantenedora-registrado-no-decisions)
 
 ## §743 — a NARROWED nullable primitive array emitted reference element loads and stores over an int array VerifyError on the JVM and SIGSEGV on the three natives
 

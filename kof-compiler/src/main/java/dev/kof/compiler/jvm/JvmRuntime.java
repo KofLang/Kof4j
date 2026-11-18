@@ -33,6 +33,7 @@ public static boolean hasRuntimeFn(String methodName) {
                 || methodName.startsWith("kof_db_")
                 || methodName.startsWith("kof_orm_")
                 || methodName.startsWith("kof_string_to_")
+                || methodName.startsWith("kof_string_split_literal")
                 || methodName.startsWith("kof_ui_")
                 || methodName.startsWith("kof_sec_")
                 || methodName.startsWith("kof_validation_")

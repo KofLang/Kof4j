@@ -76,8 +76,16 @@ public final class KofInterpreterCollections {
                 yield s.replace((char) KofInterpreter.unboxInt(args[0]),
                         (char) KofInterpreter.unboxInt(args[1]));
             }
-            case "split" -> args.length == 1 ? s.split((String) args[0])
-                    : s.split((String) args[0], KofInterpreter.unboxInt(args[1]));
+            // §742 / D-SPLIT-LITERAL: o separador do split é LITERAL (nunca
+            // regex) — o JVM/Script deixam de interpretar metacaracteres e o
+            // `PatternSyntaxException` no `[` morre. Mesma semântica do Native
+            // e do JS (que já eram literais); o trailing-empty/limit segue o
+            // contrato §111/§655 (o split(regex,0) do JDK com separador
+            // quotado preserve EXATAMENTE essas regras).
+            case "split" -> args.length == 1
+                    ? s.split(java.util.regex.Pattern.quote((String) args[0]))
+                    : s.split(java.util.regex.Pattern.quote((String) args[0]),
+                            KofInterpreter.unboxInt(args[1]));
             case "hashCode" -> s.hashCode();
             case "toString" -> s;
             default -> NOT_HANDLED;
