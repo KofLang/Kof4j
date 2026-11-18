@@ -5277,3 +5277,31 @@ carregar).
 - **Relações:** `Relaciona: §742 (a divergência que isto fecha), §111/§655
   (as regras preservadas), §740 (o split literal nativo), D-KOF-FIRST
   (simplicidade: o separador é dado, não programa)`.
+
+## D-RECORD-FIELD-RAW — `p.x` num record é LEITURA DE CAMPO CRU; o acessor participa SOMENTE da chamada explícita `p.x()` (chamada delegada da mantenedora 17/11/2026, a ordem do total-pushdown da 1.0.0 "priorize TUDO, quero tudo funcionando, nada fica de fora"; pendente de ratificação dela na próxima revisão)
+
+**Data:** 2026-11-17 · **Estado:** `DECIDIDO` (execução delegada sob a ordem
+do total-pushdown; registrado aqui antes do flip).
+
+- **A decisão:** a sintaxe de acesso a campo `p.x` SEMPRE lê o CAMPO do
+  componente diretamente — mesmo quando o record declara um acessor
+  explícito de mesmo nome. O acessor participa apenas da chamada explícita
+  `p.x()` (que a documentação já especifica como "accessor by method",
+  `classes.md:112`). `p.x` e `p.x()` são portanto expressões DISTINTAS com
+  semânticas distintas em todo alvo.
+- **Por que campo cru (as razões em ordem):** (1) 3-de-4 backends
+  (Script/JS/Native) já liam o campo cru — cru é o alinhamento de mudança
+  mínima, o mesmo argumento que decidiu `D-SPLIT-LITERAL`; (2) a sintaxe é
+  de CAMPO (`p.x`, sem parênteses) — lê-la como chamada de método tornava o
+  JVM o lado divergente e transformava uma leitura silenciosa de campo num
+  valor calculado que os outros alvos nunca veem (regra 5: a mesma fonte
+  tem de significar a mesma coisa); (3) preserva o invariante do record
+  LOCAL: `p.x` é o componente armazenado, o acessor é política sobre ele.
+- **O fix no JVM:** o `ExpressionFieldAccessLowerer` não pode rotear o
+  acesso a campo de um componente de record pelo acessor de mesmo nome — o
+  fallback do `resolveFieldInHierarchy` que resolve para o símbolo de
+  MÉTODO (`MemberResolver.resolveInHierarchy`) é a divergência; o campo
+  vence quando o receiver é um record que declara o componente.
+- **Relações:** `Relaciona: §715 (a divergência que isto fecha), classes.md
+  (a dualidade documentada `p.x()` acessor / `p.x` leitura direta),
+  D-SPLIT-LITERAL (o mesmo método delegado de mudança mínima)`.

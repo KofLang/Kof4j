@@ -92,28 +92,17 @@ public final class JvmOpEmitter {
                     if (KofProcess.isResult(lf.ownerType())) {
                         owner = "dev/kof/runtime/KofRuntime$ProcessResult";
                     }
-                    boolean isRecord = false;
-                    boolean isSelfRecordAccess = false;
-                    if (lf.ownerType() instanceof Type.ClassType ct) {
-                        String internal = JvmTypeMapper.toInternalName(ct.packageName(), ct.name());
-                        if (c.module() != null) {
-                            for (IRClass k : c.module().classes()) {
-                                if (k.name().equals(internal) && "java/lang/Record".equals(k.superName())) {
-                                    isRecord = true;
-                                    // If we are inside the record's own accessor, use GETFIELD directly to avoid recursion
-                                    if (c.currentClass() != null && c.currentClass().name().equals(internal)) {
-                                        isSelfRecordAccess = true;
-                                    }
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    if (isRecord && !isSelfRecordAccess) {
-                        c.mv().visitMethodInsn(INVOKEVIRTUAL, owner, lf.name(), "()" + JvmTypeMapper.toDescriptor(lf.fieldType()), false);
-                    } else {
-                        c.mv().visitFieldInsn(GETFIELD, owner, lf.name(), JvmTypeMapper.toDescriptor(lf.fieldType()));
-                    }
+                    // §715 / D-RECORD-FIELD-RAW (17/11): `p.x` num record é
+                    // LEITURA DE CAMPO CRU — SEMPRE GETFIELD, em todo contexto
+                    // (inclusive fora do próprio record; o antigo
+                    // `invokevirtual accessor` para accessos externos era a
+                    // divergência do §715: o JVM devolvia 107 onde
+                    // Script/JS/nativo liam o campo cru 7). O ACESSOR só é
+                    // emitido pela CHAMADA explícita `p.x()` (um KofCall
+                    // INSTANCE, nunca um KofLoadField). O GETFIELD é seguro
+                    // dentro do próprio acessor também (evitava a recursão —
+                    // o corpo do acessor lê o campo com this.x).
+                    c.mv().visitFieldInsn(GETFIELD, owner, lf.name(), JvmTypeMapper.toDescriptor(lf.fieldType()));
                 }
             }
             case KofStoreField sf -> {

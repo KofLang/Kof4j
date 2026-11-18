@@ -15684,7 +15684,7 @@ compila e roda em JVM e JS, mas: o **Script** falha na compilação, e o **nativ
 
 <!-- en-switch --> **EN:** [§714](known-bugs.md#714--a-class-with-a-field-and-a-method-of-the-same-name-class-hint-item--int-item--return-item---compiles-on-jvmjs-but-fails-on-script-compile-and-native-as-symbol-h_item-is-already-defined---fixed-1410-found-and-fixed-1410-by-lane-compilerjvmnative-19216815309092)
 
-## §715 — um componente de record acessado como CAMPO (`p.x`) DIVERGE quando o record declara um acessor explícito de mesmo nome: o JVM roteia `p.x` pelo acessor (o valor sobrescrito) enquanto Script/JS/nativo leem o campo CRU — 🟡 ABERTO (medido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
+## §715 — um componente de record acessado como CAMPO (`p.x`) DIVERGÍA quando o record declara um acessor explícito de mesmo nome (o JVM roteava `p.x` pelo acessor enquanto Script/JS/nativo liam o campo CRU) — ✅ CORRIGIDO 17/11 por DECISÃO `D-RECORD-FIELD-RAW` (`p.x` = leitura de campo CRU em todo alvo; o acessor participa SÓ de `p.x()`; o `KofLoadField`-on-record do JVM agora emite GETFIELD com o componente PUBLIC — pendente a ratificação dela)
 
 **Sintoma (medido 14/10 pelo MÓDULO DO COMPILADOR):**
 
@@ -15707,7 +15707,7 @@ devolve `107` no JVM (o acesso `p.x` passa pelo acessor SOBRESCRITO: `x()+y = 10
 
 **Fronteira:** JVM vs Script/JS/nativo; distinto do §714 (a colisão de método duplicado, agora CORRIGIDO) — isto é a semântica de leitura CAMPO-vs-ACESSOR.
 
-<!-- en-switch --> **EN:** [§715](known-bugs.md#715--a-record-component-accessed-as-a-field-px-diverges-when-the-record-declares-an-explicit-accessor-of-the-same-name-the-jvm-routes-px-through-the-accessor-the-overridden-value-while-scriptjsnative-read-the-raw-field---open-measured-1410-by-lane-compilerjvmnative-19216815309092)
+<!-- en-switch --> **EN:** [§715](known-bugs.md#715--a-record-component-accessed-as-a-field-px-diverged-when-the-record-declares-an-explicit-accessor-of-the-same-name-the-jvm-routed-px-through-the-accessor-while-scriptjsnative-read-the-raw-field---fixed-1711-by-decision-d-record-field-raw-px--raw-field-read-on-every-target-the-accessor-participates-only-in-px-the-jvms-kofloadfield-on-record-now-emits-getfield-with-the-component-public--pending-the-maintainers-ratification)
 
 ## §717 — um método genérico que retorna uma coleção genérica ANINHADA (`List<T> asList()`) dá LIXO nos alvos nativos (JVM/Script/JS corretos) — 🟡 ABERTO (medido 14/10 pela lane compilador/JVM/nativo `192.168.15.30:9092`)
 

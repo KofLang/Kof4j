@@ -18239,7 +18239,7 @@ compiles and runs on JVM and JS, but: **Script** fails at compile, and **native 
 
 <!-- pt-switch --> **PT:** [§714](known-bugs.pt_BR.md#714--uma-classe-com-um-campo-e-um-metodo-de-mesmo-nome-class-hint-item--int-item--return-item---compila-em-jvmjs-mas-falha-no-script-compilacao-e-no-nativo-as-symbol-h_item-is-already-defined---corrigido-1410-achado-e-corrigido-1410-pela-lane-compiladorjvmnativo-19216815309092)
 
-## §715 — a record component accessed as a FIELD (`p.x`) DIVERGES when the record declares an explicit accessor of the same name: the JVM routes `p.x` through the accessor (the overridden value) while Script/JS/native read the RAW field — 🟡 OPEN (measured 14/10 by lane compiler/JVM/native `192.168.15.30:9092`)
+## §715 — a record component accessed as a FIELD (`p.x`) DIVERGED when the record declares an explicit accessor of the same name (the JVM routed `p.x` through the accessor while Script/JS/native read the RAW field) — ✅ FIXED 17/11 by DECISION `D-RECORD-FIELD-RAW` (`p.x` = RAW FIELD read on every target; the accessor participates ONLY in `p.x()`; the JVM's `KofLoadField`-on-record now emits GETFIELD with the component PUBLIC — pending the maintainer's ratification)
 
 **Symptom (measured 14/10 through the COMPILER MODULE):**
 
@@ -18262,7 +18262,7 @@ returns `107` on the JVM (the `p.x` access routes through the OVERRIDDEN accesso
 
 **Boundary:** JVM vs Script/JS/native; distinct from §714 (the duplicate-method collision, now FIXED) — this is the FIELD-vs-ACCESSOR read semantics.
 
-<!-- pt-switch --> **PT:** [§715](known-bugs.pt_BR.md#715--um-componente-de-record-acessado-como-campo-px-diverge-quando-o-record-declara-um-acessor-explicito-de-mesmo-nome-o-jvm-roteia-px-pelo-acessor-o-valor-sobrescrito-enquanto-scriptjsnativo-leem-o-campo-cru---aberto-medido-1410-pela-lane-compiladorjvmnativo-19216815309092)
+<!-- pt-switch --> **PT:** [§715](known-bugs.pt_BR.md#715--um-componente-de-record-acessado-como-campo-px-divergia-quando-o-record-declara-um-acessor-explicito-de-mesmo-nome-o-jvm-roteava-px-pelo-acessor-enquanto-scriptjsnativo-liam-o-campo-cru---corrigido-1711-por-decisao-d-record-field-raw-px--leitura-de-campo-cru-em-todo-alvo-o-acessor-participa-so-de-px-o-kofloadfield-on-record-do-jvm-agora-emite-getfield-com-o-componente-public--pendente-a-ratificacao-dela)
 
 ## §717 — a generic method returning a NESTED generic collection (`List<T> asList()`) gives GARBAGE on the native targets (the JVM/Script/JS are correct) — 🟡 OPEN (measured 14/10 by lane compiler/JVM/native `192.168.15.30:9092`)
 

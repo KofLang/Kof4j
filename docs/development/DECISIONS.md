@@ -5286,3 +5286,32 @@ carries it).
 - **Relationships:** `Related: §742 (the divergence this closes), §111/§655
   (the preserved rules), §740 (the native literal split), D-KOF-FIRST
   (simplicity: the separator is data, not a program)`.
+
+## D-RECORD-FIELD-RAW — `p.x` on a record is a RAW FIELD read; the accessor participates ONLY in the explicit call `p.x()` (maintainer-delegated call 17/11/2026, the 1.0.0 total-pushdown order "priorize TUDO, quero tudo funcionando, nada fica de fora"; pending her ratification at the next review)
+
+**Date:** 2026-11-17 · **State:** `DECIDED` (delegated execution under the
+total-pushdown order; recorded here before the flip).
+
+- **The decision:** the field-access syntax `p.x` ALWAYS reads the component
+  FIELD directly — even when the record declares an explicit accessor of the
+  same name. The accessor participates only in the explicit method call
+  `p.x()` (which the docs already specify as "accessor by method",
+  `classes.md:112`). `p.x` and `p.x()` are therefore DISTINCT expressions
+  with distinct semantics on every target.
+- **Why raw-field (the reasons in order):** (1) 3-of-4 backends
+  (Script/JS/Native) already read the raw field — raw is the
+  minimal-change alignment, the same argument that decided
+  `D-SPLIT-LITERAL`; (2) the syntax is field SYNTAX (`p.x`, no
+  parentheses) — reading it as a method call made the JVM the divergent
+  side and turned a silent field read into a computed value the other
+  targets never see (rule 5: the same source must mean the same thing);
+  (3) it keeps the record invariant LOCAL: `p.x` is the stored component,
+  the accessor is policy on top of it.
+- **The JVM fix:** `ExpressionFieldAccessLowerer` must not route a record
+  component's field access through the same-name accessor — the
+  `resolveFieldInHierarchy` fallback that resolves to the METHOD symbol
+  (`MemberResolver.resolveInHierarchy`) is the divergence; the field wins
+  when the receiver is a record declaring the component.
+- **Relationships:** `Related: §715 (the divergence this closes),
+  classes.md (the documented `p.x()` accessor / `p.x` direct-read duality),
+  D-SPLIT-LITERAL (the same delegated minimal-change method)`.

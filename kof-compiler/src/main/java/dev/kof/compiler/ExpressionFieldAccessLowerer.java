@@ -223,8 +223,23 @@ final class ExpressionFieldAccessLowerer {
         } else {
             Type fieldType = Type.UnknownType.UNKNOWN;
             SymbolTable.Symbol accessor = null;
+            // §715 / D-RECORD-FIELD-RAW: num RECORD, `p.x` é LEITURA DE CAMPO
+            // CRU — o acessor de mesmo nome declarado pelo usuário participa
+            // SÓ da chamada explícita `p.x()`. O fallback do
+            // resolveFieldInHierarchy devolve o MÉTODO (o símbolo do acessor
+            // sobrescreve o campo no mapa de símbolos) e o JVM roteava `p.x`
+            // pelo override (107) enquanto Script/JS/Native liam o campo cru
+            // (7). Quando o receiver é um record que DECLARA o componente,
+            // o campo vence: resolveField NUNCA vira MethodSymbol aqui.
+            boolean recordComponent = recvType instanceof Type.ClassType ct
+                    && CompilerTypes.isRecordType(ct, driver.currentUnit,
+                        driver.semanticAnalyzer)
+                    && recordDeclaresComponent(driver, ct, fa.fieldName());
             if (recvType instanceof Type.ClassType ct && driver.semanticAnalyzer != null) {
                 accessor = HierarchyResolver.resolveFieldInHierarchy(ct.name(), fa.fieldName(), driver.semanticAnalyzer);
+                if (accessor instanceof SymbolTable.MethodSymbol && recordComponent) {
+                    accessor = null;  // o campo cru vence (D-RECORD-FIELD-RAW)
+                }
                 if (accessor != null) fieldType = accessor.type();
             }
             if (accessor instanceof SymbolTable.MethodSymbol ms && ms.parameterTypes().isEmpty()) {
@@ -251,5 +266,22 @@ final class ExpressionFieldAccessLowerer {
         }
         return localIdx;
     
+    }
+
+    /** §715 / D-RECORD-FIELD-RAW: o record do receiver DECLARA o componente
+     *  `name`? (o field vence sobre o acessor de mesmo nome — o `p.x` é
+     *  leitura de campo cru, o acessor só participa de `p.x()`). */
+    private static boolean recordDeclaresComponent(CompilerDriver driver, Type.ClassType ct, String name) {
+        CompilationUnitNode unit = driver.currentUnit;
+        if (unit != null) {
+            for (AstNode d : unit.declarations()) {
+                if (d instanceof RecordDeclarationNode r && r.name().equals(ct.name())) {
+                    for (RecordComponentNode c : r.components()) {
+                        if (c.name().equals(name)) return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 }

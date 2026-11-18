@@ -52,8 +52,13 @@ public final class CompilerIfaceRecordLowering {
         List<IRMethod> methods = new ArrayList<>();
         List<String> typeParams = rec.typeParameters() == null ? List.of() : rec.typeParameters();
         for (RecordComponentNode comp : rec.components()) {
+            // §715 / D-RECORD-FIELD-RAW: o componente é PUBLIC FINAL — `p.x`
+            // é leitura de campo cru LEGAL em todo lugar (a mesma regra dos
+            // outros backends, onde o campo é diretamente legível); o PRIVATE
+            // aqui tornava o GETFIELD do D-RECORD-FIELD-RAW um
+            // IllegalAccessError a partir de outra classe.
             fields.add(new IRField(comp.name(), CompilerTypes.resolveWithTypeParams(comp.type(), typeParams, driver.currentUnit, driver.semanticAnalyzer),
-                    AccessFlags.PRIVATE | AccessFlags.FINAL,
+                    AccessFlags.PUBLIC | AccessFlags.FINAL,
                     null, CompilerAnnotations.lowerAnnotations(driver, comp.annotations())));
         }
         for (AstNode member : rec.members()) {
