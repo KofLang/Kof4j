@@ -34,7 +34,7 @@ public final class JsRuntimeCollections {
 
             export function kofListSubList(list, from, to) {
                 if (from < 0 || to > list.length || from > to) {
-                    throw new Error("Index out of bounds: " + from + " (size " + list.length + ")");
+                    throw new Error("Index " + from + " out of bounds for length " + list.length);
                 }
                 return list.slice(from, to);
             }

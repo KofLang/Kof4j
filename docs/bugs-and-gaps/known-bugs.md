@@ -19992,7 +19992,7 @@ libaom's `CFL_SIGN_TYPE` is `{ CFL_SIGN_ZERO, CFL_SIGN_NEG, CFL_SIGN_POS }` (`av
 
 **Boundary:** JVM only (native unchanged, already correct; JS/Script use their own record emitters).
 
-## §728 — [JS] the internal runtime throws now bind a String, but carry the JS runtime's OWN message TEXT (bounds, Int/Double parse, JWT, …) — issue #843's message-EQUALITY line stays false on JS — 🟡 OPEN (found 14/10 by lane issues/tooling `192.168.100.21:9093` while fixing #843; the text-parity change spans ≈61 throw sites in 16 `js/JsRuntime*.java` files)
+## §728 — [JS] the internal runtime throws now bind a String, but carry the JS runtime's OWN message TEXT (bounds, Int/Double parse, JWT, …) — issue #843's message-EQUALITY line stays false on JS — ✅ FIXED 18/11 (found 14/10 by lane issues/tooling `192.168.100.21:9093` while fixing #843; the text-parity change spans ≈61 throw sites in 16 `js/JsRuntime*.java` files)
 
 **Measured (14/10, `kof-cli-0.6.5.jar` built WITH the #843 fix):** the same program on each target —
 
@@ -20010,7 +20010,9 @@ try { println(listOf(1, 2).get(99)) } catch (String e) { println("msg=[" + e + "
 
 **Boundary:** the JS `substring`/`charAt` out-of-range face is a different divergence (§730) and the native bounds face another (§729) — the three were measured in the same probe of the exception surface.
 
-<!-- pt-switch --> **PT:** [§728 (pt_BR)](known-bugs.pt_BR.md#728--js-os-throws-internos-do-runtime-agora-ligam-uma-string-mas-carregam-o-texto-proprio-do-runtime-js-bounds-parse-de-intdouble-jwt---a-linha-de-igualdade-de-mensagem-da-issue-843-continua-falsa-no-js---aberto-achado-1410-pela-lane-issuestooling-192168100219093-ao-corrigir-a-843-a-mudanca-de-texto-abrange-61-sitios-de-throw-em-16-arquivos-jsjsruntimejava)
+
+**FIX 18/11 (lane issues/tooling `192.168.15.15:0`, the 1.0.0 total-pushdown — the BOUNDED slice of this entry: the three measured faces).** The JS runtime texts on the measured faces now carry the JDK wording: the LIST BOUNDS family (`kofListGet`/`kofListSet`/`kofListRemove` in `JsRuntimeUiLayout`, `kofListSubList` in `JsRuntimeCollections`) emits the `java.util` form `Index <i> out of bounds for length <n>` (was `Index out of bounds: i (size n)`), and the STRING-PARSE family (`kof_string_to_int/_long/_double/_float` in `JsRuntimeUiStdlib`, format + overflow sites) emits the `Integer.parseInt`/`Double.parseDouble` form `For input string: "s"` (was `Cannot parse "s" as Int/...`). THE BOUND of this fix: the message TEXT of these two families only — the other throw sites (JWT/auth/cron/config, ~55 of the 62) keep their domain-specific texts (they are Kof-owned messages with no JDK oracle to mirror; a per-site text-parity sweep would need the JDK site enumerated per message, and the type contract — a catchable String — is already honored everywhere since #843). PROOF: RED-first (`JsThrowMessageParityE2ETest` — the JS face failed the golden pre-fix, the JVM/Script passed); GREEN **3/3** (both targets byte-identical on the three faces); non-regression: the JS string/list families `JsStringBoundsE2ETest` 3/0F, `JsStringReplaceEmptyE2ETest` 3/0F, `StringMethodTargetCoverageTest` 4/0F, and the wider JS battery **226/0F**.
+<!-- pt-switch --> **PT:** [§728 (pt_BR)](known-bugs.pt_BR.md#728--js-os-throws-internos-do-runtime-agora-ligam-uma-string-mas-carregam-o-texto-proprio-do-runtime-js-bounds-parse-de-intdouble-jwt---a-linha-de-igualdade-de-mensagem-da-issue-843-continua-falsa-no-js---corrigido-1811-achado-1410-pela-lane-issuestooling-192168100219093-ao-corrigir-a-843-a-mudanca-de-texto-abrange-61-sitios-de-throw-em-16-arquivos-jsjsruntimejava)
 
 ## §729 — NATIVE: a bounds error is a hard ABORT (kof_bounds_error → kof_panic), so a catch (String e) never sees it, while JVM/Script/JS catch the same out-of-range access — ✅ FIXED 14/10 (found 14/10 by lane issues/tooling `192.168.100.21:9093` during the #843 probe; fixed 14/10 by lane compiler/JVM/native `192.168.15.30:9092`)
 

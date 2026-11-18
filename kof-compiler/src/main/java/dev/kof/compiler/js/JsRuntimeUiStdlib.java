@@ -291,13 +291,13 @@ final class JsRuntimeUiStdlib {
             // real, overflow lança como no JVM (kof_string_to_long abaixo).
             function kofParseChecked(v, intRe, name) {
                 const s = String(v).trim();
-                if (!intRe.test(s)) throw new Error("Cannot parse \\"" + s + "\\" as " + name);
+                if (!intRe.test(s)) throw new Error("For input string: \\"" + s + "\\"");
                 return s;
             }
             export function kof_string_to_int(v) {
                 const s = kofParseChecked(v, /^[-+]?\\d+$/, "Int");
                 const n = Number(s);
-                if (n < -2147483648 || n > 2147483647) throw new Error("Cannot parse \\"" + s + "\\" as Int");
+                if (n < -2147483648 || n > 2147483647) throw new Error("For input string: \\"" + s + "\\"");
                 return n | 0;   // Int = 32-bit signed (idem intWrap nos binops)
             }
             // §81 (5b, 13/09): Long no JS = BigInt — paridade 64-bit real
@@ -307,13 +307,13 @@ final class JsRuntimeUiStdlib {
                 const s = kofParseChecked(v, /^[-+]?\\d+$/, "Long");
                 const b = BigInt(s);
                 const MIN = -(2n ** 63n), MAX = 2n ** 63n - 1n;
-                if (b < MIN || b > MAX) throw new Error("Cannot parse \\"" + s + "\\" as Long");
+                if (b < MIN || b > MAX) throw new Error("For input string: \\"" + s + "\\"");
                 return b;
             }
             function kofParseDoubleChecked(v, name) {
                 const s = String(v).trim();
                 if (!/^[-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][-+]?\\d+)?$|^-?Infinity$|^NaN$/.test(s)) {
-                    throw new Error("Cannot parse \\"" + s + "\\" as " + name);
+                    throw new Error("For input string: \\"" + s + "\\"");
                 }
                 return s;
             }

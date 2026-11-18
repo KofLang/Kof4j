@@ -158,14 +158,14 @@ public final class JsRuntimeUiLayout {
 
             export function kofListGet(list, index) {
                 if (index < 0 || index >= list.length) {
-                    throw new Error("Index out of bounds: " + index + " (size " + list.length + ")");
+                    throw new Error("Index " + index + " out of bounds for length " + list.length);
                 }
                 return list[index];
             }
 
             export function kofListSet(list, index, value) {
                 if (index < 0 || index >= list.length) {
-                    throw new Error("Index out of bounds: " + index + " (size " + list.length + ")");
+                    throw new Error("Index " + index + " out of bounds for length " + list.length);
                 }
                 list[index] = value;
             }
@@ -187,7 +187,7 @@ public final class JsRuntimeUiLayout {
 
             export function kofListRemove(list, index) {
                 if (index < 0 || index >= list.length) {
-                    throw new Error("Index out of bounds: " + index + " (size " + list.length + ")");
+                    throw new Error("Index " + index + " out of bounds for length " + list.length);
                 }
                 return list.splice(index, 1)[0];
             }
