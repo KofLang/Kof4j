@@ -79,7 +79,7 @@ class JsThrowMessageParityE2ETest {
     }
 
     @Test
-    void jvmOracle(@TempDir Path tmp) throws Exception {
+    void jsThrowJvmOracle(@TempDir Path tmp) throws Exception {
         assertEquals(GOLDEN, runJvmOrScript(Target.JVM, tmp, "jvm"),
                 "the oracle: the JDK wording");
     }
