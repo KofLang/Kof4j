@@ -286,6 +286,32 @@ public final class RuntimeErasureBox {
             .Lkufs_bad:
                 leaq .Lkui_msgint(%rip), %rdi
                 call kof_throw_string
+            # §717 (18/11): kof_unbox_any_soft(rdi=valor de um `T` apagado)
+            # -> rax = a representacao FISICA do slot de colecao nativo.
+            # Dentro de um corpo generico o valor de um `T` e SEMPRE uma
+            # referencia (a caixa do primitivo instanciado, um objeto real
+            # ou null) — nunca um primitivo cru na pilha. Abre QUALQUER
+            # caixa pela tag-agnostica [16], passa a referencia crua e mapeia
+            # null -> 0 (o mesmo qword que a lista concreta guarda). O leitor
+            # do call site (substituido a List<Int>, List<String>, …) le o
+            # elemento pela representacao fisica UNICA da lista — builder e
+            # reader concordam (a divergencia do §717 era esta).
+            .globl kof_unbox_any_soft
+            .type kof_unbox_any_soft, @function
+            kof_unbox_any_soft:
+                testq %rdi, %rdi
+                jz .Lkuas_null
+                movabsq $@@MAGIC@@, %rax
+                cmpq %rax, (%rdi)
+                jne .Lkuas_raw
+                movq 16(%rdi), %rax
+                ret
+            .Lkuas_raw:
+                movq %rdi, %rax
+                ret
+            .Lkuas_null:
+                xorl %eax, %eax
+                ret
             # §284-map (18/09): kof_box_equals(rdi=L, rsi=R) -> rax 0/1.
             # Igualdade de `T?` no native com slot FISICAMENTE boxed.
             # Caixa vs caixa = VALOR; null vs null = 1; null vs presente = 0.

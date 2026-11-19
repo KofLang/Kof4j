@@ -259,6 +259,26 @@ public final class NativeRiscvAsmRtB49 {
                 bne  t2, t3, .Lk49_usbad
                 ld   a0, 16(a0)
                 ret
+            # §717 (18/11): kof_unbox_any_soft(a0=valor de um `T` apagado)
+            # -> a0 = representacao FISICA do slot de colecao nativo. No
+            # corpo generico o valor de um `T` e SEMPRE referencia (caixa,
+            # objeto ou null) — abre QUALQUER caixa pela tag-agnostica [16],
+            # passa referencia crua e mapeia null -> 0. Espelha o x86
+            # (RuntimeErasureBox); aarch64 herda via tradutor.
+            .globl kof_unbox_any_soft
+            kof_unbox_any_soft:
+                beqz a0, .Lk49_uany_null
+                la   t0, .Lk49_magic
+                ld   t0, 0(t0)
+                ld   t1, 0(a0)
+                bne  t0, t1, .Lk49_uany_raw
+                ld   a0, 16(a0)
+                ret
+            .Lk49_uany_raw:
+                ret
+            .Lk49_uany_null:
+                li   a0, 0
+                ret
             # §284-map: kof_box_equals(a0=L, a1=R) -> a0 0/1. Caixa=valor,
             # null vs null = 1, null vs presente = 0.
             .globl kof_box_equals

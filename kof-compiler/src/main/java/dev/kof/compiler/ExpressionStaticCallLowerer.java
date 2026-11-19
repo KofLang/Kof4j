@@ -229,6 +229,17 @@ if ("listOf".equals(mc.methodName()) && mc.receiver() == null) {
         if (CompilerEmissionHelpers.coerceStoreWiden(driver, ops, argType, elemType, true)) {
             paramT = elemType instanceof Type.NullableType nt ? nt.inner() : elemType;
         }
+        // §717 (18/11, medido): dentro de um corpo genérico o elem `T` é um
+        // TypeVariable e o valor JÁ é uma referência (a caixa do primitivo
+        // instanciado, um objeto ou null) — não há primitivo para boxear.
+        // A lista nativa (contrato físico próprio) guarda o elemento CRU
+        // para primitivos; o get do call site lê por esse contrato, então a
+        // GRAVAÇÃO normaliza pela abertura tag-agnóstica da caixa: builder e
+        // reader concordam (JVM imprime 5; o nativo lia o PONTEIRO da caixa).
+        if (elemType instanceof Type.TypeVariable && driver.target.isNative()) {
+            ops.add(new KofCall(Type.UnknownType.UNKNOWN, "kof_unbox_any_soft",
+                    List.of(paramT), Type.UnknownType.UNKNOWN, KofCallKind.FUNCTION));
+        }
         ops.add(new KofCall(listType, "kof_list_add", List.of(paramT),
                 Type.PrimitiveType.VOID, KofCallKind.INSTANCE));
     }
