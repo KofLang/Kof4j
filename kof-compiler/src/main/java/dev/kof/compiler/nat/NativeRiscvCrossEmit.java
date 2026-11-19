@@ -139,10 +139,12 @@ public final class NativeRiscvCrossEmit {
         sb.append(nb.sanitizeName(clazz.name())).append("_vtable:\n");
         if (methods.isEmpty()) {
             sb.append("    .quad 0\n");
+            NativeClassMeta.emitInterfaceTables(nb, sb, clazz, nb.sanitizeName(clazz.name()));
             return;
         }
         for (String m : methods) sb.append("    .quad ").append(m).append("\n");
         sb.append("    .quad 0\n");
+        NativeClassMeta.emitInterfaceTables(nb, sb, clazz, nb.sanitizeName(clazz.name()));
     }
 
     void emitCrossOpRiscv(StringBuilder sb, KofOperation op, int frameSize, boolean joinMain) {

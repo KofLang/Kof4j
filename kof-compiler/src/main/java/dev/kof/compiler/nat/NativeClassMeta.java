@@ -142,6 +142,125 @@ final class NativeClassMeta {
         }
     }
 
+
+    // ─── §719: ITABLES por interface (a vtable plana não atende dois
+    // contratos; a seção é anexada APÓS o terminador da vtable e o call site
+    // de INTERFACE a percorre). Layout da vtable INTOCADO.
+
+    static int ifaceTableId(NativeBackend nb, String ifaceName) {
+        Integer hit = nb.ifaceTableIds.get(ifaceName);
+        if (hit != null) return hit;
+        if (nb.ifaceTableIds.isEmpty()) {
+            java.util.List<String> names = new java.util.ArrayList<>(nb.allClassesMap.keySet());
+            java.util.Collections.sort(names);
+            int next = 1;
+            for (String n : names) {
+                IRClass c = nb.allClassesMap.get(n);
+                if (c != null && (c.accessFlags() & dev.kof.compiler.AccessFlags.INTERFACE) != 0) {
+                    nb.ifaceTableIds.put(n, next++);
+                }
+            }
+        }
+        Integer id = nb.ifaceTableIds.get(ifaceName);
+        return id == null ? -1 : id;
+    }
+
+    static java.util.List<String> transitiveInterfaces(NativeBackend nb, IRClass clazz) {
+        java.util.TreeSet<String> ifaces = new java.util.TreeSet<>();
+        java.util.Set<String> queued = new java.util.HashSet<>();
+        java.util.ArrayDeque<IRClass> work = new java.util.ArrayDeque<>();
+        work.add(clazz);
+        queued.add(clazz.name());
+        while (!work.isEmpty()) {
+            IRClass c = work.poll();
+            for (String i : c.interfaces()) {
+                ifaces.add(i);
+                IRClass ic = nb.allClassesMap.get(i);
+                if (ic != null && queued.add(i)) work.add(ic);
+            }
+            String sup = c.superName();
+            if (sup != null && !sup.isEmpty()) {
+                IRClass sc = nb.allClassesMap.get(sup);
+                if (sc != null && queued.add(sup)) work.add(sc);
+            }
+        }
+        return new java.util.ArrayList<>(ifaces);
+    }
+
+    private record IfaceSlot(String owner, IRMethod method) {}
+
+    private static java.util.List<IfaceSlot> interfaceLayout(NativeBackend nb, IRClass iface) {
+        java.util.List<IfaceSlot> out = new java.util.ArrayList<>();
+        java.util.List<String> names = new java.util.ArrayList<>();
+        java.util.Set<String> visited = new java.util.HashSet<>();
+        visited.add(iface.name());
+        java.util.ArrayDeque<String> queue = new java.util.ArrayDeque<>();
+        for (String i : iface.interfaces()) if (visited.add(i)) queue.add(i);
+        while (!queue.isEmpty()) {
+            IRClass ic = nb.allClassesMap.get(queue.poll());
+            if (ic == null) continue;
+            for (IRMethod m : ic.methods()) {
+                if ("<init>".equals(m.name()) || "<clinit>".equals(m.name()) || m.name().startsWith("kof_")) continue;
+                if (names.contains(m.name())) continue;
+                names.add(m.name());
+                out.add(new IfaceSlot(ic.name(), m));
+            }
+            for (String i : ic.interfaces()) if (visited.add(i)) queue.add(i);
+        }
+        for (IRMethod m : iface.methods()) {
+            if ("<init>".equals(m.name()) || "<clinit>".equals(m.name()) || m.name().startsWith("kof_")) continue;
+            if (names.contains(m.name())) continue;
+            names.add(m.name());
+            out.add(new IfaceSlot(iface.name(), m));
+        }
+        return out;
+    }
+
+    private static String resolveImplSymbol(NativeBackend nb, IRClass clazz, IfaceSlot slot) {
+        for (IRClass c = clazz; c != null; c = nb.allClassesMap.get(c.superName())) {
+            for (IRMethod cm : c.methods()) {
+                if (!cm.name().equals(slot.method().name())) continue;
+                if ("<init>".equals(cm.name()) || "<clinit>".equals(cm.name())) continue;
+                if ((cm.accessFlags() & dev.kof.compiler.AccessFlags.BRIDGE) != 0) {
+                    return NativeSymbolMangling.fnSymbol(c.name(), cm, nb.allClassesMap);
+                }
+            }
+            for (IRMethod cm : c.methods()) {
+                if (!cm.name().equals(slot.method().name())) continue;
+                if ("<init>".equals(cm.name()) || "<clinit>".equals(cm.name())) continue;
+                return NativeSymbolMangling.fnSymbol(c.name(), cm, nb.allClassesMap);
+            }
+        }
+        return NativeSymbolMangling.fnSymbol(slot.owner(), slot.method(), nb.allClassesMap);
+    }
+
+    static void emitInterfaceTables(NativeBackend nb, StringBuilder sb, IRClass clazz, String labelBase) {
+        java.util.List<String> ifaces = transitiveInterfaces(nb, clazz);
+        java.util.List<String> labels = new java.util.ArrayList<>();
+        java.util.List<Integer> ids = new java.util.ArrayList<>();
+        java.util.List<IRClass> classes = new java.util.ArrayList<>();
+        for (String ifaceName : ifaces) {
+            int id = ifaceTableId(nb, ifaceName);
+            IRClass ic = nb.allClassesMap.get(ifaceName);
+            if (ic == null || id < 0) continue;
+            labels.add(labelBase + "_it" + id);
+            ids.add(id);
+            classes.add(ic);
+        }
+        for (int i = 0; i < ids.size(); i++) {
+            sb.append("    .quad ").append(ids.get(i)).append("\n");
+            sb.append("    .quad ").append(labels.get(i)).append("\n");
+        }
+        sb.append("    .quad 0\n    .quad 0\n");
+        for (int i = 0; i < ids.size(); i++) {
+            sb.append(".balign 8\n");
+            sb.append(labels.get(i)).append(":\n");
+            for (IfaceSlot slot : interfaceLayout(nb, classes.get(i))) {
+                sb.append("    .quad ").append(resolveImplSymbol(nb, clazz, slot)).append("\n");
+            }
+        }
+    }
+
     static int findVirtualMethodIndex(NativeBackend nb, String ownerTypeName, String methodName, int argCount) {
         return findVirtualMethodIndex(nb, ownerTypeName, methodName, arityTypes(argCount));
     }
@@ -154,9 +273,11 @@ final class NativeClassMeta {
             sb.append(".balign 8\n");
             sb.append(nb.sanitizeName(clazz.name()) + "_vtable:\n");
             sb.append("    .quad 0\n");
+            emitInterfaceTables(nb, sb, clazz, nb.sanitizeName(clazz.name()));
             return;
         }
         NativeRuntime.generateMethodTable(sb, nb.sanitizeName(clazz.name()), methods);
+        emitInterfaceTables(nb, sb, clazz, nb.sanitizeName(clazz.name()));
     }
 
 /** §131-residual (13/09): resolve o slot pelo NOME + TIPOS do call site.
@@ -168,6 +289,17 @@ final class NativeClassMeta {
         for (IRClass clazz : nb.allClassesMap.values()) {
             if (clazz.name().equals(ownerTypeName) || clazz.name().endsWith("/" + ownerTypeName)
                     || ownerTypeName.endsWith("/" + clazz.name()) || ownerTypeName.equals(nb.sanitizeName(clazz.name()))) {
+                if ((clazz.accessFlags() & dev.kof.compiler.AccessFlags.INTERFACE) != 0) {
+                    java.util.List<IfaceSlot> layout = interfaceLayout(nb, clazz);
+                    int arityHit = -1;
+                    for (int si = 0; si < layout.size(); si++) {
+                        IfaceSlot slot = layout.get(si);
+                        if (!slot.method().name().equals(methodName)) continue;
+                        if (arityHit < 0) arityHit = si;
+                        if (slot.method().parameterTypes().size() == argTypes.size()) return si;
+                    }
+                    return arityHit;
+                }
                 List<String> methods = collectVirtualMethods(nb, clazz);
                 // #613: lookup DELIBERADAMENTE sem o sufixo de bridge (3-arg):
                 // um call site com owner de CLASSE quer o método CONCRETO; a

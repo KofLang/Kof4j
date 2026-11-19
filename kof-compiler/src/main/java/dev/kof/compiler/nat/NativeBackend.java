@@ -138,6 +138,11 @@ public class NativeBackend implements Backend {
      *  (cada um pede o seu trampolim + o global da closure). */
     final Set<String> ffiCbDescs = new LinkedHashSet<>();
     final Map<String, String> functionMangleMap = new HashMap<>();
+    /** §719: id estável por INTERFACE (as itables anexadas à vtable) —
+     *  atribuído por varredura ORDENADA de allClassesMap na 1ª consulta. */
+    final Map<String, Integer> ifaceTableIds = new HashMap<>();
+    int ifaceTableSeq = 0;
+    int itableWalkSeq = 0;
     private final Map<String, ClassLayout> layoutCache = new HashMap<>();
     Map<String, IRClass> allClassesMap = new HashMap<>();
     /** Debug info nativa (DWARF .debug_line via .file/.loc). */
@@ -278,6 +283,9 @@ public class NativeBackend implements Backend {
         printDescriptorCounter = 0;
         inlineSeq = 0;
         functionMangleMap.clear();
+        ifaceTableIds.clear();
+        ifaceTableSeq = 0;
+        itableWalkSeq = 0;
         layoutCache.clear();
         allClassesMap.clear();
         for (IRClass clazz : module.classes()) {

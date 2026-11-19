@@ -477,9 +477,15 @@ public final class NativeRiscvCrossOps {
             int vtableIdx = nb.findVirtualMethodIndex(ct.name(), mn, kc.parameterTypes());
             if (vtableIdx >= 0) {
                 emitCrossArgLoads(sb, 1 + argCount);   // a1.. = args; a0 = receiver
-                sb.append("    ld t0, 8(a0)\n");
-                sb.append("    addi t0, t0, ").append(vtableIdx * 8).append("\n");
-                sb.append("    ld t0, 0(t0)\n");
+                int itableId = kc.kind() == KofCallKind.INTERFACE
+                        ? NativeClassMeta.ifaceTableId(nb, ct.name()) : -1;
+                if (itableId > 0) {
+                    NativeItableWalk.emitRiscv(sb, nb, itableId, vtableIdx);
+                } else {
+                    sb.append("    ld t0, 8(a0)\n");
+                    sb.append("    addi t0, t0, ").append(vtableIdx * 8).append("\n");
+                    sb.append("    ld t0, 0(t0)\n");
+                }
                 sb.append("    jalr t0\n");
                 emitCrossStackCleanup(sb, 1 + argCount);
                 if (!Type.isVoid(kc.returnType())) other.pushRiscv(sb, "a0");

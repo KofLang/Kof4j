@@ -377,9 +377,15 @@ public final class NativeX86Calls {
                 // método gerado não preserva %rbx, então um runtime que o
                 // mantém vivo (ex.: kof_list_sorted_cmp guardava `out` em
                 // %rbx) corrompia após um dispatch virtual (#685).
-                sb.append("    movq 8(%rax), %r11\n");
-                sb.append("    addq $").append(vtableIdx * 8).append(", %r11\n");
-                sb.append("    movq (%r11), %r11\n");
+                int itableId = kc.kind() == KofCallKind.INTERFACE
+                        ? NativeClassMeta.ifaceTableId(nb, ct.name()) : -1;
+                if (itableId > 0) {
+                    NativeItableWalk.emitX86(sb, nb, itableId, vtableIdx);
+                } else {
+                    sb.append("    movq 8(%rax), %r11\n");
+                    sb.append("    addq $").append(vtableIdx * 8).append(", %r11\n");
+                    sb.append("    movq (%r11), %r11\n");
+                }
                 sb.append("    call *%r11\n");
                 if (stackArgs > 0) {
                     sb.append("    addq $").append(stackArgs * 8).append(", %rsp\n");
