@@ -31,6 +31,16 @@ public final class JsRuntimeUiJsonMap {
                 return new Error('JSN006: json.decode expected ' + expected
                         + ' but the payload is ' + got);
             }
+            // #1174 (19/11): `json.decode<String>(payload)` — o CONTRATO do
+            // oráculo JVM: string JSON citada vira o CONTEÚDO desescapado;
+            // TODO outro valor (objeto/array/número/bool/null) devolve o
+            // TEXTO JSON CRU aparado. Antes o JS devolvia o valor PARSEADO
+            // (`[object Object]` na concatenação) — divergência cross-target.
+            export function kofJsonDecodeString(s) {
+                const t = String(s).trim();
+                if (t.startsWith('"')) return JSON.parse(t);
+                return t;
+            }
             export function kofJsonRequireObject(v) {
                 if (v === null || typeof v !== 'object' || Array.isArray(v)) throw kofJsonShapeError('an object', v);
                 return v;

@@ -134,6 +134,13 @@ public final class JsJsonOps {
             p.lc.decodeHelpers.add(jsName);
             stack.add(new JsIr.JsCall(
                     new JsIr.JsIdentifier("__kof_decode_" + jsName), List.of(value)));
+        } else if (name.equals("kof_json_decode_string")) {
+            // #1174 (19/11): o alvo STRING tem contrato próprio (texto cru p/
+            // não-string; conteúdo desescapado p/ string citada) — o JSON.parse
+            // do fallback devolvia o objeto parseado ([object Object]).
+            p.lc.registerRuntime("kofJsonDecodeString");
+            stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("kofJsonDecodeString"),
+                    List.of(value)));
         } else {
             stack.add(new JsIr.JsCall(new JsIr.JsIdentifier("JSON.parse"), List.of(value)));
         }

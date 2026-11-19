@@ -16,6 +16,7 @@ public final class RuntimeJsonDecode2 {
                 pushq %r12
                 pushq %r13
                 pushq %r14
+                subq $16, %rsp
                 movq %rdi, %rbx
                 call kof_json_builder_new
                 movq %rax, %r12
@@ -30,6 +31,7 @@ public final class RuntimeJsonDecode2 {
                 pushq %r12
                 pushq %r13
                 pushq %r14
+                subq $16, %rsp
                 movq %rdi, %rbx
                 movq %rdx, %r13
                 call kof_json_builder_new
@@ -54,7 +56,9 @@ public final class RuntimeJsonDecode2 {
                 jmp .Lkof_json_ds_skip
             .Lkof_json_ds_open:
                 cmpb $34, %al
-                jne .Lkof_json_ds_done
+                # #1174 (19/11): valor NÃO-string devolve o TEXTO JSON CRU
+                # aparado (contrato do oráculo JVM). Antes devolvia VAZIO.
+                jne .Lkof_json_ds_raw
                 incq %r13
             .Lkof_json_ds_loop:
                 cmpl %r14d, %r13d
@@ -212,10 +216,44 @@ public final class RuntimeJsonDecode2 {
                 jmp .Lkof_json_ds_loop
             .Lkof_json_ds_close:
                 incq %r13
+                jmp .Lkof_json_ds_done     # string FECHADA: nada de span cru
+            .Lkof_json_ds_raw:
+                movq %r14, (%rsp)        # fim (exclusivo) do documento (slot)
+            .Lkof_json_ds_raw_trim:
+                movq (%rsp), %r15
+                cmpq %r13, %r15
+                jle .Lkof_json_ds_done
+                leaq 24(%rbx), %rax
+                movzbl -1(%rax,%r15), %eax
+                cmpb $32, %al
+                je .Lkof_json_ds_raw_dec
+                cmpb $10, %al
+                je .Lkof_json_ds_raw_dec
+                cmpb $13, %al
+                je .Lkof_json_ds_raw_dec
+                cmpb $9, %al
+                je .Lkof_json_ds_raw_dec
+                jmp .Lkof_json_ds_raw_copy
+            .Lkof_json_ds_raw_dec:
+                decq %r15
+                movq %r15, (%rsp)
+                jmp .Lkof_json_ds_raw_trim
+            .Lkof_json_ds_raw_copy:
+                movq (%rsp), %r15
+                cmpq %r15, %r13
+                jge .Lkof_json_ds_done
+                leaq 24(%rbx), %rax
+                movzbl (%rax,%r13), %eax
+                movq %r12, %rdi
+                movl %eax, %esi
+                call kof_json_builder_char
+                incq %r13
+                jmp .Lkof_json_ds_raw_copy
             .Lkof_json_ds_done:
                 movq %r12, %rdi
                 call kof_json_builder_result
                 movq %r13, %rdx
+                addq $16, %rsp
                 popq %r14
                 popq %r13
                 popq %r12

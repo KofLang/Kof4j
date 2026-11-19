@@ -33,14 +33,87 @@ public final class NativeRiscvAsmJsonStr {
                 lw   s1, 16(s0)
                 li   s2, 0
             .Lkds_open:
+                bge  s2, s1, .Lkds_raw   # documento vazio -> span cru (vazio)
+                addi t0, s0, 24
+                add  t0, t0, s2
+                lbu  t1, 0(t0)
+                li   t2, 32              # espacos a esquerda: pula
+                beq  t1, t2, .Lkds_open_inc
+                li   t2, 10
+                beq  t1, t2, .Lkds_open_inc
+                li   t2, 13
+                beq  t1, t2, .Lkds_open_inc
+                li   t2, 9
+                beq  t1, t2, .Lkds_open_inc
+                li   t2, 34              # aspa -> string citada
+                beq  t1, t2, .Lkds_body
+                j    .Lkds_raw           # qualquer outro -> TEXTO CRU
+            .Lkds_open_inc:
+                addi s2, s2, 1
+                j    .Lkds_open
+            # #1174 (19/11): valor NÃO-string (objeto/array/número/bool/null)
+            # devolve o TEXTO JSON CRU aparado nas duas pontas — contrato do
+            # oráculo JVM (`{"a":1}` -> `{"a":1}`). Antes devolvia VAZIO.
+            .Lkds_raw:
+                li   s2, 0
+            .Lkds_raw_ltrim:
                 bge  s2, s1, .Lkds_empty
                 addi t0, s0, 24
                 add  t0, t0, s2
                 lbu  t1, 0(t0)
-                li   t2, 34              # '"'
-                beq  t1, t2, .Lkds_body
+                li   t2, 32
+                beq  t1, t2, .Lkds_raw_linc
+                li   t2, 10
+                beq  t1, t2, .Lkds_raw_linc
+                li   t2, 13
+                beq  t1, t2, .Lkds_raw_linc
+                li   t2, 9
+                beq  t1, t2, .Lkds_raw_linc
+                j    .Lkds_raw_end
+            .Lkds_raw_linc:
                 addi s2, s2, 1
-                j    .Lkds_open
+                j    .Lkds_raw_ltrim
+            .Lkds_raw_end:
+                mv   s7, s1              # fim exclusivo
+            .Lkds_raw_trim:
+                beq  s7, s2, .Lkds_raw_body      # so os espacos centrais -> corpo
+                addi t0, s7, -1
+                add  t0, s0, t0
+                lbu  t1, 24(t0)                  # payload @24: byte em s7-1
+                li   t2, 32
+                beq  t1, t2, .Lkds_raw_dec
+                li   t2, 10
+                beq  t1, t2, .Lkds_raw_dec
+                li   t2, 13
+                beq  t1, t2, .Lkds_raw_dec
+                li   t2, 9
+                beq  t1, t2, .Lkds_raw_dec
+                j    .Lkds_raw_body
+            .Lkds_raw_dec:
+                addi s7, s7, -1
+                j    .Lkds_raw_trim
+            .Lkds_raw_body:
+                addi a0, s1, 25
+                addi a0, a0, 15
+                andi a0, a0, -16
+                call kof_alloc
+                mv   s4, a0
+                li   t0, 1
+                sw   t0, 0(s4)
+                sw   zero, 4(s4)
+                sd   zero, 8(s4)
+                sw   zero, 16(s4)
+                sw   zero, 20(s4)
+                addi s3, s4, 24
+            .Lkds_raw_copy:
+                bge  s2, s7, .Lkds_fin_lbl
+                addi t0, s0, 24
+                add  t0, t0, s2
+                lbu  t1, 0(t0)
+                sb   t1, 0(s3)
+                addi s3, s3, 1
+                addi s2, s2, 1
+                j    .Lkds_raw_copy
             .Lkds_body:
                 addi s2, s2, 1           # pos após a aspa de abertura
                 # a saída NUNCA excede a entrada (escape 2->1, unicode 6->até 3)
@@ -195,6 +268,8 @@ public final class NativeRiscvAsmJsonStr {
                 j    .Lkds_loop
             .Lkds_close:
                 addi s2, s2, 1
+            .Lkds_fin_lbl:
+                j    .Lkds_fin
             .Lkds_fin:
                 sub  t0, s3, s4
                 addi t0, t0, -24
