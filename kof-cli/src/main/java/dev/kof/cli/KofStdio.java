@@ -70,7 +70,65 @@ final class KofStdio {
     static final String BASE64_INTRINSIC_FLAG = "-XX:-UseBASE64Intrinsics";
 
     static boolean base64IntrinsicDisabledByDefault() {
-        return !"1".equals(System.getenv("KOF_B64_INTRINSICS"));
+        // #1173 (19/11, maintainer decision "version-gate automático"): o
+        // intrínseco só é desarmado quando o JDK em uso NÃO é um build
+        // corrigido. KOF_B64_INTRINSICS=1 força ligado, =0 força desarmado.
+        String env = System.getenv("KOF_B64_INTRINSICS");
+        if ("1".equals(env)) return false;
+        if ("0".equals(env)) return true;
+        return !jdkHasBase64Fix(System.getProperty("java.version", ""));
+    }
+
+    /** Builds corrigidos da CVE-2026-114938 por linha: abaixo DESTES a
+     *  variante é vulnerável (o intrínseco fica desarmado). Linhas fora da
+     *  tabela (<=16 ou desconhecidas) ficam DESARMADAS por conservadorismo;
+     *  uma linha MAIOR que a tabela (28+) é presumida corrigida — o fix já
+     *  é upstream desde os builds listados. Puro e testável. */
+    static boolean jdkHasBase64Fix(String version) {
+        int[] major = {17, 21, 25, 27};
+        String[] fixed = {"17.0.21.1", "21.0.13.1", "25.0.5.1", "27.0.1.1"};
+        if (version == null || version.isBlank()) return false;
+        String v = version.trim();
+        int dash = v.indexOf('-');
+        if (dash > 0) v = v.substring(0, dash);
+        int plus = v.indexOf('+');
+        if (plus > 0) v = v.substring(0, plus);
+        // java.version legado (1.8.0_…) — linha 8 não tem fix: desarmado.
+        if (v.startsWith("1.")) return false;
+        String[] parts = v.split("\\.");
+        int maj;
+        try {
+            maj = Integer.parseInt(parts[0]);
+        } catch (NumberFormatException e) {
+            return false;   // desconhecido → conservador
+        }
+        int idx = -1;
+        for (int i = 0; i < major.length; i++) if (major[i] == maj) { idx = i; break; }
+        if (idx < 0) return maj > major[major.length - 1];
+        return compareVersion(v, fixed[idx]) >= 0;
+    }
+
+    /** Comparação numérica por componentes (1, 21 < 1, 22; 25.0.5.1 >= 25.0.5.1). */
+    private static int compareVersion(String a, String b) {
+        String[] pa = a.split("\\.");
+        String[] pb = b.split("\\.");
+        int n = Math.max(pa.length, pb.length);
+        for (int i = 0; i < n; i++) {
+            int x = i < pa.length ? safeInt(pa[i]) : 0;
+            int y = i < pb.length ? safeInt(pb[i]) : 0;
+            if (x != y) return Integer.compare(x, y);
+        }
+        return 0;
+    }
+
+    private static int safeInt(String s) {
+        try {
+            int cut = 0;
+            while (cut < s.length() && Character.isDigit(s.charAt(cut))) cut++;
+            return cut == 0 ? 0 : Integer.parseInt(s.substring(0, cut));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
     /** JVM filha que herda o stdout/stderr do CLI (kof run, kof serve). */

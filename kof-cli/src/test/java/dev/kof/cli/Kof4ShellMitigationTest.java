@@ -61,4 +61,42 @@ class Kof4ShellMitigationTest {
         assertEquals(expectDisabled, KofStdio.base64IntrinsicDisabledByDefault(),
                 "the gate mirrors the env var (KOF_B64_INTRINSICS=" + v + ")");
     }
+
+    // ── #1173 (19/11, maintainer decision): the VERSION GATE ────────────────
+    // O default desarma o intrínseco SÓ abaixo do build corrigido da linha;
+    // em build corrigido (ou linha posterior) o Kof não paga o custo.
+
+    @Test
+    void fixedBuildsAreRecognisedPerLine() {
+        assertTrue(KofStdio.jdkHasBase64Fix("17.0.21.1"), "17.0.21.1 é o build corrigido da linha 17");
+        assertTrue(KofStdio.jdkHasBase64Fix("17.0.22"), "acima do corrigido");
+        assertTrue(KofStdio.jdkHasBase64Fix("21.0.13.1"));
+        assertTrue(KofStdio.jdkHasBase64Fix("25.0.5.1"));
+        assertTrue(KofStdio.jdkHasBase64Fix("25.0.6+9"), "sufixo +build é ignorado");
+        assertTrue(KofStdio.jdkHasBase64Fix("27.0.1.1"));
+        assertTrue(KofStdio.jdkHasBase64Fix("28.0.1"), "linha acima da tabela é presumida corrigida");
+    }
+
+    @Test
+    void vulnerableBuildsAreDetected() {
+        assertFalse(KofStdio.jdkHasBase64Fix("17.0.21"), "17.0.21 < 17.0.21.1");
+        assertFalse(KofStdio.jdkHasBase64Fix("21.0.13"), "21.0.13 < 21.0.13.1");
+        assertFalse(KofStdio.jdkHasBase64Fix("25.0.4.1"), "o JDK DESTE host ainda é vulnerável");
+        assertFalse(KofStdio.jdkHasBase64Fix("17.0.6"), "o build onde o CVE foi introduzido");
+        assertFalse(KofStdio.jdkHasBase64Fix("11.0.20"), "linha fora da tabela e abaixo: conservador");
+        assertFalse(KofStdio.jdkHasBase64Fix("1.8.0_402"), "java.version legado");
+        assertFalse(KofStdio.jdkHasBase64Fix(""), "vazio → conservador");
+        assertFalse(KofStdio.jdkHasBase64Fix(null), "nulo → conservador");
+        assertFalse(KofStdio.jdkHasBase64Fix("garbage"), "parse falho → conservador");
+    }
+
+    @Test
+    void runningJdkOnThisTreeStaysProtected() {
+        // O host de referência (Zen 2, JDK 25.0.4.1) é VULNERÁVEL: a flag tem
+        // de estar presente nos dois helpers (o gate NÃO pode relaxar aqui).
+        String v = System.getProperty("java.version", "");
+        if (KofStdio.jdkHasBase64Fix(v)) return;   // num JDK corrigido o gate relaxa por desenho
+        assertTrue(KofStdio.inheritedJvmFlags().contains(KofStdio.BASE64_INTRINSIC_FLAG), v);
+        assertTrue(KofStdio.capturedJvmFlags().contains(KofStdio.BASE64_INTRINSIC_FLAG), v);
+    }
 }

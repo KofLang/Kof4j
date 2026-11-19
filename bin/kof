@@ -60,9 +60,34 @@ fi
 # opts out for a JDK carrying the fix (11.0.33.1/17.0.21.1/21.0.13.1/
 # 25.0.5.1/27.0.1.1).
 B64_FLAG="-XX:-UseBASE64Intrinsics"
-if [ "${KOF_B64_INTRINSICS:-0}" = "1" ]; then
-    B64_FLAG=""
-fi
+# #1173 (19/11, decisão da mantenedora: version-gate): o desarme é automático
+# SÓ abaixo do build corrigido da linha do JDK em uso. KOF_B64_INTRINSICS=1
+# força ligado; =0 força desarmado; sem env, decide a versão (linhas fora da
+# tabela ficam desarmadas por conservadorismo; 28+ presume-se corrigida).
+case "${KOF_B64_INTRINSICS:-}" in
+  1) B64_FLAG="" ;;
+  0) ;;
+  *)
+    JV=$("$JAVA" -XshowSettings:properties -version 2>&1 | sed -n 's/^ *java\.version = //p' | head -1)
+    MAJ=${JV%%.*}
+    FIX=""
+    case "$MAJ" in
+      17) FIX="17.0.21.1" ;;
+      21) FIX="21.0.13.1" ;;
+      25) FIX="25.0.5.1" ;;
+      27) FIX="27.0.1.1" ;;
+    esac
+    if [ -n "$FIX" ] && sort -V </dev/null >/dev/null 2>&1; then
+      LOW=$(printf '%s\n%s\n' "$FIX" "$JV" | sort -V | head -1)
+      if [ "$LOW" = "$FIX" ]; then B64_FLAG=""; fi
+    elif [ -z "$FIX" ]; then
+      case "$MAJ" in
+        ''|*[!0-9]*) ;;                       # desconhecido → conservador
+        *) [ "$MAJ" -gt 27 ] && B64_FLAG="" ;; # linha acima da tabela
+      esac
+    fi
+    ;;
+esac
 exec "$JAVA" --enable-native-access=ALL-UNNAMED $UNSAFE_FLAG $B64_FLAG \
     -Dkof.install.dir="$KOF_HOME" -Dkof.embedded.jdk="$EMBEDDED" \
     -jar "$JAR" "$@"
