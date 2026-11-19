@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -210,6 +211,123 @@ class AvifFullPlaneE2ETest implements LibraryInstallSupport {
     }
 
     /** One full plane's rows, read from ffmpeg's decoded YUV 4:2:0. */
+    // ─── §755 / §756: the FULL-PLANE references the entries were missing ───
+    // The 19/11 measurement named the coverage gap: the geo suite asserted the
+    // palette map / the block ORIGIN and the consumption counts, never the
+    // diverging rows, and NO ffmpeg reference YUV shipped for these fixtures.
+    // These five references were decoded HERE with the host's ffmpeg
+    // (`-f rawvideo -pix_fmt yuv420p` — validated byte-identical against the
+    // KNOWN-GOOD `avif_ref_mt128.yuv`), so the divergence can be PINNED
+    // sample-by-sample instead of assumed.
+    //
+    // THE TESTS ASSERT THE DIVERGENCE (the repo's `tall` pattern): they pass
+    // while the decode is wrong and FAIL the moment it is fixed — the alarm
+    // for the image lane. Each carries the measured first divergent row and
+    // the expected samples.
+
+    /** The first row where Kof's plane differs from the ffmpeg reference, or
+     *  -1 when the plane matches everywhere. */
+    private static int firstDivergentRow(String line, String tag, int offset,
+                                          int w, int h, String reference)
+            throws Exception {
+        var bytes = Files.readAllBytes(Path.of("src/test/resources", reference));
+        for (var r = 0; r < h; r++) {
+            var sb = new StringBuilder();
+            sb.append(tag).append(' ').append(r);
+            for (var c = 0; c < w; c++) {
+                sb.append(' ').append(bytes[offset + r * w + c] & 0xff);
+            }
+            if (!line.contains(sb.toString())) return r;
+        }
+        return -1;
+    }
+
+    /** The samples Kof produced on that row (for the report). */
+    private static String rowSamples(String line, String tag, int row) {
+        var idx = line.indexOf(tag + " " + row + " ");
+        if (idx < 0) return "(row not found)";
+        var end = line.indexOf('\n', idx);
+        return line.substring(idx, end < 0 ? line.length() : end);
+    }
+
+    private int divergentRow(String fixture, String name, int w, int h, String tag,
+                             int offset, int cw, int ch) throws Exception {
+        var line = runFullPlaneProbe(canonicalFixture(fixture, name));
+        String ref = "avif_ref_" + name.replace(".avif", "") + ".yuv";
+        return firstDivergentRow(line, tag, offset, cw == 0 ? w : cw,
+                tag.equals("YROWF") ? h : ch, ref);
+    }
+
+    @Test
+    void encodedCheck192DivergesFromFfmpegOnItsPlanes(@TempDir Path tmp) throws Exception {
+        // §757: the RAW ffmpeg/libaom stream (192x64, 2 tiles) — MEASURED
+        // (19/11): the decode walks the WHOLE payload but the PLANES diverge
+        // (the ledger: Y 235 vs ffmpeg 218; the chroma a checkerboard where the
+        // source is gray). The reference is the host's ffmpeg decode of the
+        // same file; the test FAILS when the planes are fixed — the alarm for
+        // the image lane.
+        var line = runFullPlaneProbe(
+                Path.of("src/test/resources", "avif_enc_check192.avif").toAbsolutePath());
+        int row = firstDivergentRow(line, "YROWF", 0, 192, 64, "avif_ref_check192.yuv");
+        assertTrue(row >= 0, () -> "§757 check192: the luma plane now MATCHES ffmpeg — "
+                + "the divergence is FIXED; update the ledger and drop this test");
+    }
+
+    @Test
+    void overhangOh24DivergesFromFfmpegAtRow16(@TempDir Path tmp) throws Exception {
+        // §755: the 32x24 overhang — MEASURED (19/11): rows 0..15 are EXACT,
+        // row 16 starts the gradient (107,116,123,128,...) where the
+        // reference is the 16/235 checkerboard. The test FAILS when the decode
+        // is fixed — that is the alarm for the image lane.
+        var line = runFullPlaneProbe(canonicalFixture("avif_real_oh24.avif", "oh24.avif"));
+        int row = firstDivergentRow(line, "YROWF", 0, 32, 24, "avif_ref_oh24.yuv");
+        assertEquals(16, row, () -> "§755 oh24: the first divergent luma row moved (got "
+                + row + "): " + rowSamples(line, "YROWF", Math.max(row, 0)));
+    }
+
+    @Test
+    void overhangOh40DivergesFromFfmpegAtRow16(@TempDir Path tmp) throws Exception {
+        // §755: the 32x40 overhang — MEASURED (19/11): row 16 diverges
+        // (59,21,11,...) against the reference's 16.
+        var line = runFullPlaneProbe(canonicalFixture("avif_real_oh40.avif", "oh40.avif"));
+        int row = firstDivergentRow(line, "YROWF", 0, 32, 40, "avif_ref_oh40.yuv");
+        assertEquals(16, row, () -> "§755 oh40: the first divergent luma row moved (got "
+                + row + "): " + rowSamples(line, "YROWF", Math.max(row, 0)));
+    }
+
+    @Test
+    void sq1DivergesFromFfmpegAtRow0(@TempDir Path tmp) throws Exception {
+        // §755's sq1 fixture (32x32) — MEASURED (19/11): rows 0..15 are EXACT,
+        // row 16 starts the divergence (24,24,24,24,214,213,212,212,...) against
+        // the reference's 100/16 pattern.
+        var line = runFullPlaneProbe(canonicalFixture("avif_real_sq1.avif", "sq1.avif"));
+        int row = firstDivergentRow(line, "YROWF", 0, 32, 32, "avif_ref_sq1.yuv");
+        assertEquals(16, row, () -> "§755 sq1: the first divergent luma row moved (got "
+                + row + "): " + rowSamples(line, "YROWF", Math.max(row, 0)));
+    }
+
+    @Test
+    void tallDivergesFromFfmpegAtRow0(@TempDir Path tmp) throws Exception {
+        // §755's tall fixture (64x256) — MEASURED (19/11): the RIGHT half
+        // diverges from row 0 (24,24,24,24,214,213,...) while the left half is
+        // exact — the same shape the geo test records.
+        var line = runFullPlaneProbe(canonicalFixture("avif_real_tall.avif", "tall.avif"));
+        int row = firstDivergentRow(line, "YROWF", 0, 64, 256, "avif_ref_tall.yuv");
+        assertEquals(0, row, () -> "§755 tall: the first divergent luma row moved (got "
+                + row + "): " + rowSamples(line, "YROWF", Math.max(row, 0)));
+    }
+
+    @Test
+    void losslessLlDivergesFromFfmpegAtRow16(@TempDir Path tmp) throws Exception {
+        // §756: the lossless 32x32 — MEASURED (19/11): rows 0..15 are EXACT,
+        // row 16 (x=4) starts the gradient (107,116,123,128,...) against the
+        // reference's 100/16.
+        var line = runFullPlaneProbe(canonicalFixture("avif_enc_ll.avif", "ll.avif"));
+        int row = firstDivergentRow(line, "YROWF", 0, 32, 32, "avif_ref_ll.yuv");
+        assertEquals(16, row, () -> "§756 ll: the first divergent luma row moved (got "
+                + row + "): " + rowSamples(line, "YROWF", Math.max(row, 0)));
+    }
+
     private static String planeRows(String tag, int offset, int w, int h, String reference)
             throws Exception {
         var bytes = Files.readAllBytes(Path.of("src/test/resources", reference));
