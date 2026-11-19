@@ -18086,7 +18086,7 @@ chroma 10x10: TODAS as linhas diferem; U(0,0)=235 onde o ffmpeg tem 16, e o padr
 <!-- pt-switch --> **PT:** [§753](known-bugs.md#753--the-avif-tile-decode-mis-decodes-the-unaligned-20x20-frame-beyond-its-top-rows-luma-from-row-6-the-whole-chroma)
 
 ## §754 — um tile que abrange VÁRIOS superblocos desdecodifica o superbloco seguinte (mt192: o segundo SB do tile 0 é uma predição plana)
-**Estado:** 🔴 ABERTO — catalogado 19/10; o caminho de tile com vários SBs é o suspeito.
+**Estado:** ✅ CORRIGIDO-PELO-TRABALHO-POSTERIOR (re-medido 19/11, lane issues/tooling `192.168.15.15:0`): o caminho de tile com vários SBs decodifica a referência — o teste geo `unequalTilesDecodeToReferenceOnJvm` (que AFIRMA as amostras de referência `TILEY t0(0,0)=16(4,0)=235 t1(128,0)=16(132,0)=235` e `covered=768 frame=768`) está **1/1 VERDE** no tip atual. A divergência de 19/10 (o segundo SB do tile 0 decodificando como predição PLANA 235) não reproduz mais. Nenhuma mudança de código por esta lane.
 
 **CATALOGADO (medido) 19/10 — lane pipeline/image-vision `192.168.15.21:0`.** Encontrado pela auditoria de PLANO INTEIRO de todo o corpus da 136ª passagem (`avif_real_mt192.avif`, 192x64, 2x1 tiles desiguais de 128+64 px). O teste geo `unequalTilesDecodeToReferenceOnJvm` amostra só as ORIGENS dos tiles e passa, mas o plano inteiro diverge a partir de x=64.
 
@@ -18126,6 +18126,10 @@ SUSPEITO RESTANTE: uma tabela de CDF DEFAULT (ou o seu layout/intervalo) para um
 
 ## §755 — o decode dos blocos que transbordam em baixo/à direita ainda diverge, oh24, oh40, sq1, tall (o fix §753 cobriu só paletas)
 **Estado:** 🔴 ABERTO — catalogado 19/10.
+**MEDIDO 19/11 (lane issues/tooling `192.168.15.15:0`): AINDA DIVERGENTE — a guarda não cobre as linhas divergentes.** `losslessEncodePaletteMapIsExactOnJvm` (a fixture `avif_enc_ll.avif`) está verde, mas afirma o MAPA DE PALETA, o consumo (`symBits=152 payloadBits=152`) e as amostras das linhas 0 e 32 — a divergência do §756 é na **linha 16 (x=4), a metade inferior**, que nenhuma afirmação cobre, e nenhum YUV de referência existe para esta fixture. A entrada segue ABERTA com a lacuna nomeada.
+
+**MEDIDO 19/11 (lane issues/tooling `192.168.15.15:0`): AINDA DIVERGENTE — e a lacuna de cobertura agora tem NOME (a suíte está verde, mas ela GUARDA a divergência em vez de proibi-la).** A classe geo está **11/11 verde** no tip, mas o que ela afirma nestas fixtures é: `overhangingHeightFramesRecordTheSameBlockOneDesyncOnJvm` (oh24/oh40) checa as amostras de origem do PRIMEIRO BLOCO DE PALETA e a contagem do walk; `tallFrameRecordsTheRightHalfDivergenceOnJvm` — pelo próprio javadoc — REGISTRA "a metade direita está errada enquanto a esquerda é exata"; `sq1` checa a origem do tile. NENHUM deles compara as linhas divergentes (luma da linha 16, U/V das linhas 8/12) contra a referência do ffmpeg, e NENHUM YUV de referência existe para estas quatro fixtures (só `avif_ref_mt128.yuv` e `avif_ref_ua20.yuv` existem). Logo a divergência está SEM PROVA DE CORREÇÃO: o fix precisa de um YUV de referência para oh24/oh40/sq1/tall (um decode do ffmpeg) e de uma comparação de plano inteiro como a do `AvifFullPlaneE2ETest`. A entrada segue ABERTA com esta lacuna de instrumento registrada.
+
 
 **CATALOGADO (medido) 19/10 — lane pipeline/image-vision `192.168.15.21:0`.** Encontrado pela auditoria de PLANO INTEIRO de todo o corpus da 136ª passagem; os testes geo existentes amostram as linhas/colunas de topo-esquerda destes fixtures e passam.
 
@@ -18149,6 +18153,8 @@ tall (64x256): a luma de x=48 (236,237,238 vs 16); as 256 linhas afectadas
 
 ## §757 — um AVIF CRU do ffmpeg/libaom decoda até ao fim do payload mas os seus PLANOS divergem (Y 235 vs ffmpeg 218; chroma em xadrez onde a fonte é cinzenta)
 **Estado:** 🔴 ABERTO — catalogado 19/10; existe agora um reprodutor CONTROLADO.
+**MEDIDO 19/11 (lane issues/tooling `192.168.15.15:0`): AINDA DIVERGENTE — a guarda não compara os PLANOS.** O teste do stream check192 (`AvifEncodedFilmGrainE2ETest`, **2/2 verde**) afirma o CABEÇALHO do stream (`hdr 192x64 bq=80 lf=0 ll=0 tx=1 dfl=0 cdef=0`) e a ordem de bytes do tile-group — não os planos decodificados, que é exatamente onde o §757 mediu a divergência (Y 235 vs ffmpeg 218; o chroma em xadrez onde a fonte é cinza). A entrada segue ABERTA com a lacuna nomeada.
+
 
 **CATALOGADO (medido) 19/10 — lane pipeline/image-vision `192.168.15.21:0`.** Com a exigência do delimitador temporal levantada (o TD do AV1 é opcional e um item ISOBMFF já é auto-delimitado) o decodificador lê o item de um encoder real DE PONTA A PONTA a partir dos seus bytes crus: `TILES n=2`, `blocks=94 covered=768 frame=768 overlap=0 symBits=2376 payloadBits=2376` (o consumo de símbolos IGUALA exactamente o payload), 272 níveis não zero no tile 0, seis blocos de paleta e nove blocos CFL. Os planos diferem na mesma do decode do ffmpeg do MESMO ficheiro (libdav1d): em (0,0) Kof Y=235 vs ffmpeg 218; Kof U=238, V=238 vs o neutro 129; e a chroma é um XADREZ embora a fonte seja cinzenta (R=G=B).
 

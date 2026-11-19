@@ -20599,7 +20599,7 @@ chroma 10x10: ALL rows differ; U(0,0)=235 where ffmpeg has 16, and the pattern i
 <!-- pt-switch --> **PT:** [§753 (pt_BR)](known-bugs.pt_BR.md#753--o-decode-avif-de-um-quadro-nao-alinhado-20x20-erra-para-alem-das-suas-linhas-de-topo-luma-a-partir-da-linha-6-toda-a-chroma)
 
 ## §754 — a tile that spans MULTIPLE superblocks mis-decodes its later superblock (mt192: tile 0's second SB is a flat prediction)
-**Status:** 🔴 OPEN — catalogued 19/10; the multi-SB tile path is the suspect.
+**Status:** ✅ FIXED-BY-LATER-WORK (re-measured 19/11, lane issues/tooling `192.168.15.15:0`): the multi-SB tile path decodes the reference — the geo test `unequalTilesDecodeToReferenceOnJvm` (which ASSERTS the reference samples `TILEY t0(0,0)=16(4,0)=235 t1(128,0)=16(132,0)=235` and `covered=768 frame=768`) is **1/1 GREEN** on the current tip. The 19/10 divergence (tile 0's second SB decoding as a FLAT 235 prediction) no longer reproduces. No code change by this lane.
 
 **CATALOGUED (measured) 19/10 — lane pipeline/image-vision `192.168.15.21:0`.** Found by the 136th pass's corpus-wide FULL-PLANE audit (`avif_real_mt192.avif`, 192x64, 2x1 unequal tiles of 128+64 px). The geo test `unequalTilesDecodeToReferenceOnJvm` samples only the tile ORIGINS and passes, but the full plane diverges from x=64 onward.
 
@@ -20639,6 +20639,10 @@ REMAINING SUSPECT: a DEFAULT CDF table (or its layout/range) for a symbol read i
 
 ## §755 — the bottom/right OVERHANG decode still diverges beyond the sampled rows (oh24, oh40, sq1, tall; §753's fix covered only palettes)
 **Status:** 🔴 OPEN — catalogued 19/10.
+**MEASURED 19/11 (lane issues/tooling `192.168.15.15:0`): STILL DIVERGENT — the guard does not cover the diverging rows.** `losslessEncodePaletteMapIsExactOnJvm` (the `avif_enc_ll.avif` fixture) is green, but it asserts the PALETTE MAP, the consumption (`symBits=152 payloadBits=152`) and the samples at rows 0 and 32 — the §756 divergence is at **row 16 (x=4), the bottom half**, which no assertion covers, and no ffmpeg reference YUV ships for this fixture. The entry stays OPEN with the gap named.
+
+**MEASURED 19/11 (lane issues/tooling `192.168.15.15:0`): STILL DIVERGENT — and the coverage gap is now NAMED (the suite is green, but it GUARDS the divergence instead of forbidding it).** The geo class is **11/11 green** on the tip, but what it asserts for these fixtures is: `overhangingHeightFramesRecordTheSameBlockOneDesyncOnJvm` (oh24/oh40) checks the FIRST PALETTE BLOCK's origin samples and the walk count; `tallFrameRecordsTheRightHalfDivergenceOnJvm` — by its own javadoc — RECORDS "the RIGHT half is wrong while the LEFT half is exact"; `sq1` checks the tile origin. NONE of them compares the diverging rows (luma from row 16, U/V from row 8/12) against the ffmpeg reference, and NO reference YUV exists for these four fixtures (only `avif_ref_mt128.yuv` and `avif_ref_ua20.yuv` ship). So the divergence is UNPROVEN-FIXED: the fix needs a reference YUV for oh24/oh40/sq1/tall (an ffmpeg decode) and a full-plane comparison like `AvifFullPlaneE2ETest`'s. The entry stays OPEN with this instrument gap recorded.
+
 
 **CATALOGUED (measured) 19/10 — lane pipeline/image-vision `192.168.15.21:0`.** Found by the 136th pass's corpus-wide FULL-PLANE audit; the existing geo tests sample the top-left rows/columns of these fixtures and pass.
 
@@ -20662,6 +20666,8 @@ tall (64x256): luma from x=48 (236,237,238 vs 16); all 256 rows affected
 
 ## §757 — a RAW ffmpeg/libaom AVIF decodes to the end of its payload but its PLANES diverge (Y 235 vs ffmpeg 218; chroma a checkerboard where the source is gray)
 **Status:** 🔴 OPEN — catalogued 19/10; a CONTROLLED reproducer now exists.
+**MEASURED 19/11 (lane issues/tooling `192.168.15.15:0`): STILL DIVERGENT — the guard does not compare the PLANES.** The check192 stream's test (`AvifEncodedFilmGrainE2ETest`, **2/2 green**) asserts the STREAM HEADER (`hdr 192x64 bq=80 lf=0 ll=0 tx=1 dfl=0 cdef=0`) and the tile-group byte order — not the decoded planes, which is exactly where §757 measured the divergence (Y 235 vs ffmpeg 218; the chroma a checkerboard where the source is gray). The entry stays OPEN with the gap named.
+
 
 **CATALOGUED (measured) 19/10 — lane pipeline/image-vision `192.168.15.21:0`.** With the temporal-delimiter requirement lifted (the AV1 TD is optional and an ISOBMFF item is already self-delimited) the decoder reads a real encoder's item END TO END from its raw bytes: `TILES n=2`, `blocks=94 covered=768 frame=768 overlap=0 symBits=2376 payloadBits=2376` (the symbol consumption EXACTLY equals the payload), 272 nonzero levels in tile 0, six palette blocks and nine CFL blocks. The planes nevertheless differ from ffmpeg's decode of the SAME file (libdav1d): at (0,0) Kof Y=235 vs ffmpeg 218; Kof U=238, V=238 vs the neutral 129; and the chroma is a CHECKERBOARD although the source is gray (R=G=B).
 
