@@ -296,10 +296,40 @@ public final class NativeWebListen {
                 movq %r13, %rdi
                 call kof_web_append_cstr
                 movq %rax, %r13
-                leaq .Lweb_ok(%rip), %rsi
-                movq %r13, %rdi
-                call kof_web_append_cstr
-                movq %rax, %r13
+                # §1159 (20/11): o status guardado (default 200) — o número
+                # vai pelo kof_int_to_string e o texto pelo ponteiro guardado
+                # pelo kof_web_status (0 = "OK"/200).
+                movq .Lweb_status_code(%rip), %rdi
+                testq %rdi, %rdi
+                jne .Lwb_st_num
+                movl $200, %edi
+            .Lwb_st_num:
+                call kof_int_to_string
+                movl 16(%rax), %edx
+                leaq 24(%rax), %rsi
+            .Lwb_st_cl:
+                movb (%rsi), %cl
+                movb %cl, (%r13)
+                incq %r13
+                incq %rsi
+                decl %edx
+                jnz .Lwb_st_cl
+                movb $32, (%r13); incq %r13
+                movq .Lweb_status_text(%rip), %rsi
+                testq %rsi, %rsi
+                jne .Lwb_st_txt
+                leaq .Lweb_st_ok(%rip), %rsi
+            .Lwb_st_txt:
+                movb (%rsi), %cl
+                testb %cl, %cl
+                je .Lwb_st_done
+                movb %cl, (%r13)
+                incq %r13
+                incq %rsi
+                jmp .Lwb_st_txt
+            .Lwb_st_done:
+                movb $13, (%r13); incq %r13
+                movb $10, (%r13); incq %r13
                 leaq .Lweb_hct(%rip), %rsi
                 movq %r13, %rdi
                 call kof_web_append_cstr

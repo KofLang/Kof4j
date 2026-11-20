@@ -102,6 +102,38 @@ class KofWebNativeE2ETest extends ServerProcessSupport {
             }
             """;
 
+    /**
+     * §1159 (20/11): o STATUS da resposta no nativo x86-64 — `status(404,
+     * "gone")` guarda o código (e devolve o body) e o escritor de resposta
+     * emite "HTTP/1.1 404 Not Found" no fio. Antes recusava em compile-time
+     * (WEB001).
+     */
+    private static final String SERVER_STATUS = """
+            main() {
+                var app = web.app()
+                app.get("/gone") {
+                    return status(404, "gone")
+                }
+                app.get("/created") {
+                    return status(201, "made")
+                }
+                app.listen(PORT)
+            }
+            """;
+
+    @Test
+    void nativeServerEmitsTheStatusTheHandlerSet(@TempDir Path tempDir) throws Exception {
+        serverProcess = startServer(tempDir, SERVER_STATUS);
+        String notFound = httpGet(serverPort, "/gone");
+        assertTrue(notFound.contains("404"), "the status line must carry the code: " + notFound);
+        assertTrue(notFound.contains("Not Found"), "the status text must be the standard one: " + notFound);
+        assertTrue(notFound.endsWith("gone"), "the body must be what status() returned: " + notFound);
+        String created = httpGet(serverPort, "/created");
+        assertTrue(created.contains("201"), "the status line must carry the code: " + created);
+        assertTrue(created.contains("Created"), "the status text must be the standard one: " + created);
+        assertTrue(created.endsWith("made"), "the body must be what status() returned: " + created);
+    }
+
     @Test
     void nativeServerExposesTheRequestMethodAndPath(@TempDir Path tempDir) throws Exception {
         serverProcess = startServer(tempDir, SERVER_CTX);

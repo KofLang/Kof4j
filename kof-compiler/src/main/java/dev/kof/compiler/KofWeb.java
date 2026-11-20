@@ -288,6 +288,11 @@ public final class KofWeb {
             // nativo x86-64 — o handle_client guarda o método e o path quando
             // uma rota casa; kof_web_path/kof_web_method os devolvem.
             case "kof_web_path", "kof_web_method" -> true;
+            // §1159 (20/11): o status da resposta no runtime web nativo —
+            // kof_web_status guarda o código e devolve o body; o escritor de
+            // resposta emite o código e o texto da tabela (mesmo conjunto do
+            // JVM). headerSet segue recusado (precisa da fila de headers).
+            case "kof_web_status" -> true;
             default -> false;
         };
     }

@@ -31,6 +31,61 @@ public final class NativeWebCore {
             .Lweb_hnl: .asciz "Content-Length: "
             .Lweb_body_ok: .asciz "route-match"
             .Lweb_crlfx2: .asciz "\\r\\n\\r\\n"
+            # §1159: a tabela código→texto do status (mesmo conjunto do JVM)
+            .Lweb_status_texts:
+                .quad 200
+                .quad .Lweb_st_ok
+                .quad 201
+                .quad .Lweb_st_created
+                .quad 202
+                .quad .Lweb_st_accepted
+                .quad 204
+                .quad .Lweb_st_no_content
+                .quad 301
+                .quad .Lweb_st_moved
+                .quad 302
+                .quad .Lweb_st_found
+                .quad 304
+                .quad .Lweb_st_not_modified
+                .quad 400
+                .quad .Lweb_st_bad_request
+                .quad 401
+                .quad .Lweb_st_unauthorized
+                .quad 403
+                .quad .Lweb_st_forbidden
+                .quad 404
+                .quad .Lweb_st_not_found
+                .quad 409
+                .quad .Lweb_st_conflict
+                .quad 422
+                .quad .Lweb_st_unprocessable
+                .quad 429
+                .quad .Lweb_st_too_many
+                .quad 500
+                .quad .Lweb_st_internal
+                .quad 502
+                .quad .Lweb_st_bad_gateway
+                .quad 503
+                .quad .Lweb_st_unavailable
+                .quad 0
+                .quad 0
+            .Lweb_st_ok: .asciz "OK"
+            .Lweb_st_created: .asciz "Created"
+            .Lweb_st_accepted: .asciz "Accepted"
+            .Lweb_st_no_content: .asciz "No Content"
+            .Lweb_st_moved: .asciz "Moved Permanently"
+            .Lweb_st_found: .asciz "Found"
+            .Lweb_st_not_modified: .asciz "Not Modified"
+            .Lweb_st_bad_request: .asciz "Bad Request"
+            .Lweb_st_unauthorized: .asciz "Unauthorized"
+            .Lweb_st_forbidden: .asciz "Forbidden"
+            .Lweb_st_not_found: .asciz "Not Found"
+            .Lweb_st_conflict: .asciz "Conflict"
+            .Lweb_st_unprocessable: .asciz "Unprocessable Entity"
+            .Lweb_st_too_many: .asciz "Too Many Requests"
+            .Lweb_st_internal: .asciz "Internal Server Error"
+            .Lweb_st_bad_gateway: .asciz "Bad Gateway"
+            .Lweb_st_unavailable: .asciz "Service Unavailable"
 
             .section .bss
             .Lweb_reqbuf:     .space 16384
@@ -44,6 +99,12 @@ public final class NativeWebCore {
             .Lweb_last_pathlen: .quad 0
             .Lweb_last_method: .space 16
             .Lweb_last_methodlen: .quad 0
+            # §1159 (20/11): o STATUS da resposta — kof_web_status(code, body)
+            # guarda o código (0 = nenhum status setado -> 200) e o texto
+            # (ponteiro; 0 = "OK"). A tabela código→texto espelha o
+            # `kof_web_status_text` do runtime JVM (mesmo contrato).
+            .Lweb_status_code: .quad 0
+            .Lweb_status_text: .quad 0
 
             .section .text
 
@@ -152,6 +213,9 @@ public final class NativeWebCore {
                 pushq %rcx
                 pushq %rdx
                 pushq %rbx
+                # o status é por request: zera antes do handler
+                movq $0, .Lweb_status_code(%rip)
+                movq $0, .Lweb_status_text(%rip)
                 # método: copia rsi bytes de rdi para .Lweb_last_method (cap 15)
                 cmpq $15, %rsi
                 jbe .Lsrc_m_len
@@ -192,6 +256,36 @@ public final class NativeWebCore {
                 popq %rbx
                 popq %rdx
                 popq %rcx
+                ret
+
+            # kof_web_status(rdi=code, rsi=body) -> String
+            # §1159 (20/11): guarda o status da resposta e DEVOLVE o body
+            # (o contrato do JVM: `status(404, "gone")` responde "gone").
+            .globl kof_web_status
+            .type kof_web_status, @function
+            kof_web_status:
+                pushq %rbx
+                movl %edi, %ebx              # code
+                movq %rbx, .Lweb_status_code(%rip)
+                # procura o texto na tabela (pares code/ptr, sentinela 0/0)
+                leaq .Lweb_status_texts(%rip), %r8
+            .Lst_lookup:
+                movq 0(%r8), %rax
+                testq %rax, %rax
+                jz .Lst_default
+                cmpq %rbx, %rax
+                je .Lst_found
+                addq $16, %r8
+                jmp .Lst_lookup
+            .Lst_found:
+                movq 8(%r8), %rax
+                jmp .Lst_store
+            .Lst_default:
+                leaq .Lweb_st_ok(%rip), %rax
+            .Lst_store:
+                movq %rax, .Lweb_status_text(%rip)
+                popq %rbx
+                movq %rsi, %rax                # devolve o body
                 ret
 
             # kof_web_path() -> String (o path da request corrente)
