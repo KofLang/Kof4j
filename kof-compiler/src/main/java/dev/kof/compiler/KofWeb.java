@@ -288,6 +288,10 @@ public final class KofWeb {
             // nativo x86-64 — o handle_client guarda o método e o path quando
             // uma rota casa; kof_web_path/kof_web_method os devolvem.
             case "kof_web_path", "kof_web_method" -> true;
+            // §1159 (20/11): os PATH PARAMS — o match da rota agora é por
+            // segmento (kof_web_match_path): um `:name` no padrão casa
+            // qualquer segmento e kof_web_param(name) devolve o valor.
+            case "kof_web_param" -> true;
             // §1159 (20/11): o status da resposta no runtime web nativo —
             // kof_web_status guarda o código e devolve o body; o escritor de
             // resposta emite o código e o texto da tabela (mesmo conjunto do

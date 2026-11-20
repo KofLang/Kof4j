@@ -121,6 +121,41 @@ class KofWebNativeE2ETest extends ServerProcessSupport {
             }
             """;
 
+    /**
+     * §1159 (20/11): os PATH PARAMS no nativo — `app.get("/item/:id")` casa
+     * e `param("id")` devolve o segmento do path da request. Antes o match
+     * era string exata (o padrão `:id` nunca casava).
+     */
+    private static final String SERVER_PARAMS = """
+            main() {
+                var app = web.app()
+                app.get("/item/:id") {
+                    return "id=" + param("id")
+                }
+                app.get("/user/:name/pet/:pet") {
+                    return param("name") + "/" + param("pet")
+                }
+                app.get("/plain") {
+                    return "plain"
+                }
+                app.listen(PORT)
+            }
+            """;
+
+    @Test
+    void nativeServerCapturesPathParams(@TempDir Path tempDir) throws Exception {
+        serverProcess = startServer(tempDir, SERVER_PARAMS);
+        String one = httpGet(serverPort, "/item/42");
+        assertTrue(one.contains("200"), "status: " + one);
+        assertTrue(one.endsWith("id=42"), "the :id segment must be captured: " + one);
+        String two = httpGet(serverPort, "/user/mel/pet/rex");
+        assertTrue(two.endsWith("mel/rex"), "two params in one route: " + two);
+        String plain = httpGet(serverPort, "/plain");
+        assertTrue(plain.endsWith("plain"), "the literal route still matches: " + plain);
+        String miss = httpGet(serverPort, "/nope");
+        assertTrue(miss.contains("404"), "a non-matching path still 404s: " + miss);
+    }
+
     @Test
     void nativeServerEmitsTheStatusTheHandlerSet(@TempDir Path tempDir) throws Exception {
         serverProcess = startServer(tempDir, SERVER_STATUS);

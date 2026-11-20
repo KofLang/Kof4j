@@ -206,28 +206,29 @@ public final class NativeWebListen {
                 incl %eax
                 jmp .Lwh_cm
             .Lwh_cmdone:
-                # Se matchou method, compara path
-                movq 8(%r8), %rdi                # path kof ptr  — mas r8 mudou... rei_load_from rcx
+                # §1159 (20/11): o match do PATH agora é por SEGMENTO (aceita
+                # `:name` e captura o valor) — o helper preenche .Lweb_params.
+                # r9/r10/r11 (os limites do method/path) e rcx (o índice da
+                # rota) sobrevivem ao call: o helper usa-os como scratch.
                 movq %rcx, %rax
                 imulq $32, %rax, %rax
                 leaq (%r14,%rax), %r8
-                movq 8(%r8), %rdi                # path ptr
-                movl 16(%rdi), %eax              # kof path len
-                movq %r12, %rdx                  # path_end
-                subq %r11, %rdx                  # path_req_len
-                cmpl %eax, %edx
-                jne .Lwh_next
-                leaq 24(%rdi), %rsi
-                movq %r11, %rdi                  # req path start
-                xorl %eax, %eax
-            .Lwh_cp:
-                cmpl %edx, %eax
-                jae .Lwh_cpdone
-                movb (%rsi,%rax), %r8b
-                cmpb (%rdi,%rax), %r8b
-                jne .Lwh_next
-                incl %eax
-                jmp .Lwh_cp
+                movq 8(%r8), %rdi                # path pattern kofstr
+                movq %r11, %rsi                  # req path chars
+                movq %r12, %rdx
+                subq %r11, %rdx                  # req path len
+                pushq %r9
+                pushq %r10
+                pushq %r11
+                pushq %rcx
+                call kof_web_match_path
+                popq %rcx
+                popq %r11
+                popq %r10
+                popq %r9
+                testl %eax, %eax
+                jne .Lwh_cpdone
+                jmp .Lwh_next
             .Lwh_cpdone:
                 # ------- §1159 (20/11): o CONTEXTO é guardado ANTES do
                 # handler rodar: método (r9..r10) e path (r11..r12) para

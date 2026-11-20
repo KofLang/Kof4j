@@ -105,6 +105,11 @@ public final class NativeWebCore {
             # `kof_web_status_text` do runtime JVM (mesmo contrato).
             .Lweb_status_code: .quad 0
             .Lweb_status_text: .quad 0
+            # §1159 (20/11): os PATH PARAMS da rota que casou — 16 slots de
+            # 32B: name_ptr(0)/name_len(8)/value_ptr(16)/value_len(24). Os
+            # ponteiros vivem no padrão da rota (heap) e no buffer da request.
+            .Lweb_params: .space 512
+            .Lweb_params_n: .quad 0
 
             .section .text
 
@@ -216,6 +221,9 @@ public final class NativeWebCore {
                 # o status é por request: zera antes do handler
                 movq $0, .Lweb_status_code(%rip)
                 movq $0, .Lweb_status_text(%rip)
+                # NÃO zera .Lweb_params_n aqui: o kof_web_match_path já o zera
+                # a cada tentativa, e este ponto roda DEPOIS do match (zerar
+                # aqui apagaria os params que o handler vai ler).
                 # método: copia rsi bytes de rdi para .Lweb_last_method (cap 15)
                 cmpq $15, %rsi
                 jbe .Lsrc_m_len
@@ -287,6 +295,161 @@ public final class NativeWebCore {
                 popq %rbx
                 movq %rsi, %rax                # devolve o body
                 ret
+
+            # kof_web_match_path(rdi=pattern kofstr, rsi=path_chars, rdx=path_len)
+            #   -> eax 1 = casou (e preencheu .Lweb_params), 0 = não.
+            # §1159 (20/11): o match por SEGMENTO — um segmento do padrão que
+            # começa com ':' casa qualquer segmento do path e CAPTURA o valor
+            # (nome = o texto após o ':' até o próximo '/' ou o fim).
+            .globl kof_web_match_path
+            .type kof_web_match_path, @function
+            kof_web_match_path:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                movq %rdi, %rbx          # pattern kofstr
+                movq %rsi, %r12          # path chars
+                movq %rdx, %r13          # path len
+                leaq 24(%rbx), %r14      # pattern chars
+                movl 16(%rbx), %r15d     # pattern len (zero-extends)
+                xorq %r8, %r8            # pi (pattern index)
+                xorq %r9, %r9            # qi (path index)
+                movq $0, .Lweb_params_n(%rip)
+            .Lmp_loop:
+                cmpl %r15d, %r8d
+                jb .Lmp_p_left
+                # pattern exhausted: the path must be too
+                cmpq %r13, %r9
+                jae .Lmp_ok
+                jmp .Lmp_fail
+            .Lmp_p_left:
+                cmpq %r13, %r9
+                jae .Lmp_fail            # path exhausted first
+                movzbl (%r14,%r8), %eax
+                cmpb $58, %al            # ':'
+                je .Lmp_param
+                movzbl (%r12,%r9), %ecx
+                cmpb %cl, %al
+                jne .Lmp_fail
+                incq %r8
+                incq %r9
+                jmp .Lmp_loop
+            .Lmp_param:
+                # name = pattern[pi+1 ..) até '/' ou fim
+                leaq 1(%r8), %r10        # name_start
+                movq %r10, %r11          # name_end
+            .Lmp_name_scan:
+                cmpl %r15d, %r11d
+                jae .Lmp_name_done
+                movzbl (%r14,%r11), %eax
+                cmpb $47, %al
+                je .Lmp_name_done
+                incq %r11
+                jmp .Lmp_name_scan
+            .Lmp_name_done:
+                # value = path[qi ..) até '/' ou fim
+                movq %r9, %rdx           # value_start
+                movq %r9, %rsi           # value_end
+            .Lmp_val_scan:
+                cmpq %r13, %rsi
+                jae .Lmp_val_done
+                movzbl (%r12,%rsi), %eax
+                cmpb $47, %al
+                je .Lmp_val_done
+                incq %rsi
+                jmp .Lmp_val_scan
+            .Lmp_val_done:
+                movq .Lweb_params_n(%rip), %rax
+                cmpq $15, %rax
+                ja .Lmp_fail
+                imulq $32, %rax, %rax
+                leaq .Lweb_params(%rip), %rcx
+                addq %rax, %rcx
+                leaq (%r14,%r10), %rax
+                movq %rax, 0(%rcx)       # name ptr
+                movq %r11, %rax
+                subq %r10, %rax
+                movq %rax, 8(%rcx)       # name len
+                leaq (%r12,%rdx), %rax
+                movq %rax, 16(%rcx)      # value ptr
+                movq %rsi, %rax
+                subq %rdx, %rax
+                movq %rax, 24(%rcx)      # value len
+                incq .Lweb_params_n(%rip)
+                movq %r11, %r8
+                movq %rsi, %r9
+                jmp .Lmp_loop
+            .Lmp_ok:
+                movl $1, %eax
+                jmp .Lmp_ret
+            .Lmp_fail:
+                xorl %eax, %eax
+            .Lmp_ret:
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+
+            # kof_web_param(rdi=name kofstr) -> String (o valor do path param;
+            # string vazia quando não casa — o JVM devolve null, o contrato
+            # nativo usa "" para não propagar null aos consumidores).
+            .globl kof_web_param
+            .type kof_web_param, @function
+            kof_web_param:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                movq %rdi, %rbx          # name kofstr
+                leaq 24(%rbx), %r12      # name chars
+                movl 16(%rbx), %r13d     # name len
+                xorq %r14, %r14          # slot
+            .Lwp_loop:
+                cmpq .Lweb_params_n(%rip), %r14
+                jae .Lwp_miss
+                movq %r14, %rax
+                imulq $32, %rax, %rax
+                leaq .Lweb_params(%rip), %r8
+                addq %rax, %r8
+                movq 8(%r8), %rax        # name len do slot
+                cmpq %r13, %rax
+                jne .Lwp_next
+                movq 0(%r8), %rsi        # slot name ptr
+                xorq %rcx, %rcx
+            .Lwp_cmp:
+                cmpq %r13, %rcx
+                jae .Lwp_hit
+                movb (%rsi,%rcx), %al
+                cmpb (%r12,%rcx), %al
+                jne .Lwp_next
+                incq %rcx
+                jmp .Lwp_cmp
+            .Lwp_hit:
+                movq 16(%r8), %rdi       # value ptr
+                movq 24(%r8), %rsi       # value len
+                call kof_string_from_literal
+                jmp .Lwp_ret
+            .Lwp_next:
+                incq %r14
+                jmp .Lwp_loop
+            .Lwp_miss:
+                leaq .Lweb_empty(%rip), %rdi
+                xorq %rsi, %rsi
+                call kof_string_from_literal
+            .Lwp_ret:
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+
+            .section .data
+            .Lweb_empty: .asciz ""
+            .section .text
 
             # kof_web_path() -> String (o path da request corrente)
             .globl kof_web_path
