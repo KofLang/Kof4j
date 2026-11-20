@@ -331,6 +331,51 @@ public final class NativeWebListen {
             .Lwb_st_done:
                 movb $13, (%r13); incq %r13
                 movb $10, (%r13); incq %r13
+                # §1159 (20/11): a FILA de headers (setados pelo handler).
+                # Sem chamadas dentro do laço: r10/r11 são scratch seguros.
+                xorq %r14, %r14
+            .Lwb_hdrs:
+                cmpq .Lweb_hdrq_n(%rip), %r14
+                jae .Lwb_hdrs_done
+                movq %r14, %rax
+                imulq $32, %rax, %rax
+                leaq .Lweb_hdrq(%rip), %r10
+                addq %rax, %r10
+                # nome (kofstr ptr @0): len @16, chars @24
+                movq 0(%r10), %rsi
+                movl 16(%rsi), %r11d
+                addq $24, %rsi
+                xorq %r8, %r8
+            .Lwb_hn:
+                cmpl %r11d, %r8d
+                jae .Lwb_hn_done
+                movzbl (%rsi,%r8), %eax
+                movb %al, (%r13)
+                incq %r13
+                incq %r8
+                jmp .Lwb_hn
+            .Lwb_hn_done:
+                movb $58, (%r13); incq %r13
+                movb $32, (%r13); incq %r13
+                # valor (kofstr ptr @8)
+                movq 8(%r10), %rsi
+                movl 16(%rsi), %r11d
+                addq $24, %rsi
+                xorq %r8, %r8
+            .Lwb_hv:
+                cmpl %r11d, %r8d
+                jae .Lwb_hv_done
+                movzbl (%rsi,%r8), %eax
+                movb %al, (%r13)
+                incq %r13
+                incq %r8
+                jmp .Lwb_hv
+            .Lwb_hv_done:
+                movb $13, (%r13); incq %r13
+                movb $10, (%r13); incq %r13
+                incq %r14
+                jmp .Lwb_hdrs
+            .Lwb_hdrs_done:
                 leaq .Lweb_hct(%rip), %rsi
                 movq %r13, %rdi
                 call kof_web_append_cstr

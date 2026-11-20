@@ -292,6 +292,7 @@ public final class KofWeb {
             // segmento (kof_web_match_path): um `:name` no padrão casa
             // qualquer segmento e kof_web_param(name) devolve o valor.
             case "kof_web_param" -> true;
+            case "kof_web_header_set" -> true;
             // §1159 (20/11): o status da resposta no runtime web nativo —
             // kof_web_status guarda o código e devolve o body; o escritor de
             // resposta emite o código e o texto da tabela (mesmo conjunto do

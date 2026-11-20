@@ -105,6 +105,10 @@ public final class NativeWebCore {
             # `kof_web_status_text` do runtime JVM (mesmo contrato).
             .Lweb_status_code: .quad 0
             .Lweb_status_text: .quad 0
+            # §1159 (20/11): a fila de headers — 16 slots de 32B:
+            # name_ptr(0)/value_ptr(8)/name_len(16)/value_len(24).
+            .Lweb_hdrq: .space 512
+            .Lweb_hdrq_n: .quad 0
             # §1159 (20/11): os PATH PARAMS da rota que casou — 16 slots de
             # 32B: name_ptr(0)/name_len(8)/value_ptr(16)/value_len(24). Os
             # ponteiros vivem no padrão da rota (heap) e no buffer da request.
@@ -221,6 +225,7 @@ public final class NativeWebCore {
                 # o status é por request: zera antes do handler
                 movq $0, .Lweb_status_code(%rip)
                 movq $0, .Lweb_status_text(%rip)
+                movq $0, .Lweb_hdrq_n(%rip)
                 # NÃO zera .Lweb_params_n aqui: o kof_web_match_path já o zera
                 # a cada tentativa, e este ponto roda DEPOIS do match (zerar
                 # aqui apagaria os params que o handler vai ler).
@@ -294,6 +299,104 @@ public final class NativeWebCore {
                 movq %rax, .Lweb_status_text(%rip)
                 popq %rbx
                 movq %rsi, %rax                # devolve o body
+                ret
+
+            # kof_web_header_set(rdi=name kofstr, rsi=value kofstr) -> String
+            # §1159 (20/11): a FILA de headers. Contrato do JVM: CR/LF no nome
+            # ou no valor NUNCA chega ao fio (recusa = rax null); Set-Cookie
+            # REPETE; todo outro header last-wins (slot pelo nome).
+            .globl kof_web_header_set
+            .type kof_web_header_set, @function
+            kof_web_header_set:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                pushq %r15
+                movq %rdi, %rbx          # name kofstr
+                movq %rsi, %r12          # value kofstr
+                # guarda anti-CRLF: nome
+                xorq %r8, %r8
+            .Lhs_n_scan:
+                movl 16(%rbx), %eax
+                cmpq %rax, %r8
+                jae .Lhs_n_ok
+                movzbl 24(%rbx,%r8), %eax
+                cmpb $13, %al
+                je .Lhs_reject
+                cmpb $10, %al
+                je .Lhs_reject
+                incq %r8
+                jmp .Lhs_n_scan
+            .Lhs_n_ok:
+                # guarda anti-CRLF: valor
+                xorq %r8, %r8
+            .Lhs_v_scan:
+                movl 16(%r12), %eax
+                cmpq %rax, %r8
+                jae .Lhs_v_ok
+                movzbl 24(%r12,%r8), %eax
+                cmpb $13, %al
+                je .Lhs_reject
+                cmpb $10, %al
+                je .Lhs_reject
+                incq %r8
+                jmp .Lhs_v_scan
+            .Lhs_v_ok:
+                # Set-Cookie (case-insensitive) repete; o resto last-wins
+                # a comparação é entre KofStrings: constrói "Set-Cookie"
+                leaq .Lweb_st_cookie(%rip), %rdi
+                movl $10, %esi
+                call kof_string_from_literal
+                movq %rax, %r13
+                movq %rbx, %rdi
+                movq %r13, %rsi
+                call kof_string_equals_ignore_case
+                testl %eax, %eax
+                jnz .Lhs_new
+                # procura o slot com o mesmo nome
+                xorq %r13, %r13
+            .Lhs_lw:
+                cmpq .Lweb_hdrq_n(%rip), %r13
+                jae .Lhs_new
+                movq %r13, %rax
+                imulq $32, %rax, %rax
+                leaq .Lweb_hdrq(%rip), %r9
+                addq %rax, %r9
+                movq 0(%r9), %rdi
+                movq %rbx, %rsi
+                call kof_string_equals_ignore_case
+                testl %eax, %eax
+                jnz .Lhs_put
+                incq %r13
+                jmp .Lhs_lw
+            .Lhs_new:
+                movq .Lweb_hdrq_n(%rip), %r13
+                cmpq $15, %r13
+                ja .Lhs_reject
+                movq %r13, %rax
+                imulq $32, %rax, %rax
+                leaq .Lweb_hdrq(%rip), %r9
+                addq %rax, %r9
+                leaq 1(%r13), %rax
+                movq %rax, .Lweb_hdrq_n(%rip)
+            .Lhs_put:
+                movq %rbx, 0(%r9)
+                movq %r12, 8(%r9)
+                movl 16(%rbx), %eax
+                movl %eax, 16(%r9)
+                movl 16(%r12), %eax
+                movl %eax, 24(%r9)
+                movq %r12, %rax          # devolve o value
+                jmp .Lhs_ret
+            .Lhs_reject:
+                xorq %rax, %rax
+            .Lhs_ret:
+                popq %r15
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
                 ret
 
             # kof_web_match_path(rdi=pattern kofstr, rsi=path_chars, rdx=path_len)
@@ -449,6 +552,8 @@ public final class NativeWebCore {
 
             .section .data
             .Lweb_empty: .asciz ""
+            # §1159 (20/11): o nome do header que REPETE (RFC 6265 §3)
+            .Lweb_st_cookie: .asciz "Set-Cookie"
             .section .text
 
             # kof_web_path() -> String (o path da request corrente)

@@ -156,6 +156,37 @@ class KofWebNativeE2ETest extends ServerProcessSupport {
         assertTrue(miss.contains("404"), "a non-matching path still 404s: " + miss);
     }
 
+    /**
+     * §1159 (20/11): a FILA de headers no nativo — `headerSet()` guarda
+     * (nome, valor); Set-Cookie REPETE, o resto last-wins; o guard anti-CRLF
+     * recusa em compile-time... não: recusa em runtime (rax null), como o JVM
+     * recusa com exceção. O escritor emite a fila antes do Content-Type.
+     */
+    private static final String SERVER_HEADERS = """
+            main() {
+                var app = web.app()
+                app.get("/login") {
+                    headerSet("Set-Cookie", "a=1; Path=/")
+                    headerSet("Set-Cookie", "b=2; Path=/")
+                    headerSet("X-One", "first")
+                    headerSet("X-One", "second")
+                    return "ok"
+                }
+                app.listen(PORT)
+            }
+            """;
+
+    @Test
+    void nativeServerSendsTheQueuedHeaders(@TempDir Path tempDir) throws Exception {
+        serverProcess = startServer(tempDir, SERVER_HEADERS);
+        String r = httpGet(serverPort, "/login");
+        assertTrue(r.contains("Set-Cookie: a=1; Path=/"), "the first cookie: " + r);
+        assertTrue(r.contains("Set-Cookie: b=2; Path=/"), "the second cookie (repeat): " + r);
+        assertTrue(r.contains("X-One: second") && !r.contains("X-One: first"),
+                "other headers keep last-wins: " + r);
+        assertTrue(r.endsWith("ok"), "the body must still come through: " + r);
+    }
+
     @Test
     void nativeServerEmitsTheStatusTheHandlerSet(@TempDir Path tempDir) throws Exception {
         serverProcess = startServer(tempDir, SERVER_STATUS);
