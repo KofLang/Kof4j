@@ -229,6 +229,21 @@ public final class NativeWebListen {
                 incl %eax
                 jmp .Lwh_cp
             .Lwh_cpdone:
+                # ------- §1159 (20/11): o CONTEXTO é guardado ANTES do
+                # handler rodar: método (r9..r10) e path (r11..r12) para
+                # kof_web_method()/kof_web_path(). (Os r9..r12 estão vivos
+                # aqui; r13/r14 são os dados do lookup.)
+                # o índice da rota (rcx) é REUSADO pelo código abaixo — o
+                # pushq o preserva e ALINHA o rsp para o call (SysV).
+                pushq %rcx
+                movq %r9, %rdi                 # method chars
+                movq %r10, %rsi
+                subq %r9, %rsi                 # method len
+                movq %r11, %rdx                # path chars
+                movq %r12, %rcx
+                subq %r11, %rcx                # path len
+                call kof_web_set_req_ctx
+                popq %rcx
                 # ------- MATCH: invoca handler via trampolim -------
                 # handler obj está em 16(%r14,%rax-slot-atual) — reaponto:
                 movq %rcx, %rax

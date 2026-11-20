@@ -38,6 +38,12 @@ public final class NativeWebCore {
             .Lweb_last_body:  .space 8192     # body extraído da última request
             .Lweb_last_blen:  .quad 0
             .Lweb_last_path:  .space 512
+            # §1159 (20/11): o CONTEXTO da request corrente — o path e o
+            # método são guardados pelo handle_client quando uma rota casa;
+            # kof_web_path()/kof_web_method() os devolvem como String.
+            .Lweb_last_pathlen: .quad 0
+            .Lweb_last_method: .space 16
+            .Lweb_last_methodlen: .quad 0
 
             .section .text
 
@@ -131,6 +137,79 @@ public final class NativeWebCore {
                 jmp .Lsbc_cp
             .Lsbc_done:
                 movb $0, (%rdx,%rcx)
+                ret
+
+            # ------------------------------------------------------------------
+            # §1159 (20/11): o CONTEXTO da request corrente.
+            # kof_web_set_req_ctx(rdi=method_chars, rsi=method_len,
+            #                     rdx=path_chars, rcx=path_len)
+            # — chamado pelo handle_client quando uma rota casa. Preserva
+            # rcx (o índice da rota que o chamador reusa) e os callee-saved.
+            # ------------------------------------------------------------------
+            .globl kof_web_set_req_ctx
+            .type kof_web_set_req_ctx, @function
+            kof_web_set_req_ctx:
+                pushq %rcx
+                pushq %rdx
+                pushq %rbx
+                # método: copia rsi bytes de rdi para .Lweb_last_method (cap 15)
+                cmpq $15, %rsi
+                jbe .Lsrc_m_len
+                movl $15, %esi
+            .Lsrc_m_len:
+                movq %rsi, .Lweb_last_methodlen(%rip)
+                leaq .Lweb_last_method(%rip), %rdx
+                xorq %r8, %r8
+            .Lsrc_m_loop:
+                cmpq %rsi, %r8
+                jae .Lsrc_m_done
+                movb (%rdi,%r8), %al
+                movb %al, (%rdx,%r8)
+                incq %r8
+                jmp .Lsrc_m_loop
+            .Lsrc_m_done:
+                movb $0, (%rdx,%r8)
+                # path: copia rcx bytes de rdx (que está em 8(%rsp)) para
+                # .Lweb_last_path (cap 511)
+                movq 8(%rsp), %rdx
+                movq 16(%rsp), %rcx
+                cmpq $511, %rcx
+                jbe .Lsrc_p_len
+                movl $511, %ecx
+            .Lsrc_p_len:
+                movq %rcx, .Lweb_last_pathlen(%rip)
+                leaq .Lweb_last_path(%rip), %rdi
+                xorq %r8, %r8
+            .Lsrc_p_loop:
+                cmpq %rcx, %r8
+                jae .Lsrc_p_done
+                movb (%rdx,%r8), %al
+                movb %al, (%rdi,%r8)
+                incq %r8
+                jmp .Lsrc_p_loop
+            .Lsrc_p_done:
+                movb $0, (%rdi,%r8)
+                popq %rbx
+                popq %rdx
+                popq %rcx
+                ret
+
+            # kof_web_path() -> String (o path da request corrente)
+            .globl kof_web_path
+            .type kof_web_path, @function
+            kof_web_path:
+                leaq .Lweb_last_path(%rip), %rdi
+                movq .Lweb_last_pathlen(%rip), %rsi
+                call kof_string_from_literal
+                ret
+
+            # kof_web_method() -> String
+            .globl kof_web_method
+            .type kof_web_method, @function
+            kof_web_method:
+                leaq .Lweb_last_method(%rip), %rdi
+                movq .Lweb_last_methodlen(%rip), %rsi
+                call kof_string_from_literal
                 ret
 
             # ------------------------------------------------------------------

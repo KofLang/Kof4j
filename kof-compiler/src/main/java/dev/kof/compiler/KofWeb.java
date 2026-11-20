@@ -284,6 +284,10 @@ public final class KofWeb {
     static boolean contextNativeSupported(String function) {
         return switch (function) {
             case "kof_web_body" -> true;
+            // §1159 (20/11): o contexto da request corrente no runtime web
+            // nativo x86-64 — o handle_client guarda o método e o path quando
+            // uma rota casa; kof_web_path/kof_web_method os devolvem.
+            case "kof_web_path", "kof_web_method" -> true;
             default -> false;
         };
     }

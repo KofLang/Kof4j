@@ -86,6 +86,31 @@ class KofWebNativeE2ETest extends ServerProcessSupport {
 
     // ---------------- testes ----------------
 
+    /**
+     * §1159 (20/11): o CONTEXTO da request corrente no nativo x86-64 —
+     * {@code method()} e {@code path()} devolvem o método e o path da request
+     * que casou a rota. Antes recusavam em compile-time (WEB001) e o ticket
+     * listava "path params" como residual do nativo.
+     */
+    private static final String SERVER_CTX = """
+            main() {
+                var app = web.app()
+                app.get("/ctx/7") {
+                    return "m=" + method() + " p=" + path()
+                }
+                app.listen(PORT)
+            }
+            """;
+
+    @Test
+    void nativeServerExposesTheRequestMethodAndPath(@TempDir Path tempDir) throws Exception {
+        serverProcess = startServer(tempDir, SERVER_CTX);
+        String resp = httpGet(serverPort, "/ctx/7");
+        assertTrue(resp.contains("200"), "status: " + resp);
+        assertTrue(resp.endsWith("m=GET p=/ctx/7"),
+                "the request context must carry the method and the path: " + resp);
+    }
+
     @Test
     void nativeServerAcceptsAndResponds200(@TempDir Path tempDir) throws Exception {
         serverProcess = startServer(tempDir, SERVER_T1);
