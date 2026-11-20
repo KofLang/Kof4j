@@ -242,6 +242,9 @@ skips) — a separate, weaker oracle than `WasmWasiE2ETest`, which still needs
 | `Long`, `Double`, `Bool` scalars | ✅ | each compiled standalone |
 | Function-to-function calls | ✅ | `f() { return g(1) }` |
 | String literals in `println` + `+` concat | ✅ | only WITH a top-level scalar fn present |
+| WASI `time.now()` (clock) | ✅ | `clock_time_get` REALTIME → epoch-millis; > 0 and non-decreasing under wasmtime (`WasmWasiCapsE2ETest`) |
+| WASI `random.double/bool/int` | ✅ | `random_get`; the domain law byte-identical to the JVM oracle of the SAME source |
+| WASI `random.hex`/`random.string` (the String-allocating faces) | 🔴 WASM002 | the runtime is not registered by this slice — honest refusal, no artifacts |
 | `record` construction / `.x()` field read | 🔴 WASM002 | `'<init>' nao resolvida no subset escalar` |
 | `List` / `Map` / `Set` | 🔴 WASM002 | `'kof_list_new' nao resolvida no subset escalar` |
 | `try` / `catch` | 🔴 WASM002 | `'KofTrySta…' fora do subset escalar 15.2` |

@@ -291,8 +291,11 @@ public final class KofWeb {
             // §1159 (20/11): o status da resposta no runtime web nativo —
             // kof_web_status guarda o código e devolve o body; o escritor de
             // resposta emite o código e o texto da tabela (mesmo conjunto do
-            // JVM). headerSet segue recusado (precisa da fila de headers).
+            // JVM).
             case "kof_web_status" -> true;
+            // §1159 (20/11, fatia 3): headerSet segue recusado — o ASM da
+            // fila de headers foi escrito mas o caminho de emissão tem um
+            // bug de desreferenciamento não resolvido neste ciclo.
             default -> false;
         };
     }

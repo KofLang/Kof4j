@@ -20,6 +20,10 @@ public final class WasmStdoutRuntime {
     /** slots estaticos do readArgs 15.3c-sliceB (&argc / &argv_buf_size). */
     public static final int SCRATCH_ARGC = 48, SCRATCH_ARGSZ = 52;
 
+    /** slots das capabilities de host fase 4 (#776): &timestamp i64 (clock)
+     *  e o buffer de entropia i64 (random). */
+    public static final int SCRATCH_CLOCK = 56, SCRATCH_RND = 64;
+
     /** base do pool de strings 15.3b (data segments; acima do scratch). */
     public static final int DATA_BASE = 1024;
 

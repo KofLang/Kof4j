@@ -226,6 +226,9 @@ nas linhas 🔴 (recusado em compilação).
 | Escalares `Long`, `Double`, `Bool` | ✅ | cada um compilado isoladamente |
 | Chamada de função para função | ✅ | `f() { return g(1) }` |
 | Literal de string em `println` + concat `+` | ✅ | só COM uma função escalar top-level presente |
+| WASI `time.now()` (clock) | ✅ | `clock_time_get` REALTIME → epoch-millis; > 0 e não-decrescente sob wasmtime (`WasmWasiCapsE2ETest`) |
+| WASI `random.double/bool/int` | ✅ | `random_get`; a lei de domínio byte-a-byte igual ao oráculo JVM do MESMO fonte |
+| WASI `random.hex`/`random.string` (as faces que alocam String) | 🔴 WASM002 | o runtime não é registrado por esta fatia — recusa honesta, sem artefatos |
 | `record` (construção / `.x()`) | 🔴 WASM002 | `'<init>' nao resolvida no subset escalar` |
 | `List` / `Map` / `Set` | 🔴 WASM002 | `'kof_list_new' nao resolvida no subset escalar` |
 | `try` / `catch` | 🔴 WASM002 | `'KofTrySta…' fora do subset escalar 15.2` |

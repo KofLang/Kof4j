@@ -150,6 +150,9 @@ public class WasmBackend implements Backend {
         }
         IRMethod startM = null;
         boolean usesArgs = false;
+        // fase 4 (#776): as capabilities de host usadas pelo programa (o
+        // import so entra quando o runtime correspondente entra no modulo)
+        boolean usesClockHost = false, usesRandomHost = false;
         if (wasi) {
             if (mainDecl != null) {
                 for (IRBasicBlock bb : mainDecl.basicBlocks()) {
@@ -171,6 +174,16 @@ public class WasmBackend implements Backend {
             java.util.List<IRMethod> scanAll = new java.util.ArrayList<>(entries);
             if (startM != null) scanAll.add(startM);
             java.util.Set<String> printed = printOperandTypes(scanAll);
+            // fase 4 (#776): o CLOCK + a familia RANDOM — os runtimes entram
+            // quando o programa usa os host-calls (mesmo padrao do args)
+            if (WasmWasiCaps.usesTime(scanAll)) {
+                funcs.add(WasmWasiCaps.kofTimeNow());
+                usesClockHost = true;
+            }
+            if (WasmWasiCaps.usesRandom(scanAll)) {
+                funcs.addAll(WasmWasiCaps.randomFamily(scanAll));
+                usesRandomHost = true;
+            }
             // records com String/Char/Bool (15.3d inc2 fatia C) + `==` de String
             // entre variaveis, que nao carrega literal nenhum (15.3d fatia F)
             if (usesStringOps(scanAll) || usesRecords || usesStringEquals(scanAll)
@@ -479,6 +492,15 @@ public class WasmBackend implements Backend {
             globals = java.util.List.of(heapFirst, 0, 0);
         }
         List<WasmImport> imports;
+        // fase 4 (#776): os imports da fatia de capabilities — so o que o
+        // programa usa (o import nao-grantado recusaria no HOST, nao aqui)
+        List<WasmImport> caps = new ArrayList<>();
+        if (usesClockHost) {
+            caps.add(WasmImport.wasi("clock_time_get", List.of(0x7f, 0x7e, 0x7f), List.of(0x7f)));
+        }
+        if (usesRandomHost) {
+            caps.add(WasmImport.wasi("random_get", List.of(0x7f, 0x7f), List.of(0x7f)));
+        }
         if (!wasi) {
             imports = List.of();
         } else if (usesArgs) {
@@ -486,9 +508,14 @@ public class WasmBackend implements Backend {
                               WasmImport.wasi("proc_exit", List.of(0x7f), List.of()),
                               WasmImport.wasi("args_sizes_get", List.of(0x7f, 0x7f), List.of(0x7f)),
                               WasmImport.wasi("args_get", List.of(0x7f, 0x7f), List.of(0x7f)));
+            imports = new ArrayList<>(imports);
+            imports.addAll(caps);
+            imports = java.util.List.copyOf(imports);
         } else {
-            imports = List.of(WasmImport.wasi("fd_write", List.of(0x7f, 0x7f, 0x7f, 0x7f), List.of(0x7f)),
-                              WasmImport.wasi("proc_exit", List.of(0x7f), List.of()));
+            imports = new ArrayList<>(List.of(WasmImport.wasi("fd_write", List.of(0x7f, 0x7f, 0x7f, 0x7f), List.of(0x7f)),
+                              WasmImport.wasi("proc_exit", List.of(0x7f), List.of())));
+            imports.addAll(caps);
+            imports = java.util.List.copyOf(imports);
         }
         // Fase E (27/10, #776): DEDUPE por nome preservando a primeira
         // ocorrencia — os blocos de registro por metodo (indexOf vs compareTo
