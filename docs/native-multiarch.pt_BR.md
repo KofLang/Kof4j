@@ -536,6 +536,20 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
 
 - `GC` mark-sweep avançado, `float/double` no Native (`F2D`), `kof.web`
   `listen` nativo, `macOS` Mach-O / `Windows` PE.
+
+  **O `macOS` Mach-O está EM DESENVOLVIMENTO (issue #1135, `D-NATIVE-MACOS` —
+  arm64 + x86-64).** A costura `kof_plat_*` (as 21 funções de plataforma
+  nomeadas) é a superfície de migração, e ela agora tem RATCHET: o
+  `scripts/check_macos_seam.sh` mede as chamadas de sistema que ainda furam a
+  costura (x86-64 `syscall` 180 fora-da-costura de 203; riscv64 `ecall` 168
+  fora-da-costura de 184), os sítios de TLS ELF (`%fs:/@tpoff`, 24) e os sítios
+  de `futex` (15 — o macOS usa `__ulock`/`os_unfair_lock`), e **falha o build
+  se qualquer um desses números CRESCER** (o baseline é
+  `scripts/macos-seam-baseline.txt`; diminuir é sempre verde; `--update-baseline`
+  o regenera; `--selftest` prova que o gate ainda distingue igual/crescimento/
+  melhora). Os estágios M-1..M-8 (emissor Mach-O → costura libSystem →
+  allocator/GC → exceções → concorrência → …) consomem estes números como o
+  ANTES; o M-7 precisa de um runner macOS.
 - **Bare-metal / bootável** (microcontrolador, BIOS legado, UEFI) — diretiva da
   mantenedora 15/09 ("todo código nativo deve se comunicar direto com barebones").
   O runtime riscv64/aarch64 em asm puro (sem libc) é a base natural, mas os

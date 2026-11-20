@@ -537,6 +537,19 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
 
 - Advanced `GC` mark-sweep, `float/double` on Native (`F2D`), native `kof.web`
   `listen`, `macOS` Mach-O / `Windows` PE.
+
+  **`macOS` Mach-O is IN PROGRESS (issue #1135, `D-NATIVE-MACOS` — arm64 + x86-64).**
+  The `kof_plat_*` seam (the 21 named platform functions) is the migration
+  surface, and it is now RATCHETED: `scripts/check_macos_seam.sh` measures the
+  system calls that still bypass the seam (x86-64 `syscall` 180 out-of-seam of
+  203; riscv64 `ecall` 168 out-of-seam of 184), the ELF TLS sites
+  (`%fs:/@tpoff`, 24) and the `futex` sites (15 — macOS uses
+  `__ulock`/`os_unfair_lock`), and **fails the build if any of those numbers
+  grows** (the baseline is `scripts/macos-seam-baseline.txt`; diminishing is
+  always green; `--update-baseline` regenerates it; `--selftest` proves the
+  gate still distinguishes equal/growth/improvement). The stages M-1..M-8
+  (Mach-O emitter → libSystem seam → allocator/GC → exceptions → concurrency →
+  …) consume these numbers as the BEFORE; M-7 needs a macOS runner.
 - **Bare-metal / bootable** (microcontroller, legacy BIOS, UEFI) — maintainer
   directive 15/09 ("all native code must also talk directly to barebones"). The
   pure-asm riscv64/aarch64 runtime (no libc) is the natural base, but the emitters
