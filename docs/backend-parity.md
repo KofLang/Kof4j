@@ -244,7 +244,7 @@ skips) — a separate, weaker oracle than `WasmWasiE2ETest`, which still needs
 | String literals in `println` + `+` concat | ✅ | only WITH a top-level scalar fn present |
 | WASI `time.now()` (clock) | ✅ | `clock_time_get` REALTIME → epoch-millis; > 0 and non-decreasing under wasmtime (`WasmWasiCapsE2ETest`) |
 | WASI `random.double/bool/int` | ✅ | `random_get`; the domain law byte-identical to the JVM oracle of the SAME source |
-| WASI `random.hex`/`random.string` (the String-allocating faces) | 🔴 WASM002 | the runtime is not registered by this slice — honest refusal, no artifacts |
+| WASI `random.hex`/`random.randomString` (the String-allocating faces) | ✅ | `random_get` + the bump heap; the format (length / digit alphabet / nullability) byte-identical to the JVM oracle of the SAME source (`WasmWasiRandomStrE2ETest`) |
 | WASI `kof.io` `exists`/`isFile`/`isDirectory` | ✅ | `path_filestat_get` (filetype at offset 16; 1 = dir, 2 = file) over the preopened fd 3; byte-identical to the JVM oracle of the SAME source (`WasmWasiFsE2ETest`) |
 | WASI `kof.io` `readText`/`writeText` | ✅ | `path_open`+`fd_read`/`fd_write`+`fd_close`; the file is really created in the preopened dir holding `ola kof`; absolute paths refused by preview1 (errno 63), a leading `/` is stripped |
 | `record` construction / `.x()` field read | 🔴 WASM002 | `'<init>' nao resolvida no subset escalar` |

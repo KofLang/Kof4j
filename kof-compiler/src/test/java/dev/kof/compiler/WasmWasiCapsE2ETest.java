@@ -137,19 +137,22 @@ class WasmWasiCapsE2ETest {
     }
 
     @Test
-    void unusedRandomFacesRefuseHonestly(@TempDir Path dir) throws Exception {
-        // kof_random_hex aloca String — fora da fatia caps da fase 4; a
-        // recusa honesta (WASM002, sem artefatos) e a lei (R6)
+    void unusedRandomFacesDeclareNoExtraImports(@TempDir Path dir) throws Exception {
+        // a fase-4 RANDOM-STR (a fatia que aloca String) landed depois desta
+        // fatia: o `random.hex` nao recusa mais — mas o programa que usa SO o
+        // `random.int` nao pode declarar os runtimes das faces de String (o
+        // conjunto de imports honesto — o host recusa o import nao concedido)
         Files.writeString(dir.resolve("Hex.kf"),
-                "main(String[] args) { println(random.hex(4)) }\n",
+                "main(String[] args) { println(random.int(4)) }\n",
                 java.nio.charset.StandardCharsets.UTF_8);
         var r = new CompilerDriver().compile(dir.resolve("Hex.kf"),
                 dir.resolve("out-hex"), Target.WASI);
-        assertFalse(r.success(), "random.hex fora da fatia caps: recusa honesta");
-        String diags = r.diagnostics().getDiagnostics().toString();
-        assertTrue(diags.contains("WASM002"), "a recusa nomeia o gap: " + diags);
-        assertFalse(Files.exists(dir.resolve("out-hex", "Default")),
-                "refusal emits NO artifacts");
+        assertTrue(r.success(), "random.int compila: " + r.diagnostics().getDiagnostics());
+        String raw = new String(Files.readAllBytes(
+                Path.of(dir.toString(), "out-hex", "Default", "Main.wasm")),
+                java.nio.charset.StandardCharsets.ISO_8859_1);
+        assertFalse(raw.contains("kof_random_hex"), "a face de hex nao entra sem uso");
+        assertFalse(raw.contains("kof_random_string"), "a face de randomString nao entra sem uso");
     }
 
     private static Process runWasmtime(Path wasmtime, Path wasm) throws Exception {

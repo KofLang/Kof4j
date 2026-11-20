@@ -289,6 +289,14 @@ final class WasmCallCode {
             out.add(new WasmInstr.Call(WasmWasiFs.runtimeName(kc.methodName())));
             ctx.lastPush = WasmWasiFs.resultShape(kc.methodName());
             ctx.lastPushWide = false;
+        } else if (ctx.wasi && WasmWasiCaps.STRING_NAMES.contains(kc.methodName())) {
+            // fase 4 (#776): as faces de random que ALOCAM String — o retorno
+            // e' o HANDLE i32 (o layout [len][bytes] do bump heap); o rastro
+            // "string" SEM o wide (o `== null` compara o handle com o 0 i32,
+            // nunca com um i64 — o modulo saia invalido sem isto)
+            out.add(new WasmInstr.Call(kc.methodName()));
+            ctx.lastPush = "string";
+            ctx.lastPushWide = false;
         } else if (ctx.wasi && WasmMathRuntime.NAMES.contains(kc.methodName())) {
             // Fase E (26/10, #776): a familia INT do math — o nome DA
             // funcao e' o nome do runtime (kof_math_*, aritmetica i64

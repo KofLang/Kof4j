@@ -108,6 +108,9 @@ final class WasmClosureScan {
                             // fase 4 (#776): o CLOCK + a familia RANDOM —
                             // os host-calls preview1 com runtime proprio
                             || (wasi && WasmWasiCaps.NAMES.contains(kc.methodName()))
+                            // fase 4 (#776): as faces de random que ALOCAM
+                            // String (o hex e o randomString)
+                            || (wasi && WasmWasiCaps.STRING_NAMES.contains(kc.methodName()))
                             // fase 4 (#776): o kof.io — as faces de arquivo
                             // do host (o path_open/fd_read/fd_write)
                             || (wasi && WasmWasiFs.NAMES.contains(kc.methodName())))) {

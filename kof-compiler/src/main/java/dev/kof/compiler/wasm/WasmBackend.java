@@ -185,6 +185,20 @@ public class WasmBackend implements Backend {
                 funcs.addAll(WasmWasiCaps.randomFamily(scanAll));
                 usesRandomHost = true;
             }
+            // fase 4 (#776): as faces de random que ALOCAM String (o hex e o
+            // randomString) — o handle vive no bump heap, entao o runtime de
+            // heap entra junto (o mesmo padrao do readText do kof.io)
+            if (WasmWasiCaps.usesRandomString(scanAll)) {
+                byte[] hexB = WasmWasiRandomStr.hexTable();
+                int hexTab = dataCursor.next;
+                dataSegments.add(new WasmData(hexTab, hexB));
+                dataCursor.next = (dataCursor.next + hexB.length + 3) & ~3;
+                WasmWasiRandomStr.bindHexTable(hexTab);
+                funcs.add(WasmWasiRandomStr.kofRandomHex());
+                funcs.add(WasmWasiRandomStr.kofRandomString());
+                usesRandomHost = true;
+                usesHeap = true;
+            }
             // fase 4 (#776): o kof.io — as faces de arquivo do host (o import
             // so entra quando a face e' usada — o host recusa o import nao
             // concedido, nao o modulo)

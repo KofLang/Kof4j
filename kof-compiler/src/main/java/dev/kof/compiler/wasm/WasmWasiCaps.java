@@ -45,6 +45,10 @@ final class WasmWasiCaps {
             "kof_random_double", "kof_random_boolean", "kof_random_bool",
             "kof_random_int");
 
+    /** as faces que ALOCAM String (o hex/string) — o runtime proprio. */
+    static final Set<String> STRING_NAMES = Set.of(
+            "kof_random_hex", "kof_random_string");
+
     /** o programa usa o clock de parede ({@code time.now()})? */
     static boolean usesTime(List<IRMethod> methods) {
         return anyCall(methods, "kof_time_now");
@@ -57,7 +61,23 @@ final class WasmWasiCaps {
                 for (KofOperation op : bb.operations()) {
                     if (op instanceof KofCall kc
                             && kc.methodName().startsWith("kof_random_")
-                            && NAMES.contains(kc.methodName())) {
+                            && (NAMES.contains(kc.methodName())
+                                || STRING_NAMES.contains(kc.methodName()))) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** o programa usa uma face de random que ALOCA String? */
+    static boolean usesRandomString(List<IRMethod> methods) {
+        for (IRMethod m : methods) {
+            for (IRBasicBlock bb : m.basicBlocks()) {
+                for (KofOperation op : bb.operations()) {
+                    if (op instanceof KofCall kc
+                            && STRING_NAMES.contains(kc.methodName())) {
                         return true;
                     }
                 }
