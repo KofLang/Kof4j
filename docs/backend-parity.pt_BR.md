@@ -229,6 +229,8 @@ nas linhas 🔴 (recusado em compilação).
 | WASI `time.now()` (clock) | ✅ | `clock_time_get` REALTIME → epoch-millis; > 0 e não-decrescente sob wasmtime (`WasmWasiCapsE2ETest`) |
 | WASI `random.double/bool/int` | ✅ | `random_get`; a lei de domínio byte-a-byte igual ao oráculo JVM do MESMO fonte |
 | WASI `random.hex`/`random.string` (as faces que alocam String) | 🔴 WASM002 | o runtime não é registrado por esta fatia — recusa honesta, sem artefatos |
+| WASI `kof.io` `exists`/`isFile`/`isDirectory` | ✅ | `path_filestat_get` (filetype no offset 16; 1 = dir, 2 = arquivo) no fd preopened 3; byte-a-byte igual ao oráculo JVM do MESMO fonte (`WasmWasiFsE2ETest`) |
+| WASI `kof.io` `readText`/`writeText` | ✅ | `path_open`+`fd_read`/`fd_write`+`fd_close`; o arquivo é de fato criado no diretório preopened com `ola kof`; caminhos absolutos recusados pelo preview1 (errno 63), o `/` inicial é removido |
 | `record` (construção / `.x()`) | 🔴 WASM002 | `'<init>' nao resolvida no subset escalar` |
 | `List` / `Map` / `Set` | 🔴 WASM002 | `'kof_list_new' nao resolvida no subset escalar` |
 | `try` / `catch` | 🔴 WASM002 | `'KofTrySta…' fora do subset escalar 15.2` |

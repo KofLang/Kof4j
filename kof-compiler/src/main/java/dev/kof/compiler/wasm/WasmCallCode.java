@@ -281,6 +281,14 @@ final class WasmCallCode {
             out.add(new WasmInstr.Call(rn));
             ctx.lastPush = "object";
             ctx.lastPushWide = false;
+        } else if (ctx.wasi && WasmWasiFs.NAMES.contains(kc.methodName())) {
+            // fase 4 (#776): o kof.io — o nome do call do Kof mapeia no
+            // runtime do host (kof.io.*). O path chega como HANDLE de
+            // String (o layout [len][bytes] do bump heap) e o retorno e' o
+            // handle i32 (0 = null para o readText).
+            out.add(new WasmInstr.Call(WasmWasiFs.runtimeName(kc.methodName())));
+            ctx.lastPush = WasmWasiFs.resultShape(kc.methodName());
+            ctx.lastPushWide = false;
         } else if (ctx.wasi && WasmMathRuntime.NAMES.contains(kc.methodName())) {
             // Fase E (26/10, #776): a familia INT do math — o nome DA
             // funcao e' o nome do runtime (kof_math_*, aritmetica i64

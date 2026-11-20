@@ -117,7 +117,11 @@ final class WasmStateCode {
             // FATIA MAP-D (28/10, #776): o tipo do LOAD erasa o nullable — o
             // rastro REAL vem do lv.type() (o slot allocation o viu)
             String lt = ctx.localNullableTrace.get(ll.index());
+            // fase 4 (#776): o receiver do kof.io = o path (o handle i32 da
+            // String) — o rastro e' "string", nunca o nome da classe (o
+            // File/Path/Directory NAO e' um objeto: e' o caminho).
             ctx.lastPush = lt != null ? lt
+                    : WasmIoTypes.isIoReceiver(ll.type()) ? "string"
                     : (ll.type() instanceof Type.ClassType ct && !("String".equals(ct.name())
                     && "java.lang".equals(ct.packageName()))) ? ct.name() : typeName(ll.type());
             ctx.lastPushWide = "int".equalsIgnoreCase(ctx.lastPush) || "long".equalsIgnoreCase(ctx.lastPush)

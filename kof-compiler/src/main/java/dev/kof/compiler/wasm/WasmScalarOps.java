@@ -126,6 +126,12 @@ public final class WasmScalarOps {
     }
 
     static String typeName(Type t) {
+        // fase 4 (#776): o receiver do kof.io (File/Path/Directory) e' um
+        // ALIAS do path (a String) — a MESMA lei do runtime JVM (o receiver
+        // e' apagado para o path String: o File nao e' um objeto, e' o
+        // caminho). Sem isto o local caia no mapa de tipos e recusava
+        // honesto (WASM002: "local f 'File' fora do subset escalar").
+        if (WasmIoTypes.isIoReceiver(t)) return "string";
         // FATIA MV (28/10, #776): o String? (o valor do map.get) recebe o
         // NOME PROPRI0 — o scan aceita e o print despacha com o check do
         // handle null (o JVM imprime `null`)

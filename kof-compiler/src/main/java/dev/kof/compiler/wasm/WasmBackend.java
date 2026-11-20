@@ -153,6 +153,7 @@ public class WasmBackend implements Backend {
         // fase 4 (#776): as capabilities de host usadas pelo programa (o
         // import so entra quando o runtime correspondente entra no modulo)
         boolean usesClockHost = false, usesRandomHost = false;
+        java.util.Set<String> ioFaces = java.util.Set.of();
         if (wasi) {
             if (mainDecl != null) {
                 for (IRBasicBlock bb : mainDecl.basicBlocks()) {
@@ -183,6 +184,20 @@ public class WasmBackend implements Backend {
             if (WasmWasiCaps.usesRandom(scanAll)) {
                 funcs.addAll(WasmWasiCaps.randomFamily(scanAll));
                 usesRandomHost = true;
+            }
+            // fase 4 (#776): o kof.io — as faces de arquivo do host (o import
+            // so entra quando a face e' usada — o host recusa o import nao
+            // concedido, nao o modulo)
+            ioFaces = WasmWasiFs.usedFaces(scanAll);
+            if (!ioFaces.isEmpty()) {
+                if (ioFaces.contains("kof_io_file_exists")) funcs.add(WasmWasiFs.exists());
+                if (ioFaces.contains("kof_io_file_is_file")) funcs.add(WasmWasiFs.isFile());
+                if (ioFaces.contains("kof_io_file_is_dir")) funcs.add(WasmWasiFs.isDirectory());
+                if (ioFaces.contains("kof_io_read_text")) {
+                    funcs.add(WasmWasiFs.readText());
+                    usesHeap = true; // o String do arquivo vive no bump heap
+                }
+                if (ioFaces.contains("kof_io_write_text")) funcs.add(WasmWasiFs.writeText());
             }
             // records com String/Char/Bool (15.3d inc2 fatia C) + `==` de String
             // entre variaveis, que nao carrega literal nenhum (15.3d fatia F)
@@ -492,30 +507,32 @@ public class WasmBackend implements Backend {
             globals = java.util.List.of(heapFirst, 0, 0);
         }
         List<WasmImport> imports;
-        // fase 4 (#776): os imports da fatia de capabilities — so o que o
-        // programa usa (o import nao-grantado recusaria no HOST, nao aqui)
-        List<WasmImport> caps = new ArrayList<>();
-        if (usesClockHost) {
-            caps.add(WasmImport.wasi("clock_time_get", List.of(0x7f, 0x7e, 0x7f), List.of(0x7f)));
-        }
-        if (usesRandomHost) {
-            caps.add(WasmImport.wasi("random_get", List.of(0x7f, 0x7f), List.of(0x7f)));
-        }
         if (!wasi) {
             imports = List.of();
-        } else if (usesArgs) {
-            imports = List.of(WasmImport.wasi("fd_write", List.of(0x7f, 0x7f, 0x7f, 0x7f), List.of(0x7f)),
-                              WasmImport.wasi("proc_exit", List.of(0x7f), List.of()),
-                              WasmImport.wasi("args_sizes_get", List.of(0x7f, 0x7f), List.of(0x7f)),
-                              WasmImport.wasi("args_get", List.of(0x7f, 0x7f), List.of(0x7f)));
-            imports = new ArrayList<>(imports);
-            imports.addAll(caps);
-            imports = java.util.List.copyOf(imports);
         } else {
-            imports = new ArrayList<>(List.of(WasmImport.wasi("fd_write", List.of(0x7f, 0x7f, 0x7f, 0x7f), List.of(0x7f)),
-                              WasmImport.wasi("proc_exit", List.of(0x7f), List.of())));
-            imports.addAll(caps);
-            imports = java.util.List.copyOf(imports);
+            // fase 4 (#776): os imports das capabilities de host — so o que
+            // o programa usa (o import nao-grantado recusaria no HOST, nao
+            // aqui). O `fd_write` e' o mesmo import do stdout.
+            List<WasmImport> all = new ArrayList<>();
+            all.add(WasmImport.wasi("fd_write", List.of(0x7f, 0x7f, 0x7f, 0x7f), List.of(0x7f)));
+            all.add(WasmImport.wasi("proc_exit", List.of(0x7f), List.of()));
+            if (usesArgs) {
+                all.add(WasmImport.wasi("args_sizes_get", List.of(0x7f, 0x7f), List.of(0x7f)));
+                all.add(WasmImport.wasi("args_get", List.of(0x7f, 0x7f), List.of(0x7f)));
+            }
+            if (usesClockHost) {
+                all.add(WasmImport.wasi("clock_time_get", List.of(0x7f, 0x7e, 0x7f), List.of(0x7f)));
+            }
+            if (usesRandomHost) {
+                all.add(WasmImport.wasi("random_get", List.of(0x7f, 0x7f), List.of(0x7f)));
+            }
+            if (!ioFaces.isEmpty()) {
+                all.add(WasmWasiFs.pathOpen());
+                all.add(WasmWasiFs.pathFilestatGet());
+                all.add(WasmWasiFs.fdRead());
+                all.add(WasmWasiFs.fdClose());
+            }
+            imports = java.util.List.copyOf(all);
         }
         // Fase E (27/10, #776): DEDUPE por nome preservando a primeira
         // ocorrencia — os blocos de registro por metodo (indexOf vs compareTo

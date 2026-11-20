@@ -255,6 +255,12 @@ final class WasmOperandShape {
         if (m.startsWith("kof_math_")) {
             return m.startsWith("kof_math_is") ? "bool" : "double";
         }
+        if (WasmWasiFs.NAMES.contains(m)) {
+            // fase 4 (#776): o kof.io — o exists/isFile/isDir/writeText
+            // devolvem Bool (i32) e o readText devolve o handle do String
+            // (0 = null — a MESMA lei do map.get)
+            return WasmWasiFs.resultShape(m);
+        }
         if ("valueOf".equals(m) && WasmTypeOracle.printlnFollows(ops, i)) {
             return null;     // o raw passa (as cadeias do println: NENHUM push)
         }

@@ -24,6 +24,11 @@ public final class WasmStdoutRuntime {
      *  e o buffer de entropia i64 (random). */
     public static final int SCRATCH_CLOCK = 56, SCRATCH_RND = 64;
 
+    /** slots do {@code kof.io} (fase 4): o fd aberto, o contador de bytes
+     *  lidos/escritos, o iovec e o {@code filestat} (64 bytes). */
+    public static final int SCRATCH_FS_FD = 72, SCRATCH_FS_NREAD = 76,
+            SCRATCH_FS_IOV = 80, SCRATCH_FS_STAT = 96;
+
     /** base do pool de strings 15.3b (data segments; acima do scratch). */
     public static final int DATA_BASE = 1024;
 
