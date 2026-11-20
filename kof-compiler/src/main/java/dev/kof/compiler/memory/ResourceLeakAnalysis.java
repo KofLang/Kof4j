@@ -35,9 +35,14 @@ import java.util.List;
  * <p><b>Zero false positives by construction (conservative on every axis):</b>
  * a close found ANYWHERE in the body (even inside an {@code if}/loop/lambda)
  * silences the warning; any escape shape silences it (the caller/collaborator
- * owns the close); {@code app.close()}/{@code app.port()} in receiver position
- * is a use, NOT an escape; {@code db.close(handle)} in argument position is
- * likewise a use, not an escape. Two measured close-bearing creators are
+ * owns the close); <b>any method or field read in receiver position is a USE</b> —
+ * the handle is in service, which §225 of the spec ("process or explicit close")
+ * treats as a live resource, not a leak. One predicate ({@link #hasReceiverUse})
+ * answers "is the handle used" for both the leak test and the escape test, so a
+ * call on the handle can never be read as a close there and a use here (measured
+ * 20/11: a bare {@code app.port()} warned on exactly that disagreement);
+ * {@code db.close(handle)} in argument position is likewise a use, not an
+ * escape. Two measured close-bearing creators are
  * tracked: {@code web.app()} (closed via {@code handle.close()}) and
  * {@code db.connect(...)} (closed via {@code db.close(handle)} — the handle is
  * a String, §9 L-05). {@code kof.io} has NO close-bearing file handle (reads
@@ -61,7 +66,13 @@ public final class ResourceLeakAnalysis {
             if (creator == null) {
                 continue;
             }
-            if (closedAnywhere(body, v.name()) || escapesAnywhere(body, v.name())) {
+            // Spec §225: the handle's lifetime is "process or explicit close", so a
+            // handle the body USES is in service — never a leak. Measured 20/11: a
+            // receiver-position call counted as a close (`hasClose` takes any call on
+            // the handle), which is the same predicate `mentionsEscaping` calls a USE,
+            // so the pass could not tell "closed" from "used" and warned on the idiom.
+            if (closedAnywhere(body, v.name()) || escapesAnywhere(body, v.name())
+                    || usesAnywhere(body, v.name())) {
                 continue;
             }
             diag.warning(v, "L-05: resource '" + v.name() + "' from '" + creator
@@ -96,6 +107,41 @@ public final class ResourceLeakAnalysis {
             }
         }
         return null;
+    }
+
+    /**
+     * The handle in RECEIVER position anywhere in the body — a call on it
+     * ({@code app.get(...)}, {@code app.port()}, {@code app.listen(0)}) or a field
+     * read. Receiver = use, by the same rule {@link #mentionsEscaping} applies, so
+     * the two predicates can never disagree about what "using the handle" means.
+     */
+    private static boolean usesAnywhere(List<StatementNode> body, String name) {
+        for (StatementNode stmt : body) {
+            if (hasReceiverUse(stmt, name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasReceiverUse(Object node, String name) {
+        if (node == null || shadows(node, name)) {
+            return false;
+        }
+        if (node instanceof MethodCallExpr mc
+                && mc.receiver() instanceof IdentifierExpr recv && recv.name().equals(name)) {
+            return true;
+        }
+        if (node instanceof FieldAccessExpr fa
+                && fa.receiver() instanceof IdentifierExpr recv && recv.name().equals(name)) {
+            return true;
+        }
+        for (Object child : children(node)) {
+            if (hasReceiverUse(child, name)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** A close on ANY binding of the handle, at any depth (lambda included). */
@@ -170,6 +216,9 @@ public final class ResourceLeakAnalysis {
                 && mentionsEscaping(as.value(), name)) {
             return true;
         }
+        // 20/11: a statement-position expression is NOT an escape by position —
+        // `app.port()` on its own line is a use (the receiver rule) exactly as
+        // `println(app.port())` already was. mentionsEscaping decides.
         if (node instanceof ExpressionStmt es && mentionsEscaping(es.expression(), name)) {
             return true;
         }

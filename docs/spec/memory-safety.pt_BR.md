@@ -221,6 +221,15 @@ Tudo que cruza uma fronteira de linguagem é CÓPIA DE VALOR com lifetime confin
 > Nenhum finalizer, nenhum `Cleaner`, nenhum finalizador. Vazar `close()` vaza o
 > recurso de SO subjacente pelo tempo de vida do processo.
 
+**O que conta como "tempo de vida do processo"** (medido 20/11): um handle só é
+vazamento quando o corpo nunca o fecha, nunca o entrega e **nunca o usa** — uma
+chamada de método ou leitura de campo em posição de receptor (`app.get(...)`,
+`app.port()`, `app.listen(0)`) coloca o handle em serviço, e a vida dele passa a
+ser a do processo por esta tabela. O `MEM014` portanto dispara para um handle que
+o corpo nunca toca; um servidor que atende, ou que um worker criado por `spawn`
+mantém rodando, não é vazamento. É a mesma regra receptor-é-uso que a análise de
+escape já aplicava, então as duas nunca discordam sobre o que é "usar o handle".
+
 ---
 
 ## 10. Nulabilidade × Propriedade

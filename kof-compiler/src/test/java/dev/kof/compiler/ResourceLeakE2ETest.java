@@ -174,6 +174,83 @@ class ResourceLeakE2ETest {
                 + r.diagnostics().getDiagnostics());
     }
 
+    /**
+     * MEASURED 20/11 (RED before the fix): {@code app.port()} as a statement of its own
+     * warned. Root cause: {@code hasClose} treats ANY call on the handle as a close — the
+     * same predicate {@code mentionsEscaping} calls a USE — so "closed" and "used" were
+     * one flag and the receiver rule could never keep the handle alive. §225 of the spec
+     * gives the Web server "process or explicit close": a used handle is in service.
+     */
+    @Test
+    void aBareReceiverStatementIsAUseNotAnEscape(@TempDir Path tmp) throws IOException {
+        String source = """
+                main() {
+                    var app = web.app()
+                    app.port()
+                }
+                """;
+        Path src = write(tmp, "mem014-bare-recv", source);
+        CompilationResult r = driver.compile(src, tmp.resolve("mem014-bare-recv-classes"), Target.JVM);
+        assertTrue(r.success(), "JVM build: " + r.diagnostics().getDiagnostics());
+        boolean warned = r.diagnostics().getDiagnostics().stream()
+                .anyMatch(d -> "MEM014".equals(d.code()));
+        assertFalse(warned, "a receiver-position statement is a USE, not an escape: "
+                + r.diagnostics().getDiagnostics());
+    }
+
+    /**
+     * The documented JVM idiom of {@code docs/stdlib/stdlib-web.md} §Server — ephemeral
+     * port, the real one revealed by {@code app.port()}, explicit shutdown — stayed
+     * silent before the fix too; pinned so a later tightening cannot start warning here.
+     */
+    @Test
+    void theDocumentedPortIdiomStaysSilent(@TempDir Path tmp) throws IOException {
+        String source = """
+                main() {
+                    var app = web.app()
+                    app.listen(0)
+                    println(app.port())
+                    app.close()
+                }
+                """;
+        Path src = write(tmp, "mem014-port-idiom", source);
+        CompilationResult r = driver.compile(src, tmp.resolve("mem014-port-idiom-classes"), Target.JVM);
+        assertTrue(r.success(), "JVM build: " + r.diagnostics().getDiagnostics());
+        boolean warned = r.diagnostics().getDiagnostics().stream()
+                .anyMatch(d -> "MEM014".equals(d.code()));
+        assertFalse(warned, "the documented listen(0)/port()/close() idiom is not a leak: "
+                + r.diagnostics().getDiagnostics());
+    }
+
+    /**
+     * §225: a used handle is in service — a server whose worker runs under {@code spawn}
+     * (the pattern of the web E2E tests) needs no explicit close to be a resource in use.
+     */
+    @Test
+    void aUsedHandleIsInServiceNotALeak(@TempDir Path tmp) throws IOException {
+        String source = """
+                Void work() {
+                    println("w")
+                }
+                main() {
+                    var app = web.app()
+                    app.get("/p") {
+                        return "ok"
+                    }
+                    app.listen(0)
+                    var t = spawn work()
+                    await t
+                }
+                """;
+        Path src = write(tmp, "mem014-in-service", source);
+        CompilationResult r = driver.compile(src, tmp.resolve("mem014-in-service-classes"), Target.JVM);
+        assertTrue(r.success(), "JVM build: " + r.diagnostics().getDiagnostics());
+        boolean warned = r.diagnostics().getDiagnostics().stream()
+                .anyMatch(d -> "MEM014".equals(d.code()));
+        assertFalse(warned, "a handle the body uses is process-lifetime (§225), not a leak: "
+                + r.diagnostics().getDiagnostics());
+    }
+
     @Test
     void aGenuineLeakStillWarns(@TempDir Path tmp) throws IOException {
         // Guard against the fix over-reaching: no close AND no listen = leak.

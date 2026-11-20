@@ -229,6 +229,15 @@ Everything that crosses a language boundary is a VALUE COPY with a confined life
 > No finalizers, no `Cleaner`, no finalizers. Leaking `close()` leaks the
 > underlying OS resource for the process lifetime.
 
+**What counts as "process lifetime"** (measured 20/11): a handle is a leak only
+when the body never closes it, never hands it away, **and never uses it** — a
+method call or field read in receiver position (`app.get(...)`, `app.port()`,
+`app.listen(0)`) puts the handle in service, so its lifetime is the process's by
+this table. `MEM014` therefore fires on a handle the body never touches; a
+server that serves, or one a `spawn`ed worker keeps running, is not a leak. This
+is the same receiver-is-a-use rule the escape analysis already applied, so the
+two can never disagree about what "using the handle" means.
+
 ---
 
 ## 10. Nullability × Ownership
