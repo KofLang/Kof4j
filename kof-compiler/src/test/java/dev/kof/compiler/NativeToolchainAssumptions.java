@@ -98,7 +98,9 @@ public interface NativeToolchainAssumptions {
     }
 
     /** Espelha `NativeCrossLink.sysrootFor` (package-private) sem tocá-lo:
-     *  `KOF_CROSS_SYSROOT`, o loader do sistema, ou o staging `/tmp/opencode/x`. */
+     *  `KOF_CROSS_SYSROOT`, o loader do sistema, o staging `/tmp/opencode/x`,
+     *  o sysroot do toolchain SUSE, ou a convenção
+     *  `~/.local/share/kof-cross` do provision-cross-sdl3.sh. */
     static boolean crossSysrootPresent(String arch) {
         String env = System.getenv("KOF_CROSS_SYSROOT");
         if (env != null && !env.isBlank()) return true;
@@ -107,7 +109,11 @@ public interface NativeToolchainAssumptions {
             case "aarch64" -> "ld-linux-aarch64.so.1";
             default -> throw new IllegalArgumentException("arch cross: " + arch);
         };
-        return new File("/usr/" + arch + "-linux-gnu/lib/" + loader).exists()
-                || new File("/tmp/opencode/x/usr/" + arch + "-linux-gnu/lib/" + loader).exists();
+        if (new File("/usr/" + arch + "-linux-gnu/lib/" + loader).exists()) return true;
+        if (new File("/tmp/opencode/x/usr/" + arch + "-linux-gnu/lib/" + loader).exists()) return true;
+        if (new File("/usr/" + arch + "-suse-linux/sys-root/lib/" + loader).exists()) return true;
+        String home = System.getProperty("user.home");
+        return home != null && !home.isBlank()
+                && new File(home + "/.local/share/kof-cross/usr/" + arch + "-linux-gnu/lib/" + loader).exists();
     }
 }
