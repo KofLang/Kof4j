@@ -93,6 +93,14 @@ public final class KofMedia {
         return isImageData(t) || isAudio(t) || isVideo(t);
     }
 
+    /** Verbos de {@code kof.media.ImageData} — a MESMA lista que
+     *  {@link #imageDataMethod} aceita, para o diagnóstico de verbo
+     *  inexistente (#1185) citar o receptor e nunca divergir do switch. */
+    static List<String> mediaMethodNames() {
+        return List.of("width", "height", "format", "save", "saveAs",
+                "dataUri", "bytes", "bytesAs", "close");
+    }
+
     /** Métodos em receiver {@code kof.media.ImageData}. */
     static MediaCall imageDataMethod(String name, int argCount) {
         return switch (name) {
@@ -112,6 +120,12 @@ public final class KofMedia {
             case "close" -> argCount == 0 ? new MediaCall("kof_media_image_close", VOID, List.of(INT)) : null;
             default -> null;
         };
+    }
+
+    /** Métodos em receiver {@code kof.media.Audio}. */
+    /** Verbos de {@code kof.media.Audio} — espelho de {@link #audioMethod}. */
+    static List<String> audioMethodNames() {
+        return List.of("sampleRate", "durationMs", "saveWav", "pcmBytes");
     }
 
     /** Métodos em receiver {@code kof.media.Audio}. */

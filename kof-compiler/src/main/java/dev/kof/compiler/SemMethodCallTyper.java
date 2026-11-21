@@ -280,6 +280,17 @@ public final class SemMethodCallTyper {
             KofHttpResponse.ResponseCall rc =
                     KofHttpResponse.instanceMethod(recv, mc.methodName(), mc.arguments().size());
             if (rc != null) return rc.returnType();
+            // #1183 family (measured on tip 663669344): an unknown verb on the
+            // Response handle fell through as Unknown and the consumer emitted
+            // `Field "?.length` (NoClassDefFoundError: ?). The handle is a KNOWN
+            // receiver — refuse by name, never defer to a load crash.
+            if (sa.diagnostics() != null) {
+                sa.diagnostics().error(mc,
+                        "Cannot resolve method '" + mc.methodName() + "' on type 'kof.http.Response' (valid: "
+                                + String.join("/", KofHttpResponse.VERBS) + ")",
+                        "SEM025");
+            }
+            return Type.UnknownType.UNKNOWN;
         }
         // D-SECRETS face 1: espelha o ramo do emit para o tipo Secret.
         if (KofSecurity.isSecretType(recv) || KofSecurity.isKeyHandleType(recv)) {

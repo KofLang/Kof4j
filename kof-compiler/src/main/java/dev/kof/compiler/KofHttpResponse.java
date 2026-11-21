@@ -28,6 +28,10 @@ public final class KofHttpResponse {
 
     record ResponseCall(String function, Type returnType, List<Type> parameterTypes) {}
 
+    /** Verbos aceitos por {@link #instanceMethod} — o diagnóstico de verbo
+     *  inexistente (#1183) cita esta lista, então nunca diverge do braço. */
+    static final List<String> VERBS = List.of("status", "header", "headers", "body");
+
     /** Acessores de instância sobre o receiver Response. */
     static ResponseCall instanceMethod(Type recv, String name, int argc) {
         if (!RESPONSE.equals(recv)) return null;

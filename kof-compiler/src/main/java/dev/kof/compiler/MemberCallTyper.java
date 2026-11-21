@@ -380,6 +380,23 @@ public final class MemberCallTyper {
                 for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
                 return mediaCall.returnType();
             }
+            // #1185 face 2: a face do RUNTIME é a única fonte da verdade para o
+            // nome do verbo. Não achá-la aqui não pode virar Unknown silencioso:
+            // o lowering não emite chamada nenhuma e o consumidor (width no
+            // exemplo do relato) sai como `Method "".width` → ClassFormatError
+            // (Illegal class name ""), medido no #1183/#1179. O tipo receptor é
+            // nomeado para o caller corrigir; a lista vem da tabela de verbos.
+            if (sa.diagnostics() != null) {
+                sa.diagnostics().error(mc,
+                        "Cannot resolve method '" + mc.methodName() + "' on type '"
+                                + (KofMedia.isImageData(recvType) ? "kof.media.ImageData" : "kof.media.Audio")
+                                + "' (valid: " + String.join("/", KofMedia.isImageData(recvType)
+                                        ? KofMedia.mediaMethodNames()
+                                        : KofMedia.audioMethodNames()) + ")",
+                        "SEM025");
+                for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+                return Type.UnknownType.UNKNOWN;
+            }
         }
         if (recvType instanceof Type.FunctionType ft) {
             List<Type> argTypes = new ArrayList<>();
