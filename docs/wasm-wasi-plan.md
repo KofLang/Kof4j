@@ -668,6 +668,26 @@ runtime flags, linking, host configuration, capabilities. Touch points
 measured: `kof-cli` target parsing + `CompilerPipeline.compile` dispatch.
 Do not invent flags beyond the existing `--target` pattern.
 
+**THE WASI RUNNER LANDED 21/11 (the `kof run --target wasi` route):** a WASI
+module is a COMMAND module (it exports `_start`), so a WASI host runs it
+directly — the same shape the native target has (an ELF that runs). The new
+`WasiRunner` (in `kof-cli`) looks for a host — `wasmtime` first (the
+provisioned prefix of `scripts/provision-wasmtime.sh`, i.e.
+`$KOF_WASM_HOME` or `~/.local/share/kof-wasm/bin`, then the PATH), then the
+`node:wasi` host (the second oracle, the same one `WasmWasiNodeHostTest`
+uses) — and runs the module with the CWD PREOPENED (the app's sandbox root)
+and the arguments forwarded under the JVM's argv law (the program sees
+`args[0]` = the first argument the user typed; the host's own argv[0] is
+discarded, exactly like the JVM's `main(String[])`). WITHOUT a host the run
+refuses honestly and NAMES the missing one (R6 — never a silent fallback).
+The `wasm` target still refuses: it emits a reactactor module (no `_start`),
+which needs an embedder, not a runner. MEASURED: the preopen is not optional —
+without it the `kof.io` faces fail in SILENCE (the file is never created and
+`readText` returns null); with the cwd preopened the file is really created
+and read back. PROOF: `CmdRunWasiE2ETest` (the argv parity against the JVM
+oracle + the file create/read in the cwd) and `WasiRunnerSeamTest` (the honest
+refusal without a host).
+
 ## 25. WAT / debugging
 
 **PLANNED:** `kof build --target=wasm --emit=wat` as backend dev/debug tool

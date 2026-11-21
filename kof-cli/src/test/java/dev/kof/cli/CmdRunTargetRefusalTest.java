@@ -20,6 +20,14 @@ import static org.junit.jupiter.api.Assertions.*;
  * "no main class found" — a message that names no cause at all. The refusal
  * mirrors the {@code CmdTest}/{@code CmdScript} precedent and points at the real
  * route ({@code kof build --target wasi} plus a WASI runtime).
+ *
+ * <p>THE WASI HALF CHANGED (the WASI runner, TIER 15): a WASI module is a
+ * COMMAND module (it exports {@code _start}), so a WASI host runs it directly —
+ * the same shape the native target has. {@code kof run --target wasi} now
+ * EXECUTES when a host is present (the parity with the JVM oracle is the
+ * {@code CmdRunWasiE2ETest}'s job) and refuses HONESTLY — naming the missing
+ * host — when there is none. The {@code wasm} target still refuses: it emits a
+ * reactactor module (no {@code _start}), which needs an embedder, not a runner.
  */
 class CmdRunTargetRefusalTest {
 
@@ -59,8 +67,21 @@ class CmdRunTargetRefusalTest {
     }
 
     @Test
-    void runWasiIsRefusedHonestly(@TempDir Path dir) throws Exception {
-        assertRunRefusesHonestly(dir, "wasi");
+    void runWasiExecutesWhenAHostIsPresent(@TempDir Path dir) throws Exception {
+        // o alvo WASI agora EXECUTA (a fatia do runner): um modulo WASI e' um
+        // modulo de comando (_start) e um host WASI o roda direto. A recusa
+        // honesta ficou para o caso SEM host (o `WasiRunner.hostAvailable`).
+        Path src = dir.resolve("Main.kf");
+        Files.writeString(src, "Int sq(Int n) { return n * n }\nmain() { println(sq(7)) }\n");
+        Cli r = cli(dir, "run", src.toString(), "--target", "wasi");
+        if (r.exit() == 0) {
+            assertTrue(r.out().contains("49"),
+                    "wasi must print the result when a host is present:\n" + r.out());
+        } else {
+            // sem host neste machine: a recusa tem que NOMEAR o host que falta
+            assertTrue(r.out().contains("needs a WASI host"),
+                    "the refusal names the missing host:\n" + r.out());
+        }
     }
 
     @Test

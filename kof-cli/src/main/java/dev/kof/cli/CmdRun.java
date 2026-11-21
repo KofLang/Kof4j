@@ -361,18 +361,60 @@ final class CmdRun {
             return;
         }
 
-        // Q7 honest-early-refusal, same pattern as CmdTest/CmdScript: WASM/WASI
-        // emit a module, not something this runner can execute. MEASURED before
-        // the guard: both fell through to the JVM class lookup and printed the
-        // bare "no main class found" — a message that names no cause at all.
-        if (target == Target.WASM || target == Target.WASI) {
-            String name = target == Target.WASM ? "wasm" : "wasi";
-            System.err.println("run: --target " + name
-                    + " cannot be executed by 'kof run' (it emits a WASI/WASM module,"
-                    + " not a runnable artifact); use 'kof build --target " + name
-                    + "' and run the module with a WASI runtime (e.g. wasmtime)");
+        // Q7 honest-early-refusal, same pattern as CmdTest/CmdScript: the WASM
+        // target emits a REACTUATOR module (no _start — it needs an embedder),
+        // so this runner cannot execute it. MEASURED before the guard: both
+        // targets fell through to the JVM class lookup and printed the bare
+        // "no main class found" — a message that names no cause at all.
+        if (target == Target.WASM) {
+            System.err.println("run: --target wasm cannot be executed by 'kof run'"
+                    + " (it emits a reactactor module, without _start — it needs an"
+                    + " embedder); use 'kof build --target wasm' and instantiate the"
+                    + " module from JS");
             KofCliSupport.cleanup(tempDir);
             System.exit(1);
+            return;
+        }
+
+        // Target WASI: um modulo de COMANDO (exporta _start) — um host WASI o
+        // roda direto (a mesma forma do alvo nativo: um ELF que roda). O runner
+        // procura um host (wasmtime; o node:wasi como segundo) e preabre o CWD
+        // (a raiz do sandbox do app). Sem host no host, a recusa e' honesta e
+        // NOMEIA o host que falta (R6 — nunca um fallback silencioso).
+        if (target == Target.WASI) {
+            Path wasm = tempDir.resolve("Default/Main.wasm");
+            if (!Files.exists(wasm)) {
+                System.err.println("no WASI module produced");
+                KofCliSupport.cleanup(tempDir);
+                System.exit(1);
+                return;
+            }
+            String host = WasiRunner.hostName();
+            if (host == null) {
+                System.err.println("run: --target wasi needs a WASI host (wasmtime or node:wasi),"
+                        + " and none was found on this machine;"
+                        + " install one with scripts/provision-wasmtime.sh"
+                        + " (or put 'node' on the PATH), or use"
+                        + " 'kof build --target wasi' and run the module yourself");
+                KofCliSupport.cleanup(tempDir);
+                System.exit(1);
+                return;
+            }
+            // os argumentos do USUARIO (o argv[0] do host e' o nome do
+            // programa — o runtime WASI o descarta, a MESMA lei do
+            // `main(String[] args)` da JVM: o programa ve args[0] = o
+            // primeiro argumento digitado, medido contra o oráculo JVM)
+            List<String> wasiArgs = new ArrayList<>();
+            for (int i = argStart; i < args.length; i++) {
+                wasiArgs.add(args[i]);
+            }
+            try {
+                WasiRunner.run(wasm, wasiArgs, tempDir);
+            } catch (java.io.IOException e) {
+                System.err.println("failed to execute the WASI module: " + e.getMessage());
+                KofCliSupport.cleanup(tempDir);
+                System.exit(1);
+            }
             return;
         }
 

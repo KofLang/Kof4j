@@ -660,6 +660,26 @@ linking, configuração de host, flags de capability. Marcar todo comando
 como **proposta** (§5). O registro `koffing`/`deps` (CURRENT 1.5.x) ganha
 empacotamento wasm-aware quando o ecossistema precisar — **TBD**.
 
+**O RUNNER WASI POUSADO 21/11 (a rota `kof run --target wasi`):** um módulo
+WASI é um módulo de COMANDO (exporta `_start`), então um host WASI o roda
+direto — a mesma forma do alvo nativo (um ELF que roda). O novo `WasiRunner`
+(em `kof-cli`) procura um host — `wasmtime` primeiro (o prefixo provisionado
+do `scripts/provision-wasmtime.sh`: `$KOF_WASM_HOME` ou o default do script
+`~/.local/share/kof-wasm/bin`, depois o PATH), e então o host `node:wasi` (o
+segundo oráculo, o mesmo que o `WasmWasiNodeHostTest` usa) — e roda o módulo
+com o CWD PRÉ-ABERTO e os argumentos repassados pela lei de argv da JVM.
+SEM HOST a execução recusa honestamente e NOMEIA o que falta
+(`needs a WASI host (wasmtime or node:wasi)`) — R6, nunca um fallback
+silencioso. O alvo `wasm` continua recusando: ele emite um módulo REACTOR (sem
+`_start`), que precisa de um embedder, não de um runner. MEDIDO: o préopen
+NÃO é opcional — sem ele as faces `kof.io` falham em SILÊNCIO (o arquivo nunca
+é criado e o `readText` devolve null); e o argv[0] do host é DESCARTADO, então
+o programa vê `args[0]` = o primeiro argumento digitado, exatamente como o
+`main(String[])` da JVM (o oráculo JVM diz `n=2 / arg0=alpha` e o WASI precisa
+dizer o MESMO). PROVA: `CmdRunWasiE2ETest` (a paridade de argv + o arquivo
+criado e lido de volta no cwd) e `WasiRunnerSeamTest` (a recusa honesta sem
+host).
+
 ## 24. WAT / debugging
 
 Ferramentas futuras (PLANNED, sem promessa):
