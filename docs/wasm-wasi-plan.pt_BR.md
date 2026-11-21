@@ -628,6 +628,22 @@ JVM          → kof.http via JVM                                CURRENT
 
 Registrar gaps explicitamente (R6) em vez de criar APIs que fingem andar.
 
+**MEDIDO 20/11 (a lane WASI): o wasmtime 49.0.2 provisionado neste host NÃO
+expõe `wasi:sockets` de jeito nenhum.** O binário carrega os nomes dos módulos
+(`wasi:sockets/tcp@0.2.4`, `@0.2.9`, `@0.2.12`,
+`wasi:sockets/network@0.2.4`, `@0.2.9`) mas TODA sonda de import foi recusada:
+a forma do preview1 (`wasi:sockets/tcp@0.2.4::sock_open`) é desconhecida, e
+assim também a forma de recurso do preview2
+(`wasi:sockets/tcp@0.2.4::[method]tcp-socket.start-bind`) — com `-S tcp=y`,
+`-S preview2=y -S tcp=y` e `-S tcp=y -S inherit-network=y` alike. O `-S help`
+do host lista as opções de socket, mas a implementação por trás delas está
+ausente neste build. PORTANTO A CÉLULA DE REDE DA MATRIZ §15 SEGUE `?` — a
+posição honesta é que a capability não pode ser PROVADA no host provisionado, e
+uma face cujo oráculo não roda não é uma face (R6: nenhuma claim
+inverificável). A decisão de design (wasi-sockets vs um host bridge) portanto
+segue ABERTA, e precisa de um host que realmente sirva os imports antes da
+forma poder ser escolhida.
+
 ## 22. Modules / imports
 
 `import foo` continua sendo Kof independentemente do target — **nenhum

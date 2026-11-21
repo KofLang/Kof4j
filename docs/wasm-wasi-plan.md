@@ -635,6 +635,21 @@ Native (CURRENT), JVM (CURRENT). Gaps recorded explicitly; **no fake API
 covering an absent capability** — a call that cannot be served gets
 `NET001`-family diagnostic on that target.
 
+**MEASURED 20/11 (the WASI lane): the wasmtime 49.0.2 provisioned on this
+host does NOT expose `wasi:sockets` at all.** The binary carries the module
+names (`wasi:sockets/tcp@0.2.4`, `@0.2.9`, `@0.2.12`,
+`wasi:sockets/network@0.2.4`, `@0.2.9`) but EVERY import probe was refused:
+the preview1 shape (`wasi:sockets/tcp@0.2.4::sock_open`) is unknown, and so is
+the preview2 resource shape (`wasi:sockets/tcp@0.2.4::[method]tcp-socket.start-bind`)
+— with `-S tcp=y`, `-S preview2=y -S tcp=y` and
+`-S tcp=y -S inherit-network=y` alike. The host's `-S help` lists the socket
+knobs, but the implementation behind them is absent in this build. SO THE
+NETWORK CELL OF THE §15 MATRIX STAYS `?` — the honest position is that the
+capability cannot be PROVED on the provisioned host, and a face whose oracle
+cannot run is not a face (R6: no unverifiable claim). The design decision
+(wasi-sockets vs a host bridge) is therefore still OPEN, and it needs a host
+that actually serves the imports before the shape can be chosen.
+
 ## 23. Modules / imports
 
 `import foo` (Kof's own import system, CURRENT) stays Kof regardless of
