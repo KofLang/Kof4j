@@ -187,6 +187,93 @@ class KofWebNativeE2ETest extends ServerProcessSupport {
         assertTrue(r.endsWith("ok"), "the body must still come through: " + r);
     }
 
+    /**
+     * §1159 (21/11): a QUERY STRING no nativo — o path da request é separado
+     * do {@code "?..."} (o roteamento casa o path SEM o query; antes
+     * {@code GET /list?page=2} dava 404 porque o path inteiro era
+     * {@code "/list?page=2"}) e {@code query("name")} devolve o valor
+     * percent-decodificado (o mesmo contrato do JVM: chave CRUA, valor
+     * decodificado, ausente = null).
+     */
+    private static final String SERVER_QUERY = """
+            main() {
+                var app = web.app()
+                app.get("/q") {
+                    val v = query("name")
+                    if (v == null) {
+                        return "absent"
+                    }
+                    return "v=" + v
+                }
+                app.get("/path") {
+                    return "p=" + path()
+                }
+                app.listen(PORT)
+            }
+            """;
+
+    @Test
+    void nativeServerRoutesThePathWithoutTheQueryString(@TempDir Path tempDir) throws Exception {
+        serverProcess = startServer(tempDir, SERVER_QUERY);
+        String withQuery = httpGet(serverPort, "/q?name=abc");
+        assertTrue(withQuery.contains("200"), "the route must match with a query string: " + withQuery);
+        assertTrue(withQuery.endsWith("v=abc"), "the query value must reach the handler: " + withQuery);
+        String pathOnly = httpGet(serverPort, "/path");
+        assertTrue(pathOnly.endsWith("p=/path"), "path() must be the path without the query: " + pathOnly);
+    }
+
+    @Test
+    void nativeServerDecodesTheQueryValueAndReportsAbsence(@TempDir Path tempDir) throws Exception {
+        serverProcess = startServer(tempDir, SERVER_QUERY);
+        assertTrue(httpGet(serverPort, "/q?name=a%20b").endsWith("v=a b"),
+                "the value is percent-decoded (the JVM/JS contract): ");
+        assertTrue(httpGet(serverPort, "/q?other=1&name=xyz").endsWith("v=xyz"),
+                "the pair is found among several: ");
+        assertTrue(httpGet(serverPort, "/q").endsWith("absent"),
+                "an absent parameter is null (the JVM contract): ");
+        assertTrue(httpGet(serverPort, "/q?name=").endsWith("v="),
+                "an empty value is present and empty: ");
+    }
+
+    /**
+     * §1159 (21/11): `import kof.web` no nativo — o inject FLAT de
+     * {@code pageRequest} chama {@code query()}, que não tinha runtime
+     * nativo; TODA programa Native com o import era recusado em compile-time
+     * (WEB001). Agora compila e pagina (o mesmo oráculo do JVM:
+     * {@code /list?page=3&limit=20} → {@code p:3 l:20 o:40}).
+     */
+    private static final String SERVER_PAGINATION = """
+            import kof.web
+
+            main() {
+                var app = web.app()
+                app.get("/list") {
+                    try {
+                        val p = pageRequest(20, 100)
+                        return "p:" + p.page() + " l:" + p.limit() + " o:" + p.offset()
+                    } catch (String e) {
+                        return status(400, e)
+                    }
+                }
+                app.listen(PORT)
+            }
+            """;
+
+    @Test
+    void nativeServerPaginatesWithTheInjectedHelper(@TempDir Path tempDir) throws Exception {
+        serverProcess = startServer(tempDir, SERVER_PAGINATION);
+        String paged = httpGet(serverPort, "/list?page=3&limit=20");
+        assertTrue(paged.contains("200"), "the page must be served: " + paged);
+        assertTrue(paged.endsWith("p:3 l:20 o:40"), "the JVM oracle values: " + paged);
+        String first = httpGet(serverPort, "/list");
+        assertTrue(first.endsWith("p:1 l:20 o:0"), "the defaults (page 1, offset 0): " + first);
+        String clamped = httpGet(serverPort, "/list?limit=500");
+        assertTrue(clamped.endsWith("p:1 l:100 o:0"), "the limit is clamped to the max: " + clamped);
+        String bad = httpGet(serverPort, "/list?page=0");
+        assertTrue(bad.contains("400"), "a bad page is the named error: " + bad);
+        assertTrue(bad.endsWith("PAGINATION: page must be >= 1"), "the named error body: " + bad);
+    }
+
     @Test
     void nativeServerEmitsTheStatusTheHandlerSet(@TempDir Path tempDir) throws Exception {
         serverProcess = startServer(tempDir, SERVER_STATUS);

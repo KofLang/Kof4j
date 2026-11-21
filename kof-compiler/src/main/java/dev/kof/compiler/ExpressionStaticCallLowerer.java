@@ -100,7 +100,11 @@ if (mc.receiver() == null && KofWeb.isContextFunction(mc.methodName())
         // chamada vazava para o linker como `undefined reference to
         // 'kof_web_param'`. Agora é WEB001 em tempo de compilação (R6 —
         // gap diagnosticado, nunca ld-fail).
-        if (!KofWeb.contextNativeSupported(webCtx.function()) && KofWeb.isNativeTarget(driver.target)) {
+        // §1159 (21/11): o gate é POR ALVO — o runtime web nativo é
+        // x86-64-only; no cross riscv64/aarch64 TODA função de contexto
+        // recusa (o `ld` não tem símbolo nenhum de kof_web_*).
+        if (!KofWeb.contextNativeSupported(driver.target, webCtx.function())
+                && KofWeb.isNativeTarget(driver.target)) {
             if (driver.currentDiagnostics != null) {
                 var pos = mc.position();
                 driver.currentDiagnostics.error(pos != null ? pos.file() : "",

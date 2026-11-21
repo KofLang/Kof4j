@@ -280,6 +280,14 @@ public final class KofWeb {
      * #102 item 3: quais funções de contexto o runtime nativo realmente emite.
      * O T1 nativo cobre listen/route + body/method/path; o resto não tem
      * símbolo no .s gerado e virava `undefined reference` no ld.
+     *
+     * <p>§1159 (21/11): o runtime web nativo é x86-64-only (o
+     * {@code NativeWebRuntime} é emitido só no caminho x86). O gate
+     * {@code contextNativeSupported} é POR ALVO: no riscv64/aarch64 nenhuma
+     * função de contexto tem símbolo — emití-la seria um link break (o
+     * `ld` falhando com `undefined reference to 'kof_web_param'`, medido). O
+     * cross recusa com o MESMO diagnóstico honesto (WEB001) em vez de
+     * quebrar no link (R6).
      */
     static boolean contextNativeSupported(String function) {
         return switch (function) {
@@ -298,11 +306,32 @@ public final class KofWeb {
             // resposta emite o código e o texto da tabela (mesmo conjunto do
             // JVM).
             case "kof_web_status" -> true;
+            // §1159 (21/11): a QUERY STRING — o handle_client separa o path
+            // do "?..." (o roteamento casa o path sem o query) e
+            // kof_web_query(name) devolve o valor (null quando ausente, o
+            // mesmo contrato do JVM). Era o bloqueio que impedia QUALQUER
+            // programa Native com `import kof.web` de compilar (o inject de
+            // pageRequest chama query()).
+            case "kof_web_query" -> true;
             // §1159 (20/11, fatia 3): headerSet segue recusado — o ASM da
             // fila de headers foi escrito mas o caminho de emissão tem um
             // bug de desreferenciamento não resolvido neste ciclo.
             default -> false;
         };
+    }
+
+    /**
+     * §1159 (21/11): o runtime web nativo (o conjunto de símbolos
+     * {@code kof_web_*}) existe SÓ no alvo x86-64. O cross riscv64/aarch64
+     * não tem NENHUM deles — emitir uma função de contexto lá é um link
+     * break (medido: {@code undefined reference to 'kof_web_param'} no
+     * {@code riscv64-ld}). O gate é honesto e POR ALVO: no cross, TODA função
+     * de contexto recusa em compile-time (WEB001), como o T1 (NAT007) recusa.
+     */
+    static boolean contextNativeSupported(Target t, String function) {
+        if (!isNativeTarget(t)) return true;         // fora do nativo: o gate não aplica
+        if (t == Target.NATIVE) return contextNativeSupported(function);
+        return false;                                  // cross: nenhum símbolo web
     }
 
     /** #104 item (16/09): funções de contexto que o runtime WEB JS

@@ -31,7 +31,8 @@ class DomainGapParityMatrixTest {
         Set<String> pinned = new LinkedHashSet<>();
         for (String pinFile : new String[]{
                 "kof-compiler/src/test/java/dev/kof/compiler/DomainGapCodesTest.java",
-                "kof-compiler/src/test/java/dev/kof/compiler/NativeBareListStoreGapTest.java"}) {
+                "kof-compiler/src/test/java/dev/kof/compiler/NativeBareListStoreGapTest.java",
+                "kof-compiler/src/test/java/dev/kof/compiler/NativeWebContextCrossGapTest.java"}) {
             Matcher m = GAP_CODE.matcher(Files.readString(root.resolve(pinFile)));
             while (m.find()) pinned.add(m.group(1));
         }

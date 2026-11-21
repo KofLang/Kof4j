@@ -169,7 +169,26 @@ public final class NativeWebListen {
                 incq %r8
                 jmp .Lwh_p
             .Lwh_p_done:
-                movq %r8, %r12                   # path_end
+                # §1159 (21/11): o PATH é separado do QUERY STRING — o
+                # roteamento casa o path SEM o "?..." (antes, o request
+                # "/list?page=2" casava "/list?page=2" e dava 404) e o
+                # path() devolve o path sem o query (o contrato do
+                # readRequest do JVM: path = fullPath.substring(0, q)).
+                # O helper devolve o comprimento do path SEM o query.
+                movq %r11, %rdi                  # path chars
+                movq %r8, %rsi
+                subq %r11, %rsi                  # path len (com o query)
+                pushq %r8
+                pushq %r9
+                pushq %r10
+                pushq %r11
+                call kof_web_split_query
+                popq %r11
+                popq %r10
+                popq %r9
+                popq %r8
+                addq %r11, %rax                  # path_end = path_start + len
+                movq %rax, %r12
 
                 # r9=method_start r10=method_end r11=path_start r12=path_end
 

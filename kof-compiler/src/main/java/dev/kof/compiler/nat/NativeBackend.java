@@ -409,7 +409,9 @@ public class NativeBackend implements Backend {
         if (usesHttp) {
             NativeHttpRuntime.emitHttpFunctions(sb);
         }
-        NativeWebRuntime.emitWebFunctions(sb);
+        if (NativeWebRuntime.usedBy(module)) {
+            NativeWebRuntime.emitWebFunctions(sb);
+        }
         IRClass mainClass = null;
         // pré-registro do mangle de TODOS os métodos antes de emitir —
         // forward reference de função top-level (callee depois do caller)
