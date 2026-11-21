@@ -138,4 +138,32 @@ class BuiltinReceiverUnknownDiagnosticE2ETest {
         assertTrue(r.diagnostics().contains("no method 'noSuchVerb()'"),
                 "expected the diagnostic to name the receiver and the verb, got: " + r.diagnostics());
     }
+
+    @Test
+    @DisplayName("a recusa de verbo desconhecido NAO engole o toString herdado por todo valor (kof.media, ff7ed6b73)")
+    void inheritedToStringIsNotSwallowedByTheUnknownVerbRefusal() throws Exception {
+        ExecResult ok = compileAndLoad("""
+            main() {
+                var img = Image.open("x.png")
+                var s = img.toString()
+                println(s.length > 0)
+            }
+            """);
+        assertTrue(ok.compiled(),
+                "toString is a universal member (StringMethodRegistry.objectMethodSignature), "
+                        + "not a kof.media verb — it must bind; got: " + ok.diagnostics());
+        assertFalse(ok.diagnostics().contains("SEM025"),
+                "toString must not be refused as an unknown kof.media verb: " + ok.diagnostics());
+
+        ExecResult refused = compileAndLoad("""
+            main() {
+                var img = Image.open("x.png")
+                var mini = img.scaled(4)
+                println(mini.width())
+            }
+            """);
+        assertFalse(refused.compiled(), "a genuinely unknown verb must STILL be refused");
+        assertTrue(refused.diagnostics().contains("SEM025"),
+                "expected SEM025 for the unknown verb, got: " + refused.diagnostics());
+    }
 }

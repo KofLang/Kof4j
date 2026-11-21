@@ -380,6 +380,17 @@ public final class MemberCallTyper {
                 for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
                 return mediaCall.returnType();
             }
+            // A recusa abaixo é para VERBO INEXISTENTE. `toString` não é verbo
+            // da tabela: todo valor o herda (StringMethodRegistry
+            // .objectMethodSignature), e a recusa que fechou a face 2 do #1185
+            // o matou junto — StdlibIdiomsCompileTest.mediaFacesCompile ficou
+            // RED em ff7ed6b73. O membro universal é resolvido ANTES da
+            // recusa; a recusa segue valendo para o resto (img.scaled(4)).
+            if (StringMethodRegistry.objectMethodSignature(mc.methodName(), mc.arguments().size()) != null) {
+                for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+                return StringMethodRegistry.objectMethodSignature(
+                        mc.methodName(), mc.arguments().size()).returnType();
+            }
             // #1185 face 2: a face do RUNTIME é a única fonte da verdade para o
             // nome do verbo. Não achá-la aqui não pode virar Unknown silencioso:
             // o lowering não emite chamada nenhuma e o consumidor (width no
