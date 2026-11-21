@@ -229,6 +229,18 @@ final class WasmStateCode {
             // o MESMO (o wasm nao distingue largura no descarte); o desugar
             // do remove de List<Int> chega com ele (a fatia LIST-5 mediu)
             out.add(new WasmInstr.Simple(0x1a, "drop"));
+            // o drop CONSOME o valor — limpar o rastro (o mesmo do store, §143
+            // abaixo): sem isto o `crossLiveValue` da fronteira de bloco
+            // acreditava que o valor ainda estava na PILHA e emitia o
+            // `local.set` do join sem nada abaixo — o modulo saia INVALIDO
+            // ("expected i32 but nothing on stack", medido: uma chamada de
+            // INSTANCIA dentro de um `if` — o `drop` ja tinha esvaziado a
+            // pilha; o call de metodo ESTATICO nao passa por este caminho e
+            // por isso o caso comum nao acusava). A lei do join: o valor que
+            // CRUZA a fronteira e' o do PRODUTOR vivo do ramo; um descarte
+            // nao e' produtor (o `isValueProducer` ja o exclui).
+            ctx.lastPush = null;
+            ctx.lastPushWide = false;
         } else if (WasmArrayOps.emit(op, WasmOperandShape.allocName(ops, idx, ctx), ctx, out)) {
             // os ops de array (ARRAY-1) — WasmArrayOps (split check_500); o
             // alloc roteia pela profundidade (GC-2)
