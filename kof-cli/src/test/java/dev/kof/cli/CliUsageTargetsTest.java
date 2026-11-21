@@ -78,6 +78,21 @@ class CliUsageTargetsTest {
     }
 
     /**
+     * O runner WASI (TIER 15, 21/11): o `run` agora EXECUTA o alvo wasi (um
+     * modulo WASI e' um modulo de comando — exporta `_start` — e um host WASI o
+     * roda direto). O alvo `wasm` continua de fora: ele emite um modulo
+     * REACTOR (sem `_start`), que precisa de um embedder, nao de um runner.
+     */
+    @Test
+    void runAdvertisesWasiButNotWasm() {
+        String line = lineOf(mainUsage(), "run");
+        assertTrue(line.contains("wasi"),
+                "run executa o alvo wasi (o runner WASI) — usage: " + line);
+        assertFalse(line.contains("wasm"),
+                "run nao executa o alvo wasm (modulo reator — precisa de embedder) — usage: " + line);
+    }
+
+    /**
      * Regressao #715 (a face fatal do teste introduzido em 5aa776881): aquele
      * teste chamava {@code CmdBuild.run({"build"})} IN-PROCESS; apos #708 esse
      * caminho faz {@code System.exit(1)}, matando o JVM do surefire ("forked
