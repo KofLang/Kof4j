@@ -1171,6 +1171,11 @@
     },
     {
       "arity": 2,
+      "en": "Cannot resolve method '{0}' on type 'kof.http.Response' (valid: {1})",
+      "pt": "não é possível resolver o método '{0}' no tipo 'kof.http.Response' (válidos: {1})"
+    },
+    {
+      "arity": 2,
       "en": "Cannot resolve method '{0}' on type '{1}'",
       "pt": "não é possível resolver o método '{0}' no tipo '{1}'"
     },
@@ -1198,6 +1203,11 @@
       "arity": 3,
       "en": "Cannot resolve method '{0}' on namespace 'db' with {1} argument(s) (valid: {2})",
       "pt": "não é possível resolver o método '{0}' no namespace 'db' com {1} argumento(s) (válidos: {2})"
+    },
+    {
+      "arity": 3,
+      "en": "Cannot resolve method '{0}' on type '{1}' (valid: {2})",
+      "pt": "não é possível resolver o método '{0}' no tipo '{1}' (válidos: {2})"
     }
   ],
   "SEM026": [
