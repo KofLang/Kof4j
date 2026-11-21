@@ -38,14 +38,23 @@ public final class KofEncoding {
                 "base64Decode", "base64UrlEncode", "base64UrlDecode",
                 "urlEncode", "urlDecode");
     }
+    // #1183: as guardas de tipo dos params (espelho KofMath/KofStrings). A
+    // ligação era só-por-arity, então encoding.base64Encode(123) passava o
+    // check e emitia invokestatic com um int na pilha — VerifyError no JVM,
+    // "" silencioso no JS, SIGSEGV no Native. Número não alarga em silêncio
+    // (SEM025, R6).
+    private static boolean isStr(Type t) {
+        return STR.equals(t) || "String".equals(t.toString());
+    }
+
     static EncodingCall staticMethod(String namespace, String name, List<Type> argTypes) {
         int argc = argTypes.size();
         return switch (name) {
             case "hexEncode", "base64Encode", "base64Decode",
                     "base64UrlEncode", "base64UrlDecode",
-                    "urlEncode", "urlDecode" -> argc == 1
+                    "urlEncode", "urlDecode" -> argc == 1 && isStr(argTypes.get(0))
                     ? new EncodingCall("kof_encoding_" + name, STR, List.of(STR)) : null;
-            case "hexDecode" -> argc == 1
+            case "hexDecode" -> argc == 1 && isStr(argTypes.get(0))
                     ? new EncodingCall("kof_encoding_hexDecode", STR, List.of(STR)) : null;
             default -> null;
         };
