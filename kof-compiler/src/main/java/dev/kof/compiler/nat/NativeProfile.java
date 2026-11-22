@@ -33,23 +33,30 @@ public enum NativeProfile {
      *  {@link #FREESTANDING}; carregar o payload Kof (B-3b) é a fatia seguinte. */
     BIOS,
     /** M-1 (#1135, D-NATIVE-MACOS 17/11): o alvo Native no macOS — Mach-O +
-     *  libSystem. O perfil é o ARM64 (Apple silicon), o primeiro do plano; o
-     *  x86-64 (Intel) é o M-8 e reusa o mesmo perfil com outra flag de link.
+     *  libSystem.
      *
      *  <p>O perfil troca o FORMATO DO OBJETO (as diretivas GNU — {@code
      *  .type}/{@code .size}/{@code .section .text} — viram {@code __TEXT,__text}
      *  e afim, e os globais ganham o prefixo {@code _} do Mach-O) e a LINHA DE
-     *  LINK ({@code ld -lSystem -syslibroot <sdk> -arch arm64}), nunca a
+     *  LINK ({@code ld -lSystem -syslibroot <sdk> -arch <arch>}), nunca a
      *  SEMÂNTICA: o código emitido é o mesmo, a costura {@code kof_plat_*} é a
      *  mesma, e o entry é o {@code _main} do Mach-O.
+     *
+     *  <p><b>A FACE (medida, 22/11):</b> o perfil NÃO carrega a arquitetura —
+     *  a arquitetura segue o EMISSOR, e o emissor do alvo Native é o x86-64
+     *  (o face Apple silicon exigiria o emissor cross aarch64 + a sua prova
+     *  Mach-O — a próxima linha do plano). A linha de link por isso nomeia
+     *  {@code -arch x86_64}: um {@code -arch arm64} sobre um objeto x86-64 é
+     *  um link que falha no runner (o M-1 mediu o texto real: ele é x86-64).
+     *  No Apple silicon o binário roda sob o Rosetta 2.
      *
      *  <p> nesta frota Linux o toolchain macOS NÃO existe — a prova da fatia
      *  é ESTRUTURAL (o emissor e a linha de link medidos), até o runner macOS
      *  (M-7) existir. */
-    MACOS_ARM64;
+    MACOS;
 
     /** M-1 (#1135): o perfil macOS (Mach-O + libSystem). */
-    public boolean isMacos() { return this == MACOS_ARM64; }
+    public boolean isMacos() { return this == MACOS; }
 
     /** B-3: o boot path legado (setor de boot) — sem costura EFI nem PE32+. */
     public boolean isBios() { return this == BIOS; }
@@ -79,8 +86,10 @@ public enum NativeProfile {
             case "uefi", "efi" -> UEFI;
             case "uefi-ring", "ring", "rings" -> UEFI_RING;
             case "bios", "mbr" -> BIOS;
-            // M-1 (#1135): o perfil macOS (Mach-O + libSystem, arm64).
-            case "macos", "macos-arm64", "darwin" -> MACOS_ARM64;
+            // M-1 (#1135): o perfil macOS (Mach-O + libSystem). A ARCHITECTURA
+            // não vem do perfil — vem do emissor (o x86-64 do alvo Native); a
+            // face Apple silicon é a próxima linha do plano (#1135).
+            case "macos", "darwin" -> MACOS;
             default -> throw new IllegalArgumentException("unknown native profile: " + value);
         };
     }

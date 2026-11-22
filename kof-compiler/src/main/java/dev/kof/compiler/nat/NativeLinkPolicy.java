@@ -48,10 +48,16 @@ final class NativeLinkPolicy {
                 }
                 if (!syscalls.isEmpty()) {
                     msg.append("a face de syscall (o ABI Linux cru — a etapa M-2 do plano #1135: "
-                            + "a costura kof_plat_* sobre a libSystem); ");
+                            + "a costura `kof_plat_*` sobre a libSystem; o allocator/mmap e a etapa M-3 "
+                            + "e a concorrencia e a etapa M-5); ");
                 }
                 msg.append("o programa emite ").append(tls.size()).append(" site(s) de TLS e ")
-                   .append(syscalls.size()).append(" syscall(s) crus — o perfil macOS nao emite um binario "
+                   .append(syscalls.size()).append(" syscall(s) crus");
+                if (!syscalls.isEmpty()) {
+                    msg.append(" (nos sites: ")
+                       .append(String.join(", ", NativeMachO.elfSyscallOwners(asm))).append(")");
+                }
+                msg.append(" — o perfil macOS nao emite um binario "
                    + "que falha em runtime (R6); a migracao e a M-2 (a costura) e a M-4 (o TLS)");
                 throw new IOException(msg.toString());
             }

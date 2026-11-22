@@ -283,7 +283,15 @@ public final class NativeAssembler {
      *
      * <p>O macOS não tem libc estática nem {@code -dynamic-linker} ELF: o
      * link é contra a <em>libSystem</em> (a libc do Darwin), com o SDK
-     * ({@code -syslibroot}) e a arquitetura ({@code -arch arm64}).
+     * ({@code -syslibroot}) e a arquitetura do OBJETO ({@code -arch}).
+     *
+     * <p><b>A ARQUITETURA SEGUE O EMISSOR (medido, 22/11):</b> o alvo Native
+     * emite x86-64 — o M-1 provou o texto real de 132 KB no assembler Mach-O
+     * de verdade ({@code x86_64-macos-none}) — então a linha nomeia
+     * {@code -arch x86_64}. Um {@code -arch arm64} sobre um objeto x86-64 é
+     * um link que FALHA no runner do M-7; a face Apple silicon (arm64) é a
+     * PRÓXIMA linha do plano (#1135) e trará o emissor cross aarch64 + a sua
+     * própria prova Mach-O — o perfil não carrega a arquitetura.
      *
      * <p>O SDK é o que o {@code xcrun --show-sdk-path} devolve; nesta frota
      * Linux ele não existe, então a linha é medida (ESTRUTURAL) até o runner
@@ -295,14 +303,24 @@ public final class NativeAssembler {
                 "ld", "-o", binFile.toString(), objFile.toString(),
                 // a libSystem do Darwin (a "libc" do macOS)
                 "-lSystem",
-                // a arquitetura do perfil (M-1 = arm64; o M-8 troca por x86_64)
-                "-arch", "arm64"));
+                // a arquitetura do OBJETO emitido (o alvo Native é x86-64)
+                "-arch", macosArch()));
         String sdk = System.getenv("KOF_MACOS_SDK_PATH");
         if (sdk != null && !sdk.isBlank()) {
             cmd.add("-syslibroot");
             cmd.add(sdk);
         }
         return cmd.toArray(new String[0]);
+    }
+
+    /**
+     * M-2 (#1135): a arquitetura do objeto Mach-O — a do EMISSOR do alvo
+     * Native (x86-64). Quando a face Apple silicon (o emissor cross aarch64)
+     * pousar, ela passa a ser a arquitetura do link; até lá a linha mede o
+     * que o backend realmente emite.
+     */
+    public static String macosArch() {
+        return "x86_64";
     }
 
     /** B-1 (23/09): linker script do perfil FREESTANDING. {@code _end} fecha a

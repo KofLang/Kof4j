@@ -593,6 +593,46 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   local-exec do ELF (`%fs:…@tpoff` — a linha M-4) são contados no texto
   emitido e o perfil recusa com o diagnóstico que nomeia as duas, em vez de
   emitir um binário que falha em runtime (R6).
+  **M-2 FATIA 1 POUSADA 22/11 (#1135 — a costura `kof_plat_*` sobre a
+  libSystem: a família write/exit; e a linha de link nomeia a arquitetura do
+  EMISSOR):** o perfil macOS emitia o texto do HOST, e o texto do host fala o
+  ABI Linux de syscall cru — o Darwin não tem isso, então um binário macOS
+  nunca teria rodado. MEDIDO no hello real (os mesmos 132 KB que a correção do
+  M-1 provou contra o assembler real): os **9** sítios de syscall cru são de
+  `kof_plat_write`, `kof_plat_writev`, `kof_plat_exit`, `kof_plat_exit_group`,
+  `kof_plat_thread_id`, `kof_plat_sync` e três `mmap` do allocator
+  (`.Lgrow_try`). A PRIMEIRA FAMÍLIA MIGRADA é write/exit: no perfil macOS a
+  costura chama a **libSystem** (`call write`, `call writev`, `call exit` — os
+  mesmos registradores SysV do syscall Linux, `%rdi/%rsi/%rdx`), com a forma
+  PROVADA de alinhamento de pilha (`pushq %r15; movq %rsp, %r15; andq $-16,
+  %rsp; call …; subq %rsp, %r15; addq %r15, %rsp; popq %r15`) porque a libc
+  usa SSE e a ABI exige `%rsp ≡ 0` no site do call. O Darwin não tem
+  `exit_group`, então as duas saídas chamam `exit` (o processo termina de
+  qualquer forma; a diferença para o `exit` do Linux — que encerra só a
+  thread — fica registrada na costura). O RATCHET CAIU de **9 para 5**
+  syscalls crus: a família migrada saiu e o que fica é o allocator (M-3) e a
+  concorrência (M-5) — e a recusa `NATIVE005` agora **nomeia os donos** em vez
+  de contar às cegas. **A ARQUITETURA DA LINHA DE LINK (uma contradição
+  medida, corrigida):** a linha do M-1 dizia `-arch arm64` enquanto o objeto
+  que o backend emite é **x86-64** (a prova do M-1 montou os 132 KB reais
+  como `x86_64-macos-none`) — um link que falha no runner do M-7. A
+  arquitetura agora segue o **emissor** (`-arch x86_64`), e a constante do
+  perfil perdeu a reivindicação de arquitetura (`NativeProfile.MACOS`, era
+  `MACOS_ARM64`): um perfil que nomeia uma arquitetura que ele não emite é
+  uma mentira. A **face Apple silicon (arm64) é a próxima linha do #1135** —
+  ela precisa do emissor cross aarch64 e da sua própria prova Mach-O; no
+  Apple silicon a face x86-64 roda sob o Rosetta 2. **O DETECTOR ERA CEGO EM
+  DUAS FACES:** o `NATIVE005` contava só o `syscall` do x86-64 — nas faces
+  aarch64 (`svc #0`) e riscv64 (`ecall`) a recusa era muda; agora ele vê as
+  três. **PROVA (executada):** `NativeMacOSSeamE2ETest` **8/8** — RED-first
+  **6/6 falhas** no código antigo (o syscall cru dentro da costura, o ratchet
+  ainda em 9, os símbolos `_write`/`_exit` ausentes, a linha de link com
+  `-arch arm64`, a reivindicação de arquitetura no nome do perfil, o detector
+  cego no `ecall`) e GREEN depois; o **assembler Mach-O real aceita o texto do
+  perfil** com os corpos da libSystem (o objeto carrega `_write`/`_exit` como
+  externos indefinidos — o que o link contra a libSystem resolve);
+  `NativeMacOSProfileE2ETest` 11/11; a bateria nativa **810 run / 0F / 0E /
+  81 skipped** (skips de ambiente nomeados); os gates rc=0.
 - **Bare-metal / bootável** (microcontrolador, BIOS legado, UEFI) — diretiva da
   mantenedora 15/09 ("todo código nativo deve se comunicar direto com barebones").
   O runtime riscv64/aarch64 em asm puro (sem libc) é a base natural, mas os

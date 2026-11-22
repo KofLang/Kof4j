@@ -24,13 +24,14 @@ final class BuildProfileFlag {
     }
 
     /** Mapeia {@code host|freestanding|macos}; {@code null} = valor inválido (R6).
-     *  M-1 (#1135): o perfil {@code macos} abre o alvo Mach-O (arm64). */
+     *  M-1 (#1135): o perfil {@code macos} abre o alvo Mach-O (a face do
+     *  emissor: x86-64). */
     static NativeProfile parse(String value) {
         return switch (value) {
             case "host" -> NativeProfile.HOST;
             case "freestanding" -> NativeProfile.FREESTANDING;
-            // M-1 (#1135, D-NATIVE-MACOS): o alvo macOS (Mach-O, arm64).
-            case "macos" -> NativeProfile.MACOS_ARM64;
+            // M-1 (#1135, D-NATIVE-MACOS): o alvo macOS (Mach-O + libSystem).
+            case "macos" -> NativeProfile.MACOS;
             default -> null;
         };
     }

@@ -198,7 +198,11 @@ class NativeMacOSProfileE2ETest {
                 Path.of("/tmp/out/Main"), Path.of("/tmp/out/Main.o"));
         String line = String.join(" ", args);
         assertTrue(line.contains("-lSystem"), "the macOS link uses libSystem: " + line);
-        assertTrue(line.contains("-arch arm64"), "the M-1 architecture is arm64: " + line);
+        // M-2 (22/11): a arquitetura segue o EMISSOR — o alvo Native emite
+        // x86-64 (o M-1 provou o texto real no assembler `x86_64-macos-none`),
+        // e um `-arch arm64` sobre um objeto x86-64 é um link que falha no
+        // runner. A face Apple silicon é a próxima linha do plano (#1135).
+        assertTrue(line.contains("-arch x86_64"), "the link names the object arch: " + line);
         assertFalse(line.contains("-dynamic-linker"), "no ELF dynamic linker: " + line);
         assertFalse(line.contains("-lc"), "no GNU libc: " + line);
     }
@@ -206,9 +210,9 @@ class NativeMacOSProfileE2ETest {
     @Test
     void theProfileIsSelectableAndRefusedOutsideTheNativeTarget() {
         assertTrue(dev.kof.compiler.nat.NativeProfile.of("macos")
-                        == dev.kof.compiler.nat.NativeProfile.MACOS_ARM64,
+                        == dev.kof.compiler.nat.NativeProfile.MACOS,
                 "the macos profile is selected");
-        assertTrue(dev.kof.compiler.nat.NativeProfile.MACOS_ARM64.isMacos(),
+        assertTrue(dev.kof.compiler.nat.NativeProfile.MACOS.isMacos(),
                 "the profile knows it is the macOS one");
         // o perfil macOS é o ÚNICO não-Linux: os demais (host/freestanding/
         // uefi/bios) continuam sendo os de antes — o parse não pode confundir.
@@ -246,7 +250,7 @@ class NativeMacOSProfileE2ETest {
             String hostAsm = Files.readString(tmp.resolve("out-host/Default/Main.s"));
             assertTrue(hostAsm.contains(".type "), "the host profile emits the ELF directives");
 
-            driver.setNativeProfile(dev.kof.compiler.nat.NativeProfile.MACOS_ARM64);
+            driver.setNativeProfile(dev.kof.compiler.nat.NativeProfile.MACOS);
             // NESTA frota (Linux) o link macOS é recusado com o diagnóstico
             // nomeado NATIVE004 — o toolchain macOS (o assembler Mach-O + o
             // linker da libSystem) só existe no runner macOS (a etapa M-7).

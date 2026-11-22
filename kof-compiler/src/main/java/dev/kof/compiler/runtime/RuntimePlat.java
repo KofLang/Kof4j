@@ -40,6 +40,57 @@ public final class RuntimePlat {
     }
 
     public static void emitPlatWrite(StringBuilder sb) {
+        // M-2 (#1135): no perfil macOS o Darwin NÃO tem syscall Linux cru —
+        // a costura fala com a libSystem (a libc do macOS): write/writev/exit
+        // são chamadas de libc, não `syscall`. A ABI de argumentos é a mesma
+        // (SysV x86-64: %rdi/%rsi/%rdx), então só o corpo muda.
+        if (dev.kof.compiler.nat.NativeProfile.active.isMacos()) {
+            sb.append("""
+                .section .text
+                .globl kof_plat_write
+                .type kof_plat_write, @function
+                kof_plat_write:
+                    pushq %r15              # alinha a pilha (a libSystem usa SSE)
+                    movq %rsp, %r15
+                    andq $-16, %rsp         # rsp ≡ 0 (mod 16) NO SITE DO CALL
+                    call write              # write(fd=%rdi, buf=%rsi, len=%rdx)
+                    subq %rsp, %r15         # devolve o delta do alinhamento
+                    addq %r15, %rsp
+                    popq %r15
+                    ret
+
+                .globl kof_plat_writev
+                .type kof_plat_writev, @function
+                kof_plat_writev:
+                    pushq %r15
+                    movq %rsp, %r15
+                    andq $-16, %rsp
+                    call writev             # writev(fd=%rdi, iov=%rsi, cnt=%rdx)
+                    subq %rsp, %r15
+                    addq %r15, %rsp
+                    popq %r15
+                    ret
+
+                .globl kof_plat_exit
+                .type kof_plat_exit, @function
+                kof_plat_exit:
+                    pushq %r15
+                    movq %rsp, %r15
+                    andq $-16, %rsp
+                    call exit               # exit(code=%rdi) — NÃO retorna
+                    ud2                     # se retornar, trap (não há retorno)
+
+                .globl kof_plat_exit_group
+                .type kof_plat_exit_group, @function
+                kof_plat_exit_group:
+                    pushq %r15
+                    movq %rsp, %r15
+                    andq $-16, %rsp
+                    call exit               # o Darwin não tem exit_group: exit
+                    ud2
+                """);
+            return;
+        }
         // B-2: no perfil UEFI os syscalls Linux não existem — a costura fala
         // com o firmware (OutputString/Exit) via RuntimeUefi.
         if (dev.kof.compiler.nat.NativeProfile.activeIsUefi()) {
