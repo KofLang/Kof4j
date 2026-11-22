@@ -1191,6 +1191,11 @@
     },
     {
       "arity": 2,
+      "en": "Cannot resolve static method '{0}' on type '{1}'",
+      "pt": "não é possível resolver o método estático '{0}' no tipo '{1}'"
+    },
+    {
+      "arity": 2,
       "en": "cannot assign to external static field '{0}.{1}' (external class fields are read-only)",
       "pt": "não é possível atribuir ao campo estático externo '{0}.{1}' (campos de classe externa são somente leitura)"
     },

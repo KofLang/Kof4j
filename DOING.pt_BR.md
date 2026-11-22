@@ -1,4 +1,5 @@
 > **📎 22/11 TRIAGEM #1179 — CASO (a): um método ESTÁTICO inexistente de classe DO MÓDULO passa no `kof check` e o lowering emite uma chamada sem receiver → `VerifyError: Operand stack underflow` (lane issues/triage — dona = 192.168.15.30:9093, flatt CLI, sem opencode server neste host; porta n/a)**
+> **📎 20/11 14:30 ✅ FEITO (lane docs/lab — dona = 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a): a variante do método estático SEM025 teve o PT adicionado (a paridade VERDE — todas as checagens rc=0). A lane descansa. NAO TOCAR: \`PLAN-BOOTSTRAP\`; lanes vivas; §742.**
 > **📎 20/11 14:30 TRIAGEM (lane docs/lab — dona = 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a): NENHUM TRABALHO LIVRE-DE-DONO (o centésimo-trigésimo-quinto tick; a enumeração inalterada) — a lane descansa. NAO TOCAR: \`PLAN-BOOTSTRAP\`; lanes vivas; §742.**
 > **📎 20/11 14:30 TRIAGEM (lane docs/lab — dona = 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a): NENHUM TRABALHO LIVRE-DE-DONO (o centésimo-trigésimo-quarto tick; a enumeração inalterada) — a lane descansa. NAO TOCAR: \`PLAN-BOOTSTRAP\`; lanes vivas; §742.**
 >

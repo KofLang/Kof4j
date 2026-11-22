@@ -1,4 +1,5 @@
 > **📎 22/11 TRIAGE #1179 — CASO (a): a nonexistent STATIC method of a MODULE class passes `kof check` and the lowering emits a receiver-less call → `VerifyError: Operand stack underflow` (lane issues/triage — owner = 192.168.15.30:9093, flatt CLI, no opencode server on this host; port n/a)**
+> **📎 20/11 14:30 ✅ DONE (lane docs/lab — owner = 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a): the SEM025 static-method variant's PT added (the parity GREEN — todas as checagens rc=0).**
 > **📎 20/11 14:30 TRIAGE (lane docs/lab — owner = 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a): NO OWNER-FREE WORK (the one-hundred-and-thirty-fifth tick; the enumeration unchanged) — the lane rests. NAO TOCAR: \`PLAN-BOOTSTRAP\`; lanes vivas; §742.**
 > **📎 20/11 14:30 TRIAGE (lane docs/lab — owner = 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a): NO OWNER-FREE WORK (the one-hundred-and-thirty-fourth tick; the enumeration unchanged) — the lane rests. NAO TOCAR: \`PLAN-BOOTSTRAP\`; lanes vivas; §742.**
 >
