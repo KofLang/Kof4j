@@ -226,7 +226,8 @@ final class NativeArchEmitter {
         // §545: spawn usa `_dl_allocate_tls` (loader) para o tp do worker —
         // só existe no link dinâmico, então um programa com spawn força -lc.
         boolean dynamic = sqlite || ffi || usesSpawn || NativeCrossLink.needsLibc(prunedRiscv);
-        String sysroot = NativeCrossLink.sysrootFor("riscv64");
+        String sysroot = NativeCrossLink.sysrootFor("riscv64",
+                new java.util.ArrayList<>(nb.ffiLibs));
         if (dynamic && sysroot == null) {
             // R6: sem libc-cross não há como ligar dinâmico — segue estático,
             // mas avisa (o consumidor libc ficará sem .so → provável ld aborta,
@@ -462,7 +463,8 @@ final class NativeArchEmitter {
         boolean libm = NativeCrossLink.needsLibm(prunedRiscv);
         // §545: idem riscv — spawn usa `_dl_allocate_tls`, só no dinâmico.
         boolean dynamic = sqlite || ffi || usesSpawnA || NativeCrossLink.needsLibc(prunedRiscv);
-        String sysroot = NativeCrossLink.sysrootFor("aarch64");
+        String sysroot = NativeCrossLink.sysrootFor("aarch64",
+                new java.util.ArrayList<>(nb.ffiLibs));
         if (sqlite && !NativeCrossLink.sqliteAvailable("aarch64")) {
             System.err.println("NativeBackend: aarch64 uses kof.db but libsqlite3.so is not in the " +
                     "sysroot (CI installs only libc6-*-cross) — ld will abort with undefined reference");

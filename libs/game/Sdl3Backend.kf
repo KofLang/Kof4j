@@ -34,27 +34,27 @@ import game.Window
 
 // Os tipos SDL3 que o backend toca. `Long` carrega os ponteiros opacos
 // (SDL_Window*, SDL_Renderer*); o 0 e' a falha.
-extern "/usr/lib64/libSDL3.so.0" SDL_Init(Int flags): Bool
-extern "/usr/lib64/libSDL3.so.0" SDL_CreateWindow(String title, Int w, Int h, Long flags): Long
-extern "/usr/lib64/libSDL3.so.0" SDL_GetWindowTitle(Long win): String
-extern "/usr/lib64/libSDL3.so.0" SDL_CreateRenderer(Long win, String name, Long flags): Long
-extern "/usr/lib64/libSDL3.so.0" SDL_DestroyRenderer(Long ren): void
-extern "/usr/lib64/libSDL3.so.0" SDL_SetRenderDrawColor(Long ren, Int r, Int g, Int b, Int a): Bool
-extern "/usr/lib64/libSDL3.so.0" SDL_RenderClear(Long ren): Bool
-extern "/usr/lib64/libSDL3.so.0" SDL_RenderFillRect(Long ren, Buffer(U8) rect): Bool
-extern "/usr/lib64/libSDL3.so.0" SDL_RenderPresent(Long ren): void
-extern "/usr/lib64/libSDL3.so.0" SDL_PollEvent(Buffer(U8) event): Bool
-extern "/usr/lib64/libSDL3.so.0" SDL_PushEvent(Buffer(U8) event): Bool
-extern "/usr/lib64/libSDL3.so.0" SDL_GetError(): String
-extern "/usr/lib64/libSDL3.so.0" SDL_DestroyWindow(Long win): void
-extern "/usr/lib64/libSDL3.so.0" SDL_Quit(): void
-extern "/usr/lib64/libSDL3.so.0" SDL_RenderReadPixels(Long ren, Long rect): Long
-extern "/usr/lib64/libSDL3.so.0" SDL_ReadSurfacePixel(Long s, Int x, Int y, Buffer(U8) r, Buffer(U8) g, Buffer(U8) b, Buffer(U8) a): Bool
-extern "/usr/lib64/libSDL3.so.0" SDL_DestroySurface(Long s): void
-extern "/usr/lib64/libSDL3.so.0" SDL_CreateTexture(Long ren, Int fmt, Int access, Int w, Int h): Long
-extern "/usr/lib64/libSDL3.so.0" SDL_UpdateTexture(Long tex, Long rect, Buffer(U8) pixels, Int pitch): Bool
-extern "/usr/lib64/libSDL3.so.0" SDL_RenderTexture(Long ren, Long tex, Long src, Buffer(U8) dst): Bool
-extern "/usr/lib64/libSDL3.so.0" SDL_DestroyTexture(Long tex): void
+extern "libSDL3.so.0" SDL_Init(Int flags): Bool
+extern "libSDL3.so.0" SDL_CreateWindow(String title, Int w, Int h, Long flags): Long
+extern "libSDL3.so.0" SDL_GetWindowTitle(Long win): String
+extern "libSDL3.so.0" SDL_CreateRenderer(Long win, String name, Long flags): Long
+extern "libSDL3.so.0" SDL_DestroyRenderer(Long ren): void
+extern "libSDL3.so.0" SDL_SetRenderDrawColor(Long ren, Int r, Int g, Int b, Int a): Bool
+extern "libSDL3.so.0" SDL_RenderClear(Long ren): Bool
+extern "libSDL3.so.0" SDL_RenderFillRect(Long ren, Buffer(U8) rect): Bool
+extern "libSDL3.so.0" SDL_RenderPresent(Long ren): void
+extern "libSDL3.so.0" SDL_PollEvent(Buffer(U8) event): Bool
+extern "libSDL3.so.0" SDL_PushEvent(Buffer(U8) event): Bool
+extern "libSDL3.so.0" SDL_GetError(): String
+extern "libSDL3.so.0" SDL_DestroyWindow(Long win): void
+extern "libSDL3.so.0" SDL_Quit(): void
+extern "libSDL3.so.0" SDL_RenderReadPixels(Long ren, Long rect): Long
+extern "libSDL3.so.0" SDL_ReadSurfacePixel(Long s, Int x, Int y, Buffer(U8) r, Buffer(U8) g, Buffer(U8) b, Buffer(U8) a): Bool
+extern "libSDL3.so.0" SDL_DestroySurface(Long s): void
+extern "libSDL3.so.0" SDL_CreateTexture(Long ren, Int fmt, Int access, Int w, Int h): Long
+extern "libSDL3.so.0" SDL_UpdateTexture(Long tex, Long rect, Buffer(U8) pixels, Int pitch): Bool
+extern "libSDL3.so.0" SDL_RenderTexture(Long ren, Long tex, Long src, Buffer(U8) dst): Bool
+extern "libSDL3.so.0" SDL_DestroyTexture(Long tex): void
 
 // A janela + o renderer, com o estado de entrada do frame.
 class Sdl3Backend {

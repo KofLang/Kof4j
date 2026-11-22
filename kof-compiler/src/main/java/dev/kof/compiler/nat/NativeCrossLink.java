@@ -185,27 +185,82 @@ public final class NativeCrossLink {
      * se não há libc-cross. Ver a ordem no cabeçalho.
      */
     static String sysrootFor(String arch) {
+        return sysrootFor(arch, java.util.List.of());
+    }
+
+    /**
+     * Sysroot MULTIDISTRO: a ordem abaixo, mas cada candidato so' vale quando
+     * tem a libc E as libs EXTERNAS do programa (os `extern` da unidade).
+     *
+     * <p>§1189 (22/11): o SUSE (`/usr/<arch>-suse-linux/sys-root`) tem a libc
+     * mas NAO o SDL3, e o sysroot que tem os dois (`kof-cross`, provisionado
+     * pelos `scripts/provision-*`) ficava depois dele — entao um programa com
+     * `extern` SDL3 exigia `KOF_CROSS_SYSROOT` e o `extern` num caminho
+     * absoluto do host. O consumidor cujo sysroot NAO tem uma externa pedida
+     * deixa de ser candidato e a escolha cai no proximo que tenha as duas —
+     * sem variavel de ambiente e sem caminho absoluto no `extern`.
+     *
+     * <p>As externas chegam como os NOMES que o `ld` precisaria
+     * (`libSDL3.so.0`); um `<sysroot>/usr/<arch>-linux-gnu/lib/<nome>` que
+     * nao exista desqualifica o candidato. Sem externas, o comportamento e'
+     * exatamente o de antes.
+     */
+    static String sysrootFor(String arch, java.util.List<String> externLibs) {
         String env = System.getenv("KOF_CROSS_SYSROOT");
         if (env != null && !env.isBlank()) return env;
         String loader = loaderBase(arch);
-        if (new File("/usr/" + arch + "-linux-gnu/lib/" + loader).exists()) return "";
-        if (new File("/tmp/opencode/x/usr/" + arch + "-linux-gnu/lib/" + loader).exists()) return "/tmp/opencode/x";
+        if (new File("/usr/" + arch + "-linux-gnu/lib/" + loader).exists()
+                && hasExterns("", arch, externLibs)) return "";
+        if (new File("/tmp/opencode/x/usr/" + arch + "-linux-gnu/lib/" + loader).exists()
+                && hasExterns("/tmp/opencode/x", arch, externLibs)) return "/tmp/opencode/x";
         // o toolchain SUSE (`/usr/bin/riscv64-linux-gnu-ld` -> `riscv64-suse-linux-ld`)
         // traz o seu próprio sysroot em `/usr/<arch>-suse-linux/sys-root` — sem
         // este ramo o `-lc` nao acha a libc e o link falha (COMP001)
-        if (new File("/usr/" + arch + "-suse-linux/sys-root/lib/" + loader).exists()) {
-            return "/usr/" + arch + "-suse-linux/sys-root";
+        // o SUSE sys-root tem o LOADER em lib/ mas a libc pode estar SO' no
+        // usr/<arch>-linux-gnu/lib (medido: libc.so.6 ausente em sys-root/lib
+        // neste host) — o `-lc` do ld resolve pelo `--sysroot`, entao o
+        // candidato tambem precisa da libc NESTE layout.
+        String suse = "/usr/" + arch + "-suse-linux/sys-root";
+        if (new File(suse + "/lib/" + loader).exists()
+                && hasLibcAndExterns(suse, arch, externLibs)) {
+            return suse;
         }
         // a convenção do provision-cross-sdl3.sh: o prefixo cross em
         // $HOME/.local/share/kof-cross (sem isto o link_dynamic fica sem
         // --sysroot e o binário pega a libc-cross do HOST — o riscv64
         // trava no spawn sob o qemu, medido)
         String home = System.getProperty("user.home");
-        if (home != null && !home.isBlank()
-                && new File(home + "/.local/share/kof-cross/usr/" + arch + "-linux-gnu/lib/" + loader).exists()) {
-            return home + "/.local/share/kof-cross";
+        if (home != null && !home.isBlank()) {
+            String kof = home + "/.local/share/kof-cross";
+            if (new File(kof + "/usr/" + arch + "-linux-gnu/lib/" + loader).exists()
+                    && hasExterns(kof, arch, externLibs)) {
+                return kof;
+            }
         }
         return null;
+    }
+
+    /** O sysroot tem a LIBC (no layout do sysroot ou no usr/<arch>-linux-gnu)
+     *  E todas as externas pedidas? */
+    private static boolean hasLibcAndExterns(String sysroot, String arch,
+                                             java.util.List<String> externLibs) {
+        String base = sysroot.isEmpty() ? "" : sysroot;
+        boolean libc = new File(base + "/lib/libc.so.6").exists()
+                || new File(base + "/usr/" + arch + "-linux-gnu/lib/libc.so.6").exists();
+        return libc && hasExterns(sysroot, arch, externLibs);
+    }
+
+    /** O sysroot tem TODAS as libs externas pedidas? (sem externas = sim) */
+    private static boolean hasExterns(String sysroot, String arch, java.util.List<String> externLibs) {
+        if (externLibs == null || externLibs.isEmpty()) return true;
+        String base = sysroot.isEmpty() ? "" : sysroot;
+        for (String lib : externLibs) {
+            String name = lib;
+            int slash = name.lastIndexOf('/');
+            if (slash >= 0) name = name.substring(slash + 1);
+            if (!new File(base + "/usr/" + arch + "-linux-gnu/lib/" + name).exists()) return false;
+        }
+        return true;
     }
 
     /** Monta os args do ld. Estático → só os args de hoje + gc-sections.
@@ -271,7 +326,17 @@ public final class NativeCrossLink {
         // Semântica idêntica em runtime; custo = o load resolve tudo de uma vez.
         a.add("-z");
         a.add("now");
-        if (sysroot != null && !sysroot.isEmpty()) a.add("--sysroot=" + sysroot);
+        if (sysroot != null && !sysroot.isEmpty()) {
+            a.add("--sysroot=" + sysroot);
+            // §1189: o `--sysroot` sozinho NAO acha a libc quando o layout e'
+            // `usr/<arch>-linux-gnu/lib` (o do kof-cross provisionado): o `ld`
+            // do SUSE expande `-lc` para `<sysroot>/usr/<arch>-linux-gnu/lib` e
+            // os SEARCH_DIR dele sao `/usr/<arch>-suse-linux/...` (medido: sem
+            // o -L o link aborta "cannot find -lc"). O -L explicito cobre os
+            // DOIS layouts (Debian e SUSE) sem depender do prefixo do ld.
+            String libDir = sysroot + "/usr/" + arch + "-linux-gnu/lib";
+            if (new File(libDir).isDirectory()) a.add("-L" + libDir);
+        }
         a.add("-dynamic-linker");
         a.add(ldPathFor(arch));
         a.add("-o");
