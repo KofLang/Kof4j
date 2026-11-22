@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 2 continua — o composer (a linha de input + botao, `text-sm`/`text-xs` medidos) e a LISTA do feed (N cards na coluna de conteudo do shell)
+next: Fase 3 — as rotas: `perfil.$username` (a primeira tela de rota sobre as primitivas shell + feed)
 location: repository
 state: active
 
@@ -75,6 +75,16 @@ corpo em `text-base` = 16 px na Manrope REAL. A quebra e' medida palavra a
 palavra (`Font.measure`), entao as linhas seguem os avancos dos glifos, nao um
 palpite. Provado nativamente: `card=255,255,255`, `fundo=247,244,251`,
 `tinta=6303` — o autor e o corpo pintaram tinta de verdade dentro do card.
+
+**Fase 2 — a tela do feed (POUSADA 22/11).** O `libs/enois/Feed.kf` pinta o
+composer e a lista de cards na coluna de conteudo do shell: o composer e'
+`h-[3.625rem]` = **58 px** com `--surface-card` e o placeholder
+`"Escreva sua publicação"` (`texts.feed.composer.placeholder`) em `text-[15px]`
+com `--text-date`; os cards empilham com o `gap-6` = 24 px do `feed.tsx:1011`.
+O `Feed.lastCardHeight` expoe a altura MEDIDA do ultimo card, entao quem chama
+nunca a crava (um teste que cravou quebrou no primeiro wrap real do card).
+Provado nativamente: `composer_h=58`, `pill=255,255,255`, `card=255,255,255`,
+`gap=247,244,251` (o `--background` aparecendo pelo gap).
 
 **Fase 3 — as rotas, em ordem de dependência**: `perfil.*` → `post.$postId` →
 `comunidades.*` → `mensagens` → o resto.

@@ -1,0 +1,70 @@
+package enois
+
+import enois.PostCard
+import enois.Text
+import enois.Tokens
+import game.Sdl3Backend
+
+// Énois — a tela FEED (`src/routes/feed.tsx`), migrada para o desktop NATIVO.
+//
+// Medidas MEDIDAS nos fontes:
+//   * coluna direita 320 px, gap 24 px   — `grid-cols-[minmax(0,1fr)_320px] gap-6`
+//                                          (enois-frontend/src/routes/feed.tsx:1011)
+//   * composer 58 px, rounded-full,      — `h-[3.625rem] ... rounded-full`
+//     texto 15 px, pl-2 pr-1.5             (design-system/src/domain/post/
+//                                          composer-launcher.tsx)
+//   * o placeholder e o rotulo           — `texts.feed.composer.placeholder` =
+//     vem de `src/texts.ts`                "Escreva sua publicação";
+//                                          `texts.publish` = "Publicar"
+//
+// O composer fica ACIMA da lista; os cards seguem na coluna de conteudo do
+// shell (a mesma que o `Shell.paint` devolve em `top`).
+
+/** As medidas do composer, em px, vindas do CSS do site. */
+class ComposerMetrics {
+    static Int height() { return 58 }        // h-[3.625rem]
+    static Int textSize() { return 15 }      // text-[15px]
+    static Int leftPad() { return 8 }        // pl-2
+    static Int avatar() { return 44 }        // o circulo a esquerda (h-11 nao: h-full)
+    static Int gapBelow() { return 24 }      // gap-6
+}
+
+class Feed {
+
+    // A altura do ULTIMO card pintado (para o app/roteiro continuar dali).
+    static Int lastCardHeight = 0
+
+    /** Pinta o composer a partir de (x, y) com a largura `w`.
+     *  Devolve a altura usada (sempre ComposerMetrics.height()).
+     */
+    static Int paintComposer(Sdl3Backend b, Font text, Int x, Int y, Int w, String placeholder) {
+        val card = Tokens.SurfaceCard()
+        val date = Tokens.TextDate()
+        val h = ComposerMetrics.height()
+        // a pilula do card
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, y, w, h)
+        // o texto (o placeholder, 15 px) alinhado ao centro vertical
+        SDL_SetRenderDrawColor(b.rendererHandle, date.r(), date.g(), date.b(), 255)
+        val baseline = y + h / 2 + 5
+        text.drawText(b, placeholder, x + ComposerMetrics.leftPad() + ComposerMetrics.avatar(), baseline)
+        return h
+    }
+
+    /** Pinta uma LISTA de cards, com o `gap-6` entre eles.
+     *  Devolve a altura total usada.
+     */
+    static Int paintCards(Sdl3Backend b, Font author, Font body,
+                          Int x, Int y, Int w, List<String> authors, List<String> bodies) {
+        lastCardHeight = 0
+        var cy = y
+        var i = 0
+        while (i < authors.size) {
+            val h = PostCard.paint(b, author, body, x, cy, w, authors[i], bodies[i])
+            lastCardHeight = h
+            cy = cy + h + ComposerMetrics.gapBelow()
+            i = i + 1
+        }
+        return cy - y
+    }
+}
