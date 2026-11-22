@@ -58,11 +58,9 @@ public final class RuntimeIo3 {
                 movq %rbx, %rdi
                 movq %r13, %rsi
                 movq %r14, %rdx
-                movq $1, %rax
-                syscall
+                call kof_plat_write          # M-6 (#1135): a io pela costura (o macOS usa a libSystem)
                 movq %rbx, %rdi
-                movq $3, %rax
-                syscall
+                call kof_plat_close          # M-6 (#1135): a io pela costura (o macOS usa a libSystem)
                 movq $1, %rax
                 popq %r14
                 popq %r13
@@ -111,11 +109,9 @@ public final class RuntimeIo3 {
                 movq %rbx, %rdi
                 movq %r13, %rsi
                 movq %r14, %rdx
-                movq $1, %rax
-                syscall
+                call kof_plat_write          # M-6 (#1135): a io pela costura (o macOS usa a libSystem)
                 movq %rbx, %rdi
-                movq $3, %rax
-                syscall
+                call kof_plat_close          # M-6 (#1135): a io pela costura (o macOS usa a libSystem)
                 movq $1, %rax
                 popq %r14
                 popq %r13
@@ -149,8 +145,7 @@ public final class RuntimeIo3 {
                 testq %rax, %rax
                 js .Lio_createnew_fail
                 movq %rax, %rdi
-                movq $3, %rax                # close
-                syscall
+                call kof_plat_close          # M-6 (#1135): a io pela costura (o macOS usa a libSystem)
                 movq $1, %rax
                 popq %rbx
                 ret
@@ -343,8 +338,7 @@ public final class RuntimeIo3 {
                 jmp .Lio_dd_loop
             .Lio_dd_loop_done:
                 movq %r12, %rdi
-                movq $3, %rax
-                syscall
+                call kof_plat_close          # M-6 (#1135): a io pela costura (o macOS usa a libSystem)
                 leaq 24(%rbx), %rdi
                 movq $84, %rax
                 syscall
@@ -434,8 +428,7 @@ public final class RuntimeIo3 {
                 jmp .Lio_list_done
             .Lio_list_done:
                 movq %rbx, %rdi
-                movq $3, %rax
-                syscall
+                call kof_plat_close          # M-6 (#1135): a io pela costura (o macOS usa a libSystem)
                 call .Lio_list_sort
                 movq %r12, %rax
                 addq $32768, %rsp

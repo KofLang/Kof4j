@@ -122,11 +122,9 @@ public final class RuntimeTime {
                 movq %r14, %rsi
                 addq $24, %rsi
                 movl %r13d, %edx
-                movq $0, %rax
-                syscall
+                call kof_plat_read          # M-6 (#1135): a io pela costura (o macOS usa a libSystem)
                 movq %r12, %rdi
-                movq $3, %rax
-                syscall
+                call kof_plat_close          # M-6 (#1135): a io pela costura (o macOS usa a libSystem)
                 movq %r14, %rax
                 popq %r14
                 popq %r13
@@ -159,11 +157,9 @@ public final class RuntimeTime {
                 movq %rax, %rdi
                 leaq 24(%r12), %rsi
                 movl 16(%r12), %edx
-                movq $1, %rax
-                syscall
+                call kof_plat_write          # M-6 (#1135): a io pela costura (o macOS usa a libSystem)
                 movq %rdi, %rdi
-                movq $3, %rax
-                syscall
+                call kof_plat_close          # M-6 (#1135): a io pela costura (o macOS usa a libSystem)
                 xorl %eax, %eax
                 popq %r12
                 popq %rbx

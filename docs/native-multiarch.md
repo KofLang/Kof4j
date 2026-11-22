@@ -694,6 +694,41 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   REFUSES to emit a binary (`NATIVE005`) — the concurrency (M-5), the TLS
   (M-4) and the runtime's own io (M-6) still speak Linux, and the proof that
   a macOS binary RUNS is the M-7 runner.
+  **M-6 SLICE 1 LANDED 22/11 (the runtime's own io through the seam) — the
+  Native runtime's `read`/`write`/`close` now speak the seam instead of the
+  raw Linux syscall, so the macOS profile can read and write through the
+  libSystem.** The seam is the ONLY place where the runtime talks to the
+  OS, and the io was speaking the Linux syscall ABI directly (the gate 2
+  counted it as out-of-seam debt). 16 call sites moved
+  (`RuntimeIo2`, `RuntimeIo3`, `RuntimeTime`: the stdin read, the file
+  read/write, the append, the byte ranges). The host behaviour is
+  byte-identical — the seam's host bodies ARE the same syscalls with the
+  same registers — and the macOS profile now reaches the libc `read`/
+  `write`/`close`. **THE `fstat` STAYS RAW ON PURPOSE (measured):** the
+  syscall numbers are `0=read`, `1=write`, `3=close`, **`5=fstat`** — and
+  the `struct stat` of the Darwin has a DIFFERENT layout than the Linux
+  one, so the stat family is the NEXT M-6 row (its own seam body), not a
+  read in disguise. (The first pass of this slice mapped the `5` to the
+  read and the io suite caught it — 4 RED — before anything shipped.)
+  **THE RATCHET:** the out-of-seam x86-64 count fell **180 → 164** and the
+  baseline was regenerated deliberately after the improvement (the gate's
+  documented flow; the selftest is 3/3). **PROOF (executed):**
+  `NativeIoSeamE2ETest` **2/2** — RED-first **2 failures** on the old code
+  (the io does not go through the seam) and GREEN after; the io family
+  **92 run / 0F / 0E / 9 skipped** (`IoE2ETest` 26/0); the native battery
+  **829 run / 0F / 0E / 82 skipped**; the gates rc=0.
+  **THE MEASUREMENT FOR THE NEXT ROW (M-4, the TLS):** the Mach-O thread
+  local access was read off the REAL compiler (the provisioned clang 18):
+  `movq _x@TLVP(%rip), %rdi; callq *(%rdi); movq (%rax), %reg` plus the
+  `__DATA,__thread_vars` descriptor (`__tlv_bootstrap`, 0, the init
+  slot) — and the runtime's exception chain is ONE variable
+  (`kof_exc_chain`) read/written at 22 sites (9 loads, 13 stores). The
+  register audit already paid one dividend: at the store sites the
+  `%rdi`/`%rax` hold LIVE values (the `String` argument, the result), so
+  a naive seam call would clobber them — the M-4 bodies must preserve the
+  caller-saved registers (the seam get/set shape) or the sites must be
+  rewritten with the value in a register they can spare.
+
   **M-5 SLICE 1 LANDED 22/11 (the concurrency face) — the port exposed a REAL
   DEFECT in the x86-64 runtime: the futex arguments were passed in the WRONG
   registers, so the "futex wait" was an EINVAL no-op (a wait that never

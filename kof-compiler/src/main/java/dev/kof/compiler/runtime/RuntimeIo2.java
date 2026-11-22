@@ -225,11 +225,9 @@ public final class RuntimeIo2 {
                 movq %rax, %rdi
                 leaq 24(%r12), %rsi
                 movl 16(%r12), %edx
-                movq $1, %rax
-                syscall
+                call kof_plat_write          # M-6 (#1135): a io pela costura (o macOS usa a libSystem)
                 movq %rdi, %rdi
-                movq $3, %rax
-                syscall
+                call kof_plat_close          # M-6 (#1135): a io pela costura (o macOS usa a libSystem)
                 movq $1, %rax
                 popq %r12
                 popq %rbx
@@ -335,12 +333,10 @@ public final class RuntimeIo2 {
                 movq %rbx, %rdi
                 movq %r15, %rsi
                 movq %r12, %rdx
-                movq $0, %rax
-                syscall
+                call kof_plat_read          # M-6 (#1135): a io pela costura (o macOS usa a libSystem)
                 movq %rax, %r13      # #848: lidos (negativo = erro, ex. EISDIR)
                 movq %rbx, %rdi
-                movq $3, %rax
-                syscall
+                call kof_plat_close          # M-6 (#1135): a io pela costura (o macOS usa a libSystem)
                 testq %r13, %r13
                 js .Lio_bytes_rderr
                 movq %r13, %r12      # conta só o que foi lido
@@ -445,8 +441,7 @@ public final class RuntimeIo2 {
                 movq %rax, %r14      # lidos (reusa o slot do offset)
                 # close(fd)
                 movq %r12, %rdi
-                movq $3, %rax
-                syscall
+                call kof_plat_close          # M-6 (#1135): a io pela costura (o macOS usa a libSystem)
                 testq %r14, %r14     # #848: pread negativo = erro de leitura
                 js .Lio_range_inval
                 # Int[] elemsize 4

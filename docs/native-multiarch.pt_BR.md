@@ -694,6 +694,41 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   RECUSA emitir um binário (`NATIVE005`) — a concorrência (M-5), o TLS (M-4) e
   a io própria do runtime (M-6) ainda falam Linux, e a prova de que um
   binário macOS RODA é o runner do M-7.
+  **M-6 FATIA 1 POUSADA 22/11 (a io do runtime pela costura) — o
+  `read`/`write`/`close` do runtime Native agora falam a costura em vez do
+  syscall Linux cru, então o perfil macOS consegue ler e escrever pela
+  libSystem.** A costura é o ÚNICO lugar onde o runtime fala com o SO, e a
+  io falava o ABI Linux direto (o gate 2 contava isso como dívida
+  fora-da-costura). 16 sítios migraram (`RuntimeIo2`, `RuntimeIo3`,
+  `RuntimeTime`: a leitura do stdin, o read/write de arquivo, o append, os
+  ranges de bytes). O comportamento no host é byte-idêntico — os corpos
+  da costura no host são os MESMOS syscalls com os MESMOS registradores — e
+  o perfil macOS agora chega no `read`/`write`/`close` da libc. **O
+  `fstat` CONTINUA CRU DE PROPÓSITO (medido):** os números de syscall são
+  `0=read`, `1=write`, `3=close`, **`5=fstat`** — e o `struct stat` do
+  Darwin tem layout DIFERENTE do Linux, então a família stat é a PRÓXIMA
+  linha M-6 (o seu próprio corpo na costura), não um read disfarçado. (A
+  primeira passada desta fatia mapeou o `5` para o read e a suíte de io
+  pegou — 4 RED — antes de qualquer coisa subir.) **O RATCHET:** a
+  contagem x86-64 fora-da-costura caiu de **180 para 164** e o baseline foi
+  regenerado deliberadamente depois da melhora (o fluxo documentado do
+  gate; o selftest é 3/3). **PROVA (executada):** `NativeIoSeamE2ETest`
+  **2/2** — RED-first **2 falhas** no código antigo (a io não passa pela
+  costura) e GREEN depois; a família de io **92 run / 0F / 0E / 9 skipped**
+  (`IoE2ETest` 26/0); a bateria nativa **829 run / 0F / 0E / 82 skipped**; os
+  gates rc=0. **A MEDIÇÃO PARA A PRÓXIMA LINHA (M-4, o TLS):** o acesso a
+  thread-local do Mach-O foi lido no compilador REAL (o clang 18
+  provisionado): `movq _x@TLVP(%rip), %rdi; callq *(%rdi); movq (%rax),
+  %reg` mais o descritor `__DATA,__thread_vars` (`__tlv_bootstrap`, 0, o
+  slot de init) — e a cadeia de exceções do runtime é UMA variável
+  (`kof_exc_chain`) lida/escrita em 22 sítios (9 loads, 13 stores). A
+  auditoria de registradores já pagou um dividendo: nos sítios de store o
+  `%rdi`/`%rax` têm valores VIVOS (o argumento String, o resultado), então
+  uma chamada de costura ingênua os estragaria — os corpos do M-4 precisam
+  preservar os registradores caller-saved (o par get/set da costura) ou os
+  sítios precisam ser reescritos com o valor num registrador que possam
+  ceder.
+
   **M-5 FATIA 1 POUSADA 22/11 (a face da concorrência) — o port expôs um DEFEITO
   REAL no runtime x86-64: os argumentos do futex eram passados nos
   registradores ERRADOS, então o "futex wait" era um no-op com EINVAL (uma
