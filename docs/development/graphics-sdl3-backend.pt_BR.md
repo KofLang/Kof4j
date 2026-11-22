@@ -3,8 +3,8 @@
 # BACKEND de graphics SDL3 (a janela nativa + a face de software do WASI)
 
 last: ABERTO 22/11 por ordem da mantenedora ("1 autorizo, 2 pode focar só no x86-64 por hora, nativo + wasi é o caminho; alem disso depois quem quiser que porte pra arm/risc") — este é o plano novo de backend que o `docs/graphics-gaming.md` exige. STATUS: EM DESENVOLVIMENTO
-doing: fatia 1 (face nativa x86-64: janela, `present(DrawList)`, event pump → `Keys`/`Mouse`)
-next: prova da fatia 1 (`Sdl3BackendE2ETest` com leitura de pixel + input), depois a face de software do WASI (SPIKE medido), depois a promoção para `docs/`
+doing: fatia 1b POUSADA 22/11 — o `present(DrawList)` resolve cada `DrawCmd.image` pelo cache de textura do backend (`registerTexture`/`textureFor`), desenhando a TEXTURA onde uma esta registrada e o retangulo solido caso contrario; o upload da imagem anda pelo `SDL_UpdateTexture` exportado (um `Buffer(U8)` so' e' legal em assinatura `extern`) e o retangulo de destino e' montado por `floatBits(Int)` (um `SDL_FRect` sao quatro floats)
+next: a face de input (`Keys`/`Mouse` sobre o event pump do SDL — `pumpEvents`/`keyName` estao no lugar e medidos), depois o porte arm/risc (mantenedora: quem quiser), depois a promoção para `docs/`
 location: repository
 state: active
 

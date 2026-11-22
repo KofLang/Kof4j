@@ -3,8 +3,8 @@
 # SDL3 graphics BACKEND (the native window + the software WASI face)
 
 last: OPENED 22/11 on the maintainer's order ("1 autorizo, 2 pode focar só no x86-64 por hora, nativo + wasi é o caminho; alem disso depois quem quiser que porte pra arm/risc") — this is the new backend plan `docs/graphics-gaming.md` requires. STATUS: UNDER DEVELOPMENT
-doing: slice 1 (native x86-64 face: window, `present(DrawList)`, event pump → `Keys`/`Mouse`)
-next: slice 1 proof (`Sdl3BackendE2ETest` pixel readback + input), then the WASI software face (SPIKE measured), then docs/ promotion
+doing: slice 1b LANDED 22/11 — `present(DrawList)` resolves each `DrawCmd.image` through the backend's texture cache (`registerTexture`/`textureFor`), drawing the TEXTURE where one is registered and the solid rect otherwise; the image upload rides the exported `SDL_UpdateTexture` (a `Buffer(U8)` is only legal in an `extern` signature) and the destination rect is built by `floatBits(Int)` (an `SDL_FRect` is four floats)
+next: the input face (`Keys`/`Mouse` over the SDL event pump — `pumpEvents`/`keyName` are in place and measured), then the arm/risc port (maintainer: whoever wants it), then docs/ promotion
 location: repository
 state: active
 
@@ -58,11 +58,12 @@ What slice 1 must prove:
 
 1. the window opens and reports its title;
 2. `present(DrawList)` draws every `DrawCmd` (solid rect by default; an image path is slice 2);
-3. `pollKeys()` reports the keys held in the frame (the `Keys.beginFrame(backend.heldKeys())` contract);
+3. `pumpEvents()`/`heldKeys()` report the keys held in the frame (the `Keys.beginFrame(backend.heldKeys())` contract; `keyName` maps the SDL keycode);
 4. `quitRequested()` turns a window-close into `self.stop()`;
-5. **pixel readback** — draw a known colour, read it back, assert equality (the same measurement that proved the FFI).
+5. **pixel readback** — draw a known colour, read it back, assert equality (the same measurement that proved the FFI);
+6. **slice 1b** — `present(DrawList)` resolves `DrawCmd.image` through the texture cache, and the pixels prove the texture arrived.
 
-The proof is `Sdl3BackendE2ETest`, headless (`SDL_VIDEODRIVER=dummy`) on the host plus the readback.
+The proof is `Sdl3BackendE2ETest` (4 tests), headless (`SDL_VIDEODRIVER=dummy`) on the host plus the readback.
 
 ---
 

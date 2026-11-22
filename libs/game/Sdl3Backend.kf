@@ -61,6 +61,7 @@ class Sdl3Backend {
     Int height
     Long windowHandle
     Long rendererHandle
+    Map<String, Long> textures
     Bool quitFlag
     List<String> held
     Int[] eventBuffer
@@ -71,6 +72,7 @@ class Sdl3Backend {
         this.height = h
         this.quitFlag = false
         this.held = listOf<String>()
+        this.textures = mapOf<String, Long>()
         // SDL_Event e' uma union de 128 bytes; um Int[] de 32 cobre (4 B cada)
         this.eventBuffer = new Int[48]
         SDL_Init(32)
@@ -100,8 +102,10 @@ class Sdl3Backend {
         SDL_RenderClear(this.rendererHandle)
     }
 
-    // Desenha o DrawList: cada DrawCmd vira um retangulo solido na posicao.
-    // (A fatia 2 troca o retangulo pela textura da imagem.)
+    // Desenha o DrawList: cada DrawCmd vira o seu retangulo na posicao. A
+    // IMAGEM do comando e' resolvida pelo cache abaixo (`textureFor`); sem
+    // textura registrada o comando pinta um retangulo solido (o mesmo da
+    // fatia 1), entao um app nao precisa de imagem para desenhar.
     void present(DrawList queue) {
         var i = 0
         while (i < queue.size()) {
@@ -110,8 +114,13 @@ class Sdl3Backend {
             val y = cmd.y as Int
             val w = (16.0 * cmd.scaleX) as Int
             val h = (16.0 * cmd.scaleY) as Int
-            SDL_SetRenderDrawColor(this.rendererHandle, 255, 255, 255, 255)
-            this.fillRect(x, y, w, h)
+            val tex = this.textureFor(cmd.image)
+            if (tex != 0) {
+                this.drawTexture(tex, x, y, w, h)
+            } else {
+                SDL_SetRenderDrawColor(this.rendererHandle, 255, 255, 255, 255)
+                this.fillRect(x, y, w, h)
+            }
             i = i + 1
         }
         SDL_RenderPresent(this.rendererHandle)
@@ -188,6 +197,20 @@ class Sdl3Backend {
         buffer.poke32(dst, 8, floatBits(w))
         buffer.poke32(dst, 12, floatBits(h))
         SDL_RenderTexture(this.rendererHandle, tex, 0L, dst)
+    }
+
+    // O handle da textura da imagem `name` (0 = nao registrada, o comando
+    // pinta o retangulo solido). O app registra com `registerTexture`.
+    Long textureFor(String name) {
+        val tex = this.textures.get(name)
+        if (tex == null) { return 0L }
+        return tex
+    }
+
+    // Registra (ou substitui) a textura de `name` — a altura/largura ficam
+    // com o que o `createTexture` definiu.
+    void registerTexture(String name, Long tex) {
+        this.textures.put(name, tex)
     }
 
     void close() {

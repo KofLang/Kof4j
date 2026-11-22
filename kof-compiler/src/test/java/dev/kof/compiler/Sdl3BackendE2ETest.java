@@ -140,6 +140,55 @@ class Sdl3BackendE2ETest implements LibraryInstallSupport {
     }
 
     @Test
+    void presentResolvesTheDrawCmdImageThroughTheTextureCache(@TempDir Path dir) throws Exception {
+        var so = hostSdl3();
+        assumeTrue(so != null, "SDL3 host absent — install libSDL3");
+        assumeTrue(hasNativeToolchain(), "native toolchain absent");
+        // o caminho INTEIRO: Sprite -> DrawList.draw -> DrawCmd.image -> cache
+        // -> textura -> renderer -> pixels.
+        var r = compileWithGames(dir, """
+                import game.Sdl3Backend
+                import game.Draw
+                import game.Sprite
+
+                main() {
+                    val b = Sdl3Backend("pre", 32, 32)
+                    val px = buffer.alloc(4 * 4 * 4)
+                    var i = 0
+                    while (i < 16) {
+                        buffer.poke8(px, i * 4, 255)
+                        buffer.poke8(px, i * 4 + 1, 0)
+                        buffer.poke8(px, i * 4 + 2, 0)
+                        buffer.poke8(px, i * 4 + 3, 255)
+                        i = i + 1
+                    }
+                    val tex = b.createTexture(4, 4)
+                    SDL_UpdateTexture(tex, 0L, px, 16)
+                    b.registerTexture("hero", tex)
+                    val q = DrawList()
+                    q.draw(Sprite("hero").at(8, 8))
+                    b.clearFrame(0, 0, 255)
+                    b.present(q)
+                    val dentro = b.readPixel(10, 10)
+                    val fora = b.readPixel(2, 2)
+                    println("dentro r=" + (dentro[0] & 255))
+                    println("fora b=" + (fora[2] & 255))
+                    println("sem-imagem=" + (b.textureFor("nada") == 0))
+                    b.close()
+                }
+                """);
+        assertTrue(r.success(), "compile: " + r.diagnostics().getDiagnostics());
+        var pb = new ProcessBuilder(dir.resolve("out/Default/Main").toString()).redirectErrorStream(true);
+        pb.environment().put("SDL_VIDEODRIVER", "dummy");
+        var p = pb.start();
+        String out = new String(p.getInputStream().readAllBytes()).strip();
+        assertTrue(p.waitFor(120, TimeUnit.SECONDS) && p.exitValue() == 0, "run: " + out);
+        assertTrue(out.contains("dentro r=255"), "a textura do DrawCmd dentro: " + out);
+        assertTrue(out.contains("fora b=255"), "o fundo fora: " + out);
+        assertTrue(out.contains("sem-imagem=true"), "imagem desconhecida = handle 0: " + out);
+    }
+
+    @Test
     void theBackendRecusesHonestlyWhereExternCannotBind(@TempDir Path dir) throws Exception {
         // O WASI nao liga `extern` (FFI001) — o backend nativo NAO pode virar
         // um modulo WASI silenciosamente; a recusa e' o contrato honrado.
