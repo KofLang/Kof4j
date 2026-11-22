@@ -18702,3 +18702,11 @@ PROVA: o `Sdl3BackendE2ETest` compila um programa com `import game.Draw` + `impo
 A LEI MEDIDA: o corpo de `_start` é o único lugar onde arrays/listas podem existir, e NENHUMA chamada pode carregar um. O método de INSTÂNCIA é a única forma chamável que sobrevive.
 O QUE ISSO SIGNIFICA: um `SoftwareBackend` que um programa IMPORTA e chama com o seu framebuffer ainda não pode existir no WASI — mas o desenho em si EXISTE (`WasmWasiSoftwareBackendE2ETest` prova um programa que pinta e escreve um PPM P6 exato por `b.at`/`b.inside`).
 O BLOQUEIO NÃO É DESTE PLANO: é a admissão 15.3+ de chamadas com coleções/IO no subset WASI, já agendada em `docs/wasm-wasi-plan.md`. Registrado aqui (`docs/development/graphics-sdl3-backend.md` §6) para a fatia 2 retomar onde o muro cai.
+
+## §1183 — dois fatos do SDL3 que a fatia de textura mediu: `SDL_RenderTexture` com destino NULL nao pinta NADA, e um `SDL_FRect` sao QUATRO FLOATS (gravar inteiros deixou o retangulo vazio) — ✅ medido + codificado 22/11 (lane wasm/caps `192.168.15.15:0`)
+
+Ao construir `drawTexture` (fatia 1b do `docs/development/graphics-sdl3-backend.md`) duas formas de falha SILENCIOSA apareceram, cada uma achada pela leitura de pixel:
+1. `SDL_RenderTexture(ren, tex, NULL, NULL)` devolve TRUE e NAO PINTA NADA — o retangulo de destino e' OBRIGATORIO (medido: o frame inteiro ficou na cor do clear).
+2. `SDL_FRect` e' `{float x, y, w, h}`: gravar o INTEIRO 8 no buffer deixou o destino com 1,1e-44 de largura, entao a textura desenhava com tamanho zero (medido: o `centro` ficou na cor do clear mesmo com o retangulo explicito).
+O FIX no lado Kof: `floatBits(Int)` monta o bit pattern IEEE-754 f32 por partes (sinal, expoente enviesado, mantissa de 23 bits) — sem precisar de primitiva de bit-cast — e o `drawTexture` grava as quatro palavras. O `uploadTexture` virou `createTexture` + o `SDL_UpdateTexture` exportado, porque um `Buffer(U8)` so' e' tipo LEGAL numa assinatura `extern` (parametro de metodo normal e' recusado com SEM011, medido).
+PROVA: `Sdl3BackendE2ETest.aTextureReachesTheRendererAndThePixelsProveIt` — uma textura 4×4 vermelha desenhada em (8,8) 8×8: o pixel (10,10) le R=255 (a textura), (2,2) le B=255 (a cor do clear). 3/3 verde na classe; a bateria `Wasm*,Game*,Sdl3*` 265 run / 0F / 0E / 12 skips de ambiente nomeados.

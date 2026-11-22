@@ -97,6 +97,49 @@ class Sdl3BackendE2ETest implements LibraryInstallSupport {
     }
 
     @Test
+    void aTextureReachesTheRendererAndThePixelsProveIt(@TempDir Path dir) throws Exception {
+        var so = hostSdl3();
+        assumeTrue(so != null, "SDL3 host absent — install libSDL3");
+        assumeTrue(hasNativeToolchain(), "native toolchain absent");
+        var r = compileWithGames(dir, """
+                import game.Sdl3Backend
+
+                main() {
+                    val b = Sdl3Backend("tex", 32, 32)
+                    val px = buffer.alloc(4 * 4 * 4)
+                    var i = 0
+                    while (i < 16) {
+                        buffer.poke8(px, i * 4, 255)
+                        buffer.poke8(px, i * 4 + 1, 0)
+                        buffer.poke8(px, i * 4 + 2, 0)
+                        buffer.poke8(px, i * 4 + 3, 255)
+                        i = i + 1
+                    }
+                    val tex = b.createTexture(4, 4)
+                    SDL_UpdateTexture(tex, 0L, px, 16)
+                    b.clearFrame(0, 0, 255)
+                    b.drawTexture(tex, 8, 8, 8, 8)
+                    val dentro = b.readPixel(10, 10)
+                    val fora = b.readPixel(2, 2)
+                    // os canais chegam como byte COM SINAL no i64 do Kof
+                    // (255 = -1), a mesma face do readback de cor: normaliza
+                    println("dentro r=" + (dentro[0] & 255))
+                    println("fora b=" + (fora[2] & 255))
+                    b.close()
+                }
+                """);
+        assertTrue(r.success(), "compile: " + r.diagnostics().getDiagnostics());
+        var pb = new ProcessBuilder(dir.resolve("out/Default/Main").toString()).redirectErrorStream(true);
+        pb.environment().put("SDL_VIDEODRIVER", "dummy");
+        var p = pb.start();
+        String out = new String(p.getInputStream().readAllBytes()).strip();
+        assertTrue(p.waitFor(120, TimeUnit.SECONDS) && p.exitValue() == 0, "run: " + out);
+        // o vermelho da TEXTURA dentro do destino, o azul do fundo fora
+        assertTrue(out.contains("dentro r=255"), "o vermelho da textura dentro: " + out);
+        assertTrue(out.contains("fora b=255"), "o azul do fundo fora: " + out);
+    }
+
+    @Test
     void theBackendRecusesHonestlyWhereExternCannotBind(@TempDir Path dir) throws Exception {
         // O WASI nao liga `extern` (FFI001) — o backend nativo NAO pode virar
         // um modulo WASI silenciosamente; a recusa e' o contrato honrado.

@@ -50,6 +50,10 @@ extern "/usr/lib64/libSDL3.so.0" SDL_Quit(): void
 extern "/usr/lib64/libSDL3.so.0" SDL_RenderReadPixels(Long ren, Long rect): Long
 extern "/usr/lib64/libSDL3.so.0" SDL_ReadSurfacePixel(Long s, Int x, Int y, Buffer(U8) r, Buffer(U8) g, Buffer(U8) b, Buffer(U8) a): Bool
 extern "/usr/lib64/libSDL3.so.0" SDL_DestroySurface(Long s): void
+extern "/usr/lib64/libSDL3.so.0" SDL_CreateTexture(Long ren, Int fmt, Int access, Int w, Int h): Long
+extern "/usr/lib64/libSDL3.so.0" SDL_UpdateTexture(Long tex, Long rect, Buffer(U8) pixels, Int pitch): Bool
+extern "/usr/lib64/libSDL3.so.0" SDL_RenderTexture(Long ren, Long tex, Long src, Buffer(U8) dst): Bool
+extern "/usr/lib64/libSDL3.so.0" SDL_DestroyTexture(Long tex): void
 
 // A janela + o renderer, com o estado de entrada do frame.
 class Sdl3Backend {
@@ -163,6 +167,29 @@ class Sdl3Backend {
         return out
     }
 
+    // Cria a textura RGBA (w x h) e devolve o handle. Os PIXELS vao pelo
+    // `SDL_UpdateTexture` (o `Buffer(U8)` so' existe em assinatura
+    // `extern` — um metodo normal recusa o tipo, medido 22/11).
+    Long createTexture(Int w, Int h) {
+        val tex = SDL_CreateTexture(this.rendererHandle, 0x16462004, 1, w, h)
+        if (tex == 0) { throw "SDL3 (texture): " + SDL_GetError() }
+        return tex
+    }
+
+
+    // Desenha a textura inteira em (x, y) com o tamanho (w, h). O `SDL_FRect`
+    // e' quatro FLOATS — os bits IEEE vao crus no buffer (medido 22/11:
+    // gravar os inteiros fazia o SDL ler um retangulo vazio e nao pintar).
+    // SDL_RenderTexture com `dstrect` NULL nao pinta: o destino e' OBRIGATORIO.
+    void drawTexture(Long tex, Int x, Int y, Int w, Int h) {
+        val dst = buffer.alloc(16)
+        buffer.poke32(dst, 0, floatBits(x))
+        buffer.poke32(dst, 4, floatBits(y))
+        buffer.poke32(dst, 8, floatBits(w))
+        buffer.poke32(dst, 12, floatBits(h))
+        SDL_RenderTexture(this.rendererHandle, tex, 0L, dst)
+    }
+
     void close() {
         if (this.rendererHandle != 0) { SDL_DestroyRenderer(this.rendererHandle) }
         if (this.windowHandle != 0) { SDL_DestroyWindow(this.windowHandle) }
@@ -186,4 +213,34 @@ String keyName(Int code) {
         case 0x40000051 -> "down"
         default -> ""
     }
+}
+
+// Os bits IEEE-754 (f32) de um Int nao-negativo — o que o `SDL_FRect` le no
+// buffer. Monta o float por partes (sinal, expoente, mantissa) sem depender
+// de nenhuma primitiva de bits: exato para todo inteiro representavel em f32
+// (posicoes e tamanhos, o caso do retangulo). Medido: 0=0, 8=1090519040,
+// 16=1098907648. Negativo preserva o sinal; fracionario trunca para o inteiro.
+Int floatBits(Int value) {
+    if (value == 0) { return 0 }
+    var negative = false
+    if (value < 0) { negative = true }
+    var v = value
+    if (negative) { v = 0 - v }
+    var exp = 0
+    var m = v
+    while (m >= 2) {
+        m = m / 2
+        exp = exp + 1
+    }
+    // a mantissa de 23 bits: o que sobra depois do bit implicito
+    var rest = v - (1 << exp)
+    if (exp > 23) {
+        rest = rest >> (exp - 23)
+    } else {
+        rest = rest << (23 - exp)
+    }
+    val biased = exp + 127
+    var sign = 0
+    if (negative) { sign = 1 << 31 }
+    return sign | (biased << 23) | rest
 }

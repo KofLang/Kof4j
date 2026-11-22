@@ -21227,3 +21227,11 @@ PROOF: `Sdl3BackendE2ETest` compiles a program with `import game.Draw` + `import
 THE LAW MEASURED: `_start`'s body is the only place where arrays/lists can exist, and NO call may carry one. An INSTANCE method is the one callable shape that survives.
 WHAT IT MEANS: a `SoftwareBackend` that a program IMPORTS and calls with its framebuffer cannot exist on WASI today — but the drawing itself DOES (`WasmWasiSoftwareBackendE2ETest` proves a program that paints and writes an exact P6 PPM through `b.at`/`b.inside`).
 THE BLOCKER IS NOT THIS PLAN: it is the 15.3+ admission of function calls with collections/IO on the WASI subset, already scheduled in `docs/wasm-wasi-plan.md`. Recorded here (`docs/development/graphics-sdl3-backend.md` §6) so the slice-2 work resumes where the wall falls.
+
+## §1183 — two SDL3 facts the texture slice measured: `SDL_RenderTexture` with a NULL destination paints NOTHING, and an `SDL_FRect` is FOUR FLOATS (writing ints made the rect empty) — ✅ measured + encoded 22/11 (lane wasm/caps `192.168.15.15:0`)
+
+Building `drawTexture` (slice 1b of `docs/development/graphics-sdl3-backend.md`) two silent-failure shapes surfaced, each found by the pixel readback:
+1. `SDL_RenderTexture(ren, tex, NULL, NULL)` returns TRUE and paints NOTHING — the destination rectangle is OBLIGATORY (measured: the whole frame stayed the clear colour).
+2. `SDL_FRect` is `{float x, y, w, h}`: poking the INTEGER 8 into the buffer made the destination 1.1e-44 wide, so the texture drew at zero size (measured: `centro` stayed the clear colour even with an explicit rect).
+THE FIX on the Kof side: `floatBits(Int)` builds the IEEE-754 f32 pattern by parts (sign, biased exponent, 23-bit mantissa) — no bit-cast primitive needed — and `drawTexture` writes those four words. `uploadTexture` became `createTexture` + the exported `SDL_UpdateTexture`, because a `Buffer(U8)` is ONLY a legal type in an `extern` signature (a normal method parameter is refused with SEM011, measured).
+PROOF: `Sdl3BackendE2ETest.aTextureReachesTheRendererAndThePixelsProveIt` — a 4×4 red texture drawn at (8,8) 8×8: the pixel at (10,10) reads R=255 (the texture), (2,2) reads B=255 (the clear colour). 3/3 green in the class; the `Wasm*,Game*,Sdl3*` battery 265 run / 0F / 0E / 12 named environment skips.
