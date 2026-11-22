@@ -1,0 +1,95 @@
+[English](graphics-sdl3-backend.md) | [Português](graphics-sdl3-backend.pt_BR.md)
+
+# SDL3 graphics BACKEND (the native window + the software WASI face)
+
+last: OPENED 22/11 on the maintainer's order ("1 autorizo, 2 pode focar só no x86-64 por hora, nativo + wasi é o caminho; alem disso depois quem quiser que porte pra arm/risc") — this is the new backend plan `docs/graphics-gaming.md` requires. STATUS: UNDER DEVELOPMENT
+doing: slice 1 (native x86-64 face: window, `present(DrawList)`, event pump → `Keys`/`Mouse`)
+next: slice 1 proof (`Sdl3BackendE2ETest` pixel readback + input), then the WASI software face (SPIKE measured), then docs/ promotion
+location: repository
+state: active
+
+constraint:
+
+* Kof-first: the backend is a Kof file over `extern`; no new core primitive
+* NO KofJS anywhere in this plan (maintainer, 22/11) — the JS target is out of scope
+* honest cross-target: every face either RUNS or refuses with its own code (`FFI001` on WASI for `extern`; the software face replaces it there)
+* the pure surface (`Window`, `Keys`, `Mouse`, `Draw`, `Sprite`, `Clock`) is FROZEN — the backend plugs in, it does not redefine them
+* `D-GRAPHICS-GAMING` stays the owner of the stack decision (SDL3, `G1`)
+
+decision:
+
+* target order: NATIVE x86-64 first; WASI gets the SOFTWARE face; aarch64/riscv64 are a PORT, not this plan
+* the backend is `kof.game` surface over SDL3; the app never writes `extern`
+* WASI has NO window (preview1): its face renders to a PPM the program names, and that is the honest contract
+
+---
+
+## §1 What is MEASURED today (22/11, this host)
+
+| fact | measured by | result |
+|---|---|---|
+| `extern` binds SDL3 on native x86-64 | a real program | `janela=true`, `titulo=Enois`, 60 frames, `dt=16ms` |
+| the renderer is real | `SDL_RenderReadPixels` + `SDL_ReadSurfacePixel` | pixels **equal** the written colour: `(10,200,90,255)` |
+| `extern` refuses on WASI | the compiler | `FFI001` — honest, never a silent fallback |
+| WASI can draw in SOFTWARE | PPM writer | 32×16 P6 PPM, pixels exact per ImageMagick |
+| the pure loop runs on every target | `GameWindowE2ETest` | green |
+| WASI scalar conversions | `WasmWasiCastE2ETest` | now green (§1180) |
+
+---
+
+## §2 Slice 1 — the native face
+
+`libs/game/Sdl3Backend.kf` (`package game`):
+
+```
+var b = Sdl3Backend("Enois", 800, 600)   // window + renderer, throws "SDL3: <err>" on failure
+var w = Window("Enois")
+w.frame { dt: Int, self: Window ->
+    val keys = b.pollKeys()              // the SDL event pump → List<String> (held, this frame)
+    if (b.quitRequested()) { self.stop() }
+    b.clear(10, 20, 30)                  // background
+    b.present(queue)                     // DrawList → the renderer
+    queue.clear()
+}
+b.close()
+```
+
+What slice 1 must prove:
+
+1. the window opens and reports its title;
+2. `present(DrawList)` draws every `DrawCmd` (solid rect by default; an image path is slice 2);
+3. `pollKeys()` reports the keys held in the frame (the `Keys.beginFrame(backend.heldKeys())` contract);
+4. `quitRequested()` turns a window-close into `self.stop()`;
+5. **pixel readback** — draw a known colour, read it back, assert equality (the same measurement that proved the FFI).
+
+The proof is `Sdl3BackendE2ETest`, headless (`SDL_VIDEODRIVER=dummy`) on the host plus the readback.
+
+---
+
+## §3 Slice 2 — the software WASI face
+
+`libs/game/SoftwareBackend.kf` (`package game`, uses only `kof.io`):
+
+```
+var b = SoftwareBackend(320, 200, "frame.ppm")
+b.clear(0, 0, 0)
+b.present(queue)          // rects painted into an Int[] framebuffer
+b.write()                 // P6 PPM to the path
+```
+
+This is the honest WASI contract: no window exists, so the frame is a FILE. It works today because `writeText` + `as Char` are both green (measured in §1).
+
+---
+
+## §4 How to finish
+
+* slice 1: `Sdl3Backend` + `Sdl3BackendE2ETest` (readback + input), doc line in `docs/graphics-gaming.md`
+* slice 2: `SoftwareBackend` + `SoftwareBackendE2ETest` (PPM header + pixels), WASI-run green
+* promote to `docs/` only when both faces are green and the plan's DoD is met
+* the arm/risc port is explicitly NOT this plan (maintainer: "depois quem quiser que porte")
+
+## §5 Out of scope
+
+* KofJS rendering (maintainer order, 22/11)
+* audio (`kof.game.Audio` has its own SDL3 slice, already landed)
+* 3D (`Scene3d`/`Mesh` present path comes after the 2D `DrawList`)

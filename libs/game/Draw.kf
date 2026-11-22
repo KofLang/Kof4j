@@ -1,5 +1,7 @@
 package game
 
+import game.Sprite
+
 // kof.game — draw-command list (slice 3.2a of the graphics/gaming front,
 // `D-GRAPHICS-GAMING` + `D-GRAPHICS-SPIKE` + `D-MAINT-BATCH-0510`/G1).
 //

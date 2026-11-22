@@ -1,0 +1,189 @@
+package game
+
+import game.Draw
+import game.Window
+
+// kof.game — o BACKEND SDL3 da face NATIVA (plano `docs/development/
+// graphics-sdl3-backend.md`, slice 1; ordem da mantenedora 22/11: "nativo +
+// wasi é o caminho", SEM KofJS).
+//
+// Esta e' a unica camada que fala com o sistema operacional. A superficie pura
+// (`Window`/`Keys`/`Draw`/`Sprite`) continua deterministica e sem IO; o app da
+// o `backend` a ela:
+//
+//   var b = Sdl3Backend("Enois", 800, 600)
+//   var w = Window("Enois")
+//   var keys = Keys()
+//   var queue = DrawList()
+//   w.frame { dt: Int, self: Window ->
+//       keys.beginFrame(b.heldKeys())
+//       if (b.quitRequested()) { self.stop() }
+//       b.clearFrame(10, 20, 30)
+//       b.present(queue)
+//       queue.clear()
+//   }
+//   b.close()
+//
+// MEDIDO 22/11 neste host: janela criada, titulo lido, 60 frames com dt=16ms,
+// e a cor escrita no renderer LIDA DE VOLTA pelos pixels (10,200,90,255) —
+// a prova do `Sdl3BackendE2ETest`.
+//
+// HONESTIDADE POR ALVO: este arquivo so' liga onde o `extern` liga (o nativo
+// x86-64, e o JVM com a lib no disco). No WASI o `extern` recusa com FFI001 e
+// o alvo usa a face de SOFTWARE (`SoftwareBackend`, slice 2).
+
+// Os tipos SDL3 que o backend toca. `Long` carrega os ponteiros opacos
+// (SDL_Window*, SDL_Renderer*); o 0 e' a falha.
+extern "/usr/lib64/libSDL3.so.0" SDL_Init(Int flags): Bool
+extern "/usr/lib64/libSDL3.so.0" SDL_CreateWindow(String title, Int w, Int h, Long flags): Long
+extern "/usr/lib64/libSDL3.so.0" SDL_GetWindowTitle(Long win): String
+extern "/usr/lib64/libSDL3.so.0" SDL_CreateRenderer(Long win, String name, Long flags): Long
+extern "/usr/lib64/libSDL3.so.0" SDL_DestroyRenderer(Long ren): void
+extern "/usr/lib64/libSDL3.so.0" SDL_SetRenderDrawColor(Long ren, Int r, Int g, Int b, Int a): Bool
+extern "/usr/lib64/libSDL3.so.0" SDL_RenderClear(Long ren): Bool
+extern "/usr/lib64/libSDL3.so.0" SDL_RenderFillRect(Long ren, Buffer(U8) rect): Bool
+extern "/usr/lib64/libSDL3.so.0" SDL_RenderPresent(Long ren): void
+extern "/usr/lib64/libSDL3.so.0" SDL_PollEvent(Long event): Bool
+extern "/usr/lib64/libSDL3.so.0" SDL_GetError(): String
+extern "/usr/lib64/libSDL3.so.0" SDL_DestroyWindow(Long win): void
+extern "/usr/lib64/libSDL3.so.0" SDL_Quit(): void
+extern "/usr/lib64/libSDL3.so.0" SDL_RenderReadPixels(Long ren, Long rect): Long
+extern "/usr/lib64/libSDL3.so.0" SDL_ReadSurfacePixel(Long s, Int x, Int y, Buffer(U8) r, Buffer(U8) g, Buffer(U8) b, Buffer(U8) a): Bool
+extern "/usr/lib64/libSDL3.so.0" SDL_DestroySurface(Long s): void
+
+// A janela + o renderer, com o estado de entrada do frame.
+class Sdl3Backend {
+    Int width
+    Int height
+    Long windowHandle
+    Long rendererHandle
+    Bool quitFlag
+    List<String> held
+    Int[] eventBuffer
+
+    // SDL_INIT_VIDEO
+    constructor(String title, Int w, Int h) {
+        this.width = w
+        this.height = h
+        this.quitFlag = false
+        this.held = listOf<String>()
+        // SDL_Event e' uma union de 128 bytes; um Int[] de 32 cobre (4 B cada)
+        this.eventBuffer = new Int[48]
+        SDL_Init(32)
+        this.windowHandle = SDL_CreateWindow(title, w, h, 0)
+        if (this.windowHandle == 0) {
+            throw "SDL3: " + SDL_GetError()
+        }
+        this.rendererHandle = SDL_CreateRenderer(this.windowHandle, "", 1)
+        if (this.rendererHandle == 0) {
+            throw "SDL3 (renderer): " + SDL_GetError()
+        }
+    }
+
+    Int widthPx() { return this.width }
+    Int heightPx() { return this.height }
+    String title() { return SDL_GetWindowTitle(this.windowHandle) }
+
+    // Estado de saida: 'q' ou o fechar-da-janela (SDL_EVENT_QUIT=0x100).
+    Bool quitRequested() { return this.quitFlag }
+
+    // As teclas SEGURADAS neste frame (o contrato `Keys.beginFrame`).
+    List<String> heldKeys() { return this.held }
+
+    // O fundo do frame.
+    void clearFrame(Int r, Int g, Int b) {
+        SDL_SetRenderDrawColor(this.rendererHandle, r, g, b, 255)
+        SDL_RenderClear(this.rendererHandle)
+    }
+
+    // Desenha o DrawList: cada DrawCmd vira um retangulo solido na posicao.
+    // (A fatia 2 troca o retangulo pela textura da imagem.)
+    void present(DrawList queue) {
+        var i = 0
+        while (i < queue.size()) {
+            val cmd = queue.commandAt(i)
+            val x = cmd.x as Int
+            val y = cmd.y as Int
+            val w = (16.0 * cmd.scaleX) as Int
+            val h = (16.0 * cmd.scaleY) as Int
+            SDL_SetRenderDrawColor(this.rendererHandle, 255, 255, 255, 255)
+            this.fillRect(x, y, w, h)
+            i = i + 1
+        }
+        SDL_RenderPresent(this.rendererHandle)
+    }
+
+    // Um retangulo solido na cor corrente. A medicao mostrou que o
+    // SDL_FRect tem de vir de MEMORIA (um Buffer), nao de um Int[].
+    void fillRect(Int x, Int y, Int w, Int h) {
+        val r = buffer.alloc(16)
+        buffer.poke32(r, 0, x)
+        buffer.poke32(r, 4, y)
+        buffer.poke32(r, 8, w)
+        buffer.poke32(r, 12, h)
+        SDL_RenderFillRect(this.rendererHandle, r)
+    }
+
+    // Drena a fila do SDL para ESTE frame: monta `held` e detecta o quit.
+    void pumpEvents() {
+        this.held = listOf<String>()
+        var ty = 0
+        while (pumpOne()) {
+            ty = this.eventBuffer[0]
+            if (ty == 256) {
+                this.quitFlag = true
+            } else if (ty == 768) {
+                // SDL_EVENT_KEY_DOWN: o keycode esta em key.key (offset 24)
+                val code = this.eventBuffer[6]
+                val name = keyName(code)
+                if (name != "") { this.held.add(name) }
+            }
+        }
+    }
+
+    Bool pumpOne() {
+        return SDL_PollEvent(0)
+    }
+
+    // A medida do frame: um pixel da tela, como (r,g,b,a) 0..255.
+    Int[] readPixel(Int x, Int y) {
+        val surf = SDL_RenderReadPixels(this.rendererHandle, 0L)
+        if (surf == 0) { throw "SDL3 (readback): " + SDL_GetError() }
+        val r = buffer.alloc(1)
+        val g = buffer.alloc(1)
+        val b = buffer.alloc(1)
+        val a = buffer.alloc(1)
+        SDL_ReadSurfacePixel(surf, x, y, r, g, b, a)
+        val out = new Int[4]
+        out[0] = r.bytes()[0]
+        out[1] = g.bytes()[0]
+        out[2] = b.bytes()[0]
+        out[3] = a.bytes()[0]
+        SDL_DestroySurface(surf)
+        return out
+    }
+
+    void close() {
+        if (this.rendererHandle != 0) { SDL_DestroyRenderer(this.rendererHandle) }
+        if (this.windowHandle != 0) { SDL_DestroyWindow(this.windowHandle) }
+        SDL_Quit()
+    }
+}
+
+// Os nomes de tecla da superficie (`Keys` compara strings).
+String keyName(Int code) {
+    return switch (code) {
+        case 0x61 -> "a"
+        case 0x64 -> "d"
+        case 0x77 -> "w"
+        case 0x73 -> "s"
+        case 0x20 -> "space"
+        case 0x0d -> "enter"
+        case 0x1b -> "escape"
+        case 0x40000050 -> "left"
+        case 0x4000004f -> "right"
+        case 0x40000052 -> "up"
+        case 0x40000051 -> "down"
+        default -> ""
+    }
+}
