@@ -1,0 +1,63 @@
+package enois
+
+import enois.Tokens
+import game.Sdl3Backend
+
+// Énois — o shell do app (`__root`) migrado para o desktop NATIVO.
+//
+// As medidas vem do site (enois.ia.br), MEDIDAS nos fontes:
+//   * header 44 px        — `h-11` em design-system/src/domain/shell/
+//                           authenticated-app-header.tsx
+//   * grid do feed        — `lg:grid-cols-[minmax(0,1fr)_320px] gap-6`
+//                           em enois-frontend/src/routes/feed.tsx:1011
+//   * raio                — `--radius: 1rem` (16 px), Tokens.RadiusPx
+//   * fundo               — `--background` (Tokens.Background)
+//   * superficie do card  — `--card` (Tokens.Card), borda Tokens.Border
+//
+// O shell desenha o que o site desenha em volta da rota: a barra de topo, a
+// coluna de conteudo e a coluna direita de 320 px. A rota (Feed) pinta o
+// interior da coluna de conteudo.
+
+/** As medidas do layout, todas em px e vindas do CSS do site. */
+class Layout {
+    static Int headerHeight() { return 44 }        // h-11
+    static Int contentGap() { return 24 }          // gap-6
+    static Int asideWidth() { return 320 }         // grid-cols-[..._320px]
+    static Int pagePadding() { return 16 }         // p-4 (Tailwind base)
+    static Int cardRadius() { return Tokens.RadiusPx() }
+}
+
+class Shell {
+    // A largura da coluna de conteudo para uma janela de `windowWidth`.
+    static Int contentWidth(Int windowWidth) {
+        val inner = windowWidth - Layout.pagePadding() * 2
+        return inner - Layout.asideWidth() - Layout.contentGap()
+    }
+
+    // Pinta o shell. Devolve a altura do topo da coluna de conteudo, para a
+    // rota continuar a partir dali.
+    static Int paint(Sdl3Backend b, Int windowWidth, Int windowHeight) {
+        val bg = Tokens.Background()
+        b.clearFrame(bg.r(), bg.g(), bg.b())
+
+        // a barra de topo: a superficie do card sobre o fundo
+        val card = Tokens.Card()
+        val border = Tokens.Border()
+        val hh = Layout.headerHeight()
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(0, 0, windowWidth, hh)
+        // a linha de 1 px embaixo do header
+        SDL_SetRenderDrawColor(b.rendererHandle, border.r(), border.g(), border.b(), 255)
+        b.fillRect(0, hh, windowWidth, 1)
+
+        // a coluna direita (Conexoes / Seguidores / Sugestoes) — o card
+        val pad = Layout.pagePadding()
+        val top = hh + pad
+        val asideX = windowWidth - pad - Layout.asideWidth()
+        val asideH = windowHeight - top - pad
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(asideX, top, Layout.asideWidth(), asideH)
+
+        return top
+    }
+}

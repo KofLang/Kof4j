@@ -21282,3 +21282,9 @@ THE FIX:
 * the link line adds `-L<sysroot>/usr/<arch>-linux-gnu/lib`, which covers BOTH layouts (Debian and the SUSE prefix) without depending on the ld's own prefix;
 * `Sdl3Backend` asks for `"libSDL3.so.0"` (the SONAME) instead of a host path — the same file links on x86-64 and on both cross targets.
 PROOF: `NativeCrossMultidistroE2ETest` builds a `kof.game` program for aarch64 AND riscv64 with `KOF_CROSS_SYSROOT` UNSET and the extern as the soname, then RUNS both under qemu — each answers `r=10 g=200 b=90`, the exact colour written. Non-regression: x86-64 still links the same source and runs `frames=3 / dt-clamp=250 / vsync=true`; battery `Wasm*,Game*,Sdl3*,NativeMainArgs*,NativeCross*,MainArgs*,Native*` **1103 run / 0F / 0E / 92 named environment skips**.
+
+## §1190 — `Sdl3Backend.fillRect` painted NOTHING: it wrote INTEGERS into the `SDL_FRect` (four FLOATS) — ✅ FIXED 22/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Found while building the Énois app shell** (§1183 had fixed the same class in `drawTexture`, and the fix never reached `fillRect`). The proof is a pixel: `clearFrame` blue, `fillRect(8, 8, 16, 16)` red, read back at (12,12) — **`dentro r=0`**: nothing was painted, and no error was reported.
+THE FIX: `fillRect` writes the four words through `floatBits`, the same conversion `drawTexture` already uses. Measured after: **`dentro r=255`**.
+PROOF: `EnosisShellE2ETest` paints the Énois shell and reads back the `--background` (247,244,251), the `--card` header (255,255,255) and the 320 px aside (255,255,255) at their real coordinates; the shell test would fail with `fundo=0,0,0` without the fix.

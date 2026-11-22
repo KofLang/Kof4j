@@ -18757,3 +18757,9 @@ O FIX:
 * a linha de link ganha `-L<sysroot>/usr/<arch>-linux-gnu/lib`, que cobre OS DOIS layouts (Debian e o prefixo SUSE) sem depender do prefixo do proprio ld;
 * o `Sdl3Backend` pede `"libSDL3.so.0"` (o SONAME) em vez de um caminho do host — o mesmo arquivo linka no x86-64 e nos dois alvos cross.
 PROVA: `NativeCrossMultidistroE2ETest` compila um programa `kof.game` para aarch64 E riscv64 com `KOF_CROSS_SYSROOT` VAZIO e o extern como soname, e RODA os dois sob qemu — cada um responde `r=10 g=200 b=90`, a cor exata que foi escrita. Nao-regressao: o x86-64 ainda linka o mesmo fonte e roda `frames=3 / dt-clamp=250 / vsync=true`; bateria `Wasm*,Game*,Sdl3*,NativeMainArgs*,NativeCross*,MainArgs*,Native*` **1103 run / 0F / 0E / 92 skips de ambiente nomeados**.
+
+## §1190 — o `Sdl3Backend.fillRect` NAO pintava nada: gravava INTEIROS no `SDL_FRect` (quatro FLOATS) — ✅ CORRIGIDO 22/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Achado ao construir o shell do app do Énois** (a §1183 tinha corrigido a mesma classe no `drawTexture`, e o fix nunca chegou ao `fillRect`). A prova e' um pixel: `clearFrame` azul, `fillRect(8, 8, 16, 16)` vermelho, lido em (12,12) — **`dentro r=0`**: nada foi pintado, e nenhum erro foi reportado.
+O FIX: o `fillRect` grava as quatro palavras por `floatBits`, a mesma conversao que o `drawTexture` ja usa. Medido depois: **`dentro r=255`**.
+PROVA: `EnosisShellE2ETest` pinta o shell do Énois e le de volta o `--background` (247,244,251), o header `--card` (255,255,255) e o aside de 320 px (255,255,255) nas coordenadas reais; o teste do shell falharia com `fundo=0,0,0` sem o fix.

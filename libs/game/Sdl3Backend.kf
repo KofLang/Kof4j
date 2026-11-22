@@ -138,14 +138,16 @@ class Sdl3Backend {
         SDL_RenderPresent(this.rendererHandle)
     }
 
-    // Um retangulo solido na cor corrente. A medicao mostrou que o
-    // SDL_FRect tem de vir de MEMORIA (um Buffer), nao de um Int[].
+    // Um retangulo solido na cor corrente. O `SDL_FRect` e' quatro FLOATS —
+    // gravar os inteiros crus fazia o retangulo ter 1e-44 de largura e nada
+    // pintava (MEDIDO 22/11: `dentro r=0` com fillRect(8,8,16,16)); os bits
+    // saem do `floatBits`, o mesmo caminho que o `drawTexture` ja usa.
     void fillRect(Int x, Int y, Int w, Int h) {
         val r = buffer.alloc(16)
-        buffer.poke32(r, 0, x)
-        buffer.poke32(r, 4, y)
-        buffer.poke32(r, 8, w)
-        buffer.poke32(r, 12, h)
+        buffer.poke32(r, 0, floatBits(x))
+        buffer.poke32(r, 4, floatBits(y))
+        buffer.poke32(r, 8, floatBits(w))
+        buffer.poke32(r, 12, floatBits(h))
         SDL_RenderFillRect(this.rendererHandle, r)
     }
 

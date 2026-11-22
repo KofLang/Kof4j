@@ -3,8 +3,8 @@
 # Énois → cliente desktop nativo em Kof (migração 1:1)
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
-doing: Fase 0 LANDED — the design TOKENS generated from the real CSS (`libs/enois/Tokens.kf`, 61 colours + radii) run on the native and match the site
-next: Fase 1 — the app shell (window 1280×800, the `--background` surface, the sidebar with the brand mark) + the Feed route
+doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
+next: Fase 2 — the Feed: the post card (the `--card` surface, `--border`, `--radius`) and the composer, painted inside the content column
 location: repository
 state: active
 
@@ -57,8 +57,13 @@ generation time, so the native runtime needs no trig — measured: `math.cos` is
 `MATH001` on every native target), radii in px. Proven by a native run printing
 `bg=247,244,251 / primary=103,70,245 / radius=16`.
 
-**Fase 1 — the app shell.** A 1280×800 window painted `--background`, the brand
-mark, the sidebar and the top bar — the chrome every route shares.
+**Fase 1 — the app shell (LANDED 22/11).** `libs/enois/Shell.kf`: a 1280×800 window
+painted `--background`, the 44 px header (`h-11`), the 320 px aside and the
+`[minmax(0,1fr)_320px] gap-6` content grid — the chrome every route shares.
+Proven natively: `top=60` (44+16), `fundo=247,244,251`, `header=255,255,255`,
+`aside=255,255,255`. The same unit fixed `Sdl3Backend.fillRect`, which wrote
+INTEGERS into the `SDL_FRect` (four FLOATS) and painted NOTHING — measured
+`dentro r=0` before, `r=255` after (the earlier fix covered `drawTexture` only).
 
 **Fase 2 — the Feed.** `feed.tsx` → a scrollable list of post cards.
 

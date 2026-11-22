@@ -3,8 +3,8 @@
 # Énois → cliente desktop nativo em Kof (migração 1:1)
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
-doing: Fase 0 POUSADA — os TOKENS do design GERADOS do CSS real (`libs/enois/Tokens.kf`, 61 cores + raios) rodam no nativo e batem com o site
-next: Fase 1 — o shell do app (janela 1280×800, a superfície `--background`, a barra lateral com a marca) + a rota Feed
+doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
+next: Fase 2 — o Feed: o card de post (a superficie `--card`, `--border`, `--radius`) e o composer, pintados dentro da coluna de conteudo
 location: repository
 state: active
 
@@ -57,8 +57,13 @@ de geração, então o runtime nativo não precisa de trig — medido: `math.cos
 `MATH001` em todo alvo nativo), raios em px. Provado por uma execução nativa que
 imprime `bg=247,244,251 / primary=103,70,245 / radius=16`.
 
-**Fase 1 — o shell do app.** Uma janela 1280×800 pintada com `--background`, a marca,
-a barra lateral e a barra de topo — o chrome que toda rota compartilha.
+**Fase 1 — o shell do app (POUSADA 22/11).** `libs/enois/Shell.kf`: uma janela 1280×800
+pintada `--background`, o header de 44 px (`h-11`), o aside de 320 px e o grid de
+conteudo `[minmax(0,1fr)_320px] gap-6` — o chrome que toda rota compartilha.
+Provado nativamente: `top=60` (44+16), `fundo=247,244,251`, `header=255,255,255`,
+`aside=255,255,255`. A mesma unidade corrigiu o `Sdl3Backend.fillRect`, que gravava
+INTEIROS no `SDL_FRect` (quatro FLOATS) e NAO pintava nada — medido `dentro r=0`
+antes, `r=255` depois (a correcao anterior cobria so' o `drawTexture`).
 
 **Fase 2 — o Feed.** `feed.tsx` → uma lista rolável de cards de post.
 
