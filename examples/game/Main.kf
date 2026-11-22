@@ -1,0 +1,77 @@
+import game.Draw
+import game.Keys
+import game.Mouse
+import game.Sdl3Backend
+import game.Sprite
+import game.Window
+
+// ---------------------------------------------------------------------------
+// kof.game — o app de exemplo com as QUATRO faces do backend SDL3
+// (`docs/development/graphics-sdl3-backend.md`).
+//
+//   kof build examples/game/Main.kf --target native
+//   ./Default/Main
+//
+// Uma janela, um sprite que segue o mouse, ESC para sair. O `--frames N`
+// limita a sessao (o modo deterministico que o teste usa: sem ele o loop
+// roda ate o ESC, como um app de verdade). O desenho e' a
+// superficie PURA (`Window`/`Sprite`/`DrawList`/`Keys`/`Mouse`, deterministica
+// e sem IO); o `Sdl3Backend` e' a unica camada que fala com o sistema.
+//
+// Roda no NATIVO x86-64 (o `extern` liga o SDL3). Os outros alvos recusam
+// honestamente: o WASI com FFI001 (`extern` nao liga la), a face de software
+// do WASI desenha num arquivo PPM em vez de uma janela.
+// ---------------------------------------------------------------------------
+
+main(String[] args) {
+    var limit = -1
+    var a = 0
+    while (a < args.length) {
+        if (args[a] == "--frames" && a + 1 < args.length) {
+            limit = math.parseInt(args[a + 1])
+        }
+        a = a + 1
+    }
+    val b = Sdl3Backend("kof.game — sprite segue o mouse", 320, 200)
+    // a janela do SDL ja' publica os eventos de startup: drena antes de
+    // empurrar/ler o primeiro frame (medido, known-bugs §1185)
+    b.pumpEvents()
+
+    // uma textura 16x16 laranja (um app real carrega a imagem do disco; esta
+    // face recebe os PIXELS RGBA prontos)
+    val px = buffer.alloc(16 * 16 * 4)
+    var i = 0
+    while (i < 256) {
+        buffer.poke8(px, i * 4, 255)
+        buffer.poke8(px, i * 4 + 1, 120)
+        buffer.poke8(px, i * 4 + 2, 40)
+        buffer.poke8(px, i * 4 + 3, 255)
+        i = i + 1
+    }
+    val hero = b.createTexture(16, 16)
+    SDL_UpdateTexture(hero, 0L, px, 64)
+    b.registerTexture("hero", hero)
+
+    val w = Window("demo")
+    val keys = Keys()
+    val mouse = Mouse()
+    val queue = DrawList()
+    var frames = 0
+
+    w.frame { dt: Int, self: Window ->
+        b.pumpEvents()
+        keys.beginFrame(b.heldKeys())
+        mouse.beginFrame(b.pointerX(), b.pointerY(), b.heldButtons())
+        frames = frames + 1
+        if (keys.pressed("escape")) { self.stop() }
+        if (limit >= 0 && frames >= limit) { self.stop() }
+
+        b.clearFrame(20, 24, 40)
+        queue.clear()
+        queue.draw(Sprite("hero").at(mouse.x(), mouse.y()))
+        b.present(queue)
+    }
+    b.close()
+    println("frames=" + frames)
+    println("dt-clamp=" + w.dtClampMs() + " vsync=" + w.vsyncOn())
+}
