@@ -14,6 +14,16 @@ final class BuiltinUiCallTyper {
     private BuiltinUiCallTyper() {}
 
     static Type infer(SemanticAnalyzer sa, MethodCallExpr mc, SymbolTable scope) {
+        // A aridade ERRADA de um construtor UI (medido 21/10): compilava sem
+        // diagnóstico e emitia uma chamada CRUA (`x = Label("a", 1)`) — o
+        // browser morria com ReferenceError. A lei (regra 5/R6) exige a recusa
+        // honesta AQUI, no type-check, com o codigo de gap nomeado.
+        //
+        // A checagem vem PRIMEIRO de tudo: um ramo mais permissivo abaixo
+        // (o generico dos containers, que aceita 1..3 argumentos) casaria a
+        // aridade errada ANTES da recusa — e o bug escaparia.
+        Type wrongArity = refuseWrongArity(sa, mc, scope);
+        if (wrongArity != null) return wrongArity;
         if (mc.receiver() == null && "Color".equals(mc.methodName())
                 && (mc.arguments().size() == 1 || mc.arguments().size() == 3)) {
             for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
@@ -116,5 +126,31 @@ final class BuiltinUiCallTyper {
             return KofUi.COMPONENT;
         }
         return null;
+    }
+
+    /**
+     * A aridade ERRADA de um construtor UI (medido 21/10): compilava sem
+     * diagnóstico e emitia uma chamada crua (`x = Label("a", 1)`) — o browser
+     * morria com ReferenceError. A lei (regra 5/R6) exige a recusa honesta
+     * AQUI, no type-check, com o codigo de gap nomeado.
+     *
+     * <p>O ponto de recusa e' o FIM da cadeia: um construtor cujo nome e'
+     * conhecido mas cuja aridade nao casa com NENHUMA forma declarada nao
+     * pode ter nenhum ramo acima o aceito (eles ja casam por aridade) — ele
+     * escorregaria para o fallback, que emite a chamada crua.
+     */
+    static Type refuseWrongArity(SemanticAnalyzer sa, MethodCallExpr mc, SymbolTable scope) {
+        if (mc.receiver() != null) return null;
+        String name = mc.methodName();
+        if (!KofUi.isConstructor(name) && !"Style".equals(name)) return null;
+        int arity = mc.arguments().size();
+        if (KofUiArity.accepts(name, arity)) return null;
+        if (sa.diagnostics() != null) {
+            sa.diagnostics().error(mc, KofUiArity.message(name, arity), "SEM115");
+        }
+        // o tipo ainda é preciso para o resto da inferencia seguir (o erro já
+        // foi reportado; o tipo evita uma cascata de diagnósticos falsos)
+        for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+        return KofUi.constructorType(name);
     }
 }
