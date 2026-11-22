@@ -253,6 +253,13 @@ public final class RuntimePlat {
     }
 
     public static void emitPlatSync(StringBuilder sb) {
+        // M-5 (#1135): no macOS o futex não existe — a costura fala a API
+        // ulock do Darwin (__ulock_wait/__ulock_wake), com a semântica
+        // medida na fonte do XNU (RuntimePlatMacos).
+        if (dev.kof.compiler.nat.NativeProfile.active.isMacos()) {
+            RuntimePlatMacos.emitSync(sb);
+            return;
+        }
         // B-2: UEFI é single-threaded — o futex nunca tem contensão;
         // no-op é semântica correta (não é silenciamento: não há threads
         // para esperar — kof_plat_thread_create é recusado com diagnóstico).

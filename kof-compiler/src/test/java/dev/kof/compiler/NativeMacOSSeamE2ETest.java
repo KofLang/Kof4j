@@ -135,12 +135,12 @@ class NativeMacOSSeamE2ETest {
     void theRawSyscallRatchetFellByTheMigratedFamily(@TempDir Path tmp) throws IOException {
         String asm = macosAssembly(tmp);
         List<String> sites = dev.kof.compiler.nat.NativeMachO.elfSyscallSites(asm);
-        assertEquals(1, sites.size(),
-                "the write/exit family (M-2), the allocator (M-3) and the thread id "
-                        + "(M-5) left the Linux syscall ABI; the rest is the futex: " + sites);
+        assertEquals(0, sites.size(),
+                "the seam's x86-64 face is ALL libSystem now (write/exit M-2, the "
+                        + "allocator M-3, the thread id and the futex M-5): " + sites);
         List<String> owners = dev.kof.compiler.nat.NativeMachO.elfSyscallOwners(asm);
-        assertTrue(owners.contains("kof_plat_sync"),
-                "the futex is the face that still speaks Linux: " + owners);
+        assertFalse(owners.contains("kof_plat_sync"),
+                "the futex is libSystem (ulock) now: " + owners);
         assertFalse(owners.contains("kof_plat_thread_id"),
                 "the thread id is the Darwin API now: " + owners);
         assertFalse(owners.contains(".Lgrow_try"),
@@ -242,10 +242,10 @@ class NativeMacOSSeamE2ETest {
             CompilationResult mac = driver.compile(src, tmp.resolve("out"), Target.NATIVE);
             String diags = mac.diagnostics().getDiagnostics().toString();
             assertTrue(diags.contains("NATIVE005"), "the named refusal: " + diags);
-            assertTrue(diags.contains("1 syscall(s) crus"),
+            assertTrue(diags.contains("0 syscall(s) crus"),
                     "the measured count of the raw syscalls: " + diags);
-            assertTrue(diags.contains("kof_plat_sync"),
-                    "the refusal names the family: " + diags);
+            assertFalse(diags.contains("kof_plat_sync"),
+                    "the seam speaks libSystem now, so the refusal has no family to name: " + diags);
             assertFalse(diags.contains(".Lgrow_try"),
                     "the allocator is libSystem now: " + diags);
         } finally {

@@ -78,7 +78,17 @@ tls=$(grep -rcE '@tpoff|%fs:' "$RT"/*.java 2>/dev/null | awk -F: '{s+=$2} END {p
 echo "  sítios %fs:/@tpoff: $tls"
 
 echo "== FUTEX (a face Linux — o macOS usa __ulock/os_unfair_lock):"
-fx=$(grep -rcE '\bfutex\b' "$RT"/*.java 2>/dev/null | awk -F: '{s+=$2} END {print s+0}')
+# M-5 (#1135): a COSTURA (RuntimePlat + a face macOS RuntimePlatMacos) é a
+# superfície da migração — os futex dela são os que viram __ulock, então não
+# contam como "sítio fora da costura" (o mesmo critério do syscall acima).
+fx=0
+for f in "$RT"/*.java; do
+    base=$(basename "$f")
+    [ "$base" = "RuntimePlat.java" ] && continue
+    [ "$base" = "RuntimePlatMacos.java" ] && continue
+    n=$(grep -cE '\bfutex\b' "$f" 2>/dev/null || true)
+    fx=$((fx + n))
+done
 echo "  sítios futex: $fx"
 
 # ---------------------------------------------------------------------

@@ -1,4 +1,4 @@
 x86_out_seam	180
 riscv_out_seam	168
 tls_sites	24
-futex_sites	15
+futex_sites	13

@@ -156,16 +156,15 @@ class NativeConcurrencySeamE2ETest {
     }
 
     /**
-     * O RATCHET: com o id da thread migrado, o único syscall Linux cru que
-     * resta no hello é o da CONCORRÊNCIA (o futex — a linha seguinte).
+     * O RATCHET: com o id da thread e a sincronia migrados, o hello real não
+     * tem MAIS NENHUM syscall Linux cru — a face x86-64 da costura é toda
+     * libSystem.
      */
     @Test
-    void theHelloHasOnlyTheSyncSyscallLeft(@TempDir Path tmp) throws IOException {
+    void theHelloHasNoRawSyscallLeft(@TempDir Path tmp) throws IOException {
         List<String> owners = dev.kof.compiler.nat.NativeMachO.elfSyscallOwners(macosAssembly(tmp));
-        assertFalse(owners.contains("kof_plat_thread_id"),
-                "the thread id is the Darwin API now: " + owners);
-        assertTrue(owners.contains("kof_plat_sync"),
-                "the futex is the M-5 row that remains: " + owners);
+        assertEquals(List.of(), owners,
+                "the seam's x86-64 face is all libSystem now: " + owners);
     }
 
     /**
@@ -200,6 +199,97 @@ class NativeConcurrencySeamE2ETest {
                 java.nio.charset.StandardCharsets.ISO_8859_1);
         assertTrue(blob.contains("_pthread_threadid_np"),
                 "the object carries the libSystem symbol: " + output);
+    }
+
+    /**
+     * A SINCRONIA no macOS: o futex não existe — a costura fala a API ulock
+     * do Darwin ({@code __ulock_wait}/{@code __ulock_wake}), com os símbolos
+     * medidos na lista de exportação da libSystem ({@code ___ulock_*} — o
+     * nome C com o {@code _} do Mach-O) e a semântica medida na fonte do
+     * XNU (o compare-and-wait e o {@code ULF_WAKE_ALL} para o wake total).
+     */
+    @Test
+    void theMacosSyncCallsTheUlockApi(@TempDir Path tmp) throws IOException {
+        String asm = macosAssembly(tmp);
+        String sync = findBlock(asm, "kof_plat_sync");
+        assertTrue(sync.contains("call ___ulock_wait"),
+                "the futex WAIT is the Darwin ulock wait: " + sync);
+        assertTrue(sync.contains("call ___ulock_wake"),
+                "the futex WAKE is the Darwin ulock wake: " + sync);
+        assertTrue(sync.contains("orl $0x100, %edi"),
+                "the futex WAKE(INT_MAX) maps to ULF_WAKE_ALL: " + sync);
+        assertTrue(sync.contains("andl $0x7f, %eax"),
+                "the futex command is the low 7 bits (the PRIVATE flag rides above): " + sync);
+        assertFalse(sync.contains("syscall"),
+                "no Linux syscall in the macOS sync: " + sync);
+    }
+
+    /**
+     * O RATCHET FINAL da costura x86-64: o hello real não tem MAIS NENHUM
+     * syscall Linux — o perfil ainda recusa, mas só pela face de TLS (M-4).
+     */
+    @Test
+    void theRefusalNamesOnlyTheTlsFaceNow(@TempDir Path tmp) throws IOException {
+        Path src = tmp.resolve("Main.kf");
+        Files.writeString(src, HELLO);
+        String priorKeep = System.getProperty("KOF_KEEP_ASM");
+        System.setProperty("KOF_KEEP_ASM", "1");
+        dev.kof.compiler.nat.NativeProfile previous =
+                dev.kof.compiler.nat.NativeProfile.active;
+        try {
+            CompilerDriver driver = new CompilerDriver();
+            driver.setNativeProfile(dev.kof.compiler.nat.NativeProfile.of("macos"));
+            CompilationResult mac = driver.compile(src, tmp.resolve("outref"), Target.NATIVE);
+            String diags = mac.diagnostics().getDiagnostics().toString();
+            assertTrue(diags.contains("NATIVE005"), "the named refusal: " + diags);
+            assertTrue(diags.contains("0 syscall(s) crus"),
+                    "the seam's x86-64 face is all libSystem: " + diags);
+            assertFalse(diags.contains("a face de syscall"),
+                    "the refusal names only the TLS face now: " + diags);
+        } finally {
+            dev.kof.compiler.nat.NativeProfile.active = previous;
+            if (priorKeep == null) {
+                System.clearProperty("KOF_KEEP_ASM");
+            } else {
+                System.setProperty("KOF_KEEP_ASM", priorKeep);
+            }
+        }
+    }
+
+    /**
+     * O ASSEMBLER REAL aceita o corpo da sincronia — e o objeto carrega os
+     * símbolos da libSystem ({@code ___ulock_wait}/{@code ___ulock_wake}).
+     */
+    @Test
+    void theRealMachOAssemblerAcceptsTheSyncBody(@TempDir Path tmp) throws Exception {
+        Path zig = machoToolchain();
+        org.junit.jupiter.api.Assumptions.assumeTrue(zig != null,
+                "the Mach-O toolchain is absent (scripts/provision-macho-toolchain.sh)");
+        String macho = dev.kof.compiler.nat.NativeMachO.translate(macosAssembly(tmp));
+        StringBuilder withoutElfOnly = new StringBuilder();
+        for (String line : macho.split("\n", -1)) {
+            String t = line.trim();
+            if (t.equals("syscall") || t.contains("%fs:") || t.contains("@tpoff")) continue;
+            withoutElfOnly.append(line).append('\n');
+        }
+        Path asmFile = tmp.resolve("Main.macho.s");
+        Files.writeString(asmFile, withoutElfOnly.toString());
+        Path obj = tmp.resolve("Main.macho.o");
+        ProcessBuilder pb = new ProcessBuilder(
+                zig.toString(), "cc", "-target", "x86_64-macos-none",
+                "-c", asmFile.toString(), "-o", obj.toString());
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+        String output = new String(proc.getInputStream().readAllBytes());
+        int rc = proc.waitFor();
+        assertEquals(0, rc,
+                "the Mach-O assembler must accept the sync body:\n" + output);
+        String blob = new String(Files.readAllBytes(obj),
+                java.nio.charset.StandardCharsets.ISO_8859_1);
+        assertTrue(blob.contains("___ulock_wait"),
+                "the object carries the ulock symbol: " + output);
+        assertTrue(blob.contains("___ulock_wake"),
+                "the object carries the ulock symbol: " + output);
     }
 
     /** O corpo de uma função (do rótulo até o próximo rótulo global). */

@@ -250,6 +250,78 @@ public final class RuntimePlatMacos {
     }
 
     /**
+     * A FAMÍLIA sincronização: o {@code kof_plat_sync} (o futex) sobre a
+     * API ulock do Darwin — a etapa M-5 do plano.
+     *
+     * <p><b>A MEDIÇÃO (fonte do XNU, não suposição):</b> o contrato da costura
+     * é o do futex — {@code uaddr=%rdi}, {@code op=%rsi} (o comando nos bits
+     * 0-6: 0 = WAIT, 1 = WAKE; as flags, como o {@code FUTEX_PRIVATE}, ficam
+     * acima), {@code val=%rdx}. No Darwin o equivalente é a API <b>ulock</b>:
+     * {@code __ulock_wait(uint32_t op, void *addr, uint64_t value, uint32_t
+     * timeout_us)} e {@code __ulock_wake(uint32_t op, void *addr, uint64_t
+     * wake_value)}. Lidos no {@code bsd/sys/ulock.h} e no
+     * {@code bsd/kern/sys_ulock.c} do XNU: {@code UL_COMPARE_AND_WAIT = 1};
+     * o wait compara {@code *addr == value} atomicamente e dorme só se for
+     * igual (o mesmo do futex WAIT); o wake <b>sem</b> {@code ULF_WAKE_ALL}
+     * acorda UM ({@code waitq_wakeup64_one}) e <b>com</b>
+     * {@code ULF_WAKE_ALL = 0x100} acorda TODOS ({@code waitq_wakeup64_all});
+     * o {@code wake_value} é ignorado no {@code COMPARE_AND_WAIT}; o timeout
+     * é em MICROSEGUNDOS e 0 = sem timeout (o futex do Kof passa NULL).
+     *
+     * <p><b>A FRONTEIRA:</b> a ulock é uma API PRIVADA — ela NÃO está nos
+     * headers do SDK (medido), mas a libSystem EXPORTA os símbolos
+     * {@code ___ulock_wait}/{@code ___ulock_wake} (a lista de exportação do
+     * SDK os mede, com os três underscores). A prova da fiação é o texto +
+     * o assembler real; a prova de que a semântica roda é o runner do M-7.
+     */
+    public static void emitSync(StringBuilder sb) {
+        sb.append("""
+            .globl kof_plat_sync
+            .type kof_plat_sync, @function
+            kof_plat_sync:
+                # %rdi=uaddr, %rsi=op (o comando do futex nos bits 0-6), %rdx=val
+                movq %rsi, %rax
+                andl $0x7f, %eax         # o comando: 0 = WAIT, 1 = WAKE
+                testl %eax, %eax
+                jnz .Lksync_wake
+                # WAIT: __ulock_wait(UL_COMPARE_AND_WAIT=1, uaddr, val, 0)
+                movq %rdx, %r8           # val
+                movq %rdi, %r9           # uaddr
+                movl $1, %edi            # UL_COMPARE_AND_WAIT
+                movq %r9, %rsi           # addr
+                movq %r8, %rdx           # value (dorme enquanto *addr == val)
+                xorl %ecx, %ecx          # timeout_us = 0 = sem timeout (futex NULL)
+                pushq %r15
+                movq %rsp, %r15
+                andq $-16, %rsp
+                call ___ulock_wait
+                subq %rsp, %r15
+                addq %r15, %rsp
+                popq %r15
+                ret
+
+            .Lksync_wake:
+                # WAKE: __ulock_wake(op, uaddr, 0) — op = 1 (um) ou 0x101 (TODOS)
+                movq %rdi, %r10          # uaddr (salva antes de mexer no %rdi)
+                movl $1, %edi            # UL_COMPARE_AND_WAIT
+                cmpq $0x7fffffff, %rdx   # futex WAKE(INT_MAX) = acordar TODOS
+                jne .Lksync_wake_one
+                orl $0x100, %edi         # ULF_WAKE_ALL
+            .Lksync_wake_one:
+                movq %r10, %rsi          # addr
+                xorl %edx, %edx          # wake_value (ignorado no COMPARE_AND_WAIT)
+                pushq %r15
+                movq %rsp, %r15
+                andq $-16, %rsp
+                call ___ulock_wake
+                subq %rsp, %r15
+                addq %r15, %rsp
+                popq %r15
+                ret
+            """);
+    }
+
+    /**
      * A FAMÍLIA allocator: o {@code kof_plat_heap_grow} sobre a libSystem
      * ({@code mmap}/{@code munmap}) — a etapa M-3 do plano.
      *

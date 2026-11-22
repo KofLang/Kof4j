@@ -737,6 +737,41 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   headers do SDK, mas a libSystem exporta `___ulock_wait`/`___ulock_wake` —
   medido na lista de exportação), então a semântica dela precisa do contrato
   do XNU e de um runner real (M-7) para ser provada.
+  **M-5 FATIA 2 POUSADA 22/11 (a sincronia macOS sobre o ulock do Darwin — e
+  a face x86-64 da costura agora é TODA libSystem):** o futex virou a API
+  **ulock**, e o mapeamento foi MEDIDO na fonte do XNU, não adivinhado —
+  `bsd/sys/ulock.h` (`__ulock_wait(uint32_t op, void *addr, uint64_t value,
+  uint32_t timeout_us)`, `__ulock_wake(uint32_t op, void *addr, uint64_t
+  wake_value)`, `UL_COMPARE_AND_WAIT = 1`, `ULF_WAKE_ALL = 0x100`) e
+  `bsd/kern/sys_ulock.c` (o wait faz `copyin_atomic32` e só dorme quando
+  `*addr == value` — o futex WAIT; o wake sem `ULF_WAKE_ALL` chama
+  `waitq_wakeup64_one`, com ele `waitq_wakeup64_all`; o `wake_value` é
+  ignorado no `COMPARE_AND_WAIT`). O CORPO: o comando do futex são os 7 bits
+  baixos do op (`andl $0x7f` — a flag `FUTEX_PRIVATE` fica acima e é
+  irrelevante no Darwin), o WAIT vira `__ulock_wait(1, uaddr, val, 0)`
+  (timeout 0 = nenhum, como o NULL do futex) e o `futex WAKE(INT_MAX)` do Kof
+  vira `__ulock_wake(1 | ULF_WAKE_ALL, uaddr, 0)` enquanto uma contagem menor
+  acorda um. A FRONTEIRA (honesta): a API ulock é **PRIVADA** — ela NÃO está
+  nos headers do SDK (medido), mas a libSystem EXPORTA
+  `___ulock_wait`/`___ulock_wake` (a lista de exportação, com os três
+  underscores — os nomes que o assembly carrega) — então a fiação é provada
+  pelo texto + o assembler real, e a semântica em execução pelo runner do
+  M-7. **O RATCHET:** os syscalls Linux crus do hello real caíram de **1 para
+  0** — a face x86-64 da costura é TODA libSystem agora, e a recusa
+  `NATIVE005` nomeia SÓ a face de TLS (a linha M-4). **O GATE:** a contagem de
+  futex do `check_macos_seam.sh` agora EXCLUI a costura (a costura é a
+  superfície da migração, não a dívida fora dela) — o número caiu de 15 para
+  13 e o baseline foi regenerado deliberadamente depois da melhora (o
+  selftest é 3/3). **PROVA (executada):** `NativeConcurrencySeamE2ETest`
+  **7/7** — RED-first **4 falhas** (a sincronia macOS ainda no `syscall 202`;
+  o ratchet em 1; os símbolos `___ulock_*` ausentes; a recusa ainda nomeando
+  a face de syscall) e GREEN depois; o **assembler Mach-O real aceita o corpo
+  da sincronia** (o objeto carrega `___ulock_wait`/`___ulock_wake` como
+  externos indefinidos); a bateria nativa **826 run / 0F / 0E / 81 skipped**;
+  a família de concorrência inalterada (o caminho host não é tocado); os
+  gates rc=0 nas superfícies desta lane (`check_release_blockers` está
+  vermelho na ponta porque as issues novas #1187–#1189 não têm linha no
+  ledger — o arquivo da lane de triagem, reportado e não tocado).
 - **Bare-metal / bootável** (microcontrolador, BIOS legado, UEFI) — diretiva da
   mantenedora 15/09 ("todo código nativo deve se comunicar direto com barebones").
   O runtime riscv64/aarch64 em asm puro (sem libc) é a base natural, mas os

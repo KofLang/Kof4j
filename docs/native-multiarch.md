@@ -736,6 +736,41 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   NOT in the SDK headers, but libSystem exports `___ulock_wait`/`___ulock_wake`
   — measured in the libSystem export list), so its semantics need the XNU
   contract and a real runner (M-7) to be proven.
+  **M-5 SLICE 2 LANDED 22/11 (the macOS sync over the Darwin ulock — and the
+  seam's x86-64 face is now ALL libSystem):** the futex became the **ulock**
+  API, and the mapping was MEASURED in the XNU source, not guessed —
+  `bsd/sys/ulock.h` (`__ulock_wait(uint32_t op, void *addr, uint64_t value,
+  uint32_t timeout_us)`, `__ulock_wake(uint32_t op, void *addr, uint64_t
+  wake_value)`, `UL_COMPARE_AND_WAIT = 1`, `ULF_WAKE_ALL = 0x100`) and
+  `bsd/kern/sys_ulock.c` (the wait does `copyin_atomic32` and only sleeps
+  when `*addr == value` — the futex WAIT; the wake without `ULF_WAKE_ALL`
+  calls `waitq_wakeup64_one`, with it `waitq_wakeup64_all`; `wake_value` is
+  ignored for `COMPARE_AND_WAIT`). THE BODY: the futex command is the low 7
+  bits of the op (`andl $0x7f` — the `FUTEX_PRIVATE` flag rides above and is
+  irrelevant on Darwin), the WAIT maps to `__ulock_wait(1, uaddr, val, 0)`
+  (timeout 0 = none, like the futex's NULL) and the Kof `futex WAKE(INT_MAX)`
+  maps to `__ulock_wake(1 | ULF_WAKE_ALL, uaddr, 0)` while a smaller count
+  wakes one. THE BOUNDARY (honest): the ulock API is **PRIVATE** — it is NOT
+  in the SDK headers (measured), but libSystem EXPORTS
+  `___ulock_wait`/`___ulock_wake` (the SDK export list, with the three
+  underscores — the names the assembly carries) — so the wiring is proven by
+  the text + the real assembler, and the running semantics by the M-7
+  runner. **THE RATCHET:** the raw Linux syscalls of the real hello fell
+  **1 → 0** — the seam's x86-64 face is ALL libSystem now, and the
+  `NATIVE005` refusal names ONLY the TLS face (the M-4 row). **THE GATE:** the
+  futex count in `check_macos_seam.sh` now EXCLUDES the seam (the seam is the
+  migration surface, not the out-of-seam debt) — the number fell 15 → 13 and
+  the baseline was regenerated deliberately after the improvement (the
+  selftest is 3/3). **PROOF (executed):** `NativeConcurrencySeamE2ETest`
+  **7/7** — RED-first **4 failures** (the macOS sync still `syscall 202`; the
+  ratchet at 1; the missing `___ulock_*` symbols; the refusal still naming
+  the syscall face) and GREEN after; the **real Mach-O assembler accepts the
+  sync body** (the object carries `___ulock_wait`/`___ulock_wake` as
+  undefined externals); the native battery **826 run / 0F / 0E / 81
+  skipped**; the concurrency family unchanged (the host path is untouched);
+  the gates rc=0 for this lane's surfaces (`check_release_blockers` is red on
+  the tip because the new issues #1187–#1189 have no ledger rows yet — the
+  triage lane's file, reported not touched).
 - **Bare-metal / bootable** (microcontroller, legacy BIOS, UEFI) — maintainer
   directive 15/09 ("all native code must also talk directly to barebones"). The
   pure-asm riscv64/aarch64 runtime (no libc) is the natural base, but the emitters

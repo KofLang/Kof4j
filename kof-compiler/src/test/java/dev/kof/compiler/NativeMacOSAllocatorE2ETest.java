@@ -149,12 +149,12 @@ class NativeMacOSAllocatorE2ETest {
     void theRawSyscallRatchetFellForTheAllocator(@TempDir Path tmp) throws IOException {
         String asm = macosAssembly(tmp);
         List<String> sites = dev.kof.compiler.nat.NativeMachO.elfSyscallSites(asm);
-        assertEquals(1, sites.size(),
-                "the allocator left the Linux syscall ABI; the rest is the futex "
-                        + "(the M-5 row): " + sites);
+        assertEquals(0, sites.size(),
+                "the seam's x86-64 face is ALL libSystem now (the allocator, the "
+                        + "thread id and the futex — M-5): " + sites);
         List<String> owners = dev.kof.compiler.nat.NativeMachO.elfSyscallOwners(asm);
-        assertTrue(owners.contains("kof_plat_sync"),
-                "the futex is the face that still speaks Linux: " + owners);
+        assertFalse(owners.contains("kof_plat_sync"),
+                "the futex is libSystem (ulock) now: " + owners);
         assertFalse(owners.contains(".Lgrow_try"),
                 "the allocator is libSystem now: " + owners);
     }
