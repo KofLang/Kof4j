@@ -2011,5 +2011,12 @@
       "en": "pattern '{0}' collides with a character class name: bare '{1}' in a pattern body means the class, never this pattern — rename the pattern",
       "pt": "o padrão '{0}' colide com um nome de classe de caractere: o '{1}' solto num corpo de padrão significa a classe, nunca este padrão — renomeie o padrão"
     }
+  ],
+  "SEM115": [
+    {
+      "arity": 3,
+      "en": "'{0}' espera {1} (recebeu {2}) — a forma errada nao tem runtime: construa o widget pela forma documentada em training/idioms/ui.md",
+      "pt": "'{0}' espera {1} (recebeu {2}) — a forma errada não tem runtime: construa o widget pela forma documentada em training/idioms/ui.md"
+    }
   ]
 }
