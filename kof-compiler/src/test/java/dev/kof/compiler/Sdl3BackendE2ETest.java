@@ -189,6 +189,47 @@ class Sdl3BackendE2ETest implements LibraryInstallSupport {
     }
 
     @Test
+    void theEventPumpFeedsTheFrozenKeysContract(@TempDir Path dir) throws Exception {
+        var so = hostSdl3();
+        assumeTrue(so != null, "SDL3 host absent — install libSDL3");
+        assumeTrue(hasNativeToolchain(), "native toolchain absent");
+        // o caminho do INPUT: um evento sintetico -> o pump -> heldKeys() ->
+        // o contrato CONGELADO `Keys.beginFrame` (pressed/down/released).
+        var r = compileWithGames(dir, """
+                import game.Sdl3Backend
+                import game.Keys
+
+                main() {
+                    val b = Sdl3Backend("in", 32, 32)
+                    b.pumpEvents()
+                    val keys = Keys()
+                    keys.beginFrame(b.heldKeys())
+                    println("frame0 pressed=" + keys.pressed("space"))
+                    println("push=" + b.pushKey(0x20))
+                    b.pumpEvents()
+                    println("held=" + b.heldKeys().size())
+                    keys.beginFrame(b.heldKeys())
+                    println("frame1 down=" + keys.down("space") + " pressed=" + keys.pressed("space"))
+                    b.pumpEvents()
+                    keys.beginFrame(b.heldKeys())
+                    println("frame2 down=" + keys.down("space") + " released=" + keys.released("space"))
+                    b.close()
+                }
+                """);
+        assertTrue(r.success(), "compile: " + r.diagnostics().getDiagnostics());
+        var pb = new ProcessBuilder(dir.resolve("out/Default/Main").toString()).redirectErrorStream(true);
+        pb.environment().put("SDL_VIDEODRIVER", "dummy");
+        var p = pb.start();
+        String out = new String(p.getInputStream().readAllBytes()).strip();
+        assertTrue(p.waitFor(120, TimeUnit.SECONDS) && p.exitValue() == 0, "run: " + out);
+        assertTrue(out.contains("frame0 pressed=false"), "nada segurado no inicio: " + out);
+        assertTrue(out.contains("push=true"), "o evento sintetico entra: " + out);
+        assertTrue(out.contains("held=1"), "o pump reporta a tecla segurada: " + out);
+        assertTrue(out.contains("frame1 down=true pressed=true"), "a transicao pressed: " + out);
+        assertTrue(out.contains("frame2 down=false released=true"), "a transicao released: " + out);
+    }
+
+    @Test
     void theBackendRecusesHonestlyWhereExternCannotBind(@TempDir Path dir) throws Exception {
         // O WASI nao liga `extern` (FFI001) — o backend nativo NAO pode virar
         // um modulo WASI silenciosamente; a recusa e' o contrato honrado.

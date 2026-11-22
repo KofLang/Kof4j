@@ -43,7 +43,8 @@ extern "/usr/lib64/libSDL3.so.0" SDL_SetRenderDrawColor(Long ren, Int r, Int g, 
 extern "/usr/lib64/libSDL3.so.0" SDL_RenderClear(Long ren): Bool
 extern "/usr/lib64/libSDL3.so.0" SDL_RenderFillRect(Long ren, Buffer(U8) rect): Bool
 extern "/usr/lib64/libSDL3.so.0" SDL_RenderPresent(Long ren): void
-extern "/usr/lib64/libSDL3.so.0" SDL_PollEvent(Long event): Bool
+extern "/usr/lib64/libSDL3.so.0" SDL_PollEvent(Buffer(U8) event): Bool
+extern "/usr/lib64/libSDL3.so.0" SDL_PushEvent(Buffer(U8) event): Bool
 extern "/usr/lib64/libSDL3.so.0" SDL_GetError(): String
 extern "/usr/lib64/libSDL3.so.0" SDL_DestroyWindow(Long win): void
 extern "/usr/lib64/libSDL3.so.0" SDL_Quit(): void
@@ -137,25 +138,32 @@ class Sdl3Backend {
         SDL_RenderFillRect(this.rendererHandle, r)
     }
 
+    // Empurra um SDL_EVENT_KEY_DOWN sintetico (o caminho deterministico do
+    // input: um teste ou um replay de replay nao depende do teclado fisico).
+    Bool pushKey(Int keycode) {
+        val e = buffer.alloc(128)
+        buffer.poke32(e, 0, 768)
+        buffer.poke32(e, 24, keycode)
+        buffer.poke32(e, 32, 1)
+        return SDL_PushEvent(e)
+    }
+
     // Drena a fila do SDL para ESTE frame: monta `held` e detecta o quit.
+    // (O keycode de um SDL_EVENT_KEY_DOWN esta em `key.key`, offset 24 da
+    // union; o buffer de evento e' um Buffer, nao o Int[] antigo — o SDL
+    // escreve 128 bytes crus.)
     void pumpEvents() {
         this.held = listOf<String>()
-        var ty = 0
-        while (pumpOne()) {
-            ty = this.eventBuffer[0]
+        val ev = buffer.alloc(128)
+        while (SDL_PollEvent(ev)) {
+            val ty = buffer.peek32(ev, 0)
             if (ty == 256) {
                 this.quitFlag = true
             } else if (ty == 768) {
-                // SDL_EVENT_KEY_DOWN: o keycode esta em key.key (offset 24)
-                val code = this.eventBuffer[6]
-                val name = keyName(code)
+                val name = keyName(buffer.peek32(ev, 24))
                 if (name != "") { this.held.add(name) }
             }
         }
-    }
-
-    Bool pumpOne() {
-        return SDL_PollEvent(0)
     }
 
     // A medida do frame: um pixel da tela, como (r,g,b,a) 0..255.
