@@ -409,7 +409,7 @@ public final class RuntimeGc {
             .type kof_throw_string, @function
             kof_throw_string:
                 movq %rdi, %rsi
-                movq %fs:kof_exc_chain@tpoff, %rax
+                call kof_plat_tls_get       # M-4 (#1135): a cadeia de exceções pela costura
                 testq %rax, %rax
                 jz .Lkof_throw_panic
                 movq 8(%rax), %rsp

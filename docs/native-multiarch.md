@@ -728,6 +728,37 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   a naive seam call would clobber them — the M-4 bodies must preserve the
   caller-saved registers (the seam get/set shape) or the sites must be
   rewritten with the value in a register they can spare.
+  **M-4 SLICE 1 LANDED 22/11 (the TLS through the seam — the chain's LOADS;
+  and the macOS face is a pthread key, a PUBLIC API):** the runtime's
+  exception chain (`kof_exc_chain`) got a get/set seam pair with a
+  TRANSPARENT contract — the get returns the value in `%rax` and preserves
+  every other register; the set takes `%rdi` and preserves everything
+  (including `%rax`, because `pthread_setspecific` returns an int the caller
+  does not expect). The **9 LOAD sites** moved (the parse-or-default family,
+  the GC, the DB, the concurrency); the **13 STORE sites** are the next
+  slice — the register audit measured that `%rdi`/`%rax` hold LIVE values
+  there (the `String` argument, the result), so a naive seam call would
+  clobber them. The **macOS face** uses `pthread_key_create`/
+  `pthread_getspecific`/`pthread_setspecific` (measured in the SDK's
+  pthread.h), with the key created at the **STARTUP** (`kof_plat_tls_init`,
+  single-thread — no creation race). The alternative measured (the Mach-O
+  TLV: `movq _x@TLVP(%rip), %rdi; callq *(%rdi)` + the
+  `__DATA,__thread_vars` descriptor) was REJECTED: it would force the
+  translator to rewrite every access and emit the descriptor (the `$` in
+  the symbol names). **A LATENT BUG FIXED ON THE WAY:** the entry left the
+  `main(String[] args)` array in `%rdi` and then called the thread-id seam —
+  on macOS (a libc call) that clobbers `%rdi`, so the args would arrive
+  garbage; the entry now re-materializes `%rdi` from the callee-saved `%rbx`
+  right before the main call. **THE RATCHET:** the TLS sites fell **24 →
+  17** (the baseline regenerated after the improvement). **PROOF
+  (executed):** `NativeMacOSTlsE2ETest` **3/3** — RED-first **3 failures**
+  (the seam pair missing; the macOS bodies missing; the `_pthread_*` symbols
+  missing) and GREEN after; the native + exception battery **946 run / 0F /
+  0E / 80 skipped**; the gates rc=0. **THE NEXT SLICE (M-4):** the 13
+  stores (the value must reach a register the site can spare) + the
+  emitter's try/catch machinery (2 sites inside the compiled method) — then
+  the hello's last TLS face is gone and the `NATIVE005` refusal goes silent.
+
 
   **M-5 SLICE 1 LANDED 22/11 (the concurrency face) — the port exposed a REAL
   DEFECT in the x86-64 runtime: the futex arguments were passed in the WRONG

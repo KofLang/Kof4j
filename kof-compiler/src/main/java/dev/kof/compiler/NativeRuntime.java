@@ -133,6 +133,7 @@ public final class NativeRuntime {
         RuntimePlat.emitPlatThreadCreate(sb);
         RuntimePlat.emitPlatIo(sb);
         RuntimePlat.emitPlatNet(sb);
+        RuntimePlat.emitPlatTls(sb);
         RuntimePrint.emitPrint(sb);
         RuntimePrint.emitPrintln(sb);
         RuntimeErasureBox.emitBox(sb);   // §284

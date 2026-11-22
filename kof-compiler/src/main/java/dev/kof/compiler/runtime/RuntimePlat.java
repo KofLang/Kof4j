@@ -326,6 +326,39 @@ public final class RuntimePlat {
             """);
     }
 
+    /**
+     * M-4 (#1135): a família TLS do runtime (a cadeia de exceções
+     * {@code kof_exc_chain}) pela costura — o Linux usa o TLS ELF
+     * local-exec; o macOS usa uma pthread key (os corpos em RuntimePlatMacos).
+     * O par get/set é TRANSPARENTE: só o {@code %rax} do get muda (o valor)
+     * e o set preserva todos os registradores.
+     */
+    public static void emitPlatTls(StringBuilder sb) {
+        if (dev.kof.compiler.nat.NativeProfile.active.isMacos()) {
+            RuntimePlatMacos.emitTls(sb);
+            return;
+        }
+        sb.append("""
+            .section .text
+            .globl kof_plat_tls_init
+            .type kof_plat_tls_init, @function
+            kof_plat_tls_init:
+                ret                     # no Linux o TLS ELF ja existe (initial-exec)
+
+            .globl kof_plat_tls_get
+            .type kof_plat_tls_get, @function
+            kof_plat_tls_get:
+                movq %fs:kof_exc_chain@tpoff, %rax
+                ret
+
+            .globl kof_plat_tls_set
+            .type kof_plat_tls_set, @function
+            kof_plat_tls_set:
+                movq %rdi, %fs:kof_exc_chain@tpoff
+                ret
+            """);
+    }
+
     public static void emitPlatNet(StringBuilder sb) {
         // B-2: família sem corpo UEFI nesta fatia — recusa NOMEADA (R6),
         // nunca um syscall Linux silencioso que não existe no firmware.

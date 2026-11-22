@@ -728,6 +728,38 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   preservar os registradores caller-saved (o par get/set da costura) ou os
   sítios precisam ser reescritos com o valor num registrador que possam
   ceder.
+  **M-4 FATIA 1 POUSADA 22/11 (o TLS pela costura — os LOADS da cadeia; e a
+  face macOS é uma pthread key, API PÚBLICA):** a cadeia de exceções do
+  runtime (`kof_exc_chain`) ganhou um par get/set na costura com contrato
+  TRANSPARENTE — o get devolve o valor em `%rax` e preserva todos os outros
+  registradores; o set recebe `%rdi` e preserva tudo (inclusive o `%rax`,
+  porque o `pthread_setspecific` devolve um int que o chamador não espera).
+  Os **9 sítios de LOAD** migraram (a família parse-or-default, o GC, o DB,
+  a concorrência); os **13 de STORE** são a próxima fatia — a auditoria de
+  registradores mediu que o `%rdi`/`%rax` têm valores VIVOS ali (o argumento
+  `String`, o resultado), então uma chamada de costura ingênua os
+  estragaria. A **face macOS** usa `pthread_key_create`/
+  `pthread_getspecific`/`pthread_setspecific` (medidos no pthread.h do SDK),
+  com a chave criada no **STARTUP** (`kof_plat_tls_init`, single-thread —
+  sem corrida de criação). A alternativa medida (o TLV do Mach-O:
+  `movq _x@TLVP(%rip), %rdi; callq *(%rdi)` + o descritor
+  `__DATA,__thread_vars`) foi REJEITADA: obrigaria o tradutor a reescrever
+  cada acesso e a emitir o descritor (o `$` nos nomes dos símbolos). **UM
+  BUG LATENTE CORRIGIDO NO CAMINHO:** o entry deixava o array do
+  `main(String[] args)` no `%rdi` e então chamava a costura do thread-id —
+  no macOS (chamada de libc) isso clobbera o `%rdi`, então os args
+  chegariam lixo; o entry agora re-materializa o `%rdi` a partir do `%rbx`
+  (callee-saved) logo antes do main. **O RATCHET:** os sítios de TLS caíram
+  de **24 para 17** (o baseline regenerado depois da melhora). **PROVA
+  (executada):** `NativeMacOSTlsE2ETest` **3/3** — RED-first **3 falhas**
+  (o par da costura ausente; os corpos macOS ausentes; os símbolos
+  `_pthread_*` ausentes) e GREEN depois; a bateria nativa + de exceções
+  **946 run / 0F / 0E / 80 skipped**; os gates rc=0. **A PRÓXIMA FATIA
+  (M-4):** os 13 stores (o valor precisa chegar num registrador que o sítio
+  possa ceder) + a máquina de try/catch do EMITTER (2 sítios dentro do
+  método compilado) — aí a última face de TLS do hello some e a recusa
+  `NATIVE005` fica muda.
+
 
   **M-5 FATIA 1 POUSADA 22/11 (a face da concorrência) — o port expôs um DEFEITO
   REAL no runtime x86-64: os argumentos do futex eram passados nos

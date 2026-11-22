@@ -496,9 +496,19 @@ final class NativeMethodEmitter {
         // grava o TID do main thread — limita GC ao main (B-0: via costura kof_plat_)
         sb.append("    call kof_plat_thread_id\n");
         sb.append("    movq %rax, kof_main_tid(%rip)\n");
+        // M-4 (#1135): a chave TLS do macOS (a cadeia de excecoes por thread)
+        // nasce AQUI — antes dos <clinit> e do main, single-thread (no Linux
+        // o corpo e' um ret: o TLS ELF initial-exec ja existe).
+        sb.append("    call kof_plat_tls_init\n");
         // §133 (§186): chama cada <clinit> antes do main (ordem de classes no
         // módulo — link-ordem estática; não há dependência dinâmica declarada).
         emitClinitCalls(nb, sb);
+        if (mainHasArgs) {
+            // M-4 (#1135): o array de args vive no %rbx (callee-saved) — as
+            // chamadas do entry (o thread_id, o TLS init, os <clinit>) podem
+            // clobberar o %rdi, entao ele e' re-materializado AQUI.
+            sb.append("    movq %rbx, %rdi\n");
+        }
         sb.append("    call ").append(nb.sanitizeName(clazz.name())).append("_main\n");
         // #431: com externs bindados a libc flusha o stdio DA C antes do
         // exit_group cru — puts/printf da lib ficam no buffer do processo e

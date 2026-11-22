@@ -97,7 +97,8 @@ public final class RuntimeDb4 {
                 movq %rax, 0(%rsp)
                 movq %rsp, 8(%rsp)
                 movq %rbp, 16(%rsp)
-                movq %fs:kof_exc_chain@tpoff, %rcx
+                call kof_plat_tls_get       # M-4 (#1135): a cadeia de exceções pela costura
+                movq %rax, %rcx
                 movq %rcx, 24(%rsp)
                 movq %rsp, %fs:kof_exc_chain@tpoff
                 movl %r14d, 32(%rsp)               # nested (frame p/ o handler)
