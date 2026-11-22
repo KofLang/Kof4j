@@ -18763,3 +18763,23 @@ PROVA: `NativeCrossMultidistroE2ETest` compila um programa `kof.game` para aarch
 **Achado ao construir o shell do app do Énois** (a §1183 tinha corrigido a mesma classe no `drawTexture`, e o fix nunca chegou ao `fillRect`). A prova e' um pixel: `clearFrame` azul, `fillRect(8, 8, 16, 16)` vermelho, lido em (12,12) — **`dentro r=0`**: nada foi pintado, e nenhum erro foi reportado.
 O FIX: o `fillRect` grava as quatro palavras por `floatBits`, a mesma conversao que o `drawTexture` ja usa. Medido depois: **`dentro r=255`**.
 PROVA: `EnosisShellE2ETest` pinta o shell do Énois e le de volta o `--background` (247,244,251), o header `--card` (255,255,255) e o aside de 320 px (255,255,255) nas coordenadas reais; o teste do shell falharia com `fundo=0,0,0` sem o fix.
+
+## §1191 — FreeType via `extern` do Kof: o `FT_New_Face` SEGFALTAVA quando o out-pointer opaco atravessava como `Buffer(U8)`; passando como `Long` funciona — 📌 MEDIDO 22/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Status:** 🟠 OPEN — nomeado; o fix de FFI/`NativeAssembler` e' outra unidade, a migracao segue pelo shim medido.
+
+**Achado ao construir a renderizacao de texto para a migracao do Énois** (o site e' tipografia — Manrope — e o backend nativo nao tinha texto nenhum). A cadeia medida:
+* `FT_Init_FreeType(Buffer(U8) lib)` — funciona, `init=0`, e o ponteiro da biblioteca chega no buffer (`libval=152522816`);
+* `FT_New_Face(lib_buf, path_buf, 0, face_buf)` — **SEGFAULT**, com o buffer do caminho provado correto de forma independente (`cstr_len=3`, `byte0=97` para "abc");
+* `try_open(uint64 libval, Buffer(U8) path)` — um wrapper C de duas linhas que recebe o valor da biblioteca e devolve o codigo de erro — **funciona** (`open=1`, a TTF Manrope abre).
+O QUE ISSO SIGNIFICA: um handle C opaco que o C ESCREVE (um out-pointer) nao e' a mesma forma que o `Buffer(U8)` INOUT documentado no FFI; a chamada direta com dois handles crasha. O remedio medido e' um shim C fino por biblioteca que recebe o handle por VALOR — que tambem e' a forma que os alvos cross precisam (sem `extern` no WASI, §1182).
+STATUS: nomeado, ainda nao corrigido no compilador — a migracao segue pelo shim; o fix do lado do compilador (ou a recusa nomeada) pertence a uma unidade da lane de FFI.
+
+## §1192 — o `extern "libX.so"` resolve SO' no caminho do linker do sistema: uma `.so` DO APP nao pode ser ligada por nome — 📌 MEDIDO 22/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Status:** 🟠 OPEN — nomeado; o fix de FFI/`NativeAssembler` e' outra unidade, a migracao segue pelo shim medido.
+
+**Achado ao ligar o shim de texto do Énois** (§1191). Uma biblioteca que o APP embarca (nao uma do sistema) ligada como `extern "libkof_text.so"` falha no link com `cannot find -l:libkof_text.so`, porque o `NativeAssembler` transforma um nome sem `/` em `-l:<nome>` e o ld procura so' nos seus diretorios. A solucao medida: o caminho absoluto (`extern "/abs/path/libkof_text.so"`) liga E leva `-rpath` (o binario a acha em runtime).
+O CUSTO DO GAP: o caminho absoluto fica gravado no fonte Kof, entao o mesmo fonte nao segue o app para outro prefixo de instalacao — exatamente o problema multidistro que o §1189 resolveu para os sysroots CROSS, agora bloqueando as bibliotecas do app DESKTOP.
+O INTERINO: `scripts/gen-enois-text.sh` reescreve o marcador `@KOF_TEXT_SHIM@` no `libs/enois/Text.kf` com o caminho absoluto resolvido em tempo de build, entao o caminho vive em UMA linha gerada e nunca divergiu.
+STATUS: nomeado. O fix do lado do compilador (resolver `library()` contra `kof.install.dir/lib` — onde as libs empacotadas ja vivem) pertence a uma unidade do `NativeAssembler`.

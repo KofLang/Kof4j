@@ -37,3 +37,7 @@ scripts/pipeline/__pycache__/
 # flatten-maven-plugin (resolveCiFriendliesOnly) — artefato de build
 .flattened-pom.xml
 **/.flattened-pom.xml
+
+# o shim do FreeType e GERADO por scripts/gen-enois-text.sh
+libs/enois/libkof_text.so
+.build/

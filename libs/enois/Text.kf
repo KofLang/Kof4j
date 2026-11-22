@@ -1,0 +1,100 @@
+package enois
+
+import game.Sdl3Backend
+
+// Énois — texto no backend NATIVO (a fundação que o site inteiro exige:
+// `--font-sans: "Manrope"`).
+//
+// O FreeType rasteriza o glifo e o shim o entrega como bitmap 8-bit (alfa);
+// esta face o transforma em textura RGBA e o desenha. O caminho vem do
+// known-bugs §1191: o handle atravessa por VALOR (`Long`), nunca como
+// `Buffer(U8)` — a forma que o FFI do Kof segfalta.
+//
+//   val f = Font("/caminho/Manrope.ttf", 16)
+//   println(f.lineHeight() + " " + f.ascent())
+//   val w = f.drawText(b, "Énóis", 24, 100)   // devolve o avanco total
+
+// O shim e' uma lib DO APP (conhecido §1192): o `library()` de um `extern`
+// e' resolvido pelo ld so' no caminho do sistema, entao a lib do app entra
+// por CAMINHO ABSOLUTO e o `scripts/gen-enois-text.sh` reescreve este bloco
+// com o caminho da arvore instalada. O marcador abaixo e' o que o gerador
+// substitui — nunca edite a mao.
+// @kof-text-shim@
+extern "/home/mel/Kof4j/libs/enois/libkof_text.so" kt_open(Buffer(U8) path, Int px): Long
+extern "kof_text_shim" kt_close(Long face): void
+extern "kof_text_shim" kt_glyph(Long face, Long codepoint): Int
+extern "kof_text_shim" kt_rgba(Buffer(U8) out, Int cap): Int
+extern "kof_text_shim" kt_width(): Int
+extern "kof_text_shim" kt_height(): Int
+extern "kof_text_shim" kt_left(): Int
+extern "kof_text_shim" kt_top(): Int
+extern "kof_text_shim" kt_advance(): Int
+extern "kof_text_shim" kt_ascent(): Int
+extern "kof_text_shim" kt_descent(): Int
+
+/** Uma fonte aberta num tamanho em px. */
+class Font {
+    Long face
+    Int pixelSize
+
+    constructor(String path, Int px) {
+        val ps = path
+        val buf = buffer.alloc(ps.length() + 1)
+        var k = 0
+        while (k < ps.length()) {
+            buffer.poke8(buf, k, ps.charAt(k) as Int)
+            k = k + 1
+        }
+        buffer.poke8(buf, ps.length(), 0)
+        this.face = kt_open(buf, px)
+        if (this.face == 0L) {
+            throw "Énois.Font: nao abriu " + path + " em " + px + "px"
+        }
+        this.pixelSize = px
+    }
+
+    Int lineHeight() {
+        // a linha do CSS e' a metrica ascender + descender do FreeType
+        kt_glyph(this.face, 32L)
+        return kt_ascent() + kt_descent()
+    }
+
+    Int advanceOf(Int codepoint) {
+        kt_glyph(this.face, codepoint as Long)
+        return kt_advance()
+    }
+
+    /** Desenha `text` a partir de (x, baseline) e devolve o avanco total.
+     *
+     *  `b` e' o backend. A textura por glifo e' criada e destruida aqui —
+     *  um cache por (codepoint, tamanho) e' a proxima fatia (a mesma que o
+     *  site chama de "fonte carregada uma vez").
+     */
+    Int drawText(Sdl3Backend b, String text, Int x, Int baseline) {
+        var pen = x
+        var i = 0
+        while (i < text.length()) {
+            val cp = text.charAt(i) as Int
+            if (kt_glyph(this.face, cp as Long) == 0) {
+                val w = kt_width()
+                val h = kt_height()
+                if (w > 0 && h > 0) {
+                    val rgba = buffer.alloc(w * h * 4)
+                    kt_rgba(rgba, w * h * 4)
+                    val tex = b.createTexture(w, h)
+                    SDL_UpdateTexture(tex, 0L, rgba, w * 4)
+                    b.drawTexture(tex, pen + kt_left(), baseline - kt_top(), w, h)
+                    SDL_DestroyTexture(tex)
+                }
+                pen = pen + kt_advance()
+            }
+            i = i + 1
+        }
+        return pen - x
+    }
+
+    void close() {
+        kt_close(this.face)
+        this.face = 0L
+    }
+}
