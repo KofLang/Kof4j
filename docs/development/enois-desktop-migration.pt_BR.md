@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — `post.$postId` (o detalhe do post sobre o card) e a faixa de abas do perfil, depois `comunidades.*`
+next: a Fase 3 continua — a faixa de abas do perfil e `comunidades.*` (a rota da comunidade, sobre o card + feed)
 location: repository
 state: active
 
@@ -107,6 +107,16 @@ GAPS NOMEADOS desta tela: o avatar e' um circulo APROXIMADO (um quadrado com
 recuo; o circulo anti-aliased exato precisa de um slice de mascara), a imagem
 de capa e' o preenchimento `--primary-soft` (sem carregador de imagem ainda), e
 o tema do `look` do perfil (as variaveis CSS `cos-card__*`) nao foi migrado.
+
+**Fase 3 — `post.$postId` (POUSADA 22/11).** O `libs/enois/PostDetail.kf` pinta o
+detalhe do post sobre o card: o link de voltar em `text-sm` = 14 px com
+`--muted-foreground`, o card `surface-card p-5 sm:p-8` = **32 px** de padding
+na largura de desktop, o titulo `text-lg` = **18 px** e o corpo `text-base` com
+`leading-relaxed` = linha de **26 px** (`post.$postId.tsx`). Provado
+nativamente: `card=255,255,255` (`--surface-card`), `fundo=247,244,251`
+(`--background` acima do card), `tinta=174`.
+A bateria Énois esta em **6/6** (tokens, shell, texto, card, feed, perfil,
+detalhe).
 
 ## §4 Como concluir
 

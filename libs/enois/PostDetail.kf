@@ -1,0 +1,84 @@
+package enois
+
+import enois.PostCard
+import enois.Text
+import enois.Tokens
+import game.Sdl3Backend
+
+// Énois — a rota `post.$postId` (`src/routes/post.$postId.tsx`), o detalhe
+// do post, construida sobre o `PostCard`.
+//
+// As medidas vem do fonte, MEDIDAS:
+//   * o link de volta   `text-sm` = 14 px, `--muted-foreground`
+//                       (`post.$postId.tsx`, o 1o className)
+//   * o card            `surface-card p-5 sm:p-8` = 20 px / 32 px
+//   * o titulo          `text-lg` = 18 px, `--text-strong`
+//   * o corpo           `text-base leading-relaxed` = 16 px, linha 1.625
+//   * o texto           `texts.postDetail.back` = "Voltar para a pagina inicial"
+//
+// O detalhe = o link de voltar ACIMA, e o card com o titulo e o corpo.
+
+/** As medidas do detalhe do post, em px. */
+class PostDetailMetrics {
+    static Int backSize() { return 14 }        // text-sm
+    static Int backHeight() { return 20 }
+    static Int titleSize() { return 18 }       // text-lg
+    static Int bodySize() { return 16 }        // text-base
+    static Int cardPad() { return 32 }         // sm:p-8 no desktop
+    static Int lineHeight() { return 26 }      // leading-relaxed (1.625 x 16)
+    static Int titleGap() { return 16 }        // mb-4
+}
+
+class PostDetail {
+
+    /** A altura que o detalhe ocupa para `bodyLines` linhas. */
+    static Int heightFor(Int bodyLines) {
+        return PostDetailMetrics.backHeight() + 12
+                + PostDetailMetrics.cardPad() * 2
+                + PostDetailMetrics.titleSize() + PostDetailMetrics.titleGap()
+                + PostDetailMetrics.lineHeight() * bodyLines
+    }
+
+    /** Pinta o detalhe a partir de (x, y) com a largura `w`.
+     *  Devolve a altura usada.
+     */
+    static Int paint(Sdl3Backend b, Font backFont, Font titleFont, Font bodyFont,
+                     Int x, Int y, Int w, String backLabel, String title, String body) {
+        val card = Tokens.SurfaceCard()
+        val edge = Tokens.BorderSoft()
+        val strong = Tokens.TextStrong()
+        val muted = Tokens.MutedForeground()
+        val pad = PostDetailMetrics.cardPad()
+
+        // o link de voltar
+        SDL_SetRenderDrawColor(b.rendererHandle, muted.r(), muted.g(), muted.b(), 255)
+        backFont.drawText(b, backLabel, x, y + 14)
+
+        // o card do detalhe
+        val cy = y + PostDetailMetrics.backHeight() + 12
+        val lines = PostCard.wrap(bodyFont, body, w - pad * 2)
+        val h = heightFor(lines.size) - PostDetailMetrics.backHeight() - 12
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, cy, w, h)
+        SDL_SetRenderDrawColor(b.rendererHandle, edge.r(), edge.g(), edge.b(), 255)
+        b.fillRect(x, cy, w, 1)
+        b.fillRect(x, cy + h - 1, w, 1)
+        b.fillRect(x, cy, 1, h)
+        b.fillRect(x + w - 1, cy, 1, h)
+
+        // o titulo: 18 px em --text-strong
+        SDL_SetRenderDrawColor(b.rendererHandle, strong.r(), strong.g(), strong.b(), 255)
+        titleFont.drawText(b, title, x + pad, cy + pad + 14)
+
+        // o corpo: 16 px, linha 26 px (`leading-relaxed`)
+        var ty = cy + pad + PostDetailMetrics.titleSize() + PostDetailMetrics.titleGap()
+        var i = 0
+        while (i < lines.size) {
+            SDL_SetRenderDrawColor(b.rendererHandle, strong.r(), strong.g(), strong.b(), 255)
+            bodyFont.drawText(b, lines[i], x + pad, ty + 15)
+            ty = ty + PostDetailMetrics.lineHeight()
+            i = i + 1
+        }
+        return PostDetailMetrics.backHeight() + 12 + h
+    }
+}

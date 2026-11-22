@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — `post.$postId` (the post detail on top of the card) and the profile's tabs strip, then `comunidades.*`
+next: Fase 3 continues — the profile's tabs strip and `comunidades.*` (the community route, on top of the card + feed)
 location: repository
 state: active
 
@@ -107,6 +107,15 @@ NAMED GAPS of this screen: the avatar is an APPROXIMATE circle (a square inset;
 the exact anti-aliased circle needs a mask slice), the cover image is the
 `--primary-soft` fill (no image loader yet), and the profile `look` theming
 (`cos-card__*` CSS variables) is not migrated.
+
+**Fase 3 — `post.$postId` (LANDED 22/11).** `libs/enois/PostDetail.kf` paints the
+post detail on top of the card: the back link at `text-sm` = 14 px in
+`--muted-foreground`, the card `surface-card p-5 sm:p-8` = **32 px** pad at
+desktop width, the title `text-lg` = **18 px** and the body `text-base` with
+`leading-relaxed` = **26 px** line (`post.$postId.tsx`). Proven natively:
+`card=255,255,255` (`--surface-card`), `fundo=247,244,251` (`--background`
+above the card), `tinta=174`.
+The Énois battery is **6/6** (tokens, shell, text, card, feed, profile, detail).
 
 ## §4 How to finish
 
