@@ -1,0 +1,49 @@
+package game
+
+import kof.io
+
+// kof.game — a face de SOFTWARE do backend (`docs/development/
+// graphics-sdl3-backend.md`, slice 2; ordem da mantenedora 22/11: "nativo +
+// wasi é o caminho").
+//
+// O WASI preview1 NAO tem janela: nao existe display, nem GL, nem framebuffer
+// de tela. O contrato HONESTO e' portanto outro — o frame vira um ARQUIVO PPM
+// (P6, 8 bits por canal, sem compressao): o formato que qualquer viewer abre e
+// que nao precisa de zlib, de codec nem de face de plataforma. Um alvo sem
+// janela desenha; ele so' nao abre uma.
+//
+// A SUPERFICIE: o framebuffer (`Int[]`) e a fila vivem no escopo de quem
+// chama — no subset WASI de hoje um ARRAY nao atravessa a chamada de uma
+// funcao (medido: nem como parametro, nem como campo). O que atravessa sao
+// ESCALARES e RECORDS, entao os pinceis recebem a posicao em `Rect` e o
+// chamador aplica o pixel na lei abaixo.
+//
+//   val W = 320
+//   val H = 200
+//   val fb = new Int[W * H * 3]
+//   val b = SoftwareBackend()
+//   println(b.at(10, 10, W))            // indice do canal R do pixel (10,10)
+//   println(b.inside(10, 10, W, H))     // o pixel cai no frame?
+//
+// As LEIS (medidas por `WasmWasiSoftwareBackendE2ETest`):
+//
+// * `at(x, y, width)` = `(y*width + x) * 3` — o indice do canal R; G = +1, B = +2;
+// * `inside(x, y, width, height)` = `0 <= x < width && 0 <= y < height`;
+// * o frame e' `width*height*3` Ints, cada canal 0..255.
+//
+// (A face que ESCREVE o PPM a partir da fila e' uma unidade de 15.3+ — o
+// subset aceita o corpo de `_start` e nega a chamada de um helper; o plano
+// §6 registra a medicao.)
+
+class SoftwareBackend {
+
+    // O indice do canal R do pixel (x, y) num frame de `width` colunas.
+    Int at(Int x, Int y, Int width) {
+        return (y * width + x) * 3
+    }
+
+    // O pixel (x, y) esta dentro de um frame width x height?
+    Bool inside(Int x, Int y, Int width, Int height) {
+        return x >= 0 && x < width && y >= 0 && y < height
+    }
+}

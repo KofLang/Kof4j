@@ -93,3 +93,22 @@ Este é o contrato honesto do WASI: janela não existe, então o frame é um ARQ
 * renderização via KofJS (ordem da mantenedora, 22/11)
 * áudio (`kof.game.Audio` tem a sua fatia SDL3, já pousada)
 * 3D (o caminho de present do `Scene3d`/`Mesh` vem depois do `DrawList` 2D)
+
+---
+
+## §6 A fronteira do WASI, MEDIDA (22/11) — a fatia 2 está bloqueada pelo subset, não por este plano
+
+A mantenedora pediu compatibilidade com o WASI. A medição diz ONDE está o muro, e ele não é o backend:
+
+| forma | WASI | evidência |
+|---|---|---|
+| um **`_start` puro** que desenha e escreve um PPM | ✅ roda | PPM 8×4, pixels exatos pelo ImageMagick |
+| um record + `listOf<Cmd>()` + um `while` sobre ele, TUDO dentro do `main` | ✅ roda | 2 retângulos pintados, recorte correto, PPM exato |
+| o mesmo desenho movido para uma **função** (`static`, de instância ou top-level) | ❌ `WASM002` | `chamada 'ppm' nao resolvida no subset escalar da unidade 15.2` |
+| um `Int[]` ou `List<T>` como **parâmetro de função** | ❌ `WASM002` | a mesma recusa |
+| `new Int[n]` / `listOf<T>()` **dentro de um método** | ❌ `WASM002` | `new Int[n] fora de '_start'` / `kof.listNew` |
+| `Sdl3Backend` (a face nativa) importado | ❌ `FFI001` | honesto: `extern` não existe no WASI |
+
+A LEI DE HOJE: **o subset WASI 15.2 aceita o corpo de `_start` e nada mais.** Uma rotina de desenho extraída para qualquer função — que é o que uma face de biblioteca É — é recusada. Então um `SoftwareBackend` que outros programas importam ainda não pode existir no WASI; o que PODE existir é um programa cujo `main` desenha direto, e isso está provado acima.
+
+O QUE ESTE PLANO DEVE, portanto, na fatia 2: ela está **bloqueada nas unidades 15.3+** (a admissão de funções/coleções/IO do subset escalar que o `docs/wasm-wasi-plan.md` já agenda), NÃO no desenho do backend. O requisito WASI da mantenedora está atendido no nível do PROGRAMA hoje (o PPM medido) e será atendido no nível da BIBLIOTECA quando o subset admitir chamadas — o porte é um `SoftwareBackend` sobre a MESMA lei `PaintCmd` medida na segunda linha de §6.

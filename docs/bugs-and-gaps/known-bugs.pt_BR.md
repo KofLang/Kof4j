@@ -18682,3 +18682,23 @@ PROVA RED-first: `WasmWasiCastE2ETest` — sem o fix a compilação falha com o 
 A MEDIÇÃO: o `Draw.kf` declara `DrawList.draw(Sprite s)` e nunca importa `game.Sprite`; o `Sprite.kf` SIM importa `game.Draw`. A face só compilava porque todo teste existente importa `game.Sprite` também no texto do PROGRAMA, o que trazia a unidade por acaso — a biblioteca estava verde por coincidência dos seus chamadores.
 O FIX: um `import game.Sprite` no `Draw.kf`. Um import mútuo (`game.Draw` ↔ `game.Sprite`) é LEGÍTIMO no modelo de unidade mergeada e está explicitamente congelado pelo `PackagesE2ETest.moduleRootDerivedFromCommonAncestor` ("ciclos gerais NÃO são erro aqui"), então o ciclo não é diagnóstico — é o modelo.
 PROVA: o `Sdl3BackendE2ETest` compila um programa com `import game.Draw` + `import game.Sdl3Backend` e sem `game.Sprite`, e ele vai de VERMELHO (SEM011) a verde. Não-regressão: a bateria `Game*` inteira **71 run / 0F / 0E**.
+
+## §1182 — o subset WASI recusa TODA chamada para fora do `_start` (uma face de biblioteca é inalcançável lá) — OPEN (blocked on 15.3+) — 📌 MEDIDO 22/11, fatia bloqueada na 15.3+ (lane wasm/caps `192.168.15.15:0`)
+
+**Status:** 🟡 OPEN — blocked on the 15.3+ call admission; the drawing itself is measured working.
+
+**Achado ao construir a face de software do WASI** (a mantenedora ordenou compatibilidade WASI, 22/11). A varredura é sistemática, cada forma com a sua sonda:
+| forma | resultado |
+|---|---|
+| um helper recebendo `Int[]` | ❌ `chamada fora do subset escalar 15.2 (WASM002)` |
+| um helper recebendo `List<T>` | ❌ o mesmo |
+| `new Int[n]` dentro de um MÉTODO | ❌ `new Int[n] fora de '_start'` |
+| `listOf<T>()` dentro de um método | ❌ `kof.listNew` |
+| um método `static` de classe (`B.at(3,4)`) | ❌ a mesma recusa |
+| um método de INSTÂNCIA (`b.at(3,4)`) | ✅ roda |
+| uma função top-level com parâmetros escalares | ✅ roda |
+| um parâmetro record | ✅ roda (ARG-REC, 29/10) |
+
+A LEI MEDIDA: o corpo de `_start` é o único lugar onde arrays/listas podem existir, e NENHUMA chamada pode carregar um. O método de INSTÂNCIA é a única forma chamável que sobrevive.
+O QUE ISSO SIGNIFICA: um `SoftwareBackend` que um programa IMPORTA e chama com o seu framebuffer ainda não pode existir no WASI — mas o desenho em si EXISTE (`WasmWasiSoftwareBackendE2ETest` prova um programa que pinta e escreve um PPM P6 exato por `b.at`/`b.inside`).
+O BLOQUEIO NÃO É DESTE PLANO: é a admissão 15.3+ de chamadas com coleções/IO no subset WASI, já agendada em `docs/wasm-wasi-plan.md`. Registrado aqui (`docs/development/graphics-sdl3-backend.md` §6) para a fatia 2 retomar onde o muro cai.

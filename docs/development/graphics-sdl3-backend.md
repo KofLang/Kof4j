@@ -93,3 +93,22 @@ This is the honest WASI contract: no window exists, so the frame is a FILE. It w
 * KofJS rendering (maintainer order, 22/11)
 * audio (`kof.game.Audio` has its own SDL3 slice, already landed)
 * 3D (`Scene3d`/`Mesh` present path comes after the 2D `DrawList`)
+
+---
+
+## §6 The WASI boundary, MEASURED (22/11) — slice 2 is blocked on the subset, not on this plan
+
+The maintainer asked for WASI compatibility. The measurement says WHERE the wall is, and it is not the backend:
+
+| shape | WASI | evidence |
+|---|---|---|
+| a **plain `_start`** that draws and writes a PPM | ✅ runs | 8×4 PPM, pixels exact per ImageMagick |
+| a record + `listOf<Cmd>()` + a `while` over it, ALL inside `main` | ✅ runs | 2 rects painted, clipping correct, PPM exact |
+| the same drawing moved into a **function** (`static`, instance, or top-level) | ❌ `WASM002` | `chamada 'ppm' nao resolvida no subset escalar da unidade 15.2` |
+| an `Int[]` or `List<T>` as a **function parameter** | ❌ `WASM002` | the same refusal |
+| `new Int[n]` / `listOf<T>()` **inside a method** | ❌ `WASM002` | `new Int[n] fora de '_start'` / `kof.listNew` |
+| `Sdl3Backend` (the native face) imported | ❌ `FFI001` | honest: no `extern` on WASI |
+
+THE LAW AS OF TODAY: **the WASI subset 15.2 accepts the body of `_start` and nothing more.** A drawing routine extracted into any function — which is what a library face IS — is refused. So a `SoftwareBackend` that other programs import cannot exist on WASI yet; what CAN exist is a program whose `main` draws directly, and that is proven above.
+
+WHAT THIS PLAN OWES, therefore, for slice 2: it is **blocked on units 15.3+** (the scalar subset's function/collection/IO admission that `docs/wasm-wasi-plan.md` already schedules), NOT on a backend design. The maintainer's WASI requirement is met at the *program* level today (the measured PPM) and will be met at the *library* level when the subset admits calls — the port is a `SoftwareBackend` over the SAME `PaintCmd` law measured in §6's second row.

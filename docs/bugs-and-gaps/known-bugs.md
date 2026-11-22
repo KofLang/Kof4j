@@ -21207,3 +21207,23 @@ PROOF RED-first: `WasmWasiCastE2ETest` — without the fix the compile fails wit
 THE MEASUREMENT: `Draw.kf` declares `DrawList.draw(Sprite s)` and never imports `game.Sprite`; `Sprite.kf` DOES import `game.Draw`. The face only ever compiled because every existing test imports `game.Sprite` in the PROGRAM text as well, which pulled the unit in by accident — the library was green by coincidence of its callers.
 THE FIX: one `import game.Sprite` in `Draw.kf`. A mutual import (`game.Draw` ↔ `game.Sprite`) is LEGITIMATE in the merged-unit model and explicitly frozen by `PackagesE2ETest.moduleRootDerivedFromCommonAncestor` ("ciclos gerais NÃO são erro aqui"), so the cycle is not a diagnostic — it is the model.
 PROOF: `Sdl3BackendE2ETest` compiles a program with `import game.Draw` + `import game.Sdl3Backend` and no `game.Sprite`, and it goes from RED (SEM011) to green. Non-regression: the whole `Game*` battery **71 run / 0F / 0E**.
+
+## §1182 — the WASI subset refuses EVERY call out of `_start` (a library face is unreachable there) — OPEN (blocked on 15.3+) — 📌 MEASURED 22/11, slice blocked on 15.3+ (lane wasm/caps `192.168.15.15:0`)
+
+**Status:** 🟡 OPEN — blocked on the 15.3+ call admission; the drawing itself is measured working.
+
+**Found while building the WASI software face** (the maintainer ordered WASI compatibility, 22/11). The sweep is systematic, each shape its own probe:
+| shape | result |
+|---|---|
+| a helper taking `Int[]` | ❌ `chamada fora do subset escalar 15.2 (WASM002)` |
+| a helper taking `List<T>` | ❌ the same |
+| `new Int[n]` inside a METHOD | ❌ `new Int[n] fora de '_start'` |
+| `listOf<T>()` inside a method | ❌ `kof.listNew` |
+| a `static` class method (`B.at(3,4)`) | ❌ the same refusal |
+| an INSTANCE method (`b.at(3,4)`) | ✅ runs |
+| a top-level function with scalar params | ✅ runs |
+| a record param | ✅ runs (ARG-REC, 29/10) |
+
+THE LAW MEASURED: `_start`'s body is the only place where arrays/lists can exist, and NO call may carry one. An INSTANCE method is the one callable shape that survives.
+WHAT IT MEANS: a `SoftwareBackend` that a program IMPORTS and calls with its framebuffer cannot exist on WASI today — but the drawing itself DOES (`WasmWasiSoftwareBackendE2ETest` proves a program that paints and writes an exact P6 PPM through `b.at`/`b.inside`).
+THE BLOCKER IS NOT THIS PLAN: it is the 15.3+ admission of function calls with collections/IO on the WASI subset, already scheduled in `docs/wasm-wasi-plan.md`. Recorded here (`docs/development/graphics-sdl3-backend.md` §6) so the slice-2 work resumes where the wall falls.
