@@ -58,12 +58,12 @@ final class KofUiArity {
             Map.entry("Fieldset", List.of(0, 1, 2)),
             Map.entry("Link", List.of(2)),
             Map.entry("Canvas", List.of(2)),
-            Map.entry("Grid", List.of(2)),
+            Map.entry("Grid", List.of(0, 2)),
             Map.entry("Table", List.of(0, 2)),
             Map.entry("Color", List.of(1, 3)),
             Map.entry("Font", List.of(2, 3)),
             Map.entry("Align", List.of(0, 3)),
-            Map.entry("Style", List.of(1, 4)),
+            Map.entry("Style", List.of(0, 1, 4)),
             Map.entry("Input", List.of(0, 1)),
             Map.entry("Select", List.of(0, 1)),
             Map.entry("View", List.of(0, 1)),
@@ -97,7 +97,15 @@ final class KofUiArity {
     static boolean accepts(String name, int arity) {
         List<Integer> forms = FORMS.get(name);
         if (forms == null) return true;
-        return forms.contains(arity);
+        if (forms.contains(arity)) return true;
+        // A aridade 0 e' DERIVADA das MESMAS tabelas que o typer usa
+        // (KofUiContainers: os containers de layout e os widgets construidos
+        // vazios) — duplicar a lista aqui foi a fonte de TRES erros no
+        // primeiro corte (Grid/Style/Align tinham a forma 0 nao declarada e
+        // a recusa quebrava programas que funcionavam). A fonte da verdade e'
+        // uma so.
+        return arity == 0 && (KofUiContainers.emptyContainerType(name) != null
+                || KofUiContainers.emptyWidgetType(name) != null);
     }
 
     /** A mensagem da recusa — nomeia a forma aceita (o contrato real). */
