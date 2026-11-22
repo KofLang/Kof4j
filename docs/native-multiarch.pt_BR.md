@@ -759,6 +759,33 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   possa ceder) + a máquina de try/catch do EMITTER (2 sítios dentro do
   método compilado) — aí a última face de TLS do hello some e a recusa
   `NATIVE005` fica muda.
+  **M-4 FATIA 2 POUSADA 22/11 — A MIGRAÇÃO DO TLS ESTÁ COMPLETA: o perfil
+  macOS não tem MAIS nenhuma face ELF-only, e a recusa NATIVE005 fica MUDA
+  (a única recusa que resta é a NATIVE004 = o toolchain macOS ausente, o
+  runner do M-7).** Os **18 sítios** restantes (14 no runtime + 4 na máquina
+  de try/catch do emitter) passam pela costura: o valor chega no `%rdi` (com
+  `%rdi`/`%rcx` empilhados/desempilhados no sítio, e os stores de `%rsp`
+  usando `leaq 16(%rsp)` — o ponteiro de pilha original depois dos dois
+  pushes), e o corpo do set preserva TUDO, então o `movq %rax, %rsp` que
+  segue o unlink continua funcionando (a base no `%rax` sobrevive à
+  chamada). **O RATCHET:** os sítios de TLS caíram de **17 para 3** (os 3 são
+  o corpo Linux da própria costura), e o baseline foi regenerado. **O TESTE
+  DO MARCO:** `theMacosProfileHasNoElfTlsLeft` — o texto emitido do perfil
+  macOS não tem **nenhum `%fs:` nem `@tpoff`** (RED no código antigo). Os
+  dois testes de recusa agora asseram o marco: a NATIVE005 SUMIU e só a
+  NATIVE004 nomeia o toolchain. **PROVA (executada):** a família macOS
+  **40/0F**; as famílias UEFI/Ring **8/0F** e **5/0F** (as falhas da suíte
+  foram contaminação de meio-de-rodada — ver o registro do veredito); a
+  família Troolean está **3/0F** (a correção de RAIZ do #1178 da lane irmã
+  pousou: o tipo era `Nullable(Nullable(Bool))`, não um design fork); a
+  bateria de exceções + nativa **946/0F**; os gates rc=0. **A FRONTEIRA
+  (honesta):** o perfil macOS agora compila o hello limpo até o LINK — o link
+  e a execução precisam do runner do M-7 (um host macos-14 de verdade), e é
+  isso que a NATIVE004 recusa sem. **AS PRÓXIMAS LINHAS:** a família "stat"
+  da costura (o `struct stat` do Darwin), o runner M-7, a face arm64 (o
+  emissor cross aarch64 + a sua prova Mach-O); depois #1159 keep-alive
+  HTTP/1.1.
+
 
 
   **M-5 FATIA 1 POUSADA 22/11 (a face da concorrência) — o port expôs um DEFEITO

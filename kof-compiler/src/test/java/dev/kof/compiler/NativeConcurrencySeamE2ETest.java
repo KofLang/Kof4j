@@ -241,11 +241,15 @@ class NativeConcurrencySeamE2ETest {
             driver.setNativeProfile(dev.kof.compiler.nat.NativeProfile.of("macos"));
             CompilationResult mac = driver.compile(src, tmp.resolve("outref"), Target.NATIVE);
             String diags = mac.diagnostics().getDiagnostics().toString();
-            assertTrue(diags.contains("NATIVE005"), "the named refusal: " + diags);
-            assertTrue(diags.contains("0 syscall(s) crus"),
-                    "the seam's x86-64 face is all libSystem: " + diags);
+            // M-4 (#1135): sem face de syscall E sem face de TLS, o NATIVE005
+            // fica MUDA — a unica recusa que resta e' a NATIVE004 (o toolchain).
+            assertFalse(diags.contains("NATIVE005"),
+                    "the macOS profile has no ELF-only face left: " + diags);
+            assertTrue(diags.contains("NATIVE004"), "the named refusal: " + diags);
             assertFalse(diags.contains("a face de syscall"),
-                    "the refusal names only the TLS face now: " + diags);
+                    "the refusal no longer names a syscall face: " + diags);
+            assertFalse(diags.contains("a face de TLS"),
+                    "the refusal no longer names a TLS face: " + diags);
         } finally {
             dev.kof.compiler.nat.NativeProfile.active = previous;
             if (priorKeep == null) {

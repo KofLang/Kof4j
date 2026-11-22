@@ -100,7 +100,12 @@ public final class RuntimeDb4 {
                 call kof_plat_tls_get       # M-4 (#1135): a cadeia de exceções pela costura
                 movq %rax, %rcx
                 movq %rcx, 24(%rsp)
-                movq %rsp, %fs:kof_exc_chain@tpoff
+                pushq %rdi
+                pushq %rcx
+                leaq 16(%rsp), %rdi
+                call kof_plat_tls_set        # M-4 (#1135): a cadeia pela costura
+                popq %rcx
+                popq %rdi
                 movl %r14d, 32(%rsp)               # nested (frame p/ o handler)
                 # invoca a lambda (vtable[0] = invoke); rdi = this (a lambda,
                 # onde ficam as capturas) — mesmo padrão do sched_trampoline.
@@ -111,7 +116,12 @@ public final class RuntimeDb4 {
                 # ── try end / commit ── (nested NÃO comita — o externo decide).
                 # Flag re-lido do FRAME: a lambda pode ter clobberado regs.
                 movq 24(%rsp), %rcx
-                movq %rcx, %fs:kof_exc_chain@tpoff
+                pushq %rdi
+                pushq %rcx
+                movq %rcx, %rdi
+                call kof_plat_tls_set        # M-4 (#1135): a cadeia pela costura
+                popq %rcx
+                popq %rdi
                 movl 32(%rsp), %r14d
                 addq $48, %rsp
                 testl %r14d, %r14d

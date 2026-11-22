@@ -157,6 +157,20 @@ class NativeMacOSTlsE2ETest {
     }
 
     /**
+     * O MARCO DA LINHA M-4: o texto do perfil macOS não tem NENHUM acesso ao
+     * TLS ELF ({@code %fs:}) — a face ELF-only sumiu, e o gate NATIVE005 fica
+     * MUDO (a única recusa que resta é a NATIVE004 = o toolchain do M-7).
+     */
+    @Test
+    void theMacosProfileHasNoElfTlsLeft(@TempDir Path tmp) throws IOException {
+        String asm = macosAssembly(tmp);
+        assertFalse(asm.contains("%fs:"),
+                "no ELF TLS left in the macOS profile: " + asm);
+        assertFalse(asm.contains("@tpoff"),
+                "no local-exec TLS relocation left: " + asm);
+    }
+
+    /**
      * O ASSEMBLER REAL aceita o corpo da costura — e o objeto carrega os
      * símbolos da libSystem.
      */

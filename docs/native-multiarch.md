@@ -758,6 +758,31 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   stores (the value must reach a register the site can spare) + the
   emitter's try/catch machinery (2 sites inside the compiled method) — then
   the hello's last TLS face is gone and the `NATIVE005` refusal goes silent.
+  **M-4 SLICE 2 LANDED 22/11 — THE TLS MIGRATION IS COMPLETE: the macOS
+  profile has NO ELF-only face left, and the NATIVE005 refusal goes SILENT
+  (the only refusal that remains is NATIVE004 = the missing macOS toolchain,
+  the M-7 runner).** The remaining **18 sites** (14 in the runtime + 4 in the
+  emitter's try/catch machinery) now go through the seam: the value reaches
+  `%rdi` (with `%rdi`/`%rcx` pushed/popped at the site, and the `%rsp` stores
+  using `leaq 16(%rsp)` — the original stack pointer after the two pushes), and
+  the set body preserves EVERYTHING, so the `movq %rax, %rsp` that follows the
+  unlink keeps working (the `%rax` base survives the call). **THE RATCHET:**
+  the TLS sites fell **17 → 3** (the 3 are the seam's own Linux body), and the
+  baseline was regenerated. **THE MILESTONE TEST:** `theMacosProfileHasNoElfTlsLeft`
+  — the macOS profile's emitted text has **no `%fs:` and no `@tpoff`** at all
+  (RED on the old code). The two refusal tests now assert the milestone: the
+  NATIVE005 is GONE and only the NATIVE004 names the toolchain. **PROOF
+  (executed):** the macOS family **40/0F**; the UEFI/Ring families **8/0F** and
+  **5/0F** (the suite's mid-run failures were contamination — see the verdict
+  record); the Troolean family is **3/0F** (the sibling lane's #1178 ROOT fix
+  landed: the type was `Nullable(Nullable(Bool))`, not a design fork); the
+  exception + native battery **946/0F**; the gates rc=0. **THE BOUNDARY
+  (honest):** the macOS profile now compiles the hello cleanly up to the LINK
+  — the link and the RUN need the M-7 runner (a real macos-14 host), and that
+  is what NATIVE004 refuses without. **THE NEXT ROWS:** the "stat" family of
+  the seam (the Darwin `struct stat`), the M-7 runner, the arm64 face (the
+  cross aarch64 emitter + its Mach-O proof); then #1159 keep-alive HTTP/1.1.
+
 
 
   **M-5 SLICE 1 LANDED 22/11 (the concurrency face) — the port exposed a REAL

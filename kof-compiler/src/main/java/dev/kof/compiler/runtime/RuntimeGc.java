@@ -415,7 +415,12 @@ public final class RuntimeGc {
                 movq 8(%rax), %rsp
                 movq 16(%rax), %rbp
                 movq 24(%rax), %rcx
-                movq %rcx, %fs:kof_exc_chain@tpoff
+                pushq %rdi
+                pushq %rcx
+                movq %rcx, %rdi
+                call kof_plat_tls_set        # M-4 (#1135): a cadeia pela costura
+                popq %rcx
+                popq %rdi
                 movq 0(%rax), %rcx
                 testq %rcx, %rcx
                 jz .Lkof_throw_panic

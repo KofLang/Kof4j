@@ -241,9 +241,12 @@ class NativeMacOSSeamE2ETest {
             driver.setNativeProfile(dev.kof.compiler.nat.NativeProfile.of("macos"));
             CompilationResult mac = driver.compile(src, tmp.resolve("out"), Target.NATIVE);
             String diags = mac.diagnostics().getDiagnostics().toString();
-            assertTrue(diags.contains("NATIVE005"), "the named refusal: " + diags);
-            assertTrue(diags.contains("0 syscall(s) crus"),
-                    "the measured count of the raw syscalls: " + diags);
+            // M-4 (#1135): com o TLS migrado o perfil nao tem MAIS nenhuma face
+            // ELF-only — a recusa NATIVE005 fica MUDA; o que resta e' a
+            // NATIVE004 (o toolchain macOS so existe no runner do M-7).
+            assertFalse(diags.contains("NATIVE005"),
+                    "the macOS profile has no ELF-only face left: " + diags);
+            assertTrue(diags.contains("NATIVE004"), "the named refusal: " + diags);
             assertFalse(diags.contains("kof_plat_sync"),
                     "the seam speaks libSystem now, so the refusal has no family to name: " + diags);
             assertFalse(diags.contains(".Lgrow_try"),

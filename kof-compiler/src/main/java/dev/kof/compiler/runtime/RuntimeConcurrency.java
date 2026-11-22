@@ -68,14 +68,24 @@ public final class RuntimeConcurrency {
                 movq %rbp, 16(%rsp)
                 call kof_plat_tls_get       # M-4 (#1135): a cadeia de exceções pela costura
                 movq %rax, 24(%rsp)
-                movq %rsp, %fs:kof_exc_chain@tpoff
+                pushq %rdi
+                pushq %rcx
+                leaq 16(%rsp), %rdi
+                call kof_plat_tls_set        # M-4 (#1135): a cadeia pela costura
+                popq %rcx
+                popq %rdi
                 movq 0(%rbx), %rdi              # task
                 movq 8(%rdi), %rax              # task vtable
                 movq (%rax), %rax               # vtable[0] = invoke
                 call *%rax
                 # término normal: desinstala o handler e publica o resultado
                 movq 24(%rsp), %rcx
-                movq %rcx, %fs:kof_exc_chain@tpoff
+                pushq %rdi
+                pushq %rcx
+                movq %rcx, %rdi
+                call kof_plat_tls_set        # M-4 (#1135): a cadeia pela costura
+                popq %rcx
+                popq %rdi
                 movq 40(%rsp), %rbx             # §286: entry do FRAME antes de desmontar
                 addq $48, %rsp
                 testq %r12, %r12

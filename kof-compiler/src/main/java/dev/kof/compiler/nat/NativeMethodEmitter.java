@@ -338,9 +338,15 @@ final class NativeMethodEmitter {
                 sb.append("    movq %rax, 0(%rsp)\n");
                 sb.append("    movq %rsp, 8(%rsp)\n");
                 sb.append("    movq %rbp, 16(%rsp)\n");
-                sb.append("    movq %fs:kof_exc_chain@tpoff, %rcx\n");
+                sb.append("    call kof_plat_tls_get        # M-4 (#1135): a cadeia pela costura\n");
+                sb.append("    movq %rax, %rcx\n");
                 sb.append("    movq %rcx, 24(%rsp)\n");
-                sb.append("    movq %rsp, %fs:kof_exc_chain@tpoff\n");
+                sb.append("pushq %rdi\n");
+                sb.append("pushq %rcx\n");
+                sb.append("leaq 16(%rsp), %rdi\n");
+                sb.append("call kof_plat_tls_set        # M-4 (#1135): a cadeia pela costura\n");
+                sb.append("popq %rcx\n");
+                sb.append("popq %rdi\n");
             }
             case KofStatementIf _ -> {
                 // §267: marcador de if de statement (uso exclusivo do dispatcher JS) — no-op
@@ -354,15 +360,25 @@ final class NativeMethodEmitter {
                 // NÃO é necessariamente `rsp` — lê do TOPO da cadeia (o TLS
                 // kof_exc_chain guarda a base salva no KofTryStart), religa o
                 // prev e restaura rsp antes de transferir o controle.
-                sb.append("    movq %fs:kof_exc_chain@tpoff, %rax\n");
+                sb.append("    call kof_plat_tls_get        # M-4 (#1135): a cadeia pela costura\n");
                 sb.append("    movq 24(%rax), %rcx\n");
-                sb.append("    movq %rcx, %fs:kof_exc_chain@tpoff\n");
+                sb.append("pushq %rdi\n");
+                sb.append("pushq %rcx\n");
+                sb.append("movq %rcx, %rdi\n");
+                sb.append("call kof_plat_tls_set        # M-4 (#1135): a cadeia pela costura\n");
+                sb.append("popq %rcx\n");
+                sb.append("popq %rdi\n");
                 sb.append("    movq %rax, %rsp\n");
                 sb.append("    addq $32, %rsp\n");
             }
             case KofTryEnd _ -> {
                 sb.append("    movq 24(%rsp), %rcx\n");
-                sb.append("    movq %rcx, %fs:kof_exc_chain@tpoff\n");
+                sb.append("pushq %rdi\n");
+                sb.append("pushq %rcx\n");
+                sb.append("movq %rcx, %rdi\n");
+                sb.append("call kof_plat_tls_set        # M-4 (#1135): a cadeia pela costura\n");
+                sb.append("popq %rcx\n");
+                sb.append("popq %rdi\n");
                 sb.append("    addq $32, %rsp\n");
             }
             case KofJump kj -> sb.append("    jmp ").append(nb.resolveLabel(kj.target())).append("\n");
