@@ -1,0 +1,74 @@
+// gerado de enois-design-system/src/styles.css (61 cores, 1 raios)
+package enois
+
+// Énois design tokens — GERADOS de `enois-design-system/src/styles.css`
+// (`:root`, o tema claro do site em enois.ia.br). Os OKLCH são convertidos
+// pelo algoritmo do CSS Color 4 em tempo de GERACAO (Java `Math.cos`),
+// entao o Kof guarda o RGB final — sem trig no runtime nativo.
+
+record ThemeColor(Int r, Int g, Int b)
+
+class Tokens {
+    static ThemeColor Accent() { return ThemeColor(240, 234, 255) }   // --accent: oklch(0.95 0.04 295)
+    static ThemeColor AccentForeground() { return ThemeColor(67, 31, 126) }   // --accent-foreground: oklch(0.35 0.15 295)
+    static ThemeColor ArticleText() { return ThemeColor(30, 64, 175) }   // --article-text: #1e40af
+    static ThemeColor Background() { return ThemeColor(247, 244, 251) }   // --background: #f7f4fb
+    static ThemeColor BackgroundUserArticle() { return ThemeColor(191, 219, 254) }   // --background-user-article: #bfdbfe
+    static ThemeColor BackgroundUserInsight() { return ThemeColor(253, 230, 138) }   // --background-user-insight: #fde68a
+    static ThemeColor BackgroundUserProject() { return ThemeColor(196, 181, 253) }   // --background-user-project: #c4b5fd
+    static ThemeColor Border() { return ThemeColor(228, 228, 235) }   // --border: oklch(0.92 0.01 285)
+    static ThemeColor BorderSoft() { return ThemeColor(229, 224, 235) }   // --border-soft: #e5e0eb
+    static ThemeColor BorderStrong() { return ThemeColor(120, 106, 137) }   // --border-strong: #786a89
+    static ThemeColor Card() { return ThemeColor(255, 255, 255) }   // --card: oklch(1 0 0)
+    static ThemeColor CardForeground() { return ThemeColor(20, 21, 31) }   // --card-foreground: oklch(0.2 0.02 280)
+    static ThemeColor Destructive() { return ThemeColor(179, 0, 24) }   // --destructive: oklch(0.48 0.2 25)
+    static ThemeColor DestructiveForeground() { return ThemeColor(252, 251, 255) }   // --destructive-foreground: oklch(0.99 0.005 290)
+    static ThemeColor Foreground() { return ThemeColor(33, 23, 58) }   // --foreground: #21173a
+    static ThemeColor Growth() { return ThemeColor(0, 161, 89) }   // --growth: oklch(0.62 0.16 155)
+    static ThemeColor GrowthForeground() { return ThemeColor(252, 251, 255) }   // --growth-foreground: oklch(0.99 0.005 290)
+    static ThemeColor HighlightArticle() { return ThemeColor(224, 242, 254) }   // --highlight-article: #e0f2fe
+    static ThemeColor HighlightArticleText() { return ThemeColor(3, 105, 161) }   // --highlight-article-text: #0369a1
+    static ThemeColor HighlightInsight() { return ThemeColor(254, 243, 199) }   // --highlight-insight: #fef3c7
+    static ThemeColor HighlightInsightText() { return ThemeColor(146, 64, 14) }   // --highlight-insight-text: #92400e
+    static ThemeColor HighlightProject() { return ThemeColor(221, 214, 254) }   // --highlight-project: #ddd6fe
+    static ThemeColor HighlightProjectText() { return ThemeColor(109, 40, 217) }   // --highlight-project-text: #6d28d9
+    static ThemeColor Input() { return ThemeColor(228, 228, 235) }   // --input: oklch(0.92 0.01 285)
+    static ThemeColor MentorshipButton() { return ThemeColor(124, 58, 237) }   // --mentorship-button: #7c3aed
+    static ThemeColor Muted() { return ThemeColor(240, 241, 247) }   // --muted: oklch(0.96 0.008 280)
+    static ThemeColor MutedForeground() { return ThemeColor(91, 93, 105) }   // --muted-foreground: oklch(0.48 0.02 280)
+    static ThemeColor OnForeground() { return ThemeColor(255, 255, 255) }   // --on-foreground: var(--card)
+    static ThemeColor Opportunity() { return ThemeColor(247, 127, 0) }   // --opportunity: oklch(0.72 0.18 55)
+    static ThemeColor OpportunityForeground() { return ThemeColor(38, 15, 0) }   // --opportunity-foreground: oklch(0.2 0.05 60)
+    static ThemeColor Popover() { return ThemeColor(255, 255, 255) }   // --popover: oklch(1 0 0)
+    static ThemeColor PopoverForeground() { return ThemeColor(20, 21, 31) }   // --popover-foreground: oklch(0.2 0.02 280)
+    static ThemeColor Primary() { return ThemeColor(103, 70, 245) }   // --primary: #6746f5
+    static ThemeColor PrimaryForeground() { return ThemeColor(252, 251, 255) }   // --primary-foreground: oklch(0.99 0.005 290)
+    static ThemeColor PrimarySoft() { return ThemeColor(238, 232, 255) }   // --primary-soft: #eee8ff
+    static ThemeColor PrimaryText() { return ThemeColor(87, 54, 219) }   // --primary-text: #5736db
+    static ThemeColor ProjectText() { return ThemeColor(76, 29, 149) }   // --project-text: #4c1d95
+    static ThemeColor Ring() { return ThemeColor(103, 70, 245) }   // --ring: #6746f5
+    static ThemeColor Secondary() { return ThemeColor(211, 180, 249) }   // --secondary: oklch(0.82 0.1 305)
+    static ThemeColor SecondaryForeground() { return ThemeColor(33, 29, 56) }   // --secondary-foreground: oklch(0.25 0.05 290)
+    static ThemeColor Sidebar() { return ThemeColor(255, 255, 255) }   // --sidebar: oklch(1 0 0)
+    static ThemeColor SidebarBorder() { return ThemeColor(231, 231, 238) }   // --sidebar-border: oklch(0.93 0.01 285)
+    static ThemeColor SidebarForeground() { return ThemeColor(44, 45, 56) }   // --sidebar-foreground: oklch(0.3 0.02 280)
+    static ThemeColor SignalDone() { return ThemeColor(14, 159, 110) }   // --signal-done: #0e9f6e
+    static ThemeColor SignalLove() { return ThemeColor(214, 51, 108) }   // --signal-love: #d6336c
+    static ThemeColor SignalToday() { return ThemeColor(168, 87, 10) }   // --signal-today: #a8570a
+    static ThemeColor SignalTodayForeground() { return ThemeColor(255, 255, 255) }   // --signal-today-foreground: #ffffff
+    static ThemeColor SignalTodaySoft() { return ThemeColor(255, 240, 221) }   // --signal-today-soft: #fff0dd
+    static ThemeColor Surface1() { return ThemeColor(249, 248, 255) }   // --surface-1: #f9f8ff
+    static ThemeColor Surface2() { return ThemeColor(237, 232, 245) }   // --surface-2: #ede8f5
+    static ThemeColor Surface3() { return ThemeColor(245, 243, 255) }   // --surface-3: #f5f3ff
+    static ThemeColor SurfaceCard() { return ThemeColor(255, 255, 255) }   // --surface-card: #ffffff
+    static ThemeColor Table1() { return ThemeColor(15, 118, 110) }   // --table-1: #0f766e
+    static ThemeColor Table2() { return ThemeColor(194, 65, 12) }   // --table-2: #c2410c
+    static ThemeColor Table3() { return ThemeColor(67, 56, 202) }   // --table-3: #4338ca
+    static ThemeColor Table4() { return ThemeColor(190, 24, 93) }   // --table-4: #be185d
+    static ThemeColor Table5() { return ThemeColor(124, 58, 237) }   // --table-5: #7c3aed
+    static ThemeColor Table6() { return ThemeColor(180, 83, 9) }   // --table-6: #b45309
+    static ThemeColor TextDate() { return ThemeColor(106, 95, 117) }   // --text-date: #6a5f75
+    static ThemeColor TextStrong() { return ThemeColor(29, 22, 38) }   // --text-strong: #1d1626
+    static ThemeColor TextSubtle() { return ThemeColor(91, 80, 104) }   // --text-subtle: #5b5068
+    static Int RadiusPx() { return 16 }   // --radius: 1rem
+}
