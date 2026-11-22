@@ -567,6 +567,31 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   the M-7 stage). The proof of the stage is STRUCTURAL on this fleet (the
   translated text + the link line), exactly as the plan states; the `_main`
   entry and the libSystem seam bodies are the M-2 row.
+  **M-1 CORRECTED 22/11 (#1135 — the M-1 emitter was BROKEN against the real
+  assembly; measured, not assumed):** the M-1 proof was six small text tests
+  (~10 lines each). The **real** assembly the backend emits is the whole
+  runtime — **132 KB** — and against THAT text the M-1 emitter had five real
+  defects, all found by running the **real Mach-O assembler** (the clang 18,
+  provisioned by `scripts/provision-macho-toolchain.sh` →
+  `~/.local/share/kof-macho`): (1) it **hung** — the operand scan restarted at
+  the `%` of a REGISTER without consuming it, so every line with a register
+  (`pushq %rbx`) looped forever: a real macOS compile would never have
+  finished; (2) the **immediates were corrupted** (`movq $1` → `movq _$1`;
+  the clang: "invalid operand for instruction"); (3) the **hex literals were
+  corrupted** (`0x4f0c…` → `0_x4f0c…`; "unexpected token"); (4) the
+  **mnemonic after a prefix** was prefixed (`lock cmpxchg` → `lock _cmpxchg`;
+  "invalid instruction mnemonic"); (5) the **data reference** (`.quad
+  Pair_toString`, the method table) took no prefix — the symbol would have
+  been undefined. The emitter now scans TOKEN by token (the mnemonic and its
+  prefixes, the registers, the immediates, the numbers, the strings and the
+  comments are all copied verbatim; only the global symbol references take the
+  `_` prefix), and the proof is **the real assembler accepting the real
+  132 KB** — the whole runtime, minus the two ELF-only faces the macOS still
+  lacks. The stage also gained the **named refusal `NATIVE005`** for those
+  faces: the raw Linux syscalls (the M-2 row — the `kof_plat_*` seam over
+  libSystem) and the ELF local-exec TLS (`%fs:…@tpoff` — the M-4 row) are
+  counted in the emitted text and the profile refuses with the diagnostic
+  naming both, instead of emitting a binary that fails at run time (R6).
 - **Bare-metal / bootable** (microcontroller, legacy BIOS, UEFI) — maintainer
   directive 15/09 ("all native code must also talk directly to barebones"). The
   pure-asm riscv64/aarch64 runtime (no libc) is the natural base, but the emitters

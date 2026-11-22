@@ -567,6 +567,32 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   prova da fase é ESTRUTURAL nesta frota (o texto traduzido + a linha de
   link), exatamente como o plano registra; a entry `_main` e os corpos da
   costura sobre a libSystem são a linha M-2.
+  **M-1 CORRIGIDA 22/11 (#1135 — o emissor do M-1 estava QUEBRADO contra o
+  assembly real; medido, não assumido):** a prova do M-1 eram seis testes de
+  texto pequeno (~10 linhas cada). O assembly **real** que o backend emite é o
+  runtime inteiro — **132 KB** — e contra ESSE texto o emissor do M-1 tinha
+  cinco defeitos reais, todos encontrados rodando o **assembler Mach-O de
+  verdade** (o clang 18, provisionado por
+  `scripts/provision-macho-toolchain.sh` → `~/.local/share/kof-macho`): (1) ele
+  **TRAVAVA** — a varredura do operando recomeçava no `%` de um REGISTRADOR
+  sem consumi-lo, então toda linha com registrador (`pushq %rbx`) girava para
+  sempre: um compile macOS de verdade nunca terminaria; (2) os **imediatos
+  eram corrompidos** (`movq $1` → `movq _$1`; o clang: "invalid operand for
+  instruction"); (3) os **literais hexadecimais eram corrompidos** (`0x4f0c…`
+  → `0_x4f0c…`; "unexpected token"); (4) o **mnemônico depois de um prefixo**
+  era prefixado (`lock cmpxchg` → `lock _cmpxchg`; "invalid instruction
+  mnemonic"); (5) a **referência de dado** (`.quad Pair_toString`, a tabela de
+  métodos) não recebia o prefixo — o símbolo ficaria indefinido. O emissor
+  agora varre TOKEN por TOKEN (o mnemônico e seus prefixos, os registradores,
+  os imediatos, os números, as strings e os comentários são copiados
+  verbatim; só as referências a símbolos globais ganham o prefixo `_`), e a
+  prova é **o assembler real aceitando os 132 KB reais** — o runtime inteiro,
+  menos as duas faces ELF-only que o macOS ainda não tem. A fase ganhou
+  também a **recusa nomeada `NATIVE005`** para essas faces: os syscalls Linux
+  crus (a linha M-2 — a costura `kof_plat_*` sobre a libSystem) e o TLS
+  local-exec do ELF (`%fs:…@tpoff` — a linha M-4) são contados no texto
+  emitido e o perfil recusa com o diagnóstico que nomeia as duas, em vez de
+  emitir um binário que falha em runtime (R6).
 - **Bare-metal / bootável** (microcontrolador, BIOS legado, UEFI) — diretiva da
   mantenedora 15/09 ("todo código nativo deve se comunicar direto com barebones").
   O runtime riscv64/aarch64 em asm puro (sem libc) é a base natural, mas os
