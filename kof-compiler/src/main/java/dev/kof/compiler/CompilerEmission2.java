@@ -100,7 +100,15 @@ public final class CompilerEmission2 {
             // boxed — não reboxa.
             if (formal instanceof Type.NullableType formalNt && formalNt.inner() instanceof Type.PrimitiveType
                     && argType instanceof Type.PrimitiveType) {
-                TypeEmitter.boxPrimitive(ops, formal);
+                // #1180: formal Nullable(primitivo) com inner DIFERENTE do arg
+                // cru (`R("1", 100)` num campo `Long?`) — o box tem de ser o do
+                // INNER, e o valor precisa ALARGAR antes dele. Sem o I2L o
+                // Integer empilhado ia para um descritor `Long` (invokespecial
+                // esperava Long, achava Integer) → frame crash COMPUTE_FRAMES
+                // medido na issue. Mesmo widening que o ramo do formal CRU
+                // acima aplica (nullable só troca o box, nunca a conversão).
+                driver.emitWideningIfNeeded(ops, argType, formalNt.inner());
+                TypeEmitter.boxPrimitive(ops, formalNt.inner());
             }
             if (formal != null && BuiltinTypes.isString(formal)
                     && argType instanceof Type.PrimitiveType pt
