@@ -126,21 +126,23 @@ class NativeMacOSSeamE2ETest {
 
     /**
      * O RATCHET da costura: os syscalls crus do hello real caíram de 9 para
-     * 2 — a família write/exit (M-2 fatia 1) e o allocator (M-3) saíram do
-     * ABI Linux; o que fica é a CONCORRÊNCIA (M-5).
+     * 1 — a família write/exit (M-2 fatia 1), o allocator (M-3) e o id da
+     * thread (M-5) saíram do ABI Linux; o que fica é o FUTEX
+     * ({@code kof_plat_sync}), a face que o macOS troca pelo
+     * {@code __ulock}/{@code os_unfair_lock}.
      */
     @Test
     void theRawSyscallRatchetFellByTheMigratedFamily(@TempDir Path tmp) throws IOException {
         String asm = macosAssembly(tmp);
         List<String> sites = dev.kof.compiler.nat.NativeMachO.elfSyscallSites(asm);
-        assertEquals(2, sites.size(),
-                "the write/exit family (M-2) and the allocator (M-3) left the Linux "
-                        + "syscall ABI; the rest is the concurrency (M-5): " + sites);
+        assertEquals(1, sites.size(),
+                "the write/exit family (M-2), the allocator (M-3) and the thread id "
+                        + "(M-5) left the Linux syscall ABI; the rest is the futex: " + sites);
         List<String> owners = dev.kof.compiler.nat.NativeMachO.elfSyscallOwners(asm);
-        assertTrue(owners.contains("kof_plat_thread_id"),
-                "the concurrency face is still Linux: " + owners);
         assertTrue(owners.contains("kof_plat_sync"),
-                "the concurrency face is still Linux: " + owners);
+                "the futex is the face that still speaks Linux: " + owners);
+        assertFalse(owners.contains("kof_plat_thread_id"),
+                "the thread id is the Darwin API now: " + owners);
         assertFalse(owners.contains(".Lgrow_try"),
                 "the allocator face is libSystem now: " + owners);
         assertFalse(owners.contains("kof_plat_write"),
@@ -240,7 +242,7 @@ class NativeMacOSSeamE2ETest {
             CompilationResult mac = driver.compile(src, tmp.resolve("out"), Target.NATIVE);
             String diags = mac.diagnostics().getDiagnostics().toString();
             assertTrue(diags.contains("NATIVE005"), "the named refusal: " + diags);
-            assertTrue(diags.contains("2 syscall(s) crus"),
+            assertTrue(diags.contains("1 syscall(s) crus"),
                     "the measured count of the raw syscalls: " + diags);
             assertTrue(diags.contains("kof_plat_sync"),
                     "the refusal names the family: " + diags);

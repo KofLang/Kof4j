@@ -216,6 +216,40 @@ public final class RuntimePlatMacos {
     }
 
     /**
+     * A FAMÍLIA thread-id: o {@code kof_plat_thread_id} pela API pública do
+     * Darwin.
+     *
+     * <p>No Linux a costura usa o syscall {@code gettid} (186) — que o Darwin
+     * não tem. A API pública equivalente é a
+     * {@code pthread_threadid_np(pthread_t, uint64_t *)}: com o primeiro
+     * argumento {@code NULL} ela devolve o id da thread corrente (medido na
+     * declaração do SDK: {@code int pthread_threadid_np(pthread_t, __uint64_t *)}).
+     * O corpo aloca o slot do id na pilha (16 bytes, alinhado), chama a libc
+     * com a pilha alinhada e devolve o id em {@code %rax} — o mesmo contrato
+     * do {@code gettid} (o id de 64 bits).
+     */
+    public static void emitThreadId(StringBuilder sb) {
+        sb.append("""
+            .globl kof_plat_thread_id
+            .type kof_plat_thread_id, @function
+            kof_plat_thread_id:
+                pushq %r15
+                movq %rsp, %r15
+                andq $-16, %rsp         # alinha a pilha (a libSystem usa SSE)
+                subq $16, %rsp          # o slot do id (16-align, dentro do frame)
+                xorq %rdi, %rdi         # thread = NULL (a thread corrente)
+                movq %rsp, %rsi         # &tid
+                call pthread_threadid_np
+                movq (%rsp), %rax       # o id de 64 bits
+                addq $16, %rsp          # volta ao frame alinhado
+                subq %rsp, %r15         # devolve o delta do alinhamento
+                addq %r15, %rsp
+                popq %r15
+                ret
+            """);
+    }
+
+    /**
      * A FAMÍLIA allocator: o {@code kof_plat_heap_grow} sobre a libSystem
      * ({@code mmap}/{@code munmap}) — a etapa M-3 do plano.
      *

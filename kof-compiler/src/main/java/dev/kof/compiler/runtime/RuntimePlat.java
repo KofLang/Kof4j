@@ -229,6 +229,12 @@ public final class RuntimePlat {
     }
 
     public static void emitPlatThreadId(StringBuilder sb) {
+        // M-5 (#1135): no macOS o id da thread vem da API pública do Darwin
+        // (pthread_threadid_np) — o gettid do Linux não existe lá.
+        if (dev.kof.compiler.nat.NativeProfile.active.isMacos()) {
+            RuntimePlatMacos.emitThreadId(sb);
+            return;
+        }
         // B-2: UEFI roda sem threads — TID constante (o GC do hello não marca concorrente).
         // B-3b-3: BIOS single-thread — mesmo contrato.
         if (dev.kof.compiler.nat.NativeProfile.activeIsUefi()

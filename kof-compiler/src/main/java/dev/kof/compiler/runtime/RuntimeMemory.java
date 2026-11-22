@@ -86,10 +86,13 @@ public final class RuntimeMemory {
                 jz .Lkof_alloc_locked
                 # ocupado: futex wait
                 movl $1, %edx                    # val=1
+                leaq kof_alloc_lock(%rip), %rdi  # uaddr = &lock
+                xorl %esi, %esi                  # op = FUTEX_WAIT
                 xorq %r10, %r10
                 xorq %r8, %r8
                 xorq %r9, %r9
                 call kof_plat_sync
+                leaq kof_alloc_lock(%rip), %rsi  # restaura &lock p/ o cmpxchg
                 jmp .Lkof_alloc_lock_try
             .Lkof_alloc_locked:
                 movq $0, 8(%rsp)                 # flag: GC ainda nao tentou

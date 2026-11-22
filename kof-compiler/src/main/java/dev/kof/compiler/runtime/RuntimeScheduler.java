@@ -43,15 +43,19 @@ public final class RuntimeScheduler {
                 testl %eax, %eax
                 jz .Lsched_lkd
                 movl $1, %edx
+                leaq kof_sched_lock(%rip), %rdi    # uaddr = &lock
+                xorl %esi, %esi                    # op = FUTEX_WAIT
                 xorq %r10, %r10
                 xorq %r8, %r8
                 xorq %r9, %r9
                 call kof_plat_sync
+                leaq kof_sched_lock(%rip), %rsi    # restaura &lock p/ o cmpxchg
                 jmp .Lsched_lk
             .Lsched_lkd:
                 movl 20(%rbx), %r12d              # active
                 movq 8(%rbx), %r13                # task
                 movl $0, (%rsi)                   # unlock
+                leaq kof_sched_lock(%rip), %rdi    # uaddr = &lock
                 movl $1, %esi
                 xorl %edx, %edx
                 xorq %r10, %r10
@@ -75,14 +79,18 @@ public final class RuntimeScheduler {
                 testl %eax, %eax
                 jz .Lsched_lkd2
                 movl $1, %edx
+                leaq kof_sched_lock(%rip), %rdi    # uaddr = &lock
+                xorl %esi, %esi                    # op = FUTEX_WAIT
                 xorq %r10, %r10
                 xorq %r8, %r8
                 xorq %r9, %r9
                 call kof_plat_sync
+                leaq kof_sched_lock(%rip), %rsi    # restaura &lock p/ o cmpxchg
                 jmp .Lsched_lk2
             .Lsched_lkd2:
                 movl 20(%rbx), %r12d
                 movl $0, (%rsi)                   # unlock
+                leaq kof_sched_lock(%rip), %rdi    # uaddr = &lock
                 movl $1, %esi
                 xorl %edx, %edx
                 xorq %r10, %r10
@@ -122,15 +130,19 @@ public final class RuntimeScheduler {
                 testl %eax, %eax
                 jz .Lsched_new_lkd
                 movl $1, %edx
+                leaq kof_sched_lock(%rip), %rdi    # uaddr = &lock
+                xorl %esi, %esi                    # op = FUTEX_WAIT
                 xorq %r10, %r10
                 xorq %r8, %r8
                 xorq %r9, %r9
                 call kof_plat_sync
+                leaq kof_sched_lock(%rip), %rsi    # restaura &lock p/ o cmpxchg
                 jmp .Lsched_new_lk
             .Lsched_new_lkd:
                 incl kof_sched_seq(%rip)
                 movl kof_sched_seq(%rip), %ebp     # seq
                 movl $0, (%rsi)                    # unlock
+                leaq kof_sched_lock(%rip), %rdi    # uaddr = &lock
                 movl $1, %esi
                 xorl %edx, %edx
                 xorq %r10, %r10
@@ -167,16 +179,20 @@ public final class RuntimeScheduler {
                 testl %eax, %eax
                 jz .Lsched_push_lkd
                 movl $1, %edx
+                leaq kof_sched_lock(%rip), %rdi    # uaddr = &lock
+                xorl %esi, %esi                    # op = FUTEX_WAIT
                 xorq %r10, %r10
                 xorq %r8, %r8
                 xorq %r9, %r9
                 call kof_plat_sync
+                leaq kof_sched_lock(%rip), %rsi    # restaura &lock p/ o cmpxchg
                 jmp .Lsched_push_lk
             .Lsched_push_lkd:
                 movq kof_sched_head(%rip), %rax
                 movq %rax, 0(%rbx)                 # job->next = head
                 movq %rbx, kof_sched_head(%rip)    # head = job
                 movl $0, (%rsi)                    # unlock
+                leaq kof_sched_lock(%rip), %rdi    # uaddr = &lock
                 movl $1, %esi
                 xorl %edx, %edx
                 xorq %r10, %r10
@@ -238,10 +254,13 @@ public final class RuntimeScheduler {
                 testl %eax, %eax
                 jz .Lsched_can_lkd
                 movl $1, %edx
+                leaq kof_sched_lock(%rip), %rdi    # uaddr = &lock
+                xorl %esi, %esi                    # op = FUTEX_WAIT
                 xorq %r10, %r10
                 xorq %r8, %r8
                 xorq %r9, %r9
                 call kof_plat_sync
+                leaq kof_sched_lock(%rip), %rsi    # restaura &lock p/ o cmpxchg
                 jmp .Lsched_can_lk
             .Lsched_can_lkd:
                 movq kof_sched_head(%rip), %rbx
@@ -260,6 +279,7 @@ public final class RuntimeScheduler {
             .Lsched_can_unlock:
                 leaq kof_sched_lock(%rip), %rsi
                 movl $0, (%rsi)                    # unlock
+                leaq kof_sched_lock(%rip), %rdi    # uaddr = &lock
                 movl $1, %esi
                 xorl %edx, %edx
                 xorq %r10, %r10

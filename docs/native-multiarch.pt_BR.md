@@ -694,6 +694,49 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   RECUSA emitir um binário (`NATIVE005`) — a concorrência (M-5), o TLS (M-4) e
   a io própria do runtime (M-6) ainda falam Linux, e a prova de que um
   binário macOS RODA é o runner do M-7.
+  **M-5 FATIA 1 POUSADA 22/11 (a face da concorrência) — o port expôs um DEFEITO
+  REAL no runtime x86-64: os argumentos do futex eram passados nos
+  registradores ERRADOS, então o "futex wait" era um no-op com EINVAL (uma
+  espera que nunca dorme) e o wake do scheduler acordava o endereço ERRADO.**
+  O CONTRATO da costura é a ABI do futex — `kof_plat_sync(uaddr=%rdi,
+  op=%rsi, val=%rdx, timeout=%r10)` — declarada do mesmo jeito na face
+  riscv (`kof_plat_sync(uaddr=a0, op=a1, val=a2, timeout=a3)`). O repo já
+  conhecia essa classe de bug: a nota do "bug 50" no `RuntimeChannel` diz que
+  o código antigo chamava o syscall 202 com `rdi=chan` (o uaddr errado) e
+  `rsi=&lock` (usado como op) — "comportamento indefinido na contenção
+  (spawn)". A correção pousou no `RuntimeChannel` e no `RuntimeLock`, mas NÃO
+  no `kof_alloc` nem no scheduler: os sítios de WAIT deixavam o ENDEREÇO em
+  `%rsi` (o registrador do op) e um valor velho em `%rdi`, e os sítios de
+  WAKE do scheduler acordavam o PONTEIRO DO JOB em vez do lock. A CORREÇÃO
+  usa o padrão já estabelecido (`leaq <lock>(%rip), %rdi; xorl %esi, %esi`
+  no wait — mais restaurar o endereço para o `cmpxchg` — e `leaq <lock>(%rip),
+  %rdi` no wake). **MEDIDO no binário real (strace):** as chamadas de futex
+  eram `futex(0x40a780, FUTEX_WAKE, 0)` — e o kernel honra esse val
+  acordando UM waiter (o wake devolveu 1 — o comportamento não documentado
+  mas medido, então os sítios de wake existentes estavam certos no
+  efeito); os sítios de wait nunca apareceram com um op válido, porque a
+  seção crítica (pequena) quase sempre é ganha pelo spin. **O ID DA THREAD
+  no macOS:** o Darwin não tem `gettid`; a API pública é
+  `pthread_threadid_np(NULL, &tid)` (medido no header do SDK, e o
+  `_pthread_threadid_np` está na lista de exportação da libSystem) — o corpo
+  guarda o slot do id na pilha e alinha a pilha para a chamada da libc. **O
+  RATCHET:** os syscalls Linux crus do hello real caíram de **2 para 1** —
+  só o futex (`kof_plat_sync`) ficou na face x86-64 da costura. **PROVA
+  (executada):** `NativeConcurrencySeamE2ETest` **4/4** — RED-first **4
+  falhas** no código antigo (o contrato quebrado no wait do `kof_alloc`; o id
+  da thread do macOS ainda `gettid`; o símbolo `_pthread_threadid_np`
+  ausente; o ratchet) e GREEN depois; a prova do contrato é ESTRUTURAL e
+  DETERMINÍSTICA (o teste percorre o assembly emitido e, em CADA call de
+  `kof_plat_sync`, exige o op constante, o uaddr endereço e o val constante —
+  sem corrida envolvida); a família de concorrência continua verde
+  (`KofConcurrency2Test` 50/0, `KofAwaitTest` 8/0, `SpawnAwaitBlockE2ETest`
+  5/0, `MakealiveReconcileE2ETest` 1/0, `WorkflowPrimitivesE2ETest` 6/0); a
+  bateria nativa **823 run / 0F / 0E / 81 skipped**; os gates rc=0. **A
+  PRÓXIMA FATIA:** o corpo macOS da sincronia (o futex →
+  `__ulock`/`os_unfair_lock`) — a API ulock é PRIVADA (ela NÃO está nos
+  headers do SDK, mas a libSystem exporta `___ulock_wait`/`___ulock_wake` —
+  medido na lista de exportação), então a semântica dela precisa do contrato
+  do XNU e de um runner real (M-7) para ser provada.
 - **Bare-metal / bootável** (microcontrolador, BIOS legado, UEFI) — diretiva da
   mantenedora 15/09 ("todo código nativo deve se comunicar direto com barebones").
   O runtime riscv64/aarch64 em asm puro (sem libc) é a base natural, mas os

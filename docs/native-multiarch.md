@@ -694,6 +694,48 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   REFUSES to emit a binary (`NATIVE005`) — the concurrency (M-5), the TLS
   (M-4) and the runtime's own io (M-6) still speak Linux, and the proof that
   a macOS binary RUNS is the M-7 runner.
+  **M-5 SLICE 1 LANDED 22/11 (the concurrency face) — the port exposed a REAL
+  DEFECT in the x86-64 runtime: the futex arguments were passed in the WRONG
+  registers, so the "futex wait" was an EINVAL no-op (a wait that never
+  sleeps) and the scheduler's wake woke the WRONG address.** THE CONTRACT of
+  the seam is the futex ABI — `kof_plat_sync(uaddr=%rdi, op=%rsi, val=%rdx,
+  timeout=%r10)` — declared the same way on the riscv face
+  (`kof_plat_sync(uaddr=a0, op=a1, val=a2, timeout=a3)`). The repo already
+  knew this class of bug: the "bug 50" note in `RuntimeChannel` says the old
+  code called syscall 202 with `rdi=chan` (the wrong uaddr) and `rsi=&lock`
+  (used as the op) — "undefined behaviour under contention (spawn)". That fix
+  landed in `RuntimeChannel` and `RuntimeLock` but NOT in `kof_alloc` nor in
+  the scheduler: their wait sites left the ADDRESS in `%rsi` (the op
+  register) and a stale value in `%rdi`, and the scheduler's wake sites woke
+  the JOB pointer instead of the lock. THE FIX uses the established pattern
+  (`leaq <lock>(%rip), %rdi; xorl %esi, %esi` for the wait — plus restoring
+  the address for the `cmpxchg` — and `leaq <lock>(%rip), %rdi` for the wake).
+  **MEASURED on the real binary (strace):** the futex calls were
+  `futex(0x40a780, FUTEX_WAKE, 0)` — and the kernel honours that val by
+  waking ONE waiter (the wake returned 1 — the undocumented-but-measured
+  behaviour, so the existing wake sites were right in effect); the wait sites
+  never appeared with a valid op, because the (tiny) critical section is
+  usually won by the spin. **THE MACOS THREAD ID:** the Darwin has no
+  `gettid`; the public API is `pthread_threadid_np(NULL, &tid)` (measured in
+  the SDK header, and `_pthread_threadid_np` is in the libSystem export
+  list) — the body keeps the id slot in the stack and aligns the stack for
+  the libc call. **THE RATCHET:** the raw Linux syscalls of the real hello
+  fell **2 → 1** — only the futex (`kof_plat_sync`) is left in the seam's
+  x86-64 face. **PROOF (executed):** `NativeConcurrencySeamE2ETest` **4/4** —
+  RED-first **4 failures** on the old code (the broken contract at the
+  `kof_alloc` wait; the macOS thread id still `gettid`; the missing
+  `_pthread_threadid_np` symbol; the ratchet) and GREEN after; the contract
+  proof is **structural and deterministic** (the test walks the emitted
+  assembly and, at EVERY `kof_plat_sync` call site, requires the op to be a
+  constant, the uaddr an address and the val a constant — no race involved);
+  the concurrency family stays green (`KofConcurrency2Test` 50/0,
+  `KofAwaitTest` 8/0, `SpawnAwaitBlockE2ETest` 5/0, `MakealiveReconcileE2ETest`
+  1/0, `WorkflowPrimitivesE2ETest` 6/0); the native battery **823 run / 0F /
+  0E / 81 skipped**; the gates rc=0. **THE NEXT SLICE:** the macOS sync body
+  (the futex → `__ulock`/`os_unfair_lock`) — the ulock API is PRIVATE (it is
+  NOT in the SDK headers, but libSystem exports `___ulock_wait`/`___ulock_wake`
+  — measured in the libSystem export list), so its semantics need the XNU
+  contract and a real runner (M-7) to be proven.
 - **Bare-metal / bootable** (microcontroller, legacy BIOS, UEFI) — maintainer
   directive 15/09 ("all native code must also talk directly to barebones"). The
   pure-asm riscv64/aarch64 runtime (no libc) is the natural base, but the emitters
