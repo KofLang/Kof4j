@@ -126,23 +126,23 @@ class NativeMacOSSeamE2ETest {
 
     /**
      * O RATCHET da costura: os syscalls crus do hello real caíram de 9 para
-     * 5 — os 4 migrados são da família write/exit; os 5 que ficam são o
-     * allocator (M-3) e a concorrência (M-5).
+     * 2 — a família write/exit (M-2 fatia 1) e o allocator (M-3) saíram do
+     * ABI Linux; o que fica é a CONCORRÊNCIA (M-5).
      */
     @Test
     void theRawSyscallRatchetFellByTheMigratedFamily(@TempDir Path tmp) throws IOException {
         String asm = macosAssembly(tmp);
         List<String> sites = dev.kof.compiler.nat.NativeMachO.elfSyscallSites(asm);
-        assertEquals(5, sites.size(),
-                "the write/exit family left the Linux syscall ABI; the rest are the "
-                        + "allocator (M-3) and the concurrency (M-5): " + sites);
+        assertEquals(2, sites.size(),
+                "the write/exit family (M-2) and the allocator (M-3) left the Linux "
+                        + "syscall ABI; the rest is the concurrency (M-5): " + sites);
         List<String> owners = dev.kof.compiler.nat.NativeMachO.elfSyscallOwners(asm);
         assertTrue(owners.contains("kof_plat_thread_id"),
                 "the concurrency face is still Linux: " + owners);
         assertTrue(owners.contains("kof_plat_sync"),
                 "the concurrency face is still Linux: " + owners);
-        assertTrue(owners.contains(".Lgrow_try"),
-                "the allocator face is still Linux: " + owners);
+        assertFalse(owners.contains(".Lgrow_try"),
+                "the allocator face is libSystem now: " + owners);
         assertFalse(owners.contains("kof_plat_write"),
                 "the write family is libSystem now: " + owners);
         assertFalse(owners.contains("kof_plat_exit"),
@@ -240,12 +240,12 @@ class NativeMacOSSeamE2ETest {
             CompilationResult mac = driver.compile(src, tmp.resolve("out"), Target.NATIVE);
             String diags = mac.diagnostics().getDiagnostics().toString();
             assertTrue(diags.contains("NATIVE005"), "the named refusal: " + diags);
-            assertTrue(diags.contains("5 syscall(s) crus"),
+            assertTrue(diags.contains("2 syscall(s) crus"),
                     "the measured count of the raw syscalls: " + diags);
             assertTrue(diags.contains("kof_plat_sync"),
                     "the refusal names the family: " + diags);
-            assertTrue(diags.contains(".Lgrow_try"),
-                    "the refusal names the allocator: " + diags);
+            assertFalse(diags.contains(".Lgrow_try"),
+                    "the allocator is libSystem now: " + diags);
         } finally {
             dev.kof.compiler.nat.NativeProfile.active = previous;
             if (priorKeep == null) {

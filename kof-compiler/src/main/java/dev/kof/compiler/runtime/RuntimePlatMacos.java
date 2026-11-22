@@ -214,4 +214,128 @@ public final class RuntimePlatMacos {
                 ret
             """);
     }
+
+    /**
+     * A FAMÍLIA allocator: o {@code kof_plat_heap_grow} sobre a libSystem
+     * ({@code mmap}/{@code munmap}) — a etapa M-3 do plano.
+     *
+     * <p><b>TRÊS MEDIÇÕES DO SDK DO DARWIN (mudam o corpo):</b>
+     * <ol>
+     *   <li><b>A 4ª flag vai em {@code %rcx}</b> — a ABI SysV da libSystem
+     *       (o syscall Linux põe a 4ª flag em {@code %r10});</li>
+     *   <li><b>As flags são OUTRAS:</b> {@code MAP_PRIVATE|MAP_ANON|MAP_NORESERVE}
+     *       = {@code 0x2|0x1000|0x40} = <b>{@code 0x1042}</b> no Darwin (no
+     *       Linux é {@code 0x4022}: o {@code MAP_ANONYMOUS} do Linux é 0x20 e
+     *       o {@code MAP_NORESERVE} é 0x4000);</li>
+     *   <li><b>O erro é {@code MAP_FAILED}</b> = {@code (void*)-1} exato no
+     *       Darwin (o syscall Linux devolvia {@code -errno} em
+     *       {@code [-4095,-1]}).</li>
+     * </ol>
+     *
+     * <p>A arena, o bitmap e a lógica de queda (4 GiB → … → 64 MiB) são
+     * exatamente as do corpo host — só a syscall vira a chamada da libSystem.
+     */
+    public static void emitHeapGrow(StringBuilder sb) {
+        sb.append("""
+            .section .text
+            .globl kof_plat_heap_grow
+            .type kof_plat_heap_grow, @function
+            kof_plat_heap_grow:
+                # §542: arena CONTÍGUA única (bump) p/ o GC usar bitmap O(1).
+                # rdi=tamanho -> rax=ptr | -1 (mesma semântica: ptr válido ou -1).
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                movq %rdi, %rbx              # salva o tamanho (rdi é clobberado)
+                movq kof_arena_base(%rip), %rax
+                testq %rax, %rax
+                jne .Lgrow_have
+                # primeiro alloc: a MAIOR arena que couber (4 GiB primeiro; o
+                # corpo host cai por potências quando a mmap falha).
+                movabsq $0x100000000, %r12   # 4 GiB
+            .Lgrow_try:
+                # bitmap = r12/128
+                movq %r12, %rsi
+                shrq $7, %rsi
+                movq $0, %rdi                # addr = NULL
+                movq $3, %rdx                # PROT_READ|PROT_WRITE (0x1|0x2)
+                movq $0x1042, %rcx           # MAP_PRIVATE|MAP_ANON|MAP_NORESERVE (DARWIN)
+                movq $-1, %r8                # fd = -1
+                movq $0, %r9                 # offset = 0
+                # a 4a flag da libSystem vai em %rcx (a ABI SysV); no syscall
+                # Linux ela ia em %r10. E o call precisa de %rsp ≡ 0.
+                pushq %r15
+                movq %rsp, %r15
+                andq $-16, %rsp
+                call mmap
+                subq %rsp, %r15
+                addq %r15, %rsp
+                popq %r15
+                cmpq $-1, %rax               # MAP_FAILED no Darwin
+                je .Lgrow_smaller
+                movq %rax, %r13              # bitmap ptr (temporário)
+                # arena = r12
+                movq $0, %rdi
+                movq %r12, %rsi
+                movq $3, %rdx
+                movq $0x1042, %rcx
+                movq $-1, %r8
+                movq $0, %r9
+                pushq %r15
+                movq %rsp, %r15
+                andq $-16, %rsp
+                call mmap
+                subq %rsp, %r15
+                addq %r15, %rsp
+                popq %r15
+                cmpq $-1, %rax               # MAP_FAILED
+                jne .Lgrow_arena_ok
+                # arena falhou: devolve o bitmap (< cap) antes de tentar menor,
+                # senão os bitmaps de cada tentativa vazam o address space.
+                movq %r13, %rdi
+                movq %r12, %rsi
+                shrq $7, %rsi
+                pushq %r15
+                movq %rsp, %r15
+                andq $-16, %rsp
+                call munmap                 # munmap(addr=%rdi, len=%rsi)
+                subq %rsp, %r15
+                addq %r15, %rsp
+                popq %r15
+                jmp .Lgrow_smaller
+            .Lgrow_arena_ok:
+                movq %rax, kof_arena_base(%rip)
+                movq %rax, kof_arena_ptr(%rip)
+                movq %r12, _kof_arena_size(%rip)
+                movq %r13, _kof_bm_ptr(%rip)
+                jmp .Lgrow_have
+            .Lgrow_smaller:
+                shrq $1, %r12                # 4G->2G->...->64M
+                movabsq $0x4000000, %rax     # 64 MiB piso
+                cmpq %rax, %r12
+                jae .Lgrow_try
+                jmp .Lgrow_fail
+            .Lgrow_have:
+                movq kof_arena_ptr(%rip), %rax
+                addq $15, %rax
+                andq $-16, %rax              # 16-align (bit exato no bitmap)
+                movq %rax, %rcx
+                addq %rbx, %rcx              # fim desta alocação
+                movq kof_arena_base(%rip), %rdx
+                addq _kof_arena_size(%rip), %rdx
+                cmpq %rdx, %rcx
+                ja .Lgrow_fail
+                movq %rcx, kof_arena_ptr(%rip)
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+            .Lgrow_fail:
+                movq $-1, %rax
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+            """);
+    }
 }

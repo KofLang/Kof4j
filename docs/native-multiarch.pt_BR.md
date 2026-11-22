@@ -669,6 +669,31 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   `_clock_gettime` e `_arc4random_buf` como externos indefinidos);
   `NativeMacOSProfileE2ETest` 11/11; a bateria nativa **814 run / 0F / 0E /
   81 skipped**; os gates rc=0.
+  **M-3 FATIA POUSADA 22/11 (o allocator sobre a libSystem) — o
+  `kof_plat_heap_grow` (a descida da arena de 4 GiB → 64 MiB) agora chama
+  `mmap`/`munmap` da libSystem, e o mmap do Darwin NÃO É o mmap do Linux em
+  TRÊS pontos, todos MEDIDOS nos headers do SDK: (1) a 4ª flag vai em `%rcx`
+  (a ABI SysV — o syscall Linux punha em `%r10`); (2) as flags são DIFERENTES
+  — `MAP_PRIVATE|MAP_ANON|MAP_NORESERVE` = `0x1042` no Darwin contra o
+  `0x4022` do Linux (o `MAP_ANONYMOUS` do Linux é 0x20 e o `MAP_NORESERVE`
+  dele é 0x4000); (3) o erro é `MAP_FAILED` = `-1` exato (o syscall Linux
+  devolvia um `-errno` em `[-4095,-1]`). A lógica da arena (a descida, o
+  bitmap, a devolução do bitmap que falhou) é a do host byte a byte — só a
+  syscall virou a chamada da libc, com a forma provada de alinhamento de
+  pilha. **O RATCHET:** os syscalls Linux crus do hello real caíram de **5
+  para 2** — o que resta da face x86-64 da costura é a concorrência
+  (`kof_plat_thread_id`, `kof_plat_sync` — a linha M-5). **PROVA
+  (executada):** `NativeMacOSAllocatorE2ETest` **5/5** — RED-first **5
+  falhas** no código antigo (o corpo ainda no `syscall`, as flags do Linux em
+  `%r10`, a checagem de `-errno` do Linux, o ratchet ainda em 5, os símbolos
+  `_mmap`/`_munmap` ausentes) e GREEN depois; o **assembler Mach-O real
+  aceita o corpo do allocator** (o objeto carrega `_mmap`/`_munmap` como
+  externos indefinidos); `NativeMacOSSeamE2ETest` 12/12;
+  `NativeMacOSProfileE2ETest` 11/11; a bateria nativa **819 run / 0F / 0E /
+  81 skipped**; os gates rc=0. **A FRONTEIRA (honesta):** o perfil ainda
+  RECUSA emitir um binário (`NATIVE005`) — a concorrência (M-5), o TLS (M-4) e
+  a io própria do runtime (M-6) ainda falam Linux, e a prova de que um
+  binário macOS RODA é o runner do M-7.
 - **Bare-metal / bootável** (microcontrolador, BIOS legado, UEFI) — diretiva da
   mantenedora 15/09 ("todo código nativo deve se comunicar direto com barebones").
   O runtime riscv64/aarch64 em asm puro (sem libc) é a base natural, mas os

@@ -318,6 +318,11 @@ public final class RuntimeMemory {
         // agnóstico de plataforma (o seam é o ponto único de plataforma).
         if (dev.kof.compiler.nat.NativeProfile.activeIsUefi()) {
             RuntimeUefi.emitUefiHeapGrow(sb);
+        } else if (dev.kof.compiler.nat.NativeProfile.active.isMacos()) {
+            // M-3 (#1135): no macOS o allocator cresce pela libSystem
+            // (mmap/munmap) — as flags e o registro da 4a flag são os do
+            // Darwin (medidos no SDK: 0x1042 e %rcx).
+            RuntimePlatMacos.emitHeapGrow(sb);
         } else if (dev.kof.compiler.nat.NativeProfile.active == dev.kof.compiler.nat.NativeProfile.FREESTANDING
                 || dev.kof.compiler.nat.NativeProfile.activeIsBios()) {
             // B-1: sem SO para mmap — a arena vem do linker script.

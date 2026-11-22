@@ -669,6 +669,31 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   bodies** (the object carries `_clock_gettime` and `_arc4random_buf` as
   undefined externals); `NativeMacOSProfileE2ETest` 11/11; the native battery
   **814 run / 0F / 0E / 81 skipped**; the gates rc=0.
+  **M-3 SLICE LANDED 22/11 (the allocator over the libSystem) — the
+  `kof_plat_heap_grow` (the arena's 4 GiB → 64 MiB descent) now calls
+  `mmap`/`munmap` from the libSystem, and the Darwin's mmap is NOT the Linux
+  mmap in THREE points, all MEASURED in the SDK headers: (1) the 4th flag
+  goes in `%rcx` (the SysV ABI — the Linux syscall put it in `%r10`); (2) the
+  flags are DIFFERENT — `MAP_PRIVATE|MAP_ANON|MAP_NORESERVE` = `0x1042` on the
+  Darwin vs the Linux `0x4022` (the Linux `MAP_ANONYMOUS` is 0x20 and its
+  `MAP_NORESERVE` is 0x4000); (3) the error is `MAP_FAILED` = `-1` exactly
+  (the Linux syscall returned a `-errno` in `[-4095,-1]`). The arena logic
+  (the descent, the bitmap, the release of the failed bitmap) is the host's
+  byte for byte — only the syscall became the libc call, with the proven
+  stack-alignment shape. **THE RATCHET:** the raw Linux syscalls of the real
+  hello fell **5 → 2** — what is left of the seam's x86-64 face is the
+  concurrency (`kof_plat_thread_id`, `kof_plat_sync` — the M-5 row). **PROOF
+  (executed):** `NativeMacOSAllocatorE2ETest` **5/5** — RED-first **5
+  failures** on the old code (the body still on `syscall`, the Linux flags in
+  `%r10`, the Linux `-errno` check, the ratchet still at 5, the missing
+  `_mmap`/`_munmap` symbols) and GREEN after; the **real Mach-O assembler
+  accepts the allocator body** (the object carries `_mmap`/`_munmap` as
+  undefined externals); `NativeMacOSSeamE2ETest` 12/12;
+  `NativeMacOSProfileE2ETest` 11/11; the native battery **819 run / 0F / 0E /
+  81 skipped**; the gates rc=0. **THE BOUNDARY (honest):** the profile still
+  REFUSES to emit a binary (`NATIVE005`) — the concurrency (M-5), the TLS
+  (M-4) and the runtime's own io (M-6) still speak Linux, and the proof that
+  a macOS binary RUNS is the M-7 runner.
 - **Bare-metal / bootable** (microcontroller, legacy BIOS, UEFI) — maintainer
   directive 15/09 ("all native code must also talk directly to barebones"). The
   pure-asm riscv64/aarch64 runtime (no libc) is the natural base, but the emitters
