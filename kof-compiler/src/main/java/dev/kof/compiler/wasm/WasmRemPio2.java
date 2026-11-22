@@ -104,6 +104,17 @@ final class WasmRemPio2 {
      *  1=t, 2=fn, 3=r, 4=w, 5=y0, 6=y1, 7=n(i32), 8=ix(i32), 9=j(i32),
      *  10=i(i32), 11=scratch(i32). */
     static WasmFunc mediumFunc() {
+        return mediumBody("kof.sin.medium", false);
+    }
+
+    /** O gêmeo do COS-1 (15/11): o MESMO laço de Cody-Waite, o despacho do
+     *  OCTANTE do cos (FdLibm.Cos: 0:+cos / 1:−sin iy=1 / 2:−cos / 3:+sin).
+     *  O sin usa o despacho FdLibm.Sin (0:+sin / 1:cos / 2:−sin / 3:−cos). */
+    static WasmFunc mediumCosFunc() {
+        return mediumBody("kof.cos.medium", true);
+    }
+
+    private static WasmFunc mediumBody(String name, boolean cos) {
         List<WasmInstr> b = new ArrayList<>();
         // t = |x|; ix = o hi-word de |x|
         get(b, 0);
@@ -296,13 +307,49 @@ final class WasmRemPio2 {
         b.add(new WasmInstr.Const(0, 3));
         b.add(new WasmInstr.Simple(0x71, "i32.and"));                // n&3 (o complemento-2 = o Java)
         b.add(new WasmInstr.Local(WasmInstr.Local.SET, 11, "oct"));
-        get(b, 11);
+        if (!cos) {
+            get(b, 11);
+            b.add(new WasmInstr.Const(0, 0));
+            b.add(new WasmInstr.Simple(0x46, "i32.eq"));
+            b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, null, 0x7c));   // case 0
+            get(b, 5);
+            get(b, 6);
+            b.add(new WasmInstr.Call("kof.sin.smalltail"));
+            b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, null, 0x7c));
+            get(b, 11);
+            b.add(new WasmInstr.Const(0, 1));
+            b.add(new WasmInstr.Simple(0x46, "i32.eq"));
+            b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, null, 0x7c));   // case 1
+            get(b, 5);
+            get(b, 6);
+            b.add(new WasmInstr.Call("kof.cos.kernel"));
+            b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, null, 0x7c));
+            get(b, 11);
+            b.add(new WasmInstr.Const(0, 2));
+            b.add(new WasmInstr.Simple(0x46, "i32.eq"));
+            b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, null, 0x7c));   // case 2
+            get(b, 5);
+            get(b, 6);
+            b.add(new WasmInstr.Call("kof.sin.smalltail"));
+            b.add(new WasmInstr.Simple(0x9a, "f64.neg"));
+            b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, null, 0x7c)); // case 3
+            get(b, 5);
+            get(b, 6);
+            b.add(new WasmInstr.Call("kof.cos.kernel"));
+            b.add(new WasmInstr.Simple(0x9a, "f64.neg"));
+            b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x7c));
+            b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x7c));
+            b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x7c));
+            return new WasmFunc(name, List.of(0x7c), List.of(0x7c),
+                    List.of(0x7c, 0x7c, 0x7c, 0x7c, 0x7c, 0x7c, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f), b);
+        }
+        get(b, 11);                                                  // COS-1: 0:+cos / 1:−sin / 2:−cos / 3:+sin
         b.add(new WasmInstr.Const(0, 0));
         b.add(new WasmInstr.Simple(0x46, "i32.eq"));
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, null, 0x7c));   // case 0
         get(b, 5);
         get(b, 6);
-        b.add(new WasmInstr.Call("kof.sin.smalltail"));
+        b.add(new WasmInstr.Call("kof.cos.kernel"));
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, null, 0x7c));
         get(b, 11);
         b.add(new WasmInstr.Const(0, 1));
@@ -310,7 +357,8 @@ final class WasmRemPio2 {
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, null, 0x7c));   // case 1
         get(b, 5);
         get(b, 6);
-        b.add(new WasmInstr.Call("kof.cos.kernel"));
+        b.add(new WasmInstr.Call("kof.sin.smalltail"));
+        b.add(new WasmInstr.Simple(0x9a, "f64.neg"));
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, null, 0x7c));
         get(b, 11);
         b.add(new WasmInstr.Const(0, 2));
@@ -318,17 +366,16 @@ final class WasmRemPio2 {
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.IF, null, 0x7c));   // case 2
         get(b, 5);
         get(b, 6);
-        b.add(new WasmInstr.Call("kof.sin.smalltail"));
+        b.add(new WasmInstr.Call("kof.cos.kernel"));
         b.add(new WasmInstr.Simple(0x9a, "f64.neg"));
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, null, 0x7c)); // case 3
         get(b, 5);
         get(b, 6);
-        b.add(new WasmInstr.Call("kof.cos.kernel"));
-        b.add(new WasmInstr.Simple(0x9a, "f64.neg"));
+        b.add(new WasmInstr.Call("kof.sin.smalltail"));
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x7c));
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x7c));
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x7c));
-        return new WasmFunc("kof.sin.medium", List.of(0x7c), List.of(0x7c),
+        return new WasmFunc(name, List.of(0x7c), List.of(0x7c),
                 List.of(0x7c, 0x7c, 0x7c, 0x7c, 0x7c, 0x7c, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f), b);
     }
 

@@ -69,31 +69,27 @@ class WasmWasiTrigE2ETest {
     }
 
     @Test
-    void sinBeyondMediumRangeTrapsHonestly(@TempDir Path dir) throws Exception {
-        // MATH-LIBM-4 fatia B (28/10, #776): o caminho GRANDE agora TRADUZ o
-        // ramo n&3=0/2 (a face mathSinLargeRangeSinBranch) e mantém o TRAP
-        // honesto no ramo n&3=1/3 (o __kernel_cos — o veredicto MORTO do cos).
-        // A MEDIÇÃO que corrigiu a rodada 51: o n do fdlibm é ARREDONDADO
-        // (round-half-up: trunca + o ih do frac ≥ 0.5), não o floor da sonda
-        // antiga — 2000000 tem n&3=0 (vira tradução) e 1193046 tem n&3=1.
-        // A face pina o trap via o EXIT CODE do wasmtime.
+    void sinLargeQuadOneThreeMatchTheJvmOracle(@TempDir Path dir) throws Exception {
+        // COS-1 (15/11): os quads 1/3 do caminho GRANDE deixam de TRAPAR —
+        // o cos.kernel entra (o FdLibm.Sin case 1/default; o gêmeo
+        // kof.cos.large = o mesmo driver com o octante do Cos). O médio já
+        // despachava os 4 quads desde MATH-LIBM-3. AS FACES: as 4 MEDIDAS
+        // byte-idênticas vs o oráculo JVM (Math.sin == StrictMath nos 4 —
+        // o SinProbe 15/11) — a face de TRAP de 28/10 vira TRADUÇÃO (a lei
+        // da recusa velha: ela flipa NO MESMO commit que a tradução).
         var wasmtime = WasmWasiFlowE2ETest.host("wasmtime");
         var wasmTools = WasmWasiFlowE2ETest.host("wasm-tools");
         org.junit.jupiter.api.Assumptions.assumeTrue(wasmtime != null && wasmTools != null,
                 "wasm hosts absent — run scripts/provision-wasmtime.sh");
-        var driver = new CompilerDriver();
-        Files.writeString(dir.resolve("Main.kf"),
-                "main(String[] args) {\n    println(math.sin(1193046.0))\n}\n");
-        var jvm = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-jvm"), Target.JVM);
-        assertTrue(jvm.success(), "jvm compile: " + jvm.diagnostics().getDiagnostics());
-        var wasi = driver.compile(dir.resolve("Main.kf"), dir.resolve("out-wasi"), Target.WASI);
-        assertTrue(wasi.success(), "wasi compile (o guard da faixa valida): " + wasi.diagnostics().getDiagnostics());
-        var proc = new ProcessBuilder(List.of(wasmtime.toString(), "run",
-                Path.of(dir.toString(), "out-wasi", "Default", "Main.wasm").toString()))
-                .redirectErrorStream(true).start();
-        proc.waitFor(60, java.util.concurrent.TimeUnit.SECONDS);
-        assertTrue(proc.exitValue() != 0,
-                "sin no ramo cos (n&3=1/3) TRAPA honestamente (rc=" + proc.exitValue() + ")");
+        Files.writeString(dir.resolve("Main.kf"), """
+                main(String[] args) {
+                    println(math.sin(1193046.0))
+                    println(math.sin(-1193046.0))
+                    println(math.sin(1193049.0))
+                    println(math.sin(-1193049.0))
+                }
+                """);
+        WasmWasiFlowE2ETest.assertFaceMatchesJvm(dir);
     }
 
     @Test

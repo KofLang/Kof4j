@@ -51,9 +51,14 @@ final class WasmMathRuntime {
             "kof_math_dclamp", "kof_math_dsign",
             // MATH-LIBM-1 (27/10): o __kernel_sin fdlibm — WasmSinKernel
             // (split check_500). A fundação MEDIDA: Math.sin == StrictMath
-            // em 29/29; cos DERIVA 5/29 por 1 ulp (a face cos paridade está
-            // MORTA — veredito registrado)
+            // em 29/29; cos DERIVA 9/52 por 1 ulp (15/11, CosProbe — o
+            // 0.1/2.3/±1000/±1193046/2000000/±1e15) — as faces de drift
+            // ficam FORA do oráculo Math (a lei MATH-POW-1)
             "kof_math_sin",
+            // COS-1 (15/11): o FdLibm.Cos verbatim — o cos.kernel pousado
+            // (MATH-LIBM-1) + os gêmeos médio/grande do sin com o despacho
+            // do octante do cos (WasmRemPio2.mediumCosFunc/largeCosFunc)
+            "kof_math_cos",
             // MATH-TAN-1 (27/10, redo): o kernel_tan fdlibm na faixa pequena
             "kof_math_tan",
             // MATH-ATAN-1 (28/10): o __kernel_atan fdlibm — AUTOCONTIDO (sem
@@ -575,6 +580,12 @@ final class WasmMathRuntime {
         fs.add(WasmPowBits.lo0Func());
         fs.add(WasmRemPio2.smallTailFunc());
         fs.add(WasmRemPio2.mediumFunc());
+        // COS-1 (15/11): os gêmeos do cos — o médio (o Cody-Waite com o
+        // despacho FdLibm.Cos) e o grande (o scratch 928B + o rempi2 COMUM
+        // com o octante do cos); o driver kof_math_cos (WasmCosDriver)
+        fs.add(WasmRemPio2.mediumCosFunc());
+        fs.add(WasmRemPio2Large.largeCosFunc());
+        fs.add(WasmCosDriver.cosDriverFunc());
         // MATH-LIBM-4 fatia B (28/10): o caminho GRANDE — o driver (a quebra
         // tx + o despacho n&3) + o kernel da memória-scratch. O heapAlloc
         // entra junto: o driver aloca o scratch de 928B (o dedupe por nome

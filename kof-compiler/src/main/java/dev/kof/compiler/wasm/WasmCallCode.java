@@ -313,6 +313,7 @@ final class WasmCallCode {
                     || kc.methodName().equals("kof_math_dmax")
                     || kc.methodName().equals("kof_math_dclamp")
                     || kc.methodName().equals("kof_math_sin")
+                    || kc.methodName().equals("kof_math_cos")
                     || kc.methodName().equals("kof_math_tan")
                     || kc.methodName().equals("kof_math_atan")
                     || kc.methodName().equals("kof_math_asin")

@@ -125,6 +125,18 @@ final class WasmRemPio2Large {
      *  Locais: 0=x, 1=base, 2=ix, 3=hx, 4=e0, 5=nx, 6=z, 7=t, 8=n,
      *  9=y0, 10=y1, 11=oct. */
     static WasmFunc largeFunc() {
+        return largeBody("kof.sin.large", false);
+    }
+
+    /** O gêmeo do COS-1 (15/11): o MESMO driver grande (o scratch 928B + o
+     *  two_over_pi + o rempi2 COMUM), o OCTANTE do cos (FdLibm.Cos:
+     *  0:+cos / 1:−sin / 2:−cos / 3:+sin) — o sin e o cos COMPARTILHAM o
+     *  quad 0/2 invertendo o kernel, os quads 1/3 flipam o neg. */
+    static WasmFunc largeCosFunc() {
+        return largeBody("kof.cos.large", true);
+    }
+
+    private static WasmFunc largeBody(String name, boolean cos) {
         List<WasmInstr> b = new ArrayList<>();
         // base = heapAlloc(SCRATCH)
         i32c(b, SCRATCH);
@@ -233,7 +245,10 @@ final class WasmRemPio2Large {
         op(b, 0x6b, "i32.sub");
         set(b, 8);
         blk(b, WasmInstr.Blocking.END, null, 0x40);
-        // oct = n&3: 0 → +smalltail; 2 → −smalltail; 1/3 → o trap honesto
+        // oct = n&3 — FdLibm.Sin: 0:+smalltail / 2:−smalltail / 1:+cos /
+        // 3:−cos (os quads 1/3 do sin GRANDE TRANSLATADOS no COS-1 — o
+        // trap honesto vira o cos.kernel, o FdLibm.Sin case 1/default).
+        // FdLibm.Cos (o gêmeo): 0:+cos / 1:−smalltail / 2:−cos / 3:+smalltail.
         get(b, 8);
         i32c(b, 3);
         op(b, 0x71, "i32.and");
@@ -242,28 +257,48 @@ final class WasmRemPio2Large {
         i32c(b, 0);
         op(b, 0x46, "i32.eq");
         blk(b, WasmInstr.Blocking.IF, null, 0x7c);
-        get(b, 9);
-        get(b, 10);
-        b.add(new WasmInstr.Call("kof.sin.smalltail"));
+        quadKernel(b, cos, false);
+        blk(b, WasmInstr.Blocking.ELSE, null, 0x7c);
+        get(b, 11);
+        i32c(b, 1);
+        op(b, 0x46, "i32.eq");
+        blk(b, WasmInstr.Blocking.IF, null, 0x7c);
+        quadKernel(b, cos, true);
         blk(b, WasmInstr.Blocking.ELSE, null, 0x7c);
         get(b, 11);
         i32c(b, 2);
         op(b, 0x46, "i32.eq");
         blk(b, WasmInstr.Blocking.IF, null, 0x7c);
-        get(b, 9);
-        get(b, 10);
-        b.add(new WasmInstr.Call("kof.sin.smalltail"));
+        quadKernel(b, cos, false);
         op(b, 0x9a, "f64.neg");
         blk(b, WasmInstr.Blocking.ELSE, null, 0x7c);
-        op(b, 0x00, "unreachable");
+        quadKernel(b, cos, true);
+        op(b, 0x9a, "f64.neg");
         blk(b, WasmInstr.Blocking.END, null, 0x7c);
         blk(b, WasmInstr.Blocking.END, null, 0x7c);
-        return new WasmFunc("kof.sin.large", List.of(0x7c), List.of(0x7c),
+        blk(b, WasmInstr.Blocking.END, null, 0x7c);
+        return new WasmFunc(name, List.of(0x7c), List.of(0x7c),
                 List.of(0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x7c, 0x7c, 0x7f, 0x7c, 0x7c, 0x7f), b);
     }
 
+    /** O kernel do quad: a PARIDADE seleciona o kernel (o fdlibm alterna:
+     *  sin → smalltail nos PARES e cos.kernel nos ÍMPARES; cos → cos.kernel
+     *  nos PARES e smalltail nos ÍMPARES). O neg INTERNO é só do cos no
+     *  quad ÍMPAR: quad 1 → −sin (o case 1 do Cos) e o quad 3 → o
+     *  duplo-neg com o neg EXTERNO = +sin (o default do Cos). O sin
+     *  (FdLibm.Sin) não nega dentro: quad 1 = +cos, quad 3 = −cos externo. */
+    private static void quadKernel(List<WasmInstr> b, boolean cos, boolean quadOdd) {
+        get(b, 9);
+        get(b, 10);
+        boolean cosKernel = cos != quadOdd;
+        b.add(new WasmInstr.Call(cosKernel ? "kof.cos.kernel" : "kof.sin.smalltail"));
+        if (quadOdd && cos) {
+            op(b, 0x9a, "f64.neg");
+        }
+    }
+
     /** Um passo da quebra: tx = (int)z; z = (z−tx)·2^24; mem[base+off] = tx. */
-    private static void tx(List<WasmInstr> b, int off) {
+    static void tx(List<WasmInstr> b, int off) {
         get(b, 6);
         op(b, 0xaa, "i32.trunc_f64_s");
         op(b, 0xb7, "f64.convert_i32_s");

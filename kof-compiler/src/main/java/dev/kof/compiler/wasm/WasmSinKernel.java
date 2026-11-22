@@ -7,14 +7,13 @@ import java.util.List;
  * Fase E (27/10, #776 — split check_500): o {@code __kernel_sin} fdlibm da
  * FAIXA PEQUENA (|x| ≤ π/4) + o caso ESPECIAL n=±1 (|x| < 3π/4) + o
  * {@code __kernel_cos}. A FUNDAÇÃO MEDIDA: Math.sin == StrictMath.sin em
- * 29/29 entradas (o port fixa o oráculo byte a byte) MAS Math.cos deriva
- * 5/29 por 1 ulp (0.1, ±1000, 1e15) — a face cos paridade está MORTA
- * (veredito registrado). As constantes são as do FdLibm.Sin/Cos/RemPio2 DO
- * PRÓPRIO JDK (os literais hex preservam os bits — a tabela decimal da
- * memória tinha os expoentes TODOS deslocados e o F5 mediu o erro).
- * AS LEIS DA RODADA 21 (aplicadas ANTES da emissão): todo Call empilha os
- * args no site; if que só grava local é VOID 0x40; o count dos shifts i64 é
- * I64 com o shr_u real 0x89 e o extend 0xad antes do shl 0x85.
+ * 29/29 entradas (o port fixa o oráculo byte a byte). As constantes são as
+ * do FdLibm.Sin/Cos/RemPio2 DO PRÓPRIO JDK (os literais hex preservam os
+ * bits — a tabela decimal da memória tinha os expoentes TODOS deslocados e
+ * o F5 mediu o erro). AS LEIS DA RODADA 21 (aplicadas ANTES da emissão):
+ * todo Call empilha os args no site; if que só grava local é VOID 0x40; o
+ * count dos shifts i64 é I64 com o shr_u 0x88 e o extend 0xad antes do
+ * shl 0x86.
  */
 final class WasmSinKernel {
 
@@ -58,7 +57,7 @@ final class WasmSinKernel {
         return b;
     }
 
-    /** A func {@code kof_math_sin}    /** A func {@code kof_math_sin} — o DESPACHO das três faixas. */
+    /** A func {@code kof_math_sin} — o DESPACHO das três faixas. */
     static WasmFunc sinFunc() {
         List<WasmInstr> b = new ArrayList<>();
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.BLOCK, null, 0x7c));
@@ -89,7 +88,7 @@ final class WasmSinKernel {
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.ELSE, null, 0x7c));
         // faixa 4: |x| > 2^19·π/2 → o caminho GRANDE (MATH-LIBM-4 fatia B):
         // o KernelRemPio2 com o scratch de memória + o despacho n&3 (o ramo
-        // sin = o smalltail; o ramo cos = o trap honesto — o veredicto DEAD)
+        // sin = o smalltail; o ramo cos = o gêmeo do COS-1 — kof.cos.large)
         get(b, 0);                                               // LEI: os args no site
         b.add(new WasmInstr.Call("kof.sin.large"));
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x7c));  // fecha o if do médio
@@ -213,14 +212,14 @@ final class WasmSinKernel {
     }
 
     /** O branch perto-de-π/2: o hi-word de |x| == 0x3ff921fb → z ∓= pio2_2.
-     *  Os params [x, z]; o count do shift I64 (wasm 3.0) e o shr_u real 0x89. */
+     *  Os params [x, z]; o count do shift I64 (wasm 3.0) e o shr_u 0x88. */
     static WasmFunc nearHalfFunc() {
         List<WasmInstr> b = new ArrayList<>();
         get(b, 0);
         b.add(new WasmInstr.Simple(0x99, "f64.abs"));
         b.add(new WasmInstr.Simple(0xbd, "i64.reinterpret_f64"));
         b.add(new WasmInstr.Const(1, 32));                           // LEI: o count I64
-        b.add(new WasmInstr.Simple(0x88, "i64.shr_u"));              // o shr_u REAL (0x88 = shr_s)
+        b.add(new WasmInstr.Simple(0x88, "i64.shr_u"));              // o shr_u REAL
         b.add(new WasmInstr.Simple(0xa7, "i32.wrap_i64"));
         b.add(new WasmInstr.Const(0, 0x3ff921fb));
         b.add(new WasmInstr.Simple(0x46, "i32.eq"));
@@ -318,7 +317,7 @@ final class WasmSinKernel {
         b.add(new WasmInstr.Simple(0x6b, "i32.sub"));
         b.add(new WasmInstr.Simple(0xad, "i64.extend_i32_u"));       // LEI: o valor volta a I64
         b.add(new WasmInstr.Const(1, 32));                           // LEI: o count I64
-        b.add(new WasmInstr.Simple(0x86, "i64.shl"));                // LEI: 0x85 (0x86 = rotl)
+        b.add(new WasmInstr.Simple(0x86, "i64.shl"));                // LEI: o shl REAL
         b.add(new WasmInstr.Simple(0xbf, "f64.reinterpret_i64"));
         b.add(new WasmInstr.Local(WasmInstr.Local.SET, 4, "qx"));
         b.add(new WasmInstr.Blocking(WasmInstr.Blocking.END, null, 0x40));
