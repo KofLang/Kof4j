@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: Fase 3 — as rotas: `perfil.$username` (a primeira tela de rota sobre as primitivas shell + feed)
+next: a Fase 3 continua — `post.$postId` (o detalhe do post sobre o card) e a faixa de abas do perfil, depois `comunidades.*`
 location: repository
 state: active
 
@@ -94,6 +94,19 @@ Provado nativamente: `composer_h=58`, `pill=255,255,255`, `card=255,255,255`,
 
 **Fase 5 — empacotamento.** `scripts/package-desktop.sh` (`.deb` + AppImage) e o
 workflow de CI que prova o `dpkg -i` num ubuntu-latest.
+
+**Fase 3 — `perfil.$username` (POUSADA 22/11).** O `libs/enois/Profile.kf` e' a
+PRIMEIRA tela de ROTA, construida sobre o shell: o banner e'
+`.cos-card__banner` = **120 px** (`styles.css:3503`), o avatar
+`.cos-card__avatar` = **100 px** (`styles.css:4229`) meio sobre o banner, o
+nome `.cos-card__name` = **25 px / 800** (`styles.css:4297`), a meta em 14 px e
+a bio em `.cos-card__bio` 14 px (`styles.css:4323`). Provado nativamente:
+`header_h=271`, `banner=238,232,255` (`--primary-soft`, #eee8ff),
+`body=255,255,255` (`--surface-card`), `tinta=49`.
+GAPS NOMEADOS desta tela: o avatar e' um circulo APROXIMADO (um quadrado com
+recuo; o circulo anti-aliased exato precisa de um slice de mascara), a imagem
+de capa e' o preenchimento `--primary-soft` (sem carregador de imagem ainda), e
+o tema do `look` do perfil (as variaveis CSS `cos-card__*`) nao foi migrado.
 
 ## §4 Como concluir
 

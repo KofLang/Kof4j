@@ -1,0 +1,85 @@
+package enois
+
+import enois.Text
+import enois.Tokens
+import game.Sdl3Backend
+
+// Énois — a rota `perfil.$username` (`src/routes/perfil.$username.tsx`), a
+// PRIMEIRA tela de rota migrada, sobre as primitivas shell + feed.
+//
+// As medidas vem do CSS do design system, MEDIDAS:
+//   * banner        `.cos-card__banner` height 120px  (styles.css:3503)
+//   * avatar        `.cos-card__avatar` 100x100       (styles.css:4229)
+//   * nome          `.cos-card__name`   25px / 800    (styles.css:4297)
+//   * meta          `.cos-card__meta`   13.5px        (styles.css:4304)
+//   * bio           `.cos-card__bio`    14px          (styles.css:4323)
+//   * superficie    `bg-surface-card` / borda `border-border-soft`
+//
+// O cabecalho ocupa a coluna de conteudo do shell; o feed do perfil entra
+// logo abaixo (a mesma primitiva `Feed.paintCards`).
+
+/** As medidas do cabecalho do perfil, em px. */
+class ProfileMetrics {
+    static Int bannerHeight() { return 120 }   // .cos-card__banner
+    static Int avatarSize() { return 100 }     // .cos-card__avatar
+    static Int nameSize() { return 25 }        // .cos-card__name
+    static Int metaSize() { return 14 }        // 13.5 -> arredonda no render 8-bit
+    static Int bioSize() { return 14 }         // .cos-card__bio
+    static Int pad() { return 16 }
+    static Int avatarOverlap() { return 50 }   // metade do avatar sobre o banner
+}
+
+class ProfileHeader {
+
+    /** Pinta o cabecalho do perfil a partir de (x, y) com a largura `w`.
+     *  Devolve a altura usada.
+     */
+    static Int paint(Sdl3Backend b, Font nameFont, Font metaFont,
+                     Int x, Int y, Int w, String displayName, String handle, String bio) {
+        val card = Tokens.SurfaceCard()
+        val edge = Tokens.BorderSoft()
+        val strong = Tokens.TextStrong()
+        val subtle = Tokens.TextSubtle()
+        val bannerH = ProfileMetrics.bannerHeight()
+        val avatar = ProfileMetrics.avatarSize()
+        val pad = ProfileMetrics.pad()
+        val bodyH = pad + ProfileMetrics.avatarOverlap() + ProfileMetrics.nameSize() + 8
+                + ProfileMetrics.metaSize() + 8 + ProfileMetrics.bioSize() + pad
+        val h = bannerH + bodyH
+
+        // a superficie do card
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, y, w, h)
+        // o banner: `--primary-soft` (#eee8ff), a cor de destaque do site
+        val soft = Tokens.PrimarySoft()
+        SDL_SetRenderDrawColor(b.rendererHandle, soft.r(), soft.g(), soft.b(), 255)
+        b.fillRect(x, y, w, bannerH)
+        // a borda de 1 px
+        SDL_SetRenderDrawColor(b.rendererHandle, edge.r(), edge.g(), edge.b(), 255)
+        b.fillRect(x, y, w, 1)
+        b.fillRect(x, y + h - 1, w, 1)
+        b.fillRect(x, y, 1, h)
+        b.fillRect(x + w - 1, y, 1, h)
+        // o avatar: um circulo aproximado por dois retangulos centrais (o
+        // ALIASING fica para o slice da mascara de circulo)
+        val ax = x + pad
+        val ay = y + bannerH - ProfileMetrics.avatarOverlap()
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(ax, ay, avatar, avatar)
+        SDL_SetRenderDrawColor(b.rendererHandle, soft.r(), soft.g(), soft.b(), 255)
+        b.fillRect(ax + 4, ay + 4, avatar - 8, avatar - 8)
+
+        // o nome: 25px em --text-strong
+        SDL_SetRenderDrawColor(b.rendererHandle, strong.r(), strong.g(), strong.b(), 255)
+        var ty = y + bannerH + pad + ProfileMetrics.avatarOverlap() - 18
+        nameFont.drawText(b, displayName, ax + avatar + 12, ty + 18)
+        // o handle: 14px em --text-subtle
+        SDL_SetRenderDrawColor(b.rendererHandle, subtle.r(), subtle.g(), subtle.b(), 255)
+        ty = ty + ProfileMetrics.nameSize() + 8
+        metaFont.drawText(b, handle, ax + avatar + 12, ty + 14)
+        // a bio: 14px em --text-subtle, abaixo do nome, na largura toda
+        ty = ty + ProfileMetrics.metaSize() + 8
+        metaFont.drawText(b, bio, ax, ty + 14)
+        return h
+    }
+}

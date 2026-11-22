@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 — the routes: `perfil.$username` (the first route screen on top of the shell + feed primitives)
+next: Fase 3 continues — `post.$postId` (the post detail on top of the card) and the profile's tabs strip, then `comunidades.*`
 location: repository
 state: active
 
@@ -94,6 +94,19 @@ Proven natively: `composer_h=58`, `pill=255,255,255`, `card=255,255,255`,
 
 **Fase 5 — packaging.** `scripts/package-desktop.sh` (`.deb` + AppImage) and the
 CI workflow that proves `dpkg -i` on ubuntu-latest.
+
+**Fase 3 — `perfil.$username` (LANDED 22/11).** `libs/enois/Profile.kf` is the
+FIRST ROUTE screen, built on the shell: the banner is `.cos-card__banner`
+= **120 px** (`styles.css:3503`), the avatar `.cos-card__avatar` = **100 px**
+(`styles.css:4229`) half over the banner, the name `.cos-card__name` =
+**25 px / 800** (`styles.css:4297`), the meta at 14 px and the bio at
+`.cos-card__bio` 14 px (`styles.css:4323`). Proven natively: `header_h=271`,
+`banner=238,232,255` (`--primary-soft`, #eee8ff), `body=255,255,255`
+(`--surface-card`), `tinta=49`.
+NAMED GAPS of this screen: the avatar is an APPROXIMATE circle (a square inset;
+the exact anti-aliased circle needs a mask slice), the cover image is the
+`--primary-soft` fill (no image loader yet), and the profile `look` theming
+(`cos-card__*` CSS variables) is not migrated.
 
 ## §4 How to finish
 
