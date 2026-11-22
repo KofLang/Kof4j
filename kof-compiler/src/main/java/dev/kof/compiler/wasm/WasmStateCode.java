@@ -189,7 +189,13 @@ final class WasmStateCode {
             ctx.lastPushWide = false;
         } else if (op instanceof KofUnary un) {
             emitUnary(un, out);
-            ctx.lastPush = typeName(un.operandType());
+            // O `operandType()` de um KofUnary e' o tipo do OPERANDO, nao o do
+            // RESULTADO — um I2D tem operandType int e resultado double. Usar
+            // o operandType aqui deixava o rastro errado e o println
+            // despachava o helper i64 sobre um f64 (modulo INVALIDO, medido
+            // 22/11 na prova de paridade dos casts). O resultado sai do
+            // proprio op.
+            ctx.lastPush = resultTypeName(un);
             ctx.lastPushWide = "int".equalsIgnoreCase(ctx.lastPush) || "long".equalsIgnoreCase(ctx.lastPush)
                     || "double".equalsIgnoreCase(ctx.lastPush);
         } else if (op instanceof KofNewObject no && ctx.classOf(no.type()) != null) {
