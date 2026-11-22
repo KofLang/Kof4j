@@ -165,6 +165,7 @@ final class NativeArchEmitter {
         sb.append("    la   t0, kof_main_tid\n");
         sb.append("    sd   a0, 0(t0)\n");
         sb.append("    andi sp, sp, -16\n");
+        NativeCrossMainArgs.emit(sb);
         emitClinitCallsRiscv(sb, module);
         sb.append("    call ").append(mainEntry).append("\n");
         // #431: externs bindados → flusha o stdio da C antes do exit_group
@@ -380,6 +381,8 @@ final class NativeArchEmitter {
         riscvSb.append("    la   t0, kof_main_tid\n");
         riscvSb.append("    sd   a0, 0(t0)\n");
         riscvSb.append("    andi sp, sp, -16\n");
+        // §1187: o array de argumentos REAL (o entry chamava `main` sem ele)
+        NativeCrossMainArgs.emit(riscvSb);
         emitClinitCallsRiscv(riscvSb, module);
         riscvSb.append("    call ").append(mainEntry).append("\n");
         if (!nb.ffiLibs.isEmpty()) {
@@ -564,4 +567,5 @@ final class NativeArchEmitter {
         return System.getenv("KOF_KEEP_ASM") != null
                 || System.getProperty("KOF_KEEP_ASM") != null;
     }
+
 }

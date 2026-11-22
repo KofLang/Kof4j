@@ -3,6 +3,7 @@ package dev.kof.compiler;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -64,6 +65,38 @@ class NativeMainArgsE2ETest {
                 "alpha", "beta"});
         assertEquals(oracle, nativeOut, "os dois alvos entregam os MESMOS argumentos");
         assertEquals("n=2\na0=alpha\na1=beta", nativeOut, "o argv[0] do SO nao entra em args");
+    }
+
+    @Test
+    void theCrossTargetsCarryTheSameArguments(@TempDir Path dir) throws Exception {
+        // §1187 no CROSS: o entry do riscv/aarch64 chamava `main` SEM array —
+        // um segundo entry, fora do x86. Medido: n=0 no riscv e SEGFAULT no
+        // aarch64; a correcao espelha o bloco do x86 no dialeto riscv (o
+        // aarch64 herda pela traducao linha-a-linha).
+        assumeTrue(NativeToolchainAssumptions.hasTool("-linux-gnu-as"), "cross toolchain absent");
+        Files.writeString(dir.resolve("Main.kf"), PROBE, StandardCharsets.UTF_8);
+        var home = System.getProperty("user.home");
+        var cross = Path.of(home, ".local/share/kof-cross");
+        assumeTrue(Files.isDirectory(cross), "kof-cross sysroot absent");
+        for (String [] pair : new String[][]{{"aarch64", "NATIVE_AARCH64"}, {"riscv64", "NATIVE_RISCV64"}}) {
+            String arch = pair[0];
+            var as = "/usr/bin/" + arch + "-linux-gnu-as";
+            var qemu = "/usr/bin/qemu-" + arch;
+            assumeTrue(new File(as).exists() && new File(qemu).exists(),
+                    "cross " + arch + " toolchain absent");
+            var r = new CompilerDriver().compile(dir.resolve("Main.kf"),
+                    dir.resolve("x-" + arch), Target.valueOf(pair[1]));
+            assertTrue(r.success(), arch + " compile: " + r.diagnostics().getDiagnostics());
+            var pb = new ProcessBuilder(qemu, "-L", cross.resolve("usr/" + arch + "-linux-gnu").toString(),
+                    "-E", "LD_LIBRARY_PATH=" + cross.resolve("usr/" + arch + "-linux-gnu/lib"),
+                    dir.resolve("x-" + arch + "/Default/Main").toString(), "alpha", "beta")
+                    .redirectErrorStream(true);
+            var p = pb.start();
+            String out = new String(p.getInputStream().readAllBytes()).strip();
+            assertTrue(p.waitFor(120, TimeUnit.SECONDS), arch + " finishes");
+            assertEquals(0, p.exitValue(), arch + " clean exit: " + out);
+            assertEquals("n=2\na0=alpha\na1=beta", out, arch + " entrega os mesmos argumentos");
+        }
     }
 
     @Test
