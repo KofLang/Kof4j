@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("1 autorizo, 2 pode focar só no x86-64 por hora, nativo + wasi é o caminho; alem disso depois quem quiser que porte pra arm/risc") — this is the new backend plan `docs/graphics-gaming.md` requires. STATUS: UNDER DEVELOPMENT
 doing: slice 1b LANDED 22/11 — `present(DrawList)` resolves each `DrawCmd.image` through the backend's texture cache (`registerTexture`/`textureFor`), drawing the TEXTURE where one is registered and the solid rect otherwise; the image upload rides the exported `SDL_UpdateTexture` (a `Buffer(U8)` is only legal in an `extern` signature) and the destination rect is built by `floatBits(Int)` (an `SDL_FRect` is four floats)
-next: the MOUSE face (`Mouse`/`pointerX`/`heldButtons` through the same pump — the natural next slice), then the arm/risc port (maintainer: whoever wants it), then docs/ promotion
+next: a `kof.game` sample app using all four measured faces (window + sprite + keyboard + mouse) so a person has a starting point; then the arm/risc port (maintainer: whoever wants it), then docs/ promotion
 location: repository
 state: active
 

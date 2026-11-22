@@ -230,6 +230,48 @@ class Sdl3BackendE2ETest implements LibraryInstallSupport {
     }
 
     @Test
+    void theEventPumpFeedsTheFrozenMouseContract(@TempDir Path dir) throws Exception {
+        var so = hostSdl3();
+        assumeTrue(so != null, "SDL3 host absent — install libSDL3");
+        assumeTrue(hasNativeToolchain(), "native toolchain absent");
+        // o caminho do MOUSE: uma motion sintetica -> o pump -> pointerX/Y +
+        // heldButtons -> o contrato CONGELADO `Mouse.beginFrame(x, y, buttons)`.
+        var r = compileWithGames(dir, """
+                import game.Sdl3Backend
+                import game.Mouse
+
+                main() {
+                    val b = Sdl3Backend("m", 32, 32)
+                    b.pumpEvents()
+                    val m = Mouse()
+                    m.beginFrame(b.pointerX(), b.pointerY(), b.heldButtons())
+                    println("f0 x=" + m.x() + " y=" + m.y() + " left=" + m.down("left"))
+                    println("push=" + b.pushMouseMotion(12, 7, 1))
+                    b.pumpEvents()
+                    m.beginFrame(b.pointerX(), b.pointerY(), b.heldButtons())
+                    println("f1 x=" + m.x() + " y=" + m.y() + " dx=" + m.dx() + " dy=" + m.dy()
+                        + " down=" + m.down("left") + " pressed=" + m.pressed("left"))
+                    println("push2=" + b.pushMouseMotion(12, 7, 0))
+                    b.pumpEvents()
+                    m.beginFrame(b.pointerX(), b.pointerY(), b.heldButtons())
+                    println("f2 pressed=" + m.pressed("left") + " released=" + m.released("left"))
+                    b.close()
+                }
+                """);
+        assertTrue(r.success(), "compile: " + r.diagnostics().getDiagnostics());
+        var pb = new ProcessBuilder(dir.resolve("out/Default/Main").toString()).redirectErrorStream(true);
+        pb.environment().put("SDL_VIDEODRIVER", "dummy");
+        var p = pb.start();
+        String out = new String(p.getInputStream().readAllBytes()).strip();
+        assertTrue(p.waitFor(120, TimeUnit.SECONDS) && p.exitValue() == 0, "run: " + out);
+        assertTrue(out.contains("f0 x=0 y=0 left=false"), "ponteiro zerado: " + out);
+        assertTrue(out.contains("f1 x=12 y=7 dx=12 dy=7 down=true pressed=true"),
+                "a motion sintetica chega com posicao, delta e clique: " + out);
+        assertTrue(out.contains("f2 pressed=false released=true"),
+                "soltar o botao vira released: " + out);
+    }
+
+    @Test
     void theBackendRecusesHonestlyWhereExternCannotBind(@TempDir Path dir) throws Exception {
         // O WASI nao liga `extern` (FFI001) — o backend nativo NAO pode virar
         // um modulo WASI silenciosamente; a recusa e' o contrato honrado.

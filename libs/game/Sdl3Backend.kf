@@ -65,6 +65,9 @@ class Sdl3Backend {
     Map<String, Long> textures
     Bool quitFlag
     List<String> held
+    Int pointerXPos
+    Int pointerYPos
+    List<String> buttonsHeld
     Int[] eventBuffer
 
     // SDL_INIT_VIDEO
@@ -73,6 +76,9 @@ class Sdl3Backend {
         this.height = h
         this.quitFlag = false
         this.held = listOf<String>()
+        this.buttonsHeld = listOf<String>()
+        this.pointerXPos = 0
+        this.pointerYPos = 0
         this.textures = mapOf<String, Long>()
         // SDL_Event e' uma union de 128 bytes; um Int[] de 32 cobre (4 B cada)
         this.eventBuffer = new Int[48]
@@ -96,6 +102,11 @@ class Sdl3Backend {
 
     // As teclas SEGURADAS neste frame (o contrato `Keys.beginFrame`).
     List<String> heldKeys() { return this.held }
+
+    // O ponteiro deste frame (o contrato `Mouse.beginFrame(x, y, buttons)`).
+    Int pointerX() { return this.pointerXPos }
+    Int pointerY() { return this.pointerYPos }
+    List<String> heldButtons() { return this.buttonsHeld }
 
     // O fundo do frame.
     void clearFrame(Int r, Int g, Int b) {
@@ -148,6 +159,17 @@ class Sdl3Backend {
         return SDL_PushEvent(e)
     }
 
+    // Empurra um SDL_EVENT_MOUSE_MOTION sintetico (a fonte deterministica do
+    // mouse: x, y e a mascara de botoes — SDL_BUTTON_LMASK=1/RMASK=2/MMASK=4).
+    Bool pushMouseMotion(Int x, Int y, Int state) {
+        val e = buffer.alloc(128)
+        buffer.poke32(e, 0, 1024)
+        buffer.poke32(e, 24, state)
+        buffer.poke32(e, 28, floatBits(x))
+        buffer.poke32(e, 32, floatBits(y))
+        return SDL_PushEvent(e)
+    }
+
     // Drena a fila do SDL para ESTE frame: monta `held` e detecta o quit.
     // (O keycode de um SDL_EVENT_KEY_DOWN esta em `key.key`, offset 24 da
     // union; o buffer de evento e' um Buffer, nao o Int[] antigo — o SDL
@@ -162,6 +184,11 @@ class Sdl3Backend {
             } else if (ty == 768) {
                 val name = keyName(buffer.peek32(ev, 24))
                 if (name != "") { this.held.add(name) }
+            } else if (ty == 1024) {
+                // SDL_EVENT_MOUSE_MOTION: state (offset 24), x (28), y (32)
+                this.pointerXPos = floatToInt(buffer.peek32(ev, 28))
+                this.pointerYPos = floatToInt(buffer.peek32(ev, 32))
+                this.buttonsHeld = buttonNames(buffer.peek32(ev, 24))
             }
         }
     }
@@ -274,4 +301,37 @@ Int floatBits(Int value) {
     var sign = 0
     if (negative) { sign = 1 << 31 }
     return sign | (biased << 23) | rest
+}
+
+// Os nomes dos botoes segurados a partir da mascara do SDL
+// (SDL_BUTTON_LMASK=1, RMASK=2, MMASK=4).
+List<String> buttonNames(Int state) {
+    val out = listOf<String>()
+    if (state & 1 != 0) { out.add("left") }
+    if (state & 2 != 0) { out.add("right") }
+    if (state & 4 != 0) { out.add("middle") }
+    return out
+}
+
+// O inteiro de um f32 cru (os bits que o SDL grava nas coordenadas). Le
+// sinal, expoente e mantissa — o inverso do `floatBits`; trunca a fracao.
+Int floatToInt(Int bits) {
+    if (bits == 0) { return 0 }
+    var negative = false
+    if (bits < 0) { negative = true }
+    val abs = bits & 0x7fffffff
+    val exp = (abs >> 23) & 0xff
+    if (exp == 0) { return 0 }
+    val mant = abs & 0x7fffff
+    val e = exp - 127
+    var v = 0
+    if (e >= 23) {
+        v = (0x800000 | mant) << (e - 23)
+    } else if (e >= 0) {
+        v = (0x800000 | mant) >> (23 - e)
+    } else {
+        return 0
+    }
+    if (negative) { return 0 - v }
+    return v
 }
