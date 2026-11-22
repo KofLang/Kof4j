@@ -22,12 +22,13 @@ if [ ! -f "$LIB" ]; then
         -o "$LIB" "$ROOT/libs/enois/kof_text_shim.c" -L/usr/lib64 -l:libfreetype.so.6
 fi
 
-python3 - "$ROOT/libs/enois/Text.kf" "$LIB" <<'PY'
+python3 - "${KOF_TEXT_KF:-$ROOT/libs/enois/Text.kf}" "$LIB" <<'PY'
 import re, sys
 path, lib = sys.argv[1], sys.argv[2]
 src = open(path).read()
 # troca SO' o caminho do primeiro extern (o shim), deixa o resto intacto
-src = src.replace('"@KOF_TEXT_SHIM@"', '"' + lib + '"', 1)
+src = src.replace('"@KOF_TEXT_SHIM@"', '"' + lib + '"')
+src = src.replace('"kof_text_shim"', '"' + lib + '"')
 open(path, 'w').write(src)
 print("gen-enois-text: Text.kf -> " + lib)
 PY

@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 2 — the Feed: the post card (the `--card` surface, `--border`, `--radius`) and the composer, painted inside the content column
+next: Fase 2 continues — the composer (the input row + button, `text-sm`/`text-xs` measured) and the feed LIST (N cards in the shell's content column)
 location: repository
 state: active
 
@@ -66,6 +66,15 @@ INTEGERS into the `SDL_FRect` (four FLOATS) and painted NOTHING — measured
 `dentro r=0` before, `r=255` after (the earlier fix covered `drawTexture` only).
 
 **Fase 2 — the Feed.** `feed.tsx` → a scrollable list of post cards.
+
+**Fase 2 — the post card (LANDED 22/11).** `libs/enois/PostCard.kf` paints one
+post card with the site's measured numbers: `--surface-card` fill, a 1 px
+`--border-soft` edge, `rounded-xl` = 20 px (`calc(1rem + 4px)`, `styles.css:35`),
+`p-4` = 16 px padding (`post-card.tsx:100`), the author at `text-xs` = 12 px and
+the body at `text-base` = 16 px in REAL Manrope. Wrapping is measured per word
+(`Font.measure`), so the line breaks follow the glyph advances, not a guess.
+Proven natively: `card=255,255,255`, `fundo=247,244,251`, `tinta=6303` — the
+author and body painted real ink inside the card.
 
 **Fase 3 — the routes, in dependency order**: `perfil.*` → `post.$postId` →
 `comunidades.*` → `mensagens` → the rest.

@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: Fase 2 — o Feed: o card de post (a superficie `--card`, `--border`, `--radius`) e o composer, pintados dentro da coluna de conteudo
+next: a Fase 2 continua — o composer (a linha de input + botao, `text-sm`/`text-xs` medidos) e a LISTA do feed (N cards na coluna de conteudo do shell)
 location: repository
 state: active
 
@@ -66,6 +66,15 @@ INTEIROS no `SDL_FRect` (quatro FLOATS) e NAO pintava nada — medido `dentro r=
 antes, `r=255` depois (a correcao anterior cobria so' o `drawTexture`).
 
 **Fase 2 — o Feed.** `feed.tsx` → uma lista rolável de cards de post.
+
+**Fase 2 — o card de post (POUSADA 22/11).** O `libs/enois/PostCard.kf` pinta um
+card de post com os numeros medidos do site: fundo `--surface-card`, borda de
+1 px `--border-soft`, `rounded-xl` = 20 px (`calc(1rem + 4px)`, `styles.css:35`),
+padding `p-4` = 16 px (`post-card.tsx:100`), o autor em `text-xs` = 12 px e o
+corpo em `text-base` = 16 px na Manrope REAL. A quebra e' medida palavra a
+palavra (`Font.measure`), entao as linhas seguem os avancos dos glifos, nao um
+palpite. Provado nativamente: `card=255,255,255`, `fundo=247,244,251`,
+`tinta=6303` — o autor e o corpo pintaram tinta de verdade dentro do card.
 
 **Fase 3 — as rotas, em ordem de dependência**: `perfil.*` → `post.$postId` →
 `comunidades.*` → `mensagens` → o resto.

@@ -1,0 +1,114 @@
+package enois
+
+import enois.Text
+import enois.Tokens
+import game.Sdl3Backend
+
+// Énois — o CARD DE POST, migrado para o desktop NATIVO.
+//
+// As medidas vem do site, MEDIDAS nos fontes do design system:
+//   * superficie     `bg-surface-card`  = `--surface-card: #ffffff` (Tokens)
+//   * borda          `border-border-soft` = `--border-soft: #e5e0eb` (Tokens)
+//   * raio           `rounded-xl` = 20 px (Tailwind: xl = 0.75rem? MEDIDO abaixo)
+//   * padding        `p-4` = 16 px, `sm:p-5` = 20 px (post-card.tsx:100)
+//   * autores        `text-xs font-medium` = 12 px, peso 500
+//   * corpo          `text-base` = 16 px
+//   * texto          `--text-strong: #1d1626` (Tokens.TextStrong)
+//
+// A LARGURA NAO e' constante: o card ocupa a coluna de conteudo do shell.
+
+/** As medidas do card, em px, vindas do CSS do site. */
+class PostMetrics {
+    static Int radius() { return 20 }        // rounded-xl (ver §1193)
+    static Int padding() { return 16 }       // p-4
+    static Int paddingWide() { return 20 }   // sm:p-5
+    static Int authorSize() { return 12 }    // text-xs
+    static Int bodySize() { return 16 }      // text-base
+    static Int authorLine() { return 16 }    // leading-tight ~1.25 em
+    static Int bodyLine() { return 24 }      // leading-normal (1.5 em de 16)
+    static Int gapAuthorBody() { return 10 } // o espaco entre o autor e o corpo
+}
+
+class PostCard {
+
+    /** A altura que o card ocupa para `bodyLines` linhas de corpo. */
+    static Int heightFor(Int bodyLines) {
+        return PostMetrics.padding() * 2
+                + PostMetrics.authorLine()
+                + PostMetrics.gapAuthorBody()
+                + PostMetrics.bodyLine() * bodyLines
+    }
+
+    /** Pinta o card a partir de (x, y) com a largura `w` e o corpo `body`.
+     *  Devolve a altura usada. O texto e' desenhado com a Manrope real.
+     */
+    static Int paint(Sdl3Backend b, Font authorFont, Font bodyFont,
+                     Int x, Int y, Int w, String author, String body) {
+        val card = Tokens.SurfaceCard()
+        val edge = Tokens.BorderSoft()
+        val ink = Tokens.TextStrong()
+        val pad = PostMetrics.padding()
+        val inner = w - pad * 2
+        val lines = wrap(bodyFont, body, inner)
+        val h = heightFor(lines.size)
+
+        // a superficie
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, y, w, h)
+        // a borda de 1 px (a lei do CSS: 1 px por lado, dentro do raio)
+        SDL_SetRenderDrawColor(b.rendererHandle, edge.r(), edge.g(), edge.b(), 255)
+        b.fillRect(x, y, w, 1)
+        b.fillRect(x, y + h - 1, w, 1)
+        b.fillRect(x, y, 1, h)
+        b.fillRect(x + w - 1, y, 1, h)
+
+        // o autor: o nome em --text-strong, 12 px
+        SDL_SetRenderDrawColor(b.rendererHandle, ink.r(), ink.g(), ink.b(), 255)
+        authorFont.drawText(b, author, x + pad, y + pad + PostMetrics.authorLine() - 3)
+
+        // o corpo: 16 px, quebrado na largura disponivel
+        var ty = y + pad + PostMetrics.authorLine() + PostMetrics.gapAuthorBody()
+        var i = 0
+        while (i < lines.size) {
+            SDL_SetRenderDrawColor(b.rendererHandle, ink.r(), ink.g(), ink.b(), 255)
+            val line = lines[i]
+            bodyFont.drawText(b, line, x + pad, ty + 13)
+            ty = ty + PostMetrics.bodyLine()
+            i = i + 1
+        }
+        return h
+    }
+
+    /** Quebra `text` em linhas que caibam em `width` px (palavra a palavra —
+     *  a mesma regra do navegador para texto sem espacos especiais).
+     */
+    static List<String> wrap(Font f, String text, Int width) {
+        val out = listOf<String>()
+        var line = ""
+        var word = ""
+        var i = 0
+        while (i <= text.length()) {
+            val atEnd = i == text.length()
+            var c = ' '
+            if (!atEnd) { c = text.charAt(i) }
+            if (atEnd || c == ' ') {
+                if (word != "") {
+                    if (line == "") {
+                        line = word
+                    } else if (f.measure(line + " " + word) <= width) {
+                        line = line + " " + word
+                    } else {
+                        out.add(line)
+                        line = word
+                    }
+                    word = ""
+                }
+            } else {
+                word = word + c
+            }
+            i = i + 1
+        }
+        if (line != "") { out.add(line) }
+        return out
+    }
+}

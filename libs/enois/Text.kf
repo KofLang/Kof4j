@@ -64,6 +64,17 @@ class Font {
         return kt_advance()
     }
 
+    /** A largura de `text` em px (a soma dos avancos dos glifos). */
+    Int measure(String text) {
+        var w = 0
+        var i = 0
+        while (i < text.length()) {
+            w = w + this.advanceOf(text.charAt(i) as Int)
+            i = i + 1
+        }
+        return w
+    }
+
     /** Desenha `text` a partir de (x, baseline) e devolve o avanco total.
      *
      *  `b` e' o backend. A textura por glifo e' criada e destruida aqui —
