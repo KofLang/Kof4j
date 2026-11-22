@@ -35,15 +35,18 @@ final class StaticClassReceiver {
 
     /**
      * FACE SEMÂNTICA (typer): null = o receiver NÃO é nome de classe externa
-     * (face não aplicável — segue o fluxo normal); senão o tipo do campo
-     * público-estático, ou UNKNOWN depois de emitir o SEM025 honesto (R6 —
-     * existência validada aqui, nunca `getfield "?"` morto adiante).
+     * nem de classe DO MÓDULO (face não aplicável — segue o fluxo normal);
+     * senão o tipo do campo público-estático, ou UNKNOWN depois de emitir o
+     * SEM025 honesto (R6 — existência validada aqui, nunca `getfield` de
+     * instância morto adiante).
      */
     static Type semInfer(SemanticAnalyzer sa, FieldAccessExpr fa, Type recvType) {
         if (sa == null || !(recvType instanceof Type.UnknownType)
                 || !(fa.receiver() instanceof IdentifierExpr id)) {
             return null;
         }
+        Type moduleField = moduleSemInfer(sa, fa, id.name());
+        if (moduleField != null) return moduleField;
         if (!(classTypeOf(sa, id.name()) instanceof Type.ClassType qc)
                 || !sa.isExternal(qc)) {
             return null;
@@ -57,6 +60,40 @@ final class StaticClassReceiver {
             sa.diagnostics().error(fa,
                     "Cannot resolve static field '" + fa.fieldName()
                             + "' on type '" + id.name() + "'",
+                    "SEM025");
+        }
+        return Type.UnknownType.UNKNOWN;
+    }
+
+    /**
+     * #1175: campo ESTÁTICO de uma classe DO MÓDULO (`Ansi.LARGURA_CONTEUD0`).
+     * O receiver nome-de-classe não é local, então {@code inferType} devolve
+     * UNKNOWN e o guard SEM025 de {@code SemFieldAccessTyper} (dentro de
+     * {@code ClassType}) nunca rodava: um nome ERRADO seguia sem diagnóstico e
+     * o lowering o tratava como acesso de instância — `VerifyError: Bad local
+     * variable type` (não há `aload_0` num método estático). Null = não é
+     * nome de classe do módulo; senão o tipo do campo, ou UNKNOWN após o
+     * SEM025 (existe mesmo que não seja `static`: a recusa é a mesma do
+     * método, nunca bytecode quebrado).
+     */
+    private static Type moduleSemInfer(SemanticAnalyzer sa, FieldAccessExpr fa, String name) {
+        if (!sa.allClasses().containsKey(name) || sa.importShadowsProjectClass(name)) {
+            return null;
+        }
+        SymbolTable.Symbol field = MemberResolver.resolveFieldInHierarchy(sa, name, fa.fieldName());
+        if (field instanceof SymbolTable.FieldSymbol fs) {
+            MemberAccessChecks.checkFieldAccess(sa, fs);
+            return fs.type();
+        }
+        if (field != null) {
+            // Há um MÉTODO de mesmo nome (não campo — a aridade 0 dispensa);
+            // segue o fluxo normal, como no acesso de instância.
+            return null;
+        }
+        if (MemberResolver.enumConstantOfExpr(sa.unit(), fa) != null) return null;
+        if (sa.diagnostics() != null) {
+            sa.diagnostics().error(fa,
+                    "Cannot resolve field '" + fa.fieldName() + "' on type '" + name + "'",
                     "SEM025");
         }
         return Type.UnknownType.UNKNOWN;
