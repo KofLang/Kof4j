@@ -83,11 +83,32 @@ public final class NativeAssembler {
                     NativeCrossSections.sectionizeTextFunctions(Files.readString(asmFile), "kof_"));
         }
         System.err.println("NativeBackend: assembling " + asmFile);
+        // M-1 (#1135, D-NATIVE-MACOS): o perfil macOS tem o FORMATO DO OBJETO
+        // diferente (Mach-O, não ELF) — o texto do assembly passa pelo
+        // tradutor de diretivas ANTES do `as` (o GNU `as` desta frota é o
+        // único assembler disponível; a prova da etapa é ESTRUTURAL até o
+        // runner macOS (M-7) existir).
+        if (NativeProfile.active.isMacos()) {
+            Files.writeString(asmToAssemble,
+                    NativeMachO.translate(Files.readString(asmToAssemble)));
+        }
         try {
             runCommand(new String[]{"as", "-o", objFile.toString(), asmToAssemble.toString()}, "as");
         } catch (IOException e) {
             System.err.println("NativeBackend: as failed: " + e.getMessage());
             throw e;
+        }
+        // M-1 (#1135): a LINHA DE LINK do macOS é a libSystem (sem dynamic-linker
+        // ELF, sem libc estática): `ld -lSystem -syslibroot <sdk> -arch arm64`.
+        if (NativeProfile.active.isMacos()) {
+            runCommand(macosLinkArgs(binFile, objFile), "ld");
+            Files.deleteIfExists(objFile);
+            if (System.getenv("KOF_KEEP_ASM") == null
+                    && System.getProperty("KOF_KEEP_ASM") == null) {
+                Files.deleteIfExists(asmFile);
+            }
+            binFile.toFile().setExecutable(true);
+            return;
         }
         // B-1: perfil freestanding (x86_64) — link ESTÁTICO, sem
         // `-dynamic-linker` e sem `-lc`; o binário só fala com o SO pela
@@ -255,6 +276,33 @@ public final class NativeAssembler {
             Files.deleteIfExists(asmFile);
         }
         binFile.toFile().setExecutable(true);
+    }
+
+    /**
+     * M-1 (#1135, D-NATIVE-MACOS): a LINHA DE LINK do macOS.
+     *
+     * <p>O macOS não tem libc estática nem {@code -dynamic-linker} ELF: o
+     * link é contra a <em>libSystem</em> (a libc do Darwin), com o SDK
+     * ({@code -syslibroot}) e a arquitetura ({@code -arch arm64}).
+     *
+     * <p>O SDK é o que o {@code xcrun --show-sdk-path} devolve; nesta frota
+     * Linux ele não existe, então a linha é medida (ESTRUTURAL) até o runner
+     * macOS (M-7) existir. O {@code KOF_MACOS_SDK_PATH} permite apontar o SDK
+     * explicitamente.
+     */
+    public static String[] macosLinkArgs(Path binFile, Path objFile) {
+        java.util.List<String> cmd = new java.util.ArrayList<>(java.util.Arrays.asList(
+                "ld", "-o", binFile.toString(), objFile.toString(),
+                // a libSystem do Darwin (a "libc" do macOS)
+                "-lSystem",
+                // a arquitetura do perfil (M-1 = arm64; o M-8 troca por x86_64)
+                "-arch", "arm64"));
+        String sdk = System.getenv("KOF_MACOS_SDK_PATH");
+        if (sdk != null && !sdk.isBlank()) {
+            cmd.add("-syslibroot");
+            cmd.add(sdk);
+        }
+        return cmd.toArray(new String[0]);
     }
 
     /** B-1 (23/09): linker script do perfil FREESTANDING. {@code _end} fecha a

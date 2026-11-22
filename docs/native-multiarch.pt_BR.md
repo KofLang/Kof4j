@@ -550,6 +550,23 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   melhora). Os estágios M-1..M-8 (emissor Mach-O → costura libSystem →
   allocator/GC → exceções → concorrência → …) consomem estes números como o
   ANTES; o M-7 precisa de um runner macOS.
+  **M-1 POUSADA 21/11 (#1135, D-NATIVE-MACOS):** o alvo macOS abre como um
+  PERFIL (`NativeProfile.MACOS_ARM64`, `--profile macos`), não como um backend
+  novo — o IR, a lowering e a costura `kof_plat_*` ficam intactos. A fase
+  entrega as três faces da linha M-1: (1) o **emissor de diretivas Mach-O**
+  (`nat/NativeMachO.java` — um passe textual sobre o assembly inteiro: o
+  `.type`/`.size` (só ELF) saem, as seções viram
+  `__TEXT,__text`/`__DATA,__data`/`__DATA,__bss`/`__TEXT,__const`, e os
+  globais E suas referências ganham o prefixo `_` do Mach-O — o mnemônico e
+  os registradores nunca são tocados); (2) a **linha de link**
+  (`NativeAssembler.macosLinkArgs` — `ld -lSystem -arch arm64` mais
+  `-syslibroot <sdk>` quando `KOF_MACOS_SDK_PATH` está setado; sem
+  `-dynamic-linker` ELF, sem `-lc` do GNU); (3) a **recusa honesta** num host
+  sem o toolchain macOS (`NATIVE004` — esta frota Linux tem o `as`/`ld` do
+  GNU, que não falam Mach-O; o runner que prova o link é a fase M-7). A
+  prova da fase é ESTRUTURAL nesta frota (o texto traduzido + a linha de
+  link), exatamente como o plano registra; a entry `_main` e os corpos da
+  costura sobre a libSystem são a linha M-2.
 - **Bare-metal / bootável** (microcontrolador, BIOS legado, UEFI) — diretiva da
   mantenedora 15/09 ("todo código nativo deve se comunicar direto com barebones").
   O runtime riscv64/aarch64 em asm puro (sem libc) é a base natural, mas os

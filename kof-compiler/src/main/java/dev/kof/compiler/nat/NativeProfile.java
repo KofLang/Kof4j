@@ -31,7 +31,25 @@ public enum NativeProfile {
      *  {@code _start} que imprime via teletype do BIOS ({@code int 0x10,
      *  ah=0x0E}) + COM1 e para. Herda o link estático sem libc do
      *  {@link #FREESTANDING}; carregar o payload Kof (B-3b) é a fatia seguinte. */
-    BIOS;
+    BIOS,
+    /** M-1 (#1135, D-NATIVE-MACOS 17/11): o alvo Native no macOS — Mach-O +
+     *  libSystem. O perfil é o ARM64 (Apple silicon), o primeiro do plano; o
+     *  x86-64 (Intel) é o M-8 e reusa o mesmo perfil com outra flag de link.
+     *
+     *  <p>O perfil troca o FORMATO DO OBJETO (as diretivas GNU — {@code
+     *  .type}/{@code .size}/{@code .section .text} — viram {@code __TEXT,__text}
+     *  e afim, e os globais ganham o prefixo {@code _} do Mach-O) e a LINHA DE
+     *  LINK ({@code ld -lSystem -syslibroot <sdk> -arch arm64}), nunca a
+     *  SEMÂNTICA: o código emitido é o mesmo, a costura {@code kof_plat_*} é a
+     *  mesma, e o entry é o {@code _main} do Mach-O.
+     *
+     *  <p> nesta frota Linux o toolchain macOS NÃO existe — a prova da fatia
+     *  é ESTRUTURAL (o emissor e a linha de link medidos), até o runner macOS
+     *  (M-7) existir. */
+    MACOS_ARM64;
+
+    /** M-1 (#1135): o perfil macOS (Mach-O + libSystem). */
+    public boolean isMacos() { return this == MACOS_ARM64; }
 
     /** B-3: o boot path legado (setor de boot) — sem costura EFI nem PE32+. */
     public boolean isBios() { return this == BIOS; }
@@ -52,7 +70,8 @@ public enum NativeProfile {
     /** B-3b-3: o perfil BIOS troca os corpos da costura kof_plat_* (COM1/hlt). */
     public static boolean activeIsBios() { return active.isBios(); }
 
-    /** Aceita {@code host}/{@code freestanding}/{@code uefi}/{@code uefi-ring}; o resto é erro do chamador. */
+    /** Aceita {@code host}/{@code freestanding}/{@code uefi}/{@code uefi-ring};
+     *  o resto é erro do chamador. */
     public static NativeProfile of(String value) {
         return switch (value == null ? "" : value.trim().toLowerCase()) {
             case "", "host" -> HOST;
@@ -60,6 +79,8 @@ public enum NativeProfile {
             case "uefi", "efi" -> UEFI;
             case "uefi-ring", "ring", "rings" -> UEFI_RING;
             case "bios", "mbr" -> BIOS;
+            // M-1 (#1135): o perfil macOS (Mach-O + libSystem, arm64).
+            case "macos", "macos-arm64", "darwin" -> MACOS_ARM64;
             default -> throw new IllegalArgumentException("unknown native profile: " + value);
         };
     }

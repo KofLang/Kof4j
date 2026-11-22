@@ -27,6 +27,19 @@ final class NativeLinkPolicy {
             throw new IOException("NATIVE003: perfil freestanding nao suporta libc (db/mysql/concurrency/pow/ffi/process) "
                     + "neste alvo; use o perfil host ou remova a dependencia");
         }
+        // M-1 (#1135, D-NATIVE-MACOS): o perfil macOS exige o TOOLCHAIN macOS
+        // (o assembler Mach-O e o linker da libSystem). Numa frota Linux o
+        // `as`/`ld` do GNU NÃO falam Mach-O — o link daria um erro confuso
+        // (ou um binário GNU). A recusa é HONESTA e nomeada (R6): o perfil
+        // macOS é emitido e medido (o texto + a linha de link), mas o LINK
+        // exige o runner macOS (a etapa M-7).
+        if (NativeProfile.active.isMacos()
+                && !System.getProperty("os.name", "").toLowerCase().contains("mac")) {
+            throw new IOException("NATIVE004: o perfil macOS exige o toolchain macOS "
+                    + "(o assembler Mach-O + o linker da libSystem); este host nao o tem "
+                    + "— a etapa M-7 (o runner macos-14) e o que prova o link; "
+                    + "use o perfil host neste host");
+        }
         // R2 fatia 1 (20/09): -lm AGORA é by-use como sqlite/mariadb/pthread —
         // o shim `call pow` do monolito virou WEAK (RuntimeMath `.weak pow`),
         // então linkar sem libm fecha; usaPow só quando a fonte chama

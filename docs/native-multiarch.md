@@ -550,6 +550,23 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   gate still distinguishes equal/growth/improvement). The stages M-1..M-8
   (Mach-O emitter → libSystem seam → allocator/GC → exceptions → concurrency →
   …) consume these numbers as the BEFORE; M-7 needs a macOS runner.
+  **M-1 LANDED 21/11 (#1135, D-NATIVE-MACOS):** the macOS target opens as a
+  PROFILE (`NativeProfile.MACOS_ARM64`, `--profile macos`), not a new backend
+  — the IR, the lowering and the `kof_plat_*` seam are untouched. The stage
+  delivers the three faces of the M-1 row: (1) the **Mach-O directive
+  emitter** (`nat/NativeMachO.java` — a textual pass over the whole assembly:
+  the ELF-only `.type`/`.size` are dropped, the sections become
+  `__TEXT,__text`/`__DATA,__data`/`__DATA,__bss`/`__TEXT,__const`, and the
+  globals AND their references take the Mach-O `_` prefix — the mnemonic and
+  the registers are never touched); (2) the **link line**
+  (`NativeAssembler.macosLinkArgs` — `ld -lSystem -arch arm64` plus
+  `-syslibroot <sdk>` when `KOF_MACOS_SDK_PATH` is set; no ELF
+  `-dynamic-linker`, no GNU `-lc`); (3) the **honest refusal** on a host
+  without the macOS toolchain (`NATIVE004` — this Linux fleet has the GNU
+  `as`/`ld`, which do not speak Mach-O; the runner that proves the link is
+  the M-7 stage). The proof of the stage is STRUCTURAL on this fleet (the
+  translated text + the link line), exactly as the plan states; the `_main`
+  entry and the libSystem seam bodies are the M-2 row.
 - **Bare-metal / bootable** (microcontroller, legacy BIOS, UEFI) — maintainer
   directive 15/09 ("all native code must also talk directly to barebones"). The
   pure-asm riscv64/aarch64 runtime (no libc) is the natural base, but the emitters
