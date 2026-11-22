@@ -475,6 +475,14 @@ final class NativeMethodEmitter {
             sb.append("\n.globl _start\n");
             sb.append("_start:\n");
         }
+        // §1187 (22/11): o vetor de argumentos vem de FONTES DIFERENTES por
+        // modo de entrada — a leitura TEM que acontecer antes do swap de rsp
+        // do freestanding, e o modo ASAN recebe a ABI C do crt (NAO a pilha
+        // do kernel!). A classe NativeMainArgs tem o detalhe (o comment la
+        // explica as tres fontes e o modo de falhar de cada uma).
+        if (mainHasArgs) {
+            NativeMainArgs.emit(sb, asan);
+        }
         if (nb.freestanding) {
             // B-1: pilha vinda do linker script, nao a que o carregador deu.
             sb.append("    leaq __kof_stack_top(%rip), %rsp\n");
@@ -483,52 +491,12 @@ final class NativeMethodEmitter {
         // qualquer push) — o kof_gc_mark varre a pilha INTEIRA ate aqui, nao so
         // o frame corrente (causa (1) do §260: String viva no frame de main
         // enquanto um helper aloca era INVISIVEL ao mark -> sweep liberava vivo)
-        // §1187: o `_start` CRU recebe o vetor de argumentos NA PROPRIA
-        // pilha — [rsp] = argc, [rsp+8] = argv[0..argc). Le ANTES de mexer no
-        // rsp; o array do `main(String[] args)` e' montado depois.
-        // o argv[0] e' o caminho do BINARIO — o contrato do Kof (JVM e WASI)
-        // entrega so' os argumentos DO USUARIO, entao o argc perde o 0 e o
-        // argv comeca em argv[1].
-        sb.append("    movq (%rsp), %r15\n");
-        sb.append("    decq %r15\n");
-        sb.append("    leaq 16(%rsp), %r14\n");
+        // (o fundo e' a pilha em que o main RODA — depois do swap freestanding)
         sb.append("    movq %rsp, kof_main_stack_bottom(%rip)\n");
         // grava o TID do main thread — limita GC ao main (B-0: via costura kof_plat_)
         sb.append("    call kof_plat_thread_id\n");
         sb.append("    movq %rax, kof_main_tid(%rip)\n");
-        if (mainHasArgs) {
-            // §1187 (22/11): o array de argumentos REAL. Antes o nativo
-            // passava um array VAZIO (N3), entao `args.length` era 0 e todo
-            // `args[0]` batia "index out of bounds" (medido; o JVM respondia
-            // certo). [len at +16][argv[0..argc) at +24], cada elemento = o
-            // String de `kof_string_from_literal(ptr, len)` — o helper que o
-            // backend JA emite para os literais (nao depende do FFI).
-            sb.append("    movq %r15, %rdi\n");
-            sb.append("    movl $8, %esi\n");
-            sb.append("    call kof_array_alloc\n");
-            sb.append("    movq %rax, %rbx\n");
-            sb.append("    xorq %r12, %r12\n");
-            sb.append(".Lkof_args_loop:\n");
-            sb.append("    cmpq %r15, %r12\n");
-            sb.append("    jge .Lkof_args_done\n");
-            sb.append("    movq (%r14,%r12,8), %rdi\n");   // argv[i] (C str)
-            sb.append("    movq %rdi, %r13\n");
-            sb.append("    xorq %rcx, %rcx\n");
-            sb.append(".Lkof_args_strlen:\n");
-            sb.append("    cmpb $0, (%r13,%rcx)\n");
-            sb.append("    je .Lkof_args_strlen_done\n");
-            sb.append("    incq %rcx\n");
-            sb.append("    jmp .Lkof_args_strlen\n");
-            sb.append(".Lkof_args_strlen_done:\n");
-            sb.append("    movl %ecx, %esi\n");              // len
-            sb.append("    call kof_string_from_literal\n");  // (ptr, len) -> String
-            sb.append("    movq %rax, 24(%rbx,%r12,8)\n");
-            sb.append("    incq %r12\n");
-            sb.append("    jmp .Lkof_args_loop\n");
-            sb.append(".Lkof_args_done:\n");
-            sb.append("    movq %rbx, %rdi\n");
-        }
-        // #133 (§186): chama cada <clinit> antes do main (ordem de classes no
+        // §133 (§186): chama cada <clinit> antes do main (ordem de classes no
         // módulo — link-ordem estática; não há dependência dinâmica declarada).
         emitClinitCalls(nb, sb);
         sb.append("    call ").append(nb.sanitizeName(clazz.name())).append("_main\n");

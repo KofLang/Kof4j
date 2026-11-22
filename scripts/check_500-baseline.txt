@@ -56,7 +56,6 @@
 509	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeAarch64Translator.java
 557	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeArchEmitter.java
 592	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeBackend.java
-606	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeMethodEmitter.java
 551	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeRiscvAsmLookups0.java
 504	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeRiscvAsmMapset1.java
 513	kof-compiler/src/main/java/dev/kof/compiler/nat/NativeRiscvAsmMedia.java

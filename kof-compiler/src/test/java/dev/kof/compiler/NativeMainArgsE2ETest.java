@@ -75,4 +75,19 @@ class NativeMainArgsE2ETest {
         String out = run(dir, new String[]{dir.resolve("n/Default/Main").toString()});
         assertEquals("n=0", out, "sem argumentos = array vazio, nao o argv[0]");
     }
+
+    @Test
+    void freestandingArgsMatchJvmOracle(@TempDir Path dir) throws Exception {
+        assumeTrue(NativeToolchainAssumptions.hasTool("as", "ld"), "native toolchain absent");
+        Files.writeString(dir.resolve("Main.kf"), PROBE, StandardCharsets.UTF_8);
+        var driver = new CompilerDriver();
+        var fs = driver.compile(dir.resolve("Main.kf"), dir.resolve("fs"), Target.NATIVE,
+                dev.kof.compiler.nat.NativeProfile.FREESTANDING);
+        assertTrue(fs.success(), "freestanding compile: " + fs.diagnostics().getDiagnostics());
+        String withArgs = run(dir, new String[]{dir.resolve("fs/Default/Main").toString(), "alpha", "beta"});
+        assertEquals("n=2\na0=alpha\na1=beta", withArgs,
+                "§1187/#1186: o perfil freestanding le o vetor do kernel ANTES do swap de rsp");
+        String noArgs = run(dir, new String[]{dir.resolve("fs/Default/Main").toString()});
+        assertEquals("n=0", noArgs, "sem argumentos no freestanding = array vazio (sem OOM)");
+    }
 }
