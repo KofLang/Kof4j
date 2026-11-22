@@ -54,6 +54,22 @@ public sealed interface Type {
     }
 
     record NullableType(Type inner) implements Type {
+        /**
+         * #1178: `Nullable(Nullable(X))` NAO carrega um estado a mais — e' o
+         * MESMO conjunto que `Nullable(X)` (o segundo `?` nao acrescenta
+         * nulo). Sem achatar, `Troolean?` (o parser le `Troolean` como
+         * `Nullable(Bool)` e o `?` final como um SEGUNDO `Nullable`) escapava
+         * dos guards que testam `inner() instanceof PrimitiveType` — que e'
+         * exatamente a assimetria entre {@code isPrimitiveType} (que recursa)
+         * e {@code isNullablePrimitive} (CRU, §295). Medido: o construtor de
+         * record nao boxava o literal (`int` no slot `Boolean`, VerifyError) e
+         * {@code String.valueOf(campo)} emitia o kof_box de um Nullable
+         * (`Boolean.valueOf(Boolean)`, NoSuchMethodError). Achatar na
+         * CONSTRUCAO fecha a familia inteira, nao so' as duas faces.
+         */
+        public NullableType {
+            while (inner instanceof NullableType n) inner = n.inner();
+        }
     }
 
     /**

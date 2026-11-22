@@ -19,18 +19,22 @@ import org.junit.jupiter.api.io.TempDir;
  * documents as idiomatic ({@code if (t)}, {@code t == true}) plus the
  * constructor literal and {@code String.valueOf(t)}.
  *
- * <p>STATE 22/11 (triage lane 192.168.15.30:9093): the file is the RED-first
- * measurement and STAYS in the tree while the fix is parked at the design
- * fork (value equality with unboxing vs identity-only {@code ==}). Measured
- * on tip {@code a1887d8b9}: 2 of 3 RED; the emitter chose the BOXED
- * representation for the field ({@code java/lang/Boolean}) while the
- * comparison consumers emit {@code iconst_1} + {@code if_icmpeq} (an INT
- * against a reference slot) and the record constructor's
- * {@code invokespecial} takes an {@code int} where the descriptor says
- * {@code Boolean} — {@code VerifyError: Bad type on operand stack}, a class
- * that {@code kof check} accepted. The point of this test is that the four
- * faces agree with the local they mirror, not that a specific representation
- * was picked.
+ * <p>STATE 22/11 (lane deploy-flow/quality-gate 192.168.100.19:0): GREEN. The
+ * root cause was NOT a design fork but a TYPE defect: {@code Troolean?}
+ * parsed as {@code Nullable(Nullable(Bool))} and the extra {@code Nullable}
+ * escaped the guards that test {@code inner() instanceof PrimitiveType}
+ * (asymmetric with {@code isPrimitiveType}, which recurses). Flattening
+ * {@code Nullable(Nullable(X)) -> Nullable(X)} in the {@code NullableType}
+ * constructor fixed the record constructor's int-into-Boolean
+ * {@code invokespecial}, the {@code Boolean.valueOf(Boolean)} of
+ * {@code String.valueOf}, AND the {@code ==}/{@code if} faces — all of which
+ * then match the documented {@code training/language/types.md} contract
+ * (value equality with unboxing; {@code if (t)} = sugar for {@code t == true},
+ * unknown falls in the false branch). The 55th-line face had its branches
+ * swapped in the SOURCE (a false {@code a.lida} was labelled in the TRUE
+ * branch); the EXPECTED values were already the documented contract, so the
+ * source was corrected and the assertion kept intact (no weakening).
+ * RED/GREEN proved in {@code TrooleanEmissionFacesE2ETest}.
  */
 class TrooleanRecordFieldE2ETest {
 
@@ -52,7 +56,7 @@ class TrooleanRecordFieldE2ETest {
                 println(String.valueOf(b.lida))
                 var c = N(null)
                 if (c.lida == null) { println("null") } else { println("NO") }
-                if (a.lida) { println("sugarfalse") } else { println("NO") }
+                if (a.lida) { println("NO") } else { println("sugarfalse") }
                 if (c.lida) { println("NO") } else { println("sugarnull") }
             }
             """;
