@@ -299,6 +299,163 @@ class NativeMacOSSeamE2ETest {
     }
 
     /**
+     * A FAMÍLIA time/random no programa REAL: um programa que usa
+     * {@code time.sleep}, {@code time.now} e {@code random.hex} puxa as fatias
+     * da costura — e elas precisam falar a libSystem (o Darwin não tem
+     * syscall Linux).
+     */
+    @Test
+    void theTimeAndRandomFamiliesCallTheLibSystem(@TempDir Path tmp) throws IOException {
+        Path src = tmp.resolve("Main.kf");
+        Files.writeString(src, """
+                main() {
+                    time.sleep(1)
+                    println(time.now() > 0)
+                    println(random.hex(8).length)
+                }
+                """);
+        String priorKeep = System.getProperty("KOF_KEEP_ASM");
+        System.setProperty("KOF_KEEP_ASM", "1");
+        dev.kof.compiler.nat.NativeProfile previous =
+                dev.kof.compiler.nat.NativeProfile.active;
+        try {
+            CompilerDriver driver = new CompilerDriver();
+            driver.setNativeProfile(dev.kof.compiler.nat.NativeProfile.of("macos"));
+            driver.compile(src, tmp.resolve("out"), Target.NATIVE);
+            String asm = Files.readString(tmp.resolve("out/Default/Main.s"));
+            String time = seamBody(asm, "kof_plat_time");
+            String sleep = seamBody(asm, "kof_plat_sleep");
+            String random = seamBody(asm, "kof_plat_random");
+            assertTrue(time.contains("call clock_gettime"),
+                    "the wall clock comes from the libSystem: " + time);
+            assertTrue(sleep.contains("call nanosleep"),
+                    "the sleep comes from the libSystem: " + sleep);
+            assertTrue(random.contains("call arc4random_buf"),
+                    "the randomness comes from the Darwin CSPRNG: " + random);
+            assertFalse(time.contains("syscall"), "no Linux syscall in time: " + time);
+            assertFalse(sleep.contains("syscall"), "no Linux syscall in sleep: " + sleep);
+            assertFalse(random.contains("syscall"), "no Linux syscall in random: " + random);
+        } finally {
+            dev.kof.compiler.nat.NativeProfile.active = previous;
+            if (priorKeep == null) {
+                System.clearProperty("KOF_KEEP_ASM");
+            } else {
+                System.setProperty("KOF_KEEP_ASM", priorKeep);
+            }
+        }
+    }
+
+    /**
+     * OS CLOCK IDs SÃO OS DO DARWIN — o {@code CLOCK_MONOTONIC} do Darwin é
+     * <b>6</b> (no Linux é 1): o número do Linux pediria um clockid que o
+     * Darwin não tem. Medido nos headers do SDK do macOS (o toolchain
+     * provisionado os traz).
+     */
+    @Test
+    void theClockIdsAreTheDarwinOnes() {
+        StringBuilder sb = new StringBuilder();
+        dev.kof.compiler.nat.NativeProfile previous =
+                dev.kof.compiler.nat.NativeProfile.active;
+        try {
+            dev.kof.compiler.nat.NativeProfile.active = dev.kof.compiler.nat.NativeProfile.of("macos");
+            dev.kof.compiler.runtime.RuntimePlat.emitPlatTime(sb);
+        } finally {
+            dev.kof.compiler.nat.NativeProfile.active = previous;
+        }
+        String text = sb.toString();
+        assertTrue(text.contains("call clock_gettime"),
+                "the clock comes from the libSystem: " + text);
+        assertTrue(text.contains("xorq %rdi, %rdi"),
+                "CLOCK_REALTIME = 0 no Darwin: " + text);
+        assertTrue(text.contains("movq $6, %rdi"),
+                "CLOCK_MONOTONIC = 6 NO DARWIN (1 no Linux): " + text);
+        assertFalse(text.contains("movq $1, %rdi"),
+                "the Linux clock id would be a wrong clockid on Darwin: " + text);
+        assertFalse(text.contains("syscall"), "no Linux syscall in the time family: " + text);
+    }
+
+    /**
+     * A FAMÍLIA io (read/close) pela libSystem — a mesma ABI do Linux.
+     */
+    @Test
+    void theIoFamilyCallsTheLibSystem() {
+        StringBuilder sb = new StringBuilder();
+        dev.kof.compiler.nat.NativeProfile previous =
+                dev.kof.compiler.nat.NativeProfile.active;
+        try {
+            dev.kof.compiler.nat.NativeProfile.active = dev.kof.compiler.nat.NativeProfile.of("macos");
+            dev.kof.compiler.runtime.RuntimePlat.emitPlatIo(sb);
+        } finally {
+            dev.kof.compiler.nat.NativeProfile.active = previous;
+        }
+        String text = sb.toString();
+        assertTrue(text.contains("call read"), "the read comes from the libSystem: " + text);
+        assertTrue(text.contains("call close"), "the close comes from the libSystem: " + text);
+        assertFalse(text.contains("syscall"), "no Linux syscall in the io family: " + text);
+    }
+
+    /**
+     * O ASSEMBLER REAL aceita os corpos novos (o clock_gettime, o nanosleep e
+     * o arc4random_buf) — e o objeto carrega os símbolos da libSystem.
+     */
+    @Test
+    void theRealMachOAssemblerAcceptsTheTimeAndRandomBodies(@TempDir Path tmp) throws Exception {
+        Path zig = machoToolchain();
+        org.junit.jupiter.api.Assumptions.assumeTrue(zig != null,
+                "the Mach-O toolchain is absent (scripts/provision-macho-toolchain.sh)");
+        Path src = tmp.resolve("Main.kf");
+        Files.writeString(src, """
+                main() {
+                    time.sleep(1)
+                    println(time.now() > 0)
+                    println(random.hex(8).length)
+                }
+                """);
+        String priorKeep = System.getProperty("KOF_KEEP_ASM");
+        System.setProperty("KOF_KEEP_ASM", "1");
+        dev.kof.compiler.nat.NativeProfile previous =
+                dev.kof.compiler.nat.NativeProfile.active;
+        try {
+            CompilerDriver driver = new CompilerDriver();
+            driver.setNativeProfile(dev.kof.compiler.nat.NativeProfile.of("macos"));
+            driver.compile(src, tmp.resolve("out"), Target.NATIVE);
+            String macho = dev.kof.compiler.nat.NativeMachO.translate(
+                    Files.readString(tmp.resolve("out/Default/Main.s")));
+            StringBuilder withoutElfOnly = new StringBuilder();
+            for (String line : macho.split("\n", -1)) {
+                String t = line.trim();
+                if (t.equals("syscall") || t.contains("%fs:") || t.contains("@tpoff")) continue;
+                withoutElfOnly.append(line).append('\n');
+            }
+            Path asmFile = tmp.resolve("Main.macho.s");
+            Files.writeString(asmFile, withoutElfOnly.toString());
+            Path obj = tmp.resolve("Main.macho.o");
+            ProcessBuilder pb = new ProcessBuilder(
+                    zig.toString(), "cc", "-target", "x86_64-macos-none",
+                    "-c", asmFile.toString(), "-o", obj.toString());
+            pb.redirectErrorStream(true);
+            Process proc = pb.start();
+            String output = new String(proc.getInputStream().readAllBytes());
+            int rc = proc.waitFor();
+            assertEquals(0, rc,
+                    "the Mach-O assembler must accept the time/random bodies:\n" + output);
+            String blob = new String(Files.readAllBytes(obj),
+                    java.nio.charset.StandardCharsets.ISO_8859_1);
+            assertTrue(blob.contains("_clock_gettime"),
+                    "the object carries the libSystem symbol: " + output);
+            assertTrue(blob.contains("_arc4random_buf"),
+                    "the object carries the libSystem symbol: " + output);
+        } finally {
+            dev.kof.compiler.nat.NativeProfile.active = previous;
+            if (priorKeep == null) {
+                System.clearProperty("KOF_KEEP_ASM");
+            } else {
+                System.setProperty("KOF_KEEP_ASM", priorKeep);
+            }
+        }
+    }
+
+    /**
      * O toolchain Mach-O provisionado ({@code scripts/provision-macho-toolchain.sh}
      * → {@code ~/.local/share/kof-macho/bin/zig}), ou null.
      */

@@ -633,6 +633,42 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   externos indefinidos — o que o link contra a libSystem resolve);
   `NativeMacOSProfileE2ETest` 11/11; a bateria nativa **810 run / 0F / 0E /
   81 skipped** (skips de ambiente nomeados); os gates rc=0.
+  **M-2 FATIA 2 POUSADA 22/11 (#1135 — as famílias time/random/io da costura
+  sobre a libSystem, e os clock ids são os DO DARWIN):** o segundo lote da
+  costura também fala a libSystem agora, e um dos corpos teria ficado
+  silenciosamente ERRADO se a constante do Linux tivesse sido copiada.
+  MEDIDO num programa real (`time.sleep` + `time.now` + `random.hex(8)` — as
+  fatias que essas faces puxam): os syscalls Linux crus caíram de **20 para
+  16**, e as quatro famílias que saíram do ABI Linux são `kof_plat_time`,
+  `kof_plat_time_mono`, `kof_plat_sleep` e `kof_plat_random` (mais
+  `kof_plat_read`/`kof_plat_close` na família io). **OS CLOCK IDS SÃO OS DO
+  DARWIN (medidos nos headers do SDK do macOS que o toolchain provisionado
+  traz):** `CLOCK_REALTIME = 0` e **`CLOCK_MONOTONIC = 6`** — no Linux é 1, e
+  no Darwin o 1 não é o relógio monotônico. O `struct timespec` do Darwin tem
+  o MESMO layout do Linux (`tv_sec` em 0, `tv_nsec` em 8), então o runtime que
+  lê `0(%rsp)`/`8(%rsp)` continua certo. **A FAMÍLIA RANDOM USA O CSPRNG DO
+  DARWIN:** a `getentropy` do Linux NÃO EXISTE no Darwin (medido — ela não
+  está nos headers do SDK) e ela tem um teto de 256 bytes por chamada, que o
+  `random.hex(n)` estouraria; o corpo usa `arc4random_buf(buf, len)` (10.7+, o
+  CSPRNG do próprio Darwin, sem teto de tamanho) e devolve o comprimento
+  pedido, porque o contrato da costura é `kof_plat_random(buf, len) -> n` com
+  `n >= 0` = bytes escritos. A família io (`read`/`close`) migrou
+  mecanicamente — os mesmos registradores SysV. **OS CORPOS FORAM PARA A
+  SUA PRÓPRIA CLASSE** (`runtime/RuntimePlatMacos.java` — o mesmo padrão de
+  `RuntimeBios`/`RuntimeUefi`/`RuntimeBareRandom`), e o `RuntimePlat` delega
+  por família. **O QUE AINDA É LINUX (medido nesse programa):** os 16
+  syscalls crus que ficam são `kof_plat_thread_id` e `kof_plat_sync` (a face
+  de concorrência — M-5), o `.Lgrow_try` do allocator (M-3), e a io PRÓPRIA
+  do runtime (`.Lkof_read_line_loop`, `kof_read_file`, `kof_write_file`) mais
+  o `kof_sec_secret_get` — esses PASSAM POR FORA da costura, e trazê-los para
+  a costura é a linha M-6. **PROVA (executada):** `NativeMacOSSeamE2ETest`
+  **12/12** — RED-first **4 falhas** no código antigo (o syscall cru na
+  família time, o clock id do Linux, a família io ainda no `syscall`, os
+  símbolos `_clock_gettime`/`_arc4random_buf` ausentes) e GREEN depois; o
+  **assembler Mach-O real aceita os corpos de time/random** (o objeto carrega
+  `_clock_gettime` e `_arc4random_buf` como externos indefinidos);
+  `NativeMacOSProfileE2ETest` 11/11; a bateria nativa **814 run / 0F / 0E /
+  81 skipped**; os gates rc=0.
 - **Bare-metal / bootável** (microcontrolador, BIOS legado, UEFI) — diretiva da
   mantenedora 15/09 ("todo código nativo deve se comunicar direto com barebones").
   O runtime riscv64/aarch64 em asm puro (sem libc) é a base natural, mas os

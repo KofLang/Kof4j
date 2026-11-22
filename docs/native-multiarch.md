@@ -633,6 +633,42 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   `_write`/`_exit` as undefined externals — what the libSystem link
   resolves); `NativeMacOSProfileE2ETest` 11/11; the native battery **810 run /
   0F / 0E / 81 skipped** (named environment skips); the gates rc=0.
+  **M-2 SLICE 2 LANDED 22/11 (#1135 — the time/random/io families of the seam
+  over libSystem, and the Darwin clock ids are the DARWIN ones):** the second
+  batch of the seam now speaks the libSystem too, and one of its bodies would
+  have been silently WRONG if the Linux constant had been copied. MEASURED on
+  a real program (`time.sleep` + `time.now` + `random.hex(8)` — the fatias
+  those faces pull): the raw Linux syscalls fell **20 → 16**, and the four
+  families that left the Linux ABI are `kof_plat_time`, `kof_plat_time_mono`,
+  `kof_plat_sleep` and `kof_plat_random` (plus `kof_plat_read`/`kof_plat_close`
+  in the io family). **THE CLOCK IDS ARE THE DARWIN ONES (measured in the
+  macOS SDK headers that the provisioned toolchain ships):**
+  `CLOCK_REALTIME = 0` and **`CLOCK_MONOTONIC = 6`** — the Linux value is 1,
+  which on Darwin is not the monotonic clock at all. The `struct timespec` of
+  the Darwin has the SAME layout as the Linux (`tv_sec` at 0, `tv_nsec` at 8),
+  so the runtime that reads `0(%rsp)`/`8(%rsp)` stays right. **THE RANDOM
+  FAMILY USES THE DARWIN CSPRNG:** `getentropy` does **not exist** on Darwin
+  (measured — it is absent from the SDK headers) and it caps at 256 bytes per
+  call, which `random.hex(n)` would break; the body uses
+  `arc4random_buf(buf, len)` (10.7+, the Darwin's own CSPRNG, no size cap)
+  and returns the requested length, because the seam contract is
+  `kof_plat_random(buf, len) -> n` with `n >= 0` = bytes written. The io
+  family (`read`/`close`) migrated mechanically — the same SysV registers.
+  **THE BODIES MOVED TO THEIR OWN CLASS** (`runtime/RuntimePlatMacos.java` —
+  the same pattern as `RuntimeBios`/`RuntimeUefi`/`RuntimeBareRandom`), and
+  `RuntimePlat` delegates per family. **WHAT IS STILL LINUX (measured on that
+  program):** the 16 remaining raw syscalls are `kof_plat_thread_id` and
+  `kof_plat_sync` (the concurrency face — M-5), the allocator's `.Lgrow_try`
+  (M-3), and the runtime's OWN io (`.Lkof_read_line_loop`, `kof_read_file`,
+  `kof_write_file`) plus `kof_sec_secret_get` — those BYPASS the seam, and
+  routing them through it is the M-6 row. **PROOF (executed):**
+  `NativeMacOSSeamE2ETest` **12/12** — RED-first **4 failures** on the old
+  code (the raw syscall in the time family, the Linux clock id, the io family
+  still on `syscall`, the missing `_clock_gettime`/`_arc4random_buf` symbols)
+  and GREEN after; the **real Mach-O assembler accepts the time/random
+  bodies** (the object carries `_clock_gettime` and `_arc4random_buf` as
+  undefined externals); `NativeMacOSProfileE2ETest` 11/11; the native battery
+  **814 run / 0F / 0E / 81 skipped**; the gates rc=0.
 - **Bare-metal / bootable** (microcontroller, legacy BIOS, UEFI) — maintainer
   directive 15/09 ("all native code must also talk directly to barebones"). The
   pure-asm riscv64/aarch64 runtime (no libc) is the natural base, but the emitters

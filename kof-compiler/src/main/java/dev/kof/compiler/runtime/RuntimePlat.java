@@ -45,50 +45,7 @@ public final class RuntimePlat {
         // são chamadas de libc, não `syscall`. A ABI de argumentos é a mesma
         // (SysV x86-64: %rdi/%rsi/%rdx), então só o corpo muda.
         if (dev.kof.compiler.nat.NativeProfile.active.isMacos()) {
-            sb.append("""
-                .section .text
-                .globl kof_plat_write
-                .type kof_plat_write, @function
-                kof_plat_write:
-                    pushq %r15              # alinha a pilha (a libSystem usa SSE)
-                    movq %rsp, %r15
-                    andq $-16, %rsp         # rsp ≡ 0 (mod 16) NO SITE DO CALL
-                    call write              # write(fd=%rdi, buf=%rsi, len=%rdx)
-                    subq %rsp, %r15         # devolve o delta do alinhamento
-                    addq %r15, %rsp
-                    popq %r15
-                    ret
-
-                .globl kof_plat_writev
-                .type kof_plat_writev, @function
-                kof_plat_writev:
-                    pushq %r15
-                    movq %rsp, %r15
-                    andq $-16, %rsp
-                    call writev             # writev(fd=%rdi, iov=%rsi, cnt=%rdx)
-                    subq %rsp, %r15
-                    addq %r15, %rsp
-                    popq %r15
-                    ret
-
-                .globl kof_plat_exit
-                .type kof_plat_exit, @function
-                kof_plat_exit:
-                    pushq %r15
-                    movq %rsp, %r15
-                    andq $-16, %rsp
-                    call exit               # exit(code=%rdi) — NÃO retorna
-                    ud2                     # se retornar, trap (não há retorno)
-
-                .globl kof_plat_exit_group
-                .type kof_plat_exit_group, @function
-                kof_plat_exit_group:
-                    pushq %r15
-                    movq %rsp, %r15
-                    andq $-16, %rsp
-                    call exit               # o Darwin não tem exit_group: exit
-                    ud2
-                """);
+            RuntimePlatMacos.emitWrite(sb);
             return;
         }
         // B-2: no perfil UEFI os syscalls Linux não existem — a costura fala
@@ -195,6 +152,13 @@ public final class RuntimePlat {
     }
 
     public static void emitPlatTime(StringBuilder sb) {
+        // M-2 (#1135): no macOS o relógio vem da libSystem (clock_gettime) —
+        // e o CLOCK_MONOTONIC do Darwin é 6 (no Linux é 1), medido nos
+        // headers do SDK (RuntimePlatMacos).
+        if (dev.kof.compiler.nat.NativeProfile.active.isMacos()) {
+            RuntimePlatMacos.emitTime(sb);
+            return;
+        }
         // B-5 (D-BAREMETAL-BODIES, 24/09): no UEFI o relógio de parede vem de
         // RuntimeServices->GetTime (time.now()) e o monotônico do TSC calibrado
         // por BootServices->Stall; sleep por Stall — nada de recusa, roda bare.
@@ -239,6 +203,13 @@ public final class RuntimePlat {
     }
 
     public static void emitPlatRandom(StringBuilder sb) {
+        // M-2 (#1135): no macOS a aleatoriedade vem do CSPRNG do Darwin
+        // (arc4random_buf) — a getentropy do Linux NÃO EXISTE no Darwin
+        // (medido nos headers do SDK) e teria o limite de 256 bytes.
+        if (dev.kof.compiler.nat.NativeProfile.active.isMacos()) {
+            RuntimePlatMacos.emitRandom(sb);
+            return;
+        }
         // B-5: corpo real por face bare-metal (RDRAND/TSC + xorshift64),
         // compartilhado BIOS/UEFI — nunca um syscall Linux silencioso.
         if (dev.kof.compiler.nat.NativeProfile.activeIsUefi()
@@ -312,6 +283,12 @@ public final class RuntimePlat {
     }
 
     public static void emitPlatIo(StringBuilder sb) {
+        // M-2 (#1135): no macOS a io é a da libSystem (read/close) — a mesma
+        // ABI do Linux (fd=%rdi, buf=%rsi, len=%rdx).
+        if (dev.kof.compiler.nat.NativeProfile.active.isMacos()) {
+            RuntimePlatMacos.emitIo(sb);
+            return;
+        }
         // B-2: família sem corpo UEFI nesta fatia — recusa NOMEADA (R6),
         // nunca um syscall Linux silencioso que não existe no firmware.
         if (dev.kof.compiler.nat.NativeProfile.activeIsUefi()

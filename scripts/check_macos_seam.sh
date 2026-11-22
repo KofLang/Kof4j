@@ -27,9 +27,10 @@ RT="$ROOT/kof-compiler/src/main/java/dev/kof/compiler/runtime"
 NAT="$ROOT/kof-compiler/src/main/java/dev/kof/compiler/nat"
 BASELINE="${MACOS_SEAM_BASELINE:-$ROOT/scripts/macos-seam-baseline.txt}"
 SEAM_X86="$RT/RuntimePlat.java"
+SEAM_X86_MACOS="$RT/RuntimePlatMacos.java"
 SEAM_RV="$NAT/NativeRiscvAsmRt0.java"
 
-echo "== x86-64: sítios 'syscall' por arquivo (o seam = RuntimePlat) =="
+echo "== x86-64: sítios 'syscall' por arquivo (o seam = RuntimePlat + a face macOS RuntimePlatMacos) =="
 total_x86=0
 seam_x86=0
 for f in "$RT"/*.java; do
@@ -37,9 +38,11 @@ for f in "$RT"/*.java; do
     [ "$n" -eq 0 ] && continue
     base=$(basename "$f")
     total_x86=$((total_x86 + n))
-    if [ "$base" = "RuntimePlat.java" ]; then
-        seam_x86=$n
-        echo "  SEAM  RuntimePlat.java: $n"
+    if [ "$base" = "RuntimePlat.java" ] || [ "$base" = "RuntimePlatMacos.java" ]; then
+        # a face macOS da costura (M-2, 22/11): os corpos sobre a libSystem
+        # moram na sua própria classe — ela É costura, não superfície extra.
+        seam_x86=$((seam_x86 + n))
+        echo "  SEAM  $base: $n"
     else
         echo "  out   $base: $n"
     fi
@@ -67,7 +70,8 @@ out_rv=$((total_rv - seam_rv))
 echo "  riscv64: total=$total_rv seam=$seam_rv fora-da-costura=$out_rv"
 
 echo "== a costura (as funções kof_plat_*):"
-grep -oE 'kof_plat_[a-z_0-9]+:' "$SEAM_X86" | sed 's/:$//' | sort -u | sed 's/^/  /'
+grep -ohE 'kof_plat_[a-z_0-9]+:' "$SEAM_X86" "$SEAM_X86_MACOS" 2>/dev/null \
+    | sed 's/:$//' | sort -u | sed 's/^/  /'
 
 echo "== TLS (a face ELF local-exec — a migração Mach-O TLV):"
 tls=$(grep -rcE '@tpoff|%fs:' "$RT"/*.java 2>/dev/null | awk -F: '{s+=$2} END {print s+0}')
@@ -96,6 +100,7 @@ if [ "${1:-}" = "--selftest" ]; then
     RT="$T/kof-compiler/src/main/java/dev/kof/compiler/runtime"
     NAT="$T/kof-compiler/src/main/java/dev/kof/compiler/nat"
     SEAM_X86="$RT/RuntimePlat.java"
+    SEAM_X86_MACOS="$RT/RuntimePlatMacos.java"
     SEAM_RV="$NAT/NativeRiscvAsmRt0.java"
     mk_syscalls() {  # $1=file $2=count
         : > "$1"
