@@ -85,6 +85,7 @@ final class StringReceiverGuards {
     static void check(CompilerDriver driver, MethodCallExpr mc, List<IRLocalVariable> locals,
                       List<Type> methodParamTypes) {
         if (driver.currentDiagnostics == null) return;
+        checkArity(driver, mc);
         if (NOT_INSTANCE_METHODS.contains(mc.methodName())) {
             // bug 96 (paridade absoluta): REJEITAR em compile-time com SEM052
             // apontando p/ o idiom real do corpus — o MESMO erro nos 5 backends
@@ -173,5 +174,73 @@ final class StringReceiverGuards {
     private static boolean notIntForFormal(Type t) {
         if (BuiltinTypes.isString(t) || t instanceof Type.ArrayType) return true;
         return t instanceof Type.PrimitiveType && !TypeChecker.isAssignable(t, Type.PrimitiveType.INT);
+    }
+
+    /** Aridades aceitas pela registry para o verb; {@code max < 0} = qualquer. */
+    private record Arity(int min, int max) {}
+
+    /**
+     * #1189: verb que a registry CONHECE chamado com uma aridade que NENHUMA
+     * assinatura dele aceita ({@code substring(1, 3, 4)}). Sem isto a chamada
+     * passava no check e o emissor gerava {@code invokevirtual}
+     * substring(III) → NoSuchMethodError no JVM (link-fail no Native,
+     * TypeError no JS); o retorno também virava Unknown e o chamador seguinte
+     * era emitido sobre ele. O frontend é único, então o mesmo erro aparece
+     * nas 5 pontas.
+     */
+    private static void checkArity(CompilerDriver driver, MethodCallExpr mc) {
+        String name = mc.methodName();
+        if (StringMethodRegistry.stringRuntimeMethod(name) != null) return;
+        Arity arity = knownStringArity(name);
+        if (arity == null) return;
+        int got = mc.arguments().size();
+        if (arity.max() < 0 || (got >= arity.min() && got <= arity.max())) return;
+        StringBuilder valid = new StringBuilder();
+        for (int n = arity.min(); arity.max() < 0 || n <= arity.max(); n++) {
+            StringMethodRegistry.Sig s = StringMethodRegistry.stringMethodSignature(name, n);
+            // faixa aberta: para no primeiro buraco (a registry é contígua)
+            if (s == null) {
+                if (arity.max() < 0) break;
+                continue;
+            }
+            if (valid.length() > 0) valid.append(" / ");
+            valid.append(name).append('(');
+            List<Type> ps = s.parameterTypes();
+            for (int i = 0; i < ps.size(); i++) {
+                if (i > 0) valid.append(", ");
+                valid.append(ps.get(i) instanceof Type.PrimitiveType p
+                        ? Character.toUpperCase(p.name().charAt(0)) + p.name().substring(1)
+                        : typeNameFor(ps.get(i)));
+            }
+            valid.append(')');
+        }
+        var pos = mc.position();
+        driver.currentDiagnostics.error(pos != null ? pos.file() : "",
+                pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
+                "'" + name + "' takes " + valid + " — got " + got + " argument"
+                        + (got == 1 ? "" : "s"),
+                "SEM014");
+    }
+
+    /**
+     * Faixa ABERTA (max &lt; 0) = toda aridade do verb é aceita: os pipes de
+     * 1 e 2 args do {@code indexOf}/{@code startsWith} do JDK recebem a
+     * MESMA string (argumento 0), e recusar a aridade de um overload real do
+     * JDK via classpath externo seria falso-positivo. As faixas fechadas são
+     * os verbs sem overload externo plausível.
+     */
+    private static Arity knownStringArity(String name) {
+        return switch (name) {
+            case "substring" -> new Arity(1, 2);
+            case "getBytes" -> new Arity(0, 1);
+            case "replace", "replaceAll", "replaceFirst", "indexOf",
+                 "lastIndexOf", "startsWith", "split" -> new Arity(0, -1);
+            case "length", "isEmpty", "trim", "toInt", "toLong", "toDouble",
+                 "toFloat", "toUpperCase", "toLowerCase", "toCharArray" -> new Arity(0, 0);
+            case "charAt", "contains", "endsWith", "equals", "equalsIgnoreCase",
+                 "concat", "matches", "codePointAt", "compareTo",
+                 "compareToIgnoreCase" -> new Arity(1, 1);
+            default -> null;
+        };
     }
 }
