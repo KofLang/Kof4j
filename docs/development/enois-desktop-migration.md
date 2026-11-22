@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — the profile's tabs strip and `comunidades.*` (the community route, on top of the card + feed)
+next: Fase 3 continues — `comunidades.*` (the community route, on top of the card + feed + tabs)
 location: repository
 state: active
 
@@ -116,6 +116,17 @@ desktop width, the title `text-lg` = **18 px** and the body `text-base` with
 `card=255,255,255` (`--surface-card`), `fundo=247,244,251` (`--background`
 above the card), `tinta=174`.
 The Énois battery is **6/6** (tokens, shell, text, card, feed, profile, detail).
+
+**Fase 3 — the profile tabs strip (LANDED 22/11).** `libs/enois/ProfileTabs.kf`:
+six tabs in the component's order (`ALL, POSTS, REPLIES, REPOSTS, MEDIA,
+DIARIO`, `profile-content-tabs.tsx:8`) with the REAL labels from
+`src/messages/defaults/profile.ts:345` ("Todos", "Posts", "Respostas",
+"Reposts", "Mídia", "Diário"), `px-2 py-3 text-sm font-medium` = **14 px**, the
+active indicator `inset-x-0 bottom-0 h-1 rounded-full bg-primary` = a 4 px bar
+in `--primary`, and the `REPLIES` tab painted dimmed for a non-owner (the
+component's own `aria-disabled`/`disabled`). Proven natively: `tabs_h=48`,
+`indicador=103,70,245` (`--primary`), `fundo=247,244,251`, `tinta=173`.
+Battery **7/7**.
 
 ## §4 How to finish
 

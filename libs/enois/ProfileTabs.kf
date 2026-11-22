@@ -1,0 +1,79 @@
+package enois
+
+import enois.Text
+import enois.Tokens
+import game.Sdl3Backend
+
+// Énois — a faixa de abas do perfil (`ProfileContentTabs` do design system,
+// src/domain/profile/profile-content-tabs.tsx).
+//
+// As medidas vem do fonte, MEDIDAS:
+//   * as abas        `px-2 py-3 text-sm font-medium` = 14 px, peso 500
+//                    (profile-content-tabs.tsx:43)
+//   * a ordem        ALL, POSTS, REPLIES, REPOSTS, MEDIA, DIARIO (linha 8)
+//   * os rotulos     "Todos", "Posts", "Respostas", "Reposts", "Midia",
+//                    "Diario" (src/messages/defaults/profile.ts:345)
+//   * o indicador    `absolute inset-x-0 bottom-0 h-1 rounded-full bg-primary`
+//                    = uma barra de 4 px em `--primary`
+//   * a linha        `border-b border-border` = 1 px em `--border`
+//   * a aba ativa    `text-primary`; as outras, `text-text-subtle`
+//
+// A aba `REPLIES` e' bloqueada para quem nao e' o dono do perfil (o mesmo
+// `aria-disabled`/`disabled` do componente) — o desktop pinta-a apagada.
+
+/** As medidas da faixa de abas, em px. */
+class TabsMetrics {
+    static Int textSize() { return 14 }      // text-sm
+    static Int padX() { return 8 }           // px-2
+    static Int padY() { return 12 }          // py-3
+    static Int indicatorH() { return 4 }     // h-1
+    static Int height() { return padY() * 2 + 20 + indicatorH() }  // + a linha do texto
+}
+
+class ProfileTabs {
+
+    /** Os rotulos, na ordem do componente. */
+    static List<String> labels() {
+        return listOf<String>("Todos", "Posts", "Respostas", "Reposts", "Midia", "Diario")
+    }
+
+    /** Pinta a faixa de abas a partir de (x, y) com a largura `w`.
+     *  `active` e' o indice da aba ativa; `isOwner` libera a aba Respostas.
+     *  Devolve a altura usada.
+     */
+    static Int paint(Sdl3Backend b, Font f, Int x, Int y, Int w,
+                     Int active, Bool isOwner) {
+        val names = labels()
+        val n = names.size
+        val line = Tokens.Border()
+        val primary = Tokens.Primary()
+        val subtle = Tokens.TextSubtle()
+        val h = TabsMetrics.height()
+        val tabW = w / n
+
+        // a linha de baixo: 1 px em --border
+        SDL_SetRenderDrawColor(b.rendererHandle, line.r(), line.g(), line.b(), 255)
+        b.fillRect(x, y + h - 1, w, 1)
+
+        var i = 0
+        while (i < n) {
+            val tx = x + tabW * i
+            val center = tx + tabW / 2
+            val locked = i == 2 && !isOwner
+            val colour = if (i == active) primary else subtle
+            var alpha = 255
+            if (locked) { alpha = 120 }
+            SDL_SetRenderDrawColor(b.rendererHandle, colour.r(), colour.g(), colour.b(), alpha)
+            val label = names[i]
+            val wLabel = f.measure(label)
+            f.drawText(b, label, center - wLabel / 2, y + TabsMetrics.padY() + 14)
+            if (i == active) {
+                // o indicador: `inset-x-0 bottom-0 h-1` — a barra ocupa a aba
+                SDL_SetRenderDrawColor(b.rendererHandle, primary.r(), primary.g(), primary.b(), 255)
+                b.fillRect(tx, y + h - 1 - TabsMetrics.indicatorH(), tabW, TabsMetrics.indicatorH())
+            }
+            i = i + 1
+        }
+        return h
+    }
+}

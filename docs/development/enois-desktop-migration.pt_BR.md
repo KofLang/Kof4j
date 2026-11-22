@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — a faixa de abas do perfil e `comunidades.*` (a rota da comunidade, sobre o card + feed)
+next: a Fase 3 continua — `comunidades.*` (a rota da comunidade, sobre o card + feed + abas)
 location: repository
 state: active
 
@@ -117,6 +117,17 @@ nativamente: `card=255,255,255` (`--surface-card`), `fundo=247,244,251`
 (`--background` acima do card), `tinta=174`.
 A bateria Énois esta em **6/6** (tokens, shell, texto, card, feed, perfil,
 detalhe).
+
+**Fase 3 — a faixa de abas do perfil (POUSADA 22/11).** O `libs/enois/ProfileTabs.kf`:
+seis abas na ordem do componente (`ALL, POSTS, REPLIES, REPOSTS, MEDIA,
+DIARIO`, `profile-content-tabs.tsx:8`) com os rotulos REAIS de
+`src/messages/defaults/profile.ts:345` ("Todos", "Posts", "Respostas",
+"Reposts", "Mídia", "Diário"), `px-2 py-3 text-sm font-medium` = **14 px**, o
+indicador ativo `inset-x-0 bottom-0 h-1 rounded-full bg-primary` = uma barra de
+4 px em `--primary`, e a aba `REPLIES` pintada apagada para quem nao e' o dono
+(o proprio `aria-disabled`/`disabled` do componente). Provado nativamente:
+`tabs_h=48`, `indicador=103,70,245` (`--primary`), `fundo=247,244,251`,
+`tinta=173`. Bateria **7/7**.
 
 ## §4 Como concluir
 
