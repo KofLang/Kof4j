@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: em `enois-kof-desktop` — a rota `comunidades` agora e' COMPOSTA (`ComunidadesPage.kf`, app `d780d5e`): casca de visita + PageHeader + busca + 43 pilulas de assunto + o filtro de local com `space-y-6`; a prova `EnoisComunidadesPageCompostaE2ETest` mede `larg=1232` e `fim=756` contra os `452` esperados — a diferenca e' a pendencia NOMEADA do Kof4j §1206 (um `paint` linear rele o `y` obsoleto neste tamanho de modulo), NAO a tela: o que falta da rota e' a GRADE de cartoes (catalogo ao vivo vazio) e, no Kof4j, os emissores do §1204/§1205/§1206; toda TELA NOVA comeca medindo o site
+next: em `enois-kof-desktop` — os textos da `comunidades` agora são MONTADOS dos códigos medidos (`ComunidadesScreen.texts()`, app `7b02191`: `texts.ts` + os 44 rótulos de `TOPICS` + o filtro do DS) e a página pinta com eles (`larg=1232`, `fim=756` contra 452 — o §1206 NOMEADO do Kof4j); a próxima fatia é seguir o valor derramado do segundo bloco até o emissor nativo (§1206) e depois a GRADE de cartões da rota, com o catálogo ao vivo vazio
 location: repository
 state: active
 
@@ -852,3 +852,18 @@ familia de imports/modulo 17/17). Pendencias nomeadas abertas: §1204
 (`y = y + f(…, y, …)` passa o `y` novo), §1205 (`a = a + b + c` depois de uma
 chamada perde o ultimo termo; `a + chama() + b` guarda so `a`), §1206 (`y`
 obsoleto neste tamanho de modulo).
+
+## §7 Rodada 23/11 (segunda) — os textos MONTADOS, não passados à mão (app `7b02191`)
+
+`ComunidadesScreen.texts()` (`libs/ComunidadesScreen.kf`) monta o valor da rota a
+partir dos códigos medidos: o bloco `communities` de `src/texts.ts`, a ordem de
+`TOPICS` em `src/constants/community-topics.ts` ("Todas" + os 43 rótulos, cada
+um por `CommunitiesScreen.topicLabel` — a classe do arquivo homônimo), e o
+filtro de local do DS (`communityLocationFilter` + `cityStateField`).
+
+O teste da página agora lê A MESMA fábrica: `assuntos=44`, `primeiro=Todas`,
+`meio=Qualidade de vida`, `ultimo=Idiomas`, `larg=1232`, `fim=756` (esperado
+452 — §1206). Um construtor que preenchia um `listOf("")` num laço saiu com 44
+elementos — e o programa pequeno escrito para reproduzir no Kof4j também — então
+os rótulos são uma lista literal de chamadas qualificadas; REGISTRADO, sem
+interpretação a mais. Bateria: 7/7 (a página + os vizinhos de comunidades).

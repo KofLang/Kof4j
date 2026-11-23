@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: in `enois-kof-desktop` — the `comunidades` route is now COMPOSED (`ComunidadesPage.kf`, app `d780d5e`): visit shell + PageHeader + search + 43 topic pills + the location filter with `space-y-6`; proof `EnoisComunidadesPageCompostaE2ETest` measures `larg=1232` and `fim=756` against the expected `452` — the gap is the NAMED Kof4j pending §1206 (a straight-line `paint` re-reads a stale `y` at this module size), NOT the screen: the remaining work of the route is the card GRID (empty live catalogue) and, in Kof4j, the §1204/§1205/§1206 emitters; every NEW screen starts by measuring the live site
+next: in `enois-kof-desktop` — the `comunidades` texts are now BUILT from the measured codes (`ComunidadesScreen.texts()`, app `7b02191`: `texts.ts` + the 44 `TOPICS` labels + the DS filter) and the page paints with them (`larg=1232`, `fim=756` against 452 — the NAMED Kof4j §1206); the next slice is following the spilled value of the second block to the native emitter (§1206) and then the card GRID of the route, with its empty live catalogue
 location: repository
 state: active
 
@@ -868,3 +868,18 @@ its sibling — `app/Main.kf` + `enois/` next to it; RED 1/2 → 2/2 plus the
 imports/module family 17/17). Named pendings opened: §1204 (`y = y + f(…, y, …)`
 passes the new `y`), §1205 (`a = a + b + c` after a call loses the last term;
 `a + call() + b` keeps only `a`), §1206 (stale `y` at this module size).
+
+## §7 Round 23/11 (second) — the texts BUILT, not hand-passed (app `7b02191`)
+
+`ComunidadesScreen.texts()` (`libs/ComunidadesScreen.kf`) assembles the route's
+value from the measured codes: the `communities` block of `src/texts.ts`, the
+`TOPICS` order of `src/constants/community-topics.ts` ("Todas" + the 43 labels,
+each through `CommunitiesScreen.topicLabel` — the class of the homonymous file),
+and the DS location filter (`communityLocationFilter` + `cityStateField`).
+
+The page test now reads THE SAME factory: `assuntos=44`, `primeiro=Todas`,
+`meio=Qualidade de vida`, `ultimo=Idiomas`, `larg=1232`, `fim=756` (expected
+452 — §1206). A builder that filled a `listOf("")` in a loop came out with 44
+elements — and so did the small program written to reproduce it in the Kof4j
+tree — so the labels are a literal list of qualified calls; RECORDED, not
+interpreted further. Battery: 7/7 (the page + its communities neighbours).
