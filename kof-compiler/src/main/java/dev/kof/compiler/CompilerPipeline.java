@@ -69,12 +69,16 @@ public final class CompilerPipeline {
                 return app != null && s.toAbsolutePath().normalize().startsWith(app) ? app : project;
             }
         }
-        boolean entryIsTheUnit = sources.size() == 1 || collected == null || collected.equals(sources);
         Path root = ModuleRoots.moduleRootFor(sources);
-        if (!entryIsTheUnit) return root;
-        // §1203: só sobe quando o diretório da entrada é o PRÓPRIO PASTA de
-        // um pacote — é o diretório da biblioteca importada que o LCA pegou.
-        return ImportRoots.shadowsEntryPackage(sources, root) ? root.getParent() : root;
+        if (root == null) return null;
+        // §1203: com UMA fonte a raiz "LCA" é o diretório dela — sobe quando
+        // ele é um PACOTE de verdade (o `app/` só com o `Main.kf`, ao lado do
+        // irmão `enois/`). Com várias fontes a chamada é do MÓDULO e o LCA é a
+        // raiz (histórico). §1207: o arquivo já compilado como fonte não volta
+        // a ser lido por import de diretório (`CompilerImports`), então a
+        // unidade coletada segue o mesmo predicado.
+        if (sources.size() != 1) return root;
+        return ImportRoots.structuralEntryDirectory(sources, root) ? root.getParent() : root;
     }
 
     static CompilationResult compileSources(CompilerDriver driver, java.util.List<Path> sources, Path outputDir, Target target,

@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: em `enois-kof-desktop` — a rota `comunidades` tem pagina (sequencia de chamadas, 487), textos montados pela fabrica e catalogo; o ESQUELETO DE CARGA (cartao 344, grade de seis 704) fica fora de `libs/` ate a face NOMEADA §1207 do Kof4j (reproduzida fora do harness: um arquivo com parametros `Sdl3Backend` so compila quando outro arquivo o importa — a tabela de classes fica sem os pacotes importados); proximo: a comparacao da tabela de classes depois do `preDeclareType` no Kof4j, depois o esqueleto de volta, os valores do cartao da API
+next: em `enois-kof-desktop` — a rota `comunidades` e pagina (sequencia de chamadas, 487), textos pela fabrica, catalogo (a grade importa `game.Sdl3Backend` nela mesma, app `380e84f`, bateria 8/8) e o esqueleto de carga medido (344/704); o esqueleto segue segurado pela face NOMEADA §1207 do Kof4j (resta so a busca de import), proximo no Kof4j: corrigir a busca de import e o esqueleto volta a `libs/`, depois os valores do cartao da API
 location: repository
 state: active
 
@@ -949,3 +949,18 @@ tabela tem pacote `""`, `allClasses()` mostra so as 31 classes importadas e a
 re-busca qualificada acha um simbolo que `getClass` nunca ve. O esqueleto fica
 nomeado como precisando do import companheiro — a arvore do app segue limpa em
 `afeeb94` e a migracao ainda nao depende dele.
+
+## §13 Rodada 23/11 (oitava) — §1203 refinado, face do §1207 estreitada, app desbloqueado
+
+A regra do §1203 subia a raiz de import para uma entrada solta mesmo quando o
+diretorio dela era a raiz do modulo, quebrando a derivacao historica (PKG004 em
+`a/X.kf` na chamada de 3 args). Agora so sobe quando o diretorio da entrada e um
+pacote de verdade (`ImportRoots.structuralEntryDirectory`: sem fontes proprias e
+sem subpasta com fontes). `PackagesE2ETest.moduleRootDerivedFromCommonAncestor`
+volta ao verde, familia 54/54.
+
+A face do §1207 fica estreitada a BUSCA de import: um irmao da BIBLIOTECA que
+importa o tipo faz ele resolver; so nomes no mesmo pacote, nao. O app nao esta
+mais bloqueado: `ComunidadesGrade.kf` importa `game.Sdl3Backend` nela mesma
+(app `380e84f`, bateria 8/8). O esqueleto (344/704) fica fora de `libs/` ate a
+face da busca ser corrigida, porque ele cairia na mesma forma.

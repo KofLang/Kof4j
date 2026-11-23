@@ -11,28 +11,22 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * §1207 (23/11, app do Énois): com um tipo de BIBLIOTECA em parâmetros de
- * membros, um IRMÃO do mesmo pacote que deixa de nomear esse tipo num parâmetro
- * é recusado com SEM011 "Undefined variable or type" quando a entrada está num
- * pacote (a raiz de import sobe, §1203). Sem o irmão da biblioteca, o mesmo
- * arquivo compila.
+ * §1207 (23/11, app do Énois): o módulo tem duas cópias do MESMO arquivo de
+ * biblioteca — uma no módulo (o pacote `enois/Uso.kf`, compilado como fonte
+ * solta) e outra na biblioteca oficial (`enois/Uso.kf` no `kof-libs`). O tipo
+ * que só o arquivo da biblioteca importa (`game.Lib` num parâmetro de
+ * `Uso.m`) volta em SEM011 "Undefined variable or type" nos vizinhos, porque a
+ * importação da fonte do módulo encerra a busca daquele pacote e a cópia da
+ * biblioteca nunca é lida.
  */
 class LibraryTypeInSiblingParameterE2ETest {
 
     @Test
-    void aSiblingMayNameALibraryTypeInAParameter(@TempDir Path tempDir) throws IOException {
-        compile(tempDir, true);
-    }
-
-    @Test
-    void theSameModuleWithoutTheLibrarySiblingStillCompiles(@TempDir Path tempDir) throws IOException {
-        compile(tempDir, false);
-    }
-
-    private static void compile(Path tempDir, boolean withLibrarySibling) throws IOException {
+    void aDuplicateLibraryFileDoesNotHideTheLibraryTypeOfItsNeighbour(@TempDir Path tempDir) throws IOException {
         Path root = tempDir.resolve("proj");
         Path lib = tempDir.resolve("inst/lib/kof-libs");
         Files.createDirectories(lib.resolve("game"));
+        Files.createDirectories(lib.resolve("enois"));
         Files.createDirectories(root.resolve("app"));
         Files.createDirectories(root.resolve("enois"));
         Files.writeString(lib.resolve("game/Lib.kf"), """
@@ -42,7 +36,7 @@ class LibraryTypeInSiblingParameterE2ETest {
                 static Int n() { return 1 }
             }
             """);
-        Files.writeString(root.resolve("enois/Uso.kf"), """
+        String uso = """
             package enois
 
             import game.Lib
@@ -50,20 +44,18 @@ class LibraryTypeInSiblingParameterE2ETest {
             class Uso {
                 static Int m(Lib x) { return x.n() }
             }
+            """;
+        Files.writeString(root.resolve("enois/Uso.kf"), uso);
+        Files.writeString(lib.resolve("enois/Uso.kf"), uso);
+        Files.writeString(root.resolve("enois/Aux.kf"), """
+            package enois
+
+            class Aux {
+                static Int k(Lib w) { return 2 }
+            }
             """);
-        if (withLibrarySibling) {
-            Files.createDirectories(lib.resolve("enois"));
-            Files.writeString(lib.resolve("enois/Aux.kf"), """
-                package enois
-
-                import game.Lib
-
-                class Aux {
-                    static Int k(Lib w) { return 2 }
-                }
-                """);
-        }
         Files.writeString(root.resolve("app/Main.kf"), """
+            import enois.Aux
             import enois.Uso
 
             main() {

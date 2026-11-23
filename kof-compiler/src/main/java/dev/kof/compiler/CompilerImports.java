@@ -77,6 +77,13 @@ public final class CompilerImports {
                                             FileImports fileImports,
                                             List<Path> entrySources) {
         java.util.Set<String> visitedDirs = new java.util.HashSet<>();
+        // §1207: um arquivo já compilado como fonte não pode ser LIDO de novo
+        // por import de DIRETÓRIO (o `P.kf` compilado voltava com o pacote
+        // derivado errado, PKG004); o import por nome de tipo segue normal.
+        java.util.Set<String> compiledFiles = new java.util.HashSet<>();
+        for (Path compiled : compiledSources) {
+            compiledFiles.add(compiled.toAbsolutePath().normalize().toString());
+        }
         // #628 (root cause): a file already compiled in `sources` must NEVER be
         // re-parsed through an import — the import copy loses the package
         // (a class constant `Rotulo` instead of `dominio/Rotulo` -> the JVM
@@ -120,7 +127,7 @@ public final class CompilerImports {
             // §1203 (23/11): um módulo cujo próprio diretório é uma pasta de
             // pacote (o LCA dos pais é `enois/`) não resolve `enois.X` — a
             // raiz de import sobe um nível, como `CompilerPipeline.rootFor`.
-            if (ImportRoots.shadowsEntryPackage(entrySources, moduleRoot)) {
+            if (ImportRoots.structuralEntryDirectory(entrySources, moduleRoot)) {
                 resolutionRoot = moduleRoot.getParent();
             }
             Path pkgDir = resolutionRoot != null
@@ -151,6 +158,9 @@ public final class CompilerImports {
                     for (Path kf : stream.filter(p -> isKofExtSource(p.getFileName().toString()))
                             .sorted(java.util.Comparator.comparing(p -> p.getFileName().toString()))
                             .toList()) {
+                        if (compiledFiles.contains(kf.toAbsolutePath().normalize().toString())) {
+                            continue; // §1207: já é fonte da unidade
+                        }
                         if (!visitedDirs.add(kf.toAbsolutePath().normalize().toString())) {
                             continue; // #628: file already compiled or already imported
                         }

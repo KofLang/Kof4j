@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: in `enois-kof-desktop` — route `comunidades` has page (call sequence, 487), factory texts and catalogue; the LOADING SKELETON (card 344, grid of six 704) stays out of `libs/` until the NAMED Kof4j §1207 face (reproduced outside the harness: a file with `Sdl3Backend` parameters compiles only when another file imports it — the class table lacks the import packages otherwise); next: the class-table comparison after `preDeclareType` in Kof4j, then the skeleton back, the card values from the API
+next: in `enois-kof-desktop` — the route `comunidades` is page (call sequence, 487), factory texts, catalogue (grade imports `game.Sdl3Backend` itself, app `380e84f`, battery 8/8) and the loading skeleton measured (344/704); the skeleton is still held by the NAMED Kof4j §1207 face (only the import search remains), next in Kof4j: a fix in the import search plus the skeleton back in `libs/`, then the card values from the API
 location: repository
 state: active
 
@@ -965,3 +965,18 @@ table's entry has package `""`, `allClasses()` shows only the 31 imported
 classes, and the qualified re-lookup finds a symbol `getClass` never sees.
 The skeleton is therefore named as needing the companion import — the app tree
 stays clean at `afeeb94` and the migration depends on nothing from it yet.
+
+## §13 Round 23/11 (eighth) — §1203 refined, §1207 face narrowed, app unblocked
+
+The §1203 rule raised the import root for a solo entry even when its directory
+was the module root, breaking the historical derivation (PKG004 on `a/X.kf` for
+the 3-arg call). It now raises only when the entry directory is a real package
+(`ImportRoots.structuralEntryDirectory`: no sources of its own and no
+subdirectory with sources). `PackagesE2ETest.moduleRootDerivedFromCommonAncestor`
+is green again, family 54/54.
+
+The §1207 face is narrowed to the import SEARCH: a sibling file of the LIBRARY
+that imports the type makes it resolve; only same-package namers do not. The app
+is no longer blocked: `ComunidadesGrade.kf` imports `game.Sdl3Backend` itself
+(app `380e84f`, battery 8/8). The skeleton (344/704) stays out of `libs/` until
+the search face is fixed, since it would hit the same shape.
