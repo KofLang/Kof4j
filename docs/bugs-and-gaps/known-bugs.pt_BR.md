@@ -18906,6 +18906,27 @@ Proximo: reproduzir num clone limpo so' com `kof-compiler` construido (`compileF
 pasta de pacote com dois arquivos), depois corrigir o `firstKofExtFile` com o caso de
 co-ocorrencia como RED-0.
 
+**23/11 (terceira rodada, tentativa em sala limpa): DUAS hipoteses retiradas, UMA aberta.**
+
+Construi SO' o `kof-compiler` (`mvn -pl kof-compiler -am install -DskipTests`) e o dirigi com
+compilacao de teste (`compileForTests` com a pasta como raiz do modulo), pondo
+`kof-compiler/target/classes` na frente do jar obsoleto do Maven (verificado imprimindo o
+code source de cada classe: driver E parser carregam das classes do repositorio). Instrumentei
+o laco da expansao: para `import loja.Catalogo` a raiz do modulo resolve para `/tmp/lc` e o laco
+pede `/tmp/lc/loja/Catalogo` (uma PASTA) — nunca `/tmp/lc/loja`. Entao ficam RETIRADAS: "(a) a
+raiz da pasta nao e resolvida" e "(b) duas classes num arquivo sao descartadas". O laco pede o
+FILHO do `loja/` resolvido, ou seja o `moduleRoot` parece carregar o proprio nome importado; o
+`moduleRoot` que o resolvedor recebe no caminho real (compilacao vs teste) e' a questao aberta.
+
+**Disciplina de artefato (medida duas vezes nesta sessao):** o jar do Maven em `~/.m2` e
+`kof-compiler/target/classes` podem discordar; um `:clean package` de um modulo re-sombreia o
+jar do CLI e entrega classes de outra build. Compare o `javap` da classe em depuracao nos DOIS
+antes de interpretar qualquer resultado — so' nesta rodada foram tres leituras falsas.
+
+Proximo: instrumentar onde a raiz do modulo e' calculada no `compileForTests` (o valor que o
+pipeline entrega a expansao) e comparar com o caminho do `compile`; o caso do Énois e'
+`moduleRoot = a pasta`, `loja/` (ou `enois/`) o pacote.
+
 ## §1199 — o literal de array `["a", "b"]` NAO E' Kof por contrato (`docs/language-reference/syntax.md` + `training/anti-patterns/fake-idioms.md`); o defeito e' outro: o resolvedor faz um programa construido das FONTES falhar nessa sintaxe DENTRO DA STDLIB — 📌 MEDIDO 23/11 (lane wasm/caps `192.168.15.15:0`); o lado do parser foi RETIRADO
 
 **Status:** 🟡 ABERTO — reproduzido em programa de tres linhas; o bytecode nao e' afetado, nem o `listOf(...)`.

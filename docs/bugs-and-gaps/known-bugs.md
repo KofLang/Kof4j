@@ -21494,6 +21494,27 @@ bytecodes in the same session); build the CLI jar deliberately, never as a side 
 Next: reproduce on a clean clone with only `kof-compiler` built (`compileForTests` + a
 package dir with two files), then fix `firstKofExtFile` with the co-occurrence case as RED-0.
 
+**23/11 (third round, the clean-room attempt): TWO hypotheses retired, ONE still open.**
+
+Built ONLY `kof-compiler` (`mvn -pl kof-compiler -am install -DskipTests`) and drove it with
+test-style compilation (`compileForTests` with the folder as module root), putting
+`kof-compiler/target/classes` ahead of the stale Maven jar (verified by printing each class's
+code source: the driver AND the parser load from the repo classes). Instrumented the expansion
+loop: for `import loja.Catalogo` the module root resolves to `/tmp/lc` and the loop asks for
+`/tmp/lc/loja/Catalogo` (a DIRECTORY) — never `/tmp/lc/loja`. So RETIRED: "(a) the folder root
+is not resolved at all" and "(b) two classes in one file are dropped". The loop asks for the
+child of the resolved `loja/`, i.e. `moduleRoot` seems to carry the imported name itself; the
+`moduleRoot` the resolver receives in the real compile-vs-test path is the open question.
+
+**Artefact discipline (measured twice this session):** the Maven jar in `~/.m2` and
+`kof-compiler/target/classes` can disagree; a `:clean package` in one module re-shades the CLI
+jar and hands you classes from another build. Diff `javap` of the class you are debugging on
+BOTH before interpreting any result — this round alone produced three false readings.
+
+Next: instrument where the module root is computed for `compileForTests` (the value the
+pipeline hands to the expansion) and compare it with the `compile` path; the Énois case is
+`moduleRoot = the folder`, `loja/` (or `enois/`) the package.
+
 ## §1199 — the array literal `["a", "b"]` is BY CONTRACT not Kof (`docs/language-reference/syntax.md` + `training/anti-patterns/fake-idioms.md`); what is a defect: the resolver makes a program built from SOURCES fail on that syntax inside the STDLIB — 📌 MEASURED 23/11 (lane wasm/caps `192.168.15.15:0`); the parser side is WITHDRAWN
 
 **Status:** 🟡 OPEN — reproduced in a three-line program; the bytecode is NOT affected, nor is `listOf(...)`.
