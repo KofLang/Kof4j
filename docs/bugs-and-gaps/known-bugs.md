@@ -21367,6 +21367,26 @@ WHAT IT BLOCKS: a pixel-proof painter for any screen whose painter is built from
 **ONE MORE SHAPE FOUND IN THE SAME SESSION, and it is NOT the renderer:** `assertTrue(out.contains("X\n"))` fails when `X` is the LAST line of `out` although the printed text is exactly `X` — three tests in this session stopped on it (`card_nocover`, `badge`, and the flow's `mentor`) and all three pass when the assertion is anchored on the PRECEDING line (`"previous\nX"`). The strings print correctly; the exact final-line search does not match. Recorded here because it cost most of the hunt: a last-line assertion is not evidence until it is anchored.
 
 **THE SESSION'S OWN PROBE LOG WAS THE BROKEN PART (23/11, late):** every "correct: 255" row above came from a run whose control print (`x=255`) was read by `grep -o PROBE_OUT\[…\] | head -1` across a log only this session appends to — and the reruns that PRINTED a different line (`x=255, y=247`) were still counted as "correct" because the grader looked at the first matching line, not the last. Re-run with a clean log and a program that does NOT print a field of a token (the print itself orders the code): `baseline=247` — the plain inline `clearFrame` + `fillRect` + `readPixel` in `main`, with no token call anywhere, reads the clear. So the earlier "correct in a function / wrong inline" split was produced by a grader that could not tell the two outputs apart. What stands, re-measured once each today: `baseline=247` (inline, no token), `x=255; y=247` (inline with a token bound before the read), `Avatar.paint` + one read = the right pixel (the per-pixel loop writes it), and `Projects`'s readback = 255 (it reads after a per-row loop).
+**§1197 — MEASUREMENTS 23/11 (second pass, none of it is a fix):** (a) the readback
+pipeline itself works: `SDL_RenderReadPixels` fills a 1200x300 RGBA surface whose
+bytes carry the CLEAR colour `251,244,247,0` (already BGR-ordered, which is why
+`readPixel` returns r/b swapped); (b) `SDL_SetRenderDrawColor(r,g,b)` carries
+`r` in ECX and `g`/`b` in R8D/R9D — measured with gdb on the call — i.e. on the
+SysV x86-64 ABI the channels the SDL receives are shifted; (c) with the colour
+repaired in C (filled red), the surface DID carry red in the fill rect of THAT
+run — so a fill can land; (d) with the Kof `clearFrame` + `fillRect` in ANY order tried (1 fill,
+2 fills, fill before/after a present, with a `println` between) the rect never
+appears in the surface; (e) a fill issued from C against the SAME renderer
+(`kof_probe_fill_`) did not land either, while the same C sequence against the
+renderer after a C-called `SDL_CreateRenderer` was not reached this tick — the C-side separation is INCOMPLETE: the wrapper ran against the renderer a C sequence had already exercised in a SEPARATE binary, not one both share in the same process.
+THE COLOUR CHANNEL SHIFT (b) is a real defect in the backend's extern
+declarations — `SDL_SetRenderDrawColor(Long ren, Int r, Int g, Int b, Int a)`
+emits the 3rd argument in ECX where SysV wants ESI — and it is now written up as
+its own finding; it explains WHY every cleared frame reads as `251,244,247`.
+The FILL not landing is still open. Next: (1) fix the channel shift (declare the
+channels as `Long` or find where the emitter misnumbers regs for `Int`), (2)
+bisect the missing fill with the C wrapper that already produces a landing fill.
+
 WHAT THIS MEANS for the plan: there is NO proven "function painter reads back" escape hatch; a fill followed by a read of that fill is unproven for the inline, the function-wrapped and the token-carrying shapes alike, and a pixel proof on this backend should not be attempted until the readback is fixed at the emitter/runtime.
 
 SO the defect is NOT "readback never works": it is "some call shapes lose the inline fill". The matrix moved the plan forward (a painter in a function reads back today) but no single trigger reproduces in a 30-line program, and the distinguishing factor is still unproven — a claim of "fixed" here would be a guess. STATUS: 🟡 OPEN. Next: bisect at the IR level (`KofCall` order and the `pushq`/`andq $-16` call edge) between an inline fill and a function-wrapped one, with gdb on the renderer's `SDL_RenderFillRect` return.
