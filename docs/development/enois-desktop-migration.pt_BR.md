@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — `notificacoes.index` ou `desafios`
+next: a Fase 3 continua — `desafios` ou `mentoria`
 location: repository
 state: active
 
@@ -367,6 +367,18 @@ para na hora, porque o FUNDO da pagina `247,244,251` tambem nao e' branco — a
 primeira versao achou o fundo em (66,72) e o chamou de eyebrow. A varredura
 agora procura a TINTA do `--primary` (azul alto, vermelho baixo e azul pelo
 menos 60 acima do vermelho), que NEM o fundo NEM o branco casam.
+
+**Fase 3 — `notificacoes.index` (POUSADA 23/11).** O `NotificationsScreen` no
+`libs/enois/Notifications.kf` pinta a lista de avisos: a coluna `max-w-2xl` =
+**672 px**, cada item `px-4 py-3.5` com o icone circular `h-11 w-11` = **44 px**
+sobre `--primary-soft`, o nome `font-extrabold` e o corpo `text-text-subtle`.
+Os rotulos de dia sao os do site: **"Hoje"** / **"Ontem"**
+(`notificationsPage.today`/`yesterday`).
+O CONTRATO E' O AGRUPAMENTO, e ele e' provado pela ALTURA, nao contando
+chamadas: um rotulo de dia aparece so' quando o grupo MUDA, entao tres itens em
+DOIS grupos dao **274** px (216 + 2x29) e tres itens em UM grupo dao **245**
+px (216 + 29). Um rotulo por item daria 303 e falharia as duas assercoes.
+Bateria **26/26**.
 
 ## §4 Como concluir
 

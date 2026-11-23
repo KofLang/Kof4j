@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — `notificacoes.index` or `desafios`
+next: Fase 3 continues — `desafios` or `mentoria`
 location: repository
 state: active
 
@@ -376,6 +376,18 @@ immediately, because the PAGE BACKGROUND `247,244,251` is not white either —
 the first version found the background at (66,72) and called it the eyebrow.
 The scan now looks for the INK of `--primary` (blue high, red low, and blue at
 least 60 above red), which NEITHER the background nor white can match.
+
+**Fase 3 — `notificacoes.index` (LANDED 23/11).** `NotificationsScreen` in
+`libs/enois/Notifications.kf` paints the notices list: the `max-w-2xl` =
+**672 px** column, each item `px-4 py-3.5` with the `h-11 w-11` = **44 px**
+circular icon on `--primary-soft`, the name `font-extrabold` and the body
+`text-text-subtle`. The day labels are the site's own: **"Hoje"** / **"Ontem"**
+(`notificationsPage.today`/`yesterday`).
+THE CONTRACT IS THE GROUPING, and it is proven by the HEIGHT, not by counting
+calls: a day label appears only when the group CHANGES, so three items in TWO
+groups give **274** px (216 + 2×29) and three items in ONE group give **245**
+px (216 + 29). A per-item label would give 303 and fail both assertions.
+Battery **26/26**.
 
 ## §4 How to finish
 

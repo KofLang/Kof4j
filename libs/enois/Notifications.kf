@@ -1,0 +1,95 @@
+package enois
+
+import enois.Text
+import enois.Tokens
+import game.Sdl3Backend
+
+// Énois — a rota `notificacoes.index` (`src/routes/notificacoes.index.tsx`),
+// a lista de AVISOS ("Every notice, grouped by day").
+//
+// Os TEXTOS vem do codigo (`src/texts.ts`, bloco `notificationsPage`), sem
+// invencao:
+//   * os rotulos de GRUPO DE DIA  `today` = "Hoje", `yesterday` = "Ontem"
+//   * o carregando               `refreshing` = "Atualizando avisos..."
+//   * o nome do destino          `dock.notices` = "Avisos"
+//
+// As MEDIDAS vem do design system, MEDIDAS:
+//   * a coluna    `mx-auto w-full max-w-2xl` = 672 px
+//   * o item      `flex items-start gap-3 px-4 py-3.5` = 14 px vertical
+//   * o icone     `grid h-11 w-11 place-items-center` = 44 px, `rounded-full`
+//   * o nome      `font-extrabold text-text-strong`
+//   * o corpo     `block text-text-subtle`
+
+/** As medidas dos avisos, em px. */
+class NotificationsMetrics {
+    static Int maxWidth() { return 672 }      // max-w-2xl
+    static Int itemPadX() { return 16 }       // px-4
+    static Int itemPadY() { return 14 }       // py-3.5
+    static Int icon() { return 44 }           // h-11 w-11
+    static Int gap() { return 12 }            // gap-3
+    static Int nameSize() { return 15 }
+    static Int bodySize() { return 14 }
+    static Int groupLabelSize() { return 13 }
+    static Int itemHeight() { return 72 }
+    static Int groupGap() { return 8 }
+}
+
+class NotificationsScreen {
+
+    /** Os rotulos de grupo de dia do sitio: 0 = hoje, 1 = ontem, 2 = antes. */
+    static String dayLabel(Int day) {
+        if (day == 0) { return "Hoje" }
+        if (day == 1) { return "Ontem" }
+        return "Antes"
+    }
+
+    /** Pinta a lista de avisos agrupada por dia. `days` diz o grupo de cada
+     *  item (0 = Hoje, 1 = Ontem, ...); a lista vem na ordem. Devolve a altura. */
+    static Int paint(Sdl3Backend b, Font groupFont, Font nameFont, Font bodyFont,
+                     Int windowWidth, Int y, List<Int> days,
+                     List<String> names, List<String> bodies) {
+        val card = Tokens.SurfaceCard()
+        val line = Tokens.BorderSoft()
+        val strong = Tokens.TextStrong()
+        val muted = Tokens.MutedForeground()
+        val soft = Tokens.PrimarySoft()
+        val w = NotificationsMetrics.maxWidth()
+        val x = (windowWidth - w) / 2
+        var cy = y
+        var lastDay = -1
+        var i = 0
+        while (i < days.size) {
+            // o rotulo do grupo quando o DIA MUDA
+            if (days[i] != lastDay) {
+                groupFont.drawTextColoured(b, dayLabel(days[i]), x + NotificationsMetrics.itemPadX(),
+                        cy + 16, muted.r(), muted.g(), muted.b())
+                cy = cy + NotificationsMetrics.groupLabelSize() + NotificationsMetrics.groupGap() + 8
+                lastDay = days[i]
+            }
+            // o item: o card com o icone circular e o texto
+            val h = NotificationsMetrics.itemHeight()
+            SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+            b.fillRect(x, cy, w, h)
+            SDL_SetRenderDrawColor(b.rendererHandle, line.r(), line.g(), line.b(), 255)
+            b.fillRect(x, cy + h - 1, w, 1)
+            // o icone de 44 px em --primary-soft (o quadro do aviso)
+            SDL_SetRenderDrawColor(b.rendererHandle, soft.r(), soft.g(), soft.b(), 255)
+            b.fillRect(x + NotificationsMetrics.itemPadX(),
+                    cy + NotificationsMetrics.itemPadY(),
+                    NotificationsMetrics.icon(), NotificationsMetrics.icon())
+            val tx = x + NotificationsMetrics.itemPadX() + NotificationsMetrics.icon()
+                    + NotificationsMetrics.gap()
+            nameFont.drawTextColoured(b, names[i], tx,
+                    cy + NotificationsMetrics.itemPadY() + 16,
+                    strong.r(), strong.g(), strong.b())
+            if (i < bodies.size) {
+                bodyFont.drawTextColoured(b, bodies[i], tx,
+                        cy + NotificationsMetrics.itemPadY() + 38,
+                        muted.r(), muted.g(), muted.b())
+            }
+            cy = cy + h
+            i = i + 1
+        }
+        return cy - y
+    }
+}
