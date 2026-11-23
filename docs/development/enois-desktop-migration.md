@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — `vagas.minhas` is in; next the mentoring panels and the job detail (`vagas.$jobId`); §1196 and §1197 stay OPEN
+next: Fase 3 continues — the mentoring panels (`mySessions`, the register form) and `vagas.$jobId`; §1196 and §1197 stay OPEN
 location: repository
 state: active
 
@@ -415,6 +415,24 @@ side: the REAL site description (2 lines at 16 px) makes the hero **254**,
 and a shorter one would make it 228 — which the test proved when I first wrote
 it with a trimmed description.
 Battery **28/28**.
+
+**Fase 3 — `mentoria` list (LANDED 23/11).** `MentorListScreen` and
+`MentorListMetrics` in `libs/enois/MentorList.kf` add the mentor list to the hero
+already shipped: the featured block (`text-lg` 28, description at 20, the search at
+`mt-4` + 40, the grid `gap-4` in 2 columns), the mentor card `surface-card p-5
+space-y-4` (avatar 56, name 24, headline 16) and the 2×2 stats box (`p-3`, 12).
+Texts are the real `texts.mentoring` (`featured`, `featuredDescription`,
+`searchPlaceholder`, `searchEmpty`, `loadError`/`retry`, `mentorFallback`,
+`sparksAccepted`, the four stat labels, `noSlot`). The SPARKS FORMAT is a port of
+`src/lib/faisca.ts` (`formatFaisca`): thousands grouped with a dot, only the parts
+that exist, singular on ±1, and a debit smaller than one spark carries the minus on
+the fagulhas. Proof `EnosisMentorListE2ETest`: every string, `f0=0 faíscas`,
+`f830=830 fagulhas`, `f2000=2 faíscas`, `f101830=101 faíscas 830 fagulhas`,
+`fNeg=-830 fagulhas`, `fNegBig=-101 faíscas 830 fagulhas`, `group=1.234.567`.
+Battery **36/36**.
+
+NAMED PENDING — §1197 still blocks pixel assertions; §1196 shaped `cardHeight`
+(split into `cardShell` + `cardHead` + stats).
 
 **Fase 3 — `vagas.minhas` (LANDED 23/11).** `MyJobsScreen` and `MyJobsMetrics` in
 `libs/enois/MyJobs.kf` carry "my jobs / my external jobs / my applications" with the

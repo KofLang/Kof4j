@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — `vagas.minhas` entrou; agora os paineis de mentoria e o detalhe da vaga (`vagas.$jobId`); o §1196 e o §1197 seguem ABERTOS
+next: a Fase 3 continua — os paineis de mentoria (`mySessions`, o formulario de cadastro) e `vagas.$jobId`; o §1196 e o §1197 seguem ABERTOS
 location: repository
 state: active
 
@@ -404,6 +404,21 @@ linha por 60 px. A altura do hero prende essa quebra pelo outro lado: a
 descricao REAL do site (2 linhas a 16 px) deixa o hero em **254**, e uma mais
 curta o deixaria em 228 — o que o teste provou quando eu o escrevi primeiro
 com uma descricao encurtada. Bateria **28/28**.
+
+**Fase 3 — lista da `mentoria` (POUSADA 23/11).** O `MentorListScreen` e o
+`MentorListMetrics` em `libs/enois/MentorList.kf` acrescentam a lista ao hero ja
+publicado: o bloco em destaque (`text-lg` 28, descricao em 20, a busca `mt-4` + 40,
+a grade `gap-4` em 2 colunas), o cartao de mentor `surface-card p-5 space-y-4`
+(avatar 56, nome 24, headline 16) e a caixa de estatisticas 2x2 (`p-3`, 12). Os
+textos sao os de `texts.mentoring`. O FORMATO DAS FAISCAS e' um porte de
+`src/lib/faisca.ts` (`formatFaisca`): milhar com ponto, so as partes que existem,
+singular em ±1, e um debito menor que uma faisca leva o menos nas fagulhas. Prova
+`EnosisMentorListE2ETest`: todas as strings, `f0=0 faíscas`, `f830=830 fagulhas`,
+`f2000=2 faíscas`, `f101830=101 faíscas 830 fagulhas`, `fNeg=-830 fagulhas`,
+`fNegBig=-101 faíscas 830 fagulhas`, `group=1.234.567`. Bateria **36/36**.
+
+PENDENCIA NOMEADA — o §1197 segue bloqueando provas de pixel; o §1196 moldou o
+`cardHeight` (dividido em `cardShell` + `cardHead` + stats).
 
 **Fase 3 — `vagas.minhas` (POUSADA 23/11).** O `MyJobsScreen` e o `MyJobsMetrics` em
 `libs/enois/MyJobs.kf` carregam "minhas vagas / minhas vagas externas / minhas

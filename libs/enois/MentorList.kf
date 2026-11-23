@@ -1,0 +1,189 @@
+package enois
+
+import enois.Mentoring
+import enois.Text
+
+// Énois — a rota `mentoria` (`src/routes/mentoria.tsx`), a lista de mentores.
+// O hero já está em `Mentoring.kf`; aqui entra o resto da página.
+//
+// Os TEXTOS vêm do `texts.mentoring`, MEDIDOS no código:
+//   * a seção      `featured` = "Mentores em destaque",
+//                  `featuredDescription` = "Avaliados pela comunidade nas
+//                  últimas 8 semanas."
+//   * a busca      `searchPlaceholder` = "Buscar mentores por nome, usuário ou
+//                  especialidade...", e o vazio por busca `searchEmpty` vs. o
+//                  geral `empty`
+//   * a falha      `loadError` + `retry`
+//   * o mentor     `mentorFallback` = "Mentor" (sem nome), `sparksAccepted(p)`
+//                  = `aceita faíscas · ${p}`
+//   * as quatro    `rating` "Avaliação", `sessions` "Sessões",
+//     estatísticas `investment` "Investimento", `nextSlot` "Próxima vaga" e o
+//                  valor derradeiro `noSlot` = "Sem horário publicado"
+//   * o preço      `formatFaisca`: milésimos → "101 faíscas 830 fagulhas";
+//                  só as partes que existem; plural com 1
+//
+// As MEDIDAS vêm da rota e do design system, MEDIDAS:
+//   * o título da seção `text-lg font-semibold` = 18 (linha 28)
+//   * a descrição       `text-sm text-muted-foreground` = 14
+//   * a busca           `relative mt-4` (16) com o `Input`
+//   * a grade           `mt-4 grid grid-cols-1 gap-4 md:grid-cols-2` = 16 de vão
+//   * o cartão          `surface-card mx-auto w-full max-w-5xl space-y-4
+//                       overflow-hidden p-5` = 20 de padding, vão 16
+//   * o avatar          `h-14 w-14` = 56
+//   * as estatísticas   `grid grid-cols-2 gap-2 rounded-xl bg-muted/50 p-3 text-xs`
+//                       = 12 de padding, 2×2
+//   * o rodapé          `gap-8` = 32 entre o cabeçalho e o conjunto de stats? o
+//                       `space-y-4` do cartão rege
+
+/** As medidas da lista de mentores, em px. */
+class MentorListMetrics {
+    static Int pageGap() { return 24 }                 // space-y-6 do pai
+    static Int featuredTitleSize() { return 18 }       // text-lg
+    static Int featuredTitleLine() { return 28 }       // leading de text-lg
+    static Int featuredDescSize() { return 14 }        // text-sm
+    static Int featuredDescLine() { return 20 }        // leading de text-sm
+    static Int searchTop() { return 16 }               // mt-4
+    static Int searchHeight() { return 40 }            // Input padrão (h-10)
+    static Int gridTop() { return 16 }                 // mt-4
+    static Int gridGap() { return 16 }                 // gap-4
+    static Int columns() { return 2 }                  // md:grid-cols-2
+    static Int cardPad() { return 20 }                 // p-5
+    static Int cardGap() { return 16 }                 // space-y-4
+    static Int avatarSize() { return 56 }              // h-14 w-14
+    static Int nameLine() { return 24 }                // font-semibold
+    static Int headlineSize() { return 12 }            // text-xs
+    static Int headlineLine() { return 16 }            // text-xs
+    static Int statsPad() { return 12 }                // p-3
+    static Int statsGap() { return 8 }                 // gap-2
+    static Int statsLabelSize() { return 12 }          // text-xs
+    static Int statsValueLine() { return 20 }          // o valor + mt-0.5
+    static Int statsHeight() { return statsPad() * 2 + statsGap() + statsValueLine() * 2 }
+    static Int radius() { return 16 }                  // rounded-xl das stats
+
+    /** A coluna da grade (`md:grid-cols-2`, vão 16) no container de 1024. */
+    static Int columnWidth() { return 496 }            // (1024 - 16) / 2
+}
+
+class MentorListScreen {
+
+    /** A seção e a sua linha de descrição. */
+    static String featured() { return "Mentores em destaque" }
+    static String featuredDescription() { return "Avaliados pela comunidade nas últimas 8 semanas." }
+    /** A busca e os dois vazios. */
+    static String searchPlaceholder() { return "Buscar mentores por nome, usuário ou especialidade..." }
+    static String searchEmpty() { return "Nenhum mentor encontrado para esta busca." }
+    /** O vazio geral (o do site é o da rota; o hero tem o dele). */
+    static String emptyList() {
+        return "Ainda não há mentores publicados. Se você pode ajudar outras pessoas, torne-se mentor."
+    }
+    /** A falha e o repetir. */
+    static String loadError() { return "Não foi possível carregar os mentores agora." }
+    static String retry() { return "Tentar de novo" }
+
+    /** O nome de um mentor sem nome (`mentorFallback`). */
+    static String mentorFallback() { return "Mentor" }
+
+    /** `sparksAccepted(p)` = `aceita faíscas · ${p}`. */
+    static String sparksAccepted(String price) { return "aceita faíscas · " + price }
+
+    /** Os quatro rótulos das estatísticas. */
+    static String rating() { return "Avaliação" }
+    static String sessions() { return "Sessões" }
+    static String investment() { return "Investimento" }
+    static String nextSlot() { return "Próxima vaga" }
+    static String noSlot() { return "Sem horário publicado" }
+
+    /** O agrupamento de milhares com PONTO, como o `Intl.NumberFormat("pt-BR")`:
+     *  "101830" → "101.830". */
+    static String groupThousands(Int n) {
+        if (n < 0) { return "-" + groupThousands(-n) }
+        val s = "" + n
+        if (s.length() <= 3) { return s }
+        var out = ""
+        var i = 0
+        val first = s.length() % 3
+        if (first > 0) {
+            out = s.substring(0, first)
+            i = first
+        }
+        while (i < s.length()) {
+            if (out != "") { out = out + "." }
+            out = out + s.substring(i, i + 3)
+            i = i + 3
+        }
+        return out
+    }
+
+    /** O nome da unidade: singular com 1 (em módulo), plural fora. */
+    static String unit(Int n, String singular, String plural) {
+        if (n == 1 || n == -1) { return singular }
+        return plural
+    }
+
+    /** `formatFaisca` do site (`src/lib/faisca.ts`): milésimos → "N faíscas
+     *  M fagulhas", só as partes que existem; a parte inteira carrega o sinal,
+     *  e num débito menor que uma faísca a fagulha recebe o "-". */
+    static String formatFaisca(Int millis) {
+        val sign = ifNeg(millis)
+        val total = absInt(millis)
+        val faiscas = (total / 1000) * sign
+        val fagulhas = total % 1000
+        var out = ""
+        if (faiscas != 0 || fagulhas == 0) {
+            out = groupThousands(faiscas) + " " + unit(faiscas, "faísca", "faíscas")
+        }
+        if (fagulhas > 0) {
+            var texto = "" + fagulhas
+            if (millis < 0 && faiscas == 0) { texto = "-" + texto }
+            if (out != "") { out = out + " " }
+            out = out + texto + " " + unit(fagulhas, "fagulha", "fagulhas")
+        }
+        return out
+    }
+
+    private static Int ifNeg(Int n) {
+        if (n < 0) { return -1 }
+        return 1
+    }
+
+    private static Int absInt(Int n) {
+        if (n < 0) { return -n }
+        return n
+    }
+
+    /** A altura do bloco "em destaque": título (28) + a descrição (20) + a
+     *  busca (`mt-4` 16 + 40) + a grade (`mt-4` 16 + as linhas de cartões). */
+    static Int listBlockHeight(Int rows, Int cardHeight) {
+        var h = MentorListMetrics.featuredTitleLine() + MentorListMetrics.featuredDescLine()
+        h = h + MentorListMetrics.searchTop() + MentorListMetrics.searchHeight()
+        h = h + MentorListMetrics.gridTop() + gridHeight(rows, cardHeight)
+        return h
+    }
+
+    /** Os cartões em `md:grid-cols-2` (vão 16): a altura de uma linha que tem
+     *  também o cartão do lado, então cada linha vale o maior cartão — `rows`
+     *  cartões viram `ceil(rows / 2)` linhas. */
+    static Int gridHeight(Int rows, Int cardHeight) {
+        if (rows <= 0) { return 0 }
+        val lines = (rows + 1) / 2
+        return lines * cardHeight + (lines - 1) * MentorListMetrics.gridGap()
+    }
+
+    /** A altura de um cartão de mentor: os dois `p-5` (40), o avatar ou o nome
+     *  (56), a linha do nome (24), a headline (16) e as estatísticas. */
+    static Int cardHeight() {
+        // em partes: um corpo com muitos `+` estoura o arranjo (known-bugs §1196)
+        return MentorListScreen.cardShell() + MentorListScreen.cardHead()
+                + MentorListMetrics.statsHeight()
+    }
+
+    /** Os dois `p-5` do cartão. */
+    static Int cardShell() { return MentorListMetrics.cardPad() * 2 }
+
+    /** O avatar (56), o nome (24) e a headline (16), com o `space-y-4` entre eles. */
+    static Int cardHead() {
+        return MentorListMetrics.avatarSize() + MentorListMetrics.cardGap()
+                + MentorListMetrics.nameLine() + MentorListMetrics.cardGap()
+                + MentorListMetrics.headlineLine() + MentorListMetrics.cardGap()
+    }
+}
