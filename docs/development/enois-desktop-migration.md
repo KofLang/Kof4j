@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: in `enois-kof-desktop` — the weekly availability editor and the recruitment board's kanban/timeline; Kof4j keeps `libs/game` + the compiler and records the Kof-side bugs (§1196, §1197); §1196 and §1197 stay OPEN
+next: in `enois-kof-desktop` — the recruitment board (kanban/timeline); then the reader-side catalogues (`desbravar`, `mapa`) and the app shell composition; Kof4j keeps `libs/game` + the compiler and records the Kof-side bugs (§1196, §1197); §1196 and §1197 stay OPEN
 location: repository
 state: active
 
@@ -514,6 +514,15 @@ own `EmptyState` strings. Proof `EnosisProjectAuthorE2ETest`:
 NAMED PENDING — no pixel assertion here: `known-bugs §1197` still does not close
 the readback of a `fillRect`, so this page ships with text and geometry proven and
 its colours traced to the tokens.
+
+**Fase 3 — weekly availability editor (LANDED 23/11, `enois-kof-desktop` `5ad7cd2`).**
+`Availability.kf`: all `texts.mentoring.availability*` strings, the seven weekdays in
+the site's Monday-first order, and the editor's RULES from the component — toggling an
+empty day sets "19:00", untoggling clears it, "Adicionar horário" adds "20:00" and
+stops at 12 per day (`disabled={draft[day].length >= 12}`), and only days with times
+are sent (`toItems`). Geometry: closed day 36, a day with one time 118, with three
+202, header 52. Proof `EnoisAvailabilityE2ETest`: every string, each rule, and all
+those heights. App battery **40/41** (the failure is the §1197 ink test).
 
 **Fase 3 — `vagas.$jobId.candidaturas` (LANDED 23/11, `enois-kof-desktop` `f63a2fd`).**
 The applications page: `PageHeader` texts (`titleFor`, `snapshotHint`), both tabs, the
