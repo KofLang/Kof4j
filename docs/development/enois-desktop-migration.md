@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — the same family for the other catalogues (`vagas`, `mentoria` panels); §1196 (a body with many live call results) and §1197 (a fill colour set by an earlier call) stay OPEN
+next: Fase 3 continues — `vagas.minhas` is in; next the mentoring panels and the job detail (`vagas.$jobId`); §1196 and §1197 stay OPEN
 location: repository
 state: active
 
@@ -415,6 +415,24 @@ side: the REAL site description (2 lines at 16 px) makes the hero **254**,
 and a shorter one would make it 228 — which the test proved when I first wrote
 it with a trimmed description.
 Battery **28/28**.
+
+**Fase 3 — `vagas.minhas` (LANDED 23/11).** `MyJobsScreen` and `MyJobsMetrics` in
+`libs/enois/MyJobs.kf` carry "my jobs / my external jobs / my applications" with the
+numbers MEASURED in `src/routes/vagas.minhas.tsx`: container `max-w-3xl space-y-6`
+(768/24), sections `surface-card p-4 sm:p-6` (24) titled at `text-xl` (28) with a
+20 px icon, each job a `rounded-xl border border-border-soft p-3` (12 padding,
+16 radius — the only BORDERED block on this route) with the `size="sm"` action row
+(`mt-2` + 32). Every string is the real `texts.jobs`: the three section titles and
+their empty states, `open`/`closed` "Aberta"/"Encerrada", `applicationsCount`
+("1 candidatura recebida" / "N candidaturas recebidas"), `today`/`daysAgo`
+("Hoje" / "Há 1 dia" / "Há N dias"), the actions (`applications.link`, `deleteJob`,
+`visit`, `external.delete`, `applied`) and `loadError`/`retry`. Proof
+`EnosisMyJobsE2ETest`: every string above plus `page=768` and `title_h=28`. Battery
+**35/35**.
+
+NAMED PENDING — §1196 bit `jobRowHeight` (the direct six-term sum crashed; it is
+now `textStack()` + `actionStack()` + `2 × p-3`). §1197 still blocks pixel
+assertions.
 
 **Fase 3 — `projetos.painel` (LANDED 23/11).** `ProjectsPanelScreen` and
 `ProjectsPanelMetrics` in `libs/enois/ProjectsPanel.kf` carry the publisher's panel with

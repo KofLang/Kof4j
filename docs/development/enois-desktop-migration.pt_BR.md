@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — a mesma familia para os outros catalogos (`vagas`, `mentoria` paineis); o §1196 (corpo com muitos resultados de chamada vivos) e o §1197 (cor de fill posta por chamada anterior) seguem ABERTOS
+next: a Fase 3 continua — `vagas.minhas` entrou; agora os paineis de mentoria e o detalhe da vaga (`vagas.$jobId`); o §1196 e o §1197 seguem ABERTOS
 location: repository
 state: active
 
@@ -404,6 +404,24 @@ linha por 60 px. A altura do hero prende essa quebra pelo outro lado: a
 descricao REAL do site (2 linhas a 16 px) deixa o hero em **254**, e uma mais
 curta o deixaria em 228 — o que o teste provou quando eu o escrevi primeiro
 com uma descricao encurtada. Bateria **28/28**.
+
+**Fase 3 — `vagas.minhas` (POUSADA 23/11).** O `MyJobsScreen` e o `MyJobsMetrics` em
+`libs/enois/MyJobs.kf` carregam "minhas vagas / minhas vagas externas / minhas
+candidaturas" com os numeros MEDIDOS em `src/routes/vagas.minhas.tsx`: container
+`max-w-3xl space-y-6` (768/24), secoes `surface-card p-4 sm:p-6` (24) com titulo
+`text-xl` (28) e icone de 20, cada vaga um `rounded-xl border border-border-soft
+p-3` (12 de padding, raio 16 — o unico bloco COM BORDA desta rota) com a faixa de
+acoes `size="sm"` (`mt-2` + 32). Toda string e a de `texts.jobs`: os tres titulos
+de secao e seus vazios, `open`/`closed` "Aberta"/"Encerrada", `applicationsCount`
+("1 candidatura recebida" / "N candidaturas recebidas"), `today`/`daysAgo`
+("Hoje" / "Ha 1 dia" / "Ha N dias"), as acoes (`applications.link`, `deleteJob`,
+`visit`, `external.delete`, `applied`) e `loadError`/`retry`. Prova
+`EnosisMyJobsE2ETest`: todas as strings acima mais `page=768` e `title_h=28`.
+Bateria **35/35**.
+
+PENDENCIA NOMEADA — o §1196 mordeu o `jobRowHeight` (a soma direta de seis termos
+quebrava; hoje e' `textStack()` + `actionStack()` + `2 x p-3`). O §1197 segue
+bloqueando provas de pixel.
 
 **Fase 3 — `projetos.painel` (POUSADA 23/11).** O `ProjectsPanelScreen` e o
 `ProjectsPanelMetrics` em `libs/enois/ProjectsPanel.kf` carregam o painel de quem

@@ -1,0 +1,147 @@
+package enois
+
+import enois.Text
+
+// Énois — a rota `vagas.minhas` (`src/routes/vagas.minhas.tsx`), o que uma
+// pessoa publicou, cadastrou fora e a que se candidatou.
+//
+// Os TEXTOS vêm do `texts.jobs`, MEDIDOS no código:
+//   * o link de volta   `back` = "Voltar para vagas"
+//   * a seção 1         `myJobs` = "Minhas vagas", vazia em `myJobsEmpty`
+//   * o vazio 2         `external.myTitle` = "Minhas vagas externas" /
+//                       `external.myEmpty` = "Você ainda não cadastrou vagas externas."
+//   * a seção 3         `myApplications` = "Minhas candidaturas" /
+//                       `myApplicationsEmpty` = "Você ainda não se candidatou a nenhuma vaga."
+//   * o status          `open` = "Aberta", `closed` = "Encerrada"
+//   * a contagem        `applicationsCount(n)` = "N candidaturas recebidas"
+//                       (singular "1 candidatura recebida")
+//   * o Tempo           `today` = "Hoje", `daysAgo(d)` = "Há N dias" / "Há 1 dia"
+//   * as ações          `applications.link` = "Ver candidaturas",
+//                       `deleteJob` = "Excluir vaga", `visit` = "Visitar vaga",
+//                       `external.delete` = "Excluir", `applied` = "Inscrito"
+//   * a falha           `loadError` = "Não foi possível carregar suas vagas. Tente de novo."
+//                       e `identityRequired` (a conta sem verificação), `retry`
+//
+// As MEDIDAS vêm da rota e do design system, MEDIDAS:
+//   * o container `mx-auto w-full max-w-3xl space-y-6` = 768, vão 24
+//   * o link      `text-sm` = 14, ícone `h-4 w-4` = 16, `gap-1.5` = 6
+//   * a seção     `surface-card p-4 sm:p-6` = 24, sem borda, raio 20
+//   * o título    `text-xl font-semibold tracking-tight` = 20, ícone `h-5 w-5` = 20
+//   * cada vaga   `rounded-xl border border-border-soft p-3` = 12 com BORDA,
+//                 raio `rounded-xl` = 16 — o único bloco com borda desta rota
+//   * o título da vaga `truncate text-sm font-medium` = 14
+//   * a linha debaixo  `mt-0.5 text-xs` = 12
+//   * o status    `text-xs` = 12 (Aberta/Encerrada)
+//   * a contagem  `mt-2 inline-flex gap-1.5 text-xs text-primary` = 12
+//   * os botões   `size="sm"` = 32 de altura, `rounded-full`
+//   * a lista     `space-y-2` = 8 entre as vagas
+
+/** As medidas de `vagas.minhas`, em px. */
+class MyJobsMetrics {
+    static Int pageWidth() { return 768 }              // max-w-3xl
+    static Int pageGap() { return 24 }                 // space-y-6
+    static Int backSize() { return 14 }                // text-sm
+    static Int backIcon() { return 16 }                // h-4 w-4
+    static Int backGap() { return 6 }                  // gap-1.5
+    static Int sectionPad() { return 24 }              // sm:p-6
+    static Int sectionGap() { return 16 }              // as seções empilham no vão do pai
+    static Int titleSize() { return 20 }               // text-xl
+    static Int titleLine() { return 28 }               // leading de text-xl
+    static Int titleIcon() { return 20 }               // h-5 w-5
+    static Int emptyLine() { return 20 }               // text-sm
+    static Int emptyTop() { return 12 }                // mt-3
+    static Int jobPad() { return 12 }                  // p-3
+    static Int jobRadius() { return 16 }               // rounded-xl
+    static Int jobTitleLine() { return 20 }            // text-sm
+    static Int jobMetaTop() { return 2 }               // mt-0.5
+    static Int jobMetaLine() { return 16 }             // text-xs
+    static Int jobFooterTop() { return 8 }             // mt-2
+    static Int jobFooterLine() { return 16 }           // text-xs
+    static Int actionHeight() { return 32 }            // Button size="sm"
+    static Int listGap() { return 8 }                  // space-y-2
+}
+
+class MyJobsScreen {
+
+    /** O link de volta e os três títulos de seção. */
+    static String back() { return "Voltar para vagas" }
+    static String myJobs() { return "Minhas vagas" }
+    static String myJobsEmpty() { return "Você ainda não publicou vagas." }
+    static String externalTitle() { return "Minhas vagas externas" }
+    static String externalEmpty() { return "Você ainda não cadastrou vagas externas." }
+    static String myApplications() { return "Minhas candidaturas" }
+    static String myApplicationsEmpty() { return "Você ainda não se candidatou a nenhuma vaga." }
+
+    /** O status de uma vaga (`open` / `closed`). */
+    static String status(String status) {
+        if (status == "CLOSED") { return "Encerrada" }
+        return "Aberta"
+    }
+
+    /** `applicationsCount(n)` = "1 candidatura recebida" / "N candidaturas recebidas". */
+    static String applicationsCount(Int n) {
+        if (n == 1) { return "1 candidatura recebida" }
+        return "" + n + " candidaturas recebidas"
+    }
+
+    /** `today` / `daysAgo(d)`: "Hoje", "Há 1 dia", "Há N dias". */
+    static String age(Int days) {
+        if (days < 1) { return "Hoje" }
+        if (days == 1) { return "Há 1 dia" }
+        return "Há " + days + " dias"
+    }
+
+    /** As ações de cada faixa. */
+    static String applicationsLink() { return "Ver candidaturas" }
+    static String deleteJob() { return "Excluir vaga" }
+    static String visit() { return "Visitar vaga" }
+    static String deleteExternal() { return "Excluir" }
+    static String applied() { return "Inscrito" }
+    /** A falha de carga e o botão de repetir. */
+    static String loadError() { return "Não foi possível carregar suas vagas. Tente de novo." }
+    static String retry() { return "Tentar de novo" }
+
+    /** O título da seção (`text-xl`, linha de 28) com o ícone de 20 na mesma
+     *  linha: vale a linha do texto. */
+    static Int sectionTitleHeight() { return MyJobsMetrics.titleLine() }
+
+    /** Uma linha de vaga dentro da seção: `p-3` ×2 + o título + `mt-0.5` + a
+     *  linha debaixo, mais a faixa de ações (`mt-2` + 32). Somada em partes:
+     *  um corpo encadeando muitos `+` estoura o arranjo do nativo (known-bugs
+     *  §1196). */
+    static Int jobRowHeight() {
+        return MyJobsScreen.textStack() + MyJobsScreen.actionStack()
+                + MyJobsMetrics.jobPad() * 2
+    }
+
+    /** O título, a linha debaixo e o `mt-0.5` entre elas. */
+    static Int textStack() {
+        return MyJobsMetrics.jobTitleLine() + MyJobsMetrics.jobMetaTop()
+                + MyJobsMetrics.jobMetaLine()
+    }
+
+    /** A faixa de ações: `mt-2` e o botão de 32. */
+    static Int actionStack() {
+        return MyJobsMetrics.jobFooterTop() + MyJobsMetrics.actionHeight()
+    }
+
+    /** A altura de uma seção com `rows` vagas e o estado vazio quando `rows`
+     *  é zero (`mt-3` + uma linha de 20). */
+    static Int sectionHeight(Int rows, Int rowHeight) {
+        val shell = sectionShell()
+        if (rows == 0) {
+            return shell + MyJobsMetrics.emptyTop() + MyJobsMetrics.emptyLine()
+        }
+        return shell + listHeight(rows, rowHeight) + MyJobsMetrics.emptyTop()
+    }
+
+    /** O miolo fixo de uma seção: `p-6` ×2 e o título. */
+    static Int sectionShell() {
+        return MyJobsMetrics.sectionPad() * 2 + sectionTitleHeight()
+    }
+
+    /** As `rows` vagas e o `space-y-2` entre elas. */
+    static Int listHeight(Int rows, Int rowHeight) {
+        return rows * rowHeight + (rows - 1) * MyJobsMetrics.listGap()
+    }
+}
