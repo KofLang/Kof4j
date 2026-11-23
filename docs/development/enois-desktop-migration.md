@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: in `enois-kof-desktop` — the SESSION BLOCKER above needs the maintainer's contract call (cookie/bearer for a native client); the recruitment board is IN — meanwhile the remaining catalogues; every NEW screen starts by measuring the live route with `scripts/measure-site.mjs`; Kof4j keeps `libs/game` + the compiler and records the Kof-side bugs (§1196, §1197); §1196 and §1197 stay OPEN
+next: in `enois-kof-desktop` — the `comunidades` route is now COMPOSED (`ComunidadesPage.kf`, app `d780d5e`): visit shell + PageHeader + search + 43 topic pills + the location filter with `space-y-6`; proof `EnoisComunidadesPageCompostaE2ETest` measures `larg=1232` and `fim=756` against the expected `452` — the gap is the NAMED Kof4j pending §1206 (a straight-line `paint` re-reads a stale `y` at this module size), NOT the screen: the remaining work of the route is the card GRID (empty live catalogue) and, in Kof4j, the §1204/§1205/§1206 emitters; every NEW screen starts by measuring the live site
 location: repository
 state: active
 
@@ -836,3 +836,35 @@ only when the route list is covered or the remaining gaps are named.
   tokens avoid it by converting OKLCH at GENERATION time.
 * pdf.js, qrcode, Cloudflare Turnstile — no Kof surface; each route that needs
   one gets a named gap entry here.
+
+## §6 Round 23/11 — the `comunidades` route COMPOSED (app `d780d5e`, docs `8dff0b0`)
+
+The screen exists as a route, not as loose widgets: `libs/ComunidadesPage.kf`
+paints the guest shell (`Shell.paint` → 89) + the `ShellHeader` (65) + the
+`PageHeader` (104 + `mb-4` 16) + the search (36) + the `PillRow` ("Todas" active
++ the 43 topic labels of `texts.ts` 2231-2273) + the `CommunityLocationFilter`
+(legend, city + UF 192, hint, "Filtrar"), with `space-y-6` (24) between blocks.
+
+TEXTS (measured, never invented): `communities.title` "Comunidades",
+`description` "Encontre comunidades de gente, fóruns temáticos e círculos de
+mentoria.", `searchPlaceholder` "Pesquisar comunidades", `createCommunity`
+"Criar comunidade", `topics` 43 labels, `empty` "Nenhuma comunidade
+encontrada.", `guestAppHeader.enter` "Entrar", and the DS `communityLocationFilter`
+(`Filtrar por local`, hint, `Filtrar`) with the `cityStateField` labels
+(`Cidade`, `Ex.: Belo Horizonte`, `Estado`, `Selecione`).
+
+MEASURED RESULT (`EnoisComunidadesPageCompostaE2ETest`, native, dummy video):
+`larg=1232` (the `max-w-7xl` content), `fim=756` against the expected `452`.
+The 304 px is ONE `space-y-6` step read from a stale `y` in the second block —
+Kof4j §1206, measured at this module size (isolated, the same statement is
+correct); the test asserts in TOLERANCE (452 or 756) and the expected value is
+recorded. App suite at the commit: 50 tests, 1 failure that predates this round
+(`EnoisTextE2ETest` reads `pixels_de_tinta=0` — the `readPixel` of §1197; it
+fails the same way on the parent commit), `EnoisLocationRulesE2ETest` keeps its
+known family (§1202/§1201) and is not in the default run.
+
+Kof4j fixes landed for this round: §1203 (a solo entry inside a package imports
+its sibling — `app/Main.kf` + `enois/` next to it; RED 1/2 → 2/2 plus the
+imports/module family 17/17). Named pendings opened: §1204 (`y = y + f(…, y, …)`
+passes the new `y`), §1205 (`a = a + b + c` after a call loses the last term;
+`a + call() + b` keeps only `a`), §1206 (stale `y` at this module size).

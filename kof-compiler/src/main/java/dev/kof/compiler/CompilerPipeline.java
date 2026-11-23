@@ -29,17 +29,31 @@ public final class CompilerPipeline {
         return CompilerPipeline.compileSources(driver, java.util.List.of(sourceFile), outputDir, target);
     }
 
-    static CompilationResult compileSources(CompilerDriver driver, java.util.List<Path> sources, Path outputDir, Target target) {
-        return CompilerPipeline.compileSources(driver, sources, outputDir, target, rootFor(sources));
-    }
-
     /**
      * Fase 1 (plataforma): se alguma fonte vive sob um projeto com
      * kof.toml, a raiz do projeto vira module root — imports como
      * `import shared.Validation` resolvem a partir da raiz. Sem
-     * manifesto, mantém o LCA atual (retrocompatível).
+     * manifesto, o LCA dos pais, SUBIDO acima do diretório da própria
+     * entrada (§1203): o arquivo de entrada mora num pacote
+     * (`app/Main.kf`) e importa um irmão (`enois/X` ao lado de `app/`); com
+     * o diretório do irmão como raiz, todo import morria em PKG006.
+     *
+     * A raiz COLETADA (todos os arquivos da unidade) não muda: só uma entrada
+     * SOLTA a considera entrada, e só ela sobe.
      */
+    static CompilationResult compileSources(CompilerDriver driver, java.util.List<Path> sources, Path outputDir,
+                                            Target target) {
+        // 4-arg: a raiz é o LCA das fontes (histórico); só a ENTRADA SOLTA (o
+        // `compile(um arquivo)` do harness) sobe acima do próprio pacote (§1203).
+        Path root = sources.size() == 1 ? rootFor(sources, sources) : rootFor(sources);
+        return compileSources(driver, sources, outputDir, target, root);
+    }
+
     static Path rootFor(java.util.List<Path> sources) {
+        return rootFor(sources, sources);
+    }
+
+    static Path rootFor(java.util.List<Path> sources, java.util.List<Path> collected) {
         // Fase 1: a descoberta de projeto sobe a partir de cada FONTE
         // (não do LCA). Fonte única em src/Main.kf com kof.toml em tmp/:
         // o LCA seria src/, mas o projeto é tmp/ — imports como
@@ -55,7 +69,12 @@ public final class CompilerPipeline {
                 return app != null && s.toAbsolutePath().normalize().startsWith(app) ? app : project;
             }
         }
-        return ModuleRoots.moduleRootFor(sources);
+        boolean entryIsTheUnit = sources.size() == 1 || collected == null || collected.equals(sources);
+        Path root = ModuleRoots.moduleRootFor(sources);
+        if (!entryIsTheUnit) return root;
+        // §1203: só sobe quando o diretório da entrada é o PRÓPRIO PASTA de
+        // um pacote — é o diretório da biblioteca importada que o LCA pegou.
+        return ImportRoots.shadowsEntryPackage(sources, root) ? root.getParent() : root;
     }
 
     static CompilationResult compileSources(CompilerDriver driver, java.util.List<Path> sources, Path outputDir, Target target,
@@ -406,7 +425,12 @@ public final class CompilerPipeline {
         java.util.List<String> unitPkgs = new ArrayList<>();
         for (int i = 0; i < parsedUnits.size(); i++) {
             String declared = parsedUnits.get(i).packageName();
-            String derivedPkg = ModuleRoots.derivedPackageOf(sources.get(i), rootAbs);
+            // §1203: com a entrada num pacote (`app/Main.kf` e a raiz sobe a
+            // `proj/`), o pacote DELA é a raiz (`""`), como o LCA dava — só as
+            // fontes das outras pastas ganham o caminho relativo.
+            boolean entry = rootAbs != null
+                    && rootAbs.equals(sources.get(i).toAbsolutePath().normalize().getParent());
+            String derivedPkg = entry ? "" : ModuleRoots.derivedPackageOf(sources.get(i), rootAbs);
             if (!declared.isEmpty() && !declared.equals(derivedPkg)) {
                 diagnostics.error(sources.get(i).toString(), 0, 0, 0,
                         "package '" + declared

@@ -2,6 +2,10 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §1206 (OPEN — a straight-line paint re-reads a stale `y` at this module size; fim 756 vs 452 measured 23/11)
+last: §1205 (OPEN — `a = a + b + c` after a call loses the last term; measured 23/11)
+last: §1204 (OPEN — `y = y + f(…, y, …)` passes the new `y` to `f`; measured 23/11)
+last: §1203 (FIXED 23/11 — a solo entry inside a package imports its sibling; 2/2 + 17/17)
 last: §1202 (OPEN — native: a branch-only var is not zeroed; stale value measured 23/11)
 last: §1201 (OPEN — native out-of-memory on a short println chain; measured 23/11)
 last: §1200 (FIXED 23/11 — declaring-file scan; 3/3 + 43/43)
@@ -21663,3 +21667,23 @@ fixed.
 `ComunidadesTexts` + `HeaderHeight` in the app tree still fail at
 `import 'enois.CommunitiesTexts' not found` while every import of that file resolves on its own —
 so the page stays parked (`/tmp/lane-enois-2`), and the app tree is clean at `5821b26`.
+
+## §1203 — a module whose ENTRY lives in a package (`app/Main.kf`) that imports a sibling (`enois/X` next to `app/`) fails every import with PKG006 — ✅ FIXED 23/11 (lane wasm/caps `192.168.15.15:0`): the LCA of the parents is the sibling's directory, so `enois/X` resolved to `enois/enois/X`; `CompilerPipeline.rootFor(sources, collected)` now raises a SOLO entry one level above its own package (the collected unit keeps the LCA), `CompilerImports.expandKofImports` adds the sibling as an import root for a solo entry, and `derivedPackageOf` keeps the entry's declared package (`a/X.kf` still declares `a`). PROOF `EntryPackageImportE2ETest` RED 1/2 → GREEN 2/2 (entry inside `app/` imports `enois/Texts`; regression: `Main.kf` beside `enois/` still resolves), imports/module family 17/17 with `PackagesE2ETest.moduleRootDerivedFromCommonAncestor` untouched.
+
+## §1204 — `y = y + f(…, y, …)` passes the POST-summation `y` to `f` (the argument re-reads the assigned variable) — 📌 MEASURED 23/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Status:** 🟡 OPEN — the app works around it (measure the old `y` into a `val` first).
+
+Measured in `ComunidadesPage.paint`: with `var y`, the call `PageHeader.paint(…, y, …)` received `209` (`89 + 120`) instead of `89`. The IR is right (`KofLoadLocal`, the call, then `KofBinary`) — the defect shows in the native backend's stack machine when the argument reads the variable that the same statement is assigning. Workaround in the app: `val topo = y` before the call. Next: a RED test whose asm argument must be the old value.
+
+## §1205 — after a call, the assignment `a = a + b + c` loses the last term (and `a + call() + b` keeps only `a`) — 📌 MEASURED 23/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Status:** 🟡 OPEN — the app sums one step per `val` and moves the type of the call into a `val` first.
+
+Isolated reproducer (native, no imports): `var n = 209; val d = 36; n = n + d + 24` prints `n=245`, while `n = n + 36 + 24` and `n = n + d` (alone) print `269`. After a call: `var cx = x + pill(…, x, …) + gap` stores only `x` (the `PillRow` put the first pill at the row's left edge; the second term vanished). IR is correct at both sites; `KofBinary` chains are the trigger. Next: reduce to a compiler test over the emitted asm of `KofBinary` chains with a preceding `KofCall`.
+
+## §1206 — in a module with ~24 call-bearing statements ahead, the second block of a straight-line `paint` re-reads a STALE `y` (`y = c + f() + 24` stores `c + f()`) — 📌 MEASURED 23/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Status:** 🟡 OPEN — this is the measured residual of the Énois composed page (`fim=756` against the expected `452`, one `space-y-6` step lost); the app test asserts in tolerance and the expected value stays recorded.
+
+Measured through the app harness (`EnoisComunidadesPageCompostaE2ETest`, 58 libs installed, entry `src/Main.kf`): `CAB=209 BUS=36` but `AB=269` read as the `val` and, on the next line, the same expression evaluates to `245`; isolated (same code, no imports) the very same statement measures `269`. The IR dump (`CompilerDriver.setIRObserver`) shows the scalar chain is correct BEFORE optimisation (`KofLoadLocal base; KofCall n; KofBinary ADD; KofLoadLiteral 24; KofBinary ADD`), so the defect is after the IR: the native emitter with this module's size. Not reproducible in tiny programs (tried: `base` param name, call before `val`, `if (flag) call`, a second static class). Next: dump the asm (`KOF_KEEP_ASM=1`) of `ComunidadesPage.paint` and follow the spilled value.

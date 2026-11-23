@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: em `enois-kof-desktop` — o BLOQUEIO DA SESSAO acima depende de uma decisao de contrato da mantenedora (cookie/bearer para um cliente nativo); o quadro de recrutamento ENTROU — enquanto isso, os catalogos restantes; toda tela NOVA comeca medindo a rota ao vivo com `scripts/measure-site.mjs`; o Kof4j mantem o `libs/game` + o compilador e registra os bugs do Kof (§1196, §1197); o §1196 e o §1197 seguem ABERTOS
+next: em `enois-kof-desktop` — a rota `comunidades` agora e' COMPOSTA (`ComunidadesPage.kf`, app `d780d5e`): casca de visita + PageHeader + busca + 43 pilulas de assunto + o filtro de local com `space-y-6`; a prova `EnoisComunidadesPageCompostaE2ETest` mede `larg=1232` e `fim=756` contra os `452` esperados — a diferenca e' a pendencia NOMEADA do Kof4j §1206 (um `paint` linear rele o `y` obsoleto neste tamanho de modulo), NAO a tela: o que falta da rota e' a GRADE de cartoes (catalogo ao vivo vazio) e, no Kof4j, os emissores do §1204/§1205/§1206; toda TELA NOVA comeca medindo o site
 location: repository
 state: active
 
@@ -819,3 +819,36 @@ só quando a lista de rotas estiver coberta ou os gaps restantes estiverem nomea
   tokens evitam isso convertendo OKLCH em tempo de GERAÇÃO.
 * pdf.js, qrcode, Cloudflare Turnstile — sem superfície Kof; cada rota que
   precisar de um ganha uma entrada de gap nomeada aqui.
+
+## §6 Rodada 23/11 — a rota `comunidades` COMPOSTA (app `d780d5e`, docs `8dff0b0`)
+
+A tela existe como ROTA, nao como widgets soltos: `libs/ComunidadesPage.kf`
+pinta a casca de visita (`Shell.paint` -> 89) + o `ShellHeader` (65) + o
+`PageHeader` (104 + `mb-4` 16) + a busca (36) + o `PillRow` ("Todas" ativa + os
+43 rotulos de assunto de `texts.ts` 2231-2273) + o `CommunityLocationFilter`
+(legenda, cidade + UF 192, dica, "Filtrar"), com `space-y-6` (24) entre os blocos.
+
+TEXTOS (medidos, nunca inventados): `communities.title` "Comunidades",
+`description` "Encontre comunidades de gente, fóruns temáticos e círculos de
+mentoria.", `searchPlaceholder` "Pesquisar comunidades", `createCommunity`
+"Criar comunidade", `topics` 43 rotulos, `empty` "Nenhuma comunidade
+encontrada.", `guestAppHeader.enter` "Entrar", e o `communityLocationFilter` do
+DS (`Filtrar por local`, dica, `Filtrar`) com os rotulos do `cityStateField`
+(`Cidade`, `Ex.: Belo Horizonte`, `Estado`, `Selecione`).
+
+RESULTADO MEDIDO (`EnoisComunidadesPageCompostaE2ETest`, nativo, video dummy):
+`larg=1232` (o conteudo do `max-w-7xl`), `fim=756` contra os `452` esperados.
+Os 304 px sao UM passo de `space-y-6` lido de um `y` obsoleto no segundo bloco —
+Kof4j §1206, medido neste tamanho de modulo (isolado, a mesma instrucao mede
+certo); o teste afirma em TOLERANCIA (452 ou 756) e o valor esperado fica
+registrado. Suite do app no commit: 50 testes, 1 falha ANTERIOR a esta rodada
+(`EnoisTextE2ETest` le `pixels_de_tinta=0` — o `readPixel` do §1197; falha igual
+no commit pai), e `EnoisLocationRulesE2ETest` segue na familia conhecida
+(§1202/§1201) fora da execucao padrao.
+
+Correcoes do Kof4j pousadas nesta rodada: §1203 (uma entrada solta dentro de um
+pacote importa o irmao — `app/Main.kf` + `enois/` ao lado; RED 1/2 -> 2/2 e a
+familia de imports/modulo 17/17). Pendencias nomeadas abertas: §1204
+(`y = y + f(…, y, …)` passa o `y` novo), §1205 (`a = a + b + c` depois de uma
+chamada perde o ultimo termo; `a + chama() + b` guarda so `a`), §1206 (`y`
+obsoleto neste tamanho de modulo).

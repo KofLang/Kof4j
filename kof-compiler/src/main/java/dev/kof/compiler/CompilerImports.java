@@ -51,7 +51,19 @@ public final class CompilerImports {
                                             List<Path> dependencySourceRoots,
                                             List<Path> compiledSources) {
         return expandKofImports(unit, moduleRoot, currentDiagnostics, declarationPackages,
-                externalClasspath, dependencySourceRoots, compiledSources, null);
+                externalClasspath, dependencySourceRoots, compiledSources, null, compiledSources);
+    }
+
+    static CompilationUnitNode expandKofImports(CompilationUnitNode unit,
+                                            Path moduleRoot,
+                                            DiagnosticCollector currentDiagnostics,
+                                            java.util.Map<AstNode, String> declarationPackages,
+                                            ExternalClasspath externalClasspath,
+                                            List<Path> dependencySourceRoots,
+                                            List<Path> compiledSources,
+                                            FileImports fileImports) {
+        return expandKofImports(unit, moduleRoot, currentDiagnostics, declarationPackages,
+                externalClasspath, dependencySourceRoots, compiledSources, fileImports, compiledSources);
     }
 
     /** §809: {@code fileImports} (nullable) records each library file's own imports. */
@@ -62,7 +74,8 @@ public final class CompilerImports {
                                             ExternalClasspath externalClasspath,
                                             List<Path> dependencySourceRoots,
                                             List<Path> compiledSources,
-                                            FileImports fileImports) {
+                                            FileImports fileImports,
+                                            List<Path> entrySources) {
         java.util.Set<String> visitedDirs = new java.util.HashSet<>();
         // #628 (root cause): a file already compiled in `sources` must NEVER be
         // re-parsed through an import — the import copy loses the package
@@ -76,6 +89,13 @@ public final class CompilerImports {
         // de dependências (#566 opção b) — uma dependência nunca sombreia a stdlib.
         List<Path> libraryRoots = new ArrayList<>();
         Path officialLibraryRoot = officialLibraryRoot();
+        // §1203: com a entrada numa pasta de pacote, o IRMÃO de origem também é
+        // uma raiz — só o caminho de resolução, depois da biblioteca oficial
+        // (a oficial não é sombreada, como a de dependência).
+        if (ImportRoots.shadowsEntryPackage(entrySources, moduleRoot)
+                && entrySources != null && !entrySources.isEmpty() && moduleRoot.getParent() != null) {
+            libraryRoots.add(moduleRoot.getParent().toAbsolutePath().normalize());
+        }
         if (officialLibraryRoot != null) libraryRoots.add(officialLibraryRoot);
         if (dependencySourceRoots != null) {
             for (Path r : dependencySourceRoots) {
@@ -97,8 +117,14 @@ public final class CompilerImports {
                 imp = imp.substring(0, imp.length() - 2);
             }
             Path resolutionRoot = moduleRoot;
-            Path pkgDir = moduleRoot != null
-                    ? moduleRoot.resolve(imp.replace('.', '/'))
+            // §1203 (23/11): um módulo cujo próprio diretório é uma pasta de
+            // pacote (o LCA dos pais é `enois/`) não resolve `enois.X` — a
+            // raiz de import sobe um nível, como `CompilerPipeline.rootFor`.
+            if (ImportRoots.shadowsEntryPackage(entrySources, moduleRoot)) {
+                resolutionRoot = moduleRoot.getParent();
+            }
+            Path pkgDir = resolutionRoot != null
+                    ? resolutionRoot.resolve(imp.replace('.', '/'))
                     : Path.of(imp.replace('.', '/'));
             if (!Files.isDirectory(pkgDir)) {
                 for (Path libRoot : libraryRoots) {

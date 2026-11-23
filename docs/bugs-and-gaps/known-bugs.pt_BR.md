@@ -2,6 +2,10 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §1206 (ABERTO — um paint linear rele o `y` obsoleto neste tamanho de modulo; fim 756 vs 452 medido 23/11)
+last: §1205 (ABERTO — `a = a + b + c` depois de uma chamada perde o ultimo termo; medido 23/11)
+last: §1204 (ABERTO — `y = y + f(…, y, …)` passa o `y` novo para `f`; medido 23/11)
+last: §1203 (CORRIGIDO 23/11 — entrada solta dentro de um pacote importa o irmao; 2/2 + 17/17)
 last: §1202 (ABERTO — nativo: var so de um ramo nao e zerada; valor velho medido 23/11)
 last: §1201 (ABERTO — out-of-memory no nativo numa cadeia curta de println; medido 23/11)
 last: §1200 (CORRIGIDO 23/11 — varredura do declarante; 3/3 + 43/43)
@@ -19079,3 +19083,23 @@ declaracao. REGISTRADO, nao corrigido.
 `ComunidadesTexts` + `HeaderHeight` na arvore do app ainda falham em
 `import 'enois.CommunitiesTexts' not found` enquanto todo import daquele arquivo resolve sozinho —
 entao a pagina segue parqueada (`/tmp/lane-enois-2`), e a arvore do app fica limpa em `5821b26`.
+
+## §1203 — um modulo cuja ENTRADA mora num pacote (`app/Main.kf`) e importa um IRMAO (`enois/X` ao lado de `app/`) falha todo import com PKG006 — ✅ CORRIGIDO 23/11 (lane wasm/caps `192.168.15.15:0`): o LCA dos pais e' o diretorio do irmao, entao `enois/X` virava `enois/enois/X`; `CompilerPipeline.rootFor(sources, collected)` agora sobe uma entrada SOLTA um nivel acima do proprio pacote (a unidade coletada mantem o LCA), `CompilerImports.expandKofImports` poe o irmao como raiz de import para a entrada solta, e `derivedPackageOf` mantem o pacote declarado da entrada (`a/X.kf` continua declarando `a`). PROVA `EntryPackageImportE2ETest` RED 1/2 → VERDE 2/2 (entrada dentro de `app/` importa `enois/Texts`; regressao: `Main.kf` ao lado de `enois/` continua resolvendo), familia de imports/modulo 17/17 com `PackagesE2ETest.moduleRootDerivedFromCommonAncestor` intocado.
+
+## §1204 — `y = y + f(…, y, …)` passa o `y` DEPOIS da soma para `f` (o argumento rele a variavel atribuida) — 📌 MEDIDO 23/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Estado:** 🟡 ABERTO — o app contorna (mede o `y` antigo numa `val` primeiro).
+
+Medido em `ComunidadesPage.paint`: com `var y`, a chamada `PageHeader.paint(…, y, …)` recebeu `209` (`89 + 120`) em vez de `89`. A IR esta' certa (`KofLoadLocal`, a chamada, depois `KofBinary`) — o defeito aparece na maquina de pilha do backend nativo quando o argumento le a variavel que a propria instrucao atribui. Contorno no app: `val topo = y` antes da chamada. Proximo: um teste RED cujo asm do argumento exija o valor antigo.
+
+## §1205 — depois de uma chamada, a atribuicao `a = a + b + c` perde o ultimo termo (e `a + chama() + b` guarda so `a`) — 📌 MEDIDO 23/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Estado:** 🟡 ABERTO — o app soma um passo por `val` e leva o tipo da chamada para uma `val` antes.
+
+Reprodutor isolado (nativo, sem imports): `var n = 209; val d = 36; n = n + d + 24` imprime `n=245`, enquanto `n = n + 36 + 24` e `n = n + d` (sozinho) imprimem `269`. Depois de uma chamada: `var cx = x + pill(…, x, …) + gap` guarda so `x` (o `PillRow` punha a primeira pilula na borda da linha; o segundo termo sumia). A IR esta' certa nos dois pontos; cadeias de `KofBinary` sao o gatilho. Proximo: reduzir a um teste de compilador sobre o asm de cadeias `KofBinary` com um `KofCall` antes.
+
+## §1206 — num modulo com ~24 instrucoes com chamada a frente, o segundo bloco de um `paint` linear rele o `y` OBSOLETO (`y = c + f() + 24` guarda `c + f()`) — 📌 MEDIDO 23/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Estado:** 🟡 ABERTO — e' a sobra MEDIDA da pagina composta do Énois (`fim=756` contra os `452` esperados, um passo do `space-y-6` perdido); o teste do app afirma em tolerancia e o valor esperado fica registrado.
+
+Medido pelo harness do app (`EnoisComunidadesPageCompostaE2ETest`, 58 libs instaladas, entrada `src/Main.kf`): `CAB=209 BUS=36` mas `AB=269` lido como `val` e, na linha seguinte, a mesma expressao da' `245`; isolado (mesmo codigo, sem imports) a mesma instrucao mede `269`. O dump da IR (`CompilerDriver.setIRObserver`) mostra a cadeia escalar certa ANTES da otimizacao (`KofLoadLocal base; KofCall n; KofBinary ADD; KofLoadLiteral 24; KofBinary ADD`), entao o defeito e' depois da IR: o emissor nativo com o tamanho deste modulo. Nao se reproduz em programas minusculos (testados: nome de parametro `base`, chamada antes do `val`, `if (flag) call`, segunda classe estatica). Proximo: despejar o asm (`KOF_KEEP_ASM=1`) de `ComunidadesPage.paint` e seguir o valor derramado.

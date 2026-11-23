@@ -121,6 +121,12 @@ public class CompilerDriver extends CompilerDriverState {
     public Path resolveModuleRoot(java.util.List<Path> sources) {
         return CompilerPipeline.rootFor(sources);
     }
+
+    /** §1203: a raiz de uma fonte de ENTRADA SOLTA (a do harness) — sobe um
+     *  nível quando ela cai no diretório de um pacote importado. */
+    public Path resolveEntryRoot(java.util.List<Path> sources) {
+        return CompilerPipeline.rootFor(sources, sources);
+    }
 Target target = Target.JVM;
 dev.kof.compiler.nat.NativeProfile nativeProfile = dev.kof.compiler.nat.NativeProfile.HOST;
 
