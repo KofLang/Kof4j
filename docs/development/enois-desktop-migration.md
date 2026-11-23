@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — the remaining catalogue routes (`projetos.painel`), then the same family for the other catalogues; §1196 (a body with many live call results) and §1197 (a fill colour set by an earlier call) stay OPEN
+next: Fase 3 continues — the same family for the other catalogues (`vagas`, `mentoria` panels); §1196 (a body with many live call results) and §1197 (a fill colour set by an earlier call) stay OPEN
 location: repository
 state: active
 
@@ -415,6 +415,27 @@ side: the REAL site description (2 lines at 16 px) makes the hero **254**,
 and a shorter one would make it 228 — which the test proved when I first wrote
 it with a trimmed description.
 Battery **28/28**.
+
+**Fase 3 — `projetos.painel` (LANDED 23/11).** `ProjectsPanelScreen` and
+`ProjectsPanelMetrics` in `libs/enois/ProjectsPanel.kf` carry the publisher's panel with
+the numbers MEASURED in `src/routes/projetos.painel.tsx`: container `max-w-3xl
+space-y-6` (**768**/24 — the catalogue's own is 1024 and the route's `pageWidth` now
+says so), header at **56** (title `text-2xl` 32 + `space-y-1` 4 + description
+`text-sm` 20), the list `space-y-3` (12) of items `surface-card space-y-2 p-4`
+(padding 16, gap 8) with the title at 16 and the status at 12 on the same row as
+the `Button size="sm"` actions (32). Every string is the real `texts.projects`:
+`panel.title` "Meus projetos", `panel.description`, `submit`, `panel.resubmit`
+"Reenviar" (REJECTED only, so 3 actions there and 2 otherwise), `editor.editTitle`,
+`panel.remove` "Excluir", `panel.reviewNote` "Recusado: …" and the `panel.removed` /
+`editor.sent` / `editor.error` toasts. Items measure **148** with a note and two
+synopsis lines, **80** bare. Proof `EnosisProjectsPanelE2ETest`: all strings,
+`actsRej=3`, `actsPub=2`, `page=768`, `header_h=56`, `item_full=148`,
+`item_plain=80`. Battery **34/34**.
+
+NAMED PENDING — `known-bugs §1196` shaped this code too: `itemHeight` is built from
+`addItem`/`noteHeight`/`synopsisHeight` because the direct sum crashed. The whole
+catalogue family (`projetos` index, author, detail, panel) is now migrated; its
+drawing paths still need §1197 resolved before any pixel assertion.
 
 **Fase 3 — `projetos.$username.$projectSlug` (LANDED 23/11).** `ProjectDetailScreen`
 and `ProjectDetailMetrics` in `libs/enois/ProjectDetail.kf` carry the project detail

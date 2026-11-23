@@ -176,6 +176,10 @@ class ProjectDetailScreen {
         return h
     }
 
+    /** Uma soma de dois inteiros: um corpo que encadeia muitas contas
+     *  estoura o arranjo do nativo (known-bugs §1196). */
+    static Int addItem(Int a, Int b) { return a + b }
+
     /** Quantos blocos o artigo tem: o título e cada um dos outros presentes. */
     static Int headingBlocks(Bool hasShort, Int descLines, Int tags, Bool hasUrl, Bool hasRepo,
                              Bool showStatus) {

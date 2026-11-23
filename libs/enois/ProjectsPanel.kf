@@ -1,0 +1,156 @@
+package enois
+
+import enois.ProjectDetail
+import enois.Projects
+import enois.Text
+
+// Énois — a rota `projetos.painel` (`src/routes/projetos.painel.tsx`), o painel
+// de quem publica: os seus projetos, com o status da moderação e as ações.
+//
+// Os TEXTOS vêm do `texts.projects`, medidos no código:
+//   * o link de volta  `back` = "Voltar"
+//   * o cabeçalho      `panel.title` = "Meus projetos"
+//   * a descrição      `panel.description` = "Envie, edite, reenvie recusados e
+//                      apague seus projetos."
+//   * o botão de envio `submit` = "Enviar projeto"
+//   * o vazio          `empty` + `emptyHint` (o mesmo `EmptyState` do catálogo)
+//   * cada item        o status por `status`, e as ações `panel.resubmit` =
+//                      "Reenviar" (só em REJECTED), `editor.editTitle` =
+//                      "Editar projeto" e `panel.remove` = "Excluir"
+//   * a nota da recusa `panel.reviewNote(n)` = `Recusado: ${n}` (só em REJECTED
+//                      quando veio nota)
+//   * os toasts        `panel.removed` = "Projeto excluído." e `editor.sent` =
+//                      "Projeto enviado para revisão." / `editor.error`
+//
+// As MEDIDAS vêm da rota e do design system, MEDIDAS:
+//   * o container  `mx-auto w-full max-w-3xl space-y-6` = 768, vão 24
+//   * o link       `text-sm`, ícone `h-4 w-4` = 16, `gap-1.5` = 6
+//   * o cabeçalho  `flex-wrap gap-3`: o título `text-2xl` = 24, a descrição
+//                  `text-sm` = 14, `space-y-1` = 4
+//   * o botão      `Button` padrão: `rounded-full gap-2`, ícone `h-4 w-4`, e o
+//                  tamanho padrão é `w-full` — aqui `w-auto`
+//   * a lista      `space-y-3` = 12
+//   * o item       `surface-card space-y-2 p-4` = 16 de padding, vão 8
+//   * o título     `truncate font-semibold text-text-strong` = 16
+//   * o status     `text-xs text-text-subtle` = 12
+//   * as ações     os `Button size="sm"` = 32 de altura, ícones `h-3.5 w-3.5` = 14
+//   * a nota       `text-xs text-destructive` = 12 (à esquerda do item)
+//   * a sinopse    `line-clamp-2 text-sm text-text-subtle` = 14/20, até 2 linhas
+//   * o vazio      o `EmptyState` do catálogo dentro do `surface-card`
+
+/** As medidas do painel de projetos, em px. */
+class ProjectsPanelMetrics {
+    // A rota usa `max-w-3xl` = 768; o catálogo usa `max-w-5xl` = 1024.
+    static Int pageWidth() { return 768 }
+    static Int pageGap() { return 24 }                 // space-y-6
+    static Int backSize() { return 14 }                // text-sm
+    static Int backIcon() { return 16 }                // h-4 w-4
+    static Int backGap() { return 6 }                  // gap-1.5
+    static Int headerGap() { return 4 }                // space-y-1
+    static Int titleSize() { return 24 }               // text-2xl
+    static Int titleLine() { return 32 }               // leading de text-2xl
+    static Int descSize() { return 14 }                // text-sm
+    static Int descLine() { return 20 }                // leading de text-sm
+    static Int itemGap() { return 12 }                 // space-y-3
+    static Int itemPad() { return 16 }                 // p-4
+    static Int itemInnerGap() { return 8 }             // space-y-2
+    static Int itemTitleSize() { return 16 }           // font-semibold
+    static Int itemTitleLine() { return 24 }           // leading-normal de 16
+    static Int statusSize() { return 12 }              // text-xs
+    static Int statusLine() { return 16 }              // leading de text-xs
+    static Int actionHeight() { return 32 }            // Button size="sm"
+    static Int noteSize() { return 12 }                // text-xs
+    static Int synopsisLine() { return 20 }            // text-sm leading-5
+    static Int radius() { return ProjectsMetrics.curveRadius() }  // --radius-2xl
+}
+
+class ProjectsPanelScreen {
+
+    /** O link de volta (`projects.back`). */
+    static String back() { return "Voltar" }
+    /** O cabeçalho (`projects.panel.title` e `.description`). */
+    static String title() { return "Meus projetos" }
+    static String description() { return "Envie, edite, reenvie recusados e apague seus projetos." }
+    /** O botão de envio (`projects.submit`). */
+    static String submit() { return "Enviar projeto" }
+    /** O vazio (`projects.empty` / `emptyHint`). */
+    static String empty() { return ProjectsScreen.empty() }
+    static String emptyHint() { return ProjectsScreen.emptyHint() }
+
+    /** As três ações de um item (`panel.resubmit`, `editor.editTitle`,
+     *  `panel.remove`); "Reenviar" aparece só quando o projeto foi recusado. */
+    static String resubmit() { return "Reenviar" }
+    static String edit() { return "Editar projeto" }
+    static String remove() { return "Excluir" }
+    static Bool showsResubmit(String status) { return status == "REJECTED" }
+
+    /** Quantas ações o item mostra (`flex flex-wrap gap-2`). */
+    static Int actionCount(String status) {
+        var n = 2                                  // Editar + Excluir
+        if (showsResubmit(status)) { n = n + 1 }
+        return n
+    }
+
+    /** A nota de recusa (`panel.reviewNote`), vazia quando não há recusa. */
+    static String reviewNote(String status, String note) {
+        if (!showsResubmit(status)) { return "" }
+        if (note == "") { return "" }
+        return "Recusado: " + note
+    }
+
+    /** Os avisos de operação (`panel.removed`, `editor.sent`, `editor.error`). */
+    static String removedToast() { return "Projeto excluído." }
+    static String sentToast() { return "Projeto enviado para revisão." }
+    static String errorToast() { return "Não foi possível salvar o projeto." }
+
+    /** A altura do cabeçalho: o título de 24 (linha 32) + o vão de 4 + a
+     *  descrição de 14 (linha 20). O botão fica na mesma faixa (`items-center`). */
+    static Int headerHeight() {
+        return ProjectsPanelMetrics.titleLine() + ProjectsPanelMetrics.headerGap()
+                + ProjectsPanelMetrics.descLine()
+    }
+
+    /** A altura do item com as suas quatro linhas possíveis: título (`truncate`,
+     *  UMA linha), o status, a nota (opcional) e a sinopse (até 2 linhas), com
+     *  o `space-y-2` entre os grupos que aparecem. A faixa de ações fica na
+     *  mesma linha do título, então não soma altura. */
+    static Int itemHeight(Bool hasNote, Int synopsisLines) {
+        val head = titleAndStatusHeight()
+        var h = ProjectDetailScreen.addItem(ProjectDetailScreen.addItem(bodyTop(), head), noteHeight(hasNote))
+        val syn = synopsisHeight(synopsisLines)
+        return ProjectDetailScreen.addItem(h, syn)
+    }
+
+    /** O `p-4` ×2 do item. */
+    static Int bodyTop() { return ProjectsPanelMetrics.itemPad() * 2 }
+
+    /** O título e o status: a linha do título, o `space-y-2` e a do status. */
+    static Int titleAndStatusHeight() {
+        return ProjectsPanelMetrics.itemTitleLine() + ProjectsPanelMetrics.itemInnerGap()
+                + ProjectsPanelMetrics.statusLine()
+    }
+
+    /** A nota de recusa, quando existe (e o `space-y-2` antes dela). */
+    static Int noteHeight(Bool hasNote) {
+        if (!hasNote) { return 0 }
+        return ProjectsPanelMetrics.noteSize() + ProjectsPanelMetrics.itemInnerGap()
+    }
+
+    /** A sinopse, até 2 linhas, com o `space-y-2` antes. */
+    static Int synopsisHeight(Int lines) {
+        if (lines <= 0) { return 0 }
+        return clamp2(lines) * ProjectsPanelMetrics.synopsisLine()
+                + ProjectsPanelMetrics.itemInnerGap()
+    }
+
+    /** A altura TOTAL da lista de `count` itens (`space-y-3`) mais o vazio. */
+    static Int listHeight(Int count, Int itemHeight) {
+        if (count == 0) { return 0 }
+        return count * itemHeight + (count - 1) * ProjectsPanelMetrics.itemGap()
+    }
+
+    private static Int clamp2(Int n) {
+        if (n > 2) { return 2 }
+        return n
+    }
+}

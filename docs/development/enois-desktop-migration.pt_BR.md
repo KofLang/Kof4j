@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — as rotas restantes do catalogo (`projetos.painel`), depois a mesma familia para os outros catalogos; o §1196 (corpo com muitos resultados de chamada vivos) e o §1197 (cor de fill posta por chamada anterior) seguem ABERTOS
+next: a Fase 3 continua — a mesma familia para os outros catalogos (`vagas`, `mentoria` paineis); o §1196 (corpo com muitos resultados de chamada vivos) e o §1197 (cor de fill posta por chamada anterior) seguem ABERTOS
 location: repository
 state: active
 
@@ -404,6 +404,27 @@ linha por 60 px. A altura do hero prende essa quebra pelo outro lado: a
 descricao REAL do site (2 linhas a 16 px) deixa o hero em **254**, e uma mais
 curta o deixaria em 228 — o que o teste provou quando eu o escrevi primeiro
 com uma descricao encurtada. Bateria **28/28**.
+
+**Fase 3 — `projetos.painel` (POUSADA 23/11).** O `ProjectsPanelScreen` e o
+`ProjectsPanelMetrics` em `libs/enois/ProjectsPanel.kf` carregam o painel de quem
+publica com os numeros MEDIDOS em `src/routes/projetos.painel.tsx`: container
+`max-w-3xl space-y-6` (**768**/24 — o do catalogo e' 1024 e o `pageWidth` da rota
+agora diz isso), cabecalho em **56** (titulo `text-2xl` 32 + `space-y-1` 4 +
+descricao `text-sm` 20), a lista `space-y-3` (12) de itens `surface-card
+space-y-2 p-4` (padding 16, vao 8) com o titulo em 16 e o status em 12 na mesma
+linha das acoes `Button size="sm"` (32). Toda string e a de `texts.projects`:
+`panel.title` "Meus projetos", `panel.description`, `submit`, `panel.resubmit`
+"Reenviar" (so em REJECTED, entao 3 acoes la e 2 fora), `editor.editTitle`,
+`panel.remove` "Excluir", `panel.reviewNote` "Recusado: …" e os toasts
+`panel.removed` / `editor.sent` / `editor.error`. Os itens medem **148** com nota e
+duas linhas de sinopse, **80** sozinhos. Prova `EnosisProjectsPanelE2ETest`: todas
+as strings, `actsRej=3`, `actsPub=2`, `page=768`, `header_h=56`, `item_full=148`,
+`item_plain=80`. Bateria **34/34**.
+
+PENDENCIA NOMEADA — o `known-bugs §1196` moldou este codigo tambem: o `itemHeight`
+e' montado com `addItem`/`noteHeight`/`synopsisHeight` porque a soma direta
+quebrava. A familia inteira do catalogo (`projetos` indice, autor, detalhe, painel)
+esta migrada; a pintura dela ainda depende do §1197 antes de qualquer pixel.
 
 **Fase 3 — `projetos.$username.$projectSlug` (POUSADA 23/11).** O `ProjectDetailScreen`
 e o `ProjectDetailMetrics` em `libs/enois/ProjectDetail.kf` carregam o detalhe do
