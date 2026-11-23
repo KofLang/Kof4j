@@ -784,6 +784,33 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   isso que a NATIVE004 recusa sem. **AS PRÓXIMAS LINHAS:** a família "stat"
   da costura (o `struct stat` do Darwin), o runner M-7, a face arm64 (o
   emissor cross aarch64 + a sua prova Mach-O); depois #1159 keep-alive
+  **M-6 FATIA 3 POUSADA 22/11 (a família STAT da costura — e o `struct stat` do
+  Darwin NÃO É o do Linux).** Os sete sítios do runtime que chamavam o
+  `newfstatat` (syscall 262) direto agora passam por `kof_plat_stat`. O layout
+  do Darwin foi **MEDIDO** compilando os `offsetof` com o clang real (o
+  toolchain provisionado), não adivinhado: `mode@4` (u16), `nlink@6` (u16),
+  `mtimespec@48`, `size@96` — contra o `mode@24` (u32), `nlink@16` (u32),
+  `mtim@88`, `size@48` do Linux; e as FLAGS também diferem
+  (`AT_SYMLINK_NOFOLLOW` = **0x20** no Darwin, 0x100 no Linux; `AT_FDCWD` =
+  **-2**, -100 no Linux). Copiar o corpo do Linux teria feito o runtime ler
+  lixo — o `st_size@96` do Darwin seria lido como mode. **A NORMALIZAÇÃO (um
+  lugar só, não leituras espalhadas):** o corpo do macOS chama o `fstatat` num
+  rascunho de 144 bytes na pilha e copia os QUATRO campos que o runtime usa
+  para o buffer do chamador nos offsets do HOST — então **nenhum chamador
+  muda**: eles continuam lendo `24/48/88/96(%rsp)`. O corpo do host é o mesmo
+  syscall `newfstatat`, logo o comportamento do host não muda (o teste
+  assere isso). **O RATCHET:** a contagem x86-64 fora-da-costura caiu de
+  **164 para 157** (o baseline regenerado; o selftest do gate é 3/3).
+  **PROVA (executada):** `NativeMacOSStatE2ETest` **4/4** — RED-first **4
+  falhas** no código antigo (sem costura, sem `fstatat`, sem normalização, sem
+  o símbolo `_fstatat`) e GREEN depois; as famílias macOS + io **87/0F**;
+  `check_500` rc=0 (`RuntimePlatMacosStat` é uma classe nova, só dela); os
+  gates rc=0. **A PRÓXIMA LINHA:** o runner **M-7** (o link + a execução num
+  host macos-14 de verdade — a primeira prova de que um binário macOS
+  RODA), e depois a face arm64; o relógio do `kof.http` (o
+  `kof_http_now_ms` com o `clock_gettime` cru) é a próxima família de syscall
+  medida neste ciclo.
+
   **M-6 FATIA 2 POUSADA 22/11 (a família de REDE sobre a libSystem — e um BUG
   REAL DO TRADUTOR que a fatia expôs: os imediatos de CARACTERE).** As seis
   funções de socket da costura (`kof_plat_net_socket`/`connect`/`bind`/

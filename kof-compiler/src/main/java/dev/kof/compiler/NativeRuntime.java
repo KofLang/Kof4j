@@ -134,6 +134,7 @@ public final class NativeRuntime {
         RuntimePlat.emitPlatIo(sb);
         RuntimePlat.emitPlatNet(sb);
         RuntimePlat.emitPlatTls(sb);
+        RuntimePlat.emitPlatStat(sb);
         RuntimePrint.emitPrint(sb);
         RuntimePrint.emitPrintln(sb);
         RuntimeErasureBox.emitBox(sb);   // §284

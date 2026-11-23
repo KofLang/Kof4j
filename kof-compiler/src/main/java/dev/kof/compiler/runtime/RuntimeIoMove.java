@@ -24,8 +24,7 @@ public final class RuntimeIoMove {
                     leaq 24(%r12), %rsi
                     movq %rsp, %rdx
                     xorq %r10, %r10
-                    movq $262, %rax
-                    syscall
+                    call kof_plat_stat        # M-6 (#1135): o stat pela costura (o macOS normaliza o layout)
                     testq %rax, %rax
                     jns .Lio_mv_no
                     leaq 24(%rbx), %rdi

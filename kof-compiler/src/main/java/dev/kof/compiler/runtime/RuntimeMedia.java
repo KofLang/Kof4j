@@ -363,8 +363,7 @@ public final class RuntimeMedia {
                 leaq 24(%rbx), %rsi
                 movq %rsp, %rdx
                 xorq %r10, %r10
-                movq $262, %rax
-                syscall
+                call kof_plat_stat        # M-6 (#1135): o stat pela costura (o macOS normaliza o layout)
                 testq %rax, %rax
                 js .Lmed_vo_nf
                 movl 24(%rsp), %eax

@@ -282,8 +282,7 @@ public final class RuntimeIo2 {
                 leaq 24(%rbx), %rsi
                 movq %rsp, %rdx
                 xorq %r10, %r10
-                movq $262, %rax
-                syscall
+                call kof_plat_stat        # M-6 (#1135): o stat pela costura (o macOS normaliza o layout)
                 testq %rax, %rax
                 js .Lio_size_err
                 movq 48(%rsp), %rax

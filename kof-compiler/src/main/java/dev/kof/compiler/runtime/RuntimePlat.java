@@ -333,6 +333,32 @@ public final class RuntimePlat {
      * O par get/set é TRANSPARENTE: só o {@code %rax} do get muda (o valor)
      * e o set preserva todos os registradores.
      */
+    /**
+     * M-6 (#1135): a família STAT da costura — o {@code newfstatat} que os
+     * sítios do runtime faziam direto. O CONTRATO é o buffer do runtime no
+     * layout do HOST (st_mode@24, st_size@48, st_mtim@88/96): no Linux o
+     * corpo é o syscall 262 (semântica idêntica à de antes); no macOS é o
+     * {@code fstatat} da libSystem com a NORMALIZAÇÃO do layout do Darwin
+     * para o do host (os offsets medidos no SDK: mode@4, size@96,
+     * mtimespec@48).
+     */
+    public static void emitPlatStat(StringBuilder sb) {
+        if (dev.kof.compiler.nat.NativeProfile.active.isMacos()) {
+            RuntimePlatMacosStat.emitStat(sb);
+            return;
+        }
+        sb.append("""
+            .section .text
+            .globl kof_plat_stat
+            .type kof_plat_stat, @function
+            kof_plat_stat:
+                # rdi=dirfd (-100 = AT_FDCWD), rsi=path, rdx=buf, r10=flags
+                movq $262, %rax          # newfstatat(dirfd, path, buf, flags)
+                syscall
+                ret
+            """);
+    }
+
     public static void emitPlatTls(StringBuilder sb) {
         if (dev.kof.compiler.nat.NativeProfile.active.isMacos()) {
             RuntimePlatMacosTls.emitTls(sb);

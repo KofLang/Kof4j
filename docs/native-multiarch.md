@@ -782,6 +782,32 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   is what NATIVE004 refuses without. **THE NEXT ROWS:** the "stat" family of
   the seam (the Darwin `struct stat`), the M-7 runner, the arm64 face (the
   cross aarch64 emitter + its Mach-O proof); then #1159 keep-alive HTTP/1.1.
+  **M-6 SLICE 3 LANDED 22/11 (the STAT family of the seam — and the Darwin's
+  `struct stat` is NOT the Linux one).** The seven runtime sites that called
+  `newfstatat` (syscall 262) directly now go through `kof_plat_stat`. The
+  Darwin's layout was **MEASURED** by compiling the `offsetof`s with the real
+  clang (the provisioned toolchain), not guessed:
+  `mode@4` (u16), `nlink@6` (u16), `mtimespec@48`, `size@96` — against the
+  Linux `mode@24` (u32), `nlink@16` (u32), `mtim@88`, `size@48`; and the FLAGS
+  differ too (`AT_SYMLINK_NOFOLLOW` = **0x20** on Darwin, 0x100 on Linux;
+  `AT_FDCWD` = **-2**, -100 on Linux). Copying the Linux body would have made
+  the runtime read garbage — `st_size@96` of the Darwin would be read as the
+  mode. **THE NORMALIZATION (one place, not scattered reads):** the macOS body
+  calls `fstatat` into a 144-byte scratch on the stack and copies the FOUR
+  fields the runtime uses into the caller's buffer at the HOST offsets — so
+  **no caller changes**: they keep reading `24/48/88/96(%rsp)`. The host body
+  is the same `newfstatat` syscall, so the host behaviour is unchanged (the
+  test asserts it). **THE RATCHET:** the out-of-seam x86-64 count fell
+  **164 → 157** (the baseline regenerated; the gate's selftest is 3/3).
+  **PROOF (executed):** `NativeMacOSStatE2ETest` **4/4** — RED-first **4
+  failures** on the old code (no seam at all, no `fstatat`, no normalization,
+  no `_fstatat` symbol) and GREEN after; the macOS + io families **87/0F**;
+  `check_500` rc=0 (`RuntimePlatMacosStat` is a new class of its own); the
+  gates rc=0. **THE NEXT ROW:** the runner **M-7** (the link + the run on a
+  real macos-14 host — the first proof that a macOS binary actually RUNS),
+  then the arm64 face; the `kof.http` clock (the `kof_http_now_ms` raw
+  `clock_gettime`) is the next syscall family measured in this cycle.
+
   **M-6 SLICE 2 LANDED 22/11 (the NET family over the libSystem — and a REAL
   TRANSLATOR BUG the slice exposed: the character-literal immediates).** The
   six socket seam functions (`kof_plat_net_socket`/`connect`/`bind`/`listen`/
