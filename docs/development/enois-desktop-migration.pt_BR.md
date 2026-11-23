@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: em `enois-kof-desktop` — o CATALOGO da `comunidades` entrou (`ComunidadesGrade.kf` + `VazioDeLista.kf`, app `b8201f9`: grade de 3 colunas, celula 400 em 1232, 4 cartoes = 708, o `EmptyState` sem icone = 100) e a pagina compoe por `ComunidadesScreen.catalogo`; o que fica NOMEADO: os VALORES do cartao da API ao vivo (o catalogo esta vazio hoje), o esqueleto de carga (`CommunityCardSkeletons`), e no Kof4j o `y` obsoleto do §1206 (fim 756 contra 452) e o §1207 (tipo de biblioteca recusado na assinatura de um irmao)
+next: em `enois-kof-desktop` — o catalogo entrou (app `b8201f9`) e as duas leituras dele estao medidas (`rb=y1=1119` para a chamada com listas aninhadas, a pagina `fim=um=756`, app `fdc7bf3`); o asm do §1206 da `ComunidadesPage.paint` foi LIDO e a aritmetica emitida esta certa, entao o proximo passo e' seguir o resto do frame emitido desse metodo (o estado que a rota mantem em volta dos numeros); o Kof4j deve tambem o isolamento do §1207 (tipo de biblioteca recusado no parametro de um irmao)
 location: repository
 state: active
 
@@ -891,3 +891,16 @@ solta que declara um tipo de BIBLIOTECA na assinatura de um membro
 backend em todo arquivo que o declara. Toda assinatura nos arquivos da rota
 agora nomeia o tipo completo (`Sdl3Backend`) e o app compila — o isolamento da
 face do Kof4j ainda e' devido.
+
+## §9 Rodada 23/11 (quarta) — o asm do §1206 lido; as duas leituras do catalogo medidas
+
+O asm de `enois_ComunidadesPage_paint` (compilado com a mesma instalacao do
+harness, `KOF_KEEP_ASM=1`) foi lido bloco a bloco: a soma do `PageHeader`, o
+`+ 24`, a soma do `PageSearch`, o `+ 24`, a soma do `TopicPills`, o `+ 24` e a
+soma do `Filter` estao todos emitidos certos. O mesmo modulo lido pela lista
+(`listOf(ComunidadesPage.paint(…)).get(0)`) mede `756`, igual ao `val` simples —
+entao o desvio do §1206 nao esta na aritmetica do metodo emitido e o gatilho
+fica em outro ponto do frame da rota; segue ABERTO com a medicao. A chamada do
+catalogo com listas aninhadas (`catalogo(…, listOf(cartao(…)))`) devolve o mesmo
+fim da conta externa (`rb=y1=1119`), e o teste fixa isso (app `760d132`,
+`fdc7bf3`).

@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: in `enois-kof-desktop` — the `comunidades` CATALOGUE is in (`ComunidadesGrade.kf` + `VazioDeLista.kf`, app `b8201f9`: grid of 3 columns, cell 400 in 1232, 4 cards = 708, the icon-less `EmptyState` = 100) and the page composes through `ComunidadesScreen.catalogo`; what is NAMED and left: the card VALUES from the live API (the catalogue is empty today), the loading skeleton (`CommunityCardSkeletons`), and in Kof4j the §1206 stale `y` (fim 756 against 452) and the §1207 library type rejected in a sibling's signature
+next: in `enois-kof-desktop` — the catalogue is in (app `b8201f9`) and both its readings are measured (`rb=y1=1119` for the nested-list call, the page `fim=um=756`, app `fdc7bf3`); the §1206 asm of `ComunidadesPage.paint` was READ and the emitted arithmetic is correct, so the next step is following the rest of the emitted frame of that method (the state the route keeps around the numbers); Kof4j also owes the §1207 isolation (a library type rejected in a sibling's parameter)
 location: repository
 state: active
 
@@ -907,3 +907,16 @@ parameter) is rejected with SEM011; the app imports the backend in every file
 that declares it. Every member signature in the route's files now names the
 full type (`Sdl3Backend`) and the app compiles — the isolation of the Kof4j
 face is still owed.
+
+## §9 Round 23/11 (fourth) — the §1206 asm read; both catalogue readings measured
+
+The asm of `enois_ComunidadesPage_paint` (compiled with the same install the
+harness uses, `KOF_KEEP_ASM=1`) was read block by block: the `PageHeader` sum,
+the `+ 24`, the `PageSearch` sum, the `+ 24`, the `TopicPills` sum, the `+ 24`
+and the `Filter` sum are all emitted correctly. The same module read as a list
+(`listOf(ComunidadesPage.paint(…)).get(0)`) measures `756`, the same as the plain
+`val` — so the §1206 deviation is not in the arithmetic of the emitted method and
+the trigger lies elsewhere in the route's frame; kept OPEN with the measurement.
+The catalogue's nested-list call (`catalogo(…, listOf(cartao(…)))`) returns the
+same bottom as the external arithmetic (`rb=y1=1119`), which the test now pins
+(app `760d132`, `fdc7bf3`).
