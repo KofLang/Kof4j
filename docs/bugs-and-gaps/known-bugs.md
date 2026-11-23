@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §1201 (OPEN — native out-of-memory on a short println chain; measured 23/11)
 last: §1200 (OPEN — resolver; RED in the tree)
 last: §1199 (OPEN — narrowed 23/11; parser side withdrawn, resolution is the defect)
 last: §800 (FIXED)
@@ -21550,3 +21551,26 @@ contain its own file cannot reach `lib/kof-libs` at all (`import game.Sdl3Backen
 — the path that works on lab is the INSTALLED layout, and the app harness only works
 because it installs the cache). Next: one resolution story for both entry points — the same
 files on `kof run` of a source folder and on `kof run` from an installed package.
+
+## §1201 — native x86-64: a `println("a=" + a() + "|" + b())` chain over TWO small STRING methods that read their arguments dies with `Runtime error: out of memory` (exit 1) — 📌 MEASURED 23/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Status:** 🟡 OPEN — reproduced four times in the Énois location-rules slice; not reduced yet.
+
+Measured: `println("only=" + Rules.incompleteWhenOnlyOne(Rules.cityPresent("Belo Horizonte"),
+Rules.statePresent("")))` (TWO method results as arguments of a third) prints an EMPTY value for
+the whole line; splitting it into locals still died at the NEXT such line; a line with ONE call
+plus two Int results prints; the same helper called alone in a one-function probe prints the
+right text. `oneIf(b)` printing before returning shows it IS evaluated (`oneIf b=true`), so the
+defect is downstream of the call: the ALLOCATION of the result or the concat.
+
+**Not §1196** (that one is about how many call results a function KEEPS live); this is a SHORTAGE
+of live values — one statement, one small chain. Neither is the string contents: the same
+method with the same argument prints `CITY_STATE_INCOMPLETE` when it is the only call on the
+line.
+
+**Workaround used while diagnosing:** one computation per `println`, no nested method results.
+The slice itself (`CityStateRules`/`BrazilUf`/`CityStateTable`) is parked with this open.
+
+Next: reduce to a compiler test — three top-level string functions, one `println` chaining two
+of them as arguments of the third — and bisect: result-handle lifetime vs the `+` chain vs the
+heap watermark that prints "out of memory".

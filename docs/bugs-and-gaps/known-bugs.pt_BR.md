@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §1201 (ABERTO — out-of-memory no nativo numa cadeia curta de println; medido 23/11)
 last: §1200 (ABERTO — resolvedor; RED na arvore)
 last: §1199 (ABERTO — estreitado 23/11; lado do parser retirado, o defeito e resolucao)
 last: §800 (FIXED)
@@ -18964,3 +18965,27 @@ PKG006 — o caminho que funciona no lab e' o layout INSTALADO, e o harness do a
 porque instala o cache). Proximo: uma unica historia de resolucao para os dois pontos de
 entrada — os mesmos arquivos no `kof run` de uma pasta de fontes e no `kof run` de um pacote
 instalado.
+
+## §1201 — nativo x86-64: uma cadeia `println("a=" + a() + "|" + b())` sobre DUAS funcoes pequenas de STRING que leem seus argumentos morre com `Runtime error: out of memory` (exit 1) — 📌 MEDIDO 23/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Status:** 🟡 ABERTO — reproduzido quatro vezes na fatia das regras de local do Énois; ainda nao reduzido.
+
+Medido: `println("only=" + Rules.incompleteWhenOnlyOne(Rules.cityPresent("Belo Horizonte"),
+Rules.statePresent("")))` (DOIS resultados de metodo como argumentos de um terceiro) imprime o
+valor VAZIO na linha inteira; quebrar em locais ainda morreu na PROXIMA linha desse tipo; uma
+linha com UMA chamada mais dois Int imprime; o mesmo helper chamado sozinho num probe de uma
+funcao imprime o texto certo. O `oneIf(b)` imprimindo antes de retornar mostra que ele E'
+avaliado (`oneIf b=true`), entao o defeito esta depois da chamada: a ALOCACAO do resultado ou o
+concat.
+
+**NAO e' o §1196** (aquele trata de quantos resultados de chamada a funcao mantem vivos); este e'
+uma FALTA de valores vivos — uma instrucao, uma cadeia pequena. Nem e' o conteudo da string: o
+mesmo metodo com o mesmo argumento imprime `CITY_STATE_INCOMPLETE` quando e' a unica chamada da
+linha.
+
+**Contorno usado no diagnostico:** um calculo por `println`, sem resultados de metodo aninhados.
+A fatia em si (`CityStateRules`/`BrazilUf`/`CityStateTable`) fica parqueada com isto aberto.
+
+Proximo: reduzir a um teste do compilador — tres funcoes de topo de string, um `println`
+encadeando duas delas como argumentos da terceira — e bisseccionar: tempo de vida do handle do
+resultado vs a cadeia de `+` vs a marca d'agua do heap que imprime "out of memory".
