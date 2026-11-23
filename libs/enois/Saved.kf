@@ -1,0 +1,85 @@
+package enois
+
+import enois.Text
+import enois.Tokens
+import game.Sdl3Backend
+
+// Énois — a rota `salvos` (`src/routes/salvos.tsx`), os posts guardados.
+//
+// Os TEXTOS vem do codigo (`src/texts.ts`, bloco `saved`), sem invencao:
+//   * o voltar       `back` = "Voltar"
+//   * o titulo       `title` = "Posts salvos"
+//   * a contagem     `count(n)` = "N post(s) salvo(s)" — DOIS plurais que mudam
+//                    JUNTOS (o site faz `post${n===1?"":"s"} salvo${n===1?"":"s"}`)
+//   * o vazio        `empty` = "Nenhum post salvo ainda. Salve posts para
+//                    encontra-los facilmente depois."
+//
+// As MEDIDAS vem do `PageHeader` (design-system/src/ui/page-header.tsx),
+// MEDIDAS:
+//   * o cabecalho  `surface-card mb-4 p-4 sm:p-6` = 24 px, 16 px em baixo
+//   * o titulo     `text-2xl font-semibold tracking-tight` = 24 px
+//   * o icone      `h-5 w-5 text-primary` = 20 px
+//   * a descricao  `mt-1 text-sm text-muted-foreground` = 14 px
+
+/** As medidas da pagina de salvos, em px. */
+class SavedMetrics {
+    static Int pad() { return 24 }            // sm:p-6
+    static Int titleSize() { return 24 }      // text-2xl
+    static Int iconSize() { return 20 }       // h-5 w-5
+    static Int descSize() { return 14 }       // text-sm
+    static Int gapBelow() { return 16 }       // mb-4
+    static Int gap() { return 24 }            // space-y-6
+}
+
+class SavedScreen {
+
+    /** `saved.count(n)` do site — os DOIS plurais mudam juntos. */
+    static String count(Int n) {
+        val plural = if (n == 1) "" else "s"
+        return "" + n + " post" + plural + " salvo" + plural
+    }
+
+    /** O texto do vazio (`texts.saved.empty`). */
+    static String emptyText() {
+        return "Nenhum post salvo ainda. Salve posts para encontrá-los facilmente depois."
+    }
+
+    /** Pinta a pagina: o voltar, o PageHeader (icone + titulo + contagem) e,
+     *  com `posts` vazio, o card do estado vazio. Devolve a altura usada. */
+    static Int paint(Sdl3Backend b, Font titleFont, Font bodyFont,
+                     Int x, Int y, Int w, Int total, String emptyText) {
+        val card = Tokens.SurfaceCard()
+        val subtle = Tokens.TextSubtle()
+        val muted = Tokens.MutedForeground()
+        val strong = Tokens.TextStrong()
+        val primary = Tokens.Primary()
+        var cy = y
+        // o link de voltar: `text-sm text-muted-foreground`
+        bodyFont.drawTextColoured(b, "Voltar", x, cy + 14, muted.r(), muted.g(), muted.b())
+        cy = cy + 20 + SavedMetrics.gap()
+        // o PageHeader: surface-card p-6
+        val headH = SavedMetrics.pad() * 2 + 20 + SavedMetrics.descSize() + 4
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, cy, w, headH)
+        // o icone de 20 px em --primary, ao lado do titulo
+        SDL_SetRenderDrawColor(b.rendererHandle, primary.r(), primary.g(), primary.b(), 255)
+        b.fillRect(x + SavedMetrics.pad(), cy + SavedMetrics.pad() + 4,
+                SavedMetrics.iconSize(), SavedMetrics.iconSize())
+        titleFont.drawTextColoured(b, "Posts salvos",
+                x + SavedMetrics.pad() + SavedMetrics.iconSize() + 8,
+                cy + SavedMetrics.pad() + 20, strong.r(), strong.g(), strong.b())
+        // a descricao e' a CONTAGEM (o site passa `count(n)` ao PageHeader)
+        bodyFont.drawTextColoured(b, count(total),
+                x + SavedMetrics.pad(), cy + SavedMetrics.pad() + 20 + 4 + SavedMetrics.descSize(),
+                muted.r(), muted.g(), muted.b())
+        cy = cy + headH + SavedMetrics.gapBelow()
+        // o estado vazio: o card com o texto
+        val emptyH = SavedMetrics.pad() * 2 + SavedMetrics.descSize()
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, cy, w, emptyH)
+        bodyFont.drawTextColoured(b, emptyText, x + SavedMetrics.pad(),
+                cy + SavedMetrics.pad() + 12, subtle.r(), subtle.g(), subtle.b())
+        cy = cy + emptyH
+        return cy - y
+    }
+}

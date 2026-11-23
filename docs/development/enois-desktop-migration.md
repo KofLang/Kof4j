@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — `salvos` or `notificacoes.index`
+next: Fase 3 continues — `notificacoes.index` or `selos`
 location: repository
 state: active
 
@@ -342,6 +342,23 @@ Proven natively: `col_w=290`, `f=Online|Presencial|Híbrido`, `grade_h=296`
 (2 rows × 140 + 16), `card1`/`card2`/`card4` = `255,255,255` and
 `gap=247,244,251`.
 Battery **23/23**.
+
+**Fase 3 — `salvos` (LANDED 23/11).** `SavedScreen` in `libs/enois/Saved.kf` uses the
+design system's `PageHeader` numbers (`surface-card mb-4 p-4 sm:p-6` = 24 px
+with 16 px below, title `text-2xl` = 24 px, icon `h-5 w-5 text-primary` =
+20 px) and the site's own strings.
+THE CONTRACT IS A DOUBLE PLURAL, and the test asserts all three cases:
+`count(0)` = "0 **posts salvos**", `count(1)` = "1 **post salvo**",
+`count(7)` = "7 **posts salvos**" — BOTH suffixes change together, so a
+hard-coded one would fail on the other.
+Proven natively: `c0`, `c1`, `c7`, `vazio=Nenhum post salvo ainda.`,
+`icone=103,70,245` (`--primary`), `card=255,255,255`,
+`gap=247,244,251` (the `mb-4` band).
+DIVERGENCE caught while writing the proof: I first sampled the `mb-4` gap at
+y=140, but the header ends at **146** (`60 + 24×2 + 20 + 14 + 4`) — the sample
+was INSIDE the header, not the gap. The band was recomputed before the test
+was written.
+Battery **24/24**.
 
 ## §4 How to finish
 

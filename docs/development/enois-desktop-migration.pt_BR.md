@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — `salvos` ou `notificacoes.index`
+next: a Fase 3 continua — `notificacoes.index` ou `selos`
 location: repository
 state: active
 
@@ -335,6 +335,22 @@ amostras cairiam no fundo em vez do card. Provado nativamente: `col_w=290`,
 `f=Online|Presencial|Híbrido`, `grade_h=296` (2 linhas x 140 + 16),
 `card1`/`card2`/`card4` = `255,255,255` e `gap=247,244,251`.
 Bateria **23/23**.
+
+**Fase 3 — `salvos` (POUSADA 23/11).** O `SavedScreen` no `libs/enois/Saved.kf` usa os
+numeros do `PageHeader` do design system (`surface-card mb-4 p-4 sm:p-6` =
+24 px com 16 px abaixo, titulo `text-2xl` = 24 px, icone `h-5 w-5 text-primary`
+= 20 px) e os textos do proprio site.
+O CONTRATO E' UM PLURAL DUPLO, e o teste afirma os tres casos:
+`count(0)` = "0 **posts salvos**", `count(1)` = "1 **post salvo**",
+`count(7)` = "7 **posts salvos**" — os DOIS sufixos mudam juntos, entao um
+cravado falharia no outro.
+Provado nativamente: `c0`, `c1`, `c7`, `vazio=Nenhum post salvo ainda.`,
+`icone=103,70,245` (`--primary`), `card=255,255,255`,
+`gap=247,244,251` (a faixa do `mb-4`).
+DIVERGENCIA pega ao escrever a prova: amostrei primeiro o gap do `mb-4` em
+y=140, mas o header termina em **146** (`60 + 24x2 + 20 + 14 + 4`) — a amostra
+estava DENTRO do header, nao no gap. A faixa foi recalculada antes do teste
+ser escrito. Bateria **24/24**.
 
 ## §4 Como concluir
 
