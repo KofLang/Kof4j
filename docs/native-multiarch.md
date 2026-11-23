@@ -782,6 +782,35 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   is what NATIVE004 refuses without. **THE NEXT ROWS:** the "stat" family of
   the seam (the Darwin `struct stat`), the M-7 runner, the arm64 face (the
   cross aarch64 emitter + its Mach-O proof); then #1159 keep-alive HTTP/1.1.
+  **M-6 SLICE 5 LANDED 22/11 — THE GATE'S OWN BLIND SPOT CLOSED: the x86
+  ratchet was watching half the surface.** The seam gate counts the system
+  access that still bypasses the seam — the promise is "the seam cannot
+  grow". But its x86 side scanned only the `runtime/` package: the
+  `nat/` package's x86 syscall sites (the HTTP core's `socket`/`connect`/
+  `fcntl`/`poll`/`setsockopt`, the web listen, the net front) were **not in
+  the ratchet at all** — 19 real `syscall` instructions measured outside the
+  counted surface. A new raw syscall there would have passed the gate
+  silently. **THE FIX (two precision changes):** the inventory now scans
+  **both** packages (the riscv/aarch64/mcu faces stay counted separately, and
+  the translator is excluded — its `syscall` is the DETECTOR, not an emitted
+  site); and the metric counts the **instruction** (the line that IS the
+  `syscall`), not the word in prose — the `nat/` package has comments and the
+  NATIVE005 diagnostic text that say "syscall" without emitting one (the old
+  count included 45 such lines in the runtime package alone). The TLS metric
+  got the same treatment (a mnemonic with the operand, not a mention): 3 → 2.
+  **PROOF (executed):** with a raw `syscall` planted in a `nat/` file, the
+  OLD gate returns **rc=0** (blind) and the NEW gate returns **rc=1** — the
+  blind spot is closed, measured on the same sandbox and the same baseline;
+  the gate's selftest grew to **4/4** (the new case is exactly this: growth
+  in the `nat/` package must fail). The new baseline: `x86_out_seam` 148,
+  `riscv_out_seam` 168, `tls_sites` 2, `futex_sites` 13 (the x86 number fell
+  because the metric stopped counting prose — the surface covered GREW by 19
+  real sites). **WHAT THIS MAKES MEASURABLE (the next slice):** the HTTP
+  socket family — its libSystem equivalents (`socket`, `connect`, `fcntl`,
+  `poll`, `setsockopt`) keep the SAME SysV registers, and the option
+  constants are the thing to measure next (`SO_RCVTIMEO` is 20 on Linux and
+  0x1002 on Darwin).
+
   **M-6 SLICE 4 LANDED 22/11 (the `kof.http` clock through the seam) — the
   circuit-breaker's clock asked the Darwin for the LINUX clock id.** The
   `kof_http_now_ms` did the `clock_gettime=228` syscall RAW with

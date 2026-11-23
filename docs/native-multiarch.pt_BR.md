@@ -784,6 +784,35 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   isso que a NATIVE004 recusa sem. **AS PRÓXIMAS LINHAS:** a família "stat"
   da costura (o `struct stat` do Darwin), o runner M-7, a face arm64 (o
   emissor cross aarch64 + a sua prova Mach-O); depois #1159 keep-alive
+  **M-6 FATIA 5 POUSADA 22/11 — O PONTO CEGO DO PRÓPRIO GATE FECHADO: o
+  ratchet x86 vigiava só metade da superfície.** O gate da costura conta o
+  acesso a sistema que ainda passa por fora da costura — a promessa é "a
+  costura não cresce". Mas o lado x86 varria só o pacote `runtime/`: os
+  sítios de syscall x86 do pacote `nat/` (o `socket`/`connect`/`fcntl`/
+  `poll`/`setsockopt` do core do HTTP, o web listen, o net front) **não
+  estavam no ratchet** — **19 instruções `syscall` reais** medidas fora da
+  superfície contada. Um syscall novo ali passaria pelo gate em silêncio.
+  **A CORREÇÃO (duas precisões):** o inventário agora varre **os dois**
+  pacotes (as faces riscv/aarch64/mcu continuam contadas à parte, e o
+  tradutor fica de fora — lá o `syscall` é o DETECTOR, não um sítio emitido);
+  e a métrica conta a **instrução** (a linha que É o `syscall`), não a
+  palavra em prosa — o pacote `nat/` tem comentários e o texto do diagnóstico
+  NATIVE005 que dizem "syscall" sem emitir um sítio (a contagem antiga
+  incluía 45 linhas assim só no pacote runtime). A métrica do TLS recebeu o
+  mesmo tratamento (um mnemônico com o operando, não uma menção): 3 → 2.
+  **PROVA (executada):** com um `syscall` cru plantado num ficheiro do
+  `nat/`, o gate ANTIGO devolve **rc=0** (cego) e o NOVO devolve **rc=1** — o
+  ponto cego fechou, medido no mesmo sandbox e com o mesmo baseline; o
+  selftest do gate cresceu para **4/4** (o caso novo é exatamente este: o
+  crescimento no pacote `nat/` tem que falhar). O baseline novo:
+  `x86_out_seam` 148, `riscv_out_seam` 168, `tls_sites` 2, `futex_sites` 13 (o
+  número x86 CAIU porque a métrica parou de contar prosa — a superfície
+  coberta CRESCEU em 19 sítios reais). **O QUE ISSO TOMA MENSURÁVEL (a
+  próxima fatia):** a família de sockets do HTTP — os seus equivalentes na
+  libSystem (`socket`, `connect`, `fcntl`, `poll`, `setsockopt`) mantêm os
+  MESMOS registradores SysV, e as constantes de opção são o que falta
+  medir (`SO_RCVTIMEO` é 20 no Linux e 0x1002 no Darwin).
+
   **M-6 FATIA 4 POUSADA 22/11 (o relógio do `kof.http` pela costura) — o
   circuit-breaker pedia ao Darwin o clock id do LINUX.** O `kof_http_now_ms`
   fazia o syscall `clock_gettime=228` CRU com `CLOCK_MONOTONIC=1` — o id do

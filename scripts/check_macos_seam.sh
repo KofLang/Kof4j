@@ -30,27 +30,41 @@ SEAM_X86="$RT/RuntimePlat.java"
 SEAM_X86_MACOS="$RT/RuntimePlatMacos.java"
 SEAM_RV="$NAT/NativeRiscvAsmRt0.java"
 
-echo "== x86-64: sítios 'syscall' por arquivo (o seam = RuntimePlat + a face macOS RuntimePlatMacos) =="
+echo "== x86-64: sítios 'syscall' por arquivo (o seam = RuntimePlat*) =="
+# M-6 (#1135, o PONTO CEGO FECHADO): a varredura era só o pacote runtime/ —
+# os sítios x86 do pacote nat/ (o core do HTTP, o web listen, o net front)
+# NÃO entravam no ratchet (19 instruções reais medidas). O inventário agora
+# cobre os DOIS pacotes; o que fica de fora é o riscv/aarch64/mcu (as outras
+# faces, contadas à parte) e o tradutor/keywords (NativeMachO: o `syscall`
+# lá é o DETECTOR, não um sítio emitido).
 total_x86=0
 seam_x86=0
-for f in "$RT"/*.java; do
-    n=$(grep -cE '\bsyscall\b' "$f" 2>/dev/null || true)
-    [ "$n" -eq 0 ] && continue
-    base=$(basename "$f")
-    total_x86=$((total_x86 + n))
-    case "$base" in
-    RuntimePlat*)
-        # a COSTURA (M-2/M-4/M-6): RuntimePlat + as faces macOS por família
-        # (RuntimePlatMacos, RuntimePlatMacosNet, RuntimePlatMacosTls). São a
-        # superfície da migração — não dívida fora dela.
-        seam_x86=$((seam_x86 + n))
-        echo "  SEAM  $base: $n"
-        ;;
-    *)
-        echo "  out   $base: $n"
-        ;;
-    esac
-done
+scan_x86() {
+    for f in "$@"; do
+        [ -f "$f" ] || continue
+        # M-6 (#1135): conta INSTRUÇÃO (a linha que É o syscall), não a
+        # palavra em prosa — o pacote nat/ tem comentários e a mensagem do
+        # NATIVE005 que dizem "syscall" sem emitir um sítio.
+        n=$(grep -cE '^[[:space:]]*syscall[[:space:]]*$' "$f" 2>/dev/null || true)
+        [ "$n" -eq 0 ] && continue
+        base=$(basename "$f")
+        total_x86=$((total_x86 + n))
+        case "$base" in
+        RuntimePlat*)
+            # a COSTURA (M-2/M-4/M-6): RuntimePlat + as faces macOS por
+            # família. São a superfície da migração — não dívida fora dela.
+            seam_x86=$((seam_x86 + n))
+            echo "  SEAM  $base: $n"
+            ;;
+        *)
+            echo "  out   $base: $n"
+            ;;
+        esac
+    done
+}
+scan_x86 "$RT"/*.java
+scan_x86 $(ls "$NAT"/Native*.java 2>/dev/null \
+    | grep -vE 'NativeRiscv|NativeAarch64|NativeMcu|NativeMachO\.java')
 out_x86=$((total_x86 - seam_x86))
 echo "  x86-64: total=$total_x86 seam=$seam_x86 fora-da-costura=$out_x86"
 
@@ -78,7 +92,12 @@ grep -ohE 'kof_plat_[a-z_0-9]+:' "$SEAM_X86" "$SEAM_X86_MACOS" 2>/dev/null \
     | sed 's/:$//' | sort -u | sed 's/^/  /'
 
 echo "== TLS (a face ELF local-exec — a migração Mach-O TLV):"
-tls=$(grep -rcE '@tpoff|%fs:' "$RT"/*.java 2>/dev/null | awk -F: '{s+=$2} END {print s+0}')
+# a métrica é a INSTRUÇÃO com o operando TLS (não a menção em prosa — os
+# comentários e a mensagem do NATIVE005 dizem `%fs:` sem emitirem um sítio)
+tls=$(grep -rhcE '^[[:space:]]*[a-z][a-z0-9]*[[:space:]]+.*(%fs:|@tpoff)' \
+    "$RT"/*.java $(ls "$NAT"/Native*.java 2>/dev/null \
+    | grep -vE 'NativeRiscv|NativeAarch64|NativeMcu|NativeMachO\.java') 2>/dev/null \
+    | awk '{s+=$1} END {print s+0}')
 echo "  sítios %fs:/@tpoff: $tls"
 
 echo "== FUTEX (a face Linux — o macOS usa __ulock/os_unfair_lock):"
@@ -86,7 +105,8 @@ echo "== FUTEX (a face Linux — o macOS usa __ulock/os_unfair_lock):"
 # superfície da migração — os futex dela são os que viram __ulock, então não
 # contam como "sítio fora da costura" (o mesmo critério do syscall acima).
 fx=0
-for f in "$RT"/*.java; do
+for f in "$RT"/*.java $(ls "$NAT"/Native*.java 2>/dev/null \
+        | grep -vE 'NativeRiscv|NativeAarch64|NativeMcu|NativeMachO\.java'); do
     base=$(basename "$f")
     case "$base" in RuntimePlat*) continue ;; esac
     n=$(grep -cE '\bfutex\b' "$f" 2>/dev/null || true)
@@ -134,16 +154,28 @@ if [ "${1:-}" = "--selftest" ]; then
     mk_syscalls "$RT/RuntimeOther.java" 3
     mk_ecalls "$NAT/NativeRiscvAsmRt0.java" 1
     mk_ecalls "$NAT/NativeRiscvAsmOther.java" 4
-    # 1. baseline igual ao medido -> verde
-    [ "$(run "$(printf 'x86_out_seam\t3\nriscv_out_seam\t4\ntls_sites\t0\nfutex_sites\t0')")" = 0 ] \
+    # M-6 (#1135): o pacote nat/ x86 (o core do HTTP, o web listen) tambem e
+    # vigiado — um syscall novo la TEM que falhar o gate (o ponto cego que
+    # este ciclo fechou).
+    mk_syscalls "$NAT/NativeHttpCore.java" 1
+    # 1. baseline igual ao medido (3 no runtime/ + 1 no nat/ = 4) -> verde
+    [ "$(run "$(printf 'x86_out_seam\t4\nriscv_out_seam\t4\ntls_sites\t0\nfutex_sites\t0')")" = 0 ] \
         || { echo "SELFTEST FALHOU: igual ao baseline devia passar"; exit 1; }
     # 2. baseline MENOR que o medido (crescimento) -> falha
-    [ "$(run "$(printf 'x86_out_seam\t2\nriscv_out_seam\t4\ntls_sites\t0\nfutex_sites\t0')")" = 1 ] \
+    [ "$(run "$(printf 'x86_out_seam\t3\nriscv_out_seam\t4\ntls_sites\t0\nfutex_sites\t0')")" = 1 ] \
         || { echo "SELFTEST FALHOU: crescimento devia falhar"; exit 1; }
     # 3. baseline MAIOR que o medido (melhora) -> verde
     [ "$(run "$(printf 'x86_out_seam\t9\nriscv_out_seam\t9\ntls_sites\t9\nfutex_sites\t9')")" = 0 ] \
         || { echo "SELFTEST FALHOU:baseline maior devia passar (a divisao diminuiu)"; exit 1; }
-    echo "check_macos_seam: selftest OK (3/3 — igual verde, crescimento VERMELHO, melhora verde)."
+    # 4. (M-6) o crescimento no PACOTE nat/ x86 tambem falha (o ponto cego
+    # que este ciclo fechou: antes o nat/ nao era vigiado)
+    rm -f "$NAT/NativeHttpCore.java"
+    [ "$(run "$(printf 'x86_out_seam\t3\nriscv_out_seam\t4\ntls_sites\t0\nfutex_sites\t0')")" = 0 ] \
+        || { echo "SELFTEST FALHOU: sem o syscall no nat/ devia passar"; exit 1; }
+    mk_syscalls "$NAT/NativeHttpCore.java" 1
+    [ "$(run "$(printf 'x86_out_seam\t3\nriscv_out_seam\t4\ntls_sites\t0\nfutex_sites\t0')")" = 1 ] \
+        || { echo "SELFTEST FALHOU: crescimento no pacote nat/ devia falhar"; exit 1; }
+    echo "check_macos_seam: selftest OK (4/4 — igual verde, crescimento VERMELHO, melhora verde, o nat/ x86 tambem e vigiado)."
     exit 0
 fi
 
