@@ -190,6 +190,16 @@ final class WasiRunner {
         Files.writeString(script, sb.toString(), StandardCharsets.UTF_8);
         List<String> cmd = new ArrayList<>();
         cmd.add(node.toString());
+        // #1193: o node emite um `ExperimentalWarning: WASI is an experimental
+        // feature` no stderr; o CLI roda com stderr FUNDIDO no stdout
+        // (redirectErrorStream no caminho do `kof run`), entao o aviso do HOST
+        // vazava para a saida do PROGRAMA e quebrava a paridade argv com o
+        // oraculo JVM (medido no CI da 0.8.1, run 45089343792: 1F em
+        // CmdRunWasiE2ETest; o host de dev tem wasmtime e nao pegava). O
+        // diagnostico do host nao pertence ao stdout do programa: `--no-warnings`
+        // suprime SO os avisos do node (medido: suprime o ExperimentalWarning,
+        // sem efeito na saida do modulo).
+        cmd.add("--no-warnings");
         cmd.add(script.toString());
         cmd.add(wasm.toString());
         for (String a : programArgs) cmd.add(a);
