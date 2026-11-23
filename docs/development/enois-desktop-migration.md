@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: in `enois-kof-desktop` — the `comunidades` route now has page (call sequence, `fim=487`), factory-built texts and catalogue; the LOADING SKELETON was written with the measured card (128 + 216 = 344, grid of six = 704) and is BLOCKED by the NAMED §1207 (the file is rejected only through the harness install — replication saved in Kof4j `testdata/enois-skeleton-repro/`), so it is out of `libs/` until the face is understood; next slices: the skeleton back in, the card values from the API, and Kof4j §1207/§1206
+next: in `enois-kof-desktop` — route `comunidades` has page (call sequence, 487), factory texts and catalogue; the LOADING SKELETON (card 344, grid of six 704) stays out of `libs/` until the NAMED Kof4j §1207 face (reproduced outside the harness: a file with `Sdl3Backend` parameters compiles only when another file imports it — the class table lacks the import packages otherwise); next: the class-table comparison after `preDeclareType` in Kof4j, then the skeleton back, the card values from the API
 location: repository
 state: active
 
@@ -953,3 +953,15 @@ replication is saved in Kof4j (`testdata/enois-skeleton-repro/`); the same small
 shape compiles in a synthetic module (`LibraryTypeInSiblingParameterE2ETest`
 2/2 on the Kof4j side). The skeleton therefore stays OUT of `libs/` (the app tree
 is clean at `afeeb94`) until the face is understood: no half-proof lands.
+
+## §12 Round 23/11 (seventh) — §1207 reproduced OUTSIDE the harness
+
+The face is not harness-specific: a hand-made module (`enois/Esk.kf` — the
+saved skeleton with `Sdl3Backend` parameters — plus the installed `TopicPills.kf`,
+entry `import enois.Esk`) rejects the type exactly like the harness. Measured:
+with the second importer (`enois.TopicPills`, whose own signatures name the
+type) the class table holds `Sdl3Backend` (package `game`); without it the
+table's entry has package `""`, `allClasses()` shows only the 31 imported
+classes, and the qualified re-lookup finds a symbol `getClass` never sees.
+The skeleton is therefore named as needing the companion import — the app tree
+stays clean at `afeeb94` and the migration depends on nothing from it yet.

@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: em `enois-kof-desktop` — a rota `comunidades` agora tem pagina (sequencia de chamadas, `fim=487`), textos montados pela fabrica e catalogo; o ESQUELETO DE CARGA foi escrito com o cartao medido (128 + 216 = 344, grade de seis = 704) e esta BLOQUEADO pelo §1207 NOMEADO (o arquivo so e recusado pelo caminho de instalacao do harness — replicacao guardada no Kof4j `testdata/enois-skeleton-repro/`), entao fica fora de `libs/` ate a face ser entendida; proximas fatias: o esqueleto de volta, os valores do cartao da API, e o Kof4j §1207/§1206
+next: em `enois-kof-desktop` — a rota `comunidades` tem pagina (sequencia de chamadas, 487), textos montados pela fabrica e catalogo; o ESQUELETO DE CARGA (cartao 344, grade de seis 704) fica fora de `libs/` ate a face NOMEADA §1207 do Kof4j (reproduzida fora do harness: um arquivo com parametros `Sdl3Backend` so compila quando outro arquivo o importa — a tabela de classes fica sem os pacotes importados); proximo: a comparacao da tabela de classes depois do `preDeclareType` no Kof4j, depois o esqueleto de volta, os valores do cartao da API
 location: repository
 state: active
 
@@ -937,3 +937,15 @@ guardada no Kof4j (`testdata/enois-skeleton-repro/`); a mesma forma pequena
 compila num modulo sintetico (`LibraryTypeInSiblingParameterE2ETest` 2/2 do lado
 do Kof4j). O esqueleto, portanto, FICA FORA de `libs/` (a arvore do app limpa em
 `afeeb94`) ate a face ser entendida: nada entra pela metade.
+
+## §12 Rodada 23/11 (setima) — o §1207 reproduzido FORA do harness
+
+A face nao e do harness: um modulo feito a mao (`enois/Esk.kf` — o esqueleto
+guardado com parametros `Sdl3Backend` — mais o `TopicPills.kf` instalado, entrada
+`import enois.Esk`) recusa o tipo exatamente como o harness. Medido: com o
+segundo importador (`enois.TopicPills`, cujas assinaturas nomeiam o tipo) a
+tabela de classes guarda `Sdl3Backend` (pacote `game`); sem ele, a entrada da
+tabela tem pacote `""`, `allClasses()` mostra so as 31 classes importadas e a
+re-busca qualificada acha um simbolo que `getClass` nunca ve. O esqueleto fica
+nomeado como precisando do import companheiro — a arvore do app segue limpa em
+`afeeb94` e a migracao ainda nao depende dele.
