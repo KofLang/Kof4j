@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: em `enois-kof-desktop` — os paineis de mentoria (`mySessions`, o formulario de cadastro) e `vagas.$jobId`; o Kof4j mantem o `libs/game` + o compilador e registra os bugs do Kof (§1196, §1197); o §1196 e o §1197 seguem ABERTOS
+next: em `enois-kof-desktop` — o formulario de cadastro de mentor e a lista de candidaturas (`vagas.$jobId.candidaturas`); o Kof4j mantem o `libs/game` + o compilador e registra os bugs do Kof (§1196, §1197); o §1196 e o §1197 seguem ABERTOS
 location: repository
 state: active
 
@@ -500,6 +500,18 @@ título e duas de sinopse. A sinopse mantém o fallback do site
 PENDENCIA NOMEADA — nenhuma assercao de pixel aqui: o `known-bugs §1197` ainda nao
 fecha a leitura de um `fillRect`, entao a pagina entra com texto e geometria
 provados e as cores rastreadas nos tokens.
+
+**Fase 3 — `vagas.$jobId` (POUSADA 23/11, em `enois-kof-desktop` `bd5af2b`).** O detalhe da
+vaga: container `max-w-2xl space-y-4` (672/16), cartao `surface-card sm:p-6` (24),
+cabecalho com icone de 48 e `pb-4` (-> 64), bloco do autor `p-3` + avatar de 40 (-> 64),
+linha de pilulas `mt-4` + pilula de 24 (-> 40), selo do dono, e secoes com titulo
+`text-base` e corpo `leading-relaxed` (-> 80 para duas linhas). Textos de `texts.jobs`;
+os rotulos de NIVEL e TIPO vem de `constants/job-options.ts` e **codigos desconhecidos
+passam como vieram** (e o que deixa vaga externa renderizar). Prova `EnoisJobDetailE2ETest`:
+todas as strings, `lvl=Júnior/Pleno/Sênior/Liderança`, `lvlUnknown=EXTERNAL`,
+`type=CLT/Estágio/Tempo integral/Meio período/Contrato`, `typeUnknown=OUTRO`,
+`company=Acme · Remoto`, `page=672`, `head_h=64`, `author_h=64`, `pills_h=40`,
+`sec_h=80`. Bateria no repo do app **36/37** (a falha e o teste de tinta do §1197).
 
 **DIVISAO DE REPO — a migracao mora em `Rede-ENois/enois-kof-desktop` (mantenedora, 23/11).**
 "no Kof4j vc faz as correcoes do kof. migrar o enois pro desktop e' no repo

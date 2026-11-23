@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: in `enois-kof-desktop` — the mentoring panels (`mySessions`, the register form) and `vagas.$jobId`; Kof4j keeps `libs/game` + the compiler and records the Kof-side bugs (§1196, §1197); §1196 and §1197 stay OPEN
+next: in `enois-kof-desktop` — the mentor register form and the applications list (`vagas.$jobId.candidaturas`); Kof4j keeps `libs/game` + the compiler and records the Kof-side bugs (§1196, §1197); §1196 and §1197 stay OPEN
 location: repository
 state: active
 
@@ -514,6 +514,19 @@ own `EmptyState` strings. Proof `EnosisProjectAuthorE2ETest`:
 NAMED PENDING — no pixel assertion here: `known-bugs §1197` still does not close
 the readback of a `fillRect`, so this page ships with text and geometry proven and
 its colours traced to the tokens.
+
+**Fase 3 — `vagas.$jobId` (LANDED 23/11, in `enois-kof-desktop` `bd5af2b`).** The job detail:
+container `max-w-2xl space-y-4` (672/16), card `surface-card sm:p-6` (24), header with the
+48 px icon and `pb-4` (→ 64), author block `p-3` + 40 px avatar (→ 64), pills row
+`mt-4` + a 24 px pill (→ 40), owner badge `mt-4` + `p-3` box, and sections titled
+`text-base` with `leading-relaxed` bodies (→ 80 for a two-line body). Texts from
+`texts.jobs`; the LEVEL and TYPE labels come from `constants/job-options.ts` and
+**unknown codes pass through unchanged** (that is what makes external jobs render).
+Proof `EnoisJobDetailE2ETest`: every string, `lvl=Júnior/Pleno/Sênior/Liderança`,
+`lvlUnknown=EXTERNAL`, `type=CLT/Estágio/Tempo integral/Meio período/Contrato`,
+`typeUnknown=OUTRO`, `company=Acme · Remoto`, `page=672`, `head_h=64`, `author_h=64`,
+`pills_h=40`, `sec_h=80`. Battery in the app repo **36/37** (the one failure is the
+§1197 text-ink test).
 
 **REPO SPLIT — the migration lives in `Rede-ENois/enois-kof-desktop` (maintainer, 23/11).**
 "Kof4j you fix Kof; Énois desktop is in enois-kof-desktop." What moved: every
