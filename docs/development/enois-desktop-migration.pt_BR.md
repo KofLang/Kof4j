@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: em `enois-kof-desktop` — a lista de candidaturas (`vagas.$jobId.candidaturas`) e o editor de disponibilidade semanal; o Kof4j mantem o `libs/game` + o compilador e registra os bugs do Kof (§1196, §1197); o §1196 e o §1197 seguem ABERTOS
+next: em `enois-kof-desktop` — o editor de disponibilidade semanal e o quadro de recrutamento (kanban/timeline); o Kof4j mantem o `libs/game` + o compilador e registra os bugs do Kof (§1196, §1197); o §1196 e o §1197 seguem ABERTOS
 location: repository
 state: active
 
@@ -500,6 +500,17 @@ título e duas de sinopse. A sinopse mantém o fallback do site
 PENDENCIA NOMEADA — nenhuma assercao de pixel aqui: o `known-bugs §1197` ainda nao
 fecha a leitura de um `fillRect`, entao a pagina entra com texto e geometria
 provados e as cores rastreadas nos tokens.
+
+**Fase 3 — `vagas.$jobId.candidaturas` (POUSADA 23/11, `enois-kof-desktop` `f63a2fd`).**
+A pagina de candidaturas: textos do `PageHeader` (`titleFor`, `snapshotHint`), as duas
+abas, os estados vazio/erro/retry, os rotulos da ficha do candidato, a reputacao e as
+duas formas de `experience`, os quatro rotulos de estado, e a TRIAGEM — `actionCount`
+e `actionLabel` reproduzem o `actionsFor` de `src/lib/job-application-status.ts`, cujas
+transicoes sao as mesmas que o backend valida (`canMoveTo`), inclusive NOT_SELECTED ser
+terminal (0 acoes). Geometria: cabecalho 104 (`p-6` x2 + titulo 32 + `mt-1` 4 +
+descricao 20), linha de tabela 36. Prova `EnoisApplicationsE2ETest`: todas as strings,
+`acts=2/2/1/0` e os cinco rotulos de transicao. Bateria do app **39/40** (a falha e o
+teste de tinta do §1197).
 
 **Fase 3 — formulario Tornar-se mentor (POUSADA 23/11, `enois-kof-desktop` `ad244ae`).**
 `MentorRegister.kf`: todo texto dos campos de `texts.mentoring`/`texts.common`, os tres

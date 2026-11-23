@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: in `enois-kof-desktop` — the applications list (`vagas.$jobId.candidaturas`) and the weekly availability editor; Kof4j keeps `libs/game` + the compiler and records the Kof-side bugs (§1196, §1197); §1196 and §1197 stay OPEN
+next: in `enois-kof-desktop` — the weekly availability editor and the recruitment board's kanban/timeline; Kof4j keeps `libs/game` + the compiler and records the Kof-side bugs (§1196, §1197); §1196 and §1197 stay OPEN
 location: repository
 state: active
 
@@ -514,6 +514,17 @@ own `EmptyState` strings. Proof `EnosisProjectAuthorE2ETest`:
 NAMED PENDING — no pixel assertion here: `known-bugs §1197` still does not close
 the readback of a `fillRect`, so this page ships with text and geometry proven and
 its colours traced to the tokens.
+
+**Fase 3 — `vagas.$jobId.candidaturas` (LANDED 23/11, `enois-kof-desktop` `f63a2fd`).**
+The applications page: `PageHeader` texts (`titleFor`, `snapshotHint`), both tabs, the
+empty/error/retry states, the candidate card labels, the reputation and the two
+`experience` forms, the four status labels, and the TRIAGEM — `actionCount` and
+`actionLabel` reproduce `actionsFor` from `src/lib/job-application-status.ts`, whose
+transitions are the same ones the backend validates (`canMoveTo`), including
+NOT_SELECTED being terminal (0 actions). Geometry: header 104 (`p-6` ×2 + title 32 +
+`mt-1` 4 + description 20), table row 36. Proof `EnoisApplicationsE2ETest`: every
+string, `acts=2/2/1/0`, and all five transition labels. App battery **39/40** (the
+failure is the §1197 ink test).
 
 **Fase 3 — mentor register form (LANDED 23/11, `enois-kof-desktop` `ad244ae`).** `MentorRegister.kf`:
 every field text from `texts.mentoring`/`texts.common`, the three room modes with
