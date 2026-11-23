@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — `desafios` or `mentoria`
+next: Fase 3 continues — `mentoria` or `projetos.index`
 location: repository
 state: active
 
@@ -388,6 +388,20 @@ calls: a day label appears only when the group CHANGES, so three items in TWO
 groups give **274** px (216 + 2×29) and three items in ONE group give **245**
 px (216 + 29). A per-item label would give 303 and fail both assertions.
 Battery **26/26**.
+
+**Fase 3 — `desafios` (LANDED 23/11).** `ChallengesScreen` in `libs/enois/Challenges.kf`
+paints the challenge list: the card `space-y-3 rounded-2xl border border-border
+p-4` (radius 16, proven by the corner cut), the title `text-base
+font-semibold` and the body `text-sm`.
+THE CONTRACT IS THE COMPOSER'S LIMITS, and they were MEASURED in
+`desafios-composer.tsx:11-15`: `MAX_TITLE = 120`, `MAX_DESCRIPTION = 3000`,
+`MAX_DAYS = 31`, plus the `contentTooLongError` text's **2000**. The site's
+REFUSALS interpolate those numbers, so the test compares the COMPLETE message
+("O título aceita no máximo 120 caracteres." / "O prazo precisa ser uma data
+futura (até 31 dias).") — changing a limit breaks the message. The WEIGHT is
+contract too: the subtitle says "Autoria nominal, sem ranking e sem prêmio",
+and `hasRanking()` returns `false`.
+Battery **27/27**.
 
 ## §4 How to finish
 

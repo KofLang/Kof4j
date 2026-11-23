@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — `desafios` ou `mentoria`
+next: a Fase 3 continua — `mentoria` ou `projetos.index`
 location: repository
 state: active
 
@@ -379,6 +379,19 @@ chamadas: um rotulo de dia aparece so' quando o grupo MUDA, entao tres itens em
 DOIS grupos dao **274** px (216 + 2x29) e tres itens em UM grupo dao **245**
 px (216 + 29). Um rotulo por item daria 303 e falharia as duas assercoes.
 Bateria **26/26**.
+
+**Fase 3 — `desafios` (POUSADA 23/11).** O `ChallengesScreen` no `libs/enois/Challenges.kf`
+pinta a lista de desafios: o card `space-y-3 rounded-2xl border border-border
+p-4` (raio 16, provado pelo corte do canto), o titulo `text-base font-semibold`
+e o corpo `text-sm`.
+O CONTRATO SAO OS LIMITES DO COMPOSITOR, e eles foram MEDIDOS no
+`desafios-composer.tsx:11-15`: `MAX_TITLE = 120`, `MAX_DESCRIPTION = 3000`,
+`MAX_DAYS = 31`, mais os **2000** do texto `contentTooLongError`. As RECUSAS do
+site interpelam esses numeros, entao o teste compara a mensagem COMPLETA ("O
+título aceita no máximo 120 caracteres." / "O prazo precisa ser uma data futura
+(até 31 dias).") — mudar um limite quebra a mensagem. O PESO tambem e'
+contrato: o subtitulo diz "Autoria nominal, sem ranking e sem prêmio", e o
+`hasRanking()` devolve `false`. Bateria **27/27**.
 
 ## §4 Como concluir
 

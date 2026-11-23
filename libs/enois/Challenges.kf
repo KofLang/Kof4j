@@ -1,0 +1,112 @@
+package enois
+
+import enois.Text
+import enois.Tokens
+import game.Sdl3Backend
+
+// Énois — a rota `desafios` (`src/routes/desafios.tsx`), os desafios.
+//
+// Os TEXTOS vem do codigo (`src/texts.ts`, bloco `desafios`), sem invencao:
+//   * o titulo      `title` = "Desafios"
+//   * o subtitulo   `subtitle` = "Convites da comunidade: alguem convoca, a
+//                   galera responde no mural e quem convocou encerra
+//                   reconhecendo uma participacao. Autoria nominal, sem
+//                   ranking e sem premio."
+//   * as recusas    `titleTooLongError` = "O titulo aceita no maximo 120
+//                   caracteres.", `descriptionTooLongError` = 3000,
+//                   `contentTooLongError` = 2000, `deadlineInvalidError` = "O
+//                   prazo precisa ser uma data futura (ate 31 dias)."
+//
+// As MEDIDAS vem do `desafios-card.tsx` do design system, MEDIDAS:
+//   * o card    `space-y-3 rounded-2xl border border-border p-4` = 16 px, raio 16
+//   * o titulo  `text-base font-semibold text-text-strong` = 16 px
+//   * o corpo   `mt-1 line-clamp-4 whitespace-pre-wrap text-sm` = 14 px
+//   * o compositor `space-y-3 rounded-2xl border border-border p-4`
+//     com o hint `mt-1 text-xs text-text-subtle` = 12 px
+//
+// Os LIMITES do compositor sao CONTRATO (desafios-composer.tsx:11-15):
+// MAX_TITLE = 120, MAX_DESCRIPTION = 3000, MAX_DAYS = 31.
+
+/** Os limites do compositor, MEDIDOS em `desafios-composer.tsx`. */
+class ChallengeLimits {
+    static Int maxTitle() { return 120 }
+    static Int maxDescription() { return 3000 }
+    static Int maxDays() { return 31 }
+    static Int maxContent() { return 2000 }     // texts: contentTooLongError
+}
+
+/** As medidas do card/mensagem, em px. */
+class ChallengeMetrics {
+    static Int pad() { return 16 }              // p-4
+    static Int radius() { return 16 }           // rounded-2xl
+    static Int cardGap() { return 12 }          // space-y-3
+    static Int titleSize() { return 16 }        // text-base
+    static Int bodySize() { return 14 }         // text-sm
+    static Int hintSize() { return 12 }         // text-xs
+    static Int cardHeight() { return 120 }
+}
+
+class ChallengesScreen {
+
+    /** A recusa do site quando o TITULO passa do limite (`desafios.titleTooLongError`). */
+    static String titleRefusal() {
+        return "O título aceita no máximo " + ChallengeLimits.maxTitle() + " caracteres."
+    }
+
+    /** A recusa do site quando o PRAZO nao e' valido (`deadlineInvalidError`). */
+    static String deadlineRefusal() {
+        return "O prazo precisa ser uma data futura (até " + ChallengeLimits.maxDays() + " dias)."
+    }
+
+    /** O peso do desafio: o site diz "sem ranking e sem premio". */
+    static Bool hasRanking() { return false }
+
+    /** Pinta UM card de desafio (o titulo, o corpo e a contagem de dias).
+     *  Devolve a altura usada. */
+    static Int paintCard(Sdl3Backend b, Font titleFont, Font bodyFont,
+                         Int x, Int y, Int w, String title, String body, Int daysLeft) {
+        val card = Tokens.SurfaceCard()
+        val line = Tokens.Border()
+        val strong = Tokens.TextStrong()
+        val muted = Tokens.MutedForeground()
+        val primary = Tokens.Primary()
+        val pad = ChallengeMetrics.pad()
+        val h = ChallengeMetrics.cardHeight()
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, y, w, h)
+        // a borda `border border-border` e o raio 16 nos quatro cantos
+        SDL_SetRenderDrawColor(b.rendererHandle, line.r(), line.g(), line.b(), 255)
+        b.fillRect(x, y, w, 1)
+        b.fillRect(x, y + h - 1, w, 1)
+        b.fillRect(x, y, 1, h)
+        b.fillRect(x + w - 1, y, 1, h)
+        val bg = Tokens.Background()
+        SDL_SetRenderDrawColor(b.rendererHandle, bg.r(), bg.g(), bg.b(), 255)
+        var c = 0
+        while (c < ChallengeMetrics.radius()) {
+            val cut = ChallengeMetrics.radius() - c
+            b.fillRect(x, y + c, cut, 1)
+            b.fillRect(x + w - cut, y + c, cut, 1)
+            b.fillRect(x, y + h - 1 - c, cut, 1)
+            b.fillRect(x + w - cut, y + h - 1 - c, cut, 1)
+            c = c + 1
+        }
+        // o titulo e o corpo
+        titleFont.drawTextColoured(b, title, x + pad, y + pad + 16,
+                strong.r(), strong.g(), strong.b())
+        bodyFont.drawTextColoured(b, body, x + pad,
+                y + pad + ChallengeMetrics.titleSize() + ChallengeMetrics.cardGap() + 14,
+                muted.r(), muted.g(), muted.b())
+        // a contagem de dias (o prazo, ate 31)
+        bodyFont.drawTextColoured(b, "" + daysLeft + " de " + ChallengeLimits.maxDays() + " dias",
+                x + pad, y + h - pad, primary.r(), primary.g(), primary.b())
+        return h
+    }
+
+    /** Pinta um texto de HINT do compositor (`mt-1 text-xs text-text-subtle`). */
+    static Int paintHint(Sdl3Backend b, Font hintFont, Int x, Int y, Int w, String hint) {
+        val subtle = Tokens.TextSubtle()
+        hintFont.drawTextColoured(b, hint, x, y + 12, subtle.r(), subtle.g(), subtle.b())
+        return 16
+    }
+}
