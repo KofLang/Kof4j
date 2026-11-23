@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — o fix da leitura do §1197 (emissor/runtime), depois `projetos.$username`
+next: a Fase 3 continua — consertar a colocacao dos canais do §1197 em `SDL_SetRenderDrawColor`, re-medir a prova de pixel de cada tela contra a referencia C, depois `projetos.$username`
 location: repository
 state: active
 
