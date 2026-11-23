@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §1199 (OPEN — measured 23/11)
 last: §800 (FIXED)
 last: §791 (FIXED)
 last: §770 (FIXED)
@@ -21440,3 +21441,25 @@ that test's generated `main` against the 22/11 one — the closest evidence is t
 `KOF_KEEP_ASM=1` assembly the harness already keeps.
 
 STATUS: 🟡 OPEN — narrowed to the `main`-shape assembly diff (paints vs does-not). Next: diff the two `main`s' emitted code and finish the (unpublished) reduction to the emitter.
+
+builder `listOf` uses) with a RED-first test in `kof-compiler/src/test/java`, then a
+parity test over the stdlib built from sources.
+
+## §1199 — the array literal `["a", "b"]` does not compile (`PARSE041` on every `,` and on the closing `]`), and the error surfaces inside the Kof4j STDLIB when a program is built the way `kof run` builds it — 📌 MEASURED 23/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Status:** 🟡 OPEN — reproduced in a three-line program; the bytecode is NOT affected, nor is `listOf(...)`.
+
+`val a = ["a", "b", "c", "d"]` gives `Unexpected token in expression: ,` four times and
+`Unexpected token in expression: ]` — the parser never builds an array literal, so the
+whole syntax is rejected (not a type error). `listOf("a", "b")` in a `val`, a return and a
+top-level function compiles and runs.
+
+**Why it bit the Énois app and not its suite:** with the stdlib CACHED (installed
+`kof-libs/game`, the form the app's harness reads) every test passes, because the `.kf`
+that used the literal was compiled once and the artefact is reused; with the same tree
+built the way `kof run`/`kof check` build it (module root = the source folder, stdlib
+sources resolved from the repository `libs/`) the error shows up in `game/Draw.kf` and
+`image/Png.kf` and every `import game.Sdl3Backend` of the app dies with it. The Énois
+slice now uses `listOf(...)` for every table (that is the working shape).
+
+STATUS: 🟡 OPEN. Next: accept the literal in the parser (expression → a call to the same

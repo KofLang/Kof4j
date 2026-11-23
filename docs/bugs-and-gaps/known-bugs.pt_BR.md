@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §1199 (ABERTO — medido 23/11)
 last: §800 (FIXED)
 last: §791 (FIXED)
 last: §770 (FIXED)
@@ -18849,3 +18850,25 @@ ENTAO o defeito NAO e' "a leitura nunca funciona": e' "algumas formas de chamada
 **§1197 — QUINTA PASSADA (23/11): "uma chamada antes do fill" esta EXCLUIDO.** Um teste novo do compilador (`DrawRectAfterCallE2ETest`) pinta um retangulo logo apos o `clearFrame` e outro depois de uma funcao do usuario que faz chamadas (prints); OS DOIS pintam (`after-clear=255,0,0`, `after-call=0,255,0`). Ou seja, nem um extern anterior nem uma chamada Kof anterior perdem o retangulo, e a ideia anterior de "chamada antes do fill" fica RETIRADA antes de publicada. O que continua verdadeiro e reproduzivel: o teste de texto do Énois que conta tinta num laco aninhado por pixel sobre `readPixel` devolve 0 na arvore de hoje e passava em 22/11; a fonte do Sdl3Backend nao mudou desde entao, entao a diferenca esta no que cerca as leituras. Proximo (sem mudanca): comparar o `main` gerado desse teste com o de 22/11 — a evidencia mais proxima e' o assembly do `KOF_KEEP_ASM=1` que o harness ja guarda.
 
 STATUS: 🟡 ABERTO — reduzido ao diff de assembly das duas formas de `main` (pinta x nao pinta). Proximo: diferençar o codigo emitido das duas e fechar a reducao no emissor.
+
+construtor que o `listOf` usa) com teste RED-first em `kof-compiler/src/test/java`, depois
+um teste de paridade sobre a stdlib construida das fontes.
+
+## §1199 — o literal de array `["a", "b"]` nao compila (`PARSE041` em cada `,` e no `]` de fechamento), e o erro aparece dentro da STDLIB do Kof4j quando o programa e' construido do jeito que o `kof run` constroi — 📌 MEDIDO 23/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Status:** 🟡 ABERTO — reproduzido em programa de tres linhas; o bytecode nao e' afetado, nem o `listOf(...)`.
+
+`val a = ["a", "b", "c", "d"]` da `Unexpected token in expression: ,` quatro vezes e
+`Unexpected token in expression: ]` — o parser nunca monta o literal de array, entao a
+sintaxe inteira e' recusada (nao e erro de tipo). `listOf("a", "b")` em `val`, em retorno
+e em funcao de topo compila e roda.
+
+**Por que pegou o app do Énois e nao a suite dele:** com a stdlib em CACHE (o `kof-libs/game`
+instalado, que o harness do app le) todo teste passa, porque o `.kf` que usou o literal foi
+compilado uma vez e o artefato e' reusado; com a mesma arvore construida do jeito que o
+`kof run`/`kof check` constroem (raiz do modulo = a pasta das fontes, stdlib resolvida das
+fontes do repositorio em `libs/`), o erro aparece em `game/Draw.kf` e `image/Png.kf` e todo
+`import game.Sdl3Backend` do app morre com ele. A fatia do Énois agora usa `listOf(...)` em
+toda tabela (essa e' a forma que funciona).
+
+STATUS: 🟡 ABERTO. Proximo: aceitar o literal no parser (expressao → chamada ao mesmo
