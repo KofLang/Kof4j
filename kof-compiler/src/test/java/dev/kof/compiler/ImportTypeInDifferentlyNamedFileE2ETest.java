@@ -11,104 +11,94 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * RED-first (23/11, §1200, app do Énois): num pacote, o tipo pode morar num
- * arquivo com OUTRO nome (`enois/Communities.kf` declara `CommunitiesScreen`)
- * e cada arquivo pode declarar VÁRIOS tipos (os widgets que ele usa). O
- * import pelo tipo (`import enois.CommunitiesScreen`) tem que achá-lo.
- *
- * <p>Medido no CLI das fontes (o app): `import enois.X` só resolve com
- * `X.kf` — multi-tipo e nome-diferente dão PKG006, e um `<Tipo>.kf` que
- * declara outra coisa "vende" o import e o erro sai como SEM011.
+ * RED-first (23/11, §1200, app do Énois): num pacote, o tipo pode morar num arquivo
+ * com OUTRO nome (`enois/Communities.kf` declara `CommunitiesScreen`). O import
+ * pelo tipo (`import enois.CommunitiesScreen`) tem que achá-lo — medido no app
+ * que não acha quando o arquivo tem um vizinho (o pacote do Énois), embora ache
+ * quando o arquivo está sozinho.
  */
 class ImportTypeInDifferentlyNamedFileE2ETest {
 
-    /** Um arquivo com VÁRIOS tipos: cada um é importável pelo nome do tipo. */
+    private static void write(Path dir, String file, String body) throws Exception {
+        Path p = dir.resolve(file);
+        Files.createDirectories(p.getParent());
+        Files.writeString(p, body, StandardCharsets.UTF_8);
+    }
+
+    private static CompilationResult compile(Path dir) throws Exception {
+        return new CompilerDriver().compileForTests(dir.resolve("Main.kf"), dir.resolve("out"),
+                Target.NATIVE, dir);
+    }
+
+    /** O caso do app: o tipo num arquivo de outro nome, sozinho no pacote. */
     @Test
-    void everyTypeOfAMultiClassFileIsImportable(@TempDir Path dir) throws Exception {
-        Path pkg = dir.resolve("loja");
-        Files.createDirectories(pkg);
-        Files.writeString(pkg.resolve("Vitrine.kf"), """
+    void aTypeInADifferentlyNamedFileIsImportable(@TempDir Path dir) throws Exception {
+        write(dir, "loja/Vitrine.kf", """
                 package loja
 
                 class Catalogo {
                     static String titulo() { return "Vitrine" }
                 }
-
-                class Estoque {
-                    static Int quantidade() { return 7 }
-                }
-                """, StandardCharsets.UTF_8);
-        Path main = dir.resolve("Main.kf");
-        Files.writeString(main, """
+                """);
+        write(dir, "Main.kf", """
                 import loja.Catalogo
-                import loja.Estoque
 
                 main() {
-                    println("q=" + Estoque.quantidade())
+                    println("c=" + Catalogo.titulo())
                 }
-                """, StandardCharsets.UTF_8);
-        var r = new CompilerDriver().compileForTests(main, dir.resolve("out"), Target.NATIVE, dir);
-        assertTrue(r.success(), "os tipos do arquivo de outro nome resolvem: "
+                """);
+        var r = compile(dir);
+        assertTrue(r.success(), "o tipo do arquivo de outro nome resolve: "
                 + r.diagnostics().getDiagnostics());
     }
 
-    /** Um arquivo de nome igual que NÃO declara o tipo não pode esconder o que declara. */
+    /** O caso do §1200 medido no app: o MESMO tipo, com um vizinho no pacote. */
     @Test
-    void aSameNamedFileWithoutTheTypeDoesNotHideTheRealOne(@TempDir Path dir) throws Exception {
-        Path pkg = dir.resolve("loja");
-        Files.createDirectories(pkg);
-        Files.writeString(pkg.resolve("Vitrine.kf"), """
+    void aNeighbourInThePackageDoesNotHideTheType(@TempDir Path dir) throws Exception {
+        write(dir, "loja/Vitrine.kf", """
                 package loja
 
                 class Catalogo {
                     static String titulo() { return "Vitrine" }
                 }
-
-                class Estoque {
-                    static Int quantidade() { return 3 }
-                }
-                """, StandardCharsets.UTF_8);
-        Files.writeString(pkg.resolve("Estoque.kf"), """
+                """);
+        write(dir, "loja/Helper.kf", """
                 package loja
 
-                class Outra {
-                    static String nada() { return "x" }
+                class Helper {
+                    static Int n() { return 1 }
                 }
-                """, StandardCharsets.UTF_8);
-        Path main = dir.resolve("Main.kf");
-        Files.writeString(main, """
-                import loja.Estoque
+                """);
+        write(dir, "Main.kf", """
+                import loja.Catalogo
 
                 main() {
-                    println("q=" + Estoque.quantidade())
+                    println("c=" + Catalogo.titulo())
                 }
-                """, StandardCharsets.UTF_8);
-        var r = new CompilerDriver().compileForTests(main, dir.resolve("out"), Target.NATIVE, dir);
-        assertTrue(r.success(), "o tipo do arquivo certo é encontrado: "
+                """);
+        var r = compile(dir);
+        assertTrue(r.success(), "um vizinho no pacote não esconde o tipo: "
                 + r.diagnostics().getDiagnostics());
     }
 
     /** Um tipo inexistente continua PKG006 (sem falso verde). */
     @Test
     void aMissingTypeStillFails(@TempDir Path dir) throws Exception {
-        Path pkg = dir.resolve("loja");
-        Files.createDirectories(pkg);
-        Files.writeString(pkg.resolve("Vitrine.kf"), """
+        write(dir, "loja/Vitrine.kf", """
                 package loja
 
                 class Catalogo {
                     static String titulo() { return "Vitrine" }
                 }
-                """, StandardCharsets.UTF_8);
-        Path main = dir.resolve("Main.kf");
-        Files.writeString(main, """
+                """);
+        write(dir, "Main.kf", """
                 import loja.SemNinguem
 
                 main() {
                     println("x")
                 }
-                """, StandardCharsets.UTF_8);
-        var r = new CompilerDriver().compileForTests(main, dir.resolve("out"), Target.NATIVE, dir);
+                """);
+        var r = compile(dir);
         assertFalse(r.success(), "tipo inexistente segue erro");
         assertTrue(r.diagnostics().getDiagnostics().stream()
                         .anyMatch(d -> "PKG006".equals(String.valueOf(d.code()))),

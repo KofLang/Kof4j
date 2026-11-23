@@ -4,7 +4,7 @@
 
 last: §1202 (OPEN — native: a branch-only var is not zeroed; stale value measured 23/11)
 last: §1201 (OPEN — native out-of-memory on a short println chain; measured 23/11)
-last: §1200 (OPEN — resolver; RED in the tree)
+last: §1200 (FIXED 23/11 — declaring-file scan; 3/3 + 43/43)
 last: §1199 (OPEN — narrowed 23/11; parser side withdrawn, resolution is the defect)
 last: §800 (FIXED)
 last: §791 (FIXED)
@@ -21448,9 +21448,9 @@ STATUS: 🟡 OPEN — narrowed to the `main`-shape assembly diff (paints vs does
 builder `listOf` uses) with a RED-first test in `kof-compiler/src/test/java`, then a
 parity test over the stdlib built from sources.
 
-## §1200 — `import pkg.Tipo` only resolves when the file is named `Tipo` — a type declared in a differently-named file, or one of several types in one file, is invisible (PKG006), and a same-named file that declares something else "sells" the import (SEM011) — 📌 MEASURED 23/11 (lane wasm/caps `192.168.15.15:0`)
+## §1200 — `import pkg.Tipo` only resolved when the file was named `Tipo` — ✅ FIXED 23/11 (lane wasm/caps `192.168.15.15:0`): `firstKofExtFile` now also looks for the DECLARING file of a type in another file of the package; PROOF `ImportTypeInDifferentlyNamedFileE2ETest` 3/3 (type in another file alone, with a NEIGHBOUR, and the honest PKG006 for a missing type), imports/module family 43/43, Énois suites 12/12. WAS: — a type declared in a differently-named file, or one of several types in one file, is invisible (PKG006), and a same-named file that declares something else "sells" the import (SEM011) — 📌 MEASURED 23/11 (lane wasm/caps `192.168.15.15:0`)
 
-**Status:** 🟡 OPEN — reproduced on the lab CLI built from sources; the RED test is in the tree.
+**Status:** ✅ FIXED 23/11 — the scan `filesDeclaringType(dir, type)` (top-level `class|record|interface|enum <Tipo>` in `<pkg>/*.kf`) returns the declaring FILE when no `<Tipo>.kf` exists; the import then opens that file whole. HISTORICAL (RED, 23/11):
 
 `firstKofExtFile` (`CompilerImports`) searches `<pkg>/<Tipo>.kf`, `.ptkf`, `.kof` and nothing
 else. Measured with `kof check` of the lab CLI: `enois/Vitrine.kf` declaring `Catalogo` and

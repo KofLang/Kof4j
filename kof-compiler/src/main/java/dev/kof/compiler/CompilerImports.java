@@ -376,6 +376,28 @@ public final class CompilerImports {
             Path cand = dir.resolve(base + ext);
             if (Files.isRegularFile(cand)) return cand;
         }
+        // §1200 (23/11, app do Énois): o tipo pode morar num arquivo de OUTRO
+        // nome do pacote (`enois/Communities.kf` declara `CommunitiesScreen`).
+        // O import abre esse arquivo — os irmãos que ele declara também resolvem.
+        // Sem declarante em canto nenhum: null (PKG006 continua honesto).
+        return filesDeclaringType(dir, base);
+    }
+
+    /** O arquivo (topo de `dir`) que declara `type` como classe/record/interface/
+     *  enum; null quando nenhum. Lê o cabeçalho de cada `.kf` do pacote. */
+    static Path filesDeclaringType(Path dir, String type) {
+        if (!Files.isDirectory(dir)) { return null; }
+        String quote = java.util.regex.Pattern.quote(type);
+        var pattern = java.util.regex.Pattern.compile(
+                "(?m)^\\s*(?:public\\s+)?(?:class|record|interface|enum)\\s+" + quote + "\\b");
+        try (var stream = Files.list(dir)) {
+            for (Path f : stream.sorted().toList()) {
+                if (!isKofExtSource(f.getFileName().toString()) || !Files.isRegularFile(f)) { continue; }
+                if (pattern.matcher(Files.readString(f)).find()) { return f; }
+            }
+        } catch (IOException e) {
+            return null;
+        }
         return null;
     }
 }

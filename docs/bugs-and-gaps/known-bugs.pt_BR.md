@@ -4,7 +4,7 @@
 
 last: §1202 (ABERTO — nativo: var so de um ramo nao e zerada; valor velho medido 23/11)
 last: §1201 (ABERTO — out-of-memory no nativo numa cadeia curta de println; medido 23/11)
-last: §1200 (ABERTO — resolvedor; RED na arvore)
+last: §1200 (CORRIGIDO 23/11 — varredura do declarante; 3/3 + 43/43)
 last: §1199 (ABERTO — estreitado 23/11; lado do parser retirado, o defeito e resolucao)
 last: §800 (FIXED)
 last: §791 (FIXED)
@@ -18857,9 +18857,9 @@ STATUS: 🟡 ABERTO — reduzido ao diff de assembly das duas formas de `main` (
 construtor que o `listOf` usa) com teste RED-first em `kof-compiler/src/test/java`, depois
 um teste de paridade sobre a stdlib construida das fontes.
 
-## §1200 — `import pkg.Tipo` so resolve quando o arquivo se chama `Tipo` — um tipo num arquivo de outro nome, ou um dos varios tipos de um arquivo, e' invisivel (PKG006), e um arquivo de nome igual que declara outra coisa "vende" o import (SEM011) — 📌 MEDIDO 23/11 (lane wasm/caps `192.168.15.15:0`)
+## §1200 — `import pkg.Tipo` so resolvia quando o arquivo se chamava `Tipo` — ✅ CORRIGIDO 23/11 (lane wasm/caps `192.168.15.15:0`): o `firstKofExtFile` agora acha tambem o ARQUIVO DECLARANTE do tipo noutro arquivo do pacote; PROVA `ImportTypeInDifferentlyNamedFileE2ETest` 3/3 (tipo noutro arquivo sozinho, com VIZINHO, e o PKG006 honesto do tipo ausente), familia imports/modulo 43/43, suites Énois 12/12. ERA: — um tipo num arquivo de outro nome, ou um dos varios tipos de um arquivo, e' invisivel (PKG006), e um arquivo de nome igual que declara outra coisa "vende" o import (SEM011) — 📌 MEDIDO 23/11 (lane wasm/caps `192.168.15.15:0`)
 
-**Status:** 🟡 ABERTO — reproduzido no CLI do lab construido das fontes; o teste RED esta na arvore.
+**Status:** ✅ CORRIGIDO 23/11 — a varredura `filesDeclaringType(dir, type)` (no topo de `<pkg>/*.kf`, `class|record|interface|enum <Tipo>`) devolve o ARQUIVO declarante quando nao ha `<Tipo>.kf`; o import abre esse arquivo inteiro. HISTORICO (RED, 23/11):
 
 `firstKofExtFile` (`CompilerImports`) procura `<pkg>/<Tipo>.kf`, `.ptkf`, `.kof` e nada mais.
 Medido com `kof check` do CLI do lab: `enois/Vitrine.kf` declarando `Catalogo` e `Estoque` →
