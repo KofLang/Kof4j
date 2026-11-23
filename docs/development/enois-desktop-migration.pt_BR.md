@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — `blogs` (a rota de publicacao) ou os CARDS de resultado de vagas (a listagem abaixo dos filtros)
+next: a Fase 3 continua — `blogs` (a rota de publicacao) ou `vagas.$jobId` (o detalhe da vaga)
 location: repository
 state: active
 
@@ -226,6 +226,18 @@ os rotulos das pilulas usam os valores REAIS de `texts.jobs.filters`
 onde nao ha pilula). Bateria **15/15** — o primeiro tick desde a rodada do
 avatar SEM erro de amostragem, porque cada ponto foi CALCULADO do layout antes
 da assercao ser escrita.
+
+**Fase 3 — o CARD de vaga (POUSADO 22/11).** O `JobCard` no `libs/enois/Jobs.kf` pinta um
+card de resultado com os numeros medidos no `visibleJobs.map` do `vagas.tsx`:
+`surface-card flex flex-col p-5`, o avatar `h-12 w-12 rounded-xl` = **48 px
+com raio 12** — um QUADRADO ARREDONDADO, nao um circulo (o avatar de USUARIO e'
+o circulo; o da VAGA e' `rounded-xl`, e o codigo diz isso), o titulo
+`font-semibold`, a empresa em `text-sm text-muted-foreground`, e as pilulas em
+`px-2.5 py-1 text-xs` com a do match em `--primary-soft`. Provado nativamente:
+`card_h=122` (20+48+12+22+20), `avatar=238,232,255`,
+**`canto=255,255,255`** (o corte do raio 12 mostrando o card pelo canto),
+`pilula=238,232,255`. Bateria **16/16** — o segundo tick seguido com cada
+coordenada de amostra CALCULADA do layout antes da assercao ser escrita.
 
 ## §4 Como concluir
 

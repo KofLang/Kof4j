@@ -90,3 +90,84 @@ class JobsScreen {
         return h
     }
 }
+
+/** As medidas do CARD de vaga (`vagas.tsx`, o `visibleJobs.map`), MEDIDAS:
+ *  `surface-card flex flex-col p-5`, avatar `h-12 w-12 rounded-xl` = 48 px
+ *  com raio 12 (NAO e' circulo — e' um quadrado arredondado), titulo
+ *  `font-semibold`, empresa `text-sm text-muted-foreground`, e as pilulas
+ *  `px-2.5 py-1 text-xs`. */
+class JobCardMetrics {
+    static Int pad() { return 20 }            // p-5
+    static Int avatar() { return 48 }         // h-12 w-12
+    static Int avatarRadius() { return 12 }   // rounded-xl
+    static Int avatarGap() { return 12 }      // gap-3
+    static Int titleSize() { return 16 }
+    static Int companySize() { return 14 }    // text-sm
+    static Int chipHeight() { return 22 }     // px-2.5 py-1 text-xs
+    static Int chipGap() { return 8 }         // gap-2
+}
+
+class JobCard {
+
+    /** A altura do card para uma linha de meta (`chips`). */
+    static Int heightFor() {
+        return JobCardMetrics.pad() * 2 + JobCardMetrics.avatar()
+                + 12 + JobCardMetrics.chipHeight()
+    }
+
+    /** Pinta um card de vaga: avatar quadrado-arredondado, titulo, empresa e a
+     *  fileira de pilulas (match / local / salario). Devolve a altura. */
+    static Int paint(Sdl3Backend b, Font titleFont, Font bodyFont, Font chipFont,
+                     Int x, Int y, Int w, String title, String company, List<String> chips) {
+        val card = Tokens.SurfaceCard()
+        val line = Tokens.BorderSoft()
+        val strong = Tokens.TextStrong()
+        val muted = Tokens.MutedForeground()
+        val soft = Tokens.PrimarySoft()
+        val primary = Tokens.Primary()
+        val pad = JobCardMetrics.pad()
+        val h = heightFor()
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, y, w, h)
+        // a borda do card
+        SDL_SetRenderDrawColor(b.rendererHandle, line.r(), line.g(), line.b(), 255)
+        b.fillRect(x, y, w, 1)
+        b.fillRect(x, y + h - 1, w, 1)
+        // o avatar: `h-12 w-12 rounded-xl` = um quadrado arredondado, nao um circulo
+        SDL_SetRenderDrawColor(b.rendererHandle, soft.r(), soft.g(), soft.b(), 255)
+        b.fillRect(x + pad, y + pad, JobCardMetrics.avatar(), JobCardMetrics.avatar())
+        // (os cantos arredondados do raio 12: o fundo do card por cima dos 4 cantos)
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        var cy = 0
+        while (cy < JobCardMetrics.avatarRadius()) {
+            val cut = JobCardMetrics.avatarRadius() - cy
+            b.fillRect(x + pad, y + pad + cy, cut, 1)
+            b.fillRect(x + pad + JobCardMetrics.avatar() - cut, y + pad + cy, cut, 1)
+            b.fillRect(x + pad, y + pad + JobCardMetrics.avatar() - 1 - cy, cut, 1)
+            b.fillRect(x + pad + JobCardMetrics.avatar() - cut, y + pad + JobCardMetrics.avatar() - 1 - cy, cut, 1)
+            cy = cy + 1
+        }
+        // o titulo e a empresa
+        val tx = x + pad + JobCardMetrics.avatar() + JobCardMetrics.avatarGap()
+        titleFont.drawTextColoured(b, title, tx, y + pad + 16, strong.r(), strong.g(), strong.b())
+        bodyFont.drawTextColoured(b, company, tx, y + pad + 36, muted.r(), muted.g(), muted.b())
+        // as pilulas: match em --primary-soft, as outras em --muted
+        var cx = x + pad
+        val chy = y + pad + JobCardMetrics.avatar() + 12
+        var i = 0
+        while (i < chips.size) {
+            val cw = chipFont.measure(chips[i]) + 20
+            if (i == 0) {
+                SDL_SetRenderDrawColor(b.rendererHandle, soft.r(), soft.g(), soft.b(), 255)
+            } else {
+                SDL_SetRenderDrawColor(b.rendererHandle, muted.r(), muted.g(), muted.b(), 40)
+            }
+            b.fillRect(cx, chy, cw, JobCardMetrics.chipHeight())
+            chipFont.drawTextColoured(b, chips[i], cx + 10, chy + 16,
+                    primary.r(), primary.g(), primary.b())
+            cx = cx + cw + JobCardMetrics.chipGap()
+            i = i + 1
+        }
+        return h
+    }
+}

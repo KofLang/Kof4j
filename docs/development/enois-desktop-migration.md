@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — `blogs` (the publishing route) or the vagas RESULT cards (the listing below the filters)
+next: Fase 3 continues — `blogs` (the publishing route) or `vagas.$jobId` (the job detail)
 location: repository
 state: active
 
@@ -224,6 +224,19 @@ Proven natively: `header_h=146` (24+24+8+14+16+36+24), `filtros_h=52`,
 Battery **15/15** — the first tick since the avatar round with NO sampling
 mistake, because every sample point was computed from the layout before the
 assertion was written.
+
+**Fase 3 — the job CARD (LANDED 22/11).** `JobCard` in `libs/enois/Jobs.kf` paints a
+result card with the numbers measured in the `visibleJobs.map` of `vagas.tsx`:
+`surface-card flex flex-col p-5`, the avatar `h-12 w-12 rounded-xl` = **48 px
+with radius 12** — a ROUNDED SQUARE, not a circle (the USER avatar is the
+circle; the job avatar is `rounded-xl`, and the code says so) — the title
+`font-semibold`, the company at `text-sm text-muted-foreground`, and the chips
+at `px-2.5 py-1 text-xs` with the match chip on `--primary-soft`.
+Proven natively: `card_h=122` (20+48+12+22+20), `avatar=238,232,255`,
+**`canto=255,255,255`** (the radius-12 cut showing the card through the corner),
+`pilula=238,232,255`.
+Battery **16/16** — the second tick in a row with every sample coordinate
+computed from the layout before the assertion was written.
 
 ## §4 How to finish
 
