@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — `comunidades.*` (a rota da comunidade, sobre o card + feed + abas)
+next: a Fase 3 continua — `mensagens` (a lista de conversas) ou o FEED da comunidade abaixo do cabecalho; a mascara de circulo do avatar e' o primeiro gap nomeado que vale fechar
 location: repository
 state: active
 
@@ -141,6 +141,17 @@ branco (§1194). O `Font.drawTextColoured` agora leva a cor, e toda chamada do
 afirmando um pixel real de PNG contra o oraculo do ImageMagick.
 GAP NOMEADO restante: JPEG segue interop-first (`imageio` so' no JVM) — o
 decodificador em Kof puro cobre PNG/PNM/BMP/QOI/GIF/WebP.
+
+**Fase 3 — `comunidades.$communityId` (POUSADA 22/11).** O `libs/enois/Community.kf` e'
+a primeira tela com IMAGEM de verdade: a capa e' `h-48` = **192 px**
+(`comunidades.$communityId.tsx:418`) pintada pelo `loadImageTexture`, o avatar
+`h-16 w-16` = **64 px** com o seu `ring-4` (linha 430), o titulo
+`text-2xl font-semibold` = **24 px** (linha 439). Sem capa, o card cai no
+gradiente `--primary-soft` do proprio site. Provado nativamente:
+`header_h=338`, `capa=112,…` (um pixel da IMAGEM, nao cor solida — uma sonda
+vertical mostra o gradiente correndo de 10 a 223 ao longo da capa), e
+`sem_capa=238,232,255` = `--primary-soft #eee8ff` para o fallback.
+Bateria **9/9**.
 
 ## §4 Como concluir
 

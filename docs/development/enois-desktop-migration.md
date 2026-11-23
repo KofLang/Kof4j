@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — `comunidades.*` (the community route, on top of the card + feed + tabs)
+next: Fase 3 continues — `mensagens` (the conversation list) or the community FEED below its header; the avatar circle mask is the first named gap worth closing
 location: repository
 state: active
 
@@ -139,6 +139,17 @@ every Énois call passes its own TOKEN. Battery **8/8**, with an image test
 asserting a real PNG pixel against the ImageMagick oracle.
 NAMED GAP remaining: JPEG stays interop-first (`imageio` on the JVM only) —
 the pure-Kof decoder covers PNG/PNM/BMP/QOI/GIF/WebP.
+
+**Fase 3 — `comunidades.$communityId` (LANDED 22/11).** `libs/enois/Community.kf` is
+the first screen with a REAL image: the cover is `h-48` = **192 px**
+(`comunidades.$communityId.tsx:418`) painted from `loadImageTexture`, the
+avatar `h-16 w-16` = **64 px** with its `ring-4` (line 430), the title
+`text-2xl font-semibold` = **24 px** (line 439). With no cover the card falls
+back to the site's own `--primary-soft` gradient tint. Proven natively:
+`header_h=338`, `capa=112,…` (a pixel of the IMAGE, not a solid colour — a
+vertical probe shows the gradient running 10 → 223 down the cover), and
+`sem_capa=238,232,255` = `--primary-soft #eee8ff` for the fallback.
+Battery **9/9**.
 
 ## §4 How to finish
 

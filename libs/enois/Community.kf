@@ -1,0 +1,83 @@
+package enois
+
+import enois.Text
+import enois.Tokens
+import game.Sdl3Backend
+
+// Énois — a rota `comunidades.$communityId` (`src/routes/
+// comunidades.$communityId.tsx`), a primeira tela com IMAGEM de verdade.
+//
+// As medidas vem do fonte, MEDIDAS:
+//   * a capa         `h-48` = 192 px, `object-cover`
+//                    (comunidades.$communityId.tsx:418)
+//   * o avatar       `h-16 w-16` = 64 px, `ring-4 ring-card`
+//                    (linha 430)
+//   * o titulo       `mt-2 break-words text-2xl font-semibold tracking-tight`
+//                    = 24 px / peso 600 (linha 439)
+//   * o titulo do feed `text-lg font-semibold` = 18 px (linha 877)
+//   * o link de voltar `text-sm text-muted-foreground` (o 1o className)
+//   * o texto        `texts.communities.detail.feed` = "Feed" (texts.ts:2331)
+//
+// O card da comunidade e' `surface-card overflow-hidden`; a capa e' uma
+// IMAGEM (Sdl3Backend.loadImageTexture, Kof puro) quando ela carrega, e o
+// gradiente `from-primary/20 to-primary/5` quando nao ha capa.
+
+/** As medidas da comunidade, em px. */
+class CommunityMetrics {
+    static Int coverHeight() { return 192 }   // h-48
+    static Int avatarSize() { return 64 }     // h-16 w-16
+    static Int avatarRing() { return 4 }      // ring-4
+    static Int titleSize() { return 24 }      // text-2xl
+    static Int feedTitleSize() { return 18 }  // text-lg
+    static Int backSize() { return 14 }       // text-sm
+    static Int pad() { return 16 }
+}
+
+class CommunityHeader {
+
+    /** Pinta o cabecalho da comunidade a partir de (x, y) com a largura `w`.
+     *  `coverPath` vazio/ilegivel cai no gradiente do site. Devolve a altura.
+     */
+    static Int paint(Sdl3Backend b, Font backFont, Font titleFont,
+                     Int x, Int y, Int w, String backLabel, String name, String coverPath) {
+        val card = Tokens.SurfaceCard()
+        val soft = Tokens.PrimarySoft()
+        val strong = Tokens.TextStrong()
+        val muted = Tokens.MutedForeground()
+        val coverH = CommunityMetrics.coverHeight()
+        val avatar = CommunityMetrics.avatarSize()
+        val pad = CommunityMetrics.pad()
+        val bodyH = pad + avatar + CommunityMetrics.titleSize() + pad
+        val h = coverH + bodyH
+
+        // o link de voltar acima
+        backFont.drawTextColoured(b, backLabel, x, y + 14, muted.r(), muted.g(), muted.b())
+        val cy = y + CommunityMetrics.backSize() + 12
+
+        // o card
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, cy, w, h)
+
+        // a capa: a IMAGEM real quando carrega; senao o --primary-soft
+        val cover = b.loadImageTexture(coverPath)
+        if (cover != 0L) {
+            b.drawTexture(cover, x, cy, w, coverH)
+        } else {
+            SDL_SetRenderDrawColor(b.rendererHandle, soft.r(), soft.g(), soft.b(), 255)
+            b.fillRect(x, cy, w, coverH)
+        }
+
+        // o avatar: um circulo aproximado (a mascara exata e' gap nomeado),
+        // com o anel de 4 px do `ring-4 ring-card`
+        val ax = x + pad
+        val ay = cy + coverH - avatar / 2
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(ax - CommunityMetrics.avatarRing(), ay - CommunityMetrics.avatarRing(),
+                avatar + CommunityMetrics.avatarRing() * 2, avatar + CommunityMetrics.avatarRing() * 2)
+
+        // o titulo: 24 px semibold em --text-strong
+        titleFont.drawTextColoured(b, name, ax + avatar + 12,
+                cy + coverH + pad + 18, strong.r(), strong.g(), strong.b())
+        return CommunityMetrics.backSize() + 12 + h
+    }
+}
