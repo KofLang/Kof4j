@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: em `enois-kof-desktop` — o quadro de recrutamento (kanban/timeline) e a composicao da shell (navegacao entre rotas); depois os catalogos restantes; o Kof4j mantem o `libs/game` + o compilador e registra os bugs do Kof (§1196, §1197); o §1196 e o §1197 seguem ABERTOS
+next: em `enois-kof-desktop` — a COMPOSICAO DA SHELL primeiro (container de visita x autenticada, barra `w-60` e nao 320, guiada pela sessao), depois o quadro de recrutamento e os catalogos restantes; toda tela NOVA comeca medindo a rota ao vivo com `scripts/measure-site.mjs`; o Kof4j mantem o `libs/game` + o compilador e registra os bugs do Kof (§1196, §1197); o §1196 e o §1197 seguem ABERTOS
 location: repository
 state: active
 
@@ -500,6 +500,25 @@ título e duas de sinopse. A sinopse mantém o fallback do site
 PENDENCIA NOMEADA — nenhuma assercao de pixel aqui: o `known-bugs §1197` ainda nao
 fecha a leitura de um `fillRect`, entao a pagina entra com texto e geometria
 provados e as cores rastreadas nos tokens.
+
+**MEDIDO CONTRA O SITE AO VIVO (23/11) — tres dos meus numeros estavam errados.** Eu
+parei a medicao no CSS/TSX e nunca conferi a producao; com chromium headless
+(`scripts/measure-site.mjs`, agregado ao repo do app) medi
+`https://enois.ia.br/comunidades`: o Input tem **36** (nao os 40 que meu comentario
+`h-10` alegava), a pilula tem **36** (nao 32) e o raio do `surface-card` e **24**
+(`--radius-2xl` = 1rem + 8px — meu `radius()` dizia 20). Os tres estao corrigidos e
+presos aos numeros do site. O filtro de local (`Filtrar por local`, cidade 1028 x estado
+192 no container de 1232, "Filtrar" 32) FALTAVA na migracao e entrou no
+`Communities.kf`.
+
+**DIVERGENCIA NOMEADA — a shell e' autenticada enquanto a producao mostra a de visita.**
+A pagina ao vivo sai deslogada: cabecalho de 44, coluna de conteudo de 1232 e NENHUMA
+barra lateral. O `Shell.kf` pinta uma coluna de 320 a direita em qualquer janela, entao
+quem abre o desktop ve uma coluna que o site nunca desenha. A ordem do trabalho fica
+clara: a shell tem de renderizar OS DOIS containers (`GuestAppContainer` e
+`AuthenticatedAppContainer`, cuja barra o DS define em `w-60` = 240, nao 320), e a sessao
+decide qual — e essa e a fatia da composicao da shell, que passa na frente dos catalogos
+restantes.
 
 **Fase 3 — `comunidades.$communityId` (POUSADA 23/11, `enois-kof-desktop` `7804dfa`).**
 O detalhe da comunidade: link de volta, "Criada por", Editar, o placeholder do

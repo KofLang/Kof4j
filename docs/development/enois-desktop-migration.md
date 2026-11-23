@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: in `enois-kof-desktop` — the recruitment board (kanban/timeline) and the app shell composition (route navigation); then the remaining catalogues; Kof4j keeps `libs/game` + the compiler and records the Kof-side bugs (§1196, §1197); §1196 and §1197 stay OPEN
+next: in `enois-kof-desktop` — the SHELL COMPOSITION first (guest vs authenticated container, sidebar `w-60` not 320, session-driven), then the recruitment board and the remaining catalogues; every NEW screen starts by measuring the live route with `scripts/measure-site.mjs`; Kof4j keeps `libs/game` + the compiler and records the Kof-side bugs (§1196, §1197); §1196 and §1197 stay OPEN
 location: repository
 state: active
 
@@ -514,6 +514,25 @@ own `EmptyState` strings. Proof `EnosisProjectAuthorE2ETest`:
 NAMED PENDING — no pixel assertion here: `known-bugs §1197` still does not close
 the readback of a `fillRect`, so this page ships with text and geometry proven and
 its colours traced to the tokens.
+
+**MEASURED AGAINST THE LIVE SITE (23/11) — three of my numbers were wrong.** I topped out
+the static measurement at the CSS/TSX and never checked production; with chromium
+headless (`scripts/measure-site.mjs`, added to the app repo) I measured
+`https://enois.ia.br/comunidades`: the Input is **36** (not the 40 my `h-10` comment
+claimed), the Pill is **36** (not 32), and the `surface-card` radius is **24**
+(`--radius-2xl` = 1rem + 8px — my `radius()` said 20). All three are now corrected and
+pinned to the live figures. The location filter (`Filtrar por local`, city 1028 × state
+192 in the 1232 container, "Filtrar" 32) was MISSING from the migration and is now in
+`Communities.kf`.
+
+**NAMED DIVERGENCE — the shell is authenticated while production shows the guest
+layout.** The live page is rendered logged out: a 44 px header, a 1232 px content
+column and NO sidebar. `Shell.kf` paints a 320 px right-hand aside for every window, so
+a desktop user sees a column the site never draws. The order of the work is now clear:
+the shell must render BOTH containers (`GuestAppContainer` and
+`AuthenticatedAppContainer`, whose sidebar the DS sets to `w-60` = 240, not 320), and the
+session decides which one — which is the shell composition slice, moved ahead of the
+remaining catalogues.
 
 **Fase 3 — `comunidades.$communityId` (LANDED 23/11, `enois-kof-desktop` `7804dfa`).**
 The community detail: back link, `Criada por`, Edit, the composer placeholder, the feed
