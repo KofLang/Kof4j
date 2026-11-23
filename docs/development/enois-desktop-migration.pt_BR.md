@@ -161,11 +161,11 @@ primeira e da ultima palavra, em maiusculas; uma palavra so' -> aquela letra —
 do raio, entao os cantos mostram o fundo. Provado nativamente:
 `i1=MS / i2=P / i3=AL / i4=RC`, `centro=196,181,253` e `canto=0,0,0` (fora do
 circulo).
-DIVERGENCIA NOMEADA: uma FOTO ainda desenha retangular — o recorte circular de
-uma foto precisa de um laco de pixel sobre um buffer que veio de outro metodo,
-e `Buffer` nao e' tipo valido de parametro/campo/retorno fora de `extern`
-(known-bugs §1195, medido de tres formas). O caminho das iniciais e' exato; o
-da foto esta' na lista de gaps, nao aproximado em silencio.
+O caminho da FOTO tambem e' circular, em KOF PURO: o fix do known-bugs §1195
+fez do `Buffer` um tipo nominal, entao o `Avatar.maskCircle` e' um laco de
+pixel Kof sobre o buffer decodificado (`centro=128,127,180` da imagem,
+`canto=0,0,0` fora). Uma primitiva compartilhada agora serve toda mascara de
+imagem do app.
 
 ## §4 Como concluir
 

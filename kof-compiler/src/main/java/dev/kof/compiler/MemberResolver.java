@@ -116,6 +116,12 @@ public final class MemberResolver {
                     "Bool", "bool", "boolean", "Boolean", "Char", "char",
                     "Byte", "byte", "Short", "short", "Float", "float",
                     "Double", "double", "Troolean", "troolean",
+                    // §1195 (22/11): `Buffer` e' o tipo nominal do buffer U8
+                    // (`buffer.alloc`/`Buffer(U8)` no `extern`). Faltava aqui,
+                    // entao um parametro/campo/retorno de metodo com ele caia
+                    // no SEM011 "Undefined variable or type" — medido em tres
+                    // formas na migracao do Énois (a mascara do avatar).
+                    "Buffer",
                     "void", "Void" -> true;
             default -> false;
         };

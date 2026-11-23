@@ -18796,9 +18796,9 @@ O `kt_rgba` do `kof_text_shim.c` escrevia `(255,255,255,alfa)` para todo glifo �
 O FIX: `kt_rgba(out, cap, r, g, b)` recebe a cor como parametro, e `Font.drawTextColoured(b, text, x, baseline, r, g, b)` a leva. O `drawText` fica como atalho branco. Toda chamada de texto do Énois agora passa o seu TOKEN: autor/corpo em `--text-strong` (#1d1626), o placeholder em `--text-date`, handle/bio em `--text-subtle`, a aba ativa em `--primary`.
 PROVA: a bateria Énois esta em **8/8** (`Enosis*`), cada teste verificando o seu proprio `tinta > 0`.
 
-## §1195 — `Buffer` e' tipo SO' em assinatura `extern`: parametro de metodo, campo e retorno de `Buffer` nao compilam — 📌 MEDIDO 22/11 (lane wasm/caps `192.168.15.15:0`)
+## §1195 — `Buffer` era tipo SO' em assinatura `extern` (parametro de metodo, campo e retorno todos falhavam SEM011) — ✅ CORRIGIDO 22/11 (lane wasm/caps `192.168.15.15:0`)
 
-**Status:** 🟠 OPEN — nomeado; o fix do sistema de tipos e' outra unidade, a migracao segue pelo caminho das iniciais.
+**Status:** ✅ FIXED — o `Buffer` e' tipo nominal agora; um laco de pixel em Kof puro sobre um buffer de PARAMETRO funciona (`BufferNominalTypeE2ETest`).
 
 **Achado ao construir a mascara de avatar do Énois** (`kt_round_alpha(rgba, w, h)` — zerar o alfa fora de um circulo). A tentativa, tres vezes, cada uma recusada:
 * `Int sizeOf(Buffer b)` → `Undefined variable or type: 'Buffer' in parameter 'b' … [SEM011]`;
@@ -18806,5 +18806,6 @@ PROVA: a bateria Énois esta em **8/8** (`Enosis*`), cada teste verificando o se
 * mesmo um `extern` declarado numa biblioteca e chamado por um wrapper fino → o parametro do wrapper continua sendo parametro de metodo, entao falha; chamar o extern DIRETO com um `buffer.alloc(...)` local funciona.
 A FORMA QUE FUNCIONA: `Buffer` aparece so' como TIPO de parametro de `extern`, e o valor tem de ser o resultado de um `buffer.alloc` no MESMO corpo de funcao — nunca um que atravessou uma chamada.
 O QUE ISSO BLOQUEIA: qualquer laco Kof sobre dados de pixel que vêm de outro metodo (o recorte circular da foto do avatar). O interino: o avatar pinta o fallback de INICIAIS do site dentro de um circulo real (provado, `EnosisAvatarE2ETest`), e uma FOTO desenha retangular — uma divergencia NOMEADA no plano de migracao, nao uma silenciosa.
-O FIX pertence ao sistema de tipos (admitir `Buffer` como qualquer tipo nominal); ate' la, toda operacao de pixel sobre buffer alheio precisa de um shim C alcancado por um `extern` cujo argumento e' alocado no mesmo corpo.
-STATUS: nomeado; a migracao segue pelo caminho das iniciais.
+O FIX (duas linhas, ambas medidas): o `MemberResolver.isBuiltinTypeName` agora aceita `Buffer`, e o `Type.of("Buffer")` mapeia o nome DECLARADO para `ClassType("kof","Buffer")` — o MESMO tipo que o `buffer.alloc` devolve (antes o nome resolvia mas era um tipo DIFERENTE, entao o `b.size()` compilava para uma chamada a um `Buffer_size` inexistente).
+PROVA RED-first: `BufferNominalTypeE2ETest` — com o fix revertido a compilacao falha com SEM011; com ele, uma mascara circular 16×16 escrita em Kof puro sobre um buffer de PARAMETRO corta 61 de 256 texels (`canto=0`, `centro=255`), e o `Buffer` funciona como campo, parametro de construtor e parametro de metodo. A jusante: o avatar do Énois agora recorta uma FOTO em circulo em Kof puro (`centro=128,127,180` da imagem, `canto=0,0,0`).
+STATUS: ✅ CORRIGIDO.

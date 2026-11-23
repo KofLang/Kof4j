@@ -50,7 +50,7 @@ class Avatar {
                       String name, String imagePath) {
         val violet = hex(0xc4b5fd)
         val ink = hex(0x4c1d95)
-        val tex = b.loadImageTexture(imagePath)
+        val tex = loadRound(b, imagePath, size)
         if (tex != 0L) {
             b.drawTexture(tex, x, y, size, size)
             return
@@ -80,12 +80,46 @@ class Avatar {
                 ink.r(), ink.g(), ink.b())
     }
 
-    // A MASCARA por IMAGEM esta' BLOQUEADA por um gap de linguagem (known-bugs
-    // §1195): `Buffer` nao e' tipo valido de parametro de metodo comum nem de
-    // campo de classe — so' de `extern`. O recorte precisa atravessar um
-    // shim C com o buffer do chamador, e o Kof nao consegue O PASSAR hoje.
-    // POR ENQUANTO o avatar desenha o circulo (por iniciais) e, com foto,
-    // desenha a foto RETANGULAR — divergencia NOMEADA no plano, nunca "pronto".
+    /** A textura da foto com o ALFA zerado fora do circulo. Devolve 0 quando
+     *  o arquivo nao carrega (a tela usa as iniciais).
+     *
+     *  O RECORTE e' um laco de pixel em KOF PURO sobre o buffer que o backend
+     *  decodificou — o `Buffer` atravessa a chamada desde o fix do known-bugs
+     *  §1195 (ele faltava em `Type.of` e em `isBuiltinTypeName`). */
+    static Long loadRound(Sdl3Backend b, String path, Int size) {
+        if (b.decodeImage(path) == 0) { return 0L }
+        val w = b.imageWidth()
+        val h = b.imageHeight()
+        maskCircle(b.lastImageBuf, w, h)
+        return b.textureFromLastImage()
+    }
+
+    /** Zera o ALFA (byte 3 de cada texel RGBA) fora da elipse inscrita. */
+    static Int maskCircle(Buffer buf, Int w, Int h) {
+        if (w <= 0 || h <= 0) { return 0 }
+        val cx = w / 2
+        val cy = h / 2
+        val rx = w / 2
+        val ry = h / 2
+        if (rx <= 0 || ry <= 0) { return 0 }
+        var cut = 0
+        var y = 0
+        while (y < h) {
+            val dy = y - cy
+            var x = 0
+            while (x < w) {
+                val dx = x - cx
+                // elipse normalizada (a foto pode nao ser quadrada)
+                if (dx * dx * ry * ry + dy * dy * rx * rx > rx * rx * ry * ry) {
+                    buffer.poke8(buf, (y * w + x) * 4 + 3, 0)
+                    cut = cut + 1
+                }
+                x = x + 1
+            }
+            y = y + 1
+        }
+        return cut
+    }
 
     // ── utilitarios de texto (o `getInitials` do site) ──────────────────────
 

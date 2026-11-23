@@ -65,6 +65,12 @@ class Sdl3Backend {
     Long windowHandle
     Long rendererHandle
     Map<String, Long> textures
+    // §1195: o buffer da ULTIMA imagem decodificada (o chamador recorta o
+    // alfa nele — o Buffer agora e' tipo de campo, como qualquer class)
+    Buffer lastImageBuf
+    Bool lastImageOk
+    Int lastImageW
+    Int lastImageH
     Bool quitFlag
     List<String> held
     Int pointerXPos
@@ -255,6 +261,54 @@ class Sdl3Backend {
     // Carrega um PNG/PNM/BMP/QOI/GIF/WebP do disco para uma textura RGBA,
     // pela lib `image` em KOF PURO (sem codec externo). Devolve o handle, ou
     // 0 quando o arquivo nao decodifica — a tela desenha a superficie solida.
+    /** Decodifica `path` e guarda o buffer RGBA em `lastImageBuf` (0 = falha).
+     *  E' a porta UNICA de imagem: `loadImageTexture` e o recorte do avatar
+     *  passam por aqui. */
+    Int decodeImage(String path) {
+        this.lastImageOk = false
+        this.lastImageW = 0
+        this.lastImageH = 0
+        try {
+            val r = decodeRaster(path)
+            val w = r.width()
+            val h = r.height()
+            if (w <= 0 || h <= 0) { return 0 }
+            val n = w * h
+            val rgba = buffer.alloc(n * 4)
+            var i = 0
+            while (i < n) {
+                buffer.poke8(rgba, i * 4, r.samples()[i * r.channels()])
+                var c1 = 0
+                var c2 = 0
+                if (r.channels() > 1) { c1 = r.samples()[i * r.channels() + 1] }
+                if (r.channels() > 2) { c2 = r.samples()[i * r.channels() + 2] }
+                buffer.poke8(rgba, i * 4 + 1, c1)
+                buffer.poke8(rgba, i * 4 + 2, c2)
+                buffer.poke8(rgba, i * 4 + 3, 255)
+                i = i + 1
+            }
+            this.lastImageBuf = rgba
+            this.lastImageOk = true
+            this.lastImageW = w
+            this.lastImageH = h
+            return 1
+        } catch (String e) {
+            return 0
+        }
+    }
+
+    Int imageWidth() { return this.lastImageW }
+    Int imageHeight() { return this.lastImageH }
+
+    /** Sobe `lastImageBuf` para uma textura NEAREST (depois do recorte). */
+    Long textureFromLastImage() {
+        if (!this.lastImageOk || this.lastImageW <= 0) { return 0L }
+        val tex = this.createTexture(this.lastImageW, this.lastImageH)
+        SDL_UpdateTexture(tex, 0L, this.lastImageBuf, this.lastImageW * 4)
+        SDL_SetTextureScaleMode(tex, 0)
+        return tex
+    }
+
     Long loadImageTexture(String path) {
         try {
             val r = decodeRaster(path)

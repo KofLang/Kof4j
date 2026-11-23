@@ -158,11 +158,10 @@ the fallback `bg-violet-300` (#c4b5fd) on `text-violet-900` (#4c1d95), and a
 REAL circle painted pixel by pixel with the radius law, so the corners show the
 background. Proven natively: `i1=MS / i2=P / i3=AL / i4=RC`, `centro=196,181,253`
 and `canto=0,0,0` (outside the circle).
-NAMED DIVERGENCE: a PHOTO still draws rectangular — the circular crop of a
-photo needs a pixel loop over a buffer that arrived from another method, and
-`Buffer` is not a valid parameter/field/return type outside `extern`
-(known-bugs §1195, measured three ways). The initials path is exact; the photo
-path is on the gap list, not silently approximated.
+The PHOTO path is circular too, in PURE KOF: the fix to known-bugs §1195 made
+`Buffer` a nominal type, so `Avatar.maskCircle` is a Kof pixel loop over the
+decoded buffer (`centro=128,127,180` from the image, `canto=0,0,0` outside).
+One shared primitive now serves every image mask the app needs.
 
 ## §4 How to finish
 

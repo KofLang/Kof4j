@@ -116,6 +116,13 @@ public sealed interface Type {
         if ("Troolean".equals(name) || "troolean".equals(name)) {
             return new NullableType(PrimitiveType.BOOL);
         }
+        // §1195 (22/11): o nome DECLARADO `Buffer` (parametro/campo/retorno)
+        // e' o MESMO tipo que o `buffer.alloc` devolve — sem isto um buffer
+        // recebido por parametro nao casava com `buffer.peek8`/`poke8` e o
+        // `b.size()` virava uma chamada a `Buffer_size` inexistente.
+        if ("Buffer".equals(name) || "U8Buffer".equals(name)) {
+            return new ClassType("kof", "Buffer", List.of());
+        }
         if (name.endsWith("?")) {
             Type inner = of(name.substring(0, name.length() - 1));
             return new NullableType(inner);
