@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — the mentoring panels (`mySessions`, the register form) and `vagas.$jobId`; §1196 and §1197 stay OPEN
+next: in `enois-kof-desktop` — the mentoring panels (`mySessions`, the register form) and `vagas.$jobId`; Kof4j keeps `libs/game` + the compiler and records the Kof-side bugs (§1196, §1197); §1196 and §1197 stay OPEN
 location: repository
 state: active
 
@@ -514,6 +514,23 @@ own `EmptyState` strings. Proof `EnosisProjectAuthorE2ETest`:
 NAMED PENDING — no pixel assertion here: `known-bugs §1197` still does not close
 the readback of a `fillRect`, so this page ships with text and geometry proven and
 its colours traced to the tokens.
+
+**REPO SPLIT — the migration lives in `Rede-ENois/enois-kof-desktop` (maintainer, 23/11).**
+"Kof4j you fix Kof; Énois desktop is in enois-kof-desktop." What moved: every
+`libs/enois/*.kf`, the text shim, `assets/fonts/Manrope.ttf`, `scripts/gen-enois-text.sh`
+and all 36 Énois tests (`Enosis*E2ETest` → `Enois*E2ETest`), plus a new
+`app/Main.kf` entry point and a Maven `pom.xml` that consumes `kof-compiler` 0.8.1
+from the local Maven repo. What STAYS in Kof4j: `libs/game` (the SDL3 backend,
+shared with other apps) — the desktop suite copies it from
+`$KOF4J_HOME/kof-install/lib/kof-libs`, `<KOF4J_HOME>/lib/kof-libs` or
+`<KOF4J_HOME>/libs` (or `KOF_LIBS`). `libs/enois` has NOT been deleted from Kof4j
+yet, because this lane may not delete a library other lanes build on; the removal
+is a maintainer call and is named here.
+MEASURED in the new repo: `mvn -o test` → **36/37 pass, 1 fails** — `Enois
+TextE2ETest` reads its ink inside a nested pixel loop and gets 0, which is the
+§1197 readback shape, not a text regression (the same test passed in Kof4j with the
+same code, and the glyph advance/line-height assertions pass). Also found and
+FIXED while moving: §1192 addendum — `gen-enois-text.sh` was not idempotent.
 
 **§1197 — CORRECTION 23/11 (late):** the "fill painted inside a FUNCTION reads
 back" row I recorded earlier was produced by my own probe log — the grader took the

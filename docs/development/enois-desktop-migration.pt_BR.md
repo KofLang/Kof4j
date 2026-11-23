@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — os paineis de mentoria (`mySessions`, o formulario de cadastro) e `vagas.$jobId`; o §1196 e o §1197 seguem ABERTOS
+next: em `enois-kof-desktop` — os paineis de mentoria (`mySessions`, o formulario de cadastro) e `vagas.$jobId`; o Kof4j mantem o `libs/game` + o compilador e registra os bugs do Kof (§1196, §1197); o §1196 e o §1197 seguem ABERTOS
 location: repository
 state: active
 
@@ -500,6 +500,23 @@ título e duas de sinopse. A sinopse mantém o fallback do site
 PENDENCIA NOMEADA — nenhuma assercao de pixel aqui: o `known-bugs §1197` ainda nao
 fecha a leitura de um `fillRect`, entao a pagina entra com texto e geometria
 provados e as cores rastreadas nos tokens.
+
+**DIVISAO DE REPO — a migracao mora em `Rede-ENois/enois-kof-desktop` (mantenedora, 23/11).**
+"no Kof4j vc faz as correcoes do kof. migrar o enois pro desktop e' no repo
+enois-kof-desktop." O que mudou: todos os `libs/enois/*.kf`, o shim de texto, a
+fonte, o `scripts/gen-enois-text.sh` e os 36 testes do Énois (`Enosis*` -> `Enois*`),
+mais um `app/Main.kf` novo e um `pom.xml` que consome o `kof-compiler` 0.8.1 do
+Maven local. O que FICA no Kof4j: `libs/game` (o backend SDL3, compartilhado com
+outros apps) — a suite do desktop o copia de `$KOF4J_HOME/kof-install/lib/kof-libs`,
+`<KOF4J_HOME>/lib/kof-libs` ou `<KOF4J_HOME>/libs` (ou `KOF_LIBS`). O `libs/enois`
+ainda NAO foi apagado do Kof4j porque esta lane nao apaga biblioteca que outras
+lanes usam; a remocao e' decisao da mantenedora e fica registrada aqui.
+MEDIDO no repo novo: `mvn -o test` -> **36/37 passam, 1 falha** — o
+`EnoisTextE2ETest` le a tinta num laco de pixel aninhado e recebe 0, que e' a forma
+de leitura do §1197 e nao regressao do texto (o mesmo teste passava no Kof4j com o
+mesmo codigo, e as assercoes de avanco/altura de linha passam). Achado e
+CORRIGIDO durante a mudanca: adendo do §1192 — o `gen-enois-text.sh` nao era
+idempotente.
 
 **§1197 — CORRECAO 23/11 (tarde):** a linha "fill dentro de uma FUNCAO le certo" que
 registrei antes saiu do MEU proprio log de probes — o avaliador pegava a PRIMEIRA
