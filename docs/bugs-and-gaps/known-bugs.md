@@ -21516,6 +21516,24 @@ Next: instrument where the module root is computed for `compileForTests` (the va
 pipeline hands to the expansion) and compare it with the `compile` path; the Énois case is
 `moduleRoot = the folder`, `loja/` (or `enois/`) the package.
 
+**23/11 (fourth round, the app side of the same symptom): a RECORD in a file named after it fails to
+import when its fields reference ANOTHER record of the same package — measured in the Énois app,
+which the NEW `[test-compiler import]` path (`compileForTests`, the stale Maven jar ahead of
+`target/classes` used this round) reproduces while the harness classpath prints the same cut text
+under the CLI. Two states were measured clean before this edit: one record in a one-file package,
+and two records of unrelated shape in one file. The trigger now narrowed to: a file declaring a
+record whose FIELD TYPE comes from a second file, together with (at least) a third file in the
+package. The compile then reports `PKG006 import 'enois.CommunitiesTexts' not found` while,
+beside it, the same import made through the DIRECTORY loop (another import of the package) spits
+`SEM011 Undefined variable or type` for a record that sits in a file of that directory. Same root
+as the class case above (a candidate that parses and is dropped), but reachable with RECORDS and
+with a single extra file — a smaller reproducer than the class one, and the one the Énois
+composition page needs (its texts record references the filter-texts record).
+
+The énois composition without the record (texts passed as plain parameters) did NOT get proven
+this round: the harness reported the same cut text while the whole tree (incl. the record)
+compiled in the CLI path, which is exactly the disagreement THIS entry is about.
+
 ## §1199 — the array literal `["a", "b"]` is BY CONTRACT not Kof (`docs/language-reference/syntax.md` + `training/anti-patterns/fake-idioms.md`); what is a defect: the resolver makes a program built from SOURCES fail on that syntax inside the STDLIB — 📌 MEASURED 23/11 (lane wasm/caps `192.168.15.15:0`); the parser side is WITHDRAWN
 
 **Status:** 🟡 OPEN — reproduced in a three-line program; the bytecode is NOT affected, nor is `listOf(...)`.

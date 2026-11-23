@@ -18928,6 +18928,24 @@ Proximo: instrumentar onde a raiz do modulo e' calculada no `compileForTests` (o
 pipeline entrega a expansao) e comparar com o caminho do `compile`; o caso do Énois e'
 `moduleRoot = a pasta`, `loja/` (ou `enois/`) o pacote.
 
+**23/11 (quarta rodada, o lado do app do mesmo sintoma): um RECORD num arquivo com o proprio nome
+fica sem importar quando os CAMPOS dele referenciam OUTRO record do mesmo pacote — medido no app do
+Énois, que o caminho `[test-compiler import]` novo (`compileForTests`, com o jar obsoleto do Maven
+na frente de `target/classes` nesta rodada) reproduz enquanto o classpath do harness imprime o mesmo
+texto cortado pelo CLI. Dois estados foram medidos limpos antes desta edicao: um record em pacote de
+um arquivo, e dois records de forma nao relacionada no mesmo arquivo. O gatilho agora estreitado
+para: um arquivo declarando um record cujo TIPO DE CAMPO vem de um segundo arquivo, junto com (pelo
+menos) um terceiro arquivo no pacote. O compile entao reporta `PKG006 import 'enois.CommunitiesTexts'
+not found` enquanto, ao lado, o MESMO import feito pelo laco de DIRETORIO (outro import do pacote)
+cospe `SEM011 Undefined variable or type` para um record que esta num arquivo desse diretorio. Mesma
+raiz do caso de classe acima (um candidato que parseia e e' descartado), mas alcancavel com RECORDS
+e um unico arquivo extra — um reprodutor menor que o de classe, e o que a pagina de composicao do
+Énois precisa (o record de textos referencia o record dos textos do filtro).
+
+A composicao do énois SEM o record (textos como parametros simples) NAO ficou provada nesta rodada:
+o harness reportou o mesmo texto cortado enquanto a arvore inteira (com o record) compilava no
+caminho do CLI, que e' exatamente a divergencia sobre a qual esta entrada trata.
+
 ## §1199 — o literal de array `["a", "b"]` NAO E' Kof por contrato (`docs/language-reference/syntax.md` + `training/anti-patterns/fake-idioms.md`); o defeito e' outro: o resolvedor faz um programa construido das FONTES falhar nessa sintaxe DENTRO DA STDLIB — 📌 MEDIDO 23/11 (lane wasm/caps `192.168.15.15:0`); o lado do parser foi RETIRADO
 
 **Status:** 🟡 ABERTO — reproduzido em programa de tres linhas; o bytecode nao e' afetado, nem o `listOf(...)`.
