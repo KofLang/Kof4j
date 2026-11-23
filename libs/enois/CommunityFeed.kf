@@ -1,0 +1,94 @@
+package enois
+
+import enois.Feed
+import enois.PostCard
+import enois.Text
+import enois.Tokens
+import game.Sdl3Backend
+
+// Énois — o FEED da comunidade, a primeira tela que COMPOE as primitivas:
+// shell + header de comunidade + a coluna de conteudo + a coluna lateral.
+//
+// As medidas vem do fonte, MEDIDAS (`comunidades.$communityId.tsx`):
+//   * o grid        `grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_280px]`
+//                   (linha 875) — o aside e' 280 px AQUI (o feed global usa 320)
+//   * o titulo      `text-lg font-semibold` = 18 px (linha 877)
+//   * os cards      `space-y-4` = 16 px entre eles (linha 883)
+//   * a lista vazia `surface-card p-8 text-center text-sm` (linha 879)
+//   * os textos     `texts.communities.detail.feed` = "Feed" (2331),
+//                   `emptyMember` = "Nenhum post ainda. Seja o primeiro!",
+//                   `emptyGuest` = "Entre na comunidade para ver o feed."
+//   * o aside       cada secao e' `mb-3 text-sm font-semibold` (h3)
+
+/** As medidas do feed da comunidade, em px. */
+class CommunityFeedMetrics {
+    static Int asideWidth() { return 280 }     // [.._280px]
+    static Int gap() { return 24 }             // gap-6
+    static Int sectionGap() { return 12 }      // mb-3
+    static Int titleSize() { return 18 }       // text-lg
+    static Int headingSize() { return 14 }     // text-sm font-semibold
+    static Int cardGap() { return 16 }         // space-y-4
+    static Int emptyPad() { return 32 }        // p-8
+}
+
+class CommunityFeed {
+
+    /** A largura da coluna de conteudo (o aside e' 280 aqui). */
+    static Int contentWidth(Int windowWidth) {
+        val inner = windowWidth - 16 * 2
+        return inner - CommunityFeedMetrics.asideWidth() - CommunityFeedMetrics.gap()
+    }
+
+    /** Pinta o titulo "Feed" e, com `cards` vazio, o texto de membro/convidado.
+     *  Devolve a altura usada pela coluna de conteudo. */
+    static Int paintFeed(Sdl3Backend b, Font titleFont, Font bodyFont,
+                         Int x, Int y, Int w, String title, List<String> authors,
+                         List<String> bodies, String emptyText, Font authorFont) {
+        val card = Tokens.SurfaceCard()
+        val strong = Tokens.TextStrong()
+        val muted = Tokens.MutedForeground()
+        var cy = y
+        titleFont.drawTextColoured(b, title, x, cy + 16, strong.r(), strong.g(), strong.b())
+        cy = cy + CommunityFeedMetrics.titleSize() + CommunityFeedMetrics.sectionGap()
+
+        if (authors.size == 0) {
+            // a lista vazia: surface-card p-8, texto centrado
+            val h = CommunityFeedMetrics.emptyPad() * 2 + 18
+            SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+            b.fillRect(x, cy, w, h)
+            val tw = bodyFont.measure(emptyText)
+            bodyFont.drawTextColoured(b, emptyText, x + (w - tw) / 2, cy + CommunityFeedMetrics.emptyPad() + 12,
+                    muted.r(), muted.g(), muted.b())
+            return cy - y + h
+        }
+        var i = 0
+        while (i < authors.size) {
+            val h = PostCard.paint(b, authorFont, bodyFont, x, cy, w, authors[i], bodies[i])
+            cy = cy + h + CommunityFeedMetrics.cardGap()
+            i = i + 1
+        }
+        return cy - y
+    }
+
+    /** Pinta o aside (280 px): as secoes com titulo `mb-3 text-sm font-semibold`. */
+    static Int paintAside(Sdl3Backend b, Font headFont, Font bodyFont, Int x, Int y, Int h,
+                          List<String> sections, List<String> values) {
+        val card = Tokens.SurfaceCard()
+        var cy = y
+        var i = 0
+        while (i < sections.size) {
+            val sh = CommunityFeedMetrics.headingSize() + 8 + 20 + 8
+            SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+            b.fillRect(x, cy, CommunityFeedMetrics.asideWidth(), sh)
+            headFont.drawTextColoured(b, sections[i], x + 12, cy + 18,
+                    Tokens.TextStrong().r(), Tokens.TextStrong().g(), Tokens.TextStrong().b())
+            if (i < values.size) {
+                bodyFont.drawTextColoured(b, values[i], x + 12, cy + 38,
+                        Tokens.TextSubtle().r(), Tokens.TextSubtle().g(), Tokens.TextSubtle().b())
+            }
+            cy = cy + sh + CommunityFeedMetrics.sectionGap()
+            i = i + 1
+        }
+        return cy - y
+    }
+}

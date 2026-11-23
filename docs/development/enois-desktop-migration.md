@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — the community FEED below its header, or `explorar` (the discovery route)
+next: Fase 3 continues — `explorar` (the discovery route) or the community's aside sections (members/description)
 location: repository
 state: active
 
@@ -173,6 +173,18 @@ the header `p-4` with the title at `text-lg` = **18 px**, the two REAL tabs
 `vazia_h=64`, `header=255,255,255`, `avatar=196,181,253` (the `bg-violet-300`
 inside the circle) and `canto=255,255,255` (the card outside it).
 Battery **11/11**.
+
+**Fase 3 — the community FEED (LANDED 22/11).** `libs/enois/CommunityFeed.kf` is the
+first screen that COMPOSES the primitives: the content column + the aside.
+Its grid is the community's OWN: `[minmax(0,1fr)_280px] gap-6`
+(`comunidades.$communityId.tsx:875`) — **280 px** of aside, where the GLOBAL
+feed uses 320. Content width at 1280 is therefore **944**, not the 904 of the
+home feed; that difference is measured in both sources, not guessed. The
+section title "Feed" is `text-lg` = 18 px (877), the empty state is
+`surface-card p-8 text-sm` with the site's own texts (2332/2333), and the cards
+are separated by `space-y-4` = 16 px. Proven natively: `conteudo_w=944`,
+`vazio_h=112`, `com_post_h=128`, `aside_x=984`, `card=255,255,255`.
+Battery **12/12**.
 
 ## §4 How to finish
 
