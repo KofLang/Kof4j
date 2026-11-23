@@ -26,5 +26,6 @@ public final class NativeHttpRuntime {
         sb.append(NativeHttpParseUrl.source());
         sb.append(NativeHttpCore.source());
         sb.append(NativeHttpVerbs.source());
+        sb.append(NativeHttpResponse.source());   // §1198: o handle de resposta
     }
 }

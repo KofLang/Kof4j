@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: in `enois-kof-desktop` — a `/me` session client so `signedIn` stops being a constant, the recruitment board, then the remaining catalogues; every NEW screen starts by measuring the live route with `scripts/measure-site.mjs`; Kof4j keeps `libs/game` + the compiler and records the Kof-side bugs (§1196, §1197); §1196 and §1197 stay OPEN
+next: in `enois-kof-desktop` — wire `SessionClient` into the entry point (read the stored session, call `/me`, pick the shell), the recruitment board, then the remaining catalogues; every NEW screen starts by measuring the live route with `scripts/measure-site.mjs`; Kof4j keeps `libs/game` + the compiler and records the Kof-side bugs (§1196, §1197); §1196 and §1197 stay OPEN
 location: repository
 state: active
 
@@ -514,6 +514,29 @@ own `EmptyState` strings. Proof `EnosisProjectAuthorE2ETest`:
 NAMED PENDING — no pixel assertion here: `known-bugs §1197` still does not close
 the readback of a `fillRect`, so this page ships with text and geometry proven and
 its colours traced to the tokens.
+
+**Fase 3 — a SESSÃO do desktop (`/me`) — LANDED 23/11 (`enois-kof-desktop` `9d53db4`).**
+`SessionClient` reproduces the site's `useCurrentUser` with the backend contract MEASURED by
+`curl`: without the local session mark nothing is called (the site's `hasSessionFlag`
+gate); with it, `GET …/me` sends `Origin` (the backend answers **403 ORIGIN_REQUIRED**
+without it and **401 UNAUTHENTICATED** with it — both measured) and, on 200, reads the
+`Profile`'s `username`/`name`. `SessionClient.classify` maps 2xx = session, 401 = no
+session (guest shell, no failure note), anything else = an honest code. Proof
+`EnoisSessionE2ETest` against a local server that answers by HEADERS exactly like
+production: `none=false/0/visita`, `noorigin=ORIGIN_REQUIRED/visita/ORIGIN_REQUIRED (HTTP 403)`,
+`anon=401/UNAUTHENTICATED/visita/[]`, `logged=200/mel/Mel Santos/autenticado`.
+
+**KOF GAP FOUND AND FIXED — `known-bugs §1198`:** `http.send(...).status()/.body()` had NO
+runtime on native x86-64 (the symbols were never emitted; the link failed with
+`referência não definida para kof_http_send_response`). `NativeHttpResponse` now emits the
+handle as two heap words {status, body}, reading the status from the `.Lhttp_last_status`
+the SAME request wrote — calling `kof_http_status(url)` again was a SECOND request and
+returned ITS status (measured: body 200 of `/me` with status 403 of the previous call).
+Header strings are separated by a single LF (the core converts to CRLF; `\r\n` in the
+string lost the second line). PASSING TEST in Kof4j: `HttpResponseNativeE2ETest`
+(`status=401`, the `UNAUTHENTICATED` body, `ok=200 {…}`). SCOPE: x86-64; the riscv64 verbs
+still lack the response handle (named). The app suite is **44/45** (the failure is the
+§1197 ink test).
 
 **Fase 3 — the shell is SESSION-DRIVEN (LANDED 23/11, `enois-kof-desktop` `a57953b`).**
 `ShellChoice` picks the container the way `app-container.tsx` does: without a session, the

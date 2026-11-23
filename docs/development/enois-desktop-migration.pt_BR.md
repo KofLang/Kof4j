@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: em `enois-kof-desktop` — um cliente de sessao `/me` para o `signedIn` deixar de ser constante, o quadro de recrutamento, depois os catalogos restantes; toda tela NOVA comeca medindo a rota ao vivo com `scripts/measure-site.mjs`; o Kof4j mantem o `libs/game` + o compilador e registra os bugs do Kof (§1196, §1197); o §1196 e o §1197 seguem ABERTOS
+next: em `enois-kof-desktop` — ligar o `SessionClient` no ponto de entrada (ler a sessao salva, chamar `/me`, escolher a casca), o quadro de recrutamento, depois os catalogos restantes; toda tela NOVA comeca medindo a rota ao vivo com `scripts/measure-site.mjs`; o Kof4j mantem o `libs/game` + o compilador e registra os bugs do Kof (§1196, §1197); o §1196 e o §1197 seguem ABERTOS
 location: repository
 state: active
 
@@ -500,6 +500,29 @@ título e duas de sinopse. A sinopse mantém o fallback do site
 PENDENCIA NOMEADA — nenhuma assercao de pixel aqui: o `known-bugs §1197` ainda nao
 fecha a leitura de um `fillRect`, entao a pagina entra com texto e geometria
 provados e as cores rastreadas nos tokens.
+
+**Fase 3 — a SESSAO do desktop (`/me`) — POUSADA 23/11 (`enois-kof-desktop` `9d53db4`).**
+O `SessionClient` reproduz o `useCurrentUser` do site com o contrato do backend MEDIDO por
+`curl`: sem a marca local de sessao nada e' chamado (o `hasSessionFlag` do site); com ela,
+`GET …/me` manda o `Origin` (o backend responde **403 ORIGIN_REQUIRED** sem ele e **401
+UNAUTHENTICATED** com ele — os dois medidos) e, no 200, le' o `username`/`name` do
+`Profile`. O `classify` mapeia 2xx = sessao, 401 = sem sessao (casca de visita, sem nota de
+falha), o resto = codigo honesto. Prova `EnoisSessionE2ETest` contra um servidor local que
+responde pelos CABECALHOS como a producao: `none=false/0/visita`,
+`noorigin=ORIGIN_REQUIRED/visita/ORIGIN_REQUIRED (HTTP 403)`,
+`anon=401/UNAUTHENTICATED/visita/[]`, `logged=200/mel/Mel Santos/autenticado`.
+
+**GAP DO KOF ACHADO E CORRIGIDO — `known-bugs §1198`:** `http.send(...).status()/.body()`
+nao tinha runtime no nativo x86-64 (os simbolos nunca eram emitidos; o link falhava com
+`referência não definida para kof_http_send_response`). O `NativeHttpResponse` agora emite o
+handle como duas palavras no heap {status, body}, lendo o status do `.Lhttp_last_status` que
+a MESMA request gravou — chamar `kof_http_status(url)` de novo era uma SEGUNDA request e
+devolvia o status DELA (medido: corpo 200 do `/me` com status 403 da chamada anterior). As
+linhas de cabecalho sao separadas por UM LF (o core converte para CRLF; `\r\n` na string
+perdia a segunda linha). TESTE VERDE no Kof4j: `HttpResponseNativeE2ETest` (`status=401`, o
+corpo `UNAUTHENTICATED`, `ok=200 {…}`). ESCOPO: x86-64; os verbos riscv64 ainda nao tem o
+handle de resposta (nomeado). A suite do app esta em **44/45** (a falha e o teste de tinta do
+§1197).
 
 **Fase 3 — a casca e' ESCOLHIDA PELA SESSAO (POUSADA 23/11, `enois-kof-desktop` `a57953b`).**
 O `ShellChoice` escolhe o container como o `app-container.tsx`: sem sessao, a casca de

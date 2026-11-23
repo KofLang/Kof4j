@@ -21366,6 +21366,23 @@ THE TRIGGER, measured by bisection: the function `paintCard` receives 10 argumen
 WHAT IT BLOCKS: a painter that must call five helpers up front. THE WORKING SHAPE, now used in `libs/enois/Projects.kf` (and documented in the file): the arithmetic lives in `layoutBody`/`layoutSynLines`/`cardHeight`, the colours are PARAMETERS (not five `Tokens.*()` calls inside), and the body paints in ≤ 4 results. Any future painter reads this before growing a block of up-front calls.
 STATUS: 🟡 OPEN (measured). Next: a reduced reproducer (`paintCard`-shaped, no SDL) as a compiler test, then the spill-slot fix in `NativeMethodEmitter`.
 
+## §1198 — `http.send(...)` had NO runtime on native x86-64 (the idiomatic form that reads status, headers and body from one call, which the JVM has as `KofRuntime.HttpResponse`) — ✅ FIXED 23/11 (lane wasm/caps `192.168.15.15:0`).**
+Found while building the Énois desktop session client: the backend emits and links
+`kof_http_get/post/status` when it sees them, but `kof_http_send_response`,
+`kof_http_response_status`, `kof_http_response_body` and `kof_http_response_header` were
+never emitted, so `http.send(…).status()` compiled and then failed at the LINK
+(`referência não definida para "kof_http_send_response"`). THE FIX reuses the client that
+already exists rather than adding a second one: `NativeHttpResponse` emits the handle as
+two heap words {status, body}, the body comes from `kof_http_get_headers(url, headers)`
+(a real `KofString`) and the status from `kof_http_status(url)`; `header()` returns the
+empty string because the core does not keep the headers — declared, not hidden; and any
+method whose first byte is not `G`/`H` is REFUSED with a named HTTP002 message instead of a
+half-built handle. PROOF `HttpResponseNativeE2ETest`: a local server answering 401 with the
+backend's JSON and 200 with a profile, and the native binary prints `status=401`, the
+`UNAUTHENTICATED` body and `ok=200 {"username":"mel",…}`. SCOPE: x86-64 only — the riscv64
+verbs live in `NativeRiscvHttpVerbs` and do not have the response handle yet (named, not
+claimed).
+
 ## §1197 — the canvas readback does NOT show the frame: `readPixel` after `clearFrame` + `fillRect` returns the clear colour (the filled rect is missing) — 📌 MEASURED 23/11 (lane wasm/caps `192.168.15.15:0`)
 
 **Status:** 🟡 OPEN — measured; the same program reads its own fills correctly when they are written through a Kof loop, and wrongly when written by `fillRect` alone.
