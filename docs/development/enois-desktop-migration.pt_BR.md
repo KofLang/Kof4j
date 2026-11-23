@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: em `enois-kof-desktop` — o catalogo entrou (app `b8201f9`) e as duas leituras dele estao medidas (`rb=y1=1119` para a chamada com listas aninhadas, a pagina `fim=um=756`, app `fdc7bf3`); o asm do §1206 da `ComunidadesPage.paint` foi LIDO e a aritmetica emitida esta certa, entao o proximo passo e' seguir o resto do frame emitido desse metodo (o estado que a rota mantem em volta dos numeros); o Kof4j deve tambem o isolamento do §1207 (tipo de biblioteca recusado no parametro de um irmao)
+next: em `enois-kof-desktop` — a pagina da `comunidades` e a SEQUENCIA DE CHAMADAS da rota (blocos em 89/209/269/333, app `afeeb94`, `fim=um=487` contra a conta de fora `333 + 154`) e nao depende mais da soma encadeada que o §1206 mantem ABERTO; o que falta da rota: os valores do cartao da API, o esqueleto de carga, e no Kof4j a forma encadeada e o isolamento do §1207
 location: repository
 state: active
 
@@ -904,3 +904,18 @@ fica em outro ponto do frame da rota; segue ABERTO com a medicao. A chamada do
 catalogo com listas aninhadas (`catalogo(…, listOf(cartao(…)))`) devolve o mesmo
 fim da conta externa (`rb=y1=1119`), e o teste fixa isso (app `760d132`,
 `fdc7bf3`).
+
+## §10 Rodada 23/11 (quinta) — a pagina como a SEQUENCIA DE CHAMADAS da rota (app `afeeb94`)
+
+Medido no modulo da rota, instrucao por instrucao: o armazenamento de uma SOMA
+esta certo em duas instrucoes (`val y = 452` e `val y = aposPilulas + 119` imprimem
+`452`), mas a MESMA conta imprime `487` quando a chamada da `paint` da pagina
+vive no mesmo metodo, e um valor guardado por uma lista mantem o 452. A rota agora
+esta escrita como o site a compoe — uma chamada por bloco nas posicoes fixas de
+1280 (`PageHeader` 89, busca 209, pilulas 269, filtro 333, o `space-y-6` ja nesses
+`y`) — e a pagina devolve `333 + filtro` (487). Uma tentativa anterior devolvia o
+ULTIMO VALOR da cadeia (tambem 756), entao a pagina le o retorno do proprio
+filtro, nao a soma encadeada: o §1206 segue ABERTO para a forma encadeada. Prova
+`EnoisComunidadesPageCompostaE2ETest`: `larg=1232`, `assuntos=44`,
+`primeiro=Todas`, `meio=Qualidade de vida`, `ultimo=Idiomas`, `fim=487`,
+`um=487`. Bateria 8/8 (a pagina, o catalogo e seis vizinhos).

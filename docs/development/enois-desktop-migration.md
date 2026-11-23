@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: in `enois-kof-desktop` — the catalogue is in (app `b8201f9`) and both its readings are measured (`rb=y1=1119` for the nested-list call, the page `fim=um=756`, app `fdc7bf3`); the §1206 asm of `ComunidadesPage.paint` was READ and the emitted arithmetic is correct, so the next step is following the rest of the emitted frame of that method (the state the route keeps around the numbers); Kof4j also owes the §1207 isolation (a library type rejected in a sibling's parameter)
+next: in `enois-kof-desktop` — the `comunidades` page is the CALL SEQUENCE of the route (blocks at 89/209/269/333, app `afeeb94`, `fim=um=487` against the external `333 + 154`) and no longer depends on the chained sum that §1206 keeps OPEN; what is left of the route: the card values from the API, the loading skeleton, and in Kof4j the chained form and the §1207 isolation
 location: repository
 state: active
 
@@ -920,3 +920,18 @@ the trigger lies elsewhere in the route's frame; kept OPEN with the measurement.
 The catalogue's nested-list call (`catalogo(…, listOf(cartao(…)))`) returns the
 same bottom as the external arithmetic (`rb=y1=1119`), which the test now pins
 (app `760d132`, `fdc7bf3`).
+
+## §10 Round 23/11 (fifth) — the page as the route's CALL SEQUENCE (app `afeeb94`)
+
+Measured in the route's module, statement by statement: a store of a SUM is
+correct in two statements (`val y = 452` and `val y = aposPilulas + 119` both
+print `452`) but the SAME arithmetic prints `487` when the page's `paint` call
+lives in the same method, and a value stored through a list keeps the 452. The
+route is now written the way the site lays it out — one call per block at the
+fixed positions of 1280 (`PageHeader` 89, search 209, pills 269, filter 333,
+`space-y-6` already in those `y`s) — and the page returns `333 + filter` (487).
+An earlier attempt returned the STORED LAST VALUE of the chain (also 756), so
+the page reads the filter's own return, not the chained sum: §1206 stays OPEN
+for the chained form. Proof `EnoisComunidadesPageCompostaE2ETest`: `larg=1232`,
+`assuntos=44`, `primeiro=Todas`, `meio=Qualidade de vida`, `ultimo=Idiomas`,
+`fim=487`, `um=487`. Battery 8/8 (the page, its catalogue and six neighbours).
