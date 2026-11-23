@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — `grupos.$slug` (the groups route) or `eventos`
+next: Fase 3 continues — `eventos` or `salvos`
 location: repository
 state: active
 
@@ -311,6 +311,21 @@ DIVERGENCE caught by the test: I rounded the projected source pixel by hand
 (110.599 → 117) and the real value is 116 — the value now comes from the
 FORMULA, not from my arithmetic.
 Battery **21/21**.
+
+**Fase 3 — `grupos.$slug` (LANDED 23/11).** `GroupScreen` in `libs/enois/Groups.kf`
+paints ONE group: the `max-w-3xl` = **768 px** column, the `h-40` = **160 px**
+banner painted from a REAL image, the `h-12 w-12 rounded-xl` logo — a ROUNDED
+SQUARE like the job card, not the circular user avatar — the `text-xl` title
+and the `bg-primary-soft text-primary` mode chip.
+THE CONTRACT OF THIS SCREEN IS ITS TEXT VARIATION, and the test asserts every
+branch: `members(1)` = **"1 membro"** but `members(5)` = **"5 membros"**;
+`joinModeLabel` gives **"Entrada aberta"** vs **"Entrada por aprovação"**; and
+`actionLabel` gives **"Entrar no grupo"** / **"Pedido pendente"** /
+**"Você participa"**. A hard-coded string in any of the three would fail.
+Proven natively: `m1=1 membro`, `m5=5 membros`, both modes, all three actions,
+`x=66`, `grupo_h=338`, `banner=98,95,180` (a pixel of the image, asserted NOT
+to be the `--primary-soft` fallback), `logo=238,232,255`.
+Battery **22/22**.
 
 ## §4 How to finish
 

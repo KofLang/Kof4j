@@ -1,0 +1,119 @@
+package enois
+
+import enois.Text
+import enois.Tokens
+import game.Sdl3Backend
+
+// Énois — a rota `grupos.$slug` (`src/routes/grupos.$slug.tsx`), UM grupo.
+//
+// Os TEXTOS vem do codigo (`src/texts.ts`, bloco `groups`), sem invencao:
+//   * o subtitulo   `subtitle` = "Espacos privados por interesse, projeto ou
+//                   equipe — a conversa fica entre quem participa."
+//   * os membros    `members(count)` = "N membro(s)" — o PLURAL e' contrato
+//   * a entrada     `joinModeOpen` = "Entrada aberta" / `joinModeApproval` =
+//                   "Entrada por aprovacao" — a MESMA tela, o modo muda
+//   * a acao        `join` = "Entrar no grupo", `pending` = "Pedido pendente",
+//                   `joined` = "Voce participa"
+//
+// As MEDIDAS vem do markup, MEDIDAS:
+//   * o container   `mx-auto w-full max-w-3xl space-y-6` = 768 px, 24 px entre
+//   * o card        `overflow-hidden rounded-2xl border border-border-soft`
+//   * o banner      `h-40 w-full object-cover` = 160 px
+//   * o logo        `h-12 w-12 rounded-xl` = 48 px (quadrado arredondado, NAO
+//                   circulo — igual ao card de vaga)
+//   * o titulo      `text-xl font-semibold tracking-tight` = 20 px
+//   * a pilula      `rounded-full bg-primary-soft px-3 py-1 text-xs font-medium
+//                   text-primary`
+
+/** As medidas de UM grupo, em px. */
+class GroupMetrics {
+    static Int maxWidth() { return 768 }      // max-w-3xl
+    static Int gap() { return 24 }            // space-y-6
+    static Int banner() { return 160 }        // h-40
+    static Int logo() { return 48 }           // h-12 w-12
+    static Int logoRadius() { return 12 }     // rounded-xl
+    static Int pad() { return 20 }            // sm:p-5
+    static Int titleSize() { return 20 }      // text-xl
+    static Int chipHeight() { return 24 }
+}
+
+class GroupScreen {
+
+    /** Os dois modos de entrada do site (`joinModeOpen`/`joinModeApproval`). */
+    static String joinModeLabel(Int mode) {
+        if (mode == 0) { return "Entrada aberta" }
+        return "Entrada por aprovação"
+    }
+
+    /** `members(count)` do site — o PLURAL e' contrato. */
+    static String members(Int count) {
+        return "" + count + " " + (if (count == 1) "membro" else "membros")
+    }
+
+    /** Pinta a pagina do grupo (banner + cabecalho + o modo de entrada + a acao).
+     *  `mode`: 0 = aberta, 1 = por aprovacao. `joinState`: 0 = entrar, 1 =
+     *  pendente, 2 = participa. Devolve a altura usada. */
+    static Int paint(Sdl3Backend b, Font titleFont, Font bodyFont, Font chipFont,
+                     Int windowWidth, Int y, String name, Int memberCount,
+                     Int mode, Int joinState, String bannerImage) {
+        val card = Tokens.SurfaceCard()
+        val line = Tokens.BorderSoft()
+        val strong = Tokens.TextStrong()
+        val subtle = Tokens.TextSubtle()
+        val soft = Tokens.PrimarySoft()
+        val primary = Tokens.Primary()
+        val w = GroupMetrics.maxWidth()
+        val x = (windowWidth - w) / 2
+        var cy = y
+        val bannerH = GroupMetrics.banner()
+        // o banner: a IMAGEM real quando carrega, senao o --primary-soft
+        val softT = Tokens.PrimarySoft()
+        val tex = b.loadImageTexture(bannerImage)
+        if (tex != 0L) {
+            b.drawTexture(tex, x, cy, w, bannerH)
+        } else {
+            SDL_SetRenderDrawColor(b.rendererHandle, softT.r(), softT.g(), softT.b(), 255)
+            b.fillRect(x, cy, w, bannerH)
+        }
+        cy = cy + bannerH
+        // o corpo do card: o logo, o nome, os membros e o modo de entrada
+        val bodyH = GroupMetrics.pad() * 2 + GroupMetrics.logo() + 12
+                + GroupMetrics.titleSize() + 8 + 14 + 12 + GroupMetrics.chipHeight()
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, cy, w, bodyH)
+        // o logo: `h-12 w-12 rounded-xl` — quadrado arredondado
+        SDL_SetRenderDrawColor(b.rendererHandle, soft.r(), soft.g(), soft.b(), 255)
+        b.fillRect(x + GroupMetrics.pad(), cy + GroupMetrics.pad(),
+                GroupMetrics.logo(), GroupMetrics.logo())
+        var ly = 0
+        while (ly < GroupMetrics.logoRadius()) {
+            val cut = GroupMetrics.logoRadius() - ly
+            b.fillRect(x + GroupMetrics.pad(), cy + GroupMetrics.pad() + ly, cut, 1)
+            b.fillRect(x + GroupMetrics.pad() + GroupMetrics.logo() - cut,
+                    cy + GroupMetrics.pad() + ly, cut, 1)
+            ly = ly + 1
+        }
+        val tx = x + GroupMetrics.pad() + GroupMetrics.logo() + 12
+        titleFont.drawTextColoured(b, name, tx, cy + GroupMetrics.pad() + 18,
+                strong.r(), strong.g(), strong.b())
+        bodyFont.drawTextColoured(b, members(memberCount), tx, cy + GroupMetrics.pad() + 42,
+                subtle.r(), subtle.g(), subtle.b())
+        // a pilula do modo de entrada
+        val chipY = cy + GroupMetrics.pad() + GroupMetrics.logo() + 12
+                + GroupMetrics.titleSize() + 8 + 14 + 12
+        val modeLabel = joinModeLabel(mode)
+        SDL_SetRenderDrawColor(b.rendererHandle, soft.r(), soft.g(), soft.b(), 255)
+        b.fillRect(x + GroupMetrics.pad(), chipY, chipFont.measure(modeLabel) + 24,
+                GroupMetrics.chipHeight())
+        chipFont.drawTextColoured(b, modeLabel, x + GroupMetrics.pad() + 12, chipY + 17,
+                primary.r(), primary.g(), primary.b())
+        return bannerH + bodyH
+    }
+
+    /** O rotulo da ACAO conforme o estado de participacao do site. */
+    static String actionLabel(Int joinState) {
+        if (joinState == 1) { return "Pedido pendente" }
+        if (joinState == 2) { return "Você participa" }
+        return "Entrar no grupo"
+    }
+}

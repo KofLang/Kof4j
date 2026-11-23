@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — `grupos.$slug` (a rota de grupos) ou `eventos`
+next: a Fase 3 continua — `eventos` ou `salvos`
 location: repository
 state: active
 
@@ -306,6 +306,21 @@ Provado nativamente: `c1=1 post`, `c3=3 posts`, `rt=5 min de leitura estimada`,
 `canto=247,244,251`. DIVERGENCIA pega pelo teste: arredondei a mao o pixel
 projetado (110.599 -> 117) e o valor real e' 116 — o valor agora sai da
 FORMULA, nao da minha aritmetica. Bateria **21/21**.
+
+**Fase 3 — `grupos.$slug` (POUSADA 23/11).** O `GroupScreen` no `libs/enois/Groups.kf`
+pinta UM grupo: a coluna `max-w-3xl` = **768 px**, o banner `h-40` = **160 px**
+pintado de uma IMAGEM real, o logo `h-12 w-12 rounded-xl` — um QUADRADO
+ARREDONDADO como o card de vaga, nao o avatar circular de usuario — o titulo
+`text-xl` e a pilula do modo em `bg-primary-soft text-primary`.
+O CONTRATO DESTA TELA E' A VARIACAO DE TEXTO, e o teste afirma cada ramo:
+`members(1)` = **"1 membro"** mas `members(5)` = **"5 membros"**;
+`joinModeLabel` da **"Entrada aberta"** vs **"Entrada por aprovação"**; e
+`actionLabel` da **"Entrar no grupo"** / **"Pedido pendente"** /
+**"Você participa"**. Uma string cravada em qualquer um dos tres falharia.
+Provado nativamente: `m1=1 membro`, `m5=5 membros`, os dois modos, as tres
+acoes, `x=66`, `grupo_h=338`, `banner=98,95,180` (um pixel da imagem, afirmado
+como NAO sendo o fallback `--primary-soft`), `logo=238,232,255`.
+Bateria **22/22**.
 
 ## §4 Como concluir
 
