@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: em `enois-kof-desktop` — um ARMAZEM de sessao (persistir marca/cookie como o localStorage do site) para um login real chegar a casca autenticada; depois o quadro de recrutamento e os catalogos restantes; toda tela NOVA comeca medindo a rota ao vivo com `scripts/measure-site.mjs`; o Kof4j mantem o `libs/game` + o compilador e registra os bugs do Kof (§1196, §1197); o §1196 e o §1197 seguem ABERTOS
+next: em `enois-kof-desktop` — o BLOQUEIO DA SESSAO acima depende de uma decisao de contrato da mantenedora (cookie/bearer para um cliente nativo); enquanto isso, o quadro de recrutamento e os catalogos restantes; toda tela NOVA comeca medindo a rota ao vivo com `scripts/measure-site.mjs`; o Kof4j mantem o `libs/game` + o compilador e registra os bugs do Kof (§1196, §1197); o §1196 e o §1197 seguem ABERTOS
 location: repository
 state: active
 
@@ -500,6 +500,26 @@ título e duas de sinopse. A sinopse mantém o fallback do site
 PENDENCIA NOMEADA — nenhuma assercao de pixel aqui: o `known-bugs §1197` ainda nao
 fecha a leitura de um `fillRect`, entao a pagina entra com texto e geometria
 provados e as cores rastreadas nos tokens.
+
+**Fase 3 — paridade de cabecalhos com o site, e o BLOQUEIO da SESSAO medido (POUSADA 23/11,
+`enois-kof-desktop` `084bdb8`).** O `SessionClient.baseHeaders()` agora manda o que o
+`sessionHeaders()` do site manda — `Origin` **mais** `X-CSRF-Protection: 1` (o cabecalho CSRF
+que a API exige nas chamadas autenticadas por cookie) — e os dois testes de sessao prendem
+isso.
+
+**BLOQUEIO NOMEADO — o desktop ainda nao consegue guardar a sessao do site, e isso e'
+MEDIDO, nao suposto.** A sessao do site vive em **cookies HttpOnly** que o navegador anexa a
+toda requisicao (`credentials: "include"`, `enois-frontend/src/lib/api-client.ts:72-77`);
+nenhum script os le. `POST https://api.enois.ia.br/api/auth/login` medido 23/11 com curl
+responde `401 {"code":"INVALID_CREDENTIALS"}` para um login invalido e — a parte que decide o
+plano — a resposta NAO traz `set-cookie` nenhum e o jar de cookies ficou vazio. Um cliente
+desktop, portanto, nao tem o que guardar nem o que reenviar: o `SessionClient.read` mandaria
+`hasSession = true` com `Cookie` VAZIO, a API responderia 401 e o app cairia na casca de
+visita de qualquer jeito. O comportamento atual e' honesto: o app entra como `casca=visita` e
+nenhum codigo finge uma sessao. O que a migracao precisa e' um fluxo real de cookie/bearer
+decidido pela mantenedora (ou uma mudanca no backend que devolva um token que o desktop possa
+guardar) — e' decisao de contrato, nao bug do cliente, e fica registrada aqui em vez de
+contornada.
 
 **Fase 3 — a sessao decide a casca EM UM PASSO, e o app passa por ela (POUSADA 23/11,
 `enois-kof-desktop` `8b4fcde`).** O `SessionShell` e' o caminho que o app roda ao abrir, na
