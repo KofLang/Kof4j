@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — `mensagens` (the conversation list) or the community FEED below its header; the avatar circle mask is the first named gap worth closing
+next: Fase 3 continues — `mensagens` (the conversation list) or the community FEED below its header
 location: repository
 state: active
 
@@ -150,6 +150,19 @@ back to the site's own `--primary-soft` gradient tint. Proven natively:
 vertical probe shows the gradient running 10 → 223 down the cover), and
 `sem_capa=238,232,255` = `--primary-soft #eee8ff` for the fallback.
 Battery **9/9**.
+
+**Fase 3 — the avatar (LANDED 22/11).** `libs/enois/Avatar.kf` migrates
+`UserAvatar`: the site's `getInitials` verbatim (first letter of the first and
+last word, uppercased; a single word gives that letter — `user-avatar.tsx:11`),
+the fallback `bg-violet-300` (#c4b5fd) on `text-violet-900` (#4c1d95), and a
+REAL circle painted pixel by pixel with the radius law, so the corners show the
+background. Proven natively: `i1=MS / i2=P / i3=AL / i4=RC`, `centro=196,181,253`
+and `canto=0,0,0` (outside the circle).
+NAMED DIVERGENCE: a PHOTO still draws rectangular — the circular crop of a
+photo needs a pixel loop over a buffer that arrived from another method, and
+`Buffer` is not a valid parameter/field/return type outside `extern`
+(known-bugs §1195, measured three ways). The initials path is exact; the photo
+path is on the gap list, not silently approximated.
 
 ## §4 How to finish
 

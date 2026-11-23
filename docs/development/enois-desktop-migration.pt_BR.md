@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — `mensagens` (a lista de conversas) ou o FEED da comunidade abaixo do cabecalho; a mascara de circulo do avatar e' o primeiro gap nomeado que vale fechar
+next: a Fase 3 continua — `mensagens` (a lista de conversas) ou o FEED da comunidade abaixo do cabecalho
 location: repository
 state: active
 
@@ -152,6 +152,20 @@ gradiente `--primary-soft` do proprio site. Provado nativamente:
 vertical mostra o gradiente correndo de 10 a 223 ao longo da capa), e
 `sem_capa=238,232,255` = `--primary-soft #eee8ff` para o fallback.
 Bateria **9/9**.
+
+**Fase 3 — o avatar (POUSADO 22/11).** O `libs/enois/Avatar.kf` migra o
+`UserAvatar`: o `getInitials` do site ao pe' da letra (a primeira letra da
+primeira e da ultima palavra, em maiusculas; uma palavra so' -> aquela letra —
+`user-avatar.tsx:11`), o fallback `bg-violet-300` (#c4b5fd) sobre
+`text-violet-900` (#4c1d95), e um circulo REAL pintado pixel a pixel pela lei
+do raio, entao os cantos mostram o fundo. Provado nativamente:
+`i1=MS / i2=P / i3=AL / i4=RC`, `centro=196,181,253` e `canto=0,0,0` (fora do
+circulo).
+DIVERGENCIA NOMEADA: uma FOTO ainda desenha retangular — o recorte circular de
+uma foto precisa de um laco de pixel sobre um buffer que veio de outro metodo,
+e `Buffer` nao e' tipo valido de parametro/campo/retorno fora de `extern`
+(known-bugs §1195, medido de tres formas). O caminho das iniciais e' exato; o
+da foto esta' na lista de gaps, nao aproximado em silencio.
 
 ## §4 Como concluir
 

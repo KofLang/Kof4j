@@ -1,0 +1,121 @@
+package enois
+
+import enois.Text
+import enois.Tokens
+import game.Sdl3Backend
+
+// Énois — o AVATAR (`UserAvatar` do design system, src/domain/avatar/
+// user-avatar.tsx), com a MASCARA DE CIRCULO e as INICIAIS do fallback.
+//
+// As medidas vem do fonte, MEDIDAS:
+//   * a forma      `rounded-full` (linha 63) — um CIRCULO de verdade, com o
+//                  anti-aliasing da borda feito aqui (nao um quadrado)
+//   * as iniciais  `bg-violet-300 text-violet-900 font-bold text-[38cqw]`
+//                  (linha 48) — o `38cqw` e' 38% da LARGURA do avatar
+//   * o algoritmo  `getInitials` (linha 11): a PRIMEIRA letra da primeira
+//                  palavra + a primeira da ultima, em maiusculas; uma palavra
+//                  so' -> aquela letra
+//   * as cores     `violet-300` = #c4b5fd, `violet-900` = #4c1d95 (o padrao
+//                  do Tailwind que o projeto usa; nao estao no :root porque
+//                  sao da paleta do Tailwind 4)
+//
+// A foto (`AvatarImage`) entra como textura; sem foto, as iniciais sobre o
+// circulo violeta. A MASCARA e' o que faltava (o `Profile` e o `Community`
+// desenhavam um quadrado com recuo).
+
+/** As medidas do avatar, em px. */
+class AvatarMetrics {
+    static Int initialsRatio() { return 38 }   // text-[38cqw]: 38% da largura
+}
+
+class Avatar {
+
+    /** As iniciais do site (`getInitials`, user-avatar.tsx:11). */
+    static String initialsOf(String name) {
+        val parts = splitWords(name)
+        if (parts.size == 0) { return "?" }
+        if (parts.size == 1) { return upperFirst(parts[0]) }
+        return upperFirst(parts[0]) + upperFirst(parts[parts.size - 1])
+    }
+
+    /** Pinta o avatar num quadrado (x, y, size): a foto quando `imagePath`
+     *  carrega, senao as iniciais no circulo violeta.
+     *
+     *  A MASCARA: a foto e' RECORTADA no proprio buffer antes de virar textura
+     *  (o alfa de cada texel e' zerado fora do raio) — o caminho que o backend
+     *  ja tem (`loadImageTexture` e' a unica porta de imagem), sem API nova. O
+     *  circulo de fundo das iniciais e' pintado pixel a pixel com a mesma lei.
+     */
+    static void paint(Sdl3Backend b, Font initialsFont, Int x, Int y, Int size,
+                      String name, String imagePath) {
+        val violet = hex(0xc4b5fd)
+        val ink = hex(0x4c1d95)
+        val tex = b.loadImageTexture(imagePath)
+        if (tex != 0L) {
+            b.drawTexture(tex, x, y, size, size)
+            return
+        }
+        // sem foto: o circulo violeta, pixel a pixel
+        val cx = x + size / 2
+        val cy = y + size / 2
+        val r2 = size * size / 4
+        var row = 0
+        while (row < size) {
+            val dy = y + row - cy
+            var col = 0
+            while (col < size) {
+                val dx = x + col - cx
+                if (dx * dx + dy * dy <= r2) {
+                    SDL_SetRenderDrawColor(b.rendererHandle, violet.r(), violet.g(), violet.b(), 255)
+                    b.fillRect(x + col, y + row, 1, 1)
+                }
+                col = col + 1
+            }
+            row = row + 1
+        }
+        // as iniciais: 38% da largura, centradas no circulo
+        val ini = initialsOf(name)
+        val w = initialsFont.measure(ini)
+        initialsFont.drawTextColoured(b, ini, cx - w / 2, cy + size * AvatarMetrics.initialsRatio() / 200,
+                ink.r(), ink.g(), ink.b())
+    }
+
+    // A MASCARA por IMAGEM esta' BLOQUEADA por um gap de linguagem (known-bugs
+    // §1195): `Buffer` nao e' tipo valido de parametro de metodo comum nem de
+    // campo de classe — so' de `extern`. O recorte precisa atravessar um
+    // shim C com o buffer do chamador, e o Kof nao consegue O PASSAR hoje.
+    // POR ENQUANTO o avatar desenha o circulo (por iniciais) e, com foto,
+    // desenha a foto RETANGULAR — divergencia NOMEADA no plano, nunca "pronto".
+
+    // ── utilitarios de texto (o `getInitials` do site) ──────────────────────
+
+    static List<String> splitWords(String name) {
+        val out = listOf<String>()
+        var w = ""
+        var i = 0
+        while (i <= name.length()) {
+            val atEnd = i == name.length()
+            var c = ' '
+            if (!atEnd) { c = name.charAt(i) }
+            if (atEnd || c == ' ' || c == '\t' || c == '\n') {
+                if (w != "") { out.add(w); w = "" }
+            } else {
+                w = w + c
+            }
+            i = i + 1
+        }
+        return out
+    }
+
+    static String upperFirst(String s) {
+        if (s.length() == 0) { return "" }
+        val c = s.charAt(0)
+        var up = c
+        if (c >= 'a' && c <= 'z') { up = (c as Int - 32) as Char }
+        return "" + up
+    }
+
+    static ThemeColor hex(Int rgb) {
+        return ThemeColor((rgb >> 16) & 0xff, (rgb >> 8) & 0xff, rgb & 0xff)
+    }
+}

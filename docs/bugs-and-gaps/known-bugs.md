@@ -21320,3 +21320,16 @@ THE FIX: `0x16762004` (`SDL_PIXELFORMAT_ABGR8888` = `RGBA32` here). PROOF: the f
 `kof_text_shim.c`'s `kt_rgba` wrote `(255,255,255,alpha)` for every glyph — the FreeType bitmap carries ONLY coverage. With the pixel format fixed (§1193) the text became genuinely white, so it was INVISIBLE on the `--surface-card` (#ffffff) card: measured `tinta=0`.
 THE FIX: `kt_rgba(out, cap, r, g, b)` takes the colour as a parameter, and `Font.drawTextColoured(b, text, x, baseline, r, g, b)` carries it. `drawText` stays as the white shorthand. Every Énois text call now passes its TOKEN: author/body in `--text-strong` (#1d1626), the placeholder in `--text-date`, the handle/bio in `--text-subtle`, the active tab in `--primary`.
 PROOF: the Énois battery is **8/8** (`Enosis*`), each test asserting its own `tinta > 0`.
+
+## §1195 — `Buffer` is a type ONLY in `extern` signatures: a method parameter, a field, or a return of `Buffer` does not compile — 📌 MEASURED 22/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Status:** 🟠 OPEN — named; the type-system fix is a separate unit, the migration proceeds with the initials path.
+
+**Found while building the Énois avatar mask** (`kt_round_alpha(rgba, w, h)` — zero the alpha outside a circle). The attempt, three times, each rejecting:
+* `Int sizeOf(Buffer b)` → `Undefined variable or type: 'Buffer' in parameter 'b' … [SEM011]`;
+* `Buffer lastImageBuf` (a FIELD) → the same SEM011;
+* even an `extern` declared in one library and called through a thin wrapper → the wrapper's parameter is still a method parameter, so it fails; calling the extern DIRECTLY with a local `buffer.alloc(...)` works.
+THE SHAPE THAT WORKS: `Buffer` appears only as the TYPE of an `extern` parameter, and the value must be a `buffer.alloc` result in the SAME function body — never one that crossed a call boundary.
+WHAT IT BLOCKS: any Kof-side loop over pixel data that arrives from another method (the avatar's circular crop of a photo). The interim: the avatar paints the site's INITIALS fallback inside a real circle (proven, `EnosisAvatarE2ETest`), and a PHOTO draws rectangular — a NAMED divergence in the migration plan, not a silent one.
+THE FIX belongs to the type system (admit `Buffer` like any nominal type); until then every pixel operation on a foreign buffer needs a C shim reached by an `extern` whose argument is allocated in the same body.
+STATUS: named; the migration proceeds with the initials path.
