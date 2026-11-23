@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: in `enois-kof-desktop` — the recruitment board (kanban/timeline); then the reader-side catalogues (`desbravar`, `mapa`) and the app shell composition; Kof4j keeps `libs/game` + the compiler and records the Kof-side bugs (§1196, §1197); §1196 and §1197 stay OPEN
+next: in `enois-kof-desktop` — the community detail (`comunidades.$communityId`), the recruitment board (kanban/timeline) and the app shell composition (route navigation); Kof4j keeps `libs/game` + the compiler and records the Kof-side bugs (§1196, §1197); §1196 and §1197 stay OPEN
 location: repository
 state: active
 
@@ -514,6 +514,22 @@ own `EmptyState` strings. Proof `EnosisProjectAuthorE2ETest`:
 NAMED PENDING — no pixel assertion here: `known-bugs §1197` still does not close
 the readback of a `fillRect`, so this page ships with text and geometry proven and
 its colours traced to the tokens.
+
+**Fase 3 — `comunidades` index (LANDED 23/11, `enois-kof-desktop` `20b67d9`).**
+The communities showcase: header, search, the topics rail, "Minhas comunidades" and
+"Favoritas", the empty states (filtered vs general), the join/leave notices, the member
+plural and the join/participating states, and all 43 TOPICS from
+`constants/community-topics.ts` with unknown codes passing through (the list mirrors
+`ContentTaxonomy.TOPICS` on the backend). Geometry: PageHeader 104, grid column 330
+(the same as the catalogue), card cover 128, card body 218 with everything and 150
+minimal. Proof `EnoisCommunitiesE2ETest`: every string, both empty-state choices, the
+topic map and all heights. App battery **41/42** (the failure is the §1197 ink test).
+
+NAMED DIVERGENCE — the card body's minimum (150) does not equal the hand arithmetic
+(154): without an eyebrow the head block takes the name line (24) and not the 40 px
+avatar, because the avatar sits beside the taller of the two columns. I pinned the
+code's figure and recorded the discrepancy here rather than silently "fixing" a CSS
+stacking question I have not measured in a browser.
 
 **Fase 3 — weekly availability editor (LANDED 23/11, `enois-kof-desktop` `5ad7cd2`).**
 `Availability.kf`: all `texts.mentoring.availability*` strings, the seven weekdays in

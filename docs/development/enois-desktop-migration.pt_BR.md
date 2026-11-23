@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: em `enois-kof-desktop` — o quadro de recrutamento (kanban/timeline); depois os catalogos de leitura (`desbravar`, `mapa`) e a composicao da shell do app; o Kof4j mantem o `libs/game` + o compilador e registra os bugs do Kof (§1196, §1197); o §1196 e o §1197 seguem ABERTOS
+next: em `enois-kof-desktop` — o detalhe da comunidade (`comunidades.$communityId`), o quadro de recrutamento (kanban/timeline) e a composicao da shell (navegacao entre rotas); o Kof4j mantem o `libs/game` + o compilador e registra os bugs do Kof (§1196, §1197); o §1196 e o §1197 seguem ABERTOS
 location: repository
 state: active
 
@@ -500,6 +500,22 @@ título e duas de sinopse. A sinopse mantém o fallback do site
 PENDENCIA NOMEADA — nenhuma assercao de pixel aqui: o `known-bugs §1197` ainda nao
 fecha a leitura de um `fillRect`, entao a pagina entra com texto e geometria
 provados e as cores rastreadas nos tokens.
+
+**Fase 3 — indice de `comunidades` (POUSADA 23/11, `enois-kof-desktop` `20b67d9`).**
+A vitrine de comunidades: cabecalho, busca, a faixa de assuntos, "Minhas comunidades" e
+"Favoritas", os vazios (filtrado x geral), os avisos de entrar/sair, o plural de membro e
+os estados entrar/participando, e os 43 TOPICS de `constants/community-topics.ts` com
+codigo desconhecido passando (a lista espelha `ContentTaxonomy.TOPICS` no backend).
+Geometria: PageHeader 104, coluna 330 (a mesma do catalogo), capa 128, corpo do cartao
+218 com tudo e 150 minimo. Prova `EnoisCommunitiesE2ETest`: todas as strings, as duas
+escolhas de vazio, o mapa de assuntos e todas as alturas. Bateria do app **41/42** (a
+falha e o teste de tinta do §1197).
+
+DIVERGENCIA NOMEADA — o minimo do corpo do cartao (150) nao bate com a conta a mao (154):
+sem rotulo, o bloco do topo vale a linha do nome (24) e nao o avatar de 40, porque o
+avatar fica ao lado da coluna mais alta. Prendi o numero do codigo e registrei a
+divergencia aqui em vez de "consertar" em silencio uma questao de empilhamento de CSS que
+nao medi no navegador.
 
 **Fase 3 — editor de disponibilidade semanal (POUSADA 23/11, `enois-kof-desktop` `5ad7cd2`).**
 `Availability.kf`: todas as strings `texts.mentoring.availability*`, os sete dias na ordem
