@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: in `enois-kof-desktop` — the `comunidades` page is the CALL SEQUENCE of the route (blocks at 89/209/269/333, app `afeeb94`, `fim=um=487` against the external `333 + 154`) and no longer depends on the chained sum that §1206 keeps OPEN; what is left of the route: the card values from the API, the loading skeleton, and in Kof4j the chained form and the §1207 isolation
+next: in `enois-kof-desktop` — the `comunidades` route now has page (call sequence, `fim=487`), factory-built texts and catalogue; the LOADING SKELETON was written with the measured card (128 + 216 = 344, grid of six = 704) and is BLOCKED by the NAMED §1207 (the file is rejected only through the harness install — replication saved in Kof4j `testdata/enois-skeleton-repro/`), so it is out of `libs/` until the face is understood; next slices: the skeleton back in, the card values from the API, and Kof4j §1207/§1206
 location: repository
 state: active
 
@@ -935,3 +935,21 @@ the page reads the filter's own return, not the chained sum: §1206 stays OPEN
 for the chained form. Proof `EnoisComunidadesPageCompostaE2ETest`: `larg=1232`,
 `assuntos=44`, `primeiro=Todas`, `meio=Qualidade de vida`, `ultimo=Idiomas`,
 `fim=487`, `um=487`. Battery 8/8 (the page, its catalogue and six neighbours).
+
+## §11 Round 23/11 (sixth) — the loading skeleton measured, BLOCKED by §1207
+
+MEASURED from `community-card-skeletons.tsx`: the skeleton is the catalogue grid
+(`gap-4`, three columns at 1280) with `count = 6` `surface-card` cards — cover
+`Skeleton h-32` (128, `surface-2` `#ede8f5`), body `space-y-3 p-5` with the
+avatar `h-10 w-10 rounded-full` (40) beside two bars (`h-3`, `h-4`), then
+`h-3 w-full`, `h-3 w-2/3` and the foot `pt-2` with `h-3 w-16` and the button
+`h-8 w-16 rounded-full` (32) → body **216**, card **344**, six cards **704**
+(two rows of 344 + 16).
+
+`ComunidadesEsqueleto.kf` was written with those values (and `Sdl3Backend`
+parameters + `import enois.ComunidadesGrade`, like its neighbours) and is
+REJECTED through the harness with `SEM011 'Sdl3Backend'` — the §1207 face, whose
+replication is saved in Kof4j (`testdata/enois-skeleton-repro/`); the same small
+shape compiles in a synthetic module (`LibraryTypeInSiblingParameterE2ETest`
+2/2 on the Kof4j side). The skeleton therefore stays OUT of `libs/` (the app tree
+is clean at `afeeb94`) until the face is understood: no half-proof lands.

@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: em `enois-kof-desktop` — a pagina da `comunidades` e a SEQUENCIA DE CHAMADAS da rota (blocos em 89/209/269/333, app `afeeb94`, `fim=um=487` contra a conta de fora `333 + 154`) e nao depende mais da soma encadeada que o §1206 mantem ABERTO; o que falta da rota: os valores do cartao da API, o esqueleto de carga, e no Kof4j a forma encadeada e o isolamento do §1207
+next: em `enois-kof-desktop` — a rota `comunidades` agora tem pagina (sequencia de chamadas, `fim=487`), textos montados pela fabrica e catalogo; o ESQUELETO DE CARGA foi escrito com o cartao medido (128 + 216 = 344, grade de seis = 704) e esta BLOQUEADO pelo §1207 NOMEADO (o arquivo so e recusado pelo caminho de instalacao do harness — replicacao guardada no Kof4j `testdata/enois-skeleton-repro/`), entao fica fora de `libs/` ate a face ser entendida; proximas fatias: o esqueleto de volta, os valores do cartao da API, e o Kof4j §1207/§1206
 location: repository
 state: active
 
@@ -919,3 +919,21 @@ filtro, nao a soma encadeada: o §1206 segue ABERTO para a forma encadeada. Prov
 `EnoisComunidadesPageCompostaE2ETest`: `larg=1232`, `assuntos=44`,
 `primeiro=Todas`, `meio=Qualidade de vida`, `ultimo=Idiomas`, `fim=487`,
 `um=487`. Bateria 8/8 (a pagina, o catalogo e seis vizinhos).
+
+## §11 Rodada 23/11 (sexta) — o esqueleto de carga medido, BLOQUEADO pelo §1207
+
+MEDIDO em `community-card-skeletons.tsx`: o esqueleto e a grade do catalogo
+(`gap-4`, tres colunas em 1280) com `count = 6` cartoes `surface-card` — capa
+`Skeleton h-32` (128, `surface-2` `#ede8f5`), corpo `space-y-3 p-5` com o avatar
+`h-10 w-10 rounded-full` (40) ao lado de duas barras (`h-3`, `h-4`), depois
+`h-3 w-full`, `h-3 w-2/3` e o rodape `pt-2` com `h-3 w-16` e o botao
+`h-8 w-16 rounded-full` (32) -> corpo **216**, cartao **344**, seis cartoes
+**704** (duas linhas de 344 + 16).
+
+`ComunidadesEsqueleto.kf` foi escrito com esses valores (e parametros
+`Sdl3Backend` + `import enois.ComunidadesGrade`, como os vizinhos) e e RECUSADO
+pelo harness com `SEM011 'Sdl3Backend'` — a face do §1207, cuja replicacao fica
+guardada no Kof4j (`testdata/enois-skeleton-repro/`); a mesma forma pequena
+compila num modulo sintetico (`LibraryTypeInSiblingParameterE2ETest` 2/2 do lado
+do Kof4j). O esqueleto, portanto, FICA FORA de `libs/` (a arvore do app limpa em
+`afeeb94`) ate a face ser entendida: nada entra pela metade.

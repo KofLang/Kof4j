@@ -1,0 +1,92 @@
+package enois
+
+import enois.ComunidadesGrade
+import enois.Draw
+import enois.Tokens
+import enois.Text
+import game.Sdl3Backend
+
+// O esqueleto da primeira carga (`CommunityCardSkeletons`, DS
+// `src/domain/communities/community-card-skeletons.tsx` — `count = 6`): a
+// MESMA grade do catálogo (`grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3`)
+// com seis cartões `surface-card overflow-hidden`:
+//   * a capa   `Skeleton h-32 w-full rounded-none` (128) em `--surface-2`
+//   * o corpo  `space-y-3 p-5` (12 entre, 20 de margem): o avatar
+//              `h-10 w-10 rounded-full` (40) ao lado de duas barras
+//              (`h-3 w-20` = 12 e `h-4 w-3/4` = 16, `space-y-2` 8), depois
+//              `h-3 w-full`, `h-3 w-2/3` e o rodapé `pt-2` (8) com a barra
+//              `h-3 w-16` e o botão `h-8 w-16 rounded-full` (32)
+// Alturas medidas: corpo = 20 + 40 + 12 + 12 + 8 + 16 + 12 + 12 + 12 + 12 +
+// 8 + 32 + 20 = 216; cartão = 128 + 216 = **344**; a grade de 6 = 2 linhas de
+// 344 + 16 = **704**. A cor das barras é `--surface-2` (`#ede8f5`).
+
+class ComunidadesEsqueleto {
+
+    static Int cover() { return 128 }        // h-32
+    static Int pad() { return 20 }           // p-5
+    static Int stack() { return 12 }         // space-y-3
+    static Int avatar() { return 40 }        // h-10 w-10
+    static Int barSmall() { return 12 }      // h-3
+    static Int barTitle() { return 16 }      // h-4
+    static Int footTop() { return 8 }        // pt-2
+    static Int button() { return 32 }        // h-8
+    static Int count() { return 6 }          // count = 6
+
+    /** A altura do corpo: p-5, avatar 40, depois as barras com o `space-y-3`. */
+    static Int bodyHeight() {
+        return pad() * 2 + avatar() + stack() + barSmall() + 8 + barTitle() + stack()
+                + barSmall() + stack() + barSmall() + stack() + footTop() + button()
+    }
+
+    static Int cardHeight() { return cover() + bodyHeight() }
+
+    /** A altura da grade de `count` cartões, três colunas. */
+    static Int height() {
+        return ((count() + 2) / 3) * cardHeight() + ((count() + 2) / 3 - 1) * ComunidadesGrade.gap()
+    }
+
+    /** Pinta uma barra `--surface-2` arredondada como o `Skeleton`. */
+    static Int bar(SdlBackend b, Int x, Int y, Int w, Int h, Bool pill) {
+        val s = Tokens.Surface2()
+        var r = Tokens.RadiusPx() / 4
+        if (pill) { r = h / 2 }
+        Draw.roundRect(b, x, y, w, h, r, Tokens.Surface2())
+        return w
+    }
+
+    /** Pinta um cartão de esqueleto. Devolve a altura (344). */
+    static Int card(SdlBackend b, Int x, Int y, Int w) {
+        val card = Tokens.SurfaceCard()
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, y, w, cardHeight())
+        val px = x + pad()
+        var cy = y + cover()
+        val inner = w - pad() * 2
+        bar(b, x, y, w, cover(), false)
+        bar(b, px, cy + pad(), avatar(), avatar(), true)
+        val tx = px + avatar() + stack()
+        bar(b, tx, cy + pad(), inner - avatar() - stack(), barSmall(), false)
+        bar(b, tx, cy + pad() + barSmall() + 8, (inner - avatar() - stack()) * 3 / 4, barTitle(), false)
+        cy = cy + pad() + avatar() + stack()
+        bar(b, px, cy, inner, barSmall(), false)
+        bar(b, px, cy + barSmall() + stack(), inner * 2 / 3, barSmall(), false)
+        cy = cy + barSmall() + stack() + barSmall() + stack() + footTop()
+        bar(b, px, cy, 64, barSmall(), false)
+        bar(b, x + w - pad() - 64, cy - (button() - barSmall()) / 2, 64, button(), true)
+        return cardHeight()
+    }
+
+    /** Pinta a grade de seis esqueletos. Devolve a altura (704). */
+    static Int paint(SdlBackend b, Int x, Int y, Int w) {
+        val cell = ComunidadesGrade.cellWidth(w)
+        var i = 0
+        while (i < count()) {
+            val col = i % 3
+            val row = i / 3
+            card(b, x + col * (cell + ComunidadesGrade.gap()),
+                    y + row * (cardHeight() + ComunidadesGrade.gap()), cell)
+            i = i + 1
+        }
+        return height()
+    }
+}
