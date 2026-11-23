@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: em `enois-kof-desktop` — ligar o `SessionClient` no ponto de entrada (ler a sessao salva, chamar `/me`, escolher a casca), o quadro de recrutamento, depois os catalogos restantes; toda tela NOVA comeca medindo a rota ao vivo com `scripts/measure-site.mjs`; o Kof4j mantem o `libs/game` + o compilador e registra os bugs do Kof (§1196, §1197); o §1196 e o §1197 seguem ABERTOS
+next: em `enois-kof-desktop` — um ARMAZEM de sessao (persistir marca/cookie como o localStorage do site) para um login real chegar a casca autenticada; depois o quadro de recrutamento e os catalogos restantes; toda tela NOVA comeca medindo a rota ao vivo com `scripts/measure-site.mjs`; o Kof4j mantem o `libs/game` + o compilador e registra os bugs do Kof (§1196, §1197); o §1196 e o §1197 seguem ABERTOS
 location: repository
 state: active
 
@@ -500,6 +500,25 @@ título e duas de sinopse. A sinopse mantém o fallback do site
 PENDENCIA NOMEADA — nenhuma assercao de pixel aqui: o `known-bugs §1197` ainda nao
 fecha a leitura de um `fillRect`, entao a pagina entra com texto e geometria
 provados e as cores rastreadas nos tokens.
+
+**Fase 3 — a sessao decide a casca EM UM PASSO, e o app passa por ela (POUSADA 23/11,
+`enois-kof-desktop` `8b4fcde`).** O `SessionShell` e' o caminho que o app roda ao abrir, na
+ordem do site: ler a marca local de sessao (sem marca = casca de visita, a rede nunca e'
+tocada, exatamente o portao `hasSessionFlag`), chamar `/me`, deixar a resposta escolher a
+casca (200 com o `Profile` = autenticada, 401 = visita, 403/5xx = visita mais o codigo
+honesto) e entregar a escolha ao `ShellChoice`. O `app/Main.kf` agora entra por ela e imprime
+`sessao: casca=visita` em vez da constante `signedIn = false`. Prova
+`EnoisSessionShellE2ETest` contra um servidor local guiado pelos cabecalhos:
+`offline=visita`, `anon=visita`, `online=autenticado`,
+`line=casca=autenticado usuario=Mel Santos` e
+`falha=casca=visita nota=ORIGIN_REQUIRED (HTTP 403)`. O ponto de entrada REAL compila, roda e
+informa `sessao: casca=visita`. Bateria do app **45/46** (a falha e o teste de tinta do
+§1197).
+
+PENDENCIA NOMEADA — a marca de sessao e o cookie vem de um `false` e de um `""` no ponto de
+entrada: o desktop ainda nao tem ARMAZEM de sessao (o site guarda no localStorage). Ate'
+existir, a casca autenticada e' alcancavel pela biblioteca e pelos testes, mas nao por um
+login real no app.
 
 **Fase 3 — a SESSAO do desktop (`/me`) — POUSADA 23/11 (`enois-kof-desktop` `9d53db4`).**
 O `SessionClient` reproduz o `useCurrentUser` do site com o contrato do backend MEDIDO por

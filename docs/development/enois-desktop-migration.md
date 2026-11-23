@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: in `enois-kof-desktop` — wire `SessionClient` into the entry point (read the stored session, call `/me`, pick the shell), the recruitment board, then the remaining catalogues; every NEW screen starts by measuring the live route with `scripts/measure-site.mjs`; Kof4j keeps `libs/game` + the compiler and records the Kof-side bugs (§1196, §1197); §1196 and §1197 stay OPEN
+next: in `enois-kof-desktop` — a SESSION STORE (persist the mark/cookie like the site's localStorage) so a real login reaches the authenticated shell; then the recruitment board and the remaining catalogues; every NEW screen starts by measuring the live route with `scripts/measure-site.mjs`; Kof4j keeps `libs/game` + the compiler and records the Kof-side bugs (§1196, §1197); §1196 and §1197 stay OPEN
 location: repository
 state: active
 
@@ -514,6 +514,25 @@ own `EmptyState` strings. Proof `EnosisProjectAuthorE2ETest`:
 NAMED PENDING — no pixel assertion here: `known-bugs §1197` still does not close
 the readback of a `fillRect`, so this page ships with text and geometry proven and
 its colours traced to the tokens.
+
+**Fase 3 — a sessão decide a casca EM UM PASSO, e o app passa por ela (LANDED 23/11,
+`enois-kof-desktop` `8b4fcde`).** `SessionShell` is the path the app runs on open, in the
+site's order: read the local session mark (no mark = guest shell, the network is never
+touched, exactly the `hasSessionFlag` gate), call `/me`, let the answer pick the shell (200
+with the `Profile` = authenticated, 401 = guest, 403/5xx = guest plus the honest code), and
+hand the choice to `ShellChoice`. `app/Main.kf` now boots through it and prints
+`sessao: casca=visita` instead of the constant `signedIn = false`. Proof
+`EnoisSessionShellE2ETest` against a header-driven local server:
+`offline=visita`, `anon=visita`, `online=autenticado`,
+`line=casca=autenticado usuario=Mel Santos`, and
+`falha=casca=visita nota=ORIGIN_REQUIRED (HTTP 403)`. The REAL entry point compiles, runs
+and reports `sessao: casca=visita`. App battery **45/46** (the failure is the §1197 ink
+test).
+
+NAMED PENDING — the session mark and the cookie come from a `false` and an `""` in the
+entry point: the desktop has no session STORE yet (the site keeps it in localStorage). Until
+that exists the authenticated shell is reachable through the library and its tests but not
+by a real login in the app.
 
 **Fase 3 — a SESSÃO do desktop (`/me`) — LANDED 23/11 (`enois-kof-desktop` `9d53db4`).**
 `SessionClient` reproduces the site's `useCurrentUser` with the backend contract MEASURED by
