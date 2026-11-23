@@ -29,6 +29,21 @@ class Sdl3BackendE2ETest implements LibraryInstallSupport {
 
     public String libraryName() { return "game"; }
 
+    /**
+     * A lib {@code game} tem uma dependencia TRANSITIVA: desde
+     * {@code ced00f5c1} (a lane Énois/graphics) o backend
+     * {@code game/Sdl3Backend.kf} importa {@code image.Raster}. A arvore de
+     * install deste teste precisa trazer as DUAS libs — como a distribuicao
+     * real faz ({@code scripts/package.sh} copia {@code libs/.} inteiro para
+     * {@code lib/kof-libs/}). Sem a {@code image}, o compilador para no
+     * {@code PKG006} (import nao encontrado) e a recusa esperada
+     * ({@code FFI001} — o backend nativo nao liga no WASI) nunca e'
+     * alcançada: foi o que o CI da 0.8.1 mediu (run 45100688996,
+     * {@code Sdl3BackendE2ETest} 1F). Mesmo formato da dependencia
+     * archive→image em {@code ArchiveKofRunner}.
+     */
+    public List<String> libraryNames() { return List.of("game", "image"); }
+
     public List<String> libraryMarkers() { return List.of("Window.kf", "Draw.kf"); }
 
     private static String hostSdl3() {
