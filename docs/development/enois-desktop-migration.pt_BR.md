@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — `blogs` (a rota de publicacao) ou `vagas` (a listagem de vagas)
+next: a Fase 3 continua — `blogs` (a rota de publicacao) ou os CARDS de resultado de vagas (a listagem abaixo dos filtros)
 location: repository
 state: active
 
@@ -212,6 +212,20 @@ com o avatar circular `h-9 w-9` = **36 px**, o nome em `text-sm font-medium` e
 o badge "ADMIN". Provado nativamente: `membros_h=162` (`p-5` x2 + o titulo +
 o gap + 2 x (36 + 12)), `vazia_h=66`, `card=255,255,255`,
 `avatar=196,181,253`. Bateria **14/14**.
+
+**Fase 3 — `vagas` (POUSADA 22/11).** O `libs/enois/Jobs.kf` pinta o shell da
+listagem de vagas: o cabecalho `surface-card p-4 sm:p-6` com o titulo
+"Oportunidades" em `text-2xl` = 24 px e o subtitulo em `text-sm`, a linha de
+busca carregando o placeholder do proprio site "Buscar vagas (ex.: java
+-estágio)", e as pilulas de filtro em `h-9` = 36 px com `border-border-soft`;
+os rotulos das pilulas usam os valores REAIS de `texts.jobs.filters`
+(Remoto/Híbrido/Presencial, Júnior/Pleno/Sênior/Liderança) mais o
+`clearFilters` = "Limpar filtros". Provado nativamente: `header_h=146`
+(24+24+8+14+16+36+24), `filtros_h=52`, `card=255,255,255`,
+`borda=229,224,235` (`--border-soft #e5e0eb`), `vazio=255,255,255` (o card
+onde nao ha pilula). Bateria **15/15** — o primeiro tick desde a rodada do
+avatar SEM erro de amostragem, porque cada ponto foi CALCULADO do layout antes
+da assercao ser escrita.
 
 ## §4 Como concluir
 

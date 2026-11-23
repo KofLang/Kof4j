@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — `blogs` (the publishing route) or `vagas` (the jobs listing)
+next: Fase 3 continues — `blogs` (the publishing route) or the vagas RESULT cards (the listing below the filters)
 location: repository
 state: active
 
@@ -210,6 +210,20 @@ with the `h-9 w-9` = **36 px** circular avatar, the name at
 (`p-5` ×2 + the heading + the gap + 2 × (36 + 12)), `vazia_h=66`,
 `card=255,255,255`, `avatar=196,181,253`.
 Battery **14/14**.
+
+**Fase 3 — `vagas` (LANDED 22/11).** `libs/enois/Jobs.kf` paints the jobs listing
+shell: the header `surface-card p-4 sm:p-6` with the title "Oportunidades" at
+`text-2xl` = 24 px and the subtitle at `text-sm`, the search row carrying the
+site's own placeholder "Buscar vagas (ex.: java -estágio)", and the filter
+chips at `h-9` = 36 px with `border-border-soft`; the chip labels use the REAL
+values from `texts.jobs.filters` (Remoto/Híbrido/Presencial,
+Júnior/Pleno/Sênior/Liderança) plus `clearFilters` = "Limpar filtros".
+Proven natively: `header_h=146` (24+24+8+14+16+36+24), `filtros_h=52`,
+`card=255,255,255`, `borda=229,224,235` (`--border-soft #e5e0eb`),
+`vazio=255,255,255` (the card where no chip is).
+Battery **15/15** — the first tick since the avatar round with NO sampling
+mistake, because every sample point was computed from the layout before the
+assertion was written.
 
 ## §4 How to finish
 
