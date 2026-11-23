@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — `notificacoes.index` ou `selos`
+next: a Fase 3 continua — `notificacoes.index` ou `desafios`
 location: repository
 state: active
 
@@ -351,6 +351,22 @@ DIVERGENCIA pega ao escrever a prova: amostrei primeiro o gap do `mb-4` em
 y=140, mas o header termina em **146** (`60 + 24x2 + 20 + 14 + 4`) — a amostra
 estava DENTRO do header, nao no gap. A faixa foi recalculada antes do teste
 ser escrito. Bateria **24/24**.
+
+**Fase 3 — `selos` (POUSADA 23/11).** O `SealsScreen` no `libs/enois/Seals.kf` pinta a
+pagina dos selos de contribuicao: a coluna `max-w-3xl` = **768 px** com
+`space-y-8` (32 px entre secoes) e `sm:py-14` (56 px), o eyebrow
+`text-xs font-semibold uppercase tracking-widest text-primary`, o titulo em
+`sm:text-4xl` = **36 px**, a intro em `text-base leading-relaxed`, e os blocos
+de categoria CODE/ISSUES sobre `--primary-soft`.
+O CONTRATO E' `tierRange(min, max)` COM TRES FORMAS, e o teste afirma todas:
+`tierRange(10, -1)` = **"10+"** (fim aberto), `tierRange(5, 5)` = **"5"**
+(unico), `tierRange(3, 9)` = **"3–9"** com **EN DASH (U+2013)** — o teste tambem
+afirma que o hifen ASCII NAO esta la'. Bateria **25/25**.
+DIVERGENCIA que mudou COMO a prova e' escrita: uma varredura por "nao e' branco"
+para na hora, porque o FUNDO da pagina `247,244,251` tambem nao e' branco — a
+primeira versao achou o fundo em (66,72) e o chamou de eyebrow. A varredura
+agora procura a TINTA do `--primary` (azul alto, vermelho baixo e azul pelo
+menos 60 acima do vermelho), que NEM o fundo NEM o branco casam.
 
 ## §4 Como concluir
 

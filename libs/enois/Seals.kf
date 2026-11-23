@@ -1,0 +1,139 @@
+package enois
+
+import enois.Text
+import enois.Tokens
+import game.Sdl3Backend
+
+// Énois — a rota `selos` (`src/routes/selos.tsx`), os selos de contribuicao.
+//
+// Os TEXTOS vem do codigo (`src/texts.ts`, bloco `sealsPage`), sem invencao:
+//   * o titulo      `title` = "Selos de contribuicao"
+//   * o eyebrow     `text-xs font-medium text-primary` (acima do titulo)
+//   * a intro       `intro` = a explicacao longa do contrato dos selos
+//   * as categorias `categoriesTitle` = "Categorias e niveis",
+//                   `categories.CODE` e `categories.ISSUES`
+//   * a faixa       `tierRange(min, max)` — TRES formas: "N+", "N" e "N–M"
+//                   (max null -> "N+"; min == max -> "N"; senao "N–M")
+//
+// As MEDIDAS vem do markup, MEDIDAS:
+//   * o container   `mx-auto max-w-3xl space-y-8 py-10 sm:py-14` = 768 px,
+//                   32 px entre as secoes, 56 px de padding vertical
+//   * o eyebrow     `text-xs font-semibold uppercase tracking-widest
+//                   text-primary` = 12 px
+//   * o titulo      `text-3xl font-semibold tracking-tight sm:text-4xl` =
+//                   36 px no desktop
+//   * a intro       `text-base leading-relaxed text-muted-foreground` = 16 px
+//   * o titulo sec. `text-lg font-semibold tracking-tight` = 18 px
+//   * a descricao   `text-sm text-muted-foreground` = 14 px
+
+/** As medidas dos selos, em px. */
+class SealsMetrics {
+    static Int maxWidth() { return 768 }      // max-w-3xl
+    static Int sectionGap() { return 32 }     // space-y-8
+    static Int py() { return 56 }             // sm:py-14
+    static Int eyebrowSize() { return 12 }
+    static Int titleSize() { return 36 }      // sm:text-4xl
+    static Int introSize() { return 16 }      // text-base
+    static Int headingSize() { return 18 }    // text-lg
+    static Int bodySize() { return 14 }       // text-sm
+    static Int lineHeight() { return 26 }     // leading-relaxed em 16
+}
+
+class SealsScreen {
+
+    /** `tierRange(min, max)` do site — as TRES formas. */
+    static String tierRange(Int min, Int max) {
+        if (max < 0) { return "" + min + "+" }        // max null
+        if (min == max) { return "" + min }           // a faixa de um nivel so'
+        return "" + min + "–" + max                   // o traco e' EN DASH (U+2013)
+    }
+
+    /** Pinta a pagina: o eyebrow, o titulo, a intro, "Categorias e niveis"
+     *  com as duas categorias, e a faixa de niveis. Devolve a altura usada. */
+    static Int paint(Sdl3Backend b, Font eyebrowFont, Font titleFont, Font bodyFont,
+                     Font headingFont, Int windowWidth, Int y,
+                     String eyebrow, String title, String intro,
+                     String categoriesTitle, List<String> categoryLabels,
+                     List<String> categoryBodies, Int tierMin, Int tierMax) {
+        val strong = Tokens.TextStrong()
+        val muted = Tokens.MutedForeground()
+        val primary = Tokens.Primary()
+        val soft = Tokens.PrimarySoft()
+        val w = SealsMetrics.maxWidth()
+        val x = (windowWidth - w) / 2
+        var cy = y + SealsMetrics.py()
+        // o eyebrow em --primary
+        eyebrowFont.drawTextColoured(b, eyebrow, x, cy + 12, primary.r(), primary.g(), primary.b())
+        cy = cy + 16 + 8
+        // o titulo grande
+        titleFont.drawTextColoured(b, title, x, cy + 30, strong.r(), strong.g(), strong.b())
+        cy = cy + SealsMetrics.titleSize() + 16
+        // a intro, quebrada
+        val introLines = wrapText(bodyFont, intro, w)
+        var i = 0
+        while (i < introLines.size) {
+            bodyFont.drawTextColoured(b, introLines[i], x, cy + 18,
+                    muted.r(), muted.g(), muted.b())
+            cy = cy + SealsMetrics.lineHeight()
+            i = i + 1
+        }
+        cy = cy + SealsMetrics.sectionGap() - SealsMetrics.lineHeight()
+        // "Categorias e niveis"
+        headingFont.drawTextColoured(b, categoriesTitle, x, cy + 18,
+                strong.r(), strong.g(), strong.b())
+        cy = cy + SealsMetrics.headingSize() + 16
+        // as categorias: um bloco com a pilula do nome e o corpo
+        var c = 0
+        while (c < categoryLabels.size) {
+            val bodyLines = wrapText(bodyFont, categoryBodies[c], w - 24)
+            val blockH = 16 + 22 + 8 + bodyLines.size * 20 + 16
+            SDL_SetRenderDrawColor(b.rendererHandle, soft.r(), soft.g(), soft.b(), 255)
+            b.fillRect(x, cy, w, blockH)
+            eyebrowFont.drawTextColoured(b, categoryLabels[c], x + 12, cy + 28,
+                    primary.r(), primary.g(), primary.b())
+            var l = 0
+            while (l < bodyLines.size) {
+                bodyFont.drawTextColoured(b, bodyLines[l], x + 12, cy + 16 + 22 + 8 + l * 20 + 14,
+                        muted.r(), muted.g(), muted.b())
+                l = l + 1
+            }
+            cy = cy + blockH + 12
+            c = c + 1
+        }
+        // a faixa de niveis: `tierRange`
+        eyebrowFont.drawTextColoured(b, tierRange(tierMin, tierMax), x, cy + 14,
+                primary.r(), primary.g(), primary.b())
+        return cy + 20 - y
+    }
+
+    /** Quebra `text` em linhas que caibam em `width` px (avancos medidos). */
+    static List<String> wrapText(Font f, String text, Int width) {
+        val out = listOf<String>()
+        var line = ""
+        var word = ""
+        var i = 0
+        while (i <= text.length()) {
+            val atEnd = i == text.length()
+            var ch = ' '
+            if (!atEnd) { ch = text.charAt(i) }
+            if (atEnd || ch == ' ') {
+                if (word != "") {
+                    if (line == "") {
+                        line = word
+                    } else if (f.measure(line + " " + word) <= width) {
+                        line = line + " " + word
+                    } else {
+                        out.add(line)
+                        line = word
+                    }
+                    word = ""
+                }
+            } else {
+                word = word + ch
+            }
+            i = i + 1
+        }
+        if (line != "") { out.add(line) }
+        return out
+    }
+}

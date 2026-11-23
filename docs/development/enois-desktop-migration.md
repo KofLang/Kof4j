@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — `notificacoes.index` or `selos`
+next: Fase 3 continues — `notificacoes.index` or `desafios`
 location: repository
 state: active
 
@@ -359,6 +359,23 @@ y=140, but the header ends at **146** (`60 + 24×2 + 20 + 14 + 4`) — the sampl
 was INSIDE the header, not the gap. The band was recomputed before the test
 was written.
 Battery **24/24**.
+
+**Fase 3 — `selos` (LANDED 23/11).** `SealsScreen` in `libs/enois/Seals.kf` paints the
+contribution badges page: the `max-w-3xl` = **768 px** column with `space-y-8`
+(32 px between sections) and `sm:py-14` (56 px), the eyebrow
+`text-xs font-semibold uppercase tracking-widest text-primary`, the title at
+`sm:text-4xl` = **36 px**, the intro at `text-base leading-relaxed`, and the
+category blocks for CODE/ISSUES on `--primary-soft`.
+THE CONTRACT IS `tierRange(min, max)` WITH THREE FORMS, and the test asserts
+all: `tierRange(10, -1)` = **"10+"** (open end), `tierRange(5, 5)` = **"5"**
+(single), `tierRange(3, 9)` = **"3–9"** with an **EN DASH (U+2013)** — the test
+also asserts the ASCII hyphen is NOT there.
+Battery **25/25**.
+DIVERGENCE that changed HOW the proof is written: a scan for "not white" stops
+immediately, because the PAGE BACKGROUND `247,244,251` is not white either —
+the first version found the background at (66,72) and called it the eyebrow.
+The scan now looks for the INK of `--primary` (blue high, red low, and blue at
+least 60 above red), which NEITHER the background nor white can match.
 
 ## §4 How to finish
 
