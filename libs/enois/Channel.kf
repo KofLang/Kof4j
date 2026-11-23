@@ -84,3 +84,53 @@ class ChannelScreen {
         return cy - y
     }
 }
+
+/** Os TRES estados de acesso do canal (`channelPage.private` / `.notMember` /
+ *  `.error`), medidos em `comunidades.$communityId.canais.$channelId.tsx`:
+ *  o container comum e' `surface-card space-y-3 p-5` = 20 px, a mensagem
+ *  `text-sm text-text-subtle` = 14 px, e cada estado tem a SUA cor de
+ *  significado — o privado em `--primary`, o visitante com o botao
+ *  `rounded-full` e o erro em `--destructive`. As cores NAO sao inventadas:
+ *  saem dos tokens que o site usa para cada papel. */
+class ChannelStateMetrics {
+    static Int pad() { return 20 }            // p-5
+    static Int gap() { return 12 }            // space-y-3
+    static Int messageSize() { return 14 }    // text-sm
+    static Int buttonHeight() { return 36 }
+}
+
+class ChannelAccess {
+
+    /** Pinta um estado de acesso: a mensagem e, no caso do visitante, o botao.
+     *  Devolve a altura. `kind`: 0 = privado, 1 = visitante, 2 = erro. */
+    static Int paint(Sdl3Backend b, Font bodyFont, Int x, Int y, Int w,
+                     Int kind, String message, String actionLabel) {
+        val card = Tokens.SurfaceCard()
+        val subtle = Tokens.TextSubtle()
+        val primary = Tokens.Primary()
+        val destructive = Tokens.Destructive()
+        val soft = Tokens.PrimarySoft()
+        val pad = ChannelStateMetrics.pad()
+        val withButton = kind == 1
+        val h = pad * 2 + ChannelStateMetrics.messageSize() + ChannelStateMetrics.gap()
+                + (if (withButton) ChannelStateMetrics.buttonHeight() else 0) - (if (withButton) 0 else ChannelStateMetrics.gap())
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, y, w, h)
+        // o acento do estado: uma barra de 4 px a esquerda, na cor do papel
+        var accent = primary
+        if (kind == 2) { accent = destructive }
+        SDL_SetRenderDrawColor(b.rendererHandle, accent.r(), accent.g(), accent.b(), 255)
+        b.fillRect(x, y, 4, h)
+        bodyFont.drawTextColoured(b, message, x + pad, y + pad + 12,
+                subtle.r(), subtle.g(), subtle.b())
+        if (withButton) {
+            // o botao "Entrar na comunidade": --primary-soft com o rotulo --primary
+            val by = y + pad + ChannelStateMetrics.messageSize() + ChannelStateMetrics.gap()
+            SDL_SetRenderDrawColor(b.rendererHandle, soft.r(), soft.g(), soft.b(), 255)
+            b.fillRect(x + pad, by, bodyFont.measure(actionLabel) + 32, ChannelStateMetrics.buttonHeight())
+            bodyFont.drawTextColoured(b, actionLabel, x + pad + 16, by + 24,
+                    primary.r(), primary.g(), primary.b())
+        }
+        return h
+    }
+}

@@ -264,6 +264,20 @@ Proven natively: `x=114` (the centred column), `icone=238,232,255`
 Battery **18/18** — fourth tick in a row with every sample coordinate computed
 from the layout.
 
+**Fase 3 — the channel's three ACCESS states (LANDED 22/11).** `ChannelAccess` in
+`libs/enois/Channel.kf` paints the states the site distinguishes with colours
+that MEAN something: `private` on `--primary` (**#6746f5**), `error` on
+`--destructive` (**#b30018**), and `notMember` with the "Entrar na comunidade"
+button on `--primary-soft`. The common container is
+`surface-card space-y-3 p-5` = 20 px and the message `text-sm text-text-subtle`
+= 14 px. Each state carries its own 4 px accent bar in the role's colour —
+the colour is not decoration, it is the distinction between "you lack access"
+and "something failed".
+Proven natively: `privado_h=54`, `visitante_h=102` (the button adds 12 + 36),
+`erro_h=54`, `privado=103,70,245`, `erro=179,0,24`, `botao=238,232,255`.
+Battery **19/19** — fifth tick in a row with every sample coordinate computed
+from the layout.
+
 ## §4 How to finish
 
 each phase lands with a native run that prints what it painted; the plan records

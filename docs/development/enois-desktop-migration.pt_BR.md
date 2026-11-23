@@ -263,6 +263,19 @@ Provado nativamente: `x=114` (a coluna centrada), `icone=238,232,255`
 (`--primary-soft`), `card=255,255,255`, `canal_h=280`. Bateria **18/18** —
 quarto tick seguido com cada coordenada de amostra calculada do layout.
 
+**Fase 3 — os tres estados de ACESSO do canal (POUSADOS 22/11).** O `ChannelAccess` no
+`libs/enois/Channel.kf` pinta os estados que o site distingue com cores que
+SIGNIFICAM algo: `private` em `--primary` (**#6746f5**), `error` em
+`--destructive` (**#b30018**), e `notMember` com o botao "Entrar na comunidade"
+em `--primary-soft`. O container comum e' `surface-card space-y-3 p-5` = 20 px
+e a mensagem `text-sm text-text-subtle` = 14 px. Cada estado carrega a sua
+barra de acento de 4 px na cor do papel — a cor nao e' decoracao, e' a
+distincao entre "voce nao tem acesso" e "algo falhou".
+Provado nativamente: `privado_h=54`, `visitante_h=102` (o botao soma 12 + 36),
+`erro_h=54`, `privado=103,70,245`, `erro=179,0,24`, `botao=238,232,255`.
+Bateria **19/19** — quinto tick seguido com cada coordenada de amostra
+calculada do layout.
+
 ## §4 Como concluir
 
 cada fase pousa com uma execução nativa que imprime o que pintou; o plano registra
