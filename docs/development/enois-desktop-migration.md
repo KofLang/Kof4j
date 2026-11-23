@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — `mensagens` (the conversation list) or the community FEED below its header
+next: Fase 3 continues — the community FEED below its header, or `explorar` (the discovery route)
 location: repository
 state: active
 
@@ -162,6 +162,17 @@ The PHOTO path is circular too, in PURE KOF: the fix to known-bugs §1195 made
 `Buffer` a nominal type, so `Avatar.maskCircle` is a Kof pixel loop over the
 decoded buffer (`centro=128,127,180` from the image, `canto=0,0,0` outside).
 One shared primitive now serves every image mask the app needs.
+
+**Fase 3 — `mensagens` (LANDED 22/11).** `libs/enois/Messages.kf` is the inbox:
+the header `p-4` with the title at `text-lg` = **18 px**, the two REAL tabs
+(`SOCIAL_TABS = ["all","archived"]`, `mensagens.tsx:51`) labelled "Todas" and
+"Arquivadas" (`texts.ts:3004`), and a conversation row = the CIRCULAR avatar
+(the §1195 primitive) + the name + the last-message preview
+(`conversation-item.tsx`). An empty list shows the site's own
+"Nenhuma conversa ainda". Proven natively: `header_h=90`, `lista_h=128`,
+`vazia_h=64`, `header=255,255,255`, `avatar=196,181,253` (the `bg-violet-300`
+inside the circle) and `canto=255,255,255` (the card outside it).
+Battery **11/11**.
 
 ## §4 How to finish
 

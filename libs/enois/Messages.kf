@@ -1,0 +1,106 @@
+package enois
+
+import enois.Avatar
+import enois.Text
+import enois.Tokens
+import game.Sdl3Backend
+
+// Énois — a rota `mensagens` (`src/routes/mensagens.tsx`), a caixa de entrada.
+//
+// As medidas vem do fonte, MEDIDAS:
+//   * o cabecalho   `border-b border-border p-4` e o titulo
+//                   `text-lg font-semibold` = 18 px (mensagens.tsx)
+//   * as abas       `SOCIAL_TABS = ["all", "archived"]` (linha 51), rotulos
+//                   "Todas" / "Arquivadas" (texts.ts:3004)
+//   * os textos     `title` = "Mensagens", `searchConversations` =
+//                   "Buscar conversas", `noConversations` =
+//                   "Nenhuma conversa ainda", `selectConversation` (texts.ts:2966+)
+//   * o item        avatar + nome + a PREVIA da ultima mensagem (o
+//                   `ConversationItem`, components/messages/conversation-item.tsx)
+//
+// O avatar e' a primitiva do §1195 (circulo real, iniciais sem foto).
+
+/** As medidas da caixa de entrada, em px. */
+class MessagesMetrics {
+    static Int headerPad() { return 16 }      // p-4
+    static Int titleSize() { return 18 }      // text-lg
+    static Int rowHeight() { return 64 }      // avatar 48 + o respiro
+    static Int avatarSize() { return 48 }
+    static Int gap() { return 12 }
+}
+
+class MessagesScreen {
+
+    /** Pinta o cabecalho (titulo + abas) a partir de (x, y).
+     *  `activeTab` e' 0 (Todas) ou 1 (Arquivadas). Devolve a altura usada. */
+    static Int paintHeader(Sdl3Backend b, Font titleFont, Font tabFont,
+                           Int x, Int y, Int w, String title, Int activeTab) {
+        val card = Tokens.SurfaceCard()
+        val line = Tokens.Border()
+        val strong = Tokens.TextStrong()
+        val subtle = Tokens.TextSubtle()
+        val primary = Tokens.Primary()
+        val pad = MessagesMetrics.headerPad()
+        val h = pad + MessagesMetrics.titleSize() + pad
+        val tabsH = 40
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, y, w, h + tabsH)
+        titleFont.drawTextColoured(b, title, x + pad, y + pad + 16, strong.r(), strong.g(), strong.b())
+        // a linha embaixo do cabecalho: `border-b border-border`
+        SDL_SetRenderDrawColor(b.rendererHandle, line.r(), line.g(), line.b(), 255)
+        b.fillRect(x, y + h + tabsH - 1, w, 1)
+        // as abas: Todas / Arquivadas
+        val names = listOf<String>("Todas", "Arquivadas")
+        var tx = x + pad
+        var i = 0
+        while (i < names.size) {
+            val colour = if (i == activeTab) primary else subtle
+            tabFont.drawTextColoured(b, names[i], tx, y + h + 24, colour.r(), colour.g(), colour.b())
+            tx = tx + tabFont.measure(names[i]) + MessagesMetrics.gap() * 2
+            i = i + 1
+        }
+        return h + tabsH
+    }
+
+    /** Pinta a lista de conversas: avatar + nome + a previa da ultima mensagem.
+     *  Devolve a altura usada. Uma lista vazia mostra `emptyText`. */
+    static Int paintConversations(Sdl3Backend b, Font nameFont, Font previewFont, Font avatarFont,
+                                  Int x, Int y, Int w, List<String> names, List<String> previews,
+                                  String emptyText) {
+        val card = Tokens.SurfaceCard()
+        val line = Tokens.Border()
+        val strong = Tokens.TextStrong()
+        val subtle = Tokens.TextSubtle()
+        if (names.size == 0) {
+            val h = MessagesMetrics.rowHeight()
+            SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+            b.fillRect(x, y, w, h)
+            previewFont.drawTextColoured(b, emptyText, x + MessagesMetrics.headerPad(),
+                    y + 12 + 14, subtle.r(), subtle.g(), subtle.b())
+            return h
+        }
+        var cy = y
+        var i = 0
+        while (i < names.size) {
+            val rh = MessagesMetrics.rowHeight()
+            SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+            b.fillRect(x, cy, w, rh)
+            // a linha entre as conversas
+            SDL_SetRenderDrawColor(b.rendererHandle, line.r(), line.g(), line.b(), 255)
+            b.fillRect(x, cy + rh - 1, w, 1)
+            // o avatar CIRCULAR (§1195)
+            Avatar.paint(b, avatarFont, x + MessagesMetrics.headerPad(),
+                    cy + (rh - MessagesMetrics.avatarSize()) / 2,
+                    MessagesMetrics.avatarSize(), names[i], "")
+            val textX = x + MessagesMetrics.headerPad() + MessagesMetrics.avatarSize() + MessagesMetrics.gap()
+            nameFont.drawTextColoured(b, names[i], textX, cy + 24, strong.r(), strong.g(), strong.b())
+            if (i < previews.size) {
+                previewFont.drawTextColoured(b, previews[i], textX, cy + 44,
+                        subtle.r(), subtle.g(), subtle.b())
+            }
+            cy = cy + rh
+            i = i + 1
+        }
+        return cy - y
+    }
+}

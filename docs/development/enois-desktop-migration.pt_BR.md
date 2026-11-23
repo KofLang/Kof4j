@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — `mensagens` (a lista de conversas) ou o FEED da comunidade abaixo do cabecalho
+next: a Fase 3 continua — o FEED da comunidade abaixo do cabecalho, ou `explorar` (a rota de descoberta)
 location: repository
 state: active
 
@@ -166,6 +166,17 @@ fez do `Buffer` um tipo nominal, entao o `Avatar.maskCircle` e' um laco de
 pixel Kof sobre o buffer decodificado (`centro=128,127,180` da imagem,
 `canto=0,0,0` fora). Uma primitiva compartilhada agora serve toda mascara de
 imagem do app.
+
+**Fase 3 — `mensagens` (POUSADA 22/11).** O `libs/enois/Messages.kf` e' a caixa de
+entrada: o cabecalho `p-4` com o titulo em `text-lg` = **18 px**, as DUAS abas
+REAIS (`SOCIAL_TABS = ["all","archived"]`, `mensagens.tsx:51`) rotuladas "Todas"
+e "Arquivadas" (`texts.ts:3004`), e a linha de conversa = o avatar CIRCULAR (a
+primitiva do §1195) + o nome + a previa da ultima mensagem
+(`conversation-item.tsx`). Uma lista vazia mostra o proprio
+"Nenhuma conversa ainda" do site. Provado nativamente: `header_h=90`,
+`lista_h=128`, `vazia_h=64`, `header=255,255,255`, `avatar=196,181,253` (o
+`bg-violet-300` dentro do circulo) e `canto=255,255,255` (o card fora).
+Bateria **11/11**.
 
 ## §4 Como concluir
 
