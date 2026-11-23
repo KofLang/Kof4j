@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — `projetos.$username.$projectSlug` (the project detail), then the remaining catalogue routes; §1197 (a `fillRect` after an earlier colour call in the same `main`) stays OPEN and blocks pixel proofs only
+next: Fase 3 continues — the remaining catalogue routes (`projetos.painel`), then the same family for the other catalogues; §1196 (a body with many live call results) and §1197 (a fill colour set by an earlier call) stay OPEN
 location: repository
 state: active
 
@@ -415,6 +415,28 @@ side: the REAL site description (2 lines at 16 px) makes the hero **254**,
 and a shorter one would make it 228 — which the test proved when I first wrote
 it with a trimmed description.
 Battery **28/28**.
+
+**Fase 3 — `projetos.$username.$projectSlug` (LANDED 23/11).** `ProjectDetailScreen`
+and `ProjectDetailMetrics` in `libs/enois/ProjectDetail.kf` carry the project detail
+with the numbers MEASURED in the route and the DS: container `max-w-3xl space-y-6`
+(768/24), cover `h-56 sm:h-72` = **288** with an image and `h-40` = **160**
+without, body `space-y-4 p-5 sm:p-6` (gap 16, padding 24), badge and tags at 12,
+title `text-2xl` (24/32), author/synopsis at 14, description `leading-relaxed`
+(24/line), action buttons 36 tall with a `pt-1` 4. The texts are `texts.projects`:
+`back` "Voltar", `notFound` "Projeto não encontrado.", `submittedBy` "por …",
+`openProject`/`openRepo`, and the status labels (shown only when not `PUBLISHED`).
+TAGS follow the site (`split(",")` + trim + drop empty). The article body sums to
+**328** with every block and **104** with only the title. Proof
+`EnosisProjectDetailE2ETest`: all texts, `tags=3`, `coverImg=288`, `coverNone=160`,
+`head_cat=84`, `body_min=104`, `body_full=328`. Battery **33/33**.
+
+NAMED PENDING — `known-bugs §1196` bit THIS function: `articleBody` with eight
+parameters and five chained call results crashed (deterministic SEGV inside
+`m.bodyGap()`), and it only runs when each part is its own function, the gaps are
+computed in `blockGaps`, and the sums are sequential; the shipped shape is the one
+measured working. `articleHeight` (cover + body) is NOT shipped at nine parameters
+— the same crash — and `coverHeight` is pinned on its own. Also pending: the
+`GameIcon`-style imagery and no pixel assertion (§1197).
 
 **Fase 3 — `projetos.$username` (LANDED 23/11).** `ProjectAuthorScreen` and
 `ProjectAuthorMetrics` in `libs/enois/ProjectAuthor.kf` carry the project-maker page

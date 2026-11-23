@@ -1,0 +1,190 @@
+package enois
+
+import enois.Projects
+import enois.Text
+
+// Énois — a rota `projetos.$username.$projectSlug`
+// (`src/routes/projetos.$username.$projectSlug.tsx`), o DETALHE de um projeto.
+//
+// Os TEXTOS vêm do `texts.projects`, medidos no código:
+//   * o link de volta  `back` = "Voltar"
+//   * a nota         `submittedBy(u)` = `por ${u}`
+//   * o 404          `notFound` = "Projeto não encontrado."
+//   * as ações       `openProject` = "Abrir projeto", `openRepo` = "Ver repositório"
+//   * o status       `status` = SUBMITTED "Em revisão", REJECTED "Recusado",
+//                    SUSPENDED "Suspenso", PUBLISHED "Publicado" (este não aparece)
+//
+// As MEDIDAS vêm da rota e do design system, MEDIDAS:
+//   * o container    `mx-auto w-full max-w-3xl space-y-6` = 768, vão 24
+//   * o link de volta `text-sm`, ícone `h-4 w-4` = 16, `gap-1.5` = 6
+//   * o artigo       `surface-card overflow-hidden` (sem borda), raio 20
+//   * a capa         `h-56 sm:h-72` = 288 com imagem, `h-40` = 160 sem
+//   * o corpo        `space-y-4 p-5 sm:p-6` = 24 (no sm:), vão 16
+//   * o selo         `rounded-full bg-primary-soft px-2.5 py-1 text-xs` = 12
+//   * o título       `text-2xl font-semibold tracking-tight` = 24
+//   * a autoria      `text-sm text-text-subtle` = 14
+//   * a sinopse      `text-sm font-medium text-text-strong` = 14
+//   * a descrição    `text-sm leading-relaxed` = 14/24 por linha
+//   * as tags        `rounded-full bg-surface-2 px-2.5 py-1 text-xs` = 12
+//   * os botões      `rounded-full px-4 py-2 text-sm font-medium` com ícone
+//                    `h-4 w-4` = 16 e `gap-2` = 8 → 36 de altura
+//   * o status       `text-xs text-text-subtle` = 12
+//
+// O 404 (`notFound`) usa o mesmo `EmptyState` (`p-6` aqui, não `py-10`)
+// dentro do `surface-card`, e a página dele tem `space-y-4` = 16, não 24.
+
+/** As medidas do detalhe do projeto, em px. */
+class ProjectDetailMetrics {
+    static Int pageWidth() { return 768 }               // max-w-3xl
+    static Int pageGap() { return 24 }                  // space-y-6
+    static Int notFoundGap() { return 16 }              // space-y-4
+    static Int backSize() { return 14 }                 // text-sm
+    static Int backIcon() { return 16 }                 // h-4 w-4
+    static Int backGap() { return 6 }                   // gap-1.5
+    static Int coverWithImage() { return 288 }          // sm:h-72
+    static Int coverWithout() { return 160 }            // h-40
+    static Int bodyPad() { return 24 }                  // sm:p-6
+    static Int bodyGap() { return 16 }                  // space-y-4
+    static Int badgeSize() { return 12 }                // text-xs
+    static Int badgeHeight() { return 24 }              // py-1 x2 + linha de 16
+    static Int titleSize() { return 24 }                // text-2xl
+    static Int titleLine() { return 32 }                // leading de text-2xl
+    static Int metaSize() { return 14 }                 // text-sm
+    static Int metaLine() { return 20 }                 // leading de text-sm
+    static Int bodySize() { return 14 }                 // text-sm
+    static Int bodyLine() { return 24 }                 // leading-relaxed (1.7 de 14)
+    static Int tagSize() { return 12 }                  // text-xs
+    static Int tagHeight() { return 24 }                // py-1 x2 + linha de 16
+    static Int tagGap() { return 6 }                    // gap-1.5
+    static Int buttonHeight() { return 36 }             // py-2 x2 + linha de 20
+    static Int buttonGap() { return 8 }                 // gap-2
+    static Int buttonIcon() { return 16 }               // h-4 w-4
+    static Int buttonsGap() { return 8 }                // gap-2
+    static Int statusSize() { return 12 }               // text-xs
+    static Int stackGap() { return 4 }                  // space-y-1
+    static Int radius() { return ProjectsMetrics.curveRadius() }  // --radius-2xl
+}
+
+class ProjectDetailScreen {
+
+    /** O link de volta (`projects.back`). */
+    static String back() { return "Voltar" }
+    /** O 404 (`projects.notFound`). */
+    static String notFound() { return "Projeto não encontrado." }
+    /** As duas ações (`projects.openProject` / `openRepo`). */
+    static String openProject() { return "Abrir projeto" }
+    static String openRepo() { return "Ver repositório" }
+
+    /** `projects.submittedBy(u)` = `por ${u}`. */
+    static String submittedBy(String name) { return "por " + name }
+
+    /** O selo do status; o site NÃO mostra para PUBLISHED. */
+    static String statusLabel(String status) {
+        if (status == "SUBMITTED") { return "Em revisão" }
+        if (status == "REJECTED") { return "Recusado" }
+        if (status == "SUSPENDED") { return "Suspenso" }
+        return "Publicado"
+    }
+
+    /** `true` quando a linha de status aparece (`status !== "PUBLISHED"`). */
+    static Bool showsStatus(String status) { return status != "PUBLISHED" }
+
+    /** As tags do site: `tags.split(",")`, trim, vazias fora. */
+    static Int tagCount(String tags) {
+        var n = 0
+        var word = ""
+        var i = 0
+        while (i <= tags.length()) {
+            val atEnd = i == tags.length()
+            var c = ','
+            if (!atEnd) { c = tags.charAt(i) }
+            if (atEnd || c == ',') {
+                if (isBlank(word) == false) { n = n + 1 }
+                word = ""
+            } else {
+                word = word + c
+            }
+            i = i + 1
+        }
+        return n
+    }
+
+    /** `word.trim() != ""` escrito sem `trim`: espaco, tab e quebra contam vazio. */
+    static Bool isBlank(String word) {
+        var k = 0
+        while (k < word.length()) {
+            val ch = word.charAt(k)
+            if (ch != ' ' && ch != '\t' && ch != '\n' && ch != '\r') { return false }
+            k = k + 1
+        }
+        return true
+    }
+
+    /** A capa: 288 com imagem, 160 sem. */
+    static Int coverHeight(Bool hasImage) {
+        if (hasImage) { return ProjectDetailMetrics.coverWithImage() }
+        return ProjectDetailMetrics.coverWithout()
+    }
+
+    /** A altura do bloco do título (selo + título + autoria, `space-y-1`):
+     *  com selo, 24 + 4 + 32 (título em 1 linha) + 4 + 20. */
+    static Int headingHeight(Bool hasCategory, Int titleLines) {
+        var h = titleLines * ProjectDetailMetrics.titleLine() + ProjectDetailMetrics.metaLine()
+        if (hasCategory) {
+            h = h + ProjectDetailMetrics.badgeHeight() + ProjectDetailMetrics.stackGap()
+        }
+        return h + ProjectDetailMetrics.stackGap()
+    }
+
+    /** Tudo o que vem sob a capa, em SOMAS de uma parte por vez: oito
+     *  parâmetros com cinco resultados de chamada encadeados num corpo só
+     *  estouravam o arranjo do nativo (known-bugs §1196). As duas partes que
+     *  ainda colidiam dentro deste corpo moram nas suas próprias funções. */
+    static Int articleBody(Bool hasCategory, Int titleLines, Bool hasShort, Int descLines,
+                           Int tags, Bool hasUrl, Bool hasRepo, Bool showStatus) {
+        var h = ProjectDetailMetrics.bodyPad() * 2
+        h = h + headingHeight(hasCategory, titleLines)
+        h = h + textBlocks(hasShort, descLines)
+        h = h + mediaBlocks(tags, hasUrl, hasRepo)
+        if (showStatus) {
+            h = h + ProjectDetailMetrics.statusSize() + 4
+        }
+        return h + blockGaps(hasShort, descLines, tags, hasUrl, hasRepo, showStatus)
+    }
+
+    /** O vão do `space-y-4` entre os blocos: `(blocos - 1) × 16`. */
+    static Int blockGaps(Bool hasShort, Int descLines, Int tags, Bool hasUrl, Bool hasRepo,
+                         Bool showStatus) {
+        return (headingBlocks(hasShort, descLines, tags, hasUrl, hasRepo, showStatus) - 1)
+                * ProjectDetailMetrics.bodyGap()
+    }
+
+    /** As linhas de texto sob o título: a sinopse (uma linha de 20) e a
+     *  descrição (`leading-relaxed`, 24 por linha). */
+    static Int textBlocks(Bool hasShort, Int descLines) {
+        var h = 0
+        if (hasShort) { h = h + ProjectDetailMetrics.metaLine() }
+        if (descLines > 0) { h = h + descLines * ProjectDetailMetrics.bodyLine() }
+        return h
+    }
+
+    /** As tags (uma faixa de 24) e a faixa de ações (`pt-1` 4 + o botão 36). */
+    static Int mediaBlocks(Int tags, Bool hasUrl, Bool hasRepo) {
+        var h = 0
+        if (tags > 0) { h = h + ProjectDetailMetrics.tagHeight() }
+        if (hasUrl || hasRepo) { h = h + ProjectDetailMetrics.buttonHeight() + 4 }
+        return h
+    }
+
+    /** Quantos blocos o artigo tem: o título e cada um dos outros presentes. */
+    static Int headingBlocks(Bool hasShort, Int descLines, Int tags, Bool hasUrl, Bool hasRepo,
+                             Bool showStatus) {
+        var n = 1
+        if (hasShort) { n = n + 1 }
+        if (descLines > 0) { n = n + 1 }
+        if (tags > 0) { n = n + 1 }
+        if (hasUrl || hasRepo) { n = n + 1 }
+        if (showStatus) { n = n + 1 }
+        return n
+    }
+}

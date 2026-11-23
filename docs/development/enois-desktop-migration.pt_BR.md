@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — `projetos.$username.$projectSlug` (o detalhe do projeto), depois as rotas restantes do catalogo; o §1197 (um `fillRect` apos uma chamada de cor anterior no mesmo `main`) segue ABERTO e so' bloqueia provas de pixel
+next: a Fase 3 continua — as rotas restantes do catalogo (`projetos.painel`), depois a mesma familia para os outros catalogos; o §1196 (corpo com muitos resultados de chamada vivos) e o §1197 (cor de fill posta por chamada anterior) seguem ABERTOS
 location: repository
 state: active
 
@@ -404,6 +404,28 @@ linha por 60 px. A altura do hero prende essa quebra pelo outro lado: a
 descricao REAL do site (2 linhas a 16 px) deixa o hero em **254**, e uma mais
 curta o deixaria em 228 — o que o teste provou quando eu o escrevi primeiro
 com uma descricao encurtada. Bateria **28/28**.
+
+**Fase 3 — `projetos.$username.$projectSlug` (POUSADA 23/11).** O `ProjectDetailScreen`
+e o `ProjectDetailMetrics` em `libs/enois/ProjectDetail.kf` carregam o detalhe do
+projeto com os numeros MEDIDOS na rota e no DS: container `max-w-3xl space-y-6`
+(768/24), capa `h-56 sm:h-72` = **288** com imagem e `h-40` = **160** sem, corpo
+`space-y-4 p-5 sm:p-6` (vao 16, padding 24), selo e tags a 12, titulo `text-2xl`
+(24/32), autoria/sinopse a 14, descricao `leading-relaxed` (24/linha), botoes de
+acao com 36 e `pt-1` 4. Os textos sao os de `texts.projects`: `back` "Voltar",
+`notFound` "Projeto não encontrado.", `submittedBy` "por …", `openProject`/`openRepo`
+e os rotulos de status (so' quando nao e' `PUBLISHED`). As TAGS seguem o site
+(`split(",")` + trim + vazias fora). O corpo do artigo soma **328** com todos os
+blocos e **104** so' com o titulo. Prova `EnosisProjectDetailE2ETest`: todos os
+textos, `tags=3`, `coverImg=288`, `coverNone=160`, `head_cat=84`, `body_min=104`,
+`body_full=328`. Bateria **33/33**.
+
+PENDENCIA NOMEADA — o `known-bugs §1196` mordeu ESTA funcao: `articleBody` com oito
+parametros e cinco resultados de chamada encadeados quebrava (SEGV deterministico
+dentro de `m.bodyGap()`), e so' roda com cada parte numa funcao propria, os vaos
+em `blockGaps` e as somas sequenciais; a forma publicada e' a medida que funciona.
+`articleHeight` (capa + corpo) NAO entra com nove parametros — o mesmo crash — e o
+`coverHeight` fica preso sozinho. Tambem pendente: as imagens e nenhum pixel
+afirmado (§1197).
 
 **Fase 3 — `projetos.$username` (POUSADA 23/11).** O `ProjectAuthorScreen` e o
 `ProjectAuthorMetrics` em `libs/enois/ProjectAuthor.kf` carregam a página de um
