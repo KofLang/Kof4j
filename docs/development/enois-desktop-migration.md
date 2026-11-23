@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: in `enois-kof-desktop` — the community detail (`comunidades.$communityId`), the recruitment board (kanban/timeline) and the app shell composition (route navigation); Kof4j keeps `libs/game` + the compiler and records the Kof-side bugs (§1196, §1197); §1196 and §1197 stay OPEN
+next: in `enois-kof-desktop` — the recruitment board (kanban/timeline) and the app shell composition (route navigation); then the remaining catalogues; Kof4j keeps `libs/game` + the compiler and records the Kof-side bugs (§1196, §1197); §1196 and §1197 stay OPEN
 location: repository
 state: active
 
@@ -514,6 +514,19 @@ own `EmptyState` strings. Proof `EnosisProjectAuthorE2ETest`:
 NAMED PENDING — no pixel assertion here: `known-bugs §1197` still does not close
 the readback of a `fillRect`, so this page ships with text and geometry proven and
 its colours traced to the tokens.
+
+**Fase 3 — `comunidades.$communityId` (LANDED 23/11, `enois-kof-desktop` `7804dfa`).**
+The community detail: back link, `Criada por`, Edit, the composer placeholder, the feed
+title and BOTH feed empties (member vs guest), the member plural and `Membros (N)`, the
+admin actions, and the join button in its three states — "…" while the profile loads,
+"Entrar" for a visitor, "Participando" for a member. Geometry: cover 192, header block
+240 (cover + `p-6` ×2), text block 96 for one description line and 136 for three, head
+row 96, composer 120, feed width 720 in a 1024 window. Proof
+`EnoisCommunityDetailE2ETest`: every string, the three join states, and all heights.
+
+FIXED while testing — `feedWidth` returned −4 in a 300 px window because I guarded on
+the width instead of the remaining space; it now clamps to 0. App battery **42/43**
+(the failure is the §1197 ink test).
 
 **Fase 3 — `comunidades` index (LANDED 23/11, `enois-kof-desktop` `20b67d9`).**
 The communities showcase: header, search, the topics rail, "Minhas comunidades" and

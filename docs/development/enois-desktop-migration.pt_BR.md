@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: em `enois-kof-desktop` — o detalhe da comunidade (`comunidades.$communityId`), o quadro de recrutamento (kanban/timeline) e a composicao da shell (navegacao entre rotas); o Kof4j mantem o `libs/game` + o compilador e registra os bugs do Kof (§1196, §1197); o §1196 e o §1197 seguem ABERTOS
+next: em `enois-kof-desktop` — o quadro de recrutamento (kanban/timeline) e a composicao da shell (navegacao entre rotas); depois os catalogos restantes; o Kof4j mantem o `libs/game` + o compilador e registra os bugs do Kof (§1196, §1197); o §1196 e o §1197 seguem ABERTOS
 location: repository
 state: active
 
@@ -500,6 +500,20 @@ título e duas de sinopse. A sinopse mantém o fallback do site
 PENDENCIA NOMEADA — nenhuma assercao de pixel aqui: o `known-bugs §1197` ainda nao
 fecha a leitura de um `fillRect`, entao a pagina entra com texto e geometria
 provados e as cores rastreadas nos tokens.
+
+**Fase 3 — `comunidades.$communityId` (POUSADA 23/11, `enois-kof-desktop` `7804dfa`).**
+O detalhe da comunidade: link de volta, "Criada por", Editar, o placeholder do
+compositor, o titulo do feed e os DOIS vazios (membro x visita), o plural de membro e
+"Membros (N)", as acoes de administracao, e o botao de vinculo nos tres estados — "…"
+enquanto o perfil chega, "Entrar" para visita, "Participando" para membro. Geometria:
+capa 192, bloco do cabecalho 240 (capa + `p-6` x2), bloco de texto 96 para uma linha de
+descricao e 136 para tres, linha do topo 96, compositor 120, largura do feed 720 numa
+janela de 1024. Prova `EnoisCommunityDetailE2ETest`: todas as strings, os tres estados do
+botao e todas as alturas.
+
+CORRIGIDO no teste — o `feedWidth` devolvia −4 numa janela de 300 px porque eu guardava
+pela largura e nao pelo espaco que sobra; agora trava em 0. Bateria do app **42/43** (a
+falha e o teste de tinta do §1197).
 
 **Fase 3 — indice de `comunidades` (POUSADA 23/11, `enois-kof-desktop` `20b67d9`).**
 A vitrine de comunidades: cabecalho, busca, a faixa de assuntos, "Minhas comunidades" e
