@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — consertar a colocacao dos canais do §1197 em `SDL_SetRenderDrawColor`, re-medir a prova de pixel de cada tela contra a referencia C, depois `projetos.$username`
+next: a Fase 3 continua — `projetos.$username.$projectSlug` (o detalhe do projeto), depois as rotas restantes do catalogo; o §1197 (um `fillRect` apos uma chamada de cor anterior no mesmo `main`) segue ABERTO e so' bloqueia provas de pixel
 location: repository
 state: active
 
@@ -404,6 +404,26 @@ linha por 60 px. A altura do hero prende essa quebra pelo outro lado: a
 descricao REAL do site (2 linhas a 16 px) deixa o hero em **254**, e uma mais
 curta o deixaria em 228 — o que o teste provou quando eu o escrevi primeiro
 com uma descricao encurtada. Bateria **28/28**.
+
+**Fase 3 — `projetos.$username` (POUSADA 23/11).** O `ProjectAuthorScreen` e o
+`ProjectAuthorMetrics` em `libs/enois/ProjectAuthor.kf` carregam a página de um
+autor com os números MEDIDOS em `src/routes/projetos.$username.tsx`: container
+`max-w-5xl space-y-6` (**1024**/24), cabeçalho `space-y-1` = 4 com o nome em
+`text-2xl` (24, linha 32) e o rótulo em `text-sm` (14, linha 20) → **56**; grade
+`grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3` = 3 colunas de (1024 - 2x16)/3 =
+**330**, reusando o `ProjectsMetrics` do catálogo; o cartão `surface-card block
+h-full p-4` NÃO tem capa nem selo — só o título (`line-clamp-2`, 16) e a sinopse
+(`mt-1 line-clamp-2`, 14) → **76** para uma linha de cada, **116** para uma de
+título e duas de sinopse. A sinopse mantém o fallback do site
+(`shortDescription || description || " "`), e o vazio usa as strings do
+`EmptyState` do catálogo. Prova `EnosisProjectAuthorE2ETest`:
+`label=Projetos da comunidade`, `empty=Nenhum projeto encontrado.`,
+`synShort=curta`, `synLong=longa`, `synNone=[ ]`, `col=330`, `header_h=56`,
+`card=116`, `card1=76`. Bateria **32/32**.
+
+PENDENCIA NOMEADA — nenhuma assercao de pixel aqui: o `known-bugs §1197` ainda nao
+fecha a leitura de um `fillRect`, entao a pagina entra com texto e geometria
+provados e as cores rastreadas nos tokens.
 
 **§1197 — CORRECAO 23/11 (tarde):** a linha "fill dentro de uma FUNCAO le certo" que
 registrei antes saiu do MEU proprio log de probes — o avaliador pegava a PRIMEIRA

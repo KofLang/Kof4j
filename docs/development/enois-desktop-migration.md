@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — fix the §1197 channel placement in `SDL_SetRenderDrawColor`, re-measure each screen's pixel proof against the C reference, then `projetos.$username`
+next: Fase 3 continues — `projetos.$username.$projectSlug` (the project detail), then the remaining catalogue routes; §1197 (a `fillRect` after an earlier colour call in the same `main`) stays OPEN and blocks pixel proofs only
 location: repository
 state: active
 
@@ -415,6 +415,26 @@ side: the REAL site description (2 lines at 16 px) makes the hero **254**,
 and a shorter one would make it 228 — which the test proved when I first wrote
 it with a trimmed description.
 Battery **28/28**.
+
+**Fase 3 — `projetos.$username` (LANDED 23/11).** `ProjectAuthorScreen` and
+`ProjectAuthorMetrics` in `libs/enois/ProjectAuthor.kf` carry the project-maker page
+with the numbers MEASURED in `src/routes/projetos.$username.tsx`: container
+`max-w-5xl space-y-6` (**1024**/24), header `space-y-1` = 4 with the name at
+`text-2xl` (24, line 32) and the label at `text-sm` (14, line 20) → **56**; grid
+`grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3` = 3 columns of (1024 − 2×16)/3 =
+**330**, reusing the catalogue's `ProjectsMetrics`; the card `surface-card block
+h-full p-4` has NO cover and NO badge — just the title (`line-clamp-2`, 16) and
+the synopsis (`mt-1 line-clamp-2`, 14) → **76** for one line of each, **116** for
+one title line and two synopsis lines. The synopsis keeps the site's fallback
+(`shortDescription || description || " "`), and the empty state is the catalogue's
+own `EmptyState` strings. Proof `EnosisProjectAuthorE2ETest`:
+`label=Projetos da comunidade`, `empty=Nenhum projeto encontrado.`,
+`synShort=curta`, `synLong=longa`, `synNone=[ ]`, `col=330`, `header_h=56`,
+`card=116`, `card1=76`. Battery **32/32**.
+
+NAMED PENDING — no pixel assertion here: `known-bugs §1197` still does not close
+the readback of a `fillRect`, so this page ships with text and geometry proven and
+its colours traced to the tokens.
 
 **§1197 — CORRECTION 23/11 (late):** the "fill painted inside a FUNCTION reads
 back" row I recorded earlier was produced by my own probe log — the grader took the

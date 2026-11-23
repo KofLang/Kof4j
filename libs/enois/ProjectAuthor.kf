@@ -1,0 +1,96 @@
+package enois
+
+import enois.PostCard
+import enois.Projects
+import enois.Text
+
+// Énois — a rota `projetos.$username` (`src/routes/projetos.$username.tsx`),
+// a página de UMA pessoa e os projetos dela.
+//
+// É a mesma família da página do criador de jogos (`GameCreator.kf`), mas com
+// bem menos: um `h1` com o usuário, o rótulo "Projetos" e a grade de cartões
+// (sem capa, sem selo — o cartão é o título e a sinopse, `surface-card p-4`).
+//
+// As medidas vêm da rota, MEDIDAS:
+//   * o container `mx-auto w-full max-w-5xl space-y-6` = 1024, vão 24
+//   * o cabeçalho `space-y-1` = 4; o `h1` `text-2xl font-semibold` = 24 px
+//   * o rótulo `text-sm text-text-subtle` = 14 px — `texts.projects.title`
+//   * a grade `grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3` = 3 colunas de
+//     `(1024 - 2×16)/3` = 330 (as MESMAS de `ProjectsMetrics`, reusadas)
+//   * o cartão `surface-card block h-full p-4`: `--surface-card`, raio 20,
+//     `p-4` = 16, SEM borda e SEM capa
+//   * o título `line-clamp-2 font-semibold text-text-strong` = 16 px
+//   * a sinopse `mt-1 line-clamp-2 text-sm text-text-subtle` = 14 px, `mt-1` = 4
+//   * o vazio é o `EmptyState` do catálogo (o mesmo `projects.empty`/`emptyHint`)
+//
+// Os textos são os de `texts.projects` (o MESMO bloco do catálogo), sem
+// invenção: o rótulo sob o nome é `title` = "Projetos da comunidade", e o vazio
+// é `empty` + `emptyHint`.
+
+/** As medidas da página do autor de projetos, em px. */
+class ProjectAuthorMetrics {
+    static Int pageWidth() { return ProjectsMetrics.pageWidth() }     // max-w-5xl
+    static Int pageGap() { return 24 }                                // space-y-6
+    static Int headerGap() { return 4 }                               // space-y-1
+    static Int nameSize() { return 24 }                               // text-2xl
+    static Int labelSize() { return 14 }                              // text-sm
+    static Int cardPad() { return ProjectsMetrics.cardPad() }         // p-4
+    static Int cardTitleSize() { return 16 }                          // font-semibold
+    static Int cardBodySize() { return 14 }                           // text-sm
+    static Int cardGap() { return 4 }                                 // mt-1
+    static Int lineHeight() { return 20 }                             // text-sm/sem text-lg = 20
+    static Int radius() { return ProjectsMetrics.curveRadius() }      // --radius-2xl
+
+    /** A altura do cabeçalho: o `h1` de 24 (linha de 32) + o vão de 4 + o
+     *  rótulo de 14 (linha de 20). */
+    static Int headerHeight() { return 32 + headerGap() + 20 }
+
+    /** A altura do cartão sem capa: os dois `p-4` (32), a soma das linhas de
+     *  título e sinopse (20 cada) e o `mt-1` (4) SÓ quando há sinopse — no site
+     *  a `<p>` com o espaço (0,25 em de 14 px) ainda ocupa a linha dela. Cada
+     *  texto ocupa ao menos uma linha. */
+    static Int cardHeight(Int titleLines, Int bodyLines) {
+        var t = titleLines
+        if (t == 0) { t = 1 }
+        var s = bodyLines
+        if (s == 0) { s = 1 }
+        return cardPad() * 2 + t * lineHeight() + cardGap() + s * lineHeight()
+    }
+}
+
+class ProjectAuthorScreen {
+
+    /** O rótulo sob o nome (`texts.projects.title`). */
+    static String label() { return ProjectsScreen.title() }
+
+    /** O vazio (o mesmo do catálogo: `projects.empty` / `emptyHint`). */
+    static String empty() { return ProjectsScreen.empty() }
+    static String emptyHint() { return ProjectsScreen.emptyHint() }
+
+    /** A sinopse do cartão, com o mesmo fallback do site
+     *  (`shortDescription || description || " "`). */
+    static String synopsis(String shortDescription, String description) {
+        if (shortDescription != "") { return shortDescription }
+        if (description != "") { return description }
+        return " "
+    }
+
+    /** Quantas linhas o título e a sinopse ocupam (`line-clamp-2`). */
+    static Int titleLines(Font f, String title, Int cardWidth) {
+        return clamp2(PostCard.wrap(f, title, cardWidth - ProjectAuthorMetrics.cardPad() * 2).size)
+    }
+
+    static Int bodyLines(Font f, String body, Int cardWidth) {
+        return clamp2(PostCard.wrap(f, body, cardWidth - ProjectAuthorMetrics.cardPad() * 2).size)
+    }
+
+    /** A altura do cartão do projeto (`surface-card p-4`, sem capa). */
+    static Int cardHeight(Int titleLines, Int bodyLines) {
+        return ProjectAuthorMetrics.cardHeight(titleLines, bodyLines)
+    }
+
+    private static Int clamp2(Int n) {
+        if (n > 2) { return 2 }
+        return n
+    }
+}
