@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — the §1197 IR bisect, then `projetos.$username`
+next: Fase 3 continues — the §1197 readback fix (emitter/runtime), then `projetos.$username`
 location: repository
 state: active
 
@@ -415,6 +415,17 @@ side: the REAL site description (2 lines at 16 px) makes the hero **254**,
 and a shorter one would make it 228 — which the test proved when I first wrote
 it with a trimmed description.
 Battery **28/28**.
+
+**§1197 — CORRECTION 23/11 (late):** the "fill painted inside a FUNCTION reads
+back" row I recorded earlier was produced by my own probe log — the grader took the
+FIRST matching line of an append-only log, so a rerun printing `x=255, y=247` was
+still counted as `255`. Re-run clean and with no token field printed:
+`baseline=247` — the plain inline `clearFrame` + `fillRect` + `readPixel`, no token
+call anywhere, reads the clear. There is NO proven function-painter escape hatch: a
+fill followed by a read of that fill is unproven for every shape tried, so no pixel
+proof on this backend until the readback is fixed. The three tests on this route
+(creator page, catalogue, flow) still pass 3/3 — they assert text and geometry, never
+a sampled fill colour.
 
 **Fase 3 — o FLUXO do criador (LANDED 23/11).** `EnosisCreatorFlowE2ETest` compiles ONE
 native program that loads `GameCreator`, `Projects` and `Mentoring` together — the

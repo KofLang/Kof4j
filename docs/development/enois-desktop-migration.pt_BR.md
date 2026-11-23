@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — a bisseccao no IR do §1197, depois `projetos.$username`
+next: a Fase 3 continua — o fix da leitura do §1197 (emissor/runtime), depois `projetos.$username`
 location: repository
 state: active
 
@@ -404,6 +404,17 @@ linha por 60 px. A altura do hero prende essa quebra pelo outro lado: a
 descricao REAL do site (2 linhas a 16 px) deixa o hero em **254**, e uma mais
 curta o deixaria em 228 — o que o teste provou quando eu o escrevi primeiro
 com uma descricao encurtada. Bateria **28/28**.
+
+**§1197 — CORRECAO 23/11 (tarde):** a linha "fill dentro de uma FUNCAO le certo" que
+registrei antes saiu do MEU proprio log de probes — o avaliador pegava a PRIMEIRA
+linha que casava num log so' de acrescimo, entao uma reexecucao que imprimiu
+`x=255, y=247` continuou contada como `255`. Re-rodado limpo e sem imprimir campo de
+token: `baseline=247` — o `clearFrame` + `fillRect` + `readPixel` inline reto, sem
+chamada de token nenhuma, le o clear. NAO existe escape provado de 'pintor em
+funcao': um fill seguido da leitura dele esta sem prova em toda forma tentada, entao
+nenhuma prova de pixel neste backend ate' a leitura ser corrigida. Os tres testes
+desta rota (pagina do criador, catalogo, fluxo) seguem 3/3 — afirmam texto e
+geometria, nunca cor de fill amostrada.
 
 **Fase 3 — o FLUXO do criador (POUSADA 23/11).** O `EnosisCreatorFlowE2ETest` compila UM
 programa nativo que carrega `GameCreator`, `Projects` e `Mentoring` juntos — a
