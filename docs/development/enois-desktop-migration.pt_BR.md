@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: em `enois-kof-desktop` — a COMPOSICAO DA SHELL primeiro (container de visita x autenticada, barra `w-60` e nao 320, guiada pela sessao), depois o quadro de recrutamento e os catalogos restantes; toda tela NOVA comeca medindo a rota ao vivo com `scripts/measure-site.mjs`; o Kof4j mantem o `libs/game` + o compilador e registra os bugs do Kof (§1196, §1197); o §1196 e o §1197 seguem ABERTOS
+next: em `enois-kof-desktop` — a escolha da casca pela sessao na entrada do app (`app/Main.kf` escolhe visita ou autenticada), o quadro de recrutamento, depois os catalogos restantes; toda tela NOVA comeca medindo a rota ao vivo com `scripts/measure-site.mjs`; o Kof4j mantem o `libs/game` + o compilador e registra os bugs do Kof (§1196, §1197); o §1196 e o §1197 seguem ABERTOS
 location: repository
 state: active
 
@@ -500,6 +500,29 @@ título e duas de sinopse. A sinopse mantém o fallback do site
 PENDENCIA NOMEADA — nenhuma assercao de pixel aqui: o `known-bugs §1197` ainda nao
 fecha a leitura de um `fillRect`, entao a pagina entra com texto e geometria
 provados e as cores rastreadas nos tokens.
+
+**Fase 3 — COMPOSICAO DA SHELL (POUSADA 23/11, `enois-kof-desktop` `422ceea`).** A shell agora
+tem os DOIS containers do site, medidos na pagina ao vivo (`enois.ia.br/comunidades`,
+deslogado, chromium em 1440 e 1024): a casca de VISITA tem cabecalho de **65**, conteudo
+comecando em **y = 89** (65 + `pt-6` 24), **1232** de largura numa janela de 1440 e **976**
+numa de 1024, e **nenhuma barra lateral**; a casca AUTENTICADA acrescenta a barra do DS a
+ESQUERDA (`w-60` = **240**, `w-16` = 64 recolhida) e a coluna da rota fica 968 em 1440
+(1232 - 240 - 24). O `Shell.paint` e' o container de visita — o que a producao desenha para
+quem nao tem sessao — e `paintAuthenticated` e' o outro. A coluna antiga de 320 a direita
+esta aposentada; era um layout que o site nunca desenha (divergencia nomeada, agora fechada).
+
+BUG ACHADO E CORRIGIDO NO HARNESS — a instalacao do Kof4j ainda carrega uma copia de
+`enois/` (a migracao a deixou la) e o harness a copiava POR CIMA da do app, entao todo
+teste compilava contra telas velhas. Agora ele reinstala o `libs/` do app depois da copia do
+Kof4j, e foi o teste da shell que pegou: o `Layout.contentLeft` existia no repo do app e nao
+na copia instalada.
+
+PENDENCIA NOMEADA — uma assercao do `EnoisCommunityE2ETest` (o pixel exato da fonte numa
+capa esticada) fica presa so' pelo canal constante do gradiente (B = 180) e pela contagem de
+tinta, porque a largura do card mudou com a shell e o ponto de amostra antigo nao mapeia mais
+onde mapeava. Rederivar esse ponto exige reconstruir e reinstalar o compilador do Kof4j (a
+suite do app compila hoje com um jar anterior as ultimas mudancas nativas), entao fica para um
+tick que possa reconstrui-lo.
 
 **MEDIDO CONTRA O SITE AO VIVO (23/11) — tres dos meus numeros estavam errados.** Eu
 parei a medicao no CSS/TSX e nunca conferi a producao; com chromium headless

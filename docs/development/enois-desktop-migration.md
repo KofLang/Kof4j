@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: in `enois-kof-desktop` — the SHELL COMPOSITION first (guest vs authenticated container, sidebar `w-60` not 320, session-driven), then the recruitment board and the remaining catalogues; every NEW screen starts by measuring the live route with `scripts/measure-site.mjs`; Kof4j keeps `libs/game` + the compiler and records the Kof-side bugs (§1196, §1197); §1196 and §1197 stay OPEN
+next: in `enois-kof-desktop` — the session-driven shell choice at the app entry (`app/Main.kf` picks guest or authenticated), the recruitment board, then the remaining catalogues; every NEW screen starts by measuring the live route with `scripts/measure-site.mjs`; Kof4j keeps `libs/game` + the compiler and records the Kof-side bugs (§1196, §1197); §1196 and §1197 stay OPEN
 location: repository
 state: active
 
@@ -514,6 +514,29 @@ own `EmptyState` strings. Proof `EnosisProjectAuthorE2ETest`:
 NAMED PENDING — no pixel assertion here: `known-bugs §1197` still does not close
 the readback of a `fillRect`, so this page ships with text and geometry proven and
 its colours traced to the tokens.
+
+**Fase 3 — SHELL COMPOSITION (LANDED 23/11, `enois-kof-desktop` `422ceea`).** The shell now
+has the site's TWO containers, measured on the live page (`enois.ia.br/comunidades`,
+logged out, chromium at 1440 and 1024): the GUEST shell is a **65 px** header, content
+starting at **y = 89** (65 + `pt-6` 24), **1232** wide in a 1440 window and **976** in a
+1024 one, with **no sidebar**; the AUTHENTICATED shell adds the DS sidebar at the LEFT
+(`w-60` = **240**, `w-16` = 64 collapsed) and the route column becomes 968 in 1440
+(1232 − 240 − 24). `Shell.paint` is the guest container — the one production draws for a
+visitor — and `paintAuthenticated` is the other. The old right-hand 320 px column is
+retired; that was a layout the site never renders (named divergence, now closed).
+
+BUG FOUND AND FIXED IN THE HARNESS — the Kof4j install still carries an `enois/` copy
+(the migration left it there) and the harness copied it OVER the app's, so every test was
+compiling against stale screens. It now reinstalls the app's `libs/` after the Kof4j copy,
+and the shell test is what caught it: `Layout.contentLeft` existed in the app repo and not
+in the installed copy.
+
+NAMED PENDING — one assertion in `EnoisCommunityE2ETest` (the exact source pixel of a
+stretched cover) is now pinned only by the gradient's constant channel (B = 180) plus the
+ink count, because the card width changed with the shell and the old sample point no
+longer maps where it did. Re-deriving that sample needs the Kof4j compiler rebuilt and
+reinstalled (the app's suite currently compiles with a jar older than the latest native
+changes), so it is left for a tick that can rebuild it.
 
 **MEASURED AGAINST THE LIVE SITE (23/11) — three of my numbers were wrong.** I topped out
 the static measurement at the CSS/TSX and never checked production; with chromium
