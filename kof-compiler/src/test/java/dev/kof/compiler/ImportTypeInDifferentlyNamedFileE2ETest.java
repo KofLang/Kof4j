@@ -11,14 +11,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * RED-first (23/11, app do Énois): num pacote, o tipo pode morar num arquivo com
- * OUTRO nome (`enois/Communities.kf` declara `CommunitiesScreen`) e cada arquivo
- * pode declarar VÁRIOS tipos (os widgets que ele usa: `Draw`, `PageHeader`).
- * O import pelo tipo (`import enois.CommunitiesScreen`) tem que achá-lo.
+ * RED-first (23/11, §1200, app do Énois): num pacote, o tipo pode morar num
+ * arquivo com OUTRO nome (`enois/Communities.kf` declara `CommunitiesScreen`)
+ * e cada arquivo pode declarar VÁRIOS tipos (os widgets que ele usa). O
+ * import pelo tipo (`import enois.CommunitiesScreen`) tem que achá-lo.
  *
- * <p>Antes: o resolvedor só procurava `<Tipo>.kf` — arquivo com outro nome dava
- * PKG006, e um `<Tipo>.kf` que declara outra coisa "vendia" o import e o erro
- * saía como SEM011, os dois longe da causa (MEDIDO no app).
+ * <p>Medido no CLI das fontes (o app): `import enois.X` só resolve com
+ * `X.kf` — multi-tipo e nome-diferente dão PKG006, e um `<Tipo>.kf` que
+ * declara outra coisa "vende" o import e o erro sai como SEM011.
  */
 class ImportTypeInDifferentlyNamedFileE2ETest {
 

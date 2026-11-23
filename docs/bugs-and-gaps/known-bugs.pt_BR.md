@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §1200 (ABERTO — resolvedor; RED na arvore)
 last: §1199 (ABERTO — estreitado 23/11; lado do parser retirado, o defeito e resolucao)
 last: §800 (FIXED)
 last: §791 (FIXED)
@@ -18853,6 +18854,34 @@ STATUS: 🟡 ABERTO — reduzido ao diff de assembly das duas formas de `main` (
 
 construtor que o `listOf` usa) com teste RED-first em `kof-compiler/src/test/java`, depois
 um teste de paridade sobre a stdlib construida das fontes.
+
+## §1200 — `import pkg.Tipo` so resolve quando o arquivo se chama `Tipo` — um tipo num arquivo de outro nome, ou um dos varios tipos de um arquivo, e' invisivel (PKG006), e um arquivo de nome igual que declara outra coisa "vende" o import (SEM011) — 📌 MEDIDO 23/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Status:** 🟡 ABERTO — reproduzido no CLI do lab construido das fontes; o teste RED esta na arvore.
+
+`firstKofExtFile` (`CompilerImports`) procura `<pkg>/<Tipo>.kf`, `.ptkf`, `.kof` e nada mais.
+Medido com `kof check` do CLI do lab: `enois/Vitrine.kf` declarando `Catalogo` e `Estoque` →
+`import enois.Estoque` da PKG006; `enois/Other.kf` declarando `Extra` → PKG006; so'
+`enois/Extra.kf` declarando `Extra` funciona. Quando `<Tipo>.kf` existe mas declara outro
+tipo, o import e' aceito e o tipo falta depois (SEM011).
+
+POR QUE A SUITE DO ÉNOIS AINDA PASSAVA: o harness instala a stdlib como CACHE
+(`kof-install/lib/kof-libs`) e o cache foi produzido quando esses arquivos resolviam; um
+programa construido das FONTES (o que o `kof run`/`kof check` fazem) cai em PKG006 em todo
+import desses.
+
+PROVA: `kof-compiler/src/test/java/dev/kof/compiler/ImportTypeInDifferentlyNamedFileE2ETest`
+(arquivo multi-tipo, arquivo de nome igual alheio, e o PKG006 honesto do tipo ausente) —
+**2 de 3 falham** no lab.
+
+CONTORNO USADO PELO APP (registrado, nao e' fix): um tipo por arquivo, com o nome do tipo
+(`libs/PageHeader.kf` → `PageHeader`; o record compartilhado em
+`libs/CommunityLocationTexts.kf`). Todo widget do app segue isso.
+
+Proximo: fazer o `firstKofExtFile` achar tambem o tipo declarado em outro arquivo do pacote
+(varredura por `class|record|interface|enum <Tipo>` no topo de `<pkg>/*.kf`) — com o teste
+acima como baseline RED e as suites Seals/Énois re-rodadas, porque existem duas copias de
+`enois/` (a do app e o espelho do Kof4j) e o resolvedor decide qual entra na unidade.
 
 ## §1199 — o literal de array `["a", "b"]` NAO E' Kof por contrato (`docs/language-reference/syntax.md` + `training/anti-patterns/fake-idioms.md`); o defeito e' outro: o resolvedor faz um programa construido das FONTES falhar nessa sintaxe DENTRO DA STDLIB — 📌 MEDIDO 23/11 (lane wasm/caps `192.168.15.15:0`); o lado do parser foi RETIRADO
 

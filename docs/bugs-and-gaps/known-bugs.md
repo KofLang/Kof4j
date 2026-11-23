@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §1200 (OPEN — resolver; RED in the tree)
 last: §1199 (OPEN — narrowed 23/11; parser side withdrawn, resolution is the defect)
 last: §800 (FIXED)
 last: §791 (FIXED)
@@ -21444,6 +21445,33 @@ STATUS: 🟡 OPEN — narrowed to the `main`-shape assembly diff (paints vs does
 
 builder `listOf` uses) with a RED-first test in `kof-compiler/src/test/java`, then a
 parity test over the stdlib built from sources.
+
+## §1200 — `import pkg.Tipo` only resolves when the file is named `Tipo` — a type declared in a differently-named file, or one of several types in one file, is invisible (PKG006), and a same-named file that declares something else "sells" the import (SEM011) — 📌 MEASURED 23/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Status:** 🟡 OPEN — reproduced on the lab CLI built from sources; the RED test is in the tree.
+
+`firstKofExtFile` (`CompilerImports`) searches `<pkg>/<Tipo>.kf`, `.ptkf`, `.kof` and nothing
+else. Measured with `kof check` of the lab CLI: `enois/Vitrine.kf` declaring `Catalogo` and
+`Estoque` → `import enois.Estoque` is PKG006; `enois/Other.kf` declaring `Extra` →
+PKG006; only `enois/Extra.kf` declaring `Extra` works. When `<Tipo>.kf` exists but declares
+another type, the import is accepted and the type is missing later (SEM011).
+
+WHY THE ÉNOIS SUITE STILL PASSED: the harness installs the stdlib as a CACHE
+(`kof-install/lib/kof-libs`) and the cache was produced when those files resolved; a program
+built from the SOURCES (what `kof run`/`kof check` do) hits PKG006 on every such import.
+
+PROOF: `kof-compiler/src/test/java/dev/kof/compiler/ImportTypeInDifferentlyNamedFileE2ETest`
+(multi-type file, same-named foreign file, and the honest PKG006 for a missing type) —
+**2 of 3 fail** on lab.
+
+WORKAROUND USED BY THE APP (recorded, not a fix): one type per file, the file named after
+the type (`libs/PageHeader.kf` → `PageHeader`; the shared record in
+`libs/CommunityLocationTexts.kf`). Every widget in the app follows it now.
+
+Next: make `firstKofExtFile` also find a type declared in another file of the package (a
+scan for `class|record|interface|enum <Tipo>` at the top level of `<pkg>/*.kf`) — with the
+test above as the RED baseline, and the Seals/Énois suites re-run because two `enois/` copies
+exist (the app's and the Kof4j mirror) and the resolver decides which one enters the unit.
 
 ## §1199 — the array literal `["a", "b"]` is BY CONTRACT not Kof (`docs/language-reference/syntax.md` + `training/anti-patterns/fake-idioms.md`); what is a defect: the resolver makes a program built from SOURCES fail on that syntax inside the STDLIB — 📌 MEASURED 23/11 (lane wasm/caps `192.168.15.15:0`); the parser side is WITHDRAWN
 
