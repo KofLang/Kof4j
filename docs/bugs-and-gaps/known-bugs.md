@@ -2,7 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
-last: §1199 (OPEN — measured 23/11)
+last: §1199 (OPEN — narrowed 23/11; parser side withdrawn, resolution is the defect)
 last: §800 (FIXED)
 last: §791 (FIXED)
 last: §770 (FIXED)
@@ -21445,7 +21445,7 @@ STATUS: 🟡 OPEN — narrowed to the `main`-shape assembly diff (paints vs does
 builder `listOf` uses) with a RED-first test in `kof-compiler/src/test/java`, then a
 parity test over the stdlib built from sources.
 
-## §1199 — the array literal `["a", "b"]` does not compile (`PARSE041` on every `,` and on the closing `]`), and the error surfaces inside the Kof4j STDLIB when a program is built the way `kof run` builds it — 📌 MEASURED 23/11 (lane wasm/caps `192.168.15.15:0`)
+## §1199 — the array literal `["a", "b"]` is BY CONTRACT not Kof (`docs/language-reference/syntax.md` + `training/anti-patterns/fake-idioms.md`); what is a defect: the resolver makes a program built from SOURCES fail on that syntax inside the STDLIB — 📌 MEASURED 23/11 (lane wasm/caps `192.168.15.15:0`); the parser side is WITHDRAWN
 
 **Status:** 🟡 OPEN — reproduced in a three-line program; the bytecode is NOT affected, nor is `listOf(...)`.
 
@@ -21463,3 +21463,20 @@ sources resolved from the repository `libs/`) the error shows up in `game/Draw.k
 slice now uses `listOf(...)` for every table (that is the working shape).
 
 STATUS: 🟡 OPEN. Next: accept the literal in the parser (expression → a call to the same
+
+**Status:** 🟡 OPEN — narrowed, no compiler change in this slice. The FIRST reading of this
+entry ("the literal must compile") was withdrawn the moment the frozen corpus answered:
+`docs/language-reference/syntax.md` lists `var x = [1,2] // ❌ array literal does not exist —
+use listOf(1,2)` and `training/anti-patterns/fake-idioms.md` repeats it; a parser patch that
+accepted `[...]` was written, proved (5/5 with a RED baseline of 4/5) and REVERTED without
+landing — accepting syntax the language contract forbids is not a bug fix. The Énois app
+uses `listOf(...)` everywhere (that is the rule) and compiles with the stdlib CACHED.
+
+**The defect that stands:** the SAME program built from SOURCES (`kof run`/`kof check` with
+the module root = the source folder, stdlib resolved from `libs/`/the repo instead of the
+installed `lib-kof-libs` cache) dies with `PARSE041` in `game/Draw.kf` and `image/Png.kf`
+and every `import game.Sdl3Backend` fails with it; beside that, a program whose sources only
+contain its own file cannot reach `lib/kof-libs` at all (`import game.Sdl3Backend` → PKG006
+— the path that works on lab is the INSTALLED layout, and the app harness only works
+because it installs the cache). Next: one resolution story for both entry points — the same
+files on `kof run` of a source folder and on `kof run` from an installed package.

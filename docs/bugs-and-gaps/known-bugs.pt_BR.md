@@ -2,7 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
-last: §1199 (ABERTO — medido 23/11)
+last: §1199 (ABERTO — estreitado 23/11; lado do parser retirado, o defeito e resolucao)
 last: §800 (FIXED)
 last: §791 (FIXED)
 last: §770 (FIXED)
@@ -18854,7 +18854,7 @@ STATUS: 🟡 ABERTO — reduzido ao diff de assembly das duas formas de `main` (
 construtor que o `listOf` usa) com teste RED-first em `kof-compiler/src/test/java`, depois
 um teste de paridade sobre a stdlib construida das fontes.
 
-## §1199 — o literal de array `["a", "b"]` nao compila (`PARSE041` em cada `,` e no `]` de fechamento), e o erro aparece dentro da STDLIB do Kof4j quando o programa e' construido do jeito que o `kof run` constroi — 📌 MEDIDO 23/11 (lane wasm/caps `192.168.15.15:0`)
+## §1199 — o literal de array `["a", "b"]` NAO E' Kof por contrato (`docs/language-reference/syntax.md` + `training/anti-patterns/fake-idioms.md`); o defeito e' outro: o resolvedor faz um programa construido das FONTES falhar nessa sintaxe DENTRO DA STDLIB — 📌 MEDIDO 23/11 (lane wasm/caps `192.168.15.15:0`); o lado do parser foi RETIRADO
 
 **Status:** 🟡 ABERTO — reproduzido em programa de tres linhas; o bytecode nao e' afetado, nem o `listOf(...)`.
 
@@ -18872,3 +18872,22 @@ fontes do repositorio em `libs/`), o erro aparece em `game/Draw.kf` e `image/Png
 toda tabela (essa e' a forma que funciona).
 
 STATUS: 🟡 ABERTO. Proximo: aceitar o literal no parser (expressao → chamada ao mesmo
+
+**Status:** 🟡 ABERTO — estreitado, sem mudanca no compilador nesta fatia. A PRIMEIRA leitura
+desta entrada ("o literal precisa compilar") foi retirada no momento em que o corpus
+congelado respondeu: `docs/language-reference/syntax.md` lista `var x = [1,2] // ❌ literal
+de array nao existe — use listOf(1,2)` e `training/anti-patterns/fake-idioms.md` repete; um
+patch do parser que aceitava `[...]` foi escrito, provado (5/5 com baseline RED de 4/5) e
+REVERTIDO sem pousar — aceitar sintaxe que o contrato da linguagem proibe nao e' correcao de
+bug. O app do Énois usa `listOf(...)` em todo lugar (essa e' a regra) e compila com a stdlib
+em CACHE.
+
+**O defeito que fica:** o MESMO programa construido das FONTES (`kof run`/`kof check` com a
+raiz do modulo = a pasta das fontes, stdlib resolvida de `libs/`/do repositorio em vez do
+cache instalado `lib-kof-libs`) morre com `PARSE041` em `game/Draw.kf` e `image/Png.kf` e
+todo `import game.Sdl3Backend` falha junto; ao lado disso, um programa cujas fontes tem so'
+o proprio arquivo nao alcanca `lib/kof-libs` de jeito nenhum (`import game.Sdl3Backend` →
+PKG006 — o caminho que funciona no lab e' o layout INSTALADO, e o harness do app so' funciona
+porque instala o cache). Proximo: uma unica historia de resolucao para os dois pontos de
+entrada — os mesmos arquivos no `kof run` de uma pasta de fontes e no `kof run` de um pacote
+instalado.
