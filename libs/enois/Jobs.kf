@@ -171,3 +171,71 @@ class JobCard {
         return h
     }
 }
+
+/** As medidas do DETALHE da vaga (`vagas.$jobId.tsx`), MEDIDAS:
+ *  o container `mx-auto w-full max-w-2xl space-y-4` = 672 px com 16 px entre
+ *  os blocos, o card `surface-card p-4 sm:p-6` = 24 px, o cabecalho com
+ *  `border-b border-border-soft pb-4`, o avatar `h-12 w-12 rounded-xl
+ *  bg-surface-2`, o titulo `text-xl font-semibold tracking-tight` = 20 px. */
+class JobDetailMetrics {
+    static Int maxWidth() { return 672 }      // max-w-2xl
+    static Int gap() { return 16 }            // space-y-4
+    static Int pad() { return 24 }            // sm:p-6
+    static Int avatar() { return 48 }         // h-12 w-12
+    static Int titleSize() { return 20 }      // text-xl
+    static Int companySize() { return 14 }    // text-sm
+    static Int headingSize() { return 16 }
+    static Int bodyLine() { return 24 }       // leading-normal
+}
+
+class JobDetail {
+
+    /** Pinta o detalhe: o link de voltar, o cabecalho (avatar + titulo +
+     *  empresa) e a secao "Sobre a vaga". Devolve a altura usada. */
+    static Int paint(Sdl3Backend b, Font backFont, Font titleFont, Font bodyFont,
+                     Int windowWidth, Int y, String backLabel, String title,
+                     String company, String aboutLabel, List<String> bodyLines) {
+        val card = Tokens.SurfaceCard()
+        val line = Tokens.BorderSoft()
+        val strong = Tokens.TextStrong()
+        val subtle = Tokens.TextSubtle()
+        val muted = Tokens.MutedForeground()
+        val soft = Tokens.Surface1()
+        val w = JobDetailMetrics.maxWidth()
+        val x = (windowWidth - w) / 2
+        var cy = y
+        backFont.drawTextColoured(b, backLabel, x, cy + 14, muted.r(), muted.g(), muted.b())
+        cy = cy + 20 + JobDetailMetrics.gap()
+        // o cabecalho
+        val headH = JobDetailMetrics.pad() * 2 + JobDetailMetrics.avatar()
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, cy, w, headH)
+        // o avatar `rounded-xl bg-surface-2`
+        SDL_SetRenderDrawColor(b.rendererHandle, soft.r(), soft.g(), soft.b(), 255)
+        b.fillRect(x + JobDetailMetrics.pad(), cy + JobDetailMetrics.pad(),
+                JobDetailMetrics.avatar(), JobDetailMetrics.avatar())
+        val tx = x + JobDetailMetrics.pad() + JobDetailMetrics.avatar() + 12
+        titleFont.drawTextColoured(b, title, tx, cy + JobDetailMetrics.pad() + 20,
+                strong.r(), strong.g(), strong.b())
+        bodyFont.drawTextColoured(b, company, tx, cy + JobDetailMetrics.pad() + 42,
+                subtle.r(), subtle.g(), subtle.b())
+        cy = cy + headH + JobDetailMetrics.gap()
+        // a secao "Sobre a vaga" no mesmo card
+        val bodyH = JobDetailMetrics.pad() * 2 + JobDetailMetrics.headingSize()
+                + JobDetailMetrics.gap() + bodyLines.size * JobDetailMetrics.bodyLine()
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, cy, w, bodyH)
+        bodyFont.drawTextColoured(b, aboutLabel, x + JobDetailMetrics.pad(),
+                cy + JobDetailMetrics.pad() + 12, strong.r(), strong.g(), strong.b())
+        var ly = cy + JobDetailMetrics.pad() + JobDetailMetrics.headingSize() + JobDetailMetrics.gap()
+        var i = 0
+        while (i < bodyLines.size) {
+            bodyFont.drawTextColoured(b, bodyLines[i], x + JobDetailMetrics.pad(), ly + 15,
+                    muted.r(), muted.g(), muted.b())
+            ly = ly + JobDetailMetrics.bodyLine()
+            i = i + 1
+        }
+        cy = cy + bodyH
+        return cy - y
+    }
+}

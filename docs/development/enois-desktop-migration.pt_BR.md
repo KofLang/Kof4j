@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — `blogs` (a rota de publicacao) ou `vagas.$jobId` (o detalhe da vaga)
+next: a Fase 3 continua — `blogs` (a rota de publicacao) ou `comunidades.$communityId.canais`
 location: repository
 state: active
 
@@ -238,6 +238,17 @@ o circulo; o da VAGA e' `rounded-xl`, e o codigo diz isso), o titulo
 **`canto=255,255,255`** (o corte do raio 12 mostrando o card pelo canto),
 `pilula=238,232,255`. Bateria **16/16** — o segundo tick seguido com cada
 coordenada de amostra CALCULADA do layout antes da assercao ser escrita.
+
+**Fase 3 — `vagas.$jobId` (POUSADO 22/11).** O `JobDetail` no `libs/enois/Jobs.kf` pinta
+o detalhe da vaga: o container `mx-auto w-full max-w-2xl space-y-4` = **672 px**
+centrado, o link "Voltar para vagas", o cabecalho `surface-card p-4 sm:p-6` com
+o avatar `h-12 w-12 rounded-xl` sobre `--surface-1`, o titulo em `text-xl` =
+20 px, a empresa em `text-sm text-text-subtle`, e o bloco "Sobre a vaga"
+abaixo. Provado nativamente: `x=114` (a coluna centrada numa janela de 900),
+`avatar=249,248,255` (`--surface-1 #f9f8ff`), `card=255,255,255`,
+**`gap=247,244,251`** (o intervalo `space-y-4` mostrando o fundo entre os dois
+blocos). Bateria **17/17** — terceiro tick seguido com cada coordenada de
+amostra calculada do layout antes da assercao.
 
 ## §4 Como concluir
 

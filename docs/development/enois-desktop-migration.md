@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — `blogs` (the publishing route) or `vagas.$jobId` (the job detail)
+next: Fase 3 continues — `blogs` (the publishing route) or `comunidades.$communityId.canais`
 location: repository
 state: active
 
@@ -237,6 +237,18 @@ Proven natively: `card_h=122` (20+48+12+22+20), `avatar=238,232,255`,
 `pilula=238,232,255`.
 Battery **16/16** — the second tick in a row with every sample coordinate
 computed from the layout before the assertion was written.
+
+**Fase 3 — `vagas.$jobId` (LANDED 22/11).** `JobDetail` in `libs/enois/Jobs.kf` paints
+the job detail: the container `mx-auto w-full max-w-2xl space-y-4` = **672 px
+centred**, the back link "Voltar para vagas", the `surface-card p-4 sm:p-6`
+header with the `h-12 w-12 rounded-xl` avatar on `--surface-1`, the title at
+`text-xl` = 20 px, the company at `text-sm text-text-subtle`, and the
+"Sobre a vaga" block below. Proven natively: `x=114` (the centred column in a
+900 px window), `avatar=249,248,255` (`--surface-1 #f9f8ff`),
+`card=255,255,255`, **`gap=247,244,251`** (the `space-y-4` interval showing the
+background between the two blocks).
+Battery **17/17** — third tick in a row with every sample coordinate computed
+from the layout before the assertion.
 
 ## §4 How to finish
 
