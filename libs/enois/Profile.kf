@@ -72,14 +72,16 @@ class ProfileHeader {
         // o nome: 25px em --text-strong
         SDL_SetRenderDrawColor(b.rendererHandle, strong.r(), strong.g(), strong.b(), 255)
         var ty = y + bannerH + pad + ProfileMetrics.avatarOverlap() - 18
-        nameFont.drawText(b, displayName, ax + avatar + 12, ty + 18)
+        nameFont.drawTextColoured(b, displayName, ax + avatar + 12, ty + 18,
+                strong.r(), strong.g(), strong.b())
         // o handle: 14px em --text-subtle
         SDL_SetRenderDrawColor(b.rendererHandle, subtle.r(), subtle.g(), subtle.b(), 255)
         ty = ty + ProfileMetrics.nameSize() + 8
-        metaFont.drawText(b, handle, ax + avatar + 12, ty + 14)
+        metaFont.drawTextColoured(b, handle, ax + avatar + 12, ty + 14,
+                subtle.r(), subtle.g(), subtle.b())
         // a bio: 14px em --text-subtle, abaixo do nome, na largura toda
         ty = ty + ProfileMetrics.metaSize() + 8
-        metaFont.drawText(b, bio, ax, ty + 14)
+        metaFont.drawTextColoured(b, bio, ax, ty + 14, subtle.r(), subtle.g(), subtle.b())
         return h
     }
 }

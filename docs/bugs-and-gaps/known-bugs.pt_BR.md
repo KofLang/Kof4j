@@ -18783,3 +18783,15 @@ STATUS: nomeado, ainda nao corrigido no compilador — a migracao segue pelo shi
 O CUSTO DO GAP: o caminho absoluto fica gravado no fonte Kof, entao o mesmo fonte nao segue o app para outro prefixo de instalacao — exatamente o problema multidistro que o §1189 resolveu para os sysroots CROSS, agora bloqueando as bibliotecas do app DESKTOP.
 O INTERINO: `scripts/gen-enois-text.sh` reescreve o marcador `@KOF_TEXT_SHIM@` no `libs/enois/Text.kf` com o caminho absoluto resolvido em tempo de build, entao o caminho vive em UMA linha gerada e nunca divergiu.
 STATUS: nomeado. O fix do lado do compilador (resolver `library()` contra `kof.install.dir/lib` — onde as libs empacotadas ja vivem) pertence a uma unidade do `NativeAssembler`.
+
+## §1193 — o formato de textura do SDL3 era o valor de BIG-ENDIAN: toda imagem e todo glifo pintavam com os canais TROCADOS — ✅ CORRIGIDO 22/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Achado ao fazer a imagem de capa do Énois funcionar** (`Sdl3Backend.loadImageTexture`). Uma textura 4×4 com quatro quadrantes conhecidos (vermelho / verde / azul / amarelo) voltava como **vermelho / PRETO / PRETO / magenta**: o canal verde caia onde o azul deveria estar e vice-versa.
+A RAIZ: `SDL_CreateTexture(..., 0x16462004, ...)` — essa constante e' `SDL_PIXELFORMAT_RGBA8888`, cuja ORDEM DE BYTES depende da plataforma. A header do SDL3 (`SDL_pixels.h:684-695`) apelida `SDL_PIXELFORMAT_RGBA32` para **`ABGR8888` (0x16762004) em little-endian** e para `RGBA8888` so' em big-endian. Este host e' x86-64 little-endian, entao a textura decodificava R como A e A como R.
+O FIX: `0x16762004` (`SDL_PIXELFORMAT_ABGR8888` = `RGBA32` aqui). PROVA: os quatro quadrantes voltam EXATAMENTE `vermelho (255,0,0) / verde (0,255,0) / azul (0,0,255) / amarelo (255,255,0)`, e o PNG de capa real devolve `p(1,1)=8,16,200` — o mesmo valor que o ImageMagick reporta para o arquivo.
+
+## §1194 — o rasterizador de glifo cravava BRANCO: o texto desaparecia em toda superficie clara (o card e' `#ffffff`) — ✅ CORRIGIDO 22/11 (lane wasm/caps `192.168.15.15:0`)
+
+O `kt_rgba` do `kof_text_shim.c` escrevia `(255,255,255,alfa)` para todo glifo — o bitmap do FreeType carrega SO' cobertura. Com o formato de pixel corrigido (§1193) o texto virou branco de verdade, entao ficou INVISIVEL no card `--surface-card` (#ffffff): medido `tinta=0`.
+O FIX: `kt_rgba(out, cap, r, g, b)` recebe a cor como parametro, e `Font.drawTextColoured(b, text, x, baseline, r, g, b)` a leva. O `drawText` fica como atalho branco. Toda chamada de texto do Énois agora passa o seu TOKEN: autor/corpo em `--text-strong` (#1d1626), o placeholder em `--text-date`, handle/bio em `--text-subtle`, a aba ativa em `--primary`.
+PROVA: a bateria Énois esta em **8/8** (`Enosis*`), cada teste verificando o seu proprio `tinta > 0`.

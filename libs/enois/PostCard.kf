@@ -64,7 +64,8 @@ class PostCard {
 
         // o autor: o nome em --text-strong, 12 px
         SDL_SetRenderDrawColor(b.rendererHandle, ink.r(), ink.g(), ink.b(), 255)
-        authorFont.drawText(b, author, x + pad, y + pad + PostMetrics.authorLine() - 3)
+        authorFont.drawTextColoured(b, author, x + pad, y + pad + PostMetrics.authorLine() - 3,
+                ink.r(), ink.g(), ink.b())
 
         // o corpo: 16 px, quebrado na largura disponivel
         var ty = y + pad + PostMetrics.authorLine() + PostMetrics.gapAuthorBody()
@@ -72,7 +73,7 @@ class PostCard {
         while (i < lines.size) {
             SDL_SetRenderDrawColor(b.rendererHandle, ink.r(), ink.g(), ink.b(), 255)
             val line = lines[i]
-            bodyFont.drawText(b, line, x + pad, ty + 13)
+            bodyFont.drawTextColoured(b, line, x + pad, ty + 13, ink.r(), ink.g(), ink.b())
             ty = ty + PostMetrics.bodyLine()
             i = i + 1
         }

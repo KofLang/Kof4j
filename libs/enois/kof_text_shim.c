@@ -89,13 +89,16 @@ int kt_ascent(void) { return g_ascent; }
 int kt_descent(void) { return g_descent; }
 unsigned char *kt_bitmap(void) { return g_alpha; }
 
-int kt_rgba(unsigned char *out, int cap) {
+/* A cor do texto e' um PARAMETRO: o glifo carrega so' o ALFA (a cobertura);
+ * pintar sempre branco fazia o texto desaparecer sobre fundo claro (medido
+ * 22/11: `tinta=0` no card branco com o texto branco). */
+int kt_rgba(unsigned char *out, int cap, int r, int g, int bl) {
     int need = g_w * g_h * 4;
     if (!out || cap < need) return -1;
     for (int i = 0; i < g_w * g_h; i++) {
-        out[i * 4 + 0] = 255;
-        out[i * 4 + 1] = 255;
-        out[i * 4 + 2] = 255;
+        out[i * 4 + 0] = (unsigned char) r;
+        out[i * 4 + 1] = (unsigned char) g;
+        out[i * 4 + 2] = (unsigned char) bl;
         out[i * 4 + 3] = g_alpha ? g_alpha[i] : 0;
     }
     return need;

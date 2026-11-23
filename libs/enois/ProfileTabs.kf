@@ -66,7 +66,8 @@ class ProfileTabs {
             SDL_SetRenderDrawColor(b.rendererHandle, colour.r(), colour.g(), colour.b(), alpha)
             val label = names[i]
             val wLabel = f.measure(label)
-            f.drawText(b, label, center - wLabel / 2, y + TabsMetrics.padY() + 14)
+            f.drawTextColoured(b, label, center - wLabel / 2, y + TabsMetrics.padY() + 14,
+                    colour.r(), colour.g(), colour.b())
             if (i == active) {
                 // o indicador: `inset-x-0 bottom-0 h-1` — a barra ocupa a aba
                 SDL_SetRenderDrawColor(b.rendererHandle, primary.r(), primary.g(), primary.b(), 255)

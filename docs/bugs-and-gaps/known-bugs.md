@@ -21308,3 +21308,15 @@ STATUS: named, not yet fixed in the compiler — the migration continues through
 THE COST OF THE GAP: the absolute path is baked into the Kof source, so the same source cannot follow the app to another install prefix — exactly the multidistro problem §1189 solved for the CROSS sysroots, now blocking the DESKTOP app libraries.
 THE INTERIM: `scripts/gen-enois-text.sh` rewrites the marker `@KOF_TEXT_SHIM@` in `libs/enois/Text.kf` with the resolved absolute path at build time, so the path lives in ONE generated line and never drifts.
 STATUS: named. The compiler-side fix (resolve `library()` against `kof.install.dir/lib` — where the packaged libs already live) belongs to a `NativeAssembler` unit.
+
+## §1193 — the SDL3 texture format was the BIG-ENDIAN value: every image and every glyph painted with the channels SWAPPED — ✅ FIXED 22/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Found while making the Énois cover image work** (`Sdl3Backend.loadImageTexture`). A 4×4 texture with four known quadrants (red / green / blue / yellow) read back as **red / BLACK / BLACK / magenta**: the green channel landed where blue belonged and vice versa.
+THE ROOT: `SDL_CreateTexture(..., 0x16462004, ...)` — that constant is `SDL_PIXELFORMAT_RGBA8888`, whose BYTE ORDER depends on the platform. The SDL3 header (`SDL_pixels.h:684-695`) aliases `SDL_PIXELFORMAT_RGBA32` to **`ABGR8888` (0x16762004) on little-endian** and to `RGBA8888` only on big-endian. This host is x86-64 little-endian, so the texture was decoding R as A and A as R.
+THE FIX: `0x16762004` (`SDL_PIXELFORMAT_ABGR8888` = `RGBA32` here). PROOF: the four quadrants read back EXACTLY `red (255,0,0) / green (0,255,0) / blue (0,0,255) / yellow (255,255,0)`, and the real PNG cover returns `p(1,1)=8,16,200` — the same value ImageMagick reports for that file.
+
+## §1194 — the glyph rasterizer hard-coded WHITE: text vanished on every light surface (the card is `#ffffff`) — ✅ FIXED 22/11 (lane wasm/caps `192.168.15.15:0`)
+
+`kof_text_shim.c`'s `kt_rgba` wrote `(255,255,255,alpha)` for every glyph — the FreeType bitmap carries ONLY coverage. With the pixel format fixed (§1193) the text became genuinely white, so it was INVISIBLE on the `--surface-card` (#ffffff) card: measured `tinta=0`.
+THE FIX: `kt_rgba(out, cap, r, g, b)` takes the colour as a parameter, and `Font.drawTextColoured(b, text, x, baseline, r, g, b)` carries it. `drawText` stays as the white shorthand. Every Énois text call now passes its TOKEN: author/body in `--text-strong` (#1d1626), the placeholder in `--text-date`, the handle/bio in `--text-subtle`, the active tab in `--primary`.
+PROOF: the Énois battery is **8/8** (`Enosis*`), each test asserting its own `tinta > 0`.

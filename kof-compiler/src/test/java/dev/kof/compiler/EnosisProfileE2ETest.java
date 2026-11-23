@@ -47,6 +47,16 @@ class EnosisProfileE2ETest implements LibraryInstallSupport {
 
         Path libs = dir.resolve("kof-install/lib/kof-libs");
         copyLibrary(libs);
+        // `game.Sdl3Backend` importa `image.Raster` (o carregador de imagem
+        // em Kof puro): a lib `image` vai junto para o build resolver
+        Path imageLib = findLibsRoot().getParent().resolve("libs/image");
+        try (var imgFiles = Files.walk(imageLib)) {
+            for (Path f : imgFiles.filter(Files::isRegularFile).toList()) {
+                Path dst = libs.resolve("image").resolve(imageLib.relativize(f));
+                Files.createDirectories(dst.getParent());
+                Files.copy(f, dst);
+            }
+        }
         Path enois = repo.resolve("libs/enois");
         try (var files = Files.walk(enois)) {
             for (Path f : files.filter(Files::isRegularFile).toList()) {

@@ -21,16 +21,16 @@ import game.Sdl3Backend
 // substitui — nunca edite a mao.
 // @kof-text-shim@
 extern "/home/mel/Kof4j/libs/enois/libkof_text.so" kt_open(Buffer(U8) path, Int px): Long
-extern "kof_text_shim" kt_close(Long face): void
-extern "kof_text_shim" kt_glyph(Long face, Long codepoint): Int
-extern "kof_text_shim" kt_rgba(Buffer(U8) out, Int cap): Int
-extern "kof_text_shim" kt_width(): Int
-extern "kof_text_shim" kt_height(): Int
-extern "kof_text_shim" kt_left(): Int
-extern "kof_text_shim" kt_top(): Int
-extern "kof_text_shim" kt_advance(): Int
-extern "kof_text_shim" kt_ascent(): Int
-extern "kof_text_shim" kt_descent(): Int
+extern "/home/mel/Kof4j/libs/enois/libkof_text.so" kt_close(Long face): void
+extern "/home/mel/Kof4j/libs/enois/libkof_text.so" kt_glyph(Long face, Long codepoint): Int
+extern "/home/mel/Kof4j/libs/enois/libkof_text.so" kt_rgba(Buffer(U8) out, Int cap, Int r, Int g, Int bl): Int
+extern "/home/mel/Kof4j/libs/enois/libkof_text.so" kt_width(): Int
+extern "/home/mel/Kof4j/libs/enois/libkof_text.so" kt_height(): Int
+extern "/home/mel/Kof4j/libs/enois/libkof_text.so" kt_left(): Int
+extern "/home/mel/Kof4j/libs/enois/libkof_text.so" kt_top(): Int
+extern "/home/mel/Kof4j/libs/enois/libkof_text.so" kt_advance(): Int
+extern "/home/mel/Kof4j/libs/enois/libkof_text.so" kt_ascent(): Int
+extern "/home/mel/Kof4j/libs/enois/libkof_text.so" kt_descent(): Int
 
 /** Uma fonte aberta num tamanho em px. */
 class Font {
@@ -82,6 +82,12 @@ class Font {
      *  site chama de "fonte carregada uma vez").
      */
     Int drawText(Sdl3Backend b, String text, Int x, Int baseline) {
+        return this.drawTextColoured(b, text, x, baseline, 255, 255, 255)
+    }
+
+    /** Desenha `text` na cor dada (r, g, b: 0..255). Devolve o avanco total. */
+    Int drawTextColoured(Sdl3Backend b, String text, Int x, Int baseline,
+                         Int r, Int g, Int bl) {
         var pen = x
         var i = 0
         while (i < text.length()) {
@@ -91,7 +97,7 @@ class Font {
                 val h = kt_height()
                 if (w > 0 && h > 0) {
                     val rgba = buffer.alloc(w * h * 4)
-                    kt_rgba(rgba, w * h * 4)
+                    kt_rgba(rgba, w * h * 4, r, g, bl)
                     val tex = b.createTexture(w, h)
                     SDL_UpdateTexture(tex, 0L, rgba, w * 4)
                     b.drawTexture(tex, pen + kt_left(), baseline - kt_top(), w, h)

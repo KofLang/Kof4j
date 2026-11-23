@@ -129,6 +129,19 @@ indicador ativo `inset-x-0 bottom-0 h-1 rounded-full bg-primary` = uma barra de
 `tabs_h=48`, `indicador=103,70,245` (`--primary`), `fundo=247,244,251`,
 `tinta=173`. Bateria **7/7**.
 
+**Imagens e cor de verdade (POUSADAS 22/11).** O `Sdl3Backend.loadImageTexture`
+decodifica PNG/PNM/BMP/QOI/GIF/WebP pela biblioteca `image` em KOF PURO (sem
+codec externo) para uma textura do SDL, e os desenhos 1:1/escalados agora
+entregam os pixels da fonte exatamente. Dois bugs independentes do compilador
+foram achados e corrigidos no caminho: o formato de textura era o valor de
+BIG-ENDIAN `RGBA8888`, entao todo canal voltava trocado (§1193), e o
+rasterizador de glifo cravava branco, entao o texto ficava invisivel no card
+branco (§1194). O `Font.drawTextColoured` agora leva a cor, e toda chamada do
+Énois passa o seu proprio TOKEN. Bateria **8/8**, com um teste de imagem
+afirmando um pixel real de PNG contra o oraculo do ImageMagick.
+GAP NOMEADO restante: JPEG segue interop-first (`imageio` so' no JVM) — o
+decodificador em Kof puro cobre PNG/PNM/BMP/QOI/GIF/WebP.
+
 ## §4 Como concluir
 
 cada fase pousa com uma execução nativa que imprime o que pintou; o plano registra

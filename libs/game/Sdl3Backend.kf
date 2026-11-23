@@ -1,6 +1,7 @@
 package game
 
 import game.Draw
+import image.Raster
 import game.Window
 
 // kof.game — o BACKEND SDL3 da face NATIVA (plano `docs/development/
@@ -54,6 +55,7 @@ extern "libSDL3.so.0" SDL_DestroySurface(Long s): void
 extern "libSDL3.so.0" SDL_CreateTexture(Long ren, Int fmt, Int access, Int w, Int h): Long
 extern "libSDL3.so.0" SDL_UpdateTexture(Long tex, Long rect, Buffer(U8) pixels, Int pitch): Bool
 extern "libSDL3.so.0" SDL_RenderTexture(Long ren, Long tex, Long src, Buffer(U8) dst): Bool
+extern "libSDL3.so.0" SDL_SetTextureScaleMode(Long tex, Int mode): Bool
 extern "libSDL3.so.0" SDL_DestroyTexture(Long tex): void
 
 // A janela + o renderer, com o estado de entrada do frame.
@@ -217,7 +219,7 @@ class Sdl3Backend {
     // `SDL_UpdateTexture` (o `Buffer(U8)` so' existe em assinatura
     // `extern` — um metodo normal recusa o tipo, medido 22/11).
     Long createTexture(Int w, Int h) {
-        val tex = SDL_CreateTexture(this.rendererHandle, 0x16462004, 1, w, h)
+        val tex = SDL_CreateTexture(this.rendererHandle, 0x16762004, 1, w, h)
         if (tex == 0) { throw "SDL3 (texture): " + SDL_GetError() }
         return tex
     }
@@ -248,6 +250,40 @@ class Sdl3Backend {
     // com o que o `createTexture` definiu.
     void registerTexture(String name, Long tex) {
         this.textures.put(name, tex)
+    }
+
+    // Carrega um PNG/PNM/BMP/QOI/GIF/WebP do disco para uma textura RGBA,
+    // pela lib `image` em KOF PURO (sem codec externo). Devolve o handle, ou
+    // 0 quando o arquivo nao decodifica — a tela desenha a superficie solida.
+    Long loadImageTexture(String path) {
+        try {
+            val r = decodeRaster(path)
+            if (r.width() <= 0 || r.height() <= 0) { return 0L }
+            val n = r.width() * r.height()
+            val rgba = buffer.alloc(n * 4)
+            var i = 0
+            while (i < n) {
+                buffer.poke8(rgba, i * 4, r.samples()[i * r.channels()])
+                var c1 = 0
+                var c2 = 0
+                if (r.channels() > 1) { c1 = r.samples()[i * r.channels() + 1] }
+                if (r.channels() > 2) { c2 = r.samples()[i * r.channels() + 2] }
+                buffer.poke8(rgba, i * 4 + 1, c1)
+                buffer.poke8(rgba, i * 4 + 2, c2)
+                buffer.poke8(rgba, i * 4 + 3, 255)
+                i = i + 1
+            }
+            val tex = this.createTexture(r.width(), r.height())
+            SDL_UpdateTexture(tex, 0L, rgba, r.width() * 4)
+            // o SDL amostra LINEAR por padrao (documentado): uma imagem
+            // escalada sai BORRADA e com as cores MISTURADAS (medido 22/11:
+            // (8,16,200) virou (8,6,0) e (0,0) saiu preto). NEAREST = 0 e' o
+            // que o CSS chama de `image-rendering: pixelated`.
+            SDL_SetTextureScaleMode(tex, 0)
+            return tex
+        } catch (String e) {
+            return 0L
+        }
     }
 
     void close() {

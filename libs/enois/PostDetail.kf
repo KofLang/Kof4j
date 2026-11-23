@@ -52,7 +52,7 @@ class PostDetail {
 
         // o link de voltar
         SDL_SetRenderDrawColor(b.rendererHandle, muted.r(), muted.g(), muted.b(), 255)
-        backFont.drawText(b, backLabel, x, y + 14)
+        backFont.drawTextColoured(b, backLabel, x, y + 14, muted.r(), muted.g(), muted.b())
 
         // o card do detalhe
         val cy = y + PostDetailMetrics.backHeight() + 12
@@ -68,14 +68,14 @@ class PostDetail {
 
         // o titulo: 18 px em --text-strong
         SDL_SetRenderDrawColor(b.rendererHandle, strong.r(), strong.g(), strong.b(), 255)
-        titleFont.drawText(b, title, x + pad, cy + pad + 14)
+        titleFont.drawTextColoured(b, title, x + pad, cy + pad + 14, strong.r(), strong.g(), strong.b())
 
         // o corpo: 16 px, linha 26 px (`leading-relaxed`)
         var ty = cy + pad + PostDetailMetrics.titleSize() + PostDetailMetrics.titleGap()
         var i = 0
         while (i < lines.size) {
             SDL_SetRenderDrawColor(b.rendererHandle, strong.r(), strong.g(), strong.b(), 255)
-            bodyFont.drawText(b, lines[i], x + pad, ty + 15)
+            bodyFont.drawTextColoured(b, lines[i], x + pad, ty + 15, strong.r(), strong.g(), strong.b())
             ty = ty + PostDetailMetrics.lineHeight()
             i = i + 1
         }

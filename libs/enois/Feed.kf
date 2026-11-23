@@ -47,7 +47,8 @@ class Feed {
         // o texto (o placeholder, 15 px) alinhado ao centro vertical
         SDL_SetRenderDrawColor(b.rendererHandle, date.r(), date.g(), date.b(), 255)
         val baseline = y + h / 2 + 5
-        text.drawText(b, placeholder, x + ComposerMetrics.leftPad() + ComposerMetrics.avatar(), baseline)
+        text.drawTextColoured(b, placeholder, x + ComposerMetrics.leftPad() + ComposerMetrics.avatar(),
+                baseline, date.r(), date.g(), date.b())
         return h
     }
 

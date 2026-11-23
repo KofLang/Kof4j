@@ -98,6 +98,16 @@ class EnosisShellE2ETest implements LibraryInstallSupport {
     private CompilationResult compile(Path dir, String code) throws Exception {
         Path libs = dir.resolve("kof-install/lib/kof-libs");
         copyLibrary(libs);
+        // `game.Sdl3Backend` importa `image.Raster` (o carregador de imagem
+        // em Kof puro): a lib `image` vai junto para o build resolver
+        Path imageLib = findLibsRoot().getParent().resolve("libs/image");
+        try (var imgFiles = Files.walk(imageLib)) {
+            for (Path f : imgFiles.filter(Files::isRegularFile).toList()) {
+                Path dst = libs.resolve("image").resolve(imageLib.relativize(f));
+                Files.createDirectories(dst.getParent());
+                Files.copy(f, dst);
+            }
+        }
         // a lib `enois` mora no repositorio, nao em `libs/` (que o
         // LibraryInstallSupport instala): copia ao lado
         Path src = findLibsRoot().getParent().resolve("libs/enois");

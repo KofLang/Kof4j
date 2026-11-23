@@ -128,6 +128,18 @@ component's own `aria-disabled`/`disabled`). Proven natively: `tabs_h=48`,
 `indicador=103,70,245` (`--primary`), `fundo=247,244,251`, `tinta=173`.
 Battery **7/7**.
 
+**Images and real colour (LANDED 22/11).** `Sdl3Backend.loadImageTexture` decodes
+PNG/PNM/BMP/QOI/GIF/WebP through the PURE-Kof `image` library (no external codec)
+into an SDL texture, and `1:1`/scaled draws now give the source pixels exactly.
+Two compiler-independent bugs were found and fixed on the way: the texture
+format was the BIG-ENDIAN `RGBA8888` value, so every channel came back swapped
+(§1193), and the glyph rasterizer hard-coded white, so text was invisible on
+the white card (§1194). `Font.drawTextColoured` now carries the colour, and
+every Énois call passes its own TOKEN. Battery **8/8**, with an image test
+asserting a real PNG pixel against the ImageMagick oracle.
+NAMED GAP remaining: JPEG stays interop-first (`imageio` on the JVM only) —
+the pure-Kof decoder covers PNG/PNM/BMP/QOI/GIF/WebP.
+
 ## §4 How to finish
 
 each phase lands with a native run that prints what it painted; the plan records
