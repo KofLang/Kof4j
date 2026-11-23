@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: in `enois-kof-desktop` — the SESSION BLOCKER above needs the maintainer's contract call (cookie/bearer for a native client); meanwhile the recruitment board and the remaining catalogues; every NEW screen starts by measuring the live route with `scripts/measure-site.mjs`; Kof4j keeps `libs/game` + the compiler and records the Kof-side bugs (§1196, §1197); §1196 and §1197 stay OPEN
+next: in `enois-kof-desktop` — the SESSION BLOCKER above needs the maintainer's contract call (cookie/bearer for a native client); the recruitment board is IN — meanwhile the remaining catalogues; every NEW screen starts by measuring the live route with `scripts/measure-site.mjs`; Kof4j keeps `libs/game` + the compiler and records the Kof-side bugs (§1196, §1197); §1196 and §1197 stay OPEN
 location: repository
 state: active
 
@@ -514,6 +514,17 @@ own `EmptyState` strings. Proof `EnosisProjectAuthorE2ETest`:
 NAMED PENDING — no pixel assertion here: `known-bugs §1197` still does not close
 the readback of a `fillRect`, so this page ships with text and geometry proven and
 its colours traced to the tokens.
+
+**Fase 3 — RECRUITMENT BOARD (LANDED 23/11, `enois-kof-desktop` `2cc7fe5`).**
+`Recruitment.kf` carries the hiring funnel: the three summary badges with the site's plurals
+("1 candidatura" / "N candidaturas", "N em processo", "1 não selecionada" / "N não
+selecionadas"), the two non-stage columns ("Sem etapa", "Fora do processo"), the empty
+stage, the file and selection labels, the score line, the load states, and the BATCH MOVE
+rules taken from the component: nothing moves without a selection, nothing moves while the
+batch is pending, advancing needs a stage, and REJECT does not use one. Geometry: batch bar
+60, card 70, empty column 76, three-card column 262, three columns 888 — all from the
+measured classes. Proof `EnoisRecruitmentE2ETest`: every string, all five move rules, and
+those heights. App battery **46/47** (the failure is the §1197 ink test).
 
 **Fase 3 — header parity with the site, and the SESSION BLOCKER measured (LANDED 23/11,
 `enois-kof-desktop` `084bdb8`).** `SessionClient.baseHeaders()` now sends what the site's

@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: em `enois-kof-desktop` — o BLOQUEIO DA SESSAO acima depende de uma decisao de contrato da mantenedora (cookie/bearer para um cliente nativo); enquanto isso, o quadro de recrutamento e os catalogos restantes; toda tela NOVA comeca medindo a rota ao vivo com `scripts/measure-site.mjs`; o Kof4j mantem o `libs/game` + o compilador e registra os bugs do Kof (§1196, §1197); o §1196 e o §1197 seguem ABERTOS
+next: em `enois-kof-desktop` — o BLOQUEIO DA SESSAO acima depende de uma decisao de contrato da mantenedora (cookie/bearer para um cliente nativo); o quadro de recrutamento ENTROU — enquanto isso, os catalogos restantes; toda tela NOVA comeca medindo a rota ao vivo com `scripts/measure-site.mjs`; o Kof4j mantem o `libs/game` + o compilador e registra os bugs do Kof (§1196, §1197); o §1196 e o §1197 seguem ABERTOS
 location: repository
 state: active
 
@@ -500,6 +500,17 @@ título e duas de sinopse. A sinopse mantém o fallback do site
 PENDENCIA NOMEADA — nenhuma assercao de pixel aqui: o `known-bugs §1197` ainda nao
 fecha a leitura de um `fillRect`, entao a pagina entra com texto e geometria
 provados e as cores rastreadas nos tokens.
+
+**Fase 3 — QUADRO DE RECRUTAMENTO (POUSADA 23/11, `enois-kof-desktop` `2cc7fe5`).**
+`Recruitment.kf` carrega o funil de contratacao: os tres selos de resumo com os plurais do site
+("1 candidatura" / "N candidaturas", "N em processo", "1 nao selecionada" / "N nao
+selecionadas"), as duas colunas que nao sao etapa ("Sem etapa", "Fora do processo"), o vazio
+da etapa, os rotulos de ficha e de selecao, a linha da nota, os estados de carga, e as REGRAS
+DO LOTE tiradas do componente: nada se move sem selecao, nada se move com o lote pendente,
+avancar exige etapa e REPROVAR nao usa etapa. Geometria: barra do lote 60, card 70, coluna
+vazia 76, coluna com tres cards 262, tres colunas 888 — todas das classes medidas. Prova
+`EnoisRecruitmentE2ETest`: todas as strings, as cinco regras de mover e essas alturas. Bateria
+do app **46/47** (a falha e o teste de tinta do §1197).
 
 **Fase 3 — paridade de cabecalhos com o site, e o BLOQUEIO da SESSAO medido (POUSADA 23/11,
 `enois-kof-desktop` `084bdb8`).** O `SessionClient.baseHeaders()` agora manda o que o
