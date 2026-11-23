@@ -18946,6 +18946,27 @@ A composicao do énois SEM o record (textos como parametros simples) NAO ficou p
 o harness reportou o mesmo texto cortado enquanto a arvore inteira (com o record) compilava no
 caminho do CLI, que e' exatamente a divergencia sobre a qual esta entrada trata.
 
+**23/11 (quinta rodada): o caso dos RECORDS NAO se reproduz com o resolvedor limpo — o
+paragrafo anterior e' RETIRADO.** Com o `CompilerImports` pristine restaurado e `kof-compiler`
+construido das fontes do repositorio (verificado carregado de `target/classes`), o caso exato que
+"falhava" antes (`A` um record, `B` um record cujo campo e' `A`, um terceiro arquivo `C`, `import B`)
+compila verde; e tambem o `ComunidadesTexts` REAL (campo `CommunityLocationTexts`) ao lado de
+`Draw` na mesma pasta. Entao record com campo de tipo alheio + terceiro arquivo NAO e' o gatilho.
+
+**O que o harness do Énois mostra, medido com uma instalacao persistente:** cada import da pagina
+resolve sozinho (`pkgerr=0`), e a pagina composta ainda reporta
+`import 'enois.ComunidadesTexts' not found` — com o arquivo presente, na instalacao, com o record e
+a dependencia dele no mesmo diretorio. E' o inverso da ideia de "o arquivo resolvido come os
+vizinhos": aqui os vizinhos estao bem e UM deles nao resolve enquanto os outros sim. A diferenca
+entre a rodada do harness e a do CLI nesta rodada e' o classpath (o harness alimenta o jar do
+Maven mais as deps do `~/.m2`; o jar do CLI e' sombreado), entao a proxima reducao precisa fixar
+QUAIS classes do compilador o harness carrega antes de confiar em qualquer veredicto de import
+(a licao do jar obsoleto da terceira rodada, de novo).
+
+Proximo: uma rodada de debug que imprime o code source de `CompilerImports.class` e os valores de
+`moduleRoot`/`pkgDir` dentro do caminho do harness, e depois o mesmo pacote de tres arquivos de
+record.
+
 ## §1199 — o literal de array `["a", "b"]` NAO E' Kof por contrato (`docs/language-reference/syntax.md` + `training/anti-patterns/fake-idioms.md`); o defeito e' outro: o resolvedor faz um programa construido das FONTES falhar nessa sintaxe DENTRO DA STDLIB — 📌 MEDIDO 23/11 (lane wasm/caps `192.168.15.15:0`); o lado do parser foi RETIRADO
 
 **Status:** 🟡 ABERTO — reproduzido em programa de tres linhas; o bytecode nao e' afetado, nem o `listOf(...)`.

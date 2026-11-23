@@ -21534,6 +21534,26 @@ The énois composition without the record (texts passed as plain parameters) did
 this round: the harness reported the same cut text while the whole tree (incl. the record)
 compiled in the CLI path, which is exactly the disagreement THIS entry is about.
 
+**23/11 (fifth round): the RECORD case does NOT reproduce from a clean resolver — the earlier
+paragraph is WITHDRAWN.** With the pristine `CompilerImports` restored and `kof-compiler` built
+from the repo sources (verified loaded from `target/classes`), the exact case that "failed"
+before (`A` a record, `B` a record whose field is `A`, a third file `C`, `import B`) compiles
+green; so does the REAL `ComunidadesTexts` (field `CommunityLocationTexts`) next to `Draw` in
+the same folder. So a record with a foreign field type plus a third file is NOT the trigger.
+
+**What the Énois harness shows, measured with a persistent install:** every one of the page's
+imports resolves on its own (`pkgerr=0`), and the composed page still reports
+`import 'enois.ComunidadesTexts' not found` — with the file present, in the install, with the
+record and its dependency in the same directory. That is the inverse of the "resolved file
+eats the neighbours" idea: here the neighbours are fine and ONE of them does not resolve while
+the others do. The difference between the harness run and the CLI run this round is the
+classpath (the harness feeds the Maven jar plus `~/.m2` deps; the CLI jar is shaded), so the
+next reduction must pin WHICH compiler classes the harness actually loads before any import
+verdict is trusted (the stale-jar lesson of the third round, again).
+
+Next: a debug run that prints `CompilerImports.class` code source and the
+`moduleRoot`/`pkgDir` values inside the harness path, then the same three-file record package.
+
 ## §1199 — the array literal `["a", "b"]` is BY CONTRACT not Kof (`docs/language-reference/syntax.md` + `training/anti-patterns/fake-idioms.md`); what is a defect: the resolver makes a program built from SOURCES fail on that syntax inside the STDLIB — 📌 MEASURED 23/11 (lane wasm/caps `192.168.15.15:0`); the parser side is WITHDRAWN
 
 **Status:** 🟡 OPEN — reproduced in a three-line program; the bytecode is NOT affected, nor is `listOf(...)`.
