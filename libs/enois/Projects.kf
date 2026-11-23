@@ -1,0 +1,397 @@
+package enois
+
+import enois.PostCard
+import enois.Text
+import enois.Tokens
+import game.Sdl3Backend
+
+// Énois — a rota `projetos` (`src/routes/projetos.index.tsx`), o catalogo de
+// projetos da comunidade.
+//
+// Os TEXTOS vem do codigo (`src/texts.ts`, bloco `projects`), sem invencao:
+//   * a pagina de aviso (`head`) e' `seoTitle`
+//   * o titulo   `title` = "Projetos da comunidade"
+//   * a descricao `description` = "Espaço separado dos jogos para mostrar o
+//                 que você construiu: link do projeto, repositório, categoria
+//                 e tags. Envio passa pela moderação."
+//   * os ordens  `orderRecent` = "Recentes", `orderTitle` = "A-Z"
+//   * o botao    `submit` = "Enviar projeto"
+//   * o vazio    `empty` = "Nenhum projeto encontrado." e `emptyHint` =
+//                 "Você fez algo? Envie o link e ele aparece aqui depois da
+//                 revisão."
+//
+// As MEDIDAS vem da propria rota e do design system, MEDIDAS:
+//   * o container `mx-auto w-full max-w-5xl` = 1024, `space-y-6` = 24
+//   * o cabecalho `space-y-2` = 8; o titulo `text-2xl font-semibold` = 24 px
+//     com o icone `h-6 w-6` = 24 em `--primary` e `gap-2` = 8
+//   * a descricao `text-sm text-text-subtle` = 14 px, ate `max-w-2xl` = 672
+//   * a grade `grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3` = 3 colunas de
+//     `(1024 - 2×16)/3` = 330 com vao 16
+//   * o card `surface-card block h-full overflow-hidden`
+//   * a capa `h-36` = 144, e sem imagem ela e' `--gradient-primary`
+//     (`linear-gradient(135deg, #6746f5, #4325b8)`)
+//   * o corpo `space-y-2 p-4`; o selo `rounded-full bg-primary-soft px-2 py-0.5
+//     text-[11px] font-semibold text-primary-text`; o titulo `line-clamp-2
+//     font-semibold text-text-strong` = 16 px; a sinopse `line-clamp-2 text-sm
+//     text-text-subtle` = 14 px; os links `gap-1` icon+text em 12
+//   * `surface-card` e' `--surface-card` + `--radius-2xl` (16) + `--shadow-table`,
+//     SEM borda — o card de projeto nao tem a borda dos cards de desafio
+
+/** As medidas da pagina de projetos, em px. */
+class ProjectsMetrics {
+    static Int pageWidth() { return 1024 }      // max-w-5xl
+    static Int pageGap() { return 24 }          // space-y-6
+    static Int headerGap() { return 8 }         // space-y-2
+
+    static Int titleSize() { return 24 }        // text-2xl
+    static Int titleGlyph() { return 24 }       // h-6 w-6
+    static Int titleGap() { return 8 }          // gap-2
+
+    static Int descriptionSize() { return 14 }  // text-sm
+    static Int descriptionMax() { return 672 }  // max-w-2xl
+
+    static Int gridGap() { return 16 }          // gap-4
+    static Int columns() { return 3 }           // lg:grid-cols-3
+
+    static Int coverHeight() { return 144 }     // h-36
+    static Int cardPad() { return 16 }          // p-4
+    static Int cardGap() { return 8 }           // space-y-2
+    static Int cardRadius() { return 16 }       // --radius-2xl
+    static Int cardTitleSize() { return 16 }    // font-semibold sem text-*
+    static Int cardBodySize() { return 14 }     // text-sm
+    static Int badgeSize() { return 11 }        // text-[11px]
+    static Int linkSize() { return 12 }         // text-xs
+    static Int linkGap() { return 4 }           // gap-1
+    static Int linkGlyph() { return 14 }        // h-3.5 w-3.5
+    static Int linkGroup() { return 12 }        // gap-3
+
+    /** A largura de UMA coluna da grade (`grid-cols-1 sm:2 lg:3`, vao 16). */
+    static Int columnWidth(Int width) {
+        return (width - gridGap() * (columns() - 1)) / columns()
+    }
+
+    /** O `--radius-2xl` = 1rem + 4px = 20 no design system (CARD = 16). */
+    static Int curveRadius() { return 20 }
+
+    /** `line-clamp-N`: no maximo N linhas. */
+    static Int clamp(Int lines, Int maxLines) {
+        if (lines > maxLines) { return maxLines }
+        return lines
+    }
+}
+
+class ProjectsScreen {
+
+    /** O titulo da pagina (`projects.title`). */
+    static String title() {
+        return "Projetos da comunidade"
+    }
+
+    /** A descricao da pagina (`projects.description`). */
+    static String description() {
+        return "Espaço separado dos jogos para mostrar o que você construiu: link do projeto, repositório, categoria e tags. Envio passa pela moderação."
+    }
+
+    /** As ordens (`orderRecent`, `orderTitle`). */
+    static String orderRecent() { return "Recentes" }
+    static String orderTitle() { return "A-Z" }
+
+    /** O botao de envio (`submit`) e o de paginacao (`loadMore`). */
+    static String submit() { return "Enviar projeto" }
+    static String loadMore() { return "Carregar mais" }
+
+    /** O vazio (`empty` e `emptyHint`). */
+    static String empty() { return "Nenhum projeto encontrado." }
+    static String emptyHint() {
+        return "Você fez algo? Envie o link e ele aparece aqui depois da revisão."
+    }
+
+    /** O rotulo do link quando o projeto tem URL (`openProject`). */
+    static String openProject() { return "Abrir projeto" }
+    /** O rotulo do link quando o projeto tem repositorio (`openRepo`). */
+    static String openRepo() { return "Ver repositório" }
+
+    /** Quais links o card mostra: bit 1 = URL (`Globe`), bit 2 = repo (`Code2`).
+     *  O site mostra cada um so' quando o campo existe (projetos.index.tsx:144,151). */
+    static Int links(Bool hasUrl, Bool hasRepo) {
+        var m = 0
+        if (hasUrl) { m = m + 1 }
+        if (hasRepo) { m = m + 2 }
+        return m
+    }
+
+    /** O pingente do selo de categoria, `px-2 py-0.5 text-[11px]`: 8+8 de lado
+     *  e 2+2 de cima, com a altura de linha de 11 px (`leading-4`) = 20. */
+    static Int badgeWidth(Font f, String category) {
+        return f.measure(category) + 16
+    }
+    static Int badgeHeight() { return 20 }
+
+    /** A altura do card depois da capa (`p-4` + `space-y-2`), com o selo
+     *  opcional e a sinopse em no maximo 2 linhas (`line-clamp-2`). */
+    static Int cardBodyHeight(Bool hasCategory, Int synopsisLines, Int linksShown) {
+        var h = ProjectsMetrics.cardPad() * 2
+        var items = 0
+        if (hasCategory) {
+            h = h + badgeHeight()
+            items = items + 1
+        }
+        h = h + 16 + 8                                // o titulo de 16 e o space-y-2
+        items = items + 1
+        h = h + synopsisLines * 20                    // text-sm leading-5, clamp 2
+        items = items + 1
+        if (linksShown != 0) {
+            h = h + 16                                 // a linha de links (h-3.5 + folga)
+            items = items + 1
+        }
+        return h + (items - 1) * ProjectsMetrics.cardGap()
+    }
+
+    /** A altura TOTAL de um card (`h-36` + corpo). */
+    static Int cardHeight(Int bodyH) {
+        return ProjectsMetrics.coverHeight() + bodyH
+    }
+
+    // A capa sem imagem: `linear-gradient(135deg, #6746f5, #4325b8)`,
+    // interpolado pela projecao no eixo da diagonal (t = (x + y) / (w + h)).
+    // A interpolacao e' em sRGB porque o CSS junta as cores assim.
+    static Int gradientR(Int x, Int y, Int w, Int h) {
+        val t = (x + y) * 1000 / (w + h)
+        return 103 + (67 - 103) * t / 1000
+    }
+    static Int gradientG(Int x, Int y, Int w, Int h) {
+        val t = (x + y) * 1000 / (w + h)
+        return 70 + (37 - 70) * t / 1000
+    }
+    static Int gradientB(Int x, Int y, Int w, Int h) {
+        val t = (x + y) * 1000 / (w + h)
+        return 245 + (184 - 245) * t / 1000
+    }
+
+    /** A cena de um card ja' saneado: cada String e' um texto do site (ou a
+     *  sinopse medida), `linksShown` usa o mesmo bitfield de `links`. */
+    static Int paintCard(Sdl3Backend b, Font titleFont, Font bodyFont, Font badgeFont,
+                         Int x, Int y, Int w, String category, String title,
+                         String synopsis, Int linksShown,
+                         ThemeColor card, ThemeColor bg, ThemeColor soft, ThemeColor primaryText,
+                         ThemeColor strong, ThemeColor subtle) {
+        val m = ProjectsMetrics
+        val bodyH = ProjectsScreen.layoutBody(bodyFont, synopsis, w, linksShown, category)
+        val total = ProjectsScreen.cardHeight(bodyH)
+        val coverH = m.coverHeight()
+        val pad = m.cardPad()
+        // as cores de `enois.Tokens` vem do PARAMETRO: chama-las aqui somava
+        // cinco temporarios vivos ao arranjo do nativo, que estourava (known-bugs §1196)
+        ProjectsScreen.paintCover(b, x, y, w, coverH)
+        ProjectsScreen.paintBody(b, x, y + coverH, w, bodyH, total, coverH, card, bg)
+        var cy = y + coverH + pad
+        if (category != "") {
+            cy = ProjectsScreen.paintBadge(b, badgeFont, x, cy, category, soft, primaryText) + m.cardGap()
+        }
+        // o titulo em ate 2 linhas; a sinopse idem; depois os dois links, cada
+        // um nascendo da largura MEDIDA do anterior. Cada pintor e' uma
+        // funcao pequena: um corpo unico com todos os temporarios estourava o
+        // arranjo do nativo (known-bugs §1196)
+        paintWrapped(b, titleFont, title, x + pad, cy, w - pad * 2, strong)
+        cy = cy + shownLines(titleFont, title, w - pad * 2) * 20 + m.cardGap()
+        paintWrapped(b, bodyFont, clipped(synopsis), x + pad, cy, w - pad * 2, subtle)
+        if (linksShown != 0) {
+            cy = cy + ProjectsScreen.layoutSynLines(bodyFont, synopsis, w) * 20 + m.cardGap()
+            paintLinks(b, bodyFont, x + pad, cy, linksShown, subtle)
+        }
+        return total
+    }
+
+    /** A capa: o degrade da diagonal em `h-36`, por LINHA (1 px de altura) —
+     *  144 chamadas em vez de 330x144. */
+    static Int paintCover(Sdl3Backend b, Int x, Int y, Int w, Int coverH) {
+        var row = 0
+        while (row < coverH) {
+            SDL_SetRenderDrawColor(b.rendererHandle, gradientR(0, row, w, coverH),
+                    gradientG(0, row, w, coverH), gradientB(0, row, w, coverH), 255)
+            b.fillRect(x, y + row, w, 1)
+            row = row + 1
+        }
+        return coverH
+    }
+
+    /** O corpo em `--surface-card` com os cantos de baixo (`rounded-2xl`, raio
+     *  20) recortados no `--background`. */
+    static Int paintBody(Sdl3Backend b, Int x, Int y, Int w, Int bodyH, Int total,
+                         Int coverH, ThemeColor card, ThemeColor bg) {
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, y, w, bodyH)
+        // os cantos de baixo, um por linha
+        val radius = ProjectsMetrics.curveRadius()
+        var c = 0
+        while (c < radius) {
+            val cut = radius - c
+            SDL_SetRenderDrawColor(b.rendererHandle, bg.r(), bg.g(), bg.b(), 255)
+            b.fillRect(x, y + bodyH - 1 - c, cut, 1)
+            b.fillRect(x + w - cut, y + bodyH - 1 - c, cut, 1)
+            c = c + 1
+        }
+        return total
+    }
+
+    /** O selo de categoria em `--primary-soft` com o texto em `--primary-text`;
+     *  devolve o `y` do BASELINE do texto (o proximo item nasce daqui). */
+    static Int paintBadge(Sdl3Backend b, Font badgeFont, Int x, Int cy, String category,
+                          ThemeColor soft, ThemeColor primaryText) {
+        val bw = badgeWidth(badgeFont, category)
+        SDL_SetRenderDrawColor(b.rendererHandle, soft.r(), soft.g(), soft.b(), 255)
+        b.fillRect(x + ProjectsMetrics.cardPad(), cy, bw, badgeHeight())
+        badgeFont.drawTextColoured(b, category, x + ProjectsMetrics.cardPad() + 8, cy + 14,
+                primaryText.r(), primaryText.g(), primaryText.b())
+        return cy + badgeHeight()
+    }
+
+    /** As medidas do corpo do card — so' aritmetica, sem Token nem Text — para
+     *  o `paintCard` nao carregar o arranjo inteiro de uma vez. */
+    static Int layoutBody(Font bodyFont, String synopsis, Int w, Int linksShown, String category) {
+        val synLines = layoutSynLines(bodyFont, synopsis, w)
+        return cardBodyHeight(category != "", synLines, linksShown)
+    }
+
+    /** Quantas linhas a sinopse ocupa (no maximo 2, `line-clamp-2`). */
+    static Int layoutSynLines(Font bodyFont, String synopsis, Int w) {
+        return ProjectsMetrics.clamp(
+                PostCard.wrap(bodyFont, synopsis, w - ProjectsMetrics.cardPad() * 2).size, 2)
+    }
+
+    /** Os links do rodape (`inline-flex items-center gap-1 text-xs`), com
+     *  `gap-3` entre eles: cada um nasce depois da LARGURA medida do anterior,
+     *  sem nada mudar entre uma chamada e outra. */
+    static Int paintLinks(Sdl3Backend b, Font f, Int lx, Int cy, Int linksShown, ThemeColor ink) {
+        var cursor = lx
+        if (linksShown % 2 == 1) {
+            cursor = cursor + paintWrapped(b, f, openProject(), cursor, cy, 200, ink)
+                    + ProjectsMetrics.linkGroup()
+        }
+        if (linksShown >= 2) {
+            cursor = cursor + paintWrapped(b, f, openRepo(), cursor, cy, 200, ink)
+        }
+        return cursor - lx
+    }
+
+    /** Pinta as linhas de `text` (no maximo 2) e devolve a largura da linha MAIS
+     *  LARGA pintada, para o proximo item nascer depois dela. O teste NAO le
+     *  esses pixels: a tinta fina de 14 px da 44% menos brilho que branco, e o
+     *  que se prova aqui e' a LARGURA que a fonte mede, nao a cor da tinta. */
+    static Int paintWrapped(Sdl3Backend b, Font f, String text, Int x, Int y,
+                                Int width, ThemeColor ink) {
+        val lines = PostCard.wrap(f, text, width)
+        val shown = ProjectsMetrics.clamp(lines.size, 2)
+        var widest = 0
+        var i = 0
+        while (i < shown) {
+            val lw = f.measure(lines.get(i))
+            if (lw > widest) { widest = lw }
+            i = i + 1
+        }
+        i = 0
+        while (i < shown) {
+            f.drawTextColoured(b, lines.get(i), x, y + 16 + i * 20, ink.r(), ink.g(), ink.b())
+            i = i + 1
+        }
+        return widest
+    }
+
+    /** A sinopse como o card recebe: vazia vira um espaco, porque no site ela
+     *  cai no `{project.shortDescription || project.description || " "}`. */
+    static String clipped(String text) {
+        if (text == "") { return " " }
+        return text
+    }
+
+    /** Quantas linhas (no maximo 2, `line-clamp-2`) o texto ocupa. */
+    static Int shownLines(Font f, String text, Int width) {
+        return ProjectsMetrics.clamp(PostCard.wrap(f, text, width).size, 2)
+    }
+
+    /** A grade de cards: 3 colunas de `columnWidth(width)`, devolve a altura da
+     *  fileira mais alta. */
+    static Int paintGrid(Sdl3Backend b, Font titleFont, Font bodyFont, Font badgeFont,
+                         Int x, Int y, Int width, List<Int> rows, Int rowHeight) {
+        var rowTop = y
+        var i = 0
+        while (i < rows.size) {
+            var col = 0
+            while (col < ProjectsMetrics.columns()) {
+                val cx = x + col * (ProjectsMetrics.columnWidth(width) + ProjectsMetrics.gridGap())
+                val h = paintCard(b, titleFont, bodyFont, badgeFont, cx, rowTop,
+                        ProjectsMetrics.columnWidth(width), "", "", "", 0,
+                        Tokens.SurfaceCard(), Tokens.Background(), Tokens.PrimarySoft(),
+                        Tokens.PrimaryText(), Tokens.TextStrong(), Tokens.TextSubtle())
+                col = col + 1
+            }
+            rowTop = rowTop + rowHeight + ProjectsMetrics.gridGap()
+            i = i + 1
+        }
+        return rowTop - y
+    }
+
+    /** A altura do `EmptyState` com `hintLines` linhas de descricao. */
+    static Int emptyHeight(Int hintLines) {
+        return 40 + 44 + 8 + 20 + 8 + hintLines * 20 + 40
+    }
+
+    /** A tela vazia dentro de um `surface-card`: o `EmptyState` do design
+     *  system (`src/ui/empty-state.tsx`) MEDIDO — `flex-col items-center gap-2
+     *  px-4 py-10 text-center`, o icone num `h-11 w-11 rounded-2xl bg-surface-2
+     *  text-text-subtle` (44), o titulo `text-sm font-medium text-text-strong`
+     *  (14/20) e a descricao `max-w-sm text-sm text-text-subtle` (14/20,
+     *  no maximo 384). Devolve a altura: `py-10` 40x2 + 44 + 2 vaos de 8 + 2
+     *  linhas de 20 + 2 linhas de 20 = 152 com a descricao em 2 linhas. */
+    static Int paintEmpty(Sdl3Backend b, Font titleFont, Font bodyFont, Int x, Int y, Int w) {
+        val card = Tokens.SurfaceCard()
+        val surface2 = Tokens.Surface2()
+        val strong = Tokens.TextStrong()
+        val subtle = Tokens.TextSubtle()
+        val hint = PostCard.wrap(bodyFont, emptyHint(), 384)
+        val h = emptyHeight(hint.size)
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, y, w, h)
+        val bg = Tokens.Background()
+        SDL_SetRenderDrawColor(b.rendererHandle, bg.r(), bg.g(), bg.b(), 255)
+        var c = 0
+        while (c < ProjectsMetrics.curveRadius()) {
+            val cut = ProjectsMetrics.curveRadius() - c
+            b.fillRect(x, y + c, cut, 1)
+            b.fillRect(x + w - cut, y + c, cut, 1)
+            b.fillRect(x, y + h - 1 - c, cut, 1)
+            b.fillRect(x + w - cut, y + h - 1 - c, cut, 1)
+            c = c + 1
+        }
+        // o icone `h-11 w-11 rounded-2xl bg-surface-2` = 44, raio 16
+        val ix = x + (w - 44) / 2
+        var iy = y + 40
+        SDL_SetRenderDrawColor(b.rendererHandle, surface2.r(), surface2.g(), surface2.b(), 255)
+        b.fillRect(ix, iy, 44, 44)
+        val ix0 = ix
+        c = 0
+        while (c < 16) {
+            val cut = 16 - c
+            SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+            b.fillRect(ix0, iy + c, cut, 1)
+            b.fillRect(ix0 + 44 - cut, iy + c, cut, 1)
+            b.fillRect(ix0, iy + 44 - 1 - c, cut, 1)
+            b.fillRect(ix0 + 44 - cut, iy + 44 - 1 - c, cut, 1)
+            c = c + 1
+        }
+        // o titulo centrado
+        val tw = titleFont.measure(empty())
+        titleFont.drawTextColoured(b, empty(), x + (w - tw) / 2, y + 40 + 44 + 8 + 14,
+                strong.r(), strong.g(), strong.b())
+        // a descricao centrada
+        var i = 0
+        while (i < hint.size) {
+            val lw = bodyFont.measure(hint.get(i))
+            bodyFont.drawTextColoured(b, hint.get(i), x + (w - lw) / 2,
+                    y + 40 + 44 + 8 + 20 + 8 + i * 20 + 14,
+                    subtle.r(), subtle.g(), subtle.b())
+            i = i + 1
+        }
+        return h
+    }
+}

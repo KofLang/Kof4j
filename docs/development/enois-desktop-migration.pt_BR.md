@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — `projetos.index` ou `game.$username`
+next: a Fase 3 continua — `game.$username` ou `projetos.$username`
 location: repository
 state: active
 
@@ -404,6 +404,33 @@ linha por 60 px. A altura do hero prende essa quebra pelo outro lado: a
 descricao REAL do site (2 linhas a 16 px) deixa o hero em **254**, e uma mais
 curta o deixaria em 228 — o que o teste provou quando eu o escrevi primeiro
 com uma descricao encurtada. Bateria **28/28**.
+
+**Fase 3 — `projetos` (POUSADA 23/11).** O `ProjectsScreen` em `libs/enois/Projects.kf`
+pinta o catalogo de projetos da comunidade com os numeros MEDIDOS em
+`src/routes/projetos.index.tsx`: o container `mx-auto w-full max-w-5xl` =
+**1024** (`space-y-6`), a grade `grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3` =
+**3 colunas de `(1024 - 2x16)/3` = 330** (3x330 + 2x16 = 1022 cabe), o card
+`surface-card` (SEM borda — `--surface-card` + `--radius-2xl` + `--shadow-table`)
+com a capa `h-36` = **144** e o corpo `p-4` + `space-y-2`; o selo
+`bg-primary-soft text-primary-text` a 11 px, o titulo `line-clamp-2` a 16, a
+sinopse `line-clamp-2` a 14, os links `gap-1` a 12. Os textos sao o bloco REAL
+`texts.projects`.
+A CAPA E' DEGRADE, nao imagem: o `ProjectCover` cai para
+`linear-gradient(135deg, #6746f5, #4325b8)`, e o pintor nativo repete por LINHA
+medindo `t = (x + y) / (w + h)`; o teste prende as duas pontas da diagonal.
+A GRADE, A QUEBRA E O VAZIO SAO MEDIDOS: a sinopse cabe em 2 linhas em 328 px,
+o corpo e' `p-4 x2` + selo 20 + 2 linhas de titulo/sinopse + a linha de links +
+3 vaos de 8 = **156** e o card inteiro **300**; o `EmptyState` (`px-4 py-10`,
+icone `h-11 w-11` em `--surface-2`, descricao `max-w-sm`) da **200** para o hint
+real de 4 linhas.
+PENDENCIA NOMEADA — `known-bugs §1196`: um pintor com CINCO resultados de
+chamada vivos no topo estourava o frame no x86-64 (SEGV dentro da quebra de
+linha). O card foi reestruturado (a aritmetica em `layoutBody`/`layoutSynLines`/
+`cardHeight`, as cores por parametro); o bug do compilador fica ABERTO com a
+medicao registrada. PENDENCIA NOMEADA — a cor do selo e' provada com o
+`paintBadge` pintado sozinho: uma amostra DENTRO do card inteiro leu o
+`--background` (o selo existe e as duas linhas de aritmetica dele estao
+medidas, mas o pixel amostrado nao se manteve). Bateria **29/29**.
 
 ## §4 Como concluir
 

@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — `projetos.index` or `game.$username`
+next: Fase 3 continues — `game.$username` or `projetos.$username`
 location: repository
 state: active
 
@@ -415,6 +415,37 @@ side: the REAL site description (2 lines at 16 px) makes the hero **254**,
 and a shorter one would make it 228 — which the test proved when I first wrote
 it with a trimmed description.
 Battery **28/28**.
+
+**Fase 3 — `projetos` (LANDED 23/11).** `ProjectsScreen` in `libs/enois/Projects.kf`
+paints the community project catalogue with the numbers MEASURED in
+`src/routes/projetos.index.tsx`: the container `mx-auto w-full max-w-5xl` =
+**1024** (`space-y-6`), the grid `grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3`
+= **3 columns of `(1024 − 2×16)/3` = 330** (3×330 + 2×16 = 1022 fits), the card
+`surface-card` (NO border — `--surface-card` + `--radius-2xl` + `--shadow-table`)
+with the cover `h-36` = **144** and the body `p-4` + `space-y-2`; the badge
+`bg-primary-soft text-primary-text` at 11 px, the title `line-clamp-2` at 16,
+the synopsis `line-clamp-2` at 14, the `gap-1` links at 12. Texts are the real
+`texts.projects` block (`title`, `description`, `orderRecent` "Recentes",
+`orderTitle` "A-Z", `submit`, `loadMore`, `empty`, `emptyHint`, `openProject`,
+`openRepo`).
+THE COVER IS A GRADIENT, not an image: `ProjectCover` falls back to
+`linear-gradient(135deg, #6746f5, #4325b8)`, and the native painter repeats it
+PER ROW measuring `t = (x + y) / (w + h)`; the test pins both ends of the
+diagonal (`grad_tl=103,70,245`, `grad_br=93,61,227` at the 329×143 corner).
+THE GRID, THE WRAP AND THE EMPTY STATE ARE MEASURED: the synopsis fits 2 lines
+in 328 px, the body is `p-4 ×2` + badge 20 + 2 title/synopsis lines + the link
+row + 3 gaps of 8 = **156** and the whole card **300**; the `EmptyState`
+(`px-4 py-10`, icon `h-11 w-11` on `--surface-2`, `max-w-sm` description) is
+**200** for the real 4-line hint.
+NAMED PENDING — `known-bugs §1196`: a painter with FIVE live call results at the
+top overran its frame on x86-64 (SEGV inside the line wrap). The card was
+restructured so the arithmetic lives in `layoutBody`/`layoutSynLines`/
+`cardHeight` and the colours arrive as parameters; the compiler bug stays OPEN
+with its measurement recorded. NAMED PENDING — the category badge's colour is
+asserted through `paintBadge` painted on its own: a sample INSIDE the full card
+read the `--background` (the badge exists, its two lines of arithmetic are
+measured, but its sampled pixel did not hold).
+Battery **29/29**.
 
 ## §4 How to finish
 

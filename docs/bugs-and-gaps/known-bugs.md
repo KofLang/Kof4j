@@ -21334,3 +21334,16 @@ WHAT IT BLOCKS: any Kof-side loop over pixel data that arrives from another meth
 THE FIX (two lines, both measured): `MemberResolver.isBuiltinTypeName` now accepts `Buffer`, and `Type.of("Buffer")` maps the DECLARED name to `ClassType("kof","Buffer")` — the same type `buffer.alloc` returns (before, the name resolved but was a DIFFERENT type, so `b.size()` compiled to a call to a nonexistent `Buffer_size`).
 PROOF RED-first: `BufferNominalTypeE2ETest` — with the fix reverted the compile fails with SEM011; with it, a 16×16 circular mask written in pure Kof over a PARAMETER buffer cuts 61 of 256 texels (`canto=0`, `centro=255`), and `Buffer` works as a field, a constructor parameter and a method parameter. Downstream: the Énois avatar now crops a PHOTO to a circle in pure Kof (`centro=128,127,180` from the image, `canto=0,0,0`).
 STATUS: ✅ FIXED.
+
+## §1196 — native x86-64: a function with MORE live call results than incoming arguments overruns its own frame, and the next call sees truncated locals (SEGV in `kof_string_concat` with `rsi=2`) — 📌 MEASURED 23/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Status:** 🟡 OPEN — measured, with a working shape documented below. No compiler fix in this slice.
+
+**Found while painting the Énois project card** (`libs/enois/Projects.kf`, ratio `projetos`). The card is ONE function that calls several painters in sequence; the program died with SIGSEGV, and gdb showed the crash INSIDE `kof_string_concat`, called from `wrap` (the line-wrap helper): its `rsi` held `2` where a `KofString*` belonged, and the OUT-OF-BOUNDS index its caller reported (`index=2` of a string) proves the wrapping loop had read a TRUNCATED local — `row`/`col`/`text` came back as small integers.
+THE TRIGGER, measured by bisection: the function `paintCard` receives 10 arguments (SDL3 handle, 3 `Font`, x, y, w, 3 `String`, `Int`) and at the top computed `val m = ProjectsMetrics`, `val hasCategory = …`, `val synLines = …clamp(wrap(...).size, 2)`, `val bodyH = …` and `val total = ProjectsScreen.cardHeight(bodyH)` — that is FIVE live temporaries holding call results, more than the six incoming arguments that were spilled, and the frame's spill area had no slot for them. Every shape that reduced the count to ≤ 4 live call results ran clean:
+* `val bodyH` + `val total` as the only two call results, the arithmetic in a helper → OK;
+* the same, plus `val titleLines` (3) → OK;
+* 5 (the original) → SEGV, deterministically (12/12 runs).
+**NOT the cause** (each ruled out by a direct A/B run, same source otherwise): the table of virtual methods in `Tokens`/`PostCard`; the missing `import enois.PostCard` (SEM011); the `readPixel` readback reusable surface; `println` between statements. The crash's *outer* frame was sometimes garbage because the return slot itself was overwritten.
+WHAT IT BLOCKS: a painter that must call five helpers up front. THE WORKING SHAPE, now used in `libs/enois/Projects.kf` (and documented in the file): the arithmetic lives in `layoutBody`/`layoutSynLines`/`cardHeight`, the colours are PARAMETERS (not five `Tokens.*()` calls inside), and the body paints in ≤ 4 results. Any future painter reads this before growing a block of up-front calls.
+STATUS: 🟡 OPEN (measured). Next: a reduced reproducer (`paintCard`-shaped, no SDL) as a compiler test, then the spill-slot fix in `NativeMethodEmitter`.
