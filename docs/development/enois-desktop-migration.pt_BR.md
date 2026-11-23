@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — as secoes do aside da comunidade (membros/descricao) ou `blogs` (a rota de publicacao)
+next: a Fase 3 continua — `blogs` (a rota de publicacao) ou `vagas` (a listagem de vagas)
 location: repository
 state: active
 
@@ -202,6 +202,16 @@ Provado nativamente: `secoes=4`, `s0=Comunidade:13`, `s1=Brincar:2`,
 `s2=Construir:3`, `s3=Trabalho:5`, `total=23`, `primeiro=Colagem`,
 `ultimo=Mentoria`, `card=255,255,255`, `icone=238,232,255`.
 Bateria **13/13**.
+
+**Fase 3 — a secao de MEMBROS da comunidade (POUSADA 22/11).** O `CommunityMembers`
+no `libs/enois/CommunityFeed.kf` pinta o bloco do aside medido em
+`comunidades.$communityId.tsx:898-906`: o bloco `surface-card p-5`, o titulo
+`h3 mb-3 text-sm font-semibold` com `membersTitle(count)` —
+**"Membros (N)"**, uma FUNCAO em `texts.ts:2334`, nao um literal — e cada linha
+com o avatar circular `h-9 w-9` = **36 px**, o nome em `text-sm font-medium` e
+o badge "ADMIN". Provado nativamente: `membros_h=162` (`p-5` x2 + o titulo +
+o gap + 2 x (36 + 12)), `vazia_h=66`, `card=255,255,255`,
+`avatar=196,181,253`. Bateria **14/14**.
 
 ## §4 Como concluir
 

@@ -1,5 +1,6 @@
 package enois
 
+import enois.Avatar
 import enois.Feed
 import enois.PostCard
 import enois.Text
@@ -90,5 +91,53 @@ class CommunityFeed {
             i = i + 1
         }
         return cy - y
+    }
+}
+
+/** As medidas da secao de MEMBROS do aside (`surface-card p-5`,
+ *  `h3 mb-3 text-sm font-semibold`, a linha com avatar `h-9 w-9`). */
+class MembersMetrics {
+    static Int pad() { return 20 }            // p-5
+    static Int rowGap() { return 12 }         // space-y-3
+    static Int avatar() { return 36 }         // h-9 w-9
+    static Int rowHeight() { return 36 }
+    static Int headingSize() { return 14 }    // text-sm font-semibold
+    static Int badgeSize() { return 12 }      // text-xs
+}
+
+class CommunityMembers {
+
+    /** Pinta a secao "Membros (N)" do aside, a partir de (x, y).
+     *  `names` na ordem em que o site devolve; `admins` diz quais levam o
+     *  badge `ADMIN` (`texts.communities.detail.admin`). Devolve a altura. */
+    static Int paint(Sdl3Backend b, Font headFont, Font nameFont, Font badgeFont,
+                     Int x, Int y, Int w, List<String> names, List<String> badges) {
+        val card = Tokens.SurfaceCard()
+        val strong = Tokens.TextStrong()
+        val pad = MembersMetrics.pad()
+        val n = names.size
+        val h = pad * 2 + MembersMetrics.headingSize() + MembersMetrics.rowGap()
+                + n * (MembersMetrics.rowHeight() + MembersMetrics.rowGap())
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, y, w, h)
+        headFont.drawTextColoured(b, "Membros (" + n + ")", x + pad, y + pad + 12,
+                strong.r(), strong.g(), strong.b())
+        var cy = y + pad + MembersMetrics.headingSize() + MembersMetrics.rowGap()
+        var i = 0
+        while (i < n) {
+            // o avatar CIRCULAR (a primitiva do §1195)
+            Avatar.paint(b, badgeFont, x + pad, cy, MembersMetrics.avatar(), names[i], "")
+            nameFont.drawTextColoured(b, names[i],
+                    x + pad + MembersMetrics.avatar() + 12, cy + 22,
+                    strong.r(), strong.g(), strong.b())
+            if (i < badges.size && badges[i] != "") {
+                // o badge ADMIN: a direita da linha
+                badgeFont.drawTextColoured(b, badges[i], x + w - pad - 40, cy + 22,
+                        Tokens.Primary().r(), Tokens.Primary().g(), Tokens.Primary().b())
+            }
+            cy = cy + MembersMetrics.rowHeight() + MembersMetrics.rowGap()
+            i = i + 1
+        }
+        return h
     }
 }

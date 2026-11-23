@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — the community's aside sections (members/description) or `blogs` (the publishing route)
+next: Fase 3 continues — `blogs` (the publishing route) or `vagas` (the jobs listing)
 location: repository
 state: active
 
@@ -199,6 +199,17 @@ description `text-[13px]`, container `max-w-3xl` = 768, section title
 `primeiro=Colagem`, `ultimo=Mentoria`, `card=255,255,255`,
 `icone=238,232,255`.
 Battery **13/13**.
+
+**Fase 3 — the community MEMBERS section (LANDED 22/11).** `CommunityMembers` in
+`libs/enois/CommunityFeed.kf` paints the aside block measured in
+`comunidades.$communityId.tsx:898-906`: the `surface-card p-5` block, the
+`h3 mb-3 text-sm font-semibold` heading with `membersTitle(count)` —
+**"Membros (N)"**, a FUNCTION in `texts.ts:2334`, not a literal — and each row
+with the `h-9 w-9` = **36 px** circular avatar, the name at
+`text-sm font-medium` and the "ADMIN" badge. Proven natively: `membros_h=162`
+(`p-5` ×2 + the heading + the gap + 2 × (36 + 12)), `vazia_h=66`,
+`card=255,255,255`, `avatar=196,181,253`.
+Battery **14/14**.
 
 ## §4 How to finish
 
