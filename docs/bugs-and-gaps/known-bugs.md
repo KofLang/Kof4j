@@ -21591,6 +21591,22 @@ contain its own file cannot reach `lib/kof-libs` at all (`import game.Sdl3Backen
 because it installs the cache). Next: one resolution story for both entry points — the same
 files on `kof run` of a source folder and on `kof run` from an installed package.
 
+**23/11 (after the fix landed): the §1200 CURE works for the TYPE-in-another-file case, and the
+residual failure is a DECLARATION-COUNT limit of the unit, not the import.**
+With the fixed compiler installed (`filesDeclaringType` in the jar), the harness path resolves
+`import enois.CommunitiesScreen` (16-import file) ✓, `import enois.ComunidadesTexts` (2 imports) ✓
+and `import enois.Draw` ✓ — every one of them alone. Two imports in one `Main` still resolve
+(`ComunidadesTexts` + `Sdl3Backend` ✓). The composed PAGE (`ComunidadesPage`, 14 imports) fails
+with PKG006 naming its FIRST import (`CommunitiesTexts`), and a 48-import `Main` fails the same
+way, while a 17-import one works: the trigger is the SIZE of the unit (number of imported files),
+not which type lives in which file. That is the same family as the reduction cap the compiler
+applies per unit (§607/§636 territory, 256 rounds in `expandKofImports`) and NOT the resolver —
+so `ComunidadesPage` stays parked (`/tmp/lane-enois-2`), and the composed screen is proven as the
+WIDGETS running together (`EnoisComunidadesPageE2ETest`, `EnoisCommunityCardE2ETest`) plus a new
+one-shot run of the four blocks in order (parked with it, green in lab: `y=120|36|317|…`).
+Next: count the units of `expandKofImports` (rounds) against the imports of the page and decide
+whether the cap, the dedupe or an O(n²) scan is what starves the 15th import.
+
 ## §1201 — native x86-64: a `println("a=" + a() + "|" + b())` chain over TWO small STRING methods that read their arguments dies with `Runtime error: out of memory` (exit 1) — 📌 MEASURED 23/11 (lane wasm/caps `192.168.15.15:0`)
 
 **Status:** 🟡 OPEN — reproduced four times in the Énois location-rules slice; not reduced yet.

@@ -19006,6 +19006,22 @@ porque instala o cache). Proximo: uma unica historia de resolucao para os dois p
 entrada — os mesmos arquivos no `kof run` de uma pasta de fontes e no `kof run` de um pacote
 instalado.
 
+**23/11 (depois do fix pousado): a CURA do §1200 vale para o caso TIPO-noutro-arquivo, e a falha
+residual e' um limite de NUMERO DE DECLARACOES da unidade, nao do import.**
+Com o compilador corrigido instalado (`filesDeclaringType` no jar), o caminho do harness resolve
+`import enois.CommunitiesScreen` (arquivo de 16 imports) ✓, `import enois.ComunidadesTexts` (2
+imports) ✓ e `import enois.Draw` ✓ — cada um sozinho. Dois imports num `Main` ainda resolvem
+(`ComunidadesTexts` + `Sdl3Backend` ✓). A PAGINA composta (`ComunidadesPage`, 14 imports) falha
+com PKG006 no PRIMEIRO import dela (`CommunitiesTexts`), e um `Main` de 48 imports falha do mesmo
+jeito, enquanto um de 17 funciona: o gatilho e' o TAMANHO da unidade (numero de arquivos
+importados), nao qual tipo mora em qual arquivo. E' a mesma familia do teto de reducao que o
+compilador aplica por unidade (territorio §607/§636, 256 rodadas no `expandKofImports`) e NAO o
+resolvedor — entao a `ComunidadesPage` segue parqueada (`/tmp/lane-enois-2`), e a tela composta fica
+provada como os WIDGETS rodando juntos (`EnoisCommunitiesPageE2ETest`, `EnoisCommunityCardE2ETest`)
+mais uma corrida nova dos quatro blocos em ordem (parqueada junto, verde no lab:
+`y=120|36|317|…`). Proximo: contar as rodadas do `expandKofImports` contra os imports da pagina e
+decidir se e' o teto, o dedupe ou uma varredura O(n²) que deixa o 15o import sem nada.
+
 ## §1201 — nativo x86-64: uma cadeia `println("a=" + a() + "|" + b())` sobre DUAS funcoes pequenas de STRING que leem seus argumentos morre com `Runtime error: out of memory` (exit 1) — 📌 MEDIDO 23/11 (lane wasm/caps `192.168.15.15:0`)
 
 **Status:** 🟡 ABERTO — reproduzido quatro vezes na fatia das regras de local do Énois; ainda nao reduzido.
