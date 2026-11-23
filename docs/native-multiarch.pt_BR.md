@@ -784,6 +784,35 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   isso que a NATIVE004 recusa sem. **AS PRÓXIMAS LINHAS:** a família "stat"
   da costura (o `struct stat` do Darwin), o runner M-7, a face arm64 (o
   emissor cross aarch64 + a sua prova Mach-O); depois #1159 keep-alive
+  **M-6 FATIA 2 POUSADA 22/11 (a família de REDE sobre a libSystem — e um BUG
+  REAL DO TRADUTOR que a fatia expôs: os imediatos de CARACTERE).** As seis
+  funções de socket da costura (`kof_plat_net_socket`/`connect`/`bind`/
+  `listen`/`accept`/`send`) agora chamam a libSystem no perfil macOS; a ABI
+  dos sockets BSD é a MESMA da libc Linux, e a ÚNICA diferença é a 4ª flag do
+  `sendto` (o syscall Linux a põe em `%r10`, a ABI SysV em `%rcx` — o corpo
+  move). Os corpos são TRANSPARENTES (preservam os caller-saved, então os
+  chamadores do runtime — escritos contra o syscall — continuam certos) e
+  moram na sua própria classe (`RuntimePlatMacosNet`) porque o arquivo da
+  costura cruzou o gate de 500 linhas; a família de TLS foi para
+  `RuntimePlatMacosTls` pelo mesmo motivo (o gate agora está rc=0 com as três
+  abaixo da faixa crítica). **O BUG DO TRADUTOR (achado pelo assembler REAL,
+  não por inspeção):** um imediato de caractere (`$'h'`) era varrido como
+  operando — o `h` ganhava o `_` do Mach-O (`$'_h'`) e o clang respondia
+  "single quote way too long". O runtime do kof.http compara caracteres
+  (`cmpb $'h', 0(%rbx)`), então a face apareceu no momento em que a fatia de
+  rede entrou no texto; a correção copia `$'X'` (e o escapado `$'\n'`)
+  verbatim. **PROVA (executada):** `NativeMacOSNetE2ETest` **3/3** — RED-first
+  **3 falhas** no código antigo (os corpos de socket eram os syscalls crus; o
+  sendto não movia a flag; o literal de caractere vinha corrompido) e GREEN
+  depois; `NativeMacOSProfileE2ETest` **12/12** (o teste novo do literal
+  RED no tradutor antigo); a família macOS **36/0F**; a bateria nativa +
+  http/web **877 run / 1F** (a falha é a `NativeCrossMultidistroE2ETest` da
+  lane irmã em voo — um import `image.Raster` ausente no front end, intocado
+  por esta fatia); o gate da costura rc=0 (futex 13, TLS 3); o `check_500`
+  rc=0 depois dos splits; o gate do changelog-ledger está vermelho na ponta
+  pelas linhas §1193/§1194/§1195 da lane IRMÃ (sem entrada no CHANGELOG ainda
+  — escrituração deles, reportada e não tocada).
+
   HTTP/1.1.
 
 

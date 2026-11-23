@@ -38,14 +38,18 @@ for f in "$RT"/*.java; do
     [ "$n" -eq 0 ] && continue
     base=$(basename "$f")
     total_x86=$((total_x86 + n))
-    if [ "$base" = "RuntimePlat.java" ] || [ "$base" = "RuntimePlatMacos.java" ]; then
-        # a face macOS da costura (M-2, 22/11): os corpos sobre a libSystem
-        # moram na sua própria classe — ela É costura, não superfície extra.
+    case "$base" in
+    RuntimePlat*)
+        # a COSTURA (M-2/M-4/M-6): RuntimePlat + as faces macOS por família
+        # (RuntimePlatMacos, RuntimePlatMacosNet, RuntimePlatMacosTls). São a
+        # superfície da migração — não dívida fora dela.
         seam_x86=$((seam_x86 + n))
         echo "  SEAM  $base: $n"
-    else
+        ;;
+    *)
         echo "  out   $base: $n"
-    fi
+        ;;
+    esac
 done
 out_x86=$((total_x86 - seam_x86))
 echo "  x86-64: total=$total_x86 seam=$seam_x86 fora-da-costura=$out_x86"
@@ -84,8 +88,7 @@ echo "== FUTEX (a face Linux — o macOS usa __ulock/os_unfair_lock):"
 fx=0
 for f in "$RT"/*.java; do
     base=$(basename "$f")
-    [ "$base" = "RuntimePlat.java" ] && continue
-    [ "$base" = "RuntimePlatMacos.java" ] && continue
+    case "$base" in RuntimePlat*) continue ;; esac
     n=$(grep -cE '\bfutex\b' "$f" 2>/dev/null || true)
     fx=$((fx + n))
 done

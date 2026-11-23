@@ -103,6 +103,31 @@ class NativeMacOSProfileE2ETest {
     }
 
     /**
+     * M-6 (#1135): os literais de CARACTERE ({@code $'h'}) são imediatos —
+     * verbatim. Sem isto o `'h'` virava operando e o `h` ganhava o `_`
+     * (`$'_h'`), e o clang respondia "single quote way too long": o runtime
+     * do kof.http compara chars (`cmpb $'h', 0(%rbx)`), então a face apareceu
+     * na família de REDE.
+     */
+    @Test
+    void theCharacterLiteralImmediatesAreVerbatim() {
+        String macho = dev.kof.compiler.nat.NativeMachO.translate("""
+                    cmpb $'h', 0(%rbx)
+                    cmpb $':', 4(%rbx)
+                    cmpb $'\\n', 8(%rbx)
+                    movq $1, %rdi
+                """);
+        assertTrue(macho.contains("cmpb $'h', 0(%rbx)"),
+                "the char immediate is verbatim: " + macho);
+        assertTrue(macho.contains("cmpb $':', 4(%rbx)"),
+                "the char immediate is verbatim: " + macho);
+        assertTrue(macho.contains("cmpb $'\\n', 8(%rbx)"),
+                "the escaped char immediate is verbatim: " + macho);
+        assertFalse(macho.contains("$'_"),
+                "no char immediate is prefixed: " + macho);
+    }
+
+    /**
      * O DEFEITO DO TRAVA: a varredura do operando tem que TERMINAR. Um teste
      * com um REGISTRADOR era o que travava o compilador — o teste antigo
      * (6 testes de texto) não tinha nenhum.

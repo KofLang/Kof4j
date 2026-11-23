@@ -303,6 +303,20 @@ public final class NativeMachO {
                 // meu M-1 lia o '$' como início de símbolo e prefixava o
                 // valor (`_$1`).
                 int j = i + 1;
+                if (j < code.length() && code.charAt(j) == '\'') {
+                    // M-6 (#1135): um literal de CARACTERE (`$'h'`, `$'\n'`) —
+                    // verbatim. Sem isto o `'h'` virava operando (o `h` ganhava
+                    // o `_` e o clang dizia "single quote way too long"): o
+                    // runtime do kof.http COMPARA chars (`cmpb $'h', …`), então
+                    // a face apareceu na família de rede.
+                    j++;
+                    if (j < code.length() && code.charAt(j) == '\\') j++;
+                    if (j < code.length()) j++;
+                    if (j < code.length() && code.charAt(j) == '\'') j++;
+                    out.append(code, i, j);
+                    i = j;
+                    continue;
+                }
                 if (j < code.length() && (code.charAt(j) == '-' || code.charAt(j) == '+')) j++;
                 while (j < code.length() && isSymbolPart(code.charAt(j))) j++;
                 out.append(code, i, j);

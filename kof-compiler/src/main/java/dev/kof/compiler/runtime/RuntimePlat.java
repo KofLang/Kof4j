@@ -335,7 +335,7 @@ public final class RuntimePlat {
      */
     public static void emitPlatTls(StringBuilder sb) {
         if (dev.kof.compiler.nat.NativeProfile.active.isMacos()) {
-            RuntimePlatMacos.emitTls(sb);
+            RuntimePlatMacosTls.emitTls(sb);
             return;
         }
         sb.append("""
@@ -365,6 +365,11 @@ public final class RuntimePlat {
         if (dev.kof.compiler.nat.NativeProfile.activeIsUefi()
                 || dev.kof.compiler.nat.NativeProfile.activeIsBios()) {
             RuntimeBios.refuse(sb, "kof_plat_net_socket, kof_plat_net_connect, kof_plat_net_bind, kof_plat_net_listen, kof_plat_net_accept, kof_plat_net_send");
+            return;
+        }
+        // M-6 (#1135): no macOS a rede fala os sockets do libSystem.
+        if (dev.kof.compiler.nat.NativeProfile.active.isMacos()) {
+            RuntimePlatMacosNet.emitNet(sb);
             return;
         }
         sb.append("""

@@ -782,6 +782,36 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   is what NATIVE004 refuses without. **THE NEXT ROWS:** the "stat" family of
   the seam (the Darwin `struct stat`), the M-7 runner, the arm64 face (the
   cross aarch64 emitter + its Mach-O proof); then #1159 keep-alive HTTP/1.1.
+  **M-6 SLICE 2 LANDED 22/11 (the NET family over the libSystem — and a REAL
+  TRANSLATOR BUG the slice exposed: the character-literal immediates).** The
+  six socket seam functions (`kof_plat_net_socket`/`connect`/`bind`/`listen`/
+  `accept`/`send`) now call the libSystem on the macOS profile; the BSD socket
+  ABI is the SAME as the Linux libc one, and the ONE difference is the 4th
+  flag of the `sendto` (the Linux syscall puts it in `%r10`, the SysV ABI in
+  `%rcx` — the body moves it). The bodies are TRANSPARENT (they preserve the
+  caller-saved registers, so the runtime callers — written against the
+  syscall — stay correct) and they live in their own class
+  (`RuntimePlatMacosNet`) because the seam file crossed the 500-line gate;
+  the TLS family moved to `RuntimePlatMacosTls` for the same reason (the
+  gate is now rc=0 with all three under the critical band).
+  **THE TRANSLATOR BUG (found by the real assembler, not by inspection):**
+  a character-literal immediate (`$'h'`) was scanned as an operand — the `h`
+  took the Mach-O `_` prefix (`$'_h'`) and the clang answered "single quote
+  way too long". The kof.http runtime compares characters
+  (`cmpb $'h', 0(%rbx)`), so the face appeared the moment the net slice
+  entered the text; the fix copies `$'X'` (and the escaped `$'\n'`)
+  verbatim. **PROOF (executed):** `NativeMacOSNetE2ETest` **3/3** — RED-first
+  **3 failures** on the old code (the socket bodies were the raw syscalls;
+  the sendto had no flag move; the char literal was corrupted) and GREEN
+  after; `NativeMacOSProfileE2ETest` **12/12** (the new char-literal test RED
+  on the old translator); the macOS family **36/0F**; the native + http/web
+  battery **877 run / 1F** (the failure is the sibling lane's in-flight
+  `NativeCrossMultidistroE2ETest` — a missing `image.Raster` import at the
+  front end, untouched by this slice); the seam gate rc=0 (futex 13, TLS 3);
+  `check_500` rc=0 after the splits; the changelog-ledger gate is red on the
+  tip for the SIBLING lane's §1193/§1194/§1195 rows (no CHANGELOG entry yet
+  — their bookkeeping, reported not touched).
+
 
 
 
