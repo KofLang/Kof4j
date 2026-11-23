@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — `blogs` (the publishing route) or `grupos.$slug`
+next: Fase 3 continues — `blog.$username` (a single blog) or `grupos.$slug`
 location: repository
 state: active
 
@@ -277,6 +277,24 @@ Proven natively: `privado_h=54`, `visitante_h=102` (the button adds 12 + 36),
 `erro_h=54`, `privado=103,70,245`, `erro=179,0,24`, `botao=238,232,255`.
 Battery **19/19** — fifth tick in a row with every sample coordinate computed
 from the layout.
+
+**Fase 3 — `blogs` (LANDED 22/11).** `BlogsScreen` in `libs/enois/Blogs.kf` paints the
+blog DIRECTORY — "Cantinhos de quem escreve por aqui", not a feed. The header
+carries the title "Blogs" and the site's own description (`texts.ts` block
+`blog`), word-wrapped by MEASURED glyph advances (`BlogsScreen.wrapText`); each
+card is `surface-card p-4 sm:p-5` = 120 px with the eyebrow
+`text-xs uppercase tracking-widest text-primary`, the title `text-base
+font-semibold` and the description `text-sm`. The empty states
+(`emptyDirectory`, `searchEmpty`) and the search placeholder are the site's own
+strings.
+PROOF `EnosisBlogsE2ETest`: `header_h=62`, `card_h=120`, `card=255,255,255`,
+and the eyebrow EXISTING in the `--primary` family.
+NAMED DIVERGENCE recorded while writing the proof: a 12 px glyph has
+ANTI-ALIASED edges, so the first non-white pixel of the uppercase eyebrow is a
+BLEND of `--primary` and the card (`154,132,248`, measured) — the test asserts
+the ROLE (blue dominates red) instead of a pixel value a fixed scan could not
+guarantee.
+Battery **20/20**.
 
 ## §4 How to finish
 

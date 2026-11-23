@@ -1,0 +1,113 @@
+package enois
+
+import enois.Text
+import enois.Tokens
+import game.Sdl3Backend
+
+// Énois — a rota `blogs` (`src/routes/blogs.tsx`), o DIRETORIO de blogs.
+//
+// Os TEXTOS vem do codigo (`src/texts.ts`, bloco `blog`), sem invencao:
+//   * o titulo         `title` = "Blogs"
+//   * a descricao      `description` = "Cantinhos de quem escreve por aqui..."
+//   * a busca          `searchPlaceholder` = "Buscar blogs por titulo ou
+//                      descricao..."
+//   * o vazio          `emptyDirectory` = "Ainda nao ha blogs por aqui. Crie
+//                      o seu."
+//   * a busca vazia    `searchEmpty` = "Nenhum blog encontrado para esta busca."
+//
+// As MEDIDAS vem do markup, MEDIDAS:
+//   * o card        `surface-card block p-4 transition hover:border-primary/40
+//                   sm:p-5` = 20 px no desktop
+//   * o eyebrow     `text-xs font-semibold uppercase tracking-widest
+//                   text-primary` = o rotulo do card em --primary
+//   * o titulo      `mt-2 text-base font-semibold text-text-strong`
+//   * a descricao   `mt-1 text-sm font-normal text-muted-foreground`
+
+/** As medidas do diretorio de blogs, em px. */
+class BlogsMetrics {
+    static Int cardPad() { return 20 }        // sm:p-5
+    static Int cardHeight() { return 120 }
+    static Int eyebrowSize() { return 12 }    // text-xs
+    static Int titleSize() { return 16 }      // text-base
+    static Int descSize() { return 14 }       // text-sm
+    static Int gap() { return 16 }
+}
+
+class BlogsScreen {
+
+    /** Pinta o cabecalho do diretorio (titulo + descricao) a partir de (x, y). */
+    static Int paintHeader(Sdl3Backend b, Font titleFont, Font bodyFont,
+                           Int x, Int y, Int w, String title, String description) {
+        val strong = Tokens.TextStrong()
+        val muted = Tokens.MutedForeground()
+        titleFont.drawTextColoured(b, title, x, y + 24, strong.r(), strong.g(), strong.b())
+        var ly = y + 40
+        val lines = wrapText(bodyFont, description, w)
+        var i = 0
+        while (i < lines.size) {
+            bodyFont.drawTextColoured(b, lines[i], x, ly + 14, muted.r(), muted.g(), muted.b())
+            ly = ly + 22
+            i = i + 1
+        }
+        return ly - y
+    }
+
+    /** Pinta UM card de blog: o eyebrow (o autor), o titulo e a descricao. */
+    static Int paintCard(Sdl3Backend b, Font eyebrowFont, Font titleFont, Font bodyFont,
+                         Int x, Int y, Int w, String eyebrow, String title, String description) {
+        val card = Tokens.SurfaceCard()
+        val primary = Tokens.Primary()
+        val strong = Tokens.TextStrong()
+        val muted = Tokens.MutedForeground()
+        val pad = BlogsMetrics.cardPad()
+        val h = BlogsMetrics.cardHeight()
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, y, w, h)
+        // o eyebrow em --primary (o autor do blog)
+        eyebrowFont.drawTextColoured(b, eyebrow, x + pad, y + pad + 12,
+                primary.r(), primary.g(), primary.b())
+        titleFont.drawTextColoured(b, title, x + pad, y + pad + 36,
+                strong.r(), strong.g(), strong.b())
+        bodyFont.drawTextColoured(b, description, x + pad, y + pad + 58,
+                muted.r(), muted.g(), muted.b())
+        return h
+    }
+
+    /** Pinta o texto de um estado vazio (o diretorio ou a busca). */
+    static Int paintEmpty(Sdl3Backend b, Font bodyFont, Int x, Int y, Int w, String text) {
+        val muted = Tokens.MutedForeground()
+        bodyFont.drawTextColoured(b, text, x, y + 20, muted.r(), muted.g(), muted.b())
+        return 40
+    }
+
+    /** Quebra `text` em linhas que caibam em `width` px. */
+    static List<String> wrapText(Font f, String text, Int width) {
+        val out = listOf<String>()
+        var line = ""
+        var word = ""
+        var i = 0
+        while (i <= text.length()) {
+            val atEnd = i == text.length()
+            var c = ' '
+            if (!atEnd) { c = text.charAt(i) }
+            if (atEnd || c == ' ') {
+                if (word != "") {
+                    if (line == "") {
+                        line = word
+                    } else if (f.measure(line + " " + word) <= width) {
+                        line = line + " " + word
+                    } else {
+                        out.add(line)
+                        line = word
+                    }
+                    word = ""
+                }
+            } else {
+                word = word + c
+            }
+            i = i + 1
+        }
+        if (line != "") { out.add(line) }
+        return out
+    }
+}

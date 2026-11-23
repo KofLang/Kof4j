@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — `blogs` (a rota de publicacao) ou `grupos.$slug`
+next: a Fase 3 continua — `blog.$username` (um blog so') ou `grupos.$slug`
 location: repository
 state: active
 
@@ -275,6 +275,22 @@ Provado nativamente: `privado_h=54`, `visitante_h=102` (o botao soma 12 + 36),
 `erro_h=54`, `privado=103,70,245`, `erro=179,0,24`, `botao=238,232,255`.
 Bateria **19/19** — quinto tick seguido com cada coordenada de amostra
 calculada do layout.
+
+**Fase 3 — `blogs` (POUSADA 22/11).** O `BlogsScreen` no `libs/enois/Blogs.kf` pinta o
+DIRETORIO de blogs — "Cantinhos de quem escreve por aqui", nao um feed. O
+cabecalho carrega o titulo "Blogs" e a descricao do proprio site (`texts.ts`
+bloco `blog`), quebrada por avancos de glifo MEDIDOS
+(`BlogsScreen.wrapText`); cada card e' `surface-card p-4 sm:p-5` = 120 px com o
+eyebrow `text-xs uppercase tracking-widest text-primary`, o titulo
+`text-base font-semibold` e a descricao `text-sm`. Os estados vazios
+(`emptyDirectory`, `searchEmpty`) e o placeholder de busca sao os textos do
+site. PROVA `EnosisBlogsE2ETest`: `header_h=62`, `card_h=120`,
+`card=255,255,255`, e o eyebrow EXISTINDO na familia do `--primary`.
+DIVERGENCIA NOMEADA registrada ao escrever a prova: um glifo de 12 px tem
+bordas ANTI-ALIASED, entao o primeiro pixel nao-branco do eyebrow em
+maiusculas e' uma MISTURA de `--primary` com o card (`154,132,248`, medido) —
+o teste afirma o PAPEL (azul domina o vermelho) em vez de um valor de pixel que
+uma varredura fixa nao garantiria. Bateria **20/20**.
 
 ## §4 Como concluir
 
