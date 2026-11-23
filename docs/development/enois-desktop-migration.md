@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — `eventos` or `salvos`
+next: Fase 3 continues — `salvos` or `notificacoes.index`
 location: repository
 state: active
 
@@ -326,6 +326,22 @@ Proven natively: `m1=1 membro`, `m5=5 membros`, both modes, all three actions,
 `x=66`, `grupo_h=338`, `banner=98,95,180` (a pixel of the image, asserted NOT
 to be the `--primary-soft` fallback), `logo=238,232,255`.
 Battery **22/22**.
+
+**Fase 3 — `eventos` (LANDED 23/11).** `EventsScreen` in `libs/enois/Events.kf`
+paints the community AGENDA: the grid `grid-cols-1 gap-4 md:grid-cols-2
+lg:grid-cols-3` — **3 columns on desktop** — with each card
+`surface-card space-y-3 p-4` = 16 px carrying the title, the date and the
+format. The formats are the site's own (`formats.ONLINE` "Online",
+`IN_PERSON` "Presencial", `HYBRID` "Híbrido") and the empty state is
+"Nenhum evento por aqui ainda.".
+THE PROOF OF THE GRID IS THE GEOMETRY, not a count: the column width comes
+from `(904 - 2×16) / 3` = **290**, and the test samples the SECOND and FOURTH
+cards at one column + the gap to the right — if the layout collapsed to a
+single column, those samples would land on the background instead of the card.
+Proven natively: `col_w=290`, `f=Online|Presencial|Híbrido`, `grade_h=296`
+(2 rows × 140 + 16), `card1`/`card2`/`card4` = `255,255,255` and
+`gap=247,244,251`.
+Battery **23/23**.
 
 ## §4 How to finish
 

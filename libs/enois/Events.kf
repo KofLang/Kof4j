@@ -1,0 +1,105 @@
+package enois
+
+import enois.Text
+import enois.Tokens
+import game.Sdl3Backend
+
+// Énois — a rota `eventos` (`src/routes/eventos.tsx`), a agenda da comunidade.
+//
+// Os TEXTOS vem do codigo (`src/texts.ts`, bloco `events`), sem invencao:
+//   * o titulo      `title` = "Eventos da comunidade"
+//   * a descricao   `description` = "Webinars, meetups, workshops e encontros
+//                   — online e presenciais."
+//   * os FORMATOS   `formats.ONLINE` = "Online", `formats.IN_PERSON` =
+//                   "Presencial", `formats.HYBRID` = "Hibrido"
+//   * o vazio       `empty` = "Nenhum evento por aqui ainda."
+//
+// As MEDIDAS vem do markup, MEDIDAS:
+//   * a GRADE       `grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3`
+//                   -> 3 COLUNAS no desktop
+//   * o card        `surface-card space-y-3 p-4` = 16 px
+//   * o formato     `text-xs font-medium text-muted-foreground` = 12 px
+//   * o container   `min-w-0 space-y-2` (8 px entre os campos do card)
+
+/** As medidas da agenda, em px. */
+class EventsMetrics {
+    static Int gap() { return 16 }            // gap-4
+    static Int cols() { return 3 }             // lg:grid-cols-3
+    static Int cardPad() { return 16 }         // p-4
+    static Int cardFieldGap() { return 8 }     // space-y-2
+    static Int titleSize() { return 16 }
+    static Int metaSize() { return 12 }        // text-xs
+    static Int cardHeight() { return 140 }
+}
+
+class EventsScreen {
+
+    /** A grade de N eventos: 3 colunas no desktop, `gap-4`.
+     *  Devolve {largura da coluna, altura total} via dois metodos — a largura
+     *  da coluna sai de `columnWidth`, a altura de `paint`. */
+    static Int columnWidth(Int contentWidth) {
+        val gaps = (EventsMetrics.cols() - 1) * EventsMetrics.gap()
+        return (contentWidth - gaps) / EventsMetrics.cols()
+    }
+
+    /** Pinta UM card de evento (o titulo, o formato e a data).
+     *  Devolve a altura usada. */
+    static Int paintCard(Sdl3Backend b, Font titleFont, Font metaFont,
+                         Int x, Int y, Int w, String title, Int format, String when) {
+        val card = Tokens.SurfaceCard()
+        val line = Tokens.BorderSoft()
+        val strong = Tokens.TextStrong()
+        val muted = Tokens.MutedForeground()
+        val pad = EventsMetrics.cardPad()
+        val h = EventsMetrics.cardHeight()
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, y, w, h)
+        // a borda `border-border-soft` do card de layout
+        SDL_SetRenderDrawColor(b.rendererHandle, line.r(), line.g(), line.b(), 255)
+        b.fillRect(x, y, w, 1)
+        b.fillRect(x, y + h - 1, w, 1)
+        b.fillRect(x, y, 1, h)
+        b.fillRect(x + w - 1, y, 1, h)
+        titleFont.drawTextColoured(b, title, x + pad, y + pad + 16,
+                strong.r(), strong.g(), strong.b())
+        metaFont.drawTextColoured(b, when, x + pad, y + pad + 16 + EventsMetrics.cardFieldGap() + 12,
+                muted.r(), muted.g(), muted.b())
+        metaFont.drawTextColoured(b, formatLabel(format),
+                x + pad, y + pad + 16 + EventsMetrics.cardFieldGap() + 12
+                        + EventsMetrics.metaSize() + EventsMetrics.cardFieldGap() + 12,
+                muted.r(), muted.g(), muted.b())
+        return h
+    }
+
+    /** Pinta a grade inteira com `n` cards (o titulo de cada vem de `titles`).
+     *  Devolve a altura total da grade. */
+    static Int paint(Sdl3Backend b, Font titleFont, Font metaFont,
+                     Int x, Int y, Int contentWidth,
+                     List<String> titles, List<Int> formats, List<String> whens) {
+        val colW = columnWidth(contentWidth)
+        var i = 0
+        var total = 0
+        while (i < titles.size) {
+            val col = i % EventsMetrics.cols()
+            val row = i / EventsMetrics.cols()
+            val cx = x + col * (colW + EventsMetrics.gap())
+            val cy = y + row * (EventsMetrics.cardHeight() + EventsMetrics.gap())
+            paintCard(b, titleFont, metaFont, cx, cy, colW, titles[i], formats[i], whens[i])
+            total = cy + EventsMetrics.cardHeight() - y
+            i = i + 1
+        }
+        return total
+    }
+
+    /** `formats` do site: 0 = Online, 1 = Presencial, 2 = Hibrido. */
+    static String formatLabel(Int format) {
+        if (format == 1) { return "Presencial" }
+        if (format == 2) { return "Híbrido" }
+        return "Online"
+    }
+
+    /** O texto do vazio (`texts.events.empty`). */
+    static String emptyText() {
+        return "Nenhum evento por aqui ainda."
+    }
+}
