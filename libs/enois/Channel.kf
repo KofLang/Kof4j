@@ -1,0 +1,86 @@
+package enois
+
+import enois.Text
+import enois.Tokens
+import game.Sdl3Backend
+
+// Énois — a rota `comunidades.$communityId.canais.$channelId`
+// (`src/routes/comunidades.$communityId.canais.$channelId.tsx`), o canal.
+//
+// Os TEXTOS vem do codigo (`src/texts.ts`, bloco `channelPage`), sem invencao:
+//   * o link de voltar   `back` = "Voltar para a comunidade"
+//   * o composer         `composerPlaceholder` = "Escreva para este canal..."
+//                        e `publish` = "Publicar no canal"
+//   * o vazio            `empty` = "Nada por aqui ainda. Comece a conversa."
+//   * os estados        `private` / `notMember` / `error` (os tres acessos)
+//
+// As MEDIDAS vem do markup, MEDIDAS:
+//   * o container   `mx-auto w-full max-w-2xl space-y-4 py-6` = 672 px, 16 px
+//                   entre os blocos, 24 px de padding vertical
+//   * o card        `surface-card p-5` = 20 px
+//   * o icone       `grid h-10 w-10 rounded-full bg-primary-soft text-primary`
+//                   = 40 px
+//   * o titulo      `truncate text-xl font-semibold tracking-tight` = 20 px
+
+/** As medidas do canal, em px. */
+class ChannelMetrics {
+    static Int maxWidth() { return 672 }      // max-w-2xl
+    static Int gap() { return 16 }            // space-y-4
+    static Int py() { return 24 }             // py-6
+    static Int cardPad() { return 20 }        // p-5
+    static Int icon() { return 40 }           // h-10 w-10
+    static Int titleSize() { return 20 }      // text-xl
+    static Int composerH() { return 48 }
+}
+
+class ChannelScreen {
+
+    /** Pinta o canal a partir de `y`: o voltar, o cabecalho (icone + nome) e,
+     *  com `messages` vazio, o texto `empty`; senao as linhas. Devolve a altura. */
+    static Int paint(Sdl3Backend b, Font titleFont, Font bodyFont,
+                     Int windowWidth, Int y, String backLabel, String name,
+                     List<String> messages, String emptyText, String composer) {
+        val card = Tokens.SurfaceCard()
+        val strong = Tokens.TextStrong()
+        val subtle = Tokens.TextSubtle()
+        val soft = Tokens.PrimarySoft()
+        val primary = Tokens.Primary()
+        val w = ChannelMetrics.maxWidth()
+        val x = (windowWidth - w) / 2
+        var cy = y + ChannelMetrics.py()
+        titleFont.drawTextColoured(b, backLabel, x, cy + 14, subtle.r(), subtle.g(), subtle.b())
+        cy = cy + 20 + ChannelMetrics.gap()
+        // o cabecalho do canal
+        val headH = ChannelMetrics.cardPad() * 2 + ChannelMetrics.icon()
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, cy, w, headH)
+        SDL_SetRenderDrawColor(b.rendererHandle, soft.r(), soft.g(), soft.b(), 255)
+        b.fillRect(x + ChannelMetrics.cardPad(), cy + ChannelMetrics.cardPad(),
+                ChannelMetrics.icon(), ChannelMetrics.icon())
+        titleFont.drawTextColoured(b, name,
+                x + ChannelMetrics.cardPad() + ChannelMetrics.icon() + 12,
+                cy + ChannelMetrics.cardPad() + 26, strong.r(), strong.g(), strong.b())
+        cy = cy + headH + ChannelMetrics.gap()
+        // o corpo: vazio -> o texto do site; senao as linhas
+        val lines = if (messages.size == 0) listOf<String>(emptyText) else messages
+        val bodyH = ChannelMetrics.cardPad() * 2 + lines.size * 20
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, cy, w, bodyH)
+        var ly = cy + ChannelMetrics.cardPad()
+        var i = 0
+        while (i < lines.size) {
+            bodyFont.drawTextColoured(b, lines[i], x + ChannelMetrics.cardPad(), ly + 14,
+                    subtle.r(), subtle.g(), subtle.b())
+            ly = ly + 20
+            i = i + 1
+        }
+        cy = cy + bodyH + ChannelMetrics.gap()
+        // o composer: uma pilula com o placeholder e o botao PUBLICAR
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, cy, w, ChannelMetrics.composerH())
+        bodyFont.drawTextColoured(b, composer, x + ChannelMetrics.cardPad(), cy + 28,
+                subtle.r(), subtle.g(), subtle.b())
+        cy = cy + ChannelMetrics.composerH()
+        return cy - y
+    }
+}

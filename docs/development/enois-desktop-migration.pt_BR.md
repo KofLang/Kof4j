@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — `blogs` (a rota de publicacao) ou `comunidades.$communityId.canais`
+next: a Fase 3 continua — `blogs` (a rota de publicacao) ou `grupos.$slug`
 location: repository
 state: active
 
@@ -249,6 +249,19 @@ abaixo. Provado nativamente: `x=114` (a coluna centrada numa janela de 900),
 **`gap=247,244,251`** (o intervalo `space-y-4` mostrando o fundo entre os dois
 blocos). Bateria **17/17** — terceiro tick seguido com cada coordenada de
 amostra calculada do layout antes da assercao.
+
+**Fase 3 — `comunidades.$communityId.canais.$channelId` (POUSADA 22/11).** O `ChannelScreen`
+no `libs/enois/Channel.kf` pinta o canal: o container
+`mx-auto w-full max-w-2xl space-y-4 py-6` = **672 px** com 24 px de padding
+vertical, o link "Voltar para a comunidade", o cabecalho `surface-card p-5`
+com o icone `h-10 w-10 rounded-full` sobre `--primary-soft`, o estado vazio
+"Nada por aqui ainda. Comece a conversa.", e o composer com
+"Escreva para este canal..." — todo texto do proprio site (`texts.ts` bloco
+`channelPage`, que tambem carrega os tres estados de acesso
+`private`/`notMember`/`error`, nomeados aqui como o trabalho da proxima fatia).
+Provado nativamente: `x=114` (a coluna centrada), `icone=238,232,255`
+(`--primary-soft`), `card=255,255,255`, `canal_h=280`. Bateria **18/18** —
+quarto tick seguido com cada coordenada de amostra calculada do layout.
 
 ## §4 Como concluir
 
