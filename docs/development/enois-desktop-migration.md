@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — `projetos.$username` or the §1197 reproducer matrix
+next: Fase 3 continues — the §1197 IR bisect, then `projetos.$username`
 location: repository
 state: active
 
@@ -415,6 +415,23 @@ side: the REAL site description (2 lines at 16 px) makes the hero **254**,
 and a shorter one would make it 228 — which the test proved when I first wrote
 it with a trimmed description.
 Battery **28/28**.
+
+**Fase 3 — o FLUXO do criador (LANDED 23/11).** `EnosisCreatorFlowE2ETest` compiles ONE
+native program that loads `GameCreator`, `Projects` and `Mentoring` together — the
+same route family — and runs it on x86-64 with `SDL_VIDEODRIVER=dummy`: the page's
+`loading=Carregando…`, `noGames`, `handle=@mel · 2 jogos · 7 seguidores`,
+`card=414`, the catalogue's `grid_col=330` and `grid_empty=Nenhum projeto
+encontrado.`, and the mentoring title size `30` all come back from a single
+binary. Battery **31/31**.
+
+NAMED PENDING — `known-bugs §1197` now carries a 40-program REDUCER MATRIX: a fill
+painted inside a FUNCTION reads back (`255`), the same fill written INLINE in
+`main` reads the clear (`247`), and no single trigger reproduces in a 30-line
+program. Until it is settled, no test above asserts a fill colour painted
+inline. NAMED PENDING — `assertTrue(out.contains("X\n"))` on the LAST line of the
+captured output does not match (`§1197`, same entry): every assertion here anchors
+on the preceding line. NEXT: bisect §1197 at the IR level (inline vs
+function-wrapped call order), then return to `projetos.$username`.
 
 **Fase 3 — `games.$username` (LANDED 23/11, texto + geometria).** `GameCreatorScreen`
 and `GameCreatorLayout` in `libs/enois/GameCreator.kf` carry the creator page with

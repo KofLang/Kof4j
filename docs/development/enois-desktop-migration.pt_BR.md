@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — `projetos.$username` ou a matriz de reprodutores do §1197
+next: a Fase 3 continua — a bisseccao no IR do §1197, depois `projetos.$username`
 location: repository
 state: active
 
@@ -404,6 +404,23 @@ linha por 60 px. A altura do hero prende essa quebra pelo outro lado: a
 descricao REAL do site (2 linhas a 16 px) deixa o hero em **254**, e uma mais
 curta o deixaria em 228 — o que o teste provou quando eu o escrevi primeiro
 com uma descricao encurtada. Bateria **28/28**.
+
+**Fase 3 — o FLUXO do criador (POUSADA 23/11).** O `EnosisCreatorFlowE2ETest` compila UM
+programa nativo que carrega `GameCreator`, `Projects` e `Mentoring` juntos — a
+mesma familia de rota — e o roda no x86-64 com `SDL_VIDEODRIVER=dummy`: o
+`loading=Carregando…`, `noGames`, `handle=@mel · 2 jogos · 7 seguidores`,
+`card=414`, o `grid_col=330` e o `grid_empty=Nenhum projeto encontrado.` do
+catalogo e o tamanho do titulo da mentoria `30` voltam de um binario so'.
+Bateria **31/31**.
+
+PENDENCIA NOMEADA — o `known-bugs §1197` agora carrega uma MATRIZ DE REDUCAO de 40
+programas: um fill pintado dentro de uma FUNCAO le certo (`255`), o MESMO fill
+escrito INLINE em `main` le o clear (`247`), e nenhum gatilho unico reproduz num
+programa de 30 linhas. Ate' isto fechar, nenhum teste acima afirma cor de fill
+pintado inline. PENDENCIA NOMEADA — `assertTrue(out.contains("X\n"))` na ULTIMA
+linha da saida capturada nao casa (`§1197`, mesma entrada): toda assercao aqui e'
+ancorada na linha anterior. PROXIMO: bissecar o §1197 no nivel do IR (ordem de
+chamada inline x em funcao) e depois voltar ao `projetos.$username`.
 
 **Fase 3 — `games.$username` (POUSADA 23/11, texto + geometria).** O `GameCreatorScreen`
 e o `GameCreatorLayout` em `libs/enois/GameCreator.kf` carregam a pagina do criador
