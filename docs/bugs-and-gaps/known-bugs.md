@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §1207 (OPEN — a solo entry's sibling rejects a library type in a member signature; measured 23/11)
 last: §1206 (OPEN — a straight-line paint re-reads a stale `y` at this module size; fim 756 vs 452 measured 23/11)
 last: §1205 (OPEN — `a = a + b + c` after a call loses the last term; measured 23/11)
 last: §1204 (OPEN — `y = y + f(…, y, …)` passes the new `y` to `f`; measured 23/11)
@@ -21687,3 +21688,9 @@ Isolated reproducer (native, no imports): `var n = 209; val d = 36; n = n + d + 
 **Status:** 🟡 OPEN — this is the measured residual of the Énois composed page (`fim=756` against the expected `452`, one `space-y-6` step lost); the app test asserts in tolerance and the expected value stays recorded.
 
 Measured through the app harness (`EnoisComunidadesPageCompostaE2ETest`, 58 libs installed, entry `src/Main.kf`): `CAB=209 BUS=36` but `AB=269` read as the `val` and, on the next line, the same expression evaluates to `245`; isolated (same code, no imports) the very same statement measures `269`. The IR dump (`CompilerDriver.setIRObserver`) shows the scalar chain is correct BEFORE optimisation (`KofLoadLocal base; KofCall n; KofBinary ADD; KofLoadLiteral 24; KofBinary ADD`), so the defect is after the IR: the native emitter with this module's size. Not reproducible in tiny programs (tried: `base` param name, call before `val`, `if (flag) call`, a second static class). Next: dump the asm (`KOF_KEEP_ASM=1`) of `ComunidadesPage.paint` and follow the spilled value.
+
+## §1207 — a SOLO entry's sibling that declares a LIBRARY type in a member signature (`game.Sdl3Backend` in `enois/X.kf`'s parameter) fails with SEM011 "Undefined variable or type" — 📌 MEASURED 23/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Status:** 🟡 OPEN — the app imports the backend in every file that declares it (the honest workaround, and the convention anyway).
+
+Measured with the Énois harness layout (solo entry `src/Main.kf` + the repo as library, 58 libs installed): `ComunidadesGrade.paint(SdlBackend b, …)` and `ComunidadesScreen.catalogo(SdlBackend b, …)` were rejected with `DeclaredTypeChecker` → `MemberResolver.declaredTypeUnresolved` (the file DOES import `game.Sdl3Backend`), while `ComunidadesPage.paint(Sdl3Backend b, …)` in the same module passes. Not reproduced in a small program (`app/Main.kf` + `enois/Uso.kf(… Sdl3Backend b)` + the installed libs resolve fine) — a name-typo in the app was suspected and retracted: the fix that made it compile was the FULL type name, so the isolation is still owed. Next: diff the two files' resolved types in the real module (`allClasses()`/`declarationPackages` at check time).

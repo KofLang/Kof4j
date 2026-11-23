@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: in `enois-kof-desktop` — the `comunidades` texts are now BUILT from the measured codes (`ComunidadesScreen.texts()`, app `7b02191`: `texts.ts` + the 44 `TOPICS` labels + the DS filter) and the page paints with them (`larg=1232`, `fim=756` against 452 — the NAMED Kof4j §1206); the next slice is following the spilled value of the second block to the native emitter (§1206) and then the card GRID of the route, with its empty live catalogue
+next: in `enois-kof-desktop` — the `comunidades` CATALOGUE is in (`ComunidadesGrade.kf` + `VazioDeLista.kf`, app `b8201f9`: grid of 3 columns, cell 400 in 1232, 4 cards = 708, the icon-less `EmptyState` = 100) and the page composes through `ComunidadesScreen.catalogo`; what is NAMED and left: the card VALUES from the live API (the catalogue is empty today), the loading skeleton (`CommunityCardSkeletons`), and in Kof4j the §1206 stale `y` (fim 756 against 452) and the §1207 library type rejected in a sibling's signature
 location: repository
 state: active
 
@@ -883,3 +883,27 @@ The page test now reads THE SAME factory: `assuntos=44`, `primeiro=Todas`,
 elements — and so did the small program written to reproduce it in the Kof4j
 tree — so the labels are a literal list of qualified calls; RECORDED, not
 interpreted further. Battery: 7/7 (the page + its communities neighbours).
+
+## §8 Round 23/11 (third) — the `comunidades` CATALOGUE (app `b8201f9`)
+
+MEASURED from `routes/comunidades.tsx` 344-356 and `ui/empty-state.tsx`:
+`grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3` (three columns at 1280),
+cell `(1232 - 2*16) / 3 = 400`; the card `CommunityCard` (346 high); the
+icon-less `EmptyState` of the route (`<EmptyState title=… />`) is `py-10`
+(40) + `text-sm` (20) + `py-10` = **100**, the title centred.
+
+`ComunidadesGrade.kf` paints the cards in reading order and returns the bottom
+of the grid (4 cards = 2 rows of 346 + 16 = **708**); with none it paints the
+empty state (100). `ComunidadesScreen.catalogo(b, x, y, w, cards)` is the route's
+entry to it, and the empty title comes from `ComunidadesScreen.empty()`
+(`texts.communities.empty`). PROOF `EnoisComunidadesCatalogoE2ETest`:
+`celula=400`, `linhas4=2`, `h4=708`, `h1=346`, `y1=1119` (773 + 346),
+`yvazio=873` (773 + 100), `vazio=Nenhuma comunidade encontrada.` Battery
+`EnoisComunidadesCatalogoE2ETest` + `EnoisCommunityCardE2ETest` 2/2.
+
+NAMED PENDING opened on the way: §1207 (Kof4j) — a solo entry's sibling that
+declares a LIBRARY type in a member signature (`game.Sdl3Backend` in a
+parameter) is rejected with SEM011; the app imports the backend in every file
+that declares it. Every member signature in the route's files now names the
+full type (`Sdl3Backend`) and the app compiles — the isolation of the Kof4j
+face is still owed.

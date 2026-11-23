@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: em `enois-kof-desktop` — os textos da `comunidades` agora são MONTADOS dos códigos medidos (`ComunidadesScreen.texts()`, app `7b02191`: `texts.ts` + os 44 rótulos de `TOPICS` + o filtro do DS) e a página pinta com eles (`larg=1232`, `fim=756` contra 452 — o §1206 NOMEADO do Kof4j); a próxima fatia é seguir o valor derramado do segundo bloco até o emissor nativo (§1206) e depois a GRADE de cartões da rota, com o catálogo ao vivo vazio
+next: em `enois-kof-desktop` — o CATALOGO da `comunidades` entrou (`ComunidadesGrade.kf` + `VazioDeLista.kf`, app `b8201f9`: grade de 3 colunas, celula 400 em 1232, 4 cartoes = 708, o `EmptyState` sem icone = 100) e a pagina compoe por `ComunidadesScreen.catalogo`; o que fica NOMEADO: os VALORES do cartao da API ao vivo (o catalogo esta vazio hoje), o esqueleto de carga (`CommunityCardSkeletons`), e no Kof4j o `y` obsoleto do §1206 (fim 756 contra 452) e o §1207 (tipo de biblioteca recusado na assinatura de um irmao)
 location: repository
 state: active
 
@@ -867,3 +867,27 @@ O teste da página agora lê A MESMA fábrica: `assuntos=44`, `primeiro=Todas`,
 elementos — e o programa pequeno escrito para reproduzir no Kof4j também — então
 os rótulos são uma lista literal de chamadas qualificadas; REGISTRADO, sem
 interpretação a mais. Bateria: 7/7 (a página + os vizinhos de comunidades).
+
+## §8 Rodada 23/11 (terceira) — o CATALOGO da `comunidades` (app `b8201f9`)
+
+MEDIDO em `routes/comunidades.tsx` 344-356 e `ui/empty-state.tsx`:
+`grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3` (tres colunas em 1280),
+celula `(1232 - 2*16) / 3 = 400`; o cartao `CommunityCard` (346 de altura); o
+`EmptyState` sem icone da rota (`<EmptyState title=… />`) e' `py-10` (40) +
+`text-sm` (20) + `py-10` = **100**, o titulo centrado.
+
+`ComunidadesGrade.kf` pinta os cartoes em ordem de leitura e devolve o fim da
+grade (4 cartoes = 2 linhas de 346 + 16 = **708**); sem nenhum, pinta o vazio
+(100). `ComunidadesScreen.catalogo(b, x, y, w, cards)` e' a entrada da rota, e o
+titulo do vazio vem de `ComunidadesScreen.empty()` (`texts.communities.empty`).
+PROVA `EnoisComunidadesCatalogoE2ETest`: `celula=400`, `linhas4=2`, `h4=708`,
+`h1=346`, `y1=1119` (773 + 346), `yvazio=873` (773 + 100),
+`vazio=Nenhuma comunidade encontrada.` Bateria `EnoisComunidadesCatalogoE2ETest`
++ `EnoisCommunityCardE2ETest` 2/2.
+
+PENDENCIA NOMEADA aberta no caminho: §1207 (Kof4j) — o irmao de uma entrada
+solta que declara um tipo de BIBLIOTECA na assinatura de um membro
+(`game.Sdl3Backend` num parametro) e' recusado com SEM011; o app importa o
+backend em todo arquivo que o declara. Toda assinatura nos arquivos da rota
+agora nomeia o tipo completo (`Sdl3Backend`) e o app compila — o isolamento da
+face do Kof4j ainda e' devido.

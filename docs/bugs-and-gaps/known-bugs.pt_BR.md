@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §1207 (ABERTO — o irmao de uma entrada solta recusa um tipo de biblioteca na assinatura de um membro; medido 23/11)
 last: §1206 (ABERTO — um paint linear rele o `y` obsoleto neste tamanho de modulo; fim 756 vs 452 medido 23/11)
 last: §1205 (ABERTO — `a = a + b + c` depois de uma chamada perde o ultimo termo; medido 23/11)
 last: §1204 (ABERTO — `y = y + f(…, y, …)` passa o `y` novo para `f`; medido 23/11)
@@ -19103,3 +19104,9 @@ Reprodutor isolado (nativo, sem imports): `var n = 209; val d = 36; n = n + d + 
 **Estado:** 🟡 ABERTO — e' a sobra MEDIDA da pagina composta do Énois (`fim=756` contra os `452` esperados, um passo do `space-y-6` perdido); o teste do app afirma em tolerancia e o valor esperado fica registrado.
 
 Medido pelo harness do app (`EnoisComunidadesPageCompostaE2ETest`, 58 libs instaladas, entrada `src/Main.kf`): `CAB=209 BUS=36` mas `AB=269` lido como `val` e, na linha seguinte, a mesma expressao da' `245`; isolado (mesmo codigo, sem imports) a mesma instrucao mede `269`. O dump da IR (`CompilerDriver.setIRObserver`) mostra a cadeia escalar certa ANTES da otimizacao (`KofLoadLocal base; KofCall n; KofBinary ADD; KofLoadLiteral 24; KofBinary ADD`), entao o defeito e' depois da IR: o emissor nativo com o tamanho deste modulo. Nao se reproduz em programas minusculos (testados: nome de parametro `base`, chamada antes do `val`, `if (flag) call`, segunda classe estatica). Proximo: despejar o asm (`KOF_KEEP_ASM=1`) de `ComunidadesPage.paint` e seguir o valor derramado.
+
+## §1207 — um IRMAO de uma entrada SOLTA que declara um tipo de BIBLIOTECA na assinatura de um membro (`game.Sdl3Backend` no parametro de `enois/X.kf`) falha com SEM011 "Undefined variable or type" — 📌 MEDIDO 23/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Estado:** 🟡 ABERTO — o app importa o backend em todo arquivo que o declara (o contorno honesto, e a convencao de qualquer forma).
+
+Medido no layout do harness do Énois (entrada SOLTA `src/Main.kf` + o repo como biblioteca, 58 libs instaladas): `ComunidadesGrade.paint(SdlBackend b, …)` e `ComunidadesScreen.catalogo(SdlBackend b, …)` foram recusados por `DeclaredTypeChecker` → `MemberResolver.declaredTypeUnresolved` (o arquivo IMPORTA `game.Sdl3Backend`), enquanto `ComunidadesPage.paint(Sdl3Backend b, …)` no mesmo modulo passa. Nao se reproduziu em programa pequeno (`app/Main.kf` + `enois/Uso.kf(… Sdl3Backend b)` + as libs instaladas resolvem), e a suspeita de nome trocado no app foi RETIRADA (o que compilou foi o nome unico do tipo) — o isolamento ainda e' devido. Proximo: comparar os tipos resolvidos dos dois arquivos no modulo real (`allClasses()`/`declarationPackages` no momento da checagem).
