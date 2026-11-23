@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — `blog.$username` (a single blog) or `grupos.$slug`
+next: Fase 3 continues — `grupos.$slug` (the groups route) or `eventos`
 location: repository
 state: active
 
@@ -295,6 +295,22 @@ BLEND of `--primary` and the card (`154,132,248`, measured) — the test asserts
 the ROLE (blue dominates red) instead of a pixel value a fixed scan could not
 guarantee.
 Battery **20/20**.
+
+**Fase 3 — `blog.$username` (LANDED 23/11).** `BlogScreen` in `libs/enois/Blog.kf`
+paints ONE blog: the cover `h-64 w-full` = **256 px** in a `rounded-2xl` box
+(the radius-16 corners cut back to the `--background`, proven by the corner
+pixel), the `surface-card` header `p-5 sm:p-6` with the `text-2xl` title and
+the meta line, and the "not found" state `surface-card p-10 text-center` with
+"Blog não encontrado." and "Ver todos os blogs".
+THE SITE'S TEXT FUNCTIONS ARE MIGRATED AS FUNCTIONS: `postsCount(count)` gives
+**"1 post"** but **"3 posts"** (the plural is part of the contract), and
+`readingTime(min)` gives "N min de leitura estimada".
+Proven natively: `c1=1 post`, `c3=3 posts`, `rt=5 min de leitura estimada`,
+`capa_h=256`, `capa=116,59,180` (a pixel of the cover IMAGE), `canto=247,244,251`.
+DIVERGENCE caught by the test: I rounded the projected source pixel by hand
+(110.599 → 117) and the real value is 116 — the value now comes from the
+FORMULA, not from my arithmetic.
+Battery **21/21**.
 
 ## §4 How to finish
 

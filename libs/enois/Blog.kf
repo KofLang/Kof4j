@@ -1,0 +1,116 @@
+package enois
+
+import enois.Text
+import enois.Tokens
+import game.Sdl3Backend
+
+// Énois — a rota `blog.$username` (`src/routes/blog.$username.tsx`), UM blog.
+//
+// Os TEXTOS vem do codigo (`src/texts.ts`, bloco `blog`), sem invencao:
+//   * o voltar         `backToBlogs` = "Ver todos os blogs"
+//   * o vazio          `empty` = "Nenhum post ainda."
+//   * o nao-encontrado `notFound` = "Blog nao encontrado."
+//   * a contagem       `postsCount(count)` = "N " + post/posts (uma FUNCAO)
+//   * a leitura        `readingTime(min)` = "N min de leitura estimada"
+//
+// As MEDIDAS vem do markup, MEDIDAS:
+//   * a capa        `h-64 w-full` = 256 px dentro de `rounded-2xl border
+//                   border-border-soft bg-surface-card`
+//   * o cabecalho   `border-b border-border-soft p-5 sm:p-6` = 24 px
+//   * o titulo      `text-2xl font-semibold tracking-tight` = 24 px
+//   * o nao-achado  `surface-card p-10 text-center` = 40 px
+
+/** As medidas de UM blog, em px. */
+class BlogMetrics {
+    static Int coverHeight() { return 256 }   // h-64
+    static Int radius() { return 16 }         // rounded-2xl
+    static Int pad() { return 24 }            // sm:p-6
+    static Int titleSize() { return 24 }      // text-2xl
+    static Int metaSize() { return 14 }       // text-sm
+    static Int notFoundPad() { return 40 }    // p-10
+}
+
+class BlogScreen {
+
+    /** Pinta a capa do blog: a IMAGEM real quando carrega (Sdl3Backend.
+     *  loadImageTexture, Kof puro), senao o `--primary-soft` do site. O
+     *  `rounded-2xl` e' o raio de 16 px nos quatro cantos. Devolve a altura. */
+    static Int paintCover(Sdl3Backend b, Int x, Int y, Int w, String coverPath) {
+        val soft = Tokens.PrimarySoft()
+        val h = BlogMetrics.coverHeight()
+        val tex = b.loadImageTexture(coverPath)
+        if (tex != 0L) {
+            b.drawTexture(tex, x, y, w, h)
+        } else {
+            SDL_SetRenderDrawColor(b.rendererHandle, soft.r(), soft.g(), soft.b(), 255)
+            b.fillRect(x, y, w, h)
+        }
+        // o raio: o fundo por cima dos quatro cantos (16 px)
+        val bg = Tokens.Background()
+        SDL_SetRenderDrawColor(b.rendererHandle, bg.r(), bg.g(), bg.b(), 255)
+        var cy = 0
+        while (cy < BlogMetrics.radius()) {
+            val cut = BlogMetrics.radius() - cy
+            b.fillRect(x, y + cy, cut, 1)
+            b.fillRect(x + w - cut, y + cy, cut, 1)
+            b.fillRect(x, y + h - 1 - cy, cut, 1)
+            b.fillRect(x + w - cut, y + h - 1 - cy, cut, 1)
+            cy = cy + 1
+        }
+        return h
+    }
+
+    /** Pinta o cabecalho do blog (titulo + a contagem e a leitura).
+     *  `posts` e `minutes` vem dos dados. Devolve a altura. */
+    static Int paintHeader(Sdl3Backend b, Font titleFont, Font metaFont,
+                           Int x, Int y, Int w, String title, Int posts, Int minutes) {
+        val card = Tokens.SurfaceCard()
+        val line = Tokens.BorderSoft()
+        val strong = Tokens.TextStrong()
+        val muted = Tokens.MutedForeground()
+        val pad = BlogMetrics.pad()
+        val h = pad * 2 + BlogMetrics.titleSize() + 8 + BlogMetrics.metaSize()
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, y, w, h)
+        SDL_SetRenderDrawColor(b.rendererHandle, line.r(), line.g(), line.b(), 255)
+        b.fillRect(x, y + h - 1, w, 1)
+        titleFont.drawTextColoured(b, title, x + pad, y + pad + 18,
+                strong.r(), strong.g(), strong.b())
+        // a contagem do site: "N post(s)" + "N min de leitura estimada"
+        val count = postsCount(posts)
+        val reading = readingTime(minutes)
+        metaFont.drawTextColoured(b, count + " · " + reading, x + pad,
+                y + pad + BlogMetrics.titleSize() + 8 + 12,
+                muted.r(), muted.g(), muted.b())
+        return h
+    }
+
+    /** O estado "nao encontrado": `surface-card p-10 text-center`. */
+    static Int paintNotFound(Sdl3Backend b, Font bodyFont, Font linkFont,
+                             Int x, Int y, Int w, String text, String linkLabel) {
+        val card = Tokens.SurfaceCard()
+        val strong = Tokens.TextStrong()
+        val primary = Tokens.Primary()
+        val pad = BlogMetrics.notFoundPad()
+        val h = pad * 2 + 18 + 8 + 16
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, y, w, h)
+        val tw = bodyFont.measure(text)
+        bodyFont.drawTextColoured(b, text, x + (w - tw) / 2, y + pad + 14,
+                strong.r(), strong.g(), strong.b())
+        val lw = linkFont.measure(linkLabel)
+        linkFont.drawTextColoured(b, linkLabel, x + (w - lw) / 2, y + pad + 18 + 8 + 14,
+                primary.r(), primary.g(), primary.b())
+        return h
+    }
+
+    /** `postsCount(count)` do site. */
+    static String postsCount(Int count) {
+        return "" + count + " " + (if (count == 1) "post" else "posts")
+    }
+
+    /** `readingTime(minutes)` do site. */
+    static String readingTime(Int minutes) {
+        return "" + minutes + " min de leitura estimada"
+    }
+}

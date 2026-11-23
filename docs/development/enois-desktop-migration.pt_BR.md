@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — `blog.$username` (um blog so') ou `grupos.$slug`
+next: a Fase 3 continua — `grupos.$slug` (a rota de grupos) ou `eventos`
 location: repository
 state: active
 
@@ -291,6 +291,21 @@ bordas ANTI-ALIASED, entao o primeiro pixel nao-branco do eyebrow em
 maiusculas e' uma MISTURA de `--primary` com o card (`154,132,248`, medido) —
 o teste afirma o PAPEL (azul domina o vermelho) em vez de um valor de pixel que
 uma varredura fixa nao garantiria. Bateria **20/20**.
+
+**Fase 3 — `blog.$username` (POUSADA 23/11).** O `BlogScreen` no `libs/enois/Blog.kf`
+pinta UM blog: a capa `h-64 w-full` = **256 px** numa caixa `rounded-2xl` (os
+cantos de raio 16 recortados de volta ao `--background`, provado pelo pixel do
+canto), o cabecalho `surface-card p-5 sm:p-6` com o titulo `text-2xl` e a
+linha de meta, e o estado "nao encontrado" `surface-card p-10 text-center`
+com "Blog nao encontrado." e "Ver todos os blogs".
+AS FUNCOES DE TEXTO DO SITE SAO MIGRADAS COMO FUNCOES: `postsCount(count)` da
+**"1 post"** mas **"3 posts"** (o plural e' parte do contrato), e
+`readingTime(min)` da "N min de leitura estimada".
+Provado nativamente: `c1=1 post`, `c3=3 posts`, `rt=5 min de leitura estimada`,
+`capa_h=256`, `capa=116,59,180` (um pixel da IMAGEM de capa),
+`canto=247,244,251`. DIVERGENCIA pega pelo teste: arredondei a mao o pixel
+projetado (110.599 -> 117) e o valor real e' 116 — o valor agora sai da
+FORMULA, nao da minha aritmetica. Bateria **21/21**.
 
 ## §4 Como concluir
 
