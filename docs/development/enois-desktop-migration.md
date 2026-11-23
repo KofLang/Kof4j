@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — `mentoria` or `projetos.index`
+next: Fase 3 continues — `projetos.index` or `game.$username`
 location: repository
 state: active
 
@@ -402,6 +402,19 @@ futura (até 31 dias).") — changing a limit breaks the message. The WEIGHT is
 contract too: the subtitle says "Autoria nominal, sem ranking e sem prêmio",
 and `hasRanking()` returns `false`.
 Battery **27/27**.
+
+**Fase 3 — `mentoria` (LANDED 23/11).** `MentoringScreen` in `libs/enois/Mentoring.kf`
+paints the hero with the numbers MEASURED in `mentoria.tsx`: the card
+`surface-card p-5 sm:p-8` = **32 px**, the badge on `--primary-soft`, the title
+`text-3xl` = **30 px**, the `mt-2` description and the `mt-5` pill CTAs —
+"Encontrar mentor" / "Tornar-me mentor".
+THE TITLE WRAP IS MEASURED, and that is the finding: the title occupies
+**744 px** at 30 px and the card's inner width is `868 − 2×32` = **804**, so it
+fits on ONE line by 60 px. The hero height then pins that wrap from the other
+side: the REAL site description (2 lines at 16 px) makes the hero **254**,
+and a shorter one would make it 228 — which the test proved when I first wrote
+it with a trimmed description.
+Battery **28/28**.
 
 ## §4 How to finish
 

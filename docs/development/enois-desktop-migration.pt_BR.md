@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — `mentoria` ou `projetos.index`
+next: a Fase 3 continua — `projetos.index` ou `game.$username`
 location: repository
 state: active
 
@@ -392,6 +392,18 @@ título aceita no máximo 120 caracteres." / "O prazo precisa ser uma data futur
 (até 31 dias).") — mudar um limite quebra a mensagem. O PESO tambem e'
 contrato: o subtitulo diz "Autoria nominal, sem ranking e sem prêmio", e o
 `hasRanking()` devolve `false`. Bateria **27/27**.
+
+**Fase 3 — `mentoria` (POUSADA 23/11).** O `MentoringScreen` no `libs/enois/Mentoring.kf`
+pinta o hero com os numeros MEDIDOS no `mentoria.tsx`: o card
+`surface-card p-5 sm:p-8` = **32 px**, o badge em `--primary-soft`, o titulo
+`text-3xl` = **30 px**, a descricao `mt-2` e as pilulas CTA `mt-5` —
+"Encontrar mentor" / "Tornar-me mentor".
+A QUEBRA DO TITULO E' MEDIDA, e esse e' o achado: o titulo ocupa **744 px** a
+30 px e a largura interna do card e' `868 - 2x32` = **804**, entao cabe em UMA
+linha por 60 px. A altura do hero prende essa quebra pelo outro lado: a
+descricao REAL do site (2 linhas a 16 px) deixa o hero em **254**, e uma mais
+curta o deixaria em 228 — o que o teste provou quando eu o escrevi primeiro
+com uma descricao encurtada. Bateria **28/28**.
 
 ## §4 Como concluir
 

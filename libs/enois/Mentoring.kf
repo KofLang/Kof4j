@@ -1,0 +1,137 @@
+package enois
+
+import enois.Text
+import enois.Tokens
+import game.Sdl3Backend
+
+// Énois — a rota `mentoria` (`src/routes/mentoria.tsx`), o hero da mentoria.
+//
+// Os TEXTOS vem do codigo (`src/texts.ts`, bloco `mentoring`), sem invencao:
+//   * o badge       `badge` = "Mentoria nativa"
+//   * o titulo      `title` = "Aprenda com quem ja passou por onde voce quer
+//                   chegar."
+//   * a descricao   `description` = "Sessoes reais com mentores verificados —
+//                   sem performance, sem ruido..."
+//   * os CTAs       `findMentor` = "Encontrar mentor", `becomeMentor` =
+//                   "Tornar-me mentor"
+//   * a busca       `searchPlaceholder` = "Buscar mentores por nome, usuario
+//                   ou especialidade..."
+//   * o vazio       `empty` = "Ainda nao ha mentores publicados..."
+//
+// As MEDIDAS vem do markup, MEDIDAS:
+//   * o card    `surface-card relative overflow-hidden p-5 sm:p-8` = 32 px
+//   * o badge   `rounded-full bg-primary-soft text-primary`
+//   * o titulo  `mt-3 text-3xl font-semibold tracking-tight` = 30 px
+//   * a descr.  `mt-2 text-muted-foreground` (16 px)
+//   * as pilulas `mt-5 flex flex-wrap gap-2`
+
+/** As medidas do hero de mentoria, em px. */
+class MentoringMetrics {
+    static Int pad() { return 32 }            // sm:p-8
+    static Int titleSize() { return 30 }      // text-3xl
+    static Int titleLine() { return 38 }      // leading-tight em 30
+    static Int descSize() { return 16 }
+    static Int descLine() { return 26 }
+    static Int badgeHeight() { return 24 }
+    static Int pillHeight() { return 36 }
+    static Int pillPadX() { return 16 }
+    static Int pillGap() { return 8 }         // gap-2
+    static Int mt3() { return 12 }            // mt-3
+    static Int mt2() { return 8 }             // mt-2
+    static Int mt5() { return 20 }            // mt-5
+}
+
+class MentoringScreen {
+
+    /** Pinta o hero (badge + titulo quebrado + descricao + os dois CTAs).
+     *  A largura de `wrap` e' a do card menos o padding, MEDIDA. Devolve a
+     *  altura usada. */
+    static Int paintHero(Sdl3Backend b, Font badgeFont, Font titleFont, Font bodyFont,
+                         Int x, Int y, Int w, String badge, String title, String description,
+                         List<String> ctas) {
+        val card = Tokens.SurfaceCard()
+        val soft = Tokens.PrimarySoft()
+        val primary = Tokens.Primary()
+        val strong = Tokens.TextStrong()
+        val muted = Tokens.MutedForeground()
+        val pad = MentoringMetrics.pad()
+        val inner = w - pad * 2
+        val titleLines = wrapText(titleFont, title, inner)
+        val descLines = wrapText(bodyFont, description, inner)
+        val h = pad * 2 + MentoringMetrics.badgeHeight() + MentoringMetrics.mt3()
+                + titleLines.size * MentoringMetrics.titleLine() + MentoringMetrics.mt2()
+                + descLines.size * MentoringMetrics.descLine() + MentoringMetrics.mt5()
+                + MentoringMetrics.pillHeight()
+        SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+        b.fillRect(x, y, w, h)
+        var cy = y + pad
+        // o badge em --primary-soft
+        SDL_SetRenderDrawColor(b.rendererHandle, soft.r(), soft.g(), soft.b(), 255)
+        b.fillRect(x + pad, cy, badgeFont.measure(badge) + 24, MentoringMetrics.badgeHeight())
+        badgeFont.drawTextColoured(b, badge, x + pad + 12, cy + 17,
+                primary.r(), primary.g(), primary.b())
+        cy = cy + MentoringMetrics.badgeHeight() + MentoringMetrics.mt3()
+        // o titulo, quebrado pela largura MEDIDA
+        var i = 0
+        while (i < titleLines.size) {
+            titleFont.drawTextColoured(b, titleLines[i], x + pad,
+                    cy + MentoringMetrics.titleSize() - 6, strong.r(), strong.g(), strong.b())
+            cy = cy + MentoringMetrics.titleLine()
+            i = i + 1
+        }
+        cy = cy + MentoringMetrics.mt2() - (MentoringMetrics.titleLine() - MentoringMetrics.titleSize())
+        // a descricao
+        i = 0
+        while (i < descLines.size) {
+            bodyFont.drawTextColoured(b, descLines[i], x + pad, cy + 16,
+                    muted.r(), muted.g(), muted.b())
+            cy = cy + MentoringMetrics.descLine()
+            i = i + 1
+        }
+        cy = cy + MentoringMetrics.mt5() - (MentoringMetrics.descLine() - MentoringMetrics.descSize())
+        // os CTAs como pilulas
+        var cx = x + pad
+        i = 0
+        while (i < ctas.size) {
+            val cw = bodyFont.measure(ctas[i]) + MentoringMetrics.pillPadX() * 2
+            SDL_SetRenderDrawColor(b.rendererHandle, soft.r(), soft.g(), soft.b(), 255)
+            b.fillRect(cx, cy, cw, MentoringMetrics.pillHeight())
+            bodyFont.drawTextColoured(b, ctas[i], cx + MentoringMetrics.pillPadX(), cy + 23,
+                    primary.r(), primary.g(), primary.b())
+            cx = cx + cw + MentoringMetrics.pillGap()
+            i = i + 1
+        }
+        return h
+    }
+
+    /** Quebra `text` em linhas que caibam em `width` px (avancos MEDIDOS). */
+    static List<String> wrapText(Font f, String text, Int width) {
+        val out = listOf<String>()
+        var line = ""
+        var word = ""
+        var i = 0
+        while (i <= text.length()) {
+            val atEnd = i == text.length()
+            var ch = ' '
+            if (!atEnd) { ch = text.charAt(i) }
+            if (atEnd || ch == ' ') {
+                if (word != "") {
+                    if (line == "") {
+                        line = word
+                    } else if (f.measure(line + " " + word) <= width) {
+                        line = line + " " + word
+                    } else {
+                        out.add(line)
+                        line = word
+                    }
+                    word = ""
+                }
+            } else {
+                word = word + ch
+            }
+            i = i + 1
+        }
+        if (line != "") { out.add(line) }
+        return out
+    }
+}
