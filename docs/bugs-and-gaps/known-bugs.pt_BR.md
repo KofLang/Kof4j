@@ -18784,6 +18784,8 @@ O CUSTO DO GAP: o caminho absoluto fica gravado no fonte Kof, entao o mesmo font
 O INTERINO: `scripts/gen-enois-text.sh` reescreve o marcador `@KOF_TEXT_SHIM@` no `libs/enois/Text.kf` com o caminho absoluto resolvido em tempo de build, entao o caminho vive em UMA linha gerada e nunca divergiu.
 STATUS: nomeado. O fix do lado do compilador (resolver `library()` contra `kof.install.dir/lib` — onde as libs empacotadas ja vivem) pertence a uma unidade do `NativeAssembler`.
 
+**§1192 — o gerador NAO era idempotente (achado 23/11 quando o script foi para o repo do desktop):** o `scripts/gen-enois-text.sh` so' trocava o marcador `@KOF_TEXT_SHIM@` (ou o nome `kof_text_shim`). Depois da PRIMEIRA rodada o marcador some e toda rodada seguinte imprimia "Text.kf -> <lib>" sem mudar um byte — um no-op silencioso que nao reapontava nada. Agora ele tambem reescreve qualquer caminho `"...libkof_text.so"` existente e FALHA com mensagem nomeada quando nao acha nem um nem outro. Medido: rodada 1 aponta para a lib A, rodada 2 aponta para a B, marcador 0, caminho antigo 0. A copia do desktop (`enois-kof-desktop/scripts/gen-enois-text.sh`) leva o mesmo fix.
+
 ## §1193 — o formato de textura do SDL3 era o valor de BIG-ENDIAN: toda imagem e todo glifo pintavam com os canais TROCADOS — ✅ CORRIGIDO 22/11 (lane wasm/caps `192.168.15.15:0`)
 
 **Achado ao fazer a imagem de capa do Énois funcionar** (`Sdl3Backend.loadImageTexture`). Uma textura 4×4 com quatro quadrantes conhecidos (vermelho / verde / azul / amarelo) voltava como **vermelho / PRETO / PRETO / magenta**: o canal verde caia onde o azul deveria estar e vice-versa.

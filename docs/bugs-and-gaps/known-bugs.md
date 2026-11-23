@@ -21309,6 +21309,15 @@ THE COST OF THE GAP: the absolute path is baked into the Kof source, so the same
 THE INTERIM: `scripts/gen-enois-text.sh` rewrites the marker `@KOF_TEXT_SHIM@` in `libs/enois/Text.kf` with the resolved absolute path at build time, so the path lives in ONE generated line and never drifts.
 STATUS: named. The compiler-side fix (resolve `library()` against `kof.install.dir/lib` — where the packaged libs already live) belongs to a `NativeAssembler` unit.
 
+**§1192 — the generator was NOT idempotent (found 23/11 when the script moved to the
+desktop repo):** `scripts/gen-enois-text.sh` only replaced the marker `@KOF_TEXT_SHIM@`
+(or the name `kof_text_shim`). After the FIRST run the marker is gone and every
+later run printed "Text.kf -> <lib>" without changing a byte — a silent no-op that
+re-pointed nothing. Now it also rewrites any existing `"...libkof_text.so"` path and
+FAILS with a named message when it finds neither. Measured: run 1 points at lib A,
+run 2 points at lib B, marker count 0, old path count 0. The desktop copy
+(`enois-kof-desktop/scripts/gen-enois-text.sh`) carries the same fix.
+
 ## §1193 — the SDL3 texture format was the BIG-ENDIAN value: every image and every glyph painted with the channels SWAPPED — ✅ FIXED 22/11 (lane wasm/caps `192.168.15.15:0`)
 
 **Found while making the Énois cover image work** (`Sdl3Backend.loadImageTexture`). A 4×4 texture with four known quadrants (red / green / blue / yellow) read back as **red / BLACK / BLACK / magenta**: the green channel landed where blue belonged and vice versa.

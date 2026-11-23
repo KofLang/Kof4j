@@ -4,8 +4,11 @@
 # (known-bugs §1192: o `library()` de um `extern` so' resolve no caminho do
 # sistema, entao a lib DO APP entra por caminho absoluto).
 #
+# O fonte versionado guarda o marcador `@KOF_TEXT_SHIM@`; este script compila o
+# shim (se faltar) e troca o marcador (ou o caminho anterior) pelo real.
+#
 # Uso: scripts/gen-enois-text.sh [<caminho-da-libkof_text.so>]
-#      (sem argumento: compila o shim com os headers oficiais e aponta para ele)
+#      KOF_TEXT_KF=<outro Text.kf> para reapontar uma copia.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LIB="${1:-$ROOT/libs/enois/libkof_text.so}"
@@ -22,13 +25,19 @@ if [ ! -f "$LIB" ]; then
         -o "$LIB" "$ROOT/libs/enois/kof_text_shim.c" -L/usr/lib64 -l:libfreetype.so.6
 fi
 
+# O script e IDEMPOTENTE: depois da primeira rodada o marcador virou um caminho
+# absoluto, e um segundo run sem isto dizia "ok" sem mudar nada (MEDIDO).
 python3 - "${KOF_TEXT_KF:-$ROOT/libs/enois/Text.kf}" "$LIB" <<'PY'
 import re, sys
 path, lib = sys.argv[1], sys.argv[2]
 src = open(path).read()
-# troca SO' o caminho do primeiro extern (o shim), deixa o resto intacto
-src = src.replace('"@KOF_TEXT_SHIM@"', '"' + lib + '"')
-src = src.replace('"kof_text_shim"', '"' + lib + '"')
+if '"@KOF_TEXT_SHIM@"' in src:
+    src = src.replace('"@KOF_TEXT_SHIM@"', '"' + lib + '"')
+else:
+    # ja' apontado: troca o caminho ABSOLUTO anterior de qualquer libkof_text.so
+    src, n = re.subn(r'"[^"\n]*libkof_text\.so"', '"' + lib + '"', src)
+    if n == 0:
+        sys.exit("gen-enois-text: nenhum marcador nem caminho de libkof_text.so em " + path)
 open(path, 'w').write(src)
 print("gen-enois-text: Text.kf -> " + lib)
 PY
