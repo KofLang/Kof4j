@@ -21347,3 +21347,14 @@ THE TRIGGER, measured by bisection: the function `paintCard` receives 10 argumen
 **NOT the cause** (each ruled out by a direct A/B run, same source otherwise): the table of virtual methods in `Tokens`/`PostCard`; the missing `import enois.PostCard` (SEM011); the `readPixel` readback reusable surface; `println` between statements. The crash's *outer* frame was sometimes garbage because the return slot itself was overwritten.
 WHAT IT BLOCKS: a painter that must call five helpers up front. THE WORKING SHAPE, now used in `libs/enois/Projects.kf` (and documented in the file): the arithmetic lives in `layoutBody`/`layoutSynLines`/`cardHeight`, the colours are PARAMETERS (not five `Tokens.*()` calls inside), and the body paints in ≤ 4 results. Any future painter reads this before growing a block of up-front calls.
 STATUS: 🟡 OPEN (measured). Next: a reduced reproducer (`paintCard`-shaped, no SDL) as a compiler test, then the spill-slot fix in `NativeMethodEmitter`.
+
+## §1197 — the canvas readback does NOT show the frame: `readPixel` after `clearFrame` + `fillRect` returns the clear colour (the filled rect is missing) — 📌 MEASURED 23/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Status:** 🟡 OPEN — measured; the same program reads its own fills correctly when they are written through a Kof loop, and wrongly when written by `fillRect` alone.
+
+**Found while measuring the Énois `games.$username` screen.** A program that does `b.clearFrame(247,244,251)` and then ONE `b.fillRect(20,20,120,80)` reads back `247,244,251` at every point inside the rect — repeatedly, in the same process. THE MEASUREMENTS that bracket it:
+* the same clear + fill, WITH a pixel loop after it (`while (row < 80) { b.fillRect(...); row = row + 1 }`), then a readD-back inside a function that makes ≥ 12 calls — reads `p=247,244,251` too;
+* `Avatar.paint` (a per-pixel `fillRect` loop in Kof) followed by ONE `readPixel` returns the right pixel (`centro=196,181,253`);
+* a bare program with `clearFrame` and three `readPixel`s returns the clear colour on all three (`readA=readB=readC=247`);
+* an earlier program in this session (`EnosisProjectsE2ETest`, 22/11) read its gradient and its card correctly with the SAME API — so the defect is NOT "readback never works"; it depends on the shape of the calls before it.
+WHAT IT BLOCKS: a pixel-proof painter for any screen whose painter is built from a few `fillRect` calls (the creator page's header/links block). THE INTERIM, named in the migration plan: `games.$username` ships with its text and geometry PROVEN (measured arithmetic + the real font) and its COLOURS FROM THE TOKENS (each one traced to the CSS), and the pixel painter waits for this. STATUS: 🟡 OPEN. Next: a minimal reproducer matrix (clear+fill, clear+fill+loop, clear+text) as a compiler test, bisecting which emitted call sequence leaves the renderer without the fill.

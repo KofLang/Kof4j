@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — `game.$username` ou `projetos.$username`
+next: a Fase 3 continua — `projetos.$username` ou a matriz de reprodutores do §1197
 location: repository
 state: active
 
@@ -404,6 +404,34 @@ linha por 60 px. A altura do hero prende essa quebra pelo outro lado: a
 descricao REAL do site (2 linhas a 16 px) deixa o hero em **254**, e uma mais
 curta o deixaria em 228 — o que o teste provou quando eu o escrevi primeiro
 com uma descricao encurtada. Bateria **28/28**.
+
+**Fase 3 — `games.$username` (POUSADA 23/11, texto + geometria).** O `GameCreatorScreen`
+e o `GameCreatorLayout` em `libs/enois/GameCreator.kf` carregam a pagina do criador
+com os numeros MEDIDOS em `src/routes/games.$username.tsx` e no design system:
+container `max-w-3xl space-y-5` = **768**/20, card `surface-card overflow-hidden`,
+capa `h-32 sm:h-40` = **160** (e, sem capa, o bloco `h-20` = 80 em `--primary-soft`),
+avatar `-mt-10 h-16 w-16 ring-4` = 64 subindo 40, `p-4 sm:p-5` = 20, titulo
+`text-xl` = 20, a linha do `@` a 14, bio `border-t px-4 py-3` = 12 + 20/linha,
+pilulas de link a 12, grade `sm:grid-cols-2 gap-3` = duas colunas de
+`(768 - 12)/2` = **378** com o card do jogo `p-3` + `GameIcon h-12 w-12` = **72**.
+Textos sao o bloco REAL `texts.games`, com os PLURAIS (`1 jogo`/`N jogos`,
+`1 seguidor`/`N seguidores`) e o botao dono/seguindo/seguir. Prova
+`EnosisGameCreatorE2ETest`: `g1=1 jogo`, `g0=0 jogos`, `f12=12 seguidores`,
+`handle=@ana · 3 jogos · 12 seguidores`, `owner=Editar minha página`,
+`following=Acompanhando`, `notFound=Criador não encontrado.`,
+`noGames=Nenhum jogo publicado ainda.`, `bio_h=64`, `card_bio=414`,
+`card_nocover=186`. Bateria **30/30**.
+
+PENDENCIA NOMEADA — o PINTOR de pixel nao entra: `known-bugs §1197` (medido 23/11)
+mostra a leitura do canvas devolvendo a cor do clear apos um `fillRect` simples,
+entao uma cor provada por amostra seria suposicao. As cores da pagina sao
+RASTREADAS ate' os tokens (`--surface-card`, `--primary-soft`, `--text-strong`,
+`--text-subtle`, `--muted-foreground`, `--primary`, `--primary-foreground`) e a
+prova de pixel espera esse defeito. Tambem nomeados: o monograma do `GameIcon`
+(`Gamepad2` `h-5 w-5` em `--primary-soft`), a largura do emblema e as imagens
+remotas de capa/avatar (rede + `faviconOf`).
+PROXIMO: `projetos.$username` (a mesma pagina de autor para projetos), ou a
+matriz de reprodutores do §1197.
 
 **Fase 3 — `projetos` (POUSADA 23/11).** O `ProjectsScreen` em `libs/enois/Projects.kf`
 pinta o catalogo de projetos da comunidade com os numeros MEDIDOS em

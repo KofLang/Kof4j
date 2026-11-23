@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — `game.$username` or `projetos.$username`
+next: Fase 3 continues — `projetos.$username` or the §1197 reproducer matrix
 location: repository
 state: active
 
@@ -415,6 +415,34 @@ side: the REAL site description (2 lines at 16 px) makes the hero **254**,
 and a shorter one would make it 228 — which the test proved when I first wrote
 it with a trimmed description.
 Battery **28/28**.
+
+**Fase 3 — `games.$username` (LANDED 23/11, texto + geometria).** `GameCreatorScreen`
+and `GameCreatorLayout` in `libs/enois/GameCreator.kf` carry the creator page with
+the numbers MEASURED in `src/routes/games.$username.tsx` and the design system: the
+container `max-w-3xl space-y-5` = **768**/20, the card `surface-card
+overflow-hidden`, the cover `h-32 sm:h-40` = **160** (and, without a cover, the
+`h-20` = 80 block on `--primary-soft`), the avatar `-mt-10 h-16 w-16 ring-4` = 64
+lifting 40, `p-4 sm:p-5` = 20, the title `text-xl` = 20, the `@` line at 14, the
+bio `border-t px-4 py-3` = 12 + 20/line, the link pills at 12, the grid
+`sm:grid-cols-2 gap-3` = two columns of `(768 − 12)/2` = **378** with the game
+card `p-3` + `GameIcon h-12 w-12` = **72 tall**. Texts are the real `texts.games`
+block, INCLUDING the plurais (`1 jogo` / `N jogos`, `1 seguidor` / `N seguidores`)
+and the owner/follow/following button. Proof `EnosisGameCreatorE2ETest`:
+`g1=1 jogo`, `g0=0 jogos`, `f12=12 seguidores`, `handle=@ana · 3 jogos · 12
+seguidores`, `owner=Editar minha página`, `following=Acompanhando`,
+`notFound=Criador não encontrado.`, `noGames=Nenhum jogo publicado ainda.`,
+`bio_h=64`, `card_bio=414`, `card_nobio=186`. Battery **30/30**.
+
+NAMED PENDING — the PIXEL painter is not shipped: `known-bugs §1197` (measured
+23/11) shows the canvas readback returning the clear colour after a plain
+`fillRect`, so a colour asserted from a sample would be a guess. The page's
+colours are therefore traced to the tokens (`--surface-card`, `--primary-soft`,
+`--text-strong`, `--text-subtle`, `--muted-foreground`, `--primary`,
+`--primary-foreground`) and the pixel proof waits for that defect. Also named:
+the `GameIcon` monogram (`Gamepad2` at `h-5 w-5` on `--primary-soft`), the badge
+width, and the remote cover/avatar images (network + `faviconOf`).
+NEXT: `projetos.$username` (the same maker page for projects), or the §1197
+reproducer matrix.
 
 **Fase 3 — `projetos` (LANDED 23/11).** `ProjectsScreen` in `libs/enois/Projects.kf`
 paints the community project catalogue with the numbers MEASURED in

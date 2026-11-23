@@ -1,0 +1,162 @@
+package enois
+
+import enois.Avatar
+import enois.PostCard
+import enois.Text
+import enois.Tokens
+import game.Sdl3Backend
+
+// Énois — a rota `games.$username` (`src/routes/games.$username.tsx`), a
+// pagina do CRIADOR de jogos.
+//
+// Os TEXTOS vem do codigo (`src/texts.ts`, bloco `games`), sem invencao:
+//   * `loading` = "Carregando…"  (estado de carga do site)
+//   * `developer.notFound` = "Criador não encontrado."
+//   * `title` = "Jogos"          (o link da pagina 404)
+//   * `developer.games(n)` = "N jogos" / "1 jogo"       (plural do site)
+//   * `developer.followers(n)` = "N seguidores" / "1 seguidor"
+//   * `developer.follow` = "Acompanhar", `.following` = "Acompanhando"
+//   * `developer.editPage` = "Editar minha página"
+//   * `developer.noGames` = "Nenhum jogo publicado ainda."
+//
+// As MEDIDAS vem da rota e do design system, MEDIDAS:
+//   * o container `mx-auto w-full max-w-3xl space-y-5` = 768, vao 20
+//   * o card      `surface-card overflow-hidden` (SEM borda), raio 20
+//   * a capa      `h-32 w-full object-cover sm:h-40` = 160 no sm:, e sem capa
+//                 um bloco `h-20` = 80 em `--primary-soft`
+//   * o avatar    `-mt-10 h-16 w-16 shrink-0 ring-4 ring-surface-card` — 64,
+//                 subindo 40 sobre a capa, com anel de 4 em `--surface-card`
+//   * o `p-4 sm:p-5` = 20 e o `gap-3` = 12
+//   * o titulo    `text-xl font-semibold tracking-tight text-text-strong` = 20
+//   * o @/{n}     `text-sm text-text-subtle` = 14
+//   * o headline  `mt-1 text-sm font-normal text-text-strong` = 14
+//   * o botao     `Button size="sm" rounded-full` = h-8 (32) + `px-3`
+//   * a bio       `whitespace-pre-line border-t border-border-soft px-4 py-3`
+//                 = 12/16, texto 14 em `--muted-foreground`
+//   * os links    `inline-flex gap-1.5 rounded-full border border-border-soft
+//                 px-2.5 py-1 text-xs` = 12, pílula com borda
+//   * a grade     `grid gap-3 sm:grid-cols-2` = 2 colunas de `(768-12)/2` = 378
+//   * o card do jogo `surface-card flex items-center gap-3 p-3` = 12, com o
+//                 `GameIcon` `h-12 w-12 rounded-xl` = 48 (o padrao do DS)
+//   * o vazio     `surface-card p-8 text-center text-sm` = 32 (o `noGames`)
+//
+// DIVERGENCIAS NOMEADAS (no plano): o emblema (`UserBadges`, `h-4 w-4`) e' um
+// PNG remoto — aqui entra so' a largura que ele reserva; as fotos de capa e de
+// jogo sao imagem remota (o `GameIcon` cai para o controle em
+// `--primary-soft` sem imagem), e o `faviconOf` do site pede a rede.
+//
+// O QUE NAO ESTA MEDIDO AINDA: os pintores de pixel. O teste deste cenario
+// parou num defeito de MEDICAO (known-bugs §1197: `readPixel` num frame ainda
+// nao apresentado devolve a cor do fundo) e nao ha pintor sem uma leitura fiel;
+// o que fica provado e' o TEXTO e a GEOMETRIA abaixo, e o painter entra quando
+// a leitura for confiavel. Nenhuma cor ou distancia foi inventada.
+
+/** As medidas da pagina do criador, em px. */
+class GameCreatorMetrics {
+    static Int pageWidth() { return 768 }        // max-w-3xl
+    static Int pageGap() { return 20 }           // space-y-5
+    static Int coverHeight() { return 160 }      // sm:h-40
+    static Int coverFallback() { return 80 }     // h-20
+    static Int cardPad() { return 20 }           // sm:p-5
+    static Int cardPadSmall() { return 16 }      // p-4
+    static Int rowGap() { return 12 }            // gap-3
+    static Int avatarSize() { return 64 }        // h-16 w-16
+    static Int avatarLift() { return 40 }        // -mt-10
+    static Int avatarRing() { return 4 }         // ring-4
+    static Int titleSize() { return 20 }         // text-xl
+    static Int bodySize() { return 14 }          // text-sm
+    static Int buttonHeight() { return 32 }      // Button size="sm" h-8
+    static Int buttonPadX() { return 12 }        // px-3
+    static Int bioPadY() { return 12 }           // py-3
+    static Int linkSize() { return 12 }          // text-xs
+    static Int linkPadX() { return 10 }          // px-2.5
+    static Int linkPadY() { return 4 }           // py-1
+    static Int linkGap() { return 6 }            // gap-1.5
+    static Int gridGap() { return 12 }           // gap-3
+    static Int columns() { return 2 }            // sm:grid-cols-2
+    static Int gameIcon() { return 48 }          // h-12 w-12
+    static Int gameCardPad() { return 12 }       // p-3
+    static Int gameCardHeight() { return 72 }    // p-3 x2 + icone 48
+    static Int emptyPad() { return 32 }          // p-8
+    static Int emptyHeight() { return 32 + 20 + 32 } // p-8 x2 + uma linha de 14/20
+    static Int radius() { return 20 }            // --radius-2xl
+
+    /** A coluna do jogo na grade de 2 (`sm:grid-cols-2`, vao 12). */
+    static Int columnWidth(Int width) {
+        return (width - gridGap() * (columns() - 1)) / columns()
+    }
+}
+
+/** A pagina do criador: os TEXTOS do site, exatos, com os plurais reais. */
+class GameCreatorScreen {
+    static String loading() { return "Carregando…" }
+    static String notFound() { return "Criador não encontrado." }
+    static String gamesTitle() { return "Jogos" }
+    static String noGames() { return "Nenhum jogo publicado ainda." }
+
+    /** `developer.games(n)`: "1 jogo" / "N jogos". */
+    static String gamesCount(Int n) {
+        if (n == 1) { return "1 jogo" }
+        return "" + n + " jogos"
+    }
+
+    /** `developer.followers(n)`: "1 seguidor" / "N seguidores". */
+    static String followers(Int n) {
+        if (n == 1) { return "1 seguidor" }
+        return "" + n + " seguidores"
+    }
+
+    /** O botao: o dono ve' `editPage`, os outros `follow`/`following`. */
+    static String actionLabel(Bool owner, Bool following) {
+        if (owner) { return "Editar minha página" }
+        if (following) { return "Acompanhando" }
+        return "Acompanhar"
+    }
+
+    /** A linha do @: `@usuario · N jogos · M seguidores`. */
+    static String handleLine(String username, Int games, Int followers) {
+        return "@" + username + " · " + gamesCount(games) + " · " + GameCreatorScreen.followers(followers)
+    }
+}
+
+/** A GEOMETRIA da pagina: alturas e larguras em px, sem pintar. */
+class GameCreatorLayout {
+    /** A faixa de bio: `py-3` x2 (24) + uma linha de 20 por linha. */
+    static Int bioHeight(Int lines) {
+        return GameCreatorMetrics.bioPadY() * 2 + lines * 20
+    }
+
+    /** A faixa de links: `py-3` x2 + a pilula de 20. */
+    static Int linksHeight() {
+        return GameCreatorMetrics.bioPadY() * 2 + 20
+    }
+
+    /** O card do criador: capa (160, ou o bloco de 80), a linha com o avatar que
+     *  sobe 40, a bio e os links. Devolve a altura TOTAL do card. */
+    static Int cardHeight(Bool hasCover, Int bioLines, Int linkCount) {
+        val m = GameCreatorMetrics
+        var h = coverSpan(hasCover)
+        h = h + avatarRow()
+        if (bioLines > 0) {
+            h = h + bioHeight(bioLines) + 20
+        }
+        if (linkCount > 0) {
+            h = h + linksHeight() + 20
+        }
+        return h
+    }
+
+    /** A faixa do topo: a capa `sm:h-40` (160) ou o bloco `h-20` (80). */
+    static Int coverSpan(Bool hasCover) {
+        if (hasCover) { return GameCreatorMetrics.coverHeight() }
+        return GameCreatorMetrics.coverFallback()
+    }
+
+    /** A linha do perfil: `p-5` x2, o titulo de 20 e o `@` de 14 separados por
+     *  4 cada, menos o avatar `-mt-10` (40) que ja' ocupa a capa. */
+    static Int avatarRow() {
+        return GameCreatorMetrics.cardPad() * 2
+                + GameCreatorMetrics.titleSize() + 4 + GameCreatorMetrics.bodySize() + 4
+                - GameCreatorMetrics.avatarLift() + GameCreatorMetrics.avatarSize()
+    }
+}
