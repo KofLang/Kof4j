@@ -21401,4 +21401,16 @@ WHAT THIS MEANS for the plan: there is NO proven "function painter reads back" e
 SO the defect is NOT "readback never works": it is "some call shapes lose the inline fill". The matrix moved the plan forward (a painter in a function reads back today) but no single trigger reproduces in a 30-line program, and the distinguishing factor is still unproven — a claim of "fixed" here would be a guess. **§1197 — CLOSED as a WRONG measurement (23/11, third pass).** The C reference does the identical sequence (`SDL_CreateRenderer`, `SetRenderDrawColor(247,244,251)`, `RenderClear`, `SetRenderDrawColor(255,0,0)`, `RenderFillRect`, `RenderReadPixels`) and the surface shows the fill — so the renderer, the readback and the surface layout are correct, and the pixel memory reads what was painted. What failed was the KOF SIDE of the measurement: `SDL_SetRenderDrawColor` is declared with `Int` channels while its C header places the channels per the SysV ABI (measured in gdb: with `Int` the second channel goes to ECX and the third to R8D/R9D), so the colour SDL receives is shifted (`247,244,251` arrives as several wrong channels) and a fill in the "clear colour" can look like no fill at all. THE BACKEND BUG that remains is the CHANNEL PLACEMENT: the extern's parameter types must let the emitter put the channels where SysV expects them (or the emitter must be fixed). NOT fixed yet.
 
 **§1197 — FOURTH PASS (23/11): the renderer, the readback and the surface layout are CORRECT; the crash is in the KOF SIDE for ONE shape.** Measured this session: gdb at `SDL_SetRenderDrawColor` shows ESI/EDX/ECX/R8D = 10/20/30/255 (no shift); the C reference paints and reads the fill; the surface layout (`format @0, w @8, h @12, pitch @16, pixels @24`) reads the painted bytes. THE FAILING SHAPE IS `clearFrame(...)` then `fillRect(...)` in the same `main` WITH NO OTHER COLOUR CALL — read back at (21,21) it returns the CLEAR colour (`10,20,30`), so the fill did not land, while the SAME fill in a separate method that sets the colour first (`fillRed`) returns `255,0,0`. PAINTING WORKS; the shape where the colour comes from an earlier call in the same `main` does not. Prior conclusions in this entry that blamed the channel placement or the readback are WITHDRAWN.
+**§1197 — FIFTH PASS (23/11): "a call before the fill" is EXCLUDED.** A new
+compiler test (`DrawRectAfterCallE2ETest`) paints one rect right after `clearFrame`
+and a second one after a user function that makes calls (prints); BOTH paint
+(`after-clear=255,0,0`, `after-call=0,255,0`). So neither an earlier extern nor an
+earlier Kof call loses the rect, and my previous "call before the fill" idea is
+withdrawn before it shipped. What remains true and reproducible: the Énois text
+test that counts ink inside a nested per-pixel loop over `readPixel` returns 0 on
+today's tree while it passed on 22/11; the Sdl3Backend source has not changed since
+then, so the difference is in what surrounds the reads. Next (unchanged): compare
+that test's generated `main` against the 22/11 one — the closest evidence is the
+`KOF_KEEP_ASM=1` assembly the harness already keeps.
+
 STATUS: 🟡 OPEN — narrowed to the `main`-shape assembly diff (paints vs does-not). Next: diff the two `main`s' emitted code and finish the (unpublished) reduction to the emitter.
