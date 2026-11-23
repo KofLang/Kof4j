@@ -1,0 +1,125 @@
+package enois
+
+import enois.Text
+import enois.Tokens
+import game.Sdl3Backend
+
+// Énois — a rota `explorar` (`src/routes/explorar.tsx`), o HUB das salas.
+//
+// Os DADOS vem do codigo, extraidos sem invencao:
+//   * os itens e as secoes  `src/components/explore-items.ts` (cada item tem
+//                          `section`, `href` e `texts.explore.items.<chave>`)
+//   * os rotulos/descricoes `src/texts.ts` -> `explore.items`
+//   * as secoes e a ORDEM   `texts.explore.sections` (community, play, build,
+//                          work) — o comentario do proprio fonte diz que a
+//                          ordem das chaves e' a ordem das secoes
+//   * 13 / 2 / 3 / 5 itens  por secao (contado em explore-items.ts)
+//
+// As medidas vem do `ExploreHub` (design-system/src/domain/explore/
+// explore-hub.tsx), MEDIDAS:
+//   * o icone do tile   `h-10 w-10 rounded-[34%]` = 40 px
+//   * o label           `text-[15px] font-extrabold`
+//   * a descricao       `-mt-1 text-[13px] leading-snug`
+//   * o container       `max-w-3xl ... gap-3 px-1 py-10` = 768 px
+//   * o titulo de secao `text-[12px] font-semibold`
+
+/** Um tile do hub: o rotulo, a descricao e a rota. */
+record Tile(String label, String description, String href)
+
+/** Uma secao do hub: o titulo e os seus tiles (na ordem declarada). */
+record Section(String title, List<Tile> tiles)
+
+/** As medidas do hub, em px. */
+class ExploreMetrics {
+    static Int maxWidth() { return 768 }       // max-w-3xl
+    static Int tileIcon() { return 40 }        // h-10 w-10
+    static Int labelSize() { return 15 }
+    static Int descSize() { return 13 }
+    static Int sectionTitleSize() { return 12 }
+    static Int gap() { return 12 }             // gap-3
+    static Int py() { return 40 }              // py-10
+    static Int tileHeight() { return 72 }
+    static Int iconInset() { return 12 }
+    static Int textInset() { return 52 }       // o icone + o respiro
+}
+
+class ExploreHub {
+
+    /** As 4 secoes, na ordem do site, com os 23 itens REAIS. */
+    static List<Section> sections() {
+        return listOf<Section>(
+        Section("Comunidade", listOf<Tile>(
+            Tile("Colagem", "O feed fotográfico da comunidade", "/colagem"),
+            Tile("Desabafos", "Um espaço acolhedor para desabafar", "/desabafos"),
+            Tile("Confessionário", "Histórias anônimas para contar", "/confessionario"),
+            Tile("Desafios", "Convites da comunidade com reconhecimento", "/desafios"),
+            Tile("Termômetro", "O clima coletivo medido pelo que a comunidade publica", "/termometro"),
+            Tile("Papo Reto", "Os assuntos que a rede está conversando agora", "/papo-reto"),
+            Tile("Murais", "Coleções colaborativas de publicações", "/murais"),
+            Tile("Coleções", "Pastas só suas com os posts que você salvou", "/colecoes"),
+            Tile("Selos", "Conquistas e reconhecimentos", "/selos"),
+            Tile("Éroleplay", "Campanhas de RPG de mesa e textual", "/roleplay"),
+            Tile("Agenda", "Seus compromissos sociais e profissionais", "/agenda"),
+            Tile("Sugestões", "Ideias para o Énóis, votadas por todos", "/sugestoes"),
+            Tile("Moderação", "Ajude a cuidar da comunidade", "/moderador")
+        )),
+        Section("Brincar", listOf<Tile>(
+            Tile("Jogos", "Jogos indie feitos pela comunidade", "/games"),
+            Tile("Desafio do dia", "Um joguinho por dia, com a galera", "/jogos-diarios")
+        )),
+        Section("Construir", listOf<Tile>(
+            Tile("Projetos", "O que a comunidade está construindo", "/projetos"),
+            Tile("Loja", "Cosméticos e itens com faíscas", "/marketplace"),
+            Tile("Developers", "API e integrações do Énóis", "/developers")
+        )),
+        Section("Trabalho", listOf<Tile>(
+            Tile("Vagas", "Oportunidades de trabalho", "/vagas"),
+            Tile("Freelances", "Projetos curtos e pagos", "/freelances"),
+            Tile("Serviços", "Contrate quem é da comunidade", "/servicos"),
+            Tile("Empresas", "Quem contrata e o que faz", "/empresas"),
+            Tile("Mentoria", "Aprenda com quem já fez", "/mentoria")
+        ))
+        )
+    }
+
+    /** Pinta o hub centrado em `windowWidth`, a partir de `y`.
+     *  Devolve a altura usada. */
+    static Int paint(Sdl3Backend b, Font labelFont, Font descFont, Font headFont,
+                     Int windowWidth, Int y) {
+        val card = Tokens.SurfaceCard()
+        val strong = Tokens.TextStrong()
+        val subtle = Tokens.TextSubtle()
+        val soft = Tokens.PrimarySoft()
+        val w = ExploreMetrics.maxWidth()
+        val x = (windowWidth - w) / 2
+        var cy = y + ExploreMetrics.py()
+        val all = sections()
+        var s = 0
+        while (s < all.size) {
+            val sec = all[s]
+            headFont.drawTextColoured(b, sec.title(), x + 4, cy + 10,
+                    subtle.r(), subtle.g(), subtle.b())
+            cy = cy + ExploreMetrics.sectionTitleSize() + ExploreMetrics.gap()
+            var t = 0
+            while (t < sec.tiles().size) {
+                val tile = sec.tiles()[t]
+                SDL_SetRenderDrawColor(b.rendererHandle, card.r(), card.g(), card.b(), 255)
+                b.fillRect(x, cy, w, ExploreMetrics.tileHeight())
+                SDL_SetRenderDrawColor(b.rendererHandle, soft.r(), soft.g(), soft.b(), 255)
+                b.fillRect(x + ExploreMetrics.iconInset(), cy + 16,
+                        ExploreMetrics.tileIcon(), ExploreMetrics.tileIcon())
+                labelFont.drawTextColoured(b, tile.label(),
+                        x + ExploreMetrics.textInset(), cy + 30,
+                        strong.r(), strong.g(), strong.b())
+                descFont.drawTextColoured(b, tile.description(),
+                        x + ExploreMetrics.textInset(), cy + 50,
+                        subtle.r(), subtle.g(), subtle.b())
+                cy = cy + ExploreMetrics.tileHeight() + ExploreMetrics.gap()
+                t = t + 1
+            }
+            cy = cy + ExploreMetrics.gap()
+            s = s + 1
+        }
+        return cy - y
+    }
+}

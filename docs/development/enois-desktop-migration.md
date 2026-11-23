@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: Fase 3 continues — `explorar` (the discovery route) or the community's aside sections (members/description)
+next: Fase 3 continues — the community's aside sections (members/description) or `blogs` (the publishing route)
 location: repository
 state: active
 
@@ -185,6 +185,20 @@ section title "Feed" is `text-lg` = 18 px (877), the empty state is
 are separated by `space-y-4` = 16 px. Proven natively: `conteudo_w=944`,
 `vazio_h=112`, `com_post_h=128`, `aside_x=984`, `card=255,255,255`.
 Battery **12/12**.
+
+**Fase 3 — `explorar` (LANDED 22/11).** `libs/enois/Explore.kf` is the hub of rooms.
+Its DATA is extracted from the code with no invention: the items and their
+sections from `src/components/explore-items.ts` (**13 / 2 / 3 / 5 = 23**), the
+labels and descriptions from `texts.explore.items`, and the section ORDER from
+`texts.explore.sections` (community, play, build, work — the source's own
+comment says the key order IS the section order). Measures from the
+design system `ExploreHub`: icon `h-10 w-10` = 40 px, label `text-[15px]`,
+description `text-[13px]`, container `max-w-3xl` = 768, section title
+`text-[12px]`. Proven natively: `secoes=4`, `s0=Comunidade:13`,
+`s1=Brincar:2`, `s2=Construir:3`, `s3=Trabalho:5`, `total=23`,
+`primeiro=Colagem`, `ultimo=Mentoria`, `card=255,255,255`,
+`icone=238,232,255`.
+Battery **13/13**.
 
 ## §4 How to finish
 

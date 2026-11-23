@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: a Fase 3 continua — `explorar` (a rota de descoberta) ou as secoes do aside da comunidade (membros/descricao)
+next: a Fase 3 continua — as secoes do aside da comunidade (membros/descricao) ou `blogs` (a rota de publicacao)
 location: repository
 state: active
 
@@ -189,6 +189,19 @@ secao "Feed" e' `text-lg` = 18 px (877), o estado vazio e'
 cards sao separados por `space-y-4` = 16 px. Provado nativamente:
 `conteudo_w=944`, `vazio_h=112`, `com_post_h=128`, `aside_x=984`,
 `card=255,255,255`. Bateria **12/12**.
+
+**Fase 3 — `explorar` (POUSADO 22/11).** O `libs/enois/Explore.kf` e' o hub das salas.
+Os DADOS sao extraidos do codigo sem invencao: os itens e as suas secoes de
+`src/components/explore-items.ts` (**13 / 2 / 3 / 5 = 23**), os rotulos e as
+descricoes de `texts.explore.items`, e a ORDEM das secoes de
+`texts.explore.sections` (community, play, build, work — o comentario do proprio
+fonte diz que a ordem das chaves E' a ordem das secoes). Medidas do `ExploreHub`
+do design system: icone `h-10 w-10` = 40 px, rotulo `text-[15px]`, descricao
+`text-[13px]`, container `max-w-3xl` = 768, titulo de secao `text-[12px]`.
+Provado nativamente: `secoes=4`, `s0=Comunidade:13`, `s1=Brincar:2`,
+`s2=Construir:3`, `s3=Trabalho:5`, `total=23`, `primeiro=Colagem`,
+`ultimo=Mentoria`, `card=255,255,255`, `icone=238,232,255`.
+Bateria **13/13**.
 
 ## §4 Como concluir
 
