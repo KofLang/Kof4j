@@ -19049,3 +19049,17 @@ o que esconde, mas nao corrige, o defeito.
 Proximo: reduzir a um teste do compilador — uma funcao com `var ok = false; if (a) { ok = true } ;
 return ok` chamada duas vezes num mesmo `main` — e achar onde o emissor nativo inicializa (ou
 deixa de inicializar) esses locais.
+
+**23/11 (sexta rodada): o reduce do §1202 precisa do tamanho do modulo do Énois; o caminho de
+codigo ZERA o local.** Li o `emitLocalDeclaration`: um `var` sem inicializador emite
+`KofLoadLiteral(type, null|0)` e depois `KofStoreLocal`, e o `emitLoadLiteral` nativo empurra `0` /
+null — o default declarado E' emitido. Reproduzi a forma real do app com parametros simples e com
+Strings mais `trim()`: `a=both b=no c=both` (certo em todas as chamadas). O `validate` do app ainda
+devolveu `CITY_STATE_INCOMPLETE` velho — entao a leitura velha precisa do tamanho do modulo do
+Énois (muitas declaracoes), o que aponta de volta para a familia de slots vivos/§1196 e nao para a
+declaracao. REGISTRADO, nao corrigido.
+
+**A pagina composta do Énois, de novo com o resolvedor pristine:** `ComunidadesPage` +
+`ComunidadesTexts` + `HeaderHeight` na arvore do app ainda falham em
+`import 'enois.CommunitiesTexts' not found` enquanto todo import daquele arquivo resolve sozinho —
+entao a pagina segue parqueada (`/tmp/lane-enois-2`), e a arvore do app fica limpa em `5821b26`.

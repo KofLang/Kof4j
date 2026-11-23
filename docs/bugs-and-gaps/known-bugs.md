@@ -21633,3 +21633,17 @@ which hides, but does not fix, the defect.
 Next: reduce to a compiler test — a function with `var ok = false; if (a) { ok = true } ; return
 ok` called twice in one `main` — then find where the native emitter initialises (or fails to
 initialise) such locals.
+
+**23/11 (sixth round): the §1202 reduce needs the Énois module size; the code path is zeroed.**
+Read `emitLocalDeclaration`: a `var` without initialiser emits `KofLoadLiteral(type, null|0)` then
+`KofStoreLocal`, and the native `emitLoadLiteral` pushes `0` / null for it — so the declared default
+IS emitted. Reproduced the real app shape with plain and with String parameters plus `trim()`:
+`a=both b=no c=both` (correct in every call). The app's `validate` still returned a stale
+`CITY_STATE_INCOMPLETE` — so the stale read needs the Énois module size (many declarations), which
+points back to the live-slot/§1196 family rather than to the declaration itself. RECORDED, not
+fixed.
+
+**The composed Énois page, retried with the resolver pristine:** `ComunidadesPage` +
+`ComunidadesTexts` + `HeaderHeight` in the app tree still fail at
+`import 'enois.CommunitiesTexts' not found` while every import of that file resolves on its own —
+so the page stays parked (`/tmp/lane-enois-2`), and the app tree is clean at `5821b26`.
