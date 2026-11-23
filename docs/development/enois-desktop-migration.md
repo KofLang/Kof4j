@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: in `enois-kof-desktop` — the session-driven shell choice at the app entry (`app/Main.kf` picks guest or authenticated), the recruitment board, then the remaining catalogues; every NEW screen starts by measuring the live route with `scripts/measure-site.mjs`; Kof4j keeps `libs/game` + the compiler and records the Kof-side bugs (§1196, §1197); §1196 and §1197 stay OPEN
+next: in `enois-kof-desktop` — a `/me` session client so `signedIn` stops being a constant, the recruitment board, then the remaining catalogues; every NEW screen starts by measuring the live route with `scripts/measure-site.mjs`; Kof4j keeps `libs/game` + the compiler and records the Kof-side bugs (§1196, §1197); §1196 and §1197 stay OPEN
 location: repository
 state: active
 
@@ -514,6 +514,22 @@ own `EmptyState` strings. Proof `EnosisProjectAuthorE2ETest`:
 NAMED PENDING — no pixel assertion here: `known-bugs §1197` still does not close
 the readback of a `fillRect`, so this page ships with text and geometry proven and
 its colours traced to the tokens.
+
+**Fase 3 — the shell is SESSION-DRIVEN (LANDED 23/11, `enois-kof-desktop` `a57953b`).**
+`ShellChoice` picks the container the way `app-container.tsx` does: without a session, the
+GUEST shell (no sidebar); with one, the authenticated shell (DS sidebar `w-60` = 240 at the
+left). It also resolves where the route starts in each: guest y = 89, x = 104 at 1440 and
+x = 24 at 1024 (the `max-w-7xl` centring plus `px-6`), column 1232/976; authenticated x =
+368 and column 968 — all measured on the live page. `app/Main.kf` now uses it instead of
+the hard-coded 24 px margin and the retired `headerHeight()`, and the REAL entry point
+compiles and runs natively (`casca=visita coluna=1232`, plus the four route modules loading
+in one binary). Proof `EnoisShellChoiceE2ETest`: both shells' names, tops, lefts and widths
+at 1440 and 1024, and that the default is the guest container. App battery **43/44** (the
+failure is the §1197 ink test).
+
+NAMED PENDING — the session itself is still a constant (`signedIn = false`) in the entry
+point: there is no `/me` client yet, so the authenticated shell is exercised by the library
+and its test but never chosen at runtime.
 
 **Fase 3 — SHELL COMPOSITION (LANDED 23/11, `enois-kof-desktop` `422ceea`).** The shell now
 has the site's TWO containers, measured on the live page (`enois.ia.br/comunidades`,

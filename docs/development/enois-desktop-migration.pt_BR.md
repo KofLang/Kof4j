@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: em `enois-kof-desktop` — a escolha da casca pela sessao na entrada do app (`app/Main.kf` escolhe visita ou autenticada), o quadro de recrutamento, depois os catalogos restantes; toda tela NOVA comeca medindo a rota ao vivo com `scripts/measure-site.mjs`; o Kof4j mantem o `libs/game` + o compilador e registra os bugs do Kof (§1196, §1197); o §1196 e o §1197 seguem ABERTOS
+next: em `enois-kof-desktop` — um cliente de sessao `/me` para o `signedIn` deixar de ser constante, o quadro de recrutamento, depois os catalogos restantes; toda tela NOVA comeca medindo a rota ao vivo com `scripts/measure-site.mjs`; o Kof4j mantem o `libs/game` + o compilador e registra os bugs do Kof (§1196, §1197); o §1196 e o §1197 seguem ABERTOS
 location: repository
 state: active
 
@@ -500,6 +500,22 @@ título e duas de sinopse. A sinopse mantém o fallback do site
 PENDENCIA NOMEADA — nenhuma assercao de pixel aqui: o `known-bugs §1197` ainda nao
 fecha a leitura de um `fillRect`, entao a pagina entra com texto e geometria
 provados e as cores rastreadas nos tokens.
+
+**Fase 3 — a casca e' ESCOLHIDA PELA SESSAO (POUSADA 23/11, `enois-kof-desktop` `a57953b`).**
+O `ShellChoice` escolhe o container como o `app-container.tsx`: sem sessao, a casca de
+VISITA (sem barra); com sessao, a autenticada (barra do DS `w-60` = 240 a esquerda). Ele
+tambem resolve onde a rota comeca em cada uma: visita y = 89, x = 104 em 1440 e x = 24 em
+1024 (o `max-w-7xl` centralizado mais o `px-6`), coluna 1232/976; autenticada x = 368 e
+coluna 968 — tudo medido na pagina ao vivo. O `app/Main.kf` agora usa isso em vez da margem
+fixa de 24 px e do `headerHeight()` aposentado, e o ponto de entrada REAL compila e roda no
+nativo (`casca=visita coluna=1232`, com os quatro modulos de rota carregando num binario so).
+Prova `EnoisShellChoiceE2ETest`: os nomes, os topos, as esquerdas e as larguras das duas
+cascas em 1440 e 1024, e que o padrao e a de visita. Bateria do app **43/44** (a falha e o
+teste de tinta do §1197).
+
+PENDENCIA NOMEADA — a sessao ainda e' constante (`signedIn = false`) no ponto de entrada:
+nao ha cliente `/me` ainda, entao a casca autenticada e exercitada pela biblioteca e pelo
+teste, mas nunca escolhida em runtime.
 
 **Fase 3 — COMPOSICAO DA SHELL (POUSADA 23/11, `enois-kof-desktop` `422ceea`).** A shell agora
 tem os DOIS containers do site, medidos na pagina ao vivo (`enois.ia.br/comunidades`,
