@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §1202 (ABERTO — nativo: var so de um ramo nao e zerada; valor velho medido 23/11)
 last: §1201 (ABERTO — out-of-memory no nativo numa cadeia curta de println; medido 23/11)
 last: §1200 (ABERTO — resolvedor; RED na arvore)
 last: §1199 (ABERTO — estreitado 23/11; lado do parser retirado, o defeito e resolucao)
@@ -19028,3 +19029,23 @@ A fatia em si (`CityStateRules`/`BrazilUf`/`CityStateTable`) fica parqueada com 
 Proximo: reduzir a um teste do compilador — tres funcoes de topo de string, um `println`
 encadeando duas delas como argumentos da terceira — e bisseccionar: tempo de vida do handle do
 resultado vs a cadeia de `+` vs a marca d'agua do heap que imprime "out of memory".
+
+## §1202 — a `var` declarada num ramo do `if` (ou antes de um `return` antecipado) NAO e' zerada na entrada do metodo: depois do ramo que nao atribuiu, a variavel pode carregar um valor de uma chamada anterior — 📌 MEDIDO 23/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Status:** 🟡 ABERTO — visto como RESULTADO errado (nao crash), uma vez com flag booleana; falta um teste minimo no compilador.
+
+Medido na fatia das regras de local do Énois (nativo x86-64): `validate(city, state)` calculava
+duas flags e fazia `if (hasCity != hasState) { return "CITY_STATE_INCOMPLETE" }`; chamando-a numa
+linha seguinte com os dois presentes, ela devolvia `CITY_STATE_INCOMPLETE`, enquanto a MESMA
+funcao, chamada sozinha, nao devolvia nada. O print dentro do helper provou que as chamadas
+RODARAM (`oneIf b=true`), entao o valor lido depois era velho — um local atribuido num caminho e
+lido em outro.
+
+POR QUE IMPORTA PARA O app: todo helper de guarda (`validate*`, `parse*`) tem exatamente essa
+forma, e a composicao do Énois caiu nela pelo menos duas vezes seguidas. O contorno usado:
+calcular cada flag num nome novo e comparar com resultados de `oneIf(...)` atribuidos a `val`s —
+o que esconde, mas nao corrige, o defeito.
+
+Proximo: reduzir a um teste do compilador — uma funcao com `var ok = false; if (a) { ok = true } ;
+return ok` chamada duas vezes num mesmo `main` — e achar onde o emissor nativo inicializa (ou
+deixa de inicializar) esses locais.

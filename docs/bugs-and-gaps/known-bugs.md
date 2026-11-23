@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §1202 (OPEN — native: a branch-only var is not zeroed; stale value measured 23/11)
 last: §1201 (OPEN — native out-of-memory on a short println chain; measured 23/11)
 last: §1200 (OPEN — resolver; RED in the tree)
 last: §1199 (OPEN — narrowed 23/11; parser side withdrawn, resolution is the defect)
@@ -21612,3 +21613,23 @@ The slice itself (`CityStateRules`/`BrazilUf`/`CityStateTable`) is parked with t
 Next: reduce to a compiler test — three top-level string functions, one `println` chaining two
 of them as arguments of the third — and bisect: result-handle lifetime vs the `+` chain vs the
 heap watermark that prints "out of memory".
+
+## §1202 — a `var` declared in one branch of an `if` (or before an early `return`) is NOT zeroed at method entry: after the branch that did not assign it, the variable can carry a value from an earlier call — 📌 MEASURED 23/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Status:** 🟡 OPEN — seen as wrong RESULTS (not a crash), once with a Boolean flag; pending a
+minimal compiler test.
+
+Measured in the Énois location-rules slice (native x86-64): `validate(city, state)` computed two
+flags, then `if (hasCity != hasState) { return "CITY_STATE_INCOMPLETE" }`; calling it on a later
+line with both present returned `CITY_STATE_INCOMPLETE` while the SAME function, called alone,
+returned nothing. The print inside the helper proved the calls DID run (`oneIf b=true`), so the
+value read afterwards was stale — a local that was assigned on one path and read on another.
+
+WHY IT MATTERS FOR THE app: every guard-rail style helper (`validate*`, `parse*`) has exactly
+this shape, and the Énois composition hit it at least twice in a row. The workaround used:
+compute each flag into a fresh name and compare with `oneIf(...)` results assigned to `val`s —
+which hides, but does not fix, the defect.
+
+Next: reduce to a compiler test — a function with `var ok = false; if (a) { ok = true } ; return
+ok` called twice in one `main` — then find where the native emitter initialises (or fails to
+initialise) such locals.
