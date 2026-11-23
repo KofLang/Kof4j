@@ -784,6 +784,27 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   isso que a NATIVE004 recusa sem. **AS PRÓXIMAS LINHAS:** a família "stat"
   da costura (o `struct stat` do Darwin), o runner M-7, a face arm64 (o
   emissor cross aarch64 + a sua prova Mach-O); depois #1159 keep-alive
+  **M-6 FATIA 4 POUSADA 22/11 (o relógio do `kof.http` pela costura) — o
+  circuit-breaker pedia ao Darwin o clock id do LINUX.** O `kof_http_now_ms`
+  fazia o syscall `clock_gettime=228` CRU com `CLOCK_MONOTONIC=1` — o id do
+  Linux. No Darwin o id é **6** (medido no SDK), então o corpo cru teria
+  pedido outro relógio (ou falhado). Agora passa por `kof_plat_time_mono`, a
+  costura que já carrega o id de cada plataforma (1 no Linux, 6 no Darwin) —
+  e a aritmética dos milissegundos fica num lugar só. **PROVA (executada):**
+  `NativeMacOSHttpClockE2ETest` **3/3** — RED-first **2 falhas** no código
+  antigo (o clock_gettime cru e a costura ausente) e GREEN depois; a bateria
+  nativa + http/web **927 run / 1F** (a falha é a
+  `NativeCrossMultidistroE2ETest` da lane irmã em voo — um import
+  `image.Raster` ausente no front end, intocado aqui); os gates rc=0. **A
+  MEDIÇÃO QUE ESTE CICLO ENCONTROU (o ponto cego do próprio gate):** o lado
+  x86 do gate da costura só vigia o pacote `runtime/` — os sítios de syscall
+  x86 do pacote `nat/` (o `socket`/`connect`/`fcntl`/`poll`/`setsockopt` do
+  core do HTTP, o web listen, o net front) **não estavam no ratchet**: 19
+  instruções `syscall` reais e 34 menções ficam fora da superfície contada.
+  Um syscall novo ali não dispararia o gate. A próxima fatia fecha esse
+  buraco (e a família de sockets do HTTP — cujos equivalentes na libSystem têm
+  os MESMOS registradores SysV — é a migração que ele torna mensurável).
+
   **M-6 FATIA 3 POUSADA 22/11 (a família STAT da costura — e o `struct stat` do
   Darwin NÃO É o do Linux).** Os sete sítios do runtime que chamavam o
   `newfstatat` (syscall 262) direto agora passam por `kof_plat_stat`. O layout

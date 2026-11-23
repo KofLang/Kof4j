@@ -154,15 +154,17 @@ public final class NativeHttpVerbs {
             # ---- §259 fatia 3: circuit-breaker helpers (asm proprio, relógio
             # inline p/ nao depender de kof_now sujeito a runtime prune) ----
             # kof_http_now_ms() -> rax = ms monotonicos; clobbers rax,rcx,rdx,
-            # rsi,rdi,r8. clock_gettime=228, CLOCK_MONOTONIC=1 (medidos).
+            # rsi,rdi,r8. M-6 (#1135): o relogio passa pela COSTURA
+            # (kof_plat_time_mono) — no Linux e o syscall 228 com o
+            # CLOCK_MONOTONIC=1, no macOS e o clock_gettime da libSystem com o
+            # CLOCK_MONOTONIC=6 (o id do Darwin, MEDIDO no SDK). O corpo cru
+            # aqui teria pedido o clock 1 ao Darwin — outro relogio.
             .globl kof_http_now_ms
             .type kof_http_now_ms, @function
             kof_http_now_ms:
                 subq $16, %rsp
-                movq %rsp, %rsi
-                movl $1, %edi
-                movl $228, %eax
-                syscall
+                movq %rsp, %rdi             # ts (o contrato da costura: rdi = &timespec)
+                call kof_plat_time_mono
                 movq (%rsp), %rcx           # sec
                 imulq $1000, %rcx           # sec*1000
                 movq 8(%rsp), %rax          # nsec

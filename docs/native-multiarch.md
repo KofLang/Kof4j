@@ -782,6 +782,29 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   is what NATIVE004 refuses without. **THE NEXT ROWS:** the "stat" family of
   the seam (the Darwin `struct stat`), the M-7 runner, the arm64 face (the
   cross aarch64 emitter + its Mach-O proof); then #1159 keep-alive HTTP/1.1.
+  **M-6 SLICE 4 LANDED 22/11 (the `kof.http` clock through the seam) — the
+  circuit-breaker's clock asked the Darwin for the LINUX clock id.** The
+  `kof_http_now_ms` did the `clock_gettime=228` syscall RAW with
+  `CLOCK_MONOTONIC=1` — the Linux id. On the Darwin the id is **6** (measured
+  in the SDK), so the raw body would have asked for another clock (or failed).
+  It now goes through `kof_plat_time_mono`, the seam that already carries
+  the per-platform id (1 on Linux, 6 on Darwin) — and the millisecond
+  arithmetic stays in one place. **PROOF (executed):**
+  `NativeMacOSHttpClockE2ETest` **3/3** — RED-first **2 failures** on the old
+  code (the raw clock_gettime and the missing seam) and GREEN after; the
+  native + http/web battery **927 run / 1F** (the failure is the sibling
+  lane's in-flight `NativeCrossMultidistroE2ETest` — a missing
+  `image.Raster` import at the front end, untouched here); the gates rc=0.
+  **THE MEASUREMENT THIS CYCLE FOUND (the gate's own blind spot):** the
+  seam gate's x86 side watches only the `runtime/` package — the `nat/`
+  package's x86 syscall sites (the HTTP core's `socket`/`connect`/`fcntl`/
+  `poll`/`setsockopt`, the web listen, the net front) were **not in the
+  ratchet at all**: 19 real `syscall` instructions and 34 mentions sit
+  outside the counted surface. A new raw syscall there would not have
+  tripped the gate. The next slice closes that hole (and the HTTP socket
+  family — whose libSystem equivalents have the SAME SysV registers — is the
+  migration it makes measurable).
+
   **M-6 SLICE 3 LANDED 22/11 (the STAT family of the seam — and the Darwin's
   `struct stat` is NOT the Linux one).** The seven runtime sites that called
   `newfstatat` (syscall 262) directly now go through `kof_plat_stat`. The
