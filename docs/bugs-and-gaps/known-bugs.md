@@ -21318,6 +21318,15 @@ FAILS with a named message when it finds neither. Measured: run 1 points at lib 
 run 2 points at lib B, marker count 0, old path count 0. The desktop copy
 (`enois-kof-desktop/scripts/gen-enois-text.sh`) carries the same fix.
 
+**§1192 addendum (23/11) — CLOSED as NOT a bug: the absolute-path `extern` links.**
+When the app needed a second app library, an `extern "/tmp/.../libkof_shot.so"` in a
+`main` module failed with `referência não definida para takeShot`. The new test
+`AbsolutePathExternLinkE2ETest` puts exactly that shape in a main module (gcc builds a
+one-function shim, `extern` by absolute path, call it) and it COMPILES, LINKS AND RUNS
+(`probe=42`). So the failure seen in the demo was not "absolute paths do not link" —
+the actual cause was not established, and this entry does not claim one. The test
+stays as the guard for the shape that must keep working.
+
 ## §1193 — the SDL3 texture format was the BIG-ENDIAN value: every image and every glyph painted with the channels SWAPPED — ✅ FIXED 22/11 (lane wasm/caps `192.168.15.15:0`)
 
 **Found while making the Énois cover image work** (`Sdl3Backend.loadImageTexture`). A 4×4 texture with four known quadrants (red / green / blue / yellow) read back as **red / BLACK / BLACK / magenta**: the green channel landed where blue belonged and vice versa.
