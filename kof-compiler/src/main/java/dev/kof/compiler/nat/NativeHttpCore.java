@@ -68,10 +68,8 @@ public final class NativeHttpCore {
                 # §259: connect nao-bloqueante p/ aplicar deadline (medido:
                 # loopback responde na hora; host morto fica em EINPROGRESS)
                 movl %r15d, %edi
-                movl $72, %eax             # fcntl
-                movl $4, %esi              # F_SETFL
-                movl $2048, %edx           # O_NONBLOCK
-                syscall
+                movl $1, %esi              # 1 = liga o modo nao-bloqueante
+                call kof_plat_nonblock     # M-6 (#1135): a io de socket pela costura
                 # sockaddr_in: family=2, port BE, ip BE
                 subq $16, %rsp
                 movw $2, (%rsp)
@@ -83,8 +81,7 @@ public final class NativeHttpCore {
                 movl %r15d, %edi
                 movq %rsp, %rsi
                 movl $16, %edx
-                movq $42, %rax             # connect
-                syscall
+                call kof_plat_connect      # M-6 (#1135): o connect pela costura
                 addq $16, %rsp
                 testq %rax, %rax
                 jge .Lhr_conn_done
@@ -108,51 +105,33 @@ public final class NativeHttpCore {
                 leaq .Lhttp_pf(%rip), %rdi
                 movl $1, %esi
                 movl %ecx, %edx
-                movl $7, %eax              # poll (medido: bloqueou o deadline exato)
-                syscall
+                call kof_plat_poll         # M-6 (#1135): o poll pela costura
                 testq %rax, %rax
                 js .Lhr_fail_cl
                 jz .Lhr_tmo_cl
                 # getsockopt(fd, SOL_SOCKET=1, SO_ERROR=4, &err, &len)
-                movl $0, .Lhttp_serr(%rip)
-                movl $4, .Lhttp_serr+4(%rip)
                 movl %r15d, %edi
-                movl $1, %esi
-                movl $4, %edx
-                leaq .Lhttp_serr(%rip), %r10
-                leaq .Lhttp_serr+4(%rip), %r8
-                movl $55, %eax
-                syscall
-                cmpl $0, .Lhttp_serr(%rip)
+                call kof_plat_sock_error    # M-6 (#1135): o SO_ERROR pela costura
+                cmpl $0, %eax
                 jne .Lhr_fail_cl           # ECONNREFUSED etc -> connect falhou (rapido)
             .Lhr_conn_done:
                 # restaura blocking (F_SETFL=0 ignora access mode) e poe os
                 # timeouts de leitura/escrita (medido: read volta -EAGAIN so'
                 # depois de tv_sec; sem restaurar, EAGAIN seria instantaneo)
                 movl %r15d, %edi
-                movl $72, %eax
-                movl $4, %esi
-                xorl %edx, %edx
-                syscall
+                movl $0, %esi              # 0 = restaura o modo bloqueante
+                call kof_plat_nonblock     # M-6 (#1135): a io de socket pela costura
                 movq .Lhttp_timeout_s(%rip), %rcx
                 testq %rcx, %rcx
                 jz .Lhr_build
-                movq %rcx, .Lhttp_tv(%rip)
-                movq $0, .Lhttp_tv+8(%rip)
                 movl %r15d, %edi
-                movl $1, %esi
-                movl $20, %edx             # SO_RCVTIMEO
-                leaq .Lhttp_tv(%rip), %r10
-                movl $16, %r8d
-                movl $54, %eax             # setsockopt
-                syscall
+                movl $0, %esi              # 0 = receive
+                movq %rcx, %rdx             # segundos
+                call kof_plat_sock_timeout # M-6 (#1135): o timeout pela costura
                 movl %r15d, %edi
-                movl $1, %esi
-                movl $21, %edx             # SO_SNDTIMEO
-                leaq .Lhttp_tv(%rip), %r10
-                movl $16, %r8d
-                movl $54, %eax
-                syscall
+                movl $1, %esi              # 1 = send
+                movq .Lhttp_timeout_s(%rip), %rdx
+                call kof_plat_sock_timeout
             .Lhr_build:
                 # build: METHOD SP path SP HTTP/1.1 CRLF Host: host CRLF
                 leaq .Lhttp_reqbuf(%rip), %rbx
@@ -431,7 +410,6 @@ public final class NativeHttpCore {
             .Lhttp_str_5xx: .asciz "HTTP "
             .Lhttp_str_from: .asciz " from "
             .Lhttp_empty2_unused: .quad 0
-            .Lhttp_tv: .quad 0
             .Lhttp_serr: .quad 0
             .Lhttp_pf: .space 8
             .Lhttp_empty: .space 1

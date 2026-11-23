@@ -327,12 +327,93 @@ public final class RuntimePlat {
     }
 
     /**
-     * M-4 (#1135): a família TLS do runtime (a cadeia de exceções
-     * {@code kof_exc_chain}) pela costura — o Linux usa o TLS ELF
-     * local-exec; o macOS usa uma pthread key (os corpos em RuntimePlatMacos).
-     * O par get/set é TRANSPARENTE: só o {@code %rax} do get muda (o valor)
-     * e o set preserva todos os registradores.
+     * M-6 (#1135): a família HTTP/SOCKETS da costura — as chamadas que o core
+     * do {@code kof.http} fazia direto. O contrato é o do SYSCALL Linux (os
+     * sítios só trocam "movq $N, %rax; syscall" por "call": os argumentos já
+     * estão nos registradores do syscall) e o RETORNO normalizado
+     * ({@code -errno} nos erros, como o kernel devolve).
      */
+    public static void emitPlatHttp(StringBuilder sb) {
+        if (dev.kof.compiler.nat.NativeProfile.active.isMacos()) {
+            RuntimePlatMacosHttp.emitHttp(sb);
+            return;
+        }
+        sb.append("""
+            .section .text
+            .globl kof_plat_connect
+            .type kof_plat_connect, @function
+            kof_plat_connect:
+                movq $42, %rax           # connect(fd, addr, len)
+                syscall
+                ret
+
+            .globl kof_plat_nonblock
+            .type kof_plat_nonblock, @function
+            kof_plat_nonblock:
+                # rdi=fd, rsi=1 liga / 0 desliga (F_SETFL + O_NONBLOCK)
+                testq %rsi, %rsi
+                jz .Lpnb_off
+                movl $4, %esi            # F_SETFL
+                movl $2048, %edx         # O_NONBLOCK (Linux)
+                movq $72, %rax           # fcntl
+                syscall
+                ret
+            .Lpnb_off:
+                movl $4, %esi
+                xorl %edx, %edx
+                movq $72, %rax
+                syscall
+                ret
+
+            .globl kof_plat_poll
+            .type kof_plat_poll, @function
+            kof_plat_poll:
+                movq $7, %rax            # poll(fds, n, timeout_ms)
+                syscall
+                ret
+
+            .globl kof_plat_sock_timeout
+            .type kof_plat_sock_timeout, @function
+            kof_plat_sock_timeout:
+                # rdi=fd, rsi=0 recv/1 send, rdx=segundos
+                subq $16, %rsp
+                movq %rdx, (%rsp)        # struct timeval
+                movq $0, 8(%rsp)
+                movl $54, %eax           # setsockopt
+                testq %rsi, %rsi         # o seletor: 0 = receive, 1 = send
+                jnz .Lpst_snd
+                movl $1, %esi            # SOL_SOCKET
+                movl $20, %edx           # SO_RCVTIMEO (Linux)
+                jmp .Lpst_go
+            .Lpst_snd:
+                movl $1, %esi            # SOL_SOCKET
+                movl $21, %edx           # SO_SNDTIMEO (Linux)
+            .Lpst_go:
+                leaq (%rsp), %r10
+                movl $16, %r8d
+                syscall
+                addq $16, %rsp
+                ret
+
+            .globl kof_plat_sock_error
+            .type kof_plat_sock_error, @function
+            kof_plat_sock_error:
+                # rdi=fd -> rax = valor de SO_ERROR (0 = ok)
+                subq $16, %rsp
+                movl $0, (%rsp)
+                movl $4, 4(%rsp)
+                movl $55, %eax           # getsockopt
+                movl $1, %esi            # SOL_SOCKET
+                movl $4, %edx            # SO_ERROR (Linux)
+                leaq (%rsp), %r10
+                leaq 4(%rsp), %r8
+                syscall
+                movl (%rsp), %eax
+                addq $16, %rsp
+                ret
+            """);
+    }
+
     /**
      * M-6 (#1135): a família STAT da costura — o {@code newfstatat} que os
      * sítios do runtime faziam direto. O CONTRATO é o buffer do runtime no
@@ -359,6 +440,13 @@ public final class RuntimePlat {
             """);
     }
 
+    /**
+     * M-4 (#1135): a família TLS do runtime (a cadeia de exceções
+     * {@code kof_exc_chain}) pela costura — o Linux usa o TLS ELF
+     * local-exec; o macOS usa uma pthread key (os corpos em RuntimePlatMacos).
+     * O par get/set é TRANSPARENTE: só o {@code %rax} do get muda (o valor)
+     * e o set preserva todos os registradores.
+     */
     public static void emitPlatTls(StringBuilder sb) {
         if (dev.kof.compiler.nat.NativeProfile.active.isMacos()) {
             RuntimePlatMacosTls.emitTls(sb);

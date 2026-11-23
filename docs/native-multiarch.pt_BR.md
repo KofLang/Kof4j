@@ -784,6 +784,40 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   isso que a NATIVE004 recusa sem. **AS PRÓXIMAS LINHAS:** a família "stat"
   da costura (o `struct stat` do Darwin), o runner M-7, a face arm64 (o
   emissor cross aarch64 + a sua prova Mach-O); depois #1159 keep-alive
+  **M-6 FATIA 6 POUSADA 23/11 (a família HTTP/sockets da costura — e o
+  `setsockopt`/`getsockopt` do Darwin NÃO são o syscall com outros números).**
+  O core do `kof.http` abria, configurava e esperava o socket com CINCO
+  syscalls crus (`fcntl=72` com `O_NONBLOCK=2048`, `connect=42`, `poll=7`,
+  `setsockopt=54`/`getsockopt=55` com `SOL_SOCKET=1` e
+  `SO_RCVTIMEO=20`/`SO_SNDTIMEO=21`/`SO_ERROR=4`). Agora passa pela família da
+  costura `kof_plat_connect`/`kof_plat_nonblock`/`kof_plat_poll`/
+  `kof_plat_sock_timeout`/`kof_plat_sock_error` — os sítios só trocaram
+  "movq $N, %rax; syscall" por "call". **O CONTRATO DARWIN MEDIDO (headers do
+  SDK, não suposto):** `O_NONBLOCK` **4** (2048 no Linux), `SOL_SOCKET`
+  **0xffff** (1), `SO_RCVTIMEO` **0x1006** (20), `SO_SNDTIMEO` **0x1005**
+  (21), `SO_ERROR` **0x1007** (4); a 4ª argumento viaja em `%rcx` (SysV) em
+  vez de `%r10` (o registrador do syscall); o errno vem de
+  `int *__error(void)` com `-1` como falha — o corpo devolve `-errno`, como o
+  kernel, e traduz o `EINPROGRESS=36` do Darwin para o valor do contrato
+  **115**, para o sítio port-neutral manter UMA comparação. **OS DEFEITOS
+  ACHADOS E CORRIGIDOS ANTES DO POUSO (cada um é um teste agora):** o seletor
+  0/1 era testado DEPOIS de `%esi` já ter sido sobrescrito com
+  `F_SETFL`/`SOL_SOCKET` (o desvio ia para o lado errado, inalcançável); o
+  `struct timeval` era preenchido ANTES do alinhamento de `%rsp`, então o
+  endereço entregue ao `setsockopt` já não apontava para ele (e um `addq $16`
+  perdido depois da restauração do frame o corromperia); o `getsockopt` do
+  Darwin quer um PONTEIRO para o `socklen_t`, não o valor; o `fcntl`
+  variádico precisa de `%al=0`; e o corpo LINUX testava os segundos em vez do
+  seletor (o caminho do `SO_SNDTIMEO` estava morto). **PROVA (executada):**
+  `NativeMacOSHttpSocketE2ETest` 6/6 — RED na árvore antiga (5 de 6 falham:
+  os símbolos da costura não existem), verde na nova, e o assembler zig
+  `x86_64-macos-none` aceita o runtime inteiro traduzido; a bateria
+  HTTP/nativa 103 testes 0F (os corpos Linux mantêm o contrato do syscall — o
+  `KofHttpNativeTimeoutE2ETest` conecta de verdade); o ratchet da costura
+  **CAI 148 → 141** (os sete sítios estão dentro da costura agora). **O QUE
+  AINDA FALTA (honesto):** a EXECUÇÃO precisa de um host macos-14 real (M-7),
+  e a face arm64 precisa do emissor cross aarch64.
+
   **M-6 FATIA 5 POUSADA 22/11 — O PONTO CEGO DO PRÓPRIO GATE FECHADO: o
   ratchet x86 vigiava só metade da superfície.** O gate da costura conta o
   acesso a sistema que ainda passa por fora da costura — a promessa é "a
@@ -811,7 +845,7 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   próxima fatia):** a família de sockets do HTTP — os seus equivalentes na
   libSystem (`socket`, `connect`, `fcntl`, `poll`, `setsockopt`) mantêm os
   MESMOS registradores SysV, e as constantes de opção são o que falta
-  medir (`SO_RCVTIMEO` é 20 no Linux e 0x1002 no Darwin).
+  medir (`SO_RCVTIMEO` é 20 no Linux e 0x1006 no Darwin — medido na fatia 6).
 
   **M-6 FATIA 4 POUSADA 22/11 (o relógio do `kof.http` pela costura) — o
   circuit-breaker pedia ao Darwin o clock id do LINUX.** O `kof_http_now_ms`

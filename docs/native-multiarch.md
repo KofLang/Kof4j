@@ -782,6 +782,40 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   is what NATIVE004 refuses without. **THE NEXT ROWS:** the "stat" family of
   the seam (the Darwin `struct stat`), the M-7 runner, the arm64 face (the
   cross aarch64 emitter + its Mach-O proof); then #1159 keep-alive HTTP/1.1.
+  **M-6 SLICE 6 LANDED 23/11 (the HTTP/socket family of the seam — and the
+  Darwin `setsockopt`/`getsockopt` are NOT the syscall with other numbers).**
+  The `kof.http` core opened, configured and waited on its socket with FIVE
+  raw syscalls (`fcntl=72` with `O_NONBLOCK=2048`, `connect=42`, `poll=7`,
+  `setsockopt=54`/`getsockopt=55` with `SOL_SOCKET=1` and
+  `SO_RCVTIMEO=20`/`SO_SNDTIMEO=21`/`SO_ERROR=4`). It now goes through the
+  seam family `kof_plat_connect`/`kof_plat_nonblock`/`kof_plat_poll`/
+  `kof_plat_sock_timeout`/`kof_plat_sock_error` — the sites only swapped
+  "movq $N, %rax; syscall" for "call". **THE MEASURED DARWIN CONTRACT (SDK
+  headers, not guessed):** `O_NONBLOCK` **4** (2048 on Linux), `SOL_SOCKET`
+  **0xffff** (1), `SO_RCVTIMEO` **0x1006** (20), `SO_SNDTIMEO` **0x1005**
+  (21), `SO_ERROR` **0x1007** (4); the 4th argument travels in `%rcx` (SysV)
+  instead of `%r10` (the syscall register); the errno comes from
+  `int *__error(void)` with `-1` as the failure — the body returns `-errno`,
+  like the kernel, and translates the Darwin `EINPROGRESS=36` into the
+  contract value **115** so the port-neutral site keeps ONE comparison.
+  **THE DEFECTS FOUND AND FIXED BEFORE THE LANDING (each one is a test now):**
+  the 0/1 selector was tested AFTER `%esi` had already been overwritten with
+  `F_SETFL`/`SOL_SOCKET` (the branch went the wrong way, unreachable); the
+  `struct timeval` was filled BEFORE `%rsp` was aligned, so the address
+  handed to `setsockopt` no longer pointed at it (and a stray `addq $16`
+  after the frame restore would have corrupted it); the Darwin `getsockopt`
+  wants a POINTER to the `socklen_t`, not the value; the variadic `fcntl`
+  needs `%al=0`; and the LINUX body tested the seconds instead of the
+  selector (the `SO_SNDTIMEO` path was dead). **PROOF (executed):**
+  `NativeMacOSHttpSocketE2ETest` 6/6 — RED on the old tree (5 of 6 fail: the
+  seam symbols do not exist), green on the new one, and the zig
+  `x86_64-macos-none` assembler accepts the whole translated runtime; the
+  HTTP/native battery 103 tests 0F (the Linux bodies keep the syscall
+  contract — `KofHttpNativeTimeoutE2ETest` really connects); the seam ratchet
+  **FALLS 148 → 141** (the seven sites are inside the seam now). **WHAT IS
+  STILL MISSING (honest):** the RUN needs a real macos-14 host (M-7), and the
+  arm64 face needs the cross aarch64 emitter.
+
   **M-6 SLICE 5 LANDED 22/11 — THE GATE'S OWN BLIND SPOT CLOSED: the x86
   ratchet was watching half the surface.** The seam gate counts the system
   access that still bypasses the seam — the promise is "the seam cannot
@@ -809,7 +843,7 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   socket family — its libSystem equivalents (`socket`, `connect`, `fcntl`,
   `poll`, `setsockopt`) keep the SAME SysV registers, and the option
   constants are the thing to measure next (`SO_RCVTIMEO` is 20 on Linux and
-  0x1002 on Darwin).
+  0x1006 on Darwin — measured in slice 6).
 
   **M-6 SLICE 4 LANDED 22/11 (the `kof.http` clock through the seam) — the
   circuit-breaker's clock asked the Darwin for the LINUX clock id.** The
