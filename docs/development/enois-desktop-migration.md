@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: in `enois-kof-desktop` — the mentor register form and the applications list (`vagas.$jobId.candidaturas`); Kof4j keeps `libs/game` + the compiler and records the Kof-side bugs (§1196, §1197); §1196 and §1197 stay OPEN
+next: in `enois-kof-desktop` — the applications list (`vagas.$jobId.candidaturas`) and the weekly availability editor; Kof4j keeps `libs/game` + the compiler and records the Kof-side bugs (§1196, §1197); §1196 and §1197 stay OPEN
 location: repository
 state: active
 
@@ -514,6 +514,19 @@ own `EmptyState` strings. Proof `EnosisProjectAuthorE2ETest`:
 NAMED PENDING — no pixel assertion here: `known-bugs §1197` still does not close
 the readback of a `fillRect`, so this page ships with text and geometry proven and
 its colours traced to the tokens.
+
+**Fase 3 — mentor register form (LANDED 23/11, `enois-kof-desktop` `ad244ae`).** `MentorRegister.kf`:
+every field text from `texts.mentoring`/`texts.common`, the three room modes with
+their hints, and the VALIDATION RULES taken from the route rather than guessed —
+sparks price in [50, 10 000] (bounds are `MIN_SPARKS_PRICE`/`MAX_SPARKS_PRICE`), a
+fixed room name matching `/^[a-z0-9-]{3,100}$/i`, and an external room only with
+`https://`; `canSave` combines them exactly as the disabled predicate does. Geometry:
+field 62 (label 16 + 6 + input 40), banner block 162 (label, 96 dashed button, the
+hidden file input, the hint, with `space-y-1.5` between), box 72, button 36. Proof
+`EnoisMentorRegisterE2ETest`: all strings, both price boundaries (49 999 invalid,
+50 000 and 10 000 000 valid, 10 000 001 invalid), `http://` refused / empty allowed,
+slug 2 chars and a space refused, and the three `canSave` refusals. App battery
+**38/39** (the failure is the §1197 ink test).
 
 **Fase 3 — `vagas.$jobId` (LANDED 23/11, in `enois-kof-desktop` `bd5af2b`).** The job detail:
 container `max-w-2xl space-y-4` (672/16), card `surface-card sm:p-6` (24), header with the

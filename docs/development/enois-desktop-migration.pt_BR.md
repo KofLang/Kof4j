@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: em `enois-kof-desktop` — o formulario de cadastro de mentor e a lista de candidaturas (`vagas.$jobId.candidaturas`); o Kof4j mantem o `libs/game` + o compilador e registra os bugs do Kof (§1196, §1197); o §1196 e o §1197 seguem ABERTOS
+next: em `enois-kof-desktop` — a lista de candidaturas (`vagas.$jobId.candidaturas`) e o editor de disponibilidade semanal; o Kof4j mantem o `libs/game` + o compilador e registra os bugs do Kof (§1196, §1197); o §1196 e o §1197 seguem ABERTOS
 location: repository
 state: active
 
@@ -500,6 +500,19 @@ título e duas de sinopse. A sinopse mantém o fallback do site
 PENDENCIA NOMEADA — nenhuma assercao de pixel aqui: o `known-bugs §1197` ainda nao
 fecha a leitura de um `fillRect`, entao a pagina entra com texto e geometria
 provados e as cores rastreadas nos tokens.
+
+**Fase 3 — formulario Tornar-se mentor (POUSADA 23/11, `enois-kof-desktop` `ad244ae`).**
+`MentorRegister.kf`: todo texto dos campos de `texts.mentoring`/`texts.common`, os tres
+modos de sala com as suas dicas, e as REGRAS DE VALIDACAO tiradas da rota em vez de
+supostas — preco de faiscas em [50, 10.000] (`MIN_SPARKS_PRICE`/`MAX_SPARKS_PRICE`),
+nome de sala fixa casando `/^[a-z0-9-]{3,100}$/i`, sala externa so' com `https://`;
+`canSave` combina exatamente como o `disabled` do site. Geometria: campo 62 (rotulo 16 +
+6 + input 40), bloco do banner 162 (rotulo, botao tracejado de 96, o input de arquivo
+oculto e a dica, com `space-y-1.5` entre), caixa 72, botao 36. Prova
+`EnoisMentorRegisterE2ETest`: todas as strings, as duas bordas do preco (49.999 invalido,
+50.000 e 10.000.000 validos, 10.000.001 invalido), `http://` recusado / vazio permitido,
+sala de 2 caracteres e com espaco recusadas, e as tres recusas de `canSave`. Bateria do
+app **38/39** (a falha e o teste de tinta do §1197).
 
 **Fase 3 — `vagas.$jobId` (POUSADA 23/11, em `enois-kof-desktop` `bd5af2b`).** O detalhe da
 vaga: container `max-w-2xl space-y-4` (672/16), cartao `surface-card sm:p-6` (24),
