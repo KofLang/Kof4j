@@ -18766,7 +18766,7 @@ PROVA: `EnosisShellE2ETest` pinta o shell do Énois e le de volta o `--backgroun
 
 ## §1191 — FreeType via `extern` do Kof: o `FT_New_Face` SEGFALTAVA quando o out-pointer opaco atravessava como `Buffer(U8)`; passando como `Long` funciona — 📌 MEDIDO 22/11 (lane wasm/caps `192.168.15.15:0`)
 
-**Status:** 🟠 OPEN — nomeado; o fix de FFI/`NativeAssembler` e' outra unidade, a migracao segue pelo shim medido.
+**Status:** 🟠 OPEN — arquivado como issue (**#1190** handle opaco / **#1191** `extern` por nome, ambas `1.0-blocks` sem dono) em 22/11 pela lane issue-triage `192.168.15.30:9093`; o fix de FFI/`NativeAssembler` e' outra unidade, a migracao segue pelo shim medido.
 
 **Achado ao construir a renderizacao de texto para a migracao do Énois** (o site e' tipografia — Manrope — e o backend nativo nao tinha texto nenhum). A cadeia medida:
 * `FT_Init_FreeType(Buffer(U8) lib)` — funciona, `init=0`, e o ponteiro da biblioteca chega no buffer (`libval=152522816`);
@@ -18777,7 +18777,7 @@ STATUS: nomeado, ainda nao corrigido no compilador — a migracao segue pelo shi
 
 ## §1192 — o `extern "libX.so"` resolve SO' no caminho do linker do sistema: uma `.so` DO APP nao pode ser ligada por nome — 📌 MEDIDO 22/11 (lane wasm/caps `192.168.15.15:0`)
 
-**Status:** 🟠 OPEN — nomeado; o fix de FFI/`NativeAssembler` e' outra unidade, a migracao segue pelo shim medido.
+**Status:** 🟠 OPEN — arquivado como issue (**#1190** handle opaco / **#1191** `extern` por nome, ambas `1.0-blocks` sem dono) em 22/11 pela lane issue-triage `192.168.15.30:9093`; o fix de FFI/`NativeAssembler` e' outra unidade, a migracao segue pelo shim medido.
 
 **Achado ao ligar o shim de texto do Énois** (§1191). Uma biblioteca que o APP embarca (nao uma do sistema) ligada como `extern "libkof_text.so"` falha no link com `cannot find -l:libkof_text.so`, porque o `NativeAssembler` transforma um nome sem `/` em `-l:<nome>` e o ld procura so' nos seus diretorios. A solucao medida: o caminho absoluto (`extern "/abs/path/libkof_text.so"`) liga E leva `-rpath` (o binario a acha em runtime).
 O CUSTO DO GAP: o caminho absoluto fica gravado no fonte Kof, entao o mesmo fonte nao segue o app para outro prefixo de instalacao — exatamente o problema multidistro que o §1189 resolveu para os sysroots CROSS, agora bloqueando as bibliotecas do app DESKTOP.

@@ -21291,7 +21291,7 @@ PROOF: `EnosisShellE2ETest` paints the Énois shell and reads back the `--backgr
 
 ## §1191 — FreeType via Kof `extern`: `FT_New_Face` SEGFALT when the opaque out-pointer crossed as `Buffer(U8)`; passing it as `Long` works — 📌 MEASURED 22/11 (lane wasm/caps `192.168.15.15:0`)
 
-**Status:** 🟠 OPEN — named; the FFI/`NativeAssembler` fix is a separate unit, the migration proceeds through the measured shim.
+**Status:** 🟠 OPEN — filed as issue **#1190** (`1.0-blocks`, unassigned) 22/11 by the issue-triage lane `192.168.15.30:9093`; the FFI/`NativeAssembler` fix is a separate unit, the migration proceeds through the measured shim.
 
 **Found while building text rendering for the Énois migration** (the site is typography — Manrope — and the native backend had no text at all). The measured chain:
 * `FT_Init_FreeType(Buffer(U8) lib)` — works, `init=0`, and the library pointer lands in the buffer (`libval=152522816`);
@@ -21302,7 +21302,7 @@ STATUS: named, not yet fixed in the compiler — the migration continues through
 
 ## §1192 — `extern "libX.so"` resolves ONLY against the system linker path: an APP's own `.so` cannot be bound by name — 📌 MEASURED 22/11 (lane wasm/caps `192.168.15.15:0`)
 
-**Status:** 🟠 OPEN — named; the FFI/`NativeAssembler` fix is a separate unit, the migration proceeds through the measured shim.
+**Status:** 🟠 OPEN — filed as issue **#1191** (`1.0-blocks`, unassigned) 22/11 by the issue-triage lane `192.168.15.30:9093`; the FFI/`NativeAssembler` fix is a separate unit, the migration proceeds through the measured shim.
 
 **Found while wiring the Énois text shim** (§1191). A library the APP ships (not a system one) bound as `extern "libkof_text.so"` fails the link with `cannot find -l:libkof_text.so`, because `NativeAssembler` turns a name without `/` into `-l:<name>` and the ld searches its own dirs only. The measured workaround: the absolute path (`extern "/abs/path/libkof_text.so"`) links AND carries `-rpath` (the binary finds it at run).
 THE COST OF THE GAP: the absolute path is baked into the Kof source, so the same source cannot follow the app to another install prefix — exactly the multidistro problem §1189 solved for the CROSS sysroots, now blocking the DESKTOP app libraries.
