@@ -21473,6 +21473,27 @@ scan for `class|record|interface|enum <Tipo>` at the top level of `<pkg>/*.kf`) 
 test above as the RED baseline, and the Seals/Énois suites re-run because two `enois/` copies
 exist (the app's and the Kof4j mirror) and the resolver decides which one enters the unit.
 
+**23/11 (later, after the app slice): the CARRIER (co-occurrence) half is confirmed; the
+"silently swallowed parse error" half is NOT reproduced.** A folder with `enois/Mesa.kf`
+declaring `Mesa` imports fine; two *independent* single-type files in the same package
+(`data/Other.kf` → `Extra`, `Kof4j/libs/enois` mirror) give PKG006 — measured seven times,
+identical. So the defect is not "a type in another file" alone: it is "a type in another file
+once the package holds MORE THAN ONE file", which is the Énois package exactly. (This entry
+previously also claimed that a same-named file declaring another type "sells" the import and
+turns into SEM011; in every reproduction since it is PKG006, and that sentence is withdrawn.)
+
+**Diagnosis attempt this round — inconclusive, all reverted:** a counter of dropped candidate
+files plus a hint naming the declaring file, carried in PKG006. With the standalone compiler
+classpath the hint fired (`'tipo X está em Y'`), but through the CLI in the cache layout the
+class is never reached; on the committed tree with the `enois/` mirror the same small case
+fails, so the trigger is *not* reproduced from a clean `kof-compiler` source alone. NOTE the
+minefield: a `mvn -pl kof-compiler,kof-cli:package` re-shaded the plugin-heavy `kof-cli` jar
+and cost this round a long detour through stale artefacts (two different `ExpressionParser`
+bytecodes in the same session); build the CLI jar deliberately, never as a side effect.
+
+Next: reproduce on a clean clone with only `kof-compiler` built (`compileForTests` + a
+package dir with two files), then fix `firstKofExtFile` with the co-occurrence case as RED-0.
+
 ## §1199 — the array literal `["a", "b"]` is BY CONTRACT not Kof (`docs/language-reference/syntax.md` + `training/anti-patterns/fake-idioms.md`); what is a defect: the resolver makes a program built from SOURCES fail on that syntax inside the STDLIB — 📌 MEASURED 23/11 (lane wasm/caps `192.168.15.15:0`); the parser side is WITHDRAWN
 
 **Status:** 🟡 OPEN — reproduced in a three-line program; the bytecode is NOT affected, nor is `listOf(...)`.

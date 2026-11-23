@@ -18883,6 +18883,29 @@ Proximo: fazer o `firstKofExtFile` achar tambem o tipo declarado em outro arquiv
 acima como baseline RED e as suites Seals/Énois re-rodadas, porque existem duas copias de
 `enois/` (a do app e o espelho do Kof4j) e o resolvedor decide qual entra na unidade.
 
+**23/11 (mais tarde, depois da fatia do app): a metade do CARREGADOR (co-ocorrencia) esta
+confirmada; a metade "erro de parse engolido em silencio" NAO foi reproduzida.** Uma pasta com
+`enois/Mesa.kf` declarando `Mesa` importa bem; dois arquivos independentes de um tipo cada no
+mesmo pacote (`data/Other.kf` → `Extra`, o espelho `Kof4j/libs/enois`) dao PKG006 — medido
+sete vezes, identico. Entao o defeito nao e' "um tipo em outro arquivo" sozinho: e' "um tipo
+em outro arquivo quando o pacote tem MAIS DE UM arquivo", que e' o pacote do Énois. (Esta
+entrada antes tambem dizia que um arquivo de nome igual declarando outro tipo "vende" o
+import e vira SEM011; em toda reproducao desde entao e' PKG006, e a frase foi retirada.)
+
+**Tentativa de diagnostico desta rodada — nao conclusiva, tudo revertido:** um contador de
+arquivos candidatos descartados + uma dica nomeando o arquivo declarante, carregados no
+PKG006. Com o classpath do compilador avulso a dica disparou (`'tipo X esta em Y'`), mas pelo
+CLI no layout de cache a classe nunca e' alcancada; na arvore commitada com o espelho
+`enois/` o mesmo caso pequeno falha, entao o gatilho NAO e' reproduzido so' de um
+`kof-compiler` limpo. NOTA sobre o campo minado: um `mvn -pl kof-compiler,kof-cli:package`
+re-sombreou o jar do `kof-cli` (gordo de plugins) e custou a esta rodada um desvio longo por
+artefatos obsoletos (dois bytecodes diferentes de `ExpressionParser` na mesma sessao);
+construa o jar do CLI de proposito, nunca de efeito colateral.
+
+Proximo: reproduzir num clone limpo so' com `kof-compiler` construido (`compileForTests` +
+pasta de pacote com dois arquivos), depois corrigir o `firstKofExtFile` com o caso de
+co-ocorrencia como RED-0.
+
 ## §1199 — o literal de array `["a", "b"]` NAO E' Kof por contrato (`docs/language-reference/syntax.md` + `training/anti-patterns/fake-idioms.md`); o defeito e' outro: o resolvedor faz um programa construido das FONTES falhar nessa sintaxe DENTRO DA STDLIB — 📌 MEDIDO 23/11 (lane wasm/caps `192.168.15.15:0`); o lado do parser foi RETIRADO
 
 **Status:** 🟡 ABERTO — reproduzido em programa de tres linhas; o bytecode nao e' afetado, nem o `listOf(...)`.
