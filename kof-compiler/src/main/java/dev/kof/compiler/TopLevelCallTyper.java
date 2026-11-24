@@ -148,7 +148,7 @@ final class TopLevelCallTyper {
                     // primitivo NÃO-nullable é SEM048 em compile-time, nunca
                     // VerifyError silencioso no load (a chamada top-level não
                     // passa por resolvedMethods, por isso o check direto aqui).
-                    SemanticAnalyzer.checkNullArgs(sa.diagnostics(), mc.arguments(),
+                    NullArgumentGuard.check(sa.diagnostics(), mc.arguments(),
                             mc.position(), chosenFormals, mc.methodName());
                     // registra o tipo de retorno da função top-level para o var
                     // local inferir (evita Unknown que quebra a resolução de

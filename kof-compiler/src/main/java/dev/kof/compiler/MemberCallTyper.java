@@ -10,6 +10,28 @@ import java.util.List;
  */
 public final class MemberCallTyper {
 
+    /** #1195: a assinatura de `ms` veio de uma superclasse do classpath externo? */
+    private static boolean inheritedFromForeign(SemanticAnalyzer sa, SymbolTable.MethodSymbol ms,
+                                                Type.ClassType recv) {
+        SymbolTable.ClassSymbol own = sa.getClass(ms.ownerClass());
+        if (own == null) own = sa.getClass(recv.name());
+        if (own == null) return false;
+        for (String up = own.superClass(); up != null && !up.isEmpty(); ) {
+            int dot = up.lastIndexOf('.');
+            Type.ClassType upType = dot > 0
+                    ? new Type.ClassType(up.substring(0, dot), up.substring(dot + 1), List.of())
+                    : new Type.ClassType("", up, List.of());
+            if (sa.isExternal(upType)) return true;
+            if (dot <= 0) {
+                Type resolved = MemberResolver.qualifyViaImports(sa.unit(), up, sa.externalTypes());
+                if (resolved instanceof Type.ClassType u && sa.isExternal(u)) return true;
+            }
+            SymbolTable.ClassSymbol upSym = sa.getClass(up);
+            up = upSym != null ? upSym.superClass() : null;
+        }
+        return false;
+    }
+
     private MemberCallTyper() {}
 
     static Type infer(SemanticAnalyzer sa, MethodCallExpr mc, SymbolTable scope) {
@@ -422,7 +444,9 @@ public final class MemberCallTyper {
                 // runtime com IllegalAccessError).
                 MemberAccessChecks.checkMemberAccess(sa, ms.accessFlags(), ms.ownerClass(),
                         "'" + ct.name() + "." + mc.methodName() + "'");
-                sa.putResolvedMethod(mc, ms);
+                // #1195: um override cujo dono herdado e uma classe EXTERNA tem a
+                // assinatura vinda do classpath — o guard de null nao julga.
+                sa.putResolvedMethod(mc, ms, !inheritedFromForeign(sa, ms, ct));
                 List<Type> argTypes = new ArrayList<>();
                 for (ExpressionNode arg : mc.arguments()) argTypes.add(SemExpressionTyper.inferType(sa, arg, scope));
                 TypeChecker.checkArgTypes(sa, sa.diagnostics(), mc.methodName(), argTypes, ms.parameterTypes(), mc.arguments());

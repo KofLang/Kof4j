@@ -46,11 +46,18 @@ public class SemanticAnalyzer {
                 && externalTypes.knows(ct.internalName());
     }
 
+    // #1195: um membro cujo dono nao e uma classe Kof vem com assinatura do
+    // classpath — nao ha como declarar `T?` nela, entao o guard nao julga.
+    private boolean kofDeclaredOwner(String ownerInternalName) {
+        return ownerInternalName == null
+                || allClasses().containsKey(ownerInternalName.replace('/', '.'))
+                || allClasses().containsKey(
+                        ownerInternalName.substring(ownerInternalName.lastIndexOf('/') + 1));
+    }
+
     boolean resolvesMembersOnClasspath(Type.ClassType ct) {
         return isExternal(ct) || (externalTypes != null && externalTypes.knowsMembers(ct.internalName()));
     }
-
-
 
     // REFACTOR-500 (higiene de gate check_500): os índices de classes/nomes e o
     // estado sealed/variance vivem em ClassTypeRegistry; os delegados
@@ -59,6 +66,7 @@ public class SemanticAnalyzer {
     private final Map<ExpressionNode, Type> expressionTypes = new IdentityHashMap<>();
     private final Map<MethodCallExpr, SymbolTable.MethodSymbol> resolvedMethods = new IdentityHashMap<>();
     private final Map<NewExpr, SymbolTable.ConstructorSymbol> resolvedConstructors = new IdentityHashMap<>();
+    private final ForeignSignatures foreignSignatures = new ForeignSignatures();
     private final Map<String, SymbolTable> classMemberScopes = new HashMap<>();
     /** #628: expressões tipadas pelo grupo de análise em andamento. */
     private java.util.Set<ExpressionNode> trackedExpressionTypes;
@@ -186,30 +194,15 @@ public class SemanticAnalyzer {
     private void checkNullLiteralArguments() {
         if (diagnostics == null) return;
         for (var e : resolvedMethods.entrySet()) {
-            checkNullArgs(diagnostics, e.getKey().arguments(), e.getKey().position(),
-                    e.getValue().parameterTypes(), e.getValue().name());
+            NullArgumentGuard.check(diagnostics, e.getKey().arguments(), e.getKey().position(),
+                    e.getValue().parameterTypes(), e.getValue().name(),
+                    !foreignSignatures.isForeign(e.getKey())
+                            && kofDeclaredOwner(e.getValue().ownerClass()));
         }
         for (var e : resolvedConstructors.entrySet()) {
-            checkNullArgs(diagnostics, e.getKey().arguments(), e.getKey().position(),
-                    e.getValue().parameterTypes(), e.getValue().ownerClass());
-        }
-    }
-
-    static void checkNullArgs(DiagnosticCollector diagnostics, List<ExpressionNode> args,
-                              SourcePosition pos, List<Type> formals, String callee) {
-        if (diagnostics == null || args == null || formals == null) return;
-        for (int i = 0; i < args.size() && i < formals.size(); i++) {
-            Type formal = formals.get(i);
-            if (formal instanceof Type.PrimitiveType
-                    && CompilerComparisons.isNullLiteral(args.get(i))) {
-                diagnostics.error(pos != null ? pos.file() : "",
-                        pos != null ? pos.line() : 0, pos != null ? pos.column() : 0, 0,
-                        "null cannot be passed as argument " + (i + 1) + " of '" + callee
-                                + "()': primitive parameter is non-nullable and null is never"
-                                + " fabricable — declare the parameter '" + Type.describe(formal)
-                                + "?' to accept an absent value, or pass a real value",
-                        "SEM048");
-            }
+            NullArgumentGuard.check(diagnostics, e.getKey().arguments(), e.getKey().position(),
+                    e.getValue().parameterTypes(), e.getValue().ownerClass(),
+                    !foreignSignatures.isForeign(e.getKey()));
         }
     }
 
@@ -245,7 +238,6 @@ public class SemanticAnalyzer {
     Map<String, SymbolTable.ClassSymbol> allClasses() { return typeRegistry.allClasses(); }
 
     boolean isInterfaceType(String name) { return typeRegistry.isInterfaceType(name); }
-
 
     SymbolTable.Symbol resolveInHierarchy(String className, String memberName) {
         return MemberResolver.resolveInHierarchy(this, className, memberName);
@@ -288,7 +280,6 @@ public class SemanticAnalyzer {
     Type resolveType(String name, SymbolTable scope) {
         return MemberResolver.resolveType(this, name, scope);
     }
-
 
     private void analyzeClass(ClassDeclarationNode cls) {
         // #339/#341 — forma da classe (extends final, final+abstract) antes
@@ -412,7 +403,15 @@ public class SemanticAnalyzer {
     }
 
     void putResolvedMethod(MethodCallExpr call, SymbolTable.MethodSymbol sym) { resolvedMethods.put(call, sym); }
+    void putResolvedMethod(MethodCallExpr call, SymbolTable.MethodSymbol sym, boolean kofDeclared) {
+        resolvedMethods.put(call, sym);
+        foreignSignatures.markMethod(call, !kofDeclared);
+    }
     void putResolvedConstructor(NewExpr expr, SymbolTable.ConstructorSymbol sym) { resolvedConstructors.put(expr, sym); }
+    void putResolvedConstructor(NewExpr expr, SymbolTable.ConstructorSymbol sym, boolean kofDeclared) {
+        resolvedConstructors.put(expr, sym);
+        foreignSignatures.markConstructor(expr, !kofDeclared);
+    }
     void putClassMemberScope(String className, SymbolTable scope) { classMemberScopes.put(className, scope); }
     void putCtorScope(ConstructorDeclarationNode ctor, SymbolTable scope) { ctorScopes.put(ctor, scope); }
     void putMethodScope(MethodDeclarationNode method, SymbolTable scope) { methodScopes.put(method, scope); }
@@ -577,8 +576,6 @@ public class SemanticAnalyzer {
      * {@code case T v} → {@code v:T}; {@code case T(var x, var y)} → campos por
      * índice (record) ou por nome. Espelha a lógica do {@code SwitchStmt}.
      */
-
-
 
     private void resolveMethodCalls(CompilationUnitNode unit) {
         // §140 (12/09): este visitor era NO-OP — resolvia chamadas mas nunca

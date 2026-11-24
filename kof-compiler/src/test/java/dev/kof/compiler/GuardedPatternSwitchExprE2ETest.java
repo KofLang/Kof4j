@@ -91,7 +91,7 @@ class GuardedPatternSwitchExprE2ETest {
                     Int v
                     constructor(Int v) { this.v = v }
                 }
-                Int big(Num n) {
+                Int big(Num? n) {
                     return switch (n) {
                         case Num x if x.v > 10 -> x.v * 2
                         case Num x -> x.v

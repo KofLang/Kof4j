@@ -85,6 +85,7 @@ public final class BuiltinCallTyper {
                 }
             }
             for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+            CollectionNullElements.reject(sa, mc, elemType, "list");
             return new Type.ClassType("kof", "List", List.of(elemType));
         }
         if (mc.receiver() == null && "mapOf".equals(mc.methodName())) {
@@ -98,6 +99,8 @@ public final class BuiltinCallTyper {
                     : SemExpressionTyper.inferType(sa, mc.arguments().get(0), scope);
             Type valueType = mc.arguments().size() < 2 ? Type.UnknownType.UNKNOWN
                     : SemExpressionTyper.inferType(sa, mc.arguments().get(1), scope);
+            CollectionNullElements.reject(sa, mc, keyType, "map key");
+            CollectionNullElements.reject(sa, mc, valueType, "map value");
             return new Type.ClassType("kof", "Map", List.of(keyType, valueType));
         }
         if (mc.receiver() == null && "setOf".equals(mc.methodName())) {
@@ -116,6 +119,7 @@ public final class BuiltinCallTyper {
                 }
             }
             for (ExpressionNode arg : mc.arguments()) SemExpressionTyper.inferType(sa, arg, scope);
+            CollectionNullElements.reject(sa, mc, elemType, "set");
             return new Type.ClassType("kof", "Set", List.of(elemType));
         }
         if (mc.receiver() == null && sa.allClasses().containsKey(mc.methodName())) {

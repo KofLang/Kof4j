@@ -135,7 +135,7 @@ final class SemNewExprTyper {
                         params.add(ExternalClasspath.typeFromDescriptor(d));
                     }
                     sa.putResolvedConstructor(ne, new SymbolTable.ConstructorSymbol(
-                            internal.substring(internal.lastIndexOf('/') + 1), params, 1));
+                            internal.substring(internal.lastIndexOf('/') + 1), params, 1), false);
                 }
                 int lastDot = qname.lastIndexOf('.');
                 return new Type.ClassType(qname.substring(0, lastDot),
