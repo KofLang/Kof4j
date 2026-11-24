@@ -91,6 +91,15 @@ public final class SemExpressionTyper {
                 if ("args".equals(ie.name()) && "main".equals(sa.currentFunctionName())) {
                     yield new Type.ArrayType(BuiltinTypes.STRING);
                 }
+                // #1198: nome de TIPO do módulo como receiver (inclusive dentro do
+                // próprio corpo) é a classe, não um valor — em UNKNOWN o guard de
+                // namespace homônimo (Image/Video/Audio/Mic) dava SEM102 falso.
+                SymbolTable.ClassSymbol ownClass = sa.allClasses().get(ie.name());
+                if (ownClass != null) {
+                    Type classRef = new Type.ClassType(ownClass.packageName(), ownClass.name(), List.of());
+                    sa.putExpressionType(ie, classRef);
+                    yield classRef;
+                }
                 // constante de enum não-qualificada (rótulos de case, etc.):
                 // Red → Color quando algum enum declara Red
                 if (sa.unit() != null && !sa.allClasses().containsKey(ie.name())) {
