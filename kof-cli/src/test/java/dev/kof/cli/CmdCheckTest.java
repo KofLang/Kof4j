@@ -87,6 +87,9 @@ class CmdCheckTest {
 
     @Test
     void checkJsonEmptyDirectory(@TempDir Path tmp) throws Exception {
+        // #1197 (R6): an empty target used to report success with 0 files — a
+        // silent no-op indistinguishable from a clean scan, while `build` (#708)
+        // already fails explicitly. Zero discovered sources is not a success.
         Path emptyDir = tmp.resolve("empty");
         Files.createDirectories(emptyDir);
 
@@ -96,9 +99,59 @@ class CmdCheckTest {
                 new PrintStream(out, true, StandardCharsets.UTF_8),
                 new PrintStream(err, true, StandardCharsets.UTF_8));
 
-        assertEquals(0, ec);
+        assertEquals(1, ec);
         String output = out.toString(StandardCharsets.UTF_8).trim();
-        assertEquals("{\"success\":true,\"filesChecked\":0,\"errorCount\":0,\"diagnostics\":[]}", output);
+        assertTrue(output.contains("\"success\":false"), output);
+        assertTrue(output.contains("\"filesChecked\":0"), output);
+    }
+
+    @Test
+    void checkEmptyDirectoryFailsExplicitlyAndSaysWhereItLooked(@TempDir Path tmp) throws Exception {
+        // #1197: the text path must fail with rc=1 (not a silent 0) and point at
+        // the directory it scanned, mirroring `build` (#708).
+        Path emptyDir = tmp.resolve("empty");
+        Files.createDirectories(emptyDir);
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        int ec = CmdCheck.run(new String[]{"check", emptyDir.toString()},
+                new PrintStream(out, true, StandardCharsets.UTF_8),
+                new PrintStream(err, true, StandardCharsets.UTF_8));
+
+        assertEquals(1, ec);
+        String stderr = err.toString(StandardCharsets.UTF_8);
+        assertTrue(stderr.contains("no .kf/.kof files found"), stderr);
+        assertTrue(stderr.contains(emptyDir.toString()), "must say where it looked: " + stderr);
+    }
+
+    @Test
+    void checkDirectoryCoversPackagesOutsideTheImportGraph(@TempDir Path tmp) throws Exception {
+        // #1197: the root defect. `collect` is non-recursive ("one directory =
+        // one package"), so a TYPE ERROR in a package not reachable from the
+        // entrypoint (here src/orfao/Sozinho.kf) escaped and `check src` printed
+        // "checked 1 file(s) — no errors" with rc=0: a false green. MEASURED on
+        // tip before the fix: `check src` → rc=0, error not diagnosed. After the
+        // fix the whole tree under the directory is scanned (each subdirectory a
+        // package) and the orphan error is diagnosed: SEM010, rc=1, 3 files.
+        Path src = tmp.resolve("src");
+        Files.createDirectories(src.resolve("core"));
+        Files.createDirectories(src.resolve("orfao"));
+        Files.writeString(src.resolve("main.kf"), "import core.Uso\n\nmain() {\n    println(Uso.texto())\n}\n");
+        Files.writeString(src.resolve("core/Uso.kf"),
+                "package core\n\nclass Uso {\n    static String texto() { return \"ok\" }\n}\n");
+        Files.writeString(src.resolve("orfao/Sozinho.kf"),
+                "package orfao\n\nclass Sozinho {\n    static String quebrado() { return 1 }\n}\n");
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        int ec = CmdCheck.run(new String[]{"check", src.toString()},
+                new PrintStream(out, true, StandardCharsets.UTF_8),
+                new PrintStream(err, true, StandardCharsets.UTF_8));
+
+        String output = out.toString(StandardCharsets.UTF_8);
+        assertEquals(1, ec, "the orphan package's type error must be diagnosed: " + output);
+        assertTrue(output.contains("SEM010"), "root cause is a SEM010 return-type mismatch: " + output);
+        assertFalse(output.contains("no errors"), "must NOT report a false green: " + output);
     }
 
     @Test

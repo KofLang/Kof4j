@@ -71,14 +71,31 @@ final class CmdCheck {
             return 1;
         }
 
-        List<Path> files = Files.isDirectory(src) ? KofCliSupport.collect(src) : List.of(src);
+        // #1197: `check <dir>` must cover the WHOLE project under the directory,
+        // not just the root package. `collect` is deliberately non-recursive
+        // ("one directory = one package", right for a positional `build`), so
+        // it collected only the top-level sources and the import graph from
+        // there — packages outside that graph (orphan code, alternate
+        // entrypoints) were never diagnosed while the command reported success:
+        // a false green. The declared-root build discovers recursively
+        // (`collectRecursive`), each subdirectory being a package; `check` on a
+        // directory follows the same rule, the given directory being the base
+        // of the packages.
+        boolean dir = Files.isDirectory(src);
+        List<Path> files = dir ? KofCliSupport.collectRecursive(src) : List.of(src);
         if (files.isEmpty()) {
+            // R6 (#1197): an empty target used to print "no .kf/.kof files
+            // found" and exit 0 — a silent no-op indistinguishable from a clean
+            // scan. Zero discovered sources is not a success; fail and say where
+            // it looked, mirroring `build` (#708).
             if (json) {
-                out.println("{\"success\":true,\"filesChecked\":0,\"errorCount\":0,\"diagnostics\":[]}");
+                out.println("{\"success\":false,\"filesChecked\":0,\"errorCount\":1,\"diagnostics\":[]}");
             } else {
-                out.println("no .kf/.kof files found");
+                err.println("check: no .kf/.kof files found in " + src
+                        + " (discovery is recursive for a directory: each"
+                        + " subdirectory is a package)");
             }
-            return 0;
+            return 1;
         }
 
         // Q7 honest-early-refusal, same pattern as CmdTest/CmdScript/CmdRun:
