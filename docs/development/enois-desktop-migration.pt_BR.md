@@ -1394,3 +1394,7 @@ Um diretorio novo por caso, jar reconstruido: ERRADAS `5/2 + 3`, `6/2 + 4`, `7/5
 
 Medido com um diretorio novo por caso pelo jar reconstruido: o segundo `println(a + b)` imprime a linha anterior em `2/1 + 1`, `4/2 + 2`, `4/1 + 3`, `4/3 + 1`, `6/3 + 3`, `6/2 + 4`, `7/3 + 4`, `8/4 + 4`, `9/4 + 5`, `10/5 + 5`; e esta' certo em `1/2 + 2`, `2/2 + 2`, `2/4 + 0`, `3/2 + 2`, `5/2 + 2`, `6/1 + 5`, `8/3 + 6`, `9/5 + 5`, `25/25 + 25`. A IR e o modulo sao iguais nas duas listas, entao estao descartados; as leituras `5/2 + 3` / `7/5 + 2` vinham de `Main.kf` velho e ficam retiradas. PROXIMO: `javap` de `2/1 + 1` contra `2/2 + 2`. O app mantem o 184 fixado.
 
+## §64 Rodada 25/11 (quadragesima sexta) — §1218: nenhuma amostra errada reproduzivel neste tip; a lista errada da rodada anterior fica retirada (so' o Kof4j)
+
+O bytecode dos pares "que falham" esta correto: `iconst_2` duas vezes para `2` + `1 + 1` (os dois 2 coincidem), `bipush 6` para `2 / 3 + 3`, `bipush 7` duas vezes para `7 / 3 + 4`, e a classe compilada roda como o CLI imprime. `println(9)` + `println(k)`, k = 1..13, imprime o literal todas as vezes. A lista errada do §63 nao sobrevive a nova medicao e fica retirada. O 184 do Énois (`90 / 90 + 94`) e' a propria aritmetica; o corpo do esqueleto do app (196 esperado) fica como a medicao fixada do app, a re-medir antes de qualquer mudanca de compilador. O app mantem o 184 fixado; sem mudanca no Kof nesta rodada.
+

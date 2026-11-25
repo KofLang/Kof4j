@@ -1687,3 +1687,14 @@ identical in shape across both lists, so they are cleared; the earlier
 `javap` of `println(2)` + `println(1 + 1)` against `println(2)` + `println(2 + 2)`.
 The app keeps 184 pinned.
 
+## §64 Round 25/11 (forty-sixth) — §1218: no reproducible wrong sample at this tip; the previous round's wrong list is withdrawn (Kof4j only)
+
+Bytecode of the failing pairs is correct: `javap` gives `iconst_2` twice for
+`println(2)` + `println(1 + 1)` (the print's 2 and the folded 1+1 = 2 coincide),
+`bipush 6` for `2 / 3 + 3`, `bipush 7` twice for `7 / 3 + 4`, and the compiled class
+runs as the CLI prints. `println(9)` + `println(k)`, k = 1..13, prints the literal
+every time. The wrong list of §63 does not survive re-measurement and is withdrawn.
+The Énois "184" (`90 / 90 + 94`) is the arithmetic itself; the app's skeleton body
+(196 expected) stays the app's pinned measurement, to be re-measured before any
+compiler change. The app keeps 184 pinned; no Kof change this round.
+
