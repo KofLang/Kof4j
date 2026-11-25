@@ -1486,3 +1486,13 @@ titulo `text-2xl`, corpo `sm:p-8` / `whitespace-pre-line text-base leading-relax
 fileiras de acoes/comentarios (dependem do post do feed) e o `Loader2` do botao desativado
 "Carregar mais" — um desenhador de arco parametrico e' fatia propria (a rotacao do
 `animate-spin`), entao o botao segue so' com a pilula apagada.
+
+LADO DO APP ENTREGUE (rodada §71, app `142028e`): rota `blog.$username_.$postId`, parte 2 — a
+linha de volta (`ArrowLeft` 16 + `gap-1.5` 6 + o titulo do blog `text-sm`, 20 de altura) e os
+dois botoes do dono (`Button size="sm" variant="outline" className="rounded-full gap-1.5"`:
+h-8 32, `rounded-full` 16 vencendo o `rounded-lg`, `px-3` 24, `text-xs` 12, icone 16, `gap-2`
+8 entre eles) com `texts.common.edit` e `texts.blog.editor.deletePost`. Prova
+`EnoisBlogPostOwnerE2ETest` VERDE: a largura da fileira e' Editar + Excluir post + 8 medidos
+com a Font real. PROXIMO: a pintura do card do post (titulo `text-2xl`, linha do autor `mt-3`,
+leitura `mt-2`, corpo `sm:p-8` `whitespace-pre-line text-base leading-relaxed`) e as fileiras
+de acoes/comentarios, que dependem do post do feed.

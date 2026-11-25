@@ -1787,3 +1787,13 @@ and the measured sizes (`h-7` avatar 28, `text-xs` 12, `mt-3` 12). Proof
 text-base leading-relaxed`) and the actions/comments rows (they need the feed post), and the
 `Loader2` spinner of the disabled "Carregar mais" button — a parametric arc drawer is its own
 slice (the `animate-spin` rotation), so the button still shows the dimmed pill only.
+
+APP SIDE LANDED (round §71, app `142028e`): route `blog.$username_.$postId`, part 2 — the
+back line (`ArrowLeft` 16 + `gap-1.5` 6 + the blog title `text-sm`, 20 tall) and the owner's
+two buttons (`Button size="sm" variant="outline" className="rounded-full gap-1.5"`: h-8 32,
+`rounded-full` 16 over the `rounded-lg`, `px-3` 24, `text-xs` 12, icon 16, `gap-2` 8 between
+them) with `texts.common.edit` and `texts.blog.editor.deletePost`. Proof
+`EnoisBlogPostOwnerE2ETest` GREEN: the row width equals Editar + Excluir post + 8 as measured
+with the real Font. NEXT: the card paint of the post (title `text-2xl`, author row `mt-3`,
+reading `mt-2`, body `sm:p-8` `whitespace-pre-line text-base leading-relaxed`) and the
+actions/comments rows, which need the feed post.
