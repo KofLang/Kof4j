@@ -1548,3 +1548,11 @@ py-2` (raio 16 no destaque), a linha do autor 12/16 com "· data" e "editado", o
 (1 linha) / 133 (3) / 75 (balao aceito), balao 824, texto 800 numa coluna de 868. Prova
 `EnoisCommentItemE2ETest`. NOMEADO: o compositor (campo, ferramentas, enviar) e' a proxima
 fatia; os glifos do lucide seguem como contornos.
+
+LADO DO APP ENTREGUE (rodada §77, app `10582a1`): o COMPOSITOR de comentarios
+(`libs/CommentComposer.kf`): a secao `mt-4` + fio + `pt-4` (69), o grid `2.25rem / 1fr / auto` —
+o "+" de 36, o campo `rounded-[1.25rem]` (784 numa linha de 868, `px-2 py-1`) e o enviar de 36
+em 832 — o erro embaixo do campo em `--destructive` e as pilulas de ferramenta
+(Foto/Audio/GIF, `h-8`, `pt-2`, recuo 42) que levam a secao a 109. Prova
+`EnoisCommentComposerE2ETest` (`m=16/1/16/36/6/20/8/4/36`, `campo=784/42/832`, `alt=69/109/28`,
+`rot=Comentar|Enviando...`).

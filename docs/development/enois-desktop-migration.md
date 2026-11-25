@@ -1848,3 +1848,10 @@ radius 16), the author line 12/16 with "· data" and "editado", the body 14/23
 87 (1 line) / 133 (3) / 75 (accepted bubble), bubble 824, text 800 in an 868 column. Proof
 `EnoisCommentItemE2ETest`. NAMED: the composer (field, tools, submit) is the next slice; the
 lucide glyphs stay drawn outlines.
+
+APP SIDE LANDED (round §77, app `10582a1`): the comments COMPOSER (`libs/CommentComposer.kf`):
+the section `mt-4` + rule + `pt-4` (69), the grid `2.25rem / 1fr / auto` — the "+" of 36, the
+field `rounded-[1.25rem]` (784 in an 868 row, `px-2 py-1`) and the send button of 36 at 832 — the
+error below the field in `--destructive`, and the tool pills (Foto/Áudio/GIF, `h-8`, `pt-2`, 42
+indent) that raise the section to 109. Proof `EnoisCommentComposerE2ETest`
+(`m=16/1/16/36/6/20/8/4/36`, `campo=784/42/832`, `alt=69/109/28`, `rot=Comentar|Enviando...`).
