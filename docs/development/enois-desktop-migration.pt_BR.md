@@ -1157,3 +1157,21 @@ border` (**152**) com o `EmptyState` de icone e so titulo ("Voce nao bloqueou
 ninguem."). PROVA `EnoisBloqueadosE2ETest`: `coluna=968`, `esq=288`, os textos
 de `texts.ts` 1826-1830; bateria 5/5. NOMEADO: o glifo `ShieldOff` nao e
 desenhado.
+
+## §30 Rodada 25/11 — o app de demonstracao RODA todas as telas migradas (um quadro por invocacao)
+
+Um app de demonstracao a parte (`/tmp/enois-demo/app/src/Main.kf`, fora dos dois
+repos — o `codex.ignore` o tira do contexto do agente) chama o MESMO `paint` que os
+testes provam, uma tela por invocacao (`Main <0..16>`), e apresenta o quadro.
+PROVA sob `SDL_VIDEODRIVER=dummy` com o `assets/fonts/Manrope.ttf` real:
+`tela=0 Comunidades fim=487`, `1 Projetos 200`, `2 Blogs 271`, `3 Vagas 122`,
+`4 Eventos 140`, `5 Explorar 2116`, `6 Feed 162`, `7 Comunidade 338`, `8 Post 156`,
+`9 Perfil 271`, `10 Salvos 208`, `11 Selos 312`, `12 Notificacoes 101`,
+`13 Canal 280`, `14 Grupos 338`, `15 Minhas denuncias 365`,
+`16 Usuarios bloqueados 309`. O laco de quadros (3 quadros, leitura de pixel na
+linha 89) tambem rodou: `tinta=376` nos tres. NOMEADO: o LACO nao pode ficar
+rodando — a memoria sobe ~3 GB/s ate o OOM killer (suspeito de passo do laco, ainda
+sem entrada no known-bugs); por isso o app roda um quadro por processo. Janela na
+sessao Wayland do lider nao e capturavel deste contexto (o X11 mostra so a area de
+trabalho do compositor, o Wayland recusa o cliente, o XGetImage e negado) — as telas
+sao provadas por execucao, nao por print.

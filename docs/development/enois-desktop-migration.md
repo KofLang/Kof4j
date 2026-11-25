@@ -1173,3 +1173,21 @@ wrapped in the COLUMN, `space-y-4` (16) and the `rounded-2xl border` card
 (**152**) with the icon `EmptyState` and only a title (`Você não bloqueou
 ninguém.`). PROOF `EnoisBloqueadosE2ETest`: `coluna=968`, `esq=288`, the titles
 from `texts.ts` 1826-1830; battery 5/5. NAMED: the `ShieldOff` glyph is not drawn.
+
+## §30 Round 25/11 — the demo app RUNS every migrated screen (one frame per invocation)
+
+A standalone demo app (`/tmp/enois-demo/app/src/Main.kf`, outside both repos —
+`codex.ignore` keeps it out of the agent's context) calls the SAME `paint` the
+tests prove, one screen per invocation (`Main <0..16>`), and presents the frame.
+PROOF under `SDL_VIDEODRIVER=dummy` with the real `assets/fonts/Manrope.ttf`:
+`tela=0 Comunidades fim=487`, `1 Projetos 200`, `2 Blogs 271`, `3 Vagas 122`,
+`4 Eventos 140`, `5 Explorar 2116`, `6 Feed 162`, `7 Comunidade 338`, `8 Post 156`,
+`9 Perfil 271`, `10 Salvos 208`, `11 Selos 312`, `12 Notificações 101`,
+`13 Canal 280`, `14 Grupos 338`, `15 Minhas denúncias 365`,
+`16 Usuários bloqueados 309`. A frame loop (3 frames, pixel readback on row 89)
+also ran: `tinta=376` in all three. NAMED: the frame LOOP cannot be left running
+— memory grows ~3 GB/s until the OOM killer takes it (a loop-stepping suspect,
+not yet a known-bugs entry); the app therefore runs one frame per process. A
+window on the lead's Wayland session is not capturable from this agent context
+(X11 shows only the compositor desktop, Wayland refuses the client, XGetImage
+denied) — the screens are proven by execution, not by screenshot.
