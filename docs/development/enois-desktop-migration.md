@@ -1585,3 +1585,13 @@ in the interpreter's execution. NEXT: instrument `runFrame` to dump the stack
 per op on `50 / 50 + 0` and on `2 / 3 + 4` (which works), in one run. The app
 keeps 184 pinned.
 
+## §55 Round 25/11 (thirty-seventh) — §1218: the interpreter's stack trace is right; the missing measurement is the module handed to `KofInterpreter.run` (Kof4j only)
+
+`kof.trace.stack` (reverted) shows the interpreter's operand stack for the failing
+program (`println(50)` + `println(50 + 0)`: `TR 6 LIT 50 st=[50, PrintStream]` — the
+second statement is a literal 50 already) and for a working one (`println(2)` +
+`println(3 + 4)`: `TR 6 LIT 7`). The Optimizer, with literal identities, is right
+(`G L50:… L0:… BADD` in, `G L50:…` out). The ONE measurement still missing is the
+module object handed to `KofInterpreter.run`. NEXT: that dump. The app keeps 184
+pinned.
+

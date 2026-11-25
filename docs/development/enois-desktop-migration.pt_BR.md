@@ -1358,3 +1358,7 @@ Medido nos dois backends com o jar reconstruido: `80`/`60 + 20` → `80 80` (err
 
 `println(50)` + `println(3 + (50 - 3))` imprime `50 50`, e as outras formas `n + (50 - n)` e `50 + 0` tambem — a leitura "alcanca o primeiro valor" fica retirada. O `Optimizer` com identidade esta certo, e duas execucoes da mesma IR sao identicas, entao o defeito esta na execucao do interpretador. PROXIMO: instrumentar o `runFrame` para despejar a pilha por op em `50 / 50 + 0` e em `2 / 3 + 4` (que funciona), numa unica execucao. O app mantem o 184 fixado.
 
+## §55 Rodada 25/11 (trigesima setima) — §1218: o trace da pilha do interpretador esta certo; falta a medicao do modulo entregue ao `KofInterpreter.run` (so' o Kof4j)
+
+O `kof.trace.stack` (revertido) mostra a pilha de operandos do interpretador para o programa que falha (`50` + `50 + 0`: `TR 6 LIT 50` — o segundo statement ja' e' um literal 50) e para um que funciona (`2` + `3 + 4`: `TR 6 LIT 7`). O Optimizer, com identidade, esta certo. A UNICA medicao que falta e' o modulo entregue ao `KofInterpreter.run`. PROXIMO: aquele dump. O app mantem o 184 fixado.
+
