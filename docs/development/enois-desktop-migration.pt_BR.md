@@ -1132,3 +1132,16 @@ rodada rastreou: a mistura devolve o segundo produto dobrado no modulo real, enq
 a IR e o asm lido estao certos e um modulo minimo reproduz os numeros certos. O
 `known-bugs §1212` carrega a medicao e o proximo passo (qual `.s` o link nativo
 consome). Duas contornacoes foram tentadas no app e revertidas (arvore em `fb671cb`).
+
+## §28 Rodada 23/11 (vigesima quarta) — a tela "Minhas denuncias" (app `5ccd175`)
+
+`libs/Denuncias.kf` compoe `routes/denuncias.tsx`: a coluna
+`mx-auto w-full max-w-2xl` (**672**, centrada no conteudo), o "Voltar", o titulo
+e a descricao (`text-sm`, quebrada na COLUNA — 2 linhas, nao uma), `space-y-6`
+(**24**) e o cartao `rounded-2xl border border-border-soft bg-surface-card`
+(raio 20, **152**) com o `EmptyState` de icone e SO titulo ("Voce ainda nao fez
+denuncias."). PROVA `EnoisDenunciasE2ETest`: `coluna=672`, `cabecalho=100`,
+`vazio=152`, `tela=365`; bateria 8/8. MEDIDO no caminho: a descricao cabe em UMA
+linha em 1232 e em DUAS na coluna de 672 — a rota quebra dentro da coluna, entao
+os 72 px de diferenca sao reais. NOMEADO: o glifo `Flag` nao e desenhado (so a
+caixa).

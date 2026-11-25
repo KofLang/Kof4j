@@ -1149,3 +1149,16 @@ traced it: the mix returns the second product doubled in the real module, while 
 IR and the read asm are correct and a minimal module reproduces the right numbers.
 `known-bugs §1212` carries the measurement and the next step (which `.s` the native
 link consumes). Two workarounds were tried in the app and reverted (tree at `fb671cb`).
+
+## §28 Round 23/11 (twenty-fourth) — the "Minhas denúncias" screen (app `5ccd175`)
+
+`libs/Denuncias.kf` composes `routes/denuncias.tsx`: the column
+`mx-auto w-full max-w-2xl` (**672**, centred in the content), the "Voltar", the
+title and the description (`text-sm`, wrapped in the COLUMN — 2 lines, not one),
+`space-y-6` (**24**) and the `rounded-2xl border border-border-soft
+bg-surface-card` card (radius 20, **152**) with the icon `EmptyState` and ONLY a
+title (`Você ainda não fez denúncias.`). PROOF `EnoisDenunciasE2ETest`:
+`coluna=672`, `cabecalho=100`, `vazio=152`, `tela=365`; battery 8/8. MEASURED on
+the way: the description fits ONE line at 1232 and TWO at the column's 672 — the
+route wraps it in the column, so the 72 px difference is real. NAMED: the `Flag`
+glyph is not drawn (the box is).
