@@ -1315,3 +1315,40 @@ otherwise); `NativeX86StackAlignVtableTest` 5/5; `NativeX86StackAlignTest` green
 same-slot call (`Sk.channel` fed by the three pushed operands) still measures `255` —
 a NAMED open (§1212's IR slot finding); the app keeps its pinned measurement until a
 run proves `237`.
+
+## §39 Round 25/11 (twenty-first) — the LIVE catalogue: the `comunidades` showcase reads the API (app `libs/Catalogo.kf` + `CatalogoJson.kf`)
+
+The vitrine of `routes/comunidades.tsx` was painted from a fixed list; now the
+data comes from the site's API. `CatalogoApi.listUrl` reproduces the
+`buildQuery` of `src/lib/api-client.ts` 645 for `communitiesApi.list`
+(`src/lib/api/communities.ts` 17): `topic`, `cursor`, `limit`, `q`, `city`,
+`state` in that order, empty/null omitted, `limit=20` default, the space as `+`,
+`city` only with `state`. `CatalogoJson` slices `PageResponse<Community>`
+(`{ items, nextCursor }`) one object at a time; `CatalogoApi.cardOf` maps an item
+to the `CommunityCardView` the grid already paints (`topic` nullable → empty
+label, `description` null → empty, `city`/`state` → `"Cidade · UF"`,
+`members` → `"7 membros"`/`"1 membro"`, `joined` → Sair/Entrar). PROOF
+`EnoisCatalogoE2ETest` against a local server with the measured contract:
+`rota=/communities?limit=20`,
+`filtro=/communities?topic=TECNOLOGIA&limit=20&q=front+end&city=Belo+Horizonte&state=MG`,
+`enc=a+b%26c%3Dd%2F%C3%A7`, `status=200`, `itens=3`,
+`i1=Front-end BH|Tecnologia|7|true`, `i2=[]|[]|1|false`,
+`i3=Conversa "aberta"`, `c1=…/Belo Horizonte · MG/7 membros/Sair`,
+`c2=[]/[]/1 membro/Entrar`, `c3=São Paulo · SP/12 membros`,
+`url2=/communities?cursor=cur-2&limit=20`, `pagina2=200/0/[]` — the Énois battery
+runs 73 tests with 1 failure (`EnoisTextE2ETest`, the known §1197 canvas readback).
+
+MEASURED and fixed on the way: `Session.kf` sent `Origin:` — the site sends
+`X-Client-Origin` (`src/lib/api/client-origin.ts`); with the site header the
+server answers 200. The `/me` tests now accept the contract form.
+
+MEASURED and REGISTERED (Kof4j §1213): a one-character string literal does not
+equal the one character read on native x86-64 (`s.charAt(2) == "\""` was false,
+which made the first JSON scan run to the end of the body and every field carry
+the payload tail); the working form is the code comparison (`charAt(i) as Int ==
+34`). `NativeOneCharLiteralE2ETest` pins it.
+
+NAMED pendings: the API base (`http://127.0.0.1:PORT` in the test) and the session
+cookie stay out of the app; the page is not yet wired into `Main.kf`; non-ASCII
+beyond the measured `ç` is percent-encoded byte by byte over the UTF-8 code unit
+(no multi-byte decomposition yet).

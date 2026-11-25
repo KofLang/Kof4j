@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §1213 (OPEN — native: a one-character string literal does not equal the one character read; avoided by code comparison; measured 25/11)
 last: §1212 (FIXED 25/11 — a receiver call of an argument: the stack-aligner padded the nested call in half, `leave` skipped the restore, every channel doubled + 8 bytes leaked per evaluation; RED `NativeX86StackAlignScratchTest`, 3/3 fixed + 2/2 invariants; the clean-artifact shape was not a stale `.s`)
 last: §1211 (FIXED 24/11 — the config file fd lived in %rcx (destroyed by the syscall); 3/3)
 last: §1208 (FIXED 24/11 — kof_env_getc never closed the environ fd; 2/2)
@@ -21730,6 +21731,16 @@ Measured: with the module root back at the entry directory (the historical LCA) 
 Measured: the method DEFINITION emits signature tags (`ovl_Duas_soma_I_I`, `ovl_Duas_soma_String_String`), the CALL sites emit `ovl_Duas_soma` (2 calls), and `NativeSymbolMangling.classHasOverload("Duas", "soma", nb.allClassesMap)` returns `true` in the backend map, so the overload is visible at the definition. A fix attempt (map lookup keyed by `fnKey` in `NativeOpHelpers.resolveCalleeName` + the simple name registered in `allClassesMap`) made this test green but broke `NativeE2ETest` (SIGSEGV 139), `NativeInheritedDispatchE2ETest` and `EntryPackageImportE2ETest` (`asm: symbol .Lsch_enois_Texts is already defined`) — all three are GREEN on the base without it, so the attempt was REVERTED. `NativeOverloadSymbolE2ETest` stays as the RED witness. Next: find why the call-site owner misses the overload (the owner reaching `resolveCalleeName` is probably the type of the RETURN/receiver rather than the declaring class) with the asm of both sites side by side.
 
 ## §1211 — the config FILE descriptor lived in `%rcx` — and the syscall DESTROYS `%rcx`: the `close` received garbage (EBADF) and the descriptor leaked on every config-file read — ✅ FIXED 24/11 (lane nativa macOS `192.168.15.15:0`): the site did `movq %rax, %rcx # fd`, then the read `syscall` (which destroys `%rcx` and `%r11` per the x86-64 Linux syscall ABI), then `movq %rcx, %rdi; movq $3, %rax; syscall` — the `close` got the syscall's return address, not the fd, so it failed with EBADF and the file descriptor stayed open. The site now goes through the seam (`kof_plat_open`/`kof_plat_read`/`kof_plat_close`) and keeps the fd in a frame slot (`16384(%rsp)`), never in a register the syscall destroys. PROOF `NativeConfigEnvFdLeakE2ETest` **3/3** — RED measured on the old tree: the native binary under `ulimit -n 64` reads a config file 200 times and dies at read **139** printing `leak at 139`; GREEN after (prints `done`).
+
+## §1213 — on native x86-64 a ONE-character string literal does not equal the one character read (`s.charAt(2) == "\""` is false on a string that holds the quote) — measured 25/11 (lane wasm/caps)
+
+**Status:** 🟡 OPEN — measured while reading the Énois catalogue JSON; the app avoids the form (compares character CODES, `charAt(i) as Int == 34`).
+
+Measured (minimal native program, Kof4j `bc2af4cfa`): `val s = "ab\"cd"` (the escaped quote), then `s.charAt(2) == "\""` gives **false** while `s.charAt(2) == q.charAt(0)` with `q = "\"x"` (a character READ from another string) gives **true**; `"{\"name\":\"x\"}".indexOf("\":\"")` finds the field at **6** (multi-character literals and `indexOf` are fine), and `"}".charAt(0)` prints `}`. The escaped quote is the trigger on the literal side — the comparison against a one-character literal carrying a sign (`"}"`, `"{"`) needs its own probe before the fix.
+
+**Impact measured in the app:** `libs/Catalogo.kf`'s first version closed the JSON string with `ch == "\""` — never true, so the object scan ran to the end of the body and every field carried the rest of the payload (`i1=Front-end BH","description":"…`). The working form is the code comparison (`charAt(i) as Int == 34`), used by `CatalogoJson.kf`.
+
+PROOF `NativeOneCharLiteralE2ETest` pins the reference behaviour (the loop comparison and `indexOf`) and the measurement (`viaLiteral=false` is printed by the test output).
 
 ## §1212 — a receiver call of an ARGUMENT (a nested call on top of an already-pushed operand) made the stack-aligner pad the nested call in half: every channel of the mix came out doubled and each evaluation leaked 8 bytes of stack — ROOT CAUSE FOUND + FIXED 25/11 (lane wasm/caps)
 

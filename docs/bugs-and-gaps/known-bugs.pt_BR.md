@@ -3,6 +3,7 @@
 # Known Bugs — handoff para o próximo agente
 
 last: §1212 (CORRIGIDO 25/11 — chamada de receptor como argumento: o alinhador preenchia a chamada aninhada pela metade, o `leave` pulava o restore, todo canal saia dobrado e vazavam 8 bytes por avaliacao; RED `NativeX86StackAlignScratchTest`, 3/3 depois + 2/2 invariantes; a forma medida em artefato limpo nao era um `.s` velho)
+last: §1213 (ABERTO — nativo: literal de string de um caractere nao e igual ao caractere lido; evitado pela comparacao por codigo; medido 25/11)
 last: §1211 (CORRIGIDO 24/11 — o fd do arquivo de config vivia no %rcx (destruido pelo syscall); 3/3)
 last: §1208 (CORRIGIDO 24/11 — kof_env_getc nunca fechava o fd do environ; 2/2)
 last: §1210 (OPEN — a static overload call is emitted without the signature tag; ld refuses it; measured 23/11)
@@ -19147,6 +19148,15 @@ Medido: a DEFINICAO do metodo emite as tags de assinatura (`ovl_Duas_soma_I_I`, 
 
 ## §1211 — o descritor do ARQUIVO de configuração vivia no `%rcx` — e o syscall DESTRÓI o `%rcx`: o `close` recebia lixo (EBADF) e o descritor vazava a cada leitura do arquivo de configuração — ✅ CORRIGIDO 24/11 (lane nativa macOS `192.168.15.15:0`): o sítio fazia `movq %rax, %rcx # fd`, depois o `syscall` da leitura (que destroi o `%rcx` e o `%r11` pela ABI do syscall x86-64 do Linux), e então `movq %rcx, %rdi; movq $3, %rax; syscall` — o `close` recebia o endereco de retorno do syscall, nao o fd, falhava com EBADF e o descritor ficava aberto. O sitio agora passa pela costura (`kof_plat_open`/`kof_plat_read`/`kof_plat_close`) e guarda o fd num slot do frame (`16384(%rsp)`), nunca num registrador que o syscall destroi. PROVA `NativeConfigEnvFdLeakE2ETest` **3/3** — RED medido na arvore antiga: o binario nativo sob `ulimit -n 64` le o arquivo de configuracao 200 vezes e morre na leitura **139** imprimindo `leak at 139`; GREEN depois (imprime `done`).
 
+## §1213 — no nativo x86-64 um literal de string de UM caractere nao e' igual ao caractere lido (`s.charAt(2) == "\""` da' falso numa string que tem a aspa) — medido 25/11 (lane wasm/caps)
+
+**Estado:** 🟡 ABERTO — medido enquanto o catalogo do Énois lia o JSON; o app evita a forma (compara CODIGOS de caractere, `charAt(i) as Int == 34`).
+
+Medido (programa nativo minimo, Kof4j `bc2af4cfa`): `val s = "ab\"cd"` (a aspa escapada), `s.charAt(2) == "\""` da' **falso**, enquanto `s.charAt(2) == q.charAt(0)` com `q = "\"x"` (um caractere LIDO de outra string) da' **verdadeiro**; `"{\"name\":\"x\"}".indexOf("\":\"")` acha o campo em **6** (literais multi-caractere e `indexOf` estao certos) e `"}".charAt(0)` imprime `}`. O gatilho do lado do literal e' a aspa escapada — a comparacao com um literal de um caractere com sinal (`"}"`, `"{"`) precisa da sonda dela antes da correcao.
+
+**Impacto medido no app:** a primeira versao do `libs/Catalogo.kf` fechava a string do JSON com `ch == "\""` — nunca verdadeiro, entao o recorte do objeto ia ate' o fim do corpo e cada campo vinha com o resto da entrada (`i1=Front-end BH","description":"…`). A forma que mede e' a comparacao por codigo (`charAt(i) as Int == 34`), usada pelo `CatalogoJson.kf`.
+
+PROVA `NativeOneCharLiteralE2ETest` fixa o comportamento de referencia (o loop e o `indexOf`) e a medicao (`viaLiteral=false` sai na saida do teste).
 ## §1212 — uma chamada de RECEPTOR como ARGUMENTO (uma chamada aninhada em cima de um operando ja' empilhado) fazia o alinhador preencher a chamada aninhada pela metade: cada canal da mistura saia dobrado e cada avaliacao vazava 8 bytes de pilha — CAUSA-RAIZ ACHADA + CORRIGIDA 25/11 (lane wasm/caps)
 
 **Estado:** 🟢 CORRIGIDO 25/11 — `NativeX86StackAlign.regionIsStackMachine`; RED `NativeX86StackAlignScratchTest` (2/3 vermelhos antes, 3/3 depois), `NativeAbiInvariantsTest` 2/2, `NativeX86StackAlignVtableTest` 5/5, `NativeX86StackAlignTest` verde; a sonda do `Skeleton.shade` do Énois (a forma mais funda, `Sk.channel(Tokens.SurfaceCard().g(), Tokens.Surface2().g(), t)`) agora da' 255 onde antes media 237 (o caso daquele quadruplo continua aberto em §14 abaixo).
