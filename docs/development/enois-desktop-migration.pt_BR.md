@@ -1370,3 +1370,7 @@ Medido com o jar reconstruido e o build nativo: `50` + `50 + 0` → `50 50`; `va
 
 Toda sonda agora roda com `rm -rf` e UM `Main.kf` por caso. Pelo `lib/kof.jar` reconstruido: `50`/`50 + 0`, `80`/`60 + 20`, `50`/`25 + 25`, `2`/`1 + 1`, `50`/`2 * 25` e `7`/`5 + 2` imprimem o PRIMEIRO valor duas vezes (ERRADO), enquanto `90`/`90 + 94` → `90 184` e `5`/`40 + 40` → `5 80` estao certos. Regra central: `println(X)` seguido de `println(a + b)` com X ≤ a + b imprime X. Dois diretorios de sonda meus (`/tmp/jv` e os `/tmp/p1222/k*` da bissecao) tinham `Main.kf` velho e ficam descartados — a afirmacao anterior ("o bug de fixture invalida tudo") fica retirada por sua vez. PROXIMO: asm do par `2 / 1 + 1` contra `7 / 5 + 2`. O app mantem o 184 fixado.
 
+## §58 Rodada 25/11 (quadragesima) — §1218 esta SO' no caminho COMPILADO: o interpretador executa os mesmos fontes certo (so' o Kof4j)
+
+`PrintRepeatProducerTest` (4 casos) esta GREEN pelo `driver.interpret`. Os mesmos fontes pelo jar do CLI (alvo JVM — COMPILA) e pelo build nativo imprimem o primeiro valor duas vezes em `2 / 1 + 1`, `3 / 2 + 1`, `4 / 2 + 2`, `7 / 5 + 2`, `9 / 4 + 5`, enquanto `5 / 40 + 40` → `5 80` e `2 / 3 + 4` → `2 7` estao certos. A IR do interpretador esta certa e a saida COMPILADA troca a ordem das duas impressoes. PROXIMO: comparar o bytecode gerado de `2 / 1 + 1` e `5 / 40 + 40`. O app mantem o 184 fixado.
+

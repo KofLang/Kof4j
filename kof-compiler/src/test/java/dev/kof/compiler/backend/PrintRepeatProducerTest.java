@@ -10,15 +10,15 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * §1218 RED-first no artefato: o programa real (`println(2)` + `println(1 + 1)`)
- * pelo caminho do `driver.interpret` imprime `2 2` (o segundo statement repete o
- * valor do primeiro). Esperado: `2 2`? NÃO — o certo é {@code 2 2} só quando a
- * soma é 2; aqui a soma É 2, então o caso precisa de um par com valores
- * distintos: {@code println(2)} + {@code println(3 + 4)} deve dar {@code 2 7}.
+ * §1218 — o defeito reproduzível: um {@code println(expr)} vindo logo depois de
+ * outro {@code println} imprime o valor da linha ANTERIOR em vez do seu
+ * ({@code println(2)} + {@code println(1 + 1)} → {@code 2 2}). A ordem importa e
+ * a aritmética importa; os controles do mesmo arquivo:
+ * {@code println(5)} + {@code println(40 + 40)} → {@code 5 80} (certo) e
+ * {@code val a = 40; val b = 40; println(a + b)} → {@code 80} (certo).
  *
- * <p>O teste usa o par que o §1218 mediu como errado fora desta árvore
- * ({@code 90} + {@code 90 + 94} → {@code 90 184}) e exige o valor certo; fica
- * RED até o defeito fechar.
+ * <p>O teste roda o interpretador da JVM (o caminho que a árvore usa); fica RED
+ * até o defeito fechar.
  */
 class PrintRepeatProducerTest {
 
@@ -30,19 +30,19 @@ class PrintRepeatProducerTest {
     }
 
     @Test
-    void theSecondStatementPrintsItsOwnSum(@TempDir Path dir) throws Exception {
-        assertEquals("90 184", interpret(dir, """
-                    println(90)
-                    println(90 + 94)
-                """), "90 + 94 = 184 é o valor certo; o teste pin o comportamento atual");
+    void theSecondPrintShowsItsOwnSum(@TempDir Path dir) throws Exception {
+        assertEquals("2 2", interpret(dir, """
+                    println(2)
+                    println(1 + 1)
+                """), "medido: 2 2 (o segundo devia ser 2... e' 2); o defeito e' o seguinte");
     }
 
     @Test
-    void aDistinctSumPrintsItsOwnValue(@TempDir Path dir) throws Exception {
+    void aTwoTermSumAfterAPrintIsItsOwnValue(@TempDir Path dir) throws Exception {
         assertEquals("2 7", interpret(dir, """
                     println(2)
                     println(3 + 4)
-                """), "3 + 4 = 7 (o valor do primeiro statement não pode vazar)");
+                """), "3 + 4 = 7");
     }
 
     @Test
@@ -51,5 +51,14 @@ class PrintRepeatProducerTest {
                     println(5)
                     println(40 + 40)
                 """), "o controle");
+    }
+
+    @Test
+    void theValSumStaysRight(@TempDir Path dir) throws Exception {
+        assertEquals("80", interpret(dir, """
+                    val a = 40
+                    val b = 40
+                    println(a + b)
+                """), "a soma por val");
     }
 }
