@@ -1250,3 +1250,17 @@ na coluna), `space-y-6` (24) e a secao "Denuncias aguardando revisao" (`h2` 20 +
 **184**). PROVA `EnoisModeradorE2ETest`: `coluna=768`, `admin=401`,
 `moderador=401` (o selo nao muda a altura); bateria 6/6. NOMEADO: os glifos
 `ShieldCheck`/`Shield`/`Gavel` so como espaco e caixa.
+
+## §36 Rodada 25/11 (decima oitava) — a pagina "Sua disponibilidade" na casca LOGADA (app `293e51e`)
+
+`libs/DisponibilidadePage.kf` poe `routes/agenda_.disponibilidade.tsx` na casca
+autenticada: a coluna do `main` tem **968** comecando em **288**, o `PageHeader`
+do DS ("Sua disponibilidade" / "A semana em que sua agenda admite compromissos.
+Ela se repete toda semana.", sem botao de acao) e' o mesmo cartao de 104 com o
+`mb-4` (**120**), e o `EmptyState` da falha de carga (`TriangleAlert`, "Nao foi
+possivel carregar sua disponibilidade." + "Sem ler a semana salva, salvar
+apagaria o que voce ja tinha. Tente carregar de novo.") tem **200** (a descricao
+quebra em DUAS linhas no `max-w-sm`). PROVA `EnoisDisponibilidadePageE2ETest`:
+`coluna=968`, `esq=288`, `cabecalho=120`, `erro=200`; bateria 6/6. NOMEADO: os
+glifos `Clock`/`TriangleAlert` so como caixa e espaco. O editor semanal em si
+(janelas e horarios) fica fora desta fatia.

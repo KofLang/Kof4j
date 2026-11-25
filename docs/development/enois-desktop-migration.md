@@ -1267,3 +1267,17 @@ section (`h2` 20 + 12 + the `rounded-2xl border` card with the icon
 `coluna=768`, `admin=401`, `moderador=401` (the badge does not change the
 height); battery 6/6. NAMED: the `ShieldCheck`/`Shield`/`Gavel` glyphs are space
 and box only.
+
+## §36 Round 25/11 (eighteenth) — the "Sua disponibilidade" page in the LOGGED shell (app `293e51e`)
+
+`libs/DisponibilidadePage.kf` places `routes/agenda_.disponibilidade.tsx` in the
+authenticated shell: the `main` column is **968** starting at **288**, the DS
+`PageHeader` ("Sua disponibilidade" / "A semana em que sua agenda admite
+compromissos. Ela se repete toda semana.", no action button) is the same 104-high
+card with `mb-4` (**120**), and the load-failure `EmptyState` (`TriangleAlert`,
+"Não foi possível carregar sua disponibilidade." + "Sem ler a semana salva,
+salvar apagaria o que você já tinha. Tente carregar de novo.") is **200** (the
+description wraps to TWO lines at `max-w-sm`). PROOF
+`EnoisDisponibilidadePageE2ETest`: `coluna=968`, `esq=288`, `cabecalho=120`,
+`erro=200`; battery 6/6. NAMED: the `Clock`/`TriangleAlert` glyphs are box and
+space only. The weekly editor itself (windows/time inputs) is out of this slice.
