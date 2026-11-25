@@ -1499,3 +1499,13 @@ lowers correctly; the CLI `kof run`, `kof test` and `driver.interpret` all show
 it, so it is the shared lowering/optimizer path. NEXT: run each pass alone on the
 round-0 IR and bisect. No app change this round.
 
+## §48 Round 25/11 (thirtieth) — §1218 producer pinned: the constant-fold's own walk (Kof4j only)
+
+Replaying the real front-end IR through `OptimizerConstantFold.constantFold` ALONE
+reproduces `println(2)` + `println(1 + 1)` → `[GetStatic, LoadLiteral 2, …,
+GetStatic, LoadLiteral 2, …]`, and the shape after one fold, two folds and 1–4
+full `passes()` rounds is IDENTICAL — the post-fold pass set is cleared. NEXT:
+fix the walk (it writes the folded literal into `out` and keeps reading the
+original `ops` at `i - 1`, so a two-literal sum re-folds against the previous
+statement) with the test RED-first then GREEN. The app keeps 184 pinned.
+

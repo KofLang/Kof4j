@@ -1330,3 +1330,7 @@ Mais medicoes do mesmo defeito, deterministicas no mesmo processo: `println(2)` 
 
 Bisseccao com um `Optimizer` instrumentado: a rodada 0 de `println(2)` + `println(1 + 1)` e' `[GetStatic, L2, ..., println, GetStatic, L1, L1, ADD, ...]` (certa) e a rodada 1 e' `[..., GetStatic, L2, ...]` — um dos `passes()` pos-dobra troca a soma do segundo statement pelo literal do primeiro. A IR do interpretador ja' mostra a forma errada; um programa cuja soma vem depois de NENHUM literal impresso baixa certo; o `kof run`, o `kof test` e o `driver.interpret` mostram o mesmo, entao e' o caminho compartilhado. PROXIMO: rodar cada passe sozinho sobre a IR da rodada 0 e bisseccionar. Sem mudanca no app nesta rodada.
 
+## §48 Rodada 25/11 (trigesima) — produtor do §1218 fixado: o proprio percurso da dobra de constantes (so' o Kof4j)
+
+Repetir a IR real do frontend pelo `OptimizerConstantFold.constantFold` SOZINHO reproduz `println(2)` + `println(1 + 1)` → `[GetStatic, LoadLiteral 2, …, GetStatic, LoadLiteral 2, …]`, e a forma depois de uma dobra, duas dobras e 1-4 rodadas completas de `passes()` e' IDENTICA — o conjunto de passes pos-dobra fica descartado. PROXIMO: corrigir o percurso (ele escreve a literal dobrada em `out` e continua lendo a `ops` original em `i - 1`, entao uma soma de dois literais redobra contra o statement anterior) com o teste RED-first e depois GREEN. O app mantem o 184 fixado.
+
