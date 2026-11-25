@@ -1622,3 +1622,9 @@ LADO DO APP ENTREGUE (rodada §88, app `18edd16`): o CORPO do post em texto — 
 `leading-relaxed` do `text-base`), dobra por palavra numa largura, `lineCount`/`lineAt`. Prova
 `EnoisTextEmbedE2ETest` (`linhas=3`, `linhasVazio=0`, `linha3=c`, `altura=78`). E' o caminho de
 texto simples do corpo; o parser RICO segue `RichText.kf` esperando o §1226.
+
+LADO DO APP (rodada §89, sem mudanca no app): o `out of memory` do texto rico foi remedido e e'
+INTERMITENTE — o mesmo `RichText.blocks("a\n\nb\n\nc").size()` imprimiu `x=1` numa rodada e abortou
+em outra, e o `EnoisBlogPostViewE2ETest` (a pagina inteira do post) esta VERDE no tip. O
+`known-bugs §1226` ATUALIZACAO 10 retira as leituras "if inline aborta" e "multi-bloco aborta" e
+aponta a proxima medicao no harness.

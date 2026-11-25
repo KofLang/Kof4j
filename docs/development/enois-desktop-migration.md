@@ -1925,3 +1925,11 @@ APP SIDE LANDED (round §88, app `18edd16`): the post BODY as text — `BlogCuer
 lines). Proof `EnoisTextEmbedE2ETest` (`linhas=3`, `linhasVazio=0`, `linha3=c`, `altura=78`).
 This is the simple-text path of the body; the RICH parser stays `RichText.kf` and waits for §1226
 (the `out of memory` on documents of several blocks is still open — UPDATE 9).
+
+APP SIDE (round §89, no app change): the rich-text `out of memory` was re-measured and found
+INTERMITTENT — the same `RichText.blocks("a\n\nb\n\nc").size()` printed `x=1` in one run and aborted
+in another, and `EnoisBlogPostViewE2ETest` (the whole post page with reactions and comments) is GREEN
+on the tip. `known-bugs §1226` UPDATE 10 withdraws the "inline if-return aborts" and "multi-block
+documents abort" readings and points at the harness's temporary install / shared JVM as the next
+measurement (10× the same short program in one class). The rich parser CAN be wired into the card
+once that measurement says the environment is stable for a whole test.
