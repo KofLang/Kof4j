@@ -1145,3 +1145,15 @@ denuncias."). PROVA `EnoisDenunciasE2ETest`: `coluna=672`, `cabecalho=100`,
 linha em 1232 e em DUAS na coluna de 672 — a rota quebra dentro da coluna, entao
 os 72 px de diferenca sao reais. NOMEADO: o glifo `Flag` nao e desenhado (so a
 caixa).
+
+## §29 Rodada 23/11 (vigesima quinta) — a tela "Usuarios bloqueados" na casca LOGADA (app `9c55c9b`)
+
+`libs/Bloqueados.kf` compoe `routes/bloqueados.tsx` na casca autenticada:
+`AppLayout.Content` e `mx-auto flex max-w-7xl gap-6 px-3 sm:px-6` — em 1280 a
+coluna do `main` e 1280 − 48 (px-6) − 240 (barra lateral) − 24 (gap-6) =
+**968** e comeca em **288**. O titulo e `text-xl` (20/28), a descricao
+`mt-1 text-sm` quebrada na COLUNA, `space-y-4` (16) e o cartao `rounded-2xl
+border` (**152**) com o `EmptyState` de icone e so titulo ("Voce nao bloqueou
+ninguem."). PROVA `EnoisBloqueadosE2ETest`: `coluna=968`, `esq=288`, os textos
+de `texts.ts` 1826-1830; bateria 5/5. NOMEADO: o glifo `ShieldOff` nao e
+desenhado.

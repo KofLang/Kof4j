@@ -1162,3 +1162,14 @@ title (`Você ainda não fez denúncias.`). PROOF `EnoisDenunciasE2ETest`:
 the way: the description fits ONE line at 1232 and TWO at the column's 672 — the
 route wraps it in the column, so the 72 px difference is real. NAMED: the `Flag`
 glyph is not drawn (the box is).
+
+## §29 Round 23/11 (twenty-fifth) — the "Usuários bloqueados" screen in the LOGGED shell (app `9c55c9b`)
+
+`libs/Bloqueados.kf` composes `routes/bloqueados.tsx` in the authenticated shell:
+`AppLayout.Content` is `mx-auto flex max-w-7xl gap-6 px-3 sm:px-6` — at 1280 the
+`main` column is 1280 − 48 (px-6) − 240 (sidebar) − 24 (gap-6) = **968** and it
+starts at **288**. The title is `text-xl` (20/28), the description `mt-1 text-sm`
+wrapped in the COLUMN, `space-y-4` (16) and the `rounded-2xl border` card
+(**152**) with the icon `EmptyState` and only a title (`Você não bloqueou
+ninguém.`). PROOF `EnoisBloqueadosE2ETest`: `coluna=968`, `esq=288`, the titles
+from `texts.ts` 1826-1830; battery 5/5. NAMED: the `ShieldOff` glyph is not drawn.
