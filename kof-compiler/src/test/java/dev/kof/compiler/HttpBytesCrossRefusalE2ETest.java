@@ -46,13 +46,13 @@ class HttpBytesCrossRefusalE2ETest {
             """;
 
     @Test
-    void bytesRefusedOnNativeWithHttp003() throws Exception {
+    void bytesCompiledOnNativeX86() throws Exception {
+        // §1229: o NATIVO x86 TEM a face agora (o simbolo kof_http_response_bytes
+        // — o modelo kof_buffer_bytes, os bytes crus da KofString); o rastreamento
+        // do link é a própria compilação (o binário nasce).
         CompilationResult r = build(SRC, Target.NATIVE);
-        assertFalse(r.success(),
-                "known-bugs §1228: Response.bytes() on the NATIVE target must be REFUSED at "
-                        + "check time — the body() there is decoded and the raw bytes are lost");
-        assertTrue(diags(r).contains("HTTP003"),
-                "the refusal must be the NAMED HTTP003, got: " + diags(r));
+        assertTrue(r.success(),
+                "§1229: the NATIVE x86 bytes face compiles (the symbol exists): " + diags(r));
     }
 
     @Test

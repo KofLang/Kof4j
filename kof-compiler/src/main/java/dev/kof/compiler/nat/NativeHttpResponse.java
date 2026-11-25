@@ -93,6 +93,56 @@ public final class NativeHttpResponse {
                 leaq .Lhrs_empty_kstr(%rip), %rax
                 ret
 
+            # #1184: kof_http_response_bytes(rdi=Response?) -> rax = Int[]
+            # (os BYTES CRUS do corpo UTF-8 da KofString — o mesmo contrato do
+            # File.readBytes(); o modelo é o kof_buffer_bytes).
+            .globl kof_http_response_bytes
+            .type kof_http_response_bytes, @function
+            kof_http_response_bytes:
+                testq %rdi, %rdi
+                jne .Lhrs_bytes_ok
+                xorl %edi, %edi
+                movl $4, %esi
+                call kof_array_alloc
+                ret
+            .Lhrs_bytes_ok:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                movq %rdi, %rbx
+                movq 8(%rbx), %r12       # a KofString do corpo (UTF-8 cru)
+                testq %r12, %r12
+                jne .Lhrs_bytes_str
+                xorl %edi, %edi
+                movl $4, %esi
+                call kof_array_alloc
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+            .Lhrs_bytes_str:
+                movq 16(%r12), %r13      # byteLen (o corpo é UTF-8 cru)
+                movl %r13d, %edi
+                movl $4, %esi
+                call kof_array_alloc     # Int[byteLen]
+                pushq %rax
+                leaq 24(%rax), %rdi      # o payload do Int[]
+                leaq 24(%r12), %rsi      # os bytes da KofString
+                movq $0, %rcx            # i
+            .Lhrs_bytes_loop:
+                cmpq %r13, %rcx
+                jge .Lhrs_bytes_done
+                movzbl 24(%r12,%rcx), %edx
+                movl %edx, (%rdi,%rcx,4)
+                incq %rcx
+                jmp .Lhrs_bytes_loop
+            .Lhrs_bytes_done:
+                popq %rax
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+
             .section .rodata
             .Lhrs_msg_method: .asciz "kof.http: no nativo, http.send aceita so' GET e HEAD (HTTP002) — o handle de resposta dos outros verbos nao existe ainda"
             .align 8

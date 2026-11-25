@@ -457,16 +457,21 @@ final class ExpressionBuiltinInstanceCalls {
             // U+FFFD re-codifica em 0xEF e o corpo de 8 bytes vira 11), então o
             // `bytes()` recusa com o diagnóstico NOMEADO em vez de devolver
             // bytes errados (R6). A face cross é a fatia nomeada no ledger.
+            // #1184: a face de BYTES no JVM e no NATIVO x86 (o simbolo
+            // kof_http_response_bytes existe nos dois runtimes); os OUTROS alvos
+            // recusam com o NOMEADO — o body() lá é uma String DECODIFICADA e o
+            // re-encode NÃO recupera os bytes (medido: 8 bytes -> 11 no
+            // getBytes()) — nunca bytes errados (R6).
             if ("kof_http_response_bytes".equals(call.function())
-                    && driver.target != Target.JVM) {
+                    && driver.target != Target.JVM && driver.target != Target.NATIVE) {
                 if (driver.currentDiagnostics != null) {
                     SourcePosition p = mc.position();
                     driver.currentDiagnostics.error(p != null ? p.file() : "",
                             p != null ? p.line() : 0, p != null ? p.column() : 0, 0,
                             "Response.bytes(): the raw response bytes are not ported to the "
                                     + driver.target + " target yet (HTTP003) — use --target jvm "
-                                    + "(the body() there is the decoded text, and re-encoding it "
-                                    + "does NOT recover the bytes)",
+                                    + "or --target native (the body() there is the decoded text, "
+                                    + "and re-encoding it does NOT recover the bytes)",
                             "HTTP003");
                 }
                 return localIdx;
