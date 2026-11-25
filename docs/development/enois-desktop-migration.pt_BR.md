@@ -1179,3 +1179,30 @@ sao provadas por execucao, nao por print.
 **25/11 (decima primeira rodada — o crescimento do laco NAO se reproduz sozinho):** tres sondas, todas sob o driver dummy: (1) um laco minimo (clear + `roundRect` + `present`, 400 quadros) fica em ~4,1 MB; (2) o mesmo laco com a `Font` criada e fechada por quadro fica em ~4,1 MB; (3) um laco repintando a tela MAIS DENSA (`comunidades`: casca + cabecalho + `ComunidadesPage`, que chama `ComunidadesScreen.texts()` por quadro) fica em ~4,1 MB em 20 quadros — o custo do repaint nao e o vazamento. A execucao de um quadro do proprio app fica em ~2,4 MB e estavel, e por isso o modo por invocacao e' o estado do app. O OOM visto na primeira tentativa de laco fica atribuido ao passo do laco (o de espera) e segue como suspeita NOMEADA, nao como bug catalogado.
 
 **25/11 (decima segunda rodada — o laco da janela do proprio app reproduzido FORA do harness):** o caminho do harness nunca chegou ao programa (o `.s` de 4,3 MB nao terminou de montar em minutos), entao a entrada foi compilada FORA dele e rodada da raiz do repo (a fonte resolve pelo caminho relativo la): `SDL_VIDEODRIVER=dummy /tmp/wl3/out/Default/Main` com o laco do app SPAWNADO reproduziu a falha — RSS ~7,3 GB e ~4,9 GB em duas execucoes a ~100% de CPU ate serem mortas, enquanto toda sonda SEM a thread spawnada ficou em ~4,1 MB (laco minimo, `Font` por quadro, a tela densa, `Shell.paint` + `present`, e um laco `while (aberto)` guiado por flag). Entao o laco esta' certo; o crescimento precisa da estrutura do app (o `paint` de 17 ramos, ou a chamada de sessao no boot). O harness ganhou `runFor(main, root, segundos)` (encerra o programa, para apps que ficam no laco) e o `EnoisAppEntryE2ETest` o usa — mas com o compile do harness isso leva minutos; a reproducao fora dele e' o registro por ora. NAO catalogado: o gatilho ainda e' ambiguo. PROXIMO: bisseccaoar qual dos 17 ramos vaza (rodar o laco com cada ramo escolhido pelo argumento) e, se for defeito de compilador/backend, um teste RED em `kof-compiler/src/test/java`.
+
+## §31 Rodada 25/11 (decima terceira) — a bisseccao do OOM: o laco de quadros do app NAO vaza, e uma tela nova (app `10f5568`)
+
+BISSECCAO (tudo sob `SDL_VIDEODRIVER=dummy`, cada execucao com o
+`assets/fonts/Manrope.ttf` real): (1) o `app/Main.kf` COMMITADO exato, compilado
+fora do harness e rodado da raiz do repo, fica em ~4,1 MB e sai com 0; (2) o mesmo
+arquivo com o laco de quadros injetado em volta do desenho commitado fica em
+~4,1 MB por 41 quadros; (3) o laco com a outra estrutura do app (`ShellChoice` +
+`ProjectsScreen` + espera + `pumpEvents` + `present`) fica em ~4,1 MB por 30
+quadros; (4) um laco pesado (1600x1200, 1200 `fillRect` por quadro) fica em
+~4,1 MB por 31 quadros; (5) `present` duas vezes + `pumpEvents` + espera, 201
+quadros, ~4,1 MB; (6) `readPixel` por quadro, 41 quadros, ~4,1 MB. As duas
+execucoes que chegaram a ~7 GB NAO se reproduzem com o mesmo fonte, e o codigo que
+as produziu se perdeu (um `git checkout` na mesma rodada), entao o OOM NAO esta'
+catalogado nem atribuido: segue como suspeita NOMEADA (talvez a execucao do laco
+pelo harness, ou o passo do laco). O laco de janela do `app/Main.kf` commitado e',
+portanto, seguro para ficar rodando — a entrada commitada ainda termina, e a
+variante com laco e' o demo.
+
+TELA NOVA: `libs/MeusServicos.kf` compoe `routes/meus-servicos.tsx` 84-126: coluna
+`mx-auto w-full max-w-3xl` (**768**), o `Wrench` de 24 em `--primary`, "Gerenciar
+servicos" (24/32), a descricao (14/20 quebrada na coluna), `space-y-6` (24) e o
+`surface-card` com o `EmptyState` de icone (titulo e descricao) —
+`VazioDeListaComIcone.paintCard`. MEDIDO: `coluna=768`, `cabecalho=76`,
+`cartao=200` (a descricao quebra em DUAS linhas no `max-w-sm`), `tela=389`.
+PROVA `EnoisMeusServicosE2ETest`; bateria 6/6. NOMEADO: o `Wrench` sao tres
+tracos (aproximacao) e o `<b>` do paragrafo perde o peso.

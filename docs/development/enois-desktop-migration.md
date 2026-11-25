@@ -1195,3 +1195,30 @@ denied) — the screens are proven by execution, not by screenshot.
 **25/11 (eleventh round — the loop growth does NOT reproduce alone):** three probes, all under the dummy driver: (1) a minimal loop (clear + `roundRect` + `present`, 400 frames) stays at ~4.1 MB; (2) the same loop with a `Font` created and closed per frame stays at ~4.1 MB; (3) a loop repainting the DENSEST screen (`comunidades`: shell + header + `ComunidadesPage`, which calls `ComunidadesScreen.texts()` per frame) stays at ~4.1 MB over 20 frames — so the repaint cost is not the leak. The demo's own single-frame run is ~2.4 MB and stable, which is why the per-invocation mode is the state of the app. The OOM seen in the first loop attempt is attributed to the loop's step (the waiting loop) and stays a NAMED suspicion, not a catalogued bug.
 
 **25/11 (twelfth round — the app's own window loop reproduced WITHOUT the harness):** the harness path never reached the program (the 4.3 MB `.s` did not finish assembling in minutes), so the entrypoint was compiled OUTSIDE it and run from the repo root (the fonts resolve by relative path there): `SDL_VIDEODRIVER=dummy /tmp/wl3/out/Default/Main` with the SPAWNED app loop reproduced the fault — RSS ~7.3 GB and ~4.9 GB in two runs at ~100% CPU until killed, while every probe WITHOUT the spawned thread stayed at ~4.1 MB (minimal loop, `Font` per frame, the dense screen, `Shell.paint` + `present`, and a flag-driven `while (aberto)` loop). So the loop itself is fine; the growth needs the app's structure (the multi-branch `paint` over 17 routes, or the session call at boot). The harness now has `runFor(main, root, seconds)` (terminates the program, for apps that stay in their frame loop) and `EnoisAppEntryE2ETest` uses it — but with the harness compile that takes minutes; the reproduction outside it is the record for now. NOT catalogued: the trigger is still ambiguous. NEXT: bisect which of the 17 route branches leaks (run the loop with each branch selected by the argument) and, if it is a compiler/backend fault, a RED test in `kof-compiler/src/test/java`.
+
+## §31 Round 25/11 (thirteenth) — the OOM bisection: the app's frame loop does NOT leak, and a new screen (app `10f5568`)
+
+BISECTION (all under `SDL_VIDEODRIVER=dummy`, each run with the real
+`assets/fonts/Manrope.ttf`): (1) the exact COMMITTED `app/Main.kf`, compiled
+outside the harness and run from the repo root, stays at ~4.1 MB and exits 0;
+(2) the same file with the frame loop injected around the committed drawing stays
+at ~4.1 MB for 41 frames; (3) the loop with the app's other structure
+(`ShellChoice` shell + `ProjectsScreen` + wait + `pumpEvents` + `present`) stays
+at ~4.1 MB for 30 frames; (4) a heavy loop (1600×1200, 1200 `fillRect` per frame)
+stays at ~4.1 MB for 31 frames; (5) `present` twice + `pumpEvents` + wait, 201
+frames, stays at ~4.1 MB; (6) `readPixel` per frame, 41 frames, ~4.1 MB. The two
+runs that reached ~7 GB were NOT reproducible with the same source, and the code
+that produced them was lost (a `git checkout` in the same round), so the OOM is
+NOT catalogued and NOT attributed: it stays a NAMED suspicion (possibly the
+harness run of a loop, or the iteration loop's step). The `SDLK` window loop in
+the committed `app/Main.kf` is therefore safe to leave running — the committed
+entrypoint still exits, the looped variant is the demo.
+
+NEW SCREEN: `libs/MeusServicos.kf` composes `routes/meus-servicos.tsx` 84-126:
+column `mx-auto w-full max-w-3xl` (**768**), the `Wrench` 24 in `--primary`,
+"Gerenciar serviços" (24/32), the description (14/20 wrapped in the column),
+`space-y-6` (24) and the `surface-card` with the icon `EmptyState` (title and
+description) — `VazioDeListaComIcone.paintCard`. MEASURED: `coluna=768`,
+`cabecalho=76`, `cartao=200` (the description wraps to TWO lines at `max-w-sm`),
+`tela=389`. PROOF `EnoisMeusServicosE2ETest`; battery 6/6. NAMED: the `Wrench` is
+three strokes (an approximation) and the paragraph's `<b>` loses its weight.
