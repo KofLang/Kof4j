@@ -1402,3 +1402,7 @@ O bytecode dos pares "que falham" esta correto: `iconst_2` duas vezes para `2` +
 
 No harness do app (nativo x86-64), o `EsqueletoMetricas.bodyNoSite()` escrito como `20 + 40 + 12 + 12 + 32 + 48 + 20` devolve **184** (`val`/`var` passo a passo 184, `dez() + 176` com `dez()` dobrando em 184 devolve **360**), enquanto `return 196` e `return dez()` com `dez()` → 196 devolvem 196. As amostras do CLI/`javap` sao somas de dois termos e estao certas — por isso nunca reproduziram o defeito. O app esta' restaurado (`git status` limpo) e o `EnoisVitrineCarregamentoE2ETest` continua GREEN no 184 fixado. PROXIMO: reduzir a cadeia de sete termos no harness ate' saber a contagem minima que falha, e esse e' o teste RED do fix.
 
+## §66 Rodada 25/11 (quadragesima oitava) — forma minima do §1218: a soma de sete termos dobra em 184 (frontend, antes do otimizador) (so' o Kof4j)
+
+`Int soma() { return 20 + 40 + 12 + 12 + 32 + 48 + 20 }` vale **184** em todo alvo (classe JVM com `sipush 184`, nativo `movq $184, %rax`, interpretador e CLI), enquanto o mesmo valor em cinco termos (`100 + 20 + 30 + 20 + 26`) da' 196. A dobra nao depende de aridade: `21 + 40 + 12 + 12 + 32 + 48 + 20` → 185 e `1 + 2 + … + 7` → 28 estao certos. RED `SevenTermSumE2ETest`. PROXIMO: bissecar a dobra da cadeia de sete termos. O app mantem o 184 fixado; sem mudanca de codigo nesta rodada.
+

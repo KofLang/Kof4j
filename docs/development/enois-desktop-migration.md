@@ -1710,3 +1710,13 @@ sums and are correct — this is why they never reproduced it. The app is restor
 184. NEXT: reduce the seven-term chain inside the harness until the minimum failing
 term count is known, then that is the RED test for the fix.
 
+## §66 Round 25/11 (forty-eighth) — §1218 minimal form: a seven-term sum folds to 184 (frontend, before the optimizer) (Kof4j only)
+
+`Int soma() { return 20 + 40 + 12 + 12 + 32 + 48 + 20 }` evaluates to **184** in
+every target — the JVM class carries `sipush 184`, the native `movq $184, %rax`, and
+the interpreter and CLI print 184 — while the same value in five terms
+(`100 + 20 + 30 + 20 + 26`) is 196. The fold is not arity-driven: `21 + 40 + 12 + 12
++ 32 + 48 + 20` → 185 and `1 + 2 + … + 7` → 28 are right. RED `SevenTermSumE2ETest`
+(seven-term 184 vs expected 196; five-term control 196). NEXT: bisect the fold of
+the seven-term chain. The app keeps 184 pinned; no code change this round.
+
