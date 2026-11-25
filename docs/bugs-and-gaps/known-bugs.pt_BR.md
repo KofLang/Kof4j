@@ -3,6 +3,7 @@
 # Known Bugs — handoff para o próximo agente
 
 last: §1208 (CORRIGIDO 24/11 — kof_env_getc nunca fechava o fd do environ; 2/2)
+last: §1210 (OPEN — a static overload call is emitted without the signature tag; ld refuses it; measured 23/11)
 last: §1209 (OPEN — a solo entry does not see a no-import sibling; the CLI collects the directory and is fine; measured 23/11)
 last: §1207 (ABERTO — o irmao de uma entrada solta recusa um tipo de biblioteca na assinatura de um membro; medido 23/11)
 last: §1206 (ABERTO — um paint linear rele o `y` obsoleto neste tamanho de modulo; fim 756 vs 452 medido 23/11)
@@ -19136,3 +19137,8 @@ A replicacao exata da execucao do harness fica guardada com esta rodada (`testda
 Medido: com a raiz do modulo de volta no diretorio da entrada (o LCA historico) a entrada solta ainda recebe SEM011 no nome simples — a busca de import e guiada pelos imports DO arquivo de entrada, e ele nao tem nenhum. Tentativas nesta rodada: subir a raiz acima da entrada (consertou o irmao, quebrou a casca — revertido), alinhar as duas regras do §1203 (sem efeito), reler os imports de um arquivo compilado (sem efeito), re-percorrer o diretorio da entrada (sem efeito, revertido); a arvore fica limpa exceto o teste acima, que trava o layout da CLI. Proximo: fazer a busca semear o diretorio do PROPRIO pacote da entrada (os irmaos dela) mesmo com a lista de imports vazia.
 
 **23/11 (decima rodada — §1209 medido, quatro tentativas revertidas):** o layout da CLI compila na base (`SingleEntrySeesSiblingFileE2ETest`); a entrada solta nao. Toda tentativa de mexer na raiz ou na busca para ela ou nao teve efeito ou quebrou a casca (o §1203 de volta sobre a raiz do modulo), entao nada mudou no codigo alem do teste.
+## §1210 — uma chamada a um método ESTATICO SOBRECARREGADO (`m(Int, Int)` + `m(String, String)`) sai com o simbolo `Classe_m` — o `ld` acusa `referência não definida` e o modulo nao LINCA no nativo — 📌 MEDIDO 23/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Estado:** 🟡 ABERTO — o app nao o aciona hoje (nenhuma classe com overloads estaticos de mesma aridade no caminho do harness).
+
+Medido: a DEFINICAO do metodo emite as tags de assinatura (`ovl_Duas_soma_I_I`, `ovl_Duas_soma_String_String`), os CALL sites emitem `ovl_Duas_soma` (2 chamadas), e `NativeSymbolMangling.classHasOverload("Duas", "soma", nb.allClassesMap)` devolve `true` no mapa do backend, entao o overload e visivel na definicao. Uma tentativa de correcao (lookup do mapa pela `fnKey` em `NativeOpHelpers.resolveCalleeName` + o nome simples registrado no `allClassesMap`) deixou este teste verde mas quebrou `NativeE2ETest` (SIGSEGV 139), `NativeInheritedDispatchE2ETest` e `EntryPackageImportE2ETest` (`asm: symbol .Lsch_enois_Texts is already defined`) — os tres estao VERDES na base sem ela, entao a tentativa foi REVERTIDA. `NativeOverloadSymbolE2ETest` fica como testemunha RED. Proximo: achar por que o dono no call site nao ve o overload (o dono que chega no `resolveCalleeName` provavelmente e o tipo do RETORNO/receiver, nao a classe declarante) com o asm dos dois lados lado a lado.

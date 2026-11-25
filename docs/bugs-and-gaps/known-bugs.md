@@ -3,6 +3,7 @@
 # Known Bugs — handoff to the next agent
 
 last: §1208 (FIXED 24/11 — kof_env_getc never closed the environ fd; 2/2)
+last: §1210 (OPEN — a static overload call is emitted without the signature tag; ld refuses it; measured 23/11)
 last: §1209 (OPEN — a solo entry does not see a no-import sibling; the CLI collects the directory and is fine; measured 23/11)
 last: §1207 (OPEN — a solo entry's sibling rejects a library type in a member signature; measured 23/11)
 last: §1206 (OPEN — a straight-line paint re-reads a stale `y` at this module size; fim 756 vs 452 measured 23/11)
@@ -21720,3 +21721,8 @@ The exact replication of the harness run is saved with this round (`testdata/eno
 Measured: with the module root back at the entry directory (the historical LCA) the solo entry still gets SEM011 on the plain name — the import search is driven by the entry file's own imports and the entry has none. Attempts this round: raise the root above the entry (fixed the irmão, broke the shell — reverted), align the two §1203 rules (no effect), replay a compiled file's imports (no effect), re-walk the entry directory (no effect, reverted); the tree is clean except for the test above, which pins the CLI layout. Next: make the search seed the entry's OWN package directory (its siblings) even with an empty import list.
 
 **23/11 (tenth round — §1209 measured, four attempts reverted):** the CLI layout compiles on the base (`SingleEntrySeesSiblingFileE2ETest`); the solo entry does not. Every attempt to change the root or the search for it either had no effect or broke the shell (§1203 back over the module root), so nothing changed in code besides the test.
+## §1210 — a call to an OVERLOADED static method (`m(Int, Int)` + `m(String, String)`) is emitted with the symbol `Classe_m` — the `ld` reports `referência não definida` and the module does not link natively — 📌 MEASURED 23/11 (lane wasm/caps `192.168.15.15:0`)
+
+**Status:** 🟡 OPEN — the app does not hit it today (no class with same-arity static overloads in the harness path).
+
+Measured: the method DEFINITION emits signature tags (`ovl_Duas_soma_I_I`, `ovl_Duas_soma_String_String`), the CALL sites emit `ovl_Duas_soma` (2 calls), and `NativeSymbolMangling.classHasOverload("Duas", "soma", nb.allClassesMap)` returns `true` in the backend map, so the overload is visible at the definition. A fix attempt (map lookup keyed by `fnKey` in `NativeOpHelpers.resolveCalleeName` + the simple name registered in `allClassesMap`) made this test green but broke `NativeE2ETest` (SIGSEGV 139), `NativeInheritedDispatchE2ETest` and `EntryPackageImportE2ETest` (`asm: symbol .Lsch_enois_Texts is already defined`) — all three are GREEN on the base without it, so the attempt was REVERTED. `NativeOverloadSymbolE2ETest` stays as the RED witness. Next: find why the call-site owner misses the overload (the owner reaching `resolveCalleeName` is probably the type of the RETURN/receiver rather than the declaring class) with the asm of both sites side by side.

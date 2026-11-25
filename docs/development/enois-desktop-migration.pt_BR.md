@@ -1037,3 +1037,16 @@ devolve `heightN(f, descricao)`. PROVA `EnoisVazioDescricaoE2ETest`: `linhas=2`,
 tipo emitiram um simbolo que o LINK NATIVO nao via (`ld: referencia nao definida
 para enois_VazioDeListaComIcone_heightN`); a forma com `Int` virou `heightLines` —
 um nome por forma.
+
+## §20 Rodada 23/11 (decima sexta) — §1210 (overload estatico no nativo) medido; correcao tentada e revertida
+
+Descoberto ao conferir o risco de overload que o app ja tinha acionado: uma
+chamada a um metodo ESTATICO sobrecarregado sai como `Classe_m` (sem a tag de
+assinatura) enquanto a definicao a carrega, entao o `ld` recusa o modulo
+(`referencia nao definida`). A tentativa de correcao (lookup pela fnKey em
+`NativeOpHelpers.resolveCalleeName` + nome simples no `allClassesMap`) deixou
+`NativeOverloadSymbolE2ETest` verde mas quebrou `NativeE2ETest` (SIGSEGV),
+`NativeInheritedDispatchE2ETest` e `EntryPackageImportE2ETest` (label local `asm`
+duplicado); a base sem ela esta verde nos tres (70/70) e a bateria do app 11/11 —
+REVERTIDA, o teste fica como testemunha RED e o `known-bugs §1210` carrega a
+medicao.

@@ -1054,3 +1054,15 @@ and `VazioDeListaComIcone` paints each line centred and returns
 type emitted a symbol the NATIVE LINK did not see (`ld: undefined reference to
 enois_VazioDeListaComIcone_heightN`); the `Int` form became `heightLines` — one
 name per shape.
+
+## §20 Round 23/11 (sixteenth) — §1210 (native static overload) measured; fix attempted and reverted
+
+Discovered while checking the overload hazard the app hit earlier: a call to an
+overloaded STATIC method is emitted as `Classe_m` (no signature tag) while the
+definition carries it, so `ld` refuses the module (`referência não definida`).
+The fix attempt (fnKey lookup in `NativeOpHelpers.resolveCalleeName` + simple
+name in `allClassesMap`) turned `NativeOverloadSymbolE2ETest` green but broke
+`NativeE2ETest` (SIGSEGV), `NativeInheritedDispatchE2ETest` and
+`EntryPackageImportE2ETest` (duplicate local label `asm`); the base without it is
+green on all three (70/70) and the app battery is 11/11 — REVERTED, the test
+stays as the red witness, `known-bugs §1210` carries the measurement.
