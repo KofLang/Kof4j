@@ -182,6 +182,23 @@ public final class StatementAnalyzer {
                 if (ret.value() != null) {
                     Type valueType = SemExpressionTyper.inferType(sa, ret.value(), scope);
                     sa.putExpressionType(ret.value(), valueType);
+                    // #1195 (SG-008/SEM048): `return null` num retorno
+                    // NÃO-nullable (referência `String` ou primitivo `Int`) é
+                    // recusado — o null nunca é fabricável (a NPE era medida no
+                    // JVM). O retorno NULLABLE (`String?`/`Int?`) continua
+                    // aceitando o literal (o §125: `Int?` vale o DEFAULT do
+                    // primitivo; `String?` é o absent).
+                    if (CompilerComparisons.isNullLiteral(ret.value()) && sa.diagnostics() != null
+                            && !Type.isUnknown(returnType) && !Type.isVoid(returnType)
+                            && !(returnType instanceof Type.NullableType)) {
+                        SourcePosition rp2 = ret.position();
+                        sa.diagnostics().error(rp2 != null ? rp2.file() : "",
+                                rp2 != null ? rp2.line() : 0,
+                                rp2 != null ? rp2.column() : 0, 0,
+                                "null cannot be returned: null safety works by narrowing"
+                                        + " (if (x != null)), never by direct null literals",
+                                "SEM048");
+                    }
                     if (sa.currentExplicitVoid && sa.diagnostics() != null) {
                         sa.diagnostics().error(ret,
                                 "void function cannot return a value - drop the value (bare `return` exits) or declare a return type",

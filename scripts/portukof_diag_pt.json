@@ -1417,6 +1417,11 @@
       "pt": "null não pode ser atribuído: a segurança contra null funciona por estreitamento (if (x != null)), nunca por literais null diretos"
     },
     {
+      "arity": 0,
+      "en": "null cannot be returned: null safety works by narrowing (if (x != null)), never by direct null literals",
+      "pt": "null não pode ser retornado: a segurança contra null funciona por estreitamento (if (x != null)), nunca por literais null diretos"
+    },
+    {
       "arity": 1,
       "en": "null cannot be a {0} element: null safety works by narrowing (if (x != null)), never by direct null literals",
       "pt": "null não pode ser um elemento {0}: a segurança contra null funciona por estreitamento (if (x != null)), nunca por literais null diretos"
