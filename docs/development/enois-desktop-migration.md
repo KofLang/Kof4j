@@ -1487,3 +1487,15 @@ remaining target is the print path (`String.valueOf(Object)` builtin / the
 `kof_println_string` slice). NEXT: instrument that builtin (argument + result).
 The app keeps 184 pinned; no app change this round.
 
+## §47 Round 25/11 (twenty-ninth) — §1218 producer located: one pass inside the Optimizer round (Kof4j only)
+
+Bisecting with an instrumented `Optimizer` (IR index into a temp file, reverted):
+round 0 of `println(2)` + `println(1 + 1)` is `[GetStatic, L2, ..., println,
+GetStatic, L1, L1, ADD, ...]` (correct), round 1 is `[..., GetStatic, L2, ...]`
+— one of the post-fold `passes()` rewrites the second statement's sum into the
+first statement's literal. The interpreter's IR (what `driver.interpret` runs)
+already shows the wrong form; a program whose sum comes after NO printed literal
+lowers correctly; the CLI `kof run`, `kof test` and `driver.interpret` all show
+it, so it is the shared lowering/optimizer path. NEXT: run each pass alone on the
+round-0 IR and bisect. No app change this round.
+
