@@ -1509,3 +1509,17 @@ fix the walk (it writes the folded literal into `out` and keeps reading the
 original `ops` at `i - 1`, so a two-literal sum re-folds against the previous
 statement) with the test RED-first then GREEN. The app keeps 184 pinned.
 
+## §49 Round 25/11 (thirty-first) — §1218: reproducible in the current tree, the producer is the LOWERING (Kof4j only)
+
+With the compiler built from the current `lab`, `driver.interpret` of `println(2)`
++ `println(1 + 1)` prints `2 2`, and the FRONTEND IR is `[GetStatic, LoadLiteral 2,
+…, GetStatic, LoadLiteral 2, …]` — the second statement carries the first
+statement's literal and no `1 + 1` at all; `println(90)` + `println(90 + 94)`
+lowers to `LoadLiteral 90` … `LoadLiteral 184` (the sum is folded, to the wrong
+184). Instrumented `OptimizerConstantFold` sees `la=1 lb=1 ADD -> 2` (it computes
+2 correctly for the input it gets), and the shape is unchanged after 1–4 passes()
+rounds, so the operator/sum pipeline is cleared; the defect is in the LOWERING
+between the AST (two printlns) and the IR (the second printed value equals the
+first). NEXT: bisect the lowering of the second `println(1 + 1)`. The app keeps
+184 pinned.
+

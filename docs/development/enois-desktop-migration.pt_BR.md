@@ -1334,3 +1334,7 @@ Bisseccao com um `Optimizer` instrumentado: a rodada 0 de `println(2)` + `printl
 
 Repetir a IR real do frontend pelo `OptimizerConstantFold.constantFold` SOZINHO reproduz `println(2)` + `println(1 + 1)` → `[GetStatic, LoadLiteral 2, …, GetStatic, LoadLiteral 2, …]`, e a forma depois de uma dobra, duas dobras e 1-4 rodadas completas de `passes()` e' IDENTICA — o conjunto de passes pos-dobra fica descartado. PROXIMO: corrigir o percurso (ele escreve a literal dobrada em `out` e continua lendo a `ops` original em `i - 1`, entao uma soma de dois literais redobra contra o statement anterior) com o teste RED-first e depois GREEN. O app mantem o 184 fixado.
 
+## §49 Rodada 25/11 (trigesima primeira) — §1218: reproduzivel na arvore atual, o produtor e' o LOWERING (so' o Kof4j)
+
+Com o compilador construido do `lab` atual, `driver.interpret` de `println(2)` + `println(1 + 1)` imprime `2 2` e a IR do FRONTEND e' `[GetStatic, LoadLiteral 2, …, GetStatic, LoadLiteral 2, …]` — o segundo statement carrega o literal do primeiro e sem `1 + 1`; `println(90)` + `println(90 + 94)` baixa para `LoadLiteral 90` … `LoadLiteral 184` (a soma e' dobrada, no 184 errado). O `OptimizerConstantFold` instrumentado ve `la=1 lb=1 ADD -> 2` (calcula 2 certo para a entrada que recebe) e a forma nao muda depois de 1-4 rodadas, entao o pipeline de operador/soma esta descartado; o defeito esta no LOWERING entre a AST (dois printlns) e a IR. PROXIMO: bisseccionar o lowering do segundo `println(1 + 1)`. O app mantem o 184 fixado.
+
