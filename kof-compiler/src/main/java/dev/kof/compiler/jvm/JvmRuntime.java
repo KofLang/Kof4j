@@ -109,8 +109,18 @@ public static boolean hasRuntimeFn(String methodName) {
     static public void ensureCompiled(Path outputDir, List<IRClass> classes, boolean usesVk, boolean usesExtern,
             Target target) throws IOException {
         Path runtimeDir = outputDir.resolve("dev/kof/runtime");
-        if (Files.exists(runtimeDir.resolve("KofRuntime.class"))) return;
         Files.createDirectories(runtimeDir);
+        // #1187: the early return on an existing KofRuntime.class FROZE the
+        // generated runtime at the first build — the per-record
+        // `kof_json_decode_<pkg>_<Record>` helpers are generated INSIDE it, so
+        // a second build of a project that gained a record kept the old class
+        // and the emitted bytecode died with NoSuchMethodError at runtime. The
+        // class files are wiped (the top-level KofRuntime.class AND its
+        // `KofRuntime$*.class` nested types — deleting only the top-level one
+        // leaves javac's nested types stale) so every build regenerates the
+        // source's compiled form; the cost is one javac run, the alternative is
+        // a silently wrong artifact.
+        wipeCompiledRuntime(runtimeDir);
         Path sourceFile = outputDir.resolve("KofRuntime.java");
         Files.writeString(sourceFile, source(classes, usesVk, usesExtern, target));
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
@@ -142,6 +152,15 @@ public static boolean hasRuntimeFn(String methodName) {
         if (System.getenv("KOF_KEEP_SRC") == null) Files.deleteIfExists(sourceFile);
     }
 
+
+    /** #1187: remove the compiled KofRuntime top-level class and its nested
+     *  {@code KofRuntime$*.class} types so the next javac run regenerates the
+     *  whole generated runtime from source (the json decoders live inside it). */
+    private static void wipeCompiledRuntime(Path runtimeDir) throws IOException {
+        try (var stream = Files.newDirectoryStream(runtimeDir, "KofRuntime*.class")) {
+            for (Path p : stream) Files.deleteIfExists(p);
+        }
+    }
 
     private static String source(List<IRClass> classes, boolean usesVk, boolean usesExtern) {
         return source(classes, usesVk, usesExtern, Target.JVM);
