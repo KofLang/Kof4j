@@ -1562,3 +1562,15 @@ discriminator. `PrintRepeatProducerTest` (3 cases) pins the right answers.
 NEXT: dump the ops for `50`/`2 * 25` and trace the print builtin. The app keeps
 184 pinned (its own 184 is produced by a sum and reads right in this tree).
 
+## §53 Round 25/11 (thirty-fifth) — §1218: the trigger is "the second statement's value reaches the first printed one" (Kof4j only)
+
+Measured on both backends with the rebuilt jar: `println(80)` + `println(60 + 20)`
+→ `80 80` (wrong), `println(80)` + `println(40 + 40)` → `80 80` (wrong),
+`println(50)` + `println(50 + 0)` / `println(0 + 50)` / `println(25 + 25)` →
+`50 50` (wrong); and right when the values differ: `2`/`3 + 4` → `2 7`,
+`5`/`40 + 40` → `5 80`, `90`/`90 + 94` → `90 184`. The `Optimizer` dump with
+literal identities shows distinct literal objects (`L50:683287027` … `L50:285377351`),
+so the fold is right; the `valueOf` trace shows the wrong number already on the
+operand stack. NEXT: trace the `valueOf`/`println` path of the FAILING case
+(`80` + `60 + 20`) argument by argument. The app keeps 184 pinned.
+

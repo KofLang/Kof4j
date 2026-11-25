@@ -1350,3 +1350,7 @@ Teste de mesa (IR montada a mao com a forma do programa): a dobra entra com 9 op
 
 O `lib/kof.jar` (o que o `bin/kof` roda) era de 03:43 enquanto o compilador em teste ja' tinha andado; reconstrui-lo (`scripts/build-kof-jar.sh`, e o jar e' artefato de build, nao commitado) fez `java -jar lib/kof.jar run`, `driver.interpret` e o build nativo concordarem em todos os casos: `2`/`3 + 4` → `2 7`, `5`/`40 + 40` → `5 80`, `90`/`90 + 94` → `90 184` (todos certos) e `50`/`2 * 25` → **`50 50`** (errado). `50`/`3 * 25` → `50 75` (certo), entao a multiplicacao dobrada numa literal igual a do primeiro statement e' o discriminador. `PrintRepeatProducerTest` (3 casos) prende as respostas certas. PROXIMO: despejar as ops de `50`/`2 * 25` e rastrear o builtin de impressao. O app mantem o 184 fixado (o 184 dele vem de uma soma e le' certo nesta arvore).
 
+## §53 Rodada 25/11 (trigesima quinta) — §1218: o gatilho e' "o valor do segundo statement alcanca o primeiro impresso" (so' o Kof4j)
+
+Medido nos dois backends com o jar reconstruido: `80`/`60 + 20` → `80 80` (errado), `80`/`40 + 40` → `80 80`, `50`/`50 + 0`, `50`/`0 + 50` e `50`/`25 + 25` → `50 50`; e certo quando os valores diferem (`2`/`3 + 4` → `2 7`, `5`/`40 + 40` → `5 80`, `90`/`90 + 94` → `90 184`). O dump do Optimizer com identidade mostra objetos literal distintos, entao a dobra esta certa; o trace do `valueOf` mostra o numero errado JA' na pilha. PROXIMO: rastrear o caminho `valueOf`/`println` do caso que falha (`80` + `60 + 20`) argumento por argumento. O app mantem o 184 fixado.
+
