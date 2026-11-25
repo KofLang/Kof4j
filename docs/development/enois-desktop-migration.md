@@ -1641,3 +1641,14 @@ the two front-end entries (`interpret` vs `compileSources`) disagree. NEXT: call
 `driver.compileSources` from a JUnit test and dump the IR it hands to the emitter.
 The app keeps 184 pinned.
 
+## §60 Round 25/11 (forty-second) — §1218 narrowed to `Optimizer.optimize` on the `compileSources` path (Kof4j only)
+
+`driver.compileSources(sources, dir, Target.JVM, dir)` — the exact call `CmdRun`
+makes — hands the emitter `G L2 … G L2` for `println(2)` + `println(1 + 1)` and
+`G L80` (right) for `println(5)` + `println(40 + 40)`; the class it writes has
+`iconst_2` twice and running it prints `2 2`. `driver.interpret` of the same source
+(right) does NOT run `Optimizer.optimize` — so the optimizer is the only stage
+between a correct pre-optimizer IR and the wrong one handed to the emitter. NEXT:
+read `Optimizer.optimize` on this program (the identity dump shows distinct literal
+objects, so the fold's write-back is not the culprit). The app keeps 184 pinned.
+

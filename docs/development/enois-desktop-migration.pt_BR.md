@@ -1378,3 +1378,7 @@ Toda sonda agora roda com `rm -rf` e UM `Main.kf` por caso. Pelo `lib/kof.jar` r
 
 `kof build Main.kf --target jvm` e depois `java -cp build/classes Default.Main`: `println(2)` + `println(1 + 1)` imprime `2 2` e o `javap` mostra `iconst_2` duas vezes (sem `iadd`), enquanto `println(5)` + `println(40 + 40)` compila para `bipush 80` e imprime `5 80`. O interpretador sobre o mesmo fonte esta certo, entao as duas entradas do frontend (`interpret` contra `compileSources`) discordam. PROXIMO: chamar o `driver.compileSources` de um teste JUnit e despejar a IR entregue ao emissor. O app mantem o 184 fixado.
 
+## §60 Rodada 25/11 (quadragesima segunda) — §1218 estreitado ao `Optimizer.optimize` no caminho do `compileSources` (so' o Kof4j)
+
+O `driver.compileSources(sources, dir, Target.JVM, dir)` — a chamada exata do `CmdRun` — entrega ao emissor `G L2 … G L2` para `println(2)` + `println(1 + 1)` e `G L80` (certo) para `5` + `40 + 40`; a classe escrita tem `iconst_2` duas vezes e a execucao imprime `2 2`. O `driver.interpret` do mesmo fonte (certo) NAO roda o `Optimizer.optimize` — a dobra e' o unico estagio entre a IR correta e a errada. PROXIMO: ler o `Optimizer.optimize` nesse programa. O app mantem o 184 fixado.
+
