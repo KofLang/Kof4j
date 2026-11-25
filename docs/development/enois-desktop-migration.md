@@ -1549,3 +1549,16 @@ the next step is ONE probe that dumps the module object handed to
 `KofInterpreter.run` (identity) plus the fold input/output in the same call. The
 app keeps 184 pinned.
 
+## §52 Round 25/11 (thirty-fourth) — §1218: the stale tree jar explained the inconsistent measurements; the trigger is the multiplication (`50` + `2 * 25` → `50 50` in BOTH backends) (Kof4j only)
+
+`lib/kof.jar` (what `bin/kof` runs) was from 03:43 while the compiler under test
+had moved past it; rebuilding it (`scripts/build-kof-jar.sh` now included, and the
+jar is a build artifact, not committed) made `java -jar lib/kof.jar run`,
+`driver.interpret` and the native build agree on every case: `2`/`3 + 4` → `2 7`,
+`5`/`40 + 40` → `5 80`, `90`/`90 + 94` → `90 184` — all right — and
+`50`/`2 * 25` → **`50 50`** (wrong). `50`/`3 * 25` → `50 75` (right), so the
+multiplication folded into a literal equal to the first statement's print is the
+discriminator. `PrintRepeatProducerTest` (3 cases) pins the right answers.
+NEXT: dump the ops for `50`/`2 * 25` and trace the print builtin. The app keeps
+184 pinned (its own 184 is produced by a sum and reads right in this tree).
+
