@@ -980,3 +980,14 @@ that imports the type makes it resolve; only same-package namers do not. The app
 is no longer blocked: `ComunidadesGrade.kf` imports `game.Sdl3Backend` itself
 (app `380e84f`, battery 8/8). The skeleton (344/704) stays out of `libs/` until
 the search face is fixed, since it would hit the same shape.
+
+## §14 Round 23/11 (tenth) — §1209 (solo entry × no-import sibling) measured; nothing landed in code
+
+The CLI layout (`Main.kf` + `Shared.kf` in one directory, no import) compiles on
+the base (pinned by `SingleEntrySeesSiblingFileE2ETest`); the SOLO entry of the
+app harness does not see the sibling (SEM011). Four attempts (root above the
+entry, aligned §1203 rules, replay of a compiled file's imports, re-walk of the
+entry directory) were measured and reverted: the first fixed the sibling and
+broke the shell, the others had no effect. The app is unaffected (its files import
+what they name, `380e84f`), the skeleton stays out of `libs/` until the search
+seeds the entry's own package directory.

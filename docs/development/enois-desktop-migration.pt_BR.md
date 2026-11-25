@@ -964,3 +964,14 @@ importa o tipo faz ele resolver; so nomes no mesmo pacote, nao. O app nao esta
 mais bloqueado: `ComunidadesGrade.kf` importa `game.Sdl3Backend` nela mesma
 (app `380e84f`, bateria 8/8). O esqueleto (344/704) fica fora de `libs/` ate a
 face da busca ser corrigida, porque ele cairia na mesma forma.
+
+## §14 Rodada 23/11 (decima) — o §1209 (entrada solta × irmao sem import) medido; nada entrou no codigo
+
+O layout da CLI (`Main.kf` + `Shared.kf` num diretorio, sem import) compila na
+base (travado por `SingleEntrySeesSiblingFileE2ETest`); a entrada SOLTA do
+harness do app nao ve o irmao (SEM011). Quatro tentativas (raiz acima da entrada,
+regras do §1203 alinhadas, replay dos imports de um arquivo compilado, re-percorrer
+o diretorio da entrada) foram medidas e revertidas: a primeira consertou o irmao e
+quebrou a casca, as outras nao tiveram efeito. O app nao e afetado (os arquivos
+importam o que nomeiam, `380e84f`), e o esqueleto fica fora de `libs/` ate a busca
+semear o proprio diretorio de pacote da entrada.
