@@ -1860,3 +1860,9 @@ APP SIDE LANDED (round §78, app `777458d`): the whole comments SECTION of the b
 the `rounded-2xl` card with the composer (69) and the list (`p-3`, `space-y-3`): 182 with one
 one-line comment, 281 with two, 95 with none. Proof `EnoisPostCommentsSectionE2ETest`
 (`p=12/12/1/16`, `itens=87/133`, `lista=111/210/24`, `secao=182/281/95`).
+
+APP SIDE LANDED (round §79, app `3ea74c5`): `ReadMore` (`libs/ReadMore.kf`): the clamp is by
+LINES (`line-clamp-5` in the comment, `line-clamp-3` in the Content), the `mt-1 text-sm` button
+appears only when the real text passes the clamp (24 tall), and the label flips between
+"Ler mais" and "Mostrar menos". 139 collapsed (5 lines) / 208 expanded (8) / 69 short (3).
+Proof `EnoisReadMoreE2ETest`.

@@ -1561,3 +1561,9 @@ LADO DO APP ENTREGUE (rodada §78, app `777458d`): a SECAO completa de comentari
 `rounded-2xl` com o compositor (69) e a lista (`p-3`, `space-y-3`): 182 com um comentario de
 uma linha, 281 com dois, 95 sem nenhum. Prova `EnoisPostCommentsSectionE2ETest`
 (`p=12/12/1/16`, `itens=87/133`, `lista=111/210/24`, `secao=182/281/95`).
+
+LADO DO APP ENTREGUE (rodada §79, app `3ea74c5`): `ReadMore` (`libs/ReadMore.kf`): o corte e'
+por LINHAS (`line-clamp-5` no comentario, `line-clamp-3` no Content), o botao `mt-1 text-sm`
+aparece so' quando o texto real passa do corte (24 de altura) e o rotulo alterna entre "Ler
+mais" e "Mostrar menos". 139 recolhido (5 linhas) / 208 expandido (8) / 69 curto (3). Prova
+`EnoisReadMoreE2ETest`.
