@@ -1595,3 +1595,16 @@ second statement is a literal 50 already) and for a working one (`println(2)` +
 module object handed to `KofInterpreter.run`. NEXT: that dump. The app keeps 184
 pinned.
 
+## §56 Round 25/11 (thirty-eighth) — §1218 rule measured: two `println`s of the SAME value repeat the first line; the print path is the target (Kof4j only)
+
+Measured on the rebuilt CLI jar and the native build: `println(50)` +
+`println(50 + 0)` → `50 50`; `var a = 80; println(a)` + `var b = 80; println(b)` →
+`80 80`; `val a = 100 - 20; println(a)` + `val b = 50 + 30; println(b)` → `80 80`
+— the VALUE decides, not the syntax. Different values print right (`2`/`3 + 4` →
+`2 7`, `5`/`40 + 40` → `5 80`, `90`/`90 + 94` → `90 184`). The module handed to
+the interpreter is right, the Optimizer is right by identity, and the native asm for
+the failing pair is `movq $80, %rdi / call kof_int_to_string /
+call kof_println_string` twice — so the remaining target is the print path
+(`kof_int_to_string` + `kof_println_string`). NEXT: bisect those two with the same
+value twice and two different values in one program. The app keeps 184 pinned.
+

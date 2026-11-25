@@ -1362,3 +1362,7 @@ Medido nos dois backends com o jar reconstruido: `80`/`60 + 20` → `80 80` (err
 
 O `kof.trace.stack` (revertido) mostra a pilha de operandos do interpretador para o programa que falha (`50` + `50 + 0`: `TR 6 LIT 50` — o segundo statement ja' e' um literal 50) e para um que funciona (`2` + `3 + 4`: `TR 6 LIT 7`). O Optimizer, com identidade, esta certo. A UNICA medicao que falta e' o modulo entregue ao `KofInterpreter.run`. PROXIMO: aquele dump. O app mantem o 184 fixado.
 
+## §56 Rodada 25/11 (trigesima oitava) — regra do §1218 medida: dois `println` do MESMO valor repetem a primeira linha; o alvo e' o caminho de impressao (so' o Kof4j)
+
+Medido com o jar reconstruido e o build nativo: `50` + `50 + 0` → `50 50`; `var a = 80` + `var b = 80` → `80 80`; `val a = 100 - 20` + `val b = 50 + 30` → `80 80` — o VALOR decide, nao a sintaxe. Valores diferentes imprimem certo (`2`/`3 + 4` → `2 7`, `5`/`40 + 40` → `5 80`, `90`/`90 + 94` → `90 184`). O modulo entregue ao interpretador esta certo, o Optimizer por identidade esta certo e o asm nativo do par que falha e' `movq $80` + `kof_int_to_string` + `kof_println_string` duas vezes — o alvo que sobra e' o caminho de impressao. PROXIMO: bissecar essas duas chamadas com o mesmo valor duas vezes e com dois valores diferentes num programa. O app mantem o 184 fixado.
+
