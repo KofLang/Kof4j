@@ -25,7 +25,7 @@ public final class RuntimeConfig1 {
 
             # kof_env_getc(rdi=nome C-string) -> rax = KofString*|0
             # M-6 (#1135): a busca no ambiente e' da COSTURA — o corpo Linux
-            # le o /proc/self/environ e o Darwin usa o getenv da libSystem
+            # le o environ do procfs e o Darwin usa o getenv da libSystem
             # (o /proc nao existe la). O corpo era o deste proprio sitio.
             kof_env_getc:
                 jmp kof_plat_env_get

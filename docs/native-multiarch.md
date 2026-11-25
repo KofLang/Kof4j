@@ -782,6 +782,26 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   is what NATIVE004 refuses without. **THE NEXT ROWS:** the "stat" family of
   the seam (the Darwin `struct stat`), the M-7 runner, the arm64 face (the
   cross aarch64 emitter + its Mach-O proof); then #1159 keep-alive HTTP/1.1.
+  **M-6 SLICE 9 LANDED 24/11 (the two sibling environ sites joined the seam —
+  the log level and the secret lookup).** `.Llog_parse_level` (the
+  `KOF_LOG_LEVEL` threshold) and `kof_sec_secret_get` (the
+  `secrets.get(...)` lookup) opened `/proc/self/environ` themselves — the
+  same face that cannot exist on the Darwin. Both now delegate to
+  `kof_plat_env_get`: the log site takes the value as a `KofString`
+  (len@16, data@24) and keeps its length-based dispatch untouched; the
+  secret site copies the name into a C string (the seam's contract) and
+  returns the seam's `KofString*` — the same value the old scan produced.
+  The Linux procfs path no longer survives anywhere in the macOS profile.
+  **PROOF (executed):** `NativeMacOSEnvSeamE2ETest` 7/7 (RED-first 2
+  failures on the old tree) with the log/security/config battery 151 tests
+  0F (`NativeLogE2ETest` 7, `KofLogE2ETest` 12, `NativeLogCrossTest` 7,
+  `KofSecurityTest` 42); the seam ratchet **FALLS 136 → 130**; the zig
+  `x86_64-macos-none` assembler accepts the whole translated runtime. **A
+  NOTE ON THE MEASUREMENT (honest):** the first landing attempt crashed the
+  native binary (exit 139) because the migrated site's exit still restored
+  the old 16 KB buffer — the frame was unbalanced; the log battery caught it
+  and the fix is in the same commit.
+
   **M-6 SLICE 8 LANDED 24/11 (the ENV/CONFIG family of the seam — and the
   Darwin has no `/proc`).** The environment lookup read
   `/proc/self/environ` itself, with raw `open`/`read`/`close` — a face that

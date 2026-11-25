@@ -784,6 +784,26 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   isso que a NATIVE004 recusa sem. **AS PRÓXIMAS LINHAS:** a família "stat"
   da costura (o `struct stat` do Darwin), o runner M-7, a face arm64 (o
   emissor cross aarch64 + a sua prova Mach-O); depois #1159 keep-alive
+  **M-6 FATIA 9 POUSADA 24/11 (os dois sítios irmãos do environ entraram na
+  costura — o nível do log e a busca de segredo).** O `.Llog_parse_level`
+  (o threshold do `KOF_LOG_LEVEL`) e o `kof_sec_secret_get` (a busca do
+  `secrets.get(...)`) abriam o `/proc/self/environ` eles mesmos — a mesma
+  face que não pode existir no Darwin. Agora ambos DELEGAM ao
+  `kof_plat_env_get`: o sítio do log recebe o valor como `KofString`
+  (len@16, data@24) e mantém intacto o dispatch por comprimento; o sítio do
+  segredo copia o nome para um C string (o contrato da costura) e devolve o
+  `KofString*` da costura — o mesmo valor que o scan antigo produzia. O
+  caminho do procfs do Linux não sobrevive mais em lugar nenhum do perfil
+  macOS. **PROVA (executada):** `NativeMacOSEnvSeamE2ETest` 7/7 (RED-first 2
+  falhas na árvore antiga) com a bateria log/segurança/config 151 testes 0F
+  (`NativeLogE2ETest` 7, `KofLogE2ETest` 12, `NativeLogCrossTest` 7,
+  `KofSecurityTest` 42); o ratchet da costura **CAI 136 → 130**; o assembler
+  zig `x86_64-macos-none` aceita o runtime inteiro traduzido. **UMA NOTA
+  SOBRE A MEDIÇÃO (honesto):** a primeira tentativa de pouso quebrou o
+  binário nativo (exit 139) porque o exit do sítio migrado ainda restaurava
+  o buffer de 16 KB antigo — o frame ficou desbalanceado; a bateria de log
+  pegou isso e a correção está no mesmo commit.
+
   **M-6 FATIA 8 POUSADA 24/11 (a família ENV/CONFIG da costura — e o Darwin
   não tem `/proc`).** A busca no ambiente lia o `/proc/self/environ` ela
   mesmo, com `open`/`read`/`close` crus — uma face que não pode existir no

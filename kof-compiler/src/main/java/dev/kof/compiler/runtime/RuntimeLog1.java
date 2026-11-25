@@ -20,7 +20,7 @@ public final class RuntimeLog1 {
                 .long 13
                 .long 0
                 .ascii "KOF_LOG_LEVEL"
-            .Llog_env_name:    .asciz "KOF_LOG_LEVEL="
+            .Llog_env_key:     .asciz "KOF_LOG_LEVEL"
             .Llog_w_debug:     .asciz "debug"
             .Llog_w_info:      .asciz "info"
             .Llog_w_warn:      .asciz "warn"
@@ -90,67 +90,19 @@ public final class RuntimeLog1 {
                 ret
 
             # .Llog_parse_level -> rax = threshold (lazy, uma vez por processo).
-            # Autocontido: abre /proc/self/environ e procura "KOF_LOG_LEVEL="
-            # (o kof_sec_secret_get espera KofString e não serve aqui).
+            # M-6 (#1135): a busca do ambiente e' da COSTURA — o corpo Linux
+            # le o environ do procfs, o Darwin usa o getenv da libSystem (o
+            # procfs nao existe la). O valor chega como KofString (len@16,
+            # data@24) e o dispatch abaixo (por comprimento) nao mudou.
             .Llog_parse_level:
-                pushq %rbx
-                pushq %r12
-                pushq %r13
-                subq $16384, %rsp
-                leaq .Lsec_environ_path(%rip), %rdi
-                xorq %rsi, %rsi
-                xorq %rdx, %rdx
-                movq $2, %rax               # SYS_open
-                syscall
+                pushq %rbx                # 1 push (impar) = pilha alinhada na chamada
+                leaq .Llog_env_key(%rip), %rdi   # "KOF_LOG_LEVEL" (sem o '=')
+                call kof_plat_env_get
                 testq %rax, %rax
-                js .Llog_pl_default
-                movq %rax, %r12             # fd
-                movq %r12, %rdi
-                leaq 0(%rsp), %rsi
-                movq $16384, %rdx
-                xorq %rax, %rax             # SYS_read
-                syscall
-                movq %rax, %r13             # bytes lidos
-                movq %r12, %rdi
-                movq $3, %rax               # close
-                syscall
-                cmpq $15, %r13
-                jl .Llog_pl_default
-                xorq %rbx, %rbx             # índice no buffer
-            .Llog_scan:
-                movq %rsp, %r8
-                addq %rbx, %r8
-                leaq .Llog_env_name(%rip), %r10
-                xorq %r9, %r9
-            .Llog_pcmp:
-                cmpq $14, %r9
-                je .Llog_pfound
-                leaq (%rbx,%r9), %rdx
-                cmpq %r13, %rdx
-                jge .Llog_pl_default
-                movzbl (%r8,%r9), %eax
-                movzbl (%r10,%r9), %ecx
-                cmpl %ecx, %eax
-                jne .Llog_padvance
-                incq %r9
-                jmp .Llog_pcmp
-            .Llog_padvance:
-                incq %rbx
-                jmp .Llog_scan
-            .Llog_pfound:
-                leaq 14(%r8), %rsi          # valor
-                xorl %edx, %edx             # len até NUL
-            .Llog_vlen:
-                movq %rbx, %rax
-                addq $14, %rax               # salta o prefixo "KOF_LOG_LEVEL="
-                addq %rdx, %rax
-                cmpq %r13, %rax
-                jge .Llog_vdone
-                cmpb $0, (%rsp,%rax)
-                je .Llog_vdone
-                incq %rdx
-                jmp .Llog_vlen
-            .Llog_vdone:
+                jz .Llog_pl_default
+                movq %rax, %rbx            # a KofString do valor
+                movl 16(%rbx), %edx        # len do valor
+                leaq 24(%rbx), %rsi        # bytes do valor
                 call .Llog_ci_word
                 # dispatch pelo comprimento (debug5 info4 warn4 warning7 error5 off3)
                 movl %edx, %ebx
@@ -213,9 +165,6 @@ public final class RuntimeLog1 {
             .Llog_pl_default:
                 movq $1, %rax
             .Llog_pl_exit:
-                addq $16384, %rsp
-                popq %r13
-                popq %r12
                 popq %rbx
                 ret
 

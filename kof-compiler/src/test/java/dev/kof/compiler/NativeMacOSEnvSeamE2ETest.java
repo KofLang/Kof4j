@@ -32,6 +32,8 @@ class NativeMacOSEnvSeamE2ETest {
     private static final String PROBE = """
             main() {
                 println(config.env("KOF_MACOS_ENV_PROBE"))
+                println(secrets.get("HOME"))
+                log.info("probe")
             }
             """;
 
@@ -167,6 +169,46 @@ class NativeMacOSEnvSeamE2ETest {
                 "the Linux env body closes through the seam:\n" + env);
         assertTrue(asm.contains("/proc/self/environ"),
                 "the Linux env body reads the procfs");
+    }
+
+    /**
+     * Os dois sítios IRMÃOS do environ também passaram pela costura — o
+     * `.Llog_parse_level` (o nível do log) e o `kof_sec_secret_get` (a
+     * variável de ambiente com segredo). Antes eles abriam o
+     * {@code /proc/self/environ} eles mesmos.
+     */
+    @Test
+    void theSiblingEnvSitesGoThroughTheSeam(@TempDir Path tmp) throws IOException {
+        String asm = assembly(tmp, "macos");
+        assertFalse(asm.contains("/proc/self/environ"),
+                "no Linux procfs path survives in the macOS profile");
+
+        String log = body(asm, ".Llog_parse_level");
+        assertTrue(log.contains("call kof_plat_env_get"),
+                "the log level comes from the seam:\n" + log);
+        assertFalse(log.contains("syscall"),
+                "no raw syscall at the log level site:\n" + log);
+
+        String secret = body(asm, "kof_sec_secret_get");
+        assertTrue(secret.contains("call kof_plat_env_get"),
+                "the secret lookup comes from the seam:\n" + secret);
+        assertFalse(secret.contains("syscall"),
+                "no raw syscall at the secret site:\n" + secret);
+    }
+
+    /**
+     * O perfil do HOST (Linux) mantem o contrato: os dois sítios também
+     * delegam.
+     */
+    @Test
+    void theLinuxSiblingEnvSitesGoThroughTheSeam(@TempDir Path tmp) throws IOException {
+        String asm = assembly(tmp, null);
+        String log = body(asm, ".Llog_parse_level");
+        assertTrue(log.contains("call kof_plat_env_get"),
+                "the log level comes from the seam:\n" + log);
+        String secret = body(asm, "kof_sec_secret_get");
+        assertTrue(secret.contains("call kof_plat_env_get"),
+                "the secret lookup comes from the seam:\n" + secret);
     }
 
     /**

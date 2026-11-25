@@ -196,7 +196,6 @@ public final class RuntimeSecurity11 {
                 ret
 
             # kof_sec_secret_get(rdi=name) → value or 0 (null)
-            # reads /proc/self/environ via syscalls (no libc)
             .globl kof_sec_secret_get
             .type kof_sec_secret_get, @function
             # kof_sec_secret_get(rdi=nome KofString*) -> rax = KofString*|0
@@ -212,85 +211,34 @@ public final class RuntimeSecurity11 {
                 pushq %r13
                 pushq %r14
                 pushq %r15
-                subq $16384, %rsp
-                movq %rdi, %rbx              # nome KofString*
-                movl 16(%rbx), %r10d         # nlen
+                subq $16400, %rsp          # o buffer C do nome (frame alinhado)
+                movq %rdi, %rbx            # nome KofString*
+                movl 16(%rbx), %r10d       # nlen
                 movslq %r10d, %r10
                 testq %r10, %r10
                 jle .Lssg_fail
-                leaq .Lsec_environ_path(%rip), %rdi
-                xorq %rsi, %rsi
-                xorq %rdx, %rdx
-                movq $2, %rax                # SYS_open
-                syscall
-                testq %rax, %rax
-                js .Lssg_fail
-                movq %rax, %r12              # fd
-                movq %r12, %rdi
-                movq %rsp, %rsi
-                movq $16384, %rdx
-                xorq %rax, %rax              # SYS_read
-                syscall
-                movq %rax, %r13              # bytes lidos
-                movq %r12, %rdi
-                movq $3, %rax                # close
-                syscall
-                # r13 = len; r10 = nlen; rbx = nome KofString*
-                xorq %r14, %r14              # i = 0
-            .Lssg_scan:
-                cmpq %r13, %r14
-                jge .Lssg_fail
-                movq %rsp, %r8
-                addq %r14, %r8               # r8 = buf + i
-                xorq %r9, %r9                # j = 0
-            .Lssg_pcmp:
-                cmpq %r10, %r9
-                je .Lssg_pmatched
-                movq %r14, %rax
-                addq %r9, %rax
-                cmpq %r13, %rax
-                jge .Lssg_fail
-                movzbl 24(%rbx,%r9), %eax    # name[j] (data da KofString em +24)
-                movzbl (%r8,%r9), %ecx       # buf[i+j]
-                cmpl %ecx, %eax
-                jne .Lssg_advance
-                incq %r9
-                jmp .Lssg_pcmp
-            .Lssg_pmatched:
-                cmpb $61, 0(%r8,%r10)        # buf[i+nlen] == '=' ?
-                jne .Lssg_advance
-                leaq 1(%r8,%r10), %rdi       # valor = buf + i + nlen + 1
-                movq %r14, %rsi
-                addq %r10, %rsi
-                incq %rsi                    # offset do valor
-                movq %r13, %rdx
-                subq %rsi, %rdx              # limite restante no buffer
-                movq %rdx, %r15              # r15 = limite
-                xorq %rcx, %rcx              # vallen
-            .Lssg_vscan:
-                cmpq %r15, %rcx
-                jge .Lssg_vdone
-                cmpb $0, (%rdi,%rcx)
-                je .Lssg_vdone
-                incq %rcx
-                jmp .Lssg_vscan
-            .Lssg_vdone:
-                movq %rcx, %rsi              # ESI = vallen (contrato do from_literal)
-                call kof_string_from_literal # rdi ja aponta para o valor
+                cmpq $16384, %r10          # o nome nao cabe no buffer -> nao casa
+                jae .Lssg_fail
+                # a costura pede um C string: copia o nome + NUL
+                movq %rsp, %r11            # destino
+                leaq 24(%rbx), %r12        # dados do nome
+                xorq %r13, %r13            # i
+            .Lssg_copy:
+                cmpq %r10, %r13
+                jge .Lssg_copy_done
+                movzbl (%r12,%r13), %eax
+                movb %al, (%r11,%r13)
+                incq %r13
+                jmp .Lssg_copy
+            .Lssg_copy_done:
+                movb $0, (%r11,%r13)
+                movq %r11, %rdi
+                call kof_plat_env_get      # M-6 (#1135): a busca do ambiente e' da costura
                 jmp .Lssg_exit
-            .Lssg_advance:
-                cmpb $0, (%r8)
-                je .Lssg_adv_null
-                incq %r8
-                incq %r14
-                jmp .Lssg_advance
-            .Lssg_adv_null:
-                incq %r14                    # pula o NUL da entrada
-                jmp .Lssg_scan
             .Lssg_fail:
                 xorl %eax, %eax
             .Lssg_exit:
-                addq $16384, %rsp
+                addq $16400, %rsp
                 popq %r15
                 popq %r14
                 popq %r13
@@ -333,8 +281,6 @@ public final class RuntimeSecurity11 {
                 popq %rbx
                 ret
 
-            .Lsec_environ_path:
-                .asciz "/proc/self/environ"
             """);
     }
 }
