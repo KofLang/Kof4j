@@ -782,6 +782,34 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   is what NATIVE004 refuses without. **THE NEXT ROWS:** the "stat" family of
   the seam (the Darwin `struct stat`), the M-7 runner, the arm64 face (the
   cross aarch64 emitter + its Mach-O proof); then #1159 keep-alive HTTP/1.1.
+  **M-6 SLICE 8 LANDED 24/11 (the ENV/CONFIG family of the seam — and the
+  Darwin has no `/proc`).** The environment lookup read
+  `/proc/self/environ` itself, with raw `open`/`read`/`close` — a face that
+  cannot exist on the Darwin, where the procfs does not. The lookup site is
+  now a delegation to `kof_plat_env_get`, whose bodies carry the SAME
+  contract (`rdi` = the name as a C string, `rax` = `KofString* | 0`): on
+  Linux the procfs scan, now INSIDE the seam (`kof_plat_open`/`kof_plat_read`/
+  `kof_plat_close`); on Darwin the libSystem `getenv` plus the `KofString`
+  construction. The seam also gained `kof_plat_open` — the Linux syscall 2,
+  and on the Darwin the variadic `open` (so `%al=0`) with the failure
+  normalized to `-errno` through `int *__error(void)`. **A SECOND DESCRIPTOR
+  LEAK, FIXED AT THE ROOT IN THE SAME SLICE:** the config-file descriptor
+  lived in `%rcx`, and the syscall DESTROYS `%rcx` (x86-64 Linux syscall
+  ABI) — the `close` that followed the read received garbage, failed with
+  EBADF, and the descriptor leaked on every config-file read (known-bugs
+  §1211). The fd now lives in a frame slot (`16384(%rsp)`), never in a
+  register the syscall destroys. **PROOF (executed):**
+  `NativeMacOSEnvSeamE2ETest` 5/5 (RED-first 4 failures on the old tree) and
+  `NativeConfigEnvFdLeakE2ETest` 3/3 (RED measured on the old tree: the
+  native binary under `ulimit -n 64` dies at read **139** with `leak at
+  139`); the native/config battery 84 tests 0F; the seam ratchet **FALLS
+  141 → 136**; the zig `x86_64-macos-none` assembler accepts the whole
+  translated runtime. **WHAT IS STILL MISSING (honest):** the two sibling
+  environ sites (`kof_sec_secret_get` in `RuntimeSecurity11` and
+  `.Llog_parse_level` in `RuntimeLog1`) still read the procfs themselves —
+  they are the next row of this family; the RUN still needs the M-7 macos-14
+  runner.
+
   **M-6 SLICE 6 LANDED 23/11 (the HTTP/socket family of the seam — and the
   Darwin `setsockopt`/`getsockopt` are NOT the syscall with other numbers).**
   The `kof.http` core opened, configured and waited on its socket with FIVE

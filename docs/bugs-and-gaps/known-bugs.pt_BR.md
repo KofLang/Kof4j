@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
+last: §1211 (CORRIGIDO 24/11 — o fd do arquivo de config vivia no %rcx (destruido pelo syscall); 3/3)
 last: §1208 (CORRIGIDO 24/11 — kof_env_getc nunca fechava o fd do environ; 2/2)
 last: §1210 (OPEN — a static overload call is emitted without the signature tag; ld refuses it; measured 23/11)
 last: §1209 (OPEN — a solo entry does not see a no-import sibling; the CLI collects the directory and is fine; measured 23/11)
@@ -19142,3 +19143,5 @@ Medido: com a raiz do modulo de volta no diretorio da entrada (o LCA historico) 
 **Estado:** 🟡 ABERTO — o app nao o aciona hoje (nenhuma classe com overloads estaticos de mesma aridade no caminho do harness).
 
 Medido: a DEFINICAO do metodo emite as tags de assinatura (`ovl_Duas_soma_I_I`, `ovl_Duas_soma_String_String`), os CALL sites emitem `ovl_Duas_soma` (2 chamadas), e `NativeSymbolMangling.classHasOverload("Duas", "soma", nb.allClassesMap)` devolve `true` no mapa do backend, entao o overload e visivel na definicao. Uma tentativa de correcao (lookup do mapa pela `fnKey` em `NativeOpHelpers.resolveCalleeName` + o nome simples registrado no `allClassesMap`) deixou este teste verde mas quebrou `NativeE2ETest` (SIGSEGV 139), `NativeInheritedDispatchE2ETest` e `EntryPackageImportE2ETest` (`asm: symbol .Lsch_enois_Texts is already defined`) — os tres estao VERDES na base sem ela, entao a tentativa foi REVERTIDA. `NativeOverloadSymbolE2ETest` fica como testemunha RED. Proximo: achar por que o dono no call site nao ve o overload (o dono que chega no `resolveCalleeName` provavelmente e o tipo do RETORNO/receiver, nao a classe declarante) com o asm dos dois lados lado a lado.
+
+## §1211 — o descritor do ARQUIVO de configuração vivia no `%rcx` — e o syscall DESTRÓI o `%rcx`: o `close` recebia lixo (EBADF) e o descritor vazava a cada leitura do arquivo de configuração — ✅ CORRIGIDO 24/11 (lane nativa macOS `192.168.15.15:0`): o sítio fazia `movq %rax, %rcx # fd`, depois o `syscall` da leitura (que destroi o `%rcx` e o `%r11` pela ABI do syscall x86-64 do Linux), e então `movq %rcx, %rdi; movq $3, %rax; syscall` — o `close` recebia o endereco de retorno do syscall, nao o fd, falhava com EBADF e o descritor ficava aberto. O sitio agora passa pela costura (`kof_plat_open`/`kof_plat_read`/`kof_plat_close`) e guarda o fd num slot do frame (`16384(%rsp)`), nunca num registrador que o syscall destroi. PROVA `NativeConfigEnvFdLeakE2ETest` **3/3** — RED medido na arvore antiga: o binario nativo sob `ulimit -n 64` le o arquivo de configuracao 200 vezes e morre na leitura **139** imprimindo `leak at 139`; GREEN depois (imprime `done`).

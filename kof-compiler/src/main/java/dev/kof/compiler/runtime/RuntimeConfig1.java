@@ -24,109 +24,11 @@ public final class RuntimeConfig1 {
             .section .text
 
             # kof_env_getc(rdi=nome C-string) -> rax = KofString*|0
-            # busca linear simples: acha "NAME=" como substring do environ;
-            # valor = ate o NUL da entrada. Estado: r10=nlen, r13=len,
-            # r14=i (posicao), r9=j (casamento), r8=ptr corrente.
+            # M-6 (#1135): a busca no ambiente e' da COSTURA — o corpo Linux
+            # le o /proc/self/environ e o Darwin usa o getenv da libSystem
+            # (o /proc nao existe la). O corpo era o deste proprio sitio.
             kof_env_getc:
-                pushq %rbx
-                pushq %r12
-                pushq %r13
-                pushq %r14
-                pushq %r15
-                subq $16384, %rsp
-                movq %rdi, %rbx              # nome
-                xorq %r10, %r10              # strlen(nome)
-            .Lceg_nlen:
-                cmpb $0, (%rbx,%r10)
-                je .Lceg_nlen_done
-                incq %r10
-                jmp .Lceg_nlen
-            .Lceg_nlen_done:
-                leaq .Lsec_environ_path(%rip), %rdi
-                xorq %rsi, %rsi
-                xorq %rdx, %rdx
-                movq $2, %rax                # SYS_open
-                syscall
-                testq %rax, %rax
-                js .Lceg_fail
-                movq %rax, %r12              # fd
-                movq %r12, %rdi
-                leaq 0(%rsp), %rsi
-                movq $16384, %rdx
-                xorq %rax, %rax              # SYS_read
-                syscall
-                movq %rax, %r13              # bytes lidos
-                movq %r12, %rdi
-                call kof_plat_close          # o close que faltava: sem ele o fd vazava
-                testq %r10, %r10             # nome vazio -> falha
-                jle .Lceg_fail
-                cmpq %r10, %r13
-                jle .Lceg_fail               # buffer menor que o nome
-                xorq %r14, %r14              # i = 0
-            .Lceg_scan:
-                cmpq %r13, %r14
-                jge .Lceg_fail
-                movq %rsp, %r8
-                addq %r14, %r8               # r8 = buf + i
-                xorq %r9, %r9                # j = 0
-            .Lceg_pcmp:
-                cmpq %r10, %r9
-                je .Lceg_pmatched            # casou o nome inteiro
-                movq %r14, %rax
-                addq %r9, %rax
-                cmpq %r13, %rax
-                jge .Lceg_fail
-                movzbl (%rbx,%r9), %eax      # name[j]
-                movzbl (%r8,%r9), %ecx       # buf[i+j]
-                cmpl %ecx, %eax
-                jne .Lceg_advance
-                incq %r9
-                jmp .Lceg_pcmp
-            .Lceg_pmatched:
-                # exige '=' imediatamente apos o nome
-                cmpb $61, (%r8,%r10)
-                jne .Lceg_advance
-                leaq 1(%r8,%r10), %rdi       # valor = buf + i + nlen + 1
-                movq %r14, %rsi
-                addq %r10, %rsi
-                incq %rsi                    # inicio do valor (offset)
-                movq %r13, %rdx
-                subq %rsi, %rdx              # limite restante
-                movq %rdx, %r15              # r15 = len maximo
-                xorq %rcx, %rcx              # comprimento do valor ate NUL
-            .Lceg_vscan:
-                cmpq %r15, %rcx
-                jge .Lceg_vdone
-                cmpb $0, (%rdi,%rcx)
-                je .Lceg_vdone
-                incq %rcx
-                jmp .Lceg_vscan
-            .Lceg_vdone:
-                movq %rcx, %rsi              # vallen
-                call kof_string_from_literal
-                jmp .Lceg_exit
-            .Lceg_advance:
-                # avanca ate passar do proximo NUL (fim da entrada)
-                cmpq %r13, %r14
-                jge .Lceg_fail
-                cmpb $0, (%r8)
-                je .Lceg_adv_null
-                incq %r8
-                incq %r14
-                jmp .Lceg_advance
-            .Lceg_adv_null:
-                incq %r14                    # pula o proprio NUL
-                jmp .Lceg_scan
-            .Lceg_fail:
-                xorl %eax, %eax
-            .Lceg_exit:
-                addq $16384, %rsp
-                popq %r15
-                popq %r14
-                popq %r13
-                popq %r12
-                popq %rbx
-                ret
+                jmp kof_plat_env_get
 
             # .Lcfg_file_find(rdi=path C-string, rsi=key KofString*) -> KofString*|0
             # Ponteiros ABSOLUTOS apenas: rbx=buffer base, r14=fim dos dados,
@@ -137,27 +39,26 @@ public final class RuntimeConfig1 {
                 pushq %r13
                 pushq %r14
                 pushq %r15
-                subq $16384, %rsp
+                subq $16400, %rsp          # 16384 do buffer + 8 do fd + 8 de
+                                           # preenchimento (o frame precisa de
+                                           # multiplos de 16: alinhamento SysV)
                 movq %rsi, %r12              # key
                 movq %rdi, %rbx              # path cstr
                 movq %rbx, %rdi
                 xorq %rsi, %rsi
                 xorq %rdx, %rdx
-                movq $2, %rax                # SYS_open (ausente -> null)
-                syscall
+                call kof_plat_open           # M-6 (#1135): a io de arquivo pela costura
                 testq %rax, %rax
                 js .Lcff_fail
-                movq %rax, %rcx              # fd
-                movq %rcx, %rdi
+                movq %rax, 16384(%rsp)       # fd (o syscall destroi o %rcx)
+                movq 16384(%rsp), %rdi
                 movq %rsp, %rsi
                 movq $16384, %rdx
-                xorq %rax, %rax              # SYS_read
-                syscall
+                call kof_plat_read
                 movq %rsp, %rbx              # rbx = buffer base (fixo)
                 movq %rax, %r14              # r14 = bytes lidos
-                movq %rcx, %rdi
-                movq $3, %rax                # close
-                syscall
+                movq 16384(%rsp), %rdi
+                call kof_plat_close
                 testq %r14, %r14
                 jle .Lcff_fail
                 leaq 24(%r12), %r13          # r13 = endereco dos dados da chave
@@ -274,7 +175,7 @@ public final class RuntimeConfig1 {
             .Lcff_fail:
                 xorl %eax, %eax
             .Lcff_exit:
-                addq $16384, %rsp
+                addq $16400, %rsp
                 popq %r15
                 popq %r14
                 popq %r13

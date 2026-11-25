@@ -2,6 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
+last: §1211 (FIXED 24/11 — the config file fd lived in %rcx (destroyed by the syscall); 3/3)
 last: §1208 (FIXED 24/11 — kof_env_getc never closed the environ fd; 2/2)
 last: §1210 (OPEN — a static overload call is emitted without the signature tag; ld refuses it; measured 23/11)
 last: §1209 (OPEN — a solo entry does not see a no-import sibling; the CLI collects the directory and is fine; measured 23/11)
@@ -21726,3 +21727,5 @@ Measured: with the module root back at the entry directory (the historical LCA) 
 **Status:** 🟡 OPEN — the app does not hit it today (no class with same-arity static overloads in the harness path).
 
 Measured: the method DEFINITION emits signature tags (`ovl_Duas_soma_I_I`, `ovl_Duas_soma_String_String`), the CALL sites emit `ovl_Duas_soma` (2 calls), and `NativeSymbolMangling.classHasOverload("Duas", "soma", nb.allClassesMap)` returns `true` in the backend map, so the overload is visible at the definition. A fix attempt (map lookup keyed by `fnKey` in `NativeOpHelpers.resolveCalleeName` + the simple name registered in `allClassesMap`) made this test green but broke `NativeE2ETest` (SIGSEGV 139), `NativeInheritedDispatchE2ETest` and `EntryPackageImportE2ETest` (`asm: symbol .Lsch_enois_Texts is already defined`) — all three are GREEN on the base without it, so the attempt was REVERTED. `NativeOverloadSymbolE2ETest` stays as the RED witness. Next: find why the call-site owner misses the overload (the owner reaching `resolveCalleeName` is probably the type of the RETURN/receiver rather than the declaring class) with the asm of both sites side by side.
+
+## §1211 — the config FILE descriptor lived in `%rcx` — and the syscall DESTROYS `%rcx`: the `close` received garbage (EBADF) and the descriptor leaked on every config-file read — ✅ FIXED 24/11 (lane nativa macOS `192.168.15.15:0`): the site did `movq %rax, %rcx # fd`, then the read `syscall` (which destroys `%rcx` and `%r11` per the x86-64 Linux syscall ABI), then `movq %rcx, %rdi; movq $3, %rax; syscall` — the `close` got the syscall's return address, not the fd, so it failed with EBADF and the file descriptor stayed open. The site now goes through the seam (`kof_plat_open`/`kof_plat_read`/`kof_plat_close`) and keeps the fd in a frame slot (`16384(%rsp)`), never in a register the syscall destroys. PROOF `NativeConfigEnvFdLeakE2ETest` **3/3** — RED measured on the old tree: the native binary under `ulimit -n 64` reads a config file 200 times and dies at read **139** printing `leak at 139`; GREEN after (prints `done`).

@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -85,8 +86,62 @@ class NativeConfigEnvFdLeakE2ETest {
     }
 
     /**
-     * A causa raiz no texto emitido: entre o {@code read} do environ e a
-     * varredura existe um {@code close} de verdade.
+     * O MESMO bug na face do ARQUIVO de configuração: lá o fd vivia no
+     * {@code %rcx} — e o syscall DESTRÓI o {@code %rcx}. O {@code close}
+     * recebia lixo (o close falhava com EBADF) e o fd do arquivo vazava a
+     * cada leitura.
+     */
+    private static final String FILE_PROBE = """
+            String probeFile(Int n) {
+                if (n == 0) {
+                    return "done"
+                }
+                var v = config.str("cfg.mensagem", "padrao")
+                if (v != "via arquivo") {
+                    return "leak at " + n
+                }
+                return probeFile(n - 1)
+            }
+
+            main() {
+                println(probeFile(200))
+            }
+            """;
+
+    /**
+     * 200 leituras do arquivo de configuração com 64 descritores: o valor
+     * continua visível — o fd e' fechado a cada leitura.
+     */
+    @Test
+    void everyConfigFileReadClosesItsDescriptor(@TempDir Path tmp)
+            throws IOException, InterruptedException {
+        Path cfg = tmp.resolve("kof.config");
+        Files.writeString(cfg, "cfg.mensagem = via arquivo\n");
+        Path source = tmp.resolve("Main.kf");
+        Files.writeString(source, FILE_PROBE);
+        CompilationResult result = new CompilerDriver().compile(
+                source, tmp.resolve("out"), Target.NATIVE);
+        assertTrue(result.success(),
+                "Compilation should succeed: " + result.diagnostics().getDiagnostics());
+        Path bin = tmp.resolve("out/Default/Main");
+        assertTrue(Files.exists(bin), "Binary should exist");
+
+        ProcessBuilder pb = new ProcessBuilder("bash", "-c",
+                "ulimit -n 64 && exec \"$0\"", bin.toString());
+        pb.redirectErrorStream(true);
+        pb.environment().put("KOF_CONFIG", cfg.toString());
+        Process p = pb.start();
+        String output = new String(p.getInputStream().readAllBytes(),
+                StandardCharsets.UTF_8).replace("\r\n", "\n").trim();
+        int ec = p.waitFor();
+        assertEquals(0, ec, "Exit code should be 0, output: '" + output + "'");
+        assertEquals("done", output,
+                "the config file descriptor must be closed on every read: '" + output + "'");
+    }
+
+    /**
+     * A causa raiz no texto emitido: o {@code close} do environ acontece entre
+     * o {@code read} e a varredura — e a busca é do corpo da costura.
      */
     @Test
     void theEmittedEnvLookupClosesTheDescriptor(@TempDir Path tmp) throws IOException {
@@ -99,16 +154,25 @@ class NativeConfigEnvFdLeakE2ETest {
                     source, tmp.resolve("out-asm"), Target.NATIVE);
             assertTrue(result.success(), result.diagnostics().getDiagnostics().toString());
             String asm = Files.readString(tmp.resolve("out-asm/Default/Main.s"));
-            int at = asm.indexOf("kof_env_getc:");
-            assertTrue(at > 0, "kof_env_getc must be emitted");
-            String body = asm.substring(at, Math.min(asm.length(), at + 2000));
-            int read = body.indexOf("# SYS_read");
+
+            int wrapper = asm.indexOf("kof_env_getc:");
+            assertTrue(wrapper > 0, "kof_env_getc must be emitted");
+            String wrapperBody = asm.substring(wrapper, Math.min(asm.length(), wrapper + 200));
+            assertTrue(wrapperBody.contains("jmp kof_plat_env_get"),
+                    "the env lookup is delegated to the seam:\n" + wrapperBody);
+            assertFalse(wrapperBody.contains("syscall"),
+                    "no raw syscall left in the wrapper:\n" + wrapperBody);
+
+            int seam = asm.indexOf("kof_plat_env_get:");
+            assertTrue(seam > 0, "the seam body must be emitted");
+            String body = asm.substring(seam, Math.min(asm.length(), seam + 3000));
+            int read = body.indexOf("call kof_plat_read");
             assertTrue(read > 0, "the environ read is emitted:\n" + body);
             String afterRead = body.substring(read);
             int close = afterRead.indexOf("call kof_plat_close");
             assertTrue(close > 0,
                     "the close after the environ read is emitted:\n" + afterRead);
-            int scan = afterRead.indexOf(".Lceg_scan");
+            int scan = afterRead.indexOf(".Lpe_scan");
             assertTrue(scan < 0 || close < scan,
                     "the close precedes the scan:\n" + afterRead.substring(0, 200));
         } finally {

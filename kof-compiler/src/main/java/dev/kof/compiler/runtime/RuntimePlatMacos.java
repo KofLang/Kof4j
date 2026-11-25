@@ -212,8 +212,31 @@ public final class RuntimePlatMacos {
                 addq %r15, %rsp
                 popq %r15
                 ret
+
+            .globl kof_plat_open
+            .type kof_plat_open, @function
+            kof_plat_open:
+                # open(path=%rdi, flags=%rsi, mode=%rdx) -> fd | -errno
+                pushq %r15
+                movq %rsp, %r15
+                andq $-16, %rsp
+                xorl %eax, %eax          # open e' variadico: AL = nº de XMM usados
+                call open
+                testl %eax, %eax
+                jns .Lpo_ok
+                call __error              # int *__error(void) — o errno do Darwin
+                movl (%rax), %eax
+                negl %eax                 # -errno (a convencao do kernel)
+                jmp .Lpo_ret
+            .Lpo_ok:
+            .Lpo_ret:
+                subq %rsp, %r15
+                addq %r15, %rsp
+                popq %r15
+                ret
             """);
     }
+
 
     /**
      * A FAMÍLIA thread-id: o {@code kof_plat_thread_id} pela API pública do

@@ -784,6 +784,33 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   isso que a NATIVE004 recusa sem. **AS PRÓXIMAS LINHAS:** a família "stat"
   da costura (o `struct stat` do Darwin), o runner M-7, a face arm64 (o
   emissor cross aarch64 + a sua prova Mach-O); depois #1159 keep-alive
+  **M-6 FATIA 8 POUSADA 24/11 (a família ENV/CONFIG da costura — e o Darwin
+  não tem `/proc`).** A busca no ambiente lia o `/proc/self/environ` ela
+  mesmo, com `open`/`read`/`close` crus — uma face que não pode existir no
+  Darwin, onde o procfs não existe. O sítio da busca agora DELEGA ao
+  `kof_plat_env_get`, cujos corpos carregam o MESMO contrato (`rdi` = o nome
+  como C string, `rax` = `KofString* | 0`): no Linux o scan do procfs, agora
+  DENTRO da costura (`kof_plat_open`/`kof_plat_read`/`kof_plat_close`); no
+  Darwin o `getenv` da libSystem mais a construção da `KofString`. A costura
+  ganhou também o `kof_plat_open` — o syscall 2 do Linux, e no Darwin o
+  `open` variádico (portanto `%al=0`) com a falha normalizada para `-errno`
+  via `int *__error(void)`. **UM SEGUNDO VAZAMENTO DE DESCRITOR, CORRIGIDO
+  NA RAIZ NA MESMA FATIA:** o descritor do arquivo de configuração vivia no
+  `%rcx`, e o syscall DESTRÓI o `%rcx` (ABI do syscall x86-64 do Linux) — o
+  `close` que vinha depois da leitura recebia lixo, falhava com EBADF, e o
+  descritor vazava a cada leitura do arquivo de configuração (known-bugs
+  §1211). O fd agora vive num slot do frame (`16384(%rsp)`), nunca num
+  registrador que o syscall destroi. **PROVA (executada):**
+  `NativeMacOSEnvSeamE2ETest` 5/5 (RED-first 4 falhas na árvore antiga) e
+  `NativeConfigEnvFdLeakE2ETest` 3/3 (RED medido na árvore antiga: o binário
+  nativo sob `ulimit -n 64` morre na leitura **139** com `leak at 139`); a
+  bateria nativa/config 84 testes 0F; o ratchet da costura **CAI 141 → 136**;
+  o assembler zig `x86_64-macos-none` aceita o runtime inteiro traduzido. **O
+  QUE AINDA FALTA (honesto):** os dois sítios irmãos do environ
+  (`kof_sec_secret_get` no `RuntimeSecurity11` e `.Llog_parse_level` no
+  `RuntimeLog1`) ainda leem o procfs eles mesmos — são a próxima linha desta
+  família; a EXECUÇÃO ainda precisa do runner M-7 (macos-14).
+
   **M-6 FATIA 6 POUSADA 23/11 (a família HTTP/sockets da costura — e o
   `setsockopt`/`getsockopt` do Darwin NÃO são o syscall com outros números).**
   O core do `kof.http` abria, configurava e esperava o socket com CINCO

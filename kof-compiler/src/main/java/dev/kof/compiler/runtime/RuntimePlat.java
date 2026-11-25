@@ -323,7 +323,36 @@ public final class RuntimePlat {
                 movq $3, %rax            # close(fd)
                 syscall
                 ret
+
+            .globl kof_plat_open
+            .type kof_plat_open, @function
+            kof_plat_open:
+                # open(path=%rdi, flags=%rsi, mode=%rdx) -> fd | -errno
+                movq $2, %rax            # SYS_open (o mesmo numero no Linux)
+                syscall
+                ret
             """);
+    }
+
+    /**
+     * M-6 (#1135): a família ENVIRON da costura — a busca de uma variável no
+     * ambiente, que o {@code kof_env_getc} fazia lendo o {@code /proc} ele
+     * mesmo. O contrato é {@code rdi = nome (C string)} e
+     * {@code rax = KofString* | 0}; o corpo Linux está em
+     * {@link RuntimePlatEnv} e o do Darwin (o {@code getenv} da libSystem) em
+     * {@link RuntimePlatMacosEnv}.
+     */
+    public static void emitPlatEnv(StringBuilder sb) {
+        if (dev.kof.compiler.nat.NativeProfile.active.isMacos()) {
+            RuntimePlatMacosEnv.emitEnv(sb);
+            return;
+        }
+        if (dev.kof.compiler.nat.NativeProfile.activeIsUefi()
+                || dev.kof.compiler.nat.NativeProfile.activeIsBios()) {
+            RuntimeBios.refuse(sb, "kof_plat_env_get");
+            return;
+        }
+        RuntimePlatEnv.emitEnv(sb);
     }
 
     /**
