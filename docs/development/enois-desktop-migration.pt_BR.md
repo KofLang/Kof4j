@@ -1087,3 +1087,15 @@ publicacoes **888** e aside **320**, a coluna com `Feed.paintComposer`, os
 cartoes com `space-y-4` (**16**) e os titulos do aside por
 `CommunityFeed.paintAside`. PROVA `EnoisFeedPanelE2ETest`: `publicacoes=888`,
 `lado=320`, `espaco=16`, altura medida; bateria 5/5.
+
+## §24 Rodada 23/11 (vigesima) — o `EventCard` do DS medido (app `f2d882e`)
+
+`libs/EventCard.kf` e o `domain/events/event-card.tsx` como a grade de `eventos` o
+usa (`routes/eventos.tsx` 370: `grid-cols-1 gap-4 md:grid-cols-2
+lg:grid-cols-3`): capa `h-40` (**160**), a pilula da data (`left-4 top-4`,
+56x48) e o corpo `p-5` com badges, titulo, anfitriao, local e rodape — corpo
+**186**, cartao **346**. PROVA `EnoisEventCardE2ETest`: `capa=160`,
+`corpo=186`, `cartao=346`, `pintado=346`; bateria 5/5. O primeiro desenho dizia
+162 e o proprio teste expôs o erro — o valor medido fica literal, com a conta
+no comentario. Divergencias NOMEADAS: a capa e uma cor de token (o canvas nao
+tem gradiente) e os badges sao uma linha de texto.

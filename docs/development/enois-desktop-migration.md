@@ -1104,3 +1104,15 @@ cards with `space-y-4` (**16**) and the aside titles via
 `CommunityFeed.paintAside`. PROOF `EnoisFeedPanelE2ETest`: `publicacoes=888`,
 `lado=320`, `espaco=16`, height measured; battery 5/5 (feed panel, feed,
 community panel, app entry, communities page).
+
+## §24 Round 23/11 (twentieth) — the DS `EventCard` measured (app `f2d882e`)
+
+`libs/EventCard.kf` is `domain/events/event-card.tsx` as the `eventos` grid uses
+it (`routes/eventos.tsx` 370: `grid-cols-1 gap-4 md:grid-cols-2
+lg:grid-cols-3`): cover `h-40` (**160**), the date pill (`left-4 top-4`, 56×48)
+and the `p-5` body with badges, title, host, place and footer — body **186**,
+card **346**. PROOF `EnoisEventCardE2ETest`: `capa=160`, `corpo=186`,
+`cartao=346`, `pintado=346`; battery 5/5. The first drawing said 162 and the
+test itself exposed the mistake — the measured value is now a literal with the
+breakdown in the comment. NAMED divergences: the cover is one token colour (no
+gradient in the canvas) and the badges are a single line of text.
