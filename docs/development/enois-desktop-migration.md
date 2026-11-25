@@ -1234,3 +1234,12 @@ MEASURED: `coluna=896`, `desc=672`, `fim1=369` (catalogue empty only), `fim2=549
 (with the search empty above it). PROOF `EnoisFreelancesE2ETest`; battery 5/5.
 NAMED: the `Handshake` is drawn in three strokes and the `EmptyState` glyphs are
 boxes only.
+
+## §33 Round 25/11 (fifteenth) — the "Penalidades" screen (app `6fffc44`)
+
+`libs/Penalidades.kf` composes `routes/penalidades.tsx` 60-146: column
+`mx-auto w-full max-w-2xl` (**672**), "Voltar" (the `ArrowLeft` 16 leaves its
+space — NAMED), "Penalidades" (24/32), the description (14/20 wrapped in the
+column), `space-y-6` (24) and the `rounded-2xl border` card with the icon
+`EmptyState` and ONLY a title plus the centred `emptyHint` line with `pb-6` —
+**176**. PROOF `EnoisPenalidadesE2ETest`: `coluna=672`, `vazio=176`; battery 6/6.

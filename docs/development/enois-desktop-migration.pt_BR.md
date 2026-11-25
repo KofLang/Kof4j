@@ -1218,3 +1218,12 @@ MEDIDO: `coluna=896`, `desc=672`, `fim1=369` (so o catalogo vazio), `fim2=549`
 (com a busca vazia acima). PROVA `EnoisFreelancesE2ETest`; bateria 5/5. NOMEADO:
 o `Handshake` desenhado em tres tracos e os glifos dos `EmptyState` so como
 caixas.
+
+## §33 Rodada 25/11 (decima quinta) — a tela "Penalidades" (app `6fffc44`)
+
+`libs/Penalidades.kf` compoe `routes/penalidades.tsx` 60-146: coluna
+`mx-auto w-full max-w-2xl` (**672**), "Voltar" (o `ArrowLeft` de 16 fica como
+espaco — NOMEADO), "Penalidades" (24/32), a descricao (14/20 quebrada na coluna),
+`space-y-6` (24) e o cartao `rounded-2xl border` com o `EmptyState` de icone e SO
+titulo mais a linha centrada do `emptyHint` com `pb-6` — **176**. PROVA
+`EnoisPenalidadesE2ETest`: `coluna=672`, `vazio=176`; bateria 6/6.
