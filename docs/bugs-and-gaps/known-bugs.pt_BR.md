@@ -4,7 +4,7 @@
 
 last: §1219 (CORRIGIDO 24/11 — a forma absoluto-indexada do cache; 3/3)
 last: §1225 (CORRIGIDO 24/11 — a face Vk perdeu a forma absoluta-com-base; o runtime INTEIRO assembla no Mach-O)
-last: §1226 (OPEN 25/11, UPDATE 7 — the import cycle and install ordering are CLEARED (full library set: heightFor(1,3) 289, (1,1) 237, section 281) and EnoisBlogPostViewE2ETest is GREEN on the tip with painted = declared; what made an earlier run see 707 is still unexplained — next: record the height over repeated harness runs)
+last: §1226 (OPEN 25/11, UPDATE 7 — the import cycle and the install ordering are CLEARED (full library set: heightFor(1,3) 289, (1,1) 237, section 281) and EnoisBlogPostViewE2ETest is GREEN on the tip with painted = declared; what made an earlier run see 707 is still unexplained — next: record the height over repeated harness runs)
 last: §1224 (CORRIGIDO 25/11 — `list.add(i, v)` nao linkava no alvo nativo (o `kof_list_insert` nao existia); a fatia agora insere com limites + deslocamento para tras; `KofListInsertE2ETest` 3/3, bateria de colecoes 32/32)
 last: §1222 (CORRIGIDO 24/11 — as famílias do runtime perderam a forma absoluto-indexada; o runtime inteiro assembla no Mach-O)
 last: §1217 (CORRIGIDO 25/11 — um argumento `Object` aceito onde se esperava `String` do construtor; `CtorArgClassHierarchyE2ETest` 2/2)

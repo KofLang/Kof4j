@@ -1589,3 +1589,9 @@ pintada = a altura declarada). DIVERGENCIA NOMEADA: com 12 reacoes e 2 comentari
 do harness dao 707 onde os valores medidos dao 759 (o card contribui 237 ali em vez de 289),
 depende do modulo — `known-bugs §1226` reaberto com a ATUALIZACAO 6. PROXIMO: bissecar
 `BlogPostView.height` dentro de UM modulo, imprimindo cada parte na sua linha.
+
+LADO DO APP (rodada §83): a discrepancia do `BlogPostView` foi bissecada — com o conjunto COMPLETO
+de libs as partes imprimem a aritmetica (289 / 237 / 281) e o `EnoisBlogPostViewE2ETest` esta VERDE
+no tip (pintado = declarado). O ciclo de import e a ordem de instalacao estao descartados no
+`known-bugs §1226` ATUALIZACAO 7; o que fez uma execucao anterior ver 707 segue aberto, com o
+proximo passo registrado.

@@ -1889,3 +1889,9 @@ the harness give 707 where their measured values give 759 (the card contributes 
 of 289), module-dependent — `known-bugs §1226` reopened with UPDATE 6 (the aligner fix is landed and
 keeps the screen batteries green, but is not the whole cause). NEXT: bisect `BlogPostView.height`
 inside ONE module, printing each part on its own line.
+
+APP SIDE (round §83): the `BlogPostView` discrepancy was bisected — with the FULL library set the
+parts print their arithmetic (289 / 237 / 281) and `EnoisBlogPostViewE2ETest` is GREEN on the tip
+(painted = declared). The import cycle and the install ordering are cleared in `known-bugs §1226`
+UPDATE 7; what made one earlier run see 707 stays open, with the next step recorded (record the
+height over repeated harness runs).
