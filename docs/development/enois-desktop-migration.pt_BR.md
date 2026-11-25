@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: em `enois-kof-desktop` — a rota `comunidades` e pagina (sequencia de chamadas, 487), textos pela fabrica, catalogo (a grade importa `game.Sdl3Backend` nela mesma, app `380e84f`, bateria 8/8) e o esqueleto de carga medido (344/704); o esqueleto segue segurado pela face NOMEADA §1207 do Kof4j (resta so a busca de import), proximo no Kof4j: corrigir a busca de import e o esqueleto volta a `libs/`, depois os valores do cartao da API
+next: em `enois-kof-desktop` — o vazio de `blogs` e o `EmptyState` do DS COM icone (app `1a82485`, altura 180, `EnoisBlogsVazioE2ETest`); proximas fatias: o mesmo componente nos vazios das outras rotas (comunidades mantem o sem icone), o esqueleto de carga (bloqueado pelo §1207/§1209), os valores do cartao da API; no Kof4j a semente da busca do §1209 e a face do §1207
 location: repository
 state: active
 
@@ -975,3 +975,15 @@ o diretorio da entrada) foram medidas e revertidas: a primeira consertou o irmao
 quebrou a casca, as outras nao tiveram efeito. O app nao e afetado (os arquivos
 importam o que nomeiam, `380e84f`), e o esqueleto fica fora de `libs/` ate a busca
 semear o proprio diretorio de pacote da entrada.
+
+## §15 Rodada 23/11 (decima primeira) — o vazio de `blogs`, medido e pintado (app `1a82485`)
+
+`routes/blogs.tsx` 128-131 renderiza `<EmptyState icon={BookOpen} title={texts.blog.title}
+description={query ? searchEmpty : emptyDirectory} />`. MEDIDO em `ui/empty-state.tsx`:
+caixa `h-11 w-11 rounded-2xl` em `--surface-2` (44, glifo `BookOpen` de 20), titulo
+`text-sm font-medium text-text-strong`, descricao `max-w-sm text-sm text-text-subtle`,
+`gap-2` e `py-10` -> **180**. Novo `libs/VazioDeListaComIcone.kf`; `BlogsScreen.paintEmpty`
+passa a chamar ele (pintava uma linha solta de 14 px com altura 40), e `BlogsScreen.title()`
+/ `emptyDirectory()` carregam as strings medidas de `texts.ts` 1960-1973.
+PROVA `EnoisBlogsVazioE2ETest`: `altura=180`, `altura2=180` (busca vazia),
+`titulo=Blogs`; `EnoisBlogsE2ETest` segue verde (2/2).
