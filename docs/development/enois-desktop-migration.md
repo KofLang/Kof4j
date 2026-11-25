@@ -1353,14 +1353,14 @@ cookie stay out of the app; the page is not yet wired into `Main.kf`; non-ASCII
 beyond the measured `ç` is percent-encoded byte by byte over the UTF-8 code unit
 (no multi-byte decomposition yet).
 
-## §40 Round 25/11 (twenty-second) — the showcase LOADING states (app `75dec7c`) and the §1214 measurement
+## §40 Round 25/11 (twenty-second) — the showcase LOADING states (app `75dec7c`) and the §1218 measurement (was §1214 in round 25/11)
 
 `libs/Carregamento.kf` covers what `routes/comunidades.tsx` draws while the
 catalogue arrives, measured in the DS: `CommunityCardSkeletons` (`count = 6`,
 `surface-card overflow-hidden`, cover `h-32` **128**, body `p-5` + the avatar row
 (40) + `h-3 w-full` (12) + `h-3 w-2/3` (12) + footer (32) + four `space-y-3` (48)
 + `p-5` = **196** by the site's arithmetic, **184 measured on this native** —
-NAMED §1214), the `gap-4` three-column grid, the title-only `EmptyState`
+NAMED §1218), the `gap-4` three-column grid, the title-only `EmptyState`
 (**100**) and the "load more" footer (`Button variant=outline rounded-full`,
 **36** + `pb-8` **32** = 68, label `texts.communities.loadMore`, shown only when
 the page carries a `nextCursor`). `VitrineEstado.of` picks the state
@@ -1382,10 +1382,27 @@ functions summed ending in `+ 20`. The IR observer does not publish the
 optimized form, so the exact producer stays OPEN: either the optimizer folds
 with VALUE-equal literals (the sum holds two `12`s; `KofLoadLiteral`/`KofBinary`
 are records and `equals` is by value) or the optimizer runs before emit even
-with the flag off. The strongest suspect is `out.set(...)`/`out.remove(lb)` on a
-value-equal literal removing the wrong op. The app pins the measured 184 as a
+with the flag off. Later rounds narrowed it: the value **184** itself is printed where 196 belongs whenever the program also prints 184, the neighbours are right, the frontend and the optimizer are cleared, and the module contents decide — `known-bugs §1218` (the §1214 number belongs to the 24/11 `io.appendText` fix). The app pins the measured 184 as a
 NAMED divergence and keeps 196 documented as the site's arithmetic.
 
 NAMED pendings: the skeleton paints the pure `surface-2` (the `Skeleton.shade`
 pulse ends still measure white), the disabled `Loader2` is not drawn (only the
-dimmed pill), and the body sum stays 184 until §1214 closes.
+dimmed pill), and the body sum stays 184 until §1218 closes.
+
+## §41 Round 25/11 (twenty-third) — the "184" narrowed: `known-bugs §1218` with a RED-first test (no app change)
+
+The §40 named gap (the skeleton body reads 184 where the arithmetic says 196) is
+now a `known-bugs` row with a RED-first test. MEASURED: `println(90 + 94)` prints
+**184**, and so do `(91 + 93)`, `168 + 16`, `104 + 80`, `92 * 2`,
+`20 + 40 + 12 + 12 + 32 + 48 + 20` and `println(184)` itself — the neighbours are
+right (`90 + 94 + 1` = 185, `250 + 34` = 284, `17 + 26 + 92 + 49 + 50 + 60` = 294,
+`100 + 40 + …` = 264). CLEARED: the frontend (the no-opt build prints the same),
+the optimizer (the asm of `println(184)` is `movq $184, %rdi` + `call
+kof_int_to_string`), and the module (in `game`/`image` the same twelve literals
+print right — the surviving runtime slices change the answer). PROOF
+`NativeLiteralDropE2ETest`: `theBodySumOfTheSkeletonIsReadWhole` RED (184) and
+`theNeighbourValuesAreUnaffected` GREEN (284 / 294). The app keeps its measured
+184 pinned (the skeleton test), and the number §1214 in the §40 prose belonged to
+the 24/11 `io.appendText` fix, so the row is **§1218**. NEXT: bisect the runtime
+slice set with `KOF_KEEP_ASM=1` and compare the boot/`kof_int_to_string` path of
+the 184 program with a neighbour.
