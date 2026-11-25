@@ -1874,3 +1874,9 @@ section. Card 370 (text body) / 410 (with reactions) / 858 (HTML); page 620 (1 c
 660 (with reactions). Proof `EnoisBlogPostPageE2ETest`. NAMED: the page still paints only through
 the parts (each own test); a single `BlogPostPage.paint` and the owner-only buttons on the header
 are the next slice.
+
+APP SIDE (round §81): the single-call `BlogPostView.paint` was ATTEMPTED and is NOT landed — it
+surfaced §1226 (a record accessor passed as a call argument returns the ARGUMENT INDEX; a pure
+call then returns different values in the same program), so painting the page through a builder
+would have planted wrong values. The pieces stay as separate, proven calls; the next app slice is
+blocked on §1226 in the Kof4j.

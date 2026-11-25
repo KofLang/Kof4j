@@ -1575,3 +1575,9 @@ comentarios. Card 370 (corpo em texto) / 410 (com reacoes) / 858 (HTML); pagina 
 comentario) / 719 (2) / 660 (com reacoes). Prova `EnoisBlogPostPageE2ETest`. NOMEADO: a pagina
 ainda pinta so' pelas partes (cada uma com o seu teste); um `BlogPostPage.paint` unico e os
 botoes do dono no cabecalho sao a proxima fatia.
+
+LADO DO APP (rodada §81): a pintura da pagina numa chamada (`BlogPostView.paint`) foi tentada e
+NAO entrou — ela expôs o §1226 (um accessor de record passado como argumento devolve o INDICE do
+argumento; uma chamada pura passa a devolver valores diferentes no mesmo programa), entao pintar
+a pagina por um construtor teria plantado valores errados. As partes seguem como chamadas
+separadas ja provadas; a proxima fatia do app esta bloqueada no §1226 do Kof4j.
