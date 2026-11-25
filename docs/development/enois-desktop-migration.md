@@ -1904,3 +1904,9 @@ the DS's BOUNDARIES (`2 * 3 * 4` and `user_id_temporario` stay text) and the `\\
 http(s), `/` or `#` (a `javascript:` link stays text). Proof `EnoisRichTextE2ETest` (6 inline nodes
 for the sample paragraph; `titulo=heading/1/T`; `lista=1/2` with `task=true`; `ordem=true`;
 `alinh=[1]=right`; `link:[link:site][text:...]`; `escape`, `mencao`, `codigo`, `spoiler`, `divisor`).
+
+APP SIDE (round §86): the RichText HEIGHT MODEL was attempted and REVERTED — a model function that only
+compares a block's kind and text dies with `Runtime error: out of memory` on the native target when the
+block list comes from `RichText.blocks("# T\n\n- a\n- b")` (the short inputs give their arithmetic:
+32 / 60 / 40, and the parse prints `heading/paragraph/list`). Recorded as `known-bugs §1226` UPDATE 8
+with the reduction as the next step; the parser of `926861a` stays landed and green.

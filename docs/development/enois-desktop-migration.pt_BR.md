@@ -1603,3 +1603,9 @@ com o alinhamento do separador, e inline negrito/italico/riscado/spoiler/codigo/
 endereco solto/imagem com as BORDAS do DS (`2 * 3 * 4` e `user_id_temporario` ficam texto) e o
 escape `\\`; links so' http(s), `/` ou `#` (um `javascript:` fica texto). Prova
 `EnoisRichTextE2ETest`.
+
+LADO DO APP (rodada §86): o MODELO de altura do RichText foi tentado e REVERTIDO — uma funcao de
+modelo que so' compara kind e texto de um bloco morre com `Runtime error: out of memory` no alvo nativo
+quando a lista vem de `RichText.blocks("# T\n\n- a\n- b")` (as entradas curtas dao a aritmetica e o
+parse imprime os kinds certos). Registrado no `known-bugs §1226` ATUALIZACAO 8 com a reducao como
+proximo passo; o parser de `926861a` segue landado e verde.
