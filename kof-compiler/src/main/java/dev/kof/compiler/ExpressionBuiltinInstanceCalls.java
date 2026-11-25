@@ -452,6 +452,25 @@ final class ExpressionBuiltinInstanceCalls {
         KofHttpResponse.ResponseCall call = KofHttpResponse.instanceMethod(
                 recvType, mc.methodName(), mc.arguments().size());
         if (call != null) {
+            // #1184: a face de BYTES só existe no JVM — no Native/JS o `body()`
+            // é uma String DECODIFICADA (o byte cru não volta dela, medido: o
+            // U+FFFD re-codifica em 0xEF e o corpo de 8 bytes vira 11), então o
+            // `bytes()` recusa com o diagnóstico NOMEADO em vez de devolver
+            // bytes errados (R6). A face cross é a fatia nomeada no ledger.
+            if ("kof_http_response_bytes".equals(call.function())
+                    && driver.target != Target.JVM) {
+                if (driver.currentDiagnostics != null) {
+                    SourcePosition p = mc.position();
+                    driver.currentDiagnostics.error(p != null ? p.file() : "",
+                            p != null ? p.line() : 0, p != null ? p.column() : 0, 0,
+                            "Response.bytes(): the raw response bytes are not ported to the "
+                                    + driver.target + " target yet (HTTP003) — use --target jvm "
+                                    + "(the body() there is the decoded text, and re-encoding it "
+                                    + "does NOT recover the bytes)",
+                            "HTTP003");
+                }
+                return localIdx;
+            }
             List<Type> params = new ArrayList<>();
             params.add(recvType);
             for (ExpressionNode arg : mc.arguments()) {
