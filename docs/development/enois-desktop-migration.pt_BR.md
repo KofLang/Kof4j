@@ -1556,3 +1556,8 @@ em 832 — o erro embaixo do campo em `--destructive` e as pilulas de ferramenta
 (Foto/Audio/GIF, `h-8`, `pt-2`, recuo 42) que levam a secao a 109. Prova
 `EnoisCommentComposerE2ETest` (`m=16/1/16/36/6/20/8/4/36`, `campo=784/42/832`, `alt=69/109/28`,
 `rot=Comentar|Enviando...`).
+
+LADO DO APP ENTREGUE (rodada §78, app `777458d`): a SECAO completa de comentarios do post do blog — o card
+`rounded-2xl` com o compositor (69) e a lista (`p-3`, `space-y-3`): 182 com um comentario de
+uma linha, 281 com dois, 95 sem nenhum. Prova `EnoisPostCommentsSectionE2ETest`
+(`p=12/12/1/16`, `itens=87/133`, `lista=111/210/24`, `secao=182/281/95`).

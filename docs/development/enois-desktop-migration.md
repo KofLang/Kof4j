@@ -1855,3 +1855,8 @@ field `rounded-[1.25rem]` (784 in an 868 row, `px-2 py-1`) and the send button o
 error below the field in `--destructive`, and the tool pills (Foto/Áudio/GIF, `h-8`, `pt-2`, 42
 indent) that raise the section to 109. Proof `EnoisCommentComposerE2ETest`
 (`m=16/1/16/36/6/20/8/4/36`, `campo=784/42/832`, `alt=69/109/28`, `rot=Comentar|Enviando...`).
+
+APP SIDE LANDED (round §78, app `777458d`): the whole comments SECTION of the blog post —
+the `rounded-2xl` card with the composer (69) and the list (`p-3`, `space-y-3`): 182 with one
+one-line comment, 281 with two, 95 with none. Proof `EnoisPostCommentsSectionE2ETest`
+(`p=12/12/1/16`, `itens=87/133`, `lista=111/210/24`, `secao=182/281/95`).
