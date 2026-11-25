@@ -1910,3 +1910,11 @@ compares a block's kind and text dies with `Runtime error: out of memory` on the
 block list comes from `RichText.blocks("# T\n\n- a\n- b")` (the short inputs give their arithmetic:
 32 / 60 / 40, and the parse prints `heading/paragraph/list`). Recorded as `known-bugs §1226` UPDATE 8
 with the reduction as the next step; the parser of `926861a` stays landed and green.
+
+APP SIDE LANDED (round §87, app `e9cd7f9`): the RichText block HEIGHTS (`libs/RichText.kf`):
+heading 32, quote 36, divider 25, code 60, list(2) 60, table(2) 72; `"# T\n\n- a\n- b"` measures
+92 both block by block and through `height`, with the parse giving `heading/paragraph/list` (the
+blank paragraph measures 0). NAMED divergence: the three-block document measures 121 against a sum
+of 101 — one block height too many in the walk (§1226 UPDATE 9, which also records that an inline
+`if`-return inside a guard aborts the program with out of memory while the same check in a counted
+loop does not). NEXT: bisect the 121 with four prints (kind + height per block).

@@ -1609,3 +1609,10 @@ modelo que so' compara kind e texto de um bloco morre com `Runtime error: out of
 quando a lista vem de `RichText.blocks("# T\n\n- a\n- b")` (as entradas curtas dao a aritmetica e o
 parse imprime os kinds certos). Registrado no `known-bugs §1226` ATUALIZACAO 8 com a reducao como
 proximo passo; o parser de `926861a` segue landado e verde.
+
+LADO DO APP ENTREGUE (rodada §87, app `e9cd7f9`): as ALTURAS dos blocos do RichText
+(`libs/RichText.kf`): titulo 32, citacao 36, divisor 25, codigo 60, lista(2) 60, tabela(2) 72;
+`"# T\n\n- a\n- b"` mede 92 tanto bloco a bloco quanto por `height`, com o parse dando
+`heading/paragraph/list` (o paragrafo vazio mede 0). DIVERGENCIA NOMEADA: o documento de tres
+blocos mede 121 contra a soma de 101 (§1226 ATUALIZACAO 9). PROXIMO: bissecar o 121 com quatro
+impressoes.
