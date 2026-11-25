@@ -109,14 +109,17 @@ public final class NativeDbPrepared {
                 addq %rax, %rsi
                 # name (lenenc)
                 call kof_db_mysql_lenenc
-                movq %rsi, .Ldb_mysql_names(,%rbx,8)
-                movl %eax, .Ldb_mysql_names+512(,%rbx,4)
+                leaq .Ldb_mysql_names(%rip), %r11
+                movq %rsi, (%r11,%rbx,8)
+                leaq .Ldb_mysql_names(%rip), %r11
+                movl %eax, +512(%r11,%rbx,4)
                 # org_name (skip)
                 call kof_db_mysql_lenenc
                 addq %rax, %rsi
                 # type = +1 (0x0C) +2 charset +4 collen = +7
                 movzbl 7(%rsi), %eax
-                movb %al, .Ldb_prep_coltypes(,%rbx,1)
+                leaq .Ldb_prep_coltypes(%rip), %r11
+                movb %al, (%r11,%rbx,1)
                 incq %rbx
                 decl %r13d
                 jnz .Lprep_dc
@@ -341,8 +344,10 @@ public final class NativeDbPrepared {
                 cmpl %r14d, %r15d
                 jge .Lpq_row_end
                 # chave: name (KofString) + encode_string + builder; depois ':'
-                movq .Ldb_mysql_names(,%r15,8), %rdi
-                movl .Ldb_mysql_names+512(,%r15,4), %esi
+                leaq .Ldb_mysql_names(%rip), %r11
+                movq (%r11,%r15,8), %rdi
+                leaq .Ldb_mysql_names(%rip), %r11
+                movl +512(%r11,%r15,4), %esi
                 call kof_io_make_string
                 movq %rax, %rdi
                 call kof_json_encode_string
@@ -365,7 +370,8 @@ public final class NativeDbPrepared {
                 testl %edx, %eax
                 jnz .Lpq_val_null
                 # non-null: pega type
-                movzbl .Ldb_prep_coltypes(,%r15,1), %eax
+                leaq .Ldb_prep_coltypes(%rip), %r11
+                movzbl (%r11,%r15,1), %eax
                 cmpb $0x03, %al               # MYSQL_TYPE_LONG (4B LE)
                 je .Lpq_type_int4
                 cmpb $0x04, %al               # FLOAT (4B IEEE — tratar como string)

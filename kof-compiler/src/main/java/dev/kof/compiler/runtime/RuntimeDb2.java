@@ -219,7 +219,8 @@ public final class RuntimeDb2 {
                 jmp .Ldb_res_parse
             .Ldb_res_done:
                 decl %ecx
-                movq .Ldb_slots(,%rcx,8), %rax
+                leaq .Ldb_slots(%rip), %r11
+                movq (%r11,%rcx,8), %rax
                 ret
             .Ldb_res_null:
                 xorl %eax, %eax
@@ -242,7 +243,8 @@ public final class RuntimeDb2 {
                 jmp .Ldb_typ_parse
             .Ldb_typ_done:
                 decl %ecx
-                movzbl .Ldb_types(,%rcx,1), %eax
+                leaq .Ldb_types(%rip), %r11
+                movzbl (%r11,%rcx,1), %eax
                 ret
             .Ldb_typ_null:
                 xorl %eax, %eax

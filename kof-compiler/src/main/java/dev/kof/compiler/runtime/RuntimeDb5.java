@@ -334,8 +334,10 @@ public final class RuntimeDb5 {
                 addq %rax, %rsi
                 # name = lenenc string: len em eax, dados em rsi
                 call kof_db_mysql_lenenc
-                movq %rsi, .Ldb_mysql_names(,%rbx,8)
-                movl %eax, .Ldb_mysql_names+512(,%rbx,4)
+                leaq .Ldb_mysql_names(%rip), %r11
+                movq %rsi, (%r11,%rbx,8)
+                leaq .Ldb_mysql_names(%rip), %r11
+                movl %eax, +512(%r11,%rbx,4)
                 # pula org_name (lenenc)
                 call kof_db_mysql_lenenc
                 addq %rax, %rsi
@@ -376,8 +378,10 @@ public final class RuntimeDb5 {
                 call kof_json_builder_char
             .Ldb_mysql_nocomma\\n:
                 # nome da coluna
-                movq .Ldb_mysql_names(,%rbx,8), %rdi
-                movl .Ldb_mysql_names+512(,%rbx,4), %esi
+                leaq .Ldb_mysql_names(%rip), %r11
+                movq (%r11,%rbx,8), %rdi
+                leaq .Ldb_mysql_names(%rip), %r11
+                movl +512(%r11,%rbx,4), %esi
                 call kof_io_make_string
                 movq %rax, %rdi
                 call kof_json_encode_string

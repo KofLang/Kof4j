@@ -363,8 +363,10 @@ public final class RuntimeDb3 {
                 movq .Ldb_count(%rip), %r13
                 cmpq $63, %r13
                 jge .Ldb_connect_bad
-                movq %r12, .Ldb_slots(,%r13,8)
-                movb %al, .Ldb_types(,%r13,1)
+                leaq .Ldb_slots(%rip), %r11
+                movq %r12, (%r11,%r13,8)
+                leaq .Ldb_types(%rip), %r11
+                movb %al, (%r11,%r13,1)
                 incq %r13
                 movq %r13, .Ldb_count(%rip)
                 # handle = "db" + decimal(r13) em buffer de 48 bytes

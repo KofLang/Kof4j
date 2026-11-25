@@ -248,7 +248,7 @@ public final class RuntimeMediaWav {
                 testl %ecx, %ecx
                 jle .Lmed_dm_zero                # ch<=0
                 movq 24(%rbx), %rax              # pcmLen
-                leal 0(,%rcx,2), %edx
+                leal (%rcx,%rcx), %edx           # 2*ch (int) — JVM 2L*channels
                 movl %edx, %edx                  # 2*ch (int) — JVM 2L*channels
                 movq %rdx, %rsi
                 xorq %rdx, %rdx

@@ -782,6 +782,46 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   is what NATIVE004 refuses without. **THE NEXT ROWS:** the "stat" family of
   the seam (the Darwin `struct stat`), the M-7 runner, the arm64 face (the
   cross aarch64 emitter + its Mach-O proof); then #1159 keep-alive HTTP/1.1.
+  **M-6 SLICE 12 LANDED 24/11 (the runtime families lost the ELF
+  absolute-indexed addressing — and the WHOLE runtime now assembles in the
+  real Mach-O assembler).** The DB slot tables (`RuntimeDb2`/`RuntimeDb3`),
+  the MySQL column names (`RuntimeDb5`/`NativeDbPrepared`), the
+  decimal-power table (`RuntimeStringParseFp`) and the WAV frame size
+  (`RuntimeMediaWav`) reached their globals with `sym(,%reg,8)` /
+  `leal 0(,%rcx,2)` — the ELF absolute-indexed form, which the Mach-O
+  (x86-64) refuses with "32-bit absolute addressing is not supported in
+  64-bit mode" (measured). The 12 sites now use the form valid on BOTH
+  targets: a RIP-relative base plus the index (`leaq sym(%rip), %r11` +
+  `movq (%r11,%rcx,8), %rax`); the WAV frame size became `leal (%rcx,%rcx),
+  %edx` (2*channels, no absolute base at all). **PROOF (executed):**
+  `NativeMacOSRuntimeAssemblyE2ETest` 1/1 — the whole translated runtime is
+  assembled by the REAL Mach-O assembler, and the only remaining failure is
+  the NAMED Vulkan face (the `vk64_*` family, still on the
+  absolute-with-base form `sym+off(%reg)`); on the old tree the same test
+  fails naming the dtoa table. The DB/media/macOS battery: 171 run / 3F (the
+  three are the riscv64 cross tests — this sandbox has no riscv64 sysroot:
+  `/lib/ld-linux-riscv64-lp64d.so.1` is absent, an environmental condition)
+  / 11 skipped. **THE LAST NAMED FAMILY:** the Vulkan chain64 (12 files) —
+  its `sym+off(%reg)` form needs the same RIP-relative base plus the
+  register; after it, the whole runtime assembles end-to-end and the macOS
+  profile's remaining blocker is the M-7 runner (the real macos-14 host).
+
+  **M-6 SLICE 11 LANDED 24/11 (the runtime CACHE lost the ELF absolute-indexed
+  addressing — the last blocker measured in the cache family).** The cache
+  accessed its global tables with `kof_cache_keys(,%r12,8)`: the ELF
+  absolute-indexed form. The Mach-O (x86-64) does not have it — the real
+  assembler refuses it with "32-bit absolute addressing is not supported in
+  64-bit mode" (measured). The 26 cache sites now use the form valid on BOTH
+  targets: a RIP-relative base plus the index (`leaq kof_cache_keys(%rip),
+  %r11` + `movq (%r11,%r12,8), %rax`). **THE REWRITE IS IN THE EMITTER, not
+  in the translator:** the translator works line by line and cannot know
+  which registers are live, while the cache does not use `%r11` at all
+  (measured: zero occurrences) — so `%r11` is the scratch register.
+  **PROOF (executed):** `NativeCacheRipRelativeE2ETest` 3/3 — RED-first 2
+  failures on the old tree, one of them the REAL Mach-O assembler rejecting
+  the old text with the measured error — and the native behaviour
+  (round-trip, overwrite, missing key, TTL, delete) is unchanged.
+
   **M-6 SLICE 10 LANDED 24/11 (the `io` write/delete faces joined the seam — and
   the append descriptor was living in a register the libSystem destroys).**
   `kof_io_append_text` kept the descriptor in `%rdi` and reused it AFTER the

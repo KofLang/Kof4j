@@ -784,6 +784,47 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   isso que a NATIVE004 recusa sem. **AS PRÓXIMAS LINHAS:** a família "stat"
   da costura (o `struct stat` do Darwin), o runner M-7, a face arm64 (o
   emissor cross aarch64 + a sua prova Mach-O); depois #1159 keep-alive
+  **M-6 FATIA 12 POUSADA 24/11 (as famílias do runtime perderam o
+  endereçamento absoluto-indexado do ELF — e o runtime INTEIRO agora assembla
+  no assembler real do Mach-O).** As tabelas de slots do DB
+  (`RuntimeDb2`/`RuntimeDb3`), os nomes de coluna do MySQL
+  (`RuntimeDb5`/`NativeDbPrepared`), a tabela de potências decimais
+  (`RuntimeStringParseFp`) e o tamanho de quadro do WAV (`RuntimeMediaWav`)
+  alcançavam suas globais com `sym(,%reg,8)` / `leal 0(,%rcx,2)` — a forma
+  absoluto-indexada do ELF, que o Mach-O (x86-64) recusa com "32-bit absolute
+  addressing is not supported in 64-bit mode" (medido). Os 12 sítios agora
+  usam a forma válida nos DOIS alvos: a base RIP-relativa mais o índice
+  (`leaq sym(%rip), %r11` + `movq (%r11,%rcx,8), %rax`); o tamanho de quadro
+  do WAV virou `leal (%rcx,%rcx), %edx` (2*canais, sem base absoluta
+  nenhuma). **PROVA (executada):** `NativeMacOSRuntimeAssemblyE2ETest` 1/1
+  — o runtime traduzido inteiro é montado pelo assembler REAL do Mach-O, e a
+  única falha que resta é a face Vulkan NOMEADA (a família `vk64_*`, ainda na
+  forma absoluta-com-base `sym+off(%reg)`); na árvore antiga o mesmo teste
+  falha nomeando a tabela de potências decimais. A bateria DB/mídia/macOS:
+  171 run / 3F (as três são os testes cross riscv64 — este sandbox não tem
+  sysroot riscv64: `/lib/ld-linux-riscv64-lp64d.so.1` não existe, condição
+  ambiental) / 11 skipped. **A ÚLTIMA FAMÍLIA NOMEADA:** a Vulkan chain64 (12
+  arquivos) — sua forma `sym+off(%reg)` precisa da mesma base RIP-relativa
+  mais o registrador; depois dela, o runtime inteiro assembla de ponta a
+  ponta e o bloqueador restante do perfil macOS é o runner M-7 (o host
+  macos-14 de verdade).
+
+  **M-6 FATIA 11 POUSADA 24/11 (o CACHE do runtime perdeu o endereçamento
+  absoluto-indexado do ELF — o último bloqueio medido na família do cache).** O
+  cache acessava as tabelas globais com `kof_cache_keys(,%r12,8)`: a forma
+  absoluto-indexada do ELF. O Mach-O (x86-64) não a tem — o assembler real a
+  recusa com "32-bit absolute addressing is not supported in 64-bit mode"
+  (medido). Os 26 sítios do cache agora usam a forma válida nos DOIS alvos: a
+  base RIP-relativa mais o índice (`leaq kof_cache_keys(%rip), %r11` +
+  `movq (%r11,%r12,8), %rax`). **A REESCRITA É NO EMISSOR, não no tradutor:**
+  o tradutor trabalha linha a linha e não sabe quais registradores estão
+  vivos, enquanto o cache não usa o `%r11` (medido: zero ocorrências) — então
+  o `%r11` é o rascunho. **PROVA (executada):**
+  `NativeCacheRipRelativeE2ETest` 3/3 — RED-first 2 falhas na árvore antiga,
+  uma delas o assembler REAL do Mach-O recusando o texto antigo com o erro
+  medido — e o comportamento nativo (round-trip, sobrescrita, chave ausente,
+  TTL, delete) não mudou.
+
   **M-6 FATIA 10 POUSADA 24/11 (as faces de escrita/delete do `io` entraram
   na costura — e o descritor do append vivia num registrador que a libSystem
   destrói).** O `kof_io_append_text` guardava o descritor no `%rdi` e o

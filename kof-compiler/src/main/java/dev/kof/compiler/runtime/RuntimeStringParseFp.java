@@ -273,7 +273,8 @@ kof_string_to_float:
                 cvtsi2sd %r13, %xmm0
                 testl %r11d, %r11d
                 jz .Lpdd_expapply
-                divsd .Lpdd_p10(,%r11,8), %xmm0
+                leaq .Lpdd_p10(%rip), %r11
+                divsd (%r11,%r11,8), %xmm0
            .Lpdd_expapply:
                 testq %r9, %r9
                 jz .Lpdd_sign
