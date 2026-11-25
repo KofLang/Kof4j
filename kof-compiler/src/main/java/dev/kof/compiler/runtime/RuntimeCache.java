@@ -32,7 +32,8 @@ public final class RuntimeCache {
             .kof_cache_get_loop:
                 cmpq $64, %r12
                 jge .kof_cache_get_miss
-                movq kof_cache_keys(,%r12,8), %rax
+                leaq kof_cache_keys(%rip), %r11
+                movq (%r11,%r12,8), %rax
                 testq %rax, %rax
                 jz .kof_cache_get_next
                 movq %rbx, %rdi
@@ -40,7 +41,8 @@ public final class RuntimeCache {
                 call kof_string_equals
                 testq %rax, %rax
                 jz .kof_cache_get_next
-                movq kof_cache_exps(,%r12,8), %rax
+                leaq kof_cache_exps(%rip), %r11
+                movq (%r11,%r12,8), %rax
                 testq %rax, %rax
                 jz .kof_cache_get_hit
                 movq %rax, %r13
@@ -48,15 +50,19 @@ public final class RuntimeCache {
                 cmpq %rax, %r13
                 jle .kof_cache_get_expired
             .kof_cache_get_hit:
-                movq kof_cache_vals(,%r12,8), %rax
+                leaq kof_cache_vals(%rip), %r11
+                movq (%r11,%r12,8), %rax
                 popq %r13
                 popq %r12
                 popq %rbx
                 ret
             .kof_cache_get_expired:
-                movq $0, kof_cache_keys(,%r12,8)
-                movq $0, kof_cache_vals(,%r12,8)
-                movq $0, kof_cache_exps(,%r12,8)
+                leaq kof_cache_keys(%rip), %r11
+                movq $0, (%r11,%r12,8)
+                leaq kof_cache_vals(%rip), %r11
+                movq $0, (%r11,%r12,8)
+                leaq kof_cache_exps(%rip), %r11
+                movq $0, (%r11,%r12,8)
             .kof_cache_get_next:
                 incq %r12
                 jmp .kof_cache_get_loop
@@ -76,9 +82,12 @@ public final class RuntimeCache {
                 movq %rsi, %r12
                 xorq %rax, %rax
                 call kof_cache_find_slot
-                movq %rbx, kof_cache_keys(,%rax,8)
-                movq %r12, kof_cache_vals(,%rax,8)
-                movq $0, kof_cache_exps(,%rax,8)
+                leaq kof_cache_keys(%rip), %r11
+                movq %rbx, (%r11,%rax,8)
+                leaq kof_cache_vals(%rip), %r11
+                movq %r12, (%r11,%rax,8)
+                leaq kof_cache_exps(%rip), %r11
+                movq $0, (%r11,%rax,8)
                 popq %r12
                 popq %rbx
                 ret
@@ -97,8 +106,10 @@ public final class RuntimeCache {
                 call kof_cache_find_slot
                 movq %rax, %r14
                 pushq %r15
-                movq %rbx, kof_cache_keys(,%r14,8)
-                movq %r12, kof_cache_vals(,%r14,8)
+                leaq kof_cache_keys(%rip), %r11
+                movq %rbx, (%r11,%r14,8)
+                leaq kof_cache_vals(%rip), %r11
+                movq %r12, (%r11,%r14,8)
                 testl %r13d, %r13d
                 jz .kof_cache_set_ttl_noexp
                 movl %r13d, %edi
@@ -107,10 +118,12 @@ public final class RuntimeCache {
                 movq %rax, %r15
                 call kof_time_now
                 addq %r15, %rax
-                movq %rax, kof_cache_exps(,%r14,8)
+                leaq kof_cache_exps(%rip), %r11
+                movq %rax, (%r11,%r14,8)
                 jmp .kof_cache_set_ttl_done
             .kof_cache_set_ttl_noexp:
-                movq $0, kof_cache_exps(,%r14,8)
+                leaq kof_cache_exps(%rip), %r11
+                movq $0, (%r11,%r14,8)
             .kof_cache_set_ttl_done:
                 popq %r15
                 popq %r14
@@ -130,7 +143,8 @@ public final class RuntimeCache {
             .kof_cache_ttl_loop:
                 cmpq $64, %r12
                 jge .kof_cache_ttl_miss
-                movq kof_cache_keys(,%r12,8), %rax
+                leaq kof_cache_keys(%rip), %r11
+                movq (%r11,%r12,8), %rax
                 testq %rax, %rax
                 jz .kof_cache_ttl_next
                 movq %rbx, %rdi
@@ -138,7 +152,8 @@ public final class RuntimeCache {
                 call kof_string_equals
                 testq %rax, %rax
                 jz .kof_cache_ttl_next
-                movq kof_cache_exps(,%r12,8), %rax
+                leaq kof_cache_exps(%rip), %r11
+                movq (%r11,%r12,8), %rax
                 testq %rax, %rax
                 jz .kof_cache_ttl_noexp
                 movq %rax, %r13
@@ -161,9 +176,12 @@ public final class RuntimeCache {
                 popq %rbx
                 ret
             .kof_cache_ttl_expired:
-                movq $0, kof_cache_keys(,%r12,8)
-                movq $0, kof_cache_vals(,%r12,8)
-                movq $0, kof_cache_exps(,%r12,8)
+                leaq kof_cache_keys(%rip), %r11
+                movq $0, (%r11,%r12,8)
+                leaq kof_cache_vals(%rip), %r11
+                movq $0, (%r11,%r12,8)
+                leaq kof_cache_exps(%rip), %r11
+                movq $0, (%r11,%r12,8)
                 movq $-1, %rax
                 popq %r13
                 popq %r12
@@ -195,7 +213,8 @@ public final class RuntimeCache {
             .kof_cache_del_loop:
                 cmpq $64, %r12
                 jge .kof_cache_del_done
-                movq kof_cache_keys(,%r12,8), %rax
+                leaq kof_cache_keys(%rip), %r11
+                movq (%r11,%r12,8), %rax
                 testq %rax, %rax
                 jz .kof_cache_del_next
                 movq %rbx, %rdi
@@ -203,9 +222,12 @@ public final class RuntimeCache {
                 call kof_string_equals
                 testq %rax, %rax
                 jz .kof_cache_del_next
-                movq $0, kof_cache_keys(,%r12,8)
-                movq $0, kof_cache_vals(,%r12,8)
-                movq $0, kof_cache_exps(,%r12,8)
+                leaq kof_cache_keys(%rip), %r11
+                movq $0, (%r11,%r12,8)
+                leaq kof_cache_vals(%rip), %r11
+                movq $0, (%r11,%r12,8)
+                leaq kof_cache_exps(%rip), %r11
+                movq $0, (%r11,%r12,8)
                 jmp .kof_cache_del_done
             .kof_cache_del_next:
                 incq %r12
@@ -222,9 +244,12 @@ public final class RuntimeCache {
             .kof_cache_clear_loop:
                 cmpq $64, %rax
                 jge .kof_cache_clear_done
-                movq $0, kof_cache_keys(,%rax,8)
-                movq $0, kof_cache_vals(,%rax,8)
-                movq $0, kof_cache_exps(,%rax,8)
+                leaq kof_cache_keys(%rip), %r11
+                movq $0, (%r11,%rax,8)
+                leaq kof_cache_vals(%rip), %r11
+                movq $0, (%r11,%rax,8)
+                leaq kof_cache_exps(%rip), %r11
+                movq $0, (%r11,%rax,8)
                 incq %rax
                 jmp .kof_cache_clear_loop
             .kof_cache_clear_done:
@@ -239,7 +264,8 @@ public final class RuntimeCache {
             .kof_cache_find_existing:
                 cmpq $64, %r12
                 jge .kof_cache_find_first_empty
-                movq kof_cache_keys(,%r12,8), %rax
+                leaq kof_cache_keys(%rip), %r11
+                movq (%r11,%r12,8), %rax
                 testq %rax, %rax
                 jz .kof_cache_find_first_empty
                 movq %rbx, %rdi
