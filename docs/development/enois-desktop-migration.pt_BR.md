@@ -1266,3 +1266,15 @@ glifos `Clock`/`TriangleAlert` so como caixa e espaco. O editor semanal em si
 (janelas e horarios) fica fora desta fatia.
 
 **25/11 (decima quarta rodada — o caso de ~7 GB testado de ponta a ponta, NAO reproduzido):** (1) o `app/Main.kf` COMMITADO compilado fora do harness sai em **0 s** com `quadro: apresentado` (o relogio de parede nao e' mensuravel: o `date` so' da' segundos inteiros); (2) o mesmo arquivo com o laco de quadros do app (casca + espera + `present`, sem `pumpEvents`), 300 quadros, fica em ~4,1 MB; (3) o mesmo com `pumpEvents` e redesenho a cada tecla, 400 quadros, ~4,1 MB e termina; (4) um laco com `pumpEvents` e SEM espera nenhuma (o pior caso de giro), 400 quadros, ~4,1 MB e termina. Toda tentativa de reproducao com o codigo commitado em cada commit e' ESTAVEL, entao os ~7 GB seguem sem gatilho medido, como suspeita NOMEADA (o fator restante mais provavel e' o tubo de saida do `ProcessBuilder` do harness com um laco que nunca sai — nao testado porque o caminho de gcc/link do harness leva minutos). O LACO do app em si e' seguro: a entrada commitada esta pronta para rodar com um laco `← →/Esc` quando uma tela escolher a rota (fora desta fatia).
+
+## §37 Rodada 25/11 (decima nona) — a camada de CLIQUE da grade de eventos (app `1107ef1`)
+
+Primeira peca do "o app responde ao ponteiro": `libs/GradeEventos.kf` responde QUAL
+evento recebe o clique na grade de `routes/eventos.tsx` 370 — a celula e' a que a
+grade desenha (`lg:grid-cols-3`, **400** em 1232, **156** por linha com o `gap-4`),
+e `hit(px, py, ox, oy, w, n)` devolve o indice, ou **-1** fora da grade, no vao
+entre as linhas e alem do catalogo (`n`). PROVA `EnoisGradeEventosE2ETest`:
+`coluna=400`, `linha=156`, `c0=0`…`c3=3`, `c6=6`, `c7=-1`, `vao=-1`, `fora=-1`,
+`x4=440`, `y4=245`; bateria 5/5. A geometria e' a MESMA do `paintCards` da rota,
+entao o clique e o desenho nao divergem (os dois leem `EventsScreen.columnWidth` /
+`EventsMetrics`).

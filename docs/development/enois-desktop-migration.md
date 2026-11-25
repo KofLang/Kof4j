@@ -1283,3 +1283,15 @@ description wraps to TWO lines at `max-w-sm`). PROOF
 space only. The weekly editor itself (windows/time inputs) is out of this slice.
 
 **25/11 (fourteenth round — the ~7 GB case tested end to end, NOT reproduced):** (1) the COMMITTED `app/Main.kf` compiled outside the harness exits in **0 s** with `quadro: apresentado` (its wall clock is unmeasurable: `date` deltas are whole seconds); (2) the same file with the app's frame loop (shell + wait + `present`, no `pumpEvents`), 300 frames, stays at ~4.1 MB; (3) the same with `pumpEvents` and a re-draw per key, 400 frames, ~4.1 MB and ends; (4) a loop with `pumpEvents` and NO wait at all (the worst case for a busy spin), 400 frames, ~4.1 MB and ends. Every reproduction attempt with the code committed under each commit is STABLE, so the ~7 GB still has no measured trigger and stays a NAMED suspicion (the most likely remaining factor is the harness's `ProcessBuilder` output pipe with a loop that never exits — untested because the harness's gcc/link path takes minutes). The APP LOOP as such is safe: the committed entrypoint is ready to run with any `← →/Esc` loop once a screen picks the route (out of this slice).
+
+## §37 Round 25/11 (nineteenth) — the CLICK layer on the events grid (app `1107ef1`)
+
+First piece of "the app reacts to the pointer": `libs/GradeEventos.kf` answers WHICH
+event receives a click on `routes/eventos.tsx` 370's grid — the cell is the one the
+grid draws (`lg:grid-cols-3`, **400** wide in 1232, **156** per row with the
+`gap-4`), and `hit(px, py, ox, oy, w, n)` returns the index, or **-1** outside the
+grid, in the gap between rows, or beyond the catalogue (`n`). PROOF
+`EnoisGradeEventosE2ETest`: `coluna=400`, `linha=156`, `c0=0`…`c3=3`, `c6=6`,
+`c7=-1`, `vao=-1`, `fora=-1`, `x4=440`, `y4=245`; battery 5/5. The same geometry is
+what the route's `paintCards` uses, so the hit and the drawing cannot drift (both
+read `EventsScreen.columnWidth` / `EventsMetrics`).
