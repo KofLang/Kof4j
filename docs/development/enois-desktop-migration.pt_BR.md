@@ -1078,3 +1078,12 @@ chegava a tela. Agora chama `b.present(DrawList())` antes de fechar; PROVA
 repo (`/tmp/enois-demo`): a captura de janela nao e possivel desta sessao (o X11
 mostra so a area de trabalho do mutter e o Wayland recusa o cliente), entao o
 demo e executado, nao fotografado — NOMEADO.
+
+## §23 Rodada 23/11 (decima nona) — o painel da rota `feed` composto (app `a5f6462`)
+
+`libs/FeedPanel.kf` compoe `routes/feed.tsx` 1069:
+`grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_320px]` — conteudo 1232 da
+publicacoes **888** e aside **320**, a coluna com `Feed.paintComposer`, os
+cartoes com `space-y-4` (**16**) e os titulos do aside por
+`CommunityFeed.paintAside`. PROVA `EnoisFeedPanelE2ETest`: `publicacoes=888`,
+`lado=320`, `espaco=16`, altura medida; bateria 5/5.

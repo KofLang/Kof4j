@@ -1094,3 +1094,13 @@ before closing; PROOF `EnoisAppEntryE2ETest` (`quadro: apresentado`). The
 15-screen demo lives OUTSIDE the repo (`/tmp/enois-demo`): a window capture is
 not possible from this session (X11 shows only the mutter desktop, Wayland
 refuses the client), so the demo is run, not screenshotted — NAMED.
+
+## §23 Round 23/11 (nineteenth) — the `feed` panel composed (app `a5f6462`)
+
+`libs/FeedPanel.kf` composes `routes/feed.tsx` 1069:
+`grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_320px]` — content 1232 gives
+posts **888** and aside **320**, the post column with `Feed.paintComposer`, the
+cards with `space-y-4` (**16**) and the aside titles via
+`CommunityFeed.paintAside`. PROOF `EnoisFeedPanelE2ETest`: `publicacoes=888`,
+`lado=320`, `espaco=16`, height measured; battery 5/5 (feed panel, feed,
+community panel, app entry, communities page).
