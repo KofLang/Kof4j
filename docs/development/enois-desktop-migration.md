@@ -1675,3 +1675,15 @@ fixed and vary only `x`, `a`, `b` — the sample list above is the seed. The app
 184 pinned. (An other-lane WIP in `StatementAnalyzer.java` was stashed for the clean
 rebuild and restored; it is not mine and not committed.)
 
+## §63 Round 25/11 (forty-fifth) — §1218: two lists from fresh-directory samples, no single rule yet (Kof4j only)
+
+Measured with one fresh directory per case through the rebuilt CLI jar: the second
+`println(a + b)` prints the previous line for `2/1 + 1`, `4/2 + 2`, `4/1 + 3`,
+`4/3 + 1`, `6/3 + 3`, `6/2 + 4`, `7/3 + 4`, `8/4 + 4`, `9/4 + 5`, `10/5 + 5`; and is
+right for `1/2 + 2`, `2/2 + 2`, `2/4 + 0`, `3/2 + 2`, `5/2 + 2`, `6/1 + 5`,
+`8/3 + 6`, `9/5 + 5`, `25/25 + 25`. The IR handed to the emitter and the module are
+identical in shape across both lists, so they are cleared; the earlier
+`5/2 + 3` / `7/5 + 2` readings came from a stale `Main.kf` and are withdrawn. NEXT:
+`javap` of `println(2)` + `println(1 + 1)` against `println(2)` + `println(2 + 2)`.
+The app keeps 184 pinned.
+

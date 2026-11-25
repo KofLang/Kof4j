@@ -1390,3 +1390,7 @@ Medido com a otimizacao desligada: o `prepareForInterpretation` em `println(2)` 
 
 Um diretorio novo por caso, jar reconstruido: ERRADAS `5/2 + 3`, `6/2 + 4`, `7/5 + 2`, `9/4 + 5`, `80/40 + 40`, `2/1 + 1`, `50/25 + 25`; CERTAS `2/3 + 4` → `2 7`, `5/40 + 40` → `5 80`, `1/50 + 0` → `1 50`, `5/4 + 4` → `5 8`, `90/90 + 94` → `90 184`. A IR entregue ao emissor esta certa nos CERTOS e errada nos ERRADOS; o `Optimizer` e o modulo entregue ao `KofInterpreter` estao descartados. PROXIMO: fixar `println(x)` + `println(a + b)` e variar so' `x`, `a`, `b`. O app mantem o 184 fixado. (Um WIP de outra lane em `StatementAnalyzer.java` foi guardado para o rebuild limpo e restaurado; nao e' meu e nao foi commitado.)
 
+## §63 Rodada 25/11 (quadragesima quinta) — §1218: duas listas de amostras com diretorio novo, sem regra unica ainda (so' o Kof4j)
+
+Medido com um diretorio novo por caso pelo jar reconstruido: o segundo `println(a + b)` imprime a linha anterior em `2/1 + 1`, `4/2 + 2`, `4/1 + 3`, `4/3 + 1`, `6/3 + 3`, `6/2 + 4`, `7/3 + 4`, `8/4 + 4`, `9/4 + 5`, `10/5 + 5`; e esta' certo em `1/2 + 2`, `2/2 + 2`, `2/4 + 0`, `3/2 + 2`, `5/2 + 2`, `6/1 + 5`, `8/3 + 6`, `9/5 + 5`, `25/25 + 25`. A IR e o modulo sao iguais nas duas listas, entao estao descartados; as leituras `5/2 + 3` / `7/5 + 2` vinham de `Main.kf` velho e ficam retiradas. PROXIMO: `javap` de `2/1 + 1` contra `2/2 + 2`. O app mantem o 184 fixado.
+
