@@ -59,6 +59,12 @@ final class NativeX86StackAlign {
                     || !regionIsStackMachine(lines, i)) {
                 continue;
             }
+            if (t.startsWith("call *") && popsPendingOperand(lines, i)) {
+                continue;
+            }
+            if (t.startsWith("call *") && !restoreBeforePop(lines, i)) {
+                continue;
+            }
             sites.add(new int[]{stackArgInsertionPoint(lines, i), i});
         }
         for (int s = sites.size() - 1; s >= 0; s--) {
@@ -174,6 +180,48 @@ final class NativeX86StackAlign {
                 }
                 callSeen = true;
             }
+        }
+        return true;
+    }
+
+    /**
+     * §1226: a {@code popq %<reg>} just before the call moves a stacked operand
+     * into an argument register — the call consumes what an earlier push left.
+     * Padding here puts the pad BETWEEN that push and its pop, and the pop reads
+     * the pad instead (measured: {@code popq %rdi} read 0 where {@code pushq $1}
+     * had left 1, so {@code BlogPostCard.heightFor(1, 3)} computed 237). The
+     * padding is only safe when nothing under it is pending for a later pop.
+     */
+    private static boolean popsPendingOperand(List<String> lines, int callIndex) {
+        // umbrella: o push da base dos argumentos de pilha (kof_frame_) só pode ser
+        // contornado se entre ele e a chamada houver um `pop` que o consume.
+        for (int j = callIndex - 1; j >= 0; j--) {
+            String t = lines.get(j).trim();
+            if (isLabel(t) || t.contains("%rsp")) { return false; }
+            if (t.startsWith("push")) {
+                int q = -1;
+                int depth = 0;
+                for (int k = callIndex - 1; k > j; k--) {
+                    String w = lines.get(k).trim();
+                    if (w.startsWith("push")) { depth++; }
+                    else if (w.startsWith("pop")) {
+                        if (depth == 0) { q = k; break; }
+                        depth--;
+                    }
+                }
+                return q >= 0;
+            }
+        }
+        return false;
+    }
+
+    /** Após a chamada, o `addq $8` desempilha o umbrella antes de qualquer `pop`? */
+    private static boolean restoreBeforePop(List<String> lines, int callIndex) {
+        for (int j = callIndex + 1; j < lines.size(); j++) {
+            String t = lines.get(j).trim();
+            if (t.equals("addq $8, %rsp")) { return true; }
+            if (t.startsWith("pop")) { return false; }
+            if (isLabel(t)) { return true; }
         }
         return true;
     }
