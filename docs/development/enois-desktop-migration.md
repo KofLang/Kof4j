@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: in `enois-kof-desktop` — the DS `EmptyState` now serves `blogs` (180) and measures `projetos` (180 for one description line, 200 for two, app `b9bc73b`); remaining named: the route must add its own wrapped-line height, the loading skeleton (§1207/§1209), the card values from the API; in Kof4j the §1209 search seed and the §1207 face
+next: in `enois-kof-desktop` — the `projetos` empty CARD is measured end to end (hint in `max-w-sm` = 2 lines → `emptyHeight(2)` = 200, icon box at `--radius-2xl` 20, app `8340f8c`); remaining named: the DS glyphs (FolderKanban/BookOpen are boxes only), the loading skeleton (§1207/§1209), the card values from the API; in Kof4j the §1209 search seed and the §1207 face
 location: repository
 state: active
 
@@ -1019,3 +1019,14 @@ projects, communities. MEASURED on the way: the overload `height(0 args)` /
 `height(Int)` resolves the no-arg one inside the same class (the `Int` call
 needs the qualified name), and a product inside a bigger sum loses terms in this
 tree (§1205/§1206 family) — both shapes avoided.
+
+## §17 Round 23/11 (thirteenth) — the `projetos` empty card, measured end to end (app `8340f8c`)
+
+`ProjectsScreen.paintEmpty` renders the route's empty state (`projetos.index.tsx`
+120-126) inside the `surface-card`: the hint wrapped at `max-w-sm` (the real
+`emptyHint`, 2 lines at 384 px), `emptyHeight(2)` = 40 + 44 + 8 + 20 + 8 + 40 +
+40 = **200**, and the icon box `h-11 w-11` rounded at `--radius-2xl` = **20** (it
+was cut with 16 — fixed this round). PROOF `EnoisProjectsVazioCardE2ETest`:
+`linhas=2`, `cartao=200`, `pintado=200`; battery 10/10 (projects, blogs,
+communities, composed page). NAMED: the `FolderKanban` glyph is not drawn (the box
+is).

@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: em `enois-kof-desktop` — o `EmptyState` do DS serve agora `blogs` (180) e mede `projetos` (180 com uma linha de descricao, 200 com duas, app `b9bc73b`); continua nomeado: a rota somar a altura das linhas quebradas, o esqueleto de carga (§1207/§1209), os valores do cartao da API; no Kof4j a semente da busca do §1209 e a face do §1207
+next: em `enois-kof-desktop` — o CARTÃO vazio de `projetos` esta medido de ponta a ponta (hint em `max-w-sm` = 2 linhas -> `emptyHeight(2)` = 200, caixa do icone no `--radius-2xl` 20, app `8340f8c`); continua nomeado: os glifos do DS (`FolderKanban`/`BookOpen` sao so as caixas), o esqueleto de carga (§1207/§1209), os valores do cartao da API; no Kof4j a semente da busca do §1209 e a face do §1207
 location: repository
 state: active
 
@@ -1003,3 +1003,13 @@ projetos, comunidades. MEDIDO no caminho: a sobrecarga `height()` / `height(Int)
 resolve a sem-arg dentro da propria classe (a chamada com `Int` precisa do
 nome qualificado), e um produto dentro de uma soma maior perde termos nesta
 arvore (familia §1205/§1206) — as duas formas foram evitadas.
+
+## §17 Rodada 23/11 (decima terceira) — o cartao vazio de `projetos`, medido de ponta a ponta (app `8340f8c`)
+
+`ProjectsScreen.paintEmpty` pinta o vazio da rota (`projetos.index.tsx` 120-126)
+dentro do `surface-card`: o hint quebrado no `max-w-sm` (o `emptyHint` real, 2
+linhas em 384), `emptyHeight(2)` = 40 + 44 + 8 + 20 + 8 + 40 + 40 = **200**, e a
+caixa do icone `h-11 w-11` com o `--radius-2xl` = **20** (era cortada com 16 —
+corrigido nesta rodada). PROVA `EnoisProjectsVazioCardE2ETest`: `linhas=2`,
+`cartao=200`, `pintado=200`; bateria 10/10 (projetos, blogs, comunidades, pagina
+composta). NOMEADO: o glifo `FolderKanban` nao e desenhado (so a caixa).
