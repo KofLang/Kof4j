@@ -3414,7 +3414,7 @@ GOVERNANCE
 # DOING — agent coordination ledger
 last: 0.6.0-release-front
 doing: §641 CLOSED 10/10 (`passwords.hash` 24-byte heap under-allocation, `RuntimeSecurity3.java:344` `movl $91`→`$115`, KofSecurityTest 44/0F) — open queue now §602 only; sealed suite re-measure + #776 slice F next (json-arity-587-fix
-next: 0.6.0-cut + promotion-gate
+next: §1218 — name the frontend pass that replaces a statement expression's sum with ONE KofLiteral (`main() { println(2); println(1 + 1) }` → second statement IR = 1 literal, 0 KofBinary; RED `PrintFoldReuseE2ETest`); file `kof-compiler/src/main/java/dev/kof/compiler/**` (start where `compileSources` lowers statement expressions before `Optimizer.optimize`), proof = the second statement keeps its `KofBinary` + the file stays GREEN
 location: DOING
 state: active
 constraint:
