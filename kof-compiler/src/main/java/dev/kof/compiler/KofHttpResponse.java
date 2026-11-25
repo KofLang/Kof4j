@@ -30,7 +30,7 @@ public final class KofHttpResponse {
 
     /** Verbos aceitos por {@link #instanceMethod} — o diagnóstico de verbo
      *  inexistente (#1183) cita esta lista, então nunca diverge do braço. */
-    static final List<String> VERBS = List.of("status", "header", "headers", "body");
+    static final List<String> VERBS = List.of("status", "header", "headers", "body", "bytes");
 
     /** Acessores de instância sobre o receiver Response. */
     static ResponseCall instanceMethod(Type recv, String name, int argc) {
@@ -47,6 +47,12 @@ public final class KofHttpResponse {
         }
         if ("body".equals(name) && argc == 0) {
             return new ResponseCall("kof_http_response_body", BuiltinTypes.STRING, List.of(RESPONSE));
+        }
+        // #1184: a face de BYTES da resposta — o mesmo contrato do
+        // `File.readBytes()`: `Int[]` (0-255), os bytes crus de rede.
+        if ("bytes".equals(name) && argc == 0) {
+            return new ResponseCall("kof_http_response_bytes", new Type.ArrayType(Type.PrimitiveType.INT),
+                    List.of(RESPONSE));
         }
         return null;
     }

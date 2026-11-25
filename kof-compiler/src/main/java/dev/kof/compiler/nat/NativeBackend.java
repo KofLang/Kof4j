@@ -68,7 +68,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-
 public class NativeBackend implements Backend {
     private NativeArchEmitter nativeArch;
     private NativeMethodEmitter nativeMethods;
@@ -129,10 +128,7 @@ public class NativeBackend implements Backend {
     boolean usesPow = false;
     /** #431: bibliotecas dos `extern` bound (ligadas no ld, link-by-use). */
     final Set<String> ffiLibs = new LinkedHashSet<>();
-    // #1191: os dirs de libs DISTRIBUÍDAS do módulo (a raiz, a raiz/libs e o
-    // dir do fonte) — um `extern "libX.so"` por NOME SIMPLES procura o arquivo
-    // AQUI antes de virar `-l:` (o ld não procura no dir do app).
-    public java.util.List<Path> moduleLibraryDirs = java.util.List.of();
+    public final ModuleLibResolver moduleLibResolver = new ModuleLibResolver(); // #1191: os dirs de libs distribuídas
     boolean ffiUsesCstr = false;
     /** D6-2/3.7: algum extern recebe array `T[]`→`ptr` (pede `kof_ffi_pack_array`). */
     boolean ffiUsesArray = false;
@@ -208,7 +204,6 @@ public class NativeBackend implements Backend {
     // SG-011B/§131: mangling de símbolo extraído p/ NativeSymbolMangling
     // (split ≤500, 13/09) — a responsabilidade é só nomear, sem estado.
 
-
     /** Registra um campo estático e devolve o símbolo .data (bug 41). */
     String staticSymbol(String ownerKey, String fieldName) {
         return staticData.symbol(ownerKey, fieldName);
@@ -219,7 +214,6 @@ public class NativeBackend implements Backend {
     String staticKey(Type ownerType) { return staticData.key(ownerType); }
     void collectStaticFields() { staticData.collect(); }
     void emitStaticData(StringBuilder sb) { staticData.emit(sb); }
-
 
     String internString(String value) {
         for (String[] entry : stringLiterals) {
@@ -483,12 +477,9 @@ public class NativeBackend implements Backend {
         }
     }
 
-
     private void emitMethodTable(StringBuilder sb, IRClass clazz) {
         NativeClassMeta.emitMethodTable(this, sb, clazz);
     }
-
-
 
 
 
@@ -506,12 +497,9 @@ public class NativeBackend implements Backend {
 
 
 
-
-
     void emitCall(StringBuilder sb, KofCall kc) {
         x86Calls().emitCall(sb, kc);
     }
-
 
     /**
      * Prefixo de mangle de uma classe com PACKAGE: o call site precisa do
@@ -527,11 +515,9 @@ public class NativeBackend implements Backend {
     }
 
 
-
     void runCommand(String[] cmd, String name) throws IOException {
         NativeAssembler.runCommand(cmd, name);
     }
-
 
     // NATIVE002 — lowering riscv64 + runtime EM ASSEMBLY PURO (sem C): a stack
     // machine é a MESMA do x86_64, com a ABI RISC-V (s11=fp, s2=pilha de
@@ -549,12 +535,10 @@ public class NativeBackend implements Backend {
         NativeRiscvHttpVerbs.emit(sb);
     }
 
-
     // Runtime riscv64 EM ASSEMBLY PURO (Kof é Kof — sem C; mesmo estilo do
     // x86_64 em NativeRuntime: raw syscall + layout de objeto idêntico).
     // Layout de String: typeId@0(i32) super@4(i32) vtable@8(ptr) len@16(i32)
     // pad@20(i32) data@24(inline). KOF_STRING_TYPE_ID=1.
-
 
 
     // ---- NATIVE002-stdlib: Map/Set riscv64 (aarch64 herda via tradutor) ----
@@ -564,7 +548,6 @@ public class NativeBackend implements Backend {
     // Int-key map não é suportado em nenhum native). Set = lista com tag
     // (1=string → equals; 0 → pointer, igual x86_64). Convenção riscv:
     // a0=receiver, a1..=args, resultado em a0.
-
 
 
     /** Toolchain ausente (binário não encontrado) — gracioso: mantém asm,

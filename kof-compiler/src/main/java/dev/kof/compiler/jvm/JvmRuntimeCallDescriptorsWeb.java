@@ -72,6 +72,9 @@ public final class JvmRuntimeCallDescriptorsWeb {
                     -> "(Ldev/kof/runtime/KofRuntime$HttpResponse;Ljava/lang/String;)Ljava/lang/String;";
             case "kof_http_response_headers", "kof_http_response_body"
                     -> "(Ldev/kof/runtime/KofRuntime$HttpResponse;)Ljava/lang/String;";
+            // #1184: a face de BYTES da resposta (o `Response.bytes()` -> Int[]).
+            case "kof_http_response_bytes"
+                    -> "(Ldev/kof/runtime/KofRuntime$HttpResponse;)[I";
             case "kof_http_get_headers", "kof_http_delete_headers", "kof_http_options_headers"
                     -> "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;";
             case "kof_http_post", "kof_http_put", "kof_http_patch"

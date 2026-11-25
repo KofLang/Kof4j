@@ -19,11 +19,16 @@ public final class JvmHttpResponseRuntime {
                     public final int status;
                     public final String headers;
                     public final String body;
+                    // #1184: os BYTES CRUS da resposta — o `ofString()` decodifica
+                    // com SUBSTITUIÇÃO (o 0x89 de um PNG vira U+FFFD e o byte
+                    // original é irrecuperável); o `bytes()` entrega o que veio.
+                    public final byte[] rawBody;
 
-                    public HttpResponse(int status, String headers, String body) {
+                    public HttpResponse(int status, String headers, String body, byte[] rawBody) {
                         this.status = status;
                         this.headers = headers == null ? "" : headers;
                         this.body = body == null ? "" : body;
+                        this.rawBody = rawBody == null ? new byte[0] : rawBody;
                     }
                 }
 
@@ -50,13 +55,15 @@ public final class JvmHttpResponseRuntime {
                     }
                     try {
                         java.net.http.HttpClient client = kofHttpClientFor(url);
-                        java.net.http.HttpResponse<String> r = client
-                                .send(b.build(), java.net.http.HttpResponse.BodyHandlers.ofString());
+                        java.net.http.HttpResponse<byte[]> r = client
+                                .send(b.build(), java.net.http.HttpResponse.BodyHandlers.ofByteArray());
                         StringBuilder hs = new StringBuilder();
                         r.headers().map().forEach((k, vs) -> {
                             for (String v : vs) hs.append(k).append(": ").append(v).append('\\n');
                         });
-                        return new HttpResponse(r.statusCode(), hs.toString(), r.body());
+                        byte[] raw = r.body() == null ? new byte[0] : r.body();
+                        return new HttpResponse(r.statusCode(), hs.toString(),
+                                new String(raw, java.nio.charset.StandardCharsets.UTF_8), raw);
                     } catch (Exception e) {
                         // falha de CONEXÃO segue o contrato catchable-String (#756);
                         // status HTTP nunca é exceção (#1126).
@@ -84,6 +91,15 @@ public final class JvmHttpResponseRuntime {
 
                 public static String kof_http_response_body(HttpResponse r) {
                     return r == null ? "" : r.body;
+                }
+
+                // #1184: a face de BYTES da resposta (o download de mídia —
+                // o mesmo contrato do `File.readBytes()`: `Int[]` 0-255).
+                public static int[] kof_http_response_bytes(HttpResponse r) {
+                    if (r == null) return new int[0];
+                    int[] out = new int[r.rawBody.length];
+                    for (int i = 0; i < out.length; i++) out[i] = r.rawBody[i] & 0xFF;
+                    return out;
                 }
                 """;
     }

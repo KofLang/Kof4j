@@ -280,7 +280,7 @@ public final class CompilerPipeline {
                 Path srcDir = Path.of(driver.currentSourceName).toAbsolutePath().getParent();
                 if (srcDir != null) libDirs.add(srcDir);
             }
-            nbe.moduleLibraryDirs = libDirs;
+            nbe.moduleLibResolver.setDirs(libDirs);
         }
         try {
             backend.emit(irModule, outputDir, driver.debugInfoEnabled);
