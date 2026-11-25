@@ -1366,3 +1366,7 @@ O `kof.trace.stack` (revertido) mostra a pilha de operandos do interpretador par
 
 Medido com o jar reconstruido e o build nativo: `50` + `50 + 0` → `50 50`; `var a = 80` + `var b = 80` → `80 80`; `val a = 100 - 20` + `val b = 50 + 30` → `80 80` — o VALOR decide, nao a sintaxe. Valores diferentes imprimem certo (`2`/`3 + 4` → `2 7`, `5`/`40 + 40` → `5 80`, `90`/`90 + 94` → `90 184`). O modulo entregue ao interpretador esta certo, o Optimizer por identidade esta certo e o asm nativo do par que falha e' `movq $80` + `kof_int_to_string` + `kof_println_string` duas vezes — o alvo que sobra e' o caminho de impressao. PROXIMO: bissecar essas duas chamadas com o mesmo valor duas vezes e com dois valores diferentes num programa. O app mantem o 184 fixado.
 
+## §57 Rodada 25/11 (trigesima nona) — §1218: tabela autoritativa com diretorios novos (5 de 8 ainda vermelhas) (so' o Kof4j)
+
+Toda sonda agora roda com `rm -rf` e UM `Main.kf` por caso. Pelo `lib/kof.jar` reconstruido: `50`/`50 + 0`, `80`/`60 + 20`, `50`/`25 + 25`, `2`/`1 + 1`, `50`/`2 * 25` e `7`/`5 + 2` imprimem o PRIMEIRO valor duas vezes (ERRADO), enquanto `90`/`90 + 94` → `90 184` e `5`/`40 + 40` → `5 80` estao certos. Regra central: `println(X)` seguido de `println(a + b)` com X ≤ a + b imprime X. Dois diretorios de sonda meus (`/tmp/jv` e os `/tmp/p1222/k*` da bissecao) tinham `Main.kf` velho e ficam descartados — a afirmacao anterior ("o bug de fixture invalida tudo") fica retirada por sua vez. PROXIMO: asm do par `2 / 1 + 1` contra `7 / 5 + 2`. O app mantem o 184 fixado.
+

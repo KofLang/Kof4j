@@ -1608,3 +1608,15 @@ call kof_println_string` twice — so the remaining target is the print path
 (`kof_int_to_string` + `kof_println_string`). NEXT: bisect those two with the same
 value twice and two different values in one program. The app keeps 184 pinned.
 
+## §57 Round 25/11 (thirty-ninth) — §1218: authoritative table with fresh directories (5 of 8 still red) (Kof4j only)
+
+Every probe now runs with `rm -rf` and ONE `Main.kf` per case. Through the rebuilt
+`lib/kof.jar`: `50`/`50 + 0`, `80`/`60 + 20`, `50`/`25 + 25`, `2`/`1 + 1`,
+`50`/`2 * 25` and `7`/`5 + 2` print the FIRST value twice (WRONG), while
+`90`/`90 + 94` → `90 184` and `5`/`40 + 40` → `5 80` are right. Core rule:
+`println(X)` followed by `println(a + b)` with X ≤ a + b prints X. Two of my
+earlier probe directories (`/tmp/jv` and the `/tmp/p1222/k*` bisect) had stale
+`Main.kf` files and are discarded — the earlier "fixture bug invalidates
+everything" claim is withdrawn in turn. NEXT: asm of the `2 / 1 + 1` pair vs the
+`7 / 5 + 2` pair. The app keeps 184 pinned.
+
