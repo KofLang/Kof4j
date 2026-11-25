@@ -1066,3 +1066,14 @@ name in `allClassesMap`) turned `NativeOverloadSymbolE2ETest` green but broke
 `EntryPackageImportE2ETest` (duplicate local label `asm`); the base without it is
 green on all three (70/70) and the app battery is 11/11 — REVERTED, the test
 stays as the red witness, `known-bugs §1210` carries the measurement.
+
+## §21 Round 23/11 (seventeenth) — the glyph strokes get round caps (app `d850845`)
+
+The named divergence from §18 is closed: `Draw.roundedStroke` paints the same
+outline as `Draw.stroke` with the corner pixels of each end rounded in (the
+lucide `stroke-linecap="round"`, radius 1), and `IconeBookOpen` /
+`IconeFolderKanban` now use it. PROOF `EnoisTracejadoArredondadoE2ETest`:
+`traco=13`, `estreito=5`, `retos=13` (the old `stroke` unchanged); battery 10/10
+(blogs, projects, glyphs, description, communities, composed page). REMAINING
+NAMED divergence: the stroke is 1 px wide — the SVG's end-to-end thickness is not
+reproduced, so the glyph shape is still an approximation.

@@ -1050,3 +1050,14 @@ assinatura) enquanto a definicao a carrega, entao o `ld` recusa o modulo
 duplicado); a base sem ela esta verde nos tres (70/70) e a bateria do app 11/11 —
 REVERTIDA, o teste fica como testemunha RED e o `known-bugs §1210` carrega a
 medicao.
+
+## §21 Rodada 23/11 (decima setima) — os tracos dos glifos ganham pontas redondas (app `d850845`)
+
+A divergencia nomeada do §18 e fechada: `Draw.roundedStroke` pinta o mesmo
+contorno do `Draw.stroke` com os pixels de canto das pontas arredondados (o
+`stroke-linecap="round"` do lucide, raio 1), e `IconeBookOpen` /
+`IconeFolderKanban` passam a usa-lo. PROVA `EnoisTracejadoArredondadoE2ETest`:
+`traco=13`, `estreito=5`, `retos=13` (o `stroke` antigo intocado); bateria 10/10
+(blogs, projetos, glifos, descricao, comunidades, pagina composta). Divergencia
+NOMEADA que RESTA: o traco tem 1 px — a espessura de ponta a ponta do SVG nao e
+reproduzida, entao a forma ainda e aproximada.
