@@ -233,6 +233,24 @@ public final class JvmRuntimeJson {
                     return kof_json_bind(type, kof_json_parse(json));
                 }
 
+                // #1176: um slot numérico recebeu não-número (uma string) —
+                // o JSN006 lança; o ternário dos seis ramos chama isto.
+                private static Object kof_json_number_expected(Object value) {
+                    throw new RuntimeException("JSN006: json.decode expected a number value, got "
+                            + jsonKindOf(value) + " (" + value + ")");
+                }
+
+                // #1176: o nome do tipo JSON do valor para as mensagens
+                // JSN006 (o mesmo vocabulário do #1103/#1128).
+                private static String jsonKindOf(Object value) {
+                    if (value instanceof String) return "a string";
+                    if (value instanceof Boolean) return "a boolean";
+                    if (value instanceof Number) return "a number";
+                    if (value instanceof java.util.List) return "an array";
+                    if (value instanceof java.util.Map) return "an object";
+                    return value == null ? "null" : value.getClass().getSimpleName();
+                }
+
                 private static Object kof_json_bind(Class<?> type, Object value) throws Exception {
                     return kof_json_bind(type, type, value);
                 }
@@ -243,33 +261,52 @@ public final class JvmRuntimeJson {
                 // crus → ClassCastException no acesso (GitHub #34 / bug 58).
                 private static Object kof_json_bind(Class<?> type, java.lang.reflect.Type generic, Object value) throws Exception {
                     if (value == null) return null;
-                    if (type == String.class) return value instanceof String s ? s : String.valueOf(value);
-                    // Numéricos: COERGE ao tipo do alvo (H2 `identity` → Long
-                    // num record `Int` dava "argument type mismatch" na
-                    // reflexão do record — read path do blog E2E F12).
+                    // #1176: um NÚMERO/BOOL num slot String era String.valueOf
+                    // — "nome=123" como DADO. O slot tipado não é fronteira de
+                    // parse: JSON string liga; o resto é JSN006 (a decisão do
+                    // #1103/#1128 a qualquer profundidade).
+                    if (type == String.class) {
+                        if (value instanceof String s) return s;
+                        throw new RuntimeException("JSN006: json.decode expected a String value, got "
+                                + jsonKindOf(value) + " (" + value + ")");
+                    }
+                    // Numéricos: COERGE entre larguras (o JSON não tem
+                    // int/long/float — só número; H2 `identity` → Long num
+                    // record `Int` dava "argument type mismatch" na reflexão do
+                    // record — read path do blog E2E F12).
+                    // #1176: UMA STRING num slot numérico era parse* —
+                    // "idade=\"30\"" virava 30 como dado; o slot tipado não é
+                    // fronteira de parse (toInt é o caminho explícito), então
+                    // vira JSN006 pelo guard comum logo abaixo.
                     if (type == int.class || type == Integer.class)
-                        return value instanceof Number n ? n.intValue() : Integer.parseInt(String.valueOf(value));
+                        return value instanceof Number n ? n.intValue() : kof_json_number_expected(value);
                     if (type == long.class || type == Long.class)
-                        return value instanceof Number n ? n.longValue() : Long.parseLong(String.valueOf(value));
+                        return value instanceof Number n ? n.longValue() : kof_json_number_expected(value);
                     if (type == byte.class || type == Byte.class)
-                        return value instanceof Number n ? n.byteValue() : Byte.parseByte(String.valueOf(value));
+                        return value instanceof Number n ? n.byteValue() : kof_json_number_expected(value);
                     if (type == short.class || type == Short.class)
-                        return value instanceof Number n ? n.shortValue() : Short.parseShort(String.valueOf(value));
+                        return value instanceof Number n ? n.shortValue() : kof_json_number_expected(value);
                     if (type == float.class || type == Float.class)
-                        return value instanceof Number n ? n.floatValue() : Float.parseFloat(String.valueOf(value));
+                        return value instanceof Number n ? n.floatValue() : kof_json_number_expected(value);
                     if (type == double.class || type == Double.class)
-                        return value instanceof Number n ? n.doubleValue() : Double.parseDouble(String.valueOf(value));
+                        return value instanceof Number n ? n.doubleValue() : kof_json_number_expected(value);
                     if (type == Number.class) return value;
                     if (type == boolean.class || type == Boolean.class) {
                         if (value instanceof Boolean b) return b;
                         // §397: drivers SQL devolvem Integer p/ Bool no
-                        // rs.getObject (SQLite int; H2) -- parseBoolean("1")
-                        // virava false em SILENCIO em todo binder compartilhado
-                        // (orm.find/all/where, db.query<T>, json.decode<T>).
-                        // Numero !=0 -> true (regra do bind); string segue
-                        // parseBoolean ("true"/"false" explicitos).
+                        // rs.getObject (SQLite int; H2) -- Numero !=0 -> true
+                        // (regra do bind, CONFIRMADA como contrato dos drivers
+                        // — o binder é compartilhado com orm.find/all/where e
+                        // db.query<T>).
+                        // #1176: uma STRING que não é "true"/"false" ("sim")
+                        // era parseBoolean -> false em silêncio — a pior face
+                        // (a recusa disfarçada de dado). Agora: JSN006.
                         if (value instanceof Number n) return n.intValue() != 0;
-                        return Boolean.parseBoolean(String.valueOf(value));
+                        String s = String.valueOf(value);
+                        if ("true".equals(s)) return Boolean.TRUE;
+                        if ("false".equals(s)) return Boolean.FALSE;
+                        throw new RuntimeException("JSN006: json.decode expected a boolean value, got "
+                                + jsonKindOf(value) + " (" + s + ")");
                     }
                     if (type == char.class || type == Character.class) {
                         return value.toString().charAt(0);
