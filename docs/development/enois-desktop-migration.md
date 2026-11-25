@@ -1754,3 +1754,15 @@ APP SIDE LANDED (app `94224a2`, pushed to `main`): `EsqueletoMetricas.body()` re
 unchanged). Raw-body rects stay 128 + 164 + 128 = 420 — the painted extent is taller
 and is NOT claimed; NEXT app slice: the raw bodies' numbers are the measured ones
 after this correction.
+
+APP SIDE LANDED (round §68, app `dd8ca7f`): the skeleton is now summed IN ORDER — body
+180 (the earlier 164 dropped the `space-y-3` before the footer and the 196 mixed the
+cover in), card 308, six-card grid 632; `esqueletoCartao` paints each line at its
+measured top (`line1Y` 148, `fullLineY` 200, `twoThirdsLineY` 224, `footerY` 248,
+`pillY` 266) instead of hand-computed offsets, and `EnoisVitrineCarregamentoE2ETest`
+asserts those tops plus `corpo=180`, `cartao=308`, `grade=632`, `yesq=1132`. The §1218
+thread of the same day produced NO compiler defect: the "wrong sums" were hand arithmetic
+and stale `.klib` (maven compiles the app libs into `libs/enois/*.klib` — a `.kf` edit
+without a rebuild runs the old klib). NEXT app slice: the skeleton's pulse (`animate-pulse`
+half-period shade) is still not painted — the `Skeleton.shade(0)` white (§26/§1212) is
+the blocker; and `rlista=914` still uses the CARD body (346), not the skeleton's 308.

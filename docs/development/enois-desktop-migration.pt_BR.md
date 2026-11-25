@@ -1441,3 +1441,15 @@ devolve 164 (a `p-5` contada uma vez so' era o erro do 196), `cardHeight()` 292 
 inalterado). Os retangulos crus do corpo continuam 128 + 164 + 128 = 420 — a
 extensao PINTADA e' maior e NAO e' afirmada; PROXIMA fatia do app: os numeros crus
 do corpo sao os medidos depois desta correcao.
+
+LADO DO APP ENTREGUE (rodada §68, app `dd8ca7f`): o esqueleto agora e' somado EM ORDEM — corpo
+180 (o 164 anterior perdia o `space-y-3` antes do rodape e o 196 misturava a capa), cartao 308,
+grade de seis 632; o `esqueletoCartao` pinta cada linha no topo medido (`line1Y` 148,
+`fullLineY` 200, `twoThirdsLineY` 224, `footerY` 248, `pillY` 266) em vez de offsets a mao,
+e o `EnoisVitrineCarregamentoE2ETest` afirma esses topos mais `corpo=180`, `cartao=308`,
+`grade=632`, `yesq=1132`. A thread do §1218 do mesmo dia NAO produziu defeito de compilador:
+as "somas erradas" eram conta a mao e `.klib` velho (o maven compila as libs do app em
+`libs/enois/*.klib` — editar o `.kf` sem rebuild roda o klib antigo). PROXIMA fatia do app:
+o pulso do esqueleto (`animate-pulse`, meio-periodo) ainda nao e' pintado — o branco do
+`Skeleton.shade(0)` (§26/§1212) e' o bloqueio; e o `rlista=914` ainda usa o corpo do CARTAO
+(346), nao o 308 do esqueleto.
