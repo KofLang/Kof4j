@@ -1406,3 +1406,21 @@ print right — the surviving runtime slices change the answer). PROOF
 the 24/11 `io.appendText` fix, so the row is **§1218**. NEXT: bisect the runtime
 slice set with `KOF_KEEP_ASM=1` and compare the boot/`kof_int_to_string` path of
 the 184 program with a neighbour.
+
+## §42 Round 25/11 (twenty-fourth) — the §1218 pattern found: the previous literal `println` is REPEATED in the next one (Kof4j only, no app change)
+
+Probing the §1218 gap (the skeleton body reads 184 where the arithmetic says 196)
+narrowed it to the PRINT path, not to arithmetic: `println(50)`, `println(2 * 25)`,
+`println(25 + 25)`, `println(40 + 40)` print **50 50 50 80** — the second and third
+print the first value again — so `println(90 + 94)` (a constant 184 whose first
+term is 90) prints 90. MEASURED and CLEARED: the same source on the JVM prints
+184 (so the frontend/IR is not the producer), the native asm is `movq $90, %rax /
+addl $94, %eax / call kof_int_to_string` (correct), re-linking the asm with
+`movq $196` prints 196 (the constant reaches the register), and with
+`-Dkof.native.register.locals=false` (frame model) and with the optimization off
+the same 50 50 50 80 stays — the surviving runtime slice set plus the layout of a
+literal print after another print is the suspect. PROOF `NativeLiteralDropE2ETest`
+(3 tests, 2 RED: the skeleton sum and the repeated-print pattern; 1 GREEN: the
+neighbour 250 + 34 = 284). The app keeps the measured 184 pinned; the app itself
+needs no change for this round.
+

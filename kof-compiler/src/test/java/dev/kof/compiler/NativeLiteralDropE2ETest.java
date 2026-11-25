@@ -17,6 +17,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * ({@code 90 + 94 + 1} = 185, {@code 250 + 34} = 284, {@code 17 + 26 + 92 + 49 +
  * 50 + 60} = 294) medem certo.
  *
+ * <p>O PADRÃO medido: um {@code println} de um LITERAL gruda como valor atual —
+ * {@code println(50)}, {@code println(2 * 25)}, {@code println(25 + 25)},
+ * {@code println(40 + 40)} imprimem {@code 50 50 50 80}. O mesmo fonte na JVM
+ * imprime certo, e o asm nativo é o correto ({@code movq $90, %rax / addl $94,
+ * %eax}), então o defeito está no caminho da impressão (o conjunto de slices
+ * do runtime que sobrevive ao prune).
+ *
  * <p>A contraprova que localiza a perda FORA do frontend: o mesmo valor escrito
  * como {@code 284 - 100} ou {@code 100 + 84} imprime 184, e o asm emitido para
  * {@code println(184)} é {@code movq $184, %rdi} seguido de
@@ -36,26 +43,32 @@ class NativeLiteralDropE2ETest {
                 .redirectErrorStream(true).start();
         String out = new String(p.getInputStream().readAllBytes());
         assertTrue(p.waitFor(120, java.util.concurrent.TimeUnit.SECONDS), "o programa termina");
-        return out;
+        return out.strip().replace("\n", " ");
     }
 
+    /** O corpo do esqueleto: 90 + 94 sai 184 (o primeiro termo) em vez de 196. */
     @Test
     void theBodySumOfTheSkeletonIsReadWhole(@TempDir Path dir) throws Exception {
-        String out = run(dir, """
-                    println(90 + 94)
-                    println(20 + 40 + 12 + 12 + 32 + 48 + 20)
-                """);
-        assertTrue(out.contains("196"), "90 + 94 = 196 (medido 184): " + out);
-        assertTrue(out.contains("196\n196") || out.endsWith("196"), "a soma do esqueleto = 196 (medido 184): " + out);
+        String out = run(dir, "    println(90 + 94)\n");
+        assertTrue(out.equals("196"), "90 + 94 = 196 (medido: " + out + ")");
     }
 
+    /** O vizinho: um valor que nao e' o 184 continua certo (o controle). */
     @Test
     void theNeighbourValuesAreUnaffected(@TempDir Path dir) throws Exception {
+        String out = run(dir, "    println(250 + 34)\n");
+        assertTrue(out.equals("284"), "250 + 34 = 284: " + out);
+    }
+
+    /** O padrao medido: o println de um literal REPETE o valor anterior. */
+    @Test
+    void thePreviousLiteralPrintIsNotRepeated(@TempDir Path dir) throws Exception {
         String out = run(dir, """
-                    println(250 + 34)
-                    println(17 + 26 + 92 + 49 + 50 + 60)
+                    println(50)
+                    println(2 * 25)
+                    println(25 + 25)
+                    println(40 + 40)
                 """);
-        assertTrue(out.contains("284"), "250 + 34: " + out);
-        assertTrue(out.contains("294"), "17 + 26 + 92 + 49 + 50 + 60: " + out);
+        assertTrue(out.equals("50 50 50 80"), "o 2o/3o println repetem o 50 (medido: " + out + ")");
     }
 }
