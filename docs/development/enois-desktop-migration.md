@@ -1352,3 +1352,40 @@ NAMED pendings: the API base (`http://127.0.0.1:PORT` in the test) and the sessi
 cookie stay out of the app; the page is not yet wired into `Main.kf`; non-ASCII
 beyond the measured `ç` is percent-encoded byte by byte over the UTF-8 code unit
 (no multi-byte decomposition yet).
+
+## §40 Round 25/11 (twenty-second) — the showcase LOADING states (app `75dec7c`) and the §1214 measurement
+
+`libs/Carregamento.kf` covers what `routes/comunidades.tsx` draws while the
+catalogue arrives, measured in the DS: `CommunityCardSkeletons` (`count = 6`,
+`surface-card overflow-hidden`, cover `h-32` **128**, body `p-5` + the avatar row
+(40) + `h-3 w-full` (12) + `h-3 w-2/3` (12) + footer (32) + four `space-y-3` (48)
++ `p-5` = **196** by the site's arithmetic, **184 measured on this native** —
+NAMED §1214), the `gap-4` three-column grid, the title-only `EmptyState`
+(**100**) and the "load more" footer (`Button variant=outline rounded-full`,
+**36** + `pb-8` **32** = 68, label `texts.communities.loadMore`, shown only when
+the page carries a `nextCursor`). `VitrineEstado.of` picks the state
+(loading → skeleton; no item → empty, `emptyFiltered` with the filter UF; else
+the grid). PROOF `EnoisVitrineCarregamentoE2ETest`: `capa=128`, `corpo=184`,
+`cartao=312`, `grade=640`, `grade4=640`, `botao=36/18`, `rodape=68`,
+`rotulo=Carregar mais`, `carregando`/`vazio`/`vazio-filtrado`/`lista`,
+`yesq=1140`, `rvazio=vazio/600`, `rcarregando=…/1140`, `rlista=lista/914`,
+`rfim=lista/846` — the Énois battery runs 74 tests with 1 failure
+(`EnoisTextE2ETest`, the known §1197 canvas readback).
+
+MEASURED on the way (Kof4j): a chained sum of literals is read one term short on
+native x86-64 — `println(20 + 40 + 12 + 12 + 32 + 48 + 20)` prints **184** (196
+expected), and it is NOT the optimizer (the same 184 with optimization off), NOT
+the emitter (the no-opt asm has all seven `addl`) and NOT module-specific (a solo
+`main()` reproduces it); the front-end IR already carries the folded chain. The
+same for `var s` summed step by step (`s = s + 20` … → 184) and for named
+functions summed ending in `+ 20`. The IR observer does not publish the
+optimized form, so the exact producer stays OPEN: either the optimizer folds
+with VALUE-equal literals (the sum holds two `12`s; `KofLoadLiteral`/`KofBinary`
+are records and `equals` is by value) or the optimizer runs before emit even
+with the flag off. The strongest suspect is `out.set(...)`/`out.remove(lb)` on a
+value-equal literal removing the wrong op. The app pins the measured 184 as a
+NAMED divergence and keeps 196 documented as the site's arithmetic.
+
+NAMED pendings: the skeleton paints the pure `surface-2` (the `Skeleton.shade`
+pulse ends still measure white), the disabled `Loader2` is not drawn (only the
+dimmed pill), and the body sum stays 184 until §1214 closes.
