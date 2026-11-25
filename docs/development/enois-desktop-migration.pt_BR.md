@@ -1406,3 +1406,29 @@ No harness do app (nativo x86-64), o `EsqueletoMetricas.bodyNoSite()` escrito co
 
 `Int soma() { return 20 + 40 + 12 + 12 + 32 + 48 + 20 }` vale **184** em todo alvo (classe JVM com `sipush 184`, nativo `movq $184, %rax`, interpretador e CLI), enquanto o mesmo valor em cinco termos (`100 + 20 + 30 + 20 + 26`) da' 196. A dobra nao depende de aridade: `21 + 40 + 12 + 12 + 32 + 48 + 20` → 185 e `1 + 2 + … + 7` → 28 estao certos. RED `SevenTermSumE2ETest`. PROXIMO: bissecar a dobra da cadeia de sete termos. O app mantem o 184 fixado; sem mudanca de codigo nesta rodada.
 
+## §67 Rodada 25/11 (quadragesima nona) — §1218 relido: a "dobra de sete termos" era erro de aritmetica; a contabilidade do esqueleto da 164 e o cartao 292 (Kof4j, sem mudanca de codigo)
+
+`20 + 40 + 12 + 12 + 32 + 48 + 20` vale **184** — o §66 e o §1218 afirmavam que
+a soma "perde um termo" contra 196, e isso era MEU erro de aritmetica:
+20+40+12+12+32+48+20 = 184. O `SevenTermSumE2ETest` (escrito esperando 196) foi
+APAGADO, nunca entrou.
+
+O defeito real do §1218 e' mais estreito e reprodutivel: a SEGUNDA de duas impressoes
+do mesmo valor e' servida pela dobra constante do frontend. `main() { println(2);
+println(1 + 1) }` tem IR cujo segundo comando e' um unico `KofLoadLiteral 2` e nenhum
+`KofBinary` (o primeiro comando e' identico), entao a soma nunca roda. A "repeticao
+da linha anterior" do titulo NAO se reproduz nesta arvore (`println(2)` +
+`println(1 + 1)` → `2 2`, `println(5)` + `println(40 + 40)` → `5 80`, `println(90)`
++ `println(90 + 94)` → `90 184` — todas certas). Descartados por medicao: a
+aritmetica do interpretador (`164 + 20` = 184), a AST (left-assoc, sete folhas INT),
+o otimizador por passe, os emissores. RED `PrintFoldReuseE2ETest`
+(`theSecondPrintKeepsItsArithmetic`: a IR do segundo comando tem 0 `KofBinary`,
+esperado 1; controle `5\n80` VERDE). PROXIMO: nomear o passe que dobra expressoes de
+comando — o `FieldConstantFolder` declara-se so de inicializador de campo, entao o
+dobrador do frontend segue sem nome.
+
+LADO DO APP (releitura de `libs/Carregamento.kf`): a lista de termos do corpo do
+esqueleto (`p-5` 40 + avatar 40 + `h-3` 12 + `mt-3` 12 + `h-3 w-2/3` 12 + `mt-4` 16
++ rodape 32) soma **164**, nao 196 — o 196 vinha de contar a capa (128) dentro do
+corpo. Cartao = 128 + 164 = **292**; a grade de seis = 6×292 + 5×16 = **1832**. O app
+vira o 184/312/640 fixado nesses numeros e o teste acompanha.

@@ -1720,3 +1720,28 @@ the interpreter and CLI print 184 — while the same value in five terms
 (seven-term 184 vs expected 196; five-term control 196). NEXT: bisect the fold of
 the seven-term chain. The app keeps 184 pinned; no code change this round.
 
+## §67 Round 25/11 (forty-ninth) — §1218 re-read: the "seven-term fold" was arithmetic error; the skeleton accounting turns 164 and the card 292 (Kof4j, no code change)
+
+`20 + 40 + 12 + 12 + 32 + 48 + 20` is **184** — §66 and §1218 claimed the sum
+"loses a term" against 196, and that was MY arithmetic error: 20+40+12+12+32+48+20
+= 184. `SevenTermSumE2ETest` (written against 196) is DELETED, never landed.
+
+The real §1218 defect is narrower and reproducible: the SECOND of two prints of the
+same value is served from the frontend's constant fold. `main() { println(2);
+println(1 + 1) }` has an IR whose second statement is one `KofLoadLiteral 2` and no
+`KofBinary` (the first statement is identical), so the sum never runs. The "repeats
+the previous line" of the title does NOT reproduce on this tree (`println(2)` +
+`println(1 + 1)` → `2 2`, `println(5)` + `println(40 + 40)` → `5 80`, `println(90)`
++ `println(90 + 94)` → `90 184` — all right). Cleared by measurement: the
+interpreter's arithmetic (`164 + 20` = 184), the AST (left-assoc, seven INT leaves),
+the optimizer per pass, the emitters. RED `PrintFoldReuseE2ETest`
+(`theSecondPrintKeepsItsArithmetic`: the second statement's IR has 0 `KofBinary`,
+expected 1; control `5\n80` GREEN). NEXT: name the pass that folds statement
+expressions — `FieldConstantFolder` says it is field-initializer-only, so the
+frontend folder is still unnamed.
+
+APP SIDE (reread of `libs/Carregamento.kf`): the skeleton body's term list
+(`p-5` 40 + avatar 40 + `h-3` 12 + `mt-3` 12 + `h-3 w-2/3` 12 + `mt-4` 16 + footer
+32) sums to **164**, not 196 — the 196 came from counting the cover (128) into the
+body. Card = 128 + 164 = **292**; the six-card grid = 6×292 + 5×16 = **1832**. The
+app turns the pinned 184/312/640 into these numbers and the test follows.
