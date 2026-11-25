@@ -1227,3 +1227,13 @@ espaco — NOMEADO), "Penalidades" (24/32), a descricao (14/20 quebrada na colun
 `space-y-6` (24) e o cartao `rounded-2xl border` com o `EmptyState` de icone e SO
 titulo mais a linha centrada do `emptyHint` com `pb-6` — **176**. PROVA
 `EnoisPenalidadesE2ETest`: `coluna=672`, `vazio=176`; bateria 6/6.
+
+## §34 Rodada 25/11 (decima sexta) — a tela "Moderação · recursos" (app `7836904`)
+
+`libs/Moderacao.kf` compoe `routes/moderacao.tsx` 62-93: coluna
+`mx-auto w-full max-w-3xl` (**768**), "Voltar", "Moderação · recursos" (24/32), a
+descricao (14/20, UMA linha na largura da coluna), `space-y-6` (24) e o cartao
+`rounded-2xl border` com o `EmptyState` de icone e so titulo — **152**, tela
+**345** (89 + 80 + 24 + 152). PROVA `EnoisModeracaoE2ETest`: `coluna=768`,
+`tela=345`; bateria 6/6. NOMEADO: o `Gavel` so como caixa, o `ArrowLeft` do
+"Voltar" deixa o espaco.

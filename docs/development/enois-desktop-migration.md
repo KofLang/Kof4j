@@ -1243,3 +1243,13 @@ space — NAMED), "Penalidades" (24/32), the description (14/20 wrapped in the
 column), `space-y-6` (24) and the `rounded-2xl border` card with the icon
 `EmptyState` and ONLY a title plus the centred `emptyHint` line with `pb-6` —
 **176**. PROOF `EnoisPenalidadesE2ETest`: `coluna=672`, `vazio=176`; battery 6/6.
+
+## §34 Round 25/11 (sixteenth) — the "Moderação · recursos" screen (app `7836904`)
+
+`libs/Moderacao.kf` composes `routes/moderacao.tsx` 62-93: column
+`mx-auto w-full max-w-3xl` (**768**), "Voltar", "Moderação · recursos" (24/32),
+the description (14/20, ONE line at the column width), `space-y-6` (24) and the
+`rounded-2xl border` card with the icon `EmptyState` and only a title —
+**152**, screen **345** (89 + 80 + 24 + 152). PROOF `EnoisModeracaoE2ETest`:
+`coluna=768`, `tela=345`; battery 6/6. NAMED: the `Gavel` is a box only, the
+`ArrowLeft` of "Voltar" leaves its space.
