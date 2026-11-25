@@ -1595,3 +1595,11 @@ de libs as partes imprimem a aritmetica (289 / 237 / 281) e o `EnoisBlogPostView
 no tip (pintado = declarado). O ciclo de import e a ordem de instalacao estao descartados no
 `known-bugs §1226` ATUALIZACAO 7; o que fez uma execucao anterior ver 707 segue aberto, com o
 proximo passo registrado.
+
+LADO DO APP ENTREGUE (rodada §85, app `926861a`): o PARSER do `RichText` (`libs/RichText.kf`) — o
+markdown leve de posts/comentarios/bio: paragrafo, titulo `#{1,3}`, citacao, bloco de codigo,
+divisor `- - -`, listas `- `/`1. ` (itens do mesmo tipo fundidos, caixas `[x]`), tabelas `| a |`
+com o alinhamento do separador, e inline negrito/italico/riscado/spoiler/codigo/link/mencao/
+endereco solto/imagem com as BORDAS do DS (`2 * 3 * 4` e `user_id_temporario` ficam texto) e o
+escape `\\`; links so' http(s), `/` ou `#` (um `javascript:` fica texto). Prova
+`EnoisRichTextE2ETest`.

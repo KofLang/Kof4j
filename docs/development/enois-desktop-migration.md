@@ -1895,3 +1895,12 @@ parts print their arithmetic (289 / 237 / 281) and `EnoisBlogPostViewE2ETest` is
 (painted = declared). The import cycle and the install ordering are cleared in `known-bugs §1226`
 UPDATE 7; what made one earlier run see 707 stays open, with the next step recorded (record the
 height over repeated harness runs).
+
+APP SIDE LANDED (round §85, app `926861a`): the `RichText` PARSER (`libs/RichText.kf`) — the light
+markdown of posts/comments/bio: paragraph, `#{1,3}` heading, `>` quote, fenced code, `- - -`
+divider, `- ` / `1. ` lists (same-kind items merged, `[x]` task boxes), `| a |` tables with the
+separator's alignment, and inline bold/italic/strike/spoiler/code/link/mention/bare-URL/image with
+the DS's BOUNDARIES (`2 * 3 * 4` and `user_id_temporario` stay text) and the `\\` escape; URLs only
+http(s), `/` or `#` (a `javascript:` link stays text). Proof `EnoisRichTextE2ETest` (6 inline nodes
+for the sample paragraph; `titulo=heading/1/T`; `lista=1/2` with `task=true`; `ordem=true`;
+`alinh=[1]=right`; `link:[link:site][text:...]`; `escape`, `mencao`, `codigo`, `spoiler`, `divisor`).
