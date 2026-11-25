@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: in `enois-kof-desktop` — the `projetos` empty CARD is measured end to end (hint in `max-w-sm` = 2 lines → `emptyHeight(2)` = 200, icon box at `--radius-2xl` 20, app `8340f8c`); remaining named: the DS glyphs (FolderKanban/BookOpen are boxes only), the loading skeleton (§1207/§1209), the card values from the API; in Kof4j the §1209 search seed and the §1207 face
+next: in `enois-kof-desktop` — the `EmptyState` glyphs exist (`IconeBookOpen`, `IconeFolderKanban`, `h-5 w-5` = 20, stroke 1, app `81f8292`) and both empty states use them; remaining named: the stroke corners are square (lucide rounds them), the loading skeleton (§1207/§1209), the card values from the API; in Kof4j the §1209 search seed and the §1207 face
 location: repository
 state: active
 
@@ -1030,3 +1030,15 @@ was cut with 16 — fixed this round). PROOF `EnoisProjectsVazioCardE2ETest`:
 `linhas=2`, `cartao=200`, `pintado=200`; battery 10/10 (projects, blogs,
 communities, composed page). NAMED: the `FolderKanban` glyph is not drawn (the box
 is).
+
+## §18 Round 23/11 (fourteenth) — the `EmptyState` glyphs (app `81f8292`)
+
+Two types, one per file: `libs/IconeBookOpen.kf` (two stroked pages side by side)
+and `libs/IconeFolderKanban.kf` (stroked folder + three kanban bars), both at the
+`h-5 w-5` = **20** of `empty-state.tsx` 14, stroke 1 in `--text-subtle`, drawn
+with `Draw.stroke`. `VazioDeListaComIcone.paint` and `ProjectsScreen.paintEmpty`
+now call them (they painted the glyph with hand-placed `fillRect`s). PROOF
+`EnoisVazioIconesE2ETest`: `caixa=20`, `livro=20`, `pasta=20`; battery 10/10
+(blogs, projects, glyphs, communities, composed page). NAMED divergence: the
+strokes are plain rectangles — lucide rounds the ends, so the glyph SHAPE is
+approximate.

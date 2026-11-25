@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: em `enois-kof-desktop` — o CARTÃO vazio de `projetos` esta medido de ponta a ponta (hint em `max-w-sm` = 2 linhas -> `emptyHeight(2)` = 200, caixa do icone no `--radius-2xl` 20, app `8340f8c`); continua nomeado: os glifos do DS (`FolderKanban`/`BookOpen` sao so as caixas), o esqueleto de carga (§1207/§1209), os valores do cartao da API; no Kof4j a semente da busca do §1209 e a face do §1207
+next: em `enois-kof-desktop` — os glifos do `EmptyState` existem (`IconeBookOpen`, `IconeFolderKanban`, `h-5 w-5` = 20, traco 1, app `81f8292`) e os dois vazios os usam; continua nomeado: as pontas do traco sao retas (o lucide arredonda), o esqueleto de carga (§1207/§1209), os valores do cartao da API; no Kof4j a semente da busca do §1209 e a face do §1207
 location: repository
 state: active
 
@@ -1013,3 +1013,15 @@ caixa do icone `h-11 w-11` com o `--radius-2xl` = **20** (era cortada com 16 —
 corrigido nesta rodada). PROVA `EnoisProjectsVazioCardE2ETest`: `linhas=2`,
 `cartao=200`, `pintado=200`; bateria 10/10 (projetos, blogs, comunidades, pagina
 composta). NOMEADO: o glifo `FolderKanban` nao e desenhado (so a caixa).
+
+## §18 Rodada 23/11 (decima quarta) — os glifos do `EmptyState` (app `81f8292`)
+
+Dois tipos, um por arquivo: `libs/IconeBookOpen.kf` (duas paginas contornadas lado
+a lado) e `libs/IconeFolderKanban.kf` (pasta contornada + tres barras de kanban),
+no `h-5 w-5` = **20** do `empty-state.tsx` 14, traco 1 em `--text-subtle`,
+desenhados com `Draw.stroke`. `VazioDeListaComIcone.paint` e
+`ProjectsScreen.paintEmpty` passaram a chama-los (pintavam o glifo com
+`fillRect`s postos a mao). PROVA `EnoisVazioIconesE2ETest`: `caixa=20`,
+`livro=20`, `pasta=20`; bateria 10/10 (blogs, projetos, glifos, comunidades,
+pagina composta). Divergencia NOMEADA: os tracos sao retangulos simples — o
+lucide arredonda as pontas, entao a FORMA do glifo e aproximada.
