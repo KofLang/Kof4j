@@ -266,6 +266,22 @@ public final class CompilerPipeline {
         UiTargetDiagnostics.warnIfNative(driver, irModule, diagnostics);
         Files.createDirectories(outputDir);
         Backend backend = CompilerPipeline.selectBackend(driver, target);
+        // #1191: os dirs de libs DISTRIBUÍDAS do módulo alcançam o backend
+        // (o linker de um `extern "libX.so"` por NOME SIMPLES procura aqui —
+        // o ld sozinho não vê o dir do app).
+        if (backend instanceof dev.kof.compiler.nat.NativeBackend nbe) {
+            java.util.List<Path> libDirs = new java.util.ArrayList<>();
+            if (driver.moduleRoot != null) {
+                Path mr = driver.moduleRoot.toAbsolutePath().normalize();
+                libDirs.add(mr);
+                libDirs.add(mr.resolve("libs"));
+            }
+            if (driver.currentSourceName != null) {
+                Path srcDir = Path.of(driver.currentSourceName).toAbsolutePath().getParent();
+                if (srcDir != null) libDirs.add(srcDir);
+            }
+            nbe.moduleLibraryDirs = libDirs;
+        }
         try {
             backend.emit(irModule, outputDir, driver.debugInfoEnabled);
         } catch (dev.kof.compiler.wasm.WasmUnsupportedException e) {

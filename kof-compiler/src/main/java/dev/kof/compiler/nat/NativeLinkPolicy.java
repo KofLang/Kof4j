@@ -19,6 +19,26 @@ final class NativeLinkPolicy {
 
     /** Delega o assemble/link ao NativeAssembler (script/objcopy por perfil). */
     static void assemble(NativeBackend backend, Path asmFile, Path binFile) throws IOException {
+        // #1191: um `extern "libX.so"` por NOME SIMPLES resolve PRIMEIRO nos
+        // dirs de libs DISTRIBUÍDAS do módulo — o primeiro dir que tiver o
+        // arquivo vira o path absoluto (o ld então recebe o input posicional
+        // + o `-rpath` de runtime, como os caminhos declarados). Nada achado
+        // = o `-l:` de sistema de sempre (o soname do SQLite etc.).
+        if (!backend.moduleLibraryDirs.isEmpty()) {
+            java.util.List<String> resolved = new java.util.ArrayList<>();
+            for (String lib : backend.ffiLibs) {
+                String hit = null;
+                if (lib.indexOf('/') < 0) {
+                    for (Path dir : backend.moduleLibraryDirs) {
+                        Path candidate = dir.resolve(lib);
+                        if (Files.isRegularFile(candidate)) { hit = candidate.toString(); break; }
+                    }
+                }
+                resolved.add(hit != null ? hit : lib);
+            }
+            backend.ffiLibs.clear();
+            backend.ffiLibs.addAll(resolved);
+        }
         // B-1: no perfil freestanding (x86_64) o link é estático e sem libc —
         // qualquer capacidade que precise de libc é RECUSADA com diagnóstico
         // (nunca um link que falha feio nem um binário que resolve em runtime).

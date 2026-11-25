@@ -129,6 +129,10 @@ public class NativeBackend implements Backend {
     boolean usesPow = false;
     /** #431: bibliotecas dos `extern` bound (ligadas no ld, link-by-use). */
     final Set<String> ffiLibs = new LinkedHashSet<>();
+    // #1191: os dirs de libs DISTRIBUÍDAS do módulo (a raiz, a raiz/libs e o
+    // dir do fonte) — um `extern "libX.so"` por NOME SIMPLES procura o arquivo
+    // AQUI antes de virar `-l:` (o ld não procura no dir do app).
+    public java.util.List<Path> moduleLibraryDirs = java.util.List.of();
     boolean ffiUsesCstr = false;
     /** D6-2/3.7: algum extern recebe array `T[]`→`ptr` (pede `kof_ffi_pack_array`). */
     boolean ffiUsesArray = false;
@@ -596,3 +600,4 @@ public class NativeBackend implements Backend {
     void emitStringData(StringBuilder sb) { NativeClassMeta.emitStringData(this, sb); }
 
 }
+
