@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: in `enois-kof-desktop` — the `EmptyState` glyphs exist (`IconeBookOpen`, `IconeFolderKanban`, `h-5 w-5` = 20, stroke 1, app `81f8292`) and both empty states use them; remaining named: the stroke corners are square (lucide rounds them), the loading skeleton (§1207/§1209), the card values from the API; in Kof4j the §1209 search seed and the §1207 face
+next: in `enois-kof-desktop` — the `EmptyState` description wraps by word and paints every line (app `b8a63c8`, `heightN(f, text)`), battery 11/11; remaining named: lucide glyph corners, the loading skeleton (§1207/§1209), the card values from the API; in Kof4j the §1209 search seed and the §1207 face
 location: repository
 state: active
 
@@ -1042,3 +1042,15 @@ now call them (they painted the glyph with hand-placed `fillRect`s). PROOF
 (blogs, projects, glyphs, communities, composed page). NAMED divergence: the
 strokes are plain rectangles — lucide rounds the ends, so the glyph SHAPE is
 approximate.
+
+## §19 Round 23/11 (fifteenth) — the `EmptyState` description wraps and paints every line (app `b8a63c8`)
+
+The description (`max-w-sm text-sm text-text-subtle`) was painted only when it fit
+ONE line, so the `emptyHint` of `projetos` (2 lines at 384 px) never appeared.
+`DescriptionBlock` now wraps by WORD with the real font (`wrap`/`lines`/`height`)
+and `VazioDeListaComIcone` paints each line centred and returns
+`heightN(f, description)`. PROOF `EnoisVazioDescricaoE2ETest`: `linhas=2`,
+`altura=40`, `uma=20`; battery 11/11. MEASURED: two `heightN` overloads in one
+type emitted a symbol the NATIVE LINK did not see (`ld: undefined reference to
+enois_VazioDeListaComIcone_heightN`); the `Int` form became `heightLines` — one
+name per shape.

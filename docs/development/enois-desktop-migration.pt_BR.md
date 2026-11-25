@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: em `enois-kof-desktop` — os glifos do `EmptyState` existem (`IconeBookOpen`, `IconeFolderKanban`, `h-5 w-5` = 20, traco 1, app `81f8292`) e os dois vazios os usam; continua nomeado: as pontas do traco sao retas (o lucide arredonda), o esqueleto de carga (§1207/§1209), os valores do cartao da API; no Kof4j a semente da busca do §1209 e a face do §1207
+next: em `enois-kof-desktop` — a descricao do `EmptyState` quebra por palavra e pinta cada linha (app `b8a63c8`, `heightN(f, texto)`), bateria 11/11; continua nomeado: os cantos dos glifos do lucide, o esqueleto de carga (§1207/§1209), os valores do cartao da API; no Kof4j a semente da busca do §1209 e a face do §1207
 location: repository
 state: active
 
@@ -1025,3 +1025,15 @@ desenhados com `Draw.stroke`. `VazioDeListaComIcone.paint` e
 `livro=20`, `pasta=20`; bateria 10/10 (blogs, projetos, glifos, comunidades,
 pagina composta). Divergencia NOMEADA: os tracos sao retangulos simples — o
 lucide arredonda as pontas, entao a FORMA do glifo e aproximada.
+
+## §19 Rodada 23/11 (decima quinta) — a descricao do `EmptyState` quebra e pinta cada linha (app `b8a63c8`)
+
+A descricao (`max-w-sm text-sm text-text-subtle`) so era pintada quando cabia em
+UMA linha, entao o `emptyHint` de `projetos` (2 linhas em 384) nunca aparecia.
+`DescriptionBlock` passou a quebrar por PALAVRA com a fonte real
+(`wrap`/`lines`/`height`) e `VazioDeListaComIcone` pinta cada linha centrada e
+devolve `heightN(f, descricao)`. PROVA `EnoisVazioDescricaoE2ETest`: `linhas=2`,
+`altura=40`, `uma=20`; bateria 11/11. MEDIDO: duas sobrecargas `heightN` no mesmo
+tipo emitiram um simbolo que o LINK NATIVO nao via (`ld: referencia nao definida
+para enois_VazioDeListaComIcone_heightN`); a forma com `Int` virou `heightLines` —
+um nome por forma.
