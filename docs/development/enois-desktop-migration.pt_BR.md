@@ -1520,3 +1520,13 @@ CORRECAO NO KOF4J A CAMINHO (§1224, `c4a429a8f`): `list.add(i, valor)` nao LINC
 nativo (o runtime nao tinha `kof_list_insert`); a fatia agora implementa (limites, crescimento,
 deslocamento para tras), entao a primeira versao do `EnoisReactionsSummaryE2ETest` — que usava
 `out.add(j, tab)` — deixou de precisar do contorno. O app mantem a ordenacao sem insercao.
+
+LADO DO APP ENTREGUE (rodada §74, app `bab0f1f`): o `PostActions` do post
+(`libs/PostActions.kf`), a fileira de acoes compartilhada do card do feed e do post do blog: o
+rodape `mt-4` + `border-t` + `pt-3` (61 de altura), botoes `px-2 py-1.5` cuja linha e' a de 20 do
+`text-sm` (nao os 16 do icone) — 32 sem contagem, 48 com — as acoes da esquerda na ordem da view
+(reagir, comentar, [repostar], enviar) com as contagens so' quando > 0, as bolinhas das reacoes
+(3 × 16 sobrepostas em 4, mais o total) e o salvar a direita, mais os textos de `postActions`.
+Prova `EnoisPostActionsE2ETest` (m=16/1/12/20/16/8/6, altura=61/32, esqR=4/3, btn0=32 btn12=48,
+dots 0/16/40/51). NOMEADO: os glifos do lucide sao desenhados como contornos (mesmo buraco do
+Loader2) e as acoes em si dependem da API do feed.

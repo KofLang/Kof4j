@@ -1821,3 +1821,12 @@ KOF4J FIX ON THE WAY (§1224, `c4a429a8f`): `list.add(i, value)` did not LINK on
 target (the runtime had no `kof_list_insert`); the slice now implements it (bounds, growth,
 backward shift), so `EnoisReactionsSummaryE2ETest`'s first version — which used `out.add(j,
 tab)` — stopped needing the workaround. The app keeps its insertion-free sort.
+
+APP SIDE LANDED (round §74, app `bab0f1f`): the post's `PostActions` (`libs/PostActions.kf`), the
+shared action row of the feed card and the blog post: the footer `mt-4` + `border-t` + `pt-3`
+(61 tall), buttons `px-2 py-1.5` whose line is the `text-sm` 20 (not the 16 icon) — 32 without a
+count, 48 with — the left actions in the view's order (react, comments, [repost], share) with
+their counts only when > 0, the reaction dots (3 × 16 overlapped by 4, plus the total) and save
+on the right, plus the `postActions` texts. Proof `EnoisPostActionsE2ETest` (m=16/1/12/20/16/8/6,
+altura=61/32, esqR=4/3, btn0=32 btn12=48, dots 0/16/40/51). NAMED: the lucide glyph shapes are
+drawn as outlines (same gap as the Loader2), the reach/actions themselves need the feed API.
