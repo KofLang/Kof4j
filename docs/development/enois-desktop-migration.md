@@ -1424,3 +1424,19 @@ literal print after another print is the suspect. PROOF `NativeLiteralDropE2ETes
 neighbour 250 + 34 = 284). The app keeps the measured 184 pinned; the app itself
 needs no change for this round.
 
+## §43 Round 25/11 (twenty-fifth) — §1218 corrected: the JVM interpreter gives the same wrong answer, so the producer is the shared frontend/IR (Kof4j only)
+
+The §42 record blamed the native runtime slice set. That was WRONG: the same
+source through the JVM interpreter (`kof-cli run`) prints the same wrong value as
+the native build, so the producer is the frontend/IR, and the native emitter and
+runtime are cleared. The rule the probes establish: a sum/multiplication whose
+LEFT literal already appeared in a preceding `println` is read as that literal —
+`println(7)`, `println(5 + 2)` → `7 7`; `println(50)`, `println(2 * 25)`,
+`println(25 + 25)` → `50 50 50`; `println(90)`, `println(90 + 94)` → `90 184`; and
+the neighbours are right (`println(7)`, `println(2 * 5)` → `7 10`;
+`println(0)`, `println(40 + 40)` → `0 80`; `val a = 40; val b = 40; println(a + b)`
+→ 80). PROOF `NativeLiteralDropE2ETest` (4 tests: the skeleton sum, the general
+pattern, the control and the native path — 2 RED, 2 GREEN). The app keeps the
+measured 184 pinned (its own number, not invented): when the §1218 fix lands the
+skeleton body reads 196 and the pinned test flips in the same round.
+
