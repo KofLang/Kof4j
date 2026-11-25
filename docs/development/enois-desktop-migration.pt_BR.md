@@ -1061,3 +1061,20 @@ contorno do `Draw.stroke` com os pixels de canto das pontas arredondados (o
 (blogs, projetos, glifos, descricao, comunidades, pagina composta). Divergencia
 NOMEADA que RESTA: o traco tem 1 px — a espessura de ponta a ponta do SVG nao e
 reproduzida, entao a forma ainda e aproximada.
+
+## §22 Rodada 23/11 (decima oitava) — o painel da comunidade composto e o entrypoint apresentando (app `fedea2e`)
+
+`libs/CommunityPanel.kf` compoe `routes/comunidades.$communityId.tsx` 875-933:
+`grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_280px]` — conteudo 1232 da
+feed **928** e aside **280**, a coluna do feed com `CommunityFeed.paintFeed` (o
+titulo "Feed" e os posts) e o aside com `CommunityFeed.paintAside` mais
+`CommunityMembers.paint` ("Membros (N)": p-5 + titulo 14 + 12 + n×(36 + 12)).
+PROVA `EnoisCommunityPanelE2ETest` (`feed=928`, `lado=280`, altura medida);
+bateria 6/6.
+
+`app/Main.kf` pintava a casca e a rota e FECHAVA a janela sem `present` — nada
+chegava a tela. Agora chama `b.present(DrawList())` antes de fechar; PROVA
+`EnoisAppEntryE2ETest` (`quadro: apresentado`). O demo das 15 telas vive FORA do
+repo (`/tmp/enois-demo`): a captura de janela nao e possivel desta sessao (o X11
+mostra so a area de trabalho do mutter e o Wayland recusa o cliente), entao o
+demo e executado, nao fotografado — NOMEADO.

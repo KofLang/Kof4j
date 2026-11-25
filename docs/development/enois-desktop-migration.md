@@ -1077,3 +1077,20 @@ lucide `stroke-linecap="round"`, radius 1), and `IconeBookOpen` /
 (blogs, projects, glyphs, description, communities, composed page). REMAINING
 NAMED divergence: the stroke is 1 px wide — the SVG's end-to-end thickness is not
 reproduced, so the glyph shape is still an approximation.
+
+## §22 Round 23/11 (eighteenth) — the community panel composed and the entry point presenting (app `fedea2e`)
+
+`libs/CommunityPanel.kf` composes `routes/comunidades.$communityId.tsx` 875-933:
+`grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_280px]` — content 1232 gives
+feed **928** and aside **280**, the feed column with `CommunityFeed.paintFeed`
+(the "Feed" title and the posts) and the aside with `CommunityFeed.paintAside`
+plus `CommunityMembers.paint` ("Membros (N)": p-5 + title 14 + 12 +
+n×(36 + 12)). PROOF `EnoisCommunityPanelE2ETest` (`feed=928`, `lado=280`, the
+height measured); battery 6/6.
+
+`app/Main.kf` painted the shell and the route and CLOSED the window without
+`present` — nothing reached the screen. It now calls `b.present(DrawList())`
+before closing; PROOF `EnoisAppEntryE2ETest` (`quadro: apresentado`). The
+15-screen demo lives OUTSIDE the repo (`/tmp/enois-demo`): a window capture is
+not possible from this session (X11 shows only the mutter desktop, Wayland
+refuses the client), so the demo is run, not screenshotted — NAMED.
