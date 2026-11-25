@@ -1206,3 +1206,15 @@ servicos" (24/32), a descricao (14/20 quebrada na coluna), `space-y-6` (24) e o
 `cartao=200` (a descricao quebra em DUAS linhas no `max-w-sm`), `tela=389`.
 PROVA `EnoisMeusServicosE2ETest`; bateria 6/6. NOMEADO: o `Wrench` sao tres
 tracos (aproximacao) e o `<b>` do paragrafo perde o peso.
+
+## §32 Rodada 25/11 (decima quarta) — a tela "Freelances" (app `947770e`)
+
+`libs/Freelances.kf` compoe `routes/freelances.tsx` (86-…): a coluna
+`mx-auto w-full max-w-4xl` (**896**, centrada no conteudo), o `Handshake` de 24 em
+`--primary`, "Freelances" (24/32), a descricao em `max-w-2xl` (**672**) e o
+`surface-card` com os DOIS `EmptyState` da rota (a busca vazia —
+`searchEmpty`/`searchEmptyHint` — e o catalogo vazio — `empty`/`emptyHint`).
+MEDIDO: `coluna=896`, `desc=672`, `fim1=369` (so o catalogo vazio), `fim2=549`
+(com a busca vazia acima). PROVA `EnoisFreelancesE2ETest`; bateria 5/5. NOMEADO:
+o `Handshake` desenhado em tres tracos e os glifos dos `EmptyState` so como
+caixas.

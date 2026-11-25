@@ -1222,3 +1222,15 @@ description) — `VazioDeListaComIcone.paintCard`. MEASURED: `coluna=768`,
 `cabecalho=76`, `cartao=200` (the description wraps to TWO lines at `max-w-sm`),
 `tela=389`. PROOF `EnoisMeusServicosE2ETest`; battery 6/6. NAMED: the `Wrench` is
 three strokes (an approximation) and the paragraph's `<b>` loses its weight.
+
+## §32 Round 25/11 (fourteenth) — the "Freelances" screen (app `947770e`)
+
+`libs/Freelances.kf` composes `routes/freelances.tsx` (86-…): the column
+`mx-auto w-full max-w-4xl` (**896**, centred in the content), the `Handshake` 24 in
+`--primary`, "Freelances" (24/32), the description in `max-w-2xl` (**672**), and
+the `surface-card` holding the route's TWO `EmptyState`s (the empty search —
+`searchEmpty`/`searchEmptyHint` — and the empty catalogue — `empty`/`emptyHint`).
+MEASURED: `coluna=896`, `desc=672`, `fim1=369` (catalogue empty only), `fim2=549`
+(with the search empty above it). PROOF `EnoisFreelancesE2ETest`; battery 5/5.
+NAMED: the `Handshake` is drawn in three strokes and the `EmptyState` glyphs are
+boxes only.
