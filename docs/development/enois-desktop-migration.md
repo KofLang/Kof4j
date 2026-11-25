@@ -1698,3 +1698,15 @@ The Énois "184" (`90 / 90 + 94`) is the arithmetic itself; the app's skeleton b
 (196 expected) stays the app's pinned measurement, to be re-measured before any
 compiler change. The app keeps 184 pinned; no Kof change this round.
 
+## §65 Round 25/11 (forty-seventh) — §1218 reproduces in the app module: a seven-term literal sum folds twice (Kof4j only)
+
+In the app harness (native x86-64), `EsqueletoMetricas.bodyNoSite()` written as
+`20 + 40 + 12 + 12 + 32 + 48 + 20` returns **184** (the plain `body()` also 184,
+`val`/`var` stepped sums 184, `dez() + 176` with `dez()` folding to 184 returns
+**360** = the folded 184 added twice), while `return 196` and `return dez()` with
+`dez()` → 196 return 196. The CLI/javap samples (`2 / 1 + 1`, `7 / 3 + 4`) are two-term
+sums and are correct — this is why they never reproduced it. The app is restored
+(`git status` clean) and `EnoisVitrineCarregamentoE2ETest` still GREEN on the pinned
+184. NEXT: reduce the seven-term chain inside the harness until the minimum failing
+term count is known, then that is the RED test for the fix.
+

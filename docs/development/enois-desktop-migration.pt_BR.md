@@ -1398,3 +1398,7 @@ Medido com um diretorio novo por caso pelo jar reconstruido: o segundo `println(
 
 O bytecode dos pares "que falham" esta correto: `iconst_2` duas vezes para `2` + `1 + 1` (os dois 2 coincidem), `bipush 6` para `2 / 3 + 3`, `bipush 7` duas vezes para `7 / 3 + 4`, e a classe compilada roda como o CLI imprime. `println(9)` + `println(k)`, k = 1..13, imprime o literal todas as vezes. A lista errada do §63 nao sobrevive a nova medicao e fica retirada. O 184 do Énois (`90 / 90 + 94`) e' a propria aritmetica; o corpo do esqueleto do app (196 esperado) fica como a medicao fixada do app, a re-medir antes de qualquer mudanca de compilador. O app mantem o 184 fixado; sem mudanca no Kof nesta rodada.
 
+## §65 Rodada 25/11 (quadragesima setima) — §1218 reproduz no modulo do app: a soma de sete literais dobra duas vezes (so' o Kof4j)
+
+No harness do app (nativo x86-64), o `EsqueletoMetricas.bodyNoSite()` escrito como `20 + 40 + 12 + 12 + 32 + 48 + 20` devolve **184** (`val`/`var` passo a passo 184, `dez() + 176` com `dez()` dobrando em 184 devolve **360**), enquanto `return 196` e `return dez()` com `dez()` → 196 devolvem 196. As amostras do CLI/`javap` sao somas de dois termos e estao certas — por isso nunca reproduziram o defeito. O app esta' restaurado (`git status` limpo) e o `EnoisVitrineCarregamentoE2ETest` continua GREEN no 184 fixado. PROXIMO: reduzir a cadeia de sete termos no harness ate' saber a contagem minima que falha, e esse e' o teste RED do fix.
+
