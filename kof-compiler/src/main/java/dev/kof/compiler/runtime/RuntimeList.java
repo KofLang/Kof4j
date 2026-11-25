@@ -128,6 +128,55 @@ public final class RuntimeList {
                 movl 16(%rbx), %esi
                 call kof_bounds_error
 
+            # §1224: a inserção POSICIONAL (`kof_list_insert(list, i, v)`) — o
+            # sítio único de `list.add(i, v)` (CollectionCallLowerer). A lista
+            # cresce como no add e os elementos [i, size) descem uma casa
+            # (backward, para não pisar); i == size é um add; fora de
+            # [0, size] é kof_bounds_error (o mesmo contrato do get/set).
+            .globl kof_list_insert
+            .type kof_list_insert, @function
+            kof_list_insert:
+                pushq %rbx
+                pushq %r12
+                pushq %r13
+                pushq %r14
+                movq %rdi, %rbx
+                movq %rsi, %r12
+                movq %rdx, %r13
+                movl 16(%rbx), %r14d
+                cmpl %r14d, %r12d
+                jg .Lkof_list_insert_bounds
+                testl %r12d, %r12d
+                jl .Lkof_list_insert_bounds
+                movl 16(%rbx), %eax
+                cmpl 20(%rbx), %eax
+                jl .Lkof_list_insert_room
+                movq %rbx, %rdi
+                call kof_list_grow
+            .Lkof_list_insert_room:
+                movslq %r14d, %rax
+                movq 24(%rbx), %rdx
+                movslq %r12d, %rcx
+            .Lkof_list_insert_shift:
+                cmpq %rcx, %rax
+                jle .Lkof_list_insert_place
+                movq -8(%rdx,%rax,8), %r8
+                movq %r8, (%rdx,%rax,8)
+                decq %rax
+                jmp .Lkof_list_insert_shift
+            .Lkof_list_insert_place:
+                movq %r13, (%rdx,%rcx,8)
+                addl $1, 16(%rbx)
+                popq %r14
+                popq %r13
+                popq %r12
+                popq %rbx
+                ret
+            .Lkof_list_insert_bounds:
+                movl %r12d, %edi
+                movl %r14d, %esi
+                call kof_bounds_error
+
             .globl kof_list_size
             .type kof_list_size, @function
             kof_list_size:
