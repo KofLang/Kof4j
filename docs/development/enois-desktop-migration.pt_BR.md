@@ -1496,3 +1496,13 @@ h-8 32, `rounded-full` 16 vencendo o `rounded-lg`, `px-3` 24, `text-xs` 12, icon
 com a Font real. PROXIMO: a pintura do card do post (titulo `text-2xl`, linha do autor `mt-3`,
 leitura `mt-2`, corpo `sm:p-8` `whitespace-pre-line text-base leading-relaxed`) e as fileiras
 de acoes/comentarios, que dependem do post do feed.
+
+LADO DO APP ENTREGUE (rodada §72, app `db780bd`): rota `blog.$username_.$postId`, parte 3 — o
+CARD do post (`libs/BlogPostCard.kf`): raio 16 + `border-border-soft` no `surface-card`, o
+cabecalho `sm:p-6` com o fio `border-b`, o titulo `text-2xl` (24/32) quebrado por palavra na
+largura do cabecalho, a linha do autor (`mt-3`, avatar `h-7` 28, "Nome · data" 12/16) e a linha
+da leitura (`mt-2`), o corpo em TEXTO `p-5 sm:p-8` 16/26 (`leading-relaxed`) e a variante HTML
+com o quadro `h-[70vh]`. Medido: card 289 (1 linha de titulo, 3 de corpo), 269 (2 + 1), HTML 777
+numa viewport de 900. Prova `EnoisBlogPostCardE2ETest` VERDE. DIVERGENCIAS NOMEADAS: o quadro
+HTML isolado nao tem motor de HTML no desktop (pintado como painel `surface-1`) e as fileiras de
+acoes/comentarios ainda dependem do post do feed.

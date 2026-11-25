@@ -1797,3 +1797,13 @@ them) with `texts.common.edit` and `texts.blog.editor.deletePost`. Proof
 with the real Font. NEXT: the card paint of the post (title `text-2xl`, author row `mt-3`,
 reading `mt-2`, body `sm:p-8` `whitespace-pre-line text-base leading-relaxed`) and the
 actions/comments rows, which need the feed post.
+
+APP SIDE LANDED (round §72, app `db780bd`): route `blog.$username_.$postId`, part 3 — the
+post CARD (`libs/BlogPostCard.kf`): radius 16 + the `border-border-soft` on `surface-card`, the
+header `sm:p-6` with its `border-b` hairline, the title `text-2xl` (24/32) word-wrapped at the
+header width, the author line (`mt-3`, avatar `h-7` 28, "Nome · data" 12/16) and the reading
+line (`mt-2`), the body in TEXT at `p-5 sm:p-8` 16/26 (`leading-relaxed`), and the HTML variant
+with the `h-[70vh]` frame. Measured: card 289 (1 title line, 3 body lines), 269 (2 + 1), HTML
+777 at a 900-tall viewport. Proof `EnoisBlogPostCardE2ETest` GREEN. NAMED divergences: the
+sandboxed HTML frame has no HTML engine on the desktop (painted as a `surface-1` panel), and the
+actions/comments rows still need the feed post.
