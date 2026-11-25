@@ -1523,3 +1523,15 @@ between the AST (two printlns) and the IR (the second printed value equals the
 first). NEXT: bisect the lowering of the second `println(1 + 1)`. The app keeps
 184 pinned.
 
+## §50 Round 25/11 (thirty-second) — §1218 producer pinned: the fold's `out` write-back drops the preceding op (Kof4j only)
+
+Three dumps (all reverted): the lowering is correct (`ExpressionStmt` #2 yields
+`[GetStatic, L1, L1, BADD, …]`), the `Optimizer` receives it and returns
+`[GetStatic, L2, …]`, and INSIDE `OptimizerConstantFold` the fold of `1 + 1`
+leaves `out` as `[X, L2, …, X, L2]` — 7 ops instead of 9, the first `GetStatic`
+of the second statement is gone. The interpreter then prints the right value of
+the folded constant (`2 | 2` is the fold's output), so the print path is cleared
+too. The fix is in the fold's write-back. NEXT: change it so the two-literal +
+ADD trio is replaced without touching the preceding `GetStatic`, with
+`NativeLiteralDropE2ETest` RED-first and GREEN after; the app keeps 184 pinned.
+
