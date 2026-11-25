@@ -1440,3 +1440,18 @@ pattern, the control and the native path — 2 RED, 2 GREEN). The app keeps the
 measured 184 pinned (its own number, not invented): when the §1218 fix lands the
 skeleton body reads 196 and the pinned test flips in the same round.
 
+## §44 Round 25/11 (twenty-sixth) — §1218 re-labelled honestly: the IR is right, the repeat is flaky across builds (Kof4j only)
+
+The §43 conclusion ("the frontend/IR produces it") does not survive the direct
+read: dumping the IR after the frontend shows `LoadLiteral 80` where the sum is
+80 and `LoadLiteral 5 / 2 / ADD` where `5 + 2` is 7, so the lowering is right. The
+REPRO is flaky: the same one-file program (`println(5)`, `println(40 + 40)`)
+printed `5 40` through the JVM interpreter once and `5 80` minutes later in a
+fresh directory, and the native build prints `5 80`; what reproduced consistently
+was the shape where the printed literal is ALSO an operand of a later sum
+(`println(50)`, `println(2 * 25)` → `50 50`; `println(5)`, `println(2 + 5)` →
+`5 5`). Cleared again: the emitter and the link (the asm is `movq $80`), the
+optimizer (same with it off) and the IR (the constants are right). The app keeps
+the measured 184 pinned; §1218 now says the repeat is in the execution path and
+non-deterministic across builds, with the deterministic prober as the NEXT step.
+

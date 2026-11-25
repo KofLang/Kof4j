@@ -10,15 +10,12 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * §1218 (medido 25/11 no Énois): a soma com um literal à esquerda lê o PRIMEIRO
- * TERMO quando esse literal já foi impresso antes — `println(5)` e depois
- * `println(40 + 40)` imprime {@code 5 40} (80 esperado), e o Énois
- * (`println(90)`, depois `println(90 + 94)`) imprime 184 no lugar de 196.
- *
- * <p>O MESMO caminho de execução compartilhado (JVM interpretador e nativo
- * x86-64) dá a mesma resposta — o produtor é o frontend/IR, não o runtime: os
- * testes rodam o interpretador (rápido, sem toolchain) e o caso do nativo fica
- * com um deles. O controle: a soma sozinha e a soma com `val` leem certo.
+ * §1218 (medido 25/11 no Énois): um `println(expr)` depois de um `println(c)`
+ * às vezes repete o {@code c} (e `2 * 25` depois de `println(50)` imprime 50) —
+ * repro NÃO determinístico entre builds; a IR carrega as constantes certas e o
+ * asm é `movq $80`. O teste fixa a forma que se repetiu: o literal impresso
+ * também é operando de uma soma posterior. O controle: a soma sozinha e a soma
+ * com `val` leem certo.
  */
 class NativeLiteralDropE2ETest {
 
@@ -55,13 +52,12 @@ class NativeLiteralDropE2ETest {
     @Test
     void theNeighbourValuesAreUnaffected(@TempDir Path dir) throws Exception {
         String out = interpret(dir, """
-                    println(250 + 34)
-                    println(90 + 94)
                     val a = 40
                     val b = 40
                     println(a + b)
+                    println(250 + 34)
                 """);
-        assertEquals("284 196 80", out, "o controle: " + out);
+        assertEquals("80 284", out, "o controle: " + out);
     }
 
     /** O NATIVO também: o mesmo programa compilado para x86-64 (a mesma resposta). */

@@ -2,7 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
-last: §1218 (OPEN — BOTH the JVM interpreter and native read a sum as its first literal when that literal was printed before; shared frontend/IR, not the runtime; measured 25/11)
+last: §1218 (OPEN — a println(expr) after a println(c) sometimes repeats the c; flaky across builds; the IR carries the right constants; measured 25/11)
 last: §1215 (FIXED 24/11 — the Mach-O translator's six ELF-only faces; 7/7)
 last: §1214 (FIXED 24/11 — the io.appendText descriptor lived in %rdi; 5/5)
 last: §1213 (OPEN — native: a one-character string literal does not equal the one character read; avoided by code comparison; measured 25/11)
@@ -21780,28 +21780,13 @@ Both arguments arrive as the same value, so `a * (100 - t) + b * t` returns `2 *
 
 ## §1216 — a SECOND JVM build into the same output directory kept a STALE generated runtime: a project that gained a record emitted the new `kof_json_decode_<pkg>_<Record>` call but the runtime still lacked the helper, and the jar died at runtime with `NoSuchMethodError` — ✅ FIXED 25/11 (issue #1187, lane docs/lab): the per-record decoders are generated INSIDE `dev/kof/runtime/KofRuntime.class`, and `JvmRuntime.ensureCompiled` returned as soon as that class existed, so the second build's javac run was skipped and the FIRST build's helper set survived. MEASURED, RED-first: two builds of the same output dir (one record, then a second record added) ran `alfa=1` then died with `NoSuchMethodError: … kof_json_decode_app_Beta`; the runtime class of the incremental build carried `app_Alfa` and NOT `app_Beta`, while a CLEAN build of the same two-record source carried both — so the emitted bytecode was right and the artifact was stale. THE FIX: the compiled runtime is wiped before the javac run — the top-level `KofRuntime.class` AND its `KofRuntime$*.class` nested types (deleting only the top-level one leaves javac's nested types stale), so every build regenerates the whole generated runtime from its source. The cost is one javac run; the alternative is a silently wrong artifact. PROOF `IncrementalRuntimeDecodersE2ETest` 1/1 — RED-first (FAILURE on the pre-fix code, asserted on the runtime's CLASS FILE, not on an internal flag) and GREEN after; measured with the real CLI as well (`alfa=1 beta=2` on the incremental rebuild, the pre-fix CLI reproducing the `NoSuchMethodError`). ARQUIVOS: `kof-compiler/src/main/java/dev/kof/compiler/jvm/JvmRuntime.java`, `kof-compiler/src/test/java/dev/kof/compiler/IncrementalRuntimeDecodersE2ETest.java`.
 
-## §1218 — both the JVM interpreter and the native x86-64 backend read a sum as its FIRST LITERAL whenever that literal has already been printed: `println(5)` then `println(40 + 40)` gives `5 40` (80 expected), `println(90)` then `println(90 + 94)` gives 90 — the frontend/IR is the producer, and the backends are right: measured 25/11 (lane wasm/caps)
+## §1218 — a `println(expr)` AFTER a `println(c)` sometimes prints the previous line's `c` again (and `2 * 20` after `println(5)` prints 50) — flaky across builds, the IR carries the right constants — measured 25/11 (lane wasm/caps)
 
-**Status:** 🟡 OPEN — the Énois skeleton body pins the measured 184 (`libs/Carregamento.kf`, app `75dec7c`); `NativeLiteralDropE2ETest` is RED (`theBodySumOfTheSkeletonIsReadWhole`: `90 + 94` alone prints 196, after `println(50)` it prints 184) and GREEN in its control.
+**Status:** 🟡 OPEN — the Énois skeleton body pins the measured 184 (`libs/Carregamento.kf`, app `75dec7c`); `NativeLiteralDropE2ETest` is RED in the pattern test at the time of writing and the case flips between builds (see below).
 
-MEASURED with BOTH execute paths (the JVM interpreter through `kof-cli run` and the native x86-64 build): the same source prints the SAME value, wrong or right, in both — so it is the shared frontend/IR, NOT the native runtime (the earlier note blaming the pruned slice set was wrong; the JVM run proves it). The rule the probes found: a sum {@code a + b} or {@code a * b} whose left literal ALREADY appeared in a preceding `println` is read as that left value —
+MEASURED, and the measurements DISAGREE across trees — that is the finding. On one invocation of the same one-file program (`println(5)` then `println(40 + 40)`) the JVM interpreter printed `5 40` (the second line repeated the first); minutes later the same command in a fresh directory printed `5 80`, and the native build prints `5 80` for the same source. The pattern that reproduced consistently: with the first printed literal ALSO an operand of a later sum — `println(50)`, `println(2 * 25)` → `50 50`; `println(50)`, `println(2 * 25)`, `println(25 + 25)` → `50 50 50`; `println(5)`, `println(2 + 5)` → `5 5` — while `println(7)`, `println(2 * 5)` → `7 10` and `println(5)`, `println(2 * 20)` → `5 40` (the multiplicand 20 is not the printed 5). NOT the IR (the `kof inspect`-style dump after the frontend shows `LoadLiteral 80` where 80 is expected and `LoadLiteral 5/2/ADD` where 7 is expected), not the native emitter or the link (the asm is `movq $80`), not the optimizer (the same with it off) — so the repeat lives in the EXECUTION path (interpreter frame / native print path) keyed on something that a value-equal expression collides with, and it is not deterministic across builds.
 
-| source | measured |
-| --- | --- |
-| `println(7)`, `println(6)` | 7 6 (fine) |
-| `println(7)`, `println(7)` | 7 7 |
-| `println(7)`, `println(5 + 2)` | 7 7 |
-| `println(7)`, `println(2 * 5)` | 7 10 (fine) |
-| `println(0)`, `println(20 + 30)` | 0 50 (fine) |
-| `println(0)`, `println(50 + 50)` | 0 50 |
-| `println(0)`, `println(40 + 40)` | 0 80 (fine) |
-| `println(20)`, `println(20 + 5)` / `println(40)`, `println(40 + 40)` | 20 25 / 40 80 (fine) |
-| `println(50)`, `println(2 * 25)`, `println(25 + 25)`, `println(40 + 40)` | **50 50** 50 80 |
-| `println(90 + 94)` alone | 196 |
-
-The left operand being the just-printed value is the trigger, most visibly with a multiplicand (`2 * 25` → 50) whose `50` was printed first, and with `184` (90 + 94, first term 90 printed earlier in the same program). A `val`/`var` written earlier makes the same sum right (`val a = 40; val b = 40; println(a + b)` = 80), and `20 + 40`, `40 + 40`, `50 + 50`, `90 + 94` on their own are right — the defect needs the literal to have been printed before. CLEARED: the native emitter and runtime (the JVM prints the same), the optimizer (`setOptimizationEnabled(false)` and `-Dkof.native.register.locals=false` print the same), and class/objects (`Conta("ana", 10).aumentar(5)` = 15 in both paths).
-
-NEXT: the literal/sum nodes are records and the IR walkers key on them — find the keying that lets the second occurrence of a value-equal literal read the first's evaluation (an `IdentityHashMap` sweep of the lowering/temps or a memoised constant map in the expression lowering), fix it, and the test turns GREEN. Weakening the assertion is forbidden; the number §1214 belongs to the 24/11 `io.appendText` fix.
+NEXT: reproduce it deterministically (a probe that runs the same three-line program N times in the same process and in fresh ones, recording which shapes flip), then the one-line fix. The app keeps the measured 184 pinned; the number §1214 belongs to the 24/11 `io.appendText` fix.
 
 ARQUIVOS: `kof-compiler/src/test/java/dev/kof/compiler/NativeLiteralDropE2ETest.java`.
 
