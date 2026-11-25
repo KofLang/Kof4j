@@ -782,6 +782,33 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   is what NATIVE004 refuses without. **THE NEXT ROWS:** the "stat" family of
   the seam (the Darwin `struct stat`), the M-7 runner, the arm64 face (the
   cross aarch64 emitter + its Mach-O proof); then #1159 keep-alive HTTP/1.1.
+  **M-6 SLICE 10 LANDED 24/11 (the `io` write/delete faces joined the seam — and
+  the append descriptor was living in a register the libSystem destroys).**
+  `kof_io_append_text` kept the descriptor in `%rdi` and reused it AFTER the
+  write (`movq %rdi, %rdi; call kof_plat_close`): the Linux syscall happens
+  to preserve `%rdi`, but the Darwin libSystem call DESTROYS it — the close
+  would close an arbitrary descriptor (known-bugs §1214). The descriptor now
+  lives in a callee-saved register, and the `io` write/delete faces moved to
+  the seam (`kof_plat_open`, `kof_plat_unlink`, `kof_plat_rmdir` — the Darwin
+  `unlink`/`rmdir` with the failure normalized to `-errno`).
+  **THE TRANSLATOR LEARNED SIX FACES (known-bugs §1215):** assembling the
+  real runtime in Mach-O showed that a comment whose first word is a
+  directive keyword (`# if V & 1: …`) is a PREPROCESSOR directive for the
+  Mach-O assembler ("unterminated conditional directive") — the marker
+  becomes `//` (an ordinary comment stays verbatim, the M-1 contract);
+  `.hword`/`.4byte`/`.8byte`/`.balign` are GNU ("unknown directive");
+  `.pushsection`/`.popsection` are ELF ("unexpected token"); the Mach-O
+  `.align` accepts at most 16; and a GNU numeric label (`1:`) is LOCAL —
+  prefixing it collided with the other label numbered 1. **PROOF
+  (executed):** `NativeMacOSIoWriteSeamE2ETest` 5/5 (the real Mach-O
+  assembler accepts the changed fragment) and `NativeMachOTranslatorE2ETest`
+  7/7 — RED-first 6 failures on the old translator; `NativeMacOSProfileE2ETest`
+  12/12 (the whole hello program still assembles); the io battery 26 tests
+  0F. **STILL OPEN (named):** the ELF absolute-indexed addressing
+  (`movq _sym(,%r12,8), %rax`) has no Mach-O equivalent — it needs the
+  instruction rewritten — so the WHOLE runtime does not assemble end-to-end
+  yet; the io faces are proved by their fragment.
+
   **M-6 SLICE 9 LANDED 24/11 (the two sibling environ sites joined the seam —
   the log level and the secret lookup).** `.Llog_parse_level` (the
   `KOF_LOG_LEVEL` threshold) and `kof_sec_secret_get` (the

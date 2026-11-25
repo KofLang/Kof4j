@@ -104,6 +104,12 @@ public final class NativeMachO {
     public static String translate(String asm) {
         String[] lines = asm.split("\n", -1);
         StringBuilder out = new StringBuilder(asm.length() + 1024);
+        // a SECCAO corrente (Mach-O) e a pilha do `.pushsection` (ELF) — o
+        // Mach-O nao tem `push/popsection`: a entrada vira `.section` e a
+        // saida restaura a secao de antes (medido: o clang recusava
+        // ".pushsection .rodata" com "unexpected token").
+        java.util.ArrayList<String> sections = new java.util.ArrayList<>();
+        String currentSection = null;
         for (String raw : lines) {
             String line = raw;
             String trimmed = line.trim();
@@ -128,13 +134,84 @@ public final class NativeMachO {
                 out.append(".weak_definition ").append(rest).append('\n');
                 continue;
             }
+            if (trimmed.startsWith(".pushsection ")) {
+                sections.add(currentSection);
+                currentSection = sectionLine(".section "
+                        + trimmed.substring(".pushsection ".length()).trim());
+                out.append(currentSection).append('\n');
+                continue;
+            }
+            if (trimmed.equals(".popsection")) {
+                currentSection = sections.isEmpty()
+                        ? null : sections.remove(sections.size() - 1);
+                out.append(currentSection == null
+                        ? sectionLine(".section .text") : currentSection).append('\n');
+                continue;
+            }
+            String gnudirective = gnudirective(trimmed);
+            if (gnudirective != null) {
+                // uma DIRETIVA GNU que o assembler do Mach-O nao tem
+                // (medido: ".hword" -> "unknown directive"). A linha nova
+                // passa pelo MESMO caminho de operandos — os simbolos
+                // precisam do prefixo (o ".4byte .Lfe_X - X" sem prefixo
+                // deixava o assembler recusar a subtracao).
+                String indent = line.substring(0, line.length() - trimmed.length());
+                out.append(referenceSymbols(indent + gnudirective)).append('\n');
+                continue;
+            }
             if (trimmed.startsWith(".section ")) {
-                out.append(sectionLine(trimmed)).append('\n');
+                currentSection = sectionLine(trimmed);
+                out.append(currentSection).append('\n');
                 continue;
             }
             out.append(referenceSymbols(line)).append('\n');
         }
         return out.toString();
+    }
+
+    /**
+     * As DIRETIVAS GNU que o assembler do Mach-O nao tem (medido: o clang
+     * recusava ".hword" com "unknown directive"): a palavra da diretiva vira
+     * a equivalente, o resto da linha fica verbatim.
+     */
+    private static String gnudirective(String trimmed) {
+        if (trimmed.startsWith(".hword ")) return ".short" + trimmed.substring(".hword".length());
+        if (trimmed.startsWith(".2byte ")) return ".short" + trimmed.substring(".2byte".length());
+        if (trimmed.startsWith(".4byte ")) return ".long" + trimmed.substring(".4byte".length());
+        if (trimmed.startsWith(".8byte ")) return ".quad" + trimmed.substring(".8byte".length());
+        if (trimmed.startsWith(".balign ")) {
+            return ".align" + alignOperand(trimmed.substring(".balign".length()));
+        }
+        if (trimmed.startsWith(".align ")) {
+            return ".align" + alignOperand(trimmed.substring(".align".length()));
+        }
+        return null;
+    }
+
+    /** A linha {@code .section} GNU → a seção Mach-O correspondente. */
+
+    /**
+     * O operando do {@code .align}: o assembler do Mach-O aceita no máximo
+     * 16 (medido: 32 e 64 dão "invalid alignment value") — o alinhamento
+     * maior é um aviso de performance, não um contrato de layout.
+     */
+    private static String alignOperand(String rest) {
+        String t = rest.trim();
+        StringBuilder digits = new StringBuilder();
+        for (int i = 0; i < t.length(); i++) {
+            char c = t.charAt(i);
+            if (Character.isDigit(c)) digits.append(c);
+            else break;
+        }
+        if (digits.length() == 0) return " " + t;
+        int value;
+        try {
+            value = Integer.parseInt(digits.toString());
+        } catch (NumberFormatException e) {
+            return " " + t;
+        }
+        if (value <= 16) return " " + t;
+        return " 16" + t.substring(digits.length());
     }
 
     /** A linha {@code .section} GNU → a seção Mach-O correspondente. */
@@ -205,7 +282,7 @@ public final class NativeMachO {
         // comentário: o `.asciz "a#b"` é dado).
         int commentAt = commentStart(line);
         String code = (commentAt >= 0) ? line.substring(0, commentAt) : line;
-        String comment = (commentAt >= 0) ? line.substring(commentAt) : "";
+        String comment = (commentAt >= 0) ? machoComment(line.substring(commentAt)) : "";
         // a DEFINIÇÃO de um símbolo global: `kof_foo:` → `_kof_foo:`
         int colon = code.indexOf(':');
         if (colon > 0 && isGlobalSymbol(code.substring(0, colon).trim())
@@ -265,11 +342,45 @@ public final class NativeMachO {
                 first = false;
                 continue;
             }
+            if (c == '#') {
+                // o COMENTARIO depois da diretiva — no Mach-O a marca e' `//`
+                // (o `#` no inicio da linha e' DIRETIVA de pre-processador).
+                out.append(machoComment(line.substring(i)));
+                break;
+            }
             out.append(c);
             i++;
         }
         return out.toString();
     }
+
+    /**
+     * O COMENTARIO do Mach-O: o {@code #} no inicio da linha e' uma DIRETIVA
+     * de pre-processador para o assembler (medido: o comentario "# if V & 1: …"
+     * quebrava a montagem com "unterminated conditional directive"). O
+     * CONTRATO do M-1 ("o comentario nunca e' tocado") so vale enquanto o
+     * assembler aceita: quando o comentario comeca por uma PALAVRA DE
+     * DIRETIVA, a marca vira {@code //} e o resto do texto fica verbatim — o
+     * texto do comentario e' o que importa.
+     */
+    private static String machoComment(String text) {
+        if (text == null || text.isEmpty() || text.charAt(0) != '#') return text;
+        int i = 1;
+        // o pre-processador aceita ESPACO entre a marca e a palavra
+        // ("# if V & 1" e' um "#if") — a leitura da palavra pula os brancos.
+        while (i < text.length() && Character.isWhitespace(text.charAt(i))) i++;
+        int wordStart = i;
+        while (i < text.length() && (Character.isLetterOrDigit(text.charAt(i))
+                || text.charAt(i) == '_')) i++;
+        String word = text.substring(wordStart, i);
+        if (DIRECTIVE_WORDS.contains(word)) return "//" + text.substring(1);
+        return text;
+    }
+
+    /** As palavras que o assembler do Mach-O le como DIRETIVA apos um {@code #}. */
+    private static final java.util.Set<String> DIRECTIVE_WORDS = java.util.Set.of(
+            "if", "ifdef", "ifndef", "elif", "else", "endif",
+            "include", "define", "undef", "line", "error", "warning", "pragma");
 
     /**
      * A varredura dos OPERANDOS de uma linha de código: token a token, com
@@ -379,7 +490,7 @@ public final class NativeMachO {
      * <p>Um {@code #} dentro de uma string ({@code .asciz "a#b"}) NÃO abre
      * comentário — o dado é dado.
      */
-    private static int commentStart(String line) {
+    static int commentStart(String line) {
         boolean inString = false;
         for (int i = 0; i < line.length(); i++) {
             char c = line.charAt(i);
@@ -435,96 +546,42 @@ public final class NativeMachO {
         if (sym.startsWith(".L")) return false;     // rótulo local
         if (sym.startsWith(".")) return false;      // diretiva ou label local
         if (sym.startsWith("_")) return false;      // já prefixado
+        // um rótulo NUMÉRICO do GNU as ("1:", "2:") é LOCAL: prefixá-lo
+        //("_1:") colidia com o outro rótulo de número 1 do arquivo (medido:
+        // "symbol '_1' is already defined").
+        if (isNumericLabel(sym)) return false;
         return true;
     }
 
+    /** O rótulo é um número (o GNU as os usa como rótulos locais). */
+    private static boolean isNumericLabel(String sym) {
+        for (int i = 0; i < sym.length(); i++) {
+            if (!Character.isDigit(sym.charAt(i))) return false;
+        }
+        return !sym.isEmpty();
+    }
+
     /**
-     * Os SÍTIOS de TLS ELF local-exec ({@code %fs:X@tpoff}) do texto.
-     *
-     * <p>É a face que o Mach-O não tem: a migração é a etapa M-4 (TLV ou
-     * pthread key). O perfil macOS recusa o programa com o diagnóstico
-     * nomeado (R6) — o texto NÃO é traduzido às cegas.
+     * Os SÍTIOS de TLS ELF local-exec ({@code %fs:X@tpoff}) do texto — a face
+     * que o Mach-O não tem (a migração é a etapa M-4, TLV ou pthread key).
      */
     public static List<String> elfTlsSites(String asm) {
-        return elfSites(asm, "%fs:", "@tpoff");
+        return NativeMachOFaces.elfTlsSites(asm);
     }
 
     /**
      * Os SÍTIOS de SYSCALL CRU (o ABI Linux) do texto — a face que o macOS
-     * troca pela costura {@code kof_plat_*} sobre a libSystem (a etapa M-2
-     * do plano).
-     *
-     * <p>O detector cobre AS TRÊS faces do runtime nativo: o {@code syscall}
-     * do x86-64, o {@code svc #0} do aarch64 e o {@code ecall} do riscv64.
-     * Antes ele só via o x86-64 — um texto aarch64/riscv passava pela recusa
-     * sem ser medido (a recusa ficava CEGA justamente nas faces onde o
-     * syscall é outra instrução).
+     * troca pela costura {@code kof_plat_*} sobre a libSystem (a etapa M-2).
      */
     public static List<String> elfSyscallSites(String asm) {
-        List<String> sites = new ArrayList<>();
-        for (String[] site : elfSyscallScan(asm)) {
-            sites.add(site[1]);
-        }
-        return sites;
+        return NativeMachOFaces.elfSyscallSites(asm);
     }
 
     /**
      * Os DONOS dos sítios de syscall (o rótulo que os contém) — a recusa
-     * NOMEIA a família que ainda fala o ABI Linux (a costura
-     * {@code kof_plat_*}, o allocator, a concorrência), em vez de dizer só
-     * "N syscall(s)".
+     * NOMEIA a família que ainda fala o ABI Linux.
      */
     public static List<String> elfSyscallOwners(String asm) {
-        List<String> owners = new ArrayList<>();
-        for (String[] site : elfSyscallScan(asm)) {
-            if (!owners.contains(site[0])) owners.add(site[0]);
-        }
-        return owners;
-    }
-
-    /** Os sítios de syscall cru com o rótulo que os contém. */
-    private static List<String[]> elfSyscallScan(String asm) {
-        List<String[]> sites = new ArrayList<>();
-        String owner = "?";
-        for (String line : asm.split("\n", -1)) {
-            String code = line;
-            int commentAt = commentStart(code);
-            if (commentAt >= 0) code = code.substring(0, commentAt);
-            String trimmed = code.trim();
-            if (trimmed.endsWith(":") && !trimmed.contains(" ")) {
-                owner = trimmed.substring(0, trimmed.length() - 1);
-                continue;
-            }
-            if (isRawSyscall(trimmed)) {
-                sites.add(new String[]{owner, trimmed});
-            }
-        }
-        return sites;
-    }
-
-    /** O mnemônico de syscall CRU de cada face do runtime nativo. */
-    private static boolean isRawSyscall(String trimmed) {
-        if (trimmed.equals("syscall") || trimmed.startsWith("syscall ")) return true;  // x86-64
-        if (trimmed.equals("ecall") || trimmed.startsWith("ecall ")) return true;      // riscv64
-        if (trimmed.equals("svc") || trimmed.startsWith("svc ")) return true;          // aarch64
-        return false;
-    }
-
-    /** As linhas do texto que contêm QUALQUER dos marcadores dados. */
-    private static List<String> elfSites(String asm, String... markers) {
-        List<String> sites = new ArrayList<>();
-        String[] lines = asm.split("\n", -1);
-        for (String line : lines) {
-            String code = line;
-            int commentAt = commentStart(line);
-            if (commentAt >= 0) code = line.substring(0, commentAt);
-            for (String marker : markers) {
-                if (code.contains(marker)) {
-                    sites.add(line.trim());
-                    break;
-                }
-            }
-        }
-        return sites;
+        return NativeMachOFaces.elfSyscallOwners(asm);
     }
 }

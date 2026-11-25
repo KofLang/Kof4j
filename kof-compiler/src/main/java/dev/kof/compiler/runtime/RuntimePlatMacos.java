@@ -213,6 +213,42 @@ public final class RuntimePlatMacos {
                 popq %r15
                 ret
 
+            .globl kof_plat_unlink
+            .type kof_plat_unlink, @function
+            kof_plat_unlink:
+                pushq %r15
+                movq %rsp, %r15
+                andq $-16, %rsp
+                call unlink              # unlink(path=%rdi)
+                testl %eax, %eax
+                jns .Lpu_ret
+                call __error
+                movl (%rax), %eax
+                negl %eax                # -errno (a convencao do kernel)
+            .Lpu_ret:
+                subq %rsp, %r15
+                addq %r15, %rsp
+                popq %r15
+                ret
+
+            .globl kof_plat_rmdir
+            .type kof_plat_rmdir, @function
+            kof_plat_rmdir:
+                pushq %r15
+                movq %rsp, %r15
+                andq $-16, %rsp
+                call rmdir               # rmdir(path=%rdi)
+                testl %eax, %eax
+                jns .Lpr_ret
+                call __error
+                movl (%rax), %eax
+                negl %eax                # -errno (a convencao do kernel)
+            .Lpr_ret:
+                subq %rsp, %r15
+                addq %r15, %rsp
+                popq %r15
+                ret
+
             .globl kof_plat_open
             .type kof_plat_open, @function
             kof_plat_open:

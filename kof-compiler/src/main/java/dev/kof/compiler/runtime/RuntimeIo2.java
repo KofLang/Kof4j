@@ -212,28 +212,31 @@ public final class RuntimeIo2 {
             kof_io_append_text:
                 pushq %rbx
                 pushq %r12
+                pushq %r13                   # o fd vive num CALLEE-SAVED: a libSystem
+                                             # NAO preserva o %rdi atraves do write
                 movq %rdi, %rbx
                 movq %rsi, %r12
-                movq $-100, %rdi
-                leaq 24(%rbx), %rsi
-                movq $1089, %rdx
-                movq $420, %r10
-                movq $257, %rax
-                syscall
+                leaq 24(%rbx), %rdi          # kof_plat_open(path, flags, mode)
+                movq $1089, %rsi             # O_WRONLY|O_CREAT|O_APPEND
+                movq $420, %rdx              # 0644
+                call kof_plat_open           # M-6 (#1135): o open pela costura
                 testq %rax, %rax
                 js .Lio_append_fail
-                movq %rax, %rdi
+                movq %rax, %r13              # fd
+                movq %r13, %rdi
                 leaq 24(%r12), %rsi
                 movl 16(%r12), %edx
                 call kof_plat_write          # M-6 (#1135): a io pela costura (o macOS usa a libSystem)
-                movq %rdi, %rdi
+                movq %r13, %rdi
                 call kof_plat_close          # M-6 (#1135): a io pela costura (o macOS usa a libSystem)
                 movq $1, %rax
+                popq %r13
                 popq %r12
                 popq %rbx
                 ret
             .Lio_append_fail:
                 xorl %eax, %eax
+                popq %r13
                 popq %r12
                 popq %rbx
                 ret
@@ -250,8 +253,7 @@ public final class RuntimeIo2 {
                 cmpq $16384, %rax
                 je .Lio_del_rmdir
                 leaq 24(%rbx), %rdi
-                movq $87, %rax
-                syscall
+                call kof_plat_unlink         # M-6 (#1135): o unlink pela costura
                 testq %rax, %rax
                 je .Lio_del_ok
             .Lio_del_fail:
@@ -260,8 +262,7 @@ public final class RuntimeIo2 {
                 ret
             .Lio_del_rmdir:
                 leaq 24(%rbx), %rdi
-                movq $84, %rax
-                syscall
+                call kof_plat_rmdir          # M-6 (#1135): o rmdir pela costura
                 testq %rax, %rax
                 jne .Lio_del_fail
             .Lio_del_ok:

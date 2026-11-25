@@ -784,6 +784,33 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   isso que a NATIVE004 recusa sem. **AS PRÓXIMAS LINHAS:** a família "stat"
   da costura (o `struct stat` do Darwin), o runner M-7, a face arm64 (o
   emissor cross aarch64 + a sua prova Mach-O); depois #1159 keep-alive
+  **M-6 FATIA 10 POUSADA 24/11 (as faces de escrita/delete do `io` entraram
+  na costura — e o descritor do append vivia num registrador que a libSystem
+  destrói).** O `kof_io_append_text` guardava o descritor no `%rdi` e o
+  reaproveitava DEPOIS da escrita (`movq %rdi, %rdi; call kof_plat_close`): no
+  Linux o syscall por acaso preserva o `%rdi`, mas no Darwin a chamada da
+  libSystem DESTRÓI o `%rdi` — o close fecharia um descritor qualquer
+  (known-bugs §1214). O descritor agora vive num registrador callee-saved, e
+  as faces de escrita/delete do `io` foram para a costura (`kof_plat_open`,
+  `kof_plat_unlink`, `kof_plat_rmdir` — o `unlink`/`rmdir` do Darwin com a
+  falha normalizada em `-errno`). **O TRADUTOR APRENDEU SEIS FACES
+  (known-bugs §1215):** montar o runtime real em Mach-O mostrou que um
+  comentário cuja primeira palavra é uma palavra de diretiva (`# if V & 1: …`)
+  é uma DIRETIVA de pré-processador para o assembler do Mach-O ("unterminated
+  conditional directive") — a marca vira `//` (um comentário comum continua
+  verbatim, o contrato do M-1); `.hword`/`.4byte`/`.8byte`/`.balign` são GNU
+  ("unknown directive"); `.pushsection`/`.popsection` são ELF ("unexpected
+  token"); o `.align` do Mach-O aceita no máximo 16; e um rótulo numérico do
+  GNU as (`1:`) é LOCAL — prefixá-lo colidia com o outro rótulo de número 1.
+  **PROVA (executada):** `NativeMacOSIoWriteSeamE2ETest` 5/5 (o assembler real
+  do Mach-O aceita o fragmento cambiado) e `NativeMachOTranslatorE2ETest` 7/7
+  — RED-first 6 falhas no tradutor antigo; `NativeMacOSProfileE2ETest` 12/12
+  (o programa hello inteiro ainda assembla); a bateria de io 26 testes 0F.
+  **AINDA ABERTO (nomeado):** o endereçamento absoluto-indexado do ELF
+  (`movq _sym(,%r12,8), %rax`) não tem equivalente no Mach-O — exige
+  reescrever a instrução — então o runtime INTEIRO ainda não assembla de ponta
+  a ponta; as faces do io são provadas pelo seu fragmento.
+
   **M-6 FATIA 9 POUSADA 24/11 (os dois sítios irmãos do environ entraram na
   costura — o nível do log e a busca de segredo).** O `.Llog_parse_level`
   (o threshold do `KOF_LOG_LEVEL`) e o `kof_sec_secret_get` (a busca do

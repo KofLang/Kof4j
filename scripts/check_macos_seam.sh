@@ -35,7 +35,7 @@ echo "== x86-64: sítios 'syscall' por arquivo (o seam = RuntimePlat*) =="
 # os sítios x86 do pacote nat/ (o core do HTTP, o web listen, o net front)
 # NÃO entravam no ratchet (19 instruções reais medidas). O inventário agora
 # cobre os DOIS pacotes; o que fica de fora é o riscv/aarch64/mcu (as outras
-# faces, contadas à parte) e o tradutor/keywords (NativeMachO: o `syscall`
+# faces, contadas à parte) e o tradutor/keywords (NativeMachO/NativeMachOFaces: o `syscall`
 # lá é o DETECTOR, não um sítio emitido).
 total_x86=0
 seam_x86=0
@@ -64,7 +64,7 @@ scan_x86() {
 }
 scan_x86 "$RT"/*.java
 scan_x86 $(ls "$NAT"/Native*.java 2>/dev/null \
-    | grep -vE 'NativeRiscv|NativeAarch64|NativeMcu|NativeMachO\.java')
+    | grep -vE 'NativeRiscv|NativeAarch64|NativeMcu|NativeMachO\.java|NativeMachOFaces\.java')
 out_x86=$((total_x86 - seam_x86))
 echo "  x86-64: total=$total_x86 seam=$seam_x86 fora-da-costura=$out_x86"
 
@@ -96,7 +96,7 @@ echo "== TLS (a face ELF local-exec — a migração Mach-O TLV):"
 # comentários e a mensagem do NATIVE005 dizem `%fs:` sem emitirem um sítio)
 tls=$(grep -rhcE '^[[:space:]]*[a-z][a-z0-9]*[[:space:]]+.*(%fs:|@tpoff)' \
     "$RT"/*.java $(ls "$NAT"/Native*.java 2>/dev/null \
-    | grep -vE 'NativeRiscv|NativeAarch64|NativeMcu|NativeMachO\.java') 2>/dev/null \
+    | grep -vE 'NativeRiscv|NativeAarch64|NativeMcu|NativeMachO\.java|NativeMachOFaces\.java') 2>/dev/null \
     | awk '{s+=$1} END {print s+0}')
 echo "  sítios %fs:/@tpoff: $tls"
 
@@ -106,7 +106,7 @@ echo "== FUTEX (a face Linux — o macOS usa __ulock/os_unfair_lock):"
 # contam como "sítio fora da costura" (o mesmo critério do syscall acima).
 fx=0
 for f in "$RT"/*.java $(ls "$NAT"/Native*.java 2>/dev/null \
-        | grep -vE 'NativeRiscv|NativeAarch64|NativeMcu|NativeMachO\.java'); do
+        | grep -vE 'NativeRiscv|NativeAarch64|NativeMcu|NativeMachO\.java|NativeMachOFaces\.java'); do
     base=$(basename "$f")
     case "$base" in RuntimePlat*) continue ;; esac
     n=$(grep -cE '\bfutex\b' "$f" 2>/dev/null || true)

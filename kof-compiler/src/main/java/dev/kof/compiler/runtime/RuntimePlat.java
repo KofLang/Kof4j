@@ -331,6 +331,20 @@ public final class RuntimePlat {
                 movq $2, %rax            # SYS_open (o mesmo numero no Linux)
                 syscall
                 ret
+
+            .globl kof_plat_unlink
+            .type kof_plat_unlink, @function
+            kof_plat_unlink:
+                movq $87, %rax           # unlink(path)
+                syscall
+                ret
+
+            .globl kof_plat_rmdir
+            .type kof_plat_rmdir, @function
+            kof_plat_rmdir:
+                movq $84, %rax           # rmdir(path)
+                syscall
+                ret
             """);
     }
 
