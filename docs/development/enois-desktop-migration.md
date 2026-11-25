@@ -1766,3 +1766,12 @@ and stale `.klib` (maven compiles the app libs into `libs/enois/*.klib` — a `.
 without a rebuild runs the old klib). NEXT app slice: the skeleton's pulse (`animate-pulse`
 half-period shade) is still not painted — the `Skeleton.shade(0)` white (§26/§1212) is
 the blocker; and `rlista=914` still uses the CARD body (346), not the skeleton's 308.
+
+APP SIDE LANDED (round §69, app `f95068b`): the skeleton's pulse now follows
+Tailwind's `animate-pulse` contract — the opacity of `bg-surface-2` goes 100% → 50% →
+100%, so `Skeleton.shade` is `surface-2` at that opacity over the card: the two ends of
+the cycle paint `237,232,245` (full `surface-2`) and the middle `246,243,250`; 25 and 75
+are symmetric. Before this, `shade` doubled `pulse <= 50` and painted the CARD WHITE at
+both ends, and since the communities skeleton paints `shade(0)` it was white. Proof:
+`EnoisSkeletonE2ETest` (`zero/topo/meio/q25/t75/meio2/op=100/75/50/75/100`) and
+`EnoisVitrineCarregamentoE2ETest` (`pulso=237,232,245`) GREEN on the native harness.

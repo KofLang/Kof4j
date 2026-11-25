@@ -1453,3 +1453,12 @@ as "somas erradas" eram conta a mao e `.klib` velho (o maven compila as libs do 
 o pulso do esqueleto (`animate-pulse`, meio-periodo) ainda nao e' pintado — o branco do
 `Skeleton.shade(0)` (§26/§1212) e' o bloqueio; e o `rlista=914` ainda usa o corpo do CARTAO
 (346), nao o 308 do esqueleto.
+
+LADO DO APP ENTREGUE (rodada §69, app `f95068b`): o pulso do esqueleto segue agora o
+contrato do `animate-pulse` do Tailwind — a opacidade do `bg-surface-2` vai 100% → 50% →
+100%, entao `Skeleton.shade` e' o `surface-2` nessa opacidade sobre o card: as pontas do
+ciclo pintam `237,232,245` (surface-2 cheio) e o meio `246,243,250`; 25 e 75 simetricos.
+Antes, o `shade` dobrava `pulse <= 50` e pintava o BRANCO do card nas duas pontas, e como
+o esqueleto de comunidades usa `shade(0)` ele estava branco. Prova:
+`EnoisSkeletonE2ETest` (`zero/topo/meio/q25/t75/meio2/op=100/75/50/75/100`) e
+`EnoisVitrineCarregamentoE2ETest` (`pulso=237,232,245`) VERDE no harness nativo.
