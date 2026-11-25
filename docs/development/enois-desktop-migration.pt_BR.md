@@ -1462,3 +1462,27 @@ Antes, o `shade` dobrava `pulse <= 50` e pintava o BRANCO do card nas duas ponta
 o esqueleto de comunidades usa `shade(0)` ele estava branco. Prova:
 `EnoisSkeletonE2ETest` (`zero/topo/meio/q25/t75/meio2/op=100/75/50/75/100`) e
 `EnoisVitrineCarregamentoE2ETest` (`pulso=237,232,245`) VERDE no harness nativo.
+
+LADO DO APP ENTREGUE (rodada §70, app `a928622`): rota `blog.$username_.$postId`, parte 1 —
+`libs/BlogPost.kf`: `longDate` (o `formatarData(…, { day: "2-digit", month: "long",
+year: "numeric" })` do site no fuso do app; data de calendario, entao a hora nunca muda o dia;
+"" para vazio/nao-ISO), `readingMinutes` (`blogReadingMinutes`: 200 palavras/min, minimo 1,
+HTML tira tags, `<!-- -->` e `script`/`style`/`head`), `meta(nome, iso)` ("Nome · data") e as
+medidas (`h-7` avatar 28, `text-xs` 12, `mt-3` 12). Prova `EnoisBlogPostE2ETest` VERDE no
+harness nativo. NAO feito (nomeado): a pintura do card (`rounded-2xl border bg-surface-card`,
+titulo `text-2xl`, corpo `sm:p-8` / `whitespace-pre-line text-base leading-relaxed`), as
+fileiras de acoes/comentarios (dependem do post do feed) e o `Loader2` do botao desativado
+"Carregar mais" — um desenhador de arco parametrico e' fatia propria (a rotacao do
+`animate-spin`), entao o botao segue so' com a pilula apagada.
+
+LADO DO APP ENTREGUE (rodada §70, app `a928622`): rota `blog.$username_.$postId`, parte 1 —
+`libs/BlogPost.kf`: `longDate` (o `formatarData(…, { day: "2-digit", month: "long",
+year: "numeric" })` do site no fuso do app; data de calendario, entao a hora nunca muda o dia;
+"" para vazio/nao-ISO), `readingMinutes` (`blogReadingMinutes`: 200 palavras/min, minimo 1,
+HTML tira tags, `<!-- -->` e `script`/`style`/`head`), `meta(nome, iso)` ("Nome · data") e as
+medidas (`h-7` avatar 28, `text-xs` 12, `mt-3` 12). Prova `EnoisBlogPostE2ETest` VERDE no
+harness nativo. NAO feito (nomeado): a pintura do card (`rounded-2xl border bg-surface-card`,
+titulo `text-2xl`, corpo `sm:p-8` / `whitespace-pre-line text-base leading-relaxed`), as
+fileiras de acoes/comentarios (dependem do post do feed) e o `Loader2` do botao desativado
+"Carregar mais" — um desenhador de arco parametrico e' fatia propria (a rotacao do
+`animate-spin`), entao o botao segue so' com a pilula apagada.

@@ -1775,3 +1775,15 @@ are symmetric. Before this, `shade` doubled `pulse <= 50` and painted the CARD W
 both ends, and since the communities skeleton paints `shade(0)` it was white. Proof:
 `EnoisSkeletonE2ETest` (`zero/topo/meio/q25/t75/meio2/op=100/75/50/75/100`) and
 `EnoisVitrineCarregamentoE2ETest` (`pulso=237,232,245`) GREEN on the native harness.
+
+APP SIDE LANDED (round §70, app `a928622`): route `blog.$username_.$postId`, part 1 —
+`libs/BlogPost.kf`: `longDate` (the site's `formatarData(…, { day: "2-digit", month: "long",
+year: "numeric" })` in the app timezone; a calendar date, so the time never moves the day;
+"" for empty/non-ISO), `readingMinutes` (`blogReadingMinutes`: 200 words/min, minimum 1,
+HTML strips tags, `<!-- -->` and `script`/`style`/`head`), `meta(name, iso)` ("Nome · data")
+and the measured sizes (`h-7` avatar 28, `text-xs` 12, `mt-3` 12). Proof
+`EnoisBlogPostE2ETest` GREEN on the native harness. NOT done (named): the card paint
+(`rounded-2xl border bg-surface-card`, title `text-2xl`, body `sm:p-8` / `whitespace-pre-line
+text-base leading-relaxed`) and the actions/comments rows (they need the feed post), and the
+`Loader2` spinner of the disabled "Carregar mais" button — a parametric arc drawer is its own
+slice (the `animate-spin` rotation), so the button still shows the dimmed pill only.
