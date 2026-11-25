@@ -782,6 +782,25 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   is what NATIVE004 refuses without. **THE NEXT ROWS:** the "stat" family of
   the seam (the Darwin `struct stat`), the M-7 runner, the arm64 face (the
   cross aarch64 emitter + its Mach-O proof); then #1159 keep-alive HTTP/1.1.
+  **M-6 SLICE 13 LANDED 24/11 — THE TRANSLATOR'S LAST BLOCKER FALLS: the WHOLE
+  runtime assembles end-to-end in the real Mach-O assembler.** The Vulkan face
+  (the `vk64_*` tables, 7 files) reached them with the ELF
+  ABSOLUTE-with-base form (`leaq 4608+vk64_scratch(%rcx), %rdx`, `cmpq
+  vk64_wcaps(%rcx), %rax`), which the Mach-O (x86-64) refuses with "32-bit
+  absolute addressing is not supported in 64-bit mode" (measured). The 85
+  sites now use the form valid on BOTH targets: a RIP-relative base plus the
+  register (`leaq vk64_scratch(%rip), %r11` + `leaq 132(%r11,%rcx), %rdx`);
+  the scratch is `%r11`, free in all the seven files (measured: zero
+  occurrences). **PROOF (executed):** `NativeMacOSRuntimeAssemblyE2ETest`
+  1/1 — the test now REQUIRES `rc=0` and the whole translated runtime is
+  assembled by the REAL Mach-O assembler (RED-first measured: on the old tree
+  it fails on the Vk sites); `VkRuntimeAsmLanguageTest` 1/1; the macOS
+  battery 66 tests 0F. **WHAT THIS MEANS (honest):** the translator is no
+  longer the blocker — what remains for the macOS target is the M-7 runner
+  (a real macos-14 host: the link and the RUN) and the arm64 face; the
+  ELF-only faces (the raw syscall, the TLS local-exec) stay named by the
+  NATIVE005 refusal until the M-2/M-4 migration reaches them.
+
   **M-6 SLICE 12 LANDED 24/11 (the runtime families lost the ELF
   absolute-indexed addressing — and the WHOLE runtime now assembles in the
   real Mach-O assembler).** The DB slot tables (`RuntimeDb2`/`RuntimeDb3`),

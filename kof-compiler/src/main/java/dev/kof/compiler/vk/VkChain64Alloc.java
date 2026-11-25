@@ -75,7 +75,8 @@ public final class VkChain64Alloc {
                 movl %r13d, %eax
                 shll $3, %eax                      # t*8 (VkMemoryType = 8B)
                 cltq
-                leaq 128+4+vk64_scratch(%rax), %rcx   # memoryTypes[t].propertyFlags @+4+8t
+                leaq vk64_scratch(%rip), %r11
+                leaq 128+4(%r11,%rax), %rcx   # memoryTypes[t].propertyFlags @+4+8t
                 movl (%rcx), %edx
                 // HOST_VISIBLE(1) | HOST_COHERENT(4) = 5
                 andl $5, %edx

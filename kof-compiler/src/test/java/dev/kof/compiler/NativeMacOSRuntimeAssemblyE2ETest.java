@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -85,26 +86,10 @@ class NativeMacOSRuntimeAssemblyE2ETest {
         Process proc = pb.start();
         String output = new String(proc.getInputStream().readAllBytes());
         int rc = proc.waitFor();
-        if (rc != 0) {
-            // a falha tem de ser a face NOMEADA (a Vk) — e nada mais
-            // a linha do erro NAO traz o trecho — a fonte vem na linha
-            // seguinte (o assembler imprime a linha e o cursor)
-            String[] outLines = output.split("\n");
-            List<String> errors = new ArrayList<>();
-            for (int i = 0; i < outLines.length; i++) {
-                if (!outLines[i].contains("error:")) continue;
-                String trecho = (i + 1 < outLines.length) ? outLines[i + 1] : "";
-                errors.add(trecho.trim());
-            }
-            List<String> fora = new ArrayList<>();
-            for (String e : errors) {
-                // a face Vk nomeada: a familia de simbolos `vk64_*`
-                if (!e.contains("vk64_")) fora.add(e);
-            }
-            assertTrue(fora.isEmpty(),
-                    "only the named Vk face may fail to assemble; the others:\\n" + String.join("\n", fora)
-                            + "\n--- the full output:\n" + output);
-        }
+        // O MARCO: o runtime inteiro monta. A falha nomeada da face Vk (a
+        // forma absoluta-com-base `sym+off(%reg)`) ja foi reescrita — o
+        // teste agora exige rc=0; se algo voltar, o output nomeia o sitio.
+        assertEquals(0, rc, "the whole runtime must assemble:\n" + output);
         assertTrue(Files.exists(obj), "the Mach-O object was produced");
     }
 }

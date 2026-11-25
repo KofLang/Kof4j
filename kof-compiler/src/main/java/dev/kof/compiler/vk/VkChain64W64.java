@@ -40,42 +40,54 @@ public final class VkChain64W64 {
                 jle .Lvk64_wp_neg
                 movslq %ebx, %rcx
                 shlq $3, %rcx
-                cmpq vk64_wcaps(%rcx), %rax        # wcap[id] < m*k?
+                leaq vk64_wcaps(%rip), %r11
+                cmpq (%r11,%rcx), %rax        # wcap[id] < m*k?
                 jge .Lvk64_wp_copy
                 // (re)aloca wbufs[id]
-                movq vk64_wbufs(%rcx), %rdi
+                leaq vk64_wbufs(%rip), %r11
+                movq (%r11,%rcx), %rdi
                 testq %rdi, %rdi
                 jz .Lvk64_wp_alloc
-                movq vk64_wmaps(%rcx), %rdi
+                leaq vk64_wmaps(%rip), %r11
+                movq (%r11,%rcx), %rdi
                 testq %rdi, %rdi
                 jz .Lvk64_wp_unmap_done
                 movq g_vk64_vkUnmapMemory(%rip), %rax
                 movq vk64_dev(%rip), %rdi
-                movq vk64_wmems(%rcx), %rsi
+                leaq vk64_wmems(%rip), %r11
+                movq (%r11,%rcx), %rsi
                 call *%rax
             .Lvk64_wp_unmap_done:
-                movq vk64_wbufs(%rcx), %rdi
+                leaq vk64_wbufs(%rip), %r11
+                movq (%r11,%rcx), %rdi
                 testq %rdi, %rdi
                 jz .Lvk64_wp_destroy_done
                 movq g_vk64_vkDestroyBuffer(%rip), %rax
                 movq vk64_dev(%rip), %rdi
-                movq vk64_wbufs(%rcx), %rsi
+                leaq vk64_wbufs(%rip), %r11
+                movq (%r11,%rcx), %rsi
                 xorl %edx, %edx
                 call *%rax
             .Lvk64_wp_destroy_done:
-                movq vk64_wmems(%rcx), %rdi
+                leaq vk64_wmems(%rip), %r11
+                movq (%r11,%rcx), %rdi
                 testq %rdi, %rdi
                 jz .Lvk64_wp_free_done
                 movq g_vk64_vkFreeMemory(%rip), %rax
                 movq vk64_dev(%rip), %rdi
-                movq vk64_wmems(%rcx), %rsi
+                leaq vk64_wmems(%rip), %r11
+                movq (%r11,%rcx), %rsi
                 xorl %edx, %edx
                 call *%rax
             .Lvk64_wp_free_done:
-                movq $0, vk64_wbufs(%rcx)
-                movq $0, vk64_wmems(%rcx)
-                movq $0, vk64_wmaps(%rcx)
-                movq $0, vk64_wcaps(%rcx)
+                leaq vk64_wbufs(%rip), %r11
+                movq $0, (%r11,%rcx)
+                leaq vk64_wmems(%rip), %r11
+                movq $0, (%r11,%rcx)
+                leaq vk64_wmaps(%rip), %r11
+                movq $0, (%r11,%rcx)
+                leaq vk64_wcaps(%rip), %r11
+                movq $0, (%r11,%rcx)
             .Lvk64_wp_alloc:
                 movl %r12d, %eax
                 movl %r13d, %ecx
@@ -85,9 +97,12 @@ public final class VkChain64W64 {
                 movq %rax, %rdi
                 movslq %ebx, %rax
                 shlq $3, %rax
-                leaq vk64_wbufs(%rax), %rsi
-                leaq vk64_wmems(%rax), %rdx
-                leaq vk64_wmaps(%rax), %rcx
+                leaq vk64_wbufs(%rip), %r11
+                leaq (%r11,%rax), %rsi
+                leaq vk64_wmems(%rip), %r11
+                leaq (%r11,%rax), %rdx
+                leaq vk64_wmaps(%rip), %r11
+                leaq (%r11,%rax), %rcx
                 call vk64_alloc_buffer
                 testl %eax, %eax
                 jz .Lvk64_wp_alloc_ok
@@ -100,7 +115,8 @@ public final class VkChain64W64 {
                 movslq %eax, %rax
                 movslq %ebx, %rcx
                 shlq $3, %rcx
-                movq %rax, vk64_wcaps(%rcx)
+                leaq vk64_wcaps(%rip), %r11
+                movq %rax, (%r11,%rcx)
             .Lvk64_wp_copy:
                 movl %r12d, %eax
                 movl %r13d, %ecx
@@ -112,7 +128,8 @@ public final class VkChain64W64 {
                 leaq 24(%rsi), %rsi                # w data
                 movslq %ebx, %rax
                 shlq $3, %rax
-                movq vk64_wmaps(%rax), %rdi
+                leaq vk64_wmaps(%rip), %r11
+                movq (%r11,%rax), %rdi
                 call memcpy@PLT
                 xorl %eax, %eax
             .Lvk64_wp_ret:
@@ -161,7 +178,8 @@ public final class VkChain64W64 {
                 movslq %ebx, %rcx
                 shlq $3, %rcx
                 // wbufs[id] != 0 && wcap[id] >= m*k
-                cmpq $0, vk64_wbufs(%rcx)
+                leaq vk64_wbufs(%rip), %r11
+                cmpq $0, (%r11,%rcx)
                 je .Lvk64_wr_nobuf
                 movl %r12d, %eax
                 movl %r13d, %ecx
@@ -169,7 +187,8 @@ public final class VkChain64W64 {
                 movslq %eax, %rax
                 movslq %ebx, %rcx
                 shlq $3, %rcx
-                cmpq vk64_wcaps(%rcx), %rax
+                leaq vk64_wcaps(%rip), %r11
+                cmpq (%r11,%rcx), %rax
                 jg .Lvk64_wr_nobuf
                 jmp .Lvk64_wr_shape
             .Lvk64_wr_nobuf:
@@ -215,10 +234,12 @@ public final class VkChain64W64 {
                 movslq %ebx, %rax
                 shlq $3, %rax
                 leaq 5424+320+vk64_scratch(%rip), %rdi
-                movq vk64_wbufs(%rax), %rcx
+                leaq vk64_wbufs(%rip), %r11
+                movq (%r11,%rax), %rcx
                 movq %rcx, 0(%rdi)
                 movq $0, 8(%rdi)
-                movq vk64_wcaps(%rax), %rcx
+                leaq vk64_wcaps(%rip), %r11
+                movq (%r11,%rax), %rcx
                 shlq $3, %rcx
                 movq %rcx, 16(%rdi)
                 movq vk64_xbuf(%rip), %rcx

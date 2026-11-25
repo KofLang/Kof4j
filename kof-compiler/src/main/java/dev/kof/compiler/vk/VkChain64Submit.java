@@ -153,7 +153,8 @@ public final class VkChain64Submit {
                 movl %eax, %ecx
                 shll $6, %ecx                      # i*64
                 movslq %ecx, %rcx
-                leaq 5424+vk64_scratch(%rcx), %rdx
+                leaq vk64_scratch(%rip), %r11
+                leaq 5424(%r11,%rcx), %rdx
                 movl $35, 0(%rdx)                  # sType WRITE_DESCRIPTOR_SET
                 movq $0, 8(%rdx)
                 movq %rbx, 16(%rdx)                # dstSet

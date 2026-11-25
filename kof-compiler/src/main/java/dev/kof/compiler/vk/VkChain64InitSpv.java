@@ -52,7 +52,8 @@ public final class VkChain64InitSpv {
                 movl %eax, %ecx
                 imull $24, %ecx, %ecx              # stride 24B (sizeof binding)
                 movslq %ecx, %rcx
-                leaq 4608+vk64_scratch(%rcx), %rdx
+                leaq vk64_scratch(%rip), %r11
+                leaq 4608(%r11,%rcx), %rdx
                 movl %eax, 0(%rdx)                 # binding
                 movl $7, 4(%rdx)                   # STORAGE_BUFFER
                 movl $1, 8(%rdx)                   # count

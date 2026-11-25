@@ -210,7 +210,8 @@ public final class VkChain64Init2 {
                 movl %eax, %ecx
                 imull $24, %ecx, %ecx
                 movslq %ecx, %rcx
-                leaq 4608+vk64_scratch(%rcx), %rdx
+                leaq vk64_scratch(%rip), %r11
+                leaq 4608(%r11,%rcx), %rdx
                 movl %eax, 0(%rdx)
                 movl $7, 4(%rdx)
                 movl $1, 8(%rdx)
