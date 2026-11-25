@@ -1374,3 +1374,7 @@ Toda sonda agora roda com `rm -rf` e UM `Main.kf` por caso. Pelo `lib/kof.jar` r
 
 `PrintRepeatProducerTest` (4 casos) esta GREEN pelo `driver.interpret`. Os mesmos fontes pelo jar do CLI (alvo JVM — COMPILA) e pelo build nativo imprimem o primeiro valor duas vezes em `2 / 1 + 1`, `3 / 2 + 1`, `4 / 2 + 2`, `7 / 5 + 2`, `9 / 4 + 5`, enquanto `5 / 40 + 40` → `5 80` e `2 / 3 + 4` → `2 7` estao certos. A IR do interpretador esta certa e a saida COMPILADA troca a ordem das duas impressoes. PROXIMO: comparar o bytecode gerado de `2 / 1 + 1` e `5 / 40 + 40`. O app mantem o 184 fixado.
 
+## §59 Rodada 25/11 (quadragesima primeira) — §1218: a classe compilada em si esta errada (`iconst_2`, sem `iadd`) e rodar-la reproduz o bug (so' o Kof4j)
+
+`kof build Main.kf --target jvm` e depois `java -cp build/classes Default.Main`: `println(2)` + `println(1 + 1)` imprime `2 2` e o `javap` mostra `iconst_2` duas vezes (sem `iadd`), enquanto `println(5)` + `println(40 + 40)` compila para `bipush 80` e imprime `5 80`. O interpretador sobre o mesmo fonte esta certo, entao as duas entradas do frontend (`interpret` contra `compileSources`) discordam. PROXIMO: chamar o `driver.compileSources` de um teste JUnit e despejar a IR entregue ao emissor. O app mantem o 184 fixado.
+
