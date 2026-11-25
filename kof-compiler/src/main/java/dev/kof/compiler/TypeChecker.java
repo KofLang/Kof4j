@@ -109,6 +109,39 @@ public final class TypeChecker {
         return false;
     }
 
+    /**
+     * #1188 — o predicado do DIAGNOSTICO de tipo de argumento do construtor.
+     *
+     * `emitCtorPairCompatible` responde "o emit escolheria este construtor?" e
+     * aceita classe-contra-classe em bloco (é o que faz a selecao funcionar com
+     * tipos externos e SAM). Esse mesmo afrouxamento deixava passar um `Object`
+     * (retorno de metodo Java generico, ex.: `HttpResponse.body()`) num
+     * parametro `String`: o check aprovava e a JVM rejeitava a classe no load
+     * com VerifyError — mascarado como "componentes de runtime do JavaFX".
+     *
+     * Aqui a pergunta é outra: a JVM ACEITARIA o valor neste parâmetro? Para
+     * duas classes NÃO-builtin a resposta é a hierarquia NOMINAL (`isAssignable`
+     * com o analisador). Tudo o que não é o caso perigoso mantém a tolerância do
+     * emit: builtin/externo (java./kof./dev.kof.), SAM, TypeVariable, Unknown e
+     * primitivo/boxing continuam como antes — a unidade corrige o
+     * falso-negativo medido sem estreitar o que já compila.
+     */
+    static boolean ctorArgAssignableFormal(Type arg, Type formal) {
+        if (!emitCtorPairCompatible(formal, arg)) return false;
+        if (arg instanceof Type.ClassType ac && formal instanceof Type.ClassType fc) {
+            // builtin com hierarquia REAL (o descritor carrega): a JVM decide.
+            // `java.lang.Object` -> `java.lang.String` é FALSE aqui — o par que
+            // o predicado do emit aprovava em bloco e que a JVM recusa.
+            Boolean builtin = StructuralAssignability.builtinAssignable(ac, fc);
+            if (builtin != null) return builtin;
+            if (!StructuralAssignability.isBuiltinClassType(ac)
+                    && !StructuralAssignability.isBuiltinClassType(fc)) {
+                return isAssignable(arg, formal);
+            }
+        }
+        return true;
+    }
+
     static boolean ctorAccepts(SymbolTable.ConstructorSymbol c, List<Type> argTypes) {
         return ctorAccepts(c.parameterTypes(), argTypes);
     }
@@ -116,7 +149,7 @@ public final class TypeChecker {
     static boolean ctorAccepts(List<Type> formalTypes, List<Type> argTypes) {
         if (formalTypes.size() != argTypes.size()) return false;
         for (int i = 0; i < argTypes.size(); i++) {
-            if (!emitCtorPairCompatible(formalTypes.get(i), argTypes.get(i))) {
+            if (!ctorArgAssignableFormal(argTypes.get(i), formalTypes.get(i))) {
                 return false;
             }
         }
@@ -159,7 +192,7 @@ public final class TypeChecker {
         for (int i = 0; i < argTypes.size(); i++) {
             Type formal = firstEffective.get(i);
             Type arg = argTypes.get(i);
-            if (!emitCtorPairCompatible(formal, arg)) {
+            if (!ctorArgAssignableFormal(arg, formal)) {
                 sa.diagnostics().error(node,
                         "Argument " + (i + 1) + " of '" + typeName + "': expected "
                                 + Type.display(formal) + " but got " + Type.display(arg)

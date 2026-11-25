@@ -213,6 +213,13 @@ final class StructuralAssignability {
         }
     }
 
+    /** #1188: relação de dois BUILTIN pelo runtime real — `null` quando a
+     *  decisão não é segura (lado sintético/gerado/não-carregável). */
+    static Boolean builtinAssignable(Type.ClassType from, Type.ClassType to) {
+        if (!isBuiltinClassType(from) && !isBuiltinClassType(to)) return null;
+        return runtimeClassRelation(from, to);
+    }
+
     private static Class<?> loadRuntimeClass(Type.ClassType ct) {
         String descriptor;
         try {
