@@ -1880,3 +1880,12 @@ surfaced §1226 (a record accessor passed as a call argument returns the ARGUMEN
 call then returns different values in the same program), so painting the page through a builder
 would have planted wrong values. The pieces stay as separate, proven calls; the next app slice is
 blocked on §1226 in the Kof4j.
+
+APP SIDE LANDED (round §82, app `19e88dc`): `BlogPostView` — the post page painted in ONE call
+(back line + card + reactions + actions + comments), each block placed from the height the previous
+part reports, never from a re-computed sum. Proof `EnoisBlogPostViewE2ETest` (the painted height
+equals the declared `height`). NAMED divergence: with 12 reactions and 2 comments the parts inside
+the harness give 707 where their measured values give 759 (the card contributes 237 there instead
+of 289), module-dependent — `known-bugs §1226` reopened with UPDATE 6 (the aligner fix is landed and
+keeps the screen batteries green, but is not the whole cause). NEXT: bisect `BlogPostView.height`
+inside ONE module, printing each part on its own line.

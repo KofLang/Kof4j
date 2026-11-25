@@ -1581,3 +1581,11 @@ NAO entrou — ela expôs o §1226 (um accessor de record passado como argumento
 argumento; uma chamada pura passa a devolver valores diferentes no mesmo programa), entao pintar
 a pagina por um construtor teria plantado valores errados. As partes seguem como chamadas
 separadas ja provadas; a proxima fatia do app esta bloqueada no §1226 do Kof4j.
+
+LADO DO APP ENTREGUE (rodada §82, app `19e88dc`): `BlogPostView` — a pagina do post pintada numa
+chamada (volta + card + reacoes + acoes + comentarios), cada bloco posto pela altura que a parte
+anterior reporta, nunca por uma soma recalculada. Prova `EnoisBlogPostViewE2ETest` (a altura
+pintada = a altura declarada). DIVERGENCIA NOMEADA: com 12 reacoes e 2 comentarios as partes dentro
+do harness dao 707 onde os valores medidos dao 759 (o card contribui 237 ali em vez de 289),
+depende do modulo — `known-bugs §1226` reaberto com a ATUALIZACAO 6. PROXIMO: bissecar
+`BlogPostView.height` dentro de UM modulo, imprimindo cada parte na sua linha.
