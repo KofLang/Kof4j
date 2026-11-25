@@ -1745,3 +1745,12 @@ APP SIDE (reread of `libs/Carregamento.kf`): the skeleton body's term list
 32) sums to **164**, not 196 — the 196 came from counting the cover (128) into the
 body. Card = 128 + 164 = **292**; the six-card grid = 6×292 + 5×16 = **1832**. The
 app turns the pinned 184/312/640 into these numbers and the test follows.
+
+APP SIDE LANDED (app `94224a2`, pushed to `main`): `EsqueletoMetricas.body()` returns
+164 (the `p-5` counted once was the 196's error), `cardHeight()` 292 and
+`gridHeight(6)` 600; `bodyNoSite()` and the §1214 references are gone. Proof:
+`EnoisVitrineCarregamentoE2ETest` GREEN on the native harness (`corpo=164`,
+`cartao=292`, `grade=600`, `grade4=600`, `yesq=1100`, `rcarregando=…/1100`; the rest
+unchanged). Raw-body rects stay 128 + 164 + 128 = 420 — the painted extent is taller
+and is NOT claimed; NEXT app slice: the raw bodies' numbers are the measured ones
+after this correction.

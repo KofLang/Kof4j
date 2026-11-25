@@ -1432,3 +1432,12 @@ esqueleto (`p-5` 40 + avatar 40 + `h-3` 12 + `mt-3` 12 + `h-3 w-2/3` 12 + `mt-4`
 + rodape 32) soma **164**, nao 196 — o 196 vinha de contar a capa (128) dentro do
 corpo. Cartao = 128 + 164 = **292**; a grade de seis = 6×292 + 5×16 = **1832**. O app
 vira o 184/312/640 fixado nesses numeros e o teste acompanha.
+
+LADO DO APP ENTREGUE (app `94224a2`, pushado em `main`): `EsqueletoMetricas.body()`
+devolve 164 (a `p-5` contada uma vez so' era o erro do 196), `cardHeight()` 292 e
+`gridHeight(6)` 600; o `bodyNoSite()` e as referencias ao §1214 sairam. Prova:
+`EnoisVitrineCarregamentoE2ETest` VERDE no harness nativo (`corpo=164`,
+`cartao=292`, `grade=600`, `grade4=600`, `yesq=1100`, `rcarregando=…/1100`; o resto
+inalterado). Os retangulos crus do corpo continuam 128 + 164 + 128 = 420 — a
+extensao PINTADA e' maior e NAO e' afirmada; PROXIMA fatia do app: os numeros crus
+do corpo sao os medidos depois desta correcao.
