@@ -1830,3 +1830,13 @@ their counts only when > 0, the reaction dots (3 × 16 overlapped by 4, plus the
 on the right, plus the `postActions` texts. Proof `EnoisPostActionsE2ETest` (m=16/1/12/20/16/8/6,
 altura=61/32, esqR=4/3, btn0=32 btn12=48, dots 0/16/40/51). NAMED: the lucide glyph shapes are
 drawn as outlines (same gap as the Loader2), the reach/actions themselves need the feed API.
+
+APP SIDE LANDED (round §75, app `07ce703`): the post's comments section (`libs/PostComments.kf`):
+the empty state (52: `py-4` + `text-sm`), the reply indent (`sm:ml-10` 40 + the 2 px rule + `sm:pl-4`
+16), the recursive reply count per root, the `orderCommentsWithAccepted` order (the accepted answer's
+thread root first, the rest unchanged), the "Ver comentários anteriores" button (`ghost sm`, 4 + 32),
+the field radius (20) and the `postComments` texts. Proof `EnoisPostCommentsE2ETest`
+(`m=16/20/40/2/16/20`, `alturas=52/28/36`, `recuo=140/810`, `resp=0/2`, `ordem=b/5`,
+`semAceita=a`, `vazio=true/false/false`, `mais=true/false/false`). NAMED: the comment items
+themselves (avatar, name, date, body) and the composer are the next slices; the accepted-answer
+grouping needs the API's `repliesByRoot.swift`.

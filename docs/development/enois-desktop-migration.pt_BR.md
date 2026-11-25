@@ -1530,3 +1530,13 @@ rodape `mt-4` + `border-t` + `pt-3` (61 de altura), botoes `px-2 py-1.5` cuja li
 Prova `EnoisPostActionsE2ETest` (m=16/1/12/20/16/8/6, altura=61/32, esqR=4/3, btn0=32 btn12=48,
 dots 0/16/40/51). NOMEADO: os glifos do lucide sao desenhados como contornos (mesmo buraco do
 Loader2) e as acoes em si dependem da API do feed.
+
+LADO DO APP ENTREGUE (rodada §75, app `07ce703`): a secao de comentarios do post
+(`libs/PostComments.kf`): o vazio (52: `py-4` + `text-sm`), o recuo das respostas (`sm:ml-10` 40 +
+o fio de 2 + `sm:pl-4` 16), a contagem recursiva das respostas por raiz, a ordem do
+`orderCommentsWithAccepted` (a raiz da aceita primeiro, o resto na ordem), o botao "Ver
+comentarios anteriores" (`ghost sm`, 4 + 32), o raio do campo (20) e os textos de `postComments`.
+Prova `EnoisPostCommentsE2ETest` (`m=16/20/40/2/16/20`, `alturas=52/28/36`, `recuo=140/810`,
+`resp=0/2`, `ordem=b/5`, `semAceita=a`, `vazio=true/false/false`, `mais=true/false/false`).
+NOMEADO: os itens do comentario (avatar, nome, data, corpo) e o compositor sao as proximas
+fatias.
