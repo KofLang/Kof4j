@@ -11,18 +11,17 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * §1207 (23/11, app do Énois): o módulo tem duas cópias do MESMO arquivo de
- * biblioteca — uma no módulo (o pacote `enois/Uso.kf`, compilado como fonte
- * solta) e outra na biblioteca oficial (`enois/Uso.kf` no `kof-libs`). O tipo
- * que só o arquivo da biblioteca importa (`game.Lib` num parâmetro de
- * `Uso.m`) volta em SEM011 "Undefined variable or type" nos vizinhos, porque a
- * importação da fonte do módulo encerra a busca daquele pacote e a cópia da
- * biblioteca nunca é lida.
+ * §1207 (23/11, app do Énois): um arquivo do módulo nomeia num parâmetro um
+ * tipo de BIBLIOTECA (`Sdl3Backend b`) sem importar — o mesmo tipo mora na
+ * cópia do MESMO arquivo na biblioteca oficial, que o importa. O arquivo da
+ * biblioteca nunca é lido (a cópia do módulo vence o import de diretório), então
+ * o import dele precisa entrar na fila: é o que a busca fazia só para arquivos
+ * ainda não compilados.
  */
 class LibraryTypeInSiblingParameterE2ETest {
 
     @Test
-    void aDuplicateLibraryFileDoesNotHideTheLibraryTypeOfItsNeighbour(@TempDir Path tempDir) throws IOException {
+    void aLibraryCopyOfACompiledFileStillContributesItsImports(@TempDir Path tempDir) throws IOException {
         Path root = tempDir.resolve("proj");
         Path lib = tempDir.resolve("inst/lib/kof-libs");
         Files.createDirectories(lib.resolve("game"));
@@ -36,27 +35,26 @@ class LibraryTypeInSiblingParameterE2ETest {
                 static Int n() { return 1 }
             }
             """);
-        String uso = """
+        String dup = """
             package enois
 
             import game.Lib
 
-            class Uso {
-                static Int m(Lib x) { return x.n() }
+            class Dup {
+                static Int m(Lib b) { return b.n() }
             }
             """;
-        Files.writeString(root.resolve("enois/Uso.kf"), uso);
-        Files.writeString(lib.resolve("enois/Uso.kf"), uso);
-        Files.writeString(root.resolve("enois/Aux.kf"), """
+        Files.writeString(root.resolve("enois/Dup.kf"), dup);
+        Files.writeString(lib.resolve("enois/Dup.kf"), dup);
+        Files.writeString(root.resolve("enois/Esq.kf"), """
             package enois
 
-            class Aux {
-                static Int k(Lib w) { return 2 }
+            class Esq {
+                static Int m(Lib w) { return 2 }
             }
             """);
         Files.writeString(root.resolve("app/Main.kf"), """
-            import enois.Aux
-            import enois.Uso
+            import enois.Esq
 
             main() {
                 println("x")
