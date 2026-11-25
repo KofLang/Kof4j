@@ -1354,3 +1354,7 @@ O `lib/kof.jar` (o que o `bin/kof` roda) era de 03:43 enquanto o compilador em t
 
 Medido nos dois backends com o jar reconstruido: `80`/`60 + 20` → `80 80` (errado), `80`/`40 + 40` → `80 80`, `50`/`50 + 0`, `50`/`0 + 50` e `50`/`25 + 25` → `50 50`; e certo quando os valores diferem (`2`/`3 + 4` → `2 7`, `5`/`40 + 40` → `5 80`, `90`/`90 + 94` → `90 184`). O dump do Optimizer com identidade mostra objetos literal distintos, entao a dobra esta certa; o trace do `valueOf` mostra o numero errado JA' na pilha. PROXIMO: rastrear o caminho `valueOf`/`println` do caso que falha (`80` + `60 + 20`) argumento por argumento. O app mantem o 184 fixado.
 
+## §54 Rodada 25/11 (trigesima sexta) — §1218: nao e' o valor; o caminho do interpretador perde a forma (so' o Kof4j)
+
+`println(50)` + `println(3 + (50 - 3))` imprime `50 50`, e as outras formas `n + (50 - n)` e `50 + 0` tambem — a leitura "alcanca o primeiro valor" fica retirada. O `Optimizer` com identidade esta certo, e duas execucoes da mesma IR sao identicas, entao o defeito esta na execucao do interpretador. PROXIMO: instrumentar o `runFrame` para despejar a pilha por op em `50 / 50 + 0` e em `2 / 3 + 4` (que funciona), numa unica execucao. O app mantem o 184 fixado.
+

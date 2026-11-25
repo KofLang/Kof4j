@@ -1574,3 +1574,14 @@ so the fold is right; the `valueOf` trace shows the wrong number already on the
 operand stack. NEXT: trace the `valueOf`/`println` path of the FAILING case
 (`80` + `60 + 20`) argument by argument. The app keeps 184 pinned.
 
+## §54 Round 25/11 (thirty-sixth) — §1218: not the value; the interpreter path loses the shape (Kof4j only)
+
+`println(50)` + `println(3 + (50 - 3))` prints `50 50`, and so do the other
+`n + (50 - n)` forms and `50 + 0` — the "reaches the first value" reading is
+withdrawn. The `Optimizer` with literal identities is right (`G
+L50:683287027 … G L50:1213415012 L0:1688376486 BADD …` → `G L50:683287027 … G
+L50:791885625 …`), and two runs of the same IR are identical, so the defect is
+in the interpreter's execution. NEXT: instrument `runFrame` to dump the stack
+per op on `50 / 50 + 0` and on `2 / 3 + 4` (which works), in one run. The app
+keeps 184 pinned.
+
