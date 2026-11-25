@@ -1540,3 +1540,11 @@ Prova `EnoisPostCommentsE2ETest` (`m=16/20/40/2/16/20`, `alturas=52/28/36`, `rec
 `resp=0/2`, `ordem=b/5`, `semAceita=a`, `vazio=true/false/false`, `mais=true/false/false`).
 NOMEADO: os itens do comentario (avatar, nome, data, corpo) e o compositor sao as proximas
 fatias.
+
+LADO DO APP ENTREGUE (rodada §76, app `54e47b2`): o ITEM de comentario
+(`libs/CommentItem.kf`): avatar `h-8` + `gap-3` (44), o balao `rounded-xl bg-surface-1 px-3
+py-2` (raio 16 no destaque), a linha do autor 12/16 com "· data" e "editado", o corpo 14/23
+(`leading-relaxed`), as acoes `mt-1` de 28 e os selos "Fixado"/"Resposta aceita" — alturas 87
+(1 linha) / 133 (3) / 75 (balao aceito), balao 824, texto 800 numa coluna de 868. Prova
+`EnoisCommentItemE2ETest`. NOMEADO: o compositor (campo, ferramentas, enviar) e' a proxima
+fatia; os glifos do lucide seguem como contornos.

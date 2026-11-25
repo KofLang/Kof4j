@@ -1840,3 +1840,11 @@ the field radius (20) and the `postComments` texts. Proof `EnoisPostCommentsE2ET
 `semAceita=a`, `vazio=true/false/false`, `mais=true/false/false`). NAMED: the comment items
 themselves (avatar, name, date, body) and the composer are the next slices; the accepted-answer
 grouping needs the API's `repliesByRoot.swift`.
+
+APP SIDE LANDED (round §76, app `54e47b2`): the comment ITEM (`libs/CommentItem.kf`): avatar
+`h-8` + `gap-3` (44), the bubble `rounded-xl bg-surface-1 px-3 py-2` (the highlighted item's
+radius 16), the author line 12/16 with "· data" and "editado", the body 14/23
+(`leading-relaxed`), the actions `mt-1` of 28 and the "Fixado"/"Resposta aceita" badges — heights
+87 (1 line) / 133 (3) / 75 (accepted bubble), bubble 824, text 800 in an 868 column. Proof
+`EnoisCommentItemE2ETest`. NAMED: the composer (field, tools, submit) is the next slice; the
+lucide glyphs stay drawn outlines.
