@@ -1175,3 +1175,5 @@ sem entrada no known-bugs); por isso o app roda um quadro por processo. Janela n
 sessao Wayland do lider nao e capturavel deste contexto (o X11 mostra so a area de
 trabalho do compositor, o Wayland recusa o cliente, o XGetImage e negado) — as telas
 sao provadas por execucao, nao por print.
+
+**25/11 (decima primeira rodada — o crescimento do laco NAO se reproduz sozinho):** tres sondas, todas sob o driver dummy: (1) um laco minimo (clear + `roundRect` + `present`, 400 quadros) fica em ~4,1 MB; (2) o mesmo laco com a `Font` criada e fechada por quadro fica em ~4,1 MB; (3) um laco repintando a tela MAIS DENSA (`comunidades`: casca + cabecalho + `ComunidadesPage`, que chama `ComunidadesScreen.texts()` por quadro) fica em ~4,1 MB em 20 quadros — o custo do repaint nao e o vazamento. A execucao de um quadro do proprio app fica em ~2,4 MB e estavel, e por isso o modo por invocacao e' o estado do app. O OOM visto na primeira tentativa de laco fica atribuido ao passo do laco (o de espera) e segue como suspeita NOMEADA, nao como bug catalogado.

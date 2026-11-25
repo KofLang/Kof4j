@@ -1191,3 +1191,5 @@ not yet a known-bugs entry); the app therefore runs one frame per process. A
 window on the lead's Wayland session is not capturable from this agent context
 (X11 shows only the compositor desktop, Wayland refuses the client, XGetImage
 denied) — the screens are proven by execution, not by screenshot.
+
+**25/11 (eleventh round — the loop growth does NOT reproduce alone):** three probes, all under the dummy driver: (1) a minimal loop (clear + `roundRect` + `present`, 400 frames) stays at ~4.1 MB; (2) the same loop with a `Font` created and closed per frame stays at ~4.1 MB; (3) a loop repainting the DENSEST screen (`comunidades`: shell + header + `ComunidadesPage`, which calls `ComunidadesScreen.texts()` per frame) stays at ~4.1 MB over 20 frames — so the repaint cost is not the leak. The demo's own single-frame run is ~2.4 MB and stable, which is why the per-invocation mode is the state of the app. The OOM seen in the first loop attempt is attributed to the loop's step (the waiting loop) and stays a NAMED suspicion, not a catalogued bug.
