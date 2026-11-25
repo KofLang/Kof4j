@@ -57,7 +57,7 @@ public final class RuntimeConfig1 {
                 syscall
                 movq %rax, %r13              # bytes lidos
                 movq %r12, %rdi
-                movq $3, %rax                # close
+                call kof_plat_close          # o close que faltava: sem ele o fd vazava
                 testq %r10, %r10             # nome vazio -> falha
                 jle .Lceg_fail
                 cmpq %r10, %r13
