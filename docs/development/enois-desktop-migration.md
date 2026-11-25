@@ -1471,3 +1471,19 @@ are WITHDRAWN. PROOF `NativeLiteralDropE2ETest` (4 tests: 2 RED, 2 GREEN). NEXT:
 walk the lowering of the two-statement program with the Java probe and find where
 the second statement's left operand is replaced; the app keeps 184 pinned.
 
+## §46 Round 25/11 (twenty-eighth) — §1218 narrowed to the print path (stack is right, IR is right) (Kof4j only)
+
+More measurements on the same defect, all deterministic in one process:
+`println(2)` + `println(1 + 1)` (and `1 * 2`, `3 - 1`, `1 + 1 + 0`, `4 / 2`) → `2 2`
+— the SUM's value equals the previous print's value and that value is printed;
+`println(90)` + `println(90 + 94)` → `90 184`; controls right (`5`/`40 + 40` →
+`5 80`, `3`/`2 + 2` → `3 4`); a `val` with a DIFFERENT value between the prints
+still gives the first term (`90`/`val x = 0`/`40 + 50` → `90 90`). INSTRUMENTED
+(temporary trace of the interpreter frame, reverted): the operand stack holds two
+values at every `valueOf` of both statements (`d=2`), so the duplicate is NOT a
+stack leak in the frame; and a standalone `driver.interpret(...)` in-process
+prints the same wrong values as `kof-cli run`, so the probes are faithful. The
+remaining target is the print path (`String.valueOf(Object)` builtin / the
+`kof_println_string` slice). NEXT: instrument that builtin (argument + result).
+The app keeps 184 pinned; no app change this round.
+
