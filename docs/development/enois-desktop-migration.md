@@ -1663,3 +1663,15 @@ cannot both be about the same list, so the earlier "interpreter right / compiler
 wrong" split is withdrawn: the only remaining measurement is the module object
 inside `KofInterpreter` for that call. The app keeps 184 pinned.
 
+## §62 Round 25/11 (forty-fourth) — §1218: sample set re-taken with fresh directories; two lists, no single rule yet (Kof4j only)
+
+One fresh directory per case, rebuilt CLI jar: WRONG `5 / 2 + 3`, `6 / 2 + 4`,
+`7 / 5 + 2`, `9 / 4 + 5`, `80 / 40 + 40`, `2 / 1 + 1`, `50 / 25 + 25`; RIGHT
+`2 / 3 + 4` → `2 7`, `5 / 40 + 40` → `5 80`, `1 / 50 + 0` → `1 50`,
+`5 / 4 + 4` → `5 8`, `90 / 90 + 94` → `90 184`. The IR handed to the emitter is
+right in the RIGHT cases and wrong in the WRONG ones; the `Optimizer` and the module
+handed to `KofInterpreter` are cleared. NEXT: hold `println(x)` + `println(a + b)`
+fixed and vary only `x`, `a`, `b` — the sample list above is the seed. The app keeps
+184 pinned. (An other-lane WIP in `StatementAnalyzer.java` was stashed for the clean
+rebuild and restored; it is not mine and not committed.)
+

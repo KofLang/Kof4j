@@ -1386,3 +1386,7 @@ O `driver.compileSources(sources, dir, Target.JVM, dir)` — a chamada exata do 
 
 Medido com a otimizacao desligada: o `prepareForInterpretation` em `println(2)` + `println(1 + 1)` da' `G L2 … G L2`, e o `compileSources(… Target.JVM …)` com `setOptimizationEnabled(false)` tambem; o `Optimizer` e' no-op nessa IR. Mesmo assim o `driver.interpret` imprime `2 | 7` para `println(2)` + `println(3 + 4)` (`PrintRepeatProducerTest` GREEN). Os dois fatos nao podem ser sobre a mesma lista, entao a divisao anterior ("interpretador certo / compilador errado") fica retirada: a unica medicao que resta e' o objeto-modulo dentro do `KofInterpreter` naquela chamada. O app mantem o 184 fixado.
 
+## §62 Rodada 25/11 (quadragesima quarta) — §1218: conjunto de amostras re-tirado com diretorios novos; duas listas, sem regra unica ainda (so' o Kof4j)
+
+Um diretorio novo por caso, jar reconstruido: ERRADAS `5/2 + 3`, `6/2 + 4`, `7/5 + 2`, `9/4 + 5`, `80/40 + 40`, `2/1 + 1`, `50/25 + 25`; CERTAS `2/3 + 4` → `2 7`, `5/40 + 40` → `5 80`, `1/50 + 0` → `1 50`, `5/4 + 4` → `5 8`, `90/90 + 94` → `90 184`. A IR entregue ao emissor esta certa nos CERTOS e errada nos ERRADOS; o `Optimizer` e o modulo entregue ao `KofInterpreter` estao descartados. PROXIMO: fixar `println(x)` + `println(a + b)` e variar so' `x`, `a`, `b`. O app mantem o 184 fixado. (Um WIP de outra lane em `StatementAnalyzer.java` foi guardado para o rebuild limpo e restaurado; nao e' meu e nao foi commitado.)
+
