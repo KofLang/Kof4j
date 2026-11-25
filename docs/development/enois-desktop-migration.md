@@ -1253,3 +1253,17 @@ the description (14/20, ONE line at the column width), `space-y-6` (24) and the
 **152**, screen **345** (89 + 80 + 24 + 152). PROOF `EnoisModeracaoE2ETest`:
 `coluna=768`, `tela=345`; battery 6/6. NAMED: the `Gavel` is a box only, the
 `ArrowLeft` of "Voltar" leaves its space.
+
+## §35 Round 25/11 (seventeenth) — the moderator panel (app `c740a08`)
+
+`libs/Moderador.kf` composes `routes/moderador.tsx` 195-544: column
+`mx-auto w-full max-w-3xl` (**768**), "Voltar", "Painel de moderador" (24/32), the
+`Admin`/`Moderador` badge (the `inline-flex rounded-full px-2.5 py-1 text-xs`
+pill with its icon: `bg-primary`/`primary-foreground` for Admin,
+`bg-primary-soft`/`primary-text` for Moderador), the description (14/20, THREE
+lines at the column), `space-y-6` (24) and the "Denúncias aguardando revisão"
+section (`h2` 20 + 12 + the `rounded-2xl border` card with the icon
+`EmptyState` and only a title = **184**). PROOF `EnoisModeradorE2ETest`:
+`coluna=768`, `admin=401`, `moderador=401` (the badge does not change the
+height); battery 6/6. NAMED: the `ShieldCheck`/`Shield`/`Gavel` glyphs are space
+and box only.

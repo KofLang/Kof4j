@@ -1237,3 +1237,16 @@ descricao (14/20, UMA linha na largura da coluna), `space-y-6` (24) e o cartao
 **345** (89 + 80 + 24 + 152). PROVA `EnoisModeracaoE2ETest`: `coluna=768`,
 `tela=345`; bateria 6/6. NOMEADO: o `Gavel` so como caixa, o `ArrowLeft` do
 "Voltar" deixa o espaco.
+
+## §35 Rodada 25/11 (decima setima) — o painel de moderador (app `c740a08`)
+
+`libs/Moderador.kf` compoe `routes/moderador.tsx` 195-544: coluna
+`mx-auto w-full max-w-3xl` (**768**), "Voltar", "Painel de moderador" (24/32), o
+selo `Admin`/`Moderador` (a pilula `inline-flex rounded-full px-2.5 py-1
+text-xs` com o icone: `bg-primary`/`primary-foreground` no Admin,
+`bg-primary-soft`/`primary-text` no Moderador), a descricao (14/20, TRES linhas
+na coluna), `space-y-6` (24) e a secao "Denuncias aguardando revisao" (`h2` 20 +
+12 + o cartao `rounded-2xl border` com o `EmptyState` de icone e so titulo =
+**184**). PROVA `EnoisModeradorE2ETest`: `coluna=768`, `admin=401`,
+`moderador=401` (o selo nao muda a altura); bateria 6/6. NOMEADO: os glifos
+`ShieldCheck`/`Shield`/`Gavel` so como espaco e caixa.
