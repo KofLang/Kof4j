@@ -1382,3 +1382,7 @@ Toda sonda agora roda com `rm -rf` e UM `Main.kf` por caso. Pelo `lib/kof.jar` r
 
 O `driver.compileSources(sources, dir, Target.JVM, dir)` — a chamada exata do `CmdRun` — entrega ao emissor `G L2 … G L2` para `println(2)` + `println(1 + 1)` e `G L80` (certo) para `5` + `40 + 40`; a classe escrita tem `iconst_2` duas vezes e a execucao imprime `2 2`. O `driver.interpret` do mesmo fonte (certo) NAO roda o `Optimizer.optimize` — a dobra e' o unico estagio entre a IR correta e a errada. PROXIMO: ler o `Optimizer.optimize` nesse programa. O app mantem o 184 fixado.
 
+## §61 Rodada 25/11 (quadragesima terceira) — §1218: a IR pre-otimizador ja' esta errada nas duas entradas; a execucao do interpretador le outra lista (so' o Kof4j)
+
+Medido com a otimizacao desligada: o `prepareForInterpretation` em `println(2)` + `println(1 + 1)` da' `G L2 … G L2`, e o `compileSources(… Target.JVM …)` com `setOptimizationEnabled(false)` tambem; o `Optimizer` e' no-op nessa IR. Mesmo assim o `driver.interpret` imprime `2 | 7` para `println(2)` + `println(3 + 4)` (`PrintRepeatProducerTest` GREEN). Os dois fatos nao podem ser sobre a mesma lista, entao a divisao anterior ("interpretador certo / compilador errado") fica retirada: a unica medicao que resta e' o objeto-modulo dentro do `KofInterpreter` naquela chamada. O app mantem o 184 fixado.
+

@@ -1652,3 +1652,14 @@ between a correct pre-optimizer IR and the wrong one handed to the emitter. NEXT
 read `Optimizer.optimize` on this program (the identity dump shows distinct literal
 objects, so the fold's write-back is not the culprit). The app keeps 184 pinned.
 
+## §61 Round 25/11 (forty-third) — §1218: the pre-optimizer IR is already wrong on both entries; the interpreter's run reads a different list (Kof4j only)
+
+Measured directly with optimization OFF: `prepareForInterpretation` on
+`println(2)` + `println(1 + 1)` yields `G L2 … G L2`, and so does
+`compileSources(… Target.JVM …)` with `setOptimizationEnabled(false)`; the
+`Optimizer` is a no-op on that IR. Yet `driver.interpret` prints `2 | 7` for
+`println(2)` + `println(3 + 4)` (`PrintRepeatProducerTest` GREEN). The two facts
+cannot both be about the same list, so the earlier "interpreter right / compiler
+wrong" split is withdrawn: the only remaining measurement is the module object
+inside `KofInterpreter` for that call. The app keeps 184 pinned.
+
