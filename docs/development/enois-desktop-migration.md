@@ -1455,3 +1455,19 @@ optimizer (same with it off) and the IR (the constants are right). The app keeps
 the measured 184 pinned; §1218 now says the repeat is in the execution path and
 non-deterministic across builds, with the deterministic prober as the NEXT step.
 
+## §45 Round 25/11 (twenty-seventh) — §1218 now has a deterministic repro (both paths, same answer) (Kof4j only)
+
+The prober in one process, repeated, fixes the shapes (JVM and native give the SAME
+answer, so it is the shared frontend/lowering; the emitter, the link and the
+optimizer are cleared, and the IR dump shows the right constants):
+`println(90)` + `println(90 + 94)` → `90 184` (also with `val a = 90; println(a)`,
+`println(89 + 1)`, `println(-90)`, `println(191)` or `println(94)` first);
+`println(7)` + `println(5 + 2)` → `7 7`; `println(50)` + `println(2 * 25)` → `50 50`;
+`println(500)` + `println(2 * 25)` → `500 50`; bare `println(90 + 94)` → 184.
+Controls right: `println(5)` + `println(40 + 40)` → `5 80`, `println(3)` +
+`println(20 + 30)` → `3 50`, `println(7)` + `println(2 * 5)` → `7 10`. The earlier
+`5 40` / `5 50 50 80` reports came from mixing two programs in one directory and
+are WITHDRAWN. PROOF `NativeLiteralDropE2ETest` (4 tests: 2 RED, 2 GREEN). NEXT:
+walk the lowering of the two-statement program with the Java probe and find where
+the second statement's left operand is replaced; the app keeps 184 pinned.
+

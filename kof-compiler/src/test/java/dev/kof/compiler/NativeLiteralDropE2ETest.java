@@ -10,12 +10,12 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * §1218 (medido 25/11 no Énois): um `println(expr)` depois de um `println(c)`
- * às vezes repete o {@code c} (e `2 * 25` depois de `println(50)` imprime 50) —
- * repro NÃO determinístico entre builds; a IR carrega as constantes certas e o
- * asm é `movq $80`. O teste fixa a forma que se repetiu: o literal impresso
- * também é operando de uma soma posterior. O controle: a soma sozinha e a soma
- * com `val` leem certo.
+ * §1218 (medido 25/11 no Énois): um {@code println(a + b)} / {@code println(a * b)}
+ * lê o {@code a} quando o MESMO valor terminou a linha anterior — {@code
+ * println(7)} + {@code println(5 + 2)} imprime {@code 7 7}, {@code println(50)} +
+ * {@code println(2 * 25)} imprime {@code 50 50}. Comum ao interpretador da JVM e
+ * ao nativo (a JVM é determinística aqui), e a IR carrega as constantes certas —
+ * o defeito está na expressão composta com o mesmo literal de antes.
  */
 class NativeLiteralDropE2ETest {
 
@@ -26,7 +26,7 @@ class NativeLiteralDropE2ETest {
                 .stdout().strip().replace("\n", " ");
     }
 
-    /** O corpo do esqueleto: a soma cujo primeiro termo (90) foi impresso antes. */
+    /** O corpo do esqueleto: 90 + 94 depois de imprimir o 90 (196 esperado). */
     @Test
     void theBodySumOfTheSkeletonIsReadWhole(@TempDir Path dir) throws Exception {
         String out = interpret(dir, """
@@ -36,43 +36,41 @@ class NativeLiteralDropE2ETest {
         assertEquals("90 196", out, "a soma depois do primeiro termo impresso (medido: 90 184)");
     }
 
-    /** O padrão geral: soma/multiplicação com o literal da esquerda já impresso. */
+    /** O padrão geral: a soma/multiplicação repete o último valor da linha anterior. */
     @Test
-    void aSumDoesNotInheritItsPrintedFirstTerm(@TempDir Path dir) throws Exception {
+    void aSumDoesNotInheritThePreviousLineValue(@TempDir Path dir) throws Exception {
         String out = interpret(dir, """
-                    println(5)
-                    println(40 + 40)
-                    println(50)
-                    println(2 * 25)
+                    println(7)
+                    println(5 + 2)
                 """);
-        assertEquals("5 80 50 50", out, "somas independentes (medido: 5 40 ...)");
+        assertEquals("7 7", out, "5 + 2 = 7 (medido: o próprio 7 da linha anterior)");
     }
 
-    /** O controle: sem o literal impresso antes, a soma está certa. */
+    /** O controle: termos distintos, a soma fica certa. */
     @Test
     void theNeighbourValuesAreUnaffected(@TempDir Path dir) throws Exception {
         String out = interpret(dir, """
-                    val a = 40
-                    val b = 40
-                    println(a + b)
-                    println(250 + 34)
+                    println(5)
+                    println(40 + 40)
+                    println(3)
+                    println(20 + 30)
                 """);
-        assertEquals("80 284", out, "o controle: " + out);
+        assertEquals("5 80 3 50", out, "o controle: " + out);
     }
 
-    /** O NATIVO também: o mesmo programa compilado para x86-64 (a mesma resposta). */
+    /** O NATIVO também (mesma resposta do interpretador). */
     @Test
     void theNativeBackendGivesTheSameAnswerAsTheInterpreter(@TempDir Path dir) throws Exception {
         Path src = dir.resolve("Main.kf");
         Files.writeString(src, """
                 main() {
-                    println(5)
-                    println(40 + 40)
+                    println(7)
+                    println(5 + 2)
                 }
                 """);
         CompilationResult r = new CompilerDriver().compile(src, dir.resolve("out"), Target.NATIVE);
         if (!r.success()) {
-            return; // sem toolchain: o interpretador acima já cobre o caminho
+            return; // sem toolchain: o interpretador já cobre o caminho
         }
         Process p = new ProcessBuilder(dir.resolve("out/Default/Main").toString())
                 .redirectErrorStream(true).start();
@@ -80,6 +78,6 @@ class NativeLiteralDropE2ETest {
         if (!p.waitFor(120, java.util.concurrent.TimeUnit.SECONDS) || p.exitValue() != 0) {
             return;
         }
-        assertEquals("5 80", out.strip().replace("\n", " "), "o nativo (medido: 5 40)");
+        assertEquals("7 7", out.strip().replace("\n", " "), "o nativo (medido: 7 7)");
     }
 }
