@@ -1506,3 +1506,17 @@ com o quadro `h-[70vh]`. Medido: card 289 (1 linha de titulo, 3 de corpo), 269 (
 numa viewport de 900. Prova `EnoisBlogPostCardE2ETest` VERDE. DIVERGENCIAS NOMEADAS: o quadro
 HTML isolado nao tem motor de HTML no desktop (pintado como painel `surface-1`) e as fileiras de
 acoes/comentarios ainda dependem do post do feed.
+
+LADO DO APP ENTREGUE (rodada §73, app `98e0e24`): o `ReactionsSummary` do post
+(`libs/ReactionsSummary.kf`): pilulas `h-7 rounded-full` com `border-border-soft`/`bg-surface-2`
+(a do leitor em `primary-soft` + `--primary`), emoji de 16 e a contagem de 12 em tabular,
+`gap-1.5`, `mt-3` acima; a ordem estavel do `buildReactionTabs` (so tipos com gente, maior
+primeiro, empate mantem a ordem do catalogo) e a FIGURA de cada um dos 42 tipos
+(`REACTION_FIGURE_EMOJIS` = o `unicode` da entrada `enois_<slug>` que o tipo usa). Sem reacao
+nao ha pilula (a view do DS e' `null`). Prova `EnoisReactionsSummaryE2ETest` VERDE
+(`m=28/14/10/6/16/12`, `fig=👍|😍|🖕|`, `ordem=2/LIKE:5/LOVE:1`, `empate=LIKE/LOVE`, `um=49/28`).
+
+CORRECAO NO KOF4J A CAMINHO (§1224, `c4a429a8f`): `list.add(i, valor)` nao LINCAVA no alvo
+nativo (o runtime nao tinha `kof_list_insert`); a fatia agora implementa (limites, crescimento,
+deslocamento para tras), entao a primeira versao do `EnoisReactionsSummaryE2ETest` — que usava
+`out.add(j, tab)` — deixou de precisar do contorno. O app mantem a ordenacao sem insercao.

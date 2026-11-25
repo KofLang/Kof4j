@@ -1807,3 +1807,17 @@ with the `h-[70vh]` frame. Measured: card 289 (1 title line, 3 body lines), 269 
 777 at a 900-tall viewport. Proof `EnoisBlogPostCardE2ETest` GREEN. NAMED divergences: the
 sandboxed HTML frame has no HTML engine on the desktop (painted as a `surface-1` panel), and the
 actions/comments rows still need the feed post.
+
+APP SIDE LANDED (round §73, app `98e0e24`): the post's `ReactionsSummary` (`libs/ReactionsSummary.kf`):
+pills `h-7 rounded-full` with `border-border-soft`/`bg-surface-2` (the viewer's own in
+`primary-soft` + `--primary`), a 16 px emoji and the 12 px tabular count, `gap-1.5`, `mt-3`
+above; the stable order of `buildReactionTabs` (only types with people, largest first, ties
+keep the catalogue order) and each of the 42 types' FIGURE (`REACTION_FIGURE_EMOJIS` = the
+`unicode` of the `enois_<slug>` entry that type uses). No reaction → no pill (the DS view is
+`null`). Proof `EnoisReactionsSummaryE2ETest` GREEN (`m=28/14/10/6/16/12`, `fig=👍|😍|🖕|`,
+`ordem=2/LIKE:5/LOVE:1`, `empate=LIKE/LOVE`, `um=49/28`).
+
+KOF4J FIX ON THE WAY (§1224, `c4a429a8f`): `list.add(i, value)` did not LINK on the native
+target (the runtime had no `kof_list_insert`); the slice now implements it (bounds, growth,
+backward shift), so `EnoisReactionsSummaryE2ETest`'s first version — which used `out.add(j,
+tab)` — stopped needing the workaround. The app keeps its insertion-free sort.
