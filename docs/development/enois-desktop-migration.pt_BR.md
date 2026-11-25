@@ -1099,3 +1099,15 @@ lg:grid-cols-3`): capa `h-40` (**160**), a pilula da data (`left-4 top-4`,
 162 e o proprio teste expôs o erro — o valor medido fica literal, com a conta
 no comentario. Divergencias NOMEADAS: a capa e uma cor de token (o canvas nao
 tem gradiente) e os badges sao uma linha de texto.
+
+## §25 Rodada 23/11 (vigesima primeira) — a grade de `eventos` com o card do DS (app `a6abf79`)
+
+`EventsScreen.paintCards` dispoe o `EventCard` do DS (346) na grade da rota
+(`routes/eventos.tsx` 370: `grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3`):
+coluna **400** em 1232 e linhas de 346 + 16 — 4 eventos = **708**. PROVA
+`EnoisEventosGradeE2ETest` (`coluna=400`, `cartao=346`, `grade=708`). A bateria
+Énois inteira rodou: **62 testes, 1 falha** — `EnoisTextE2ETest`, o §1197
+conhecido (`pixels_de_tinta=0`, a leitura do canvas), igual a antes desta
+rodada. MEDIDO no caminho: o primeiro commit da grade passou no teste dela mas
+QUEBROU `EnoisEventsE2ETest` (sem `import enois.EventCard`) — a bateria pega o
+que o teste isolado nao pega; o import foi commitado em `a6abf79`.

@@ -1116,3 +1116,15 @@ card **346**. PROOF `EnoisEventCardE2ETest`: `capa=160`, `corpo=186`,
 test itself exposed the mistake — the measured value is now a literal with the
 breakdown in the comment. NAMED divergences: the cover is one token colour (no
 gradient in the canvas) and the badges are a single line of text.
+
+## §25 Round 23/11 (twenty-first) — the `eventos` grid with the DS card (app `a6abf79`)
+
+`EventsScreen.paintCards` lays the DS `EventCard` (346) in the route's grid
+(`routes/eventos.tsx` 370: `grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3`):
+column **400** at 1232 and rows of 346 + 16 — 4 events = **708**. PROOF
+`EnoisEventosGradeE2ETest` (`coluna=400`, `cartao=346`, `grade=708`). The full
+Énois battery ran: **62 tests, 1 failure** — `EnoisTextE2ETest`, the KNOWN
+§1197 (`pixels_de_tinta=0`, the canvas readback), unchanged since before this
+round. MEASURED on the way: the first commit of the grid passed its own test but
+FAILED `EnoisEventsE2ETest` (no `import enois.EventCard`) — the battery catches
+what the single test does not; the import is committed in `a6abf79`.
