@@ -1535,3 +1535,17 @@ too. The fix is in the fold's write-back. NEXT: change it so the two-literal +
 ADD trio is replaced without touching the preceding `GetStatic`, with
 `NativeLiteralDropE2ETest` RED-first and GREEN after; the app keeps 184 pinned.
 
+## §51 Round 25/11 (thirty-third) — §1218: the fold is right on a bench IR; the dumps disagree (Kof4j only)
+
+Bench test (hand-built IR of the program shape): the fold yields 9 ops in / 9 ops
+out (`[GetStatic, Literal, Call, Call, GetStatic, Literal, Call, Call, ReturnVoid]`)
+— nothing dropped, so the §50 reading of the write-back is withdrawn. On the real
+program, `prepareForInterpretation` + a fold-only call gives `BEFORE-FOLD G L2 C C
+Cprintln G L1 L1 BADD C C Cprintln` → `AFTER-FOLD G L2 C C Cprintln G L2 C C
+Cprintln` (only the second statement's operands folded) and `driver.interpret`
+prints `2 | 2`. Three probes now agree the pipeline pieces are individually right
+on the program when run one way and the printed value is wrong when run another —
+the next step is ONE probe that dumps the module object handed to
+`KofInterpreter.run` (identity) plus the fold input/output in the same call. The
+app keeps 184 pinned.
+

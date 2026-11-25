@@ -1342,3 +1342,7 @@ Com o compilador construido do `lab` atual, `driver.interpret` de `println(2)` +
 
 Tres dumps (todos revertidos): o lowering esta certo (`ExpressionStmt` #2 da' `[GetStatic, L1, L1, BADD, …]`), o `Optimizer` recebe isso e devolve `[GetStatic, L2, …]`, e DENTRO do `OptimizerConstantFold` a dobra de `1 + 1` deixa `out` como `[X, L2, …, X, L2]` — 7 ops em vez de 9, o primeiro `GetStatic` do segundo statement sumiu. O interpretador imprime o valor certo da constante dobrada, entao o caminho de impressao tambem fica descartado. O fix e' na escrita em `out` da dobra. PROXIMO: trocar o trio de dois literais + ADD sem tocar o `GetStatic` anterior, com o `NativeLiteralDropE2ETest` RED-first e GREEN depois; o app mantem o 184 fixado.
 
+## §51 Rodada 25/11 (trigesima terceira) — §1218: a dobra esta certa numa IR de mesa; os dumps discordam (so' o Kof4j)
+
+Teste de mesa (IR montada a mao com a forma do programa): a dobra entra com 9 ops e sai com 9 — nada some, entao a leitura do §50 sobre a escrita em `out` fica retirada. No programa real, `prepareForInterpretation` + a dobra sozinha dao `BEFORE-FOLD G L1 L1 BADD` → `AFTER-FOLD G L2` (so' os operandos do segundo statement dobram) e o `driver.interpret` imprime `2 | 2`. Tres sondas concordam que as pecas do pipeline estao certas quando rodadas de um jeito e o valor impresso erra quando rodadas de outro — o proximo passo e' UMA sonda que despeja o modulo entregue ao `KofInterpreter.run` (identidade) e a entrada/saida da dobra na mesma chamada. O app mantem o 184 fixado.
+
