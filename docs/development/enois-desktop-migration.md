@@ -1866,3 +1866,11 @@ LINES (`line-clamp-5` in the comment, `line-clamp-3` in the Content), the `mt-1 
 appears only when the real text passes the clamp (24 tall), and the label flips between
 "Ler mais" and "Mostrar menos". 139 collapsed (5 lines) / 208 expanded (8) / 69 short (3).
 Proof `EnoisReadMoreE2ETest`.
+
+APP SIDE LANDED (round §80, app `5398320`): the whole post PAGE composed from the measured
+blocks (`libs/BlogPostPage.kf`): back line (20) + `space-y-6` (24) + the card (`BlogPostCard` +
+the actions row: `pb-5` 20 + `PostActions` 61, plus the reactions `mt-3` 12 + 28) + the comments
+section. Card 370 (text body) / 410 (with reactions) / 858 (HTML); page 620 (1 comment) / 719 (2) /
+660 (with reactions). Proof `EnoisBlogPostPageE2ETest`. NAMED: the page still paints only through
+the parts (each own test); a single `BlogPostPage.paint` and the owner-only buttons on the header
+are the next slice.

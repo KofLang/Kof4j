@@ -1567,3 +1567,11 @@ por LINHAS (`line-clamp-5` no comentario, `line-clamp-3` no Content), o botao `m
 aparece so' quando o texto real passa do corte (24 de altura) e o rotulo alterna entre "Ler
 mais" e "Mostrar menos". 139 recolhido (5 linhas) / 208 expandido (8) / 69 curto (3). Prova
 `EnoisReadMoreE2ETest`.
+
+LADO DO APP ENTREGUE (rodada §80, app `5398320`): a PAGINA do post inteira composta dos blocos
+medidos (`libs/BlogPostPage.kf`): a volta (20) + o `space-y-6` (24) + o card (`BlogPostCard` +
+a fileira: `pb-5` 20 + `PostActions` 61, mais as reacoes `mt-3` 12 + 28) + a secao de
+comentarios. Card 370 (corpo em texto) / 410 (com reacoes) / 858 (HTML); pagina 620 (1
+comentario) / 719 (2) / 660 (com reacoes). Prova `EnoisBlogPostPageE2ETest`. NOMEADO: a pagina
+ainda pinta so' pelas partes (cada uma com o seu teste); um `BlogPostPage.paint` unico e os
+botoes do dono no cabecalho sao a proxima fatia.
