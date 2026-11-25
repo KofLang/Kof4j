@@ -55,7 +55,8 @@ final class NativeX86StackAlign {
         List<int[]> sites = new ArrayList<>();   // {subqIndex, callIndex}
         for (int i = from; i < lines.size(); i++) {
             String t = lines.get(i).trim();
-            if (!t.startsWith("call ") || deltaAt[i] % 16 == 0 || !restoreIsAdjacent(lines, i)) {
+            if (!t.startsWith("call ") || deltaAt[i] % 16 == 0 || !restoreIsAdjacent(lines, i)
+                    || !regionIsStackMachine(lines, i)) {
                 continue;
             }
             sites.add(new int[]{stackArgInsertionPoint(lines, i), i});
@@ -135,6 +136,46 @@ final class NativeX86StackAlign {
         return t.equals("movq 8(%rax), %r11")
                 || t.equals("movq (%r11), %r11")
                 || (t.startsWith("addq $") && t.endsWith(", %r11"));
+    }
+
+    /**
+     * True when every line the padding would sit under — from the insertion
+     * point up to the call — is the stack machine's own (operand pushes/pops,
+     * register moves, {@code .loc}), so inserting {@code subq $8} there cannot
+     * change what any instruction READS.
+     *
+     * <p>§1212: in {@code Skeleton.shade} the second argument of the mix is
+     * itself a receiver call ({@code Tokens.Surface2().r()}) whose receiver call
+     * follows an already-pushed argument. The inner site is 8-aligned (right
+     * after that push) and was padded, but the inner callee restores its frame
+     * with {@code leave} + {@code ret}, so the {@code addq $8} never ran: the
+     * two {@code popq} that move the arguments into registers read the padding
+     * and the pushed operand twice (every channel came out doubled, the pulse
+     * ends white) and each evaluation leaked 8 bytes of stack.
+     *
+     * <p>The ONE shape the padding is for is inferred: a second {@code call} in
+     * the region (two calls in one region: the padding's restore can be skipped
+     * by a nested {@code leave}, §1212 — {@code Skeleton.shade}, where a receiver
+     * call of an argument pushes the padding between it and the {@code popq} that
+     * re-reads the pushed operands). A helper's argument-register setup
+     * ({@code movl $2, %esi}) is fine — the padding sits BELOW it, under the
+     * pushes, and moves nothing that instruction reads.
+     */
+    private static boolean regionIsStackMachine(List<String> lines, int callIndex) {
+        boolean callSeen = false;
+        for (int j = callIndex - 1; j >= 0; j--) {
+            String t = lines.get(j).trim();
+            if (isLabel(t) || t.contains("%rsp")) {
+                return true;   // start of the function / an explicit frame change
+            }
+            if (t.startsWith("call ")) {
+                if (callSeen) {
+                    return false;
+                }
+                callSeen = true;
+            }
+        }
+        return true;
     }
 
     /** The emitter's stack-argument push is exactly {@code pushq -N(%rbp)}. */

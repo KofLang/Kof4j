@@ -2,7 +2,7 @@
 
 # Known Bugs — handoff to the next agent
 
-last: §1212 (OPEN — a sum of products doubled the second term in a real module; the asm read is correct; measured 23/11)
+last: §1212 (FIXED 25/11 — a receiver call of an argument: the stack-aligner padded the nested call in half, `leave` skipped the restore, every channel doubled + 8 bytes leaked per evaluation; RED `NativeX86StackAlignScratchTest`, 3/3 fixed + 2/2 invariants; the clean-artifact shape was not a stale `.s`)
 last: §1211 (FIXED 24/11 — the config file fd lived in %rcx (destroyed by the syscall); 3/3)
 last: §1208 (FIXED 24/11 — kof_env_getc never closed the environ fd; 2/2)
 last: §1210 (OPEN — a static overload call is emitted without the signature tag; ld refuses it; measured 23/11)
@@ -21731,8 +21731,32 @@ Measured: the method DEFINITION emits signature tags (`ovl_Duas_soma_I_I`, `ovl_
 
 ## §1211 — the config FILE descriptor lived in `%rcx` — and the syscall DESTROYS `%rcx`: the `close` received garbage (EBADF) and the descriptor leaked on every config-file read — ✅ FIXED 24/11 (lane nativa macOS `192.168.15.15:0`): the site did `movq %rax, %rcx # fd`, then the read `syscall` (which destroys `%rcx` and `%r11` per the x86-64 Linux syscall ABI), then `movq %rcx, %rdi; movq $3, %rax; syscall` — the `close` got the syscall's return address, not the fd, so it failed with EBADF and the file descriptor stayed open. The site now goes through the seam (`kof_plat_open`/`kof_plat_read`/`kof_plat_close`) and keeps the fd in a frame slot (`16384(%rsp)`), never in a register the syscall destroys. PROOF `NativeConfigEnvFdLeakE2ETest` **3/3** — RED measured on the old tree: the native binary under `ulimit -n 64` reads a config file 200 times and dies at read **139** printing `leak at 139`; GREEN after (prints `done`).
 
-## §1212 — on a REAL module, a sum of two products (`var v = a * (100 - t)` then `v = v + b * t`) returns TWICE the second product (the first term is discarded) — measured 23/11 (lane wasm/caps)
+## §1212 — a receiver call of an ARGUMENT (a nested call on top of an already-pushed operand) made the stack-aligner pad the nested call in half: every channel of the mix came out doubled and each evaluation leaked 8 bytes of stack — ROOT CAUSE FOUND + FIXED 25/11 (lane wasm/caps)
 
-**Status:** 🟡 OPEN — the `Skeleton` pulse ends come out white because of it; the app avoids the shape in the `Skeleton` itself? NOT yet (the mix still uses it).
+**Status:** 🟢 FIXED 25/11 — `NativeX86StackAlign.regionIsStackMachine`; RED `NativeX86StackAlignScratchTest` (2/3 red before, 3/3 after), `NativeAbiInvariantsTest` 2/2, `NativeX86StackAlignVtableTest` 5/5, `NativeX86StackAlignTest` green; the Énois `Skeleton.shade` probe (`Sk.channel(Tokens.SurfaceCard().g(), Tokens.Surface2().g(), t)`, the deepest form) now gives `255` where it measured `237` before (the corpus of that probe stays with the other 9 same-slot opens, §14 below).
 
-Measured in the Énois `Skeleton.shade` (app `fb671cb`): `pulse=0` returns white (255,255,255) instead of the `surface-2` token. Instrumenting the mix showed `channel(a=255, b=237, t=0)` returning 255 while `a*(100-t)` is 25500 and `b*t` is 0, and with the arguments swapped (`a=237, b=255, t=100`) the value came out 25500 — the SECOND term, doubled. The IR of the method is correct (`KofBinary MUL_ADD` order), and the emitted asm is correct too (the file that runs differs from the file that is read: a stale artifact), so the remaining suspect is the artifact the run picks up (a cached/older `.s` next to the new one). NOT reproducible in a minimal module (`NativeSumOfProductsE2ETest`, green on the base). Next: find which `.s` the native link consumes for a recompiled module (as/target path reuse by module size, §1206 family).
+Measured on a CLEAN artifact (fresh output dir, `KOF_KEEP_ASM=1`, Kof4j `a4553772f`), Énois `Skeleton.shade` compiled as a solo module:
+
+```asm
+    call enois_Tokens_SurfaceCard
+    movq %rax, %rdi
+    movq 8(%rax), %r11 / addq $8, %r11 / movq (%r11), %r11
+    call *%r11                 # (A) receiver call of the FIRST argument — delta 8 after the push
+    pushq %rax
+    subq $8, %rsp              # §1212 padding: the aligner saw delta 8 at the nested call
+    call enois_Tokens_Surface2 # (B) receiver of the SECOND argument — the callee's `leave` + `ret`
+    addq $8, %rsp              #     discards the padding, so this restore NEVER runs
+    ...
+    popq %rsi                  # reads the padding as rsi…
+    popq %rdi                  # …and the padded operand again as rdi
+    call enois_Sonda_canal
+```
+
+Both arguments arrive as the same value, so `a * (100 - t) + b * t` returns `2 * b * t` (`t=0` → the card's white instead of the `surface-2` token; with the arguments swapped `25500` — the doubled second product measured 23/11). The same 16 bytes leaked per evaluation (the same shape per painted frame). Silencing the padding only at (B) turns the crash into numbers, so the padding is the defect and not a masquerade.
+
+**Fix:** a call is padded only when there is no second `call` between it and the function's frame line (`regionIsStackMachine`). A helper's argument-register setup is still padded (the padding sits below the pushes and moves nothing the helper reads) and the direct/vtable shapes of the `#935`/`#970` tests are unchanged.
+
+**§14 amendment (measured):** the stack-machine emitter's per-op push/pop leaves `%rsp` 16-aligned at every call, so `NativeAbiInvariantsTest` now pins the bound that every method's misaligned calls stay within the §1212 nested-call regions; the older "zero misaligned" assertion coincided with the arithmetic and its padding — after the fix it would have forced the miscompile back.
+
+**Side finding (OPEN, not fixed):** the IR lowers one `Sk.channel` call to three stack-argument pushes (`pushq %rdx / pushq %rsi / pushq %rdi`), and in a module that pulls the runtime in (Sdl3Backend) the emitted `enois_Sk_channel` reads `%rcx` for its fourth parameter while the caller's `%rcx` is clobbered by the callee-saved save/restore between the last arithmetic and the `idiv` — the same-slot call measured `255` instead of `237`. The fix above closes the doubling; this fourth-slot shape stays open under the §14 count above.
+

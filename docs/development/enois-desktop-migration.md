@@ -1295,3 +1295,23 @@ grid, in the gap between rows, or beyond the catalogue (`n`). PROOF
 `c7=-1`, `vao=-1`, `fora=-1`, `x4=440`, `y4=245`; battery 5/5. The same geometry is
 what the route's `paintCards` uses, so the hit and the drawing cannot drift (both
 read `EventsScreen.columnWidth` / `EventsMetrics`).
+
+## §38 Round 25/11 (twentieth) — the `Skeleton` pulse doubled: §1212 ROOT CAUSE FOUND + FIXED in Kof4j (no app screen touched)
+
+The NAMED divergence of §26/§27 (the pulse ends white) is a compiler defect, not the
+app's mix. Measured on a CLEAN artifact (fresh output dir, `KOF_KEEP_ASM=1`): when an
+argument is itself a receiver call (`Sk.channel(Tokens.SurfaceCard().g(),
+Tokens.Surface2().g(), t)`), the inner call lands on top of an already-pushed operand
+and the stack-aligner padded THAT call — the inner callee's `leave`/`ret` skips the
+restore, so the padding stays on the stack and the two `popq` that move the arguments
+read it and the pushed operand twice. Result: `a*(100-t) + b*t` returns `2*b*t`
+(both channels `255`), and 16 bytes leak per evaluation. FIXED in
+`NativeX86StackAlign.regionIsStackMachine` (Kof4j, no padding when a second `call`
+sits between the call and the frame line). RED `NativeX86StackAlignScratchTest` 2/3 →
+3/3; `NativeAbiInvariantsTest` 2/2 (the §14 "zero misaligned" assertion is now the
+§1212 bound — after the fix it would force the miscompile back; MEASURED that the
+per-op push/pop leaves `%rsp` aligned and it was the padding that made it look
+otherwise); `NativeX86StackAlignVtableTest` 5/5; `NativeX86StackAlignTest` green. The
+same-slot call (`Sk.channel` fed by the three pushed operands) still measures `255` —
+a NAMED open (§1212's IR slot finding); the app keeps its pinned measurement until a
+run proves `237`.

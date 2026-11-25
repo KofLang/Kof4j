@@ -2,7 +2,7 @@
 
 # Known Bugs — handoff para o próximo agente
 
-last: §1212 (OPEN — a sum of products doubled the second term in a real module; the asm read is correct; measured 23/11)
+last: §1212 (CORRIGIDO 25/11 — chamada de receptor como argumento: o alinhador preenchia a chamada aninhada pela metade, o `leave` pulava o restore, todo canal saia dobrado e vazavam 8 bytes por avaliacao; RED `NativeX86StackAlignScratchTest`, 3/3 depois + 2/2 invariantes; a forma medida em artefato limpo nao era um `.s` velho)
 last: §1211 (CORRIGIDO 24/11 — o fd do arquivo de config vivia no %rcx (destruido pelo syscall); 3/3)
 last: §1208 (CORRIGIDO 24/11 — kof_env_getc nunca fechava o fd do environ; 2/2)
 last: §1210 (OPEN — a static overload call is emitted without the signature tag; ld refuses it; measured 23/11)
@@ -19147,8 +19147,30 @@ Medido: a DEFINICAO do metodo emite as tags de assinatura (`ovl_Duas_soma_I_I`, 
 
 ## §1211 — o descritor do ARQUIVO de configuração vivia no `%rcx` — e o syscall DESTRÓI o `%rcx`: o `close` recebia lixo (EBADF) e o descritor vazava a cada leitura do arquivo de configuração — ✅ CORRIGIDO 24/11 (lane nativa macOS `192.168.15.15:0`): o sítio fazia `movq %rax, %rcx # fd`, depois o `syscall` da leitura (que destroi o `%rcx` e o `%r11` pela ABI do syscall x86-64 do Linux), e então `movq %rcx, %rdi; movq $3, %rax; syscall` — o `close` recebia o endereco de retorno do syscall, nao o fd, falhava com EBADF e o descritor ficava aberto. O sitio agora passa pela costura (`kof_plat_open`/`kof_plat_read`/`kof_plat_close`) e guarda o fd num slot do frame (`16384(%rsp)`), nunca num registrador que o syscall destroi. PROVA `NativeConfigEnvFdLeakE2ETest` **3/3** — RED medido na arvore antiga: o binario nativo sob `ulimit -n 64` le o arquivo de configuracao 200 vezes e morre na leitura **139** imprimindo `leak at 139`; GREEN depois (imprime `done`).
 
-## §1212 — num modulo REAL, a soma de dois produtos (`var v = a * (100 - t)` e depois `v = v + b * t`) devolve o DOBRO do segundo produto (o primeiro termo e descartado) — medido 23/11 (lane wasm/caps)
+## §1212 — uma chamada de RECEPTOR como ARGUMENTO (uma chamada aninhada em cima de um operando ja' empilhado) fazia o alinhador preencher a chamada aninhada pela metade: cada canal da mistura saia dobrado e cada avaliacao vazava 8 bytes de pilha — CAUSA-RAIZ ACHADA + CORRIGIDA 25/11 (lane wasm/caps)
 
-**Estado:** 🟡 ABERTO — a ponta do pulso do `Skeleton` sai branca por causa disto; o app ainda nao evita a forma no proprio `Skeleton`.
+**Estado:** 🟢 CORRIGIDO 25/11 — `NativeX86StackAlign.regionIsStackMachine`; RED `NativeX86StackAlignScratchTest` (2/3 vermelhos antes, 3/3 depois), `NativeAbiInvariantsTest` 2/2, `NativeX86StackAlignVtableTest` 5/5, `NativeX86StackAlignTest` verde; a sonda do `Skeleton.shade` do Énois (a forma mais funda, `Sk.channel(Tokens.SurfaceCard().g(), Tokens.Surface2().g(), t)`) agora da' 255 onde antes media 237 (o caso daquele quadruplo continua aberto em §14 abaixo).
 
-Medido no `Skeleton.shade` do Énois (app `fb671cb`): `pulse=0` devolve branco (255,255,255) em vez do token `surface-2`. Instrumentando a mistura, `channel(a=255, b=237, t=0)` devolveu 255 enquanto `a*(100-t)` e' 25500 e `b*t` e' 0; com os argumentos trocados (`a=237, b=255, t=100`) o valor saiu 25500 — o SEGUNDO termo, dobrado. A IR do metodo esta' certa (`KofBinary MUL_ADD` na ordem) e o asm emitido tambem (o arquivo que roda difere do arquivo que e' lido: artefato velho), entao o suspeito restante e' o artefato que o run pega (um `.s` em cache/mais velho ao lado do novo). NAO se reproduz num modulo minimo (`NativeSumOfProductsE2ETest`, verde na base). Proximo: achar qual `.s` o link nativo consome para um modulo recompilado (reuso de caminho por tamanho de modulo — familia do §1206).
+Medido num artefato LIMPO (diretorio de saida novo, `KOF_KEEP_ASM=1`, Kof4j `a4553772f`):
+
+```asm
+    call enois_Tokens_SurfaceCard
+    movq %rax, %rdi
+    movq 8(%rax), %r11 / addq $8, %r11 / movq (%r11), %r11
+    call *%r11                 # (A) receptor do PRIMEIRO argumento — delta 8 depois do push
+    pushq %rax
+    subq $8, %rsp              # preenchimento do §1212: delta 8 na chamada aninhada
+    call enois_Tokens_Surface2 # (B) receptor do SEGUNDO argumento — o `leave`/`ret` do callee
+    addq $8, %rsp              #     descarta o preenchimento: este restore NUNCA roda
+    popq %rsi                  # le' o preenchimento como rsi…
+    popq %rdi                  # …e o operando empilhado de novo como rdi
+    call enois_Sonda_canal
+```
+
+Os dois argumentos chegam IGUAIS, entao `a * (100 - t) + b * t` devolve `2 * b * t` (`t=0` → o branco do cartao em vez do token `surface-2`; com argumentos trocados, `25500` — a duplicacao medida em 23/11). Os mesmos 16 bytes vazavam por avaliacao (a mesma forma por quadro pintado). Desligar o preenchimento so' em (B) troca o crash por numeros: o preenchimento e' o defeito, nao disfarce.
+
+**Correcao:** a chamada so' e' preenchida quando nao ha' uma SEGUNDA `call` entre ela e a linha de quadro da funcao (`regionIsStackMachine`). O `movl $2, %esi` de setup de helper continua preenchido (o preenchimento fica ABAIXO dos pushes e nao move nada que o helper le) e as formas direta/vtable dos testes do `#935`/`#970` ficam iguais.
+
+**Emenda do §14 (medida):** o emissor de maquina de pilha faz push/pop por operacao e deixa o `%rsp` alinhado em 16 em toda chamada; o `NativeAbiInvariantsTest` passa a fixar a cota de que as chamadas desalinhadas de um metodo ficam dentro das regioes aninhadas do §1212 — a assercao antiga ("zero desalinhadas") coincidia com a aritmetica E com o preenchimento, e depois da correcao forçaria o erro de volta.
+
+**Achado paralelo (ABERTO, nao corrigido):** a IR rebaixa UMA chamada `Sk.channel` para tres pushes de argumento de pilha (`pushq %rdx / pushq %rsi / pushq %rdi`), e num modulo que arrasta o runtime (Sdl3Backend) o `enois_Sk_channel` emitido le' `%rcx` para o quarto parametro enquanto o `%rcx` do chamador e' destruido pelo save/restore de callee-saved entre a ultima aritmetica e o `idiv` — a chamada no mesmo slot mediu 255 em vez de 237. A correcao acima fecha a duplicacao; esta forma de quarto slot continua aberta na contagem do §14.
