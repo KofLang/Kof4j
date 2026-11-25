@@ -1111,3 +1111,16 @@ conhecido (`pixels_de_tinta=0`, a leitura do canvas), igual a antes desta
 rodada. MEDIDO no caminho: o primeiro commit da grade passou no teste dela mas
 QUEBROU `EnoisEventsE2ETest` (sem `import enois.EventCard`) — a bateria pega o
 que o teste isolado nao pega; o import foi commitado em `a6abf79`.
+
+## §26 Rodada 23/11 (vigesima segunda) — o `Skeleton` do DS e uma medicao fresca do §1205 (app `fb671cb`)
+
+`libs/Skeleton.kf` e o `src/ui/skeleton.tsx` (`animate-pulse rounded-md
+bg-surface-2`): raio **14** (`--radius-md`, o do Input) e o pulso do Tailwind
+(100% -> 50% -> 100%). PROVA `EnoisSkeletonE2ETest`: `raio=14`,
+`meio=237,232,245` (o token `surface-2` no meio do ciclo), bateria 6/6.
+MEDIDO, e NAO corrigido: as duas PONTAS do ciclo voltam BRANCAS (o card) em vez
+do `surface-2` — a mistura por canal `a*(100-t) + b*t` nao alcanca as
+extremidades nesta arvore (familia do §1205: uma soma encadeada perde o termo da
+direita). Duas correcoes foram tentadas (passos, chamadas por canal) e as pontas
+continuaram brancas; o comportamento medido fica preso no teste como divergencia
+NOMEADA. O esqueleto de carga das comunidades segue fora de `libs/` (§1207).

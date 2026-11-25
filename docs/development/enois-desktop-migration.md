@@ -1128,3 +1128,16 @@ column **400** at 1232 and rows of 346 + 16 — 4 events = **708**. PROOF
 round. MEASURED on the way: the first commit of the grid passed its own test but
 FAILED `EnoisEventsE2ETest` (no `import enois.EventCard`) — the battery catches
 what the single test does not; the import is committed in `a6abf79`.
+
+## §26 Round 23/11 (twenty-second) — the DS `Skeleton` and a fresh §1205 measurement (app `fb671cb`)
+
+`libs/Skeleton.kf` is `src/ui/skeleton.tsx` (`animate-pulse rounded-md
+bg-surface-2`): radius **14** (`--radius-md`, the Input's) and the Tailwind pulse
+(100% → 50% → 100%). PROOF `EnoisSkeletonE2ETest`: `raio=14`,
+`meio=237,232,245` (the `surface-2` token at the middle of the cycle), battery
+6/6. MEASURED, and NOT fixed: the two ENDS of the cycle come back WHITE (the
+card) instead of `surface-2` — the per-channel mix `a*(100-t) + b*t` does not
+reach the extremes in this tree (the §1205 family: a chained sum loses the right
+term). Two fixes were tried (steps, per-channel calls) and the ends still came
+out white; the measured behaviour is pinned in the test as a NAMED divergence.
+The communities loading skeleton stays out of `libs/` (§1207).
