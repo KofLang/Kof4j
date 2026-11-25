@@ -980,6 +980,11 @@
     },
     {
       "arity": 4,
+      "en": "'{0}' takes {1} — got {2} argument{3}",
+      "pt": "'{0}' aceita {1} — recebeu {2} argumento{3}"
+    },
+    {
+      "arity": 4,
       "en": "Argument {0} of '{1}': expected '{2}' but got '{3}'",
       "pt": "argumento {0} de '{1}': esperado '{2}' mas obtido '{3}'"
     },
@@ -1413,13 +1418,18 @@
     },
     {
       "arity": 1,
+      "en": "null cannot be a {0} element: null safety works by narrowing (if (x != null)), never by direct null literals",
+      "pt": "null não pode ser um elemento {0}: a segurança contra null funciona por estreitamento (if (x != null)), nunca por literais null diretos"
+    },
+    {
+      "arity": 1,
       "en": "null cannot be assigned: null safety works by narrowing (if (x != null)), never by direct null literals (variable '{0}')",
       "pt": "null não pode ser atribuído: a segurança contra null funciona por estreitamento (if (x != null)), nunca por literais null diretos (variável '{0}')"
     },
     {
-      "arity": 3,
-      "en": "null cannot be passed as argument {0} of '{1}()': primitive parameter is non-nullable and null is never fabricable — declare the parameter '{2}?' to accept an absent value, or pass a real value",
-      "pt": "null não pode ser passado como argumento {0} de '{1}(): parâmetro primitivo não é anulável e null nunca é fabricável — declare o parâmetro '{2}?' para aceitar um valor ausente, ou passe um valor real"
+      "arity": 4,
+      "en": "null cannot be passed as argument {0} of '{1}()': parameter '{2}' is non-nullable and null is never fabricable — declare it '{3}?' to accept an absent value, or pass a real value",
+      "pt": "null não pode ser passado como argumento {0} de '{1}()': o parâmetro '{2}' não é anulável e null nunca é fabricável — declare-o como '{3}?' para aceitar um valor ausente, ou passe um valor real"
     }
   ],
   "SEM049": [
