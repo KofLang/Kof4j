@@ -4,7 +4,7 @@
 
 last: ABERTO 22/11 por ordem da mantenedora ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", alvo `enois.ia.br`). STATUS: EM DESENVOLVIMENTO
 doing: Fase 0+1 POUSADAS — os TOKENS (`libs/enois/Tokens.kf`, 61 cores + raios, gerados do CSS) E o SHELL do app (`libs/enois/Shell.kf`: header de 44 px, aside de 320 px, conteudo `--background`, o grid medido `h-11` / `gap-6` / `[1fr_320px]`) rodam no nativo e batem com o site
-next: em `enois-kof-desktop` — o vazio de `blogs` e o `EmptyState` do DS COM icone (app `1a82485`, altura 180, `EnoisBlogsVazioE2ETest`); proximas fatias: o mesmo componente nos vazios das outras rotas (comunidades mantem o sem icone), o esqueleto de carga (bloqueado pelo §1207/§1209), os valores do cartao da API; no Kof4j a semente da busca do §1209 e a face do §1207
+next: em `enois-kof-desktop` — o `EmptyState` do DS serve agora `blogs` (180) e mede `projetos` (180 com uma linha de descricao, 200 com duas, app `b9bc73b`); continua nomeado: a rota somar a altura das linhas quebradas, o esqueleto de carga (§1207/§1209), os valores do cartao da API; no Kof4j a semente da busca do §1209 e a face do §1207
 location: repository
 state: active
 
@@ -987,3 +987,19 @@ passa a chamar ele (pintava uma linha solta de 14 px com altura 40), e `BlogsScr
 / `emptyDirectory()` carregam as strings medidas de `texts.ts` 1960-1973.
 PROVA `EnoisBlogsVazioE2ETest`: `altura=180`, `altura2=180` (busca vazia),
 `titulo=Blogs`; `EnoisBlogsE2ETest` segue verde (2/2).
+
+## §16 Rodada 23/11 (decima segunda) — o vazio de `projetos` medido; altura por linhas de descricao (app `b9bc73b`)
+
+`routes/projetos.index.tsx` 120-126 embrulha o `EmptyState` (`FolderKanban`,
+`texts.projects.empty` "Nenhum projeto encontrado.", `emptyHint` "Você fez algo?
+Envie o link e ele aparece aqui depois da revisão.") num `surface-card`.
+O icone `FolderKanban` ainda NAO e pintado — a caixa (`h-11 w-11 rounded-2xl`,
+44) e, e o glifo fica como divergencia NOMEADA (cada icone do DS precisa do
+proprio desenho). A altura para N linhas quebradas da descricao e `heightN(n)` =
+`height() + DescriptionBlock.extra(n)` (20 por linha extra). PROVA
+`EnoisProjectsVazioE2ETest`: `uma=180`, `duas=200`, `titulo=Nenhum projeto
+encontrado.`, `dica=Você fez algo? Envie o link…`; bateria 8/8 com blogs,
+projetos, comunidades. MEDIDO no caminho: a sobrecarga `height()` / `height(Int)`
+resolve a sem-arg dentro da propria classe (a chamada com `Int` precisa do
+nome qualificado), e um produto dentro de uma soma maior perde termos nesta
+arvore (familia §1205/§1206) — as duas formas foram evitadas.

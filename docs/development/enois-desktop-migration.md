@@ -4,7 +4,7 @@
 
 last: OPENED 22/11 on the maintainer's order ("seu trabalho é fazer funcionar aqui uma migração de 1:1 do enois, reprodução fiel pra um cliente desktop funcional", target `enois.ia.br`). STATUS: UNDER DEVELOPMENT
 doing: Fase 0+1 LANDED — the TOKENS (`libs/enois/Tokens.kf`, 61 colours + radii, generated from the CSS) AND the app SHELL (`libs/enois/Shell.kf`: the 44 px header, the 320 px aside, the `--background` content, the measured `h-11` / `gap-6` / `[1fr_320px]` grid) run on the native and match the site
-next: in `enois-kof-desktop` — `blogs` empty state is the DS `EmptyState` WITH icon (app `1a82485`, height 180, `EnoisBlogsVazioE2ETest`); next slices: the same component on the other routes' empty states (communities keeps the icon-less one), the loading skeleton (blocked by §1207/§1209), the card values from the API; in Kof4j the §1209 search seed and the §1207 face
+next: in `enois-kof-desktop` — the DS `EmptyState` now serves `blogs` (180) and measures `projetos` (180 for one description line, 200 for two, app `b9bc73b`); remaining named: the route must add its own wrapped-line height, the loading skeleton (§1207/§1209), the card values from the API; in Kof4j the §1209 search seed and the §1207 face
 location: repository
 state: active
 
@@ -1003,3 +1003,19 @@ now delegates to it (it painted a bare 14 px line of height 40), and `BlogsScree
 / `emptyDirectory()` carry the strings measured from `texts.ts` 1960-1973.
 PROOF `EnoisBlogsVazioE2ETest`: `altura=180`, `altura2=180` (empty search),
 `titulo=Blogs`; `EnoisBlogsE2ETest` stays green (2/2).
+
+## §16 Round 23/11 (twelfth) — the `projetos` empty state measured; height by description lines (app `b9bc73b`)
+
+`routes/projetos.index.tsx` 120-126 wraps the `EmptyState` (`FolderKanban`,
+`texts.projects.empty` "Nenhum projeto encontrado.", `emptyHint` "Você fez algo?
+Envie o link e ele aparece aqui depois da revisão.") in a `surface-card`.
+The icon `FolderKanban` is NOT painted yet — the box (`h-11 w-11 rounded-2xl`,
+44) is, and the glyph stays a NAMED divergence (each DS icon needs its own
+drawing). The height for N wrapped description lines is `heightN(n)` =
+`height() + DescriptionBlock.extra(n)` (20 per extra line). PROOF
+`EnoisProjectsVazioE2ETest`: `uma=180`, `duas=200`, `titulo=Nenhum projeto
+encontrado.`, `dica=Você fez algo? Envie o link…`; battery 8/8 with blogs,
+projects, communities. MEASURED on the way: the overload `height(0 args)` /
+`height(Int)` resolves the no-arg one inside the same class (the `Int` call
+needs the qualified name), and a product inside a bigger sum loses terms in this
+tree (§1205/§1206 family) — both shapes avoided.
