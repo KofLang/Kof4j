@@ -1124,3 +1124,11 @@ extremidades nesta arvore (familia do §1205: uma soma encadeada perde o termo d
 direita). Duas correcoes foram tentadas (passos, chamadas por canal) e as pontas
 continuaram brancas; o comportamento medido fica preso no teste como divergencia
 NOMEADA. O esqueleto de carga das comunidades segue fora de `libs/` (§1207).
+
+## §27 Rodada 23/11 (vigesima terceira) — o §1212 achado no pulso do `Skeleton` (ABERTO), nada pago em codigo
+
+As pontas do pulso do `Skeleton` saem brancas (a divergencia NOMEADA do §26). Esta
+rodada rastreou: a mistura devolve o segundo produto dobrado no modulo real, enquanto
+a IR e o asm lido estao certos e um modulo minimo reproduz os numeros certos. O
+`known-bugs §1212` carrega a medicao e o proximo passo (qual `.s` o link nativo
+consome). Duas contornacoes foram tentadas no app e revertidas (arvore em `fb671cb`).

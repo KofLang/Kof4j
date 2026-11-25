@@ -1141,3 +1141,11 @@ reach the extremes in this tree (the §1205 family: a chained sum loses the righ
 term). Two fixes were tried (steps, per-channel calls) and the ends still came
 out white; the measured behaviour is pinned in the test as a NAMED divergence.
 The communities loading skeleton stays out of `libs/` (§1207).
+
+## §27 Round 23/11 (twenty-third) — §1212 found in the `Skeleton` pulse (OPEN), nothing landed in code
+
+The `Skeleton` pulse ends come out white (the NAMED divergence from §26). This round
+traced it: the mix returns the second product doubled in the real module, while the
+IR and the read asm are correct and a minimal module reproduces the right numbers.
+`known-bugs §1212` carries the measurement and the next step (which `.s` the native
+link consumes). Two workarounds were tried in the app and reverted (tree at `fb671cb`).
