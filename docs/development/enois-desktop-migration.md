@@ -1918,3 +1918,10 @@ blank paragraph measures 0). NAMED divergence: the three-block document measures
 of 101 — one block height too many in the walk (§1226 UPDATE 9, which also records that an inline
 `if`-return inside a guard aborts the program with out of memory while the same check in a counted
 loop does not). NEXT: bisect the 121 with four prints (kind + height per block).
+
+APP SIDE LANDED (round §88, app `18edd16`): the post BODY as text — `BlogCuerpo`
+(`libs/BlogCuerpo.kf`): one 26 px line per author line (`whitespace-pre-line`, the
+`leading-relaxed` of `text-base`), word wrapping at a width, `lineCount`/`lineAt` (empty text = 0
+lines). Proof `EnoisTextEmbedE2ETest` (`linhas=3`, `linhasVazio=0`, `linha3=c`, `altura=78`).
+This is the simple-text path of the body; the RICH parser stays `RichText.kf` and waits for §1226
+(the `out of memory` on documents of several blocks is still open — UPDATE 9).

@@ -1616,3 +1616,9 @@ LADO DO APP ENTREGUE (rodada §87, app `e9cd7f9`): as ALTURAS dos blocos do Rich
 `heading/paragraph/list` (o paragrafo vazio mede 0). DIVERGENCIA NOMEADA: o documento de tres
 blocos mede 121 contra a soma de 101 (§1226 ATUALIZACAO 9). PROXIMO: bissecar o 121 com quatro
 impressoes.
+
+LADO DO APP ENTREGUE (rodada §88, app `18edd16`): o CORPO do post em texto — `BlogCuerpo`
+(`libs/BlogCuerpo.kf`): uma linha de 26 por linha do autor (`whitespace-pre-line`, o
+`leading-relaxed` do `text-base`), dobra por palavra numa largura, `lineCount`/`lineAt`. Prova
+`EnoisTextEmbedE2ETest` (`linhas=3`, `linhasVazio=0`, `linha3=c`, `altura=78`). E' o caminho de
+texto simples do corpo; o parser RICO segue `RichText.kf` esperando o §1226.
