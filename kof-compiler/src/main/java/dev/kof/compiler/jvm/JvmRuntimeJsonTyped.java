@@ -19,16 +19,16 @@ public final class JvmRuntimeJsonTyped {
                 // (kof_json_bind) fala o resto. Antes, esse caso caía em
                 // kof_json_decode_map (passthrough cru) e perdia os valores
                 // internos em SILÊNCIO (ClassCastException no primeiro uso).
-                public static java.util.Map<Object, Object> kof_json_decode_typed(String json, String signature)
+                // #1177: o retorno vira Object — o decode_typed agora também
+                // serve a RECORDS instanciados (Pagina<Item>), cujo valor é o
+                // record, não um Map. O chamador faz o CHECKCAST (o emit).
+                public static Object kof_json_decode_typed(String json, String signature)
                         throws Exception {
                     int[] pos = new int[] { 0 };
                     java.lang.reflect.Type t = parseSignature(signature, pos);
                     Class<?> raw = t instanceof Class<?> c ? c
                             : (Class<?>) ((java.lang.reflect.ParameterizedType) t).getRawType();
-                    @SuppressWarnings("unchecked")
-                    java.util.Map<Object, Object> out =
-                            (java.util.Map<Object, Object>) kof_json_bind(raw, t, kof_json_parse(json));
-                    return out;
+                    return kof_json_bind(raw, t, kof_json_parse(json));
                 }
 
                 /** Parser do subconjunto de JVM Signature que o compilador

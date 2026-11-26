@@ -38,7 +38,7 @@ public final class JvmRuntimeCallDescriptors {
             case "kof_json_decode_string_array" -> "(Ljava/lang/String;)[Ljava/lang/String;";
             case "kof_json_decode_object_list" -> "(Ljava/lang/String;Ljava/lang/String;)Ljava/util/ArrayList;";
             case "kof_json_decode_map" -> "(Ljava/lang/String;)Ljava/util/Map;";
-            case "kof_json_decode_typed" -> "(Ljava/lang/String;Ljava/lang/String;)Ljava/util/Map;";
+            case "kof_json_decode_typed" -> "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/Object;"; // #1177: também record instanciado — o cast é do chamador
             case "kof_json_decode_object_map" -> "(Ljava/lang/String;Ljava/lang/String;)Ljava/util/Map;";
             case "kof_ffi_i" -> "(Ljava/lang/String;Ljava/lang/String;I)I";
             case "kof_ffi_si" -> "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)I";

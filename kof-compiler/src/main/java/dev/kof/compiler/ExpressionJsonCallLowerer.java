@@ -162,6 +162,32 @@ public final class ExpressionJsonCallLowerer {
         Type listElementType = driver.listElementType(targetType);
         String decodeFn = JsonDispatch.decodeFunction(targetType, listElementType);
         List<Type> decodeParams = List.of(BuiltinTypes.STRING);
+        // #1177: um record/classe de usuário INSTANCIADO (Pagina<Item>) não
+        // pode usar o decoder por-nome (`kof_json_decode_Pagina`) — ele
+        // geraria UM método genérico sem saber quem é o T. O caminho do #633
+        // (signature-guided) resolve: a assinatura CONCRETA do alvo viaja e o
+        // binder substitui o tvar pelo arg (a ClassSignature ordena).
+        if (targetType instanceof Type.ClassType dct2
+                && !dct2.typeArguments().isEmpty()
+                && !BuiltinTypes.isList(targetType) && !BuiltinTypes.isMap(targetType)
+                && driver.target == Target.JVM) {
+            RecordDeclarationNode rdn2 = driver.currentUnit.declarations().stream()
+                    .filter(d -> d instanceof RecordDeclarationNode rd && rd.name().equals(dct2.name()))
+                    .map(d -> (RecordDeclarationNode) d).findFirst().orElse(null);
+            if (rdn2 != null) {
+                // o decoder tipado devolve Map (o raw) — o CHECKCAST ao alvo
+                // concerta a pilha com o que o consumidor espera.
+                decodeFn = "kof_json_decode_typed";
+                decodeParams = List.of(BuiltinTypes.STRING, BuiltinTypes.STRING);
+                ops.add(new KofLoadLiteral(BuiltinTypes.STRING,
+                        JvmTypeMapper.toGenericSignature(targetType)));
+                ops.add(new KofCall(new Type.ClassType("java.lang", "Object", List.of()),
+                        "kof_json_decode_typed", decodeParams,
+                        new Type.ClassType("java.lang", "Object", List.of()), KofCallKind.FUNCTION));
+                ops.add(new KofCheckCast(targetType));
+                return localIdx;
+            }
+        }
         if (BuiltinTypes.isList(targetType)
                 && driver.listElementType(targetType) instanceof Type.ClassType ect
                 && !BuiltinTypes.isString(ect)
@@ -259,6 +285,10 @@ public final class ExpressionJsonCallLowerer {
                 decodeParams = List.of(BuiltinTypes.STRING, BuiltinTypes.STRING);
                 String sig = JvmTypeMapper.toGenericSignature(targetType);
                 ops.add(new KofLoadLiteral(BuiltinTypes.STRING, sig));
+                // o typed devolve Object (#1177) — o cast devolve a pilha ao Map
+                ops.add(new KofCall(targetType, "kof_json_decode_typed", decodeParams,
+                        targetType, KofCallKind.FUNCTION));
+                return localIdx;
             } else {
                 decodeFn = "kof_json_decode_map";
                 decodeParams = List.of(BuiltinTypes.STRING);

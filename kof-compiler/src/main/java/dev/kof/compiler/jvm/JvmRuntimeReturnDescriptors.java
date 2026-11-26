@@ -22,7 +22,8 @@ public final class JvmRuntimeReturnDescriptors {
             case "kof_json_decode_int_list", "kof_json_decode_string_list", "kof_json_decode_list"
                     -> "Ljava/util/ArrayList;";
             case "kof_json_decode_object_list" -> "Ljava/util/ArrayList;";
-            case "kof_json_decode_map", "kof_json_decode_object_map", "kof_json_decode_typed" -> "Ljava/util/Map;";
+            case "kof_json_decode_map", "kof_json_decode_object_map" -> "Ljava/util/Map;";
+            case "kof_json_decode_typed" -> "Ljava/lang/Object;"; // #1177
             case "kof_json_decode_int_array" -> "[I";
             case "kof_json_decode_bool_array" -> "[Z";
             case "kof_json_decode_long_array" -> "[J";

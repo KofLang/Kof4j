@@ -327,6 +327,15 @@ public final class JvmRuntimeJson {
                     if (type.isAssignableFrom(ArrayList.class) || type == List.class || type == java.util.Collection.class) {
                         if (value instanceof List<?> l) {
                             java.lang.reflect.Type elem = listElement(generic);
+                            // #1177: o chamador (o decode_typed do record
+                            // instanciado) passa o TIPO DO ELEMENTO direto no
+                            // slot genérico (o container sem forma na reflexão):
+                            // o elemento é o PRÓPRIO generic — nunca o Map cru.
+                            if (elem == null && generic instanceof Class<?> gc
+                                    && !gc.isArray() && !gc.isPrimitive()
+                                    && !gc.isAssignableFrom(java.util.List.class)) {
+                                elem = generic;
+                            }
                             if (elem == null) return new ArrayList<Object>(l);
                             ArrayList<Object> out = new ArrayList<>();
                             for (Object e : l) out.add(bindByType(elem, e));
@@ -380,7 +389,17 @@ public final class JvmRuntimeJson {
                                     throw new RuntimeException("JSN004: missing field '"
                                             + comps[i].getName() + "' for " + type.getSimpleName());
                                 }
-                                args[i] = kof_json_bind(comps[i].getType(), comps[i].getGenericType(), cv);
+                                // #1177: o componente TypeVariable (`List<T>` no
+                                // record genérico) resolve pelo ARG da assinatura
+                                // concreta do chamador (LPagina<Lcom/Item;>; — o
+                                // caminho kof_json_decode_typed), pela POSIÇÃO do
+                                // nome do tvar nos type-params DA CLASSE
+                                // (a ClassSignature ordena e getGenericType
+                                // devolve TypeVariable com o nome). Sem o arg
+                                // concreto, o tvar apaga (Object) — decode cru.
+                                java.lang.reflect.Type cg = substTypeVars(
+                                        comps[i].getGenericType(), generic);
+                                args[i] = kof_json_bind(comps[i].getType(), cg, cv);
                             }
                             return type.getDeclaredConstructor(argTypes).newInstance(args);
                         }
@@ -419,6 +438,43 @@ public final class JvmRuntimeJson {
                         if (ta.length == 1) return ta[0];
                     }
                     return null;
+                }
+
+                // #1177: substitui os TypeVariable de um tipo reflexivo PELOS
+                // args da assinatura CONCRETA do chamador (LPagina<LItem;>;):
+                // o nome do tvar vem da ClassSignature do record (a ordem dos
+                // type-params). O tvar residual vira Object (o erasure).
+                private static java.lang.reflect.Type substTypeVars(java.lang.reflect.Type t, java.lang.reflect.Type concrete) {
+                    if (!(concrete instanceof java.lang.reflect.ParameterizedType ptg)
+                            || !(ptg.getRawType() instanceof Class<?> raw)) return t;
+                    java.lang.reflect.Type[] targs = ptg.getActualTypeArguments();
+                    java.lang.reflect.TypeVariable<?>[] cps = raw.getTypeParameters();
+                    if (t instanceof java.lang.reflect.TypeVariable<?> tv) {
+                        for (int k = 0; k < cps.length && k < targs.length; k++) {
+                            if (cps[k].getName().equals(tv.getName())) return targs[k];
+                        }
+                        return Object.class;
+                    }
+                    if (t instanceof java.lang.reflect.ParameterizedType pt) {
+                        java.lang.reflect.Type[] oa = pt.getActualTypeArguments();
+                        java.lang.reflect.Type[] na = new java.lang.reflect.Type[oa.length];
+                        boolean mudou = false;
+                        for (int i = 0; i < oa.length; i++) {
+                            na[i] = substTypeVars(oa[i], ptg);
+                            if (na[i] != oa[i]) mudou = true;
+                        }
+                        return mudou ? new TypeSubst(pt.getRawType(), na) : t;
+                    }
+                    return t;
+                }
+
+                /** ParameterizedType sintético (o type-args substituído). */
+                private static final class TypeSubst implements java.lang.reflect.ParameterizedType {
+                    private final java.lang.reflect.Type raw; private final java.lang.reflect.Type[] args;
+                    TypeSubst(java.lang.reflect.Type raw, java.lang.reflect.Type[] args) { this.raw = raw; this.args = args; }
+                    public java.lang.reflect.Type getRawType() { return raw; }
+                    public java.lang.reflect.Type[] getActualTypeArguments() { return args; }
+                    public java.lang.reflect.Type getOwnerType() { return null; }
                 }
 
                 // binda um elemento de lista cujo tipo só é conhecido via reflexão

@@ -41,7 +41,7 @@ class ReturnNullNonNullableE2ETest {
     }
 
     @Test
-    void returnNullOnNonNullableStringIsRefusedJvm() throws Exception {
+    void returnNullOnNonNullableStringCompilesGoldenJvm() throws Exception {
         CompilationResult r = check("""
                 class U2 {
                     static String volta() {
@@ -53,16 +53,15 @@ class ReturnNullNonNullableE2ETest {
                     println(U2.volta())
                 }
                 """);
-        assertFalse(r.success(),
-                "known-bugs §1221: `return null` with a NON-nullable return type must be "
-                        + "REFUSED at check time — the NPE surfacing at runtime was the measured "
-                        + "defect (Cannot invoke String.length() because the return value is null)");
-        assertTrue(diagnosticsOf(r).contains("SEM048"),
-                "the refusal must be SEM048, got: " + diagnosticsOf(r));
+        // #1233 (a reversão do §1221): a matriz GOLDEN (conformanceNullSafety)
+        // usa `return null` num retorno `String` e narrowa no chamador — o
+        // contrato canônico é o decode aceitar e o narrow cuidar. O return
+        // null COMPILA (o guard SEM048 foi revertido).
+        assertTrue(r.success(), "the golden contract wins: " + diagnosticsOf(r));
     }
 
     @Test
-    void returnNullOnNonNullableIntIsRefusedJvm() throws Exception {
+    void returnNullOnNonNullableIntCompilesGoldenJvm() throws Exception {
         CompilationResult r = check("""
                 class U4 {
                     static Int dez() {
@@ -74,10 +73,11 @@ class ReturnNullNonNullableE2ETest {
                     println(U4.dez())
                 }
                 """);
-        assertFalse(r.success(),
-                "`return null` with a primitive return type must also be refused: "
-                        + diagnosticsOf(r));
-        assertTrue(diagnosticsOf(r).contains("SEM048"), diagnosticsOf(r));
+        // #1233 (a reversão do §1221): a matriz GOLDEN (conformanceNullSafety)
+        // usa `return null` num retorno `String` e narrowa no chamador — o
+        // contrato canônico é o decode aceitar e o narrow cuidar. O return
+        // null COMPILA (o guard SEM048 foi revertido).
+        assertTrue(r.success(), "the golden contract wins: " + diagnosticsOf(r));
     }
 
     @Test

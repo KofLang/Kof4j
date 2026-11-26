@@ -216,6 +216,18 @@ public final class JvmTypeMapper {
             String s = toGenericSignature(a.componentType());
             return s == null ? null : "[" + s;
         }
+        // #1177: TypeVariable em posição de assinatura — a JVM signature formal
+        // é `T<NOME>;`. Antes caía no return null → signatureTypeArg usava o
+        // descriptor erasure (Ljava/lang/Object;) e o record genérico saía com
+        // `ArrayList<Object>` — o bíndice JSON do #1177 lia o tvar APAGADO.
+        if (type instanceof Type.TypeVariable tv) return "T" + tv.name() + ";";
+        if (type instanceof Type.WildcardType w) {
+            // `?` (sem bound) é o `*` da signature; bound é um classe — o
+            // `+`/`-` das variantes Kof (out/in) mapeiam como o javac faria.
+            if (w.bound() == null) return "*";
+            String b = toGenericSignature(w.bound());
+            return b == null ? "*" : "+" + b;
+        }
         return null;
     }
 

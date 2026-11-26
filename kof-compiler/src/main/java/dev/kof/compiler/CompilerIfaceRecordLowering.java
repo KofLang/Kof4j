@@ -178,7 +178,20 @@ public final class CompilerIfaceRecordLowering {
         // IR — o emissor JS congela o objeto (ABI JS) e o Native consulta-a p/
         // a decisão de ABI registrada no plano (o heap atual já entrega a
         // semântica de valor: imutável + igualdade estrutural).
-        return new IRClass(internalName, superName, ifaces, access, fields, methods, List.of(), null,
+        // #1177: a ClassSignature formal do record genérico — sem ela a
+        // reflexão (getRecordComponents) não sabe que `T` é um type-param DA
+        // CLASSE e o TypeVariable do componente fica sem argumento para
+        // substituir no parser do decode. É a mesma forma do javac:
+        // `record Pagina<T>` → `<T:Ljava/lang/Object;>Ljava/lang/Record;`.
+        String classSig = null;
+        if (!typeParams.isEmpty()) {
+            StringBuilder sbs = new StringBuilder("<");
+            for (String tp : typeParams) sbs.append(TypeParams.name(tp)).append(":Ljava/lang/Object;");
+            sbs.append(">").append("L").append(superName).append(";");
+            for (String in : ifaces) sbs.append("L").append(in).append(";");
+            classSig = sbs.toString();
+        }
+        return new IRClass(internalName, superName, ifaces, access, fields, methods, List.of(), classSig,
                 typeId, CompilerAnnotations.lowerAnnotations(driver, rec.annotations()), true,
                 rec.modifiers().contains("value"));
     }
