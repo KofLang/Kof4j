@@ -1764,3 +1764,18 @@ PENDÊNCIA NOMEADA — agora as duas únicas no corpo: o PESO do negrito e a INC
 `Font` do shim tem uma face por arquivo, então um trecho não muda o peso), e os trechos inline só são
 desenhados quando o bloco cabe numa linha (um bloco dobrado pinta o texto puro linha a linha, sem a
 cor/marca por trecho).
+
+## §97 (25/11) — a dobra preserva os TRECHOS inline: as palavras carregam o tipo e a cor do trecho através da quebra de linha
+
+MEDIDO (app `BlogCuerpoRich.wordsOf`/`pushWords`/`wrappedLinesOf` + o record `Palavra`,
+`EnoisBlogCuerpoWrapInlineE2ETest` no nativo): `blocks("um dois **tres quatro** cinco")` dá CINCO palavras
+com o trecho de origem (`w0=text:um`, `w2=bold:tres`, `w3=bold:quatro`, `w4=text:cinco`); a um terço da
+largura total o bloco dobra (mais de uma linha), a altura dobrada é `linhas × 20` e o `paintWrapped`
+quebra por PALAVRAS carregando a cor e a marca de cada uma — então um trecho negrito/código/link
+sobrevive à dobra (a fatia anterior pintava um bloco dobrado como texto puro). O `wrappedHeight` agora usa
+o MESMO `wrappedLinesOf` da pintura, então os dois continuam uma regra só.
+
+BATERIA: **95 testes / 1 falha** (a que resta é o `EnoisTextE2ETest` `0 px`, §1197).
+
+PENDÊNCIA NOMEADA (agora a única na pintura do corpo): o PESO do negrito e a INCLINAÇÃO do itálico — o
+`Font` do shim carrega uma face por arquivo, então um trecho pinta a cor/as marcas, mas não troca a face.

@@ -2069,3 +2069,18 @@ NAMED PENDING now the only two left in the body's paint: the bold WEIGHT and the
 shim's `Font` has one face per file, so a span cannot change weight), and the inline spans are drawn
 only when the block fits on one line (a wrapped block paints its plain text line by line, without the
 per-span colour/marks).
+
+## §97 (25/11) — wrapping keeps the INLINE SPANS: the words carry their span's kind and colour through the line break
+
+MEASURED (app `BlogCuerpoRich.wordsOf`/`pushWords`/`wrappedLinesOf` + the `Palavra` record,
+`EnoisBlogCuerpoWrapInlineE2ETest` on native): `blocks("um dois **tres quatro** cinco")` gives FIVE words
+with their origin span (`w0=text:um`, `w2=bold:tres`, `w3=bold:quatro`, `w4=text:cinco`); at a third of
+the full width the block wraps (more than one row), the wrapped height is `rows × 20`, and
+`paintWrapped` breaks lines by WORDS carrying each word's colour and mark — so a bold/code/link span
+survives the wrap (the previous slice painted a wrapped block as plain text). `wrappedHeight` now uses
+the SAME `wrappedLinesOf` as the painting, so the two remain one rule.
+
+BATTERY: **95 tests / 1 failure** (the remaining one is `EnoisTextE2ETest` `0 px`, §1197).
+
+NAMED PENDING (now the only one in the body's paint): bold WEIGHT and italic SLANT — the shim's `Font`
+carries one face per file, so a span can paint its colour/marks but not change the typeface.
