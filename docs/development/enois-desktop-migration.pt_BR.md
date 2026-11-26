@@ -2104,3 +2104,13 @@ PROVA: `EnoisBlogCuerpoHeadingE2ETest` (`tipo=heading,2,3`, `linha=24,20,20`, `b
 Kof4j (`known-bugs`, EN+PT): §1241 UPDATE 1 — o reprodutor só do compilador foi TENTADO e NÃO achado (classe no mesmo arquivo + `==` + três prints passa 2/2; a forma que falha no app precisa de um pacote multi-arquivo cuja classe guarda um handle `extern`); o próximo passo é copiar o `main` do app como DADO num E2E do Kof4j com o layout exato do módulo. §1244 UPDATE 1 — depois das correções do tip (`0549bad95` SEM093 + a face de args do `_start` nativo) o flake continua intermitente a uma taxa menor, então fica ABERTO.
 
 PRÓXIMO (nomeado): o fixture de dois arquivos do §1241; depois, re-conferir a caneta do `EnoisBlogCuerpoWrapInsideE2ETest`.
+
+## §117 (26/11) — A CITAÇÃO DOBRA: o DS força o texto citado a dobrar como qualquer texto (`forceText={!isBlock}`), e o pintor desenhava UMA linha com a barra de uma linha
+
+MEDIDO (DS `rich-text-node` + `rich-text.tsx:100`: `<blockquote className="my-2 border-l-2 border-border-soft pl-3 text-text-subtle">`): a largura útil é a da caixa menos o `pl-3` (12) e o `border-l-2` (2), e a altura do bloco é `my-2` dos dois lados (8 + 8) mais as linhas pintadas. O pintor desenhava a barra na altura de uma linha e o texto numa linha só, e devolvia o `quoteHeight()` fixo (36) — uma citação longa numa coluna estreita perdia o resto do texto e a barra ficava curta.
+
+CORREÇÃO (app `c779c4c`): `paintQuoteWrapped(b, f, mark, q, x, top, width)` / `paintQuoteIn(…)` (o `paintQuote` de seis argumentos mantém o comportamento de uma linha para o caminho do `paint`), `quoteRows(f, q, usable)` reaproveitando o `wrappedLinesOfMarked` do corpo, e o `paintQuoteRows` desenhando as palavras linha a linha com as mesmas marcas; a barra tem a altura de `rows * linha`; o `RichText.quoteHeightOf(rows)` = `my-2` × 2 + linhas × linha (uma linha continua devolvendo os 36 de antes).
+
+PROVA (executada): `EnoisBlogCuerpoQuoteWrapE2ETest` (nativo) — `tipo=quote`, `larga=36` (a altura do DS para uma linha), `linhas=4` na largura apertada, `apertada=96` (16 + 4 × 20), quadro apresentado; 2/2 nas duas primeiras rodadas. O `EnoisBlogCuerpoQuoteE2ETest` que já existia (o `paintQuote` de 6 argumentos) continua verde. Bateria **110 testes / 1 falha** (só o `0 px` do §1197).
+
+PRÓXIMO NOMEADO: §1241 (comparação de objetos numa cadeia de prints) e §1244 (flake SDL/Fontconfig) continuam ABERTOS no `known-bugs`; as marcas internas de uma linha dobrada da citação usam o mesmo `paintWord` do corpo, então herdam o comportamento do §112.

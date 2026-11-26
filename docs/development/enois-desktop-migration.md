@@ -2406,3 +2406,13 @@ PROOF: `EnoisBlogCuerpoHeadingE2ETest` (`tipo=heading,2,3`, `linha=24,20,20`, `b
 Kof4j (`known-bugs`, EN+PT): §1241 UPDATE 1 — the compiler-only reproducer was TRIED and NOT found (a same-file class + `==` + three prints passes 2/2; the app's failing shape needs a multi-file package whose class holds an `extern` handle); next step is copying the app's `main` as DATA into a Kof4j E2E with the exact module layout. §1244 UPDATE 1 — after the tip fixes (`0549bad95` SEM093 + the native `_start` args face) the flake is still intermittent at a lower rate, so it stays OPEN.
 
 NEXT (named): the §1241 two-file fixture; then re-check `EnoisBlogCuerpoWrapInsideE2ETest`'s pen.
+
+## §117 (26/11) — THE QUOTE WRAPS: the DS forces the quoted text to wrap like any text (`forceText={!isBlock}`), and the painting draws ONE line with a one-line bar
+
+MEASURED (DS `rich-text-node` + `rich-text.tsx:100`: `<blockquote className="my-2 border-l-2 border-border-soft pl-3 text-text-subtle">`): the useful width is the block width minus the `pl-3` (12) and the `border-l-2` (2), and the block height is `my-2` on both sides (8 + 8) plus the painted lines. The painting drew the bar at one line's height and the text on one line, then returned the fixed `quoteHeight()` (36) — a long quote in a narrow column lost the rest of its text and the bar was too short.
+
+FIX (app `c779c4c`): `paintQuoteWrapped(b, f, mark, q, x, top, width)` / `paintQuoteIn(…)` (the six-argument `paintQuote` keeps the one-line behaviour for the `paint` path), `quoteRows(f, q, usable)` reusing the body's `wrappedLinesOfMarked`, and `paintQuoteRows` drawing the words line by line with the same marks; the bar's height is `rows * line`; `RichText.quoteHeightOf(rows)` = `my-2` × 2 + rows × line (a one-row quote still returns the old 36).
+
+PROOF (executed): `EnoisBlogCuerpoQuoteWrapE2ETest` (native) — `tipo=quote`, `larga=36` (the DS height for one line), `linhas=4` in the narrow width, `apertada=96` (16 + 4 × 20), frame presented; 2/2 on the first two runs. The existing `EnoisBlogCuerpoQuoteE2ETest` (six-argument `paintQuote`) still green. Battery **110 tests / 1 failure** (only the §1197 `0 px`).
+
+NAMED NEXT: §1241 (object equality inside a print chain) and §1244 (SDL/Fontconfig flake) stay OPEN in `known-bugs`; the quote's inner marks inside a wrapped line use the same `paintWord` as the body, so they inherit the §112 behaviour.
