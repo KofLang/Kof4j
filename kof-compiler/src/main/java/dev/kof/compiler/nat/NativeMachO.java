@@ -148,6 +148,13 @@ public final class NativeMachO {
                         ? sectionLine(".section .text") : currentSection).append('\n');
                 continue;
             }
+            if (trimmed.startsWith(".lcomm ") || trimmed.startsWith(".comm ")) {
+                // o Mach-O nao tem .lcomm/.comm: a forma e' .zerofill com a
+                // secao e a ALINHACAO em potencia de 2 (medido no LINK:
+                // "undefined symbol: vk64_scratch").
+                out.append(zeroFill(trimmed)).append('\n');
+                continue;
+            }
             String gnudirective = gnudirective(trimmed);
             if (gnudirective != null) {
                 // uma DIRETIVA GNU que o assembler do Mach-O nao tem
@@ -323,7 +330,16 @@ public final class NativeMachO {
                 // 'x' do hex como início de símbolo e prefixava o literal
                 // (`0_x4f0cedc95a718dd4` — "unexpected token").
                 int j = i;
-                while (j < line.length() && isNumberPart(line.charAt(j))) j++;
+                while (j < line.length() && isNumberPart(line.charAt(j))) {
+                    // um DESLOCAMENTO com simbolo (`5904+vk64_scratch`) — o
+                    // numero para no operador: sem isto o simbolo era comido
+                    // como parte do numero e ficava SEM prefixo (medido no
+                    // LINK: "undefined symbol: vk64_scratch").
+                    char c2 = line.charAt(j);
+                    if ((c2 == '+' || c2 == '-') && j + 1 < line.length()
+                            && isSymbolStart(line.charAt(j + 1))) break;
+                    j++;
+                }
                 out.append(line, i, j);
                 i = j;
                 continue;
@@ -334,7 +350,8 @@ public final class NativeMachO {
                 String token = line.substring(i, j);
                 // o PRIMEIRO token da linha é a diretiva (`.quad`) — verbatim;
                 // os operandos símbolo ganham o prefixo.
-                if (!first && isGlobalSymbol(token)) {
+                if (C_LEADING_UNDERSCORE.contains(token)
+                        || (!first && isGlobalSymbol(token))) {
                     out.append('_');
                 }
                 out.append(token);
@@ -446,7 +463,16 @@ public final class NativeMachO {
                 // um NÚMERO (`0x4f0c…`, `16`) — o defeito do meu M-1 lia o
                 // 'x' do hex como início de símbolo e prefixava o literal.
                 int j = i;
-                while (j < code.length() && isNumberPart(code.charAt(j))) j++;
+                while (j < code.length() && isNumberPart(code.charAt(j))) {
+                    // um DESLOCAMENTO com simbolo (`128+vk64_scratch`) — o
+                    // numero para no operador: sem isto o simbolo era comido
+                    // como parte do numero e ficava SEM prefixo (medido no
+                    // LINK: "undefined symbol: vk64_scratch").
+                    char c2 = code.charAt(j);
+                    if ((c2 == '+' || c2 == '-') && j + 1 < code.length()
+                            && isSymbolStart(code.charAt(j + 1))) break;
+                    j++;
+                }
                 out.append(code, i, j);
                 i = j;
                 continue;
@@ -460,7 +486,9 @@ public final class NativeMachO {
                     // um símbolo. O defeito do meu M-1 prefixava o mnemônico
                     // depois de um prefixo (`lock _cmpxchg`).
                     inMnemonic = isInstructionPrefix(token);
-                } else if (isGlobalSymbol(token)) {
+                } else if (C_LEADING_UNDERSCORE.contains(token) || isGlobalSymbol(token)) {
+                    // o nome C que ja comeca com '_' (__error) precisa do
+                    // prefixo EXTRA — `isGlobalSymbol` o recusaria.
                     out.append('_');
                 }
                 out.append(token);
@@ -541,6 +569,21 @@ public final class NativeMachO {
      * os símbolos do sistema (chamados via PLT) não são prefixados — os
      * últimos são resolvidos pelo linker do macOS.
      */
+    /** Os nomes C que JA comecam com '_' e precisam do prefixo EXTRA no Mach-O. */
+    private static final java.util.Set<String> C_LEADING_UNDERSCORE =
+            java.util.Set.of("__error");
+
+    /** O {@code .lcomm/.comm sym, size[, align]} GNU -> {@code .zerofill} do Mach-O. */
+    private static String zeroFill(String trimmed) {
+        boolean local = trimmed.startsWith(".lcomm ");
+        String rest = trimmed.substring(local ? ".lcomm ".length() : ".comm ".length());
+        String[] parts = rest.split(",");
+        String sym = parts[0].trim();
+        String size = parts.length > 1 ? parts[1].trim() : "0";
+        String align = parts.length > 2 ? parts[2].trim() : "3";
+        return ".zerofill __DATA,__bss,_" + sym + "," + size + "," + align;
+    }
+
     private static boolean isGlobalSymbol(String sym) {
         if (sym.isEmpty()) return false;
         if (sym.startsWith(".L")) return false;     // rótulo local

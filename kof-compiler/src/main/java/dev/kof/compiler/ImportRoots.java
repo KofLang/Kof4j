@@ -26,7 +26,37 @@ final class ImportRoots {
      */
     static boolean structuralEntryDirectory(List<Path> entrySources, Path root) {
         if (!shadowsEntryPackage(entrySources, root)) return false;
-        return !hasSubdirectoryWithSources(root, 2);
+        if (hasSubdirectoryWithSources(root, 2)) return false;
+        // #1201 (a regressão do display `sem012.B`): subir SEM irmão qualifica
+        // a PRÓPRIA entrada — `tmp/sem012/Main.kf` (sem kof.toml, sem irmão)
+        // tinha raiz = o dir dela (pacote "" histórico) e as mensagens
+        // mostravam `B`; com a subida cega a entrada ganhou o pacote `sem012`
+        // e 9 contratos (o display, o JS do Base genérico, o link x86 dos
+        // decoders) regrediram. O caso §1203 real tem um IRMÃO — só sobe
+        // quando o PAI do dir-pacote contém OUTRA pasta com fontes.
+        return siblingPackageWithSources(root);
+    }
+
+    /** O PAI de {@code root} contém outro diretório-pacote COM fontes Kof? */
+    private static boolean siblingPackageWithSources(Path root) {
+        Path parent = root.getParent();
+        if (parent == null) return false;
+        try (var files = java.nio.file.Files.list(parent)) {
+            for (Path f : files.toList()) {
+                if (!java.nio.file.Files.isDirectory(f)) continue;
+                if (f.toAbsolutePath().normalize().equals(root.toAbsolutePath().normalize())) continue;
+                if (hasSubdirectoryWithSources(f, 1)) return true;
+                try (var inner = java.nio.file.Files.list(f)) {
+                    for (Path g : inner.toList()) {
+                        if (java.nio.file.Files.isRegularFile(g)
+                                && CompilerImports.isKofExtSource(g.getFileName().toString())) return true;
+                    }
+                }
+            }
+        } catch (java.io.IOException e) {
+            return false;
+        }
+        return false;
     }
 
     /** Alguma subpasta de {@code dir} (até {@code depth}) tem uma fonte Kof? */

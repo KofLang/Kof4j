@@ -784,6 +784,27 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   isso que a NATIVE004 recusa sem. **AS PRÓXIMAS LINHAS:** a família "stat"
   da costura (o `struct stat` do Darwin), o runner M-7, a face arm64 (o
   emissor cross aarch64 + a sua prova Mach-O); depois #1159 keep-alive
+  **M-6 FATIA 14 / FACE 1 DA M-7 POUSADA 24/11 — o runtime macOS LINCA num
+  executável Mach-O de verdade, provado NESTE host.** O toolchain do zig
+  traz um linker Mach-O, então a cadeia de ferramentas não precisa mais do
+  host da Apple — só a EXECUÇÃO precisa. Três gaps do tradutor que o LINK
+  real mediu (known-bugs §1231): o `.lcomm` do GNU não tem forma Mach-O (a
+  tabela `vk64_scratch` era referenciada e nunca DEFINIDA) — vira
+  `.zerofill __DATA,__bss,_SYM,SIZE,ALIGN`; o `__error` (o acessor de errno
+  do Darwin, um nome C que já começa com `_`) não recebia prefixo
+  ("undefined symbol: __error") — vira `___error`; e um deslocamento com
+  símbolo (`128+vk64_scratch(%rip)`) era comido como UM NÚMERO pelo scanner
+  de operandos, então o símbolo dentro nunca recebia prefixo. **PROVA
+  (executada):** `NativeMacOSLinkE2ETest` 1/1 — o runtime inteiro (com as
+  faces ELF-only removidas e os dados do lado do PROGRAMA stubbados e
+  NOMEADOS — o perfil ainda não emite o programa: NATIVE005) é montado e
+  linkado pelo toolchain real do Mach-O num executável, e o teste assera o
+  MH_MAGIC_64 `0xFEEDFACF`; RED-first medido (no tradutor antigo o link
+  falha exatamente com `__error` e `vk64_scratch`); a bateria macOS 70
+  testes 0F. **O QUE ISSO PROVA E O QUE NÃO (honesto):** a cadeia
+  montagem + link + formato do artefato está provada NESTE host; a EXECUÇÃO
+  ainda precisa do host macos-14 (M-7), e a face arm64 é a próxima linha.
+
   **M-6 FATIA 13 POUSADA 24/11 — O ÚLTIMO BLOQUEIO DO TRADUTOR CAI: o runtime
   INTEIRO assembla de ponta a ponta no assembler real do Mach-O.** A face
   Vulkan (as tabelas `vk64_*`, 7 arquivos) era alcançada com a forma

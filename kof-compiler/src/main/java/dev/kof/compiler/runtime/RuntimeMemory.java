@@ -395,8 +395,8 @@ public final class RuntimeMemory {
                 movq %r13, _kof_bm_ptr(%rip)
                 jmp .Lgrow_have
             .Lgrow_smaller:
-                shrq $1, %r12                # 4G->2G->...->64M
-                movabsq $0x4000000, %rax     # 64 MiB piso
+                shrq $1, %r12                # 4G->2G->...->16M (§1227: o piso 64M
+                movabsq $0x1000000, %rax     # 16 MiB piso — falhava sob -v 256M
                 cmpq %rax, %r12
                 jae .Lgrow_try
                 jmp .Lgrow_fail

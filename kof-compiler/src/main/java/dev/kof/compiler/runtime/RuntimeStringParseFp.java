@@ -273,8 +273,13 @@ kof_string_to_float:
                 cvtsi2sd %r13, %xmm0
                 testl %r11d, %r11d
                 jz .Lpdd_expapply
-                leaq .Lpdd_p10(%rip), %r11
-                divsd (%r11,%r11,8), %xmm0
+                # #1230 (o §1227-irmão do matrix stdmathparse): o leaq PISAVA o
+                # nFrac que morava no %r11 e o divsd indexava a base POR ELA MESMA
+                # (`(%r11,%r11,8)` = base + base*8 → SIGSEGV garantido no primeiro
+                # `parseDouble("2.5")` com frac). A base vai para o %r10 (o nInt já
+                # consumido acima) e o índice segue o %r11.
+                leaq .Lpdd_p10(%rip), %r10
+                divsd (%r10,%r11,8), %xmm0
            .Lpdd_expapply:
                 testq %r9, %r9
                 jz .Lpdd_sign

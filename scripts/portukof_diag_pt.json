@@ -1417,11 +1417,6 @@
       "pt": "null não pode ser atribuído: a segurança contra null funciona por estreitamento (if (x != null)), nunca por literais null diretos"
     },
     {
-      "arity": 0,
-      "en": "null cannot be returned: null safety works by narrowing (if (x != null)), never by direct null literals",
-      "pt": "null não pode ser retornado: a segurança contra null funciona por estreitamento (if (x != null)), nunca por literais null diretos"
-    },
-    {
       "arity": 1,
       "en": "null cannot be a {0} element: null safety works by narrowing (if (x != null)), never by direct null literals",
       "pt": "null não pode ser um elemento {0}: a segurança contra null funciona por estreitamento (if (x != null)), nunca por literais null diretos"
@@ -1818,13 +1813,6 @@
       "arity": 2,
       "en": "self-referencing initializer var inside a lambda (var '{0}') is not available on the {1} target yet — captured handle read in the job crashes the worker (§253 face B, native lane); use the shadow-handle idiom (var id=\"\"; job reads id after assignment; id = time.interval(…) after) (SEM092)",
       "pt": "a variável de inicialização autorreferente dentro de uma lambda (var '{0}') ainda não está disponível no alvo {1} — a leitura do handle capturado no job derruba o worker (§253 face B, lane nativa); use o idioma de handle-sombra (var id=\"\"; o job lê id depois da atribuição; id = time.interval(…) depois) (SEM092)"
-    }
-  ],
-  "SEM093": [
-    {
-      "arity": 0,
-      "en": "void function cannot return a value - drop the value (bare `return` exits) or declare a return type",
-      "pt": "função void não pode retornar um valor - descarte o valor (`return` sozinho encerra) ou declare um tipo de retorno"
     }
   ],
   "SEM095": [

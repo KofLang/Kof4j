@@ -782,6 +782,27 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   is what NATIVE004 refuses without. **THE NEXT ROWS:** the "stat" family of
   the seam (the Darwin `struct stat`), the M-7 runner, the arm64 face (the
   cross aarch64 emitter + its Mach-O proof); then #1159 keep-alive HTTP/1.1.
+  **M-6 SLICE 14 / M-7 FACE 1 LANDED 24/11 — the macOS runtime LINKS into a
+  real Mach-O executable, proven on THIS host.** The zig toolchain ships a
+  Mach-O linker, so the toolchain chain no longer needs the Apple host —
+  only the RUN does. Three translator gaps the real LINK measured (known-bugs
+  §1231): the GNU `.lcomm` had no Mach-O form (the `vk64_scratch` table was
+  referenced but never DEFINED) — it becomes `.zerofill __DATA,__bss,_SYM,
+  SIZE,ALIGN`; `__error` (the Darwin errno accessor, a C name already
+  starting with `_`) got no prefix ("undefined symbol: __error") — it
+  becomes `___error`; and a displacement with a symbol
+  (`128+vk64_scratch(%rip)`) was eaten as ONE NUMBER by the operand scanner,
+  so the symbol inside was never prefixed. **PROOF (executed):**
+  `NativeMacOSLinkE2ETest` 1/1 — the whole runtime (with the
+  ELF-only faces removed and the PROGRAM-side data stubbed and NAMED — the
+  profile does not emit the program yet: NATIVE005) is assembled and linked
+  by the real Mach-O toolchain into an executable, and the test asserts the
+  MH_MAGIC_64 `0xFEEDFACF`; RED-first measured (on the old translator the
+  link fails with exactly `__error` and `vk64_scratch`); the macOS battery
+  70 tests 0F. **WHAT IT PROVES AND WHAT IT DOES NOT (honest):** the
+  assemble + link + artifact-format chain is proven on THIS host; the RUN
+  still needs the M-7 macos-14 host, and the arm64 face is the next row.
+
   **M-6 SLICE 13 LANDED 24/11 — THE TRANSLATOR'S LAST BLOCKER FALLS: the WHOLE
   runtime assembles end-to-end in the real Mach-O assembler.** The Vulkan face
   (the `vk64_*` tables, 7 files) reached them with the ELF
