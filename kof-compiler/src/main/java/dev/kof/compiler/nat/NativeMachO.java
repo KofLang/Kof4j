@@ -136,7 +136,7 @@ public final class NativeMachO {
             }
             if (trimmed.startsWith(".pushsection ")) {
                 sections.add(currentSection);
-                currentSection = sectionLine(".section "
+                currentSection = NativeMachODirectives.sectionLine(".section "
                         + trimmed.substring(".pushsection ".length()).trim());
                 out.append(currentSection).append('\n');
                 continue;
@@ -145,17 +145,17 @@ public final class NativeMachO {
                 currentSection = sections.isEmpty()
                         ? null : sections.remove(sections.size() - 1);
                 out.append(currentSection == null
-                        ? sectionLine(".section .text") : currentSection).append('\n');
+                        ? NativeMachODirectives.sectionLine(".section .text") : currentSection).append('\n');
                 continue;
             }
             if (trimmed.startsWith(".lcomm ") || trimmed.startsWith(".comm ")) {
                 // o Mach-O nao tem .lcomm/.comm: a forma e' .zerofill com a
                 // secao e a ALINHACAO em potencia de 2 (medido no LINK:
                 // "undefined symbol: vk64_scratch").
-                out.append(zeroFill(trimmed)).append('\n');
+                out.append(NativeMachODirectives.zeroFill(trimmed)).append('\n');
                 continue;
             }
-            String gnudirective = gnudirective(trimmed);
+            String gnudirective = NativeMachODirectives.gnudirective(trimmed);
             if (gnudirective != null) {
                 // uma DIRETIVA GNU que o assembler do Mach-O nao tem
                 // (medido: ".hword" -> "unknown directive"). A linha nova
@@ -167,7 +167,7 @@ public final class NativeMachO {
                 continue;
             }
             if (trimmed.startsWith(".section ")) {
-                currentSection = sectionLine(trimmed);
+                currentSection = NativeMachODirectives.sectionLine(trimmed);
                 out.append(currentSection).append('\n');
                 continue;
             }
@@ -176,85 +176,10 @@ public final class NativeMachO {
         return out.toString();
     }
 
-    /**
-     * As DIRETIVAS GNU que o assembler do Mach-O nao tem (medido: o clang
-     * recusava ".hword" com "unknown directive"): a palavra da diretiva vira
-     * a equivalente, o resto da linha fica verbatim.
-     */
-    private static String gnudirective(String trimmed) {
-        if (trimmed.startsWith(".hword ")) return ".short" + trimmed.substring(".hword".length());
-        if (trimmed.startsWith(".2byte ")) return ".short" + trimmed.substring(".2byte".length());
-        if (trimmed.startsWith(".4byte ")) return ".long" + trimmed.substring(".4byte".length());
-        if (trimmed.startsWith(".8byte ")) return ".quad" + trimmed.substring(".8byte".length());
-        if (trimmed.startsWith(".balign ")) {
-            return ".align" + alignOperand(trimmed.substring(".balign".length()));
-        }
-        if (trimmed.startsWith(".align ")) {
-            return ".align" + alignOperand(trimmed.substring(".align".length()));
-        }
-        return null;
-    }
 
     /** A linha {@code .section} GNU → a seção Mach-O correspondente. */
 
-    /**
-     * O operando do {@code .align}: o assembler do Mach-O aceita no máximo
-     * 16 (medido: 32 e 64 dão "invalid alignment value") — o alinhamento
-     * maior é um aviso de performance, não um contrato de layout.
-     */
-    private static String alignOperand(String rest) {
-        String t = rest.trim();
-        StringBuilder digits = new StringBuilder();
-        for (int i = 0; i < t.length(); i++) {
-            char c = t.charAt(i);
-            if (Character.isDigit(c)) digits.append(c);
-            else break;
-        }
-        if (digits.length() == 0) return " " + t;
-        int value;
-        try {
-            value = Integer.parseInt(digits.toString());
-        } catch (NumberFormatException e) {
-            return " " + t;
-        }
-        if (value <= 16) return " " + t;
-        return " 16" + t.substring(digits.length());
-    }
 
-    /** A linha {@code .section} GNU → a seção Mach-O correspondente. */
-    private static String sectionLine(String trimmed) {
-        String rest = trimmed.substring(".section ".length()).trim();
-        // a forma GNU traz flags depois do nome: `.section .text,"ax",@progbits`
-        int comma = rest.indexOf(',');
-        String name = (comma >= 0 ? rest.substring(0, comma) : rest).trim();
-        if (name.startsWith(".text")) {
-            return ".section __TEXT,__text,regular,pure_instructions";
-        }
-        if (name.startsWith(".rodata")) {
-            return ".section __TEXT,__const,regular,pure_instructions";
-        }
-        if (name.startsWith(".data")) {
-            return ".section __DATA,__data";
-        }
-        if (name.startsWith(".bss")) {
-            return ".section __DATA,__bss";
-        }
-        if (name.startsWith(".debug")) {
-            // a DWARF do Mach-O vive em __DWARF (o clang rejeita a seção ELF
-            // crua: "unexpected token in '.section' directive").
-            return ".section __DWARF," + name.substring(".debug".length());
-        }
-        if (name.startsWith(".tbss") || name.startsWith(".tdata")) {
-            // O TLS ELF local-exec (%fs:…@tpoff) NÃO existe no Mach-O — a
-            // migração é a etapa M-4 (TLV ou pthread_getspecific). A seção
-            // vira uma seção normal (o texto fica VÁLIDO) e o PERFIL recusa
-            // o programa com o diagnóstico nomeado (R6).
-            return name.startsWith(".tbss")
-                    ? ".section __DATA,__bss"
-                    : ".section __DATA,__data";
-        }
-        return ".section __TEXT,__text,regular,pure_instructions";
-    }
 
     /**
      * As REFERÊNCIAS a símbolos globais ganham o prefixo {@code _}.
@@ -289,7 +214,7 @@ public final class NativeMachO {
         // comentário: o `.asciz "a#b"` é dado).
         int commentAt = commentStart(line);
         String code = (commentAt >= 0) ? line.substring(0, commentAt) : line;
-        String comment = (commentAt >= 0) ? machoComment(line.substring(commentAt)) : "";
+        String comment = (commentAt >= 0) ? NativeMachODirectives.machoComment(line.substring(commentAt)) : "";
         // a DEFINIÇÃO de um símbolo global: `kof_foo:` → `_kof_foo:`
         int colon = code.indexOf(':');
         if (colon > 0 && isGlobalSymbol(code.substring(0, colon).trim())
@@ -350,7 +275,7 @@ public final class NativeMachO {
                 String token = line.substring(i, j);
                 // o PRIMEIRO token da linha é a diretiva (`.quad`) — verbatim;
                 // os operandos símbolo ganham o prefixo.
-                if (C_LEADING_UNDERSCORE.contains(token)
+                if (NativeMachODirectives.C_LEADING_UNDERSCORE.contains(token)
                         || (!first && isGlobalSymbol(token))) {
                     out.append('_');
                 }
@@ -362,7 +287,7 @@ public final class NativeMachO {
             if (c == '#') {
                 // o COMENTARIO depois da diretiva — no Mach-O a marca e' `//`
                 // (o `#` no inicio da linha e' DIRETIVA de pre-processador).
-                out.append(machoComment(line.substring(i)));
+                out.append(NativeMachODirectives.machoComment(line.substring(i)));
                 break;
             }
             out.append(c);
@@ -371,33 +296,7 @@ public final class NativeMachO {
         return out.toString();
     }
 
-    /**
-     * O COMENTARIO do Mach-O: o {@code #} no inicio da linha e' uma DIRETIVA
-     * de pre-processador para o assembler (medido: o comentario "# if V & 1: …"
-     * quebrava a montagem com "unterminated conditional directive"). O
-     * CONTRATO do M-1 ("o comentario nunca e' tocado") so vale enquanto o
-     * assembler aceita: quando o comentario comeca por uma PALAVRA DE
-     * DIRETIVA, a marca vira {@code //} e o resto do texto fica verbatim — o
-     * texto do comentario e' o que importa.
-     */
-    private static String machoComment(String text) {
-        if (text == null || text.isEmpty() || text.charAt(0) != '#') return text;
-        int i = 1;
-        // o pre-processador aceita ESPACO entre a marca e a palavra
-        // ("# if V & 1" e' um "#if") — a leitura da palavra pula os brancos.
-        while (i < text.length() && Character.isWhitespace(text.charAt(i))) i++;
-        int wordStart = i;
-        while (i < text.length() && (Character.isLetterOrDigit(text.charAt(i))
-                || text.charAt(i) == '_')) i++;
-        String word = text.substring(wordStart, i);
-        if (DIRECTIVE_WORDS.contains(word)) return "//" + text.substring(1);
-        return text;
-    }
 
-    /** As palavras que o assembler do Mach-O le como DIRETIVA apos um {@code #}. */
-    private static final java.util.Set<String> DIRECTIVE_WORDS = java.util.Set.of(
-            "if", "ifdef", "ifndef", "elif", "else", "endif",
-            "include", "define", "undef", "line", "error", "warning", "pragma");
 
     /**
      * A varredura dos OPERANDOS de uma linha de código: token a token, com
@@ -486,7 +385,7 @@ public final class NativeMachO {
                     // um símbolo. O defeito do meu M-1 prefixava o mnemônico
                     // depois de um prefixo (`lock _cmpxchg`).
                     inMnemonic = isInstructionPrefix(token);
-                } else if (C_LEADING_UNDERSCORE.contains(token) || isGlobalSymbol(token)) {
+                } else if (NativeMachODirectives.C_LEADING_UNDERSCORE.contains(token) || isGlobalSymbol(token)) {
                     // o nome C que ja comeca com '_' (__error) precisa do
                     // prefixo EXTRA — `isGlobalSymbol` o recusaria.
                     out.append('_');
@@ -569,20 +468,7 @@ public final class NativeMachO {
      * os símbolos do sistema (chamados via PLT) não são prefixados — os
      * últimos são resolvidos pelo linker do macOS.
      */
-    /** Os nomes C que JA comecam com '_' e precisam do prefixo EXTRA no Mach-O. */
-    private static final java.util.Set<String> C_LEADING_UNDERSCORE =
-            java.util.Set.of("__error");
 
-    /** O {@code .lcomm/.comm sym, size[, align]} GNU -> {@code .zerofill} do Mach-O. */
-    private static String zeroFill(String trimmed) {
-        boolean local = trimmed.startsWith(".lcomm ");
-        String rest = trimmed.substring(local ? ".lcomm ".length() : ".comm ".length());
-        String[] parts = rest.split(",");
-        String sym = parts[0].trim();
-        String size = parts.length > 1 ? parts[1].trim() : "0";
-        String align = parts.length > 2 ? parts[2].trim() : "3";
-        return ".zerofill __DATA,__bss,_" + sym + "," + size + "," + align;
-    }
 
     private static boolean isGlobalSymbol(String sym) {
         if (sym.isEmpty()) return false;
