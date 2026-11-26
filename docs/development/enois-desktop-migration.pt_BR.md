@@ -1708,3 +1708,20 @@ nomeada: o harness deixa um binário de ~270 MB por teste e o `/tmp` é um tmpfs
 PRÓXIMO: a caminhada ainda pinta UMA linha por bloco (o `textOf` concatena as children do parágrafo);
 dobrar cada bloco na largura de texto do card (`blockWidth`) e os trechos inline (negrito/itálico/link)
 são as próximas fatias nomeadas.
+
+## §94 (25/11) — o corpo do post PINTA os TRECHOS inline (negrito / itálico / código / link / menção) em sequência
+
+MEDIDO (app `BlogCuerpoRich.paintInline`/`inkOf`/`leafOf`/`advanceOf`, `EnoisBlogCuerpoInlineE2ETest`
+no nativo): `blocks("um **negrito** e um `codigo` e um [link](https://x.y)")` dá 6 trechos
+(texto / negrito / texto / código / texto / link), cada folha SEM as marcas (`t1=bold:negrito`,
+`t3=code:codigo`, `t5=link:link`), o avanço somado é `235` e o `paintInline` devolve os MESMOS
+`235` — a caneta pintada é igual ao avanço medido. A cor por tipo vem do `Tokens` (`Primary` para
+código/link/menção, `MutedForeground` para spoiler e para citação/código de bloco, `Foreground` no
+resto) e NÃO é asserida amostrada (§1197).
+
+PENDÊNCIA NOMEADA: o DESENHO da marca (peso do negrito, inclinação do itálico, o fio do riscado) não
+sai — o `Font` do shim carrega um peso por face, não por trecho; o trecho é pintado na cor do tipo e o
+texto está certo. Também pendente: dobrar cada bloco na largura de texto do card (`blockWidth`) — a
+caminhada pinta uma linha por bloco.
+
+BATERIA: **92 testes / 1 falha** (a que resta é o `EnoisTextE2ETest` `0 px`, §1197).

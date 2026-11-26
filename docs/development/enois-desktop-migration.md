@@ -2013,3 +2013,20 @@ runs 91/1F. Named lesson: the harness leaves a ~270 MB binary per test and `/tmp
 NEXT: the block walk still paints ONE line per block (`textOf` concatenates the paragraph's
 children); wrapping each block to the card's text width (`blockWidth`) and the inline spans
 (bold/italic/link) are the next named slices.
+
+## §94 (25/11) — the post body paints the INLINE SPANS (bold / italic / code / link / mention) in sequence
+
+MEASURED (app `BlogCuerpoRich.paintInline`/`inkOf`/`leafOf`/`advanceOf`, `EnoisBlogCuerpoInlineE2ETest`
+on native): `blocks("um **negrito** e um `codigo` e um [link](https://x.y)")` yields 6 spans
+(text / bold / text / code / text / link), each leaf WITHOUT its marks (`t1=bold:negrito`,
+`t3=code:codigo`, `t5=link:link`), the summed advance is `235` and `paintInline` returns the same
+`235` — the painted pen equals the measured advance. The colour per kind comes from `Tokens`
+(`Primary` for code/link/mention, `MutedForeground` for spoiler and for quote/code blocks,
+`Foreground` otherwise) and is NOT asserted sampled (§1197).
+
+NAMED PENDING: the MARK's drawing (bold weight, italic slant, strikethrough line) is not emitted —
+the shim's `Font` carries one weight per face, not per span; the span is painted in the type's
+colour and the text is correct. Also still pending: wrapping each block to the card's text width
+(`blockWidth`) — the walk paints one line per block.
+
+BATTERY: **92 tests / 1 failure** (the remaining one is `EnoisTextE2ETest` `0 px`, §1197).
