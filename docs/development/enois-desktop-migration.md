@@ -2366,3 +2366,13 @@ BATTERY: **108 tests / 1 failure** (only `EnoisTextE2ETest` `0 px`, §1197).
 
 NEXT (named): §1240's 200-compile hash/diff of the `.s`; then `lastPen` becomes the measured pen again and
 `EnoisBlogCuerpoWrapInsideE2ETest` asserts it.
+
+## §113 (26/11) — THE SDL_RenderTexture FIX RESTORED (`Buffer(U8) src`), and the §1240 investigation: the native nondeterminism is the RUN ENVIRONMENT (SDL/Fontconfig), not the Kof emit
+
+WHAT BROKE AND WHY: my §110 fix (the extern declares `src` as `Buffer(U8)`, the shear loop passes an SDL_FRect) was reverted on `origin/lab` by `0dcbef7cd` (another lane's stash pop re-applied the WIP snapshot over it, back to `Long src` + `SDL_RenderTexture(…, 0L, dst)`), so every app test died on `SEM014` at `Sdl3Backend.kf:270` — the whole app battery read 106F. This round re-applies the fix and pins it with a Kof4j test.
+
+PROOF (executed this round): Kof4j `Sdl3ShearedTextureE2ETest` grew `theUnshearedDrawTexturePaints` — RED on the tree without the fix (`SEM014` at line 270) and GREEN with it (`dentro=255`, the unsheared `drawTexture` paints); `Sdl3ShearedTextureE2ETest` 2/2, `Sdl3BackendE2ETest` 6/6 and `EnosisImageTextureE2ETest` 1/1 stay green. App battery 108 tests / 2 failures (the `EnoisTextE2ETest` §1197 colour read and `EnoisBlogCuerpoWrapInsideE2ETest`, both the §1240 environment — see below).
+
+THE §1240 INVESTIGATION (recorded in `known-bugs` §1240 + PT): a binary built once and run 120 times from a bash loop gave 57 good / 63 SIGSEGV; the same binary driven by `python3 -m subprocess` with a minimal `env` died almost every time, and the runs whose parent did not touch `$XDG_RUNTIME_DIR` survived; `strace` shows the death inside the Fontconfig thread (`[pango] fontcon…` reading `/etc/fonts/fonts.conf`) at a stack address. So the nondeterminism the session chased (`return pen` → 0, `println("x=" + f(0))` printing 0 for one line and the right value for the next) is the LAYOUT of the child process: when the Fontconfig die hits, the programme never reaches the print; when it does not, the value is right. No compiler fix was pushed for it; the three fixtures written for it were withdrawn because they pass.
+
+NAMED NEXT: (a) pin every native E2E's child environment (`env -i PATH=… SDL_VIDEODRIVER=dummy`) and decide whether the SDL/Fontconfig crash needs its own entry (§1244) — the native battery cannot be trusted on a machine where the child dies by layout; (b) with a deterministic environment, re-run the `return`-after-`while` reproducer and only then touch the emit.

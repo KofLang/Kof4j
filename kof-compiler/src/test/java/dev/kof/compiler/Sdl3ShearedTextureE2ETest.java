@@ -36,6 +36,65 @@ class Sdl3ShearedTextureE2ETest implements LibraryInstallSupport {
                 || new File("/usr/lib/x86_64-linux-gnu/libSDL3.so.0").exists();
     }
 
+    /** §1243 RED — o `drawTexture` nao-inclinado TEM de pintar: depois do
+     *  §110 o `SDL_RenderTexture` recebe `src` (a textura inteira) em vez de
+     *  `0L`, e o caminho `shear = 0` nao preenchia o `src`. A tela inteira
+     *  aparece (dentro AND fora). */
+    @Test
+    void theUnshearedDrawTexturePaints(@TempDir Path dir) throws Exception {
+        assumeTrue(hostSdl3(), "SDL3 host absent");
+        assumeTrue(NativeToolchainAssumptions.hasTool("as", "ld"), "native toolchain absent");
+        Path libs = dir.resolve("kof-install/lib/kof-libs");
+        copyLibrary(libs);
+        Path repo = findLibsRoot().getParent();
+        Path img = repo.resolve("libs/image");
+        try (var files = Files.walk(img)) {
+            for (Path f : files.filter(Files::isRegularFile).toList()) {
+                Path dst = libs.resolve("image").resolve(img.relativize(f));
+                Files.createDirectories(dst.getParent());
+                Files.copy(f, dst);
+            }
+        }
+        Files.writeString(dir.resolve("Main.kf"), """
+                import game.Sdl3Backend
+
+                main() {
+                    val b = Sdl3Backend("tex", 32, 32)
+                    val px = buffer.alloc(4 * 4 * 4)
+                    var i = 0
+                    while (i < 16) {
+                        buffer.poke8(px, i * 4, 255)
+                        buffer.poke8(px, i * 4 + 1, 255)
+                        buffer.poke8(px, i * 4 + 2, 255)
+                        buffer.poke8(px, i * 4 + 3, 255)
+                        i = i + 1
+                    }
+                    val tex = b.createTexture(4, 4)
+                    SDL_UpdateTexture(tex, 0L, px, 16)
+                    b.clearFrame(0, 0, 0)
+                    b.drawTexture(tex, 8, 8, 8, 8)
+                    println("dentro=" + (b.readPixel(10, 10)[0] & 255))
+                    b.close()
+                }
+                """, StandardCharsets.UTF_8);
+        String previous = System.getProperty("kof.install.dir");
+        System.setProperty("kof.install.dir", dir.resolve("kof-install").toString());
+        CompilationResult r;
+        try {
+            r = new CompilerDriver().compile(dir.resolve("Main.kf"), dir.resolve("out"), Target.NATIVE);
+        } finally {
+            if (previous == null) System.clearProperty("kof.install.dir");
+            else System.setProperty("kof.install.dir", previous);
+        }
+        assertTrue(r.success(), "compile: " + r.diagnostics().getDiagnostics());
+        var pb = new ProcessBuilder(dir.resolve("out/Default/Main").toString()).redirectErrorStream(true);
+        pb.environment().put("SDL_VIDEODRIVER", "dummy");
+        var p = pb.start();
+        String out = new String(p.getInputStream().readAllBytes()).strip();
+        assertTrue(p.waitFor(180, TimeUnit.SECONDS), "o programa termina");
+        assertEquals("dentro=255", out, "o drawTexture (sem inclinacao) pinta a textura");
+    }
+
     @Test
     void theShearedTextureLeansRowByRow(@TempDir Path dir) throws Exception {
         assumeTrue(hostSdl3(), "SDL3 host absent");

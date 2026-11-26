@@ -2064,3 +2064,13 @@ BATERIA: **108 testes / 1 falha** (só o `EnoisTextE2ETest` `0 px`, §1197).
 
 PRÓXIMO (nomeado): o hash/diff de 200 compilações do `.s` do §1240; então o `lastPen` volta a ser a caneta medida e
 o `EnoisBlogCuerpoWrapInsideE2ETest` a afirma.
+
+## §113 (26/11) — A CORREÇÃO DO SDL_RenderTexture RESTAURADA (`Buffer(U8) src`), e a investigação do §1240: o não-determinismo nativo é o AMBIENTE de execução (SDL/Fontconfig), não o emissor Kof
+
+O QUE QUEBROU E POR QUÊ: a minha correção do §110 (o extern declara `src` como `Buffer(U8)` e o laço da inclinação passa um SDL_FRect) foi revertida no `origin/lab` pelo `0dcbef7cd` (o stash pop de outra lane reaplicou o snapshot WIP por cima, voltando para `Long src` + `SDL_RenderTexture(…, 0L, dst)`), então todo teste do app morria em `SEM014` na `Sdl3Backend.kf:270` — a bateria inteira lia 106F. Esta rodada reaplica a correção e a fixa com um teste no Kof4j.
+
+PROVA (executada nesta rodada): o `Sdl3ShearedTextureE2ETest` do Kof4j ganhou `theUnshearedDrawTexturePaints` — RED na árvore sem a correção (`SEM014` na linha 270) e GREEN com ela (`dentro=255`, o `drawTexture` sem inclinação pinta); `Sdl3ShearedTextureE2ETest` 2/2, `Sdl3BackendE2ETest` 6/6 e `EnosisImageTextureE2ETest` 1/1 continuam verdes. Bateria do app 108 testes / 2 falhas (a leitura de cor `EnoisTextE2ETest` §1197 e o `EnoisBlogCuerpoWrapInsideE2ETest`, ambos o ambiente do §1240 — abaixo).
+
+A INVESTIGAÇÃO DO §1240 (registrada no `known-bugs` §1240 + PT): um binário compilado UMA vez e rodado 120 vezes num laço de bash deu 57 bons / 63 SIGSEGV; o mesmo binário dirigido por `python3 -m subprocess` com um `env` mínimo morreu quase sempre, e sobreviveram os runs cujo pai não mexeu em `$XDG_RUNTIME_DIR`; o `strace` mostra a morte dentro da thread do Fontconfig (`[pango] fontcon…` lendo `/etc/fonts/fonts.conf`) num endereço de pilha. Então o não-determinismo que a sessão perseguiu (`return pen` → 0, `println("x=" + f(0))` imprimindo 0 numa linha e o valor certo na seguinte) é o LAYOUT do processo filho: quando a morte do Fontconfig acontece o programa nunca chega ao print; quando não, o valor é o certo. Nenhuma correção de compilador foi empurrada por isso; os três fixtures escritos para ele foram retirados por passarem.
+
+PRÓXIMO NOMEADO: (a) fixar o ambiente do filho de TODO E2E nativo (`env -i PATH=… SDL_VIDEODRIVER=dummy`) e decidir se o crash SDL/Fontconfig precisa de entrada própria (§1244) — a bateria nativa não é confiável numa máquina onde o filho morre pelo layout; (b) com o ambiente determinístico, rodar de novo o reprodutor de `return`-depois-de-`while` e só então tocar o emissor.
