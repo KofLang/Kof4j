@@ -2260,3 +2260,19 @@ BATTERY: **103 tests / 1 failure** (only `EnoisTextE2ETest` `0 px`, §1197).
 
 NAMED PENDING still open in the body: the MONO face of `<code>`, the italic faces (`em`/`<s>`), and the
 nested list (`block.nested` — the app's parser does not emit it, so an indented sub-list is still flattened).
+
+## §108 (26/11) — NESTED lists: the parser builds the list FAMILY with the DS's own stack, and the painter draws the sub-list indented under its item
+
+MEASURED (app `RichText.listTrees`/`indentOf`/`isOrderedItem`/`itemIndex`/`listItemOf` + the new 11th field
+`nested` on `RichNode` + `BlogCuerpoRich.paintList`/`listHeightDrawn`, `EnoisBlogCuerpoNestedListE2ETest` on
+native): `- a` / `  - b` / `  - c` / `- d` parses to ONE root list with 2 items, the first carrying a sub-list
+of 2 items — the rule is the DS's `listFor` (`parse.ts:76`): `indent + 2 <= top.indent` closes the level,
+`indent >= top.indent + 2` opens a `nested` on the LAST item, the same level with the same type appends, and a
+different type opens a sister. The painter draws the sub-list 20 to the right of its item and the height
+adds it (`listHeightDrawn`), so the card keeps measuring what is painted; the control `- a` / `- d` (no
+indent) measures 60.
+
+BATTERY: **104 tests / 1 failure** (only `EnoisTextE2ETest` `0 px`, §1197).
+
+NAMED PENDING still open in the body: the MONO face of `<code>` and the italic faces (`em`/`<s>`) — both are
+missing ASSETS, not code. And the `§1197` pixel readback.

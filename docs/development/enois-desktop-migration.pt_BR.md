@@ -1956,3 +1956,19 @@ BATERIA: **103 testes / 1 falha** (só o `EnoisTextE2ETest` `0 px`, §1197).
 
 PENDÊNCIA NOMEADA ainda aberta no corpo: a face MONO do `<code>`, as faces do itálico (`em`/`<s>`), e a lista
 ANINHADA (`block.nested` — o parser do app não a emite, então uma sub-lista indentada continua achatada).
+
+## §108 (26/11) — listas ANINHADAS: o parser monta a FAMÍLIA de listas com a pilha do próprio DS, e o pintor desenha a sub-lista recuada sob o item
+
+MEDIDO (app `RichText.listTrees`/`indentOf`/`isOrderedItem`/`itemIndex`/`listItemOf` + o novo 11º campo
+`nested` no `RichNode` + `BlogCuerpoRich.paintList`/`listHeightDrawn`, `EnoisBlogCuerpoNestedListE2ETest` no
+nativo): `- a` / `  - b` / `  - c` / `- d` dá UMA lista raiz com 2 itens, o primeiro carregando uma sub-lista
+de 2 itens — a regra é o `listFor` do DS (`parse.ts:76`): `indent + 2 <= top.indent` fecha o nível,
+`indent >= top.indent + 2` abre uma `nested` no ÚLTIMO item, o mesmo nível com o mesmo tipo acrescenta, e o
+tipo diferente abre uma irmã. O pintor desenha a sub-lista 20 à direita do item e a altura a soma
+(`listHeightDrawn`), então o card continua medindo o que pinta; o controle `- a` / `- d` (sem indentação)
+mede 60.
+
+BATERIA: **104 testes / 1 falha** (só o `EnoisTextE2ETest` `0 px`, §1197).
+
+PENDÊNCIA NOMEADA ainda aberta no corpo: a face MONO do `<code>` e as faces do itálico (`em`/`<s>`) — as duas
+são ASSETS que faltam, não código. E o `§1197` da leitura de pixel.
