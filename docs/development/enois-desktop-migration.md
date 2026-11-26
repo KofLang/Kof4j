@@ -2319,3 +2319,29 @@ NAMED DIVERGENCES still open: the per-row shift is integer (the CSS is subpixel)
 14° (the axis value used by `italic`), which may differ from the engine's optical axis by a degree; the MONO
 family of `<code>` (`--font-mono` is the Tailwind default stack, no asset in the DS) and the `<code>` box
 drawn AFTER the glyph (it covers the text — the box belongs before the run). §1197 still blocks colour proof.
+
+## §111 (26/11) — NESTED MARKS: `**manter *pensar* limpo**` paints the middle span italic (the painter walks the leaves, not the flattened run)
+
+MEASURED (app `RichText.blocks` + `BlogCuerpoRich.leavesOf`/`leafKind`/`pushSpans`/`paintLeaf`/`slantAt`/`markAt`,
+`EnoisBlogCuerpoNestedMarkE2ETest` on native): `**manter *pensar* limpo**` parses to ONE `bold` node whose
+children are `text "manter "`, `italic "pensar"`, `text " limpo"` (the parser keeps the inner mark). Both painters
+(`paintSpans`/`paintSpansMarked`) used `leafOf`/`innerText`, which FLATTEN, so the middle came out upright and
+unmarked. Now the leaves are walked in depth (`leavesOf` → `Folha(node, kind, parent)`; `leafKind` inherits the
+outer mark for a bare `text` inside a mark, never for a top-level text), the face is the leaf's (`wordFont`) and
+the slant is the leaf's or the outer's (`slantAt` → `slantOf`), the outer `~~` strikes the inner leaf
+(`markAt(…, parent)`), and the colour is the innermost type's (the `text-primary` of a link wins over a `strong`),
+as in the browser. The wrapping painter (`wordsOf` → `pushSpans` → `Palavra(text, kind, colour, parent)`) got the
+same parent so the wrapped path paints the slant, but still flattens by type — the `Palavra` model carries one
+kind, so a leaf with mixed inner marks loses the inner hint on the WRAPPED path only (named below).
+
+PROOF (executed): `EnoisBlogCuerpoNestedMarkE2ETest`: `filhos=1 tipo=bold`, `folhas=3`, `f0=bold/bold:manter `,
+`f1=italic/italic:pensar`, `f2=bold/bold: limpo`, `slantFora=0`, `slantDentro=3`, `avanco=137`, `pen=136`
+(the flattened measure includes the trailing space the line does not draw), `palavras=3`, `p1=italic`, frame
+presented. Six inline tests re-run green (`Inline`, `NestedInline`, `Italic`, `MarkFace`, `WrapInline`, `Sticker`).
+
+BATTERY: **107 tests / 1 failure** (only `EnoisTextE2ETest` `0 px`, §1197).
+
+NAMED PENDING: the wrapped path (`Palavra`) still flattens a leaf's inner marks by type — a paragraph that wraps on
+a leaf with two different inner marks gets one hint per type; the band colour is also the flattened type's. The
+`<code>` box is still drawn after the glyph (it covers the text) and the MONO family has no asset in the DS.
+§1197 still blocks colour proof.

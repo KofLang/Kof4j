@@ -2016,3 +2016,29 @@ sintetizada é de 14° (o valor do eixo que o `italic` usa), que pode diferir em
 família MONO do `<code>` (`--font-mono` é a pilha padrão do Tailwind, sem asset no DS) e a caixa do `<code>`
 desenhada DEPOIS do glifo (ela cobre o texto — a caixa é do fundo, vai antes do trecho). O §1197 continua
 barrando a prova de cor.
+
+## §111 (26/11) — MARCAS ANINHADAS: `**manter *pensar* limpo**` pinta o miolo inclinado (o pintor percorre as FOLHAS, não o trecho achatado)
+
+MEDIDO (app `RichText.blocks` + `BlogCuerpoRich.leavesOf`/`leafKind`/`pushSpans`/`paintLeaf`/`slantAt`/`markAt`,
+`EnoisBlogCuerpoNestedMarkE2ETest` no nativo): `**manter *pensar* limpo**` vira UM nó `bold` cujos filhos são
+`text "manter "`, `italic "pensar"`, `text " limpo"` (o parser guarda a marca interna). Os dois pintores
+(`paintSpans`/`paintSpansMarked`) usavam `leafOf`/`innerText`, que ACHATAM, então o meio saía reto e sem marca.
+Agora as folhas são percorridas em profundidade (`leavesOf` → `Folha(node, kind, parent)`; o `leafKind` herda a
+marca de fora só para um `text` solto DENTRO de uma marca, nunca para o texto de topo), a face é a da folha
+(`wordFont`) e a inclinação é a da folha ou a de fora (`slantAt` → `slantOf`), o `~~` de fora risca a folha de
+dentro (`markAt(…, parent)`) e a cor é a do tipo mais interno (o `text-primary` do link vence o `strong`), como no
+navegador. O pintor de dobra (`wordsOf` → `pushSpans` → `Palavra(text, kind, colour, parent)`) recebeu o mesmo pai,
+então a dobra pinta a inclinação, mas ainda achata por tipo — o `Palavra` carrega um tipo só, então uma folha com
+marcas internas de tipos diferentes perde a dica interna SÓ no caminho da DOBRA (nomeado abaixo).
+
+PROVA (executada): `EnoisBlogCuerpoNestedMarkE2ETest`: `filhos=1 tipo=bold`, `folhas=3`, `f0=bold/bold:manter `,
+`f1=italic/italic:pensar`, `f2=bold/bold: limpo`, `slantFora=0`, `slantDentro=3`, `avanco=137`, `pen=136` (a
+medida achatada inclui o espaço final que a linha não desenha), `palavras=3`, `p1=italic`, quadro apresentado.
+Seis testes inline rodados de novo verdes (`Inline`, `NestedInline`, `Italic`, `MarkFace`, `WrapInline`, `Sticker`).
+
+BATERIA: **107 testes / 1 falha** (só o `EnoisTextE2ETest` `0 px`, §1197).
+
+PENDÊNCIA NOMEADA: o caminho da dobra (`Palavra`) ainda achata as marcas internas de uma folha por tipo — um
+parágrafo que dobra numa folha com duas marcas internas diferentes fica com uma dica por tipo; a cor da faixa
+também é a do tipo achatado. A caixa do `<code>` ainda é desenhada depois do glifo (cobre o texto) e a família MONO
+não tem asset no DS. O §1197 continua barrando a prova de cor.
