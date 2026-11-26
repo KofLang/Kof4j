@@ -1972,3 +1972,20 @@ BATERIA: **104 testes / 1 falha** (só o `EnoisTextE2ETest` `0 px`, §1197).
 
 PENDÊNCIA NOMEADA ainda aberta no corpo: a face MONO do `<code>` e as faces do itálico (`em`/`<s>`) — as duas
 são ASSETS que faltam, não código. E o `§1197` da leitura de pixel.
+
+## §109 (26/11) — FIGURINHA INLINE: o `![alt](url)` no meio do texto ocupa o lugar dele na linha, e o pintor decide pelo TRECHO, não pela lista
+
+MEDIDO (app `RichText` entrega o trecho do meio como `kind = "image"`, `BlogCuerpoRich.paintImage` +
+`paintSpans`, `EnoisBlogCuerpoStickerE2ETest` no nativo): `antes ![gato](url) depois` vira 3 trechos
+(`text`, `image`, `text`); a imagem é a caixa `h-[1.75em]` do DS — linha 20 → 35, mais 2 de respiro, logo o
+avanço é 37 (o ramo de imagem do `rich-text.tsx`). O defeito que esta fatia removeu: o `paintSpans` escolhia
+o desenho pela LISTA INTEIRA (`styled(spans)`), então em qualquer parágrafo com marca o trecho `text`
+desenhava o miolo dos próprios filhos (`innerText`, vazio para um trecho de texto) e a caneta não avançava —
+a linha voltava 37 com três trechos em vez de 42/50/… A decisão agora é por TRECHO (`val inner =
+styled(spans)`, cada trecho só desenha `innerText` quando a lista é estilizada), então a caneta agregada da
+linha é 42 (texto) → imagem → ~50, e `pen > avanco` vale.
+
+BATERIA: **105 testes / 1 falha** (só o `EnoisTextE2ETest` `0 px`, §1197).
+
+PENDÊNCIA NOMEADA ainda aberta: a face MONO do `<code>` e as faces do itálico (`em`/`<s>`) — ASSETS que
+faltam, não código. A leitura de pixel do `§1197` continua barrando a prova de cor.

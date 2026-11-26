@@ -2276,3 +2276,20 @@ BATTERY: **104 tests / 1 failure** (only `EnoisTextE2ETest` `0 px`, §1197).
 
 NAMED PENDING still open in the body: the MONO face of `<code>` and the italic faces (`em`/`<s>`) — both are
 missing ASSETS, not code. And the `§1197` pixel readback.
+
+## §109 (26/11) — INLINE STICKER: the `![alt](url)` inside the text takes its room in the line, and the painter decides by the SPAN, not by the list
+
+MEASURED (app `RichText` yields the middle span as `kind = "image"`, `BlogCuerpoRich.paintImage` +
+`paintSpans`, `EnoisBlogCuerpoStickerE2ETest` on native): `antes ![gato](url) depois` parses to 3 spans
+(`text`, `image`, `text`); the image is the DS's `h-[1.75em]` box — line 20 → 35, plus 2 of gap, so the
+advance is 37 (`rich-text.tsx` image branch). The defect this slice removed: `paintSpans` chose the drawing
+by the WHOLE list (`styled(spans)`), so in any paragraph carrying a mark the plain `text` span painted the
+inner of its own children (`innerText`, empty for a text span) and the pen never advanced — the line
+returned 37 with three spans instead of 42/50/… The decision is now per SPAN (`val inner = styled(spans)`,
+each span paints `innerText` only when the list is styled), so the aggregate pen of the line is
+42 (text) → image → 50-ish, and `pen > avanco` holds.
+
+BATTERY: **105 tests / 1 failure** (only `EnoisTextE2ETest` `0 px`, §1197).
+
+NAMED PENDING still open: the MONO face of `<code>` and the italic faces (`em`/`<s>`) — missing ASSETS, not
+code. The `§1197` pixel readback still blocks colour proof.
