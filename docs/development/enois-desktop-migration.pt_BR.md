@@ -1871,3 +1871,24 @@ BATERIA: **98 testes / 1 falha** — a única é o `EnoisTextE2ETest` (`0 px`, �
 PENDÊNCIA NOMEADA (tipografia, intocada por esta fatia): o site renderiza o `<code>` na família MONO e em
 `text-sm` — a face mono NÃO está nos assets do app, então o texto do bloco sai na face do corpo por
 enquanto; e as faces do ITÁLICO (`em`/`<s>`) também não foram instanciadas (só a Regular 400 e a Medium 500).
+
+## §103 (26/11) — a TABELA do corpo é desenhada, E apareceu um defeito REAL do parser: a linha do separador era consumida como linha de dados
+
+MEDIDO (app `BlogCuerpoRich.paintTable`/`alignX` + `RichText.isTableRow`, `EnoisBlogCuerpoTableE2ETest` no
+nativo). Dois achados:
+1. **o defeito do parser**: a regra de linha do site é `TABLE_ROW = /^\s*\|(.+)\|\s*$/`
+   (`enois-design-system/src/lib/rich-text/parse.ts:53`) — `|…|` com PELO MENOS um caractere entre os
+   pipes. O `isTableRow` do Kof só testava `startsWith("|")`, então o SEPARADOR (`| --- | :---: |`) casava
+   como linha de dados e a tabela perdia a primeira linha do corpo: `| a | b |` + separador + `| 1 | 2 |`
+   dava 2 linhas (cabeçalho + o separador) em vez de 2 linhas (cabeçalho + `1|2`). O fix exige o `|` de
+   fecho e comprimento 3+; medido depois: cabeçalho + a linha do corpo (`r0n=2`, `r1n=2` são as duas linhas
+   REAIS).
+2. **o desenho**: a tabela pinta a grade com `border-border-soft` em cada célula, o cabeçalho na face da
+   MARCA (o `bg-surface-1 font-medium` do DS), o `px-2 py-1` e o alinhamento da coluna (`text-center`/
+   `text-right` pelo `:` do separador), e devolve `RichText.tableHeight(linhas)` para a altura ficar a
+   medida (`my-2` 8 + linhas × 28). Para a tabela de 2 linhas isso é `8*2 + 2*28 = 72`.
+
+BATERIA: **99 testes / 1 falha** (só o `EnoisTextE2ETest` `0 px`, §1197).
+
+O fix do parser é o caso que a regra do plano existe para pegar: medido no fonte do front, não inventado —
+e ele mudou a saída observável de um bloco já migrado.

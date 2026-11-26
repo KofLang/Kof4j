@@ -2175,3 +2175,23 @@ BATTERY: **98 tests / 1 failure** — the only one is `EnoisTextE2ETest` (`0 px`
 NAMED PENDING (typography, unchanged by this slice): the site renders `<code>` in the MONO family and at
 `text-sm` — the mono face is NOT in the app's assets, so the block's text is drawn in the body face for
 now; and the ITALIC (`em`/`<s>`) faces are not instanced either (only Regular 400 and Medium 500 are).
+
+## §103 (26/11) — the TABLE of the post body is drawn, AND a real PARSER defect surfaced: the separator row was being consumed as a data row
+
+MEASURED (app `BlogCuerpoRich.paintTable`/`alignX` + `RichText.isTableRow`, `EnoisBlogCuerpoTableE2ETest` on
+native). Two findings:
+1. **the parser defect**: the site's row rule is `TABLE_ROW = /^\s*\|(.+)\|\s*$/`
+   (`enois-design-system/src/lib/rich-text/parse.ts:53`) — `|…|` with AT LEAST one character between the
+   pipes. The Kof `isTableRow` tested only `startsWith("|")`, so the SEPARATOR (`| --- | :---: |`) matched
+   as a body row and the table lost its first body line: `| a | b |` + separator + `| 1 | 2 |` produced
+   2 rows (head + the separator) instead of 2 rows (head + `1|2`). The fix requires a closing `|` and a
+   length of 3+; measured after: head + the body row (`r0n=2`, `r1n=2` are the two REAL rows).
+2. **the drawing**: the table paints the grid with `border-border-soft` on every cell, the header in the
+   MARK face (the DS's `bg-surface-1 font-medium`), the `px-2 py-1` padding and the column alignment
+   (`text-center`/`text-right` from the separator's `:`), and returns `RichText.tableHeight(rows)` so the
+   height stays the measured one (`my-2` 8 + rows × 28). For the 2-row table that is `8*2 + 2*28 = 72`.
+
+BATTERY: **99 tests / 1 failure** (only `EnoisTextE2ETest` `0 px`, §1197).
+
+The parser fix is the kind of thing the plan's rule exists for: measured in the front's source, not
+invented — and it changed observable output of an already-migrated block.
