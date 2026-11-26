@@ -172,21 +172,17 @@ public final class RuntimeProcess {
                 # pipe2(out=0(%r14), 0)
                 leaq 0(%r14), %rdi
                 xorl %esi, %esi
-                movl $293, %eax
-                syscall
+                call kof_plat_pipe2
                 # pipe2(err=8(%r14), 0)
                 leaq 8(%r14), %rdi
                 xorl %esi, %esi
-                movl $293, %eax
-                syscall
+                call kof_plat_pipe2
                 # pipe2(fail=16(%r14), O_CLOEXEC)
                 leaq 16(%r14), %rdi
                 movl $524288, %esi
-                movl $293, %eax
-                syscall
+                call kof_plat_pipe2
                 # fork
-                movl $57, %eax
-                syscall
+                call kof_plat_fork
                 testl %eax, %eax
                 js .Lkof_proc_run_fail_syscall
                 jne .Lkof_proc_run_parent
@@ -194,29 +190,22 @@ public final class RuntimeProcess {
                 # ── FILHO ──────────────────────────────────────────────
                 movl 4(%r14), %edi          # dup2(out_w → 1)
                 movl $1, %esi
-                movl $33, %eax
-                syscall
+                call kof_plat_dup2
                 movl 12(%r14), %edi         # dup2(err_w → 2)
                 movl $2, %esi
-                movl $33, %eax
-                syscall
+                call kof_plat_dup2
                 movl 0(%r14), %edi          # close(out_r)
-                movl $3, %eax
-                syscall
+                call kof_plat_close
                 movl 8(%r14), %edi          # close(err_r)
-                movl $3, %eax
-                syscall
+                call kof_plat_close
                 movl 16(%r14), %edi         # close(fail_r)
-                movl $3, %eax
-                syscall
+                call kof_plat_close
                 xorl %edi, %edi             # close(0)
-                movl $3, %eax
-                syscall
+                call kof_plat_close
                 leaq .Lkof_proc_devnull(%rip), %rdi
                 xorl %esi, %esi
                 xorl %edx, %edx
-                movl $2, %eax
-                syscall                     # open(/dev/null) → 0
+                call kof_plat_open
                 # ── runwith hook (shell fatia B): herdado quando 0 ────────
                 # O contexto (env/cwd) vive na PILHA do wrapper — o fork
                 # copiou o stack, então o filho lê via kof_runwith_ctx
@@ -237,16 +226,13 @@ public final class RuntimeProcess {
                 leaq .Lkof_proc_rw_nocwd_msg(%rip), %rsi
                 movl $31, %edx
                 movl 12(%r14), %edi
-                movl $1, %eax
-                syscall                     # write(err_w, msg)
+                call kof_plat_write
                 leaq .Lkof_proc_rw_nocwd_msg(%rip), %rsi
                 movl $1, %edx
                 movl 20(%r14), %edi
-                movl $1, %eax
-                syscall                     # write(fail_w, "x", 1)
+                call kof_plat_write
                 movl $127, %edi
-                movl $60, %eax
-                syscall                     # _exit(127)
+                call kof_plat_exit
             .Lkof_proc_rw_nocwd:
                 # env ADITIVO: setenv(k, v, 1) por entrada (nunca limpa o
                 # ambiente — mesmo contrato do putAll do oráculo JVM).
@@ -323,16 +309,14 @@ public final class RuntimeProcess {
                 movl $3, %edi
                 movl $-1, %esi
                 movl $4, %edx
-                movl $436, %eax
-                syscall
+                call kof_plat_exec
                 testq %rax, %rax
                 jns .Lkof_proc_child_cloexec_done
                 movl $3, %edi
             .Lkof_proc_child_cloexec_loop:
                 movl $2, %esi               # F_SETFD
                 movl $1, %edx               # FD_CLOEXEC
-                movl $72, %eax              # fcntl
-                syscall
+                call kof_plat_cloexec              # fcntl
                 incl %edi
                 cmpl $1024, %edi
                 jl .Lkof_proc_child_cloexec_loop
@@ -345,29 +329,23 @@ public final class RuntimeProcess {
                 leaq .Lkof_proc_execfail(%rip), %rsi
                 movl $20, %edx
                 movl 12(%r14), %edi
-                movl $1, %eax
-                syscall
+                call kof_plat_write
                 leaq .Lkof_proc_execfail(%rip), %rsi
                 movl $1, %edx
                 movl 20(%r14), %edi
-                movl $1, %eax
-                syscall                     # write(fail_w, "x", 1)
+                call kof_plat_write
                 movl $127, %edi
-                movl $60, %eax
-                syscall
+                call kof_plat_exit
 
                 # ── PAI ────────────────────────────────────────────────
             .Lkof_proc_run_parent:
                 movl %eax, 28(%r14)         # pid
                 movl 4(%r14), %edi          # close(out_w)
-                movl $3, %eax
-                syscall
+                call kof_plat_close
                 movl 12(%r14), %edi         # close(err_w)
-                movl $3, %eax
-                syscall
+                call kof_plat_close
                 movl 20(%r14), %edi         # close(fail_w)
-                movl $3, %eax
-                syscall
+                call kof_plat_close
             .Lkof_proc_run_poll:
                 movl 0(%r14), %eax
                 movl %eax, 96(%r14)
@@ -378,15 +356,13 @@ public final class RuntimeProcess {
                 leaq 96(%r14), %rdi
                 movl $2, %esi
                 movq $-1, %rdx
-                movl $7, %eax
-                syscall
+                call kof_plat_poll
                 testw $0x19, 102(%r14)      # revents & (POLLIN|POLLERR|POLLHUP=0x19)
                 jz .Lkof_proc_run_poll_err
                 movl 0(%r14), %edi
                 movq 112(%r14), %rsi
                 movl $4096, %edx
-                movl $0, %eax
-                syscall
+                call kof_plat_read
                 testl %eax, %eax
                 jg .Lkof_proc_run_read_out
                 jle .Lkof_proc_run_eof_out
@@ -405,8 +381,7 @@ public final class RuntimeProcess {
                 movl 8(%r14), %edi
                 movq 112(%r14), %rsi
                 movl $4096, %edx
-                movl $0, %eax
-                syscall
+                call kof_plat_read
                 testl %eax, %eax
                 jg .Lkof_proc_run_read_err
                 jle .Lkof_proc_run_eof_err
@@ -425,21 +400,17 @@ public final class RuntimeProcess {
                 je .Lkof_proc_run_poll
                 # fecha read-ends
                 movl 0(%r14), %edi
-                movl $3, %eax
-                syscall
+                call kof_plat_close
                 movl 8(%r14), %edi
-                movl $3, %eax
-                syscall
+                call kof_plat_close
                 # exec-fail? read(fail_r) > 0 → spawn falhou
                 movl 16(%r14), %edi
                 movq 112(%r14), %rsi
                 movl $1, %edx
-                movl $0, %eax
-                syscall
+                call kof_plat_read
                 movl %eax, %r12d            # rc do read (o close abaixo clobberia eax)
                 movl 16(%r14), %edi
-                movl $3, %eax
-                syscall
+                call kof_plat_close
                 movl $0, 32(%r14)
                 testl %r12d, %r12d
                 jle .Lkof_proc_run_wait
@@ -450,8 +421,7 @@ public final class RuntimeProcess {
                 leaq 24(%r14), %rsi
                 xorl %edx, %edx
                 xorl %r10d, %r10d
-                movl $61, %eax
-                syscall
+                call kof_plat_wait
                 # 1) copia AMBOS os stream-strings (from_literal copia — os
                 # buffers globais seguem para a próxima chamada). 2) o alloc do
                 # Result fica POR ULTIMO (rax = valor de retorno; kof_free

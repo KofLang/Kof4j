@@ -782,6 +782,24 @@ compiles and runs **identical** on `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` 
   is what NATIVE004 refuses without. **THE NEXT ROWS:** the "stat" family of
   the seam (the Darwin `struct stat`), the M-7 runner, the arm64 face (the
   cross aarch64 emitter + its Mach-O proof); then #1159 keep-alive HTTP/1.1.
+  **M-6 SLICE 16 LANDED 24/11 — the OTHER half of the process family
+  (`kof_process_run`) left the raw Linux syscall ABI (known-bugs §1237).** The
+  `process.run(...)` API opened its pipes, forked, dup2'd, executed
+  (`execveat`), waited (`wait4`), killed, polled, marked `FD_CLOEXEC` and
+  opened/read/wrote/closed/exited with raw syscalls. The 30 sites now call
+  the seam family landed with the spawn — the Linux bodies keep the syscalls
+  of always (the semantics do not change), the Darwin bodies are the
+  libSystem. **PROOF (executed):** `NativeMacOSProcessSeamE2ETest` 3/3 —
+  RED-first (the raw syscall INSTRUCTION is back on the old tree; the
+  assertion looks at the instruction, not the word — the label
+  `.Lkof_proc_run_fail_syscall` carries it) and now covering BOTH faces; the
+  process battery 20/20 with the whole runtime still ASSEMBLING and LINKING
+  in the real Mach-O toolchain; the seam ratchet **FALLS 103 → 78**. **THE
+  LAST RAW FILE OF THE FAMILY:** the SHELL pipeline
+  (`RuntimeShellPipeline`, 29 sites) — then the M-2 row is done and what
+  remains for the macOS target is the program's own text (the ELF-only faces
+  the program carries: M-4's TLS), the M-7 runner and the arm64 face.
+
   **M-6 SLICE 15 LANDED 24/11 — the SPAWN of the runtime left the raw Linux
   syscall ABI (known-bugs §1235).** `kof_process_spawn` opened the pipes,
   forked, wired the child's stdin/stdout, marked `FD_CLOEXEC`, executed

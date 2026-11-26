@@ -71,11 +71,19 @@ class NativeMacOSProcessSeamE2ETest {
             } catch (RuntimeException e) {
                 continue;
             }
-            String spawn = body(asm, "kof_process_spawn");
-            assertFalse(spawn.contains("syscall"),
-                    "no raw syscall left in the spawn family (" + profile + "):\n" + spawn);
-            assertTrue(spawn.contains("call kof_plat_fork"),
-                    "the fork goes through the seam (" + profile + "):\n" + spawn);
+            for (String fn : List.of("kof_process_spawn", "kof_process_run")) {
+                String spawn = body(asm, fn);
+                // a INSTRUCAO, nao a palavra (o rotulo
+                // `.Lkof_proc_run_fail_syscall` carrega o nome)
+                boolean raw = false;
+                for (String line : spawn.split("\n")) {
+                    if (line.trim().equals("syscall")) raw = true;
+                }
+                assertFalse(raw,
+                        "no raw syscall INSTRUCTION left in " + fn + " (" + profile + "):\n" + spawn);
+                assertTrue(spawn.contains("call kof_plat_fork"),
+                        "the fork goes through the seam in " + fn + " (" + profile + "):\n" + spawn);
+            }
         }
     }
 
