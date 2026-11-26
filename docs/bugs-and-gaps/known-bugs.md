@@ -21943,3 +21943,16 @@ STATUS-MARK: FIXED 26/11 - the exact repro decodes (tamanho=1, the same as the n
 
 lane docs/lab - owner = 192.168.100.14:0, flatt CLI, no opencode server on this host; port n/a
 
+**UPDATE 12 (26/11, Énois migration lane — the smallest repro so far, SDL + native, no reader):**
+the SECOND `fillRect` after a colour+fill pair is the one that goes missing. The program
+`clearFrame(247,244,251)`; `fillRect(2,2,4,4)`; read → **247** (correct); `SDL_SetRenderDrawColor(229,224,235)`;
+`fillRect(10,10,100,1)`; read(3,3) → **247** (the first fill is still there); `fillRect(2,2,4,4)` again;
+read(3,3) → **229** (the SECOND fill of the same rect did NOT paint); read(10,10) → **229** (the border did).
+So a fill does land, and the very next fill at another place does NOT — the in-between colour set is part
+of the shape. In the Énois `JobsScreen.paintHeader` (white card fill, then a border-soft hairline) the
+card's white shows up as `148,145,152` — the earlier card fill mixed with the border colour — while every
+later `fillRect` in `main` reads as the border colour `229,224,235` no matter what it paints.
+Not the reader: the same order reproduces with `readPixel` called at every step, and a plain
+`clearFrame + fillRect` (no colour set in between) reads correctly. NEXT: the exact `.s` of this program
+around the second `SDL_SetRenderDrawColor` (the channel registers are the §1197 finding (b)) — this is
+the smallest fixture for the lane that owns the backend.

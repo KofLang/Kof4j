@@ -19370,3 +19370,17 @@ o peek = o argc passaria REAL. A medida honesta: o argc tá SEMPRE certo no bin�
 call-de-alinhamento (o meu standalone sem `extern`s). O desalinhamento só morde quando o argv0
 `call` precede o argc-read — o conserto é da lane nativa (a ordem emit: o args-read PRIMEIRO,
 o alinhamento DEPOIS — o `call .Lkof_aligned` deve VIR DEPOIS do `movq 0(%rsp), %r15`).
+
+**ATUALIZAÇÃO 12 (26/11, lane da migração Énois — o menor repro até agora, SDL + nativo, sem leitor):**
+o SEGUNDO `fillRect` depois de um par cor+fill é o que se perde. O programa
+`clearFrame(247,244,251)`; `fillRect(2,2,4,4)`; leitura → **247** (certo); `SDL_SetRenderDrawColor(229,224,235)`;
+`fillRect(10,10,100,1)`; leitura(3,3) → **247** (o primeiro fill continua lá); `fillRect(2,2,4,4)` de novo;
+leitura(3,3) → **229** (o SEGUNDO fill do mesmo retângulo NÃO pintou); leitura(10,10) → **229** (a borda pintou).
+Então um fill pinta e o imediatamente seguinte, noutro lugar, não — a troca de cor no meio faz parte da forma.
+No `JobsScreen.paintHeader` do Énois (o card branco, depois o fio `border-soft`) o branco do card aparece como
+`148,145,152` — o fill do card misturado com a cor da borda — enquanto todo `fillRect` posterior no `main`
+lê a cor da borda `229,224,235`, não importa o que pinte.
+Não é o leitor: a mesma ordem se reproduz com `readPixel` chamado em cada passo, e um
+`clearFrame + fillRect` simples (sem troca de cor no meio) lê certo. PRÓXIMO: o `.s` exato deste programa em
+volta do segundo `SDL_SetRenderDrawColor` (os registradores dos canais são o achado (b) do §1197) — este é o
+menor fixture para a lane dona do backend.
