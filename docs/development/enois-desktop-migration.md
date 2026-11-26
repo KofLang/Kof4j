@@ -1956,3 +1956,23 @@ RECORDED: `known-bugs §1230` (EN/PT) with the NEXT (bisect `NativeX86StackAlign
 
 NEXT (named): the Kof fix (RED-first: the 6-line program must print in 10/10 runs), then
 `EnoisAppEntryE2ETest` GREEN, then the rich-text blocks painted in the post card.
+
+## §91 Round 25/11 (ninety-first) — THE APP OPENS: the entry test is GREEN on the tip; the RED was a STALE Maven-local compiler
+
+MEASURED: `mvn -o test -Dtest=EnoisAppEntryE2ETest` in `/tmp/enois-kof-desktop` →
+`Tests run: 1, Failures: 0`; the harness binary prints `sessao: casca=visita`,
+`casca=visita coluna=1232`, `roteiro=Mentores em destaque`, `vagas=Minhas vagas`,
+`painel=Meus projetos`, `criador=Jogos`, `quadro: apresentado`. Outside the test (own install
+root, `SDL_VIDEODRIVER=dummy`): **10/10 identical runs (one hash) and 3/3 under `ulimit -v 256M`**.
+
+WHY IT WAS RED: the Maven-local `dev.kof:kof-compiler:0.8.1` had been installed from a mid-day tree
+(carrying an experimental `.Lkof_aligned` entry stub that never landed); the app's harness compiles
+through that artifact, so it measured old code. `mvn -o -pl kof-compiler install` on the tip fixes it.
+OPERATING RULE (now in `known-bugs §1230`): after touching the compiler, reinstall it into `~/.m2`
+before running the app's harness.
+
+`known-bugs §1230` is CLOSED as a measurement artefact (the day's observations kept as WITHDRAWN);
+the REAL semantic bug found on the way — `continue` inside an `if` of a loop retargets the if's exit
+jump to the loop head, so the update never runs and the loop never ends on BOTH targets — is
+`known-bugs §1232` (OPEN, javap-measured). Next named step: the app's full battery (91 classes,
+running) and then the rich-text blocks painted in the post card.

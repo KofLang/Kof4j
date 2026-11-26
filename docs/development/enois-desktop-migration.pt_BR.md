@@ -1651,3 +1651,23 @@ REGISTRADO: `known-bugs §1230` (EN/PT) com o PRÓXIMO (bissectar o `NativeX86St
 
 PRÓXIMO (nomeado): o fix do Kof (RED-first: o programa de 6 linhas tem que imprimir em 10/10),
 depois o `EnoisAppEntryE2ETest` VERDE, depois os blocos do rich-text pintados no card do post.
+
+## §91 Rodada 25/11 (ninety-first) — O APP ABRE: o teste de entrada está VERDE no tip; o VERMELHO era o compilador VELHO do Maven local
+
+MEDIDO: `mvn -o test -Dtest=EnoisAppEntryE2ETest` em `/tmp/enois-kof-desktop` →
+`Tests run: 1, Failures: 0`; o binário do harness imprime `sessao: casca=visita`,
+`casca=visita coluna=1232`, `roteiro=Mentores em destaque`, `vagas=Minhas vagas`,
+`painel=Meus projetos`, `criador=Jogos`, `quadro: apresentado`. Fora do teste (install root próprio,
+`SDL_VIDEODRIVER=dummy`): **10/10 execuções idênticas (um hash) e 3/3 sob `ulimit -v 256M`**.
+
+POR QUE ESTAVA VERMELHO: o `dev.kof:kof-compiler:0.8.1` do Maven local tinha sido instalado de uma
+árvore do meio do dia (com um stub de entry `.Lkof_aligned` experimental que nunca pousou); o harness
+do app compila por esse artefato, então media código velho. `mvn -o -pl kof-compiler install` no tip
+resolve. REGRA OPERACIONAL (agora em `known-bugs §1230`): depois de mexer no compilador, reinstale no
+`~/.m2` antes de rodar o harness do app.
+
+O `known-bugs §1230` está FECHADO como artefato de medição (as observações do dia ficam RETIRADAS); o
+bug REAL de semântica achado no caminho — `continue` dentro de `if` de laço retargeta o salto de saída
+do if para o topo do laço, então a atualização nunca roda e o laço nunca termina nos DOIS alvos — é o
+`known-bugs §1232` (ABERTO, medido com javap). Próximo passo nomeado: a bateria inteira do app (91
+classes, rodando) e depois os blocos do rich-text pintados no card do post.
