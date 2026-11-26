@@ -71,7 +71,7 @@ class NativeMacOSProcessSeamE2ETest {
             } catch (RuntimeException e) {
                 continue;
             }
-            for (String fn : List.of("kof_process_spawn", "kof_process_run")) {
+            for (String fn : List.of("kof_process_spawn", "kof_process_run", "kof_shell_pipeline")) {
                 String spawn = body(asm, fn);
                 // a INSTRUCAO, nao a palavra (o rotulo
                 // `.Lkof_proc_run_fail_syscall` carrega o nome)

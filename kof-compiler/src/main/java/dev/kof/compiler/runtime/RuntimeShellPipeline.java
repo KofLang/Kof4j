@@ -107,12 +107,10 @@ public final class RuntimeShellPipeline {
                 # ── pipes de captura do ÚLTIMO estágio ─────────────────────
                 leaq 544(%r14), %rdi        # cap_out
                 xorl %esi, %esi
-                movl $293, %eax
-                syscall
+                call kof_plat_pipe2
                 leaq 552(%r14), %rdi        # cap_err
                 xorl %esi, %esi
-                movl $293, %eax
-                syscall
+                call kof_plat_pipe2
                 # ── fork por estágio ───────────────────────────────────────
                 movl $0, 8(%r14)            # i = 0
             .Lkof_shell_pl_stage_loop:
@@ -128,11 +126,9 @@ public final class RuntimeShellPipeline {
                 movl %r13d, %eax
                 leaq 32(%r14,%rax,8), %rdi  # &chain[i] = 32 + i*8
                 xorl %esi, %esi
-                movl $293, %eax
-                syscall
+                call kof_plat_pipe2
             .Lkof_shell_pl_no_pipe:
-                movl $57, %eax              # fork
-                syscall
+                call kof_plat_fork              # fork
                 testl %eax, %eax
                 js .Lkof_shell_pl_fail_syscall
                 jne .Lkof_shell_pl_parent
@@ -143,12 +139,10 @@ public final class RuntimeShellPipeline {
                 leaq .Lkof_shell_pl_devnull(%rip), %rdi
                 xorl %esi, %esi             # O_RDONLY
                 xorl %edx, %edx
-                movl $2, %eax
-                syscall
+                call kof_plat_open
                 movl %eax, %edi
                 xorl %esi, %esi
-                movl $33, %eax
-                syscall                     # dup2(devnull -> 0)
+                call kof_plat_dup2
                 jmp .Lkof_shell_pl_c_stdout
             .Lkof_shell_pl_c_stdin_pipe:
                 movl %r13d, %eax
@@ -156,8 +150,7 @@ public final class RuntimeShellPipeline {
                 shll $3, %eax
                 movl 32(%r14,%rax), %edi    # chain[i-1].rd
                 xorl %esi, %esi
-                movl $33, %eax
-                syscall
+                call kof_plat_dup2
             .Lkof_shell_pl_c_stdout:
                 movl %r13d, %ecx
                 incl %ecx
@@ -167,14 +160,12 @@ public final class RuntimeShellPipeline {
                 shll $3, %eax
                 movl 36(%r14,%rax), %edi    # chain[i].wr
                 movl $1, %esi
-                movl $33, %eax
-                syscall
+                call kof_plat_dup2
                 jmp .Lkof_shell_pl_c_stderr
             .Lkof_shell_pl_c_stdout_cap:
                 movl 548(%r14), %edi        # cap_out.wr
                 movl $1, %esi
-                movl $33, %eax
-                syscall
+                call kof_plat_dup2
             .Lkof_shell_pl_c_stderr:
                 movl %r13d, %ecx
                 incl %ecx
@@ -184,18 +175,15 @@ public final class RuntimeShellPipeline {
                 leaq .Lkof_shell_pl_devnull(%rip), %rdi
                 xorl %esi, %esi
                 xorl %edx, %edx
-                movl $2, %eax
-                syscall
+                call kof_plat_open
                 movl %eax, %edi
                 movl $2, %esi
-                movl $33, %eax
-                syscall
+                call kof_plat_dup2
                 jmp .Lkof_shell_pl_c_close
             .Lkof_shell_pl_c_stderr_cap:
                 movl 556(%r14), %edi        # cap_err.wr
                 movl $2, %esi
-                movl $33, %eax
-                syscall
+                call kof_plat_dup2
             .Lkof_shell_pl_c_close:
                 # fecha TODOS os fds de pipe (o filho só precisa dos dup2'dos)
                 xorl %r15d, %r15d           # k
@@ -207,22 +195,18 @@ public final class RuntimeShellPipeline {
                 movl %r15d, %eax
                 shll $3, %eax
                 movl 32(%r14,%rax), %edi    # chain[k].rd
-                movl $3, %eax
-                syscall
+                call kof_plat_close
                 movl %r15d, %eax
                 shll $3, %eax
                 movl 36(%r14,%rax), %edi    # chain[k].wr
-                movl $3, %eax
-                syscall
+                call kof_plat_close
                 incl %r15d
                 jmp .Lkof_shell_pl_c_close_loop
             .Lkof_shell_pl_c_close_caps:
                 movl 544(%r14), %edi        # cap_out.rd
-                movl $3, %eax
-                syscall
+                call kof_plat_close
                 movl 552(%r14), %edi        # cap_err.rd
-                movl $3, %eax
-                syscall
+                call kof_plat_close
                 # argv = payload de stage[j] (KofStr @24), NULL-terminado —
                 # buffer no HEAP (kof_alloc, (size+1)*8): o estágio pode ter
                 # qualquer aridade (cap fixo de stack seria overflow).
@@ -263,16 +247,14 @@ public final class RuntimeShellPipeline {
                 movl $3, %edi
                 movl $-1, %esi
                 movl $4, %edx
-                movl $436, %eax
-                syscall
+                call kof_plat_exec
                 testq %rax, %rax
                 jns .Lkof_shell_pl_cloexec_done
                 movl $3, %edi
             .Lkof_shell_pl_cloexec_loop:
                 movl $2, %esi
                 movl $1, %edx
-                movl $72, %eax
-                syscall
+                call kof_plat_cloexec
                 incl %edi
                 cmpl $1024, %edi
                 jl .Lkof_shell_pl_cloexec_loop
@@ -293,11 +275,9 @@ public final class RuntimeShellPipeline {
             .Lkof_shell_pl_c_execfail_quiet:
                 movl $2, %edi
             .Lkof_shell_pl_c_execfail_write:
-                movl $1, %eax
-                syscall
+                call kof_plat_write
                 movl $127, %edi
-                movl $60, %eax
-                syscall
+                call kof_plat_exit
                 # ── PAI ────────────────────────────────────────────────────
             .Lkof_shell_pl_parent:
                 movl %eax, 560(%r14,%r13,4) # pids[i]
@@ -308,8 +288,7 @@ public final class RuntimeShellPipeline {
                 decl %eax
                 shll $3, %eax
                 movl 32(%r14,%rax), %edi    # chain[i-1].rd
-                movl $3, %eax
-                syscall
+                call kof_plat_close
             .Lkof_shell_pl_p_no_prev:
                 movl %r13d, %ecx
                 incl %ecx
@@ -318,19 +297,16 @@ public final class RuntimeShellPipeline {
                 movl %r13d, %eax
                 shll $3, %eax
                 movl 36(%r14,%rax), %edi    # chain[i].wr
-                movl $3, %eax
-                syscall
+                call kof_plat_close
             .Lkof_shell_pl_p_next:
                 incl %r13d
                 movl %r13d, 8(%r14)
                 jmp .Lkof_shell_pl_stage_loop
             .Lkof_shell_pl_stages_done:
                 movl 548(%r14), %edi        # cap_out.wr
-                movl $3, %eax
-                syscall
+                call kof_plat_close
                 movl 556(%r14), %edi        # cap_err.wr
-                movl $3, %eax
-                syscall
+                call kof_plat_close
                 # ── dreno: poll em cap_out.rd + cap_err.rd ─────────────────
                 movq $0, 832(%r14)
                 movq $0, 840(%r14)          # eof flags
@@ -344,15 +320,13 @@ public final class RuntimeShellPipeline {
                 leaq 816(%r14), %rdi
                 movl $2, %esi
                 movq $-1, %rdx
-                movl $7, %eax
-                syscall
+                call kof_plat_poll
                 testw $0x19, 822(%r14)
                 jz .Lkof_shell_pl_poll_err
                 movl 544(%r14), %edi
                 movq 896(%r14), %rsi
                 movl $4096, %edx
-                movl $0, %eax
-                syscall
+                call kof_plat_read
                 testl %eax, %eax
                 jg .Lkof_shell_pl_read_out
                 jmp .Lkof_shell_pl_eof_out
@@ -370,8 +344,7 @@ public final class RuntimeShellPipeline {
                 movl 552(%r14), %edi
                 movq 896(%r14), %rsi
                 movl $4096, %edx
-                movl $0, %eax
-                syscall
+                call kof_plat_read
                 testl %eax, %eax
                 jg .Lkof_shell_pl_read_err
                 jmp .Lkof_shell_pl_eof_err
@@ -390,11 +363,9 @@ public final class RuntimeShellPipeline {
                 je .Lkof_shell_pl_poll
                 # fecha os read-ends
                 movl 544(%r14), %edi
-                movl $3, %eax
-                syscall
+                call kof_plat_close
                 movl 552(%r14), %edi
-                movl $3, %eax
-                syscall
+                call kof_plat_close
                 # ── reaps: exitCode = ÚLTIMO ───────────────────────────────
                 xorl %r13d, %r13d
             .Lkof_shell_pl_reap_loop:
@@ -404,8 +375,7 @@ public final class RuntimeShellPipeline {
                 leaq 16(%r14), %rsi
                 xorl %edx, %edx
                 xorl %r10d, %r10d
-                movl $61, %eax              # wait4
-                syscall
+                call kof_plat_wait              # wait4
                 incl %r13d
                 jmp .Lkof_shell_pl_reap_loop
             .Lkof_shell_pl_reaped:

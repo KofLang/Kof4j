@@ -784,6 +784,23 @@ compila e roda **idêntico** em `x86_64`, `aarch64 (qemu)`, `riscv64 (qemu)` e
   isso que a NATIVE004 recusa sem. **AS PRÓXIMAS LINHAS:** a família "stat"
   da costura (o `struct stat` do Darwin), o runner M-7, a face arm64 (o
   emissor cross aarch64 + a sua prova Mach-O); depois #1159 keep-alive
+  **M-6 FATIA 17 POUSADA 24/11 — o SHELL pipeline saiu do ABI cru: a LINHA
+  M-2 DE PROCESSOS ACABOU COMO FAMÍLIA (known-bugs §1245).** O terceiro e
+  último arquivo cru da família (`RuntimeShellPipeline`, 30 sítios: pipe2,
+  fork, dup2, execveat, wait4, poll, FD_CLOEXEC, open/read/write/close,
+  exit) agora chama a família da costura landada com o spawn — os corpos
+  Linux mantêm os syscalls de sempre (a semântica não muda), os corpos Darwin
+  são a libSystem. **PROVA (executada):**
+  `NativeMacOSProcessSeamE2ETest` 3/3 — RED-first (a INSTRUÇÃO do syscall cru
+  volta na árvore antiga) e agora cobrindo AS TRÊS faces
+  (`kof_process_spawn`, `kof_process_run`, `kof_shell_pipeline`);
+  `PipelineE2ETest` 2/2; a bateria de processos 17/17 com o runtime inteiro
+  ainda MONTANDO e LINKANDO no toolchain real do Mach-O; o ratchet da costura
+  **CAI 78 → 49**. **O QUE RESTA FORA DA COSTURA (nomeado):** o conjunto
+  io2/io3/io-copy, o web listen/responses e o net front — e, para o alvo
+  macOS, o texto do próprio programa (o TLS da M-4), o runner M-7 e a face
+  arm64.
+
   **M-6 FATIA 16 POUSADA 24/11 — a OUTRA metade da família de processos
   (`kof_process_run`) saiu do ABI cru do syscall Linux (known-bugs §1237).** A
   API `process.run(...)` abria os pipes, dava fork, dup2, executava
