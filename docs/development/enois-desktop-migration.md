@@ -2416,3 +2416,13 @@ FIX (app `c779c4c`): `paintQuoteWrapped(b, f, mark, q, x, top, width)` / `paintQ
 PROOF (executed): `EnoisBlogCuerpoQuoteWrapE2ETest` (native) — `tipo=quote`, `larga=36` (the DS height for one line), `linhas=4` in the narrow width, `apertada=96` (16 + 4 × 20), frame presented; 2/2 on the first two runs. The existing `EnoisBlogCuerpoQuoteE2ETest` (six-argument `paintQuote`) still green. Battery **110 tests / 1 failure** (only the §1197 `0 px`).
 
 NAMED NEXT: §1241 (object equality inside a print chain) and §1244 (SDL/Fontconfig flake) stay OPEN in `known-bugs`; the quote's inner marks inside a wrapped line use the same `paintWord` as the body, so they inherit the §112 behaviour.
+
+## §118 (26/11) — THE CODE BLOCK'S BOX IS THE WIDEST LINE: the DS's `<pre>` does not wrap (`white-space: pre`), so the box grows to the content instead of being clipped to the column
+
+MEASURED (DS `rich-text.tsx` code block: `<pre className="my-2 rounded-xl bg-surface-1 p-3 text-sm leading-relaxed">`): `white-space: pre` means no wrapping — the widest line (plus a `p-3`, 12, on each side) sets the box width, and a line longer than the column overflows it as it does in the site. The painting was drawing the box at the column width, so long lines were painted over the rounded rect (and over whatever sat to the right of the box).
+
+FIX (app `0aa94ea`): `codeWidest(f, lines)` (the measured advance of the widest line) and the box width becomes `max(column, 12 + widest + 12)` when a width is given, `12 + widest + 12` when it is not (`width <= 0`, the `paint` path, which used to draw at the ORIGIN — the same defect in the no-width path). Height is unchanged: `p-3` + lines × 20 + `p-3`.
+
+PROOF (executed): `EnoisBlogCuerpoCodeBoxE2ETest` (native) — `tipo=codeBlock linhas=2`, `larga=372` (the long line at 14 px), `altura=64` (`12 + 40 + 12`), `cabe=true` (`12 + 372 + 12 > 100`, the narrow column the test paints into), frame presented; 2/2. `EnoisBlogCuerpoCodeE2ETest` (the existing `drawImage`-free code test) still green. Battery **111 tests / 1 failure** (only the §1197 `0 px`).
+
+NAMED PENDING (unchanged): the `<code>` face is the body's because the DS ships no MONO asset; the inline `<code>` box is still drawn after the glyph (§111 note).

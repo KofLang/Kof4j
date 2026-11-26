@@ -2114,3 +2114,13 @@ CORREÇÃO (app `c779c4c`): `paintQuoteWrapped(b, f, mark, q, x, top, width)` / 
 PROVA (executada): `EnoisBlogCuerpoQuoteWrapE2ETest` (nativo) — `tipo=quote`, `larga=36` (a altura do DS para uma linha), `linhas=4` na largura apertada, `apertada=96` (16 + 4 × 20), quadro apresentado; 2/2 nas duas primeiras rodadas. O `EnoisBlogCuerpoQuoteE2ETest` que já existia (o `paintQuote` de 6 argumentos) continua verde. Bateria **110 testes / 1 falha** (só o `0 px` do §1197).
 
 PRÓXIMO NOMEADO: §1241 (comparação de objetos numa cadeia de prints) e §1244 (flake SDL/Fontconfig) continuam ABERTOS no `known-bugs`; as marcas internas de uma linha dobrada da citação usam o mesmo `paintWord` do corpo, então herdam o comportamento do §112.
+
+## §118 (26/11) — A CAIXA DO BLOCO DE CÓDIGO É A LINHA MAIS LARGA: o `<pre>` do DS não dobra (`white-space: pre`), então a caixa cresce com o conteúdo em vez de ser cortada na coluna
+
+MEDIDO (bloco de código do DS em `rich-text.tsx`: `<pre className="my-2 rounded-xl bg-surface-1 p-3 text-sm leading-relaxed">`): `white-space: pre` significa que não há dobra — a linha mais larga (mais um `p-3`, 12, de cada lado) define a largura da caixa, e uma linha maior que a coluna transborda como no site. O pintor desenhava a caixa na largura da coluna, então as linhas longas eram pintadas por cima do retângulo arredondado (e do que estivesse à direita da caixa).
+
+CORREÇÃO (app `0aa94ea`): `codeWidest(f, lines)` (o avanço medido da linha mais larga) e a largura da caixa vira `max(coluna, 12 + larga + 12)` quando há largura, `12 + larga + 12` quando não há (`width <= 0`, o caminho do `paint`, que desenhava na ORIGEM — o mesmo defeito no caminho sem largura). A altura não muda: `p-3` + linhas × 20 + `p-3`.
+
+PROVA (executada): `EnoisBlogCuerpoCodeBoxE2ETest` (nativo) — `tipo=codeBlock linhas=2`, `larga=372` (a linha longa em 14 px), `altura=64` (`12 + 40 + 12`), `cabe=true` (`12 + 372 + 12 > 100`, a coluna estreita em que o teste pinta), quadro apresentado; 2/2. O `EnoisBlogCuerpoCodeE2ETest` que já existia continua verde. Bateria **111 testes / 1 falha** (só o `0 px` do §1197).
+
+PENDÊNCIA NOMEADA (sem mudança): a face do `<code>` é a do corpo porque o DS não traz um asset MONO; a caixa do `<code>` inline ainda é desenhada depois do glifo (nota do §111).
