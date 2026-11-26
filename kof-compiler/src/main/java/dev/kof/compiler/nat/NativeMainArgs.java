@@ -68,9 +68,15 @@ final class NativeMainArgs {
             sb.append("    pushq %r12\n");
             sb.append("    pushq %r13\n");
             sb.append("    pushq %r14\n");
-            sb.append("    movq (%rsp), %r15\n");   // argc (rsp + 32 após os pushes)
+            // APÓS os 4 pushes (32 bytes), o vetor do kernel está ABAIXO:
+            // [rsp+32]=argc, [rsp+40]=argv[0] (o drop), [rsp+48]=argv[1]...
+            // O §1230 inverteu a ordem (os pushes ANTES da leitura — os
+            // callee-saved preservados) mas manteve os offsets da entrada CRUA
+            // ((%rsp) lia o %r14 SALVO e o 48(%rsp) o argv[1] — o SEGV 139
+            // do stamp 0.8.2). Os offsets +32/+40 são os da pilha REAL.
+            sb.append("    movq 32(%rsp), %r15\n");  // argc (32 bytes de pushes)
             sb.append("    decq %r15\n");
-            sb.append("    leaq 48(%rsp), %r14\n");  // &argv[0] (16 + 32)
+            sb.append("    leaq 48(%rsp), %r14\n");  // &argv[1] (32 de pushes + argc + argv0 = drop)
         }
         // clamp: sem argumentos (argc 0) o contador ficaria -1 e o
         // kof_array_alloc pediria ~34 GiB (o "%edi" e' lido como unsigned).
@@ -104,15 +110,12 @@ final class NativeMainArgs {
         sb.append("    incq %r12\n");
         sb.append("    jmp .Lkof_args_loop\n");
         sb.append(".Lkof_args_done:\n");
-        // devolve os callee-saved (na ordem inversa) — a montagem do `args`
-        // usa %rbx/%r12/%r13/%r14, e o `main` tem que entrar com os valores
-        // que o `_start` recebeu do kernel. O emissor do entry já move o
-        // array de %rbx para %rdi DEPOIS desta peça (e o %rbx vai direto no
-        // nó seguinte), então aqui só se restaura.
-        sb.append("    popq %r14\n");
-        sb.append("    popq %r13\n");
-        sb.append("    popq %r12\n");
-        sb.append("    popq %rbx\n");
+        // O ARRAY FICA NO %rbx — os callee-saved NÃO são popados aqui: o
+        // entry não tem epilogue (o fim é o exit_group) e o M-4 (o emitter)
+        // re-materializa o `movq %rbx, %rdi` DEPOIS dos <clinit>, que lê o
+        // ARRAY. O pop do %rbx devolvia o callee-saved do KERNEL (0) e o
+        // `args` chegava NULO ao main — o `args.length` SEGV (o stamp 0.8.2
+        // mediu o 139; a ordem dos pushes do §1230 tornou o pop visível).
         sb.append("    movq %rbx, %rdi\n");
     }
 }

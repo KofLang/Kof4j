@@ -182,6 +182,11 @@ public final class StatementAnalyzer {
                 if (ret.value() != null) {
                     Type valueType = SemExpressionTyper.inferType(sa, ret.value(), scope);
                     sa.putExpressionType(ret.value(), valueType);
+                    if (sa.currentExplicitVoid && sa.diagnostics() != null) {
+                        sa.diagnostics().error(ret,
+                                "void function cannot return a value - drop the value (bare `return` exits) or declare a return type",
+                                "SEM093");
+                    }
                     if (sa.diagnostics() != null && !Type.isUnknown(returnType) && !Type.isVoid(returnType)
                             && !Type.isUnknown(valueType) && !TypeChecker.isAssignable(sa, valueType, returnType)) {
                         // #502: use the return statement's own position so the error points at the
