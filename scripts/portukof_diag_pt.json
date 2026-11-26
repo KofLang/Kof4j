@@ -1815,6 +1815,13 @@
       "pt": "a variável de inicialização autorreferente dentro de uma lambda (var '{0}') ainda não está disponível no alvo {1} — a leitura do handle capturado no job derruba o worker (§253 face B, lane nativa); use o idioma de handle-sombra (var id=\"\"; o job lê id depois da atribuição; id = time.interval(…) depois) (SEM092)"
     }
   ],
+  "SEM093": [
+    {
+      "arity": 0,
+      "en": "void function cannot return a value - drop the value (bare `return` exits) or declare a return type",
+      "pt": "função void não pode retornar um valor - descarte o valor (um `return` nu encerra) ou declare um tipo de retorno"
+    }
+  ],
   "SEM095": [
     {
       "arity": 0,
