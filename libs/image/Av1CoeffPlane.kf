@@ -102,7 +102,7 @@ Int[] av1DecodeCoeffsBlockEdgeTx(Av1Symbol reader, Av1CoeffCdfStore store,
                                Int planeBsize, Int plane, Int r4, Int c4,
                                Int txSz, Int[] above, Int[] left,
                                Int planeBlocksWide, Int planeBlocksHigh,
-                               Av1TxType txTypeStore, Int reducedTxSet,
+                               Av1TxType? txTypeStore, Int reducedTxSet,
                                Int qIndex, Int intraMode, Int useFilterIntra,
                                Int filterIntraMode, Int[] txTypes,
                                Int txTypeStride, Int x4, Int y4) {
@@ -116,7 +116,7 @@ Int[] av1DecodeCoeffsBlockCore(Av1Symbol reader, Av1CoeffCdfStore store,
                                Int planeBsize, Int plane, Int r4, Int c4,
                                Int txSz, Int txType, Int[] above, Int[] left,
                                Int planeBlocksWide, Int planeBlocksHigh,
-                               Av1TxType txTypeStore, Int reducedTxSet,
+                               Av1TxType? txTypeStore, Int reducedTxSet,
                                Int qIndex, Int intraMode, Int useFilterIntra,
                                Int filterIntraMode, Int[] txTypes,
                                Int txTypeStride, Int x4, Int y4, Int readTxType) {
@@ -150,7 +150,7 @@ Int[] av1DecodeCoeffsBlockCore(Av1Symbol reader, Av1CoeffCdfStore store,
     var allZero = coeffs.readTxbSkip(skipCtx)
     var txTypeUsed = txType
     if (allZero == 0) {
-        if (readTxType == 1) {
+        if (readTxType == 1 && txTypeStore != null) {
             txTypeUsed = txTypeStore.readTxType(txSz, reducedTxSet, qIndex,
                     intraMode, useFilterIntra, filterIntraMode, txTypes,
                     txTypeStride, x4, y4)
