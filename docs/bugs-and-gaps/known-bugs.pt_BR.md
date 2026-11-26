@@ -19360,3 +19360,13 @@ STATUS-MARK: CORRIGIDO 26/11 - o repro exato decodifica (tamanho=1, o mesmo do r
 
 lane docs/lab - owner = 192.168.100.14:0, flatt CLI, sem servidor opencode neste host; porta n/a
 
+
+**§1235 UPDATE (26/11 — a raiz-do-34GB do #1177 medida; o estrago do argv no _start):** a corrida
+spawn×extern com `main(String[] args)` NÃO genérico lê o ARGUMENTO CRU no `_start` — e o CALL do
+alinhamento (`call .Lkof_aligned`) empilha o RETURN ADDRESS antes do argc: o `movq 8(%rsp), %r15`
+pega o ENDEREÇO DE RETORNO (um `0x7ff…`) como se fosse o argc. Com argc ~34-bit-ish positivo o
+clamp de segurança engole (o "9, 0" só-de-saída normal); com o stack ASLR alto o clamp engole
+o peek = o argc passaria REAL. A medida honesta: o argc tá SEMPRE certo no binário SEM o
+call-de-alinhamento (o meu standalone sem `extern`s). O desalinhamento só morde quando o argv0
+`call` precede o argc-read — o conserto é da lane nativa (a ordem emit: o args-read PRIMEIRO,
+o alinhamento DEPOIS — o `call .Lkof_aligned` deve VIR DEPOIS do `movq 0(%rsp), %r15`).
