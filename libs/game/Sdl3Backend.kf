@@ -54,7 +54,7 @@ extern "libSDL3.so.0" SDL_ReadSurfacePixel(Long s, Int x, Int y, Buffer(U8) r, B
 extern "libSDL3.so.0" SDL_DestroySurface(Long s): void
 extern "libSDL3.so.0" SDL_CreateTexture(Long ren, Int fmt, Int access, Int w, Int h): Long
 extern "libSDL3.so.0" SDL_UpdateTexture(Long tex, Long rect, Buffer(U8) pixels, Int pitch): Bool
-extern "libSDL3.so.0" SDL_RenderTexture(Long ren, Long tex, Buffer(U8) src, Buffer(U8) dst): Bool
+extern "libSDL3.so.0" SDL_RenderTexture(Long ren, Long tex, Long src, Buffer(U8) dst): Bool
 extern "libSDL3.so.0" SDL_SetTextureScaleMode(Long tex, Int mode): Bool
 extern "libSDL3.so.0" SDL_DestroyTexture(Long tex): void
 
@@ -245,25 +245,20 @@ class Sdl3Backend {
     // Manrope porque a familia nao tem face italica (medido no Chromium: a
     // largura nao muda, 200.05 com e sem a inclinacao). `shear = 0` e' o
     // drawTexture de sempre.
-    //
-    // O `src` e' sempre um SDL_FRect: o extern so' aceita `Buffer(U8)` nesse
-    // lugar (`Long` no 3o argumento nao compila, SEM014 medido), e ler a
-    // textura inteira sai dos 8 floats `0,0,w,h` — o mesmo recorte.
     void drawTextureSheared(Long tex, Int x, Int y, Int w, Int h, Int shear) {
         val dst = buffer.alloc(16)
-        val src = buffer.alloc(16)
-        buffer.poke32(src, 0, floatBits(0))
-        buffer.poke32(src, 4, floatBits(0))
-        buffer.poke32(src, 8, floatBits(w))
         if (shear == 0 || h <= 0) {
-            buffer.poke32(src, 12, floatBits(h))
             buffer.poke32(dst, 0, floatBits(x))
             buffer.poke32(dst, 4, floatBits(y))
             buffer.poke32(dst, 8, floatBits(w))
             buffer.poke32(dst, 12, floatBits(h))
-            SDL_RenderTexture(this.rendererHandle, tex, src, dst)
+            SDL_RenderTexture(this.rendererHandle, tex, 0L, dst)
             return
         }
+        val src = buffer.alloc(16)
+        buffer.poke32(src, 0, floatBits(0))
+        buffer.poke32(src, 4, floatBits(0))
+        buffer.poke32(src, 8, floatBits(w))
         var r = 0
         while (r < h) {
             buffer.poke32(src, 12, floatBits(1))
