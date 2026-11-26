@@ -1911,3 +1911,18 @@ parser que se espalha por `RichText.blocks`, os dois pintores e os testes, entã
 de entrar escondida.
 
 BATERIA: **100 testes / 1 falha** (só o `EnoisTextE2ETest` `0 px`, §1197).
+
+## §105 (26/11) — a CITAÇÃO do corpo é desenhada (o fio de 2 na borda esquerda e o texto a 12 na cor TextSubtle)
+
+MEDIDO (app `BlogCuerpoRich.paintQuote`, `EnoisBlogCuerpoQuoteE2ETest` no nativo): `> texto **forte**` é um
+bloco de tipo `quote` com 2 trechos (texto + negrito), o fio é o `border-l-2` em `x` (2 px, `Tokens.BorderSoft`),
+o texto começa em `x + 12` (`pl-3`) na cor `text-text-subtle`, uma linha de 20, e a altura é a medida
+`RichText.quoteHeight()` = `8*2 + 20 = 36`. O bloco era o último ainda pintado como texto plano, sem a sua
+moldura (o `my-2` em volta segue como margem do bloco).
+
+BATERIA: **101 testes / 1 falha** (só o `EnoisTextE2ETest` `0 px`, §1197).
+
+Com isso o corpo pinta TODOS os tipos de bloco que o parser emite — título, parágrafo, lista, tabela,
+codeBlock, citação e divisor — cada um com a caixa medida e as marcas (peso do negrito pela face Medium,
+caixa do código, fio do link, riscado, tarja do spoiler). O que resta nomeado: a face mono do `<code>`, as
+faces do itálico, o tri-estado `[ ]`-versus-bolinha no parser e a quebra por item da lista.

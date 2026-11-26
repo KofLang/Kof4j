@@ -2215,3 +2215,18 @@ parser change that ripples through `RichText.blocks`, both painters and the test
 instead of smuggled in.
 
 BATTERY: **100 tests / 1 failure** (only `EnoisTextE2ETest` `0 px`, §1197).
+
+## §105 (26/11) — the QUOTE of the post body is drawn (the 2px rule at the left edge, the text at 12 in TextSubtle)
+
+MEASURED (app `BlogCuerpoRich.paintQuote`, `EnoisBlogCuerpoQuoteE2ETest` on native): `> texto **forte**` is one
+block of kind `quote` with 2 spans (text + bold), the rule is `border-l-2` at `x` (2px, `Tokens.BorderSoft`),
+the text starts at `x + 12` (`pl-3`) with the `text-text-subtle` colour, one 20px line, and the height is the
+measured `RichText.quoteHeight()` = `8*2 + 20 = 36`. The block was the last one still drawn as flat text
+without its chrome (the `my-2` around it stays the block margin).
+
+BATTERY: **101 tests / 1 failure** (only `EnoisTextE2ETest` `0 px`, §1197).
+
+With this the body paints EVERY block kind the parser emits — heading, paragraph, list, table, codeBlock,
+quote and divider — each with its measured box and the marks (bold weight via the Medium face, code box,
+link underline, strike, spoiler bar). What remains named: the mono face of `<code>`, the italic faces, the
+`[ ]`-vs-bullet tri-state in the parser, and the per-item wrapping of list items.
