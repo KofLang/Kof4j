@@ -2084,3 +2084,22 @@ BATTERY: **95 tests / 1 failure** (the remaining one is `EnoisTextE2ETest` `0 px
 
 NAMED PENDING (now the only one in the body's paint): bold WEIGHT and italic SLANT — the shim's `Font`
 carries one face per file, so a span can paint its colour/marks but not change the typeface.
+
+## §98 (25/11) — NAMED DIVERGENCE: the app's Manrope is the ExtraLight face (weight 250), the site's is the Regular (400)
+
+MEASURED (from the TTF itself, no rendering — `EnoisManropeFaceE2ETest`, RED by design):
+`assets/fonts/Manrope.ttf` in the app has `name[1] = "Manrope ExtraLight"`, `name[2] = "Regular"`,
+`OS/2.usWeightClass = 250`, and NO `fvar` table (it is a static ExtraLight, not the variable font).
+The design system declares `--font-sans: "Manrope"` (`enois-design-system/src/styles.css:67`) and the
+post body is `text-base font-normal` (weight 400), which in a browser resolves to the Regular — so
+EVERY migrated screen paints a noticeably thinner face than enois.ia.br. The shim's `kt_open`
+(`libs/kof_text_shim.c`) uses `FT_New_Face` on the loaded file and has no `FT_Set_Char_Size`/variation
+API, so a variable TTF would NOT fix it either: the asset has to be the static Regular
+(`Manrope-Regular.ttf`), or the shim has to grow a face-selection (FreeType can load a face from a
+variable font only with `FT_Set_Var_Design_Coordinates`, absent today).
+
+This is the last named divergence of the post body's paint (bold weight / italic slant share the same
+root cause: ONE static face per `Font`). The test is RED on purpose and records the fact; it does not
+block the battery (it is a documented pending, not a regression). NEXT: bring `Manrope-Regular.ttf`
+(the site's face) into `assets/fonts/` and point `app/Main.kf` and the tests at it; then the
+`font-medium` (500) and `italic` faces, and only then the per-span weight in `BlogCuerpoRich`.

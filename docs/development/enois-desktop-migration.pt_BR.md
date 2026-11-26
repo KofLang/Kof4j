@@ -1779,3 +1779,22 @@ BATERIA: **95 testes / 1 falha** (a que resta é o `EnoisTextE2ETest` `0 px`, §
 
 PENDÊNCIA NOMEADA (agora a única na pintura do corpo): o PESO do negrito e a INCLINAÇÃO do itálico — o
 `Font` do shim carrega uma face por arquivo, então um trecho pinta a cor/as marcas, mas não troca a face.
+
+## §98 (25/11) — DIVERGÊNCIA NOMEADA: a Manrope do app é a face ExtraLight (peso 250), a do site é a Regular (400)
+
+MEDIDO (do próprio TTF, sem renderizar — `EnoisManropeFaceE2ETest`, VERMELHO de propósito):
+`assets/fonts/Manrope.ttf` do app tem `name[1] = "Manrope ExtraLight"`, `name[2] = "Regular"`,
+`OS/2.usWeightClass = 250` e NENHUMA tabela `fvar` (é a ExtraLight estática, não a variável). O design
+system declara `--font-sans: "Manrope"` (`enois-design-system/src/styles.css:67`) e o corpo do post é
+`text-base font-normal` (peso 400), que no navegador resolve para a Regular — então TODA tela migrada
+pinta uma face visivelmente mais fina que a do enois.ia.br. O `kt_open` do shim
+(`libs/kof_text_shim.c`) usa `FT_New_Face` no arquivo carregado e não tem `FT_Set_Char_Size`/API de
+variação, então um TTF variável TAMBÉM não resolveria: o asset tem que ser a Regular estática
+(`Manrope-Regular.ttf`), ou o shim ganha seleção de face (o FreeType só carrega uma face de fonte
+variável com `FT_Set_Var_Design_Coordinates`, ausente hoje).
+
+É a última divergência nomeada da pintura do corpo (o peso do negrito e a inclinação do itálico têm a
+mesma causa: UMA face estática por `Font`). O teste está VERMELHO de propósito e registra o fato; não
+bloqueia a bateria (é pendência documentada, não regressão). PRÓXIMO: trazer `Manrope-Regular.ttf` (a
+face do site) para `assets/fonts/` e apontar o `app/Main.kf` e os testes para ela; depois as faces
+`font-medium` (500) e `italic`, e só então o peso por trecho no `BlogCuerpoRich`.
