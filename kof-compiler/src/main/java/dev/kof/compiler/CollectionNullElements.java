@@ -17,6 +17,14 @@ final class CollectionNullElements {
     static void reject(SemanticAnalyzer sa, MethodCallExpr mc, Type elementType, String role) {
         if (sa.diagnostics() == null || elementType == null) return;
         if (elementType instanceof Type.UnknownType) return;
+        // #1202: o elemento NULLABLE (List<String?>, Map<K, T?>, Set<T?>)
+        // ACEITA o null literal — o T? É a declaração do ausente; recusá-lo
+        // quebrava o bug #7 (o caso canônico do corpus) e a paridade com o
+        // Kotlin/Java (o `List<String?>` do Java aceita null). O SG-008 não
+        // permite o null literal em variável/atribuição/param/retorno, mas a
+        // COLEÇÃO com elemento nullable é uma declaração DO TIPO, não uma
+        // fabricação de null.
+        if (elementType instanceof Type.NullableType) return;
         for (ExpressionNode arg : mc.arguments()) {
             if (!CompilerComparisons.isNullLiteral(arg)) continue;
             sa.diagnostics().error(arg,
