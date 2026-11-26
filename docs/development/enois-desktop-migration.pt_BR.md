@@ -1837,3 +1837,22 @@ de cor amostrada que PASSAM hoje porque as formas envolvidas por acaso funcionam
 depende da forma). Passam pelo motivo errado e vão virar se a ordem de chamadas do pintor mudar.
 São candidatos ao mesmo tratamento quando o §1197 for corrigido — não antes, para a superfície de
 regressão continuar honesta.
+
+## §101 (26/11) — o corpo do post passa a desenhar em DUAS faces: o `font-medium` do site (Manrope Medium 500) para o `strong`, o título do bloco e a menção
+
+MEDIDO (app `BlogCuerpoRich.paintMarked`/`paintWrappedMarked`/`paintSpansMarked`/`wordFont`/`isMarked`
++ `BlogPostCard.heightForRichMarked`/`paintRichMarked` + `BlogPostView.paintMarked`, `EnoisBlogCuerpoMarkFaceE2ETest`
+no nativo): um bloco cujos trechos são `bold`/`mention` (ou um bloco `heading`) é desenhado com a face
+Medium, o resto com a Regular — e a DOBRA mede cada palavra na SUA face (`wrappedLinesOfMarked`), então a
+altura do card e a pintura continuam uma regra só. A afirmação original que falhou é agora a prova:
+`RichText.blocks("**t**")` dá um trecho `bold` (`boldKind=bold`), `isMarked` é verdadeiro para `bold` e
+falso para `italic` (o site só usa `font-medium` em `strong`/título/menção — `rich-text.tsx:95/241`), e numa
+largura apertada a Medium nunca dobra em MENOS linhas que a Regular (é mais larga: 812/2000 upm no `1`
+contra 780). A API antiga de uma face só (`paint`, `paintWrapped`, `paintRich`, `heightForRich`) continua e
+agora delega com face da marca nula, então nada mais mudou.
+
+BATERIA: **97 testes / 1 falha** — a única é o `EnoisTextE2ETest` (`0 px`, §1197).
+
+PENDÊNCIA NOMEADA restante na tipografia do corpo: o ITÁLICO (as faces do `em`/`<s>` do site ainda não estão
+no repositório — só a Regular e a Medium foram instanciadas), e o trecho `code` (o DS o renderiza `text-sm`,
+13 px, que é troca de TAMANHO, não só de face).

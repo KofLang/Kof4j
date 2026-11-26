@@ -2141,3 +2141,22 @@ assertions that PASS today because the shapes involved happen to land (the §119
 shape-dependent). Those pass for the wrong reason and will flip if the painter's call order changes.
 They are candidates for the same treatment once the §1197 is fixed — not before, so the regression
 surface stays honest.
+
+## §101 (26/11) — the post body finally draws in TWO faces: the site's `font-medium` (Manrope Medium 500) for the `strong`, the block title and the mention
+
+MEASURED (app `BlogCuerpoRich.paintMarked`/`paintWrappedMarked`/`paintSpansMarked`/`wordFont`/`isMarked`
++ `BlogPostCard.heightForRichMarked`/`paintRichMarked` + `BlogPostView.paintMarked`, `EnoisBlogCuerpoMarkFaceE2ETest`
+on native): a block whose spans are `bold`/`mention` (or a `heading` block) is drawn with the Medium face,
+the rest with the Regular — and the WRAP measures each word in ITS face (`wrappedLinesOfMarked`), so the
+card's height and its painting stay one rule. The original claim that failed is now the proof:
+`RichText.blocks("**t**")` gives a `bold` span (`boldKind=bold`), `isMarked` is true for `bold` and false
+for `italic` (the site only uses `font-medium` on `strong`/heading/mention — `rich-text.tsx:95/241`), and at
+a narrow width the Medium never wraps into FEWER lines than the Regular (it is wider: 812/2000 upm on `1`
+vs 780). The old single-face API (`paint`, `paintWrapped`, `paintRich`, `heightForRich`) is kept and now
+delegates with a null mark face, so nothing else changed.
+
+BATTERY: **97 tests / 1 failure** — the only one is `EnoisTextE2ETest` (`0 px`, §1197).
+
+NAMED PENDING left in the body's typography: the ITALIC (the site's `em`/`<s>` faces are not in the
+repo yet — only Regular and Medium were instanced), and the `code` span (the DS renders it `text-sm`,
+13 px, which is a size change, not only a face).
