@@ -1628,3 +1628,26 @@ INTERMITENTE — o mesmo `RichText.blocks("a\n\nb\n\nc").size()` imprimiu `x=1` 
 em outra, e o `EnoisBlogPostViewE2ETest` (a pagina inteira do post) esta VERDE no tip. O
 `known-bugs §1226` ATUALIZACAO 10 retira as leituras "if inline aborta" e "multi-bloco aborta" e
 aponta a proxima medicao no harness.
+
+## §90 Rodada 25/11 (ninetieth) — O APP NÃO ABRE no nativo: `EnoisAppEntryE2ETest` está VERMELHO por um bug do Kof nomeado (§1230), causa raiz medida
+
+MEDIDO (repo do app, `mvn -o test -Dtest=EnoisAppEntryE2ETest`): `saida limpa: Runtime error: out of
+memory` (`expected <0> was <1>`). É o mesmo aborto não determinístico que o plano carrega desde o
+§89 — agora com causa raiz.
+
+REPRO MÍNIMO (6 linhas, `import enois.RichText`): `lines = RichTextLines.of("a\n\nb")` e então
+`lines.get(k).trim()` num laço — 10 execuções: `[a]` e depois `Runtime error: out of memory`
+**10/10**. `RichText.blocks("a\n\nb").size()` aborta 4/10–7/10; `"a"` sozinho é limpo 10/10;
+`main(String[] args)` com a cópia inline de `of()` é limpo 10/10 (a face de entrada/argv NÃO é a
+causa — a minha leitura do §1227 está RETIRADA).
+
+CAUSA RAIZ (gdb): a 2ª chamada de `kof_string_trim` entra com `%r14 = -9664` antes do laço de cauda
+rodar (todo salto do trim cai na instrução errada — o corpo assembla DESLOCADO em relação ao fonte,
+família do §1226), então `len = 0 - 9664` estoura, `lea 25(%r12)` vira `0xFFFFDA59` e o `kof_alloc`
+recebe um pedido de ~4 GiB → o bump recusa → panic.
+
+REGISTRADO: `known-bugs §1230` (EN/PT) com o PRÓXIMO (bissectar o `NativeX86StackAlign` no
+`/tmp/probe4/Main.kf`); contagem viva 25→26; DOING (EN/PT) com a claim e a dona.
+
+PRÓXIMO (nomeado): o fix do Kof (RED-first: o programa de 6 linhas tem que imprimir em 10/10),
+depois o `EnoisAppEntryE2ETest` VERDE, depois os blocos do rich-text pintados no card do post.

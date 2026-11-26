@@ -1933,3 +1933,26 @@ on the tip. `known-bugs §1226` UPDATE 10 withdraws the "inline if-return aborts
 documents abort" readings and points at the harness's temporary install / shared JVM as the next
 measurement (10× the same short program in one class). The rich parser CAN be wired into the card
 once that measurement says the environment is stable for a whole test.
+
+## §90 Round 25/11 (ninetieth) — the APP DOES NOT OPEN on native: `EnoisAppEntryE2ETest` is RED on a named Kof bug (§1230), root cause measured
+
+MEASURED (app repo, `mvn -o test -Dtest=EnoisAppEntryE2ETest`): `saida limpa: Runtime error: out of
+memory` (`expected <0> was <1>`). This is the same non-deterministic abort the plan has been
+carrying since §89 — now with a root cause.
+
+MINIMAL REPRO (6 lines, `import enois.RichText`): `lines = RichTextLines.of("a\n\nb")` and then
+`lines.get(k).trim()` in a loop — 10 runs: `[a]` then `Runtime error: out of memory` **10/10**.
+`RichText.blocks("a\n\nb").size()` aborts 4/10–7/10; `"a"` alone is clean 10/10; `main(String[]
+args)` with the inline copy of `of()` is clean 10/10 (the entry/argv face is NOT the cause — my
+§1227 reading is WITHDRAWN).
+
+ROOT CAUSE (gdb): the 2nd `kof_string_trim` call enters with `%r14 = -9664` before its trailing loop
+runs (every branch of the trim lands on the wrong instruction — the assembled body is SHIFTED vs the
+source, the §1226 family), so `len = 0 - 9664` wraps, `lea 25(%r12)` becomes `0xFFFFDA59` and
+`kof_alloc` gets a ~4 GiB request → the bump refuses → panic.
+
+RECORDED: `known-bugs §1230` (EN/PT) with the NEXT (bisect `NativeX86StackAlign` on
+`/tmp/probe4/Main.kf`); live count 25→26; DOING (EN/PT) claim with the owner.
+
+NEXT (named): the Kof fix (RED-first: the 6-line program must print in 10/10 runs), then
+`EnoisAppEntryE2ETest` GREEN, then the rich-text blocks painted in the post card.
