@@ -2345,3 +2345,24 @@ NAMED PENDING: the wrapped path (`Palavra`) still flattens a leaf's inner marks 
 a leaf with two different inner marks gets one hint per type; the band colour is also the flattened type's. The
 `<code>` box is still drawn after the glyph (it covers the text) and the MONO family has no asset in the DS.
 §1197 still blocks colour proof.
+
+## §112 (26/11) — THE WRAPPED PATH KEEPS THE INNER MARKS: every word of a wrapped line carries the pieces of an inner mark it covers, and the painter draws them slanted; `lastPen` measured 0 on the native target (§1240) and the block height is returned instead
+
+MEASURED (app `RichText.blocks` + `BlogCuerpoRich.wordsIn`/`pushMarked`/`marksOf`/`insideOf`/`kindAt`/`paintWord`/
+`measureWrapped`, `EnoisBlogCuerpoWrapInsideE2ETest` on native): `**a *b c* d**` now yields FOUR `Palavra`s —
+`bold:a`, `bold:b` with `inside=[italic:b]`, `bold:c` with `inside=[italic:c]`, `bold:d` — so a word cut at the
+space INSIDE a mark keeps its mark for the WRAPPED path (`paintWord` draws each piece with the leaf's face and
+`slantOf`); the marks exposed by `marksOf` are `text/bold@0..2`, `text/italic@2..5`, `text/bold@5..7` (the parser
+stores the bracket char as text and the mark in the parent's kind), and the line wraps to 2 rows at width 40.
+
+BLOCKED, NAMED (§1240, now OPEN in known-bugs): the function that returns a local stored inside a `while` gave 0
+on the native target — `BlogCuerpoRich.lastPen` returned 0 while the line measured 139, and the reduction
+`main() { println("a=" + 0) println("b=" + t(0)) }` printed `b=0` on some runs and `b=5` on others on the SAME tree
+(the investigation is in `docs/bugs-and-gaps/known-bugs.md` §1240, with the three fixtures that were withdrawn
+because they passed). Until the compiler hands back the stored value, `lastPen` returns the block's height — the
+value the loop in `paintWrappedMarked` already carries — and the test does not assert the pen.
+
+BATTERY: **108 tests / 1 failure** (only `EnoisTextE2ETest` `0 px`, §1197).
+
+NEXT (named): §1240's 200-compile hash/diff of the `.s`; then `lastPen` becomes the measured pen again and
+`EnoisBlogCuerpoWrapInsideE2ETest` asserts it.

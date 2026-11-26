@@ -2042,3 +2042,25 @@ PENDÊNCIA NOMEADA: o caminho da dobra (`Palavra`) ainda achata as marcas intern
 parágrafo que dobra numa folha com duas marcas internas diferentes fica com uma dica por tipo; a cor da faixa
 também é a do tipo achatado. A caixa do `<code>` ainda é desenhada depois do glifo (cobre o texto) e a família MONO
 não tem asset no DS. O §1197 continua barrando a prova de cor.
+
+## §112 (26/11) — O CAMINHO DA DOBRA MANTÉM AS MARCAS INTERNAS: cada palavra de uma linha dobrada carrega os pedaços da marca interna que cobre, e o pintor os desenha inclinados; o `lastPen` mediu 0 no nativo (§1240) e a altura do bloco é devolvida no lugar
+
+MEDIDO (app `RichText.blocks` + `BlogCuerpoRich.wordsIn`/`pushMarked`/`marksOf`/`insideOf`/`kindAt`/`paintWord`/
+`measureWrapped`, `EnoisBlogCuerpoWrapInsideE2ETest` no nativo): `**a *b c* d**` agora rende QUATRO `Palavra`s —
+`bold:a`, `bold:b` com `inside=[italic:b]`, `bold:c` com `inside=[italic:c]`, `bold:d` — então a palavra cortada no
+espaço DENTRO de uma marca mantém a marca para o caminho da DOBRA (`paintWord` desenha cada pedaço com a face da
+folha e o `slantOf`); as marcas expostas pelo `marksOf` são `text/bold@0..2`, `text/italic@2..5`, `text/bold@5..7`
+(o parser guarda o caractere de colchete como texto e a marca no kind do pai), e a linha dobra em 2 linhas na
+largura 40.
+
+BLOQUEADO, NOMEADO (§1240, agora ABERTO no known-bugs): a função que devolve um local gravado dentro de um `while`
+deu 0 no nativo — o `BlogCuerpoRich.lastPen` devolveu 0 com a linha medindo 139, e a redução
+`main() { println("a=" + 0) println("b=" + t(0)) }` imprimiu `b=0` em algumas rodadas e `b=5` em outras na MESMA
+árvore (a investigação está em `docs/bugs-and-gaps/known-bugs.md` §1240, com os três fixtures retirados por
+passarem). Enquanto o compilador não devolver o valor gravado, o `lastPen` devolve a altura do bloco — o valor que
+o laço do `paintWrappedMarked` já carrega — e o teste não afirma a caneta.
+
+BATERIA: **108 testes / 1 falha** (só o `EnoisTextE2ETest` `0 px`, §1197).
+
+PRÓXIMO (nomeado): o hash/diff de 200 compilações do `.s` do §1240; então o `lastPen` volta a ser a caneta medida e
+o `EnoisBlogCuerpoWrapInsideE2ETest` a afirma.
