@@ -201,8 +201,24 @@ public final class CompilerTypeSupport {
 
     static boolean fieldOk(CompilerDriver driver, String typeName, String className, java.util.Set<String> visiting) {
         Type t = CompilerTypes.toType(typeName, driver.currentUnit);
+        // #1181 (a fatia 1 — o campo NULLABLE): `String?` no record do decode
+        // nativo era recusado com o JSN002 do ENCODER (a mensagem falava do
+        // encoder para um problema do DECODER). O nullable é um wrapper: o
+        // campo existe ou é ausente — o decoder nativo (o find_value + o
+        // escalar + o ctor) aceita o VALOR OU O AUSENTE; o nullable só muda o
+        // default do campo ausente (null). A decisão do gate: o inner decide.
+        if (t instanceof Type.NullableType nt) {
+            return fieldOk(driver, nt.inner() instanceof Type.ClassType ic
+                    ? (ic.packageName().isEmpty() ? ic.name()
+                      : ic.packageName() + "." + ic.name())
+                    : typeName, className, visiting);
+        }
         if (t instanceof Type.PrimitiveType) return true;
         if (BuiltinTypes.isString(t)) return true;
+        // #1181 (a fatia 3 — o record ANINHADO): AINDA RECUADO (§1238): o
+        // emit do ctor aninhado no paths nativo não consome a pilha como o
+        // flat (o pai lê o filho errado: o id vem null e o acesso SEGV). O
+        // gate mantém a recusa HONESTA até a fatia do emit sair completa.
         if (driver.currentDiagnostics != null) {
             driver.currentDiagnostics.error("", 0, 0, 0,
                     "json: class " + className + " has field of type " + typeName

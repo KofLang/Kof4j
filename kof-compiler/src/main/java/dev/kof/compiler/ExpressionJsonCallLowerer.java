@@ -335,7 +335,14 @@ public final class ExpressionJsonCallLowerer {
                             List.of(BuiltinTypes.STRING), BuiltinTypes.STRING, KofCallKind.FUNCTION));
                     ops.add(new KofCall(targetType, dec,
                             List.of(BuiltinTypes.STRING), ft, KofCallKind.FUNCTION));
+                } else if (ft instanceof Type.NullableType nt2) {
+                    // #1181 fatia 2: o campo nullable vem CRU do find_value
+                    // (o JSON null → null pela RuntimeJsonUtils); o String?
+                    // fica como está (o valor OU null); nenhum decodificar.
                 }
+                // #1181 fatia 3 (o record ANINHADO): AINDA RECUSADO (§1238) —
+                // o emit do ctor aninhado não consome a pilha como o flat; o
+                // gate do fieldOk mantém a recusa honesta.
             }
             ops.add(new KofCall(targetType, "<init>", ctorTypes,
                     Type.PrimitiveType.VOID, KofCallKind.CONSTRUCTOR));

@@ -241,6 +241,15 @@ public final class RuntimeJsonUtils {
             .Jfv_value:
                 cmpb $34, (%r8)
                 je .Jfv_vstr
+                # #1181: o valor-OBJECT (`{`) e o ARRAY (`[`): o prim para no
+                # PRIMEIRO fechador e cortava o sub-valor — o campo aninhado
+                # recebia '{"a"' e o decode interno lixo/segv. Extração com o
+                # BALANCEAMENTO de chaves/colchetes (strings puladas — as aspas
+                # de dentro não confundem o depth).
+                cmpb $123, (%r8)
+                je .Jfv_vobj
+                cmpb $91, (%r8)
+                je .Jfv_vobj
                 movq %r8, %rdi
             .Jfv_prim:
                 cmpq %rbx, %r8
@@ -254,11 +263,75 @@ public final class RuntimeJsonUtils {
                 je .Jfv_primdone
                 incq %r8
                 jmp .Jfv_prim
+            .Jfv_vobj:
+                movq %r8, %rdi
+                xorq %r10, %r10           # depth
+            .Jfv_vobjwalk:
+                cmpq %rbx, %r8
+                jae .Jfv_vobjdone
+                movzbl (%r8), %eax
+                cmpb $34, %al
+                je .Jfv_vobjstr
+                cmpb $123, %al
+                je .Jfv_vobjopen
+                cmpb $125, %al
+                je .Jfv_vobjclose
+                cmpb $91, %al
+                je .Jfv_vobjopen
+                cmpb $93, %al
+                je .Jfv_vobjclose
+                incq %r8
+                jmp .Jfv_vobjwalk
+            .Jfv_vobjopen:
+                incq %r10
+                incq %r8
+                jmp .Jfv_vobjwalk
+            .Jfv_vobjclose:
+                decq %r10
+                incq %r8
+                jz .Jfv_vobjdone
+                jmp .Jfv_vobjwalk
+            .Jfv_vobjstr:
+                incq %r8
+            .Jfv_vobjstrwalk:
+                cmpq %rbx, %r8
+                jae .Jfv_vobjdone
+                movzbl (%r8), %eax
+                cmpb $92, %al
+                je .Jfv_vobjses
+                cmpb $34, %al
+                je .Jfv_vobjstrdone
+                incq %r8
+                jmp .Jfv_vobjstrwalk
+            .Jfv_vobjses:
+                addq $2, %r8
+                jmp .Jfv_vobjstrwalk
+            .Jfv_vobjstrdone:
+                incq %r8
+                jmp .Jfv_vobjwalk
+            .Jfv_vobjdone:
+                movq %r8, %rsi
+                subq %rdi, %rsi
+                jmp .Jfv_mk
+
             .Jfv_primdone:
                 movq %rdi, %rcx
                 movq %r8, %rsi
                 subq %rcx, %rsi
-                jmp .Jfv_mk
+                # #1181: o literal JSON `null` (4 bytes, sem aspas) NÃO é uma
+                # string "null" — é o AUSENTE do contrato (o campo nullable
+                # recebe null; o JVM/riscv64 já tratam — a paridade atravessa).
+                cmpq $4, %rsi
+                jne .Jfv_mk
+                cmpb $110, 0(%rcx)
+                jne .Jfv_mk
+                cmpb $117, 1(%rcx)
+                jne .Jfv_mk
+                cmpb $108, 2(%rcx)
+                jne .Jfv_mk
+                cmpb $108, 3(%rcx)
+                jne .Jfv_mk
+                jmp .Jfv_empty           # null literal → o AUSENTE (rax=0)
             .Jfv_vstr:
                 incq %r8
                 movq %r8, %rdi
