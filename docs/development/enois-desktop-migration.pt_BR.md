@@ -1941,3 +1941,18 @@ atualizado com ela (19 sítios + os dois da lista + o link→texto aninhado), o 
 (`SEM023: no constructor with 9 arguments`), então nada passou em silêncio.
 
 BATERIA: **102 testes / 1 falha** (só o `EnoisTextE2ETest` `0 px`, §1197).
+
+## §107 (26/11) — um ITEM de lista LONGO dobra (`break-words` do `<li>`), o marcador fica na primeira linha, e o card mede a altura dobrada
+
+MEDIDO (app `BlogCuerpoRich.paintList` + `listHeightDrawn`/`itemRows` + `wrappedHeight`, `EnoisBlogCuerpoListWrapE2ETest`
+no nativo): com a régua tirada da fonte real (`f.measure` do texto do item), uma lista de um item naquela largura é
+UMA linha (`listHeight(1) = 16 + 20 = 36`); a um TERÇO dela o item dobra e o `listHeightDrawn` devolve mais que 36;
+o `wrappedHeight` (o que o card usa) devolve o MESMO valor; o `paintList` também, então medida e pintura continuam
+uma regra só; e na largura cheia a lista volta a uma linha (36). As palavras do item carregam o tipo e a cor do
+trecho pela quebra (o mesmo `wordsOf`/`wordFont` do parágrafo), e o disco/número/caixa só é desenhado na PRIMEIRA
+linha.
+
+BATERIA: **103 testes / 1 falha** (só o `EnoisTextE2ETest` `0 px`, §1197).
+
+PENDÊNCIA NOMEADA ainda aberta no corpo: a face MONO do `<code>`, as faces do itálico (`em`/`<s>`), e a lista
+ANINHADA (`block.nested` — o parser do app não a emite, então uma sub-lista indentada continua achatada).

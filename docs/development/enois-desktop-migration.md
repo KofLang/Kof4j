@@ -2245,3 +2245,18 @@ the measured `listHeight(2) = 60`. The change is additive on the record (a 10th 
 caught one by one (`SEM023: no constructor with 9 arguments`), so nothing was missed silently.
 
 BATTERY: **102 tests / 1 failure** (only `EnoisTextE2ETest` `0 px`, §1197).
+
+## §107 (26/11) — a long LIST ITEM wraps (`break-words` on the `<li>`), the marker stays on the first line, and the card measures the wrapped height
+
+MEASURED (app `BlogCuerpoRich.paintList` + `listHeightDrawn`/`itemRows` + `wrappedHeight`, `EnoisBlogCuerpoListWrapE2ETest`
+on native): with the ruler taken from the real font (`f.measure` of the whole item text), a one-item list at
+that width is ONE line (`listHeight(1) = 16 + 20 = 36`); at a THIRD of it the item wraps and `listHeightDrawn`
+returns more than 36; `wrappedHeight` (what the card uses) returns the SAME value; `paintList` returns the same
+too, so measurement and painting remain one rule; and at the full width the list is a single line again (36).
+The item's words carry their span's kind and colour through the break (the same `wordsOf`/`wordFont` path as
+the paragraph), and the disc/number/box is drawn only on the FIRST row.
+
+BATTERY: **103 tests / 1 failure** (only `EnoisTextE2ETest` `0 px`, §1197).
+
+NAMED PENDING still open in the body: the MONO face of `<code>`, the italic faces (`em`/`<s>`), and the
+nested list (`block.nested` — the app's parser does not emit it, so an indented sub-list is still flattened).
