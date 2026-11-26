@@ -297,9 +297,18 @@ public final class RuntimeStringOps {
                 movq %rdi, %rbx
                 movl 16(%rbx), %r12d
                 xorl %r13d, %r13d
+                # §1230: `%r14` carrega o índice da cauda. A string VAZIA (ou
+                # só de espaços) sai pelo `.Lkof_trim_done` ANTES do
+                # `.Lkof_trim_trail` — sem esta linha o `len` do trim virava o
+                # `%r14` que o chamador deixou (um endereço), `lea 25(%r12)`
+                # pedia ~4 GiB e o binário abortava ("out of memory").
+                xorl %r14d, %r14d
             .Lkof_trim_lead:
                 cmpl %r12d, %r13d
-                jge .Lkof_trim_done
+                jge .Lkof_trim_all_blank      # §1230: TODOS os bytes <= ' ' — a
+                                              # cauda vale 0 (o JDK devolve ""),
+                                              # nunca `0 - r13` (len negativo)
+
                 movzbl 24(%rbx,%r13), %eax
                 cmpb $32, %al                # JDK String.trim(): todo char <= ' '
                 jbe .Lkof_trim_skip
@@ -317,6 +326,10 @@ public final class RuntimeStringOps {
                 cmpb $32, %al                # JDK: todo char <= ' '
                 jbe .Lkof_trim_trail_loop
                 incl %r14d
+                jmp .Lkof_trim_done
+            .Lkof_trim_all_blank:
+                xorl %r13d, %r13d              # cabeça = 0
+                xorl %r14d, %r14d              # cauda = 0 -> len 0 (JDK: "")
             .Lkof_trim_done:
                 movl %r14d, %eax
                 subl %r13d, %eax

@@ -56,9 +56,21 @@ final class NativeMainArgs {
             sb.append("    decq %r15\n");
             sb.append("    leaq 8(%rsi), %r14\n");
         } else {
-            sb.append("    movq (%rsp), %r15\n");
+            // §1230 (medido 25/11, gdb no `main` do usuário): `%rbx/%r12/%r13/
+            // %r14` são CALLEE-SAVED na ABI SysV — a montagem do `args` os usa
+            // (%r14 = &argv, %rbx = o array, %r12 = o índice) e o `_start`
+            // chamava o `main` sem pendurá-los de volta. Todo programa nativo
+            // entrava no `main` com `%r14` = um endereço de pilha e `%r13` com
+            // o resto dele (`0xFFFFDA40`); qualquer função que LÊ um
+            // callee-saved ANTES de escrevê-lo (o `kof_string_trim` lê `%r13`
+            // e `%r14` no meio da varredura) recebia lixo.
+            sb.append("    pushq %rbx\n");
+            sb.append("    pushq %r12\n");
+            sb.append("    pushq %r13\n");
+            sb.append("    pushq %r14\n");
+            sb.append("    movq (%rsp), %r15\n");   // argc (rsp + 32 após os pushes)
             sb.append("    decq %r15\n");
-            sb.append("    leaq 16(%rsp), %r14\n");
+            sb.append("    leaq 48(%rsp), %r14\n");  // &argv[0] (16 + 32)
         }
         // clamp: sem argumentos (argc 0) o contador ficaria -1 e o
         // kof_array_alloc pediria ~34 GiB (o "%edi" e' lido como unsigned).
@@ -92,6 +104,15 @@ final class NativeMainArgs {
         sb.append("    incq %r12\n");
         sb.append("    jmp .Lkof_args_loop\n");
         sb.append(".Lkof_args_done:\n");
+        // devolve os callee-saved (na ordem inversa) — a montagem do `args`
+        // usa %rbx/%r12/%r13/%r14, e o `main` tem que entrar com os valores
+        // que o `_start` recebeu do kernel. O emissor do entry já move o
+        // array de %rbx para %rdi DEPOIS desta peça (e o %rbx vai direto no
+        // nó seguinte), então aqui só se restaura.
+        sb.append("    popq %r14\n");
+        sb.append("    popq %r13\n");
+        sb.append("    popq %r12\n");
+        sb.append("    popq %rbx\n");
         sb.append("    movq %rbx, %rdi\n");
     }
 }
