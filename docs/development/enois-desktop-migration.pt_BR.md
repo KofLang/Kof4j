@@ -1725,3 +1725,25 @@ texto está certo. Também pendente: dobrar cada bloco na largura de texto do ca
 caminhada pinta uma linha por bloco.
 
 BATERIA: **92 testes / 1 falha** (a que resta é o `EnoisTextE2ETest` `0 px`, §1197).
+
+## §95 (25/11) — os trechos inline pintam as marcas ANINHADAS sem a sintaxe, e as marcas ganham desenho
+
+MEDIDO (app `BlogCuerpoRich.leafOf`/`paintSpans`/`styled`/`innerText`/`markOf`,
+`EnoisBlogCuerpoInlineE2ETest` + `EnoisBlogCuerpoNestedInlineE2ETest` no nativo):
+`blocks("**a *b* c**")` é UM trecho de topo com kind `bold` e 3 filhos, e o `leafOf` achata para
+`a b c` — nenhum `*` chega à tela (o parser copia o texto cru COM as marcas no `text`; o
+`renderInline` do DS relê `node.children` e só usa `text` quando não há filhos — medido em
+`enois-design-system/src/domain/post/rich-text.tsx:232`). O primeiro teste prende 6 trechos
+(`text/bold/text/code/text/link`) e que a caneta pintada é igual ao avanço medido (`235`).
+
+MARCAS DESENHADAS a partir do avanço MEDIDO (`start..end`), sem cor amostrada (§1197):
+`code` → a caixa do `bg-muted` (`Tokens.Muted`, 6 de folga por lado, raio 4);
+`link` → o fio do underline de 1 px, 2 abaixo da base;
+`strike` → o line-through na metade da linha;
+`spoiler` → a tarja inteira do `bg-foreground` (como o DS esconde o texto).
+
+PENDÊNCIA NOMEADA ainda aberta: o PESO do `bold` e a INCLINAÇÃO do `italic` não saem — o `Font` do
+shim carrega um peso/face por arquivo, não por trecho; e a dobra de cada bloco na largura de texto do
+card (`blockWidth`) — a caminhada pinta uma linha por bloco.
+
+BATERIA: **93 testes / 1 falha** (a que resta é o `EnoisTextE2ETest` `0 px`, §1197).

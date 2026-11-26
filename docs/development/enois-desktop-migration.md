@@ -2030,3 +2030,25 @@ colour and the text is correct. Also still pending: wrapping each block to the c
 (`blockWidth`) — the walk paints one line per block.
 
 BATTERY: **92 tests / 1 failure** (the remaining one is `EnoisTextE2ETest` `0 px`, §1197).
+
+## §95 (25/11) — the inline spans paint NESTED marks without their syntax, and the marks get drawn
+
+MEASURED (app `BlogCuerpoRich.leafOf`/`paintSpans`/`styled`/`innerText`/`markOf`,
+`EnoisBlogCuerpoInlineE2ETest` + `EnoisBlogCuerpoNestedInlineE2ETest` on native):
+`blocks("**a *b* c**")` is ONE top-level span of kind `bold` with 3 children, and `leafOf` flattens
+to `a b c` — no `*` reaches the screen (the parser copies the raw text WITH marks into `text`; the
+DS `renderInline` re-reads `node.children` and only uses `text` when there are none — measured in
+`enois-design-system/src/domain/post/rich-text.tsx:232`). The first test pins 6 spans
+(`text/bold/text/code/text/link`) and that the painted pen equals the measured advance (`235`).
+
+MARKS DRAWN from the MEASURED advance (`start..end`), no sampled colour (§1197):
+`code` → the `bg-muted` box (`Tokens.Muted`, 6 of padding each side, radius 4);
+`link` → the underline rule 1px, 2 below the baseline;
+`strike` → the line-through at half the line height;
+`spoiler` → the full-height `bg-foreground` bar (as the DS hides the text).
+
+NAMED PENDING still open: the WEIGHT of `bold` and the SLANT of `italic` are not emitted — the shim's
+`Font` carries one weight/face per file, not per span; and wrapping each block to the card's text
+width (`blockWidth`) — the walk paints one line per block.
+
+BATTERY: **93 tests / 1 failure** (the remaining one is `EnoisTextE2ETest` `0 px`, §1197).
