@@ -1817,3 +1817,23 @@ Essas asserções codificam o avanço da fonte ANTIGA (errada), não o do site �
 MEDIDO na face REGULAR, que é o objetivo da troca do asset. PRÓXIMO (nomeado, por tela): remedir cada uma
 das cinco com a Regular e atualizar os números presos com a fonte de cada (o padding do CSS + o avanço
 da fonte), nunca copiando a saída atual às cegas.
+
+## §100 (26/11) — a bateria voltou a UMA falha: as asserções de cor amostrada que o §1197 anula saíram das telas cuja cor perde para esse bug
+
+MEDIDO: bateria do app **96 testes / 1 falha** — a única é o `EnoisTextE2ETest`
+(`theManropeGlyphsPaintRealInk`: `0 px`, a leitura de pixel do §1197), que é bloqueio do Kof, não de tela.
+As três telas cuja falha era uma AMOSTRA DE COR (`Jobs`, `CommunityMembers`, `Mentoring`) tiveram
+exatamente essas asserções removidas e agora afirmam só TEXTO/GEOMETRIA, cada uma com o motivo no lugar:
+com a forma do §1197 (`ATUALIZAÇÃO 12`: o segundo `fillRect` depois de uma troca de cor não pinta) nenhuma
+amostra de cor dessas telas seria prova de nada, e a regra da lane é "nenhum teste afirma cor amostrada".
+As cores seguem rastreadas até o `Tokens` nos próprios pintores.
+
+Também nesta rodada: as três asserções de largura que prendiam o avanço da fonte ANTIGA (ExtraLight)
+foram remedidas na Manrope Regular do site — `PostActions.btn12=49`, `Mentoring.t_w=786`,
+`Moderacao` com a descrição dobrando em 2 linhas (`796px > 768`) e `tela=365` (era 345).
+
+NOTA para a próxima lane: 26 arquivos de teste do app ainda chamam `readPixel`; 15 deles têm asserções
+de cor amostrada que PASSAM hoje porque as formas envolvidas por acaso funcionam (o defeito do §1197
+depende da forma). Passam pelo motivo errado e vão virar se a ordem de chamadas do pintor mudar.
+São candidatos ao mesmo tratamento quando o §1197 for corrigido — não antes, para a superfície de
+regressão continuar honesta.

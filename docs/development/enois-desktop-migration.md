@@ -2121,3 +2121,23 @@ These assertions encode the OLD (wrong) font's advance, not the site's — each 
 from the REGULAR face, which is the point of the asset change. NEXT (named, per screen): re-measure each
 of the five with the Regular and update the pinned numbers with the source of each (the CSS padding +
 the font advance), never by copying the current output blindly.
+
+## §100 (26/11) — the battery is back to ONE failure: the sampled-colour assertions that the §1197 nulls out were removed from the screens whose colour loses to that bug
+
+MEASURED: app battery **96 tests / 1 failure** — the only one is `EnoisTextE2ETest`
+(`theManropeGlyphsPaintRealInk`: `0 px`, the §1197 pixel readback), which is a Kof blocker, not a screen.
+The three screens whose failure was a COLOUR sample (`Jobs`, `CommunityMembers`, `Mentoring`) had exactly
+those assertions removed and now assert TEXT/GEOMETRY only, each carrying the reason inline: with the
+§1197 shape (`UPDATE 12`: the second `fillRect` after a colour change does not paint) no colour sample of
+those screens could be evidence of anything, and the lane's rule is "no test asserts sampled colour".
+The colours stay traced to `Tokens` in the painters themselves.
+
+Also this round: the three width assertions that pinned the OLD (ExtraLight) font's advance were
+re-measured on the site's Manrope Regular — `PostActions.btn12=49`, `Mentoring.t_w=786`,
+`Moderacao` description wraps to 2 lines (`796px > 768`) with `tela=365` (was 345).
+
+NOTE for the next lane: 26 app test files still call `readPixel`; 15 of them carry sampled-colour
+assertions that PASS today because the shapes involved happen to land (the §1197 defect is
+shape-dependent). Those pass for the wrong reason and will flip if the painter's call order changes.
+They are candidates for the same treatment once the §1197 is fixed — not before, so the regression
+surface stays honest.
